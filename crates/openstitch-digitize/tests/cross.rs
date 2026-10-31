@@ -4,7 +4,7 @@ use common::*;
 use openstitch_core::Command;
 use openstitch_design::{Compiler, Design, DesignPage};
 use openstitch_digitize::cross::{self, CrossStitch, CrossType};
-use openstitch_digitize::{DigitizeError, Frame};
+use openstitch_digitize::{DigitizeError, Frame, Mode, Raster};
 
 #[test]
 fn grid_cells_colours_and_crosses() {
@@ -332,4 +332,224 @@ fn cells_are_six_diagonal_stitches_as_pe_design_sews_them() {
         }
     }
     assert_eq!((fulls, halves), (2 * cells, 4 * cells));
+}
+
+fn open_stitch(cell_mm: f64, colors: usize) -> CrossStitch {
+    CrossStitch {
+        cell_mm,
+        colors,
+        mode: Mode::OpenStitch,
+        ..Default::default()
+    }
+}
+
+/// B16.1 T14: OpenStitch mode colours a cell by its mean colour in CIELAB. A cell of fine black
+/// and white checks is grey to the eye: PE-DESIGN mode's vote makes it black or white, the
+/// mean makes it the image's grey.
+#[test]
+fn open_stitch_cells_take_their_mean_colour() {
+    const GREY: [u8; 4] = [119, 119, 119, 255];
+    // 40×20 px at 0.5 mm/px: left half 1-pixel checks, right half grey; 5 mm cells.
+    let img = Raster::from_fn(40, 20, |x, y| {
+        if x >= 20 {
+            GREY
+        } else if (x + y) % 2 == 0 {
+            BLACK
+        } else {
+            WHITE
+        }
+    })
+    .expect("valid size");
+    let frame = Frame::new(0.0, 0.0, 20.0, 40);
+    let p = CrossStitch {
+        skip_background: false,
+        ..open_stitch(5.0, 3)
+    };
+    let os = cross::convert(&img, &frame, &p).expect("converts");
+    assert_eq!(os.threads.len(), 1, "{:?}", os.threads);
+    let g = &os.threads[0];
+    assert!((90..150).contains(&g.red) && g.red == g.green, "{g:?}");
+    let pe = cross::convert(
+        &img,
+        &frame,
+        &CrossStitch {
+            mode: Mode::PeDesign,
+            ..p
+        },
+    )
+    .expect("converts");
+    assert!(pe.threads.len() > 1, "{:?}", pe.threads);
+}
+
+/// B16.1 T14: filled crosses cover each cell with parallel diagonals in both directions, stay
+/// inside their run, sew no stitch under 1 mm or over the longest allowed, and keep within
+/// the needle-point budget.
+#[test]
+fn open_stitch_fills_the_cells() {
+    // 40×20 px at 0.5 mm/px = 20×10 mm → 8×4 cells of 2.5 mm; red covers cells 1–5 of row 1.
+    let img = rects(40, 20, WHITE, &[(5, 5, 30, 10, RED)]);
+    let frame = Frame::new(0.0, 0.0, 20.0, 40);
+    let out = cross::convert(&img, &frame, &open_stitch(2.5, 2)).expect("converts");
+    assert_eq!(out.cells, vec![5]);
+    let red = out.objects[0].stitch_block.as_ref().expect("block");
+    let s = &red.stitches;
+    assert_eq!(s[0].command, Command::Jump);
+    assert_eq!(
+        s.iter().filter(|s| s.command == Command::Jump).count(),
+        1,
+        "one run, one jump"
+    );
+    for p in s {
+        assert!(
+            (25.0 - 1e-9..=150.0 + 1e-9).contains(&p.x)
+                && (25.0 - 1e-9..=50.0 + 1e-9).contains(&p.y),
+            "{p:?}"
+        );
+    }
+    let mut slopes = (0usize, 0usize);
+    for w in s.windows(2).skip(1) {
+        let (dx, dy) = (w[1].x - w[0].x, w[1].y - w[0].y);
+        let len = (dx * dx + dy * dy).sqrt();
+        assert!(
+            (cross::MIN_STITCH_MM * 10.0 - 1e-9..=10.0 * cross::FILL_MAX_STITCH_MM).contains(&len),
+            "{w:?}"
+        );
+        // Whole diagonals of the zigzags: "\" and "/" about equally often.
+        if (dx.abs() - dy.abs()).abs() < 1e-9 && (dx.abs() - 25.0).abs() < 1e-9 {
+            if dx * dy > 0.0 {
+                slopes.0 += 1;
+            } else {
+                slopes.1 += 1;
+            }
+        }
+    }
+    assert!(
+        slopes.0.min(slopes.1) >= 15 && slopes.0.abs_diff(slopes.1) <= 2,
+        "{slopes:?}"
+    );
+    // Six lines per cell and direction at 2.5 mm, if the budget allows: at most 2 needle
+    // points per mm² of the run's 31.25 mm².
+    assert_eq!(cross::fill_lines(2.5), (6, 1));
+    assert!(
+        s.len() as f64 <= cross::FILL_MAX_DENSITY * 31.25,
+        "{}",
+        s.len()
+    );
+    // Deterministic.
+    assert_eq!(
+        out,
+        cross::convert(&img, &frame, &open_stitch(2.5, 2)).expect("converts")
+    );
+}
+
+/// B16.1 T14: lines get fewer where the density budget runs out, never below one each way;
+/// long diagonals are split; half crosses sew one direction; `fill: false` sews PE-DESIGN's
+/// crosses on the mean-colour cells.
+#[test]
+fn open_stitch_fill_limits_and_options() {
+    assert_eq!(cross::fill_lines(1.0), (3, 1));
+    // A 10 mm diagonal is 14.1 mm: three stitches of 4.7 mm.
+    assert_eq!(cross::fill_lines(10.0).1, 3);
+    let img = rects(10, 10, WHITE, &[(0, 0, 5, 5, BLACK)]);
+    let frame = Frame::new(0.0, 0.0, 10.0, 10);
+    // One 1 mm cell: the budget (2 points) leaves one line each way.
+    let one = rects(20, 20, WHITE, &[(0, 0, 2, 2, BLACK)]);
+    let tiny = cross::convert(&one, &Frame::new(0.0, 0.0, 10.0, 20), &open_stitch(1.0, 2))
+        .expect("converts");
+    let block = tiny.objects[0].stitch_block.as_ref().expect("block");
+    assert!(block.stitches.len() <= 6, "{:?}", block.stitches);
+    for (kind, lo) in [(CrossType::Full, 2), (CrossType::Half, 1)] {
+        let out = cross::convert(
+            &img,
+            &frame,
+            &CrossStitch {
+                kind,
+                ..open_stitch(5.0, 2)
+            },
+        )
+        .expect("converts");
+        let s = &out.objects[0]
+            .stitch_block
+            .as_ref()
+            .expect("block")
+            .stitches;
+        let (mut down, mut up) = (0, 0);
+        for w in s.windows(2).skip(1) {
+            let (dx, dy) = (w[1].x - w[0].x, w[1].y - w[0].y);
+            if dx * dy > 0.0 {
+                down += 1;
+            } else if dx * dy < 0.0 {
+                up += 1;
+            }
+            assert!(dx.hypot(dy) <= 10.0 * cross::FILL_MAX_STITCH_MM + 1e-9);
+        }
+        let dirs = usize::from(down > 3) + usize::from(up > 3);
+        assert_eq!(dirs, lo, "{kind:?}: {down} \\, {up} /");
+    }
+    let plain = cross::convert(
+        &img,
+        &frame,
+        &CrossStitch {
+            fill: false,
+            ..open_stitch(5.0, 2)
+        },
+    )
+    .expect("converts");
+    let pe = cross::convert(
+        &img,
+        &frame,
+        &CrossStitch {
+            cell_mm: 5.0,
+            colors: 2,
+            ..Default::default()
+        },
+    )
+    .expect("converts");
+    assert_eq!(plain.objects, pe.objects);
+}
+
+/// B16.1 T14: with `part_crosses`, a cell whose halves along a diagonal differ becomes two
+/// part-crosses: a red triangle on white sews red only above the diagonal (filled, or as a
+/// three-quarter cross without fill), and whole cells stay whole.
+#[test]
+fn open_stitch_part_crosses_split_cells_along_a_diagonal() {
+    // 50×30 px at 0.5 mm/px, 5 mm cells (10 px), 5×3 cells on white: cell (1, 1) red, cell
+    // (2, 1) red above its "/" diagonal.
+    let img = Raster::from_fn(50, 30, |x, y| {
+        let red = (10..20).contains(&y)
+            && ((10..20).contains(&x) || ((20..30).contains(&x) && (x - 20) + (y - 10) < 10));
+        if red { RED } else { WHITE }
+    })
+    .expect("valid size");
+    let frame = Frame::new(0.0, 0.0, 25.0, 50);
+    let p = CrossStitch {
+        part_crosses: true,
+        ..open_stitch(5.0, 2)
+    };
+    // Cell (2, 1) spans 100..150 × 50..100 in design units; above "/": (x − 100) + (y − 50) ≤ 50.
+    let above = |x: f64, y: f64| (x - 100.0) + (y - 50.0) <= 50.0 + 1e-6;
+    for fill in [true, false] {
+        let out =
+            cross::convert(&img, &frame, &CrossStitch { fill, ..p.clone() }).expect("converts");
+        assert_eq!(out.cells, vec![2], "fill {fill}");
+        let red = &out.objects[0]
+            .stitch_block
+            .as_ref()
+            .expect("block")
+            .stitches;
+        let in_cell: Vec<_> = red.iter().filter(|s| s.x > 100.0 + 1e-9).collect();
+        assert!(!in_cell.is_empty(), "fill {fill}");
+        for s in in_cell {
+            assert!(above(s.x, s.y), "fill {fill}: {s:?}");
+        }
+    }
+    // Off by default: the half-red cell is a whole cross of one thread or none.
+    let whole = cross::convert(&img, &frame, &open_stitch(5.0, 2)).expect("converts");
+    let red = &whole.objects[0]
+        .stitch_block
+        .as_ref()
+        .expect("block")
+        .stitches;
+    let below = red.iter().any(|s| s.x > 100.0 + 1e-9 && !above(s.x, s.y));
+    assert_eq!(whole.cells, vec![if below { 2 } else { 1 }]);
 }

@@ -73,6 +73,57 @@ fn conversions_add_objects_in_one_undo_step() {
     assert_eq!(r["columns"], json!(30));
     assert_eq!(r["rows"], json!(20));
     assert!(r["ids"].as_array().expect("ids").len() >= 3);
+    // OpenStitch mode: the same grid, its cells filled with many more needle points.
+    let count = |s: &Session, ids: &Value| -> usize {
+        ids.as_array()
+            .expect("ids")
+            .iter()
+            .filter_map(|id| {
+                let id = id.as_u64().expect("id");
+                s.design().objects.iter().find(|o| o.id == id)
+            })
+            .filter_map(|o| o.stitch_block.as_ref())
+            .map(|b| b.stitches.len())
+            .sum()
+    };
+    let pe = count(&s, &r["ids"]);
+    let os = run(
+        &mut s,
+        "digitize.crossStitch",
+        json!({"path": "sample.png", "cellSize": 2, "width": 60, "compatMode": "openStitch"}),
+    );
+    assert_eq!(
+        (os["columns"].clone(), os["rows"].clone()),
+        (json!(30), json!(20))
+    );
+    assert!(count(&s, &os["ids"]) > pe, "filled crosses");
+    let plain = run(
+        &mut s,
+        "digitize.crossStitch",
+        json!({"path": "sample.png", "cellSize": 2, "width": 60, "compatMode": "openStitch", "fill": false}),
+    );
+    // Without fill: PE-DESIGN's crosses, every needle point a cell corner or centre (1 mm
+    // apart on 2 mm cells), where filled crosses also step between them.
+    let on_half_cells = |s: &Session, ids: &Value| -> bool {
+        let pts: Vec<(f64, f64)> = ids
+            .as_array()
+            .expect("ids")
+            .iter()
+            .filter_map(|id| {
+                let id = id.as_u64().expect("id");
+                s.design().objects.iter().find(|o| o.id == id)
+            })
+            .filter_map(|o| o.stitch_block.as_ref())
+            .flat_map(|b| b.stitches.iter().map(|p| (p.x, p.y)))
+            .collect();
+        let (x0, y0) = pts[0];
+        pts.iter().all(|&(x, y)| {
+            let (u, v) = ((x - x0) / 10.0, (y - y0) / 10.0);
+            (u - u.round()).abs() < 1e-6 && (v - v.round()).abs() < 1e-6
+        })
+    };
+    assert!(on_half_cells(&s, &plain["ids"]));
+    assert!(!on_half_cells(&s, &os["ids"]));
 
     let r = run(
         &mut s,
@@ -222,6 +273,14 @@ fn bad_digitize_parameters_fail_cleanly() {
         (
             "digitize.crossStitch",
             json!({"path": "sample.png", "type": "triple"}),
+        ),
+        (
+            "digitize.crossStitch",
+            json!({"path": "sample.png", "compatMode": "pe"}),
+        ),
+        (
+            "digitize.crossStitch",
+            json!({"path": "sample.png", "fill": "yes"}),
         ),
         (
             "digitize.crossStitch",
