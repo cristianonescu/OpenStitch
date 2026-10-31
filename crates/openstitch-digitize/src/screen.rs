@@ -104,7 +104,11 @@ impl Shares {
             if let Some((_, s)) = cache.iter().find(|(c, _)| *c == rgb) {
                 return s.clone();
             }
-            let m = mix(lin(rgb.map(f64::from)), &lthreads, lfabric);
+            let m = if linear {
+                mix_near(lin(rgb.map(f64::from)), &lthreads, lfabric, std::env::var("OS_NEAR").ok().and_then(|v| v.parse().ok()).unwrap_or(NEAR))
+            } else {
+                mix(lin(rgb.map(f64::from)), &lthreads, lfabric)
+            };
             // PE-DESIGN's full coverage for saturated colours is its own habit; OpenStitch
             // mode keeps the mix as solved.
             let s = if linear { m } else { saturate(rgb, m, threads) };
@@ -158,6 +162,50 @@ impl Shares {
             cell: width / cols as f64,
             threads,
             share,
+        }
+    }
+
+    /// OpenStitch mode (B16.1 T13): turns each cell's visible shares (what [`Shares::colour_in`]
+    /// solves: the part of the cell each thread shows) into each layer's coverage, given the
+    /// sewing `order`. A thread sewn later lies on top, so a layer covering `c` of the cell
+    /// shows only where no later layer covers it: from the last layer down,
+    /// `c_k = v_k / Π_{j later} (1 − c_j)`. A layer nothing shows through is not sewn. Then the
+    /// needle points the layers' zigzags need (see [`Screen::coverage`]) are held to
+    /// `cap` per mm², shrinking the cell's zigzag coverage in proportion where they exceed it.
+    pub fn unlayer(&mut self, order: &[usize], s: &Screen, cap: f64) {
+        let (cover, interval, run) = (s.cover(), s.interval / 10.0, s.run / 10.0);
+        let mut dbg_n = 0;
+        for cell in self.share.iter_mut().flatten() {
+            let mut rem = 1.0;
+            let mut c = vec![0.0; cell.len()];
+            for &k in order.iter().rev() {
+                let v = cell.get(k).copied().unwrap_or(0.0);
+                c[k] = if rem > 1e-6 { (v / rem).min(1.0) } else { 0.0 };
+                rem *= 1.0 - c[k];
+            }
+            // Needle points per mm²: a zigzag stitch every `cover / c` along each line, lines
+            // `interval` apart; a straight run every `run` where a layer is not needed.
+            let (mut zig, mut straight) = (0.0, 0.0);
+            for &v in &c {
+                if v >= MIN_SHARE {
+                    zig += v / (cover / 10.0) / interval;
+                } else {
+                    straight += 1.0 / run / interval;
+                }
+            }
+            if zig > 0.0 && zig + straight > cap {
+                let f = ((cap - straight) / zig).max(0.0);
+                for v in &mut c {
+                    if *v >= MIN_SHARE {
+                        *v = (*v * f).max(MIN_SHARE);
+                    }
+                }
+            }
+            if std::env::var("OS_DBG").is_ok() && dbg_n < 6 {
+                eprintln!("DBG v {:?} -> c {:?} order {:?}", cell, c, order);
+                dbg_n += 1;
+            }
+            *cell = c;
         }
     }
 
@@ -248,6 +296,46 @@ pub fn mix(colour: [f64; 3], threads: &[[f64; 3]], fabric: [f64; 3]) -> Vec<f64>
     c
 }
 
+/// OpenStitch mode's [`mix`]: the same least squares plus `near · Σ c_t |thread_t − colour|²`
+/// (normalised like the colours), so of mixes that average to the colour the one from threads
+/// close to it wins: a light grey from a light thread and the fabric, not from orange and blue
+/// lines that average to grey but read as orange and blue.
+pub fn mix_near(colour: [f64; 3], threads: &[[f64; 3]], fabric: [f64; 3], near: f64) -> Vec<f64> {
+    let n = threads.len();
+    let a: Vec<[f64; 3]> = threads
+        .iter()
+        .map(|t| [0, 1, 2].map(|k| (t[k] - fabric[k]) / 255.0))
+        .collect();
+    let b = [0, 1, 2].map(|k| (colour[k] - fabric[k]) / 255.0);
+    let far: Vec<f64> = threads
+        .iter()
+        .map(|t| (0..3).map(|k| ((t[k] - colour[k]) / 255.0).powi(2)).sum::<f64>())
+        .collect();
+    let trace: f64 = a.iter().map(|v| v.iter().map(|x| x * x).sum::<f64>()).sum();
+    if trace <= 1e-12 {
+        return vec![0.0; n];
+    }
+    let step = 1.0 / trace;
+    let mut c = vec![0.0; n];
+    for _ in 0..300 {
+        let mut r = [0.0; 3];
+        for (ct, at) in c.iter().zip(&a) {
+            for k in 0..3 {
+                r[k] += ct * at[k];
+            }
+        }
+        for k in 0..3 {
+            r[k] -= b[k];
+        }
+        for ((ct, at), f) in c.iter_mut().zip(&a).zip(&far) {
+            let g: f64 = (0..3).map(|k| at[k] * r[k]).sum::<f64>() + 0.5 * near * f;
+            *ct = (*ct - step * g).max(0.0);
+        }
+        project_capped(&mut c);
+    }
+    c
+}
+
 /// Projects non-negative shares onto `Σ c ≤ 1` (onto the simplex when the sum exceeds 1).
 fn project_capped(c: &mut [f64]) {
     let sum: f64 = c.iter().sum();
@@ -278,7 +366,25 @@ pub struct Screen {
     pub run: f64,
     /// Max. Density, lines per mm.
     pub max_density: f64,
+    /// OpenStitch mode: shares are each layer's coverage ([`Shares::unlayer`]) and a zigzag's
+    /// stitches are spaced for it (`cover() / share` apart), instead of PE-DESIGN's Max. Density
+    /// ramp.
+    pub coverage: bool,
 }
+
+impl Screen {
+    /// Advance along the line, design units, at which a zigzag covers its whole band: each
+    /// stitch lays a [`THREAD_MM`]-wide thread across the zigzag's depth, over a band one
+    /// interval wide (a geometric model; #129's calibrated coverage waits for a sew-out).
+    pub fn cover(&self) -> f64 {
+        std::env::var("OS_COV").ok().and_then(|v| v.parse().ok()).unwrap_or(THREAD_MM) * 10.0 * DEPTH_SHARE
+    }
+}
+
+/// OpenStitch mode: weight of [`mix_near`]'s preference for threads near the colour.
+pub const NEAR: f64 = 0.3;
+/// Thread width, mm, for the coverage model.
+pub const THREAD_MM: f64 = 0.4;
 
 /// One thread's lines at `angle_deg`: serpentine over the image, one jump in (and one more after
 /// each stretch of transparency).
@@ -360,7 +466,11 @@ pub fn layer(shares: &Shares, t: usize, angle_deg: f64, frame: &Frame, s: &Scree
             }
             if share >= MIN_SHARE {
                 // Zigzag across the line, closer stitches for a higher share.
-                let advance = (full / share.min(1.0)).min(s.run);
+                let advance = if s.coverage {
+                    (s.cover() / share.min(1.0)).min(s.run)
+                } else {
+                    (full / share.min(1.0)).min(s.run)
+                };
                 walked += advance;
                 tau += dir * advance;
                 if walked > len {

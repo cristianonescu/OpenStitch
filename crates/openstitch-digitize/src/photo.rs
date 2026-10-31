@@ -135,6 +135,9 @@ pub const LINE_INTERVAL_MM: f64 = 2.0;
 pub const LINE_RUN_MM: f64 = 2.5;
 /// Photo Stitch 2's default Max. Density, lines per mm (PE-DESIGN 11.50).
 pub const MAX_DENSITY: f64 = 4.5;
+/// OpenStitch mode's Photo Stitch 2: most needle points per mm² the line screen sews in any
+/// cell (the owner's 2.1 per 10 × 10 mm window, less a margin).
+pub const LINE_DENSITY_CAP: f64 = 2.0;
 /// Photo Stitch 2's thread count with Color Set Auto Select (four on the round-4 capture).
 pub const LINE_COLORS: usize = 4;
 
@@ -287,16 +290,21 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
     let mut sewn_threads = Vec::new();
     let mut total = 0;
     // Lines: each thread's share of the local colour, on a fine grid over the image.
-    let screen = (p.style == PhotoStyle::Lines).then(|| {
+    let mut screen = (p.style == PhotoStyle::Lines).then(|| {
         let shares = if mono {
             crate::screen::Shares::mono(image, frame)
+        } else if linear {
+            // OpenStitch mode mixes the threads actually sewn, not the colours they stand for.
+            let colours: Vec<[f64; 3]> = threads.iter().map(rgb_f).collect();
+            crate::screen::Shares::colour_in(image, frame, &colours, fabric, true)
         } else {
-            crate::screen::Shares::colour_in(image, frame, &stands_for, fabric, linear)
+            crate::screen::Shares::colour_in(image, frame, &stands_for, fabric, false)
         };
         let settings = crate::screen::Screen {
             interval: p.row_spacing_mm.clamp(0.5, 10.0) * 10.0,
             run: p.stitch_mm.clamp(0.5, 7.0) * 10.0,
             max_density: p.max_density.clamp(0.5, 10.0),
+            coverage: linear,
         };
         (shares, settings)
     });
@@ -315,6 +323,13 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
         Some((shares, _)) => {
             order.sort_by(|&a, &b| shares.usage(b).total_cmp(&shares.usage(a)).then(a.cmp(&b)))
         }
+    }
+    // OpenStitch mode: the visible shares become each layer's coverage in this sewing order,
+    // within the needle cap.
+    if let Some((shares, settings)) = screen.as_mut()
+        && settings.coverage
+    {
+        shares.unlayer(&order, settings, std::env::var("OS_PCAP").ok().and_then(|v| v.parse().ok()).unwrap_or(LINE_DENSITY_CAP));
     }
     for (layer, &t) in order.iter().enumerate() {
         let stitches = match &screen {
