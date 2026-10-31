@@ -90,6 +90,9 @@ pub struct ImageWizard {
     /// Auto Punch and Photo Stitch 1 and 2 in colour: OpenStitch's improved method
     /// (`compatMode: openStitch`) instead of PE-DESIGN's.
     pub open_stitch: bool,
+    /// OpenStitch mode's High fidelity (`fidelity: high`): more colours by default and the
+    /// costlier passes; the dialog starts on Standard (the owner's choice, 2026-10-31).
+    pub high_fidelity: bool,
     // Auto Punch
     pub min_area: f64,
     pub satin_max: f64,
@@ -116,6 +119,7 @@ impl Default for ImageWizard {
             colors: Method::AutoPunch.default_colors(),
             skip_background: true,
             open_stitch: false,
+            high_fidelity: false,
             min_area: 1.0,
             satin_max: 6.0,
             curves: true,
@@ -130,7 +134,41 @@ impl Default for ImageWizard {
     }
 }
 
+/// Photo Stitch 1's default colour count at High fidelity (the engine's `HIGH_COLORS`).
+pub const HIGH_COLORS: u32 = 24;
+
 impl ImageWizard {
+    /// Whether the chosen conversion has an OpenStitch mode (and so a fidelity).
+    pub fn improvable(&self) -> bool {
+        self.method == Method::AutoPunch
+            || (matches!(self.method, Method::PhotoFill | Method::PhotoLines) && !self.mono)
+    }
+
+    /// Whether High fidelity applies: chosen, in OpenStitch mode, on a conversion that has it.
+    pub fn high(&self) -> bool {
+        self.high_fidelity && self.open_stitch && self.improvable()
+    }
+
+    /// The colour count the dialog starts from for the current settings:
+    /// [`Method::default_colors`], or [`HIGH_COLORS`] for Photo Stitch 1 at High fidelity.
+    pub fn colors_default(&self) -> u32 {
+        if self.method == Method::PhotoFill && self.high() {
+            HIGH_COLORS
+        } else {
+            self.method.default_colors()
+        }
+    }
+
+    /// Applies `change` to the settings; a colour count left at its default follows the new
+    /// default (Photo Stitch 1: 10 at Standard, 24 at High).
+    pub fn change(&mut self, change: impl FnOnce(&mut Self)) {
+        let before = self.colors_default();
+        change(self);
+        if self.colors == before {
+            self.colors = self.colors_default();
+        }
+    }
+
     /// The conversion command, or `None` until an image is chosen.
     pub fn request(&self) -> Option<CommandRequest> {
         let path = self.path.as_ref()?;
@@ -141,10 +179,11 @@ impl ImageWizard {
         }
         // 0 asks Auto Punch and Cross Stitch for the automatic count.
         let colors = json!(self.colors.min(64));
-        let improvable = self.method == Method::AutoPunch
-            || (matches!(self.method, Method::PhotoFill | Method::PhotoLines) && !self.mono);
-        if self.open_stitch && improvable {
+        if self.open_stitch && self.improvable() {
             p.insert("compatMode".into(), json!("openStitch"));
+        }
+        if self.high() {
+            p.insert("fidelity".into(), json!("high"));
         }
         let command = match self.method {
             Method::AutoPunch => {
@@ -326,5 +365,55 @@ mod tests {
                 .get("compatMode")
                 .is_none()
         );
+    }
+
+    /// Fidelity (B16.1): High is sent only in OpenStitch mode, and Photo Stitch 1's colour
+    /// count follows it while it is left at its default.
+    #[test]
+    fn fidelity_round_trips_and_moves_the_default_colours() {
+        let mut w = ImageWizard {
+            path: Some("a.png".into()),
+            method: Method::PhotoFill,
+            colors: Method::PhotoFill.default_colors(),
+            ..Default::default()
+        };
+        assert!(!w.high_fidelity, "the dialog starts on Standard");
+        w.change(|w| w.high_fidelity = true);
+        assert_eq!(w.colors, 10, "PE-DESIGN mode has no fidelity");
+        assert!(
+            w.request()
+                .expect("request")
+                .params
+                .get("fidelity")
+                .is_none()
+        );
+        w.change(|w| w.open_stitch = true);
+        assert_eq!(w.colors, HIGH_COLORS);
+        let r = w.request().expect("request");
+        assert_eq!(r.params["fidelity"], "high");
+        assert_eq!(r.params["compatMode"], "openStitch");
+        assert_eq!(r.params["colors"], 24);
+        w.change(|w| w.high_fidelity = false);
+        assert_eq!(w.colors, 10, "back to Standard's default");
+        assert!(
+            w.request()
+                .expect("request")
+                .params
+                .get("fidelity")
+                .is_none()
+        );
+        // A count the user chose is kept.
+        w.colors = 7;
+        w.change(|w| w.high_fidelity = true);
+        assert_eq!(w.colors, 7);
+        // Auto Punch keeps its automatic count; the engine raises its ceiling.
+        let mut ap = ImageWizard {
+            method: Method::AutoPunch,
+            colors: 0,
+            ..w
+        };
+        ap.change(|w| w.high_fidelity = true);
+        assert_eq!(ap.colors, 0);
+        assert_eq!(ap.request().expect("request").params["fidelity"], "high");
     }
 }

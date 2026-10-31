@@ -11,7 +11,7 @@
 use crate::palette::{self, Census, Palette};
 use crate::raster::{Frame, Raster};
 use crate::regions::{self, NONE, TraceOptions};
-use crate::{DigitizeError, Mode};
+use crate::{DigitizeError, Fidelity, Mode};
 use openstitch_core::Thread;
 use openstitch_design::fmath::Det;
 use openstitch_design::{DesignObject, RegionSewing, RegionType};
@@ -44,6 +44,9 @@ pub struct AutoPunch {
     /// PE-DESIGN's colour reduction, or OpenStitch's perceptual one
     /// ([`Palette::from_census_perceptual`]).
     pub mode: Mode,
+    /// OpenStitch mode's fidelity: High lets the automatic colour count reach
+    /// [`crate::HIGH_COLORS`]. PE-DESIGN mode ignores it.
+    pub fidelity: Fidelity,
 }
 
 impl Default for AutoPunch {
@@ -58,6 +61,7 @@ impl Default for AutoPunch {
             satin_min_mm: 0.7,
             skip_background: true,
             mode: Mode::PeDesign,
+            fidelity: Fidelity::Standard,
         }
     }
 }
@@ -186,7 +190,10 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
         ));
     }
     let colors = match p.colors {
-        0 => census.auto_colors(),
+        0 => match p.mode {
+            Mode::PeDesign => census.auto_colors(),
+            Mode::OpenStitch => census.auto_colors_up_to(p.fidelity.auto_max()),
+        },
         n => n.min(64),
     };
     let palette = match p.mode {

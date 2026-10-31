@@ -74,12 +74,18 @@ impl Census {
     /// the tracked colours holding at least [`AUTO_SHARE`] of the opaque pixels, at least 1 and
     /// at most [`AUTO_MAX`].
     pub fn auto_colors(&self) -> usize {
+        self.auto_colors_up_to(AUTO_MAX)
+    }
+
+    /// [`Census::auto_colors`] with another ceiling than [`AUTO_MAX`] (OpenStitch mode's High
+    /// fidelity, [`crate::Fidelity::auto_max`]).
+    pub fn auto_colors_up_to(&self, max: usize) -> usize {
         let total = self.pixels() as f64;
         self.colors
             .iter()
             .filter(|c| c.1 as f64 >= total * AUTO_SHARE)
             .count()
-            .clamp(1, AUTO_MAX)
+            .clamp(1, max.max(1))
     }
 }
 
