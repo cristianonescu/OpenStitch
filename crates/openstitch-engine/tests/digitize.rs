@@ -142,6 +142,40 @@ fn conversions_add_objects_in_one_undo_step() {
 }
 
 #[test]
+fn auto_punch_open_stitch_mode_works_at_800_pixels() {
+    // 1600 px wide: a 4 px dark line under a red block. OpenStitch mode's defaults are an
+    // 800 px working raster and a 2 mm² region floor; at PE-DESIGN mode's 400 px the line is
+    // one working pixel wide, and the census's 3×3 modal filter removes it.
+    let dir = temp_dir();
+    let img = Raster::from_fn(1600, 400, |x, y| {
+        if (100..1500).contains(&x) && (200..204).contains(&y) {
+            [20, 20, 20, 255]
+        } else if (400..1200).contains(&x) && (40..160).contains(&y) {
+            [220, 20, 30, 255]
+        } else {
+            [255, 255, 255, 255]
+        }
+    })
+    .expect("size");
+    std::fs::write(dir.join("line.png"), img.encode_png().expect("png")).expect("write");
+    let mut s = Session::new(&dir);
+    let mut convert = |extra: Value| {
+        run(&mut s, "design.new", json!({"width": 130, "height": 50}));
+        let mut p =
+            json!({"path": "line.png", "width": 120, "colors": 3, "compatMode": "openStitch"});
+        for (k, v) in extra.as_object().expect("object") {
+            p[k] = v.clone();
+        }
+        let r = run(&mut s, "digitize.autoPunch", p);
+        (r["regions"].clone(), r["colors"].clone())
+    };
+    let defaults = convert(json!({}));
+    assert_eq!(defaults.0, json!(2), "the block and the line: {defaults:?}");
+    assert_eq!(defaults, convert(json!({"resolution": 800, "minArea": 2})));
+    assert_eq!(convert(json!({"resolution": 400})).0, json!(1));
+}
+
+#[test]
 fn design_center_stages() {
     let dir = temp_dir();
     write_sample(&dir);

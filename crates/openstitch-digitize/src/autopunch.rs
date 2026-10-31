@@ -8,7 +8,8 @@
 //! the modal census, the `max(4, round(param · 100 / mmPerPx²))` small-region floor at
 //! 4-connectivity and a centerline-thinness satin test); the algorithm is this project's own.
 
-use crate::palette::{self, Census, Palette};
+use crate::palette::{self, Census, Palette, Rgb};
+use crate::perceptual;
 use crate::raster::{Frame, Raster};
 use crate::regions::{self, NONE, TraceOptions};
 use crate::{DigitizeError, Fidelity, Mode};
@@ -41,6 +42,10 @@ pub struct AutoPunch {
     pub satin_min_mm: f64,
     /// Leave out the colour covering most of the image border (the background).
     pub skip_background: bool,
+    /// OpenStitch mode, with `skip_background`: the fabric colour. The background is then left
+    /// out only when it is the fabric's colour (within [`FABRIC_DE`]); any other background is
+    /// part of the picture, and is sewn. `None` leaves the background out whatever its colour.
+    pub fabric: Option<Rgb>,
     /// PE-DESIGN's colour reduction, or OpenStitch's perceptual one
     /// ([`Palette::from_census_perceptual`]).
     pub mode: Mode,
@@ -63,6 +68,7 @@ impl Default for AutoPunch {
             satin_max_mm: 6.5,
             satin_min_mm: 0.7,
             skip_background: true,
+            fabric: None,
             mode: Mode::PeDesign,
             threads: Vec::new(),
             fidelity: Fidelity::Standard,
@@ -179,9 +185,22 @@ pub fn border_majority(labels: &[u16], w: usize, h: usize) -> Option<u16> {
 /// width (area over its longest side) is at most this, mm, and it is at least twice as long.
 pub const LINE_WIDTH_MM: f64 = 0.5;
 
-/// OpenStitch mode treats an image as line art when the background it leaves out covers at
-/// least this share of the opaque pixels (the mandala about 0.9; photos and paintings far less).
+/// OpenStitch mode's rows per mm in fills and satins: the sparsest that still covers the
+/// fabric with OpenStitch's fill (fewer rows leave gaps a thread wide).
+pub const OPEN_STITCH_DENSITY: f64 = 4.5;
+
+/// OpenStitch mode's longest fill stitch, mm: long enough to keep a fill near 0.7 needle
+/// points per mm² inside, short of the 7 mm sewability limit.
+pub const OPEN_STITCH_FILL_STITCH_MM: f64 = 6.5;
+
+/// OpenStitch mode treats an image as line art when the border's colour (the background, left
+/// out or sewn) covers at least this share of the opaque pixels (the mandala about 0.9; photos and paintings far less).
 pub const LINE_ART_SHARE: f64 = 0.75;
+
+/// OpenStitch mode with a fabric colour ([`AutoPunch::fabric`]) leaves the background (the
+/// border's majority colour) out only when it is within this CIEDE2000 of the fabric: that is
+/// the fabric showing. A sky, a cream card or any other coloured background is sewn.
+pub const FABRIC_DE: f64 = 5.0;
 
 pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted, DigitizeError> {
     let work = image.fit_mode(p.resolution.clamp(16, 2048));
@@ -205,6 +224,8 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
         Mode::OpenStitch => Palette::from_census_perceptual_in(&census, colors, &p.threads),
     };
     let mut labels = label(&census, &palette);
+    // OpenStitch mode: pixels of the border's majority colour, sewn or not.
+    let mut border_pixels = 0;
     let background = match (p.skip_background, p.mode) {
         (false, _) => None,
         (true, Mode::PeDesign) => {
@@ -229,6 +250,17 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                 .collect();
             let bg = border_majority(&means, w, h);
             if let Some(bg) = bg {
+                border_pixels = means.iter().filter(|&&m| m == bg).count();
+            }
+            // With a fabric colour, a background of another colour is part of the picture, and
+            // is sewn.
+            let bg = bg.filter(|&m| {
+                p.fabric.is_none_or(|f| {
+                    let bg = perceptual::lab(palette.means[m as usize]);
+                    perceptual::de2000(bg, perceptual::lab(f)) <= FABRIC_DE
+                })
+            });
+            if let Some(bg) = bg {
                 for (l, m) in labels.iter_mut().zip(&means) {
                     if *m == bg {
                         *l = NONE;
@@ -245,14 +277,12 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
     match p.mode {
         Mode::PeDesign => regions::merge_small(&mut labels, w, h, floor + 1),
         Mode::OpenStitch => {
-            // On line art (the left-out background covers at least [`LINE_ART_SHARE`] of the
+            // On line art (the background colour covers at least [`LINE_ART_SHARE`] of the
             // image) only compact specks merge: a small region whose mean width (area over its
             // longest side) is at most [`LINE_WIDTH_MM`] is a piece of a line, and stays. On
             // photos and paintings such slivers are edge shades, and merge.
             let opaque = census.modal.iter().filter(|m| m.is_some()).count().max(1);
-            let left_out = labels.iter().filter(|&&l| l == NONE).count()
-                - census.modal.iter().filter(|m| m.is_none()).count();
-            let line_art = left_out as f64 >= LINE_ART_SHARE * opaque as f64;
+            let line_art = border_pixels as f64 >= LINE_ART_SHARE * opaque as f64;
             let mm = frame.mm_per_px();
             regions::merge_small_except(&mut labels, w, h, floor + 1, |k| {
                 let long = (k.x1 - k.x0).max(k.y1 - k.y0) as f64 * mm;
@@ -333,6 +363,14 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
             // counter-clockwise on screen, as PE-DESIGN gives them.
             if satin {
                 region.auto_direction = true;
+                region.underlay = false;
+            }
+            if p.mode == Mode::OpenStitch {
+                // OpenStitch mode sews one covering layer and no more needle points than it
+                // needs (owner, 2026-10-31: a normal single-layer fill is within the density
+                // limits): rows at 4.5 per mm, fill stitches up to 6.5 mm, no under sewing.
+                region.density = OPEN_STITCH_DENSITY;
+                region.stitch_length = OPEN_STITCH_FILL_STITCH_MM;
                 region.underlay = false;
             }
             region.angle = if satin {

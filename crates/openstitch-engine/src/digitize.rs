@@ -244,12 +244,12 @@ pub fn commands() -> Vec<CommandSpec> {
                 opt(
                     "resolution",
                     "int 64-2048",
-                    "Working resolution, longest side in pixels (default 400)",
+                    "Working resolution, longest side in pixels (default 400; 800 in OpenStitch mode)",
                 ),
                 opt(
                     "minArea",
                     "mm",
-                    "Small-region parameter, mm²: regions of at most max(4, round(minArea / mmPerPx²)) pixels merge into a neighbour (default 1; 3 in OpenStitch mode)",
+                    "Small-region parameter, mm²: regions of at most max(4, round(minArea / mmPerPx²)) pixels merge into a neighbour (default 1; 2 in OpenStitch mode)",
                 ),
                 opt(
                     "smooth",
@@ -279,12 +279,17 @@ pub fn commands() -> Vec<CommandSpec> {
                 opt(
                     "skipBackground",
                     "bool",
-                    "Leave out the colour covering most of the border (default true)",
+                    "Leave out the colour covering most of the border (default true). OpenStitch mode without this parameter: the background is sewn as part of the picture unless it is the fabric's colour (within ΔE00 5); true leaves it out, false sews it whatever its colour",
+                ),
+                opt(
+                    "fabric",
+                    "color",
+                    "OpenStitch mode without skipBackground: the fabric colour the background is compared with, \"#rrggbb\", a PEC chart name or number (default white)",
                 ),
                 opt(
                     "compatMode",
                     "peDesign|openStitch",
-                    "peDesign: as PE-DESIGN 11.50 (default); openStitch: colours reduced and matched to threads by appearance (CIELAB k-means, CIEDE2000), regions under 3 mm² merged (docs/research/beyond/image-digitizing.md)",
+                    "peDesign: as PE-DESIGN 11.50 (default); openStitch: colours reduced and matched to threads by appearance (CIELAB k-means, CIEDE2000), an 800 px working raster, regions under 2 mm² merged (docs/research/beyond/image-digitizing.md)",
                 ),
                 fidelity_doc(),
             ]
@@ -294,15 +299,16 @@ pub fn commands() -> Vec<CommandSpec> {
             |s, p| {
                 let (image, frame) = load(s, p)?;
                 let mode = compat_mode(p)?;
-                // OpenStitch mode also cleans up: specks under 3 mm² merge, unless the caller
-                // sets the area.
-                let min_area = match mode {
-                    Mode::PeDesign => 1.0,
-                    Mode::OpenStitch => 3.0,
+                // OpenStitch mode works at 800 px, so thin lines and small details keep their
+                // shape, and merges regions under 2 mm², so no speck is sewn (B16.1 T11), unless
+                // the caller sets them.
+                let (resolution, min_area) = match mode {
+                    Mode::PeDesign => (400, 1.0),
+                    Mode::OpenStitch => (800, 2.0),
                 };
-                let options = AutoPunch {
+                let mut options = AutoPunch {
                     colors: count(p, "colors", AutoPunch::default().colors as i64, 0, 64)?,
-                    resolution: count(p, "resolution", 400, 64, 2048)? as u32,
+                    resolution: count(p, "resolution", resolution, 64, 2048)? as u32,
                     min_area_mm2: p.opt("minArea", min_area, 0.0, 1000.0)?,
                     smooth: count(p, "smooth", 0, 0, 5)? as u32,
                     trace: trace_options(p, 0.7)?,
@@ -312,7 +318,14 @@ pub fn commands() -> Vec<CommandSpec> {
                     mode,
                     threads: thread_source(s, p, mode)?,
                     fidelity: fidelity(p, mode)?,
+                    ..AutoPunch::default()
                 };
+                // OpenStitch mode sews anything in the picture: without skipBackground, only a
+                // background of the fabric's colour is left out.
+                if mode == Mode::OpenStitch && p.get("skipBackground").is_none() {
+                    let f = thread(p, "fabric")?.unwrap_or(Thread::rgb(0xffffff));
+                    options.fabric = Some([f.red, f.green, f.blue]);
+                }
                 let out = autopunch::convert(&image, &frame, &options).map_err(|e| failed(p, e))?;
                 let regions = out.objects.len();
                 let buy = to_buy(s, p, &out.threads)?;
