@@ -319,7 +319,7 @@ captures must not change.
 
 | Task | Crates | Expected gain | Risk | Validation |
 |---|---|---|---|---|
-| T13 least-squares shares and T4 threads, 4–6 threads | `screen.rs`, `photo.rs` | +10 to +20 | medium: line screen look must stay | PS2 photo mean ≥ 75 |
+| T13 least-squares shares and T4 threads, 4–6 threads | `screen.rs`, `photo.rs` | +10 to +20 | medium: line screen look must stay | above PE-DESIGN-compatible mode on every photo, at a design mean ≤ 3.3 points/mm² (the ≥ 75 target was dropped on 2026-10-31, see section 8) |
 | Coverage model calibrated on the T1 card (#129) | `screen.rs` | +2 to +5 | needs the sew-out | the card's measured coverage per density within 10 % |
 
 ### Phase 3 — Photo Stitch 1 (High fidelity, 85 % firm target)
@@ -363,14 +363,14 @@ plus any added ones.
 | Auto Punch | logos, clip art, lettering (g01, g05, g08, g15) | High | **≥ 95 %** each | 84–90 | 95–96 with all brands |
 | Auto Punch | painted, watercolour, mosaic, noisy (g06, g13, p03, d01) | High | ≥ 85 % | 69–83 | 80–93 |
 | Photo Stitch 1 | photos (p01, p03–p07, p10, p11) | High | **≥ 85 % (firm)** | 46–76 | 75–79 measured at the cap; 95+ unconstrained |
-| Photo Stitch 2 | photos | High | ≥ 75 % | 41–52 | 74–80 |
+| Photo Stitch 2 | photos | High | no fixed target (≥ 75 % dropped 2026-10-31): above PE-DESIGN-compatible mode on every photo | 41–52 | 74–80 for dithered fills; about 48 with the line look kept (measured 2026-10-31) |
 | Cross Stitch | photos | High | ≥ 75 % | 31–34 | 75 (2.5 mm) – 84 (1.5 mm) |
 | Cross Stitch | pixel art, clip art | High | ≥ 90 % | 48–67 | 87–91 |
 | Design Center | line art (g03, g04) | High | ≥ 95 % | not measured | not measured |
 | All | all | Standard | ≥ PE-DESIGN-compatible mode's score on every image | – | – |
 
 **Every result also passes the sewability gate.** No sewing error of any kind is permitted (owner, interview question 9). The gate:
-- needle points ≤ 2.1 per mm² over any 10 × 10 mm window, at both levels (owner);
+- needle points ≤ 2.1 per mm² as the mean over the design and ≤ 3.0 in any 10 × 10 mm window, at both levels, trim tie-ins counted (owner, 2026-10-31). Photo Stitch 2 is the exception: a design mean ≤ 3.3 (PE-DESIGN's own Photo Stitch 2 level) and no window denser than PE-DESIGN-compatible mode's densest on the same image;
 - no stitch shorter than 1.0 mm or longer than 7 mm;
 - at most two thread layers anywhere;
 - every jump over 7 mm trimmed;
@@ -380,13 +380,33 @@ plus any added ones.
 
 **Determinism gate:** identical stitch output hashes on macOS, Linux and Windows for every case.
 
+### Owner decisions after the plan (2026-10-31)
+
+Made while Phase 0–5 were implemented; they change the targets and gates above where they differ.
+
+- **Density:** the cap is a design mean of 2.1 needle points/mm² with no 10 × 10 mm window above
+  3.0, for every image tool's OpenStitch mode. A strict 2.1 in every window cost Photo Stitch 1
+  about 7 points.
+- **Photo Stitch 2:** it may sew denser than 2.1 (mean ≤ 3.3), and it keeps its line look (no
+  lines skipped). With the line look, the best measured result is about 48, so the ≥ 75 % target
+  is dropped. The aim is to beat PE-DESIGN-compatible mode on every photo.
+- **Photo Stitch trims:** the user chooses (`travel`: fewer trims with short travel stitches up to
+  2 mm, or all trims for the best likeness); the default follows Fidelity (Standard: fewer, High:
+  all).
+- **Photo Stitch 1 saliency (T10):** ships at β 1.5.
+- **Auto Punch:** OpenStitch mode sews the background by default; the user can leave it out.
+  Likeness over trims for T11 and T12.
+- **Cross Stitch:** filled crosses on by default, part-crosses an option (off), cells stay 2.5 mm.
+- **Design Center:** bold lines as parallel running lines (a zigzag scored 96.0 but reached 3.09
+  points/mm²).
+
 ## 9. Open questions
 
 1. **Counsel's opinion on US 7,996,103:**
    - The owner reports that their lawyer found the patent does not hold for image-derived direction here.
    - patents.md should record it: date, scope and which variant (per-pixel field with streamline rows, with or without connector tests).
    - T8 starts only after that record exists.
-2. **The 85 % photo target at 2.1 points/mm²** is firm by the owner's decision. The measured prototypes reach 75–79; the rest depends on T8–T10, which are estimates. The owner declined raising the density. Re-assess at the end of Phase 3.
+2. **The 85 % photo target at 2.1 points/mm²** (design mean; windows up to 3.0) is firm by the owner's decision. The measured prototypes reach 75–79; the rest depends on T8–T10, which are estimates. The owner declined raising the density. Re-assess at the end of Phase 3.
 3. **Thread inventory:**
    - Which brands the owner and users actually stock.
    - Whether High fidelity may ask for threads the user does not own: a shopping list against "My Threads only".
@@ -399,6 +419,22 @@ plus any added ones.
    - text in a photo.
 
    They will be added in Phase 0 with PROVENANCE entries.
+
+## 10. Progress
+
+**2026-10-31, integration batch #270** (flat render, OpenStitch mode; PE-DESIGN-compatible mode
+bit-identical, compat 443/443):
+
+| Phase | Landed | Result |
+|---|---|---|
+| 0 | Deterministic digitizing maths (#259), cross-platform golden hashes (#260), the scorer (#261) | Scorer reproduces section 3 exactly; Design Center baselines g03 95.1, g04 70.3 |
+| 1 | T4 thread selection (#264, with a mix-aware cost), T6 tonal dithering (#266, flat threshold ΔE 12), Fidelity Standard / High (#269) | T5 (multi-brand charts) in progress |
+| 5 | Cross Stitch OpenStitch mode (#263), Design Center OpenStitch mode (#268) | Cross Stitch mean 51.3 → 70.2 (g07 82.5); Design Center g03 96.4, g04 95.2: both meet 95 |
+
+Not yet landed, measured on the tracks' branches: Auto Punch T7, T11 and T12 (mean 78.4 → 83.3,
+every case above PE-DESIGN-compatible mode; held back until it fits the density limits),
+Photo Stitch 1 T2, T3 and T9 (mean 55.8 → 67.5 under a strict 2.0 per-window cap; being
+re-tuned to the owner's limits), Photo Stitch 2 T13 (in progress).
 
 ## Sources
 

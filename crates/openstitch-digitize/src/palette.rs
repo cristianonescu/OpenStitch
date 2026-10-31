@@ -21,6 +21,9 @@ pub struct Palette {
     pub chart: Vec<usize>,
     /// OpenStitch mode: pixels are matched to `means` by CIEDE2000 instead of RGB distance.
     pub perceptual: bool,
+    /// OpenStitch mode: the nearest mean and nearest thread of colours met in advance (an Auto
+    /// Punch census's modal colours), by packed colour, so each is matched once, not per pixel.
+    known: Vec<(u32, usize, usize)>,
 }
 
 fn rgb_of(t: &Thread) -> Rgb {
@@ -71,12 +74,18 @@ impl Census {
     /// the tracked colours holding at least [`AUTO_SHARE`] of the opaque pixels, at least 1 and
     /// at most [`AUTO_MAX`].
     pub fn auto_colors(&self) -> usize {
+        self.auto_colors_up_to(AUTO_MAX)
+    }
+
+    /// [`Census::auto_colors`] with another ceiling than [`AUTO_MAX`] (OpenStitch mode's High
+    /// fidelity, [`crate::Fidelity::auto_max`]).
+    pub fn auto_colors_up_to(&self, max: usize) -> usize {
         let total = self.pixels() as f64;
         self.colors
             .iter()
             .filter(|c| c.1 as f64 >= total * AUTO_SHARE)
             .count()
-            .clamp(1, AUTO_MAX)
+            .clamp(1, max.max(1))
     }
 }
 
@@ -238,23 +247,74 @@ impl Palette {
             threads,
             chart,
             perceptual: false,
+            known: Vec::new(),
         }
     }
 
-    /// OpenStitch mode's palette of a colour census (docs/research/beyond/image-digitizing.md):
-    /// the median-cut box colours seed a weighted k-means in CIELAB, and each centre takes the
-    /// PEC thread nearest it by CIEDE2000. A centre clearly distinct from another
-    /// ([`DISTINCT_DE`]) never shares its thread: it takes its nearest thread not yet taken,
-    /// so thin dark lines on white keep a thread of their own instead of joining the white
-    /// background. Pixels are matched to the centres by CIEDE2000.
+    /// OpenStitch mode's palette of a colour census (docs/research/beyond/image-similarity-plan.md,
+    /// T4). The census colours, weighted by their counts, choose at most `n` threads from the PEC
+    /// chart by backward elimination ([`perceptual::select_threads`]). The median-cut box colours
+    /// seed a weighted k-means in CIELAB as before, and each centre takes the chosen thread that
+    /// sews its members with the least weighted CIEDE2000 (ties to the lower chart number). Thin
+    /// dark lines on white keep a thread of their own whenever dropping it costs the image more
+    /// than any other thread. Pixels are matched to the centres by CIEDE2000, so a colour sharing
+    /// the background's thread (a line's light edge) is still a colour of its own.
     pub fn from_census_perceptual(census: &Census, n: usize) -> Palette {
-        let mut hist = census.colors.clone();
-        hist.sort_by_key(|c| pack(c.0));
-        Self::from_histogram_perceptual(&hist, n)
+        let (chart, labs) = pec_labs();
+        let colors: Vec<(Lab, f64)> = census
+            .colors
+            .iter()
+            .map(|&(c, w)| (perceptual::lab(c), w as f64))
+            .collect();
+        let kept = perceptual::select_threads(&colors, &labs, n);
+        let kept_labs: Vec<Lab> = kept.iter().map(|&k| labs[k]).collect();
+        let mut palette = Palette {
+            means: Vec::new(),
+            thread_of: Vec::new(),
+            threads: Vec::new(),
+            chart: Vec::new(),
+            perceptual: true,
+            known: Vec::new(),
+        };
+        for (&(c, _), &(l, _)) in census.colors.iter().zip(&colors) {
+            let i = kept[nearest_de(&kept_labs, l)];
+            let k = palette
+                .chart
+                .iter()
+                .position(|&x| x == chart[i].0)
+                .unwrap_or_else(|| {
+                    palette.chart.push(chart[i].0);
+                    palette.threads.push(chart[i].1.clone());
+                    palette.chart.len() - 1
+                });
+            palette.means.push(c);
+            palette.thread_of.push(k);
+        }
+        let mut met: Vec<u32> = census.modal.iter().flatten().map(|&c| pack(c)).collect();
+        met.sort_unstable();
+        met.dedup();
+        let mean_labs: Vec<Lab> = palette.means.iter().map(|&m| perceptual::lab(m)).collect();
+        let thread_labs: Vec<Lab> = palette
+            .chart
+            .iter()
+            .map(|&i| labs[i_of(&chart, i)])
+            .collect();
+        palette.known = met
+            .into_iter()
+            .map(|p| {
+                let l = perceptual::lab([(p >> 16) as u8, (p >> 8) as u8, p as u8]);
+                (p, nearest_de(&mean_labs, l), nearest_de(&thread_labs, l))
+            })
+            .collect();
+        palette
     }
 
-    /// OpenStitch mode's palette of a pixel list (Photo Stitch 1): as
-    /// [`Palette::from_census_perceptual`] over the pixels' histogram.
+    /// OpenStitch mode's palette of a pixel list for Photo Stitch 2's line screen: the
+    /// median-cut box colours seed a weighted k-means in CIELAB, and each centre takes the PEC
+    /// thread nearest it by CIEDE2000. A centre clearly distinct from another ([`DISTINCT_DE`])
+    /// never shares its thread: it takes its nearest thread not yet taken. The screen mixes each
+    /// thread with the fabric, so its threads are chosen by Photo Stitch 2's own rework (T13),
+    /// not by [`Palette::select_perceptual`].
     pub fn build_perceptual(colors: &[Rgb], n: usize) -> Palette {
         Self::from_histogram_perceptual(&histogram(colors), n)
     }
@@ -280,6 +340,7 @@ impl Palette {
             threads: Vec::new(),
             chart: Vec::new(),
             perceptual: true,
+            known: Vec::new(),
         };
         // Which centres took each palette thread, to keep distinct colours apart.
         let mut takers: Vec<Vec<Lab>> = Vec::new();
@@ -320,27 +381,97 @@ impl Palette {
         palette
     }
 
-    /// Thread index of the box mean nearest to `c` (ties to the lower index).
+    /// OpenStitch mode's palette of a pixel list (Photo Stitch 1, T4): at most `n` threads
+    /// chosen from the PEC chart by backward elimination ([`perceptual::select_threads`]) over
+    /// the pixels' histogram. Each chosen thread is a palette colour of its own, and its mean is
+    /// the weighted mean of the colours nearest to it. Photo Stitch 1 dithers onto the threads
+    /// themselves.
+    pub fn select_perceptual(colors: &[Rgb], n: usize) -> Palette {
+        Self::select_perceptual_with(colors, n, perceptual::SelectCost::Nearest)
+    }
+
+    /// [`Palette::select_perceptual`] with the selection's cost chosen by the caller: nearest
+    /// thread, or the best two-thread mix for rows that mix threads by error carry
+    /// ([`perceptual::SelectCost`]). On Photo Stitch 1's 3 mm cells the nearest thread scores
+    /// higher (nine photos: 57.1 against 54.2 with the mix), so that is the default there.
+    pub fn select_perceptual_with(
+        colors: &[Rgb],
+        n: usize,
+        cost: perceptual::SelectCost,
+    ) -> Palette {
+        let (chart, labs) = pec_labs();
+        let hist = histogram(colors);
+        let rgbs: Vec<Rgb> = chart.iter().map(|(_, t)| rgb_of(t)).collect();
+        let weighted: Vec<(Rgb, f64)> = hist.iter().map(|&(c, w)| (c, w as f64)).collect();
+        let kept = match cost {
+            perceptual::SelectCost::Nearest => {
+                perceptual::select_threads(&perceptual::select_colors(&hist), &labs, n)
+            }
+            perceptual::SelectCost::Mix => perceptual::select_threads_by(&weighted, &rgbs, n, cost),
+        };
+        let colors = perceptual::select_colors(&hist);
+        let kept_labs: Vec<Lab> = kept.iter().map(|&k| labs[k]).collect();
+        let mut sum = vec![([0.0; 3], 0.0); kept.len()];
+        for &(c, w) in &colors {
+            let s = &mut sum[nearest_de(&kept_labs, c)];
+            for (total, v) in s.0.iter_mut().zip(c) {
+                *total += v * w;
+            }
+            s.1 += w;
+        }
+        Palette {
+            means: sum
+                .iter()
+                .zip(&kept_labs)
+                .map(|((s, w), &t)| perceptual::rgb(if *w > 0.0 { s.map(|v| v / w) } else { t }))
+                .collect(),
+            thread_of: (0..kept.len()).collect(),
+            threads: kept.iter().map(|&k| chart[k].1.clone()).collect(),
+            chart: kept.iter().map(|&k| chart[k].0).collect(),
+            perceptual: true,
+            known: Vec::new(),
+        }
+    }
+
+    /// Thread index for `c` (ties to the lower index): the thread of the box mean nearest to it,
+    /// or in OpenStitch mode the thread nearest to it by CIEDE2000.
     pub fn classify(&self, c: Rgb) -> usize {
+        if self.perceptual {
+            return match self.known.binary_search_by_key(&pack(c), |k| k.0) {
+                Ok(i) => self.known[i].2,
+                Err(_) => self.match_thread(c),
+            };
+        }
         self.thread_of
             .get(self.nearest_mean(c))
             .copied()
             .unwrap_or(0)
     }
 
+    /// OpenStitch mode: the thread nearest `c` by CIEDE2000 (ties to the lower index).
+    fn match_thread(&self, c: Rgb) -> usize {
+        let labs: Vec<Lab> = self
+            .threads
+            .iter()
+            .map(|t| perceptual::lab(rgb_of(t)))
+            .collect();
+        nearest_de(&labs, perceptual::lab(c))
+    }
+
+    /// OpenStitch mode: the mean nearest `c` by CIEDE2000 (ties to the lower index).
+    fn match_mean(&self, c: Rgb) -> usize {
+        let labs: Vec<Lab> = self.means.iter().map(|&m| perceptual::lab(m)).collect();
+        nearest_de(&labs, perceptual::lab(c))
+    }
+
     /// Index of the box mean nearest to `c` (ties to the lower index): by CIEDE2000 in
     /// OpenStitch mode, by RGB distance otherwise.
     pub fn nearest_mean(&self, c: Rgb) -> usize {
         if self.perceptual {
-            let l = perceptual::lab(c);
-            let mut best = (f64::INFINITY, 0);
-            for (i, &m) in self.means.iter().enumerate() {
-                let d = perceptual::de2000(l, perceptual::lab(m));
-                if d < best.0 {
-                    best = (d, i);
-                }
-            }
-            return best.1;
+            return match self.known.binary_search_by_key(&pack(c), |k| k.0) {
+                Ok(i) => self.known[i].1,
+                Err(_) => self.match_mean(c),
+            };
         }
         let t = thread(c);
         let mut best = (i64::MAX, 0);
@@ -352,6 +483,37 @@ impl Palette {
         }
         best.1
     }
+}
+
+/// The PEC chart's threads with their chart numbers, and their CIELAB colours.
+fn pec_labs() -> (Vec<(usize, Thread)>, Vec<Lab>) {
+    let chart: Vec<(usize, Thread)> = pec_basic_chart()
+        .iter()
+        .enumerate()
+        .filter_map(|(i, t)| t.clone().map(|t| (i, t)))
+        .collect();
+    let labs = chart
+        .iter()
+        .map(|(_, t)| perceptual::lab(rgb_of(t)))
+        .collect();
+    (chart, labs)
+}
+
+/// Position in `chart` of chart number `i`.
+fn i_of(chart: &[(usize, Thread)], i: usize) -> usize {
+    chart.iter().position(|c| c.0 == i).unwrap_or(0)
+}
+
+/// Index of the colour in `targets` nearest `c` by CIEDE2000 (ties to the lower index).
+fn nearest_de(targets: &[Lab], c: Lab) -> usize {
+    let mut best = (f64::INFINITY, 0);
+    for (i, &t) in targets.iter().enumerate() {
+        let d = perceptual::de2000(c, t);
+        if d < best.0 {
+            best = (d, i);
+        }
+    }
+    best.1
 }
 
 fn pack(c: Rgb) -> u32 {
@@ -474,6 +636,63 @@ pub fn dither_perceptual(
     })
 }
 
+/// OpenStitch mode's dithering, only where the image is tonal (B16.1 T6): cells in flat areas
+/// take their nearest target and neither give nor take diffused error, so flat colours and the
+/// edges between them are sewn plainly, without the dithering's noise; tonal cells (gradients,
+/// texture) dither in CIELAB as [`dither_perceptual`]. `window` is the neighbourhood half-size
+/// in cells, `(columns, rows)`, the caller's choice for its cell shape ([`tonal_map`]).
+pub fn dither_tonal(
+    cells: &[Option<[f64; 3]>],
+    w: usize,
+    h: usize,
+    targets: &[[f64; 3]],
+    window: (usize, usize),
+) -> Vec<Option<usize>> {
+    let to_lab = |c: [f64; 3]| perceptual::lab(c.map(|v| v.round().clamp(0.0, 255.0) as u8));
+    let cells: Vec<Option<[f64; 3]>> = cells.iter().map(|c| c.map(to_lab)).collect();
+    let targets: Vec<[f64; 3]> = targets.iter().map(|&t| to_lab(t)).collect();
+    let tonal = tonal_map(&cells, w, h, window);
+    diffuse_where(&cells, w, h, &targets, Some(&tonal), |c| {
+        [c[0].clamp(0.0, 100.0), c[1], c[2]]
+    })
+}
+
+/// Largest CIELAB distance (CIE76) from a cell's own colour that still counts as the same flat
+/// colour in [`tonal_map`]. Chosen by the owner (2026-10-31) from the similarity score on nine
+/// photos at Photo Stitch 1's 3 mm cells: dithering everywhere 55.8, a threshold of 4 60.7,
+/// 12 63.8, no dithering 64.4 (smooth gradients then band).
+pub const FLAT_DE: f64 = 12.0;
+/// Share of a cell's neighbourhood that must be the same flat colour for the cell to be flat.
+pub const FLAT_SHARE: f64 = 0.5;
+
+/// Which cells are tonal (B16.1 T6): a cell is flat when at least [`FLAT_SHARE`] of the opaque
+/// cells within `window` (half-size in cells, `(columns, rows)`) lie within [`FLAT_DE`] of its
+/// own colour, as in a flat area or beside a sharp edge between flat areas; otherwise it is
+/// tonal. `cells` are CIELAB. Transparent cells are not tonal. Deterministic.
+pub fn tonal_map(cells: &[Option<Lab>], w: usize, h: usize, window: (usize, usize)) -> Vec<bool> {
+    let (rx, ry) = window;
+    let mut out = vec![false; cells.len()];
+    for y in 0..h {
+        for x in 0..w {
+            let Some(c) = cells[y * w + x] else { continue };
+            let (mut near, mut all) = (0usize, 0usize);
+            for ny in y.saturating_sub(ry)..(y + ry + 1).min(h) {
+                for nx in x.saturating_sub(rx)..(x + rx + 1).min(w) {
+                    if let Some(o) = cells[ny * w + nx] {
+                        all += 1;
+                        let d = (0..3).map(|k| (o[k] - c[k]).powi(2)).sum::<f64>();
+                        if d <= FLAT_DE * FLAT_DE {
+                            near += 1;
+                        }
+                    }
+                }
+            }
+            out[y * w + x] = (near as f64) < FLAT_SHARE * all as f64;
+        }
+    }
+    out
+}
+
 /// Serpentine Floyd–Steinberg over `cells` in whatever space they and `targets` share;
 /// `clamp` keeps a cell's accumulated colour in range before it is matched.
 fn diffuse(
@@ -483,6 +702,20 @@ fn diffuse(
     targets: &[[f64; 3]],
     clamp: impl Fn([f64; 3]) -> [f64; 3],
 ) -> Vec<Option<usize>> {
+    diffuse_where(cells, w, h, targets, None, clamp)
+}
+
+/// [`diffuse`], with error diffused only between cells `tonal` marks (all when `None`); other
+/// cells take the target nearest their own colour.
+fn diffuse_where(
+    cells: &[Option<[f64; 3]>],
+    w: usize,
+    h: usize,
+    targets: &[[f64; 3]],
+    tonal: Option<&[bool]>,
+    clamp: impl Fn([f64; 3]) -> [f64; 3],
+) -> Vec<Option<usize>> {
+    let dithers = |i: usize| tonal.is_none_or(|t| t[i]);
     let mut work: Vec<[f64; 3]> = cells.iter().map(|c| c.unwrap_or([0.0; 3])).collect();
     let mut out = vec![None; cells.len()];
     if targets.is_empty() {
@@ -496,7 +729,11 @@ fn diffuse(
             if cells[i].is_none() {
                 continue;
             }
-            let c = clamp(work[i]);
+            let c = if dithers(i) {
+                clamp(work[i])
+            } else {
+                clamp(cells[i].unwrap_or([0.0; 3]))
+            };
             let mut best = (f64::INFINITY, 0);
             for (t, tc) in targets.iter().enumerate() {
                 let d = weighted(c, *tc);
@@ -505,6 +742,9 @@ fn diffuse(
                 }
             }
             out[i] = Some(best.1);
+            if !dithers(i) {
+                continue;
+            }
             let e = [0, 1, 2].map(|ch| c[ch] - targets[best.1][ch]);
             let dir: isize = if forward { 1 } else { -1 };
             let mut spread = |dx: isize, dy: usize, f: f64| {
@@ -514,7 +754,7 @@ fn diffuse(
                     return;
                 }
                 let j = ny * w + nx as usize;
-                if cells[j].is_some() {
+                if cells[j].is_some() && dithers(j) {
                     for ch in 0..3 {
                         work[j][ch] += e[ch] * f;
                     }

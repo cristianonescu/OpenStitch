@@ -21,8 +21,9 @@
 
 use crate::palette::{self, Palette, Rgb, rgb_f};
 use crate::raster::{Frame, Raster};
-use crate::{DigitizeError, Mode};
+use crate::{DigitizeError, Fidelity, Mode};
 use openstitch_core::{Command, Stitch, Thread};
+use openstitch_design::fmath::Det;
 use openstitch_design::{DesignObject, StitchBlock};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -92,11 +93,15 @@ pub struct PhotoStitch {
     pub direction_deg: f64,
     /// Lines, colour mode: the Color Set (default Auto Select).
     pub color_set: ColorSet,
-    /// Colour mode: PE-DESIGN's method, or OpenStitch's: the perceptual palette
-    /// ([`Palette::build_perceptual`]; Photo Stitch 2's Auto Select too), dithering in CIELAB
-    /// (Photo Stitch 1, [`palette::dither_perceptual`]) and the line screen's mix in linear
-    /// light (Photo Stitch 2, [`crate::screen::Shares::colour_in`]).
+    /// Colour mode: PE-DESIGN's method, or OpenStitch's: the perceptual palette (threads chosen
+    /// for the image, [`Palette::select_perceptual`]; Photo Stitch 2's Auto Select keeps
+    /// [`Palette::build_perceptual`]), dithering in CIELAB where the image is tonal (Photo
+    /// Stitch 1, [`palette::dither_tonal`]) and the line screen's mix in linear light (Photo
+    /// Stitch 2, [`crate::screen::Shares::colour_in`]).
     pub compat: Mode,
+    /// OpenStitch mode's fidelity, for the costlier passes High turns on; the colour count is
+    /// the caller's ([`crate::HIGH_COLORS`] by default at High). PE-DESIGN mode ignores it.
+    pub fidelity: Fidelity,
 }
 
 impl PhotoStitch {
@@ -124,6 +129,7 @@ impl PhotoStitch {
             direction_deg: 0.0,
             color_set: ColorSet::Auto,
             compat: Mode::PeDesign,
+            fidelity: Fidelity::Standard,
         }
     }
 }
@@ -136,6 +142,10 @@ pub const LINE_RUN_MM: f64 = 2.5;
 pub const MAX_DENSITY: f64 = 4.5;
 /// Photo Stitch 2's thread count with Color Set Auto Select (four on the round-4 capture).
 pub const LINE_COLORS: usize = 4;
+
+/// OpenStitch mode: how far around a cell Photo Stitch 1's tonal map looks, mm
+/// ([`palette::dither_tonal`]).
+pub const TONAL_REACH_MM: f64 = 3.0;
 
 /// Photo Stitch 1's default Run Pitch, mm (PE-DESIGN 11.50).
 pub const RUN_PITCH_MM: f64 = 3.0;
@@ -225,7 +235,9 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
             } else {
                 n
             };
-            let pal = if perceptual {
+            let pal = if perceptual && p.style == PhotoStyle::Fill {
+                Palette::select_perceptual(&colors, boxes.min(64))
+            } else if perceptual {
                 Palette::build_perceptual(&colors, boxes.min(64))
             } else {
                 Palette::build(&colors, boxes.min(64))
@@ -277,7 +289,9 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
         threads.push(palette::nearest_pec(p.fabric).1);
     }
     let dithered = if perceptual {
-        palette::dither_perceptual(&cells, cols, rows, &targets)
+        // The tonal map looks about 3 mm to either side, whatever the cell shape.
+        let reach = |cell: f64| ((TONAL_REACH_MM * 10.0 / cell).round() as usize).max(1);
+        palette::dither_tonal(&cells, cols, rows, &targets, (reach(cw), reach(ch)))
     } else {
         palette::dither(&cells, cols, rows, &targets)
     };
@@ -481,7 +495,7 @@ fn fill_layer(
                         if dx > reach_x {
                             continue;
                         }
-                        let dist = dx.hypot(dy);
+                        let dist = dx.dhypot(dy);
                         if best.is_none_or(|b| dist < b.0 - 1e-9) {
                             best = Some((dist, r, from_right));
                         }
@@ -509,7 +523,7 @@ fn fill_layer(
             out.push(Stitch::new(xs[0], run.y, Command::Jump));
         } else if last_len >= 2
             && let Some(prev) = out.len().checked_sub(2).map(|i| out[i])
-            && (prev.x - xs[0]).hypot(prev.y - run.y) <= TURN_CELLS * cw + 1e-6
+            && (prev.x - xs[0]).dhypot(prev.y - run.y) <= TURN_CELLS * cw + 1e-6
         {
             // A short hop to the next row: the previous run's last needle point is left out,
             // so the stitch turns from its second-to-last point straight into this run, as a

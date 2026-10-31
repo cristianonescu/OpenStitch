@@ -47,7 +47,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 172: 146 implemented (3 of them partially compatible), 2 documented only, 10 blocked, 14 planned beyond PE-DESIGN |
+| Feature matrix rows | 181: 149 implemented (3 of them partially compatible), 2 documented only, 10 blocked, 20 planned beyond PE-DESIGN |
 | Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 33: 26 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 11 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
@@ -103,14 +103,21 @@ regenerates them.
 | <img src="examples/images/g15-folk-bird.png" width="200"> | <img src="docs/images/readme/gallery/g15.png" width="260"> | **Cross Stitch, defaults**<br>4,467 stitches, 303 trims, 4 colours |
 <!-- gallery:end -->
 
-Auto Punch and Photo Stitch 1 and 2 have two modes, both run by OpenStitch (the image
-dialog's Mode choice):
+Auto Punch, Photo Stitch 1 and 2, Cross Stitch and Design Center have two modes, both run by
+OpenStitch. The image dialog's Mode choice offers them for Auto Punch and Photo Stitch; Cross
+Stitch's and Design Center's OpenStitch modes are reachable through `stitchtool`
+(`compatMode: openStitch`) until the dialog gains them:
 
 - **PE-DESIGN-compatible** (the default, labelled "PE-DESIGN" in the dialog): OpenStitch's own
   reimplementation of PE-DESIGN 11's method, so a design converts the way it would in
   PE-DESIGN. It is not PE-DESIGN's output, and it does not sew PE-DESIGN's exact stitches.
 - **OpenStitch** (➕): colours are reduced, matched to threads and mixed by how they look, and
   Auto Punch merges specks under 3 mm² ([research](docs/research/beyond/image-digitizing.md)).
+  Since B16.1 ([plan](docs/research/beyond/image-similarity-plan.md)) the threads are chosen
+  for the image as a whole, Photo Stitch 1 dithers only where the image is tonal, a Fidelity
+  choice (Standard / High) trades colours for likeness, Cross Stitch takes each cell's mean
+  colour, and Design Center finds its line threshold from the image (Otsu). Every OpenStitch
+  mode sews the same stitches on macOS, Windows and Linux.
 
 The table below shows both modes, both from OpenStitch. OpenStitch mode measures better on
 average, not on every image, so try both. For example, the test portrait sews truer in Photo
@@ -371,6 +378,12 @@ PE-DESIGN 11 does not. Each item is sketched in
 [docs/research/beyond](docs/research/beyond/readiness.md) and will be off unless chosen:
 
 <!-- status:beyond-planned -->
+- Image similarity, Phase 0 (measurement): the similarity score (0.4 MS-SSIM, 0.4 CIEDE2000, 0.2 DISTS on a thread render at actual size from 40 cm) with a sewability report, a calibration test card and a realistic render fitted to its photographed sew-out, deterministic digitizing maths and cross-platform golden hashes (B16.1)
+- Image similarity, Phase 1 (shared colour engine): thread selection by backward elimination, multi-brand charts and My Threads as an additive source, dithering only in tonal regions, a Standard / High fidelity setting in the image dialog (B16.1)
+- Image similarity, Phase 2 (Photo Stitch 2): least-squares thread shares with 4–6 threads and a sew-out-calibrated coverage model, at a design mean ≤ 3.3 needle points/mm²; no fixed target (the ≥ 75 target was dropped on 2026-10-31: with the line look the best measured is about 48), it must beat PE-DESIGN-compatible mode on every photo (B16.1)
+- Image similarity, Phase 3 (Photo Stitch 1 High fidelity): fine colour sampling with variable stitch boundaries, rate-constrained rows under 2.1 needle points/mm², a saliency-weighted budget, metric-driven local search; firm target 85 % (B16.1)
+- Image similarity, Phase 4 (Auto Punch): a sewn coloured background, SLIC regions that keep line art, skeleton satin for outlines; target 95 % for logos, clip art and lettering (B16.1)
+- Image similarity, Phase 5 (Cross Stitch and Design Center): OpenStitch modes for both, with mean-Lab cells, edge part-crosses and an Otsu line threshold; targets g07 ≥ 85, g03 and g04 ≥ 95 (B16.1)
 - Density profiles on fills and satin columns, two-colour blend command, hidden travel for open fills (B6)
 - 3D puff satin mode: density, caps, no underlay or pull compensation, foam stop, ordering (B7)
 - Crosshatch, curved crosshatch and double-zigzag lace as a region type (B8)

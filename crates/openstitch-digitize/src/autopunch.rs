@@ -11,8 +11,9 @@
 use crate::palette::{self, Census, Palette};
 use crate::raster::{Frame, Raster};
 use crate::regions::{self, NONE, TraceOptions};
-use crate::{DigitizeError, Mode};
+use crate::{DigitizeError, Fidelity, Mode};
 use openstitch_core::Thread;
+use openstitch_design::fmath::Det;
 use openstitch_design::{DesignObject, RegionSewing, RegionType};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -43,6 +44,9 @@ pub struct AutoPunch {
     /// PE-DESIGN's colour reduction, or OpenStitch's perceptual one
     /// ([`Palette::from_census_perceptual`]).
     pub mode: Mode,
+    /// OpenStitch mode's fidelity: High lets the automatic colour count reach
+    /// [`crate::HIGH_COLORS`]. PE-DESIGN mode ignores it.
+    pub fidelity: Fidelity,
 }
 
 impl Default for AutoPunch {
@@ -57,6 +61,7 @@ impl Default for AutoPunch {
             satin_min_mm: 0.7,
             skip_background: true,
             mode: Mode::PeDesign,
+            fidelity: Fidelity::Standard,
         }
     }
 }
@@ -88,7 +93,7 @@ pub fn fill_angle(m: &[bool], mw: usize, mh: usize, mm_per_px: f64) -> f64 {
         let a = deg.to_radians();
         // Across the stitches, in pixel coordinates (y down): a counter-clockwise stitch
         // direction (cos a, −sin a) has the perpendicular (sin a, cos a).
-        let (px, py) = (a.sin(), a.cos());
+        let (px, py) = (a.dsin(), a.dcos());
         let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
         for y in 0..mh {
             for x in 0..mw {
@@ -185,7 +190,10 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
         ));
     }
     let colors = match p.colors {
-        0 => census.auto_colors(),
+        0 => match p.mode {
+            Mode::PeDesign => census.auto_colors(),
+            Mode::OpenStitch => census.auto_colors_up_to(p.fidelity.auto_max()),
+        },
         n => n.min(64),
     };
     let palette = match p.mode {

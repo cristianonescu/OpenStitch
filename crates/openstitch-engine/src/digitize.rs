@@ -9,12 +9,14 @@ use crate::session::EngineState;
 use openstitch_core::Thread;
 use openstitch_design::{Contour, DesignObject, LineType};
 use openstitch_digitize::autopunch::{self, AutoPunch};
-use openstitch_digitize::center::{self, FigureOptions, LineImageOptions, RegionSew, SewSettings};
+use openstitch_digitize::center::{
+    self, FigureOptions, LineImageOptions, OpenLine, RegionSew, SewSettings,
+};
 use openstitch_digitize::cross::{self, CrossStitch, CrossType};
 use openstitch_digitize::photo::{self, ColorSet, PhotoMode, PhotoStitch, PhotoStyle};
 use openstitch_digitize::raster::MAX_FILE_BYTES;
 use openstitch_digitize::regions::TraceOptions;
-use openstitch_digitize::{DigitizeError, Frame, Mode, Raster};
+use openstitch_digitize::{DigitizeError, Fidelity, Frame, HIGH_COLORS, Mode, Raster};
 use serde_json::json;
 
 const IMAGE: ParamDoc = req(
@@ -75,6 +77,29 @@ fn compat_mode(p: &Params) -> Result<Mode, CommandError> {
             "openStitch" => Mode::OpenStitch,
             _ => Mode::PeDesign,
         },
+    )
+}
+
+/// The `fidelity` parameter (B16.1), shared by the image wizards that have an OpenStitch mode:
+/// `standard` (the default) or `high`. High needs `compatMode: openStitch`; PE-DESIGN mode has
+/// no fidelity.
+fn fidelity(p: &Params, mode: Mode) -> Result<Fidelity, CommandError> {
+    match (
+        choice(p, "fidelity", "standard", &["standard", "high"])?,
+        mode,
+    ) {
+        ("high", Mode::OpenStitch) => Ok(Fidelity::High),
+        ("high", Mode::PeDesign) => Err(p.invalid("fidelity", "high needs compatMode openStitch")),
+        _ => Ok(Fidelity::Standard),
+    }
+}
+
+/// The `fidelity` parameter's documentation.
+fn fidelity_doc() -> ParamDoc {
+    opt(
+        "fidelity",
+        "standard|high",
+        "OpenStitch mode: standard (default) or high; high lets the colour count reach 24 by default and turns on the costlier passes, never raising the needle density (needs compatMode openStitch)",
     )
 }
 
@@ -161,6 +186,7 @@ pub fn commands() -> Vec<CommandSpec> {
                     "peDesign|openStitch",
                     "peDesign: as PE-DESIGN 11.50 (default); openStitch: colours reduced and matched to threads by appearance (CIELAB k-means, CIEDE2000), regions under 3 mm² merged (docs/research/beyond/image-digitizing.md)",
                 ),
+                fidelity_doc(),
             ]),
             |s, p| {
                 let (image, frame) = load(s, p)?;
@@ -181,6 +207,7 @@ pub fn commands() -> Vec<CommandSpec> {
                     satin_min_mm: p.opt("satinMinWidth", 0.7, 0.0, 6.0)?,
                     skip_background: p.bool("skipBackground", Some(true))?,
                     mode,
+                    fidelity: fidelity(p, mode)?,
                 };
                 let out = autopunch::convert(&image, &frame, &options).map_err(|e| failed(p, e))?;
                 let regions = out.objects.len();
@@ -218,6 +245,21 @@ pub fn commands() -> Vec<CommandSpec> {
                     "bool",
                     "Leave out the colour covering most of the border (default true)",
                 ),
+                opt(
+                    "compatMode",
+                    "peDesign|openStitch",
+                    "peDesign: as PE-DESIGN 11.50 (default); openStitch: each cell takes its mean colour in CIELAB, threads by k-means and CIEDE2000, and crosses are filled (docs/research/beyond/image-similarity-plan.md, T14)",
+                ),
+                opt(
+                    "fill",
+                    "bool",
+                    "OpenStitch mode: cover each cell with parallel diagonals about 0.3 mm apart, at most 2.1 needle points per mm² over the design, instead of one cross; times then has no effect (default true)",
+                ),
+                opt(
+                    "partCrosses",
+                    "bool",
+                    "OpenStitch mode: a cell whose halves along a diagonal are clearly different colours becomes two part-crosses, three-quarter and quarter (default false)",
+                ),
             ]),
             |s, p| {
                 let (image, frame) = load(s, p)?;
@@ -230,6 +272,9 @@ pub fn commands() -> Vec<CommandSpec> {
                     },
                     triple: choice(p, "times", "single", &["single", "triple"])? == "triple",
                     skip_background: p.bool("skipBackground", Some(true))?,
+                    mode: compat_mode(p)?,
+                    fill: p.bool("fill", Some(true))?,
+                    part_crosses: p.bool("partCrosses", Some(false))?,
                 };
                 let out = cross::convert(&image, &frame, &options).map_err(|e| failed(p, e))?;
                 Ok(json!({
@@ -260,7 +305,7 @@ pub fn commands() -> Vec<CommandSpec> {
                 opt(
                     "colors",
                     "int 1-32",
-                    "Thread colours in colour mode (default 10 for fill, PE-DESIGN's Max. Number of Colors; 4 for lines, its Color Set)",
+                    "Thread colours in colour mode (default 10 for fill, PE-DESIGN's Max. Number of Colors, 24 at High fidelity; 4 for lines, its Color Set)",
                 ),
                 opt("thread", "color", "Thread in mono mode (default Black)"),
                 opt(
@@ -303,9 +348,12 @@ pub fn commands() -> Vec<CommandSpec> {
                     "degrees",
                     "Lines: Direction, turns every thread's screen angle (0/45/90/135), -180-180 (default 0)",
                 ),
+                fidelity_doc(),
             ]),
             |s, p| {
                 let (image, frame) = load(s, p)?;
+                let compat = compat_mode(p)?;
+                let fidelity = fidelity(p, compat)?;
                 let style = match choice(p, "style", "fill", &["fill", "lines"])? {
                     "lines" => PhotoStyle::Lines,
                     _ => PhotoStyle::Fill,
@@ -315,10 +363,10 @@ pub fn commands() -> Vec<CommandSpec> {
                     _ => PhotoMode::Color(count(
                         p,
                         "colors",
-                        if style == PhotoStyle::Lines {
-                            photo::LINE_COLORS
-                        } else {
-                            photo::COLORS
+                        match (style, fidelity) {
+                            (PhotoStyle::Lines, _) => photo::LINE_COLORS,
+                            (PhotoStyle::Fill, Fidelity::High) => HIGH_COLORS,
+                            (PhotoStyle::Fill, Fidelity::Standard) => photo::COLORS,
                         } as i64,
                         1,
                         32,
@@ -345,7 +393,8 @@ pub fn commands() -> Vec<CommandSpec> {
                     "bmyk" => ColorSet::Bmyk,
                     _ => ColorSet::Auto,
                 };
-                options.compat = compat_mode(p)?;
+                options.compat = compat;
+                options.fidelity = fidelity;
                 let out = photo::convert(&image, &frame, &options).map_err(|e| failed(p, e))?;
                 Ok(json!({
                     "colors": hexes(&out.threads),
@@ -394,7 +443,7 @@ pub fn commands() -> Vec<CommandSpec> {
             Effect::Read,
             placement_docs(figure_docs(vec![])),
             |s, p| {
-                let figure = figure(s, p)?;
+                let figure = figure(s, p, Mode::PeDesign)?;
                 let points = |c: &Contour| -> Vec<[f64; 2]> {
                     c.path()
                         .iter()
@@ -438,9 +487,31 @@ pub fn commands() -> Vec<CommandSpec> {
                     "color",
                     "Region thread (default: each region's image colour)",
                 ),
+                opt(
+                    "compatMode",
+                    "peDesign|openStitch",
+                    "peDesign: as before (default); openStitch: the threshold by Otsu's method unless set; unless lineSew is set, strokes at least 0.6 mm wide as parallel running lines 0.3 mm apart across 1.2 × the measured stroke width, thinner ones as triple running stitch; region threads by CIEDE2000 (docs/research/beyond/image-similarity-plan.md, Phase 5)",
+                ),
             ])),
             |s, p| {
-                let figure = figure(s, p)?;
+                let mode = compat_mode(p)?;
+                let mut figure = figure(s, p, mode)?;
+                // OpenStitch mode chooses the line sewing from the strokes unless it is set.
+                let auto_line = if mode == Mode::OpenStitch && !p.has("lineSew") {
+                    let (lines, kind) = match center::open_stitch_line(&figure) {
+                        OpenLine::Parallel { width_mm, passes } => (
+                            center::parallel_lines(&figure, width_mm, passes),
+                            LineType::Running,
+                        ),
+                        OpenLine::Triple => {
+                            (center::parallel_lines(&figure, 0.0, 1), LineType::Triple)
+                        }
+                    };
+                    figure.lines = lines;
+                    Some(kind)
+                } else {
+                    None
+                };
                 let settings = SewSettings {
                     line: match choice(
                         p,
@@ -448,6 +519,7 @@ pub fn commands() -> Vec<CommandSpec> {
                         "running",
                         &["running", "triple", "zigzag", "none"],
                     )? {
+                        _ if auto_line.is_some() => auto_line,
                         "triple" => Some(LineType::Triple),
                         "zigzag" => Some(LineType::Zigzag),
                         "none" => None,
@@ -472,7 +544,7 @@ pub fn commands() -> Vec<CommandSpec> {
                     },
                     region_thread: thread(p, "regionColor")?,
                 };
-                let objects = center::sew(&figure, &settings);
+                let objects = center::sew_with(&figure, &settings, mode);
                 if objects.is_empty() {
                     return Err(p.failed("nothing to sew with these settings"));
                 }
@@ -495,7 +567,7 @@ fn figure_docs(mut v: Vec<ParamDoc>) -> Vec<ParamDoc> {
         opt(
             "threshold",
             "int 0-255",
-            "Pixels darker than this are lines (default 128)",
+            "Pixels darker than this are lines (default 128; designCenter in OpenStitch mode: from the image by Otsu's method)",
         ),
         opt(
             "resolution",
@@ -529,9 +601,14 @@ fn line_options(p: &Params) -> Result<LineImageOptions, CommandError> {
     })
 }
 
-fn figure(s: &EngineState, p: &Params) -> Result<center::Figure, CommandError> {
+/// Stages 1–3; OpenStitch mode takes the threshold from the image (Otsu) unless it is set.
+fn figure(s: &EngineState, p: &Params, mode: Mode) -> Result<center::Figure, CommandError> {
     let (image, frame) = load(s, p)?;
-    let li = center::line_image(&image, &line_options(p)?);
+    let mut lo = line_options(p)?;
+    if mode == Mode::OpenStitch && !p.has("threshold") {
+        lo.threshold = center::otsu_threshold(&image, lo.resolution);
+    }
+    let li = center::line_image(&image, &lo);
     let options = FigureOptions {
         min_line_mm: p.opt("minLineLength", 1.0, 0.0, 100.0)?,
         min_region_mm2: p.opt("minRegionArea", 4.0, 0.0, 10_000.0)?,

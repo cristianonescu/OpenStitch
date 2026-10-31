@@ -68,7 +68,7 @@ GALLERY = {
             "digitize.crossStitch", {}),
 }
 
-# PE-DESIGN mode next to OpenStitch mode (`compatMode`, B16,
+# OpenStitch's PE-DESIGN-compatible mode next to OpenStitch mode (`compatMode`, B16 and B16.1,
 # docs/research/beyond/image-digitizing.md): id -> (image, wizard, command, parameters),
 # rendered as <id>-pe and <id>-os.
 MODES = {
@@ -79,9 +79,11 @@ MODES = {
     "p06": ("p06-sunset.jpg", "Photo Stitch 1", "digitize.photoStitch", {"style": "fill"}),
     "p08": ("p08-poppies.jpg", "Photo Stitch 2", "digitize.photoStitch", {"style": "lines"}),
     "p04": ("p04-cat-fur.jpg", "Photo Stitch 2", "digitize.photoStitch", {"style": "lines"}),
+    "g07": ("g07-pixel-strawberry.png", "Cross Stitch", "digitize.crossStitch", {}),
+    "g04": ("g04-butterfly-outline.png", "Design Center", "digitize.designCenter", {}),
 }
 for _key, (_image, _wizard, _command, _params) in MODES.items():
-    GALLERY[f"{_key}-pe"] = (_image, f"{_wizard}, PE-DESIGN mode", _command, _params)
+    GALLERY[f"{_key}-pe"] = (_image, f"{_wizard}, PE-DESIGN-compatible mode", _command, _params)
     GALLERY[f"{_key}-os"] = (_image, f"{_wizard}, OpenStitch mode", _command,
                              {**_params, "compatMode": "openStitch"})
 

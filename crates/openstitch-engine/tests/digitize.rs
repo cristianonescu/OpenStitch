@@ -73,6 +73,57 @@ fn conversions_add_objects_in_one_undo_step() {
     assert_eq!(r["columns"], json!(30));
     assert_eq!(r["rows"], json!(20));
     assert!(r["ids"].as_array().expect("ids").len() >= 3);
+    // OpenStitch mode: the same grid, its cells filled with many more needle points.
+    let count = |s: &Session, ids: &Value| -> usize {
+        ids.as_array()
+            .expect("ids")
+            .iter()
+            .filter_map(|id| {
+                let id = id.as_u64().expect("id");
+                s.design().objects.iter().find(|o| o.id == id)
+            })
+            .filter_map(|o| o.stitch_block.as_ref())
+            .map(|b| b.stitches.len())
+            .sum()
+    };
+    let pe = count(&s, &r["ids"]);
+    let os = run(
+        &mut s,
+        "digitize.crossStitch",
+        json!({"path": "sample.png", "cellSize": 2, "width": 60, "compatMode": "openStitch"}),
+    );
+    assert_eq!(
+        (os["columns"].clone(), os["rows"].clone()),
+        (json!(30), json!(20))
+    );
+    assert!(count(&s, &os["ids"]) > pe, "filled crosses");
+    let plain = run(
+        &mut s,
+        "digitize.crossStitch",
+        json!({"path": "sample.png", "cellSize": 2, "width": 60, "compatMode": "openStitch", "fill": false}),
+    );
+    // Without fill: PE-DESIGN's crosses, every needle point a cell corner or centre (1 mm
+    // apart on 2 mm cells), where filled crosses also step between them.
+    let on_half_cells = |s: &Session, ids: &Value| -> bool {
+        let pts: Vec<(f64, f64)> = ids
+            .as_array()
+            .expect("ids")
+            .iter()
+            .filter_map(|id| {
+                let id = id.as_u64().expect("id");
+                s.design().objects.iter().find(|o| o.id == id)
+            })
+            .filter_map(|o| o.stitch_block.as_ref())
+            .flat_map(|b| b.stitches.iter().map(|p| (p.x, p.y)))
+            .collect();
+        let (x0, y0) = pts[0];
+        pts.iter().all(|&(x, y)| {
+            let (u, v) = ((x - x0) / 10.0, (y - y0) / 10.0);
+            (u - u.round()).abs() < 1e-6 && (v - v.round()).abs() < 1e-6
+        })
+    };
+    assert!(on_half_cells(&s, &plain["ids"]));
+    assert!(!on_half_cells(&s, &os["ids"]));
 
     let r = run(
         &mut s,
@@ -124,6 +175,35 @@ fn design_center_stages() {
     assert_eq!(
         last.line.as_ref().map(|l| l.thread.name.as_deref()),
         Some(Some("Red"))
+    );
+
+    // OpenStitch mode: the sample's 3 mm strokes sew as parallel running lines, one open path
+    // per line, unless lineSew is set.
+    let pe_points = s.design().objects.last().expect("lines").contours[0]
+        .points
+        .len();
+    let r = run(
+        &mut s,
+        "digitize.designCenter",
+        json!({"path": "sample.png", "width": 60, "compatMode": "openStitch"}),
+    );
+    assert!(!r["ids"].as_array().expect("ids").is_empty());
+    let last = s.design().objects.last().expect("lines object");
+    assert_eq!(
+        last.line.as_ref().map(|l| l.kind),
+        Some(openstitch_design::LineType::Running)
+    );
+    assert!(!last.contours[0].closed);
+    assert!(last.contours[0].points.len() > pe_points);
+    run(
+        &mut s,
+        "digitize.designCenter",
+        json!({"path": "sample.png", "width": 60, "compatMode": "openStitch", "lineSew": "zigzag"}),
+    );
+    let last = s.design().objects.last().expect("lines object");
+    assert_eq!(
+        last.line.as_ref().map(|l| l.kind),
+        Some(openstitch_design::LineType::Zigzag)
     );
 }
 
@@ -225,6 +305,14 @@ fn bad_digitize_parameters_fail_cleanly() {
         ),
         (
             "digitize.crossStitch",
+            json!({"path": "sample.png", "compatMode": "pe"}),
+        ),
+        (
+            "digitize.crossStitch",
+            json!({"path": "sample.png", "fill": "yes"}),
+        ),
+        (
+            "digitize.crossStitch",
             json!({"path": "sample.png", "cellSize": 1, "width": 2000}),
         ),
         (
@@ -246,6 +334,10 @@ fn bad_digitize_parameters_fail_cleanly() {
         (
             "digitize.designCenter",
             json!({"path": "sample.png", "lineSew": "chain"}),
+        ),
+        (
+            "digitize.designCenter",
+            json!({"path": "sample.png", "compatMode": "pe"}),
         ),
         (
             "digitize.designCenter",
@@ -275,4 +367,60 @@ fn bad_digitize_parameters_fail_cleanly() {
         assert_eq!(s.design(), &before, "{id} {params} changed the design");
     }
     assert!(s.can_undo());
+}
+
+/// B16.1's `fidelity` parameter: High needs OpenStitch mode, lets Auto Punch's automatic count
+/// pass PE-DESIGN's 10 and defaults Photo Stitch 1 to 24 colours.
+#[test]
+fn fidelity_high_raises_the_colour_counts() {
+    let dir = temp_dir();
+    // Sixteen flat stripes of clearly different colours.
+    let img = Raster::from_fn(160, 40, |x, _| {
+        let k = x / 10;
+        [
+            (k * 53 % 256) as u8,
+            (k * 97 % 256) as u8,
+            (255 - k * 15) as u8,
+            255,
+        ]
+    })
+    .expect("size");
+    std::fs::write(dir.join("stripes.png"), img.encode_png().expect("png")).expect("write");
+    let mut s = Session::new(&dir);
+    run(&mut s, "design.new", json!({"width": 200, "height": 100}));
+    let colours = |s: &mut Session, cmd: &str, extra: Value| -> usize {
+        let mut p = json!({"path": "stripes.png", "width": 160, "compatMode": "openStitch"});
+        p.as_object_mut()
+            .expect("object")
+            .extend(extra.as_object().expect("object").clone());
+        run(s, cmd, p)["colors"].as_array().expect("colors").len()
+    };
+    let standard = colours(
+        &mut s,
+        "digitize.autoPunch",
+        json!({"skipBackground": false}),
+    );
+    let high = colours(
+        &mut s,
+        "digitize.autoPunch",
+        json!({"skipBackground": false, "fidelity": "high"}),
+    );
+    assert!(
+        standard <= 10,
+        "Standard keeps PE-DESIGN's ceiling: {standard}"
+    );
+    assert!(
+        high > standard,
+        "High may use more colours: {high} against {standard}"
+    );
+    assert!(high <= 24);
+    let ps1 = colours(&mut s, "digitize.photoStitch", json!({"fidelity": "high"}));
+    assert!(ps1 > 10 && ps1 <= 25, "Photo Stitch 1 at High: {ps1}");
+    let e = s
+        .execute(
+            "digitize.photoStitch",
+            Some(&json!({"path": "stripes.png", "width": 160, "fidelity": "high"})),
+        )
+        .expect_err("High needs OpenStitch mode");
+    assert!(e.to_string().contains("fidelity"), "{e}");
 }

@@ -110,6 +110,9 @@ Done 2026-10-30: stitch generation is bit-identical on Windows, macOS and Linux 
 math through the `libm` crate instead of each platform's C library); the arched Text Transform
 spec, deferred at alpha.6 because Linux measured it 0.2 mm lower, has its PE-DESIGN reference
 back.
+Done 2026-10-31: image digitizing (`openstitch-digitize`) uses the same deterministic
+math, with its own source scan and cross-platform golden hashes of OpenStitch-mode output
+(B16.1, the first steps of the image-similarity plan).
 Done 2026-10-31: imported stitch files land centred on the Design Page, as PE-DESIGN's Import
 Patterns ▸ from File places them (spec `stitches-import-centre`); left: a DST's colour on
 import (PE: 007 PRUSSIAN BLUE) and the joining stitch between two imports of one colour.
@@ -309,6 +312,15 @@ Done beyond PE-DESIGN so far: the seeded random tatami stagger (#123, 2026-10-29
 random` with `staggerSeed`, reproducible; PE-DESIGN's Fill pane offers the regular Frequency
 brick only, which stays the default).
 
+In progress for alpha.9: **image similarity (B16.1)**, a measured plan to make the image
+wizards' results look like their images, in [research/beyond/image-similarity-plan.md]
+(research/beyond/image-similarity-plan.md). One agreed score (structure, colour and a
+perceptual term on a thread render seen at actual size) judges every change; the targets
+are 95 % for logos, clip art and lettering and 85 % for Photo Stitch 1 at High fidelity, at
+PE-DESIGN's sewing density. All of it lives in the wizards' OpenStitch mode: the
+PE-DESIGN-compatible mode and its specs stay as they are, and every result is the same on
+macOS, Windows and Linux. Phases 0–5 are rows in [FEATURE_MATRIX.md](FEATURE_MATRIX.md).
+
 | Phase | Backlog items | Scope |
 |---|---|---|
 | A Fill library | B1 contour/spiral fill · B6 density profiles and two-colour blend · B7 3D puff mode · B8 crosshatch and lace · B12 carving lines and knockdown fill | `openstitch-design` generators and inspector rows |
@@ -338,7 +350,8 @@ before any code; the ranking and the proposed tracks are in
 | B13 | Density map, troubleshoot, thread conversion, auto hoop | E | [research/beyond/quality-tools.md](research/beyond/quality-tools.md) | Sketched; not started |
 | B14 | Stitch-file resize with density | E | [research/beyond/stitch-file-resize.md](research/beyond/stitch-file-resize.md) | Sketched; not started |
 | B15 | Lettering: baselines, kerning, team names, connections | E | [research/beyond/lettering-depth.md](research/beyond/lettering-depth.md) | Sketched; not started |
-| B16 | Image wizards' "OpenStitch" mode beside the PE-DESIGN default: perceptual colour reduction (CIELAB k-means, CIEDE2000 thread matching) and region cleanup for Auto Punch first | — | [research/beyond/image-digitizing.md](research/beyond/image-digitizing.md) | Auto Punch's OpenStitch mode done 2026-10-31 (`compatMode: openStitch`, image dialog Mode): measured on the test images (`tools/image_eval.py`), mean ΔE00 9.1 → 8.6, stitches −14 %, trims −48 %, specks 220 → 10; line art keeps its lines since 2026-10-31 (mandala 2,195 stitches, PE mode 2,590); Photo Stitch 1 in colour since 2026-10-31 (perceptual palette, CIELAB dithering: mean ΔE00 10.0 → 8.2 on nine photos, trims +13 %); Photo Stitch 2 in colour since 2026-10-31 (perceptual Auto Select, linear-light mix: mean ΔE00 19.8 → 16.2 on seven images); Cross Stitch measured, no gain, left PE-only; next: Photo Stitch 1's trims, the Photo Stitch 2 portrait, SLIC |
+| B16 | Image wizards' "OpenStitch" mode beside the PE-DESIGN default: perceptual colour reduction (CIELAB k-means, CIEDE2000 thread matching) and region cleanup for Auto Punch first | — | [research/beyond/image-digitizing.md](research/beyond/image-digitizing.md) | Auto Punch's OpenStitch mode done 2026-10-31 (`compatMode: openStitch`, image dialog Mode): measured on the test images (`tools/image_eval.py`), mean ΔE00 9.1 → 8.6, stitches −14 %, trims −48 %, specks 220 → 10; line art keeps its lines since 2026-10-31 (mandala 2,195 stitches, PE mode 2,590); Photo Stitch 1 in colour since 2026-10-31 (perceptual palette, CIELAB dithering: mean ΔE00 10.0 → 8.2 on nine photos, trims +13 %); Photo Stitch 2 in colour since 2026-10-31 (perceptual Auto Select, linear-light mix: mean ΔE00 19.8 → 16.2 on seven images); Cross Stitch measured, no gain at B16 (B16.1 added its OpenStitch mode, #263); next: Photo Stitch 1's trims, the Photo Stitch 2 portrait, SLIC |
+| B16.1 | Image similarity towards 95 %: an agreed score (0.4 MS-SSIM structure, 0.4 CIEDE2000 colour, 0.2 DISTS, on a thread render seen at actual size from 40 cm), then a shared colour engine, Photo Stitch 2, Photo Stitch 1 (High fidelity), Auto Punch, Cross Stitch and Design Center, all in OpenStitch mode | — | [research/beyond/image-similarity-plan.md](research/beyond/image-similarity-plan.md) | 2026-10-31 (#270): Phase 0 landed except the calibration card (deterministic maths, golden hashes, the scorer `tools/image_similarity.py`); Phase 1's thread selection, tonal dithering and Fidelity landed; Phase 5 landed (Cross Stitch mean 51.3 → 70.2, Design Center g03 96.4, g04 95.2). In progress: Photo Stitch 1 and 2, Auto Punch, multi-brand charts. Targets alpha.9 |
 
 Deferred: linear colour-gradient and tartan fills, shape and vine fills, photo
 thread-painting, sequin/chenille/bead types (machine-specific), the TrueType turning-satin
