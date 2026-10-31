@@ -291,7 +291,8 @@ def sewability(runs, stats, w_mm, h_mm):
         "colours": len(stats["colors"]),
         "pointsPerMm2": stats["stitches"] / (w_mm * h_mm),
         "shortestMm": float(min(moving)) if moving else 0.0,
-        "under1mm": sum(1 for s in moving if s < 1.0),
+        # Needle points are in 0.1 mm units: 1.0 mm can read 0.9999999 after the mm conversion.
+        "under1mm": sum(1 for s in moving if s < 1.0 - 1e-6),
     }
 
 
