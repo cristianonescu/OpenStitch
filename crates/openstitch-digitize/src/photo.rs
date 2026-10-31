@@ -99,6 +99,9 @@ pub struct PhotoStitch {
     /// Stitch 1, [`palette::dither_tonal`]) and the line screen's mix in linear light (Photo
     /// Stitch 2, [`crate::screen::Shares::colour_in`]).
     pub compat: Mode,
+    /// OpenStitch mode, Photo Stitch 1: the threads to choose from (B16.1 T5); empty is the
+    /// Brother PEC chart. PE-DESIGN mode and Photo Stitch 2 ignore it.
+    pub threads: Vec<Thread>,
     /// OpenStitch mode's fidelity, for the costlier passes High turns on; the colour count is
     /// the caller's ([`crate::HIGH_COLORS`] by default at High). PE-DESIGN mode ignores it.
     pub fidelity: Fidelity,
@@ -129,6 +132,7 @@ impl PhotoStitch {
             direction_deg: 0.0,
             color_set: ColorSet::Auto,
             compat: Mode::PeDesign,
+            threads: Vec::new(),
             fidelity: Fidelity::Standard,
         }
     }
@@ -236,7 +240,7 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
                 n
             };
             let pal = if perceptual && p.style == PhotoStyle::Fill {
-                Palette::select_perceptual(&colors, boxes.min(64))
+                Palette::select_perceptual_in(&colors, boxes.min(64), &p.threads)
             } else if perceptual {
                 Palette::build_perceptual(&colors, boxes.min(64))
             } else {

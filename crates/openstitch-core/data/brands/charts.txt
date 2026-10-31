@@ -1,0 +1,5 @@
+madeira-polyneon|madeiraPolyneon|Madeira Polyneon (polyester, No. 86 digital shade card)
+isacord-40|isacord40|Isacord 40 (Amann USA online colour chart, 2011)
+sulky-rayon40|sulkyRayon40|Sulky Rayon 40 (Gunold RGB colour card, 2025)
+robison-anton-rayon40|robisonAntonRayon40|Robison-Anton Super Strength Rayon 40 (online colour chart, 2007)
+robison-anton-polyester40|robisonAntonPolyester40|Robison-Anton Super Brite Polyester 40 (online colour chart, 2007)

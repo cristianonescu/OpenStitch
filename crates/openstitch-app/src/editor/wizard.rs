@@ -93,6 +93,12 @@ pub struct ImageWizard {
     /// OpenStitch mode's High fidelity (`fidelity: high`): more colours by default and the
     /// costlier passes; the dialog starts on Standard (the owner's choice, 2026-10-31).
     pub high_fidelity: bool,
+    /// OpenStitch mode: the threads to choose from (B16.1 T5, the engine's `threads`):
+    /// `brother` (the PEC chart), `all` (every built-in chart) or one of the user's charts.
+    pub threads: String,
+    /// OpenStitch mode: the user's chart of threads they own (`owned`); the result then lists
+    /// the chosen threads not in it.
+    pub owned: Option<String>,
     // Auto Punch
     pub min_area: f64,
     pub satin_max: f64,
@@ -120,6 +126,8 @@ impl Default for ImageWizard {
             skip_background: true,
             open_stitch: false,
             high_fidelity: false,
+            threads: "brother".into(),
+            owned: None,
             min_area: 1.0,
             satin_max: 6.0,
             curves: true,
@@ -181,6 +189,15 @@ impl ImageWizard {
         let colors = json!(self.colors.min(64));
         if self.open_stitch && self.improvable() {
             p.insert("compatMode".into(), json!("openStitch"));
+            // Photo Stitch 2 keeps its own Auto Select.
+            if self.method != Method::PhotoLines {
+                if self.threads != "brother" {
+                    p.insert("threads".into(), json!(self.threads));
+                }
+                if let Some(o) = &self.owned {
+                    p.insert("owned".into(), json!(o));
+                }
+            }
         }
         if self.high() {
             p.insert("fidelity".into(), json!("high"));
@@ -242,7 +259,27 @@ impl ImageWizard {
                 result["lines"],
                 result["regions"]
             ),
-            _ => format!("{}: {n} objects in {colors} colours", self.method.label()),
+            _ => {
+                let line = format!("{}: {n} objects in {colors} colours", self.method.label());
+                // The chosen threads the user does not own (B16.1 T5).
+                match result.get("toBuy").and_then(Value::as_array) {
+                    Some(buy) if !buy.is_empty() => {
+                        let names: Vec<String> = buy
+                            .iter()
+                            .map(|t| {
+                                let part = |k: &str| t.get(k).and_then(Value::as_str).unwrap_or("");
+                                let name = format!("{} {}", part("brand"), part("code"));
+                                match name.trim() {
+                                    "" => part("color").to_string(),
+                                    n => n.to_string(),
+                                }
+                            })
+                            .collect();
+                        format!("{line}; to buy: {}", names.join(", "))
+                    }
+                    _ => line,
+                }
+            }
         }
     }
 }
@@ -364,6 +401,47 @@ mod tests {
                 .params
                 .get("compatMode")
                 .is_none()
+        );
+    }
+
+    /// Thread sources (B16.1 T5): sent only in OpenStitch mode, not for Photo Stitch 2, and the
+    /// summary lists the threads to buy.
+    #[test]
+    fn thread_source_round_trips_and_lists_threads_to_buy() {
+        let mut w = ImageWizard {
+            path: Some("a.png".into()),
+            threads: "all".into(),
+            owned: Some("My Threads".into()),
+            ..Default::default()
+        };
+        assert!(
+            w.request()
+                .expect("request")
+                .params
+                .get("threads")
+                .is_none()
+        );
+        w.open_stitch = true;
+        let r = w.request().expect("request");
+        assert_eq!(r.params["threads"], "all");
+        assert_eq!(r.params["owned"], "My Threads");
+        let lines = ImageWizard {
+            method: Method::PhotoLines,
+            ..w.clone()
+        };
+        assert!(
+            lines
+                .request()
+                .expect("request")
+                .params
+                .get("threads")
+                .is_none()
+        );
+        let result = json!({"ids": [1, 2], "colors": ["#ff0000", "#00ff00"],
+            "toBuy": [{"color": "#00ff00", "brand": "Janome", "code": "202"}]});
+        assert_eq!(
+            w.summary(&result),
+            "Auto Punch: 2 objects in 2 colours; to buy: Janome 202"
         );
     }
 

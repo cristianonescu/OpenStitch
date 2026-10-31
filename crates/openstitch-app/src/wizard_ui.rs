@@ -5,11 +5,19 @@
 use crate::app::EditorApp;
 use eframe::egui;
 use openstitch_app::editor::CommandRequest;
-use openstitch_app::editor::wizard::{LINE_SEWS, Method, REGION_SEWS};
+use openstitch_app::editor::wizard::{ImageWizard, LINE_SEWS, Method, REGION_SEWS};
 
 pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.wizard.open;
     let mut convert = false;
+    // The user's thread charts, for the Threads and "I own" choices.
+    let charts: Vec<String> = app
+        .session
+        .user_settings()
+        .thread_charts
+        .iter()
+        .map(|c| c.name.clone())
+        .collect();
     egui::Window::new("Image to Embroidery")
         .open(&mut open)
         .default_width(360.0)
@@ -190,6 +198,9 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                             w.change(|w| w.high_fidelity = high);
                         });
                         ui.end_row();
+                        if w.method != Method::PhotoLines {
+                            threads_rows(ui, w, &charts);
+                        }
                     }
                 }
                 if matches!(w.method, Method::AutoPunch | Method::DesignCenter) {
@@ -208,6 +219,43 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
     if convert {
         run(app);
     }
+}
+
+/// The Threads and "I own" rows (B16.1 T5): where OpenStitch mode chooses its threads (the
+/// Brother chart, every built-in chart, or one of the user's charts), and which of the user's
+/// charts holds the threads they own, so the result can list the rest to buy.
+fn threads_rows(ui: &mut egui::Ui, w: &mut ImageWizard, charts: &[String]) {
+    let label = |v: &str| match v {
+        "brother" => "Brother".to_string(),
+        "all" => "All built-in charts".to_string(),
+        other => other.to_string(),
+    };
+    ui.label("Threads");
+    egui::ComboBox::from_id_salt("wizardThreads")
+        .selected_text(label(&w.threads))
+        .show_ui(ui, |ui| {
+            for v in ["brother", "all"]
+                .into_iter()
+                .map(str::to_string)
+                .chain(charts.iter().cloned())
+            {
+                let text = label(&v);
+                ui.selectable_value(&mut w.threads, v, text);
+            }
+        });
+    ui.end_row();
+    ui.label("I own");
+    egui::ComboBox::from_id_salt("wizardOwned")
+        .selected_text(w.owned.clone().unwrap_or_else(|| "(not set)".into()))
+        .show_ui(ui, |ui| {
+            ui.selectable_value(&mut w.owned, None, "(not set)");
+            for c in charts {
+                ui.selectable_value(&mut w.owned, Some(c.clone()), c);
+            }
+        })
+        .response
+        .on_hover_text("One of your thread charts: threads chosen outside it are listed to buy.");
+    ui.end_row();
 }
 
 fn combo(ui: &mut egui::Ui, id: &str, value: &mut &'static str, options: &[&'static str]) {

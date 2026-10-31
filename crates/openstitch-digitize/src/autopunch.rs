@@ -44,6 +44,9 @@ pub struct AutoPunch {
     /// PE-DESIGN's colour reduction, or OpenStitch's perceptual one
     /// ([`Palette::from_census_perceptual`]).
     pub mode: Mode,
+    /// OpenStitch mode: the threads to choose from (B16.1 T5: other brands' charts, the user's
+    /// own threads); empty is the Brother PEC chart. PE-DESIGN mode ignores it.
+    pub threads: Vec<Thread>,
     /// OpenStitch mode's fidelity: High lets the automatic colour count reach
     /// [`crate::HIGH_COLORS`]. PE-DESIGN mode ignores it.
     pub fidelity: Fidelity,
@@ -61,6 +64,7 @@ impl Default for AutoPunch {
             satin_min_mm: 0.7,
             skip_background: true,
             mode: Mode::PeDesign,
+            threads: Vec::new(),
             fidelity: Fidelity::Standard,
         }
     }
@@ -198,7 +202,7 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
     };
     let palette = match p.mode {
         Mode::PeDesign => Palette::from_census(&census, colors),
-        Mode::OpenStitch => Palette::from_census_perceptual(&census, colors),
+        Mode::OpenStitch => Palette::from_census_perceptual_in(&census, colors, &p.threads),
     };
     let mut labels = label(&census, &palette);
     let background = match (p.skip_background, p.mode) {

@@ -260,7 +260,15 @@ impl Palette {
     /// than any other thread. Pixels are matched to the centres by CIEDE2000, so a colour sharing
     /// the background's thread (a line's light edge) is still a colour of its own.
     pub fn from_census_perceptual(census: &Census, n: usize) -> Palette {
-        let (chart, labs) = pec_labs();
+        Self::from_census_perceptual_in(census, n, &[])
+    }
+
+    /// [`Palette::from_census_perceptual`] choosing from `source` instead of the PEC chart
+    /// (B16.1 T5: other brands' charts, the user's own threads); an empty `source` is the PEC
+    /// chart. A thread from another chart records the PEC chart number nearest it in
+    /// [`Palette::chart`], the number a PES/PEC file gives it.
+    pub fn from_census_perceptual_in(census: &Census, n: usize, source: &[Thread]) -> Palette {
+        let (chart, labs) = candidates(source);
         let colors: Vec<(Lab, f64)> = census
             .colors
             .iter()
@@ -276,17 +284,16 @@ impl Palette {
             perceptual: true,
             known: Vec::new(),
         };
+        // The candidate each palette thread came from.
+        let mut taken: Vec<usize> = Vec::new();
         for (&(c, _), &(l, _)) in census.colors.iter().zip(&colors) {
             let i = kept[nearest_de(&kept_labs, l)];
-            let k = palette
-                .chart
-                .iter()
-                .position(|&x| x == chart[i].0)
-                .unwrap_or_else(|| {
-                    palette.chart.push(chart[i].0);
-                    palette.threads.push(chart[i].1.clone());
-                    palette.chart.len() - 1
-                });
+            let k = taken.iter().position(|&x| x == i).unwrap_or_else(|| {
+                taken.push(i);
+                palette.chart.push(chart[i].0);
+                palette.threads.push(chart[i].1.clone());
+                taken.len() - 1
+            });
             palette.means.push(c);
             palette.thread_of.push(k);
         }
@@ -294,11 +301,7 @@ impl Palette {
         met.sort_unstable();
         met.dedup();
         let mean_labs: Vec<Lab> = palette.means.iter().map(|&m| perceptual::lab(m)).collect();
-        let thread_labs: Vec<Lab> = palette
-            .chart
-            .iter()
-            .map(|&i| labs[i_of(&chart, i)])
-            .collect();
+        let thread_labs: Vec<Lab> = taken.iter().map(|&i| labs[i]).collect();
         palette.known = met
             .into_iter()
             .map(|p| {
@@ -387,19 +390,27 @@ impl Palette {
     /// the weighted mean of the colours nearest to it. Photo Stitch 1 dithers onto the threads
     /// themselves.
     pub fn select_perceptual(colors: &[Rgb], n: usize) -> Palette {
-        Self::select_perceptual_with(colors, n, perceptual::SelectCost::Nearest)
+        Self::select_perceptual_with(colors, n, perceptual::SelectCost::Nearest, &[])
+    }
+
+    /// [`Palette::select_perceptual`] choosing from `source` instead of the PEC chart (T5), as
+    /// [`Palette::from_census_perceptual_in`].
+    pub fn select_perceptual_in(colors: &[Rgb], n: usize, source: &[Thread]) -> Palette {
+        Self::select_perceptual_with(colors, n, perceptual::SelectCost::Nearest, source)
     }
 
     /// [`Palette::select_perceptual`] with the selection's cost chosen by the caller: nearest
     /// thread, or the best two-thread mix for rows that mix threads by error carry
-    /// ([`perceptual::SelectCost`]). On Photo Stitch 1's 3 mm cells the nearest thread scores
-    /// higher (nine photos: 57.1 against 54.2 with the mix), so that is the default there.
+    /// ([`perceptual::SelectCost`]), choosing from `source` (empty: the PEC chart). On Photo
+    /// Stitch 1's 3 mm cells the nearest thread scores higher (nine photos: 57.1 against 54.2
+    /// with the mix), so that is the default there.
     pub fn select_perceptual_with(
         colors: &[Rgb],
         n: usize,
         cost: perceptual::SelectCost,
+        source: &[Thread],
     ) -> Palette {
-        let (chart, labs) = pec_labs();
+        let (chart, labs) = candidates(source);
         let hist = histogram(colors);
         let rgbs: Vec<Rgb> = chart.iter().map(|(_, t)| rgb_of(t)).collect();
         let weighted: Vec<(Rgb, f64)> = hist.iter().map(|&(c, w)| (c, w as f64)).collect();
@@ -499,9 +510,22 @@ fn pec_labs() -> (Vec<(usize, Thread)>, Vec<Lab>) {
     (chart, labs)
 }
 
-/// Position in `chart` of chart number `i`.
-fn i_of(chart: &[(usize, Thread)], i: usize) -> usize {
-    chart.iter().position(|c| c.0 == i).unwrap_or(0)
+/// The threads a palette chooses from with their PEC chart numbers, and their CIELAB colours:
+/// the PEC chart when `source` is empty, otherwise `source`, each thread with the number of the
+/// PEC thread nearest it.
+fn candidates(source: &[Thread]) -> (Vec<(usize, Thread)>, Vec<Lab>) {
+    if source.is_empty() {
+        return pec_labs();
+    }
+    let chart: Vec<(usize, Thread)> = source
+        .iter()
+        .map(|t| (nearest_pec(rgb_of(t)).0, t.clone()))
+        .collect();
+    let labs = chart
+        .iter()
+        .map(|(_, t)| perceptual::lab(rgb_of(t)))
+        .collect();
+    (chart, labs)
 }
 
 /// Index of the colour in `targets` nearest `c` by CIEDE2000 (ties to the lower index).

@@ -305,3 +305,36 @@ fn sew_palette_has_94_ids_with_four_reserved() {
     }
     assert_eq!(sew_palette_index(&Thread::rgb(0xED171F), false), Some(5));
 }
+
+/// B16.1 T5: the other brands' charts are whole (as generated from their CSVs), each code once
+/// per chart, and leave the PEC chart alone.
+#[test]
+fn brand_charts_are_whole_and_additive() {
+    let charts = crate::brands::brand_charts();
+    assert!(!charts.is_empty());
+    for (id, name, threads) in charts {
+        assert!(!id.is_empty() && !name.is_empty());
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/brands");
+        let list = std::fs::read_to_string(dir.join("charts.txt")).expect("charts.txt");
+        let file = list
+            .lines()
+            .find_map(|l| {
+                let mut f = l.split('|');
+                let (file, cid) = (f.next()?, f.next()?);
+                (cid == id).then(|| file.to_string())
+            })
+            .expect("the chart is listed");
+        let csv =
+            std::fs::read_to_string(dir.join(format!("{file}.csv"))).expect("the chart's CSV");
+        assert_eq!(threads.len(), csv.lines().count() - 1, "{id}");
+        let mut codes: Vec<&str> = threads
+            .iter()
+            .map(|t| t.catalog_number.as_deref().unwrap_or(""))
+            .collect();
+        codes.sort_unstable();
+        let n = codes.len();
+        codes.dedup();
+        assert_eq!(codes.len(), n, "{id}: a code twice");
+    }
+    assert_eq!(crate::PEC_CHART.len(), 65);
+}
