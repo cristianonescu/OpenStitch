@@ -902,3 +902,101 @@ fn openstitch_mode_sews_one_covering_layer() {
         assert_eq!(fill.density, autopunch::OPEN_STITCH_DENSITY);
     }
 }
+
+/// 200×200 px on white: a red disc inside a black ring 4 px wide (1 mm at 0.25 mm per pixel).
+fn ringed_disc() -> Raster {
+    Raster::from_fn(200, 200, |x, y| {
+        let (dx, dy) = (x as f64 - 100.0, y as f64 - 100.0);
+        let r = (dx * dx + dy * dy).sqrt();
+        if (60.0..64.0).contains(&r) {
+            [0, 0, 0, 255]
+        } else if r < 60.0 {
+            [220, 20, 30, 255]
+        } else {
+            [255, 255, 255, 255]
+        }
+    })
+    .expect("size")
+}
+
+#[test]
+fn openstitch_mode_sews_dark_outlines_on_top_along_their_skeleton() {
+    let frame = Frame::new(0.0, 0.0, 50.0, 200); // 0.25 mm per pixel: the ring is 1 mm wide
+    let p = AutoPunch {
+        colors: 3,
+        resolution: 200,
+        mode: Mode::OpenStitch,
+        outline_max_mm: 2.5,
+        satin_max_mm: 2.5,
+        ..Default::default()
+    };
+    let out = autopunch::convert(&ringed_disc(), &frame, &p).expect("converts");
+    // The red disc, then the ring as one closed zigzag line sewn last.
+    let last = out.objects.last().expect("objects");
+    let line = last.line.as_ref().expect("the outline is a line");
+    assert_eq!(line.kind, openstitch_design::LineType::Zigzag);
+    assert!((0.6..=1.6).contains(&line.width), "{}", line.width);
+    assert!(last.region.is_none());
+    assert_eq!(last.contours.len(), 1);
+    assert!(last.contours[0].closed);
+    assert_eq!(out.threads.last().map(|t| t.hex()), Some(line.thread.hex()));
+    // The disc runs under the outline: its edge reaches the ring's centre line (r 62 px,
+    // 15.5 mm from the centre at 25 mm), not only the ring's inner edge (r 60, 15 mm).
+    let disc = &out.objects[0];
+    assert!(disc.region.is_some());
+    let reach = disc.contours[0]
+        .points
+        .iter()
+        .map(|q| ((q.x / 10.0 - 25.0).powi(2) + (q.y / 10.0 - 25.0).powi(2)).sqrt())
+        .fold(0.0, f64::max);
+    assert!(reach > 15.2, "{reach}");
+    // Without outlines the ring is a region of its own.
+    let plain = autopunch::convert(
+        &ringed_disc(),
+        &frame,
+        &AutoPunch {
+            outline_max_mm: 0.0,
+            ..p.clone()
+        },
+    )
+    .expect("converts");
+    assert!(plain.objects.iter().all(|o| o.line.is_none()));
+    assert_eq!(plain.objects.len(), 2);
+}
+
+#[test]
+fn openstitch_mode_fills_compact_shapes_and_keeps_satin_for_strokes() {
+    // A 2 mm dot and a 2 mm × 20 mm bar at 0.25 mm per pixel.
+    let img = rects(
+        120,
+        60,
+        WHITE,
+        &[(10, 10, 18, 18, RED), (30, 30, 110, 38, BLUE)],
+    );
+    let frame = Frame::new(0.0, 0.0, 30.0, 120);
+    let kinds = |mode| {
+        autopunch::convert(
+            &img,
+            &frame,
+            &AutoPunch {
+                colors: 3,
+                resolution: 120,
+                mode,
+                satin_max_mm: 2.5,
+                ..Default::default()
+            },
+        )
+        .expect("converts")
+        .objects
+        .iter()
+        .map(|o| o.region.as_ref().expect("region").kind)
+        .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        kinds(Mode::PeDesign),
+        [RegionType::Satin, RegionType::Satin]
+    );
+    let open = kinds(Mode::OpenStitch);
+    assert!(open.contains(&RegionType::Fill), "{open:?}");
+    assert!(open.contains(&RegionType::Satin), "{open:?}");
+}
