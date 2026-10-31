@@ -47,11 +47,11 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 181: 149 implemented (3 of them partially compatible), 2 documented only, 10 blocked, 20 planned beyond PE-DESIGN |
+| Feature matrix rows | 185: 154 implemented (3 of them partially compatible), 2 documented only, 10 blocked, 19 planned beyond PE-DESIGN |
 | Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 33: 26 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 11 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
-| Open GitHub issues | 5 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
+| Open GitHub issues | 6 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
 <!-- /status:glance -->
 
 Tiers, weakest first: *internal regression* (our own earlier output), *oracle* (an independent
@@ -371,6 +371,7 @@ Open enhancement issues:
 - [#129](https://github.com/cristianonescu/OpenStitch/issues/129) (Optional, larger) Photo-stitch rotating-line coverage density model
 - [#130](https://github.com/cristianonescu/OpenStitch/issues/130) Add a PMV motif/pattern reader
 - [#134](https://github.com/cristianonescu/OpenStitch/issues/134) Import external scalable embroidery font containers
+- [#271](https://github.com/cristianonescu/OpenStitch/issues/271) tools/gallery.py: the design crop fails on macOS, so gallery images come out as thin window strips
 <!-- /status:issues-planned -->
 
 ### Beyond PE-DESIGN
@@ -381,7 +382,6 @@ PE-DESIGN 11 does not. Each item is sketched in
 
 <!-- status:beyond-planned -->
 - Image similarity, Phase 0 (measurement): the similarity score (0.4 MS-SSIM, 0.4 CIEDE2000, 0.2 DISTS on a thread render at actual size from 40 cm) with a sewability report, a calibration test card and a realistic render fitted to its photographed sew-out, deterministic digitizing maths and cross-platform golden hashes (B16.1)
-- Image similarity, Phase 1 (shared colour engine): thread selection by backward elimination, multi-brand charts and My Threads as an additive source, dithering only in tonal regions, a Standard / High fidelity setting in the image dialog (B16.1)
 - Image similarity, Phase 2 (Photo Stitch 2): least-squares thread shares with 4–6 threads and a sew-out-calibrated coverage model, at a design mean ≤ 3.3 needle points/mm²; no fixed target (the ≥ 75 target was dropped on 2026-10-31: with the line look the best measured is about 48), it must beat PE-DESIGN-compatible mode on every photo (B16.1)
 - Image similarity, Phase 3 (Photo Stitch 1 High fidelity): fine colour sampling with variable stitch boundaries, rate-constrained rows under 2.1 needle points/mm², a saliency-weighted budget, metric-driven local search; firm target 85 % (B16.1)
 - Image similarity, Phase 4 (Auto Punch): a sewn coloured background, SLIC regions that keep line art, skeleton satin for outlines; target 95 % for logos, clip art and lettering (B16.1)
