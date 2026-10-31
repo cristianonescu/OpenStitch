@@ -103,14 +103,21 @@ regenerates them.
 | <img src="examples/images/g15-folk-bird.png" width="200"> | <img src="docs/images/readme/gallery/g15.png" width="260"> | **Cross Stitch, defaults**<br>4,467 stitches, 303 trims, 4 colours |
 <!-- gallery:end -->
 
-Auto Punch and Photo Stitch 1 and 2 have two modes, both run by OpenStitch (the image
-dialog's Mode choice):
+Auto Punch, Photo Stitch 1 and 2, Cross Stitch and Design Center have two modes, both run by
+OpenStitch. The image dialog's Mode choice offers them for Auto Punch and Photo Stitch; Cross
+Stitch's and Design Center's OpenStitch modes are reachable through `stitchtool`
+(`compatMode: openStitch`) until the dialog gains them:
 
 - **PE-DESIGN-compatible** (the default, labelled "PE-DESIGN" in the dialog): OpenStitch's own
   reimplementation of PE-DESIGN 11's method, so a design converts the way it would in
   PE-DESIGN. It is not PE-DESIGN's output, and it does not sew PE-DESIGN's exact stitches.
 - **OpenStitch** (➕): colours are reduced, matched to threads and mixed by how they look, and
   Auto Punch merges specks under 3 mm² ([research](docs/research/beyond/image-digitizing.md)).
+  Since B16.1 ([plan](docs/research/beyond/image-similarity-plan.md)) the threads are chosen
+  for the image as a whole, Photo Stitch 1 dithers only where the image is tonal, a Fidelity
+  choice (Standard / High) trades colours for likeness, Cross Stitch takes each cell's mean
+  colour, and Design Center finds its line threshold from the image (Otsu). Every OpenStitch
+  mode sews the same stitches on macOS, Windows and Linux.
 
 The table below shows both modes, both from OpenStitch. OpenStitch mode measures better on
 average, not on every image, so try both. For example, the test portrait sews truer in Photo

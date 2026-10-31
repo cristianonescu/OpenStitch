@@ -420,6 +420,22 @@ Made while Phase 0–5 were implemented; they change the targets and gates above
 
    They will be added in Phase 0 with PROVENANCE entries.
 
+## 10. Progress
+
+**2026-10-31, integration batch #270** (flat render, OpenStitch mode; PE-DESIGN-compatible mode
+bit-identical, compat 443/443):
+
+| Phase | Landed | Result |
+|---|---|---|
+| 0 | Deterministic digitizing maths (#259), cross-platform golden hashes (#260), the scorer (#261) | Scorer reproduces section 3 exactly; Design Center baselines g03 95.1, g04 70.3 |
+| 1 | T4 thread selection (#264, with a mix-aware cost), T6 tonal dithering (#266, flat threshold ΔE 12), Fidelity Standard / High (#269) | T5 (multi-brand charts) in progress |
+| 5 | Cross Stitch OpenStitch mode (#263), Design Center OpenStitch mode (#268) | Cross Stitch mean 51.3 → 70.2 (g07 82.5); Design Center g03 96.4, g04 95.2: both meet 95 |
+
+Not yet landed, measured on the tracks' branches: Auto Punch T7, T11 and T12 (mean 78.4 → 83.3,
+every case above PE-DESIGN-compatible mode; held back until it fits the density limits),
+Photo Stitch 1 T2, T3 and T9 (mean 55.8 → 67.5 under a strict 2.0 per-window cap; being
+re-tuned to the owner's limits), Photo Stitch 2 T13 (in progress).
+
 ## Sources
 
 - Zhang, X., and Wandell, B. A. (1996). A spatial extension of CIELAB for digital color image reproduction (S-CIELAB). SID Digest.
