@@ -507,3 +507,49 @@ fn open_stitch_fill_limits_and_options() {
     .expect("converts");
     assert_eq!(plain.objects, pe.objects);
 }
+
+/// B16.1 T14: with `part_crosses`, a cell whose halves along a diagonal differ becomes two
+/// part-crosses: a red triangle on white sews red only above the diagonal (filled, or as a
+/// three-quarter cross without fill), and whole cells stay whole.
+#[test]
+fn open_stitch_part_crosses_split_cells_along_a_diagonal() {
+    // 50×30 px at 0.5 mm/px, 5 mm cells (10 px), 5×3 cells on white: cell (1, 1) red, cell
+    // (2, 1) red above its "/" diagonal.
+    let img = Raster::from_fn(50, 30, |x, y| {
+        let red = (10..20).contains(&y)
+            && ((10..20).contains(&x) || ((20..30).contains(&x) && (x - 20) + (y - 10) < 10));
+        if red { RED } else { WHITE }
+    })
+    .expect("valid size");
+    let frame = Frame::new(0.0, 0.0, 25.0, 50);
+    let p = CrossStitch {
+        part_crosses: true,
+        ..open_stitch(5.0, 2)
+    };
+    // Cell (2, 1) spans 100..150 × 50..100 in design units; above "/": (x − 100) + (y − 50) ≤ 50.
+    let above = |x: f64, y: f64| (x - 100.0) + (y - 50.0) <= 50.0 + 1e-6;
+    for fill in [true, false] {
+        let out =
+            cross::convert(&img, &frame, &CrossStitch { fill, ..p.clone() }).expect("converts");
+        assert_eq!(out.cells, vec![2], "fill {fill}");
+        let red = &out.objects[0]
+            .stitch_block
+            .as_ref()
+            .expect("block")
+            .stitches;
+        let in_cell: Vec<_> = red.iter().filter(|s| s.x > 100.0 + 1e-9).collect();
+        assert!(!in_cell.is_empty(), "fill {fill}");
+        for s in in_cell {
+            assert!(above(s.x, s.y), "fill {fill}: {s:?}");
+        }
+    }
+    // Off by default: the half-red cell is a whole cross of one thread or none.
+    let whole = cross::convert(&img, &frame, &open_stitch(5.0, 2)).expect("converts");
+    let red = &whole.objects[0]
+        .stitch_block
+        .as_ref()
+        .expect("block")
+        .stitches;
+    let below = red.iter().any(|s| s.x > 100.0 + 1e-9 && !above(s.x, s.y));
+    assert_eq!(whole.cells, vec![if below { 2 } else { 1 }]);
+}

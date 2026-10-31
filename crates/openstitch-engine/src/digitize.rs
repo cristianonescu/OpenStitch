@@ -228,6 +228,11 @@ pub fn commands() -> Vec<CommandSpec> {
                     "bool",
                     "OpenStitch mode: cover each cell with parallel diagonals about 0.3 mm apart, at most 2 needle points per mm², instead of one cross; times then has no effect (default true)",
                 ),
+                opt(
+                    "partCrosses",
+                    "bool",
+                    "OpenStitch mode: a cell whose halves along a diagonal are clearly different colours becomes two part-crosses, three-quarter and quarter (default false)",
+                ),
             ]),
             |s, p| {
                 let (image, frame) = load(s, p)?;
@@ -242,6 +247,7 @@ pub fn commands() -> Vec<CommandSpec> {
                     skip_background: p.bool("skipBackground", Some(true))?,
                     mode: compat_mode(p)?,
                     fill: p.bool("fill", Some(true))?,
+                    part_crosses: p.bool("partCrosses", Some(false))?,
                 };
                 let out = cross::convert(&image, &frame, &options).map_err(|e| failed(p, e))?;
                 Ok(json!({
