@@ -320,9 +320,10 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
                 n
             };
             // Photo Stitch 1's fine rows mix their threads, and score higher with the k-means
-            // palette than with the threads chosen by elimination (T4), so both styles take it.
+            // palette than with the threads chosen by elimination (T4), so both styles take it,
+            // matched to the user's thread source (T5; the PEC chart when none is chosen).
             let pal = if perceptual {
-                Palette::build_perceptual(&colors, boxes.min(64))
+                Palette::build_perceptual_in(&colors, boxes.min(64), &p.threads)
             } else {
                 Palette::build(&colors, boxes.min(64))
             };
