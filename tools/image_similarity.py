@@ -26,8 +26,9 @@ over the image's width x height), the shortest stitch, stitches under 1 mm, trim
 Each case converts one image of examples/images through `stitchtool serve`, as
 `tools/image_eval.py` does (its CASES, plus the Design Center cases below). `--mode` runs each
 case in OpenStitch's PE-DESIGN-compatible mode (`compatMode: peDesign`), in OpenStitch mode
-(`openStitch`), or both; Cross Stitch and Design Center have no OpenStitch mode yet and run
-once. Every result is OpenStitch's output: nothing here is PE-DESIGN's own.
+(`openStitch`), or both. A command that does not have an OpenStitch mode yet ignores the
+parameter, so its two runs are identical. Every result is OpenStitch's output: nothing here is
+PE-DESIGN's own.
 
 Needs numpy, Pillow and scipy. The P term needs PyTorch and piq (`pip install torch piq`;
 piq downloads the published DISTS weights on first use). DISTS is evaluation-only and never
@@ -57,7 +58,8 @@ CASES.update({
     "g04-dc": ("g04-butterfly-outline.png", "digitize.designCenter", {}),
 })
 # Commands with an OpenStitch mode (compatMode).
-MODAL = {"digitize.autoPunch", "digitize.photoStitch"}
+MODAL = {"digitize.autoPunch", "digitize.photoStitch", "digitize.crossStitch",
+         "digitize.designCenter"}
 MODES = {"pe": "peDesign", "openstitch": "openStitch"}
 
 
