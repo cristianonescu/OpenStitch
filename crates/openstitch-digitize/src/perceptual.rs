@@ -168,3 +168,116 @@ pub fn nearest(centres: &[Lab], c: Lab) -> usize {
     }
     best.1
 }
+
+/// Thread selection by backward elimination (B16.1 T4): starting from every thread of `chart`,
+/// repeatedly drop the thread whose loss raises the colours' weighted CIEDE2000 to their
+/// nearest remaining thread least, until `n` remain. A thread no colour is nearest to costs
+/// nothing to drop, so unused threads go first; any still unused at the end are left out, so an
+/// image with fewer colours than `n` gets fewer threads. Returns the kept indices into `chart`,
+/// ascending. Deterministic: costs are summed in the colours' order and ties drop the later
+/// chart thread.
+///
+/// This replaces snapping k-means centres to their nearest thread, where several centres
+/// collapse onto one thread (ten asked, seven distinct on the portrait) and a thread is never
+/// chosen for how well it serves the image as a whole.
+pub fn select_threads(colors: &[(Lab, f64)], chart: &[Lab], n: usize) -> Vec<usize> {
+    let m = chart.len();
+    if m == 0 {
+        return Vec::new();
+    }
+    let n = n.max(1);
+    let dist: Vec<Vec<f64>> = colors
+        .iter()
+        .map(|(c, _)| chart.iter().map(|&t| de2000(*c, t)).collect())
+        .collect();
+    let mut alive = vec![true; m];
+    let mut left = m;
+    // Each colour's nearest and second-nearest live thread (ties to the lower index).
+    let rank = |d: &[f64], alive: &[bool]| {
+        let mut best = (f64::INFINITY, usize::MAX);
+        let mut second = (f64::INFINITY, usize::MAX);
+        for (j, &v) in d.iter().enumerate() {
+            if !alive[j] {
+                continue;
+            }
+            if v < best.0 {
+                second = best;
+                best = (v, j);
+            } else if v < second.0 {
+                second = (v, j);
+            }
+        }
+        (best, second)
+    };
+    let mut near: Vec<_> = dist.iter().map(|d| rank(d, &alive)).collect();
+    while left > n {
+        let mut cost = vec![0.0; m];
+        for ((best, second), (_, w)) in near.iter().zip(colors) {
+            if second.1 != usize::MAX {
+                cost[best.1] += w * (second.0 - best.0);
+            }
+        }
+        let mut drop = (f64::INFINITY, 0);
+        for j in (0..m).filter(|&j| alive[j]) {
+            if cost[j] <= drop.0 {
+                drop = (cost[j], j);
+            }
+        }
+        alive[drop.1] = false;
+        left -= 1;
+        for (k, d) in dist.iter().enumerate() {
+            if near[k].0.1 == drop.1 || near[k].1.1 == drop.1 {
+                near[k] = rank(d, &alive);
+            }
+        }
+    }
+    let mut used = vec![false; m];
+    for ((best, _), (_, w)) in near.iter().zip(colors) {
+        if *w > 0.0 && best.1 != usize::MAX {
+            used[best.1] = true;
+        }
+    }
+    (0..m).filter(|&j| alive[j] && used[j]).collect()
+}
+
+/// Most distinct colours [`select_threads`] weighs: a larger colour list is binned on a coarser
+/// RGB grid (one bit per channel fewer at a time) until it fits, each bin standing at its
+/// members' weighted mean.
+pub const SELECT_COLORS: usize = 4096;
+
+/// A colour histogram (sorted by packed RGB) reduced to at most [`SELECT_COLORS`] CIELAB colours
+/// with their weights, for [`select_threads`]. Deterministic: bins are visited in packed order.
+pub fn select_colors(hist: &[(Rgb, u64)]) -> Vec<(Lab, f64)> {
+    let mut bits = 8;
+    loop {
+        let shift = 8 - bits;
+        let key = |c: Rgb| {
+            (u32::from(c[0] >> shift) << 16)
+                | (u32::from(c[1] >> shift) << 8)
+                | u32::from(c[2] >> shift)
+        };
+        let mut keyed: Vec<(u32, Rgb, u64)> = hist.iter().map(|&(c, w)| (key(c), c, w)).collect();
+        keyed.sort_by_key(|k| (k.0, k.1));
+        let mut bins: Vec<(u32, [f64; 3], f64)> = Vec::new();
+        for (k, c, w) in keyed {
+            let w = w as f64;
+            match bins.last_mut() {
+                Some(b) if b.0 == k => {
+                    for (total, &v) in b.1.iter_mut().zip(&c) {
+                        *total += f64::from(v) * w;
+                    }
+                    b.2 += w;
+                }
+                _ => bins.push((k, c.map(|v| f64::from(v) * w), w)),
+            }
+        }
+        if bins.len() <= SELECT_COLORS || bits == 1 {
+            return bins
+                .into_iter()
+                .filter(|b| b.2 > 0.0)
+                .map(|(_, s, w)| (lab(s.map(|v| (v / w).round().clamp(0.0, 255.0) as u8)), w))
+                .collect();
+        }
+        bits -= 1;
+    }
+}
