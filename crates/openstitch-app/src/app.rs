@@ -165,6 +165,8 @@ pub struct EditorApp {
     /// new design + import + centre) is one Undo.
     pub(crate) undo_groups: Vec<usize>,
     pub(crate) redo_groups: Vec<usize>,
+    /// Inside [`EditorApp::with_one_refresh`]: whether an edit is waiting for its stitch compile.
+    refresh_deferred: Option<bool>,
     /// Rulers, grid, measure tool, Reference window, Design Settings, estimates.
     pub workspace: crate::workspace_ui::Workspace,
     /// Groups, arrange copies, shape operations, attributes, entry/exit points.
@@ -265,6 +267,7 @@ impl EditorApp {
             frames: 0,
             undo_groups: Vec::new(),
             redo_groups: Vec::new(),
+            refresh_deferred: None,
             workspace: Default::default(),
             edit: Default::default(),
             wizard: Default::default(),
@@ -321,9 +324,11 @@ impl EditorApp {
             self.update.check_at_start = true;
         }
         if l.demo {
-            for r in demo_design() {
-                self.execute(&r);
-            }
+            self.with_one_refresh(|app| {
+                for r in demo_design() {
+                    app.execute(&r);
+                }
+            });
         }
         if let Some(p) = l.open {
             self.open_path(&p);
@@ -476,7 +481,10 @@ impl EditorApp {
                     }
                 }
                 if matches!(effect, Some(Effect::Edit | Effect::History)) {
-                    self.refresh();
+                    match &mut self.refresh_deferred {
+                        Some(pending) => *pending = true,
+                        None => self.refresh(),
+                    }
                 }
                 Some(v)
             }
@@ -496,6 +504,16 @@ impl EditorApp {
             }
             last
         })
+    }
+
+    /// Runs `f` with one stitch compile at the end instead of one per edit; for command
+    /// batches that never look at the stitches between commands (the `--demo` sample).
+    fn with_one_refresh(&mut self, f: impl FnOnce(&mut Self)) {
+        self.refresh_deferred = Some(false);
+        f(self);
+        if self.refresh_deferred.take() == Some(true) {
+            self.refresh();
+        }
     }
 
     /// Runs `f` so that every edit it makes is undone by a single Undo.
@@ -1488,6 +1506,12 @@ mod tests {
         assert!(app.stats.stitches > 1000, "{:?}", app.stats);
         assert_eq!(app.status, "Ready");
         assert!(!app.is_dirty());
+        // The sample compiles once at the end: the stitches are those of the final design,
+        // and each command is still its own Undo.
+        let d = app.session.design();
+        assert_eq!(app.pattern, Compiler::for_design(d).compile(d));
+        assert_eq!(app.undo_groups, vec![1; demo_design().len()]);
+        assert_eq!(app.refresh_deferred, None);
     }
 
     #[test]

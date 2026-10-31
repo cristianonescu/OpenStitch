@@ -1572,10 +1572,10 @@ mod tests {
         })
     }
 
-    #[test]
-    fn every_ribbon_button_runs_or_is_marked_unavailable() {
+    /// Runs every available, non-interactive button with each of `selections` (or, for a menu,
+    /// draws its list); `unavailable` also checks the missing ones are disabled.
+    fn every_ribbon_button_runs(selections: &[&[u64]], unavailable: bool) {
         let ctx = egui::Context::default();
-        let selections: [&[u64]; 4] = [&[], &[1], &[2], &[1, 2]];
         for a in ribbon_actions()
             .into_iter()
             .chain(APPLICATION_MENU)
@@ -1583,15 +1583,17 @@ mod tests {
         {
             let info = a.info();
             if !info.available {
-                let app = demo();
-                assert!(!enabled(&app, a), "{a:?} is unavailable but enabled");
-                assert!(info.screen_tip(false).contains("Not yet available"));
+                if unavailable {
+                    let app = demo();
+                    assert!(!enabled(&app, a), "{a:?} is unavailable but enabled");
+                    assert!(info.screen_tip(false).contains("Not yet available"));
+                }
                 continue;
             }
             if interactive(a) {
                 continue;
             }
-            for sel in selections {
+            for &sel in selections {
                 let mut app = demo();
                 app.selection = sel.iter().copied().collect();
                 // Runs the command (or, for a menu, draws its list) without panicking.
@@ -1603,6 +1605,18 @@ mod tests {
                 }
             }
         }
+    }
+
+    // The sweep builds a fresh demo app per button and selection, so it is split in two
+    // tests that run in parallel.
+    #[test]
+    fn every_ribbon_button_runs_or_is_marked_unavailable() {
+        every_ribbon_button_runs(&[&[], &[1]], true);
+    }
+
+    #[test]
+    fn every_ribbon_button_runs_with_the_other_selections() {
+        every_ribbon_button_runs(&[&[2], &[1, 2]], false);
     }
 
     #[test]

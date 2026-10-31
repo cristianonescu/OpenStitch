@@ -93,7 +93,9 @@ harness. The details per item are in [COMPATIBILITY_AUDIT.md](COMPATIBILITY_AUDI
   [FILE_FORMATS.md](FILE_FORMATS.md)); a missing PEC section is an error.
 - **Editor and project:** OpenStitch logo, command icons and illustrations generated with
   Higgsfield (code-drawn icons as the fallback); DirectX 12 on Windows with OpenGL as the
-  fallback; a gitleaks job in CI; the repository renamed to `cristianonescu/OpenStitch`;
+  fallback; a gitleaks job in CI; the editor's tests down from ~45 to a few minutes per CI
+  run (optimised dependencies and stitch pipeline in debug builds, one stitch compile for the
+  demo design); the repository renamed to `cristianonescu/OpenStitch`;
   releases v0.1.0-alpha.1 and v0.1.0-alpha.2 ([docs/releases](releases/)).
 
 ## Still to do
