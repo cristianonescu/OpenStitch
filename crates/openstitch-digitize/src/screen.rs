@@ -104,11 +104,7 @@ impl Shares {
             if let Some((_, s)) = cache.iter().find(|(c, _)| *c == rgb) {
                 return s.clone();
             }
-            let m = if linear {
-                mix_near(lin(rgb.map(f64::from)), &lthreads, lfabric, std::env::var("OS_NEAR").ok().and_then(|v| v.parse().ok()).unwrap_or(NEAR))
-            } else {
-                mix(lin(rgb.map(f64::from)), &lthreads, lfabric)
-            };
+            let m = mix(lin(rgb.map(f64::from)), &lthreads, lfabric);
             // PE-DESIGN's full coverage for saturated colours is its own habit; OpenStitch
             // mode keeps the mix as solved.
             let s = if linear { m } else { saturate(rgb, m, threads) };
@@ -165,48 +161,77 @@ impl Shares {
         }
     }
 
-    /// OpenStitch mode (B16.1 T13): turns each cell's visible shares (what [`Shares::colour_in`]
-    /// solves: the part of the cell each thread shows) into each layer's coverage, given the
-    /// sewing `order`. A thread sewn later lies on top, so a layer covering `c` of the cell
-    /// shows only where no later layer covers it: from the last layer down,
-    /// `c_k = v_k / Π_{j later} (1 − c_j)`. A layer nothing shows through is not sewn. Then the
-    /// needle points the layers' zigzags need (see [`Screen::coverage`]) are held to
-    /// `cap` per mm², shrinking the cell's zigzag coverage in proportion where they exceed it.
-    pub fn unlayer(&mut self, order: &[usize], s: &Screen, cap: f64) {
-        let (cover, interval, run) = (s.cover(), s.interval / 10.0, s.run / 10.0);
-        let mut dbg_n = 0;
-        for cell in self.share.iter_mut().flatten() {
-            let mut rem = 1.0;
-            let mut c = vec![0.0; cell.len()];
-            for &k in order.iter().rev() {
-                let v = cell.get(k).copied().unwrap_or(0.0);
-                c[k] = if rem > 1e-6 { (v / rem).min(1.0) } else { 0.0 };
-                rem *= 1.0 - c[k];
+    /// OpenStitch mode (B16.1 T13): each thread's *coverage* of each cell, for threads sewn in
+    /// `order` (later layers lie on top). A layer covering `c_k` of a cell shows where no later
+    /// layer covers it, so the cell looks like
+    /// `fabric + Σ_k c_k Π_{j later} (1 − c_j) (thread_k − fabric)` in linear light. Every line
+    /// is sewn at least as a straight run, which covers [`Screen::straight`] of the cell, so
+    /// `c_k` is at least that. The coverages minimise the difference from the cell's colour in
+    /// cube-root (lightness-like) linear light by coordinate descent (a coarse then a fine grid
+    /// per layer, top layer first, three sweeps), with the needle points they need held to `cap`
+    /// per mm² ([`Screen::points`]).
+    pub fn layered(
+        image: &Raster,
+        frame: &Frame,
+        threads: &[[f64; 3]],
+        fabric: [f64; 3],
+        order: &[usize],
+        s: &Screen,
+        cap: f64,
+    ) -> Self {
+        let lin = |c: [f64; 3]| c.map(|v| linear_of(v / 255.0));
+        let lt: Vec<[f64; 3]> = threads.iter().map(|&t| lin(t)).collect();
+        let lf = lin(fabric);
+        let floor = s.straight();
+        let n = threads.len();
+        let mut cache: Vec<([u8; 3], Vec<f64>)> = Vec::new();
+        Self::build(image, frame, n, |rgb| {
+            if let Some((_, c)) = cache.iter().find(|(k, _)| *k == rgb) {
+                return c.clone();
             }
-            // Needle points per mm²: a zigzag stitch every `cover / c` along each line, lines
-            // `interval` apart; a straight run every `run` where a layer is not needed.
-            let (mut zig, mut straight) = (0.0, 0.0);
-            for &v in &c {
-                if v >= MIN_SHARE {
-                    zig += v / (cover / 10.0) / interval;
-                } else {
-                    straight += 1.0 / run / interval;
-                }
-            }
-            if zig > 0.0 && zig + straight > cap {
-                let f = ((cap - straight) / zig).max(0.0);
-                for v in &mut c {
-                    if *v >= MIN_SHARE {
-                        *v = (*v * f).max(MIN_SHARE);
+            let want = lin(rgb.map(f64::from)).map(|v| v.dcbrt());
+            let cost = |c: &[f64]| {
+                let mut col = lf;
+                // Bottom layer first: each later layer covers `c` of what is below it.
+                for &k in order {
+                    for q in 0..3 {
+                        col[q] += c[k] * (lt[k][q] - col[q]);
                     }
                 }
+                let e: f64 = (0..3).map(|q| (col[q].max(0.0).dcbrt() - want[q]).powi(2)).sum();
+                let over = (s.points(c) - cap).max(0.0);
+                e + 10.0 * over
+            };
+            let mut c = vec![floor; n];
+            let top = MAX_COVER;
+            // Top layer first: what lies on top decides most, and a lower layer then spends
+            // needle points only where it still shows.
+            for _ in 0..3 {
+                for &k in order.iter().rev() {
+                    let mut best = (cost(&c), c[k]);
+                    for i in 0..=20 {
+                        c[k] = floor + (top - floor) * f64::from(i) / 20.0;
+                        let v = cost(&c);
+                        if v < best.0 - 1e-12 {
+                            best = (v, c[k]);
+                        }
+                    }
+                    let mid = best.1;
+                    for i in -4..=4 {
+                        c[k] = (mid + f64::from(i) * (top - floor) / 160.0).clamp(floor, top);
+                        let v = cost(&c);
+                        if v < best.0 - 1e-12 {
+                            best = (v, c[k]);
+                        }
+                    }
+                    c[k] = best.1;
+                }
             }
-            if std::env::var("OS_DBG").is_ok() && dbg_n < 6 {
-                eprintln!("DBG v {:?} -> c {:?} order {:?}", cell, c, order);
-                dbg_n += 1;
+            if cache.len() < 4096 {
+                cache.push((rgb, c.clone()));
             }
-            *cell = c;
-        }
+            c
+        })
     }
 
     /// Thread `t`'s total share over the image (how much of it the screen sews).
@@ -296,46 +321,6 @@ pub fn mix(colour: [f64; 3], threads: &[[f64; 3]], fabric: [f64; 3]) -> Vec<f64>
     c
 }
 
-/// OpenStitch mode's [`mix`]: the same least squares plus `near · Σ c_t |thread_t − colour|²`
-/// (normalised like the colours), so of mixes that average to the colour the one from threads
-/// close to it wins: a light grey from a light thread and the fabric, not from orange and blue
-/// lines that average to grey but read as orange and blue.
-pub fn mix_near(colour: [f64; 3], threads: &[[f64; 3]], fabric: [f64; 3], near: f64) -> Vec<f64> {
-    let n = threads.len();
-    let a: Vec<[f64; 3]> = threads
-        .iter()
-        .map(|t| [0, 1, 2].map(|k| (t[k] - fabric[k]) / 255.0))
-        .collect();
-    let b = [0, 1, 2].map(|k| (colour[k] - fabric[k]) / 255.0);
-    let far: Vec<f64> = threads
-        .iter()
-        .map(|t| (0..3).map(|k| ((t[k] - colour[k]) / 255.0).powi(2)).sum::<f64>())
-        .collect();
-    let trace: f64 = a.iter().map(|v| v.iter().map(|x| x * x).sum::<f64>()).sum();
-    if trace <= 1e-12 {
-        return vec![0.0; n];
-    }
-    let step = 1.0 / trace;
-    let mut c = vec![0.0; n];
-    for _ in 0..300 {
-        let mut r = [0.0; 3];
-        for (ct, at) in c.iter().zip(&a) {
-            for k in 0..3 {
-                r[k] += ct * at[k];
-            }
-        }
-        for k in 0..3 {
-            r[k] -= b[k];
-        }
-        for ((ct, at), f) in c.iter_mut().zip(&a).zip(&far) {
-            let g: f64 = (0..3).map(|k| at[k] * r[k]).sum::<f64>() + 0.5 * near * f;
-            *ct = (*ct - step * g).max(0.0);
-        }
-        project_capped(&mut c);
-    }
-    c
-}
-
 /// Projects non-negative shares onto `Σ c ≤ 1` (onto the simplex when the sum exceeds 1).
 fn project_capped(c: &mut [f64]) {
     let sum: f64 = c.iter().sum();
@@ -366,23 +351,51 @@ pub struct Screen {
     pub run: f64,
     /// Max. Density, lines per mm.
     pub max_density: f64,
-    /// OpenStitch mode: shares are each layer's coverage ([`Shares::unlayer`]) and a zigzag's
-    /// stitches are spaced for it (`cover() / share` apart), instead of PE-DESIGN's Max. Density
+    /// OpenStitch mode: shares are each layer's coverage ([`Shares::layered`]) and a zigzag's
+    /// stitches are spaced for it ([`Screen::advance`]), instead of PE-DESIGN's Max. Density
     /// ramp.
     pub coverage: bool,
 }
 
 impl Screen {
-    /// Advance along the line, design units, at which a zigzag covers its whole band: each
-    /// stitch lays a [`THREAD_MM`]-wide thread across the zigzag's depth, over a band one
-    /// interval wide (a geometric model; #129's calibrated coverage waits for a sew-out).
-    pub fn cover(&self) -> f64 {
-        std::env::var("OS_COV").ok().and_then(|v| v.parse().ok()).unwrap_or(THREAD_MM) * 10.0 * DEPTH_SHARE
+    /// Coverage of a straight run: a [`THREAD_MM`]-wide line every interval.
+    pub fn straight(&self) -> f64 {
+        (THREAD_MM * 10.0 / self.interval).min(1.0)
+    }
+
+    /// Advance along the line, design units, at which a zigzag covers `c` of its cell. The
+    /// zigzag's stitches overlap more as they close up, so coverage saturates:
+    /// `c = 1 − exp(−ZIGZAG_REACH / advance)` (fitted to 0.4 mm thread drawn on a 2 mm interval,
+    /// 90 % deep; #129's calibrated coverage waits for a sew-out). At most [`MAX_COVER`].
+    pub fn advance(&self, c: f64) -> f64 {
+        let c = c.clamp(1e-6, MAX_COVER);
+        let reach = ZIGZAG_REACH_MM * 10.0 * self.interval / 20.0;
+        (reach / -(1.0 - c).dln()).min(self.run)
+    }
+
+    /// Needle points per mm² the layers' coverages `c` need: a zigzag stitch every
+    /// [`Screen::advance`] along each line, or a straight run's stitch every `run`, lines an
+    /// interval apart.
+    pub fn points(&self, c: &[f64]) -> f64 {
+        let interval = self.interval / 10.0;
+        c.iter()
+            .map(|&v| {
+                let step = if v > self.straight() + 1e-9 {
+                    self.advance(v)
+                } else {
+                    self.run
+                };
+                1.0 / (step / 10.0) / interval
+            })
+            .sum()
     }
 }
 
-/// OpenStitch mode: weight of [`mix_near`]'s preference for threads near the colour.
-pub const NEAR: f64 = 0.3;
+/// [`Screen::advance`]'s saturation length at a 2 mm interval, mm.
+pub const ZIGZAG_REACH_MM: f64 = 0.5;
+/// Most coverage a zigzag is asked for (full coverage needs ever closer stitches).
+pub const MAX_COVER: f64 = 0.95;
+
 /// Thread width, mm, for the coverage model.
 pub const THREAD_MM: f64 = 0.4;
 
@@ -464,10 +477,15 @@ pub fn layer(shares: &Shares, t: usize, angle_deg: f64, frame: &Frame, s: &Scree
                 place(base, &mut out, &mut pen, &mut down);
                 since = 0.0;
             }
-            if share >= MIN_SHARE {
+            let zigzag = if s.coverage {
+                share > s.straight() + 1e-9
+            } else {
+                share >= MIN_SHARE
+            };
+            if zigzag {
                 // Zigzag across the line, closer stitches for a higher share.
                 let advance = if s.coverage {
-                    (s.cover() / share.min(1.0)).min(s.run)
+                    s.advance(share)
                 } else {
                     (full / share.min(1.0)).min(s.run)
                 };
@@ -490,7 +508,12 @@ pub fn layer(shares: &Shares, t: usize, angle_deg: f64, frame: &Frame, s: &Scree
                 }
                 let next = point(tau, 0.0);
                 let next_share = shares.at(next.0, next.1, t).unwrap_or(0.0);
-                if since >= s.run - 1e-9 || next_share >= MIN_SHARE {
+                let next_zig = if s.coverage {
+                    next_share > s.straight() + 1e-9
+                } else {
+                    next_share >= MIN_SHARE
+                };
+                if since >= s.run - 1e-9 || next_zig {
                     place(next, &mut out, &mut pen, &mut down);
                     since = 0.0;
                 }
@@ -532,4 +555,161 @@ fn clip(offset: f64, n: (f64, f64), u: (f64, f64), w: f64, h: f64) -> Option<(f6
         t1 = t1.min(b);
     }
     (t1 - t0 > 1e-6).then_some((t0, t1))
+}
+
+/// OpenStitch mode's Auto Select (B16.1 T13): `n` chart threads for the line screen, chosen for
+/// how well they *mix* to the image's colours over the `fabric`, not how near each is to one
+/// colour. Each sampled colour (at most [`SELECT_SAMPLES`], evenly through `colors`) is scored
+/// against every pair of chart threads by the CIEDE2000 of its best mix of the pair and the
+/// fabric ([`mix2`], linear light); a set's cost is the mean over the colours of their best pair
+/// within it. Threads are added greedily, then each is swapped for any better chart thread,
+/// twice. Ties go to the lower chart number. Returns the chosen chart indices, ascending.
+pub fn select_threads(colors: &[[u8; 3]], fabric: [f64; 3], n: usize) -> Vec<usize> {
+    use crate::perceptual::{de2000, lab};
+    let lin = |c: [f64; 3]| c.map(|v| 255.0 * linear_of(v / 255.0));
+    let chart: Vec<(usize, [f64; 3])> = openstitch_core::PEC_CHART
+        .iter()
+        .enumerate()
+        .filter_map(|(i, t)| t.as_ref().map(|t| (i, [t.red, t.green, t.blue].map(f64::from))))
+        .filter(|(_, c)| {
+            let to = |c: [f64; 3]| lab(c.map(|v| v as u8));
+            de2000(to(*c), to(fabric)) > 3.0
+        })
+        .collect();
+    let m = chart.len();
+    let n = n.min(m);
+    if n == 0 || colors.is_empty() {
+        return Vec::new();
+    }
+    let stride = colors.len().div_ceil(SELECT_SAMPLES).max(1);
+    let px: Vec<[f64; 3]> = colors.iter().step_by(stride).map(|c| c.map(f64::from)).collect();
+    let px_lab: Vec<_> = px.iter().map(|c| lab(c.map(|v| v as u8))).collect();
+    let lf = lin(fabric);
+    let lt: Vec<[f64; 3]> = chart.iter().map(|(_, c)| lin(*c)).collect();
+    let to_lab = |l: [f64; 3]| {
+        lab(l.map(|v| (255.0 * srgb_of(v / 255.0)).round().clamp(0.0, 255.0) as u8))
+    };
+    // err[(i * m + j) * p + k]: colour k's error mixed from threads i ≤ j and the fabric.
+    let p = px.len();
+    let mut err = vec![f64::INFINITY; m * m * p];
+    for i in 0..m {
+        for j in i..m {
+            for (k, c) in px.iter().enumerate() {
+                let (a, b) = mix2(lin(*c), lt[i], lt[j], lf);
+                let mixed = [0, 1, 2].map(|q| lf[q] + a * (lt[i][q] - lf[q]) + b * (lt[j][q] - lf[q]));
+                let e = de2000(to_lab(mixed), px_lab[k]);
+                err[(i * m + j) * p + k] = e;
+                err[(j * m + i) * p + k] = e;
+            }
+        }
+    }
+    let cost = |set: &[usize]| -> f64 {
+        (0..p)
+            .map(|k| {
+                let mut best = f64::INFINITY;
+                for (x, &i) in set.iter().enumerate() {
+                    for &j in &set[x..] {
+                        best = best.min(err[(i * m + j) * p + k]);
+                    }
+                }
+                best
+            })
+            .sum::<f64>()
+            / p as f64
+    };
+    let mut set: Vec<usize> = Vec::new();
+    while set.len() < n {
+        let mut best = (f64::INFINITY, 0);
+        for c in 0..m {
+            if set.contains(&c) {
+                continue;
+            }
+            let mut trial = set.clone();
+            trial.push(c);
+            let v = cost(&trial);
+            if v < best.0 {
+                best = (v, c);
+            }
+        }
+        set.push(best.1);
+    }
+    for _ in 0..2 {
+        for pos in 0..set.len() {
+            let mut cur = cost(&set);
+            for c in 0..m {
+                if set.contains(&c) {
+                    continue;
+                }
+                let mut trial = set.clone();
+                trial[pos] = c;
+                let v = cost(&trial);
+                if v < cur - 1e-12 {
+                    cur = v;
+                    set = trial;
+                }
+            }
+        }
+    }
+    let mut out: Vec<usize> = set.iter().map(|&i| chart[i].0).collect();
+    out.sort_unstable();
+    out
+}
+
+/// Most colours [`select_threads`] scores.
+pub const SELECT_SAMPLES: usize = 400;
+
+/// Shares `(a, b)` of threads `t1`, `t2` over `fabric` (both non-negative, `a + b ≤ 1`) whose
+/// mix is nearest `colour` in least squares, exactly (the 2 × 2 normal equations, else the best
+/// point on the feasible triangle's edges).
+fn mix2(colour: [f64; 3], t1: [f64; 3], t2: [f64; 3], fabric: [f64; 3]) -> (f64, f64) {
+    let u = [0, 1, 2].map(|k| t1[k] - fabric[k]);
+    let v = [0, 1, 2].map(|k| t2[k] - fabric[k]);
+    let w = [0, 1, 2].map(|k| colour[k] - fabric[k]);
+    let d = |x: [f64; 3], y: [f64; 3]| x[0] * y[0] + x[1] * y[1] + x[2] * y[2];
+    let resid = |a: f64, b: f64| {
+        let r = [0, 1, 2].map(|k| a * u[k] + b * v[k] - w[k]);
+        d(r, r)
+    };
+    let mut cands: Vec<(f64, f64)> = Vec::with_capacity(4);
+    let (uu, vv, uv, uw, vw) = (d(u, u), d(v, v), d(u, v), d(u, w), d(v, w));
+    let det = uu * vv - uv * uv;
+    if det.abs() > 1e-9 {
+        cands.push(((uw * vv - vw * uv) / det, (vw * uu - uw * uv) / det));
+    }
+    // Edges: b = 0, a = 0, a + b = 1.
+    let clamp01 = |x: f64| x.clamp(0.0, 1.0);
+    cands.push((if uu > 1e-12 { clamp01(uw / uu) } else { 0.0 }, 0.0));
+    cands.push((0.0, if vv > 1e-12 { clamp01(vw / vv) } else { 0.0 }));
+    let s = [0, 1, 2].map(|k| u[k] - v[k]);
+    let r0 = [0, 1, 2].map(|k| w[k] - v[k]);
+    let a = if d(s, s) > 1e-12 { clamp01(d(r0, s) / d(s, s)) } else { 0.0 };
+    cands.push((a, 1.0 - a));
+    let mut best = (f64::INFINITY, (0.0, 0.0));
+    for (a, b) in cands {
+        if a < -1e-12 || b < -1e-12 || a + b > 1.0 + 1e-12 {
+            continue;
+        }
+        let r = resid(a, b);
+        if r < best.0 {
+            best = (r, (a.max(0.0), b.max(0.0)));
+        }
+    }
+    best.1
+}
+
+fn linear_of(v: f64) -> f64 {
+    if v <= 0.04045 {
+        v / 12.92
+    } else {
+        ((v + 0.055) / 1.055).dpowf(2.4)
+    }
+}
+
+fn srgb_of(v: f64) -> f64 {
+    let v = v.clamp(0.0, 1.0);
+    if v <= 0.0031308 {
+        12.92 * v
+    } else {
+        1.055 * v.dpowf(1.0 / 2.4) - 0.055
+    }
 }

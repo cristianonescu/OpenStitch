@@ -219,6 +219,18 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
             })
             .unzip(),
         (PhotoMode::Mono(t), _) => (vec![t.clone()], vec![[0.0; 3]]),
+        // OpenStitch mode's Auto Select: threads chosen for how they mix over the fabric (T13).
+        (PhotoMode::Color(n), None) if linear => {
+            let colors: Vec<Rgb> = cells.iter().flatten().map(|c| c.map(|v| v as u8)).collect();
+            crate::screen::select_threads(&colors, p.fabric.map(f64::from), (*n).clamp(1, 64))
+                .into_iter()
+                .filter_map(|i| openstitch_core::PEC_CHART.get(i).cloned().flatten())
+                .map(|t| {
+                    let c = rgb_f(&t);
+                    (t, c)
+                })
+                .unzip()
+        }
         (PhotoMode::Color(n), None) => {
             let colors: Vec<Rgb> = cells.iter().flatten().map(|c| c.map(|v| v as u8)).collect();
             let n = (*n).clamp(1, 64);
@@ -290,21 +302,30 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
     let mut sewn_threads = Vec::new();
     let mut total = 0;
     // Lines: each thread's share of the local colour, on a fine grid over the image.
-    let mut screen = (p.style == PhotoStyle::Lines).then(|| {
-        let shares = if mono {
-            crate::screen::Shares::mono(image, frame)
-        } else if linear {
-            // OpenStitch mode mixes the threads actually sewn, not the colours they stand for.
-            let colours: Vec<[f64; 3]> = threads.iter().map(rgb_f).collect();
-            crate::screen::Shares::colour_in(image, frame, &colours, fabric, true)
-        } else {
-            crate::screen::Shares::colour_in(image, frame, &stands_for, fabric, false)
-        };
+    // OpenStitch mode's line screen sews light threads first, so darker ones lie on top (the
+    // order its coverage model assumes); PE-DESIGN's sews the most used first (below).
+    let mut light_first: Vec<usize> = (0..threads.len()).collect();
+    light_first.sort_by(|&a, &b| {
+        luma(rgb_f(&threads[b]))
+            .total_cmp(&luma(rgb_f(&threads[a])))
+            .then(a.cmp(&b))
+    });
+    let screen = (p.style == PhotoStyle::Lines).then(|| {
         let settings = crate::screen::Screen {
             interval: p.row_spacing_mm.clamp(0.5, 10.0) * 10.0,
             run: p.stitch_mm.clamp(0.5, 7.0) * 10.0,
             max_density: p.max_density.clamp(0.5, 10.0),
             coverage: linear,
+        };
+        let shares = if mono {
+            crate::screen::Shares::mono(image, frame)
+        } else if linear {
+            // OpenStitch mode: each thread's coverage, for the threads actually sewn.
+            let colours: Vec<[f64; 3]> = threads.iter().map(rgb_f).collect();
+            let cap = std::env::var("OS_PCAP").ok().and_then(|v| v.parse().ok()).unwrap_or(LINE_DENSITY_CAP);
+            crate::screen::Shares::layered(image, frame, &colours, fabric, &light_first, &settings, cap)
+        } else {
+            crate::screen::Shares::colour_in(image, frame, &stands_for, fabric, false)
         };
         (shares, settings)
     });
@@ -316,6 +337,7 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
                 .total_cmp(&luma(targets[a]))
                 .then(a.cmp(&b))
         }),
+        Some(_) if linear => order = light_first,
         // Lines: the thread the screen sews most first, as PE-DESIGN orders Photo Stitch 2
         // (every round-4 capture, Auto Select and the named Color Sets alike: on the owner's
         // shapes CMYK sews cyan, magenta, yellow, black; on the ramp cyan, yellow, magenta,
@@ -323,13 +345,6 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
         Some((shares, _)) => {
             order.sort_by(|&a, &b| shares.usage(b).total_cmp(&shares.usage(a)).then(a.cmp(&b)))
         }
-    }
-    // OpenStitch mode: the visible shares become each layer's coverage in this sewing order,
-    // within the needle cap.
-    if let Some((shares, settings)) = screen.as_mut()
-        && settings.coverage
-    {
-        shares.unlayer(&order, settings, std::env::var("OS_PCAP").ok().and_then(|v| v.parse().ok()).unwrap_or(LINE_DENSITY_CAP));
     }
     for (layer, &t) in order.iter().enumerate() {
         let stitches = match &screen {
