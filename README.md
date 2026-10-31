@@ -509,6 +509,11 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo run -p stitchtool -- compat
 ```
 
+Debug and test builds optimise the dependencies and the stitch pipeline (`openstitch-core`,
+`-design`, `-engine`; `[profile.dev.package]` in `Cargo.toml`), so the editor's tests run in
+about a minute instead of 45; debug assertions and overflow checks stay on. The first build
+takes a few minutes longer.
+
 CI runs the same checks on macOS, Windows and Linux for every pull request, checks that
 `docs/COMPATIBILITY_STATUS.md` matches the harness's result, and scans the history for secrets
 with gitleaks.

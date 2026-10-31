@@ -36,3 +36,18 @@ unsafe_code = "forbid"
 
 [workspace.lints.clippy]
 unwrap_used = "warn"
+
+# Debug and test builds optimise the dependencies and the stitch pipeline (core, design, engine):
+# the editor's tests compile the demo design hundreds of times, which took ~45 minutes per CI
+# run unoptimised. Debug assertions, overflow checks and debug info stay on.
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.dev.package.openstitch-core]
+opt-level = 2
+
+[profile.dev.package.openstitch-design]
+opt-level = 2
+
+[profile.dev.package.openstitch-engine]
+opt-level = 2
