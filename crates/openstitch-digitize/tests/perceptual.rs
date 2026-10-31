@@ -196,3 +196,45 @@ fn linear_mix_covers_a_mid_grey_by_half() {
         "sRGB mixes {srgb}"
     );
 }
+
+/// T6: a flat field and the sharp edge between two flat fields are sewn plainly in their nearest
+/// thread; texture stays dithered.
+#[test]
+fn tonal_dither_leaves_flat_areas_plain() {
+    let (w, h) = (40, 40);
+    // Left half a flat grey of lightness 50 between black and white threads, right half a
+    // texture of five greys.
+    let cells: Vec<Option<[f64; 3]>> = (0..w * h)
+        .map(|i| {
+            let (x, y) = (i % w, i / w);
+            let v = if x < 20 {
+                119.0
+            } else {
+                40.0 + 45.0 * ((x * 7 + y * 3) % 5) as f64
+            };
+            Some([v; 3])
+        })
+        .collect();
+    let targets = [[0.0; 3], [255.0; 3]];
+    let tonal = palette::tonal_map(
+        &cells
+            .iter()
+            .map(|c| c.map(|c| lab(c.map(|v| v as u8))))
+            .collect::<Vec<_>>(),
+        w,
+        h,
+        (2, 2),
+    );
+    assert!(!tonal[10 * w + 5], "the flat field is flat");
+    assert!(tonal[10 * w + 30], "the texture is tonal");
+    let out = palette::dither_tonal(&cells, w, h, &targets, (2, 2));
+    let left: Vec<usize> = (0..h)
+        .flat_map(|y| (0..15).map(move |x| y * w + x))
+        .map(|i| out[i].expect("opaque"))
+        .collect();
+    assert!(
+        left.iter().all(|&t| t == left[0]),
+        "the flat grey is one thread, not a dither"
+    );
+    assert_eq!(out, palette::dither_tonal(&cells, w, h, &targets, (2, 2)));
+}
