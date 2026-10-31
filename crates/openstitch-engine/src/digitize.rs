@@ -179,7 +179,12 @@ pub fn commands() -> Vec<CommandSpec> {
                 opt(
                     "skipBackground",
                     "bool",
-                    "Leave out the colour covering most of the border (default true)",
+                    "Leave out the colour covering most of the border (default true). OpenStitch mode without this parameter: the background is sewn as part of the picture unless it is the fabric's colour (within ΔE00 5); true leaves it out, false sews it whatever its colour",
+                ),
+                opt(
+                    "fabric",
+                    "color",
+                    "OpenStitch mode without skipBackground: the fabric colour the background is compared with, \"#rrggbb\", a PEC chart name or number (default white)",
                 ),
                 opt(
                     "compatMode",
@@ -197,7 +202,7 @@ pub fn commands() -> Vec<CommandSpec> {
                     Mode::PeDesign => 1.0,
                     Mode::OpenStitch => 3.0,
                 };
-                let options = AutoPunch {
+                let mut options = AutoPunch {
                     colors: count(p, "colors", AutoPunch::default().colors as i64, 0, 64)?,
                     resolution: count(p, "resolution", 400, 64, 2048)? as u32,
                     min_area_mm2: p.opt("minArea", min_area, 0.0, 1000.0)?,
@@ -208,7 +213,14 @@ pub fn commands() -> Vec<CommandSpec> {
                     skip_background: p.bool("skipBackground", Some(true))?,
                     mode,
                     fidelity: fidelity(p, mode)?,
+                    ..AutoPunch::default()
                 };
+                // OpenStitch mode sews anything in the picture: without skipBackground, only a
+                // background of the fabric's colour is left out.
+                if mode == Mode::OpenStitch && p.get("skipBackground").is_none() {
+                    let f = thread(p, "fabric")?.unwrap_or(Thread::rgb(0xffffff));
+                    options.fabric = Some([f.red, f.green, f.blue]);
+                }
                 let out = autopunch::convert(&image, &frame, &options).map_err(|e| failed(p, e))?;
                 let regions = out.objects.len();
                 Ok(json!({

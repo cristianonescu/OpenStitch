@@ -6,7 +6,7 @@ use openstitch_digitize::autopunch::{self, AutoPunch, small_region_floor};
 use openstitch_digitize::palette::{self, CENSUS_COLORS, Palette};
 use openstitch_digitize::regions;
 use openstitch_digitize::trace::{marching_squares, signed_area};
-use openstitch_digitize::{DigitizeError, Frame, Raster};
+use openstitch_digitize::{DigitizeError, Frame, Mode, Raster};
 
 #[test]
 fn marching_squares_orients_outer_and_holes() {
@@ -127,6 +127,64 @@ fn keeping_the_background_adds_its_region() {
     assert!(out.background.is_none());
     // The white background has two holes where the shapes sit.
     assert_eq!(out.objects[0].contours.len(), 3);
+}
+
+#[test]
+fn openstitch_mode_sews_a_coloured_background() {
+    // A red block on a sky blue that the white fabric does not show: OpenStitch mode with a
+    // fabric colour sews the sky around it, PE-DESIGN-compatible mode leaves it out.
+    const SKY: [u8; 4] = [153, 207, 241, 255];
+    let img = rects(60, 40, SKY, &[(20, 10, 40, 30, RED)]);
+    let frame = Frame::new(0.0, 0.0, 60.0, 60);
+    let p = AutoPunch {
+        colors: 2,
+        mode: Mode::OpenStitch,
+        fabric: Some([255, 255, 255]),
+        ..Default::default()
+    };
+    let out = autopunch::convert(&img, &frame, &p).expect("converts");
+    assert!(out.background.is_none());
+    assert_eq!(out.objects.len(), 2);
+    assert!(
+        out.objects.iter().any(|o| o.contours.len() == 2),
+        "the sky has a hole where the block sits"
+    );
+    for (mode, fabric) in [
+        (Mode::PeDesign, Some([255, 255, 255])),
+        (Mode::OpenStitch, None),
+    ] {
+        let out = autopunch::convert(
+            &img,
+            &frame,
+            &AutoPunch {
+                mode,
+                fabric,
+                ..p.clone()
+            },
+        )
+        .expect("converts");
+        assert!(out.background.is_some(), "{mode:?} {fabric:?}");
+        assert_eq!(out.objects.len(), 1);
+    }
+
+    // On a blue fabric the same sky is the fabric showing, and is left out.
+    let out = autopunch::convert(
+        &img,
+        &frame,
+        &AutoPunch {
+            fabric: Some([150, 205, 240]),
+            ..p.clone()
+        },
+    )
+    .expect("converts");
+    assert!(out.background.is_some());
+    assert_eq!(out.objects.len(), 1);
+
+    // A white card on white fabric is left out too.
+    let white = rects(60, 40, WHITE, &[(20, 10, 40, 30, RED)]);
+    let out = autopunch::convert(&white, &frame, &p).expect("converts");
+    assert!(out.background.is_some());
+    assert_eq!(out.objects.len(), 1);
 }
 
 #[test]
