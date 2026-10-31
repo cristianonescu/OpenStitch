@@ -226,7 +226,7 @@ pub fn commands() -> Vec<CommandSpec> {
                 opt(
                     "fill",
                     "bool",
-                    "OpenStitch mode: cover each cell with parallel diagonals about 0.3 mm apart, at most 2 needle points per mm², instead of one cross; times then has no effect (default true)",
+                    "OpenStitch mode: cover each cell with parallel diagonals about 0.3 mm apart, at most 2.1 needle points per mm² over the design, instead of one cross; times then has no effect (default true)",
                 ),
                 opt(
                     "partCrosses",

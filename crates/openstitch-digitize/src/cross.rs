@@ -31,7 +31,7 @@
 //!   fabric (about 45 % covered at 2.5 mm), so a red cell reads pink. Each diagonal becomes a
 //!   band of parallel lines about [`FILL_SPACING_MM`] apart that covers the cell in two thread
 //!   layers, one per direction (see `filled_run`), capped at [`FILL_MAX_DENSITY`] needle
-//!   points per mm² per run. On the pixel strawberry with exact colours this lifts the
+//!   points per mm² per run and [`FILL_DESIGN_DENSITY`] over the whole grid. On the pixel strawberry with exact colours this lifts the
 //!   similarity score from 59 to 86 at 2.5 mm; the colour blocks' ceiling is 87.
 //! - **Part-crosses** (`part_crosses`, off by default): a cell whose two halves along a
 //!   diagonal are clearly different colours is sewn as two halves, a three-quarter and a
@@ -81,10 +81,23 @@ pub struct CrossStitch {
 /// of 0.4 mm thread this far apart overlap a little, so no fabric shows between them.
 pub const FILL_SPACING_MM: f64 = 0.3;
 
-/// OpenStitch mode's filled crosses: most needle points per mm² of a row run (the sewability
-/// limit is 2.1 over any 10 × 10 mm). Short runs and small cells get fewer lines, so they are
-/// not fully covered.
-pub const FILL_MAX_DENSITY: f64 = 2.0;
+/// OpenStitch mode's filled crosses: most needle points per mm² of a row run or a part-cross,
+/// tried first. The sewability limits (owner, 2026-10-31) are 2.1 points per mm² over the
+/// whole design and 3.0 in any 10 × 10 mm window. Short runs and small cells get fewer lines,
+/// so they are not fully covered.
+pub const FILL_MAX_DENSITY: f64 = 2.8;
+
+/// OpenStitch mode: the run budget steps down from [`FILL_MAX_DENSITY`] by this much, to
+/// [`FILL_MIN_DENSITY`], until the whole design holds at most [`FILL_DESIGN_DENSITY`] points
+/// per mm² of its grid. Graphics with large flat areas keep the full budget; photos, whose
+/// short runs pay most for their ends, get less.
+pub const FILL_DENSITY_STEP: f64 = 0.2;
+
+/// OpenStitch mode: the lowest run budget, points per mm².
+pub const FILL_MIN_DENSITY: f64 = 2.0;
+
+/// OpenStitch mode: most needle points per mm² of the whole grid (the limit is 2.1).
+pub const FILL_DESIGN_DENSITY: f64 = 2.05;
 
 /// OpenStitch mode: longest stitch, mm; a longer diagonal is split into equal stitches.
 pub const FILL_MAX_STITCH_MM: f64 = 6.0;
@@ -206,59 +219,84 @@ pub fn convert(image: &Raster, frame: &Frame, p: &CrossStitch) -> Result<Convert
     if order.is_empty() {
         return Err(DigitizeError::Empty("every cell is background".into()));
     }
-    let mut objects = Vec::new();
-    for &t in &order {
-        let mut stitches = Vec::new();
-        for y in 0..rows {
-            let mut x = 0;
-            while x < cols {
-                if let Some(sp) = split_at(y * cols + x) {
-                    for (mine, other, above) in
-                        [(sp.above, sp.below, true), (sp.below, sp.above, false)]
-                    {
-                        if mine as usize == t && sewn(mine) {
-                            // The lower thread, or the only one sewn, takes the diagonal.
-                            let diagonal = !sewn(other) || mine < other;
-                            let part = Part {
-                                slash: sp.slash,
-                                above,
-                                diagonal,
-                            };
-                            sew_part(&mut stitches, frame, cell, y, x, part, p.fill);
+    let build = |density: f64| {
+        let mut objects = Vec::new();
+        for &t in &order {
+            let mut stitches = Vec::new();
+            for y in 0..rows {
+                let mut x = 0;
+                while x < cols {
+                    if let Some(sp) = split_at(y * cols + x) {
+                        for (mine, other, above) in
+                            [(sp.above, sp.below, true), (sp.below, sp.above, false)]
+                        {
+                            if mine as usize == t && sewn(mine) {
+                                // The lower thread, or the only one sewn, takes the diagonal.
+                                let diagonal = !sewn(other) || mine < other;
+                                let part = Part {
+                                    slash: sp.slash,
+                                    above,
+                                    diagonal,
+                                };
+                                sew_part(&mut stitches, frame, cell, y, x, part, p.fill, density);
+                            }
                         }
+                        x += 1;
+                        continue;
                     }
-                    x += 1;
-                    continue;
-                }
-                if labels[y * cols + x] as usize != t {
-                    x += 1;
-                    continue;
-                }
-                let start = x;
-                while x < cols
-                    && labels[y * cols + x] as usize == t
-                    && split_at(y * cols + x).is_none()
-                {
-                    x += 1;
-                }
-                if p.mode == Mode::OpenStitch && p.fill {
-                    sew_filled_run(&mut stitches, frame, cell, y, start, x, p.kind);
-                } else {
-                    sew_run(&mut stitches, frame, cell, y, start, x, p.kind, p.triple);
+                    if labels[y * cols + x] as usize != t {
+                        x += 1;
+                        continue;
+                    }
+                    let start = x;
+                    while x < cols
+                        && labels[y * cols + x] as usize == t
+                        && split_at(y * cols + x).is_none()
+                    {
+                        x += 1;
+                    }
+                    if p.mode == Mode::OpenStitch && p.fill {
+                        sew_filled_run(&mut stitches, frame, cell, y, start, x, p.kind, density);
+                    } else {
+                        sew_run(&mut stitches, frame, cell, y, start, x, p.kind, p.triple);
+                    }
                 }
             }
+            let thread = palette.threads[t].clone();
+            let mut o = DesignObject::stitches(StitchBlock {
+                stitches,
+                threads: vec![thread.clone()],
+            });
+            o.name = Some(format!(
+                "Cross Stitch {}",
+                thread.name.as_deref().unwrap_or("thread")
+            ));
+            objects.push(o);
         }
-        let thread = palette.threads[t].clone();
-        let mut o = DesignObject::stitches(StitchBlock {
-            stitches,
-            threads: vec![thread.clone()],
-        });
-        o.name = Some(format!(
-            "Cross Stitch {}",
-            thread.name.as_deref().unwrap_or("thread")
-        ));
-        objects.push(o);
-    }
+        objects
+    };
+    // OpenStitch mode's filled crosses: the highest run budget whose design stays within the
+    // design-wide density; the others sew as before.
+    let area = (cols * rows) as f64 * (cell / 10.0) * (cell / 10.0);
+    let points = |objects: &[DesignObject]| -> usize {
+        objects
+            .iter()
+            .filter_map(|o| o.stitch_block.as_ref())
+            .map(|b| b.stitches.len())
+            .sum()
+    };
+    let mut density = FILL_MAX_DENSITY;
+    let objects = loop {
+        let objects = build(density);
+        let filled = p.mode == Mode::OpenStitch && (p.fill || p.part_crosses);
+        if !filled
+            || density <= FILL_MIN_DENSITY + 1e-9
+            || points(&objects) as f64 <= FILL_DESIGN_DENSITY * area
+        {
+            break objects;
+        }
+        density = (density - FILL_DENSITY_STEP).max(FILL_MIN_DENSITY);
+    };
     Ok(Converted {
         objects,
         threads: order.iter().map(|&t| palette.threads[t].clone()).collect(),
@@ -527,7 +565,7 @@ pub fn fill_lines(cell_mm: f64) -> (usize, usize) {
 
 /// OpenStitch mode: cells `a..b` of grid row `row` as filled crosses, with as many lines per
 /// cell and direction as [`fill_lines`] wants and the run's needle points stay within
-/// [`FILL_MAX_DENSITY`] per mm² of its area (one line each way at the least; a short run pays
+/// `density` per mm² of its area (one line each way at the least; a short run pays
 /// for the zigzags' clipped ends, so it gets fewer lines than a long one).
 #[allow(clippy::too_many_arguments)]
 fn sew_filled_run(
@@ -538,10 +576,11 @@ fn sew_filled_run(
     a: usize,
     b: usize,
     kind: CrossType,
+    density: f64,
 ) {
     let cell_mm = cell / 10.0;
     let (wanted, split) = fill_lines(cell_mm);
-    let budget = FILL_MAX_DENSITY * (b - a) as f64 * cell_mm * cell_mm;
+    let budget = density * (b - a) as f64 * cell_mm * cell_mm;
     let mut k = wanted;
     loop {
         let run = filled_run(frame, cell, row, a, b, kind, k, split);
@@ -676,10 +715,11 @@ struct Part {
 }
 
 /// One half of cell (`col`, `row`). Filled: lines parallel to the dividing diagonal, as far
-/// apart as a filled cross's (see [`fill_lines`]), within [`FILL_MAX_DENSITY`] points per mm²
+/// apart as a filled cross's (see [`fill_lines`]), within `density` points per mm²
 /// of the half, from the diagonal outwards. Not filled, the stitcher's three-quarter and
 /// quarter crosses: a quarter stitch from the half's right-angled corner to the cell centre,
 /// and the half that takes the diagonal sews it whole from there.
+#[allow(clippy::too_many_arguments)]
 fn sew_part(
     out: &mut Vec<Stitch>,
     frame: &Frame,
@@ -688,6 +728,7 @@ fn sew_part(
     col: usize,
     part: Part,
     fill: bool,
+    density: f64,
 ) {
     let (c, r) = (col as f64, row as f64);
     // The diagonal's ends and the half's right-angled corner, in cell units.
@@ -708,7 +749,7 @@ fn sew_part(
     }
     let cell_mm = cell / 10.0;
     let (wanted, split) = fill_lines(cell_mm);
-    let budget = FILL_MAX_DENSITY * cell_mm * cell_mm / 2.0;
+    let budget = density * cell_mm * cell_mm / 2.0;
     let mut k = wanted;
     loop {
         // Line j of k: the diagonal moved j / k of the way to the corner.
