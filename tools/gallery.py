@@ -30,10 +30,9 @@ BIN = ROOT / "target" / ("release" if "--release" in sys.argv else "debug")
 IMAGES = ROOT / "examples" / "images"
 OUT = ROOT / "docs" / "images" / "readme" / "gallery"
 README = ROOT / "README.md"
-# The design area of a 1440x900 editor window: below the top ruler and above the zoom readout.
-# Its left and right edges move with the widths of the Sewing Order and attribute panes.
-TOP, BOTTOM = 174, 765
-PANE = (243, 244, 246)
+# The canvas is the area painted in the surround grey around the Design Page; its position moves
+# with the panes, the rulers and the platform's fonts (#271), so it is found by its colour.
+SURROUND = (180, 184, 190)
 LONG_SIDE_MM = 100
 
 # id -> (image, wizard caption, command, parameters)
@@ -77,6 +76,7 @@ MODES = {
     "p03": ("p03-storybook.jpg", "Auto Punch", "digitize.autoPunch", {}),
     "p01": ("p01-portrait.jpg", "Photo Stitch 1", "digitize.photoStitch", {"style": "fill"}),
     "p06": ("p06-sunset.jpg", "Photo Stitch 1", "digitize.photoStitch", {"style": "fill"}),
+    "p10": ("p10-night-street.jpg", "Photo Stitch 1", "digitize.photoStitch", {"style": "fill"}),
     "p08": ("p08-poppies.jpg", "Photo Stitch 2", "digitize.photoStitch", {"style": "lines"}),
     "p04": ("p04-cat-fur.jpg", "Photo Stitch 2", "digitize.photoStitch", {"style": "lines"}),
     "g07": ("g07-pixel-strawberry.png", "Cross Stitch", "digitize.crossStitch", {}),
@@ -125,22 +125,27 @@ def shoot(work, key):
 def design_box(im):
     """The stitched area of the canvas, with a small margin: pixels that are coloured or dark
     (thread), not the light grey fabric, the grey surround or the rulers."""
-    # Just above the canvas the Sewing Order pane's background runs up to the pane splitter,
-    # the vertical ruler (22 px) follows it, and the top ruler runs on to the attribute pane.
-    left = next(x for x in range(200, im.width) if im.getpixel((x, TOP - 4)) != PANE) + 24
-    right = next(x for x in range(left, im.width) if im.getpixel((x, TOP - 4)) == PANE) - 2
+    sx, sy = [], []
+    for yy in range(0, im.height, 4):
+        for xx in range(0, im.width, 4):
+            if im.getpixel((xx, yy)) == SURROUND:
+                sx.append(xx)
+                sy.append(yy)
+    if not sx:
+        sys.exit("gallery.py: no canvas found in the screenshot (surround colour changed?)")
+    left, right, top, bottom = min(sx), max(sx), min(sy), max(sy)
     xs, ys = [], []
-    for yy in range(TOP, BOTTOM, 2):
+    for yy in range(top, bottom, 2):
         for xx in range(left, right, 2):
             r, g, b = im.getpixel((xx, yy))
             if max(r, g, b) - min(r, g, b) > 60 or max(r, g, b) < 120:
                 xs.append(xx)
                 ys.append(yy)
     if not xs:
-        return (left, TOP, right, BOTTOM)
+        return (left, top, right, bottom)
     pad = 12
-    return (max(left, min(xs) - pad), max(TOP, min(ys) - pad),
-            min(right, max(xs) + pad), min(BOTTOM, max(ys) + pad))
+    return (max(left, min(xs) - pad), max(top, min(ys) - pad),
+            min(right, max(xs) + pad), min(bottom, max(ys) + pad))
 
 
 def result(s):

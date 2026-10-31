@@ -90,8 +90,8 @@ regenerates them.
 | <img src="examples/images/p01-portrait.jpg" width="200"> | <img src="docs/images/readme/gallery/p01.png" width="260"> | **Photo Stitch 1, colour, defaults**<br>12,512 stitches, 385 trims, 7 colours |
 | <img src="examples/images/p02-mono-portrait.jpg" width="200"> | <img src="docs/images/readme/gallery/p02.png" width="260"> | **Photo Stitch 2, mono, defaults**<br>19,991 stitches, 1 trims, 1 colour |
 | <img src="examples/images/p04-cat-fur.jpg" width="200"> | <img src="docs/images/readme/gallery/p04.png" width="260"> | **Photo Stitch 1, colour, defaults**<br>21,077 stitches, 839 trims, 8 colours |
-| <img src="examples/images/p06-sunset.jpg" width="200"> | <img src="docs/images/readme/gallery/p06.png" width="260"> | **Photo Stitch 2, Auto Select**<br>18,514 stitches, 4 trims, 4 colours |
-| <img src="examples/images/p08-poppies.jpg" width="200"> | <img src="docs/images/readme/gallery/p08.png" width="260"> | **Photo Stitch 2, Color Set CMYK**<br>35,725 stitches, 4 trims, 4 colours |
+| <img src="examples/images/p06-sunset.jpg" width="200"> | <img src="docs/images/readme/gallery/p06.png" width="260"> | **Photo Stitch 2, Auto Select**<br>18,510 stitches, 4 trims, 4 colours |
+| <img src="examples/images/p08-poppies.jpg" width="200"> | <img src="docs/images/readme/gallery/p08.png" width="260"> | **Photo Stitch 2, Color Set CMYK**<br>35,718 stitches, 4 trims, 4 colours |
 | <img src="examples/images/p12-backlit-tree.jpg" width="200"> | <img src="docs/images/readme/gallery/p12.png" width="260"> | **Photo Stitch 1, mono, defaults**<br>3,585 stitches, 130 trims, 1 colour |
 | <img src="examples/images/p03-storybook.jpg" width="200"> | <img src="docs/images/readme/gallery/p03.png" width="260"> | **Photo Stitch 1, colour, defaults**<br>16,018 stitches, 789 trims, 8 colours |
 | <img src="examples/images/g01-emblem.png" width="200"> | <img src="docs/images/readme/gallery/g01.png" width="260"> | **Auto Punch, defaults**<br>8,688 stitches, 10 trims, 3 colours |
@@ -122,19 +122,25 @@ OpenStitch (the image dialog's Method choice):
   OpenStitch mode sews the same stitches on macOS, Windows and Linux.
 
 The table below shows both modes, both from OpenStitch. OpenStitch mode measures better on
-average, not on every image, so try both. For example, the test portrait sews truer in Photo
-Stitch 2's PE-DESIGN-compatible mode, whose three threads suit its skin and background.
+average, not on every image, so try both. On the eight Photo Stitch 1 test photos its likeness
+score (`tools/image_similarity.py`, Brother threads) averages 66.3 against 58.5 (the night
+street 66.1 against 45.6), but the bright high-key photo scores 68.2 against 75.5; Photo
+Stitch 2 averages 43.3 against 41.7, and the test portrait sews truer in its
+PE-DESIGN-compatible mode, whose three threads suit its skin and background.
 
 <!-- gallery-modes:start -->
 | Image | OpenStitch, PE-DESIGN-compatible mode (default) | OpenStitch, OpenStitch mode ➕ |
 |---|---|---|
-| <img src="examples/images/g05-robot-cartoon.png" width="200"><br>Auto Punch | <img src="docs/images/readme/gallery/g05-pe.png" width="260"><br>11,897 stitches, 231 trims, 6 colours | <img src="docs/images/readme/gallery/g05-os.png" width="260"><br>11,176 stitches, 204 trims, 5 colours |
-| <img src="examples/images/g06-watercolour-lemons.jpg" width="200"><br>Auto Punch | <img src="docs/images/readme/gallery/g06-pe.png" width="260"><br>18,278 stitches, 284 trims, 9 colours | <img src="docs/images/readme/gallery/g06-os.png" width="260"><br>13,662 stitches, 111 trims, 7 colours |
-| <img src="examples/images/p03-storybook.jpg" width="200"><br>Auto Punch | <img src="docs/images/readme/gallery/p03-pe.png" width="260"><br>41,676 stitches, 699 trims, 8 colours | <img src="docs/images/readme/gallery/p03-os.png" width="260"><br>30,627 stitches, 284 trims, 10 colours |
-| <img src="examples/images/p01-portrait.jpg" width="200"><br>Photo Stitch 1 | <img src="docs/images/readme/gallery/p01-pe.png" width="260"><br>12,512 stitches, 385 trims, 7 colours | <img src="docs/images/readme/gallery/p01-os.png" width="260"><br>12,983 stitches, 451 trims, 8 colours |
-| <img src="examples/images/p06-sunset.jpg" width="200"><br>Photo Stitch 1 | <img src="docs/images/readme/gallery/p06-pe.png" width="260"><br>11,038 stitches, 370 trims, 11 colours | <img src="docs/images/readme/gallery/p06-os.png" width="260"><br>11,352 stitches, 474 trims, 11 colours |
-| <img src="examples/images/p08-poppies.jpg" width="200"><br>Photo Stitch 2 | <img src="docs/images/readme/gallery/p08-pe.png" width="260"><br>32,921 stitches, 4 trims, 4 colours | <img src="docs/images/readme/gallery/p08-os.png" width="260"><br>32,394 stitches, 4 trims, 4 colours |
-| <img src="examples/images/p04-cat-fur.jpg" width="200"><br>Photo Stitch 2 | <img src="docs/images/readme/gallery/p04-pe.png" width="260"><br>28,016 stitches, 4 trims, 4 colours | <img src="docs/images/readme/gallery/p04-os.png" width="260"><br>29,653 stitches, 4 trims, 4 colours |
+| <img src="examples/images/g05-robot-cartoon.png" width="200"><br>Auto Punch | <img src="docs/images/readme/gallery/g05-pe.png" width="260"><br>11,897 stitches, 231 trims, 6 colours | <img src="docs/images/readme/gallery/g05-os.png" width="260"><br>13,851 stitches, 130 trims, 7 colours |
+| <img src="examples/images/g06-watercolour-lemons.jpg" width="200"><br>Auto Punch | <img src="docs/images/readme/gallery/g06-pe.png" width="260"><br>18,278 stitches, 284 trims, 9 colours | <img src="docs/images/readme/gallery/g06-os.png" width="260"><br>20,630 stitches, 203 trims, 10 colours |
+| <img src="examples/images/p03-storybook.jpg" width="200"><br>Auto Punch | <img src="docs/images/readme/gallery/p03-pe.png" width="260"><br>41,676 stitches, 699 trims, 8 colours | <img src="docs/images/readme/gallery/p03-os.png" width="260"><br>41,426 stitches, 443 trims, 10 colours |
+| <img src="examples/images/p01-portrait.jpg" width="200"><br>Photo Stitch 1 | <img src="docs/images/readme/gallery/p01-pe.png" width="260"><br>12,512 stitches, 385 trims, 7 colours | <img src="docs/images/readme/gallery/p01-os.png" width="260"><br>13,045 stitches, 907 trims, 11 colours |
+| <img src="examples/images/p06-sunset.jpg" width="200"><br>Photo Stitch 1 | <img src="docs/images/readme/gallery/p06-pe.png" width="260"><br>11,038 stitches, 370 trims, 11 colours | <img src="docs/images/readme/gallery/p06-os.png" width="260"><br>10,838 stitches, 603 trims, 11 colours |
+| <img src="examples/images/p10-night-street.jpg" width="200"><br>Photo Stitch 1 | <img src="docs/images/readme/gallery/p10-pe.png" width="260"><br>11,343 stitches, 464 trims, 7 colours | <img src="docs/images/readme/gallery/p10-os.png" width="260"><br>10,935 stitches, 707 trims, 9 colours |
+| <img src="examples/images/p08-poppies.jpg" width="200"><br>Photo Stitch 2 | <img src="docs/images/readme/gallery/p08-pe.png" width="260"><br>32,918 stitches, 4 trims, 4 colours | <img src="docs/images/readme/gallery/p08-os.png" width="260"><br>31,296 stitches, 4 trims, 4 colours |
+| <img src="examples/images/p04-cat-fur.jpg" width="200"><br>Photo Stitch 2 | <img src="docs/images/readme/gallery/p04-pe.png" width="260"><br>28,012 stitches, 4 trims, 4 colours | <img src="docs/images/readme/gallery/p04-os.png" width="260"><br>27,455 stitches, 4 trims, 4 colours |
+| <img src="examples/images/g07-pixel-strawberry.png" width="200"><br>Cross Stitch | <img src="docs/images/readme/gallery/g07-pe.png" width="260"><br>3,931 stitches, 190 trims, 6 colours | <img src="docs/images/readme/gallery/g07-os.png" width="260"><br>8,784 stitches, 192 trims, 6 colours |
+| <img src="examples/images/g04-butterfly-outline.png" width="200"><br>Design Center | <img src="docs/images/readme/gallery/g04-pe.png" width="260"><br>1,271 stitches, 92 trims, 1 colour | <img src="docs/images/readme/gallery/g04-os.png" width="260"><br>6,602 stitches, 67 trims, 1 colour |
 <!-- gallery-modes:end -->
 
 ## Features
