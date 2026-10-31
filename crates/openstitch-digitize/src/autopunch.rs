@@ -181,6 +181,14 @@ pub fn border_majority(labels: &[u16], w: usize, h: usize) -> Option<u16> {
 /// width (area over its longest side) is at most this, mm, and it is at least twice as long.
 pub const LINE_WIDTH_MM: f64 = 0.5;
 
+/// OpenStitch mode's rows per mm in fills and satins: the sparsest that still covers the
+/// fabric with OpenStitch's fill (fewer rows leave gaps a thread wide).
+pub const OPEN_STITCH_DENSITY: f64 = 4.5;
+
+/// OpenStitch mode's longest fill stitch, mm: long enough to keep a fill near 0.7 needle
+/// points per mm² inside, short of the 7 mm sewability limit.
+pub const OPEN_STITCH_FILL_STITCH_MM: f64 = 6.5;
+
 /// OpenStitch mode treats an image as line art when the border's colour (the background, left
 /// out or sewn) covers at least this share of the opaque pixels (the mandala about 0.9; photos and paintings far less).
 pub const LINE_ART_SHARE: f64 = 0.75;
@@ -351,6 +359,14 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
             // counter-clockwise on screen, as PE-DESIGN gives them.
             if satin {
                 region.auto_direction = true;
+                region.underlay = false;
+            }
+            if p.mode == Mode::OpenStitch {
+                // OpenStitch mode sews one covering layer and no more needle points than it
+                // needs (owner, 2026-10-31: a normal single-layer fill is within the density
+                // limits): rows at 4.5 per mm, fill stitches up to 6.5 mm, no under sewing.
+                region.density = OPEN_STITCH_DENSITY;
+                region.stitch_length = OPEN_STITCH_FILL_STITCH_MM;
                 region.underlay = false;
             }
             region.angle = if satin {

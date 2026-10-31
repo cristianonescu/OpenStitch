@@ -866,3 +866,39 @@ fn fill_direction_spreads_the_rows_furthest() {
     });
     assert_eq!(autopunch::fill_angle(&disc, 200, 200, px), 90.0);
 }
+
+#[test]
+fn openstitch_mode_sews_one_covering_layer() {
+    // OpenStitch mode: 4.5 rows per mm, fill stitches up to 6.5 mm, no under sewing (the
+    // owner's density rule: a normal single-layer fill is within the limits). PE-DESIGN mode
+    // keeps PE-DESIGN's settings.
+    let frame = Frame::new(0.0, 0.0, 60.0, 60);
+    for (mode, underlay, length) in [
+        (
+            Mode::OpenStitch,
+            false,
+            autopunch::OPEN_STITCH_FILL_STITCH_MM,
+        ),
+        (Mode::PeDesign, true, 4.0),
+    ] {
+        let out = autopunch::convert(
+            &two_shapes(),
+            &frame,
+            &AutoPunch {
+                colors: 3,
+                mode,
+                ..Default::default()
+            },
+        )
+        .expect("converts");
+        let fill = out
+            .objects
+            .iter()
+            .filter_map(|o| o.region.as_ref())
+            .find(|r| r.kind == RegionType::Fill)
+            .expect("a fill");
+        assert_eq!(fill.underlay, underlay, "{mode:?}");
+        assert_eq!(fill.stitch_length, length, "{mode:?}");
+        assert_eq!(fill.density, autopunch::OPEN_STITCH_DENSITY);
+    }
+}
