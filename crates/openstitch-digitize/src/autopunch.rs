@@ -12,7 +12,7 @@ use crate::palette::{self, Census, Palette, Rgb};
 use crate::perceptual;
 use crate::raster::{Frame, Raster};
 use crate::regions::{self, NONE, TraceOptions};
-use crate::{DigitizeError, Fidelity, Mode};
+use crate::{DigitizeError, Fidelity, Mode, outline};
 use openstitch_core::Thread;
 use openstitch_design::fmath::Det;
 use openstitch_design::{DesignObject, RegionSewing, RegionType};
@@ -46,6 +46,10 @@ pub struct AutoPunch {
     /// out only when it is the fabric's colour (within [`FABRIC_DE`]); any other background is
     /// part of the picture, and is sewn. `None` leaves the background out whatever its colour.
     pub fabric: Option<Rgb>,
+    /// OpenStitch mode: strokes of the darkest colour at most this wide, mm, are sewn as satin
+    /// outlines along their skeleton, on top of the regions beside them
+    /// ([`crate::outline`]; 0: never).
+    pub outline_max_mm: f64,
     /// PE-DESIGN's colour reduction, or OpenStitch's perceptual one
     /// ([`Palette::from_census_perceptual`]).
     pub mode: Mode,
@@ -69,6 +73,7 @@ impl Default for AutoPunch {
             satin_min_mm: 0.7,
             skip_background: true,
             fabric: None,
+            outline_max_mm: 0.0,
             mode: Mode::PeDesign,
             threads: Vec::new(),
             fidelity: Fidelity::Standard,
@@ -193,6 +198,10 @@ pub const OPEN_STITCH_DENSITY: f64 = 4.5;
 /// points per mm² inside, short of the 7 mm sewability limit.
 pub const OPEN_STITCH_FILL_STITCH_MM: f64 = 6.5;
 
+/// OpenStitch mode sews a region as satin only when it is a stroke, at least this many times
+/// as long as it is wide (area over width²); a compact one is filled.
+pub const SATIN_ASPECT: f64 = 3.0;
+
 /// OpenStitch mode treats an image as line art when the border's colour (the background, left
 /// out or sewn) covers at least this share of the opaque pixels (the mandala about 0.9; photos and paintings far less).
 pub const LINE_ART_SHARE: f64 = 0.75;
@@ -292,8 +301,21 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
             });
         }
     }
+    // OpenStitch mode: the dark contour lines become satin lines sewn on top (T12).
+    let outlines = match p.mode {
+        Mode::OpenStitch => outline::extract(
+            &mut labels,
+            w,
+            h,
+            &palette,
+            &frame,
+            p.outline_max_mm,
+            &p.trace,
+        ),
+        Mode::PeDesign => None,
+    };
     let (mut id, mut comps) = regions::components(&labels, w, h);
-    if comps.is_empty() && p.mode == Mode::OpenStitch {
+    if comps.is_empty() && p.mode == Mode::OpenStitch && outlines.is_none() {
         // OpenStitch mode's cleanup can merge away a drawing made only of thin lines (the
         // round-5 mandala); keep PE-DESIGN's cleanup for it rather than sew nothing.
         labels = unsmoothed;
@@ -347,7 +369,16 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
             // Centerline test: a region is a stroke (satin across it) when its width at its
             // deepest point is within the satin width; one that keeps area beyond it is fill.
             let width_mm = regions::thickness(&m, mw, mh) * frame.mm_per_px();
-            let satin = (p.satin_min_mm..=p.satin_max_mm).contains(&width_mm);
+            // OpenStitch mode keeps satin for strokes: a compact shape (a dot, a pupil) sewn
+            // in one satin direction shows long, uneven stitches, so it is filled.
+            let stroke = match p.mode {
+                Mode::PeDesign => true,
+                Mode::OpenStitch => {
+                    let w_px = width_mm / frame.mm_per_px();
+                    k.area as f64 >= SATIN_ASPECT * w_px * w_px
+                }
+            };
+            let satin = stroke && (p.satin_min_mm..=p.satin_max_mm).contains(&width_mm);
             let mut region = RegionSewing::new(
                 if satin {
                     RegionType::Satin
@@ -387,6 +418,23 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
             objects.push(o);
         }
     }
+    // The outlines are sewn last, on the regions they border; their ink is the darkest
+    // thread, so normally the colour sewn last already.
+    let mut threads: Vec<Thread> = order.iter().map(|&t| palette.threads[t].clone()).collect();
+    if let Some(o) = outlines {
+        let ink = palette.threads[o.thread].clone();
+        if order.last() != Some(&o.thread) {
+            threads.push(ink.clone());
+        }
+        for mut line in o.lines {
+            line.name = Some(format!(
+                "Auto Punch {} {} outline",
+                objects.len() + 1,
+                ink.name.as_deref().unwrap_or("thread")
+            ));
+            objects.push(line);
+        }
+    }
     if objects.is_empty() {
         return Err(DigitizeError::Empty(
             "every region was too small to trace".into(),
@@ -394,7 +442,7 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
     }
     Ok(Converted {
         objects,
-        threads: order.iter().map(|&t| palette.threads[t].clone()).collect(),
+        threads,
         background: background.map(|b| palette.threads[b as usize].clone()),
     })
 }

@@ -269,12 +269,17 @@ pub fn commands() -> Vec<CommandSpec> {
                 opt(
                     "satinMaxWidth",
                     "mm",
-                    "Regions whose stroke width is at most this become satin across the stroke (default 6.5; PE-DESIGN keeps 6.1 mm satin, fills 7.1 mm)",
+                    "Regions whose stroke width is at most this become satin across the stroke (default 6.5; PE-DESIGN keeps 6.1 mm satin, fills 7.1 mm; OpenStitch mode 2.5, and only for strokes at least three times as long as wide)",
                 ),
                 opt(
                     "satinMinWidth",
                     "mm",
                     "Strokes narrower than this are fill, not satin (default 0.7; PE-DESIGN fills 0.5 mm, satins 0.75 mm)",
+                ),
+                opt(
+                    "outlineMaxWidth",
+                    "mm",
+                    "OpenStitch mode: strokes of the darkest colour (L* ≤ 25) at most this wide become satin outlines along their skeleton, sewn last over the regions beside them; 0 turns this off (default 2.5)",
                 ),
                 opt(
                     "skipBackground",
@@ -302,9 +307,11 @@ pub fn commands() -> Vec<CommandSpec> {
                 // OpenStitch mode works at 800 px, so thin lines and small details keep their
                 // shape, and merges regions under 2 mm², so no speck is sewn (B16.1 T11), unless
                 // the caller sets them.
-                let (resolution, min_area) = match mode {
-                    Mode::PeDesign => (400, 1.0),
-                    Mode::OpenStitch => (800, 2.0),
+                // Its dark contour lines are satin lines along their skeleton, satin is kept
+                // for strokes up to 2.5 mm and wider shapes are filled (B16.1 T12).
+                let (resolution, min_area, outline_max, satin_max) = match mode {
+                    Mode::PeDesign => (400, 1.0, 0.0, 6.5),
+                    Mode::OpenStitch => (800, 2.0, 2.5, 2.5),
                 };
                 let mut options = AutoPunch {
                     colors: count(p, "colors", AutoPunch::default().colors as i64, 0, 64)?,
@@ -312,9 +319,10 @@ pub fn commands() -> Vec<CommandSpec> {
                     min_area_mm2: p.opt("minArea", min_area, 0.0, 1000.0)?,
                     smooth: count(p, "smooth", 0, 0, 5)? as u32,
                     trace: trace_options(p, 0.7)?,
-                    satin_max_mm: p.opt("satinMaxWidth", 6.5, 1.0, 12.0)?,
+                    satin_max_mm: p.opt("satinMaxWidth", satin_max, 1.0, 12.0)?,
                     satin_min_mm: p.opt("satinMinWidth", 0.7, 0.0, 6.0)?,
                     skip_background: p.bool("skipBackground", Some(true))?,
+                    outline_max_mm: p.opt("outlineMaxWidth", outline_max, 0.0, 12.0)?,
                     mode,
                     threads: thread_source(s, p, mode)?,
                     fidelity: fidelity(p, mode)?,
