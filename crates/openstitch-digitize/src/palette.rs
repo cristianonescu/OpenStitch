@@ -474,6 +474,63 @@ pub fn dither_perceptual(
     })
 }
 
+/// OpenStitch mode's dithering, only where the image is tonal (B16.1 T6): cells in flat areas
+/// take their nearest target and neither give nor take diffused error, so flat colours and the
+/// edges between them are sewn plainly, without the dithering's noise; tonal cells (gradients,
+/// texture) dither in CIELAB as [`dither_perceptual`]. `window` is the neighbourhood half-size
+/// in cells, `(columns, rows)`, the caller's choice for its cell shape ([`tonal_map`]).
+pub fn dither_tonal(
+    cells: &[Option<[f64; 3]>],
+    w: usize,
+    h: usize,
+    targets: &[[f64; 3]],
+    window: (usize, usize),
+) -> Vec<Option<usize>> {
+    let to_lab = |c: [f64; 3]| perceptual::lab(c.map(|v| v.round().clamp(0.0, 255.0) as u8));
+    let cells: Vec<Option<[f64; 3]>> = cells.iter().map(|c| c.map(to_lab)).collect();
+    let targets: Vec<[f64; 3]> = targets.iter().map(|&t| to_lab(t)).collect();
+    let tonal = tonal_map(&cells, w, h, window);
+    diffuse_where(&cells, w, h, &targets, Some(&tonal), |c| {
+        [c[0].clamp(0.0, 100.0), c[1], c[2]]
+    })
+}
+
+/// Largest CIELAB distance (CIE76) from a cell's own colour that still counts as the same flat
+/// colour in [`tonal_map`]. Chosen by the owner (2026-10-31) from the similarity score on nine
+/// photos at Photo Stitch 1's 3 mm cells: dithering everywhere 55.8, a threshold of 4 60.7,
+/// 12 63.8, no dithering 64.4 (smooth gradients then band).
+pub const FLAT_DE: f64 = 12.0;
+/// Share of a cell's neighbourhood that must be the same flat colour for the cell to be flat.
+pub const FLAT_SHARE: f64 = 0.5;
+
+/// Which cells are tonal (B16.1 T6): a cell is flat when at least [`FLAT_SHARE`] of the opaque
+/// cells within `window` (half-size in cells, `(columns, rows)`) lie within [`FLAT_DE`] of its
+/// own colour, as in a flat area or beside a sharp edge between flat areas; otherwise it is
+/// tonal. `cells` are CIELAB. Transparent cells are not tonal. Deterministic.
+pub fn tonal_map(cells: &[Option<Lab>], w: usize, h: usize, window: (usize, usize)) -> Vec<bool> {
+    let (rx, ry) = window;
+    let mut out = vec![false; cells.len()];
+    for y in 0..h {
+        for x in 0..w {
+            let Some(c) = cells[y * w + x] else { continue };
+            let (mut near, mut all) = (0usize, 0usize);
+            for ny in y.saturating_sub(ry)..(y + ry + 1).min(h) {
+                for nx in x.saturating_sub(rx)..(x + rx + 1).min(w) {
+                    if let Some(o) = cells[ny * w + nx] {
+                        all += 1;
+                        let d = (0..3).map(|k| (o[k] - c[k]).powi(2)).sum::<f64>();
+                        if d <= FLAT_DE * FLAT_DE {
+                            near += 1;
+                        }
+                    }
+                }
+            }
+            out[y * w + x] = (near as f64) < FLAT_SHARE * all as f64;
+        }
+    }
+    out
+}
+
 /// Serpentine Floyd–Steinberg over `cells` in whatever space they and `targets` share;
 /// `clamp` keeps a cell's accumulated colour in range before it is matched.
 fn diffuse(
@@ -483,6 +540,20 @@ fn diffuse(
     targets: &[[f64; 3]],
     clamp: impl Fn([f64; 3]) -> [f64; 3],
 ) -> Vec<Option<usize>> {
+    diffuse_where(cells, w, h, targets, None, clamp)
+}
+
+/// [`diffuse`], with error diffused only between cells `tonal` marks (all when `None`); other
+/// cells take the target nearest their own colour.
+fn diffuse_where(
+    cells: &[Option<[f64; 3]>],
+    w: usize,
+    h: usize,
+    targets: &[[f64; 3]],
+    tonal: Option<&[bool]>,
+    clamp: impl Fn([f64; 3]) -> [f64; 3],
+) -> Vec<Option<usize>> {
+    let dithers = |i: usize| tonal.is_none_or(|t| t[i]);
     let mut work: Vec<[f64; 3]> = cells.iter().map(|c| c.unwrap_or([0.0; 3])).collect();
     let mut out = vec![None; cells.len()];
     if targets.is_empty() {
@@ -496,7 +567,11 @@ fn diffuse(
             if cells[i].is_none() {
                 continue;
             }
-            let c = clamp(work[i]);
+            let c = if dithers(i) {
+                clamp(work[i])
+            } else {
+                clamp(cells[i].unwrap_or([0.0; 3]))
+            };
             let mut best = (f64::INFINITY, 0);
             for (t, tc) in targets.iter().enumerate() {
                 let d = weighted(c, *tc);
@@ -505,6 +580,9 @@ fn diffuse(
                 }
             }
             out[i] = Some(best.1);
+            if !dithers(i) {
+                continue;
+            }
             let e = [0, 1, 2].map(|ch| c[ch] - targets[best.1][ch]);
             let dir: isize = if forward { 1 } else { -1 };
             let mut spread = |dx: isize, dy: usize, f: f64| {
@@ -514,7 +592,7 @@ fn diffuse(
                     return;
                 }
                 let j = ny * w + nx as usize;
-                if cells[j].is_some() {
+                if cells[j].is_some() && dithers(j) {
                     for ch in 0..3 {
                         work[j][ch] += e[ch] * f;
                     }

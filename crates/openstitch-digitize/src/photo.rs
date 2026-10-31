@@ -95,7 +95,7 @@ pub struct PhotoStitch {
     pub color_set: ColorSet,
     /// Colour mode: PE-DESIGN's method, or OpenStitch's: the perceptual palette
     /// ([`Palette::build_perceptual`]; Photo Stitch 2's Auto Select too), dithering in CIELAB
-    /// (Photo Stitch 1, [`palette::dither_perceptual`]) and the line screen's mix in linear
+    /// where the image is tonal (Photo Stitch 1, [`palette::dither_tonal`]) and the line screen's mix in linear
     /// light (Photo Stitch 2, [`crate::screen::Shares::colour_in`]).
     pub compat: Mode,
 }
@@ -137,6 +137,10 @@ pub const LINE_RUN_MM: f64 = 2.5;
 pub const MAX_DENSITY: f64 = 4.5;
 /// Photo Stitch 2's thread count with Color Set Auto Select (four on the round-4 capture).
 pub const LINE_COLORS: usize = 4;
+
+/// OpenStitch mode: how far around a cell Photo Stitch 1's tonal map looks, mm
+/// ([`palette::dither_tonal`]).
+pub const TONAL_REACH_MM: f64 = 3.0;
 
 /// Photo Stitch 1's default Run Pitch, mm (PE-DESIGN 11.50).
 pub const RUN_PITCH_MM: f64 = 3.0;
@@ -278,7 +282,9 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
         threads.push(palette::nearest_pec(p.fabric).1);
     }
     let dithered = if perceptual {
-        palette::dither_perceptual(&cells, cols, rows, &targets)
+        // The tonal map looks about 3 mm to either side, whatever the cell shape.
+        let reach = |cell: f64| ((TONAL_REACH_MM * 10.0 / cell).round() as usize).max(1);
+        palette::dither_tonal(&cells, cols, rows, &targets, (reach(cw), reach(ch)))
     } else {
         palette::dither(&cells, cols, rows, &targets)
     };
