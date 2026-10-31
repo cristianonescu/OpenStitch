@@ -319,10 +319,18 @@ impl Palette {
     /// thread with the fabric, so its threads are chosen by Photo Stitch 2's own rework (T13),
     /// not by [`Palette::select_perceptual`].
     pub fn build_perceptual(colors: &[Rgb], n: usize) -> Palette {
-        Self::from_histogram_perceptual(&histogram(colors), n)
+        Self::build_perceptual_in(colors, n, &[])
     }
 
-    fn from_histogram_perceptual(hist: &[(Rgb, u64)], n: usize) -> Palette {
+    /// [`Palette::build_perceptual`] matching the centres to `source`'s threads instead of the
+    /// PEC chart (B16.1 T5); an empty `source` is the PEC chart. A thread from another chart
+    /// records the PEC chart number nearest it in [`Palette::chart`], as in
+    /// [`Palette::from_census_perceptual_in`].
+    pub fn build_perceptual_in(colors: &[Rgb], n: usize, source: &[Thread]) -> Palette {
+        Self::from_histogram_perceptual(&histogram(colors), n, source)
+    }
+
+    fn from_histogram_perceptual(hist: &[(Rgb, u64)], n: usize, source: &[Thread]) -> Palette {
         let seeds: Vec<Lab> = median_cut_histogram(hist, n.max(1))
             .into_iter()
             .map(perceptual::lab)
@@ -332,11 +340,7 @@ impl Palette {
             .map(|&(c, w)| (perceptual::lab(c), w as f64))
             .collect();
         let centres = perceptual::kmeans(&colors, &seeds, 20);
-        let chart: Vec<(usize, Lab)> = pec_basic_chart()
-            .iter()
-            .enumerate()
-            .filter_map(|(i, t)| t.as_ref().map(|t| (i, perceptual::lab(rgb_of(t)))))
-            .collect();
+        let (chart, labs) = candidates(source);
         let mut palette = Palette {
             means: Vec::new(),
             thread_of: Vec::new(),
@@ -345,38 +349,38 @@ impl Palette {
             perceptual: true,
             known: Vec::new(),
         };
-        // Which centres took each palette thread, to keep distinct colours apart.
+        // The candidate each palette thread came from, and which centres took it, to keep
+        // distinct colours apart.
+        let mut taken: Vec<usize> = Vec::new();
         let mut takers: Vec<Vec<Lab>> = Vec::new();
         for c in centres {
-            let mut ranked: Vec<(f64, usize)> = chart
+            let mut ranked: Vec<(f64, usize)> = labs
                 .iter()
-                .map(|&(i, t)| (perceptual::de2000(c, t), i))
+                .enumerate()
+                .map(|(j, &t)| (perceptual::de2000(c, t), j))
                 .collect();
             ranked.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
-            let free = |i: usize| match palette.chart.iter().position(|&x| x == i) {
+            let free = |j: usize| match taken.iter().position(|&x| x == j) {
                 None => true,
                 Some(k) => takers[k]
                     .iter()
                     .all(|&o| perceptual::de2000(o, c) < DISTINCT_DE),
             };
-            let i = ranked
+            let Some(j) = ranked
                 .iter()
-                .find(|&&(_, i)| free(i))
-                .map_or(ranked[0].1, |&(_, i)| i);
-            let k = palette
-                .chart
-                .iter()
-                .position(|&x| x == i)
-                .unwrap_or_else(|| {
-                    palette.chart.push(i);
-                    palette.threads.push(
-                        PEC_CHART[i]
-                            .clone()
-                            .unwrap_or_else(|| thread(perceptual::rgb(c))),
-                    );
-                    takers.push(Vec::new());
-                    palette.chart.len() - 1
-                });
+                .find(|&&(_, j)| free(j))
+                .or(ranked.first())
+                .map(|&(_, j)| j)
+            else {
+                continue;
+            };
+            let k = taken.iter().position(|&x| x == j).unwrap_or_else(|| {
+                taken.push(j);
+                palette.chart.push(chart[j].0);
+                palette.threads.push(chart[j].1.clone());
+                takers.push(Vec::new());
+                taken.len() - 1
+            });
             takers[k].push(c);
             palette.means.push(perceptual::rgb(c));
             palette.thread_of.push(k);

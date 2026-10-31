@@ -312,3 +312,27 @@ fn tonal_dither_leaves_flat_areas_plain() {
     );
     assert_eq!(out, palette::dither_tonal(&cells, w, h, &targets, (2, 2)));
 }
+
+/// T5: Photo Stitch's k-means palette chooses from a given thread list when asked, and an empty
+/// list is the PEC chart.
+#[test]
+fn kmeans_palette_chooses_from_a_source() {
+    let mut px = Vec::new();
+    for x in 0..60u32 {
+        px.push(if x < 30 { [200, 30, 40] } else { [30, 60, 190] });
+    }
+    let source = [
+        openstitch_core::Thread::rgb(0xd21e28),
+        openstitch_core::Thread::rgb(0x1e3cbe),
+        openstitch_core::Thread::rgb(0x00ff00),
+    ];
+    let pal = Palette::build_perceptual_in(&px, 2, &source);
+    let mut got: Vec<u32> = pal.threads.iter().map(|t| t.rgb_value()).collect();
+    got.sort_unstable();
+    assert_eq!(got, vec![0x1e3cbe, 0xd21e28], "the source's red and blue");
+    assert_eq!(
+        Palette::build_perceptual_in(&px, 2, &[]),
+        Palette::build_perceptual(&px, 2),
+        "an empty source is the PEC chart"
+    );
+}
