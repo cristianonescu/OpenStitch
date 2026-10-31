@@ -218,6 +218,16 @@ pub fn commands() -> Vec<CommandSpec> {
                     "bool",
                     "Leave out the colour covering most of the border (default true)",
                 ),
+                opt(
+                    "compatMode",
+                    "peDesign|openStitch",
+                    "peDesign: as PE-DESIGN 11.50 (default); openStitch: each cell takes its mean colour in CIELAB, threads by k-means and CIEDE2000, and crosses are filled (docs/research/beyond/image-similarity-plan.md, T14)",
+                ),
+                opt(
+                    "fill",
+                    "bool",
+                    "OpenStitch mode: cover each cell with parallel diagonals about 0.3 mm apart, at most 2 needle points per mm², instead of one cross; times then has no effect (default true)",
+                ),
             ]),
             |s, p| {
                 let (image, frame) = load(s, p)?;
@@ -230,6 +240,8 @@ pub fn commands() -> Vec<CommandSpec> {
                     },
                     triple: choice(p, "times", "single", &["single", "triple"])? == "triple",
                     skip_background: p.bool("skipBackground", Some(true))?,
+                    mode: compat_mode(p)?,
+                    fill: p.bool("fill", Some(true))?,
                 };
                 let out = cross::convert(&image, &frame, &options).map_err(|e| failed(p, e))?;
                 Ok(json!({
