@@ -381,9 +381,29 @@ impl Palette {
     /// the weighted mean of the colours nearest to it. Photo Stitch 1 dithers onto the threads
     /// themselves.
     pub fn select_perceptual(colors: &[Rgb], n: usize) -> Palette {
+        Self::select_perceptual_with(colors, n, perceptual::SelectCost::Nearest)
+    }
+
+    /// [`Palette::select_perceptual`] with the selection's cost chosen by the caller: nearest
+    /// thread, or the best two-thread mix for rows that mix threads by error carry
+    /// ([`perceptual::SelectCost`]). On Photo Stitch 1's 3 mm cells the nearest thread scores
+    /// higher (nine photos: 57.1 against 54.2 with the mix), so that is the default there.
+    pub fn select_perceptual_with(
+        colors: &[Rgb],
+        n: usize,
+        cost: perceptual::SelectCost,
+    ) -> Palette {
         let (chart, labs) = pec_labs();
-        let colors = perceptual::select_colors(&histogram(colors));
-        let kept = perceptual::select_threads(&colors, &labs, n);
+        let hist = histogram(colors);
+        let rgbs: Vec<Rgb> = chart.iter().map(|(_, t)| rgb_of(t)).collect();
+        let weighted: Vec<(Rgb, f64)> = hist.iter().map(|&(c, w)| (c, w as f64)).collect();
+        let kept = match cost {
+            perceptual::SelectCost::Nearest => {
+                perceptual::select_threads(&perceptual::select_colors(&hist), &labs, n)
+            }
+            perceptual::SelectCost::Mix => perceptual::select_threads_by(&weighted, &rgbs, n, cost),
+        };
+        let colors = perceptual::select_colors(&hist);
         let kept_labs: Vec<Lab> = kept.iter().map(|&k| labs[k]).collect();
         let mut sum = vec![([0.0; 3], 0.0); kept.len()];
         for &(c, w) in &colors {

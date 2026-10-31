@@ -3,7 +3,7 @@
 use openstitch_digitize::autopunch::{self, AutoPunch};
 use openstitch_digitize::palette::{self, Palette};
 use openstitch_digitize::perceptual::{
-    de2000, kmeans, lab, nearest, rgb, select_colors, select_threads,
+    SelectCost, de2000, kmeans, lab, nearest, rgb, select_colors, select_threads, select_threads_by,
 };
 use openstitch_digitize::{Frame, Mode, Raster};
 
@@ -242,5 +242,31 @@ fn selection_colours_are_binned_to_the_limit() {
         select_colors(&hist[..10]).len(),
         10,
         "a short list is kept as it is"
+    );
+}
+
+/// The mix-aware cost chooses threads that span the colours: for a grey ramp and two threads,
+/// black and white, which mix to every grey, where the nearest-thread cost takes two greys.
+#[test]
+fn mix_selection_spans_the_colours() {
+    let chart: [[u8; 3]; 5] = [
+        [0, 0, 0],
+        [70, 70, 70],
+        [128, 128, 128],
+        [185, 185, 185],
+        [255, 255, 255],
+    ];
+    let ramp: Vec<([u8; 3], f64)> = (40..=215u8).step_by(5).map(|v| ([v; 3], 1.0)).collect();
+    let mix = select_threads_by(&ramp, &chart, 2, SelectCost::Mix);
+    assert_eq!(mix, vec![0, 4], "black and white span the ramp");
+    let near = select_threads_by(&ramp, &chart, 2, SelectCost::Nearest);
+    assert!(
+        !near.contains(&0) && !near.contains(&4),
+        "nearest takes greys: {near:?}"
+    );
+    assert_eq!(
+        mix,
+        select_threads_by(&ramp, &chart, 2, SelectCost::Mix),
+        "deterministic"
     );
 }
