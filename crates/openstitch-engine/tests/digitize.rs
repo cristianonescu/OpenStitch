@@ -424,3 +424,68 @@ fn fidelity_high_raises_the_colour_counts() {
         .expect_err("High needs OpenStitch mode");
     assert!(e.to_string().contains("fidelity"), "{e}");
 }
+
+/// B16.1 T5's thread sources: OpenStitch mode chooses only from the user's own chart when asked,
+/// lists the threads to buy against it, and PE-DESIGN mode takes no source.
+#[test]
+fn thread_sources_choose_from_the_users_threads_and_list_the_rest() {
+    let dir = temp_dir();
+    write_sample(&dir);
+    let mut s = Session::new(&dir);
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    run(&mut s, "threads.createChart", json!({"name": "My Threads"}));
+    for (c, code) in [("#c80a1e", "1"), ("#1428c8", "2"), ("#000000", "3")] {
+        run(
+            &mut s,
+            "threads.addColor",
+            json!({"chart": "My Threads", "color": c, "code": code, "brand": "Mine"}),
+        );
+    }
+    let base = json!({"path": "sample.png", "width": 60, "compatMode": "openStitch"});
+    let with = |extra: Value| {
+        let mut p = base.clone();
+        p.as_object_mut()
+            .expect("object")
+            .extend(extra.as_object().expect("object").clone());
+        p
+    };
+    let mine = run(
+        &mut s,
+        "digitize.autoPunch",
+        with(json!({"threads": "My Threads", "owned": "My Threads"})),
+    );
+    let own = ["#c80a1e", "#1428c8", "#000000"];
+    for c in mine["colors"].as_array().expect("colors") {
+        assert!(own.contains(&c.as_str().expect("hex")), "{c} is not mine");
+    }
+    assert_eq!(mine["toBuy"], json!([]), "everything chosen is owned");
+    let all = run(
+        &mut s,
+        "digitize.autoPunch",
+        with(json!({"threads": "all", "owned": "My Threads"})),
+    );
+    let buy = all["toBuy"].as_array().expect("toBuy");
+    let chosen = all["colors"].as_array().expect("colors");
+    assert!(!buy.is_empty() && buy.len() <= chosen.len(), "{all}");
+    assert!(all.get("toBuy").is_some());
+    assert!(
+        run(&mut s, "digitize.autoPunch", base.clone())
+            .get("toBuy")
+            .is_none(),
+        "no shopping list without an owned chart"
+    );
+    let e = s
+        .execute(
+            "digitize.autoPunch",
+            Some(&json!({"path": "sample.png", "width": 60, "threads": "all"})),
+        )
+        .expect_err("PE-DESIGN mode takes no thread source");
+    assert!(e.to_string().contains("threads"), "{e}");
+    let e = s
+        .execute(
+            "digitize.photoStitch",
+            Some(&with(json!({"threads": "Nope"}))),
+        )
+        .expect_err("an unknown chart");
+    assert!(e.to_string().contains("Nope"), "{e}");
+}

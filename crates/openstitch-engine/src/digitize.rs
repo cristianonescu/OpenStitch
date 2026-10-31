@@ -17,7 +17,7 @@ use openstitch_digitize::photo::{self, ColorSet, PhotoMode, PhotoStitch, PhotoSt
 use openstitch_digitize::raster::MAX_FILE_BYTES;
 use openstitch_digitize::regions::TraceOptions;
 use openstitch_digitize::{DigitizeError, Fidelity, Frame, HIGH_COLORS, Mode, Raster};
-use serde_json::json;
+use serde_json::{Value, json};
 
 const IMAGE: ParamDoc = req(
     "path",
@@ -78,6 +78,106 @@ fn compat_mode(p: &Params) -> Result<Mode, CommandError> {
             _ => Mode::PeDesign,
         },
     )
+}
+
+/// The threads OpenStitch mode chooses from (B16.1 T5), from the `threads` parameter: `brother`
+/// (the default, the PEC chart), `all` (every chart built into OpenStitch, other brands'
+/// included), a built-in chart's id (`thread.chartList`, or `madeiraPolyneon` and the other
+/// [`openstitch_core::brands::brand_charts`]), or the name of one of the user's thread charts
+/// ("My Threads").
+/// Empty means the PEC chart. Anything but `brother` needs `compatMode: openStitch`.
+fn thread_source(s: &EngineState, p: &Params, mode: Mode) -> Result<Vec<Thread>, CommandError> {
+    let name = p.string("threads", Some("brother"))?;
+    if name == "brother" {
+        return Ok(Vec::new());
+    }
+    if mode == Mode::PeDesign {
+        return Err(p.invalid("threads", "a thread source needs compatMode openStitch"));
+    }
+    let builtin = crate::user::builtin_charts();
+    let brands = openstitch_core::brands::brand_charts();
+    let charts: Vec<Vec<Thread>> = if name == "all" {
+        builtin
+            .iter()
+            .map(|c| c.2.iter().flatten().cloned().collect())
+            .chain(brands.iter().map(|c| c.2.to_vec()))
+            .collect()
+    } else if let Some(c) = builtin.iter().find(|c| c.0 == name) {
+        vec![c.2.iter().flatten().cloned().collect()]
+    } else if let Some(c) = brands.iter().find(|c| c.0 == name) {
+        vec![c.2.to_vec()]
+    } else if let Some(c) = s.user.thread_charts.iter().find(|c| c.name == name) {
+        vec![c.threads.clone()]
+    } else {
+        return Err(p.not_found(format!("thread chart '{name}'")));
+    };
+    // Each colour once per brand, first chart first.
+    let mut out: Vec<Thread> = Vec::new();
+    for t in charts.into_iter().flatten() {
+        if !out
+            .iter()
+            .any(|o| o.rgb_value() == t.rgb_value() && o.brand == t.brand)
+        {
+            out.push(t);
+        }
+    }
+    Ok(out)
+}
+
+/// The threads of `chosen` not in the user's chart named by the `owned` parameter (B16.1 T5:
+/// High fidelity may ask for threads the user does not own, with this shopping list). A thread
+/// is owned when the chart has one of the same brand and code, or of the same colour. `None`
+/// when `owned` is not given.
+fn to_buy(s: &EngineState, p: &Params, chosen: &[Thread]) -> Result<Option<Value>, CommandError> {
+    if !p.has("owned") {
+        return Ok(None);
+    }
+    let name = p.string("owned", None)?;
+    let owned = s
+        .user
+        .thread_charts
+        .iter()
+        .find(|c| c.name == name)
+        .ok_or_else(|| p.not_found(format!("thread chart '{name}'")))?;
+    let has = |t: &Thread| {
+        owned.threads.iter().any(|o| {
+            o.rgb_value() == t.rgb_value()
+                || (o.brand.is_some()
+                    && o.brand == t.brand
+                    && o.catalog_number.is_some()
+                    && o.catalog_number == t.catalog_number)
+        })
+    };
+    Ok(Some(Value::Array(
+        chosen
+            .iter()
+            .filter(|t| !has(t))
+            .map(|t| {
+                json!({
+                    "color": t.hex(),
+                    "brand": t.brand,
+                    "code": t.catalog_number,
+                    "name": t.name,
+                })
+            })
+            .collect(),
+    )))
+}
+
+/// The `threads` and `owned` parameters' documentation.
+fn thread_source_docs() -> [ParamDoc; 2] {
+    [
+        opt(
+            "threads",
+            "brother|all|chart",
+            "OpenStitch mode: the threads to choose from: brother (default, the PEC chart), all (every built-in chart, Madeira Polyneon included), a built-in chart id (madeiraPolyneon among them), or one of the user's thread charts by name",
+        ),
+        opt(
+            "owned",
+            "chart",
+            "OpenStitch mode: the user's thread chart of threads they own; the result lists the chosen threads not in it (toBuy)",
+        ),
+    ]
 }
 
 /// The `fidelity` parameter (B16.1), shared by the image wizards that have an OpenStitch mode:
@@ -187,7 +287,10 @@ pub fn commands() -> Vec<CommandSpec> {
                     "peDesign: as PE-DESIGN 11.50 (default); openStitch: colours reduced and matched to threads by appearance (CIELAB k-means, CIEDE2000), regions under 3 mm² merged (docs/research/beyond/image-digitizing.md)",
                 ),
                 fidelity_doc(),
-            ]),
+            ]
+            .into_iter()
+            .chain(thread_source_docs())
+            .collect()),
             |s, p| {
                 let (image, frame) = load(s, p)?;
                 let mode = compat_mode(p)?;
@@ -207,16 +310,22 @@ pub fn commands() -> Vec<CommandSpec> {
                     satin_min_mm: p.opt("satinMinWidth", 0.7, 0.0, 6.0)?,
                     skip_background: p.bool("skipBackground", Some(true))?,
                     mode,
+                    threads: thread_source(s, p, mode)?,
                     fidelity: fidelity(p, mode)?,
                 };
                 let out = autopunch::convert(&image, &frame, &options).map_err(|e| failed(p, e))?;
                 let regions = out.objects.len();
-                Ok(json!({
+                let buy = to_buy(s, p, &out.threads)?;
+                let mut r = json!({
                     "ids": add_all(s, out.objects),
                     "colors": hexes(&out.threads),
                     "regions": regions,
                     "background": out.background.as_ref().map(Thread::hex),
-                }))
+                });
+                if let Some(b) = buy {
+                    r["toBuy"] = b;
+                }
+                Ok(r)
             },
         ),
         spec(
@@ -349,7 +458,10 @@ pub fn commands() -> Vec<CommandSpec> {
                     "Lines: Direction, turns every thread's screen angle (0/45/90/135), -180-180 (default 0)",
                 ),
                 fidelity_doc(),
-            ]),
+            ]
+            .into_iter()
+            .chain(thread_source_docs())
+            .collect()),
             |s, p| {
                 let (image, frame) = load(s, p)?;
                 let compat = compat_mode(p)?;
@@ -395,12 +507,18 @@ pub fn commands() -> Vec<CommandSpec> {
                 };
                 options.compat = compat;
                 options.fidelity = fidelity;
+                options.threads = thread_source(s, p, compat)?;
                 let out = photo::convert(&image, &frame, &options).map_err(|e| failed(p, e))?;
-                Ok(json!({
+                let buy = to_buy(s, p, &out.threads)?;
+                let mut r = json!({
                     "colors": hexes(&out.threads),
                     "stitches": out.stitches,
                     "ids": add_all(s, out.objects),
-                }))
+                });
+                if let Some(b) = buy {
+                    r["toBuy"] = b;
+                }
+                Ok(r)
             },
         ),
         spec(

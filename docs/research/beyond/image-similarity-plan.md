@@ -428,7 +428,7 @@ bit-identical, compat 443/443):
 | Phase | Landed | Result |
 |---|---|---|
 | 0 | Deterministic digitizing maths (#259), cross-platform golden hashes (#260), the scorer (#261) | Scorer reproduces section 3 exactly; Design Center baselines g03 95.1, g04 70.3 |
-| 1 | T4 thread selection (#264, with a mix-aware cost), T6 tonal dithering (#266, flat threshold ΔE 12), Fidelity Standard / High (#269) | T5 (multi-brand charts) in progress |
+| 1 | T4 thread selection (#264, with a mix-aware cost), T6 tonal dithering (#266, flat threshold ΔE 12), Fidelity Standard / High (#269); T5 thread sources and My Threads (track A's next PR) | With every chart (`threads: all`): Auto Punch 78.8 → 80.6, Photo Stitch 1 64.5 → 67.0, emblem 92.3 (95 not reached: Madeira Classic and Brothread publish no colour values), mosaic g13 86.8 |
 | 5 | Cross Stitch OpenStitch mode (#263), Design Center OpenStitch mode (#268) | Cross Stitch mean 51.3 → 70.2 (g07 82.5); Design Center g03 96.4, g04 95.2: both meet 95 |
 
 Not yet landed, measured on the tracks' branches: Auto Punch T7, T11 and T12 (mean 78.4 → 83.3,
