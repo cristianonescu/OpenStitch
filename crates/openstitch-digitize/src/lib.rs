@@ -15,6 +15,7 @@ pub mod perceptual;
 pub mod photo;
 pub mod raster;
 pub mod regions;
+pub mod rows;
 pub mod screen;
 pub mod trace;
 

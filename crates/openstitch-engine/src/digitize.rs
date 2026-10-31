@@ -13,7 +13,7 @@ use openstitch_digitize::center::{
     self, FigureOptions, LineImageOptions, OpenLine, RegionSew, SewSettings,
 };
 use openstitch_digitize::cross::{self, CrossStitch, CrossType};
-use openstitch_digitize::photo::{self, ColorSet, PhotoMode, PhotoStitch, PhotoStyle};
+use openstitch_digitize::photo::{self, ColorSet, PhotoMode, PhotoStitch, PhotoStyle, Travel};
 use openstitch_digitize::raster::MAX_FILE_BYTES;
 use openstitch_digitize::regions::TraceOptions;
 use openstitch_digitize::{DigitizeError, Fidelity, Frame, HIGH_COLORS, Mode, Raster};
@@ -471,6 +471,21 @@ pub fn commands() -> Vec<CommandSpec> {
                     "Lines: Direction, turns every thread's screen angle (0/45/90/135), -180-180 (default 0)",
                 ),
                 fidelity_doc(),
+                opt(
+                    "travel",
+                    "fewerTrims|allTrims",
+                    "OpenStitch mode, fill: fewerTrims sews short visible travel stitches (up to 2 mm) between a thread's runs instead of trimming (about half the trims); allTrims travels only under later layers and trims elsewhere (best likeness); default fewerTrims at Standard fidelity, allTrims at High",
+                ),
+                opt(
+                    "densityMean",
+                    "points/mm²",
+                    "OpenStitch mode, fill: most needle points per mm² over the design, 0.5-10 (default 2.1)",
+                ),
+                opt(
+                    "densityWindow",
+                    "points/mm²",
+                    "OpenStitch mode, fill: most needle points per mm² in any 10 × 10 mm window, 0.5-10 (default 3.0)",
+                ),
             ]
             .into_iter()
             .chain(thread_source_docs())
@@ -521,6 +536,20 @@ pub fn commands() -> Vec<CommandSpec> {
                 options.compat = compat;
                 options.fidelity = fidelity;
                 options.threads = thread_source(s, p, compat)?;
+                // The user's choice; by default fewer trims at Standard, the best likeness at
+                // High (the owner, 2026-10-31).
+                let travel_default = match fidelity {
+                    Fidelity::High => "allTrims",
+                    Fidelity::Standard => "fewerTrims",
+                };
+                options.travel =
+                    match choice(p, "travel", travel_default, &["fewerTrims", "allTrims"])? {
+                        "allTrims" => Travel::AllTrims,
+                        _ => Travel::FewerTrims,
+                    };
+                options.density_mean = p.opt("densityMean", options.density_mean, 0.5, 10.0)?;
+                options.density_window =
+                    p.opt("densityWindow", options.density_window, 0.5, 10.0)?;
                 let out = photo::convert(&image, &frame, &options).map_err(|e| failed(p, e))?;
                 let buy = to_buy(s, p, &out.threads)?;
                 let mut r = json!({
