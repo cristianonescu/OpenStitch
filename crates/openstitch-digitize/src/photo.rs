@@ -21,7 +21,7 @@
 
 use crate::palette::{self, Palette, Rgb, rgb_f};
 use crate::raster::{Frame, Raster};
-use crate::{DigitizeError, Mode};
+use crate::{DigitizeError, Fidelity, Mode};
 use openstitch_core::{Command, Stitch, Thread};
 use openstitch_design::fmath::Det;
 use openstitch_design::{DesignObject, StitchBlock};
@@ -98,6 +98,9 @@ pub struct PhotoStitch {
     /// (Photo Stitch 1, [`palette::dither_perceptual`]) and the line screen's mix in linear
     /// light (Photo Stitch 2, [`crate::screen::Shares::colour_in`]).
     pub compat: Mode,
+    /// OpenStitch mode's fidelity, for the costlier passes High turns on; the colour count is
+    /// the caller's ([`crate::HIGH_COLORS`] by default at High). PE-DESIGN mode ignores it.
+    pub fidelity: Fidelity,
 }
 
 impl PhotoStitch {
@@ -125,6 +128,7 @@ impl PhotoStitch {
             direction_deg: 0.0,
             color_set: ColorSet::Auto,
             compat: Mode::PeDesign,
+            fidelity: Fidelity::Standard,
         }
     }
 }

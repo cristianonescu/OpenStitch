@@ -41,7 +41,7 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                     .on_hover_text(m.hint())
                     .changed()
                 {
-                    w.colors = m.default_colors();
+                    w.colors = w.colors_default();
                 }
             }
             ui.weak(w.method.hint());
@@ -66,8 +66,10 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                 if matches!(w.method, Method::PhotoFill | Method::PhotoLines) {
                     ui.label("Mode");
                     ui.horizontal(|ui| {
-                        ui.radio_value(&mut w.mono, false, "Colour");
-                        ui.radio_value(&mut w.mono, true, "Mono");
+                        let mut mono = w.mono;
+                        ui.radio_value(&mut mono, false, "Colour");
+                        ui.radio_value(&mut mono, true, "Mono");
+                        w.change(|w| w.mono = mono);
                     });
                     ui.end_row();
                 }
@@ -146,9 +148,7 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                     ui.checkbox(&mut w.skip_background, "Leave out the background colour");
                     ui.end_row();
                 }
-                if w.method == Method::AutoPunch
-                    || (matches!(w.method, Method::PhotoFill | Method::PhotoLines) && !w.mono)
-                {
+                if w.improvable() {
                     let improved = if w.method == Method::AutoPunch {
                         "Picks colours and threads by how they look (CIELAB, CIEDE2000) and merges \
                          specks under 3 mm², for fewer trims; line art keeps its lines."
@@ -162,10 +162,12 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                     ui.label("Mode");
                     ui.horizontal(|ui| {
                         let before = w.open_stitch;
-                        ui.radio_value(&mut w.open_stitch, false, "PE-DESIGN")
+                        let mut open_stitch = w.open_stitch;
+                        ui.radio_value(&mut open_stitch, false, "PE-DESIGN")
                             .on_hover_text("Converts as PE-DESIGN 11.50 does (RGB colour reduction and thread matching).");
-                        ui.radio_value(&mut w.open_stitch, true, "OpenStitch")
+                        ui.radio_value(&mut open_stitch, true, "OpenStitch")
                             .on_hover_text(improved);
+                        w.change(|w| w.open_stitch = open_stitch);
                         // Auto Punch's small-region default follows the mode unless it was changed.
                         if before != w.open_stitch && w.method == Method::AutoPunch {
                             let (from, to) = if w.open_stitch { (1.0, 3.0) } else { (3.0, 1.0) };
@@ -175,6 +177,20 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                         }
                     });
                     ui.end_row();
+                    if w.open_stitch {
+                        ui.label("Fidelity");
+                        ui.horizontal(|ui| {
+                            let mut high = w.high_fidelity;
+                            ui.radio_value(&mut high, false, "Standard")
+                                .on_hover_text("Today's colour counts and speed.");
+                            ui.radio_value(&mut high, true, "High").on_hover_text(
+                                "Closer to the image: up to 24 colours by default and slower \
+                                 passes. The needle density stays the same.",
+                            );
+                            w.change(|w| w.high_fidelity = high);
+                        });
+                        ui.end_row();
+                    }
                 }
                 if matches!(w.method, Method::AutoPunch | Method::DesignCenter) {
                     ui.label("");

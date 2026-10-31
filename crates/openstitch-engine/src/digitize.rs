@@ -14,7 +14,7 @@ use openstitch_digitize::cross::{self, CrossStitch, CrossType};
 use openstitch_digitize::photo::{self, ColorSet, PhotoMode, PhotoStitch, PhotoStyle};
 use openstitch_digitize::raster::MAX_FILE_BYTES;
 use openstitch_digitize::regions::TraceOptions;
-use openstitch_digitize::{DigitizeError, Frame, Mode, Raster};
+use openstitch_digitize::{DigitizeError, Fidelity, Frame, HIGH_COLORS, Mode, Raster};
 use serde_json::json;
 
 const IMAGE: ParamDoc = req(
@@ -75,6 +75,29 @@ fn compat_mode(p: &Params) -> Result<Mode, CommandError> {
             "openStitch" => Mode::OpenStitch,
             _ => Mode::PeDesign,
         },
+    )
+}
+
+/// The `fidelity` parameter (B16.1), shared by the image wizards that have an OpenStitch mode:
+/// `standard` (the default) or `high`. High needs `compatMode: openStitch`; PE-DESIGN mode has
+/// no fidelity.
+fn fidelity(p: &Params, mode: Mode) -> Result<Fidelity, CommandError> {
+    match (
+        choice(p, "fidelity", "standard", &["standard", "high"])?,
+        mode,
+    ) {
+        ("high", Mode::OpenStitch) => Ok(Fidelity::High),
+        ("high", Mode::PeDesign) => Err(p.invalid("fidelity", "high needs compatMode openStitch")),
+        _ => Ok(Fidelity::Standard),
+    }
+}
+
+/// The `fidelity` parameter's documentation.
+fn fidelity_doc() -> ParamDoc {
+    opt(
+        "fidelity",
+        "standard|high",
+        "OpenStitch mode: standard (default) or high; high lets the colour count reach 24 by default and turns on the costlier passes, never raising the needle density (needs compatMode openStitch)",
     )
 }
 
@@ -161,6 +184,7 @@ pub fn commands() -> Vec<CommandSpec> {
                     "peDesign|openStitch",
                     "peDesign: as PE-DESIGN 11.50 (default); openStitch: colours reduced and matched to threads by appearance (CIELAB k-means, CIEDE2000), regions under 3 mm² merged (docs/research/beyond/image-digitizing.md)",
                 ),
+                fidelity_doc(),
             ]),
             |s, p| {
                 let (image, frame) = load(s, p)?;
@@ -181,6 +205,7 @@ pub fn commands() -> Vec<CommandSpec> {
                     satin_min_mm: p.opt("satinMinWidth", 0.7, 0.0, 6.0)?,
                     skip_background: p.bool("skipBackground", Some(true))?,
                     mode,
+                    fidelity: fidelity(p, mode)?,
                 };
                 let out = autopunch::convert(&image, &frame, &options).map_err(|e| failed(p, e))?;
                 let regions = out.objects.len();
@@ -260,7 +285,7 @@ pub fn commands() -> Vec<CommandSpec> {
                 opt(
                     "colors",
                     "int 1-32",
-                    "Thread colours in colour mode (default 10 for fill, PE-DESIGN's Max. Number of Colors; 4 for lines, its Color Set)",
+                    "Thread colours in colour mode (default 10 for fill, PE-DESIGN's Max. Number of Colors, 24 at High fidelity; 4 for lines, its Color Set)",
                 ),
                 opt("thread", "color", "Thread in mono mode (default Black)"),
                 opt(
@@ -303,9 +328,12 @@ pub fn commands() -> Vec<CommandSpec> {
                     "degrees",
                     "Lines: Direction, turns every thread's screen angle (0/45/90/135), -180-180 (default 0)",
                 ),
+                fidelity_doc(),
             ]),
             |s, p| {
                 let (image, frame) = load(s, p)?;
+                let compat = compat_mode(p)?;
+                let fidelity = fidelity(p, compat)?;
                 let style = match choice(p, "style", "fill", &["fill", "lines"])? {
                     "lines" => PhotoStyle::Lines,
                     _ => PhotoStyle::Fill,
@@ -315,10 +343,10 @@ pub fn commands() -> Vec<CommandSpec> {
                     _ => PhotoMode::Color(count(
                         p,
                         "colors",
-                        if style == PhotoStyle::Lines {
-                            photo::LINE_COLORS
-                        } else {
-                            photo::COLORS
+                        match (style, fidelity) {
+                            (PhotoStyle::Lines, _) => photo::LINE_COLORS,
+                            (PhotoStyle::Fill, Fidelity::High) => HIGH_COLORS,
+                            (PhotoStyle::Fill, Fidelity::Standard) => photo::COLORS,
                         } as i64,
                         1,
                         32,
@@ -345,7 +373,8 @@ pub fn commands() -> Vec<CommandSpec> {
                     "bmyk" => ColorSet::Bmyk,
                     _ => ColorSet::Auto,
                 };
-                options.compat = compat_mode(p)?;
+                options.compat = compat;
+                options.fidelity = fidelity;
                 let out = photo::convert(&image, &frame, &options).map_err(|e| failed(p, e))?;
                 Ok(json!({
                     "colors": hexes(&out.threads),

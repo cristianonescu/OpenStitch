@@ -276,3 +276,59 @@ fn bad_digitize_parameters_fail_cleanly() {
     }
     assert!(s.can_undo());
 }
+
+/// B16.1's `fidelity` parameter: High needs OpenStitch mode, lets Auto Punch's automatic count
+/// pass PE-DESIGN's 10 and defaults Photo Stitch 1 to 24 colours.
+#[test]
+fn fidelity_high_raises_the_colour_counts() {
+    let dir = temp_dir();
+    // Sixteen flat stripes of clearly different colours.
+    let img = Raster::from_fn(160, 40, |x, _| {
+        let k = x / 10;
+        [
+            (k * 53 % 256) as u8,
+            (k * 97 % 256) as u8,
+            (255 - k * 15) as u8,
+            255,
+        ]
+    })
+    .expect("size");
+    std::fs::write(dir.join("stripes.png"), img.encode_png().expect("png")).expect("write");
+    let mut s = Session::new(&dir);
+    run(&mut s, "design.new", json!({"width": 200, "height": 100}));
+    let colours = |s: &mut Session, cmd: &str, extra: Value| -> usize {
+        let mut p = json!({"path": "stripes.png", "width": 160, "compatMode": "openStitch"});
+        p.as_object_mut()
+            .expect("object")
+            .extend(extra.as_object().expect("object").clone());
+        run(s, cmd, p)["colors"].as_array().expect("colors").len()
+    };
+    let standard = colours(
+        &mut s,
+        "digitize.autoPunch",
+        json!({"skipBackground": false}),
+    );
+    let high = colours(
+        &mut s,
+        "digitize.autoPunch",
+        json!({"skipBackground": false, "fidelity": "high"}),
+    );
+    assert!(
+        standard <= 10,
+        "Standard keeps PE-DESIGN's ceiling: {standard}"
+    );
+    assert!(
+        high > standard,
+        "High may use more colours: {high} against {standard}"
+    );
+    assert!(high <= 24);
+    let ps1 = colours(&mut s, "digitize.photoStitch", json!({"fidelity": "high"}));
+    assert!(ps1 > 10 && ps1 <= 25, "Photo Stitch 1 at High: {ps1}");
+    let e = s
+        .execute(
+            "digitize.photoStitch",
+            Some(&json!({"path": "stripes.png", "width": 160, "fidelity": "high"})),
+        )
+        .expect_err("High needs OpenStitch mode");
+    assert!(e.to_string().contains("fidelity"), "{e}");
+}

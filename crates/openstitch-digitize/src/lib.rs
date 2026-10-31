@@ -29,6 +29,31 @@ pub enum Mode {
     OpenStitch,
 }
 
+/// OpenStitch mode's fidelity level (B16.1, docs/research/beyond/image-similarity-plan.md):
+/// Standard keeps today's colour counts and passes; High lets the automatic colour count reach
+/// [`HIGH_COLORS`], defaults Photo Stitch 1 to that many colours and turns on the costlier
+/// passes. Neither level changes the needle-density cap. PE-DESIGN mode has no fidelity.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Fidelity {
+    #[default]
+    Standard,
+    High,
+}
+
+/// Most colours High fidelity chooses by itself (the owner's choice, 2026-10-31).
+pub const HIGH_COLORS: usize = 24;
+
+impl Fidelity {
+    /// The most colours an automatic count may reach: [`palette::AUTO_MAX`] at Standard,
+    /// [`HIGH_COLORS`] at High.
+    pub fn auto_max(self) -> usize {
+        match self {
+            Fidelity::Standard => palette::AUTO_MAX,
+            Fidelity::High => HIGH_COLORS,
+        }
+    }
+}
+
 /// Why a conversion failed. Messages are user-facing.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DigitizeError {
