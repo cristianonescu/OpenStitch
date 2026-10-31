@@ -2,10 +2,10 @@ mod common;
 
 use common::*;
 use openstitch_core::{Command, Thread};
-use openstitch_design::DesignObject;
+use openstitch_design::{Compiler, Design, DesignObject, DesignPage};
 use openstitch_digitize::photo::{self, PhotoMode, PhotoStitch, PhotoStyle};
 use openstitch_digitize::raster::luma601;
-use openstitch_digitize::{DigitizeError, Frame, Raster};
+use openstitch_digitize::{DigitizeError, Frame, Mode, Raster};
 
 /// 100×20 px, black on the left fading to white on the right.
 fn gradient() -> Raster {
@@ -651,4 +651,110 @@ fn screen_sews_the_most_used_thread_first() {
             .collect();
         assert_eq!(got, want, "{set:?} on a {} px image", image.width());
     }
+}
+
+/// A 60 × 60 px "photo": smooth colour gradients with a dark disc and fine stripes.
+fn photo_like() -> Raster {
+    Raster::from_fn(60, 60, |x, y| {
+        let (fx, fy) = (f64::from(x) / 59.0, f64::from(y) / 59.0);
+        let disc = (f64::from(x) - 22.0).powi(2) + (f64::from(y) - 30.0).powi(2) < 120.0;
+        if disc {
+            return [40, 30, 30, 255];
+        }
+        if x > 44 && (y / 2) % 2 == 0 {
+            return [240, 230, 200, 255];
+        }
+        [
+            (60.0 + 180.0 * fx) as u8,
+            (90.0 + 120.0 * fy) as u8,
+            (200.0 - 150.0 * fx * fy) as u8,
+            255,
+        ]
+    })
+    .expect("size")
+}
+
+fn fine(colors: usize) -> PhotoStitch {
+    PhotoStitch {
+        compat: Mode::OpenStitch,
+        ..PhotoStitch::new(PhotoStyle::Fill, PhotoMode::Color(colors))
+    }
+}
+
+/// Photo Stitch 1's OpenStitch mode (plan T2): sewn as the machine sews it, no stitch is under
+/// 1 mm or over 7 mm, and the needle density over the design stays under 2.1 points/mm².
+#[test]
+fn fine_rows_are_sewable() {
+    let frame = Frame::new(0.0, 0.0, 60.0, 60);
+    let out = photo::convert(&photo_like(), &frame, &fine(8)).expect("converts");
+    let mut d = Design::new("t", DesignPage::default());
+    for o in out.objects {
+        d.add(o);
+    }
+    let p = Compiler::default().compile(&d);
+    let mut stitches = 0;
+    for w in p.stitches.windows(2) {
+        if w[1].command != Command::Stitch {
+            continue;
+        }
+        stitches += 1;
+        if w[0].command != Command::Stitch {
+            continue;
+        }
+        let len = (w[1].x - w[0].x).hypot(w[1].y - w[0].y);
+        assert!(
+            len == 0.0 || (10.0 - 1e-6..=70.0).contains(&len),
+            "a {:.2} mm stitch at ({}, {})",
+            len / 10.0,
+            w[1].x,
+            w[1].y
+        );
+    }
+    let density = stitches as f64 / (60.0 * 60.0);
+    assert!(density <= 2.1, "{density:.2} needle points per mm²");
+    assert!(density >= 1.5, "{density:.2} needle points per mm²");
+}
+
+/// The fine rows place stitch ends at the image's edges, not on a 3 mm grid: 2.5 mm stripes
+/// keep their edges, so the rows change thread on them.
+#[test]
+fn fine_rows_follow_detail_finer_than_the_run_pitch() {
+    // 2.5 mm black and white stripes, 30 mm wide, 1 px = 0.25 mm.
+    let img = Raster::from_fn(120, 40, |x, _| {
+        if (x / 10) % 2 == 0 {
+            [0, 0, 0, 255]
+        } else {
+            [255, 255, 255, 255]
+        }
+    })
+    .expect("size");
+    let frame = Frame::new(0.0, 0.0, 30.0, 120);
+    let out = photo::convert(&img, &frame, &fine(2)).expect("converts");
+    let black = out
+        .threads
+        .iter()
+        .position(|t| t.red < 128)
+        .expect("a dark thread");
+    let xs: Vec<f64> = needles(&out.objects[black])
+        .iter()
+        .map(|&(x, _)| x)
+        .collect();
+    // Run ends on the stripe edges (multiples of 25 = 2.5 mm).
+    let on_edge = xs
+        .iter()
+        .filter(|&&x| (x / 25.0 - (x / 25.0).round()).abs() < 1e-6);
+    assert!(
+        on_edge.count() * 2 > xs.len(),
+        "stitch ends off the stripe edges"
+    );
+}
+
+/// The same image and settings sew the same stitches every time (and on every platform: the
+/// conversion's arithmetic is plain f64 in a fixed order).
+#[test]
+fn fine_rows_are_deterministic() {
+    let frame = Frame::new(0.0, 0.0, 60.0, 60);
+    let a = photo::convert(&photo_like(), &frame, &fine(6)).expect("converts");
+    let b = photo::convert(&photo_like(), &frame, &fine(6)).expect("converts");
+    assert_eq!(a, b);
 }
