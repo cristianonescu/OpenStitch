@@ -93,13 +93,13 @@ fn actual() -> Vec<(String, &'static str, u64)> {
 const EXPECTED: &[(&str, &str, u64)] = &[
     ("emblem", "auto-punch", 0x664dd7b75737647f),
     ("emblem", "photo-stitch-1", 0x2afb4a0298a9dade),
-    ("emblem", "photo-stitch-2", 0x844c10dd1dfd47bf),
+    ("emblem", "photo-stitch-2", 0xb9fb1fde079ada53),
     ("leaf", "auto-punch", 0x834b800074ab3d0e),
     ("leaf", "photo-stitch-1", 0x7c908234e3bf68c8),
-    ("leaf", "photo-stitch-2", 0x9aed90ef3f219c8f),
+    ("leaf", "photo-stitch-2", 0x42d318e2ef2dea9c),
     ("gradient", "auto-punch", 0x266c46c6796b5696),
     ("gradient", "photo-stitch-1", 0x4e65363f4cbf711d),
-    ("gradient", "photo-stitch-2", 0x0985faaa6fbfb4fc),
+    ("gradient", "photo-stitch-2", 0xa41e4acbab6a4c01),
 ];
 
 #[test]

@@ -783,3 +783,67 @@ fn fine_rows_are_deterministic() {
     let b = photo::convert(&photo_like(), &frame, &fine(6)).expect("converts");
     assert_eq!(a, b);
 }
+
+/// Photo Stitch 2's OpenStitch mode (plan T13) keeps the owner's limits: at most 3.3 needle
+/// points per mm² over the image, no 10 × 10 mm window denser than PE-DESIGN-compatible mode's,
+/// and no stitch under 1 mm.
+#[test]
+fn open_stitch_line_screen_keeps_the_limits() {
+    let img = Raster::from_fn(60, 60, |x, y| {
+        let v = ((x + y) * 2) as u8;
+        [v, 255 - v, (x * 4) as u8, 255]
+    })
+    .expect("size");
+    let frame = Frame::new(0.0, 0.0, 30.0, 60);
+    let sewn = |compat| {
+        let p = PhotoStitch {
+            compat,
+            ..PhotoStitch::new(PhotoStyle::Lines, PhotoMode::Color(4))
+        };
+        let out = photo::convert(&img, &frame, &p).expect("converts");
+        out.objects
+            .iter()
+            .flat_map(|o| o.stitch_block.as_ref().expect("block").stitches.clone())
+            .collect::<Vec<_>>()
+    };
+    let densest = |st: &[openstitch_core::Stitch]| {
+        let mut grid = vec![0u32; 30 * 30];
+        for s in st.iter().filter(|s| s.command == Command::Stitch) {
+            let (x, y) = ((s.x / 10.0).floor() as usize, (s.y / 10.0).floor() as usize);
+            grid[y.min(29) * 30 + x.min(29)] += 1;
+        }
+        let mut best = 0;
+        for y0 in 0..=20 {
+            for x0 in 0..=20 {
+                let n: u32 = (y0..y0 + 10)
+                    .map(|y| grid[y * 30 + x0..y * 30 + x0 + 10].iter().sum::<u32>())
+                    .sum();
+                best = best.max(n);
+            }
+        }
+        best
+    };
+    let (pe, os) = (sewn(Mode::PeDesign), sewn(Mode::OpenStitch));
+    let points = os.iter().filter(|s| s.command == Command::Stitch).count() as f64;
+    assert!(
+        points / 900.0 <= 3.3,
+        "{:.2} needle points per mm²",
+        points / 900.0
+    );
+    assert!(
+        densest(&os) <= densest(&pe),
+        "{} > {}",
+        densest(&os),
+        densest(&pe)
+    );
+    for w in os.windows(2) {
+        if w[0].command == Command::Stitch && w[1].command == Command::Stitch {
+            let len = (w[1].x - w[0].x).hypot(w[1].y - w[0].y);
+            assert!(
+                len == 0.0 || len >= 10.0 - 1e-6,
+                "a {:.2} mm stitch",
+                len / 10.0
+            );
+        }
+    }
+}

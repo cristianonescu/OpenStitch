@@ -118,6 +118,9 @@ with stitch ends where the thread changes, within the owner's needle caps (2.1 p
 design, 3.0 per 10 mm window), weighting detail by saliency (B16.1 T2, T3, T10): the nine
 photos score 55.8 → 68.1.
 Next for track B: a local search against the image as the eye sees it (T9).
+Done 2026-10-31: Photo Stitch 2's OpenStitch mode holds the owner's needle limits (3.3 per mm²,
+no window denser than PE-DESIGN-compatible mode's) with no stitch under 1 mm (B16.1 T13): six images
+44.9 against PE-DESIGN-compatible mode's 43.4, three still below it.
 Done 2026-10-31: imported stitch files land centred on the Design Page, as PE-DESIGN's Import
 Patterns ▸ from File places them (spec `stitches-import-centre`); left: a DST's colour on
 import (PE: 007 PRUSSIAN BLUE) and the joining stitch between two imports of one colour.
