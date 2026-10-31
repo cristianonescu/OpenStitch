@@ -202,6 +202,11 @@ pub const DENSITY_WINDOW: f64 = 3.0;
 pub const DENSITY_MARGIN: f64 = 0.05;
 /// The density cap's window side, mm.
 pub const WINDOW_MM: f64 = 10.0;
+/// Saliency's weight β (plan T10; the owner chose 1.5 on the portrait review): 0 leaves every
+/// cell's error alike.
+pub const SALIENCY: f64 = 1.5;
+/// Saliency's neighbourhood, mm.
+pub const SALIENCY_MM: f64 = 2.0;
 /// The tiles over which the change-of-thread penalty varies, mm.
 pub const TILE_MM: f64 = 2.5;
 /// Rounds that tune the penalty per tile (fixed, for determinism).
@@ -789,8 +794,19 @@ fn fine_rows(
         }
     };
     // A first penalty for the whole design (its mean density), then per tile (T3).
+    let weight = saliency(&lab, cols, rows);
+    let uniform = crate::rows::Field::uniform();
     let (_, lambda) = crate::rows::fit_density(budget, 1.0e6, 16, |lambda| {
-        let d = crate::rows::assign(&lab, cols, rows, &target_lab, rank, rows_with(lambda));
+        let d = crate::rows::assign_in(
+            &lab,
+            cols,
+            rows,
+            &target_lab,
+            rank,
+            rows_with(lambda),
+            &uniform,
+            &weight,
+        );
         let mut n = 0;
         each_run(&d, &mut |_, _, _, k| n += k);
         (d, n as f64)
@@ -810,7 +826,18 @@ fn fine_rows(
         cols,
         rows,
         cap,
-        |field| crate::rows::assign_in(&lab, cols, rows, &target_lab, rank, rows_with(base), field),
+        |field| {
+            crate::rows::assign_in(
+                &lab,
+                cols,
+                rows,
+                &target_lab,
+                rank,
+                rows_with(base),
+                field,
+                &weight,
+            )
+        },
         // Every needle point the layers sew, jump landings and travel included, by cell.
         |d| {
             let mut n = vec![0u32; d.len()];
@@ -829,6 +856,63 @@ fn fine_rows(
             n
         },
     )
+}
+
+/// Saliency (plan T10) per cell, mean 1 over the opaque cells: where the image's lightness
+/// changes most within about [`SALIENCY_MM`] (eyes, mouths, edges), errors weigh more in the
+/// fine rows, so the needle budget of a window goes there first. The lightness gradient
+/// (central differences) is box-filtered with prefix sums, no FFT; the weight is
+/// `1 + β (s / mean − 1)`, kept within [¼, 4]. Empty when [`SALIENCY`] (β) is 0.
+fn saliency(lab: &[Option<Lab>], cols: usize, rows: usize) -> Vec<f64> {
+    let beta = SALIENCY;
+    if beta <= 0.0 {
+        return Vec::new();
+    }
+    let l = |x: usize, y: usize| lab[y * cols + x].map(|c| c[0]);
+    let mut grad = vec![0.0; cols * rows];
+    for y in 0..rows {
+        for x in 0..cols {
+            let Some(c) = l(x, y) else { continue };
+            let (xl, xr) = (x.saturating_sub(1), (x + 1).min(cols - 1));
+            let (yu, yd) = (y.saturating_sub(1), (y + 1).min(rows - 1));
+            let gx = l(xr, y).unwrap_or(c) - l(xl, y).unwrap_or(c);
+            let gy = l(x, yd).unwrap_or(c) - l(x, yu).unwrap_or(c);
+            grad[y * cols + x] = gx.abs() + gy.abs();
+        }
+    }
+    let r = ((SALIENCY_MM / FINE_STEP_MM / 2.0).round() as usize).max(1);
+    let mut sum = vec![0.0; (cols + 1) * (rows + 1)];
+    for y in 0..rows {
+        let mut line = 0.0;
+        for x in 0..cols {
+            line += grad[y * cols + x];
+            sum[(y + 1) * (cols + 1) + x + 1] = sum[y * (cols + 1) + x + 1] + line;
+        }
+    }
+    let at = |x: usize, y: usize| sum[y * (cols + 1) + x];
+    let mut s = vec![0.0; cols * rows];
+    let (mut total, mut opaque) = (0.0, 0usize);
+    for y in 0..rows {
+        for x in 0..cols {
+            if lab[y * cols + x].is_none() {
+                continue;
+            }
+            let (x0, x1) = (x.saturating_sub(r), (x + r + 1).min(cols));
+            let (y0, y1) = (y.saturating_sub(r), (y + r + 1).min(rows));
+            let v = (at(x1, y1) + at(x0, y0) - at(x1, y0) - at(x0, y1))
+                / ((x1 - x0) * (y1 - y0)) as f64;
+            s[y * cols + x] = v;
+            total += v;
+            opaque += 1;
+        }
+    }
+    let mean = total / opaque.max(1) as f64;
+    if mean <= 0.0 {
+        return Vec::new();
+    }
+    s.iter()
+        .map(|&v| (1.0 + beta * (v / mean - 1.0)).clamp(0.25, 4.0))
+        .collect()
 }
 
 /// The fine rows' sampling grid: `cols`×`rows` cells of `cw`×`ch` design units at `frame`, and

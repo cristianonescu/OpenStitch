@@ -85,10 +85,13 @@ pub fn assign(
     rank: &[usize],
     r: Rows,
 ) -> Vec<Option<usize>> {
-    assign_in(cells, cols, rows, targets, rank, r, &Field::uniform())
+    assign_in(cells, cols, rows, targets, rank, r, &Field::uniform(), &[])
 }
 
-/// [`assign`] with the penalty scaled by `field` where a run starts.
+/// [`assign`] with the penalty scaled by `field` where a run starts, and each cell's error
+/// weighted by `weight` (row-major per cell; empty for 1 everywhere), so where the weight is
+/// higher a change of thread is worth more and the needle budget goes there.
+#[allow(clippy::too_many_arguments)]
 pub fn assign_in(
     cells: &[Option<Lab>],
     cols: usize,
@@ -97,6 +100,7 @@ pub fn assign_in(
     rank: &[usize],
     r: Rows,
     field: &Field,
+    weight: &[f64],
 ) -> Vec<Option<usize>> {
     let mut out = vec![None; cells.len()];
     if targets.is_empty() {
@@ -141,7 +145,12 @@ pub fn assign_in(
                 _ => targets[t],
             };
             let start = |i: usize, _: usize| r.lambda * field.at(a + i, y);
-            let (seq, res) = dp.solve(&want[a..x], &start, &seen, r.along);
+            let w = if weight.is_empty() {
+                &[][..]
+            } else {
+                &weight[y * cols + a..y * cols + x]
+            };
+            let (seq, res) = dp.solve(&want[a..x], &start, &seen, r.along, w);
             for (i, &t) in seq.iter().enumerate() {
                 out[y * cols + a + i] = Some(t);
                 err[a + i] = res[i];
@@ -333,8 +342,10 @@ impl Dp {
         start: &dyn Fn(usize, usize) -> f64,
         seen: &dyn Fn(usize, usize) -> Lab,
         along: f64,
+        weight: &[f64],
     ) -> (Vec<usize>, Vec<Lab>) {
         let (k, n) = (self.k, want.len());
+        let wt = |i: usize| weight.get(i).copied().unwrap_or(1.0);
         let sq = |c: Lab, t: Lab| {
             let d = [c[0] - t[0], c[1] - t[1], c[2] - t[2]];
             d[0] * d[0] + d[1] * d[1] + d[2] * d[2]
@@ -367,7 +378,7 @@ impl Dp {
                 self.cost[idx(t, r)] = f64::INFINITY;
             }
             let e = sub(want[0], seen(0, t));
-            self.cost[idx(t, 1)] = dot(e);
+            self.cost[idx(t, 1)] = wt(0) * dot(e);
             self.err[idx(t, 1)] = e;
         }
         for (x, &w) in want.iter().enumerate().skip(1) {
@@ -382,6 +393,7 @@ impl Dp {
                     b2 = (c, t);
                 }
             }
+            let wx = wt(x);
             for t in 0..k {
                 let st = seen(x, t);
                 // The error at x on a path whose previous state is `from`.
@@ -396,19 +408,19 @@ impl Dp {
                     self.err_next[idx(t, 1)] = [0.0; 3];
                 } else {
                     let e = at(self, idx(sw.1, m));
-                    self.next[idx(t, 1)] = sw.0 + start(x, t) + dot(e);
+                    self.next[idx(t, 1)] = sw.0 + start(x, t) + wx * dot(e);
                     self.err_next[idx(t, 1)] = e;
                 }
                 self.from[x * k + t] = sw.1.min(255) as u8;
                 for r in 2..m {
                     let e = at(self, idx(t, r - 1));
-                    self.next[idx(t, r)] = self.cost[idx(t, r - 1)] + dot(e);
+                    self.next[idx(t, r)] = self.cost[idx(t, r - 1)] + wx * dot(e);
                     self.err_next[idx(t, r)] = e;
                 }
                 if m >= 2 {
                     let (eg, es) = (at(self, idx(t, m - 1)), at(self, idx(t, m)));
-                    let grow = self.cost[idx(t, m - 1)] + dot(eg);
-                    let stay = self.cost[idx(t, m)] + dot(es);
+                    let grow = self.cost[idx(t, m - 1)] + wx * dot(eg);
+                    let stay = self.cost[idx(t, m)] + wx * dot(es);
                     let s = stay < grow;
                     self.next[idx(t, m)] = if s { stay } else { grow };
                     self.err_next[idx(t, m)] = if s { es } else { eg };
@@ -416,7 +428,7 @@ impl Dp {
                 } else {
                     // m == 1: the only state is "a run of one or more".
                     let es = at(self, idx(t, 1));
-                    let stay = self.cost[idx(t, 1)] + dot(es);
+                    let stay = self.cost[idx(t, 1)] + wx * dot(es);
                     let s = stay <= self.next[idx(t, 1)];
                     if s {
                         self.next[idx(t, 1)] = stay;
@@ -657,7 +669,7 @@ mod tests {
             cols,
             rows,
             cap,
-            |field| assign_in(&cells, cols, rows, &targets, &[0, 1, 2], base, field),
+            |field| assign_in(&cells, cols, rows, &targets, &[0, 1, 2], base, field, &[]),
             needles,
         );
         let n = needles(&out);

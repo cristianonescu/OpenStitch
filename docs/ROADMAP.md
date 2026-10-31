@@ -115,8 +115,9 @@ math, with its own source scan and cross-platform golden hashes of OpenStitch-mo
 (B16.1, the first steps of the image-similarity plan).
 Done 2026-10-31: Photo Stitch 1's OpenStitch mode samples colour every 0.25 mm along a row
 with stitch ends where the thread changes, within the owner's needle caps (2.1 per mm² over the
-design, 3.0 per 10 mm window) (B16.1 T2, T3): the nine photos score 55.8 → 68.8.
-Next for track B: saliency (T10) and a local search against the image as the eye sees it (T9).
+design, 3.0 per 10 mm window), weighting detail by saliency (B16.1 T2, T3, T10): the nine
+photos score 55.8 → 68.1.
+Next for track B: a local search against the image as the eye sees it (T9).
 Done 2026-10-31: imported stitch files land centred on the Design Page, as PE-DESIGN's Import
 Patterns ▸ from File places them (spec `stitches-import-centre`); left: a DST's colour on
 import (PE: 007 PRUSSIAN BLUE) and the joining stitch between two imports of one colour.
