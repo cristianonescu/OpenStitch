@@ -103,10 +103,8 @@ regenerates them.
 | <img src="examples/images/g15-folk-bird.png" width="200"> | <img src="docs/images/readme/gallery/g15.png" width="260"> | **Cross Stitch, defaults**<br>4,467 stitches, 303 trims, 4 colours |
 <!-- gallery:end -->
 
-Auto Punch, Photo Stitch 1 and 2, Cross Stitch and Design Center have two modes, both run by
-OpenStitch. The image dialog's Mode choice offers them for Auto Punch and Photo Stitch; Cross
-Stitch's and Design Center's OpenStitch modes are reachable through `stitchtool`
-(`compatMode: openStitch`) until the dialog gains them:
+Auto Punch, Photo Stitch 1 and 2, Cross Stitch and Design Center have two methods, both run by
+OpenStitch (the image dialog's Method choice):
 
 - **PE-DESIGN-compatible** (the default, labelled "PE-DESIGN" in the dialog): OpenStitch's own
   reimplementation of PE-DESIGN 11's method, so a design converts the way it would in
@@ -116,8 +114,12 @@ Stitch's and Design Center's OpenStitch modes are reachable through `stitchtool`
   Since B16.1 ([plan](docs/research/beyond/image-similarity-plan.md)) the threads are chosen
   for the image as a whole, Photo Stitch 1 dithers only where the image is tonal, a Fidelity
   choice (Standard / High) trades colours for likeness, Cross Stitch takes each cell's mean
-  colour, and Design Center finds its line threshold from the image (Otsu). Every OpenStitch
-  mode sews the same stitches on macOS, Windows and Linux.
+  colour, and Design Center finds its line threshold from the image (Otsu). Photo Stitch 1 samples
+  the image every 0.25 mm in rows that stay within 2.1 needle points per mm² (no 10 × 10 mm area
+  above 3.0), with a Trims choice (fewer trims or the best likeness). Auto Punch sews the
+  background and keeps line art, in one covering layer. Threads can come from several brands'
+  charts (Brother, Madeira Polyneon, Isacord, Sulky, Robison-Anton) or only those you own. Every
+  OpenStitch mode sews the same stitches on macOS, Windows and Linux.
 
 The table below shows both modes, both from OpenStitch. OpenStitch mode measures better on
 average, not on every image, so try both. For example, the test portrait sews truer in Photo

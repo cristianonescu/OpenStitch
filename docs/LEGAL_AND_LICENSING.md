@@ -90,6 +90,7 @@ the project keeps:
 | Component | Licence | Use |
 |---|---|---|
 | pyembroidery 1.5.1 | MIT | Format reference, generated data tables, test oracle. See `THIRD_PARTY_NOTICES.md`. |
+| Thread charts of other brands (Madeira Polyneon, Isacord 40, Sulky Rayon 40, Robison-Anton Rayon 40 and Polyester 40), `crates/openstitch-core/data/brands/` | Colour facts (codes, names, RGB) taken from each manufacturer's own published chart; no third-party compiled list copied; brand names are their owners' trademarks | B16.1 T5 thread sources for the image wizards' OpenStitch mode; sources and dates per chart in [research/beyond/thread-charts.md](research/beyond/thread-charts.md) |
 | libembroidery (Embroidermodder) | zlib | Read as a secondary format reference where pyembroidery has no writer (PCS version byte, SEW control codes, XXX offsets). No code or data copied. |
 
 Runtime crates and bundled fonts are listed with their licences in `THIRD_PARTY_NOTICES.md`
