@@ -116,8 +116,8 @@ pub struct PhotoStitch {
     /// OpenStitch mode's Fill: most needle points per mm² in any 10 × 10 mm window.
     pub density_window: f64,
     /// Colour mode: PE-DESIGN's method, or OpenStitch's: the perceptual palette
-    /// ([`Palette::build_perceptual`]), Photo Stitch 1's fine rows ([`crate::rows`]) and the
-    /// line screen's mix in linear light (Photo Stitch 2, [`crate::screen::Shares::colour_in`]).
+    /// ([`Palette::build_perceptual`]), Photo Stitch 1's fine rows ([`crate::rows`]), and
+    /// Photo Stitch 2 with PE-DESIGN's mix within the owner's needle limits (`line_density`).
     pub compat: Mode,
     /// OpenStitch mode, Photo Stitch 1: the threads to choose from (B16.1 T5); empty is the
     /// Brother PEC chart. PE-DESIGN mode and Photo Stitch 2 ignore it.
@@ -167,6 +167,13 @@ pub const LINE_INTERVAL_MM: f64 = 2.0;
 pub const LINE_RUN_MM: f64 = 2.5;
 /// Photo Stitch 2's default Max. Density, lines per mm (PE-DESIGN 11.50).
 pub const MAX_DENSITY: f64 = 4.5;
+/// OpenStitch mode's Photo Stitch 2: most needle points per mm² over the image (the owner's
+/// limit, PE-DESIGN's own Photo Stitch 2 level).
+pub const LINE_DENSITY_MEAN: f64 = 3.3;
+/// [`line_density`] keeps the densest window this share of PE-DESIGN-compatible mode's.
+pub const LINE_WINDOW_MARGIN: f64 = 0.97;
+/// Rounds [`line_density`] sews the screen to fit the limits (fixed, for determinism).
+pub const LINE_ROUNDS: usize = 6;
 /// Photo Stitch 2's thread count with Color Set Auto Select (four on the round-4 capture).
 pub const LINE_COLORS: usize = 4;
 
@@ -185,7 +192,8 @@ pub const COLORS: usize = 10;
 pub const FINE_STEP_MM: f64 = 0.25;
 /// Thread width, mm: wider than the fill rows' spacing, so neighbouring rows overlap.
 pub const THREAD_MM: f64 = 0.4;
-/// OpenStitch mode's Photo Stitch 1: the shortest stitch, mm.
+/// OpenStitch mode's Photo Stitch 1 and 2: the shortest stitch, mm (the owner's sewability
+/// gate).
 pub const MIN_STITCH_MM: f64 = 1.0;
 /// OpenStitch mode's Photo Stitch 1: the longest travel stitch between two runs of a thread,
 /// mm; a travel is sewn only where later layers cover it (`covered`).
@@ -279,10 +287,11 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
     }
     let fabric_pec = palette::nearest_pec(p.fabric).0;
     // OpenStitch mode reaches both styles in colour: Photo Stitch 1 and Photo Stitch 2's Auto
-    // Select take the perceptual palette, Photo Stitch 1 dithers in CIELAB and Photo Stitch 2
-    // mixes in linear light. Mono stays as PE-DESIGN's.
+    // Select take the perceptual palette and Photo Stitch 1 dithers in CIELAB; Photo Stitch 2
+    // mixes as PE-DESIGN's does, within the owner's needle limits (B16.1 T13). Mono stays as
+    // PE-DESIGN's.
     let perceptual = p.compat == Mode::OpenStitch && !mono;
-    let linear = perceptual && p.style == PhotoStyle::Lines;
+    let limited = perceptual && p.style == PhotoStyle::Lines;
     // Threads, and for the line screen the image colour each one stands for (its reduced
     // colour), against which the screen measures each thread's share.
     // A named Color Set: four fixed chart threads, sewn in the set's order.
@@ -413,11 +422,11 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
     let mut sewn_threads = Vec::new();
     let mut total = 0;
     // Lines: each thread's share of the local colour, on a fine grid over the image.
-    let screen = (p.style == PhotoStyle::Lines).then(|| {
+    let mut screen = (p.style == PhotoStyle::Lines).then(|| {
         let shares = if mono {
             crate::screen::Shares::mono(image, frame)
         } else {
-            crate::screen::Shares::colour_in(image, frame, &stands_for, fabric, linear)
+            crate::screen::Shares::colour(image, frame, &stands_for, fabric)
         };
         let settings = crate::screen::Screen {
             interval: p.row_spacing_mm.clamp(0.5, 10.0) * 10.0,
@@ -437,13 +446,21 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
             order.sort_by(|&a, &b| shares.usage(b).total_cmp(&shares.usage(a)).then(a.cmp(&b)))
         }
     }
+    if limited && let Some((shares, settings)) = screen.as_mut() {
+        settings.max_density = line_density(image, frame, p, shares, settings, &order)?;
+    }
     for (layer, &t) in order.iter().enumerate() {
         let stitches = match &screen {
             None if fine => fine_layer(&dithered, &grid, &sew_rank, t, pitch),
             None => fill_layer(&dithered, cols, rows, t, frame, cw, ch),
             Some((shares, settings)) => {
                 let angle = crate::screen::angle(layer, p.direction_deg);
-                crate::screen::layer(shares, t, angle, frame, settings)
+                let lines = crate::screen::layer(shares, t, angle, frame, settings);
+                if limited {
+                    no_short(on_units(lines))
+                } else {
+                    lines
+                }
             }
         };
         if stitches.iter().all(|s| s.command != Command::Stitch) {
@@ -1099,4 +1116,97 @@ fn no_short(mut stitches: Vec<Stitch>) -> Vec<Stitch> {
         out.push(*s);
     }
     out
+}
+
+/// OpenStitch mode's Photo Stitch 2 (B16.1 T13): the Max. Density, lines per mm, that keeps the
+/// line screen within the owner's limits (2026-10-31): at most [`LINE_DENSITY_MEAN`] needle
+/// points per mm² over the image and no 10 × 10 mm window denser than PE-DESIGN-compatible
+/// mode's densest on the same image. From the user's Max. Density, for a fixed number of rounds,
+/// it sews the screen and divides the density by the larger overshoot.
+fn line_density(
+    image: &Raster,
+    frame: &Frame,
+    p: &PhotoStitch,
+    shares: &crate::screen::Shares,
+    settings: &crate::screen::Screen,
+    order: &[usize],
+) -> Result<f64, DigitizeError> {
+    let width = f64::from(image.width()) * frame.scale / 10.0;
+    let height = f64::from(image.height()) * frame.scale / 10.0;
+    let pe = convert(
+        image,
+        frame,
+        &PhotoStitch {
+            compat: Mode::PeDesign,
+            ..p.clone()
+        },
+    )?;
+    let pe_stitches: Vec<Stitch> = pe
+        .objects
+        .iter()
+        .filter_map(|o| o.stitch_block.as_ref())
+        .flat_map(|b| b.stitches.iter().copied())
+        .collect();
+    // A margin for the needle points the compiler adds (travel sewn across, tie-ins).
+    let window = densest_window(&pe_stitches, frame, width, height) * LINE_WINDOW_MARGIN;
+    let mut s = *settings;
+    for _ in 0..LINE_ROUNDS {
+        let sewn: Vec<Stitch> = order
+            .iter()
+            .enumerate()
+            .flat_map(|(layer, &t)| {
+                let angle = crate::screen::angle(layer, p.direction_deg);
+                no_short(on_units(crate::screen::layer(shares, t, angle, frame, &s)))
+            })
+            .collect();
+        let points = sewn.iter().filter(|s| s.command == Command::Stitch).count() as f64;
+        let mean = points / (width * height).max(1e-9);
+        let over =
+            (mean / LINE_DENSITY_MEAN).max(densest_window(&sewn, frame, width, height) / window);
+        if over <= 1.0 {
+            break;
+        }
+        s.max_density = (s.max_density / (over * 1.02)).max(0.5);
+    }
+    Ok(s.max_density)
+}
+
+/// The most needle points per mm² in any 10 × 10 mm window, on a 1 mm grid, of `stitches` over a
+/// `width`×`height` mm image at `frame` (the whole image when it is smaller).
+fn densest_window(stitches: &[Stitch], frame: &Frame, width: f64, height: f64) -> f64 {
+    let (cols, rows) = (
+        width.ceil().max(1.0) as usize,
+        height.ceil().max(1.0) as usize,
+    );
+    let mut n = vec![0u32; cols * rows];
+    for s in stitches.iter().filter(|s| s.command == Command::Stitch) {
+        let x = ((s.x - frame.origin.x) / 10.0)
+            .floor()
+            .clamp(0.0, cols as f64 - 1.0) as usize;
+        let y = ((s.y - frame.origin.y) / 10.0)
+            .floor()
+            .clamp(0.0, rows as f64 - 1.0) as usize;
+        n[y * cols + x] += 1;
+    }
+    let w = 10.min(cols).min(rows);
+    let mut best = 0u32;
+    for y0 in 0..=rows - w {
+        for x0 in 0..=cols - w {
+            let sum: u32 = (y0..y0 + w)
+                .map(|y| n[y * cols + x0..y * cols + x0 + w].iter().sum::<u32>())
+                .sum();
+            best = best.max(sum);
+        }
+    }
+    f64::from(best) / (w * w) as f64
+}
+
+/// The stitches with their needle points rounded to whole design units (0.1 mm), as machine
+/// files hold them, so that [`no_short`] measures the stitches the machine will sew.
+fn on_units(mut stitches: Vec<Stitch>) -> Vec<Stitch> {
+    for s in &mut stitches {
+        s.x = s.x.round();
+        s.y = s.y.round();
+    }
+    stitches
 }
