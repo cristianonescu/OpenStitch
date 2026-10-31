@@ -423,3 +423,12 @@ fn clip(offset: f64, n: (f64, f64), u: (f64, f64), w: f64, h: f64) -> Option<(f6
     }
     (t1 - t0 > 1e-6).then_some((t0, t1))
 }
+
+/// sRGB 0–1 to linear light 0–1.
+pub fn linear(v: f64) -> f64 {
+    if v <= 0.04045 {
+        v / 12.92
+    } else {
+        ((v + 0.055) / 1.055).dpowf(2.4)
+    }
+}

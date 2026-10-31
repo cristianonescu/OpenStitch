@@ -117,9 +117,9 @@ math, with its own source scan and cross-platform golden hashes of OpenStitch-mo
 (B16.1, the first steps of the image-similarity plan).
 Done 2026-10-31: Photo Stitch 1's OpenStitch mode samples colour every 0.25 mm along a row
 with stitch ends where the thread changes, within the owner's needle caps (2.1 per mm² over the
-design, 3.0 per 10 mm window), weighting detail by saliency (B16.1 T2, T3, T10): the nine
-photos score 55.8 → 68.1.
-Next for track B: a local search against the image as the eye sees it (T9).
+design, 3.0 per 10 mm window), weighting detail by saliency, with a local search against the
+image as the eye sees it (B16.1 T2, T3, T10, T9): the nine photos score 55.8 → 73.6, short of
+the 85 % target by 5.6–15.7 points a photo.
 Done 2026-10-31: Photo Stitch 2's OpenStitch mode holds the owner's needle limits (3.3 per mm²,
 no window denser than PE-DESIGN-compatible mode's) with no stitch under 1 mm (B16.1 T13): six images
 44.9 against PE-DESIGN-compatible mode's 43.4, three still below it.

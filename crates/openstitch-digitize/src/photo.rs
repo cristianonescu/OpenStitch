@@ -219,6 +219,11 @@ pub const WINDOW_MM: f64 = 10.0;
 pub const SALIENCY: f64 = 1.5;
 /// Saliency's neighbourhood, mm.
 pub const SALIENCY_MM: f64 = 2.0;
+/// Local search passes over the fine rows (plan T9); 0 for none.
+pub const OPTIMISE_PASSES: usize = 3;
+/// How much larger needle budgets the rows are first fitted to, in turn, before the local
+/// search frees points (see `fine_rows`).
+pub const OPTIMISE_BOOSTS: [f64; 2] = [1.15, 1.07];
 /// The tiles over which the change-of-thread penalty varies, mm.
 pub const TILE_MM: f64 = 2.5;
 /// Rounds that tune the penalty per tile (fixed, for determinism).
@@ -844,40 +849,95 @@ fn fine_rows(
     // Where no run changes thread the penalty does nothing: start the field from at least a
     // small one, so it can rise where a window needs it.
     let base = lambda.max(1.0);
-    crate::rows::fit_cap(
-        cols,
-        rows,
-        cap,
-        |field| {
-            crate::rows::assign_in(
-                &lab,
+    // Every needle point the layers sew, jump landings and travel included, by cell.
+    let needles = |d: &[Option<usize>]| {
+        let mut n = vec![0u32; d.len()];
+        for t in 0..sewn {
+            for st in fine_layer(d, g, rank, t, pitch) {
+                if st.command != Command::Stitch {
+                    continue;
+                }
+                let x = ((st.x - g.frame.origin.x) / cw).floor();
+                let y = ((st.y - g.frame.origin.y) / ch).floor();
+                let x = x.clamp(0.0, cols as f64 - 1.0) as usize;
+                let y = y.clamp(0.0, rows as f64 - 1.0) as usize;
+                n[y * cols + x] += 1;
+            }
+        }
+        n
+    };
+    let fit = |boost: f64| {
+        let cap = crate::rows::Cap {
+            points: cap.points * boost,
+            total: cap.total * boost,
+            ..cap
+        };
+        crate::rows::fit_cap(
+            cols,
+            rows,
+            cap,
+            |field| {
+                crate::rows::assign_in(
+                    &lab,
+                    cols,
+                    rows,
+                    &target_lab,
+                    rank,
+                    rows_with(base),
+                    field,
+                    &weight,
+                )
+            },
+            needles,
+        )
+    };
+    // T9: the local search against the blurred image. It merges runs and so frees needle
+    // points: the rows are first fitted to budgets [`OPTIMISE_BOOSTS`] larger, and the result
+    // is kept only if both caps hold after the search (a recoloured run may also change where
+    // the needle jumps); else the rows at the caps with the search, then with one pass, then
+    // without.
+    let lin = |c: [f64; 3]| c.map(|v| crate::screen::linear(v / 255.0));
+    let image: Vec<Option<[f64; 3]>> = cells.iter().map(|c| c.map(lin)).collect();
+    let target_lin: Vec<[f64; 3]> = targets.iter().map(|&t| lin(t)).collect();
+    let search = |labels: &mut [Option<usize>], passes: usize| {
+        crate::optimise::optimise(
+            &crate::optimise::Search {
                 cols,
                 rows,
-                &target_lab,
+                cell_mm: ch / 10.0,
+                image: &image,
+                targets: &target_lin,
                 rank,
-                rows_with(base),
-                field,
-                &weight,
-            )
-        },
-        // Every needle point the layers sew, jump landings and travel included, by cell.
-        |d| {
-            let mut n = vec![0u32; d.len()];
-            for t in 0..sewn {
-                for st in fine_layer(d, g, rank, t, pitch) {
-                    if st.command != Command::Stitch {
-                        continue;
-                    }
-                    let x = ((st.x - g.frame.origin.x) / cw).floor();
-                    let y = ((st.y - g.frame.origin.y) / ch).floor();
-                    let x = x.clamp(0.0, cols as f64 - 1.0) as usize;
-                    let y = y.clamp(0.0, rows as f64 - 1.0) as usize;
-                    n[y * cols + x] += 1;
-                }
+                strip: rows_with(0.0).strip,
+                min_run,
+                passes,
+            },
+            labels,
+            |n| run_points(n as f64 * cw, pitch),
+        );
+    };
+    if OPTIMISE_PASSES > 0 {
+        for &boost in &OPTIMISE_BOOSTS {
+            let mut labels = fit(boost);
+            search(&mut labels, OPTIMISE_PASSES);
+            if !crate::rows::over_cap(cols, rows, cap, &needles(&labels)) {
+                return labels;
             }
-            n
-        },
-    )
+        }
+    }
+    let labels = fit(1.0);
+    let mut tries = vec![OPTIMISE_PASSES];
+    if OPTIMISE_PASSES > 1 {
+        tries.push(1);
+    }
+    for passes in tries.into_iter().filter(|&p| p > 0) {
+        let mut better = labels.clone();
+        search(&mut better, passes);
+        if !crate::rows::over_cap(cols, rows, cap, &needles(&better)) {
+            return better;
+        }
+    }
+    labels
 }
 
 /// Saliency (plan T10) per cell, mean 1 over the opaque cells: where the image's lightness
