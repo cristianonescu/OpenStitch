@@ -93,9 +93,38 @@ pub struct ImageWizard {
     /// OpenStitch mode's High fidelity (`fidelity: high`): more colours by default and the
     /// costlier passes; the dialog starts on Standard (the owner's choice, 2026-10-31).
     pub high_fidelity: bool,
+    /// OpenStitch mode: the threads to choose from (B16.1 T5, the engine's `threads`):
+    /// `brother` (the PEC chart), `all` (every built-in chart) or one of the user's charts.
+    pub threads: String,
+    /// OpenStitch mode: the user's chart of threads they own (`owned`); the result then lists
+    /// the chosen threads not in it.
+    pub owned: Option<String>,
+    /// Auto Punch, OpenStitch mode: sew the background too (the owner's rule, 2026-10-31:
+    /// everything in the picture is sewn unless the user turns it off). Off sends
+    /// `skipBackground: true`; on leaves the engine's rule (only a fabric-coloured background is
+    /// left out).
+    pub sew_background: bool,
+    /// Cross Stitch, OpenStitch mode: cover each cell with parallel diagonals (`fill`).
+    pub cross_fill: bool,
+    /// Cross Stitch, OpenStitch mode: three-quarter and quarter crosses where a cell is split by
+    /// an edge (`partCrosses`, default off, the owner's choice).
+    pub part_crosses: bool,
+    /// Photo Stitch 1, OpenStitch mode: sew every jump with a trim for the best likeness
+    /// (`travel: allTrims`) instead of short travel stitches (`fewerTrims`); `None` follows the
+    /// fidelity (Standard fewer trims, High all).
+    pub all_trims: Option<bool>,
+    /// Design Center, OpenStitch mode: the threshold by Otsu's method and the line sewing by the
+    /// drawing's stroke widths (neither `threshold` nor `lineSew` sent).
+    pub auto_lines: bool,
     // Auto Punch
     pub min_area: f64,
+    /// The user moved the small-region slider: `minArea` is sent in either mode. Until then
+    /// OpenStitch mode leaves it to the engine's own default.
+    pub min_area_set: bool,
     pub satin_max: f64,
+    /// The user moved the "Satin up to" slider: `satinMaxWidth` is sent in either mode. Until
+    /// then OpenStitch mode leaves it to the engine's own default.
+    pub satin_set: bool,
     pub curves: bool,
     // Cross Stitch
     pub cell: f64,
@@ -120,8 +149,17 @@ impl Default for ImageWizard {
             skip_background: true,
             open_stitch: false,
             high_fidelity: false,
+            threads: "brother".into(),
+            owned: None,
+            sew_background: true,
+            cross_fill: true,
+            part_crosses: false,
+            all_trims: None,
+            auto_lines: true,
             min_area: 1.0,
+            min_area_set: false,
             satin_max: 6.0,
+            satin_set: false,
             curves: true,
             cell: 2.5,
             half_cross: false,
@@ -134,19 +172,48 @@ impl Default for ImageWizard {
     }
 }
 
+/// Auto Punch's small-region area the dialog shows before the user sets one, mm²: PE-DESIGN's 1,
+/// or OpenStitch mode's 2 (the engine's default there, the owner's choice).
+pub fn min_area_default(open_stitch: bool) -> f64 {
+    if open_stitch { 2.0 } else { 1.0 }
+}
+
+/// Auto Punch's widest satin the dialog shows before the user sets one, mm: the dialog's 6.0 in
+/// PE-DESIGN mode, or OpenStitch mode's 2.5 (the engine's default there: narrower satin scores
+/// closer to the image, 83.3 against 82.5 at 6.5).
+pub fn satin_default(open_stitch: bool) -> f64 {
+    if open_stitch { 2.5 } else { 6.0 }
+}
+
 /// Photo Stitch 1's default colour count at High fidelity (the engine's `HIGH_COLORS`).
 pub const HIGH_COLORS: u32 = 24;
 
 impl ImageWizard {
-    /// Whether the chosen conversion has an OpenStitch mode (and so a fidelity).
+    /// Whether the chosen conversion has an OpenStitch mode (`compatMode`): every one but Photo
+    /// Stitch in Mono.
     pub fn improvable(&self) -> bool {
-        self.method == Method::AutoPunch
-            || (matches!(self.method, Method::PhotoFill | Method::PhotoLines) && !self.mono)
+        !(matches!(self.method, Method::PhotoFill | Method::PhotoLines) && self.mono)
+    }
+
+    /// Whether the chosen conversion has a fidelity and a thread source: Auto Punch and Photo
+    /// Stitch in colour.
+    pub fn has_fidelity(&self) -> bool {
+        self.improvable()
+            && matches!(
+                self.method,
+                Method::AutoPunch | Method::PhotoFill | Method::PhotoLines
+            )
     }
 
     /// Whether High fidelity applies: chosen, in OpenStitch mode, on a conversion that has it.
     pub fn high(&self) -> bool {
-        self.high_fidelity && self.open_stitch && self.improvable()
+        self.high_fidelity && self.open_stitch && self.has_fidelity()
+    }
+
+    /// Photo Stitch 1 in OpenStitch mode: whether every jump is trimmed (the user's choice, or
+    /// the fidelity's: High all trims, Standard fewer).
+    pub fn all_trims(&self) -> bool {
+        self.all_trims.unwrap_or(self.high())
     }
 
     /// The colour count the dialog starts from for the current settings:
@@ -181,6 +248,15 @@ impl ImageWizard {
         let colors = json!(self.colors.min(64));
         if self.open_stitch && self.improvable() {
             p.insert("compatMode".into(), json!("openStitch"));
+            // Photo Stitch 2 keeps its own Auto Select.
+            if matches!(self.method, Method::AutoPunch | Method::PhotoFill) {
+                if self.threads != "brother" {
+                    p.insert("threads".into(), json!(self.threads));
+                }
+                if let Some(o) = &self.owned {
+                    p.insert("owned".into(), json!(o));
+                }
+            }
         }
         if self.high() {
             p.insert("fidelity".into(), json!("high"));
@@ -188,14 +264,30 @@ impl ImageWizard {
         let command = match self.method {
             Method::AutoPunch => {
                 p.insert("colors".into(), colors);
-                p.insert("skipBackground".into(), json!(self.skip_background));
-                p.insert("minArea".into(), json!(self.min_area));
-                p.insert("satinMaxWidth".into(), json!(self.satin_max));
+                // OpenStitch mode sews the background unless turned off; PE-DESIGN mode keeps
+                // its "Leave out the background colour".
+                if !self.open_stitch {
+                    p.insert("skipBackground".into(), json!(self.skip_background));
+                } else if !self.sew_background {
+                    p.insert("skipBackground".into(), json!(true));
+                }
+                if !self.open_stitch || self.min_area_set {
+                    p.insert("minArea".into(), json!(self.min_area));
+                }
+                if !self.open_stitch || self.satin_set {
+                    p.insert("satinMaxWidth".into(), json!(self.satin_max));
+                }
                 p.insert("curves".into(), json!(self.curves));
                 "digitize.autoPunch"
             }
             Method::CrossStitch => {
                 p.insert("colors".into(), colors);
+                if self.open_stitch && !self.cross_fill {
+                    p.insert("fill".into(), json!(false));
+                }
+                if self.open_stitch && self.part_crosses {
+                    p.insert("partCrosses".into(), json!(true));
+                }
                 p.insert("skipBackground".into(), json!(self.skip_background));
                 p.insert("cellSize".into(), json!(self.cell));
                 p.insert(
@@ -215,11 +307,21 @@ impl ImageWizard {
                 if let Some(r) = self.row_spacing {
                     p.insert("rowSpacing".into(), json!(r));
                 }
+                if !lines && !self.mono && self.open_stitch {
+                    let travel = if self.all_trims() {
+                        "allTrims"
+                    } else {
+                        "fewerTrims"
+                    };
+                    p.insert("travel".into(), json!(travel));
+                }
                 "digitize.photoStitch"
             }
             Method::DesignCenter => {
-                p.insert("threshold".into(), json!(self.threshold.min(255)));
-                p.insert("lineSew".into(), json!(self.line_sew));
+                if !(self.open_stitch && self.auto_lines) {
+                    p.insert("threshold".into(), json!(self.threshold.min(255)));
+                    p.insert("lineSew".into(), json!(self.line_sew));
+                }
                 p.insert("regionSew".into(), json!(self.region_sew));
                 p.insert("curves".into(), json!(self.curves));
                 "digitize.designCenter"
@@ -242,7 +344,27 @@ impl ImageWizard {
                 result["lines"],
                 result["regions"]
             ),
-            _ => format!("{}: {n} objects in {colors} colours", self.method.label()),
+            _ => {
+                let line = format!("{}: {n} objects in {colors} colours", self.method.label());
+                // The chosen threads the user does not own (B16.1 T5).
+                match result.get("toBuy").and_then(Value::as_array) {
+                    Some(buy) if !buy.is_empty() => {
+                        let names: Vec<String> = buy
+                            .iter()
+                            .map(|t| {
+                                let part = |k: &str| t.get(k).and_then(Value::as_str).unwrap_or("");
+                                let name = format!("{} {}", part("brand"), part("code"));
+                                match name.trim() {
+                                    "" => part("color").to_string(),
+                                    n => n.to_string(),
+                                }
+                            })
+                            .collect();
+                        format!("{line}; to buy: {}", names.join(", "))
+                    }
+                    _ => line,
+                }
+            }
         }
     }
 }
@@ -364,6 +486,156 @@ mod tests {
                 .params
                 .get("compatMode")
                 .is_none()
+        );
+    }
+
+    /// The OpenStitch-mode options other tracks asked for (B16.1): Cross Stitch and Design
+    /// Center take the Mode, Auto Punch sews the background unless turned off, Cross Stitch fills
+    /// its cells, Photo Stitch 1's trims follow the fidelity unless chosen.
+    #[test]
+    fn open_stitch_options_reach_every_tool() {
+        let base = ImageWizard {
+            path: Some("a.png".into()),
+            open_stitch: true,
+            ..Default::default()
+        };
+        // Auto Punch: the background is sewn unless turned off; PE mode keeps its checkbox. The
+        // small-region area is the engine's unless the user set it.
+        let ap = base.clone();
+        let r = ap.request().expect("request");
+        assert!(r.params.get("skipBackground").is_none());
+        assert!(r.params.get("minArea").is_none());
+        assert!(r.params.get("satinMaxWidth").is_none());
+        let set = ImageWizard {
+            min_area: 4.0,
+            min_area_set: true,
+            satin_max: 3.0,
+            satin_set: true,
+            ..ap.clone()
+        };
+        let r = set.request().expect("request");
+        assert_eq!(r.params["minArea"], 4.0);
+        assert_eq!(r.params["satinMaxWidth"], 3.0);
+        let off = ImageWizard {
+            sew_background: false,
+            ..ap.clone()
+        };
+        assert_eq!(
+            off.request().expect("request").params["skipBackground"],
+            true
+        );
+        let pe = ImageWizard {
+            open_stitch: false,
+            ..ap
+        };
+        let r = pe.request().expect("request");
+        assert_eq!(r.params["skipBackground"], true);
+        assert_eq!(
+            r.params["minArea"], 1.0,
+            "PE-DESIGN mode sends it as before"
+        );
+        assert_eq!(r.params["satinMaxWidth"], 6.0);
+        // Cross Stitch: Mode, and fill sent only when turned off.
+        let cs = ImageWizard {
+            method: Method::CrossStitch,
+            ..base.clone()
+        };
+        let r = cs.request().expect("request");
+        assert_eq!(r.params["compatMode"], "openStitch");
+        assert!(r.params.get("fill").is_none() && r.params.get("fidelity").is_none());
+        assert!(
+            r.params.get("partCrosses").is_none(),
+            "part crosses are off by default"
+        );
+        let plain = ImageWizard {
+            cross_fill: false,
+            part_crosses: true,
+            ..cs
+        };
+        let r = plain.request().expect("request");
+        assert_eq!(r.params["fill"], false);
+        assert_eq!(r.params["partCrosses"], true);
+        // Design Center: Mode; threshold and line sewing automatic unless chosen.
+        let dc = ImageWizard {
+            method: Method::DesignCenter,
+            ..base.clone()
+        };
+        let r = dc.request().expect("request");
+        assert_eq!(r.params["compatMode"], "openStitch");
+        assert!(r.params.get("threshold").is_none() && r.params.get("lineSew").is_none());
+        let manual = ImageWizard {
+            auto_lines: false,
+            ..dc
+        };
+        assert_eq!(manual.request().expect("request").params["threshold"], 128);
+        // Photo Stitch 1: trims follow the fidelity unless chosen.
+        let mut ps = ImageWizard {
+            method: Method::PhotoFill,
+            ..base
+        };
+        assert_eq!(
+            ps.request().expect("request").params["travel"],
+            "fewerTrims"
+        );
+        ps.high_fidelity = true;
+        assert_eq!(ps.request().expect("request").params["travel"], "allTrims");
+        ps.all_trims = Some(false);
+        assert_eq!(
+            ps.request().expect("request").params["travel"],
+            "fewerTrims"
+        );
+        let lines = ImageWizard {
+            method: Method::PhotoLines,
+            ..ps
+        };
+        assert!(
+            lines
+                .request()
+                .expect("request")
+                .params
+                .get("travel")
+                .is_none()
+        );
+    }
+
+    /// Thread sources (B16.1 T5): sent only in OpenStitch mode, not for Photo Stitch 2, and the
+    /// summary lists the threads to buy.
+    #[test]
+    fn thread_source_round_trips_and_lists_threads_to_buy() {
+        let mut w = ImageWizard {
+            path: Some("a.png".into()),
+            threads: "all".into(),
+            owned: Some("My Threads".into()),
+            ..Default::default()
+        };
+        assert!(
+            w.request()
+                .expect("request")
+                .params
+                .get("threads")
+                .is_none()
+        );
+        w.open_stitch = true;
+        let r = w.request().expect("request");
+        assert_eq!(r.params["threads"], "all");
+        assert_eq!(r.params["owned"], "My Threads");
+        let lines = ImageWizard {
+            method: Method::PhotoLines,
+            ..w.clone()
+        };
+        assert!(
+            lines
+                .request()
+                .expect("request")
+                .params
+                .get("threads")
+                .is_none()
+        );
+        let result = json!({"ids": [1, 2], "colors": ["#ff0000", "#00ff00"],
+            "toBuy": [{"color": "#00ff00", "brand": "Janome", "code": "202"}]});
+        assert_eq!(
+            w.summary(&result),
+            "Auto Punch: 2 objects in 2 colours; to buy: Janome 202"
         );
     }
 

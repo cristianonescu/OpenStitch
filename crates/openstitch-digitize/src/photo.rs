@@ -4,7 +4,10 @@
 //!   stitches (row spacing × stitch length) and error-diffused (Floyd–Steinberg) onto the
 //!   thread colours plus the fabric colour. Each thread sews its cells as staggered fill rows,
 //!   the runs visited nearest first so a colour sews in few long paths (see `fill_layer`);
-//!   fabric cells stay unsewn, so tone becomes stitch coverage.
+//!   fabric cells stay unsewn, so tone becomes stitch coverage. In OpenStitch mode, in colour,
+//!   the rows are sampled every [`FINE_STEP_MM`] instead and each row's threads chosen by
+//!   [`crate::rows`] under a needle-density budget, so a stitch ends where the thread changes
+//!   and the Run Pitch is only the longest stitch (B16.1 T2).
 //! - [`PhotoStyle::Lines`] (Photo Stitch 2, as PE-DESIGN 11.50 sews it): a line screen. Each
 //!   thread sews parallel lines a Line interval apart over the whole image at its own fixed
 //!   angle (0°, 45°, 90°, 135° in sewing order, turned by the Direction), straight where its
@@ -20,6 +23,7 @@
 //! in colour, sepia/grey or mono); the algorithms are this project's own.
 
 use crate::palette::{self, Palette, Rgb, rgb_f};
+use crate::perceptual::{self, Lab};
 use crate::raster::{Frame, Raster};
 use crate::{DigitizeError, Fidelity, Mode};
 use openstitch_core::{Command, Stitch, Thread};
@@ -63,6 +67,18 @@ impl ColorSet {
     }
 }
 
+/// OpenStitch mode's Photo Stitch 1: how a thread moves between its runs (the user's choice,
+/// owner 2026-10-31).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Travel {
+    /// Short visible travel stitches (up to [`VISIBLE_TRAVEL_MM`]) where no hidden one reaches:
+    /// about half the trims.
+    #[default]
+    FewerTrims,
+    /// Travel only under later layers; trim elsewhere (best likeness).
+    AllTrims,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum PhotoMode {
     /// Reduce to this many PEC threads.
@@ -93,12 +109,19 @@ pub struct PhotoStitch {
     pub direction_deg: f64,
     /// Lines, colour mode: the Color Set (default Auto Select).
     pub color_set: ColorSet,
-    /// Colour mode: PE-DESIGN's method, or OpenStitch's: the perceptual palette (threads chosen
-    /// for the image, [`Palette::select_perceptual`]; Photo Stitch 2's Auto Select keeps
-    /// [`Palette::build_perceptual`]), dithering in CIELAB where the image is tonal (Photo
-    /// Stitch 1, [`palette::dither_tonal`]) and the line screen's mix in linear light (Photo
-    /// Stitch 2, [`crate::screen::Shares::colour_in`]).
+    /// OpenStitch mode's Fill: travel between a thread's runs.
+    pub travel: Travel,
+    /// OpenStitch mode's Fill: most needle points per mm² over the whole design.
+    pub density_mean: f64,
+    /// OpenStitch mode's Fill: most needle points per mm² in any 10 × 10 mm window.
+    pub density_window: f64,
+    /// Colour mode: PE-DESIGN's method, or OpenStitch's: the perceptual palette
+    /// ([`Palette::build_perceptual`]), Photo Stitch 1's fine rows ([`crate::rows`]), and
+    /// Photo Stitch 2 with PE-DESIGN's mix within the owner's needle limits (`line_density`).
     pub compat: Mode,
+    /// OpenStitch mode, Photo Stitch 1: the threads to choose from (B16.1 T5); empty is the
+    /// Brother PEC chart. PE-DESIGN mode and Photo Stitch 2 ignore it.
+    pub threads: Vec<Thread>,
     /// OpenStitch mode's fidelity, for the costlier passes High turns on; the colour count is
     /// the caller's ([`crate::HIGH_COLORS`] by default at High). PE-DESIGN mode ignores it.
     pub fidelity: Fidelity,
@@ -128,7 +151,11 @@ impl PhotoStitch {
             max_density: MAX_DENSITY,
             direction_deg: 0.0,
             color_set: ColorSet::Auto,
+            travel: Travel::default(),
+            density_mean: DENSITY_MEAN,
+            density_window: DENSITY_WINDOW,
             compat: Mode::PeDesign,
+            threads: Vec::new(),
             fidelity: Fidelity::Standard,
         }
     }
@@ -140,6 +167,13 @@ pub const LINE_INTERVAL_MM: f64 = 2.0;
 pub const LINE_RUN_MM: f64 = 2.5;
 /// Photo Stitch 2's default Max. Density, lines per mm (PE-DESIGN 11.50).
 pub const MAX_DENSITY: f64 = 4.5;
+/// OpenStitch mode's Photo Stitch 2: most needle points per mm² over the image (the owner's
+/// limit, PE-DESIGN's own Photo Stitch 2 level).
+pub const LINE_DENSITY_MEAN: f64 = 3.3;
+/// [`line_density`] keeps the densest window this share of PE-DESIGN-compatible mode's.
+pub const LINE_WINDOW_MARGIN: f64 = 0.97;
+/// Rounds [`line_density`] sews the screen to fit the limits (fixed, for determinism).
+pub const LINE_ROUNDS: usize = 6;
 /// Photo Stitch 2's thread count with Color Set Auto Select (four on the round-4 capture).
 pub const LINE_COLORS: usize = 4;
 
@@ -153,6 +187,42 @@ pub const RUN_PITCH_MM: f64 = 3.0;
 pub const FILL_ROW_SPACING_MM: f64 = 0.25;
 /// Photo Stitch 1's default Max. Number of Colors (PE-DESIGN 11.50).
 pub const COLORS: usize = 10;
+
+/// OpenStitch mode's Photo Stitch 1: sample spacing along a row, mm.
+pub const FINE_STEP_MM: f64 = 0.25;
+/// Thread width, mm: wider than the fill rows' spacing, so neighbouring rows overlap.
+pub const THREAD_MM: f64 = 0.4;
+/// OpenStitch mode's Photo Stitch 1 and 2: the shortest stitch, mm (the owner's sewability
+/// gate).
+pub const MIN_STITCH_MM: f64 = 1.0;
+/// OpenStitch mode's Photo Stitch 1: the longest travel stitch between two runs of a thread,
+/// mm; a travel is sewn only where later layers cover it (`covered`).
+pub const TRAVEL_MM: f64 = 6.0;
+/// OpenStitch mode's Photo Stitch 1, [`Travel::FewerTrims`]: the longest visible travel, mm.
+pub const VISIBLE_TRAVEL_MM: f64 = 2.0;
+/// OpenStitch mode's Photo Stitch 1: the needle points per mm² the fine rows start from over
+/// the whole design, before the caps are held per window and over the design.
+pub const FINE_DENSITY: f64 = 2.0;
+/// OpenStitch mode's image tools: most needle points per mm² over the whole design (the
+/// owner's cap, 2026-10-31), the default of [`PhotoStitch::density_mean`].
+pub const DENSITY_MEAN: f64 = 2.1;
+/// OpenStitch mode's image tools: most needle points per mm² in any [`WINDOW_MM`] square (the
+/// owner's cap), the default of [`PhotoStitch::density_window`].
+pub const DENSITY_WINDOW: f64 = 3.0;
+/// The fine rows aim this far under either cap, needle points per mm², for the points the
+/// sewing moves after counting.
+pub const DENSITY_MARGIN: f64 = 0.05;
+/// The density cap's window side, mm.
+pub const WINDOW_MM: f64 = 10.0;
+/// Saliency's weight β (plan T10; the owner chose 1.5 on the portrait review): 0 leaves every
+/// cell's error alike.
+pub const SALIENCY: f64 = 1.5;
+/// Saliency's neighbourhood, mm.
+pub const SALIENCY_MM: f64 = 2.0;
+/// The tiles over which the change-of-thread penalty varies, mm.
+pub const TILE_MM: f64 = 2.5;
+/// Rounds that tune the penalty per tile (fixed, for determinism).
+pub const CAP_ROUNDS: usize = 8;
 
 /// Most grid samples one conversion may use.
 pub const MAX_SAMPLES: usize = 400_000;
@@ -176,8 +246,22 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
     let pitch = p.stitch_mm.clamp(0.3, 7.0) * 10.0;
     let width = f64::from(image.width()) * frame.scale;
     let height = f64::from(image.height()) * frame.scale;
-    let cols = (width / pitch).round().max(1.0);
+    let mono = matches!(p.mode, PhotoMode::Mono(_));
+    // OpenStitch mode's Photo Stitch 1 in colour samples every FINE_STEP_MM along a row and
+    // lets a stitch end wherever the thread changes (fine rows, below); the Run Pitch becomes
+    // the longest stitch instead of the cell.
+    let fine = p.compat == Mode::OpenStitch && p.style == PhotoStyle::Fill && !mono;
     let rows = (height / spacing).round().max(1.0);
+    let cols = if fine {
+        // As fine as the sample limit allows, never coarser than the Run Pitch.
+        (width / (FINE_STEP_MM * 10.0))
+            .round()
+            .min((MAX_SAMPLES as f64 / rows).floor())
+            .max((width / pitch).round())
+            .max(1.0)
+    } else {
+        (width / pitch).round().max(1.0)
+    };
     if cols * rows > MAX_SAMPLES as f64 {
         return Err(DigitizeError::TooLarge(format!(
             "{cols}×{rows} samples (limit {MAX_SAMPLES}); use a smaller width or coarser spacing"
@@ -198,16 +282,16 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
             "the image is fully transparent".into(),
         ));
     }
-    let mono = matches!(p.mode, PhotoMode::Mono(_));
     if mono {
         stretch(&mut cells);
     }
     let fabric_pec = palette::nearest_pec(p.fabric).0;
     // OpenStitch mode reaches both styles in colour: Photo Stitch 1 and Photo Stitch 2's Auto
-    // Select take the perceptual palette, Photo Stitch 1 dithers in CIELAB and Photo Stitch 2
-    // mixes in linear light. Mono stays as PE-DESIGN's.
+    // Select take the perceptual palette and Photo Stitch 1 dithers in CIELAB; Photo Stitch 2
+    // mixes as PE-DESIGN's does, within the owner's needle limits (B16.1 T13). Mono stays as
+    // PE-DESIGN's.
     let perceptual = p.compat == Mode::OpenStitch && !mono;
-    let linear = perceptual && p.style == PhotoStyle::Lines;
+    let limited = perceptual && p.style == PhotoStyle::Lines;
     // Threads, and for the line screen the image colour each one stands for (its reduced
     // colour), against which the screen measures each thread's share.
     // A named Color Set: four fixed chart threads, sewn in the set's order.
@@ -235,10 +319,11 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
             } else {
                 n
             };
-            let pal = if perceptual && p.style == PhotoStyle::Fill {
-                Palette::select_perceptual(&colors, boxes.min(64))
-            } else if perceptual {
-                Palette::build_perceptual(&colors, boxes.min(64))
+            // Photo Stitch 1's fine rows mix their threads, and score higher with the k-means
+            // palette than with the threads chosen by elimination (T4), so both styles take it,
+            // matched to the user's thread source (T5; the PEC chart when none is chosen).
+            let pal = if perceptual {
+                Palette::build_perceptual_in(&colors, boxes.min(64), &p.threads)
             } else {
                 Palette::build(&colors, boxes.min(64))
             };
@@ -288,7 +373,45 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
     if p.sew_page && p.style == PhotoStyle::Fill && !mono {
         threads.push(palette::nearest_pec(p.fabric).1);
     }
-    let dithered = if perceptual {
+    // Fill: light threads first, so darker detail sews on top.
+    let light_first = |a: &usize, b: &usize| {
+        luma(targets[*b])
+            .total_cmp(&luma(targets[*a]))
+            .then(a.cmp(b))
+    };
+    // Fine rows: each target's place in the sewing order; an unsewn fabric is below every
+    // thread.
+    let mut sew_rank = vec![0; targets.len()];
+    if fine {
+        let mut order: Vec<usize> = (0..targets.len()).collect();
+        order.sort_by(light_first);
+        for (i, &t) in order.iter().filter(|&&t| t < threads.len()).enumerate() {
+            sew_rank[t] = i + 1;
+        }
+    }
+    let grid = Grid {
+        cols,
+        rows,
+        cw,
+        ch,
+        frame,
+        visible: match p.travel {
+            Travel::FewerTrims => VISIBLE_TRAVEL_MM * 10.0,
+            Travel::AllTrims => 0.0,
+        },
+    };
+    let dithered = if fine {
+        let sewn = threads.len();
+        fine_rows(
+            &cells,
+            &grid,
+            &targets,
+            &sew_rank,
+            sewn,
+            pitch,
+            (p.density_mean, p.density_window),
+        )
+    } else if perceptual {
         // The tonal map looks about 3 mm to either side, whatever the cell shape.
         let reach = |cell: f64| ((TONAL_REACH_MM * 10.0 / cell).round() as usize).max(1);
         palette::dither_tonal(&cells, cols, rows, &targets, (reach(cw), reach(ch)))
@@ -300,11 +423,11 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
     let mut sewn_threads = Vec::new();
     let mut total = 0;
     // Lines: each thread's share of the local colour, on a fine grid over the image.
-    let screen = (p.style == PhotoStyle::Lines).then(|| {
+    let mut screen = (p.style == PhotoStyle::Lines).then(|| {
         let shares = if mono {
             crate::screen::Shares::mono(image, frame)
         } else {
-            crate::screen::Shares::colour_in(image, frame, &stands_for, fabric, linear)
+            crate::screen::Shares::colour(image, frame, &stands_for, fabric)
         };
         let settings = crate::screen::Screen {
             interval: p.row_spacing_mm.clamp(0.5, 10.0) * 10.0,
@@ -315,12 +438,7 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
     });
     let mut order: Vec<usize> = (0..threads.len()).collect();
     match &screen {
-        // Fill: light threads first, so darker detail sews on top.
-        None => order.sort_by(|&a, &b| {
-            luma(targets[b])
-                .total_cmp(&luma(targets[a]))
-                .then(a.cmp(&b))
-        }),
+        None => order.sort_by(light_first),
         // Lines: the thread the screen sews most first, as PE-DESIGN orders Photo Stitch 2
         // (every round-4 capture, Auto Select and the named Color Sets alike: on the owner's
         // shapes CMYK sews cyan, magenta, yellow, black; on the ramp cyan, yellow, magenta,
@@ -329,12 +447,21 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
             order.sort_by(|&a, &b| shares.usage(b).total_cmp(&shares.usage(a)).then(a.cmp(&b)))
         }
     }
+    if limited && let Some((shares, settings)) = screen.as_mut() {
+        settings.max_density = line_density(image, frame, p, shares, settings, &order)?;
+    }
     for (layer, &t) in order.iter().enumerate() {
         let stitches = match &screen {
+            None if fine => fine_layer(&dithered, &grid, &sew_rank, t, pitch),
             None => fill_layer(&dithered, cols, rows, t, frame, cw, ch),
             Some((shares, settings)) => {
                 let angle = crate::screen::angle(layer, p.direction_deg);
-                crate::screen::layer(shares, t, angle, frame, settings)
+                let lines = crate::screen::layer(shares, t, angle, frame, settings);
+                if limited {
+                    no_short(on_units(lines))
+                } else {
+                    lines
+                }
             }
         };
         if stitches.iter().all(|s| s.command != Command::Stitch) {
@@ -404,7 +531,6 @@ pub fn auto_levels(greys: &mut [u8]) {
     }
 }
 
-/// Fill rows for thread `t`: serpentine rows, runs of neighbouring cells sewn as one row
 /// Longest move between two runs of one thread that is sewn as a travel stitch instead of a
 /// jump (and trim), in cell widths.
 pub const JOIN_CELLS: f64 = 2.0;
@@ -436,8 +562,29 @@ fn fill_layer(
     cw: f64,
     ch: f64,
 ) -> Vec<Stitch> {
-    // Runs, grouped by row; each row's runs left to right.
-    let mut by_row: Vec<Vec<usize>> = vec![Vec::new(); rows];
+    let runs = cell_runs(d, cols, rows, t, frame, cw, ch);
+    let sewing = Sewing {
+        reach_x: JOIN_CELLS * cw + 1e-6,
+        reach: f64::INFINITY,
+        shortest: 0.0,
+        row_reach: 2,
+        turn: TURN_CELLS * cw + 1e-6,
+        away: None,
+    };
+    sew_runs(&runs, rows, ch, &sewing, |_, _, _, _| true)
+}
+
+/// Thread `t`'s runs in grid order: each run of neighbouring cells in a row has a needle point
+/// every cell width, staggered by thirds from row to row.
+fn cell_runs(
+    d: &[Option<usize>],
+    cols: usize,
+    rows: usize,
+    t: usize,
+    frame: &Frame,
+    cw: f64,
+    ch: f64,
+) -> Vec<Run> {
     let mut runs: Vec<Run> = Vec::new();
     for y in 0..rows {
         let row_y = frame.origin.y + (y as f64 + 0.5) * ch;
@@ -463,7 +610,6 @@ fn fill_layer(
                 k += 1.0;
             }
             xs.push(frame.origin.x + x1);
-            by_row[y].push(runs.len());
             runs.push(Run {
                 xs,
                 y: row_y,
@@ -471,18 +617,67 @@ fn fill_layer(
             });
         }
     }
+    runs
+}
+
+/// How [`sew_runs`] moves between runs (distances in design units).
+#[derive(Clone, Copy)]
+struct Sewing {
+    /// Farthest run end in x a travel may reach.
+    reach_x: f64,
+    /// Farthest run end a travel may reach.
+    reach: f64,
+    /// Shortest travel: a nearer run end is not sewn to (it would make a too-short stitch).
+    shortest: f64,
+    /// Rows above and below the needle's searched for the next run.
+    row_reach: usize,
+    /// A travel within this of the previous run's second-to-last needle point leaves that run's
+    /// last point out (a fill row's turn); 0 for never.
+    turn: f64,
+    /// When no run is near: jump to the first unsewn run farther than this, if any (a shorter
+    /// move would be sewn across by the compiler); `None` for the first unsewn run.
+    away: Option<f64>,
+}
+
+/// Sews `runs` (in grid order) nearest first: from where the needle is, the closest unsewn run
+/// end within [`Sewing`]'s reach for which `hidden(needle x, y, end x, y)` holds is sewn next,
+/// entered from that end and reached with a travel stitch; when none is, the needle jumps to the
+/// first unsewn run in row order (see [`Sewing::away`]).
+fn sew_runs(
+    runs: &[Run],
+    rows: usize,
+    ch: f64,
+    s: &Sewing,
+    hidden: impl Fn(f64, f64, f64, f64) -> bool,
+) -> Vec<Stitch> {
+    let Sewing {
+        reach_x,
+        reach,
+        shortest,
+        row_reach,
+        turn,
+        away,
+    } = *s;
+    let mut by_row: Vec<Vec<usize>> = vec![Vec::new(); rows];
+    for (i, r) in runs.iter().enumerate() {
+        by_row[r.row].push(i);
+    }
     let mut done = vec![false; runs.len()];
     let mut next_scan = 0usize;
     let mut out: Vec<Stitch> = Vec::new();
-    let reach_x = JOIN_CELLS * cw + 1e-6;
     let mut pen: Option<(f64, usize)> = None;
+    let mut prow_run = 0usize;
     let mut last_len = 0usize;
     for _ in 0..runs.len() {
         // The closest unsewn run end near the needle: (distance, run, enter from the right).
         let mut best: Option<(f64, usize, bool)> = None;
         if let Some((px, prow)) = pen {
-            let first_row = prow.saturating_sub(2);
-            let near = by_row.iter().enumerate().take(prow + 3).skip(first_row);
+            let first_row = prow.saturating_sub(row_reach);
+            let near = by_row
+                .iter()
+                .enumerate()
+                .take(prow + row_reach + 1)
+                .skip(first_row);
             for (row, in_row) in near {
                 let dy = (row as f64 - prow as f64).abs() * ch;
                 for &r in in_row {
@@ -496,7 +691,11 @@ fn fill_layer(
                             continue;
                         }
                         let dist = dx.dhypot(dy);
-                        if best.is_none_or(|b| dist < b.0 - 1e-9) {
+                        if dist <= reach
+                            && dist >= shortest
+                            && best.is_none_or(|b| dist < b.0 - 1e-9)
+                            && hidden(px, runs[prow_run].y, end, runs[r].y)
+                        {
                             best = Some((dist, r, from_right));
                         }
                     }
@@ -510,7 +709,34 @@ fn fill_layer(
                     next_scan += 1;
                 }
                 // Serpentine as before: odd rows enter from the right.
-                (next_scan, runs[next_scan].row % 2 == 1, false)
+                let entry = |r: usize| runs[r].row % 2 == 1;
+                // A jump shorter than `away` would be sewn across: the first unsewn run beyond
+                // it instead, when there is one.
+                let far = |r: usize| {
+                    let xs = &runs[r].xs;
+                    let x = if entry(r) { xs[xs.len() - 1] } else { xs[0] };
+                    let y = runs[r].y;
+                    match (away, pen) {
+                        (Some(a), Some((px, _))) => (x - px).dhypot(y - runs[prow_run].y) > a,
+                        _ => true,
+                    }
+                };
+                match (next_scan..runs.len()).find(|&r| !done[r] && far(r)) {
+                    Some(r) => (r, entry(r), false),
+                    None => {
+                        // Every unsewn run is within reach: enter the first by whichever end
+                        // keeps the move at least `shortest` long.
+                        let r = next_scan;
+                        let (px, py) = pen.map_or((0.0, 0.0), |(px, _)| (px, runs[prow_run].y));
+                        let xs = &runs[r].xs;
+                        let from_right = if entry(r) {
+                            (xs[xs.len() - 1] - px).dhypot(runs[r].y - py) >= shortest
+                        } else {
+                            (xs[0] - px).dhypot(runs[r].y - py) < shortest
+                        };
+                        (r, from_right, false)
+                    }
+                }
             }
         };
         done[r] = true;
@@ -523,7 +749,7 @@ fn fill_layer(
             out.push(Stitch::new(xs[0], run.y, Command::Jump));
         } else if last_len >= 2
             && let Some(prev) = out.len().checked_sub(2).map(|i| out[i])
-            && (prev.x - xs[0]).dhypot(prev.y - run.y) <= TURN_CELLS * cw + 1e-6
+            && (prev.x - xs[0]).dhypot(prev.y - run.y) <= turn
         {
             // A short hop to the next row: the previous run's last needle point is left out,
             // so the stitch turns from its second-to-last point straight into this run, as a
@@ -535,6 +761,453 @@ fn fill_layer(
         }
         last_len = xs.len();
         pen = Some((xs[xs.len() - 1], run.row));
+        prow_run = r;
     }
     out
+}
+
+/// OpenStitch mode's Photo Stitch 1 rows ([`crate::rows`]): every cell's target, the runs at
+/// least [`MIN_STITCH_MM`] long, with the change-of-thread penalty bisected so the needle
+/// points (counted as [`fine_runs`] places them) meet [`FINE_DENSITY`] over the opaque area.
+/// `sewn` is how many targets are sewn (the fabric, last, is not unless Sew Page Color made it
+/// a thread).
+fn fine_rows(
+    cells: &[Option<[f64; 3]>],
+    g: &Grid,
+    targets: &[[f64; 3]],
+    rank: &[usize],
+    sewn: usize,
+    pitch: f64,
+    limits: (f64, f64),
+) -> Vec<Option<usize>> {
+    let (cols, rows, cw, ch) = (g.cols, g.rows, g.cw, g.ch);
+    let to_lab = |c: [f64; 3]| perceptual::lab(c.map(|v| v.round().clamp(0.0, 255.0) as u8));
+    let lab: Vec<Option<Lab>> = cells.iter().map(|c| c.map(to_lab)).collect();
+    let target_lab: Vec<Lab> = targets.iter().map(|&t| to_lab(t)).collect();
+    let min_run = ((MIN_STITCH_MM * 10.0 / cw) - 1e-9).ceil().max(1.0) as usize;
+    let opaque = cells.iter().filter(|c| c.is_some()).count() as f64;
+    let budget = FINE_DENSITY * opaque * cw * ch / 100.0;
+    let rows_with = |lambda: f64| crate::rows::Rows {
+        min_run,
+        lambda,
+        // Half the geometric overlap: threads flatten into each other rather than lying fully
+        // on top (to be calibrated on the sew-out, plan T1).
+        strip: 0.5 * crate::rows::strip(THREAD_MM * 10.0, ch),
+        // Floyd–Steinberg's share to the right; the rest goes to the next row.
+        along: 7.0 / 16.0,
+    };
+    // Each sewn run's needle points, as `fine_runs` places them: (row, first cell, cells, n).
+    let each_run = |d: &[Option<usize>], f: &mut dyn FnMut(usize, usize, usize, usize)| {
+        for (y, row) in d.chunks(cols).enumerate() {
+            let mut x = 0;
+            while x < cols {
+                let Some(t) = row[x] else {
+                    x += 1;
+                    continue;
+                };
+                let a = x;
+                while x < cols && row[x] == Some(t) {
+                    x += 1;
+                }
+                if t < sewn {
+                    f(y, a, x - a, run_points((x - a) as f64 * cw, pitch));
+                }
+            }
+        }
+    };
+    // A first penalty for the whole design (its mean density), then per tile (T3).
+    let weight = saliency(&lab, cols, rows);
+    let uniform = crate::rows::Field::uniform();
+    let (_, lambda) = crate::rows::fit_density(budget, 1.0e6, 16, |lambda| {
+        let d = crate::rows::assign_in(
+            &lab,
+            cols,
+            rows,
+            &target_lab,
+            rank,
+            rows_with(lambda),
+            &uniform,
+            &weight,
+        );
+        let mut n = 0;
+        each_run(&d, &mut |_, _, _, k| n += k);
+        (d, n as f64)
+    });
+    let window = ((WINDOW_MM * 10.0 / ch).round() as usize).max(1);
+    let cap = crate::rows::Cap {
+        points: (limits.1 - DENSITY_MARGIN) * (window as f64 * cw) * (window as f64 * ch) / 100.0,
+        total: (limits.0 - DENSITY_MARGIN) * opaque * cw * ch / 100.0,
+        window,
+        tile: ((TILE_MM * 10.0 / ch).round() as usize).max(1),
+        rounds: CAP_ROUNDS,
+    };
+    // Where no run changes thread the penalty does nothing: start the field from at least a
+    // small one, so it can rise where a window needs it.
+    let base = lambda.max(1.0);
+    crate::rows::fit_cap(
+        cols,
+        rows,
+        cap,
+        |field| {
+            crate::rows::assign_in(
+                &lab,
+                cols,
+                rows,
+                &target_lab,
+                rank,
+                rows_with(base),
+                field,
+                &weight,
+            )
+        },
+        // Every needle point the layers sew, jump landings and travel included, by cell.
+        |d| {
+            let mut n = vec![0u32; d.len()];
+            for t in 0..sewn {
+                for st in fine_layer(d, g, rank, t, pitch) {
+                    if st.command != Command::Stitch {
+                        continue;
+                    }
+                    let x = ((st.x - g.frame.origin.x) / cw).floor();
+                    let y = ((st.y - g.frame.origin.y) / ch).floor();
+                    let x = x.clamp(0.0, cols as f64 - 1.0) as usize;
+                    let y = y.clamp(0.0, rows as f64 - 1.0) as usize;
+                    n[y * cols + x] += 1;
+                }
+            }
+            n
+        },
+    )
+}
+
+/// Saliency (plan T10) per cell, mean 1 over the opaque cells: where the image's lightness
+/// changes most within about [`SALIENCY_MM`] (eyes, mouths, edges), errors weigh more in the
+/// fine rows, so the needle budget of a window goes there first. The lightness gradient
+/// (central differences) is box-filtered with prefix sums, no FFT; the weight is
+/// `1 + β (s / mean − 1)`, kept within [¼, 4]. Empty when [`SALIENCY`] (β) is 0.
+fn saliency(lab: &[Option<Lab>], cols: usize, rows: usize) -> Vec<f64> {
+    let beta = SALIENCY;
+    if beta <= 0.0 {
+        return Vec::new();
+    }
+    let l = |x: usize, y: usize| lab[y * cols + x].map(|c| c[0]);
+    let mut grad = vec![0.0; cols * rows];
+    for y in 0..rows {
+        for x in 0..cols {
+            let Some(c) = l(x, y) else { continue };
+            let (xl, xr) = (x.saturating_sub(1), (x + 1).min(cols - 1));
+            let (yu, yd) = (y.saturating_sub(1), (y + 1).min(rows - 1));
+            let gx = l(xr, y).unwrap_or(c) - l(xl, y).unwrap_or(c);
+            let gy = l(x, yd).unwrap_or(c) - l(x, yu).unwrap_or(c);
+            grad[y * cols + x] = gx.abs() + gy.abs();
+        }
+    }
+    let r = ((SALIENCY_MM / FINE_STEP_MM / 2.0).round() as usize).max(1);
+    let mut sum = vec![0.0; (cols + 1) * (rows + 1)];
+    for y in 0..rows {
+        let mut line = 0.0;
+        for x in 0..cols {
+            line += grad[y * cols + x];
+            sum[(y + 1) * (cols + 1) + x + 1] = sum[y * (cols + 1) + x + 1] + line;
+        }
+    }
+    let at = |x: usize, y: usize| sum[y * (cols + 1) + x];
+    let mut s = vec![0.0; cols * rows];
+    let (mut total, mut opaque) = (0.0, 0usize);
+    for y in 0..rows {
+        for x in 0..cols {
+            if lab[y * cols + x].is_none() {
+                continue;
+            }
+            let (x0, x1) = (x.saturating_sub(r), (x + r + 1).min(cols));
+            let (y0, y1) = (y.saturating_sub(r), (y + r + 1).min(rows));
+            let v = (at(x1, y1) + at(x0, y0) - at(x1, y0) - at(x0, y1))
+                / ((x1 - x0) * (y1 - y0)) as f64;
+            s[y * cols + x] = v;
+            total += v;
+            opaque += 1;
+        }
+    }
+    let mean = total / opaque.max(1) as f64;
+    if mean <= 0.0 {
+        return Vec::new();
+    }
+    s.iter()
+        .map(|&v| (1.0 + beta * (v / mean - 1.0)).clamp(0.25, 4.0))
+        .collect()
+}
+
+/// The fine rows' sampling grid: `cols`×`rows` cells of `cw`×`ch` design units at `frame`, and
+/// how their threads travel.
+struct Grid<'a> {
+    cols: usize,
+    rows: usize,
+    cw: f64,
+    ch: f64,
+    frame: &'a Frame,
+    /// Longest visible travel stitch, design units (0 for none, [`Travel::AllTrims`]).
+    visible: f64,
+}
+
+/// Thread `t`'s stitches from the fine rows `d`: its runs ([`fine_runs`]) sewn nearest first,
+/// travelling up to [`TRAVEL_MM`] only where later layers (by `rank`) cover the travel.
+fn fine_layer(d: &[Option<usize>], g: &Grid, rank: &[usize], t: usize, pitch: f64) -> Vec<Stitch> {
+    let (cols, rows, cw, ch, frame) = (g.cols, g.rows, g.cw, g.ch, g.frame);
+    let runs = fine_runs(d, cols, rows, t, frame, cw, ch, pitch);
+    // A travel is sewn where later layers cover it, or (fewer trims) where it is short.
+    let hidden = |x0: f64, y0: f64, x1: f64, y1: f64| {
+        (x1 - x0).dhypot(y1 - y0) <= g.visible
+            || covered(d, cols, rows, rank, t, frame, cw, ch, [x0, y0, x1, y1])
+    };
+    let travel = TRAVEL_MM * 10.0;
+    let sewing = Sewing {
+        reach_x: travel,
+        reach: travel,
+        shortest: MIN_STITCH_MM * 10.0 + QUANTUM,
+        row_reach: (travel / ch) as usize,
+        turn: 0.0,
+        away: Some(CONNECT),
+    };
+    no_short(sew_runs(&runs, rows, ch, &sewing, hidden))
+}
+
+/// Needle points of one fine run `len` long: its start and the end of every stitch, the
+/// stitches as few as keep each within `pitch`.
+fn run_points(len: f64, pitch: f64) -> usize {
+    (len / pitch - 1e-9).ceil().max(1.0) as usize + 1
+}
+
+/// Thread `t`'s fine runs in grid order: each run of neighbouring cells in a row is split into
+/// equal stitches no longer than `pitch`; inside a run the needle points shift by up to a third
+/// of a stitch from row to row (so neighbouring rows do not line their holes up), never making
+/// a stitch shorter than [`MIN_STITCH_MM`] or longer than `pitch`. Runs shorter than
+/// [`MIN_STITCH_MM`] (slivers between transparent cells) are left unsewn.
+#[allow(clippy::too_many_arguments)]
+fn fine_runs(
+    d: &[Option<usize>],
+    cols: usize,
+    rows: usize,
+    t: usize,
+    frame: &Frame,
+    cw: f64,
+    ch: f64,
+    pitch: f64,
+) -> Vec<Run> {
+    let min = MIN_STITCH_MM * 10.0;
+    let mut runs = Vec::new();
+    for y in 0..rows {
+        let row_y = frame.origin.y + (y as f64 + 0.5) * ch;
+        let mut x = 0;
+        while x < cols {
+            if d[y * cols + x] != Some(t) {
+                x += 1;
+                continue;
+            }
+            let a = x;
+            while x < cols && d[y * cols + x] == Some(t) {
+                x += 1;
+            }
+            let (x0, x1) = (a as f64 * cw, x as f64 * cw);
+            let len = x1 - x0;
+            if len < min - 1e-6 {
+                continue;
+            }
+            let n = run_points(len, pitch) - 1;
+            let seg = len / n as f64;
+            let room = (seg / 3.0)
+                .min(seg - min - QUANTUM)
+                .min(pitch - seg)
+                .max(0.0);
+            let shift = room * [0.0, 1.0, -1.0][y % 3];
+            // On whole design units (0.1 mm), as machine files hold them: a run of at least
+            // MIN_STITCH_MM then stays that long after rounding.
+            let mut xs = Vec::with_capacity(n + 1);
+            xs.push(frame.origin.x + x0);
+            for i in 1..n {
+                xs.push(frame.origin.x + x0 + i as f64 * seg + shift);
+            }
+            xs.push(frame.origin.x + x1);
+            runs.push(Run {
+                xs: xs.into_iter().map(f64::round).collect(),
+                y: row_y,
+                row: y,
+            });
+        }
+    }
+    runs
+}
+
+/// Whether a travel stitch of thread `t` along `seg` (design units: x0, y0, x1, y1) is hidden:
+/// every cell it crosses, sampled every half cell, is `t`'s own or sewn by a later layer (whose
+/// stitches then cover it), so the travel does not show.
+#[allow(clippy::too_many_arguments)]
+fn covered(
+    d: &[Option<usize>],
+    cols: usize,
+    rows: usize,
+    rank: &[usize],
+    t: usize,
+    frame: &Frame,
+    cw: f64,
+    ch: f64,
+    seg: [f64; 4],
+) -> bool {
+    let [x0, y0, x1, y1] = seg;
+    let len = (x1 - x0).dhypot(y1 - y0);
+    let n = (len / (0.5 * cw.min(ch))).ceil().max(1.0) as usize;
+    (0..=n).all(|i| {
+        let f = i as f64 / n as f64;
+        let x = ((x0 + (x1 - x0) * f - frame.origin.x) / cw).floor();
+        let y = ((y0 + (y1 - y0) * f - frame.origin.y) / ch).floor();
+        let (x, y) = (
+            x.clamp(0.0, cols as f64 - 1.0) as usize,
+            y.clamp(0.0, rows as f64 - 1.0) as usize,
+        );
+        match d[y * cols + x] {
+            Some(u) => u == t || rank.get(u).is_some_and(|&r| r > rank[t]),
+            None => false,
+        }
+    })
+}
+
+/// The longest move inside one stitch object that the design's compiler sews across as a
+/// stitch rather than a trimmed jump (`openstitch_design::compile::Compiler`'s
+/// `connect_distance`), design units.
+const CONNECT: f64 = 40.0;
+
+/// Machine files hold needle points to 0.1 mm (1 design unit): stitches the generator may
+/// place freely keep this margin above [`MIN_STITCH_MM`] so rounding cannot take them under.
+const QUANTUM: f64 = 1.0;
+
+/// Drops every needle point that would end a stitch shorter than [`MIN_STITCH_MM`] (the
+/// stitch then runs on to the following point). A jump no longer than [`CONNECT`] counts as the
+/// stitch the compiler will sew across; a longer jump's landing point stays.
+fn no_short(mut stitches: Vec<Stitch>) -> Vec<Stitch> {
+    for i in 1..stitches.len() {
+        let (a, b) = (stitches[i - 1], stitches[i]);
+        if b.command == Command::Jump && (b.x - a.x).dhypot(b.y - a.y) <= CONNECT {
+            stitches[i].command = Command::Stitch;
+        }
+    }
+    let min = MIN_STITCH_MM * 10.0 - 1e-6;
+    let mut out: Vec<Stitch> = Vec::with_capacity(stitches.len());
+    for (i, s) in stitches.iter().enumerate() {
+        if s.command == Command::Stitch
+            && let Some(prev) = out.last()
+            && prev.command == Command::Stitch
+            && (s.x - prev.x).dhypot(s.y - prev.y) < min
+        {
+            // The last point of a path stays (it ends the thread there); its predecessor goes
+            // instead when that leaves a long enough stitch.
+            let last = stitches
+                .get(i + 1)
+                .is_none_or(|n| n.command != Command::Stitch);
+            if !last {
+                continue;
+            }
+            if out.len() >= 2 && out[out.len() - 2].command == Command::Stitch {
+                let p2 = out[out.len() - 2];
+                if (s.x - p2.x).dhypot(s.y - p2.y) >= min {
+                    out.pop();
+                    out.push(*s);
+                }
+            }
+            continue;
+        }
+        out.push(*s);
+    }
+    out
+}
+
+/// OpenStitch mode's Photo Stitch 2 (B16.1 T13): the Max. Density, lines per mm, that keeps the
+/// line screen within the owner's limits (2026-10-31): at most [`LINE_DENSITY_MEAN`] needle
+/// points per mm² over the image and no 10 × 10 mm window denser than PE-DESIGN-compatible
+/// mode's densest on the same image. From the user's Max. Density, for a fixed number of rounds,
+/// it sews the screen and divides the density by the larger overshoot.
+fn line_density(
+    image: &Raster,
+    frame: &Frame,
+    p: &PhotoStitch,
+    shares: &crate::screen::Shares,
+    settings: &crate::screen::Screen,
+    order: &[usize],
+) -> Result<f64, DigitizeError> {
+    let width = f64::from(image.width()) * frame.scale / 10.0;
+    let height = f64::from(image.height()) * frame.scale / 10.0;
+    let pe = convert(
+        image,
+        frame,
+        &PhotoStitch {
+            compat: Mode::PeDesign,
+            ..p.clone()
+        },
+    )?;
+    let pe_stitches: Vec<Stitch> = pe
+        .objects
+        .iter()
+        .filter_map(|o| o.stitch_block.as_ref())
+        .flat_map(|b| b.stitches.iter().copied())
+        .collect();
+    // A margin for the needle points the compiler adds (travel sewn across, tie-ins).
+    let window = densest_window(&pe_stitches, frame, width, height) * LINE_WINDOW_MARGIN;
+    let mut s = *settings;
+    for _ in 0..LINE_ROUNDS {
+        let sewn: Vec<Stitch> = order
+            .iter()
+            .enumerate()
+            .flat_map(|(layer, &t)| {
+                let angle = crate::screen::angle(layer, p.direction_deg);
+                no_short(on_units(crate::screen::layer(shares, t, angle, frame, &s)))
+            })
+            .collect();
+        let points = sewn.iter().filter(|s| s.command == Command::Stitch).count() as f64;
+        let mean = points / (width * height).max(1e-9);
+        let over =
+            (mean / LINE_DENSITY_MEAN).max(densest_window(&sewn, frame, width, height) / window);
+        if over <= 1.0 {
+            break;
+        }
+        s.max_density = (s.max_density / (over * 1.02)).max(0.5);
+    }
+    Ok(s.max_density)
+}
+
+/// The most needle points per mm² in any 10 × 10 mm window, on a 1 mm grid, of `stitches` over a
+/// `width`×`height` mm image at `frame` (the whole image when it is smaller).
+fn densest_window(stitches: &[Stitch], frame: &Frame, width: f64, height: f64) -> f64 {
+    let (cols, rows) = (
+        width.ceil().max(1.0) as usize,
+        height.ceil().max(1.0) as usize,
+    );
+    let mut n = vec![0u32; cols * rows];
+    for s in stitches.iter().filter(|s| s.command == Command::Stitch) {
+        let x = ((s.x - frame.origin.x) / 10.0)
+            .floor()
+            .clamp(0.0, cols as f64 - 1.0) as usize;
+        let y = ((s.y - frame.origin.y) / 10.0)
+            .floor()
+            .clamp(0.0, rows as f64 - 1.0) as usize;
+        n[y * cols + x] += 1;
+    }
+    let w = 10.min(cols).min(rows);
+    let mut best = 0u32;
+    for y0 in 0..=rows - w {
+        for x0 in 0..=cols - w {
+            let sum: u32 = (y0..y0 + w)
+                .map(|y| n[y * cols + x0..y * cols + x0 + w].iter().sum::<u32>())
+                .sum();
+            best = best.max(sum);
+        }
+    }
+    f64::from(best) / (w * w) as f64
+}
+
+/// The stitches with their needle points rounded to whole design units (0.1 mm), as machine
+/// files hold them, so that [`no_short`] measures the stitches the machine will sew.
+fn on_units(mut stitches: Vec<Stitch>) -> Vec<Stitch> {
+    for s in &mut stitches {
+        s.x = s.x.round();
+        s.y = s.y.round();
+    }
+    stitches
 }

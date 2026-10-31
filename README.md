@@ -47,11 +47,11 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 181: 149 implemented (3 of them partially compatible), 2 documented only, 10 blocked, 20 planned beyond PE-DESIGN |
+| Feature matrix rows | 185: 154 implemented (3 of them partially compatible), 2 documented only, 10 blocked, 19 planned beyond PE-DESIGN |
 | Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 33: 26 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 11 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
-| Open GitHub issues | 5 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
+| Open GitHub issues | 6 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
 <!-- /status:glance -->
 
 Tiers, weakest first: *internal regression* (our own earlier output), *oracle* (an independent
@@ -103,10 +103,8 @@ regenerates them.
 | <img src="examples/images/g15-folk-bird.png" width="200"> | <img src="docs/images/readme/gallery/g15.png" width="260"> | **Cross Stitch, defaults**<br>4,467 stitches, 303 trims, 4 colours |
 <!-- gallery:end -->
 
-Auto Punch, Photo Stitch 1 and 2, Cross Stitch and Design Center have two modes, both run by
-OpenStitch. The image dialog's Mode choice offers them for Auto Punch and Photo Stitch; Cross
-Stitch's and Design Center's OpenStitch modes are reachable through `stitchtool`
-(`compatMode: openStitch`) until the dialog gains them:
+Auto Punch, Photo Stitch 1 and 2, Cross Stitch and Design Center have two methods, both run by
+OpenStitch (the image dialog's Method choice):
 
 - **PE-DESIGN-compatible** (the default, labelled "PE-DESIGN" in the dialog): OpenStitch's own
   reimplementation of PE-DESIGN 11's method, so a design converts the way it would in
@@ -116,8 +114,12 @@ Stitch's and Design Center's OpenStitch modes are reachable through `stitchtool`
   Since B16.1 ([plan](docs/research/beyond/image-similarity-plan.md)) the threads are chosen
   for the image as a whole, Photo Stitch 1 dithers only where the image is tonal, a Fidelity
   choice (Standard / High) trades colours for likeness, Cross Stitch takes each cell's mean
-  colour, and Design Center finds its line threshold from the image (Otsu). Every OpenStitch
-  mode sews the same stitches on macOS, Windows and Linux.
+  colour, and Design Center finds its line threshold from the image (Otsu). Photo Stitch 1 samples
+  the image every 0.25 mm in rows that stay within 2.1 needle points per mm² (no 10 × 10 mm area
+  above 3.0), with a Trims choice (fewer trims or the best likeness). Auto Punch sews the
+  background and keeps line art, in one covering layer. Threads can come from several brands'
+  charts (Brother, Madeira Polyneon, Isacord, Sulky, Robison-Anton) or only those you own. Every
+  OpenStitch mode sews the same stitches on macOS, Windows and Linux.
 
 The table below shows both modes, both from OpenStitch. OpenStitch mode measures better on
 average, not on every image, so try both. For example, the test portrait sews truer in Photo
@@ -369,6 +371,7 @@ Open enhancement issues:
 - [#129](https://github.com/cristianonescu/OpenStitch/issues/129) (Optional, larger) Photo-stitch rotating-line coverage density model
 - [#130](https://github.com/cristianonescu/OpenStitch/issues/130) Add a PMV motif/pattern reader
 - [#134](https://github.com/cristianonescu/OpenStitch/issues/134) Import external scalable embroidery font containers
+- [#271](https://github.com/cristianonescu/OpenStitch/issues/271) tools/gallery.py: the design crop fails on macOS, so gallery images come out as thin window strips
 <!-- /status:issues-planned -->
 
 ### Beyond PE-DESIGN
@@ -379,7 +382,6 @@ PE-DESIGN 11 does not. Each item is sketched in
 
 <!-- status:beyond-planned -->
 - Image similarity, Phase 0 (measurement): the similarity score (0.4 MS-SSIM, 0.4 CIEDE2000, 0.2 DISTS on a thread render at actual size from 40 cm) with a sewability report, a calibration test card and a realistic render fitted to its photographed sew-out, deterministic digitizing maths and cross-platform golden hashes (B16.1)
-- Image similarity, Phase 1 (shared colour engine): thread selection by backward elimination, multi-brand charts and My Threads as an additive source, dithering only in tonal regions, a Standard / High fidelity setting in the image dialog (B16.1)
 - Image similarity, Phase 2 (Photo Stitch 2): least-squares thread shares with 4–6 threads and a sew-out-calibrated coverage model, at a design mean ≤ 3.3 needle points/mm²; no fixed target (the ≥ 75 target was dropped on 2026-10-31: with the line look the best measured is about 48), it must beat PE-DESIGN-compatible mode on every photo (B16.1)
 - Image similarity, Phase 3 (Photo Stitch 1 High fidelity): fine colour sampling with variable stitch boundaries, rate-constrained rows under 2.1 needle points/mm², a saliency-weighted budget, metric-driven local search; firm target 85 % (B16.1)
 - Image similarity, Phase 4 (Auto Punch): a sewn coloured background, SLIC regions that keep line art, skeleton satin for outlines; target 95 % for logos, clip art and lettering (B16.1)

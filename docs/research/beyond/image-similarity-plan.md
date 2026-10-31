@@ -370,7 +370,7 @@ plus any added ones.
 | All | all | Standard | ≥ PE-DESIGN-compatible mode's score on every image | – | – |
 
 **Every result also passes the sewability gate.** No sewing error of any kind is permitted (owner, interview question 9). The gate:
-- needle points ≤ 2.1 per mm² as the mean over the design and ≤ 3.0 in any 10 × 10 mm window, at both levels, trim tie-ins counted (owner, 2026-10-31). Photo Stitch 2 is the exception: a design mean ≤ 3.3 (PE-DESIGN's own Photo Stitch 2 level) and no window denser than PE-DESIGN-compatible mode's densest on the same image;
+- needle points ≤ 2.1 per mm² as the mean over the design and ≤ 3.0 in any 10 × 10 mm window, at both levels, trim tie-ins counted (owner, 2026-10-31). Photo Stitch 2 is the exception: a design mean ≤ 3.3 (PE-DESIGN's own Photo Stitch 2 level) and no window denser than PE-DESIGN-compatible mode's densest on the same image. Auto Punch is the other (owner, 2026-10-31): a single covering layer of fill or satin at standard coverage (4.5 rows/mm, 6.5 mm stitches, no underlay) counts as compliant, even where windows reach about 7 (narrow shapes and many small regions), because holding 3.0 left fabric showing (mean −5 points, photo-like images −10 to −20); dropping the underlay is to be confirmed on the T1 sew-out;
 - no stitch shorter than 1.0 mm or longer than 7 mm;
 - at most two thread layers anywhere;
 - every jump over 7 mm trimmed;
@@ -397,6 +397,8 @@ Made while Phase 0–5 were implemented; they change the targets and gates above
 - **Auto Punch:** OpenStitch mode sews the background by default; the user can leave it out.
   Likeness over trims for T11 and T12.
 - **Cross Stitch:** filled crosses on by default, part-crosses an option (off), cells stay 2.5 mm.
+- **Auto Punch density:** a normal single covering layer counts as compliant (see the gate above).
+- **Auto Punch satin:** OpenStitch mode keeps satin for strokes up to 2.5 mm (the dialog no longer forces 6.0 there); smallest region 2 mm².
 - **Design Center:** bold lines as parallel running lines (a zigzag scored 96.0 but reached 3.09
   points/mm²).
 
@@ -428,13 +430,23 @@ bit-identical, compat 443/443):
 | Phase | Landed | Result |
 |---|---|---|
 | 0 | Deterministic digitizing maths (#259), cross-platform golden hashes (#260), the scorer (#261) | Scorer reproduces section 3 exactly; Design Center baselines g03 95.1, g04 70.3 |
-| 1 | T4 thread selection (#264, with a mix-aware cost), T6 tonal dithering (#266, flat threshold ΔE 12), Fidelity Standard / High (#269) | T5 (multi-brand charts) in progress |
+| 1 | T4 thread selection (#264, with a mix-aware cost), T6 tonal dithering (#266, flat threshold ΔE 12), Fidelity Standard / High (#269); T5 thread sources and My Threads (track A's next PR) | With every chart (`threads: all`): Auto Punch 78.8 → 80.6, Photo Stitch 1 64.5 → 67.0, emblem 92.3 (95 not reached: Madeira Classic and Brothread publish no colour values), mosaic g13 86.8 |
 | 5 | Cross Stitch OpenStitch mode (#263), Design Center OpenStitch mode (#268) | Cross Stitch mean 51.3 → 70.2 (g07 82.5); Design Center g03 96.4, g04 95.2: both meet 95 |
 
 Not yet landed, measured on the tracks' branches: Auto Punch T7, T11 and T12 (mean 78.4 → 83.3,
 every case above PE-DESIGN-compatible mode; held back until it fits the density limits),
 Photo Stitch 1 T2, T3 and T9 (mean 55.8 → 67.5 under a strict 2.0 per-window cap; being
 re-tuned to the owner's limits), Photo Stitch 2 T13 (in progress).
+
+**2026-10-31, integration batch 2** (flat render, OpenStitch mode; PE-DESIGN-compatible mode
+bit-identical, compat 443/443):
+
+| Phase | Landed | Result |
+|---|---|---|
+| 1 | T5 thread sources (#273: Brother, Madeira Polyneon, Isacord 40, Sulky Rayon 40, Robison-Anton Rayon and Polyester 40, or the user's own; sources in `thread-charts.md`), the dialog's OpenStitch options for every tool (#274) | Phase 1 complete; Auto Punch 78.8 → 80.6 with all charts |
+| 2 | T13 limits (#272) | Within PS2's limits, no stitch under 1 mm; mean 44.9 (PE-DESIGN-compatible 43.4); still below it on g09, p01, p07 |
+| 3 | T2 + T3 fine rows (#267), T10 saliency at β 1.5 (#277) | Mean about 73.5 with all charts (Brother only about 67.5), within 2.1 / 3.0; the gap to 85 remains; T9 next |
+| 4 | T7 background (#265), T11 regions (#275) | Mean 78.8 → 82.1, g02 88.5; one covering layer under the owner's rule; T12 next |
 
 ## Sources
 

@@ -13,11 +13,11 @@ use openstitch_digitize::center::{
     self, FigureOptions, LineImageOptions, OpenLine, RegionSew, SewSettings,
 };
 use openstitch_digitize::cross::{self, CrossStitch, CrossType};
-use openstitch_digitize::photo::{self, ColorSet, PhotoMode, PhotoStitch, PhotoStyle};
+use openstitch_digitize::photo::{self, ColorSet, PhotoMode, PhotoStitch, PhotoStyle, Travel};
 use openstitch_digitize::raster::MAX_FILE_BYTES;
 use openstitch_digitize::regions::TraceOptions;
 use openstitch_digitize::{DigitizeError, Fidelity, Frame, HIGH_COLORS, Mode, Raster};
-use serde_json::json;
+use serde_json::{Value, json};
 
 const IMAGE: ParamDoc = req(
     "path",
@@ -78,6 +78,106 @@ fn compat_mode(p: &Params) -> Result<Mode, CommandError> {
             _ => Mode::PeDesign,
         },
     )
+}
+
+/// The threads OpenStitch mode chooses from (B16.1 T5), from the `threads` parameter: `brother`
+/// (the default, the PEC chart), `all` (every chart built into OpenStitch, other brands'
+/// included), a built-in chart's id (`thread.chartList`, or `madeiraPolyneon` and the other
+/// [`openstitch_core::brands::brand_charts`]), or the name of one of the user's thread charts
+/// ("My Threads").
+/// Empty means the PEC chart. Anything but `brother` needs `compatMode: openStitch`.
+fn thread_source(s: &EngineState, p: &Params, mode: Mode) -> Result<Vec<Thread>, CommandError> {
+    let name = p.string("threads", Some("brother"))?;
+    if name == "brother" {
+        return Ok(Vec::new());
+    }
+    if mode == Mode::PeDesign {
+        return Err(p.invalid("threads", "a thread source needs compatMode openStitch"));
+    }
+    let builtin = crate::user::builtin_charts();
+    let brands = openstitch_core::brands::brand_charts();
+    let charts: Vec<Vec<Thread>> = if name == "all" {
+        builtin
+            .iter()
+            .map(|c| c.2.iter().flatten().cloned().collect())
+            .chain(brands.iter().map(|c| c.2.to_vec()))
+            .collect()
+    } else if let Some(c) = builtin.iter().find(|c| c.0 == name) {
+        vec![c.2.iter().flatten().cloned().collect()]
+    } else if let Some(c) = brands.iter().find(|c| c.0 == name) {
+        vec![c.2.to_vec()]
+    } else if let Some(c) = s.user.thread_charts.iter().find(|c| c.name == name) {
+        vec![c.threads.clone()]
+    } else {
+        return Err(p.not_found(format!("thread chart '{name}'")));
+    };
+    // Each colour once per brand, first chart first.
+    let mut out: Vec<Thread> = Vec::new();
+    for t in charts.into_iter().flatten() {
+        if !out
+            .iter()
+            .any(|o| o.rgb_value() == t.rgb_value() && o.brand == t.brand)
+        {
+            out.push(t);
+        }
+    }
+    Ok(out)
+}
+
+/// The threads of `chosen` not in the user's chart named by the `owned` parameter (B16.1 T5:
+/// High fidelity may ask for threads the user does not own, with this shopping list). A thread
+/// is owned when the chart has one of the same brand and code, or of the same colour. `None`
+/// when `owned` is not given.
+fn to_buy(s: &EngineState, p: &Params, chosen: &[Thread]) -> Result<Option<Value>, CommandError> {
+    if !p.has("owned") {
+        return Ok(None);
+    }
+    let name = p.string("owned", None)?;
+    let owned = s
+        .user
+        .thread_charts
+        .iter()
+        .find(|c| c.name == name)
+        .ok_or_else(|| p.not_found(format!("thread chart '{name}'")))?;
+    let has = |t: &Thread| {
+        owned.threads.iter().any(|o| {
+            o.rgb_value() == t.rgb_value()
+                || (o.brand.is_some()
+                    && o.brand == t.brand
+                    && o.catalog_number.is_some()
+                    && o.catalog_number == t.catalog_number)
+        })
+    };
+    Ok(Some(Value::Array(
+        chosen
+            .iter()
+            .filter(|t| !has(t))
+            .map(|t| {
+                json!({
+                    "color": t.hex(),
+                    "brand": t.brand,
+                    "code": t.catalog_number,
+                    "name": t.name,
+                })
+            })
+            .collect(),
+    )))
+}
+
+/// The `threads` and `owned` parameters' documentation.
+fn thread_source_docs() -> [ParamDoc; 2] {
+    [
+        opt(
+            "threads",
+            "brother|all|chart",
+            "OpenStitch mode: the threads to choose from: brother (default, the PEC chart), all (every built-in chart, Madeira Polyneon included), a built-in chart id (madeiraPolyneon among them), or one of the user's thread charts by name",
+        ),
+        opt(
+            "owned",
+            "chart",
+            "OpenStitch mode: the user's thread chart of threads they own; the result lists the chosen threads not in it (toBuy)",
+        ),
+    ]
 }
 
 /// The `fidelity` parameter (B16.1), shared by the image wizards that have an OpenStitch mode:
@@ -144,12 +244,12 @@ pub fn commands() -> Vec<CommandSpec> {
                 opt(
                     "resolution",
                     "int 64-2048",
-                    "Working resolution, longest side in pixels (default 400)",
+                    "Working resolution, longest side in pixels (default 400; 800 in OpenStitch mode)",
                 ),
                 opt(
                     "minArea",
                     "mm",
-                    "Small-region parameter, mm²: regions of at most max(4, round(minArea / mmPerPx²)) pixels merge into a neighbour (default 1; 3 in OpenStitch mode)",
+                    "Small-region parameter, mm²: regions of at most max(4, round(minArea / mmPerPx²)) pixels merge into a neighbour (default 1; 2 in OpenStitch mode)",
                 ),
                 opt(
                     "smooth",
@@ -179,27 +279,36 @@ pub fn commands() -> Vec<CommandSpec> {
                 opt(
                     "skipBackground",
                     "bool",
-                    "Leave out the colour covering most of the border (default true)",
+                    "Leave out the colour covering most of the border (default true). OpenStitch mode without this parameter: the background is sewn as part of the picture unless it is the fabric's colour (within ΔE00 5); true leaves it out, false sews it whatever its colour",
+                ),
+                opt(
+                    "fabric",
+                    "color",
+                    "OpenStitch mode without skipBackground: the fabric colour the background is compared with, \"#rrggbb\", a PEC chart name or number (default white)",
                 ),
                 opt(
                     "compatMode",
                     "peDesign|openStitch",
-                    "peDesign: as PE-DESIGN 11.50 (default); openStitch: colours reduced and matched to threads by appearance (CIELAB k-means, CIEDE2000), regions under 3 mm² merged (docs/research/beyond/image-digitizing.md)",
+                    "peDesign: as PE-DESIGN 11.50 (default); openStitch: colours reduced and matched to threads by appearance (CIELAB k-means, CIEDE2000), an 800 px working raster, regions under 2 mm² merged (docs/research/beyond/image-digitizing.md)",
                 ),
                 fidelity_doc(),
-            ]),
+            ]
+            .into_iter()
+            .chain(thread_source_docs())
+            .collect()),
             |s, p| {
                 let (image, frame) = load(s, p)?;
                 let mode = compat_mode(p)?;
-                // OpenStitch mode also cleans up: specks under 3 mm² merge, unless the caller
-                // sets the area.
-                let min_area = match mode {
-                    Mode::PeDesign => 1.0,
-                    Mode::OpenStitch => 3.0,
+                // OpenStitch mode works at 800 px, so thin lines and small details keep their
+                // shape, and merges regions under 2 mm², so no speck is sewn (B16.1 T11), unless
+                // the caller sets them.
+                let (resolution, min_area) = match mode {
+                    Mode::PeDesign => (400, 1.0),
+                    Mode::OpenStitch => (800, 2.0),
                 };
-                let options = AutoPunch {
+                let mut options = AutoPunch {
                     colors: count(p, "colors", AutoPunch::default().colors as i64, 0, 64)?,
-                    resolution: count(p, "resolution", 400, 64, 2048)? as u32,
+                    resolution: count(p, "resolution", resolution, 64, 2048)? as u32,
                     min_area_mm2: p.opt("minArea", min_area, 0.0, 1000.0)?,
                     smooth: count(p, "smooth", 0, 0, 5)? as u32,
                     trace: trace_options(p, 0.7)?,
@@ -207,16 +316,29 @@ pub fn commands() -> Vec<CommandSpec> {
                     satin_min_mm: p.opt("satinMinWidth", 0.7, 0.0, 6.0)?,
                     skip_background: p.bool("skipBackground", Some(true))?,
                     mode,
+                    threads: thread_source(s, p, mode)?,
                     fidelity: fidelity(p, mode)?,
+                    ..AutoPunch::default()
                 };
+                // OpenStitch mode sews anything in the picture: without skipBackground, only a
+                // background of the fabric's colour is left out.
+                if mode == Mode::OpenStitch && p.get("skipBackground").is_none() {
+                    let f = thread(p, "fabric")?.unwrap_or(Thread::rgb(0xffffff));
+                    options.fabric = Some([f.red, f.green, f.blue]);
+                }
                 let out = autopunch::convert(&image, &frame, &options).map_err(|e| failed(p, e))?;
                 let regions = out.objects.len();
-                Ok(json!({
+                let buy = to_buy(s, p, &out.threads)?;
+                let mut r = json!({
                     "ids": add_all(s, out.objects),
                     "colors": hexes(&out.threads),
                     "regions": regions,
                     "background": out.background.as_ref().map(Thread::hex),
-                }))
+                });
+                if let Some(b) = buy {
+                    r["toBuy"] = b;
+                }
+                Ok(r)
             },
         ),
         spec(
@@ -349,7 +471,25 @@ pub fn commands() -> Vec<CommandSpec> {
                     "Lines: Direction, turns every thread's screen angle (0/45/90/135), -180-180 (default 0)",
                 ),
                 fidelity_doc(),
-            ]),
+                opt(
+                    "travel",
+                    "fewerTrims|allTrims",
+                    "OpenStitch mode, fill: fewerTrims sews short visible travel stitches (up to 2 mm) between a thread's runs instead of trimming (about half the trims); allTrims travels only under later layers and trims elsewhere (best likeness); default fewerTrims at Standard fidelity, allTrims at High",
+                ),
+                opt(
+                    "densityMean",
+                    "points/mm²",
+                    "OpenStitch mode, fill: most needle points per mm² over the design, 0.5-10 (default 2.1)",
+                ),
+                opt(
+                    "densityWindow",
+                    "points/mm²",
+                    "OpenStitch mode, fill: most needle points per mm² in any 10 × 10 mm window, 0.5-10 (default 3.0)",
+                ),
+            ]
+            .into_iter()
+            .chain(thread_source_docs())
+            .collect()),
             |s, p| {
                 let (image, frame) = load(s, p)?;
                 let compat = compat_mode(p)?;
@@ -395,12 +535,32 @@ pub fn commands() -> Vec<CommandSpec> {
                 };
                 options.compat = compat;
                 options.fidelity = fidelity;
+                options.threads = thread_source(s, p, compat)?;
+                // The user's choice; by default fewer trims at Standard, the best likeness at
+                // High (the owner, 2026-10-31).
+                let travel_default = match fidelity {
+                    Fidelity::High => "allTrims",
+                    Fidelity::Standard => "fewerTrims",
+                };
+                options.travel =
+                    match choice(p, "travel", travel_default, &["fewerTrims", "allTrims"])? {
+                        "allTrims" => Travel::AllTrims,
+                        _ => Travel::FewerTrims,
+                    };
+                options.density_mean = p.opt("densityMean", options.density_mean, 0.5, 10.0)?;
+                options.density_window =
+                    p.opt("densityWindow", options.density_window, 0.5, 10.0)?;
                 let out = photo::convert(&image, &frame, &options).map_err(|e| failed(p, e))?;
-                Ok(json!({
+                let buy = to_buy(s, p, &out.threads)?;
+                let mut r = json!({
                     "colors": hexes(&out.threads),
                     "stitches": out.stitches,
                     "ids": add_all(s, out.objects),
-                }))
+                });
+                if let Some(b) = buy {
+                    r["toBuy"] = b;
+                }
+                Ok(r)
             },
         ),
         spec(

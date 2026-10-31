@@ -91,15 +91,15 @@ fn actual() -> Vec<(String, &'static str, u64)> {
 
 /// Pinned on macOS (aarch64); must match on Windows and Linux (x86_64).
 const EXPECTED: &[(&str, &str, u64)] = &[
-    ("emblem", "auto-punch", 0x664dd7b75737647f),
-    ("emblem", "photo-stitch-1", 0x758b0b72744b4f89),
-    ("emblem", "photo-stitch-2", 0x844c10dd1dfd47bf),
-    ("leaf", "auto-punch", 0x834b800074ab3d0e),
-    ("leaf", "photo-stitch-1", 0x28f3a74a8d77bb30),
-    ("leaf", "photo-stitch-2", 0x9aed90ef3f219c8f),
-    ("gradient", "auto-punch", 0x266c46c6796b5696),
-    ("gradient", "photo-stitch-1", 0x7b3931b053580064),
-    ("gradient", "photo-stitch-2", 0x0985faaa6fbfb4fc),
+    ("emblem", "auto-punch", 0xcefc7dd890960623),
+    ("emblem", "photo-stitch-1", 0x2afb4a0298a9dade),
+    ("emblem", "photo-stitch-2", 0xb9fb1fde079ada53),
+    ("leaf", "auto-punch", 0x594ee02ee16367d8),
+    ("leaf", "photo-stitch-1", 0x7c908234e3bf68c8),
+    ("leaf", "photo-stitch-2", 0x42d318e2ef2dea9c),
+    ("gradient", "auto-punch", 0x43e2c9f180499388),
+    ("gradient", "photo-stitch-1", 0x4e65363f4cbf711d),
+    ("gradient", "photo-stitch-2", 0xa41e4acbab6a4c01),
 ];
 
 #[test]

@@ -2,10 +2,10 @@ mod common;
 
 use common::*;
 use openstitch_core::{Command, Thread};
-use openstitch_design::DesignObject;
+use openstitch_design::{Compiler, Design, DesignObject, DesignPage};
 use openstitch_digitize::photo::{self, PhotoMode, PhotoStitch, PhotoStyle};
 use openstitch_digitize::raster::luma601;
-use openstitch_digitize::{DigitizeError, Frame, Raster};
+use openstitch_digitize::{DigitizeError, Frame, Mode, Raster};
 
 /// 100×20 px, black on the left fading to white on the right.
 fn gradient() -> Raster {
@@ -650,5 +650,200 @@ fn screen_sews_the_most_used_thread_first() {
             .map(|t| t.catalog_number.as_deref().unwrap_or(""))
             .collect();
         assert_eq!(got, want, "{set:?} on a {} px image", image.width());
+    }
+}
+
+/// A 60 × 60 px "photo": smooth colour gradients with a dark disc and fine stripes.
+fn photo_like() -> Raster {
+    Raster::from_fn(60, 60, |x, y| {
+        let (fx, fy) = (f64::from(x) / 59.0, f64::from(y) / 59.0);
+        let disc = (f64::from(x) - 22.0).powi(2) + (f64::from(y) - 30.0).powi(2) < 120.0;
+        if disc {
+            return [40, 30, 30, 255];
+        }
+        if x > 44 && (y / 2) % 2 == 0 {
+            return [240, 230, 200, 255];
+        }
+        [
+            (60.0 + 180.0 * fx) as u8,
+            (90.0 + 120.0 * fy) as u8,
+            (200.0 - 150.0 * fx * fy) as u8,
+            255,
+        ]
+    })
+    .expect("size")
+}
+
+fn fine(colors: usize) -> PhotoStitch {
+    PhotoStitch {
+        compat: Mode::OpenStitch,
+        ..PhotoStitch::new(PhotoStyle::Fill, PhotoMode::Color(colors))
+    }
+}
+
+/// Photo Stitch 1's OpenStitch mode (plan T2, T3): sewn as the machine sews it, no stitch is
+/// under 1 mm or over 7 mm, the design holds at most 2.1 needle points/mm² and no 10 × 10 mm
+/// window more than 3.0 (the owner's caps).
+#[test]
+fn fine_rows_are_sewable() {
+    let frame = Frame::new(0.0, 0.0, 60.0, 60);
+    let out = photo::convert(&photo_like(), &frame, &fine(8)).expect("converts");
+    let mut d = Design::new("t", DesignPage::default());
+    for o in out.objects {
+        d.add(o);
+    }
+    let p = Compiler::default().compile(&d);
+    let mut stitches = 0;
+    for w in p.stitches.windows(2) {
+        if w[1].command != Command::Stitch {
+            continue;
+        }
+        stitches += 1;
+        if w[0].command != Command::Stitch {
+            continue;
+        }
+        let len = (w[1].x - w[0].x).hypot(w[1].y - w[0].y);
+        assert!(
+            len == 0.0 || (10.0 - 1e-6..=70.0).contains(&len),
+            "a {:.2} mm stitch at ({}, {})",
+            len / 10.0,
+            w[1].x,
+            w[1].y
+        );
+    }
+    let density = stitches as f64 / (60.0 * 60.0);
+    assert!(
+        (1.4..=2.1).contains(&density),
+        "{density:.2} needle points per mm²"
+    );
+    // At most 3.0 needle points per mm² in every 10 × 10 mm window (1 mm steps).
+    let mut grid = vec![0u32; 61 * 61];
+    for s in p.stitches.iter().filter(|s| s.command == Command::Stitch) {
+        let (x, y) = ((s.x / 10.0).floor() as usize, (s.y / 10.0).floor() as usize);
+        grid[y.min(60) * 61 + x.min(60)] += 1;
+    }
+    for y0 in 0..=50 {
+        for x0 in 0..=50 {
+            let n: u32 = (y0..y0 + 10)
+                .map(|y| grid[y * 61 + x0..y * 61 + x0 + 10].iter().sum::<u32>())
+                .sum();
+            assert!(
+                n <= 300,
+                "{n} needle points in the 10 mm window at ({x0}, {y0}) mm"
+            );
+        }
+    }
+}
+
+/// The fine rows place stitch ends at the image's edges, not on a 3 mm grid: 3 mm stripes
+/// offset by half a Run Pitch keep their edges, so the rows change thread on them.
+#[test]
+fn fine_rows_follow_detail_finer_than_the_run_pitch() {
+    // 3 mm black and white stripes with edges at 1.5 mm + 3 mm k, 30 mm wide, 1 px = 0.25 mm.
+    let img = Raster::from_fn(120, 40, |x, _| {
+        if ((x + 6) / 12) % 2 == 0 {
+            [0, 0, 0, 255]
+        } else {
+            [255, 255, 255, 255]
+        }
+    })
+    .expect("size");
+    let frame = Frame::new(0.0, 0.0, 30.0, 120);
+    // The white stripes are bare fabric, so the black ones have the needle budget to themselves.
+    let p = PhotoStitch {
+        sew_page: false,
+        ..fine(2)
+    };
+    let out = photo::convert(&img, &frame, &p).expect("converts");
+    let black = out
+        .threads
+        .iter()
+        .position(|t| t.red < 128)
+        .expect("a dark thread");
+    let xs: Vec<f64> = needles(&out.objects[black])
+        .iter()
+        .map(|&(x, _)| x)
+        .collect();
+    // Run ends on the stripe edges (15 + 30 k in 0.1 mm).
+    let on_edge = xs
+        .iter()
+        .filter(|&&x| ((x - 15.0) / 30.0 - ((x - 15.0) / 30.0).round()).abs() < 1e-6);
+    assert!(
+        on_edge.count() * 2 > xs.len(),
+        "stitch ends off the stripe edges"
+    );
+}
+
+/// The same image and settings sew the same stitches every time (and on every platform: the
+/// conversion's arithmetic is plain f64 in a fixed order).
+#[test]
+fn fine_rows_are_deterministic() {
+    let frame = Frame::new(0.0, 0.0, 60.0, 60);
+    let a = photo::convert(&photo_like(), &frame, &fine(6)).expect("converts");
+    let b = photo::convert(&photo_like(), &frame, &fine(6)).expect("converts");
+    assert_eq!(a, b);
+}
+
+/// Photo Stitch 2's OpenStitch mode (plan T13) keeps the owner's limits: at most 3.3 needle
+/// points per mm² over the image, no 10 × 10 mm window denser than PE-DESIGN-compatible mode's,
+/// and no stitch under 1 mm.
+#[test]
+fn open_stitch_line_screen_keeps_the_limits() {
+    let img = Raster::from_fn(60, 60, |x, y| {
+        let v = ((x + y) * 2) as u8;
+        [v, 255 - v, (x * 4) as u8, 255]
+    })
+    .expect("size");
+    let frame = Frame::new(0.0, 0.0, 30.0, 60);
+    let sewn = |compat| {
+        let p = PhotoStitch {
+            compat,
+            ..PhotoStitch::new(PhotoStyle::Lines, PhotoMode::Color(4))
+        };
+        let out = photo::convert(&img, &frame, &p).expect("converts");
+        out.objects
+            .iter()
+            .flat_map(|o| o.stitch_block.as_ref().expect("block").stitches.clone())
+            .collect::<Vec<_>>()
+    };
+    let densest = |st: &[openstitch_core::Stitch]| {
+        let mut grid = vec![0u32; 30 * 30];
+        for s in st.iter().filter(|s| s.command == Command::Stitch) {
+            let (x, y) = ((s.x / 10.0).floor() as usize, (s.y / 10.0).floor() as usize);
+            grid[y.min(29) * 30 + x.min(29)] += 1;
+        }
+        let mut best = 0;
+        for y0 in 0..=20 {
+            for x0 in 0..=20 {
+                let n: u32 = (y0..y0 + 10)
+                    .map(|y| grid[y * 30 + x0..y * 30 + x0 + 10].iter().sum::<u32>())
+                    .sum();
+                best = best.max(n);
+            }
+        }
+        best
+    };
+    let (pe, os) = (sewn(Mode::PeDesign), sewn(Mode::OpenStitch));
+    let points = os.iter().filter(|s| s.command == Command::Stitch).count() as f64;
+    assert!(
+        points / 900.0 <= 3.3,
+        "{:.2} needle points per mm²",
+        points / 900.0
+    );
+    assert!(
+        densest(&os) <= densest(&pe),
+        "{} > {}",
+        densest(&os),
+        densest(&pe)
+    );
+    for w in os.windows(2) {
+        if w[0].command == Command::Stitch && w[1].command == Command::Stitch {
+            let len = (w[1].x - w[0].x).hypot(w[1].y - w[0].y);
+            assert!(
+                len == 0.0 || len >= 10.0 - 1e-6,
+                "a {:.2} mm stitch",
+                len / 10.0
+            );
+        }
     }
 }
