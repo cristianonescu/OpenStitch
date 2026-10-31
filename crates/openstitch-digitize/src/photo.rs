@@ -93,8 +93,9 @@ pub struct PhotoStitch {
     pub direction_deg: f64,
     /// Lines, colour mode: the Color Set (default Auto Select).
     pub color_set: ColorSet,
-    /// Colour mode: PE-DESIGN's method, or OpenStitch's: the perceptual palette
-    /// ([`Palette::build_perceptual`]; Photo Stitch 2's Auto Select too), dithering in CIELAB
+    /// Colour mode: PE-DESIGN's method, or OpenStitch's: the perceptual palette (threads chosen
+    /// for the image, [`Palette::select_perceptual`]; Photo Stitch 2's Auto Select keeps
+    /// [`Palette::build_perceptual`]), dithering in CIELAB
     /// (Photo Stitch 1, [`palette::dither_perceptual`]) and the line screen's mix in linear
     /// light (Photo Stitch 2, [`crate::screen::Shares::colour_in`]).
     pub compat: Mode,
@@ -226,7 +227,9 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
             } else {
                 n
             };
-            let pal = if perceptual {
+            let pal = if perceptual && p.style == PhotoStyle::Fill {
+                Palette::select_perceptual(&colors, boxes.min(64))
+            } else if perceptual {
                 Palette::build_perceptual(&colors, boxes.min(64))
             } else {
                 Palette::build(&colors, boxes.min(64))

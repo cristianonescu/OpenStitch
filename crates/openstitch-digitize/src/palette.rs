@@ -21,6 +21,9 @@ pub struct Palette {
     pub chart: Vec<usize>,
     /// OpenStitch mode: pixels are matched to `means` by CIEDE2000 instead of RGB distance.
     pub perceptual: bool,
+    /// OpenStitch mode: the nearest mean and nearest thread of colours met in advance (an Auto
+    /// Punch census's modal colours), by packed colour, so each is matched once, not per pixel.
+    known: Vec<(u32, usize, usize)>,
 }
 
 fn rgb_of(t: &Thread) -> Rgb {
@@ -238,23 +241,74 @@ impl Palette {
             threads,
             chart,
             perceptual: false,
+            known: Vec::new(),
         }
     }
 
-    /// OpenStitch mode's palette of a colour census (docs/research/beyond/image-digitizing.md):
-    /// the median-cut box colours seed a weighted k-means in CIELAB, and each centre takes the
-    /// PEC thread nearest it by CIEDE2000. A centre clearly distinct from another
-    /// ([`DISTINCT_DE`]) never shares its thread: it takes its nearest thread not yet taken,
-    /// so thin dark lines on white keep a thread of their own instead of joining the white
-    /// background. Pixels are matched to the centres by CIEDE2000.
+    /// OpenStitch mode's palette of a colour census (docs/research/beyond/image-similarity-plan.md,
+    /// T4). The census colours, weighted by their counts, choose at most `n` threads from the PEC
+    /// chart by backward elimination ([`perceptual::select_threads`]). The median-cut box colours
+    /// seed a weighted k-means in CIELAB as before, and each centre takes the chosen thread that
+    /// sews its members with the least weighted CIEDE2000 (ties to the lower chart number). Thin
+    /// dark lines on white keep a thread of their own whenever dropping it costs the image more
+    /// than any other thread. Pixels are matched to the centres by CIEDE2000, so a colour sharing
+    /// the background's thread (a line's light edge) is still a colour of its own.
     pub fn from_census_perceptual(census: &Census, n: usize) -> Palette {
-        let mut hist = census.colors.clone();
-        hist.sort_by_key(|c| pack(c.0));
-        Self::from_histogram_perceptual(&hist, n)
+        let (chart, labs) = pec_labs();
+        let colors: Vec<(Lab, f64)> = census
+            .colors
+            .iter()
+            .map(|&(c, w)| (perceptual::lab(c), w as f64))
+            .collect();
+        let kept = perceptual::select_threads(&colors, &labs, n);
+        let kept_labs: Vec<Lab> = kept.iter().map(|&k| labs[k]).collect();
+        let mut palette = Palette {
+            means: Vec::new(),
+            thread_of: Vec::new(),
+            threads: Vec::new(),
+            chart: Vec::new(),
+            perceptual: true,
+            known: Vec::new(),
+        };
+        for (&(c, _), &(l, _)) in census.colors.iter().zip(&colors) {
+            let i = kept[nearest_de(&kept_labs, l)];
+            let k = palette
+                .chart
+                .iter()
+                .position(|&x| x == chart[i].0)
+                .unwrap_or_else(|| {
+                    palette.chart.push(chart[i].0);
+                    palette.threads.push(chart[i].1.clone());
+                    palette.chart.len() - 1
+                });
+            palette.means.push(c);
+            palette.thread_of.push(k);
+        }
+        let mut met: Vec<u32> = census.modal.iter().flatten().map(|&c| pack(c)).collect();
+        met.sort_unstable();
+        met.dedup();
+        let mean_labs: Vec<Lab> = palette.means.iter().map(|&m| perceptual::lab(m)).collect();
+        let thread_labs: Vec<Lab> = palette
+            .chart
+            .iter()
+            .map(|&i| labs[i_of(&chart, i)])
+            .collect();
+        palette.known = met
+            .into_iter()
+            .map(|p| {
+                let l = perceptual::lab([(p >> 16) as u8, (p >> 8) as u8, p as u8]);
+                (p, nearest_de(&mean_labs, l), nearest_de(&thread_labs, l))
+            })
+            .collect();
+        palette
     }
 
-    /// OpenStitch mode's palette of a pixel list (Photo Stitch 1): as
-    /// [`Palette::from_census_perceptual`] over the pixels' histogram.
+    /// OpenStitch mode's palette of a pixel list for Photo Stitch 2's line screen: the
+    /// median-cut box colours seed a weighted k-means in CIELAB, and each centre takes the PEC
+    /// thread nearest it by CIEDE2000. A centre clearly distinct from another ([`DISTINCT_DE`])
+    /// never shares its thread: it takes its nearest thread not yet taken. The screen mixes each
+    /// thread with the fabric, so its threads are chosen by Photo Stitch 2's own rework (T13),
+    /// not by [`Palette::select_perceptual`].
     pub fn build_perceptual(colors: &[Rgb], n: usize) -> Palette {
         Self::from_histogram_perceptual(&histogram(colors), n)
     }
@@ -280,6 +334,7 @@ impl Palette {
             threads: Vec::new(),
             chart: Vec::new(),
             perceptual: true,
+            known: Vec::new(),
         };
         // Which centres took each palette thread, to keep distinct colours apart.
         let mut takers: Vec<Vec<Lab>> = Vec::new();
@@ -320,27 +375,97 @@ impl Palette {
         palette
     }
 
-    /// Thread index of the box mean nearest to `c` (ties to the lower index).
+    /// OpenStitch mode's palette of a pixel list (Photo Stitch 1, T4): at most `n` threads
+    /// chosen from the PEC chart by backward elimination ([`perceptual::select_threads`]) over
+    /// the pixels' histogram. Each chosen thread is a palette colour of its own, and its mean is
+    /// the weighted mean of the colours nearest to it. Photo Stitch 1 dithers onto the threads
+    /// themselves.
+    pub fn select_perceptual(colors: &[Rgb], n: usize) -> Palette {
+        Self::select_perceptual_with(colors, n, perceptual::SelectCost::Nearest)
+    }
+
+    /// [`Palette::select_perceptual`] with the selection's cost chosen by the caller: nearest
+    /// thread, or the best two-thread mix for rows that mix threads by error carry
+    /// ([`perceptual::SelectCost`]). On Photo Stitch 1's 3 mm cells the nearest thread scores
+    /// higher (nine photos: 57.1 against 54.2 with the mix), so that is the default there.
+    pub fn select_perceptual_with(
+        colors: &[Rgb],
+        n: usize,
+        cost: perceptual::SelectCost,
+    ) -> Palette {
+        let (chart, labs) = pec_labs();
+        let hist = histogram(colors);
+        let rgbs: Vec<Rgb> = chart.iter().map(|(_, t)| rgb_of(t)).collect();
+        let weighted: Vec<(Rgb, f64)> = hist.iter().map(|&(c, w)| (c, w as f64)).collect();
+        let kept = match cost {
+            perceptual::SelectCost::Nearest => {
+                perceptual::select_threads(&perceptual::select_colors(&hist), &labs, n)
+            }
+            perceptual::SelectCost::Mix => perceptual::select_threads_by(&weighted, &rgbs, n, cost),
+        };
+        let colors = perceptual::select_colors(&hist);
+        let kept_labs: Vec<Lab> = kept.iter().map(|&k| labs[k]).collect();
+        let mut sum = vec![([0.0; 3], 0.0); kept.len()];
+        for &(c, w) in &colors {
+            let s = &mut sum[nearest_de(&kept_labs, c)];
+            for (total, v) in s.0.iter_mut().zip(c) {
+                *total += v * w;
+            }
+            s.1 += w;
+        }
+        Palette {
+            means: sum
+                .iter()
+                .zip(&kept_labs)
+                .map(|((s, w), &t)| perceptual::rgb(if *w > 0.0 { s.map(|v| v / w) } else { t }))
+                .collect(),
+            thread_of: (0..kept.len()).collect(),
+            threads: kept.iter().map(|&k| chart[k].1.clone()).collect(),
+            chart: kept.iter().map(|&k| chart[k].0).collect(),
+            perceptual: true,
+            known: Vec::new(),
+        }
+    }
+
+    /// Thread index for `c` (ties to the lower index): the thread of the box mean nearest to it,
+    /// or in OpenStitch mode the thread nearest to it by CIEDE2000.
     pub fn classify(&self, c: Rgb) -> usize {
+        if self.perceptual {
+            return match self.known.binary_search_by_key(&pack(c), |k| k.0) {
+                Ok(i) => self.known[i].2,
+                Err(_) => self.match_thread(c),
+            };
+        }
         self.thread_of
             .get(self.nearest_mean(c))
             .copied()
             .unwrap_or(0)
     }
 
+    /// OpenStitch mode: the thread nearest `c` by CIEDE2000 (ties to the lower index).
+    fn match_thread(&self, c: Rgb) -> usize {
+        let labs: Vec<Lab> = self
+            .threads
+            .iter()
+            .map(|t| perceptual::lab(rgb_of(t)))
+            .collect();
+        nearest_de(&labs, perceptual::lab(c))
+    }
+
+    /// OpenStitch mode: the mean nearest `c` by CIEDE2000 (ties to the lower index).
+    fn match_mean(&self, c: Rgb) -> usize {
+        let labs: Vec<Lab> = self.means.iter().map(|&m| perceptual::lab(m)).collect();
+        nearest_de(&labs, perceptual::lab(c))
+    }
+
     /// Index of the box mean nearest to `c` (ties to the lower index): by CIEDE2000 in
     /// OpenStitch mode, by RGB distance otherwise.
     pub fn nearest_mean(&self, c: Rgb) -> usize {
         if self.perceptual {
-            let l = perceptual::lab(c);
-            let mut best = (f64::INFINITY, 0);
-            for (i, &m) in self.means.iter().enumerate() {
-                let d = perceptual::de2000(l, perceptual::lab(m));
-                if d < best.0 {
-                    best = (d, i);
-                }
-            }
-            return best.1;
+            return match self.known.binary_search_by_key(&pack(c), |k| k.0) {
+                Ok(i) => self.known[i].1,
+                Err(_) => self.match_mean(c),
+            };
         }
         let t = thread(c);
         let mut best = (i64::MAX, 0);
@@ -352,6 +477,37 @@ impl Palette {
         }
         best.1
     }
+}
+
+/// The PEC chart's threads with their chart numbers, and their CIELAB colours.
+fn pec_labs() -> (Vec<(usize, Thread)>, Vec<Lab>) {
+    let chart: Vec<(usize, Thread)> = pec_basic_chart()
+        .iter()
+        .enumerate()
+        .filter_map(|(i, t)| t.clone().map(|t| (i, t)))
+        .collect();
+    let labs = chart
+        .iter()
+        .map(|(_, t)| perceptual::lab(rgb_of(t)))
+        .collect();
+    (chart, labs)
+}
+
+/// Position in `chart` of chart number `i`.
+fn i_of(chart: &[(usize, Thread)], i: usize) -> usize {
+    chart.iter().position(|c| c.0 == i).unwrap_or(0)
+}
+
+/// Index of the colour in `targets` nearest `c` by CIEDE2000 (ties to the lower index).
+fn nearest_de(targets: &[Lab], c: Lab) -> usize {
+    let mut best = (f64::INFINITY, 0);
+    for (i, &t) in targets.iter().enumerate() {
+        let d = perceptual::de2000(c, t);
+        if d < best.0 {
+            best = (d, i);
+        }
+    }
+    best.1
 }
 
 fn pack(c: Rgb) -> u32 {
