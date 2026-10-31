@@ -2,7 +2,9 @@
 
 use openstitch_digitize::autopunch::{self, AutoPunch};
 use openstitch_digitize::palette::{self, Palette};
-use openstitch_digitize::perceptual::{de2000, kmeans, lab, nearest, rgb};
+use openstitch_digitize::perceptual::{
+    de2000, kmeans, lab, nearest, rgb, select_colors, select_threads,
+};
 use openstitch_digitize::{Frame, Mode, Raster};
 
 /// CIEDE2000 against the published test data (Sharma, Wu and Dalal 2005, pairs 1, 7 and 25).
@@ -194,5 +196,51 @@ fn linear_mix_covers_a_mid_grey_by_half() {
     assert!(
         (srgb - (255.0 - 188.0) / 255.0).abs() < 0.02,
         "sRGB mixes {srgb}"
+    );
+}
+
+/// Backward elimination (T4) keeps the threads that serve the image's colours best, never more
+/// than asked, and leaves out threads no colour uses.
+#[test]
+fn thread_selection_keeps_the_threads_that_serve_the_image() {
+    let chart = [
+        lab([255, 255, 255]),
+        lab([250, 250, 250]),
+        lab([200, 20, 30]),
+        lab([210, 30, 40]),
+        lab([20, 40, 200]),
+        lab([0, 0, 0]),
+    ];
+    // Much white, some red, a little blue.
+    let colors = [
+        (lab([252, 252, 252]), 100.0),
+        (lab([205, 25, 35]), 30.0),
+        (lab([25, 45, 195]), 5.0),
+    ];
+    let kept = select_threads(&colors, &chart, 3);
+    assert_eq!(kept.len(), 3);
+    assert!(kept.contains(&4), "the blue keeps its thread: {kept:?}");
+    assert!(kept.iter().any(|&k| k < 2) && kept.iter().any(|&k| k == 2 || k == 3));
+    assert!(!kept.contains(&5), "black serves nothing");
+    // Ten asked, three colours: three threads.
+    assert_eq!(select_threads(&colors, &chart, 10).len(), 3);
+    assert_eq!(select_threads(&colors, &chart, 1).len(), 1);
+    assert_eq!(kept, select_threads(&colors, &chart, 3), "deterministic");
+}
+
+/// A colour list longer than the selection weighs is binned, keeping the total weight.
+#[test]
+fn selection_colours_are_binned_to_the_limit() {
+    let hist: Vec<([u8; 3], u64)> = (0..=255u8)
+        .flat_map(|r| (0..=255u8).step_by(4).map(move |g| ([r, g, 128], 1)))
+        .collect();
+    let colors = select_colors(&hist);
+    assert!(colors.len() <= openstitch_digitize::perceptual::SELECT_COLORS);
+    let total: f64 = colors.iter().map(|c| c.1).sum();
+    assert_eq!(total, hist.len() as f64);
+    assert_eq!(
+        select_colors(&hist[..10]).len(),
+        10,
+        "a short list is kept as it is"
     );
 }
