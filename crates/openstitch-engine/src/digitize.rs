@@ -9,7 +9,9 @@ use crate::session::EngineState;
 use openstitch_core::Thread;
 use openstitch_design::{Contour, DesignObject, LineType};
 use openstitch_digitize::autopunch::{self, AutoPunch};
-use openstitch_digitize::center::{self, FigureOptions, LineImageOptions, RegionSew, SewSettings};
+use openstitch_digitize::center::{
+    self, FigureOptions, LineImageOptions, OpenLine, RegionSew, SewSettings,
+};
 use openstitch_digitize::cross::{self, CrossStitch, CrossType};
 use openstitch_digitize::photo::{self, ColorSet, PhotoMode, PhotoStitch, PhotoStyle};
 use openstitch_digitize::raster::MAX_FILE_BYTES;
@@ -441,7 +443,7 @@ pub fn commands() -> Vec<CommandSpec> {
             Effect::Read,
             placement_docs(figure_docs(vec![])),
             |s, p| {
-                let figure = figure(s, p)?;
+                let figure = figure(s, p, Mode::PeDesign)?;
                 let points = |c: &Contour| -> Vec<[f64; 2]> {
                     c.path()
                         .iter()
@@ -485,9 +487,31 @@ pub fn commands() -> Vec<CommandSpec> {
                     "color",
                     "Region thread (default: each region's image colour)",
                 ),
+                opt(
+                    "compatMode",
+                    "peDesign|openStitch",
+                    "peDesign: as before (default); openStitch: the threshold by Otsu's method unless set; unless lineSew is set, strokes at least 0.6 mm wide as parallel running lines 0.3 mm apart across 1.2 × the measured stroke width, thinner ones as triple running stitch; region threads by CIEDE2000 (docs/research/beyond/image-similarity-plan.md, Phase 5)",
+                ),
             ])),
             |s, p| {
-                let figure = figure(s, p)?;
+                let mode = compat_mode(p)?;
+                let mut figure = figure(s, p, mode)?;
+                // OpenStitch mode chooses the line sewing from the strokes unless it is set.
+                let auto_line = if mode == Mode::OpenStitch && !p.has("lineSew") {
+                    let (lines, kind) = match center::open_stitch_line(&figure) {
+                        OpenLine::Parallel { width_mm, passes } => (
+                            center::parallel_lines(&figure, width_mm, passes),
+                            LineType::Running,
+                        ),
+                        OpenLine::Triple => {
+                            (center::parallel_lines(&figure, 0.0, 1), LineType::Triple)
+                        }
+                    };
+                    figure.lines = lines;
+                    Some(kind)
+                } else {
+                    None
+                };
                 let settings = SewSettings {
                     line: match choice(
                         p,
@@ -495,6 +519,7 @@ pub fn commands() -> Vec<CommandSpec> {
                         "running",
                         &["running", "triple", "zigzag", "none"],
                     )? {
+                        _ if auto_line.is_some() => auto_line,
                         "triple" => Some(LineType::Triple),
                         "zigzag" => Some(LineType::Zigzag),
                         "none" => None,
@@ -519,7 +544,7 @@ pub fn commands() -> Vec<CommandSpec> {
                     },
                     region_thread: thread(p, "regionColor")?,
                 };
-                let objects = center::sew(&figure, &settings);
+                let objects = center::sew_with(&figure, &settings, mode);
                 if objects.is_empty() {
                     return Err(p.failed("nothing to sew with these settings"));
                 }
@@ -542,7 +567,7 @@ fn figure_docs(mut v: Vec<ParamDoc>) -> Vec<ParamDoc> {
         opt(
             "threshold",
             "int 0-255",
-            "Pixels darker than this are lines (default 128)",
+            "Pixels darker than this are lines (default 128; designCenter in OpenStitch mode: from the image by Otsu's method)",
         ),
         opt(
             "resolution",
@@ -576,9 +601,14 @@ fn line_options(p: &Params) -> Result<LineImageOptions, CommandError> {
     })
 }
 
-fn figure(s: &EngineState, p: &Params) -> Result<center::Figure, CommandError> {
+/// Stages 1–3; OpenStitch mode takes the threshold from the image (Otsu) unless it is set.
+fn figure(s: &EngineState, p: &Params, mode: Mode) -> Result<center::Figure, CommandError> {
     let (image, frame) = load(s, p)?;
-    let li = center::line_image(&image, &line_options(p)?);
+    let mut lo = line_options(p)?;
+    if mode == Mode::OpenStitch && !p.has("threshold") {
+        lo.threshold = center::otsu_threshold(&image, lo.resolution);
+    }
+    let li = center::line_image(&image, &lo);
     let options = FigureOptions {
         min_line_mm: p.opt("minLineLength", 1.0, 0.0, 100.0)?,
         min_region_mm2: p.opt("minRegionArea", 4.0, 0.0, 10_000.0)?,
