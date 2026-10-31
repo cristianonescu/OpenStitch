@@ -95,8 +95,8 @@ pub struct PhotoStitch {
     pub color_set: ColorSet,
     /// Colour mode: PE-DESIGN's method, or OpenStitch's: the perceptual palette
     /// ([`Palette::build_perceptual`]; Photo Stitch 2's Auto Select too), dithering in CIELAB
-    /// where the image is tonal (Photo Stitch 1, [`palette::dither_tonal`]) and the line screen's mix in linear
-    /// light (Photo Stitch 2, [`crate::screen::Shares::colour_in`]).
+    /// where the image is tonal (Photo Stitch 1, [`palette::dither_tonal`]) and the line
+    /// screen's mix in linear light (Photo Stitch 2, [`crate::screen::Shares::colour_in`]).
     pub compat: Mode,
 }
 
