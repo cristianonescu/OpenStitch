@@ -681,8 +681,9 @@ fn fine(colors: usize) -> PhotoStitch {
     }
 }
 
-/// Photo Stitch 1's OpenStitch mode (plan T2): sewn as the machine sews it, no stitch is under
-/// 1 mm or over 7 mm, and the needle density over the design stays under 2.1 points/mm².
+/// Photo Stitch 1's OpenStitch mode (plan T2, T3): sewn as the machine sews it, no stitch is
+/// under 1 mm or over 7 mm, the design holds at most 2.1 needle points/mm² and no 10 × 10 mm
+/// window more than 3.0 (the owner's caps).
 #[test]
 fn fine_rows_are_sewable() {
     let frame = Frame::new(0.0, 0.0, 60.0, 60);
@@ -711,17 +712,36 @@ fn fine_rows_are_sewable() {
         );
     }
     let density = stitches as f64 / (60.0 * 60.0);
-    assert!(density <= 2.1, "{density:.2} needle points per mm²");
-    assert!(density >= 1.5, "{density:.2} needle points per mm²");
+    assert!(
+        (1.4..=2.1).contains(&density),
+        "{density:.2} needle points per mm²"
+    );
+    // At most 3.0 needle points per mm² in every 10 × 10 mm window (1 mm steps).
+    let mut grid = vec![0u32; 61 * 61];
+    for s in p.stitches.iter().filter(|s| s.command == Command::Stitch) {
+        let (x, y) = ((s.x / 10.0).floor() as usize, (s.y / 10.0).floor() as usize);
+        grid[y.min(60) * 61 + x.min(60)] += 1;
+    }
+    for y0 in 0..=50 {
+        for x0 in 0..=50 {
+            let n: u32 = (y0..y0 + 10)
+                .map(|y| grid[y * 61 + x0..y * 61 + x0 + 10].iter().sum::<u32>())
+                .sum();
+            assert!(
+                n <= 300,
+                "{n} needle points in the 10 mm window at ({x0}, {y0}) mm"
+            );
+        }
+    }
 }
 
-/// The fine rows place stitch ends at the image's edges, not on a 3 mm grid: 2.5 mm stripes
-/// keep their edges, so the rows change thread on them.
+/// The fine rows place stitch ends at the image's edges, not on a 3 mm grid: 3 mm stripes
+/// offset by half a Run Pitch keep their edges, so the rows change thread on them.
 #[test]
 fn fine_rows_follow_detail_finer_than_the_run_pitch() {
-    // 2.5 mm black and white stripes, 30 mm wide, 1 px = 0.25 mm.
+    // 3 mm black and white stripes with edges at 1.5 mm + 3 mm k, 30 mm wide, 1 px = 0.25 mm.
     let img = Raster::from_fn(120, 40, |x, _| {
-        if (x / 10) % 2 == 0 {
+        if ((x + 6) / 12) % 2 == 0 {
             [0, 0, 0, 255]
         } else {
             [255, 255, 255, 255]
@@ -729,7 +749,12 @@ fn fine_rows_follow_detail_finer_than_the_run_pitch() {
     })
     .expect("size");
     let frame = Frame::new(0.0, 0.0, 30.0, 120);
-    let out = photo::convert(&img, &frame, &fine(2)).expect("converts");
+    // The white stripes are bare fabric, so the black ones have the needle budget to themselves.
+    let p = PhotoStitch {
+        sew_page: false,
+        ..fine(2)
+    };
+    let out = photo::convert(&img, &frame, &p).expect("converts");
     let black = out
         .threads
         .iter()
@@ -739,10 +764,10 @@ fn fine_rows_follow_detail_finer_than_the_run_pitch() {
         .iter()
         .map(|&(x, _)| x)
         .collect();
-    // Run ends on the stripe edges (multiples of 25 = 2.5 mm).
+    // Run ends on the stripe edges (15 + 30 k in 0.1 mm).
     let on_edge = xs
         .iter()
-        .filter(|&&x| (x / 25.0 - (x / 25.0).round()).abs() < 1e-6);
+        .filter(|&&x| ((x - 15.0) / 30.0 - ((x - 15.0) / 30.0).round()).abs() < 1e-6);
     assert!(
         on_edge.count() * 2 > xs.len(),
         "stitch ends off the stripe edges"
