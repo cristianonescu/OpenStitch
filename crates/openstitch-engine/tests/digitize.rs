@@ -125,6 +125,35 @@ fn design_center_stages() {
         last.line.as_ref().map(|l| l.thread.name.as_deref()),
         Some(Some("Red"))
     );
+
+    // OpenStitch mode: the sample's 3 mm strokes sew as parallel running lines, one open path
+    // per line, unless lineSew is set.
+    let pe_points = s.design().objects.last().expect("lines").contours[0]
+        .points
+        .len();
+    let r = run(
+        &mut s,
+        "digitize.designCenter",
+        json!({"path": "sample.png", "width": 60, "compatMode": "openStitch"}),
+    );
+    assert!(!r["ids"].as_array().expect("ids").is_empty());
+    let last = s.design().objects.last().expect("lines object");
+    assert_eq!(
+        last.line.as_ref().map(|l| l.kind),
+        Some(openstitch_design::LineType::Running)
+    );
+    assert!(!last.contours[0].closed);
+    assert!(last.contours[0].points.len() > pe_points);
+    run(
+        &mut s,
+        "digitize.designCenter",
+        json!({"path": "sample.png", "width": 60, "compatMode": "openStitch", "lineSew": "zigzag"}),
+    );
+    let last = s.design().objects.last().expect("lines object");
+    assert_eq!(
+        last.line.as_ref().map(|l| l.kind),
+        Some(openstitch_design::LineType::Zigzag)
+    );
 }
 
 #[test]
@@ -246,6 +275,10 @@ fn bad_digitize_parameters_fail_cleanly() {
         (
             "digitize.designCenter",
             json!({"path": "sample.png", "lineSew": "chain"}),
+        ),
+        (
+            "digitize.designCenter",
+            json!({"path": "sample.png", "compatMode": "pe"}),
         ),
         (
             "digitize.designCenter",

@@ -11,12 +11,21 @@
 //!
 //! Specified from PE-DESIGN 11's public guide (Design Center); the algorithms are this
 //! project's own.
+//!
+//! OpenStitch mode (B16.1, docs/research/beyond/image-similarity-plan.md, Phase 5) keeps the
+//! stages and changes three choices, through functions of their own so the PE-DESIGN path is
+//! untouched: the line threshold from the image by Otsu's method ([`otsu_threshold`]) instead
+//! of a fixed 128; the line sewing from the measured stroke width ([`open_stitch_line`]:
+//! bold strokes as parallel running lines across about their width ([`parallel_lines`]),
+//! thin ones as triple running stitch, where a single running stitch draws every line 0.4 mm
+//! wide); and region threads by CIEDE2000
+//! ([`sew_with`]).
 
-use crate::DigitizeError;
-use crate::palette::nearest_pec;
+use crate::palette::{Palette, nearest_pec};
 use crate::raster::{Frame, Raster};
 use crate::regions::{self, NONE, TraceOptions};
 use crate::trace;
+use crate::{DigitizeError, Mode};
 use openstitch_core::Thread;
 use openstitch_design::{
     Contour, DesignObject, LineSewing, LineType, RegionSewing, RegionType, Vec2, v2,
@@ -65,6 +74,44 @@ impl LineImage {
         })
         .unwrap_or_else(|_| self.image.clone())
     }
+}
+
+/// OpenStitch mode's stage 1 threshold: Otsu's method on the luminance (over white) of the
+/// working raster at `resolution`, the level that best splits the pixels into two classes
+/// (largest between-class variance; ties to the lower level). Pixels darker than it are lines.
+/// An image of one level gives 128.
+pub fn otsu_threshold(image: &Raster, resolution: u32) -> f64 {
+    let work = image.fit(resolution.clamp(16, 2048));
+    let mut hist = [0u64; 256];
+    for y in 0..work.height() {
+        for x in 0..work.width() {
+            hist[work.luma_over_white(x, y).round().clamp(0.0, 255.0) as usize] += 1;
+        }
+    }
+    let total: u64 = hist.iter().sum();
+    let sum: f64 = hist
+        .iter()
+        .enumerate()
+        .map(|(v, &n)| v as f64 * n as f64)
+        .sum();
+    let (mut dark, mut dark_sum) = (0u64, 0.0);
+    let mut best = (0.0, 128usize);
+    // Threshold t: levels below t are lines.
+    for t in 1..256 {
+        dark += hist[t - 1];
+        dark_sum += (t - 1) as f64 * hist[t - 1] as f64;
+        let light = total - dark;
+        if dark == 0 || light == 0 {
+            continue;
+        }
+        let (wd, wl) = (dark as f64, light as f64);
+        let diff = dark_sum / wd - (sum - dark_sum) / wl;
+        let between = wd * wl * diff * diff;
+        if between > best.0 {
+            best = (between, t);
+        }
+    }
+    best.1 as f64
 }
 
 /// Stage 1.
@@ -465,8 +512,174 @@ impl Default for SewSettings {
     }
 }
 
+/// OpenStitch mode: strokes at least this wide (median, mm) sew as parallel running lines,
+/// thinner ones as one triple running line.
+pub const BOLD_STROKE_MM: f64 = 0.6;
+
+/// OpenStitch mode: the band the parallel lines cover over the measured median stroke width.
+/// The median is taken on the skeleton, where a stroke's distance map is lowest, and bold
+/// outlines are wider than the median: on the butterfly outline (median 0.83 mm) the
+/// similarity score (`tools/image_similarity.py`) is 94.4 at 1.2×, 95.3 at 1.3×, 95.2 at 1.4×.
+pub const BOLD_WIDTH_FACTOR: f64 = 1.3;
+
+/// OpenStitch mode: most distance between neighbouring parallel lines, mm; 0.4 mm thread this
+/// far apart leaves no fabric between them.
+pub const PARALLEL_SPACING_MM: f64 = 0.2;
+
+/// Thread width the parallel lines are laid out for, mm.
+const THREAD_MM: f64 = 0.4;
+
+/// OpenStitch mode's line sewing for a figure.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum OpenLine {
+    /// Thin strokes: one triple running line on the skeleton.
+    Triple,
+    /// Bold strokes: `passes` running lines side by side, covering a band `width_mm` wide.
+    Parallel { width_mm: f64, passes: usize },
+}
+
+/// OpenStitch mode's line sewing for a figure: strokes whose median width is at least
+/// [`BOLD_STROKE_MM`] become parallel running lines covering [`BOLD_WIDTH_FACTOR`] × that
+/// width (at most 6 mm), at most [`PARALLEL_SPACING_MM`] apart; thinner strokes a triple
+/// running line. Parallel lines need far fewer needle points than a zigzag of the same width
+/// (about 1.5 per mm of line against 4.5), so dense line art stays within the sewability limit
+/// of 2.1 points per mm².
+pub fn open_stitch_line(f: &Figure) -> OpenLine {
+    if f.line_width_mm < BOLD_STROKE_MM {
+        return OpenLine::Triple;
+    }
+    let width_mm = (f.line_width_mm * BOLD_WIDTH_FACTOR).min(6.0);
+    // An even number of lines, so an open line's path ends where it began: the figure's next
+    // line then starts nearer (on the butterfly 67 trims against 92 with an odd number).
+    let gaps = ((width_mm - THREAD_MM).max(0.0) / PARALLEL_SPACING_MM).ceil() as usize;
+    let passes = (gaps + 1).next_multiple_of(2);
+    OpenLine::Parallel {
+        width_mm,
+        passes: passes.max(2),
+    }
+}
+
+/// OpenStitch mode: shortest stitch of the parallel lines, mm.
+pub const MIN_STITCH_MM: f64 = 1.0;
+
+/// `pts` without the points nearer than `min` to the previous point kept; the last point is
+/// always kept, replacing the one before it when they are nearer than `min`.
+fn spaced(pts: &[Vec2], min: f64) -> Vec<Vec2> {
+    let mut out: Vec<Vec2> = Vec::with_capacity(pts.len());
+    for (i, &q) in pts.iter().enumerate() {
+        match out.last() {
+            Some(&l) if l.distance(q) < min => {
+                if i + 1 == pts.len() {
+                    if out.len() > 1 {
+                        out.pop();
+                    }
+                    out.push(q);
+                }
+            }
+            _ => out.push(q),
+        }
+    }
+    out
+}
+
+/// `pts` moved sideways by `d` (to the left of the drawing direction, design units): each
+/// vertex along the mean of its segments' normals, mitred and capped at twice `d` at sharp
+/// corners. Repeated points are dropped first.
+fn offset(pts: &[Vec2], closed: bool, d: f64) -> Vec<Vec2> {
+    let mut p: Vec<Vec2> = Vec::with_capacity(pts.len());
+    for &q in pts {
+        if p.last().is_none_or(|l: &Vec2| l.distance(q) > 1e-6) {
+            p.push(q);
+        }
+    }
+    if closed && p.len() > 1 && p[0].distance(p[p.len() - 1]) <= 1e-6 {
+        p.pop();
+    }
+    let n = p.len();
+    if n < 2 {
+        return p;
+    }
+    let normal = |a: Vec2, b: Vec2| {
+        let (dx, dy) = (b.x - a.x, b.y - a.y);
+        let len = (dx * dx + dy * dy).sqrt();
+        (-dy / len, dx / len)
+    };
+    let segs = if closed { n } else { n - 1 };
+    let normals: Vec<(f64, f64)> = (0..segs).map(|i| normal(p[i], p[(i + 1) % n])).collect();
+    let mut out: Vec<Vec2> = (0..n)
+        .map(|i| {
+            let before = if i > 0 {
+                Some(normals[i - 1])
+            } else if closed {
+                Some(normals[segs - 1])
+            } else {
+                None
+            };
+            let after = (i < segs).then(|| normals[i]);
+            let (mx, my) = match (before, after) {
+                (Some(a), Some(b)) => {
+                    let (sx, sy) = (a.0 + b.0, a.1 + b.1);
+                    // The mitre: the mean normal scaled by 1 / cos(half the turn), capped at 2.
+                    let dot = (sx * a.0 + sy * a.1).max(0.5);
+                    (sx / dot, sy / dot)
+                }
+                (Some(a), None) | (None, Some(a)) => a,
+                (None, None) => (0.0, 0.0),
+            };
+            v2(p[i].x + mx * d, p[i].y + my * d)
+        })
+        .collect();
+    if closed {
+        out.push(out[0]);
+    }
+    out
+}
+
+/// OpenStitch mode: each of the figure's lines as `passes` running lines side by side across a
+/// band `width_mm` wide (one pass: the line itself, as a polyline with its points thinned), sewn as one path: along the line on one side, back along the next,
+/// and so on, so the needle never jumps between them. The line's points are thinned to at least
+/// [`MIN_STITCH_MM`] apart first, and a step from one line to the next shorter than that is not
+/// sewn: the path goes on to the next line's second point.
+pub fn parallel_lines(f: &Figure, width_mm: f64, passes: usize) -> Vec<Contour> {
+    let passes = passes.max(1);
+    let band = (width_mm - THREAD_MM).max(0.0) * 10.0;
+    let step = if passes > 1 {
+        band / (passes - 1) as f64
+    } else {
+        0.0
+    };
+    f.lines
+        .iter()
+        .map(|c| {
+            let path = spaced(&c.path(), MIN_STITCH_MM * 10.0);
+            let mut out: Vec<Vec2> = Vec::new();
+            for k in 0..passes {
+                let d = -band / 2.0 + k as f64 * step;
+                let mut line = spaced(&offset(&path, c.closed, d), MIN_STITCH_MM * 10.0);
+                if k % 2 == 1 && !c.closed {
+                    line.reverse();
+                }
+                let mut points = line.into_iter();
+                if let (Some(&last), Some(first)) = (out.last(), points.clone().next())
+                    && last.distance(first) < MIN_STITCH_MM * 10.0
+                {
+                    points.next();
+                }
+                out.extend(points);
+            }
+            Contour::new(out, false)
+        })
+        .collect()
+}
+
 /// Stage 4: region objects (largest first) then one line object holding every line.
 pub fn sew(f: &Figure, s: &SewSettings) -> Vec<DesignObject> {
+    sew_with(f, s, Mode::PeDesign)
+}
+
+/// Stage 4 in either mode. OpenStitch mode matches each region's mean colour to the nearest
+/// PEC thread by CIEDE2000 instead of RGB distance.
+pub fn sew_with(f: &Figure, s: &SewSettings, mode: Mode) -> Vec<DesignObject> {
     let mut out = Vec::new();
     for (i, r) in f.regions.iter().enumerate() {
         let luma = 0.299 * f64::from(r.color[0])
@@ -479,7 +692,14 @@ pub fn sew(f: &Figure, s: &SewSettings) -> Vec<DesignObject> {
             RegionSew::Auto if luma >= 230.0 => continue,
             RegionSew::Auto => RegionType::Fill,
         };
-        let thread = s.region_thread.clone().unwrap_or_else(|| r.thread.clone());
+        let thread = s.region_thread.clone().unwrap_or_else(|| match mode {
+            Mode::PeDesign => r.thread.clone(),
+            Mode::OpenStitch => Palette::build_perceptual(&[r.color], 1)
+                .threads
+                .first()
+                .cloned()
+                .unwrap_or_else(|| r.thread.clone()),
+        });
         let mut o = DesignObject::shape(
             r.contours.clone(),
             Some(RegionSewing::new(kind, thread)),
