@@ -302,6 +302,32 @@ fn at_total(sum: &[u64], cols: usize, rows: usize) -> u64 {
     sum[rows * (cols + 1) + cols]
 }
 
+/// Whether the per-cell needle points `n` exceed `cap.total` over the grid, or `cap.points` in
+/// some window of `cap.window`×`cap.window` cells (scaled down as [`fit_cap`] does for a design
+/// smaller than the window).
+pub fn over_cap(cols: usize, rows: usize, cap: Cap, n: &[u32]) -> bool {
+    let w = cap.window.min(cols).min(rows).max(1);
+    let limit = cap.points * (w * w) as f64 / (cap.window * cap.window).max(1) as f64;
+    let mut sum = vec![0u64; (cols + 1) * (rows + 1)];
+    for y in 0..rows {
+        let mut line = 0u64;
+        for x in 0..cols {
+            line += u64::from(n[y * cols + x]);
+            sum[(y + 1) * (cols + 1) + x + 1] = sum[y * (cols + 1) + x + 1] + line;
+        }
+    }
+    let at = |x: usize, y: usize| sum[y * (cols + 1) + x];
+    if at_total(&sum, cols, rows) as f64 > cap.total {
+        return true;
+    }
+    (0..=rows - w).any(|y0| {
+        (0..=cols - w).any(|x0| {
+            let pts = (at(x0 + w, y0 + w) + at(x0, y0)) - (at(x0 + w, y0) + at(x0, y0 + w));
+            pts as f64 > limit
+        })
+    })
+}
+
 /// The run-length-constrained Viterbi over one row segment, with its buffers kept between
 /// calls.
 struct Dp {

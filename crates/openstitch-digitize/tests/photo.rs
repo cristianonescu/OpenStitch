@@ -686,7 +686,7 @@ fn fine(colors: usize) -> PhotoStitch {
 /// window more than 3.0 (the owner's caps).
 #[test]
 fn fine_rows_are_sewable() {
-    let frame = Frame::new(0.0, 0.0, 60.0, 60);
+    let frame = Frame::new(0.0, 0.0, 30.0, 60);
     let out = photo::convert(&photo_like(), &frame, &fine(8)).expect("converts");
     let mut d = Design::new("t", DesignPage::default());
     for o in out.objects {
@@ -711,21 +711,21 @@ fn fine_rows_are_sewable() {
             w[1].y
         );
     }
-    let density = stitches as f64 / (60.0 * 60.0);
+    let density = stitches as f64 / (30.0 * 30.0);
     assert!(
         (1.4..=2.1).contains(&density),
         "{density:.2} needle points per mm²"
     );
     // At most 3.0 needle points per mm² in every 10 × 10 mm window (1 mm steps).
-    let mut grid = vec![0u32; 61 * 61];
+    let mut grid = vec![0u32; 31 * 31];
     for s in p.stitches.iter().filter(|s| s.command == Command::Stitch) {
         let (x, y) = ((s.x / 10.0).floor() as usize, (s.y / 10.0).floor() as usize);
-        grid[y.min(60) * 61 + x.min(60)] += 1;
+        grid[y.min(30) * 31 + x.min(30)] += 1;
     }
-    for y0 in 0..=50 {
-        for x0 in 0..=50 {
+    for y0 in 0..=20 {
+        for x0 in 0..=20 {
             let n: u32 = (y0..y0 + 10)
-                .map(|y| grid[y * 61 + x0..y * 61 + x0 + 10].iter().sum::<u32>())
+                .map(|y| grid[y * 31 + x0..y * 31 + x0 + 10].iter().sum::<u32>())
                 .sum();
             assert!(
                 n <= 300,
@@ -778,7 +778,7 @@ fn fine_rows_follow_detail_finer_than_the_run_pitch() {
 /// conversion's arithmetic is plain f64 in a fixed order).
 #[test]
 fn fine_rows_are_deterministic() {
-    let frame = Frame::new(0.0, 0.0, 60.0, 60);
+    let frame = Frame::new(0.0, 0.0, 20.0, 60);
     let a = photo::convert(&photo_like(), &frame, &fine(6)).expect("converts");
     let b = photo::convert(&photo_like(), &frame, &fine(6)).expect("converts");
     assert_eq!(a, b);

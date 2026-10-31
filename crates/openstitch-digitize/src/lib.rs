@@ -10,6 +10,7 @@ pub mod autopunch;
 pub mod center;
 pub mod coverage;
 pub mod cross;
+pub mod optimise;
 pub mod palette;
 pub mod perceptual;
 pub mod photo;
