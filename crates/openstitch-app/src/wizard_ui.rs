@@ -5,7 +5,9 @@
 use crate::app::EditorApp;
 use eframe::egui;
 use openstitch_app::editor::CommandRequest;
-use openstitch_app::editor::wizard::{ImageWizard, LINE_SEWS, Method, REGION_SEWS};
+use openstitch_app::editor::wizard::{
+    ImageWizard, LINE_SEWS, Method, REGION_SEWS, min_area_default, satin_default,
+};
 
 pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.wizard.open;
@@ -104,10 +106,20 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                 match w.method {
                     Method::AutoPunch => {
                         ui.label("Smallest region");
-                        ui.add(egui::Slider::new(&mut w.min_area, 0.0..=50.0).suffix(" mm²"));
+                        if ui
+                            .add(egui::Slider::new(&mut w.min_area, 0.0..=50.0).suffix(" mm²"))
+                            .changed()
+                        {
+                            w.min_area_set = true;
+                        }
                         ui.end_row();
                         ui.label("Satin up to");
-                        ui.add(egui::Slider::new(&mut w.satin_max, 1.0..=12.0).suffix(" mm"));
+                        if ui
+                            .add(egui::Slider::new(&mut w.satin_max, 1.0..=12.0).suffix(" mm"))
+                            .changed()
+                        {
+                            w.satin_set = true;
+                        }
                         ui.end_row();
                     }
                     Method::CrossStitch => {
@@ -140,18 +152,28 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                         ui.end_row();
                     }
                     Method::DesignCenter => {
-                        ui.label("Line threshold");
-                        ui.add(egui::Slider::new(&mut w.threshold, 1..=254));
-                        ui.end_row();
-                        ui.label("Lines");
-                        combo(ui, "lineSew", &mut w.line_sew, &LINE_SEWS);
-                        ui.end_row();
+                        // OpenStitch mode may choose the threshold and line sewing itself.
+                        if !(w.open_stitch && w.auto_lines) {
+                            ui.label("Line threshold");
+                            ui.add(egui::Slider::new(&mut w.threshold, 1..=254));
+                            ui.end_row();
+                            ui.label("Lines");
+                            combo(ui, "lineSew", &mut w.line_sew, &LINE_SEWS);
+                            ui.end_row();
+                        }
                         ui.label("Regions");
                         combo(ui, "regionSew", &mut w.region_sew, &REGION_SEWS);
                         ui.end_row();
                     }
                 }
-                if matches!(w.method, Method::AutoPunch | Method::CrossStitch) {
+                if w.method == Method::AutoPunch && w.open_stitch {
+                    ui.label("");
+                    ui.checkbox(&mut w.sew_background, "Sew the background").on_hover_text(
+                        "Everything in the picture is sewn. Off leaves out the colour covering \
+                         most of the border; a background of the fabric's colour is never sewn.",
+                    );
+                    ui.end_row();
+                } else if matches!(w.method, Method::AutoPunch | Method::CrossStitch) {
                     ui.label("");
                     ui.checkbox(&mut w.skip_background, "Leave out the background colour");
                     ui.end_row();
@@ -160,6 +182,12 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                     let improved = if w.method == Method::AutoPunch {
                         "Picks colours and threads by how they look (CIELAB, CIEDE2000) and merges \
                          specks under 3 mm², for fewer trims; line art keeps its lines."
+                    } else if w.method == Method::CrossStitch {
+                        "Each cell takes its mean colour, threads chosen by how they look, and \
+                         crosses fill their cells."
+                    } else if w.method == Method::DesignCenter {
+                        "Finds the line threshold itself and sews lines as wide as the drawing's; \
+                         region threads by how they look."
                     } else if w.method == Method::PhotoLines {
                         "Picks Auto Select's threads by how they look (CIELAB, CIEDE2000) and \
                          mixes the lines in linear light, for truer colour."
@@ -167,25 +195,29 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                         "Picks threads and mixes them by how they look (CIELAB, CIEDE2000), for \
                          truer colour; a few more trims."
                     };
-                    ui.label("Mode");
+                    // "Method", not "Mode": Photo Stitch's Colour / Mono row is its Mode.
+                    ui.label("Method");
                     ui.horizontal(|ui| {
                         let before = w.open_stitch;
                         let mut open_stitch = w.open_stitch;
-                        ui.radio_value(&mut open_stitch, false, "PE-DESIGN")
+                        ui.radio_value(&mut open_stitch, false, "PE-DESIGN-compatible")
                             .on_hover_text("Converts as PE-DESIGN 11.50 does (RGB colour reduction and thread matching).");
                         ui.radio_value(&mut open_stitch, true, "OpenStitch")
                             .on_hover_text(improved);
                         w.change(|w| w.open_stitch = open_stitch);
-                        // Auto Punch's small-region default follows the mode unless it was changed.
-                        if before != w.open_stitch && w.method == Method::AutoPunch {
-                            let (from, to) = if w.open_stitch { (1.0, 3.0) } else { (3.0, 1.0) };
-                            if w.min_area == from {
-                                w.min_area = to;
-                            }
+                        // Auto Punch's small-region area shows the mode's default until it is set.
+                        if before != w.open_stitch && !w.min_area_set {
+                            w.min_area = min_area_default(w.open_stitch);
+                        }
+                        if before != w.open_stitch && !w.satin_set {
+                            w.satin_max = satin_default(w.open_stitch);
                         }
                     });
                     ui.end_row();
                     if w.open_stitch {
+                        open_stitch_rows(ui, w);
+                    }
+                    if w.open_stitch && w.has_fidelity() {
                         ui.label("Fidelity");
                         ui.horizontal(|ui| {
                             let mut high = w.high_fidelity;
@@ -198,7 +230,7 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                             w.change(|w| w.high_fidelity = high);
                         });
                         ui.end_row();
-                        if w.method != Method::PhotoLines {
+                        if matches!(w.method, Method::AutoPunch | Method::PhotoFill) {
                             threads_rows(ui, w, &charts);
                         }
                     }
@@ -218,6 +250,49 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
     app.wizard.open = open;
     if convert {
         run(app);
+    }
+}
+
+/// OpenStitch mode's own options per tool (B16.1): Cross Stitch's filled cells, Design
+/// Center's automatic threshold and lines, Photo Stitch 1's trims.
+fn open_stitch_rows(ui: &mut egui::Ui, w: &mut ImageWizard) {
+    match w.method {
+        Method::CrossStitch => {
+            ui.label("");
+            ui.checkbox(&mut w.cross_fill, "Fill each cell")
+                .on_hover_text("Parallel diagonals about 0.3 mm apart instead of one cross.");
+            ui.end_row();
+            ui.label("");
+            ui.checkbox(&mut w.part_crosses, "Part crosses on edges")
+                .on_hover_text(
+                    "A cell split by an edge becomes a three-quarter and a quarter cross.",
+                );
+            ui.end_row();
+        }
+        Method::DesignCenter => {
+            ui.label("");
+            ui.checkbox(&mut w.auto_lines, "Automatic threshold and lines")
+                .on_hover_text(
+                    "The threshold by Otsu's method; lines sewn as wide as the drawing's.",
+                );
+            ui.end_row();
+        }
+        Method::PhotoFill if !w.mono => {
+            ui.label("Trims");
+            ui.horizontal(|ui| {
+                let mut all = w.all_trims();
+                ui.radio_value(&mut all, false, "Fewer").on_hover_text(
+                    "Short travel stitches up to 2 mm instead of about half the trims.",
+                );
+                ui.radio_value(&mut all, true, "All")
+                    .on_hover_text("Every jump trimmed: the best likeness.");
+                if all != w.all_trims() {
+                    w.all_trims = Some(all);
+                }
+            });
+            ui.end_row();
+        }
+        _ => {}
     }
 }
 
