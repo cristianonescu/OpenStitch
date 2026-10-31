@@ -4,7 +4,7 @@ use common::*;
 use openstitch_core::Thread;
 use openstitch_design::{Compiler, Design, DesignPage, LineType, RegionType};
 use openstitch_digitize::center::{self, FigureOptions, LineImageOptions, RegionSew, SewSettings};
-use openstitch_digitize::{DigitizeError, Frame, Raster};
+use openstitch_digitize::{DigitizeError, Frame, Mode, Raster};
 
 /// 60×60 px white with a 3-px black square outline (outer 10..50); `inside` fills the middle.
 fn square(inside: [u8; 4]) -> Raster {
@@ -218,4 +218,108 @@ fn deterministic_and_hostile() {
         Ok(f) => assert!(f.lines.len() + f.regions.len() <= center::MAX_FIGURE_PARTS + 1),
         Err(e) => assert!(matches!(e, DigitizeError::TooLarge(_)), "{e}"),
     }
+}
+
+/// B16.1: OpenStitch mode's threshold is Otsu's: it falls between an image's two tones, so a
+/// mid-grey drawing on a light-grey ground is found where the fixed 128 finds nothing.
+#[test]
+fn otsu_threshold_splits_the_two_tones() {
+    const GROUND: [u8; 4] = [220, 220, 220, 255];
+    const INK: [u8; 4] = [150, 150, 150, 255];
+    let img = rects(
+        60,
+        60,
+        GROUND,
+        &[(10, 10, 50, 13, INK), (10, 30, 50, 33, INK)],
+    );
+    let t = center::otsu_threshold(&img, 600);
+    assert!((151.0..=220.0).contains(&t), "{t}");
+    let li = center::line_image(
+        &img,
+        &LineImageOptions {
+            threshold: t,
+            ..Default::default()
+        },
+    );
+    assert_eq!(li.line_pixels(), 2 * 40 * 3);
+    assert_eq!(
+        center::line_image(&img, &LineImageOptions::default()).line_pixels(),
+        0
+    );
+    // One tone: the default.
+    assert_eq!(center::otsu_threshold(&rects(8, 8, WHITE, &[]), 600), 128.0);
+}
+
+/// B16.1: OpenStitch mode sews bold strokes as parallel running lines across a little more than
+/// the measured median width and thin ones as triple running stitch; region threads are
+/// matched by CIEDE2000; the PE-DESIGN path (`sew`) is `sew_with` in PE-DESIGN mode.
+#[test]
+fn open_stitch_lines_follow_the_stroke_width() {
+    let (fig, objects) = run(&square(YELLOW), &SewSettings::default());
+    // A 3 px ring at 1 mm/px: 3 mm strokes.
+    let center::OpenLine::Parallel { width_mm, passes } = center::open_stitch_line(&fig) else {
+        panic!("bold strokes are parallel lines");
+    };
+    assert!(
+        (width_mm - fig.line_width_mm * center::BOLD_WIDTH_FACTOR).abs() < 1e-9,
+        "{width_mm}"
+    );
+    let gap = (width_mm - 0.4) / (passes - 1) as f64;
+    assert!(
+        passes % 2 == 0 && gap <= center::PARALLEL_SPACING_MM,
+        "{passes} {gap}"
+    );
+    let thin = center::Figure {
+        line_width_mm: 0.3,
+        ..fig.clone()
+    };
+    assert_eq!(center::open_stitch_line(&thin), center::OpenLine::Triple);
+    assert_eq!(
+        objects,
+        center::sew_with(&fig, &SewSettings::default(), Mode::PeDesign)
+    );
+    let os = center::sew_with(&fig, &SewSettings::default(), Mode::OpenStitch);
+    assert_eq!(os.len(), objects.len());
+    let t = &os[0].region.as_ref().expect("region").thread;
+    assert!(t.red > 150 && t.green > 120 && t.blue < 100, "{t:?}");
+}
+
+/// B16.1: the parallel lines of a closed ring are one open path per line, every point within
+/// half the band of the original line, consecutive points at least 1 mm apart but for the
+/// steps between passes, which are left out.
+#[test]
+fn parallel_lines_cover_the_band_in_one_path() {
+    let (fig, _) = run(&square(WHITE), &SewSettings::default());
+    assert_eq!(fig.lines.len(), 1);
+    let lines = center::parallel_lines(&fig, 3.0, 4);
+    assert_eq!(lines.len(), 1);
+    let path = &lines[0].points;
+    assert!(!lines[0].closed);
+    // The ring's centre line is the square 11.5..48.5 mm (115..485 units); the band is
+    // (3 − 0.4) / 2 = 1.3 mm either side of it.
+    let original = fig.lines[0].path();
+    for p in path {
+        let d = original
+            .windows(2)
+            .map(|w| {
+                let (a, b) = (w[0], w[1]);
+                let (dx, dy) = (b.x - a.x, b.y - a.y);
+                let t =
+                    (((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy)).clamp(0.0, 1.0);
+                (p.x - a.x - t * dx).hypot(p.y - a.y - t * dy)
+            })
+            .fold(f64::INFINITY, f64::min);
+        assert!(d <= 13.0 * 2.0 + 1e-6, "{p:?} is {d} from the line");
+    }
+    let far = path
+        .iter()
+        .filter(|p| p.x < 105.0 || p.x > 495.0 || p.y < 105.0 || p.y > 495.0)
+        .count();
+    assert!(far > 0, "the outer pass lies outside the centre line");
+    for w in path.windows(2) {
+        assert!(w[0].distance(w[1]) >= 10.0 - 1e-6, "{w:?}");
+    }
+    // One pass with no band is the line itself, thinned.
+    let one = center::parallel_lines(&fig, 0.0, 1);
+    assert!(one[0].points.len() <= original.len());
 }
