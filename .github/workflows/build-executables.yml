@@ -217,6 +217,8 @@ jobs:
           $name = "OpenStitch-$env:LABEL-windows-x86_64"
           New-Item -ItemType Directory -Force "stage-win\$name" | Out-Null
           Copy-Item bin\openstitch.exe, README.md, THIRD_PARTY_NOTICES.md, LICENSE-MIT, LICENSE-APACHE, assets\icons\openstitch.ico "stage-win\$name\"
+          # The ready-to-sew kit Help > Ready-to-Sew Designs opens (examples/sew).
+          Copy-Item -Recurse examples\sew "stage-win\$name\sew"
           Compress-Archive -Path "stage-win\$name" -DestinationPath "dist\$name.zip"
 
       - name: WiX Toolset 3

@@ -1079,6 +1079,21 @@ pub fn help_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
             "https://github.com/cristianonescu/OpenStitch#readme",
         ));
     }
+    if ui
+        .button("Ready-to-Sew Designs")
+        .on_hover_text("Calibration designs, machine checks and a design for each feature, ready for the machine")
+        .clicked()
+    {
+        let exe = std::env::current_exe().ok();
+        ui.ctx().open_url(egui::OpenUrl::new_tab(
+            openstitch_app::editor::sew_kit::target(exe.as_deref()),
+        ));
+    }
+    if ui.button("Ready-to-Sew Designs Online").clicked() {
+        ui.ctx().open_url(egui::OpenUrl::new_tab(
+            openstitch_app::editor::sew_kit::ONLINE,
+        ));
+    }
     if ui.button("Keyboard Shortcuts").clicked() {
         app.ui.shortcuts_open = true;
     }

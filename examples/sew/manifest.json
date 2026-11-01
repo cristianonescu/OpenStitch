@@ -1,0 +1,802 @@
+{
+ "calibration/t1-swatches.pes": {
+  "title": "T1 calibration card: thread swatches and coverage ramp",
+  "about": "Six threads (White, Black, Red, Blue, Yellow, Leaf Green) as 12 mm fills at 3.0, 4.5 and 6.0 rows/mm, then Black at 0.5, 1, 1.5, 2, 3 and 4.5 rows/mm, all without underlay; the \"T1\" mark is the top left. Photographed under the protocol below, it calibrates the Realistic view and the similarity scorer (image-similarity plan, T1), shows how each density covers the fabric (#129), and whether a single layer without underlay sews cleanly. The card's photo patch is the Photo Stitch 1 sunset demo in OpenStitch mode (`image-tools/S-photo1-sunset-openstitch.pes`).",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   86.9,
+   68.0
+  ],
+  "stitches": 5167,
+  "trims": 26,
+  "threads": [
+   "001 White",
+   "900 Black",
+   "800 Red",
+   "405 Blue",
+   "205 Yellow",
+   "509 Leaf Green"
+  ],
+  "sewingMinutes": 7.8,
+  "image": null,
+  "preview": "previews/t1-swatches.png",
+  "sha256": "0e063d425d684eb2afc48f0a73daa4ec15d25b4e8ee5c52d17b59394c3bde2a9"
+ },
+ "calibration/ps2-grey-ramp.pes": {
+  "title": "Photo Stitch 2 coverage ramp",
+  "about": "An eight-step grey ramp (`grey-ramp.png`, white to black) as Photo Stitch 2 sews it in one Black thread: how much of each grey its line screen covers, the data the Photo Stitch 2 coverage model needs (#129).",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   90.0,
+   21.8
+  ],
+  "stitches": 3008,
+  "trims": 1,
+  "threads": [
+   "900 Black"
+  ],
+  "sewingMinutes": 3.8,
+  "image": "calibration/grey-ramp.png",
+  "preview": "previews/ps2-grey-ramp.png",
+  "sha256": "f81cc83bd734caabc9e1d2cbe6fa459fe74ed5d975bed860fa219f543e452a40"
+ },
+ "calibration/satin-and-underlay.pes": {
+  "title": "Satin widths and underlay",
+  "about": "Black satin columns 1, 1.5, 2, 2.5, 3, 4 and 6 mm wide and 40 mm long (OpenStitch mode keeps satin for strokes up to 2.5 mm), then two Red fills at 4.5 rows/mm, without underlay (left) and with it (right): whether narrow satins sew whole and whether the single layer holds.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   81.0,
+   79.0
+  ],
+  "stitches": 4526,
+  "trims": 9,
+  "threads": [
+   "900 Black",
+   "800 Red"
+  ],
+  "sewingMinutes": 6.1,
+  "image": null,
+  "preview": "previews/satin-and-underlay.png",
+  "sha256": "e1782283f5b10b4fe4df13898dea504fd8db640784ec5e912a268ab6c6c650cb"
+ },
+ "machine-checks/satin-zigzag-rect.pes": {
+  "title": "Machine check: Region satin is a zigzag across the column",
+  "about": "Sew this file on a Brother machine on medium-weight woven cotton with tear-away stabiliser; look for needle holes or ragged thread along the two long edges (there should be none) and record the result. The record goes in `compat/machine/stitches/satin-zigzag-rect.json` (spec `satin-zigzag-rect`).",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   5.0,
+   2.0
+  ],
+  "stitches": 28,
+  "trims": 1,
+  "threads": [
+   "405 Blue"
+  ],
+  "sewingMinutes": 0.1,
+  "image": null,
+  "preview": "previews/satin-zigzag-rect.png",
+  "sha256": "193db06662d1e46e7ad59957199b39b12abbc18254904de88d836bb89e87ade9"
+ },
+ "machine-checks/machine-formats.pes": {
+  "title": "Machine check: Machine formats carry the same stitches, trims and colour stops as PE-DESIGN 11's exports",
+  "about": "Sew this file on a Brother single-needle machine (medium-weight woven cotton, tear-away stabiliser): the two Red lines must sew with one thread cut between them (no thread span across the 40 mm gap), the machine must stop once for Black, and the satin must sew its 15 mm stitches whole with no needle holes along the long edges. Record the result, the cut, and whether the machine showed the design as 40 x 40 mm. The record goes in `compat/machine/machine/machine-formats.json` (spec `machine-formats`).",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   40.0,
+   40.0
+  ],
+  "stitches": 248,
+  "trims": 3,
+  "threads": [
+   "800 Red",
+   "900 Black"
+  ],
+  "sewingMinutes": 0.5,
+  "image": null,
+  "preview": "previews/machine-formats.png",
+  "sha256": "f6732cf8f541a9b472de59fc2c1a94f830784b66cd8bff6f9e3395dc6090c922"
+ },
+ "machine-checks/shape-start-points.pes": {
+  "title": "Machine check: Shape-tool shapes start and end where PE-DESIGN 11 puts them",
+  "about": "Sew this file on a Brother machine (medium-weight woven cotton, tear-away): seven colour stops in drawing order; each shape starts and ends at the bottom middle of its outline; every move between shapes is cut (no thread span on top). Record the result. The record goes in `compat/machine/stitches/shape-start-points.json` (spec `shape-start-points`).",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   92.0,
+   44.0
+  ],
+  "stitches": 2857,
+  "trims": 8,
+  "threads": [
+   "800 Red",
+   "405 Blue",
+   "#2d8f3b",
+   "#f7e41b",
+   "900 Black",
+   "#f08a1d",
+   "#7b2f8e",
+   "#f4a6c0"
+  ],
+  "sewingMinutes": 4.0,
+  "image": null,
+  "preview": "previews/shape-start-points.png",
+  "sha256": "70936a1d4094e1c2be72c22d7f2a9e304d4f770d826e33e6c4ab1aaf024c8a71"
+ },
+ "machine-checks/pes-default-v6.pes": {
+  "title": "Machine check: Default PES is version 6 with objects and a thread table",
+  "about": "Copy this file to a USB stick, load it on a Brother machine and sew it; record whether it loads, its colour changes and how it sews. The record goes in `compat/machine/pes/pes-default-v6.json` (spec `pes-default-v6`).",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   40.0,
+   30.0
+  ],
+  "stitches": 64,
+  "trims": 2,
+  "threads": [
+   "800 Red",
+   "900 Black"
+  ],
+  "sewingMinutes": 0.2,
+  "image": null,
+  "preview": "previews/pes-default-v6.png",
+  "sha256": "e4fba45d4c7d18e02ab9c76eb4eeb7c2a032d3ea00e72e1f0c32700928daa63b"
+ },
+ "fills/region-sew-types-1.pes": {
+  "title": "Region sew types (1 of 2)",
+  "about": "Nine region sew types, left to right, top to bottom: fill, satin, programmable fill (diamonds), motif fill (heart), piping, cross stitch, concentric circle, radial, spiral.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   86.0,
+   86.0
+  ],
+  "stitches": 6763,
+  "trims": 10,
+  "threads": [
+   "405 Blue",
+   "800 Red",
+   "509 Leaf Green",
+   "208 Orange",
+   "620 Magenta",
+   "406 Ultra Marine",
+   "086 Deep Rose",
+   "019 Sky Blue",
+   "058 Dark Brown"
+  ],
+  "sewingMinutes": 9.0,
+  "image": null,
+  "preview": "previews/region-sew-types-1.png",
+  "sha256": "8a4d140e7316db01702de1a5e5fea44a8626d9a3296e1e83556dc1a9d74ce2c6"
+ },
+ "fills/region-sew-types-2.pes": {
+  "title": "Region sew types (2 of 2)",
+  "about": "Flexible spiral, stippling, net fill (square), zigzag net fill (honeycomb), decorative fill (waves), contour fill as rings and as a double spiral (beyond PE-DESIGN), programmable fill (bricks) with base sewing, motif fill (leaf).",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   87.9,
+   86.0
+  ],
+  "stitches": 4924,
+  "trims": 9,
+  "threads": [
+   "405 Blue",
+   "800 Red",
+   "509 Leaf Green",
+   "208 Orange",
+   "620 Magenta",
+   "406 Ultra Marine",
+   "086 Deep Rose",
+   "019 Sky Blue",
+   "058 Dark Brown"
+  ],
+  "sewingMinutes": 6.6,
+  "image": null,
+  "preview": "previews/region-sew-types-2.png",
+  "sha256": "1f4e43f0c8a02704c3736d7a7296e87b86fdf052ac4e85af3a39031bd00c1079"
+ },
+ "fills/fill-options.pes": {
+  "title": "Fill and satin options",
+  "about": "Fill at 45°, continuous gradation to 20 %, gradation pattern, feathered edges, Stitch Type 2 (sloped rows), OpenStitch's random stagger, frequency 0 (no stagger), Auto direction on a circle, and satin with pull compensation and split stitches.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   86.0,
+   86.4
+  ],
+  "stitches": 8243,
+  "trims": 10,
+  "threads": [
+   "405 Blue",
+   "800 Red",
+   "509 Leaf Green",
+   "208 Orange",
+   "620 Magenta",
+   "406 Ultra Marine",
+   "086 Deep Rose",
+   "019 Sky Blue",
+   "058 Dark Brown"
+  ],
+  "sewingMinutes": 10.8,
+  "image": null,
+  "preview": "previews/fill-options.png",
+  "sha256": "e1f15517ff0d7f175e367c12141c6dd5b97aef8f6774c94bb96590fcd51caf37"
+ },
+ "fills/underlay-styles.pes": {
+  "title": "Underlay styles",
+  "about": "No underlay, edge, zigzag, edge + zigzag, double (crossing layers), PE-DESIGN's first type (edge and rows), its second (edge and lattice), centre piping under a satin, and light underlay density.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   86.0,
+   86.0
+  ],
+  "stitches": 8412,
+  "trims": 14,
+  "threads": [
+   "405 Blue",
+   "800 Red",
+   "509 Leaf Green",
+   "208 Orange",
+   "620 Magenta",
+   "406 Ultra Marine",
+   "086 Deep Rose",
+   "019 Sky Blue",
+   "058 Dark Brown"
+  ],
+  "sewingMinutes": 11.2,
+  "image": null,
+  "preview": "previews/underlay-styles.png",
+  "sha256": "0260f6f6cca0e93a59e16319c7f321b0d79c38791cbf3d892c5802fd72555dd1"
+ },
+ "fills/holes-and-emboss.pes": {
+  "title": "Hole sewing, engraving and embossing",
+  "about": "Top left: hole sewing (the blue ring is sewn around the yellow centre, not under it). Then a star as an engraved line, an engraved region and an embossed region in a red fill.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   86.0,
+   86.0
+  ],
+  "stitches": 10746,
+  "trims": 5,
+  "threads": [
+   "405 Blue",
+   "205 Yellow",
+   "800 Red"
+  ],
+  "sewingMinutes": 13.7,
+  "image": null,
+  "preview": "previews/holes-and-emboss.png",
+  "sha256": "eb74800d75f3678e84bcd85260a24c75f497d6c723e518c44f6d3e3a5d428e63"
+ },
+ "lines/line-sew-types.pes": {
+  "title": "Line sew types",
+  "about": "Top to bottom: running, triple, zigzag, motif (wave), stem, candlewick, E stitch, V stitch, chain.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   86.0,
+   87.5
+  ],
+  "stitches": 3557,
+  "trims": 9,
+  "threads": [
+   "405 Blue",
+   "800 Red",
+   "509 Leaf Green",
+   "208 Orange",
+   "620 Magenta",
+   "406 Ultra Marine",
+   "086 Deep Rose",
+   "019 Sky Blue",
+   "058 Dark Brown"
+  ],
+  "sewingMinutes": 4.9,
+  "image": null,
+  "preview": "previews/line-sew-types.png",
+  "sha256": "884b2f0480cd2eb2f24f4412c421944b2416fac989cee6c688ecc06370478b1f"
+ },
+ "shapes/shape-tools.pes": {
+  "title": "Shape tools",
+  "about": "Preset star, heart, crescent, arrow, teardrop and hexagon; then a skeleton satin of changing width, a curved Manual Punch column, and a floral pattern inside a circle.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   84.5,
+   84.0
+  ],
+  "stitches": 4534,
+  "trims": 10,
+  "threads": [
+   "405 Blue",
+   "800 Red",
+   "509 Leaf Green",
+   "208 Orange",
+   "620 Magenta",
+   "406 Ultra Marine",
+   "058 Dark Brown",
+   "019 Sky Blue",
+   "900 Black",
+   "620 Magenta"
+  ],
+  "sewingMinutes": 6.2,
+  "image": null,
+  "preview": "previews/shape-tools.png",
+  "sha256": "efc9e977bdc61415ef9d524e93716e1d685d70ca7da56e77e75aca09dbe5fa2d"
+ },
+ "shapes/decorative-frames.pes": {
+  "title": "Decorative frames",
+  "about": "Five Shape-tool frames (scallop, wave, zigzag, scallop oval, corners) around small circles, and the laurel frame from the decorative library.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   81.6,
+   56.5
+  ],
+  "stitches": 1439,
+  "trims": 45,
+  "threads": [
+   "800 Red",
+   "900 Black",
+   "509 Leaf Green",
+   "900 Black",
+   "208 Orange",
+   "900 Black",
+   "620 Magenta",
+   "900 Black",
+   "406 Ultra Marine",
+   "900 Black",
+   "509 Leaf Green"
+  ],
+  "sewingMinutes": 4.1,
+  "image": null,
+  "preview": "previews/decorative-frames.png",
+  "sha256": "60e711ea6e384f7f4e54c56076c03cdac7178a8e3242fcb656b3ea96f8057821"
+ },
+ "lettering/fonts-and-text.pes": {
+  "title": "Lettering",
+  "about": "Lato Bold and Pacifico, a Text Transform arch, and text spaced around a circle (text on a path).",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   71.0,
+   89.7
+  ],
+  "stitches": 3734,
+  "trims": 37,
+  "threads": [
+   "405 Blue",
+   "800 Red",
+   "509 Leaf Green",
+   "399 Warm Gray",
+   "620 Magenta"
+  ],
+  "sewingMinutes": 6.6,
+  "image": null,
+  "preview": "previews/fonts-and-text.png",
+  "sha256": "e3c417e3ca104848253f76251ef70856f8cb9864bfe20ac4039843c3abe129ce"
+ },
+ "lettering/monograms.pes": {
+  "title": "Monograms",
+  "about": "The four monogram styles (block, script, diamond, circle), each in a decorative frame, for the 150 × 150 mm hoop.",
+  "hoop": "150 × 150 mm",
+  "sizeMM": [
+   124.9,
+   119.7
+  ],
+  "stitches": 6184,
+  "trims": 57,
+  "threads": [
+   "900 Black",
+   "405 Blue",
+   "509 Leaf Green",
+   "800 Red",
+   "900 Black",
+   "620 Magenta",
+   "208 Orange",
+   "406 Ultra Marine"
+  ],
+  "sewingMinutes": 10.7,
+  "image": null,
+  "preview": "previews/monograms.png",
+  "sha256": "31c823bd08382e2f9b9e857abdce1056c57532454884d7928f21a425f958dc9a"
+ },
+ "wizards/applique.pes": {
+  "title": "Appliqué wizard",
+  "about": "A heart as appliqué: material line, stop, position line, stop, tack-down, stop, covering zigzag. Lay the fabric at the first stop, trim it at the second.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   57.5,
+   57.3
+  ],
+  "stitches": 4365,
+  "trims": 4,
+  "threads": [
+   "800 Red",
+   "#ffc864",
+   "#ffc896",
+   "#ffc8c8"
+  ],
+  "sewingMinutes": 5.7,
+  "image": null,
+  "preview": "previews/applique.png",
+  "sha256": "f56bfc97243343c55e26d17de101c9dc4a76b1e6c155647cd254d45bd78dade9"
+ },
+ "wizards/patch.pes": {
+  "title": "Embroidered patch wizard",
+  "about": "A heart with a satin border and a sewn cutting line outside it, to cut the patch out with scissors.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   62.0,
+   62.0
+  ],
+  "stitches": 2859,
+  "trims": 3,
+  "threads": [
+   "800 Red",
+   "406 Ultra Marine",
+   "406 Ultra Marine"
+  ],
+  "sewingMinutes": 3.7,
+  "image": null,
+  "preview": "previews/patch.png",
+  "sha256": "c3a2fd5a25454479a3315606dfdd439eae15d934ee18c742f49fa0ced01153d3"
+ },
+ "wizards/cutwork.pes": {
+  "title": "Cutwork wizard",
+  "about": "A circle cutout: stabilising run, a sewn cut line (the NV880E has no cutwork needles, so cut by hand at the stop), stabiliser run, net fill and covering satin. Use water-soluble stabiliser.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   54.0,
+   54.0
+  ],
+  "stitches": 3188,
+  "trims": 6,
+  "threads": [
+   "405 Blue",
+   "405 Blue",
+   "405 Blue"
+  ],
+  "sewingMinutes": 4.3,
+  "image": null,
+  "preview": "previews/cutwork.png",
+  "sha256": "a943ffa293d8fa48264431bf87538cfd0a525ae4f48ad0823c7a686192d1d414"
+ },
+ "wizards/background-fill.pes": {
+  "title": "Background fill wizard",
+  "about": "Stippling inside a circle around a heart, keeping a 3 mm gap.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   88.0,
+   88.0
+  ],
+  "stitches": 8901,
+  "trims": 3,
+  "threads": [
+   "019 Sky Blue",
+   "800 Red",
+   "900 Black"
+  ],
+  "sewingMinutes": 11.3,
+  "image": null,
+  "preview": "previews/background-fill.png",
+  "sha256": "d85712141ef86f3bcb2e59a9cee88505d478d4b178bec7cc705f6c780ee11955"
+ },
+ "image-tools/S-autopunch-balloon-openstitch.pes": {
+  "title": "Auto Punch, OpenStitch mode",
+  "about": "`g02-balloon.png` through Auto Punch at its defaults in OpenStitch mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   90.0,
+   67.9
+  ],
+  "stitches": 8195,
+  "trims": 14,
+  "threads": [
+   "001 White",
+   "206 Harvest Gold",
+   "017 Light Blue",
+   "509 Leaf Green",
+   "030 Vermillion",
+   "515 Moss Green"
+  ],
+  "sewingMinutes": 11.0,
+  "image": "../images/g02-balloon.png",
+  "preview": "previews/S-autopunch-balloon-openstitch.png",
+  "sha256": "17f2cd14b2f23b034d1f1e52c92ad2b25865d678614aead40905aa33574901a2"
+ },
+ "image-tools/S-autopunch-balloon-pe-compatible.pes": {
+  "title": "Auto Punch, PE-DESIGN-compatible mode",
+  "about": "`g02-balloon.png` through Auto Punch at its defaults in PE-DESIGN-compatible mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   89.6,
+   62.1
+  ],
+  "stitches": 5963,
+  "trims": 13,
+  "threads": [
+   "001 White",
+   "812 Cream Yellow",
+   "509 Leaf Green",
+   "339 Clay Brown",
+   "704 Pewter"
+  ],
+  "sewingMinutes": 8.1,
+  "image": "../images/g02-balloon.png",
+  "preview": "previews/S-autopunch-balloon-pe-compatible.png",
+  "sha256": "d961e820a094a823b42e04ed12bb005ae257070c07042a2d5a31d3fbe849c9a8"
+ },
+ "image-tools/S-cross-stitch-strawberry-openstitch.pes": {
+  "title": "Cross Stitch, OpenStitch mode",
+  "about": "`g07-pixel-strawberry.png` through Cross Stitch at its defaults in OpenStitch mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   65.0,
+   80.0
+  ],
+  "stitches": 7168,
+  "trims": 142,
+  "threads": [
+   "206 Harvest Gold",
+   "079 Salmon Pink",
+   "509 Leaf Green",
+   "800 Red",
+   "507 Emerald Green"
+  ],
+  "sewingMinutes": 16.2,
+  "image": "../images/g07-pixel-strawberry.png",
+  "preview": "previews/S-cross-stitch-strawberry-openstitch.png",
+  "sha256": "6e76c1fe8f6b71bff847592b7a8667a5e5c7cb2f9b0922a858fa494973279818"
+ },
+ "image-tools/S-cross-stitch-strawberry-pe-compatible.pes": {
+  "title": "Cross Stitch, PE-DESIGN-compatible mode",
+  "about": "`g07-pixel-strawberry.png` through Cross Stitch at its defaults in PE-DESIGN-compatible mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   60.0,
+   77.5
+  ],
+  "stitches": 3181,
+  "trims": 157,
+  "threads": [
+   "208 Orange",
+   "515 Moss Green",
+   "800 Red",
+   "107 Dark Fuchsia",
+   "808 Deep Green"
+  ],
+  "sewingMinutes": 12.0,
+  "image": "../images/g07-pixel-strawberry.png",
+  "preview": "previews/S-cross-stitch-strawberry-pe-compatible.png",
+  "sha256": "53dbb884b6fc976ff8a9419911557a5a5e68d914fac82d395aa6997f22c14e7e"
+ },
+ "image-tools/S-design-center-butterfly-openstitch.pes": {
+  "title": "Design Center, OpenStitch mode",
+  "about": "`g04-butterfly-outline.png` through Design Center at its defaults in OpenStitch mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   88.8,
+   74.5
+  ],
+  "stitches": 3971,
+  "trims": 66,
+  "threads": [
+   "900 Black"
+  ],
+  "sewingMinutes": 8.3,
+  "image": "../images/g04-butterfly-outline.png",
+  "preview": "previews/S-design-center-butterfly-openstitch.png",
+  "sha256": "d8c88910c6eae7ac7e093bcf272d51ef468ff6706e7f87482f92b38e51f535e6"
+ },
+ "image-tools/S-design-center-butterfly-pe-compatible.pes": {
+  "title": "Design Center, PE-DESIGN-compatible mode",
+  "about": "`g04-butterfly-outline.png` through Design Center at its defaults in PE-DESIGN-compatible mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   88.2,
+   74.0
+  ],
+  "stitches": 1152,
+  "trims": 92,
+  "threads": [
+   "900 Black"
+  ],
+  "sewingMinutes": 6.2,
+  "image": "../images/g04-butterfly-outline.png",
+  "preview": "previews/S-design-center-butterfly-pe-compatible.png",
+  "sha256": "29081c5b3afb97ca4382b1c2ffab759c805b5c3f925deb73046143c28e955570"
+ },
+ "image-tools/S-photo1-sunset-openstitch.pes": {
+  "title": "Photo Stitch 1, OpenStitch mode",
+  "about": "`p06-sunset.jpg` through Photo Stitch 1 at its defaults in OpenStitch mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   90.0,
+   50.1
+  ],
+  "stitches": 7566,
+  "trims": 383,
+  "threads": [
+   "001 White",
+   "209 Tangerine",
+   "086 Deep Rose",
+   "612 Lilac",
+   "607 Wisteria Violet",
+   "030 Vermillion",
+   "333 Amber Red",
+   "800 Red",
+   "614 Purple",
+   "007 Prussian Blue",
+   "900 Black"
+  ],
+  "sewingMinutes": 29.1,
+  "image": "../images/p06-sunset.jpg",
+  "preview": "previews/S-photo1-sunset-openstitch.png",
+  "sha256": "70b6429f3615dcba9f60e78170c733cf030fe532300acf8bcf1eef042b2b7f45"
+ },
+ "image-tools/S-photo1-sunset-pe-compatible.pes": {
+  "title": "Photo Stitch 1, PE-DESIGN-compatible mode",
+  "about": "`p06-sunset.jpg` through Photo Stitch 1 at its defaults in PE-DESIGN-compatible mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   90.0,
+   50.1
+  ],
+  "stitches": 8949,
+  "trims": 317,
+  "threads": [
+   "001 White",
+   "209 Tangerine",
+   "348 Khaki",
+   "817 Gray",
+   "612 Lilac",
+   "607 Wisteria Violet",
+   "333 Amber Red",
+   "704 Pewter",
+   "707 Dark Gray",
+   "900 Black"
+  ],
+  "sewingMinutes": 27.4,
+  "image": "../images/p06-sunset.jpg",
+  "preview": "previews/S-photo1-sunset-pe-compatible.png",
+  "sha256": "caa949076e5bef8ef2ad443435a97f92b75727e25d6b47869099e80a165925b8"
+ },
+ "image-tools/M-photo1-portrait-openstitch.pes": {
+  "title": "Photo Stitch 1, OpenStitch mode",
+  "about": "`p01-portrait.jpg` through Photo Stitch 1 at its defaults in OpenStitch mode, fitted to the 150 × 150 mm hoop. Sew both modes of the same image to compare them on fabric.",
+  "hoop": "150 × 150 mm",
+  "sizeMM": [
+   94.1,
+   139.8
+  ],
+  "stitches": 23943,
+  "trims": 1608,
+  "threads": [
+   "001 White",
+   "348 Khaki",
+   "005 Silver",
+   "817 Gray",
+   "323 Light Brown",
+   "704 Pewter",
+   "107 Dark Fuchsia",
+   "415 Peacock Blue",
+   "707 Dark Gray",
+   "058 Dark Brown",
+   "900 Black"
+  ],
+  "sewingMinutes": 112.3,
+  "image": "../images/p01-portrait.jpg",
+  "preview": "previews/M-photo1-portrait-openstitch.png",
+  "sha256": "bcb724d232bd95d54291c3e03d06d40c4c273b32ec19c80b25fc45e36cb87615"
+ },
+ "image-tools/M-photo1-portrait-pe-compatible.pes": {
+  "title": "Photo Stitch 1, PE-DESIGN-compatible mode",
+  "about": "`p01-portrait.jpg` through Photo Stitch 1 at its defaults in PE-DESIGN-compatible mode, fitted to the 150 × 150 mm hoop. Sew both modes of the same image to compare them on fabric.",
+  "hoop": "150 × 150 mm",
+  "sizeMM": [
+   94.1,
+   139.8
+  ],
+  "stitches": 24614,
+  "trims": 750,
+  "threads": [
+   "001 White",
+   "348 Khaki",
+   "817 Gray",
+   "333 Amber Red",
+   "704 Pewter",
+   "707 Dark Gray",
+   "519 Olive Green"
+  ],
+  "sewingMinutes": 69.2,
+  "image": "../images/p01-portrait.jpg",
+  "preview": "previews/M-photo1-portrait-pe-compatible.png",
+  "sha256": "fa30739c3ac6071dde5572f63900dfacbd8e41ddb24ee1a1bd2b8d7510f9fa08"
+ },
+ "image-tools/M-photo2-poppies-openstitch.pes": {
+  "title": "Photo Stitch 2, OpenStitch mode",
+  "about": "`p08-poppies.jpg` through Photo Stitch 2 at its defaults in OpenStitch mode, fitted to the 150 × 150 mm hoop. Sew both modes of the same image to compare them on fabric.",
+  "hoop": "150 × 150 mm",
+  "sizeMM": [
+   140.9,
+   141.0
+  ],
+  "stitches": 60769,
+  "trims": 4,
+  "threads": [
+   "515 Moss Green",
+   "800 Red",
+   "058 Dark Brown",
+   "323 Light Brown"
+  ],
+  "sewingMinutes": 76.2,
+  "image": "../images/p08-poppies.jpg",
+  "preview": "previews/M-photo2-poppies-openstitch.png",
+  "sha256": "4b1e27d9fbb78b6ce0bf94c547180ccca98d8a9751d7c408964435a43e78b488"
+ },
+ "image-tools/M-photo2-poppies-pe-compatible.pes": {
+  "title": "Photo Stitch 2, PE-DESIGN-compatible mode",
+  "about": "`p08-poppies.jpg` through Photo Stitch 2 at its defaults in PE-DESIGN-compatible mode, fitted to the 150 × 150 mm hoop. Sew both modes of the same image to compare them on fabric.",
+  "hoop": "150 × 150 mm",
+  "sizeMM": [
+   140.5,
+   140.5
+  ],
+  "stitches": 64256,
+  "trims": 4,
+  "threads": [
+   "517 Dark Olive",
+   "800 Red",
+   "704 Pewter",
+   "339 Clay Brown"
+  ],
+  "sewingMinutes": 80.5,
+  "image": "../images/p08-poppies.jpg",
+  "preview": "previews/M-photo2-poppies-pe-compatible.png",
+  "sha256": "bdde8e5100b7bd61fb7cc94ed18dbe65db1a76107e66b2d71e4335fbeb43a189"
+ },
+ "image-tools/L-autopunch-storybook-openstitch.pes": {
+  "title": "Auto Punch, OpenStitch mode",
+  "about": "`p03-storybook.jpg` through Auto Punch at its defaults in OpenStitch mode, fitted to the 260 × 160 mm hoop. Sew both modes of the same image to compare them on fabric.",
+  "hoop": "260 × 160 mm",
+  "sizeMM": [
+   199.1,
+   150.1
+  ],
+  "stitches": 119059,
+  "trims": 1135,
+  "threads": [
+   "017 Light Blue",
+   "843 Beige",
+   "005 Silver",
+   "348 Khaki",
+   "339 Clay Brown",
+   "328 Brass",
+   "323 Light Brown",
+   "330 Russet Brown",
+   "704 Pewter",
+   "058 Dark Brown"
+  ],
+  "sewingMinutes": 207.0,
+  "image": "../images/p03-storybook.jpg",
+  "preview": "previews/L-autopunch-storybook-openstitch.png",
+  "sha256": "c2bc757952b1888c0c838c3d04ffd665623b4ea21af0a96076b0dcf68779ec7d"
+ },
+ "image-tools/L-autopunch-storybook-pe-compatible.pes": {
+  "title": "Auto Punch, PE-DESIGN-compatible mode",
+  "about": "`p03-storybook.jpg` through Auto Punch at its defaults in PE-DESIGN-compatible mode, fitted to the 260 × 160 mm hoop. Sew both modes of the same image to compare them on fabric.",
+  "hoop": "260 × 160 mm",
+  "sizeMM": [
+   199.3,
+   151.1
+  ],
+  "stitches": 109554,
+  "trims": 1639,
+  "threads": [
+   "843 Beige",
+   "804 Lavender",
+   "348 Khaki",
+   "817 Gray",
+   "323 Light Brown",
+   "337 Reddish Brown",
+   "330 Russet Brown",
+   "517 Dark Olive"
+  ],
+  "sewingMinutes": 220.9,
+  "image": "../images/p03-storybook.jpg",
+  "preview": "previews/L-autopunch-storybook-pe-compatible.png",
+  "sha256": "d2539edd35b0d9f022be4c0c31bcb047823be851e539b6ec1caffc06d3b47115"
+ }
+}

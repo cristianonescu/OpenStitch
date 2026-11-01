@@ -456,6 +456,8 @@ bit-identical, compat 443/443):
 | 4 | T12 skeleton satin outlines | Auto Punch mean 82.1 → 83.6, every case above PE-DESIGN-compatible mode (78.9) |
 | — | alpha.9 test pass (macOS) and dialog check (Windows) | Cross Stitch 70.9, Design Center 95.8, Photo Stitch 2 43.8 (42.8); two fixes: Sew Page Color from the chosen source, #281 |
 
+**2026-11-01, T1 card designed:** `examples/sew/calibration` holds the swatch card (six threads at three densities and a black coverage ramp, no underlay), the Photo Stitch 2 grey ramp (#129) and satin widths with and without underlay; the photo patch is `examples/sew/image-tools/S-photo1-sunset-openstitch.pes`. `examples/sew/README.md` gives the sewing and photo protocol. Waits for the owner's sew-out and photos (Brother NV880E, Schmetz 75/11, Brothread).
+
 ## Sources
 
 - Zhang, X., and Wandell, B. A. (1996). A spatial extension of CIELAB for digital color image reproduction (S-CIELAB). SID Digest.

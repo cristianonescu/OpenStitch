@@ -19,6 +19,7 @@ pub mod render;
 pub mod request;
 pub mod ribbon;
 pub mod sections;
+pub mod sew_kit;
 pub mod sewing;
 pub mod suite;
 pub mod tools;

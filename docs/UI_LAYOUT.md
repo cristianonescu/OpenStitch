@@ -17,7 +17,7 @@ Icons, colours and visual style are OpenStitch's own (see
 | 2 Ribbon | Tabs Home, Image, View plus contextual tabs (orange) for the active tool or selection; large and small buttons, dropdown arrows, group captions, ScreenTips with shortcuts |
 | 3 Quick Access Toolbar | Above the ribbon (or below it, Options ▸ or ▾ ▸ Show below the Ribbon): New, Open, Save, Undo, Redo, Zoom, Help by default; ▾ adds or removes commands. Saved in `ui.json` next to the user settings file |
 | 4 Option button | **Options ▾** at the top right: Design Database, Programmable Stitch Creator, Stitch Design Factory, Font Creator, Sewing Attribute Sets, User Thread Charts, colour theme (Light, Dark, System) |
-| 5 Help button | **Help ▾**: instruction manual (this repository), keyboard shortcuts, About |
+| 5 Help button | **Help ▾**: instruction manual (this repository), Ready-to-Sew Designs (the kit packaged with the app, `examples/sew`; GitHub when none is packaged), Ready-to-Sew Designs Online, keyboard shortcuts, About |
 | 6 Sewing Order pane | Docked left: buttons at the top (sew first / earlier / later / last, sort by colour, optimise, frames by thread colour), one frame per object with a thumbnail and its thread colours; drag to reorder |
 | 7 Import / Color / Sewing Attributes / Text Attributes | Docked right as four tabs |
 | 8 Stitch Simulator pane | Docked under the work area |
