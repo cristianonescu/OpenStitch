@@ -39,7 +39,7 @@ Not affiliated with Brother Industries. No Brother code or assets are included; 
 
 ## Status at a glance
 
-Current release: **v0.1.0-alpha.9** ([notes](docs/releases/v0.1.0-alpha.9.md)).
+Current release: **v0.1.0-alpha.10** ([notes](docs/releases/v0.1.0-alpha.10.md)).
 
 OpenStitch is checked against PE-DESIGN 11.50 itself. Simple test designs made in a licensed copy
 through its normal interface are committed under `compat/reference/`. The compatibility harness
@@ -279,6 +279,9 @@ PE-DESIGN 11.50's defaults, tie-in and lock, measured from its own files.
 
 - **Packages** for macOS (universal `.app`), Windows (MSI and portable zip) and Linux (AppImage,
   tarball, Flatpak), with `.osd` and `.pes` file associations.
+- **➕ Ready-to-sew kit** in every package except the Flatpak (see
+  [Ready-to-sew designs](#ready-to-sew-designs)): Help ▸ Ready-to-Sew Designs opens it in the
+  file manager. Help ▸ Ready-to-Sew Designs Online opens it on GitHub.
 - **➕ Linux file-manager thumbnails** for `.osd` and `.pes` files.
 - **➕ Self-update** from GitHub releases, checked against the release's checksums (see
   [Updates](#updates)).
