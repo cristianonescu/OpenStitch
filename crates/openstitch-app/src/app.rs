@@ -412,7 +412,7 @@ impl EditorApp {
             self.wizard.path = Some(p);
             self.wizard.open = true;
             if let Some(m) = l.convert {
-                self.wizard.method = m;
+                self.wizard.set_method(m);
                 crate::wizard_ui::run(self);
             }
         }

@@ -46,12 +46,13 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
             });
             ui.separator();
             for m in Method::ALL {
+                let mut method = w.method;
                 if ui
-                    .radio_value(&mut w.method, m, m.label())
+                    .radio_value(&mut method, m, m.label())
                     .on_hover_text(m.hint())
                     .changed()
                 {
-                    w.colors = w.colors_default();
+                    w.set_method(method);
                 }
             }
             ui.weak(w.method.hint());
