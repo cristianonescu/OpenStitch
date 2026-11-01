@@ -372,11 +372,11 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
         threads.iter().map(rgb_f).collect()
     };
     targets.push(fabric);
-    // Sew Page Color: the fabric target becomes a thread of its own (the nearest chart thread),
-    // so the cells dithered to it are sewn too.
+    // Sew Page Color: the fabric target becomes a thread of its own (the nearest thread of the
+    // chosen source, the PEC chart by default), so the cells dithered to it are sewn too.
     let mut threads = threads;
     if p.sew_page && p.style == PhotoStyle::Fill && !mono {
-        threads.push(palette::nearest_pec(p.fabric).1);
+        threads.push(palette::nearest_in(p.fabric, &p.threads));
     }
     // Fill: light threads first, so darker detail sews on top.
     let light_first = |a: &usize, b: &usize| {
