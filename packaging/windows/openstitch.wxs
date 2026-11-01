@@ -23,7 +23,11 @@
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFiles64Folder">
-        <Directory Id="INSTALLFOLDER" Name="OpenStitch" />
+        <Directory Id="INSTALLFOLDER" Name="OpenStitch">
+          <!-- The ready-to-sew kit (examples/sew), harvested into the SewKit component group by
+               heat.exe at build time; Help ▸ Ready-to-Sew Designs opens it. -->
+          <Directory Id="SewKitFolder" Name="sew" />
+        </Directory>
       </Directory>
       <Directory Id="ProgramMenuFolder" />
     </Directory>
@@ -67,6 +71,7 @@
       <ComponentRef Id="MainExecutable" />
       <ComponentRef Id="PesAssociation" />
       <ComponentRef Id="Notices" />
+      <ComponentGroupRef Id="SewKit" />
     </Feature>
   </Product>
 </Wix>

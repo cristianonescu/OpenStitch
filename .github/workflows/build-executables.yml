@@ -241,10 +241,14 @@ jobs:
         # -d define is quoted. ICE50 (an advertised shortcut's icon should have the target's
         # extension, .exe) is suppressed: the shortcut's icon is openstitch.ico from the Icon
         # table, since an Icon entry made from the exe would store the whole 30 MB binary in it.
+        # The ready-to-sew kit (examples/sew) is harvested into the SewKit component group (one
+        # component per file, GUIDs generated from the paths), installed under INSTALLFOLDER\sew.
         run: |
-          candle.exe -nologo -arch x64 "-dVersion=$env:CARGO_VERSION" "-dBinary=bin\openstitch.exe" "-dIcon=assets\icons\openstitch.ico" "-dNotices=THIRD_PARTY_NOTICES.md" -out openstitch.wixobj packaging\windows\openstitch.wxs
+          heat.exe dir examples\sew -nologo -cg SewKit -dr SewKitFolder -ag -srd -sfrag -sreg -var var.SewKit -out sewkit.wxs
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          light.exe -nologo -sice:ICE50 -out "dist\OpenStitch-$env:LABEL-windows-x86_64.msi" openstitch.wixobj
+          candle.exe -nologo -arch x64 "-dVersion=$env:CARGO_VERSION" "-dBinary=bin\openstitch.exe" "-dIcon=assets\icons\openstitch.ico" "-dNotices=THIRD_PARTY_NOTICES.md" "-dSewKit=examples\sew" -out wixobj\ packaging\windows\openstitch.wxs sewkit.wxs
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          light.exe -nologo -sice:ICE50 -out "dist\OpenStitch-$env:LABEL-windows-x86_64.msi" wixobj\openstitch.wixobj wixobj\sewkit.wixobj
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
       - name: Windows icons
