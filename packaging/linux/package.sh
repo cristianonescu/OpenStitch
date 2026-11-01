@@ -26,5 +26,7 @@ done
 install -Dm644 "$root/assets/icons/openstitch.svg" "$dir/share/icons/hicolor/scalable/apps/openstitch.svg"
 install -Dm755 "$here/install.sh" "$dir/install.sh"
 cp "$root/README.md" "$root/THIRD_PARTY_NOTICES.md" "$root/LICENSE-MIT" "$root/LICENSE-APACHE" "$dir/"
+# The ready-to-sew kit Help ▸ Ready-to-Sew Designs opens (examples/sew).
+mkdir -p "$dir/share/openstitch" && cp -R "$root/examples/sew" "$dir/share/openstitch/sew"
 tar -C "$out" -czf "$out/$name.tar.gz" "$name"
 echo "$out/$name.tar.gz"

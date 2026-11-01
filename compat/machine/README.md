@@ -4,8 +4,10 @@ A sew-out record says how one of OpenStitch's exports sewed on a real Brother ma
 with a `machine` block reaches the **machine** tier when its record says `pass`, and when its
 reference checks (if any) and all lower tiers pass too.
 
-1. Run `cargo run -p stitchtool -- compat --only <spec-id>`. Then take the file named in the
-   spec's `machine.make` from `target/compat/work/<spec-id>/`.
+1. Take the spec's file from [`examples/sew/machine-checks`](../../examples/sew/machine-checks)
+   (byte for byte what the compat run exports), or run
+   `cargo run -p stitchtool -- compat --only <spec-id>` and take the file named in the spec's
+   `machine.make` from `target/compat/work/<spec-id>/`.
 2. Sew it as `machine.make` describes.
 3. Save a record at the path in `machine.record`, inside this folder:
 

@@ -24,6 +24,7 @@ Not affiliated with Brother Industries. No Brother code or assets are included; 
 - [Status at a glance](#status-at-a-glance)
 - [Screenshots](#screenshots)
 - [From image to embroidery](#from-image-to-embroidery)
+- [Ready-to-sew designs](#ready-to-sew-designs)
 - [Features](#features)
 - [Not yet implemented](#not-yet-implemented)
 - [Known issues](#known-issues)
@@ -47,7 +48,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 185: 154 implemented (3 of them partially compatible), 2 documented only, 10 blocked, 19 planned beyond PE-DESIGN |
+| Feature matrix rows | 186: 155 implemented (3 of them partially compatible), 2 documented only, 10 blocked, 19 planned beyond PE-DESIGN |
 | Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 33: 26 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 11 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
@@ -142,6 +143,17 @@ truer in its PE-DESIGN-compatible mode, whose three threads suit its skin and ba
 | <img src="examples/images/g07-pixel-strawberry.png" width="200"><br>Cross Stitch | <img src="docs/images/readme/gallery/g07-pe.png" width="260"><br>3,931 stitches, 190 trims, 6 colours | <img src="docs/images/readme/gallery/g07-os.png" width="260"><br>8,784 stitches, 192 trims, 6 colours |
 | <img src="examples/images/g04-butterfly-outline.png" width="200"><br>Design Center | <img src="docs/images/readme/gallery/g04-pe.png" width="260"><br>1,271 stitches, 92 trims, 1 colour | <img src="docs/images/readme/gallery/g04-os.png" width="260"><br>6,602 stitches, 67 trims, 1 colour |
 <!-- gallery-modes:end -->
+
+## Ready-to-sew designs
+
+[**examples/sew**](examples/sew) holds embroidery files made by OpenStitch, ready to copy to a
+machine: a design for each feature (every region and line sew type, fill, satin and underlay
+options, shapes and frames, lettering and monograms, the appliqué, patch, cutwork and background
+fill wizards, and each image tool in both modes), calibration designs, and the compatibility
+checks that need a sew-out. They are PES files sized for a Brother NV880E's 100 × 100, 150 × 150
+and 260 × 160 mm hoops, each with a preview, its threads and how to sew it. Sewing the calibration
+designs and [sending the photos](examples/sew/README.md#sending-results) helps tune OpenStitch to
+real thread and fabric. In the editor, **Help ▸ Ready-to-Sew Designs** opens them.
 
 ## Features
 
