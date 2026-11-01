@@ -38,7 +38,7 @@ Not affiliated with Brother Industries. No Brother code or assets are included; 
 
 ## Status at a glance
 
-Current release: **v0.1.0-alpha.8** ([notes](docs/releases/v0.1.0-alpha.8.md)).
+Current release: **v0.1.0-alpha.9** ([notes](docs/releases/v0.1.0-alpha.9.md)).
 
 OpenStitch is checked against PE-DESIGN 11.50 itself. Simple test designs made in a licensed copy
 through its normal interface are committed under `compat/reference/`. The compatibility harness
