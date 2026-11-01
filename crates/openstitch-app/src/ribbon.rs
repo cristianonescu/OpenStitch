@@ -412,7 +412,7 @@ fn toggle_pane(app: &mut EditorApp, f: impl FnOnce(&mut openstitch_app::editor::
 }
 
 fn image_wizard(app: &mut EditorApp, m: openstitch_app::editor::wizard::Method) {
-    app.wizard.method = m;
+    app.wizard.set_method(m);
     app.wizard.open = true;
 }
 

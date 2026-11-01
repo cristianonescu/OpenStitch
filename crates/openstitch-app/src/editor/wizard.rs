@@ -226,6 +226,14 @@ impl ImageWizard {
         }
     }
 
+    /// Switches to `m` with its default colour count, as choosing it in the dialog does (opening
+    /// Photo Stitch 1 from the ribbon kept Auto Punch's 0 = Auto, which the dialog's 1..=32
+    /// slider showed as 1).
+    pub fn set_method(&mut self, m: Method) {
+        self.method = m;
+        self.colors = self.colors_default();
+    }
+
     /// Applies `change` to the settings; a colour count left at its default follows the new
     /// default (Photo Stitch 1: 10 at Standard, 24 at High).
     pub fn change(&mut self, change: impl FnOnce(&mut Self)) {
@@ -641,6 +649,17 @@ mod tests {
 
     /// Fidelity (B16.1): High is sent only in OpenStitch mode, and Photo Stitch 1's colour
     /// count follows it while it is left at its default.
+    #[test]
+    fn opening_on_a_method_starts_from_its_default_colours() {
+        let mut w = ImageWizard::default();
+        w.set_method(Method::PhotoFill);
+        assert_eq!(w.colors, 10);
+        w.set_method(Method::PhotoLines);
+        assert_eq!(w.colors, 4);
+        w.set_method(Method::AutoPunch);
+        assert_eq!(w.colors, 0);
+    }
+
     #[test]
     fn fidelity_round_trips_and_moves_the_default_colours() {
         let mut w = ImageWizard {

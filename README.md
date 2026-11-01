@@ -38,7 +38,7 @@ Not affiliated with Brother Industries. No Brother code or assets are included; 
 
 ## Status at a glance
 
-Current release: **v0.1.0-alpha.8** ([notes](docs/releases/v0.1.0-alpha.8.md)).
+Current release: **v0.1.0-alpha.9** ([notes](docs/releases/v0.1.0-alpha.9.md)).
 
 OpenStitch is checked against PE-DESIGN 11.50 itself. Simple test designs made in a licensed copy
 through its normal interface are committed under `compat/reference/`. The compatibility harness
@@ -51,7 +51,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 | Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 33: 26 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 11 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
-| Open GitHub issues | 6 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
+| Open GitHub issues | 5 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
 <!-- /status:glance -->
 
 Tiers, weakest first: *internal regression* (our own earlier output), *oracle* (an independent
@@ -117,26 +117,26 @@ OpenStitch (the image dialog's Method choice):
   colour, and Design Center finds its line threshold from the image (Otsu). Photo Stitch 1 samples
   the image every 0.25 mm in rows that stay within 2.1 needle points per mm² (no 10 × 10 mm area
   above 3.0), with a Trims choice (fewer trims or the best likeness). Auto Punch sews the
-  background and keeps line art, in one covering layer. Threads can come from several brands'
+  background and sews dark outlines as satin on top, in one covering layer. Threads can come from several brands'
   charts (Brother, Madeira Polyneon, Isacord, Sulky, Robison-Anton) or only those you own. Every
   OpenStitch mode sews the same stitches on macOS, Windows and Linux.
 
 The table below shows both modes, both from OpenStitch. OpenStitch mode measures better on
 average, not on every image, so try both. On the eight Photo Stitch 1 test photos its likeness
-score (`tools/image_similarity.py`, Brother threads) averages 66.3 against 58.5 (the night
-street 66.1 against 45.6), but the bright high-key photo scores 68.2 against 75.5; Photo
-Stitch 2 averages 43.3 against 41.7, and the test portrait sews truer in its
-PE-DESIGN-compatible mode, whose three threads suit its skin and background.
+score (`tools/image_similarity.py`, Brother threads) averages 72.3 against 58.5 and is higher
+on every photo (the night street 67.0 against 45.6, the bright high-key photo 76.1 against
+75.5), with more trims; Photo Stitch 2 averages 43.3 against 41.7, and the test portrait sews
+truer in its PE-DESIGN-compatible mode, whose three threads suit its skin and background.
 
 <!-- gallery-modes:start -->
 | Image | OpenStitch, PE-DESIGN-compatible mode (default) | OpenStitch, OpenStitch mode ➕ |
 |---|---|---|
-| <img src="examples/images/g05-robot-cartoon.png" width="200"><br>Auto Punch | <img src="docs/images/readme/gallery/g05-pe.png" width="260"><br>11,897 stitches, 231 trims, 6 colours | <img src="docs/images/readme/gallery/g05-os.png" width="260"><br>13,851 stitches, 130 trims, 7 colours |
-| <img src="examples/images/g06-watercolour-lemons.jpg" width="200"><br>Auto Punch | <img src="docs/images/readme/gallery/g06-pe.png" width="260"><br>18,278 stitches, 284 trims, 9 colours | <img src="docs/images/readme/gallery/g06-os.png" width="260"><br>20,630 stitches, 203 trims, 10 colours |
-| <img src="examples/images/p03-storybook.jpg" width="200"><br>Auto Punch | <img src="docs/images/readme/gallery/p03-pe.png" width="260"><br>41,676 stitches, 699 trims, 8 colours | <img src="docs/images/readme/gallery/p03-os.png" width="260"><br>41,426 stitches, 443 trims, 10 colours |
-| <img src="examples/images/p01-portrait.jpg" width="200"><br>Photo Stitch 1 | <img src="docs/images/readme/gallery/p01-pe.png" width="260"><br>12,512 stitches, 385 trims, 7 colours | <img src="docs/images/readme/gallery/p01-os.png" width="260"><br>13,045 stitches, 907 trims, 11 colours |
-| <img src="examples/images/p06-sunset.jpg" width="200"><br>Photo Stitch 1 | <img src="docs/images/readme/gallery/p06-pe.png" width="260"><br>11,038 stitches, 370 trims, 11 colours | <img src="docs/images/readme/gallery/p06-os.png" width="260"><br>10,838 stitches, 603 trims, 11 colours |
-| <img src="examples/images/p10-night-street.jpg" width="200"><br>Photo Stitch 1 | <img src="docs/images/readme/gallery/p10-pe.png" width="260"><br>11,343 stitches, 464 trims, 7 colours | <img src="docs/images/readme/gallery/p10-os.png" width="260"><br>10,935 stitches, 707 trims, 9 colours |
+| <img src="examples/images/g05-robot-cartoon.png" width="200"><br>Auto Punch | <img src="docs/images/readme/gallery/g05-pe.png" width="260"><br>11,897 stitches, 231 trims, 6 colours | <img src="docs/images/readme/gallery/g05-os.png" width="260"><br>13,194 stitches, 133 trims, 7 colours |
+| <img src="examples/images/g06-watercolour-lemons.jpg" width="200"><br>Auto Punch | <img src="docs/images/readme/gallery/g06-pe.png" width="260"><br>18,278 stitches, 284 trims, 9 colours | <img src="docs/images/readme/gallery/g06-os.png" width="260"><br>20,511 stitches, 202 trims, 10 colours |
+| <img src="examples/images/p03-storybook.jpg" width="200"><br>Auto Punch | <img src="docs/images/readme/gallery/p03-pe.png" width="260"><br>41,676 stitches, 699 trims, 8 colours | <img src="docs/images/readme/gallery/p03-os.png" width="260"><br>39,910 stitches, 410 trims, 10 colours |
+| <img src="examples/images/p01-portrait.jpg" width="200"><br>Photo Stitch 1 | <img src="docs/images/readme/gallery/p01-pe.png" width="260"><br>12,512 stitches, 385 trims, 7 colours | <img src="docs/images/readme/gallery/p01-os.png" width="260"><br>11,911 stitches, 857 trims, 11 colours |
+| <img src="examples/images/p06-sunset.jpg" width="200"><br>Photo Stitch 1 | <img src="docs/images/readme/gallery/p06-pe.png" width="260"><br>11,038 stitches, 370 trims, 11 colours | <img src="docs/images/readme/gallery/p06-os.png" width="260"><br>9,129 stitches, 435 trims, 11 colours |
+| <img src="examples/images/p10-night-street.jpg" width="200"><br>Photo Stitch 1 | <img src="docs/images/readme/gallery/p10-pe.png" width="260"><br>11,343 stitches, 464 trims, 7 colours | <img src="docs/images/readme/gallery/p10-os.png" width="260"><br>10,172 stitches, 580 trims, 9 colours |
 | <img src="examples/images/p08-poppies.jpg" width="200"><br>Photo Stitch 2 | <img src="docs/images/readme/gallery/p08-pe.png" width="260"><br>32,918 stitches, 4 trims, 4 colours | <img src="docs/images/readme/gallery/p08-os.png" width="260"><br>31,296 stitches, 4 trims, 4 colours |
 | <img src="examples/images/p04-cat-fur.jpg" width="200"><br>Photo Stitch 2 | <img src="docs/images/readme/gallery/p04-pe.png" width="260"><br>28,012 stitches, 4 trims, 4 colours | <img src="docs/images/readme/gallery/p04-os.png" width="260"><br>27,455 stitches, 4 trims, 4 colours |
 | <img src="examples/images/g07-pixel-strawberry.png" width="200"><br>Cross Stitch | <img src="docs/images/readme/gallery/g07-pe.png" width="260"><br>3,931 stitches, 190 trims, 6 colours | <img src="docs/images/readme/gallery/g07-os.png" width="260"><br>8,784 stitches, 192 trims, 6 colours |
@@ -377,7 +377,6 @@ Open enhancement issues:
 - [#129](https://github.com/cristianonescu/OpenStitch/issues/129) (Optional, larger) Photo-stitch rotating-line coverage density model
 - [#130](https://github.com/cristianonescu/OpenStitch/issues/130) Add a PMV motif/pattern reader
 - [#134](https://github.com/cristianonescu/OpenStitch/issues/134) Import external scalable embroidery font containers
-- [#271](https://github.com/cristianonescu/OpenStitch/issues/271) tools/gallery.py: the design crop fails on macOS, so gallery images come out as thin window strips
 <!-- /status:issues-planned -->
 
 ### Beyond PE-DESIGN

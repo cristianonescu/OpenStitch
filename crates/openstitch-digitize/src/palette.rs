@@ -41,6 +41,16 @@ pub fn nearest_pec(c: Rgb) -> (usize, Thread) {
     (i, PEC_CHART[i].clone().unwrap_or_else(|| thread(c)))
 }
 
+/// The thread of `source` nearest to `c` by CIEDE2000 (B16.1 T5); an empty `source` is the PEC
+/// chart, matched as [`nearest_pec`] does.
+pub fn nearest_in(c: Rgb, source: &[Thread]) -> Thread {
+    if source.is_empty() {
+        return nearest_pec(c).1;
+    }
+    let labs: Vec<Lab> = source.iter().map(|t| perceptual::lab(rgb_of(t))).collect();
+    source[perceptual::nearest(&labs, perceptual::lab(c))].clone()
+}
+
 /// Most distinct colours the census tracks; later colours join their nearest tracked one.
 pub const CENSUS_COLORS: usize = 100;
 
@@ -806,4 +816,23 @@ fn weighted(a: [f64; 3], b: [f64; 3]) -> f64 {
 
 pub fn rgb_f(t: &Thread) -> [f64; 3] {
     [f64::from(t.red), f64::from(t.green), f64::from(t.blue)]
+}
+
+#[cfg(test)]
+mod nearest_in_tests {
+    use super::*;
+
+    #[test]
+    fn nearest_in_takes_the_source_thread_and_keeps_the_pec_chart_by_default() {
+        let mine = [
+            Thread::rgb(0xffffff),
+            Thread::rgb(0xed171f),
+            Thread::rgb(0x000000),
+        ];
+        assert_eq!(nearest_in([240, 240, 240], &mine).rgb_value(), 0xffffff);
+        assert_eq!(
+            nearest_in([255, 255, 255], &[]),
+            nearest_pec([255, 255, 255]).1
+        );
+    }
 }
