@@ -448,6 +448,14 @@ bit-identical, compat 443/443):
 | 3 | T2 + T3 fine rows (#267), T10 saliency at β 1.5 (#277) | Mean about 73.5 with all charts (Brother only about 67.5), within 2.1 / 3.0; the gap to 85 remains; T9 next |
 | 4 | T7 background (#265), T11 regions (#275) | Mean 78.8 → 82.1, g02 88.5; one covering layer under the owner's rule; T12 next |
 
+**2026-11-01, integration batch 3** (#282, with the alpha.9 release; same scorer):
+
+| Phase | Landed | Result |
+|---|---|---|
+| 3 | T9 local search for Photo Stitch 1 | 8 photos 58.5 → 72.3 (every photo above PE-DESIGN-compatible mode, the high-key p11 included); the 85 % target is not met |
+| 4 | T12 skeleton satin outlines | Auto Punch mean 82.1 → 83.6, every case above PE-DESIGN-compatible mode (78.9) |
+| — | alpha.9 test pass (macOS) and dialog check (Windows) | Cross Stitch 70.9, Design Center 95.8, Photo Stitch 2 43.8 (42.8); two fixes: Sew Page Color from the chosen source, #281 |
+
 ## Sources
 
 - Zhang, X., and Wandell, B. A. (1996). A spatial extension of CIELAB for digital color image reproduction (S-CIELAB). SID Digest.
