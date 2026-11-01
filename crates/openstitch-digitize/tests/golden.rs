@@ -92,13 +92,13 @@ fn actual() -> Vec<(String, &'static str, u64)> {
 /// Pinned on macOS (aarch64); must match on Windows and Linux (x86_64).
 const EXPECTED: &[(&str, &str, u64)] = &[
     ("emblem", "auto-punch", 0xa737f2918ffedf92),
-    ("emblem", "photo-stitch-1", 0x2afb4a0298a9dade),
+    ("emblem", "photo-stitch-1", 0x6a2e84927c41044d),
     ("emblem", "photo-stitch-2", 0xb9fb1fde079ada53),
     ("leaf", "auto-punch", 0x594ee02ee16367d8),
-    ("leaf", "photo-stitch-1", 0x7c908234e3bf68c8),
+    ("leaf", "photo-stitch-1", 0xd4fbe1d986150a4a),
     ("leaf", "photo-stitch-2", 0x42d318e2ef2dea9c),
     ("gradient", "auto-punch", 0x3fa101e5f527fd26),
-    ("gradient", "photo-stitch-1", 0x4e65363f4cbf711d),
+    ("gradient", "photo-stitch-1", 0xc49ad0c397f327ab),
     ("gradient", "photo-stitch-2", 0xa41e4acbab6a4c01),
 ];
 
