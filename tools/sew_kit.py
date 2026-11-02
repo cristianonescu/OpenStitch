@@ -40,6 +40,19 @@ ROOT = Path(__file__).resolve().parent.parent
 BIN = ROOT / "target" / "release"
 IMAGES = ROOT / "examples" / "images"
 KIT = ROOT / "examples" / "sew"
+
+def retry(write, attempts=20):
+    """Runs `write`, retrying while Windows briefly locks a file just written (a virus scan or
+    the search indexer opening it shows as EINVAL or a permission error)."""
+    import time
+    for i in range(attempts):
+        try:
+            return write()
+        except OSError:
+            if i == attempts - 1:
+                raise
+            time.sleep(0.5)
+
 RAMP = (800, 200)  # the generated grey ramp's size in pixels
 
 # NV880E hoops: how the design page is set, and the box a design is fitted into (5 mm margins).
@@ -462,7 +475,8 @@ def preview(work, pes, dst):
     im = Image.open(shot).convert("RGB")
     im = im.crop(gallery.design_box(im))
     im = im.resize((360, round(im.height * 360 / im.width)), Image.LANCZOS)
-    im.quantize(colors=128, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).save(dst, optimize=True)
+    small = im.quantize(colors=128, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
+    retry(lambda: small.save(dst, optimize=True))
 
 
 def build(out, previews):
@@ -474,7 +488,7 @@ def build(out, previews):
         for sub in [prefix for prefix, _, _ in SECTIONS] + ["previews/"]:
             (out / sub).mkdir(parents=True, exist_ok=True)
         grey_ramp_png(work / "grey-ramp.png")
-        shutil.copy(work / "grey-ramp.png", out / "calibration" / "grey-ramp.png")
+        retry(lambda: shutil.copy(work / "grey-ramp.png", out / "calibration" / "grey-ramp.png"))
         for image in IMAGES.iterdir():
             shutil.copy(image, work / image.name)
         for rel, hoop, title, about, steps, image in kit():
@@ -485,7 +499,7 @@ def build(out, previews):
                               spec["machine"]["make"])
                 about = (make + f" The record goes in `compat/machine/{spec['machine']['record']}` "
                          f"(spec `{spec['id']}`).")
-                (work / "out.pes").write_bytes(data)
+                retry(lambda: (work / "out.pes").write_bytes(data))
                 (work / "out.osd").unlink(missing_ok=True)
                 replies = exec_script(work, [{"command": "stitches.import", "params": {"path": "out.pes"}},
                                              {"command": "design.info"}])
@@ -500,7 +514,7 @@ def build(out, previews):
                     sys.exit(f"{rel}: does not fit the {HOOPS[hoop]['label']} hoop: {export['warnings']}")
                 info = replies[-2]["result"]
                 data = (work / "out.pes").read_bytes()
-            (out / rel).write_bytes(data)
+            retry(lambda: (out / rel).write_bytes(data))
             stats = info["stitchStats"]
             png = f"previews/{Path(rel).stem}.png"
             if previews:

@@ -2105,6 +2105,23 @@ Line references are relative to `crates/`.
 - **Photo Stitch 1 fine rows (2026-10-31, B16.1 T2, T3, T10, T9; OpenStitch mode only):** Photo Stitch 1 sampled one colour per 3 mm Run Pitch along a row, the largest loss the image-similarity plan measured (an exact-colour fill at 3 mm scores 76 against 95 at 0.5 mm on the portrait). In OpenStitch mode, in colour, it now samples every 0.25 mm and lets a stitch end where the thread changes (`rows.rs`, `photo::fine_runs`), holds the owner's caps (2.1 needle points/mm² over the design, 3.0 in any 10 × 10 mm window, counted on the sewn stitches including every trimmed jump's tie-in stitch, about a tenth of the points), weighs errors by a saliency map, and finishes with a local search against the image as the eye blurs it (`optimise.rs`). The nine photos score 55.8 → 73.6 (`travel: allTrims`) or 71.9 (`fewerTrims`, the default; PE-DESIGN-compatible mode 58.7). Found while measuring: the design compiler sews a jump of up to 4 mm inside a stitch object across as a stitch, so the raw stitch block the scorer drew was not what the machine sews; the fine rows plan for it (no compiled stitch under 1 mm). Left: the 85 % target (gap 5.6–15.7 points a photo), trims with `allTrims` (1.5–7× PE-DESIGN-compatible mode's). PE-DESIGN-compatible mode and its 443 specs are unchanged.
 - **Photo Stitch 2 within the needle limits (2026-10-31, B16.1 T13, OpenStitch mode only):** B16's Photo Stitch 2 OpenStitch mode sewed up to 3.4 needle points/mm² and, like PE-DESIGN-compatible mode, 160–540 stitches under 1 mm a photo. The owner's limits for Photo Stitch 2 (2026-10-31): at most 3.3 per mm² over the image and no 10 × 10 mm window denser than PE-DESIGN-compatible mode's on the same image. OpenStitch mode now scales Max. Density into them, takes PE-DESIGN's share of each thread (with its full coverage for saturated colours, which scored higher than B16's linear-light mix within the limits), and sews no stitch under 1 mm. Six images: 44.9 against PE-DESIGN-compatible mode's 43.4; the gradient, portrait and fruit stay below it (−2.5, −1.5, −0.3). Measured and left out: a layered coverage model (later lines lie on top; zigzag coverage saturates as 1 − exp(−0.5 mm / advance)), a mix-aware thread choice and five or six threads, all lower within the limits. PE-DESIGN-compatible mode is unchanged.
 
+### Sew-out findings, 2026-11-02 (ready-to-sew kit on the owner's NV880E)
+
+- **PEC frame (fixed):** the header's width and height are a frame measured from where the stitch
+  data starts, and the machine draws and sews only inside it. OpenStitch wrote a frame of the
+  design's size while the stitches kept their page position, so every exported design was cut by
+  its page margin (the lettering lost "ch" and the foot of its circle text; the satin card's
+  columns were pressed into a line). A design at its page position now gets PE-DESIGN's 290 × 190
+  mm frame, as 333 of the 442 references have; a design turned for a rotated hoop stays on the page.
+- **Stippling (fixed):** it sewed every vertex of its smoothed meander, about 0.2 mm apart (800
+  stitches in place); it now sews at the Run Pitch, at most half the spacing.
+- **Flexible spiral (fixed):** its points crowded under 0.3 mm towards the centre (52 in a row);
+  points under 0.5 mm from the last are left out.
+- **Open:** Auto Punch on the storybook picture stacks 29 (OpenStitch mode) and 23 (PE-DESIGN-
+  compatible) needle drops where satin columns meet, against at most 19 in PE-DESIGN's own files;
+  satin lettering ends a stroke with up to 9 stitches under 0.3 mm (PE-DESIGN's text: 5).
+  `tools/sew_check.py` reports both.
+
 ## Order of work
 
 1. **Fix without a reference:** items 1, 3, 7, 14, 15 (ranges), 16 and 17, plus the

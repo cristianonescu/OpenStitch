@@ -108,6 +108,12 @@ when they are added.
 
 Compatibility, from the open items in [COMPATIBILITY_AUDIT.md](COMPATIBILITY_AUDIT.md):
 
+Sew-outs (first one 2026-11-02, the ready-to-sew kit on the owner's NV880E): every PES now keeps
+its stitches inside the PEC frame, stippling and the flexible spiral no longer stitch in place, and
+`tools/sew_check.py` checks a file for all three plus stacked needle drops. Next: Auto Punch's
+stacked satin points on the storybook picture (B16.1, the Mac's track), satin lettering's short
+stroke ends, then the kit's calibration photos.
+
 Done 2026-10-30: stitch generation is bit-identical on Windows, macOS and Linux (transcendental
 math through the `libm` crate instead of each platform's C library); the arched Text Transform
 spec, deferred at alpha.6 because Linux measured it 0.2 mm lower, has its PE-DESIGN reference

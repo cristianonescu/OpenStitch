@@ -287,10 +287,65 @@ fn label_bytes(name: &str) -> Vec<u8> {
     out
 }
 
+/// PE-DESIGN 11's PEC frame for a design at its page position: 290 × 190 mm (333 of the 442
+/// reference files; the other 108 have a frame of the design's own size, starting at its
+/// top-left corner).
+const PE_FRAME: (i64, i64) = (2900, 1900);
+
+/// The pattern to encode and its PEC frame (the header's width and height). The stitch data
+/// starts at the frame's top-left corner, and a Brother machine draws and sews the design inside
+/// the frame, cutting off what lies outside: the NV880E showed the ready-to-sew kit cropped by
+/// each design's page margin when the frame was the design's size but the stitches kept their
+/// page position.
+/// - Stitches within the design-sized frame from the origin: that frame, as before (PE-DESIGN's
+///   design-sized files and pyembroidery's rewrite byte for byte).
+/// - Stitches at a page position (none left of or above the origin): they stay there, in
+///   PE-DESIGN's 290 × 190 mm frame, or larger when the design reaches further.
+/// - Anything else (stitches left of or above the origin, as in some of pyembroidery's files):
+///   as before, in the design-sized frame.
+fn framed(pattern: &StitchPattern) -> (std::borrow::Cow<'_, StitchPattern>, (i64, i64)) {
+    // On the encoder's whole 0.1 mm steps.
+    let moves = || {
+        pattern
+            .stitches
+            .iter()
+            .filter(|s| matches!(s.command, Command::Stitch | Command::Jump))
+            .map(|s| (round_coordinate(s.x), round_coordinate(s.y)))
+    };
+    let (Some(min_x), Some(min_y), Some(max_x), Some(max_y)) = (
+        moves().map(|p| p.0).min(),
+        moves().map(|p| p.1).min(),
+        moves().map(|p| p.0).max(),
+        moves().map(|p| p.1).max(),
+    ) else {
+        return (std::borrow::Cow::Borrowed(pattern), (0, 0));
+    };
+    let (w, h) = (max_x - min_x, max_y - min_y);
+    let sewn = || {
+        pattern
+            .stitches
+            .iter()
+            .filter(|s| s.command == Command::Stitch)
+            .map(|s| (round_coordinate(s.x), round_coordinate(s.y)))
+    };
+    if sewn().all(|(x, y)| (0..=w).contains(&x) && (0..=h).contains(&y)) {
+        return (std::borrow::Cow::Borrowed(pattern), (w, h));
+    }
+    if sewn().all(|(x, y)| x >= 0 && y >= 0) {
+        let frame = (
+            PE_FRAME.0.max(sewn().map(|p| p.0).max().unwrap_or(0)),
+            PE_FRAME.1.max(sewn().map(|p| p.1).max().unwrap_or(0)),
+        );
+        return (std::borrow::Cow::Borrowed(pattern), frame);
+    }
+    (std::borrow::Cow::Borrowed(pattern), (w, h))
+}
+
 /// Writes the PEC section and returns the colour list as written at 0x30 (count − 1 first;
 /// empty when nothing is sewn), which PES v6 repeats after the section.
 pub(crate) fn write_section(input: &StitchPattern, w: &mut ByteWriter) -> Result<Vec<u8>> {
-    let pattern = prepare(input);
+    let (framed_input, frame) = framed(input);
+    let pattern = prepare(&framed_input);
     let bounds = pattern.bounds();
     let color_indexes = pec_color_indexes(if pattern.color_block_count() == 0 {
         &[]
@@ -339,8 +394,8 @@ pub(crate) fn write_section(input: &StitchPattern, w: &mut ByteWriter) -> Result
     w.append(&[0x00, 0x00]);
     w.u24le(0);
     w.append(&[0x31, 0xFF, 0xF0]);
-    w.u16le(round_coordinate(bounds.width()));
-    w.u16le(round_coordinate(bounds.height()));
+    w.u16le(frame.0);
+    w.u16le(frame.1);
     w.u16le(0x1E0);
     w.u16le(0x1B0);
     encode_stitches(&pattern.stitches, w);
@@ -382,6 +437,18 @@ pub fn turned_for_hoop(pattern: &StitchPattern) -> StitchPattern {
         let (dx, dy) = (s.x - cx, s.y - cy);
         s.x = cx - dy;
         s.y = cy + dx;
+    }
+    // Turning about the centre can carry a design wider than it is tall left of or above the
+    // origin, outside the PEC frame the machine sews within (the ready-to-sew kit's storybook
+    // picture, 55 mm left of it in the turned 260 × 160 mm hoop): it is moved back onto the
+    // page by that much.
+    let t = out.bounds();
+    let (sx, sy) = ((-t.min_x).max(0.0), (-t.min_y).max(0.0));
+    if sx > 0.0 || sy > 0.0 {
+        for s in &mut out.stitches {
+            s.x += sx;
+            s.y += sy;
+        }
     }
     out
 }

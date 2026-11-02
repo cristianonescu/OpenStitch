@@ -59,7 +59,7 @@ fn ray_hit(p: &[Vec2], c: Vec2, d: Vec2) -> Option<f64> {
 }
 
 /// Closed polyline resampled to points about `step` apart (the first point kept).
-fn resample_closed(p: &[Vec2], step: f64) -> Vec<Vec2> {
+pub(crate) fn resample_closed(p: &[Vec2], step: f64) -> Vec<Vec2> {
     let n = p.len();
     if n < 3 {
         return p.to_vec();
