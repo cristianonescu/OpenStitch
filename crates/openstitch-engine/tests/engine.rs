@@ -471,7 +471,10 @@ fn commands_documented_and_unique() {
 /// identical), and when plain satin crossed the single-line gap next to its far end instead of
 /// spreading its crossings, as PE-DESIGN does at every gap size (2026-10-29, #122, pe-refs-4's
 /// satin-length-sweep; the satin's first crossings at 30.0, 30.2, 30.7 mm instead of 30.0,
-/// 30.5, 30.9; 4 stitches more, 5888). The same design
+/// 30.5, 30.9; 4 stitches more, 5888). Re-recorded once more when the PEC header's frame became
+/// PE-DESIGN's 290 × 190 mm for a design at its page position (2026-11-02, the four width and
+/// height bytes only: a frame of the design's own size made the NV880E cut the design off by its
+/// page margin). The same design
 /// exported as `1t`
 /// must keep writing the identical bytes; the
 /// script's default export is now version 6 with objects and sews the same stitches.

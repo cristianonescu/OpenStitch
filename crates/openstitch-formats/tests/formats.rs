@@ -1506,3 +1506,35 @@ fn pes_v6_header_carries_the_custom_page_and_rotation_flags() {
         [0, 1, 300, 200, 0, 300, 200]
     );
 }
+
+#[test]
+fn pec_frame_holds_a_design_at_its_page_position() {
+    // The NV880E draws and sews a design inside the PEC frame (the header's width and height,
+    // from where the stitch data starts) and cuts off the rest. A design away from the origin
+    // once got a frame of its own size, so the machine cut it by its page margin (the
+    // ready-to-sew kit's lettering lost "ch" and the foot of its circle text). It now keeps its
+    // position in PE-DESIGN 11's 290 × 190 mm frame.
+    let mut p = with_threads(&[0]);
+    p.jump_to(70.0, 70.0);
+    p.stitch_to(70.0, 70.0);
+    p.stitch_to(930.0, 870.0);
+    p.push(Command::End);
+    let bytes = pec::write(&p).expect("write");
+    let block = 8 + 512;
+    let w = u16::from_le_bytes([bytes[block + 8], bytes[block + 9]]);
+    let h = u16::from_le_bytes([bytes[block + 10], bytes[block + 11]]);
+    assert_eq!((w, h), (2900, 1900));
+    let back = FileType::Pec.read(&bytes).expect("read");
+    assert!(
+        sewn(&back)
+            .iter()
+            .all(|q| q[0] >= 0.0 && q[0] <= f64::from(w) && q[1] >= 0.0 && q[1] <= f64::from(h))
+    );
+    // A design that already fits a frame of its own size keeps that frame.
+    let mut q = with_threads(&[0]);
+    q.stitch_to(0.0, 0.0);
+    q.stitch_to(400.0, 300.0);
+    q.push(Command::End);
+    let bytes = pec::write(&q).expect("write");
+    assert_eq!(&bytes[block + 8..block + 12], [0x90, 0x01, 0x2C, 0x01]);
+}

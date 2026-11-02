@@ -249,7 +249,16 @@ pub fn generate(
             }
             vec![region.sequence(nearest_next(pieces))]
         }
-        RegionType::Stippling => vec![region.loops(stipple(closed, holes, angle, spacing))],
+        RegionType::Stippling => {
+            // The meander is a smooth curve of many short segments: sew it at the Run Pitch,
+            // at most half the spacing so its turns stay round (never at its 0.2 mm vertices).
+            let step = pitch.min(spacing / 2.0).max(5.0);
+            let loops = stipple(closed, holes, angle, spacing)
+                .iter()
+                .map(|l| crate::ornament::resample_closed(l, step))
+                .collect();
+            vec![region.loops(loops)]
+        }
         RegionType::Contour => {
             // Beyond PE-DESIGN (see crate::contour): rows that follow the outline.
             let p = crate::contour::ContourParams {
@@ -1049,13 +1058,26 @@ fn flexible_spiral(closed: &[Contour], spacing: f64, pitch: f64, ccw: bool) -> V
         if scale <= 0.0 || out.len() >= MAX_POINTS {
             break;
         }
-        let p = w.at(s * len);
-        out.push(c + (p - c) * scale);
+        let p = c + (w.at(s * len) - c) * scale;
+        // Every turn has the same number of points, so they crowd together towards the centre;
+        // a needle point under 0.5 mm from the last stitches in place (the ready-to-sew kit's
+        // spiral had 52 in a row), so such points are left out.
+        if out
+            .last()
+            .is_none_or(|q: &Vec2| q.distance(p) >= MIN_SPIRAL_STEP)
+        {
+            out.push(p);
+        }
         k += 1;
     }
-    out.push(c);
+    if out.last().is_none_or(|q: &Vec2| q.distance(c) > 0.0) {
+        out.push(c);
+    }
     out
 }
+
+/// Shortest step between the flexible spiral's needle points, 0.1 mm.
+const MIN_SPIRAL_STEP: f64 = 5.0;
 
 /// Signed area (shoelace) of a closed contour's outline.
 fn area(c: &Contour) -> f64 {

@@ -1971,6 +1971,44 @@ fn stippling_is_a_closed_path_that_never_crosses_itself() {
 }
 
 #[test]
+fn flexible_spiral_never_stitches_in_place_at_its_centre() {
+    // Its turns keep the same number of points while they shrink, so towards the centre the
+    // points crowded under 0.3 mm apart (52 stitches in a row in the ready-to-sew kit).
+    let c = vec![Contour::ellipse(v2(130.0, 130.0), 130.0, 130.0, 48)];
+    let mut r = region(RegionType::FlexibleSpiral);
+    r.running_stitch_path = None;
+    let runs = crate::region::layers(&c, &r, &[]).pop().expect("top");
+    let short = runs
+        .iter()
+        .flat_map(|run| run.windows(2).map(|w| w[0].distance(w[1])))
+        .filter(|&d| d < 3.0)
+        .count();
+    assert!(short <= 1, "{short} stitches under 0.3 mm");
+}
+
+#[test]
+fn stippling_sews_at_the_run_pitch_not_at_its_curve_vertices() {
+    // The meander's smoothing leaves vertices about 0.2 mm apart; sewing each one stitched in
+    // place (800 stitches under 0.3 mm in the ready-to-sew kit). Stitches follow the Run Pitch,
+    // at most half the spacing on the turns.
+    let c = vec![Contour::ellipse(v2(150.0, 150.0), 120.0, 90.0, 48)];
+    let mut r = region(RegionType::Stippling);
+    r.running_stitch_path = None;
+    let runs = crate::region::layers(&c, &r, &[]).pop().expect("top");
+    let lens: Vec<f64> = runs
+        .iter()
+        .flat_map(|run| run.windows(2).map(|w| w[0].distance(w[1])))
+        .collect();
+    let short = lens.iter().filter(|&&d| d < 3.0).count();
+    assert!(short <= 2, "{short} stitches under 0.3 mm");
+    let max = lens.iter().copied().fold(0.0, f64::max);
+    assert!(
+        max <= 10.5,
+        "longest stitch {max} (0.1 mm), half the 2 mm spacing"
+    );
+}
+
+#[test]
 fn square_net_lines_are_straight_and_axis_aligned() {
     let c = vec![Contour::rectangle(0.0, 0.0, 200.0, 200.0)];
     let mut r = region(RegionType::NetFill);
