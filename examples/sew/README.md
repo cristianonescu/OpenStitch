@@ -44,9 +44,14 @@ and the Photo Stitch 2 coverage model (issue #129).
 1. Sew `calibration/t1-swatches.pes`, `calibration/ps2-grey-ramp.pes`,
    `calibration/satin-and-underlay.pes` and the photo patch
    `image-tools/S-photo1-sunset-openstitch.pes`.
-2. Photograph each one flat, straight from above, with even, diffuse daylight (no direct sun and no
-   flash), and a grey card or plain white paper next to it. Fill most of the frame and keep the
-   same distance for all of them.
+2. Scan each one on a flatbed scanner, the best way to capture them: Photo Mode (not Document
+   Mode), Colour, 600 dpi, PNG, no rotation, skew correction and every automatic correction
+   (exposure, colour restoration, backlight) off, and a plain white paper strip on the glass next
+   to the fabric as a colour reference. Several pieces per scan are fine if they lie flat and do
+   not overlap. Without a scanner, photograph each one flat, straight from above, in even daylight
+   without direct sun or flash, with white paper or a grey card in the frame, at the same distance
+   for every piece. White or light grey fabric is best: a coloured fabric shows through the White
+   swatches.
 3. Note the thread you used for each colour of the T1 card:
 
    | Card colour | Brother code | Thread you used (brand, colour name, code) |
@@ -60,10 +65,24 @@ and the Photo Stitch 2 coverage model (issue #129).
 
 ## Sending results
 
-Open an issue on [GitHub](https://github.com/cristianonescu/OpenStitch/issues) titled
-`Sew-out: <file name>`, with the photos, your machine, needle, fabric, stabiliser and threads, and
-what you saw: gaps, puckering, thread breaks, loose stitches, registration. For the machine checks,
-a record in [`compat/machine`](../../compat/machine/README.md) takes the same details as JSON.
+Use the **[Sew-out / calibration report](https://github.com/cristianonescu/OpenStitch/issues/new?template=sew-out-report.yml)**
+form on GitHub (a free GitHub account is needed). To use your results, OpenStitch needs:
+
+- **Machine and hoop**, and the **OpenStitch version** the files came from (Help ▸ About
+  OpenStitch, or the release you downloaded).
+- **The files you sewed**, and whether you resized, rotated or moved a design on the machine.
+- **Thread:** brand and weight, and for the T1 card the thread used for each colour (the table
+  above).
+- **Needle** (brand, type and size), **fabric** and **stabiliser**.
+- **How the images were made:** the scanner (or camera) and its settings, as in step 2.
+- **The original PNG scans or photos**, attached to the issue (not screenshots), with the white
+  reference in them.
+- **What you saw:** machine messages, thread breaks, loops, puckering, gaps, stitches piling up
+  in one spot, or "all fine".
+
+For the machine checks, a record in [`compat/machine`](../../compat/machine/README.md) takes the
+same details as JSON. Results are published in *Calibration results* below with the setup, and no
+personal details.
 
 ## Calibration results
 

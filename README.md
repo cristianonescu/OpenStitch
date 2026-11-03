@@ -39,7 +39,7 @@ Not affiliated with Brother Industries. No Brother code or assets are included; 
 
 ## Status at a glance
 
-Current release: **v0.1.0-alpha.10** ([notes](docs/releases/v0.1.0-alpha.10.md)).
+Current release: **v0.1.0-alpha.11** ([notes](docs/releases/v0.1.0-alpha.11.md)).
 
 OpenStitch is checked against PE-DESIGN 11.50 itself. Simple test designs made in a licensed copy
 through its normal interface are committed under `compat/reference/`. The compatibility harness
@@ -157,6 +157,12 @@ real thread and fabric. In the editor, **Help ▸ Ready-to-Sew Designs** opens t
 The first calibration results, from a Brother NV880E with New Brothread thread, are in the kit's
 [Calibration results](examples/sew/README.md#calibration-results); they will change as OpenStitch
 improves.
+
+**Help test on your machine.** So far the kit has been sewn on one machine, a Brother NV880E. Results
+from other Brother, Babylock, Bernette, Janome and Singer machines (PES and the other machine
+formats), other threads and other fabrics are very welcome: sew a few designs from the kit and send
+them with the [Sew-out / calibration report](https://github.com/cristianonescu/OpenStitch/issues/new?template=sew-out-report.yml)
+form. The kit's [Sending results](examples/sew/README.md#sending-results) says what to include.
 
 ## Features
 

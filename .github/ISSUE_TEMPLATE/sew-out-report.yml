@@ -1,0 +1,95 @@
+name: Sew-out / calibration report
+description: Report how an OpenStitch design sewed on your machine, or send calibration scans of the ready-to-sew kit.
+title: "Sew-out: <file name> on <machine>"
+labels: ["sew-out"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for testing OpenStitch on a real machine. Sew-outs are how OpenStitch learns what thread and fabric really do, and how it finds problems no test on a computer can.
+        The [ready-to-sew kit](https://github.com/cristianonescu/OpenStitch/tree/main/examples/sew) (Help ▸ Ready-to-Sew Designs) has the designs and how to sew them.
+        Fill in what you can; the fields marked required are needed to use your results.
+  - type: input
+    id: machine
+    attributes:
+      label: Machine
+      description: Brand and model, for example "Brother Innov-is NV880E".
+    validations:
+      required: true
+  - type: input
+    id: hoop
+    attributes:
+      label: Hoop
+      description: The hoop you sewed in, for example "100 × 100 mm".
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: OpenStitch version
+      description: Help ▸ About OpenStitch, or the release you downloaded the kit with (for example v0.1.0-alpha.11).
+    validations:
+      required: true
+  - type: textarea
+    id: files
+    attributes:
+      label: Files sewn
+      description: The file names, for example `calibration/t1-swatches.pes`. Say if you resized, rotated or moved a design on the machine.
+    validations:
+      required: true
+  - type: textarea
+    id: threads
+    attributes:
+      label: Thread
+      description: |
+        Brand and weight (for example "New Brothread, 40 wt"), and for the T1 card the thread you used for each colour:
+        White 001, Black 900, Red 800, Blue 405, Yellow 205, Leaf Green 509 (brand, colour name, code).
+    validations:
+      required: true
+  - type: input
+    id: needle
+    attributes:
+      label: Needle
+      description: Brand, type and size, for example "Schmetz embroidery 75/11".
+    validations:
+      required: true
+  - type: input
+    id: fabric
+    attributes:
+      label: Fabric and stabiliser
+      description: For example "pink woven cotton, one layer of tear-away". White or light grey fabric is best for calibration.
+    validations:
+      required: true
+  - type: textarea
+    id: capture
+    attributes:
+      label: How the images were made
+      description: |
+        A flatbed scan is best. Please give the scanner model and its settings. Settings that work: Photo Mode (not Document Mode), Colour, 600 dpi, PNG, no rotation, skew correction and all automatic corrections (exposure, colour restoration, backlight) off.
+        Put a plain white paper strip on the glass next to the fabric as a colour reference.
+        With a camera instead: flat, straight from above, even daylight without direct sun or flash, a white paper or grey card in the frame, the same distance for every piece.
+      placeholder: "Epson L3150, Photo Mode, Colour, 600 dpi, PNG, corrections off, white paper strip"
+    validations:
+      required: true
+  - type: textarea
+    id: images
+    attributes:
+      label: Scans or photos
+      description: Attach the original PNG files (drag them here), not screenshots, so their full resolution is kept. Several pieces per scan are fine if they lie flat and do not overlap.
+    validations:
+      required: true
+  - type: textarea
+    id: observations
+    attributes:
+      label: What you saw
+      description: Messages on the machine's screen, thread breaks, loops, puckering, gaps, stitches piling up in one spot, misregistration, or "all fine".
+    validations:
+      required: false
+  - type: checkboxes
+    id: consent
+    attributes:
+      label: Publishing
+      description: Calibration results are published in the kit's README with the setup above (no personal details).
+      options:
+        - label: OpenStitch may publish these scans and measurements in its repository.
+          required: false
