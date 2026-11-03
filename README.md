@@ -154,6 +154,9 @@ checks that need a sew-out. They are PES files sized for a Brother NV880E's 100 
 and 260 × 160 mm hoops, each with a preview, its threads and how to sew it. Sewing the calibration
 designs and [sending the photos](examples/sew/README.md#sending-results) helps tune OpenStitch to
 real thread and fabric. In the editor, **Help ▸ Ready-to-Sew Designs** opens them.
+The first calibration results, from a Brother NV880E with New Brothread thread, are in the kit's
+[Calibration results](examples/sew/README.md#calibration-results); they will change as OpenStitch
+improves.
 
 ## Features
 

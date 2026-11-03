@@ -1,0 +1,158 @@
+{
+ "date": "2026-11-03",
+ "design": "calibration/t1-swatches.pes",
+ "openstitch": "main 4cf8b7a (ready-to-sew kit after #286 and #287)",
+ "machine": "Brother Innov-is NV880E, small hoop (100 x 100 mm)",
+ "thread": "New Brothread embroidery thread, Brother colour codes (the kit's codes)",
+ "needle": "75/11 embroidery needle (the kit's recommendation; to be confirmed)",
+ "fabric": "pink woven cotton, with stabiliser",
+ "scan": "Epson L3150 flatbed, Epson Scan 2 Photo Mode, automatic corrections off, 600 dpi, PNG, a white paper strip as reference",
+ "method": "Each swatch's central 6 x 6 mm averaged and white-balanced on the paper strip (raw paper #f4f4f6); coverage = how far the swatch's luminance moved from the fabric's towards black at 6 rows/mm",
+ "fabricColour": "#d889a9",
+ "swatches": [
+  {
+   "thread": "White",
+   "code": "001",
+   "rowsPerMM": 3.0,
+   "rgb": "#ddafc0"
+  },
+  {
+   "thread": "White",
+   "code": "001",
+   "rowsPerMM": 4.5,
+   "rgb": "#e5c7d3"
+  },
+  {
+   "thread": "White",
+   "code": "001",
+   "rowsPerMM": 6.0,
+   "rgb": "#ebd6df"
+  },
+  {
+   "thread": "Black",
+   "code": "900",
+   "rowsPerMM": 3.0,
+   "rgb": "#302628"
+  },
+  {
+   "thread": "Black",
+   "code": "900",
+   "rowsPerMM": 4.5,
+   "rgb": "#161715"
+  },
+  {
+   "thread": "Black",
+   "code": "900",
+   "rowsPerMM": 6.0,
+   "rgb": "#121613"
+  },
+  {
+   "thread": "Red",
+   "code": "800",
+   "rowsPerMM": 3.0,
+   "rgb": "#bd2426"
+  },
+  {
+   "thread": "Red",
+   "code": "800",
+   "rowsPerMM": 4.5,
+   "rgb": "#bd2122"
+  },
+  {
+   "thread": "Red",
+   "code": "800",
+   "rowsPerMM": 6.0,
+   "rgb": "#bf3135"
+  },
+  {
+   "thread": "Blue",
+   "code": "405",
+   "rowsPerMM": 3.0,
+   "rgb": "#365783"
+  },
+  {
+   "thread": "Blue",
+   "code": "405",
+   "rowsPerMM": 4.5,
+   "rgb": "#2b5584"
+  },
+  {
+   "thread": "Blue",
+   "code": "405",
+   "rowsPerMM": 6.0,
+   "rgb": "#445884"
+  },
+  {
+   "thread": "Yellow",
+   "code": "205",
+   "rowsPerMM": 3.0,
+   "rgb": "#d89f49"
+  },
+  {
+   "thread": "Yellow",
+   "code": "205",
+   "rowsPerMM": 4.5,
+   "rgb": "#e1ac3b"
+  },
+  {
+   "thread": "Yellow",
+   "code": "205",
+   "rowsPerMM": 6.0,
+   "rgb": "#da9e4a"
+  },
+  {
+   "thread": "Leaf Green",
+   "code": "509",
+   "rowsPerMM": 3.0,
+   "rgb": "#6c8655"
+  },
+  {
+   "thread": "Leaf Green",
+   "code": "509",
+   "rowsPerMM": 4.5,
+   "rgb": "#558d44"
+  },
+  {
+   "thread": "Leaf Green",
+   "code": "509",
+   "rowsPerMM": 6.0,
+   "rgb": "#4a883c"
+  }
+ ],
+ "blackRamp": [
+  {
+   "rowsPerMM": 0.5,
+   "rgb": "#af728b",
+   "coverage": 0.2
+  },
+  {
+   "rowsPerMM": 1.0,
+   "rgb": "#885c6e",
+   "coverage": 0.4
+  },
+  {
+   "rowsPerMM": 1.5,
+   "rgb": "#6b4a57",
+   "coverage": 0.55
+  },
+  {
+   "rowsPerMM": 2.0,
+   "rgb": "#523b44",
+   "coverage": 0.68
+  },
+  {
+   "rowsPerMM": 3.0,
+   "rgb": "#2c2426",
+   "coverage": 0.87
+  },
+  {
+   "rowsPerMM": 4.5,
+   "rgb": "#1b1a1a",
+   "coverage": 0.96
+  }
+ ],
+ "notes": [
+  "White thread does not cover the pink fabric even at 6 rows/mm: the white swatches read pink, so they are not a calibration of White 001.",
+  "One layer, no underlay, as the card is designed."
+ ]
+}

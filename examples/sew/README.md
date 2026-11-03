@@ -65,6 +65,53 @@ Open an issue on [GitHub](https://github.com/cristianonescu/OpenStitch/issues) t
 what you saw: gaps, puckering, thread breaks, loose stitches, registration. For the machine checks,
 a record in [`compat/machine`](../../compat/machine/README.md) takes the same details as JSON.
 
+## Calibration results
+
+Sew-outs of the calibration designs, measured from flatbed scans. **They are a snapshot:**
+OpenStitch is updated often, and the kit's designs, the measuring method and these results will
+change and improve with it. Each record names the OpenStitch version it was sewn from.
+Results from other machines, threads and fabrics are welcome (see *Sending results* above).
+
+### T1 card, 2026-11-03
+
+<img src="calibration/results/2026-11-03-nv880e-new-brothread-t1.jpg" width="480" alt="Scan of the sewn T1 card">
+
+| Setting | Used |
+|---|---|
+| Machine | Brother Innov-is NV880E, small hoop (100 × 100 mm) |
+| Thread | New Brothread embroidery thread, in Brother's colour codes |
+| Needle | 75/11 embroidery needle (the kit's recommendation; to be confirmed) |
+| Fabric | pink woven cotton, with stabiliser |
+| Scan | Epson L3150 flatbed, Photo Mode, automatic corrections off, 600 dpi, a white paper strip as reference |
+| OpenStitch | main `4cf8b7a` (the kit after the PEC frame fixes) |
+
+Swatch colours, white-balanced on the paper strip (each swatch's central 6 × 6 mm), one layer
+without underlay:
+
+| Thread | 3.0 rows/mm | 4.5 rows/mm | 6.0 rows/mm |
+|---|---|---|---|
+| 001 White | `#ddafc0` | `#e5c7d3` | `#ebd6df` |
+| 900 Black | `#302628` | `#161715` | `#121613` |
+| 800 Red | `#bd2426` | `#bd2122` | `#bf3135` |
+| 405 Blue | `#365783` | `#2b5584` | `#445884` |
+| 205 Yellow | `#d89f49` | `#e1ac3b` | `#da9e4a` |
+| 509 Leaf Green | `#6c8655` | `#558d44` | `#4a883c` |
+
+Black coverage ramp (how far each swatch moved from the fabric, `#d889a9`, towards black):
+
+| Rows/mm | 0.5 | 1 | 1.5 | 2 | 3 | 4.5 |
+|---|---|---|---|---|---|---|
+| Coverage | 20 % | 40 % | 55 % | 68 % | 87 % | 96 % |
+
+Notes:
+- White thread does not hide the pink fabric even at 6 rows/mm, so the White swatches are not a
+  calibration of White 001; a white or light grey fabric is needed for it.
+- The small "T1" mark sews unevenly: satin lettering this small ends its strokes in very short
+  stitches, a known open item.
+
+The full record, with the method, is
+[calibration/results/2026-11-03-nv880e-new-brothread.json](calibration/results/2026-11-03-nv880e-new-brothread.json).
+
 ## Keeping the kit current
 
 The files are generated, never edited by hand:
