@@ -287,24 +287,16 @@ fn label_bytes(name: &str) -> Vec<u8> {
     out
 }
 
-/// PE-DESIGN 11's PEC frame for a design at its page position: 290 × 190 mm (333 of the 442
-/// reference files; the other 108 have a frame of the design's own size, starting at its
-/// top-left corner).
-const PE_FRAME: (i64, i64) = (2900, 1900);
-
-/// The pattern to encode and its PEC frame (the header's width and height). The stitch data
-/// starts at the frame's top-left corner, and a Brother machine draws and sews the design inside
-/// the frame, cutting off what lies outside: the NV880E showed the ready-to-sew kit cropped by
-/// each design's page margin when the frame was the design's size but the stitches kept their
-/// page position.
-/// - Stitches within the design-sized frame from the origin: that frame, as before (PE-DESIGN's
-///   design-sized files and pyembroidery's rewrite byte for byte).
-/// - Stitches at a page position (none left of or above the origin): they stay there, in
-///   PE-DESIGN's 290 × 190 mm frame, or larger when the design reaches further.
-/// - Anything else (stitches left of or above the origin, as in some of pyembroidery's files):
-///   as before, in the design-sized frame.
+/// The pattern to encode and its PEC frame (the header's width and height). A Brother machine
+/// reads the frame as the design's size (the NV880E refuses a frame larger than its hoop: "The
+/// pattern is too large for the extra large embroidery frame" for PE-DESIGN's 290 × 190 mm
+/// frame) and draws and sews only inside it, measured from where the stitch data starts (a
+/// design-sized frame with the stitches at their page position was cut off by the page margin).
+/// So the frame is the design's own extents and the stitch data starts at their top-left corner,
+/// as in PE-DESIGN 11's design-sized files: a pattern whose stitches already lie in that frame
+/// from the origin (PE-DESIGN's own design-sized files, pyembroidery's) stays as it is; any other
+/// is moved so its top-left corner is the origin, on whole 0.1 mm steps.
 fn framed(pattern: &StitchPattern) -> (std::borrow::Cow<'_, StitchPattern>, (i64, i64)) {
-    // On the encoder's whole 0.1 mm steps.
     let moves = || {
         pattern
             .stitches
@@ -321,24 +313,29 @@ fn framed(pattern: &StitchPattern) -> (std::borrow::Cow<'_, StitchPattern>, (i64
         return (std::borrow::Cow::Borrowed(pattern), (0, 0));
     };
     let (w, h) = (max_x - min_x, max_y - min_y);
-    let sewn = || {
-        pattern
-            .stitches
-            .iter()
-            .filter(|s| s.command == Command::Stitch)
-            .map(|s| (round_coordinate(s.x), round_coordinate(s.y)))
-    };
-    if sewn().all(|(x, y)| (0..=w).contains(&x) && (0..=h).contains(&y)) {
+    let fits = pattern
+        .stitches
+        .iter()
+        .filter(|s| s.command == Command::Stitch)
+        .all(|s| {
+            (0..=w).contains(&round_coordinate(s.x)) && (0..=h).contains(&round_coordinate(s.y))
+        });
+    // pyembroidery's files start at the pattern's origin with stitches above or left of it:
+    // they keep that layout, so they rewrite byte for byte.
+    let above_or_left = pattern
+        .stitches
+        .iter()
+        .filter(|s| s.command == Command::Stitch)
+        .any(|s| round_coordinate(s.x) < 0 || round_coordinate(s.y) < 0);
+    if fits || above_or_left {
         return (std::borrow::Cow::Borrowed(pattern), (w, h));
     }
-    if sewn().all(|(x, y)| x >= 0 && y >= 0) {
-        let frame = (
-            PE_FRAME.0.max(sewn().map(|p| p.0).max().unwrap_or(0)),
-            PE_FRAME.1.max(sewn().map(|p| p.1).max().unwrap_or(0)),
-        );
-        return (std::borrow::Cow::Borrowed(pattern), frame);
+    let mut out = pattern.clone();
+    for s in &mut out.stitches {
+        s.x = (round_coordinate(s.x) - min_x) as f64;
+        s.y = (round_coordinate(s.y) - min_y) as f64;
     }
-    (std::borrow::Cow::Borrowed(pattern), (w, h))
+    (std::borrow::Cow::Owned(out), (w, h))
 }
 
 /// Writes the PEC section and returns the colour list as written at 0x30 (count − 1 first;

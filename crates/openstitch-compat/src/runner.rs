@@ -217,6 +217,24 @@ fn repo_file(config: &Config, rel: &str) -> Result<Vec<u8>, String> {
     provenance::read_limited(&p)?.ok_or_else(|| format!("{rel}: no such file"))
 }
 
+/// Moves `pattern` (read back from a PES or PEC) so its top-left corner is where `source`'s
+/// was, when it is `source` moved: the same width and height within a needle step.
+fn back_on_the_page(pattern: &mut StitchPattern, source: &StitchPattern) {
+    let (b, s) = (pattern.bounds(), source.bounds());
+    let same = |a: f64, c: f64| (a - c).abs() <= 1.0;
+    if !(same(b.width(), s.width()) && same(b.height(), s.height())) {
+        return;
+    }
+    let (dx, dy) = ((s.min_x - b.min_x).round(), (s.min_y - b.min_y).round());
+    if dx == 0.0 && dy == 0.0 {
+        return;
+    }
+    for st in &mut pattern.stitches {
+        st.x += dx;
+        st.y += dy;
+    }
+}
+
 fn file_type(name: &str) -> Result<FileType, String> {
     FileType::from_path(name).ok_or_else(|| format!("{name}: unknown embroidery format"))
 }
@@ -236,8 +254,19 @@ fn execute(
 
     let mut session = Session::sandboxed(&dir);
     let mut replies: BTreeMap<String, Value> = BTreeMap::new();
+    // The design as each `design.export` step wrote it, by path: where a PES or PEC export lay
+    // on the Design Page (see `back_on_the_page`).
+    let mut exported_designs: BTreeMap<String, StitchPattern> = BTreeMap::new();
     for (k, step) in spec.script.iter().enumerate() {
         let reply = session.handle(step);
+        if step["command"] == "design.export"
+            && let Some(path) = step["params"]["path"].as_str()
+        {
+            exported_designs.insert(
+                path.to_string(),
+                openstitch_design::Compiler::for_design(session.design()).compile(session.design()),
+            );
+        }
         if reply["ok"] != json!(true) {
             return Err(format!(
                 "script step {k} ({}): {}",
@@ -286,9 +315,29 @@ fn execute(
             }
         }
         let bytes = std::fs::read(&target).map_err(|e| format!("export {}: {e}", x.path))?;
-        let pattern = ty
+        let mut pattern = ty
             .read(&bytes)
             .map_err(|e| format!("reading back {}: {e}", x.path))?;
+        // A PES or PEC starts its stitches at the design's top-left corner (the frame a Brother
+        // machine reads as the design: `pec::write_section`), so the file no longer holds where
+        // the design lay on the Design Page. The measurements are in page coordinates (they
+        // compare with PE-DESIGN's files, which keep the page position), so the design is put
+        // back where it was: the same size, moved by its corner.
+        if matches!(ty, FileType::Pes | FileType::Pec) {
+            let source = match &x.from_input {
+                Some(input) => file_type(input)?
+                    .read(&std::fs::read(dir.join(input)).map_err(|e| format!("{input}: {e}"))?)
+                    .ok(),
+                None if x.from_script => exported_designs.get(&x.path).cloned(),
+                None => Some(
+                    openstitch_design::Compiler::for_design(session.design())
+                        .compile(session.design()),
+                ),
+            };
+            if let Some(source) = source {
+                back_on_the_page(&mut pattern, &source);
+            }
+        }
         result.exports.push(ExportInfo {
             path: x.path.clone(),
             bytes: bytes.len(),

@@ -346,7 +346,9 @@ fn pec_writes_no_zero_length_record_after_a_jump() {
     p.push(Command::End);
     let bytes = pec::write(&p).expect("write");
     let stitches = &bytes[8 + 512 + 16..];
-    assert_eq!(&stitches[..6], [0x90, 0x64, 0x90, 0x32, 0x03, 0x04]);
+    // The design is moved into its PEC frame (the jump lands on the frame's corner), and the
+    // stitch follows straight after the jump.
+    assert_eq!(&stitches[..6], [0x90, 0x00, 0x90, 0x00, 0x03, 0x04]);
 }
 
 #[test]
@@ -1508,12 +1510,13 @@ fn pes_v6_header_carries_the_custom_page_and_rotation_flags() {
 }
 
 #[test]
-fn pec_frame_holds_a_design_at_its_page_position() {
-    // The NV880E draws and sews a design inside the PEC frame (the header's width and height,
-    // from where the stitch data starts) and cuts off the rest. A design away from the origin
-    // once got a frame of its own size, so the machine cut it by its page margin (the
-    // ready-to-sew kit's lettering lost "ch" and the foot of its circle text). It now keeps its
-    // position in PE-DESIGN 11's 290 × 190 mm frame.
+fn pec_frame_is_the_design_and_holds_its_stitches() {
+    // A Brother machine reads the PEC frame (the header's width and height) as the design's
+    // size and sews only inside it, measured from where the stitch data starts. A design away
+    // from the origin once got a frame of its own size with its stitches at their page position,
+    // so the NV880E cut it by the page margin; then PE-DESIGN's 290 × 190 mm frame, which the
+    // NV880E refused as too large for its largest hoop. The frame is the design's size and the
+    // stitches start at its top-left corner.
     let mut p = with_threads(&[0]);
     p.jump_to(70.0, 70.0);
     p.stitch_to(70.0, 70.0);
@@ -1523,18 +1526,13 @@ fn pec_frame_holds_a_design_at_its_page_position() {
     let block = 8 + 512;
     let w = u16::from_le_bytes([bytes[block + 8], bytes[block + 9]]);
     let h = u16::from_le_bytes([bytes[block + 10], bytes[block + 11]]);
-    assert_eq!((w, h), (2900, 1900));
+    assert_eq!((w, h), (860, 800));
     let back = FileType::Pec.read(&bytes).expect("read");
+    let s = sewn(&back);
     assert!(
-        sewn(&back)
-            .iter()
+        s.iter()
             .all(|q| q[0] >= 0.0 && q[0] <= f64::from(w) && q[1] >= 0.0 && q[1] <= f64::from(h))
     );
-    // A design that already fits a frame of its own size keeps that frame.
-    let mut q = with_threads(&[0]);
-    q.stitch_to(0.0, 0.0);
-    q.stitch_to(400.0, 300.0);
-    q.push(Command::End);
-    let bytes = pec::write(&q).expect("write");
-    assert_eq!(&bytes[block + 8..block + 12], [0x90, 0x01, 0x2C, 0x01]);
+    assert_eq!(s.first(), Some(&[0.0, 0.0]));
+    assert_eq!(s.last(), Some(&[860.0, 800.0]));
 }

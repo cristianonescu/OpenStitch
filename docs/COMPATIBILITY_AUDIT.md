@@ -2107,12 +2107,17 @@ Line references are relative to `crates/`.
 
 ### Sew-out findings, 2026-11-02 (ready-to-sew kit on the owner's NV880E)
 
-- **PEC frame (fixed):** the header's width and height are a frame measured from where the stitch
-  data starts, and the machine draws and sews only inside it. OpenStitch wrote a frame of the
-  design's size while the stitches kept their page position, so every exported design was cut by
-  its page margin (the lettering lost "ch" and the foot of its circle text; the satin card's
-  columns were pressed into a line). A design at its page position now gets PE-DESIGN's 290 × 190
-  mm frame, as 333 of the 442 references have; a design turned for a rotated hoop stays on the page.
+- **PEC frame (fixed 2026-11-03):** the header's width and height are a frame measured from
+  where the stitch data starts; the machine reads it as the design's size and sews only inside it.
+  OpenStitch wrote a frame of the design's size while the stitches kept their page position, so
+  every exported design was cut by its page margin (the lettering lost "ch" and the foot of its
+  circle text; the satin card's columns were pressed into a line). A first fix gave such designs
+  PE-DESIGN's 290 × 190 mm frame (333 of the 442 references): the NV880E then refused every file
+  ("The pattern is too large for the extra large embroidery frame"). The frame is now the design's
+  own size with the stitches starting at its top-left corner, as in PE-DESIGN's 108 design-sized
+  references; a design turned for a rotated hoop stays on the page. The compat runner puts a
+  read-back PES or PEC export back at its page position before measuring, since the measurements
+  compare page coordinates with PE-DESIGN's files.
 - **Stippling (fixed):** it sewed every vertex of its smoothed meander, about 0.2 mm apart (800
   stitches in place); it now sews at the Run Pitch, at most half the spacing.
 - **Flexible spiral (fixed):** its points crowded under 0.3 mm towards the centre (52 in a row);

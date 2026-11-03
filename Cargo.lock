@@ -2532,6 +2532,7 @@ name = "openstitch-compat"
 version = "0.1.0"
 dependencies = [
  "openstitch-core",
+ "openstitch-design",
  "openstitch-engine",
  "openstitch-formats",
  "serde",

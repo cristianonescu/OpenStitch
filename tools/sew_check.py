@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Checks PES files for problems a machine sew-out shows but the editor may not:
 
-- **Out of the hoop:** the stitched area, centred the way a Brother machine centres a design (on
-  the middle of its stitch extents), must fit the hoop's sewing field. The PEC header's width and
-  height must also cover the stitches, since the machine reads them to check the size.
+- **Out of the hoop:** the stitched area must fit the hoop's sewing field.
+- **The PEC frame:** the header's width and height, measured from where the stitch data starts.
+  The machine reads it as the design's size (a frame larger than the hoop is refused) and sews
+  only inside it (stitches outside it are cut off), so it must hold every stitch and fit the hoop.
 - **Stacked needle drops:** too many penetrations in one small spot can break a needle.
   Reported per 0.5 mm cell, over the whole design and within one colour block.
 - **Stitching in place:** runs of stitches shorter than 0.3 mm that do not travel.
@@ -98,6 +99,14 @@ def check(path, hoop):
         w <= hoop[1] + FIELD_SLACK_MM and h <= hoop[0] + FIELD_SLACK_MM)
     if not fits:
         problems.append(f"OUT OF HOOP: stitches span {w:.1f} × {h:.1f} mm, hoop {hoop[0]:.0f} × {hoop[1]:.0f}")
+    # The machine reads the PEC frame as the design's size: a frame larger than the hoop is
+    # refused ("The pattern is too large for the extra large embroidery frame", NV880E, for a
+    # 290 × 190 mm frame), whatever the stitches' own size.
+    frame_fits = (hw <= hoop[0] + FIELD_SLACK_MM and hh <= hoop[1] + FIELD_SLACK_MM) or (
+        hw <= hoop[1] + FIELD_SLACK_MM and hh <= hoop[0] + FIELD_SLACK_MM)
+    if not frame_fits:
+        problems.append(f"REFUSED BY THE MACHINE: PEC frame {hw:.1f} × {hh:.1f} mm is larger than the "
+                        f"{hoop[0]:.0f} × {hoop[1]:.0f} mm hoop")
     over = (-min(xs), -min(ys), max(xs) - hw, max(ys) - hh)
     if max(over) > 0.15:
         problems.append(f"CROPPED ON THE MACHINE: stitches leave the PEC frame ({hw:.1f} × {hh:.1f} mm) by "
