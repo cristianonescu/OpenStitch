@@ -108,8 +108,8 @@ when they are added.
 
 Compatibility, from the open items in [COMPATIBILITY_AUDIT.md](COMPATIBILITY_AUDIT.md):
 
-Sew-outs (first one 2026-11-02, the ready-to-sew kit on the owner's NV880E): every PES now keeps
-its stitches inside the PEC frame, stippling and the flexible spiral no longer stitch in place, and
+Sew-outs (first one 2026-11-02, the ready-to-sew kit on the owner's NV880E): every PES now has a PEC
+frame of the design's size holding its stitches (2026-11-03), stippling and the flexible spiral no longer stitch in place, and
 `tools/sew_check.py` checks a file for all three plus stacked needle drops. Next: Auto Punch's
 stacked satin points on the storybook picture (B16.1, the Mac's track), satin lettering's short
 stroke ends, then the kit's calibration photos.

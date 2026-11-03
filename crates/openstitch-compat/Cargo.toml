@@ -8,6 +8,7 @@ rust-version.workspace = true
 
 [dependencies]
 openstitch-core.workspace = true
+openstitch-design = { path = "../openstitch-design" }
 openstitch-formats = { path = "../openstitch-formats" }
 openstitch-engine = { path = "../openstitch-engine" }
 serde.workspace = true
