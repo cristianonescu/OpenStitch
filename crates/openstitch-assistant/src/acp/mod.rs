@@ -477,6 +477,9 @@ impl AcpConversation {
                 Ok(FromAgent::Response { id: got, result }) if got == id => {
                     return match result {
                         Ok(v) => {
+                            if let Some(u) = v.get("usage") {
+                                on_event(usage(u));
+                            }
                             let stop = stop_kind(&v);
                             if stop == StopKind::Cancelled {
                                 turn.finish_cancelled(on_event);
@@ -720,6 +723,18 @@ mod tests {
     }
 }
 
+/// The `usage` of a `session/prompt` result (claude-agent-acp 0.100.0, measured 2026-11-04:
+/// `inputTokens`, `outputTokens`, `cachedReadTokens`, `cachedWriteTokens`) as a usage event (#389).
+fn usage(u: &Value) -> Event {
+    let n = |k: &str| u.get(k).and_then(Value::as_u64).unwrap_or(0);
+    Event::Usage {
+        input_tokens: n("inputTokens"),
+        output_tokens: n("outputTokens"),
+        cache_read_input_tokens: n("cachedReadTokens"),
+        cache_creation_input_tokens: n("cachedWriteTokens"),
+    }
+}
+
 /// A failed `session/prompt`. Claude Code (claude-agent-acp 0.100.0, measured 2026-11-04) accepts
 /// `initialize` and `session/new` while signed out and refuses only here, with -32000 (#385).
 fn prompt_error(code: i64, message: &str) -> String {
@@ -735,6 +750,20 @@ fn prompt_error(code: i64, message: &str) -> String {
 
 #[cfg(test)]
 mod prompt_error_tests {
+    #[test]
+    fn the_prompt_results_usage_is_counted() {
+        let u = serde_json::json!({"inputTokens": 2, "outputTokens": 4, "cachedReadTokens": 11268, "cachedWriteTokens": 25859});
+        assert_eq!(
+            super::usage(&u),
+            super::Event::Usage {
+                input_tokens: 2,
+                output_tokens: 4,
+                cache_read_input_tokens: 11268,
+                cache_creation_input_tokens: 25859
+            }
+        );
+    }
+
     #[test]
     fn a_sign_in_refusal_at_prompt_says_how_to_sign_in() {
         let m = super::prompt_error(-32000, "Authentication required");
