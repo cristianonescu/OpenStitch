@@ -18,6 +18,7 @@ use openstitch_app::editor::assistant_chat::{
     APPROVAL_TIMEOUT_S, AiPrefs, GateInput, PRESETS, PermissionMode, Protocol, ScriptRecord,
     Verdict, is_this_computer, verdict,
 };
+use openstitch_app::editor::ribbon::Action;
 use openstitch_assistant as claude;
 use openstitch_engine::Effect;
 use openstitch_mcp::EditorLink;
@@ -1375,18 +1376,108 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
     }
 }
 
+/// A chat bubble: the user's on the right in the accent colour, the assistant's on the left in
+/// the widget colour.
+fn bubble(ui: &mut egui::Ui, mine: bool, add: impl FnOnce(&mut egui::Ui)) {
+    let max = (ui.available_width() * 0.85).max(120.0);
+    let (fill, layout) = if mine {
+        (
+            ui.visuals().selection.bg_fill,
+            egui::Layout::right_to_left(egui::Align::TOP),
+        )
+    } else {
+        (
+            ui.visuals().widgets.inactive.bg_fill,
+            egui::Layout::left_to_right(egui::Align::TOP),
+        )
+    };
+    ui.with_layout(layout, |ui| {
+        egui::Frame::new()
+            .fill(fill)
+            .corner_radius(12)
+            .inner_margin(egui::Margin::symmetric(10, 7))
+            .show(ui, |ui| {
+                ui.set_max_width(max);
+                ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), add);
+            });
+    });
+}
+
+/// Light Markdown for the assistant's replies: `#` headings, `-`/`*` bullets, `**bold**` and
+/// `` `code` ``. Everything else is plain text.
+fn markdown(ui: &mut egui::Ui, text: &str) {
+    for line in text.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.is_empty() {
+            ui.add_space(4.0);
+            continue;
+        }
+        let job = if let Some(h) = trimmed.strip_prefix('#') {
+            inline_job(ui, h.trim_start_matches('#').trim_start(), true)
+        } else if let Some(b) = trimmed
+            .strip_prefix("- ")
+            .or_else(|| trimmed.strip_prefix("* "))
+        {
+            let depth = "  ".repeat((line.len() - trimmed.len()) / 2);
+            inline_job(ui, &format!("{depth}•  {b}"), false)
+        } else {
+            inline_job(ui, trimmed, false)
+        };
+        ui.add(egui::Label::new(job).wrap().selectable(true));
+    }
+}
+
+/// One line with `**bold**` and `` `code` `` runs.
+fn inline_job(ui: &egui::Ui, text: &str, heading: bool) -> egui::text::LayoutJob {
+    let style = ui.style();
+    let base = if heading {
+        egui::FontId::proportional(egui::TextStyle::Body.resolve(style).size + 2.0)
+    } else {
+        egui::TextStyle::Body.resolve(style)
+    };
+    let mut job = egui::text::LayoutJob::default();
+    for (i, run) in text.split("**").enumerate() {
+        let bold = heading || i % 2 == 1;
+        for (j, part) in run.split('`').enumerate() {
+            if part.is_empty() {
+                continue;
+            }
+            let code = j % 2 == 1;
+            let format = egui::TextFormat {
+                font_id: if code {
+                    egui::TextStyle::Monospace.resolve(style)
+                } else {
+                    base.clone()
+                },
+                color: if bold {
+                    ui.visuals().strong_text_color()
+                } else {
+                    ui.visuals().text_color()
+                },
+                background: if code {
+                    ui.visuals().code_bg_color
+                } else {
+                    egui::Color32::TRANSPARENT
+                },
+                ..Default::default()
+            };
+            job.append(part, 0.0, format);
+        }
+    }
+    job
+}
+
 fn item(ui: &mut egui::Ui, it: &Item) {
     match it {
-        Item::User(t) => {
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
-                egui::Frame::group(ui.style()).show(ui, |ui| {
-                    ui.add(egui::Label::new(t).wrap());
-                });
-            });
-        }
-        Item::Assistant(t) => {
-            ui.add(egui::Label::new(t).wrap().selectable(true));
-        }
+        Item::User(t) => bubble(ui, true, |ui| {
+            let color = ui.visuals().selection.stroke.color;
+            ui.add(
+                egui::Label::new(RichText::new(t).color(color))
+                    .wrap()
+                    .selectable(true),
+            );
+        }),
+        Item::Assistant(t) => bubble(ui, false, |ui| markdown(ui, t)),
         Item::Thinking(t) => {
             ui.collapsing(RichText::new("Thinking").weak(), |ui| {
                 ui.add(egui::Label::new(RichText::new(t).weak()).wrap());
@@ -1406,14 +1497,46 @@ fn item(ui: &mut egui::Ui, it: &Item) {
             } else {
                 "✓"
             };
-            ui.collapsing(RichText::new(format!("{state} {name}")).monospace(), |ui| {
-                ui.add(egui::Label::new(RichText::new(detail).monospace().small()).wrap());
-            });
+            ui.collapsing(
+                RichText::new(format!("{state} {name}")).monospace().small(),
+                |ui| {
+                    ui.add(egui::Label::new(RichText::new(detail).monospace().small()).wrap());
+                },
+            );
         }
         Item::Notice(t) => {
-            ui.label(RichText::new(t).italics().weak());
+            ui.vertical_centered(|ui| {
+                ui.add(egui::Label::new(RichText::new(t).italics().weak().small()).wrap());
+            });
         }
     }
+}
+
+/// A framed icon button the height of a normal button (the header's settings and close, the
+/// composer's attach).
+fn icon_button(
+    ui: &mut egui::Ui,
+    tip: &str,
+    draw: impl FnOnce(&egui::Painter, egui::Rect, egui::Color32),
+) -> egui::Response {
+    let (r, resp) = ui.allocate_exact_size(egui::vec2(28.0, 26.0), egui::Sense::click());
+    let v = ui.style().interact_selectable(&resp, false);
+    ui.painter().rect(
+        r,
+        v.corner_radius,
+        v.weak_bg_fill,
+        v.bg_stroke,
+        egui::StrokeKind::Inside,
+    );
+    draw(ui.painter(), r.shrink(5.0), v.fg_stroke.color);
+    resp.on_hover_text(tip)
+}
+
+fn close_glyph(p: &egui::Painter, r: egui::Rect, c: egui::Color32) {
+    let r = r.shrink(2.5);
+    let stroke = egui::Stroke::new(1.8, c);
+    p.line_segment([r.left_top(), r.right_bottom()], stroke);
+    p.line_segment([r.right_top(), r.left_bottom()], stroke);
 }
 
 /// The docked panel (call before the central panel).
@@ -1429,21 +1552,39 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
             ui.horizontal(|ui| {
                 ui.heading("Assistant");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui
-                        .small_button("×")
-                        .on_hover_text("Close (Ctrl+Shift+A)")
-                        .clicked()
+                    if icon_button(ui, "Close the Assistant (Ctrl+Shift+A)", close_glyph).clicked()
                     {
                         app.assistant.panel.open = false;
                     }
-                    if ui.small_button("⚙").on_hover_text("Settings").clicked() {
+                    let settings_open = app.assistant.panel.show_settings;
+                    let tip = if settings_open {
+                        "Hide the settings"
+                    } else {
+                        "Settings: model, key, permissions"
+                    };
+                    let gear = icon_button(ui, tip, |p, r, c| {
+                        crate::icons::paint(p, r, Action::Options, c, true)
+                    });
+                    if settings_open {
+                        ui.painter().rect_stroke(
+                            gear.rect,
+                            4,
+                            ui.visuals().selection.stroke,
+                            egui::StrokeKind::Inside,
+                        );
+                    }
+                    if gear.clicked() {
                         app.assistant.panel.show_settings ^= true;
                     }
-                    if ui.small_button("New chat").clicked() {
+                    if ui
+                        .button("New chat")
+                        .on_hover_text("Start a new conversation; the design stays")
+                        .clicked()
+                    {
                         new_chat(app);
                     }
                     if ui
-                        .small_button("Save as script")
+                        .button("Save as script")
                         .on_hover_text(
                             "The design changes of this chat as a stitchtool command script",
                         )
@@ -1534,10 +1675,20 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                     stop(app);
                 }
                 ui.horizontal(|ui| {
-                    if ui
-                        .small_button("📎")
-                        .on_hover_text("Attach pictures, SVG, text or stitch files (up to 8)")
-                        .clicked()
+                    let attach = icon_button(
+                        ui,
+                        "Attach pictures, SVG, text or stitch files (up to 8)",
+                        |p, r, c| {
+                            p.text(
+                                r.center(),
+                                egui::Align2::CENTER_CENTER,
+                                "📎",
+                                egui::FontId::proportional(16.0),
+                                c,
+                            );
+                        },
+                    );
+                    if attach.clicked()
                         && let Some(files) = rfd::FileDialog::new()
                             .add_filter(
                                 "Pictures, SVG, text, stitch files",
@@ -1551,16 +1702,37 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                         attach_files(app, files);
                     }
                     let panel = &mut app.assistant.panel;
-                    ui.toggle_value(&mut panel.attach_view, "View")
-                        .on_hover_text("Send a picture of the design with the message");
-                    ui.add_enabled_ui(!app.selection.is_empty(), |ui| {
-                        ui.toggle_value(&mut app.assistant.panel.attach_selection, "Selection")
-                            .on_hover_text(
-                                "Send the selected objects' ids, kinds and sizes with the message",
-                            );
-                    });
+                    if ui
+                        .add(egui::Button::new("View").selected(panel.attach_view))
+                        .on_hover_text("Send a picture of the design with the message")
+                        .clicked()
+                    {
+                        panel.attach_view ^= true;
+                    }
+                    let on = app.assistant.panel.attach_selection;
+                    if ui
+                        .add_enabled(
+                            !app.selection.is_empty(),
+                            egui::Button::new("Selection").selected(on),
+                        )
+                        .on_hover_text(
+                            "Send the selected objects' ids, kinds and sizes with the message",
+                        )
+                        .on_disabled_hover_text(
+                            "Select objects in the design to send them with the message",
+                        )
+                        .clicked()
+                    {
+                        app.assistant.panel.attach_selection ^= true;
+                    }
                     let busy = app.assistant.panel.busy();
-                    if (ui.button(if busy { "Queue" } else { "Send" }).clicked() || enter)
+                    let send_button = egui::Button::new(
+                        RichText::new(if busy { "Queue" } else { "Send" })
+                            .strong()
+                            .color(ui.visuals().selection.stroke.color),
+                    )
+                    .fill(ui.visuals().selection.bg_fill);
+                    if (ui.add(send_button).clicked() || enter)
                         && !app.assistant.panel.input.trim().is_empty()
                     {
                         let text = std::mem::take(&mut app.assistant.panel.input);
