@@ -488,14 +488,7 @@ pub fn send(app: &mut EditorApp, text: String, wake: Waker) {
         },
     );
     let (message, chips) = if prefs.protocol == Protocol::Agent {
-        let (extra, images, chips) = extras(app, true);
-        if !images.is_empty() {
-            app.assistant.panel.items.push(Item::Notice(
-                "A coding agent gets the attached files' paths, not the pictures themselves."
-                    .into(),
-            ));
-        }
-        let prompt = format!("{text}{extra}\n\n{}", context(app));
+        let (prompt, chips) = agent_prompt(app, &text);
         (ToWorker::Prompt(prompt), chips)
     } else {
         let Some(config) = model_config(app, &prefs) else {
@@ -584,6 +577,18 @@ pub fn attach_files(app: &mut EditorApp, paths: Vec<std::path::PathBuf>) {
             Err(e) => panel.items.push(Item::Notice(e)),
         }
     }
+}
+
+/// A coding agent's prompt: text only, so attached pictures go as paths (with a notice) and
+/// View asks the agent to look with `view_render` (#418). Returns the prompt and the chips.
+fn agent_prompt(app: &mut EditorApp, text: &str) -> (String, String) {
+    let (extra, images, chips) = extras(app, true);
+    if !images.is_empty() {
+        app.assistant.panel.items.push(Item::Notice(
+            "A coding agent gets the attached files' paths, not the pictures themselves.".into(),
+        ));
+    }
+    (format!("{text}{extra}\n\n{}", context(app)), chips)
 }
 
 /// What goes with the message (A4): the attached files, a picture of the view and the
@@ -2478,6 +2483,22 @@ mod tests {
         );
         assert_eq!(images.len(), 1);
         assert_eq!(images[0].0, "image/png");
+    }
+
+    /// #418, the coding-agent path: the prompt sent over ACP is text, so with View on it asks the
+    /// agent to call view_render and carries no picture data.
+    #[test]
+    fn the_view_chip_asks_a_coding_agent_to_call_view_render() {
+        let (mut app, _) = app_with(Vec::new());
+        app.assistant.panel.attach_view = true;
+        let (prompt, chips) = agent_prompt(&mut app, "What is this?");
+        assert!(prompt.starts_with("What is this?"));
+        assert!(prompt.contains("call view_render"), "{prompt}");
+        assert!(
+            !prompt.contains("base64") && !prompt.contains("iVBOR"),
+            "no picture data"
+        );
+        assert!(chips.contains("view"));
     }
 
     #[test]
