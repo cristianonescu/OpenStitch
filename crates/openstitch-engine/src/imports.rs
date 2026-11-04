@@ -102,7 +102,12 @@ fn collect(
                 if fill.is_none() && stroke.is_none() {
                     continue;
                 }
-                let contours = contours(path.data(), &path.abs_transform(), fill.is_some());
+                let contours = contours(
+                    path.data(),
+                    &path.abs_transform(),
+                    fill.is_some(),
+                    stroke.is_some(),
+                );
                 if contours.is_empty() {
                     continue;
                 }
@@ -125,8 +130,14 @@ fn collect(
     Ok(())
 }
 
-/// Subpaths as contours in 0.1 mm. Filled paths close every subpath, as SVG fills do.
-fn contours(data: &usvg::tiny_skia_path::Path, t: &usvg::Transform, filled: bool) -> Vec<Contour> {
+/// Subpaths as contours in 0.1 mm. Filled paths close every subpath with an area, as SVG fills
+/// do; a straight two-point subpath stays an open stroke.
+fn contours(
+    data: &usvg::tiny_skia_path::Path,
+    t: &usvg::Transform,
+    filled: bool,
+    stroked: bool,
+) -> Vec<Contour> {
     use usvg::tiny_skia_path::PathSegment;
     let map = |p: usvg::tiny_skia_path::Point| {
         let (x, y) = (f64::from(p.x), f64::from(p.y));
@@ -140,7 +151,13 @@ fn contours(data: &usvg::tiny_skia_path::Path, t: &usvg::Transform, filled: bool
     let mut last = Vec2::default();
     let finish = |c: Option<Contour>, closed: bool, out: &mut Vec<Contour>| {
         let Some(mut c) = c else { return };
-        let closed = closed || filled;
+        // A straight subpath of two points has no area: a fill cannot show it, so it stays an
+        // open stroke (a `<line>`, whose default fill is black, #341) or is dropped.
+        let flat = c.points.len() < 3 && !c.curves.iter().any(Option::is_some);
+        if flat && !stroked {
+            return;
+        }
+        let closed = !flat && (closed || filled);
         if closed {
             // A final vertex on top of the first is the closing segment's end.
             if c.points.len() > 1 && c.points[c.points.len() - 1].distance(c.points[0]) < 1e-6 {
@@ -605,6 +622,30 @@ mod tests {
         let g = &shapes[3];
         assert_eq!(g.contours.len(), 2);
         assert!((g.contours[0].points[0].x - 10.0 * PX).abs() < 1e-6);
+    }
+
+    #[test]
+    fn line_elements_import_as_open_strokes() {
+        // #341: `<line>` has SVG's default black fill, which used to close and drop it.
+        let svg = br##"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+          <line x1="50" y1="10" x2="90" y2="10" stroke="#000000"/>
+          <line x1="10" y1="10" x2="40" y2="50" stroke="#000000"/>
+          <line x1="10" y1="90" x2="10" y2="60" stroke="#ff0000" stroke-width="2"/>
+          <path d="M 60 90 L 95 90 Z" stroke="#000000" fill="none"/>
+          <path d="M 0 0 L 5 5" fill="#00ff00"/>
+        </svg>"##;
+        let shapes = parse_svg(svg).expect("parse");
+        // The fill-only straight subpath shows nothing in SVG and is not imported.
+        assert_eq!(shapes.len(), 4);
+        for s in &shapes {
+            assert_eq!(s.contours.len(), 1);
+            assert!(!s.contours[0].closed && s.contours[0].points.len() == 2);
+            assert!(s.stroke.is_some());
+        }
+        assert_eq!(
+            shapes[2].stroke.as_ref().map(Thread::hex).as_deref(),
+            Some("#ff0000")
+        );
     }
 
     #[test]
