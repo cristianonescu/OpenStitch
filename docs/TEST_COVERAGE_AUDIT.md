@@ -35,10 +35,7 @@ below are claims no test checks.
 
 | Area | Feature (matrix row) | Gap | Plan | Issue |
 |---|---|---|---|---|
-| Files | PES write, rotated hoop (v6) | weak: only the header flag is checked, not the turned PEC stitches | formats `coverage_formats.rs` | #329 |
-| Files | Import SVG | weak: `<ellipse>`, `<line>`, `<polygon>`, `<polyline>`, CSS `style=` untested | engine `coverage_formats.rs` | #329 |
-| Lettering | Text Transform written to PES 0110 | weak: OpenStitch's own envelope and level writer untested | engine `coverage_formats.rs`: export, `pes::read_objects` | #329 |
-| Files | Machine formats vs PE-DESIGN reference | weak: `formats.rs` comparisons return early, and pass, if a reference file is missing | a test that every reference file those tests read is present | #329 |
+| Files | Import SVG: `<line>` | **bug**: every `<line>` element is dropped on import (an equivalent `<path>` imports) | fix in `crates/openstitch-engine/src/imports.rs`; then un-ignore `svg_line_elements_import_as_running_lines` | #341 |
 | Lettering | TrueType / OpenType fonts | weak: 16 fonts and 40 MiB per design, and the layout-complexity refusal, untested | engine `coverage_lettering.rs` | #330 |
 | Lettering | Per-character edits | weak: character moves on mirrored or on-path text untested | same file | #330 |
 | Lettering | Complex scripts, CJK | weak: `right_to_left_scripts_with_a_system_font` and `cjk_text_with_a_system_font` pass without checking when no suitable system font is installed | recorded here; needs a bundled test font, not only a test | #330 |
@@ -86,3 +83,7 @@ associations and the macOS `.pes` document type (CI workflow, owned by the CI se
 | Editing | Curved sewing direction (`object.setDirectionCurve`) | weak: piping and motif fill under a curve, and the curve in `.osd`, untested | #328: `crates/openstitch-engine/tests/coverage_stitch_types.rs` |
 | Editing | Centre point / pattern reference point | weak: the reference point's effect is shown only for programmable fill; engine test asserts only that stitches exist | #328: `crates/openstitch-engine/tests/coverage_stitch_types.rs` |
 | Beyond PE-DESIGN | Contour fill | weak: "no travel from R1 or to R2" untested | #328: `crates/openstitch-engine/tests/coverage_stitch_types.rs` |
+| Files | PES write, rotated hoop (v6) | weak: only the header flag is checked, not the turned PEC stitches | #329: `crates/openstitch-formats/tests/coverage_formats.rs` |
+| Files | Import SVG | weak: `<ellipse>`, `<line>`, `<polygon>`, `<polyline>`, CSS `style=` untested | #329: `crates/openstitch-engine/tests/coverage_formats.rs` (`<line>` found broken: #341) |
+| Lettering | Text Transform written to PES 0110 | weak: OpenStitch's own envelope and level writer untested | #329: `crates/openstitch-engine/tests/coverage_formats.rs` |
+| Files | Machine formats vs PE-DESIGN reference | weak: `formats.rs` comparisons return early, and pass, if a reference file is missing | #329: `crates/openstitch-formats/tests/coverage_formats.rs` |
