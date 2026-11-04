@@ -97,7 +97,7 @@ impl Launch {
 }
 
 /// Values `--show` accepts.
-pub const SHOW: [&str; 25] = [
+pub const SHOW: [&str; 26] = [
     "update",
     "close-prompt",
     "realistic",
@@ -123,6 +123,7 @@ pub const SHOW: [&str; 25] = [
     "shortcuts",
     "floating",
     "print",
+    "assistant",
 ];
 
 pub struct EditorApp {
@@ -385,6 +386,15 @@ impl EditorApp {
                 }
                 "usb" => crate::transfer_ui::open(self),
                 "arrange" => self.edit.arrange_open = true,
+                // The Assistant panel with one attachment chip (a stand-in text file), when the AI
+                // features are on in ui.json; for checking the panel's icons in screenshots.
+                "assistant" => {
+                    self.assistant.panel.open = true;
+                    let note = std::env::temp_dir().join("openstitch-notes.txt");
+                    if std::fs::write(&note, "Stitch the logo in blue.").is_ok() {
+                        crate::assistant_panel::attach_files(self, vec![note]);
+                    }
+                }
                 "appmenu" => {
                     // Whichever window shows: the editor's or a suite window's.
                     self.ui.open_app_menu = true;
