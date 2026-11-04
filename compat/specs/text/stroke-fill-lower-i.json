@@ -1,0 +1,112 @@
+{
+  "schema": "openstitch-compat/1",
+  "id": "stroke-fill-lower-i",
+  "area": "text",
+  "title": "Fill text lower-case i at 20 mm sews stroke by stroke as PE-DESIGN does",
+  "description": "i in Lato Bold at 20 mm with the region switched to Fill Stitch at PE-DESIGN's text Fill defaults (density 5.0, under sewing off, Frequency 30 %, step 4.0). PE-DESIGN 11.50 sews fill lettering stroke by stroke too, rows across each stroke in its Convert to Blocks order (docs/research/stroke-lettering.md, round 5).",
+  "covers": {
+    "audit": [
+      6
+    ],
+    "featureMatrix": [
+      {
+        "area": "Lettering",
+        "feature": "Text entry and attributes"
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "kind": "measured",
+      "note": "compat/reference/text/stroke-fill-lower-i.pes, PE-DESIGN 11.50, round 5 (pe-refs-4, 2026-10-30)"
+    }
+  ],
+  "script": [
+    {
+      "command": "design.new",
+      "params": {
+        "width": 100,
+        "height": 100
+      }
+    },
+    {
+      "command": "text.add",
+      "params": {
+        "text": "i",
+        "font": "lato-bold",
+        "size": 20,
+        "x": 20,
+        "y": 70,
+        "fill": "Red"
+      }
+    },
+    {
+      "command": "object.setRegion",
+      "params": {
+        "id": 1,
+        "type": "fill"
+      }
+    }
+  ],
+  "exports": [
+    {
+      "path": "text.pes"
+    }
+  ],
+  "references": [
+    {
+      "id": "pe-design",
+      "file": "text/stroke-fill-lower-i.pes",
+      "make": "On a 100 × 100 mm Design Page, with Lato Bold (crates/openstitch-design/fonts/Lato-Bold.ttf, OFL) installed as a TrueType font: Text tool, type i, size 20.0 mm, the region switched to Fill Stitch (Text tab > Sew), everything else at PE-DESIGN's text defaults (Fill: density 5.0, under sewing off, Frequency 30 %, step 4.0; line Not Sewn). Save As PES (default type)."
+    }
+  ],
+  "measurements": [
+    {
+      "id": "stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "text.pes"
+      },
+      "evidence": "PE-DESIGN 11.50 reference: needle points of the fill letter",
+      "reference": {
+        "tolerance": {
+          "percent": 25.0
+        }
+      }
+    },
+    {
+      "id": "bounds-width",
+      "measure": {
+        "kind": "bounds",
+        "property": "width"
+      },
+      "source": {
+        "export": "text.pes"
+      },
+      "evidence": "reference",
+      "reference": {
+        "tolerance": {
+          "mm": 0.3
+        }
+      }
+    },
+    {
+      "id": "bounds-height",
+      "measure": {
+        "kind": "bounds",
+        "property": "height"
+      },
+      "source": {
+        "export": "text.pes"
+      },
+      "evidence": "reference",
+      "reference": {
+        "tolerance": {
+          "mm": 0.3
+        }
+      }
+    }
+  ]
+}

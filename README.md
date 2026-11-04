@@ -215,8 +215,8 @@ PE-DESIGN 11.50's defaults, tie-in and lock, measured from its own files.
 ### Lettering
 
 - **Text:** multi-line TrueType/OpenType text with PE-DESIGN's text size, character and line
-  spacing, alignment and Satin or Fill sewing. Satin letters are sewn stroke by stroke, in
-  PE-DESIGN's block order. Bundled open-licence fonts (Lato Bold, Pacifico)
+  spacing, alignment and Satin or Fill sewing. Satin and Fill letters are sewn stroke by
+  stroke, in PE-DESIGN's block order. Bundled open-licence fonts (Lato Bold, Pacifico)
   or your own fonts, embedded in the design. Complex scripts (Arabic, Indic, right-to-left) are
   shaped.
 - **Fit Text to Outline** and all 26 **Text Transform** presets, checked against PE-DESIGN.
@@ -323,8 +323,8 @@ _None._
 
 Also missing, from the [roadmap](docs/ROADMAP.md#still-to-do):
 
-- **Stroke-wise fill lettering:** satin text is sewn stroke by stroke, as PE-DESIGN does;
-  fill text still sews a whole letter in one direction.
+- **Stroke-wise lettering under a Text Transform:** transformed Fill text still sews each
+  letter by region (#428), and no lettering has under sewing per stroke yet.
 - **Text details:** per-character colour, multi-character selection, Connection Points, minimum
   font sizes and small-text fonts, kerning that reflows the line.
 - **Satin and fill details:** Half Stitch for Auto satin, Miter limit, gradation per-step
@@ -410,7 +410,8 @@ Bugs reported on GitHub:
 
 Next, from [docs/ROADMAP.md](docs/ROADMAP.md):
 
-- **Lettering:** stroke-wise sewing of fill text, as PE-DESIGN does it.
+- **Lettering:** stroke-wise sewing of transformed fill text and under sewing per stroke, as
+  PE-DESIGN does it.
 - **PES:** PE-DESIGN's text opened as editable objects; motif fill and lines, several groups and
   the remaining hoops in the PES 11 writer.
 - **Stitches:** the remaining fill, satin and line details listed above, and branching skeletons.
