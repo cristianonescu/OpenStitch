@@ -414,7 +414,7 @@ dialog sets its values.
   each socket edit is its own undo step, as before.
 - The permission gate (Ask, Edits, All) is A1. A socket client keeps the
   `--listen-read-only` and `--listen-no-files` capabilities and the file roots.
-- No real model has driven these tools yet. That comes with A1 and A5.
+- No real model has driven these tools yet. The first real run (A5, 2026-11-04) reached no model; see A5.
 
 ### A1, the Assistant panel (landed 2026-11-04, #306)
 
@@ -440,8 +440,8 @@ Options ▸ **Show AI features** is on by default. While it is off, the panel, i
 - The undo step has no name: the editor's undo history has no labels yet. The chat shows "N changes, one undo step" with **Undo these changes**.
 
 **Not done in A1.**
-- No turn has run against the real API in CI, since that needs a key. The owner's first run with their key is the live check, and its token use goes into this section.
-- Pictures and attachments are A4.
+- No turn has run against the real API. The first real run (A5, 2026-11-04) had no key on this Mac; its token use goes into the A5 section once the owner's key is in the keychain.
+- Pictures and attachments: done in A4.
 - Other endpoints and local models are A2. The address field already takes an Anthropic-compatible URL.
 - The Assistant command's own icon is #313.
 
@@ -478,7 +478,8 @@ in `src/openai.rs` and `src/models.rs`.
 
 **Not verified.**
 - No run against a real Ollama, LM Studio or OpenRouter server. The tests use scripted streams
-  shaped from the documentation.
+  shaped from the documentation. A5's first real run found no Ollama or other local server on
+  this Mac.
 - The `data:` URL form of `image_url` and in-stream error objects are handled defensively,
   because the docs don't show them.
 
@@ -508,7 +509,9 @@ others SolidCraft lists, each with its version. A missing agent shows its instal
   waiting for approval and its denial reaching the client, and a wrong token refused.
 
 **Not verified.**
-- No real agent has been run; the tests use a scripted ACP agent.
+- No real agent turn has run. On 2026-11-04 (A5) the real Claude Code agent (claude-agent-acp
+  0.100.0) started and answered `initialize` and `session/new`, then refused every prompt
+  because its CLI was not signed in; that run found #385 and #386.
 - The Claude Code `_meta` option keys and the exact error `session/new` returns when sign-in is
   needed come from SolidCraft's code, not from the ACP spec.
 - Killing an agent's process tree on Windows (`taskkill /T`) is not exercised; the
@@ -548,4 +551,68 @@ in `/v1`, a model name and a key kept in the keychain under that address.
 **Not verified.** No real image generator has been called; the format follows OpenAI's "Create
 image" reference and the tests use a scripted endpoint. Whether a given local server accepts
 `response_format` is not checked; a `url` reply is handled.
+
+### A5, the benchmark and the first real run (2026-11-04, #365)
+
+**`stitchtool bench-assistant`** sends twelve fixed tasks to a model or a coding agent through
+the assistant's own tools and scores each on the design it leaves (`object.list` and
+`design.info`), never on the reply. The one exception, `question`, also checks the answer.
+
+| Task | Asked | Passes when |
+|---|---|---|
+| badge | 70 mm round badge, navy fill, satin border | widest object 60-80 mm, a satin region or zigzag line, over 500 stitches |
+| monogram | monogram of ABC, about 60 mm | lettering with ABC, 40-80 mm wide |
+| arc-text | OPENSTITCH around a 50 mm circle | the word in a text object, at least 30 mm wide |
+| applique | appliqué patch from a 60 mm heart | at least two objects, 45-75 mm |
+| star | red five-pointed star, 40 mm, filled | 30-50 mm, a red thread |
+| two-colours | 50 mm green square, 20 mm yellow circle in it | two objects, two colours |
+| wider | (a 30 mm rectangle) twice as wide | a rectangle 55-65 mm wide |
+| recolour | (two blue shapes) every object red | every fill red |
+| delete | (three shapes) delete the smallest | two left, the 8 mm circle gone |
+| picture | the BMP of a red disc into embroidery, 50 mm | objects 35-65 mm wide in red |
+| vector | a house as SVG, imported as shapes | at least two objects |
+| question | (two shapes) how many objects? change nothing | still two objects; the answer says 2 |
+
+- Each task starts from a fresh headless editor: an engine `Session` behind
+  `openstitch-mcp --assistant`, with `ui.render` and `ui.scratchWrite` answered by the bench.
+  A coding agent reaches it through `openstitch-mcp --assistant --endpoint` on a private
+  loopback socket the bench serves.
+- A failure is sorted into: request failed, wrote the call as text, only talked, unknown
+  command, gave up after errors, wrong arguments, or wrong result (with the check that failed).
+- It writes `report.json` (every tool call, error, reply, tokens and seconds per task) and
+  `report.md`. The key comes from an environment variable (`ANTHROPIC_API_KEY` by default) and
+  is never printed. A key saved in the editor can be passed on macOS with
+  `ANTHROPIC_API_KEY=$(security find-generic-password -s "OpenStitch assistant" -a https://api.anthropic.com -w)`.
+- In CI it runs against a scripted Claude Messages endpoint (no network):
+  `bench::tests::the_benchmark_scores_the_design_against_a_scripted_endpoint` (a pass, an
+  "only talked" and an answered question), `failures_are_sorted_into_categories`,
+  `every_task_setup_runs`.
+
+**The first real run, 2026-11-04, on the Mac (macOS, Apple silicon).** None of the three
+backends reached a model.
+
+| Backend | Result | Why |
+|---|---|---|
+| Claude API, `claude-opus-5-5` | not run | No key: the keychain has no "OpenStitch assistant" entry and `ANTHROPIC_API_KEY` is not set. The bench stops with "no key". |
+| Ollama | not run | Ollama is not installed (`ollama` not on PATH, nothing in /Applications), and no OpenAI-compatible server answers on ports 11434, 1234 or 8080. |
+| Claude Code via `claude-agent-acp` 0.100.0 (npm, installed into a private prefix) | 0 of 12, 0 tokens, about 2.4 s per task | The agent started, and `initialize` and `session/new` (with the OpenStitch MCP bridge) succeeded. Every `session/prompt` was refused with -32000 "Authentication required". `claude auth status` (Claude Code 2.1.284) reports `loggedIn: false`: the Claude Code CLI on this Mac is not signed in. |
+
+What the real agent showed:
+- `claude-agent-acp` lists no `authMethods` in `initialize` and accepts `session/new` while
+  signed out; it refuses only at `session/prompt`. The client mapped -32000 only on
+  `session/new`, so the Assistant showed a raw "-32000" error. It now says to sign in with the
+  agent's own login (`claude auth login`) (#385).
+- The default agent preference was `claude-agent-acp`, the program name, not the id `claude`,
+  so choosing Coding agent without picking one failed with "Unknown agent" (#386). Fixed; a
+  stored `claude-agent-acp` reads as `claude`.
+- The bench was first run from inside a Claude Code session, whose `CLAUDE*`/`ANTHROPIC*`
+  environment reaches the child agent. The result was the same with those variables removed.
+
+**Still not verified.** No real model or agent turn has run: no tool call from a real model,
+no token figures, no design quality. The bench's agent bridge has not carried a real tool call
+(the scripted ACP agent in the tests does not call the bridge). Next step, with the owner: a
+Claude API key in the keychain, or `claude auth login`, or Ollama with a tool-capable model,
+then
+`stitchtool bench-assistant` (API), `--protocol openai --base-url http://localhost:11434/v1
+--model <model>` (Ollama), or `--agent claude --mcp <openstitch-mcp>` (Claude Code).
 

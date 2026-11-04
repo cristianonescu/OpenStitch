@@ -487,9 +487,7 @@ impl AcpConversation {
                             turn.finish_cancelled(on_event);
                             StopKind::Cancelled
                         }
-                        Err((code, message)) => {
-                            StopKind::Error(format!("The agent failed ({code}): {message}"))
-                        }
+                        Err((code, message)) => StopKind::Error(prompt_error(code, &message)),
                     };
                 }
                 Ok(FromAgent::Response { .. }) | Err(RecvTimeoutError::Timeout) => {}
@@ -705,6 +703,32 @@ mod tests {
                     summary: "ok".into()
                 },
             ]
+        );
+    }
+}
+
+/// A failed `session/prompt`. Claude Code (claude-agent-acp 0.100.0, measured 2026-11-04) accepts
+/// `initialize` and `session/new` while signed out and refuses only here, with -32000 (#385).
+fn prompt_error(code: i64, message: &str) -> String {
+    if code == AUTH_REQUIRED {
+        format!(
+            "The agent needs you to sign in first ({message}). Sign in with its own login in a \
+             terminal (Claude Code: claude auth login; Codex: codex login), then send again."
+        )
+    } else {
+        format!("The agent failed ({code}): {message}")
+    }
+}
+
+#[cfg(test)]
+mod prompt_error_tests {
+    #[test]
+    fn a_sign_in_refusal_at_prompt_says_how_to_sign_in() {
+        let m = super::prompt_error(-32000, "Authentication required");
+        assert!(m.contains("claude auth login"), "{m}");
+        assert_eq!(
+            super::prompt_error(-32603, "boom"),
+            "The agent failed (-32603): boom"
         );
     }
 }

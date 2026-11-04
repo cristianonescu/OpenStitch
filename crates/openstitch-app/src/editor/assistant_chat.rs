@@ -194,7 +194,7 @@ impl Default for AiPrefs {
             request_timeout_s: 300,
             protocol: Protocol::Anthropic,
             reasoning_effort: String::new(),
-            agent: "claude-agent-acp".into(),
+            agent: "claude".into(),
             image_url: String::new(),
             image_model: String::new(),
         }
@@ -264,7 +264,11 @@ impl AiPrefs {
                 })
                 .unwrap_or_default()
                 .to_string(),
-            agent: text("agent", &d.agent),
+            // "claude-agent-acp" was the default before #386: the program, not the id.
+            agent: match text("agent", &d.agent).as_str() {
+                "claude-agent-acp" => d.agent.clone(),
+                a => a.to_string(),
+            },
             image_url: text("imageUrl", ""),
             image_model: text("imageModel", ""),
         }
