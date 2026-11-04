@@ -7,21 +7,9 @@
 
 use openstitch_engine::Session;
 use openstitch_formats::pes;
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
-
-fn temp_dir(tag: &str) -> PathBuf {
-    let n = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-resave-{tag}-{n}-{:?}",
-        std::thread::current().id()
-    ));
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir.canonicalize().expect("canonical")
-}
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
     s.execute(id, Some(&params))
@@ -77,7 +65,7 @@ fn open(dir: &Path, file: &Path) -> Session {
 fn an_unchanged_pe_design_file_is_written_back_byte_for_byte() {
     let files = pe_design_files();
     assert!(files.len() > 400, "{} files", files.len());
-    let dir = temp_dir("all");
+    let dir = TempDir::canonical("resave-all");
     for file in &files {
         let mut s = open(&dir, file);
         let original = std::fs::read(file).expect("read");
@@ -102,10 +90,10 @@ fn the_kept_file_survives_a_project_save_and_another_version_is_converted() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let file = root.join("compat/reference/pes/design-property-native.pes");
     let original = std::fs::read(&file).expect("read");
-    let dir = temp_dir("osd");
+    let dir = TempDir::canonical("resave-osd");
     let mut s = open(&dir, &file);
     run(&mut s, "project.save", json!({"path": "a.osd"}));
-    let mut s = Session::new(&dir);
+    let mut s = Session::new(dir.path());
     run(&mut s, "project.open", json!({"path": "a.osd"}));
     run(&mut s, "design.export", json!({"path": "a.pes"}));
     assert!(std::fs::read(dir.join("a.pes")).expect("a") == original);
@@ -140,7 +128,7 @@ fn the_kept_file_survives_a_project_save_and_another_version_is_converted() {
 fn a_changed_design_is_written_from_the_design_with_a_warning() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let file = root.join("crates/openstitch-formats/tests/fixtures/pe11/r01-rect.pes");
-    let dir = temp_dir("changed");
+    let dir = TempDir::canonical("resave-changed");
     let mut s = open(&dir, &file);
     let id = s.design().objects[0].id;
     run(&mut s, "object.move", json!({"ids": [id], "dx": 1}));
@@ -161,7 +149,7 @@ fn a_changed_design_is_written_from_the_design_with_a_warning() {
     let r = run(&mut s, "design.export", json!({"path": "b.pes"}));
     assert_eq!(r["source"], "unchanged");
     // A plain import (Import, not Open) keeps no file.
-    let mut s = Session::new(&dir);
+    let mut s = Session::new(dir.path());
     run(
         &mut s,
         "design.new",
@@ -175,7 +163,7 @@ fn a_changed_design_is_written_from_the_design_with_a_warning() {
 #[test]
 fn import_pes_reads_the_other_region_types_and_the_design_property() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let dir = temp_dir("import");
+    let dir = TempDir::canonical("resave-import");
     let fixture = |name: &str| {
         root.join(format!(
             "crates/openstitch-formats/tests/fixtures/pe11/{name}.pes"
@@ -193,7 +181,7 @@ fn import_pes_reads_the_other_region_types_and_the_design_property() {
         ("o-region-flexible-spiral", "flexibleSpiral"),
     ] {
         std::fs::copy(fixture(name), dir.join("in.pes")).expect("copy");
-        let mut s = Session::new(&dir);
+        let mut s = Session::new(dir.path());
         run(
             &mut s,
             "design.new",
@@ -215,7 +203,7 @@ fn import_pes_reads_the_other_region_types_and_the_design_property() {
         dir.join("in.pes"),
     )
     .expect("copy");
-    let mut s = Session::new(&dir);
+    let mut s = Session::new(dir.path());
     run(
         &mut s,
         "design.new",
