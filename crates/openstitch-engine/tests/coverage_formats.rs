@@ -82,7 +82,6 @@ fn svg_ellipse_polygon_polyline_and_css_paint_import_as_shapes() {
 }
 
 #[test]
-#[ignore = "#341"]
 fn svg_line_elements_import_as_running_lines() {
     let dir = temp_dir("svg-line");
     std::fs::write(
