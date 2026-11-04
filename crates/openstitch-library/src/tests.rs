@@ -805,7 +805,7 @@ fn conversion_refuses_read_only_targets_and_missing_folders() {
     let limits = Limits::default();
     let r = convert::convert(
         &[t.path("a.pes")],
-        &ConvertOptions::new(FileType::Csd, Output::SameFolder),
+        &ConvertOptions::new(FileType::Phc, Output::SameFolder),
         &limits,
     );
     assert!(matches!(
