@@ -121,11 +121,7 @@ impl Conversation {
                 // support multimodal requests." for a model without vision (#416): the
                 // conversation goes on without its pictures, sent once more.
                 Err((StopKind::Error(_), Some(400)))
-                    if !self.text_only
-                        && self
-                            .messages
-                            .iter_mut()
-                            .fold(false, |any, m| leave_out_pictures(m) || any) =>
+                    if !self.text_only && leave_out_all_pictures(&mut self.messages) =>
                 {
                     self.text_only = true;
                     on_event(Event::Retrying {
@@ -380,6 +376,15 @@ fn leave_out_pictures(message: &mut Value) -> bool {
             *part = json!({"type": "text", "text": PICTURE_LEFT_OUT});
             any = true;
         }
+    }
+    any
+}
+
+/// [`leave_out_pictures`] on every message (all of them, not up to the first with a picture).
+fn leave_out_all_pictures(messages: &mut [Value]) -> bool {
+    let mut any = false;
+    for m in messages {
+        any |= leave_out_pictures(m);
     }
     any
 }
