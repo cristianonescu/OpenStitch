@@ -23,17 +23,74 @@ pub struct AssistantState {
     pub open_url: Option<String>,
 }
 
+/// Scratch folders are `openstitch-assistant-<pid>` in the OS temp folder.
+const SCRATCH_PREFIX: &str = "openstitch-assistant-";
+/// Held locked (an OS advisory lock) for as long as the editor that made the folder runs.
+const SCRATCH_LOCK: &str = ".lock";
+
+/// The scratch folders this process made, with the locks that mark them in use.
+static SCRATCH: std::sync::Mutex<Vec<(PathBuf, std::fs::File)>> = std::sync::Mutex::new(Vec::new());
+
 /// A private scratch folder for this launch, created before the socket starts so its file
-/// roots can include it. On Unix only the user can open it.
+/// roots can include it. On Unix only the user can open it. Folders left behind by editors
+/// that have ended (a crash, or a forced quit) are removed first (#314).
 pub fn create_scratch() -> std::io::Result<PathBuf> {
-    let dir = std::env::temp_dir().join(format!("openstitch-assistant-{}", std::process::id()));
+    let temp = std::env::temp_dir();
+    remove_stale_scratch(&temp);
+    let dir = temp.join(format!("{SCRATCH_PREFIX}{}", std::process::id()));
     std::fs::create_dir_all(&dir)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700))?;
     }
+    let mut held = SCRATCH.lock().unwrap_or_else(|e| e.into_inner());
+    if !held.iter().any(|(d, _)| *d == dir) {
+        let lock = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(dir.join(SCRATCH_LOCK))?;
+        lock.try_lock().map_err(std::io::Error::other)?;
+        held.push((dir.clone(), lock));
+    }
     Ok(dir)
+}
+
+/// Removes `openstitch-assistant-*` folders in `temp` whose lock nobody holds: the editor that
+/// made them has ended. Folders without a lock file are left alone (they may belong to an
+/// editor from before the lock existed that is still running). Returns how many were removed.
+pub fn remove_stale_scratch(temp: &std::path::Path) -> usize {
+    let own = format!("{SCRATCH_PREFIX}{}", std::process::id());
+    let Ok(entries) = std::fs::read_dir(temp) else {
+        return 0;
+    };
+    let mut removed = 0;
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if !name.starts_with(SCRATCH_PREFIX) || name == own || !entry.path().is_dir() {
+            continue;
+        }
+        let Ok(lock) = std::fs::File::open(entry.path().join(SCRATCH_LOCK)) else {
+            continue;
+        };
+        if lock.try_lock().is_ok() {
+            drop(lock);
+            if std::fs::remove_dir_all(entry.path()).is_ok() {
+                removed += 1;
+            }
+        }
+    }
+    removed
+}
+
+/// Removes the scratch folders this process made; called when the editor closes normally.
+pub fn remove_own_scratch() {
+    let mut held = SCRATCH.lock().unwrap_or_else(|e| e.into_inner());
+    for (dir, lock) in held.drain(..) {
+        drop(lock);
+        let _ = std::fs::remove_dir_all(dir);
+    }
 }
 
 /// The engine's `commands.list` plus the editor's own commands.
@@ -703,6 +760,39 @@ mod tests {
             );
         }
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn scratch_folders_of_ended_editors_are_removed() {
+        let temp =
+            std::env::temp_dir().join(format!("openstitch-stale-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&temp);
+        let make = |name: &str, lock: bool| {
+            let d = temp.join(name);
+            std::fs::create_dir_all(&d).expect("dir");
+            std::fs::write(d.join("a.svg"), "<svg/>").expect("file");
+            if lock {
+                std::fs::write(d.join(SCRATCH_LOCK), "").expect("lock");
+            }
+            d
+        };
+        let ended = make("openstitch-assistant-1", true);
+        let running = make("openstitch-assistant-2", true);
+        let no_lock = make("openstitch-assistant-3", false);
+        let other = make("someone-else", true);
+        // A live editor holds its lock.
+        let held = std::fs::File::open(running.join(SCRATCH_LOCK)).expect("open");
+        held.try_lock().expect("lock");
+        assert_eq!(remove_stale_scratch(&temp), 1);
+        assert!(!ended.exists(), "the ended editor's folder is removed");
+        assert!(running.exists() && no_lock.exists() && other.exists());
+        drop(held);
+        assert_eq!(
+            remove_stale_scratch(&temp),
+            1,
+            "once its editor ends, it goes too"
+        );
+        std::fs::remove_dir_all(&temp).expect("clean up");
     }
 
     #[test]
