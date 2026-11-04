@@ -24,7 +24,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use serde_json::{Map, Value, json};
 
 use crate::conversation::{
-    BAD_JSON, CUT_OFF, DECLINED, End, NO_KEY, STOPPED, TOO_MANY, post_with_retry, str_field,
+    BAD_JSON, CUT_OFF, DECLINED, End, NO_KEY, STOPPED, TOO_MANY, post_with_retry_status, str_field,
     summary, unsafe_address,
 };
 use crate::sse::SseReader;
@@ -38,6 +38,12 @@ use crate::{
 pub(crate) const IMAGE_OMITTED: &str = "(picture: in the next user message)";
 /// The text of that user message.
 pub(crate) const TOOL_PICTURES: &str = "The pictures from the tool results above:";
+/// What replaces a picture for a model that takes text only (#416).
+pub(crate) const PICTURE_LEFT_OUT: &str =
+    "[A picture was left out here: this model takes text only.]";
+/// The notice when the server refused the pictures.
+pub(crate) const TEXT_ONLY: &str =
+    "The model refused the pictures (400); they go as text notes from now on";
 
 /// One tool call as its fragments arrive ([OAI-CHUNK] `choices[].delta.tool_calls[]`: `index`,
 /// `id`, `type`, `function.name`, `function.arguments`).
@@ -84,7 +90,12 @@ impl Conversation {
         } else if !key_safe_for(&cfg.base_url) {
             return StopKind::Error(unsafe_address(&cfg.base_url));
         }
-        let user = user_message(&user_content);
+        let mut user = user_message(&user_content);
+        if self.text_only
+            && let Some(u) = &mut user
+        {
+            leave_out_pictures(u);
+        }
         if user.is_none() && self.pending.is_empty() {
             return StopKind::Error("There is nothing to send.".to_string());
         }
@@ -102,11 +113,29 @@ impl Conversation {
                 return StopKind::Cancelled;
             }
             let body = request_body(cfg, &tool_defs, &self.messages);
-            let reader =
-                match post_with_retry(cfg, transport, &url, &headers, &body, cancel, on_event) {
-                    Ok(r) => r,
-                    Err(stop) => return stop,
-                };
+            let reader = match post_with_retry_status(
+                cfg, transport, &url, &headers, &body, cancel, on_event,
+            ) {
+                Ok(r) => r,
+                // Ollama 0.40.14 answers 400 "Multimodal data provided, but model does not
+                // support multimodal requests." for a model without vision (#416): the
+                // conversation goes on without its pictures, sent once more.
+                Err((StopKind::Error(_), Some(400)))
+                    if !self.text_only
+                        && self
+                            .messages
+                            .iter_mut()
+                            .fold(false, |any, m| leave_out_pictures(m) || any) =>
+                {
+                    self.text_only = true;
+                    on_event(Event::Retrying {
+                        after: std::time::Duration::ZERO,
+                        reason: TEXT_ONLY.to_string(),
+                    });
+                    continue;
+                }
+                Err((stop, _)) => return stop,
+            };
             let generated = self.messages.len();
             let mut reply = read_stream(reader, generated, cancel, on_event);
             match reply.end {
@@ -211,7 +240,12 @@ impl Conversation {
             self.messages.extend(results);
             if !pictures.is_empty() {
                 pictures.push(json!({"type": "text", "text": TOOL_PICTURES}));
-                self.messages.extend(user_message(&pictures));
+                if let Some(mut m) = user_message(&pictures) {
+                    if self.text_only {
+                        leave_out_pictures(&mut m);
+                    }
+                    self.messages.push(m);
+                }
             }
         }
     }
@@ -333,6 +367,21 @@ fn user_message(blocks: &[Value]) -> Option<Value> {
         })
         .collect();
     Some(json!({"role": "user", "content": parts}))
+}
+
+/// Replaces the `image_url` parts of a message with [`PICTURE_LEFT_OUT`]; whether it had any.
+fn leave_out_pictures(message: &mut Value) -> bool {
+    let Some(parts) = message.get_mut("content").and_then(Value::as_array_mut) else {
+        return false;
+    };
+    let mut any = false;
+    for part in parts.iter_mut() {
+        if part.get("type").and_then(Value::as_str) == Some("image_url") {
+            *part = json!({"type": "text", "text": PICTURE_LEFT_OUT});
+            any = true;
+        }
+    }
+    any
 }
 
 /// MCP definitions as [OAI-CREATE] function tools: `{type: "function", function: {name,
