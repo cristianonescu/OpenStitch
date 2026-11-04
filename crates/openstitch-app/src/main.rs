@@ -348,7 +348,7 @@ fn main() -> eframe::Result {
         event_loop_builder: macos_event_loop(),
         ..Default::default()
     };
-    eframe::run_native(
+    let result = eframe::run_native(
         "OpenStitch",
         options,
         Box::new(|cc| {
@@ -362,7 +362,11 @@ fn main() -> eframe::Result {
             app.assistant.scratch = scratch;
             Ok(Box::new(app))
         }),
-    )
+    );
+    // The assistant's scratch folder goes with the editor (#314); after a crash the next
+    // launch removes it (assistant_ui::remove_stale_scratch).
+    assistant_ui::remove_own_scratch();
+    result
 }
 
 /// wgpu's default backends, except on Windows: DirectX 12, then OpenGL. Some Windows Vulkan
