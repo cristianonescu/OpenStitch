@@ -250,6 +250,7 @@ reads back to the same needle points). Golden engine regressions:
 | Test | Expected | Result |
 |---|---|---|
 | SVG rect, circle, quadratic path, transformed group with a hole | 4 shapes; sizes in mm exact (f32 tolerance); circle as cubic curves; group contours offset by the transform | pass |
+| SVG `<line>` elements (default black fill) and a two-point `<path … Z>` | open running lines in the stroke colour; a fill-only straight subpath is not imported (#341) | pass |
 | `import.svg` of `examples/imports/leaf.svg`-like artwork | 3 grouped shapes, fill/stroke colours kept, 40 mm wide at (10, 15) mm, one Undo, rescale to 80 mm | pass |
 | Hostile SVG: empty, not XML, truncated, NaN path, entity expansion, 5,001 paths, `<image href="/etc/hosts">`, path outside the sandbox | `Err` or nothing read; no file outside the sandbox opened | pass |
 | Background image: place 200×100 px at 50 mm, show/hide, opacity, save/open `.osd`, clear + undo, bad PNG and bad parameters | as expected | pass |

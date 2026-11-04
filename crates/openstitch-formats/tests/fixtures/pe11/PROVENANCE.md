@@ -212,9 +212,10 @@ session; owner's notes round6/hoops/log.txt). One design for every file: New, Re
 (40,40)-(60,60) mm, line Not Sewn, Fill Stitch at defaults, 800 EMBROIDERY RED, 20,00 x 20,00
 mm, 707 st; only Design Settings changed (Page Size = Hoop Size, the machine type and hoop
 below), then Save As "Layout & Editing Ver.11.0 File" (#PES0110). Every file reopens with the
-settings it was saved with. Nine more captures of that session (100 x 180, which PE-DESIGN
-saves only as #PES0113; 180 x 300; 150 x 150 Quilt; nv880e-M and -L; 180 x 100 Border; ø100
-Round; two Custom Size 300 x 200 pages) stay in the owner's notes.
+settings it was saved with. The 100 x 180 capture (PE-DESIGN saves that hoop only as
+#PES0113) stays in the owner's notes; the other eight were added for #322 (2026-11-04). The
+Border and Round files were saved after the nv880e-L one and keep its hoop fields; on the two
+Custom Size pages ("Use smaller section sizes" off) the greyed hoop is the last one chosen.
 
 | File | SHA-256 | Made as |
 |---|---|---|
@@ -225,3 +226,11 @@ Round; two Custom Size 300 x 200 pages) stay in the owner's notes.
 | `hoops/s-200x300.pes` | `d5246e7e8a76ff1a7e4427d114eefaf5368d92f03c1a9b4fceaf828f617fed70` | single-needle, Hoop Size 200 x 300 mm |
 | `hoops/s-240x360.pes` | `87fcfc688322ebf30786846d50b269e90baf1193310e36b7b33d7e7eec0d985f` | single-needle, Hoop Size 240 x 360 mm |
 | `hoops/m-100x100-S.pes` | `dc16a00322a7f93d63f2aa0a05ed3bd9d353a42a05b59e38bbec52399ee2167b` | multi-needle, Hoop Size 100 x 100 mm nv880e-S |
+| `hoops/s-180x300.pes` | `51dce2e700f992cfd1264263f8ad14af44b222b7ae06688ad1c991b657a06dba` | single-needle, Hoop Size 180 x 300 mm |
+| `hoops/s-150x150-quilt.pes` | `7b213e5224820707f508162491078d68527dad29e1a0dfd628c6078ce20e181c` | single-needle, Hoop Size 150 x 150 mm (Quilt Frame) |
+| `hoops/m-150x150-M.pes` | `c1ab7017adf7e8c5a4ea52963c10103e3802b03d84188f406bf5858257b5e90f` | multi-needle, Hoop Size 150 x 150 mm nv880e-M |
+| `hoops/m-260x160-L.pes` | `dca0287ac48fcfda27c5ff19722205a3a480e65e45bf07280166ea5f4287ba86` | multi-needle, Hoop Size 260 x 160 mm nv880e-L |
+| `hoops/m-180x100-border.pes` | `76443b08a55fbfd1357880dd91f676dd55bce6a77e5c98c70fb2804df66f002b` | multi-needle, Hoop Size 180 x 100 mm (Border Frame) |
+| `hoops/m-round-100.pes` | `097e33aabbb08bbf1906205373cdefce5a14375692a1ce9bd104f370b3137c13` | multi-needle, Hoop Size ø100 mm (Round Frame) |
+| `hoops/s-custom-300x200.pes` | `15d73c6aaa7eec8529cfd264658d979c15904efc9708341e3b8d622a90ae49c3` | single-needle, Custom Size 300 x 200 mm, Section Size 90 x 90 (100 x 100); preview 4 x 3 sections |
+| `hoops/m-custom-300x200.pes` | `d480cb1290bf8b10824c9a53e9bacb4b611cf270e6067cfca46ae271e56a27c6` | multi-needle, Custom Size 300 x 200 mm, Section Size 290 x 190 (300 x 200); preview 2 x 2 sections; greyed hoop ø100 Round |

@@ -69,10 +69,24 @@ fn a_silent_connection_is_closed_after_the_idle_timeout_and_frees_its_slot() {
         "closed by the idle timeout: {waited:?}"
     );
 
-    // With one connection allowed, a new client is served once the idle one is gone.
-    let mut next = connect(address);
-    let reply = request(&mut next, &token).expect("served after the idle close");
-    assert_eq!(reply["ok"], json!(true), "{reply}");
+    // With one connection allowed, a new client is served once the idle one is gone. The server
+    // frees the slot just after the socket closes (its connection thread ends after the close),
+    // so a client that connects at once can still be refused; the slot must be free within a
+    // bound, and no other reply is accepted (#359).
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        let mut next = connect(address);
+        let reply = request(&mut next, &token).expect("a reply after the idle close");
+        if reply["ok"] == json!(true) {
+            break;
+        }
+        let refused = reply["error"]
+            .as_str()
+            .is_some_and(|e| e.contains("too many"));
+        assert!(refused, "{reply}");
+        assert!(Instant::now() < deadline, "slot not freed: {reply}");
+        std::thread::sleep(Duration::from_millis(20));
+    }
     stop.store(true, Ordering::SeqCst);
 }
 

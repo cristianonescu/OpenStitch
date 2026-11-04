@@ -48,10 +48,10 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 190: 155 implemented (3 of them partially compatible), 1 documented only, 10 blocked, 24 planned beyond PE-DESIGN |
+| Feature matrix rows | 192: 157 implemented (3 of them partially compatible), 1 documented only, 10 blocked, 24 planned beyond PE-DESIGN |
 | Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 36: 29 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
-| Open audit differences | 11 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
+| Open audit differences | 10 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
 | Open GitHub issues | 45 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
 <!-- /status:glance -->
 
@@ -119,7 +119,8 @@ OpenStitch (the image dialog's Method choice):
   the image every 0.25 mm in rows that stay within 2.1 needle points per mm² (no 10 × 10 mm area
   above 3.0), with a Trims choice (fewer trims or the best likeness). Auto Punch sews the
   background and sews dark outlines as satin on top, in one covering layer; it can instead
-  isolate the subject by a graph cut and leave out everything around it. Threads can come from several brands'
+  isolate the subject by a graph cut and leave out everything around it, with strokes you
+  brush on the image for parts it should keep or drop. Threads can come from several brands'
   charts (Brother, Madeira Polyneon, Isacord, Sulky, Robison-Anton) or only those you own. Every
   OpenStitch mode sews the same stitches on macOS, Windows and Linux.
 
@@ -370,7 +371,6 @@ Open differences from PE-DESIGN 11 that you may notice, from the
 - [One sewing direction per text instead of per stroke](docs/COMPATIBILITY_AUDIT.md#6-one-sewing-direction-per-text-instead-of-per-stroke)
 - [Underlay model differs](docs/COMPATIBILITY_AUDIT.md#8-underlay-model-differs-zigzag-lines-have-no-underlay) (partly fixed)
 - [PE-DESIGN-made PES files lose objects, properties and colours on re-save](docs/COMPATIBILITY_AUDIT.md#9-pe-design-made-pes-files-lose-objects-properties-and-colours-on-re-save)
-- [Hoop and Design Page fields hard-coded in PES](docs/COMPATIBILITY_AUDIT.md#10-hoop-and-design-page-fields-are-hard-coded-in-pes)
 - [No Connection Points (Default / Closest / Farther) for text](docs/COMPATIBILITY_AUDIT.md#11-no-connection-points-default--closest--farther-for-text)
 - [No minimum font sizes or small-text fonts](docs/COMPATIBILITY_AUDIT.md#12-no-minimum-font-sizes-or-small-text-fonts)
 - [No per-character colour or multi-character selection](docs/COMPATIBILITY_AUDIT.md#13-no-per-character-colour-or-multi-character-selection)
@@ -488,8 +488,8 @@ PE-DESIGN 11 does not. Each item is sketched in
 - AI assistant tool surface (B17, phase A0): everything the user can do in the editor is reachable from the assistant. The automation socket answers ui.* editor commands beside the engine's (state, every ribbon/menu command through ui.run, selection, zoom, settings, live render, simulator, Help, updates, a scratch folder for SVGs and pictures). openstitch-mcp --assistant offers seven meta tools (commands_list, command_describe, execute, run_batch, view_render, scratch_write, skill_reference) over them, and a bundled embroidery skill (skills/openstitch-embroidery)
 - AI assistant panel (B17, phase A1): a chat beside the design (View ▸ Show/Hide ▸ Assistant, Ctrl/Cmd+Shift+A). Claude API with the user's own key in the OS keychain (default claude-opus-5-5, streaming, adaptive thinking). The model drives the editor through the A0 tools in-process. A permission gate judges each command by its effect: files, machine transfer, Exit and undoing earlier work ask (Allow once / Always allow / Deny, declined after 4 minutes), and there is an optional change limit. Everything one message changes is one undo step, Save as script writes it out, and messages typed during a turn are queued. Preferences: Options ▸ Show AI features (on by default, owner 2026-11-04) and the panel's settings
 - AI assistant providers (B17, phases A2-A3). A2: besides the Claude API, any OpenAI-compatible /chat/completions endpoint, with presets for Ollama and LM Studio on this computer (no key needed) and OpenRouter. The settings choose the protocol, list the endpoint's models, set the request timeout (30-3600 s) and an optional reasoning effort, and warn when an Ollama model has no tools capability. A notice shows when a model answers an edit request without using its tools. A3: coding agents over the Agent Client Protocol (Claude Code via claude-agent-acp, Codex via codex-acp, OpenCode and others) on the user's own account. They are found on PATH and in the usual install folders, with install commands for missing ones. Each runs in its own process group in an empty folder, with no file system or terminal declared and Claude Code's own shell, file and web tools turned off. Its only way into the editor is openstitch-mcp --assistant on a private loopback socket whose every request passes the panel's gate
-- AI assistant pictures (B17, phase A4): attachments, attach view and selection; model-written SVG imported as shapes; attached or generated pictures digitized by the image wizards in OpenStitch mode (generated pictures need an optional image-generation endpoint)
-- AI assistant benchmark (B17, phase A5): stitchtool bench-assistant, embroidery tasks scored on the resulting design, not the model's words
+- AI assistant pictures (B17, phase A4): the composer's 📎 attaches up to 8 files per message (pictures PNG/JPEG/BMP sent as images, scaled to 2048 px and re-encoded under 3.75 MB; SVG and text sent as text; stitch files offered to stitches.import), each copied into the scratch folder. **View** sends a picture of the design and **Selection** the selected objects' ids, kinds and sizes, shown as chips. An attached picture is digitized with digitize.autoPunch in OpenStitch mode; a model-written SVG goes through scratch_write and import.svg. An optional image generator (an OpenAI-compatible /images/generations address, its key in the keychain) adds generate_image; without one the tool points the model at the vector route. OpenAI-compatible endpoints get tool-result pictures as a user message with image parts
+- AI assistant benchmark (B17, phase A5): stitchtool bench-assistant sends 12 embroidery tasks (badge, monogram, arc text, appliqué, star, two colours, a wider rectangle, recolour, delete, picture to embroidery, vector route, a question) to the Claude API, an OpenAI-compatible endpoint or an ACP coding agent, through the assistant's own tools over a headless editor. Each task is scored on the resulting design (object.list, design.info), failures are sorted into categories, and it writes JSON and Markdown reports
 <!-- /status:beyond-planned -->
 
 ## Download a build
@@ -687,7 +687,7 @@ including the README refresh done at every release, is in [docs/RELEASING.md](do
 - [Test coverage audit](docs/TEST_COVERAGE_AUDIT.md): features without test evidence, and the plan
 - [Adding a PE-DESIGN reference file](compat/reference/README.md)
 - [Legal and licensing](docs/LEGAL_AND_LICENSING.md)
-- [Roadmap](docs/ROADMAP.md)
+- [Roadmap](docs/ROADMAP.md) and the [backlog](docs/BACKLOG.md): open work grouped into batches, one PR per batch
 - [Distribution and packaging](docs/DISTRIBUTION.md)
 - [Releasing](docs/RELEASING.md) and the [release notes](docs/releases/)
 - [Test images for the image wizards](docs/research/test-images.md)

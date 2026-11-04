@@ -367,3 +367,13 @@ DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
 ```
+
+## Noto Sans Hebrew, Arabic, Devanagari and JP (test subsets) — https://github.com/notofonts
+
+Small subsets of these Noto fonts (from github.com/google/fonts, made by
+`tools/test_font_subsets.py`) are test fixtures in `crates/openstitch-engine/tests/fixtures/fonts/`,
+for the shaping and CJK lettering tests (#345). They are not embedded in any OpenStitch binary.
+Licensed under the SIL Open Font License 1.1; each font's licence, with its copyright notice, is
+beside it (`NotoSansHebrew-OFL.txt`, `NotoSansArabic-OFL.txt`, `NotoSansDevanagari-OFL.txt`,
+`NotoSansJP-OFL.txt`), and their source, checksums and how they were made are in that folder's
+`PROVENANCE.md`.

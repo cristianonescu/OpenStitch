@@ -255,8 +255,18 @@ below is pinned by a test in `tests/pes11.rs`.
   files). The thread table's fifth string is the thread's name: PE-DESIGN writes its own
   colours' PEC chart index there, and keeps a name it read from another file (pes-default-v6:
   `Red`, `Black`).
-- **Pattern lists:** the header's last fields, from byte 104 (106 with the optional hoop field
-  of o-page-200x200) to the thread table, are three lists, each a u16 count and its patterns:
+- **Page, hoop and sections (#322):** after the metadata strings: u16 0, the page mode (0 Hoop
+  Size, 1 Custom Size), the hoop id, four u16 nv880e hoop fields (width and height in mm and in
+  0.1 inch: `nv880e-S` 100, 100, 39, 39; `M` 150, 150, 59, 59; `L` 260, 160, 102, 62) and the
+  u8-length hoop name, a u16 0, then two section lists (X, then Y: a u16 count and that many
+  u16), a u32 0, the page width and height in mm, the machine type (7 multi-needle, 0
+  single-needle) and the display fields (a u16 grid in 0.1 mm among them: 5 or 10). The
+  section lists are a Custom Size page's sections: each section after the first, stepping by
+  the Section Size less 10 mm from the page's corner, in 0.1 mm from a point where the corner
+  sits at 100 mm − page / 2 (single-needle 90 mm sections on a 300 mm page: 300, 1100, 1900);
+  empty on a Hoop Size page. The table of PE-DESIGN's values per page and hoop is on #322.
+- **Pattern lists:** the header's last fields, 75 bytes after the section lists (byte 104 with
+  no sections, two more per section position) to the thread table, are three lists, each a u16 count and its patterns:
   the programmable fill patterns the design uses, the motif patterns, and a third that is empty
   in every owner file. A pattern is a u16 size in 0.01 mm and a u16 polyline count, then each
   polyline as in the pattern block (six zero bytes, u16 1, u16 point count, i16 x, y points in
@@ -616,8 +626,14 @@ byte-identical to PE-DESIGN's outside these documented differences
   Degrees, with the PEC's stitches turned 90° clockwise for a turned hoop), for the hoops whose
   PE id is known: single-needle 100 × 100, 130 × 180, 160 × 260, 200 × 300, 240 × 360 and
   multi-needle 100 × 100 (`hoop_size_pages_are_written_as_pe_design_writes_each_hoop` against
-  PE's file for each). Other hoops are still a Custom Size page of their size, with r01's
-  multi-needle fields.
+  PE's file for each, with the nv880e-M and -L, 180 × 300, Quilt, Border and Round captures
+  since #322). Other hoops are a Custom Size page of their size. Since 2026-11-04 (#322) a
+  Custom Size page carries the design's machine type (code `01` and 0 for single-needle) and
+  PE-DESIGN's section lists for its section hoop (`pes11::CustomPage`; the design's split
+  settings' hoop, else 100 × 100 single-needle or 300 × 200 multi-needle), byte for byte
+  against PE's five custom-page files; its hoop id and nv880e fields stay r01's (PE writes the
+  hoop its dialog last showed). Its PEC frame is the design's own size, as on a Hoop Size page
+  (#287), not PE-DESIGN's section frame (2900 × 1900, which the NV880E refuses).
 - **Header strings:** the metadata strings are written in Windows-1252 with CR LF, as
   PE-DESIGN shows them; pes-design-properties holds OpenStitch's former UTF-8 bytes, which
   PE-DESIGN kept when it re-saved the file, so its strings (and the offsets after them) differ.

@@ -1,7 +1,9 @@
 //! Coverage for `EditorApp` behaviour FEATURE_MATRIX claims that no other test asserts (#332):
 //! File ▸ Import into design, the undo/redo and arrow-nudge keys, the simulator's play, and the
-//! window close request going through the unsaved-changes prompt. A child module of `app` so it
-//! can drive the private frame steps (`shortcuts`, `tick`, `close_request`) as `update` does.
+//! window close request going through the unsaved-changes prompt; the Fit Text dialog
+//! remembering its last choices (#351); Solid View's drawing (#378) and Snap to Grid for curve
+//! handles and the Arrange Copies handle (#379). A child module of `app` so it can drive the
+//! private frame steps (`shortcuts`, `tick`, `close_request`) as `update` does.
 
 use super::*;
 
@@ -228,4 +230,228 @@ fn closing_the_window_with_unsaved_changes_opens_the_prompt() {
     app.approve_exit();
     assert!(!close(&mut app));
     assert!(!app.close_prompt.is_open());
+}
+
+#[test]
+fn fit_text_dialog_remembers_its_last_choices_and_shows_a_fitted_texts_own() {
+    use crate::lettering_ui::{fit_request, open_fit};
+    use openstitch_design::{Spread, TextAlign, VAlign};
+    let mut app = EditorApp::new(Launch::default());
+    app.execute(&rectangle(10.0)).expect("outline");
+    let outline = app.session.design().objects[0].id;
+    let add_text = |app: &mut EditorApp, word: &str| {
+        app.execute(&CommandRequest::new(
+            "text.add",
+            json!({ "text": word, "x": 60, "y": 20 }),
+        ))
+        .expect("text");
+        app.session.design().objects.last().expect("text").id
+    };
+    let first = add_text(&mut app, "Hi");
+    let second = add_text(&mut app, "Yo");
+
+    // An unfitted text opens with the defaults; the choices made are sent on OK.
+    open_fit(&mut app, first, outline);
+    assert_eq!(app.lettering.fit.open, Some((first, outline)));
+    let f = &mut app.lettering.fit;
+    (f.align, f.spread, f.valign) = (TextAlign::Right, Spread::None, VAlign::Top);
+    (f.upright, f.other_side) = (true, true);
+    let r = fit_request(&app.lettering.fit, first, outline);
+    app.execute(&r).expect("fit");
+    app.lettering.fit.open = None;
+
+    // Another unfitted text: the dialog shows the last choices, not the defaults.
+    open_fit(&mut app, second, outline);
+    let f = &app.lettering.fit;
+    assert_eq!(f.open, Some((second, outline)));
+    assert_eq!(
+        (f.align, f.spread, f.valign, f.upright, f.other_side),
+        (TextAlign::Right, Spread::None, VAlign::Top, true, true),
+        "the last choices are remembered"
+    );
+
+    // A fitted text: the dialog shows that text's own settings.
+    app.lettering.fit.open = None;
+    let f = &mut app.lettering.fit;
+    (f.align, f.valign, f.upright, f.other_side) = (TextAlign::Left, VAlign::Bottom, false, false);
+    open_fit(&mut app, first, outline);
+    let f = &app.lettering.fit;
+    assert_eq!(
+        (f.align, f.spread, f.valign, f.upright, f.other_side),
+        (TextAlign::Right, Spread::None, VAlign::Top, true, true),
+        "a fitted text shows its own settings"
+    );
+}
+
+/// The shapes `draw_solid` paints for `app` at `vp`, as egui returns them from the frame.
+fn solid_shapes(app: &EditorApp, vp: &Viewport) -> Vec<egui::Shape> {
+    let ctx = egui::Context::default();
+    let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+        let painter = ui.painter().clone();
+        crate::view_ui::draw_solid(app, &painter, vp);
+    });
+    out.textures_delta.clear();
+    out.shapes
+        .into_iter()
+        .map(|c| c.shape)
+        .filter(|s| matches!(s, egui::Shape::LineSegment { .. } | egui::Shape::Circle(_)))
+        .collect()
+}
+
+#[test]
+fn solid_view_draws_each_colour_block_as_flat_thread_0_7_mm_wide() {
+    use openstitch_app::editor::render::ColorLayer;
+    use openstitch_design::v2;
+    let mut app = EditorApp::new(Launch::default());
+    let (red, blue) = ([200, 20, 30], [10, 40, 220]);
+    app.render = RenderModel {
+        layers: vec![
+            ColorLayer {
+                rgb: red,
+                strokes: vec![vec![v2(0.0, 0.0), v2(10.0, 0.0), v2(10.0, 10.0)]],
+            },
+            ColorLayer {
+                rgb: blue,
+                strokes: vec![vec![v2(20.0, 0.0), v2(30.0, 0.0)]],
+            },
+        ],
+        ..Default::default()
+    };
+    let color = |rgb: [u8; 3]| egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2]);
+
+    // 2 points per 0.1 mm: 0.7 mm is 14 points; each stitch is one segment of that width, and
+    // every needle point a round join of half of it, all in the block's own colour.
+    let vp = Viewport {
+        scale: 2.0,
+        offset: openstitch_design::v2(10.0, 20.0),
+    };
+    let shapes = solid_shapes(&app, &vp);
+    let mut segments = Vec::new();
+    let mut joins = Vec::new();
+    for s in &shapes {
+        match s {
+            egui::Shape::LineSegment { points, stroke } => {
+                segments.push((points[0], points[1], stroke.width, stroke.color));
+            }
+            egui::Shape::Circle(c) => {
+                assert_eq!(c.stroke, egui::Stroke::NONE, "unshaded: no outline");
+                joins.push((c.center, c.radius, c.fill));
+            }
+            _ => unreachable!(),
+        }
+    }
+    let p = |x: f32, y: f32| egui::Pos2::new(x, y);
+    assert_eq!(
+        segments,
+        vec![
+            (p(10.0, 20.0), p(30.0, 20.0), 14.0, color(red)),
+            (p(30.0, 20.0), p(30.0, 40.0), 14.0, color(red)),
+            (p(50.0, 20.0), p(70.0, 20.0), 14.0, color(blue)),
+        ],
+        "one flat-coloured segment per stitch, in sewing order"
+    );
+    assert_eq!(
+        joins,
+        vec![
+            (p(10.0, 20.0), 7.0, color(red)),
+            (p(30.0, 20.0), 7.0, color(red)),
+            (p(30.0, 40.0), 7.0, color(red)),
+            (p(50.0, 20.0), 7.0, color(blue)),
+            (p(70.0, 20.0), 7.0, color(blue)),
+        ]
+    );
+
+    // Zoomed far out the thread stays at least a point wide, and the joins (under 2 points)
+    // are left out.
+    let vp = Viewport {
+        scale: 0.1,
+        offset: openstitch_design::v2(0.0, 0.0),
+    };
+    let shapes = solid_shapes(&app, &vp);
+    assert_eq!(shapes.len(), 3, "segments only: {shapes:?}");
+    assert!(
+        shapes
+            .iter()
+            .all(|s| matches!(s, egui::Shape::LineSegment { stroke, .. } if stroke.width == 1.0))
+    );
+}
+
+/// A Down, Dragged, Up pointer gesture through the tools, as the canvas sends it.
+fn tool_gesture(app: &mut EditorApp, from: openstitch_design::Vec2, to: openstitch_design::Vec2) {
+    use openstitch_app::editor::{Phase, PointerEvent};
+    for (phase, at) in [(Phase::Down, from), (Phase::Dragged, to), (Phase::Up, to)] {
+        app.with_tools(|t, c| t.handle(PointerEvent::new(phase, at), c));
+    }
+}
+
+#[test]
+fn snap_to_grid_places_a_dragged_curve_handle_on_the_grid() {
+    use openstitch_design::v2;
+    // A 20 mm square whose top edge is a curve with handles at (15, 10) and (25, 10) mm.
+    let curved = |snap: bool| {
+        let mut app = EditorApp::new(Launch::default());
+        app.execute(&rectangle(10.0)).expect("square");
+        app.execute(&CommandRequest::new(
+            "object.setSegment",
+            json!({ "id": 1, "segment": 0, "curve": [[15, 10], [25, 10]] }),
+        ))
+        .expect("curve");
+        if snap {
+            app.toggle_snap_to_grid();
+            app.workspace.grid.spacing_mm = 1.0;
+        }
+        app.tools.set_tool(Tool::Point);
+        app.selection = BTreeSet::from([1]);
+        app
+    };
+    let first_handle = |app: &EditorApp| {
+        app.session.design().objects[0].contours[0]
+            .curve(0)
+            .expect("curve")
+            .c1
+    };
+
+    let mut app = curved(true);
+    assert_eq!(first_handle(&app), v2(150.0, 100.0));
+    tool_gesture(&mut app, v2(151.0, 101.0), v2(163.0, 128.0));
+    assert_eq!(first_handle(&app), v2(160.0, 130.0), "on the 1 mm grid");
+    app.undo();
+    assert_eq!(first_handle(&app), v2(150.0, 100.0), "one undo step");
+
+    // Off: the handle goes where it is dropped.
+    let mut app = curved(false);
+    tool_gesture(&mut app, v2(151.0, 101.0), v2(163.0, 128.0));
+    assert_eq!(first_handle(&app), v2(163.0, 128.0));
+}
+
+#[test]
+fn snap_to_grid_places_the_arrange_copies_handle_on_the_grid() {
+    use crate::edit_ui::drag;
+    use openstitch_app::editor::Phase;
+    use openstitch_app::editor::edit_ops::ArrangeMode;
+    use openstitch_design::v2;
+    // Mirror copies of a 20 mm square: the handle is the mirror axis on its right edge, and
+    // the gap between the square and its copy is twice the handle's distance from the edge.
+    let spacing_after_drag = |snap: bool, to: f64| {
+        let mut app = EditorApp::new(Launch::default());
+        app.execute(&rectangle(10.0)).expect("square");
+        if snap {
+            app.toggle_snap_to_grid();
+            app.workspace.grid.spacing_mm = 10.0;
+        }
+        app.selection = BTreeSet::from([1]);
+        app.edit.arrange_open = true;
+        app.edit.arrange.mode = ArrangeMode::MirrorHorizontal;
+        assert!(drag(&mut app, Phase::Down, v2(301.0, 199.0)), "handle");
+        assert!(drag(&mut app, Phase::Dragged, v2(to, 230.0)));
+        assert!(drag(&mut app, Phase::Up, v2(to, 230.0)));
+        app.edit.arrange.spacing
+    };
+    // On: dropped at 37.2 mm, the axis lands on the 40 mm grid line, 10 mm right of the edge.
+    assert_eq!(spacing_after_drag(true, 372.0), 20.0);
+    // A drag the grid rounds back to the edge leaves no gap.
+    assert_eq!(spacing_after_drag(true, 340.0), 0.0);
+    // Off: the axis is where it is dropped, 7.2 mm right of the edge.
+    let off = spacing_after_drag(false, 372.0);
+    assert!((off - 14.4).abs() < 1e-9, "{off}");
 }

@@ -778,6 +778,7 @@ fn objects_of(bytes: &[u8]) -> Objects {
         header: s.header,
         code: s.code,
         hoop: None,
+        custom: None,
         threads: s.threads,
         shapes: s.shapes,
         texts: s.texts,
@@ -1215,6 +1216,7 @@ fn an_openstitch_shape_with_curves_round_trips() {
         header: None,
         code: None,
         hoop: None,
+        custom: None,
         threads: vec![openstitch_core::Thread::rgb(0x12_34_56)],
         shapes: vec![shape, second],
         texts: Vec::new(),
@@ -1282,6 +1284,7 @@ fn texts_between_shapes_and_in_groups_round_trip() {
         header: None,
         code: None,
         hoop: None,
+        custom: None,
         threads: r01.threads.clone(),
         shapes: vec![r01.shapes[0].clone(), second],
         texts: vec![text],
@@ -1324,6 +1327,7 @@ fn a_text_built_from_defaults_writes_r12s_object_section() {
         header: None,
         code: None,
         hoop: None,
+        custom: None,
         threads: read.threads.clone(),
         shapes: Vec::new(),
         texts: vec![Text {
@@ -1376,12 +1380,22 @@ fn the_pec_header_carries_pe_designs_fields() {
             &fixture[p + 0x13..p + 0x30],
             "{name}"
         );
-        if !objects_of(&fixture).hoop_page {
-            assert_eq!(
-                &written[q + 0x208..q + 0x20C],
-                &fixture[p + 0x208..p + 0x20C],
-                "{name}"
-            );
+        // The frame is the design's own size on both pages (#287): PE-DESIGN's Custom Size
+        // pages carry the 290 × 190 mm section there, which the NV880E refuses.
+        let frame = |b: &[u8], at: usize| {
+            (
+                u16::from_le_bytes([b[at + 0x208], b[at + 0x209]]),
+                u16::from_le_bytes([b[at + 0x20A], b[at + 0x20B]]),
+            )
+        };
+        let b = pes::read(&written).expect("read").bounds();
+        assert_eq!(
+            frame(&written, q),
+            (b.width().round() as u16, b.height().round() as u16),
+            "{name}"
+        );
+        if objects_of(&fixture).hoop_page {
+            assert_eq!(frame(&written, q), frame(&fixture, p), "{name}");
         }
     }
 }
@@ -1540,6 +1554,7 @@ fn a_stitch_group_built_from_stitches_round_trips() {
         header: None,
         code: None,
         hoop: None,
+        custom: None,
         threads: p.threads.clone(),
         shapes: Vec::new(),
         texts: Vec::new(),
@@ -1774,15 +1789,22 @@ fn hoop_header(b: &[u8]) -> (&[u8], [u8; 2]) {
 /// with each): OpenStitch writes the same header and code from a [`pes11::HoopPage`].
 #[test]
 fn hoop_size_pages_are_written_as_pe_design_writes_each_hoop() {
-    use pes11::HoopPage;
-    for (name, hoop, code, multi_needle, rotated) in [
-        ("s-100x100", 0x00, *b"01", false, false),
-        ("s-130x180", 0x01, *b"01", false, false),
-        ("s-130x180-rot90", 0x01, *b"01", false, true),
-        ("s-160x260-color", 0x02, *b"01", false, false),
-        ("s-200x300", 0x06, *b"02", false, false),
-        ("s-240x360", 0x1C, *b"01", false, false),
-        ("m-100x100-S", 0xFF, *b"10", true, false),
+    use pes11::{HoopPage, Nv880eHoop as N};
+    for (name, hoop, code, multi_needle, rotated, nv880e) in [
+        ("s-100x100", 0x00, *b"01", false, false, N::S),
+        ("s-130x180", 0x01, *b"01", false, false, N::S),
+        ("s-130x180-rot90", 0x01, *b"01", false, true, N::S),
+        ("s-160x260-color", 0x02, *b"01", false, false, N::S),
+        ("s-180x300", 0x04, *b"02", false, false, N::S),
+        ("s-200x300", 0x06, *b"02", false, false, N::S),
+        ("s-150x150-quilt", 0x1A, *b"02", false, false, N::S),
+        ("s-240x360", 0x1C, *b"01", false, false, N::S),
+        ("m-100x100-S", 0xFF, *b"10", true, false, N::S),
+        ("m-150x150-M", 0xFF, *b"10", true, false, N::M),
+        ("m-260x160-L", 0xFF, *b"10", true, false, N::L),
+        // Saved after the L hoop: PE-DESIGN keeps the last nv880e hoop's fields.
+        ("m-180x100-border", 0x21, *b"10", true, false, N::L),
+        ("m-round-100", 0x16, *b"10", true, false, N::L),
     ] {
         let pe = data(&format!("pe11/hoops/{name}.pes"));
         let mut objects = objects_of(&pe);
@@ -1793,10 +1815,69 @@ fn hoop_size_pages_are_written_as_pe_design_writes_each_hoop() {
             code,
             multi_needle,
             rotated,
+            nv880e,
         });
         let ours = pes11::write(&objects, &pes::read(&pe).expect("read")).expect("write");
         assert_eq!(hoop_header(&ours), hoop_header(&pe), "{name}");
     }
+}
+
+/// The header of a Custom Size page from the page mode through the machine type: page mode,
+/// then (skipping the hoop id, nv880e fields and name, which hold whatever PE-DESIGN's dialog
+/// last showed) the section lists, the page size and the machine type; and the code.
+fn custom_header(b: &[u8]) -> (Vec<u8>, [u8; 2]) {
+    let mut i = 16;
+    for _ in 0..5 {
+        i += 1 + usize::from(b[i]);
+    }
+    let h = &b[i..];
+    let mut at = 15 + usize::from(h[14]) + 2;
+    for _ in 0..2 {
+        at += 2 + 2 * usize::from(u16::from_le_bytes([h[at], h[at + 1]]));
+    }
+    let lists = 15 + usize::from(h[14]) + 2;
+    let mut out = h[..4].to_vec();
+    out.extend_from_slice(&h[lists..at + 10]);
+    (out, [b[14], b[15]])
+}
+
+/// PE-DESIGN 11.50's Custom Size pages (#322): single- and multi-needle, 100 × 100 to
+/// 300 × 200 mm. OpenStitch writes the same page mode, section lists, page size, machine type
+/// and code from a [`pes11::CustomPage`] of PE-DESIGN's sections for the machine type, and
+/// reads the page size back past the lists.
+#[test]
+fn custom_size_pages_are_written_as_pe_design_writes_them() {
+    for (name, multi_needle, page) in [
+        ("o-machine-single-100x100", false, (100, 100)),
+        ("hoops/s-custom-300x200", false, (300, 200)),
+        ("r01-rect", true, (100, 100)),
+        ("o-page-200x200", true, (200, 200)),
+        ("hoops/m-custom-300x200", true, (300, 200)),
+    ] {
+        let pe = data(&format!("pe11/{name}.pes"));
+        let mut objects = objects_of(&pe);
+        assert_eq!(objects.page_mm, Some(page), "{name}");
+        assert!(!objects.hoop_page, "{name}");
+        objects.header = None;
+        objects.code = None;
+        objects.custom = Some(pes11::CustomPage::for_machine(multi_needle));
+        let ours = pes11::write(&objects, &pes::read(&pe).expect("read")).expect("write");
+        assert_eq!(custom_header(&ours), custom_header(&pe), "{name}");
+        assert_eq!(objects_of(&ours).page_mm, Some(page), "{name}");
+    }
+}
+
+#[test]
+fn section_starts_follow_pe_designs_sections() {
+    use pes11::section_starts;
+    assert_eq!(section_starts(100, 90), [1300]);
+    assert_eq!(section_starts(300, 90), [300, 1100, 1900]);
+    assert_eq!(section_starts(200, 90), [800, 1600]);
+    assert_eq!(section_starts(200, 190), [1800]);
+    assert_eq!(section_starts(300, 290), [2300]);
+    assert!(section_starts(100, 290).is_empty());
+    assert!(section_starts(200, 290).is_empty());
+    assert!(section_starts(100, 190).is_empty());
 }
 
 /// With Rotate 90 Degrees PE-DESIGN turns the machine stitches 90° clockwise: the same design's
@@ -1828,6 +1909,7 @@ fn a_turned_hoop_turns_the_machine_stitches_as_pe_design_does() {
         code: *b"01",
         multi_needle: false,
         rotated: true,
+        nv880e: pes11::Nv880eHoop::S,
     });
     let back = pes::read(&pes11::write(&objects, &flat).expect("write")).expect("read");
     assert_eq!(moves(&back), moves(&turned));
