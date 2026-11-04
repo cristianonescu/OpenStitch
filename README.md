@@ -48,7 +48,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 186: 155 implemented (3 of them partially compatible), 2 documented only, 10 blocked, 19 planned beyond PE-DESIGN |
+| Feature matrix rows | 190: 155 implemented (3 of them partially compatible), 2 documented only, 10 blocked, 23 planned beyond PE-DESIGN |
 | Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 33: 26 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 11 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
@@ -429,6 +429,10 @@ PE-DESIGN 11 does not. Each item is sketched in
 - Quality tools: density map, troubleshoot rules, thread-brand conversion, automatic hoop selection (B13)
 - Stitch-file resize with density recalculation and density tuning (B14)
 - Lettering: baseline model, saved kerning pairs, team names from CSV, closest-point letter connections (B15)
+- AI assistant panel (B17, phases A0-A1): chat beside the design (Cmd/Ctrl+Shift+A), Claude API with the user's own key in the OS keychain (default claude-opus-5-5), every change through the engine commands, file commands behind approval, one undo step per message, Save as script; Preferences ▸ AI master switch on by default, nothing sent until used (owner, 2026-11-04)
+- AI assistant providers (B17, phases A2-A3): OpenAI- and Anthropic-compatible endpoints (Ollama, LM Studio, OpenRouter; fully offline with a local model) and ACP coding agents (Claude Code, Codex) on the user's own account, all through one openstitch-mcp --assistant tool layer
+- AI assistant pictures (B17, phase A4): attachments, attach view and selection; model-written SVG imported as shapes; attached or generated pictures digitized by the image wizards in OpenStitch mode (generated pictures need an optional image-generation endpoint)
+- AI assistant benchmark (B17, phase A5): stitchtool bench-assistant, embroidery tasks scored on the resulting design, not the model's words
 <!-- /status:beyond-planned -->
 
 ## Download a build
