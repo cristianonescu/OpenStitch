@@ -55,15 +55,18 @@ pub enum Protocol {
     Anthropic,
     /// `/chat/completions` (Ollama, LM Studio, OpenRouter, OpenAI and others).
     OpenAi,
+    /// A coding agent on the user's own account, over the Agent Client Protocol (A3, #338).
+    Agent,
 }
 
 impl Protocol {
-    pub const ALL: [Protocol; 2] = [Protocol::Anthropic, Protocol::OpenAi];
+    pub const ALL: [Protocol; 3] = [Protocol::Anthropic, Protocol::OpenAi, Protocol::Agent];
 
     pub fn key(self) -> &'static str {
         match self {
             Protocol::Anthropic => "anthropic",
             Protocol::OpenAi => "openai",
+            Protocol::Agent => "agent",
         }
     }
 
@@ -71,6 +74,7 @@ impl Protocol {
         match self {
             Protocol::Anthropic => "Anthropic (Claude API)",
             Protocol::OpenAi => "OpenAI-compatible",
+            Protocol::Agent => "Coding agent (Claude Code, Codex, …)",
         }
     }
 
@@ -166,6 +170,8 @@ pub struct AiPrefs {
     pub protocol: Protocol,
     /// OpenAI-compatible endpoints only: sent as `reasoning_effort` when not empty.
     pub reasoning_effort: String,
+    /// The coding agent (`openstitch_assistant::KNOWN_AGENTS` id) for [`Protocol::Agent`].
+    pub agent: String,
 }
 
 pub const DEFAULT_MODEL: &str = "claude-opus-5-5";
@@ -184,6 +190,7 @@ impl Default for AiPrefs {
             request_timeout_s: 300,
             protocol: Protocol::Anthropic,
             reasoning_effort: String::new(),
+            agent: "claude-agent-acp".into(),
         }
     }
 }
@@ -196,6 +203,7 @@ impl AiPrefs {
             "editLimit": self.edit_limit, "alwaysAllow": self.always_allow,
             "requestTimeoutS": self.request_timeout_s,
             "protocol": self.protocol.key(), "reasoningEffort": self.reasoning_effort,
+            "agent": self.agent,
         })
     }
 
@@ -249,6 +257,7 @@ impl AiPrefs {
                 })
                 .unwrap_or_default()
                 .to_string(),
+            agent: text("agent", &d.agent),
         }
     }
 }

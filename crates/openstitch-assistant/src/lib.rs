@@ -12,10 +12,14 @@
 //! ([`UreqTransport`] in the editor, a scripted fake in the tests). Nothing here is async and
 //! nothing touches global state.
 //!
+//! [`acp`] is the other way to reach a model: an Agent Client Protocol coding agent (Claude Code,
+//! Codex, OpenCode, ...) started as a child process on the user's own account.
+//!
 //! The history is append-only: the assistant's content blocks (thinking blocks included, with
 //! their signatures) go back exactly as they arrived, and earlier messages are never edited, so
 //! preserved thinking and the prompt cache both hold across turns.
 
+pub mod acp;
 mod conversation;
 mod models;
 mod openai;
@@ -26,6 +30,11 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 
+pub use acp::{
+    AcpConfig, AcpConversation, AcpError, AgentState, AuthMethod, BRIDGE_NAME, Discovered,
+    KNOWN_AGENTS, KnownAgent, McpServer, claude_disallowed_tools, discover, discover_in,
+    search_dirs,
+};
 pub use conversation::Conversation;
 pub use models::{ModelInfo, edit_request_without_tools, list_models, ollama_tools_capability};
 pub use transport::UreqTransport;

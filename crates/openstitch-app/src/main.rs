@@ -284,7 +284,37 @@ fn window_icon() -> egui::IconData {
     }
 }
 
+/// `openstitch --assistant-mcp ENDPOINT_FILE`: no window; serves the assistant's MCP tools
+/// (`openstitch-mcp --assistant`) on stdio against the editor that wrote ENDPOINT_FILE. The
+/// Assistant panel starts this for a coding agent (B17 A3), so the packages need no separate
+/// `openstitch-mcp` beside the editor.
+fn assistant_mcp(endpoint: &str) -> ! {
+    let code = match openstitch_remote::Client::from_file(std::path::Path::new(endpoint))
+        .map_err(|e| e.to_string())
+        .and_then(|client| {
+            openstitch_mcp::Server::new(openstitch_mcp::Config::default())
+                .map(|s| s.with_assistant(client))
+                .map_err(|e| e.to_string())
+        }) {
+        Ok(mut server) => {
+            openstitch_mcp::serve_stdio(&mut server);
+            0
+        }
+        Err(e) => {
+            eprintln!("openstitch --assistant-mcp: {e}");
+            66
+        }
+    };
+    std::process::exit(code)
+}
+
 fn main() -> eframe::Result {
+    let mut args = std::env::args().skip(1);
+    if let (Some(flag), Some(endpoint)) = (args.next(), args.next())
+        && flag == "--assistant-mcp"
+    {
+        assistant_mcp(&endpoint);
+    }
     let (mut launch, size) = match parse(std::env::args().skip(1)) {
         Ok(v) => v,
         Err(e) => {

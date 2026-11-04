@@ -1,8 +1,7 @@
 //! `openstitch-mcp`: MCP server on stdio. One JSON-RPC message per line in, one per line out;
 //! logs go to stderr.
 
-use openstitch_mcp::{Config, Line, LineReader, Server};
-use std::io::Write;
+use openstitch_mcp::{Config, Server};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -100,7 +99,6 @@ fn main() -> ExitCode {
             return ExitCode::from(64);
         }
     };
-    let max_request_bytes = config.max_request_bytes;
     let mut server = match Server::new(config) {
         Ok(server) => server,
         Err(e) => {
@@ -142,19 +140,6 @@ fn main() -> ExitCode {
         ));
     }
 
-    let mut stdout = std::io::stdout().lock();
-    for line in LineReader::new(std::io::stdin().lock(), max_request_bytes) {
-        let reply = match line {
-            Line::Text(text) => server.handle_line(&text),
-            Line::Oversized => Some(server.oversized_request_reply()),
-        };
-        if let Some(reply) = reply
-            && writeln!(stdout, "{reply}")
-                .and_then(|()| stdout.flush())
-                .is_err()
-        {
-            break; // client went away
-        }
-    }
+    openstitch_mcp::serve_stdio(&mut server);
     ExitCode::SUCCESS
 }

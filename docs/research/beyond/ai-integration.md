@@ -482,3 +482,35 @@ in `src/openai.rs` and `src/models.rs`.
 - The `data:` URL form of `image_url` and in-stream error objects are handled defensively,
   because the docs don't show them.
 
+### A3, coding agents (landed 2026-11-04, #338)
+
+**The user's side.** In the settings, Protocol ▸ **Coding agent** offers the agents found on this
+computer: Claude Code (`claude-agent-acp`), Codex (`codex-acp`), OpenCode (`opencode acp`) and the
+others SolidCraft lists, each with its version. A missing agent shows its install command with
+**Copy**. An agent that needs signing in says how; the panel never asks for an agent's key.
+
+**How it works.**
+- `openstitch-assistant::acp` (adapted from SolidCraft, with attribution) starts the agent in its
+  own process group in an empty folder.
+  - It speaks ACP v1 (newline-delimited JSON-RPC on stdio), checked against agentclientprotocol.com.
+  - It declares no file system and no terminal, and sends Claude Code's `disallowedTools`.
+  - It maps `session/update` to the panel's events.
+  - It allows permission requests for the bridge's tools once each and refuses any other tool.
+- The agent's only tool server is the editor's own executable in a windowless mode,
+  `openstitch --assistant-mcp <file>`, the same server as `openstitch-mcp --assistant` through a
+  shared stdio loop. The packages ship `openstitch-mcp` only in the CLI archive, so the editor
+  can't count on it. This mode was checked against a running editor: initialize, the seven
+  tools, a rectangle drawn, `ui.state`, a clean exit. The endpoint file is in
+  the scratch folder (0700 on Unix) and points at a private loopback listener the panel opens with
+  a per-launch token. The token never goes in the agent's environment.
+- Every request on that listener passes the same gate and the same undo bookkeeping as the
+  in-process path. `the_agent_socket_goes_through_the_gate` shows an edit running, a file command
+  waiting for approval and its denial reaching the client, and a wrong token refused.
+
+**Not verified.**
+- No real agent has been run; the tests use a scripted ACP agent.
+- The Claude Code `_meta` option keys and the exact error `session/new` returns when sign-in is
+  needed come from SolidCraft's code, not from the ACP spec.
+- Killing an agent's process tree on Windows (`taskkill /T`) is not exercised; the
+  process-group tests are Unix-only.
+
