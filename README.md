@@ -656,7 +656,8 @@ Desktop, IDEs) take the same command and arguments in their MCP server configura
 - A PR is merged once CI is green on all three operating systems.
 - Every merge to `main` builds the executables (see [Download a build](#download-a-build)).
 - Every PR that changes a feature updates [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md); the
-  README's status lists are generated from it (`python -I tools/readme_status.py --write`).
+  README's status lists are generated from it (`python -I tools/readme_status.py --write`). The
+  GitHub issue lists are refreshed only at each release (`--issues`), so PRs don't carry them.
 - Rules for the code (clean-room boundaries, command registry, golden tests) are in
   [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/LEGAL_AND_LICENSING.md](docs/LEGAL_AND_LICENSING.md).
 

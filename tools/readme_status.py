@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
 """Regenerates the status blocks of README.md from the project's own records.
 
-    python -I tools/readme_status.py            # show what would change, write nothing
-    python -I tools/readme_status.py --write    # update README.md
-    python -I tools/readme_status.py --check    # exit 1 if README.md is out of date
-    python -I tools/readme_status.py --offline  # skip the GitHub issue list (keeps it as is)
+    python -I tools/readme_status.py                    # show what would change, write nothing
+    python -I tools/readme_status.py --write            # update README.md
+    python -I tools/readme_status.py --check            # exit 1 if README.md is out of date
+    python -I tools/readme_status.py --issues --write   # also refresh the GitHub issue lists
+
+Pull requests run it without --issues: the issue lists and the open-issue count change whenever
+anyone opens or closes an issue, so they are refreshed once per release (docs/RELEASING.md)
+instead of in every PR, where they went stale within minutes and conflicted with the next PR.
+Without --issues those parts of README.md are kept as they are.
 
 Sources:
 - docs/FEATURE_MATRIX.md: the row counts per status, the Blocked and Documented rows (not yet
   implemented) and the "Planned (beyond PE-DESIGN)" rows.
 - docs/COMPATIBILITY_STATUS.md: the spec totals and how many matrix rows reach each tier.
 - docs/COMPATIBILITY_AUDIT.md: the summary items not marked **fixed** (known differences).
-- `gh issue list` on cristianonescu/OpenStitch: open issues (bugs under known issues, the rest
-  under planned).
+- `gh issue list` on cristianonescu/OpenStitch, with --issues only: open issues (bugs under known
+  issues, the rest under planned) and their count in the glance table.
 
 Each block sits between `<!-- status:NAME -->` and `<!-- /status:NAME -->` in README.md; the
 text around the blocks is written by hand and is never touched. A Documented row whose feature
@@ -140,7 +145,13 @@ def link_list(entries):
     return "\n".join(entries) if entries else "_None._"
 
 
-def blocks(offline):
+def issue_row(readme):
+    """The glance table's existing open-issue row, kept as it is when the issues are not fetched."""
+    m = re.search(r"^\| Open GitHub issues \|.*$", readme, re.M)
+    return [m.group(0)] if m else []
+
+
+def blocks(offline, readme):
     rows, counts, documented, blocked, planned = matrix()
     (total, passed, failed), tiers = compat()
     open_audit = audit()
@@ -163,7 +174,7 @@ def blocks(offline):
         f"| Open audit differences | {len(open_audit)}"
         f" ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |",
     ] + ([f"| Open GitHub issues | {len(found)} ([list]({ISSUES})) |"] if found is not None
-         else []))
+         else issue_row(readme)))
 
     out["not-implemented"] = link_list(
         [f"- **{short(r[1])}** ({r[0]})" for r in documented])
@@ -200,11 +211,14 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--write", action="store_true", help="update README.md")
     p.add_argument("--check", action="store_true", help="exit 1 if README.md is out of date")
-    p.add_argument("--offline", action="store_true", help="skip the GitHub issue list")
+    p.add_argument("--issues", action="store_true",
+                   help="also refresh the GitHub issue lists and count (release gate)")
+    p.add_argument("--offline", action="store_true",
+                   help="skip the GitHub issue list (the default; kept for old commands)")
     a = p.parse_args()
 
     old = README.read_text(encoding="utf-8")
-    new, missing = apply(old, blocks(a.offline))
+    new, missing = apply(old, blocks(a.offline or not a.issues, old))
     for name in missing:
         print(f"README.md has no <!-- status:{name} --> block", file=sys.stderr)
     diff = list(difflib.unified_diff(old.splitlines(), new.splitlines(), "README.md (now)",
