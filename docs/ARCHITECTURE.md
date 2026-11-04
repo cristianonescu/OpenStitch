@@ -310,6 +310,8 @@ Verified Compatible).
   with an iterated graph cut after GrabCut: colour Gaussian mixtures for subject and
   background, seeded by the image border or `subjectRect`, and a Boykov–Kolmogorov min-cut on
   the 8-connected grid in integer capacities; everything outside the subject is left out.
+  `subjectStrokes` and `backgroundStrokes` (#350) are rasterised onto the working grid and fix
+  the pixels they cover, as GrabCut's user edits do.
 - **Cross Stitch.** The image's colours are reduced through the same census prepass; each
   cell of a square grid (`round(width / cell) × round(height / cell)`, cells 1–10 mm, default
   2.5 mm) takes the thread most of its modal pixels have (ties to the lower thread; cells

@@ -490,6 +490,20 @@ colours. The storybook is a full scene with no separate background, so the cut t
 it. Isolation is for a user who wants the subject alone, not a likeness gain. p05 and p07 are
 opt-in scorer cases (`OPT_IN` in `tools/image_similarity.py`).
 
+**2026-11-04, marked strokes (#350):** `subjectStrokes` and `backgroundStrokes` fix what they
+cover, and the dialog's "Mark subject…" brushes them on the image. On the fruit bowl, the share of
+a hand-drawn bowl outline that is sewn, and of the table in front:
+
+| Case | Cut alone | One stroke along the bowl | Plus one along its rim | Table sewn |
+|---|---|---|---|---|
+| p07 fruit | 2.8 % (45.6) | 55.0 % (48.3) | 97.9 % (51.1) | 0.0 % |
+| d01 noisy fruit | 2.1 % (44.3) | 62.8 % (47.7) | 98.7 % (51.7) | 5.1 % |
+
+In brackets is the likeness; both runs also had a background stroke along the table's front
+edge. Subject stroke one is `(0.1, 0.6) (0.3, 0.75) (0.5, 0.8) (0.7, 0.75) (0.9, 0.6)` at width
+0.04, and stroke two is along the rim from `(0.05, 0.55)` to `(0.95, 0.55)` through `(0.5, 0.85)`
+at width 0.03.
+
 ## Sources
 
 - Zhang, X., and Wandell, B. A. (1996). A spatial extension of CIELAB for digital color image reproduction (S-CIELAB). SID Digest.

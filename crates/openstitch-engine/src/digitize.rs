@@ -13,7 +13,7 @@ use openstitch_digitize::center::{
     self, FigureOptions, LineImageOptions, OpenLine, RegionSew, SewSettings,
 };
 use openstitch_digitize::cross::{self, CrossStitch, CrossType};
-use openstitch_digitize::grabcut::Seed;
+use openstitch_digitize::grabcut::{Marks, Seed, Stroke};
 use openstitch_digitize::photo::{self, ColorSet, PhotoMode, PhotoStitch, PhotoStyle, Travel};
 use openstitch_digitize::raster::MAX_FILE_BYTES;
 use openstitch_digitize::regions::TraceOptions;
@@ -102,6 +102,55 @@ fn subject_seed(p: &Params) -> Result<Option<Seed>, CommandError> {
         return Err(p.invalid("subjectRect", "needs isolateSubject: true"));
     }
     Ok(Some(Seed::Rect(r)))
+}
+
+/// Most strokes, and points per stroke, in `subjectStrokes` or `backgroundStrokes`.
+const MAX_STROKES: usize = 200;
+const MAX_STROKE_POINTS: usize = 2000;
+
+/// Auto Punch's `subjectStrokes` or `backgroundStrokes` (#350): `[{points: [[x, y], ...],
+/// width}]` in fractions of the image; they need `isolateSubject: true`.
+fn strokes(p: &Params, key: &str) -> Result<Vec<Stroke>, CommandError> {
+    if !p.has(key) {
+        return Ok(Vec::new());
+    }
+    if !p.bool("isolateSubject", Some(false))? {
+        return Err(p.invalid(key, "needs isolateSubject: true"));
+    }
+    let bad = || {
+        p.invalid(
+            key,
+            format!(
+                "must be at most {MAX_STROKES} strokes {{points: [[x, y], ...], width}}, with \
+                 1-{MAX_STROKE_POINTS} points, x and y 0-1 and width 0.002-0.25"
+            ),
+        )
+    };
+    let list = p.array(key)?;
+    if list.len() > MAX_STROKES {
+        return Err(bad());
+    }
+    list.iter()
+        .map(|s| {
+            let width = s["width"]
+                .as_f64()
+                .filter(|w| (0.002..=0.25).contains(w))
+                .ok_or_else(bad)?;
+            let points = s["points"].as_array().ok_or_else(bad)?;
+            if points.is_empty() || points.len() > MAX_STROKE_POINTS {
+                return Err(bad());
+            }
+            let points = points
+                .iter()
+                .map(|q| {
+                    let xy = q.as_array().filter(|a| a.len() == 2).ok_or_else(bad)?;
+                    let f = |v: &Value| v.as_f64().filter(|f| (0.0..=1.0).contains(f));
+                    Ok([f(&xy[0]).ok_or_else(bad)?, f(&xy[1]).ok_or_else(bad)?])
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(Stroke { points, width })
+        })
+        .collect()
 }
 
 fn compat_mode(p: &Params) -> Result<Mode, CommandError> {
@@ -335,6 +384,16 @@ pub fn commands() -> Vec<CommandSpec> {
                     "With isolateSubject: the box around the subject, in fractions of the image (0-1); everything outside it is background (default: a band 2 % of the shorter side around the border)",
                 ),
                 opt(
+                    "subjectStrokes",
+                    "[{points: [[x, y], ...], width}]",
+                    "With isolateSubject: brush strokes over parts that are subject for certain (#350), such as a bowl the colour of its table; x and y are fractions of the image's width and height (0-1), width a fraction of its shorter side (0.002-0.25); win over backgroundStrokes and subjectRect; at most 200 strokes of 2000 points",
+                ),
+                opt(
+                    "backgroundStrokes",
+                    "[{points: [[x, y], ...], width}]",
+                    "With isolateSubject: brush strokes over parts that are background for certain, in the same form as subjectStrokes",
+                ),
+                opt(
                     "compatMode",
                     "peDesign|openStitch",
                     "peDesign: as PE-DESIGN 11.50 (default); openStitch: colours reduced and matched to threads by appearance (CIELAB k-means, CIEDE2000), an 800 px working raster, regions under 2 mm² merged (docs/research/beyond/image-digitizing.md)",
@@ -370,6 +429,10 @@ pub fn commands() -> Vec<CommandSpec> {
                     threads: thread_source(s, p, mode)?,
                     fidelity: fidelity(p, mode)?,
                     isolate: subject_seed(p)?,
+                    marks: Marks {
+                        subject: strokes(p, "subjectStrokes")?,
+                        background: strokes(p, "backgroundStrokes")?,
+                    },
                     ..AutoPunch::default()
                 };
                 // OpenStitch mode sews anything in the picture: without skipBackground, only a

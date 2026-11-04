@@ -350,7 +350,7 @@ fn open_template(st: &mut CreatorState, ctx: &egui::Context) {
     else {
         return;
     };
-    match load_template(&path, ctx) {
+    match load_image(&path, ctx, "creator-template") {
         Ok((size, texture)) => {
             st.template = Some(Template::fitted(path.clone(), size, &st.doc));
             st.texture = Some(texture);
@@ -360,9 +360,12 @@ fn open_template(st: &mut CreatorState, ctx: &egui::Context) {
     }
 }
 
-fn load_template(
+/// An image file as a texture named `name`, with its size in pixels (also the Image to
+/// Embroidery dialog's marking preview).
+pub(crate) fn load_image(
     path: &std::path::Path,
     ctx: &egui::Context,
+    name: &str,
 ) -> Result<((u32, u32), egui::TextureHandle), String> {
     let meta = std::fs::metadata(path).map_err(|e| e.to_string())?;
     if meta.len() > openstitch_digitize::raster::MAX_FILE_BYTES as u64 {
@@ -378,7 +381,7 @@ fn load_template(
         }
     }
     let image = egui::ColorImage::from_rgba_unmultiplied(size, &rgba);
-    let texture = ctx.load_texture("creator-template", image, egui::TextureOptions::LINEAR);
+    let texture = ctx.load_texture(name, image, egui::TextureOptions::LINEAR);
     Ok(((r.width(), r.height()), texture))
 }
 
