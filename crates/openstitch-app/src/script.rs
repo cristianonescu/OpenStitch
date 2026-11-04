@@ -4,14 +4,16 @@
 //!
 //! Steps are separated by `;`, coordinates are model millimetres on the Design Page:
 //! `drag:x1,y1,x2,y2` · `click:x,y` · `sclick:x,y` (window points, for panels and menus) · `dclick:x,y` · `move:x,y` · `type:r` (text, e.g. tool
-//! shortcuts) · `key:Enter` · `wait:N` (frames) · `close:0` (the window's close request, as the
-//! X button sends it). Prefix `shift+` / `cmd+` to hold modifiers, e.g. `shift+drag:…`,
+//! shortcuts) · `key:Enter` · `wait:N` (frames) · `drop:PATH` (a file dropped onto the window) ·
+//! `close:0` (the window's close request, as the X button sends it). Prefix `shift+` / `cmd+` to hold modifiers, e.g. `shift+drag:…`,
 //! `cmd+key:Z`.
 
 use eframe::egui::{Event, Key, Modifiers, PointerButton, Pos2};
 use openstitch_app::editor::Viewport;
 use openstitch_design::{Vec2, v2};
 use std::collections::VecDeque;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Action {
@@ -24,6 +26,8 @@ pub enum Action {
     Type(String),
     Key(Key),
     Wait(usize),
+    /// A file dropped onto the window (egui's `RawInput.dropped_files`).
+    Drop(PathBuf),
     /// The window's close request (X button, Alt+F4); the argument is ignored.
     Close,
 }
@@ -90,6 +94,7 @@ pub fn parse(script: &str) -> Result<Vec<Step>, String> {
                     arg.parse()
                         .map_err(|_| format!("bad frame count '{arg}'"))?,
                 ),
+                "drop" => Action::Drop(PathBuf::from(arg)),
                 "close" => Action::Close,
                 _ => return Err(format!("unknown step '{verb}'")),
             };
@@ -160,7 +165,27 @@ pub fn frames(step: &Step, vp: &Viewport) -> Vec<Vec<Event>> {
         Action::Type(t) => vec![vec![Event::Text(t.clone())]],
         Action::Key(k) => vec![vec![key(*k, true)], vec![key(*k, false)]],
         Action::Wait(n) => vec![Vec::new(); *n],
-        Action::Close => vec![Vec::new()],
+        Action::Drop(_) | Action::Close => vec![Vec::new()],
+    }
+}
+
+/// A `drop` step's file, as egui-winit hands a native drop to egui.
+#[derive(Debug)]
+pub struct DroppedPath(pub PathBuf);
+
+impl eframe::egui::DroppedFile for DroppedPath {
+    fn path(&self) -> &Path {
+        &self.0
+    }
+
+    fn bytes(&self) -> Result<Vec<u8>, String> {
+        std::fs::read(&self.0).map_err(|e| e.to_string())
+    }
+}
+
+impl DroppedPath {
+    pub fn handle(path: PathBuf) -> eframe::egui::DroppedFileHandle {
+        Arc::new(DroppedPath(path))
     }
 }
 
@@ -171,6 +196,8 @@ pub struct Player {
     current: VecDeque<(Vec<Event>, Modifiers)>,
     /// A `close` step started: the next frame carries the viewport's close request.
     close: bool,
+    /// A `drop` step started: the next frame carries this file.
+    dropped: Option<PathBuf>,
 }
 
 impl Player {
@@ -179,6 +206,7 @@ impl Player {
             steps: steps.into(),
             current: VecDeque::new(),
             close: false,
+            dropped: None,
         }
     }
 
@@ -191,6 +219,9 @@ impl Player {
         if self.current.is_empty() {
             let step = self.steps.pop_front()?;
             self.close = step.action == Action::Close;
+            if let Action::Drop(path) = &step.action {
+                self.dropped = Some(path.clone());
+            }
             self.current = frames(&step, vp)
                 .into_iter()
                 .map(|f| (f, step.modifiers))
@@ -202,6 +233,11 @@ impl Player {
     /// Whether the frame just returned by [`Self::next_frame`] is a `close` step.
     pub fn take_close_request(&mut self) -> bool {
         std::mem::take(&mut self.close)
+    }
+
+    /// The file of the frame just returned by [`Self::next_frame`], if it is a `drop` step.
+    pub fn take_dropped(&mut self) -> Option<PathBuf> {
+        self.dropped.take()
     }
 }
 
@@ -235,6 +271,17 @@ mod tests {
         assert!(parse("ctrl+click:1,2").is_err());
         assert!(parse("key:NoSuchKey").is_err());
         assert_eq!(parse("close:0").expect("ok")[0].action, Action::Close);
+        let drop = parse("drop:/tmp/a b.png").expect("ok");
+        assert_eq!(drop[0].action, Action::Drop(PathBuf::from("/tmp/a b.png")));
+        let mut p = Player::new(drop);
+        let vp = Viewport {
+            scale: 1.0,
+            offset: v2(0.0, 0.0),
+        };
+        assert!(p.next_frame(&vp).is_some_and(|(e, _)| e.is_empty()));
+        assert_eq!(p.take_dropped(), Some(PathBuf::from("/tmp/a b.png")));
+        assert_eq!(p.take_dropped(), None);
+        assert!(p.is_done());
     }
 
     #[test]

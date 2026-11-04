@@ -1906,6 +1906,18 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
     if !(app.ui.prefs.ai.enabled && app.assistant.panel.open) {
         return;
     }
+    // Files dropped onto the window while the panel is open go with the next message, as 📎
+    // (#407).
+    let dropped: Vec<_> = ctx.input(|i| {
+        i.raw
+            .dropped_files
+            .iter()
+            .map(|f| f.path().to_path_buf())
+            .collect()
+    });
+    if !dropped.is_empty() {
+        attach_files(app, dropped);
+    }
     egui::Panel::right("assistant")
         .default_size(380.0)
         .show(ui, |ui| {
@@ -2439,6 +2451,31 @@ mod tests {
             }
         });
         img.save(path).expect("png");
+    }
+
+    #[test]
+    fn files_dropped_on_the_window_attach_only_while_the_panel_is_open() {
+        let (mut app, _) = app_with(Vec::new());
+        let src =
+            std::env::temp_dir().join(format!("openstitch-drop-disc-{}.png", std::process::id()));
+        disc_png(&src);
+        let ctx = egui::Context::default();
+        let drop = |app: &mut EditorApp| {
+            let raw = egui::RawInput {
+                dropped_files: vec![crate::script::DroppedPath::handle(src.clone())],
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(raw, |ui| panel(app, ui));
+            out.textures_delta.clear();
+        };
+        app.assistant.panel.open = false;
+        drop(&mut app);
+        assert!(app.assistant.panel.attachments.is_empty());
+        app.assistant.panel.open = true;
+        drop(&mut app);
+        let _ = std::fs::remove_file(&src);
+        assert_eq!(app.assistant.panel.attachments.len(), 1);
+        assert!(app.assistant.panel.attachments[0].path.exists());
     }
 
     #[test]
