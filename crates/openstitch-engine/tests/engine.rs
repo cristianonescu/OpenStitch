@@ -245,6 +245,7 @@ fn bad_parameters_fail_cleanly() {
         ("design.export", json!({"path": "x.phc"})),
         ("design.export", json!({"path": "x.pes", "split": "yes"})),
         ("import.svg", json!({})),
+        ("import.metafile", json!({})),
         ("background.set", json!({"opacity": 0.5})),
         ("background.clear", json!({})),
         ("object.setHoleSewing", json!({"id": 1, "enabled": "yes"})),

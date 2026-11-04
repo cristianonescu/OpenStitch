@@ -253,6 +253,8 @@ reads back to the same needle points). Golden engine regressions:
 | SVG `<line>` elements (default black fill) and a two-point `<path … Z>` | open running lines in the stroke colour; a fill-only straight subpath is not imported (#341) | pass |
 | `import.svg` of `examples/imports/leaf.svg`-like artwork | 3 grouped shapes, fill/stroke colours kept, 40 mm wide at (10, 15) mm, one Undo, rescale to 80 mm | pass |
 | Hostile SVG: empty, not XML, truncated, NaN path, entity expansion, 5,001 paths, `<image href="/etc/hosts">`, path outside the sandbox | `Err` or nothing read; no file outside the sandbox opened | pass |
+| WMF/EMF (`metafile` tests): placeable WMF in 1000 units/inch, standard WMF pie/arc/poly-polygon, EMF path + FillPath, PolyBezier, world transform, stock objects, MM_LOMETRIC | shapes, colours and sizes exact; arcs counter-clockwise; y flipped in metric modes | pass |
+| Hostile WMF/EMF: truncated at header and record boundaries, a polyline claiming 65,535 points, zero-length records, 2^30 polygons, record size past the end, 5,001 shapes, NaN world transform, RestoreDC past the stack | `Err` or ignored; no allocation for the claimed count | pass |
 | Background image: place 200×100 px at 50 mm, show/hide, opacity, save/open `.osd`, clear + undo, bad PNG and bad parameters | as expected | pass |
 
 ### Split export (Rust)
