@@ -1799,3 +1799,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
+
+#[cfg(test)]
+#[path = "app_coverage_tests.rs"]
+mod coverage_tests;
