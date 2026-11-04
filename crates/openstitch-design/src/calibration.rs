@@ -178,7 +178,10 @@ mod tests {
             (4.5, 0.96, 0.96),
         ] {
             let c = coverage(r);
-            assert!((c - pink).abs() < 0.04 && (c - white).abs() < 0.04, "{r}: {c}");
+            assert!(
+                (c - pink).abs() < 0.04 && (c - white).abs() < 0.04,
+                "{r}: {c}"
+            );
             assert!((covered_width_mm(r) * r - c).abs() < 1e-9 || covered_width_mm(r) == THREAD_MM);
         }
         assert!((covered_width_mm(0.01) - THREAD_MM).abs() < 1e-4);

@@ -38,8 +38,9 @@ fn grid_cells_colours_and_crosses() {
         2
     );
     // Every needle point is a cell corner or a cell centre inside the frame, and every
-    // stitch lies on a diagonal.
-    for s in &red.stitches {
+    // stitch lies on a diagonal (the tie-ins and locks step along one).
+    let red_cells = unlocked(&red.stitches);
+    for s in &red_cells {
         let (u, v) = ((s.x - 50.0) / 12.5, (s.y - 50.0) / 12.5);
         assert!(
             u.fract() == 0.0 && v.fract() == 0.0 && (u as i64 % 2 == v as i64 % 2),
@@ -47,13 +48,16 @@ fn grid_cells_colours_and_crosses() {
         );
         assert!(s.x >= 50.0 && s.x <= 50.0 + 100.0 && s.y >= 50.0 && s.y <= 150.0);
     }
-    for w in red.stitches.windows(2) {
+    for w in red_cells.windows(2) {
         if w[1].command == Command::Stitch && (w[0].x, w[0].y) != (w[1].x, w[1].y) {
             assert_eq!((w[1].x - w[0].x).abs(), (w[1].y - w[0].y).abs(), "{w:?}");
         }
     }
     let blue = out.objects[1].stitch_block.as_ref().expect("block");
-    let pts: Vec<(f64, f64)> = blue.stitches.iter().map(|s| (s.x, s.y)).collect();
+    let pts: Vec<(f64, f64)> = unlocked(&blue.stitches)
+        .iter()
+        .map(|s| (s.x, s.y))
+        .collect();
     // Cell (6, 1) with the frame at (5, 5) mm: TL (200,75) → centre → BL (200,100) → "/" to
     // TR (225,75) → centre → BR (225,100) → "\" to TL.
     assert_eq!(
@@ -502,7 +506,15 @@ fn open_stitch_fill_limits_and_options() {
         },
     )
     .expect("converts");
-    assert_eq!(plain.objects, pe.objects);
+    // The same stitches; only the locks' steps differ (1 mm in OpenStitch mode, PE-DESIGN's
+    // 0.3 mm otherwise).
+    let blocks = |c: &cross::Converted| -> Vec<Vec<openstitch_core::Stitch>> {
+        c.objects
+            .iter()
+            .map(|o| unlocked(&o.stitch_block.as_ref().expect("block").stitches))
+            .collect()
+    };
+    assert_eq!(blocks(&plain), blocks(&pe));
 }
 
 /// B16.1 T14: with `part_crosses`, a cell whose halves along a diagonal differ becomes two

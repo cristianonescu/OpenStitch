@@ -86,9 +86,21 @@ pub fn lock_runs(stitches: &[Stitch], connect: f64, step: f64) -> Vec<Stitch> {
             .iter()
             .rposition(|s| is_point(s.command))
             .expect("two points");
+        // The tie-in goes after the last needle point still on the start (after a zero-length
+        // landing stitch, not between it and the jump).
+        let start = points[0];
+        let tie_at = run
+            .iter()
+            .enumerate()
+            .skip(first)
+            .take_while(|(_, s)| !is_point(s.command) || pos(s).distance(start) <= 1e-9)
+            .filter(|(_, s)| is_point(s.command))
+            .map(|(k, _)| k)
+            .last()
+            .unwrap_or(first);
         for (k, s) in run.iter().enumerate() {
             out.push(*s);
-            if k == first {
+            if k == tie_at {
                 out.extend(tie.iter().map(|p| Stitch::new(p.x, p.y, Command::Stitch)));
             }
             if k == last_point {
@@ -352,8 +364,8 @@ mod tests {
             xs,
             // The second run's 4 mm first stitch gets PE-DESIGN's three-step tie-in.
             [
-                0.0, 3.0, 0.0, 20.0, 40.0, 60.0, 57.0, 60.0, 60.0, 160.0, 163.0, 166.0, 169.0, 164.5,
-                160.0, 200.0, 197.0, 200.0
+                0.0, 3.0, 0.0, 20.0, 40.0, 60.0, 57.0, 60.0, 60.0, 160.0, 163.0, 166.0, 169.0,
+                164.5, 160.0, 200.0, 197.0, 200.0
             ]
         );
         // Already tied and locked: unchanged; OpenStitch mode's 1 mm steps.

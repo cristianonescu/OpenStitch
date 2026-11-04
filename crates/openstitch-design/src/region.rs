@@ -1563,7 +1563,11 @@ pub fn tie_in_by(run: &mut Run, step: f64) {
         .map(|k| a + unit * (out * k as f64 / steps as f64))
         .collect();
     let tip = a + unit * out;
-    tie.extend(subdivide(&[tip, a], step.max(5.0)).into_iter().skip(1));
+    if steps == 1 {
+        tie.push(a);
+    } else {
+        tie.extend(subdivide(&[tip, a], 5.0).into_iter().skip(1));
+    }
     run.splice(1..1, tie);
 }
 

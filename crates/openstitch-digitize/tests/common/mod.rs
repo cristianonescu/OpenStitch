@@ -105,8 +105,10 @@ pub fn unlocked(stitches: &[openstitch_core::Stitch]) -> Vec<openstitch_core::St
     // Runs: from a jump or trim to the next.
     let mut runs: Vec<Vec<openstitch_core::Stitch>> = vec![Vec::new()];
     for s in stitches {
-        if matches!(s.command, Command::Jump | Command::Trim | Command::ColorChange)
-            && runs.last().is_some_and(|r| !r.is_empty())
+        if matches!(
+            s.command,
+            Command::Jump | Command::Trim | Command::ColorChange
+        ) && runs.last().is_some_and(|r| !r.is_empty())
         {
             runs.push(Vec::new());
         }
@@ -116,14 +118,17 @@ pub fn unlocked(stitches: &[openstitch_core::Stitch]) -> Vec<openstitch_core::St
     for mut r in runs {
         // Index of the first needle point (the jump's landing or the first stitch) and the
         // first point that moves away from it.
-        if let Some(a) = r.iter().position(|s| matches!(s.command, Command::Jump | Command::Stitch)) {
+        if let Some(a) = r
+            .iter()
+            .position(|s| matches!(s.command, Command::Jump | Command::Stitch))
+        {
             let mut b = a;
             while b + 1 < r.len() && same(&r[b + 1], &r[a]) {
                 b += 1;
             }
-            if let Some(k) = (b + 2..(b + 7).min(r.len())).find(|&k| {
-                same(&r[k], &r[a]) && (b + 1..=k).all(|i| short(&r[i - 1], &r[i]))
-            }) {
+            if let Some(k) = (b + 2..(b + 7).min(r.len()))
+                .find(|&k| same(&r[k], &r[a]) && (b + 1..=k).all(|i| short(&r[i - 1], &r[i])))
+            {
                 r.drain(b + 1..=k);
             }
         }
