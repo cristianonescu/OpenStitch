@@ -488,7 +488,7 @@ pub fn send(app: &mut EditorApp, text: String, wake: Waker) {
         },
     );
     let (message, chips) = if prefs.protocol == Protocol::Agent {
-        let (extra, images, chips) = extras(app);
+        let (extra, images, chips) = extras(app, true);
         if !images.is_empty() {
             app.assistant.panel.items.push(Item::Notice(
                 "A coding agent gets the attached files' paths, not the pictures themselves."
@@ -501,7 +501,7 @@ pub fn send(app: &mut EditorApp, text: String, wake: Waker) {
         let Some(config) = model_config(app, &prefs) else {
             return;
         };
-        let (extra, images, chips) = extras(app);
+        let (extra, images, chips) = extras(app, false);
         let content = claude::user_content(&format!("{text}{extra}\n\n{}", context(app)), &images);
         let image = image_config(app, &prefs);
         (ToWorker::Turn(Box::new(config), content, image), chips)
@@ -587,8 +587,9 @@ pub fn attach_files(app: &mut EditorApp, paths: Vec<std::path::PathBuf>) {
 }
 
 /// What goes with the message (A4): the attached files, a picture of the view and the
-/// selection, as extra text, image blocks and a short line for the chat.
-fn extras(app: &mut EditorApp) -> (String, Vec<(String, String)>, String) {
+/// selection, as extra text, image blocks and a short line for the chat. A coding `agent` takes
+/// text only and can't open files, so View asks it to look with `view_render` instead (#418).
+fn extras(app: &mut EditorApp, agent: bool) -> (String, Vec<(String, String)>, String) {
     let panel = &mut app.assistant.panel;
     let files = std::mem::take(&mut panel.attachments);
     let view = std::mem::take(&mut panel.attach_view);
@@ -599,7 +600,12 @@ fn extras(app: &mut EditorApp) -> (String, Vec<(String, String)>, String) {
     if !files.is_empty() {
         text = format!("\n\n{}", assistant_attach::describe(&files));
     }
-    if view {
+    if view && agent {
+        text.push_str(
+            "\n\n[The user wants you to look at the design view: call view_render to see it.]",
+        );
+        chips.push("view".into());
+    } else if view {
         match app.ui_command("ui.render", Some(&json!({ "size": 1024 }))) {
             Ok(r) => {
                 if let Some(png) = r["png"].as_str() {
@@ -1074,9 +1080,11 @@ fn on_event(panel: &mut Panel, e: claude::Event) {
         claude::Event::Usage {
             input_tokens,
             output_tokens,
-            ..
+            cache_read_input_tokens,
+            cache_creation_input_tokens,
         } => {
-            panel.tokens.0 += input_tokens;
+            // All the input the model read, cached or not, as the bench counts it (#419).
+            panel.tokens.0 += input_tokens + cache_read_input_tokens + cache_creation_input_tokens;
             panel.tokens.1 += output_tokens;
         }
         claude::Event::Retrying { after, reason } => panel.items.push(Item::Notice(format!(
@@ -2451,6 +2459,40 @@ mod tests {
             }
         });
         img.save(path).expect("png");
+    }
+
+    #[test]
+    fn view_asks_a_coding_agent_to_look_and_sends_a_model_the_picture() {
+        let (mut app, _) = app_with(Vec::new());
+        app.assistant.panel.attach_view = true;
+        let (text, images, chips) = extras(&mut app, true);
+        assert!(text.contains("call view_render"), "{text}");
+        assert!(images.is_empty());
+        assert!(chips.contains("view"));
+        assert!(!app.assistant.panel.attach_view);
+        app.assistant.panel.attach_view = true;
+        let (text, images, _) = extras(&mut app, false);
+        assert!(
+            text.contains("attached a picture of the design view"),
+            "{text}"
+        );
+        assert_eq!(images.len(), 1);
+        assert_eq!(images[0].0, "image/png");
+    }
+
+    #[test]
+    fn the_token_count_includes_cached_input() {
+        let (mut app, _) = app_with(Vec::new());
+        on_event(
+            &mut app.assistant.panel,
+            claude::Event::Usage {
+                input_tokens: 12,
+                output_tokens: 700,
+                cache_read_input_tokens: 13_000,
+                cache_creation_input_tokens: 4_000,
+            },
+        );
+        assert_eq!(app.assistant.panel.tokens, (17_012, 700));
     }
 
     #[test]
