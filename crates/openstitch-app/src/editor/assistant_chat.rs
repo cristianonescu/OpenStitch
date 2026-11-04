@@ -302,13 +302,23 @@ impl ScriptRecord {
 mod tests {
     use super::*;
 
+    /// An absolute scratch folder on every OS (`/tmp/...` is not absolute on Windows).
+    fn scratch() -> std::path::PathBuf {
+        std::env::temp_dir().join("scratch")
+    }
+
+    fn in_scratch(name: &str) -> String {
+        scratch().join(name).display().to_string()
+    }
+
     fn gate(mode: PermissionMode, command: &str, effect: Effect, params: Value) -> Verdict {
+        let scratch = scratch();
         verdict(&GateInput {
             mode,
             command,
             effect,
             params: &params,
-            scratch: Some(Path::new("/tmp/scratch")),
+            scratch: Some(&scratch),
             always_allow: &["design.export".to_string()],
             edits: 0,
             edit_limit: 0,
@@ -367,7 +377,7 @@ mod tests {
                 Edits,
                 "import.svg",
                 Effect::Edit,
-                json!({ "path": "/tmp/scratch/logo.svg" })
+                json!({ "path": in_scratch("logo.svg") })
             ),
             Verdict::Run
         );
@@ -376,7 +386,7 @@ mod tests {
                 Edits,
                 "import.svg",
                 Effect::Edit,
-                json!({ "path": "/tmp/scratch/../etc/x.svg" })
+                json!({ "path": in_scratch("../etc/x.svg") })
             ),
             Verdict::Ask(_)
         ));
