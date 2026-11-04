@@ -1,7 +1,9 @@
-//! The OpenStitch assistant's Claude API client (design: `docs/research/beyond/ai-integration.md`,
+//! The OpenStitch assistant's model client (design: `docs/research/beyond/ai-integration.md`,
 //! section 4.3).
 //!
-//! [`Conversation::run_turn`] sends one user turn to `POST {base_url}/v1/messages` as a streamed
+//! [`Conversation::run_turn`] sends one user turn to `POST {base_url}/v1/messages` (the Claude
+//! API, [`Protocol::Anthropic`]) or `POST {base_url}/chat/completions` (an OpenAI-compatible
+//! endpoint such as Ollama, LM Studio or OpenRouter, [`Protocol::OpenAi`]) as a streamed
 //! request, shows the reply as it arrives through [`Event`]s, runs the tool calls the model asks
 //! for through a [`Tools`] host, sends their results back, and repeats until the model ends its
 //! turn, the reply is cut off or declined, the user stops it, or an error ends it.
@@ -15,6 +17,8 @@
 //! preserved thinking and the prompt cache both hold across turns.
 
 mod conversation;
+mod models;
+mod openai;
 mod sse;
 mod transport;
 
@@ -23,6 +27,7 @@ use std::time::Duration;
 use serde_json::{Value, json};
 
 pub use conversation::Conversation;
+pub use models::{ModelInfo, edit_request_without_tools, list_models, ollama_tools_capability};
 pub use transport::UreqTransport;
 
 /// The model the assistant uses unless the user picks another.
@@ -36,15 +41,32 @@ pub const FALLBACK_BETA: &str = "server-side-fallback-2026-07-01";
 /// The most tool calls run from one assistant message; extra ones get error results.
 pub const MAX_TOOL_CALLS_PER_MESSAGE: usize = 32;
 
+/// The wire protocol of the endpoint.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum Protocol {
+    /// The Claude Messages API: `POST {base_url}/v1/messages`.
+    #[default]
+    Anthropic,
+    /// OpenAI-compatible chat completions: `POST {base_url}/chat/completions`, where the base
+    /// URL already ends in `/v1` (`http://localhost:11434/v1`, `https://openrouter.ai/api/v1`).
+    OpenAi,
+}
+
 /// How to reach the model and what to ask of it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Config {
-    /// Scheme and host, optionally with a port and a path prefix; `/v1/messages` is appended.
+    pub protocol: Protocol,
+    /// Scheme and host, optionally with a port and a path prefix. Anthropic: `/v1/messages` is
+    /// appended. OpenAI-compatible: `/chat/completions` is appended (the URL ends in `/v1`).
     pub base_url: String,
     pub api_key: String,
     pub model: String,
-    /// `output_config.effort`: `low`, `medium`, `high`, `xhigh` or `max`.
+    /// Anthropic only: `output_config.effort`: `low`, `medium`, `high`, `xhigh` or `max`.
     pub effort: String,
+    /// OpenAI-compatible only: sent as `reasoning_effort` when set (the values a model takes
+    /// differ by model and server).
+    pub reasoning_effort: Option<String>,
+    /// Anthropic only. OpenAI-compatible requests send no output limit (the server's default).
     pub max_tokens: u32,
     /// The longest wait for the response headers, and for each read of the stream after that.
     pub request_timeout: Duration,
@@ -55,10 +77,12 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Config {
+            protocol: Protocol::Anthropic,
             base_url: DEFAULT_BASE_URL.to_string(),
             api_key: String::new(),
             model: DEFAULT_MODEL.to_string(),
             effort: "high".to_string(),
+            reasoning_effort: None,
             max_tokens: 64_000,
             request_timeout: Duration::from_secs(300),
             system: String::new(),
@@ -86,6 +110,22 @@ pub trait Transport: Send + Sync {
         body: &[u8],
         timeout: Duration,
     ) -> Result<Box<dyn std::io::Read + Send>, HttpError>;
+
+    /// GET; Ok = a reader over the response body for a 2xx status. Used for the model lists.
+    /// The default refuses, so a transport that only posts keeps compiling.
+    fn get(
+        &self,
+        url: &str,
+        headers: &[(String, String)],
+        timeout: Duration,
+    ) -> Result<Box<dyn std::io::Read + Send>, HttpError> {
+        let _ = (url, headers, timeout);
+        Err(HttpError {
+            status: None,
+            message: "This transport cannot send GET requests.".to_string(),
+            retry_after: None,
+        })
+    }
 }
 
 /// What a tool call returned, ready to go back to the model.
@@ -218,6 +258,14 @@ pub(crate) fn scheme_and_host(url: &str) -> Option<(String, String)> {
         return None;
     }
     Some((scheme.to_ascii_lowercase(), host.to_ascii_lowercase()))
+}
+
+/// Whether the URL's host is exactly localhost / 127.0.0.1 / [::1].
+pub(crate) fn is_loopback(url: &str) -> bool {
+    matches!(
+        scheme_and_host(url.trim()),
+        Some((_, host)) if matches!(host.as_str(), "localhost" | "127.0.0.1" | "[::1]")
+    )
 }
 
 /// A key may only go to https, or to plain http on exactly localhost / 127.0.0.1 / [::1] (any port).

@@ -47,6 +47,102 @@ impl PermissionMode {
     }
 }
 
+/// The wire protocol of the address in the settings (A2, #317).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Protocol {
+    /// The Claude API's Messages API, or a compatible endpoint.
+    #[default]
+    Anthropic,
+    /// `/chat/completions` (Ollama, LM Studio, OpenRouter, OpenAI and others).
+    OpenAi,
+}
+
+impl Protocol {
+    pub const ALL: [Protocol; 2] = [Protocol::Anthropic, Protocol::OpenAi];
+
+    pub fn key(self) -> &'static str {
+        match self {
+            Protocol::Anthropic => "anthropic",
+            Protocol::OpenAi => "openai",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Protocol::Anthropic => "Anthropic (Claude API)",
+            Protocol::OpenAi => "OpenAI-compatible",
+        }
+    }
+
+    pub fn from_key(key: &str) -> Option<Protocol> {
+        Self::ALL.into_iter().find(|p| p.key() == key)
+    }
+}
+
+/// A ready-made endpoint in the settings.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Preset {
+    pub name: &'static str,
+    pub protocol: Protocol,
+    pub base_url: &'static str,
+    /// The model it starts with; empty: pick one from the endpoint's list.
+    pub model: &'static str,
+}
+
+/// The presets of plan section 4.3 and issue #317 (addresses from SolidCraft's
+/// `docs/agent-chat.md` and each server's documentation).
+pub const PRESETS: [Preset; 4] = [
+    Preset {
+        name: "Claude API",
+        protocol: Protocol::Anthropic,
+        base_url: DEFAULT_BASE_URL,
+        model: DEFAULT_MODEL,
+    },
+    Preset {
+        name: "Ollama (this computer)",
+        protocol: Protocol::OpenAi,
+        base_url: "http://localhost:11434/v1",
+        model: "",
+    },
+    Preset {
+        name: "LM Studio (this computer)",
+        protocol: Protocol::OpenAi,
+        base_url: "http://localhost:1234/v1",
+        model: "",
+    },
+    Preset {
+        name: "OpenRouter",
+        protocol: Protocol::OpenAi,
+        base_url: "https://openrouter.ai/api/v1",
+        model: "",
+    },
+];
+
+/// Whether `url` is plain http or https to exactly this computer (localhost, 127.0.0.1, [::1]),
+/// where a local model server needs no key.
+pub fn is_this_computer(url: &str) -> bool {
+    let u = url.trim().to_ascii_lowercase();
+    let Some(rest) = u
+        .strip_prefix("http://")
+        .or_else(|| u.strip_prefix("https://"))
+    else {
+        return false;
+    };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
+    if authority.contains('@') {
+        return false;
+    }
+    let host = if let Some(v6) = authority.strip_prefix('[') {
+        v6.split(']')
+            .next()
+            .map(|h| format!("[{h}]"))
+            .unwrap_or_default()
+    } else {
+        authority.split(':').next().unwrap_or_default().to_string()
+    };
+    matches!(host.as_str(), "localhost" | "127.0.0.1" | "[::1]")
+}
+
 /// Effort levels the Claude API takes (`output_config.effort`).
 pub const EFFORTS: [&str; 5] = ["low", "medium", "high", "xhigh", "max"];
 
@@ -67,6 +163,9 @@ pub struct AiPrefs {
     pub always_allow: Vec<String>,
     /// Seconds one model request may take.
     pub request_timeout_s: u64,
+    pub protocol: Protocol,
+    /// OpenAI-compatible endpoints only: sent as `reasoning_effort` when not empty.
+    pub reasoning_effort: String,
 }
 
 pub const DEFAULT_MODEL: &str = "claude-opus-5-5";
@@ -83,6 +182,8 @@ impl Default for AiPrefs {
             edit_limit: 0,
             always_allow: Vec::new(),
             request_timeout_s: 300,
+            protocol: Protocol::Anthropic,
+            reasoning_effort: String::new(),
         }
     }
 }
@@ -94,6 +195,7 @@ impl AiPrefs {
             "baseUrl": self.base_url, "permissions": self.mode.key(),
             "editLimit": self.edit_limit, "alwaysAllow": self.always_allow,
             "requestTimeoutS": self.request_timeout_s,
+            "protocol": self.protocol.key(), "reasoningEffort": self.reasoning_effort,
         })
     }
 
@@ -135,6 +237,18 @@ impl AiPrefs {
             request_timeout_s: v["requestTimeoutS"]
                 .as_u64()
                 .map_or(d.request_timeout_s, |s| s.clamp(30, 3600)),
+            protocol: v["protocol"]
+                .as_str()
+                .and_then(Protocol::from_key)
+                .unwrap_or(d.protocol),
+            reasoning_effort: v["reasoningEffort"]
+                .as_str()
+                .map(str::trim)
+                .filter(|s| {
+                    s.len() <= 40 && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+                })
+                .unwrap_or_default()
+                .to_string(),
         }
     }
 }
@@ -506,6 +620,41 @@ mod tests {
             AiPrefs::default().enabled,
             "on by default (owner, 2026-11-04)"
         );
+    }
+
+    #[test]
+    fn protocols_presets_and_this_computer() {
+        let p = AiPrefs {
+            protocol: Protocol::OpenAi,
+            reasoning_effort: "high".into(),
+            ..AiPrefs::default()
+        };
+        assert_eq!(AiPrefs::from_json(&p.to_json()), p);
+        assert_eq!(AiPrefs::default().protocol, Protocol::Anthropic);
+        let junk = AiPrefs::from_json(&json!({ "protocol": "smtp", "reasoningEffort": "x y" }));
+        assert_eq!(
+            (junk.protocol, junk.reasoning_effort.as_str()),
+            (Protocol::Anthropic, "")
+        );
+        for ok in [
+            "http://localhost:11434/v1",
+            "http://127.0.0.1:1234/v1",
+            "http://[::1]:8080/v1",
+            "https://localhost/v1",
+        ] {
+            assert!(is_this_computer(ok), "{ok}");
+        }
+        for no in [
+            "https://openrouter.ai/api/v1",
+            "http://localhost.evil.com/v1",
+            "http://user@evil.com@localhost/v1",
+            "http://127.0.0.2/v1",
+            "ftp://localhost/",
+        ] {
+            assert!(!is_this_computer(no), "{no}");
+        }
+        assert!(PRESETS.iter().all(|p| !p.base_url.is_empty()));
+        assert_eq!(PRESETS[0].model, DEFAULT_MODEL);
     }
 
     #[test]

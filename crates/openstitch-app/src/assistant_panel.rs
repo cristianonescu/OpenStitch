@@ -14,7 +14,8 @@
 use crate::app::EditorApp;
 use eframe::egui::{self, RichText};
 use openstitch_app::editor::assistant_chat::{
-    APPROVAL_TIMEOUT_S, GateInput, PermissionMode, ScriptRecord, Verdict, verdict,
+    APPROVAL_TIMEOUT_S, GateInput, PRESETS, PermissionMode, Protocol, ScriptRecord, Verdict,
+    is_this_computer, verdict,
 };
 use openstitch_assistant as claude;
 use openstitch_engine::Effect;
@@ -105,6 +106,8 @@ struct Worker {
     from: Receiver<FromWorker>,
     jobs: Receiver<Job>,
     cancel: Arc<AtomicBool>,
+    /// A conversation keeps the protocol it started with (`openstitch-assistant`).
+    protocol: claude::Protocol,
 }
 
 impl Worker {
@@ -149,6 +152,7 @@ impl Worker {
             from,
             jobs,
             cancel,
+            protocol: claude::Protocol::default(),
         }
     }
 }
@@ -181,6 +185,10 @@ struct Approval {
 struct Turn {
     undo_start: usize,
     edits: u32,
+    /// For the "answered without its tools" notice (local models, A2).
+    text: String,
+    used_tools: bool,
+    reply: String,
 }
 
 #[derive(Default)]
@@ -204,6 +212,10 @@ pub struct Panel {
     transport: Option<Arc<dyn claude::Transport>>,
     /// Tests put the key here instead of the keychain.
     test_key: Option<String>,
+    /// The settings' model list and Ollama check, filled by background threads.
+    lookups: Shared,
+    /// Whether the keychain holds a key for this address (asked once per address).
+    key_stored: Option<(String, bool)>,
 }
 
 fn keychain(base_url: &str) -> Option<keyring::Entry> {
@@ -282,12 +294,18 @@ pub fn send(app: &mut EditorApp, text: String, wake: Waker) {
         )));
         return;
     }
-    let Some(key) = app.assistant.panel.api_key(&prefs.base_url) else {
-        app.assistant.panel.show_settings = true;
-        app.assistant.panel.items.push(Item::Notice(
-            "Add your Claude API key in the Assistant's settings (⚙) first. It is kept in the system keychain and sent only to the address shown there.".into(),
-        ));
-        return;
+    let local = prefs.protocol == Protocol::OpenAi && is_this_computer(&prefs.base_url);
+    let key = match app.assistant.panel.api_key(&prefs.base_url) {
+        Some(k) => k,
+        // A model server on this computer needs no key.
+        None if local => String::new(),
+        None => {
+            app.assistant.panel.show_settings = true;
+            app.assistant.panel.items.push(Item::Notice(
+                "Add the API key for this address in the Assistant's settings (⚙) first. It is kept in the system keychain and sent only to the address shown there.".into(),
+            ));
+            return;
+        }
     };
     let config = claude::Config {
         base_url: prefs.base_url.clone(),
@@ -296,6 +314,11 @@ pub fn send(app: &mut EditorApp, text: String, wake: Waker) {
         effort: prefs.effort.clone(),
         request_timeout: Duration::from_secs(prefs.request_timeout_s),
         system: openstitch_mcp::server::assistant_instructions().to_string(),
+        protocol: match prefs.protocol {
+            Protocol::Anthropic => claude::Protocol::Anthropic,
+            Protocol::OpenAi => claude::Protocol::OpenAi,
+        },
+        reasoning_effort: Some(prefs.reasoning_effort.clone()).filter(|e| !e.is_empty()),
         ..claude::Config::default()
     };
     // The model writes SVGs and pictures here (ui.scratchWrite); `--listen` made one already.
@@ -309,17 +332,33 @@ pub fn send(app: &mut EditorApp, text: String, wake: Waker) {
     }
     let content = claude::user_content(&format!("{text}\n\n{}", context(app)), &[]);
     let panel = &mut app.assistant.panel;
+    if panel
+        .worker
+        .as_ref()
+        .is_some_and(|w| w.protocol != config.protocol)
+    {
+        // The settings changed the protocol: the model starts a new conversation.
+        panel.worker = None;
+        panel.items.push(Item::Notice(
+            "The protocol changed, so this is a new conversation for the model.".into(),
+        ));
+    }
     if panel.worker.is_none() {
         let transport = panel
             .transport
             .clone()
             .unwrap_or_else(|| Arc::new(claude::UreqTransport));
-        panel.worker = Some(Worker::start(transport, wake));
+        let mut worker = Worker::start(transport, wake);
+        worker.protocol = config.protocol;
+        panel.worker = Some(worker);
     }
-    panel.items.push(Item::User(text));
+    panel.items.push(Item::User(text.clone()));
     panel.turn = Some(Turn {
         undo_start: app.undo_groups.len(),
         edits: 0,
+        text,
+        used_tools: false,
+        reply: String::new(),
     });
     let worker = panel.worker.as_ref().expect("worker");
     if worker
@@ -485,6 +524,11 @@ fn finish_turn(app: &mut EditorApp, end: claude::StopKind, wake: Waker) {
     let start = turn.undo_start.min(app.undo_groups.len());
     let steps: usize = app.undo_groups.drain(start..).sum();
     let panel = &mut app.assistant.panel;
+    if claude::edit_request_without_tools(&turn.text, turn.used_tools, &turn.reply) {
+        panel.items.push(Item::Notice(
+            "The model answered without using its tools, so nothing changed. Choose a model that supports tool calling (for Ollama, one with \"tools\" in its capabilities).".into(),
+        ));
+    }
     if steps > 0 {
         app.undo_groups.push(steps);
         panel.last_undo = Some(app.undo_groups.len() - 1);
@@ -513,6 +557,13 @@ fn finish_turn(app: &mut EditorApp, end: claude::StopKind, wake: Waker) {
 }
 
 fn on_event(panel: &mut Panel, e: claude::Event) {
+    if let Some(t) = &mut panel.turn {
+        match &e {
+            claude::Event::Text(s) => t.reply.push_str(s),
+            claude::Event::ToolStart { .. } => t.used_tools = true,
+            _ => {}
+        }
+    }
     match e {
         claude::Event::Text(t) => match panel.items.last_mut() {
             Some(Item::Assistant(s)) => s.push_str(&t),
@@ -646,28 +697,168 @@ fn save_script(app: &mut EditorApp) {
     }
 }
 
+/// Results of the settings' background lookups (they reach the network or a local server).
+#[derive(Default)]
+pub struct Lookups {
+    /// The endpoint's models, for the address they were asked from.
+    models: Option<(String, Result<Vec<claude::ModelInfo>, String>)>,
+    /// Ollama's answer to "does this model call tools", for the model it was asked about.
+    ollama_tools: Option<(String, Option<bool>)>,
+    /// What is being looked up now.
+    busy: Vec<&'static str>,
+}
+
+type Shared = Arc<std::sync::Mutex<Lookups>>;
+
+fn lookup_config(app: &EditorApp) -> claude::Config {
+    let prefs = &app.ui.prefs.ai;
+    claude::Config {
+        base_url: prefs.base_url.clone(),
+        api_key: load_key(&prefs.base_url).unwrap_or_default(),
+        model: prefs.model.clone(),
+        request_timeout: Duration::from_secs(30),
+        protocol: match prefs.protocol {
+            Protocol::Anthropic => claude::Protocol::Anthropic,
+            Protocol::OpenAi => claude::Protocol::OpenAi,
+        },
+        ..claude::Config::default()
+    }
+}
+
+fn list_models(app: &EditorApp, lookups: &Shared, ctx: &egui::Context) {
+    let config = lookup_config(app);
+    lookups
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .busy
+        .push("models");
+    let (out, ctx) = (lookups.clone(), ctx.clone());
+    std::thread::spawn(move || {
+        let r = claude::list_models(&config, &claude::UreqTransport);
+        let mut l = out.lock().unwrap_or_else(|e| e.into_inner());
+        l.models = Some((config.base_url.clone(), r));
+        l.busy.retain(|b| *b != "models");
+        ctx.request_repaint();
+    });
+}
+
+fn check_ollama_tools(app: &EditorApp, lookups: &Shared, ctx: &egui::Context) {
+    let (base, model) = (
+        app.ui.prefs.ai.base_url.clone(),
+        app.ui.prefs.ai.model.clone(),
+    );
+    if model.is_empty() || !is_this_computer(&base) {
+        return;
+    }
+    let (out, ctx) = (lookups.clone(), ctx.clone());
+    std::thread::spawn(move || {
+        let r = claude::ollama_tools_capability(&base, &model, &claude::UreqTransport);
+        out.lock().unwrap_or_else(|e| e.into_inner()).ollama_tools = Some((model, r));
+        ctx.request_repaint();
+    });
+}
+
 fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
+    let ctx = ui.ctx().clone();
+    let lookups = app.assistant.panel.lookups.clone();
     let mut changed = false;
+    let mut model_changed = false;
+    let mut want_models = false;
     let prefs = &mut app.ui.prefs.ai;
     egui::Grid::new("assistant-settings")
         .num_columns(2)
         .show(ui, |ui| {
+            ui.label("Endpoint");
+            egui::ComboBox::from_id_salt("assistant-preset")
+                .selected_text(
+                    PRESETS
+                        .iter()
+                        .find(|p| p.base_url == prefs.base_url && p.protocol == prefs.protocol)
+                        .map_or("Custom", |p| p.name),
+                )
+                .show_ui(ui, |ui| {
+                    for p in PRESETS {
+                        if ui.selectable_label(prefs.base_url == p.base_url, p.name).clicked() {
+                            prefs.protocol = p.protocol;
+                            prefs.base_url = p.base_url.to_string();
+                            if !p.model.is_empty() || prefs.protocol == Protocol::Anthropic {
+                                prefs.model = p.model.to_string();
+                            }
+                            changed = true;
+                            model_changed = true;
+                        }
+                    }
+                });
+            ui.end_row();
+            ui.label("Protocol");
+            egui::ComboBox::from_id_salt("assistant-protocol")
+                .selected_text(prefs.protocol.label())
+                .show_ui(ui, |ui| {
+                    for p in Protocol::ALL {
+                        changed |= ui.selectable_value(&mut prefs.protocol, p, p.label()).changed();
+                    }
+                });
+            ui.end_row();
             ui.label("Address");
             changed |= ui.text_edit_singleline(&mut prefs.base_url).lost_focus();
             ui.end_row();
             ui.label("Model");
-            changed |= ui.text_edit_singleline(&mut prefs.model).lost_focus();
+            ui.horizontal(|ui| {
+                let r = ui.add(egui::TextEdit::singleline(&mut prefs.model).desired_width(170.0));
+                if r.lost_focus() {
+                    changed = true;
+                    model_changed = true;
+                }
+                let l = lookups.lock().unwrap_or_else(|e| e.into_inner());
+                if let Some((base, Ok(models))) = &l.models
+                    && *base == prefs.base_url
+                    && !models.is_empty()
+                {
+                    egui::ComboBox::from_id_salt("assistant-models")
+                        .selected_text("▾")
+                        .width(30.0)
+                        .show_ui(ui, |ui| {
+                            for m in models {
+                                let text = m.name.as_deref().map_or(m.id.clone(), |n| format!("{n} ({})", m.id));
+                                if ui.selectable_label(prefs.model == m.id, text).clicked() {
+                                    prefs.model = m.id.clone();
+                                    changed = true;
+                                    model_changed = true;
+                                }
+                            }
+                        });
+                }
+                let busy = l.busy.contains(&"models");
+                drop(l);
+                if busy {
+                    ui.spinner();
+                } else if ui.small_button("List").on_hover_text("Ask the endpoint for its models").clicked() {
+                    want_models = true;
+                }
+            });
             ui.end_row();
-            ui.label("Effort");
-            egui::ComboBox::from_id_salt("assistant-effort")
-                .selected_text(prefs.effort.clone())
-                .show_ui(ui, |ui| {
-                    for e in openstitch_app::editor::assistant_chat::EFFORTS {
-                        changed |= ui
-                            .selectable_value(&mut prefs.effort, e.to_string(), e)
-                            .changed();
-                    }
-                });
+            if prefs.protocol == Protocol::Anthropic {
+                ui.label("Effort");
+                egui::ComboBox::from_id_salt("assistant-effort")
+                    .selected_text(prefs.effort.clone())
+                    .show_ui(ui, |ui| {
+                        for e in openstitch_app::editor::assistant_chat::EFFORTS {
+                            changed |= ui.selectable_value(&mut prefs.effort, e.to_string(), e).changed();
+                        }
+                    });
+            } else {
+                ui.label("Reasoning effort");
+                changed |= ui
+                    .add(egui::TextEdit::singleline(&mut prefs.reasoning_effort).hint_text("provider default").desired_width(120.0))
+                    .on_hover_text("Sent as reasoning_effort when set (for example low, medium, high); values differ per provider")
+                    .lost_focus();
+            }
+            ui.end_row();
+            ui.label("Request timeout (s)");
+            changed |= ui
+                .add(egui::DragValue::new(&mut prefs.request_timeout_s).range(30..=3600))
+                .on_hover_text("How long one model request may take; a large local model may need more")
+                .changed();
             ui.end_row();
             ui.label("Permissions");
             egui::ComboBox::from_id_salt("assistant-mode")
@@ -685,6 +876,30 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                 .changed();
             ui.end_row();
         });
+    {
+        let l = lookups.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some((base, Err(e))) = &l.models
+            && *base == prefs.base_url
+        {
+            ui.colored_label(ui.visuals().warn_fg_color, format!("No model list: {e}"));
+        }
+        if let Some((model, Some(false))) = &l.ollama_tools
+            && *model == prefs.model
+        {
+            ui.colored_label(
+                ui.visuals().warn_fg_color,
+                "This Ollama model has no \"tools\" capability: it can only chat, not change the design. Pick one that lists tools.",
+            );
+        }
+    }
+    let local_openai = prefs.protocol == Protocol::OpenAi && is_this_computer(&prefs.base_url);
+    if want_models {
+        list_models(app, &lookups, &ctx);
+    }
+    if model_changed && local_openai {
+        check_ollama_tools(app, &lookups, &ctx);
+    }
+    let prefs = &mut app.ui.prefs.ai;
     if prefs.mode == PermissionMode::All {
         ui.colored_label(
             ui.visuals().warn_fg_color,
@@ -708,11 +923,21 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
         );
     }
     ui.separator();
-    let stored = load_key(&base_url).is_some();
+    // The keychain is asked once per address, not every frame (it can be slow or prompt).
+    let stored = match &app.assistant.panel.key_stored {
+        Some((url, stored)) if *url == base_url => *stored,
+        _ => {
+            let stored = load_key(&base_url).is_some();
+            app.assistant.panel.key_stored = Some((base_url.clone(), stored));
+            stored
+        }
+    };
     ui.label(if stored {
         "API key: stored in the system keychain."
+    } else if is_this_computer(&base_url) {
+        "API key: none; a model server on this computer usually needs none."
     } else {
-        "API key: none. Get one at console.anthropic.com; it is kept in the system keychain."
+        "API key: none. Add the key for this address (for the Claude API: console.anthropic.com); it is kept in the system keychain."
     });
     ui.horizontal(|ui| {
         let panel = &mut app.assistant.panel;
@@ -729,6 +954,7 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                 Err(e) => format!("Could not use the keychain: {e}"),
             };
             panel.key_input.clear();
+            panel.key_stored = None;
             panel.items.push(Item::Notice(note));
         }
     });
@@ -920,16 +1146,18 @@ pub mod testing {
     pub struct Scripted {
         pub replies: Mutex<std::collections::VecDeque<String>>,
         pub requests: Mutex<Vec<Value>>,
+        pub headers: Mutex<Vec<Vec<(String, String)>>>,
     }
 
     impl claude::Transport for Scripted {
         fn post(
             &self,
             _url: &str,
-            _headers: &[(String, String)],
+            headers: &[(String, String)],
             body: &[u8],
             _timeout: Duration,
         ) -> Result<Box<dyn std::io::Read + Send>, claude::HttpError> {
+            self.headers.lock().expect("lock").push(headers.to_vec());
             self.requests
                 .lock()
                 .expect("lock")
@@ -1007,7 +1235,43 @@ pub mod testing {
         Arc::new(Scripted {
             replies: Mutex::new(replies.into()),
             requests: Mutex::new(Vec::new()),
+            headers: Mutex::new(Vec::new()),
         })
+    }
+
+    fn chunk(choice: Value) -> String {
+        format!(
+            "data: {}\n\n",
+            json!({ "id": "c", "object": "chat.completion.chunk", "model": "m", "choices": [choice] })
+        )
+    }
+
+    /// A streamed `/chat/completions` reply (A2): tool calls through `execute`, split across
+    /// chunks, or plain text.
+    pub fn openai_reply(calls: &[(&str, Value)], text: &str, finish: &str) -> String {
+        let mut s = String::new();
+        if !text.is_empty() {
+            s += &chunk(
+                json!({ "index": 0, "delta": { "role": "assistant", "content": text }, "finish_reason": null }),
+            );
+        }
+        for (i, (command, params)) in calls.iter().enumerate() {
+            let args = json!({ "command": command, "params": params }).to_string();
+            let (a, b) = args.split_at(args.len() / 2);
+            s += &chunk(
+                json!({ "index": 0, "delta": { "tool_calls": [{ "index": i, "id": format!("call{i}"),
+                "type": "function", "function": { "name": "execute", "arguments": a } }] }, "finish_reason": null }),
+            );
+            s += &chunk(json!({ "index": 0, "delta": { "tool_calls": [{ "index": i,
+                "function": { "arguments": b } }] }, "finish_reason": null }));
+        }
+        s += &chunk(json!({ "index": 0, "delta": {}, "finish_reason": finish }));
+        s += &format!(
+            "data: {}\n\ndata: [DONE]\n\n",
+            json!({ "id": "c", "object": "chat.completion.chunk", "choices": [],
+                    "usage": { "prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15 } })
+        );
+        s
     }
 }
 
@@ -1171,6 +1435,105 @@ mod tests {
             std::fs::read(dir.join("t.svg")).expect("written"),
             b"<svg/>"
         );
+    }
+
+    fn local_openai(app: &mut EditorApp) {
+        app.ui.prefs.ai.protocol = Protocol::OpenAi;
+        app.ui.prefs.ai.base_url = "http://localhost:11434/v1".into();
+        app.ui.prefs.ai.model = "qwen3".into();
+        app.assistant.panel.test_key = None;
+    }
+
+    #[test]
+    fn a_local_model_needs_no_key_and_its_changes_are_one_undo_step() {
+        let (mut app, transport) = app_with(vec![
+            openai_reply(&[rect(10.0), rect(30.0)], "", "tool_calls"),
+            openai_reply(&[], "Two boxes.", "stop"),
+        ]);
+        local_openai(&mut app);
+        let before = app.session.design().objects.len();
+        let groups = app.undo_groups.len();
+        send(&mut app, "make two boxes".into(), no_wake());
+        run(&mut app, idle);
+        assert_eq!(app.session.design().objects.len(), before + 2);
+        assert_eq!(app.undo_groups.len(), groups + 1, "one undo step");
+        assert!(
+            app.assistant
+                .panel
+                .items
+                .contains(&Item::Assistant("Two boxes.".into()))
+        );
+        let headers = transport.headers.lock().expect("lock");
+        assert!(
+            headers
+                .iter()
+                .flatten()
+                .all(|(k, _)| !k.eq_ignore_ascii_case("authorization")),
+            "no key, no Authorization header"
+        );
+        let requests = transport.requests.lock().expect("lock");
+        assert_eq!(requests[0]["model"], "qwen3");
+        assert!(requests[0].get("temperature").is_none());
+    }
+
+    #[test]
+    fn changing_the_protocol_starts_a_new_conversation() {
+        let (mut app, transport) = app_with(vec![
+            reply(&[], "Claude here.", "end_turn"),
+            openai_reply(&[], "Local here.", "stop"),
+        ]);
+        send(&mut app, "hello".into(), no_wake());
+        run(&mut app, idle);
+        local_openai(&mut app);
+        send(&mut app, "hello again".into(), no_wake());
+        run(&mut app, idle);
+        let items = &app.assistant.panel.items;
+        assert!(
+            items
+                .iter()
+                .any(|i| matches!(i, Item::Notice(n) if n.contains("protocol changed")))
+        );
+        assert!(items.contains(&Item::Assistant("Local here.".into())));
+        let requests = transport.requests.lock().expect("lock");
+        // The local model's request carries only the new conversation: system + one user turn.
+        assert_eq!(
+            requests[1]["messages"].as_array().map(Vec::len),
+            Some(2),
+            "{}",
+            requests[1]
+        );
+    }
+
+    #[test]
+    fn a_model_that_only_talks_gets_a_notice() {
+        let (mut app, _) = app_with(vec![openai_reply(
+            &[],
+            "Sure, here is a badge: ...",
+            "stop",
+        )]);
+        local_openai(&mut app);
+        send(&mut app, "make a badge".into(), no_wake());
+        run(&mut app, idle);
+        assert!(
+            app.assistant
+                .panel
+                .items
+                .iter()
+                .any(|i| matches!(i, Item::Notice(n) if n.contains("without using its tools"))),
+            "{:?}",
+            app.assistant.panel.items
+        );
+    }
+
+    #[test]
+    fn a_remote_endpoint_without_a_key_is_not_called() {
+        let (mut app, transport) = app_with(vec![openai_reply(&[], "hi", "stop")]);
+        app.ui.prefs.ai.protocol = Protocol::OpenAi;
+        app.ui.prefs.ai.base_url = "https://openrouter.ai/api/v1".into();
+        app.assistant.panel.test_key = None;
+        send(&mut app, "hello".into(), no_wake());
+        assert!(!app.assistant.panel.busy());
+        assert!(transport.requests.lock().expect("lock").is_empty());
     }
 
     #[test]
