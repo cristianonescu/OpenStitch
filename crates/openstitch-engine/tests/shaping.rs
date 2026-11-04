@@ -240,7 +240,8 @@ fn assert_right_to_left(s: &mut Session, hebrew: &str, arabic: &str) {
 /// (#345).
 #[test]
 fn right_to_left_scripts_with_the_bundled_test_fonts() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     load_fixture_font(&mut s, "NotoSansHebrew-TestSubset.ttf", "hebrew");
     load_fixture_font(&mut s, "NotoSansArabic-TestSubset.ttf", "arabic");
     assert_right_to_left(&mut s, "hebrew", "arabic");
@@ -250,7 +251,8 @@ fn right_to_left_scripts_with_the_bundled_test_fonts() {
 /// consonant, is drawn before (left of) it; the consonant keeps its own outline.
 #[test]
 fn devanagari_vowel_sign_i_is_drawn_before_its_consonant() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     load_fixture_font(&mut s, "NotoSansDevanagari-TestSubset.ttf", "deva");
     let fonts = s.design().fonts.clone();
     let lay =

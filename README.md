@@ -48,7 +48,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 191: 155 implemented (3 of them partially compatible), 2 documented only, 10 blocked, 24 planned beyond PE-DESIGN |
+| Feature matrix rows | 192: 156 implemented (3 of them partially compatible), 2 documented only, 10 blocked, 24 planned beyond PE-DESIGN |
 | Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 33: 26 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 10 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |

@@ -235,7 +235,8 @@ fn text_in_scripts_the_font_lacks_is_missing_not_unshaped() {
 fn cjk_text_with_the_bundled_test_font() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/fonts/NotoSansJP-TestSubset.ttf");
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(
         &mut s,
         "fonts.loadTrueType",
