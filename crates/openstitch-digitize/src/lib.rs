@@ -8,6 +8,7 @@
 
 pub mod autopunch;
 pub mod center;
+pub mod columns;
 pub mod coverage;
 pub mod cross;
 pub mod grabcut;
