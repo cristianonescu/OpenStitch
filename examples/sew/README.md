@@ -382,7 +382,7 @@ The fonts, Text Transform, text on a path and monograms.
 
 #### Lettering
 
-[`lettering/fonts-and-text.pes`](lettering/fonts-and-text.pes) · 100 × 100 mm hoop · 71 × 89.7 mm · 3,750 stitches · 37 trims · about 6.6 min
+[`lettering/fonts-and-text.pes`](lettering/fonts-and-text.pes) · 100 × 100 mm hoop · 71 × 89.7 mm · 3,540 stitches · 40 trims · about 6.5 min
 
 Lato Bold and Pacifico, a Text Transform arch, and text spaced around a circle (text on a path).
 
@@ -392,7 +392,7 @@ Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 399 Warm Gray, 620 
 
 #### Monograms
 
-[`lettering/monograms.pes`](lettering/monograms.pes) · 150 × 150 mm hoop · 124.9 × 119.7 mm · 6,184 stitches · 57 trims · about 10.7 min
+[`lettering/monograms.pes`](lettering/monograms.pes) · 150 × 150 mm hoop · 124.9 × 119.7 mm · 6,350 stitches · 56 trims · about 10.8 min
 
 The four monogram styles (block, script, diamond, circle), each in a decorative frame, for the 150 × 150 mm hoop.
 

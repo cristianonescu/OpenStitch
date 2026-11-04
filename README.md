@@ -21,6 +21,7 @@ Not affiliated with Brother Industries. No Brother code or assets are included; 
 
 ## Contents
 
+- [New: the Assistant](#new-the-assistant)
 - [Status at a glance](#status-at-a-glance)
 - [Screenshots](#screenshots)
 - [From image to embroidery](#from-image-to-embroidery)
@@ -37,9 +38,38 @@ Not affiliated with Brother Industries. No Brother code or assets are included; 
 - [Documents](#documents)
 - [License](#license)
 
+## New: the Assistant
+
+**Alpha 12 adds an AI chat that can drive the whole editor.** Ask it for a design ("a 70 mm round
+badge with a navy satin border and ANNA in gold"), to change what is open ("make the lettering
+satin and 10 % bigger"), to explain or check a design, or drop in a picture and ask for embroidery.
+It works through OpenStitch's own commands, so what it makes is an ordinary design you keep
+editing by hand, and everything one message changes is a single undo step.
+
+![The Assistant beside the design: asked to turn a dropped pixel-art strawberry picture into embroidery about 50 mm wide, it calls OpenStitch's commands, notices the first result came out 34.4 mm wide, rescales it, checks it and summarises the result, with Undo these changes below](docs/images/assistant-agent-picture.png)
+
+*A real run, not a mock-up: Claude Code (on the user's own account) turning a dropped picture
+into a 50 × 63 mm strawberry, correcting its own first attempt, then checking the result.*
+
+- **Your choice of AI:** the Claude API with your own key (kept in the system keychain), a model
+  on your computer through Ollama or LM Studio (no key, works offline), OpenRouter or any
+  OpenAI- or Anthropic-compatible service, or a coding agent you already use (Claude Code, Codex,
+  OpenCode).
+- **You stay in control:** design changes run at once; saving, exporting, opening files, sending
+  to the machine and quitting ask first (**Allow once**, **Always allow** or **Deny**).
+- **Private:** your messages and design go only to the AI you chose; OpenStitch has no server and
+  no telemetry. **Options ▸ Show AI features** hides it completely.
+- **Open it:** it opens beside the design; **View ▸ Show/Hide ▸ Assistant** or Ctrl+Shift+A
+  (Cmd+Shift+A) brings it back.
+
+Benchmark on 12 embroidery tasks: Claude Code 12/12, Ollama gpt-oss:20b 8/12. It has been tested
+on macOS so far; Windows and Linux testing is
+[#401](https://github.com/cristianonescu/OpenStitch/issues/401). Details in the
+[alpha 12 notes](docs/releases/v0.1.0-alpha.12.md).
+
 ## Status at a glance
 
-Current release: **v0.1.0-alpha.11** ([notes](docs/releases/v0.1.0-alpha.11.md)).
+Current release: **v0.1.0-alpha.12** ([notes](docs/releases/v0.1.0-alpha.12.md)).
 
 OpenStitch is checked against PE-DESIGN 11.50 itself. Simple test designs made in a licensed copy
 through its normal interface are committed under `compat/reference/`. The compatibility harness
@@ -49,7 +79,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 | | |
 |---|---|
 | Feature matrix rows | 196: 162 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 24 planned beyond PE-DESIGN |
-| Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
+| Compatibility specs | 454: 454 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 36: 29 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 10 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
 | Open GitHub issues | 45 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
@@ -64,7 +94,7 @@ yet). Every feature and its evidence is in [docs/FEATURE_MATRIX.md](docs/FEATURE
 | | |
 |---|---|
 | ![Realistic view of a satin-stitched star](docs/images/readme/realistic-view.png) | ![Stitch simulator part-way through sewing a design](docs/images/readme/stitch-simulator.png) |
-| **Realistic view:** see how the stitches will look on fabric. | **Stitch simulator:** play the design back stitch by stitch, with jumps and trims. |
+| **Realistic view:** see how the stitches will look on fabric; thread is drawn as wide as it covers at its row density, measured on real sew-outs. | **Stitch simulator:** play the design back stitch by stitch, with jumps and trims. |
 | ![Drawing tools with shapes, hearts and a boolean merge](docs/images/readme/drawing.png) | ![Text in several fonts with the Text Attributes pane](docs/images/readme/lettering.png) |
 | **Drawing and editing:** shapes, Bézier outlines, arranged copies and shape operations. | **Lettering:** TrueType text with PE-DESIGN's size, spacing and transforms. |
 | ![Monograms with decorative frames and the Monogram dialog](docs/images/readme/monogram.png) | ![Auto Punch turning an image into embroidery regions](docs/images/readme/auto-punch.png) |
@@ -88,20 +118,20 @@ regenerates them.
 <!-- gallery:start -->
 | Image | OpenStitch (Realistic view) | Wizard and result |
 |---|---|---|
-| <img src="examples/images/p01-portrait.jpg" width="200"> | <img src="docs/images/readme/gallery/p01.png" width="260"> | **Photo Stitch 1, colour, defaults**<br>12,512 stitches, 385 trims, 7 colours |
-| <img src="examples/images/p02-mono-portrait.jpg" width="200"> | <img src="docs/images/readme/gallery/p02.png" width="260"> | **Photo Stitch 2, mono, defaults**<br>19,991 stitches, 1 trims, 1 colour |
-| <img src="examples/images/p04-cat-fur.jpg" width="200"> | <img src="docs/images/readme/gallery/p04.png" width="260"> | **Photo Stitch 1, colour, defaults**<br>21,077 stitches, 839 trims, 8 colours |
-| <img src="examples/images/p06-sunset.jpg" width="200"> | <img src="docs/images/readme/gallery/p06.png" width="260"> | **Photo Stitch 2, Auto Select**<br>18,510 stitches, 4 trims, 4 colours |
-| <img src="examples/images/p08-poppies.jpg" width="200"> | <img src="docs/images/readme/gallery/p08.png" width="260"> | **Photo Stitch 2, Color Set CMYK**<br>35,718 stitches, 4 trims, 4 colours |
-| <img src="examples/images/p12-backlit-tree.jpg" width="200"> | <img src="docs/images/readme/gallery/p12.png" width="260"> | **Photo Stitch 1, mono, defaults**<br>3,585 stitches, 130 trims, 1 colour |
-| <img src="examples/images/p03-storybook.jpg" width="200"> | <img src="docs/images/readme/gallery/p03.png" width="260"> | **Photo Stitch 1, colour, defaults**<br>16,018 stitches, 789 trims, 8 colours |
-| <img src="examples/images/g01-emblem.png" width="200"> | <img src="docs/images/readme/gallery/g01.png" width="260"> | **Auto Punch, defaults**<br>8,688 stitches, 10 trims, 3 colours |
-| <img src="examples/images/g02-balloon.png" width="200"> | <img src="docs/images/readme/gallery/g02.png" width="260"> | **Auto Punch, defaults**<br>7,926 stitches, 12 trims, 5 colours |
-| <img src="examples/images/g05-robot-cartoon.png" width="200"> | <img src="docs/images/readme/gallery/g05.png" width="260"> | **Auto Punch, defaults**<br>11,897 stitches, 231 trims, 6 colours |
-| <img src="examples/images/g08-lettering.png" width="200"> | <img src="docs/images/readme/gallery/g08.png" width="260"> | **Auto Punch, defaults**<br>1,982 stitches, 16 trims, 3 colours |
-| <img src="examples/images/g04-butterfly-outline.png" width="200"> | <img src="docs/images/readme/gallery/g04.png" width="260"> | **Design Center, running line**<br>1,271 stitches, 92 trims, 1 colour |
-| <img src="examples/images/g07-pixel-strawberry.png" width="200"> | <img src="docs/images/readme/gallery/g07.png" width="260"> | **Cross Stitch, defaults**<br>3,931 stitches, 190 trims, 6 colours |
-| <img src="examples/images/g15-folk-bird.png" width="200"> | <img src="docs/images/readme/gallery/g15.png" width="260"> | **Cross Stitch, defaults**<br>4,467 stitches, 303 trims, 4 colours |
+| <img src="examples/images/p01-portrait.jpg" width="200"> | <img src="docs/images/readme/gallery/p01.png" width="260"> | **Photo Stitch 1, colour, defaults**<br>14,454 stitches, 385 trims, 7 colours |
+| <img src="examples/images/p02-mono-portrait.jpg" width="200"> | <img src="docs/images/readme/gallery/p02.png" width="260"> | **Photo Stitch 2, mono, defaults**<br>19,995 stitches, 1 trims, 1 colour |
+| <img src="examples/images/p04-cat-fur.jpg" width="200"> | <img src="docs/images/readme/gallery/p04.png" width="260"> | **Photo Stitch 1, colour, defaults**<br>25,204 stitches, 839 trims, 8 colours |
+| <img src="examples/images/p06-sunset.jpg" width="200"> | <img src="docs/images/readme/gallery/p06.png" width="260"> | **Photo Stitch 2, Auto Select**<br>18,526 stitches, 4 trims, 4 colours |
+| <img src="examples/images/p08-poppies.jpg" width="200"> | <img src="docs/images/readme/gallery/p08.png" width="260"> | **Photo Stitch 2, Color Set CMYK**<br>35,734 stitches, 4 trims, 4 colours |
+| <img src="examples/images/p12-backlit-tree.jpg" width="200"> | <img src="docs/images/readme/gallery/p12.png" width="260"> | **Photo Stitch 1, mono, defaults**<br>4,261 stitches, 130 trims, 1 colour |
+| <img src="examples/images/p03-storybook.jpg" width="200"> | <img src="docs/images/readme/gallery/p03.png" width="260"> | **Photo Stitch 1, colour, defaults**<br>19,888 stitches, 789 trims, 8 colours |
+| <img src="examples/images/g01-emblem.png" width="200"> | <img src="docs/images/readme/gallery/g01.png" width="260"> | **Auto Punch, defaults**<br>8,690 stitches, 10 trims, 3 colours |
+| <img src="examples/images/g02-balloon.png" width="200"> | <img src="docs/images/readme/gallery/g02.png" width="260"> | **Auto Punch, defaults**<br>7,912 stitches, 12 trims, 5 colours |
+| <img src="examples/images/g05-robot-cartoon.png" width="200"> | <img src="docs/images/readme/gallery/g05.png" width="260"> | **Auto Punch, defaults**<br>12,473 stitches, 231 trims, 6 colours |
+| <img src="examples/images/g08-lettering.png" width="200"> | <img src="docs/images/readme/gallery/g08.png" width="260"> | **Auto Punch, defaults**<br>1,984 stitches, 16 trims, 3 colours |
+| <img src="examples/images/g04-butterfly-outline.png" width="200"> | <img src="docs/images/readme/gallery/g04.png" width="260"> | **Design Center, running line**<br>1,635 stitches, 92 trims, 1 colour |
+| <img src="examples/images/g07-pixel-strawberry.png" width="200"> | <img src="docs/images/readme/gallery/g07.png" width="260"> | **Cross Stitch, defaults**<br>4,691 stitches, 190 trims, 6 colours |
+| <img src="examples/images/g15-folk-bird.png" width="200"> | <img src="docs/images/readme/gallery/g15.png" width="260"> | **Cross Stitch, defaults**<br>5,679 stitches, 303 trims, 4 colours |
 <!-- gallery:end -->
 
 Auto Punch, Photo Stitch 1 and 2, Cross Stitch and Design Center have two methods, both run by
@@ -134,16 +164,16 @@ truer in its PE-DESIGN-compatible mode, whose three threads suit its skin and ba
 <!-- gallery-modes:start -->
 | Image | OpenStitch, PE-DESIGN-compatible mode (default) | OpenStitch, OpenStitch mode ➕ |
 |---|---|---|
-| <img src="examples/images/g05-robot-cartoon.png" width="200"><br>Auto Punch | <img src="docs/images/readme/gallery/g05-pe.png" width="260"><br>11,897 stitches, 231 trims, 6 colours | <img src="docs/images/readme/gallery/g05-os.png" width="260"><br>13,194 stitches, 133 trims, 7 colours |
-| <img src="examples/images/g06-watercolour-lemons.jpg" width="200"><br>Auto Punch | <img src="docs/images/readme/gallery/g06-pe.png" width="260"><br>18,278 stitches, 284 trims, 9 colours | <img src="docs/images/readme/gallery/g06-os.png" width="260"><br>20,511 stitches, 202 trims, 10 colours |
-| <img src="examples/images/p03-storybook.jpg" width="200"><br>Auto Punch | <img src="docs/images/readme/gallery/p03-pe.png" width="260"><br>41,676 stitches, 699 trims, 8 colours | <img src="docs/images/readme/gallery/p03-os.png" width="260"><br>39,910 stitches, 410 trims, 10 colours |
-| <img src="examples/images/p01-portrait.jpg" width="200"><br>Photo Stitch 1 | <img src="docs/images/readme/gallery/p01-pe.png" width="260"><br>12,512 stitches, 385 trims, 7 colours | <img src="docs/images/readme/gallery/p01-os.png" width="260"><br>11,911 stitches, 857 trims, 11 colours |
-| <img src="examples/images/p06-sunset.jpg" width="200"><br>Photo Stitch 1 | <img src="docs/images/readme/gallery/p06-pe.png" width="260"><br>11,038 stitches, 370 trims, 11 colours | <img src="docs/images/readme/gallery/p06-os.png" width="260"><br>9,129 stitches, 435 trims, 11 colours |
-| <img src="examples/images/p10-night-street.jpg" width="200"><br>Photo Stitch 1 | <img src="docs/images/readme/gallery/p10-pe.png" width="260"><br>11,343 stitches, 464 trims, 7 colours | <img src="docs/images/readme/gallery/p10-os.png" width="260"><br>10,172 stitches, 580 trims, 9 colours |
-| <img src="examples/images/p08-poppies.jpg" width="200"><br>Photo Stitch 2 | <img src="docs/images/readme/gallery/p08-pe.png" width="260"><br>32,918 stitches, 4 trims, 4 colours | <img src="docs/images/readme/gallery/p08-os.png" width="260"><br>31,296 stitches, 4 trims, 4 colours |
-| <img src="examples/images/p04-cat-fur.jpg" width="200"><br>Photo Stitch 2 | <img src="docs/images/readme/gallery/p04-pe.png" width="260"><br>28,012 stitches, 4 trims, 4 colours | <img src="docs/images/readme/gallery/p04-os.png" width="260"><br>27,455 stitches, 4 trims, 4 colours |
-| <img src="examples/images/g07-pixel-strawberry.png" width="200"><br>Cross Stitch | <img src="docs/images/readme/gallery/g07-pe.png" width="260"><br>3,931 stitches, 190 trims, 6 colours | <img src="docs/images/readme/gallery/g07-os.png" width="260"><br>8,784 stitches, 192 trims, 6 colours |
-| <img src="examples/images/g04-butterfly-outline.png" width="200"><br>Design Center | <img src="docs/images/readme/gallery/g04-pe.png" width="260"><br>1,271 stitches, 92 trims, 1 colour | <img src="docs/images/readme/gallery/g04-os.png" width="260"><br>6,602 stitches, 67 trims, 1 colour |
+| <img src="examples/images/g05-robot-cartoon.png" width="200"><br>Auto Punch | <img src="docs/images/readme/gallery/g05-pe.png" width="260"><br>12,473 stitches, 231 trims, 6 colours | <img src="docs/images/readme/gallery/g05-os.png" width="260"><br>13,604 stitches, 129 trims, 7 colours |
+| <img src="examples/images/g06-watercolour-lemons.jpg" width="200"><br>Auto Punch | <img src="docs/images/readme/gallery/g06-pe.png" width="260"><br>18,297 stitches, 284 trims, 9 colours | <img src="docs/images/readme/gallery/g06-os.png" width="260"><br>15,578 stitches, 185 trims, 10 colours |
+| <img src="examples/images/p03-storybook.jpg" width="200"><br>Auto Punch | <img src="docs/images/readme/gallery/p03-pe.png" width="260"><br>41,879 stitches, 699 trims, 8 colours | <img src="docs/images/readme/gallery/p03-os.png" width="260"><br>31,326 stitches, 380 trims, 10 colours |
+| <img src="examples/images/p01-portrait.jpg" width="200"><br>Photo Stitch 1 | <img src="docs/images/readme/gallery/p01-pe.png" width="260"><br>14,454 stitches, 385 trims, 7 colours | <img src="docs/images/readme/gallery/p01-os.png" width="260"><br>12,853 stitches, 308 trims, 11 colours |
+| <img src="examples/images/p06-sunset.jpg" width="200"><br>Photo Stitch 1 | <img src="docs/images/readme/gallery/p06-pe.png" width="260"><br>12,881 stitches, 370 trims, 11 colours | <img src="docs/images/readme/gallery/p06-os.png" width="260"><br>9,820 stitches, 128 trims, 11 colours |
+| <img src="examples/images/p10-night-street.jpg" width="200"><br>Photo Stitch 1 | <img src="docs/images/readme/gallery/p10-pe.png" width="260"><br>13,625 stitches, 464 trims, 7 colours | <img src="docs/images/readme/gallery/p10-os.png" width="260"><br>10,059 stitches, 182 trims, 9 colours |
+| <img src="examples/images/p08-poppies.jpg" width="200"><br>Photo Stitch 2 | <img src="docs/images/readme/gallery/p08-pe.png" width="260"><br>32,934 stitches, 4 trims, 4 colours | <img src="docs/images/readme/gallery/p08-os.png" width="260"><br>31,312 stitches, 4 trims, 4 colours |
+| <img src="examples/images/p04-cat-fur.jpg" width="200"><br>Photo Stitch 2 | <img src="docs/images/readme/gallery/p04-pe.png" width="260"><br>28,028 stitches, 4 trims, 4 colours | <img src="docs/images/readme/gallery/p04-os.png" width="260"><br>27,471 stitches, 4 trims, 4 colours |
+| <img src="examples/images/g07-pixel-strawberry.png" width="200"><br>Cross Stitch | <img src="docs/images/readme/gallery/g07-pe.png" width="260"><br>4,691 stitches, 190 trims, 6 colours | <img src="docs/images/readme/gallery/g07-os.png" width="260"><br>9,552 stitches, 192 trims, 6 colours |
+| <img src="examples/images/g04-butterfly-outline.png" width="200"><br>Design Center | <img src="docs/images/readme/gallery/g04-pe.png" width="260"><br>1,635 stitches, 92 trims, 1 colour | <img src="docs/images/readme/gallery/g04-os.png" width="260"><br>6,866 stitches, 67 trims, 1 colour |
 <!-- gallery-modes:end -->
 
 ## Ready-to-sew designs
@@ -197,12 +227,14 @@ PE-DESIGN-compatible output stays the default.
 
 ### Stitch types
 
-PE-DESIGN 11.50's defaults, tie-in and lock, measured from its own files.
+PE-DESIGN 11.50's defaults, tie-in and lock, measured from its own files. Every run of stitches
+that ends in a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
 
 - **Regions:** fill (tatami with Frequency, PE-DESIGN's two Stitch Types (flat or sloped rows),
   under sewing, gradation and feathered edge), satin
   (PE-DESIGN's sawtooth and Auto satin), programmable fill, motif fill, concentric circle,
-  radial and spiral.
+  radial, spiral, flexible spiral, stippling, net fill and zigzag net fill (PE-DESIGN's satin band
+  along each net line).
 - **➕ Contour fill:** rows that follow the outline (rings, single or double spiral, echo
   lines, round or mitred corners).
 - **➕ Random tatami stagger,** seeded and reproducible, beside PE-DESIGN's Frequency brick.
@@ -269,6 +301,7 @@ PE-DESIGN 11.50's defaults, tie-in and lock, measured from its own files.
 - **PES versions 1, 6 and 11** on export, with Design Property (category, author, keywords,
   comments). Version 6 with its stitch group is the default. Every PES version is read (1 to 11).
 - **SVG import** as editable shapes, colours snapped to the Brother chart.
+- **WMF and EMF import** (placeable and standard WMF, EMF) as editable shapes.
 - **Editable `.osd` projects**, and large designs split into several files when a format's limits
   are exceeded.
 - **Thread charts:** Brother's 64-colour PEC chart with its catalogue numbers, PE-DESIGN's
@@ -400,17 +433,19 @@ Other things to know:
 Bugs reported on GitHub:
 
 <!-- status:issues-bugs -->
-- [#288](https://github.com/cristianonescu/OpenStitch/issues/288) Small satin lettering ends its strokes in very short stitches (the T1 mark sews messily)
-- [#289](https://github.com/cristianonescu/OpenStitch/issues/289) Small image designs trim too often and leave loose thread tails
 - [#290](https://github.com/cristianonescu/OpenStitch/issues/290) Auto Punch storybook pictures stack needle drops and fail sew_check
-- [#293](https://github.com/cristianonescu/OpenStitch/issues/293) Zigzag net fill sews lumpy on the machine
-- [#296](https://github.com/cristianonescu/OpenStitch/issues/296) Kit: the laurel frame overlaps the blue circle's corners frame in shapes/decorative-frames
-- [#297](https://github.com/cristianonescu/OpenStitch/issues/297) T1 card: the swatches after the T1 mark get the wrong density, and the mark sews as fill
-- [#303](https://github.com/cristianonescu/OpenStitch/issues/303) Fill rows clipped to a narrow notch sew runs of stitches under 0.3 mm
 - [#304](https://github.com/cristianonescu/OpenStitch/issues/304) Satin over a jagged outline fans its needle drops into the notches (Auto Punch PE-compatible mode)
-- [#322](https://github.com/cristianonescu/OpenStitch/issues/322) PES: write the hoop and Design Page fields from the design instead of hard-coded values
-- [#341](https://github.com/cristianonescu/OpenStitch/issues/341) import.svg drops every <line> element
 - [#354](https://github.com/cristianonescu/OpenStitch/issues/354) object.setCenterPoint has no effect on spiral regions, though documented for spiral
+- [#368](https://github.com/cristianonescu/OpenStitch/issues/368) Storybook (OpenStitch mode): a hairline satin crosses 20 times in place and a lock sews 6 tiny stitches
+- [#384](https://github.com/cristianonescu/OpenStitch/issues/384) Print: catalogue PDFs pile up in the temp folder (openstitch-print)
+- [#391](https://github.com/cristianonescu/OpenStitch/issues/391) CI: macos-latest jobs cancelled after 15 min without ever getting a runner
+- [#398](https://github.com/cristianonescu/OpenStitch/issues/398) PES 0110 reader: CEmbLine variant in tatami-40 references stops the object list
+- [#420](https://github.com/cristianonescu/OpenStitch/issues/420) B17 Assistant settings: Coding agent mode still offers an API key for the hidden address
+- [#421](https://github.com/cristianonescu/OpenStitch/issues/421) CI: macos-latest jobs cancelled while queued (0 steps, often at exactly 15:00) during the 2026-11-04 Actions incident
+- [#425](https://github.com/cristianonescu/OpenStitch/issues/425) B17 Ollama: mistral-small3.2 answers every bench task with an empty message
+- [#429](https://github.com/cristianonescu/OpenStitch/issues/429) B17 Ollama: gpt-oss streams sometimes stop without a finish reason ("The connection closed before the reply finished")
+- [#430](https://github.com/cristianonescu/OpenStitch/issues/430) Satin text: crossings interpolated between 3 mm rungs end inside curved outlines (O's counter)
+- [#433](https://github.com/cristianonescu/OpenStitch/issues/433) Digitizing got about 8x slower with #299: fidelity_high_raises_the_colour_counts 12 s → 97 s
 <!-- /status:issues-bugs -->
 
 [Report a bug](https://github.com/cristianonescu/OpenStitch/issues/new).
@@ -434,7 +469,6 @@ Open enhancement issues:
 
 <!-- status:issues-planned -->
 - [#120](https://github.com/cristianonescu/OpenStitch/issues/120) Add a `#PES0110` editable-object-section writer
-- [#127](https://github.com/cristianonescu/OpenStitch/issues/127) Rework auto-punch colour reduction, small-region removal, and the satin-vs-fill decision
 - [#129](https://github.com/cristianonescu/OpenStitch/issues/129) (Optional, larger) Photo-stitch rotating-line coverage density model
 - [#130](https://github.com/cristianonescu/OpenStitch/issues/130) Add a PMV motif/pattern reader
 - [#134](https://github.com/cristianonescu/OpenStitch/issues/134) Import external scalable embroidery font containers
@@ -444,29 +478,28 @@ Open enhancement issues:
 - [#298](https://github.com/cristianonescu/OpenStitch/issues/298) Photo Stitch 1 trims far more than PE-DESIGN: travel between a thread's runs instead
 - [#311](https://github.com/cristianonescu/OpenStitch/issues/311) T2 calibration card: two threads in alternating rows, to measure how much a later row covers an earlier one
 - [#312](https://github.com/cristianonescu/OpenStitch/issues/312) Kit build: check each calibration swatch's density in the exported PES
-- [#313](https://github.com/cristianonescu/OpenStitch/issues/313) Assistant command icon (Higgsfield) for View ▸ Show/Hide ▸ Assistant
-- [#317](https://github.com/cristianonescu/OpenStitch/issues/317) B17 A2: Assistant endpoints and local models (OpenAI-compatible, Ollama, LM Studio, OpenRouter)
-- [#318](https://github.com/cristianonescu/OpenStitch/issues/318) Tests: stitchtool exec, serve and commands have no automated test
 - [#319](https://github.com/cristianonescu/OpenStitch/issues/319) macOS: verify Help ▸ Ready-to-Sew Designs opens Finder at the bundled kit with a real click
-- [#320](https://github.com/cristianonescu/OpenStitch/issues/320) Export Singer CSD and Husqvarna/Viking SHV, as PE-DESIGN 11's Export offers
-- [#321](https://github.com/cristianonescu/OpenStitch/issues/321) Import WMF/EMF vector images as shapes
-- [#327](https://github.com/cristianonescu/OpenStitch/issues/327) Tests: editing commands with unasserted claims (flip, setPoint handles, pasteAttributes, paste on path, export sewingArea, …)
-- [#328](https://github.com/cristianonescu/OpenStitch/issues/328) Tests: stitch-type parameters with no test (zigzag under sewing, satin underlayParts, fill pull compensation, direction curve on piping/motif, …)
-- [#329](https://github.com/cristianonescu/OpenStitch/issues/329) Tests: format claims without a test (rotated hoop in PES v6, SVG ellipse/line/polygon/CSS, Text Transform in PES 0110, missing references pass silently)
-- [#330](https://github.com/cristianonescu/OpenStitch/issues/330) Tests: lettering claims without a test (font count/size limits per design, character moves on mirrored or on-path text)
-- [#331](https://github.com/cristianonescu/OpenStitch/issues/331) Tests: Design Database search by date modified is untested; a property-search test can pass vacuously
-- [#332](https://github.com/cristianonescu/OpenStitch/issues/332) Tests: editor behaviour without a test (import into design, visibility toggle, undo keys, simulator play, inspector line settings, nudge)
-- [#333](https://github.com/cristianonescu/OpenStitch/issues/333) Tests: the automation socket's idle-connection timeout is untested
-- [#334](https://github.com/cristianonescu/OpenStitch/issues/334) Tests: digitize parameters no test sends (Photo Stitch densityMean/densityWindow/travel, single-chart thread source, PS2 97 % claim)
-- [#338](https://github.com/cristianonescu/OpenStitch/issues/338) B17 A3: Assistant with ACP coding agents (Claude Code, Codex, OpenCode) on the user's own account
-- [#342](https://github.com/cristianonescu/OpenStitch/issues/342) README status blocks drift whenever an issue opens: regenerate them automatically instead of in every PR
-- [#345](https://github.com/cristianonescu/OpenStitch/issues/345) Tests: complex-script and CJK lettering tests pass without checking when no system font is installed
 - [#349](https://github.com/cristianonescu/OpenStitch/issues/349) SHV and CSD export: settle the parts one PE-DESIGN reference could not (preview, palette fill, long stitches)
-- [#350](https://github.com/cristianonescu/OpenStitch/issues/350) Auto Punch isolateSubject: let the user mark subject and background by hand
-- [#351](https://github.com/cristianonescu/OpenStitch/issues/351) Tests: smaller weak points from the test-coverage audit
-- [#355](https://github.com/cristianonescu/OpenStitch/issues/355) Auto Punch isolateSubject: a cut that finds no subject silently sews the whole picture
 - [#356](https://github.com/cristianonescu/OpenStitch/issues/356) Tests: weak points that need a product seam or a CI step (rest of #351)
-- [#357](https://github.com/cristianonescu/OpenStitch/issues/357) CI: the Windows build step (~14 min) is the remaining critical path
+- [#372](https://github.com/cristianonescu/OpenStitch/issues/372) Half Stitch for Auto satin (PE-DESIGN's satin attribute)
+- [#373](https://github.com/cristianonescu/OpenStitch/issues/373) Miter limit for satin and zigzag corners (PE-DESIGN attribute)
+- [#374](https://github.com/cristianonescu/OpenStitch/issues/374) Write PES versions 4, 5 and 7–10 (readers done; blocked on PE-DESIGN Save As captures)
+- [#377](https://github.com/cristianonescu/OpenStitch/issues/377) Connection Points (Default / Closest / Farther) for text
+- [#397](https://github.com/cristianonescu/OpenStitch/issues/397) import.pes: PE-DESIGN texts and stitch groups as design objects
+- [#401](https://github.com/cristianonescu/OpenStitch/issues/401) Test the AI Assistant and its key handling on Windows and Linux (so far macOS only)
+- [#403](https://github.com/cristianonescu/OpenStitch/issues/403) CI: the warm Windows build is spent compiling ~100 test targets; consolidate integration tests per crate
+- [#404](https://github.com/cristianonescu/OpenStitch/issues/404) Flaky test: transfer::writes_plain_names_to_the_volume_root_without_overwriting reuses a PID-named temp dir
+- [#406](https://github.com/cristianonescu/OpenStitch/issues/406) readme_status.py: refuse inputs with merge-conflict markers instead of counting a truncated matrix
+- [#408](https://github.com/cristianonescu/OpenStitch/issues/408) Design Database: the folder list draws a 📁 emoji, not the Higgsfield folder icon
+- [#409](https://github.com/cristianonescu/OpenStitch/issues/409) Move up/down buttons use arrow characters (▲ ▼ ↑ ↓) instead of icons
+- [#410](https://github.com/cristianonescu/OpenStitch/issues/410) Pane window controls use × ⊟ ⧉ characters instead of icons
+- [#411](https://github.com/cristianonescu/OpenStitch/issues/411) Background image Rotate Left/Right buttons draw ⟲ ⟳ symbols
+- [#412](https://github.com/cristianonescu/OpenStitch/issues/412) Menu buttons show a ▾ character as the drop-down caret
+- [#413](https://github.com/cristianonescu/OpenStitch/issues/413) Change Color menu draws the thread colour as a ■ character
+- [#426](https://github.com/cristianonescu/OpenStitch/issues/426) Flaky test: acp::an_agent_that_ends_at_once_fails_the_start under a loaded machine
+- [#428](https://github.com/cristianonescu/OpenStitch/issues/428) Fill text under a Text Transform: sew by stroke once warped letters are cut reliably
+- [#431](https://github.com/cristianonescu/OpenStitch/issues/431) B17 gate: a bare file name the assistant just wrote with scratch_write asks for permission
+- [#432](https://github.com/cristianonescu/OpenStitch/issues/432) B17 settings: choosing the Ollama or LM Studio preset keeps the Claude model name
 <!-- /status:issues-planned -->
 
 ### Beyond PE-DESIGN
