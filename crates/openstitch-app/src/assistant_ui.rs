@@ -21,6 +21,8 @@ pub struct AssistantState {
     pub scratch: Option<PathBuf>,
     /// A Help link `ui.help` asked for, opened on the next frame (it needs the egui context).
     pub open_url: Option<String>,
+    /// The Assistant panel: conversation, worker and questions (A1).
+    pub panel: crate::assistant_panel::Panel,
 }
 
 /// A private scratch folder for this launch, created before the socket starts so its file
@@ -310,6 +312,7 @@ impl EditorApp {
                 "theme" => json!(prefs.theme.key()),
                 "qatBelow" => json!(prefs.qat_below),
                 "splash" => json!(prefs.splash),
+                "aiFeatures" => json!(prefs.ai.enabled),
                 "checkUpdates" => json!(prefs.updates.check),
                 "includePrereleases" => json!(prefs.updates.include_prereleases),
                 "optimizeEntryExit" => json!(self.session.user_settings().optimize_entry_exit),
@@ -356,6 +359,7 @@ impl EditorApp {
             }
             "qatBelow" => self.ui.prefs.qat_below = bool_value(name, v)?,
             "splash" => self.ui.prefs.splash = bool_value(name, v)?,
+            "aiFeatures" => self.ui.prefs.ai.enabled = bool_value(name, v)?,
             "checkUpdates" => self.ui.prefs.updates.check = bool_value(name, v)?,
             "includePrereleases" => {
                 self.ui.prefs.updates.include_prereleases = bool_value(name, v)?

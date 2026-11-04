@@ -171,6 +171,7 @@ Behaviour follows the guide's pages
 | Show/Hide | Stitch Simulator |  | `Action::PaneSimulator` | view/UI only | yes |
 | Show/Hide | Attributes Setting |  | `Action::PaneAttributes` | view/UI only | yes |
 | Show/Hide | Import Pane |  | `Action::PaneImport` | view/UI only | yes |
+| Show/Hide | Assistant ➕ | Ctrl+Shift+A | `Action::PaneAssistant` | view/UI only; the panel runs engine and `ui.*` commands (B17) | yes |
 | Show/Hide | Reference Window |  | `Action::ReferenceWindow` | view/UI only | yes |
 | Grid | Show Grid |  | `Action::ShowGrid` | view/UI only | yes |
 | Grid | Show Grid with Axes |  | `Action::GridAxes` | view/UI only | yes |

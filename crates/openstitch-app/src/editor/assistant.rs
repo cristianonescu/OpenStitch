@@ -232,6 +232,7 @@ pub const SETTINGS: &[Setting] = &[
     s("theme", "Theme", "light|dark|system"),
     s("qatBelow", "Quick Access Toolbar below the Ribbon", "bool"),
     s("splash", "Show splash at startup", "bool"),
+    s("aiFeatures", "Show AI features", "bool"),
     s("checkUpdates", "Check for updates at startup", "bool"),
     s("includePrereleases", "Include pre-releases", "bool"),
     s("optimizeEntryExit", "Optimize Entry/Exit Points", "bool"),

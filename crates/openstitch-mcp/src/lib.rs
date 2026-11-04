@@ -17,5 +17,5 @@ pub mod tools;
 pub use openstitch_render::preview;
 
 pub use line_reader::{Line, LineReader};
-pub use server::{Config, PROTOCOL_VERSIONS, Server};
+pub use server::{Config, EditorLink, PROTOCOL_VERSIONS, Server};
 pub use tools::{Meta, Tool, ToolKind, tool_name};

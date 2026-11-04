@@ -271,6 +271,7 @@ pub fn enabled(app: &EditorApp, a: Action) -> bool {
         ChangeColor => convert_ui::stitch_selection(app).1.is_some(),
         MoveSections => openstitch_app::editor::sections::can_move(app.session.design()),
         Connect => convert_ui::stitch_selection(app).0.len() == 2,
+        PaneAssistant => app.ui.prefs.ai.enabled,
         _ => true,
     }
 }
@@ -294,6 +295,7 @@ pub fn active(app: &EditorApp, a: Action) -> bool {
         PaneSimulator => panes.simulator.visible,
         PaneAttributes => panes.attributes.visible,
         PaneImport => panes.attributes.visible && app.ui.pane_tab == PaneTab::Import,
+        PaneAssistant => app.assistant.panel.open,
         ReferenceWindow => app.workspace.reference,
         ShowGrid => app.workspace.grid.visible,
         SnapToGrid => app.workspace.grid.snap,
@@ -515,6 +517,7 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
             app.ui.pane_tab = PaneTab::Import;
             toggle_pane(app, |p| p.attributes.visible = true);
         }
+        PaneAssistant => app.assistant.panel.open ^= true,
         ReferenceWindow => app.workspace.reference ^= true,
         ShowGrid => app.workspace.grid.visible ^= true,
         SnapToGrid => app.toggle_snap_to_grid(),
@@ -1048,6 +1051,13 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     changed |= ui
         .checkbox(&mut app.ui.prefs.splash, "Show splash at startup")
         .changed();
+    changed |= ui
+        .checkbox(&mut app.ui.prefs.ai.enabled, "Show AI features")
+        .on_hover_text("The Assistant panel, its button and Ctrl+Shift+A; nothing is sent until you use it")
+        .changed();
+    if !app.ui.prefs.ai.enabled {
+        app.assistant.panel.open = false;
+    }
     ui.separator();
     ui.label(RichText::new("Updates").weak());
     changed |= ui

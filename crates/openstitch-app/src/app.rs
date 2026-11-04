@@ -1067,6 +1067,9 @@ impl EditorApp {
         if take(cmd(Key::Num0)) {
             self.fit_requested = true;
         }
+        if take(cmd_shift(Key::A)) && self.ui.prefs.ai.enabled {
+            self.assistant.panel.open ^= true;
+        }
         if take(cmd(Key::Equals)) || take(cmd(Key::Plus)) {
             crate::panels::zoom_center(self, 1.25);
         }
@@ -1338,6 +1341,7 @@ impl eframe::App for EditorApp {
         self.update_title(&ctx);
         egui::Panel::top("ribbon").show(ui, |ui| crate::ribbon::ribbon(self, ui));
         egui::Panel::bottom("status").show(ui, |ui| crate::panes::status_bar(self, ui));
+        crate::assistant_panel::panel(self, ui);
         crate::panes::docked(self, ui);
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)

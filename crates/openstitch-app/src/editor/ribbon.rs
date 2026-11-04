@@ -175,6 +175,7 @@ actions! {
     PaneSimulator => "paneSimulator", "Stitch Simulator", "Show or hide the Stitch Simulator pane.", None, None, true;
     PaneAttributes => "paneAttributes", "Attributes Setting", "Show or hide the Color / Sewing Attributes / Text Attributes pane.", None, None, true;
     PaneImport => "paneImport", "Import Pane", "Show the Import pane.", None, None, true;
+    PaneAssistant => "paneAssistant", "Assistant", "Show or hide the Assistant: ask Claude to make, change or explain the design, or to do anything in the editor.", Some("Ctrl+Shift+A"), None, true;
     ReferenceWindow => "reference", "Reference Window", "An overview of the Design Page; click to move the view.", None, None, true;
     ShowGrid => "showGrid", "Show Grid", "Show the grid on the Design Page.", None, None, true;
     GridAxes => "gridAxes", "Show Grid with Axes", "Grid drawn as solid lines; off, it is dotted.", None, None, true;
@@ -284,6 +285,7 @@ impl Action {
                 | PaneSimulator
                 | PaneAttributes
                 | PaneImport
+                | PaneAssistant
                 | ReferenceWindow
                 | ShowGrid
                 | GridAxes
@@ -540,7 +542,7 @@ const VIEW: &[Group] = &[
         name: "Show/Hide",
         items: &[
             Small(&[A::PaneSewingOrder, A::PaneSimulator, A::PaneAttributes]),
-            Small(&[A::PaneImport, A::ReferenceWindow]),
+            Small(&[A::PaneImport, A::ReferenceWindow, A::PaneAssistant]),
         ],
     },
     Group {

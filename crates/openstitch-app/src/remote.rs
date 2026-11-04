@@ -23,7 +23,7 @@ impl EditorApp {
 
     /// Edits are one Undo step each; undo/redo act like the Edit menu, so a client's undo also
     /// undoes a grouped user gesture as a whole.
-    fn remote_request(&mut self, request: &Value) -> Value {
+    pub(crate) fn remote_request(&mut self, request: &Value) -> Value {
         let command = request
             .get("command")
             .and_then(Value::as_str)

@@ -118,6 +118,8 @@ pub struct UiPrefs {
     /// Startup splash on an interactive start.
     pub splash: bool,
     pub updates: UpdatePrefs,
+    /// Preferences ▸ AI (the Assistant panel, B17); the API key is in the keychain.
+    pub ai: super::assistant_chat::AiPrefs,
 }
 
 impl Default for UiPrefs {
@@ -132,6 +134,7 @@ impl Default for UiPrefs {
             font_filter: FontFilter::default(),
             splash: true,
             updates: UpdatePrefs::default(),
+            ai: Default::default(),
         }
     }
 }
@@ -168,6 +171,7 @@ impl UiPrefs {
             "fontFilter": { "on": self.font_filter.on, "hidden": self.font_filter.hidden },
             "showSplash": self.splash,
             "updates": self.updates.to_json(),
+            "ai": self.ai.to_json(),
         })
     }
 
@@ -235,6 +239,7 @@ impl UiPrefs {
             },
             splash: v["showSplash"].as_bool().unwrap_or(d.splash),
             updates: UpdatePrefs::from_json(&v["updates"]),
+            ai: super::assistant_chat::AiPrefs::from_json(&v["ai"]),
         }
     }
 

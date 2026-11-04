@@ -376,6 +376,8 @@ fn glyph(a: Action) -> Glyph {
         PaneSimulator => G::Own("pane_simulator"),
         PaneAttributes => G::Own("pane_attributes"),
         PaneImport => G::Pane,
+        // A Higgsfield icon of its own follows in a separate PR (the icon rule).
+        PaneAssistant => G::Pane,
         ReferenceWindow => G::Own("reference_window"),
         ShowGrid => G::Grid,
         GridSpacing => G::Own("grid_spacing"),
