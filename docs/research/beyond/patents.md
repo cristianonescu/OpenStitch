@@ -21,6 +21,7 @@ registers before relying on it. Claim gists are paraphrases, not claim text.
 | US 6,600,966 B1 | Brian D. Bailie (Embrilliance) | 2002-02-26 | Expired (lifetime) 2022 | W1 multi-position split, today's splitter | expired |
 | US 9,492,937 B2 and US 10,023,982 B2 | BriTon Leap (Embrilliance) | 2015-07-29 | **Active** | O7 appliqué cut files from stitch data | live; see the design-around |
 | US 10,358,753 B2 and US 11,060,220 B2 | BriTon Leap (Embrilliance) | 2014-07-30 | **Active** until about 2035-07-29 | B14 segmentation, `object.toShapes` (bitmap tracing of stitch data) | live; see the design-around |
+| US 7,660,463 B2 | Microsoft | 2004-06-03 | Expired (fee related); anticipated expiration 2026-03-10 | Auto Punch `isolateSubject` (#127, GrabCut-style graph cut; checked 2026-11-04) | expired |
 
 So three live families matter: Brother's US 7,996,103 and the two BriTon Leap families.
 Everything else on the list is shown as expired or ceased.
@@ -201,6 +202,23 @@ Everything else on the list is shown as expired or ceased.
   hull or the stitch-geometry segmentation instead of a trace.
 - URLs: https://patents.google.com/patent/US10358753B2/en , https://patents.google.com/patent/US11060220B2/en
 
+### US 7,660,463 B2 — "Foreground extraction using iterated graph cuts"
+
+- Holder: Microsoft (now Microsoft Technology Licensing). Inventors Andrew Blake, Carsten
+  Rother, Padmanabhan Anandan. Priority and filing 2004-06-03; granted 2010-02-09. Checked
+  2026-11-04, after the rest of this list.
+- Status shown: Expired (fee related); anticipated expiration 2026-03-10.
+- Claim 1 in plain words: from a region the user marks around an object, split the image into
+  foreground and background, then alternately refine each side's colour models and the split
+  until the segmentation energy settles, and output the foreground or background. This is the
+  GrabCut method.
+- Touches: Auto Punch's opt-in subject isolation (`isolateSubject`, `openstitch-digitize::grabcut`,
+  #127), which follows the published GrabCut paper with the image border or a `subjectRect` as
+  the initial background, and Boykov and Kolmogorov's published max-flow.
+- Design-around: none needed on the status shown. If the lawyer reads it otherwise, the option
+  is off by default and can be left out of a build.
+- URL: https://patents.google.com/patent/US7660463B2/en
+
 ## What this changes in the backlog
 
 - Section 5 of the main document is corrected: US 8,532,810 is not a skeleton-satin patent
@@ -226,4 +244,5 @@ Everything else on the list is shown as expired or ceased.
 - https://patents.google.com/patent/US6600966B1/en
 - https://patents.google.com/patent/US10358753B2/en , https://patents.google.com/patent/US11060220B2/en
 - https://patents.google.com/patent/US9492937B2/en , https://patents.google.com/patent/US10023982B2/en
+- https://patents.google.com/patent/US7660463B2/en
 - https://ipqwery.com/ipowner/en/owner/ip/193055-briton-leap-inc.html (BriTon Leap portfolio listing)

@@ -48,7 +48,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 190: 154 implemented (3 of them partially compatible), 2 documented only, 10 blocked, 24 planned beyond PE-DESIGN |
+| Feature matrix rows | 191: 155 implemented (3 of them partially compatible), 2 documented only, 10 blocked, 24 planned beyond PE-DESIGN |
 | Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 33: 26 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 11 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
@@ -118,7 +118,8 @@ OpenStitch (the image dialog's Method choice):
   colour, and Design Center finds its line threshold from the image (Otsu). Photo Stitch 1 samples
   the image every 0.25 mm in rows that stay within 2.1 needle points per mm² (no 10 × 10 mm area
   above 3.0), with a Trims choice (fewer trims or the best likeness). Auto Punch sews the
-  background and sews dark outlines as satin on top, in one covering layer. Threads can come from several brands'
+  background and sews dark outlines as satin on top, in one covering layer; it can instead
+  isolate the subject by a graph cut and leave out everything around it. Threads can come from several brands'
   charts (Brother, Madeira Polyneon, Isacord, Sulky, Robison-Anton) or only those you own. Every
   OpenStitch mode sews the same stitches on macOS, Windows and Linux.
 

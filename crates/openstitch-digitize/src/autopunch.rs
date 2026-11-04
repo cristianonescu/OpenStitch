@@ -8,6 +8,7 @@
 //! the modal census, the `max(4, round(param · 100 / mmPerPx²))` small-region floor at
 //! 4-connectivity and a centerline-thinness satin test); the algorithm is this project's own.
 
+use crate::grabcut;
 use crate::palette::{self, Census, Palette, Rgb};
 use crate::perceptual;
 use crate::raster::{Frame, Raster};
@@ -59,6 +60,10 @@ pub struct AutoPunch {
     /// OpenStitch mode's fidelity: High lets the automatic colour count reach
     /// [`crate::HIGH_COLORS`]. PE-DESIGN mode ignores it.
     pub fidelity: Fidelity,
+    /// OpenStitch mode: isolate the subject by an iterated graph cut ([`crate::grabcut`],
+    /// #127) and leave out everything around it, whatever its colour, in place of the
+    /// border-colour background rule. `None` (the default) is off. PE-DESIGN mode ignores it.
+    pub isolate: Option<grabcut::Seed>,
 }
 
 impl Default for AutoPunch {
@@ -77,6 +82,7 @@ impl Default for AutoPunch {
             mode: Mode::PeDesign,
             threads: Vec::new(),
             fidelity: Fidelity::Standard,
+            isolate: None,
         }
     }
 }
@@ -354,7 +360,30 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
     let mut labels = label(&census, &palette);
     // OpenStitch mode: pixels of the border's majority colour, sewn or not.
     let mut border_pixels = 0;
+    // OpenStitch mode with `isolate`: the graph cut decides the subject; everything outside it
+    // is left out, and the background thread is the one most common there.
+    let subject = match (p.isolate, p.mode) {
+        (Some(seed), Mode::OpenStitch) => grabcut::isolate(&census.modal, w, h, seed),
+        _ => None,
+    };
     let background = match (p.skip_background, p.mode) {
+        _ if subject.is_some() => {
+            let subject = subject.as_deref().unwrap_or_default();
+            let mut counts = vec![0usize; palette.threads.len()];
+            for (l, &keep) in labels.iter_mut().zip(subject) {
+                if !keep {
+                    if *l != NONE {
+                        counts[*l as usize] += 1;
+                        border_pixels += 1;
+                    }
+                    *l = NONE;
+                }
+            }
+            (0..counts.len())
+                .filter(|&t| counts[t] > 0)
+                .max_by_key(|&t| (counts[t], std::cmp::Reverse(t)))
+                .map(|t| t as u16)
+        }
         (false, _) => None,
         (true, Mode::PeDesign) => {
             let bg = border_majority(&labels, w, h);

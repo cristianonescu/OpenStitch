@@ -104,6 +104,9 @@ pub struct ImageWizard {
     /// `skipBackground: true`; on leaves the engine's rule (only a fabric-coloured background is
     /// left out).
     pub sew_background: bool,
+    /// Auto Punch, OpenStitch mode: find the subject by a graph cut and leave out everything
+    /// around it, whatever its colour (`isolateSubject`, #127; off by default).
+    pub isolate_subject: bool,
     /// Cross Stitch, OpenStitch mode: cover each cell with parallel diagonals (`fill`).
     pub cross_fill: bool,
     /// Cross Stitch, OpenStitch mode: three-quarter and quarter crosses where a cell is split by
@@ -152,6 +155,7 @@ impl Default for ImageWizard {
             threads: "brother".into(),
             owned: None,
             sew_background: true,
+            isolate_subject: false,
             cross_fill: true,
             part_crosses: false,
             all_trims: None,
@@ -274,8 +278,11 @@ impl ImageWizard {
                 p.insert("colors".into(), colors);
                 // OpenStitch mode sews the background unless turned off; PE-DESIGN mode keeps
                 // its "Leave out the background colour".
+                // OpenStitch mode's subject isolation replaces the background rule.
                 if !self.open_stitch {
                     p.insert("skipBackground".into(), json!(self.skip_background));
+                } else if self.isolate_subject {
+                    p.insert("isolateSubject".into(), json!(true));
                 } else if !self.sew_background {
                     p.insert("skipBackground".into(), json!(true));
                 }
@@ -532,11 +539,29 @@ mod tests {
             off.request().expect("request").params["skipBackground"],
             true
         );
+        // Isolating the subject replaces the background rule; PE-DESIGN mode never sends it.
+        assert!(
+            ap.request()
+                .expect("request")
+                .params
+                .get("isolateSubject")
+                .is_none()
+        );
+        let isolate = ImageWizard {
+            isolate_subject: true,
+            sew_background: false,
+            ..ap.clone()
+        };
+        let r = isolate.request().expect("request");
+        assert_eq!(r.params["isolateSubject"], true);
+        assert!(r.params.get("skipBackground").is_none());
         let pe = ImageWizard {
             open_stitch: false,
+            isolate_subject: true,
             ..ap
         };
         let r = pe.request().expect("request");
+        assert!(r.params.get("isolateSubject").is_none());
         assert_eq!(r.params["skipBackground"], true);
         assert_eq!(
             r.params["minArea"], 1.0,

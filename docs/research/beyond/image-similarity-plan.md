@@ -344,6 +344,7 @@ target silently.
 | T11 SLIC regions at 800 px, line-art keep | `regions.rs`, `autopunch.rs` | +2 to +7 | medium: specks and trims | specks 0, trims ≤ PE-DESIGN-compatible mode |
 | T12 skeleton satin for outlines | `autopunch.rs`, `center.rs` | +1 to +3 | medium | clip-art cases ≥ 95 with T5 |
 | T8 per-region fill angle from the orientation field | `autopunch.rs` | +1 to +3 on painted images | low | p03 and g06 gain |
+| #127 subject isolation by graph cut (opt-in, landed 2026-11-04) | `grabcut.rs`, `autopunch.rs` | none on the score: it removes the background the score compares with | low | the subject alone on p05; PE-DESIGN-compatible mode unchanged |
 
 ### Phase 5 — Cross Stitch and Design Center
 
@@ -468,6 +469,26 @@ thinner than that. The storybook picture's worst spot goes from 29 to 16 needle 
 photo-like images 1-2 points lower). The storybook still fails sew_check on one fill row
 clipped to a notch (#303) and, in PE-DESIGN-compatible mode, on satins fanning into jagged
 outlines (#304).
+
+**2026-11-04, subject isolation (#127):** Auto Punch's OpenStitch mode has an opt-in
+`isolateSubject` (the dialog's "Isolate the subject"): an iterated graph cut after GrabCut
+finds the subject and everything around it is left out, whatever its colour. The default is
+off, so the scores above are unchanged; PE-DESIGN-compatible mode ignores it (compat 443/443).
+Measured with and without (flat render; the scorer compares with the whole image, background
+included, so it cannot reward leaving one out):
+
+| Case | Without | With | Needle points per mm² | Trims |
+|---|---|---|---|---|
+| p03 storybook | 67.6 | 47.7 | 4.16 → 2.42 | 382 → 227 |
+| p05 dog | 69.7 | 44.6 | 3.88 → 1.40 | 280 → 118 |
+| p07 fruit | 68.4 | 45.6 | 2.41 → 1.26 | 173 → 112 |
+| d01 noisy fruit | 66.6 | 44.3 | 2.45 → 1.30 | 227 → 115 |
+| g06 lemons | 81.3 | 81.8 | 2.33 → 2.10 | 185 → 161 |
+
+The dog comes out cleanly. On the fruit the bowl goes with the table, as it has the same
+colours. The storybook is a full scene with no separate background, so the cut takes parts of
+it. Isolation is for a user who wants the subject alone, not a likeness gain. p05 and p07 are
+opt-in scorer cases (`OPT_IN` in `tools/image_similarity.py`).
 
 ## Sources
 
