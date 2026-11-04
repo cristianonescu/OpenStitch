@@ -108,6 +108,10 @@ when they are added.
 
 Compatibility, from the open items in [COMPATIBILITY_AUDIT.md](COMPATIBILITY_AUDIT.md):
 
+WMF/EMF import (#321, 2026-11-04): landed as `import.metafile` (own safe-Rust record player;
+File ▸ Import SVG… opens `.wmf`/`.emf` too). Next: a PE-DESIGN capture of a WMF and an EMF import
+to check PE's sizing and line/region choice for metafiles.
+
 Sew-outs (first one 2026-11-02, the ready-to-sew kit on the owner's NV880E): every PES now has a PEC
 frame of the design's size holding its stitches (2026-11-03), stippling and the flexible spiral no longer stitch in place, and
 `tools/sew_check.py` checks a file for all three plus stacked needle drops. Next: Auto Punch's

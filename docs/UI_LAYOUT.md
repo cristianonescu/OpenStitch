@@ -79,7 +79,7 @@ Behaviour follows the guide's pages
 | Previous menu item | Now |
 |---|---|
 | File ▸ New, Open, Save, Save As, Print, Export, Quit | Application menu (Print ▸ Print: system print dialog or Save PDF; Export ▸, Exit) |
-| File ▸ Import into design, Import SVG | Home ▸ Import |
+| File ▸ Import into design, Import SVG (also WMF/EMF) | Home ▸ Import |
 | File ▸ Background Image (choose, paste, show/hide, opacity, remove) | Image ▸ Open Image, Paste Image, Background Image Density, Delete Image |
 | File ▸ Export Sections, Send to USB Media | Home ▸ Sew ▸ Sew Embroidery; Hoop Settings tab; Application menu ▸ Export ▸ |
 | File ▸ Design Database | Options ▸ Design Database |
@@ -124,7 +124,7 @@ Behaviour follows the guide's pages
 | Tools | Pan | `H` | `Action::Pan` | view/UI only | yes |
 | Tools | Measure | `M` | `Action::Measure` | `design.measure` | yes |
 | Import | Import Patterns | `Ctrl+Shift+I` | `Action::ImportPatterns` | `stitches.import` | yes |
-| Import | Import SVG |  | `Action::ImportSvg` | `import.svg` | yes |
+| Import | Import SVG |  | `Action::ImportSvg` | `import.svg`, `import.metafile` for `.wmf`/`.emf` | yes |
 | Edit | Arrange |  | `Action::Arrange` | `order.move` | yes |
 | Edit | Rotate/Flip |  | `Action::RotateFlip` | `object.rotate` | yes |
 | Edit | Size |  | `Action::Size` | `object.scale` | yes |

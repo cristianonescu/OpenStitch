@@ -1998,6 +1998,12 @@ Line references are relative to `crates/`.
   PES 0110 writer takes the codes of all 61 entries from core (its own table had 25) and picks
   the PEC index among 1–61. Hex colours given to commands (`fill: "#rrggbb"`) stay exact on
   purpose: PE-DESIGN has no free-RGB colour field to match, and exact RGB is what PES v6 keeps.
+- **WMF/EMF import (2026-11-04, #321):** `import.metafile` reads both metafile kinds as
+  editable shapes like `import.svg` (colours snapped to the chart). `compat/reference` holds
+  no PE-DESIGN capture of a WMF or EMF import, so PE's line/region choice and sizing for
+  metafiles are not compared: OpenStitch keeps the file's own physical size. A capture
+  (placeable WMF and EMF of a known size, imported in PE-DESIGN 11.50 and saved as PES) would
+  make it a reference spec.
 - **Imported stitch files are centred on the page (2026-10-31, reference):** PE-DESIGN 11.50's
   Import Patterns ▸ from File (the Import pane; no dialog or option) ignores where the file put
   its stitches and centres the pattern on the Design Page: a 20 × 10 mm rectangle saved at
