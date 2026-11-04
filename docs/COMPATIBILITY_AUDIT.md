@@ -1484,7 +1484,9 @@ Line references are relative to `crates/`.
   g08 lettering 4/3, g02 balloon 6/9, g12 stencil 2/4, g11 mandala 5/9. Cross Stitch on the
   pixel-art strawberry sews 6 threads where it sewed 4 (PE 7). Left: PE sews g01's white sun
   rays, where OpenStitch leaves out every region of the background colour, not only those
-  touching the border.
+  touching the border. Done 2026-11-04 (#127): the optional graph-cut foreground step, as Auto
+  Punch's opt-in `isolateSubject` in OpenStitch mode only; PE-DESIGN-compatible mode is
+  unchanged.
   optional graph-cut foreground step. #132 follows in its own PR.
   land; #127 and #132 follow in their own PRs.
   Compared with PE-DESIGN 11.50 on 2026-10-29 (round-4 captures from the owner's

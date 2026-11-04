@@ -13,6 +13,7 @@ use openstitch_digitize::center::{
     self, FigureOptions, LineImageOptions, OpenLine, RegionSew, SewSettings,
 };
 use openstitch_digitize::cross::{self, CrossStitch, CrossType};
+use openstitch_digitize::grabcut::Seed;
 use openstitch_digitize::photo::{self, ColorSet, PhotoMode, PhotoStitch, PhotoStyle, Travel};
 use openstitch_digitize::raster::MAX_FILE_BYTES;
 use openstitch_digitize::regions::TraceOptions;
@@ -71,6 +72,38 @@ fn hexes(threads: &[Thread]) -> Vec<String> {
 
 /// The `compatMode` parameter, shared with the region attribute of the same name: PE-DESIGN's
 /// method (`peDesign`, the default) or OpenStitch's improved one (`openStitch`).
+/// Auto Punch's `isolateSubject` and `subjectRect`: the graph cut's seed, or `None` when off.
+fn subject_seed(p: &Params) -> Result<Option<Seed>, CommandError> {
+    let on = p.bool("isolateSubject", Some(false))?;
+    if !p.has("subjectRect") {
+        return Ok(on.then_some(Seed::Border));
+    }
+    let bad = || {
+        p.invalid(
+            "subjectRect",
+            "must be [left, top, right, bottom], each 0-1",
+        )
+    };
+    let a = p.array("subjectRect")?;
+    if a.len() != 4 {
+        return Err(bad());
+    }
+    let mut r = [0.0; 4];
+    for (v, x) in r.iter_mut().zip(a) {
+        *v = x
+            .as_f64()
+            .filter(|f| (0.0..=1.0).contains(f))
+            .ok_or_else(bad)?;
+    }
+    if r[2] <= r[0] || r[3] <= r[1] {
+        return Err(p.invalid("subjectRect", "right and bottom must exceed left and top"));
+    }
+    if !on {
+        return Err(p.invalid("subjectRect", "needs isolateSubject: true"));
+    }
+    Ok(Some(Seed::Rect(r)))
+}
+
 fn compat_mode(p: &Params) -> Result<Mode, CommandError> {
     Ok(
         match choice(p, "compatMode", "peDesign", &["peDesign", "openStitch"])? {
@@ -292,6 +325,16 @@ pub fn commands() -> Vec<CommandSpec> {
                     "OpenStitch mode without skipBackground: the fabric colour the background is compared with, \"#rrggbb\", a PEC chart name or number (default white)",
                 ),
                 opt(
+                    "isolateSubject",
+                    "bool",
+                    "OpenStitch mode: find the subject by an iterated graph cut (GrabCut's colour mixtures and min-cut, #127) and leave out everything around it, whatever its colour, in place of skipBackground and fabric; the border is the background it learns from unless subjectRect is given (default false; PE-DESIGN-compatible mode ignores it)",
+                ),
+                opt(
+                    "subjectRect",
+                    "[left, top, right, bottom]",
+                    "With isolateSubject: the box around the subject, in fractions of the image (0-1); everything outside it is background (default: a band 2 % of the shorter side around the border)",
+                ),
+                opt(
                     "compatMode",
                     "peDesign|openStitch",
                     "peDesign: as PE-DESIGN 11.50 (default); openStitch: colours reduced and matched to threads by appearance (CIELAB k-means, CIEDE2000), an 800 px working raster, regions under 2 mm² merged (docs/research/beyond/image-digitizing.md)",
@@ -326,6 +369,7 @@ pub fn commands() -> Vec<CommandSpec> {
                     mode,
                     threads: thread_source(s, p, mode)?,
                     fidelity: fidelity(p, mode)?,
+                    isolate: subject_seed(p)?,
                     ..AutoPunch::default()
                 };
                 // OpenStitch mode sews anything in the picture: without skipBackground, only a

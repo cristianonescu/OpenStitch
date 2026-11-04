@@ -305,6 +305,10 @@ Verified Compatible).
   fill with under sewing, in the direction of 90°, 45°, 135° or 0° whose rows spread furthest
   across the region, a diagonal winning over 90° only with at least one more fill row
   (`fill_angle`). A colour's regions sew in scan order, reversed for the 1st, 3rd, … colour.
+  OpenStitch mode's opt-in `isolateSubject` (#127, `grabcut.rs`) replaces the background rule
+  with an iterated graph cut after GrabCut: colour Gaussian mixtures for subject and
+  background, seeded by the image border or `subjectRect`, and a Boykov–Kolmogorov min-cut on
+  the 8-connected grid in integer capacities; everything outside the subject is left out.
 - **Cross Stitch.** The image's colours are reduced through the same census prepass; each
   cell of a square grid (`round(width / cell) × round(height / cell)`, cells 1–10 mm, default
   2.5 mm) takes the thread most of its modal pixels have (ties to the lower thread; cells

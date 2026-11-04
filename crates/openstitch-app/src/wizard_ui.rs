@@ -169,10 +169,21 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                 }
                 if w.method == Method::AutoPunch && w.open_stitch {
                     ui.label("");
-                    ui.checkbox(&mut w.sew_background, "Sew the background").on_hover_text(
-                        "Everything in the picture is sewn. Off leaves out the colour covering \
-                         most of the border; a background of the fabric's colour is never sewn.",
+                    ui.checkbox(&mut w.isolate_subject, "Isolate the subject").on_hover_text(
+                        "Finds the subject by a graph cut on its colours and leaves out \
+                         everything around it, whatever its colour. The image border is the \
+                         background it learns from.",
                     );
+                    ui.end_row();
+                    ui.label("");
+                    ui.add_enabled_ui(!w.isolate_subject, |ui| {
+                        ui.checkbox(&mut w.sew_background, "Sew the background")
+                            .on_hover_text(
+                                "Everything in the picture is sewn. Off leaves out the colour \
+                                 covering most of the border; a background of the fabric's \
+                                 colour is never sewn.",
+                            );
+                    });
                     ui.end_row();
                 } else if matches!(w.method, Method::AutoPunch | Method::CrossStitch) {
                     ui.label("");

@@ -24,7 +24,8 @@ The metric is the one agreed for the image-similarity plan
 over the image's width x height), the shortest stitch, stitches under 1 mm, trims and colours.
 
 Each case converts one image of examples/images through `stitchtool serve`, as
-`tools/image_eval.py` does (its CASES, plus the Design Center cases below). `--mode` runs each
+`tools/image_eval.py` does (its CASES, plus the Design Center cases below; the OPT_IN cases run
+only when `--only` names them). `--mode` runs each
 case in OpenStitch's PE-DESIGN-compatible mode (`compatMode: peDesign`), in OpenStitch mode
 (`openStitch`), or both. A command that does not have an OpenStitch mode yet ignores the
 parameter, so its two runs are identical. Every result is OpenStitch's output: nothing here is
@@ -57,6 +58,12 @@ CASES.update({
     "g03-dc": ("g03-teapot-lineart.png", "digitize.designCenter", {}),
     "g04-dc": ("g04-butterfly-outline.png", "digitize.designCenter", {}),
 })
+# Run only when named with --only, so the default run and its means stay as they were: Auto
+# Punch on photos with a background, for its subject isolation (#127, `isolateSubject`).
+OPT_IN = {
+    "p05-ap": ("p05-dog.jpg", "digitize.autoPunch", {}),
+    "p07-ap": ("p07-fruit.jpg", "digitize.autoPunch", {}),
+}
 # Commands with an OpenStitch mode (compatMode).
 MODAL = {"digitize.autoPunch", "digitize.photoStitch", "digitize.crossStitch",
          "digitize.designCenter"}
@@ -341,7 +348,7 @@ def main():
 
     extra = {k: json.loads(v) for k, v in (s.split("=", 1) for s in a.set)}
     keys = a.only.split(",") if a.only else list(CASES)
-    unknown = [k for k in keys if k not in CASES]
+    unknown = [k for k in keys if k not in CASES and k not in OPT_IN]
     if unknown:
         sys.exit(f"unknown case(s): {', '.join(unknown)}")
     modes = ["pe", "openstitch"] if a.mode == "both" else [a.mode]
@@ -354,7 +361,7 @@ def main():
           f"{'pts/mm2':>7} {'short':>6} {'<1mm':>6} {'stitch':>7} {'trims':>5} {'col':>3}")
     try:
         for k in keys:
-            image, command, params = CASES[k]
+            image, command, params = CASES.get(k) or OPT_IN[k]
             for m in (modes if command in MODAL else ["pe"]):
                 p = {**params, **extra}
                 if command in MODAL:
@@ -381,9 +388,10 @@ def main():
 
     summary = {}
     for k, by_mode in results.items():
-        tool_name = CASES[k][1].split(".")[1]
-        if CASES[k][1] == "digitize.photoStitch":
-            tool_name = "photoStitch2" if CASES[k][2].get("style") == "lines" else "photoStitch1"
+        case = CASES.get(k) or OPT_IN[k]
+        tool_name = case[1].split(".")[1]
+        if case[1] == "digitize.photoStitch":
+            tool_name = "photoStitch2" if case[2].get("style") == "lines" else "photoStitch1"
         for m, r in by_mode.items():
             if "score" in r:
                 summary.setdefault(tool_name, {}).setdefault(m, []).append(r["score"] * 100)

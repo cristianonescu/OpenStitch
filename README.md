@@ -48,7 +48,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 190: 154 implemented (3 of them partially compatible), 2 documented only, 10 blocked, 24 planned beyond PE-DESIGN |
+| Feature matrix rows | 191: 155 implemented (3 of them partially compatible), 2 documented only, 10 blocked, 24 planned beyond PE-DESIGN |
 | Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 33: 26 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 11 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
@@ -118,7 +118,8 @@ OpenStitch (the image dialog's Method choice):
   colour, and Design Center finds its line threshold from the image (Otsu). Photo Stitch 1 samples
   the image every 0.25 mm in rows that stay within 2.1 needle points per mm² (no 10 × 10 mm area
   above 3.0), with a Trims choice (fewer trims or the best likeness). Auto Punch sews the
-  background and sews dark outlines as satin on top, in one covering layer. Threads can come from several brands'
+  background and sews dark outlines as satin on top, in one covering layer; it can instead
+  isolate the subject by a graph cut and leave out everything around it. Threads can come from several brands'
   charts (Brother, Madeira Polyneon, Isacord, Sulky, Robison-Anton) or only those you own. Every
   OpenStitch mode sews the same stitches on macOS, Windows and Linux.
 
@@ -392,6 +393,7 @@ Bugs reported on GitHub:
 - [#304](https://github.com/cristianonescu/OpenStitch/issues/304) Satin over a jagged outline fans its needle drops into the notches (Auto Punch PE-compatible mode)
 - [#322](https://github.com/cristianonescu/OpenStitch/issues/322) PES: write the hoop and Design Page fields from the design instead of hard-coded values
 - [#341](https://github.com/cristianonescu/OpenStitch/issues/341) import.svg drops every <line> element
+- [#354](https://github.com/cristianonescu/OpenStitch/issues/354) object.setCenterPoint has no effect on spiral regions, though documented for spiral
 <!-- /status:issues-bugs -->
 
 [Report a bug](https://github.com/cristianonescu/OpenStitch/issues/new).
@@ -423,17 +425,14 @@ Open enhancement issues:
 - [#295](https://github.com/cristianonescu/OpenStitch/issues/295) Review every ready-to-sew kit design against the sew-out findings
 - [#298](https://github.com/cristianonescu/OpenStitch/issues/298) Photo Stitch 1 trims far more than PE-DESIGN: travel between a thread's runs instead
 - [#306](https://github.com/cristianonescu/OpenStitch/issues/306) B17 A1: AI assistant chat panel with Claude (keychain key, permission gate, one undo per message)
-- [#309](https://github.com/cristianonescu/OpenStitch/issues/309) CI: run test binaries in parallel with cargo nextest
 - [#311](https://github.com/cristianonescu/OpenStitch/issues/311) T2 calibration card: two threads in alternating rows, to measure how much a later row covers an earlier one
 - [#312](https://github.com/cristianonescu/OpenStitch/issues/312) Kit build: check each calibration swatch's density in the exported PES
 - [#313](https://github.com/cristianonescu/OpenStitch/issues/313) Assistant command icon (Higgsfield) for View ▸ Show/Hide ▸ Assistant
-- [#314](https://github.com/cristianonescu/OpenStitch/issues/314) Remove the assistant scratch folder when the editor exits
 - [#317](https://github.com/cristianonescu/OpenStitch/issues/317) B17 A2: Assistant endpoints and local models (OpenAI-compatible, Ollama, LM Studio, OpenRouter)
 - [#318](https://github.com/cristianonescu/OpenStitch/issues/318) Tests: stitchtool exec, serve and commands have no automated test
 - [#319](https://github.com/cristianonescu/OpenStitch/issues/319) macOS: verify Help ▸ Ready-to-Sew Designs opens Finder at the bundled kit with a real click
 - [#320](https://github.com/cristianonescu/OpenStitch/issues/320) Export Singer CSD and Husqvarna/Viking SHV, as PE-DESIGN 11's Export offers
 - [#321](https://github.com/cristianonescu/OpenStitch/issues/321) Import WMF/EMF vector images as shapes
-- [#326](https://github.com/cristianonescu/OpenStitch/issues/326) FEATURE_MATRIX: stale test names, uncited tests and two broken rows
 - [#327](https://github.com/cristianonescu/OpenStitch/issues/327) Tests: editing commands with unasserted claims (flip, setPoint handles, pasteAttributes, paste on path, export sewingArea, …)
 - [#328](https://github.com/cristianonescu/OpenStitch/issues/328) Tests: stitch-type parameters with no test (zigzag under sewing, satin underlayParts, fill pull compensation, direction curve on piping/motif, …)
 - [#329](https://github.com/cristianonescu/OpenStitch/issues/329) Tests: format claims without a test (rotated hoop in PES v6, SVG ellipse/line/polygon/CSS, Text Transform in PES 0110, missing references pass silently)
@@ -449,6 +448,8 @@ Open enhancement issues:
 - [#349](https://github.com/cristianonescu/OpenStitch/issues/349) SHV and CSD export: settle the parts one PE-DESIGN reference could not (preview, palette fill, long stitches)
 - [#350](https://github.com/cristianonescu/OpenStitch/issues/350) Auto Punch isolateSubject: let the user mark subject and background by hand
 - [#351](https://github.com/cristianonescu/OpenStitch/issues/351) Tests: smaller weak points from the test-coverage audit
+- [#355](https://github.com/cristianonescu/OpenStitch/issues/355) Auto Punch isolateSubject: a cut that finds no subject silently sews the whole picture
+- [#356](https://github.com/cristianonescu/OpenStitch/issues/356) Tests: weak points that need a product seam or a CI step (rest of #351)
 <!-- /status:issues-planned -->
 
 ### Beyond PE-DESIGN

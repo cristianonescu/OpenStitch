@@ -1050,3 +1050,116 @@ fn slivers_open_but_strokes_stay() {
         "line art keeps its hairline"
     );
 }
+
+/// A subject on a two-tone background with a little noise: sky above, grass below, a red block
+/// with a yellow stripe across the horizon.
+fn subject_on_background() -> Raster {
+    const SKY: [u8; 4] = [150, 200, 240, 255];
+    const GRASS: [u8; 4] = [60, 150, 60, 255];
+    Raster::from_fn(80, 60, |x, y| {
+        let n = ((x * 7 + y * 13) % 5) as u8;
+        let jitter = |c: [u8; 4]| [c[0] - n, c[1] - n, c[2] - n, 255];
+        if (20..60).contains(&x) && (12..48).contains(&y) {
+            if (27..33).contains(&y) {
+                jitter(YELLOW)
+            } else {
+                jitter(RED)
+            }
+        } else if y < 30 {
+            jitter(SKY)
+        } else {
+            jitter(GRASS)
+        }
+    })
+    .expect("valid size")
+}
+
+#[test]
+fn isolate_subject_leaves_out_the_background_whatever_its_colour() {
+    use openstitch_digitize::grabcut::{self, Seed};
+    let img = subject_on_background();
+    let frame = Frame::new(0.0, 0.0, 80.0, 80); // 1 mm per pixel
+    let p = AutoPunch {
+        colors: 4,
+        mode: Mode::OpenStitch,
+        fabric: Some([255, 255, 255]),
+        resolution: 80,
+        ..Default::default()
+    };
+    let threads = |out: &autopunch::Converted| {
+        let mut t: Vec<String> = out.threads.iter().map(|t| t.hex()).collect();
+        t.sort();
+        t
+    };
+    // Without isolation, sky and grass are part of the picture and are sewn.
+    let plain = autopunch::convert(&img, &frame, &p).expect("converts");
+    assert_eq!(plain.threads.len(), 4, "{:?}", threads(&plain));
+
+    for seed in [Seed::Border, Seed::Rect([0.15, 0.1, 0.85, 0.9])] {
+        let out = autopunch::convert(
+            &img,
+            &frame,
+            &AutoPunch {
+                isolate: Some(seed),
+                ..p.clone()
+            },
+        )
+        .expect("converts");
+        assert_eq!(out.threads.len(), 2, "{seed:?}: {:?}", threads(&out));
+        assert!(out.background.is_some());
+        // The subject's red and yellow are kept, inside the block (0.1 mm units, 1 mm slack).
+        assert!(all_inside(&out.objects, 200.0, 120.0, 600.0, 480.0, 10.0));
+        let kept: Vec<String> = threads(&out);
+        assert!(
+            kept.iter()
+                .all(|h| plain.threads.iter().any(|t| &t.hex() == h))
+        );
+    }
+
+    // PE-DESIGN-compatible mode ignores the option: its output is the same with and without.
+    let pe = AutoPunch {
+        colors: 4,
+        resolution: 80,
+        ..Default::default()
+    };
+    assert_eq!(
+        autopunch::convert(&img, &frame, &pe),
+        autopunch::convert(
+            &img,
+            &frame,
+            &AutoPunch {
+                isolate: Some(Seed::Border),
+                ..pe.clone()
+            }
+        )
+    );
+
+    // The mask itself, pinned: the same on every OS (deterministic maths, integer flow).
+    let census = palette::census(&img);
+    let mask = grabcut::isolate(&census.modal, 80, 60, Seed::Border).expect("a subject");
+    let fg = mask.iter().filter(|&&m| m).count();
+    let hash = mask.iter().fold(0xcbf29ce484222325u64, |h, &m| {
+        (h ^ m as u64).wrapping_mul(0x100000001b3)
+    });
+    // Every subject pixel is in the 40 × 36 block; the census's 3×3 modal filter takes its two
+    // corner pixels where three colours meet.
+    assert!(mask.iter().enumerate().all(|(i, &m)| !m || {
+        let (x, y) = (i % 80, i / 80);
+        (20..60).contains(&x) && (12..48).contains(&y)
+    }));
+    assert_eq!(
+        (fg, hash),
+        (1438, 7859608971676528179),
+        "subject pixels and FNV-1a hash of the mask"
+    );
+}
+
+#[test]
+fn isolate_subject_needs_something_to_learn_the_background_from() {
+    use openstitch_digitize::grabcut::{self, Seed};
+    let census = palette::census(&rects(20, 20, RED, &[]));
+    // A rectangle over the whole image leaves no background to learn from.
+    assert!(grabcut::isolate(&census.modal, 20, 20, Seed::Rect([0.0, 0.0, 1.0, 1.0])).is_none());
+    // A flat image: the border's colour is everywhere, so no subject.
+    assert!(grabcut::isolate(&census.modal, 20, 20, Seed::Border).is_none());
+}

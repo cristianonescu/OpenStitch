@@ -523,3 +523,69 @@ fn thread_sources_choose_from_the_users_threads_and_list_the_rest() {
         .expect_err("an unknown chart");
     assert!(e.to_string().contains("Nope"), "{e}");
 }
+
+/// `isolateSubject` (#127): the graph cut leaves out a background of any colour; `subjectRect`
+/// is checked; PE-DESIGN-compatible mode ignores the option.
+#[test]
+fn auto_punch_isolates_the_subject() {
+    let dir = temp_dir();
+    // A red block with a yellow stripe on a sky blue the white fabric does not show.
+    let img = Raster::from_fn(80, 60, |x, y| {
+        if (20..60).contains(&x) && (12..48).contains(&y) {
+            if (27..33).contains(&y) {
+                [250, 200, 20, 255]
+            } else {
+                [220, 20, 30, 255]
+            }
+        } else {
+            [150, 200, 240, 255]
+        }
+    })
+    .expect("size");
+    std::fs::write(dir.join("subject.png"), img.encode_png().expect("png")).expect("write");
+    let mut s = Session::new(&dir);
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    let base = json!({"path": "subject.png", "width": 80, "colors": 3, "compatMode": "openStitch"});
+    let with = |extra: Value| {
+        let mut p = base.clone();
+        for (k, v) in extra.as_object().expect("object") {
+            p[k] = v.clone();
+        }
+        p
+    };
+    let plain = run(&mut s, "digitize.autoPunch", base.clone());
+    assert!(plain["background"].is_null(), "the sky is sewn: {plain}");
+    assert_eq!(plain["colors"].as_array().expect("colors").len(), 3);
+    for extra in [
+        json!({"isolateSubject": true}),
+        json!({"isolateSubject": true, "subjectRect": [0.1, 0.1, 0.9, 0.9]}),
+    ] {
+        let r = run(&mut s, "digitize.autoPunch", with(extra.clone()));
+        assert_eq!(
+            r["colors"].as_array().expect("colors").len(),
+            2,
+            "{extra} {r}"
+        );
+        assert!(r["background"].is_string(), "{extra} {r}");
+    }
+    for bad in [
+        json!({"isolateSubject": true, "subjectRect": [0.5, 0.1, 0.4, 0.9]}),
+        json!({"isolateSubject": true, "subjectRect": [0.1, 0.1, 0.9]}),
+        json!({"isolateSubject": true, "subjectRect": [0.1, 0.1, 0.9, 1.5]}),
+        json!({"subjectRect": [0.1, 0.1, 0.9, 0.9]}),
+        json!({"isolateSubject": "yes"}),
+    ] {
+        assert!(
+            s.execute("digitize.autoPunch", Some(&with(bad.clone())))
+                .is_err(),
+            "{bad}"
+        );
+    }
+    let pe = json!({"path": "subject.png", "width": 80, "colors": 3});
+    let a = run(&mut s, "digitize.autoPunch", pe.clone());
+    let mut pe_on = pe.clone();
+    pe_on["isolateSubject"] = json!(true);
+    let b = run(&mut s, "digitize.autoPunch", pe_on);
+    assert_eq!(a["colors"], b["colors"]);
+    assert_eq!(a["regions"], b["regions"]);
+}
