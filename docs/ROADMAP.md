@@ -161,8 +161,10 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    Density floor: 0.1 lines/mm for fill and satin, as PE-DESIGN 11.50's field and the
    `sweep-*-density-min` references (#139's 0.2 floor was checked against them on 2026-10-29
    and not adopted; `attribute-ranges` covers the boundaries).
-2. **Satin:** Half Stitch for Auto satin (the corner fan now produces the crowding it acts
-   on); Miter limit. Auto satin's needle lattice (whole spacings from the far end, the
+2. **Satin:** Miter limit for zigzag lines (#373: PE-DESIGN's guide gives no range or
+   geometry and every reference has 0.0, so it waits for captures). Half Stitch for Auto satin
+   is done since 2026-11-04 (#372): every other crowded inner needle point at a bend pulled
+   back along its crossing, measured on satin-auto-bend-90/-120 against their -nohalf twins. Auto satin's needle lattice (whole spacings from the far end, the
    remainder at the start point), its forward start travel and its end on the start point
    follow PE-DESIGN since 2026-10-28 (satin-auto-bend-60: mean needle distance 0.20 → 0.09 mm);
    left: PE's exact remainder handling on the start leg (0.05 mm) and the fan's inner crowding

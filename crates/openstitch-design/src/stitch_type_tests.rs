@@ -583,6 +583,75 @@ fn auto_satin_on_a_sharp_bend_spaces_its_needle_points_along_the_outer_edge() {
 }
 
 #[test]
+fn auto_satin_half_stitch_pulls_back_every_other_crowded_inner_point() {
+    // PE-DESIGN 11.50's Half Stitch (#372; satin-auto-bend-120 against -nohalf): the same
+    // stitches, every other needle point crowded on the bend's inner side pulled back along
+    // its crossing (8 of PE-DESIGN's, 0.8 to 2.4 mm); a 45 degree bend is left alone.
+    let bend =
+        |pts: &[(f64, f64)]| Contour::new(pts.iter().map(|&(x, y)| v2(x, y)).collect(), true);
+    let sew = |c: &Contour, half: bool| {
+        let mut r = region(RegionType::Satin);
+        r.auto_direction = true;
+        r.density = 3.0;
+        r.underlay = false;
+        r.half_stitch = half;
+        crate::region::layers(std::slice::from_ref(c), &r, &[])
+            .concat()
+            .concat()
+    };
+    let sharp = bend(&[
+        (0.0, 0.0),
+        (300.0, 0.0),
+        (213.4, 150.0),
+        (170.1, 125.0),
+        (213.4, 50.0),
+        (0.0, 50.0),
+    ]);
+    let (on, off) = (sew(&sharp, true), sew(&sharp, false));
+    assert_eq!(on.len(), off.len(), "Half Stitch moves needle points only");
+    let moved: Vec<(usize, f64)> = on
+        .iter()
+        .zip(&off)
+        .enumerate()
+        .map(|(i, (a, b))| (i, a.distance(*b)))
+        .filter(|&(_, d)| d > 0.5)
+        .collect();
+    assert!((6..=14).contains(&moved.len()), "{moved:?}");
+    // Every other needle point on one side: four needle points apart in the run.
+    for w in moved.windows(2) {
+        assert_eq!(w[1].0 - w[0].0, 4, "{moved:?}");
+    }
+    // Pulled back up to a quarter of a crossing: under 2.6 mm here.
+    assert!(moved.iter().all(|&(_, d)| d <= 26.0), "{moved:?}");
+    let thread = |run: &Run| run.windows(2).map(|w| w[0].distance(w[1])).sum::<f64>();
+    assert!(thread(&on) < thread(&off));
+    let gentle = bend(&[
+        (0.0, 0.0),
+        (300.0, 0.0),
+        (422.5, 122.5),
+        (387.1, 157.8),
+        (279.3, 50.0),
+        (0.0, 50.0),
+    ]);
+    assert_eq!(sew(&gentle, true), sew(&gentle, false));
+}
+
+#[test]
+fn half_stitch_is_on_by_default_and_saved_only_when_off() {
+    let mut r = region(RegionType::Satin);
+    assert!(r.half_stitch, "PE-DESIGN's drawing tools tick Half Stitch");
+    let on = serde_json::to_value(&r).expect("json");
+    assert!(on.get("halfStitch").is_none(), "{on}");
+    r.half_stitch = false;
+    let off = serde_json::to_value(&r).expect("json");
+    assert_eq!(off["halfStitch"], serde_json::json!(false));
+    let back: RegionSewing = serde_json::from_value(off).expect("read");
+    assert!(!back.half_stitch);
+    let old: RegionSewing = serde_json::from_value(on).expect("read");
+    assert!(old.half_stitch, "files without the field keep the default");
+}
+
+#[test]
 fn auto_direction_sews_across_the_narrow_side() {
     let wide = Contour::rectangle(0.0, 0.0, 200.0, 50.0);
     assert_eq!(crate::region::auto_angle(std::slice::from_ref(&wide)), 90.0);

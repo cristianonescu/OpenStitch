@@ -86,7 +86,7 @@ dearest:
 | 12 | No minimum font sizes or small-text fonts | Fonts | 4 | Documented difference | No |
 | 13 | No per-character colour or multi-character selection | Fonts | 4 | Documented difference | Colour grouping |
 | 14 | Programmable fill and fill default to 0° instead of 45° (**fixed**: programmable fill internal regression, fill 2026-10-30 from pes-objects r01; type change rule pending) | Stitches | 3 | Documented difference | No |
-| 15 | Missing fill, satin and zigzag attributes; wrong ranges (**partly fixed**: Frequency and ranges; Stitch Type 1 and 2 (2 partly: exact at 0°, 30°/45° rows offset); Half Stitch, Miter limit pending) | Stitches | 3 | Documented difference | Geometry |
+| 15 | Missing fill, satin and zigzag attributes; wrong ranges (**partly fixed**: Frequency and ranges; Stitch Type 1 and 2 (2 partly: exact at 0°, 30°/45° rows offset); Half Stitch for Auto satin since 2026-11-04; Miter limit pending captures, #373) | Stitches | 3 | Documented difference | Geometry |
 | 16 | Optimize Sewing Order does not move entry and exit points (**fixed**, reference) | Stitches | 3 | Documented difference | No |
 | 17 | Hole sewing not validated or paired (**fixed**, internal regression) | Stitches | 3 | Documented difference | No |
 | 18 | PES thread table drops chart names and colour type (**fixed**: round trip; chart strings pending) | PES | 3 | Documented difference | Chart strings |
@@ -546,7 +546,7 @@ Line references are relative to `crates/`.
   overlap turns on such 0.1 mm phases). Earlier: Auto satin
   derives a skeleton and sews along it, each row reaching the outline
   (`skeleton::rungs_within`). Running Stitch Path is hidden with Auto satin, which travels
-  inside (item 3); OpenStitch has no Half Stitch or Stitch Type for regions. Fill, regions with holes or
+  inside (item 3). Half Stitch (since 2026-11-04, #372, `halfStitch`, default on): PE-DESIGN's files with it on and off have the same stitches, every other needle point crowded on the inner side of a 90° or 120° bend pulled back along its crossing (120°: points 60, 64 … 88 by 0.8–2.4 mm; 90°: four points about 0.5 mm; 30–75°: none). OpenStitch pulls back every other needle point whose spacing is under 0.3 of the other side's, by 1.4 × (0.3 − that share) of the crossing up to 25 %: at 120° the same points by 1.5–2.4 mm (our fan's inner ends meet at the corner where PE's spread 0.1–0.2 mm, so ours are more crowded), at 90° three points by 0.2–1.1 mm. `satin-auto-bend-120` checks the mean stitch (4.75 mm; PE-DESIGN 4.58 on, 4.75 off). Fill, regions with holes or
   several parts, gradation, feathered edges, split stitches and shapes the skeleton does not
   cover (85 %) keep the principal-axis angle. Test:
   `auto_direction_satin_follows_a_bent_band`.
@@ -934,8 +934,8 @@ Line references are relative to `crates/`.
     the older nearest-row order with PE's row ends and grid.
   - Tests: `frequency_and_run_times_follow_the_guide_ranges`,
     `fill_frequency_sets_the_row_to_row_needle_shift` (0, 25 and 50 %, ±2 % of the stitch).
-  - Not implemented, needs reference geometry (method 1): Half Stitch for regions, and zigzag
-    Sharp Corners / Miter limit.
+  - Half Stitch for Auto satin: done 2026-11-04 (#372, item 7's bend sweep). Not implemented,
+    needs captures (#373; list in the stitch-engine notes): zigzag Sharp Corners / Miter limit.
   - **Stitch Type (measured 2026-10-30, round-5 captures `tatami-40-st{1,2}-dir{0,30,90}.pes`,
     `tatami-40-st2-dir45-freq0.pes`, with round 4's 45° pair; a 40 × 40 mm Fill square, density
     4.5, step 4.0, Frequency 30 %, under sewing off):**

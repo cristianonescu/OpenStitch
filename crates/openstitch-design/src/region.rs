@@ -1696,17 +1696,20 @@ fn auto_satin(closed: &[Contour], r: &RegionSewing, holes: &[Contour]) -> Option
         Some(st) if last[1].distance(st) < last[0].distance(st) => 1,
         _ => 0,
     };
-    let mut run: Run = rungs
-        .iter()
-        .enumerate()
-        .map(|(i, g)| {
-            g[if (n - 1 - i).is_multiple_of(2) {
+    let sides: Vec<usize> = (0..n)
+        .map(|i| {
+            if (n - 1 - i).is_multiple_of(2) {
                 start_side
             } else {
                 1 - start_side
-            }]
+            }
         })
         .collect();
+    let mut run: Run = if r.half_stitch {
+        half_stitch(&rungs, &sides)
+    } else {
+        rungs.iter().zip(&sides).map(|(g, &k)| g[k]).collect()
+    };
     run.dedup_by(|a, b| a.distance(*b) < 1e-9);
     if let (Some(s), Some(&first)) = (start, run.first()) {
         let mut graph = TravelGraph::new(closed, holes);
@@ -1722,6 +1725,71 @@ fn auto_satin(closed: &[Contour], r: &RegionSewing, holes: &[Contour]) -> Option
         run = lead;
     }
     Some(run)
+}
+
+/// Below this share of the other side's needle spacing, a side's needle points are crowded
+/// for [`half_stitch`]: PE-DESIGN's 90 degree bend (inner points 0.2 mm apart against 0.8 mm
+/// outside, a share of 0.25) is the mildest it thins; its 30 to 75 degree bends it leaves
+/// alone.
+const HALF_STITCH_CROWDED: f64 = 0.3;
+
+/// How far [`half_stitch`] pulls a needle point back, as a share of its crossing, per unit of
+/// crowding below [`HALF_STITCH_CROWDED`]: PE-DESIGN pulls 8 % at a crowding share of 0.25
+/// (satin-auto-bend-90) and about 22 % at 0.15 (satin-auto-bend-120).
+const HALF_STITCH_PULL: f64 = 1.4;
+
+/// The most [`half_stitch`] pulls a needle point back, as a share of its crossing (PE-DESIGN's
+/// largest at 120 degrees: 26 %).
+const HALF_STITCH_MAX: f64 = 0.25;
+
+/// PE-DESIGN 11.50's Half Stitch on Auto satin (satin-auto-bend-90/-120 against their
+/// -nohalf companions: the same stitches, some needle points moved): where a bend crowds the
+/// needle points on one side (their spacing under [`HALF_STITCH_CROWDED`] of the other
+/// side's), every other crowded needle point on that side, from the first, is pulled back
+/// along its crossing towards the other side. PE-DESIGN's 120 degree bend moves them 0.8 to
+/// 2.4 mm, its 90 degree bend about 0.5 mm, and its 30 to 75 degree bends not at all.
+/// `rungs[i][sides[i]]` is the needle point of crossing `i`.
+pub(crate) fn half_stitch(rungs: &[[Vec2; 2]], sides: &[usize]) -> Run {
+    let n = rungs.len();
+    // Mean distance between the needle points on side `k` from crossing `a` to `b` (one
+    // needle step is two crossings).
+    let step = |a: usize, b: usize, k: usize| -> f64 {
+        rungs[a][k].distance(rungs[b][k]) * 2.0 / (b - a) as f64
+    };
+    // The crowding of each needle point: its side's spacing over the other side's.
+    let crowding: Vec<f64> = (0..n)
+        .map(|i| {
+            if i == 0 || i + 1 >= n {
+                return 1.0;
+            }
+            let k = sides[i];
+            let inner = step(i.saturating_sub(2), (i + 2).min(n - 1), k);
+            let outer = step(i - 1, i + 1, 1 - k);
+            if outer > 0.0 { inner / outer } else { 1.0 }
+        })
+        .collect();
+    let crowded = |i: usize| crowding[i] < HALF_STITCH_CROWDED;
+    // Whether the last crowded needle point on each side was pulled back.
+    let mut pulled = [false; 2];
+    (0..n)
+        .map(|i| {
+            let (k, g) = (sides[i], rungs[i]);
+            // A bend crowds a run of needle points; a lone one where a gentle bend's fan
+            // meets a leg is left alone, as PE-DESIGN leaves its 30 to 75 degree bends.
+            let run = (i >= 2 && crowded(i - 2)) || (i + 2 < n && crowded(i + 2));
+            if !crowded(i) || !run {
+                pulled[k] = false;
+                return g[k];
+            }
+            let crowding = crowding[i];
+            pulled[k] = !pulled[k];
+            if !pulled[k] {
+                return g[k];
+            }
+            let t = (HALF_STITCH_PULL * (HALF_STITCH_CROWDED - crowding)).min(HALF_STITCH_MAX);
+            g[k].lerp(g[1 - k], t)
+        })
+        .collect()
 }
 
 /// The turn (radians) past which Auto satin's rungs are rebuilt on the outer edge

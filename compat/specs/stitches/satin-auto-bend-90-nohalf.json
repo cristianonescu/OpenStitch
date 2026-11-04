@@ -66,6 +66,7 @@
         "id": 1,
         "type": "satin",
         "autoDirection": true,
+        "halfStitch": false,
         "density": 3,
         "underlay": false
       }
