@@ -182,7 +182,11 @@ impl Worker {
     /// A coding agent (ACP) on the user's own account. It runs in its own process group in an
     /// empty folder; its only way into the editor is `openstitch-mcp --assistant` connected to
     /// `listener`, whose requests pass the same gate as the in-process ones (`serve`).
-    fn start_agent(config: claude::AcpConfig, listener: openstitch_remote::Server, wake: Waker) -> Worker {
+    fn start_agent(
+        config: claude::AcpConfig,
+        listener: openstitch_remote::Server,
+        wake: Waker,
+    ) -> Worker {
         let (to, inbox) = channel::<ToWorker>();
         let (out, from) = channel();
         let (_job_tx, jobs) = channel();
@@ -234,7 +238,9 @@ fn agent_error(e: &claude::AcpError) -> String {
             let ways: Vec<String> = methods
                 .iter()
                 .map(|m| match m {
-                    claude::AuthMethod::Command { name, description, .. } => match description {
+                    claude::AuthMethod::Command {
+                        name, description, ..
+                    } => match description {
                         Some(d) => format!("{name}: {d}"),
                         None => name.clone(),
                     },
@@ -243,7 +249,11 @@ fn agent_error(e: &claude::AcpError) -> String {
                 .collect();
             format!(
                 "Sign in to the agent first, in a terminal, with its own sign-in ({}); then send again.",
-                if ways.is_empty() { "see its documentation".to_string() } else { ways.join("; ") }
+                if ways.is_empty() {
+                    "see its documentation".to_string()
+                } else {
+                    ways.join("; ")
+                }
             )
         }
     }
@@ -390,7 +400,11 @@ pub fn send(app: &mut EditorApp, text: String, wake: Waker) {
     }
     let kind = (
         prefs.protocol,
-        if prefs.protocol == Protocol::Agent { prefs.agent.clone() } else { String::new() },
+        if prefs.protocol == Protocol::Agent {
+            prefs.agent.clone()
+        } else {
+            String::new()
+        },
     );
     let message = if prefs.protocol == Protocol::Agent {
         ToWorker::Prompt(format!("{text}\n\n{}", context(app)))
@@ -498,10 +512,14 @@ fn mcp_program() -> Option<std::path::PathBuf> {
 /// Finds a coding agent's program on PATH and in the usual install folders.
 fn find_program(name: &str) -> Option<std::path::PathBuf> {
     claude::search_dirs().into_iter().find_map(|d| {
-        [name.to_string(), format!("{name}.cmd"), format!("{name}{}", std::env::consts::EXE_SUFFIX)]
-            .into_iter()
-            .map(|n| d.join(n))
-            .find(|p| p.is_file())
+        [
+            name.to_string(),
+            format!("{name}.cmd"),
+            format!("{name}{}", std::env::consts::EXE_SUFFIX),
+        ]
+        .into_iter()
+        .map(|n| d.join(n))
+        .find(|p| p.is_file())
     })
 }
 
@@ -912,8 +930,8 @@ fn lookup_config(app: &EditorApp) -> claude::Config {
         model: prefs.model.clone(),
         request_timeout: Duration::from_secs(30),
         protocol: match prefs.protocol {
-            Protocol::Anthropic => claude::Protocol::Anthropic,
             Protocol::OpenAi => claude::Protocol::OpenAi,
+            Protocol::Anthropic | Protocol::Agent => claude::Protocol::Anthropic,
         },
         ..claude::Config::default()
     }
@@ -1749,7 +1767,7 @@ mod tests {
         assert!(
             items
                 .iter()
-                .any(|i| matches!(i, Item::Notice(n) if n.contains("protocol changed")))
+                .any(|i| matches!(i, Item::Notice(n) if n.contains("new conversation")))
         );
         assert!(items.contains(&Item::Assistant("Local here.".into())));
         let requests = transport.requests.lock().expect("lock");
@@ -1832,16 +1850,28 @@ mod tests {
         let start = Instant::now();
         while app.assistant.panel.approvals.is_empty() {
             serve(&mut app, no_wake());
-            assert!(start.elapsed() < Duration::from_secs(30), "no approval asked");
+            assert!(
+                start.elapsed() < Duration::from_secs(30),
+                "no approval asked"
+            );
             std::thread::sleep(Duration::from_millis(2));
         }
-        assert_eq!(app.session.design().objects.len(), before + 1, "the edit ran");
+        assert_eq!(
+            app.session.design().objects.len(),
+            before + 1,
+            "the edit ran"
+        );
         assert_eq!(app.assistant.panel.approvals[0].command, "project.save");
         answer(&mut app, 0, Answer::Deny);
         let (edit, save) = client.join().expect("client");
         assert_eq!(edit["ok"], json!(true), "{edit}");
         assert_eq!(save["ok"], json!(false));
-        assert!(save["error"].as_str().is_some_and(|e| e.contains("declined")), "{save}");
+        assert!(
+            save["error"]
+                .as_str()
+                .is_some_and(|e| e.contains("declined")),
+            "{save}"
+        );
         // A wrong token is refused before anything reaches the gate.
         let w = app.assistant.panel.worker.as_ref().expect("worker");
         let mut bad = w.listener.as_ref().expect("listener").endpoint().clone();
