@@ -43,6 +43,13 @@ jobs:
       # eframe loads X11/Wayland libraries at run time (dlopen), so Linux needs no -dev packages
       # to build; the editor's tests do not open a window.
       - run: cargo fmt --all -- --check
+      # Disk headroom on the Linux runner (#339): free space and the size of target/ and ~/.cargo,
+      # before the build and after the last step, in the job summary.
+      - name: Disk usage (before the build)
+        if: always() && matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          { echo "### Disk usage before the build"; echo '```'; df -h /; du -sh target ~/.cargo 2>/dev/null || true; echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
       - run: cargo build --workspace --all-targets --locked
       - uses: taiki-e/install-action@v2
         with:
@@ -58,6 +65,11 @@ jobs:
       - name: Compatibility specs
         if: matrix.os == 'ubuntu-latest'
         run: cargo run -p stitchtool --locked -- compat --check-status docs/COMPATIBILITY_STATUS.md
+      - name: Disk usage (after the tests)
+        if: always() && matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          { echo "### Disk usage after the tests"; echo '```'; df -h /; du -sh target ~/.cargo 2>/dev/null || true; echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Compatibility summary
         if: always() && matrix.os == 'ubuntu-latest'
         shell: bash
