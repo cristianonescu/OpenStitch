@@ -10,6 +10,20 @@ pub enum ToolKind {
     Command(&'static str),
     Batch,
     Preview,
+    /// An `--assistant` meta tool.
+    Meta(Meta),
+}
+
+/// The `--assistant` meta tools (see [`crate::assistant`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Meta {
+    CommandsList,
+    CommandDescribe,
+    Execute,
+    RunBatch,
+    ViewRender,
+    ScratchWrite,
+    SkillReference,
 }
 
 #[derive(Clone, Debug)]
@@ -118,15 +132,47 @@ pub fn tools(
 /// JSON Schema for a command's parameters, from the `ParamDoc` kind strings. No top-level
 /// `anyOf` (the Claude API rejects it); the engine still validates every value.
 pub fn input_schema(params: &[ParamDoc]) -> Value {
+    schema_from(
+        params
+            .iter()
+            .map(|d| (d.name, d.kind, d.required, d.summary)),
+    )
+}
+
+/// [`input_schema`] for the JSON parameter entries of `commands.list`
+/// (`{name, type, required, summary}`), as a live editor reports them.
+pub fn input_schema_from_list(params: &[Value]) -> Value {
+    let field = |p: &Value, key: &str| p.get(key).and_then(Value::as_str).unwrap_or("").to_owned();
+    let owned: Vec<(String, String, bool, String)> = params
+        .iter()
+        .map(|p| {
+            (
+                field(p, "name"),
+                field(p, "type"),
+                p.get("required").and_then(Value::as_bool).unwrap_or(false),
+                field(p, "summary"),
+            )
+        })
+        .filter(|(name, ..)| !name.is_empty())
+        .collect();
+    schema_from(
+        owned
+            .iter()
+            .map(|(n, k, r, s)| (n.as_str(), k.as_str(), *r, s.as_str())),
+    )
+}
+
+/// `(name, kind, required, summary)` per parameter.
+fn schema_from<'a>(params: impl Iterator<Item = (&'a str, &'a str, bool, &'a str)>) -> Value {
     let mut properties = Map::new();
     let mut required = Vec::new();
-    for doc in params {
-        if doc.name == "ids" && doc.kind.contains("id: int") {
+    for (name, kind, is_required, summary) in params {
+        if name == "ids" && kind.contains("id: int") {
             // `ids` or a single `id`: neither alone is required.
             properties.insert(
                 "ids".into(),
                 json!({ "type": "array", "items": { "type": "integer" }, "minItems": 1,
-                        "description": format!("{} (give ids or id)", doc.summary) }),
+                        "description": format!("{summary} (give ids or id)") }),
             );
             properties.insert(
                 "id".into(),
@@ -134,9 +180,9 @@ pub fn input_schema(params: &[ParamDoc]) -> Value {
             );
             continue;
         }
-        properties.insert(doc.name.into(), property_schema(doc));
-        if doc.required {
-            required.push(Value::from(doc.name));
+        properties.insert(name.into(), kind_schema(kind, summary));
+        if is_required {
+            required.push(Value::from(name));
         }
     }
     let mut schema = Map::new();
@@ -154,7 +200,12 @@ fn point_pair_schema() -> Value {
 }
 
 pub fn property_schema(doc: &ParamDoc) -> Value {
-    let t = doc.kind;
+    kind_schema(doc.kind, doc.summary)
+}
+
+/// One property's schema from its kind string. An unrecognised kind, such as `any`, gives an
+/// untyped property (a description only), which accepts any JSON value.
+fn kind_schema(t: &str, summary: &str) -> Value {
     let mut s = Map::new();
     let mut unit: Option<&str> = None;
     match t {
@@ -229,11 +280,12 @@ pub fn property_schema(doc: &ParamDoc) -> Value {
             s.insert("type".into(), json!("string"));
             s.insert("enum".into(), t.split('|').collect::<Vec<_>>().into());
         }
+        "any" | "" => {}
         _ => unit = Some(t),
     }
     let description = match unit {
-        Some(u) => format!("{} ({u})", doc.summary),
-        None => doc.summary.to_string(),
+        Some(u) => format!("{summary} ({u})"),
+        None => summary.to_string(),
     };
     s.insert("description".into(), json!(description));
     Value::Object(s)

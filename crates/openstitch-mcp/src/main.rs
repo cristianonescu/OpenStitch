@@ -10,7 +10,7 @@ const USAGE: &str =
     "usage: openstitch-mcp [--root DIR]... [--read-root DIR]... [--write-root DIR]...
                       [--read-only] [--no-files]
                       [--max-request-bytes N] [--max-response-bytes N]
-                      [--live [--endpoint FILE]]
+                      [--live [--endpoint FILE]] [--assistant]
   --root DIR         commands may read and write files under DIR (repeatable)
   --read-root DIR    commands may only read files under DIR (repeatable)
   --write-root DIR   same as --root
@@ -20,6 +20,10 @@ const USAGE: &str =
                      instead of an own design; the editor's file roots apply
   --endpoint FILE    the editor's endpoint file (default: automation.json in the
                      OpenStitch config directory); implies --live
+  --assistant        for the editor's AI assistant: implies --live, and offers seven
+                     meta tools (commands_list, command_describe, execute, run_batch,
+                     view_render, scratch_write, skill_reference) instead of one tool
+                     per command
 With no roots, every file command is refused. Relative paths resolve against the first
 write root, else the first read root.";
 
@@ -34,12 +38,14 @@ fn dir(path: &str) -> PathBuf {
     }
 }
 
-/// The server settings, and the endpoint file with `--live` (`None` inside: the default file).
-type Parsed = (Config, Option<Option<PathBuf>>);
+/// The server settings, the endpoint file with `--live` (`None` inside: the default file), and
+/// whether `--assistant` was given.
+type Parsed = (Config, Option<Option<PathBuf>>, bool);
 
 fn parse(mut args: impl Iterator<Item = String>) -> Result<Option<Parsed>, String> {
     let mut config = Config::default();
     let mut live = None;
+    let mut assistant = false;
     while let Some(flag) = args.next() {
         let mut value = || args.next().ok_or_else(|| format!("{flag} needs a value"));
         match flag.as_str() {
@@ -58,6 +64,10 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<Option<Parsed>, Strin
                 }
             }
             "--live" => live = Some(live.flatten()),
+            "--assistant" => {
+                assistant = true;
+                live = Some(live.flatten());
+            }
             "--endpoint" => live = Some(Some(PathBuf::from(value()?))),
             "--read-only" => config.capabilities = config.capabilities.read_only(),
             "--no-files" => config.capabilities = config.capabilities.without_files(),
@@ -75,11 +85,11 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<Option<Parsed>, Strin
     if live.is_some() && !(config.read_roots.is_empty() && config.write_roots.is_empty()) {
         return Err("with --live the editor's own roots apply (openstitch --listen-root)".into());
     }
-    Ok(Some((config, live)))
+    Ok(Some((config, live, assistant)))
 }
 
 fn main() -> ExitCode {
-    let (config, live) = match parse(std::env::args().skip(1)) {
+    let (config, live, assistant) = match parse(std::env::args().skip(1)) {
         Ok(Some(parsed)) => parsed,
         Ok(None) => {
             println!("{USAGE}");
@@ -109,7 +119,11 @@ fn main() -> ExitCode {
                     "ready; driving the editor at {}",
                     client.endpoint().address
                 ));
-                server = server.with_live(client);
+                server = if assistant {
+                    server.with_assistant(client)
+                } else {
+                    server.with_live(client)
+                };
             }
             Err(e) => {
                 log(&format!(
