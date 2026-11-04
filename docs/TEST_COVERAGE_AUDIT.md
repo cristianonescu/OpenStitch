@@ -35,8 +35,6 @@ below are claims no test checks.
 
 | Area | Feature (matrix row) | Gap | Plan | Issue |
 |---|---|---|---|---|
-| Automation | CLI scripts (`stitchtool exec`), JSON control channel (`stitchtool serve`) | none: evidence is `examples/badge.json` and a manual run; the binary's only test is `connect` | `crates/stitchtool/tests/coverage_cli.rs`: `commands`, `exec` of badge.json (files beside the script), stop at the first failure (exit 2), `serve` line protocol, `--read-only`, `--no-files`, usage | #318 |
-| Automation | Loopback socket (`openstitch --listen`) | weak: the idle-connection timeout (`ServerConfig.idle_timeout`) is untested | `crates/openstitch-remote/tests/coverage_socket.rs`: a silent connection is closed | #333 |
 | Editing | Move/scale/rotate/flip (`object.flip`) | weak: flip's geometry is never asserted | engine `coverage_editing.rs`: flip mirrors about the selection centre, one undo step | #327 |
 | Editing | Point editing (`object.setPoint`) | weak: "handles move with the vertex" not asserted | same file: the vertex's handles shift by the same delta | #327 |
 | Editing | Copy sewing attributes (`object.pasteAttributes`) | weak: `lineColor`, `lineSewing`, `holeSewing` selections and the refusal of stitch patterns untested | same file | #327 |
@@ -86,3 +84,5 @@ associations and the macOS `.pes` document type (CI workflow, owned by the CI se
 | Docs | PES 0110 write, entry/exit points, Photo Stitch, PEC chart | stale test names in the evidence column | #326 (this file's PR) |
 | Docs | PEC preview icons, app icon and logo, image similarity Phase 1, VIP colour table | tests existed but were not cited | #326 |
 | Docs | OpenStitch-mode Fidelity row; Satin row; CSD | unescaped `\|` split the row on GitHub; a passage repeated; CSD read listed twice | #326 |
+| Automation | CLI scripts (`stitchtool exec`), control channel (`stitchtool serve`) | none: only an example and a manual run | #318: `crates/stitchtool/tests/coverage_cli.rs` |
+| Automation | Loopback socket (`openstitch --listen`) | weak: idle-connection timeout untested | #333: `crates/openstitch-remote/tests/coverage_socket.rs` |
