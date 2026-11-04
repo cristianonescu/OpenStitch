@@ -8,8 +8,9 @@ use it the same as it works for solidcraft in order to generate embroidery". Thi
 - records the owner's decisions;
 - sets out the OpenStitch design, phased tasks with acceptance criteria, and the risks.
 
-It is research only. Nothing here is implemented. Implementation starts after the owner
-approves this plan.
+The owner approved the plan on 2026-11-04, adding one requirement: "each and every OpenStitch
+feature is supported through the AI chat. The user should be able to control the tool
+completely from there". Progress is in section 9.
 
 ## 1. The owner's decisions (2026-11-04)
 
@@ -362,3 +363,55 @@ adaptations in SolidCraft's own `NOTICE`.
   `claude-agent-acp` options must be checked against its own release notes in A3.
 - **Facts taken from SolidCraft** in section 2 are as of commit `6bca7d2`, and its code moves
   fast.
+
+## 9. Progress
+
+### A0, the tool surface (landed 2026-11-04)
+
+Complete control (the owner's requirement) is built and tested as follows.
+
+**Design changes.** Every design change is an engine command. The assistant reaches all of
+them through `commands_list`, `command_describe`, `execute` and `run_batch`. These read the
+editor's own `commands.list`, so a new engine command is offered with no assistant code.
+
+**The window.** Everything the window holds has an editor command on the automation socket
+(docs/ARCHITECTURE.md, "Assistant commands"):
+- `ui.state`, `ui.actions` and `ui.run`. `ui.run` covers every ribbon, menu and Quick Access
+  Toolbar command.
+- `ui.select` and `ui.zoom`.
+- `ui.settings` and `ui.set`, with 25 settings: view, grid, rulers, guides, panes, theme,
+  splash, Quick Access Toolbar position, update checks, realistic view, font filter, optimise
+  entry/exit, simulator speed.
+- `ui.render`, `ui.simulate`, `ui.help` and `ui.update`.
+- `ui.scratchWrite`, which writes into a per-launch scratch folder that becomes the socket's
+  extra write root.
+
+**Routes.** `editor::assistant::route` gives each of the 153 `Action`s a way in:
+- `ui.run`;
+- a drawing tool plus its engine command;
+- the engine command with a path, in place of a native file dialog;
+- the command behind a list of choices.
+
+Dialogs are reached two ways. `ui.run` opens one for the user. The engine command behind the
+dialog sets its values.
+
+**Coverage tests.**
+- `every_editor_feature_is_reachable_from_the_assistant` fails when an engine command, an
+  action's engine or route command, or an Options or Help menu entry has no assistant route.
+  The menu entries are found by a scan of `ribbon.rs`.
+- `every_run_action_runs_through_ui_run` runs every runnable action with four selections.
+  `ui.run` must succeed exactly when the button is enabled.
+
+**MCP and skills.**
+- `openstitch-mcp --assistant` offers seven meta tools. Their order is fixed and their bytes
+  are identical across runs, so prompt caching holds. Their schemas are strict. A
+  `view_render` image block replaces `preview`, which is refused in live mode.
+- `skills/openstitch-embroidery` holds `SKILL.md` and three references. A test checks that
+  every command id they name exists.
+
+**Not done in A0.**
+- One undo step per message. It needs the turn boundary that the A1 panel owns. Until then
+  each socket edit is its own undo step, as before.
+- The permission gate (Ask, Edits, All) is A1. A socket client keeps the
+  `--listen-read-only` and `--listen-no-files` capabilities and the file roots.
+- No real model has driven these tools yet. That comes with A1 and A5.

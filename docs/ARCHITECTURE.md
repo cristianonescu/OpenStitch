@@ -604,6 +604,49 @@ connection limit, endpoint file life cycle, loopback-only client),
 `openstitch-app` `remote::tests` (shared undo history with the editor),
 `openstitch-mcp/tests/live.rs` and `stitchtool/tests/connect.rs`.
 
+### Assistant commands (`ui.*`, B17)
+
+These give the AI assistant ([research/beyond/ai-integration.md](research/beyond/ai-integration.md)) everything a user can do in the window, not only design changes. The socket answers editor commands beside the engine's, and `commands.list` lists them in the engine's shape. Their specs are in `openstitch_app::editor::assistant`; `assistant_ui.rs` in the binary runs them.
+
+**Reading and running window commands**
+- `ui.state`: the window's current state.
+- `ui.actions`: every ribbon, menu and Quick Access Toolbar command, with how the assistant reaches it.
+- `ui.run`: runs a command by key, as a click would.
+
+**Selection and view**
+- `ui.select`: selects objects.
+- `ui.zoom`: zooms the view.
+- `ui.simulate`: controls the Stitch Simulator.
+
+**Settings**
+- `ui.settings` and `ui.set`: view, grid, rulers, panes, theme, updates, realistic view, font filter and simulator speed.
+
+**Help and updates**
+- `ui.help` and `ui.update`.
+
+**Pictures and files**
+- `ui.render`: a PNG of the live design, the same preview `openstitch-mcp` draws.
+- `ui.scratchWrite`: writes an SVG or a picture into a scratch folder.
+
+The scratch folder is per launch (`openstitch-assistant-<pid>` in the temp folder, 0700 on Unix). It becomes an extra write root of the socket, so `import.svg`, `background.set` and `digitize.*` can read what was written. It is the only root a socket client gets without `--listen-root`. With `--listen-no-files` no scratch folder is made.
+
+**Routes.** `editor::assistant::route` gives every `Action` one of four ways in:
+- `ui.run` directly;
+- a drawing tool, where the assistant draws with the tool's engine command instead;
+- a file command with a path, in place of the native file dialog;
+- the engine or `ui.*` command behind a list of choices.
+
+`ui.run` refuses file dialogs and lists, and names the command to use instead.
+
+**Capabilities.** Read-only clients (`--listen-read-only`) may read but not change the window. `ui.scratchWrite` needs `writeFiles`.
+
+**Coverage tests.** `assistant_ui::tests::every_editor_feature_is_reachable_from_the_assistant` fails when any of these has no way in:
+- an engine command;
+- the engine or route command of an `Action`;
+- an Options or Help menu entry that `ribbon.rs` draws (a source scan matches each label to a setting or a command).
+
+`every_run_action_runs_through_ui_run` runs every runnable action with four selections. `ui.run` must succeed exactly when the button is enabled.
+
 ## Compatibility harness
 
 `crates/openstitch-compat` checks OpenStitch's behaviour against declared expectations, kept
