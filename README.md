@@ -21,6 +21,7 @@ Not affiliated with Brother Industries. No Brother code or assets are included; 
 
 ## Contents
 
+- [New: the Assistant](#new-the-assistant)
 - [Status at a glance](#status-at-a-glance)
 - [Screenshots](#screenshots)
 - [From image to embroidery](#from-image-to-embroidery)
@@ -36,6 +37,35 @@ Not affiliated with Brother Industries. No Brother code or assets are included; 
 - [Releases](#releases)
 - [Documents](#documents)
 - [License](#license)
+
+## New: the Assistant
+
+**Alpha 12 adds an AI chat that can drive the whole editor.** Ask it for a design ("a 70 mm round
+badge with a navy satin border and ANNA in gold"), to change what is open ("make the lettering
+satin and 10 % bigger"), to explain or check a design, or drop in a picture and ask for embroidery.
+It works through OpenStitch's own commands, so what it makes is an ordinary design you keep
+editing by hand, and everything one message changes is a single undo step.
+
+![The Assistant beside the design: asked to turn a dropped pixel-art strawberry picture into embroidery about 50 mm wide, it calls OpenStitch's commands, notices the first result came out 34.4 mm wide, rescales it, checks it and summarises the result, with Undo these changes below](docs/images/assistant-agent-picture.png)
+
+*A real run, not a mock-up: Claude Code (on the user's own account) turning a dropped picture
+into a 50 × 63 mm strawberry, correcting its own first attempt, then checking the result.*
+
+- **Your choice of AI:** the Claude API with your own key (kept in the system keychain), a model
+  on your computer through Ollama or LM Studio (no key, works offline), OpenRouter or any
+  OpenAI- or Anthropic-compatible service, or a coding agent you already use (Claude Code, Codex,
+  OpenCode).
+- **You stay in control:** design changes run at once; saving, exporting, opening files, sending
+  to the machine and quitting ask first (**Allow once**, **Always allow** or **Deny**).
+- **Private:** your messages and design go only to the AI you chose; OpenStitch has no server and
+  no telemetry. **Options ▸ Show AI features** hides it completely.
+- **Open it:** it opens beside the design; **View ▸ Show/Hide ▸ Assistant** or Ctrl+Shift+A
+  (Cmd+Shift+A) brings it back.
+
+Benchmark on 12 embroidery tasks: Claude Code 12/12, Ollama gpt-oss:20b 8/12. It has been tested
+on macOS so far; Windows and Linux testing is
+[#401](https://github.com/cristianonescu/OpenStitch/issues/401). Details in the
+[alpha 12 notes](docs/releases/v0.1.0-alpha.12.md).
 
 ## Status at a glance
 
