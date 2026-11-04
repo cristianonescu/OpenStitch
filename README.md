@@ -48,7 +48,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 191: 155 implemented (3 of them partially compatible), 2 documented only, 10 blocked, 24 planned beyond PE-DESIGN |
+| Feature matrix rows | 190: 155 implemented (3 of them partially compatible), 1 documented only, 10 blocked, 24 planned beyond PE-DESIGN |
 | Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 33: 26 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 11 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
@@ -252,9 +252,10 @@ PE-DESIGN 11.50's defaults, tie-in and lock, measured from its own files.
 
 ### Files and formats
 
-- **Read and write:** PES, PEC, DST, EXP, JEF, PCS, SEW, XXX, HUS, VIP. The machine formats match
-  PE-DESIGN 11.50's own exports record for record or byte for byte.
-- **Read only:** SHV, PHC (read only in PE-DESIGN too) and CSD.
+- **Read and write:** PES, PEC, DST, EXP, JEF, PCS, SEW, XXX, HUS, VIP, SHV, CSD: every type
+  PE-DESIGN 11.50's Export offers. The machine formats match PE-DESIGN 11.50's own exports record
+  for record or byte for byte (SHV's preview picture only approximately).
+- **Read only:** PHC (read only in PE-DESIGN too).
 - **PE-DESIGN 11 PES (`#PES0110`):** OpenStitch reads the metadata, thread table and shapes. Saved
   as "PE-DESIGN 11", its shapes and Lato Bold text open **editable** in PE-DESIGN 11.50 (text
   retypable), including Fit Text to Outline and Text Transform, Manual Punch blocks, stitch
@@ -316,7 +317,6 @@ PE-DESIGN 11.50's defaults, tie-in and lock, measured from its own files.
 PE-DESIGN 11 features OpenStitch does not have yet, from the feature matrix:
 
 <!-- status:not-implemented -->
-- **Export CSD, SHV** (Files)
 - **Import WMF/EMF** (Files)
 <!-- /status:not-implemented -->
 
@@ -330,7 +330,7 @@ Also missing, from the [roadmap](docs/ROADMAP.md#still-to-do):
   editing and Blend.
 - **PES:** opening PE-DESIGN's texts and stitch groups as editable OpenStitch objects; motif
   fill, motif lines, several groups, right-aligned and vertical text in the editable PES 11
-  writer; PES versions 4, 5 and 7–10; CSD and SHV export.
+  writer; PES versions 4, 5 and 7–10.
 
 **Not planned, by design:**
 

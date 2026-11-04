@@ -942,14 +942,121 @@ fn shv_reads_oracle_file_like_reference() {
 }
 
 #[test]
-fn shv_is_read_only() {
-    assert!(!FileType::Shv.can_write());
-    assert!(FileType::writable().all(|t| t != FileType::Shv));
-    let p = shv::read(&data("oracle.shv")).expect("read");
+fn shv_and_csd_are_writable_and_phc_is_read_only() {
+    assert!(FileType::Shv.can_write() && FileType::Csd.can_write());
+    assert!(!FileType::Phc.can_write());
+    assert!(FileType::writable().all(|t| t != FileType::Phc));
+    let p = phc::read(&data("oracle.phc")).expect("read");
     assert!(matches!(
-        FileType::Shv.write(&p),
+        FileType::Phc.write(&p),
         Err(FormatError::UnsupportedFormat(_))
     ));
+}
+
+/// The needle points without a stitch on a jump's landing: SHV marks the landing with the jump
+/// itself (see `shv::write`). A design that starts with a stitch gets a jump to it.
+fn without_landings(p: &StitchPattern) -> Vec<[f64; 2]> {
+    let mut v = Vec::new();
+    let mut landing = p
+        .stitches
+        .iter()
+        .find(|s| matches!(s.command, Command::Jump | Command::Stitch))
+        .filter(|s| s.command == Command::Stitch)
+        .map(|s| [s.x, s.y]);
+    for s in &p.stitches {
+        match s.command {
+            Command::Jump => landing = Some([s.x, s.y]),
+            Command::Stitch => {
+                if landing != Some([s.x, s.y]) {
+                    v.push([s.x, s.y]);
+                }
+                landing = None;
+            }
+            _ => {}
+        }
+    }
+    let Some(first) = v.first().copied() else {
+        return v;
+    };
+    v.iter()
+        .map(|q| [q[0] - first[0], q[1] - first[1]])
+        .collect()
+}
+
+/// A design with trimmed moves (one over 12.7 mm), a stitch over 12.7 mm, a colour change and a
+/// stop, for the SHV and CSD round trips.
+fn two_colour_design() -> StitchPattern {
+    let mut p = StitchPattern::new();
+    p.threads.push(Thread::rgb(0xE3_311F));
+    p.threads.push(Thread::rgb(0x0D_217E));
+    p.jump_to(-50.0, -40.0);
+    p.stitch_to(-50.0, -40.0);
+    p.stitch_to(-20.0, -40.0);
+    p.stitch_to(-20.0, 10.0);
+    p.stitch_to(140.0, 30.0); // 16 mm
+    p.push(Command::Trim);
+    p.jump_to(-60.0, 200.0);
+    p.stitch_to(-60.0, 200.0);
+    p.stitch_to(-40.0, 205.0);
+    p.push(Command::ColorChange);
+    p.jump_to(10.0, 210.0);
+    p.stitch_to(10.0, 210.0);
+    p.stitch_to(30.0, 190.0);
+    p.push(Command::Stop);
+    p.stitch_to(35.0, 180.0);
+    p.push(Command::End);
+    p
+}
+
+#[test]
+fn shv_round_trips_needle_points_blocks_and_chart_colours() {
+    let p = two_colour_design();
+    let back = shv::read(&shv::write(&p).expect("write")).expect("read");
+    assert_eq!(without_landings(&back), without_landings(&p));
+    // A stop is a colour block of its own with the same colour.
+    assert_eq!(back.count(Command::ColorChange), 2);
+    assert_eq!(back.threads.len(), 3);
+    assert_eq!(back.threads[0].name.as_deref(), Some("Dark Orange"));
+    assert_eq!(back.threads[1].name.as_deref(), Some("Dark Blue"));
+    assert_eq!(back.threads[2].name.as_deref(), Some("Dark Blue"));
+    // The 16 mm stitch: a jump for the axis over 12.7 mm, then one stitch.
+    assert_eq!(back.count(Command::Jump), 4);
+}
+
+#[test]
+fn csd_round_trips_needle_points_colours_and_trims() {
+    use openstitch_formats::csd;
+    let p = two_colour_design();
+    let bytes = csd::write(&p).expect("write");
+    assert_eq!(bytes[..8], csd::IDENTIFIER);
+    let back = csd::read(&bytes).expect("read");
+    // The 16 mm stitch is two stitch records: 12.7 mm along x, then the rest.
+    let mut expected = relative(&p);
+    expected.insert(3, [157.0, 50.0]);
+    assert_eq!(relative(&back), expected);
+    assert_eq!(back.count(Command::ColorChange), 2);
+    assert_eq!(hexes(&back.threads), ["#e3311f", "#0d217e", "#0d217e"]);
+    // Only the moves over 12.7 mm have trim-move records (as PE-DESIGN writes them): the 20 mm
+    // one; the first move and the one after the colour change fold into their stitch.
+    assert_eq!(back.count(Command::Trim), 1);
+}
+
+#[test]
+fn csd_and_shv_write_an_empty_design() {
+    use openstitch_formats::csd;
+    let p = StitchPattern::new();
+    assert_eq!(
+        csd::read(&csd::write(&p).expect("csd"))
+            .expect("read")
+            .count(Command::Stitch),
+        0
+    );
+    assert_eq!(
+        shv::read(&shv::write(&p).expect("shv"))
+            .expect("read")
+            .count(Command::Stitch),
+        0
+    );
 }
 
 // MARK: PHC
@@ -1134,7 +1241,7 @@ fn file_type_lookup_by_extension_and_path() {
 #[test]
 fn every_fixture_round_trips_through_file_type() {
     // Every writable format reads its oracle fixture, writes it in PE-DESIGN's layout and reads
-    // that back to the same needle points, colour changes and threads. SHV is read only.
+    // that back to the same needle points, colour changes and threads. PHC is read only.
     for name in common::FIXTURE_FILES
         .into_iter()
         .filter(|&n| FileType::from_path(n).is_some_and(FileType::can_write))
@@ -1142,7 +1249,11 @@ fn every_fixture_round_trips_through_file_type() {
         let t = FileType::from_path(name).expect("type");
         let original = t.read(&data(name)).expect("read");
         let back = t.read(&t.write(&original).expect("write")).expect("reread");
-        let (mut points, mut expected) = (relative(&back), relative(&original));
+        let (mut points, mut expected) = if t == FileType::Shv {
+            (without_landings(&back), without_landings(&original))
+        } else {
+            (relative(&back), relative(&original))
+        };
         if matches!(t, FileType::Sew | FileType::Hus | FileType::Pcs) {
             // SEW: PE-DESIGN's zero-length stitch before a colour change; HUS and PCS: a stitch
             // the design has on a jump's landing is written as a second zero-length record
@@ -1535,4 +1646,50 @@ fn pec_frame_is_the_design_and_holds_its_stitches() {
     );
     assert_eq!(s.first(), Some(&[0.0, 0.0]));
     assert_eq!(s.last(), Some(&[860.0, 800.0]));
+}
+
+/// PE-DESIGN 11.50's CSD export of `sample-basic`, read and written again, comes out byte for
+/// byte: identifier, palette with PE's fill colours, the unknown `7F 7F`, colour order, the
+/// leading stop, trim-move pieces, the folded remainder, the colour-change record and the end.
+#[test]
+fn csd_writes_pe_design_layout_byte_for_byte() {
+    use openstitch_formats::csd;
+    let pe = common::data("pe11/sample-basic.csd");
+    let ours = csd::write(&csd::read(&pe).expect("read")).expect("write");
+    assert_eq!(ours.len(), pe.len());
+    assert_eq!(ours, pe);
+}
+
+/// PE-DESIGN 11.50's SHV export of `sample-basic`, read and written again: the header text,
+/// name, preview size, colour count, bounds, word counts, chart entries, block start points
+/// and records equal PE's; only the preview's pixels are drawn by OpenStitch's own rule.
+#[test]
+fn shv_writes_pe_design_header_and_records() {
+    let pe = common::data("pe11/sample-basic.shv");
+    let ours = shv::write(&shv::read(&pe).expect("read")).expect("write");
+    assert_eq!(ours.len(), pe.len());
+    let preview = 0x69..0x69 + 28 * 20;
+    assert_eq!(
+        ours[..preview.start],
+        pe[..preview.start],
+        "text, name, size"
+    );
+    assert_eq!(
+        ours[preview.end..],
+        pe[preview.end..],
+        "colours, bounds, records"
+    );
+    let set = |d: &[u8]| -> Vec<bool> {
+        d[preview.clone()]
+            .iter()
+            .flat_map(|b| [b >> 4 != 0, b & 15 != 0])
+            .collect()
+    };
+    let (a, b) = (set(&ours), set(&pe));
+    let same = a.iter().zip(&b).filter(|(x, y)| x == y).count();
+    assert!(
+        same * 100 >= a.len() * 90,
+        "{same} of {} preview pixels agree",
+        a.len()
+    );
 }

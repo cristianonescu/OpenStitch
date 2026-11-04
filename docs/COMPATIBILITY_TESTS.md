@@ -229,6 +229,8 @@ blocks with a trim + jump and one stitch longer than 121 units.
 | SHV read matches reference decoder (fixture assembled) | identical, chart threads `#ff0000` `#0000ff`, name `oracle` | identical | pass |
 | PHC read matches reference decoder (fixture assembled around `oracle.pec`) | identical, PEC chart threads | identical | pass |
 | CSD (spec-derived): synthetic type-0 and type-1 files | 303 stitches, 1 colour change, 1 trim, palette colours | as expected | pass (self-consistency only) |
+| CSD written by OpenStitch: PE-DESIGN 11.50's `sample-basic.csd` read and written again (`csd_writes_pe_design_layout_byte_for_byte`, #320) | byte-identical | byte-identical | pass |
+| SHV written by OpenStitch: PE-DESIGN 11.50's `sample-basic.shv` read and written again (`shv_writes_pe_design_header_and_records`, #320) | header, bounds, word counts, chart entries, block starts and records identical; preview pixels close | identical; 90 % or more of the preview's pixels agree | pass |
 | VIP written by OpenStitch read by libembroidery `sew` (built locally, commit `1138e04`) | 44 records, colours `224,16,16` and `16,64,192` | as expected; stitch coordinates not checkable (stub decompressor) | partial |
 
 PCS, SEW and HUS have no reference writer in pyembroidery 1.5.1. The reads are the oracle checks;
@@ -390,8 +392,8 @@ opened as stitches, nothing changed, and exported through App menu > Export to e
 list offers (DST, EXP, PCS, HUS, VIP, SHV, JEF, SEW, CSD, XXX; no PEC or PHC; no options
 dialog and no warning for any of them; Save As offers only PES). The eight formats OpenStitch
 writes are compared record by record (`compare`, 0.1 mm, PCS 0.2 mm) with OpenStitch's export
-of the same stitches; SHV and CSD stay in the owner's notes (read-only formats, no writer to
-compare). Before the writers followed PE-DESIGN's layout the compare failed in every format
+of the same stitches; SHV and CSD stayed in the owner's notes (no writer to compare then;
+`machine-sample-basic` compares both since #320). Before the writers followed PE-DESIGN's layout the compare failed in every format
 (441–619 differing entries, the HUS magic rejected); the differences and the rules now written
 are in FILE_FORMATS.md "PE-DESIGN's record layout" and in the audit. The spec imports OpenStitch's saved a.pes
 (the file PE-DESIGN opened) and exports it, so the compare does not depend on the stitch

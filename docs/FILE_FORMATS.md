@@ -28,8 +28,8 @@ Notes that do not change the fixture bytes:
 | SEW | ✅ | ✅ | Oracle-verified read; PE-DESIGN 11.50 reference write (records identical, from PE-DESIGN's start point) | PE-DESIGN's 340 header bytes unknown. |
 | HUS | ✅ | ✅ | Oracle-verified read; PE-DESIGN 11.50 reference write (streams and header identical) | Own LZ77 + Huffman compressor (`lzh`); 29-colour HUS chart. |
 | VIP | ✅ | ✅ | PE-DESIGN 11.50 reference write (streams and header identical); colour table confirmed by libembroidery's reader | No independent stitch decoder exists (pyembroidery has no VIP module; libembroidery's decompressor is a stub). |
-| SHV | ✅ | ❌ (read only) | Oracle-verified read | No public writer or description of the unknown header bytes; `FileType::Shv.can_write()` is false. |
-| CSD | ✅ (spec-derived) | ❌ | Spec-derived (libembroidery); synthetic round-trip tests only | Fixed-key obfuscation; no public writer or reference files. See "CSD" below. |
+| SHV | ✅ | ✅ | Oracle-verified read; PE-DESIGN 11.50 reference write (header, bounds, counts and records identical; preview pixels approximate) | Six header bytes copied from PE-DESIGN's export, meaning unknown. See "SHV" below. |
+| CSD | ✅ | ✅ | Read verified against PE-DESIGN 11.50's export (type 0; type 1 spec-derived); PE-DESIGN 11.50 reference write (byte-identical) | Fixed-key obfuscation (libembroidery's masks). See "CSD" below. |
 | PHC | ✅ | — (read only, as in PE-DESIGN) | Oracle-verified read (pyembroidery) | PEC stitch data in a Brother wrapper. |
 | PHX | ❌ | — | **Blocked** | No public description or open-source reader; studying PE-DESIGN output would be reverse engineering (LEGAL_AND_LICENSING.md). |
 | PEN | ❌ | — | **Blocked** | Brother's encrypted format for designs bought from iBroidery; decrypting it would circumvent a protection measure. Out of scope. |
@@ -934,7 +934,7 @@ this */`), so it cannot check the stitches. `vip_streams_and_header_match_pe_des
 decompressed streams against PE-DESIGN's; self round trip in
 `vip_round_trips_rgb_colours_and_stitches`.
 
-## SHV (Husqvarna Viking, read only)
+## SHV (Husqvarna Viking)
 
 Big-endian. Layout as pyembroidery 1.5.1's `ShvReader` reads it:
 
@@ -960,8 +960,31 @@ as in `oracle.shv`), and then 2 bytes earlier (`shv_reads_pe_design_export_like_
 
 Evidence: `oracle.shv` is assembled by `tools/genfixtures.py` from that layout (trims as
 `80 03`); pyembroidery's read is the oracle (`shv_reads_oracle_file_like_reference`). Neither
-pyembroidery nor libembroidery (`writeShv` is a stub) writes SHV, and nothing public explains
-the unknown header bytes, so OpenStitch does not export SHV; `design.export` refuses it.
+pyembroidery nor libembroidery (`writeShv` is a stub) writes SHV.
+
+**Writer (#320).** `shv::write` lays the file out as PE-DESIGN 11.50's export of
+`sample-basic` (`tests/fixtures/pe11/sample-basic.shv`, also `compat/reference/machine`):
+
+| Field | As PE-DESIGN writes it |
+|---|---|
+| header text | `Embroidery disk created using software licensed from Viking Sewing Machines AB, Sweden` (0x56 bytes) |
+| name | the design name (PE: the file name without extension) |
+| preview size | `w`, `h`, then `w / 2`, `h / 2` twice; `w` = width in whole millimetres + 2 (26.9 mm: 28; 38.9 mm: 40) |
+| preview | 4 bits a pixel, column by column from the left, each column bottom to top (`⌈h/2⌉` bytes a column) |
+| the 18 bytes after the colour count | `C4 28 00 30 00 00` (meaning unknown, copied), then i16 right, bottom, left, top of the needle points (centred stream), then u32 total words |
+| per colour (9 bytes after the chart index) | five zero bytes, then i16 x, y of the point the block starts at (the previous block's last needle point; 0, 0 for the first) |
+| records | a frame move is `80 01 dx dy 80 02` to the point it ends at, and a stitch on that point has no record of its own; colour changes are only the word counts; nothing after the last block |
+
+The chart index is the nearest `SHV_CHART` entry (800 RED → 41 Dark Orange, Prussian Blue →
+33 Dark Blue, as PE writes). A preview pixel holds the block's chart index modulo 15 (15 for 0):
+that gives PE's `B` and `3` for those two entries; other entries are not yet checked against a
+PE-DESIGN file. OpenStitch draws straight lines between the needle points at one pixel a
+millimetre with a one-pixel margin on the left; PE-DESIGN's pixels differ in about one in
+ten places (its drawing rule is not known), which a machine only uses as the thumbnail. A
+stitch over 12.7 mm is written as a jump for the axes over the limit and one stitch (no PE
+reference has one). `shv_writes_pe_design_header_and_records` reads PE's file, writes it again
+and compares everything but the preview's pixels byte for byte; compat `machine-sample-basic`
+writes PE's own design as SHV and compares it needle for needle with PE's SHV.
 
 ## PHC (Brother, read only)
 
@@ -990,7 +1013,7 @@ cannot convert to PHC and no public writer exists, so OpenStitch does not write 
   from iBroidery.com. No public description exists and decrypting them would circumvent a
   technical protection measure (EU 2001/29 Art. 6, US 17 USC 1201). Out of scope.
 
-## CSD (Singer, read only)
+## CSD (Singer)
 
 An 8-byte identifier, then obfuscated bytes. Masks: the C `rand` LCG
 (`seed × 0x41C64E6D + 0x3039`, byte = bits 16–23) fills 479 "subtract" bytes, then 501 "XOR"
@@ -1018,8 +1041,28 @@ VIP), and a trim's move ends at the next block's first needle point. Type 1 (oth
 identifiers) is checked only by synthetic files built by the inverse transform in
 `csd::tests`. Wilcom
 documentation mentions "Type I" and "Type II" CSD (Type II with RGB and an icon); which one
-this is, is unknown. CSD export: no public writer, the unknown bytes are undocumented, so
-OpenStitch does not write CSD (Documented, needs reference files).
+this is, is unknown.
+
+**Writer (#320).** libembroidery has no CSD writer; `csd::write` applies the published masks
+the other way (`(b + sub) ^ xor`) and lays the plain bytes out as PE-DESIGN 11.50's export of
+`sample-basic` (`tests/fixtures/pe11/sample-basic.csd`, also `compat/reference/machine`):
+identifier `7C 4B C3 74 E1 C8 53 A4` (type 0); palette slot `i` = colour block `i`, and the
+slots the design does not use hold PE's own fill (`00FF00 FF0000 FF00FF FFFF00 848284 0082FF
+00FF84 FF8200 FFA2B5 C64100 FFFFFF 000084 000000 FFFFFF` from slot 2 in a two-colour file;
+the slot-for-slot rule is assumed); `7F 7F`; colour order 0, 1, …, 13; a leading stop
+`8A 00 00`; records; the end `87 00 00`. Records as PE writes them:
+
+- a frame move (trimmed or after a colour change) is split as JEF's: `90` trim-move records
+  of 127 for the axes over 12.7 mm (`layout::split_overflow`), the remainder folded into the
+  stitch at the move's end;
+- a colour change, and a stop, is `85 02 00`;
+- a stitch over 12.7 mm is split the same way into stitch records (no PE reference has one).
+
+A file holds 14 colour-order slots: from the 15th colour block on, the blocks show the colours
+of blocks 1, 2, … again, though each still starts with its stop. PE's CSD read and written again
+comes out byte for byte (`csd_writes_pe_design_layout_byte_for_byte`); compat
+`machine-sample-basic` writes PE's own design as CSD and compares it needle for needle with
+PE's CSD.
 
 ## FCM (ScanNCut): Blocked
 
@@ -1434,4 +1477,4 @@ The built-in templates are in `crates/openstitch-engine/templates/`, generated b
 - PES editable shapes and text (PE-DESIGN object classes) are not read or written: an
   OpenStitch PES opens in PE-DESIGN as a stitch group (v1/v6 with objects) or stitch-only
   design (truncated). Version 6 keeps RGB threads, names and metadata.
-- SHV is read only (see above).
+- SHV and CSD are written as PE-DESIGN 11.50 exports them (see above); PHC is read only.
