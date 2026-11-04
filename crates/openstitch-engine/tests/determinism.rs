@@ -77,4 +77,5 @@ fn rotated_shapes_and_curves_sew_the_same_bits_on_every_platform() {
 
 // Recorded on Windows (MSVC) with the libm-backed functions; Linux and macOS must match.
 const EXPECTED_ARCH: (usize, u64) = (1731, 4783615289628419459);
-const EXPECTED_ROTATED: (usize, u64) = (353, 5700264818730648043);
+// 353 stitches until every run the writer trims after got PE-DESIGN's tie-in and lock (#289).
+const EXPECTED_ROTATED: (usize, u64) = (357, 15416047400722805582);

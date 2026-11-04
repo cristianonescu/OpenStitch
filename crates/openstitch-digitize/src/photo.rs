@@ -408,20 +408,15 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
     };
     let dithered = if fine {
         let sewn = threads.len();
-        let rows_for =
-            |limits: (f64, f64)| fine_rows(&cells, &grid, &targets, &sew_rank, sewn, pitch, limits);
-        let mut limits = (p.density_mean, p.density_window);
-        let mut d = rows_for(limits);
-        // The tie-ins and locks the runs get afterwards add needle points the rows did not
-        // count: when the sewn design is over either cap, the rows are refitted once under caps
-        // lowered by the overshoot and 3 % more.
-        let (mean, window) = sewn_density(&d, &grid, &sew_rank, sewn, pitch, &cells);
-        let over = (mean / p.density_mean).max(window / p.density_window);
-        if over > 1.0 {
-            limits = (limits.0 / (over * 1.03), limits.1 / (over * 1.03));
-            d = rows_for(limits);
-        }
-        d
+        fine_rows(
+            &cells,
+            &grid,
+            &targets,
+            &sew_rank,
+            sewn,
+            pitch,
+            (p.density_mean, p.density_window),
+        )
     } else if perceptual {
         // The tonal map looks about 3 mm to either side, whatever the cell shape.
         let reach = |cell: f64| ((TONAL_REACH_MM * 10.0 / cell).round() as usize).max(1);
@@ -882,11 +877,17 @@ fn fine_rows(
     // Where no run changes thread the penalty does nothing: start the field from at least a
     // small one, so it can rise where a window needs it.
     let base = lambda.max(1.0);
-    // Every needle point the layers sew, jump landings and travel included, by cell.
+    // Every needle point the layers sew, jump landings, travel and the runs' tie-ins and locks
+    // included (as `convert` adds them, 1 mm steps), by cell.
     let needles = |d: &[Option<usize>]| {
         let mut n = vec![0u32; d.len()];
         for t in 0..sewn {
-            for st in fine_layer(d, g, rank, t, pitch) {
+            let sewn_layer = openstitch_design::stitch_edit::lock_runs(
+                &fine_layer(d, g, rank, t, pitch),
+                CONNECT,
+                MIN_STITCH_MM * 10.0,
+            );
+            for st in sewn_layer {
                 if st.command != Command::Stitch {
                     continue;
                 }
@@ -1225,56 +1226,6 @@ impl<'a> Router<'a> {
         }
         Some((r, from_right, way))
     }
-}
-
-/// The needle points per mm² of the fine rows `d` as sewn, tie-ins and locks included: over
-/// the opaque area, and the most in any [`WINDOW_MM`] square.
-fn sewn_density(
-    d: &[Option<usize>],
-    g: &Grid,
-    rank: &[usize],
-    threads: usize,
-    pitch: f64,
-    cells: &[Option<[f64; 3]>],
-) -> (f64, f64) {
-    let (cols, rows) = (g.cols, g.rows);
-    let mut n = vec![0u32; cols * rows];
-    for t in 0..threads {
-        let sewn = fine_layer(d, g, rank, t, pitch);
-        let sewn = openstitch_design::stitch_edit::lock_runs(&sewn, CONNECT, MIN_STITCH_MM * 10.0);
-        for s in sewn.iter().filter(|s| s.command == Command::Stitch) {
-            let x = (((s.x - g.frame.origin.x) / g.cw).floor().max(0.0) as usize).min(cols - 1);
-            let y = (((s.y - g.frame.origin.y) / g.ch).floor().max(0.0) as usize).min(rows - 1);
-            n[y * cols + x] += 1;
-        }
-    }
-    let cell_mm2 = g.cw * g.ch / 100.0;
-    let opaque = cells.iter().filter(|c| c.is_some()).count() as f64 * cell_mm2;
-    let total: u64 = n.iter().map(|&v| u64::from(v)).sum();
-    let w = ((WINDOW_MM * 10.0 / g.ch).round() as usize)
-        .max(1)
-        .min(cols)
-        .min(rows)
-        .max(1);
-    let mut sum = vec![0u64; (cols + 1) * (rows + 1)];
-    for y in 0..rows {
-        let mut line = 0u64;
-        for x in 0..cols {
-            line += u64::from(n[y * cols + x]);
-            sum[(y + 1) * (cols + 1) + x + 1] = sum[y * (cols + 1) + x + 1] + line;
-        }
-    }
-    let at = |x: usize, y: usize| sum[y * (cols + 1) + x];
-    let mut most = 0u64;
-    for y0 in 0..=rows - w {
-        for x0 in 0..=cols - w {
-            most = most.max((at(x0 + w, y0 + w) + at(x0, y0)) - (at(x0 + w, y0) + at(x0, y0 + w)));
-        }
-    }
-    (
-        total as f64 / opaque.max(1e-9),
-        most as f64 / ((w * w) as f64 * cell_mm2),
-    )
 }
 
 /// Needle points of one fine run `len` long: its start and the end of every stitch, the
