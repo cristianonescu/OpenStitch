@@ -4,7 +4,7 @@
  "openstitch": "main 4cf8b7a (ready-to-sew kit after #286 and #287)",
  "machine": "Brother Innov-is NV880E, small hoop (100 x 100 mm)",
  "thread": "New Brothread embroidery thread, Brother colour codes (the kit's codes)",
- "needle": "75/11 embroidery needle (the kit's recommendation; to be confirmed)",
+ "needle": "75/11 embroidery needle",
  "fabric": "pink woven cotton, with stabiliser",
  "scan": "Epson L3150 flatbed, Epson Scan 2 Photo Mode, automatic corrections off, 600 dpi, PNG, a white paper strip as reference",
  "method": "Each swatch's central 6 x 6 mm averaged and white-balanced on the paper strip (raw paper #f4f4f6); coverage = how far the swatch's luminance moved from the fabric's towards black at 6 rows/mm",

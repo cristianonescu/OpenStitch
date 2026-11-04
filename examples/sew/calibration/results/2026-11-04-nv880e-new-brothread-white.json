@@ -1,0 +1,167 @@
+{
+ "date": "2026-11-04",
+ "round": 2,
+ "designs": [
+  "calibration/t1-swatches.pes",
+  "image-tools/S-photo1-sunset-openstitch.pes",
+  "machine-checks/*.pes",
+  "fills/region-sew-types-2.pes",
+  "wizards/background-fill.pes"
+ ],
+ "openstitch": "v0.1.0-alpha.11 kit (main 4cf8b7a and later)",
+ "machine": "Brother Innov-is NV880E, small hoop (100 x 100 mm)",
+ "thread": "New Brothread embroidery thread (Amazon.de), Brother colour codes; White is 1618 (not 001)",
+ "needle": "75/11 embroidery needle",
+ "fabric": "white textured cotton, with stabiliser",
+ "scan": "Epson L3150 flatbed, Epson Scan 2 Photo Mode, automatic corrections off, 600 dpi, PNG, a white paper strip as reference",
+ "method": "Each swatch's central 6 x 6 mm averaged and white-balanced on the paper strip (raw paper #f7f6f7); coverage = how far the swatch's luminance moved from the fabric's towards black at 6 rows/mm",
+ "fabricColour": "#e5e8e5",
+ "swatches": [
+  {
+   "thread": "White",
+   "code": "1618",
+   "rowsPerMM": 3.0,
+   "rgb": "#edefef"
+  },
+  {
+   "thread": "White",
+   "code": "1618",
+   "rowsPerMM": 4.5,
+   "rgb": "#f7f8f9"
+  },
+  {
+   "thread": "White",
+   "code": "1618",
+   "rowsPerMM": 6.0,
+   "rgb": "#f6f7f9"
+  },
+  {
+   "thread": "Black",
+   "code": "900",
+   "rowsPerMM": 3.0,
+   "rgb": "#323631"
+  },
+  {
+   "thread": "Black",
+   "code": "900",
+   "rowsPerMM": 4.5,
+   "rgb": "#1a1d1a"
+  },
+  {
+   "thread": "Black",
+   "code": "900",
+   "rowsPerMM": 6.0,
+   "rgb": "#141614"
+  },
+  {
+   "thread": "Red",
+   "code": "800",
+   "rowsPerMM": 3.0,
+   "rgb": "#c22525"
+  },
+  {
+   "thread": "Red",
+   "code": "800",
+   "rowsPerMM": 4.5,
+   "rgb": "#be1f1e"
+  },
+  {
+   "thread": "Red",
+   "code": "800",
+   "rowsPerMM": 6.0,
+   "rgb": "#cd4140"
+  },
+  {
+   "thread": "Blue",
+   "code": "405",
+   "rowsPerMM": 3.0,
+   "rgb": "#2e5885"
+  },
+  {
+   "thread": "Blue",
+   "code": "405",
+   "rowsPerMM": 4.5,
+   "rgb": "#2a5482"
+  },
+  {
+   "thread": "Blue",
+   "code": "405",
+   "rowsPerMM": 6.0,
+   "rgb": "#4a6e97"
+  },
+  {
+   "thread": "Yellow",
+   "code": "205",
+   "rowsPerMM": 3.0,
+   "rgb": "#e9bb39"
+  },
+  {
+   "thread": "Yellow",
+   "code": "205",
+   "rowsPerMM": 4.5,
+   "rgb": "#e9b736"
+  },
+  {
+   "thread": "Yellow",
+   "code": "205",
+   "rowsPerMM": 6.0,
+   "rgb": "#e8c752"
+  },
+  {
+   "thread": "Leaf Green",
+   "code": "509",
+   "rowsPerMM": 3.0,
+   "rgb": "#4a983a"
+  },
+  {
+   "thread": "Leaf Green",
+   "code": "509",
+   "rowsPerMM": 4.5,
+   "rgb": "#4a983e"
+  },
+  {
+   "thread": "Leaf Green",
+   "code": "509",
+   "rowsPerMM": 6.0,
+   "rgb": "#49953b"
+  }
+ ],
+ "blackRamp": [
+  {
+   "rowsPerMM": 0.5,
+   "rgb": "#c3c6c4",
+   "coverage": 0.16
+  },
+  {
+   "rowsPerMM": 1.0,
+   "rgb": "#9b9e9b",
+   "coverage": 0.35
+  },
+  {
+   "rowsPerMM": 1.5,
+   "rgb": "#767a77",
+   "coverage": 0.53
+  },
+  {
+   "rowsPerMM": 2.0,
+   "rgb": "#5b5d59",
+   "coverage": 0.66
+  },
+  {
+   "rowsPerMM": 3.0,
+   "rgb": "#343732",
+   "coverage": 0.84
+  },
+  {
+   "rowsPerMM": 4.5,
+   "rgb": "#1c201b",
+   "coverage": 0.96
+  }
+ ],
+ "notes": [
+  "On white fabric the White thread (1618) is measurable; Black, Red and Blue match round 1 on pink fabric within a few levels (they cover the fabric), Yellow and Leaf Green are truer on white.",
+  "At 6 rows/mm Red, Blue and Yellow read lighter than at 4.5 on both fabrics: dense stitching reflects more light.",
+  "The 1.0 rows/mm ramp swatch has a stray blue thread over part of it.",
+  "Stippling and the flexible spiral (fixed in alpha.11) sewed without stitching in place; the machine checks, shapes and the sunset patch sewed whole."
+ ]
+}

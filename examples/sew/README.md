@@ -99,7 +99,7 @@ Results from other machines, threads and fabrics are welcome (see *Sending resul
 |---|---|
 | Machine | Brother Innov-is NV880E, small hoop (100 × 100 mm) |
 | Thread | New Brothread embroidery thread, in Brother's colour codes |
-| Needle | 75/11 embroidery needle (the kit's recommendation; to be confirmed) |
+| Needle | 75/11 embroidery needle |
 | Fabric | pink woven cotton, with stabiliser |
 | Scan | Epson L3150 flatbed, Photo Mode, automatic corrections off, 600 dpi, a white paper strip as reference |
 | OpenStitch | main `4cf8b7a` (the kit after the PEC frame fixes) |
@@ -130,6 +130,54 @@ Notes:
 
 The full record, with the method, is
 [calibration/results/2026-11-03-nv880e-new-brothread.json](calibration/results/2026-11-03-nv880e-new-brothread.json).
+
+### T1 card on white fabric, 2026-11-04
+
+<img src="calibration/results/2026-11-04-nv880e-new-brothread-white-t1.jpg" width="480" alt="Scan of the T1 card sewn on white fabric">
+
+The same machine, needle and thread as the first card, on white fabric, so the White thread can be
+measured. The White used is **1618**, not the 001 the kit names.
+
+| Setting | Used |
+|---|---|
+| Machine | Brother Innov-is NV880E, small hoop (100 × 100 mm) |
+| Thread | New Brothread embroidery thread, in Brother's colour codes; White 1618 |
+| Needle | 75/11 embroidery needle |
+| Fabric | white textured cotton, with stabiliser |
+| Scan | Epson L3150 flatbed, Photo Mode, automatic corrections off, 600 dpi, a white paper strip as reference |
+| OpenStitch | the v0.1.0-alpha.11 kit |
+
+| Thread | 3.0 rows/mm | 4.5 rows/mm | 6.0 rows/mm |
+|---|---|---|---|
+| 1618 White | `#edefef` | `#f7f8f9` | `#f6f7f9` |
+| 900 Black | `#323631` | `#1a1d1a` | `#141614` |
+| 800 Red | `#c22525` | `#be1f1e` | `#cd4140` |
+| 405 Blue | `#2e5885` | `#2a5482` | `#4a6e97` |
+| 205 Yellow | `#e9bb39` | `#e9b736` | `#e8c752` |
+| 509 Leaf Green | `#4a983a` | `#4a983e` | `#49953b` |
+
+Black coverage ramp on the white fabric (`#e5e8e5`):
+
+| Rows/mm | 0.5 | 1 | 1.5 | 2 | 3 | 4.5 |
+|---|---|---|---|---|---|---|
+| Coverage | 16 % | 35 % | 53 % | 66 % | 84 % | 96 % |
+
+Notes:
+- Black, Red and Blue cover the fabric and match the pink card within a few levels; Yellow and
+  Leaf Green read truer on white, so part of their colour on pink was the fabric showing through.
+- The coverage ramp agrees with the pink card within 5 %: one layer of Black hides about two
+  thirds of the fabric at 2 rows/mm and nearly all of it at 4.5.
+- At 6 rows/mm Red, Blue and Yellow read lighter than at 4.5 on both fabrics: dense stitching
+  reflects more light.
+- A stray Blue thread lies over part of the 1 rows/mm swatch; the "T1" mark is still uneven.
+- The same session sewed the sunset photo patch, the machine checks, *Region sew types 2* and
+  *Background fill*: all sewed whole, and stippling and the flexible spiral no longer stitch in
+  place (fixed in alpha.11). The zigzag net fill sews lumpy and is being looked at.
+
+<img src="calibration/results/2026-11-04-round2-all.jpg" width="480" alt="Scan of the second sew-out session">
+
+The record is
+[calibration/results/2026-11-04-nv880e-new-brothread-white.json](calibration/results/2026-11-04-nv880e-new-brothread-white.json).
 
 ## Keeping the kit current
 
