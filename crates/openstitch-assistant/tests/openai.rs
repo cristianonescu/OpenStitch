@@ -351,9 +351,17 @@ fn tool_round_streamed_across_chunks_with_two_parallel_calls() {
     assert_eq!(
         second[4],
         json!({"role": "tool", "tool_call_id": "call_b",
-               "content": "a picture\n(image omitted: this endpoint takes text tool results)"})
+               "content": "a picture\n(picture: in the next user message)"})
     );
-    assert_eq!(second.as_array().map(Vec::len), Some(5));
+    // Tool messages take text only (A2), so the picture follows as a user image part (A4).
+    assert_eq!(second[5]["role"], "user");
+    assert_eq!(second[5]["content"][0]["type"], "image_url");
+    assert!(
+        second[5]["content"][0]["image_url"]["url"]
+            .as_str()
+            .is_some_and(|u| u.starts_with("data:image/png;base64,"))
+    );
+    assert_eq!(second.as_array().map(Vec::len), Some(6));
 }
 
 #[test]

@@ -230,7 +230,37 @@ fn text_in_scripts_the_font_lacks_is_missing_not_unshaped() {
     assert_eq!(r["missing"], json!([]));
 }
 
-/// CJK through a system font, when the machine has one (fonts are never bundled for this).
+/// CJK through the bundled Noto Sans JP test subset, so the check runs on every machine (#345).
+#[test]
+fn cjk_text_with_the_bundled_test_font() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/fonts/NotoSansJP-TestSubset.ttf");
+    let mut s = Session::new(temp_dir());
+    run(
+        &mut s,
+        "fonts.loadTrueType",
+        json!({ "path": path.display().to_string(), "id": "cjk" }),
+    );
+    let r = run(
+        &mut s,
+        "text.add",
+        json!({"text": "\u{4E2D}\u{6587}\u{65E5}\u{672C}", "font": "cjk", "size": 20}),
+    );
+    assert_eq!(r["glyphs"], 4);
+    assert_eq!(r["missing"], json!([]));
+    assert_eq!(r["shaping"], json!([]));
+    let stats = run(&mut s, "design.generate", json!({}));
+    assert!(stats["stitches"].as_u64() > Some(500), "{stats}");
+    // A character the subset does not have is reported, not dropped silently.
+    let r = run(
+        &mut s,
+        "object.setText",
+        json!({"id": 1, "text": "\u{4E2D}\u{56FD}"}),
+    );
+    assert_eq!(r["missing"], json!(["\u{56FD}"]));
+}
+
+/// CJK through a full system font as well, when the machine has one.
 #[test]
 fn cjk_text_with_a_system_font() {
     let candidates = [
@@ -242,7 +272,7 @@ fn cjk_text_with_a_system_font() {
         "C:\\Windows\\Fonts\\msgothic.ttc",
     ];
     let Some(path) = candidates.iter().map(Path::new).find(|p| p.exists()) else {
-        eprintln!("no CJK system font; skipped");
+        eprintln!("no CJK system font; the bundled font's test covers this");
         return;
     };
     let tmp = temp_dir();

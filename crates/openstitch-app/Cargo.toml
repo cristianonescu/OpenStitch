@@ -29,6 +29,9 @@ openstitch-mcp = { path = "../openstitch-mcp" }
 keyring = { version = "3.6", default-features = false, features = ["apple-native", "windows-native", "async-secret-service", "async-io", "crypto-rust"] }
 # Size-limited PNG/JPEG/BMP decoding for the background reference image.
 openstitch-digitize = { path = "../openstitch-digitize" }
+# Assistant attachments (B17 A4): pictures scaled to 2048 px and re-encoded; same image as
+# openstitch-digitize.
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "bmp"] }
 # Images on the clipboard (already used by eframe for text).
 arboard = "3.7"
 serde_json.workspace = true

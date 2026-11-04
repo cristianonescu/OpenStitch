@@ -14,36 +14,36 @@ The coordinators (Mac: image digitizing, the AI assistant, the kit and calibrati
 tooling, tests; Windows: the stitch engine, formats, lettering and the release gate) refresh
 this file at each day's close-out.
 
-Updated 2026-11-04, for the round after v0.1.0-alpha.12.
+Updated 2026-11-04 evening, for the round after v0.1.0-alpha.12. Merged since the morning: #361, #363, #371, #381, #382, #383, #387.
 
 ## In flight (finishing as they are)
 
 | PR | What | Owner |
 |---|---|---|
 | #299 | Sew-out round 2: locks, zigzag net, T1 card and laurel fixes, calibrated coverage, the regenerated kit | Windows |
-| #361 | SVG import keeps `<line>` elements (#341) | Windows |
-| #303 (session) | Fill rows clipped to a notch | Windows |
-| #320 | Export Singer CSD and Viking SHV | Windows |
-| #321 | Import WMF/EMF vector images as shapes | Windows |
-| #363 | PES 0110: page, hoop, machine type and sections from the design (#322) | Windows |
+| #369 | Export Singer CSD and Viking SHV (#320) | Windows |
+| #321 (branch, PR after #369) | Import WMF/EMF vector images as shapes | Windows |
+| #395 | Assistant panel polish (#394): framed icon buttons, chat bubbles, light Markdown, keys read back after Remove, throwaway profile (`OPENSTITCH_CONFIG_DIR`, `OPENSTITCH_KEYCHAIN_SERVICE`) | Mac |
+| `batch:ci-tooling` (branch) | #357, #366, #367 | Mac |
 
 ## Mac batches
 
 | Batch | Area | Issues | Notes |
 |---|---|---|---|
-| `batch:image-digitizing` | `openstitch-digitize` (autopunch, grabcut, photo, screen), the image dialog | #350, #355, #291, #129 | #350 is built on `feat/autopunch-strokes` (81d659b); #129 and #291 use the T1 card measurements |
+| `batch:image-digitizing` (round 2) | `openstitch-digitize` (photo, the scorer), the image dialog | #291, #129 | After #299 merges (photo.rs). #129's design record and the earlier WIP diff are on the issue |
 | `batch:kit-calibration` | `tools/sew_kit.py`, `examples/sew`, `tools/sew_check.py` | #295, #311, #312 | Starts after #299 merges (it owns the kit until then) |
-| `batch:ai-assistant` | `openstitch-assistant`, the assistant UI, `openstitch-mcp` | #364, #365 | #365 includes the first real-model run (Claude, a local model, a coding agent) |
-| `batch:ci-tooling` | `.github/workflows`, Cargo profiles, test helpers | #357, #366, #367 | Release workflows need the Windows coordinator's OK |
-| `batch:tests` | new test files only | #345 plus coverage gaps from `docs/TEST_COVERAGE_AUDIT.md` | #345 is built on `test/bundled-script-fonts` (c1e7aba) |
+| `batch:ai-verify` | `openstitch-assistant`, the assistant UI | #390 (Claude Code loads the user's own skills), #392 (Ollama run, network off), #393 (composer controls by hand) | After #395. Real runs use a throwaway profile, never the user's key or settings |
+| `batch:icons` | `assets/icons`, `assistant_panel.rs`, a CI source scan | #399 (Higgsfield attach, close and settings icons), #400 (guard: no emoji or hand-drawn icons, every icon has a Higgsfield job) | After #395 |
+| `batch:ci-tooling` | `.github/workflows`, Cargo profiles, test helpers | #357, #366, #367 | In progress; release workflows need the Windows coordinator's OK |
 
 ## Windows batches
 
 | Batch | Area | Issues | Notes |
 |---|---|---|---|
-| `batch:stitch-engine` | `openstitch-design` (region.rs, regions.rs) | #304, #354, #288, Half Stitch for Auto satin, Miter limit | #288 closes once the regenerated T1 mark is checked (its cause was #297); the last two issues are to be opened |
-| `batch:formats` | `openstitch-formats`, PES writers | PES versions 4, 5 and 7–10; audit item 9 (PE-made PES files lose objects on re-save) | After the in-flight format PRs; issues to be opened |
-| `batch:lettering` | compile.rs, strokes.rs | stroke-wise fill lettering, Connection Points (audit items 6 and 11) | After `batch:stitch-engine` (both touch compile.rs) |
+| `batch:stitch-engine` | `openstitch-design` (region.rs, regions.rs) | #304, #354, #288, #372 (Half Stitch for Auto satin), #373 (Miter limit) | #288 closes once the regenerated T1 mark is checked (its cause was #297) |
+| `batch:formats` | `openstitch-formats`, PES writers | #374 (PES versions 4, 5 and 7–10), #375 (PE-made PES files lose objects on re-save, audit item 9) | After the in-flight format PRs |
+| `batch:lettering` | compile.rs, strokes.rs | #376 (stroke-wise fill lettering) | After `batch:stitch-engine` (both touch compile.rs) |
+| `batch:assistant-platforms` | the Assistant on Windows (and Linux if CI can host a Secret Service) | #401 | After #395. Throwaway profile only; a real Claude API turn needs the owner's own key, otherwise real turns go through Claude Code |
 
 ## Blocked
 
@@ -52,4 +52,5 @@ Updated 2026-11-04, for the round after v0.1.0-alpha.12.
 | #130 PMV motif/pattern reader | Owner-made files and screen access |
 | #134 External scalable font containers | Owner-made files and screen access |
 | #120 PES 0110 editable-object writer | The owner (the card for it was dismissed on 2026-11-04) |
+| #377 Connection Points | Owner captures in a built-in PE-DESIGN font (Connection Points is greyed out for TrueType fonts); the captures stay outside the repo and only measurements taken from them may be committed |
 | T1/T8 image-similarity steps | The calibration sew-outs and the counsel record (see `research/beyond/image-similarity-plan.md`) |

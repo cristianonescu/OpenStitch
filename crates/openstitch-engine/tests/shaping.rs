@@ -154,9 +154,143 @@ fn name_drop_resets_character_edits() {
     assert!(spec(&s, 1).characters.is_empty());
 }
 
-/// Hebrew and Arabic through a system font, when the machine has one with both (fonts with
-/// these scripts are not bundled). Arial and DejaVu Sans have a legacy `kern` table, which once
-/// left unkerned right-to-left text in logical order (see `shaping::without_kern_table`).
+/// The bundled test font `file` (tests/fixtures/fonts, see PROVENANCE.md there), loaded as `id`.
+fn load_fixture_font(s: &mut Session, file: &str, id: &str) {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/fonts")
+        .join(file);
+    run(
+        s,
+        "fonts.loadTrueType",
+        json!({ "path": path.display().to_string(), "id": id }),
+    );
+}
+
+/// Hebrew runs right to left beside a Latin word, and Arabic letters join, in the fonts loaded
+/// as `hebrew` and `arabic`; both texts are added and sewn without warnings.
+fn assert_right_to_left(s: &mut Session, hebrew: &str, arabic: &str) {
+    let fonts = s.design().fonts.clone();
+    let lay = |t: &str, font: &str| {
+        text::layout_in(&TextSpec::new(t, font, 10.0), None, &fonts).expect("layout")
+    };
+    // A character may be drawn as several glyphs (Noto's Arabic letters: a base and its dots).
+    let contours = |l: &text::Layout, index: usize| {
+        l.glyphs
+            .iter()
+            .filter(|g| g.index == index)
+            .flat_map(|g| g.contours.clone())
+            .collect::<Vec<_>>()
+    };
+    let centre = |l: &text::Layout, index: usize| {
+        Rect::enclosing(contours(l, index).iter().flat_map(|c| c.outline_points()))
+            .expect("bounds")
+            .center()
+            .x
+    };
+
+    // Hebrew runs right to left; a Latin word before it stays on the left.
+    let l = lay("ab \u{05E9}\u{05DC}\u{05D5}\u{05DD}", hebrew);
+    assert!(
+        l.missing.is_empty() && l.shaping.is_empty(),
+        "{:?} {:?}",
+        l.missing,
+        l.shaping
+    );
+    assert!(centre(&l, 0) < centre(&l, 1), "Latin left to right");
+    assert!(
+        centre(&l, 3) > centre(&l, 4) && centre(&l, 4) > centre(&l, 6),
+        "Hebrew right to left"
+    );
+    assert!(
+        centre(&l, 1) < centre(&l, 6),
+        "Latin before (left of) the Hebrew"
+    );
+
+    // Arabic letters join: a medial beh is not the isolated beh, and the word is right to left.
+    let isolated = lay("\u{0628}", arabic);
+    let word = lay("\u{0628}\u{0628}\u{0628}", arabic);
+    assert!(word.missing.is_empty(), "{:?}", word.missing);
+    let drawn: std::collections::BTreeSet<usize> = word.outlined().map(|g| g.index).collect();
+    assert_eq!(drawn, [0, 1, 2].into(), "every letter drawn");
+    let shift = |c: &openstitch_design::Contour| {
+        let b = Rect::enclosing(c.outline_points()).expect("b");
+        (b.width().round(), b.height().round())
+    };
+    assert_ne!(
+        contours(&word, 1).iter().map(shift).collect::<Vec<_>>(),
+        contours(&isolated, 0).iter().map(shift).collect::<Vec<_>>(),
+        "contextual form"
+    );
+    assert!(centre(&word, 0) > centre(&word, 2));
+
+    // Through the engine: added, sewn, no warnings.
+    for (t, font) in [
+        ("\u{0633}\u{0644}\u{0627}\u{0645}", arabic),
+        ("\u{05E9}\u{05DC}\u{05D5}\u{05DD}", hebrew),
+    ] {
+        let r = run(s, "text.add", json!({"text": t, "font": font, "size": 15}));
+        assert_eq!(r["missing"], json!([]), "{r}");
+        assert_eq!(r["shaping"], json!([]), "{r}");
+    }
+    let stats = run(s, "design.generate", json!({}));
+    assert!(stats["stitches"].as_u64() > Some(200), "{stats}");
+}
+
+/// Hebrew and Arabic through the bundled Noto test fonts, so the check runs on every machine
+/// (#345).
+#[test]
+fn right_to_left_scripts_with_the_bundled_test_fonts() {
+    let mut s = Session::new(temp_dir());
+    load_fixture_font(&mut s, "NotoSansHebrew-TestSubset.ttf", "hebrew");
+    load_fixture_font(&mut s, "NotoSansArabic-TestSubset.ttf", "arabic");
+    assert_right_to_left(&mut s, "hebrew", "arabic");
+}
+
+/// Devanagari is reordered: in \u{0915}\u{093F} (ki) the vowel sign i, typed after the
+/// consonant, is drawn before (left of) it; the consonant keeps its own outline.
+#[test]
+fn devanagari_vowel_sign_i_is_drawn_before_its_consonant() {
+    let mut s = Session::new(temp_dir());
+    load_fixture_font(&mut s, "NotoSansDevanagari-TestSubset.ttf", "deva");
+    let fonts = s.design().fonts.clone();
+    let lay =
+        |t: &str| text::layout_in(&TextSpec::new(t, "deva", 10.0), None, &fonts).expect("layout");
+    let size = |g: &text::Glyph| {
+        let b = Rect::enclosing(g.contours.iter().flat_map(|c| c.outline_points())).expect("b");
+        ((b.width() * 100.0).round(), (b.height() * 100.0).round())
+    };
+    let ka = lay("\u{0915}");
+    assert!(ka.missing.is_empty() && ka.shaping.is_empty());
+    let ka_size = size(&ka.glyphs[0]);
+
+    let ki = lay("\u{0915}\u{093F}");
+    assert!(ki.missing.is_empty(), "{:?}", ki.missing);
+    let mut drawn: Vec<&text::Glyph> = ki
+        .glyphs
+        .iter()
+        .filter(|g| !g.contours.is_empty())
+        .collect();
+    assert_eq!(drawn.len(), 2, "consonant and vowel sign");
+    let left = |g: &text::Glyph| {
+        Rect::enclosing(g.contours.iter().flat_map(|c| c.outline_points()))
+            .expect("b")
+            .min_x
+    };
+    drawn.sort_by(|a, b| left(a).total_cmp(&left(b)));
+    assert_ne!(size(drawn[0]), ka_size, "the vowel sign comes first");
+    assert_eq!(size(drawn[1]), ka_size, "then the consonant");
+
+    let r = run(
+        &mut s,
+        "text.add",
+        json!({"text": "\u{0915}\u{093F}", "font": "deva", "size": 15}),
+    );
+    assert_eq!(r["missing"], json!([]), "{r}");
+}
+
+/// Hebrew and Arabic through a system font as well, when the machine has one with both. Arial
+/// and DejaVu Sans have a legacy `kern` table, which once left unkerned right-to-left text in
+/// logical order (see `shaping::without_kern_table`).
 #[test]
 fn right_to_left_scripts_with_a_system_font() {
     let candidates = [
@@ -178,7 +312,9 @@ fn right_to_left_scripts_with_a_system_font() {
         })
     };
     let Some(path) = candidates.iter().map(Path::new).find(|p| covers(p)) else {
-        eprintln!("no system font with the Hebrew and Arabic test characters; skipped");
+        eprintln!(
+            "no system font with the Hebrew and Arabic test characters; the bundled fonts' test covers this"
+        );
         return;
     };
     let tmp = temp_dir();
@@ -192,64 +328,5 @@ fn right_to_left_scripts_with_a_system_font() {
         eprintln!("{} is not loadable here; skipped", path.display());
         return;
     }
-    let fonts = s.design().fonts.clone();
-    let lay =
-        |t: &str| text::layout_in(&TextSpec::new(t, "rtl", 10.0), None, &fonts).expect("layout");
-    let centre = |l: &text::Layout, index: usize| {
-        let g = l.glyphs.iter().find(|g| g.index == index).expect("glyph");
-        Rect::enclosing(g.contours.iter().flat_map(|c| c.outline_points()))
-            .expect("bounds")
-            .center()
-            .x
-    };
-
-    // Hebrew runs right to left; a Latin word before it stays on the left.
-    let l = lay("ab \u{05E9}\u{05DC}\u{05D5}\u{05DD}");
-    assert!(
-        l.missing.is_empty() && l.shaping.is_empty(),
-        "{:?} {:?}",
-        l.missing,
-        l.shaping
-    );
-    assert!(centre(&l, 0) < centre(&l, 1), "Latin left to right");
-    assert!(
-        centre(&l, 3) > centre(&l, 4) && centre(&l, 4) > centre(&l, 6),
-        "Hebrew right to left"
-    );
-    assert!(
-        centre(&l, 1) < centre(&l, 6),
-        "Latin before (left of) the Hebrew"
-    );
-
-    // Arabic letters join: a medial beh is not the isolated beh, and the word is right to left.
-    let isolated = lay("\u{0628}");
-    let word = lay("\u{0628}\u{0628}\u{0628}");
-    assert!(word.missing.is_empty(), "{:?}", word.missing);
-    assert_eq!(word.outlined().count(), 3);
-    let middle = word.glyphs.iter().find(|g| g.index == 1).expect("medial");
-    let shift = |c: &openstitch_design::Contour| {
-        let b = Rect::enclosing(c.outline_points()).expect("b");
-        (b.width().round(), b.height().round())
-    };
-    assert_ne!(
-        middle.contours.iter().map(shift).collect::<Vec<_>>(),
-        isolated.glyphs[0]
-            .contours
-            .iter()
-            .map(shift)
-            .collect::<Vec<_>>(),
-        "contextual form"
-    );
-    assert!(centre(&word, 0) > centre(&word, 2));
-
-    // Through the engine: added, sewn, no warnings.
-    let r = run(
-        &mut s,
-        "text.add",
-        json!({"text": "\u{0633}\u{0644}\u{0627}\u{0645} \u{05E9}\u{05DC}\u{05D5}\u{05DD}", "font": "rtl", "size": 15}),
-    );
-    assert_eq!(r["missing"], json!([]), "{r}");
-    assert_eq!(r["shaping"], json!([]), "{r}");
-    let stats = run(&mut s, "design.generate", json!({}));
-    assert!(stats["stitches"].as_u64() > Some(200), "{stats}");
+    assert_right_to_left(&mut s, "rtl", "rtl");
 }

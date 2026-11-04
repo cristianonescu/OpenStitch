@@ -7,6 +7,7 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+base64 = "0.23.1"
 serde_json.workspace = true
 # Blocking HTTPS client; rustls with the bundled Mozilla roots, no async runtime.
 ureq = { version = "3", default-features = false, features = ["rustls", "gzip"] }

@@ -477,6 +477,9 @@ impl AcpConversation {
                 Ok(FromAgent::Response { id: got, result }) if got == id => {
                     return match result {
                         Ok(v) => {
+                            if let Some(u) = v.get("usage") {
+                                on_event(usage(u));
+                            }
                             let stop = stop_kind(&v);
                             if stop == StopKind::Cancelled {
                                 turn.finish_cancelled(on_event);
@@ -487,9 +490,7 @@ impl AcpConversation {
                             turn.finish_cancelled(on_event);
                             StopKind::Cancelled
                         }
-                        Err((code, message)) => {
-                            StopKind::Error(format!("The agent failed ({code}): {message}"))
-                        }
+                        Err((code, message)) => StopKind::Error(prompt_error(code, &message)),
                     };
                 }
                 Ok(FromAgent::Response { .. }) | Err(RecvTimeoutError::Timeout) => {}
@@ -549,6 +550,8 @@ struct Turn {
 #[derive(Default)]
 struct TurnTool {
     name: String,
+    /// The latest non-empty `rawInput`.
+    input: Option<Value>,
     called: bool,
     done: bool,
 }
@@ -604,18 +607,25 @@ impl Turn {
         if let Some(l) = label {
             tool.name = l.to_string();
         }
-        if !tool.called
-            && let Some(input) = u.get("rawInput").filter(|v| !v.is_null())
+        // Claude Code sends `rawInput: {}` first, then the arguments as they stream (partial
+        // ones too), so the call is reported when it finishes, with the last arguments (#388).
+        if let Some(input) = u
+            .get("rawInput")
+            .filter(|v| !v.is_null() && v.as_object().is_none_or(|o| !o.is_empty()))
         {
+            tool.input = Some(input.clone());
+        }
+        let status = u.get("status").and_then(Value::as_str);
+        let finished = matches!(status, Some("completed" | "failed"));
+        if !tool.called && finished {
             tool.called = true;
             on_event(Event::ToolCall {
                 id: id.to_string(),
                 name: tool.name.clone(),
-                input: input.clone(),
+                input: tool.input.clone().unwrap_or_else(|| json!({})),
             });
         }
-        let status = u.get("status").and_then(Value::as_str);
-        if !tool.done && matches!(status, Some("completed" | "failed")) {
+        if !tool.done && finished {
             tool.done = true;
             let is_error = status == Some("failed");
             let summary = protocol::tool_output(u)
@@ -669,11 +679,15 @@ mod tests {
         let mut events = Vec::new();
         let mut push = |e| events.push(e);
         turn.update(
-            &json!({"sessionUpdate": "tool_call", "toolCallId": "t", "title": "mcp__openstitch-app__batch", "status": "pending"}),
+            &json!({"sessionUpdate": "tool_call", "toolCallId": "t", "title": "mcp__openstitch-app__batch", "status": "pending", "rawInput": {}}),
             &mut push,
         );
         turn.update(
-            &json!({"sessionUpdate": "tool_call_update", "toolCallId": "t", "rawInput": {"a": 1}, "status": "in_progress"}),
+            &json!({"sessionUpdate": "tool_call_update", "toolCallId": "t", "rawInput": {"a": 0}, "status": "in_progress"}),
+            &mut push,
+        );
+        turn.update(
+            &json!({"sessionUpdate": "tool_call_update", "toolCallId": "t", "rawInput": {"a": 1}}),
             &mut push,
         );
         turn.update(
@@ -705,6 +719,58 @@ mod tests {
                     summary: "ok".into()
                 },
             ]
+        );
+    }
+}
+
+/// The `usage` of a `session/prompt` result (claude-agent-acp 0.100.0, measured 2026-11-04:
+/// `inputTokens`, `outputTokens`, `cachedReadTokens`, `cachedWriteTokens`) as a usage event (#389).
+fn usage(u: &Value) -> Event {
+    let n = |k: &str| u.get(k).and_then(Value::as_u64).unwrap_or(0);
+    Event::Usage {
+        input_tokens: n("inputTokens"),
+        output_tokens: n("outputTokens"),
+        cache_read_input_tokens: n("cachedReadTokens"),
+        cache_creation_input_tokens: n("cachedWriteTokens"),
+    }
+}
+
+/// A failed `session/prompt`. Claude Code (claude-agent-acp 0.100.0, measured 2026-11-04) accepts
+/// `initialize` and `session/new` while signed out and refuses only here, with -32000 (#385).
+fn prompt_error(code: i64, message: &str) -> String {
+    if code == AUTH_REQUIRED {
+        format!(
+            "The agent needs you to sign in first ({message}). Sign in with its own login in a \
+             terminal (Claude Code: claude auth login; Codex: codex login), then send again."
+        )
+    } else {
+        format!("The agent failed ({code}): {message}")
+    }
+}
+
+#[cfg(test)]
+mod prompt_error_tests {
+    #[test]
+    fn the_prompt_results_usage_is_counted() {
+        let u = serde_json::json!({"inputTokens": 2, "outputTokens": 4, "cachedReadTokens": 11268, "cachedWriteTokens": 25859});
+        assert_eq!(
+            super::usage(&u),
+            super::Event::Usage {
+                input_tokens: 2,
+                output_tokens: 4,
+                cache_read_input_tokens: 11268,
+                cache_creation_input_tokens: 25859
+            }
+        );
+    }
+
+    #[test]
+    fn a_sign_in_refusal_at_prompt_says_how_to_sign_in() {
+        let m = super::prompt_error(-32000, "Authentication required");
+        assert!(m.contains("claude auth login"), "{m}");
+        assert_eq!(
+            super::prompt_error(-32603, "boom"),
+            "The agent failed (-32603): boom"
         );
     }
 }
