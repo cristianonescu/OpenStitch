@@ -1,7 +1,8 @@
 //! Coverage for `EditorApp` behaviour FEATURE_MATRIX claims that no other test asserts (#332):
 //! File ▸ Import into design, the undo/redo and arrow-nudge keys, the simulator's play, and the
-//! window close request going through the unsaved-changes prompt. A child module of `app` so it
-//! can drive the private frame steps (`shortcuts`, `tick`, `close_request`) as `update` does.
+//! window close request going through the unsaved-changes prompt; and the Fit Text dialog
+//! remembering its last choices (#351). A child module of `app` so it can drive the private
+//! frame steps (`shortcuts`, `tick`, `close_request`) as `update` does.
 
 use super::*;
 
@@ -228,4 +229,55 @@ fn closing_the_window_with_unsaved_changes_opens_the_prompt() {
     app.approve_exit();
     assert!(!close(&mut app));
     assert!(!app.close_prompt.is_open());
+}
+
+#[test]
+fn fit_text_dialog_remembers_its_last_choices_and_shows_a_fitted_texts_own() {
+    use crate::lettering_ui::{fit_request, open_fit};
+    use openstitch_design::{Spread, TextAlign, VAlign};
+    let mut app = EditorApp::new(Launch::default());
+    app.execute(&rectangle(10.0)).expect("outline");
+    let outline = app.session.design().objects[0].id;
+    let add_text = |app: &mut EditorApp, word: &str| {
+        app.execute(&CommandRequest::new(
+            "text.add",
+            json!({ "text": word, "x": 60, "y": 20 }),
+        ))
+        .expect("text");
+        app.session.design().objects.last().expect("text").id
+    };
+    let first = add_text(&mut app, "Hi");
+    let second = add_text(&mut app, "Yo");
+
+    // An unfitted text opens with the defaults; the choices made are sent on OK.
+    open_fit(&mut app, first, outline);
+    assert_eq!(app.lettering.fit.open, Some((first, outline)));
+    let f = &mut app.lettering.fit;
+    (f.align, f.spread, f.valign) = (TextAlign::Right, Spread::None, VAlign::Top);
+    (f.upright, f.other_side) = (true, true);
+    let r = fit_request(&app.lettering.fit, first, outline);
+    app.execute(&r).expect("fit");
+    app.lettering.fit.open = None;
+
+    // Another unfitted text: the dialog shows the last choices, not the defaults.
+    open_fit(&mut app, second, outline);
+    let f = &app.lettering.fit;
+    assert_eq!(f.open, Some((second, outline)));
+    assert_eq!(
+        (f.align, f.spread, f.valign, f.upright, f.other_side),
+        (TextAlign::Right, Spread::None, VAlign::Top, true, true),
+        "the last choices are remembered"
+    );
+
+    // A fitted text: the dialog shows that text's own settings.
+    app.lettering.fit.open = None;
+    let f = &mut app.lettering.fit;
+    (f.align, f.valign, f.upright, f.other_side) = (TextAlign::Left, VAlign::Bottom, false, false);
+    open_fit(&mut app, first, outline);
+    let f = &app.lettering.fit;
+    assert_eq!(
+        (f.align, f.spread, f.valign, f.upright, f.other_side),
+        (TextAlign::Right, Spread::None, VAlign::Top, true, true),
+        "a fitted text shows its own settings"
+    );
 }
