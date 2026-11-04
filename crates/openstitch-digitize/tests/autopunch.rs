@@ -1076,7 +1076,7 @@ fn subject_on_background() -> Raster {
 
 #[test]
 fn isolate_subject_leaves_out_the_background_whatever_its_colour() {
-    use openstitch_digitize::grabcut::{self, Seed};
+    use openstitch_digitize::grabcut::{self, Marks, Seed};
     let img = subject_on_background();
     let frame = Frame::new(0.0, 0.0, 80.0, 80); // 1 mm per pixel
     let p = AutoPunch {
@@ -1136,7 +1136,8 @@ fn isolate_subject_leaves_out_the_background_whatever_its_colour() {
 
     // The mask itself, pinned: the same on every OS (deterministic maths, integer flow).
     let census = palette::census(&img);
-    let mask = grabcut::isolate(&census.modal, 80, 60, Seed::Border).expect("a subject");
+    let mask = grabcut::isolate(&census.modal, 80, 60, Seed::Border, &Marks::default())
+        .expect("a subject");
     let fg = mask.iter().filter(|&&m| m).count();
     let hash = mask.iter().fold(0xcbf29ce484222325u64, |h, &m| {
         (h ^ m as u64).wrapping_mul(0x100000001b3)
@@ -1156,10 +1157,166 @@ fn isolate_subject_leaves_out_the_background_whatever_its_colour() {
 
 #[test]
 fn isolate_subject_needs_something_to_learn_the_background_from() {
-    use openstitch_digitize::grabcut::{self, Seed};
+    use openstitch_digitize::grabcut::{self, Marks, Seed};
     let census = palette::census(&rects(20, 20, RED, &[]));
     // A rectangle over the whole image leaves no background to learn from.
-    assert!(grabcut::isolate(&census.modal, 20, 20, Seed::Rect([0.0, 0.0, 1.0, 1.0])).is_none());
-    // A flat image: the border's colour is everywhere, so no subject.
-    assert!(grabcut::isolate(&census.modal, 20, 20, Seed::Border).is_none());
+    assert!(
+        grabcut::isolate(
+            &census.modal,
+            20,
+            20,
+            Seed::Rect([0.0, 0.0, 1.0, 1.0]),
+            &Marks::default()
+        )
+        .is_none()
+    );
+    // A flat image: the border's colour is everywhere, so the cut finds no subject (#355).
+    let flat = grabcut::isolate(&census.modal, 20, 20, Seed::Border, &Marks::default())
+        .expect("a cut was made");
+    assert!(flat.iter().all(|&s| !s));
+}
+
+#[test]
+fn isolate_subject_that_finds_no_subject_is_an_error() {
+    use openstitch_digitize::grabcut::{Marks, Seed, Stroke};
+    // #355: a background stroke over the yellow stripe at width 0.12 also covers red rows, so
+    // the background model learns red too and the cut keeps nothing. The picture is not sewn
+    // whole in its place: the user asked for isolation, so they are told.
+    let img = subject_on_background();
+    let frame = Frame::new(0.0, 0.0, 80.0, 80);
+    let p = AutoPunch {
+        colors: 4,
+        mode: Mode::OpenStitch,
+        resolution: 80,
+        isolate: Some(Seed::Border),
+        marks: Marks {
+            subject: Vec::new(),
+            background: vec![Stroke {
+                points: vec![[0.25, 0.5], [0.75, 0.5]],
+                width: 0.12,
+            }],
+        },
+        ..Default::default()
+    };
+    match autopunch::convert(&img, &frame, &p) {
+        Err(DigitizeError::Empty(m)) => assert!(m.contains("no subject"), "{m}"),
+        Err(e) => panic!("wrong error: {e}"),
+        Ok(out) => panic!("converted with {} threads", out.threads.len()),
+    }
+}
+
+/// Fruit in a bowl on a table, the bowl the table's brown with a 2 px darker rim (p07's case,
+/// #350; a 1 px rim does not survive the census's 3×3 modal filter):
+/// sky above y 24, table below; orange fruit at x 25..55, y 14..30; the bowl x 20..60, y 30..44.
+fn bowl_on_table() -> Raster {
+    const SKY: [u8; 4] = [200, 210, 220, 255];
+    const TABLE: [u8; 4] = [120, 80, 50, 255];
+    const RIM: [u8; 4] = [70, 45, 30, 255];
+    const ORANGE: [u8; 4] = [240, 140, 20, 255];
+    Raster::from_fn(80, 60, |x, y| {
+        let n = ((x * 7 + y * 13) % 5) as u8;
+        let jitter = |c: [u8; 4]| [c[0] - n, c[1] - n, c[2] - n, 255];
+        let bowl = (20..60).contains(&x) && (30..44).contains(&y);
+        let rim = bowl && (!(22..58).contains(&x) || y >= 42);
+        if rim {
+            jitter(RIM)
+        } else if bowl {
+            jitter(TABLE)
+        } else if (25..55).contains(&x) && (14..30).contains(&y) {
+            jitter(ORANGE)
+        } else if y < 24 {
+            jitter(SKY)
+        } else {
+            jitter(TABLE)
+        }
+    })
+    .expect("valid size")
+}
+
+#[test]
+fn marked_strokes_keep_a_subject_part_of_the_background_colour() {
+    use openstitch_digitize::grabcut::{self, Marks, Seed, Stroke};
+    let census = palette::census(&bowl_on_table());
+    let bowl = |m: &[bool]| {
+        (0..80 * 60)
+            .filter(|&i| m[i] && (22..58).contains(&(i % 80)) && (30..42).contains(&(i / 80)))
+            .count()
+    };
+    let table = |m: &[bool]| {
+        (0..80 * 60)
+            .filter(|&i| {
+                let (x, y) = (i % 80, i / 80);
+                m[i] && y >= 24 && !((19..61).contains(&x) && (13..45).contains(&y))
+            })
+            .count()
+    };
+    // The cut alone takes the fruit and leaves the bowl with the table.
+    let plain = grabcut::isolate(&census.modal, 80, 60, Seed::Border, &Marks::default())
+        .expect("a subject");
+    assert!(bowl(&plain) <= 4, "bowl kept: {}", bowl(&plain));
+    // One subject line through the bowl keeps all of it, up to its rim, and none of the table.
+    let line = Stroke {
+        points: vec![[0.3, 0.6], [0.7, 0.6]],
+        width: 0.05,
+    };
+    let marks = Marks {
+        subject: vec![line.clone()],
+        background: Vec::new(),
+    };
+    let marked = grabcut::isolate(&census.modal, 80, 60, Seed::Border, &marks).expect("a subject");
+    assert_eq!((bowl(&marked), table(&marked)), (36 * 12, 0));
+    // A background stroke over the fruit's left end takes it out; where it crosses the subject
+    // line, the subject wins.
+    let cut = Stroke {
+        points: vec![[0.35, 0.2], [0.35, 0.65]],
+        width: 0.05,
+    };
+    let marks = Marks {
+        subject: vec![line.clone()],
+        background: vec![cut.clone()],
+    };
+    let both = grabcut::isolate(&census.modal, 80, 60, Seed::Border, &marks).expect("a subject");
+    let under = grabcut::rasterize(&[cut], 80, 60);
+    let kept = grabcut::rasterize(&[line], 80, 60);
+    for i in 0..80 * 60 {
+        if kept[i] {
+            assert!(both[i], "subject wins at {i}");
+        } else if under[i] {
+            assert!(!both[i], "background stroke at {i}");
+        }
+    }
+    let hash = both.iter().fold(0xcbf29ce484222325u64, |h, &m| {
+        (h ^ m as u64).wrapping_mul(0x100000001b3)
+    });
+    assert_eq!(hash, 16893660317083678623, "FNV-1a hash of the marked mask");
+}
+
+#[test]
+fn strokes_rasterize_as_round_capped_bands() {
+    use openstitch_digitize::grabcut::{Stroke, rasterize};
+    // A dot of width 0.2 on a 20 × 10 grid: radius 1 px around (10, 5).
+    let dot = rasterize(
+        &[Stroke {
+            points: vec![[0.5, 0.5]],
+            width: 0.2,
+        }],
+        20,
+        10,
+    );
+    let on: Vec<(usize, usize)> = (0..200)
+        .filter(|&i| dot[i])
+        .map(|i| (i % 20, i / 20))
+        .collect();
+    assert_eq!(on, vec![(9, 4), (10, 4), (9, 5), (10, 5)]);
+    // A hairline still marks every pixel it passes through.
+    let line = rasterize(
+        &[Stroke {
+            points: vec![[0.0, 0.05], [1.0, 0.05]],
+            width: 0.0,
+        }],
+        20,
+        10,
+    );
+    assert!((0..20).all(|x| line[x]));
+    assert!((20..200).all(|i| !line[i]));
 }

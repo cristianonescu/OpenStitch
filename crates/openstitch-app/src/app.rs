@@ -173,6 +173,9 @@ pub struct EditorApp {
     pub edit: crate::edit_ui::EditState,
     /// Image to Embroidery dialog.
     pub wizard: openstitch_app::editor::wizard::ImageWizard,
+    /// The Image to Embroidery dialog's marking preview: the image it shows, its size in
+    /// pixels, its texture (#350).
+    pub wizard_preview: Option<(std::path::PathBuf, (u32, u32), egui::TextureHandle)>,
     /// Lettering menu dialogs.
     pub lettering: crate::lettering_ui::LetteringState,
     /// Programmable Stitch Creator window.
@@ -273,6 +276,7 @@ impl EditorApp {
             workspace: Default::default(),
             edit: Default::default(),
             wizard: Default::default(),
+            wizard_preview: None,
             lettering: Default::default(),
             creator: Default::default(),
             sewing: Default::default(),

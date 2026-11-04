@@ -14,6 +14,12 @@ formats = ["openstitch-engine/formats"]
 openstitch-engine = { path = "../openstitch-engine" }
 openstitch-remote = { path = "../openstitch-remote" }
 openstitch-compat = { path = "../openstitch-compat" }
+# bench-assistant (B17 A5): the assistant's client and tools over a headless editor.
+openstitch-assistant = { path = "../openstitch-assistant" }
+openstitch-design = { path = "../openstitch-design" }
+openstitch-mcp = { path = "../openstitch-mcp" }
+openstitch-render = { path = "../openstitch-render" }
+base64 = "0.23.1"
 serde_json.workspace = true
 
 [lints]

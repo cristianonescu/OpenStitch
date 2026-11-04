@@ -13,6 +13,7 @@
 
 use crate::app::EditorApp;
 use eframe::egui::{self, RichText};
+use openstitch_app::editor::assistant_attach::{self, Attachment, MAX_FILES};
 use openstitch_app::editor::assistant_chat::{
     APPROVAL_TIMEOUT_S, AiPrefs, GateInput, PRESETS, PermissionMode, Protocol, ScriptRecord,
     Verdict, is_this_computer, verdict,
@@ -111,7 +112,8 @@ impl claude::Tools for ServerTools {
 }
 
 enum ToWorker {
-    Turn(Box<claude::Config>, Vec<Value>),
+    /// A model turn: the request settings, the user's content blocks and the image generator.
+    Turn(Box<claude::Config>, Vec<Value>, Option<claude::ImageConfig>),
     /// A coding agent's turn: the text (A3).
     Prompt(String),
 }
@@ -150,10 +152,15 @@ impl Worker {
                     return;
                 }
             };
-            let mut tools = ServerTools(server);
+            let mut tools = claude::WithImages {
+                inner: ServerTools(server),
+                image: None,
+                transport: transport.as_ref(),
+            };
             let mut conversation = claude::Conversation::new();
-            while let Ok(ToWorker::Turn(config, content)) = inbox.recv() {
+            while let Ok(ToWorker::Turn(config, content, image)) = inbox.recv() {
                 stop.store(false, Ordering::SeqCst);
+                tools.image = image;
                 let send = |m| {
                     let _ = out.send(m);
                     wake();
@@ -298,6 +305,11 @@ pub struct Panel {
     pub open: bool,
     pub items: Vec<Item>,
     pub input: String,
+    /// Files attached to the next message (A4), already copied into the scratch folder.
+    pub attachments: Vec<Attachment>,
+    /// Send a picture of the view, or the selection, with the next message (A4).
+    pub attach_view: bool,
+    pub attach_selection: bool,
     /// Messages typed while a turn runs; sent in order when it ends.
     pub queue: Vec<String>,
     worker: Option<Worker>,
@@ -309,6 +321,7 @@ pub struct Panel {
     pub tokens: (u64, u64),
     /// Settings popup: the key being typed (never shown again once saved).
     key_input: String,
+    image_key_input: String,
     show_settings: bool,
     /// Tests put a scripted transport here; the app uses `ureq`.
     transport: Option<Arc<dyn claude::Transport>>,
@@ -389,15 +402,7 @@ pub fn send(app: &mut EditorApp, text: String, wake: Waker) {
         return;
     }
     let prefs = app.ui.prefs.ai.clone();
-    // The model writes SVGs and pictures here (ui.scratchWrite); `--listen` made one already.
-    if app.assistant.scratch.is_none() {
-        match crate::assistant_ui::create_scratch() {
-            Ok(dir) => app.assistant.scratch = Some(dir),
-            Err(e) => app.assistant.panel.items.push(Item::Notice(format!(
-                "No scratch folder for the assistant's files ({e}); it can still edit the design."
-            ))),
-        }
-    }
+    scratch(app);
     let kind = (
         prefs.protocol,
         if prefs.protocol == Protocol::Agent {
@@ -406,14 +411,24 @@ pub fn send(app: &mut EditorApp, text: String, wake: Waker) {
             String::new()
         },
     );
-    let message = if prefs.protocol == Protocol::Agent {
-        ToWorker::Prompt(format!("{text}\n\n{}", context(app)))
+    let (message, chips) = if prefs.protocol == Protocol::Agent {
+        let (extra, images, chips) = extras(app);
+        if !images.is_empty() {
+            app.assistant.panel.items.push(Item::Notice(
+                "A coding agent gets the attached files' paths, not the pictures themselves."
+                    .into(),
+            ));
+        }
+        let prompt = format!("{text}{extra}\n\n{}", context(app));
+        (ToWorker::Prompt(prompt), chips)
     } else {
         let Some(config) = model_config(app, &prefs) else {
             return;
         };
-        let content = claude::user_content(&format!("{text}\n\n{}", context(app)), &[]);
-        ToWorker::Turn(Box::new(config), content)
+        let (extra, images, chips) = extras(app);
+        let content = claude::user_content(&format!("{text}{extra}\n\n{}", context(app)), &images);
+        let image = image_config(app, &prefs);
+        (ToWorker::Turn(Box::new(config), content, image), chips)
     };
     let panel = &mut app.assistant.panel;
     if panel.worker.as_ref().is_some_and(|w| w.kind != kind) {
@@ -444,7 +459,7 @@ pub fn send(app: &mut EditorApp, text: String, wake: Waker) {
         app.assistant.panel.worker = Some(worker);
     }
     let panel = &mut app.assistant.panel;
-    panel.items.push(Item::User(text.clone()));
+    panel.items.push(Item::User(format!("{text}{chips}")));
     panel.turn = Some(Turn {
         undo_start: app.undo_groups.len(),
         edits: 0,
@@ -460,6 +475,96 @@ pub fn send(app: &mut EditorApp, text: String, wake: Waker) {
             .items
             .push(Item::Notice("The assistant stopped; send again.".into()));
     }
+}
+
+/// The conversation's scratch folder, made on first use: the model writes SVGs and pictures
+/// here (ui.scratchWrite) and attached files are copied here; `--listen` made one already.
+fn scratch(app: &mut EditorApp) -> Option<std::path::PathBuf> {
+    if app.assistant.scratch.is_none() {
+        match crate::assistant_ui::create_scratch() {
+            Ok(dir) => app.assistant.scratch = Some(dir),
+            Err(e) => app.assistant.panel.items.push(Item::Notice(format!(
+                "No scratch folder for the assistant's files ({e}); it can still edit the design."
+            ))),
+        }
+    }
+    app.assistant.scratch.clone()
+}
+
+/// Attaches files to the next message (A4): copied into the scratch folder, at most
+/// [`MAX_FILES`].
+pub fn attach_files(app: &mut EditorApp, paths: Vec<std::path::PathBuf>) {
+    let Some(dir) = scratch(app) else { return };
+    for path in paths {
+        let panel = &mut app.assistant.panel;
+        if panel.attachments.len() >= MAX_FILES {
+            panel.items.push(Item::Notice(format!(
+                "At most {MAX_FILES} files go with one message."
+            )));
+            break;
+        }
+        match assistant_attach::attach(&path, &dir) {
+            Ok(a) => panel.attachments.push(a),
+            Err(e) => panel.items.push(Item::Notice(e)),
+        }
+    }
+}
+
+/// What goes with the message (A4): the attached files, a picture of the view and the
+/// selection, as extra text, image blocks and a short line for the chat.
+fn extras(app: &mut EditorApp) -> (String, Vec<(String, String)>, String) {
+    let panel = &mut app.assistant.panel;
+    let files = std::mem::take(&mut panel.attachments);
+    let view = std::mem::take(&mut panel.attach_view);
+    let selection = std::mem::take(&mut panel.attach_selection);
+    let mut text = String::new();
+    let mut images: Vec<(String, String)> = files.iter().filter_map(|a| a.image.clone()).collect();
+    let mut chips: Vec<String> = files.iter().map(|a| a.name.clone()).collect();
+    if !files.is_empty() {
+        text = format!("\n\n{}", assistant_attach::describe(&files));
+    }
+    if view {
+        match app.ui_command("ui.render", Some(&json!({ "size": 1024 }))) {
+            Ok(r) => {
+                if let Some(png) = r["png"].as_str() {
+                    images.push(("image/png".into(), png.into()));
+                    text.push_str("\n\n[The user attached a picture of the design view.]");
+                    chips.push("view".into());
+                }
+            }
+            Err(e) => app
+                .assistant
+                .panel
+                .items
+                .push(Item::Notice(format!("No picture of the view: {e}"))),
+        }
+    }
+    if selection {
+        let ids: Vec<u64> = app.selection.iter().copied().collect();
+        let list = app.session.execute("object.list", None).unwrap_or_default();
+        let s = assistant_attach::describe_selection(&list, &ids);
+        if !s.is_empty() {
+            text.push_str(&format!("\n\n{s}"));
+            chips.push(format!("selection ({})", ids.len()));
+        }
+    }
+    let chips = if chips.is_empty() {
+        String::new()
+    } else {
+        format!("\n📎 {}", chips.join(" · "))
+    };
+    (text, images, chips)
+}
+
+/// The image generator (A4), when one is set up; its key is in the keychain under its address.
+fn image_config(app: &EditorApp, prefs: &AiPrefs) -> Option<claude::ImageConfig> {
+    let url = prefs.image_url.trim();
+    (!url.is_empty()).then(|| claude::ImageConfig {
+        base_url: url.to_string(),
+        api_key: app.assistant.panel.api_key(url).unwrap_or_default(),
+        model: prefs.image_model.clone(),
+        request_timeout: Duration::from_secs(prefs.request_timeout_s),
+    })
 }
 
 /// The model request settings, or `None` (with a notice) when the key may not be sent.
@@ -1226,6 +1331,45 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
             panel.items.push(Item::Notice(note));
         }
     });
+    ui.separator();
+    ui.label("Image generator (optional): an OpenAI-compatible /images/generations address ending in /v1. Without one, the assistant draws pictures as vector shapes.");
+    let prefs = &mut app.ui.prefs.ai;
+    ui.horizontal(|ui| {
+        changed |= ui
+            .add(
+                egui::TextEdit::singleline(&mut prefs.image_url)
+                    .hint_text("none")
+                    .desired_width(170.0),
+            )
+            .lost_focus();
+        changed |= ui
+            .add(
+                egui::TextEdit::singleline(&mut prefs.image_model)
+                    .hint_text("model")
+                    .desired_width(90.0),
+            )
+            .lost_focus();
+    });
+    let image_url = prefs.image_url.trim().to_string();
+    if !image_url.is_empty() {
+        ui.horizontal(|ui| {
+            let panel = &mut app.assistant.panel;
+            ui.add(
+                egui::TextEdit::singleline(&mut panel.image_key_input)
+                    .password(true)
+                    .hint_text("Its key, if it needs one")
+                    .desired_width(180.0),
+            );
+            if ui.button("Save key").clicked() {
+                let note = match store_key(&image_url, panel.image_key_input.trim()) {
+                    Ok(()) => "Image generator key saved in the system keychain.".to_string(),
+                    Err(e) => format!("Could not use the keychain: {e}"),
+                };
+                panel.image_key_input.clear();
+                panel.items.push(Item::Notice(note));
+            }
+        });
+    }
     if changed {
         app.ui.save_prefs();
     }
@@ -1359,6 +1503,25 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                 for q in &app.assistant.panel.queue {
                     ui.label(RichText::new(format!("Queued: {q}")).weak());
                 }
+                let panel = &mut app.assistant.panel;
+                if !panel.attachments.is_empty() {
+                    let mut remove = None;
+                    ui.horizontal_wrapped(|ui| {
+                        for (i, a) in panel.attachments.iter().enumerate() {
+                            if ui
+                                .small_button(format!("📎 {} ×", a.name))
+                                .on_hover_text("Remove")
+                                .clicked()
+                            {
+                                remove = Some(i);
+                            }
+                        }
+                    });
+                    if let Some(i) = remove {
+                        let a = panel.attachments.remove(i);
+                        let _ = std::fs::remove_file(a.path);
+                    }
+                }
                 let edit = ui.add(
                     egui::TextEdit::multiline(&mut app.assistant.panel.input)
                         .desired_rows(3)
@@ -1371,6 +1534,31 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                     stop(app);
                 }
                 ui.horizontal(|ui| {
+                    if ui
+                        .small_button("📎")
+                        .on_hover_text("Attach pictures, SVG, text or stitch files (up to 8)")
+                        .clicked()
+                        && let Some(files) = rfd::FileDialog::new()
+                            .add_filter(
+                                "Pictures, SVG, text, stitch files",
+                                &[
+                                    "png", "jpg", "jpeg", "bmp", "svg", "txt", "md", "csv", "json",
+                                    "pes", "pec", "dst", "exp", "jef", "vp3", "xxx", "hus",
+                                ],
+                            )
+                            .pick_files()
+                    {
+                        attach_files(app, files);
+                    }
+                    let panel = &mut app.assistant.panel;
+                    ui.toggle_value(&mut panel.attach_view, "View")
+                        .on_hover_text("Send a picture of the design with the message");
+                    ui.add_enabled_ui(!app.selection.is_empty(), |ui| {
+                        ui.toggle_value(&mut app.assistant.panel.attach_selection, "Selection")
+                            .on_hover_text(
+                                "Send the selected objects' ids, kinds and sizes with the message",
+                            );
+                    });
                     let busy = app.assistant.panel.busy();
                     if (ui.button(if busy { "Queue" } else { "Send" }).clicked() || enter)
                         && !app.assistant.panel.input.trim().is_empty()
@@ -1703,6 +1891,145 @@ mod tests {
             std::fs::read(dir.join("t.svg")).expect("written"),
             b"<svg/>"
         );
+    }
+
+    /// A 120 × 120 PNG: a red disc on white.
+    fn disc_png(path: &std::path::Path) {
+        let img = image::RgbImage::from_fn(120, 120, |x, y| {
+            let (dx, dy) = (x as f64 - 60.0, y as f64 - 60.0);
+            if dx * dx + dy * dy < 40.0 * 40.0 {
+                image::Rgb([200, 20, 20])
+            } else {
+                image::Rgb([255, 255, 255])
+            }
+        });
+        img.save(path).expect("png");
+    }
+
+    #[test]
+    fn an_attached_picture_becomes_an_auto_punch_design_in_one_turn() {
+        let (mut app, transport) = app_with(Vec::new());
+        let src =
+            std::env::temp_dir().join(format!("openstitch-a4-disc-{}.png", std::process::id()));
+        disc_png(&src);
+        attach_files(&mut app, vec![src.clone()]);
+        let _ = std::fs::remove_file(&src);
+        let path = app.assistant.panel.attachments[0]
+            .path
+            .display()
+            .to_string();
+        transport.replies.lock().expect("lock").extend([
+            reply(
+                &[(
+                    "digitize.autoPunch",
+                    json!({ "path": path, "compatMode": "openStitch", "width": 50 }),
+                )],
+                "",
+                "tool_use",
+            ),
+            reply(&[], "Stitched.", "end_turn"),
+        ]);
+        let before = app.session.design().objects.len();
+        let groups = app.undo_groups.len();
+        send(&mut app, "stitch this".into(), no_wake());
+        run(&mut app, idle);
+        let first = transport.requests.lock().expect("lock")[0].clone();
+        let content = &first["messages"][0]["content"];
+        assert_eq!(content[0]["type"], "image", "the picture goes to the model");
+        assert!(
+            content[1]["text"]
+                .as_str()
+                .is_some_and(|t| t.contains(&path) && t.contains("compatMode openStitch"))
+        );
+        let second = transport.requests.lock().expect("lock")[1].clone();
+        let result = second["messages"][2]["content"][0].to_string();
+        assert!(!result.contains("is_error\":true"), "{result}");
+        assert!(
+            app.session.design().objects.len() > before,
+            "Auto Punch made objects"
+        );
+        assert_eq!(app.undo_groups.len(), groups + 1, "one undo step");
+        assert!(
+            app.assistant.panel.attachments.is_empty(),
+            "sent with the message"
+        );
+        assert!(
+            matches!(&app.assistant.panel.items[0], Item::User(t) if t.contains("📎 openstitch-a4-disc"))
+        );
+    }
+
+    #[test]
+    fn an_svg_the_model_writes_is_imported_as_shapes() {
+        let (mut app, transport) = app_with(Vec::new());
+        let dir = scratch(&mut app).expect("scratch");
+        let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" width="40mm" height="40mm" viewBox="0 0 40 40"><path d="M5 5 L35 5 L20 35 Z" fill="#1f3a93"/></svg>"##;
+        transport.replies.lock().expect("lock").extend([
+            reply(
+                &[
+                    ("ui.scratchWrite", json!({ "name": "tri.svg", "text": svg })),
+                    (
+                        "import.svg",
+                        json!({ "path": dir.join("tri.svg").display().to_string() }),
+                    ),
+                ],
+                "",
+                "tool_use",
+            ),
+            reply(&[], "A triangle.", "end_turn"),
+        ]);
+        let before = app.session.design().objects.len();
+        send(&mut app, "draw a triangle".into(), no_wake());
+        run(&mut app, idle);
+        let after = app.session.design().objects.len();
+        assert!(after > before, "imported as shapes ({before} -> {after})");
+    }
+
+    #[test]
+    fn without_an_image_generator_the_model_is_pointed_at_the_vector_route() {
+        let call =
+            reply(&[("x", json!({}))], "", "tool_use").replace("\"execute\"", "\"generate_image\"");
+        let (mut app, transport) =
+            app_with(vec![call, reply(&[], "I drew it as shapes.", "end_turn")]);
+        assert!(app.ui.prefs.ai.image_url.is_empty());
+        send(&mut app, "a fox picture".into(), no_wake());
+        run(&mut app, idle);
+        let first = transport.requests.lock().expect("lock")[0].clone();
+        assert!(
+            first["tools"]
+                .as_array()
+                .is_some_and(|t| t.iter().any(|d| d["name"] == "generate_image"))
+        );
+        let second = transport.requests.lock().expect("lock")[1].clone();
+        let result = &second["messages"][2]["content"][0];
+        assert_eq!(result["is_error"], true);
+        assert!(
+            result.to_string().contains("vector route")
+                && result.to_string().contains("import.svg")
+        );
+    }
+
+    #[test]
+    fn at_most_eight_files_go_with_a_message() {
+        let (mut app, _) = app_with(Vec::new());
+        let dir = std::env::temp_dir().join(format!("openstitch-a4-many-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("dir");
+        let files: Vec<_> = (0..9)
+            .map(|i| {
+                let p = dir.join(format!("n{i}.txt"));
+                std::fs::write(&p, "x").expect("w");
+                p
+            })
+            .collect();
+        attach_files(&mut app, files);
+        assert_eq!(app.assistant.panel.attachments.len(), MAX_FILES);
+        assert!(
+            app.assistant
+                .panel
+                .items
+                .iter()
+                .any(|i| matches!(i, Item::Notice(t) if t.contains("At most 8")))
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     fn local_openai(app: &mut EditorApp) {

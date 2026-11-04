@@ -107,6 +107,15 @@ pub struct ImageWizard {
     /// Auto Punch, OpenStitch mode: find the subject by a graph cut and leave out everything
     /// around it, whatever its colour (`isolateSubject`, #127; off by default).
     pub isolate_subject: bool,
+    /// With `isolate_subject`: the strokes marked on the image preview (#350), in the order
+    /// drawn; sent as `subjectStrokes` and `backgroundStrokes`.
+    pub marks: Vec<Mark>,
+    /// The marking brush: subject (true) or background.
+    pub mark_subject: bool,
+    /// The marking brush's width, a fraction of the image's shorter side.
+    pub mark_width: f64,
+    /// The marking window is open.
+    pub marking: bool,
     /// Cross Stitch, OpenStitch mode: cover each cell with parallel diagonals (`fill`).
     pub cross_fill: bool,
     /// Cross Stitch, OpenStitch mode: three-quarter and quarter crosses where a cell is split by
@@ -156,6 +165,10 @@ impl Default for ImageWizard {
             owned: None,
             sew_background: true,
             isolate_subject: false,
+            marks: Vec::new(),
+            mark_subject: true,
+            mark_width: MARK_WIDTH,
+            marking: false,
             cross_fill: true,
             part_crosses: false,
             all_trims: None,
@@ -187,6 +200,33 @@ pub fn min_area_default(open_stitch: bool) -> f64 {
 /// closer to the image, 83.3 against 82.5 at 6.5).
 pub fn satin_default(open_stitch: bool) -> f64 {
     if open_stitch { 2.5 } else { 6.0 }
+}
+
+/// A brush stroke on the image preview (#350): subject or background for certain, along
+/// `points` in fractions of the image's width and height, `width` a fraction of its shorter side.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Mark {
+    pub subject: bool,
+    pub points: Vec<[f64; 2]>,
+    pub width: f64,
+}
+
+/// The marking brush's default width, a fraction of the image's shorter side.
+pub const MARK_WIDTH: f64 = 0.03;
+/// The brush widths the dialog offers (the engine takes 0.002–0.25).
+pub const MARK_WIDTHS: std::ops::RangeInclusive<f64> = 0.005..=0.15;
+
+/// Where `pos` falls on an image drawn at `min` with `size` (screen points), as fractions of
+/// its width and height; `None` outside it.
+pub fn image_fraction(pos: [f32; 2], min: [f32; 2], size: [f32; 2]) -> Option<[f64; 2]> {
+    if size[0] <= 0.0 || size[1] <= 0.0 {
+        return None;
+    }
+    let f = [
+        ((pos[0] - min[0]) / size[0]) as f64,
+        ((pos[1] - min[1]) / size[1]) as f64,
+    ];
+    f.iter().all(|v| (0.0..=1.0).contains(v)).then_some(f)
 }
 
 /// Photo Stitch 1's default colour count at High fidelity (the engine's `HIGH_COLORS`).
@@ -283,6 +323,17 @@ impl ImageWizard {
                     p.insert("skipBackground".into(), json!(self.skip_background));
                 } else if self.isolate_subject {
                     p.insert("isolateSubject".into(), json!(true));
+                    for (key, subject) in [("subjectStrokes", true), ("backgroundStrokes", false)] {
+                        let strokes: Vec<Value> = self
+                            .marks
+                            .iter()
+                            .filter(|m| m.subject == subject && !m.points.is_empty())
+                            .map(|m| json!({"points": m.points, "width": m.width}))
+                            .collect();
+                        if !strokes.is_empty() {
+                            p.insert(key.into(), Value::Array(strokes));
+                        }
+                    }
                 } else if !self.sew_background {
                     p.insert("skipBackground".into(), json!(true));
                 }
@@ -387,6 +438,18 @@ impl ImageWizard {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The marking preview maps the pointer to fractions of the image, and nothing outside it.
+    #[test]
+    fn image_fraction_maps_the_pointer_onto_the_image() {
+        let (min, size) = ([100.0, 50.0], [400.0, 200.0]);
+        assert_eq!(image_fraction([100.0, 50.0], min, size), Some([0.0, 0.0]));
+        assert_eq!(image_fraction([300.0, 100.0], min, size), Some([0.5, 0.25]));
+        assert_eq!(image_fraction([500.0, 250.0], min, size), Some([1.0, 1.0]));
+        assert_eq!(image_fraction([99.0, 100.0], min, size), None);
+        assert_eq!(image_fraction([300.0, 251.0], min, size), None);
+        assert_eq!(image_fraction([300.0, 100.0], min, [0.0, 200.0]), None);
+    }
     use openstitch_engine::Session;
 
     /// A 60×40 PNG: red block, blue bar, black outline square, on white.
@@ -555,6 +618,49 @@ mod tests {
         let r = isolate.request().expect("request");
         assert_eq!(r.params["isolateSubject"], true);
         assert!(r.params.get("skipBackground").is_none());
+        assert!(r.params.get("subjectStrokes").is_none());
+        // Strokes marked on the preview go with it, each kind in drawing order (#350).
+        let marked = ImageWizard {
+            marks: vec![
+                Mark {
+                    subject: true,
+                    points: vec![[0.3, 0.6], [0.7, 0.6]],
+                    width: 0.05,
+                },
+                Mark {
+                    subject: false,
+                    points: vec![[0.1, 0.9]],
+                    width: 0.02,
+                },
+                Mark {
+                    subject: true,
+                    points: Vec::new(),
+                    width: 0.05,
+                },
+            ],
+            ..isolate.clone()
+        };
+        let r = marked.request().expect("request");
+        assert_eq!(
+            r.params["subjectStrokes"],
+            json!([{"points": [[0.3, 0.6], [0.7, 0.6]], "width": 0.05}])
+        );
+        assert_eq!(
+            r.params["backgroundStrokes"],
+            json!([{"points": [[0.1, 0.9]], "width": 0.02}])
+        );
+        // Not isolating, the strokes stay in the dialog and are not sent.
+        let off = ImageWizard {
+            isolate_subject: false,
+            ..marked
+        };
+        assert!(
+            off.request()
+                .expect("request")
+                .params
+                .get("subjectStrokes")
+                .is_none()
+        );
         let pe = ImageWizard {
             open_stitch: false,
             isolate_subject: true,
