@@ -20,9 +20,9 @@ use openstitch_assistant as claude;
 use openstitch_engine::Effect;
 use openstitch_mcp::EditorLink;
 use serde_json::{Value, json};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender, channel};
-use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 /// The keychain service the API key is stored under, one entry per endpoint address.
@@ -250,7 +250,9 @@ fn context(app: &EditorApp) -> String {
         .path
         .as_ref()
         .and_then(|p| p.file_name())
-        .map_or("an unsaved design".to_string(), |n| n.to_string_lossy().into_owned());
+        .map_or("an unsaved design".to_string(), |n| {
+            n.to_string_lossy().into_owned()
+        });
     format!(
         "[Editor: {file}; {} objects; selected ids {:?}; scratch folder {}]",
         app.session.design().objects.len(),
@@ -369,7 +371,10 @@ fn effect_of(app: &EditorApp, command: &str) -> Option<Effect> {
 
 /// Runs a job the gate allowed, and counts and records it.
 fn run_job(app: &mut EditorApp, job: Job) {
-    let command = job.request["command"].as_str().unwrap_or_default().to_string();
+    let command = job.request["command"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string();
     let effect = effect_of(app, &command);
     let reply = app.remote_request(&job.request);
     if reply["ok"] == json!(true)
@@ -387,7 +392,10 @@ fn run_job(app: &mut EditorApp, job: Job) {
 }
 
 fn handle_job(app: &mut EditorApp, job: Job) {
-    let command = job.request["command"].as_str().unwrap_or_default().to_string();
+    let command = job.request["command"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string();
     let Some(effect) = effect_of(app, &command) else {
         run_job(app, job); // the engine's own "unknown command" error
         return;
@@ -582,7 +590,10 @@ pub fn serve(app: &mut EditorApp, wake: Waker) {
         .partition(|a| a.since.elapsed() >= timeout);
     panel.approvals = keep;
     for a in late {
-        reply_err(a.job, "nobody answered in time; the user did not allow it".into());
+        reply_err(
+            a.job,
+            "nobody answered in time; the user did not allow it".into(),
+        );
     }
     for e in events {
         match e {
@@ -600,7 +611,11 @@ fn waker(ctx: &egui::Context) -> Waker {
 /// Saves the conversation's design changes as a `stitchtool exec` script.
 fn save_script(app: &mut EditorApp) {
     match app.assistant.panel.script.script() {
-        Err(why) => app.assistant.panel.items.push(Item::Notice(format!("No script: {why}."))),
+        Err(why) => app
+            .assistant
+            .panel
+            .items
+            .push(Item::Notice(format!("No script: {why}."))),
         Ok(script) => {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("Command script", &["json"])
@@ -609,7 +624,11 @@ fn save_script(app: &mut EditorApp) {
             {
                 let text = serde_json::to_string_pretty(&script).unwrap_or_default();
                 let note = match std::fs::write(&path, text) {
-                    Ok(()) => format!("Saved {} commands to {}.", app.assistant.panel.script.len(), path.display()),
+                    Ok(()) => format!(
+                        "Saved {} commands to {}.",
+                        app.assistant.panel.script.len(),
+                        path.display()
+                    ),
                     Err(e) => format!("Could not save the script: {e}"),
                 };
                 app.assistant.panel.items.push(Item::Notice(note));
@@ -621,38 +640,42 @@ fn save_script(app: &mut EditorApp) {
 fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
     let mut changed = false;
     let prefs = &mut app.ui.prefs.ai;
-    egui::Grid::new("assistant-settings").num_columns(2).show(ui, |ui| {
-        ui.label("Address");
-        changed |= ui.text_edit_singleline(&mut prefs.base_url).lost_focus();
-        ui.end_row();
-        ui.label("Model");
-        changed |= ui.text_edit_singleline(&mut prefs.model).lost_focus();
-        ui.end_row();
-        ui.label("Effort");
-        egui::ComboBox::from_id_salt("assistant-effort")
-            .selected_text(prefs.effort.clone())
-            .show_ui(ui, |ui| {
-                for e in openstitch_app::editor::assistant_chat::EFFORTS {
-                    changed |= ui.selectable_value(&mut prefs.effort, e.to_string(), e).changed();
-                }
-            });
-        ui.end_row();
-        ui.label("Permissions");
-        egui::ComboBox::from_id_salt("assistant-mode")
-            .selected_text(prefs.mode.label())
-            .show_ui(ui, |ui| {
-                for m in PermissionMode::ALL {
-                    changed |= ui.selectable_value(&mut prefs.mode, m, m.label()).changed();
-                }
-            });
-        ui.end_row();
-        ui.label("Changes per message");
-        changed |= ui
-            .add(egui::DragValue::new(&mut prefs.edit_limit).range(0..=10_000))
-            .on_hover_text("0 = no limit")
-            .changed();
-        ui.end_row();
-    });
+    egui::Grid::new("assistant-settings")
+        .num_columns(2)
+        .show(ui, |ui| {
+            ui.label("Address");
+            changed |= ui.text_edit_singleline(&mut prefs.base_url).lost_focus();
+            ui.end_row();
+            ui.label("Model");
+            changed |= ui.text_edit_singleline(&mut prefs.model).lost_focus();
+            ui.end_row();
+            ui.label("Effort");
+            egui::ComboBox::from_id_salt("assistant-effort")
+                .selected_text(prefs.effort.clone())
+                .show_ui(ui, |ui| {
+                    for e in openstitch_app::editor::assistant_chat::EFFORTS {
+                        changed |= ui
+                            .selectable_value(&mut prefs.effort, e.to_string(), e)
+                            .changed();
+                    }
+                });
+            ui.end_row();
+            ui.label("Permissions");
+            egui::ComboBox::from_id_salt("assistant-mode")
+                .selected_text(prefs.mode.label())
+                .show_ui(ui, |ui| {
+                    for m in PermissionMode::ALL {
+                        changed |= ui.selectable_value(&mut prefs.mode, m, m.label()).changed();
+                    }
+                });
+            ui.end_row();
+            ui.label("Changes per message");
+            changed |= ui
+                .add(egui::DragValue::new(&mut prefs.edit_limit).range(0..=10_000))
+                .on_hover_text("0 = no limit")
+                .changed();
+            ui.end_row();
+        });
     if prefs.mode == PermissionMode::All {
         ui.colored_label(
             ui.visuals().warn_fg_color,
@@ -759,7 +782,11 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
             ui.horizontal(|ui| {
                 ui.heading("Assistant");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.small_button("×").on_hover_text("Close (Ctrl+Shift+A)").clicked() {
+                    if ui
+                        .small_button("×")
+                        .on_hover_text("Close (Ctrl+Shift+A)")
+                        .clicked()
+                    {
                         app.assistant.panel.open = false;
                     }
                     if ui.small_button("⚙").on_hover_text("Settings").clicked() {
@@ -770,7 +797,9 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                     }
                     if ui
                         .small_button("Save as script")
-                        .on_hover_text("The design changes of this chat as a stitchtool command script")
+                        .on_hover_text(
+                            "The design changes of this chat as a stitchtool command script",
+                        )
                         .clicked()
                     {
                         save_script(app);
@@ -797,7 +826,10 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
             let mut answered = None;
             for (i, a) in app.assistant.panel.approvals.iter().enumerate() {
                 egui::Frame::group(ui.style()).show(ui, |ui| {
-                    ui.label(format!("The assistant wants to {} ({}).", a.what, a.command));
+                    ui.label(format!(
+                        "The assistant wants to {} ({}).",
+                        a.what, a.command
+                    ));
                     let left = APPROVAL_TIMEOUT_S.saturating_sub(a.since.elapsed().as_secs());
                     ui.horizontal(|ui| {
                         if ui.button("Allow once").clicked() {
@@ -819,10 +851,40 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
             if !app.assistant.panel.approvals.is_empty() {
                 ctx.request_repaint_after(Duration::from_secs(1));
             }
-            let input_height = 110.0;
+            // The composer stays at the bottom; the conversation fills the space above it.
+            egui::Panel::bottom("assistant-input").show(ui, |ui| {
+                for q in &app.assistant.panel.queue {
+                    ui.label(RichText::new(format!("Queued: {q}")).weak());
+                }
+                let edit = ui.add(
+                    egui::TextEdit::multiline(&mut app.assistant.panel.input)
+                        .desired_rows(3)
+                        .desired_width(f32::INFINITY)
+                        .hint_text("Ask for a design, a change, or anything in the editor…"),
+                );
+                let enter = edit.has_focus()
+                    && ui.input(|i| i.key_pressed(egui::Key::Enter) && !i.modifiers.shift);
+                if edit.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                    stop(app);
+                }
+                ui.horizontal(|ui| {
+                    let busy = app.assistant.panel.busy();
+                    if (ui.button(if busy { "Queue" } else { "Send" }).clicked() || enter)
+                        && !app.assistant.panel.input.trim().is_empty()
+                    {
+                        let text = std::mem::take(&mut app.assistant.panel.input);
+                        send(app, text, waker(&ctx));
+                    }
+                    if busy && ui.button("Stop").clicked() {
+                        stop(app);
+                    }
+                    if busy {
+                        ui.spinner();
+                    }
+                });
+            });
             egui::ScrollArea::vertical()
                 .stick_to_bottom(true)
-                .max_height((ui.available_height() - input_height).max(80.0))
                 .show(ui, |ui| {
                     for it in &app.assistant.panel.items {
                         item(ui, it);
@@ -836,36 +898,6 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                         app.assistant.panel.last_undo = None;
                     }
                 });
-            ui.separator();
-            for q in &app.assistant.panel.queue {
-                ui.label(RichText::new(format!("Queued: {q}")).weak());
-            }
-            let edit = ui.add(
-                egui::TextEdit::multiline(&mut app.assistant.panel.input)
-                    .desired_rows(3)
-                    .desired_width(f32::INFINITY)
-                    .hint_text("Ask for a design, a change, or anything in the editor…"),
-            );
-            let enter = edit.has_focus()
-                && ui.input(|i| i.key_pressed(egui::Key::Enter) && !i.modifiers.shift);
-            if edit.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-                stop(app);
-            }
-            ui.horizontal(|ui| {
-                let busy = app.assistant.panel.busy();
-                if (ui.button(if busy { "Queue" } else { "Send" }).clicked() || enter)
-                    && !app.assistant.panel.input.trim().is_empty()
-                {
-                    let text = std::mem::take(&mut app.assistant.panel.input);
-                    send(app, text, waker(&ctx));
-                }
-                if busy && ui.button("Stop").clicked() {
-                    stop(app);
-                }
-                if busy {
-                    ui.spinner();
-                }
-            });
         });
 }
 
@@ -873,6 +905,7 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
 #[cfg(test)]
 pub mod testing {
     use super::*;
+    use std::sync::Mutex;
 
     /// Returns the next scripted SSE body for each request and keeps the request bodies.
     pub struct Scripted {
@@ -892,7 +925,12 @@ pub mod testing {
                 .lock()
                 .expect("lock")
                 .push(serde_json::from_slice(body).unwrap_or(Value::Null));
-            let next = self.replies.lock().expect("lock").pop_front().unwrap_or_default();
+            let next = self
+                .replies
+                .lock()
+                .expect("lock")
+                .pop_front()
+                .unwrap_or_default();
             Ok(Box::new(std::io::Cursor::new(next.into_bytes())))
         }
     }
@@ -912,25 +950,46 @@ pub mod testing {
         );
         let mut index = 0;
         if !text.is_empty() {
-            s += &sse("content_block_start", json!({ "type": "content_block_start", "index": index, "content_block": { "type": "text", "text": "" } }));
-            s += &sse("content_block_delta", json!({ "type": "content_block_delta", "index": index, "delta": { "type": "text_delta", "text": text } }));
-            s += &sse("content_block_stop", json!({ "type": "content_block_stop", "index": index }));
+            s += &sse(
+                "content_block_start",
+                json!({ "type": "content_block_start", "index": index, "content_block": { "type": "text", "text": "" } }),
+            );
+            s += &sse(
+                "content_block_delta",
+                json!({ "type": "content_block_delta", "index": index, "delta": { "type": "text_delta", "text": text } }),
+            );
+            s += &sse(
+                "content_block_stop",
+                json!({ "type": "content_block_stop", "index": index }),
+            );
             index += 1;
         }
         for (i, (command, params)) in calls.iter().enumerate() {
             let input = json!({ "command": command, "params": params }).to_string();
             let (a, b) = input.split_at(input.len() / 2);
-            s += &sse("content_block_start", json!({ "type": "content_block_start", "index": index,
-                "content_block": { "type": "tool_use", "id": format!("tool{i}"), "name": "execute", "input": {} } }));
+            s += &sse(
+                "content_block_start",
+                json!({ "type": "content_block_start", "index": index,
+                "content_block": { "type": "tool_use", "id": format!("tool{i}"), "name": "execute", "input": {} } }),
+            );
             for part in [a, b] {
-                s += &sse("content_block_delta", json!({ "type": "content_block_delta", "index": index,
-                    "delta": { "type": "input_json_delta", "partial_json": part } }));
+                s += &sse(
+                    "content_block_delta",
+                    json!({ "type": "content_block_delta", "index": index,
+                    "delta": { "type": "input_json_delta", "partial_json": part } }),
+                );
             }
-            s += &sse("content_block_stop", json!({ "type": "content_block_stop", "index": index }));
+            s += &sse(
+                "content_block_stop",
+                json!({ "type": "content_block_stop", "index": index }),
+            );
             index += 1;
         }
-        s += &sse("message_delta", json!({ "type": "message_delta", "delta": { "stop_reason": stop, "stop_sequence": null },
-            "usage": { "output_tokens": 20 } }));
+        s += &sse(
+            "message_delta",
+            json!({ "type": "message_delta", "delta": { "stop_reason": stop, "stop_sequence": null },
+            "usage": { "output_tokens": 20 } }),
+        );
         s += &sse("message_stop", json!({ "type": "message_stop" }));
         s
     }
@@ -969,7 +1028,10 @@ mod tests {
         let start = Instant::now();
         while !until(app) {
             serve(app, no_wake());
-            assert!(start.elapsed() < Duration::from_secs(30), "the turn did not end");
+            assert!(
+                start.elapsed() < Duration::from_secs(30),
+                "the turn did not end"
+            );
             std::thread::sleep(Duration::from_millis(2));
         }
     }
@@ -979,7 +1041,10 @@ mod tests {
     }
 
     fn rect(x: f64) -> (&'static str, Value) {
-        ("shape.rectangle", json!({ "x": x, "y": 10, "width": 10, "height": 10 }))
+        (
+            "shape.rectangle",
+            json!({ "x": x, "y": 10, "width": 10, "height": 10 }),
+        )
     }
 
     #[test]
@@ -994,12 +1059,26 @@ mod tests {
         run(&mut app, idle);
         assert_eq!(app.session.design().objects.len(), before + 3);
         assert_eq!(app.undo_groups.len(), groups + 1, "one undo step");
-        assert!(app.assistant.panel.items.contains(&Item::Assistant("Three boxes.".into())));
+        assert!(
+            app.assistant
+                .panel
+                .items
+                .contains(&Item::Assistant("Three boxes.".into()))
+        );
         app.undo();
-        assert_eq!(app.session.design().objects.len(), before, "one undo removes all three");
+        assert_eq!(
+            app.session.design().objects.len(),
+            before,
+            "one undo removes all three"
+        );
         // The second request carried the three tool results in one user message.
         let requests = transport.requests.lock().expect("lock");
-        let last = requests[1]["messages"].as_array().expect("messages").last().cloned().expect("last");
+        let last = requests[1]["messages"]
+            .as_array()
+            .expect("messages")
+            .last()
+            .cloned()
+            .expect("last");
         assert_eq!(last["role"], "user");
         assert_eq!(last["content"].as_array().map(Vec::len), Some(3));
         assert_eq!(requests[0]["model"], "claude-opus-5-5");
@@ -1009,16 +1088,25 @@ mod tests {
     fn files_wait_for_approval_and_a_denial_reaches_the_model() {
         let save = ("project.save", json!({ "path": "/nonexistent-dir/x.osd" }));
         let (mut app, transport) = app_with(vec![
-            reply(&[save.clone()], "", "tool_use"),
+            reply(std::slice::from_ref(&save), "", "tool_use"),
             reply(&[], "You declined.", "end_turn"),
         ]);
         send(&mut app, "save it".into(), no_wake());
         run(&mut app, |a| !a.assistant.panel.approvals.is_empty());
-        assert!(app.assistant.panel.approvals[0].what.contains("/nonexistent-dir/x.osd"));
+        assert!(
+            app.assistant.panel.approvals[0]
+                .what
+                .contains("/nonexistent-dir/x.osd")
+        );
         answer(&mut app, 0, Answer::Deny);
         run(&mut app, idle);
         let requests = transport.requests.lock().expect("lock");
-        let result = requests[1]["messages"].as_array().expect("m").last().cloned().expect("last");
+        let result = requests[1]["messages"]
+            .as_array()
+            .expect("m")
+            .last()
+            .cloned()
+            .expect("last");
         assert!(result.to_string().contains("declined"), "{result}");
     }
 
@@ -1063,13 +1151,23 @@ mod tests {
         send(&mut app, "hello".into(), no_wake());
         assert!(!app.assistant.panel.busy());
         assert!(transport.requests.lock().expect("lock").is_empty());
-        assert!(matches!(app.assistant.panel.items.last(), Some(Item::Notice(n)) if n.contains("not sent")));
+        assert!(
+            matches!(app.assistant.panel.items.last(), Some(Item::Notice(n)) if n.contains("not sent"))
+        );
     }
 
     #[test]
     fn save_as_script_rebuilds_the_design() {
         let (mut app, _) = app_with(vec![
-            reply(&[("design.new", json!({ "width": 100, "height": 100 })), rect(10.0), rect(40.0)], "", "tool_use"),
+            reply(
+                &[
+                    ("design.new", json!({ "width": 100, "height": 100 })),
+                    rect(10.0),
+                    rect(40.0),
+                ],
+                "",
+                "tool_use",
+            ),
             reply(&[], "done", "end_turn"),
         ]);
         send(&mut app, "two boxes on a new page".into(), no_wake());
@@ -1077,8 +1175,11 @@ mod tests {
         let script = app.assistant.panel.script.script().expect("script");
         let mut s = openstitch_engine::Session::new(std::env::temp_dir());
         for step in script.as_array().expect("steps") {
-            s.execute(step["command"].as_str().expect("command"), Some(&step["params"]))
-                .expect("step runs");
+            s.execute(
+                step["command"].as_str().expect("command"),
+                Some(&step["params"]),
+            )
+            .expect("step runs");
         }
         assert_eq!(s.design().objects, app.session.design().objects);
     }
@@ -1093,7 +1194,14 @@ mod tests {
         send(&mut app, "first".into(), no_wake());
         send(&mut app, "second".into(), no_wake());
         assert_eq!(app.assistant.panel.queue, vec!["second".to_string()]);
-        run(&mut app, |a| idle(a) && a.assistant.panel.queue.is_empty() && a.assistant.panel.items.contains(&Item::Assistant("two".into())));
+        run(&mut app, |a| {
+            idle(a)
+                && a.assistant.panel.queue.is_empty()
+                && a.assistant
+                    .panel
+                    .items
+                    .contains(&Item::Assistant("two".into()))
+        });
         assert_eq!(transport.requests.lock().expect("lock").len(), 3);
     }
 }

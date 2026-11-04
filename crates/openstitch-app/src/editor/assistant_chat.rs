@@ -153,7 +153,9 @@ pub enum Verdict {
 pub const APPROVAL_TIMEOUT_S: u64 = 240;
 
 /// Parameters that hold a file or folder name.
-const FILE_KEYS: [&str; 7] = ["path", "file", "dir", "folder", "output", "source", "target"];
+const FILE_KEYS: [&str; 7] = [
+    "path", "file", "dir", "folder", "output", "source", "target",
+];
 
 /// Whether `path` lies inside `scratch` (no `..`, relative paths are not inside).
 pub fn inside(path: &str, scratch: Option<&Path>) -> bool {
@@ -243,7 +245,9 @@ pub fn verdict(g: &GateInput) -> Verdict {
     };
     match sensitive {
         Some(what) => Verdict::Ask(what),
-        None if changes && g.mode == PermissionMode::Ask => Verdict::Ask("change the design".into()),
+        None if changes && g.mode == PermissionMode::Ask => {
+            Verdict::Ask("change the design".into())
+        }
         None => Verdict::Run,
     }
 }
@@ -283,7 +287,9 @@ impl ScriptRecord {
     /// The script, or why there is none.
     pub fn script(&self) -> Result<Value, &'static str> {
         if self.broken {
-            Err("a redo happened in this conversation, so its commands no longer rebuild the design")
+            Err(
+                "a redo happened in this conversation, so its commands no longer rebuild the design",
+            )
         } else if self.steps.is_empty() {
             Err("the assistant has not changed the design yet")
         } else {
@@ -315,38 +321,87 @@ mod tests {
         use PermissionMode::*;
         let none = json!({});
         // Reads always run.
-        assert_eq!(gate(Ask, "design.info", Effect::Read, none.clone()), Verdict::Run);
+        assert_eq!(
+            gate(Ask, "design.info", Effect::Read, none.clone()),
+            Verdict::Run
+        );
         // Edits: run by default, ask in Ask mode.
-        assert_eq!(gate(Edits, "shape.rectangle", Effect::Edit, none.clone()), Verdict::Run);
-        assert!(matches!(gate(Ask, "shape.rectangle", Effect::Edit, none.clone()), Verdict::Ask(_)));
+        assert_eq!(
+            gate(Edits, "shape.rectangle", Effect::Edit, none.clone()),
+            Verdict::Run
+        );
+        assert!(matches!(
+            gate(Ask, "shape.rectangle", Effect::Edit, none.clone()),
+            Verdict::Ask(_)
+        ));
         // Files ask, unless always allowed or All.
         assert!(matches!(
             gate(Edits, "project.save", Effect::File, json!({ "path": "/home/me/a.osd" })),
             Verdict::Ask(w) if w.contains("/home/me/a.osd")
         ));
-        assert_eq!(gate(Edits, "design.export", Effect::File, json!({ "path": "/x.pes" })), Verdict::Run);
-        assert_eq!(gate(All, "project.save", Effect::File, none.clone()), Verdict::Run);
+        assert_eq!(
+            gate(
+                Edits,
+                "design.export",
+                Effect::File,
+                json!({ "path": "/x.pes" })
+            ),
+            Verdict::Run
+        );
+        assert_eq!(
+            gate(All, "project.save", Effect::File, none.clone()),
+            Verdict::Run
+        );
         // An edit that reads a file outside the scratch folder asks; inside it runs.
         assert!(matches!(
-            gate(Edits, "import.svg", Effect::Edit, json!({ "path": "/home/me/logo.svg" })),
+            gate(
+                Edits,
+                "import.svg",
+                Effect::Edit,
+                json!({ "path": "/home/me/logo.svg" })
+            ),
             Verdict::Ask(_)
         ));
         assert_eq!(
-            gate(Edits, "import.svg", Effect::Edit, json!({ "path": "/tmp/scratch/logo.svg" })),
+            gate(
+                Edits,
+                "import.svg",
+                Effect::Edit,
+                json!({ "path": "/tmp/scratch/logo.svg" })
+            ),
             Verdict::Run
         );
         assert!(matches!(
-            gate(Edits, "import.svg", Effect::Edit, json!({ "path": "/tmp/scratch/../etc/x.svg" })),
+            gate(
+                Edits,
+                "import.svg",
+                Effect::Edit,
+                json!({ "path": "/tmp/scratch/../etc/x.svg" })
+            ),
             Verdict::Ask(_)
         ));
         // Scratch writes, transfer and quitting.
-        assert_eq!(gate(Edits, "ui.scratchWrite", Effect::File, none.clone()), Verdict::Run);
-        assert!(matches!(gate(Edits, "transfer.send", Effect::File, none.clone()), Verdict::Ask(_)));
+        assert_eq!(
+            gate(Edits, "ui.scratchWrite", Effect::File, none.clone()),
+            Verdict::Run
+        );
+        assert!(matches!(
+            gate(Edits, "transfer.send", Effect::File, none.clone()),
+            Verdict::Ask(_)
+        ));
         assert!(matches!(
             gate(Edits, "ui.run", Effect::Edit, json!({ "action": "exit" })),
             Verdict::Ask(w) if w.contains("quit")
         ));
-        assert_eq!(gate(Edits, "ui.run", Effect::Edit, json!({ "action": "stitchView" })), Verdict::Run);
+        assert_eq!(
+            gate(
+                Edits,
+                "ui.run",
+                Effect::Edit,
+                json!({ "action": "stitchView" })
+            ),
+            Verdict::Run
+        );
     }
 
     #[test]
@@ -376,10 +431,12 @@ mod tests {
 
     #[test]
     fn prefs_round_trip_and_reject_junk() {
-        let mut p = AiPrefs::default();
-        p.mode = PermissionMode::Ask;
-        p.edit_limit = 24;
-        p.always_allow = vec!["project.save".into()];
+        let p = AiPrefs {
+            mode: PermissionMode::Ask,
+            edit_limit: 24,
+            always_allow: vec!["project.save".into()],
+            ..AiPrefs::default()
+        };
         assert_eq!(AiPrefs::from_json(&p.to_json()), p);
         let junk = AiPrefs::from_json(&json!({
             "effort": "extreme", "permissions": "root", "requestTimeoutS": 1, "model": ""
@@ -388,7 +445,10 @@ mod tests {
         assert_eq!(junk.mode, PermissionMode::Edits);
         assert_eq!(junk.request_timeout_s, 30);
         assert_eq!(junk.model, DEFAULT_MODEL);
-        assert!(AiPrefs::default().enabled, "on by default (owner, 2026-11-04)");
+        assert!(
+            AiPrefs::default().enabled,
+            "on by default (owner, 2026-11-04)"
+        );
     }
 
     #[test]

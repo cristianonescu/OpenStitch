@@ -1053,7 +1053,9 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         .changed();
     changed |= ui
         .checkbox(&mut app.ui.prefs.ai.enabled, "Show AI features")
-        .on_hover_text("The Assistant panel, its button and Ctrl+Shift+A; nothing is sent until you use it")
+        .on_hover_text(
+            "The Assistant panel, its button and Ctrl+Shift+A; nothing is sent until you use it",
+        )
         .changed();
     if !app.ui.prefs.ai.enabled {
         app.assistant.panel.open = false;
