@@ -36,16 +36,7 @@ below are claims no test checks.
 | Area | Feature (matrix row) | Gap | Plan | Issue |
 |---|---|---|---|---|
 | Files | Import SVG: `<line>` | **bug**: every `<line>` element is dropped on import (an equivalent `<path>` imports) | fix in `crates/openstitch-engine/src/imports.rs`; then un-ignore `svg_line_elements_import_as_running_lines` | #341 |
-| Lettering | Per-character edits | weak: character moves on mirrored or on-path text untested | editor tests (`tools::characters`), with the other editor gaps | #332 |
 | Lettering | Complex scripts, CJK | weak: `right_to_left_scripts_with_a_system_font` and `cjk_text_with_a_system_font` pass without checking when no suitable system font is installed | recorded here; needs a bundled test font, not only a test | #345 |
-| Editor | Files: Import into design | weak: `EditorApp::import` (import, centre, select) untested | app tests or headless `--script` | #332 |
-| Editor | Object list | weak: the visibility toggle's effect and undo untested | same | #332 |
-| Editor | Undo/redo | weak: ⌘Z, ⇧⌘Z, Ctrl+Y only covered by a manual scripted run | same | #332 |
-| Editor | Sewing simulator | weak: play at a speed, stop at the end untested | same | #332 |
-| Editor | Inspector | weak: line settings never set; region density/length not read back | same | #332 |
-| Editor | Select tool | weak: arrow-key nudge and Shift axis lock on move untested | same | #332 |
-| Editing | Fabric Selector | weak: claims eight fabrics, test asserts at least six | same | #332 |
-| Editor | Unsaved-changes prompt | weak: the window close request path untested | same | #332 |
 | Digitizing | Photo Stitch 1 fine rows (OpenStitch mode) | weak: `densityMean`/`densityWindow` never sent; `travel` only in the wizard's request | engine `coverage_digitize.rs` on small images | #334 |
 | Digitizing | Photo Stitch 2 needle limits (OpenStitch mode) | weak: "≤ 97 % of PE mode's densest window" tested as ≤ 100 %; 0.1 mm units not asserted | same file | #334 |
 | Digitizing | Thread sources (T5) | weak: a single chart by id, and Photo Stitch 1 with `owned`, untested | same file | #334 |
@@ -87,3 +78,12 @@ associations and the macOS `.pes` document type (CI workflow, owned by the CI se
 | Files | Machine formats vs PE-DESIGN reference | weak: `formats.rs` comparisons return early, and pass, if a reference file is missing | #329: `crates/openstitch-formats/tests/coverage_formats.rs` |
 | Lettering | TrueType / OpenType fonts | weak: 16 fonts and 40 MiB per design untested | #330: `crates/openstitch-engine/tests/coverage_lettering.rs` (the layout-complexity refusal is not reachable through `text.add` with the bundled fonts, 2000 characters staying far under 600 000 segments; not tested) |
 | Design Database | Search | weak: date modified had no positive test; a property-search test could pass without asserting | #331: `crates/openstitch-engine/tests/coverage_library.rs` (through `library.search`; the library's own conditional test is left as it is) |
+| Lettering | Per-character edits | weak: character moves on mirrored or on-path text untested | #332: `crates/openstitch-app/tests/coverage_editor.rs`, `crates/openstitch-app/src/app_coverage_tests.rs`, engine `coverage_fabric.rs` |
+| Editor | Files: Import into design | weak: `EditorApp::import` (import, centre, select) untested | #332: `crates/openstitch-app/tests/coverage_editor.rs`, `crates/openstitch-app/src/app_coverage_tests.rs`, engine `coverage_fabric.rs` |
+| Editor | Object list | weak: the visibility toggle's effect and undo untested | #332: `crates/openstitch-app/tests/coverage_editor.rs`, `crates/openstitch-app/src/app_coverage_tests.rs`, engine `coverage_fabric.rs` |
+| Editor | Undo/redo | weak: ⌘Z, ⇧⌘Z, Ctrl+Y only covered by a manual scripted run | #332: `crates/openstitch-app/tests/coverage_editor.rs`, `crates/openstitch-app/src/app_coverage_tests.rs`, engine `coverage_fabric.rs` |
+| Editor | Sewing simulator | weak: play at a speed, stop at the end untested | #332: `crates/openstitch-app/tests/coverage_editor.rs`, `crates/openstitch-app/src/app_coverage_tests.rs`, engine `coverage_fabric.rs` |
+| Editor | Inspector | weak: line settings never set; region density/length not read back | #332: `crates/openstitch-app/tests/coverage_editor.rs`, `crates/openstitch-app/src/app_coverage_tests.rs`, engine `coverage_fabric.rs` |
+| Editor | Select tool | weak: arrow-key nudge and Shift axis lock on move untested | #332: `crates/openstitch-app/tests/coverage_editor.rs`, `crates/openstitch-app/src/app_coverage_tests.rs`, engine `coverage_fabric.rs` |
+| Editing | Fabric Selector | weak: claims eight fabrics, test asserts at least six | #332: `crates/openstitch-app/tests/coverage_editor.rs`, `crates/openstitch-app/src/app_coverage_tests.rs`, engine `coverage_fabric.rs` |
+| Editor | Unsaved-changes prompt | weak: the window close request path untested | #332: `crates/openstitch-app/tests/coverage_editor.rs`, `crates/openstitch-app/src/app_coverage_tests.rs`, engine `coverage_fabric.rs` |
