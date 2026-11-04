@@ -570,9 +570,11 @@ assertions and overflow checks stay on. The first build takes a few minutes long
 
 CI runs the same checks on macOS, Windows and Linux for every pull request, checks that
 `docs/COMPATIBILITY_STATUS.md` matches the harness's result, and scans the history for secrets
-with gitleaks. CI builds with line-tables-only debug info (`CARGO_PROFILE_DEV_DEBUG`), and a new
-push to a pull request cancels that PR's run still in progress; runs on `main` and on tags are
-never cancelled.
+with gitleaks. CI runs the tests with [cargo-nextest](https://nexte.st) (`cargo nextest run
+--workspace`, then `cargo test --doc --workspace`), which runs every test binary at once; both
+runners run the same tests. CI builds with line-tables-only debug info
+(`CARGO_PROFILE_DEV_DEBUG`), and a new push to a pull request cancels that PR's run still in
+progress; runs on `main` and on tags are never cancelled.
 
 ## MCP server (Claude Code and other MCP clients)
 
