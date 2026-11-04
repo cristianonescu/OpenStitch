@@ -264,11 +264,10 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    RGB, the `#PES0110` colour list after the PEC is written as PE writes it, and the Appliqué
    wizard's stages sew in PE's appliqué colours as PEC 62–64, since 2026-10-31. The `#PES0110`
    header carries the machine type and hoop as PE writes them for six hoops since 2026-10-31
-   (#125). Left: the other hoops' PE ids (#125); the user-chart CSV PE-DESIGN imports (#136).
-   PE-DESIGN matches colours to it is not verified (no capture). PEC 62–64 have PE-DESIGN's appliqué RGB, the `#PES0110` colour
-   list after the PEC is written as PE writes it, and the Appliqué wizard's stages sew in PE's
-   appliqué colours as PEC 62–64, since 2026-10-31. Left: the machine type and hoop in the
-   `#PES0110` header (#125, capture requested).
+   (#125), and every page and hoop field from the design since 2026-11-04 (#322: a Custom Size
+   page's machine type and hoop sections, the nv880e hoop fields, the ids of 13 hoops; the PEC
+   frame stays the design's size on a Custom Size page too). Left: the user-chart CSV PE-DESIGN
+   imports (#136); the v6 display fields and the v1 hoop field (no PE-DESIGN file to compare).
 9. **Machine tier:** a first sew-out of an OpenStitch-written file on a Brother machine, recorded
    in `compat/machine/`. No spec has reached this tier.
 10. **Distribution:** code signing (owner's certificates); Flathub submission (offline cargo

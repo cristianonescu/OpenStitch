@@ -448,8 +448,17 @@ fn pes_0110_export_writes_the_machine_type_and_hoop() {
             7,
             *b"10",
         ),
+        // A hoop with no PE id: a single-needle Custom Size page of its size (#322).
         (
             json!({"machine": "single", "hoop": "254x254"}),
+            false,
+            0xFF,
+            0,
+            0,
+            *b"01",
+        ),
+        (
+            json!({"machine": "multi", "hoop": "254x254"}),
             false,
             0xFF,
             0,
@@ -471,6 +480,24 @@ fn pes_0110_export_writes_the_machine_type_and_hoop() {
         assert_eq!([b[14], b[15]], code, "{settings}");
         if hoop_page {
             assert_eq!((h[4], h[31], h[37]), (id, rotated, machine), "{settings}");
+        } else {
+            // Custom Size page: PE-DESIGN's sections for the machine type (#322), then a u32,
+            // the page size and the machine type.
+            let lists = 15 + usize::from(h[14]) + 2;
+            let starts: &[u8] = if machine == 7 {
+                // 290 x 190 mm sections: none across 254 mm, one more down: 1000 - 1270 + 1800.
+                &[0, 0, 1, 0, 0xFA, 0x05]
+            } else {
+                // 90 x 90 mm sections stepping 80 mm: 1000 - 1270 + 800 k for k = 1..3.
+                &[
+                    3, 0, 0x12, 0x02, 0x32, 0x05, 0x52, 0x08, 3, 0, 0x12, 0x02, 0x32, 0x05, 0x52,
+                    0x08,
+                ]
+            };
+            assert_eq!(&h[lists..lists + starts.len()], starts, "{settings}");
+            let at = lists + starts.len() + 4;
+            assert_eq!(&h[at..at + 6], &[254, 0, 254, 0, machine, 0], "{settings}");
+            assert_eq!(objects.page_mm, Some((254, 254)), "{settings}");
         }
     }
 }
