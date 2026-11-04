@@ -400,8 +400,9 @@ Next, from [docs/ROADMAP.md](docs/ROADMAP.md):
   the remaining hoops in the PES 11 writer.
 - **Stitches:** the remaining fill, satin and line details listed above, and branching skeletons.
 - **Machine tier:** a first recorded sew-out on a Brother machine.
-- **Image digitizing:** run-to-run travel in Cross Stitch, fewer trims in Photo Stitch 1's
-  OpenStitch mode, and closer Photo Stitch output.
+- **Image digitizing:** run-to-run travel in Cross Stitch, still fewer trims in Photo Stitch 1
+  (hidden routed travel took OpenStitch mode from 68 to 25 trims per 1,000 stitches; PE-DESIGN
+  sews a colour in one to five paths), and closer Photo Stitch output.
 - **Distribution:** code signing and a Flathub listing.
 
 Open enhancement issues:

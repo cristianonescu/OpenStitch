@@ -735,6 +735,34 @@ fn fine_rows_are_sewable() {
     }
 }
 
+/// Fewer trims (the default) travels hidden along paths under later layers to a thread's next
+/// run (issue #298), so it trims well under half as often as All trims, and stays sewable.
+#[test]
+fn fewer_trims_routes_travel_under_later_layers() {
+    let frame = Frame::new(0.0, 0.0, 30.0, 60);
+    let trims = |travel: photo::Travel| {
+        let o = PhotoStitch { travel, ..fine(8) };
+        let out = photo::convert(&photo_like(), &frame, &o).expect("converts");
+        let mut d = Design::new("t", DesignPage::default());
+        for o in out.objects {
+            d.add(o);
+        }
+        let p = Compiler::default().compile(&d);
+        p.stitches
+            .iter()
+            .filter(|s| s.command == Command::Trim)
+            .count()
+    };
+    let (fewer, all) = (
+        trims(photo::Travel::FewerTrims),
+        trims(photo::Travel::AllTrims),
+    );
+    assert!(
+        fewer * 2 < all,
+        "{fewer} trims with Fewer trims, {all} with All trims"
+    );
+}
+
 /// The fine rows place stitch ends at the image's edges, not on a 3 mm grid: 3 mm stripes
 /// offset by half a Run Pitch keep their edges, so the rows change thread on them.
 #[test]
