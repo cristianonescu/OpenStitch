@@ -239,7 +239,7 @@ fn bad_parameters_fail_cleanly() {
         ("object.flip", json!({"id": 1, "axis": "diagonal"})),
         ("object.reorder", json!({"id": 1, "index": 7})),
         ("design.export", json!({"path": "x.pes", "pesVersion": "7"})),
-        ("design.export", json!({"path": "x.shv"})),
+        ("design.export", json!({"path": "x.phc"})),
         ("design.export", json!({"path": "x.pes", "split": "yes"})),
         ("import.svg", json!({})),
         ("background.set", json!({"opacity": 0.5})),
@@ -569,10 +569,10 @@ fn import_export_round_trip_and_bad_files() {
     );
     // Read-only formats are refused before anything is written.
     let err = s
-        .execute("design.export", Some(&json!({"path": "x.shv"})))
+        .execute("design.export", Some(&json!({"path": "x.phc"})))
         .expect_err("read only");
     assert!(err.to_string().contains("read only"), "{err}");
-    assert!(!dir.join("x.shv").exists());
+    assert!(!dir.join("x.phc").exists());
 }
 
 #[test]
