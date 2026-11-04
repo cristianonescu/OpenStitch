@@ -629,7 +629,7 @@ These give the AI assistant ([research/beyond/ai-integration.md](research/beyond
 - `ui.render`: a PNG of the live design, the same preview `openstitch-mcp` draws.
 - `ui.scratchWrite`: writes an SVG or a picture into a scratch folder.
 
-The scratch folder is per launch (`openstitch-assistant-<pid>` in the temp folder, 0700 on Unix). It becomes an extra write root of the socket, so `import.svg`, `background.set` and `digitize.*` can read what was written. It is the only root a socket client gets without `--listen-root`. With `--listen-no-files` no scratch folder is made.
+The scratch folder is per launch (`openstitch-assistant-<pid>` in the temp folder, 0700 on Unix). It becomes an extra write root of the socket, so `import.svg`, `background.set` and `digitize.*` can read what was written. It is the only root a socket client gets without `--listen-root`. With `--listen-no-files` no scratch folder is made. The editor holds an OS advisory lock (`File::try_lock`) on the folder's `.lock` while it runs, and removes the folder when it closes normally. At startup, any `openstitch-assistant-*` folder whose lock nobody holds belongs to an editor that has ended (a crash or a forced quit), and is removed. Folders without a lock file are left alone (#314).
 
 **Routes.** `editor::assistant::route` gives every `Action` one of four ways in:
 - `ui.run` directly;
