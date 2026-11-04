@@ -307,8 +307,9 @@ impl std::fmt::Debug for AcpConversation {
 
 impl AcpConversation {
     /// Spawns the agent (own process group, stdin/stdout piped, stderr kept as a short tail),
-    /// sends `initialize` and `session/new` with the bridge, Claude Code's `disallowedTools` and
-    /// the system prompt. Blocks until the session is open (up to a minute per step).
+    /// sends `initialize` and `session/new` with the bridge, Claude Code's `disallowedTools`, no
+    /// user settings (`settingSources: []`, #390) and the system prompt. Blocks until the session
+    /// is open (up to a minute per step).
     pub fn start(cfg: &AcpConfig) -> Result<AcpConversation, AcpError> {
         let mut cmd = discover::command_for(&cfg.program, &cfg.extra_path);
         cmd.args(&cfg.args).current_dir(&cfg.cwd);

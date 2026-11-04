@@ -1298,6 +1298,10 @@ impl eframe::App for EditorApp {
         if let Some((events, modifiers)) = player.next_frame(&vp) {
             raw.events.push(egui::Event::ModifiersChanged(modifiers));
             raw.events.extend(events);
+            if let Some(path) = player.take_dropped() {
+                raw.dropped_files
+                    .push(crate::script::DroppedPath::handle(path));
+            }
             if player.take_close_request() {
                 raw.viewports
                     .entry(raw.viewport_id)

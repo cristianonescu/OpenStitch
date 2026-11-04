@@ -41,6 +41,9 @@ pub struct Conversation {
     pub(crate) pending: Vec<Value>,
     /// The protocol of the history.
     pub(crate) protocol: Protocol,
+    /// OpenAI-compatible only: the server refused pictures for this model (#416), so they go
+    /// as text notes from then on.
+    pub(crate) text_only: bool,
 }
 
 impl Conversation {
@@ -390,6 +393,19 @@ pub(crate) fn post_with_retry(
     cancel: &AtomicBool,
     on_event: &mut dyn FnMut(Event),
 ) -> Result<Box<dyn std::io::Read + Send>, StopKind> {
+    post_with_retry_status(cfg, transport, url, headers, body, cancel, on_event).map_err(|e| e.0)
+}
+
+/// [`post_with_retry`], with the HTTP status of a failed request.
+pub(crate) fn post_with_retry_status(
+    cfg: &Config,
+    transport: &dyn Transport,
+    url: &str,
+    headers: &[(String, String)],
+    body: &[u8],
+    cancel: &AtomicBool,
+    on_event: &mut dyn FnMut(Event),
+) -> Result<Box<dyn std::io::Read + Send>, (StopKind, Option<u16>)> {
     let mut retried = false;
     loop {
         match transport.post(url, headers, body, cfg.request_timeout) {
@@ -407,7 +423,7 @@ pub(crate) fn post_with_retry(
                 let until = Instant::now() + after;
                 loop {
                     if cancel.load(Ordering::SeqCst) {
-                        return Err(StopKind::Cancelled);
+                        return Err((StopKind::Cancelled, None));
                     }
                     let now = Instant::now();
                     if now >= until {
@@ -416,7 +432,7 @@ pub(crate) fn post_with_retry(
                     std::thread::sleep((until - now).min(Duration::from_millis(50)));
                 }
             }
-            Err(e) => return Err(StopKind::Error(describe(&e))),
+            Err(e) => return Err((StopKind::Error(describe(&e)), e.status)),
         }
     }
 }
@@ -470,7 +486,7 @@ fn read_stream(
             Ok(Some(ev)) => ev,
             Ok(None) => return reply,
             Err(e) => {
-                reply.end = End::Error(format!("The connection to the Claude API broke: {e}"));
+                reply.end = End::Error(format!("The connection to the server broke: {e}"));
                 return reply;
             }
         };
@@ -612,9 +628,9 @@ fn read_stream(
                     .unwrap_or("error");
                 reply.end = End::Error(match kind {
                     "overloaded_error" => {
-                        format!("The Claude API is overloaded: {msg}. Try again shortly.")
+                        format!("The server is overloaded: {msg}. Try again shortly.")
                     }
-                    _ => format!("The Claude API reported an error ({kind}): {msg}"),
+                    _ => format!("The server reported an error ({kind}): {msg}"),
                 });
                 return reply;
             }
