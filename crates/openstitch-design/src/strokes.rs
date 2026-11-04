@@ -584,25 +584,63 @@ impl Graph {
                     if *kind != StrokeEnd::Free {
                         continue;
                     }
-                    let (p, q) = if end == 0 {
-                        (centre[0], centre[1])
-                    } else {
-                        (centre[centre.len() - 1], centre[centre.len() - 2])
-                    };
-                    let d = p - q;
-                    let len = d.length();
-                    if len <= 1e-9 {
-                        continue;
+                    // The thinned centre line hooks towards a corner where the end edge meets
+                    // the stroke at a slant (an italic stem's foot): drop the last stretch, ¾ of the
+                    // stroke's width long, and reach out along the line before it.
+                    if end == 0 {
+                        centre.reverse();
                     }
-                    let dir = d * (1.0 / len);
-                    if let Some(t) = ray_to(p, dir, edges) {
-                        let reach = p + dir * (t - grid.step * 0.5).max(0.0);
-                        if end == 0 {
-                            centre[0] = reach;
-                        } else {
+                    let width = {
+                        let mut w: Vec<f64> = centre.iter().map(|&p| 2.0 * clearance(p)).collect();
+                        w.sort_by(f64::total_cmp);
+                        0.75 * w[w.len() / 2]
+                    };
+                    let total = length(&centre);
+                    let mut trend = None;
+                    if width > 0.0 && total > 2.5 * width {
+                        let tip = point_at(&centre, total - width);
+                        let back = point_at(&centre, total - 2.0 * width);
+                        let mut kept: Vec<Vec2> = Vec::new();
+                        let mut at = 0.0;
+                        for (i, &p) in centre.iter().enumerate() {
+                            if i > 0 {
+                                at += centre[i - 1].distance(p);
+                            }
+                            if at < total - width - 1e-6 {
+                                kept.push(p);
+                            }
+                        }
+                        kept.push(tip);
+                        let d = tip - back;
+                        // Only where the line before runs on straight to the outline (a hook);
+                        // a curved stroke (S's ends) leaves through its side first.
+                        let straight = d.length() > 1e-9
+                            && ray_to(tip, d * (1.0 / d.length()), edges)
+                                .is_some_and(|t| t >= 0.8 * width);
+                        // A curved stroke turns steadily over its last stretch (S's ends: 17-22°)
+                        // a straight stem's does not (the italic H: at most 6°).
+                        let chord = centre[centre.len() - 1] - tip;
+                        let cos = (chord.x * d.x + chord.y * d.y)
+                            / (chord.length() * d.length()).max(1e-12);
+                        let gentle = cos.clamp(-1.0, 1.0).dacos().to_degrees() < END_TURN;
+                        if kept.len() >= 2 && straight && gentle {
+                            centre = kept;
+                            trend = Some(d);
+                        }
+                    }
+                    let p = centre[centre.len() - 1];
+                    let d = trend.unwrap_or(p - centre[centre.len() - 2]);
+                    let len = d.length();
+                    if len > 1e-9 {
+                        let dir = d * (1.0 / len);
+                        if let Some(t) = ray_to(p, dir, edges) {
+                            let reach = p + dir * (t - grid.step * 0.5).max(0.0);
                             let n = centre.len() - 1;
                             centre[n] = reach;
                         }
+                    }
+                    if end == 0 {
+                        centre.reverse();
                     }
                 }
             }
@@ -663,6 +701,10 @@ impl Graph {
         GlyphStrokes { strokes, junctions }
     }
 }
+
+/// A free end whose last ¾ stroke width turns less than this (degrees) from the line before it is
+/// a straight stroke, which the thinning bent towards a corner: its end is straightened.
+const END_TURN: f64 = 12.0;
 
 /// Most distance between two centre-line points, 0.1 mm: widths are measured at every point.
 const MAX_SEGMENT: f64 = 20.0;
@@ -1937,5 +1979,39 @@ mod tests {
         let first = |bl: &Block| bl.rungs[0][0].y - b.min_y;
         assert!(first(&blocks[4]) < 3.0, "the right leg starts at the apex");
         assert!(first(&blocks[0]) > 10.0, "the left leg starts below it");
+    }
+
+    #[test]
+    fn a_slanted_stems_foot_is_cut_across_the_whole_stem() {
+        // The 10 mm H under the slant transform (text-transform-9): the thinned centre line of
+        // its left stem hooked towards one corner of the foot, and the foot's rung covered
+        // 0.4 mm of the 1.1 mm stem. Its free end is straightened: the rung on the baseline
+        // spans the stem.
+        let mut spec = TextSpec::new("H", DEFAULT_FONT, 10.0);
+        spec.envelope = Some(9);
+        let contours = layout(&spec, None).expect("layout").contours();
+        let b = Rect::enclosing(contours.iter().flat_map(Contour::outline_points)).expect("box");
+        let blocks = strokes(&contours).expect("strokes").blocks(&contours, 30.0);
+        let feet: Vec<f64> = blocks
+            .iter()
+            .flat_map(|bl| [bl.rungs[0], bl.rungs[bl.rungs.len() - 1]])
+            .filter(|r| (r[0].y - b.max_y).abs() < 1.0 && (r[1].y - b.max_y).abs() < 1.0)
+            .map(|r| r[0].distance(r[1]))
+            .collect();
+        assert_eq!(feet.len(), 2, "{feet:?}");
+        assert!(feet.iter().all(|&w| w > 9.0), "{feet:?}");
+        // Curved ends stay as they are: S keeps its stroke structure and full height.
+        let (g, sb) = glyph("S");
+        let blocks = g.blocks(
+            &layout(&TextSpec::new("S", DEFAULT_FONT, 20.0), None)
+                .expect("layout")
+                .contours(),
+            30.0,
+        );
+        let lowest = blocks
+            .iter()
+            .flat_map(|bl| bl.rungs.iter().flat_map(|r| [r[0].y, r[1].y]))
+            .fold(f64::NEG_INFINITY, f64::max);
+        assert!(sb.max_y - lowest < 5.0, "{lowest} {sb:?}");
     }
 }

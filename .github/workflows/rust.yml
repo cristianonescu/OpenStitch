@@ -129,6 +129,17 @@ jobs:
           tar -xzf gitleaks.tar.gz gitleaks
           ./gitleaks git --log-opts="--all" --redact --no-banner --exit-code 1 .
 
+  icons:
+    # Every icon and graphic is a Higgsfield asset with a recorded job (#400): each file in
+    # assets/icons and assets/illustrations has a higgsfield-jobs.tsv row, and the app's source
+    # has no emoji or symbol button labels and no painter-drawn icons outside the allow-list.
+    name: icons
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: check_icons
+        run: python3 tools/check_icons.py
+
   version-label:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build-test

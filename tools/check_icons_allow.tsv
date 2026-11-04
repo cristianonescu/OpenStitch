@@ -1,0 +1,18 @@
+path	label_or_function	issue
+crates/openstitch-app/src/database_ui.rs	📁 {}	#408
+crates/openstitch-app/src/edit_ui.rs	▲	#409
+crates/openstitch-app/src/edit_ui.rs	▼	#409
+crates/openstitch-app/src/settings_ui.rs	▲	#409
+crates/openstitch-app/src/settings_ui.rs	▼	#409
+crates/openstitch-app/src/workspace_ui.rs	↓	#409
+crates/openstitch-app/src/workspace_ui.rs	↑	#409
+crates/openstitch-app/src/panes.rs	×	#410
+crates/openstitch-app/src/panes.rs	⊟ Dock	#410
+crates/openstitch-app/src/panes.rs	⧉	#410
+crates/openstitch-app/src/view_ui.rs	⟲ Rotate Left	#411
+crates/openstitch-app/src/view_ui.rs	⟳ Rotate Right	#411
+crates/openstitch-app/src/panes.rs	{} ▾	#412
+crates/openstitch-app/src/ribbon.rs	{} ▾	#412
+crates/openstitch-app/src/ribbon.rs	▾	#412
+crates/openstitch-app/src/suite_chrome.rs	{} ▾	#412
+crates/openstitch-app/src/ribbon.rs	■ {}. {name}	#413

@@ -259,6 +259,48 @@ not before, so every reference in the repository has a spec that reads it.
    sewing per stroke (step 5).
 3. **Fill per stroke.** Rows across the stroke, turning along curved strokes (the "column fill"
    PE-DESIGN's B shows). Specs: `text-defaults-fill`, `text-size-hg`, `text-sewing-order`.
+   **Fill text sewn by stroke 2026-11-04** (#376, `compile::stroke_columns`, `stroke_fill`),
+   measured on `text-defaults-fill` and the round-5 fill captures (`stroke-fill-*`):
+   - Each block is the satin's sawtooth: a row across the stroke, then a slanting row back,
+     0.4 mm per pair at density 5.0. There is no step along the edge between rows (the H's
+     left stem: rows at y 0, 0.4, 0.8… from x 0 to −3.8 mm, slanting back each time).
+   - Every crossing is split on a grid of the Step pitch (4 mm), measured from the rungs'
+     first side, that moves back by the Frequency (30 %) from one crossing to the next. The
+     H's needle points lie 2.8, 1.6, 0.4, 3.2, 2.0 mm from the stem's edge, crossing after
+     crossing. A grid point 0.2 mm from the far end is left out; one 0.4 mm from the start
+     is kept.
+   - The rows are spaced along the middle of each block (the mean of its two sides' lengths),
+     in equal steps, their ends taken from rungs 0.2 mm apart so that they stay on curved
+     edges. L's single block bends round its corner and PE-DESIGN fans its rows there. A block
+     whose sides run straight and bend once by more than 60° is spaced along its inner side
+     (L: 274 against PE-DESIGN's 276; 341 by the middle).
+   - The thinned centre line of a slanted stem hooked towards one corner of its foot (the
+     10 mm italic H of `text-transform-9`: a 0.4 mm foot rung on a 1.1 mm stem). A free end
+     whose last ¾ stroke width turns less than 12° is now straightened; S's curved ends turn
+     17–22° and stay as they are.
+   - A letter whose blocks stop more than 0.5 mm short of its outline box is sewn by region.
+
+   | Letter (Lato Bold, 20 mm, Fill) | PE-DESIGN | by region (before) | by stroke |
+   |---|---|---|---|
+   | H (`text-defaults-fill`) | 483 | 595 (+23 %) | 504 (+4 %) |
+   | I | 196 | 294 | 193 |
+   | L | 276 | 313 | 274 |
+   | T | 312 | 333 | 338 |
+   | O | 613 | 473 | 526 |
+   | V | 397 | 509 | 377 |
+   | X | 473 | 426 | 503 |
+   | A | 479 | 520 | 461 |
+   | S | 461 | 346 | 548 |
+   | e | 412 | 305 | 429 |
+   | i | 201 | 252 | 213 |
+   | 8 | 598 | 482 | 459 |
+
+   Mean difference 22 % by region, 8 % by stroke. Open: fill text under a Text Transform keeps
+   its region rows (#428). PE-DESIGN sews it by stroke too (`text-transform-9`: level rows on the
+   slanted stems), but the stroke cut of warped letters drifts 0.1–0.3 mm past seven transform
+   references' bounds. Also open: PE-DESIGN packs the bowls of O and 8 closer than their middle
+   (−14 %, −23 %), and S has more rows than PE-DESIGN (+19 %). Satin text's crossings still end on
+   chords between its 3 mm rungs, up to 0.2 mm inside O's counter (#430).
 4. **Order, travel and trims inside a letter.** Order the strokes, travel along stroke edges at
    2 mm, and trim between a letter's separate runs (x, g, i). Specs: trim counts on
    `text-size-hg` (4) and the "OpenStitch" transforms (11).
