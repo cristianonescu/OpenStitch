@@ -57,73 +57,75 @@
    "thread": "Red",
    "code": "800",
    "rowsPerMM": 3.0,
+   "rgb": "#cd4140"
+  },
+  {
+   "thread": "Red",
+   "code": "800",
+   "rowsPerMM": 4.5,
    "rgb": "#c22525"
   },
   {
    "thread": "Red",
    "code": "800",
-   "rowsPerMM": 4.5,
-   "rgb": "#be1f1e"
-  },
-  {
-   "thread": "Red",
-   "code": "800",
    "rowsPerMM": 6.0,
-   "rgb": "#cd4140"
+   "rgb": "#be1f1e"
   },
   {
    "thread": "Blue",
    "code": "405",
    "rowsPerMM": 3.0,
+   "rgb": "#4a6e97"
+  },
+  {
+   "thread": "Blue",
+   "code": "405",
+   "rowsPerMM": 4.5,
    "rgb": "#2e5885"
   },
   {
    "thread": "Blue",
    "code": "405",
-   "rowsPerMM": 4.5,
-   "rgb": "#2a5482"
-  },
-  {
-   "thread": "Blue",
-   "code": "405",
    "rowsPerMM": 6.0,
-   "rgb": "#4a6e97"
+   "rgb": "#2a5482"
   },
   {
    "thread": "Yellow",
    "code": "205",
    "rowsPerMM": 3.0,
+   "rgb": "#e8c752"
+  },
+  {
+   "thread": "Yellow",
+   "code": "205",
+   "rowsPerMM": 4.5,
    "rgb": "#e9bb39"
   },
   {
    "thread": "Yellow",
    "code": "205",
-   "rowsPerMM": 4.5,
-   "rgb": "#e9b736"
-  },
-  {
-   "thread": "Yellow",
-   "code": "205",
    "rowsPerMM": 6.0,
-   "rgb": "#e8c752"
+   "rgb": "#e9b736"
   },
   {
    "thread": "Leaf Green",
    "code": "509",
-   "rowsPerMM": 3.0,
+   "rowsPerMM": 4.5,
    "rgb": "#4a983a"
   },
   {
    "thread": "Leaf Green",
    "code": "509",
-   "rowsPerMM": 4.5,
+   "rowsPerMM": 6.0,
    "rgb": "#4a983e"
   },
   {
    "thread": "Leaf Green",
    "code": "509",
-   "rowsPerMM": 6.0,
-   "rgb": "#49953b"
+   "rowsPerMM": 4.5,
+   "rgb": "#49953b",
+   "underlay": true,
+   "note": "Sewn with the default fill settings (4.5 rows/mm, under sewing on, default angle), not the 6.0 rows/mm intended (#297)."
   }
  ],
  "blackRamp": [
@@ -160,8 +162,11 @@
  ],
  "notes": [
   "On white fabric the White thread (1618) is measurable; Black, Red and Blue match round 1 on pink fabric within a few levels (they cover the fabric), Yellow and Leaf Green are truer on white.",
-  "At 6 rows/mm Red, Blue and Yellow read lighter than at 4.5 on both fabrics: dense stitching reflects more light.",
   "The 1.0 rows/mm ramp swatch has a stray blue thread over part of it.",
-  "Stippling and the flexible spiral (fixed in alpha.11) sewed without stitching in place; the machine checks, shapes and the sunset patch sewed whole."
+  "Stippling and the flexible spiral (fixed in alpha.11) sewed without stitching in place; the machine checks, shapes and the sunset patch sewed whole.",
+  "The T1 mark sewed as fill (3.0 rows/mm), not satin lettering, because of the same kit error (#297); that is why it looks messy."
+ ],
+ "corrections": [
+  "2026-11-04: Red, Blue, Yellow and Leaf Green relabelled by the densities actually sewn: the kit applied each swatch the next one's settings after the T1 mark (#297). White, Black and the coverage ramp were right."
  ]
 }

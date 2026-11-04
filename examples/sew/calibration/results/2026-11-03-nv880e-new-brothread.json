@@ -50,73 +50,75 @@
    "thread": "Red",
    "code": "800",
    "rowsPerMM": 3.0,
+   "rgb": "#bf3135"
+  },
+  {
+   "thread": "Red",
+   "code": "800",
+   "rowsPerMM": 4.5,
    "rgb": "#bd2426"
   },
   {
    "thread": "Red",
    "code": "800",
-   "rowsPerMM": 4.5,
-   "rgb": "#bd2122"
-  },
-  {
-   "thread": "Red",
-   "code": "800",
    "rowsPerMM": 6.0,
-   "rgb": "#bf3135"
+   "rgb": "#bd2122"
   },
   {
    "thread": "Blue",
    "code": "405",
    "rowsPerMM": 3.0,
+   "rgb": "#445884"
+  },
+  {
+   "thread": "Blue",
+   "code": "405",
+   "rowsPerMM": 4.5,
    "rgb": "#365783"
   },
   {
    "thread": "Blue",
    "code": "405",
-   "rowsPerMM": 4.5,
-   "rgb": "#2b5584"
-  },
-  {
-   "thread": "Blue",
-   "code": "405",
    "rowsPerMM": 6.0,
-   "rgb": "#445884"
+   "rgb": "#2b5584"
   },
   {
    "thread": "Yellow",
    "code": "205",
    "rowsPerMM": 3.0,
+   "rgb": "#da9e4a"
+  },
+  {
+   "thread": "Yellow",
+   "code": "205",
+   "rowsPerMM": 4.5,
    "rgb": "#d89f49"
   },
   {
    "thread": "Yellow",
    "code": "205",
-   "rowsPerMM": 4.5,
-   "rgb": "#e1ac3b"
-  },
-  {
-   "thread": "Yellow",
-   "code": "205",
    "rowsPerMM": 6.0,
-   "rgb": "#da9e4a"
+   "rgb": "#e1ac3b"
   },
   {
    "thread": "Leaf Green",
    "code": "509",
-   "rowsPerMM": 3.0,
+   "rowsPerMM": 4.5,
    "rgb": "#6c8655"
   },
   {
    "thread": "Leaf Green",
    "code": "509",
-   "rowsPerMM": 4.5,
+   "rowsPerMM": 6.0,
    "rgb": "#558d44"
   },
   {
    "thread": "Leaf Green",
    "code": "509",
-   "rowsPerMM": 6.0,
-   "rgb": "#4a883c"
+   "rowsPerMM": 4.5,
+   "rgb": "#4a883c",
+   "underlay": true,
+   "note": "Sewn with the default fill settings (4.5 rows/mm, under sewing on, default angle), not the 6.0 rows/mm intended (#297)."
   }
  ],
  "blackRamp": [
@@ -153,6 +155,10 @@
  ],
  "notes": [
   "White thread does not cover the pink fabric even at 6 rows/mm: the white swatches read pink, so they are not a calibration of White 001.",
-  "One layer, no underlay, as the card is designed."
+  "One layer, no underlay, as the card is designed.",
+  "The T1 mark sewed as fill (3.0 rows/mm), not satin lettering, because of the same kit error (#297); that is why it looks messy."
+ ],
+ "corrections": [
+  "2026-11-04: Red, Blue, Yellow and Leaf Green relabelled by the densities actually sewn: the kit applied each swatch the next one's settings after the T1 mark (#297). White, Black and the coverage ramp were right."
  ]
 }

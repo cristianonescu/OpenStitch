@@ -107,14 +107,19 @@ Results from other machines, threads and fabrics are welcome (see *Sending resul
 Swatch colours, white-balanced on the paper strip (each swatch's central 6 × 6 mm), one layer
 without underlay:
 
+**Corrected 2026-11-04:** the kit gave each Red, Blue, Yellow and Leaf Green swatch the next swatch's
+settings (the T1 mark took one of the object numbers, [#297](https://github.com/cristianonescu/OpenStitch/issues/297)), so from the top they were sewn at
+4.5, 6.0 and 3.0 rows/mm, and Leaf Green's last one with the default fill and under sewing. The
+tables are relabelled by what was sewn; White, Black and the coverage ramp were right.
+
 | Thread | 3.0 rows/mm | 4.5 rows/mm | 6.0 rows/mm |
 |---|---|---|---|
 | 001 White | `#ddafc0` | `#e5c7d3` | `#ebd6df` |
 | 900 Black | `#302628` | `#161715` | `#121613` |
-| 800 Red | `#bd2426` | `#bd2122` | `#bf3135` |
-| 405 Blue | `#365783` | `#2b5584` | `#445884` |
-| 205 Yellow | `#d89f49` | `#e1ac3b` | `#da9e4a` |
-| 509 Leaf Green | `#6c8655` | `#558d44` | `#4a883c` |
+| 800 Red | `#bf3135` | `#bd2426` | `#bd2122` |
+| 405 Blue | `#445884` | `#365783` | `#2b5584` |
+| 205 Yellow | `#da9e4a` | `#d89f49` | `#e1ac3b` |
+| 509 Leaf Green | — (4.5 with under sewing: `#4a883c`) | `#6c8655` | `#558d44` |
 
 Black coverage ramp (how far each swatch moved from the fabric, `#d889a9`, towards black):
 
@@ -125,8 +130,8 @@ Black coverage ramp (how far each swatch moved from the fabric, `#d889a9`, towar
 Notes:
 - White thread does not hide the pink fabric even at 6 rows/mm, so the White swatches are not a
   calibration of White 001; a white or light grey fabric is needed for it.
-- The small "T1" mark sews unevenly: satin lettering this small ends its strokes in very short
-  stitches, a known open item.
+- The small "T1" mark sews unevenly because the same kit error sewed it as fill at 3.0 rows/mm
+  instead of satin lettering ([#297](https://github.com/cristianonescu/OpenStitch/issues/297)).
 
 The full record, with the method, is
 [calibration/results/2026-11-03-nv880e-new-brothread.json](calibration/results/2026-11-03-nv880e-new-brothread.json).
@@ -151,10 +156,10 @@ measured. The White used is **1618**, not the 001 the kit names.
 |---|---|---|---|
 | 1618 White | `#edefef` | `#f7f8f9` | `#f6f7f9` |
 | 900 Black | `#323631` | `#1a1d1a` | `#141614` |
-| 800 Red | `#c22525` | `#be1f1e` | `#cd4140` |
-| 405 Blue | `#2e5885` | `#2a5482` | `#4a6e97` |
-| 205 Yellow | `#e9bb39` | `#e9b736` | `#e8c752` |
-| 509 Leaf Green | `#4a983a` | `#4a983e` | `#49953b` |
+| 800 Red | `#cd4140` | `#c22525` | `#be1f1e` |
+| 405 Blue | `#4a6e97` | `#2e5885` | `#2a5482` |
+| 205 Yellow | `#e8c752` | `#e9bb39` | `#e9b736` |
+| 509 Leaf Green | — (4.5 with under sewing: `#49953b`) | `#4a983a` | `#4a983e` |
 
 Black coverage ramp on the white fabric (`#e5e8e5`):
 
@@ -167,9 +172,10 @@ Notes:
   Leaf Green read truer on white, so part of their colour on pink was the fabric showing through.
 - The coverage ramp agrees with the pink card within 5 %: one layer of Black hides about two
   thirds of the fabric at 2 rows/mm and nearly all of it at 4.5.
-- At 6 rows/mm Red, Blue and Yellow read lighter than at 4.5 on both fabrics: dense stitching
-  reflects more light.
-- A stray Blue thread lies over part of the 1 rows/mm swatch; the "T1" mark is still uneven.
+- The tables are corrected for [#297](https://github.com/cristianonescu/OpenStitch/issues/297) as on the first card: Red, Blue and Yellow at 3.0 rows/mm read
+  lighter than at 4.5 and 6.0, which match within a few levels.
+- A stray Blue thread lies over part of the 1 rows/mm swatch; the "T1" mark is uneven because it
+  sewed as fill ([#297](https://github.com/cristianonescu/OpenStitch/issues/297)).
 - The same session sewed the sunset photo patch, the machine checks, *Region sew types 2* and
   *Background fill*: all sewed whole, and stippling and the flexible spiral no longer stitch in
   place (fixed in alpha.11). The zigzag net fill sews lumpy ([#293](https://github.com/cristianonescu/OpenStitch/issues/293)).
