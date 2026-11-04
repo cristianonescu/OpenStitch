@@ -48,11 +48,11 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 191: 155 implemented (3 of them partially compatible), 2 documented only, 10 blocked, 24 planned beyond PE-DESIGN |
+| Feature matrix rows | 190: 154 implemented (3 of them partially compatible), 2 documented only, 10 blocked, 24 planned beyond PE-DESIGN |
 | Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 33: 26 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 11 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
-| Open GitHub issues | 20 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
+| Open GitHub issues | 46 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
 <!-- /status:glance -->
 
 Tiers, weakest first: *internal regression* (our own earlier output), *oracle* (an independent
@@ -390,6 +390,8 @@ Bugs reported on GitHub:
 - [#297](https://github.com/cristianonescu/OpenStitch/issues/297) T1 card: the swatches after the T1 mark get the wrong density, and the mark sews as fill
 - [#303](https://github.com/cristianonescu/OpenStitch/issues/303) Fill rows clipped to a narrow notch sew runs of stitches under 0.3 mm
 - [#304](https://github.com/cristianonescu/OpenStitch/issues/304) Satin over a jagged outline fans its needle drops into the notches (Auto Punch PE-compatible mode)
+- [#322](https://github.com/cristianonescu/OpenStitch/issues/322) PES: write the hoop and Design Page fields from the design instead of hard-coded values
+- [#341](https://github.com/cristianonescu/OpenStitch/issues/341) import.svg drops every <line> element
 <!-- /status:issues-bugs -->
 
 [Report a bug](https://github.com/cristianonescu/OpenStitch/issues/new).
@@ -418,11 +420,35 @@ Open enhancement issues:
 - [#134](https://github.com/cristianonescu/OpenStitch/issues/134) Import external scalable embroidery font containers
 - [#291](https://github.com/cristianonescu/OpenStitch/issues/291) Fit the Realistic view and the similarity scorer to the T1 calibration measurements
 - [#292](https://github.com/cristianonescu/OpenStitch/issues/292) Sew-out reports wanted: other machines, and the non-PES formats
-- [#294](https://github.com/cristianonescu/OpenStitch/issues/294) Run the macOS release checks for v0.1.0-alpha.9, alpha.10 and alpha.11
 - [#295](https://github.com/cristianonescu/OpenStitch/issues/295) Review every ready-to-sew kit design against the sew-out findings
 - [#298](https://github.com/cristianonescu/OpenStitch/issues/298) Photo Stitch 1 trims far more than PE-DESIGN: travel between a thread's runs instead
 - [#306](https://github.com/cristianonescu/OpenStitch/issues/306) B17 A1: AI assistant chat panel with Claude (keychain key, permission gate, one undo per message)
-- [#307](https://github.com/cristianonescu/OpenStitch/issues/307) CI: the Rust workflow takes 25–60 min, 15 of them in unoptimised digitize tests
+- [#309](https://github.com/cristianonescu/OpenStitch/issues/309) CI: run test binaries in parallel with cargo nextest
+- [#311](https://github.com/cristianonescu/OpenStitch/issues/311) T2 calibration card: two threads in alternating rows, to measure how much a later row covers an earlier one
+- [#312](https://github.com/cristianonescu/OpenStitch/issues/312) Kit build: check each calibration swatch's density in the exported PES
+- [#313](https://github.com/cristianonescu/OpenStitch/issues/313) Assistant command icon (Higgsfield) for View ▸ Show/Hide ▸ Assistant
+- [#314](https://github.com/cristianonescu/OpenStitch/issues/314) Remove the assistant scratch folder when the editor exits
+- [#317](https://github.com/cristianonescu/OpenStitch/issues/317) B17 A2: Assistant endpoints and local models (OpenAI-compatible, Ollama, LM Studio, OpenRouter)
+- [#318](https://github.com/cristianonescu/OpenStitch/issues/318) Tests: stitchtool exec, serve and commands have no automated test
+- [#319](https://github.com/cristianonescu/OpenStitch/issues/319) macOS: verify Help ▸ Ready-to-Sew Designs opens Finder at the bundled kit with a real click
+- [#320](https://github.com/cristianonescu/OpenStitch/issues/320) Export Singer CSD and Husqvarna/Viking SHV, as PE-DESIGN 11's Export offers
+- [#321](https://github.com/cristianonescu/OpenStitch/issues/321) Import WMF/EMF vector images as shapes
+- [#326](https://github.com/cristianonescu/OpenStitch/issues/326) FEATURE_MATRIX: stale test names, uncited tests and two broken rows
+- [#327](https://github.com/cristianonescu/OpenStitch/issues/327) Tests: editing commands with unasserted claims (flip, setPoint handles, pasteAttributes, paste on path, export sewingArea, …)
+- [#328](https://github.com/cristianonescu/OpenStitch/issues/328) Tests: stitch-type parameters with no test (zigzag under sewing, satin underlayParts, fill pull compensation, direction curve on piping/motif, …)
+- [#329](https://github.com/cristianonescu/OpenStitch/issues/329) Tests: format claims without a test (rotated hoop in PES v6, SVG ellipse/line/polygon/CSS, Text Transform in PES 0110, missing references pass silently)
+- [#330](https://github.com/cristianonescu/OpenStitch/issues/330) Tests: lettering claims without a test (font count/size limits per design, character moves on mirrored or on-path text)
+- [#331](https://github.com/cristianonescu/OpenStitch/issues/331) Tests: Design Database search by date modified is untested; a property-search test can pass vacuously
+- [#332](https://github.com/cristianonescu/OpenStitch/issues/332) Tests: editor behaviour without a test (import into design, visibility toggle, undo keys, simulator play, inspector line settings, nudge)
+- [#333](https://github.com/cristianonescu/OpenStitch/issues/333) Tests: the automation socket's idle-connection timeout is untested
+- [#334](https://github.com/cristianonescu/OpenStitch/issues/334) Tests: digitize parameters no test sends (Photo Stitch densityMean/densityWindow/travel, single-chart thread source, PS2 97 % claim)
+- [#338](https://github.com/cristianonescu/OpenStitch/issues/338) B17 A3: Assistant with ACP coding agents (Claude Code, Codex, OpenCode) on the user's own account
+- [#339](https://github.com/cristianonescu/OpenStitch/issues/339) CI: measure the Linux runner's disk headroom (#315 ran out of space during the build)
+- [#342](https://github.com/cristianonescu/OpenStitch/issues/342) README status blocks drift whenever an issue opens: regenerate them automatically instead of in every PR
+- [#345](https://github.com/cristianonescu/OpenStitch/issues/345) Tests: complex-script and CJK lettering tests pass without checking when no system font is installed
+- [#349](https://github.com/cristianonescu/OpenStitch/issues/349) SHV and CSD export: settle the parts one PE-DESIGN reference could not (preview, palette fill, long stitches)
+- [#350](https://github.com/cristianonescu/OpenStitch/issues/350) Auto Punch isolateSubject: let the user mark subject and background by hand
+- [#351](https://github.com/cristianonescu/OpenStitch/issues/351) Tests: smaller weak points from the test-coverage audit
 <!-- /status:issues-planned -->
 
 ### Beyond PE-DESIGN
@@ -649,6 +675,7 @@ including the README refresh done at every release, is in [docs/RELEASING.md](do
 - [Compatibility tests](docs/COMPATIBILITY_TESTS.md) and the generated
   [compatibility status](docs/COMPATIBILITY_STATUS.md)
 - [Compatibility audit](docs/COMPATIBILITY_AUDIT.md)
+- [Test coverage audit](docs/TEST_COVERAGE_AUDIT.md): features without test evidence, and the plan
 - [Adding a PE-DESIGN reference file](compat/reference/README.md)
 - [Legal and licensing](docs/LEGAL_AND_LICENSING.md)
 - [Roadmap](docs/ROADMAP.md)
