@@ -483,8 +483,14 @@ Line references are relative to `crates/`.
   the outline, chevrons at a crossing, the corner tip to the column sewn last): the 13 round-5
   satin captures (`stroke-satin-*`) and `text-defaults-h` are within 25 % of PE-DESIGN's needle
   points, 9 % on average against 26 % by region (H 291 against 285, A 283 against 290). Fill
-  text, under sewing per stroke and the curve and corner-fan crossing counts (S, 8, O, L) are
-  still open (steps 3 and 5 of the research note).
+  text is sewn by stroke since 2026-11-04 (#376), as PE-DESIGN's fill H shows: each block a
+  row across the stroke and a slanting row back, every crossing split on the Step pitch grid
+  moved by the Frequency, rows fanned round L's corner. The 11 round-5 fill captures
+  (`stroke-fill-*`) and `text-defaults-fill` are within 25 %, 8 % on average against 22 % by
+  region (H 504 against 483, was 595; L 274 against 276). Fill text under a Text Transform keeps its region rows
+  until the stroke cut of warped letters is measured (#428). Under sewing per stroke and the
+  satin curve and corner-fan crossing counts (S, 8, O, L) are still open (step 5 of the
+  research note).
 - **Test:**
   - Inputs: `text.add {"text":"AVOW","size":30,"x":50,"y":50}` →
     `object.setRegion {"id":1,"type":"satin"}` → `design.generate`.

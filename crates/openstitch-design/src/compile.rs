@@ -1,3 +1,4 @@
+use crate::fmath::Det;
 use crate::generate::{self, Run};
 use crate::geometry::{Contour, Vec2, v2};
 use crate::lines;
@@ -421,11 +422,19 @@ fn elements(object: &DesignObject, holes: &[Contour], user: &[Pattern]) -> Vec<E
                 continue;
             }
             let mut layers = region::layers_with(&closed, region, holes, user);
-            // PE-DESIGN 11.50 sews a TrueType letter in Satin stroke by stroke, each stroke a
-            // column, in its Convert to Blocks order (docs/research/stroke-lettering.md).
-            let by_stroke = (text && region.kind == RegionType::Satin && region.stamps.is_empty())
-                .then(|| stroke_satin(&closed, region))
-                .flatten();
+            // PE-DESIGN 11.50 sews a TrueType letter in Satin and in Fill stroke by stroke, each
+            // stroke a column, in its Convert to Blocks order (docs/research/stroke-lettering.md).
+            // Fill text under a Text Transform keeps its region rows for now: PE-DESIGN sews it
+            // by stroke as well (text-transform-9: level rows on the slanted stems), but the
+            // stroke cut of warped letters is not measured yet and drifts 0.1-0.3 mm past
+            // seven transform references' bounds (#428).
+            let warped = object.text.as_ref().is_some_and(|t| t.envelope.is_some());
+            let by_stroke = (text
+                && (region.kind == RegionType::Satin
+                    || (region.kind == RegionType::Fill && !warped))
+                && region.stamps.is_empty())
+            .then(|| stroke_columns(&closed, region))
+            .flatten();
             if let (Some(runs), Some(top)) = (by_stroke, layers.last_mut()) {
                 *top = runs;
             } else if let Some(top) = layers.last_mut() {
@@ -507,27 +516,57 @@ fn elements(object: &DesignObject, holes: &[Contour], user: &[Pattern]) -> Vec<E
 
 /// Rungs of a letter's blocks this far apart (0.1 mm): the direction lines the satin follows.
 const STROKE_RUNGS: f64 = 30.0;
+/// Rungs of a fill letter's blocks this far apart (0.1 mm), the step the strokes' sides are
+/// sampled at: the outline its rows end on.
+const STROKE_FILL_RUNGS: f64 = 2.0;
 /// Travel between a letter's blocks: running stitches along its outline at most 2 mm long.
 const STROKE_TRAVEL: f64 = 20.0;
 
-/// A letter's satin sewn stroke by stroke: each block a column satin along its rungs, joined by
-/// travel along the outline, a new run (a trim) where a piece is not joined to the one before.
-/// `None` where the letter has no strokes.
-fn stroke_satin(closed: &[Contour], region: &crate::model::RegionSewing) -> Option<Vec<Run>> {
+/// A letter sewn stroke by stroke: each block a column along its rungs, joined by travel along
+/// the outline, a new run (a trim) where a piece is not joined to the one before. Satin text
+/// sews each block as a column satin; Fill text as the rows of a Manual Punch fill block, across
+/// the stroke and turning with it (PE-DESIGN 11.50's fill H: horizontal rows on the stems,
+/// vertical rows on the crossbar, the junction square a group of its own; its B's rows turn
+/// round each bowl). `None` where the letter has no strokes.
+fn stroke_columns(closed: &[Contour], region: &crate::model::RegionSewing) -> Option<Vec<Run>> {
     let g = crate::strokes::strokes(closed)?;
     let blocks = g.blocks(closed, STROKE_RUNGS);
+    if !blocks_cover(&blocks, closed) {
+        return None;
+    }
+    // Fill rows take their ends from rungs this close together, so they stay on the outline
+    // where it curves (rows interpolated between the 3 mm rungs ended up to 0.2 mm inside O's
+    // counter). The same strokes give the same blocks in the same order at any rung spacing.
+    let fine = (region.kind == RegionType::Fill)
+        .then(|| g.blocks(closed, STROKE_FILL_RUNGS))
+        .filter(|f| f.len() == blocks.len());
     let spacing = 10.0 / region.density.max(0.1);
     let pull = region.pull_compensation * 10.0;
+    let fill = region.kind == RegionType::Fill;
+    let stitch = (region.stitch_length * 10.0).max(1.0);
     let mut runs: Vec<Run> = Vec::new();
     let mut run: Run = Vec::new();
-    for b in &blocks {
+    for (i, b) in blocks.iter().enumerate() {
         if b.rungs.len() < 2 {
             continue;
         }
         if b.new_run && run.len() >= 2 {
             runs.push(std::mem::take(&mut run));
         }
-        let column = crate::column::satin(&b.rungs, spacing, pull);
+        let column = if fill {
+            stroke_fill(
+                &crate::column::sawtooth(fill_rungs(
+                    &b.rungs,
+                    fine.as_ref().map_or(&b.rungs, |f| &f[i].rungs),
+                    2.0 * spacing,
+                    pull,
+                )),
+                stitch,
+                region.fill_stagger(),
+            )
+        } else {
+            crate::column::satin(&b.rungs, spacing, pull)
+        };
         // PE-DESIGN walks the letter's outline between its blocks (stroke-blocks-H: running
         // pieces between them).
         if let (Some(&from), Some(&to)) = (run.last(), column.first()) {
@@ -544,6 +583,148 @@ fn stroke_satin(closed: &[Contour], region: &crate::model::RegionSewing) -> Opti
         runs.push(run);
     }
     (!runs.is_empty()).then_some(runs)
+}
+
+/// How far (0.1 mm) a letter's blocks may stop short of its outline's bounding box on any side
+/// before the letter is sewn by region instead: a stroke cut that misses part of a letter (a
+/// strongly warped Text Transform letter) would leave it unsewn.
+const STROKE_COVER: f64 = 5.0;
+
+/// Whether the blocks reach the letter's bounding box on every side within [`STROKE_COVER`].
+fn blocks_cover(blocks: &[crate::strokes::Block], closed: &[Contour]) -> bool {
+    let bounds = |pts: &mut dyn Iterator<Item = Vec2>| {
+        pts.fold(None, |b: Option<(Vec2, Vec2)>, p| {
+            Some(b.map_or((p, p), |(lo, hi)| {
+                (
+                    v2(lo.x.min(p.x), lo.y.min(p.y)),
+                    v2(hi.x.max(p.x), hi.y.max(p.y)),
+                )
+            }))
+        })
+    };
+    let outline = bounds(&mut closed.iter().flat_map(|c| c.points.iter().copied()));
+    let sewn = bounds(
+        &mut blocks
+            .iter()
+            .flat_map(|b| b.rungs.iter().flatten().copied()),
+    );
+    match (outline, sewn) {
+        (Some((lo, hi)), Some((slo, shi))) => {
+            slo.x - lo.x <= STROKE_COVER
+                && slo.y - lo.y <= STROKE_COVER
+                && hi.x - shi.x <= STROKE_COVER
+                && hi.y - shi.y <= STROKE_COVER
+        }
+        _ => false,
+    }
+}
+
+/// A fill block turns a corner when its sides run straight (their median bend between two 3 mm
+/// sections under [`CORNER_STRAIGHT`] degrees) and bend once by more than [`CORNER_TURN`]: L's
+/// sides run at 0° and bend by 78-175° at its corner, while the bowls of e, S and 8 bend by
+/// 15-30° almost everywhere (and by up to 82° where their sampling is uneven).
+const CORNER_TURN: f64 = 60.0;
+/// See [`CORNER_TURN`].
+const CORNER_STRAIGHT: f64 = 5.0;
+
+/// A fill block's rows `pitch` apart: a whole number of equal steps along the block (rounded
+/// down), their ends on `fine`, the block's rungs close together, each lengthened by `pull` at
+/// both ends. A block is measured along its middle, the mean of its two sides' lengths; one
+/// that turns a corner (see [`CORNER_TURN`], from its 3 mm rungs `coarse`: L's stem into its
+/// foot) along its inner, shorter side, as PE-DESIGN fans the rows round the corner. Against
+/// the round-5 fill captures (needle points, PE-DESIGN / middle / longer side): L 276 / 341 /
+/// 361, by the inner side 274; S 461 / 548 / 603; e 412 / 429 / 574; O 613 / 526 / 667;
+/// 8 598 / 459 / 592. The middle keeps every letter within 25 %, 8 % on average; PE-DESIGN
+/// packs O's and 8's bowls closer than that (#376).
+fn fill_rungs(coarse: &[[Vec2; 2]], fine: &[[Vec2; 2]], pitch: f64, pull: f64) -> Vec<[Vec2; 2]> {
+    let turns: Vec<Vec<f64>> = (0..2)
+        .map(|side| {
+            coarse
+                .windows(3)
+                .map(|w| {
+                    let (u, v) = (w[1][side] - w[0][side], w[2][side] - w[1][side]);
+                    let cos = (u.x * v.x + u.y * v.y) / (u.length() * v.length()).max(1e-12);
+                    cos.clamp(-1.0, 1.0).dacos().to_degrees()
+                })
+                .collect()
+        })
+        .collect();
+    let median = |t: &[f64]| {
+        let mut t = t.to_vec();
+        t.sort_by(f64::total_cmp);
+        t.get(t.len() / 2).copied().unwrap_or(0.0)
+    };
+    let corner = turns.iter().all(|t| median(t) < CORNER_STRAIGHT)
+        && turns.iter().flatten().any(|&t| t > CORNER_TURN);
+    let section = |[a, b]: [Vec2; 2], [c, d]: [Vec2; 2]| {
+        if corner {
+            a.distance(c).min(b.distance(d))
+        } else {
+            0.5 * (a.distance(c) + b.distance(d))
+        }
+    };
+    let lengths: Vec<f64> = fine.windows(2).map(|w| section(w[0], w[1])).collect();
+    let total: f64 = lengths.iter().sum();
+    let mut out: Vec<[Vec2; 2]> = fine.first().copied().into_iter().collect();
+    if fine.len() >= 2 {
+        let n = ((total / pitch.max(0.1) + 1e-9).floor() as usize).clamp(1, 100_000);
+        let step = total / n as f64;
+        let (mut i, mut start) = (0, 0.0);
+        for k in 1..=n {
+            let at = if k == n { total } else { k as f64 * step };
+            while i + 1 < lengths.len() && start + lengths[i] < at {
+                start += lengths[i];
+                i += 1;
+            }
+            let t = ((at - start) / lengths[i].max(1e-9)).clamp(0.0, 1.0);
+            let ([a, b], [c, d]) = (fine[i], fine[i + 1]);
+            out.push([a.lerp(c, t), b.lerp(d, t)]);
+        }
+    }
+    for [l, r] in &mut out {
+        let len = l.distance(*r).max(1e-9);
+        let d = (*r - *l) * (pull / len);
+        (*l, *r) = (*l - d, *r + d);
+    }
+    out
+}
+
+/// Needle points of a fill stroke closer than this (0.1 mm) to either end of its crossing are
+/// left out: PE-DESIGN 11.50's fill H drops a grid point 0.2 mm from the row's end and keeps one
+/// 0.4 mm from its start (`text-defaults-fill`).
+const STROKE_FILL_MARGIN: f64 = 3.0;
+
+/// Fill rows of a letter's stroke as PE-DESIGN 11.50 sews them (`text-defaults-fill`, the round-5
+/// `stroke-fill-*` captures): the satin sawtooth of the block, a row across the stroke and a
+/// slanting row back, two crossings per two row spacings with no step along the edge, every
+/// crossing split on a grid of `stitch` (the Step pitch). The grid is measured from the rungs'
+/// first side and moves back by the Frequency from one crossing to the next: on the H's stems
+/// (3.8 mm, 4 mm steps, 30 %) the needle points of consecutive crossings lie 2.8, 1.6, 0.4, 3.2,
+/// 2.0 mm from the stem's right edge. A grid point within [`STROKE_FILL_MARGIN`] of a crossing's
+/// end is left out.
+fn stroke_fill(sawtooth: &[Vec2], stitch: f64, stagger: generate::Stagger) -> Run {
+    let mut run: Run = sawtooth.first().copied().into_iter().collect();
+    for (k, w) in sawtooth.windows(2).enumerate() {
+        let (from, to) = (w[0], w[1]);
+        let len = from.distance(to);
+        // Even crossings run from the first side, odd ones back to it.
+        let (side, other) = if k % 2 == 0 { (from, to) } else { (to, from) };
+        let shift = stagger.anchored(k).unwrap_or_else(|| stagger.phase(k));
+        let mut s = (1.0 - shift).fract() * stitch;
+        let mut points = Vec::new();
+        while s < len - STROKE_FILL_MARGIN {
+            if s > STROKE_FILL_MARGIN {
+                points.push(side.lerp(other, s / len.max(1e-9)));
+            }
+            s += stitch;
+        }
+        if k % 2 == 1 {
+            points.reverse();
+        }
+        run.extend(points);
+        run.push(to);
+    }
+    run
 }
 
 fn line_elements(object: &DesignObject, line: &LineSewing, user: &[Pattern]) -> Vec<Element> {
@@ -758,4 +939,129 @@ pub fn cutwork_needle(thread: &Thread, n: usize) -> Thread {
     t.catalog_number = None;
     t.brand = None;
     t
+}
+
+#[cfg(test)]
+mod stroke_fill_tests {
+    use super::*;
+    use crate::model::RegionSewing;
+    use crate::text::{DEFAULT_FONT, TextSpec};
+
+    /// PE-DESIGN's Fill for text: density 5.0, Step 4.0 mm, Frequency 30 %, no under sewing.
+    fn text_fill() -> RegionSewing {
+        let mut r = RegionSewing::new(RegionType::Fill, Thread::rgb(0xFF0000));
+        r.density = 5.0;
+        r.stitch_length = 4.0;
+        r.frequency = Some(30.0);
+        r.underlay = false;
+        r
+    }
+
+    fn compiled(text: &str, size: f64, envelope: Option<u8>) -> StitchPattern {
+        let mut spec = TextSpec::new(text, DEFAULT_FONT, size);
+        spec.envelope = envelope;
+        let (obj, _) = DesignObject::text(spec, Some(text_fill()), None).expect("text");
+        let mut d = Design::default();
+        d.add(obj);
+        Compiler::default().compile(&d)
+    }
+
+    #[test]
+    fn a_fill_stroke_is_split_on_pe_designs_moving_grid() {
+        // The left stem of PE-DESIGN's fill H (text-defaults-fill): a row across the stem and a
+        // slanting row back, 0.4 mm per pair, every crossing split on a 4 mm grid that moves
+        // back 30 % per crossing: needle points 2.8, 1.6, 0.4, 3.2, 2.0 mm from the first side;
+        // a grid point 0.2 mm from the far end is left out.
+        let sawtooth = [
+            v2(0.0, 0.0),
+            v2(38.0, 0.0),
+            v2(0.0, 4.0),
+            v2(38.0, 4.0),
+            v2(0.0, 8.0),
+            v2(38.0, 8.0),
+            v2(0.0, 12.0),
+            v2(38.0, 12.0),
+        ];
+        let run = stroke_fill(&sawtooth, 40.0, generate::Stagger::Regular(0.3));
+        let inner: Vec<f64> = run
+            .iter()
+            .filter(|p| p.x > 0.5 && p.x < 37.5)
+            .map(|p| p.x.round())
+            .collect();
+        // Crossing k's point lies (1 - 0.3 (k + 1)) mod 1 of 4 mm from the first side (x = 0),
+        // along the crossing (the slanting ones a little left of that x).
+        assert_eq!(inner, vec![28.0, 16.0, 4.0, 32.0, 20.0, 8.0], "{run:?}");
+        // No step along the edge: every stitch crosses the stem.
+        for w in run.windows(2) {
+            assert!(w[0].distance(w[1]) > 3.0, "{w:?}");
+        }
+    }
+
+    #[test]
+    fn fill_text_is_sewn_stroke_by_stroke_as_pe_design_does() {
+        // text-defaults-fill: PE-DESIGN 11.50 sews the 20 mm fill H in 483 needle points;
+        // OpenStitch sewed 595 by region before.
+        let h = compiled("H", 20.0, None).count(Command::Stitch);
+        assert!((460..=510).contains(&h), "{h}");
+        // stroke-fill-L: spaced by its middle, 341 needle points; by its inner side round its
+        // corner, within the text references' 25 % of PE-DESIGN's 276.
+        let l = compiled("L", 20.0, None).count(Command::Stitch);
+        assert!(l <= 345, "{l}");
+    }
+
+    #[test]
+    fn fill_rungs_follow_the_inner_side_round_a_corner_and_the_middle_elsewhere() {
+        // An L-shaped column, 4 mm wide, straight down then straight on to the right after a
+        // 90° corner: its outer side is 20 mm long, its inner one 12 mm.
+        let corner = [
+            [v2(0.0, -100.0), v2(40.0, -100.0)],
+            [v2(0.0, -50.0), v2(40.0, -70.0)],
+            [v2(0.0, 0.0), v2(40.0, -40.0)],
+            [v2(50.0, 0.0), v2(70.0, -40.0)],
+            [v2(100.0, 0.0), v2(100.0, -40.0)],
+        ];
+        // Inner side: 120 → 30 steps of 4.
+        assert_eq!(fill_rungs(&corner, &corner, 4.0, 0.0).len(), 31);
+        // A bowl bends all along: measured along its middle.
+        let bowl: Vec<[Vec2; 2]> = (0..=8)
+            .map(|k| {
+                let a = (k as f64 * 22.5).to_radians();
+                let (s, c) = (a.dsin(), a.dcos());
+                [v2(80.0 * c, 80.0 * s), v2(40.0 * c, 40.0 * s)]
+            })
+            .collect();
+        let middle: f64 = bowl
+            .windows(2)
+            .map(|w| 0.5 * (w[0][0].distance(w[1][0]) + w[0][1].distance(w[1][1])))
+            .sum();
+        assert_eq!(
+            fill_rungs(&bowl, &bowl, 4.0, 0.0).len(),
+            (middle / 4.0).floor() as usize + 1
+        );
+        // A straight column has no corner: measured along its middle, (100 + 80) / 2 → 22.
+        let straight = [
+            [v2(0.0, 0.0), v2(40.0, 0.0)],
+            [v2(0.0, 100.0), v2(40.0, 80.0)],
+        ];
+        assert_eq!(fill_rungs(&straight, &straight, 4.0, 0.0).len(), 23);
+    }
+
+    #[test]
+    fn warped_fill_text_keeps_its_region_rows() {
+        // Under a Text Transform fill text is sewn by region for now (#428): the region rows
+        // step along the letter's edge between rows, which a stroke's sawtooth never does.
+        let p = compiled("H", 10.0, Some(9));
+        let steps = p
+            .stitches
+            .windows(2)
+            .filter(|w| {
+                w[1].command == Command::Stitch && {
+                    let d = ((w[1].x - w[0].x).powi(2) + (w[1].y - w[0].y).powi(2)).sqrt();
+                    d > 0.5 && d < 3.0
+                }
+            })
+            .count();
+        assert!(steps > 20, "{steps}");
+        assert!(p.count(Command::Stitch) > 100);
+    }
 }
