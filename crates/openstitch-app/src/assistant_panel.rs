@@ -106,6 +106,8 @@ struct Worker {
     from: Receiver<FromWorker>,
     jobs: Receiver<Job>,
     cancel: Arc<AtomicBool>,
+    /// A conversation keeps the protocol it started with (`openstitch-assistant`).
+    protocol: claude::Protocol,
 }
 
 impl Worker {
@@ -150,6 +152,7 @@ impl Worker {
             from,
             jobs,
             cancel,
+            protocol: claude::Protocol::default(),
         }
     }
 }
@@ -329,18 +332,31 @@ pub fn send(app: &mut EditorApp, text: String, wake: Waker) {
     }
     let content = claude::user_content(&format!("{text}\n\n{}", context(app)), &[]);
     let panel = &mut app.assistant.panel;
+    if panel
+        .worker
+        .as_ref()
+        .is_some_and(|w| w.protocol != config.protocol)
+    {
+        // The settings changed the protocol: the model starts a new conversation.
+        panel.worker = None;
+        panel.items.push(Item::Notice(
+            "The protocol changed, so this is a new conversation for the model.".into(),
+        ));
+    }
     if panel.worker.is_none() {
         let transport = panel
             .transport
             .clone()
             .unwrap_or_else(|| Arc::new(claude::UreqTransport));
-        panel.worker = Some(Worker::start(transport, wake));
+        let mut worker = Worker::start(transport, wake);
+        worker.protocol = config.protocol;
+        panel.worker = Some(worker);
     }
-    panel.items.push(Item::User(text));
+    panel.items.push(Item::User(text.clone()));
     panel.turn = Some(Turn {
         undo_start: app.undo_groups.len(),
         edits: 0,
-        text: text.clone(),
+        text,
         used_tools: false,
         reply: String::new(),
     });
@@ -711,7 +727,11 @@ fn lookup_config(app: &EditorApp) -> claude::Config {
 
 fn list_models(app: &EditorApp, lookups: &Shared, ctx: &egui::Context) {
     let config = lookup_config(app);
-    lookups.lock().unwrap_or_else(|e| e.into_inner()).busy.push("models");
+    lookups
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .busy
+        .push("models");
     let (out, ctx) = (lookups.clone(), ctx.clone());
     std::thread::spawn(move || {
         let r = claude::list_models(&config, &claude::UreqTransport);
@@ -723,7 +743,10 @@ fn list_models(app: &EditorApp, lookups: &Shared, ctx: &egui::Context) {
 }
 
 fn check_ollama_tools(app: &EditorApp, lookups: &Shared, ctx: &egui::Context) {
-    let (base, model) = (app.ui.prefs.ai.base_url.clone(), app.ui.prefs.ai.model.clone());
+    let (base, model) = (
+        app.ui.prefs.ai.base_url.clone(),
+        app.ui.prefs.ai.model.clone(),
+    );
     if model.is_empty() || !is_this_computer(&base) {
         return;
     }
@@ -1228,13 +1251,17 @@ pub mod testing {
     pub fn openai_reply(calls: &[(&str, Value)], text: &str, finish: &str) -> String {
         let mut s = String::new();
         if !text.is_empty() {
-            s += &chunk(json!({ "index": 0, "delta": { "role": "assistant", "content": text }, "finish_reason": null }));
+            s += &chunk(
+                json!({ "index": 0, "delta": { "role": "assistant", "content": text }, "finish_reason": null }),
+            );
         }
         for (i, (command, params)) in calls.iter().enumerate() {
             let args = json!({ "command": command, "params": params }).to_string();
             let (a, b) = args.split_at(args.len() / 2);
-            s += &chunk(json!({ "index": 0, "delta": { "tool_calls": [{ "index": i, "id": format!("call{i}"),
-                "type": "function", "function": { "name": "execute", "arguments": a } }] }, "finish_reason": null }));
+            s += &chunk(
+                json!({ "index": 0, "delta": { "tool_calls": [{ "index": i, "id": format!("call{i}"),
+                "type": "function", "function": { "name": "execute", "arguments": a } }] }, "finish_reason": null }),
+            );
             s += &chunk(json!({ "index": 0, "delta": { "tool_calls": [{ "index": i,
                 "function": { "arguments": b } }] }, "finish_reason": null }));
         }
@@ -1430,10 +1457,18 @@ mod tests {
         run(&mut app, idle);
         assert_eq!(app.session.design().objects.len(), before + 2);
         assert_eq!(app.undo_groups.len(), groups + 1, "one undo step");
-        assert!(app.assistant.panel.items.contains(&Item::Assistant("Two boxes.".into())));
+        assert!(
+            app.assistant
+                .panel
+                .items
+                .contains(&Item::Assistant("Two boxes.".into()))
+        );
         let headers = transport.headers.lock().expect("lock");
         assert!(
-            headers.iter().flatten().all(|(k, _)| !k.eq_ignore_ascii_case("authorization")),
+            headers
+                .iter()
+                .flatten()
+                .all(|(k, _)| !k.eq_ignore_ascii_case("authorization")),
             "no key, no Authorization header"
         );
         let requests = transport.requests.lock().expect("lock");
@@ -1442,13 +1477,49 @@ mod tests {
     }
 
     #[test]
+    fn changing_the_protocol_starts_a_new_conversation() {
+        let (mut app, transport) = app_with(vec![
+            reply(&[], "Claude here.", "end_turn"),
+            openai_reply(&[], "Local here.", "stop"),
+        ]);
+        send(&mut app, "hello".into(), no_wake());
+        run(&mut app, idle);
+        local_openai(&mut app);
+        send(&mut app, "hello again".into(), no_wake());
+        run(&mut app, idle);
+        let items = &app.assistant.panel.items;
+        assert!(
+            items
+                .iter()
+                .any(|i| matches!(i, Item::Notice(n) if n.contains("protocol changed")))
+        );
+        assert!(items.contains(&Item::Assistant("Local here.".into())));
+        let requests = transport.requests.lock().expect("lock");
+        // The local model's request carries only the new conversation: system + one user turn.
+        assert_eq!(
+            requests[1]["messages"].as_array().map(Vec::len),
+            Some(2),
+            "{}",
+            requests[1]
+        );
+    }
+
+    #[test]
     fn a_model_that_only_talks_gets_a_notice() {
-        let (mut app, _) = app_with(vec![openai_reply(&[], "Sure, here is a badge: ...", "stop")]);
+        let (mut app, _) = app_with(vec![openai_reply(
+            &[],
+            "Sure, here is a badge: ...",
+            "stop",
+        )]);
         local_openai(&mut app);
         send(&mut app, "make a badge".into(), no_wake());
         run(&mut app, idle);
         assert!(
-            app.assistant.panel.items.iter().any(|i| matches!(i, Item::Notice(n) if n.contains("without using its tools"))),
+            app.assistant
+                .panel
+                .items
+                .iter()
+                .any(|i| matches!(i, Item::Notice(n) if n.contains("without using its tools"))),
             "{:?}",
             app.assistant.panel.items
         );

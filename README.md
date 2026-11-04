@@ -52,7 +52,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 | Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 33: 26 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 11 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
-| Open GitHub issues | 26 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
+| Open GitHub issues | 40 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
 <!-- /status:glance -->
 
 Tiers, weakest first: *internal regression* (our own earlier output), *oracle* (an independent
@@ -285,8 +285,9 @@ PE-DESIGN 11.50's defaults, tie-in and lock, measured from its own files.
   (127.0.0.1 only, per-launch token).
 - **➕ AI assistant (B17):** View ▸ Show/Hide ▸ Assistant (Ctrl/Cmd+Shift+A) opens a chat where
   Claude makes, changes and explains designs, and can do anything in the editor.
-  - It uses your own Claude API key, kept in the system keychain. Data goes only to the address
-    in the Assistant's settings.
+  - It uses your own Claude API key, kept in the system keychain, or any OpenAI-compatible
+    endpoint: Ollama or LM Studio on this computer (no key, works offline), OpenRouter and others.
+    Data goes only to the address in the Assistant's settings.
   - Files, sending to the machine and quitting ask first.
   - Everything one message changes is one undo step, and Save as script writes the changes out.
   - Options ▸ Show AI features turns it all off.
@@ -396,6 +397,7 @@ Bugs reported on GitHub:
 - [#297](https://github.com/cristianonescu/OpenStitch/issues/297) T1 card: the swatches after the T1 mark get the wrong density, and the mark sews as fill
 - [#303](https://github.com/cristianonescu/OpenStitch/issues/303) Fill rows clipped to a narrow notch sew runs of stitches under 0.3 mm
 - [#304](https://github.com/cristianonescu/OpenStitch/issues/304) Satin over a jagged outline fans its needle drops into the notches (Auto Punch PE-compatible mode)
+- [#322](https://github.com/cristianonescu/OpenStitch/issues/322) PES: write the hoop and Design Page fields from the design instead of hard-coded values
 <!-- /status:issues-bugs -->
 
 [Report a bug](https://github.com/cristianonescu/OpenStitch/issues/new).
@@ -423,7 +425,6 @@ Open enhancement issues:
 - [#134](https://github.com/cristianonescu/OpenStitch/issues/134) Import external scalable embroidery font containers
 - [#291](https://github.com/cristianonescu/OpenStitch/issues/291) Fit the Realistic view and the similarity scorer to the T1 calibration measurements
 - [#292](https://github.com/cristianonescu/OpenStitch/issues/292) Sew-out reports wanted: other machines, and the non-PES formats
-- [#294](https://github.com/cristianonescu/OpenStitch/issues/294) Run the macOS release checks for v0.1.0-alpha.9, alpha.10 and alpha.11
 - [#295](https://github.com/cristianonescu/OpenStitch/issues/295) Review every ready-to-sew kit design against the sew-out findings
 - [#298](https://github.com/cristianonescu/OpenStitch/issues/298) Photo Stitch 1 trims far more than PE-DESIGN: travel between a thread's runs instead
 - [#306](https://github.com/cristianonescu/OpenStitch/issues/306) B17 A1: AI assistant chat panel with Claude (keychain key, permission gate, one undo per message)
@@ -434,6 +435,20 @@ Open enhancement issues:
 - [#312](https://github.com/cristianonescu/OpenStitch/issues/312) Kit build: check each calibration swatch's density in the exported PES
 - [#313](https://github.com/cristianonescu/OpenStitch/issues/313) Assistant command icon (Higgsfield) for View ▸ Show/Hide ▸ Assistant
 - [#314](https://github.com/cristianonescu/OpenStitch/issues/314) Remove the assistant scratch folder when the editor exits
+- [#317](https://github.com/cristianonescu/OpenStitch/issues/317) B17 A2: Assistant endpoints and local models (OpenAI-compatible, Ollama, LM Studio, OpenRouter)
+- [#318](https://github.com/cristianonescu/OpenStitch/issues/318) Tests: stitchtool exec, serve and commands have no automated test
+- [#319](https://github.com/cristianonescu/OpenStitch/issues/319) macOS: verify Help ▸ Ready-to-Sew Designs opens Finder at the bundled kit with a real click
+- [#320](https://github.com/cristianonescu/OpenStitch/issues/320) Export Singer CSD and Husqvarna/Viking SHV, as PE-DESIGN 11's Export offers
+- [#321](https://github.com/cristianonescu/OpenStitch/issues/321) Import WMF/EMF vector images as shapes
+- [#326](https://github.com/cristianonescu/OpenStitch/issues/326) FEATURE_MATRIX: stale test names, uncited tests and two broken rows
+- [#327](https://github.com/cristianonescu/OpenStitch/issues/327) Tests: editing commands with unasserted claims (flip, setPoint handles, pasteAttributes, paste on path, export sewingArea, …)
+- [#328](https://github.com/cristianonescu/OpenStitch/issues/328) Tests: stitch-type parameters with no test (zigzag under sewing, satin underlayParts, fill pull compensation, direction curve on piping/motif, …)
+- [#329](https://github.com/cristianonescu/OpenStitch/issues/329) Tests: format claims without a test (rotated hoop in PES v6, SVG ellipse/line/polygon/CSS, Text Transform in PES 0110, missing references pass silently)
+- [#330](https://github.com/cristianonescu/OpenStitch/issues/330) Tests: lettering claims without a test (font count/size limits per design, character moves on mirrored or on-path text)
+- [#331](https://github.com/cristianonescu/OpenStitch/issues/331) Tests: Design Database search by date modified is untested; a property-search test can pass vacuously
+- [#332](https://github.com/cristianonescu/OpenStitch/issues/332) Tests: editor behaviour without a test (import into design, visibility toggle, undo keys, simulator play, inspector line settings, nudge)
+- [#333](https://github.com/cristianonescu/OpenStitch/issues/333) Tests: the automation socket's idle-connection timeout is untested
+- [#334](https://github.com/cristianonescu/OpenStitch/issues/334) Tests: digitize parameters no test sends (Photo Stitch densityMean/densityWindow/travel, single-chart thread source, PS2 97 % claim)
 <!-- /status:issues-planned -->
 
 ### Beyond PE-DESIGN
@@ -464,7 +479,7 @@ PE-DESIGN 11 does not. Each item is sketched in
 - Lettering: baseline model, saved kerning pairs, team names from CSV, closest-point letter connections (B15)
 - AI assistant tool surface (B17, phase A0): everything the user can do in the editor is reachable from the assistant. The automation socket answers ui.* editor commands beside the engine's (state, every ribbon/menu command through ui.run, selection, zoom, settings, live render, simulator, Help, updates, a scratch folder for SVGs and pictures). openstitch-mcp --assistant offers seven meta tools (commands_list, command_describe, execute, run_batch, view_render, scratch_write, skill_reference) over them, and a bundled embroidery skill (skills/openstitch-embroidery)
 - AI assistant panel (B17, phase A1): a chat beside the design (View ▸ Show/Hide ▸ Assistant, Ctrl/Cmd+Shift+A). Claude API with the user's own key in the OS keychain (default claude-opus-5-5, streaming, adaptive thinking). The model drives the editor through the A0 tools in-process. A permission gate judges each command by its effect: files, machine transfer, Exit and undoing earlier work ask (Allow once / Always allow / Deny, declined after 4 minutes), and there is an optional change limit. Everything one message changes is one undo step, Save as script writes it out, and messages typed during a turn are queued. Preferences: Options ▸ Show AI features (on by default, owner 2026-11-04) and the panel's settings
-- AI assistant providers (B17, phases A2-A3): OpenAI- and Anthropic-compatible endpoints (Ollama, LM Studio, OpenRouter; fully offline with a local model) and ACP coding agents (Claude Code, Codex) on the user's own account, all through one openstitch-mcp --assistant tool layer
+- AI assistant providers (B17, phases A2-A3). A2: besides the Claude API, any OpenAI-compatible /chat/completions endpoint, with presets for Ollama and LM Studio on this computer (no key needed) and OpenRouter. The settings choose the protocol, list the endpoint's models, set the request timeout (30-3600 s) and an optional reasoning effort, and warn when an Ollama model has no tools capability. A notice shows when a model answers an edit request without using its tools. A3: ACP coding agents (Claude Code, Codex) on the user's own account
 - AI assistant pictures (B17, phase A4): attachments, attach view and selection; model-written SVG imported as shapes; attached or generated pictures digitized by the image wizards in OpenStitch mode (generated pictures need an optional image-generation endpoint)
 - AI assistant benchmark (B17, phase A5): stitchtool bench-assistant, embroidery tasks scored on the resulting design, not the model's words
 <!-- /status:beyond-planned -->

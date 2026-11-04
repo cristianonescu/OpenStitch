@@ -133,7 +133,10 @@ pub fn is_this_computer(url: &str) -> bool {
         return false;
     }
     let host = if let Some(v6) = authority.strip_prefix('[') {
-        v6.split(']').next().map(|h| format!("[{h}]")).unwrap_or_default()
+        v6.split(']')
+            .next()
+            .map(|h| format!("[{h}]"))
+            .unwrap_or_default()
     } else {
         authority.split(':').next().unwrap_or_default().to_string()
     };
@@ -241,7 +244,9 @@ impl AiPrefs {
             reasoning_effort: v["reasoningEffort"]
                 .as_str()
                 .map(str::trim)
-                .filter(|s| s.len() <= 40 && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'))
+                .filter(|s| {
+                    s.len() <= 40 && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+                })
                 .unwrap_or_default()
                 .to_string(),
         }
@@ -570,7 +575,10 @@ mod tests {
         assert_eq!(AiPrefs::from_json(&p.to_json()), p);
         assert_eq!(AiPrefs::default().protocol, Protocol::Anthropic);
         let junk = AiPrefs::from_json(&json!({ "protocol": "smtp", "reasoningEffort": "x y" }));
-        assert_eq!((junk.protocol, junk.reasoning_effort.as_str()), (Protocol::Anthropic, ""));
+        assert_eq!(
+            (junk.protocol, junk.reasoning_effort.as_str()),
+            (Protocol::Anthropic, "")
+        );
         for ok in [
             "http://localhost:11434/v1",
             "http://127.0.0.1:1234/v1",

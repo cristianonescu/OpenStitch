@@ -445,3 +445,40 @@ Options ▸ **Show AI features** is on by default. While it is off, the panel, i
 - Other endpoints and local models are A2. The address field already takes an Anthropic-compatible URL.
 - The Assistant command's own icon is #313.
 
+### A2, other endpoints and local models (landed 2026-11-04, #317)
+
+**Protocols.** `openstitch-assistant` speaks a second protocol, OpenAI-compatible
+`/chat/completions`:
+- The reply is streamed, and `delta.tool_calls` are rebuilt across chunks and checked to be
+  JSON objects before they run.
+- Tool results go back as `role: tool` messages. Those take text only, so a `view_render`
+  image becomes a short note.
+- `length` and `content_filter` are handled like `max_tokens` and `refusal`.
+- No `temperature` is sent, and no token limit either: Ollama documents only `max_tokens`,
+  and OpenAI has deprecated it.
+- A request with no `Authorization` header goes only to this computer.
+
+Each protocol detail is cited from the OpenAI reference, the Ollama docs and the Ollama source
+in `src/openai.rs` and `src/models.rs`.
+
+**Settings.**
+- The endpoint presets are Claude API, Ollama (`http://localhost:11434/v1`), LM Studio
+  (`http://localhost:1234/v1`) and OpenRouter. Any other address works too.
+- The protocol can be chosen, and **List** fills a model picker from the endpoint
+  (`/v1/models` or `/models`).
+- The request timeout is 30-3600 s. The reasoning effort is optional and is sent only when set.
+- Ollama's `/api/show` capabilities give a warning when a model can't call tools.
+- The keychain is read once per address, not every frame.
+
+**Conversations.**
+- A conversation keeps the protocol it started with, so changing the protocol starts a new one,
+  and the chat says so.
+- When a model answers an edit request with text only, a notice points to models with tool
+  calling. This is a conservative check of the English opening words, as SolidCraft's is.
+
+**Not verified.**
+- No run against a real Ollama, LM Studio or OpenRouter server. The tests use scripted streams
+  shaped from the documentation.
+- The `data:` URL form of `image_url` and in-stream error objects are handled defensively,
+  because the docs don't show them.
+
