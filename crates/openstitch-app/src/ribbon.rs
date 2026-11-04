@@ -327,7 +327,7 @@ pub fn zoom_to_percent(app: &mut EditorApp, percent: f64) {
     }
 }
 
-fn zoom_to_selection(app: &mut EditorApp) {
+pub(crate) fn zoom_to_selection(app: &mut EditorApp) {
     let d = app.session.design();
     if let (Some(b), Some(r)) = (
         openstitch_app::editor::hit::bounds_of(d, &app.selection),

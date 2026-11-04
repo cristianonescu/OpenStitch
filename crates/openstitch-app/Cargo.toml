@@ -19,6 +19,9 @@ openstitch-formats = { path = "../openstitch-formats" }
 openstitch-library = { path = "../openstitch-library" }
 # Loopback automation socket (`--listen`).
 openstitch-remote = { path = "../openstitch-remote" }
+# The AI assistant's ui.render (the same preview as openstitch-mcp) and its base64 replies (B17).
+openstitch-render = { path = "../openstitch-render" }
+base64 = "0.23.1"
 # Size-limited PNG/JPEG/BMP decoding for the background reference image.
 openstitch-digitize = { path = "../openstitch-digitize" }
 # Images on the clipboard (already used by eframe for text).

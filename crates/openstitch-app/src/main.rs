@@ -42,6 +42,7 @@
 
 mod app;
 mod art;
+mod assistant_ui;
 mod canvas;
 mod close_ui;
 mod convert_ui;
@@ -225,15 +226,34 @@ fn listen_options_given(c: &openstitch_remote::ServerConfig) -> bool {
 /// Starts the automation socket and prints how clients reach it.
 fn listen(
     mut config: openstitch_remote::ServerConfig,
-) -> Result<openstitch_remote::Server, String> {
+) -> Result<(openstitch_remote::Server, Option<std::path::PathBuf>), String> {
     config.endpoint_file = openstitch_remote::default_endpoint_file();
+    // The assistant's scratch folder (B17): clients write SVGs and pictures there with
+    // ui.scratchWrite and import them; it is the only extra root they get.
+    let scratch = if config.capabilities.write_files {
+        match assistant_ui::create_scratch() {
+            Ok(dir) => {
+                config.write_roots.push(dir.clone());
+                Some(dir)
+            }
+            Err(e) => {
+                eprintln!("openstitch: no assistant scratch folder ({e})");
+                None
+            }
+        }
+    } else {
+        None
+    };
     let server = openstitch_remote::Server::start(config).map_err(|e| format!("--listen: {e}"))?;
     eprintln!("openstitch: automation socket on {}", server.address());
     eprintln!("openstitch: token {}", server.token());
     if let Some(file) = server.endpoint_file() {
         eprintln!("openstitch: endpoint file {}", file.display());
     }
-    Ok(server)
+    if let Some(dir) = &scratch {
+        eprintln!("openstitch: assistant scratch folder {}", dir.display());
+    }
+    Ok((server, scratch))
 }
 
 /// macOS: no default application menu. winit names its items after the process ("Quit
@@ -279,8 +299,8 @@ fn main() -> eframe::Result {
     launch.user_settings = openstitch_engine::user::default_path();
     // The automation socket is taken out of `launch` below; it never gets a splash either.
     launch.no_splash |= launch.listen.is_some();
-    let remote = match launch.listen.take().map(listen).transpose() {
-        Ok(r) => r,
+    let (remote, scratch) = match launch.listen.take().map(listen).transpose() {
+        Ok(r) => r.map_or((None, None), |(server, scratch)| (Some(server), scratch)),
         Err(e) => {
             eprintln!("openstitch: {e}");
             std::process::exit(2);
@@ -308,6 +328,7 @@ fn main() -> eframe::Result {
                 server.set_waker(move || ctx.request_repaint());
             }
             app.remote = remote;
+            app.assistant.scratch = scratch;
             Ok(Box::new(app))
         }),
     )

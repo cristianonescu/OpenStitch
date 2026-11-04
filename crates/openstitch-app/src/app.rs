@@ -201,6 +201,8 @@ pub struct EditorApp {
     pub printed: Option<PathBuf>,
     /// Loopback automation socket; its requests run in [`EditorApp::serve_remote`].
     pub remote: Option<openstitch_remote::Server>,
+    /// The AI assistant's scratch folder and pending Help link (`assistant_ui.rs`).
+    pub assistant: crate::assistant_ui::AssistantState,
     /// Startup splash while it shows (see [`crate::splash`]).
     pub splash: Option<crate::splash::Splash>,
     /// Ribbon, Quick Access Toolbar, panes and window preferences.
@@ -283,6 +285,7 @@ impl EditorApp {
             print_job: None,
             printed: None,
             remote: None,
+            assistant: Default::default(),
             splash: None,
             ui: Default::default(),
             update: Default::default(),
@@ -1303,6 +1306,9 @@ impl eframe::App for EditorApp {
             self.splash = None;
         }
         self.serve_remote();
+        if let Some(url) = self.assistant.open_url.take() {
+            ctx.open_url(egui::OpenUrl::new_tab(url));
+        }
         self.poll_print(&ctx);
         crate::update_ui::poll(self, &ctx);
         crate::update_ui::window(self, &ctx);
