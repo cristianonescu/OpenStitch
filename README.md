@@ -658,7 +658,9 @@ Desktop, IDEs) take the same command and arguments in their MCP server configura
 ## Contributing
 
 - Work on a branch and open a pull request to `main`; nobody pushes to `main` directly.
-- A PR is merged once CI is green on all three operating systems.
+- A PR is merged once CI is green on all three operating systems. Merge scripts must treat a
+  cancelled (superseded) run as pending; see
+  [docs/RELEASING.md](docs/RELEASING.md#merging-pull-requests).
 - Every merge to `main` builds the executables (see [Download a build](#download-a-build)).
 - Every PR that changes a feature updates [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md); the
   README's status lists are generated from it (`python -I tools/readme_status.py --write`). The
