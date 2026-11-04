@@ -46,7 +46,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    Each returns the new object's `id` (`{"id": 3}`); wizards return `ids`.
 3. Sew types and colours: `object.setRegion` (fill, satin, ...) and `object.setLine`
    (running, triple, zigzag, ...). A shape made with `fill` gets a fill region; with `outline`,
-   a running line. Text is satin by default.
+   a running line. Text is satin by default. A satin border or outline is a line:
+   `object.setLine` with `type: zigzag`, about 2-4 mm wide (the badge recipe in
+   `reference/recipes.md`).
 4. Order: `order.optimize` (PE-DESIGN-compatible order) or `order.byColor`; check with
    `object.list` (sewing order).
 5. Check: `view_render` (look at it), `design.info` (size, stitches, colours, trims, time).
