@@ -614,7 +614,8 @@ CI runs the same checks on macOS, Windows and Linux for every pull request, chec
 `docs/COMPATIBILITY_STATUS.md` matches the harness's result, and scans the history for secrets
 with gitleaks. CI builds with line-tables-only debug info (`CARGO_PROFILE_DEV_DEBUG`), and a new
 push to a pull request cancels that PR's run still in progress; runs on `main` and on tags are
-never cancelled.
+never cancelled. Only runs on `main` save the build cache; pull requests restore it, so they
+don't evict it from the repository's 10 GB of Actions cache.
 
 ## MCP server (Claude Code and other MCP clients)
 

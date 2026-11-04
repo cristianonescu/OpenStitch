@@ -39,7 +39,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
+      # Only main saves the cache; pull requests restore main's. The repository's 10 GB of
+      # Actions cache held ~1 GB per OS per PR, which evicted main's own entries (#357). A main
+      # run whose tests fail still saves its compiled dependencies.
       - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          cache-on-failure: true
       # eframe loads X11/Wayland libraries at run time (dlopen), so Linux needs no -dev packages
       # to build; the editor's tests do not open a window.
       - run: cargo fmt --all -- --check
