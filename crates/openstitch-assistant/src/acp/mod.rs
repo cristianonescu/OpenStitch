@@ -547,6 +547,8 @@ struct Turn {
 #[derive(Default)]
 struct TurnTool {
     name: String,
+    /// The latest non-empty `rawInput`.
+    input: Option<Value>,
     called: bool,
     done: bool,
 }
@@ -602,18 +604,25 @@ impl Turn {
         if let Some(l) = label {
             tool.name = l.to_string();
         }
-        if !tool.called
-            && let Some(input) = u.get("rawInput").filter(|v| !v.is_null())
+        // Claude Code sends `rawInput: {}` first, then the arguments as they stream (partial
+        // ones too), so the call is reported when it finishes, with the last arguments (#388).
+        if let Some(input) = u
+            .get("rawInput")
+            .filter(|v| !v.is_null() && v.as_object().is_none_or(|o| !o.is_empty()))
         {
+            tool.input = Some(input.clone());
+        }
+        let status = u.get("status").and_then(Value::as_str);
+        let finished = matches!(status, Some("completed" | "failed"));
+        if !tool.called && finished {
             tool.called = true;
             on_event(Event::ToolCall {
                 id: id.to_string(),
                 name: tool.name.clone(),
-                input: input.clone(),
+                input: tool.input.clone().unwrap_or_else(|| json!({})),
             });
         }
-        let status = u.get("status").and_then(Value::as_str);
-        if !tool.done && matches!(status, Some("completed" | "failed")) {
+        if !tool.done && finished {
             tool.done = true;
             let is_error = status == Some("failed");
             let summary = protocol::tool_output(u)
@@ -667,11 +676,15 @@ mod tests {
         let mut events = Vec::new();
         let mut push = |e| events.push(e);
         turn.update(
-            &json!({"sessionUpdate": "tool_call", "toolCallId": "t", "title": "mcp__openstitch-app__batch", "status": "pending"}),
+            &json!({"sessionUpdate": "tool_call", "toolCallId": "t", "title": "mcp__openstitch-app__batch", "status": "pending", "rawInput": {}}),
             &mut push,
         );
         turn.update(
-            &json!({"sessionUpdate": "tool_call_update", "toolCallId": "t", "rawInput": {"a": 1}, "status": "in_progress"}),
+            &json!({"sessionUpdate": "tool_call_update", "toolCallId": "t", "rawInput": {"a": 0}, "status": "in_progress"}),
+            &mut push,
+        );
+        turn.update(
+            &json!({"sessionUpdate": "tool_call_update", "toolCallId": "t", "rawInput": {"a": 1}}),
             &mut push,
         );
         turn.update(
