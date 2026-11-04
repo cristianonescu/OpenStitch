@@ -486,7 +486,7 @@ fn read_stream(
             Ok(Some(ev)) => ev,
             Ok(None) => return reply,
             Err(e) => {
-                reply.end = End::Error(format!("The connection to the Claude API broke: {e}"));
+                reply.end = End::Error(format!("The connection to the server broke: {e}"));
                 return reply;
             }
         };
@@ -628,9 +628,9 @@ fn read_stream(
                     .unwrap_or("error");
                 reply.end = End::Error(match kind {
                     "overloaded_error" => {
-                        format!("The Claude API is overloaded: {msg}. Try again shortly.")
+                        format!("The server is overloaded: {msg}. Try again shortly.")
                     }
-                    _ => format!("The Claude API reported an error ({kind}): {msg}"),
+                    _ => format!("The server reported an error ({kind}): {msg}"),
                 });
                 return reply;
             }
