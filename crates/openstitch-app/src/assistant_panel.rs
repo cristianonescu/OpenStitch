@@ -338,8 +338,19 @@ pub struct Panel {
     key_stored: Option<(String, bool)>,
 }
 
+/// Every key read, write and removal goes through here. The tests never reach the system
+/// keychain: under `cfg(test)` there is no entry, so `load_key` finds nothing and `store_key`
+/// fails (`tests_never_reach_the_real_keychain`). `OPENSTITCH_KEYCHAIN_SERVICE` points a manual
+/// test run at a throwaway service instead of the user's "OpenStitch assistant" entries.
 fn keychain(base_url: &str) -> Option<keyring::Entry> {
-    keyring::Entry::new(KEYCHAIN_SERVICE, base_url).ok()
+    if cfg!(test) {
+        return None;
+    }
+    let service = std::env::var("OPENSTITCH_KEYCHAIN_SERVICE")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| KEYCHAIN_SERVICE.to_string());
+    keyring::Entry::new(&service, base_url).ok()
 }
 
 /// The stored key for `base_url`, if any.
@@ -1482,11 +1493,7 @@ fn danger_button(ui: &mut egui::Ui, text: &str, enabled: bool) -> egui::Response
 
 /// Deletes the key saved for `url` from the system keychain, and says so in the chat.
 fn remove_key(app: &mut EditorApp, url: &str) {
-    let note = match if cfg!(test) {
-        Ok(())
-    } else {
-        store_key(url, "")
-    } {
+    let note = match store_key(url, "") {
         Ok(()) => format!("The key for {url} was removed from the system keychain."),
         Err(e) => format!("Could not remove the key for {url}: {e}"),
     };
@@ -1515,7 +1522,7 @@ fn key_addresses(prefs: &AiPrefs) -> Vec<String> {
 fn reset_ai(app: &mut EditorApp) {
     let removed = key_addresses(&app.ui.prefs.ai)
         .iter()
-        .filter(|u| cfg!(test) || store_key(u, "").is_ok())
+        .filter(|u| store_key(u, "").is_ok())
         .count();
     app.ui.prefs.ai = AiPrefs {
         enabled: app.ui.prefs.ai.enabled,
@@ -2358,6 +2365,24 @@ mod tests {
                 .any(|i| matches!(i, Item::Notice(t) if t.contains("At most 8")))
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The user's real keys are never read, written or removed by a test (#396): every key
+    /// path ends in `keychain`, which has no entry under `cfg(test)`.
+    #[test]
+    fn tests_never_reach_the_real_keychain() {
+        assert!(keychain(claude::DEFAULT_BASE_URL).is_none());
+        assert!(load_key(claude::DEFAULT_BASE_URL).is_none());
+        assert!(store_key(claude::DEFAULT_BASE_URL, "sk-never-stored").is_err());
+        assert!(
+            store_key(claude::DEFAULT_BASE_URL, "").is_err(),
+            "no removal either"
+        );
+        let (mut app, _) = app_with(Vec::new());
+        remove_key(&mut app, claude::DEFAULT_BASE_URL);
+        assert!(
+            matches!(app.assistant.panel.items.last(), Some(Item::Notice(t)) if t.contains("Could not remove"))
+        );
     }
 
     #[test]
