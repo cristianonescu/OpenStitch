@@ -488,9 +488,21 @@ Line references are relative to `crates/`.
   moved by the Frequency, rows fanned round L's corner. The 11 round-5 fill captures
   (`stroke-fill-*`) and `text-defaults-fill` are within 25 %, 8 % on average against 22 % by
   region (H 504 against 483, was 595; L 274 against 276). Fill text under a Text Transform keeps its region rows
-  until the stroke cut of warped letters is measured (#428). Under sewing per stroke and the
-  satin curve and corner-fan crossing counts (S, 8, O, L) are still open (step 5 of the
-  research note).
+  until the stroke cut of warped letters is measured (#428). Since 2026-11-05 (#444, the
+  README's arched title and 4 mm text sewn as broken pieces): a turned letter (fitted to an
+  outline, on an arch, turned by Edit Character) is cut into strokes upright and its blocks
+  turned back, as PE-DESIGN sews it (text-fit-satin-ahhhh: its H's at -18 to +32 degrees match
+  the upright H within 0.1 mm; turned, Lato's I lost its stroke at 35 degrees and P and E fell
+  apart); satin crossings are spaced 0.4 mm along the block's outer side between rungs 0.02 mm
+  apart (stroke-satin-O: 0.41 mm outside), along the inner side round a corner, instead of
+  cutting chords between 3 mm rungs (a 4 mm o's crossings stopped 0.3-0.45 mm inside its
+  outline); a satin stroke's sides are joined by the centre line's progress, so crossings stay
+  across S's spine as PE-DESIGN's do (fill rows keep the length pairing their spacing was
+  measured with); and the stroke cut's grid has 200 cells across every letter (it never went
+  under 0.02 mm cells, which coarsened 4 mm letters: n lost its stem's top and fell back to
+  region). The 13 satin captures and text-defaults-h are now 5.7 % from PE-DESIGN's needle points on average (was
+  9 %; X 342 against 277 and T 209 against 186 the furthest). Under sewing per stroke is
+  still open (step 5 of the research note), and no satin capture under 8 mm exists yet.
 - **Test:**
   - Inputs: `text.add {"text":"AVOW","size":30,"x":50,"y":50}` →
     `object.setRegion {"id":1,"type":"satin"}` → `design.generate`.

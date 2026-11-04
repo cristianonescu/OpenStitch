@@ -1,6 +1,6 @@
 use crate::fmath::Det;
 use crate::generate::{self, Run};
-use crate::geometry::{Contour, Vec2, v2};
+use crate::geometry::{Contour, Rect, Transform, Vec2, v2};
 use crate::lines;
 use crate::model::{
     ChainShape, Design, DesignObject, LineSewing, LineType, ObjectKind, RegionType, StartEnd,
@@ -298,7 +298,13 @@ fn sew_object(w: &mut Writer, object: &DesignObject, design: &Design) {
     match object.kind {
         ObjectKind::Shape | ObjectKind::Text => {
             let holes = holes_above(object, design);
-            for e in elements(object, &holes, &design.patterns) {
+            let turns = design
+                .objects
+                .iter()
+                .position(|o| std::ptr::eq(o, object))
+                .map(|i| design.text_turns(i))
+                .unwrap_or_default();
+            for e in elements(object, &holes, &design.patterns, &turns) {
                 w.sew(e);
             }
             // Stitch glyphs of user-mapped text sew after the outlined glyphs.
@@ -401,7 +407,13 @@ fn holes_above(object: &DesignObject, design: &Design) -> Vec<Contour> {
         .unwrap_or_default()
 }
 
-fn elements(object: &DesignObject, holes: &[Contour], user: &[Pattern]) -> Vec<Element> {
+/// `turns`: how far each letter of a text is turned ([`Design::text_turns`]).
+fn elements(
+    object: &DesignObject,
+    holes: &[Contour],
+    user: &[Pattern],
+    turns: &[Option<f64>],
+) -> Vec<Element> {
     let mut out = Vec::new();
     if let (Some(stored), true) = (&object.region, object.has_closed_contour()) {
         // The guide's exclusions: no gradation or feathered edge on text, no feathered edge
@@ -416,7 +428,7 @@ fn elements(object: &DesignObject, holes: &[Contour], user: &[Pattern]) -> Vec<E
         }
         let region = &sewn;
         // A shape is one region; text is one region per glyph, sewn letter by letter.
-        for group in object.glyph_groups() {
+        for (index, group) in object.glyph_groups().into_iter().enumerate() {
             let closed: Vec<Contour> = group.iter().filter(|c| c.closed).cloned().collect();
             if closed.is_empty() {
                 continue;
@@ -433,7 +445,7 @@ fn elements(object: &DesignObject, holes: &[Contour], user: &[Pattern]) -> Vec<E
                 && (region.kind == RegionType::Satin
                     || (region.kind == RegionType::Fill && !warped))
                 && region.stamps.is_empty())
-            .then(|| stroke_columns(&closed, region))
+            .then(|| stroke_columns(&closed, region, turns.get(index).copied().flatten()))
             .flatten();
             if let (Some(runs), Some(top)) = (by_stroke, layers.last_mut()) {
                 *top = runs;
@@ -527,19 +539,63 @@ const STROKE_TRAVEL: f64 = 20.0;
 /// sews each block as a column satin; Fill text as the rows of a Manual Punch fill block, across
 /// the stroke and turning with it (PE-DESIGN 11.50's fill H: horizontal rows on the stems,
 /// vertical rows on the crossbar, the junction square a group of its own; its B's rows turn
-/// round each bowl). `None` where the letter has no strokes.
-fn stroke_columns(closed: &[Contour], region: &crate::model::RegionSewing) -> Option<Vec<Run>> {
-    let g = crate::strokes::strokes(closed)?;
-    let blocks = g.blocks(closed, STROKE_RUNGS);
-    if !blocks_cover(&blocks, closed) {
+/// round each bowl). A letter turned by `turn` degrees (text fitted to an outline, an arch,
+/// a turned character) is cut into strokes upright and its blocks turned back: PE-DESIGN
+/// 11.50 sews a fitted letter as the upright one turned (text-fit-satin-ahhhh: its H's at -18
+/// to +32 degrees match the upright H within 0.1 mm), and the stroke cut of a turned outline
+/// is not stable (Lato's I lost its stroke at 35 degrees, P and E fell apart at -40: #444).
+/// `None` where the letter has no strokes.
+fn stroke_columns(
+    closed: &[Contour],
+    region: &crate::model::RegionSewing,
+    turn: Option<f64>,
+) -> Option<Vec<Run>> {
+    let (upright, back) = match turn.filter(|t| t.abs() > UPRIGHT_TURN) {
+        Some(t) => {
+            let b = Rect::enclosing(closed.iter().flat_map(|c| c.points.iter().copied()))?;
+            let centre = v2((b.min_x + b.max_x) / 2.0, (b.min_y + b.max_y) / 2.0);
+            let to = Transform::rotation(-t, centre);
+            (
+                closed.iter().map(|c| c.transformed(&to)).collect(),
+                Some(Transform::rotation(t, centre)),
+            )
+        }
+        None => (closed.to_vec(), None),
+    };
+    let g = crate::strokes::strokes(&upright)?;
+    let turned = |mut blocks: Vec<crate::strokes::Block>| {
+        if let Some(t) = &back {
+            for p in blocks.iter_mut().flat_map(|b| b.rungs.iter_mut().flatten()) {
+                *p = t.apply(*p);
+            }
+        }
+        blocks
+    };
+    // Checked upright: a turned letter's box corners are not its strokes' ends.
+    // Satin crossings stay across a bending stroke, as PE-DESIGN's S; fill rows keep the
+    // pairing their spacing was measured with (the fill captures' 8 %: paired by progress, e
+    // fell from 429 to 342 needle points against PE-DESIGN's 412).
+    let pairing = if region.kind == RegionType::Fill {
+        crate::strokes::Pairing::Length
+    } else {
+        crate::strokes::Pairing::Progress
+    };
+    let blocks = g.blocks_paired(&upright, STROKE_RUNGS, pairing);
+    if !blocks_cover(&blocks, &upright) {
         return None;
     }
-    // Fill rows take their ends from rungs this close together, so they stay on the outline
-    // where it curves (rows interpolated between the 3 mm rungs ended up to 0.2 mm inside O's
-    // counter). The same strokes give the same blocks in the same order at any rung spacing.
-    let fine = (region.kind == RegionType::Fill)
-        .then(|| g.blocks(closed, STROKE_FILL_RUNGS))
-        .filter(|f| f.len() == blocks.len());
+    let blocks = turned(blocks);
+    // Rows and crossings take their ends from rungs this close together, so they stay on the
+    // outline where it curves: fill rows interpolated between the 3 mm rungs ended up to
+    // 0.2 mm inside O's counter, and satin crossings cut the chords of a small letter's bowls
+    // (the 4 mm o's crossings stopped short of its outer edge, #444). The same strokes give
+    // the same blocks in the same order at any rung spacing.
+    let fine = Some(turned(g.blocks_paired(
+        &upright,
+        STROKE_FILL_RUNGS,
+        pairing,
+    )))
+    .filter(|f| f.len() == blocks.len());
     let spacing = 10.0 / region.density.max(0.1);
     let pull = region.pull_compensation * 10.0;
     let fill = region.kind == RegionType::Fill;
@@ -565,7 +621,11 @@ fn stroke_columns(closed: &[Contour], region: &crate::model::RegionSewing) -> Op
                 region.fill_stagger(),
             )
         } else {
-            crate::column::satin(&b.rungs, spacing, pull)
+            let rungs = fine.as_ref().map_or_else(
+                || b.rungs.clone(),
+                |f| satin_rungs(&f[i].rungs, turns_corner(&b.rungs), 2.0 * spacing),
+            );
+            crate::column::satin(&rungs, spacing, pull)
         };
         // PE-DESIGN walks the letter's outline between its blocks (stroke-blocks-H: running
         // pieces between them).
@@ -583,6 +643,44 @@ fn stroke_columns(closed: &[Contour], region: &crate::model::RegionSewing) -> Op
         runs.push(run);
     }
     (!runs.is_empty()).then_some(runs)
+}
+
+/// Letters turned by less than this (degrees) are cut into strokes as they stand.
+const UPRIGHT_TURN: f64 = 0.01;
+
+/// A satin block's rungs `pitch` apart (two crossings) along its longer side, as PE-DESIGN
+/// 11.50 spaces a letter's crossings by its outer edge (stroke-satin-O: 0.41 mm per pair
+/// outside, 0.26-0.28 mm inside), or along its inner side where the block turns a `corner`
+/// (see [`turns_corner`]: X's chevrons, L), as fill text fans its rows round one. Taken from
+/// `fine`, the block's rungs close together: a whole number of equal steps (rounded down),
+/// first and last rungs kept. Needle points at 20 mm against PE-DESIGN's stroke-satin-*
+/// (PE-DESIGN / longer side everywhere / this / the 3 mm rungs before #444): X 277 / 364 /
+/// 302 / 302, O 358 / 338 / 338 / 318, S 278 / 281 / 281 / 253, e 267 / 269 / 269 / 235.
+fn satin_rungs(fine: &[[Vec2; 2]], corner: bool, pitch: f64) -> Vec<[Vec2; 2]> {
+    if fine.len() < 2 {
+        return fine.to_vec();
+    }
+    let side_length =
+        |k: usize| -> f64 { fine.windows(2).map(|w| w[0][k].distance(w[1][k])).sum() };
+    let (a, b) = (side_length(0), side_length(1));
+    let k = usize::from(if corner { b < a } else { b > a });
+    let lengths: Vec<f64> = fine.windows(2).map(|w| w[0][k].distance(w[1][k])).collect();
+    let total: f64 = lengths.iter().sum();
+    let n = ((total / pitch.max(0.1) + 1e-9).floor() as usize).clamp(1, 100_000);
+    let step = total / n as f64;
+    let mut out = vec![fine[0]];
+    let (mut i, mut start) = (0, 0.0);
+    for k in 1..=n {
+        let at = if k == n { total } else { k as f64 * step };
+        while i + 1 < lengths.len() && start + lengths[i] < at {
+            start += lengths[i];
+            i += 1;
+        }
+        let t = ((at - start) / lengths[i].max(1e-9)).clamp(0.0, 1.0);
+        let ([a, b], [c, d]) = (fine[i], fine[i + 1]);
+        out.push([a.lerp(c, t), b.lerp(d, t)]);
+    }
+    out
 }
 
 /// How far (0.1 mm) a letter's blocks may stop short of its outline's bounding box on any side
@@ -627,16 +725,8 @@ const CORNER_TURN: f64 = 60.0;
 /// See [`CORNER_TURN`].
 const CORNER_STRAIGHT: f64 = 5.0;
 
-/// A fill block's rows `pitch` apart: a whole number of equal steps along the block (rounded
-/// down), their ends on `fine`, the block's rungs close together, each lengthened by `pull` at
-/// both ends. A block is measured along its middle, the mean of its two sides' lengths; one
-/// that turns a corner (see [`CORNER_TURN`], from its 3 mm rungs `coarse`: L's stem into its
-/// foot) along its inner, shorter side, as PE-DESIGN fans the rows round the corner. Against
-/// the round-5 fill captures (needle points, PE-DESIGN / middle / longer side): L 276 / 341 /
-/// 361, by the inner side 274; S 461 / 548 / 603; e 412 / 429 / 574; O 613 / 526 / 667;
-/// 8 598 / 459 / 592. The middle keeps every letter within 25 %, 8 % on average; PE-DESIGN
-/// packs O's and 8's bowls closer than that (#376).
-fn fill_rungs(coarse: &[[Vec2; 2]], fine: &[[Vec2; 2]], pitch: f64, pull: f64) -> Vec<[Vec2; 2]> {
+/// Whether a letter's block turns a corner (see [`CORNER_TURN`]), from its 3 mm rungs.
+fn turns_corner(coarse: &[[Vec2; 2]]) -> bool {
     let turns: Vec<Vec<f64>> = (0..2)
         .map(|side| {
             coarse
@@ -654,8 +744,21 @@ fn fill_rungs(coarse: &[[Vec2; 2]], fine: &[[Vec2; 2]], pitch: f64, pull: f64) -
         t.sort_by(f64::total_cmp);
         t.get(t.len() / 2).copied().unwrap_or(0.0)
     };
-    let corner = turns.iter().all(|t| median(t) < CORNER_STRAIGHT)
-        && turns.iter().flatten().any(|&t| t > CORNER_TURN);
+    turns.iter().all(|t| median(t) < CORNER_STRAIGHT)
+        && turns.iter().flatten().any(|&t| t > CORNER_TURN)
+}
+
+/// A fill block's rows `pitch` apart: a whole number of equal steps along the block (rounded
+/// down), their ends on `fine`, the block's rungs close together, each lengthened by `pull` at
+/// both ends. A block is measured along its middle, the mean of its two sides' lengths; one
+/// that turns a corner (see [`CORNER_TURN`], from its 3 mm rungs `coarse`: L's stem into its
+/// foot) along its inner, shorter side, as PE-DESIGN fans the rows round the corner. Against
+/// the round-5 fill captures (needle points, PE-DESIGN / middle / longer side): L 276 / 341 /
+/// 361, by the inner side 274; S 461 / 548 / 603; e 412 / 429 / 574; O 613 / 526 / 667;
+/// 8 598 / 459 / 592. The middle keeps every letter within 25 %, 8 % on average; PE-DESIGN
+/// packs O's and 8's bowls closer than that (#376).
+fn fill_rungs(coarse: &[[Vec2; 2]], fine: &[[Vec2; 2]], pitch: f64, pull: f64) -> Vec<[Vec2; 2]> {
+    let corner = turns_corner(coarse);
     let section = |[a, b]: [Vec2; 2], [c, d]: [Vec2; 2]| {
         if corner {
             a.distance(c).min(b.distance(d))
@@ -1044,6 +1147,104 @@ mod stroke_fill_tests {
             [v2(0.0, 100.0), v2(40.0, 80.0)],
         ];
         assert_eq!(fill_rungs(&straight, &straight, 4.0, 0.0).len(), 23);
+    }
+
+    /// Satin as PE-DESIGN's text default: density 5.0, no under sewing.
+    fn text_satin() -> RegionSewing {
+        let mut r = RegionSewing::new(RegionType::Satin, Thread::rgb(0xFF0000));
+        r.density = 5.0;
+        r.underlay = false;
+        r
+    }
+
+    /// The README's arched title (examples/lettering.json): 8 mm OPENSTITCH fitted to an arc.
+    fn arched(text: &str) -> Design {
+        let mut d = Design::default();
+        let mut arc = Contour::new(vec![v2(140.0, 520.0), v2(860.0, 520.0)], false);
+        arc.curves = vec![Some(crate::geometry::Bezier {
+            c1: v2(220.0, 80.0),
+            c2: v2(780.0, 80.0),
+        })];
+        let path = d.add(DesignObject::shape(vec![arc], None, None));
+        let mut spec = TextSpec::new(text, DEFAULT_FONT, 8.0);
+        spec.path = Some(path);
+        let (obj, _) = DesignObject::text(spec, Some(text_satin()), None).expect("text");
+        d.add(obj);
+        d.relayout_text();
+        d.objects[0].visible = false;
+        d
+    }
+
+    #[test]
+    fn a_fitted_letter_is_sewn_as_the_upright_letter_turned() {
+        // #444: the stroke cut of a turned outline is not stable (Lato's P and E fell apart on
+        // the README's arc, its N was sewn by region). PE-DESIGN sews a fitted letter as the
+        // upright one turned (text-fit-satin-ahhhh), so every letter of the arched word has
+        // the upright letter's needle points, turned.
+        let d = arched("OPENSTITCH");
+        let turns = d.text_turns(1);
+        assert_eq!(turns.len(), 10);
+        assert!(turns.iter().flatten().any(|t| t.abs() > 30.0), "{turns:?}");
+        let (upright, _) =
+            DesignObject::text(TextSpec::new("OPENSTITCH", DEFAULT_FONT, 8.0), None, None)
+                .expect("text");
+        let fitted = &d.objects[1];
+        for ((up, fit), turn) in upright
+            .glyph_groups()
+            .iter()
+            .zip(fitted.glyph_groups())
+            .zip(&turns)
+        {
+            let sewn = |closed: &[Contour], turn: Option<f64>| {
+                stroke_columns(closed, &text_satin(), turn)
+                    .map(|runs| runs.iter().map(Vec::len).collect::<Vec<_>>())
+            };
+            let want = sewn(up, None).expect("upright strokes");
+            let got = sewn(fit, *turn).expect("fitted strokes");
+            assert_eq!(got.len(), want.len(), "pieces at {turn:?}");
+            for (g, w) in got.iter().zip(&want) {
+                assert!(g.abs_diff(*w) <= 2, "{got:?} vs {want:?} at {turn:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn small_satin_letters_reach_their_outline() {
+        // #444: "made with open fonts" at 4 mm. Crossings interpolated between 3 mm rungs cut
+        // the chords of the bowls (the o's needle points stopped 0.3 mm short of its outer
+        // edge); taken from 0.2 mm rungs every needle point lies on the outline.
+        let mut spec = TextSpec::new("made with open fonts", DEFAULT_FONT, 4.0);
+        spec.letter_spacing = 0.3;
+        let (obj, _) = DesignObject::text(spec, Some(text_satin()), None).expect("text");
+        for (k, closed) in obj.glyph_groups().into_iter().enumerate() {
+            let Some(runs) = stroke_columns(closed, &text_satin(), None) else {
+                panic!("letter {k} is not sewn by stroke");
+            };
+            let edges: Vec<(Vec2, Vec2)> = closed.iter().flat_map(Contour::edges).collect();
+            let inside: Vec<f64> = runs
+                .iter()
+                .flatten()
+                .map(|&p| {
+                    edges
+                        .iter()
+                        .map(|&(a, b)| crate::skeleton::segment_distance(p, a, b))
+                        .fold(f64::INFINITY, f64::min)
+                })
+                .collect();
+            // Off the outline: only crossings fanning into a pointed end (w's feet, i's slanted
+            // top), by at most 0.35 mm.
+            let off = inside.iter().filter(|&&d| d > 1.0).count();
+            let worst = inside.iter().copied().fold(0.0, f64::max);
+            assert!(
+                10 * off <= inside.len(),
+                "letter {k}: {off} of {} needle points inside",
+                inside.len()
+            );
+            assert!(
+                worst < 3.5,
+                "letter {k}: a needle point {worst} inside its outline"
+            );
+        }
     }
 
     #[test]

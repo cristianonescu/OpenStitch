@@ -190,8 +190,10 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    (`GlyphStrokes::blocks`, 2026-10-31) are done, and PE-DESIGN's Convert to Blocks files import
    as their blocks (`import.pes`, 2026-10-31), and satin text is sewn by stroke since 2026-10-31
    (`stroke-satin-*`, 9 % from PE-DESIGN's needle points on average), fill text since 2026-11-04
-   (#376, `stroke-fill-*`, 8 % on average, under a Text Transform still by region: #428); next,
-   under sewing per stroke, and the crossings round curves and fanned corners) — the structural
+   (#376, `stroke-fill-*`, 8 % on average, under a Text Transform still by region: #428),
+   turned letters cut upright and satin crossings along the outer side since 2026-11-05 (#444,
+   satin 5.7 % on average, the README's arched and 4 mm text whole); next, under sewing per
+   stroke, X's chevrons and N's corner (#446), and a satin capture of small text) — the structural
    gap behind text-fit-*, text-transform-* and text-sewing-order; the fitted circle's running
    stitch follows PE-DESIGN's Bézier halving since 2026-10-28 (text-fit-default mean needle
    distance 0.27 → 0.20 mm); Text Transform presets 13 and 14 (fan out / in) done 2026-10-28; round 4 (2026-10-29)

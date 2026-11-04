@@ -357,6 +357,37 @@ impl Design {
         Ok(layout)
     }
 
+    /// How far each outlined letter of text object `index` is turned (degrees, see
+    /// [`text::Glyph::turn`]), from its layout: `None` for a warped letter, and an empty list
+    /// when the object is not text or its contours are not its layout's (edited, or laid out
+    /// with a font no longer at hand).
+    pub fn text_turns(&self, index: usize) -> Vec<Option<f64>> {
+        let Some(o) = self.objects.get(index) else {
+            return Vec::new();
+        };
+        let Some(spec) = o.text.as_ref().filter(|_| o.kind == ObjectKind::Text) else {
+            return Vec::new();
+        };
+        let path = spec.path.and_then(|id| self.path_contour(id));
+        let Ok(layout) = text::layout_in(spec, path.as_ref(), &self.fonts) else {
+            return Vec::new();
+        };
+        let laid = layout.contours();
+        let same = laid.len() == o.contours.len()
+            && layout.glyph_counts() == spec.glyphs
+            && laid.iter().zip(&o.contours).all(|(a, b)| {
+                a.points.len() == b.points.len()
+                    && a.points
+                        .first()
+                        .zip(b.points.first())
+                        .is_none_or(|(p, q)| p.distance(*q) < 1.0)
+            });
+        if !same {
+            return Vec::new();
+        }
+        layout.outlined().map(text::Glyph::turn).collect()
+    }
+
     /// Takes the text of object `index` off its path; it continues as straight text whose
     /// baseline starts (or, centred / right-aligned, centres or ends) where it stood.
     pub fn detach_text(&mut self, index: usize) {
