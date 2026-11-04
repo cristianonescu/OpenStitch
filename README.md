@@ -162,7 +162,8 @@ improves.
 from other Brother, Babylock, Bernette, Janome and Singer machines (PES and the other machine
 formats), other threads and other fabrics are very welcome: sew a few designs from the kit and send
 them with the [Sew-out / calibration report](https://github.com/cristianonescu/OpenStitch/issues/new?template=sew-out-report.yml)
-form. The kit's [Sending results](examples/sew/README.md#sending-results) says what to include.
+form. [TESTING.md](TESTING.md) says what to sew per machine and format, and the kit's
+[Sending results](examples/sew/README.md#sending-results) says what to include.
 
 ## Features
 
@@ -409,8 +410,9 @@ Next, from [docs/ROADMAP.md](docs/ROADMAP.md):
   the remaining hoops in the PES 11 writer.
 - **Stitches:** the remaining fill, satin and line details listed above, and branching skeletons.
 - **Machine tier:** a first recorded sew-out on a Brother machine.
-- **Image digitizing:** run-to-run travel in Cross Stitch, fewer trims in Photo Stitch 1's
-  OpenStitch mode, and closer Photo Stitch output.
+- **Image digitizing:** run-to-run travel in Cross Stitch, still fewer trims in Photo Stitch 1
+  (hidden routed travel took OpenStitch mode from 68 to 25 trims per 1,000 stitches; PE-DESIGN
+  sews a colour in one to five paths), and closer Photo Stitch output.
 - **Distribution:** code signing and a Flathub listing.
 
 Open enhancement issues:
@@ -578,14 +580,16 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo run -p stitchtool -- compat
 ```
 
-Debug and test builds optimise the dependencies and the stitch pipeline (`openstitch-core`,
-`-design`, `-engine`; `[profile.dev.package]` in `Cargo.toml`), so the editor's tests run in
-about a minute instead of 45; debug assertions and overflow checks stay on. The first build
-takes a few minutes longer.
+Debug and test builds optimise the dependencies, the stitch pipeline (`openstitch-core`,
+`-design`, `-engine`) and image digitizing (`openstitch-digitize`; `[profile.dev.package]` in
+`Cargo.toml`), so the editor's and the Auto Punch tests run in minutes instead of an hour; debug
+assertions and overflow checks stay on. The first build takes a few minutes longer.
 
 CI runs the same checks on macOS, Windows and Linux for every pull request, checks that
 `docs/COMPATIBILITY_STATUS.md` matches the harness's result, and scans the history for secrets
-with gitleaks.
+with gitleaks. CI builds with line-tables-only debug info (`CARGO_PROFILE_DEV_DEBUG`), and a new
+push to a pull request cancels that PR's run still in progress; runs on `main` and on tags are
+never cancelled.
 
 ## MCP server (Claude Code and other MCP clients)
 

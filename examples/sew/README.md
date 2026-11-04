@@ -65,6 +65,8 @@ and the Photo Stitch 2 coverage model (issue #129).
 
 ## Sending results
 
+Testing on another machine or format? [TESTING.md](../../TESTING.md) says what to sew and how to export.
+
 Use the **[Sew-out / calibration report](https://github.com/cristianonescu/OpenStitch/issues/new?template=sew-out-report.yml)**
 form on GitHub (a free GitHub account is needed). To use your results, OpenStitch needs:
 
