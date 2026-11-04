@@ -323,6 +323,10 @@ pub struct Panel {
     /// Settings popup: the key being typed (never shown again once saved).
     key_input: String,
     image_key_input: String,
+    /// Whether the image generator's address has a key in the keychain (asked once per address).
+    image_key_stored: Option<(String, bool)>,
+    /// Reset AI settings is waiting for its confirmation.
+    confirm_reset: bool,
     show_settings: bool,
     /// Tests put a scripted transport here; the app uses `ureq`.
     transport: Option<Arc<dyn claude::Transport>>,
@@ -1331,6 +1335,14 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
             panel.key_stored = None;
             panel.items.push(Item::Notice(note));
         }
+        if stored
+            && ui
+                .button("Remove key")
+                .on_hover_text("Delete this address's key from the system keychain")
+                .clicked()
+        {
+            remove_key(app, &base_url);
+        }
     });
     ui.separator();
     ui.label("Image generator (optional): an OpenAI-compatible /images/generations address ending in /v1. Without one, the assistant draws pictures as vector shapes.");
@@ -1353,6 +1365,39 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
     });
     let image_url = prefs.image_url.trim().to_string();
     if !image_url.is_empty() {
+        let image_stored = match &app.assistant.panel.image_key_stored {
+            Some((url, stored)) if *url == image_url => *stored,
+            _ => {
+                let stored = load_key(&image_url).is_some();
+                app.assistant.panel.image_key_stored = Some((image_url.clone(), stored));
+                stored
+            }
+        };
+        ui.horizontal(|ui| {
+            if image_stored
+                && ui
+                    .button("Remove key")
+                    .on_hover_text("Delete the image generator's key from the system keychain")
+                    .clicked()
+            {
+                remove_key(app, &image_url);
+            }
+            if ui
+                .button("Clear")
+                .on_hover_text(
+                    "Turn the image generator off: empty its address and model and delete its key",
+                )
+                .clicked()
+            {
+                if image_stored {
+                    remove_key(app, &image_url);
+                }
+                let prefs = &mut app.ui.prefs.ai;
+                prefs.image_url.clear();
+                prefs.image_model.clear();
+                changed = true;
+            }
+        });
         ui.horizontal(|ui| {
             let panel = &mut app.assistant.panel;
             ui.add(
@@ -1367,13 +1412,87 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                     Err(e) => format!("Could not use the keychain: {e}"),
                 };
                 panel.image_key_input.clear();
+                panel.image_key_stored = None;
                 panel.items.push(Item::Notice(note));
             }
         });
     }
+    ui.separator();
+    if app.assistant.panel.confirm_reset {
+        ui.colored_label(
+            ui.visuals().warn_fg_color,
+            "Reset every Assistant setting to its default and remove the saved keys? The design stays; the chat starts over.",
+        );
+        ui.horizontal(|ui| {
+            if ui.button("Reset").clicked() {
+                reset_ai(app);
+            }
+            if ui.button("Cancel").clicked() {
+                app.assistant.panel.confirm_reset = false;
+            }
+        });
+    } else if ui
+        .button("Reset AI settings…")
+        .on_hover_text("Back to the defaults, and remove the saved API keys")
+        .clicked()
+    {
+        app.assistant.panel.confirm_reset = true;
+    }
     if changed {
         app.ui.save_prefs();
     }
+}
+
+/// Deletes the key saved for `url` from the system keychain, and says so in the chat.
+fn remove_key(app: &mut EditorApp, url: &str) {
+    let note = match if cfg!(test) {
+        Ok(())
+    } else {
+        store_key(url, "")
+    } {
+        Ok(()) => format!("The key for {url} was removed from the system keychain."),
+        Err(e) => format!("Could not remove the key for {url}: {e}"),
+    };
+    let panel = &mut app.assistant.panel;
+    panel.key_stored = None;
+    panel.image_key_stored = None;
+    panel.items.push(Item::Notice(note));
+}
+
+/// The addresses whose saved keys Reset AI settings removes: the model's, the image
+/// generator's and every preset's (the keychain cannot list them, #396).
+fn key_addresses(prefs: &AiPrefs) -> Vec<String> {
+    let mut urls: Vec<String> = [prefs.base_url.trim(), prefs.image_url.trim()]
+        .into_iter()
+        .chain(PRESETS.iter().map(|p| p.base_url))
+        .filter(|u| !u.is_empty())
+        .map(str::to_string)
+        .collect();
+    urls.sort();
+    urls.dedup();
+    urls
+}
+
+/// Reset AI settings (#396): the defaults back (the AI features stay on or off as they are),
+/// Always allow cleared, the known keys removed, and a new conversation for the new settings.
+fn reset_ai(app: &mut EditorApp) {
+    let removed = key_addresses(&app.ui.prefs.ai)
+        .iter()
+        .filter(|u| cfg!(test) || store_key(u, "").is_ok())
+        .count();
+    app.ui.prefs.ai = AiPrefs {
+        enabled: app.ui.prefs.ai.enabled,
+        ..AiPrefs::default()
+    };
+    app.ui.save_prefs();
+    new_chat(app);
+    let panel = &mut app.assistant.panel;
+    panel.confirm_reset = false;
+    panel.key_stored = None;
+    panel.image_key_stored = None;
+    panel.items.push(Item::Notice(format!(
+        "The Assistant's settings are back to their defaults, and the saved keys of {removed} addresses were removed."
+    )));
 }
 
 /// A chat bubble: the user's on the right in the accent colour, the assistant's on the left in
@@ -2202,6 +2321,36 @@ mod tests {
                 .any(|i| matches!(i, Item::Notice(t) if t.contains("At most 8")))
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn reset_ai_settings_restores_the_defaults_and_lists_every_key_address() {
+        let (mut app, _) = app_with(Vec::new());
+        app.ui.prefs.ai.model = "some-model".into();
+        app.ui.prefs.ai.base_url = "https://example.com/v1".into();
+        app.ui.prefs.ai.image_url = "http://localhost:8080/v1".into();
+        app.ui.prefs.ai.always_allow = vec!["project.save".into()];
+        let urls = key_addresses(&app.ui.prefs.ai);
+        for u in [
+            "https://example.com/v1",
+            "http://localhost:8080/v1",
+            "https://api.anthropic.com",
+            "http://localhost:11434/v1",
+        ] {
+            assert!(urls.iter().any(|x| x == u), "{u} in {urls:?}");
+        }
+        app.ui.prefs.ai.enabled = false;
+        reset_ai(&mut app);
+        let p = &app.ui.prefs.ai;
+        assert_eq!(
+            (p.model.as_str(), p.base_url.as_str()),
+            (claude::DEFAULT_MODEL, claude::DEFAULT_BASE_URL)
+        );
+        assert!(p.image_url.is_empty() && p.always_allow.is_empty());
+        assert!(!p.enabled, "the AI features switch is left as it was");
+        assert!(
+            matches!(app.assistant.panel.items.last(), Some(Item::Notice(t)) if t.contains("defaults"))
+        );
     }
 
     fn local_openai(app: &mut EditorApp) {
