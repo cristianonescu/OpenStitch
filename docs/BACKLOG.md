@@ -41,9 +41,9 @@ Updated 2026-11-04, for the round after v0.1.0-alpha.12.
 
 | Batch | Area | Issues | Notes |
 |---|---|---|---|
-| `batch:stitch-engine` | `openstitch-design` (region.rs, regions.rs) | #304, #354, #288, Half Stitch for Auto satin, Miter limit | #288 closes once the regenerated T1 mark is checked (its cause was #297); the last two issues are to be opened |
-| `batch:formats` | `openstitch-formats`, PES writers | PES versions 4, 5 and 7–10; audit item 9 (PE-made PES files lose objects on re-save) | After the in-flight format PRs; issues to be opened |
-| `batch:lettering` | compile.rs, strokes.rs | stroke-wise fill lettering, Connection Points (audit items 6 and 11) | After `batch:stitch-engine` (both touch compile.rs) |
+| `batch:stitch-engine` | `openstitch-design` (region.rs, regions.rs) | #304, #354, #288, #372 (Half Stitch for Auto satin), #373 (Miter limit) | #288 closes once the regenerated T1 mark is checked (its cause was #297) |
+| `batch:formats` | `openstitch-formats`, PES writers | #374 (PES versions 4, 5 and 7–10), #375 (PE-made PES files lose objects on re-save, audit item 9) | After the in-flight format PRs |
+| `batch:lettering` | compile.rs, strokes.rs | #376 (stroke-wise fill lettering), #377 (Connection Points) | After `batch:stitch-engine` (both touch compile.rs) |
 
 ## Blocked
 
