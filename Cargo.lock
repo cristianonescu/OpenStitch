@@ -2530,6 +2530,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "openstitch-assistant"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "ureq",
+]
+
+[[package]]
 name = "openstitch-compat"
 version = "0.1.0"
 dependencies = [
