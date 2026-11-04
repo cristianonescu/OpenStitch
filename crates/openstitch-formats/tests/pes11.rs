@@ -1914,3 +1914,142 @@ fn a_turned_hoop_turns_the_machine_stitches_as_pe_design_does() {
     let back = pes::read(&pes11::write(&objects, &flat).expect("write")).expect("read");
     assert_eq!(moves(&back), moves(&turned));
 }
+
+/// Every `#PES0110` file of PE-DESIGN's in the fixtures and compat/reference.
+fn pe_design_files() -> Vec<(String, Vec<u8>)> {
+    fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+        for e in std::fs::read_dir(dir).expect("dir").flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                walk(&p, out);
+            } else if p.extension().is_some_and(|x| x.eq_ignore_ascii_case("pes")) {
+                out.push(p);
+            }
+        }
+    }
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut files = Vec::new();
+    walk(&root.join("tests/fixtures/pe11"), &mut files);
+    walk(&root.join("../../compat/reference"), &mut files);
+    files.sort();
+    files
+        .into_iter()
+        .filter_map(|p| {
+            let b = std::fs::read(&p).expect("read");
+            b.starts_with(b"#PES0110")
+                .then(|| (p.display().to_string(), b))
+        })
+        .collect()
+}
+
+#[test]
+fn pe_design_thread_tables_reach_the_colour_blocks() {
+    // #375: a PE-DESIGN 11 file read as stitches takes each block's thread from the file's own
+    // table (catalogue number, exact RGB, brand), not the PEC chart's nearest colour. PE's own
+    // colour list after the PEC section names each block's catalogue number (`0D` + u16) and,
+    // on a Hoop Size page, its RGB: both must agree with the thread the block got.
+    let (mut blocks, mut rgb_checked) = (0, 0);
+    for (name, b) in pe_design_files() {
+        let Ok(pattern) = pes::read(&b) else {
+            continue;
+        };
+        let pec = u32::from_le_bytes(b[8..12].try_into().expect("u32")) as usize;
+        if b[pec + 0x30] == 0xFF {
+            continue;
+        }
+        let n = usize::from(b[pec + 0x30]) + 1;
+        assert_eq!(pattern.threads.len(), n, "{name}");
+        let codes = &b[b.len() - 3 * n..];
+        let plain_tail = b[b.len() - 3 * n - 2..b.len() - 3 * n] == [0, 0];
+        let section = pes::read_objects(&b).expect("objects");
+        for k in 0..n {
+            let code = &codes[3 * k..3 * k + 3];
+            if code[0] != 0x0D {
+                continue;
+            }
+            let number = u16::from_le_bytes([code[1], code[2]]);
+            let t = &pattern.threads[k];
+            assert_eq!(
+                t.catalog_number
+                    .as_deref()
+                    .and_then(|c| c.trim().parse::<u16>().ok()),
+                Some(number),
+                "{name} block {k}: {t:?}"
+            );
+            assert!(
+                section
+                    .threads
+                    .iter()
+                    .any(|s| s.rgb_value() == t.rgb_value()),
+                "{name} block {k}: the RGB comes from the table"
+            );
+            blocks += 1;
+            if plain_tail && section.hoop_page {
+                let at = b.len() - 3 * n - 2 - 3 * n + 3 * k;
+                assert_eq!(
+                    [t.red, t.green, t.blue],
+                    [b[at], b[at + 1], b[at + 2]],
+                    "{name} block {k} RGB"
+                );
+                rgb_checked += 1;
+            }
+        }
+    }
+    assert!(blocks > 500 && rgb_checked > 50, "{blocks} {rgb_checked}");
+}
+
+#[test]
+fn brother_embroidery_threads_read_with_their_chart_names() {
+    // PE-DESIGN writes the PEC index where the name goes ("5" for 800 RED); the reader shows
+    // the chart's name and the writer puts the index back.
+    let pattern = pes::read(&data("pe11/r01-rect.pes")).expect("read");
+    let names: Vec<_> = pattern
+        .threads
+        .iter()
+        .map(|t| (t.catalog_number.as_deref(), t.name.as_deref()))
+        .collect();
+    assert!(names.contains(&(Some("800"), Some("RED"))), "{names:?}");
+    for t in &pattern.threads {
+        let written = pes11::as_pe_writes(t);
+        let index = openstitch_core::pec_index_of_brother_code(
+            t.catalog_number.as_deref().expect("number"),
+        )
+        .expect("chart colour");
+        assert_eq!(written.name.as_deref(), Some(index.to_string().as_str()));
+    }
+}
+
+#[test]
+fn pec_chart_colours_are_written_in_version_6_as_pe_design_writes_them() {
+    // PE-DESIGN 11.50's own Ver.6.0 save of r01 (r01-rect-v6): its thread table holds the
+    // BROTHER EMBROIDERY numbers with the PEC index as name, as its `#PES0110` files do.
+    // OpenStitch's version 6 writer writes PEC chart colours the same way (#375).
+    let pe = pes::read_objects(&data("pe11/r01-rect-v6.pes")).expect("objects");
+    assert_eq!(pe.version, "0060");
+    let strings = |t: &openstitch_core::Thread| {
+        (
+            t.catalog_number.clone(),
+            t.brand.clone(),
+            t.kind,
+            t.chart.clone(),
+            t.rgb_value(),
+        )
+    };
+    let chart = |i: usize| openstitch_core::PEC_CHART[i].clone().expect("chart");
+    let mut pattern = pes::read(&data("pe11/r01-rect-v6.pes")).expect("read");
+    pattern.threads = vec![chart(16), chart(5)];
+    let ours = pes::read_objects(&pes::write(&pattern).expect("write")).expect("ours");
+    assert_eq!(
+        ours.threads.iter().map(strings).collect::<Vec<_>>(),
+        pe.threads.iter().map(strings).collect::<Vec<_>>()
+    );
+    // Read back, the threads carry the chart names; written, the PEC index as PE-DESIGN has it.
+    let names: Vec<_> = pes::read(&pes::write(&pattern).expect("write"))
+        .expect("read")
+        .threads
+        .iter()
+        .map(|t| t.name.clone().unwrap_or_default().into_owned())
+        .collect();
+    assert_eq!(names, ["SILVER", "RED"]);
+    assert_eq!(pe.threads[0].name.as_deref(), Some("16"));
+}

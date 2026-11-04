@@ -34,6 +34,7 @@ pub mod sewing;
 pub mod shapes;
 pub(crate) mod shaping;
 pub mod skeleton;
+pub mod source;
 pub mod spiral;
 pub mod stamp;
 pub mod stitch_edit;

@@ -2712,6 +2712,36 @@ fn codec_commands() -> Vec<CommandSpec> {
         })
     }
 
+    /// The source file's bytes when `design.export` should write them back: the design is
+    /// unchanged since it was opened from a file of this format, and `pesVersion` is absent or
+    /// names the file's own version.
+    fn unchanged_source(
+        s: &EngineState,
+        p: &Params,
+        ty: FileType,
+    ) -> Result<Option<std::sync::Arc<[u8]>>, CommandError> {
+        let Some(src) = &s.design.source else {
+            return Ok(None);
+        };
+        if ty != FileType::Pes || src.format != ty.extension() || !src.unchanged(&s.design) {
+            return Ok(None);
+        }
+        let asked = match p.get("pesVersion") {
+            None => true,
+            Some(_) => {
+                let v = p.string("pesVersion", None)?;
+                let own = match src.version.as_deref() {
+                    Some("0110") => "11",
+                    Some("0060") => "6",
+                    Some("0001") => "1",
+                    _ => "",
+                };
+                v == own
+            }
+        };
+        Ok(asked.then(|| src.bytes.0.clone()))
+    }
+
     vec![
         spec(
             "stitches.import",
@@ -2724,6 +2754,11 @@ fn codec_commands() -> Vec<CommandSpec> {
                     "adoptProperties",
                     "bool",
                     "Copy the file's Design Property fields into the design (default: only when the design has none)",
+                ),
+                opt(
+                    "keepSource",
+                    "bool",
+                    "Keep the file with the design (File ▸ Open): exporting the design unchanged to the same format writes the file back byte for byte, with what OpenStitch does not read (default false)",
                 ),
             ],
             |s, p| {
@@ -2755,6 +2790,21 @@ fn codec_commands() -> Vec<CommandSpec> {
                 let id = s.design.add(object);
                 if adopt {
                     s.design.properties = found.clone();
+                }
+                if p.bool("keepSource", Some(false))? {
+                    let format = path
+                        .extension()
+                        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+                        .unwrap_or_default();
+                    let mut source = openstitch_design::source::SourceFile {
+                        format,
+                        version: pattern.metadata.get("pes.version").cloned(),
+                        bytes: openstitch_design::source::SourceBytes(data.into()),
+                        fingerprint: 0,
+                    };
+                    s.design.source = None;
+                    source.fingerprint = openstitch_design::source::fingerprint(&s.design);
+                    s.design.source = Some(source);
                 }
                 Ok(json!({ "id": id, "properties": found, "propertiesAdopted": adopt }))
             },
@@ -2811,6 +2861,28 @@ fn codec_commands() -> Vec<CommandSpec> {
                 if pattern.count(Command::Stitch) == 0 {
                     return Err(p.failed("design has no stitches"));
                 }
+                // A design opened from a PES and not changed since is written back as the file
+                // itself: PE-DESIGN's objects, page, hoop and thread table stay as they were
+                // (#375). Only when no other version is asked for, or the file's own one.
+                if let Some(bytes) = unchanged_source(s, p, ty)? {
+                    std::fs::write(&path, &*bytes).map_err(|e| p.failed(e.to_string()))?;
+                    let check = crate::machine::export_check(&s.design, &pattern);
+                    return Ok(json!({
+                        "path": path.display().to_string(),
+                        "paths": [path.display().to_string()],
+                        "stats": stats(&pattern),
+                        "sewingArea": crate::machine::sewing_area(&s.design, &pattern),
+                        "fitsPage": check["fitsPage"],
+                        "hoopMM": check["hoopMM"],
+                        "smallestHoop": check["smallestHoop"],
+                        "warnings": check["warnings"],
+                        "source": "unchanged",
+                    }));
+                }
+                let changed_source =
+                    s.design.source.as_ref().is_some_and(|src| {
+                        src.format == ty.extension() && !src.unchanged(&s.design)
+                    });
                 // PE-DESIGN 11 labels the machine section with the file name it saves to.
                 if let Some(stem) = std::path::Path::new(&raw_path).file_stem() {
                     pattern.metadata.insert(
@@ -2863,7 +2935,12 @@ fn codec_commands() -> Vec<CommandSpec> {
                 }
                 let paths: Vec<String> =
                     files.iter().map(|(t, _)| t.display().to_string()).collect();
-                let check = crate::machine::export_check(&s.design, &pattern);
+                let mut check = crate::machine::export_check(&s.design, &pattern);
+                if changed_source && let Some(w) = check["warnings"].as_array_mut() {
+                    w.push(json!(
+                        "the design changed since it was opened, so the file is written from the design: what OpenStitch does not read from the original file (PE-DESIGN's other objects, page and hoop fields) is not kept"
+                    ));
+                }
                 Ok(json!({
                     "path": paths[0],
                     "paths": paths,

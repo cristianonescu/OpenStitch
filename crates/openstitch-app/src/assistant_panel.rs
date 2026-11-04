@@ -18,6 +18,7 @@ use openstitch_app::editor::assistant_chat::{
     APPROVAL_TIMEOUT_S, AiPrefs, GateInput, PRESETS, PermissionMode, Protocol, ScriptRecord,
     Verdict, is_this_computer, verdict,
 };
+use openstitch_app::editor::ribbon::Action;
 use openstitch_assistant as claude;
 use openstitch_engine::Effect;
 use openstitch_mcp::EditorLink;
@@ -274,12 +275,60 @@ pub enum Item {
     Thinking(String),
     Tool {
         id: String,
+        /// The tool's own name (`mcp__openstitch-app__execute`, `view_render`, …).
         name: String,
+        /// Its arguments, once known.
+        input: Value,
+        /// The arguments and the start of the result, shown when the row is opened.
         detail: String,
         done: bool,
         is_error: bool,
     },
     Notice(String),
+}
+
+/// A tool row's label: what the call did, in words (#415). The raw name and the arguments are in
+/// the row's detail.
+pub fn tool_label(name: &str, input: &Value) -> String {
+    // Coding agents prefix MCP tools: `mcp__<server>__<tool>`.
+    let short = name
+        .strip_prefix("mcp__")
+        .and_then(|rest| rest.split_once("__").map(|(_, tool)| tool))
+        .unwrap_or(name);
+    let arg = |k: &str| {
+        input
+            .get(k)
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty())
+    };
+    match short {
+        "execute" => match arg("command") {
+            Some(c) => format!("Ran {c}"),
+            None => "Ran a command".into(),
+        },
+        "run_batch" => match input.get("steps").and_then(Value::as_array).map(Vec::len) {
+            Some(1) => "Ran 1 command".into(),
+            Some(n) => format!("Ran {n} commands"),
+            None => "Ran commands".into(),
+        },
+        "view_render" => "Looked at the design".into(),
+        "commands_list" => match arg("filter") {
+            Some(f) => format!("Looked up commands: {f}"),
+            None => "Looked up the commands".into(),
+        },
+        "command_describe" => match arg("command") {
+            Some(c) => format!("Read the help for {c}"),
+            None => "Read a command's help".into(),
+        },
+        "skill_reference" => "Read the embroidery guide".into(),
+        "scratch_write" => match arg("name") {
+            Some(n) => format!("Wrote {n}"),
+            None => "Wrote a file".into(),
+        },
+        "generate_image" => "Generated a picture".into(),
+        "ToolSearch" => "Looked up tools".into(),
+        other => other.to_string(),
+    }
 }
 
 /// A command waiting for Allow / Always allow / Deny.
@@ -319,9 +368,18 @@ pub struct Panel {
     last_undo: Option<usize>,
     pub script: ScriptRecord,
     pub tokens: (u64, u64),
+    /// Counts conversations, so a new chat's rows get new widget IDs.
+    chat: u64,
     /// Settings popup: the key being typed (never shown again once saved).
     key_input: String,
     image_key_input: String,
+    /// Whether the image generator's address has a key in the keychain (asked once per address).
+    image_key_stored: Option<(String, bool)>,
+    /// Reset AI settings is waiting for its confirmation.
+    confirm_reset: bool,
+    /// The closing dialog (#422) is showing, and its "Don't show this again" box.
+    pub close_hint_open: bool,
+    close_hint_dont_show: bool,
     show_settings: bool,
     /// Tests put a scripted transport here; the app uses `ureq`.
     transport: Option<Arc<dyn claude::Transport>>,
@@ -333,8 +391,20 @@ pub struct Panel {
     key_stored: Option<(String, bool)>,
 }
 
+/// Every key read, write and removal goes through here. The tests never reach the system
+/// keychain: under `cfg(test)` there is no entry, so `load_key` finds nothing and `store_key`
+/// fails (`tests_never_reach_the_real_keychain`). `OPENSTITCH_KEYCHAIN_SERVICE` points a manual
+/// test run at a throwaway service instead of the user's "OpenStitch assistant" entries (with
+/// `OPENSTITCH_CONFIG_DIR` for a throwaway `ui.json`; changing `HOME` would hide the keychain).
 fn keychain(base_url: &str) -> Option<keyring::Entry> {
-    keyring::Entry::new(KEYCHAIN_SERVICE, base_url).ok()
+    if cfg!(test) {
+        return None;
+    }
+    let service = std::env::var("OPENSTITCH_KEYCHAIN_SERVICE")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| KEYCHAIN_SERVICE.to_string());
+    keyring::Entry::new(&service, base_url).ok()
 }
 
 /// The stored key for `base_url`, if any.
@@ -349,8 +419,14 @@ fn store_key(base_url: &str, key: &str) -> Result<(), String> {
     let entry = keychain(base_url).ok_or("the system keychain is not available")?;
     if key.is_empty() {
         match entry.delete_credential() {
-            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-            Err(e) => Err(e.to_string()),
+            Ok(()) | Err(keyring::Error::NoEntry) => {}
+            Err(e) => return Err(e.to_string()),
+        }
+        // Removed means gone: read it back (the owner, 2026-11-04).
+        match entry.get_password() {
+            Err(keyring::Error::NoEntry) => Ok(()),
+            Ok(_) => Err("the system keychain still holds the key".into()),
+            Err(e) => Err(format!("could not check that the key is gone: {e}")),
         }
     } else {
         entry.set_password(key).map_err(|e| e.to_string())
@@ -412,20 +488,13 @@ pub fn send(app: &mut EditorApp, text: String, wake: Waker) {
         },
     );
     let (message, chips) = if prefs.protocol == Protocol::Agent {
-        let (extra, images, chips) = extras(app);
-        if !images.is_empty() {
-            app.assistant.panel.items.push(Item::Notice(
-                "A coding agent gets the attached files' paths, not the pictures themselves."
-                    .into(),
-            ));
-        }
-        let prompt = format!("{text}{extra}\n\n{}", context(app));
+        let (prompt, chips) = agent_prompt(app, &text);
         (ToWorker::Prompt(prompt), chips)
     } else {
         let Some(config) = model_config(app, &prefs) else {
             return;
         };
-        let (extra, images, chips) = extras(app);
+        let (extra, images, chips) = extras(app, false);
         let content = claude::user_content(&format!("{text}{extra}\n\n{}", context(app)), &images);
         let image = image_config(app, &prefs);
         (ToWorker::Turn(Box::new(config), content, image), chips)
@@ -510,9 +579,22 @@ pub fn attach_files(app: &mut EditorApp, paths: Vec<std::path::PathBuf>) {
     }
 }
 
+/// A coding agent's prompt: text only, so attached pictures go as paths (with a notice) and
+/// View asks the agent to look with `view_render` (#418). Returns the prompt and the chips.
+fn agent_prompt(app: &mut EditorApp, text: &str) -> (String, String) {
+    let (extra, images, chips) = extras(app, true);
+    if !images.is_empty() {
+        app.assistant.panel.items.push(Item::Notice(
+            "A coding agent gets the attached files' paths, not the pictures themselves.".into(),
+        ));
+    }
+    (format!("{text}{extra}\n\n{}", context(app)), chips)
+}
+
 /// What goes with the message (A4): the attached files, a picture of the view and the
-/// selection, as extra text, image blocks and a short line for the chat.
-fn extras(app: &mut EditorApp) -> (String, Vec<(String, String)>, String) {
+/// selection, as extra text, image blocks and a short line for the chat. A coding `agent` takes
+/// text only and can't open files, so View asks it to look with `view_render` instead (#418).
+fn extras(app: &mut EditorApp, agent: bool) -> (String, Vec<(String, String)>, String) {
     let panel = &mut app.assistant.panel;
     let files = std::mem::take(&mut panel.attachments);
     let view = std::mem::take(&mut panel.attach_view);
@@ -523,7 +605,12 @@ fn extras(app: &mut EditorApp) -> (String, Vec<(String, String)>, String) {
     if !files.is_empty() {
         text = format!("\n\n{}", assistant_attach::describe(&files));
     }
-    if view {
+    if view && agent {
+        text.push_str(
+            "\n\n[The user wants you to look at the design view: call view_render to see it.]",
+        );
+        chips.push("view".into());
+    } else if view {
         match app.ui_command("ui.render", Some(&json!({ "size": 1024 }))) {
             Ok(r) => {
                 if let Some(png) = r["png"].as_str() {
@@ -675,6 +762,82 @@ fn start_agent(app: &mut EditorApp, id: &str, wake: Waker) -> Result<Worker, Str
     Ok(w)
 }
 
+/// Opens or closes the panel from its ✕, View ▸ Show/Hide ▸ Assistant or the shortcut (#422).
+/// The choice is remembered in ui.json; closing says how to reopen it, until the user ticks
+/// "Don't show this again".
+pub fn set_open(app: &mut EditorApp, open: bool) {
+    if open && !app.ui.prefs.ai.enabled {
+        return;
+    }
+    let was = app.assistant.panel.open;
+    app.assistant.panel.open = open;
+    if app.ui.prefs.ai.panel_open != open {
+        app.ui.prefs.ai.panel_open = open;
+        app.ui.save_prefs();
+    }
+    if was && !open {
+        hint_on_close(app);
+    }
+}
+
+/// Options ▸ Show AI features turned off: the panel goes, its remembered state stays for when
+/// AI features come back, and the dialog says how.
+pub fn ai_switched_off(app: &mut EditorApp) {
+    if app.assistant.panel.open {
+        app.assistant.panel.open = false;
+        hint_on_close(app);
+    }
+}
+
+fn hint_on_close(app: &mut EditorApp) {
+    let panel = &mut app.assistant.panel;
+    panel.close_hint_open = app.ui.prefs.ai.close_hint;
+    panel.close_hint_dont_show = false;
+}
+
+/// The closing dialog: where the Assistant comes back.
+fn close_hint_dialog(app: &mut EditorApp, ctx: &egui::Context) {
+    if !app.assistant.panel.close_hint_open {
+        return;
+    }
+    let shortcut = Action::PaneAssistant
+        .info()
+        .shortcut_for(crate::ribbon::MAC);
+    let lines = openstitch_app::editor::assistant_chat::reopen_hint(
+        shortcut.as_deref(),
+        app.ui.prefs.ai.enabled,
+    );
+    let mut ok = false;
+    egui::Modal::new(egui::Id::unique("assistant-close-hint")).show(ctx, |ui| {
+        ui.set_max_width(360.0);
+        ui.heading("The Assistant is closed");
+        ui.label("To open it again:");
+        for l in &lines {
+            ui.label(format!("•  {l}"));
+        }
+        ui.add_space(6.0);
+        ui.checkbox(
+            &mut app.assistant.panel.close_hint_dont_show,
+            "Don't show this again",
+        );
+        ui.add_space(4.0);
+        ok = ui.button("OK").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter));
+    });
+    if ok {
+        close_hint_ok(app);
+    }
+}
+
+/// OK in the closing dialog; with "Don't show this again" ticked it never shows again.
+fn close_hint_ok(app: &mut EditorApp) {
+    let panel = &mut app.assistant.panel;
+    panel.close_hint_open = false;
+    if panel.close_hint_dont_show {
+        app.ui.prefs.ai.close_hint = false;
+        app.ui.save_prefs();
+    }
+}
+
 /// Stop: ends the turn; what it already changed stays, as one undo step.
 pub fn stop(app: &mut EditorApp) {
     let panel = &mut app.assistant.panel;
@@ -698,6 +861,7 @@ pub fn new_chat(app: &mut EditorApp) {
     panel.last_undo = None;
     panel.tokens = (0, 0);
     panel.turn = None;
+    panel.chat += 1;
 }
 
 fn reply_err(job: Job, message: String) {
@@ -873,18 +1037,24 @@ fn on_event(panel: &mut Panel, e: claude::Event) {
         claude::Event::ToolStart { id, name } => panel.items.push(Item::Tool {
             id,
             name,
+            input: Value::Null,
             detail: String::new(),
             done: false,
             is_error: false,
         }),
         claude::Event::ToolCall { id, input, .. } => {
-            if let Some(Item::Tool { detail, .. }) = panel
+            if let Some(Item::Tool {
+                input: known,
+                detail,
+                ..
+            }) = panel
                 .items
                 .iter_mut()
                 .rev()
                 .find(|i| matches!(i, Item::Tool { id: x, .. } if *x == id))
             {
-                *detail = input.to_string().chars().take(300).collect();
+                *detail = input.to_string().chars().take(600).collect();
+                *known = input;
             }
         }
         claude::Event::ToolDone {
@@ -915,9 +1085,11 @@ fn on_event(panel: &mut Panel, e: claude::Event) {
         claude::Event::Usage {
             input_tokens,
             output_tokens,
-            ..
+            cache_read_input_tokens,
+            cache_creation_input_tokens,
         } => {
-            panel.tokens.0 += input_tokens;
+            // All the input the model read, cached or not, as the bench counts it (#419).
+            panel.tokens.0 += input_tokens + cache_read_input_tokens + cache_creation_input_tokens;
             panel.tokens.1 += output_tokens;
         }
         claude::Event::Retrying { after, reason } => panel.items.push(Item::Notice(format!(
@@ -1312,17 +1484,11 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
     } else {
         "API key: none. Add the key for this address (for the Claude API: console.anthropic.com); it is kept in the system keychain."
     });
-    ui.horizontal(|ui| {
-        let panel = &mut app.assistant.panel;
-        ui.add(
-            egui::TextEdit::singleline(&mut panel.key_input)
-                .password(true)
-                .hint_text("Paste a new key")
-                .desired_width(180.0),
-        );
-        if ui.button("Save key").clicked() {
+    let what = "this address's key";
+    match key_row(ui, &mut app.assistant.panel.key_input, stored, what) {
+        Some(KeyAction::Save) => {
+            let panel = &mut app.assistant.panel;
             let note = match store_key(&base_url, panel.key_input.trim()) {
-                Ok(()) if panel.key_input.trim().is_empty() => "Key removed.".to_string(),
                 Ok(()) => "Key saved in the system keychain.".to_string(),
                 Err(e) => format!("Could not use the keychain: {e}"),
             };
@@ -1330,7 +1496,9 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
             panel.key_stored = None;
             panel.items.push(Item::Notice(note));
         }
-    });
+        Some(KeyAction::Remove) => remove_key(app, &base_url),
+        None => {}
+    }
     ui.separator();
     ui.label("Image generator (optional): an OpenAI-compatible /images/generations address ending in /v1. Without one, the assistant draws pictures as vector shapes.");
     let prefs = &mut app.ui.prefs.ai;
@@ -1352,48 +1520,335 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
     });
     let image_url = prefs.image_url.trim().to_string();
     if !image_url.is_empty() {
-        ui.horizontal(|ui| {
-            let panel = &mut app.assistant.panel;
-            ui.add(
-                egui::TextEdit::singleline(&mut panel.image_key_input)
-                    .password(true)
-                    .hint_text("Its key, if it needs one")
-                    .desired_width(180.0),
-            );
-            if ui.button("Save key").clicked() {
+        let image_stored = match &app.assistant.panel.image_key_stored {
+            Some((url, stored)) if *url == image_url => *stored,
+            _ => {
+                let stored = load_key(&image_url).is_some();
+                app.assistant.panel.image_key_stored = Some((image_url.clone(), stored));
+                stored
+            }
+        };
+        let what = "the image generator's key";
+        match key_row(
+            ui,
+            &mut app.assistant.panel.image_key_input,
+            image_stored,
+            what,
+        ) {
+            Some(KeyAction::Save) => {
+                let panel = &mut app.assistant.panel;
                 let note = match store_key(&image_url, panel.image_key_input.trim()) {
                     Ok(()) => "Image generator key saved in the system keychain.".to_string(),
                     Err(e) => format!("Could not use the keychain: {e}"),
                 };
                 panel.image_key_input.clear();
+                panel.image_key_stored = None;
                 panel.items.push(Item::Notice(note));
             }
+            Some(KeyAction::Remove) => remove_key(app, &image_url),
+            None => {}
+        }
+        if ui
+            .button("Clear image generator")
+            .on_hover_text(
+                "Turn the image generator off: empty its address and model and delete its key",
+            )
+            .clicked()
+        {
+            if image_stored {
+                remove_key(app, &image_url);
+            }
+            let prefs = &mut app.ui.prefs.ai;
+            prefs.image_url.clear();
+            prefs.image_model.clear();
+            let note = match save_ai_prefs(app) {
+                Ok(()) => {
+                    "The image generator is off: its address and model are cleared.".to_string()
+                }
+                Err(e) => format!("The image generator could not be cleared: {e}."),
+            };
+            app.assistant.panel.items.push(Item::Notice(note));
+        }
+    }
+    ui.separator();
+    if app.assistant.panel.confirm_reset {
+        ui.colored_label(
+            ui.visuals().warn_fg_color,
+            "Reset every Assistant setting to its default and remove the saved keys? The design stays; the chat starts over.",
+        );
+        ui.horizontal(|ui| {
+            if danger_button(ui, "Reset", true).clicked() {
+                reset_ai(app);
+            }
+            if ui.button("Cancel").clicked() {
+                app.assistant.panel.confirm_reset = false;
+            }
         });
+    } else if danger_button(ui, "Reset AI settings…", true)
+        .on_hover_text("Back to the defaults, and remove the saved API keys")
+        .clicked()
+    {
+        app.assistant.panel.confirm_reset = true;
     }
     if changed {
         app.ui.save_prefs();
     }
 }
 
-fn item(ui: &mut egui::Ui, it: &Item) {
+enum KeyAction {
+    Save,
+    Remove,
+}
+
+/// A key field with Save key and a red Remove key, which is only enabled when a key is saved.
+/// A saved key shows as dots in the empty field; the key itself is never read back into it.
+fn key_row(ui: &mut egui::Ui, input: &mut String, stored: bool, what: &str) -> Option<KeyAction> {
+    let mut action = None;
+    ui.horizontal(|ui| {
+        let hint = if stored {
+            RichText::new("●●●●●●●●●●●●  saved").color(ui.visuals().text_color())
+        } else {
+            RichText::new("Paste a key")
+        };
+        ui.add(
+            egui::TextEdit::singleline(input)
+                .password(true)
+                .hint_text(hint)
+                .desired_width(170.0),
+        )
+        .on_hover_text(if stored {
+            "A key is saved in the system keychain. Paste a new one to replace it."
+        } else {
+            "No key is saved for this address."
+        });
+        if ui
+            .add_enabled(!input.trim().is_empty(), egui::Button::new("Save key"))
+            .clicked()
+        {
+            action = Some(KeyAction::Save);
+        }
+        if danger_button(ui, "Remove key", stored)
+            .on_hover_text(format!("Delete {what} from the system keychain"))
+            .on_disabled_hover_text("No key is saved")
+            .clicked()
+        {
+            action = Some(KeyAction::Remove);
+        }
+    });
+    action
+}
+
+/// A button in a red tone, for actions that delete something; muted (and not clickable) when
+/// there is nothing to delete.
+fn danger_button(ui: &mut egui::Ui, text: &str, enabled: bool) -> egui::Response {
+    let (fill, fg) = if enabled {
+        (egui::Color32::from_rgb(190, 45, 45), egui::Color32::WHITE)
+    } else {
+        (
+            egui::Color32::from_rgb(190, 45, 45).gamma_multiply(0.25),
+            ui.visuals().weak_text_color(),
+        )
+    };
+    let button = egui::Button::new(RichText::new(text).color(fg)).fill(fill);
+    ui.add_enabled(enabled, button)
+}
+
+/// Saves the preferences and reads them back: Ok when `ui.json` now holds the AI settings in
+/// memory (or there is no `ui.json`, as in the tests).
+fn save_ai_prefs(app: &mut EditorApp) -> Result<(), String> {
+    app.ui.save_prefs();
+    match &app.ui.prefs_path {
+        Some(path) => {
+            let back = openstitch_app::editor::prefs::UiPrefs::load(path);
+            if back.ai == app.ui.prefs.ai {
+                Ok(())
+            } else {
+                Err(format!("{} does not hold the new settings", path.display()))
+            }
+        }
+        None => Ok(()),
+    }
+}
+
+/// Deletes the key saved for `url` from the system keychain, and says so in the chat.
+fn remove_key(app: &mut EditorApp, url: &str) {
+    let note = match store_key(url, "") {
+        Ok(()) => format!("The key for {url} was removed from the system keychain."),
+        Err(e) => format!("Could not remove the key for {url}: {e}"),
+    };
+    let panel = &mut app.assistant.panel;
+    panel.key_stored = None;
+    panel.image_key_stored = None;
+    panel.items.push(Item::Notice(note));
+}
+
+/// The addresses whose saved keys Reset AI settings removes: the model's, the image
+/// generator's and every preset's (the keychain cannot list them, #396).
+fn key_addresses(prefs: &AiPrefs) -> Vec<String> {
+    let mut urls: Vec<String> = [prefs.base_url.trim(), prefs.image_url.trim()]
+        .into_iter()
+        .chain(PRESETS.iter().map(|p| p.base_url))
+        .filter(|u| !u.is_empty())
+        .map(str::to_string)
+        .collect();
+    urls.sort();
+    urls.dedup();
+    urls
+}
+
+/// Reset AI settings (#396): the defaults back (the AI features stay on or off as they are),
+/// Always allow cleared, the known keys removed, and a new conversation for the new settings.
+fn reset_ai(app: &mut EditorApp) {
+    let failed: Vec<String> = key_addresses(&app.ui.prefs.ai)
+        .into_iter()
+        .filter_map(|u| store_key(&u, "").err().map(|e| format!("{u}: {e}")))
+        .collect();
+    app.ui.prefs.ai = AiPrefs {
+        enabled: app.ui.prefs.ai.enabled,
+        ..AiPrefs::default()
+    };
+    let saved = save_ai_prefs(app);
+    new_chat(app);
+    let panel = &mut app.assistant.panel;
+    panel.confirm_reset = false;
+    panel.key_stored = None;
+    panel.image_key_stored = None;
+    let settings = match saved {
+        Ok(()) => "The Assistant's settings are back to their defaults.".to_string(),
+        Err(e) => format!(
+            "The settings could not be saved ({e}); they are reset until OpenStitch closes."
+        ),
+    };
+    let keys = if failed.is_empty() {
+        "No saved key is left in the system keychain.".to_string()
+    } else {
+        format!("These keys could not be removed: {}.", failed.join("; "))
+    };
+    panel.items.push(Item::Notice(format!("{settings} {keys}")));
+}
+
+/// A chat bubble: the user's on the right in the accent colour, the assistant's on the left in
+/// the widget colour.
+fn bubble(ui: &mut egui::Ui, mine: bool, add: impl FnOnce(&mut egui::Ui)) {
+    let max = (ui.available_width() * 0.85).max(120.0);
+    let (fill, layout) = if mine {
+        (
+            ui.visuals().selection.bg_fill,
+            egui::Layout::right_to_left(egui::Align::TOP),
+        )
+    } else {
+        (
+            ui.visuals().widgets.inactive.bg_fill,
+            egui::Layout::left_to_right(egui::Align::TOP),
+        )
+    };
+    ui.with_layout(layout, |ui| {
+        egui::Frame::new()
+            .fill(fill)
+            .corner_radius(12)
+            .inner_margin(egui::Margin::symmetric(10, 7))
+            .show(ui, |ui| {
+                ui.set_max_width(max);
+                ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), add);
+            });
+    });
+}
+
+/// Light Markdown for the assistant's replies: `#` headings, `-`/`*` bullets, `**bold**` and
+/// `` `code` ``. Everything else is plain text.
+fn markdown(ui: &mut egui::Ui, text: &str) {
+    for line in text.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.is_empty() {
+            ui.add_space(4.0);
+            continue;
+        }
+        let job = if let Some(h) = trimmed.strip_prefix('#') {
+            inline_job(ui, h.trim_start_matches('#').trim_start(), true)
+        } else if let Some(b) = trimmed
+            .strip_prefix("- ")
+            .or_else(|| trimmed.strip_prefix("* "))
+        {
+            let depth = "  ".repeat((line.len() - trimmed.len()) / 2);
+            inline_job(ui, &format!("{depth}•  {b}"), false)
+        } else {
+            inline_job(ui, trimmed, false)
+        };
+        ui.add(egui::Label::new(job).wrap().selectable(true));
+    }
+}
+
+/// One line with `**bold**` and `` `code` `` runs.
+fn inline_job(ui: &egui::Ui, text: &str, heading: bool) -> egui::text::LayoutJob {
+    let style = ui.style();
+    let base = if heading {
+        egui::FontId::proportional(egui::TextStyle::Body.resolve(style).size + 2.0)
+    } else {
+        egui::TextStyle::Body.resolve(style)
+    };
+    let mut job = egui::text::LayoutJob::default();
+    for (i, run) in text.split("**").enumerate() {
+        let bold = heading || i % 2 == 1;
+        for (j, part) in run.split('`').enumerate() {
+            if part.is_empty() {
+                continue;
+            }
+            let code = j % 2 == 1;
+            let format = egui::TextFormat {
+                font_id: if code {
+                    egui::TextStyle::Monospace.resolve(style)
+                } else {
+                    base.clone()
+                },
+                color: if bold {
+                    ui.visuals().strong_text_color()
+                } else {
+                    ui.visuals().text_color()
+                },
+                background: if code {
+                    ui.visuals().code_bg_color
+                } else {
+                    egui::Color32::TRANSPARENT
+                },
+                ..Default::default()
+            };
+            job.append(part, 0.0, format);
+        }
+    }
+    job
+}
+
+/// The conversation's rows; `chat` keeps a new chat's IDs apart from the last one's.
+fn transcript(ui: &mut egui::Ui, chat: u64, items: &[Item]) {
+    for (i, it) in items.iter().enumerate() {
+        item(ui, ("assistant-row", chat, i), it);
+        ui.add_space(4.0);
+    }
+}
+
+fn item(ui: &mut egui::Ui, salt: (&str, u64, usize), it: &Item) {
     match it {
-        Item::User(t) => {
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
-                egui::Frame::group(ui.style()).show(ui, |ui| {
-                    ui.add(egui::Label::new(t).wrap());
-                });
-            });
-        }
-        Item::Assistant(t) => {
-            ui.add(egui::Label::new(t).wrap().selectable(true));
-        }
+        Item::User(t) => bubble(ui, true, |ui| {
+            let color = ui.visuals().selection.stroke.color;
+            ui.add(
+                egui::Label::new(RichText::new(t).color(color))
+                    .wrap()
+                    .selectable(true),
+            );
+        }),
+        Item::Assistant(t) => bubble(ui, false, |ui| markdown(ui, t)),
+        // Each row has its own ID (conversation, position): a label-based ID clashes when the
+        // same tool runs twice or there are two Thinking blocks (#415).
         Item::Thinking(t) => {
-            ui.collapsing(RichText::new("Thinking").weak(), |ui| {
-                ui.add(egui::Label::new(RichText::new(t).weak()).wrap());
-            });
+            egui::CollapsingHeader::new(RichText::new("Thinking").weak())
+                .id_salt(salt)
+                .show(ui, |ui| {
+                    ui.add(egui::Label::new(RichText::new(t).weak()).wrap());
+                });
         }
         Item::Tool {
             name,
+            input,
             detail,
             done,
             is_error,
@@ -1406,22 +1861,75 @@ fn item(ui: &mut egui::Ui, it: &Item) {
             } else {
                 "✓"
             };
-            ui.collapsing(RichText::new(format!("{state} {name}")).monospace(), |ui| {
-                ui.add(egui::Label::new(RichText::new(detail).monospace().small()).wrap());
+            egui::CollapsingHeader::new(
+                RichText::new(format!("{state} {}", tool_label(name, input))).small(),
+            )
+            .id_salt(salt)
+            .show(ui, |ui| {
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(format!("{name}\n{detail}"))
+                            .monospace()
+                            .small(),
+                    )
+                    .wrap(),
+                );
             });
         }
         Item::Notice(t) => {
-            ui.label(RichText::new(t).italics().weak());
+            ui.vertical_centered(|ui| {
+                ui.add(egui::Label::new(RichText::new(t).italics().weak().small()).wrap());
+            });
         }
     }
+}
+
+/// A framed icon button the height of a normal button (the header's settings and close, the
+/// composer's attach).
+fn icon_button(
+    ui: &mut egui::Ui,
+    tip: &str,
+    draw: impl FnOnce(&egui::Painter, egui::Rect, egui::Color32),
+) -> egui::Response {
+    let (r, resp) = ui.allocate_exact_size(egui::vec2(28.0, 26.0), egui::Sense::click());
+    let v = ui.style().interact_selectable(&resp, false);
+    ui.painter().rect(
+        r,
+        v.corner_radius,
+        v.weak_bg_fill,
+        v.bg_stroke,
+        egui::StrokeKind::Inside,
+    );
+    draw(ui.painter(), r.shrink(5.0), v.fg_stroke.color);
+    resp.on_hover_text(tip)
+}
+
+fn close_glyph(p: &egui::Painter, r: egui::Rect, c: egui::Color32) {
+    let r = r.shrink(2.5);
+    let stroke = egui::Stroke::new(1.8, c);
+    p.line_segment([r.left_top(), r.right_bottom()], stroke);
+    p.line_segment([r.right_top(), r.left_bottom()], stroke);
 }
 
 /// The docked panel (call before the central panel).
 pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
     let ctx = ui.ctx().clone();
     serve(app, waker(&ctx));
+    close_hint_dialog(app, &ctx);
     if !(app.ui.prefs.ai.enabled && app.assistant.panel.open) {
         return;
+    }
+    // Files dropped onto the window while the panel is open go with the next message, as 📎
+    // (#407).
+    let dropped: Vec<_> = ctx.input(|i| {
+        i.raw
+            .dropped_files
+            .iter()
+            .map(|f| f.path().to_path_buf())
+            .collect()
+    });
+    if !dropped.is_empty() {
+        attach_files(app, dropped);
     }
     egui::Panel::right("assistant")
         .default_size(380.0)
@@ -1429,21 +1937,45 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
             ui.horizontal(|ui| {
                 ui.heading("Assistant");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui
-                        .small_button("×")
-                        .on_hover_text("Close (Ctrl+Shift+A)")
-                        .clicked()
-                    {
-                        app.assistant.panel.open = false;
+                    let tip = format!(
+                        "Close the Assistant ({})",
+                        Action::PaneAssistant
+                            .info()
+                            .shortcut_for(crate::ribbon::MAC)
+                            .unwrap_or_default()
+                    );
+                    if icon_button(ui, &tip, close_glyph).clicked() {
+                        set_open(app, false);
                     }
-                    if ui.small_button("⚙").on_hover_text("Settings").clicked() {
+                    let settings_open = app.assistant.panel.show_settings;
+                    let tip = if settings_open {
+                        "Hide the settings"
+                    } else {
+                        "Settings: model, key, permissions"
+                    };
+                    let gear = icon_button(ui, tip, |p, r, c| {
+                        crate::icons::paint(p, r, Action::Options, c, true)
+                    });
+                    if settings_open {
+                        ui.painter().rect_stroke(
+                            gear.rect,
+                            4,
+                            ui.visuals().selection.stroke,
+                            egui::StrokeKind::Inside,
+                        );
+                    }
+                    if gear.clicked() {
                         app.assistant.panel.show_settings ^= true;
                     }
-                    if ui.small_button("New chat").clicked() {
+                    if ui
+                        .button("New chat")
+                        .on_hover_text("Start a new conversation; the design stays")
+                        .clicked()
+                    {
                         new_chat(app);
                     }
                     if ui
-                        .small_button("Save as script")
+                        .button("Save as script")
                         .on_hover_text(
                             "The design changes of this chat as a stitchtool command script",
                         )
@@ -1534,10 +2066,20 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                     stop(app);
                 }
                 ui.horizontal(|ui| {
-                    if ui
-                        .small_button("📎")
-                        .on_hover_text("Attach pictures, SVG, text or stitch files (up to 8)")
-                        .clicked()
+                    let attach = icon_button(
+                        ui,
+                        "Attach pictures, SVG, text or stitch files (up to 8)",
+                        |p, r, c| {
+                            p.text(
+                                r.center(),
+                                egui::Align2::CENTER_CENTER,
+                                "📎",
+                                egui::FontId::proportional(16.0),
+                                c,
+                            );
+                        },
+                    );
+                    if attach.clicked()
                         && let Some(files) = rfd::FileDialog::new()
                             .add_filter(
                                 "Pictures, SVG, text, stitch files",
@@ -1551,16 +2093,37 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                         attach_files(app, files);
                     }
                     let panel = &mut app.assistant.panel;
-                    ui.toggle_value(&mut panel.attach_view, "View")
-                        .on_hover_text("Send a picture of the design with the message");
-                    ui.add_enabled_ui(!app.selection.is_empty(), |ui| {
-                        ui.toggle_value(&mut app.assistant.panel.attach_selection, "Selection")
-                            .on_hover_text(
-                                "Send the selected objects' ids, kinds and sizes with the message",
-                            );
-                    });
+                    if ui
+                        .add(egui::Button::new("View").selected(panel.attach_view))
+                        .on_hover_text("Send a picture of the design with the message")
+                        .clicked()
+                    {
+                        panel.attach_view ^= true;
+                    }
+                    let on = app.assistant.panel.attach_selection;
+                    if ui
+                        .add_enabled(
+                            !app.selection.is_empty(),
+                            egui::Button::new("Selection").selected(on),
+                        )
+                        .on_hover_text(
+                            "Send the selected objects' ids, kinds and sizes with the message",
+                        )
+                        .on_disabled_hover_text(
+                            "Select objects in the design to send them with the message",
+                        )
+                        .clicked()
+                    {
+                        app.assistant.panel.attach_selection ^= true;
+                    }
                     let busy = app.assistant.panel.busy();
-                    if (ui.button(if busy { "Queue" } else { "Send" }).clicked() || enter)
+                    let send_button = egui::Button::new(
+                        RichText::new(if busy { "Queue" } else { "Send" })
+                            .strong()
+                            .color(ui.visuals().selection.stroke.color),
+                    )
+                    .fill(ui.visuals().selection.bg_fill);
+                    if (ui.add(send_button).clicked() || enter)
                         && !app.assistant.panel.input.trim().is_empty()
                     {
                         let text = std::mem::take(&mut app.assistant.panel.input);
@@ -1577,10 +2140,7 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
             egui::ScrollArea::vertical()
                 .stick_to_bottom(true)
                 .show(ui, |ui| {
-                    for it in &app.assistant.panel.items {
-                        item(ui, it);
-                        ui.add_space(4.0);
-                    }
+                    transcript(ui, app.assistant.panel.chat, &app.assistant.panel.items);
                     if let Some(last) = app.assistant.panel.last_undo
                         && last + 1 == app.undo_groups.len()
                         && ui.small_button("Undo these changes").clicked()
@@ -1907,6 +2467,81 @@ mod tests {
     }
 
     #[test]
+    fn view_asks_a_coding_agent_to_look_and_sends_a_model_the_picture() {
+        let (mut app, _) = app_with(Vec::new());
+        app.assistant.panel.attach_view = true;
+        let (text, images, chips) = extras(&mut app, true);
+        assert!(text.contains("call view_render"), "{text}");
+        assert!(images.is_empty());
+        assert!(chips.contains("view"));
+        assert!(!app.assistant.panel.attach_view);
+        app.assistant.panel.attach_view = true;
+        let (text, images, _) = extras(&mut app, false);
+        assert!(
+            text.contains("attached a picture of the design view"),
+            "{text}"
+        );
+        assert_eq!(images.len(), 1);
+        assert_eq!(images[0].0, "image/png");
+    }
+
+    /// #418, the coding-agent path: the prompt sent over ACP is text, so with View on it asks the
+    /// agent to call view_render and carries no picture data.
+    #[test]
+    fn the_view_chip_asks_a_coding_agent_to_call_view_render() {
+        let (mut app, _) = app_with(Vec::new());
+        app.assistant.panel.attach_view = true;
+        let (prompt, chips) = agent_prompt(&mut app, "What is this?");
+        assert!(prompt.starts_with("What is this?"));
+        assert!(prompt.contains("call view_render"), "{prompt}");
+        assert!(
+            !prompt.contains("base64") && !prompt.contains("iVBOR"),
+            "no picture data"
+        );
+        assert!(chips.contains("view"));
+    }
+
+    #[test]
+    fn the_token_count_includes_cached_input() {
+        let (mut app, _) = app_with(Vec::new());
+        on_event(
+            &mut app.assistant.panel,
+            claude::Event::Usage {
+                input_tokens: 12,
+                output_tokens: 700,
+                cache_read_input_tokens: 13_000,
+                cache_creation_input_tokens: 4_000,
+            },
+        );
+        assert_eq!(app.assistant.panel.tokens, (17_012, 700));
+    }
+
+    #[test]
+    fn files_dropped_on_the_window_attach_only_while_the_panel_is_open() {
+        let (mut app, _) = app_with(Vec::new());
+        let src =
+            std::env::temp_dir().join(format!("openstitch-drop-disc-{}.png", std::process::id()));
+        disc_png(&src);
+        let ctx = egui::Context::default();
+        let drop = |app: &mut EditorApp| {
+            let raw = egui::RawInput {
+                dropped_files: vec![crate::script::DroppedPath::handle(src.clone())],
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(raw, |ui| panel(app, ui));
+            out.textures_delta.clear();
+        };
+        app.assistant.panel.open = false;
+        drop(&mut app);
+        assert!(app.assistant.panel.attachments.is_empty());
+        app.assistant.panel.open = true;
+        drop(&mut app);
+        let _ = std::fs::remove_file(&src);
+        assert_eq!(app.assistant.panel.attachments.len(), 1);
+        assert!(app.assistant.panel.attachments[0].path.exists());
+    }
+
+    #[test]
     fn an_attached_picture_becomes_an_auto_punch_design_in_one_turn() {
         let (mut app, transport) = app_with(Vec::new());
         let tmp = openstitch_testutil::TempDir::new("a4-disc");
@@ -2031,11 +2666,298 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// The user's real keys are never read, written or removed by a test (#396): every key
+    /// path ends in `keychain`, which has no entry under `cfg(test)`.
+    #[test]
+    fn tests_never_reach_the_real_keychain() {
+        assert!(keychain(claude::DEFAULT_BASE_URL).is_none());
+        assert!(load_key(claude::DEFAULT_BASE_URL).is_none());
+        assert!(store_key(claude::DEFAULT_BASE_URL, "sk-never-stored").is_err());
+        assert!(
+            store_key(claude::DEFAULT_BASE_URL, "").is_err(),
+            "no removal either"
+        );
+        let (mut app, _) = app_with(Vec::new());
+        remove_key(&mut app, claude::DEFAULT_BASE_URL);
+        assert!(
+            matches!(app.assistant.panel.items.last(), Some(Item::Notice(t)) if t.contains("Could not remove"))
+        );
+    }
+
+    #[test]
+    fn reset_ai_settings_restores_the_defaults_and_lists_every_key_address() {
+        let (mut app, _) = app_with(Vec::new());
+        app.ui.prefs.ai.model = "some-model".into();
+        app.ui.prefs.ai.base_url = "https://example.com/v1".into();
+        app.ui.prefs.ai.image_url = "http://localhost:8080/v1".into();
+        app.ui.prefs.ai.always_allow = vec!["project.save".into()];
+        let urls = key_addresses(&app.ui.prefs.ai);
+        for u in [
+            "https://example.com/v1",
+            "http://localhost:8080/v1",
+            "https://api.anthropic.com",
+            "http://localhost:11434/v1",
+        ] {
+            assert!(urls.iter().any(|x| x == u), "{u} in {urls:?}");
+        }
+        app.ui.prefs.ai.enabled = false;
+        // A throwaway ui.json, never the user's: the reset is read back from it.
+        let dir =
+            std::env::temp_dir().join(format!("openstitch-reset-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("dir");
+        let file = dir.join("ui.json");
+        app.ui.prefs_path = Some(file.clone());
+        reset_ai(&mut app);
+        let back = openstitch_app::editor::prefs::UiPrefs::load(&file);
+        assert_eq!(back.ai, app.ui.prefs.ai, "the defaults are in ui.json");
+        let _ = std::fs::remove_dir_all(&dir);
+        let p = &app.ui.prefs.ai;
+        assert_eq!(
+            (p.model.as_str(), p.base_url.as_str()),
+            (claude::DEFAULT_MODEL, claude::DEFAULT_BASE_URL)
+        );
+        assert!(p.image_url.is_empty() && p.always_allow.is_empty());
+        assert!(!p.enabled, "the AI features switch is left as it was");
+        assert!(
+            matches!(app.assistant.panel.items.last(), Some(Item::Notice(t)) if t.contains("defaults"))
+        );
+    }
+
+    /// Repeated tool calls and Thinking blocks get their own widget IDs (#415): egui paints
+    /// "First/Second/Double use of … ID" on its debug layer when two widgets share one.
+    #[test]
+    fn repeated_tool_rows_do_not_clash() {
+        let tool = |id: &str, name: &str, input: Value| Item::Tool {
+            id: id.into(),
+            name: name.into(),
+            input,
+            detail: "{}".into(),
+            done: true,
+            is_error: false,
+        };
+        let items = vec![
+            Item::User("make a badge".into()),
+            Item::Thinking("plan".into()),
+            tool("a", "mcp__openstitch-app__commands_list", json!({})),
+            tool("b", "mcp__openstitch-app__commands_list", json!({})),
+            tool(
+                "c",
+                "mcp__openstitch-app__execute",
+                json!({ "command": "object.list" }),
+            ),
+            tool(
+                "d",
+                "mcp__openstitch-app__execute",
+                json!({ "command": "object.list" }),
+            ),
+            Item::Thinking("plan".into()),
+            Item::Assistant("done".into()),
+        ];
+        assert!(clash_warnings(|ui| transcript(ui, 0, &items)).is_empty());
+        // Control: the label-based rows of before (#415) do clash, so the check can see one.
+        let before = clash_warnings(|ui| {
+            for _ in 0..2 {
+                ui.collapsing("✓ mcp__openstitch-app__execute", |_| {});
+            }
+        });
+        assert!(!before.is_empty(), "the clash check must detect a clash");
+    }
+
+    /// The ID clash warnings egui paints while drawing `add` (two frames, warnings on).
+    fn clash_warnings(add: impl Fn(&mut egui::Ui)) -> Vec<String> {
+        let ctx = egui::Context::default();
+        ctx.options_mut(|o| o.warn_on_id_clash = true);
+        let mut clashes = Vec::new();
+        for _ in 0..2 {
+            let mut out = ctx.run_ui(egui::RawInput::default(), |ui| add(ui));
+            out.textures_delta.clear();
+            for s in &out.shapes {
+                if let egui::epaint::Shape::Text(t) = &s.shape
+                    && t.galley.text().contains(" ID ")
+                {
+                    clashes.push(t.galley.text().to_string());
+                }
+            }
+        }
+        clashes
+    }
+
+    /// The View chip sends the picture of the design with the message (#415, item 3).
+    #[test]
+    fn the_view_chip_sends_a_picture_of_the_design() {
+        let (mut app, transport) = app_with(vec![reply(&[], "A blue square.", "end_turn")]);
+        app.assistant.panel.attach_view = true;
+        send(
+            &mut app,
+            "what does the attached picture of the view show".into(),
+            no_wake(),
+        );
+        run(&mut app, idle);
+        let first = transport.requests.lock().expect("lock")[0].clone();
+        let content = &first["messages"][0]["content"];
+        assert_eq!(content[0]["type"], "image", "{content}");
+        assert_eq!(content[0]["source"]["media_type"], "image/png");
+        assert!(
+            content[1]["text"]
+                .as_str()
+                .is_some_and(|t| t.contains("picture of the design view"))
+        );
+        assert!(!app.assistant.panel.attach_view, "the chip is used once");
+        assert!(matches!(&app.assistant.panel.items[0], Item::User(t) if t.contains("📎 view")));
+    }
+
+    #[test]
+    fn tool_rows_read_as_words() {
+        assert_eq!(
+            tool_label(
+                "mcp__openstitch-app__execute",
+                &json!({ "command": "object.list" })
+            ),
+            "Ran object.list"
+        );
+        assert_eq!(tool_label("execute", &json!({})), "Ran a command");
+        assert_eq!(
+            tool_label("run_batch", &json!({ "steps": [{}, {}] })),
+            "Ran 2 commands"
+        );
+        assert_eq!(
+            tool_label("mcp__openstitch-app__view_render", &Value::Null),
+            "Looked at the design"
+        );
+        assert_eq!(tool_label("ToolSearch", &json!({})), "Looked up tools");
+        assert_eq!(tool_label("something_new", &json!({})), "something_new");
+    }
+
+    /// The panel opens on first start, closing says how to reopen it (until "Don't show this
+    /// again"), and the open state survives a restart; an old ui.json reads as open (#422).
+    #[test]
+    fn the_panel_opens_by_default_and_remembers_being_closed() {
+        let dir = std::env::temp_dir().join(format!("openstitch-422-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let launch = Launch {
+            demo: true,
+            user_settings: Some(dir.join("user.json")),
+            ..Launch::default()
+        };
+        let mut app = EditorApp::new(launch.clone());
+        assert!(app.assistant.panel.open, "open in a fresh profile");
+        set_open(&mut app, false);
+        assert!(
+            app.assistant.panel.close_hint_open,
+            "closing explains how to reopen"
+        );
+        close_hint_ok(&mut app);
+        set_open(&mut app, true);
+        set_open(&mut app, false);
+        assert!(
+            app.assistant.panel.close_hint_open,
+            "again, until the box is ticked"
+        );
+        app.assistant.panel.close_hint_dont_show = true;
+        close_hint_ok(&mut app);
+        set_open(&mut app, true);
+        set_open(&mut app, false);
+        assert!(
+            !app.assistant.panel.close_hint_open,
+            "not after Don't show this again"
+        );
+        // Restart: still closed, and still no dialog.
+        let app = EditorApp::new(launch.clone());
+        assert!(!app.assistant.panel.open, "closed after a restart");
+        assert!(!app.ui.prefs.ai.close_hint);
+        // A ui.json from before #422 has no panelOpen: it reads as open.
+        std::fs::write(dir.join("ui.json"), r#"{"ai":{"model":"claude-opus-5-5"}}"#).expect("w");
+        assert!(EditorApp::new(launch).assistant.panel.open);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn turning_ai_off_closes_the_panel_but_keeps_its_state() {
+        let (mut app, _) = app_with(Vec::new());
+        assert!(app.assistant.panel.open);
+        app.ui.prefs.ai.enabled = false;
+        ai_switched_off(&mut app);
+        assert!(!app.assistant.panel.open);
+        assert!(
+            app.ui.prefs.ai.panel_open,
+            "it comes back when AI features do"
+        );
+        assert!(app.assistant.panel.close_hint_open);
+        set_open(&mut app, true);
+        assert!(
+            !app.assistant.panel.open,
+            "no panel while AI features are off"
+        );
+    }
+
     fn local_openai(app: &mut EditorApp) {
         app.ui.prefs.ai.protocol = Protocol::OpenAi;
         app.ui.prefs.ai.base_url = "http://localhost:11434/v1".into();
         app.ui.prefs.ai.model = "qwen3".into();
         app.assistant.panel.test_key = None;
+    }
+
+    /// #418 vs #415: the View picture through the OpenAI-compatible backend. The request the
+    /// transport receives (the wire format, after the client's conversion) carries it as an
+    /// `image_url` part of the user message.
+    #[test]
+    fn the_view_chip_reaches_an_openai_compatible_model() {
+        let (mut app, transport) = app_with(vec![openai_reply(&[], "A blue square.", "stop")]);
+        local_openai(&mut app);
+        app.assistant.panel.attach_view = true;
+        send(
+            &mut app,
+            "what does the attached picture of the view show".into(),
+            no_wake(),
+        );
+        run(&mut app, idle);
+        let first = transport.requests.lock().expect("lock")[0].clone();
+        let user = first["messages"]
+            .as_array()
+            .and_then(|m| m.iter().find(|m| m["role"] == "user"))
+            .cloned()
+            .expect("a user message");
+        let parts = user["content"].as_array().expect("content parts");
+        assert!(
+            parts.iter().any(|p| p["type"] == "image_url"
+                && p["image_url"]["url"]
+                    .as_str()
+                    .is_some_and(|u| u.starts_with("data:image/png;base64,"))),
+            "{user}"
+        );
+    }
+
+    /// #418 vs #415, the coding-agent backend: the text `send` hands the ACP conversation, which
+    /// sends it as the one text block of `session/prompt` (`acp::protocol::prompt_params`). An
+    /// agent gets no picture, so View asks it to call view_render and never claims one is
+    /// attached.
+    #[test]
+    fn the_view_chip_asks_a_coding_agent_to_look() {
+        let (mut app, _) = app_with(Vec::new());
+        app.ui.prefs.ai.protocol = Protocol::Agent;
+        let (to, inbox) = channel();
+        let (_out, from) = channel();
+        let (_jobs_tx, jobs) = channel();
+        app.assistant.panel.worker = Some(Worker {
+            to,
+            from,
+            jobs,
+            cancel: Arc::new(AtomicBool::new(false)),
+            kind: (Protocol::Agent, app.ui.prefs.ai.agent.clone()),
+            listener: None,
+        });
+        app.assistant.panel.attach_view = true;
+        send(
+            &mut app,
+            "what does the attached picture of the view show".into(),
+            no_wake(),
+        );
+        let Ok(ToWorker::Prompt(prompt)) = inbox.try_recv() else {
+            panic!("the agent got no prompt");
+        };
+        assert!(prompt.contains("call view_render"), "{prompt}");
+        assert!(!prompt.contains("attached a picture"), "{prompt}");
     }
 
     #[test]

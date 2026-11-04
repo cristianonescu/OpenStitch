@@ -119,14 +119,18 @@ impl UserSettings {
 
 /// The per-user settings file: `~/Library/Application Support/OpenStitch/user.json` on macOS,
 /// `%APPDATA%\OpenStitch\user.json` on Windows, `$XDG_CONFIG_HOME/openstitch/user.json` (or
-/// `~/.config/openstitch/user.json`) elsewhere.
+/// `~/.config/openstitch/user.json`) elsewhere. `OPENSTITCH_CONFIG_DIR` replaces the folder, for
+/// a throwaway profile in manual tests (`ui.json` and `automation.json` sit beside it too); it
+/// leaves `HOME`, and with it the macOS keychain, alone.
 pub fn default_path() -> Option<PathBuf> {
     let var = |k: &str| {
         std::env::var_os(k)
             .filter(|v| !v.is_empty())
             .map(PathBuf::from)
     };
-    let dir = if cfg!(target_os = "macos") {
+    let dir = if let Some(dir) = var("OPENSTITCH_CONFIG_DIR") {
+        Some(dir)
+    } else if cfg!(target_os = "macos") {
         var("HOME").map(|h| h.join("Library/Application Support/OpenStitch"))
     } else if cfg!(windows) {
         var("APPDATA").map(|a| a.join("OpenStitch"))

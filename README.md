@@ -48,7 +48,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 192: 158 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 24 planned beyond PE-DESIGN |
+| Feature matrix rows | 196: 162 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 24 planned beyond PE-DESIGN |
 | Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 36: 29 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 10 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
@@ -262,10 +262,12 @@ PE-DESIGN 11.50's defaults, tie-in and lock, measured from its own files.
   retypable), including Fit Text to Outline and Text Transform, Manual Punch blocks, stitch
   groups, grouped appliqué, hole sewing, programmable and decorative fill, the other region types
   and stem, candlewick and chain lines, with the Design Settings' hoop and machine type.
-  `import.pes` opens PE-DESIGN's shapes and blocks as editable objects. Details in
+  `import.pes` opens PE-DESIGN's shapes and blocks as editable objects. A PE-DESIGN file opened
+  with File ▸ Open and exported again unchanged is written back byte for byte, objects and all.
+  Details in
   [docs/FILE_FORMATS.md](docs/FILE_FORMATS.md).
 - **PES versions 1, 6 and 11** on export, with Design Property (category, author, keywords,
-  comments). Version 6 with its stitch group is the default.
+  comments). Version 6 with its stitch group is the default. Every PES version is read (1 to 11).
 - **SVG import** as editable shapes, colours snapped to the Brother chart.
 - **Editable `.osd` projects**, and large designs split into several files when a format's limits
   are exceeded.
@@ -295,6 +297,13 @@ PE-DESIGN 11.50's defaults, tie-in and lock, measured from its own files.
   - Files, sending to the machine and quitting ask first.
   - Everything one message changes is one undo step, and Save as script writes the changes out.
   - Options ▸ Show AI features turns it all off.
+  - Pictures: 📎 or drop files on the window to attach them; **View** and **Selection** send the
+    design and what is selected.
+  - Tried with real models (2026-11-04): Claude Code (signed in, over ACP) passed 12 of 12
+    benchmark tasks; gpt-oss:20b on Ollama 8 of 12, and it made a badge with the network off;
+    qwen3:14b 3 of 12. Smaller local models often pick wrong commands, so check the result. Not
+    tried yet: the Claude API, LM Studio, OpenRouter and image generators.
+    [Details](docs/research/beyond/ai-integration.md#round-2-real-local-models-the-composer-by-hand-claude-code-without-the-users-setup-2026-11-04-390-392-393).
 - **➕ Assistant tools (B17, the base for the AI chat):**
   - `ui.*` editor commands on the socket reach everything the window offers: every ribbon and
     menu command, the selection, zoom, settings, a live render, the simulator, Help and
@@ -331,7 +340,7 @@ Also missing, from the [roadmap](docs/ROADMAP.md#still-to-do):
   editing and Blend.
 - **PES:** opening PE-DESIGN's texts and stitch groups as editable OpenStitch objects; motif
   fill, motif lines, several groups, right-aligned and vertical text in the editable PES 11
-  writer; PES versions 4, 5 and 7–10.
+  writer; writing PES versions 4, 5 and 7–10 (waiting for PE-DESIGN's own files of them).
 
 **Not planned, by design:**
 
@@ -370,7 +379,7 @@ Open differences from PE-DESIGN 11 that you may notice, from the
 - [Every design is written as one stitch group, nothing editable](docs/COMPATIBILITY_AUDIT.md#5-every-design-is-written-as-one-stitch-group-nothing-stays-editable-in-pe-design) (partly fixed)
 - [One sewing direction per text instead of per stroke](docs/COMPATIBILITY_AUDIT.md#6-one-sewing-direction-per-text-instead-of-per-stroke)
 - [Underlay model differs](docs/COMPATIBILITY_AUDIT.md#8-underlay-model-differs-zigzag-lines-have-no-underlay) (partly fixed)
-- [PE-DESIGN-made PES files lose objects, properties and colours on re-save](docs/COMPATIBILITY_AUDIT.md#9-pe-design-made-pes-files-lose-objects-properties-and-colours-on-re-save)
+- [PE-DESIGN-made PES files lose objects, properties and colours on re-save](docs/COMPATIBILITY_AUDIT.md#9-pe-design-made-pes-files-lose-objects-properties-and-colours-on-re-save) (partly fixed)
 - [No Connection Points (Default / Closest / Farther) for text](docs/COMPATIBILITY_AUDIT.md#11-no-connection-points-default--closest--farther-for-text)
 - [No minimum font sizes or small-text fonts](docs/COMPATIBILITY_AUDIT.md#12-no-minimum-font-sizes-or-small-text-fonts)
 - [No per-character colour or multi-character selection](docs/COMPATIBILITY_AUDIT.md#13-no-per-character-colour-or-multi-character-selection)
@@ -486,7 +495,7 @@ PE-DESIGN 11 does not. Each item is sketched in
 - Stitch-file resize with density recalculation and density tuning (B14)
 - Lettering: baseline model, saved kerning pairs, team names from CSV, closest-point letter connections (B15)
 - AI assistant tool surface (B17, phase A0): everything the user can do in the editor is reachable from the assistant. The automation socket answers ui.* editor commands beside the engine's (state, every ribbon/menu command through ui.run, selection, zoom, settings, live render, simulator, Help, updates, a scratch folder for SVGs and pictures). openstitch-mcp --assistant offers seven meta tools (commands_list, command_describe, execute, run_batch, view_render, scratch_write, skill_reference) over them, and a bundled embroidery skill (skills/openstitch-embroidery)
-- AI assistant panel (B17, phase A1): a chat beside the design (View ▸ Show/Hide ▸ Assistant, Ctrl/Cmd+Shift+A). Claude API with the user's own key in the OS keychain (default claude-opus-5-5, streaming, adaptive thinking). The model drives the editor through the A0 tools in-process. A permission gate judges each command by its effect: files, machine transfer, Exit and undoing earlier work ask (Allow once / Always allow / Deny, declined after 4 minutes), and there is an optional change limit. Everything one message changes is one undo step, Save as script writes it out, and messages typed during a turn are queued. Preferences: Options ▸ Show AI features (on by default, owner 2026-11-04) and the panel's settings
+- AI assistant panel (B17, phase A1): a chat beside the design (View ▸ Show/Hide ▸ Assistant, Ctrl/Cmd+Shift+A). Claude API with the user's own key in the OS keychain (default claude-opus-5-5, streaming, adaptive thinking). The model drives the editor through the A0 tools in-process. A permission gate judges each command by its effect: files, machine transfer, Exit and undoing earlier work ask (Allow once / Always allow / Deny, declined after 4 minutes), and there is an optional change limit. Everything one message changes is one undo step, Save as script writes it out, and messages typed during a turn are queued. Preferences: Options ▸ Show AI features (on by default, owner 2026-11-04) and the panel's settings. The panel opens on first start and then as the user left it (panelOpen in ui.json; an older ui.json reads as open), and closing it says how to reopen it (View ▸ Show/Hide ▸ Assistant, the shortcut, and Options ▸ Show AI features when AI is off) until "Don't show this again" (#422)
 - AI assistant providers (B17, phases A2-A3). A2: besides the Claude API, any OpenAI-compatible /chat/completions endpoint, with presets for Ollama and LM Studio on this computer (no key needed) and OpenRouter. The settings choose the protocol, list the endpoint's models, set the request timeout (30-3600 s) and an optional reasoning effort, and warn when an Ollama model has no tools capability. A notice shows when a model answers an edit request without using its tools. A3: coding agents over the Agent Client Protocol (Claude Code via claude-agent-acp, Codex via codex-acp, OpenCode and others) on the user's own account. They are found on PATH and in the usual install folders, with install commands for missing ones. Each runs in its own process group in an empty folder, with no file system or terminal declared and Claude Code's own shell, file and web tools turned off. Its only way into the editor is openstitch-mcp --assistant on a private loopback socket whose every request passes the panel's gate
 - AI assistant pictures (B17, phase A4): the composer's 📎 attaches up to 8 files per message (pictures PNG/JPEG/BMP sent as images, scaled to 2048 px and re-encoded under 3.75 MB; SVG and text sent as text; stitch files offered to stitches.import), each copied into the scratch folder. **View** sends a picture of the design and **Selection** the selected objects' ids, kinds and sizes, shown as chips. An attached picture is digitized with digitize.autoPunch in OpenStitch mode; a model-written SVG goes through scratch_write and import.svg. An optional image generator (an OpenAI-compatible /images/generations address, its key in the keychain) adds generate_image; without one the tool points the model at the vector route. OpenAI-compatible endpoints get tool-result pictures as a user message with image parts
 - AI assistant benchmark (B17, phase A5): stitchtool bench-assistant sends 12 embroidery tasks (badge, monogram, arc text, appliqué, star, two colours, a wider rectangle, recolour, delete, picture to embroidery, vector route, a question) to the Claude API, an OpenAI-compatible endpoint or an ACP coding agent, through the assistant's own tools over a headless editor. Each task is scored on the resulting design (object.list, design.info), failures are sorted into categories, and it writes JSON and Markdown reports

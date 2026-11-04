@@ -80,7 +80,7 @@ dearest:
 | 6 | One sewing direction per text instead of per stroke | Fonts | 5 | Documented difference | Angles |
 | 7 | Auto direction is one fixed angle (**fixed**, internal regression) | Stitches | 4 | Documented difference | No |
 | 8 | Underlay model differs (**partly fixed**: PE's two region types, Density Dense / Medium / Light, the Manual Punch column's edge / piping / zigzag); zigzag lines have no underlay | Stitches | 4 | Documented difference | Geometry |
-| 9 | PE-DESIGN-made PES files lose objects, properties and colours on re-save | PES | 4 | Documented difference | Pass-through only |
+| 9 | PE-DESIGN-made PES files lose objects, properties and colours on re-save (**partly fixed**, 2026-11-04: an opened file exported unchanged is written back byte for byte; its thread table reaches the stitches; an edited file still loses texts, stitch groups and unmapped fields) | PES | 4 | Documented difference | Text import (no reference needed) |
 | 10 | Hoop and Design Page fields hard-coded in PES (**fixed**, 2026-11-04, #322: `#PES0110` page, hoop, machine type and sections byte for byte against PE-DESIGN's files; v1 and the v6 display fields have no PE-DESIGN reference) | PES | 4 | Reference | No |
 | 11 | No Connection Points (Default / Closest / Farther) for text | Fonts | 4 | Documented difference | Geometry |
 | 12 | No minimum font sizes or small-text fonts | Fonts | 4 | Documented difference | No |
@@ -89,7 +89,7 @@ dearest:
 | 15 | Missing fill, satin and zigzag attributes; wrong ranges (**partly fixed**: Frequency and ranges; Stitch Type 1 and 2 (2 partly: exact at 0°, 30°/45° rows offset); Half Stitch for Auto satin since 2026-11-04; Miter limit pending captures, #373) | Stitches | 3 | Documented difference | Geometry |
 | 16 | Optimize Sewing Order does not move entry and exit points (**fixed**, reference) | Stitches | 3 | Documented difference | No |
 | 17 | Hole sewing not validated or paired (**fixed**, internal regression) | Stitches | 3 | Documented difference | No |
-| 18 | PES thread table drops chart names and colour type (**fixed**: round trip; chart strings pending) | PES | 3 | Documented difference | Chart strings |
+| 18 | PES thread table drops chart names and colour type (**fixed**: round trip; PEC chart colours written as PE-DESIGN writes them since 2026-11-04) | PES | 3 | Documented difference | Chart strings |
 | 19 | Design Property metadata cannot be set; lost on import (**fixed**, internal regression) | PES | 3 | Documented difference | No |
 | 20 | Character kerning moves one glyph without reflowing the line | Fonts | 3 | Documented, unverified | Reflow rule |
 
@@ -632,6 +632,52 @@ Line references are relative to `crates/`.
 
 ## 9. PE-DESIGN-made PES files lose objects, properties and colours on re-save
 
+- **Status (2026-11-04, #375): partly fixed, internal regression over PE-DESIGN's own files.**
+  - **Reproduced** on every `#PES0110` file of PE-DESIGN's in compat/reference and the pe11
+    fixtures (529 files): File ▸ Open (`stitches.import`) then File ▸ Export ▸ PES, version 6
+    or 11, and `import.pes` then version 11. Losses before the fix:
+    - Open + export (either version): every editable shape (289 files) and text (233) became
+      one stitch pattern; groups (21), hole sewing pairs (9), the programmable fill (7) and
+      motif (8) pattern lists gone; the Design Page size became the design's size plus a
+      margin (200 × 150, 200 × 200, 300 × 200 pages lost) and a Custom Size page became a
+      Hoop Size page in version 11 (387); the thread table was replaced by the PEC chart's
+      nearest colours (catalogue numbers, exact RGB, brand and chart lost); unmapped header
+      fields gone.
+    - `import.pes` + version 11: texts and stitch groups not imported (17 files with shapes and
+      texts; 315 with no shapes refused); Spiral, Concentric Circle and Zigzag Net Fill regions
+      skipped (9 files); the Design Property dropped (only the name kept); the hole pair of
+      hole-sewing-pentagon-star lost; Custom Size pages written as Hoop Size pages (160).
+    - 15 files with a `CEmbLine` variant the reader does not parse (tatami-40-*) lose
+      everything after it on either path (#398).
+  - **Fixed:**
+    - File ▸ Open keeps the file with the design (`stitches.import` `keepSource`,
+      `Design.source`, kept in `.osd`). `design.export` to PES with no `pesVersion`, or the
+      file's own version, writes it back byte for byte while the design is unchanged (a
+      fingerprint of the whole design; undo back to the opened state counts as unchanged).
+      An edited design is generated from the design and the export warns that the file's
+      other content is not kept. `pes_resave::an_unchanged_pe_design_file_is_written_back_byte_for_byte`
+      (every PE-DESIGN file above), `the_kept_file_survives_a_project_save_and_another_version_is_converted`,
+      `a_changed_design_is_written_from_the_design_with_a_warning`.
+    - A `#PES0110` file read as stitches takes each colour block's thread from the file's
+      thread table (catalogue number, exact RGB, brand, chart), matched by PEC index and the
+      per-block catalogue numbers after the PEC section; BROTHER EMBROIDERY threads show their
+      chart names (800 RED) where PE-DESIGN writes the PEC index, and the writer puts the index
+      back. `pe_design_thread_tables_reach_the_colour_blocks` (every block with a catalogue
+      number, and the RGB on Hoop Size pages, against PE-DESIGN's own list),
+      `brother_embroidery_threads_read_with_their_chart_names`.
+    - File ▸ Open of a `#PES0110` file uses its Design Page size
+      (app `opening_a_pe_design_file_keeps_its_page_and_the_file`).
+    - `import.pes` reads Cross Stitch, Concentric Circle, Radial, Spiral, Piping, Stippling,
+      Net Fill, Zigzag Net Fill and Flexible Spiral regions (the type and colour; their own
+      settings at OpenStitch's defaults, as the writer writes them at PE-DESIGN's) and adopts
+      the Design Property into a design that has none
+      (`import_pes_reads_the_other_region_types_and_the_design_property`).
+  - **Still lost when a PE-DESIGN file is edited** (documented difference): texts and stitch
+    groups are not imported as objects (#397), the other region types' own settings,
+    programmable fill / motif / decorative patterns on import, hole pairs on import, the hoop
+    (Design Settings) from the file (item 10, PR #363 writes it), and header fields the reader
+    keeps only verbatim.
+
 - **Impact:** severity 4. Opening a user's own PE-DESIGN file and saving it again, even with
   no change, removes:
   - every editable shape and text;
@@ -1104,6 +1150,18 @@ Line references are relative to `crates/`.
   `hole_sewing_is_refused_outside_the_guide_limits`.
 
 ## 18. PES thread table drops chart names and colour type
+
+- **Update (2026-11-04, #375): chart strings for OpenStitch's PEC chart colours.** PE-DESIGN
+  11.50's own Ver.6.0 file (pe11 fixture `r01-rect-v6.pes`) writes a Brother chart colour as it
+  does in `#PES0110`: the BROTHER EMBROIDERY number (`005`), the PEC index where the name goes
+  (`16`), brand `EMBROIDERY`, type `0x0A`, empty chart. The version 6 writer now writes a
+  thread that is exactly a PEC chart entry this way (`pes11::pec_chart_thread_as_pe_writes`;
+  other threads as given, so the pyembroidery byte-identical round trips stay), and the reader
+  shows such a thread with its chart name (`800` `RED`). Test
+  `pec_chart_colours_are_written_in_version_6_as_pe_design_writes_them`; specs
+  `pes-default-v6` and `pes-0110-editable-shapes` expect these strings (internal regression),
+  and `thread-match-swatches` now compares PE-DESIGN's own thread strings (800, 513, …) with
+  OpenStitch's export.
 
 - **Status (2026-10-19): fixed for round trips, internal regression.** `Thread::chart` and
   `Thread::kind` are read and written back; OpenStitch's own colours still get type `0x0A` and

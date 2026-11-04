@@ -517,7 +517,10 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
             app.ui.pane_tab = PaneTab::Import;
             toggle_pane(app, |p| p.attributes.visible = true);
         }
-        PaneAssistant => app.assistant.panel.open ^= true,
+        PaneAssistant => {
+            let open = !app.assistant.panel.open;
+            crate::assistant_panel::set_open(app, open);
+        }
         ReferenceWindow => app.workspace.reference ^= true,
         ShowGrid => app.workspace.grid.visible ^= true,
         SnapToGrid => app.toggle_snap_to_grid(),
@@ -1051,14 +1054,18 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     changed |= ui
         .checkbox(&mut app.ui.prefs.splash, "Show splash at startup")
         .changed();
-    changed |= ui
+    let ai_changed = ui
         .checkbox(&mut app.ui.prefs.ai.enabled, "Show AI features")
         .on_hover_text(
             "The Assistant panel, its button and Ctrl+Shift+A; nothing is sent until you use it",
         )
         .changed();
+    changed |= ai_changed;
     if !app.ui.prefs.ai.enabled {
-        app.assistant.panel.open = false;
+        crate::assistant_panel::ai_switched_off(app);
+    } else if ai_changed && app.ui.prefs.ai.panel_open {
+        // Back on: the panel returns as the user left it (#422).
+        app.assistant.panel.open = true;
     }
     ui.separator();
     ui.label(RichText::new("Updates").weak());

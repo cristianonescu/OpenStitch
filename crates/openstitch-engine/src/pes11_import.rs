@@ -75,7 +75,7 @@ fn design_xy(x: f32, y: f32) -> Vec2 {
 fn thread(table: &[Thread], index: u16) -> Thread {
     table
         .get(usize::from(index))
-        .cloned()
+        .map(openstitch_formats::pes11::with_chart_name)
         .unwrap_or_else(|| Thread::rgb(0))
 }
 
@@ -89,14 +89,27 @@ fn object(s: &Shape, table: &[Thread]) -> Result<DesignObject, String> {
         RegionSewType::Fill => Some(RegionType::Fill),
         RegionSewType::Satin => Some(RegionType::Satin),
         RegionSewType::NotSewn => None,
+        // The exporter writes these at PE-DESIGN's defaults (their own fields are not mapped),
+        // so they are read as the type at OpenStitch's defaults.
+        RegionSewType::Cross => Some(RegionType::CrossStitch),
+        RegionSewType::Concentric => Some(RegionType::ConcentricCircle),
+        RegionSewType::Radial => Some(RegionType::Radial),
+        RegionSewType::Spiral => Some(RegionType::Spiral),
+        RegionSewType::Piping => Some(RegionType::Piping),
+        RegionSewType::Stippling => Some(RegionType::Stippling),
+        RegionSewType::NetFill => Some(RegionType::NetFill),
+        RegionSewType::ZigzagNet => Some(RegionType::ZigzagNetFill),
+        RegionSewType::FlexibleSpiral => Some(RegionType::FlexibleSpiral),
         other => return Err(format!("region type {other:?} is not mapped yet")),
     }
     .filter(|_| s.closed)
     .map(|kind| {
         let mut r = RegionSewing::new(kind, thread(table, s.region_color));
-        r.density = f64::from(s.density);
-        r.angle = f64::from(s.direction);
-        r.underlay = s.under_sewing;
+        if matches!(kind, RegionType::Fill | RegionType::Satin) {
+            r.density = f64::from(s.density);
+            r.angle = f64::from(s.direction);
+            r.underlay = s.under_sewing;
+        }
         if kind == RegionType::Fill {
             r.frequency = Some(f64::from(s.frequency));
             r.running_stitch_path = Some(match s.running_path {
@@ -224,6 +237,12 @@ pub fn commands() -> Vec<CommandSpec> {
                     groups.push(g);
                 }
             }
+            // The file's Design Property, into a design that has none (as stitches.import).
+            let found = openstitch_design::DesignProperties::from_metadata(&section.metadata);
+            let adopt = s.design.properties.is_empty() && !found.is_empty();
+            if adopt {
+                s.design.properties = found;
+            }
             let skipped: Vec<_> = imported
                 .skipped
                 .iter()
@@ -236,6 +255,7 @@ pub fn commands() -> Vec<CommandSpec> {
                 "stitchGroupsNotImported": imported.stitch_groups,
                 "skipped": skipped,
                 "unparsed": section.unparsed,
+                "propertiesAdopted": adopt,
             }))
         },
     )]
