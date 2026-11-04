@@ -1926,7 +1926,9 @@ Line references are relative to `crates/`.
   stitches on both sides (`dropRepeats`) and the report lists how many per side (section
   "Zero-length stitches left out by `dropRepeats`" of the summary, `droppedRepeats` in
   report.json). For this spec, PE / OpenStitch: DST 4 / 2, EXP 4 / 2, PCS 5 / 3, HUS 6 / 4,
-  VIP 0 / 0, JEF 0 / 0, SEW 1 / 1, XXX 2 / 2 (PCS and HUS were 5 / 1 and 6 / 2 before their
+  VIP 0 / 0, JEF 0 / 0, SEW 1 / 1, XXX 2 / 2, SHV 0 / 0, CSD 0 / 0 (SHV and CSD since
+  2026-11-04, #320: OpenStitch now writes both, and PE's CSD read and written again comes out
+  byte for byte, PE's SHV likewise but for the preview's pixels; PCS and HUS were 5 / 1 and 6 / 2 before their
   writers wrote the landing twice, 2026-10-30). Every repeat OpenStitch writes is at a point where
   PE writes one too (the jump landings, SEW's and XXX's entry points); none is OpenStitch's
   alone. The ones only PE writes:
