@@ -15,8 +15,8 @@ use openstitch_design::{
     RegionType, RunningStitchPath, Transform,
 };
 use openstitch_formats::pes11::{
-    Envelope, Fit, HoopPage, KIND_CURVE_AFTER, KIND_CURVE_BEFORE, Letter, Objects, PAGE_ORIGIN,
-    RegionSewType, Shape, StitchGroup, Text, Vertex,
+    CustomPage, Envelope, Fit, HoopPage, KIND_CURVE_AFTER, KIND_CURVE_BEFORE, Letter, Objects,
+    PAGE_ORIGIN, RegionSewType, Shape, StitchGroup, Text, Vertex,
 };
 
 /// The `#PES0110` objects of `design`'s visible objects, in design order.
@@ -24,11 +24,12 @@ pub fn objects(design: &Design) -> Result<Objects, String> {
     let page = (mm(design.page.width).max(1), mm(design.page.height).max(1));
     // A 100 x 100 mm page is written as PE-DESIGN's own default, a Hoop Size page; other sizes
     // as a Custom Size page, which PE-DESIGN shows with a Hoop Settings tab and sections.
-    let hoop = hoop_page(design);
+    let hoop = hoop_page(design, page);
     let mut out = Objects {
         page_mm: Some(page),
         hoop_page: hoop.is_some() || page == (100, 100),
         hoop,
+        custom: Some(custom_page(design)),
         ..Objects::default()
     };
     let mut groups: Vec<(u64, Vec<u16>)> = Vec::new();
@@ -170,10 +171,17 @@ fn hole_copy(
 
 /// The design's machine type and hoop as PE-DESIGN 11.50 writes a Hoop Size page for them
 /// (round-6 captures, `openstitch-formats` fixtures `pe11/hoops`), for the hoops whose PE id is
-/// known; any other hoop is written as a Custom Size page of its size, as before.
-fn hoop_page(design: &Design) -> Option<HoopPage> {
+/// known; any other hoop is written as a Custom Size page of its size, as before. A design with
+/// no hoop on a 100 x 100 mm page gets PE-DESIGN's 100 x 100 Hoop Size page of its machine type.
+fn hoop_page(design: &Design, page: (u16, u16)) -> Option<HoopPage> {
     let multi_needle = design.machine.machine == openstitch_design::MachineType::MultiNeedle;
-    let (hoop, code) = match (multi_needle, design.machine.hoop.as_deref()?) {
+    let chosen = match design.machine.hoop.as_deref() {
+        Some(h) => h,
+        // A multi-needle one is PE-DESIGN's New page (hoop 15, r27), the writer's default.
+        None if page == (100, 100) && !multi_needle => "100x100",
+        None => return None,
+    };
+    let (hoop, code) = match (multi_needle, chosen) {
         (false, "100x100") => (0x00, *b"01"),
         (false, "130x180") => (0x01, *b"01"),
         (false, "160x260") => (0x02, *b"01"),
@@ -187,8 +195,25 @@ fn hoop_page(design: &Design) -> Option<HoopPage> {
         hoop,
         code,
         multi_needle,
-        rotated: design.machine.rotate90,
+        rotated: design.machine.rotate90 && design.machine.hoop.is_some(),
+        nv880e: openstitch_formats::pes11::Nv880eHoop::S,
     })
+}
+
+/// The machine type and sections of a Custom Size page: the section hoop of the design's split
+/// settings (Design Settings > Hoop Settings), else PE-DESIGN's for the machine type.
+fn custom_page(design: &Design) -> CustomPage {
+    let multi_needle = design.machine.machine == openstitch_design::MachineType::MultiNeedle;
+    let mut page = CustomPage::for_machine(multi_needle);
+    if let Some((w, h)) = design
+        .machine
+        .sections
+        .as_ref()
+        .and_then(|s| s.section_size())
+    {
+        page.section_mm = (mm(w * 10.0), mm(h * 10.0));
+    }
+    page
 }
 
 fn mm(units: f64) -> u16 {

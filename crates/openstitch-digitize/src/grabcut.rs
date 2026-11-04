@@ -42,10 +42,94 @@ pub enum Seed {
     Rect([f64; 4]),
 }
 
+/// A brush stroke the user marks the image with (#350): the round-capped band of `width` along
+/// the polyline `points`; one point is a dot.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Stroke {
+    /// `[x, y]` in fractions of the image's width and height (0–1).
+    pub points: Vec<[f64; 2]>,
+    /// The band's width, a fraction of the image's shorter side.
+    pub width: f64,
+}
+
+/// Pixels the user marked: subject for certain, or background for certain. Subject strokes win
+/// where the two overlap, and over the seed's rectangle or border band.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Marks {
+    pub subject: Vec<Stroke>,
+    pub background: Vec<Stroke>,
+}
+
+impl Marks {
+    pub fn is_empty(&self) -> bool {
+        self.subject.is_empty() && self.background.is_empty()
+    }
+}
+
+/// The working pixels `strokes` cover on a `w`×`h` grid: those whose centre lies within half the
+/// stroke's width of its polyline, and at least the pixels the polyline passes through.
+pub fn rasterize(strokes: &[Stroke], w: usize, h: usize) -> Vec<bool> {
+    let mut out = vec![false; w * h];
+    let short = w.min(h) as f64;
+    for s in strokes {
+        let r = (s.width * short / 2.0).max(std::f64::consts::FRAC_1_SQRT_2);
+        let pts: Vec<[f64; 2]> = s
+            .points
+            .iter()
+            .map(|p| [p[0] * w as f64, p[1] * h as f64])
+            .collect();
+        let segments: Vec<([f64; 2], [f64; 2])> = match pts.len() {
+            0 => continue,
+            1 => vec![(pts[0], pts[0])],
+            _ => pts.windows(2).map(|q| (q[0], q[1])).collect(),
+        };
+        for (a, b) in segments {
+            let span = |u: f64, v: f64, max: usize| {
+                let lo = (u.min(v) - r).floor().max(0.0) as usize;
+                let hi = ((u.max(v) + r).ceil().max(0.0) as usize).min(max);
+                lo..hi
+            };
+            let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+            let len2 = dx * dx + dy * dy;
+            for y in span(a[1], b[1], h) {
+                for x in span(a[0], b[0], w) {
+                    let c = [x as f64 + 0.5, y as f64 + 0.5];
+                    let t = if len2 > 0.0 {
+                        (((c[0] - a[0]) * dx + (c[1] - a[1]) * dy) / len2).clamp(0.0, 1.0)
+                    } else {
+                        0.0
+                    };
+                    let (ex, ey) = (a[0] + t * dx - c[0], a[1] + t * dy - c[1]);
+                    if ex * ex + ey * ey <= r * r {
+                        out[y * w + x] = true;
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
+/// What the seed and the marks fix a pixel to.
+#[derive(Clone, Copy, PartialEq)]
+enum Fixed {
+    Unknown,
+    Background,
+    Subject,
+}
+
 /// The subject's pixels (`true`), from the modal colour of every working pixel (`None` where
-/// transparent, which is always background). `None` when the seed leaves nothing unknown or the
-/// cut finds no subject.
-pub fn isolate(colors: &[Option<Rgb>], w: usize, h: usize, seed: Seed) -> Option<Vec<bool>> {
+/// transparent, which is always background). Pixels outside the seed are background for certain,
+/// and so are those `marks` paint as background; those it paints as subject are subject for
+/// certain. `None` when there is nothing to decide or no background colour to learn from; a
+/// mask with no subject pixel when the cut finds no subject (#355).
+pub fn isolate(
+    colors: &[Option<Rgb>],
+    w: usize,
+    h: usize,
+    seed: Seed,
+    marks: &Marks,
+) -> Option<Vec<bool>> {
     let n = w * h;
     if n == 0 || colors.len() != n {
         return None;
@@ -65,19 +149,29 @@ pub fn isolate(colors: &[Option<Rgb>], w: usize, h: usize, seed: Seed) -> Option
         .iter()
         .map(|c| c.map_or([0.0; 3], |c| [c[0] as f64, c[1] as f64, c[2] as f64]))
         .collect();
-    // Background for certain: outside the seed, or transparent.
-    let hard: Vec<bool> = (0..n)
+    let subject = rasterize(&marks.subject, w, h);
+    let background = rasterize(&marks.background, w, h);
+    let fixed: Vec<Fixed> = (0..n)
         .map(|i| {
             let (x, y) = (i % w, i / w);
-            colors[i].is_none() || x < x0 || x >= x1 || y < y0 || y >= y1
+            if colors[i].is_none() {
+                Fixed::Background
+            } else if subject[i] {
+                Fixed::Subject
+            } else if background[i] || x < x0 || x >= x1 || y < y0 || y >= y1 {
+                Fixed::Background
+            } else {
+                Fixed::Unknown
+            }
         })
         .collect();
-    if hard.iter().all(|&b| b) || !hard.iter().zip(colors).any(|(&b, c)| b && c.is_some()) {
-        // Nothing to decide, or no background colour to learn from.
+    let learnable = (0..n).any(|i| fixed[i] == Fixed::Background && colors[i].is_some());
+    if !learnable || fixed.iter().all(|&f| f == Fixed::Background) {
+        // No background colour to learn from, or nothing that could be subject.
         return None;
     }
     let links = smoothness(&z, colors, w, h);
-    let mut fg: Vec<bool> = hard.iter().map(|&b| !b).collect();
+    let mut fg: Vec<bool> = fixed.iter().map(|&f| f != Fixed::Background).collect();
     let mut models: Option<(Gmm, Gmm)> = None;
     for _ in 0..ITERATIONS {
         let opaque = |i: usize, side: bool| colors[i].is_some() && fg[i] == side;
@@ -93,8 +187,10 @@ pub fn isolate(colors: &[Option<Rgb>], w: usize, h: usize, seed: Seed) -> Option
         let mut g = Grid::new(w, h);
         g.cap.copy_from_slice(&links);
         for i in 0..n {
-            g.tr[i] = if hard[i] {
+            g.tr[i] = if fixed[i] == Fixed::Background {
                 -HARD
+            } else if fixed[i] == Fixed::Subject {
+                HARD
             } else {
                 // Source side is the subject: a pixel there pays its subject data term (its
                 // sink link is cut), one on the sink side its background term.
@@ -111,7 +207,7 @@ pub fn isolate(colors: &[Option<Rgb>], w: usize, h: usize, seed: Seed) -> Option
             break;
         }
     }
-    fg.iter().any(|&f| f).then_some(fg)
+    Some(fg)
 }
 
 /// The 8 neighbour directions; `(d + 4) % 8` is the opposite one.

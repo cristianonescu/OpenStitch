@@ -200,13 +200,73 @@ pub fn fill_shifted(
     stagger: Stagger,
 ) -> Vec<Run> {
     let l = p.stitch_length;
-    sew_rows(contours, p, holes, |span, row, forward| {
+    let mut runs = sew_rows(contours, p, holes, |span, row, forward| {
         let mut xs = tatami_xs(span, stagger.phase(row) * l, l);
         if !forward {
             xs.reverse();
         }
         xs
-    })
+    });
+    runs.iter_mut().for_each(join_short_stitches);
+    runs
+}
+
+/// A stitch shorter than this is a short stitch for [`join_short_stitches`], 0.1 mm. A fill row
+/// 0.3-0.5 mm long becomes a stitch under 0.3 mm (`tools/sew_check.py`'s "stitching in place"
+/// bound) once rounded to the PEC's 0.1 mm grid, so the bound is 0.5 mm, not 0.3.
+const SHORT_STITCH: f64 = 5.0;
+/// Most short stitches in a row a fill keeps: PE-DESIGN 11.50's drawn fills have at most six
+/// under 0.5 mm in a row (u-gradation-blend-blue; five in hole-sewing-pentagon-star's tips,
+/// three or fewer in the other 72 fill references in `compat/reference`), and six is
+/// `tools/sew_check.py`'s limit.
+const MAX_SHORT_RUN: usize = 6;
+
+/// Joins a row of more than [`MAX_SHORT_RUN`] stitches under [`SHORT_STITCH`] (#303): fill rows
+/// clipped to a sliver of the outline about a stitch's width across (an Auto Punch region's
+/// notch, 0.3-0.5 mm) are each a stitch in place, and the needle sews in one spot until the
+/// thread breaks or nests. Within such a row of stitches, a needle point closer than
+/// [`SHORT_STITCH`] to the last one kept is left out, so the sliver is sewn in a zigzag of
+/// stitches at least that long; the run's own last point stays. PE-DESIGN 11.50 sews such
+/// slivers as they are (its Auto Punch of p03-storybook has 11 stitches under 0.3 mm in a row,
+/// rows 0.2 mm long; round-5 reference), so this goes beyond it; its drawn fills stay within
+/// [`MAX_SHORT_RUN`] and are left as they are.
+pub fn join_short_stitches(run: &mut Run) {
+    let n = run.len();
+    if n < MAX_SHORT_RUN + 2 {
+        return;
+    }
+    let short = |i: usize| run[i].distance(run[i + 1]) < SHORT_STITCH;
+    let mut out: Run = Vec::with_capacity(n);
+    let mut i = 0;
+    while i < n {
+        // Stitches i → i + 1, …, j - 1 → j are all short.
+        let mut j = i;
+        while j + 1 < n && short(j) {
+            j += 1;
+        }
+        if j - i <= MAX_SHORT_RUN {
+            out.extend_from_slice(&run[i..=j.max(i)]);
+            i = j.max(i) + 1;
+            continue;
+        }
+        out.push(run[i]);
+        let first = out.len() - 1;
+        for &q in &run[i + 1..=j] {
+            if out.last().is_some_and(|&k| k.distance(q) >= SHORT_STITCH) {
+                out.push(q);
+            }
+        }
+        if j + 1 == n && out.last() != Some(&run[j]) {
+            // The run ends here: its last needle point stays (the lock and the next object's
+            // travel start from it).
+            if out.len() - 1 > first {
+                out.pop();
+            }
+            out.push(run[j]);
+        }
+        i = j + 1;
+    }
+    *run = out;
 }
 
 /// Shortest row span [`fill_edge_to_edge`] sews, 0.1 mm.
@@ -218,6 +278,20 @@ const MIN_EDGE_ROW_SPAN: f64 = 3.0;
 /// `entry` point (design space) the rows chain from the row end nearest it, so the fill starts
 /// at the entry instead of travelling along the outline to the first row.
 pub fn fill_edge_to_edge(
+    contours: &[Contour],
+    p: &RegionParams,
+    holes: &[Contour],
+    stagger: Stagger,
+    entry: Option<Vec2>,
+    sloped: bool,
+) -> Vec<Run> {
+    let mut runs = edge_to_edge_rows(contours, p, holes, stagger, entry, sloped);
+    runs.iter_mut().for_each(join_short_stitches);
+    runs
+}
+
+/// [`fill_edge_to_edge`] before [`join_short_stitches`].
+pub(crate) fn edge_to_edge_rows(
     contours: &[Contour],
     p: &RegionParams,
     holes: &[Contour],
