@@ -93,6 +93,7 @@ the project keeps:
 | Thread charts of other brands (Madeira Polyneon, Isacord 40, Sulky Rayon 40, Robison-Anton Rayon 40 and Polyester 40), `crates/openstitch-core/data/brands/` | Colour facts (codes, names, RGB) taken from each manufacturer's own published chart; no third-party compiled list copied; brand names are their owners' trademarks | B16.1 T5 thread sources for the image wizards' OpenStitch mode; sources and dates per chart in [research/beyond/thread-charts.md](research/beyond/thread-charts.md) |
 | SolidCraft (tangency-labs/solidcraft, commit 6bca7d2) | MIT OR Apache-2.0 | Reference design for the AI Assistant (B17); its Agent Client Protocol client code is adapted, with attribution, in `crates/openstitch-assistant/src/acp/`. See `THIRD_PARTY_NOTICES.md`. |
 | libembroidery (Embroidermodder) | zlib | Read as a secondary format reference where pyembroidery has no writer (PCS version byte, SEW control codes, XXX offsets). No code or data copied. |
+| Noto Sans Hebrew, Arabic, Devanagari and JP subsets, `crates/openstitch-engine/tests/fixtures/fonts/` | SIL OFL 1.1 (licence files and provenance beside the fonts; no reserved name used) | Test fixtures only (#345): the shaping and CJK lettering tests run on every machine without system fonts. Never embedded in binaries or offered as lettering fonts. Made by `tools/test_font_subsets.py`. |
 
 Runtime crates and bundled fonts are listed with their licences in `THIRD_PARTY_NOTICES.md`
 and docs/ARCHITECTURE.md.

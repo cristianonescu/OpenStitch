@@ -37,12 +37,12 @@ below are claims no test checks.
 |---|---|---|---|---|
 | Files | Import SVG: `<line>` | **fixed** (2026-11-04): every `<line>` element was dropped on import (SVG's default fill closed its two-point subpath, which was then discarded) | `svg_line_elements_import_as_running_lines` runs; `imports::tests::line_elements_import_as_open_strokes` | #341 |
 | Editing | Centre point for spiral (`object.setCenterPoint`) | **bug**: moving spiral's centre point changes no stitch | fix in the engine; then un-ignore `the_centre_point_moves_a_spiral` (`coverage_pattern_points.rs`) | #354 |
-| Lettering | Complex scripts, CJK | weak: `right_to_left_scripts_with_a_system_font` and `cjk_text_with_a_system_font` pass without checking when no suitable system font is installed | recorded here; needs a bundled test font, not only a test | #345 |
 
-Smaller weak points still without a test, recorded in #356: Solid View's drawing (only its toggle
-is tested); Snap to Grid for curve handles and the Arrange handle; the Optimise mode box and
-mixed-trim checkbox (inline egui code); the MSI and macOS `.pes` file associations and
-`tools/sew_kit.py --check` in CI (the CI workflow's owner). Each needs a seam in the product code or a CI step, not only a test.
+Smaller weak points still without a test, recorded in #356: the Optimise mode box and mixed-trim
+checkbox (inline egui code); the MSI and macOS `.pes` file associations and
+`tools/sew_kit.py --check` in CI (the CI workflow's owner). Each needs a seam in the product code
+or a CI step, not only a test. (Solid View's drawing and Snap to Grid for handles, first listed
+there, turned out reachable without a seam: #378, #379.)
 
 ## Closed
 
@@ -92,3 +92,6 @@ mixed-trim checkbox (inline egui code); the MSI and macOS `.pes` file associatio
 | Editing | Centre point / pattern reference point | weak: cross, net, zigzag net and decorative fill, and spiral's centre point, untested | #351: `crates/openstitch-engine/tests/coverage_pattern_points.rs` (spiral's centre point found to have no effect: #354) |
 | Automation | Ready-to-sew kit (`editor::sew_kit`) | weak: only the macOS layout tested | #351: `crates/openstitch-app/tests/coverage_editor_more.rs` (`tools/sew_kit.py --check` in CI not added: CI workflow) |
 | Editor | Inspector | weak: choice and toggle controls not round-tripped | #351: `crates/openstitch-app/tests/coverage_editor_more.rs` |
+| Lettering | Complex scripts, CJK | weak: `right_to_left_scripts_with_a_system_font` and `cjk_text_with_a_system_font` passed without checking when no suitable system font is installed; Indic reordering checked only as a script-run split | #345: Noto test subsets in `crates/openstitch-engine/tests/fixtures/fonts` (provenance and OFL there); `shaping.rs` `right_to_left_scripts_with_the_bundled_test_fonts`, `devanagari_vowel_sign_i_is_drawn_before_its_consonant`; `fonts.rs` `cjk_text_with_the_bundled_test_font` |
+| Simulation | Solid View | weak: only the mode toggle tested, not the drawing (0.7 mm, unshaded) | #378: `crates/openstitch-app/src/app_coverage_tests.rs` (`draw_solid`'s shapes read back from egui's frame output) |
+| Editor | Snap to Grid | weak: curve handles and the Arrange Copies handle untested | #379: `crates/openstitch-app/src/app_coverage_tests.rs` |
