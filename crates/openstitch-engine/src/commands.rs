@@ -1205,6 +1205,11 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     "Satin: split stitches longer than this, 2-12 (0 turns splitting off)",
                 ),
                 opt(
+                    "halfStitch",
+                    "bool",
+                    "Auto satin: PE-DESIGN's Half Stitch, every other crowded needle point on the inner side of a sharp bend pulled back (default on)",
+                ),
+                opt(
                     "runningStitchPath",
                     "inside|alongOutline|onOutline",
                     "Fill and satin: running stitches between separate parts (default inside; not with Auto direction, a feathered edge or text; inside not with gradation)",
@@ -1478,6 +1483,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         }
                         r.split_length = (l > 0.0).then_some(l);
                     }
+                    r.half_stitch = p.bool("halfStitch", Some(r.half_stitch))?;
                     if p.has("travel") {
                         r.running_stitch_path = if p.bool("travel", None)? {
                             r.running_stitch_path.or(Some(RunningStitchPath::Inside))

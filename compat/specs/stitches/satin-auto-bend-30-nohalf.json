@@ -3,7 +3,7 @@
   "id": "satin-auto-bend-30-nohalf",
   "area": "stitches",
   "title": "Auto satin turns a 30° bend as PE-DESIGN does (Half Stitch off)",
-  "description": "A 5 mm band bent through 30° in satin with Auto direction, density 3, without under sewing, Half Stitch off: the rung direction turns with the distance along the outer edge, as in PE-DESIGN's file (count within 10 %, longest crossing within 0.5 mm). OpenStitch does not model Half Stitch; PE-DESIGN's count is the same with it on or off.",
+  "description": "A 5 mm band bent through 30° in satin with Auto direction, density 3, without under sewing, Half Stitch off: the rung direction turns with the distance along the outer edge, as in PE-DESIGN's file (count within 10 %, longest crossing within 0.5 mm). PE-DESIGN's count is the same with Half Stitch on or off.",
   "covers": {
     "audit": [
       7
@@ -66,6 +66,7 @@
         "id": 1,
         "type": "satin",
         "autoDirection": true,
+        "halfStitch": false,
         "density": 3,
         "underlay": false
       }

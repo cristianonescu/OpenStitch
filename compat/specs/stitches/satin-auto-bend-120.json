@@ -3,7 +3,7 @@
   "id": "satin-auto-bend-120",
   "area": "stitches",
   "title": "Auto satin turns a 120° bend as PE-DESIGN does",
-  "description": "A 5 mm band bent through 120° in satin with Auto direction, density 3, without under sewing, Half Stitch on: the rung direction turns with the distance along the outer edge, as in PE-DESIGN's file (count within 10 %, longest crossing within 0.5 mm). The 120 degree band (second leg 17.32 mm on the outside, 8.66 mm inside): PE-DESIGN 11.50 sews square rungs on both legs and a fan of crossings up to 9.6 mm round the bend, its outer needle points 1/3 mm apart along the outer edge (161 stitches as the harness counts them; parked in round 3, landed 2026-10-30).",
+  "description": "A 5 mm band bent through 120° in satin with Auto direction, density 3, without under sewing, Half Stitch on: every other crowded needle point on the inner side of the bend is pulled back along its crossing (PE-DESIGN's needle points 60, 64 … 88 move 0.8 to 2.4 mm against satin-auto-bend-120-nohalf; mean stitch length 4.58 mm with it on, 4.75 mm off, within 0.25 mm), and the rung direction turns with the distance along the outer edge, as in PE-DESIGN's file (count within 10 %, longest crossing within 0.5 mm). The 120 degree band (second leg 17.32 mm on the outside, 8.66 mm inside): PE-DESIGN 11.50 sews square rungs on both legs and a fan of crossings up to 9.6 mm round the bend, its outer needle points 1/3 mm apart along the outer edge (161 stitches as the harness counts them; parked in round 3, landed 2026-10-30).",
   "covers": {
     "audit": [
       7
@@ -126,6 +126,29 @@
       "reference": {
         "tolerance": {
           "mm": 0.5
+        }
+      }
+    },
+    {
+      "id": "half-stitch-mean-stitch",
+      "measure": {
+        "kind": "stitchLength",
+        "stat": "mean"
+      },
+      "source": {
+        "export": "band.pes",
+        "align": {
+          "anchor": "boundsMin",
+          "to": [
+            0,
+            0
+          ]
+        }
+      },
+      "evidence": "Half Stitch shortens every other crossing at the bend's inner side: PE-DESIGN's mean stitch is 4.58 mm with it on, 4.75 mm with it off (satin-auto-bend-120-nohalf)",
+      "reference": {
+        "tolerance": {
+          "mm": 0.25
         }
       }
     }

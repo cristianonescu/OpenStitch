@@ -467,6 +467,10 @@ fn yes() -> bool {
     true
 }
 
+fn is_true(v: &bool) -> bool {
+    *v
+}
+
 impl DesignObject {
     pub fn shape(
         contours: Vec<Contour>,
@@ -1178,6 +1182,12 @@ pub struct RegionSewing {
     /// Satin: rows longer than this (mm) are split into staggered stitches.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub split_length: Option<f64>,
+    /// Auto satin: PE-DESIGN 11.50's Half Stitch. Where a sharp bend crowds the needle points
+    /// on its inner side, every other one is pulled back along its crossing (see
+    /// `region::half_stitch`). On by default, as PE-DESIGN's drawing tools set it; saved only
+    /// when off.
+    #[serde(default = "yes", skip_serializing_if = "is_true")]
+    pub half_stitch: bool,
     /// Move between separated parts with running stitches (Running Stitch Path); `None` jumps,
     /// as fill and satin did before (designs saved with `travel` off or unset).
     #[serde(
@@ -1315,6 +1325,7 @@ impl RegionSewing {
             gradation: None,
             feather: None,
             split_length: None,
+            half_stitch: true,
             running_stitch_path: Some(RunningStitchPath::Inside),
             pattern: None,
             pattern_width: None,
