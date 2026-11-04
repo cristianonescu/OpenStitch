@@ -369,6 +369,15 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
         (Some(seed), Mode::OpenStitch) => grabcut::isolate(&census.modal, w, h, seed, &p.marks),
         _ => None,
     };
+    if subject.as_ref().is_some_and(|s| !s.contains(&true)) {
+        // The user asked for isolation; sewing the whole picture in its place would hide that
+        // it failed (#355).
+        return Err(DigitizeError::Empty(
+            "the graph cut found no subject; mark the subject with a subject stroke, or remove \
+             background strokes that cover it"
+                .into(),
+        ));
+    }
     let background = match (p.skip_background, p.mode) {
         _ if subject.is_some() => {
             let subject = subject.as_deref().unwrap_or_default();

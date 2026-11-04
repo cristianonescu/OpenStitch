@@ -504,6 +504,14 @@ edge. Subject stroke one is `(0.1, 0.6) (0.3, 0.75) (0.5, 0.8) (0.7, 0.75) (0.9,
 0.04, and stroke two is along the rim from `(0.05, 0.55)` to `(0.95, 0.55)` through `(0.5, 0.85)`
 at width 0.03.
 
+**2026-11-04, no subject is an error (#355):** a cut that keeps no pixel used to fall back to
+converting without isolation, so the whole picture was sewn and the response looked ordinary.
+It is now an error naming the cause ("the graph cut found no subject; mark the subject with a
+subject stroke, or remove background strokes that cover it"), shown in the status bar. Isolation
+is still skipped silently when there is nothing to learn the background from (a cut-out PNG with
+a transparent border, or `subjectRect` over the whole image): transparent pixels are left out
+anyway, and nothing was asked to be removed.
+
 ## Sources
 
 - Zhang, X., and Wandell, B. A. (1996). A spatial extension of CIELAB for digital color image reproduction (S-CIELAB). SID Digest.

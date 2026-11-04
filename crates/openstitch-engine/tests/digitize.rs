@@ -569,8 +569,7 @@ fn auto_punch_isolates_the_subject() {
         assert!(r["background"].is_string(), "{extra} {r}");
     }
     // A background stroke over the yellow stripe leaves only the red; a subject stroke over a
-    // patch of sky sews it. (A stroke that also covers red rows teaches the model that red is
-    // background too, and the cut then finds no subject.)
+    // patch of sky sews it.
     let r = run(
         &mut s,
         "digitize.autoPunch",
@@ -585,6 +584,16 @@ fn auto_punch_isolates_the_subject() {
             "subjectStrokes": [{"points": [[0.1, 0.1]], "width": 0.1}]})),
     );
     assert_eq!(r["colors"].as_array().expect("colors").len(), 3, "{r}");
+    // A stroke that also covers red rows teaches the model that red is background too; the cut
+    // then finds no subject, and that is an error rather than the whole picture sewn (#355).
+    let e = s
+        .execute(
+            "digitize.autoPunch",
+            Some(&with(json!({"isolateSubject": true,
+                "backgroundStrokes": [{"points": [[0.2, 0.5], [0.8, 0.5]], "width": 0.12}]}))),
+        )
+        .expect_err("no subject");
+    assert!(e.to_string().contains("found no subject"), "{e}");
     for bad in [
         json!({"isolateSubject": true, "subjectRect": [0.5, 0.1, 0.4, 0.9]}),
         json!({"isolateSubject": true, "subjectRect": [0.1, 0.1, 0.9]}),

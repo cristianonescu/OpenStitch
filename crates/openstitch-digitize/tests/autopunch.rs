@@ -1170,8 +1170,39 @@ fn isolate_subject_needs_something_to_learn_the_background_from() {
         )
         .is_none()
     );
-    // A flat image: the border's colour is everywhere, so no subject.
-    assert!(grabcut::isolate(&census.modal, 20, 20, Seed::Border, &Marks::default()).is_none());
+    // A flat image: the border's colour is everywhere, so the cut finds no subject (#355).
+    let flat = grabcut::isolate(&census.modal, 20, 20, Seed::Border, &Marks::default())
+        .expect("a cut was made");
+    assert!(flat.iter().all(|&s| !s));
+}
+
+#[test]
+fn isolate_subject_that_finds_no_subject_is_an_error() {
+    use openstitch_digitize::grabcut::{Marks, Seed, Stroke};
+    // #355: a background stroke over the yellow stripe at width 0.12 also covers red rows, so
+    // the background model learns red too and the cut keeps nothing. The picture is not sewn
+    // whole in its place: the user asked for isolation, so they are told.
+    let img = subject_on_background();
+    let frame = Frame::new(0.0, 0.0, 80.0, 80);
+    let p = AutoPunch {
+        colors: 4,
+        mode: Mode::OpenStitch,
+        resolution: 80,
+        isolate: Some(Seed::Border),
+        marks: Marks {
+            subject: Vec::new(),
+            background: vec![Stroke {
+                points: vec![[0.25, 0.5], [0.75, 0.5]],
+                width: 0.12,
+            }],
+        },
+        ..Default::default()
+    };
+    match autopunch::convert(&img, &frame, &p) {
+        Err(DigitizeError::Empty(m)) => assert!(m.contains("no subject"), "{m}"),
+        Err(e) => panic!("wrong error: {e}"),
+        Ok(out) => panic!("converted with {} threads", out.threads.len()),
+    }
 }
 
 /// Fruit in a bowl on a table, the bowl the table's brown with a 2 px darker rim (p07's case,

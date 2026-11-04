@@ -376,7 +376,7 @@ pub fn commands() -> Vec<CommandSpec> {
                 opt(
                     "isolateSubject",
                     "bool",
-                    "OpenStitch mode: find the subject by an iterated graph cut (GrabCut's colour mixtures and min-cut, #127) and leave out everything around it, whatever its colour, in place of skipBackground and fabric; the border is the background it learns from unless subjectRect is given (default false; PE-DESIGN-compatible mode ignores it)",
+                    "OpenStitch mode: find the subject by an iterated graph cut (GrabCut's colour mixtures and min-cut, #127) and leave out everything around it, whatever its colour, in place of skipBackground and fabric; the border is the background it learns from unless subjectRect is given; a cut that finds no subject is an error (default false; PE-DESIGN-compatible mode ignores it)",
                 ),
                 opt(
                     "subjectRect",

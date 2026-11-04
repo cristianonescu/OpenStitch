@@ -121,8 +121,8 @@ enum Fixed {
 /// The subject's pixels (`true`), from the modal colour of every working pixel (`None` where
 /// transparent, which is always background). Pixels outside the seed are background for certain,
 /// and so are those `marks` paint as background; those it paints as subject are subject for
-/// certain. `None` when there is nothing to decide, no background colour to learn from, or the
-/// cut finds no subject.
+/// certain. `None` when there is nothing to decide or no background colour to learn from; a
+/// mask with no subject pixel when the cut finds no subject (#355).
 pub fn isolate(
     colors: &[Option<Rgb>],
     w: usize,
@@ -207,7 +207,7 @@ pub fn isolate(
             break;
         }
     }
-    fg.iter().any(|&f| f).then_some(fg)
+    Some(fg)
 }
 
 /// The 8 neighbour directions; `(d + 4) % 8` is the opposite one.
