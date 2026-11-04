@@ -398,14 +398,20 @@ fn early_closes_deliver_the_reply_before_closing() {
             .as_str()
             .is_some_and(|e| e.contains("token"))
     );
+    // A closed connection frees its slot only after the server's drain ends, so the next client
+    // can briefly be refused; wait (bounded) for the slot (#359).
     let oversized = format!("{junk}\n{junk}\n");
-    assert!(
-        late_reply(oversized.as_bytes())["error"]
-            .as_str()
-            .is_some_and(|e| e.contains("exceeds"))
-    );
-    // The closed connections above free their slot only after the server's drain ends, so the
-    // next client can briefly be refused; wait (bounded) for the slot.
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    let error = loop {
+        let reply = late_reply(oversized.as_bytes());
+        let error = reply["error"].as_str().unwrap_or_default().to_string();
+        if !error.contains("too many") {
+            break error;
+        }
+        assert!(std::time::Instant::now() < deadline, "slot never freed");
+        std::thread::sleep(Duration::from_millis(50));
+    };
+    assert!(error.contains("exceeds"), "{error}");
     let deadline = std::time::Instant::now() + Duration::from_secs(5);
     let mut first = loop {
         let mut client = host.client();
