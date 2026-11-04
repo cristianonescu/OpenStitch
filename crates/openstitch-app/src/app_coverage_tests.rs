@@ -1,8 +1,9 @@
 //! Coverage for `EditorApp` behaviour FEATURE_MATRIX claims that no other test asserts (#332):
 //! File ▸ Import into design, the undo/redo and arrow-nudge keys, the simulator's play, and the
-//! window close request going through the unsaved-changes prompt; and the Fit Text dialog
-//! remembering its last choices (#351). A child module of `app` so it can drive the private
-//! frame steps (`shortcuts`, `tick`, `close_request`) as `update` does.
+//! window close request going through the unsaved-changes prompt; the Fit Text dialog
+//! remembering its last choices (#351); and Solid View's drawing (#378). A child module of
+//! `app` so it can drive the private frame steps (`shortcuts`, `tick`, `close_request`) as
+//! `update` does.
 
 use super::*;
 
@@ -279,5 +280,98 @@ fn fit_text_dialog_remembers_its_last_choices_and_shows_a_fitted_texts_own() {
         (f.align, f.spread, f.valign, f.upright, f.other_side),
         (TextAlign::Right, Spread::None, VAlign::Top, true, true),
         "a fitted text shows its own settings"
+    );
+}
+
+/// The shapes `draw_solid` paints for `app` at `vp`, as egui returns them from the frame.
+fn solid_shapes(app: &EditorApp, vp: &Viewport) -> Vec<egui::Shape> {
+    let ctx = egui::Context::default();
+    let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+        let painter = ui.painter().clone();
+        crate::view_ui::draw_solid(app, &painter, vp);
+    });
+    out.textures_delta.clear();
+    out.shapes
+        .into_iter()
+        .map(|c| c.shape)
+        .filter(|s| matches!(s, egui::Shape::LineSegment { .. } | egui::Shape::Circle(_)))
+        .collect()
+}
+
+#[test]
+fn solid_view_draws_each_colour_block_as_flat_thread_0_7_mm_wide() {
+    use openstitch_app::editor::render::ColorLayer;
+    use openstitch_design::v2;
+    let mut app = EditorApp::new(Launch::default());
+    let (red, blue) = ([200, 20, 30], [10, 40, 220]);
+    app.render = RenderModel {
+        layers: vec![
+            ColorLayer {
+                rgb: red,
+                strokes: vec![vec![v2(0.0, 0.0), v2(10.0, 0.0), v2(10.0, 10.0)]],
+            },
+            ColorLayer {
+                rgb: blue,
+                strokes: vec![vec![v2(20.0, 0.0), v2(30.0, 0.0)]],
+            },
+        ],
+        ..Default::default()
+    };
+    let color = |rgb: [u8; 3]| egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2]);
+
+    // 2 points per 0.1 mm: 0.7 mm is 14 points; each stitch is one segment of that width, and
+    // every needle point a round join of half of it, all in the block's own colour.
+    let vp = Viewport {
+        scale: 2.0,
+        offset: openstitch_design::v2(10.0, 20.0),
+    };
+    let shapes = solid_shapes(&app, &vp);
+    let mut segments = Vec::new();
+    let mut joins = Vec::new();
+    for s in &shapes {
+        match s {
+            egui::Shape::LineSegment { points, stroke } => {
+                segments.push((points[0], points[1], stroke.width, stroke.color));
+            }
+            egui::Shape::Circle(c) => {
+                assert_eq!(c.stroke, egui::Stroke::NONE, "unshaded: no outline");
+                joins.push((c.center, c.radius, c.fill));
+            }
+            _ => unreachable!(),
+        }
+    }
+    let p = |x: f32, y: f32| egui::Pos2::new(x, y);
+    assert_eq!(
+        segments,
+        vec![
+            (p(10.0, 20.0), p(30.0, 20.0), 14.0, color(red)),
+            (p(30.0, 20.0), p(30.0, 40.0), 14.0, color(red)),
+            (p(50.0, 20.0), p(70.0, 20.0), 14.0, color(blue)),
+        ],
+        "one flat-coloured segment per stitch, in sewing order"
+    );
+    assert_eq!(
+        joins,
+        vec![
+            (p(10.0, 20.0), 7.0, color(red)),
+            (p(30.0, 20.0), 7.0, color(red)),
+            (p(30.0, 40.0), 7.0, color(red)),
+            (p(50.0, 20.0), 7.0, color(blue)),
+            (p(70.0, 20.0), 7.0, color(blue)),
+        ]
+    );
+
+    // Zoomed far out the thread stays at least a point wide, and the joins (under 2 points)
+    // are left out.
+    let vp = Viewport {
+        scale: 0.1,
+        offset: openstitch_design::v2(0.0, 0.0),
+    };
+    let shapes = solid_shapes(&app, &vp);
+    assert_eq!(shapes.len(), 3, "segments only: {shapes:?}");
+    assert!(
+        shapes
+            .iter()
+            .all(|s| matches!(s, egui::Shape::LineSegment { stroke, .. } if stroke.width == 1.0))
     );
 }
