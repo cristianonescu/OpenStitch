@@ -52,7 +52,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 | Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 33: 26 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 11 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
-| Open GitHub issues | 41 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
+| Open GitHub issues | 43 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
 <!-- /status:glance -->
 
 Tiers, weakest first: *internal regression* (our own earlier output), *oracle* (an independent
@@ -443,6 +443,8 @@ Open enhancement issues:
 - [#334](https://github.com/cristianonescu/OpenStitch/issues/334) Tests: digitize parameters no test sends (Photo Stitch densityMean/densityWindow/travel, single-chart thread source, PS2 97 % claim)
 - [#338](https://github.com/cristianonescu/OpenStitch/issues/338) B17 A3: Assistant with ACP coding agents (Claude Code, Codex, OpenCode) on the user's own account
 - [#339](https://github.com/cristianonescu/OpenStitch/issues/339) CI: measure the Linux runner's disk headroom (#315 ran out of space during the build)
+- [#342](https://github.com/cristianonescu/OpenStitch/issues/342) README status blocks drift whenever an issue opens: regenerate them automatically instead of in every PR
+- [#345](https://github.com/cristianonescu/OpenStitch/issues/345) Tests: complex-script and CJK lettering tests pass without checking when no system font is installed
 <!-- /status:issues-planned -->
 
 ### Beyond PE-DESIGN
