@@ -414,7 +414,7 @@ dialog sets its values.
   each socket edit is its own undo step, as before.
 - The permission gate (Ask, Edits, All) is A1. A socket client keeps the
   `--listen-read-only` and `--listen-no-files` capabilities and the file roots.
-- No real model has driven these tools yet. The first real run (A5, 2026-11-04) reached no model; see A5.
+- A real model drove these tools for the first time in A5 (2026-11-04): Claude Code with `claude-opus-5-5`, 12 of 12 benchmark tasks.
 
 ### A1, the Assistant panel (landed 2026-11-04, #306)
 
@@ -509,9 +509,8 @@ others SolidCraft lists, each with its version. A missing agent shows its instal
   waiting for approval and its denial reaching the client, and a wrong token refused.
 
 **Not verified.**
-- No real agent turn has run. On 2026-11-04 (A5) the real Claude Code agent (claude-agent-acp
-  0.100.0) started and answered `initialize` and `session/new`, then refused every prompt
-  because its CLI was not signed in; that run found #385 and #386.
+- The real Claude Code agent (claude-agent-acp 0.100.0) ran on 2026-11-04 (A5): 12 of 12
+  benchmark tasks once signed in. The runs found #385, #386, #388, #389 (fixed) and #390.
 - The Claude Code `_meta` option keys and the exact error `session/new` returns when sign-in is
   needed come from SolidCraft's code, not from the ACP spec.
 - Killing an agent's process tree on Windows (`taskkill /T`) is not exercised; the
@@ -588,31 +587,54 @@ the assistant's own tools and scores each on the design it leaves (`object.list`
   "only talked" and an answered question), `failures_are_sorted_into_categories`,
   `every_task_setup_runs`.
 
-**The first real run, 2026-11-04, on the Mac (macOS, Apple silicon).** None of the three
-backends reached a model.
+**The first real runs, 2026-11-04, on the Mac (macOS, Apple silicon).**
 
-| Backend | Result | Why |
-|---|---|---|
-| Claude API, `claude-opus-5-5` | not run | No key: the keychain has no "OpenStitch assistant" entry and `ANTHROPIC_API_KEY` is not set. The bench stops with "no key". |
-| Ollama | not run | Ollama is not installed (`ollama` not on PATH, nothing in /Applications), and no OpenAI-compatible server answers on ports 11434, 1234 or 8080. |
-| Claude Code via `claude-agent-acp` 0.100.0 (npm, installed into a private prefix) | 0 of 12, 0 tokens, about 2.4 s per task | The agent started, and `initialize` and `session/new` (with the OpenStitch MCP bridge) succeeded. Every `session/prompt` was refused with -32000 "Authentication required". `claude auth status` (Claude Code 2.1.284) reports `loggedIn: false`: the Claude Code CLI on this Mac is not signed in. |
+| Backend | Result |
+|---|---|
+| Claude Code (Claude Code 2.1.284, `claude-agent-acp` 0.100.0, model `claude-opus-5-5`), after the owner signed in | Run 1: **11 of 12**. Final run on the fixed build: **12 of 12** in 299 s (10-47 s a task), 113 tool calls with 2 errors, 5,723,824 input tokens (cache reads and writes included) and 16,701 output tokens. |
+| Claude API, `claude-opus-5-5` | Not run. There is no key in the keychain ("OpenStitch assistant") and `ANTHROPIC_API_KEY` is not set; the bench stops with "no key". |
+| OpenAI-compatible / Ollama | Not run. Ollama is not installed (`ollama` not on PATH, nothing in /Applications), and no server answers on ports 11434, 1234 or 8080. |
+| Image generator | Not run. No endpoint is set up. |
 
-What the real agent showed:
-- `claude-agent-acp` lists no `authMethods` in `initialize` and accepts `session/new` while
-  signed out; it refuses only at `session/prompt`. The client mapped -32000 only on
-  `session/new`, so the Assistant showed a raw "-32000" error. It now says to sign in with the
-  agent's own login (`claude auth login`) (#385).
-- The default agent preference was `claude-agent-acp`, the program name, not the id `claude`,
-  so choosing Coding agent without picking one failed with "Unknown agent" (#386). Fixed; a
-  stored `claude-agent-acp` reads as `claude`.
-- The bench was first run from inside a Claude Code session, whose `CLAUDE*`/`ANTHROPIC*`
-  environment reaches the child agent. The result was the same with those variables removed.
+Before the owner signed in, every `session/prompt` was refused with -32000 "Authentication
+required" (`claude auth status`: `loggedIn: false`).
 
-**Still not verified.** No real model or agent turn has run: no tool call from a real model,
-no token figures, no design quality. The bench's agent bridge has not carried a real tool call
-(the scripted ACP agent in the tests does not call the bridge). Next step, with the owner: a
-Claude API key in the keychain, or `claude auth login`, or Ollama with a tool-capable model,
-then
-`stitchtool bench-assistant` (API), `--protocol openai --base-url http://localhost:11434/v1
---model <model>` (Ollama), or `--agent claude --mcp <openstitch-mcp>` (Claude Code).
+Final run, per task: badge 7 calls, monogram 7, arc-text 18, appliqué 11, star 9, two-colours 12
+(1 error), wider 8, recolour 11, delete 7, picture 11, vector 10 (1 error), question 2.
+- The two errors were both recovered by the agent:
+  - `ui.state`, which the real editor answers but the headless bench does not;
+  - an `object.setRegion` colour the engine refused.
+- For the picture, the agent ran `digitize.autoPunch` with `compatMode: openStitch` and
+  `width: 50` on the attached BMP. The disc came out 32.9 mm, because the width covers the
+  whole picture. It then scaled and centred the object to 50 mm and checked with `view_render`.
+
+What the real agent showed, and what changed:
+- `claude-agent-acp` lists no `authMethods` and refuses only at `session/prompt`. That showed
+  as a raw "-32000"; it now says to sign in with the agent's own login (#385).
+- The default agent preference was `claude-agent-acp`, the program name, not the id `claude`
+  (#386).
+- A tool call arrives with `rawInput: {}` and then streamed, partial arguments. The client
+  reported the first one, so run 1 shows `{}` for all 120 calls. The call is now reported when
+  it finishes, with its last arguments (#388).
+- Token use comes in the `session/prompt` result's `usage` (`inputTokens`, `outputTokens`,
+  `cachedReadTokens`, `cachedWriteTokens`). It was ignored, so run 1 shows 0 tokens; it is now
+  counted (#389).
+- Run 1's monogram failure was the bench's: a monogram is one object per letter, and the check
+  took the widest object (about 20 mm) instead of the design's width (60.7 mm). Widths are now
+  the union of the objects' bounds.
+- The agent brings the user's own Claude Code setup into the session: skills appear in
+  `available_commands_update`, and a one-word prompt used about 37k context tokens. That is
+  #390, not fixed here, and it is why each task reads 180k-900k input tokens, mostly from the
+  cache.
+- The bench strips `CLAUDE*`/`ANTHROPIC*` variables from its environment when it runs inside a
+  Claude Code session.
+
+**Still not verified.**
+- No run against the Claude API, an OpenAI-compatible endpoint, a local model or an image
+  generator.
+- The new composer controls (📎, View, Selection) and the image-generator settings have not been
+  clicked through in the running app; the panel tests drive them without clicks.
+- Design quality has not been checked in a sew-out.
+- The bench's headless editor answers only `ui.render` and `ui.scratchWrite` among the `ui.*`
+  commands.
 
