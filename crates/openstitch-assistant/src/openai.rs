@@ -34,8 +34,10 @@ use crate::{
 };
 
 /// What goes back in place of a picture: [OAI-CREATE] "For tool messages, only type `text` is
-/// supported."
-pub(crate) const IMAGE_OMITTED: &str = "(image omitted: this endpoint takes text tool results)";
+/// supported." The picture itself follows in a user message (A4).
+pub(crate) const IMAGE_OMITTED: &str = "(picture: in the next user message)";
+/// The text of that user message.
+pub(crate) const TOOL_PICTURES: &str = "The pictures from the tool results above:";
 
 /// One tool call as its fragments arrive ([OAI-CHUNK] `choices[].delta.tool_calls[]`: `index`,
 /// `id`, `type`, `function.name`, `function.arguments`).
@@ -152,6 +154,7 @@ impl Conversation {
             }
 
             let mut results = Vec::with_capacity(calls.len());
+            let mut pictures = Vec::new();
             let mut stopped = false;
             for (i, call) in calls.iter().enumerate() {
                 if !stopped && cancel.load(Ordering::SeqCst) {
@@ -191,13 +194,25 @@ impl Conversation {
                     "tool_call_id": call.id,
                     "content": result_text(&result),
                 }));
+                pictures.extend(
+                    result
+                        .content
+                        .iter()
+                        .filter(|b| b.get("type").and_then(Value::as_str) == Some("image"))
+                        .cloned(),
+                );
             }
             if stopped {
                 self.pending = results;
                 return StopKind::Cancelled;
             }
-            // One `role: tool` message per call, in the order of the calls.
+            // One `role: tool` message per call, in the order of the calls; tool messages take
+            // text only, so their pictures follow as one user message with image parts.
             self.messages.extend(results);
+            if !pictures.is_empty() {
+                pictures.push(json!({"type": "text", "text": TOOL_PICTURES}));
+                self.messages.extend(user_message(&pictures));
+            }
         }
     }
 

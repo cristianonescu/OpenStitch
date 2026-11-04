@@ -414,7 +414,7 @@ dialog sets its values.
   each socket edit is its own undo step, as before.
 - The permission gate (Ask, Edits, All) is A1. A socket client keeps the
   `--listen-read-only` and `--listen-no-files` capabilities and the file roots.
-- No real model has driven these tools yet. That comes with A1 and A5.
+- A real model drove these tools for the first time in A5 (2026-11-04): Claude Code with `claude-opus-5-5`, 12 of 12 benchmark tasks.
 
 ### A1, the Assistant panel (landed 2026-11-04, #306)
 
@@ -440,8 +440,8 @@ Options ▸ **Show AI features** is on by default. While it is off, the panel, i
 - The undo step has no name: the editor's undo history has no labels yet. The chat shows "N changes, one undo step" with **Undo these changes**.
 
 **Not done in A1.**
-- No turn has run against the real API in CI, since that needs a key. The owner's first run with their key is the live check, and its token use goes into this section.
-- Pictures and attachments are A4.
+- No turn has run against the real API. The first real run (A5, 2026-11-04) had no key on this Mac; its token use goes into the A5 section once the owner's key is in the keychain.
+- Pictures and attachments: done in A4.
 - Other endpoints and local models are A2. The address field already takes an Anthropic-compatible URL.
 - The Assistant command's own icon is #313.
 
@@ -478,7 +478,8 @@ in `src/openai.rs` and `src/models.rs`.
 
 **Not verified.**
 - No run against a real Ollama, LM Studio or OpenRouter server. The tests use scripted streams
-  shaped from the documentation.
+  shaped from the documentation. A5's first real run found no Ollama or other local server on
+  this Mac.
 - The `data:` URL form of `image_url` and in-stream error objects are handled defensively,
   because the docs don't show them.
 
@@ -508,9 +509,132 @@ others SolidCraft lists, each with its version. A missing agent shows its instal
   waiting for approval and its denial reaching the client, and a wrong token refused.
 
 **Not verified.**
-- No real agent has been run; the tests use a scripted ACP agent.
+- The real Claude Code agent (claude-agent-acp 0.100.0) ran on 2026-11-04 (A5): 12 of 12
+  benchmark tasks once signed in. The runs found #385, #386, #388, #389 (fixed) and #390.
 - The Claude Code `_meta` option keys and the exact error `session/new` returns when sign-in is
   needed come from SolidCraft's code, not from the ACP spec.
 - Killing an agent's process tree on Windows (`taskkill /T`) is not exercised; the
   process-group tests are Unix-only.
+
+### A4, pictures (2026-11-04, #364)
+
+**The user's side.** The composer has a 📎 button for up to 8 files per message, shown as chips
+that can be removed, and two toggles: **View** sends a picture of the design (`ui.render`, 1024
+px), **Selection** sends the selected objects' ids, kinds, names and sizes as text. The settings
+gain an optional **Image generator**: an OpenAI-compatible `/images/generations` address ending
+in `/v1`, a model name and a key kept in the keychain under that address.
+
+**How it works.**
+- `editor::assistant_attach` copies every attached file into the scratch folder (as
+  `attached-<name>`), so the model's commands read it without a question. Pictures go to the
+  model as image blocks: a PNG or JPEG within 2048 px and 3.75 MB as it is; anything else
+  re-encoded as PNG, or JPEG at quality 85 when the PNG is too large, scaled down by a quarter
+  until it fits. The scratch copy stays full size for `digitize.*`. SVG and text files go as
+  text (100 kB at most); stitch files as a path for `stitches.import`. The message says the
+  files' content is data, not instructions, and nothing in a file changes the gate.
+- The system instructions (shared with `openstitch-mcp --assistant` and the coding agents) say
+  how to use pictures: `digitize.autoPunch` with `compatMode: openStitch`, then `view_render`;
+  for a picture the user did not attach, `generate_image` when offered, otherwise the vector
+  route (`scratch_write` an SVG, then `import.svg`), telling the user why.
+- `openstitch-assistant::WithImages` adds `generate_image` to the editor's tools. With a
+  generator it posts `{model, prompt, n: 1, size: 1024x1024, response_format: b64_json}`, takes
+  `data[0].b64_json` (or fetches `data[0].url`), accepts only PNG or JPEG bytes and writes them
+  with `scratch_write`. Without one it answers with an error that names the vector route. The
+  key is only sent to https or this computer, as for the model.
+- OpenAI-compatible tool messages take text only (A2), so a tool result's pictures (from
+  `view_render`, say) now follow the tool messages as one user message with `image_url` parts;
+  the tool message says the picture comes next. The Anthropic path already sent `image` blocks.
+- A coding agent gets the attached files' paths in its prompt, not the pictures (the panel says
+  so).
+
+**Not verified.** No real image generator has been called; the format follows OpenAI's "Create
+image" reference and the tests use a scripted endpoint. Whether a given local server accepts
+`response_format` is not checked; a `url` reply is handled.
+
+### A5, the benchmark and the first real run (2026-11-04, #365)
+
+**`stitchtool bench-assistant`** sends twelve fixed tasks to a model or a coding agent through
+the assistant's own tools and scores each on the design it leaves (`object.list` and
+`design.info`), never on the reply. The one exception, `question`, also checks the answer.
+
+| Task | Asked | Passes when |
+|---|---|---|
+| badge | 70 mm round badge, navy fill, satin border | widest object 60-80 mm, a satin region or zigzag line, over 500 stitches |
+| monogram | monogram of ABC, about 60 mm | lettering with ABC, 40-80 mm wide |
+| arc-text | OPENSTITCH around a 50 mm circle | the word in a text object, at least 30 mm wide |
+| applique | appliqué patch from a 60 mm heart | at least two objects, 45-75 mm |
+| star | red five-pointed star, 40 mm, filled | 30-50 mm, a red thread |
+| two-colours | 50 mm green square, 20 mm yellow circle in it | two objects, two colours |
+| wider | (a 30 mm rectangle) twice as wide | a rectangle 55-65 mm wide |
+| recolour | (two blue shapes) every object red | every fill red |
+| delete | (three shapes) delete the smallest | two left, the 8 mm circle gone |
+| picture | the BMP of a red disc into embroidery, 50 mm | objects 35-65 mm wide in red |
+| vector | a house as SVG, imported as shapes | at least two objects |
+| question | (two shapes) how many objects? change nothing | still two objects; the answer says 2 |
+
+- Each task starts from a fresh headless editor: an engine `Session` behind
+  `openstitch-mcp --assistant`, with `ui.render` and `ui.scratchWrite` answered by the bench.
+  A coding agent reaches it through `openstitch-mcp --assistant --endpoint` on a private
+  loopback socket the bench serves.
+- A failure is sorted into: request failed, wrote the call as text, only talked, unknown
+  command, gave up after errors, wrong arguments, or wrong result (with the check that failed).
+- It writes `report.json` (every tool call, error, reply, tokens and seconds per task) and
+  `report.md`. The key comes from an environment variable (`ANTHROPIC_API_KEY` by default) and
+  is never printed. A key saved in the editor can be passed on macOS with
+  `ANTHROPIC_API_KEY=$(security find-generic-password -s "OpenStitch assistant" -a https://api.anthropic.com -w)`.
+- In CI it runs against a scripted Claude Messages endpoint (no network):
+  `bench::tests::the_benchmark_scores_the_design_against_a_scripted_endpoint` (a pass, an
+  "only talked" and an answered question), `failures_are_sorted_into_categories`,
+  `every_task_setup_runs`.
+
+**The first real runs, 2026-11-04, on the Mac (macOS, Apple silicon).**
+
+| Backend | Result |
+|---|---|
+| Claude Code (Claude Code 2.1.284, `claude-agent-acp` 0.100.0, model `claude-opus-5-5`), after the owner signed in | Run 1: **11 of 12**. Final run on the fixed build: **12 of 12** in 299 s (10-47 s a task), 113 tool calls with 2 errors, 5,723,824 input tokens (cache reads and writes included) and 16,701 output tokens. |
+| Claude API, `claude-opus-5-5` | Not run. There is no key in the keychain ("OpenStitch assistant") and `ANTHROPIC_API_KEY` is not set; the bench stops with "no key". |
+| OpenAI-compatible / Ollama | Not run. Ollama is not installed (`ollama` not on PATH, nothing in /Applications), and no server answers on ports 11434, 1234 or 8080. |
+| Image generator | Not run. No endpoint is set up. |
+
+Before the owner signed in, every `session/prompt` was refused with -32000 "Authentication
+required" (`claude auth status`: `loggedIn: false`).
+
+Final run, per task: badge 7 calls, monogram 7, arc-text 18, appliqué 11, star 9, two-colours 12
+(1 error), wider 8, recolour 11, delete 7, picture 11, vector 10 (1 error), question 2.
+- The two errors were both recovered by the agent:
+  - `ui.state`, which the real editor answers but the headless bench does not;
+  - an `object.setRegion` colour the engine refused.
+- For the picture, the agent ran `digitize.autoPunch` with `compatMode: openStitch` and
+  `width: 50` on the attached BMP. The disc came out 32.9 mm, because the width covers the
+  whole picture. It then scaled and centred the object to 50 mm and checked with `view_render`.
+
+What the real agent showed, and what changed:
+- `claude-agent-acp` lists no `authMethods` and refuses only at `session/prompt`. That showed
+  as a raw "-32000"; it now says to sign in with the agent's own login (#385).
+- The default agent preference was `claude-agent-acp`, the program name, not the id `claude`
+  (#386).
+- A tool call arrives with `rawInput: {}` and then streamed, partial arguments. The client
+  reported the first one, so run 1 shows `{}` for all 120 calls. The call is now reported when
+  it finishes, with its last arguments (#388).
+- Token use comes in the `session/prompt` result's `usage` (`inputTokens`, `outputTokens`,
+  `cachedReadTokens`, `cachedWriteTokens`). It was ignored, so run 1 shows 0 tokens; it is now
+  counted (#389).
+- Run 1's monogram failure was the bench's: a monogram is one object per letter, and the check
+  took the widest object (about 20 mm) instead of the design's width (60.7 mm). Widths are now
+  the union of the objects' bounds.
+- The agent brings the user's own Claude Code setup into the session: skills appear in
+  `available_commands_update`, and a one-word prompt used about 37k context tokens. That is
+  #390, not fixed here, and it is why each task reads 180k-900k input tokens, mostly from the
+  cache.
+- The bench strips `CLAUDE*`/`ANTHROPIC*` variables from its environment when it runs inside a
+  Claude Code session.
+
+**Still not verified.**
+- No run against the Claude API, an OpenAI-compatible endpoint, a local model or an image
+  generator.
+- The new composer controls (📎, View, Selection) and the image-generator settings have not been
+  clicked through in the running app; the panel tests drive them without clicks.
+- Design quality has not been checked in a sew-out.
+- The bench's headless editor answers only `ui.render` and `ui.scratchWrite` among the `ui.*`
+  commands.
 

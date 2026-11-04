@@ -172,6 +172,10 @@ pub struct AiPrefs {
     pub reasoning_effort: String,
     /// The coding agent (`openstitch_assistant::KNOWN_AGENTS` id) for [`Protocol::Agent`].
     pub agent: String,
+    /// The optional image generator (A4): an OpenAI-compatible `/images/generations` address
+    /// ending in `/v1`; empty = none. Its key, if any, is in the keychain under this address.
+    pub image_url: String,
+    pub image_model: String,
 }
 
 pub const DEFAULT_MODEL: &str = "claude-opus-5-5";
@@ -190,7 +194,9 @@ impl Default for AiPrefs {
             request_timeout_s: 300,
             protocol: Protocol::Anthropic,
             reasoning_effort: String::new(),
-            agent: "claude-agent-acp".into(),
+            agent: "claude".into(),
+            image_url: String::new(),
+            image_model: String::new(),
         }
     }
 }
@@ -204,6 +210,7 @@ impl AiPrefs {
             "requestTimeoutS": self.request_timeout_s,
             "protocol": self.protocol.key(), "reasoningEffort": self.reasoning_effort,
             "agent": self.agent,
+            "imageUrl": self.image_url, "imageModel": self.image_model,
         })
     }
 
@@ -257,7 +264,13 @@ impl AiPrefs {
                 })
                 .unwrap_or_default()
                 .to_string(),
-            agent: text("agent", &d.agent),
+            // "claude-agent-acp" was the default before #386: the program, not the id.
+            agent: match text("agent", &d.agent).as_str() {
+                "claude-agent-acp" => d.agent.clone(),
+                a => a.to_string(),
+            },
+            image_url: text("imageUrl", ""),
+            image_model: text("imageModel", ""),
         }
     }
 }
@@ -640,6 +653,16 @@ mod tests {
         };
         assert_eq!(AiPrefs::from_json(&p.to_json()), p);
         assert_eq!(AiPrefs::default().protocol, Protocol::Anthropic);
+        let images = AiPrefs {
+            image_url: "http://localhost:8080/v1".into(),
+            image_model: "flux".into(),
+            ..AiPrefs::default()
+        };
+        assert_eq!(AiPrefs::from_json(&images.to_json()), images);
+        assert!(
+            AiPrefs::default().image_url.is_empty(),
+            "no generator unless chosen"
+        );
         let junk = AiPrefs::from_json(&json!({ "protocol": "smtp", "reasoningEffort": "x y" }));
         assert_eq!(
             (junk.protocol, junk.reasoning_effort.as_str()),
