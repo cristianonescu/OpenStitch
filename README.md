@@ -295,6 +295,13 @@ PE-DESIGN 11.50's defaults, tie-in and lock, measured from its own files.
   - Files, sending to the machine and quitting ask first.
   - Everything one message changes is one undo step, and Save as script writes the changes out.
   - Options ▸ Show AI features turns it all off.
+  - Pictures: 📎 or drop files on the window to attach them; **View** and **Selection** send the
+    design and what is selected.
+  - Tried with real models (2026-11-04): Claude Code (signed in, over ACP) passed 12 of 12
+    benchmark tasks; gpt-oss:20b on Ollama 8 of 12, and it made a badge with the network off;
+    qwen3:14b 3 of 12. Smaller local models often pick wrong commands, so check the result. Not
+    tried yet: the Claude API, LM Studio, OpenRouter and image generators.
+    [Details](docs/research/beyond/ai-integration.md#round-2-real-local-models-the-composer-by-hand-claude-code-without-the-users-setup-2026-11-04-390-392-393).
 - **➕ Assistant tools (B17, the base for the AI chat):**
   - `ui.*` editor commands on the socket reach everything the window offers: every ribbon and
     menu command, the selection, zoom, settings, a live render, the simulator, Help and
