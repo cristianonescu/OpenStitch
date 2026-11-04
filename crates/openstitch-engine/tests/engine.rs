@@ -242,6 +242,7 @@ fn bad_parameters_fail_cleanly() {
         ("design.export", json!({"path": "x.phc"})),
         ("design.export", json!({"path": "x.pes", "split": "yes"})),
         ("import.svg", json!({})),
+        ("import.metafile", json!({})),
         ("background.set", json!({"opacity": 0.5})),
         ("background.clear", json!({})),
         ("object.setHoleSewing", json!({"id": 1, "enabled": "yes"})),
@@ -474,7 +475,9 @@ fn commands_documented_and_unique() {
 /// its stitches at the design's top-left corner in a frame of the design's size (80 × 60 mm, the
 /// first jump and the preview icons' pixels): the NV880E cut a design off by its page margin when
 /// the stitches kept their page position, and refused PE-DESIGN's 290 × 190 mm frame as too large
-/// for its largest hoop. The same design
+/// for its largest hoop. Re-recorded on 2026-11-04 when every run before a trim got PE-DESIGN's end
+/// lock (#289): the badge's last run ends in an unlocked 20 mm stitch, now locked twice (4
+/// stitches more). The same design
 /// exported as `1t`
 /// must keep writing the identical bytes; the
 /// script's default export is now version 6 with objects and sews the same stitches.

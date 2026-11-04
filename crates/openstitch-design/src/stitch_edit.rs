@@ -4,6 +4,7 @@
 //! patterns, dividing by colour and splitting off an area. Trims and colour changes are not
 //! points; colour is tracked through them.
 
+use crate::fmath::Det;
 use crate::geometry::{Vec2, v2};
 use crate::model::StitchBlock;
 use openstitch_core::{Command, Stitch, Thread};
@@ -20,6 +21,174 @@ impl std::fmt::Display for EditError {
 
 fn err<T>(m: impl Into<String>) -> Result<T, EditError> {
     Err(EditError(m.into()))
+}
+
+/// Ties in and locks every run of generated stitches that the compiler will separate with a trim,
+/// as PE-DESIGN 11.50's image tools sew them (Photo Stitch 1 and 2, Auto Punch, Cross Stitch:
+/// every run of their 21 reference files starts with a 0.3 mm step out and back and ends with
+/// one): a run starts after a trim, a colour change, or a jump longer than `connect` (0.1 mm),
+/// which the compiler trims; a shorter jump is sewn across and stays inside the run. Runs that
+/// already tie in or lock keep their own. For generated stitches only: an opened stitch file
+/// keeps its needle points. `step` is the lock's step (0.1 mm): PE-DESIGN's 3.0, or a longer one
+/// where no stitch may be shorter (OpenStitch mode's 1 mm).
+pub fn lock_runs(stitches: &[Stitch], connect: f64, step: f64) -> Vec<Stitch> {
+    // Runs as (start index, end index exclusive) over `stitches`.
+    let mut bounds = Vec::new();
+    let mut start = 0;
+    let mut last: Option<Vec2> = None;
+    for (i, s) in stitches.iter().enumerate() {
+        let breaks = match s.command {
+            Command::Trim | Command::ColorChange | Command::Stop | Command::End => true,
+            Command::Jump => last.is_some_and(|l| l.distance(pos(s)) > connect),
+            Command::Stitch => false,
+        };
+        if breaks && i > start {
+            bounds.push((start, i));
+            start = i;
+        }
+        if is_point(s.command) {
+            last = Some(pos(s));
+        }
+    }
+    bounds.push((start, stitches.len()));
+    let mut out = Vec::with_capacity(stitches.len() + 4 * bounds.len());
+    for (a, b) in bounds {
+        let run = &stitches[a..b];
+        // The run's needle points: a jump's landing is where the thread starts.
+        let first = run.iter().position(|s| is_point(s.command));
+        let points: Vec<Vec2> = run
+            .iter()
+            .filter(|s| is_point(s.command))
+            .map(pos)
+            .collect();
+        let sewn = run.iter().filter(|s| s.command == Command::Stitch).count();
+        let Some(first) = first.filter(|_| points.len() >= 2 && sewn >= 1) else {
+            out.extend_from_slice(run);
+            continue;
+        };
+        // The first stitch that moves (a run may start with a zero-length stitch on its jump's
+        // landing, as PE-DESIGN's files do).
+        let next = points.iter().position(|p| p.distance(points[0]) > 1e-9);
+        let tie = match next {
+            Some(j) if !crate::region::starts_tied(&points[j - 1..]) => {
+                let mut r = vec![points[0], points[j]];
+                crate::region::tie_in_by(&mut r, step);
+                r[1..r.len() - 1]
+                    .iter()
+                    .map(|&p| on_units(points[0], points[j], p, step))
+                    .collect()
+            }
+            _ => Vec::new(),
+        };
+        let tail: Vec<Vec2> = points.iter().rev().take(5).copied().collect();
+        let lock: Vec<Vec2> = if crate::region::ends_locked(&tail) {
+            Vec::new()
+        } else {
+            let (a, b) = (points[points.len() - 2], points[points.len() - 1]);
+            crate::region::lock_points_by(a, b, step)
+                .into_iter()
+                .map(|p| on_units(b, a, p, step))
+                .collect()
+        };
+        let last_point = run
+            .iter()
+            .rposition(|s| is_point(s.command))
+            .expect("two points");
+        // The tie-in goes after the last needle point still on the start (after a zero-length
+        // landing stitch, not between it and the jump).
+        let start = points[0];
+        let tie_at = run
+            .iter()
+            .enumerate()
+            .skip(first)
+            .take_while(|(_, s)| !is_point(s.command) || pos(s).distance(start) <= 1e-9)
+            .filter(|(_, s)| is_point(s.command))
+            .map(|(k, _)| k)
+            .last()
+            .unwrap_or(first);
+        for (k, s) in run.iter().enumerate() {
+            out.push(*s);
+            if k == tie_at {
+                out.extend(tie.iter().map(|p| Stitch::new(p.x, p.y, Command::Stitch)));
+            }
+            if k == last_point {
+                out.extend(lock.iter().map(|p| Stitch::new(p.x, p.y, Command::Stitch)));
+            }
+        }
+    }
+    out
+}
+
+/// A lock or tie-in point `p` stepped from `from` towards `towards`: with steps of 1 mm or more
+/// (OpenStitch mode, whose needle points lie on whole 0.1 mm units as machine files store them)
+/// it moves to whole design units, as far out as keeps it at least as far from `from` as it was,
+/// and never past `towards`. PE-DESIGN's 0.3 mm steps stay where they are.
+fn on_units(from: Vec2, towards: Vec2, p: Vec2, step: f64) -> Vec2 {
+    if step < 10.0 || p.distance(from) < 1e-9 {
+        return p;
+    }
+    let want = p.distance(from);
+    let len = from.distance(towards);
+    let unit = (towards - from) * (1.0 / len.max(1e-9));
+    let mut k = want;
+    while k <= len + 1e-9 {
+        let q = from + unit * k;
+        let q = v2(q.x.round(), q.y.round());
+        if q.distance(from) >= want - 1e-9 && q.distance(from) <= len + 1e-9 {
+            return q;
+        }
+        k += 0.5;
+    }
+    towards
+}
+
+/// `stitches` without the tie-in and end lock of each run ([`lock_runs`]): a run's
+/// first needle point is sewn again within the next five stitches of at most 1 mm, and so is
+/// its last within the last four. Lets a test or a measurement see the stitching itself.
+pub fn unlocked(stitches: &[Stitch]) -> Vec<Stitch> {
+    let same = |a: &Stitch, b: &Stitch| (a.x - b.x).abs() < 1e-6 && (a.y - b.y).abs() < 1e-6;
+    let short = |a: &Stitch, b: &Stitch| (a.x - b.x).dhypot(a.y - b.y) <= 15.0;
+    // Runs: from a jump or trim to the next.
+    let mut runs: Vec<Vec<Stitch>> = vec![Vec::new()];
+    for s in stitches {
+        if matches!(
+            s.command,
+            Command::Jump | Command::Trim | Command::ColorChange
+        ) && runs.last().is_some_and(|r| !r.is_empty())
+        {
+            runs.push(Vec::new());
+        }
+        runs.last_mut().expect("one").push(*s);
+    }
+    let mut out = Vec::new();
+    for mut r in runs {
+        // Index of the first needle point (the jump's landing or the first stitch) and the
+        // first point that moves away from it.
+        if let Some(a) = r
+            .iter()
+            .position(|s| matches!(s.command, Command::Jump | Command::Stitch))
+        {
+            let mut b = a;
+            while b + 1 < r.len() && same(&r[b + 1], &r[a]) {
+                b += 1;
+            }
+            if let Some(k) = (b + 2..(b + 7).min(r.len()))
+                .find(|&k| same(&r[k], &r[a]) && (b + 1..=k).all(|i| short(&r[i - 1], &r[i])))
+            {
+                r.drain(b + 1..=k);
+            }
+        }
+        let n = r.len();
+        if n >= 3
+            && let Some(k) = (2..5.min(n)).find(|&k| {
+                same(&r[n - 1 - k], &r[n - 1]) && (n - k..n).all(|i| short(&r[i - 1], &r[i]))
+            })
+        {
+            r.truncate(n - k);
+        }
+        out.extend(r);
+    }
+    out
 }
 
 /// Whether entry `c` is a needle point (has a position the user edits).
@@ -254,6 +423,36 @@ mod tests {
 
     fn st(x: f64, c: Command) -> Stitch {
         Stitch::new(x, 0.0, c)
+    }
+
+    #[test]
+    fn lock_runs_ties_in_and_locks_every_trimmed_run() {
+        use Command::{Jump, Stitch as S, Trim};
+        // Two runs: a jump of 2 mm inside the first is sewn across; the 10 mm one is trimmed.
+        let block = vec![
+            st(0.0, Jump),
+            st(20.0, S),
+            st(40.0, Jump),
+            st(60.0, S),
+            st(60.0, Trim),
+            st(160.0, Jump),
+            st(200.0, S),
+        ];
+        let out = lock_runs(&block, 40.0, 3.0);
+        let xs: Vec<f64> = out.iter().map(|s| (s.x * 10.0).round() / 10.0).collect();
+        assert_eq!(
+            xs,
+            // The second run's 4 mm first stitch gets PE-DESIGN's three-step tie-in.
+            [
+                0.0, 3.0, 0.0, 20.0, 40.0, 60.0, 57.0, 60.0, 60.0, 160.0, 163.0, 166.0, 169.0,
+                164.5, 160.0, 200.0, 197.0, 200.0
+            ]
+        );
+        // Already tied and locked: unchanged; OpenStitch mode's 1 mm steps.
+        assert_eq!(lock_runs(&out, 40.0, 3.0), out);
+        let wide = lock_runs(&block[..2], 40.0, 10.0);
+        let xs: Vec<f64> = wide.iter().map(|s| s.x).collect();
+        assert_eq!(xs, [0.0, 10.0, 0.0, 20.0, 10.0, 20.0]);
     }
 
     /// Red stitches 0-30, a jump, red 50-60, colour change, blue 70-80.

@@ -273,36 +273,47 @@ pub fn generate(
             };
             vec![region.sequence_raw(crate::contour::contour(closed, holes, &p))]
         }
-        RegionType::NetFill | RegionType::ZigzagNetFill => {
+        RegionType::NetFill => {
             let id = r.pattern.as_deref().unwrap_or(NET_PATTERNS[0].id);
+            let out = net_families(closed, holes, angle, spacing, id)
+                .into_iter()
+                .flatten()
+                .map(|p| subdivide(&p, pitch))
+                .collect();
+            vec![region.sequence_raw(out)]
+        }
+        RegionType::ZigzagNetFill => {
+            let id = r.pattern.as_deref().unwrap_or(NET_PATTERNS[0].id);
+            // PE-DESIGN 11.50 (o-region-zigzag-net): a 3 mm satin band along every net line, a
+            // rung straight across then a diagonal back, 0.44 mm apart, inside the outline.
+            let width = pw.min(spacing * 0.8);
+            let step = 10.0 / r.density.max(0.1);
+            let lines: Vec<Vec<Vec2>> = net_families(closed, holes, angle, spacing, id)
+                .into_iter()
+                .flatten()
+                .collect();
             let mut out = Vec::new();
-            for family in net_families(closed, holes, angle, spacing, id) {
-                let pieces = family;
-                if r.kind == RegionType::NetFill {
-                    out.extend(pieces.iter().map(|p| subdivide(p, pitch)));
+            // A net edge two lines share (the honeycomb's rows meet along theirs) is sewn once:
+            // a second band over it piled thread into knots on the machine (#293).
+            for piece in once_each(lines) {
+                let band = zigzag_band(&piece, width, step, closed, holes);
+                if band.len() < 2 {
                     continue;
                 }
-                let width = pw.min(spacing * 0.8);
-                let step = 10.0 / r.density.max(0.1);
-                for piece in pieces {
-                    // Zigzag over the line, starting and ending on the line itself so
-                    // travel between lines stays inside the region.
-                    let line = Contour::new(piece.clone(), false);
-                    let mut zz = generate::zigzag(&line, width, step);
-                    let (first, last) = (piece[0], *piece.last().expect("2+ points"));
-                    let mut run = Vec::new();
-                    if r.underlay {
-                        run.extend(subdivide(&piece, pitch));
-                        zz.reverse();
-                        run.extend(zz);
-                        run.push(first);
-                    } else {
-                        run.push(first);
-                        run.extend(zz);
-                        run.push(last);
-                    }
-                    out.push(run);
+                // Starting and ending on the line itself, so travel between lines stays inside
+                // the region.
+                let (first, last) = (piece[0], *piece.last().expect("2+ points"));
+                let mut run = Vec::new();
+                if r.underlay {
+                    run.extend(subdivide(&piece, pitch));
+                    run.extend(band.into_iter().rev());
+                    run.push(first);
+                } else {
+                    run.push(first);
+                    run.extend(band);
+                    run.push(last);
                 }
+                out.push(run);
             }
             vec![region.sequence_raw(out)]
         }
@@ -1337,6 +1348,132 @@ fn net_families(
         }
         _ => vec![line(0.0, s), line(90.0, s)],
     }
+}
+
+/// The net lines with every stretch an earlier line already covers taken out (each line split
+/// where it was), so no edge is sewn twice.
+fn once_each(lines: Vec<Vec<Vec2>>) -> Vec<Vec<Vec2>> {
+    const NEAR: f64 = 0.5;
+    let covered = |a: Vec2, b: Vec2, kept: &[(Vec2, Vec2)]| {
+        let m = a.lerp(b, 0.5);
+        kept.iter().any(|&(c, d)| {
+            let cd = d - c;
+            let len2 = cd.x * cd.x + cd.y * cd.y;
+            if len2 <= 1e-12 {
+                return false;
+            }
+            let on = |p: Vec2| {
+                let t = ((p - c).x * cd.x + (p - c).y * cd.y) / len2;
+                (-1e-6..=1.0 + 1e-6).contains(&t) && (c + cd * t).distance(p) <= NEAR
+            };
+            on(a) && on(b) && on(m)
+        })
+    };
+    let mut kept: Vec<(Vec2, Vec2)> = Vec::new();
+    let mut out = Vec::new();
+    for line in lines {
+        let mut cur: Vec<Vec2> = Vec::new();
+        for w in line.windows(2) {
+            let (a, b) = (w[0], w[1]);
+            if a.distance(b) <= 1e-9 {
+                continue;
+            }
+            if covered(a, b, &kept) {
+                if cur.len() >= 2 {
+                    out.push(std::mem::take(&mut cur));
+                }
+                cur.clear();
+                continue;
+            }
+            if cur.is_empty() {
+                cur.push(a);
+            }
+            cur.push(b);
+            kept.push((a, b));
+        }
+        if cur.len() >= 2 {
+            out.push(cur);
+        }
+    }
+    out
+}
+
+/// A satin band `width` wide along `line`, as PE-DESIGN's zigzag net sews it: every `step` along
+/// the line a rung straight across, then on to the next rung's first side. At a corner the band's
+/// sides meet at the mitre (at most twice the half width out), so the rungs fan evenly instead of
+/// crossing; a rung end outside the region is drawn in to its edge.
+fn zigzag_band(line: &[Vec2], width: f64, step: f64, closed: &[Contour], holes: &[Contour]) -> Run {
+    let n = line.len();
+    if n < 2 || step <= 0.0 || width <= 0.0 {
+        return line.to_vec();
+    }
+    let normal = |a: Vec2, b: Vec2| {
+        let d = b - a;
+        let l = a.distance(b).max(1e-12);
+        v2(-d.y / l, d.x / l)
+    };
+    // The side direction at each vertex: the mitre of its two edges.
+    let sides: Vec<Vec2> = (0..n)
+        .map(|i| {
+            let before = (i > 0).then(|| normal(line[i - 1], line[i]));
+            let after = (i + 1 < n).then(|| normal(line[i], line[i + 1]));
+            match (before, after) {
+                (Some(u), Some(v)) => {
+                    let m = u + v;
+                    let l = m.x.dhypot(m.y);
+                    if l < 1e-9 {
+                        v
+                    } else {
+                        let m = m * (1.0 / l);
+                        // At most √2 out (a right-angle corner), so no rung grows past
+                        // √2 × the band's width.
+                        let cos = (m.x * v.x + m.y * v.y).max(std::f64::consts::FRAC_1_SQRT_2);
+                        m * (1.0 / cos)
+                    }
+                }
+                (Some(u), None) => u,
+                (None, Some(v)) => v,
+                (None, None) => v2(0.0, 1.0),
+            }
+        })
+        .collect();
+    let inside = |p: Vec2| contains(p, closed) && !contains(p, holes);
+    let pull_in = |c: Vec2, p: Vec2| {
+        if inside(p) || !inside(c) {
+            return p;
+        }
+        let (mut lo, mut hi) = (0.0, 1.0);
+        for _ in 0..20 {
+            let mid = (lo + hi) / 2.0;
+            if inside(c.lerp(p, mid)) {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        c.lerp(p, lo)
+    };
+    let mut run = Vec::new();
+    let mut t = 0.0;
+    for i in 0..n - 1 {
+        let (a, b) = (line[i], line[i + 1]);
+        let len = a.distance(b);
+        if len <= 1e-9 {
+            continue;
+        }
+        while t <= len + 1e-9 {
+            let f = t / len;
+            let c = a.lerp(b, f);
+            let side = sides[i].lerp(sides[i + 1], f);
+            let off = side * (width / 2.0);
+            run.push(pull_in(c, c - off));
+            run.push(pull_in(c, c + off));
+            t += step;
+        }
+        t -= len;
+    }
+    run.dedup_by(|a, b| a.distance(*b) < 1e-9);
+    run
 }
 
 /// Moves needle points by up to `amount` (deterministic), keeping each inside the region.

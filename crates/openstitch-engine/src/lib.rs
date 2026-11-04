@@ -19,6 +19,8 @@ mod lettering;
 #[cfg(feature = "library")]
 mod library;
 pub mod machine;
+#[cfg(feature = "formats")]
+pub mod metafile;
 pub mod order;
 mod ornament;
 pub mod params;

@@ -828,15 +828,27 @@ impl EditorApp {
         }
     }
 
-    /// File ▸ Import SVG: the artwork's paths become a group of editable shapes, centred.
+    /// File ▸ Import SVG: the artwork's paths (or a WMF/EMF drawing's shapes) become a group of
+    /// editable shapes, centred.
     pub fn import_svg_dialog(&mut self) {
         let Some(p) = rfd::FileDialog::new()
+            .add_filter("Vector images", &["svg", "wmf", "emf"])
             .add_filter("SVG vector image", &["svg"])
+            .add_filter("Windows metafile", &["wmf", "emf"])
             .pick_file()
         else {
             return;
         };
-        let request = CommandRequest::new("import.svg", json!({ "path": p.display().to_string() }));
+        let metafile = p
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| e.eq_ignore_ascii_case("wmf") || e.eq_ignore_ascii_case("emf"));
+        let command = if metafile {
+            "import.metafile"
+        } else {
+            "import.svg"
+        };
+        let request = CommandRequest::new(command, json!({ "path": p.display().to_string() }));
         if let Some(result) = self.grouped(|app| app.execute(&request)) {
             self.selection = CommandRequest::created_ids(&result);
             self.status = format!("Imported {}", p.display());

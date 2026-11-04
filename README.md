@@ -48,7 +48,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 194: 159 implemented (3 of them partially compatible), 1 documented only, 10 blocked, 24 planned beyond PE-DESIGN |
+| Feature matrix rows | 196: 162 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 24 planned beyond PE-DESIGN |
 | Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 36: 29 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 10 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
@@ -320,7 +320,7 @@ PE-DESIGN 11.50's defaults, tie-in and lock, measured from its own files.
 PE-DESIGN 11 features OpenStitch does not have yet, from the feature matrix:
 
 <!-- status:not-implemented -->
-- **Import WMF/EMF** (Files)
+_None._
 <!-- /status:not-implemented -->
 
 Also missing, from the [roadmap](docs/ROADMAP.md#still-to-do):

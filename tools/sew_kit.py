@@ -82,7 +82,11 @@ def swatches():
         if thread == 20:
             cells += [(c, 3, 20, d) for c, d in enumerate(RAMP_DENSITIES)]
     steps = []
-    for n, (col, row, thread, d) in enumerate(cells, 1):
+    # Object ids count every object, the T1 mark included: each swatch's settings go to its own
+    # rectangle (counting swatches only gave every swatch after the mark the next one's, #297).
+    n = 0
+    for col, row, thread, d in cells:
+        n += 1
         steps += [
             {"command": "shape.rectangle", "params": {"x": 9 + col * 14, "y": 9 + row * 15, "width": 12,
                                                       "height": 12, "fill": thread}},
@@ -92,6 +96,7 @@ def swatches():
         if (thread, row, col) == (20, 3, len(RAMP_DENSITIES) - 1):
             steps.append({"command": "text.add", "params": {"text": "T1", "size": 6, "x": 9, "y": 77,
                                                             "fill": 20}})
+            n += 1
     return steps
 
 
@@ -281,9 +286,45 @@ def frames():
                                                                                  .startswith("shape.")]) + 1],
                                                        "margin": 2, "size": 2, "color": 20}},
         ]
-    steps.append({"command": "decoration.add", "params": {"frame": "laurel", "x": 68, "y": 46, "width": 18,
-                                                          "height": 18, "color": 37}})
+    # decoration.add frames a box, as PE-DESIGN's Decorative Import does: the laurel's opening is a
+    # small part of it, so a 14 mm box makes a frame about 32 x 28 mm. It goes below the grid, clear
+    # of the other frames (#296; at (68, 46) with an 18 mm box it overlapped the corners frame).
+    steps.append({"command": "decoration.add", "params": {"frame": "laurel", "x": 43, "y": 74, "width": 14,
+                                                          "height": 14, "color": 37}})
     return steps
+
+
+# Colour blocks that must not overlap one another, as groups of block indexes (sewing order): each
+# frame with its circle, and the laurel (#296).
+APART = {"shapes/decorative-frames.pes": [[0, 1], [2, 3], [4, 5], [6, 7], [8, 9], [10]]}
+
+
+def check_objects(rel, objects):
+    """Exits when the T1 card's objects are not sewn as meant: every swatch fill, the mark satin
+    lettering (#297: the mark once took a swatch's fill settings)."""
+    if rel != "calibration/t1-swatches.pes":
+        return
+    text = [o for o in objects if o.get("kind") == "text"]
+    shapes = [o for o in objects if o.get("kind") == "shape"]
+    if len(text) != 1 or text[0].get("region") != "satin":
+        sys.exit(f"{rel}: the T1 mark must be satin lettering, got {text}")
+    if any(o.get("region") != "fill" for o in shapes):
+        sys.exit(f"{rel}: every swatch must be a fill")
+
+
+def check_apart(rel, path):
+    """Exits when two groups of colour blocks in APART[rel] overlap (their stitch boxes intersect)."""
+    sys.path.insert(0, str(ROOT / "tools"))
+    import sew_check  # noqa: E402
+    st, _, _ = sew_check.read_pec(path)
+    boxes = []
+    for group in APART[rel]:
+        pts = [(x, y) for x, y, k, c in st if k == "stitch" and c in group]
+        boxes.append((min(p[0] for p in pts), min(p[1] for p in pts), max(p[0] for p in pts), max(p[1] for p in pts)))
+    for i, a in enumerate(boxes):
+        for j, b in enumerate(boxes[i + 1:], i + 1):
+            if a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]:
+                sys.exit(f"{rel}: colour blocks {APART[rel][i]} and {APART[rel][j]} overlap")
 
 
 def lettering():
@@ -507,7 +548,10 @@ def build(out, previews):
             else:
                 replies = exec_script(work, HOOPS[hoop]["page"] + steps + [
                     {"command": "design.info"}, {"command": "design.export", "params": {"path": "out.pes"}},
-                    {"command": "project.save", "params": {"path": "out.osd"}}])
+                    {"command": "project.save", "params": {"path": "out.osd"}}, {"command": "object.list"}])
+                objects = replies.pop()["result"]
+                objects = objects if isinstance(objects, list) else objects.get("objects", [])
+                check_objects(rel, objects)
                 replies.pop()
                 export = replies[-1]["result"]
                 if not export["fitsPage"] or export["warnings"]:
@@ -515,6 +559,8 @@ def build(out, previews):
                 info = replies[-2]["result"]
                 data = (work / "out.pes").read_bytes()
             retry(lambda: (out / rel).write_bytes(data))
+            if rel in APART:
+                check_apart(rel, out / rel)
             stats = info["stitchStats"]
             png = f"previews/{Path(rel).stem}.png"
             if previews:

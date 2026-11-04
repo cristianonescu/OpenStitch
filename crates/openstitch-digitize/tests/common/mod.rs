@@ -90,3 +90,8 @@ pub fn shapes(moved: bool) -> Raster {
     })
     .expect("size")
 }
+
+/// `stitches` without each run's tie-in and end lock (`stitch_edit::unlocked`).
+pub fn unlocked(stitches: &[openstitch_core::Stitch]) -> Vec<openstitch_core::Stitch> {
+    openstitch_design::stitch_edit::unlocked(stitches)
+}

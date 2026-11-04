@@ -54,6 +54,10 @@ struct Element {
     /// Stitches longer than `max_stitch` stay whole: satin, whose crossings PE-DESIGN 11
     /// writes as one stitch however wide the column (30 mm in region-travel-u-satin).
     whole: bool,
+    /// Every run the writer separates with a trim ties in and locks, as PE-DESIGN 11.50 sews
+    /// its objects (all but one of the 2,590 trimmed runs in its reference files end with a
+    /// lock). Off for fixed needle points (opened stitch files) and cutwork blades.
+    lock: bool,
 }
 
 struct Writer {
@@ -64,6 +68,8 @@ struct Writer {
     cut: bool,
     /// Long travel is trimmed (off for objects with jump trimming off on multi-needle machines).
     trim_jumps: bool,
+    /// The stitches since the last trim belong to an element that locks ([`Element::lock`]).
+    lock_open: bool,
 }
 
 impl Writer {
@@ -83,6 +89,28 @@ impl Writer {
             return;
         }
         self.out.stitches.push(Stitch::new(p.x, p.y, c));
+    }
+
+    /// Before a trim: PE-DESIGN's end lock on the run just sewn, unless it already ends with one.
+    fn end_lock(&mut self) {
+        if !std::mem::take(&mut self.lock_open) {
+            return;
+        }
+        let tail: Vec<Vec2> = self
+            .out
+            .stitches
+            .iter()
+            .rev()
+            .take_while(|s| s.command == Command::Stitch)
+            .take(5)
+            .map(|s| v2(s.x, s.y))
+            .collect();
+        if tail.len() < 2 || crate::region::ends_locked(&tail) {
+            return;
+        }
+        for p in crate::region::lock_points(tail[1], tail[0]) {
+            self.push(p, Command::Stitch);
+        }
     }
 
     fn stitch_line(&mut self, p: Vec2) {
@@ -120,6 +148,7 @@ impl Writer {
             return;
         }
         if d > self.cfg.trim_distance && !self.cut && self.trim_jumps {
+            self.end_lock();
             self.push(from, Command::Trim);
             self.cut = true;
         }
@@ -149,6 +178,7 @@ impl Writer {
             Some(t) if *t != element.thread => {
                 let p = self.position.unwrap_or_default();
                 if !self.cut && self.position.is_some() {
+                    self.end_lock();
                     self.push(p, Command::Trim);
                     self.cut = true;
                 }
@@ -161,6 +191,24 @@ impl Writer {
         self.thread = Some(element.thread);
         for (i, run) in runs.iter().enumerate() {
             self.travel(run[0], i > 0);
+            // A run the writer starts after a trim ties in (unless its generator already did).
+            let fresh = self.position.is_none()
+                || self.cut
+                || self
+                    .out
+                    .stitches
+                    .last()
+                    .is_some_and(|s| s.command == Command::Jump);
+            let tied;
+            let run = if element.lock && fresh && !crate::region::starts_tied(run) {
+                let mut r = run.clone();
+                crate::region::tie_in(&mut r);
+                tied = r;
+                &tied
+            } else {
+                run
+            };
+            self.lock_open = element.lock;
             // A jump already ends on the run's first needle point: PE-DESIGN 11 never writes a
             // zero-length stitch there and drops one when it opens a file (compat pes-default-v6).
             let landed = self
@@ -225,6 +273,7 @@ impl Compiler {
             position: None,
             cut: true,
             trim_jumps: true,
+            lock_open: false,
         }
     }
 }
@@ -233,6 +282,7 @@ impl Writer {
     fn finish(mut self) -> StitchPattern {
         if let Some(p) = self.position {
             if !self.cut {
+                self.end_lock();
                 self.push(p, Command::Trim);
             }
             self.push(p, Command::End);
@@ -324,6 +374,7 @@ fn sew_block(w: &mut Writer, block: &StitchBlock) {
                     thread: thread_for(block_index),
                     runs: std::mem::replace(&mut pending, vec![Vec::new()]),
                     whole: true,
+                    lock: false,
                 });
                 block_index += 1;
             }
@@ -334,6 +385,7 @@ fn sew_block(w: &mut Writer, block: &StitchBlock) {
         thread: thread_for(block_index),
         runs: pending,
         whole: true,
+        lock: false,
     });
 }
 
@@ -442,6 +494,7 @@ fn elements(object: &DesignObject, holes: &[Contour], user: &[Pattern]) -> Vec<E
                     thread: region.thread.clone(),
                     runs,
                     whole: region.kind == RegionType::Satin,
+                    lock: true,
                 });
             }
         }
@@ -533,6 +586,7 @@ fn line_elements(object: &DesignObject, line: &LineSewing, user: &[Pattern]) -> 
                 thread: cutwork_needle(&line.thread, n),
                 runs,
                 whole: false,
+                lock: false,
             })
             .collect();
     }
@@ -679,6 +733,7 @@ fn line_elements(object: &DesignObject, line: &LineSewing, user: &[Pattern]) -> 
         thread: line.thread.clone(),
         runs,
         whole: false,
+        lock: true,
     }]
 }
 

@@ -27,8 +27,9 @@ fn grid_cells_colours_and_crosses() {
     assert!(out.background.is_some());
     let red = out.objects[0].stitch_block.as_ref().expect("block");
     // 2 runs of 3 cells: jump + anchor + 3×3 forward + 3×3 back = 20 each (six stitches a
-    // cell, as PE-DESIGN 11.50 sews them).
-    assert_eq!(red.stitches.len(), 2 * 20);
+    // cell, as PE-DESIGN 11.50 sews them), each run tied in and locked as PE-DESIGN's are.
+    assert_eq!(unlocked(&red.stitches).len(), 2 * 20);
+    assert!(red.stitches.len() > 2 * 20);
     assert_eq!(
         red.stitches
             .iter()
@@ -37,8 +38,9 @@ fn grid_cells_colours_and_crosses() {
         2
     );
     // Every needle point is a cell corner or a cell centre inside the frame, and every
-    // stitch lies on a diagonal.
-    for s in &red.stitches {
+    // stitch lies on a diagonal (the tie-ins and locks step along one).
+    let red_cells = unlocked(&red.stitches);
+    for s in &red_cells {
         let (u, v) = ((s.x - 50.0) / 12.5, (s.y - 50.0) / 12.5);
         assert!(
             u.fract() == 0.0 && v.fract() == 0.0 && (u as i64 % 2 == v as i64 % 2),
@@ -46,13 +48,16 @@ fn grid_cells_colours_and_crosses() {
         );
         assert!(s.x >= 50.0 && s.x <= 50.0 + 100.0 && s.y >= 50.0 && s.y <= 150.0);
     }
-    for w in red.stitches.windows(2) {
+    for w in red_cells.windows(2) {
         if w[1].command == Command::Stitch && (w[0].x, w[0].y) != (w[1].x, w[1].y) {
             assert_eq!((w[1].x - w[0].x).abs(), (w[1].y - w[0].y).abs(), "{w:?}");
         }
     }
     let blue = out.objects[1].stitch_block.as_ref().expect("block");
-    let pts: Vec<(f64, f64)> = blue.stitches.iter().map(|s| (s.x, s.y)).collect();
+    let pts: Vec<(f64, f64)> = unlocked(&blue.stitches)
+        .iter()
+        .map(|s| (s.x, s.y))
+        .collect();
     // Cell (6, 1) with the frame at (5, 5) mm: TL (200,75) → centre → BL (200,100) → "/" to
     // TR (225,75) → centre → BR (225,100) → "\" to TL.
     assert_eq!(
@@ -89,7 +94,7 @@ fn half_crosses_and_determinism() {
         .position(|t| t.red < 64)
         .expect("black thread");
     let b = a.objects[black].stitch_block.as_ref().expect("block");
-    let pts: Vec<(f64, f64)> = b.stitches.iter().map(|s| (s.x, s.y)).collect();
+    let pts: Vec<(f64, f64)> = unlocked(&b.stitches).iter().map(|s| (s.x, s.y)).collect();
     assert_eq!(
         pts,
         vec![
@@ -259,11 +264,7 @@ fn triple_sews_each_diagonal_three_times() {
     )
     .expect("converts");
     let pts = |c: &cross::Converted| -> Vec<(f64, f64)> {
-        c.objects[0]
-            .stitch_block
-            .as_ref()
-            .expect("block")
-            .stitches
+        unlocked(&c.objects[0].stitch_block.as_ref().expect("block").stitches)
             .iter()
             .map(|s| (s.x, s.y))
             .collect()
@@ -318,7 +319,7 @@ fn cells_are_six_diagonal_stitches_as_pe_design_sews_them() {
     let b = out.objects[0].stitch_block.as_ref().expect("block");
     let mut halves = 0;
     let mut fulls = 0;
-    for w in b.stitches.windows(2) {
+    for w in unlocked(&b.stitches).windows(2) {
         if w[1].command != Command::Stitch || (w[0].x, w[0].y) == (w[1].x, w[1].y) {
             continue;
         }
@@ -457,7 +458,7 @@ fn open_stitch_fill_limits_and_options() {
     let tiny = cross::convert(&one, &Frame::new(0.0, 0.0, 10.0, 20), &open_stitch(1.0, 2))
         .expect("converts");
     let block = tiny.objects[0].stitch_block.as_ref().expect("block");
-    assert!(block.stitches.len() <= 6, "{:?}", block.stitches);
+    assert!(unlocked(&block.stitches).len() <= 6, "{:?}", block.stitches);
     for (kind, lo) in [(CrossType::Full, 2), (CrossType::Half, 1)] {
         let out = cross::convert(
             &img,
@@ -505,7 +506,15 @@ fn open_stitch_fill_limits_and_options() {
         },
     )
     .expect("converts");
-    assert_eq!(plain.objects, pe.objects);
+    // The same stitches; only the locks' steps differ (1 mm in OpenStitch mode, PE-DESIGN's
+    // 0.3 mm otherwise).
+    let blocks = |c: &cross::Converted| -> Vec<Vec<openstitch_core::Stitch>> {
+        c.objects
+            .iter()
+            .map(|o| unlocked(&o.stitch_block.as_ref().expect("block").stitches))
+            .collect()
+    };
+    assert_eq!(blocks(&plain), blocks(&pe));
 }
 
 /// B16.1 T14: with `part_crosses`, a cell whose halves along a diagonal differ becomes two

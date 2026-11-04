@@ -1,4 +1,5 @@
-//! Importing artwork: SVG vector paths as editable Bézier shapes (`import.svg`), and a raster
+//! Importing artwork: SVG vector paths as editable Bézier shapes (`import.svg`), WMF/EMF
+//! drawings the same way (`import.metafile`, parsed by [`crate::metafile`]), and a raster
 //! image as a background reference layer (`background.*`, with the `digitize` feature, which
 //! brings the size-limited image decoder).
 //!
@@ -232,50 +233,92 @@ fn bounds(shapes: &[SvgShape]) -> Option<Rect> {
 }
 
 pub(crate) fn commands() -> Vec<CommandSpec> {
-    let mut v = vec![spec(
-        "import.svg",
-        "Import an SVG's paths as editable shapes (fill → fill region, stroke → running line), grouped",
-        Effect::Edit,
-        vec![
-            req(
-                "path",
-                "string",
-                "SVG file (relative to the session directory)",
-            ),
-            opt(
-                "width",
-                "mm",
-                "Scale the artwork to this width (default: the SVG's own size)",
-            ),
-            opt("x", "mm", "Left edge (default: centred on the Design Page)"),
-            opt("y", "mm", "Top edge (default: centred on the Design Page)"),
-            opt(
-                "exactColors",
-                "bool",
-                "Keep the SVG's own RGB instead of the nearest Brother chart thread (default false: PE-DESIGN's behaviour)",
-            ),
-        ],
-        |s, p| {
-            let (_, data) = read_file(s, p, MAX_SVG_BYTES)?;
-            let mut shapes = parse_svg(&data).map_err(|e| p.failed(e.to_string()))?;
-            // PE-DESIGN 11.50 gives every imported fill and stroke the nearest BROTHER
-            // EMBROIDERY chart thread (thread-match-swatches); `exactColors` keeps the RGB.
-            if !p.bool("exactColors", Some(false))? {
-                for shape in &mut shapes {
-                    for t in [&mut shape.fill, &mut shape.stroke].into_iter().flatten() {
-                        *t = openstitch_core::nearest_brother_thread(t);
-                    }
-                }
-            }
-            let Some(b) = bounds(&shapes) else {
-                return Err(p.failed("the SVG has no visible filled or stroked paths"));
-            };
-            place(s, p, shapes, b)
-        },
-    )];
+    let mut v = vec![
+        spec(
+            "import.svg",
+            "Import an SVG's paths as editable shapes (fill → fill region, stroke → running line), grouped",
+            Effect::Edit,
+            vec![
+                req(
+                    "path",
+                    "string",
+                    "SVG file (relative to the session directory)",
+                ),
+                opt(
+                    "width",
+                    "mm",
+                    "Scale the artwork to this width (default: the SVG's own size)",
+                ),
+                opt("x", "mm", "Left edge (default: centred on the Design Page)"),
+                opt("y", "mm", "Top edge (default: centred on the Design Page)"),
+                opt(
+                    "exactColors",
+                    "bool",
+                    "Keep the SVG's own RGB instead of the nearest Brother chart thread (default false: PE-DESIGN's behaviour)",
+                ),
+            ],
+            |s, p| {
+                let (_, data) = read_file(s, p, MAX_SVG_BYTES)?;
+                let shapes = parse_svg(&data).map_err(|e| p.failed(e.to_string()))?;
+                import_shapes(s, p, shapes, "the SVG")
+            },
+        ),
+        spec(
+            "import.metafile",
+            "Import a WMF or EMF vector image's drawing as editable shapes (brush → fill region, pen → running line), grouped",
+            Effect::Edit,
+            vec![
+                req(
+                    "path",
+                    "string",
+                    "WMF (placeable or standard) or EMF file (relative to the session directory)",
+                ),
+                opt(
+                    "width",
+                    "mm",
+                    "Scale the artwork to this width (default: the metafile's own size)",
+                ),
+                opt("x", "mm", "Left edge (default: centred on the Design Page)"),
+                opt("y", "mm", "Top edge (default: centred on the Design Page)"),
+                opt(
+                    "exactColors",
+                    "bool",
+                    "Keep the metafile's own RGB instead of the nearest Brother chart thread (default false, as import.svg)",
+                ),
+            ],
+            |s, p| {
+                let (_, data) = read_file(s, p, crate::metafile::MAX_METAFILE_BYTES)?;
+                let shapes =
+                    crate::metafile::parse_metafile(&data).map_err(|e| p.failed(e.to_string()))?;
+                import_shapes(s, p, shapes, "the metafile")
+            },
+        ),
+    ];
     #[cfg(feature = "digitize")]
     v.extend(background_commands());
     v
+}
+
+/// Matches colours to the thread chart unless `exactColors`, then places the shapes.
+fn import_shapes(
+    s: &mut EngineState,
+    p: &Params,
+    mut shapes: Vec<SvgShape>,
+    what: &str,
+) -> crate::CommandResult {
+    // PE-DESIGN 11.50 gives every imported fill and stroke the nearest BROTHER
+    // EMBROIDERY chart thread (thread-match-swatches); `exactColors` keeps the RGB.
+    if !p.bool("exactColors", Some(false))? {
+        for shape in &mut shapes {
+            for t in [&mut shape.fill, &mut shape.stroke].into_iter().flatten() {
+                *t = openstitch_core::nearest_brother_thread(t);
+            }
+        }
+    }
+    let Some(b) = bounds(&shapes) else {
+        return Err(p.failed(format!("{what} has no visible filled or stroked shapes")));
+    };
+    place(s, p, shapes, b)
 }
 
 fn place(s: &mut EngineState, p: &Params, shapes: Vec<SvgShape>, b: Rect) -> crate::CommandResult {

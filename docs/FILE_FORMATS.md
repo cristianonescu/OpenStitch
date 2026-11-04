@@ -1166,10 +1166,35 @@ Limits: 16 MB file, 5,000 paths, 500,000 vertices. Not imported: `<text>`, `<ima
 clipping and masks (ignored), stroke widths. SVG's `nonzero` fill rule is approximated by
 OpenStitch's even-odd rule (overlapping same-direction subpaths read as holes).
 
-**WMF / EMF:** not implemented. The only pure-Rust parsers found are `wmf-core` 0.1.2 and
-`emf-core` 0.1.1 (MIT, first published 2026-08, single maintainer, MSRV 1.88 above the
-workspace's 1.85). Not yet vetted enough to parse untrusted files; revisit when they mature, or
-convert WMF/EMF to SVG with a trusted tool first.
+**WMF / EMF** (`import.metafile`, engine module `metafile`, #321): OpenStitch's own record
+player, in safe Rust with no platform APIs and no new dependency (`wmf-core`/`emf-core` were
+too young to trust with untrusted files and need Rust 1.88). It replays the records a GDI
+device context would and keeps the selected pen and brush, the mapping mode, window and
+viewport origin and extent, EMF's world transform, the arc direction and SaveDC/RestoreDC.
+
+- Read: WMF (placeable and standard) MoveTo, LineTo, Polyline, Polygon, PolyPolygon,
+  Rectangle, RoundRect, Ellipse, Arc, Chord, Pie; EMF the same in 32- and 16-bit forms plus
+  PolyBezier(To), PolylineTo, PolyPolyline, ArcTo and paths (BeginPath … EndPath,
+  CloseFigure, FillPath, StrokePath, StrokeAndFillPath, AbortPath). Ellipses and arcs become
+  cubic Béziers. Text, bitmaps, regions, clipping, PolyDraw and EMF+ comments are skipped.
+- Colours: a closed figure drawn with a brush becomes a fill region in the brush colour, the
+  pen a running line in the pen colour; null pens and brushes draw nothing; pattern brushes
+  use black. GDI's defaults apply until a file selects its own (black pen, white brush).
+  Colours then snap to the Brother chart unless `exactColors`, as for SVG.
+- Units: a placeable WMF's units per inch; an EMF's reference device (header pixels and
+  millimetres); MM_LOMETRIC, MM_HIMETRIC, MM_LOENGLISH, MM_HIENGLISH and MM_TWIPS their own
+  units (+y up); MM_ANISOTROPIC/MM_ISOTROPIC the window-to-viewport scale. A standard WMF
+  without physical units is read at 96 units per inch, like an SVG pixel. No PE-DESIGN
+  capture of a WMF/EMF import exists yet, so PE's own sizing is not checked.
+  An EMF written by a program that is not DPI-aware on a scaled display can draw in 96-dpi
+  units while its header describes the physical screen (an EMF made by .NET GDI+ on a
+  1920 px, 309 mm laptop screen came in at 0.61× its frame): OpenStitch, like GDI's own
+  playback, follows the header; `width` rescales it. Checked against such a GDI+ file
+  (Polygon16, PolyBezier16, Polyline16, ModifyWorldTransform, ExtCreatePen, stock objects):
+  shapes, colours and proportions exact.
+- Limits as SVG (16 MB, 5,000 shapes, 500,000 points); truncated records, counts past the
+  record's end, zero-length records and non-finite transforms fail or are ignored without
+  allocating for the claimed count.
 
 **Raster background** (`background.set`, `background.show`, `background.clear`): PNG, JPEG or
 BMP through `openstitch-digitize`'s decoder (32 MB file, 8192 px side, 16 Mpx). The design
