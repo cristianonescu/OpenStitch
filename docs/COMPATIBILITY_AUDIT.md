@@ -81,7 +81,7 @@ dearest:
 | 7 | Auto direction is one fixed angle (**fixed**, internal regression) | Stitches | 4 | Documented difference | No |
 | 8 | Underlay model differs (**partly fixed**: PE's two region types, Density Dense / Medium / Light, the Manual Punch column's edge / piping / zigzag); zigzag lines have no underlay | Stitches | 4 | Documented difference | Geometry |
 | 9 | PE-DESIGN-made PES files lose objects, properties and colours on re-save | PES | 4 | Documented difference | Pass-through only |
-| 10 | Hoop and Design Page fields hard-coded in PES | PES | 4 | Documented, unverified | Field encoding |
+| 10 | Hoop and Design Page fields hard-coded in PES (**fixed**, 2026-11-04, #322: `#PES0110` page, hoop, machine type and sections byte for byte against PE-DESIGN's files; v1 and the v6 display fields have no PE-DESIGN reference) | PES | 4 | Reference | No |
 | 11 | No Connection Points (Default / Closest / Farther) for text | Fonts | 4 | Documented difference | Geometry |
 | 12 | No minimum font sizes or small-text fonts | Fonts | 4 | Documented difference | No |
 | 13 | No per-character colour or multi-character selection | Fonts | 4 | Documented difference | Colour grouping |
@@ -667,6 +667,35 @@ Line references are relative to `crates/`.
 
 ## 10. Hoop and Design Page fields are hard-coded in PES
 
+- **Fixed (2026-11-04, #322):** every hoop and page field of a `#PES0110` design is now written
+  from the design, checked byte for byte against PE-DESIGN 11.50's files (the field table is on
+  #322; the round-6 captures added to `tests/fixtures/pe11/hoops`):
+  - **Custom Size page:** the machine type (0 single-needle, 7 multi-needle, with the code `01`
+    or `10`) was always multi-needle; a single-needle design now writes PE's single-needle page.
+    The two lists after the hoop name, read before as "optional fields", are the page's hoop
+    sections, one list per axis: each section after the first, stepping by the Section Size
+    less 10 mm from the page's corner, in 0.1 mm from a point where the corner sits at
+    100 mm − page / 2 (`pes11::section_starts`; all five of PE's custom-page files, single- and
+    multi-needle, 100 × 100 to 300 × 200 mm). They are written from the design's section hoop,
+    else PE's for the machine type (90 × 90 of 100 × 100 single-needle, 290 × 190 of 300 × 200
+    multi-needle), and the reader parses them (a three-entry list misread the page size).
+    `custom_size_pages_are_written_as_pe_design_writes_them`, `section_starts_follow_pe_designs_sections`.
+  - **Hoop Size page:** the nv880e hoop fields (mm and 0.1 inch, then the name) are a field of
+    `HoopPage` (`nv880e-S`, `M`, `L` as PE writes them; with another hoop id PE keeps the last
+    nv880e hoop it showed), and the ids PE gave 180 × 300 (4), 150 × 150 Quilt (0x1A, both
+    `02`), 180 × 100 Border (0x21) and ø100 Round (0x16) are documented and tested; 13 hoop files
+    in `hoop_size_pages_are_written_as_pe_design_writes_each_hoop`. A single-needle design with
+    no hoop on a 100 × 100 page is PE's single-needle 100 × 100 Hoop Size page (it was the
+    multi-needle New page).
+  - **PEC frame:** a Custom Size page's PEC frame is the design's own size, as on every other
+    page since #287, where the 0110 writer still copied PE-DESIGN's section frame (2900 × 1900;
+    PE writes 900 × 900 for single-needle). The NV880E refuses a frame larger than its hoop.
+  - **Not mapped (no reference to settle them):** the PEC header's 0x26–0x27 (`01 01` in PE's
+    single-needle 300 × 200 file only); the grid field (5 in the round-6 files, 10 in the others:
+    the 0.5 and 1 mm grids of their sessions; OpenStitch has no grid setting to write); the v6
+    header's display fields and the v1 hoop field (no PE-DESIGN v6 or v1 file); OpenStitch's own
+    split positions (PE's are its fixed step, written instead); "Use smaller section sizes" and
+    pages over 360 mm, whose section positions no PE file shows.
 - **Partly fixed (2026-10-29, #125):** `design.export` writes the selected hoop's width and
   height (rotation applied; the custom page when no hoop is chosen) in mm as the v6 header's
   hoop fields, where pyembroidery's constant 100 × 100 stood. PE-DESIGN 11.50 stores the hoop
@@ -709,8 +738,9 @@ Line references are relative to `crates/`.
   PEC for a turned hoop. Left: the other hoops' ids (a Custom Size page of their size until
   then), the 100 × 180 hoop (PE saves it only as `#PES0113`), and the v1 hoop field.
 
-- **Impact:** severity 4. Every v6 file claims a 100×100 hoop and a fixed page, whatever hoop
-  the user chose. Every v1 file claims 130×180. Imported files never set the hoop.
+- **Impact (before the fixes):** severity 4. Every v6 file claimed a 100×100 hoop and a fixed
+  page, whatever hoop the user chose. Every v1 file claims 130×180. Imported files never set
+  the hoop.
   - The guide ([Design Page settings](https://support.brother.com/g/s/hf/htmldoc/ped/im/ped11/en/PED11_EN/pages/03_1245955.html))
     says the page choice changes the needle start point and what the machine's layout screen
     allows.
@@ -721,7 +751,8 @@ Line references are relative to `crates/`.
 - **Evidence:** Spec: EduTechWiki names the v6 header fields in order. Their units and
   indicator codes are not given.
 - **REA:** none.
-- **Grade:** Documented, unverified. The value encodings need owner files (method 2).
+- **Grade:** Reference since 2026-11-04 (#322) for `#PES0110`: owner files (method 2) settle
+  the page, hoop, machine type and section encodings. v6 and v1 stay documented, unverified.
 - **Test:**
   - Inputs: `machine.set` with a 130×180 hoop, then a custom 300×200 hoop, then `rotate90`;
     50 mm shape → `design.export pesVersion:6`.

@@ -87,40 +87,65 @@ pub struct PesPattern {
     pub polylines: Vec<Vec<(i16, i16)>>,
 }
 
-/// The header's three pattern lists (programmable fill, motif, a third always empty so far),
-/// from the end of its fixed fields (104 bytes; 106 with the optional hoop field of
-/// o-page-200x200) to the thread table. `None` when they don't parse to its end.
-fn read_pattern_lists(header: &[u8]) -> Option<[Vec<PesPattern>; 3]> {
-    [104, 106].into_iter().find_map(|start| {
-        let mut r = ByteReader::new(header);
-        r.offset = start;
-        let mut lists: [Vec<PesPattern>; 3] = Default::default();
-        for list in &mut lists {
-            let count = r.u16le().ok()?;
-            for _ in 0..count {
-                let size = r.u16le().ok()? as u16;
-                let polylines = r.u16le().ok()?;
-                let mut pattern = PesPattern {
-                    size,
-                    polylines: Vec::new(),
-                };
-                for _ in 0..polylines {
-                    r.skip(6).ok()?;
-                    if r.u16le().ok()? != 1 {
-                        return None;
-                    }
-                    let n = r.u16le().ok()?;
-                    let mut line = Vec::with_capacity(usize::from(n as u16));
-                    for _ in 0..n {
-                        line.push((r.u16le().ok()? as i16, r.u16le().ok()? as i16));
-                    }
-                    pattern.polylines.push(line);
-                }
-                list.push(pattern);
-            }
+/// The header's two section lists (a Custom Size page's sections, [`section_starts`]; each a
+/// u16 count and that many u16) after the 14 hoop bytes, the hoop name and a u16, with the
+/// offset where they end. Offsets count from the end of the metadata strings.
+fn section_lists(header: &[u8]) -> Option<(usize, [Vec<u16>; 2])> {
+    let u16_at = |at: usize| {
+        header
+            .get(at..at + 2)
+            .map(|b| u16::from_le_bytes([b[0], b[1]]))
+    };
+    let mut at = 15 + usize::from(*header.get(14)?) + 2;
+    let mut lists: [Vec<u16>; 2] = Default::default();
+    for list in &mut lists {
+        let count = usize::from(u16_at(at)?);
+        at += 2;
+        for _ in 0..count {
+            list.push(u16_at(at)?);
+            at += 2;
         }
-        (r.offset == header.len()).then_some(lists)
-    })
+    }
+    Some((at, lists))
+}
+
+/// The header fields from the end of the section lists to the pattern lists: a u32, the page
+/// size, the machine type and the display fields.
+const AFTER_SECTIONS: usize = 75;
+
+/// The header's three pattern lists (programmable fill, motif, a third always empty so far),
+/// from the end of its fixed fields (104 bytes with no sections; two more per section
+/// position) to the thread table. `None` when they don't parse to its end.
+fn read_pattern_lists(header: &[u8]) -> Option<[Vec<PesPattern>; 3]> {
+    let start = section_lists(header)?.0 + AFTER_SECTIONS;
+    let mut r = ByteReader::new(header);
+    r.offset = start;
+    let mut lists: [Vec<PesPattern>; 3] = Default::default();
+    for list in &mut lists {
+        let count = r.u16le().ok()?;
+        for _ in 0..count {
+            let size = r.u16le().ok()? as u16;
+            let polylines = r.u16le().ok()?;
+            let mut pattern = PesPattern {
+                size,
+                polylines: Vec::new(),
+            };
+            for _ in 0..polylines {
+                r.skip(6).ok()?;
+                if r.u16le().ok()? != 1 {
+                    return None;
+                }
+                let n = r.u16le().ok()?;
+                let mut line = Vec::with_capacity(usize::from(n as u16));
+                for _ in 0..n {
+                    line.push((r.u16le().ok()? as i16, r.u16le().ok()? as i16));
+                }
+                pattern.polylines.push(line);
+            }
+            list.push(pattern);
+        }
+    }
+    (r.offset == header.len()).then_some(lists)
 }
 
 /// The header's three pattern lists as [`read_pattern_lists`] reads them.
@@ -275,7 +300,9 @@ pub struct Vertex {
 /// multi-needle 100 × 100 15, an nv880e hoop 0xFF), the two characters after the signature's
 /// `01 00` (`01` single-needle, `02` for some single-needle hoops such as 200 × 300, `10`
 /// multi-needle), Rotate 90 Degrees, and a u16 that is 7 on a multi-needle machine and 0 on a
-/// single-needle one. The page size field keeps 100 × 100 on every Hoop Size page.
+/// single-needle one. The page size field keeps 100 × 100 on every Hoop Size page. Further ids
+/// seen in the round-6 captures: single-needle 180 × 300 4 and 150 × 150 Quilt 0x1A (both with
+/// `02`), multi-needle 180 × 100 Border 0x21 and ø100 Round 0x16.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct HoopPage {
     pub hoop: u8,
@@ -283,6 +310,90 @@ pub struct HoopPage {
     pub multi_needle: bool,
     /// The hoop is turned 90°: PE-DESIGN also turns the machine stitches 90° clockwise.
     pub rotated: bool,
+    /// The header's nv880e hoop fields: the hoop itself when [`HoopPage::hoop`] is 0xFF.
+    pub nv880e: Nv880eHoop,
+}
+
+/// The header's nv880e hoop fields after the hoop id: four u16 (the hoop's width and height in
+/// mm, then in 0.1 inch) and the hoop's name, as PE-DESIGN 11.50 writes them (round 6):
+/// `nv880e-S` 100, 100, 39, 39; `nv880e-M` 150, 150, 59, 59; `nv880e-L` 260, 160, 102, 62. With
+/// hoop id 0xFF they are the page's hoop; with any other id PE-DESIGN keeps the last nv880e hoop
+/// its dialog showed (the Border and Round captures, saved after the L one, carry L).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Nv880eHoop {
+    /// PE-DESIGN's New page.
+    #[default]
+    S,
+    M,
+    L,
+}
+
+impl Nv880eHoop {
+    /// The four u16 fields and the name's last character (the name is always 8 bytes).
+    fn fields(self) -> ([u16; 4], u8) {
+        match self {
+            Nv880eHoop::S => ([100, 100, 39, 39], b'S'),
+            Nv880eHoop::M => ([150, 150, 59, 59], b'M'),
+            Nv880eHoop::L => ([260, 160, 102, 62], b'L'),
+        }
+    }
+}
+
+/// A Custom Size page's machine type and hoop sections. PE-DESIGN 11.50 cuts a Custom Size page
+/// into sections of its Section Size (the section hoop less 10 mm: 90 × 90 for a single-needle
+/// machine's 100 × 100 hoop, 290 × 190 for a multi-needle one's 300 × 200 in every owner file)
+/// and writes their positions in the header ([`section_starts`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CustomPage {
+    pub multi_needle: bool,
+    /// The section width and height in mm.
+    pub section_mm: (u16, u16),
+}
+
+impl CustomPage {
+    /// PE-DESIGN's sections for a machine type, as its own files carry them (single-needle:
+    /// o-machine-single-100x100 and round 6's 300 × 200; multi-needle: r01, o-page-200x200 and
+    /// round 6's 300 × 200).
+    pub fn for_machine(multi_needle: bool) -> Self {
+        Self {
+            multi_needle,
+            section_mm: if multi_needle { (290, 190) } else { (90, 90) },
+        }
+    }
+}
+
+impl Default for CustomPage {
+    /// The multi-needle page of the baseline file r01.
+    fn default() -> Self {
+        Self::for_machine(true)
+    }
+}
+
+/// A Custom Size page's section positions along one axis, as PE-DESIGN 11.50 writes them: the
+/// sections step by the section size less 10 mm from the page's top-left corner, as many as
+/// cover the page, and the list holds the start of every section after the first, in 0.1 mm,
+/// counted from a point where the page's corner sits at 100 mm less half the page. All five of
+/// PE-DESIGN's custom-page files fit it (#322): single-needle 90 mm sections on a 100 mm page
+/// [1300], on 300 mm [300, 1100, 1900] and 200 mm [800, 1600]; multi-needle 190 mm sections on
+/// 200 mm [1800], 290 mm ones on 300 mm [2300], and none on 100 or 200 mm. A position left of
+/// that point (a single-needle page wider than 360 mm) is written as a signed u16: no
+/// PE-DESIGN file shows one yet.
+pub fn section_starts(page_mm: u16, section_mm: u16) -> Vec<u16> {
+    let (page, section) = (i32::from(page_mm), i32::from(section_mm));
+    let step = section - 10;
+    if step <= 0 {
+        return Vec::new();
+    }
+    let corner = 1000 - page * 5;
+    let mut out = Vec::new();
+    let mut covered = section;
+    let mut k = 1;
+    while covered < page && out.len() < 255 {
+        out.push((corner + k * step * 10) as i16 as u16);
+        covered += step;
+        k += 1;
+    }
+    out
 }
 
 /// What [`read_objects`] found after the header strings, and what [`write`] takes.
@@ -306,6 +417,9 @@ pub struct Objects {
     /// The machine type and hoop of a Hoop Size page ([`HoopPage`]); `None` writes PE-DESIGN's
     /// default New page (multi-needle, hoop 15) on a Hoop Size page.
     pub hoop: Option<HoopPage>,
+    /// The machine type and sections of a Custom Size page ([`CustomPage`]); `None` writes the
+    /// multi-needle page of r01. Unused on a Hoop Size page.
+    pub custom: Option<CustomPage>,
     /// The thread table, in its file order (the shapes' colour indexes point into it).
     pub threads: Vec<Thread>,
     pub shapes: Vec<Shape>,
@@ -687,17 +801,12 @@ fn list_offset(data: &[u8], from: usize, end: usize) -> Option<usize> {
 }
 
 /// The Design Page size from the header: after the metadata strings come 14 bytes (hoop
-/// fields), a u8-length machine string, a u16, two optional u16 fields (each a u16 presence
-/// flag, then the value when the flag is 1), a u32 and then the page width and height in mm.
+/// fields), a u8-length hoop name, a u16, the two section lists ([`section_lists`]), a u32 and
+/// then the page width and height in mm.
 fn read_page(data: &[u8], from: usize) -> Option<(u16, u16)> {
-    let n = usize::from(*data.get(from + 14)?);
-    let mut at = from + 15 + n + 2;
-    for _ in 0..2 {
-        let flag = data.get(at..at + 2)?;
-        at += if flag == [1, 0] { 4 } else { 2 };
-    }
-    at += 4;
-    let b = data.get(at..at + 4)?;
+    let header = data.get(from..)?;
+    let at = section_lists(header)?.0 + 4;
+    let b = header.get(at..at + 4)?;
     let (w, h) = (
         u16::from_le_bytes([b[0], b[1]]),
         u16::from_le_bytes([b[2], b[3]]),
@@ -768,6 +877,7 @@ pub(crate) fn read_objects(data: &[u8], from: usize, end: usize) -> Result<Objec
             header: header.clone(),
             code: data.get(14..16).map(|c| [c[0], c[1]]),
             hoop: None,
+            custom: None,
             threads: threads.clone(),
             shapes,
             texts,
@@ -1424,7 +1534,13 @@ pub fn write(objects: &Objects, pattern: &StitchPattern) -> Result<Vec<u8>> {
         .iter()
         .any(|s| s.line_sewn && s.line_type == Shape::LINE_CUTTING);
     let code = objects.code.unwrap_or_else(|| {
-        let mut code = objects.hoop.map_or(*b"10", |h| h.code);
+        // A Hoop Size page's code is its hoop's; a single-needle Custom Size page's is `01`
+        // (o-machine-single-100x100, round 6's single-needle 300 × 200).
+        let mut code = match (objects.hoop, objects.custom) {
+            (Some(h), _) => h.code,
+            (None, Some(c)) if !objects.hoop_page && !c.multi_needle => *b"01",
+            _ => *b"10",
+        };
         if cutting {
             code[0] |= 0x80;
         }
@@ -1443,7 +1559,13 @@ pub fn write(objects: &Objects, pattern: &StitchPattern) -> Result<Vec<u8>> {
             page.0, page.1
         )));
     } else {
-        write_header(&mut w, page, objects.hoop_page, objects.hoop);
+        write_header(
+            &mut w,
+            page,
+            objects.hoop_page,
+            objects.hoop,
+            objects.custom,
+        );
         // The templates end with the three empty pattern lists; a design's patterns replace them.
         if !objects.fill_patterns.is_empty() || !objects.motif_patterns.is_empty() {
             w.bytes.truncate(w.bytes.len() - 6);
@@ -1495,22 +1617,25 @@ pub fn write(objects: &Objects, pattern: &StitchPattern) -> Result<Vec<u8>> {
 
 /// The PEC header fields PE-DESIGN 11.50 writes with each page mode (all of its `#PES0110`
 /// files in compat/reference, tests/fixtures/pe11 and the round-4 captures, 2026-10-29): 0x1F
-/// `FF`; on a multi-needle Custom Size page 0x24–0x2F `20 FF 00 00 64 00 00 00 00 FF 20 20` and
-/// 2900 × 1900 at 0x208 (663 files), on a Hoop Size page `20 20 20 20 64 20 00 20 00 FF 20 20`
-/// and the design's size there, as the PEC writer puts it (46 files).
+/// `FF`; on a Custom Size page 0x24–0x2F `20 FF 00 00 64 00 00 00 00 FF 20 20` (663 files; the
+/// single-needle 300 × 200 capture of round 6 has `01 01` at 0x26, not mapped), on a Hoop Size
+/// page `20 20 20 20 64 20 00 20 00 FF 20 20` (46 files).
+///
+/// The frame at 0x208 stays the design's own size, as the PEC writer puts it (#287), on both
+/// pages. PE-DESIGN writes its Section Size there on a Custom Size page (2900 × 1900 multi-needle,
+/// 900 × 900 single-needle), but a Brother machine reads the frame as the design's size: the
+/// NV880E refused a 290 × 190 mm frame as too large for its largest hoop.
 fn patch_pec_header(pec: &mut [u8], hoop_page: bool) {
     pec[0x1F] = 0xFF;
-    if hoop_page {
-        pec[0x24..0x30].copy_from_slice(&[
+    pec[0x24..0x30].copy_from_slice(if hoop_page {
+        &[
             0x20, 0x20, 0x20, 0x20, 0x64, 0x20, 0x00, 0x20, 0x00, 0xFF, 0x20, 0x20,
-        ]);
-        return;
-    }
-    pec[0x24..0x30].copy_from_slice(&[
-        0x20, 0xFF, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x20, 0x20,
-    ]);
-    pec[0x208..0x20A].copy_from_slice(&2900_u16.to_le_bytes());
-    pec[0x20A..0x20C].copy_from_slice(&1900_u16.to_le_bytes());
+        ]
+    } else {
+        &[
+            0x20, 0xFF, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x20, 0x20,
+        ]
+    });
 }
 
 fn at_position_has_text(objects: &Objects, position: u16) -> bool {
@@ -1657,28 +1782,58 @@ fn write_text(w: &mut ByteWriter, archive: &mut Archive, t: &Text) -> Result<()>
     Ok(())
 }
 
-/// The header fields after the metadata strings up to the thread count: the hoop (150 × 150 mm,
-/// `nv880e-M`, multi-needle), the page size in mm, and fields not mapped yet, as the baseline
-/// file has them.
-fn write_header(w: &mut ByteWriter, page_mm: (u16, u16), hoop_page: bool, hoop: Option<HoopPage>) {
+/// The header fields after the metadata strings up to the thread count (#322): u16 0, the page
+/// mode (0 Hoop Size, 1 Custom Size), the hoop id, the nv880e hoop fields and name
+/// ([`Nv880eHoop`]), a u16, the two section lists ([`section_starts`]), a u32, the page size in
+/// mm, the machine type (7 multi-needle, 0 single-needle), then display fields (grid and
+/// colours) that keep the baseline file's values.
+fn write_header(
+    w: &mut ByteWriter,
+    page_mm: (u16, u16),
+    hoop_page: bool,
+    hoop: Option<HoopPage>,
+    custom: Option<CustomPage>,
+) {
     if hoop_page || hoop.is_some() {
         let mut h = template::HEADER_HOOP_100;
-        // u16 0, u16 page mode 0, u16 hoop id; u16 rotation at 31; u16 7 or 0 at 37 (round 6).
+        // u16 0, u16 page mode 0, u16 hoop id at 4, the nv880e fields at 6..14 and the name's
+        // letter at 22; u16 rotation at 31; u16 7 or 0 at 37 (round 6).
         if let Some(hp) = hoop {
             h[4] = hp.hoop;
+            let (fields, letter) = hp.nv880e.fields();
+            for (k, v) in fields.iter().enumerate() {
+                h[6 + 2 * k..8 + 2 * k].copy_from_slice(&v.to_le_bytes());
+            }
+            h[22] = letter;
             h[31] = u8::from(hp.rotated);
             h[37] = if hp.multi_needle { 7 } else { 0 };
         }
         w.append(&h);
         return;
     }
-    let mut h = template::HEADER;
-    // After 14 hoop bytes and the machine string come a u16, two absent optional fields (u16 0
-    // each) and a u32, then the page width and height.
-    let at = 15 + usize::from(h[14]) + 10;
-    h[at..at + 2].copy_from_slice(&page_mm.0.to_le_bytes());
-    h[at + 2..at + 4].copy_from_slice(&page_mm.1.to_le_bytes());
-    w.append(&h);
+    // The baseline r01: a multi-needle Custom Size page with no sections. Its hoop id and nv880e
+    // fields are what PE-DESIGN's dialog last showed (greyed on a Custom Size page) and stay.
+    let h = template::HEADER;
+    let custom = custom.unwrap_or_default();
+    let lists = 15 + usize::from(h[14]) + 2;
+    debug_assert_eq!(h[lists..lists + 4], [0, 0, 0, 0]);
+    w.append(&h[..lists]);
+    for (page, section) in [
+        (page_mm.0, custom.section_mm.0),
+        (page_mm.1, custom.section_mm.1),
+    ] {
+        let starts = section_starts(page, section);
+        w.u16le(starts.len() as i64);
+        for s in starts {
+            w.u16le(i64::from(s));
+        }
+    }
+    // After the lists: a u32 0, the page width and height, the machine type.
+    let mut rest = h[lists + 4..].to_vec();
+    rest[4..6].copy_from_slice(&page_mm.0.to_le_bytes());
+    rest[6..8].copy_from_slice(&page_mm.1.to_le_bytes());
+    rest[8] = if custom.multi_needle { 7 } else { 0 };
+    w.append(&rest);
 }
 
 /// An MFC `CString` in its Unicode form, as PE-DESIGN 11 writes the thread table's strings:
@@ -2413,7 +2568,7 @@ mod tests {
     #[test]
     fn page_size_is_patched_into_the_header() {
         let mut w = ByteWriter::default();
-        write_header(&mut w, (130, 180), false, None);
+        write_header(&mut w, (130, 180), false, None, None);
         let s = String::from_utf8_lossy(&w.bytes[15..23]).into_owned();
         assert_eq!(s, "nv880e-M");
         assert_eq!(&w.bytes[33..37], &[130, 0, 180, 0]);

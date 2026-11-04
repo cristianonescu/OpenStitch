@@ -51,7 +51,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 | Feature matrix rows | 191: 155 implemented (3 of them partially compatible), 2 documented only, 10 blocked, 24 planned beyond PE-DESIGN |
 | Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 33: 26 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
-| Open audit differences | 11 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
+| Open audit differences | 10 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
 | Open GitHub issues | 45 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
 <!-- /status:glance -->
 
@@ -370,7 +370,6 @@ Open differences from PE-DESIGN 11 that you may notice, from the
 - [One sewing direction per text instead of per stroke](docs/COMPATIBILITY_AUDIT.md#6-one-sewing-direction-per-text-instead-of-per-stroke)
 - [Underlay model differs](docs/COMPATIBILITY_AUDIT.md#8-underlay-model-differs-zigzag-lines-have-no-underlay) (partly fixed)
 - [PE-DESIGN-made PES files lose objects, properties and colours on re-save](docs/COMPATIBILITY_AUDIT.md#9-pe-design-made-pes-files-lose-objects-properties-and-colours-on-re-save)
-- [Hoop and Design Page fields hard-coded in PES](docs/COMPATIBILITY_AUDIT.md#10-hoop-and-design-page-fields-are-hard-coded-in-pes)
 - [No Connection Points (Default / Closest / Farther) for text](docs/COMPATIBILITY_AUDIT.md#11-no-connection-points-default--closest--farther-for-text)
 - [No minimum font sizes or small-text fonts](docs/COMPATIBILITY_AUDIT.md#12-no-minimum-font-sizes-or-small-text-fonts)
 - [No per-character colour or multi-character selection](docs/COMPATIBILITY_AUDIT.md#13-no-per-character-colour-or-multi-character-selection)
