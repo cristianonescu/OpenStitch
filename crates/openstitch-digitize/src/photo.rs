@@ -473,6 +473,15 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
         if stitches.iter().all(|s| s.command != Command::Stitch) {
             continue;
         }
+        // Every run the compiler trims ties in and locks, as PE-DESIGN's Photo Stitch sews it:
+        // an unlocked thread end works loose on the machine (round-2 sew-out, #289).
+        // OpenStitch mode keeps every stitch at least MIN_STITCH_MM: its lock steps that far.
+        let step = if p.compat == Mode::OpenStitch {
+            MIN_STITCH_MM * 10.0
+        } else {
+            3.0
+        };
+        let stitches = openstitch_design::stitch_edit::lock_runs(&stitches, CONNECT, step);
         total += stitches.len();
         if total > crate::MAX_STITCHES {
             return Err(DigitizeError::TooLarge(format!(

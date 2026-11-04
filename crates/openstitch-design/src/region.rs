@@ -1515,23 +1515,8 @@ const TIE_IN_THREE_STEPS: f64 = 26.5;
 /// 4.25 mm, once otherwise. (PE: one tie-in step after 1.2–2.3 mm first stitches, three after
 /// 3.0 and 3.5 mm; one lock step after 0.2–3.5 mm last stitches, two after 5 and 30 mm ones.)
 pub fn tie_and_lock(layers: &mut [Vec<Run>]) {
-    const STEP: f64 = 3.0;
     if let Some(run) = layers.iter_mut().flatten().find(|r| r.len() >= 2) {
-        let (a, b) = (run[0], run[1]);
-        let len = a.distance(b);
-        if len > 1e-9 {
-            let unit = (b - a) * (1.0 / len);
-            // Three steps from a first stitch of 3.0 mm (satin-length-sweep-d1p0's 3 mm column),
-            // one up to 2.3 mm: the bound is set halfway, at 2.65 mm.
-            let steps = if len > TIE_IN_THREE_STEPS { 3 } else { 1 };
-            let out = (STEP * steps as f64).min(len);
-            let mut tie: Vec<Vec2> = (1..=steps)
-                .map(|k| a + unit * (out * k as f64 / steps as f64))
-                .collect();
-            let tip = a + unit * out;
-            tie.extend(subdivide(&[tip, a], 5.0).into_iter().skip(1));
-            run.splice(1..1, tie);
-        }
+        tie_in(run);
     }
     if let Some(run) = layers
         .iter_mut()
@@ -1541,14 +1526,93 @@ pub fn tie_and_lock(layers: &mut [Vec<Run>]) {
         .find(|r| r.len() >= 2)
     {
         let (a, b) = (run[run.len() - 2], run[run.len() - 1]);
-        let len = a.distance(b);
-        if len > 1e-9 {
-            let back = (a - b) * (STEP.min(len) / len);
-            let steps = if len > 42.5 { 2 } else { 1 };
-            run.extend((1..=steps).map(|k| b + back * k as f64));
-            run.extend((0..steps).rev().map(|k| b + back * k as f64));
-        }
+        run.extend(lock_points(a, b));
     }
+}
+
+/// The tie-in step, 0.1 mm.
+const TIE_STEP: f64 = 3.0;
+
+/// PE-DESIGN 11.50's tie-in at the start of `run` (see [`tie_and_lock`]): 0.3 mm out along the
+/// first stitch and back, or three steps out after a first stitch over 2.65 mm.
+pub fn tie_in(run: &mut Run) {
+    tie_in_by(run, TIE_STEP);
+}
+
+/// [`tie_in`] with steps of `step` (0.1 mm) instead of PE-DESIGN's 0.3 mm.
+pub fn tie_in_by(run: &mut Run, step: f64) {
+    if run.len() < 2 {
+        return;
+    }
+    let (a, b) = (run[0], run[1]);
+    let len = a.distance(b);
+    if len <= 1e-9 {
+        return;
+    }
+    let unit = (b - a) * (1.0 / len);
+    // Three steps from a first stitch of 3.0 mm (satin-length-sweep-d1p0's 3 mm column),
+    // one up to 2.3 mm: the bound is set halfway, at 2.65 mm.
+    // A longer step (OpenStitch mode's 1 mm) ties in with one step out and straight back.
+    let steps = if len > TIE_IN_THREE_STEPS && step <= TIE_STEP {
+        3
+    } else {
+        1
+    };
+    let out = (step * steps as f64).min(len);
+    let mut tie: Vec<Vec2> = (1..=steps)
+        .map(|k| a + unit * (out * k as f64 / steps as f64))
+        .collect();
+    let tip = a + unit * out;
+    tie.extend(subdivide(&[tip, a], step.max(5.0)).into_iter().skip(1));
+    run.splice(1..1, tie);
+}
+
+/// PE-DESIGN 11.50's end lock after a last stitch from `a` to `b`: back along it 0.3 mm at a
+/// time and the same way home, twice after a last stitch over 4.25 mm, once otherwise.
+pub fn lock_points(a: Vec2, b: Vec2) -> Vec<Vec2> {
+    lock_points_by(a, b, TIE_STEP)
+}
+
+/// [`lock_points`] with steps of `step` (0.1 mm) instead of PE-DESIGN's 0.3 mm.
+pub fn lock_points_by(a: Vec2, b: Vec2, step: f64) -> Vec<Vec2> {
+    let len = a.distance(b);
+    if len <= 1e-9 {
+        return Vec::new();
+    }
+    let back = (a - b) * (step.min(len) / len);
+    let steps = if len > 42.5 { 2 } else { 1 };
+    (1..=steps)
+        .map(|k| b + back * k as f64)
+        .chain((0..steps).rev().map(|k| b + back * k as f64))
+        .collect()
+}
+
+/// Whether a run already starts with a tie-in: it comes back to its first needle point within
+/// its first five stitches, none of them longer than 1 mm.
+pub fn starts_tied(run: &[Vec2]) -> bool {
+    let Some(&a) = run.first() else {
+        return false;
+    };
+    run.iter()
+        .enumerate()
+        .skip(2)
+        .take(4)
+        .take_while(|(i, _)| run[*i - 1].distance(run[*i - 2]) <= 10.5)
+        .any(|(_, p)| p.distance(a) < 0.5)
+}
+
+/// Whether the needle points `tail` (the last first: last, previous, …) already end with a lock:
+/// the last point is sewn again within the last four stitches, none of them longer than 1 mm.
+pub fn ends_locked(tail: &[Vec2]) -> bool {
+    let Some(&b) = tail.first() else {
+        return false;
+    };
+    tail.iter()
+        .enumerate()
+        .skip(2)
+        .take(3)
+        .take_while(|(i, _)| tail[*i - 1].distance(tail[*i - 2]) <= 10.5)
+        .any(|(_, p)| p.distance(b) < 0.5)
 }
 
 /// Least share of the region a derived skeleton's column must cover for Auto satin to follow

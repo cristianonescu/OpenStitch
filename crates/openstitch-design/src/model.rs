@@ -1287,6 +1287,8 @@ impl RegionSewing {
                 RegionType::Piping => 1.0,
                 // PE-DESIGN 11.50's Concentric Circle and Spiral Stitch: 2.0 lines/mm.
                 RegionType::ConcentricCircle | RegionType::Spiral => 2.0,
+                // PE-DESIGN 11.50's zigzag net: a rung every 0.44 mm.
+                RegionType::ZigzagNetFill => 2.25,
                 _ => 1.5,
             },
             stitch_length: 4.0,
@@ -1453,7 +1455,8 @@ impl RegionSewing {
             RegionType::CrossStitch => 2.5,
             RegionType::Stippling => 2.0,
             RegionType::NetFill => 4.0,
-            RegionType::ZigzagNetFill => 5.0,
+            // PE-DESIGN 11.50's zigzag net (o-region-zigzag-net): bands 8 mm apart.
+            RegionType::ZigzagNetFill => 8.0,
             RegionType::FlexibleSpiral => 1.0,
             // The contour fill sketch's default row spacing (echo-quilting look).
             RegionType::Contour => 2.0,
@@ -1505,6 +1508,8 @@ impl RegionSewing {
         let (w, h) = match self.kind {
             RegionType::MotifFill => (4.0, 3.0),
             RegionType::DecorativeFill => (10.0, 8.0),
+            // PE-DESIGN 11.50's zigzag net band: 3.0 mm wide.
+            RegionType::ZigzagNetFill => (3.0, 3.0),
             _ => (8.0, 8.0),
         };
         (

@@ -263,6 +263,14 @@ pub fn convert(image: &Raster, frame: &Frame, p: &CrossStitch) -> Result<Convert
                 }
             }
             let thread = palette.threads[t].clone();
+            // Every run the compiler trims ties in and locks, as PE-DESIGN's Cross Stitch does.
+            // OpenStitch mode keeps every stitch at least MIN_STITCH_MM: its lock steps that far.
+            let step = if p.mode == Mode::OpenStitch {
+                MIN_STITCH_MM * 10.0
+            } else {
+                3.0
+            };
+            let stitches = openstitch_design::stitch_edit::lock_runs(&stitches, 40.0, step);
             let mut o = DesignObject::stitches(StitchBlock {
                 stitches,
                 threads: vec![thread.clone()],

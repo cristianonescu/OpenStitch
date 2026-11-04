@@ -12,6 +12,10 @@ pub const UNKNOWN_THREAD: [u8; 3] = [0x80, 0x80, 0x80];
 pub struct ColorLayer {
     pub rgb: [u8; 3],
     pub strokes: Vec<Vec<Vec2>>,
+    /// Per stroke, each stitch's drawn width as a share of the thread width: narrower where the
+    /// thread's rows lie close, so the Realistic view hides as much fabric as sewn thread does
+    /// (openstitch_design::calibration, the T1 sew-outs, #291).
+    pub cover: Vec<Vec<f32>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -41,6 +45,7 @@ impl RenderModel {
         let mut layer = ColorLayer {
             rgb: rgb(0),
             strokes: Vec::new(),
+            cover: Vec::new(),
         };
         let mut stroke: Vec<Vec2> = Vec::new();
         let mut pos: Option<Vec2> = None;
@@ -72,6 +77,7 @@ impl RenderModel {
                     let next = ColorLayer {
                         rgb: rgb(color),
                         strokes: Vec::new(),
+                        cover: Vec::new(),
                     };
                     let done = std::mem::replace(&mut layer, next);
                     if !done.strokes.is_empty() {
@@ -86,7 +92,40 @@ impl RenderModel {
             m.layers.push(layer);
         }
         m.needle = pos;
+        m.calibrate();
         m
+    }
+
+    /// Fills each layer's [`ColorLayer::cover`] from the local rows per mm of its thread colour
+    /// (all layers of that colour together).
+    fn calibrate(&mut self) {
+        use openstitch_design::calibration::{RowDensity, THREAD_MM, covered_width_mm};
+        let mut colours: Vec<[u8; 3]> = self.layers.iter().map(|l| l.rgb).collect();
+        colours.sort_unstable();
+        colours.dedup();
+        for rgb in colours {
+            let strokes: Vec<Vec<Vec2>> = self
+                .layers
+                .iter()
+                .filter(|l| l.rgb == rgb)
+                .flat_map(|l| l.strokes.iter().cloned())
+                .collect();
+            let density = RowDensity::of(&strokes);
+            for l in self.layers.iter_mut().filter(|l| l.rgb == rgb) {
+                l.cover = l
+                    .strokes
+                    .iter()
+                    .map(|s| {
+                        s.windows(2)
+                            .map(|w| {
+                                let r = density.at(w[0].lerp(w[1], 0.5));
+                                (covered_width_mm(r) / THREAD_MM) as f32
+                            })
+                            .collect()
+                    })
+                    .collect();
+            }
+        }
     }
 }
 

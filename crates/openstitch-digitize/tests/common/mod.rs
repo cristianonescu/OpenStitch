@@ -90,3 +90,52 @@ pub fn shapes(moved: bool) -> Raster {
     })
     .expect("size")
 }
+
+/// `stitches` without the tie-in and end lock of each run (`stitch_edit::lock_runs`): a run's
+/// first needle point is sewn again within the next five stitches of at most 1 mm, and so is
+/// its last within the last four. Lets a test check the stitching itself.
+pub fn unlocked(stitches: &[openstitch_core::Stitch]) -> Vec<openstitch_core::Stitch> {
+    use openstitch_core::Command;
+    let same = |a: &openstitch_core::Stitch, b: &openstitch_core::Stitch| {
+        (a.x - b.x).abs() < 1e-6 && (a.y - b.y).abs() < 1e-6
+    };
+    let short = |a: &openstitch_core::Stitch, b: &openstitch_core::Stitch| {
+        (a.x - b.x).hypot(a.y - b.y) <= 10.5
+    };
+    // Runs: from a jump or trim to the next.
+    let mut runs: Vec<Vec<openstitch_core::Stitch>> = vec![Vec::new()];
+    for s in stitches {
+        if matches!(s.command, Command::Jump | Command::Trim | Command::ColorChange)
+            && runs.last().is_some_and(|r| !r.is_empty())
+        {
+            runs.push(Vec::new());
+        }
+        runs.last_mut().expect("one").push(*s);
+    }
+    let mut out = Vec::new();
+    for mut r in runs {
+        // Index of the first needle point (the jump's landing or the first stitch) and the
+        // first point that moves away from it.
+        if let Some(a) = r.iter().position(|s| matches!(s.command, Command::Jump | Command::Stitch)) {
+            let mut b = a;
+            while b + 1 < r.len() && same(&r[b + 1], &r[a]) {
+                b += 1;
+            }
+            if let Some(k) = (b + 2..(b + 7).min(r.len())).find(|&k| {
+                same(&r[k], &r[a]) && (b + 1..=k).all(|i| short(&r[i - 1], &r[i]))
+            }) {
+                r.drain(b + 1..=k);
+            }
+        }
+        let n = r.len();
+        if n >= 3
+            && let Some(k) = (2..5.min(n)).find(|&k| {
+                same(&r[n - 1 - k], &r[n - 1]) && (n - k..n).all(|i| short(&r[i - 1], &r[i]))
+            })
+        {
+            r.truncate(n - k);
+        }
+        out.extend(r);
+    }
+    out
+}

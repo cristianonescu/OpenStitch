@@ -27,8 +27,9 @@ fn grid_cells_colours_and_crosses() {
     assert!(out.background.is_some());
     let red = out.objects[0].stitch_block.as_ref().expect("block");
     // 2 runs of 3 cells: jump + anchor + 3×3 forward + 3×3 back = 20 each (six stitches a
-    // cell, as PE-DESIGN 11.50 sews them).
-    assert_eq!(red.stitches.len(), 2 * 20);
+    // cell, as PE-DESIGN 11.50 sews them), each run tied in and locked as PE-DESIGN's are.
+    assert_eq!(unlocked(&red.stitches).len(), 2 * 20);
+    assert!(red.stitches.len() > 2 * 20);
     assert_eq!(
         red.stitches
             .iter()
@@ -89,7 +90,7 @@ fn half_crosses_and_determinism() {
         .position(|t| t.red < 64)
         .expect("black thread");
     let b = a.objects[black].stitch_block.as_ref().expect("block");
-    let pts: Vec<(f64, f64)> = b.stitches.iter().map(|s| (s.x, s.y)).collect();
+    let pts: Vec<(f64, f64)> = unlocked(&b.stitches).iter().map(|s| (s.x, s.y)).collect();
     assert_eq!(
         pts,
         vec![
@@ -259,11 +260,7 @@ fn triple_sews_each_diagonal_three_times() {
     )
     .expect("converts");
     let pts = |c: &cross::Converted| -> Vec<(f64, f64)> {
-        c.objects[0]
-            .stitch_block
-            .as_ref()
-            .expect("block")
-            .stitches
+        unlocked(&c.objects[0].stitch_block.as_ref().expect("block").stitches)
             .iter()
             .map(|s| (s.x, s.y))
             .collect()
@@ -318,7 +315,7 @@ fn cells_are_six_diagonal_stitches_as_pe_design_sews_them() {
     let b = out.objects[0].stitch_block.as_ref().expect("block");
     let mut halves = 0;
     let mut fulls = 0;
-    for w in b.stitches.windows(2) {
+    for w in unlocked(&b.stitches).windows(2) {
         if w[1].command != Command::Stitch || (w[0].x, w[0].y) == (w[1].x, w[1].y) {
             continue;
         }
@@ -457,7 +454,7 @@ fn open_stitch_fill_limits_and_options() {
     let tiny = cross::convert(&one, &Frame::new(0.0, 0.0, 10.0, 20), &open_stitch(1.0, 2))
         .expect("converts");
     let block = tiny.objects[0].stitch_block.as_ref().expect("block");
-    assert!(block.stitches.len() <= 6, "{:?}", block.stitches);
+    assert!(unlocked(&block.stitches).len() <= 6, "{:?}", block.stitches);
     for (kind, lo) in [(CrossType::Full, 2), (CrossType::Half, 1)] {
         let out = cross::convert(
             &img,

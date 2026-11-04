@@ -110,9 +110,12 @@ Compatibility, from the open items in [COMPATIBILITY_AUDIT.md](COMPATIBILITY_AUD
 
 Sew-outs (first one 2026-11-02, the ready-to-sew kit on the owner's NV880E): every PES now has a PEC
 frame of the design's size holding its stitches (2026-11-03), stippling and the flexible spiral no longer stitch in place, and
-`tools/sew_check.py` checks a file for all three plus stacked needle drops. Next: Auto Punch's
-stacked satin points on the storybook picture (B16.1, the Mac's track), satin lettering's short
-stroke ends, then the kit's calibration photos.
+`tools/sew_check.py` checks a file for all three plus stacked needle drops. The second sew-out
+(2026-11-04) added tie-ins and end locks to every trimmed run, a zigzag net as PE-DESIGN sews it,
+the T1 card's corrected swatches and mark, and the first calibration: the Realistic view and the
+similarity scorer draw thread as wide as it covers at its row density. Next: Photo Stitch 1's
+trims (#298), Auto Punch's stacked satin points on the storybook picture (#290, the Mac's track),
+then a sew-out of the regenerated kit.
 
 Done 2026-10-30: stitch generation is bit-identical on Windows, macOS and Linux (transcendental
 math through the `libm` crate instead of each platform's C library); the arched Text Transform

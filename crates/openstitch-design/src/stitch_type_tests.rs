@@ -1625,7 +1625,8 @@ fn stitch_limit(r: &RegionSewing) -> f64 {
         RegionType::ProgrammableFill => crate::regions::PROGRAMMABLE_MAX_STITCH,
         RegionType::CrossStitch => (r.spacing_mm() * 10.0 * std::f64::consts::SQRT_2).max(pitch),
         RegionType::ZigzagNetFill => {
-            let w = r.pattern_size_mm().0 * 10.0;
+            // A rung at a right-angle corner reaches √2 × the band's width (the mitre).
+            let w = r.pattern_size_mm().0 * 10.0 * std::f64::consts::SQRT_2;
             w.hypot(10.0 / r.density).max(pitch)
         }
         RegionType::DecorativeFill => pitch * 1.5,
