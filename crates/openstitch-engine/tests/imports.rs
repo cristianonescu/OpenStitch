@@ -4,20 +4,11 @@
 use openstitch_design::ObjectKind;
 use openstitch_digitize::Raster;
 use openstitch_engine::Session;
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
-use std::path::PathBuf;
 
-fn temp_dir() -> PathBuf {
-    let n = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-imports-{n}-{:?}",
-        std::thread::current().id()
-    ));
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir() -> TempDir {
+    TempDir::new("imports")
 }
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
@@ -338,4 +329,80 @@ fn pe_designs_convert_to_blocks_imports_as_grouped_blocks_in_one_undo_step() {
         .execute("import.pes", Some(&json!({"path": "v6.pes"})))
         .expect_err("v6 has no editable objects");
     assert!(e.to_string().contains("stitches.import"), "{e}");
+}
+
+/// A placeable WMF (100 units per inch) with a red-brushed rectangle 2 × 1 in and a polyline.
+fn wmf_fixture() -> Vec<u8> {
+    let mut b = Vec::new();
+    b.extend(0x9AC6_CDD7u32.to_le_bytes());
+    b.extend([0u8; 2]);
+    for v in [0i16, 0, 200, 100, 100] {
+        b.extend(v.to_le_bytes());
+    }
+    b.extend([0u8; 6]);
+    for v in [1u16, 9, 0x0300, 0, 0, 4, 0, 0, 0] {
+        b.extend(v.to_le_bytes());
+    }
+    let mut rec = |func: u16, params: &[i16]| {
+        b.extend((3 + params.len() as u32).to_le_bytes());
+        b.extend(func.to_le_bytes());
+        for p in params {
+            b.extend(p.to_le_bytes());
+        }
+    };
+    rec(0x02FC, &[0, 0x00E0, 0x0010, 0]); // solid brush #e00010 → bytes e0 00 10 00
+    rec(0x012D, &[0]);
+    rec(0x041B, &[100, 200, 0, 0]); // rectangle (0,0)-(200,100)
+    rec(0x0325, &[2, 0, 120, 200, 120]); // polyline below it
+    rec(0, &[]);
+    b
+}
+
+#[test]
+fn metafile_import_groups_shapes_and_rejects_bad_files() {
+    let dir = temp_dir();
+    std::fs::write(dir.join("art.wmf"), wmf_fixture()).expect("wmf");
+    let mut s = Session::new(&dir);
+    let out = run(
+        &mut s,
+        "import.metafile",
+        json!({"path": "art.wmf", "x": 5, "y": 5, "exactColors": true}),
+    );
+    assert_eq!(out["ids"].as_array().map(Vec::len), Some(2));
+    let d = s.design();
+    let group = d.objects[0].group.expect("grouped");
+    assert!(d.objects.iter().all(|o| o.group == Some(group)));
+    let fill = d.objects[0].region.as_ref().map(|r| r.thread.hex());
+    assert_eq!(fill.as_deref(), Some("#e00010"));
+    assert!(d.objects[0].line.is_some()); // GDI's default black pen
+    assert!(d.objects[1].region.is_none() && d.objects[1].line.is_some());
+    // 200 units at 100 per inch = 50.8 mm wide, placed at x = 5 mm.
+    let xs: Vec<f64> = d
+        .objects
+        .iter()
+        .flat_map(|o| o.contours.iter())
+        .flat_map(|c| c.points.iter().map(|p| p.x))
+        .collect();
+    let (lo, hi) = xs
+        .iter()
+        .fold((f64::MAX, f64::MIN), |(a, b), x| (a.min(*x), b.max(*x)));
+    assert!(
+        (lo - 50.0).abs() < 1e-6 && (hi - 558.0).abs() < 1e-6,
+        "{lo} {hi}"
+    );
+    run(&mut s, "history.undo", json!({}));
+    assert!(s.design().objects.is_empty());
+
+    std::fs::write(dir.join("bad.emf"), b"not a metafile").expect("bad");
+    let mut cut = wmf_fixture();
+    cut.truncate(cut.len() - 4);
+    std::fs::write(dir.join("cut.wmf"), cut).expect("cut");
+    for bad in ["bad.emf", "cut.wmf", "missing.wmf"] {
+        assert!(
+            s.execute("import.metafile", Some(&json!({"path": bad})))
+                .is_err(),
+            "{bad}"
+        );
+    }
+    assert!(s.design().objects.is_empty());
 }

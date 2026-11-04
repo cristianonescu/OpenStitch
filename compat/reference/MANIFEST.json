@@ -374,6 +374,30 @@
       "notes": "Written by PE as sample-basic.XXX."
     },
     {
+      "file": "machine/sample-basic.csd",
+      "spec": "machine-sample-basic",
+      "reference": "pe-design-csd",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-10-29",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Round 4 (pe-refs-4), PE-DESIGN 11.50, Design Page 100 x 100 mm. 11:43-11:47 GROUP B, machine formats (#135). Same design, text changed in the Text Attributes box to \"S\" (Transform unticked first), Text tab size 20,0, region Satin Stitch (hover + click), 800 EMBROIDERY RED: 14,00 x 21,10 mm, 278 st, centred at x = 50 (0.15 mm right, see group A). Home > Shapes > Rectangle, dragged (60,60)-(70,68) mm: Shapes tab line Zigzag Stitch (tool default) -> Not Sewn (Line) (the list opens scrolled; scroll up, hover, click), region Fill Stitch (default), Color pane Region 800 RED -> 007 EMBROIDERY PRUSSIAN BLUE: 10,00 x 8,00 mm, 197 st. Sewing order: 1 the S (red satin), 2 the rectangle (blue fill). Save As machine/sample-basic.pes (#PES0110). App menu > Export... (\"Export to File\"): Save as type list in this order: Tajima (*.DST), Melco (*.EXP), Pfaff (*.PCS), Husqvarna/Viking (*.HUS), Husqvarna/Viking (*.VIP), Husqvarna/Viking (*.SHV), Janome (*.JEF), Janome (*.SEW), Singer (*.CSD), Singer (*.XXX). No PHC, PHX, PEN, PEC or DST options of any kind: Export offers nothing beyond this list and Save As offers only PES versions; no options dialog, no warning for any format; the typed extension is replaced by the type's own, upper case. Exported every type as sample-basic.<EXT>; the dialog's type list only takes mouse clicks (keyboard refused by the harness). This file: App menu > Export..., type Singer (*.CSD), no options dialog, no warning.",
+      "sha256": "b405685a744df0dd4395279c561822aea4010d8460c7887404aaa9b7e52b841b",
+      "notes": "Written by PE as sample-basic.CSD. Kept since 2026-10-29 as crates/openstitch-formats/tests/fixtures/pe11/sample-basic.csd (same bytes); added here for the CSD and SHV writers (#320)."
+    },
+    {
+      "file": "machine/sample-basic.shv",
+      "spec": "machine-sample-basic",
+      "reference": "pe-design-shv",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-10-29",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "Round 4 (pe-refs-4), PE-DESIGN 11.50, Design Page 100 x 100 mm. 11:43-11:47 GROUP B, machine formats (#135). Same design, text changed in the Text Attributes box to \"S\" (Transform unticked first), Text tab size 20,0, region Satin Stitch (hover + click), 800 EMBROIDERY RED: 14,00 x 21,10 mm, 278 st, centred at x = 50 (0.15 mm right, see group A). Home > Shapes > Rectangle, dragged (60,60)-(70,68) mm: Shapes tab line Zigzag Stitch (tool default) -> Not Sewn (Line) (the list opens scrolled; scroll up, hover, click), region Fill Stitch (default), Color pane Region 800 RED -> 007 EMBROIDERY PRUSSIAN BLUE: 10,00 x 8,00 mm, 197 st. Sewing order: 1 the S (red satin), 2 the rectangle (blue fill). Save As machine/sample-basic.pes (#PES0110). App menu > Export... (\"Export to File\"): Save as type list in this order: Tajima (*.DST), Melco (*.EXP), Pfaff (*.PCS), Husqvarna/Viking (*.HUS), Husqvarna/Viking (*.VIP), Husqvarna/Viking (*.SHV), Janome (*.JEF), Janome (*.SEW), Singer (*.CSD), Singer (*.XXX). No PHC, PHX, PEN, PEC or DST options of any kind: Export offers nothing beyond this list and Save As offers only PES versions; no options dialog, no warning for any format; the typed extension is replaced by the type's own, upper case. Exported every type as sample-basic.<EXT>; the dialog's type list only takes mouse clicks (keyboard refused by the harness). This file: App menu > Export..., type Husqvarna/Viking (*.SHV), no options dialog, no warning.",
+      "sha256": "508c945b5a4e9047da8cda1fd69240a6add83cd9183d1460bffdb3ba0c9dc727",
+      "notes": "Written by PE as sample-basic.SHV. Kept since 2026-10-29 as crates/openstitch-formats/tests/fixtures/pe11/sample-basic.shv (same bytes); added here for the CSD and SHV writers (#320)."
+    },
+    {
       "file": "machine/sew-a-moved10.pes",
       "spec": "machine-formats",
       "reference": "pe-design",

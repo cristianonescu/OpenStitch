@@ -8,26 +8,16 @@ use openstitch_compat::report::{CheckStatus, Status, status_markdown, summary_ma
 use openstitch_compat::runner::{Config, run, run_with_matrix};
 use openstitch_compat::sha256;
 use openstitch_compat::{Report, Tier};
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
-fn temp_root(tag: &str) -> PathBuf {
-    static N: AtomicUsize = AtomicUsize::new(0);
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-compat-{tag}-{}-{}",
-        std::process::id(),
-        N.fetch_add(1, Ordering::Relaxed)
-    ));
-    let _ = std::fs::remove_dir_all(&dir);
-    for sub in ["specs", "reference", "machine", "work"] {
-        std::fs::create_dir_all(dir.join(sub)).expect("temp dir");
-    }
-    dir.canonicalize().expect("canonical")
+fn temp_root(tag: &str) -> TempDir {
+    TempDir::canonical(&format!("compat-{tag}"))
 }
 
 fn config(root: &Path) -> Config {

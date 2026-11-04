@@ -3,20 +3,11 @@
 
 use openstitch_digitize::Raster;
 use openstitch_engine::Session;
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
-use std::path::PathBuf;
 
-fn temp_dir() -> PathBuf {
-    let n = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-digitize-{n}-{:?}",
-        std::thread::current().id()
-    ));
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir() -> TempDir {
+    TempDir::new("digitize")
 }
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
@@ -114,7 +105,12 @@ fn conversions_add_objects_in_one_undo_step() {
                 s.design().objects.iter().find(|o| o.id == id)
             })
             .filter_map(|o| o.stitch_block.as_ref())
-            .flat_map(|b| b.stitches.iter().map(|p| (p.x, p.y)))
+            // Without the runs' tie-ins and locks (1 mm steps along a diagonal).
+            .flat_map(|b| {
+                openstitch_design::stitch_edit::unlocked(&b.stitches)
+                    .into_iter()
+                    .map(|p| (p.x, p.y))
+            })
             .collect();
         let (x0, y0) = pts[0];
         pts.iter().all(|&(x, y)| {

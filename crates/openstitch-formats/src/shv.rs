@@ -9,13 +9,33 @@
 //! moves and starts jump mode (later short records are jumps), `80 02` ends jump mode, `80 03`
 //! is skipped. A colour block ends after its word count; there is no explicit colour change.
 //!
-//! Follows pyembroidery 1.5.1's `ShvReader` (MIT), the oracle. Neither pyembroidery nor
-//! libembroidery has a working SHV writer, and the meaning of the unknown header bytes is not
-//! published, so OpenStitch does not write SHV.
+//! Follows pyembroidery 1.5.1's `ShvReader` (MIT), the oracle.
+//!
+//! The writer ([`write`], issue #320) lays the file out as PE-DESIGN 11.50's export of
+//! `sample-basic` does: the header text, the design name, the preview size `w`, `h` and
+//! `w / 2, h / 2` twice, the preview, the colour count, the six bytes `C4 28 00 30 00 00` (not
+//! described anywhere; copied), the needle points' bounds as i16 right, bottom, left, top, the
+//! total word count (u32), then per colour block its word count, its nearest SHV chart entry,
+//! five zero bytes and the block's start point (i16 x, y). A frame move is `80 01 dx dy 80 02`
+//! to the point at its end; a stitch on that point has no record of its own (as PE writes
+//! it); a stitch over 12.7 mm is such a jump for the axes over the limit plus one stitch. The
+//! preview is 4 bits a pixel, column by column (x), each column bottom to top, one pixel a
+//! millimetre with a one-pixel margin (`w` = width in whole millimetres + 2): PE's size fields
+//! are matched, its pixels only approximately (PE's own drawing rule is not known). A pixel
+//! holds the block's chart entry modulo 15 (15 for 0), which gives PE's 11 and 3 for its
+//! 800 RED (entry 41) and Prussian Blue (entry 33); other entries are not yet checked.
+//! Neither pyembroidery nor libembroidery has a working SHV writer.
 
 use crate::io::{ByteReader, signed8};
+use crate::layout::{self, Event};
 use crate::{FormatError, Result};
-use openstitch_core::{Command, SHV_CHART, Stitch, StitchPattern, Thread};
+use openstitch_core::{Command, SHV_CHART, Stitch, StitchPattern, Thread, nearest_index};
+
+/// The text every SHV file starts with (0x56 bytes).
+pub const HEADER_TEXT: &[u8; 0x56] =
+    b"Embroidery disk created using software licensed from Viking Sewing Machines AB, Sweden";
+/// The largest stitch record step (12.7 mm).
+pub const MAX_DELTA: i64 = 127;
 
 pub fn read(data: &[u8]) -> Result<StitchPattern> {
     let mut reader = ByteReader::new(data);
@@ -107,4 +127,167 @@ pub fn read(data: &[u8]) -> Result<StitchPattern> {
     }
     pattern.stitches.push(Stitch::new(x, y, Command::End));
     Ok(pattern)
+}
+
+/// The SHV chart entry for a thread.
+fn chart_code(t: &Thread) -> u8 {
+    nearest_index(t, &SHV_CHART).unwrap_or(0) as u8
+}
+
+/// Draws a line of `value` pixels from `a` to `b` (Bresenham) into a column-major preview of
+/// `w` columns of `h` pixels, each column stored bottom to top.
+fn draw(pixels: &mut [u8], (w, h): (i64, i64), a: (i64, i64), b: (i64, i64), value: u8) {
+    let (mut x, mut y) = a;
+    let (dx, dy) = ((b.0 - x).abs(), -(b.1 - y).abs());
+    let (sx, sy) = ((b.0 - x).signum(), (b.1 - y).signum());
+    let mut err = dx + dy;
+    loop {
+        if (0..w).contains(&x) && (0..h).contains(&y) {
+            pixels[(x * h + (h - 1 - y)) as usize] = value;
+        }
+        if (x, y) == b {
+            break;
+        }
+        let e2 = 2 * err;
+        if e2 >= dy {
+            err += dy;
+            x += sx;
+        }
+        if e2 <= dx {
+            err += dx;
+            y += sy;
+        }
+    }
+}
+
+/// One colour block being written: its records, its start point and its needle points.
+#[derive(Default)]
+struct Block {
+    records: Vec<u8>,
+    start: (i64, i64),
+    points: Vec<(i64, i64)>,
+}
+
+impl Block {
+    fn jump(&mut self, dx: i64, dy: i64) {
+        self.records.extend_from_slice(&[0x80, 0x01]);
+        self.records.extend_from_slice(&(dx as i16).to_be_bytes());
+        self.records.extend_from_slice(&(dy as i16).to_be_bytes());
+        self.records.extend_from_slice(&[0x80, 0x02]);
+    }
+
+    fn words(&self) -> u32 {
+        (self.records.len() / 2) as u32
+    }
+}
+
+/// Writes a Husqvarna Viking SHV as PE-DESIGN 11.50 exports it (see the module notes).
+pub fn write(input: &StitchPattern) -> Result<Vec<u8>> {
+    let palette = crate::repeating_stops_palette(input);
+    let events = layout::events(input);
+
+    let mut blocks = vec![Block::default()];
+    let (mut x, mut y) = (0_i64, 0_i64);
+    let mut i = 0;
+    while i < events.len() {
+        let block = blocks.last_mut().expect("a block");
+        match events[i] {
+            Event::Move { x: tx, y: ty, .. } => {
+                // The jump's landing is a needle point: a stitch there has no record of its own.
+                if layout::next_stitch(&events, i) == Some((tx, ty)) {
+                    i += 1;
+                }
+                block.jump(tx - x, ty - y);
+                (x, y) = (tx, ty);
+                block.points.push((x, y));
+            }
+            Event::Stitch { x: tx, y: ty } => {
+                let pieces = layout::split_overflow(tx - x, ty - y, MAX_DELTA);
+                let (last, head) = pieces.split_last().expect("at least one piece");
+                if !head.is_empty() {
+                    let (hx, hy) = head.iter().fold((0, 0), |a, p| (a.0 + p.0, a.1 + p.1));
+                    block.jump(hx, hy);
+                }
+                block
+                    .records
+                    .extend_from_slice(&[last.0 as i8 as u8, last.1 as i8 as u8]);
+                (x, y) = (tx, ty);
+                block.points.push((x, y));
+            }
+            Event::ColorChange | Event::Stop => blocks.push(Block {
+                start: (x, y),
+                ..Block::default()
+            }),
+            Event::End => break,
+        }
+        i += 1;
+    }
+    let n = blocks.len();
+    if n > 255 {
+        return Err(FormatError::ValueOutOfRange(format!(
+            "SHV holds at most 255 colour blocks, the design has {n}"
+        )));
+    }
+    let codes: Vec<u8> = (0..n)
+        .map(|b| palette.get(b).or(palette.last()).map_or(0, chart_code))
+        .collect();
+
+    // The needle points' bounds (the stream is centred on them).
+    let (min_x, min_y, max_x, max_y) = blocks
+        .iter()
+        .flat_map(|b| b.points.iter().copied())
+        .fold(None, |b: Option<(i64, i64, i64, i64)>, (px, py)| {
+            Some(b.map_or((px, py, px, py), |b| {
+                (b.0.min(px), b.1.min(py), b.2.max(px), b.3.max(py))
+            }))
+        })
+        .unwrap_or((0, 0, 0, 0));
+    // One pixel a millimetre plus a margin, coarser for a design over 253 mm.
+    let unit = 10 * (1 + (max_x - min_x).max(max_y - min_y) / 2530);
+    let (w, h) = ((max_x - min_x) / unit + 2, (max_y - min_y) / unit + 2);
+    let mut pixels = vec![0_u8; (w * h) as usize];
+    let pixel = |(px, py): (i64, i64)| ((px - min_x + unit) / unit, (py - min_y) / unit);
+    let mut previous: Option<(i64, i64)> = None;
+    for (block, code) in blocks.iter().zip(&codes) {
+        let value = match code % 15 {
+            0 => 15,
+            v => v,
+        };
+        for &p in &block.points {
+            let q = pixel(p);
+            draw(&mut pixels, (w, h), previous.unwrap_or(q), q, value);
+            previous = Some(q);
+        }
+    }
+
+    let name = input.name().unwrap_or("").as_bytes();
+    let name = &name[..name.len().min(255)];
+    let mut out = HEADER_TEXT.to_vec();
+    out.push(name.len() as u8);
+    out.extend_from_slice(name);
+    let (half_w, half_h) = ((w / 2) as u8, (h / 2) as u8);
+    out.extend_from_slice(&[w as u8, h as u8, half_w, half_h, half_w, half_h]);
+    for column in pixels.chunks(h as usize) {
+        for pair in column.chunks(2) {
+            out.push(pair[0] << 4 | pair.get(1).copied().unwrap_or(0));
+        }
+    }
+    out.push(n as u8);
+    out.extend_from_slice(&[0xC4, 0x28, 0x00, 0x30, 0x00, 0x00]);
+    for v in [max_x, max_y, min_x, min_y] {
+        out.extend_from_slice(&(v as i16).to_be_bytes());
+    }
+    let total: u32 = blocks.iter().map(Block::words).sum();
+    out.extend_from_slice(&total.to_be_bytes());
+    for (block, &code) in blocks.iter().zip(&codes) {
+        out.extend_from_slice(&block.words().to_be_bytes());
+        out.push(code);
+        out.extend_from_slice(&[0; 5]);
+        out.extend_from_slice(&(block.start.0 as i16).to_be_bytes());
+        out.extend_from_slice(&(block.start.1 as i16).to_be_bytes());
+    }
+    for block in &blocks {
+        out.extend_from_slice(&block.records);
+    }
+    Ok(out)
 }

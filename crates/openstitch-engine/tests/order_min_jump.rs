@@ -232,8 +232,7 @@ fn min_jump_links_across_colour_changes_pe_design_does_not() {
 
 #[test]
 fn the_design_setting_is_saved_used_by_default_and_validated() {
-    let dir = std::env::temp_dir().join(format!("os-min-jump-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).expect("dir");
+    let dir = openstitch_testutil::TempDir::new("os-min-jump");
     let mut s = Session::new(&dir);
     squares(&mut s, &ZIGZAG);
     assert_eq!(

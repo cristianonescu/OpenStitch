@@ -286,10 +286,7 @@ mod tests {
 
     #[test]
     fn settings_file_is_loaded_and_written() {
-        let dir = std::env::temp_dir().join(format!(
-            "openstitch-app-user-{:?}",
-            std::thread::current().id()
-        ));
+        let dir = openstitch_testutil::TempDir::new("app-user");
         let file = dir.join("user.json");
         let _ = std::fs::remove_file(&file);
         let mut app = EditorApp::new(Launch {

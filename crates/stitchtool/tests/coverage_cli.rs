@@ -1,18 +1,13 @@
 //! Coverage for `stitchtool commands`, `exec` and `serve` through the binary (#318).
 
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Output, Stdio};
 
-fn temp_dir(tag: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-stitchtool-{tag}-{}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir(tag: &str) -> TempDir {
+    TempDir::new(&format!("stitchtool-{tag}"))
 }
 
 fn stitchtool(dir: &Path, args: &[&str]) -> Output {

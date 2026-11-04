@@ -1989,8 +1989,8 @@ mod tests {
     #[test]
     fn an_attached_picture_becomes_an_auto_punch_design_in_one_turn() {
         let (mut app, transport) = app_with(Vec::new());
-        let src =
-            std::env::temp_dir().join(format!("openstitch-a4-disc-{}.png", std::process::id()));
+        let tmp = openstitch_testutil::TempDir::new("a4-disc");
+        let src = tmp.join("openstitch-a4-disc.png");
         disc_png(&src);
         attach_files(&mut app, vec![src.clone()]);
         let _ = std::fs::remove_file(&src);
@@ -2091,8 +2091,7 @@ mod tests {
     #[test]
     fn at_most_eight_files_go_with_a_message() {
         let (mut app, _) = app_with(Vec::new());
-        let dir = std::env::temp_dir().join(format!("openstitch-a4-many-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("dir");
+        let dir = openstitch_testutil::TempDir::new("a4-many");
         let files: Vec<_> = (0..9)
             .map(|i| {
                 let p = dir.join(format!("n{i}.txt"));

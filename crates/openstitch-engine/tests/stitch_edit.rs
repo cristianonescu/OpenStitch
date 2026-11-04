@@ -140,7 +140,8 @@ fn split_connect_and_divide() {
         threads: [a.threads, b.threads].concat(),
     });
     d.objects.truncate(1);
-    let path = std::env::temp_dir().join(format!("stitch-edit-{}.osd", std::process::id()));
+    let path_tmp = openstitch_testutil::TempDir::new("stitch-edit");
+    let path = path_tmp.join("stitch-edit.osd");
     std::fs::write(
         &path,
         openstitch_engine::project::encode(&d).expect("encode"),

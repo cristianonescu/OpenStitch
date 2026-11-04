@@ -10,21 +10,14 @@ use openstitch_assistant::{
     AcpConfig, AcpConversation, AcpError, AgentState, AuthMethod, BRIDGE_NAME, Event, McpServer,
     StopKind, claude_disallowed_tools, discover_in,
 };
+use openstitch_testutil::TempDir;
 use serde_json::Value;
 
 const FAKE: &str = env!("CARGO_BIN_EXE_openstitch-acp-fake-agent");
 
 /// A fresh empty folder under the system temp folder.
-fn temp_dir(tag: &str) -> PathBuf {
-    static N: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-acp-{tag}-{}-{}",
-        std::process::id(),
-        N.fetch_add(1, Ordering::SeqCst)
-    ));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir(tag: &str) -> TempDir {
+    TempDir::new(&format!("acp-{tag}"))
 }
 
 fn config(scenario: &str, dir: &Path) -> AcpConfig {
@@ -370,7 +363,7 @@ fn discovery_reports_ready_missing_and_broken_agents() {
     std::fs::write(home.join(".claude/.credentials.json"), "{}").expect("write");
     script(&dir, "claude-agent-acp", "echo 2.1.0");
     script(&dir, "codex-acp", "exit 1");
-    let found = discover_in(std::slice::from_ref(&dir), Some(&home));
+    let found = discover_in(&[dir.to_path_buf()], Some(&home));
     assert_eq!(found.len(), openstitch_assistant::KNOWN_AGENTS.len());
     assert_eq!(
         state_of(&found, "claude"),

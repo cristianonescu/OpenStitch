@@ -13,6 +13,36 @@ Before a release:
 - CI on `main` is green on macOS, Windows and Linux, and every compatibility spec passes.
 - The README is refreshed (below) and the release notes are honest about known differences.
 
+## Merging pull requests
+
+A pull request merges (squash) once its CI run for the current head commit is green on all
+three operating systems. Scripts and agents that merge on green have to handle these cases:
+
+- **Cancelled is not failed.** A new push to a pull request cancels that PR's run still in
+  progress (the `concurrency` group in `rust.yml`). Until the new run finishes, `gh pr checks`
+  lists the cancelled jobs as `fail`. Read the latest run of each workflow for the PR's head
+  commit instead, and treat `cancelled` as still pending:
+
+  ```bash
+  gh run list --repo cristianonescu/OpenStitch --branch <head-branch> --workflow rust.yml --limit 1 --json headSha,status,conclusion,url
+  ```
+
+  Merge only when `headSha` is the PR's current head (`gh pr view <n> --json headRefOid`),
+  `status` is `completed` and `conclusion` is `success`. `cancelled` with an older `headSha`
+  means a newer run replaces it; wait for that one.
+- **No run started.** GitHub starts no `pull_request` run while a PR conflicts with `main`, and
+  marking a draft ready for review does not trigger one. After every push, check within a minute
+  that a run for the new head exists. If none does, merge `main` in (for a conflict) or close and
+  reopen the PR.
+- **GitHub 5xx.** `gh` calls fail now and then with HTTP 502 or 503. Retry them after a short
+  wait (for example three times, 10 s apart) and treat the result as unknown, not as a failure.
+  `gh pr merge` can fail with a 502, or return, before the merge is done: read
+  `gh pr view <n> --json state` and wait for `MERGED` before doing anything else.
+- **Merge stuck.** If a PR reports "Merge already in progress" for more than about 5 minutes,
+  close and reopen it, then merge again.
+- **Deleting branches.** Deleting a branch closes every open PR based on it. Delete a PR's head
+  branch only after its state is `MERGED`, and retarget PRs based on that branch to `main` first.
+
 ## README refresh
 
 The README states what OpenStitch does, what it lacks, its known issues and what is planned,

@@ -8,10 +8,15 @@
 The metric is the one agreed for the image-similarity plan
 (docs/research/beyond/image-similarity-plan.md, section 2):
 
-1. **Render.** The design's stitches are drawn in sewing order as 0.4 mm thread on white fabric
-   at 20 px/mm. `--render flat` (default until the sew-out calibration) draws each stitch in its
-   thread colour; `--render realistic` adds the editor's realistic-view shading (an edge at
-   0.55 x the colour and a highlight lifted 45 % towards white on the middle 60 % of a stitch).
+1. **Render.** The design's stitches are drawn in sewing order on white fabric at 20 px/mm.
+   `--render calibrated` (the default since the T1 sew-outs, #291) draws each stitch in its thread
+   colour as wide as sewn thread covers at the local row density: one layer of rows `r` per mm
+   hides tanh(0.4 r) of the fabric (the T1 cards' coverage ramp, Brother NV880E, 40 wt thread:
+   16-20 % at 0.5 rows/mm, 66-68 % at 2, 96 % at 4.5; examples/sew/calibration/results), so a
+   stitch is tanh(0.4 r) / r mm wide (0.4 mm where rows are sparse, 0.21 mm at 4.5 rows/mm).
+   `--render flat` draws every stitch 0.4 mm wide; `--render realistic` adds the editor's
+   realistic-view shading (an edge at 0.55 x the colour and a highlight lifted 45 % towards white
+   on the middle 60 % of a stitch).
 2. **Viewing.** The source (composited on white) and the render are area-averaged in linear
    light to 6 px/mm (about 150 dpi, the design at actual size), long side 100 mm.
 3. **Eye model.** S-CIELAB (Zhang and Wandell 1996): opponent channels filtered by the eye's
@@ -83,16 +88,65 @@ def shades(rgb, realistic):
     return edge, body, light
 
 
-def render(segments, w_mm, h_mm, realistic=False, fabric=(255, 255, 255)):
+# The T1 calibration (#291): one layer of rows r per mm covers tanh(COVER_K * r) of the fabric.
+COVER_K = 0.4
+DENSITY_CELL_MM = 1.0
+DENSITY_SIGMA_MM = 1.5
+
+
+def covered_width(r):
+    """Width (mm) a stitch is drawn so rows r per mm cover tanh(COVER_K r) of the fabric."""
+    r = np.maximum(np.asarray(r, float), 1e-6)
+    return np.minimum(THREAD_MM, np.tanh(COVER_K * r) / r)
+
+
+def row_density(segments, w_mm, h_mm):
+    """Per thread colour, a function giving the local rows per mm at a point: thread length per
+    mm2 on a 1 mm grid, smoothed over about 3 mm (parallel rows r per mm lay r mm of thread per
+    mm2)."""
+    nx, ny = int(w_mm / DENSITY_CELL_MM) + 2, int(h_mm / DENSITY_CELL_MM) + 2
+    grids = {}
+    for rgb, pts in segments:
+        g = grids.setdefault(rgb, np.zeros((ny, nx)))
+        for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+            L = ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** 0.5
+            n = max(1, int(L / DENSITY_CELL_MM))
+            for k in range(n):
+                f = (k + 0.5) / n
+                i = min(ny - 1, max(0, int((y0 + (y1 - y0) * f) / DENSITY_CELL_MM)))
+                j = min(nx - 1, max(0, int((x0 + (x1 - x0) * f) / DENSITY_CELL_MM)))
+                g[i, j] += L / n
+    out = {}
+    for rgb, g in grids.items():
+        sm = gaussian_filter(g, DENSITY_SIGMA_MM / DENSITY_CELL_MM) / DENSITY_CELL_MM ** 2
+
+        def at(x, y, sm=sm):
+            i = min(sm.shape[0] - 1, max(0, int(y / DENSITY_CELL_MM)))
+            j = min(sm.shape[1] - 1, max(0, int(x / DENSITY_CELL_MM)))
+            return sm[i, j]
+        out[rgb] = at
+    return out
+
+
+def render(segments, w_mm, h_mm, realistic=False, fabric=(255, 255, 255), calibrated=False):
     """segments: (thread rgb, [(x_mm, y_mm), ...]) polylines in sewing order."""
     W, H = int(round(w_mm * RES)), int(round(h_mm * RES))
     im = Image.new("RGB", (W, H), fabric)
     d = ImageDraw.Draw(im)
-    w = THREAD_MM * RES
+    density = row_density(segments, w_mm, h_mm) if calibrated else {}
+    k = 0
     for rgb, pts in segments:
         edge, body, light = shades(rgb, realistic)
+        at = density.get(rgb)
         P = [(x * RES, y * RES) for x, y in pts]
-        for a, b in zip(P, P[1:]):
+        for (a, b), (pa, pb) in zip(zip(P, P[1:]), zip(pts, pts[1:])):
+            w = THREAD_MM * RES
+            if at is not None:
+                w = float(covered_width(at((pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2))) * RES
+                # Whole pixels only: the next width up for the right share of stitches
+                # (a golden-ratio sequence), so the width averages out at the viewing scale.
+                k += 1
+                w = int(w) + (1 if (k * 0.6180339887) % 1.0 < w - int(w) else 0)
             d.line([a, b], fill=edge, width=max(1, round(w)))
             d.line([a, b], fill=body, width=max(1, round(w * 0.7)))
             dx, dy = b[0] - a[0], b[1] - a[1]
@@ -303,7 +357,7 @@ def sewability(runs, stats, w_mm, h_mm):
     }
 
 
-def run_case(tool, image, command, params, realistic, with_dists):
+def run_case(tool, image, command, params, realistic, with_dists, calibrated=True):
     w, h = Image.open(ie.IMAGES / image).size
     mm_per_px = ie.LONG_SIDE_MM / max(w, h)
     W, H = w * mm_per_px, h * mm_per_px
@@ -317,7 +371,7 @@ def run_case(tool, image, command, params, realistic, with_dists):
         if "no shape or text objects" not in str(e):
             raise
     runs = stitch_runs(tool)
-    out = render(runs, W, H, realistic)
+    out = render(runs, W, H, realistic, calibrated=calibrated)
     src = Image.fromarray(ie.source_rgb(ie.IMAGES / image))
     r = score(src, out, W, H, with_dists)
     r.update(sewability(runs, stats, W, H))
@@ -328,7 +382,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--only", help="comma-separated case ids")
     ap.add_argument("--mode", choices=["pe", "openstitch", "both"], default="both")
-    ap.add_argument("--render", choices=["flat", "realistic"], default="flat")
+    ap.add_argument("--render", choices=["calibrated", "flat", "realistic"], default="calibrated")
     ap.add_argument("--set", action="append", default=[], metavar="NAME=JSON",
                     help="extra digitize parameter for every case")
     ap.add_argument("--no-dists", action="store_true", help="skip DISTS (no PyTorch needed)")
@@ -368,7 +422,7 @@ def main():
                     p["compatMode"] = MODES[m]
                 try:
                     r, out = run_case(tool, image, command, p, a.render == "realistic",
-                                      with_dists)
+                                      with_dists, calibrated=a.render == "calibrated")
                 except RuntimeError as e:
                     print(f"{k:9} {m:10} failed: {e}", flush=True)
                     continue

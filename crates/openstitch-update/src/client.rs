@@ -459,10 +459,11 @@ mod tests {
         Client::new(&s.base, &format!("{}/download/", s.base), false, "test")
     }
 
-    fn temp(name: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("openstitch-update-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("temp dir");
-        dir.join(name)
+    /// A path named `name` in a fresh folder, and the guard that removes the folder.
+    fn temp(name: &str) -> (openstitch_testutil::TempDir, std::path::PathBuf) {
+        let dir = openstitch_testutil::TempDir::new("update");
+        let path = dir.join(name);
+        (dir, path)
     }
 
     #[test]
@@ -515,7 +516,7 @@ mod tests {
         s.route("/download/v1/asset.zip", 200, payload.clone());
         s.redirect("/download/v1/moved.zip", "/download/v1/asset.zip");
         let c = client(&s);
-        let dest = temp("asset.zip");
+        let (_tmp_dest, dest) = temp("asset.zip");
         let _ = std::fs::remove_file(&dest);
         let cancel = AtomicBool::new(false);
         let mut seen = Vec::new();
@@ -537,7 +538,7 @@ mod tests {
             Some(&(payload.len() as u64, Some(payload.len() as u64)))
         );
         assert!(!part_path(&dest).exists());
-        let via = temp("moved.zip");
+        let (_tmp_via, via) = temp("moved.zip");
         c.download(
             &s.url("/download/v1/moved.zip"),
             &via,
@@ -561,7 +562,7 @@ mod tests {
         s.redirect("/download/v1/escape.zip", &s.url("/other/a.zip"));
         let c = client(&s);
         let cancel = AtomicBool::new(false);
-        let dest = temp("fail.zip");
+        let (_tmp_dest, dest) = temp("fail.zip");
         let _ = std::fs::remove_file(&dest);
         let mut noop = |_: u64, _: Option<u64>| {};
         let wrong = Sha256::of(b"something else");

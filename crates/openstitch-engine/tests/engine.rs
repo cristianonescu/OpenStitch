@@ -1,19 +1,11 @@
 use openstitch_design::{ObjectKind, v2};
 use openstitch_engine::{CommandError, Session, project};
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
 use std::path::PathBuf;
 
-fn temp_dir() -> PathBuf {
-    let n = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-engine-{n}-{:?}",
-        std::thread::current().id()
-    ));
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir() -> TempDir {
+    TempDir::new("engine")
 }
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
@@ -23,7 +15,8 @@ fn run(s: &mut Session, id: &str, params: Value) -> Value {
 
 #[test]
 fn undo_redo_one_step_per_command() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(
         &mut s,
         "shape.rectangle",
@@ -42,7 +35,8 @@ fn undo_redo_one_step_per_command() {
 
 #[test]
 fn read_commands_make_no_history() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(&mut s, "design.info", json!({}));
     run(&mut s, "object.list", json!({}));
     assert!(!s.can_undo());
@@ -50,7 +44,8 @@ fn read_commands_make_no_history() {
 
 #[test]
 fn transforms_use_selection_centre() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(
         &mut s,
         "shape.rectangle",
@@ -80,7 +75,8 @@ fn transforms_use_selection_centre() {
 
 #[test]
 fn shapes_and_attributes() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(
         &mut s,
         "shape.rectangle",
@@ -179,7 +175,8 @@ fn malformed_projects_rejected() {
 
 #[test]
 fn bad_parameters_fail_cleanly() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(
         &mut s,
         "shape.rectangle",
@@ -242,9 +239,10 @@ fn bad_parameters_fail_cleanly() {
         ("object.flip", json!({"id": 1, "axis": "diagonal"})),
         ("object.reorder", json!({"id": 1, "index": 7})),
         ("design.export", json!({"path": "x.pes", "pesVersion": "7"})),
-        ("design.export", json!({"path": "x.shv"})),
+        ("design.export", json!({"path": "x.phc"})),
         ("design.export", json!({"path": "x.pes", "split": "yes"})),
         ("import.svg", json!({})),
+        ("import.metafile", json!({})),
         ("background.set", json!({"opacity": 0.5})),
         ("background.clear", json!({})),
         ("object.setHoleSewing", json!({"id": 1, "enabled": "yes"})),
@@ -415,7 +413,8 @@ fn sandbox_blocks_escapes() {
 
 #[test]
 fn control_reply_shape() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     assert_eq!(
         s.handle(&json!({"id": 7, "command": "design.info"}))["ok"],
         json!(true)
@@ -433,7 +432,8 @@ fn control_reply_shape() {
 
 #[test]
 fn commands_documented_and_unique() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     let list = run(&mut s, "commands.list", json!({}));
     let ids: Vec<&str> = list
         .as_array()
@@ -475,7 +475,9 @@ fn commands_documented_and_unique() {
 /// its stitches at the design's top-left corner in a frame of the design's size (80 × 60 mm, the
 /// first jump and the preview icons' pixels): the NV880E cut a design off by its page margin when
 /// the stitches kept their page position, and refused PE-DESIGN's 290 × 190 mm frame as too large
-/// for its largest hoop. The same design
+/// for its largest hoop. Re-recorded on 2026-11-04 when every run before a trim got PE-DESIGN's end
+/// lock (#289): the badge's last run ends in an unlocked 20 mm stitch, now locked twice (4
+/// stitches more). The same design
 /// exported as `1t`
 /// must keep writing the identical bytes; the
 /// script's default export is now version 6 with objects and sews the same stitches.
@@ -570,17 +572,18 @@ fn import_export_round_trip_and_bad_files() {
     );
     // Read-only formats are refused before anything is written.
     let err = s
-        .execute("design.export", Some(&json!({"path": "x.shv"})))
+        .execute("design.export", Some(&json!({"path": "x.phc"})))
         .expect_err("read only");
     assert!(err.to_string().contains("read only"), "{err}");
-    assert!(!dir.join("x.shv").exists());
+    assert!(!dir.join("x.phc").exists());
 }
 
 #[test]
 fn read_roots_are_read_only_write_roots_read_write() {
     use openstitch_engine::{Access, Sandbox};
     let work = temp_dir();
-    let library = temp_dir().join("library");
+    let library_tmp = temp_dir();
+    let library = library_tmp.join("library");
     std::fs::create_dir_all(&library).expect("library");
     let mut s = Session::with_sandbox(Sandbox::new(&[&library], &[&work]).expect("sandbox"));
     run(
@@ -644,7 +647,8 @@ fn sandbox_without_roots_refuses_files() {
             .is_err_and(|e| e.0.contains("no read root"))
     );
     // Missing roots are refused at construction; `sandboxed` fails closed.
-    let missing = temp_dir().join("missing");
+    let missing_tmp = temp_dir();
+    let missing = missing_tmp.join("missing");
     assert!(Sandbox::new::<PathBuf, _>(&[], &[&missing]).is_err());
     let mut closed = Session::sandboxed(&missing);
     assert!(
@@ -659,7 +663,8 @@ fn sandbox_without_roots_refuses_files() {
 fn sandbox_resolves_symlinked_roots_and_dangling_links() {
     use openstitch_engine::{Access, Sandbox};
     let real = temp_dir();
-    let alias = temp_dir().join("alias");
+    let alias_tmp = temp_dir();
+    let alias = alias_tmp.join("alias");
     std::os::unix::fs::symlink(&real, &alias).expect("symlink");
     let outside = temp_dir();
     std::os::unix::fs::symlink(outside.join("target.osd"), real.join("dangling.osd"))
@@ -678,7 +683,8 @@ fn sandbox_resolves_symlinked_roots_and_dangling_links() {
 
 #[test]
 fn scale_and_rotate_about_explicit_origin() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(
         &mut s,
         "shape.rectangle",
@@ -778,7 +784,8 @@ fn path_with_curves_and_point_editing() {
 
 #[test]
 fn path_and_point_commands_reject_bad_input() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(
         &mut s,
         "shape.rectangle",

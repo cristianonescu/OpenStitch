@@ -1926,7 +1926,9 @@ Line references are relative to `crates/`.
   stitches on both sides (`dropRepeats`) and the report lists how many per side (section
   "Zero-length stitches left out by `dropRepeats`" of the summary, `droppedRepeats` in
   report.json). For this spec, PE / OpenStitch: DST 4 / 2, EXP 4 / 2, PCS 5 / 3, HUS 6 / 4,
-  VIP 0 / 0, JEF 0 / 0, SEW 1 / 1, XXX 2 / 2 (PCS and HUS were 5 / 1 and 6 / 2 before their
+  VIP 0 / 0, JEF 0 / 0, SEW 1 / 1, XXX 2 / 2, SHV 0 / 0, CSD 0 / 0 (SHV and CSD since
+  2026-11-04, #320: OpenStitch now writes both, and PE's CSD read and written again comes out
+  byte for byte, PE's SHV likewise but for the preview's pixels; PCS and HUS were 5 / 1 and 6 / 2 before their
   writers wrote the landing twice, 2026-10-30). Every repeat OpenStitch writes is at a point where
   PE writes one too (the jump landings, SEW's and XXX's entry points); none is OpenStitch's
   alone. The ones only PE writes:
@@ -1996,6 +1998,12 @@ Line references are relative to `crates/`.
   PES 0110 writer takes the codes of all 61 entries from core (its own table had 25) and picks
   the PEC index among 1–61. Hex colours given to commands (`fill: "#rrggbb"`) stay exact on
   purpose: PE-DESIGN has no free-RGB colour field to match, and exact RGB is what PES v6 keeps.
+- **WMF/EMF import (2026-11-04, #321):** `import.metafile` reads both metafile kinds as
+  editable shapes like `import.svg` (colours snapped to the chart). `compat/reference` holds
+  no PE-DESIGN capture of a WMF or EMF import, so PE's line/region choice and sizing for
+  metafiles are not compared: OpenStitch keeps the file's own physical size. A capture
+  (placeable WMF and EMF of a known size, imported in PE-DESIGN 11.50 and saved as PES) would
+  make it a reference spec.
 - **Imported stitch files are centred on the page (2026-10-31, reference):** PE-DESIGN 11.50's
   Import Patterns ▸ from File (the Import pane; no dialog or option) ignores where the file put
   its stitches and centres the pattern on the Design Page: a 20 × 10 mm rectangle saved at
@@ -2164,9 +2172,31 @@ Line references are relative to `crates/`.
   6 stitches under 0.5 mm into stitches at least 0.5 mm long (beyond PE-DESIGN; drawn fills
   unchanged, compat unchanged).
 - **Open:** Auto Punch on the storybook picture stacks 29 (OpenStitch mode) and 23 (PE-DESIGN-
-  compatible) needle drops where satin columns meet, against at most 19 in PE-DESIGN's own files;
-  satin lettering ends a stroke with up to 9 stitches under 0.3 mm (PE-DESIGN's text: 5).
-  `tools/sew_check.py` reports both.
+  compatible) needle drops where satin columns meet, against at most 19 in PE-DESIGN's own files
+  (#290). `tools/sew_check.py` reports it.
+
+### Sew-out findings, 2026-11-04 (round 2, NV880E, white and pink cotton)
+
+- **Locks (fixed, #289, #295):** the sunset photo patch came off the machine covered in loose
+  thread tails. Its 296 runs had no tie-in or end lock, nor had Photo Stitch 2, Cross Stitch or
+  the runs inside an object the compiler separates with a trim, while PE-DESIGN's 442 reference
+  files lock all but one of their 2,590 trimmed runs, image tools included (21 of 21). The
+  compiler now ties in and locks every run it trims after (PE-DESIGN's 0.3 mm steps), and the
+  image tools lock their own runs.
+- **Zigzag net (fixed, #293):** it sewed lumpy. The honeycomb's rows share every horizontal edge,
+  so those were sewn twice, and the zigzag fanned at corners and past the outline. It now sews
+  each edge once, as PE-DESIGN's band (3 mm, rungs 0.44 mm apart, nets 8 mm apart).
+- **T1 card (fixed, #297):** the kit gave the "T1" mark a swatch's fill settings, and every
+  later swatch the next one's, so the mark sewed as fill and four threads' swatches were
+  mislabelled (the published results are corrected). OpenStitch's 6 mm satin lettering is a
+  proper zigzag; the earlier note on its stroke ends came from this.
+- **Kit layout (fixed, #296):** the laurel frame overlapped the corners frame in
+  `shapes/decorative-frames`; the kit now checks that its frames stand apart.
+- **Open:** Photo Stitch 1 trims 49 times per 1,000 stitches where PE-DESIGN's own trims about
+  0.4 (#298).
+- **Calibration:** one layer of rows `r` per mm hides tanh(0.4 r) of the fabric, within 4 % on
+  both cards; the Realistic view and the similarity scorer now draw thread that wide
+  (`openstitch_design::calibration`, #291).
 
 ## Order of work
 

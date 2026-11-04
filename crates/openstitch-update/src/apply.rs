@@ -367,12 +367,8 @@ mod tests {
     use super::*;
     use std::io::Write;
 
-    fn temp(name: &str) -> PathBuf {
-        let dir =
-            std::env::temp_dir().join(format!("openstitch-apply-{}-{name}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).expect("temp dir");
-        dir
+    fn temp(name: &str) -> openstitch_testutil::TempDir {
+        openstitch_testutil::TempDir::new(&format!("apply-{name}"))
     }
 
     fn make_zip(path: &Path, entries: &[(&str, &[u8])]) {

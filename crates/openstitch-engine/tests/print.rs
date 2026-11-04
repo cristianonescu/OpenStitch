@@ -1,18 +1,10 @@
 use openstitch_engine::{Capabilities, Session};
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
-use std::path::PathBuf;
+use std::path::Path;
 
-fn temp_dir() -> PathBuf {
-    let n = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-print-{n}-{:?}",
-        std::thread::current().id()
-    ));
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir() -> TempDir {
+    TempDir::new("print")
 }
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
@@ -20,7 +12,7 @@ fn run(s: &mut Session, id: &str, params: Value) -> Value {
         .unwrap_or_else(|e| panic!("{id}: {e}"))
 }
 
-fn banner(dir: &PathBuf) -> Session {
+fn banner(dir: &Path) -> Session {
     let mut s = Session::new(dir);
     run(
         &mut s,

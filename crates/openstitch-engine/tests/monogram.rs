@@ -175,8 +175,7 @@ fn editing_rebuilds_the_monogram_in_place() {
     );
     assert_eq!(ids(&e2).len(), 3);
     // Round trip through .osd keeps the spec.
-    let dir = std::env::temp_dir().join(format!("openstitch-monogram-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).expect("dir");
+    let dir = openstitch_testutil::TempDir::new("monogram");
     let mut t = Session::new(&dir);
     std::fs::write(
         dir.join("m.osd"),

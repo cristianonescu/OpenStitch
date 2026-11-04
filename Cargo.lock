@@ -2809,6 +2809,7 @@ dependencies = [
  "openstitch-mcp",
  "openstitch-remote",
  "openstitch-render",
+ "openstitch-testutil",
  "openstitch-update",
  "resvg",
  "rfd",
@@ -2821,6 +2822,7 @@ name = "openstitch-assistant"
 version = "0.1.0"
 dependencies = [
  "base64",
+ "openstitch-testutil",
  "serde_json",
  "ureq",
 ]
@@ -2833,6 +2835,7 @@ dependencies = [
  "openstitch-design",
  "openstitch-engine",
  "openstitch-formats",
+ "openstitch-testutil",
  "serde",
  "serde_json",
 ]
@@ -2881,6 +2884,7 @@ dependencies = [
  "openstitch-formats",
  "openstitch-library",
  "openstitch-print",
+ "openstitch-testutil",
  "serde",
  "serde_json",
  "usvg",
@@ -2920,6 +2924,7 @@ dependencies = [
  "openstitch-engine",
  "openstitch-remote",
  "openstitch-render",
+ "openstitch-testutil",
  "png",
  "serde_json",
  "tiny-skia 0.12.0",
@@ -2940,6 +2945,7 @@ version = "0.1.0"
 dependencies = [
  "getrandom 0.3.4",
  "openstitch-engine",
+ "openstitch-testutil",
  "serde_json",
 ]
 
@@ -2951,15 +2957,21 @@ dependencies = [
  "openstitch-design",
  "openstitch-engine",
  "openstitch-formats",
+ "openstitch-testutil",
  "png",
  "tiny-skia 0.12.0",
 ]
+
+[[package]]
+name = "openstitch-testutil"
+version = "0.1.0"
 
 [[package]]
 name = "openstitch-update"
 version = "0.1.0"
 dependencies = [
  "flate2",
+ "openstitch-testutil",
  "semver",
  "serde_json",
  "sha2 0.11.1",
@@ -4024,6 +4036,7 @@ dependencies = [
  "openstitch-mcp",
  "openstitch-remote",
  "openstitch-render",
+ "openstitch-testutil",
  "serde_json",
 ]
 

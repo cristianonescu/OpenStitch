@@ -229,6 +229,8 @@ blocks with a trim + jump and one stitch longer than 121 units.
 | SHV read matches reference decoder (fixture assembled) | identical, chart threads `#ff0000` `#0000ff`, name `oracle` | identical | pass |
 | PHC read matches reference decoder (fixture assembled around `oracle.pec`) | identical, PEC chart threads | identical | pass |
 | CSD (spec-derived): synthetic type-0 and type-1 files | 303 stitches, 1 colour change, 1 trim, palette colours | as expected | pass (self-consistency only) |
+| CSD written by OpenStitch: PE-DESIGN 11.50's `sample-basic.csd` read and written again (`csd_writes_pe_design_layout_byte_for_byte`, #320) | byte-identical | byte-identical | pass |
+| SHV written by OpenStitch: PE-DESIGN 11.50's `sample-basic.shv` read and written again (`shv_writes_pe_design_header_and_records`, #320) | header, bounds, word counts, chart entries, block starts and records identical; preview pixels close | identical; 90 % or more of the preview's pixels agree | pass |
 | VIP written by OpenStitch read by libembroidery `sew` (built locally, commit `1138e04`) | 44 records, colours `224,16,16` and `16,64,192` | as expected; stitch coordinates not checkable (stub decompressor) | partial |
 
 PCS, SEW and HUS have no reference writer in pyembroidery 1.5.1. The reads are the oracle checks;
@@ -251,6 +253,8 @@ reads back to the same needle points). Golden engine regressions:
 | SVG `<line>` elements (default black fill) and a two-point `<path … Z>` | open running lines in the stroke colour; a fill-only straight subpath is not imported (#341) | pass |
 | `import.svg` of `examples/imports/leaf.svg`-like artwork | 3 grouped shapes, fill/stroke colours kept, 40 mm wide at (10, 15) mm, one Undo, rescale to 80 mm | pass |
 | Hostile SVG: empty, not XML, truncated, NaN path, entity expansion, 5,001 paths, `<image href="/etc/hosts">`, path outside the sandbox | `Err` or nothing read; no file outside the sandbox opened | pass |
+| WMF/EMF (`metafile` tests): placeable WMF in 1000 units/inch, standard WMF pie/arc/poly-polygon, EMF path + FillPath, PolyBezier, world transform, stock objects, MM_LOMETRIC | shapes, colours and sizes exact; arcs counter-clockwise; y flipped in metric modes | pass |
+| Hostile WMF/EMF: truncated at header and record boundaries, a polyline claiming 65,535 points, zero-length records, 2^30 polygons, record size past the end, 5,001 shapes, NaN world transform, RestoreDC past the stack | `Err` or ignored; no allocation for the claimed count | pass |
 | Background image: place 200×100 px at 50 mm, show/hide, opacity, save/open `.osd`, clear + undo, bad PNG and bad parameters | as expected | pass |
 
 ### Split export (Rust)
@@ -391,8 +395,8 @@ opened as stitches, nothing changed, and exported through App menu > Export to e
 list offers (DST, EXP, PCS, HUS, VIP, SHV, JEF, SEW, CSD, XXX; no PEC or PHC; no options
 dialog and no warning for any of them; Save As offers only PES). The eight formats OpenStitch
 writes are compared record by record (`compare`, 0.1 mm, PCS 0.2 mm) with OpenStitch's export
-of the same stitches; SHV and CSD stay in the owner's notes (read-only formats, no writer to
-compare). Before the writers followed PE-DESIGN's layout the compare failed in every format
+of the same stitches; SHV and CSD stayed in the owner's notes (no writer to compare then;
+`machine-sample-basic` compares both since #320). Before the writers followed PE-DESIGN's layout the compare failed in every format
 (441–619 differing entries, the HUS magic rejected); the differences and the rules now written
 are in FILE_FORMATS.md "PE-DESIGN's record layout" and in the audit. The spec imports OpenStitch's saved a.pes
 (the file PE-DESIGN opened) and exports it, so the compare does not depend on the stitch

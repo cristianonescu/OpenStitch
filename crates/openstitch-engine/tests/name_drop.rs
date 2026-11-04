@@ -3,20 +3,12 @@
 
 use openstitch_design::Rect;
 use openstitch_engine::{Capabilities, Session};
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
-use std::path::PathBuf;
+use std::path::Path;
 
-fn temp_dir() -> PathBuf {
-    let n = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-namedrop-{n}-{:?}",
-        std::thread::current().id()
-    ));
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir() -> TempDir {
+    TempDir::new("namedrop")
 }
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
@@ -32,7 +24,7 @@ fn bounds(s: &Session, id: u64) -> Rect {
 }
 
 /// A badge: an arched name over a fixed team line, plus a heart.
-fn badge(dir: &PathBuf) -> (Session, u64, u64) {
+fn badge(dir: &Path) -> (Session, u64, u64) {
     let mut s = Session::new(dir);
     run(
         &mut s,
@@ -58,7 +50,8 @@ fn badge(dir: &PathBuf) -> (Session, u64, u64) {
 
 #[test]
 fn replacement_text_fits_the_original_box() {
-    let (mut s, name, _) = badge(&temp_dir());
+    let tmp = temp_dir();
+    let (mut s, name, _) = badge(&tmp);
     let original = bounds(&s, name);
     run(&mut s, "text.setNameDrop", json!({"id": name}));
     let on = bounds(&s, name);
@@ -138,7 +131,8 @@ fn replacement_text_fits_the_original_box() {
 
 #[test]
 fn turning_name_drop_on_resets_spacing() {
-    let (mut s, _, team) = badge(&temp_dir());
+    let tmp = temp_dir();
+    let (mut s, _, team) = badge(&tmp);
     run(&mut s, "text.setNameDrop", json!({"id": team}));
     let t = s.design().objects[2].text.clone().expect("text");
     assert_eq!(t.letter_spacing, 0.0);

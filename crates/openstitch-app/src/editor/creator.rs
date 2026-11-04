@@ -646,14 +646,8 @@ mod tests {
     use openstitch_core::Command as Cmd;
     use openstitch_engine::Session;
 
-    fn temp_dir(tag: &str) -> PathBuf {
-        let n = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let dir = std::env::temp_dir().join(format!("openstitch-creator-{tag}-{n}"));
-        std::fs::create_dir_all(&dir).expect("temp dir");
-        dir
+    fn temp_dir(tag: &str) -> openstitch_testutil::TempDir {
+        openstitch_testutil::TempDir::new(&format!("creator-{tag}"))
     }
 
     #[test]

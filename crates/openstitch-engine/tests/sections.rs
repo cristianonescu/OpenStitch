@@ -1,18 +1,9 @@
 use openstitch_engine::{Capabilities, Session};
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
-use std::path::PathBuf;
 
-fn temp_dir() -> PathBuf {
-    let n = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-sections-{n}-{:?}",
-        std::thread::current().id()
-    ));
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir() -> TempDir {
+    TempDir::new("sections")
 }
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
@@ -21,7 +12,7 @@ fn run(s: &mut Session, id: &str, params: Value) -> Value {
 }
 
 /// A 230 × 160 mm custom page with a filled rectangle across the middle.
-fn split_session() -> (Session, PathBuf) {
+fn split_session() -> (Session, TempDir) {
     let dir = temp_dir();
     let mut s = Session::new(&dir);
     run(
@@ -141,7 +132,7 @@ fn multi_position_and_jumbo_plans() {
 
 #[test]
 fn sections_bad_parameters_fail_cleanly() {
-    let (mut s, _) = split_session();
+    let (mut s, _dir) = split_session();
     run(&mut s, "sections.set", json!({"hoop": "130x180"}));
     let before = s.design().clone();
     for params in [

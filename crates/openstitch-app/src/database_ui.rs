@@ -1267,9 +1267,7 @@ mod tests {
 
     #[test]
     fn print_needs_designs_card_reading_stays_blocked_and_the_writing_list_toggles() {
-        let dir = std::env::temp_dir().join(format!("openstitch-dbui-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
+        let dir = openstitch_testutil::TempDir::new("dbui");
         let mut app = EditorApp::new(Launch::default());
         app.database.show(Some(&dir));
         let on = |app: &EditorApp, a| suite_chrome::enabled(app, a);

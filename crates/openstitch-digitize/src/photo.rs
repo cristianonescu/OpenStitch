@@ -473,6 +473,15 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
         if stitches.iter().all(|s| s.command != Command::Stitch) {
             continue;
         }
+        // Every run the compiler trims ties in and locks, as PE-DESIGN's Photo Stitch sews it:
+        // an unlocked thread end works loose on the machine (round-2 sew-out, #289).
+        // OpenStitch mode keeps every stitch at least MIN_STITCH_MM: its lock steps that far.
+        let step = if p.compat == Mode::OpenStitch {
+            MIN_STITCH_MM * 10.0
+        } else {
+            3.0
+        };
+        let stitches = openstitch_design::stitch_edit::lock_runs(&stitches, CONNECT, step);
         total += stitches.len();
         if total > crate::MAX_STITCHES {
             return Err(DigitizeError::TooLarge(format!(
@@ -868,11 +877,17 @@ fn fine_rows(
     // Where no run changes thread the penalty does nothing: start the field from at least a
     // small one, so it can rise where a window needs it.
     let base = lambda.max(1.0);
-    // Every needle point the layers sew, jump landings and travel included, by cell.
+    // Every needle point the layers sew, jump landings, travel and the runs' tie-ins and locks
+    // included (as `convert` adds them, 1 mm steps), by cell.
     let needles = |d: &[Option<usize>]| {
         let mut n = vec![0u32; d.len()];
         for t in 0..sewn {
-            for st in fine_layer(d, g, rank, t, pitch) {
+            let sewn_layer = openstitch_design::stitch_edit::lock_runs(
+                &fine_layer(d, g, rank, t, pitch),
+                CONNECT,
+                MIN_STITCH_MM * 10.0,
+            );
+            for st in sewn_layer {
                 if st.command != Command::Stitch {
                     continue;
                 }

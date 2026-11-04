@@ -1,19 +1,10 @@
 use openstitch_engine::capabilities::{FILE_READING_COMMANDS, required};
 use openstitch_engine::{Access, Capabilities, Capability, Effect, EngineState, Session};
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
-use std::path::PathBuf;
 
-fn temp_dir() -> PathBuf {
-    let n = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-caps-{n}-{:?}",
-        std::thread::current().id()
-    ));
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir() -> TempDir {
+    TempDir::new("caps")
 }
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
@@ -22,7 +13,7 @@ fn run(s: &mut Session, id: &str, params: Value) -> Value {
 }
 
 /// A session with one square and a saved project and machine file to open/import.
-fn prepared(caps: Capabilities) -> (Session, PathBuf) {
+fn prepared(caps: Capabilities) -> (Session, TempDir) {
     let dir = temp_dir();
     let mut s = Session::new(&dir);
     run(
@@ -38,7 +29,8 @@ fn prepared(caps: Capabilities) -> (Session, PathBuf) {
 
 #[test]
 fn every_command_declares_what_it_needs() {
-    let s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let s = Session::new(tmp.path());
     for c in s.commands() {
         let needs = required(c);
         match c.effect {
@@ -136,9 +128,10 @@ fn no_files_allows_edits_but_no_file_access() {
 fn file_paths_are_refused_even_for_unlisted_file_commands() {
     // The safety net: any command that resolves a path is refused when file access is off,
     // whether or not it is in FILE_READING_COMMANDS.
+    let tmp = temp_dir();
     let state = EngineState {
         design: Default::default(),
-        base_dir: temp_dir(),
+        base_dir: tmp.to_path_buf(),
         sandbox: None,
         capabilities: Capabilities::FULL.without_files(),
         user: Default::default(),
@@ -155,7 +148,8 @@ fn file_paths_are_refused_even_for_unlisted_file_commands() {
 
 #[test]
 fn commands_list_reports_requirements() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     let list = run(&mut s, "commands.list", json!({}));
     let find = |id: &str| {
         list.as_array()

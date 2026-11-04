@@ -3,26 +3,17 @@
 
 use openstitch_engine::{Capabilities, Session};
 use openstitch_remote::{Client, Endpoint, Server, ServerConfig};
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-fn temp_dir(name: &str) -> PathBuf {
-    let t = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-remote-{name}-{}-{t}",
-        std::process::id()
-    ));
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir.canonicalize().expect("canonical")
+fn temp_dir(name: &str) -> TempDir {
+    TempDir::canonical(&format!("remote-{name}"))
 }
 
 /// A server whose requests run on a host thread that owns the session.
@@ -241,7 +232,7 @@ fn file_access_is_confined_to_the_configured_roots() {
     // A write root: inside is allowed, outside and `..` are not.
     let outside = temp_dir("outside");
     let host = Host::start(ServerConfig {
-        write_roots: vec![dir.clone()],
+        write_roots: vec![dir.to_path_buf()],
         ..Default::default()
     });
     let mut client = host.client();
@@ -264,7 +255,7 @@ fn file_access_is_confined_to_the_configured_roots() {
 
     // File access off wins over roots.
     let host = Host::start(ServerConfig {
-        write_roots: vec![dir.clone()],
+        write_roots: vec![dir.to_path_buf()],
         capabilities: Capabilities::FULL.without_files(),
         ..Default::default()
     });

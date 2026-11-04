@@ -1,6 +1,7 @@
 //! View aids saved with the design (guidelines) and the Fabric Selector.
 
 use openstitch_engine::Session;
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
@@ -8,14 +9,8 @@ fn run(s: &mut Session, id: &str, params: Value) -> Value {
         .unwrap_or_else(|e| panic!("{id}: {e}"))
 }
 
-fn temp_dir() -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-view-{}-{:?}",
-        std::process::id(),
-        std::thread::current().id()
-    ));
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir() -> TempDir {
+    TempDir::new("view")
 }
 
 #[test]

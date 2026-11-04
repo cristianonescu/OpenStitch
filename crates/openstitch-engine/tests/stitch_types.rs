@@ -3,20 +3,11 @@
 use openstitch_core::Command;
 use openstitch_design::{Arrange, ChainShape, Compiler, LineType};
 use openstitch_engine::{Session, project};
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
-use std::path::PathBuf;
 
-fn temp_dir() -> PathBuf {
-    let n = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-stitch-types-{n}-{:?}",
-        std::thread::current().id()
-    ));
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir() -> TempDir {
+    TempDir::new("stitch-types")
 }
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
@@ -24,19 +15,22 @@ fn run(s: &mut Session, id: &str, params: Value) -> Value {
         .unwrap_or_else(|e| panic!("{id}: {e}"))
 }
 
-fn session_with_circle() -> Session {
-    let mut s = Session::new(temp_dir());
+/// The session and the guard of its folder, which must outlive it.
+fn session_with_circle() -> (Session, TempDir) {
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(
         &mut s,
         "shape.ellipse",
         json!({"cx": 50, "cy": 50, "rx": 30, "ry": 20, "outline": "Black"}),
     );
-    s
+    (s, tmp)
 }
 
 #[test]
 fn patterns_are_listed_by_kind() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     let list = run(&mut s, "patterns.list", json!({}));
     let count = |kind: &str| {
         list.as_array()
@@ -53,7 +47,7 @@ fn patterns_are_listed_by_kind() {
 
 #[test]
 fn every_line_type_is_set_sewn_saved_and_undone() {
-    let mut s = session_with_circle();
+    let (mut s, _dir) = session_with_circle();
     for kind in LineType::ALL {
         run(
             &mut s,
@@ -118,7 +112,7 @@ fn every_line_type_is_set_sewn_saved_and_undone() {
 
 #[test]
 fn bad_line_parameters_fail_cleanly() {
-    let mut s = session_with_circle();
+    let (mut s, _dir) = session_with_circle();
     let before = s.design().clone();
     for params in [
         json!({"id": 1, "type": "sparkle"}),
@@ -147,7 +141,8 @@ fn bad_line_parameters_fail_cleanly() {
 #[test]
 fn satin_and_fill_options_are_set_and_undone() {
     use openstitch_design::{FeatherSide, RegionType, UnderlayStyle};
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(
         &mut s,
         "shape.ellipse",
@@ -228,7 +223,8 @@ fn satin_and_fill_options_are_set_and_undone() {
 #[test]
 fn gradation_pattern_options() {
     use openstitch_design::Gradation;
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(
         &mut s,
         "shape.rectangle",
@@ -299,7 +295,8 @@ fn gradation_pattern_options() {
 
 #[test]
 fn gradation_and_feathered_edge_follow_the_guide_exclusions() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(
         &mut s,
         "shape.rectangle",
@@ -391,7 +388,8 @@ fn gradation_and_feathered_edge_follow_the_guide_exclusions() {
 #[test]
 fn unavailable_gradation_and_feather_are_kept_but_not_sewn() {
     use openstitch_design::{Feather, FeatherSide, Gradation, RegionType};
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(
         &mut s,
         "shape.rectangle",
@@ -434,7 +432,8 @@ fn unavailable_gradation_and_feather_are_kept_but_not_sewn() {
 #[test]
 fn fill_stitch_type_is_set_sewn_saved_and_undone() {
     use openstitch_design::FillStitchType;
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(
         &mut s,
         "shape.rectangle",
@@ -481,7 +480,8 @@ fn fill_stitch_type_is_set_sewn_saved_and_undone() {
 
 #[test]
 fn bad_region_options_fail_cleanly() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(
         &mut s,
         "shape.rectangle",
@@ -518,7 +518,8 @@ fn bad_region_options_fail_cleanly() {
 #[test]
 fn every_region_type_is_set_sewn_saved_and_undone() {
     use openstitch_design::RegionType;
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(
         &mut s,
         "shape.ellipse",
@@ -573,7 +574,8 @@ fn every_region_type_is_set_sewn_saved_and_undone() {
 
 #[test]
 fn bad_region_type_parameters_fail_cleanly() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(
         &mut s,
         "shape.rectangle",

@@ -114,7 +114,7 @@ mod tests {
 
     #[test]
     fn endpoint_file_round_trips_and_is_private() {
-        let dir = std::env::temp_dir().join(format!("openstitch-endpoint-{}", std::process::id()));
+        let dir = openstitch_testutil::TempDir::new("endpoint");
         let path = dir.join("sub").join("automation.json");
         let e = Endpoint {
             address: "127.0.0.1:4567".parse().expect("addr"),

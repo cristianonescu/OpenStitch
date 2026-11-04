@@ -48,9 +48,9 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 192: 156 implemented (3 of them partially compatible), 2 documented only, 10 blocked, 24 planned beyond PE-DESIGN |
+| Feature matrix rows | 194: 160 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 24 planned beyond PE-DESIGN |
 | Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
-| Matrix rows covered by specs | 33: 26 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
+| Matrix rows covered by specs | 36: 29 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 10 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
 | Open GitHub issues | 45 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
 <!-- /status:glance -->
@@ -253,9 +253,10 @@ PE-DESIGN 11.50's defaults, tie-in and lock, measured from its own files.
 
 ### Files and formats
 
-- **Read and write:** PES, PEC, DST, EXP, JEF, PCS, SEW, XXX, HUS, VIP. The machine formats match
-  PE-DESIGN 11.50's own exports record for record or byte for byte.
-- **Read only:** SHV, PHC (read only in PE-DESIGN too) and CSD.
+- **Read and write:** PES, PEC, DST, EXP, JEF, PCS, SEW, XXX, HUS, VIP, SHV, CSD: every type
+  PE-DESIGN 11.50's Export offers. The machine formats match PE-DESIGN 11.50's own exports record
+  for record or byte for byte (SHV's preview picture only approximately).
+- **Read only:** PHC (read only in PE-DESIGN too).
 - **PE-DESIGN 11 PES (`#PES0110`):** OpenStitch reads the metadata, thread table and shapes. Saved
   as "PE-DESIGN 11", its shapes and Lato Bold text open **editable** in PE-DESIGN 11.50 (text
   retypable), including Fit Text to Outline and Text Transform, Manual Punch blocks, stitch
@@ -324,8 +325,7 @@ PE-DESIGN 11.50's defaults, tie-in and lock, measured from its own files.
 PE-DESIGN 11 features OpenStitch does not have yet, from the feature matrix:
 
 <!-- status:not-implemented -->
-- **Export CSD, SHV** (Files)
-- **Import WMF/EMF** (Files)
+_None._
 <!-- /status:not-implemented -->
 
 Also missing, from the [roadmap](docs/ROADMAP.md#still-to-do):
@@ -338,7 +338,7 @@ Also missing, from the [roadmap](docs/ROADMAP.md#still-to-do):
   editing and Blend.
 - **PES:** opening PE-DESIGN's texts and stitch groups as editable OpenStitch objects; motif
   fill, motif lines, several groups, right-aligned and vertical text in the editable PES 11
-  writer; PES versions 4, 5 and 7–10; CSD and SHV export.
+  writer; PES versions 4, 5 and 7–10.
 
 **Not planned, by design:**
 
@@ -613,11 +613,16 @@ Debug and test builds optimise the dependencies, the stitch pipeline (`openstitc
 `Cargo.toml`), so the editor's and the Auto Punch tests run in minutes instead of an hour; debug
 assertions and overflow checks stay on. The first build takes a few minutes longer.
 
+Tests make their temporary folders with `openstitch_testutil::TempDir`, which deletes the folder
+when the test ends. Set `OPENSTITCH_KEEP_TEMP=1` to keep a failing test's folders; their paths
+are printed.
+
 CI runs the same checks on macOS, Windows and Linux for every pull request, checks that
 `docs/COMPATIBILITY_STATUS.md` matches the harness's result, and scans the history for secrets
 with gitleaks. CI builds with line-tables-only debug info (`CARGO_PROFILE_DEV_DEBUG`), and a new
 push to a pull request cancels that PR's run still in progress; runs on `main` and on tags are
-never cancelled.
+never cancelled. Only runs on `main` save the build cache; pull requests restore it, so they
+don't evict it from the repository's 10 GB of Actions cache.
 
 ## MCP server (Claude Code and other MCP clients)
 
@@ -661,7 +666,9 @@ Desktop, IDEs) take the same command and arguments in their MCP server configura
 ## Contributing
 
 - Work on a branch and open a pull request to `main`; nobody pushes to `main` directly.
-- A PR is merged once CI is green on all three operating systems.
+- A PR is merged once CI is green on all three operating systems. Merge scripts must treat a
+  cancelled (superseded) run as pending; see
+  [docs/RELEASING.md](docs/RELEASING.md#merging-pull-requests).
 - Every merge to `main` builds the executables (see [Download a build](#download-a-build)).
 - Every PR that changes a feature updates [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md); the
   README's status lists are generated from it (`python -I tools/readme_status.py --write`). The

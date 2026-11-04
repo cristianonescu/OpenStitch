@@ -5,7 +5,7 @@
 | 1 Tooling | Rust workspace, CI on three OSes, fixture generators | Done. |
 | 2 Reference research | Guide-based feature inventory; reference files from a licensed PE-DESIGN 11 | Done: inventory from the public guide; reference files made in a licensed PE-DESIGN 11.50 since 2026-10-27 (`compat/reference/`, provenance in `MANIFEST.json`). |
 | 3 Core engine | Stitch model, threads, document operations, stitch generation | Done: design model, all guide sew types, compiler, command registry, undo, `.osd` projects, CLI and JSON control, MCP. |
-| 4 File interoperability | Every format PE-DESIGN 11 reads or writes; round-trip tests | DST, EXP, JEF, PCS, SEW, XXX, HUS and VIP written record for record as PE-DESIGN 11.50 exports them (reference tier, 2026-10-28); PES, PEC and the readers at oracle tier with fuzzing; SHV, PHC, CSD read-only; PES v1/v6 object section; PE-DESIGN 11 (`#PES0110`) metadata, thread table and editable shapes read, and shapes written as editable objects (`pesVersion` 11, 2026-10-29, unverified in PE-DESIGN); SVG and image import; split exports. |
+| 4 File interoperability | Every format PE-DESIGN 11 reads or writes; round-trip tests | DST, EXP, JEF, PCS, SEW, XXX, HUS and VIP written record for record as PE-DESIGN 11.50 exports them (reference tier, 2026-10-28), CSD and SHV too since 2026-11-04 (#320); PES, PEC and the readers at oracle tier with fuzzing; PHC read-only, as in PE-DESIGN; PES v1/v6 object section; PE-DESIGN 11 (`#PES0110`) metadata, thread table and editable shapes read, and shapes written as editable objects (`pesVersion` 11, 2026-10-29, unverified in PE-DESIGN); SVG and image import; split exports. |
 | 5 Desktop interface | Cross-platform editor (egui) | Done: drawing, Bézier pen and point editing, selection, inspector, object list, undo, simulator, wizards, Design Database mode, Stitch Creator, Stitch Design Factory, printing, USB transfer, self-update, unsaved-changes prompt on close/new/open (macOS: Cmd+Q and Cmd+W too, no system menu). |
 | 6 Advanced | Digitizing, lettering, complex fills, suite programs | Done as independent approximations: Auto Punch, Cross Stitch, Photo Stitch, Design Center; full lettering suite and Font Creator. |
 | 7 Validation | Reference suite, gap closing | In progress: the compatibility harness (`stitchtool compat`) compares OpenStitch's output with PE-DESIGN 11.50's files spec by spec; [COMPATIBILITY_STATUS.md](COMPATIBILITY_STATUS.md) shows the tier each row has reached. No sew-out on a machine yet. |
@@ -108,11 +108,18 @@ when they are added.
 
 Compatibility, from the open items in [COMPATIBILITY_AUDIT.md](COMPATIBILITY_AUDIT.md):
 
+WMF/EMF import (#321, 2026-11-04): landed as `import.metafile` (own safe-Rust record player;
+File ▸ Import SVG… opens `.wmf`/`.emf` too). Next: a PE-DESIGN capture of a WMF and an EMF import
+to check PE's sizing and line/region choice for metafiles.
+
 Sew-outs (first one 2026-11-02, the ready-to-sew kit on the owner's NV880E): every PES now has a PEC
 frame of the design's size holding its stitches (2026-11-03), stippling and the flexible spiral no longer stitch in place, and
-`tools/sew_check.py` checks a file for all three plus stacked needle drops. Next: Auto Punch's
-stacked satin points on the storybook picture (B16.1, the Mac's track), satin lettering's short
-stroke ends, then the kit's calibration photos.
+`tools/sew_check.py` checks a file for all three plus stacked needle drops. The second sew-out
+(2026-11-04) added tie-ins and end locks to every trimmed run, a zigzag net as PE-DESIGN sews it,
+the T1 card's corrected swatches and mark, and the first calibration: the Realistic view and the
+similarity scorer draw thread as wide as it covers at its row density. Next: Photo Stitch 1's
+trims (#298), Auto Punch's stacked satin points on the storybook picture (#290, the Mac's track),
+then a sew-out of the regenerated kit.
 
 Done 2026-10-30: stitch generation is bit-identical on Windows, macOS and Linux (transcendental
 math through the `libm` crate instead of each platform's C library); the arched Text Transform
@@ -239,7 +246,9 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    [LEGAL_AND_LICENSING.md](LEGAL_AND_LICENSING.md) allows).
 7. **Editing details:** skeletons that branch (a derived skeleton follows a shape's longest
    stroke only) and an exact medial axis instead of the grid approximation.
-8. **Formats:** CSD export (no public writer). The CSD and SHV readers match PE-DESIGN's own
+8. **Formats:** the SHV preview's pixels as PE-DESIGN draws them, and CSD and SHV references
+   with more colours, long stitches and short moves (#320 wrote both formats from one
+   PE-DESIGN export each, 2026-11-04; #349). The CSD and SHV readers match PE-DESIGN's own
    exports since 2026-10-29 (#135), PEC colour indexes are the plain nearest entry per
    block as in PE-DESIGN's own files (2026-10-30), and a DST import keeps its colour blocks apart. The eight
    machine-format writers (DST, EXP, PCS, HUS, VIP, JEF, SEW, XXX) match PE-DESIGN's exports of

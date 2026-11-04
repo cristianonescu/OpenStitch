@@ -49,7 +49,7 @@ mod tests {
 
     #[test]
     fn finds_the_packaged_kit_beside_the_editor() {
-        let dir = std::env::temp_dir().join(format!("openstitch-sew-kit-{}", std::process::id()));
+        let dir = openstitch_testutil::TempDir::new("sew-kit");
         let exe = dir.join("Contents/MacOS/openstitch");
         std::fs::create_dir_all(dir.join("Contents/MacOS")).expect("temp dir");
         assert_eq!(bundled(&exe), None, "no kit packaged");

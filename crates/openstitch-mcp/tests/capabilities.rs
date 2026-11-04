@@ -3,21 +3,11 @@
 
 use openstitch_engine::Capabilities;
 use openstitch_mcp::{Config, Server};
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
-use std::path::PathBuf;
 
-fn temp_dir() -> PathBuf {
-    let t = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-mcp-caps-{}-{t}-{:?}",
-        std::process::id(),
-        std::thread::current().id()
-    ));
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir() -> TempDir {
+    TempDir::new("mcp-caps")
 }
 
 struct Client {
@@ -61,7 +51,7 @@ impl Client {
 fn read_only_lists_and_runs_only_reads() {
     let root = temp_dir();
     let (mut c, init) = Client::new(Config {
-        write_roots: vec![root.clone()],
+        write_roots: vec![root.to_path_buf()],
         capabilities: Capabilities::FULL.read_only(),
         ..Config::default()
     });
