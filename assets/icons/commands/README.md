@@ -19,6 +19,8 @@ attempts. In 16 of them (`csv`, `fabric`, `measure`, `new_folder`, `thread_chart
 `thumbs_small`, `wireless`, `add_to_design`, `attribute_sets`, `image_delete`, `image_html`,
 `image_modify`, `image_paste`, `network`, `region_reset`, `stitch_simulator`) the fills the snap
 left alone were set to the nearest palette colour by hand.
+`assistant` (View ▸ Show/Hide ▸ Assistant, B17) was added on 2026-11-04 the same way (2.5 credits); it
+needed no hand fixes after `clean_icons.py`.
 Editor commands get them through `glyph` in `icons.rs`, the suite windows' commands by their
 key through `suite_glyph`.
 

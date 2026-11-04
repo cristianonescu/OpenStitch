@@ -138,6 +138,7 @@ own!(
     "pane_order",
     "pane_simulator",
     "pane_attributes",
+    "assistant",
     "reference_window",
     "dir_delete",
     "dir_reverse",
@@ -376,8 +377,7 @@ fn glyph(a: Action) -> Glyph {
         PaneSimulator => G::Own("pane_simulator"),
         PaneAttributes => G::Own("pane_attributes"),
         PaneImport => G::Pane,
-        // A Higgsfield icon of its own follows in a separate PR (the icon rule).
-        PaneAssistant => G::Pane,
+        PaneAssistant => G::Own("assistant"),
         ReferenceWindow => G::Own("reference_window"),
         ShowGrid => G::Grid,
         GridSpacing => G::Own("grid_spacing"),

@@ -176,3 +176,4 @@ about	2B2F36 FFFFFF 2A7AD8 E0A21B	a small white application window with a blue t
 manual	2B2F36 2A7AD8 FFFFFF	an open blue book with white pages (prompt also says: no letters)
 app_color	2B2F36 FFFFFF 2A7AD8 D8433A E0A21B	a small white application window whose title bar is split into three colour bands, blue, red and golden
 system_unit	2B2F36 E0A21B 2A7AD8	a golden ruler laid horizontally with tick marks, and a blue double headed arrow curving over it as if switching between two scales (prompt also says: no numbers)
+assistant	2B2F36 2A7AD8 FFFFFF E0A21B	a blue speech bubble with three small white dots inside and a small golden four-pointed sparkle star at its upper right corner
