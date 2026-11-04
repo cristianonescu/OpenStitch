@@ -1,6 +1,6 @@
 [package]
 name = "openstitch-assistant"
-description = "The OpenStitch AI assistant's Claude API client: streamed Messages requests and the tool loop"
+description = "The OpenStitch AI assistant's model client: streamed Claude Messages or OpenAI-compatible chat completions, and the tool loop"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -27,57 +27,80 @@ impl Transport for UreqTransport {
         body: &[u8],
         timeout: Duration,
     ) -> Result<Box<dyn Read + Send>, HttpError> {
-        let config = ureq::Agent::config_builder()
-            .http_status_as_error(false)
-            .max_redirects(0)
-            .timeout_connect(Some(Duration::from_secs(30)))
-            .timeout_recv_response(Some(timeout))
-            .timeout_per_read(Some(timeout))
-            .user_agent(format!("OpenStitch/{}", env!("CARGO_PKG_VERSION")))
-            .build();
-        let agent = ureq::Agent::new_with_config(config);
-        let mut req = agent.post(url);
+        let mut req = agent(timeout).post(url);
         for (k, v) in headers {
             req = req.header(k.as_str(), v.as_str());
         }
-        let res = req.send(body).map_err(|e| HttpError {
-            status: None,
-            message: match e {
-                ureq::Error::Timeout(_) => {
-                    "The Claude API did not answer in time (timed out).".to_string()
-                }
-                e => format!("Could not reach the Claude API: {e}"),
-            },
-            retry_after: None,
-        })?;
-        let status = res.status().as_u16();
-        if (200..300).contains(&status) {
-            let reader = res
-                .into_body()
-                .into_with_config()
-                .limit(MAX_STREAM_BYTES)
-                .reader();
-            return Ok(Box::new(reader));
-        }
-        let retry_after = res
-            .headers()
-            .get("retry-after")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.trim().parse::<f64>().ok())
-            .filter(|s| s.is_finite() && *s >= 0.0)
-            .map(Duration::from_secs_f64);
-        let text = res
-            .into_body()
-            .with_config()
-            .limit(MAX_ERROR_BYTES)
-            .read_to_string()
-            .unwrap_or_default();
-        Err(HttpError {
-            status: Some(status),
-            message: error_message(&text),
-            retry_after,
-        })
+        response(req.send(body))
     }
+
+    fn get(
+        &self,
+        url: &str,
+        headers: &[(String, String)],
+        timeout: Duration,
+    ) -> Result<Box<dyn Read + Send>, HttpError> {
+        let mut req = agent(timeout).get(url);
+        for (k, v) in headers {
+            req = req.header(k.as_str(), v.as_str());
+        }
+        response(req.call())
+    }
+}
+
+fn agent(timeout: Duration) -> ureq::Agent {
+    let config = ureq::Agent::config_builder()
+        .http_status_as_error(false)
+        .max_redirects(0)
+        .timeout_connect(Some(Duration::from_secs(30)))
+        .timeout_recv_response(Some(timeout))
+        .timeout_per_read(Some(timeout))
+        .user_agent(format!("OpenStitch/{}", env!("CARGO_PKG_VERSION")))
+        .build();
+    ureq::Agent::new_with_config(config)
+}
+
+/// A 2xx response as a reader over its body; anything else as an [`HttpError`].
+fn response(
+    res: Result<ureq::http::Response<ureq::Body>, ureq::Error>,
+) -> Result<Box<dyn Read + Send>, HttpError> {
+    let res = res.map_err(|e| HttpError {
+        status: None,
+        message: match e {
+            ureq::Error::Timeout(_) => {
+                "The Claude API did not answer in time (timed out).".to_string()
+            }
+            e => format!("Could not reach the Claude API: {e}"),
+        },
+        retry_after: None,
+    })?;
+    let status = res.status().as_u16();
+    if (200..300).contains(&status) {
+        let reader = res
+            .into_body()
+            .into_with_config()
+            .limit(MAX_STREAM_BYTES)
+            .reader();
+        return Ok(Box::new(reader));
+    }
+    let retry_after = res
+        .headers()
+        .get("retry-after")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.trim().parse::<f64>().ok())
+        .filter(|s| s.is_finite() && *s >= 0.0)
+        .map(Duration::from_secs_f64);
+    let text = res
+        .into_body()
+        .with_config()
+        .limit(MAX_ERROR_BYTES)
+        .read_to_string()
+        .unwrap_or_default();
+    Err(HttpError {
+        status: Some(status),
+        message: error_message(&text),
+        retry_after,
+    })
 }
 
 /// The `error.message` of an API error body (`{"type":"error","error":{"type","message"}}`),

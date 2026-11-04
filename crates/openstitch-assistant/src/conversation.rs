@@ -9,14 +9,15 @@ use serde_json::{Map, Value, json};
 use crate::sse::SseReader;
 use crate::{
     ANTHROPIC_VERSION, Config, Event, FALLBACK_BETA, HttpError, MAX_TOOL_CALLS_PER_MESSAGE,
-    StopKind, ToolResult, Tools, Transport, describe, key_safe_for, scheme_and_host,
+    Protocol, StopKind, ToolResult, Tools, Transport, describe, key_safe_for, scheme_and_host,
 };
 
-const CUT_OFF: &str = "not run: the reply was cut off";
-const DECLINED: &str = "not run: the request was declined";
-const STOPPED: &str = "stopped by the user";
-const BAD_JSON: &str = "tool input was not valid JSON; send it again";
-const TOO_MANY: &str = "not run: more than 32 tool calls in one message; send the rest again";
+pub(crate) const CUT_OFF: &str = "not run: the reply was cut off";
+pub(crate) const DECLINED: &str = "not run: the request was declined";
+pub(crate) const STOPPED: &str = "stopped by the user";
+pub(crate) const BAD_JSON: &str = "tool input was not valid JSON; send it again";
+pub(crate) const TOO_MANY: &str =
+    "not run: more than 32 tool calls in one message; send the rest again";
 
 /// The longest wait before the one automatic retry.
 const MAX_RETRY_WAIT: Duration = Duration::from_secs(20);
@@ -25,12 +26,21 @@ const DEFAULT_RETRY_WAIT: Duration = Duration::from_secs(2);
 
 /// One conversation with the model: the append-only history plus the `tool_result` blocks that
 /// still have to open the next user message.
+///
+/// The history is kept in the format of the protocol that started it (Anthropic content blocks,
+/// or OpenAI-compatible chat messages). A conversation does not change protocol: a turn whose
+/// [`Config::protocol`] differs from the one that started a non-empty history ends at once with
+/// `StopKind::Error("Start a new chat to change the protocol.")`, and nothing is sent.
 #[derive(Debug, Clone, Default)]
 pub struct Conversation {
-    messages: Vec<Value>,
+    pub(crate) messages: Vec<Value>,
     /// Results for tool calls that were not run (cut off, declined, stopped): the API requires
-    /// every `tool_use` to be answered at the start of the next user message.
-    pending: Vec<Value>,
+    /// every `tool_use` to be answered at the start of the next user message. For the
+    /// OpenAI-compatible protocol these are `role: tool` messages, sent before the next user
+    /// message.
+    pub(crate) pending: Vec<Value>,
+    /// The protocol of the history.
+    pub(crate) protocol: Protocol,
 }
 
 impl Conversation {
@@ -41,6 +51,11 @@ impl Conversation {
     /// The history as sent: `{role, content}` messages, oldest first.
     pub fn messages(&self) -> &[Value] {
         &self.messages
+    }
+
+    /// The protocol of the history (the default, Anthropic, while it is empty).
+    pub fn protocol(&self) -> Protocol {
+        self.protocol
     }
 
     /// Runs one user turn to its end: streams, runs tools, loops until end_turn / max_tokens /
@@ -59,15 +74,35 @@ impl Conversation {
         cancel: &AtomicBool,
         on_event: &mut dyn FnMut(Event),
     ) -> StopKind {
+        if self.messages.is_empty() && self.pending.is_empty() {
+            self.protocol = cfg.protocol;
+        } else if self.protocol != cfg.protocol {
+            return StopKind::Error("Start a new chat to change the protocol.".to_string());
+        }
+        match cfg.protocol {
+            Protocol::Anthropic => {
+                self.run_anthropic_turn(cfg, transport, tools, user_content, cancel, on_event)
+            }
+            Protocol::OpenAi => {
+                self.run_openai_turn(cfg, transport, tools, user_content, cancel, on_event)
+            }
+        }
+    }
+
+    fn run_anthropic_turn(
+        &mut self,
+        cfg: &Config,
+        transport: &dyn Transport,
+        tools: &mut dyn Tools,
+        user_content: Vec<Value>,
+        cancel: &AtomicBool,
+        on_event: &mut dyn FnMut(Event),
+    ) -> StopKind {
         if cfg.api_key.trim().is_empty() {
-            return StopKind::Error("No API key is set for the assistant.".to_string());
+            return StopKind::Error(NO_KEY.to_string());
         }
         if !key_safe_for(&cfg.base_url) {
-            return StopKind::Error(format!(
-                "The API key is only sent over https, or over http to this computer \
-                 (localhost); {} is neither.",
-                cfg.base_url
-            ));
+            return StopKind::Error(unsafe_address(&cfg.base_url));
         }
         let mut content = std::mem::take(&mut self.pending);
         content.extend(user_content);
@@ -83,10 +118,13 @@ impl Conversation {
                 return StopKind::Cancelled;
             }
             let body = request_body(cfg, &tool_defs, &self.messages);
-            let reader = match post_with_retry(cfg, transport, &body, cancel, on_event) {
-                Ok(r) => r,
-                Err(stop) => return stop,
-            };
+            let url = messages_url(&cfg.base_url);
+            let headers = request_headers(cfg);
+            let reader =
+                match post_with_retry(cfg, transport, &url, &headers, &body, cancel, on_event) {
+                    Ok(r) => r,
+                    Err(stop) => return stop,
+                };
             let reply = read_stream(reader, cancel, on_event);
             let blocks = match reply.end {
                 End::Error(msg) => return StopKind::Error(msg),
@@ -208,7 +246,17 @@ struct Call {
     valid: bool,
 }
 
-fn str_field(v: &Value, key: &str) -> String {
+pub(crate) const NO_KEY: &str = "No API key is set for the assistant.";
+
+/// Why a key is not sent to `url`.
+pub(crate) fn unsafe_address(url: &str) -> String {
+    format!(
+        "The API key is only sent over https, or over http to this computer \
+         (localhost); {url} is neither."
+    )
+}
+
+pub(crate) fn str_field(v: &Value, key: &str) -> String {
     v.get(key)
         .and_then(Value::as_str)
         .unwrap_or_default()
@@ -236,7 +284,7 @@ fn tool_result_block(id: &str, result: ToolResult) -> Value {
 }
 
 /// The first ~200 characters of a result's text.
-fn summary(result: &ToolResult) -> String {
+pub(crate) fn summary(result: &ToolResult) -> String {
     let text: Vec<&str> = result
         .content
         .iter()
@@ -327,24 +375,24 @@ fn request_headers(cfg: &Config) -> Vec<(String, String)> {
     headers
 }
 
-fn retryable(e: &HttpError) -> bool {
+pub(crate) fn retryable(e: &HttpError) -> bool {
     matches!(e.status, Some(429) | Some(500..=599))
 }
 
 /// Sends the request; one automatic retry for 429 / 5xx / 529, after the server's
 /// `retry-after` (at most 20 s), unless the user stops it meanwhile.
-fn post_with_retry(
+pub(crate) fn post_with_retry(
     cfg: &Config,
     transport: &dyn Transport,
+    url: &str,
+    headers: &[(String, String)],
     body: &[u8],
     cancel: &AtomicBool,
     on_event: &mut dyn FnMut(Event),
 ) -> Result<Box<dyn std::io::Read + Send>, StopKind> {
-    let url = messages_url(&cfg.base_url);
-    let headers = request_headers(cfg);
     let mut retried = false;
     loop {
-        match transport.post(&url, &headers, body, cfg.request_timeout) {
+        match transport.post(url, headers, body, cfg.request_timeout) {
             Ok(r) => return Ok(r),
             Err(e) if !retried && retryable(&e) => {
                 retried = true;
@@ -385,7 +433,7 @@ struct Block {
     input_valid: bool,
 }
 
-enum End {
+pub(crate) enum End {
     Complete,
     Cancelled,
     Error(String),
