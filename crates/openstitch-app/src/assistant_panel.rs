@@ -2818,7 +2818,9 @@ mod tests {
                 .is_some_and(|t| t.contains("picture of the design view"))
         );
         assert!(!app.assistant.panel.attach_view, "the chip is used once");
-        assert!(matches!(&app.assistant.panel.items[0], Item::User(t) if t.contains("Attached: view")));
+        assert!(
+            matches!(&app.assistant.panel.items[0], Item::User(t) if t.contains("Attached: view"))
+        );
     }
 
     #[test]
