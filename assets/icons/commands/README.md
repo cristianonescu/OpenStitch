@@ -20,7 +20,13 @@ attempts. In 16 of them (`csv`, `fabric`, `measure`, `new_folder`, `thread_chart
 `image_modify`, `image_paste`, `network`, `region_reset`, `stitch_simulator`) the fills the snap
 left alone were set to the nearest palette colour by hand.
 `assistant` (View ▸ Show/Hide ▸ Assistant, B17) was added on 2026-11-04 the same way (2.5 credits); it
-needed no hand fixes after `clean_icons.py`.
+needed no hand fixes after `clean_icons.py`. `attach` (a paperclip) and `close`, for the Assistant
+panel's buttons and attachment chips (#399), were added on 2026-11-04 the same way (2.5 credits
+each); they run no command, so they are listed in `UI` in `icons.rs` and drawn with `paint_ui`.
+The job ids of the first set (2026-10-27) were recovered from the Higgsfield history on 2026-11-04:
+each job's output, cleaned with `clean_icons.py`, is byte-identical to its SVG. The `credits`
+column is empty where the cost was not recorded at the time.
+`tools/check_icons.py` (run in CI) checks that every SVG here has a row in `higgsfield-jobs.tsv`.
 Editor commands get them through `glyph` in `icons.rs`, the suite windows' commands by their
 key through `suite_glyph`.
 

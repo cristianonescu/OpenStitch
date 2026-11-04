@@ -35,13 +35,20 @@ the project keeps:
   used. On 2026-10-30 and 2026-10-31 102 icons were added the same way in three rounds (commands that showed
   another command's icon, and the suite windows' own commands; rows from `connect` on in
   `prompts.tsv`; see [research/asset-audit.md](research/asset-audit.md)), with each Higgsfield
-  job id in `higgsfield-jobs.tsv` next to the SVGs. The vector shapes in
+  job id in `higgsfield-jobs.tsv` next to the SVGs. The Assistant panel's attach (paperclip) and
+  close icons were added the same way on 2026-11-04 (#399). The job ids of the first set
+  (2026-10-27, #35, `gear` among them) were recovered from the owner's Higgsfield history on
+  2026-11-04 and are in the same file: each cleaned job output matches its SVG exactly, or with
+  only the hand-set fills different. `tools/check_icons.py` (CI) fails when an icon or
+  illustration has no job row, or when the app draws an emoji, Unicode symbol or painter shape
+  as an icon. The vector shapes in
   `crates/openstitch-app/src/icons.rs` are the fallback when an SVG cannot be rendered. The OpenStitch logo (the app icon `assets/icons/openstitch*`, the
   Application button mark, the About window, the startup splash and the README header, all
   from `assets/brand`) is the project's own: it was generated for OpenStitch with Higgsfield
   (Recraft V4.1, vector output) under the project owner's account, from the two prompts in
   `assets/brand/README.md` (a generic needle and thread, and the word "OpenStitch"), with no
-  reference images, and cleaned by `tools/clean_logo.py`; `tools/gen_icons.py` writes the
+  reference images, and cleaned by `tools/clean_logo.py` (the two job ids are in
+  `assets/brand/higgsfield-jobs.tsv`); `tools/gen_icons.py` writes the
   raster and package formats. Neither prompt names or describes Brother, PE-DESIGN or any
   other vendor's branding, and the mark does not resemble them.
 - **Illustrations and textures:** the spot illustrations in `assets/illustrations` (empty
