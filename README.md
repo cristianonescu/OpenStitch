@@ -162,7 +162,8 @@ improves.
 from other Brother, Babylock, Bernette, Janome and Singer machines (PES and the other machine
 formats), other threads and other fabrics are very welcome: sew a few designs from the kit and send
 them with the [Sew-out / calibration report](https://github.com/cristianonescu/OpenStitch/issues/new?template=sew-out-report.yml)
-form. The kit's [Sending results](examples/sew/README.md#sending-results) says what to include.
+form. [TESTING.md](TESTING.md) says what to sew per machine and format, and the kit's
+[Sending results](examples/sew/README.md#sending-results) says what to include.
 
 ## Features
 
