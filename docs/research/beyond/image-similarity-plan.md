@@ -461,6 +461,14 @@ bit-identical, compat 443/443):
 
 **2026-11-01, T1 card designed:** `examples/sew/calibration` holds the swatch card (six threads at three densities and a black coverage ramp, no underlay), the Photo Stitch 2 grey ramp (#129) and satin widths with and without underlay; the photo patch is `examples/sew/image-tools/S-photo1-sunset-openstitch.pes`. `examples/sew/README.md` gives the sewing and photo protocol. Waits for the owner's sew-out and photos (Brother NV880E, Schmetz 75/11, Brothread).
 
+**2026-11-04, sewability (#290):** Auto Punch's OpenStitch mode opens each region by about
+1.25 mm after the outlines are taken out, so no fill row or satin ends on a spike or neck
+thinner than that. The storybook picture's worst spot goes from 29 to 16 needle drops (limit
+20). Auto Punch's mean likeness goes from 83.6 to 83.0 (the clip art unchanged, the four
+photo-like images 1-2 points lower). The storybook still fails sew_check on one fill row
+clipped to a notch (#303) and, in PE-DESIGN-compatible mode, on satins fanning into jagged
+outlines (#304).
+
 ## Sources
 
 - Zhang, X., and Wandell, B. A. (1996). A spatial extension of CIELAB for digital color image reproduction (S-CIELAB). SID Digest.
