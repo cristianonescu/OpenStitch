@@ -377,6 +377,9 @@ pub struct Panel {
     image_key_stored: Option<(String, bool)>,
     /// Reset AI settings is waiting for its confirmation.
     confirm_reset: bool,
+    /// The closing dialog (#422) is showing, and its "Don't show this again" box.
+    pub close_hint_open: bool,
+    close_hint_dont_show: bool,
     show_settings: bool,
     /// Tests put a scripted transport here; the app uses `ureq`.
     transport: Option<Arc<dyn claude::Transport>>,
@@ -746,6 +749,82 @@ fn start_agent(app: &mut EditorApp, id: &str, wake: Waker) -> Result<Worker, Str
     let mut w = Worker::start_agent(config, listener, wake);
     w.kind = (Protocol::Agent, id.to_string());
     Ok(w)
+}
+
+/// Opens or closes the panel from its ✕, View ▸ Show/Hide ▸ Assistant or the shortcut (#422).
+/// The choice is remembered in ui.json; closing says how to reopen it, until the user ticks
+/// "Don't show this again".
+pub fn set_open(app: &mut EditorApp, open: bool) {
+    if open && !app.ui.prefs.ai.enabled {
+        return;
+    }
+    let was = app.assistant.panel.open;
+    app.assistant.panel.open = open;
+    if app.ui.prefs.ai.panel_open != open {
+        app.ui.prefs.ai.panel_open = open;
+        app.ui.save_prefs();
+    }
+    if was && !open {
+        hint_on_close(app);
+    }
+}
+
+/// Options ▸ Show AI features turned off: the panel goes, its remembered state stays for when
+/// AI features come back, and the dialog says how.
+pub fn ai_switched_off(app: &mut EditorApp) {
+    if app.assistant.panel.open {
+        app.assistant.panel.open = false;
+        hint_on_close(app);
+    }
+}
+
+fn hint_on_close(app: &mut EditorApp) {
+    let panel = &mut app.assistant.panel;
+    panel.close_hint_open = app.ui.prefs.ai.close_hint;
+    panel.close_hint_dont_show = false;
+}
+
+/// The closing dialog: where the Assistant comes back.
+fn close_hint_dialog(app: &mut EditorApp, ctx: &egui::Context) {
+    if !app.assistant.panel.close_hint_open {
+        return;
+    }
+    let shortcut = Action::PaneAssistant
+        .info()
+        .shortcut_for(crate::ribbon::MAC);
+    let lines = openstitch_app::editor::assistant_chat::reopen_hint(
+        shortcut.as_deref(),
+        app.ui.prefs.ai.enabled,
+    );
+    let mut ok = false;
+    egui::Modal::new(egui::Id::unique("assistant-close-hint")).show(ctx, |ui| {
+        ui.set_max_width(360.0);
+        ui.heading("The Assistant is closed");
+        ui.label("To open it again:");
+        for l in &lines {
+            ui.label(format!("•  {l}"));
+        }
+        ui.add_space(6.0);
+        ui.checkbox(
+            &mut app.assistant.panel.close_hint_dont_show,
+            "Don't show this again",
+        );
+        ui.add_space(4.0);
+        ok = ui.button("OK").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter));
+    });
+    if ok {
+        close_hint_ok(app);
+    }
+}
+
+/// OK in the closing dialog; with "Don't show this again" ticked it never shows again.
+fn close_hint_ok(app: &mut EditorApp) {
+    let panel = &mut app.assistant.panel;
+    panel.close_hint_open = false;
+    if panel.close_hint_dont_show {
+        app.ui.prefs.ai.close_hint = false;
+        app.ui.save_prefs();
+    }
 }
 
 /// Stop: ends the turn; what it already changed stays, as one undo step.
@@ -1823,6 +1902,7 @@ fn close_glyph(p: &egui::Painter, r: egui::Rect, c: egui::Color32) {
 pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
     let ctx = ui.ctx().clone();
     serve(app, waker(&ctx));
+    close_hint_dialog(app, &ctx);
     if !(app.ui.prefs.ai.enabled && app.assistant.panel.open) {
         return;
     }
@@ -1832,9 +1912,15 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
             ui.horizontal(|ui| {
                 ui.heading("Assistant");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if icon_button(ui, "Close the Assistant (Ctrl+Shift+A)", close_glyph).clicked()
-                    {
-                        app.assistant.panel.open = false;
+                    let tip = format!(
+                        "Close the Assistant ({})",
+                        Action::PaneAssistant
+                            .info()
+                            .shortcut_for(crate::ribbon::MAC)
+                            .unwrap_or_default()
+                    );
+                    if icon_button(ui, &tip, close_glyph).clicked() {
+                        set_open(app, false);
                     }
                     let settings_open = app.assistant.panel.show_settings;
                     let tip = if settings_open {
@@ -2641,6 +2727,69 @@ mod tests {
         );
         assert_eq!(tool_label("ToolSearch", &json!({})), "Looked up tools");
         assert_eq!(tool_label("something_new", &json!({})), "something_new");
+    }
+
+    /// The panel opens on first start, closing says how to reopen it (until "Don't show this
+    /// again"), and the open state survives a restart; an old ui.json reads as open (#422).
+    #[test]
+    fn the_panel_opens_by_default_and_remembers_being_closed() {
+        let dir = std::env::temp_dir().join(format!("openstitch-422-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let launch = Launch {
+            demo: true,
+            user_settings: Some(dir.join("user.json")),
+            ..Launch::default()
+        };
+        let mut app = EditorApp::new(launch.clone());
+        assert!(app.assistant.panel.open, "open in a fresh profile");
+        set_open(&mut app, false);
+        assert!(
+            app.assistant.panel.close_hint_open,
+            "closing explains how to reopen"
+        );
+        close_hint_ok(&mut app);
+        set_open(&mut app, true);
+        set_open(&mut app, false);
+        assert!(
+            app.assistant.panel.close_hint_open,
+            "again, until the box is ticked"
+        );
+        app.assistant.panel.close_hint_dont_show = true;
+        close_hint_ok(&mut app);
+        set_open(&mut app, true);
+        set_open(&mut app, false);
+        assert!(
+            !app.assistant.panel.close_hint_open,
+            "not after Don't show this again"
+        );
+        // Restart: still closed, and still no dialog.
+        let app = EditorApp::new(launch.clone());
+        assert!(!app.assistant.panel.open, "closed after a restart");
+        assert!(!app.ui.prefs.ai.close_hint);
+        // A ui.json from before #422 has no panelOpen: it reads as open.
+        std::fs::write(dir.join("ui.json"), r#"{"ai":{"model":"claude-opus-5-5"}}"#).expect("w");
+        assert!(EditorApp::new(launch).assistant.panel.open);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn turning_ai_off_closes_the_panel_but_keeps_its_state() {
+        let (mut app, _) = app_with(Vec::new());
+        assert!(app.assistant.panel.open);
+        app.ui.prefs.ai.enabled = false;
+        ai_switched_off(&mut app);
+        assert!(!app.assistant.panel.open);
+        assert!(
+            app.ui.prefs.ai.panel_open,
+            "it comes back when AI features do"
+        );
+        assert!(app.assistant.panel.close_hint_open);
+        set_open(&mut app, true);
+        assert!(
+            !app.assistant.panel.open,
+            "no panel while AI features are off"
+        );
     }
 
     fn local_openai(app: &mut EditorApp) {

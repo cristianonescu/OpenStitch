@@ -638,3 +638,13 @@ What the real agent showed, and what changed:
 - The bench's headless editor answers only `ui.render` and `ui.scratchWrite` among the `ui.*`
   commands.
 
+### Panel polish (2026-11-04, #394, #396, #415, #422)
+
+Done after the first real Claude API chats, in #395:
+- **Controls (#394):** framed icon buttons in the header, framed View and Selection toggles, a highlighted Send, chat bubbles (the user's on the right in the accent colour, the assistant's on the left), and light Markdown in replies.
+- **Keys and settings (#396):** each key row has Save key and a red Remove key, which is enabled only when a key is saved; a saved key shows as dots. Remove key reads the keychain back. Clear image generator and Reset AI settings (which asks first) read ui.json back. Tests never reach the system keychain, and a manual test run can use a throwaway profile (`OPENSTITCH_CONFIG_DIR`, `OPENSTITCH_KEYCHAIN_SERVICE`).
+- **Tool rows (#415):** every tool and Thinking row has its own widget ID (repeated tool calls used to clash), and says what it did ("Ran object.list", "Looked at the design"), with the raw name, the arguments and the result inside.
+- **Open by default (#422):** the panel opens on first start and then as the user left it (`panelOpen` in ui.json; an older file reads as open). Closing it with ✕, View ▸ Show/Hide ▸ Assistant or the shortcut shows where to reopen it: the menu, the shortcut as the platform shows it, and Options ▸ Show AI features when AI is off. "Don't show this again" (`closeHint`) stops the dialog. `--screenshot` runs keep the panel closed, so the documentation screenshots don't change.
+
+Checked in the running app on macOS, with throwaway profiles and no Keychain prompts. Not checked: Windows and Linux (#401); the Higgsfield icons (#399).
+

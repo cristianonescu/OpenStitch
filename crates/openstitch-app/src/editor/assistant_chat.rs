@@ -176,6 +176,11 @@ pub struct AiPrefs {
     /// ending in `/v1`; empty = none. Its key, if any, is in the keychain under this address.
     pub image_url: String,
     pub image_model: String,
+    /// The Assistant panel is open (#422): open on first start, then as the user left it. An
+    /// old `ui.json` without the field reads as open.
+    pub panel_open: bool,
+    /// Closing the panel says how to reopen it, until "Don't show this again".
+    pub close_hint: bool,
 }
 
 pub const DEFAULT_MODEL: &str = "claude-opus-5-5";
@@ -197,6 +202,8 @@ impl Default for AiPrefs {
             agent: "claude".into(),
             image_url: String::new(),
             image_model: String::new(),
+            panel_open: true,
+            close_hint: true,
         }
     }
 }
@@ -211,6 +218,7 @@ impl AiPrefs {
             "protocol": self.protocol.key(), "reasoningEffort": self.reasoning_effort,
             "agent": self.agent,
             "imageUrl": self.image_url, "imageModel": self.image_model,
+            "panelOpen": self.panel_open, "closeHint": self.close_hint,
         })
     }
 
@@ -271,8 +279,26 @@ impl AiPrefs {
             },
             image_url: text("imageUrl", ""),
             image_model: text("imageModel", ""),
+            panel_open: v["panelOpen"].as_bool().unwrap_or(d.panel_open),
+            close_hint: v["closeHint"].as_bool().unwrap_or(d.close_hint),
         }
     }
+}
+
+/// What the closing dialog says (#422): where the Assistant comes back, with the shortcut as
+/// this platform shows it, and the Options switch when AI features are off.
+pub fn reopen_hint(shortcut: Option<&str>, ai_enabled: bool) -> Vec<String> {
+    let mut lines = vec!["View ▸ Show/Hide ▸ Assistant".to_string()];
+    if let Some(s) = shortcut {
+        lines.push(format!("or press {s}"));
+    }
+    if !ai_enabled {
+        lines.insert(
+            0,
+            "Options ▸ Show AI features (AI features are off), then".to_string(),
+        );
+    }
+    lines
 }
 
 /// What the gate decides for one command.
@@ -663,6 +689,16 @@ mod tests {
             AiPrefs::default().image_url.is_empty(),
             "no generator unless chosen"
         );
+        // The panel opens by default, and an old ui.json without the fields reads as open
+        // with the closing hint on (#422).
+        let old = AiPrefs::from_json(&json!({ "model": "claude-opus-5-5" }));
+        assert!(old.panel_open && old.close_hint);
+        let closed = AiPrefs {
+            panel_open: false,
+            close_hint: false,
+            ..AiPrefs::default()
+        };
+        assert_eq!(AiPrefs::from_json(&closed.to_json()), closed);
         let junk = AiPrefs::from_json(&json!({ "protocol": "smtp", "reasoningEffort": "x y" }));
         assert_eq!(
             (junk.protocol, junk.reasoning_effort.as_str()),
@@ -687,6 +723,17 @@ mod tests {
         }
         assert!(PRESETS.iter().all(|p| !p.base_url.is_empty()));
         assert_eq!(PRESETS[0].model, DEFAULT_MODEL);
+    }
+
+    #[test]
+    fn the_reopen_hint_names_the_menu_the_shortcut_and_the_ai_switch() {
+        assert_eq!(
+            reopen_hint(Some("Cmd+Shift+A"), true),
+            vec!["View ▸ Show/Hide ▸ Assistant", "or press Cmd+Shift+A"]
+        );
+        let off = reopen_hint(Some("Ctrl+Shift+A"), false);
+        assert!(off[0].starts_with("Options ▸ Show AI features"));
+        assert!(off.iter().any(|l| l.contains("Ctrl+Shift+A")));
     }
 
     #[test]
