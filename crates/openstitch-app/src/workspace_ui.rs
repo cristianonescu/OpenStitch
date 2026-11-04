@@ -177,9 +177,12 @@ pub fn draw_realistic(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
         let [edge, body, light] = settings
             .shades(layer.rgb)
             .map(|c| Color32::from_rgb(c[0], c[1], c[2]));
-        for s in &layer.strokes {
-            for pair in s.windows(2) {
+        for (n, s) in layer.strokes.iter().enumerate() {
+            let cover = layer.cover.get(n);
+            for (k, pair) in s.windows(2).enumerate() {
                 let (a, b) = (pos(vp.to_screen(pair[0])), pos(vp.to_screen(pair[1])));
+                // As wide as sewn thread covers at this stitch's row density (#291).
+                let w = (w * cover.and_then(|c| c.get(k)).copied().unwrap_or(1.0)).max(0.8);
                 painter.line_segment([a, b], Stroke::new(w, edge));
                 painter.line_segment([a, b], Stroke::new(w * 0.7, body));
                 if w >= 2.5 {

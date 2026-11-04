@@ -16,11 +16,9 @@ fn gradient() -> Raster {
     .expect("size")
 }
 
+/// The object's needle points without its runs' tie-ins and locks.
 fn needles(o: &DesignObject) -> Vec<(f64, f64)> {
-    o.stitch_block
-        .as_ref()
-        .expect("block")
-        .stitches
+    unlocked(&o.stitch_block.as_ref().expect("block").stitches)
         .iter()
         .filter(|s| s.command == Command::Stitch)
         .map(|s| (s.x, s.y))

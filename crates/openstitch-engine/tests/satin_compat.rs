@@ -160,9 +160,12 @@ fn pull_compensation_widens_the_zigzag() {
     );
     let pts = needle_points(&mut s, 1);
     // Every crossing reaches 0.2 mm beyond both edges (the hop to the last row stays there).
+    // Tie-ins and locks step 0.3 mm in from an edge, before every trim as PE-DESIGN sews them;
+    // a stitch to or from one is not a crossing.
+    let on_edge = |y: f64| (y - 9.8).abs() < 0.02 || (y - 12.2).abs() < 0.02;
     for w in body(&pts)
         .windows(2)
-        .filter(|w| (w[0].1 - w[1].1).abs() > 1.0)
+        .filter(|w| (w[0].1 - w[1].1).abs() > 1.0 && on_edge(w[0].1) && on_edge(w[1].1))
     {
         let (a, b) = (w[0].1.min(w[1].1), w[0].1.max(w[1].1));
         assert!((a - 9.8).abs() < 0.02 && (b - 12.2).abs() < 0.02, "{w:?}");

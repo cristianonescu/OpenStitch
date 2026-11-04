@@ -27,8 +27,10 @@ fn golden_project_compiles_to_recorded_statistics() {
     // dropped, as PE-DESIGN writes no zero-length stitch record (2940 before), then 161 fewer
     // when fill took PE-DESIGN's row order: halves from the start point, rows sewn backwards
     // without edge points, straight 2 mm travel, a tie-in and lock (2937 before; this version-1
-    // file stores no Frequency, so its fills keep the 1/3 stagger).
-    assert_eq!(p.count(Command::Stitch), 2776);
+    // file stores no Frequency, so its fills keep the 1/3 stagger), then 4 more when every run
+    // before a trim ends with PE-DESIGN's lock: the last run ended in an unlocked 20 mm stitch,
+    // now locked twice (2776 before; #289).
+    assert_eq!(p.count(Command::Stitch), 2780);
     assert_eq!(p.count(Command::Jump), 3);
     assert_eq!(p.count(Command::Trim), 3);
     assert_eq!(p.count(Command::ColorChange), 2);

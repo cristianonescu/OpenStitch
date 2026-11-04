@@ -3,6 +3,7 @@
 //! Pure computation: no I/O, deterministic output.
 
 pub mod boolean;
+pub mod calibration;
 pub mod column;
 pub mod compile;
 pub mod concentric;
