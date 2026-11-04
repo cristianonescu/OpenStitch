@@ -36,5 +36,7 @@ The lettering:
 `tools/clean_logo.py MARK.svg LETTERING.svg` turns the two generated SVGs into the files above:
 it removes the generator metadata, the background and the generated tile, makes the needle's
 eye and the letter counters holes, centres the mark on a new tile and lays out the wordmark.
-The generated shapes themselves are unchanged. Then run `tools/gen_icons.py`. See
+The generated shapes themselves are unchanged. The two Higgsfield job ids (recovered from the
+history on 2026-11-04; run through `clean_logo.py` they give these files byte for byte) are in
+`higgsfield-jobs.tsv`. Then run `tools/gen_icons.py`. See
 docs/LEGAL_AND_LICENSING.md for where the logo comes from.

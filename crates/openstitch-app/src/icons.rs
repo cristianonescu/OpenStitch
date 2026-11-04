@@ -222,7 +222,12 @@ own!(
     "manual",
     "app_color",
     "system_unit",
+    "attach",
+    "close",
 );
+
+/// The icons of buttons that run no command: the Assistant panel's attach and close.
+pub const UI: &[&str] = &["attach", "close"];
 
 /// The own icon of the suite window command with the key `key`, if it has one.
 fn suite_glyph(key: &str) -> Option<Glyph> {
@@ -584,6 +589,16 @@ pub fn paint(painter: &egui::Painter, r: Rect, icon: impl Into<Icon>, fg: Color3
         return;
     }
     paint_shapes(painter, r, a, fg, enabled);
+}
+
+/// Draws the icon `name` of [`UI`] filling the square `r`; nothing when it cannot be rendered.
+pub fn paint_ui(painter: &egui::Painter, r: Rect, name: &'static str, fg: Color32) {
+    debug_assert!(UI.contains(&name), "{name} is not in UI");
+    let px = (r.width() * painter.ctx().pixels_per_point()).round() as u32;
+    if let Some(t) = texture(painter.ctx(), Glyph::Own(name), px, fg) {
+        let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
+        painter.image(t.id(), r, uv, Color32::WHITE);
+    }
 }
 
 /// Draws the code-drawn fallback icon of `a` filling the square `r`.
@@ -1425,8 +1440,11 @@ mod tests {
             .chain(suite::<FactoryAction>())
             .chain(suite::<DbAction>());
         let mut used = std::collections::BTreeSet::new();
-        for icon in icons {
-            let (name, src) = svg(glyph_of(icon).0);
+        for g in icons
+            .map(|icon| glyph_of(icon).0)
+            .chain(UI.iter().map(|&n| Glyph::Own(n)))
+        {
+            let (name, src) = svg(g);
             assert!(src.contains(OUTLINE), "{name}: no outline colour");
             let img = rasterize(src, 32, Color32::WHITE).unwrap_or_else(|| panic!("{name}"));
             let inked = img.pixels.iter().filter(|p| p.a() > 128).count();

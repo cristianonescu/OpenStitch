@@ -638,7 +638,7 @@ fn extras(app: &mut EditorApp, agent: bool) -> (String, Vec<(String, String)>, S
     let chips = if chips.is_empty() {
         String::new()
     } else {
-        format!("\n📎 {}", chips.join(" · "))
+        format!("\nAttached: {}", chips.join(" · "))
     };
     (text, images, chips)
 }
@@ -1904,11 +1904,33 @@ fn icon_button(
     resp.on_hover_text(tip)
 }
 
-fn close_glyph(p: &egui::Painter, r: egui::Rect, c: egui::Color32) {
-    let r = r.shrink(2.5);
-    let stroke = egui::Stroke::new(1.8, c);
-    p.line_segment([r.left_top(), r.right_bottom()], stroke);
-    p.line_segment([r.right_top(), r.left_bottom()], stroke);
+/// An attachment above the composer: the paperclip, the file name and the close icon. A click
+/// removes it.
+fn attachment_chip(ui: &mut egui::Ui, name: &str) -> egui::Response {
+    let icon = 12.0;
+    let font = egui::TextStyle::Button.resolve(ui.style());
+    let galley = ui
+        .painter()
+        .layout_no_wrap(name.to_string(), font, egui::Color32::PLACEHOLDER);
+    let size = egui::vec2(galley.size().x + 2.0 * icon + 16.0, 20.0);
+    let (r, resp) = ui.allocate_exact_size(size, egui::Sense::click());
+    let v = ui.style().interact(&resp);
+    let p = ui.painter();
+    p.rect(
+        r,
+        v.corner_radius,
+        v.weak_bg_fill,
+        v.bg_stroke,
+        egui::StrokeKind::Inside,
+    );
+    let square =
+        |x: f32| egui::Rect::from_center_size(egui::pos2(x, r.center().y), egui::vec2(icon, icon));
+    let c = v.fg_stroke.color;
+    crate::icons::paint_ui(p, square(r.left() + 4.0 + icon / 2.0), "attach", c);
+    let text = egui::pos2(r.left() + icon + 8.0, r.center().y - galley.size().y / 2.0);
+    p.galley(text, galley, c);
+    crate::icons::paint_ui(p, square(r.right() - 4.0 - icon / 2.0), "close", c);
+    resp
 }
 
 /// The docked panel (call before the central panel).
@@ -1919,7 +1941,7 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
     if !(app.ui.prefs.ai.enabled && app.assistant.panel.open) {
         return;
     }
-    // Files dropped onto the window while the panel is open go with the next message, as 📎
+    // Files dropped onto the window while the panel is open go with the next message, as chips
     // (#407).
     let dropped: Vec<_> = ctx.input(|i| {
         i.raw
@@ -1944,7 +1966,9 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                             .shortcut_for(crate::ribbon::MAC)
                             .unwrap_or_default()
                     );
-                    if icon_button(ui, &tip, close_glyph).clicked() {
+                    if icon_button(ui, &tip, |p, r, c| crate::icons::paint_ui(p, r, "close", c))
+                        .clicked()
+                    {
                         set_open(app, false);
                     }
                     let settings_open = app.assistant.panel.show_settings;
@@ -2040,8 +2064,7 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                     let mut remove = None;
                     ui.horizontal_wrapped(|ui| {
                         for (i, a) in panel.attachments.iter().enumerate() {
-                            if ui
-                                .small_button(format!("📎 {} ×", a.name))
+                            if attachment_chip(ui, &a.name)
                                 .on_hover_text("Remove")
                                 .clicked()
                             {
@@ -2069,15 +2092,7 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                     let attach = icon_button(
                         ui,
                         "Attach pictures, SVG, text or stitch files (up to 8)",
-                        |p, r, c| {
-                            p.text(
-                                r.center(),
-                                egui::Align2::CENTER_CENTER,
-                                "📎",
-                                egui::FontId::proportional(16.0),
-                                c,
-                            );
-                        },
+                        |p, r, c| crate::icons::paint_ui(p, r, "attach", c),
                     );
                     if attach.clicked()
                         && let Some(files) = rfd::FileDialog::new()
@@ -2589,7 +2604,7 @@ mod tests {
             "sent with the message"
         );
         assert!(
-            matches!(&app.assistant.panel.items[0], Item::User(t) if t.contains("📎 openstitch-a4-disc"))
+            matches!(&app.assistant.panel.items[0], Item::User(t) if t.contains("Attached: openstitch-a4-disc"))
         );
     }
 
@@ -2803,7 +2818,9 @@ mod tests {
                 .is_some_and(|t| t.contains("picture of the design view"))
         );
         assert!(!app.assistant.panel.attach_view, "the chip is used once");
-        assert!(matches!(&app.assistant.panel.items[0], Item::User(t) if t.contains("📎 view")));
+        assert!(
+            matches!(&app.assistant.panel.items[0], Item::User(t) if t.contains("Attached: view"))
+        );
     }
 
     #[test]
