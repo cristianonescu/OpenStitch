@@ -14,8 +14,8 @@
 use crate::app::EditorApp;
 use eframe::egui::{self, RichText};
 use openstitch_app::editor::assistant_chat::{
-    APPROVAL_TIMEOUT_S, GateInput, PRESETS, PermissionMode, Protocol, ScriptRecord, Verdict,
-    is_this_computer, verdict,
+    APPROVAL_TIMEOUT_S, AiPrefs, GateInput, PRESETS, PermissionMode, Protocol, ScriptRecord,
+    Verdict, is_this_computer, verdict,
 };
 use openstitch_assistant as claude;
 use openstitch_engine::Effect;
@@ -29,10 +29,28 @@ use std::time::{Duration, Instant};
 /// The keychain service the API key is stored under, one entry per endpoint address.
 const KEYCHAIN_SERVICE: &str = "OpenStitch assistant";
 
+/// Where a command's answer goes: the in-process server, or a coding agent's MCP bridge on
+/// the private socket (A3).
+enum Reply {
+    Channel(Sender<Value>),
+    Socket(openstitch_remote::Job),
+}
+
 /// One command from the model, waiting for the UI thread.
 struct Job {
     request: Value,
-    reply: Sender<Value>,
+    reply: Reply,
+}
+
+impl Job {
+    fn answer(self, value: Value) {
+        match self.reply {
+            Reply::Channel(tx) => {
+                let _ = tx.send(value);
+            }
+            Reply::Socket(job) => job.respond(value),
+        }
+    }
 }
 
 /// Wakes the UI when the worker has something (a repaint request in the app, nothing in tests).
@@ -51,7 +69,7 @@ impl EditorLink for ChannelLink {
             .jobs
             .send(Job {
                 request: request.clone(),
-                reply,
+                reply: Reply::Channel(reply),
             })
             .is_err()
         {
@@ -94,6 +112,8 @@ impl claude::Tools for ServerTools {
 
 enum ToWorker {
     Turn(Box<claude::Config>, Vec<Value>),
+    /// A coding agent's turn: the text (A3).
+    Prompt(String),
 }
 
 enum FromWorker {
@@ -106,8 +126,10 @@ struct Worker {
     from: Receiver<FromWorker>,
     jobs: Receiver<Job>,
     cancel: Arc<AtomicBool>,
-    /// A conversation keeps the protocol it started with (`openstitch-assistant`).
-    protocol: claude::Protocol,
+    /// A conversation keeps the protocol (and agent) it started with.
+    kind: (Protocol, String),
+    /// A coding agent reaches the editor through its MCP bridge on this private socket (A3).
+    listener: Option<openstitch_remote::Server>,
 }
 
 impl Worker {
@@ -152,7 +174,77 @@ impl Worker {
             from,
             jobs,
             cancel,
-            protocol: claude::Protocol::default(),
+            kind: (Protocol::Anthropic, String::new()),
+            listener: None,
+        }
+    }
+
+    /// A coding agent (ACP) on the user's own account. It runs in its own process group in an
+    /// empty folder; its only way into the editor is `openstitch-mcp --assistant` connected to
+    /// `listener`, whose requests pass the same gate as the in-process ones (`serve`).
+    fn start_agent(config: claude::AcpConfig, listener: openstitch_remote::Server, wake: Waker) -> Worker {
+        let (to, inbox) = channel::<ToWorker>();
+        let (out, from) = channel();
+        let (_job_tx, jobs) = channel();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let stop = cancel.clone();
+        let w = wake.clone();
+        listener.set_waker(move || w());
+        std::thread::spawn(move || {
+            let send = |m| {
+                let _ = out.send(m);
+                wake();
+            };
+            let mut agent = match claude::AcpConversation::start(&config) {
+                Ok(a) => a,
+                Err(e) => {
+                    // The first message is waiting for an answer.
+                    if let Ok(ToWorker::Prompt(_)) = inbox.recv() {
+                        send(FromWorker::End(claude::StopKind::Error(agent_error(&e))));
+                    }
+                    return;
+                }
+            };
+            while let Ok(m) = inbox.recv() {
+                let ToWorker::Prompt(text) = m else { continue };
+                stop.store(false, Ordering::SeqCst);
+                let end = agent.prompt(&text, &stop, &mut |e| send(FromWorker::Event(e)));
+                send(FromWorker::End(end));
+            }
+            agent.stop();
+        });
+        Worker {
+            to,
+            from,
+            jobs,
+            cancel,
+            kind: (Protocol::Agent, String::new()),
+            listener: Some(listener),
+        }
+    }
+}
+
+/// What the user is told when a coding agent cannot start.
+fn agent_error(e: &claude::AcpError) -> String {
+    match e {
+        claude::AcpError::NotFound(m) => format!("The agent is not installed: {m}"),
+        claude::AcpError::Start(m) => format!("The agent did not start: {m}"),
+        claude::AcpError::Protocol(m) => format!("The agent answered unexpectedly: {m}"),
+        claude::AcpError::AuthRequired(methods) => {
+            let ways: Vec<String> = methods
+                .iter()
+                .map(|m| match m {
+                    claude::AuthMethod::Command { name, description, .. } => match description {
+                        Some(d) => format!("{name}: {d}"),
+                        None => name.clone(),
+                    },
+                    claude::AuthMethod::Other { name, .. } => name.clone(),
+                })
+                .collect();
+            format!(
+                "Sign in to the agent first, in a terminal, with its own sign-in ({}); then send again.",
+                if ways.is_empty() { "see its documentation".to_string() } else { ways.join("; ") }
+            )
         }
     }
 }
@@ -287,12 +379,83 @@ pub fn send(app: &mut EditorApp, text: String, wake: Waker) {
         return;
     }
     let prefs = app.ui.prefs.ai.clone();
+    // The model writes SVGs and pictures here (ui.scratchWrite); `--listen` made one already.
+    if app.assistant.scratch.is_none() {
+        match crate::assistant_ui::create_scratch() {
+            Ok(dir) => app.assistant.scratch = Some(dir),
+            Err(e) => app.assistant.panel.items.push(Item::Notice(format!(
+                "No scratch folder for the assistant's files ({e}); it can still edit the design."
+            ))),
+        }
+    }
+    let kind = (
+        prefs.protocol,
+        if prefs.protocol == Protocol::Agent { prefs.agent.clone() } else { String::new() },
+    );
+    let message = if prefs.protocol == Protocol::Agent {
+        ToWorker::Prompt(format!("{text}\n\n{}", context(app)))
+    } else {
+        let Some(config) = model_config(app, &prefs) else {
+            return;
+        };
+        let content = claude::user_content(&format!("{text}\n\n{}", context(app)), &[]);
+        ToWorker::Turn(Box::new(config), content)
+    };
+    let panel = &mut app.assistant.panel;
+    if panel.worker.as_ref().is_some_and(|w| w.kind != kind) {
+        // The settings changed the protocol or the agent: a new conversation.
+        panel.worker = None;
+        panel.items.push(Item::Notice(
+            "The settings changed the model or agent, so this is a new conversation.".into(),
+        ));
+    }
+    if panel.worker.is_none() {
+        let worker = if prefs.protocol == Protocol::Agent {
+            match start_agent(app, &prefs.agent, wake) {
+                Ok(w) => w,
+                Err(e) => {
+                    app.assistant.panel.items.push(Item::Notice(e));
+                    return;
+                }
+            }
+        } else {
+            let transport = panel
+                .transport
+                .clone()
+                .unwrap_or_else(|| Arc::new(claude::UreqTransport));
+            let mut w = Worker::start(transport, wake);
+            w.kind = kind;
+            w
+        };
+        app.assistant.panel.worker = Some(worker);
+    }
+    let panel = &mut app.assistant.panel;
+    panel.items.push(Item::User(text.clone()));
+    panel.turn = Some(Turn {
+        undo_start: app.undo_groups.len(),
+        edits: 0,
+        text,
+        used_tools: false,
+        reply: String::new(),
+    });
+    let worker = panel.worker.as_ref().expect("worker");
+    if worker.to.send(message).is_err() {
+        panel.worker = None;
+        panel.turn = None;
+        panel
+            .items
+            .push(Item::Notice("The assistant stopped; send again.".into()));
+    }
+}
+
+/// The model request settings, or `None` (with a notice) when the key may not be sent.
+fn model_config(app: &mut EditorApp, prefs: &AiPrefs) -> Option<claude::Config> {
     if !claude::key_safe_for(&prefs.base_url) {
         app.assistant.panel.items.push(Item::Notice(format!(
             "The address {} is neither https nor this computer, so the key is not sent. Change it in the Assistant's settings.",
             prefs.base_url
         )));
-        return;
+        return None;
     }
     let local = prefs.protocol == Protocol::OpenAi && is_this_computer(&prefs.base_url);
     let key = match app.assistant.panel.api_key(&prefs.base_url) {
@@ -304,10 +467,10 @@ pub fn send(app: &mut EditorApp, text: String, wake: Waker) {
             app.assistant.panel.items.push(Item::Notice(
                 "Add the API key for this address in the Assistant's settings (⚙) first. It is kept in the system keychain and sent only to the address shown there.".into(),
             ));
-            return;
+            return None;
         }
     };
-    let config = claude::Config {
+    Some(claude::Config {
         base_url: prefs.base_url.clone(),
         api_key: key,
         model: prefs.model.clone(),
@@ -315,63 +478,86 @@ pub fn send(app: &mut EditorApp, text: String, wake: Waker) {
         request_timeout: Duration::from_secs(prefs.request_timeout_s),
         system: openstitch_mcp::server::assistant_instructions().to_string(),
         protocol: match prefs.protocol {
-            Protocol::Anthropic => claude::Protocol::Anthropic,
             Protocol::OpenAi => claude::Protocol::OpenAi,
+            Protocol::Anthropic | Protocol::Agent => claude::Protocol::Anthropic,
         },
         reasoning_effort: Some(prefs.reasoning_effort.clone()).filter(|e| !e.is_empty()),
         ..claude::Config::default()
+    })
+}
+
+/// `openstitch-mcp` beside this editor (the packages ship them together).
+fn mcp_program() -> Option<std::path::PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let path = exe
+        .parent()?
+        .join(format!("openstitch-mcp{}", std::env::consts::EXE_SUFFIX));
+    path.is_file().then_some(path)
+}
+
+/// Finds a coding agent's program on PATH and in the usual install folders.
+fn find_program(name: &str) -> Option<std::path::PathBuf> {
+    claude::search_dirs().into_iter().find_map(|d| {
+        [name.to_string(), format!("{name}.cmd"), format!("{name}{}", std::env::consts::EXE_SUFFIX)]
+            .into_iter()
+            .map(|n| d.join(n))
+            .find(|p| p.is_file())
+    })
+}
+
+/// Starts a coding agent with a private socket for its MCP bridge.
+fn start_agent(app: &mut EditorApp, id: &str, wake: Waker) -> Result<Worker, String> {
+    let agent = claude::KNOWN_AGENTS
+        .iter()
+        .find(|a| a.id == id)
+        .ok_or_else(|| format!("Unknown agent '{id}'; pick one in the Assistant's settings."))?;
+    let program = find_program(agent.program).ok_or_else(|| {
+        format!(
+            "{} is not installed. Install it with: {}  — then send again.",
+            agent.name, agent.install
+        )
+    })?;
+    let mcp = mcp_program().ok_or(
+        "openstitch-mcp was not found next to the editor, so a coding agent cannot reach it. Use a packaged build, or build openstitch-mcp too.",
+    )?;
+    let scratch = app
+        .assistant
+        .scratch
+        .clone()
+        .ok_or("No scratch folder for the agent.")?;
+    // An empty working folder of its own; its endpoint file is readable by the user only (the
+    // scratch folder is 0700 on Unix).
+    let work = scratch.join("agent-work");
+    std::fs::create_dir_all(&work).map_err(|e| e.to_string())?;
+    let endpoint = scratch.join("agent-endpoint.json");
+    let _ = std::fs::remove_file(&endpoint);
+    let listener = openstitch_remote::Server::start(openstitch_remote::ServerConfig {
+        write_roots: vec![scratch.clone()],
+        endpoint_file: Some(endpoint.clone()),
+        reply_timeout: Duration::from_secs(APPROVAL_TIMEOUT_S + 30),
+        ..openstitch_remote::ServerConfig::default()
+    })
+    .map_err(|e| format!("The agent's private socket did not open: {e}"))?;
+    let config = claude::AcpConfig {
+        program,
+        args: agent.args.iter().map(|a| a.to_string()).collect(),
+        cwd: work,
+        mcp: claude::McpServer {
+            name: claude::BRIDGE_NAME.into(),
+            command: mcp,
+            args: vec![
+                "--assistant".into(),
+                "--endpoint".into(),
+                endpoint.display().to_string(),
+            ],
+            env: Vec::new(),
+        },
+        system: openstitch_mcp::server::assistant_instructions().to_string(),
+        extra_path: claude::search_dirs(),
     };
-    // The model writes SVGs and pictures here (ui.scratchWrite); `--listen` made one already.
-    if app.assistant.scratch.is_none() {
-        match crate::assistant_ui::create_scratch() {
-            Ok(dir) => app.assistant.scratch = Some(dir),
-            Err(e) => app.assistant.panel.items.push(Item::Notice(format!(
-                "No scratch folder for the assistant's files ({e}); it can still edit the design."
-            ))),
-        }
-    }
-    let content = claude::user_content(&format!("{text}\n\n{}", context(app)), &[]);
-    let panel = &mut app.assistant.panel;
-    if panel
-        .worker
-        .as_ref()
-        .is_some_and(|w| w.protocol != config.protocol)
-    {
-        // The settings changed the protocol: the model starts a new conversation.
-        panel.worker = None;
-        panel.items.push(Item::Notice(
-            "The protocol changed, so this is a new conversation for the model.".into(),
-        ));
-    }
-    if panel.worker.is_none() {
-        let transport = panel
-            .transport
-            .clone()
-            .unwrap_or_else(|| Arc::new(claude::UreqTransport));
-        let mut worker = Worker::start(transport, wake);
-        worker.protocol = config.protocol;
-        panel.worker = Some(worker);
-    }
-    panel.items.push(Item::User(text.clone()));
-    panel.turn = Some(Turn {
-        undo_start: app.undo_groups.len(),
-        edits: 0,
-        text,
-        used_tools: false,
-        reply: String::new(),
-    });
-    let worker = panel.worker.as_ref().expect("worker");
-    if worker
-        .to
-        .send(ToWorker::Turn(Box::new(config), content))
-        .is_err()
-    {
-        panel.worker = None;
-        panel.turn = None;
-        panel
-            .items
-            .push(Item::Notice("The assistant stopped; send again.".into()));
-    }
+    let mut w = Worker::start_agent(config, listener, wake);
+    w.kind = (Protocol::Agent, id.to_string());
+    Ok(w)
 }
 
 /// Stop: ends the turn; what it already changed stays, as one undo step.
@@ -381,10 +567,8 @@ pub fn stop(app: &mut EditorApp) {
         w.cancel.store(true, Ordering::SeqCst);
     }
     for a in panel.approvals.drain(..) {
-        let _ = a
-            .job
-            .reply
-            .send(json!({ "ok": false, "error": "stopped by the user" }));
+        a.job
+            .answer(json!({ "ok": false, "error": "stopped by the user" }));
     }
     panel.queue.clear();
 }
@@ -402,7 +586,7 @@ pub fn new_chat(app: &mut EditorApp) {
 }
 
 fn reply_err(job: Job, message: String) {
-    let _ = job.reply.send(json!({ "ok": false, "error": message }));
+    job.answer(json!({ "ok": false, "error": message }));
 }
 
 /// The effect a command declares (engine or `ui.*`); `None` for unknown commands, which the
@@ -436,7 +620,7 @@ fn run_job(app: &mut EditorApp, job: Job) {
             t.edits += 1;
         }
     }
-    let _ = job.reply.send(reply);
+    job.answer(reply);
 }
 
 fn handle_job(app: &mut EditorApp, job: Job) {
@@ -516,10 +700,8 @@ fn finish_turn(app: &mut EditorApp, end: claude::StopKind, wake: Waker) {
         return;
     };
     for a in app.assistant.panel.approvals.drain(..) {
-        let _ = a
-            .job
-            .reply
-            .send(json!({ "ok": false, "error": "the turn ended" }));
+        a.job
+            .answer(json!({ "ok": false, "error": "the turn ended" }));
     }
     let start = turn.undo_start.min(app.undo_groups.len());
     let steps: usize = app.undo_groups.drain(start..).sum();
@@ -637,6 +819,16 @@ pub fn serve(app: &mut EditorApp, wake: Waker) {
     if let Some(w) = &app.assistant.panel.worker {
         events.extend(w.from.try_iter());
         jobs.extend(w.jobs.try_iter());
+        // A coding agent's MCP bridge, on the private socket: the same gate, the same undo step.
+        if let Some(listener) = &w.listener {
+            while let Some(job) = listener.try_next() {
+                let request = job.request().clone();
+                jobs.push(Job {
+                    request,
+                    reply: Reply::Socket(job),
+                });
+            }
+        }
     }
     for job in jobs {
         handle_job(app, job);
@@ -704,6 +896,8 @@ pub struct Lookups {
     models: Option<(String, Result<Vec<claude::ModelInfo>, String>)>,
     /// Ollama's answer to "does this model call tools", for the model it was asked about.
     ollama_tools: Option<(String, Option<bool>)>,
+    /// Coding agents found on this computer (A3), once looked for.
+    agents: Option<Vec<claude::Discovered>>,
     /// What is being looked up now.
     busy: Vec<&'static str>,
 }
@@ -764,6 +958,7 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
     let mut changed = false;
     let mut model_changed = false;
     let mut want_models = false;
+    let mut want_agents = false;
     let prefs = &mut app.ui.prefs.ai;
     egui::Grid::new("assistant-settings")
         .num_columns(2)
@@ -799,67 +994,116 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                     }
                 });
             ui.end_row();
-            ui.label("Address");
-            changed |= ui.text_edit_singleline(&mut prefs.base_url).lost_focus();
-            ui.end_row();
-            ui.label("Model");
-            ui.horizontal(|ui| {
-                let r = ui.add(egui::TextEdit::singleline(&mut prefs.model).desired_width(170.0));
-                if r.lost_focus() {
-                    changed = true;
-                    model_changed = true;
-                }
-                let l = lookups.lock().unwrap_or_else(|e| e.into_inner());
-                if let Some((base, Ok(models))) = &l.models
-                    && *base == prefs.base_url
-                    && !models.is_empty()
-                {
-                    egui::ComboBox::from_id_salt("assistant-models")
-                        .selected_text("▾")
-                        .width(30.0)
-                        .show_ui(ui, |ui| {
-                            for m in models {
-                                let text = m.name.as_deref().map_or(m.id.clone(), |n| format!("{n} ({})", m.id));
-                                if ui.selectable_label(prefs.model == m.id, text).clicked() {
-                                    prefs.model = m.id.clone();
-                                    changed = true;
-                                    model_changed = true;
+            if prefs.protocol != Protocol::Agent {
+                ui.label("Address");
+                changed |= ui.text_edit_singleline(&mut prefs.base_url).lost_focus();
+                ui.end_row();
+                ui.label("Model");
+                ui.horizontal(|ui| {
+                    let r = ui.add(egui::TextEdit::singleline(&mut prefs.model).desired_width(170.0));
+                    if r.lost_focus() {
+                        changed = true;
+                        model_changed = true;
+                    }
+                    let l = lookups.lock().unwrap_or_else(|e| e.into_inner());
+                    if let Some((base, Ok(models))) = &l.models
+                        && *base == prefs.base_url
+                        && !models.is_empty()
+                    {
+                        egui::ComboBox::from_id_salt("assistant-models")
+                            .selected_text("▾")
+                            .width(30.0)
+                            .show_ui(ui, |ui| {
+                                for m in models {
+                                    let text = m.name.as_deref().map_or(m.id.clone(), |n| format!("{n} ({})", m.id));
+                                    if ui.selectable_label(prefs.model == m.id, text).clicked() {
+                                        prefs.model = m.id.clone();
+                                        changed = true;
+                                        model_changed = true;
+                                    }
                                 }
+                            });
+                    }
+                    let busy = l.busy.contains(&"models");
+                    drop(l);
+                    if busy {
+                        ui.spinner();
+                    } else if ui.small_button("List").on_hover_text("Ask the endpoint for its models").clicked() {
+                        want_models = true;
+                    }
+                });
+                ui.end_row();
+                if prefs.protocol == Protocol::Anthropic {
+                    ui.label("Effort");
+                    egui::ComboBox::from_id_salt("assistant-effort")
+                        .selected_text(prefs.effort.clone())
+                        .show_ui(ui, |ui| {
+                            for e in openstitch_app::editor::assistant_chat::EFFORTS {
+                                changed |= ui.selectable_value(&mut prefs.effort, e.to_string(), e).changed();
                             }
                         });
+                } else {
+                    ui.label("Reasoning effort");
+                    changed |= ui
+                        .add(egui::TextEdit::singleline(&mut prefs.reasoning_effort).hint_text("provider default").desired_width(120.0))
+                        .on_hover_text("Sent as reasoning_effort when set (for example low, medium, high); values differ per provider")
+                        .lost_focus();
                 }
-                let busy = l.busy.contains(&"models");
+                ui.end_row();
+                ui.label("Request timeout (s)");
+                changed |= ui
+                    .add(egui::DragValue::new(&mut prefs.request_timeout_s).range(30..=3600))
+                    .on_hover_text("How long one model request may take; a large local model may need more")
+                    .changed();
+                ui.end_row();
+            } else {
+                ui.label("Agent");
+                let l = lookups.lock().unwrap_or_else(|e| e.into_inner());
+                let found = l.agents.clone();
                 drop(l);
-                if busy {
-                    ui.spinner();
-                } else if ui.small_button("List").on_hover_text("Ask the endpoint for its models").clicked() {
-                    want_models = true;
-                }
-            });
-            ui.end_row();
-            if prefs.protocol == Protocol::Anthropic {
-                ui.label("Effort");
-                egui::ComboBox::from_id_salt("assistant-effort")
-                    .selected_text(prefs.effort.clone())
+                egui::ComboBox::from_id_salt("assistant-agent")
+                    .selected_text(
+                        claude::KNOWN_AGENTS
+                            .iter()
+                            .find(|a| a.id == prefs.agent)
+                            .map_or(prefs.agent.as_str(), |a| a.name),
+                    )
                     .show_ui(ui, |ui| {
-                        for e in openstitch_app::editor::assistant_chat::EFFORTS {
-                            changed |= ui.selectable_value(&mut prefs.effort, e.to_string(), e).changed();
+                        for a in claude::KNOWN_AGENTS {
+                            let state = found.as_ref().and_then(|f| {
+                                f.iter().find(|d| d.agent.id == a.id).map(|d| match &d.state {
+                                    claude::AgentState::Ready { version, .. } => format!(" · {version}"),
+                                    claude::AgentState::NotInstalled => " · not installed".to_string(),
+                                    claude::AgentState::DoesNotStart(_) => " · does not start".to_string(),
+                                })
+                            });
+                            let text = format!("{}{}", a.name, state.unwrap_or_default());
+                            if ui.selectable_label(prefs.agent == a.id, text).clicked() {
+                                prefs.agent = a.id.to_string();
+                                changed = true;
+                            }
                         }
                     });
-            } else {
-                ui.label("Reasoning effort");
-                changed |= ui
-                    .add(egui::TextEdit::singleline(&mut prefs.reasoning_effort).hint_text("provider default").desired_width(120.0))
-                    .on_hover_text("Sent as reasoning_effort when set (for example low, medium, high); values differ per provider")
-                    .lost_focus();
+                ui.end_row();
+                if let Some(a) = claude::KNOWN_AGENTS.iter().find(|a| a.id == prefs.agent) {
+                    let missing = found.as_ref().is_some_and(|f| {
+                        f.iter().any(|d| d.agent.id == a.id && !matches!(d.state, claude::AgentState::Ready { .. }))
+                    });
+                    if missing {
+                        ui.label("Install");
+                        ui.horizontal(|ui| {
+                            ui.monospace(a.install);
+                            if ui.small_button("Copy").clicked() {
+                                ui.ctx().copy_text(a.install.to_string());
+                            }
+                        });
+                        ui.end_row();
+                    }
+                }
+                if found.is_none() {
+                    want_agents = true;
+                }
             }
-            ui.end_row();
-            ui.label("Request timeout (s)");
-            changed |= ui
-                .add(egui::DragValue::new(&mut prefs.request_timeout_s).range(30..=3600))
-                .on_hover_text("How long one model request may take; a large local model may need more")
-                .changed();
-            ui.end_row();
             ui.label("Permissions");
             egui::ComboBox::from_id_salt("assistant-mode")
                 .selected_text(prefs.mode.label())
@@ -895,6 +1139,20 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
     let local_openai = prefs.protocol == Protocol::OpenAi && is_this_computer(&prefs.base_url);
     if want_models {
         list_models(app, &lookups, &ctx);
+    }
+    if want_agents {
+        let mut l = lookups.lock().unwrap_or_else(|e| e.into_inner());
+        if !l.busy.contains(&"agents") {
+            l.busy.push("agents");
+            let (out, ctx) = (lookups.clone(), ctx.clone());
+            std::thread::spawn(move || {
+                let found = claude::discover();
+                let mut l = out.lock().unwrap_or_else(|e| e.into_inner());
+                l.agents = Some(found);
+                l.busy.retain(|b| *b != "agents");
+                ctx.request_repaint();
+            });
+        }
     }
     if model_changed && local_openai {
         check_ollama_tools(app, &lookups, &ctx);
@@ -1534,6 +1792,72 @@ mod tests {
         send(&mut app, "hello".into(), no_wake());
         assert!(!app.assistant.panel.busy());
         assert!(transport.requests.lock().expect("lock").is_empty());
+    }
+
+    /// A coding agent's MCP bridge reaches the editor only through the panel's private socket,
+    /// and every request there passes the same gate (A3).
+    #[test]
+    fn the_agent_socket_goes_through_the_gate() {
+        let mut app = EditorApp::new(Launch {
+            demo: true,
+            ..Launch::default()
+        });
+        let listener = openstitch_remote::Server::start(openstitch_remote::ServerConfig::default())
+            .expect("listener");
+        let endpoint = listener.endpoint().clone();
+        let config = claude::AcpConfig {
+            program: std::path::PathBuf::from("no-such-agent-program"),
+            args: Vec::new(),
+            cwd: std::env::temp_dir(),
+            mcp: claude::McpServer {
+                name: claude::BRIDGE_NAME.into(),
+                command: std::path::PathBuf::from("no-such-mcp"),
+                args: Vec::new(),
+                env: Vec::new(),
+            },
+            system: String::new(),
+            extra_path: Vec::new(),
+        };
+        app.assistant.panel.worker = Some(Worker::start_agent(config, listener, no_wake()));
+        let before = app.session.design().objects.len();
+        // The bridge's requests come from another thread, as from openstitch-mcp.
+        let client = std::thread::spawn(move || {
+            let mut c = openstitch_remote::Client::new(endpoint).expect("connect");
+            let edit = c.handle(&json!({ "command": "shape.rectangle",
+                "params": { "x": 5, "y": 5, "width": 10, "height": 10 } }));
+            let save = c.handle(&json!({ "command": "project.save",
+                "params": { "path": "/nonexistent-dir/x.osd" } }));
+            (edit, save)
+        });
+        let start = Instant::now();
+        while app.assistant.panel.approvals.is_empty() {
+            serve(&mut app, no_wake());
+            assert!(start.elapsed() < Duration::from_secs(30), "no approval asked");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert_eq!(app.session.design().objects.len(), before + 1, "the edit ran");
+        assert_eq!(app.assistant.panel.approvals[0].command, "project.save");
+        answer(&mut app, 0, Answer::Deny);
+        let (edit, save) = client.join().expect("client");
+        assert_eq!(edit["ok"], json!(true), "{edit}");
+        assert_eq!(save["ok"], json!(false));
+        assert!(save["error"].as_str().is_some_and(|e| e.contains("declined")), "{save}");
+        // A wrong token is refused before anything reaches the gate.
+        let w = app.assistant.panel.worker.as_ref().expect("worker");
+        let mut bad = w.listener.as_ref().expect("listener").endpoint().clone();
+        bad.token = "0".repeat(64);
+        let r = std::thread::spawn(move || {
+            openstitch_remote::Client::new(bad)
+                .expect("connect")
+                .handle(&json!({ "command": "design.info" }))
+        });
+        let start = Instant::now();
+        while !r.is_finished() {
+            serve(&mut app, no_wake());
+            assert!(start.elapsed() < Duration::from_secs(30));
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert_eq!(r.join().expect("join")["ok"], json!(false));
     }
 
     #[test]
