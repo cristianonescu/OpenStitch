@@ -52,7 +52,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 | Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 33: 26 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 11 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
-| Open GitHub issues | 5 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
+| Open GitHub issues | 16 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
 <!-- /status:glance -->
 
 Tiers, weakest first: *internal regression* (our own earlier output), *oracle* (an independent
@@ -375,7 +375,12 @@ Other things to know:
 Bugs reported on GitHub:
 
 <!-- status:issues-bugs -->
-_None._
+- [#288](https://github.com/cristianonescu/OpenStitch/issues/288) Small satin lettering ends its strokes in very short stitches (the T1 mark sews messily)
+- [#289](https://github.com/cristianonescu/OpenStitch/issues/289) Small image designs trim too often and leave loose thread tails
+- [#290](https://github.com/cristianonescu/OpenStitch/issues/290) Auto Punch storybook pictures stack needle drops and fail sew_check
+- [#293](https://github.com/cristianonescu/OpenStitch/issues/293) Zigzag net fill sews lumpy on the machine
+- [#296](https://github.com/cristianonescu/OpenStitch/issues/296) Kit: the laurel frame overlaps the blue circle's corners frame in shapes/decorative-frames
+- [#297](https://github.com/cristianonescu/OpenStitch/issues/297) T1 card: the swatches after the T1 mark get the wrong density, and the mark sews as fill
 <!-- /status:issues-bugs -->
 
 [Report a bug](https://github.com/cristianonescu/OpenStitch/issues/new).
@@ -389,8 +394,9 @@ Next, from [docs/ROADMAP.md](docs/ROADMAP.md):
   the remaining hoops in the PES 11 writer.
 - **Stitches:** the remaining fill, satin and line details listed above, and branching skeletons.
 - **Machine tier:** a first recorded sew-out on a Brother machine.
-- **Image digitizing:** run-to-run travel in Cross Stitch, fewer trims in Photo Stitch 1's
-  OpenStitch mode, and closer Photo Stitch output.
+- **Image digitizing:** run-to-run travel in Cross Stitch, still fewer trims in Photo Stitch 1
+  (hidden routed travel took OpenStitch mode from 68 to 25 trims per 1,000 stitches; PE-DESIGN
+  sews a colour in one to five paths), and closer Photo Stitch output.
 - **Distribution:** code signing and a Flathub listing.
 
 Open enhancement issues:
@@ -401,6 +407,11 @@ Open enhancement issues:
 - [#129](https://github.com/cristianonescu/OpenStitch/issues/129) (Optional, larger) Photo-stitch rotating-line coverage density model
 - [#130](https://github.com/cristianonescu/OpenStitch/issues/130) Add a PMV motif/pattern reader
 - [#134](https://github.com/cristianonescu/OpenStitch/issues/134) Import external scalable embroidery font containers
+- [#291](https://github.com/cristianonescu/OpenStitch/issues/291) Fit the Realistic view and the similarity scorer to the T1 calibration measurements
+- [#292](https://github.com/cristianonescu/OpenStitch/issues/292) Sew-out reports wanted: other machines, and the non-PES formats
+- [#294](https://github.com/cristianonescu/OpenStitch/issues/294) Run the macOS release checks for v0.1.0-alpha.9, alpha.10 and alpha.11
+- [#295](https://github.com/cristianonescu/OpenStitch/issues/295) Review every ready-to-sew kit design against the sew-out findings
+- [#298](https://github.com/cristianonescu/OpenStitch/issues/298) Photo Stitch 1 trims far more than PE-DESIGN: travel between a thread's runs instead
 <!-- /status:issues-planned -->
 
 ### Beyond PE-DESIGN
