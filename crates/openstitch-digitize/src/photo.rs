@@ -71,8 +71,9 @@ impl ColorSet {
 /// owner 2026-10-31).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Travel {
-    /// Short visible travel stitches (up to [`VISIBLE_TRAVEL_MM`]) where no hidden one reaches:
-    /// about half the trims.
+    /// Travel hidden along a path under later layers to the next run ([`ROUTE_MM`], issue
+    /// #298), or a short visible travel stitch (up to [`VISIBLE_TRAVEL_MM`]); trim only where
+    /// neither reaches: about a third of All trims' trims, for 2 to 3 points of likeness.
     #[default]
     FewerTrims,
     /// Travel only under later layers; trim elsewhere (best likeness).
@@ -576,7 +577,7 @@ fn fill_layer(
         turn: TURN_CELLS * cw + 1e-6,
         away: None,
     };
-    sew_runs(&runs, rows, ch, &sewing, |_, _, _, _| true)
+    sew_runs(&runs, rows, ch, &sewing, |_, _, _, _| true, None)
 }
 
 /// Thread `t`'s runs in grid order: each run of neighbouring cells in a row has a needle point
@@ -644,16 +645,23 @@ struct Sewing {
     away: Option<f64>,
 }
 
+/// A hidden way to the next run when none is in straight reach: from the needle at (x, y), with
+/// the runs already sewn marked, the run to sew next, whether it is entered from the right, and
+/// the travel's needle points up to that run's end (see [`Router`]).
+type Route<'a> = &'a dyn Fn(f64, f64, &[bool]) -> Option<(usize, bool, Vec<[f64; 2]>)>;
+
 /// Sews `runs` (in grid order) nearest first: from where the needle is, the closest unsewn run
 /// end within [`Sewing`]'s reach for which `hidden(needle x, y, end x, y)` holds is sewn next,
-/// entered from that end and reached with a travel stitch; when none is, the needle jumps to the
-/// first unsewn run in row order (see [`Sewing::away`]).
+/// entered from that end and reached with a travel stitch; when none is, `route` may find a
+/// hidden path to one (travel stitches along it); otherwise the needle jumps to the first unsewn
+/// run in row order (see [`Sewing::away`]).
 fn sew_runs(
     runs: &[Run],
     rows: usize,
     ch: f64,
     s: &Sewing,
     hidden: impl Fn(f64, f64, f64, f64) -> bool,
+    route: Option<Route>,
 ) -> Vec<Stitch> {
     let Sewing {
         reach_x,
@@ -707,9 +715,20 @@ fn sew_runs(
                 }
             }
         }
-        let (r, from_right, travel) = match best {
-            Some((_, r, from_right)) => (r, from_right, true),
-            None => {
+        let routed = match (best, pen, route) {
+            (None, Some((px, _)), Some(route)) => route(px, runs[prow_run].y, &done),
+            _ => None,
+        };
+        let (r, from_right, travel) = match (best, routed) {
+            (Some((_, r, from_right)), _) => (r, from_right, true),
+            (None, Some((r, from_right, way))) => {
+                for [x, y] in way {
+                    out.push(Stitch::new(x, y, Command::Stitch));
+                }
+                last_len = 0;
+                (r, from_right, true)
+            }
+            (None, None) => {
                 while done[next_scan] {
                     next_scan += 1;
                 }
@@ -1028,7 +1047,170 @@ fn fine_layer(d: &[Option<usize>], g: &Grid, rank: &[usize], t: usize, pitch: f6
         turn: 0.0,
         away: Some(CONNECT),
     };
-    no_short(sew_runs(&runs, rows, ch, &sewing, hidden))
+    let router = Router::new(d, g, rank, t, &runs);
+    let route = |x: f64, y: f64, done: &[bool]| router.route(x, y, done);
+    // Routed travel trades a little likeness (its needle points count against the density
+    // limit) for about two thirds fewer trims: Fewer trims only (the owner's Trims setting;
+    // All trims keeps the best likeness).
+    let routed = g.visible > 0.0;
+    no_short(sew_runs(
+        &runs,
+        rows,
+        ch,
+        &sewing,
+        hidden,
+        routed.then_some(&route as Route),
+    ))
+}
+
+/// Farthest a routed travel goes looking for the next run, mm: past it the thread jumps (and
+/// trims). PE-DESIGN's Photo Stitch 1 sews each colour in one to five paths (round-4 captures:
+/// 6 trims in 15,121 stitches), travelling under the colours sewn after it.
+pub const ROUTE_MM: f64 = 300.0;
+
+/// Hidden paths for one thread's travel between its fine runs (issue #298): a breadth-first
+/// search over the grid cells the thread may cross unseen, its own or those a later layer sews
+/// (by `rank`), to the nearest unsewn run end within [`ROUTE_MM`]. The path is sewn as travel
+/// stitches of at most [`TRAVEL_MM`], each straight one [`covered`].
+struct Router<'a> {
+    d: &'a [Option<usize>],
+    g: &'a Grid<'a>,
+    /// Whether a cell may be crossed.
+    open: Vec<bool>,
+    /// Run ends by cell: (run, entered from the right).
+    ends: Vec<Vec<(usize, bool)>>,
+    /// The runs' end points, by run: (left x, right x, y).
+    points: Vec<(f64, f64, f64)>,
+}
+
+impl<'a> Router<'a> {
+    fn new(
+        d: &'a [Option<usize>],
+        g: &'a Grid<'a>,
+        rank: &'a [usize],
+        t: usize,
+        runs: &[Run],
+    ) -> Self {
+        let open = d
+            .iter()
+            .map(|c| c.is_some_and(|u| u == t || rank.get(u).is_some_and(|&r| r > rank[t])))
+            .collect();
+        let mut ends = vec![Vec::new(); d.len()];
+        let mut points = Vec::with_capacity(runs.len());
+        for (i, r) in runs.iter().enumerate() {
+            let (l, rgt) = (r.xs[0], r.xs[r.xs.len() - 1]);
+            for (x, from_right) in [(l + 1e-6, false), (rgt - 1e-6, true)] {
+                let c = Self::cell_of(g, x, r.y);
+                ends[c].push((i, from_right));
+            }
+            points.push((l, rgt, r.y));
+        }
+        Router {
+            d,
+            g,
+            open,
+            ends,
+            points,
+        }
+    }
+
+    fn cell_of(g: &Grid, x: f64, y: f64) -> usize {
+        let cx = ((x - g.frame.origin.x) / g.cw)
+            .floor()
+            .clamp(0.0, g.cols as f64 - 1.0) as usize;
+        let cy = ((y - g.frame.origin.y) / g.ch)
+            .floor()
+            .clamp(0.0, g.rows as f64 - 1.0) as usize;
+        cy * g.cols + cx
+    }
+
+    fn centre(&self, c: usize) -> [f64; 2] {
+        let g = self.g;
+        [
+            g.frame.origin.x + ((c % g.cols) as f64 + 0.5) * g.cw,
+            g.frame.origin.y + ((c / g.cols) as f64 + 0.5) * g.ch,
+        ]
+    }
+
+    /// Whether the straight travel from `a` to `b` crosses only cells it may cross, sampled
+    /// every eighth of a cell so it cannot slip across a corner.
+    fn hidden(&self, a: [f64; 2], b: [f64; 2]) -> bool {
+        let g = self.g;
+        let n = ((b[0] - a[0]).dhypot(b[1] - a[1]) / (0.125 * g.cw.min(g.ch)))
+            .ceil()
+            .max(1.0) as usize;
+        (0..=n).all(|i| {
+            let f = i as f64 / n as f64;
+            self.open[Self::cell_of(g, a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f)]
+        })
+    }
+
+    fn route(&self, x: f64, y: f64, done: &[bool]) -> Option<(usize, bool, Vec<[f64; 2]>)> {
+        let g = self.g;
+        let start = Self::cell_of(g, x, y);
+        let reach = ((ROUTE_MM * 10.0 / g.cw.min(g.ch)).ceil()) as usize;
+        let (sx, sy) = (start % g.cols, start / g.cols);
+        let mut from = vec![usize::MAX; self.d.len()];
+        from[start] = start;
+        let mut queue = std::collections::VecDeque::from([start]);
+        let mut found = None;
+        'search: while let Some(c) = queue.pop_front() {
+            if let Some(&(r, from_right)) = self.ends[c].iter().find(|&&(r, _)| !done[r]) {
+                found = Some((c, r, from_right));
+                break 'search;
+            }
+            let (cx, cy) = (c % g.cols, c / g.cols);
+            // Four neighbours: a diagonal step would cut the corner of the two cells beside it.
+            for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
+                let (nx, ny) = (cx as isize + dx, cy as isize + dy);
+                if nx < 0 || ny < 0 || nx >= g.cols as isize || ny >= g.rows as isize {
+                    continue;
+                }
+                let (nx, ny) = (nx as usize, ny as usize);
+                if nx.abs_diff(sx) > reach || ny.abs_diff(sy) > reach {
+                    continue;
+                }
+                let n = ny * g.cols + nx;
+                if from[n] == usize::MAX && self.open[n] {
+                    from[n] = c;
+                    queue.push_back(n);
+                }
+            }
+        }
+        let (end, r, from_right) = found?;
+        let mut cells = vec![end];
+        while *cells.last()? != start {
+            cells.push(from[*cells.last()?]);
+        }
+        cells.reverse();
+        let (l, rgt, ry) = self.points[r];
+        let target = [if from_right { rgt } else { l }, ry];
+        // Travel stitches: from each point, the farthest path cell still straight and hidden
+        // within TRAVEL_MM; the last one reaches the run's end itself.
+        let travel = TRAVEL_MM * 10.0;
+        let mut way = Vec::new();
+        let mut at = [x, y];
+        let mut i = 0;
+        loop {
+            if (target[0] - at[0]).dhypot(target[1] - at[1]) <= travel && self.hidden(at, target) {
+                break;
+            }
+            let next = (i + 1..cells.len())
+                .rev()
+                .find(|&j| {
+                    let p = self.centre(cells[j]);
+                    (p[0] - at[0]).dhypot(p[1] - at[1]) <= travel && self.hidden(at, p)
+                })
+                .unwrap_or(i + 1);
+            if next >= cells.len() {
+                break;
+            }
+            at = self.centre(cells[next]);
+            way.push([at[0].round(), at[1].round()]);
+            i = next;
+        }
+        Some((r, from_right, way))
+    }
 }
 
 /// Needle points of one fine run `len` long: its start and the end of every stitch, the

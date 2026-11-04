@@ -298,6 +298,15 @@ pub fn send(app: &mut EditorApp, text: String, wake: Waker) {
         system: openstitch_mcp::server::assistant_instructions().to_string(),
         ..claude::Config::default()
     };
+    // The model writes SVGs and pictures here (ui.scratchWrite); `--listen` made one already.
+    if app.assistant.scratch.is_none() {
+        match crate::assistant_ui::create_scratch() {
+            Ok(dir) => app.assistant.scratch = Some(dir),
+            Err(e) => app.assistant.panel.items.push(Item::Notice(format!(
+                "No scratch folder for the assistant's files ({e}); it can still edit the design."
+            ))),
+        }
+    }
     let content = claude::user_content(&format!("{text}\n\n{}", context(app)), &[]);
     let panel = &mut app.assistant.panel;
     if panel.worker.is_none() {
@@ -1142,6 +1151,26 @@ mod tests {
         assert_eq!(app.undo_groups.len(), groups + 1);
         app.undo();
         assert_eq!(app.session.design().objects.len(), before);
+    }
+
+    #[test]
+    fn the_first_message_gives_the_assistant_a_scratch_folder() {
+        let svg = (
+            "ui.scratchWrite",
+            json!({ "name": "t.svg", "text": "<svg/>" }),
+        );
+        let (mut app, _) = app_with(vec![
+            reply(&[svg], "", "tool_use"),
+            reply(&[], "written", "end_turn"),
+        ]);
+        assert!(app.assistant.scratch.is_none(), "no --listen in this test");
+        send(&mut app, "write an svg".into(), no_wake());
+        run(&mut app, idle);
+        let dir = app.assistant.scratch.clone().expect("scratch folder");
+        assert_eq!(
+            std::fs::read(dir.join("t.svg")).expect("written"),
+            b"<svg/>"
+        );
     }
 
     #[test]
