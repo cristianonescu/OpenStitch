@@ -52,7 +52,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 | Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 33: 26 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 11 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
-| Open GitHub issues | 44 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
+| Open GitHub issues | 45 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
 <!-- /status:glance -->
 
 Tiers, weakest first: *internal regression* (our own earlier output), *oracle* (an independent
@@ -399,6 +399,7 @@ Bugs reported on GitHub:
 - [#304](https://github.com/cristianonescu/OpenStitch/issues/304) Satin over a jagged outline fans its needle drops into the notches (Auto Punch PE-compatible mode)
 - [#322](https://github.com/cristianonescu/OpenStitch/issues/322) PES: write the hoop and Design Page fields from the design instead of hard-coded values
 - [#341](https://github.com/cristianonescu/OpenStitch/issues/341) import.svg drops every <line> element
+- [#354](https://github.com/cristianonescu/OpenStitch/issues/354) object.setCenterPoint has no effect on spiral regions, though documented for spiral
 <!-- /status:issues-bugs -->
 
 [Report a bug](https://github.com/cristianonescu/OpenStitch/issues/new).
