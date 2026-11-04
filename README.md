@@ -52,7 +52,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 | Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 33: 26 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 11 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
-| Open GitHub issues | 44 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
+| Open GitHub issues | 45 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
 <!-- /status:glance -->
 
 Tiers, weakest first: *internal regression* (our own earlier output), *oracle* (an independent
@@ -431,7 +431,6 @@ Open enhancement issues:
 - [#292](https://github.com/cristianonescu/OpenStitch/issues/292) Sew-out reports wanted: other machines, and the non-PES formats
 - [#295](https://github.com/cristianonescu/OpenStitch/issues/295) Review every ready-to-sew kit design against the sew-out findings
 - [#298](https://github.com/cristianonescu/OpenStitch/issues/298) Photo Stitch 1 trims far more than PE-DESIGN: travel between a thread's runs instead
-- [#306](https://github.com/cristianonescu/OpenStitch/issues/306) B17 A1: AI assistant chat panel with Claude (keychain key, permission gate, one undo per message)
 - [#311](https://github.com/cristianonescu/OpenStitch/issues/311) T2 calibration card: two threads in alternating rows, to measure how much a later row covers an earlier one
 - [#312](https://github.com/cristianonescu/OpenStitch/issues/312) Kit build: check each calibration swatch's density in the exported PES
 - [#313](https://github.com/cristianonescu/OpenStitch/issues/313) Assistant command icon (Higgsfield) for View ▸ Show/Hide ▸ Assistant
@@ -449,7 +448,6 @@ Open enhancement issues:
 - [#333](https://github.com/cristianonescu/OpenStitch/issues/333) Tests: the automation socket's idle-connection timeout is untested
 - [#334](https://github.com/cristianonescu/OpenStitch/issues/334) Tests: digitize parameters no test sends (Photo Stitch densityMean/densityWindow/travel, single-chart thread source, PS2 97 % claim)
 - [#338](https://github.com/cristianonescu/OpenStitch/issues/338) B17 A3: Assistant with ACP coding agents (Claude Code, Codex, OpenCode) on the user's own account
-- [#339](https://github.com/cristianonescu/OpenStitch/issues/339) CI: measure the Linux runner's disk headroom (#315 ran out of space during the build)
 - [#342](https://github.com/cristianonescu/OpenStitch/issues/342) README status blocks drift whenever an issue opens: regenerate them automatically instead of in every PR
 - [#345](https://github.com/cristianonescu/OpenStitch/issues/345) Tests: complex-script and CJK lettering tests pass without checking when no system font is installed
 - [#349](https://github.com/cristianonescu/OpenStitch/issues/349) SHV and CSD export: settle the parts one PE-DESIGN reference could not (preview, palette fill, long stitches)
@@ -457,6 +455,7 @@ Open enhancement issues:
 - [#351](https://github.com/cristianonescu/OpenStitch/issues/351) Tests: smaller weak points from the test-coverage audit
 - [#355](https://github.com/cristianonescu/OpenStitch/issues/355) Auto Punch isolateSubject: a cut that finds no subject silently sews the whole picture
 - [#356](https://github.com/cristianonescu/OpenStitch/issues/356) Tests: weak points that need a product seam or a CI step (rest of #351)
+- [#357](https://github.com/cristianonescu/OpenStitch/issues/357) CI: the Windows build step (~14 min) is the remaining critical path
 <!-- /status:issues-planned -->
 
 ### Beyond PE-DESIGN
