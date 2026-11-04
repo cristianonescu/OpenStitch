@@ -35,7 +35,7 @@ below are claims no test checks.
 
 | Area | Feature (matrix row) | Gap | Plan | Issue |
 |---|---|---|---|---|
-| Files | Import SVG: `<line>` | **bug**: every `<line>` element is dropped on import (an equivalent `<path>` imports) | fix in `crates/openstitch-engine/src/imports.rs`; then un-ignore `svg_line_elements_import_as_running_lines` | #341 |
+| Files | Import SVG: `<line>` | **fixed** (2026-11-04): every `<line>` element was dropped on import (SVG's default fill closed its two-point subpath, which was then discarded) | `svg_line_elements_import_as_running_lines` runs; `imports::tests::line_elements_import_as_open_strokes` | #341 |
 | Editing | Centre point for spiral (`object.setCenterPoint`) | **bug**: moving spiral's centre point changes no stitch | fix in the engine; then un-ignore `the_centre_point_moves_a_spiral` (`coverage_pattern_points.rs`) | #354 |
 | Lettering | Complex scripts, CJK | weak: `right_to_left_scripts_with_a_system_font` and `cjk_text_with_a_system_font` pass without checking when no suitable system font is installed | recorded here; needs a bundled test font, not only a test | #345 |
 
@@ -69,7 +69,7 @@ mixed-trim checkbox (inline egui code); the MSI and macOS `.pes` file associatio
 | Editing | Centre point / pattern reference point | weak: the reference point's effect is shown only for programmable fill; engine test asserts only that stitches exist | #328: `crates/openstitch-engine/tests/coverage_stitch_types.rs` |
 | Beyond PE-DESIGN | Contour fill | weak: "no travel from R1 or to R2" untested | #328: `crates/openstitch-engine/tests/coverage_stitch_types.rs` |
 | Files | PES write, rotated hoop (v6) | weak: only the header flag is checked, not the turned PEC stitches | #329: `crates/openstitch-formats/tests/coverage_formats.rs` |
-| Files | Import SVG | weak: `<ellipse>`, `<line>`, `<polygon>`, `<polyline>`, CSS `style=` untested | #329: `crates/openstitch-engine/tests/coverage_formats.rs` (`<line>` found broken: #341) |
+| Files | Import SVG | weak: `<ellipse>`, `<line>`, `<polygon>`, `<polyline>`, CSS `style=` untested | #329: `crates/openstitch-engine/tests/coverage_formats.rs` (`<line>` found broken: #341, fixed) |
 | Lettering | Text Transform written to PES 0110 | weak: OpenStitch's own envelope and level writer untested | #329: `crates/openstitch-engine/tests/coverage_formats.rs` |
 | Files | Machine formats vs PE-DESIGN reference | weak: `formats.rs` comparisons return early, and pass, if a reference file is missing | #329: `crates/openstitch-formats/tests/coverage_formats.rs` |
 | Lettering | TrueType / OpenType fonts | weak: 16 fonts and 40 MiB per design untested | #330: `crates/openstitch-engine/tests/coverage_lettering.rs` (the layout-complexity refusal is not reachable through `text.add` with the bundled fonts, 2000 characters staying far under 600 000 segments; not tested) |
