@@ -1601,7 +1601,7 @@ pub fn starts_tied(run: &[Vec2]) -> bool {
         .enumerate()
         .skip(2)
         .take(4)
-        .take_while(|(i, _)| run[*i - 1].distance(run[*i - 2]) <= 10.5)
+        .take_while(|(i, _)| run[*i - 1].distance(run[*i - 2]) <= 15.0)
         .any(|(_, p)| p.distance(a) < 0.5)
 }
 
@@ -1615,7 +1615,7 @@ pub fn ends_locked(tail: &[Vec2]) -> bool {
         .enumerate()
         .skip(2)
         .take(3)
-        .take_while(|(i, _)| tail[*i - 1].distance(tail[*i - 2]) <= 10.5)
+        .take_while(|(i, _)| tail[*i - 1].distance(tail[*i - 2]) <= 15.0)
         .any(|(_, p)| p.distance(b) < 0.5)
 }
 

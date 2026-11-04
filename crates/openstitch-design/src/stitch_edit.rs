@@ -73,15 +73,22 @@ pub fn lock_runs(stitches: &[Stitch], connect: f64, step: f64) -> Vec<Stitch> {
             Some(j) if !crate::region::starts_tied(&points[j - 1..]) => {
                 let mut r = vec![points[0], points[j]];
                 crate::region::tie_in_by(&mut r, step);
-                r[1..r.len() - 1].to_vec()
+                r[1..r.len() - 1]
+                    .iter()
+                    .map(|&p| on_units(points[0], points[j], p, step))
+                    .collect()
             }
             _ => Vec::new(),
         };
         let tail: Vec<Vec2> = points.iter().rev().take(5).copied().collect();
-        let lock = if crate::region::ends_locked(&tail) {
+        let lock: Vec<Vec2> = if crate::region::ends_locked(&tail) {
             Vec::new()
         } else {
-            crate::region::lock_points_by(points[points.len() - 2], points[points.len() - 1], step)
+            let (a, b) = (points[points.len() - 2], points[points.len() - 1]);
+            crate::region::lock_points_by(a, b, step)
+                .into_iter()
+                .map(|p| on_units(b, a, p, step))
+                .collect()
         };
         let last_point = run
             .iter()
@@ -112,12 +119,35 @@ pub fn lock_runs(stitches: &[Stitch], connect: f64, step: f64) -> Vec<Stitch> {
     out
 }
 
+/// A lock or tie-in point `p` stepped from `from` towards `towards`: with steps of 1 mm or more
+/// (OpenStitch mode, whose needle points lie on whole 0.1 mm units as machine files store them)
+/// it moves to whole design units, as far out as keeps it at least as far from `from` as it was,
+/// and never past `towards`. PE-DESIGN's 0.3 mm steps stay where they are.
+fn on_units(from: Vec2, towards: Vec2, p: Vec2, step: f64) -> Vec2 {
+    if step < 10.0 || p.distance(from) < 1e-9 {
+        return p;
+    }
+    let want = p.distance(from);
+    let len = from.distance(towards);
+    let unit = (towards - from) * (1.0 / len.max(1e-9));
+    let mut k = want;
+    while k <= len + 1e-9 {
+        let q = from + unit * k;
+        let q = v2(q.x.round(), q.y.round());
+        if q.distance(from) >= want - 1e-9 && q.distance(from) <= len + 1e-9 {
+            return q;
+        }
+        k += 0.5;
+    }
+    towards
+}
+
 /// `stitches` without the tie-in and end lock of each run ([`lock_runs`]): a run's
 /// first needle point is sewn again within the next five stitches of at most 1 mm, and so is
 /// its last within the last four. Lets a test or a measurement see the stitching itself.
 pub fn unlocked(stitches: &[Stitch]) -> Vec<Stitch> {
     let same = |a: &Stitch, b: &Stitch| (a.x - b.x).abs() < 1e-6 && (a.y - b.y).abs() < 1e-6;
-    let short = |a: &Stitch, b: &Stitch| (a.x - b.x).dhypot(a.y - b.y) <= 10.5;
+    let short = |a: &Stitch, b: &Stitch| (a.x - b.x).dhypot(a.y - b.y) <= 15.0;
     // Runs: from a jump or trim to the next.
     let mut runs: Vec<Vec<Stitch>> = vec![Vec::new()];
     for s in stitches {

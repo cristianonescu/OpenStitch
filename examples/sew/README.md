@@ -29,6 +29,10 @@ large. `manifest.json` lists every file with its size, stitch count, threads and
   Punch's storybook picture. Use water-soluble stabiliser for the cutwork design.
 - **Loading:** copy the `.pes` file to a USB stick and choose it on the machine, or send it with
   OpenStitch's **Send Embroidery ▸ Send to USB Media**.
+- **Not ready to sew:** `image-tools/L-autopunch-storybook-pe-compatible.pes` still stacks up to
+  23 needle drops in one spot where its satins meet a jagged outline, and fails
+  `tools/sew_check.py` ([#304](https://github.com/cristianonescu/OpenStitch/issues/304)). Leave it
+  off the USB stick until that is fixed. Every other file passes the check.
 - **Colour changes:** the machine stops for each thread; "Threads, in sewing order" under each
   design lists them.
 - **Wizards:** the appliqué design stops twice for the fabric (lay it on at the first stop, trim it
@@ -208,7 +212,7 @@ For calibrating OpenStitch against real thread and fabric. Sew these first and s
 
 #### T1 calibration card: thread swatches and coverage ramp
 
-[`calibration/t1-swatches.pes`](calibration/t1-swatches.pes) · 100 × 100 mm hoop · 86.9 × 68 mm · 5,167 stitches · 26 trims · about 7.8 min
+[`calibration/t1-swatches.pes`](calibration/t1-swatches.pes) · 100 × 100 mm hoop · 86.9 × 68 mm · 5,064 stitches · 26 trims · about 7.7 min
 
 Six threads (White, Black, Red, Blue, Yellow, Leaf Green) as 12 mm fills at 3.0, 4.5 and 6.0 rows/mm, then Black at 0.5, 1, 1.5, 2, 3 and 4.5 rows/mm, all without underlay; the "T1" mark is the top left. Photographed under the protocol below, it calibrates the Realistic view and the similarity scorer (image-similarity plan, T1), shows how each density covers the fabric (#129), and whether a single layer without underlay sews cleanly. The card's photo patch is the Photo Stitch 1 sunset demo in OpenStitch mode (`image-tools/S-photo1-sunset-openstitch.pes`).
 
@@ -218,7 +222,7 @@ Threads, in sewing order: 001 White, 900 Black, 800 Red, 405 Blue, 205 Yellow, 5
 
 #### Photo Stitch 2 coverage ramp
 
-[`calibration/ps2-grey-ramp.pes`](calibration/ps2-grey-ramp.pes) · 100 × 100 mm hoop · 90 × 21.8 mm · 3,008 stitches · 1 trim · about 3.8 min
+[`calibration/ps2-grey-ramp.pes`](calibration/ps2-grey-ramp.pes) · 100 × 100 mm hoop · 90 × 21.8 mm · 3,012 stitches · 1 trim · about 3.8 min
 
 An eight-step grey ramp (`grey-ramp.png`, white to black) as Photo Stitch 2 sews it in one Black thread: how much of each grey its line screen covers, the data the Photo Stitch 2 coverage model needs (#129).
 
@@ -286,7 +290,7 @@ Every region sew type and the fill, satin and underlay options.
 
 #### Region sew types (1 of 2)
 
-[`fills/region-sew-types-1.pes`](fills/region-sew-types-1.pes) · 100 × 100 mm hoop · 86 × 86 mm · 6,763 stitches · 10 trims · about 9 min
+[`fills/region-sew-types-1.pes`](fills/region-sew-types-1.pes) · 100 × 100 mm hoop · 86 × 86 mm · 6,783 stitches · 10 trims · about 9 min
 
 Nine region sew types, left to right, top to bottom: fill, satin, programmable fill (diamonds), motif fill (heart), piping, cross stitch, concentric circle, radial, spiral.
 
@@ -296,7 +300,7 @@ Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 208 Orange, 620 Mag
 
 #### Region sew types (2 of 2)
 
-[`fills/region-sew-types-2.pes`](fills/region-sew-types-2.pes) · 100 × 100 mm hoop · 87.9 × 86 mm · 4,229 stitches · 9 trims · about 5.7 min
+[`fills/region-sew-types-2.pes`](fills/region-sew-types-2.pes) · 100 × 100 mm hoop · 86 × 86 mm · 4,530 stitches · 9 trims · about 6.1 min
 
 Flexible spiral, stippling, net fill (square), zigzag net fill (honeycomb), decorative fill (waves), contour fill as rings and as a double spiral (beyond PE-DESIGN), programmable fill (bricks) with base sewing, motif fill (leaf).
 
@@ -306,7 +310,7 @@ Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 208 Orange, 620 Mag
 
 #### Fill and satin options
 
-[`fills/fill-options.pes`](fills/fill-options.pes) · 100 × 100 mm hoop · 86 × 86.4 mm · 8,243 stitches · 10 trims · about 10.8 min
+[`fills/fill-options.pes`](fills/fill-options.pes) · 100 × 100 mm hoop · 86 × 86.4 mm · 8,247 stitches · 10 trims · about 10.8 min
 
 Fill at 45°, continuous gradation to 20 %, gradation pattern, feathered edges, Stitch Type 2 (sloped rows), OpenStitch's random stagger, frequency 0 (no stagger), Auto direction on a circle, and satin with pull compensation and split stitches.
 
@@ -316,7 +320,7 @@ Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 208 Orange, 620 Mag
 
 #### Underlay styles
 
-[`fills/underlay-styles.pes`](fills/underlay-styles.pes) · 100 × 100 mm hoop · 86 × 86 mm · 8,412 stitches · 14 trims · about 11.2 min
+[`fills/underlay-styles.pes`](fills/underlay-styles.pes) · 100 × 100 mm hoop · 86 × 86 mm · 8,443 stitches · 14 trims · about 11.3 min
 
 No underlay, edge, zigzag, edge + zigzag, double (crossing layers), PE-DESIGN's first type (edge and rows), its second (edge and lattice), centre piping under a satin, and light underlay density.
 
@@ -354,7 +358,7 @@ The shape tools and decorative frames.
 
 #### Shape tools
 
-[`shapes/shape-tools.pes`](shapes/shape-tools.pes) · 100 × 100 mm hoop · 84.5 × 84 mm · 4,534 stitches · 10 trims · about 6.2 min
+[`shapes/shape-tools.pes`](shapes/shape-tools.pes) · 100 × 100 mm hoop · 84.5 × 84 mm · 4,540 stitches · 10 trims · about 6.2 min
 
 Preset star, heart, crescent, arrow, teardrop and hexagon; then a skeleton satin of changing width, a curved Manual Punch column, and a floral pattern inside a circle.
 
@@ -364,7 +368,7 @@ Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 208 Orange, 620 Mag
 
 #### Decorative frames
 
-[`shapes/decorative-frames.pes`](shapes/decorative-frames.pes) · 100 × 100 mm hoop · 81.6 × 56.5 mm · 1,439 stitches · 45 trims · about 4.1 min
+[`shapes/decorative-frames.pes`](shapes/decorative-frames.pes) · 100 × 100 mm hoop · 77 × 79.5 mm · 1,331 stitches · 42 trims · about 3.8 min
 
 Five Shape-tool frames (scallop, wave, zigzag, scallop oval, corners) around small circles, and the laurel frame from the decorative library.
 
@@ -378,7 +382,7 @@ The fonts, Text Transform, text on a path and monograms.
 
 #### Lettering
 
-[`lettering/fonts-and-text.pes`](lettering/fonts-and-text.pes) · 100 × 100 mm hoop · 71 × 89.7 mm · 3,734 stitches · 37 trims · about 6.6 min
+[`lettering/fonts-and-text.pes`](lettering/fonts-and-text.pes) · 100 × 100 mm hoop · 71 × 89.7 mm · 3,750 stitches · 37 trims · about 6.6 min
 
 Lato Bold and Pacifico, a Text Transform arch, and text spaced around a circle (text on a path).
 
@@ -422,7 +426,7 @@ Threads, in sewing order: 800 Red, 406 Ultra Marine, 406 Ultra Marine.
 
 #### Cutwork wizard
 
-[`wizards/cutwork.pes`](wizards/cutwork.pes) · 100 × 100 mm hoop · 54 × 54 mm · 3,188 stitches · 6 trims · about 4.3 min
+[`wizards/cutwork.pes`](wizards/cutwork.pes) · 100 × 100 mm hoop · 54 × 54 mm · 3,192 stitches · 6 trims · about 4.3 min
 
 A circle cutout: stabilising run, a sewn cut line (the NV880E has no cutwork needles, so cut by hand at the stop), stabiliser run, net fill and covering satin. Use water-soluble stabiliser.
 
@@ -432,7 +436,7 @@ Threads, in sewing order: 405 Blue, 405 Blue, 405 Blue.
 
 #### Background fill wizard
 
-[`wizards/background-fill.pes`](wizards/background-fill.pes) · 100 × 100 mm hoop · 88 × 88 mm · 3,306 stitches · 3 trims · about 4.3 min
+[`wizards/background-fill.pes`](wizards/background-fill.pes) · 100 × 100 mm hoop · 88 × 88 mm · 3,310 stitches · 3 trims · about 4.3 min
 
 Stippling inside a circle around a heart, keeping a 3 mm gap.
 
@@ -446,7 +450,7 @@ Each image tool on a test image, in both of its modes: PE-DESIGN-compatible mode
 
 #### Auto Punch, OpenStitch mode
 
-[`image-tools/S-autopunch-balloon-openstitch.pes`](image-tools/S-autopunch-balloon-openstitch.pes) · 100 × 100 mm hoop · 90 × 67.9 mm · 8,195 stitches · 14 trims · about 11 min
+[`image-tools/S-autopunch-balloon-openstitch.pes`](image-tools/S-autopunch-balloon-openstitch.pes) · 100 × 100 mm hoop · 90 × 67.9 mm · 7,824 stitches · 15 trims · about 10.5 min
 
 `g02-balloon.png` through Auto Punch at its defaults in OpenStitch mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.
 
@@ -456,7 +460,7 @@ Threads, in sewing order: 001 White, 206 Harvest Gold, 017 Light Blue, 509 Leaf 
 
 #### Auto Punch, PE-DESIGN-compatible mode
 
-[`image-tools/S-autopunch-balloon-pe-compatible.pes`](image-tools/S-autopunch-balloon-pe-compatible.pes) · 100 × 100 mm hoop · 89.6 × 62.1 mm · 5,963 stitches · 13 trims · about 8.1 min
+[`image-tools/S-autopunch-balloon-pe-compatible.pes`](image-tools/S-autopunch-balloon-pe-compatible.pes) · 100 × 100 mm hoop · 89.6 × 62.1 mm · 5,965 stitches · 13 trims · about 8.1 min
 
 `g02-balloon.png` through Auto Punch at its defaults in PE-DESIGN-compatible mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.
 
@@ -466,7 +470,7 @@ Threads, in sewing order: 001 White, 812 Cream Yellow, 509 Leaf Green, 339 Clay 
 
 #### Cross Stitch, OpenStitch mode
 
-[`image-tools/S-cross-stitch-strawberry-openstitch.pes`](image-tools/S-cross-stitch-strawberry-openstitch.pes) · 100 × 100 mm hoop · 65 × 80 mm · 7,168 stitches · 142 trims · about 16.2 min
+[`image-tools/S-cross-stitch-strawberry-openstitch.pes`](image-tools/S-cross-stitch-strawberry-openstitch.pes) · 100 × 100 mm hoop · 65 × 80 mm · 7,736 stitches · 142 trims · about 16.9 min
 
 `g07-pixel-strawberry.png` through Cross Stitch at its defaults in OpenStitch mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.
 
@@ -476,7 +480,7 @@ Threads, in sewing order: 206 Harvest Gold, 079 Salmon Pink, 509 Leaf Green, 800
 
 #### Cross Stitch, PE-DESIGN-compatible mode
 
-[`image-tools/S-cross-stitch-strawberry-pe-compatible.pes`](image-tools/S-cross-stitch-strawberry-pe-compatible.pes) · 100 × 100 mm hoop · 60 × 77.5 mm · 3,181 stitches · 157 trims · about 12 min
+[`image-tools/S-cross-stitch-strawberry-pe-compatible.pes`](image-tools/S-cross-stitch-strawberry-pe-compatible.pes) · 100 × 100 mm hoop · 60 × 77.5 mm · 3,809 stitches · 157 trims · about 12.8 min
 
 `g07-pixel-strawberry.png` through Cross Stitch at its defaults in PE-DESIGN-compatible mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.
 
@@ -486,7 +490,7 @@ Threads, in sewing order: 208 Orange, 515 Moss Green, 800 Red, 107 Dark Fuchsia,
 
 #### Design Center, OpenStitch mode
 
-[`image-tools/S-design-center-butterfly-openstitch.pes`](image-tools/S-design-center-butterfly-openstitch.pes) · 100 × 100 mm hoop · 88.8 × 74.5 mm · 3,971 stitches · 66 trims · about 8.3 min
+[`image-tools/S-design-center-butterfly-openstitch.pes`](image-tools/S-design-center-butterfly-openstitch.pes) · 100 × 100 mm hoop · 88.8 × 74.5 mm · 4,231 stitches · 66 trims · about 8.7 min
 
 `g04-butterfly-outline.png` through Design Center at its defaults in OpenStitch mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.
 
@@ -496,7 +500,7 @@ Threads, in sewing order: 900 Black.
 
 #### Design Center, PE-DESIGN-compatible mode
 
-[`image-tools/S-design-center-butterfly-pe-compatible.pes`](image-tools/S-design-center-butterfly-pe-compatible.pes) · 100 × 100 mm hoop · 88.2 × 74 mm · 1,152 stitches · 92 trims · about 6.2 min
+[`image-tools/S-design-center-butterfly-pe-compatible.pes`](image-tools/S-design-center-butterfly-pe-compatible.pes) · 100 × 100 mm hoop · 88.2 × 74 mm · 1,516 stitches · 92 trims · about 6.6 min
 
 `g04-butterfly-outline.png` through Design Center at its defaults in PE-DESIGN-compatible mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.
 
@@ -506,7 +510,7 @@ Threads, in sewing order: 900 Black.
 
 #### Photo Stitch 1, OpenStitch mode
 
-[`image-tools/S-photo1-sunset-openstitch.pes`](image-tools/S-photo1-sunset-openstitch.pes) · 100 × 100 mm hoop · 90 × 50.1 mm · 7,566 stitches · 383 trims · about 29.1 min
+[`image-tools/S-photo1-sunset-openstitch.pes`](image-tools/S-photo1-sunset-openstitch.pes) · 100 × 100 mm hoop · 90 × 50.2 mm · 7,923 stitches · 117 trims · about 15.9 min
 
 `p06-sunset.jpg` through Photo Stitch 1 at its defaults in OpenStitch mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.
 
@@ -516,7 +520,7 @@ Threads, in sewing order: 001 White, 209 Tangerine, 086 Deep Rose, 612 Lilac, 60
 
 #### Photo Stitch 1, PE-DESIGN-compatible mode
 
-[`image-tools/S-photo1-sunset-pe-compatible.pes`](image-tools/S-photo1-sunset-pe-compatible.pes) · 100 × 100 mm hoop · 90 × 50.1 mm · 8,949 stitches · 317 trims · about 27.4 min
+[`image-tools/S-photo1-sunset-pe-compatible.pes`](image-tools/S-photo1-sunset-pe-compatible.pes) · 100 × 100 mm hoop · 90 × 50.1 mm · 10,523 stitches · 317 trims · about 29.4 min
 
 `p06-sunset.jpg` through Photo Stitch 1 at its defaults in PE-DESIGN-compatible mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.
 
@@ -526,7 +530,7 @@ Threads, in sewing order: 001 White, 209 Tangerine, 348 Khaki, 817 Gray, 612 Lil
 
 #### Photo Stitch 1, OpenStitch mode
 
-[`image-tools/M-photo1-portrait-openstitch.pes`](image-tools/M-photo1-portrait-openstitch.pes) · 150 × 150 mm hoop · 94.1 × 139.8 mm · 23,943 stitches · 1608 trims · about 112.3 min
+[`image-tools/M-photo1-portrait-openstitch.pes`](image-tools/M-photo1-portrait-openstitch.pes) · 150 × 150 mm hoop · 94.1 × 139.8 mm · 24,486 stitches · 504 trims · about 56.4 min
 
 `p01-portrait.jpg` through Photo Stitch 1 at its defaults in OpenStitch mode, fitted to the 150 × 150 mm hoop. Sew both modes of the same image to compare them on fabric.
 
@@ -536,7 +540,7 @@ Threads, in sewing order: 001 White, 348 Khaki, 005 Silver, 817 Gray, 323 Light 
 
 #### Photo Stitch 1, PE-DESIGN-compatible mode
 
-[`image-tools/M-photo1-portrait-pe-compatible.pes`](image-tools/M-photo1-portrait-pe-compatible.pes) · 150 × 150 mm hoop · 94.1 × 139.8 mm · 24,614 stitches · 750 trims · about 69.2 min
+[`image-tools/M-photo1-portrait-pe-compatible.pes`](image-tools/M-photo1-portrait-pe-compatible.pes) · 150 × 150 mm hoop · 94.1 × 139.8 mm · 28,268 stitches · 750 trims · about 73.8 min
 
 `p01-portrait.jpg` through Photo Stitch 1 at its defaults in PE-DESIGN-compatible mode, fitted to the 150 × 150 mm hoop. Sew both modes of the same image to compare them on fabric.
 
@@ -546,7 +550,7 @@ Threads, in sewing order: 001 White, 348 Khaki, 817 Gray, 333 Amber Red, 704 Pew
 
 #### Photo Stitch 2, OpenStitch mode
 
-[`image-tools/M-photo2-poppies-openstitch.pes`](image-tools/M-photo2-poppies-openstitch.pes) · 150 × 150 mm hoop · 140.9 × 141 mm · 60,769 stitches · 4 trims · about 76.2 min
+[`image-tools/M-photo2-poppies-openstitch.pes`](image-tools/M-photo2-poppies-openstitch.pes) · 150 × 150 mm hoop · 140.9 × 141 mm · 60,785 stitches · 4 trims · about 76.2 min
 
 `p08-poppies.jpg` through Photo Stitch 2 at its defaults in OpenStitch mode, fitted to the 150 × 150 mm hoop. Sew both modes of the same image to compare them on fabric.
 
@@ -556,7 +560,7 @@ Threads, in sewing order: 515 Moss Green, 800 Red, 058 Dark Brown, 323 Light Bro
 
 #### Photo Stitch 2, PE-DESIGN-compatible mode
 
-[`image-tools/M-photo2-poppies-pe-compatible.pes`](image-tools/M-photo2-poppies-pe-compatible.pes) · 150 × 150 mm hoop · 140.5 × 140.5 mm · 64,256 stitches · 4 trims · about 80.5 min
+[`image-tools/M-photo2-poppies-pe-compatible.pes`](image-tools/M-photo2-poppies-pe-compatible.pes) · 150 × 150 mm hoop · 140.5 × 140.5 mm · 64,272 stitches · 4 trims · about 80.5 min
 
 `p08-poppies.jpg` through Photo Stitch 2 at its defaults in PE-DESIGN-compatible mode, fitted to the 150 × 150 mm hoop. Sew both modes of the same image to compare them on fabric.
 
@@ -566,7 +570,7 @@ Threads, in sewing order: 517 Dark Olive, 800 Red, 704 Pewter, 339 Clay Brown.
 
 #### Auto Punch, OpenStitch mode
 
-[`image-tools/L-autopunch-storybook-openstitch.pes`](image-tools/L-autopunch-storybook-openstitch.pes) · 260 × 160 mm hoop · 199.1 × 150.1 mm · 119,059 stitches · 1135 trims · about 207 min
+[`image-tools/L-autopunch-storybook-openstitch.pes`](image-tools/L-autopunch-storybook-openstitch.pes) · 260 × 160 mm hoop · 199 × 150.1 mm · 97,006 stitches · 1118 trims · about 178.6 min
 
 `p03-storybook.jpg` through Auto Punch at its defaults in OpenStitch mode, fitted to the 260 × 160 mm hoop. Sew both modes of the same image to compare them on fabric.
 
@@ -576,7 +580,7 @@ Threads, in sewing order: 017 Light Blue, 843 Beige, 005 Silver, 348 Khaki, 339 
 
 #### Auto Punch, PE-DESIGN-compatible mode
 
-[`image-tools/L-autopunch-storybook-pe-compatible.pes`](image-tools/L-autopunch-storybook-pe-compatible.pes) · 260 × 160 mm hoop · 199.3 × 151.1 mm · 109,554 stitches · 1639 trims · about 220.9 min
+[`image-tools/L-autopunch-storybook-pe-compatible.pes`](image-tools/L-autopunch-storybook-pe-compatible.pes) · 260 × 160 mm hoop · 199.3 × 151.1 mm · 110,818 stitches · 1639 trims · about 222.5 min
 
 `p03-storybook.jpg` through Auto Punch at its defaults in PE-DESIGN-compatible mode, fitted to the 260 × 160 mm hoop. Sew both modes of the same image to compare them on fabric.
 
