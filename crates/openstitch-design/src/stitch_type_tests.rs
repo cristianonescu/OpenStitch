@@ -583,6 +583,160 @@ fn auto_satin_on_a_sharp_bend_spaces_its_needle_points_along_the_outer_edge() {
 }
 
 #[test]
+fn auto_satin_half_stitch_pulls_back_every_other_crowded_inner_point() {
+    // PE-DESIGN 11.50's Half Stitch (#372; satin-auto-bend-120 against -nohalf): the same
+    // stitches, every other needle point crowded on the bend's inner side pulled back along
+    // its crossing (8 of PE-DESIGN's, 0.8 to 2.4 mm); a 45 degree bend is left alone.
+    let bend =
+        |pts: &[(f64, f64)]| Contour::new(pts.iter().map(|&(x, y)| v2(x, y)).collect(), true);
+    let sew = |c: &Contour, half: bool| {
+        let mut r = region(RegionType::Satin);
+        r.auto_direction = true;
+        r.density = 3.0;
+        r.underlay = false;
+        r.half_stitch = half;
+        crate::region::layers(std::slice::from_ref(c), &r, &[])
+            .concat()
+            .concat()
+    };
+    let sharp = bend(&[
+        (0.0, 0.0),
+        (300.0, 0.0),
+        (213.4, 150.0),
+        (170.1, 125.0),
+        (213.4, 50.0),
+        (0.0, 50.0),
+    ]);
+    let (on, off) = (sew(&sharp, true), sew(&sharp, false));
+    assert_eq!(on.len(), off.len(), "Half Stitch moves needle points only");
+    let moved: Vec<(usize, f64)> = on
+        .iter()
+        .zip(&off)
+        .enumerate()
+        .map(|(i, (a, b))| (i, a.distance(*b)))
+        .filter(|&(_, d)| d > 0.5)
+        .collect();
+    assert!((6..=14).contains(&moved.len()), "{moved:?}");
+    // Every other needle point on one side: four needle points apart in the run.
+    for w in moved.windows(2) {
+        assert_eq!(w[1].0 - w[0].0, 4, "{moved:?}");
+    }
+    // Pulled back up to a quarter of a crossing: under 2.6 mm here.
+    assert!(moved.iter().all(|&(_, d)| d <= 26.0), "{moved:?}");
+    let thread = |run: &Run| run.windows(2).map(|w| w[0].distance(w[1])).sum::<f64>();
+    assert!(thread(&on) < thread(&off));
+    let gentle = bend(&[
+        (0.0, 0.0),
+        (300.0, 0.0),
+        (422.5, 122.5),
+        (387.1, 157.8),
+        (279.3, 50.0),
+        (0.0, 50.0),
+    ]);
+    assert_eq!(sew(&gentle, true), sew(&gentle, false));
+}
+
+/// The storybook regions of #304 (Auto Punch, PE-DESIGN-compatible mode), sewn as Auto satin
+/// without under sewing: every needle point in order.
+fn storybook_satin(name: &str) -> Vec<Vec2> {
+    let doc: serde_json::Value =
+        serde_json::from_str(include_str!("../tests/fixtures/storybook-satins.json"))
+            .expect("fixture");
+    let contours: Vec<Contour> = doc[name]
+        .as_array()
+        .expect("region")
+        .iter()
+        .map(|c| {
+            let pts = c["points"].as_array().expect("points");
+            Contour::new(
+                pts.iter()
+                    .map(|p| v2(p[0].as_f64().expect("x"), p[1].as_f64().expect("y")))
+                    .collect(),
+                true,
+            )
+        })
+        .collect();
+    let mut r = region(RegionType::Satin);
+    r.auto_direction = true;
+    r.underlay = false;
+    crate::region::layers(&contours, &r, &[]).concat().concat()
+}
+
+/// The most needle points in one 0.5 mm spot (`tools/sew_check.py`'s cell).
+fn most_in_a_spot(run: &[Vec2]) -> usize {
+    let mut cells = std::collections::HashMap::new();
+    for p in run {
+        *cells
+            .entry(((p.x / 5.0).floor() as i64, (p.y / 5.0).floor() as i64))
+            .or_insert(0usize) += 1;
+    }
+    cells.values().copied().max().unwrap_or(0)
+}
+
+#[test]
+fn satin_travels_round_holes_spread_their_needle_points() {
+    // #304: the storybook's khaki satin (four holes, sewn in sections) travelled 20 times
+    // through one corner of a hole and dropped the needle on the same point each time.
+    let run = storybook_satin("khaki-holes");
+    assert!(run.len() > 1000, "{}", run.len());
+    // Before: 20 in one spot, all on one point; sew_check allows 20.
+    let most = most_in_a_spot(&run);
+    assert!(most <= 17, "{most} needle points in one 0.5 mm spot");
+    let mut same = std::collections::HashMap::new();
+    for p in &run {
+        *same
+            .entry(((p.x * 2.0).round() as i64, (p.y * 2.0).round() as i64))
+            .or_insert(0usize) += 1;
+    }
+    let repeats = same.values().copied().max().unwrap_or(0);
+    assert!(repeats <= 8, "{repeats} needle points on one point");
+}
+
+#[test]
+fn auto_satin_on_a_doubled_back_skeleton_keeps_one_direction() {
+    // #304: a 6 mm jagged Auto Punch blob whose derived skeleton doubles back; its crossings
+    // crossed each other, 18 needle points in one spot and 171 stitches. It now sews the
+    // fixed-direction satin across its principal axis.
+    let run = storybook_satin("jagged-blob");
+    let most = most_in_a_spot(&run);
+    assert!(most <= 6, "{most} needle points in one 0.5 mm spot");
+    assert!(run.len() < 120, "{} needle points", run.len());
+}
+
+#[test]
+fn auto_satin_start_travel_skips_needle_points_under_half_a_millimetre() {
+    // #304: the travel round a 1.7 mm region's inset outline dropped the needle on every
+    // vertex: seven stitches under 0.3 mm in a row.
+    let run = storybook_satin("small-pentagon");
+    let mut longest = 0;
+    let mut tiny = 0;
+    for w in run.windows(2) {
+        tiny = if w[0].distance(w[1]) < 3.0 {
+            tiny + 1
+        } else {
+            0
+        };
+        longest = longest.max(tiny);
+    }
+    assert!(longest <= 3, "{longest} stitches under 0.3 mm in a row");
+}
+
+#[test]
+fn half_stitch_is_on_by_default_and_saved_only_when_off() {
+    let mut r = region(RegionType::Satin);
+    assert!(r.half_stitch, "PE-DESIGN's drawing tools tick Half Stitch");
+    let on = serde_json::to_value(&r).expect("json");
+    assert!(on.get("halfStitch").is_none(), "{on}");
+    r.half_stitch = false;
+    let off = serde_json::to_value(&r).expect("json");
+    assert_eq!(off["halfStitch"], serde_json::json!(false));
+    let back: RegionSewing = serde_json::from_value(off).expect("read");
+    assert!(!back.half_stitch);
+    let old: RegionSewing = serde_json::from_value(on).expect("read");
+    assert!(old.half_stitch, "files without the field keep the default");
+}
+
+#[test]
 fn auto_direction_sews_across_the_narrow_side() {
     let wide = Contour::rectangle(0.0, 0.0, 200.0, 50.0);
     assert_eq!(crate::region::auto_angle(std::slice::from_ref(&wide)), 90.0);

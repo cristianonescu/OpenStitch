@@ -615,3 +615,45 @@ fn bad_region_type_parameters_fail_cleanly() {
         assert_eq!(s.design(), &before, "{params} changed the design");
     }
 }
+
+#[test]
+fn auto_satin_half_stitch_is_set_sewn_saved_and_undone() {
+    // A 5 mm band bent through 120 degrees (compat satin-auto-bend-120), Auto satin (#372).
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "shape.polygon",
+        json!({"points": [[0, 0], [30, 0], [21.34, 15], [17.01, 12.5], [21.34, 5], [0, 5]]}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "satin", "autoDirection": true, "density": 3, "underlay": false}),
+    );
+    let region = |s: &Session| s.design().objects[0].region.clone().expect("region");
+    assert!(
+        region(&s).half_stitch,
+        "on by default, as PE-DESIGN's drawing tools"
+    );
+    let on = Compiler::default().compile(s.design());
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "halfStitch": false}),
+    );
+    assert!(!region(&s).half_stitch);
+    let off = Compiler::default().compile(s.design());
+    assert_ne!(on, off, "Half Stitch moves the bend's inner needle points");
+    assert_eq!(on.count(Command::Stitch), off.count(Command::Stitch));
+    let saved = serde_json::to_string(s.design()).expect("json");
+    assert!(saved.contains("\"halfStitch\":false"), "saved when off");
+    run(&mut s, "history.undo", json!({}));
+    assert!(region(&s).half_stitch);
+    assert!(
+        s.execute(
+            "object.setRegion",
+            Some(&json!({"id": 1, "halfStitch": "yes"}))
+        )
+        .is_err()
+    );
+}
