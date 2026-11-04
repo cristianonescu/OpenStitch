@@ -271,17 +271,34 @@ const FILE_KEYS: [&str; 7] = [
     "path", "file", "dir", "folder", "output", "source", "target",
 ];
 
-/// Whether `path` lies inside `scratch` (no `..`, relative paths are not inside).
+/// The real location of `p`: symlinks resolved on the file if it exists, else on its parent
+/// folder (a file about to be written), as the engine's `Sandbox` does.
+fn real_path(p: &Path) -> Option<std::path::PathBuf> {
+    p.canonicalize().ok().or_else(|| {
+        let parent = p.parent()?.canonicalize().ok()?;
+        Some(parent.join(p.file_name()?))
+    })
+}
+
+/// Whether `path` really lies inside `scratch`: absolute, no `..`, and inside after symlinks are
+/// resolved, compared component by component (`Path::starts_with`, not a string prefix), so a
+/// link in the scratch folder that points elsewhere is outside. Anything unresolvable is
+/// outside, which only makes the gate ask.
 pub fn inside(path: &str, scratch: Option<&Path>) -> bool {
     let Some(scratch) = scratch else {
         return false;
     };
     let p = Path::new(path);
-    p.is_absolute()
-        && !p
-            .components()
+    if !p.is_absolute()
+        || p.components()
             .any(|c| matches!(c, std::path::Component::ParentDir))
-        && p.starts_with(scratch)
+    {
+        return false;
+    }
+    match (real_path(p), scratch.canonicalize()) {
+        (Some(real), Ok(root)) => real.starts_with(root),
+        _ => false,
+    }
 }
 
 /// The file names a command's parameters hold outside the scratch folder.
@@ -416,9 +433,12 @@ impl ScriptRecord {
 mod tests {
     use super::*;
 
-    /// An absolute scratch folder on every OS (`/tmp/...` is not absolute on Windows).
+    /// An absolute scratch folder on every OS (`/tmp/...` is not absolute on Windows). It must
+    /// exist: the gate resolves symlinks.
     fn scratch() -> std::path::PathBuf {
-        std::env::temp_dir().join("scratch")
+        let dir = std::env::temp_dir().join(format!("openstitch-gate-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("scratch");
+        dir
     }
 
     fn in_scratch(name: &str) -> String {
@@ -526,6 +546,33 @@ mod tests {
             ),
             Verdict::Run
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_link_in_the_scratch_folder_that_points_elsewhere_is_outside() {
+        let dir = scratch();
+        let outside =
+            std::env::temp_dir().join(format!("openstitch-gate-outside-{}", std::process::id()));
+        std::fs::create_dir_all(&outside).expect("outside");
+        std::fs::write(outside.join("secret.svg"), "<svg/>").expect("file");
+        let link = dir.join("link");
+        let _ = std::fs::remove_file(&link);
+        std::os::unix::fs::symlink(&outside, &link).expect("symlink");
+        let via_link = link.join("secret.svg").display().to_string();
+        assert!(!inside(&via_link, Some(&dir)), "{via_link}");
+        std::fs::write(dir.join("real.svg"), "<svg/>").expect("file");
+        assert!(inside(
+            &dir.join("real.svg").display().to_string(),
+            Some(&dir)
+        ));
+        // Not written yet: resolved through its parent.
+        assert!(inside(
+            &dir.join("new.svg").display().to_string(),
+            Some(&dir)
+        ));
+        let _ = std::fs::remove_file(&link);
+        let _ = std::fs::remove_dir_all(&outside);
     }
 
     #[test]
