@@ -1000,3 +1000,53 @@ fn openstitch_mode_fills_compact_shapes_and_keeps_satin_for_strokes() {
     assert!(open.contains(&RegionType::Fill), "{open:?}");
     assert!(open.contains(&RegionType::Satin), "{open:?}");
 }
+
+/// OpenStitch mode's opening (#290): a 1-pixel spike off a larger region goes to the region
+/// around it, a stroke 3 pixels wide stays whole, and a 1-pixel hairline stays on line art
+/// but goes on a photo.
+#[test]
+fn slivers_open_but_strokes_stay() {
+    use openstitch_digitize::autopunch::open_slivers;
+    let (w, h) = (30usize, 20usize);
+    let grid = || {
+        let mut l = vec![2u16; w * h];
+        for y in 2..12 {
+            for x in 2..12 {
+                l[y * w + x] = 1; // a 10 × 10 block
+            }
+        }
+        for x in 12..20 {
+            l[6 * w + x] = 1; // its 1-pixel spike
+        }
+        for y in 14..17 {
+            for x in 2..20 {
+                l[y * w + x] = 3; // a stroke 3 pixels wide
+            }
+        }
+        for x in 22..29 {
+            l[3 * w + x] = 4; // a hairline
+        }
+        l
+    };
+    let mut photo = grid();
+    open_slivers(&mut photo, w, h, 1, true);
+    assert!(
+        (12..20).all(|x| photo[6 * w + x] == 2),
+        "the spike goes to its surroundings"
+    );
+    assert!((2..12).all(|x| photo[5 * w + x] == 1), "the block stays");
+    assert!(
+        (2..20).all(|x| photo[15 * w + x] == 3),
+        "the stroke stays whole"
+    );
+    assert!(
+        (22..29).all(|x| photo[3 * w + x] == 2),
+        "a photo's hairline goes"
+    );
+    let mut line_art = grid();
+    open_slivers(&mut line_art, w, h, 1, false);
+    assert!(
+        (22..29).all(|x| line_art[3 * w + x] == 4),
+        "line art keeps its hairline"
+    );
+}

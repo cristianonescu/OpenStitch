@@ -206,6 +206,125 @@ pub const SATIN_ASPECT: f64 = 3.0;
 /// out or sewn) covers at least this share of the opaque pixels (the mandala about 0.9; photos and paintings far less).
 pub const LINE_ART_SHARE: f64 = 0.75;
 
+/// OpenStitch mode: a region keeps only the parts at least this wide, mm (a morphological
+/// opening, [`open_slivers`]); thinner spikes and necks of a larger region stacked needle drops
+/// on the machine (#290: 29 in one 0.5 mm spot on the storybook picture).
+pub const SLIVER_MM: f64 = 1.25;
+
+/// The opening's radius in working pixels for a pixel `mm_per_px` wide: a square of
+/// 2 r + 1 pixels at least [`SLIVER_MM`] across, at least 1.
+fn sliver_radius(mm_per_px: f64) -> usize {
+    ((SLIVER_MM / mm_per_px - 1.0) / 2.0).ceil().max(1.0) as usize
+}
+
+/// Removes every spike and neck narrower than a (2 r + 1)-pixel square from the regions of
+/// `labels` (a morphological opening per label: a pixel stays when some such square around
+/// it is all its own label). A region with nothing that wide is a stroke and is kept whole,
+/// unless `hairlines` goes and nothing in it is even 3 pixels wide (a satin that narrow sews
+/// as a run of stitches in place); the removed pixels take the label most of their remaining
+/// neighbours have.
+pub fn open_slivers(labels: &mut [u16], w: usize, h: usize, r: usize, hairlines: bool) {
+    let at = |x: isize, y: isize, l: &[u16]| {
+        (x >= 0 && y >= 0 && (x as usize) < w && (y as usize) < h)
+            .then(|| l[y as usize * w + x as usize])
+    };
+    // The image's edge does not cut a region: the square is clamped to the image.
+    let own = |x: isize, y: isize, l: &[u16]| {
+        l[(y.clamp(0, h as isize - 1) as usize) * w + x.clamp(0, w as isize - 1) as usize]
+    };
+    let r = r as isize;
+    // Erosion: the pixels whose whole (2 r + 1)-square is their own label.
+    let eroded = |r: isize| -> Vec<bool> {
+        (0..w * h)
+            .map(|i| {
+                let (x, y, l) = ((i % w) as isize, (i / w) as isize, labels[i]);
+                l != NONE && (-r..=r).all(|dy| (-r..=r).all(|dx| own(x + dx, y + dy, labels) == l))
+            })
+            .collect()
+    };
+    let core = eroded(r);
+    let thick = if hairlines { eroded(1) } else { Vec::new() };
+    // Dilation: a pixel stays when a core pixel of its label lies within the square.
+    let keep: Vec<bool> = (0..w * h)
+        .map(|i| {
+            let (x, y, l) = ((i % w) as isize, (i / w) as isize, labels[i]);
+            l == NONE
+                || (-r..=r).any(|dy| {
+                    (-r..=r).any(|dx| {
+                        let (nx, ny) = (
+                            (x + dx).clamp(0, w as isize - 1),
+                            (y + dy).clamp(0, h as isize - 1),
+                        );
+                        own(nx, ny, labels) == l && core[ny as usize * w + nx as usize]
+                    })
+                })
+        })
+        .collect();
+    // Strokes (a component with no core pixel at all) stay whole.
+    let (id, comps) = regions::components(labels, w, h);
+    let mut has_core = vec![false; comps.len()];
+    let mut has_thick = vec![!hairlines; comps.len()];
+    for i in 0..w * h {
+        if id[i] != u32::MAX {
+            has_core[id[i] as usize] |= core[i];
+            has_thick[id[i] as usize] |= hairlines && thick[i];
+        }
+    }
+    let mut todo: Vec<usize> = (0..w * h)
+        .filter(|&i| {
+            id[i] != u32::MAX
+                && ((!keep[i] && has_core[id[i] as usize]) || !has_thick[id[i] as usize])
+        })
+        .collect();
+    let mut gone = vec![false; w * h];
+    for &i in &todo {
+        gone[i] = true;
+    }
+    // Hand the removed pixels to their neighbours, from the outside in.
+    for _ in 0..(4 * r as usize + 8) {
+        if todo.is_empty() {
+            break;
+        }
+        let mut next = Vec::new();
+        let mut set = Vec::new();
+        for &i in &todo {
+            let (x, y) = ((i % w) as isize, (i / w) as isize);
+            let mut votes: Vec<(u16, u32)> = Vec::new();
+            for (dx, dy) in [
+                (1, 0),
+                (-1, 0),
+                (0, 1),
+                (0, -1),
+                (1, 1),
+                (1, -1),
+                (-1, 1),
+                (-1, -1),
+            ] {
+                let (nx, ny) = (x + dx, y + dy);
+                if let Some(l) = at(nx, ny, labels)
+                    && l != NONE
+                    && l != labels[i]
+                    && !gone[ny as usize * w + nx as usize]
+                {
+                    match votes.iter_mut().find(|v| v.0 == l) {
+                        Some(v) => v.1 += 1,
+                        None => votes.push((l, 1)),
+                    }
+                }
+            }
+            match votes.iter().max_by_key(|v| (v.1, std::cmp::Reverse(v.0))) {
+                Some(&(l, _)) => set.push((i, l)),
+                None => next.push(i),
+            }
+        }
+        for (i, l) in set {
+            labels[i] = l;
+            gone[i] = false;
+        }
+        todo = next;
+    }
+}
+
 /// OpenStitch mode with a fabric colour ([`AutoPunch::fabric`]) leaves the background (the
 /// border's majority colour) out only when it is within this CIEDE2000 of the fabric: that is
 /// the fabric showing. A sky, a cream card or any other coloured background is sewn.
@@ -314,6 +433,19 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
         ),
         Mode::PeDesign => None,
     };
+    // OpenStitch mode, after the outlines are taken out: spikes and necks thinner than about 1.25 mm on a larger region go to
+    // their neighbours (#290): rows or satin crossing them land their ends on one spot.
+    if p.mode == Mode::OpenStitch {
+        let opaque = census.modal.iter().filter(|m| m.is_some()).count().max(1);
+        let line_art = border_pixels as f64 >= LINE_ART_SHARE * opaque as f64;
+        open_slivers(
+            &mut labels,
+            w,
+            h,
+            sliver_radius(frame.mm_per_px()),
+            !line_art,
+        );
+    }
     let (mut id, mut comps) = regions::components(&labels, w, h);
     if comps.is_empty() && p.mode == Mode::OpenStitch && outlines.is_none() {
         // OpenStitch mode's cleanup can merge away a drawing made only of thin lines (the
