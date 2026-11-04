@@ -43,7 +43,7 @@ Updated 2026-11-04, for the round after v0.1.0-alpha.12.
 |---|---|---|---|
 | `batch:stitch-engine` | `openstitch-design` (region.rs, regions.rs) | #304, #354, #288, #372 (Half Stitch for Auto satin), #373 (Miter limit) | #288 closes once the regenerated T1 mark is checked (its cause was #297) |
 | `batch:formats` | `openstitch-formats`, PES writers | #374 (PES versions 4, 5 and 7–10), #375 (PE-made PES files lose objects on re-save, audit item 9) | After the in-flight format PRs |
-| `batch:lettering` | compile.rs, strokes.rs | #376 (stroke-wise fill lettering), #377 (Connection Points) | After `batch:stitch-engine` (both touch compile.rs) |
+| `batch:lettering` | compile.rs, strokes.rs | #376 (stroke-wise fill lettering) | After `batch:stitch-engine` (both touch compile.rs) |
 
 ## Blocked
 
@@ -52,4 +52,5 @@ Updated 2026-11-04, for the round after v0.1.0-alpha.12.
 | #130 PMV motif/pattern reader | Owner-made files and screen access |
 | #134 External scalable font containers | Owner-made files and screen access |
 | #120 PES 0110 editable-object writer | The owner (the card for it was dismissed on 2026-11-04) |
+| #377 Connection Points | Owner captures in a built-in PE-DESIGN font (Connection Points is greyed out for TrueType fonts); the captures stay outside the repo and only measurements taken from them may be committed |
 | T1/T8 image-similarity steps | The calibration sew-outs and the counsel record (see `research/beyond/image-similarity-plan.md`) |
