@@ -52,7 +52,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 | Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 33: 26 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 11 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
-| Open GitHub issues | 16 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
+| Open GitHub issues | 20 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
 <!-- /status:glance -->
 
 Tiers, weakest first: *internal regression* (our own earlier output), *oracle* (an independent
@@ -388,6 +388,8 @@ Bugs reported on GitHub:
 - [#293](https://github.com/cristianonescu/OpenStitch/issues/293) Zigzag net fill sews lumpy on the machine
 - [#296](https://github.com/cristianonescu/OpenStitch/issues/296) Kit: the laurel frame overlaps the blue circle's corners frame in shapes/decorative-frames
 - [#297](https://github.com/cristianonescu/OpenStitch/issues/297) T1 card: the swatches after the T1 mark get the wrong density, and the mark sews as fill
+- [#303](https://github.com/cristianonescu/OpenStitch/issues/303) Fill rows clipped to a narrow notch sew runs of stitches under 0.3 mm
+- [#304](https://github.com/cristianonescu/OpenStitch/issues/304) Satin over a jagged outline fans its needle drops into the notches (Auto Punch PE-compatible mode)
 <!-- /status:issues-bugs -->
 
 [Report a bug](https://github.com/cristianonescu/OpenStitch/issues/new).
@@ -419,6 +421,8 @@ Open enhancement issues:
 - [#294](https://github.com/cristianonescu/OpenStitch/issues/294) Run the macOS release checks for v0.1.0-alpha.9, alpha.10 and alpha.11
 - [#295](https://github.com/cristianonescu/OpenStitch/issues/295) Review every ready-to-sew kit design against the sew-out findings
 - [#298](https://github.com/cristianonescu/OpenStitch/issues/298) Photo Stitch 1 trims far more than PE-DESIGN: travel between a thread's runs instead
+- [#306](https://github.com/cristianonescu/OpenStitch/issues/306) B17 A1: AI assistant chat panel with Claude (keychain key, permission gate, one undo per message)
+- [#307](https://github.com/cristianonescu/OpenStitch/issues/307) CI: the Rust workflow takes 25–60 min, 15 of them in unoptimised digitize tests
 <!-- /status:issues-planned -->
 
 ### Beyond PE-DESIGN
