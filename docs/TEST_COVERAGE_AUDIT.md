@@ -36,9 +36,8 @@ below are claims no test checks.
 | Area | Feature (matrix row) | Gap | Plan | Issue |
 |---|---|---|---|---|
 | Files | Import SVG: `<line>` | **bug**: every `<line>` element is dropped on import (an equivalent `<path>` imports) | fix in `crates/openstitch-engine/src/imports.rs`; then un-ignore `svg_line_elements_import_as_running_lines` | #341 |
-| Lettering | TrueType / OpenType fonts | weak: 16 fonts and 40 MiB per design, and the layout-complexity refusal, untested | engine `coverage_lettering.rs` | #330 |
-| Lettering | Per-character edits | weak: character moves on mirrored or on-path text untested | same file | #330 |
-| Lettering | Complex scripts, CJK | weak: `right_to_left_scripts_with_a_system_font` and `cjk_text_with_a_system_font` pass without checking when no suitable system font is installed | recorded here; needs a bundled test font, not only a test | #330 |
+| Lettering | Per-character edits | weak: character moves on mirrored or on-path text untested | editor tests (`tools::characters`), with the other editor gaps | #332 |
+| Lettering | Complex scripts, CJK | weak: `right_to_left_scripts_with_a_system_font` and `cjk_text_with_a_system_font` pass without checking when no suitable system font is installed | recorded here; needs a bundled test font, not only a test | #345 |
 | Design Database | Search | weak: date modified has no positive test; `property_search_needs_every_word` can pass without asserting | library `coverage_search.rs` | #331 |
 | Editor | Files: Import into design | weak: `EditorApp::import` (import, centre, select) untested | app tests or headless `--script` | #332 |
 | Editor | Object list | weak: the visibility toggle's effect and undo untested | same | #332 |
@@ -87,3 +86,4 @@ associations and the macOS `.pes` document type (CI workflow, owned by the CI se
 | Files | Import SVG | weak: `<ellipse>`, `<line>`, `<polygon>`, `<polyline>`, CSS `style=` untested | #329: `crates/openstitch-engine/tests/coverage_formats.rs` (`<line>` found broken: #341) |
 | Lettering | Text Transform written to PES 0110 | weak: OpenStitch's own envelope and level writer untested | #329: `crates/openstitch-engine/tests/coverage_formats.rs` |
 | Files | Machine formats vs PE-DESIGN reference | weak: `formats.rs` comparisons return early, and pass, if a reference file is missing | #329: `crates/openstitch-formats/tests/coverage_formats.rs` |
+| Lettering | TrueType / OpenType fonts | weak: 16 fonts and 40 MiB per design untested | #330: `crates/openstitch-engine/tests/coverage_lettering.rs` (the layout-complexity refusal is not reachable through `text.add` with the bundled fonts, 2000 characters staying far under 600 000 segments; not tested) |
