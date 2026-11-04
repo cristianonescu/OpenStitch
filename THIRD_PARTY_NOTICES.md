@@ -102,6 +102,19 @@ keyring, security-framework, windows-sys, secret-service, async-io, aes, cbc, hk
 zeroize are MIT OR Apache-2.0. zbus is MIT. Licences were read from `cargo metadata` on
 2026-11-04. No files copied.
 
+## SolidCraft (commit 6bca7d2) — https://github.com/tangency-labs/solidcraft
+
+Copyright (c) 2026 SolidCraft contributors, MIT OR Apache-2.0. The Assistant's Agent Client
+Protocol client (B17 A3) adapts SolidCraft's agent chat:
+- message builders and protocol version;
+- process-group spawning and stopping;
+- agent discovery and its search folders;
+- Claude Code's disallowed tools.
+
+The adapted files are `crates/openstitch-assistant/src/acp/mod.rs`, `protocol.rs`, `process.rs`
+and `discover.rs`. Each starts with an attribution line. The design of the whole Assistant
+follows SolidCraft's, as recorded in docs/research/beyond/ai-integration.md.
+
 ## libembroidery — https://github.com/Embroidermodder/libembroidery
 
 Consulted (not linked) for the PCS, SEW, XXX, HUS, VIP, PHC and CSD layouts. The 400-byte VIP colour-table

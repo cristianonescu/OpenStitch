@@ -648,7 +648,14 @@ The scratch folder is per launch (`openstitch-assistant-<pid>` in the temp folde
 
 `every_run_action_runs_through_ui_run` runs every runnable action with four selections. `ui.run` must succeed exactly when the button is enabled.
 
-### Assistant panel (B17 A1)
+### Assistant panel (B17 A1–A3)
+
+**Coding agents (A3).** A coding agent (ACP) runs as a child process in its own process group.
+Its MCP tool server is `openstitch --assistant-mcp ENDPOINT_FILE`, which runs no window and uses
+the same stdio loop as `openstitch-mcp` (`openstitch_mcp::serve_stdio`). It connects to a private
+loopback listener the panel opens, with its endpoint file in the 0700 scratch folder. The panel
+drains that listener in `serve`, through the same gate and undo bookkeeping as the in-process
+link, and not through `serve_remote`'s `Policy`.
 
 View ▸ Show/Hide ▸ **Assistant** (Ctrl/Cmd+Shift+A) docks a chat on the right (`assistant_panel.rs`).
 

@@ -500,13 +500,10 @@ fn model_config(app: &mut EditorApp, prefs: &AiPrefs) -> Option<claude::Config> 
     })
 }
 
-/// `openstitch-mcp` beside this editor (the packages ship them together).
+/// The agent's tool server is this editor's own executable in `--assistant-mcp` mode, so it
+/// works from every package (the separate `openstitch-mcp` ships only in the CLI archive).
 fn mcp_program() -> Option<std::path::PathBuf> {
-    let exe = std::env::current_exe().ok()?;
-    let path = exe
-        .parent()?
-        .join(format!("openstitch-mcp{}", std::env::consts::EXE_SUFFIX));
-    path.is_file().then_some(path)
+    std::env::current_exe().ok().filter(|p| p.is_file())
 }
 
 /// Finds a coding agent's program on PATH and in the usual install folders.
@@ -535,9 +532,8 @@ fn start_agent(app: &mut EditorApp, id: &str, wake: Waker) -> Result<Worker, Str
             agent.name, agent.install
         )
     })?;
-    let mcp = mcp_program().ok_or(
-        "openstitch-mcp was not found next to the editor, so a coding agent cannot reach it. Use a packaged build, or build openstitch-mcp too.",
-    )?;
+    let mcp = mcp_program()
+        .ok_or("The editor cannot find its own program to start the agent's tool server.")?;
     let scratch = app
         .assistant
         .scratch
@@ -563,11 +559,7 @@ fn start_agent(app: &mut EditorApp, id: &str, wake: Waker) -> Result<Worker, Str
         mcp: claude::McpServer {
             name: claude::BRIDGE_NAME.into(),
             command: mcp,
-            args: vec![
-                "--assistant".into(),
-                "--endpoint".into(),
-                endpoint.display().to_string(),
-            ],
+            args: vec!["--assistant-mcp".into(), endpoint.display().to_string()],
             env: Vec::new(),
         },
         system: openstitch_mcp::server::assistant_instructions().to_string(),

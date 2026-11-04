@@ -19,3 +19,25 @@ pub use openstitch_render::preview;
 pub use line_reader::{Line, LineReader};
 pub use server::{Config, EditorLink, PROTOCOL_VERSIONS, Server};
 pub use tools::{Meta, Tool, ToolKind, tool_name};
+
+/// Serves MCP over this process's stdin and stdout until the client goes away (the stdio
+/// transport). Used by the `openstitch-mcp` binary and by the editor's own
+/// `openstitch --assistant-mcp`, which a coding agent starts as its OpenStitch tool server.
+pub fn serve_stdio(server: &mut Server) {
+    use std::io::Write;
+    let mut stdout = std::io::stdout().lock();
+    let max = server.config().max_request_bytes;
+    for line in LineReader::new(std::io::stdin().lock(), max) {
+        let reply = match line {
+            Line::Text(text) => server.handle_line(&text),
+            Line::Oversized => Some(server.oversized_request_reply()),
+        };
+        if let Some(reply) = reply
+            && writeln!(stdout, "{reply}")
+                .and_then(|()| stdout.flush())
+                .is_err()
+        {
+            break; // client went away
+        }
+    }
+}
