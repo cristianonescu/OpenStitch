@@ -37,16 +37,14 @@ below are claims no test checks.
 |---|---|---|---|---|
 | Files | Import SVG: `<line>` | **bug**: every `<line>` element is dropped on import (an equivalent `<path>` imports) | fix in `crates/openstitch-engine/src/imports.rs`; then un-ignore `svg_line_elements_import_as_running_lines` | #341 |
 | Lettering | Complex scripts, CJK | weak: `right_to_left_scripts_with_a_system_font` and `cjk_text_with_a_system_font` pass without checking when no suitable system font is installed | recorded here; needs a bundled test font, not only a test | #345 |
-| Digitizing | Photo Stitch 1 fine rows (OpenStitch mode) | weak: `densityMean`/`densityWindow` never sent; `travel` only in the wizard's request | engine `coverage_digitize.rs` on small images | #334 |
-| Digitizing | Photo Stitch 2 needle limits (OpenStitch mode) | weak: "≤ 97 % of PE mode's densest window" tested as ≤ 100 %; 0.1 mm units not asserted | same file | #334 |
-| Digitizing | Thread sources (T5) | weak: a single chart by id, and Photo Stitch 1 with `owned`, untested | same file | #334 |
 
-Smaller weak points recorded but not planned yet: the Fit Text dialog remembering its last
-choices; Solid View's drawing (only its toggle is tested); Snap to Grid for curve handles and the
-Arrange handle; the editor's Optimise mode box and mixed-trim checkbox (inline egui code);
-offset lines' "within 0.05 mm" (tested at 0.15 mm); `roundedCorners`' effect; the ready-to-sew
-kit lookup on Linux and Windows layouts (`sew_kit` is being edited elsewhere); Windows MSI file
-associations and the macOS `.pes` document type (CI workflow, owned by the CI session).
+Smaller weak points, recorded in #351 (not yet covered): the Fit Text dialog remembering its
+last choices; Solid View's drawing (only its toggle is tested); Snap to Grid for curve handles and
+the Arrange handle; the Optimise mode box and mixed-trim checkbox (inline egui code); offset
+lines' "within 0.05 mm" (tested at 0.15 mm) and `roundedCorners`' effect; `shape.split` keeping
+Béziers; the ready-to-sew kit lookup on Linux and Windows layouts; the MSI and macOS `.pes` file
+associations in CI; the reference point on cross, net, zigzag net and decorative fill; the
+inspector's choice and toggle controls.
 
 ## Closed
 
@@ -87,3 +85,6 @@ associations and the macOS `.pes` document type (CI workflow, owned by the CI se
 | Editor | Select tool | weak: arrow-key nudge and Shift axis lock on move untested | #332: `crates/openstitch-app/tests/coverage_editor.rs`, `crates/openstitch-app/src/app_coverage_tests.rs`, engine `coverage_fabric.rs` |
 | Editing | Fabric Selector | weak: claims eight fabrics, test asserts at least six | #332: `crates/openstitch-app/tests/coverage_editor.rs`, `crates/openstitch-app/src/app_coverage_tests.rs`, engine `coverage_fabric.rs` |
 | Editor | Unsaved-changes prompt | weak: the window close request path untested | #332: `crates/openstitch-app/tests/coverage_editor.rs`, `crates/openstitch-app/src/app_coverage_tests.rs`, engine `coverage_fabric.rs` |
+| Digitizing | Photo Stitch 1 fine rows (OpenStitch mode) | weak: `densityMean`/`densityWindow` never sent; `travel` only in the wizard's request | #334: `crates/openstitch-engine/tests/coverage_digitize.rs` |
+| Digitizing | Photo Stitch 2 needle limits (OpenStitch mode) | weak: "≤ 97 % of PE mode's densest window" tested as ≤ 100 %; 0.1 mm units not asserted | #334: `crates/openstitch-digitize/tests/coverage_photo.rs` |
+| Digitizing | Thread sources (T5) | weak: a single chart by id, and Photo Stitch 1 with `owned`, untested | #334: `crates/openstitch-engine/tests/coverage_digitize.rs` |
