@@ -1,0 +1,15 @@
+[package]
+name = "openstitch-assistant"
+description = "The OpenStitch AI assistant's Claude API client: streamed Messages requests and the tool loop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde_json.workspace = true
+# Blocking HTTPS client; rustls with the bundled Mozilla roots, no async runtime.
+ureq = { version = "3", default-features = false, features = ["rustls", "gzip"] }
+
+[lints]
+workspace = true

@@ -42,6 +42,7 @@
 
 mod app;
 mod art;
+mod assistant_panel;
 mod assistant_ui;
 mod canvas;
 mod close_ui;

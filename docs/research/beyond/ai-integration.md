@@ -415,3 +415,33 @@ dialog sets its values.
 - The permission gate (Ask, Edits, All) is A1. A socket client keeps the
   `--listen-read-only` and `--listen-no-files` capabilities and the file roots.
 - No real model has driven these tools yet. That comes with A1 and A5.
+
+### A1, the Assistant panel (landed 2026-11-04, #306)
+
+**What the user sees.** View ▸ Show/Hide ▸ **Assistant** (Ctrl/Cmd+Shift+A) opens a chat on the right. The settings (⚙) hold:
+- the address (the Claude API by default);
+- the model (`claude-opus-5-5`);
+- the effort;
+- the permissions and the change limit;
+- the API key, which is saved in the system keychain and never shown again.
+
+Options ▸ **Show AI features** is on by default. While it is off, the panel, its button and the shortcut are gone.
+
+**How a request runs.** As planned (section 4):
+- `openstitch-assistant` streams from the Messages API, sending `anthropic-version` 2026-10-21. The request uses adaptive thinking with a summarised display, explicit effort, `max_tokens` 64000, and `eager_input_streaming` tool inputs that are validated before they run. Caching breakpoints sit on the tools, the system prompt and the conversation. On api.anthropic.com it also sends `fallbacks: "default"`.
+- The tools are the A0 assistant server's, driven in-process.
+- Every command passes the effect-based gate.
+- Each message is one undo step.
+- **Save as script** writes the engine edits as a `stitchtool exec` script, and a test checks that the script rebuilds the same objects.
+
+**Choices made while building.**
+- The editor's context (file name, object count, selection, scratch folder) goes in each user message, not the system prompt, so the prompt cache holds.
+- The API key is stored per address, so a local endpoint and the Claude API keep separate keys.
+- The undo step has no name: the editor's undo history has no labels yet. The chat shows "N changes, one undo step" with **Undo these changes**.
+
+**Not done in A1.**
+- No turn has run against the real API in CI, since that needs a key. The owner's first run with their key is the live check, and its token use goes into this section.
+- Pictures and attachments are A4.
+- Other endpoints and local models are A2. The address field already takes an Anthropic-compatible URL.
+- The Assistant command's own icon is #313.
+

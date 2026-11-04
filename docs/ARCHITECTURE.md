@@ -19,6 +19,7 @@ design. There is no web runtime.
 | `openstitch-compat` | first version | Compatibility harness: versioned JSON specs (`compat/specs`), a semantic embroidery-file comparer, the measurements library, the runner behind `stitchtool compat`, reference and sew-out provenance, the JSON report, the markdown summary and the generated tier table. See [Compatibility harness](#compatibility-harness). |
 | `openstitch-mcp` | done | MCP server on stdio: tools generated from `Session::commands()`, `run_batch`, `preview` (from `openstitch-render`), engine `Sandbox` roots, request/response caps. |
 | `openstitch-remote` | done | Loopback socket transport for the running editor: `Server` (127.0.0.1 listener, per-launch token, endpoint file, size limits and timeouts, requests handed to the UI thread), `Policy` (client capabilities and `Sandbox` roots scoped to each request), `Client` (used by `stitchtool connect` and `openstitch-mcp --live`). std::net threads, no async runtime. See [Automation socket](#automation-socket-live-editor). |
+| `openstitch-assistant` | first version | Claude API client and tool loop for the editor's Assistant panel (B17): raw HTTP with `ureq` over an injectable `Transport`; streaming SSE; adaptive thinking, explicit effort, `eager_input_streaming` tool inputs validated before they run; the `max_tokens` and `refusal` stop reasons; server-side refusal fallback on the Claude API; prompt caching; append-only history; one retry on 429/5xx. `key_safe_for` keeps a key off any address that is not https or exact loopback. No egui, no async runtime. See [research/beyond/ai-integration.md](research/beyond/ai-integration.md). |
 | `openstitch-render` | done | tiny-skia + `png` rendering: design previews (MCP `preview`), file-manager thumbnails (`openstitch-thumbnailer`, freedesktop convention). |
 | `openstitch-print` | done | Printable PDF: actual-size (tiled), reduced, positioning sheets, Print and Stitch. Own minimal PDF 1.4 writer (vector paths, Helvetica text, RGB images, Flate via `miniz_oxide`): exact 1 mm = 72/25.4 pt, deterministic output, no PDF dependency for a handful of operators. |
 | `openstitch-app` | first version | Desktop editor `openstitch` (eframe/egui). The library half (`openstitch_app::editor`) holds every testable piece without egui: `Viewport`, hit-testing, `SelectionHandles`, the `ToolController` state machine, `RenderModel`, inspector and object-list models. Screenshot: [rust-editor-overview.png](images/rust-editor-overview.png). |
@@ -646,6 +647,33 @@ The scratch folder is per launch (`openstitch-assistant-<pid>` in the temp folde
 - an Options or Help menu entry that `ribbon.rs` draws (a source scan matches each label to a setting or a command).
 
 `every_run_action_runs_through_ui_run` runs every runnable action with four selections. `ui.run` must succeed exactly when the button is enabled.
+
+### Assistant panel (B17 A1)
+
+View ▸ Show/Hide ▸ **Assistant** (Ctrl/Cmd+Shift+A) docks a chat on the right (`assistant_panel.rs`).
+
+**The worker thread** owns the conversation (`openstitch-assistant`) and an `openstitch-mcp` assistant `Server`. The server's `EditorLink` is a channel to the UI thread, not the socket, so the model sees the same seven tools as `openstitch-mcp --assistant`.
+
+**Running a command.** Each engine or `ui.*` command the server sends arrives on the UI thread as a job. It passes `editor::assistant_chat::verdict`, then runs through `remote_request`, the socket's own path. The gate judges each command by its declared effect:
+- reads run;
+- edits run (they ask in "Ask every time");
+- file commands, `transfer.*`, a parameter naming a file outside the scratch folder, Exit, and an undo past the message's start all ask, with Allow once, Always allow or Deny;
+- a question nobody answers is declined after 240 s;
+- an optional limit on changes per message refuses further edits.
+
+**Undo.** At the end of a message, the undo groups it pushed fold into one: `undo_groups` is drained from the start mark. Stop ends the turn the same way.
+
+**Save as script.** The message's engine edits are recorded (`ScriptRecord`) and written as a `stitchtool exec` script.
+
+**Preferences and key.** The preferences are in `ui.json` under `ai`: on/off, model, effort, address, permissions, limit, always-allowed commands and timeout. The API key is only in the system keychain (`keyring`, service "OpenStitch assistant", one entry per address). It is never sent to an address `key_safe_for` refuses.
+
+**Tests.** `assistant_panel::tests` drives whole turns with a scripted SSE transport:
+- one undo step per message;
+- approval, denial and timeout;
+- Stop;
+- a key refused for plain http elsewhere;
+- Save as script rebuilding the same objects;
+- the queue.
 
 ## Compatibility harness
 
