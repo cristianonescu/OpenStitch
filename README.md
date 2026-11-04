@@ -52,7 +52,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 | Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 33: 26 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 11 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
-| Open GitHub issues | 38 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
+| Open GitHub issues | 41 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
 <!-- /status:glance -->
 
 Tiers, weakest first: *internal regression* (our own earlier output), *oracle* (an independent
@@ -399,6 +399,7 @@ Bugs reported on GitHub:
 - [#303](https://github.com/cristianonescu/OpenStitch/issues/303) Fill rows clipped to a narrow notch sew runs of stitches under 0.3 mm
 - [#304](https://github.com/cristianonescu/OpenStitch/issues/304) Satin over a jagged outline fans its needle drops into the notches (Auto Punch PE-compatible mode)
 - [#322](https://github.com/cristianonescu/OpenStitch/issues/322) PES: write the hoop and Design Page fields from the design instead of hard-coded values
+- [#341](https://github.com/cristianonescu/OpenStitch/issues/341) import.svg drops every <line> element
 <!-- /status:issues-bugs -->
 
 [Report a bug](https://github.com/cristianonescu/OpenStitch/issues/new).
@@ -449,6 +450,8 @@ Open enhancement issues:
 - [#332](https://github.com/cristianonescu/OpenStitch/issues/332) Tests: editor behaviour without a test (import into design, visibility toggle, undo keys, simulator play, inspector line settings, nudge)
 - [#333](https://github.com/cristianonescu/OpenStitch/issues/333) Tests: the automation socket's idle-connection timeout is untested
 - [#334](https://github.com/cristianonescu/OpenStitch/issues/334) Tests: digitize parameters no test sends (Photo Stitch densityMean/densityWindow/travel, single-chart thread source, PS2 97 % claim)
+- [#338](https://github.com/cristianonescu/OpenStitch/issues/338) B17 A3: Assistant with ACP coding agents (Claude Code, Codex, OpenCode) on the user's own account
+- [#339](https://github.com/cristianonescu/OpenStitch/issues/339) CI: measure the Linux runner's disk headroom (#315 ran out of space during the build)
 <!-- /status:issues-planned -->
 
 ### Beyond PE-DESIGN

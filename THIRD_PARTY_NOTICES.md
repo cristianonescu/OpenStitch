@@ -89,6 +89,19 @@ with zip (MIT; https://github.com/zip-rs/zip2), tar (MIT OR Apache-2.0;
 https://github.com/alexcrichton/tar-rs) and flate2 (MIT OR Apache-2.0, already used for PNG). No
 files copied.
 
+## keyring 3.6 and its platform backends — https://github.com/open-source-cooperative/keyring-rs
+
+Linked into the editor for the Assistant panel (B17 A1). It keeps the user's AI API key in the
+system keychain:
+- the macOS Keychain, through security-framework;
+- the Windows Credential Manager, through windows-sys;
+- the Secret Service on Linux, through secret-service over zbus, with the pure-Rust crypto of
+  aes, cbc, hkdf and sha2.
+
+keyring, security-framework, windows-sys, secret-service, async-io, aes, cbc, hkdf, sha2, num and
+zeroize are MIT OR Apache-2.0. zbus is MIT. Licences were read from `cargo metadata` on
+2026-11-04. No files copied.
+
 ## libembroidery — https://github.com/Embroidermodder/libembroidery
 
 Consulted (not linked) for the PCS, SEW, XXX, HUS, VIP, PHC and CSD layouts. The 400-byte VIP colour-table
