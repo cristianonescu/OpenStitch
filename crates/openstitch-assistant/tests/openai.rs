@@ -643,6 +643,59 @@ fn images_go_as_data_urls() {
     );
 }
 
+/// #416: Ollama refuses pictures for a model without vision with a 400; the turn goes on with
+/// text notes in their place, and later pictures in the conversation go as notes at once.
+#[test]
+fn a_text_only_model_gets_its_pictures_as_notes() {
+    let refused = || {
+        Err(HttpError {
+            status: Some(400),
+            message: "Multimodal data provided, but model does not support multimodal requests."
+                .into(),
+            retry_after: None,
+        })
+    };
+    let t = FakeTransport::new(vec![
+        refused(),
+        Ok(text_reply("A red disc.")),
+        Ok(text_reply("Still text.")),
+    ]);
+    let mut tools = FakeTools::default();
+    let mut conv = Conversation::new();
+    let cancel = AtomicBool::new(false);
+    let picture = || user_content("Look", &[("image/png".into(), "QUJD".into())]);
+    let mut events = Vec::new();
+    let stop = conv.run_turn(&cfg(), &t, &mut tools, picture(), &cancel, &mut |e| {
+        events.push(e)
+    });
+    assert_eq!(stop, StopKind::EndTurn);
+    assert!(matches!(&events[0], Event::Retrying { reason, .. } if reason.contains("text")));
+    let note = json!({"type": "text", "text": "[A picture was left out here: this model takes text only.]"});
+    let bodies = t.bodies();
+    assert_eq!(bodies[0]["messages"][1]["content"][0]["type"], "image_url");
+    assert_eq!(bodies[1]["messages"][1]["content"][0], note);
+    let stop = conv.run_turn(&cfg(), &t, &mut tools, picture(), &cancel, &mut |_| {});
+    assert_eq!(stop, StopKind::EndTurn);
+    let third = &t.bodies()[2]["messages"];
+    assert_eq!(third[3]["content"][0], note);
+    assert!(!third.to_string().contains("image_url"));
+}
+
+/// A 400 without pictures in the request is not retried.
+#[test]
+fn a_400_without_pictures_ends_the_turn() {
+    let t = FakeTransport::new(vec![Err(HttpError {
+        status: Some(400),
+        message: "bad".into(),
+        retry_after: None,
+    })]);
+    let mut tools = FakeTools::default();
+    let mut conv = Conversation::new();
+    let (stop, _) = run(&mut conv, &cfg(), &t, &mut tools, "Hi");
+    assert!(matches!(stop, StopKind::Error(m) if m.contains("400")));
+    assert_eq!(t.bodies().len(), 1);
+}
+
 #[test]
 fn model_lists() {
     // Anthropic.
