@@ -325,7 +325,11 @@ PE-DESIGN reference specs stay green. The rows are listed as "Planned (beyond PE
 
 Done beyond PE-DESIGN so far: the seeded random tatami stagger (#123, 2026-10-29: `stagger:
 random` with `staggerSeed`, reproducible; PE-DESIGN's Fill pane offers the regular Frequency
-brick only, which stays the default).
+brick only, which stays the default). Fill slivers without stitches in place (#303, 2026-11-04): a fill
+run with more than 6 stitches under 0.5 mm in a row is sewn as a zigzag of stitches at least
+0.5 mm long. PE-DESIGN sews such slivers as they are (its own Auto Punch of the storybook picture
+has 11 stitches under 0.3 mm in a row), while its 74 drawn-fill references never exceed 6, so
+they are unchanged.
 
 In progress for alpha.9: **image similarity (B16.1)**, a measured plan to make the image
 wizards' results look like their images, in [research/beyond/image-similarity-plan.md]

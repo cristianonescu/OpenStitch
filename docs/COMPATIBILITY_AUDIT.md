@@ -2155,6 +2155,14 @@ Line references are relative to `crates/`.
   stitches in place); it now sews at the Run Pitch, at most half the spacing.
 - **Flexible spiral (fixed):** its points crowded under 0.3 mm towards the centre (52 in a row);
   points under 0.5 mm from the last are left out.
+- **Fill slivers (fixed 2026-11-04, #303):** Auto Punch's storybook picture in OpenStitch mode
+  sewed white fill rows 0.3-0.5 mm long, one every 0.22 mm, through a sliver of its traced
+  outline at about (99.5, 124) mm; rounded to the PEC's 0.1 mm grid they were 5-7 stitches under
+  0.3 mm in a row. PE-DESIGN 11.50 has no minimum row length: its own Auto Punch of the same
+  picture has 11 stitches under 0.3 mm in a row (rows 0.2 mm long), while its 74 drawn-fill
+  references have at most 6 under 0.5 mm in a row. OpenStitch now joins a fill run of more than
+  6 stitches under 0.5 mm into stitches at least 0.5 mm long (beyond PE-DESIGN; drawn fills
+  unchanged, compat unchanged).
 - **Open:** Auto Punch on the storybook picture stacks 29 (OpenStitch mode) and 23 (PE-DESIGN-
   compatible) needle drops where satin columns meet, against at most 19 in PE-DESIGN's own files;
   satin lettering ends a stroke with up to 9 stitches under 0.3 mm (PE-DESIGN's text: 5).

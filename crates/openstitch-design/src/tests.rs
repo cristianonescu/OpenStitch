@@ -628,3 +628,99 @@ fn programmable_fill_sews_embossed_and_engraved_tile_areas() {
     assert!(embossed <= plain, "{embossed} vs {plain}");
     assert!(engraved > plain * 11 / 10, "{engraved} vs {plain}");
 }
+
+/// Longest row of consecutive stitches shorter than `limit` (0.1 mm).
+fn longest_short_run(runs: &[generate::Run], limit: f64) -> usize {
+    let mut best = 0;
+    for run in runs {
+        let mut n = 0;
+        for w in run.windows(2) {
+            n = if w[0].distance(w[1]) < limit {
+                n + 1
+            } else {
+                0
+            };
+            best = best.max(n);
+        }
+    }
+    best
+}
+
+#[test]
+fn fill_rows_in_a_sliver_are_joined() {
+    // #303: a 20 × 10 mm fill with a 0.35 mm wide, 5 mm tall sliver on its top edge (the
+    // notch an Auto Punch outline left on the storybook picture) and a hole, so that rows have
+    // two spans and are chained row by row, as the storybook's white region is. Each row
+    // through the sliver is a 0.35 mm span, the next one 0.22 mm on: rounded to the PEC's 0.1 mm
+    // grid, stitch after stitch there is under 0.3 mm.
+    let notched = [
+        Contour::new(
+            vec![
+                v2(0.0, 0.0),
+                v2(100.0, 0.0),
+                v2(100.0, -50.0),
+                v2(103.5, -50.0),
+                v2(103.5, 0.0),
+                v2(200.0, 0.0),
+                v2(200.0, 100.0),
+                v2(0.0, 100.0),
+            ],
+            true,
+        ),
+        Contour::rectangle(40.0, 30.0, 40.0, 40.0),
+    ];
+    let p = params(0.0, 10.0 / 4.5, 40.0, 0.0);
+    let stagger = generate::Stagger::Regular(0.3);
+    let entry = Some(v2(100.0, 100.0));
+    let raw = generate::edge_to_edge_rows(&notched, &p, &[], stagger, entry, false);
+    assert!(
+        longest_short_run(&raw, 5.0) > 20,
+        "{}",
+        longest_short_run(&raw, 5.0)
+    );
+    let joined = generate::fill_edge_to_edge(&notched, &p, &[], stagger, entry, false);
+    assert!(
+        longest_short_run(&joined, 5.0) <= 6,
+        "{}",
+        longest_short_run(&joined, 5.0)
+    );
+    // The sliver is still sewn, up to its tip.
+    let top = joined
+        .concat()
+        .iter()
+        .map(|q| q.y)
+        .fold(f64::INFINITY, f64::min);
+    assert!(top < -45.0, "{top}");
+    // A fill without slivers is left as it was, short corner rows and all.
+    for angle in [0.0, 30.0, 45.0] {
+        let square = [Contour::rectangle(0.0, 0.0, 400.0, 400.0)];
+        let p = params(angle, 10.0 / 4.5, 40.0, 0.0);
+        let entry = Some(v2(200.0, 400.0));
+        assert_eq!(
+            generate::fill_edge_to_edge(&square, &p, &[], stagger, entry, false),
+            generate::edge_to_edge_rows(&square, &p, &[], stagger, entry, false),
+            "{angle}°"
+        );
+    }
+}
+
+#[test]
+fn join_short_stitches_keeps_short_corners_and_the_last_point() {
+    // Six short stitches in a row stay (PE-DESIGN's most in its drawn fills).
+    let corner: Vec<_> = (0..7)
+        .map(|i| v2(f64::from(i % 2) * 2.0, f64::from(i) * 2.0))
+        .chain([v2(40.0, 12.0)])
+        .collect();
+    let mut run = corner.clone();
+    generate::join_short_stitches(&mut run);
+    assert_eq!(run, corner);
+    // Nine are joined into stitches of at least 0.5 mm, ending on the run's last point.
+    let mut run: Vec<_> = (0..10)
+        .map(|i| v2(f64::from(i % 2) * 2.0, f64::from(i) * 2.0))
+        .collect();
+    let last = run[run.len() - 1];
+    generate::join_short_stitches(&mut run);
+    assert_eq!(run.last(), Some(&last));
+    assert_eq!(run[0], v2(0.0, 0.0));
+    assert!(longest_short_run(&[run], 5.0) <= 1);
+}
