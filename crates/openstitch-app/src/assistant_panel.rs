@@ -275,12 +275,60 @@ pub enum Item {
     Thinking(String),
     Tool {
         id: String,
+        /// The tool's own name (`mcp__openstitch-app__execute`, `view_render`, …).
         name: String,
+        /// Its arguments, once known.
+        input: Value,
+        /// The arguments and the start of the result, shown when the row is opened.
         detail: String,
         done: bool,
         is_error: bool,
     },
     Notice(String),
+}
+
+/// A tool row's label: what the call did, in words (#415). The raw name and the arguments are in
+/// the row's detail.
+pub fn tool_label(name: &str, input: &Value) -> String {
+    // Coding agents prefix MCP tools: `mcp__<server>__<tool>`.
+    let short = name
+        .strip_prefix("mcp__")
+        .and_then(|rest| rest.split_once("__").map(|(_, tool)| tool))
+        .unwrap_or(name);
+    let arg = |k: &str| {
+        input
+            .get(k)
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty())
+    };
+    match short {
+        "execute" => match arg("command") {
+            Some(c) => format!("Ran {c}"),
+            None => "Ran a command".into(),
+        },
+        "run_batch" => match input.get("steps").and_then(Value::as_array).map(Vec::len) {
+            Some(1) => "Ran 1 command".into(),
+            Some(n) => format!("Ran {n} commands"),
+            None => "Ran commands".into(),
+        },
+        "view_render" => "Looked at the design".into(),
+        "commands_list" => match arg("filter") {
+            Some(f) => format!("Looked up commands: {f}"),
+            None => "Looked up the commands".into(),
+        },
+        "command_describe" => match arg("command") {
+            Some(c) => format!("Read the help for {c}"),
+            None => "Read a command's help".into(),
+        },
+        "skill_reference" => "Read the embroidery guide".into(),
+        "scratch_write" => match arg("name") {
+            Some(n) => format!("Wrote {n}"),
+            None => "Wrote a file".into(),
+        },
+        "generate_image" => "Generated a picture".into(),
+        "ToolSearch" => "Looked up tools".into(),
+        other => other.to_string(),
+    }
 }
 
 /// A command waiting for Allow / Always allow / Deny.
@@ -320,6 +368,8 @@ pub struct Panel {
     last_undo: Option<usize>,
     pub script: ScriptRecord,
     pub tokens: (u64, u64),
+    /// Counts conversations, so a new chat's rows get new widget IDs.
+    chat: u64,
     /// Settings popup: the key being typed (never shown again once saved).
     key_input: String,
     image_key_input: String,
@@ -721,6 +771,7 @@ pub fn new_chat(app: &mut EditorApp) {
     panel.last_undo = None;
     panel.tokens = (0, 0);
     panel.turn = None;
+    panel.chat += 1;
 }
 
 fn reply_err(job: Job, message: String) {
@@ -896,18 +947,24 @@ fn on_event(panel: &mut Panel, e: claude::Event) {
         claude::Event::ToolStart { id, name } => panel.items.push(Item::Tool {
             id,
             name,
+            input: Value::Null,
             detail: String::new(),
             done: false,
             is_error: false,
         }),
         claude::Event::ToolCall { id, input, .. } => {
-            if let Some(Item::Tool { detail, .. }) = panel
+            if let Some(Item::Tool {
+                input: known,
+                detail,
+                ..
+            }) = panel
                 .items
                 .iter_mut()
                 .rev()
                 .find(|i| matches!(i, Item::Tool { id: x, .. } if *x == id))
             {
-                *detail = input.to_string().chars().take(300).collect();
+                *detail = input.to_string().chars().take(600).collect();
+                *known = input;
             }
         }
         claude::Event::ToolDone {
@@ -1669,7 +1726,15 @@ fn inline_job(ui: &egui::Ui, text: &str, heading: bool) -> egui::text::LayoutJob
     job
 }
 
-fn item(ui: &mut egui::Ui, it: &Item) {
+/// The conversation's rows; `chat` keeps a new chat's IDs apart from the last one's.
+fn transcript(ui: &mut egui::Ui, chat: u64, items: &[Item]) {
+    for (i, it) in items.iter().enumerate() {
+        item(ui, ("assistant-row", chat, i), it);
+        ui.add_space(4.0);
+    }
+}
+
+fn item(ui: &mut egui::Ui, salt: (&str, u64, usize), it: &Item) {
     match it {
         Item::User(t) => bubble(ui, true, |ui| {
             let color = ui.visuals().selection.stroke.color;
@@ -1680,13 +1745,18 @@ fn item(ui: &mut egui::Ui, it: &Item) {
             );
         }),
         Item::Assistant(t) => bubble(ui, false, |ui| markdown(ui, t)),
+        // Each row has its own ID (conversation, position): a label-based ID clashes when the
+        // same tool runs twice or there are two Thinking blocks (#415).
         Item::Thinking(t) => {
-            ui.collapsing(RichText::new("Thinking").weak(), |ui| {
-                ui.add(egui::Label::new(RichText::new(t).weak()).wrap());
-            });
+            egui::CollapsingHeader::new(RichText::new("Thinking").weak())
+                .id_salt(salt)
+                .show(ui, |ui| {
+                    ui.add(egui::Label::new(RichText::new(t).weak()).wrap());
+                });
         }
         Item::Tool {
             name,
+            input,
             detail,
             done,
             is_error,
@@ -1699,12 +1769,20 @@ fn item(ui: &mut egui::Ui, it: &Item) {
             } else {
                 "✓"
             };
-            ui.collapsing(
-                RichText::new(format!("{state} {name}")).monospace().small(),
-                |ui| {
-                    ui.add(egui::Label::new(RichText::new(detail).monospace().small()).wrap());
-                },
-            );
+            egui::CollapsingHeader::new(
+                RichText::new(format!("{state} {}", tool_label(name, input))).small(),
+            )
+            .id_salt(salt)
+            .show(ui, |ui| {
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(format!("{name}\n{detail}"))
+                            .monospace()
+                            .small(),
+                    )
+                    .wrap(),
+                );
+            });
         }
         Item::Notice(t) => {
             ui.vertical_centered(|ui| {
@@ -1951,10 +2029,7 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
             egui::ScrollArea::vertical()
                 .stick_to_bottom(true)
                 .show(ui, |ui| {
-                    for it in &app.assistant.panel.items {
-                        item(ui, it);
-                        ui.add_space(4.0);
-                    }
+                    transcript(ui, app.assistant.panel.chat, &app.assistant.panel.items);
                     if let Some(last) = app.assistant.panel.last_undo
                         && last + 1 == app.undo_groups.len()
                         && ui.small_button("Undo these changes").clicked()
@@ -2461,6 +2536,111 @@ mod tests {
         assert!(
             matches!(app.assistant.panel.items.last(), Some(Item::Notice(t)) if t.contains("defaults"))
         );
+    }
+
+    /// Repeated tool calls and Thinking blocks get their own widget IDs (#415): egui paints
+    /// "First/Second/Double use of … ID" on its debug layer when two widgets share one.
+    #[test]
+    fn repeated_tool_rows_do_not_clash() {
+        let tool = |id: &str, name: &str, input: Value| Item::Tool {
+            id: id.into(),
+            name: name.into(),
+            input,
+            detail: "{}".into(),
+            done: true,
+            is_error: false,
+        };
+        let items = vec![
+            Item::User("make a badge".into()),
+            Item::Thinking("plan".into()),
+            tool("a", "mcp__openstitch-app__commands_list", json!({})),
+            tool("b", "mcp__openstitch-app__commands_list", json!({})),
+            tool(
+                "c",
+                "mcp__openstitch-app__execute",
+                json!({ "command": "object.list" }),
+            ),
+            tool(
+                "d",
+                "mcp__openstitch-app__execute",
+                json!({ "command": "object.list" }),
+            ),
+            Item::Thinking("plan".into()),
+            Item::Assistant("done".into()),
+        ];
+        assert!(clash_warnings(|ui| transcript(ui, 0, &items)).is_empty());
+        // Control: the label-based rows of before (#415) do clash, so the check can see one.
+        let before = clash_warnings(|ui| {
+            for _ in 0..2 {
+                ui.collapsing("✓ mcp__openstitch-app__execute", |_| {});
+            }
+        });
+        assert!(!before.is_empty(), "the clash check must detect a clash");
+    }
+
+    /// The ID clash warnings egui paints while drawing `add` (two frames, warnings on).
+    fn clash_warnings(add: impl Fn(&mut egui::Ui)) -> Vec<String> {
+        let ctx = egui::Context::default();
+        ctx.options_mut(|o| o.warn_on_id_clash = true);
+        let mut clashes = Vec::new();
+        for _ in 0..2 {
+            let mut out = ctx.run_ui(egui::RawInput::default(), |ui| add(ui));
+            out.textures_delta.clear();
+            for s in &out.shapes {
+                if let egui::epaint::Shape::Text(t) = &s.shape
+                    && t.galley.text().contains(" ID ")
+                {
+                    clashes.push(t.galley.text().to_string());
+                }
+            }
+        }
+        clashes
+    }
+
+    /// The View chip sends the picture of the design with the message (#415, item 3).
+    #[test]
+    fn the_view_chip_sends_a_picture_of_the_design() {
+        let (mut app, transport) = app_with(vec![reply(&[], "A blue square.", "end_turn")]);
+        app.assistant.panel.attach_view = true;
+        send(
+            &mut app,
+            "what does the attached picture of the view show".into(),
+            no_wake(),
+        );
+        run(&mut app, idle);
+        let first = transport.requests.lock().expect("lock")[0].clone();
+        let content = &first["messages"][0]["content"];
+        assert_eq!(content[0]["type"], "image", "{content}");
+        assert_eq!(content[0]["source"]["media_type"], "image/png");
+        assert!(
+            content[1]["text"]
+                .as_str()
+                .is_some_and(|t| t.contains("picture of the design view"))
+        );
+        assert!(!app.assistant.panel.attach_view, "the chip is used once");
+        assert!(matches!(&app.assistant.panel.items[0], Item::User(t) if t.contains("📎 view")));
+    }
+
+    #[test]
+    fn tool_rows_read_as_words() {
+        assert_eq!(
+            tool_label(
+                "mcp__openstitch-app__execute",
+                &json!({ "command": "object.list" })
+            ),
+            "Ran object.list"
+        );
+        assert_eq!(tool_label("execute", &json!({})), "Ran a command");
+        assert_eq!(
+            tool_label("run_batch", &json!({ "steps": [{}, {}] })),
+            "Ran 2 commands"
+        );
+        assert_eq!(
+            tool_label("mcp__openstitch-app__view_render", &Value::Null),
+            "Looked at the design"
+        );
+        assert_eq!(tool_label("ToolSearch", &json!({})), "Looked up tools");
+        assert_eq!(tool_label("something_new", &json!({})), "something_new");
     }
 
     fn local_openai(app: &mut EditorApp) {
