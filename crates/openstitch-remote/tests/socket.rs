@@ -371,14 +371,12 @@ fn writes_and_removes_the_endpoint_file_and_clients_stay_on_loopback() {
 /// Early closes (refused connection, bad token, oversized line) must not reset the connection
 /// while the client's request bytes are still unread: a reset can destroy the reply before the
 /// client reads it (always on Windows). The client here keeps sending and reads late.
+///
+/// A closed connection frees its slot only once the server's drain of it ends, after the client
+/// has its reply, so each check runs on a host whose slots no earlier check still holds (#359).
 #[test]
 fn early_closes_deliver_the_reply_before_closing() {
-    let host = Host::start(ServerConfig {
-        max_connections: 1,
-        max_request_bytes: 1024,
-        ..Default::default()
-    });
-    let late_reply = |payload: &[u8]| {
+    let late_reply = |host: &Host, payload: &[u8]| {
         let mut stream = TcpStream::connect(host.endpoint.address).expect("connect");
         stream
             .set_read_timeout(Some(Duration::from_secs(10)))
@@ -391,39 +389,31 @@ fn early_closes_deliver_the_reply_before_closing() {
             .expect("reply arrives intact");
         serde_json::from_str::<Value>(&reply).expect("reply json")
     };
+    let error = |reply: Value| reply["error"].as_str().unwrap_or_default().to_string();
     let junk = "x".repeat(64 << 10);
+
+    // Bad token, then an oversized line: two connections, so two slots.
+    let host = Host::start(ServerConfig {
+        max_connections: 2,
+        max_request_bytes: 1024,
+        ..Default::default()
+    });
     let wrong = format!("{{\"token\":\"00\",\"command\":\"design.info\"}}\n{junk}\n");
-    assert!(
-        late_reply(wrong.as_bytes())["error"]
-            .as_str()
-            .is_some_and(|e| e.contains("token"))
-    );
-    // A closed connection frees its slot only after the server's drain ends, so the next client
-    // can briefly be refused; wait (bounded) for the slot (#359).
+    let e = error(late_reply(&host, wrong.as_bytes()));
+    assert!(e.contains("token"), "{e}");
     let oversized = format!("{junk}\n{junk}\n");
-    let deadline = std::time::Instant::now() + Duration::from_secs(5);
-    let error = loop {
-        let reply = late_reply(oversized.as_bytes());
-        let error = reply["error"].as_str().unwrap_or_default().to_string();
-        if !error.contains("too many") {
-            break error;
-        }
-        assert!(std::time::Instant::now() < deadline, "slot never freed");
-        std::thread::sleep(Duration::from_millis(50));
-    };
-    assert!(error.contains("exceeds"), "{error}");
-    let deadline = std::time::Instant::now() + Duration::from_secs(5);
-    let mut first = loop {
-        let mut client = host.client();
-        let ok = client
-            .request(&json!({"command": "design.info"}))
-            .is_ok_and(|r| r["ok"] == json!(true));
-        if ok {
-            break client;
-        }
-        assert!(std::time::Instant::now() < deadline, "slot never freed");
-        std::thread::sleep(Duration::from_millis(50));
-    };
+    let e = error(late_reply(&host, oversized.as_bytes()));
+    assert!(e.contains("exceeds"), "{e}");
+
+    drop(host);
+
+    // Refused: a fresh host's only slot is held by a connected client.
+    let host = Host::start(ServerConfig {
+        max_connections: 1,
+        max_request_bytes: 1024,
+        ..Default::default()
+    });
+    let mut first = host.client();
     assert_eq!(
         first
             .request(&json!({"command": "design.info"}))
@@ -434,9 +424,6 @@ fn early_closes_deliver_the_reply_before_closing() {
         "{{\"token\":\"{}\",\"command\":\"design.info\"}}\n{junk}\n",
         host.endpoint.token
     );
-    assert!(
-        late_reply(line.as_bytes())["error"]
-            .as_str()
-            .is_some_and(|e| e.contains("too many"))
-    );
+    let e = error(late_reply(&host, line.as_bytes()));
+    assert!(e.contains("too many"), "{e}");
 }
