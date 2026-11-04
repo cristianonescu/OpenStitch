@@ -35,21 +35,6 @@ below are claims no test checks.
 
 | Area | Feature (matrix row) | Gap | Plan | Issue |
 |---|---|---|---|---|
-| Editing | Move/scale/rotate/flip (`object.flip`) | weak: flip's geometry is never asserted | engine `coverage_editing.rs`: flip mirrors about the selection centre, one undo step | #327 |
-| Editing | Point editing (`object.setPoint`) | weak: "handles move with the vertex" not asserted | same file: the vertex's handles shift by the same delta | #327 |
-| Editing | Copy sewing attributes (`object.pasteAttributes`) | weak: `lineColor`, `lineSewing`, `holeSewing` selections and the refusal of stitch patterns untested | same file | #327 |
-| Editing | Cut and Paste (`object.paste`) | weak: a pasted text on a path following the new path untested | same file | #327 |
-| Editing | Reverse Direction Line | weak: reversing a curved direction untested | same file | #327 |
-| Editing | Entry/exit points (`object.setEntryExit`, `startEnd`) | weak: bad `startEnd` refused and `startEnd`/`lineExit` surviving `.osd` untested | same file | #327 |
-| Editing | Decorative frames (`shape.decorative`) | weak: `size` only tested as a refusal | same file: a larger size gives a larger ornament | #327 |
-| Model | Sewing area (page or design) | weak: the `sewingArea` returned by `design.export` is never asserted | same file | #327 |
-| Simulation | Thread length per colour (`design.info`) | weak: `threadPerColorM` never asserted | same file: two colours, two entries summing to `needleThreadM` | #327 |
-| Line sew types | Zigzag line | weak: `underSewing` has no test or spec | engine `coverage_stitch_types.rs` | #328 |
-| Region sew types | Satin | weak: `object.setRegion` `underlayParts` untested (only the design-level parser) | same file: applies, refuses an unknown part, undo, `.osd` | #328 |
-| Region sew types | Fill (tatami) | weak: pull compensation never asserted | same file: rows lengthen with the value | #328 |
-| Editing | Curved sewing direction (`object.setDirectionCurve`) | weak: piping and motif fill under a curve, and the curve in `.osd`, untested | same file | #328 |
-| Editing | Centre point / pattern reference point | weak: the reference point's effect is shown only for programmable fill; engine test asserts only that stitches exist | same file: moving the point changes motif fill's stitches; `.osd` | #328 |
-| Beyond PE-DESIGN | Contour fill | weak: "no travel from R1 or to R2" untested | same file: entry/exit on a contour region | #328 |
 | Files | PES write, rotated hoop (v6) | weak: only the header flag is checked, not the turned PEC stitches | formats `coverage_formats.rs` | #329 |
 | Files | Import SVG | weak: `<ellipse>`, `<line>`, `<polygon>`, `<polyline>`, CSS `style=` untested | engine `coverage_formats.rs` | #329 |
 | Lettering | Text Transform written to PES 0110 | weak: OpenStitch's own envelope and level writer untested | engine `coverage_formats.rs`: export, `pes::read_objects` | #329 |
@@ -86,3 +71,18 @@ associations and the macOS `.pes` document type (CI workflow, owned by the CI se
 | Docs | OpenStitch-mode Fidelity row; Satin row; CSD | unescaped `\|` split the row on GitHub; a passage repeated; CSD read listed twice | #326 |
 | Automation | CLI scripts (`stitchtool exec`), control channel (`stitchtool serve`) | none: only an example and a manual run | #318: `crates/stitchtool/tests/coverage_cli.rs` |
 | Automation | Loopback socket (`openstitch --listen`) | weak: idle-connection timeout untested | #333: `crates/openstitch-remote/tests/coverage_socket.rs` |
+| Editing | Move/scale/rotate/flip (`object.flip`) | weak: flip's geometry is never asserted | #327: `crates/openstitch-engine/tests/coverage_editing.rs` |
+| Editing | Point editing (`object.setPoint`) | weak: "handles move with the vertex" not asserted | #327: `crates/openstitch-engine/tests/coverage_editing.rs` |
+| Editing | Copy sewing attributes (`object.pasteAttributes`) | weak: `lineColor`, `lineSewing`, `holeSewing` selections and the refusal of stitch patterns untested | #327: `crates/openstitch-engine/tests/coverage_editing.rs` |
+| Editing | Cut and Paste (`object.paste`) | weak: a pasted text on a path following the new path untested | #327: `crates/openstitch-engine/tests/coverage_editing.rs` |
+| Editing | Reverse Direction Line | weak: reversing a curved direction untested | #327: `crates/openstitch-engine/tests/coverage_editing.rs` |
+| Editing | Entry/exit points (`object.setEntryExit`, `startEnd`) | weak: bad `startEnd` refused and `startEnd`/`lineExit` surviving `.osd` untested | #327: `crates/openstitch-engine/tests/coverage_editing.rs` |
+| Editing | Decorative frames (`shape.decorative`) | weak: `size` only tested as a refusal | #327: `crates/openstitch-engine/tests/coverage_editing.rs` |
+| Model | Sewing area (page or design) | weak: the `sewingArea` returned by `design.export` is never asserted | #327: `crates/openstitch-engine/tests/coverage_editing.rs` |
+| Simulation | Thread length per colour (`design.info`) | weak: `threadPerColorM` never asserted | #327: `crates/openstitch-engine/tests/coverage_editing.rs` |
+| Line sew types | Zigzag line | weak: `underSewing` has no test or spec | #328: `crates/openstitch-engine/tests/coverage_stitch_types.rs` |
+| Region sew types | Satin | weak: `object.setRegion` `underlayParts` untested (only the design-level parser) | #328: `crates/openstitch-engine/tests/coverage_stitch_types.rs` |
+| Region sew types | Fill (tatami) | weak: pull compensation never asserted | #328: `crates/openstitch-engine/tests/coverage_stitch_types.rs` |
+| Editing | Curved sewing direction (`object.setDirectionCurve`) | weak: piping and motif fill under a curve, and the curve in `.osd`, untested | #328: `crates/openstitch-engine/tests/coverage_stitch_types.rs` |
+| Editing | Centre point / pattern reference point | weak: the reference point's effect is shown only for programmable fill; engine test asserts only that stitches exist | #328: `crates/openstitch-engine/tests/coverage_stitch_types.rs` |
+| Beyond PE-DESIGN | Contour fill | weak: "no travel from R1 or to R2" untested | #328: `crates/openstitch-engine/tests/coverage_stitch_types.rs` |
