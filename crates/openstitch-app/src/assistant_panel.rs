@@ -2799,6 +2799,36 @@ mod tests {
         app.assistant.panel.test_key = None;
     }
 
+    /// #418 vs #415: the View picture through the OpenAI-compatible backend. The request the
+    /// transport receives (the wire format, after the client's conversion) carries it as an
+    /// `image_url` part of the user message.
+    #[test]
+    fn the_view_chip_reaches_an_openai_compatible_model() {
+        let (mut app, transport) = app_with(vec![openai_reply(&[], "A blue square.", "stop")]);
+        local_openai(&mut app);
+        app.assistant.panel.attach_view = true;
+        send(
+            &mut app,
+            "what does the attached picture of the view show".into(),
+            no_wake(),
+        );
+        run(&mut app, idle);
+        let first = transport.requests.lock().expect("lock")[0].clone();
+        let user = first["messages"]
+            .as_array()
+            .and_then(|m| m.iter().find(|m| m["role"] == "user"))
+            .cloned()
+            .expect("a user message");
+        let parts = user["content"].as_array().expect("content parts");
+        assert!(
+            parts.iter().any(|p| p["type"] == "image_url"
+                && p["image_url"]["url"]
+                    .as_str()
+                    .is_some_and(|u| u.starts_with("data:image/png;base64,"))),
+            "{user}"
+        );
+    }
+
     #[test]
     fn a_local_model_needs_no_key_and_its_changes_are_one_undo_step() {
         let (mut app, transport) = app_with(vec![
