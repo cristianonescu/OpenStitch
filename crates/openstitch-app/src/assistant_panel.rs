@@ -341,7 +341,8 @@ pub struct Panel {
 /// Every key read, write and removal goes through here. The tests never reach the system
 /// keychain: under `cfg(test)` there is no entry, so `load_key` finds nothing and `store_key`
 /// fails (`tests_never_reach_the_real_keychain`). `OPENSTITCH_KEYCHAIN_SERVICE` points a manual
-/// test run at a throwaway service instead of the user's "OpenStitch assistant" entries.
+/// test run at a throwaway service instead of the user's "OpenStitch assistant" entries (with
+/// `OPENSTITCH_CONFIG_DIR` for a throwaway `ui.json`; changing `HOME` would hide the keychain).
 fn keychain(base_url: &str) -> Option<keyring::Entry> {
     if cfg!(test) {
         return None;
@@ -365,8 +366,14 @@ fn store_key(base_url: &str, key: &str) -> Result<(), String> {
     let entry = keychain(base_url).ok_or("the system keychain is not available")?;
     if key.is_empty() {
         match entry.delete_credential() {
-            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-            Err(e) => Err(e.to_string()),
+            Ok(()) | Err(keyring::Error::NoEntry) => {}
+            Err(e) => return Err(e.to_string()),
+        }
+        // Removed means gone: read it back (the owner, 2026-11-04).
+        match entry.get_password() {
+            Err(keyring::Error::NoEntry) => Ok(()),
+            Ok(_) => Err("the system keychain still holds the key".into()),
+            Err(e) => Err(format!("could not check that the key is gone: {e}")),
         }
     } else {
         entry.set_password(key).map_err(|e| e.to_string())
@@ -1405,7 +1412,13 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
             let prefs = &mut app.ui.prefs.ai;
             prefs.image_url.clear();
             prefs.image_model.clear();
-            changed = true;
+            let note = match save_ai_prefs(app) {
+                Ok(()) => {
+                    "The image generator is off: its address and model are cleared.".to_string()
+                }
+                Err(e) => format!("The image generator could not be cleared: {e}."),
+            };
+            app.assistant.panel.items.push(Item::Notice(note));
         }
     }
     ui.separator();
@@ -1491,6 +1504,23 @@ fn danger_button(ui: &mut egui::Ui, text: &str, enabled: bool) -> egui::Response
     ui.add_enabled(enabled, button)
 }
 
+/// Saves the preferences and reads them back: Ok when `ui.json` now holds the AI settings in
+/// memory (or there is no `ui.json`, as in the tests).
+fn save_ai_prefs(app: &mut EditorApp) -> Result<(), String> {
+    app.ui.save_prefs();
+    match &app.ui.prefs_path {
+        Some(path) => {
+            let back = openstitch_app::editor::prefs::UiPrefs::load(path);
+            if back.ai == app.ui.prefs.ai {
+                Ok(())
+            } else {
+                Err(format!("{} does not hold the new settings", path.display()))
+            }
+        }
+        None => Ok(()),
+    }
+}
+
 /// Deletes the key saved for `url` from the system keychain, and says so in the chat.
 fn remove_key(app: &mut EditorApp, url: &str) {
     let note = match store_key(url, "") {
@@ -1520,23 +1550,32 @@ fn key_addresses(prefs: &AiPrefs) -> Vec<String> {
 /// Reset AI settings (#396): the defaults back (the AI features stay on or off as they are),
 /// Always allow cleared, the known keys removed, and a new conversation for the new settings.
 fn reset_ai(app: &mut EditorApp) {
-    let removed = key_addresses(&app.ui.prefs.ai)
-        .iter()
-        .filter(|u| store_key(u, "").is_ok())
-        .count();
+    let failed: Vec<String> = key_addresses(&app.ui.prefs.ai)
+        .into_iter()
+        .filter_map(|u| store_key(&u, "").err().map(|e| format!("{u}: {e}")))
+        .collect();
     app.ui.prefs.ai = AiPrefs {
         enabled: app.ui.prefs.ai.enabled,
         ..AiPrefs::default()
     };
-    app.ui.save_prefs();
+    let saved = save_ai_prefs(app);
     new_chat(app);
     let panel = &mut app.assistant.panel;
     panel.confirm_reset = false;
     panel.key_stored = None;
     panel.image_key_stored = None;
-    panel.items.push(Item::Notice(format!(
-        "The Assistant's settings are back to their defaults, and the saved keys of {removed} addresses were removed."
-    )));
+    let settings = match saved {
+        Ok(()) => "The Assistant's settings are back to their defaults.".to_string(),
+        Err(e) => format!(
+            "The settings could not be saved ({e}); they are reset until OpenStitch closes."
+        ),
+    };
+    let keys = if failed.is_empty() {
+        "No saved key is left in the system keychain.".to_string()
+    } else {
+        format!("These keys could not be removed: {}.", failed.join("; "))
+    };
+    panel.items.push(Item::Notice(format!("{settings} {keys}")));
 }
 
 /// A chat bubble: the user's on the right in the accent colour, the assistant's on the left in
@@ -2402,7 +2441,16 @@ mod tests {
             assert!(urls.iter().any(|x| x == u), "{u} in {urls:?}");
         }
         app.ui.prefs.ai.enabled = false;
+        // A throwaway ui.json, never the user's: the reset is read back from it.
+        let dir =
+            std::env::temp_dir().join(format!("openstitch-reset-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("dir");
+        let file = dir.join("ui.json");
+        app.ui.prefs_path = Some(file.clone());
         reset_ai(&mut app);
+        let back = openstitch_app::editor::prefs::UiPrefs::load(&file);
+        assert_eq!(back.ai, app.ui.prefs.ai, "the defaults are in ui.json");
+        let _ = std::fs::remove_dir_all(&dir);
         let p = &app.ui.prefs.ai;
         assert_eq!(
             (p.model.as_str(), p.base_url.as_str()),
