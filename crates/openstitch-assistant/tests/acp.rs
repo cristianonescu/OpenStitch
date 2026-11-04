@@ -176,6 +176,11 @@ fn session_new_carries_the_bridge_and_turns_claude_codes_tools_off() {
         params["_meta"]["systemPrompt"]["append"],
         "You are OpenStitch's assistant."
     );
+    // #390: none of the user's own Claude Code settings, skills or CLAUDE.md files.
+    assert_eq!(
+        params["_meta"]["claudeCode"]["options"]["settingSources"],
+        serde_json::json!([])
+    );
 }
 
 #[test]

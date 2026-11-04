@@ -87,8 +87,13 @@ pub fn mcp_server_json(server: &McpServer) -> Value {
 /// absolute path, and `mcpServers`). `_meta` is ACP's extension point (schema: "reserved by ACP
 /// to allow clients and agents to attach additional metadata"); the keys inside are the Claude
 /// Code adapter's, as SolidCraft sends them: `systemPrompt.append` and
-/// `claudeCode.options.{allowDangerouslySkipPermissions, disallowedTools}`. `init` is the agent's
-/// `initialize` result: the top-level `systemPrompt` field goes only to an agent that offers
+/// `claudeCode.options.{allowDangerouslySkipPermissions, disallowedTools}`, plus
+/// `settingSources: []` (#390). claude-agent-acp 0.100.0 passes the SDK
+/// `settingSources: ["user", "project", "local"]` unless these options override it, so the
+/// user's own skills, plugins, hooks and CLAUDE.md reached the session: 201 slash commands and
+/// 37,198 context tokens for "Hi", against 55 and 17,383 with the empty list (measured
+/// 2026-11-04, Claude Code 2.1.284). Sign-in is not a setting and still works. `init` is the
+/// agent's `initialize` result: the top-level `systemPrompt` field goes only to an agent that offers
 /// `agentCapabilities.sessionCapabilities.systemPrompt` (SolidCraft's rule; that capability is not
 /// on the spec pages checked).
 pub fn session_new_params(cwd: &Path, bridge: &McpServer, system: &str, init: &Value) -> Value {
@@ -101,6 +106,7 @@ pub fn session_new_params(cwd: &Path, bridge: &McpServer, system: &str, init: &V
             "claudeCode": {"options": {
                 "allowDangerouslySkipPermissions": false,
                 "disallowedTools": CLAUDE_DISALLOWED_TOOLS,
+                "settingSources": [],
             }},
         },
     });
