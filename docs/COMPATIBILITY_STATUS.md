@@ -14,9 +14,11 @@ Specs: 443 · pass 443 · fail 0 · error 0 · pending reference 0 · skipped 0.
 | Editing | Manual Punch: shapes made of several sewing-direction lines… | reference | `satin-lock-column-3p5`, `satin-zigzag-column` |
 | Editing | Sewing order editing… | reference; reference pending | `optimize-entry-exit`, `sew-order-six-objects`, `shape-start-points` |
 | Editing | Thread colour, sew type, straight sewing direction… | reference | `auto-satin-bent-band` |
+| Files | CSD read and write (type 0 verified against PE-DESIGN 11.50's export, type 1 spec-derived)… | reference | `machine-sample-basic` |
 | Files | DST read/write, configurable jumps-for-trim… | reference; reference pending | `long-jump-300`, `machine-formats`, `machine-sample-basic` |
 | Files | Design Property… | reference | `pes-design-properties` |
 | Files | EXP read/write… | reference; reference pending | `machine-formats`, `machine-sample-basic` |
+| Files | Export CSD, SHV… | reference | `machine-sample-basic` |
 | Files | HUS read and write (LZ77 + Huffman streams, HUS chart)… | reference; reference pending | `machine-formats`, `machine-sample-basic` |
 | Files | Import stitch files into the design… | reference | `stitches-import-centre` |
 | Files | JEF read/write (Janome chart, stops, hoop code)… | reference; reference pending | `machine-formats`, `machine-sample-basic` |
@@ -26,6 +28,7 @@ Specs: 443 · pass 443 · fail 0 · error 0 · pending reference 0 · skipped 0.
 | Files | PES v6 thread table… | oracle | `pes-thread-chart-roundtrip` |
 | Files | PES write v1 and v6… | oracle; reference pending | `machine-jumps`, `machine-rbgb`, `machine-rbr-far`, `machine-rbr`, `machine-trim-bound`, `machine-trim-fine`, `pes-csewseg-trims`, `pes-default-v6`, `pes-library-convert-v6`, `pes-objects-owner-patterns`, `pes-objects-psc-patterns` |
 | Files | SEW read/write (Janome SEW chart)… | reference; reference pending | `machine-formats`, `machine-sample-basic` |
+| Files | SHV read and write (Husqvarna Viking SHV chart)… | reference | `machine-sample-basic` |
 | Files | VIP read and write (HUS streams, obfuscated RGB colour table)… | reference; reference pending | `machine-formats`, `machine-sample-basic` |
 | Files | XXX read/write… | reference; reference pending | `machine-formats`, `machine-sample-basic` |
 | Lettering | Fit text to outline (text on a path)… | reference | `text-fit-ahhhh`, `text-fit-default`, `text-fit-halign-left`, `text-fit-halign-right`, `text-fit-halign-spaced`, `text-fit-orient-upright`, `text-fit-otherside`, `text-fit-satin-ahhhh`, `text-fit-size-12`, `text-fit-size-6`, `text-fit-spacing-m1`, `text-fit-spacing-p2`, `text-fit-valign-below`, `text-fit-valign-center` |

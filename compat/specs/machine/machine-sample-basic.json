@@ -3,7 +3,7 @@
   "id": "machine-sample-basic",
   "area": "machine",
   "title": "PE-DESIGN's own two-colour design written to every machine format as PE-DESIGN 11 exports it",
-  "description": "PE-DESIGN 11.50's own design (round 4, pe-refs-4): a 20 mm Lato \"S\" in satin, 800 RED, then a 10 x 8 mm fill rectangle in 007 PRUSSIAN BLUE, saved as PES and exported to every type its Export dialog offers. OpenStitch imports PE's PES as stitches and writes each format; the writes are compared with PE's exports needle for needle. This PES's PEC section has none of the zero-length stitches its machine exports keep from PE's own stitch data (a needle point at each jump's landing and two repeats in the S: 475 points in the DST, 471 in the PES), so those cannot come from the PES and the compare drops a stitch that repeats the previous needle point on both sides (issue #135). SHV and CSD are read only in OpenStitch; their readers are checked against PE's files in the formats tests.",
+  "description": "PE-DESIGN 11.50's own design (round 4, pe-refs-4): a 20 mm Lato \"S\" in satin, 800 RED, then a 10 x 8 mm fill rectangle in 007 PRUSSIAN BLUE, saved as PES and exported to every type its Export dialog offers. OpenStitch imports PE's PES as stitches and writes each format; the writes are compared with PE's exports needle for needle. This PES's PEC section has none of the zero-length stitches its machine exports keep from PE's own stitch data (a needle point at each jump's landing and two repeats in the S: 475 points in the DST, 471 in the PES), so those cannot come from the PES and the compare drops a stitch that repeats the previous needle point on both sides (issue #135). SHV and CSD are compared the same way (#320); SHV marks a jump's landing with the jump itself, so the landing stitch PE's other formats keep is not a needle point there.",
   "covers": {
     "audit": [],
     "featureMatrix": [
@@ -38,13 +38,25 @@
       {
         "area": "Files",
         "feature": "VIP read and write (HUS streams, obfuscated RGB colour table)"
+      },
+      {
+        "area": "Files",
+        "feature": "SHV read and write (Husqvarna Viking SHV chart)"
+      },
+      {
+        "area": "Files",
+        "feature": "CSD read and write (type 0 verified against PE-DESIGN 11.50's export, type 1 spec-derived)"
+      },
+      {
+        "area": "Files",
+        "feature": "Export CSD, SHV"
       }
     ]
   },
   "evidence": [
     {
       "kind": "measured",
-      "note": "compat/reference/machine/sample-basic.* (PE-DESIGN 11.50, 2026-10-29, round 4): the PES and eight of PE's exports of the same design; the DST has 475 stitches, 4 of them zero-length, the PES's PEC section 471"
+      "note": "compat/reference/machine/sample-basic.* (PE-DESIGN 11.50, 2026-10-29, round 4): the PES and ten of PE's exports of the same design; the DST has 475 stitches, 4 of them zero-length, the PES's PEC section 471"
     }
   ],
   "inputs": [
@@ -94,6 +106,12 @@
     },
     {
       "path": "a.xxx"
+    },
+    {
+      "path": "a.shv"
+    },
+    {
+      "path": "a.csd"
     }
   ],
   "references": [
@@ -141,6 +159,16 @@
       "id": "pe-design-xxx",
       "file": "machine/sample-basic.xxx",
       "make": "The same design, App menu > Export..., type Singer (*.XXX)."
+    },
+    {
+      "id": "pe-design-shv",
+      "file": "machine/sample-basic.shv",
+      "make": "The same design, App menu > Export..., type Husqvarna/Viking (*.SHV)."
+    },
+    {
+      "id": "pe-design-csd",
+      "file": "machine/sample-basic.csd",
+      "make": "The same design, App menu > Export..., type Singer (*.CSD)."
     }
   ],
   "measurements": [
@@ -374,6 +402,64 @@
       "evidence": "PE-DESIGN 11.50's Singer (*.XXX) export of the same design: the same needle points (PE's zero-length repeats aside), the jumps between the S and the rectangle and the colour change",
       "reference": {
         "id": "pe-design-xxx"
+      }
+    },
+    {
+      "id": "shv-versus-pe-design",
+      "measure": {
+        "kind": "compare",
+        "options": {
+          "origin": "boundsMin",
+          "positionMm": 0.1,
+          "boundsMm": 0.1,
+          "threads": {
+            "rgb": false,
+            "name": false,
+            "catalog": false,
+            "brand": false,
+            "chart": false,
+            "kind": false
+          },
+          "metadata": false,
+          "pesObjects": false,
+          "dropRepeats": true
+        }
+      },
+      "source": {
+        "export": "a.shv"
+      },
+      "evidence": "PE-DESIGN 11.50's Husqvarna/Viking (*.SHV) export of the same design: the same needle points (PE's zero-length repeats aside), the jumps between the S and the rectangle and the colour change",
+      "reference": {
+        "id": "pe-design-shv"
+      }
+    },
+    {
+      "id": "csd-versus-pe-design",
+      "measure": {
+        "kind": "compare",
+        "options": {
+          "origin": "boundsMin",
+          "positionMm": 0.1,
+          "boundsMm": 0.1,
+          "threads": {
+            "rgb": false,
+            "name": false,
+            "catalog": false,
+            "brand": false,
+            "chart": false,
+            "kind": false
+          },
+          "metadata": false,
+          "pesObjects": false,
+          "dropRepeats": true
+        }
+      },
+      "source": {
+        "export": "a.csd"
+      },
+      "evidence": "PE-DESIGN 11.50's Singer (*.CSD) export of the same design: the same needle points (PE's zero-length repeats aside), the jumps between the S and the rectangle and the colour change",
+      "reference": {
+        "id": "pe-design-csd"
       }
     }
   ]
