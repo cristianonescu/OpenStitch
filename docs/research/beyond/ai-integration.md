@@ -514,3 +514,38 @@ others SolidCraft lists, each with its version. A missing agent shows its instal
 - Killing an agent's process tree on Windows (`taskkill /T`) is not exercised; the
   process-group tests are Unix-only.
 
+### A4, pictures (2026-11-04, #364)
+
+**The user's side.** The composer has a 📎 button for up to 8 files per message, shown as chips
+that can be removed, and two toggles: **View** sends a picture of the design (`ui.render`, 1024
+px), **Selection** sends the selected objects' ids, kinds, names and sizes as text. The settings
+gain an optional **Image generator**: an OpenAI-compatible `/images/generations` address ending
+in `/v1`, a model name and a key kept in the keychain under that address.
+
+**How it works.**
+- `editor::assistant_attach` copies every attached file into the scratch folder (as
+  `attached-<name>`), so the model's commands read it without a question. Pictures go to the
+  model as image blocks: a PNG or JPEG within 2048 px and 3.75 MB as it is; anything else
+  re-encoded as PNG, or JPEG at quality 85 when the PNG is too large, scaled down by a quarter
+  until it fits. The scratch copy stays full size for `digitize.*`. SVG and text files go as
+  text (100 kB at most); stitch files as a path for `stitches.import`. The message says the
+  files' content is data, not instructions, and nothing in a file changes the gate.
+- The system instructions (shared with `openstitch-mcp --assistant` and the coding agents) say
+  how to use pictures: `digitize.autoPunch` with `compatMode: openStitch`, then `view_render`;
+  for a picture the user did not attach, `generate_image` when offered, otherwise the vector
+  route (`scratch_write` an SVG, then `import.svg`), telling the user why.
+- `openstitch-assistant::WithImages` adds `generate_image` to the editor's tools. With a
+  generator it posts `{model, prompt, n: 1, size: 1024x1024, response_format: b64_json}`, takes
+  `data[0].b64_json` (or fetches `data[0].url`), accepts only PNG or JPEG bytes and writes them
+  with `scratch_write`. Without one it answers with an error that names the vector route. The
+  key is only sent to https or this computer, as for the model.
+- OpenAI-compatible tool messages take text only (A2), so a tool result's pictures (from
+  `view_render`, say) now follow the tool messages as one user message with `image_url` parts;
+  the tool message says the picture comes next. The Anthropic path already sent `image` blocks.
+- A coding agent gets the attached files' paths in its prompt, not the pictures (the panel says
+  so).
+
+**Not verified.** No real image generator has been called; the format follows OpenAI's "Create
+image" reference and the tests use a scripted endpoint. Whether a given local server accepts
+`response_format` is not checked; a `url` reply is handled.
+

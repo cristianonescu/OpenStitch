@@ -2797,6 +2797,7 @@ dependencies = [
  "base64",
  "eframe",
  "egui_commonmark",
+ "image",
  "keyring",
  "openstitch-assistant",
  "openstitch-core",
@@ -2819,6 +2820,7 @@ dependencies = [
 name = "openstitch-assistant"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "serde_json",
  "ureq",
 ]

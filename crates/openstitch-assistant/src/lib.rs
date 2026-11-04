@@ -21,6 +21,7 @@
 
 pub mod acp;
 mod conversation;
+mod images;
 mod models;
 mod openai;
 mod sse;
@@ -36,6 +37,7 @@ pub use acp::{
     search_dirs,
 };
 pub use conversation::Conversation;
+pub use images::{GENERATE_IMAGE, ImageConfig, NO_GENERATOR, WithImages, generate_image};
 pub use models::{ModelInfo, edit_request_without_tools, list_models, ollama_tools_capability};
 pub use transport::UreqTransport;
 
