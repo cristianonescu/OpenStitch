@@ -18,11 +18,13 @@ Before a release:
 The README states what OpenStitch does, what it lacks, its known issues and what is planned,
 with current screenshots. Refresh it in a pull request before every release:
 
-1. **Status lists:** run `python -I tools/readme_status.py`. It shows what changed in the
-   generated blocks (status at a glance, not yet implemented, blocked, known issues, GitHub
+1. **Status lists:** run `python -I tools/readme_status.py --issues`. It shows what changed in
+   the generated blocks (status at a glance, not yet implemented, blocked, known issues, GitHub
    issues, planned beyond PE-DESIGN) from `docs/FEATURE_MATRIX.md`,
    `docs/COMPATIBILITY_STATUS.md`, `docs/COMPATIBILITY_AUDIT.md` and `gh issue list`. Then run it
-   with `--write`. `--check` exits 1 when the README is out of date.
+   with `--issues --write`. This is the only place the GitHub issue lists and count are
+   refreshed; pull requests regenerate the other blocks without `--issues`. `--check` exits 1
+   when a block derived from the repository is out of date.
 2. **Features:** add a line for each feature the release adds, in its group; mark features
    PE-DESIGN 11 does not have with **➕**. Take the facts from the FEATURE_MATRIX rows.
 3. **Hand-written lists:** check "Also missing", "Other things to know" and "Planned" against
