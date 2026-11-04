@@ -20,9 +20,18 @@
 //! Source: libembroidery `src/formats/singer.c` (`BuildDecryptionTable`, `DecodeCsdByte`,
 //! `readCsd`; zlib licence, first published under MIT in Embroidermodder in 2013); the offset
 //! table is copied from its `csd_decryptArray`. Type 1 is still checked only by synthetic
-//! files. libembroidery has no writer and the unknown bytes are not described, so OpenStitch
-//! does not write CSD.
+//! files.
+//!
+//! The writer ([`write`]) lays the file out as PE-DESIGN 11.50's export does (issue #320): the
+//! identifier `7C 4B C3 74 E1 C8 53 A4` (type 0), the block colours in palette slots 0, 1, …
+//! with PE's fill colours in the slots it does not use, the two bytes `7F 7F`, colour order
+//! 0, 1, …, 13, then `8A 00 00` (the leading stop), the records and `87 00 00`. A frame move
+//! is written as JEF's is ([`crate::layout::split_overflow`] at 127): `90` trim-move records
+//! for the axes over 12.7 mm, the remainder folded into the stitch at the move's end; a colour
+//! change or stop is `85 02 00`. libembroidery has no writer; what the unknown bytes mean is
+//! not published, so the writer copies PE's.
 
+use crate::layout::{self, Event};
 use crate::{FormatError, Result};
 use openstitch_core::{Command, Stitch, StitchPattern, Thread};
 
@@ -130,6 +139,91 @@ pub fn read(data: &[u8]) -> Result<StitchPattern> {
     }
     pattern.stitches.push(Stitch::new(x, y, Command::End));
     Ok(pattern)
+}
+
+/// The identifier PE-DESIGN 11.50 writes (type 0: seed 12).
+pub const IDENTIFIER: [u8; 8] = [0x7C, 0x4B, 0xC3, 0x74, 0xE1, 0xC8, 0x53, 0xA4];
+/// Palette slots 2–15 of PE-DESIGN's export of a two-colour design: the slots the design does
+/// not use (`tests/fixtures/pe11/sample-basic.csd`).
+const PE_PALETTE: [u32; 16] = [
+    0xE3_311F, 0x0D_217E, 0x00_FF00, 0xFF_0000, 0xFF_00FF, 0xFF_FF00, 0x84_8284, 0x00_82FF,
+    0x00_FF84, 0xFF_8200, 0xFF_A2B5, 0xC6_4100, 0xFF_FFFF, 0x00_0084, 0x00_0000, 0xFF_FFFF,
+];
+/// The largest record step PE-DESIGN writes (12.7 mm), though a record holds magnitudes to 255.
+pub const MAX_DELTA: i64 = 127;
+const STITCH: u8 = 0x80;
+const TRIM_MOVE: u8 = 0x90;
+
+/// One record moving `(dx, dy)` (0.1 mm, +y down) with flags `base`.
+fn record(out: &mut Vec<u8>, base: u8, dx: i64, dy: i64) {
+    let mut b0 = base;
+    if dx < 0 {
+        b0 |= 0x20;
+    }
+    // The file's y is up: a move down is a negative dy.
+    if dy > 0 {
+        b0 |= 0x40;
+    }
+    out.extend_from_slice(&[b0, dy.unsigned_abs() as u8, dx.unsigned_abs() as u8]);
+}
+
+/// Writes a Singer CSD as PE-DESIGN 11.50 exports it (see the module notes). The file has 14
+/// colour-order slots: from the 15th colour block on, the blocks show the colours of blocks
+/// 1, 2, … again, though every block still starts with its stop.
+pub fn write(input: &StitchPattern) -> Result<Vec<u8>> {
+    let palette = crate::repeating_stops_palette(input);
+    let mut plain = Vec::new();
+    for (slot, &fill) in PE_PALETTE.iter().enumerate() {
+        let rgb = palette.get(slot).map_or(fill, Thread::rgb_value);
+        plain.extend_from_slice(&[(rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8]);
+    }
+    plain.extend_from_slice(&[0x7F, 0x7F]);
+    plain.extend(0..14_u8);
+    plain.extend_from_slice(&[0x8A, 0, 0]);
+
+    let events = layout::events(input);
+    let (mut x, mut y) = (0_i64, 0_i64);
+    let mut i = 0;
+    while i < events.len() {
+        match events[i] {
+            Event::Move { x: tx, y: ty, .. } => {
+                let (target, folded) = match layout::next_stitch(&events, i) {
+                    Some(p) => (p, true),
+                    None => ((tx, ty), false),
+                };
+                let pieces = layout::split_overflow(target.0 - x, target.1 - y, MAX_DELTA);
+                let (last, head) = pieces.split_last().expect("at least one piece");
+                for &(dx, dy) in head {
+                    record(&mut plain, TRIM_MOVE, dx, dy);
+                }
+                if folded {
+                    record(&mut plain, STITCH, last.0, last.1);
+                    i += 1;
+                } else {
+                    record(&mut plain, TRIM_MOVE, last.0, last.1);
+                }
+                (x, y) = target;
+            }
+            Event::Stitch { x: tx, y: ty } => {
+                for (dx, dy) in layout::split_overflow(tx - x, ty - y, MAX_DELTA) {
+                    record(&mut plain, STITCH, dx, dy);
+                }
+                (x, y) = (tx, ty);
+            }
+            Event::ColorChange | Event::Stop => plain.extend_from_slice(&[0x85, 2, 0]),
+            Event::End => break,
+        }
+        i += 1;
+    }
+    plain.extend_from_slice(&[0x87, 0, 0]);
+
+    let (sub, xor) = masks(0x0C);
+    let mut out = IDENTIFIER.to_vec();
+    for (i, &b) in plain.iter().enumerate() {
+        let k = 8 + i;
+        out.push(b.wrapping_add(sub[k % SUB_MASK]) ^ xor[k % XOR_MASK]);
+    }
+    Ok(out)
 }
 
 /// Low-byte remapping for type-1 files, from libembroidery's `csd_decryptArray` (zlib).

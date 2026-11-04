@@ -68,11 +68,9 @@ pub enum FileType {
     Xxx,
     Hus,
     Vip,
-    /// Read only.
     Shv,
     /// Read only.
     Phc,
-    /// Read only.
     Csd,
 }
 
@@ -95,7 +93,7 @@ impl FileType {
 
     /// Whether OpenStitch can write this format ([`FileType::write`] fails otherwise).
     pub const fn can_write(self) -> bool {
-        !matches!(self, Self::Shv | Self::Phc | Self::Csd)
+        !matches!(self, Self::Phc)
     }
 
     /// The formats OpenStitch can write.
@@ -169,7 +167,9 @@ impl FileType {
             Self::Xxx => xxx::write(pattern),
             Self::Hus => hus::write(pattern),
             Self::Vip => vip::write(pattern),
-            Self::Shv | Self::Phc | Self::Csd => Err(FormatError::UnsupportedFormat(format!(
+            Self::Shv => shv::write(pattern),
+            Self::Csd => csd::write(pattern),
+            Self::Phc => Err(FormatError::UnsupportedFormat(format!(
                 "{self} is read only"
             ))),
         }
