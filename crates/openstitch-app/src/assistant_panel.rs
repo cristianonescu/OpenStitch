@@ -1317,17 +1317,11 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
     } else {
         "API key: none. Add the key for this address (for the Claude API: console.anthropic.com); it is kept in the system keychain."
     });
-    ui.horizontal(|ui| {
-        let panel = &mut app.assistant.panel;
-        ui.add(
-            egui::TextEdit::singleline(&mut panel.key_input)
-                .password(true)
-                .hint_text("Paste a new key")
-                .desired_width(180.0),
-        );
-        if ui.button("Save key").clicked() {
+    let what = "this address's key";
+    match key_row(ui, &mut app.assistant.panel.key_input, stored, what) {
+        Some(KeyAction::Save) => {
+            let panel = &mut app.assistant.panel;
             let note = match store_key(&base_url, panel.key_input.trim()) {
-                Ok(()) if panel.key_input.trim().is_empty() => "Key removed.".to_string(),
                 Ok(()) => "Key saved in the system keychain.".to_string(),
                 Err(e) => format!("Could not use the keychain: {e}"),
             };
@@ -1335,15 +1329,9 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
             panel.key_stored = None;
             panel.items.push(Item::Notice(note));
         }
-        if stored
-            && ui
-                .button("Remove key")
-                .on_hover_text("Delete this address's key from the system keychain")
-                .clicked()
-        {
-            remove_key(app, &base_url);
-        }
-    });
+        Some(KeyAction::Remove) => remove_key(app, &base_url),
+        None => {}
+    }
     ui.separator();
     ui.label("Image generator (optional): an OpenAI-compatible /images/generations address ending in /v1. Without one, the assistant draws pictures as vector shapes.");
     let prefs = &mut app.ui.prefs.ai;
@@ -1373,40 +1361,15 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                 stored
             }
         };
-        ui.horizontal(|ui| {
-            if image_stored
-                && ui
-                    .button("Remove key")
-                    .on_hover_text("Delete the image generator's key from the system keychain")
-                    .clicked()
-            {
-                remove_key(app, &image_url);
-            }
-            if ui
-                .button("Clear")
-                .on_hover_text(
-                    "Turn the image generator off: empty its address and model and delete its key",
-                )
-                .clicked()
-            {
-                if image_stored {
-                    remove_key(app, &image_url);
-                }
-                let prefs = &mut app.ui.prefs.ai;
-                prefs.image_url.clear();
-                prefs.image_model.clear();
-                changed = true;
-            }
-        });
-        ui.horizontal(|ui| {
-            let panel = &mut app.assistant.panel;
-            ui.add(
-                egui::TextEdit::singleline(&mut panel.image_key_input)
-                    .password(true)
-                    .hint_text("Its key, if it needs one")
-                    .desired_width(180.0),
-            );
-            if ui.button("Save key").clicked() {
+        let what = "the image generator's key";
+        match key_row(
+            ui,
+            &mut app.assistant.panel.image_key_input,
+            image_stored,
+            what,
+        ) {
+            Some(KeyAction::Save) => {
+                let panel = &mut app.assistant.panel;
                 let note = match store_key(&image_url, panel.image_key_input.trim()) {
                     Ok(()) => "Image generator key saved in the system keychain.".to_string(),
                     Err(e) => format!("Could not use the keychain: {e}"),
@@ -1415,7 +1378,24 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                 panel.image_key_stored = None;
                 panel.items.push(Item::Notice(note));
             }
-        });
+            Some(KeyAction::Remove) => remove_key(app, &image_url),
+            None => {}
+        }
+        if ui
+            .button("Clear image generator")
+            .on_hover_text(
+                "Turn the image generator off: empty its address and model and delete its key",
+            )
+            .clicked()
+        {
+            if image_stored {
+                remove_key(app, &image_url);
+            }
+            let prefs = &mut app.ui.prefs.ai;
+            prefs.image_url.clear();
+            prefs.image_model.clear();
+            changed = true;
+        }
     }
     ui.separator();
     if app.assistant.panel.confirm_reset {
@@ -1424,15 +1404,14 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
             "Reset every Assistant setting to its default and remove the saved keys? The design stays; the chat starts over.",
         );
         ui.horizontal(|ui| {
-            if ui.button("Reset").clicked() {
+            if danger_button(ui, "Reset", true).clicked() {
                 reset_ai(app);
             }
             if ui.button("Cancel").clicked() {
                 app.assistant.panel.confirm_reset = false;
             }
         });
-    } else if ui
-        .button("Reset AI settings…")
+    } else if danger_button(ui, "Reset AI settings…", true)
         .on_hover_text("Back to the defaults, and remove the saved API keys")
         .clicked()
     {
@@ -1441,6 +1420,64 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
     if changed {
         app.ui.save_prefs();
     }
+}
+
+enum KeyAction {
+    Save,
+    Remove,
+}
+
+/// A key field with Save key and a red Remove key, which is only enabled when a key is saved.
+/// A saved key shows as dots in the empty field; the key itself is never read back into it.
+fn key_row(ui: &mut egui::Ui, input: &mut String, stored: bool, what: &str) -> Option<KeyAction> {
+    let mut action = None;
+    ui.horizontal(|ui| {
+        let hint = if stored {
+            RichText::new("●●●●●●●●●●●●  saved").color(ui.visuals().text_color())
+        } else {
+            RichText::new("Paste a key")
+        };
+        ui.add(
+            egui::TextEdit::singleline(input)
+                .password(true)
+                .hint_text(hint)
+                .desired_width(170.0),
+        )
+        .on_hover_text(if stored {
+            "A key is saved in the system keychain. Paste a new one to replace it."
+        } else {
+            "No key is saved for this address."
+        });
+        if ui
+            .add_enabled(!input.trim().is_empty(), egui::Button::new("Save key"))
+            .clicked()
+        {
+            action = Some(KeyAction::Save);
+        }
+        if danger_button(ui, "Remove key", stored)
+            .on_hover_text(format!("Delete {what} from the system keychain"))
+            .on_disabled_hover_text("No key is saved")
+            .clicked()
+        {
+            action = Some(KeyAction::Remove);
+        }
+    });
+    action
+}
+
+/// A button in a red tone, for actions that delete something; muted (and not clickable) when
+/// there is nothing to delete.
+fn danger_button(ui: &mut egui::Ui, text: &str, enabled: bool) -> egui::Response {
+    let (fill, fg) = if enabled {
+        (egui::Color32::from_rgb(190, 45, 45), egui::Color32::WHITE)
+    } else {
+        (
+            egui::Color32::from_rgb(190, 45, 45).gamma_multiply(0.25),
+            ui.visuals().weak_text_color(),
+        )
+    };
+    let button = egui::Button::new(RichText::new(text).color(fg)).fill(fill);
+    ui.add_enabled(enabled, button)
 }
 
 /// Deletes the key saved for `url` from the system keychain, and says so in the chat.
