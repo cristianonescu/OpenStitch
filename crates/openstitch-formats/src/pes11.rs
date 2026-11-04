@@ -20,9 +20,9 @@
 use crate::io::{ByteReader, ByteWriter};
 use crate::{FormatError, Result, pec};
 use openstitch_core::{
-    BROTHER_EMBROIDERY_BRAND, OPTION_COLOR_BRAND, OPTION_COLOR_KIND, PEC_CHART, StitchPattern,
-    Thread, VER4_OPTION_COLORS, brother_embroidery_code, nearest_index, pec_basic_chart,
-    round_coordinate,
+    BROTHER_EMBROIDERY, BROTHER_EMBROIDERY_BRAND, OPTION_COLOR_BRAND, OPTION_COLOR_KIND, PEC_CHART,
+    StitchPattern, Thread, VER4_OPTION_COLORS, brother_embroidery_code, nearest_index,
+    pec_basic_chart, pec_index_of_brother_code, round_coordinate,
 };
 use std::borrow::Cow;
 
@@ -2394,6 +2394,112 @@ fn write_addendum(w: &mut ByteWriter, list: &[u8], threads: &[Thread], hoop_page
     w.u16le(0);
     for t in threads {
         w.append(&addendum_code(t));
+    }
+}
+
+/// A thread of the PEC chart itself (brand `Brother`, its PEC index as catalogue number, the
+/// chart's RGB) as PE-DESIGN 11.50 writes that colour in a thread table, in `#PES0110` and in
+/// its Ver.6.0 files alike (owner file r01-rect-v6: `005`, `16`, `EMBROIDERY` for Silver): the
+/// BROTHER EMBROIDERY number, the PEC index where the name goes, brand `EMBROIDERY`, no chart.
+/// `None` for any other thread, which is written as given.
+pub fn pec_chart_thread_as_pe_writes(t: &Thread) -> Option<Thread> {
+    let index: usize = t.catalog_number.as_deref()?.trim().parse().ok()?;
+    let chart = PEC_CHART.get(index)?.as_ref()?;
+    let catalog = brother_embroidery_code(index)?;
+    (t.brand.as_deref() == Some("Brother") && chart.rgb_value() == t.rgb_value()).then(|| Thread {
+        name: Some(Cow::Owned(index.to_string())),
+        catalog_number: Some(Cow::Borrowed(catalog)),
+        brand: Some(Cow::Borrowed(BROTHER_EMBROIDERY_BRAND)),
+        chart: None,
+        ..t.clone()
+    })
+}
+
+/// The thread of each PEC colour block of a PE-DESIGN 11 file, from its thread table (#375):
+/// exact RGB, catalogue number, brand and chart instead of the PEC chart's nearest colour. The
+/// table lists colours in sewing order, possibly with colours no block sews, and names each
+/// PE-DESIGN colour by its PEC index; so a block takes the table entry named by its PEC index,
+/// and when several share an index, the one whose catalogue number the colour list after the
+/// PEC section gives for the block, else the next one not yet used. A block no entry names
+/// keeps `blocks[k]`. `None` when the PEC colour list does not parse.
+pub fn block_threads(data: &[u8], pec_offset: usize, table: &[Thread]) -> Option<Vec<Thread>> {
+    let count = *data.get(pec_offset + 0x30)?;
+    if count == 0xFF {
+        return Some(Vec::new());
+    }
+    let n = usize::from(count) + 1;
+    let palette = data.get(pec_offset + 0x31..pec_offset + 0x31 + n)?;
+    // The per-block codes end the file: `0D` and the catalogue number, or `FE FF FF`, `FA`–`FC`.
+    let codes: Option<Vec<Option<u16>>> = data.len().checked_sub(3 * n).and_then(|at| {
+        let tail = &data[at..];
+        tail.chunks(3)
+            .all(|c| matches!(c[0], 0x0D | 0xF9..=0xFE))
+            .then(|| {
+                tail.chunks(3)
+                    .map(|c| (c[0] == 0x0D).then(|| u16::from_le_bytes([c[1], c[2]])))
+                    .collect()
+            })
+    });
+    let mut used = vec![false; table.len()];
+    let mut out = Vec::with_capacity(n);
+    for (k, &p) in palette.iter().enumerate() {
+        let named: Vec<usize> = (0..table.len())
+            .filter(|&i| {
+                table[i]
+                    .name
+                    .as_deref()
+                    .and_then(|s| s.trim().parse::<u8>().ok())
+                    == Some(p)
+            })
+            .collect();
+        let code = codes.as_ref().and_then(|c| c[k]);
+        let by_code = code.and_then(|code| {
+            named.iter().copied().find(|&i| {
+                table[i]
+                    .catalog_number
+                    .as_deref()
+                    .and_then(|c| c.trim().parse::<u16>().ok())
+                    == Some(code)
+            })
+        });
+        let pick = by_code
+            .or_else(|| named.iter().copied().find(|&i| !used[i]))
+            .or_else(|| named.first().copied());
+        out.push(match pick {
+            Some(i) => {
+                used[i] = true;
+                with_chart_name(&table[i])
+            }
+            None => PEC_CHART[usize::from(p) % PEC_CHART.len()]
+                .clone()
+                .unwrap_or_else(|| Thread::rgb(0)),
+        });
+    }
+    Some(out)
+}
+
+/// A thread from a PE-DESIGN 11 table with its BROTHER EMBROIDERY name (`800` `RED`) where
+/// PE-DESIGN wrote the PEC index in the name's place (`5`). The writer puts the PEC index back
+/// ([`as_pe_writes`]).
+pub fn with_chart_name(t: &Thread) -> Thread {
+    let chart_name = t
+        .catalog_number
+        .as_deref()
+        .filter(|_| t.brand.as_deref() == Some(BROTHER_EMBROIDERY_BRAND))
+        .and_then(|c| {
+            let index = pec_index_of_brother_code(c)?;
+            let named = t
+                .name
+                .as_deref()
+                .and_then(|s| s.trim().parse::<usize>().ok());
+            (named == Some(index)).then(|| BROTHER_EMBROIDERY[index - 1].2)
+        });
+    match chart_name {
+        Some(name) => Thread {
+            name: Some(Cow::Borrowed(name)),
+            ..t.clone()
+        },
+        None => t.clone(),
     }
 }
 

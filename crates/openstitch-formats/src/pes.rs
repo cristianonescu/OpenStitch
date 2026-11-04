@@ -112,9 +112,14 @@ pub fn read(data: &[u8]) -> Result<StitchPattern> {
     );
     if let Ok(section) = read_objects(data) {
         // A PE-DESIGN 11 table may list colours no block sews (an unused attribute's default),
-        // so it is not mapped onto the PEC blocks one to one; it stays in the object section.
+        // so its entries are matched to the blocks by PEC index (#375).
         if section.version != "0110" {
             apply_thread_table(&mut pattern, &section.threads);
+        } else if let Some(threads) =
+            crate::pes11::block_threads(data, pec_offset, &section.threads)
+                .filter(|t| t.len() == pattern.threads.len() && !section.threads.is_empty())
+        {
+            pattern.threads = threads;
         }
         pattern.metadata.extend(section.metadata);
     }
@@ -128,6 +133,8 @@ fn apply_thread_table(pattern: &mut StitchPattern, table: &[Thread]) {
     if table.is_empty() {
         return;
     }
+    let table: Vec<Thread> = table.iter().map(crate::pes11::with_chart_name).collect();
+    let table = table.as_slice();
     if table.len() >= pattern.threads.len() {
         pattern.threads = table.to_vec();
         return;
@@ -688,6 +695,9 @@ fn write_header_v6(
     }
     w.u16le(pattern.threads.len() as i64);
     for t in &pattern.threads {
+        // A PEC chart colour as PE-DESIGN writes it (BROTHER EMBROIDERY number, #375).
+        let pe = crate::pes11::pec_chart_thread_as_pe_writes(t);
+        let t = pe.as_ref().unwrap_or(t);
         write_string8(w, t.catalog_number.as_deref());
         w.append(&[t.red, t.green, t.blue, 0]);
         w.u32le(i64::from(t.kind.unwrap_or(Thread::CUSTOM_KIND)));

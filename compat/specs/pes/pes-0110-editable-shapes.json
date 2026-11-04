@@ -108,21 +108,21 @@
       "source": {
         "export": "a.pes"
       },
-      "evidence": "internal regression: the PEC section sews the fill in Silver, then the zigzag in Red, as r01's Sewing Order (1 fill silver, 2 zigzag red)",
+      "evidence": "internal regression: the PEC section sews the fill in Silver, then the zigzag in Red, as r01's Sewing Order (1 fill silver, 2 zigzag red); since #375 the reader gives each block the file's own thread-table entry, which the writer fills as PE-DESIGN does in r01 (005 EMBROIDERY SILVER, 800 EMBROIDERY RED)",
       "expected": [
         {
           "rgb": "#a8a8a8",
-          "name": "Silver",
-          "catalog": "16",
-          "brand": "Brother",
+          "name": "SILVER",
+          "catalog": "005",
+          "brand": "EMBROIDERY",
           "chart": null,
           "kind": 10
         },
         {
           "rgb": "#ed171f",
-          "name": "Red",
-          "catalog": "5",
-          "brand": "Brother",
+          "name": "RED",
+          "catalog": "800",
+          "brand": "EMBROIDERY",
           "chart": null,
           "kind": 10
         }

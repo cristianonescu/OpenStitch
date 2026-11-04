@@ -16,6 +16,7 @@ policy: docs/LEGAL_AND_LICENSING.md. Each rN file is the baseline B with one pro
 | File | SHA-256 | Made as |
 |---|---|---|
 | `r01-rect.pes` | `97acefa9c7e11b1966093e067444dcb0b1934a0fd9e5808007c3730c7b466c38` | B. 12,00 x 12,00 mm, 471 st. |
+| `r01-rect-v6.pes` | `7e06d9f3bfedce86d05f7f1998582f72738c5f5d462a24240eeb59850229056e` | B, saved as type Ver.6.0 (`#PES0060`; PE-DESIGN warns that the data is saved as stitch data). Its thread table writes the two Brother colours as PE-DESIGN writes them in `#PES0110`: `005` / `16` / `EMBROIDERY` and `800` / `5` / `EMBROIDERY` (added 2026-11-04 for #375). |
 | `r02-rect-w20.pes` | `2b934d9489a142bc7296ef19d53bd76f8ac26e56c02c908db589045da7414697` | B but (10,10)-(30,20). 22,00 x 12,00 mm, 745 st. |
 | `r03-rect-moved.pes` | `f7063e489ff4bc34c5160414b44141ec9a41611891aac05ee9a0f30240922114` | B but (30,30)-(40,40). 12,00 x 12,00 mm, 473 st. |
 | `r04-rect-satin.pes` | `6b8809fa0873f9e26d09563704cff29b3a278abd8c9bb5363099ffdfbe6002d7` | B, then (shape selected) Shapes tab > Sew > region type Satin Stitch (satin defaults: Under sewing on Medium, Density 4.5, Direction 45). 12,00 x 12,00 mm, 370 st. |
