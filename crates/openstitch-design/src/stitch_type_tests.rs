@@ -636,6 +636,91 @@ fn auto_satin_half_stitch_pulls_back_every_other_crowded_inner_point() {
     assert_eq!(sew(&gentle, true), sew(&gentle, false));
 }
 
+/// The storybook regions of #304 (Auto Punch, PE-DESIGN-compatible mode), sewn as Auto satin
+/// without under sewing: every needle point in order.
+fn storybook_satin(name: &str) -> Vec<Vec2> {
+    let doc: serde_json::Value =
+        serde_json::from_str(include_str!("../tests/fixtures/storybook-satins.json"))
+            .expect("fixture");
+    let contours: Vec<Contour> = doc[name]
+        .as_array()
+        .expect("region")
+        .iter()
+        .map(|c| {
+            let pts = c["points"].as_array().expect("points");
+            Contour::new(
+                pts.iter()
+                    .map(|p| v2(p[0].as_f64().expect("x"), p[1].as_f64().expect("y")))
+                    .collect(),
+                true,
+            )
+        })
+        .collect();
+    let mut r = region(RegionType::Satin);
+    r.auto_direction = true;
+    r.underlay = false;
+    crate::region::layers(&contours, &r, &[]).concat().concat()
+}
+
+/// The most needle points in one 0.5 mm spot (`tools/sew_check.py`'s cell).
+fn most_in_a_spot(run: &[Vec2]) -> usize {
+    let mut cells = std::collections::HashMap::new();
+    for p in run {
+        *cells
+            .entry(((p.x / 5.0).floor() as i64, (p.y / 5.0).floor() as i64))
+            .or_insert(0usize) += 1;
+    }
+    cells.values().copied().max().unwrap_or(0)
+}
+
+#[test]
+fn satin_travels_round_holes_spread_their_needle_points() {
+    // #304: the storybook's khaki satin (four holes, sewn in sections) travelled 20 times
+    // through one corner of a hole and dropped the needle on the same point each time.
+    let run = storybook_satin("khaki-holes");
+    assert!(run.len() > 1000, "{}", run.len());
+    // Before: 20 in one spot, all on one point; sew_check allows 20.
+    let most = most_in_a_spot(&run);
+    assert!(most <= 17, "{most} needle points in one 0.5 mm spot");
+    let mut same = std::collections::HashMap::new();
+    for p in &run {
+        *same
+            .entry(((p.x * 2.0).round() as i64, (p.y * 2.0).round() as i64))
+            .or_insert(0usize) += 1;
+    }
+    let repeats = same.values().copied().max().unwrap_or(0);
+    assert!(repeats <= 8, "{repeats} needle points on one point");
+}
+
+#[test]
+fn auto_satin_on_a_doubled_back_skeleton_keeps_one_direction() {
+    // #304: a 6 mm jagged Auto Punch blob whose derived skeleton doubles back; its crossings
+    // crossed each other, 18 needle points in one spot and 171 stitches. It now sews the
+    // fixed-direction satin across its principal axis.
+    let run = storybook_satin("jagged-blob");
+    let most = most_in_a_spot(&run);
+    assert!(most <= 6, "{most} needle points in one 0.5 mm spot");
+    assert!(run.len() < 120, "{} needle points", run.len());
+}
+
+#[test]
+fn auto_satin_start_travel_skips_needle_points_under_half_a_millimetre() {
+    // #304: the travel round a 1.7 mm region's inset outline dropped the needle on every
+    // vertex: seven stitches under 0.3 mm in a row.
+    let run = storybook_satin("small-pentagon");
+    let mut longest = 0;
+    let mut tiny = 0;
+    for w in run.windows(2) {
+        tiny = if w[0].distance(w[1]) < 3.0 {
+            tiny + 1
+        } else {
+            0
+        };
+        longest = longest.max(tiny);
+    }
+    assert!(longest <= 3, "{longest} stitches under 0.3 mm in a row");
+}
+
 #[test]
 fn half_stitch_is_on_by_default_and_saved_only_when_off() {
     let mut r = region(RegionType::Satin);
