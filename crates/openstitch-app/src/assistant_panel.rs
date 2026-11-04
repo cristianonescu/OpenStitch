@@ -2908,6 +2908,38 @@ mod tests {
         );
     }
 
+    /// #418 vs #415, the coding-agent backend: the text `send` hands the ACP conversation, which
+    /// sends it as the one text block of `session/prompt` (`acp::protocol::prompt_params`). An
+    /// agent gets no picture, so View asks it to call view_render and never claims one is
+    /// attached.
+    #[test]
+    fn the_view_chip_asks_a_coding_agent_to_look() {
+        let (mut app, _) = app_with(Vec::new());
+        app.ui.prefs.ai.protocol = Protocol::Agent;
+        let (to, inbox) = channel();
+        let (_out, from) = channel();
+        let (_jobs_tx, jobs) = channel();
+        app.assistant.panel.worker = Some(Worker {
+            to,
+            from,
+            jobs,
+            cancel: Arc::new(AtomicBool::new(false)),
+            kind: (Protocol::Agent, app.ui.prefs.ai.agent.clone()),
+            listener: None,
+        });
+        app.assistant.panel.attach_view = true;
+        send(
+            &mut app,
+            "what does the attached picture of the view show".into(),
+            no_wake(),
+        );
+        let Ok(ToWorker::Prompt(prompt)) = inbox.try_recv() else {
+            panic!("the agent got no prompt");
+        };
+        assert!(prompt.contains("call view_render"), "{prompt}");
+        assert!(!prompt.contains("attached a picture"), "{prompt}");
+    }
+
     #[test]
     fn a_local_model_needs_no_key_and_its_changes_are_one_undo_step() {
         let (mut app, transport) = app_with(vec![
