@@ -52,7 +52,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 | Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 33: 26 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 11 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
-| Open GitHub issues | 46 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
+| Open GitHub issues | 44 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
 <!-- /status:glance -->
 
 Tiers, weakest first: *internal regression* (our own earlier output), *oracle* (an independent
@@ -285,6 +285,13 @@ PE-DESIGN 11.50's defaults, tie-in and lock, measured from its own files.
   command, batches and PNG previews; file access only to folders you grant.
 - **➕ Live editor socket:** `openstitch --listen` lets scripts and MCP act on the running editor
   (127.0.0.1 only, per-launch token).
+- **➕ AI assistant (B17):** View ▸ Show/Hide ▸ Assistant (Ctrl/Cmd+Shift+A) opens a chat where
+  Claude makes, changes and explains designs, and can do anything in the editor.
+  - It uses your own Claude API key, kept in the system keychain. Data goes only to the address
+    in the Assistant's settings.
+  - Files, sending to the machine and quitting ask first.
+  - Everything one message changes is one undo step, and Save as script writes the changes out.
+  - Options ▸ Show AI features turns it all off.
 - **➕ Assistant tools (B17, the base for the AI chat):**
   - `ui.*` editor commands on the socket reach everything the window offers: every ribbon and
     menu command, the selection, zoom, settings, a live render, the simulator, Help and
@@ -479,7 +486,7 @@ PE-DESIGN 11 does not. Each item is sketched in
 - Stitch-file resize with density recalculation and density tuning (B14)
 - Lettering: baseline model, saved kerning pairs, team names from CSV, closest-point letter connections (B15)
 - AI assistant tool surface (B17, phase A0): everything the user can do in the editor is reachable from the assistant. The automation socket answers ui.* editor commands beside the engine's (state, every ribbon/menu command through ui.run, selection, zoom, settings, live render, simulator, Help, updates, a scratch folder for SVGs and pictures). openstitch-mcp --assistant offers seven meta tools (commands_list, command_describe, execute, run_batch, view_render, scratch_write, skill_reference) over them, and a bundled embroidery skill (skills/openstitch-embroidery)
-- AI assistant panel (B17, phases A0-A1): chat beside the design (Cmd/Ctrl+Shift+A), Claude API with the user's own key in the OS keychain (default claude-opus-5-5), every change through the engine commands, file commands behind approval, one undo step per message, Save as script; Preferences ▸ AI master switch on by default, nothing sent until used (owner, 2026-11-04)
+- AI assistant panel (B17, phase A1): a chat beside the design (View ▸ Show/Hide ▸ Assistant, Ctrl/Cmd+Shift+A). Claude API with the user's own key in the OS keychain (default claude-opus-5-5, streaming, adaptive thinking). The model drives the editor through the A0 tools in-process. A permission gate judges each command by its effect: files, machine transfer, Exit and undoing earlier work ask (Allow once / Always allow / Deny, declined after 4 minutes), and there is an optional change limit. Everything one message changes is one undo step, Save as script writes it out, and messages typed during a turn are queued. Preferences: Options ▸ Show AI features (on by default, owner 2026-11-04) and the panel's settings
 - AI assistant providers (B17, phases A2-A3): OpenAI- and Anthropic-compatible endpoints (Ollama, LM Studio, OpenRouter; fully offline with a local model) and ACP coding agents (Claude Code, Codex) on the user's own account, all through one openstitch-mcp --assistant tool layer
 - AI assistant pictures (B17, phase A4): attachments, attach view and selection; model-written SVG imported as shapes; attached or generated pictures digitized by the image wizards in OpenStitch mode (generated pictures need an optional image-generation endpoint)
 - AI assistant benchmark (B17, phase A5): stitchtool bench-assistant, embroidery tasks scored on the resulting design, not the model's words
@@ -652,7 +659,8 @@ Desktop, IDEs) take the same command and arguments in their MCP server configura
 - A PR is merged once CI is green on all three operating systems.
 - Every merge to `main` builds the executables (see [Download a build](#download-a-build)).
 - Every PR that changes a feature updates [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md); the
-  README's status lists are generated from it (`python -I tools/readme_status.py --write`).
+  README's status lists are generated from it (`python -I tools/readme_status.py --write`). The
+  GitHub issue lists are refreshed only at each release (`--issues`), so PRs don't carry them.
 - Rules for the code (clean-room boundaries, command registry, golden tests) are in
   [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/LEGAL_AND_LICENSING.md](docs/LEGAL_AND_LICENSING.md).
 

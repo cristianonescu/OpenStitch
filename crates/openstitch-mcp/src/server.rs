@@ -27,6 +27,24 @@ add shapes, set sewing with object_setRegion/object_setLine, check with preview,
 design_export (pes, dst, jef, ...) or project_save (.osd). Edits are undoable with \
 history_undo. File paths must lie inside the server's configured roots.";
 
+/// How the server reaches a running editor: the loopback socket's [`openstitch_remote::Client`],
+/// or a channel to the editor's UI thread when the editor hosts the server itself (B17 A1).
+/// `request` is `{"command", "params"}`; the reply is `{"ok", "result" | "error"}`.
+pub trait EditorLink: Send {
+    fn handle(&mut self, request: &Value) -> Value;
+}
+
+/// The assistant mode's usage notes, also the system prompt of the editor's Assistant panel.
+pub fn assistant_instructions() -> &'static str {
+    assistant::INSTRUCTIONS
+}
+
+impl EditorLink for openstitch_remote::Client {
+    fn handle(&mut self, request: &Value) -> Value {
+        openstitch_remote::Client::handle(self, request)
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Config {
     /// Directories whose files commands may read.
@@ -66,8 +84,9 @@ pub struct Server {
     tools: Vec<Tool>,
     by_name: HashMap<String, usize>,
     protocol_version: Option<&'static str>,
-    /// Commands go to a running editor instead of `session` (`--live`).
-    live: Option<openstitch_remote::Client>,
+    /// Commands go to a running editor instead of `session` (`--live`, or the editor's own
+    /// Assistant panel through an in-process [`EditorLink`]).
+    live: Option<Box<dyn EditorLink>>,
     /// Meta tools over the editor instead of one tool per command (`--assistant`).
     assistant: bool,
     /// The editor's `commands.list`, once fetched (`--assistant`).
@@ -104,8 +123,8 @@ impl Server {
 
     /// Sends every command to the running editor behind `client`. The editor applies its own
     /// capabilities and file roots; this server's capabilities still limit the tools offered.
-    pub fn with_live(mut self, client: openstitch_remote::Client) -> Self {
-        self.live = Some(client);
+    pub fn with_live(mut self, client: impl EditorLink + 'static) -> Self {
+        self.live = Some(Box::new(client));
         self
     }
 
@@ -113,8 +132,8 @@ impl Server {
     /// `command_describe`, `execute`, `run_batch`, `view_render`, `scratch_write`,
     /// `skill_reference`) instead of one tool per command. The command list is the editor's
     /// own `commands.list`, which includes its `ui.*` commands.
-    pub fn with_assistant(mut self, client: openstitch_remote::Client) -> Self {
-        self.live = Some(client);
+    pub fn with_assistant(mut self, client: impl EditorLink + 'static) -> Self {
+        self.live = Some(Box::new(client));
         self.assistant = true;
         self.editor_commands = None;
         self.tools = assistant::tools(self.config.max_batch_steps, self.config.max_preview_pixels);

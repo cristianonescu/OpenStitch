@@ -35,49 +35,16 @@ below are claims no test checks.
 
 | Area | Feature (matrix row) | Gap | Plan | Issue |
 |---|---|---|---|---|
-| Automation | CLI scripts (`stitchtool exec`), JSON control channel (`stitchtool serve`) | none: evidence is `examples/badge.json` and a manual run; the binary's only test is `connect` | `crates/stitchtool/tests/coverage_cli.rs`: `commands`, `exec` of badge.json (files beside the script), stop at the first failure (exit 2), `serve` line protocol, `--read-only`, `--no-files`, usage | #318 |
-| Automation | Loopback socket (`openstitch --listen`) | weak: the idle-connection timeout (`ServerConfig.idle_timeout`) is untested | `crates/openstitch-remote/tests/coverage_socket.rs`: a silent connection is closed | #333 |
-| Editing | Move/scale/rotate/flip (`object.flip`) | weak: flip's geometry is never asserted | engine `coverage_editing.rs`: flip mirrors about the selection centre, one undo step | #327 |
-| Editing | Point editing (`object.setPoint`) | weak: "handles move with the vertex" not asserted | same file: the vertex's handles shift by the same delta | #327 |
-| Editing | Copy sewing attributes (`object.pasteAttributes`) | weak: `lineColor`, `lineSewing`, `holeSewing` selections and the refusal of stitch patterns untested | same file | #327 |
-| Editing | Cut and Paste (`object.paste`) | weak: a pasted text on a path following the new path untested | same file | #327 |
-| Editing | Reverse Direction Line | weak: reversing a curved direction untested | same file | #327 |
-| Editing | Entry/exit points (`object.setEntryExit`, `startEnd`) | weak: bad `startEnd` refused and `startEnd`/`lineExit` surviving `.osd` untested | same file | #327 |
-| Editing | Decorative frames (`shape.decorative`) | weak: `size` only tested as a refusal | same file: a larger size gives a larger ornament | #327 |
-| Model | Sewing area (page or design) | weak: the `sewingArea` returned by `design.export` is never asserted | same file | #327 |
-| Simulation | Thread length per colour (`design.info`) | weak: `threadPerColorM` never asserted | same file: two colours, two entries summing to `needleThreadM` | #327 |
-| Line sew types | Zigzag line | weak: `underSewing` has no test or spec | engine `coverage_stitch_types.rs` | #328 |
-| Region sew types | Satin | weak: `object.setRegion` `underlayParts` untested (only the design-level parser) | same file: applies, refuses an unknown part, undo, `.osd` | #328 |
-| Region sew types | Fill (tatami) | weak: pull compensation never asserted | same file: rows lengthen with the value | #328 |
-| Editing | Curved sewing direction (`object.setDirectionCurve`) | weak: piping and motif fill under a curve, and the curve in `.osd`, untested | same file | #328 |
-| Editing | Centre point / pattern reference point | weak: the reference point's effect is shown only for programmable fill; engine test asserts only that stitches exist | same file: moving the point changes motif fill's stitches; `.osd` | #328 |
-| Beyond PE-DESIGN | Contour fill | weak: "no travel from R1 or to R2" untested | same file: entry/exit on a contour region | #328 |
-| Files | PES write, rotated hoop (v6) | weak: only the header flag is checked, not the turned PEC stitches | formats `coverage_formats.rs` | #329 |
-| Files | Import SVG | weak: `<ellipse>`, `<line>`, `<polygon>`, `<polyline>`, CSS `style=` untested | engine `coverage_formats.rs` | #329 |
-| Lettering | Text Transform written to PES 0110 | weak: OpenStitch's own envelope and level writer untested | engine `coverage_formats.rs`: export, `pes::read_objects` | #329 |
-| Files | Machine formats vs PE-DESIGN reference | weak: `formats.rs` comparisons return early, and pass, if a reference file is missing | a test that every reference file those tests read is present | #329 |
-| Lettering | TrueType / OpenType fonts | weak: 16 fonts and 40 MiB per design, and the layout-complexity refusal, untested | engine `coverage_lettering.rs` | #330 |
-| Lettering | Per-character edits | weak: character moves on mirrored or on-path text untested | same file | #330 |
-| Lettering | Complex scripts, CJK | weak: `right_to_left_scripts_with_a_system_font` and `cjk_text_with_a_system_font` pass without checking when no suitable system font is installed | recorded here; needs a bundled test font, not only a test | #330 |
-| Design Database | Search | weak: date modified has no positive test; `property_search_needs_every_word` can pass without asserting | library `coverage_search.rs` | #331 |
-| Editor | Files: Import into design | weak: `EditorApp::import` (import, centre, select) untested | app tests or headless `--script` | #332 |
-| Editor | Object list | weak: the visibility toggle's effect and undo untested | same | #332 |
-| Editor | Undo/redo | weak: ⌘Z, ⇧⌘Z, Ctrl+Y only covered by a manual scripted run | same | #332 |
-| Editor | Sewing simulator | weak: play at a speed, stop at the end untested | same | #332 |
-| Editor | Inspector | weak: line settings never set; region density/length not read back | same | #332 |
-| Editor | Select tool | weak: arrow-key nudge and Shift axis lock on move untested | same | #332 |
-| Editing | Fabric Selector | weak: claims eight fabrics, test asserts at least six | same | #332 |
-| Editor | Unsaved-changes prompt | weak: the window close request path untested | same | #332 |
-| Digitizing | Photo Stitch 1 fine rows (OpenStitch mode) | weak: `densityMean`/`densityWindow` never sent; `travel` only in the wizard's request | engine `coverage_digitize.rs` on small images | #334 |
-| Digitizing | Photo Stitch 2 needle limits (OpenStitch mode) | weak: "≤ 97 % of PE mode's densest window" tested as ≤ 100 %; 0.1 mm units not asserted | same file | #334 |
-| Digitizing | Thread sources (T5) | weak: a single chart by id, and Photo Stitch 1 with `owned`, untested | same file | #334 |
+| Files | Import SVG: `<line>` | **bug**: every `<line>` element is dropped on import (an equivalent `<path>` imports) | fix in `crates/openstitch-engine/src/imports.rs`; then un-ignore `svg_line_elements_import_as_running_lines` | #341 |
+| Lettering | Complex scripts, CJK | weak: `right_to_left_scripts_with_a_system_font` and `cjk_text_with_a_system_font` pass without checking when no suitable system font is installed | recorded here; needs a bundled test font, not only a test | #345 |
 
-Smaller weak points recorded but not planned yet: the Fit Text dialog remembering its last
-choices; Solid View's drawing (only its toggle is tested); Snap to Grid for curve handles and the
-Arrange handle; the editor's Optimise mode box and mixed-trim checkbox (inline egui code);
-offset lines' "within 0.05 mm" (tested at 0.15 mm); `roundedCorners`' effect; the ready-to-sew
-kit lookup on Linux and Windows layouts (`sew_kit` is being edited elsewhere); Windows MSI file
-associations and the macOS `.pes` document type (CI workflow, owned by the CI session).
+Smaller weak points, recorded in #351 (not yet covered): the Fit Text dialog remembering its
+last choices; Solid View's drawing (only its toggle is tested); Snap to Grid for curve handles and
+the Arrange handle; the Optimise mode box and mixed-trim checkbox (inline egui code); offset
+lines' "within 0.05 mm" (tested at 0.15 mm) and `roundedCorners`' effect; `shape.split` keeping
+Béziers; the ready-to-sew kit lookup on Linux and Windows layouts; the MSI and macOS `.pes` file
+associations in CI; the reference point on cross, net, zigzag net and decorative fill; the
+inspector's choice and toggle controls.
 
 ## Closed
 
@@ -86,3 +53,38 @@ associations and the macOS `.pes` document type (CI workflow, owned by the CI se
 | Docs | PES 0110 write, entry/exit points, Photo Stitch, PEC chart | stale test names in the evidence column | #326 (this file's PR) |
 | Docs | PEC preview icons, app icon and logo, image similarity Phase 1, VIP colour table | tests existed but were not cited | #326 |
 | Docs | OpenStitch-mode Fidelity row; Satin row; CSD | unescaped `\|` split the row on GitHub; a passage repeated; CSD read listed twice | #326 |
+| Automation | CLI scripts (`stitchtool exec`), control channel (`stitchtool serve`) | none: only an example and a manual run | #318: `crates/stitchtool/tests/coverage_cli.rs` |
+| Automation | Loopback socket (`openstitch --listen`) | weak: idle-connection timeout untested | #333: `crates/openstitch-remote/tests/coverage_socket.rs` |
+| Editing | Move/scale/rotate/flip (`object.flip`) | weak: flip's geometry is never asserted | #327: `crates/openstitch-engine/tests/coverage_editing.rs` |
+| Editing | Point editing (`object.setPoint`) | weak: "handles move with the vertex" not asserted | #327: `crates/openstitch-engine/tests/coverage_editing.rs` |
+| Editing | Copy sewing attributes (`object.pasteAttributes`) | weak: `lineColor`, `lineSewing`, `holeSewing` selections and the refusal of stitch patterns untested | #327: `crates/openstitch-engine/tests/coverage_editing.rs` |
+| Editing | Cut and Paste (`object.paste`) | weak: a pasted text on a path following the new path untested | #327: `crates/openstitch-engine/tests/coverage_editing.rs` |
+| Editing | Reverse Direction Line | weak: reversing a curved direction untested | #327: `crates/openstitch-engine/tests/coverage_editing.rs` |
+| Editing | Entry/exit points (`object.setEntryExit`, `startEnd`) | weak: bad `startEnd` refused and `startEnd`/`lineExit` surviving `.osd` untested | #327: `crates/openstitch-engine/tests/coverage_editing.rs` |
+| Editing | Decorative frames (`shape.decorative`) | weak: `size` only tested as a refusal | #327: `crates/openstitch-engine/tests/coverage_editing.rs` |
+| Model | Sewing area (page or design) | weak: the `sewingArea` returned by `design.export` is never asserted | #327: `crates/openstitch-engine/tests/coverage_editing.rs` |
+| Simulation | Thread length per colour (`design.info`) | weak: `threadPerColorM` never asserted | #327: `crates/openstitch-engine/tests/coverage_editing.rs` |
+| Line sew types | Zigzag line | weak: `underSewing` has no test or spec | #328: `crates/openstitch-engine/tests/coverage_stitch_types.rs` |
+| Region sew types | Satin | weak: `object.setRegion` `underlayParts` untested (only the design-level parser) | #328: `crates/openstitch-engine/tests/coverage_stitch_types.rs` |
+| Region sew types | Fill (tatami) | weak: pull compensation never asserted | #328: `crates/openstitch-engine/tests/coverage_stitch_types.rs` |
+| Editing | Curved sewing direction (`object.setDirectionCurve`) | weak: piping and motif fill under a curve, and the curve in `.osd`, untested | #328: `crates/openstitch-engine/tests/coverage_stitch_types.rs` |
+| Editing | Centre point / pattern reference point | weak: the reference point's effect is shown only for programmable fill; engine test asserts only that stitches exist | #328: `crates/openstitch-engine/tests/coverage_stitch_types.rs` |
+| Beyond PE-DESIGN | Contour fill | weak: "no travel from R1 or to R2" untested | #328: `crates/openstitch-engine/tests/coverage_stitch_types.rs` |
+| Files | PES write, rotated hoop (v6) | weak: only the header flag is checked, not the turned PEC stitches | #329: `crates/openstitch-formats/tests/coverage_formats.rs` |
+| Files | Import SVG | weak: `<ellipse>`, `<line>`, `<polygon>`, `<polyline>`, CSS `style=` untested | #329: `crates/openstitch-engine/tests/coverage_formats.rs` (`<line>` found broken: #341) |
+| Lettering | Text Transform written to PES 0110 | weak: OpenStitch's own envelope and level writer untested | #329: `crates/openstitch-engine/tests/coverage_formats.rs` |
+| Files | Machine formats vs PE-DESIGN reference | weak: `formats.rs` comparisons return early, and pass, if a reference file is missing | #329: `crates/openstitch-formats/tests/coverage_formats.rs` |
+| Lettering | TrueType / OpenType fonts | weak: 16 fonts and 40 MiB per design untested | #330: `crates/openstitch-engine/tests/coverage_lettering.rs` (the layout-complexity refusal is not reachable through `text.add` with the bundled fonts, 2000 characters staying far under 600 000 segments; not tested) |
+| Design Database | Search | weak: date modified had no positive test; a property-search test could pass without asserting | #331: `crates/openstitch-engine/tests/coverage_library.rs` (through `library.search`; the library's own conditional test is left as it is) |
+| Lettering | Per-character edits | weak: character moves on mirrored or on-path text untested | #332: `crates/openstitch-app/tests/coverage_editor.rs`, `crates/openstitch-app/src/app_coverage_tests.rs`, engine `coverage_fabric.rs` |
+| Editor | Files: Import into design | weak: `EditorApp::import` (import, centre, select) untested | #332: `crates/openstitch-app/tests/coverage_editor.rs`, `crates/openstitch-app/src/app_coverage_tests.rs`, engine `coverage_fabric.rs` |
+| Editor | Object list | weak: the visibility toggle's effect and undo untested | #332: `crates/openstitch-app/tests/coverage_editor.rs`, `crates/openstitch-app/src/app_coverage_tests.rs`, engine `coverage_fabric.rs` |
+| Editor | Undo/redo | weak: ⌘Z, ⇧⌘Z, Ctrl+Y only covered by a manual scripted run | #332: `crates/openstitch-app/tests/coverage_editor.rs`, `crates/openstitch-app/src/app_coverage_tests.rs`, engine `coverage_fabric.rs` |
+| Editor | Sewing simulator | weak: play at a speed, stop at the end untested | #332: `crates/openstitch-app/tests/coverage_editor.rs`, `crates/openstitch-app/src/app_coverage_tests.rs`, engine `coverage_fabric.rs` |
+| Editor | Inspector | weak: line settings never set; region density/length not read back | #332: `crates/openstitch-app/tests/coverage_editor.rs`, `crates/openstitch-app/src/app_coverage_tests.rs`, engine `coverage_fabric.rs` |
+| Editor | Select tool | weak: arrow-key nudge and Shift axis lock on move untested | #332: `crates/openstitch-app/tests/coverage_editor.rs`, `crates/openstitch-app/src/app_coverage_tests.rs`, engine `coverage_fabric.rs` |
+| Editing | Fabric Selector | weak: claims eight fabrics, test asserts at least six | #332: `crates/openstitch-app/tests/coverage_editor.rs`, `crates/openstitch-app/src/app_coverage_tests.rs`, engine `coverage_fabric.rs` |
+| Editor | Unsaved-changes prompt | weak: the window close request path untested | #332: `crates/openstitch-app/tests/coverage_editor.rs`, `crates/openstitch-app/src/app_coverage_tests.rs`, engine `coverage_fabric.rs` |
+| Digitizing | Photo Stitch 1 fine rows (OpenStitch mode) | weak: `densityMean`/`densityWindow` never sent; `travel` only in the wizard's request | #334: `crates/openstitch-engine/tests/coverage_digitize.rs` |
+| Digitizing | Photo Stitch 2 needle limits (OpenStitch mode) | weak: "≤ 97 % of PE mode's densest window" tested as ≤ 100 %; 0.1 mm units not asserted | #334: `crates/openstitch-digitize/tests/coverage_photo.rs` |
+| Digitizing | Thread sources (T5) | weak: a single chart by id, and Photo Stitch 1 with `owned`, untested | #334: `crates/openstitch-engine/tests/coverage_digitize.rs` |

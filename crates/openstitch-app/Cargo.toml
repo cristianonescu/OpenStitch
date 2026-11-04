@@ -22,6 +22,11 @@ openstitch-remote = { path = "../openstitch-remote" }
 # The AI assistant's ui.render (the same preview as openstitch-mcp) and its base64 replies (B17).
 openstitch-render = { path = "../openstitch-render" }
 base64 = "0.23.1"
+# The Assistant panel (B17 A1): the Claude client and tool loop, the assistant MCP tools it
+# drives in-process, and the system keychain for the API key (pure-Rust backends, as SolidCraft).
+openstitch-assistant = { path = "../openstitch-assistant" }
+openstitch-mcp = { path = "../openstitch-mcp" }
+keyring = { version = "3.6", default-features = false, features = ["apple-native", "windows-native", "async-secret-service", "async-io", "crypto-rust"] }
 # Size-limited PNG/JPEG/BMP decoding for the background reference image.
 openstitch-digitize = { path = "../openstitch-digitize" }
 # Images on the clipboard (already used by eframe for text).
