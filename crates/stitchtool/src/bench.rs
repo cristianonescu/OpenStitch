@@ -76,8 +76,18 @@ fn need(ok: bool, what: &str) -> Result<(), String> {
     if ok { Ok(()) } else { Err(what.to_string()) }
 }
 
+/// The design's overall width: the union of the objects' bounds (a monogram is one object per
+/// letter, so the widest single object is not the design's width).
 fn widest(d: &Design) -> f64 {
-    d.sizes().iter().map(|s| s.0).fold(0.0, f64::max)
+    let b = |o: &Value, k: &str| o["bounds"][k].as_f64();
+    let spans: Vec<(f64, f64)> = d
+        .objects
+        .iter()
+        .filter_map(|o| Some((b(o, "x")?, b(o, "x")? + b(o, "width")?)))
+        .collect();
+    let left = spans.iter().map(|s| s.0).fold(f64::INFINITY, f64::min);
+    let right = spans.iter().map(|s| s.1).fold(f64::NEG_INFINITY, f64::max);
+    if spans.is_empty() { 0.0 } else { right - left }
 }
 
 /// Red-ish: R well above G and B.
@@ -765,5 +775,13 @@ mod tests {
                 .starts_with("request failed")
         );
         assert!(reddish("#c81414") && !reddish("#1f3a93"));
+        // A monogram's letters are separate objects; the width is their union (real run, monogram).
+        let letters = |x: f64| json!({"bounds": {"x": x, "width": 20.0, "height": 20.0}});
+        let d = Design {
+            objects: vec![letters(20.0), letters(41.0), letters(63.0)],
+            info: Value::Null,
+            reply: String::new(),
+        };
+        assert!((widest(&d) - 63.0).abs() < 1e-9);
     }
 }
