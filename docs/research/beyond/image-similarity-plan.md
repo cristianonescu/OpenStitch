@@ -393,6 +393,9 @@ Made while Phase 0–5 were implemented; they change the targets and gates above
 - **Photo Stitch trims:** the user chooses (`travel`: fewer trims with short travel stitches up to
   2 mm, or all trims for the best likeness); the default follows Fidelity (Standard: fewer, High:
   all).
+  Since 2026-11-04 (#298) fewer trims also routes a thread's travel along hidden paths under
+  later layers (trims per 1,000 stitches 68 → 25 on the eight photos, about 3 points of likeness);
+  all trims is unchanged.
 - **Photo Stitch 1 saliency (T10):** ships at β 1.5.
 - **Auto Punch:** OpenStitch mode sews the background by default; the user can leave it out.
   Likeness over trims for T11 and T12.

@@ -8,6 +8,7 @@ body:
       value: |
         Thank you for testing OpenStitch on a real machine. Sew-outs are how OpenStitch learns what thread and fabric really do, and how it finds problems no test on a computer can.
         The [ready-to-sew kit](https://github.com/cristianonescu/OpenStitch/tree/main/examples/sew) (Help ▸ Ready-to-Sew Designs) has the designs and how to sew them.
+        [TESTING.md](https://github.com/cristianonescu/OpenStitch/blob/main/TESTING.md) says what to sew on your machine and how to export to its format.
         Fill in what you can; the fields marked required are needed to use your results.
   - type: input
     id: machine
@@ -23,6 +24,31 @@ body:
       description: The hoop you sewed in, for example "100 × 100 mm".
     validations:
       required: true
+  - type: dropdown
+    id: format
+    attributes:
+      label: Machine file format
+      description: The format the machine read. If you sewed several, pick one and name the others under "Files sewn".
+      options:
+        - PES / PEC (Brother, Baby Lock, Bernette)
+        - DST
+        - EXP
+        - JEF
+        - SEW
+        - XXX
+        - HUS
+        - VIP
+        - PCS
+        - Other
+    validations:
+      required: false
+  - type: input
+    id: exported
+    attributes:
+      label: File exported
+      description: For a format other than PES, the exported file name and the kit file it came from (see TESTING.md), for example "machine-formats.jef from machine-checks/machine-formats.pes". Leave empty if you sewed the kit file as it is.
+    validations:
+      required: false
   - type: input
     id: version
     attributes:
@@ -82,7 +108,7 @@ body:
     id: observations
     attributes:
       label: What you saw
-      description: Messages on the machine's screen, thread breaks, loops, puckering, gaps, stitches piling up in one spot, misregistration, or "all fine".
+      description: Messages on the machine's screen (word for word, including a file it would not open or the size it showed), thread breaks, loops, puckering, gaps, stitches piling up in one spot, misregistration, or "all fine".
     validations:
       required: false
   - type: checkboxes

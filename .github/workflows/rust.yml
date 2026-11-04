@@ -13,8 +13,18 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request cancels that PR's run still in progress, which frees the scarce
+# macOS runners. Every other run (main, tags, release.yml's call) has its own group and is never
+# cancelled.
+concurrency:
+  group: rust-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   CARGO_TERM_COLOR: always
+  # File and line numbers in backtraces, without full debug info: smaller test binaries, faster
+  # linking (Windows PDBs) and a smaller cache. Debug assertions and overflow checks are unchanged.
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
 
 jobs:
   build-test:
