@@ -64,6 +64,8 @@ pub struct AutoPunch {
     /// #127) and leave out everything around it, whatever its colour, in place of the
     /// border-colour background rule. `None` (the default) is off. PE-DESIGN mode ignores it.
     pub isolate: Option<grabcut::Seed>,
+    /// With `isolate`: the user's subject and background strokes (#350).
+    pub marks: grabcut::Marks,
 }
 
 impl Default for AutoPunch {
@@ -83,6 +85,7 @@ impl Default for AutoPunch {
             threads: Vec::new(),
             fidelity: Fidelity::Standard,
             isolate: None,
+            marks: grabcut::Marks::default(),
         }
     }
 }
@@ -363,9 +366,18 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
     // OpenStitch mode with `isolate`: the graph cut decides the subject; everything outside it
     // is left out, and the background thread is the one most common there.
     let subject = match (p.isolate, p.mode) {
-        (Some(seed), Mode::OpenStitch) => grabcut::isolate(&census.modal, w, h, seed),
+        (Some(seed), Mode::OpenStitch) => grabcut::isolate(&census.modal, w, h, seed, &p.marks),
         _ => None,
     };
+    if subject.as_ref().is_some_and(|s| !s.contains(&true)) {
+        // The user asked for isolation; sewing the whole picture in its place would hide that
+        // it failed (#355).
+        return Err(DigitizeError::Empty(
+            "the graph cut found no subject; mark the subject with a subject stroke, or remove \
+             background strokes that cover it"
+                .into(),
+        ));
+    }
     let background = match (p.skip_background, p.mode) {
         _ if subject.is_some() => {
             let subject = subject.as_deref().unwrap_or_default();

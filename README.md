@@ -119,7 +119,8 @@ OpenStitch (the image dialog's Method choice):
   the image every 0.25 mm in rows that stay within 2.1 needle points per mm² (no 10 × 10 mm area
   above 3.0), with a Trims choice (fewer trims or the best likeness). Auto Punch sews the
   background and sews dark outlines as satin on top, in one covering layer; it can instead
-  isolate the subject by a graph cut and leave out everything around it. Threads can come from several brands'
+  isolate the subject by a graph cut and leave out everything around it, with strokes you
+  brush on the image for parts it should keep or drop. Threads can come from several brands'
   charts (Brother, Madeira Polyneon, Isacord, Sulky, Robison-Anton) or only those you own. Every
   OpenStitch mode sews the same stitches on macOS, Windows and Linux.
 

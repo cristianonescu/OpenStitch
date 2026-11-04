@@ -6,7 +6,8 @@ use crate::app::EditorApp;
 use eframe::egui;
 use openstitch_app::editor::CommandRequest;
 use openstitch_app::editor::wizard::{
-    ImageWizard, LINE_SEWS, Method, REGION_SEWS, min_area_default, satin_default,
+    ImageWizard, LINE_SEWS, MARK_WIDTHS, Mark, Method, REGION_SEWS, image_fraction,
+    min_area_default, satin_default,
 };
 
 pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
@@ -34,6 +35,8 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                         .pick_file()
                 {
                     w.path = Some(p);
+                    // Strokes belong to the image they were drawn on.
+                    w.marks.clear();
                 }
                 let name = w
                     .path
@@ -175,6 +178,27 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                          background it learns from.",
                     );
                     ui.end_row();
+                    if w.isolate_subject {
+                        ui.label("");
+                        ui.horizontal(|ui| {
+                            ui.add_enabled_ui(w.path.is_some(), |ui| {
+                                if ui
+                                    .button("Mark subject…")
+                                    .on_hover_text(
+                                        "Brush over parts that are subject or background for \
+                                         certain, such as a bowl the colour of its table.",
+                                    )
+                                    .clicked()
+                                {
+                                    w.marking = true;
+                                }
+                            });
+                            if !w.marks.is_empty() {
+                                ui.weak(format!("{} strokes", w.marks.len()));
+                            }
+                        });
+                        ui.end_row();
+                    }
                     ui.label("");
                     ui.add_enabled_ui(!w.isolate_subject, |ui| {
                         ui.checkbox(&mut w.sew_background, "Sew the background")
@@ -260,9 +284,101 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
             });
         });
     app.wizard.open = open;
+    marking_window(app, ctx);
     if convert {
         run(app);
     }
+}
+
+/// Auto Punch's subject marking (#350): the chosen image, on which the user brushes parts that
+/// are subject (green) or background (red) for certain. The strokes are kept as fractions of
+/// the image and sent with the conversion.
+fn marking_window(app: &mut EditorApp, ctx: &egui::Context) {
+    let w = &mut app.wizard;
+    if !(w.open && w.marking && w.isolate_subject) {
+        return;
+    }
+    let Some(path) = w.path.clone() else {
+        w.marking = false;
+        return;
+    };
+    if app.wizard_preview.as_ref().is_none_or(|p| p.0 != path) {
+        app.wizard_preview = crate::creator_ui::load_image(&path, ctx, "wizard-marking")
+            .ok()
+            .map(|(size, t)| (path.clone(), size, t));
+    }
+    let mut open = true;
+    egui::Window::new("Mark the subject")
+        .open(&mut open)
+        .resizable(false)
+        .show(ctx, |ui| {
+            let w = &mut app.wizard;
+            ui.horizontal(|ui| {
+                ui.radio_value(&mut w.mark_subject, true, "Subject");
+                ui.radio_value(&mut w.mark_subject, false, "Background");
+                ui.label("Brush");
+                ui.add(egui::Slider::new(&mut w.mark_width, MARK_WIDTHS).show_value(false));
+            });
+            ui.horizontal(|ui| {
+                if ui.button("Undo stroke").clicked() {
+                    w.marks.pop();
+                }
+                if ui.button("Clear").clicked() {
+                    w.marks.clear();
+                }
+            });
+            let Some((_, (iw, ih), texture)) = &app.wizard_preview else {
+                ui.label("The image could not be read.");
+                return;
+            };
+            // Fit the image in 480 × 480 points.
+            let scale = 480.0 / (*iw).max(*ih).max(1) as f32;
+            let size = egui::vec2(*iw as f32 * scale, *ih as f32 * scale);
+            let (rect, response) = ui.allocate_exact_size(size, egui::Sense::drag());
+            let painter = ui.painter_at(rect);
+            painter.image(
+                texture.id(),
+                rect,
+                egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                egui::Color32::WHITE,
+            );
+            let at = |p: egui::Pos2| image_fraction([p.x, p.y], rect.min.into(), size.into());
+            if response.drag_started()
+                && let Some(f) = response.interact_pointer_pos().and_then(at)
+            {
+                w.marks.push(Mark {
+                    subject: w.mark_subject,
+                    points: vec![f],
+                    width: w.mark_width,
+                });
+            } else if response.dragged()
+                && let Some(f) = response.interact_pointer_pos().and_then(at)
+                && let Some(m) = w.marks.last_mut()
+                && m.points.last() != Some(&f)
+            {
+                m.points.push(f);
+            }
+            let short = size.x.min(size.y);
+            for m in &w.marks {
+                let colour = if m.subject {
+                    egui::Color32::from_rgba_unmultiplied(40, 200, 60, 140)
+                } else {
+                    egui::Color32::from_rgba_unmultiplied(220, 40, 40, 140)
+                };
+                let pts: Vec<egui::Pos2> = m
+                    .points
+                    .iter()
+                    .map(|p| rect.min + egui::vec2(p[0] as f32 * size.x, p[1] as f32 * size.y))
+                    .collect();
+                let width = (m.width as f32 * short).max(1.0);
+                for p in &pts {
+                    painter.circle_filled(*p, width / 2.0, colour);
+                }
+                painter.add(egui::Shape::line(pts, egui::Stroke::new(width, colour)));
+            }
+            ui.weak("Drag to brush. Convert runs the cut with these strokes.");
+        });
+    app.wizard.marking = open;
 }
 
 /// OpenStitch mode's own options per tool (B16.1): Cross Stitch's filled cells, Design
