@@ -172,7 +172,7 @@ Notes:
 - A stray Blue thread lies over part of the 1 rows/mm swatch; the "T1" mark is still uneven.
 - The same session sewed the sunset photo patch, the machine checks, *Region sew types 2* and
   *Background fill*: all sewed whole, and stippling and the flexible spiral no longer stitch in
-  place (fixed in alpha.11). The zigzag net fill sews lumpy and is being looked at.
+  place (fixed in alpha.11). The zigzag net fill sews lumpy ([#293](https://github.com/cristianonescu/OpenStitch/issues/293)).
 
 <img src="calibration/results/2026-11-04-round2-all.jpg" width="480" alt="Scan of the second sew-out session">
 
