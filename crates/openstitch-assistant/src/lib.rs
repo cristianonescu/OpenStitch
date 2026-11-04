@@ -331,8 +331,8 @@ pub(crate) fn describe(e: &HttpError) -> String {
             ),
             None => format!("Rate limited (429){detail}. Try again shortly."),
         },
-        Some(529) => format!("The Claude API is overloaded (529){detail}. Try again shortly."),
-        Some(s) if s >= 500 => format!("The Claude API had a server error ({s}){detail}."),
+        Some(529) => format!("The server is overloaded (529){detail}. Try again shortly."),
+        Some(s) if s >= 500 => format!("The server had an error ({s}){detail}."),
         Some(400) => format!("The request was rejected (400){detail}."),
         Some(s) => format!("The request failed (HTTP {s}){detail}."),
         None if msg.is_empty() => "The request failed.".to_string(),
@@ -343,6 +343,19 @@ pub(crate) fn describe(e: &HttpError) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #423: the messages name the server, not the Claude API, as any endpoint can be behind them.
+    #[test]
+    fn server_errors_name_no_provider() {
+        for status in [500, 502, 529] {
+            let text = describe(&HttpError {
+                status: Some(status),
+                message: "x".into(),
+                retry_after: None,
+            });
+            assert!(text.starts_with("The server"), "{text}");
+        }
+    }
 
     #[test]
     fn hosts() {
@@ -368,7 +381,7 @@ mod tests {
         };
         assert!(describe(&e(Some(401), "invalid x-api-key")).contains("API key"));
         assert!(describe(&e(Some(529), "")).contains("overloaded"));
-        assert!(describe(&e(Some(503), "")).contains("server error"));
+        assert!(describe(&e(Some(503), "")).contains("server had an error"));
         assert_eq!(describe(&e(None, "timed out")), "timed out");
         let mut r = e(Some(429), "slow down");
         r.retry_after = Some(Duration::from_secs(7));

@@ -67,10 +67,8 @@ fn response(
     let res = res.map_err(|e| HttpError {
         status: None,
         message: match e {
-            ureq::Error::Timeout(_) => {
-                "The Claude API did not answer in time (timed out).".to_string()
-            }
-            e => format!("Could not reach the Claude API: {e}"),
+            ureq::Error::Timeout(_) => "The server did not answer in time (timed out).".to_string(),
+            e => format!("Could not reach the server: {e}"),
         },
         retry_after: None,
     })?;

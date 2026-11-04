@@ -320,6 +320,10 @@ impl EditorApp {
         if let Some(t) = l.theme {
             self.ui.prefs.theme = t;
         }
+        // The Assistant opens as the user left it, open on first start (#422); screenshots
+        // keep the default layout without it.
+        self.assistant.panel.open =
+            l.screenshot.is_none() && self.ui.prefs.ai.enabled && self.ui.prefs.ai.panel_open;
         if splash && self.ui.prefs.splash {
             self.splash = Some(crate::splash::Splash::default());
         }
@@ -1084,7 +1088,8 @@ impl EditorApp {
             self.fit_requested = true;
         }
         if take(cmd_shift(Key::A)) && self.ui.prefs.ai.enabled {
-            self.assistant.panel.open ^= true;
+            let open = !self.assistant.panel.open;
+            crate::assistant_panel::set_open(self, open);
         }
         if take(cmd(Key::Equals)) || take(cmd(Key::Plus)) {
             crate::panels::zoom_center(self, 1.25);
@@ -1305,6 +1310,10 @@ impl eframe::App for EditorApp {
         if let Some((events, modifiers)) = player.next_frame(&vp) {
             raw.events.push(egui::Event::ModifiersChanged(modifiers));
             raw.events.extend(events);
+            if let Some(path) = player.take_dropped() {
+                raw.dropped_files
+                    .push(crate::script::DroppedPath::handle(path));
+            }
             if player.take_close_request() {
                 raw.viewports
                     .entry(raw.viewport_id)

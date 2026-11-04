@@ -477,9 +477,9 @@ in `src/openai.rs` and `src/models.rs`.
   calling. This is a conservative check of the English opening words, as SolidCraft's is.
 
 **Not verified.**
-- No run against a real Ollama, LM Studio or OpenRouter server. The tests use scripted streams
-  shaped from the documentation. A5's first real run found no Ollama or other local server on
-  this Mac.
+- Ollama ran for real in round 2 (2026-11-04, below): gpt-oss:20b passed 8 of 12 bench tasks
+  and made the badge with the network off. LM Studio and OpenRouter have not run; their tests use
+  scripted streams shaped from the documentation.
 - The `data:` URL form of `image_url` and in-stream error objects are handled defensively,
   because the docs don't show them.
 
@@ -510,7 +510,8 @@ others SolidCraft lists, each with its version. A missing agent shows its instal
 
 **Not verified.**
 - The real Claude Code agent (claude-agent-acp 0.100.0) ran on 2026-11-04 (A5): 12 of 12
-  benchmark tasks once signed in. The runs found #385, #386, #388, #389 (fixed) and #390.
+  benchmark tasks once signed in. The runs found #385, #386, #388, #389 and #390 (fixed in
+  round 2: the agent no longer loads the user's own Claude Code setup).
 - The Claude Code `_meta` option keys and the exact error `session/new` returns when sign-in is
   needed come from SolidCraft's code, not from the ACP spec.
 - Killing an agent's process tree on Windows (`taskkill /T`) is not exercised; the
@@ -547,7 +548,8 @@ in `/v1`, a model name and a key kept in the keychain under that address.
 - A coding agent gets the attached files' paths in its prompt, not the pictures (the panel says
   so).
 
-**Not verified.** No real image generator has been called; the format follows OpenAI's "Create
+**Not verified.** The composer controls were clicked through in the running editor in round 2
+(below). No real image generator has been called; the format follows OpenAI's "Create
 image" reference and the tests use a scripted endpoint. Whether a given local server accepts
 `response_format` is not checked; a `url` reply is handled.
 
@@ -623,18 +625,120 @@ What the real agent showed, and what changed:
   took the widest object (about 20 mm) instead of the design's width (60.7 mm). Widths are now
   the union of the objects' bounds.
 - The agent brings the user's own Claude Code setup into the session: skills appear in
-  `available_commands_update`, and a one-word prompt used about 37k context tokens. That is
-  #390, not fixed here, and it is why each task reads 180k-900k input tokens, mostly from the
-  cache.
+  `available_commands_update`, and a one-word prompt used about 37k context tokens. That was
+  #390, fixed in round 2 below; it is why each task read 180k-900k input tokens, mostly from
+  the cache.
 - The bench strips `CLAUDE*`/`ANTHROPIC*` variables from its environment when it runs inside a
   Claude Code session.
 
-**Still not verified.**
-- No run against the Claude API, an OpenAI-compatible endpoint, a local model or an image
+### Round 2: real local models, the composer by hand, Claude Code without the user's setup (2026-11-04, #390, #392, #393)
+
+All on the Mac (macOS, Apple silicon, 64 GB), Claude Code 2.1.284 with `claude-agent-acp`
+0.100.0, Ollama 0.40.14 from Homebrew. Reports and request captures stay in the session's
+work folder; the numbers below are copied from them.
+
+**#390, Claude Code without the user's own setup.** `claude-agent-acp` 0.100.0 hands the Agent
+SDK `settingSources: ["user", "project", "local"]` and then spreads the client's
+`_meta.claudeCode.options` over it (read in its `dist/acp-agent.js`). So the user's skills,
+plugins, hooks and `CLAUDE.md` files reached the Assistant's session. `session/new` now sends
+`settingSources: []`. Sign-in is not a setting and still works. Measured with a direct ACP
+probe (no tools, one-word prompt "Hi"):
+
+| `session/new` | Slash commands listed | Context tokens | Cost reported by the agent |
+|---|---|---|---|
+| before | 201 (the user's skills and plugins) | 37,198 | USD 0.21 |
+| `settingSources: []` | 55 (Claude Code's own) | 17,383 | USD 0.037 |
+
+The 12-task bench on the fixed build: **12 of 12**, 3,605,841 input tokens (cache included)
+and 18,156 output, 112 tool calls with 1 error, against 5,723,824 input tokens before (−37 %).
+The question task fell from 180,036 to 106,220. Also tried: `tools: []` (no built-in Claude Code
+tools at all). It raised the input, 1,150,835 tokens for the `wider` task against 219,701, so
+it was dropped. What remains of the 17k is Claude Code's own system prompt and built-in tools.
+
+**#392, Ollama.** Models pulled: `qwen3:14b`, `gpt-oss:20b` and `mistral-small3.2` (all with
+the `tools` capability; only mistral-small3.2 has `vision`). The 12-task bench, network on:
+
+| Model | Passed | Tool calls (errors) | Input / output tokens | Time |
+|---|---|---|---|---|
+| gpt-oss:20b | **8 of 12** (monogram, appliqué, star, two colours, recolour, delete, vector, question) | 115 (16) | 915,597 / 32,478 | 380 s |
+| qwen3:14b | 3 of 12 (delete, vector, question) | 46 (28) | 167,111 / 42,984 | 954 s |
+| mistral-small3.2 | 0 of 12: every task ended with an empty message (#425) | 1 (0) | 25,095 / 256 | 17 s |
+
+**A2's acceptance criterion, a badge with the network off: met.** Ollama and the bench ran under
+a `sandbox-exec` profile that denies every outbound connection except to this computer (checked:
+`curl https://example.com` fails inside it, `ollama pull` fails with "connect: operation not
+permitted", `localhost:11434` answers). The macOS network settings were not touched.
+- gpt-oss:20b made a passing badge (60-80 mm, satin border, over 500 stitches) in 2 of 3 runs
+  before the fixes below, and in 3 of 5 proxied runs; the failures were the model's (a 70 mm
+  disc without a border, broken tool-call JSON).
+- qwen3:14b: 0 of 3; it gave up after unknown commands each time.
+- All 12 tasks offline with gpt-oss:20b on the fixed build (#416, #423, #424, #427): **7 of 12**,
+  the badge among them (badge, star, two colours, recolour, delete, vector, question); 1,153,135
+  input and 28,872 output tokens. Results vary from run to run: the same model made 8 of 12
+  online before the fixes, with a different set.
+
+What the local models showed, and what changed:
+- A text-only model failed the whole turn once a tool returned a picture: Ollama answers 400
+  "Multimodal data provided, but model does not support multimodal requests." The picture is
+  now replaced by a text note and the conversation stays text-only (#416). The request capture
+  shows it working: the 400, then the run carries on and passes.
+- Ollama parses tool-call arguments itself and answers 500 "error parsing tool call" when
+  gpt-oss writes broken JSON (`"cy","cy":50`, `"continueOnError:false`). Resending the same
+  request failed the same way and ended the turn. The model is now told and asked again, twice
+  at most (#427).
+- These errors said "The Claude API had a server error (500)" for Ollama. Request errors now
+  name the server (#423).
+- gpt-oss read only `SKILL.md`, saw that satin is a region type, and said a satin border can't
+  be made. SKILL.md now says a satin border is a zigzag line (#424).
+- mistral-small3.2 answers a minimal tool request properly, streamed or not, but every bench
+  request with an empty message, and its prompts count only 1-2k tokens. Why is not established
+  (#425).
+- Three runs ended with "The connection closed before the reply finished". The proxy caught
+  one: Ollama sent HTTP 200 and 158 chunks of text, then a chunk with an empty model name and no
+  finish reason, and closed, with nothing in its log. Why is not established (#429).
+- Ollama 0.40.14 has no `/v1/images/generations` (404), so it can't serve as the image
   generator.
-- The new composer controls (📎, View, Selection) and the image-generator settings have not been
-  clicked through in the running app; the panel tests drive them without clicks.
+
+**#393, the composer in the running editor.** The editor was driven with `--script` and
+`--screenshot` (no screen control), on a build of this branch merged with #395, with a throwaway
+profile (`OPENSTITCH_CONFIG_DIR`, `OPENSTITCH_KEYCHAIN_SERVICE`); the owner's settings and
+keychain were not used. Claude Code over ACP was the backend, chosen by clicking ⚙ ▸ Protocol ▸
+Coding agent.
+
+![The Assistant with Claude Code: a dropped picture made into embroidery](../../images/assistant-agent-picture.png)
+
+![Ollama with gpt-oss:20b after the image generator failed: the vector route and the gate's question](../../images/assistant-ollama-vector-route.png)
+
+| Control | Result |
+|---|---|
+| ⚙ settings, Protocol ▸ Coding agent, Agent ▸ Claude Code | Works. The API key rows stay visible, though an agent needs no key (#420). |
+| **Selection** with the Star selected, **View** on, "what does the view show, what is selected? Change nothing." | The answer named the selected Star, yellow satin, 41.8 × 39.8 mm, and nothing changed. View: the agent said no picture was attached and called `view_render` itself. Only the coding-agent path was broken: its ACP prompt is text, so the message promised a picture it never got. View now asks an agent to call `view_render` (#418, test `the_view_chip_asks_a_coding_agent_to_call_view_render`). The Claude API and OpenAI-compatible requests do carry the picture (an image block and an `image_url` part; tests `the_view_chip_sends_a_picture_of_the_design` and `the_view_chip_reaches_an_openai_compatible_model`, #395). |
+| 📎 | Opens the system file dialog, which a script can't drive. Dropping files on the window now attaches them while the panel is open, and `--script` has `drop:PATH` (#407). |
+| A PNG dropped on the panel, View on, "turn it into embroidery about 50 mm wide, check it" | Works: the chip shows the file and "view"; the agent ran Auto Punch, saw 34.4 mm, scaled the design to 50.0 × 63.1 mm, checked it with `view_render` and `design.info`; 38 objects, 4,213 stitches, "2 changes, one undo step". |
+| Endpoint ▸ Ollama, **List**, gpt-oss:20b | Works against the real server: List shows the three pulled models. The Model field keeps `claude-opus-5-5` until one is picked (#432). |
+| Image generator set to Ollama (`http://localhost:11434/v1`), "use generate_image to make a red heart, then stitch it" | `generate_image` was called and failed (Ollama has no images endpoint, 404), and the model went on to the vector route, as the system prompt asks. It then wrote `heart.svg` and imported it by its bare name, which the gate asks about (#431). No working generator was available (no key for a paid one), so a generated picture was never stitched. |
+
+Also found there: two calls to the same tool shared a collapsing-row id, and a debug build
+painted "First use of widget ID" warnings over the chat (#415, fixed in #395); the header counted only
+uncached input, "12 in" for a turn of about 17k (#419, fixed: cache reads and writes now count,
+as in the bench); with a coding agent the header still names the API model, `claude-opus-5-5`
+(#419, in code #395 rewrites).
+
+**Still not verified.**
+- No run against the Claude API (no key on this Mac) or OpenRouter, and none with LM Studio.
+- No real image generator has been called.
+- Codex and OpenCode over ACP have not run.
 - Design quality has not been checked in a sew-out.
 - The bench's headless editor answers only `ui.render` and `ui.scratchWrite` among the `ui.*`
   commands.
+
+### Panel polish (2026-11-04, #394, #396, #415, #422)
+
+Done after the first real Claude API chats, in #395:
+- **Controls (#394):** framed icon buttons in the header, framed View and Selection toggles, a highlighted Send, chat bubbles (the user's on the right in the accent colour, the assistant's on the left), and light Markdown in replies.
+- **Keys and settings (#396):** each key row has Save key and a red Remove key, which is enabled only when a key is saved; a saved key shows as dots. Remove key reads the keychain back. Clear image generator and Reset AI settings (which asks first) read ui.json back. Tests never reach the system keychain, and a manual test run can use a throwaway profile (`OPENSTITCH_CONFIG_DIR`, `OPENSTITCH_KEYCHAIN_SERVICE`).
+- **Tool rows (#415):** every tool and Thinking row has its own widget ID (repeated tool calls used to clash), and says what it did ("Ran object.list", "Looked at the design"), with the raw name, the arguments and the result inside.
+- **Open by default (#422):** the panel opens on first start and then as the user left it (`panelOpen` in ui.json; an older file reads as open). Closing it with ✕, View ▸ Show/Hide ▸ Assistant or the shortcut shows where to reopen it: the menu, the shortcut as the platform shows it, and Options ▸ Show AI features when AI is off. "Don't show this again" (`closeHint`) stops the dialog. `--screenshot` runs keep the panel closed, so the documentation screenshots don't change.
+
+Checked in the running app on macOS, with throwaway profiles and no Keychain prompts. Not checked: Windows and Linux (#401); the Higgsfield icons (#399).
 
