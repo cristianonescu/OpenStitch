@@ -687,7 +687,7 @@ including the README refresh done at every release, is in [docs/RELEASING.md](do
 - [Test coverage audit](docs/TEST_COVERAGE_AUDIT.md): features without test evidence, and the plan
 - [Adding a PE-DESIGN reference file](compat/reference/README.md)
 - [Legal and licensing](docs/LEGAL_AND_LICENSING.md)
-- [Roadmap](docs/ROADMAP.md)
+- [Roadmap](docs/ROADMAP.md) and the [backlog](docs/BACKLOG.md): open work grouped into batches, one PR per batch
 - [Distribution and packaging](docs/DISTRIBUTION.md)
 - [Releasing](docs/RELEASING.md) and the [release notes](docs/releases/)
 - [Test images for the image wizards](docs/research/test-images.md)
