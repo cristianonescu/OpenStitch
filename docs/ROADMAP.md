@@ -238,11 +238,14 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    being corrected) — the stitch group, Straight and Curve Block exports open in PE-DESIGN since
    2026-10-31 (references); the fitted text's box as PE-DESIGN computes it (PE-DESIGN recomputes it
    on opening); PE-DESIGN's confirmation of the Hoop Size page (probe p3); the design's machine
-   type and hoop in the header; turn the `#PES0110` shapes and texts the reader parses into
-   editable OpenStitch objects; right-aligned and vertical text; several programmable fill patterns in one design (one is written since 2026-10-31), motif fill and the attribute fields of the other region types (written by their codes at PE-DESIGN's defaults since 2026-10-31), motif lines and the Start/End options and sewing end of stem, candlewick and chain lines (written by their codes since 2026-10-31),
+   type and hoop in the header; turn the `#PES0110` texts and stitch groups the reader parses
+   into editable OpenStitch objects (#397; shapes import since 2026-10-30, and an opened file
+   re-saves byte for byte while unchanged since 2026-11-04, #375); right-aligned and vertical text; several programmable fill patterns in one design (one is written since 2026-10-31), motif fill and the attribute fields of the other region types (written by their codes at PE-DESIGN's defaults since 2026-10-31), motif lines and the Start/End options and sewing end of stem, candlewick and chain lines (written by their codes since 2026-10-31),
    several hole sewing pairs in one file or with groups (one pair without groups is written since
    2026-10-31) and several outlines per object; the hoop in v1 (the public
-   description contradicts itself); PES v7–v10 (from the owner's own files only, as
+   description contradicts itself); writing PES v4, v5 and v7–v10 (read since 2026-11-04 in
+   pyembroidery's layout; the writers wait for PE-DESIGN's Save As files of each version, requested
+   2026-11-04, #374, from the owner's own files only, as
    [LEGAL_AND_LICENSING.md](LEGAL_AND_LICENSING.md) allows).
 7. **Editing details:** skeletons that branch (a derived skeleton follows a shape's longest
    stroke only) and an exact medial axis instead of the grid approximation.

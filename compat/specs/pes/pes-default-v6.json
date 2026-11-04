@@ -165,21 +165,21 @@
       "source": {
         "export": "a.pes"
       },
-      "evidence": "internal regression: the Brother chart colours Red and Black from the script, custom colour type 0x0A, empty chart (audit item 18: chart strings for OpenStitch's colours wait for owner files)",
+      "evidence": "internal regression: the Brother chart colours Red and Black from the script, written as PE-DESIGN 11.50 writes chart colours in its own Ver.6.0 file (pe11 fixture r01-rect-v6: BROTHER EMBROIDERY number, the PEC index as name, brand EMBROIDERY, type 0x0A, empty chart; #375) and read back with the chart names",
       "expected": [
         {
           "rgb": "#ed171f",
-          "name": "Red",
-          "catalog": "5",
-          "brand": "Brother",
+          "name": "RED",
+          "catalog": "800",
+          "brand": "EMBROIDERY",
           "chart": null,
           "kind": 10
         },
         {
           "rgb": "#000000",
-          "name": "Black",
-          "catalog": "20",
-          "brand": "Brother",
+          "name": "BLACK",
+          "catalog": "900",
+          "brand": "EMBROIDERY",
           "chart": null,
           "kind": 10
         }

@@ -48,7 +48,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 192: 158 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 24 planned beyond PE-DESIGN |
+| Feature matrix rows | 196: 162 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 24 planned beyond PE-DESIGN |
 | Compatibility specs | 443: 443 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 36: 29 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 10 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
@@ -262,10 +262,12 @@ PE-DESIGN 11.50's defaults, tie-in and lock, measured from its own files.
   retypable), including Fit Text to Outline and Text Transform, Manual Punch blocks, stitch
   groups, grouped appliqué, hole sewing, programmable and decorative fill, the other region types
   and stem, candlewick and chain lines, with the Design Settings' hoop and machine type.
-  `import.pes` opens PE-DESIGN's shapes and blocks as editable objects. Details in
+  `import.pes` opens PE-DESIGN's shapes and blocks as editable objects. A PE-DESIGN file opened
+  with File ▸ Open and exported again unchanged is written back byte for byte, objects and all.
+  Details in
   [docs/FILE_FORMATS.md](docs/FILE_FORMATS.md).
 - **PES versions 1, 6 and 11** on export, with Design Property (category, author, keywords,
-  comments). Version 6 with its stitch group is the default.
+  comments). Version 6 with its stitch group is the default. Every PES version is read (1 to 11).
 - **SVG import** as editable shapes, colours snapped to the Brother chart.
 - **Editable `.osd` projects**, and large designs split into several files when a format's limits
   are exceeded.
@@ -338,7 +340,7 @@ Also missing, from the [roadmap](docs/ROADMAP.md#still-to-do):
   editing and Blend.
 - **PES:** opening PE-DESIGN's texts and stitch groups as editable OpenStitch objects; motif
   fill, motif lines, several groups, right-aligned and vertical text in the editable PES 11
-  writer; PES versions 4, 5 and 7–10.
+  writer; writing PES versions 4, 5 and 7–10 (waiting for PE-DESIGN's own files of them).
 
 **Not planned, by design:**
 
@@ -377,7 +379,7 @@ Open differences from PE-DESIGN 11 that you may notice, from the
 - [Every design is written as one stitch group, nothing editable](docs/COMPATIBILITY_AUDIT.md#5-every-design-is-written-as-one-stitch-group-nothing-stays-editable-in-pe-design) (partly fixed)
 - [One sewing direction per text instead of per stroke](docs/COMPATIBILITY_AUDIT.md#6-one-sewing-direction-per-text-instead-of-per-stroke)
 - [Underlay model differs](docs/COMPATIBILITY_AUDIT.md#8-underlay-model-differs-zigzag-lines-have-no-underlay) (partly fixed)
-- [PE-DESIGN-made PES files lose objects, properties and colours on re-save](docs/COMPATIBILITY_AUDIT.md#9-pe-design-made-pes-files-lose-objects-properties-and-colours-on-re-save)
+- [PE-DESIGN-made PES files lose objects, properties and colours on re-save](docs/COMPATIBILITY_AUDIT.md#9-pe-design-made-pes-files-lose-objects-properties-and-colours-on-re-save) (partly fixed)
 - [No Connection Points (Default / Closest / Farther) for text](docs/COMPATIBILITY_AUDIT.md#11-no-connection-points-default--closest--farther-for-text)
 - [No minimum font sizes or small-text fonts](docs/COMPATIBILITY_AUDIT.md#12-no-minimum-font-sizes-or-small-text-fonts)
 - [No per-character colour or multi-character selection](docs/COMPATIBILITY_AUDIT.md#13-no-per-character-colour-or-multi-character-selection)

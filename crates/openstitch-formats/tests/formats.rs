@@ -530,8 +530,10 @@ fn each_block_gets_its_nearest_chart_entry_as_pe_design_writes() {
         PEC_CHART[idx[0]].as_ref().and_then(|t| t.name.as_deref()),
         Some("Red")
     );
-    // PE-DESIGN 11.50's PEC colour list for its 29 Ver4 Option colours, block by block.
-    let pe = pes::read(&data("pe11/ver4-option-color-29.pes")).expect("read");
+    // PE-DESIGN 11.50's PEC colour list for its 29 Ver4 Option colours, block by block (the
+    // list's own bytes: the reader gives the blocks the file's threads since #375).
+    let file = data("pe11/ver4-option-color-29.pes");
+    let pec_at = u32::from_le_bytes(file[8..12].try_into().expect("u32")) as usize;
     let objects = pes::read_objects(&data("pe11/ver4-option-color-29.pes")).expect("objects");
     let option: Vec<Thread> = objects
         .threads
@@ -540,15 +542,10 @@ fn each_block_gets_its_nearest_chart_entry_as_pe_design_writes() {
         .cloned()
         .collect();
     assert_eq!(option.len(), 29);
-    let written: Vec<usize> = pe
-        .threads
+    let n = usize::from(file[pec_at + 0x30]) + 1;
+    let written: Vec<usize> = file[pec_at + 0x31..pec_at + 0x31 + n]
         .iter()
-        .map(|t| {
-            PEC_CHART
-                .iter()
-                .position(|c| c.as_ref() == Some(t))
-                .expect("chart thread")
-        })
+        .map(|&b| usize::from(b))
         .collect();
     assert_eq!(
         written,

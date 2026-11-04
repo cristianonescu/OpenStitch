@@ -797,11 +797,21 @@ impl EditorApp {
             .file_stem()
             .map_or_else(|| "Untitled".into(), |s| s.to_string_lossy().into_owned());
         let page = |v: f64| ((v + 10.0) / 10.0).ceil().max(10.0) * 10.0;
-        let steps = [CommandRequest::new(
-            "design.new",
-            json!({ "name": name, "width": page(w), "height": page(h) }),
-        )];
-        if self.grouped(|app| app.execute_all(&steps).is_some() && app.import(p)) {
+        // A PE-DESIGN 11 file keeps its own Design Page size.
+        let (page_w, page_h) = pes_page_mm(p).unwrap_or((page(w), page(h)));
+        let steps = [
+            CommandRequest::new(
+                "design.new",
+                json!({ "name": name, "width": page_w, "height": page_h }),
+            ),
+            // The file stays with the design: exporting it unchanged as PES writes it back as
+            // it was, PE-DESIGN's objects included (#375). The import centres it on the page.
+            CommandRequest::new(
+                "stitches.import",
+                json!({ "path": path, "keepSource": true }),
+            ),
+        ];
+        if self.grouped(|app| app.execute_all(&steps)).is_some() {
             self.after_load(None);
             self.ui.add_recent(p);
             self.status = format!(
@@ -1395,6 +1405,16 @@ fn is_project(p: &Path) -> bool {
 }
 
 /// Width and height (mm) of a machine file, used only to size the page before importing.
+/// The Design Page size in mm a PE-DESIGN 11 `#PES0110` file was saved with.
+fn pes_page_mm(p: &Path) -> Option<(f64, f64)> {
+    if FileType::from_path(p)? != FileType::Pes || std::fs::metadata(p).ok()?.len() > 64 << 20 {
+        return None;
+    }
+    let section = openstitch_formats::pes::read_objects(&std::fs::read(p).ok()?).ok()?;
+    let (w, h) = section.page_mm.filter(|_| section.version == "0110")?;
+    Some((f64::from(w), f64::from(h)))
+}
+
 fn machine_file_size_mm(p: &Path) -> Option<(f64, f64)> {
     let ty = FileType::from_path(p)?;
     let meta = std::fs::metadata(p).ok()?;
@@ -1547,6 +1567,26 @@ mod tests {
         assert_eq!(app.pattern, Compiler::for_design(d).compile(d));
         assert_eq!(app.undo_groups, vec![1; demo_design().len()]);
         assert_eq!(app.refresh_deferred, None);
+    }
+
+    #[test]
+    fn opening_a_pe_design_file_keeps_its_page_and_the_file() {
+        // #375: PE-DESIGN's 200 x 150 mm Design Page, and the file itself, so exporting it
+        // unchanged writes it back with its objects.
+        let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../openstitch-formats/tests/fixtures/pe11/group-two.pes");
+        let mut app = EditorApp::new(Launch::default());
+        app.open_path(&fixture);
+        let d = app.session.design();
+        assert_eq!(
+            (d.page.width, d.page.height),
+            (2000.0, 1500.0),
+            "{}",
+            app.status
+        );
+        let source = d.source.as_ref().expect("the file is kept");
+        assert!(source.unchanged(d));
+        assert_eq!(source.version.as_deref(), Some("0110"));
     }
 
     #[test]

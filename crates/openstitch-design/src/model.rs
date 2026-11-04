@@ -47,6 +47,11 @@ pub struct Design {
     /// PE-DESIGN's.
     #[serde(default, skip_serializing_if = "is_default")]
     pub optimize_order: OptimizeOrder,
+    /// The machine file the design was opened from, written back unchanged when the design is
+    /// exported to it again without a change (File ▸ Open of a PE-DESIGN PES, #375). Omitted
+    /// when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<crate::source::SourceFile>,
 }
 
 /// How Optimize Sewing Order arranges the objects.
@@ -229,6 +234,7 @@ impl Design {
             guides: Guides::default(),
             properties: DesignProperties::default(),
             optimize_order: OptimizeOrder::default(),
+            source: None,
         }
     }
 

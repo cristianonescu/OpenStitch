@@ -138,15 +138,25 @@ the owner's machine (docs/COMPATIBILITY_AUDIT.md item 2).
 | `6t` | ✅ | ✅ | ✅ | ❌ | ❌ |
 | `6` (default) | ✅ | ✅ | ✅ | ✅ | ❌ |
 | `11` (PE-DESIGN 11, `#PES0110`) | ✅ | ✅ (thread table in sewing order; each thread named with its PEC chart index, as PE-DESIGN names its own colours) | ✅ | ✅ (a stitch pattern is a `CEmbOne`) | ✅ shapes: fill and satin regions; running, zigzag, triple, E and V lines; groups; Lato Bold text, with a Text Transform or fitted to an outline. ❌ the other region and line types, other fonts: the export fails and names the object. PE-DESIGN 11.50 opens shapes and text editable (specs `pes-0110-editable-shapes`, `-text`, `-text-transform`); stitch patterns: spec `pes-0110-stitches`, reference pending |
-| 4, 5 (5.5, 5.6), 7–10 | **Blocked** | | | | |
+| 4, 5 (5.5, 5.6), 7–10 | **Blocked** (read, not written) | | | | |
 
 Editor: File ▸ Export ▸ PES offers the five. Engine: `design.export` `pesVersion`.
 **Why v4, v5 and v7–v10 are not written:** no public writer exists. pyembroidery's reader only
 gives each version's field *lengths* (v5 has 24 fixed bytes where v6 has 36; v8 has 38; v9/v10
 add a hoop name). It does not say which fields were added or removed, so a v5 header written
-by analogy with v6 would be a guess that PE-DESIGN might misread. They are read, not written.
-Unblocks it: reference files saved by PE-DESIGN's "Save As" in each version (needs a licensed
-installation and the legal opinion).
+by analogy with v6 would be a guess that PE-DESIGN might misread. They are read, not written:
+v4 gives the metadata and the PEC colours; v5–v10 also the thread table, the hoop name (v9,
+v10) and the `CEmbOne` stitch group, in pyembroidery 1.5.1's layout (`tests/pes_versions.rs`
+re-lays pyembroidery's v6 file in each layout; no PE-DESIGN file of these versions is in the
+repo). PE-DESIGN 11.50's Save As type list offers Ver.11.0 down to Ver.1.0; its files of each
+version were requested on 2026-11-04 (#374) and unblock the writers.
+
+**Re-saving an opened PES (#375).** File ▸ Open keeps the file with the design
+(`stitches.import` `keepSource`, `Design.source`, base64 in `.osd`) with a fingerprint of the
+design as opened. `design.export` to PES with no `pesVersion`, or with the file's own version
+(`11` for `#PES0110`, `6`, `1`), writes the kept bytes back while the fingerprint still
+matches, and returns `"source": "unchanged"`; anything else is written from the design, with a
+warning when the design was opened from a file and changed since.
 
 Object section as pyembroidery 1.5.1 reads and writes it (little-endian):
 
@@ -229,8 +239,11 @@ below is pinned by a test in `tests/pes11.rs`.
   005 SILVER, "5" for 800 RED, matching the PEC colour blocks), the brand ("EMBROIDERY") and the
   chart name. Strings are MFC Unicode strings (`FF FE FF`, u8 length in UTF-16 units,
   UTF-16LE). The entries are in sewing order, and the table can list colours no block sews (an
-  unused attribute's default, below), so `pes::read` keeps PEC chart colours for 0110 files and
-  the table stays in `ObjectSection::threads`. The fields between the header strings and the
+  unused attribute's default, below), so `pes::read` matches entries to the PEC colour blocks
+  by PEC index, and between entries sharing an index by the block's catalogue number in the
+  colour list after the PEC section (`pes11::block_threads`, #375; checked against every block
+  of PE-DESIGN's own files that has a number); a BROTHER EMBROIDERY entry gets its chart name
+  (`pes11::with_chart_name`: `800` `RED`). The table itself stays in `ObjectSection::threads`. The fields between the header strings and the
   table include a machine-model string (`nv880e-M`) and are not all mapped, so the reader
   locates the table as the one that parses to exactly where the object list starts.
 - **Coordinates** are 0.1 mm with the page's top-left corner at (500, 500), y down, in every
