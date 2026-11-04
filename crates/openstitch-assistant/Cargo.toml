@@ -13,3 +13,11 @@ ureq = { version = "3", default-features = false, features = ["rustls", "gzip"] 
 
 [lints]
 workspace = true
+
+# A scripted ACP agent for the tests (no model, no network). `test = false`: it has no tests of
+# its own; the release builds name their packages (`-p openstitch-app ...`), so it never ships.
+[[bin]]
+name = "openstitch-acp-fake-agent"
+path = "tests/support/acp_fake_agent.rs"
+test = false
+doc = false
