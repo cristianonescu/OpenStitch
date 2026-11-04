@@ -1,3 +1,5 @@
+mod assistant;
+
 use crate::preview;
 use crate::tools::{self, Tool, ToolKind};
 use openstitch_design::Compiler;
@@ -66,6 +68,10 @@ pub struct Server {
     protocol_version: Option<&'static str>,
     /// Commands go to a running editor instead of `session` (`--live`).
     live: Option<openstitch_remote::Client>,
+    /// Meta tools over the editor instead of one tool per command (`--assistant`).
+    assistant: bool,
+    /// The editor's `commands.list`, once fetched (`--assistant`).
+    editor_commands: Option<Vec<Value>>,
 }
 
 impl Server {
@@ -91,6 +97,8 @@ impl Server {
             by_name,
             protocol_version: None,
             live: None,
+            assistant: false,
+            editor_commands: None,
         })
     }
 
@@ -99,6 +107,28 @@ impl Server {
     pub fn with_live(mut self, client: openstitch_remote::Client) -> Self {
         self.live = Some(client);
         self
+    }
+
+    /// Like [`Server::with_live`], offering the `--assistant` meta tools (`commands_list`,
+    /// `command_describe`, `execute`, `run_batch`, `view_render`, `scratch_write`,
+    /// `skill_reference`) instead of one tool per command. The command list is the editor's
+    /// own `commands.list`, which includes its `ui.*` commands.
+    pub fn with_assistant(mut self, client: openstitch_remote::Client) -> Self {
+        self.live = Some(client);
+        self.assistant = true;
+        self.editor_commands = None;
+        self.tools = assistant::tools(self.config.max_batch_steps, self.config.max_preview_pixels);
+        self.by_name = self
+            .tools
+            .iter()
+            .enumerate()
+            .map(|(i, t)| (t.name.clone(), i))
+            .collect();
+        self
+    }
+
+    pub fn is_assistant(&self) -> bool {
+        self.assistant
     }
 
     pub fn is_live(&self) -> bool {
@@ -304,7 +334,9 @@ impl Server {
     }
 
     fn unknown_tool(&self, name: &str) -> String {
-        if self.withheld(name) {
+        if self.assistant {
+            format!("unknown tool '{name}'; run commands with execute or run_batch")
+        } else if self.withheld(name) {
             format!(
                 "tool '{name}' is not available: this server allows only {:?}",
                 self.config.capabilities.names()
@@ -317,7 +349,12 @@ impl Server {
     /// The usage notes, plus what this client may not do.
     fn instructions(&self) -> String {
         let caps = self.config.capabilities;
-        let mut text = INSTRUCTIONS.to_string();
+        let mut text = if self.assistant {
+            assistant::INSTRUCTIONS
+        } else {
+            INSTRUCTIONS
+        }
+        .to_string();
         if !caps.edit {
             text.push_str(
                 " This server is read-only: the design can be inspected and previewed, not edited.",
@@ -339,6 +376,7 @@ impl Server {
             ToolKind::Command(id) => self.run(id, arguments).map(|v| tool_success(&v)),
             ToolKind::Batch => self.run_batch(arguments),
             ToolKind::Preview => self.preview(arguments),
+            ToolKind::Meta(meta) => self.call_meta(*meta, arguments),
         };
         outcome.unwrap_or_else(|message| tool_failure(&message))
     }

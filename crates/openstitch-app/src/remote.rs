@@ -28,6 +28,9 @@ impl EditorApp {
             .get("command")
             .and_then(Value::as_str)
             .unwrap_or_default();
+        if command == "commands.list" || command.starts_with("ui.") {
+            return self.remote_ui_request(command, request);
+        }
         match self.session.permits(command).map(|c| c.effect) {
             Ok(Effect::History) => {
                 let undo = command == "history.undo";
@@ -68,6 +71,35 @@ impl EditorApp {
             }
             _ => self.session.handle(request),
         }
+    }
+
+    /// `commands.list` with the editor's `ui.*` commands added, and the `ui.*` commands
+    /// themselves (B17), in the engine's reply shape.
+    fn remote_ui_request(&mut self, command: &str, request: &Value) -> Value {
+        let outcome = if command == "commands.list" {
+            let engine = self.session.handle(request);
+            if engine["ok"] != json!(true) {
+                return engine;
+            }
+            Ok(crate::assistant_ui::commands_list(engine["result"].clone()))
+        } else {
+            self.ui_command(command, request.get("params"))
+        };
+        let mut reply = Map::new();
+        if let Some(id) = request.get("id") {
+            reply.insert("id".into(), id.clone());
+        }
+        match outcome {
+            Ok(result) => {
+                reply.insert("ok".into(), json!(true));
+                reply.insert("result".into(), result);
+            }
+            Err(e) => {
+                reply.insert("ok".into(), json!(false));
+                reply.insert("error".into(), json!(e));
+            }
+        }
+        Value::Object(reply)
     }
 }
 

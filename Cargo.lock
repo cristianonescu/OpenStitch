@@ -2511,6 +2511,7 @@ name = "openstitch-app"
 version = "0.1.0"
 dependencies = [
  "arboard",
+ "base64",
  "eframe",
  "egui_commonmark",
  "openstitch-core",
@@ -2520,6 +2521,7 @@ dependencies = [
  "openstitch-formats",
  "openstitch-library",
  "openstitch-remote",
+ "openstitch-render",
  "openstitch-update",
  "resvg",
  "rfd",
