@@ -36,15 +36,13 @@ below are claims no test checks.
 | Area | Feature (matrix row) | Gap | Plan | Issue |
 |---|---|---|---|---|
 | Files | Import SVG: `<line>` | **bug**: every `<line>` element is dropped on import (an equivalent `<path>` imports) | fix in `crates/openstitch-engine/src/imports.rs`; then un-ignore `svg_line_elements_import_as_running_lines` | #341 |
+| Editing | Centre point for spiral (`object.setCenterPoint`) | **bug**: moving spiral's centre point changes no stitch | fix in the engine; then un-ignore `the_centre_point_moves_a_spiral` (`coverage_pattern_points.rs`) | #354 |
 | Lettering | Complex scripts, CJK | weak: `right_to_left_scripts_with_a_system_font` and `cjk_text_with_a_system_font` pass without checking when no suitable system font is installed | recorded here; needs a bundled test font, not only a test | #345 |
 
-Smaller weak points, recorded in #351 (not yet covered): the Fit Text dialog remembering its
-last choices; Solid View's drawing (only its toggle is tested); Snap to Grid for curve handles and
-the Arrange handle; the Optimise mode box and mixed-trim checkbox (inline egui code); offset
-lines' "within 0.05 mm" (tested at 0.15 mm) and `roundedCorners`' effect; `shape.split` keeping
-Béziers; the ready-to-sew kit lookup on Linux and Windows layouts; the MSI and macOS `.pes` file
-associations in CI; the reference point on cross, net, zigzag net and decorative fill; the
-inspector's choice and toggle controls.
+Smaller weak points still without a test, recorded in #356: Solid View's drawing (only its toggle
+is tested); Snap to Grid for curve handles and the Arrange handle; the Optimise mode box and
+mixed-trim checkbox (inline egui code); the MSI and macOS `.pes` file associations and
+`tools/sew_kit.py --check` in CI (the CI workflow's owner). Each needs a seam in the product code or a CI step, not only a test.
 
 ## Closed
 
@@ -88,3 +86,9 @@ inspector's choice and toggle controls.
 | Digitizing | Photo Stitch 1 fine rows (OpenStitch mode) | weak: `densityMean`/`densityWindow` never sent; `travel` only in the wizard's request | #334: `crates/openstitch-engine/tests/coverage_digitize.rs` |
 | Digitizing | Photo Stitch 2 needle limits (OpenStitch mode) | weak: "≤ 97 % of PE mode's densest window" tested as ≤ 100 %; 0.1 mm units not asserted | #334: `crates/openstitch-digitize/tests/coverage_photo.rs` |
 | Digitizing | Thread sources (T5) | weak: a single chart by id, and Photo Stitch 1 with `owned`, untested | #334: `crates/openstitch-engine/tests/coverage_digitize.rs` |
+| Lettering | Fit text to outline | weak: the dialog remembering its last choices untested | #351: `crates/openstitch-app/src/app_coverage_tests.rs` |
+| Editing | Boolean operations, offset line pattern (`shape.offsetLines`) | weak: "within 0.05 mm" tested at 0.15 mm; `roundedCorners`' effect not asserted | #351: `crates/openstitch-engine/tests/coverage_shape_ops.rs` |
+| Editing | Split shape (`shape.split`) | weak: a curved shape keeping Bézier pieces not asserted | #351: `crates/openstitch-engine/tests/coverage_shape_ops.rs` |
+| Editing | Centre point / pattern reference point | weak: cross, net, zigzag net and decorative fill, and spiral's centre point, untested | #351: `crates/openstitch-engine/tests/coverage_pattern_points.rs` (spiral's centre point found to have no effect: #354) |
+| Automation | Ready-to-sew kit (`editor::sew_kit`) | weak: only the macOS layout tested | #351: `crates/openstitch-app/tests/coverage_editor_more.rs` (`tools/sew_kit.py --check` in CI not added: CI workflow) |
+| Editor | Inspector | weak: choice and toggle controls not round-tripped | #351: `crates/openstitch-app/tests/coverage_editor_more.rs` |
