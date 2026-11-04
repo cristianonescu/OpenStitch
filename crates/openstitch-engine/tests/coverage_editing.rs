@@ -6,8 +6,8 @@
 
 use openstitch_design::{Compiler, LineType, StartEnd, v2};
 use openstitch_engine::Session;
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
-use std::path::PathBuf;
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
     s.execute(id, Some(&params))
@@ -18,14 +18,8 @@ fn fails(s: &mut Session, id: &str, params: Value) {
     assert!(s.execute(id, Some(&params)).is_err(), "{id} {params} fails");
 }
 
-fn temp_dir(tag: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-coverage-editing-{tag}-{}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir(tag: &str) -> TempDir {
+    TempDir::new(&format!("coverage-editing-{tag}"))
 }
 
 fn id(v: &Value) -> u64 {

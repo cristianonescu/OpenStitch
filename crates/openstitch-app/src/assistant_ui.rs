@@ -732,10 +732,8 @@ mod tests {
             .is_err(),
             "no scratch folder without --listen"
         );
-        let dir =
-            std::env::temp_dir().join(format!("openstitch-scratch-test-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("dir");
-        app.assistant.scratch = Some(dir.clone());
+        let dir = openstitch_testutil::TempDir::new("scratch-test");
+        app.assistant.scratch = Some(dir.to_path_buf());
         let r = app
             .ui_command(
                 "ui.scratchWrite",
@@ -768,9 +766,7 @@ mod tests {
 
     #[test]
     fn scratch_folders_of_ended_editors_are_removed() {
-        let temp =
-            std::env::temp_dir().join(format!("openstitch-stale-test-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&temp);
+        let temp = openstitch_testutil::TempDir::new("stale-test");
         let make = |name: &str, lock: bool| {
             let d = temp.join(name);
             std::fs::create_dir_all(&d).expect("dir");

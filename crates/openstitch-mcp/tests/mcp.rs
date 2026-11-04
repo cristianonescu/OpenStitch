@@ -6,23 +6,13 @@ use openstitch_engine::Session;
 #[cfg(unix)]
 use openstitch_engine::{Access, Sandbox};
 use openstitch_mcp::{Config, Line, LineReader, PROTOCOL_VERSIONS, Server, tool_name};
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
 use std::collections::{HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 
-fn temp_dir() -> PathBuf {
-    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let t = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-mcp-tests-{}-{t}-{n}",
-        std::process::id()
-    ));
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir() -> TempDir {
+    TempDir::new("mcp-tests")
 }
 
 struct Client {
@@ -638,7 +628,7 @@ fn rejects_escapes() {
 fn read_roots_are_read_only_and_no_roots_means_no_files() {
     let root = temp_dir();
     let library = temp_dir();
-    let mut c = sandboxed(&root, std::slice::from_ref(&library));
+    let mut c = sandboxed(&root, &[library.to_path_buf()]);
     c.call(
         "shape_rectangle",
         json!({"x": 0, "y": 0, "width": 20, "height": 20}),
@@ -668,7 +658,7 @@ fn read_roots_are_read_only_and_no_roots_means_no_files() {
 
     // Read-only server: relative paths resolve against the read root.
     let mut reader = Client::new(Config {
-        read_roots: vec![library.clone()],
+        read_roots: vec![library.to_path_buf()],
         ..Config::default()
     });
     assert_eq!(
@@ -685,7 +675,8 @@ fn read_roots_are_read_only_and_no_roots_means_no_files() {
 #[test]
 fn sandbox_resolves_symlinked_roots() {
     let real = temp_dir();
-    let alias = temp_dir().join("alias");
+    let alias_tmp = temp_dir();
+    let alias = alias_tmp.join("alias");
     std::os::unix::fs::symlink(&real, &alias).expect("symlink");
     let sandbox = Sandbox::new::<PathBuf, _>(&[], &[&alias]).expect("sandbox");
     let p = sandbox

@@ -268,12 +268,8 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    fn folder(tag: &str) -> PathBuf {
-        let dir =
-            std::env::temp_dir().join(format!("openstitch-attach-{tag}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("dir");
-        dir
+    fn folder(tag: &str) -> openstitch_testutil::TempDir {
+        openstitch_testutil::TempDir::new(&format!("attach-{tag}"))
     }
 
     fn png(w: u32, h: u32, noisy: bool) -> Vec<u8> {

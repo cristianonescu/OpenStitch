@@ -24,8 +24,7 @@ fn needles(s: &Session) -> Vec<Stitch> {
 
 #[test]
 fn contour_fill_is_set_sewn_saved_and_undone() {
-    let dir = std::env::temp_dir().join(format!("os-contour-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).expect("dir");
+    let dir = openstitch_testutil::TempDir::new("os-contour");
     let mut s = Session::new(&dir);
     run(
         &mut s,

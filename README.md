@@ -606,11 +606,16 @@ Debug and test builds optimise the dependencies, the stitch pipeline (`openstitc
 `Cargo.toml`), so the editor's and the Auto Punch tests run in minutes instead of an hour; debug
 assertions and overflow checks stay on. The first build takes a few minutes longer.
 
+Tests make their temporary folders with `openstitch_testutil::TempDir`, which deletes the folder
+when the test ends. Set `OPENSTITCH_KEEP_TEMP=1` to keep a failing test's folders; their paths
+are printed.
+
 CI runs the same checks on macOS, Windows and Linux for every pull request, checks that
 `docs/COMPATIBILITY_STATUS.md` matches the harness's result, and scans the history for secrets
 with gitleaks. CI builds with line-tables-only debug info (`CARGO_PROFILE_DEV_DEBUG`), and a new
 push to a pull request cancels that PR's run still in progress; runs on `main` and on tags are
-never cancelled.
+never cancelled. Only runs on `main` save the build cache; pull requests restore it, so they
+don't evict it from the repository's 10 GB of Actions cache.
 
 ## MCP server (Claude Code and other MCP clients)
 
@@ -654,7 +659,9 @@ Desktop, IDEs) take the same command and arguments in their MCP server configura
 ## Contributing
 
 - Work on a branch and open a pull request to `main`; nobody pushes to `main` directly.
-- A PR is merged once CI is green on all three operating systems.
+- A PR is merged once CI is green on all three operating systems. Merge scripts must treat a
+  cancelled (superseded) run as pending; see
+  [docs/RELEASING.md](docs/RELEASING.md#merging-pull-requests).
 - Every merge to `main` builds the executables (see [Download a build](#download-a-build)).
 - Every PR that changes a feature updates [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md); the
   README's status lists are generated from it (`python -I tools/readme_status.py --write`). The

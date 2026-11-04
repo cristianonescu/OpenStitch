@@ -453,8 +453,7 @@ mod tests {
 
     #[test]
     fn writes_plain_names_to_the_volume_root_without_overwriting() {
-        let dir = std::env::temp_dir().join(format!("openstitch-usb-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("dir");
+        let dir = openstitch_testutil::TempDir::new("usb");
         let p = write_to_volume(&dir, "../../etc/badge", "pes", b"x", false).expect("write");
         assert_eq!(p, dir.join("etcbadge.pes"));
         assert_eq!(

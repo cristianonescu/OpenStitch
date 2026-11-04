@@ -42,8 +42,7 @@ fn clients_without_file_access_cannot_list_or_send() {
 
 #[test]
 fn sandboxed_sessions_cannot_send_outside_their_roots() {
-    let root = std::env::temp_dir().join(format!("openstitch-usb-root-{}", std::process::id()));
-    std::fs::create_dir_all(&root).expect("root");
+    let root = openstitch_testutil::TempDir::new("usb-root");
     let mut s = Session::sandboxed(&root);
     // Whatever is mounted, its path is outside the root: detection may find nothing (CI), in
     // which case the command fails earlier; either way nothing is written.

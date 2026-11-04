@@ -8,17 +8,12 @@ use openstitch_core::Command;
 use openstitch_design::Compiler;
 use openstitch_digitize::Raster;
 use openstitch_engine::Session;
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-fn temp_dir(tag: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-coverage-digitize-{tag}-{}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir(tag: &str) -> TempDir {
+    TempDir::new(&format!("coverage-digitize-{tag}"))
 }
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {

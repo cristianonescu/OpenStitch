@@ -134,7 +134,7 @@ fn optimize_keeps_colour_groups_and_overlap_order() {
 
 #[test]
 fn optimize_entry_exit_option_persists_and_applies_to_new_shapes() {
-    let dir = std::env::temp_dir().join(format!("os-entry-exit-{}", std::process::id()));
+    let dir = openstitch_testutil::TempDir::new("os-entry-exit");
     let file = dir.join("user.json");
     let _ = std::fs::remove_file(&file);
     let mut s = Session::new(&dir);
@@ -338,8 +338,7 @@ fn hole_sewing_cuts_out_only_the_paired_shape() {
     assert!((again - holed).abs() < 1e-9, "{again} vs {holed}");
 
     // Saved and reopened, the pair is kept; turning it off clears it.
-    let dir = std::env::temp_dir().join(format!("os-holes-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).expect("dir");
+    let dir = openstitch_testutil::TempDir::new("os-holes");
     let mut t = Session::new(&dir);
     run(
         &mut t,

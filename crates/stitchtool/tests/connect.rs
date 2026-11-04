@@ -9,10 +9,8 @@ use std::time::Duration;
 
 #[test]
 fn connect_forwards_requests_to_the_editor() {
-    let file = std::env::temp_dir().join(format!(
-        "openstitch-connect-{}/automation.json",
-        std::process::id()
-    ));
+    let dir = openstitch_testutil::TempDir::new("connect");
+    let file = dir.join("automation.json");
     let server = Server::start(ServerConfig {
         endpoint_file: Some(file.clone()),
         ..Default::default()

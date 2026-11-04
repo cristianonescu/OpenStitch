@@ -1699,8 +1699,7 @@ mod tests {
 
         // Image commands need a background image.
         assert!(!enabled(&app, Action::ImageRotateRight));
-        let dir = std::env::temp_dir().join(format!("openstitch-view-ui-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("dir");
+        let dir = openstitch_testutil::TempDir::new("view-ui");
         let png = dir.join("bg.png");
         let raster =
             openstitch_digitize::Raster::from_fn(40, 20, |x, _| [x as u8 * 6, 90, 30, 255])

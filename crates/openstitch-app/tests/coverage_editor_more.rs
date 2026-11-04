@@ -6,18 +6,13 @@ use openstitch_app::editor::inspector::{self, Control, InspectorModel};
 use openstitch_app::editor::{CommandRequest, sew_kit};
 use openstitch_design::{Design, RegionType};
 use openstitch_engine::Session;
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 use std::path::Path;
 
-fn temp_dir(tag: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-coverage-editor-more-{tag}-{}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir(tag: &str) -> TempDir {
+    TempDir::new(&format!("coverage-editor-more-{tag}"))
 }
 
 fn kit_in(root: &Path, exe: &str, kit: &str) {

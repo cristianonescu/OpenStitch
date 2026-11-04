@@ -1,5 +1,6 @@
 use openstitch_design::Compiler;
 use openstitch_engine::Session;
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
@@ -275,10 +276,8 @@ fn machine_bad_parameters_fail_cleanly() {
     }
 }
 
-fn fresh_dir(name: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("openstitch-{name}-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn fresh_dir(name: &str) -> TempDir {
+    TempDir::new(name)
 }
 
 /// PE-DESIGN 11.50 writes a design larger than its Design Page (Export silently, Save As after

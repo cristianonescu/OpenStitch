@@ -6,20 +6,12 @@
 
 use openstitch_engine::Session;
 use openstitch_formats::pes;
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-fn temp_dir(tag: &str) -> PathBuf {
-    let n = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-pes-{tag}-{n}-{:?}",
-        std::thread::current().id()
-    ));
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir.canonicalize().expect("canonical")
+fn temp_dir(tag: &str) -> TempDir {
+    TempDir::canonical(&format!("pes-{tag}"))
 }
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
@@ -175,7 +167,8 @@ fn design_properties_reach_the_pes_header_byte_exact() {
 
 #[test]
 fn design_properties_are_validated_all_or_nothing() {
-    let mut s = Session::new(temp_dir("validate"));
+    let tmp = temp_dir("validate");
+    let mut s = Session::new(tmp.path());
     set_properties(&mut s);
     let before = s.design().properties.clone();
     for bad in [
@@ -259,7 +252,7 @@ fn pes_version_11_writes_editable_shapes_and_text_and_refuses_what_it_cannot_hol
     // becomes one CEmbLine in a #PES0110 file, a text one CEmbNText; what is not mapped yet is
     // refused with the object named.
     let dir = temp_dir("v11");
-    let mut s = Session::new(dir.clone());
+    let mut s = Session::new(&dir);
     run(
         &mut s,
         "design.new",
@@ -366,7 +359,7 @@ fn pes_version_11_writes_editable_shapes_and_text_and_refuses_what_it_cannot_hol
 fn pes_version_11_writes_text_fitted_to_an_outline() {
     // compat text-fit-default's design: ABCDE fitted to a 60 mm circle written before it.
     let dir = temp_dir("v11-fit");
-    let mut s = Session::new(dir.clone());
+    let mut s = Session::new(&dir);
     run(
         &mut s,
         "design.new",

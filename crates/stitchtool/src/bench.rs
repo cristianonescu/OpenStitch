@@ -704,9 +704,7 @@ mod tests {
             transport: Box::new(Scripted(Mutex::new(replies.into_iter().collect()))),
         };
         let pick = |id| TASKS.iter().find(|t| t.id == id).expect("task");
-        let dir =
-            std::env::temp_dir().join(format!("openstitch-bench-test-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("dir");
+        let dir = openstitch_testutil::TempDir::new("bench-test");
         let out = run(
             &backend,
             &[pick("wider"), pick("star"), pick("question")],

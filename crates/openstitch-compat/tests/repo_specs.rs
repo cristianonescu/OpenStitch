@@ -10,9 +10,9 @@ use std::path::Path;
 #[test]
 fn repository_specs_pass_and_the_status_table_is_current() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let work = std::env::temp_dir().join(format!("openstitch-compat-repo-{}", std::process::id()));
+    let work = openstitch_testutil::TempDir::new("compat-repo");
     let config = Config {
-        work_dir: work.clone(),
+        work_dir: work.to_path_buf(),
         ..Config::in_repo(&root)
     };
     let report = run_with_matrix(&config, Some(&root.join("docs/FEATURE_MATRIX.md"))).expect("run");

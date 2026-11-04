@@ -7,22 +7,16 @@
 use openstitch_design::LineType;
 use openstitch_engine::Session;
 use openstitch_formats::pes;
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
-use std::path::PathBuf;
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
     s.execute(id, Some(&params))
         .unwrap_or_else(|e| panic!("{id}: {e}"))
 }
 
-fn temp_dir(tag: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-coverage-formats-{tag}-{}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir(tag: &str) -> TempDir {
+    TempDir::new(&format!("coverage-formats-{tag}"))
 }
 
 #[test]

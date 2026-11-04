@@ -2,21 +2,12 @@
 
 use openstitch_engine::capabilities::{LIBRARY_READING_COMMANDS, required};
 use openstitch_engine::{Capabilities, Capability, Sandbox, Session};
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 
-fn temp_dir(tag: &str) -> PathBuf {
-    let n = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-lib-{tag}-{n}-{:?}",
-        std::thread::current().id()
-    ));
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    // Canonical, so paths in results compare equal (macOS /var is a link to /private/var).
-    dir.canonicalize().expect("canonical")
+fn temp_dir(tag: &str) -> TempDir {
+    TempDir::canonical(&format!("lib-{tag}"))
 }
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
@@ -65,7 +56,8 @@ fn names(rows: &Value) -> Vec<String> {
 
 #[test]
 fn library_reading_commands_exist_and_need_file_capabilities() {
-    let s = Session::new(temp_dir("caps"));
+    let tmp = temp_dir("caps");
+    let s = Session::new(tmp.path());
     for id in LIBRARY_READING_COMMANDS {
         assert!(s.commands().iter().any(|c| c.id == *id), "{id}");
     }
@@ -376,7 +368,8 @@ fn organise_folders_and_files() {
 }
 
 /// Read root `library` (designs), write root `work`, and `outside` with a design in it.
-fn sandboxed() -> (Session, PathBuf, PathBuf, PathBuf) {
+/// The session, its library, work and outside folders, and the guard that removes them.
+fn sandboxed() -> (Session, PathBuf, PathBuf, PathBuf, TempDir) {
     let base = temp_dir("sandbox");
     let (library, work, outside) = (
         base.join("library"),
@@ -387,12 +380,12 @@ fn sandboxed() -> (Session, PathBuf, PathBuf, PathBuf) {
         fixture(d);
     }
     let s = Session::with_sandbox(Sandbox::new(&[&library], &[&work]).expect("sandbox"));
-    (s, library, work, outside)
+    (s, library, work, outside, base)
 }
 
 #[test]
 fn sandbox_confines_every_library_path() {
-    let (mut s, library, work, outside) = sandboxed();
+    let (mut s, library, work, outside, _base) = sandboxed();
     // Reading inside the roots works.
     run(&mut s, "library.list", json!({"path": p(&library)}));
     run(
@@ -518,7 +511,7 @@ fn sandbox_confines_every_library_path() {
 #[test]
 fn links_out_of_the_roots_are_left_out() {
     use std::os::unix::fs::symlink;
-    let (mut s, library, work, outside) = sandboxed();
+    let (mut s, library, work, outside, _base) = sandboxed();
     symlink(outside.join("tulip.dst"), library.join("stolen.dst")).expect("link");
     symlink(&outside, library.join("elsewhere")).expect("link");
     symlink(&outside, work.join("web")).expect("link");

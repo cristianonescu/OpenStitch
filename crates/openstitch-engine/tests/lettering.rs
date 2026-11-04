@@ -1,19 +1,10 @@
 use openstitch_design::{Compiler, ObjectKind, Rect, v2};
 use openstitch_engine::{Session, project};
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
-use std::path::PathBuf;
 
-fn temp_dir() -> PathBuf {
-    let n = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-lettering-{n}-{:?}",
-        std::thread::current().id()
-    ));
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir() -> TempDir {
+    TempDir::new("lettering")
 }
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
@@ -30,7 +21,8 @@ fn bounds(s: &Session, id: u64) -> Rect {
 
 #[test]
 fn fonts_are_listed() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     let fonts = run(&mut s, "fonts.list", json!({}));
     let ids: Vec<&str> = fonts
         .as_array()
@@ -51,7 +43,8 @@ fn fonts_are_listed() {
 
 #[test]
 fn text_is_added_sewn_and_undone() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     let r = run(
         &mut s,
         "text.add",
@@ -80,7 +73,8 @@ fn text_is_added_sewn_and_undone() {
 
 #[test]
 fn set_text_changes_size_font_and_string() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(
         &mut s,
         "text.add",
@@ -119,7 +113,8 @@ fn set_text_changes_size_font_and_string() {
 
 #[test]
 fn moved_text_keeps_its_place_through_edits() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(&mut s, "text.add", json!({"text": "AB", "size": 10}));
     run(&mut s, "object.move", json!({"id": 1, "dx": 10, "dy": -5}));
     run(&mut s, "object.rotate", json!({"id": 1, "degrees": 90}));
@@ -134,7 +129,8 @@ fn moved_text_keeps_its_place_through_edits() {
 
 #[test]
 fn text_follows_its_path() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     // An arc: from (10, 60) bulging up to (90, 60).
     run(
         &mut s,
@@ -198,7 +194,8 @@ fn text_follows_its_path() {
 
 #[test]
 fn fit_text_to_outline_options_and_one_text_per_outline() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(
         &mut s,
         "shape.ellipse",
@@ -262,7 +259,8 @@ fn fit_text_to_outline_options_and_one_text_per_outline() {
 
 #[test]
 fn text_transform_presets_are_set_refused_when_fitted_and_cancelled_by_fitting() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(
         &mut s,
         "shape.ellipse",
@@ -316,7 +314,8 @@ fn text_transform_presets_are_set_refused_when_fitted_and_cancelled_by_fitting()
 #[test]
 fn new_text_takes_pe_design_text_sewing_defaults() {
     use openstitch_design::RegionType;
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(
         &mut s,
         "text.add",
@@ -349,7 +348,8 @@ fn new_text_takes_pe_design_text_sewing_defaults() {
 
 #[test]
 fn convert_to_shapes_keeps_the_outlines_and_sews_them_as_regions() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(
         &mut s,
         "text.add",
@@ -463,7 +463,8 @@ fn osd_round_trip_and_backward_compatibility() {
 
 #[test]
 fn lettering_bad_input_fails_cleanly() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(
         &mut s,
         "shape.rectangle",
@@ -518,7 +519,8 @@ fn lettering_bad_input_fails_cleanly() {
 
 #[test]
 fn longest_text_lays_out_and_sews() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     let line = "The quick brown fox jumps over the lazy dog 0123456\n";
     let text: String = line.repeat(40).chars().take(2000).collect();
     assert_eq!(text.chars().count(), 2000);
@@ -539,7 +541,8 @@ fn longest_text_lays_out_and_sews() {
 
 #[test]
 fn text_transform_level_is_set_checked_and_reset_by_a_new_preset() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     let text = |s: &Session| s.design().objects[0].text.clone().expect("text");
     // Without a preset a level means nothing.
     assert!(

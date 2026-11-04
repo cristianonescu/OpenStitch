@@ -44,7 +44,10 @@ runtime dependencies are only `serde`, `serde_json`, `ttf-parser` (see Lettering
 - `rust.yml` runs fmt, build, test and clippy on macos-latest, windows-latest and ubuntu-latest
   for every pull request and every push to `main`. The ubuntu-latest job then runs the
   compatibility specs (`stitchtool compat --check-status docs/COMPATIBILITY_STATUS.md`). It
-  uploads the report as the `compat-report` artifact.
+  uploads the report as the `compat-report` artifact. On Linux the tests run with an empty
+  `TMPDIR`, and the job fails if they leave anything in it. Only `main` saves the rust-cache
+  entry (also when its tests fail); pull requests restore it. The slowest job is Windows, and
+  its warm build goes to compiling the test targets; see #357 and #403 for the measurements.
 - On `main`, it then calls `build-executables.yml`, which builds `openstitch`, `stitchtool` and
   `openstitch-mcp`: universal arm64 + x86_64 via `lipo` on macOS, x86_64 on Linux and Windows.
   It smoke-tests them with `stitchtool exec examples/badge.json` and packages them with

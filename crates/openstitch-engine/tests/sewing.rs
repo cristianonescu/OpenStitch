@@ -2,20 +2,11 @@
 
 use openstitch_design::sewing::{SewingKind, SewingStitch};
 use openstitch_engine::{Session, project};
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
-use std::path::PathBuf;
 
-fn temp_dir() -> PathBuf {
-    let n = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-sewing-{n}-{:?}",
-        std::thread::current().id()
-    ));
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir() -> TempDir {
+    TempDir::new("sewing")
 }
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
@@ -117,7 +108,8 @@ fn sewing_stitches_are_defined_listed_exported_and_undone() {
     // Kept in the project; designs without them serialize as before.
     let bytes = project::encode(s.design()).expect("encode");
     assert_eq!(&project::decode(&bytes).expect("decode"), s.design());
-    let empty = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let empty = Session::new(tmp.path());
     let text = String::from_utf8(project::encode(empty.design()).expect("encode")).expect("utf8");
     assert!(!text.contains("sewing"));
 }
@@ -231,7 +223,8 @@ fn hostile_sewing_input_fails_cleanly() {
 
 #[test]
 fn swap_and_duplicate_edit_project_patterns_with_one_undo_each() {
-    let mut s = Session::sandboxed(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::sandboxed(&tmp);
     for kind in SewingKind::ALL {
         run(&mut s, "sewing.define", json!({ "stitch": doc(kind) }));
     }

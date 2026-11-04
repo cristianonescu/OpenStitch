@@ -5,20 +5,12 @@
 use openstitch_design::Rect;
 use openstitch_digitize::Raster;
 use openstitch_engine::Session;
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-fn temp_dir() -> PathBuf {
-    let n = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-fontimage-{n}-{:?}",
-        std::thread::current().id()
-    ));
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir() -> TempDir {
+    TempDir::new("fontimage")
 }
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
@@ -104,7 +96,7 @@ fn near(a: f64, b: f64, tol: f64) -> bool {
 fn an_alphabet_image_splits_into_characters_in_reading_order() {
     let dir = temp_dir();
     alphabet(&dir);
-    let mut s = Session::new(dir);
+    let mut s = Session::new(&dir);
     run(&mut s, "fonts.create", json!({"id": "drawn", "height": 10}));
     let t = run(
         &mut s,
@@ -197,7 +189,7 @@ fn the_whole_background_image_becomes_one_character_where_it_is_placed() {
             |x, y| inside(x, y, 45, 85, 55, 95),
         ],
     );
-    let mut s = Session::new(dir);
+    let mut s = Session::new(&dir);
     run(&mut s, "fonts.create", json!({"id": "frame", "height": 12}));
     // 0.5 mm per pixel: the square's ink spans 20-50 mm across and 30-60 mm down.
     run(
@@ -259,7 +251,7 @@ fn light_lettering_on_a_dark_ground_is_found() {
             |x, y| inside(x, y, 40, 10, 60, 30),
         ],
     );
-    let mut s = Session::new(dir);
+    let mut s = Session::new(&dir);
     run(&mut s, "fonts.create", json!({"id": "neg", "height": 10}));
     let t = run(&mut s, "fonts.traceImage", json!({"path": "dark.png"}));
     assert_eq!(t["inverted"], true, "{t}");
@@ -284,7 +276,7 @@ fn bad_image_requests_fail_cleanly_and_change_nothing() {
     alphabet(&dir);
     write(&dir, "blank.png", 50, 50, BLACK, WHITE, &[]);
     std::fs::write(dir.join("junk.png"), b"not an image").expect("write");
-    let mut s = Session::new(dir);
+    let mut s = Session::new(&dir);
     run(&mut s, "fonts.create", json!({"id": "f", "height": 10}));
     let bad = [
         json!({"font": "f", "chars": "A"}),

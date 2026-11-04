@@ -4,18 +4,13 @@
 #![cfg(feature = "library")]
 
 use openstitch_engine::Session;
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-fn temp_dir(tag: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-coverage-library-{tag}-{}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir.canonicalize().expect("canonical")
+fn temp_dir(tag: &str) -> TempDir {
+    TempDir::canonical(&format!("coverage-library-{tag}"))
 }
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
