@@ -41,8 +41,8 @@ below are claims no test checks.
 Smaller weak points still without a test, recorded in #356: the Optimise mode box and mixed-trim
 checkbox (inline egui code); the MSI and macOS `.pes` file associations and
 `tools/sew_kit.py --check` in CI (the CI workflow's owner). Each needs a seam in the product code
-or a CI step, not only a test. (Solid View's drawing, first listed there, turned out reachable
-without a seam: #378.) Snap to Grid for curve handles and the Arrange handle is also in #356.
+or a CI step, not only a test. (Solid View's drawing and Snap to Grid for handles, first listed
+there, turned out reachable without a seam: #378, #379.)
 
 ## Closed
 
@@ -94,3 +94,4 @@ without a seam: #378.) Snap to Grid for curve handles and the Arrange handle is 
 | Editor | Inspector | weak: choice and toggle controls not round-tripped | #351: `crates/openstitch-app/tests/coverage_editor_more.rs` |
 | Lettering | Complex scripts, CJK | weak: `right_to_left_scripts_with_a_system_font` and `cjk_text_with_a_system_font` passed without checking when no suitable system font is installed; Indic reordering checked only as a script-run split | #345: Noto test subsets in `crates/openstitch-engine/tests/fixtures/fonts` (provenance and OFL there); `shaping.rs` `right_to_left_scripts_with_the_bundled_test_fonts`, `devanagari_vowel_sign_i_is_drawn_before_its_consonant`; `fonts.rs` `cjk_text_with_the_bundled_test_font` |
 | Simulation | Solid View | weak: only the mode toggle tested, not the drawing (0.7 mm, unshaded) | #378: `crates/openstitch-app/src/app_coverage_tests.rs` (`draw_solid`'s shapes read back from egui's frame output) |
+| Editor | Snap to Grid | weak: curve handles and the Arrange Copies handle untested | #379: `crates/openstitch-app/src/app_coverage_tests.rs` |

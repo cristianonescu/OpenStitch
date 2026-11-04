@@ -1,9 +1,9 @@
 //! Coverage for `EditorApp` behaviour FEATURE_MATRIX claims that no other test asserts (#332):
 //! File ▸ Import into design, the undo/redo and arrow-nudge keys, the simulator's play, and the
 //! window close request going through the unsaved-changes prompt; the Fit Text dialog
-//! remembering its last choices (#351); and Solid View's drawing (#378). A child module of
-//! `app` so it can drive the private frame steps (`shortcuts`, `tick`, `close_request`) as
-//! `update` does.
+//! remembering its last choices (#351); Solid View's drawing (#378) and Snap to Grid for curve
+//! handles and the Arrange Copies handle (#379). A child module of `app` so it can drive the
+//! private frame steps (`shortcuts`, `tick`, `close_request`) as `update` does.
 
 use super::*;
 
@@ -374,4 +374,84 @@ fn solid_view_draws_each_colour_block_as_flat_thread_0_7_mm_wide() {
             .iter()
             .all(|s| matches!(s, egui::Shape::LineSegment { stroke, .. } if stroke.width == 1.0))
     );
+}
+
+/// A Down, Dragged, Up pointer gesture through the tools, as the canvas sends it.
+fn tool_gesture(app: &mut EditorApp, from: openstitch_design::Vec2, to: openstitch_design::Vec2) {
+    use openstitch_app::editor::{Phase, PointerEvent};
+    for (phase, at) in [(Phase::Down, from), (Phase::Dragged, to), (Phase::Up, to)] {
+        app.with_tools(|t, c| t.handle(PointerEvent::new(phase, at), c));
+    }
+}
+
+#[test]
+fn snap_to_grid_places_a_dragged_curve_handle_on_the_grid() {
+    use openstitch_design::v2;
+    // A 20 mm square whose top edge is a curve with handles at (15, 10) and (25, 10) mm.
+    let curved = |snap: bool| {
+        let mut app = EditorApp::new(Launch::default());
+        app.execute(&rectangle(10.0)).expect("square");
+        app.execute(&CommandRequest::new(
+            "object.setSegment",
+            json!({ "id": 1, "segment": 0, "curve": [[15, 10], [25, 10]] }),
+        ))
+        .expect("curve");
+        if snap {
+            app.toggle_snap_to_grid();
+            app.workspace.grid.spacing_mm = 1.0;
+        }
+        app.tools.set_tool(Tool::Point);
+        app.selection = BTreeSet::from([1]);
+        app
+    };
+    let first_handle = |app: &EditorApp| {
+        app.session.design().objects[0].contours[0]
+            .curve(0)
+            .expect("curve")
+            .c1
+    };
+
+    let mut app = curved(true);
+    assert_eq!(first_handle(&app), v2(150.0, 100.0));
+    tool_gesture(&mut app, v2(151.0, 101.0), v2(163.0, 128.0));
+    assert_eq!(first_handle(&app), v2(160.0, 130.0), "on the 1 mm grid");
+    app.undo();
+    assert_eq!(first_handle(&app), v2(150.0, 100.0), "one undo step");
+
+    // Off: the handle goes where it is dropped.
+    let mut app = curved(false);
+    tool_gesture(&mut app, v2(151.0, 101.0), v2(163.0, 128.0));
+    assert_eq!(first_handle(&app), v2(163.0, 128.0));
+}
+
+#[test]
+fn snap_to_grid_places_the_arrange_copies_handle_on_the_grid() {
+    use crate::edit_ui::drag;
+    use openstitch_app::editor::Phase;
+    use openstitch_app::editor::edit_ops::ArrangeMode;
+    use openstitch_design::v2;
+    // Mirror copies of a 20 mm square: the handle is the mirror axis on its right edge, and
+    // the gap between the square and its copy is twice the handle's distance from the edge.
+    let spacing_after_drag = |snap: bool, to: f64| {
+        let mut app = EditorApp::new(Launch::default());
+        app.execute(&rectangle(10.0)).expect("square");
+        if snap {
+            app.toggle_snap_to_grid();
+            app.workspace.grid.spacing_mm = 10.0;
+        }
+        app.selection = BTreeSet::from([1]);
+        app.edit.arrange_open = true;
+        app.edit.arrange.mode = ArrangeMode::MirrorHorizontal;
+        assert!(drag(&mut app, Phase::Down, v2(301.0, 199.0)), "handle");
+        assert!(drag(&mut app, Phase::Dragged, v2(to, 230.0)));
+        assert!(drag(&mut app, Phase::Up, v2(to, 230.0)));
+        app.edit.arrange.spacing
+    };
+    // On: dropped at 37.2 mm, the axis lands on the 40 mm grid line, 10 mm right of the edge.
+    assert_eq!(spacing_after_drag(true, 372.0), 20.0);
+    // A drag the grid rounds back to the edge leaves no gap.
+    assert_eq!(spacing_after_drag(true, 340.0), 0.0);
+    // Off: the axis is where it is dropped, 7.2 mm right of the edge.
+    let off = spacing_after_drag(false, 372.0);
+    assert!((off - 14.4).abs() < 1e-9, "{off}");
 }
