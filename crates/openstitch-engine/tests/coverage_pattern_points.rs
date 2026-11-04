@@ -1,6 +1,6 @@
 //! Coverage for the pattern reference point on the region types FEATURE_MATRIX lists beyond
 //! programmable and motif fill (cross stitch, net, zigzag net, decorative fill), and the centre
-//! point on spiral (#351; it has no effect there, #354).
+//! point on spiral (#351): PE-DESIGN's spiral has no centre point, so the command refuses it (#354).
 
 use openstitch_core::Command;
 use openstitch_design::Compiler;
@@ -67,19 +67,24 @@ fn the_reference_point_moves_the_pattern_of_every_patterned_fill() {
 }
 
 #[test]
-#[ignore = "#354"]
-fn the_centre_point_moves_a_spiral() {
+fn a_spiral_refuses_a_centre_point() {
     let (mut s, id) = region("spiral");
     let default = needle_points(&s);
+    assert!(!default.is_empty(), "the spiral sews");
+    let err = s
+        .execute(
+            "object.setCenterPoint",
+            Some(&json!({"id": id, "point": [20, 20]})),
+        )
+        .expect_err("PE-DESIGN's spiral follows its outline and has no centre point");
+    assert!(err.to_string().contains("no such setting"), "{err}");
+    let centre = s.design().objects[0].region.as_ref().and_then(|r| r.center);
+    assert_eq!(centre, None, "nothing is stored");
+    assert_eq!(needle_points(&s), default);
+    // Clearing it (null) is accepted on any region type.
     run(
         &mut s,
         "object.setCenterPoint",
-        json!({"id": id, "point": [20, 20]}),
+        json!({"id": id, "point": null}),
     );
-    let moved = needle_points(&s);
-    assert_ne!(moved, default, "the spiral winds about the new centre");
-    let centre = s.design().objects[0].region.as_ref().and_then(|r| r.center);
-    assert!(centre.is_some());
-    run(&mut s, "history.undo", json!({}));
-    assert_eq!(needle_points(&s), default);
 }

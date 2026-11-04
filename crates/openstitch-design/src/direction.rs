@@ -21,12 +21,11 @@ pub const CURVE_TYPES: [RegionType; 4] = [
     RegionType::MotifFill,
 ];
 
-/// Region types with a centre point.
-pub const CENTER_TYPES: [RegionType; 3] = [
-    RegionType::ConcentricCircle,
-    RegionType::Radial,
-    RegionType::Spiral,
-];
+/// Region types with a centre point. PE-DESIGN 11.50's Spiral Stitch has none: its region
+/// attributes are Density, Run pitch and Start Point only (pe-refs-4 rounds 4–7), and the
+/// spiral is the outline offset inwards a row per turn, so it ends where the offsets meet
+/// (#354).
+pub const CENTER_TYPES: [RegionType; 2] = [RegionType::ConcentricCircle, RegionType::Radial];
 
 /// Region types with a pattern reference point.
 pub const REFERENCE_TYPES: [RegionType; 6] = [

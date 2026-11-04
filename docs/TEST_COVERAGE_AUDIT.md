@@ -36,7 +36,7 @@ below are claims no test checks.
 | Area | Feature (matrix row) | Gap | Plan | Issue |
 |---|---|---|---|---|
 | Files | Import SVG: `<line>` | **fixed** (2026-11-04): every `<line>` element was dropped on import (SVG's default fill closed its two-point subpath, which was then discarded) | `svg_line_elements_import_as_running_lines` runs; `imports::tests::line_elements_import_as_open_strokes` | #341 |
-| Editing | Centre point for spiral (`object.setCenterPoint`) | **bug**: moving spiral's centre point changes no stitch | fix in the engine; then un-ignore `the_centre_point_moves_a_spiral` (`coverage_pattern_points.rs`) | #354 |
+| Editing | Centre point for spiral (`object.setCenterPoint`) | fixed: PE-DESIGN's spiral has no centre point, so the command refuses it on spiral | `a_spiral_refuses_a_centre_point` (`coverage_pattern_points.rs`) | #354 (closed) |
 
 Smaller weak points still without a test, recorded in #356: the Optimise mode box and mixed-trim
 checkbox (inline egui code); the MSI and macOS `.pes` file associations and
