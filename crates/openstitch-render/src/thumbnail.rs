@@ -186,8 +186,7 @@ mod tests {
 
     #[test]
     fn loads_projects_and_machine_files_and_rejects_others() {
-        let dir = std::env::temp_dir().join(format!("openstitch-thumb-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("dir");
+        let dir = openstitch_testutil::TempDir::new("thumb");
         let pes = dir.join("a.pes");
         std::fs::write(&pes, FileType::Pes.write(&square()).expect("pes")).expect("write");
         assert!(load(&pes).expect("pes").count(Command::Stitch) >= 5);

@@ -445,9 +445,12 @@ mod tests {
     /// An absolute scratch folder on every OS (`/tmp/...` is not absolute on Windows). It must
     /// exist: the gate resolves symlinks.
     fn scratch() -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!("openstitch-gate-test-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("scratch");
-        dir
+        thread_local! {
+            // One folder per test (each test runs on its own thread), removed when it ends.
+            static SCRATCH: openstitch_testutil::TempDir =
+                openstitch_testutil::TempDir::new("gate-test");
+        }
+        SCRATCH.with(|d| d.to_path_buf())
     }
 
     fn in_scratch(name: &str) -> String {
@@ -561,9 +564,7 @@ mod tests {
     #[test]
     fn a_link_in_the_scratch_folder_that_points_elsewhere_is_outside() {
         let dir = scratch();
-        let outside =
-            std::env::temp_dir().join(format!("openstitch-gate-outside-{}", std::process::id()));
-        std::fs::create_dir_all(&outside).expect("outside");
+        let outside = openstitch_testutil::TempDir::new("gate-outside");
         std::fs::write(outside.join("secret.svg"), "<svg/>").expect("file");
         let link = dir.join("link");
         let _ = std::fs::remove_file(&link);

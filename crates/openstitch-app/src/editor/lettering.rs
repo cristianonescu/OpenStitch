@@ -792,9 +792,7 @@ mod tests {
 
     #[test]
     fn characters_from_an_image_are_found_assigned_and_stored() {
-        let dir =
-            std::env::temp_dir().join(format!("openstitch-app-fontimage-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("dir");
+        let dir = openstitch_testutil::TempDir::new("app-fontimage");
         // Three bars of ink; the middle one is skipped.
         let img = openstitch_digitize::Raster::from_fn(90, 40, |x, y| {
             if (10..30).contains(&y) && [5, 35, 65].iter().any(|&x0| (x0..x0 + 10).contains(&x)) {
@@ -806,7 +804,7 @@ mod tests {
         .expect("raster");
         let path = dir.join("bars.png");
         std::fs::write(&path, img.encode_png().expect("png")).expect("write");
-        let mut s = Session::new(dir);
+        let mut s = Session::new(&dir);
         let mut form = FontsForm {
             new_id: "bars".into(),
             ..FontsForm::default()
@@ -865,9 +863,7 @@ mod tests {
 
     #[test]
     fn name_drop_list_edits_rows_and_exports() {
-        let dir =
-            std::env::temp_dir().join(format!("openstitch-app-namedrop-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("dir");
+        let dir = openstitch_testutil::TempDir::new("app-namedrop");
         let mut s = Session::new(&dir);
         let id = run(
             &mut s,
@@ -926,9 +922,7 @@ mod tests {
 
     #[test]
     fn text_form_and_font_loading_go_through_the_engine() {
-        let dir =
-            std::env::temp_dir().join(format!("openstitch-app-lettering-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("dir");
+        let dir = openstitch_testutil::TempDir::new("app-lettering");
         let font = dir.join("mine.ttf");
         std::fs::write(
             &font,

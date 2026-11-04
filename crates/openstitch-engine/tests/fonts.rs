@@ -3,20 +3,12 @@
 
 use openstitch_design::fonts::MAX_FONT_BYTES;
 use openstitch_engine::{Capabilities, Session, project};
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-fn temp_dir() -> PathBuf {
-    let n = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-fonts-{n}-{:?}",
-        std::thread::current().id()
-    ));
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir() -> TempDir {
+    TempDir::new("fonts")
 }
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
@@ -30,7 +22,7 @@ fn lato() -> &'static [u8] {
 
 /// A session whose directory holds `user.ttf` (a copy of Lato Bold standing in for a font the
 /// user picked).
-fn session_with_font() -> (Session, PathBuf) {
+fn session_with_font() -> (Session, TempDir) {
     let dir = temp_dir();
     std::fs::write(dir.join("user.ttf"), lato()).expect("font");
     (Session::new(&dir), dir)
@@ -38,7 +30,7 @@ fn session_with_font() -> (Session, PathBuf) {
 
 #[test]
 fn a_user_font_lays_out_like_the_same_bundled_font() {
-    let (mut s, _) = session_with_font();
+    let (mut s, _dir) = session_with_font();
     let r = run(&mut s, "fonts.loadTrueType", json!({"path": "user.ttf"}));
     assert_eq!(
         r["id"], "lato-bold-2",
@@ -226,7 +218,8 @@ fn font_loading_obeys_the_sandbox_and_capabilities() {
 
 #[test]
 fn text_in_scripts_the_font_lacks_is_missing_not_unshaped() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     // TrueType text is shaped; Lato simply has no Arabic letters.
     let r = run(&mut s, "text.add", json!({"text": "Ab \u{0628}\u{0627}"}));
     assert_eq!(r["glyphs"], 2);
@@ -252,7 +245,8 @@ fn cjk_text_with_a_system_font() {
         eprintln!("no CJK system font; skipped");
         return;
     };
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     let Ok(r) = s.execute(
         "fonts.loadTrueType",
         Some(&json!({ "path": path.display().to_string(), "id": "cjk" })),

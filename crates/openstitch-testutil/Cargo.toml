@@ -1,0 +1,16 @@
+[package]
+name = "openstitch-testutil"
+description = "Test helpers shared by the OpenStitch crates' tests (a dev-dependency only)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+# Helpers only: no tests of its own, so no extra test binary to build and link.
+test = false
+doctest = false
+
+[lints]
+workspace = true

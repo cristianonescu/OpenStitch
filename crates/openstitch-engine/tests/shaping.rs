@@ -3,20 +3,12 @@
 use openstitch_design::Rect;
 use openstitch_design::text::{self, TextDirection, TextSpec};
 use openstitch_engine::{Session, project};
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-fn temp_dir() -> PathBuf {
-    let n = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-shaping-{n}-{:?}",
-        std::thread::current().id()
-    ));
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir() -> TempDir {
+    TempDir::new("shaping")
 }
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
@@ -41,7 +33,8 @@ fn spec(s: &Session, id: u64) -> TextSpec {
 
 #[test]
 fn kerning_and_direction_are_text_options() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(&mut s, "text.add", json!({"text": "AVAVAV", "size": 20}));
     let plain = bounds(&s, 1);
     run(&mut s, "object.setText", json!({"id": 1, "kerning": true}));
@@ -149,7 +142,8 @@ fn single_characters_are_edited_saved_and_reset() {
 
 #[test]
 fn name_drop_resets_character_edits() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(&mut s, "text.add", json!({"text": "Name"}));
     run(
         &mut s,
@@ -187,7 +181,8 @@ fn right_to_left_scripts_with_a_system_font() {
         eprintln!("no system font with the Hebrew and Arabic test characters; skipped");
         return;
     };
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     if s.execute(
         "fonts.loadTrueType",
         Some(&json!({ "path": path.display().to_string(), "id": "rtl" })),

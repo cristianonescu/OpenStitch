@@ -4,20 +4,12 @@
 use openstitch_core::Command;
 use openstitch_design::{Compiler, ObjectKind, Rect};
 use openstitch_engine::Session;
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
-use std::path::PathBuf;
+use std::path::Path;
 
-fn temp_dir() -> PathBuf {
-    let n = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-mapped-{n}-{:?}",
-        std::thread::current().id()
-    ));
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir() -> TempDir {
+    TempDir::new("mapped")
 }
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
@@ -26,7 +18,7 @@ fn run(s: &mut Session, id: &str, params: Value) -> Value {
 }
 
 /// Writes a stitch file holding one preset shape `width` mm wide.
-fn export_shape(dir: &PathBuf, file: &str, kind: &str, width: f64, fill: &str) {
+fn export_shape(dir: &Path, file: &str, kind: &str, width: f64, fill: &str) {
     let mut s = Session::new(dir);
     run(
         &mut s,
@@ -47,7 +39,7 @@ fn bounds(s: &Session, id: u64) -> Rect {
         .expect("bounds")
 }
 
-fn mapped_session() -> (Session, PathBuf) {
+fn mapped_session() -> (Session, TempDir) {
     let dir = temp_dir();
     export_shape(&dir, "u_A.pes", "star", 10.0, "Red");
     export_shape(&dir, "l_b.pes", "heart", 8.0, "Blue");
@@ -64,7 +56,7 @@ fn mapped_session() -> (Session, PathBuf) {
 
 #[test]
 fn files_map_to_characters_by_name() {
-    let (mut s, _) = mapped_session();
+    let (mut s, _dir) = mapped_session();
     let r = run(
         &mut s,
         "fonts.mapFiles",
@@ -87,7 +79,7 @@ fn files_map_to_characters_by_name() {
 
 #[test]
 fn mapped_text_places_the_patterns_in_sequence() {
-    let (mut s, _) = mapped_session();
+    let (mut s, _dir) = mapped_session();
     run(
         &mut s,
         "fonts.mapFiles",
@@ -157,7 +149,8 @@ fn mapped_text_places_the_patterns_in_sequence() {
 
 #[test]
 fn design_objects_and_offsets_become_glyphs() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(&mut s, "fonts.create", json!({"id": "deco", "height": 10}));
     let heart = run(
         &mut s,

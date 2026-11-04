@@ -6,8 +6,7 @@ use std::process::{Command, Stdio};
 
 #[test]
 fn binary_speaks_json_rpc_over_stdio() {
-    let root = std::env::temp_dir().join(format!("openstitch-mcp-stdio-{}", std::process::id()));
-    std::fs::create_dir_all(&root).expect("root");
+    let root = openstitch_testutil::TempDir::new("mcp-stdio");
     let mut child = Command::new(env!("CARGO_BIN_EXE_openstitch-mcp"))
         .args([
             "--root",

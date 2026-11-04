@@ -2,20 +2,11 @@
 //! design.
 
 use openstitch_engine::{Capabilities, Session};
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
-use std::path::PathBuf;
 
-fn temp_dir() -> PathBuf {
-    let n = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-user-{n}-{:?}",
-        std::thread::current().id()
-    ));
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir() -> TempDir {
+    TempDir::new("user")
 }
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
@@ -182,14 +173,16 @@ fn thread_charts_edit_import_and_remap() {
 
 #[test]
 fn read_only_clients_cannot_change_settings() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     s.set_capabilities(Capabilities::FULL.read_only());
     assert!(
         s.execute("threads.createChart", Some(&json!({"name": "X"})))
             .is_err()
     );
     assert!(s.execute("threads.charts", None).is_ok());
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(&mut s, "threads.createChart", json!({"name": "X"}));
     s.set_capabilities(Capabilities::FULL.without_files());
     assert!(

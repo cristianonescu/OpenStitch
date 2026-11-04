@@ -13,6 +13,8 @@ serde_json.workspace = true
 getrandom = "0.3.4"
 
 [dev-dependencies]
+# Temp folders that are removed when a test ends (#366).
+openstitch-testutil.workspace = true
 openstitch-engine = { path = "../openstitch-engine" }
 
 [lints]

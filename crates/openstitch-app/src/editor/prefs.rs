@@ -353,7 +353,7 @@ mod tests {
 
     #[test]
     fn saves_beside_the_user_settings() {
-        let dir = std::env::temp_dir().join(format!("openstitch-ui-{}", std::process::id()));
+        let dir = openstitch_testutil::TempDir::new("ui");
         let path = path_beside(&dir.join("user.json"));
         assert!(path.ends_with("ui.json"));
         assert_eq!(UiPrefs::load(&path), UiPrefs::default());

@@ -3,17 +3,11 @@
 
 use openstitch_design::fonts::{MAX_DESIGN_FONTS, MAX_FONT_BYTES, MAX_TOTAL_FONT_BYTES};
 use openstitch_engine::Session;
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
-use std::path::PathBuf;
 
-fn temp_dir(tag: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-coverage-lettering-{tag}-{}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir(tag: &str) -> TempDir {
+    TempDir::new(&format!("coverage-lettering-{tag}"))
 }
 
 fn lato() -> &'static [u8] {

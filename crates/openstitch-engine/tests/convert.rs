@@ -181,7 +181,8 @@ fn whole_and_parts_on_a_two_colour_pattern() {
     let mut d = s.design().clone();
     d.objects.truncate(1);
     d.objects[0].stitch_block = Some(merged);
-    let path = std::env::temp_dir().join(format!("convert-{}.osd", std::process::id()));
+    let path_tmp = openstitch_testutil::TempDir::new("convert");
+    let path = path_tmp.join("convert.osd");
     std::fs::write(
         &path,
         openstitch_engine::project::encode(&d).expect("encode"),
@@ -281,7 +282,8 @@ fn bad_conversion_parameters_fail_cleanly() {
         .expect("block")
         .stitches
         .retain(|st| st.command != openstitch_core::Command::Stitch);
-    let path = std::env::temp_dir().join(format!("convert-jumps-{}.osd", std::process::id()));
+    let path_tmp = openstitch_testutil::TempDir::new("convert-jumps");
+    let path = path_tmp.join("convert-jumps.osd");
     std::fs::write(
         &path,
         openstitch_engine::project::encode(&d).expect("encode"),

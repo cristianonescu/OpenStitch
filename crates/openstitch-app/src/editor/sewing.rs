@@ -389,14 +389,7 @@ mod tests {
 
     #[test]
     fn every_kind_reaches_the_project_and_exports() {
-        let dir = std::env::temp_dir().join(format!(
-            "openstitch-sdf-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_nanos())
-                .unwrap_or(0)
-        ));
-        std::fs::create_dir_all(&dir).expect("dir");
+        let dir = openstitch_testutil::TempDir::new("sdf");
         let mut s = Session::sandboxed(&dir);
         for kind in SewingKind::ALL {
             let e = SewingEditor::new(kind);

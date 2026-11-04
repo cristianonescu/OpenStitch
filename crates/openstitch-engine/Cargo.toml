@@ -28,5 +28,9 @@ usvg = { version = "0.48.1", default-features = false, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 
+[dev-dependencies]
+# Temp folders that are removed when a test ends (#366).
+openstitch-testutil.workspace = true
+
 [lints]
 workspace = true

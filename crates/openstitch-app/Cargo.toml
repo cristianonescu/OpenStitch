@@ -46,5 +46,9 @@ egui_commonmark = { version = "0.26", default-features = false, features = ["pul
 [target.'cfg(target_os = "macos")'.dependencies]
 winit = { version = "0.30", default-features = false }
 
+[dev-dependencies]
+# Temp folders that are removed when a test ends (#366).
+openstitch-testutil.workspace = true
+
 [lints]
 workspace = true

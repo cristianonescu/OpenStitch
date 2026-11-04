@@ -1489,7 +1489,7 @@ mod tests {
 
     #[test]
     fn pasted_pixels_are_stored_as_png_and_become_the_background() {
-        let dir = std::env::temp_dir().join(format!("openstitch-paste-{}", std::process::id()));
+        let dir = openstitch_testutil::TempDir::new("paste");
         let rgba: Vec<u8> = (0..4 * 3 * 2).map(|i| (i * 10) as u8).collect();
         let path = store_pasted_image(&dir, 3, 2, rgba.clone()).expect("store");
         assert_eq!(store_pasted_image(&dir, 3, 2, rgba).expect("again"), path);
@@ -1673,8 +1673,7 @@ mod tests {
         app.execute(&ellipse()).expect("edit");
         assert!(app.is_dirty());
 
-        let dir = std::env::temp_dir().join(format!("openstitch-dirty-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("dir");
+        let dir = openstitch_testutil::TempDir::new("dirty");
         let file = dir.join("design.osd");
         app.path = Some(file.clone());
         app.save(false);
@@ -1778,8 +1777,7 @@ mod tests {
         assert!(!app.is_dirty() && !app.exit_approved());
 
         // Save with a file: saves, then goes on.
-        let dir = std::env::temp_dir().join(format!("openstitch-prompt-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("dir");
+        let dir = openstitch_testutil::TempDir::new("prompt");
         let file = dir.join("design.osd");
         app.execute(&ellipse()).expect("edit");
         app.path = Some(file.clone());

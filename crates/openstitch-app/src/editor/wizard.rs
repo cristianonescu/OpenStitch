@@ -413,8 +413,7 @@ mod tests {
 
     #[test]
     fn every_method_converts_in_one_command() {
-        let dir = std::env::temp_dir().join(format!("openstitch-wizard-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("dir");
+        let dir = openstitch_testutil::TempDir::new("wizard");
         let mut w = ImageWizard::default();
         assert!(w.request().is_none(), "no image yet");
         w.path = Some(sample(&dir));

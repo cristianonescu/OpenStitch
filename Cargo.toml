@@ -17,6 +17,7 @@ members = [
     "crates/openstitch-compat",
     "crates/openstitch-update",
     "crates/openstitch-assistant",
+    "crates/openstitch-testutil",
 ]
 exclude = ["crates/openstitch-formats/fuzz"]
 
@@ -29,6 +30,7 @@ rust-version = "1.88"
 
 [workspace.dependencies]
 openstitch-core = { path = "crates/openstitch-core" }
+openstitch-testutil = { path = "crates/openstitch-testutil" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 

@@ -4,20 +4,11 @@
 use openstitch_core::Command;
 use openstitch_design::{Compiler, ObjectKind, Rect};
 use openstitch_engine::Session;
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
-use std::path::PathBuf;
 
-fn temp_dir() -> PathBuf {
-    let n = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-fontcreator-{n}-{:?}",
-        std::thread::current().id()
-    ));
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir() -> TempDir {
+    TempDir::new("fontcreator")
 }
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
@@ -39,7 +30,8 @@ fn contours_of(s: &Session, id: u64) -> Vec<openstitch_design::Contour> {
 
 #[test]
 fn converted_truetype_glyphs_match_the_source_font() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(&mut s, "fonts.create", json!({"id": "block", "height": 12}));
     let r = run(
         &mut s,
@@ -79,7 +71,8 @@ fn converted_truetype_glyphs_match_the_source_font() {
 
 #[test]
 fn shapes_become_glyphs_and_glyphs_become_shapes() {
-    let mut s = Session::new(temp_dir());
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(&mut s, "fonts.create", json!({"id": "hand", "height": 10}));
     // An "I": a 2 x 10 mm bar standing on the baseline y = 60 with its left set line at x = 20.
     let bar = run(

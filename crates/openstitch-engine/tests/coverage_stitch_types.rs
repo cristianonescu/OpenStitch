@@ -6,8 +6,9 @@
 use openstitch_core::Command;
 use openstitch_design::Compiler;
 use openstitch_engine::Session;
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
-use std::path::PathBuf;
+use std::path::Path;
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
     s.execute(id, Some(&params))
@@ -18,14 +19,8 @@ fn fails(s: &mut Session, id: &str, params: Value) {
     assert!(s.execute(id, Some(&params)).is_err(), "{id} {params} fails");
 }
 
-fn temp_dir(tag: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-coverage-stitch-types-{tag}-{}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir(tag: &str) -> TempDir {
+    TempDir::new(&format!("coverage-stitch-types-{tag}"))
 }
 
 fn id(v: &Value) -> u64 {
@@ -44,7 +39,7 @@ fn needle_points(s: &Session) -> Vec<(f64, f64)> {
 }
 
 /// Saves the design as `.osd` and opens it in a new session.
-fn reopened(s: &mut Session, dir: &PathBuf) -> Session {
+fn reopened(s: &mut Session, dir: &Path) -> Session {
     run(s, "project.save", json!({"path": "t.osd"}));
     let mut t = Session::new(dir);
     run(&mut t, "project.open", json!({"path": "t.osd"}));

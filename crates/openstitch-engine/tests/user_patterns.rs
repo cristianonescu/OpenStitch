@@ -5,20 +5,11 @@ use openstitch_design::Compiler;
 use openstitch_design::patterns::PatternKind;
 use openstitch_design::v2;
 use openstitch_engine::{Session, project};
+use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
-use std::path::PathBuf;
 
-fn temp_dir() -> PathBuf {
-    let n = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!(
-        "openstitch-user-patterns-{n}-{:?}",
-        std::thread::current().id()
-    ));
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    dir
+fn temp_dir() -> TempDir {
+    TempDir::new("user-patterns")
 }
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
@@ -42,19 +33,21 @@ fn star_motif() -> Value {
     })
 }
 
-fn session_with_shape() -> Session {
-    let mut s = Session::new(temp_dir());
+/// The session and the guard of its folder, which must outlive it.
+fn session_with_shape() -> (Session, TempDir) {
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
     run(
         &mut s,
         "shape.rectangle",
         json!({"x": 10, "y": 10, "width": 40, "height": 30, "fill": "Red", "outline": "Black"}),
     );
-    s
+    (s, tmp)
 }
 
 #[test]
 fn user_patterns_are_defined_listed_used_and_undone() {
-    let mut s = session_with_shape();
+    let (mut s, _dir) = session_with_shape();
     let r = run(&mut s, "pattern.define", json!({"pattern": zigzag_fill()}));
     assert_eq!(
         r,
@@ -171,7 +164,7 @@ fn user_patterns_are_defined_listed_used_and_undone() {
 
 #[test]
 fn designs_without_user_patterns_serialize_as_before() {
-    let s = session_with_shape();
+    let (s, _dir) = session_with_shape();
     let text = String::from_utf8(project::encode(s.design()).expect("encode")).expect("utf8");
     assert!(!text.contains("patterns"));
 }
@@ -419,7 +412,7 @@ fn hostile_patterns_fail_cleanly() {
 
 #[test]
 fn damaged_projects_with_bad_patterns_are_refused() {
-    let mut s = session_with_shape();
+    let (mut s, _dir) = session_with_shape();
     run(&mut s, "pattern.define", json!({"pattern": zigzag_fill()}));
     let good: Value =
         serde_json::from_slice(&project::encode(s.design()).expect("encode")).expect("json");

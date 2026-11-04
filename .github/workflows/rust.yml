@@ -54,10 +54,28 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest@0.9.149
+      # Tests delete their temp folders (#366). On Linux they run with an empty TMPDIR, which is
+      # checked after the tests.
+      - name: Empty temp folder for the tests
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: mkdir -p "$RUNNER_TEMP/tests" && echo "TMPDIR=$RUNNER_TEMP/tests" >> "$GITHUB_ENV"
       # nextest runs the tests of every binary at once, each test in its own process (cargo test
       # runs the ~90 binaries one after another). It does not run doctests, so they follow.
       - run: cargo nextest run --workspace --locked
       - run: cargo test --doc --workspace --locked
+      # The editor's assistant scratch folders (the next launch removes them, #314) and the print
+      # dialog's PDFs are the product's, not test leftovers.
+      - name: Tests left no temp files
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          left=$(find "$TMPDIR" -mindepth 1 -maxdepth 1 ! -name 'openstitch-assistant-*' ! -name openstitch-print)
+          if [ -n "$left" ]; then
+            echo "::error::The tests left these in the temp folder; use openstitch_testutil::TempDir:"
+            echo "$left"
+            exit 1
+          fi
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       # Compatibility harness (docs/COMPATIBILITY_TESTS.md): runs compat/specs, fails on a failing
       # or invalid spec or a stale docs/COMPATIBILITY_STATUS.md; specs waiting for a PE-DESIGN

@@ -606,6 +606,10 @@ Debug and test builds optimise the dependencies, the stitch pipeline (`openstitc
 `Cargo.toml`), so the editor's and the Auto Punch tests run in minutes instead of an hour; debug
 assertions and overflow checks stay on. The first build takes a few minutes longer.
 
+Tests make their temporary folders with `openstitch_testutil::TempDir`, which deletes the folder
+when the test ends. Set `OPENSTITCH_KEEP_TEMP=1` to keep a failing test's folders; their paths
+are printed.
+
 CI runs the same checks on macOS, Windows and Linux for every pull request, checks that
 `docs/COMPATIBILITY_STATUS.md` matches the harness's result, and scans the history for secrets
 with gitleaks. CI builds with line-tables-only debug info (`CARGO_PROFILE_DEV_DEBUG`), and a new

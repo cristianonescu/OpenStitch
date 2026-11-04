@@ -482,7 +482,7 @@ mod tests {
         };
         let templated = || {
             let mut app = plain();
-            let path = template_png("runs");
+            let (_tmp, path) = template_png("runs");
             crate::sewing_ui::open_template(&mut app.sewing, &path, &egui::Context::default())
                 .expect("template");
             app.sewing.modify_template = true;
@@ -519,12 +519,9 @@ mod tests {
     }
 
     /// A 4×2 PNG of the test's own in a temp folder (templates are user-supplied images).
-    fn template_png(tag: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "openstitch-sdf-template-{tag}-{}",
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&dir).expect("dir");
+    /// Returns the folder's guard too: the file lives as long as it does.
+    fn template_png(tag: &str) -> (openstitch_testutil::TempDir, PathBuf) {
+        let dir = openstitch_testutil::TempDir::new(&format!("sdf-template-{tag}"));
         let path = dir.join("template.png");
         let rgba: Vec<u8> = (0..8).flat_map(|i| [i * 30, 90, 160, 255]).collect();
         std::fs::write(
@@ -532,7 +529,7 @@ mod tests {
             openstitch_app::png::encode_rgba(4, 2, &rgba).expect("png"),
         )
         .expect("write");
-        path
+        (dir, path)
     }
 
     #[test]
@@ -589,7 +586,7 @@ mod tests {
         let ctx = egui::Context::default();
         let mut app = demo();
         app.sewing.open = true;
-        let path = template_png("edit");
+        let (_tmp, path) = template_png("edit");
         crate::sewing_ui::open_template(&mut app.sewing, &path, &ctx).expect("template");
         let t = app.sewing.template.as_ref().expect("open");
         assert_eq!(t.size.y * 2.0, t.size.x, "keeps the image's proportions");
@@ -635,13 +632,8 @@ mod tests {
         assert!(frames > 3, "one needle point at a time, not all at once");
     }
 
-    fn temp_folder() -> PathBuf {
-        let n = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let dir = std::env::temp_dir().join(format!("openstitch-suite-db-{n}"));
-        std::fs::create_dir_all(&dir).expect("dir");
+    fn temp_folder() -> openstitch_testutil::TempDir {
+        let dir = openstitch_testutil::TempDir::new("suite-db");
         let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../openstitch-formats/tests/fixtures");
         for f in ["oracle.pes", "oracle.dst"] {
