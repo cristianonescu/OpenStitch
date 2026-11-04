@@ -7,7 +7,7 @@
    86.9,
    68.0
   ],
-  "stitches": 5064,
+  "stitches": 5066,
   "trims": 26,
   "threads": [
    "001 White",
@@ -20,7 +20,7 @@
   "sewingMinutes": 7.7,
   "image": null,
   "preview": "previews/t1-swatches.png",
-  "sha256": "aeaacfe07a95cbd58fc395d341262276effae1f028529df981d5616359116f20"
+  "sha256": "0bc5fe05b5c1d0cef19fef720f549e6c8eb42d1673cbe931a5ff8455f6effc36"
  },
  "calibration/ps2-grey-ramp.pes": {
   "title": "Photo Stitch 2 coverage ramp",
@@ -353,7 +353,7 @@
    71.0,
    89.7
   ],
-  "stitches": 3540,
+  "stitches": 3931,
   "trims": 40,
   "threads": [
    "405 Blue",
@@ -362,10 +362,10 @@
    "399 Warm Gray",
    "620 Magenta"
   ],
-  "sewingMinutes": 6.5,
+  "sewingMinutes": 7.0,
   "image": null,
   "preview": "previews/fonts-and-text.png",
-  "sha256": "57181170b48dfe6e7a69a2d42ee187443553c770b27c566510e61e5a9e089909"
+  "sha256": "4dcbf3b4bbb5ee9364883f8591a8861176856ce5e5e9cc48cfaa397a98991ca9"
  },
  "lettering/monograms.pes": {
   "title": "Monograms",
