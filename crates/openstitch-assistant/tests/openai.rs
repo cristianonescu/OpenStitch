@@ -681,6 +681,39 @@ fn a_text_only_model_gets_its_pictures_as_notes() {
     assert!(!third.to_string().contains("image_url"));
 }
 
+/// #427: Ollama answers 500 "error parsing tool call" when the model's arguments are not JSON;
+/// the model is told and asked again (twice at most), instead of the same request being resent.
+#[test]
+fn an_unreadable_tool_call_is_asked_for_again() {
+    let unreadable = || {
+        Err(HttpError {
+            status: Some(500),
+            message: "error parsing tool call: raw='{\"a\":,}', err=invalid character".into(),
+            retry_after: Some(Duration::from_millis(1)),
+        })
+    };
+    // Each 500 is first retried as it is (the 5xx rule), then the model is asked again.
+    let t = FakeTransport::new(vec![unreadable(), unreadable(), Ok(text_reply("Done."))]);
+    let mut tools = FakeTools::default();
+    let mut conv = Conversation::new();
+    let (stop, events) = run(&mut conv, &cfg(), &t, &mut tools, "Hi");
+    assert_eq!(stop, StopKind::EndTurn);
+    assert!(events.iter().any(
+        |e| matches!(e, Event::Retrying { reason, .. } if reason.contains("asking it again"))
+    ));
+    let last = &t.bodies()[2]["messages"];
+    let note = last[2]["content"].as_str().expect("a text note");
+    assert_eq!(last[2]["role"], "user");
+    assert!(note.contains("could not read its tool call"), "{note}");
+
+    // It gives up after asking twice.
+    let t = FakeTransport::new((0..6).map(|_| unreadable()).collect());
+    let mut conv = Conversation::new();
+    let (stop, _) = run(&mut conv, &cfg(), &t, &mut tools, "Hi");
+    assert!(matches!(stop, StopKind::Error(m) if m.contains("500")));
+    assert_eq!(t.bodies().len(), 6);
+}
+
 /// A 400 without pictures in the request is not retried.
 #[test]
 fn a_400_without_pictures_ends_the_turn() {

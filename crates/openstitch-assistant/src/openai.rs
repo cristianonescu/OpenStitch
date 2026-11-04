@@ -41,6 +41,14 @@ pub(crate) const TOOL_PICTURES: &str = "The pictures from the tool results above
 /// What replaces a picture for a model that takes text only (#416).
 pub(crate) const PICTURE_LEFT_OUT: &str =
     "[A picture was left out here: this model takes text only.]";
+/// Ollama's text when it can't parse a tool call's arguments as JSON; it answers 500 then
+/// (seen with 0.40.14 and gpt-oss:20b, #427).
+const UNREADABLE_CALL: &str = "error parsing tool call";
+/// How often one turn asks the model again after such a 500.
+const MAX_UNREADABLE_CALLS: usize = 2;
+/// The notice when the model is asked again.
+pub(crate) const ASKED_AGAIN: &str =
+    "The server could not read the model's tool call; asking it again";
 /// The notice when the server refused the pictures.
 pub(crate) const TEXT_ONLY: &str =
     "The model refused the pictures (400); they go as text notes from now on";
@@ -108,6 +116,7 @@ impl Conversation {
         let tool_defs = tool_definitions(&tools.definitions());
         let url = completions_url(&cfg.base_url);
         let headers = request_headers(cfg);
+        let mut unreadable = 0;
         loop {
             if cancel.load(Ordering::SeqCst) {
                 return StopKind::Cancelled;
@@ -127,6 +136,25 @@ impl Conversation {
                     on_event(Event::Retrying {
                         after: std::time::Duration::ZERO,
                         reason: TEXT_ONLY.to_string(),
+                    });
+                    continue;
+                }
+                // The model's reply never arrives, so it is told, as for arguments that are not
+                // JSON (`BAD_JSON`), and asked again (#427); resending the same request fails
+                // the same way.
+                Err((StopKind::Error(msg), Some(500)))
+                    if unreadable < MAX_UNREADABLE_CALLS && msg.contains(UNREADABLE_CALL) =>
+                {
+                    unreadable += 1;
+                    let said: String = msg.chars().take(400).collect();
+                    self.messages
+                        .push(json!({"role": "user", "content": format!(
+                            "[Your last reply did not arrive: the server could not read its tool \
+                             call arguments as JSON ({said}). Send the call again with valid JSON.]"
+                        )}));
+                    on_event(Event::Retrying {
+                        after: std::time::Duration::ZERO,
+                        reason: ASKED_AGAIN.to_string(),
                     });
                     continue;
                 }
