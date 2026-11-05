@@ -38,6 +38,12 @@ impl RenderModel {
     /// Builds strokes for the first `limit` stitches (`usize::MAX` for all). A stitch sews from
     /// the previous position; a jump moves without sewing; trims and colour changes break strokes.
     pub fn build(pattern: &StitchPattern, limit: usize) -> RenderModel {
+        Self::build_range(pattern, 0, limit)
+    }
+
+    /// [`Self::build`] drawing only the stitches from the `from`-th on (the earlier ones only
+    /// move the needle): the part sewn after an object a background image sits above (#518).
+    pub fn build_range(pattern: &StitchPattern, from: usize, limit: usize) -> RenderModel {
         let rgb = |i: usize| {
             pattern
                 .threads
@@ -62,6 +68,10 @@ impl RenderModel {
             }
             let p = v2(s.x, s.y);
             match s.command {
+                Command::Stitch if m.shown < from => {
+                    pos = Some(p);
+                    m.shown += 1;
+                }
                 Command::Stitch => {
                     let n = m.travel_cut.len();
                     m.travel_cut[n - pending..].fill(cut);
@@ -75,7 +85,7 @@ impl RenderModel {
                 }
                 Command::Jump => {
                     flush(&mut layer, &mut stroke);
-                    if let Some(from) = pos.filter(|&from| from != p) {
+                    if let Some(from) = pos.filter(|&q| q != p && m.shown >= from) {
                         m.travel.push((from, p));
                         m.travel_cut.push(true);
                         pending += 1;

@@ -6,6 +6,8 @@
 
 #[path = "arrange_modes.rs"]
 mod arrange_modes;
+#[path = "background_layer.rs"]
+mod background_layer;
 #[path = "capabilities.rs"]
 mod capabilities;
 #[path = "continuing.rs"]
@@ -52,6 +54,8 @@ mod font_creator;
 mod font_from_image;
 #[path = "fonts.rs"]
 mod fonts;
+#[path = "free_hoopings.rs"]
+mod free_hoopings;
 #[path = "hoop_lists.rs"]
 mod hoop_lists;
 #[path = "imports.rs"]
@@ -112,6 +116,8 @@ mod stitch_edit;
 mod stitch_types;
 #[path = "svg_import.rs"]
 mod svg_import;
+#[path = "svg_settings.rs"]
+mod svg_settings;
 #[path = "templates.rs"]
 mod templates;
 #[path = "thread_lists.rs"]

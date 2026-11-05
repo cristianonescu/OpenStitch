@@ -8,7 +8,7 @@ use openstitch_app::editor::points::handle_lines;
 use openstitch_app::editor::{
     Handle, Phase, PointerEvent, ScreenRect, SelectionHandles, ToolPreview, Viewport,
 };
-use openstitch_design::{Contour, ObjectKind, Rect, Transform, Vec2, v2};
+use openstitch_design::{BackgroundLayer, Contour, ObjectKind, Rect, Transform, Vec2, v2};
 
 const ACCENT: Color32 = Color32::from_rgb(0x1e, 0x88, 0xe5);
 
@@ -79,7 +79,10 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
 
     navigate(ui, &response, rect, &mut vp, app.ui.pan);
     app.viewport = Some(vp);
-    if !app.ui.pan && !crate::view_ui::guide_pointer(app, ui, &response, rect, &vp) {
+    if !app.ui.pan
+        && !crate::view_ui::guide_pointer(app, ui, &response, rect, &vp)
+        && !crate::zoom_ui::pointer(app, &response, rect, vp)
+    {
         pointer(app, ui, &response, vp);
     }
     app.ensure_render_model();
@@ -102,20 +105,50 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
         draw_fabric(ui.ctx(), &painter, &vp, &page_rect, colors.page);
     }
     draw_hoop_field(app, &painter, &vp, &page_rect);
-    draw_background(app, ui.ctx(), &painter, &vp);
+    // The background image's layer (#518): behind the design (PE-DESIGN's place, the
+    // default), above an object, or on top.
+    let layer = app
+        .session
+        .design()
+        .background
+        .as_ref()
+        .map(|b| b.layer)
+        .unwrap_or_default();
+    if layer == BackgroundLayer::Bottom {
+        draw_background(app, ui.ctx(), &painter, &vp);
+    }
     crate::quality_ui::draw_background(app, &painter, &vp, &page_rect);
     crate::workspace_ui::draw_grid(&painter, &vp, &page_rect, &app.workspace.grid);
     if app.session.design().objects.is_empty() && app.session.design().background.is_none() {
         draw_empty_hint(&painter, &vp, &page_rect);
     }
-    if app.workspace.realistic {
-        crate::workspace_ui::draw_realistic(app, &painter, &vp);
-        draw_travel_left_on_fabric(app, &painter, &vp);
-    } else if app.workspace.solid {
-        crate::view_ui::draw_solid(app, &painter, &vp);
-        draw_travel(app, &painter, &vp);
-    } else {
-        draw_stitches(app, &painter, &vp);
+    match layer {
+        BackgroundLayer::AfterObject { after } if split_design(app, after) => {
+            let full = std::mem::take(&mut app.render);
+            if let Some((_, lower, upper)) = app.background_split.take() {
+                app.render = lower;
+                draw_design(app, &painter, &vp);
+                draw_background(app, ui.ctx(), &painter, &vp);
+                let lower = std::mem::replace(&mut app.render, upper);
+                draw_design(app, &painter, &vp);
+                let upper = std::mem::replace(&mut app.render, full);
+                if let Some(key) = split_key(app, after) {
+                    app.background_split = Some((key, lower, upper));
+                }
+            } else {
+                app.render = full;
+            }
+        }
+        BackgroundLayer::Top => {
+            draw_design(app, &painter, &vp);
+            draw_background(app, ui.ctx(), &painter, &vp);
+        }
+        BackgroundLayer::AfterObject { .. } => {
+            // The object is gone or hidden: the image stays behind the design.
+            draw_background(app, ui.ctx(), &painter, &vp);
+            draw_design(app, &painter, &vp);
+        }
+        BackgroundLayer::Bottom => draw_design(app, &painter, &vp),
     }
     draw_unsewn_outlines(app, &painter, &vp);
     crate::quality_ui::draw(app, &painter, &vp);
@@ -127,6 +160,7 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
     crate::sections_ui::draw_sections(app, &painter, &vp);
     crate::workspace_ui::draw_measure(&painter, &vp, &app.workspace.measure, app.ui.prefs.units);
     crate::view_ui::draw_image_frame(app, &painter, &vp);
+    crate::zoom_ui::draw(app, &painter, &vp);
     crate::view_ui::draw_guides(app, &painter, rect, &vp);
     if let (Some(_), Some(n)) = (app.simulate, app.render.needle) {
         let c = pos(vp.to_screen(n));
@@ -152,7 +186,7 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
             openstitch_app::editor::units::number(u, m.x / 10.0),
             openstitch_app::editor::units::number(u, m.y / 10.0),
             openstitch_app::editor::units::suffix(u),
-            vp.zoom_percent(96.0 / 25.4)
+            vp.zoom_percent(app.points_per_mm())
         );
         painter.text(
             rect.right_bottom() + egui::vec2(-8.0, -6.0),
@@ -180,7 +214,7 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
     });
     let cursor = match app.tools.tool() {
         _ if app.ui.pan => egui::CursorIcon::Grab,
-        _ if app.workspace.measure.active => egui::CursorIcon::Crosshair,
+        _ if app.workspace.measure.active || app.zoom_box.active => egui::CursorIcon::Crosshair,
         _ if continues => egui::CursorIcon::PointingHand,
         openstitch_app::editor::Tool::Select | openstitch_app::editor::Tool::Point => {
             egui::CursorIcon::Default
@@ -301,6 +335,49 @@ fn pointer(app: &mut EditorApp, ui: &egui::Ui, response: &egui::Response, vp: Vi
     e.free = free;
     e.alt = alt;
     app.with_tools(|t, ctx| t.handle(e, ctx));
+}
+
+/// The stitches in the chosen view, from `app.render`.
+fn draw_design(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
+    if app.workspace.realistic {
+        crate::workspace_ui::draw_realistic(app, painter, vp);
+        draw_travel_left_on_fabric(app, painter, vp);
+    } else if app.workspace.solid {
+        crate::view_ui::draw_solid(app, painter, vp);
+        draw_travel(app, painter, vp);
+    } else {
+        draw_stitches(app, painter, vp);
+    }
+}
+
+/// The cache key of the design split around object `after`: (revision, simulator limit,
+/// stitches sewn up to the end of that object).
+fn split_key(app: &EditorApp, after: u64) -> Option<(u64, usize, usize)> {
+    let k =
+        openstitch_app::editor::background::split_stitch(&app.pattern, &app.quality.spans, after)?;
+    Some((app.revision, app.simulate.unwrap_or(usize::MAX), k))
+}
+
+/// Builds (or keeps) the two halves of the design around object `after`; false when that
+/// object is not sewn (deleted or hidden).
+fn split_design(app: &mut EditorApp, after: u64) -> bool {
+    use openstitch_app::editor::render::RenderModel;
+    let Some(key) = split_key(app, after) else {
+        return false;
+    };
+    if app
+        .background_split
+        .as_ref()
+        .is_none_or(|(k, _, _)| *k != key)
+    {
+        let (_, limit, k) = key;
+        app.background_split = Some((
+            key,
+            RenderModel::build(&app.pattern, k.min(limit)),
+            RenderModel::build_range(&app.pattern, k, limit),
+        ));
+    }
+    true
 }
 
 fn draw_page(painter: &egui::Painter, vp: &Viewport, page: &Rect, fill: Color32) {
