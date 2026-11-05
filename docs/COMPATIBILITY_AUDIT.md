@@ -2431,6 +2431,25 @@ Line references are relative to `crates/`.
   regions whose satin falls back to one direction with 12-16 mm crossings, where PE-DESIGN's
   own Auto Punch never passes 10.4 mm (12 round-5 pictures): such a region is now fill
   (storybook PE-compatible: 30 stitches over 12 mm → 0, longest 16.1 → 10.2 mm).
+- **Centre-out fills (#461):** PE-DESIGN's references (concentric-*, spiral-*) end the spiral in
+  the middle with no run back out, and keep a line of 0.5 mm steps where each whole circle
+  starts (kept). Where the start point lies beyond the whole circles PE trims and jumps in
+  (concentric-rect30x40 trims at stitch 724, the triangle at 879); OpenStitch ran straight across
+  the arcs and now trims as PE does. Without a PE reference: the flexible spiral no longer travels
+  20 mm straight back to its end point; contour rings sew on 3-6 mm past their start so the steps
+  scatter; the double spiral's arms no longer cross (spacing steady at a row); radial lines start
+  only where their neighbours are 0.4 mm away, so the centre no longer piles up (stitches under
+  0.3 mm on `sewing-direction.json`'s radial block 60 → 4, longest straight run 33.5 → 23.4 mm).
+- **Cross stitch and zigzag net regions (#463):** PE-DESIGN 11.50's `o-region-cross.pes` (direction
+  45°) sews X's on the page axes; ours turned the grid with the direction and read as "+". The
+  grid now stays on the page axes from the design origin (two regions share it), each row is sewn
+  out and back as Cross Stitch from an image sews it, and travel runs only along the crosses'
+  half diagonals: stitches along a cell side 244 → 5 on the kit's cell (the 5 are the travel from
+  the start point), trims per 100 crosses 0 → 0. The zigzag net keeps every needle point inside
+  the outline (honeycomb 1.1 mm past the edge → 0), its rungs square to each edge and cut where
+  bands meet at a line's end or turn, and travels along the net lines. Open: what the Direction
+  should do on a cross stitch region (it now has no effect; PE reference at another direction
+  needed), and the net's turned grid against PE's page-axis one.
 - **Line types on curves (#464):** stem, candlewick and chain placed their elements per
   flattened chord, so on a curve they bunched at bends with gaps between. A leg now runs from one
   contour point to the next and is measured along the curve: the stem is an even rope (spacing
