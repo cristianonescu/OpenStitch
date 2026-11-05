@@ -23,7 +23,8 @@ pub struct AutoPunch {
     /// Thread colours to reduce to (1–64), or 0 for the automatic count PE-DESIGN 11.50 fills in
     /// from the image ([`Census::auto_colors`]; the default).
     pub colors: usize,
-    /// Longest side of the working raster, pixels.
+    /// Longest side of the working raster, pixels. PE-DESIGN mode traces flat graphics (at most
+    /// [`FLAT_COLORS`] automatic colours) at twice this.
     pub resolution: u32,
     /// Small-region parameter, mm²: a 4-connected region of at most
     /// `max(4, round(min_area_mm2 / mmPerPx²))` working pixels is recoloured into a neighbour
@@ -72,7 +73,7 @@ impl Default for AutoPunch {
     fn default() -> Self {
         AutoPunch {
             colors: 0,
-            resolution: 800,
+            resolution: 400,
             min_area_mm2: 1.0,
             smooth: 0,
             trace: TraceOptions::default(),
@@ -137,6 +138,10 @@ pub fn fill_angle(m: &[bool], mw: usize, mh: usize, mm_per_px: f64) -> f64 {
     best.map_or(FILL_ANGLES[0], |b| b.1)
 }
 
+/// PE-DESIGN-compatible mode traces an image of at most this many automatic colours (flat
+/// graphics, lettering, logos) at twice the working resolution ([`convert`]).
+pub const FLAT_COLORS: usize = 5;
+
 /// Most regions one conversion may produce.
 pub const MAX_REGIONS: usize = 5000;
 
@@ -154,8 +159,7 @@ pub struct Converted {
 /// ([`Census::labels`]): thread index into `palette.threads`, or [`NONE`] where the pixel is
 /// transparent.
 pub fn label(census: &Census, palette: &Palette) -> Vec<u16> {
-    census
-        .labels
+    (if std::env::var("OST_EXACT").is_ok() { &census.modal } else { &census.labels })
         .iter()
         .map(|m| m.map_or(NONE, |c| palette.classify(c) as u16))
         .collect()
@@ -341,10 +345,24 @@ pub fn open_slivers(labels: &mut [u16], w: usize, h: usize, r: usize, hairlines:
 pub const FABRIC_DE: f64 = 5.0;
 
 pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted, DigitizeError> {
-    let work = image.fit_mode(p.resolution.clamp(16, 2048));
+    let mut work = image.fit_mode(p.resolution.clamp(16, 2048));
+    let mut census = palette::census(&work);
+    // PE-DESIGN-compatible mode traces flat graphics (at most FLAT_COLORS automatic colours)
+    // at twice the working size: lettering's 0.1-0.3 mm gaps and straight edges survive, and
+    // the edge shades a box-mode copy makes no longer count as a colour (g08 at 400 px: a grey
+    // fourth colour and the S and the T fused; at its own 768 px: 3 colours and every letter
+    // apart, as PE-DESIGN's own Auto Punch, #443). Photographs and paintings stay at the
+    // working size, whose colours the reduction was calibrated on (at 800 px the storybook
+    // picture's orange thread gave way to a grey, #447).
+    if p.mode == Mode::PeDesign && census.auto_colors() <= FLAT_COLORS {
+        let fine = image.fit_mode((p.resolution.clamp(16, 2048) * 2).min(2048));
+        if fine.width() > work.width() {
+            census = palette::census(&fine);
+            work = fine;
+        }
+    }
     let frame = frame.rescaled(image.width(), work.width());
     let (w, h) = (work.width() as usize, work.height() as usize);
-    let census = palette::census(&work);
     if census.colors.is_empty() {
         return Err(DigitizeError::Empty(
             "the image is fully transparent".into(),
@@ -556,7 +574,7 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
             // A satin region made of straight bars (T, H) is sewn bar by bar, each straight
             // across; a curved stroke (S, C) as one column through rungs square to its centre
             // line; a single bar keeps Auto satin ([`columns`], #443).
-            let strokes = if satin {
+            let strokes = if satin && std::env::var("OST_NOCOL").is_err() {
                 columns::split(&m, mw, mh, width_mm / frame.mm_per_px())
             } else {
                 columns::Strokes::Single

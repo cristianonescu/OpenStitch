@@ -326,7 +326,7 @@ pub fn commands() -> Vec<CommandSpec> {
                 opt(
                     "resolution",
                     "int 64-2048",
-                    "Working resolution, longest side in pixels (default 800)",
+                    "Working resolution, longest side in pixels (default 400, flat graphics of at most 5 colours traced at twice that; 800 in OpenStitch mode)",
                 ),
                 opt(
                     "minArea",
@@ -412,7 +412,7 @@ pub fn commands() -> Vec<CommandSpec> {
                 // Its dark contour lines are satin lines along their skeleton, satin is kept
                 // for strokes up to 2.5 mm and wider shapes are filled (B16.1 T12).
                 let (resolution, min_area, outline_max, satin_max) = match mode {
-                    Mode::PeDesign => (800, 1.0, 0.0, 6.5),
+                    Mode::PeDesign => (400, 1.0, 0.0, 6.5),
                     Mode::OpenStitch => (800, 2.0, 2.5, 2.5),
                 };
                 let mut options = AutoPunch {

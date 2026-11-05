@@ -135,6 +135,10 @@ pub fn brightness_order(palette: &Palette, threads: impl IntoIterator<Item = usi
 /// different shades differ by up to 14 (`examples/images/g08-lettering.png`).
 pub const MODAL_DIST: u32 = 16;
 
+/// The commonest colour of a 3×3 window counts as flat when at least this many of its pixels
+/// have it exactly (a row of three across an edge).
+pub const FLAT_RUN: u8 = 3;
+
 /// Modal colour of the 3×3 window around `(x, y)`: the colour most of the window's opaque
 /// pixels have. Ties keep the centre's own colour when it is among them, otherwise the
 /// smallest packed colour. `None` for a transparent centre.
@@ -146,7 +150,10 @@ pub const MODAL_DIST: u32 = 16;
 /// its votes where two runs meet, and its edge pixel there took the other side's colour: one-
 /// pixel notches along straight edges, which Auto satin fanned its rows round. The rule only
 /// ever keeps a centre the plain modal would replace, so a one-pixel line between edge shades
-/// stays as it did (the leaf's veins, `g10-leaf-transparent.png`).
+/// stays as it did (the leaf's veins, `g10-leaf-transparent.png`). It applies only against a
+/// flat colour, one at least [`FLAT_RUN`] window pixels have exactly: in a photograph's
+/// gradients no colour repeats that often, and the plain modal smooths them as before (keeping
+/// every centre there lowered the storybook picture's and the mosaic's likeness).
 fn modal_at(image: &Raster, x: u32, y: u32, keep_shades: bool) -> Option<Rgb> {
     let [r, g, b, a] = image.pixel(x, y);
     if a < 128 {
@@ -170,7 +177,7 @@ fn modal_at(image: &Raster, x: u32, y: u32, keep_shades: bool) -> Option<Rgb> {
         }
     }
     let most = counts.iter().map(|k| k.1).max().unwrap_or(0);
-    if keep_shades && shades >= most {
+    if keep_shades && most >= FLAT_RUN && shades >= most {
         return Some(centre);
     }
     let mut tied: Vec<Rgb> = counts.iter().filter(|k| k.1 == most).map(|k| k.0).collect();
