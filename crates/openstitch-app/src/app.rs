@@ -908,7 +908,7 @@ impl EditorApp {
         let request = CommandRequest::new(command, json!({ "path": p.display().to_string() }));
         if let Some(result) = self.grouped(|app| app.execute(&request)) {
             self.selection = CommandRequest::created_ids(&result);
-            self.status = format!("Imported {}", p.display());
+            self.status = format!("Imported {}{}", p.display(), import_report(&result));
         }
     }
 
@@ -1694,6 +1694,33 @@ fn star(cx: f64, cy: f64, r: f64, inner: f64) -> Value {
         })
         .collect();
     Value::Array(pts)
+}
+
+/// What an SVG import left out or approximated (#487), for the status line: "; left out: 2
+/// text, 1 image; approximated: 1 gradient", or nothing.
+pub(crate) fn import_report(result: &Value) -> String {
+    let list = |key: &str| -> Vec<String> {
+        result[key]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|k| {
+                format!(
+                    "{} {}",
+                    k["count"].as_u64().unwrap_or(0),
+                    k["kind"].as_str().unwrap_or("")
+                )
+            })
+            .collect()
+    };
+    let mut out = String::new();
+    for (key, label) in [("skipped", "left out"), ("approximated", "approximated")] {
+        let l = list(key);
+        if !l.is_empty() {
+            out.push_str(&format!("; {label}: {}", l.join(", ")));
+        }
+    }
+    out
 }
 
 /// Where pasted background images are kept: the per-user application data folder.

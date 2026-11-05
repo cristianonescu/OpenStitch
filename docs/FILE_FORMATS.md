@@ -1171,13 +1171,34 @@ shapes to paths. Each visible filled or stroked path becomes one shape object:
   EMBROIDERY chart thread (PEC entries 1–61, `openstitch_core::nearest_brother_thread`), as
   PE-DESIGN 11.50's vector import does (`thread-match-swatches`: twelve RGB fills, PE's twelve
   chart picks, thread tables equal; #119); `exactColors: true` keeps the SVG's own RGB (an
-  OpenStitch extra); gradient or pattern paint → black; an open path's fill becomes its line
-  colour;
+  OpenStitch extra); a gradient → its colour half way along (stops interpolated in sRGB), or with
+  `gradients: "bands"` `bands` (2–8, default 3) fill regions, slices across a linear gradient's
+  axis or rings around a radial gradient's centre (the focal point is not used), each in the
+  colour at its middle, the end bands going on past the gradient's ends; a pattern paint →
+  black; an open path's fill becomes its line colour;
+- clip paths cut what they apply to: a fill is cut to the clip's area (nested clips and a clip
+  path's own clip intersect), a stroke to its pieces inside (curves flattened there); a shape
+  wholly inside is unchanged, one wholly outside is left out;
+- a mask is read as a clip: its shapes in order add their area when at least half opaque
+  (luminance × opacity for a luminance mask, opacity for an alpha mask) and cut it away
+  otherwise, inside the mask's rectangle; the mask's strokes and partial transparency are not
+  kept;
+- opacity: a fill or stroke whose opacity (its own times its groups') is below `minOpacity`
+  (default 0.1) is left out; others keep their colour;
+- CSS custom properties (`var(--name)`, with or without a fallback), which usvg does not read,
+  are replaced before parsing by the first `--name: value` declaration in the file (selectors
+  and scopes are not followed);
 - several paths → one group; the artwork keeps its physical size (or `width`) and is centred
   on the Design Page unless `x`/`y` are given; one Undo.
 
-Limits: 16 MB file, 5,000 paths, 500,000 vertices. Not imported: `<text>`, `<image>`,
-clipping and masks (ignored), stroke widths. SVG's `nonzero` fill rule is approximated by
+The result lists what was left out, `skipped: [{kind, count, ids}]` (kinds `text`, `image`,
+`foreignObject`, `transparent`, `clipped`, `hidden`), and what was changed to fit,
+`approximated` (`gradient`, `pattern`, `mask`, `filter`: the content is kept without the
+effect, `cssVariable`: one with no value), with the SVG ids of the elements or of their nearest
+named group (at most 50 per kind; #487).
+
+Limits: 16 MB file, 5,000 paths, 500,000 vertices. Not imported: `<text>`, `<image>`, filter
+effects, stroke widths (all listed in the result, stroke widths excepted). SVG's `nonzero` fill rule is approximated by
 OpenStitch's even-odd rule (overlapping same-direction subpaths read as holes).
 
 **WMF / EMF** (`import.metafile`, engine module `metafile`, #321): OpenStitch's own record
