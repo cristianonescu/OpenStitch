@@ -282,8 +282,10 @@ fn thread_chart_csv_exports_and_imports_back() {
         .as_array()
         .expect("charts")
         .iter()
+        .filter(|c| c["kind"] == json!("machine"))
         .map(|c| c["id"].as_str().expect("id"))
         .collect();
+    // The machine charts first; the thread makers' charts (kind "brand", #486) follow them.
     assert_eq!(
         ids,
         [

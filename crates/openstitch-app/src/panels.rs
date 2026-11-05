@@ -688,8 +688,8 @@ pub fn sim_controls(
     });
 }
 
-/// Simulator speeds (stitches per second).
-pub const SIM_SPEEDS: [f64; 5] = [50.0, 200.0, 400.0, 1000.0, 4000.0];
+/// Simulator speeds (stitches per second): the player's presets, 12 to 5,000 (#516).
+pub const SIM_SPEEDS: [f64; 7] = openstitch_app::editor::player::SPEEDS;
 
 pub fn simulator(app: &mut EditorApp, ui: &mut egui::Ui) {
     let total = app.stats.stitches;
@@ -701,6 +701,7 @@ pub fn simulator(app: &mut EditorApp, ui: &mut egui::Ui) {
         &mut app.play_speed,
         total,
     );
+    player_strip(app, ui);
     ui.horizontal(|ui| {
         let s = &app.stats;
         ui.label(format!(
@@ -736,4 +737,141 @@ pub fn simulator(app: &mut EditorApp, ui: &mut egui::Ui) {
         ui.checkbox(&mut app.show_travel, "Show travel");
     });
     ui.add_space(4.0);
+}
+
+/// The stitch-out player (#516, beyond PE-DESIGN): counters, step buttons, the Auto, Pause at
+/// trims and Follow needle toggles, one lane per colour block with trim ticks and an end marker
+/// at each colour change or stop (click or drag to seek), and the threads by name to jump to.
+fn player_strip(app: &mut EditorApp, ui: &mut egui::Ui) {
+    use openstitch_app::editor::player::{self, Step};
+    use openstitch_design::timeline::EndKind;
+    if app.timeline.total == 0 {
+        return;
+    }
+    ui.horizontal(|ui| {
+        ui.monospace(player::counter(&app.timeline, app.simulate))
+            .on_hover_text("Stitches and machine time at the needle, out of the totals");
+        ui.separator();
+        for (label, s, tip) in [
+            ("Prev block", Step::BlockBack, "Shift+←"),
+            ("Next block", Step::BlockForward, "Shift+→"),
+            ("Prev object", Step::ObjectBack, "Ctrl+←"),
+            ("Next object", Step::ObjectForward, "Ctrl+→"),
+            ("Next trim", Step::NextTrim, "T"),
+        ] {
+            if ui.small_button(label).on_hover_text(tip).clicked() {
+                // From the whole design shown, forward steps start at the first stitch.
+                let forward =
+                    matches!(s, Step::BlockForward | Step::ObjectForward | Step::NextTrim);
+                let from = if forward {
+                    app.simulate.or(Some(0))
+                } else {
+                    app.simulate
+                };
+                app.simulate = player::step(&app.timeline, from, s);
+                app.playing = false;
+            }
+        }
+        ui.separator();
+        ui.toggle_value(&mut app.stitch_player.auto, "Auto")
+            .on_hover_text("Play the whole design in about 12 seconds");
+        ui.toggle_value(&mut app.stitch_player.pause, "Pause at trims")
+            .on_hover_text(
+                "Stop playing at each trim, stop and colour change, as the machine does",
+            );
+        ui.toggle_value(&mut app.stitch_player.follow, "Follow needle")
+            .on_hover_text("Keep the needle in view while zoomed in");
+    });
+    let t = &app.timeline;
+    let n = player::at(t, app.simulate);
+    let (rect, resp) = ui.allocate_exact_size(
+        egui::vec2(ui.available_width(), 22.0),
+        Sense::click_and_drag(),
+    );
+    let painter = ui.painter_at(rect);
+    let x = |k: usize| rect.left() + rect.width() * k as f32 / t.total as f32;
+    let colour = |i: usize| {
+        app.pattern
+            .threads
+            .get(i)
+            .map_or(Color32::GRAY, |c| Color32::from_rgb(c.red, c.green, c.blue))
+    };
+    for b in &t.blocks {
+        let c = colour(b.thread);
+        let lane = egui::Rect::from_x_y_ranges(
+            x(b.start)..=x(b.end),
+            rect.top() + 4.0..=rect.bottom() - 4.0,
+        );
+        painter.rect_filled(lane, 0.0, c.gamma_multiply(0.3));
+        let sewn = n.clamp(b.start, b.end);
+        if sewn > b.start {
+            let done = egui::Rect::from_x_y_ranges(x(b.start)..=x(sewn), lane.y_range());
+            painter.rect_filled(done, 0.0, c);
+        }
+        for &tr in &b.trims {
+            painter.line_segment(
+                [
+                    egui::pos2(x(tr), rect.top()),
+                    egui::pos2(x(tr), rect.top() + 7.0),
+                ],
+                egui::Stroke::new(1.0, ui.visuals().text_color()),
+            );
+        }
+        if b.end_kind != EndKind::End {
+            let mark = match b.end_kind {
+                EndKind::Stop => Color32::from_rgb(0xd3, 0x2f, 0x2f),
+                _ => ui.visuals().strong_text_color(),
+            };
+            painter.line_segment(
+                [
+                    egui::pos2(x(b.end), rect.top()),
+                    egui::pos2(x(b.end), rect.bottom()),
+                ],
+                egui::Stroke::new(2.0, mark),
+            );
+        }
+    }
+    painter.line_segment(
+        [
+            egui::pos2(x(n), rect.top()),
+            egui::pos2(x(n), rect.bottom()),
+        ],
+        egui::Stroke::new(2.0, Color32::from_rgb(0xff, 0x3d, 0x00)),
+    );
+    if (resp.clicked() || resp.dragged())
+        && let Some(p) = resp.interact_pointer_pos()
+    {
+        let f = f64::from((p.x - rect.left()) / rect.width().max(1.0));
+        app.simulate = player::seek(&app.timeline, f);
+        app.playing = false;
+    }
+    resp.on_hover_text("Colour blocks in sewing order: ticks are trims, bars colour changes (red: a stop). Click or drag to go there");
+    let jumps: Vec<(String, Color32, usize)> = app
+        .timeline
+        .blocks
+        .iter()
+        .enumerate()
+        .map(|(i, b)| {
+            let name = app
+                .pattern
+                .threads
+                .get(b.thread)
+                .and_then(|c| c.name.as_deref())
+                .unwrap_or("Thread");
+            (format!("{}. {name}", i + 1), colour(b.thread), b.start)
+        })
+        .collect();
+    ui.horizontal_wrapped(|ui| {
+        for (label, c, start) in jumps {
+            let r = ui.add(
+                egui::Button::new(RichText::new(label).small()).stroke(egui::Stroke::new(2.0, c)),
+            );
+            if r.on_hover_text("Go to the first stitch of this colour block")
+                .clicked()
+            {
+                app.simulate = player::position(&app.timeline, start);
+                app.playing = false;
+            }
+        }
+    });
 }
