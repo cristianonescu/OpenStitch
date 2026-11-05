@@ -4,7 +4,7 @@
 
 use crate::fmath::Det;
 use crate::generate::{Run, subdivide};
-use crate::geometry::{Vec2, v2};
+use crate::geometry::{Contour, Vec2, v2};
 use crate::model::{Arrange, ChainShape};
 use crate::paths::{Walker, normal};
 use crate::patterns::Pattern;
@@ -45,6 +45,111 @@ fn side_at(w: &Walker, s: f64) -> Vec2 {
     let sum = a + b;
     let len = (sum.x * sum.x + sum.y * sum.y).sqrt();
     if len < 1e-9 { a } else { sum * (1.0 / len) }
+}
+
+/// Indices into `c.path()` of the contour's own points (its nodes), for the stem, candlewick and
+/// chain lines, which place their elements leg by leg, a leg running from one node to the next.
+/// Empty for a contour without curves: there every vertex is a node.
+pub fn nodes_of(c: &Contour) -> Vec<usize> {
+    if !c.has_curves() {
+        return Vec::new();
+    }
+    let mut nodes = vec![0];
+    for i in 0..c.segment_count() {
+        let last = *nodes.last().expect("node");
+        nodes.push(last + c.segment_polyline(i).len() - 1);
+    }
+    nodes
+}
+
+/// Half the stretch of a curved leg over which its heading is taken (0.1 mm): the chords of a
+/// flattened curve turn a little at every vertex, so an element faces the mean direction of the
+/// curve around it instead of the chord it happens to sit on.
+const HEADING_SPAN: f64 = 5.0;
+
+/// One leg of a line: the path from one node to the next, `len` long, starting at arc `a`.
+/// A straight leg (a single segment from `p` to `q`) is measured on that segment itself; a
+/// curved one (a flattened Bézier between two nodes) by arc length along it, so elements are
+/// spaced evenly along the curve whatever its flattening (#464).
+struct Leg {
+    a: f64,
+    len: f64,
+    p: Vec2,
+    q: Vec2,
+    straight: bool,
+}
+
+impl Leg {
+    /// The point `d` along the leg.
+    fn at(&self, w: &Walker, d: f64) -> Vec2 {
+        if self.straight {
+            self.p + self.dir(w, d) * d
+        } else {
+            w.at(self.a + d)
+        }
+    }
+
+    /// The direction of the leg at `d` along it.
+    fn dir(&self, w: &Walker, d: f64) -> Vec2 {
+        if self.straight {
+            return (self.q - self.p) * (1.0 / self.len);
+        }
+        let s0 = (d - HEADING_SPAN).max(0.0);
+        let s1 = (d + HEADING_SPAN).min(self.len);
+        let u = w.at(self.a + s1) - w.at(self.a + s0);
+        let l = u.x.dhypot(u.y);
+        if l > 1e-9 {
+            u * (1.0 / l)
+        } else {
+            w.tangent(self.a + d)
+        }
+    }
+}
+
+/// The arc length along `path` of each of its vertices.
+fn arcs(path: &[Vec2]) -> Vec<f64> {
+    let mut cum = vec![0.0];
+    for q in path.windows(2) {
+        let last = *cum.last().expect("arc");
+        cum.push(last + q[0].distance(q[1]));
+    }
+    cum
+}
+
+/// The legs of `path` between its `nodes` (see [`nodes_of`]; empty: every vertex), zero-length
+/// ones dropped.
+fn legs(path: &[Vec2], nodes: &[usize]) -> Vec<Leg> {
+    let cum = arcs(path);
+    let every: Vec<usize> = (0..path.len()).collect();
+    let nodes = if nodes.is_empty() { &every } else { nodes };
+    nodes
+        .windows(2)
+        .filter(|k| k[1] < path.len() && cum[k[1]] - cum[k[0]] > 1e-9)
+        .map(|k| {
+            let straight = k[1] == k[0] + 1;
+            Leg {
+                a: cum[k[0]],
+                len: if straight {
+                    path[k[0]].distance(path[k[1]])
+                } else {
+                    cum[k[1]] - cum[k[0]]
+                },
+                p: path[k[0]],
+                q: path[k[1]],
+                straight,
+            }
+        })
+        .collect()
+}
+
+/// The arc lengths along `path` of its `nodes` (empty: every vertex).
+fn node_arcs(path: &[Vec2], nodes: &[usize]) -> Vec<f64> {
+    let cum = arcs(path);
+    if nodes.is_empty() {
+        cum
+    } else {
+        nodes.iter().filter_map(|&k| cum.get(k).copied()).collect()
+    }
 }
 
 /// Running stitches along the path between arc lengths `a` and `b` (reversed when `b < a`).
@@ -118,9 +223,18 @@ pub fn motif(path: &[Vec2], closed: bool, m: &MotifLine) -> Run {
 /// bottom left), sewn top, bottom, top, bottom (the second pass 0.14 mm beside the first, so
 /// the rope reads full), then on to the next station's top; `single` sews it once. The first
 /// station is at the line's start, the last at its end, and a corner is sewn as a plain needle
-/// point between the legs' stations. The line ends at its end point.
-pub fn stem(path: &[Vec2], width: f64, spacing: f64, angle: f64, single: bool) -> Run {
-    let Some(pieces) = stem_pieces(path, width, spacing, angle, single) else {
+/// point between the legs' stations. The line ends at its end point. A curved leg (between two
+/// of the `nodes`, see [`nodes_of`]) is measured by arc length, each station leaning from the
+/// curve's direction there, so the slanted stitches overlap evenly all along it (#464).
+pub fn stem(
+    path: &[Vec2],
+    nodes: &[usize],
+    width: f64,
+    spacing: f64,
+    angle: f64,
+    single: bool,
+) -> Run {
+    let Some(pieces) = stem_pieces(path, nodes, width, spacing, angle, single) else {
         return path.to_vec();
     };
     let mut run = vec![pieces[0].lead[0]];
@@ -135,44 +249,42 @@ pub fn stem(path: &[Vec2], width: f64, spacing: f64, angle: f64, single: bool) -
 /// corner is a piece of its own (the corner point).
 fn stem_pieces(
     path: &[Vec2],
+    nodes: &[usize],
     width: f64,
     spacing: f64,
     angle: f64,
     single: bool,
 ) -> Option<Vec<Piece>> {
-    let legs: Vec<(Vec2, Vec2)> = path
-        .windows(2)
-        .filter(|q| q[0].distance(q[1]) > 1e-9)
-        .map(|q| (q[0], q[1]))
-        .collect();
+    let legs = legs(path, nodes);
     if legs.is_empty() || spacing <= 0.0 {
         return None;
     }
+    let w = Walker::new(path);
     let a = angle.to_radians();
     let along = width / 2.0 * (a.dcos() / a.dsin());
     let mut pieces = Vec::new();
-    let mut s0 = 0.0;
-    for (i, &(p, q)) in legs.iter().enumerate() {
-        let l = p.distance(q);
-        let t = (q - p) * (1.0 / l);
-        let nrm = normal(t);
+    for (i, leg) in legs.iter().enumerate() {
+        let l = leg.len;
         let n = (l / spacing).round().max(1.0) as usize;
         let last = i + 1 == legs.len();
         if i > 0 {
             pieces.push(Piece {
-                at: s0,
-                lead: vec![p],
-                pts: vec![p],
+                at: leg.a,
+                lead: vec![leg.p],
+                pts: vec![leg.p],
             });
         }
         for j in usize::from(i > 0)..n + usize::from(last) {
-            let c = p + t * (l * j as f64 / n as f64);
+            let d = l * j as f64 / n as f64;
+            let c = leg.at(&w, d);
+            let t = leg.dir(&w, d);
+            let nrm = normal(t);
             let top = c + t * along - nrm * (width / 2.0);
             let bottom = c - t * along + nrm * (width / 2.0);
             let u = top - bottom;
             let e = normal(u * (1.0 / u.x.dhypot(u.y))) * 1.4;
             pieces.push(Piece {
-                at: s0 + l * j as f64 / n as f64,
+                at: leg.a + d,
                 lead: vec![c],
                 pts: if single {
                     vec![top, bottom]
@@ -181,7 +293,6 @@ fn stem_pieces(
                 },
             });
         }
-        s0 += l;
     }
     Some(pieces)
 }
@@ -192,9 +303,18 @@ fn stem_pieces(
 /// point straight ahead it jumps `points / 2 - 1` points at a time until it is back there (a
 /// corner knot faces along the leg it leads into). The first knot starts with a stitch to its
 /// centre and back. Between knots, running stitch along the line from one knot's front point
-/// to the next one's, every vertex kept, the short stitch first, then `pitch`.
-pub fn candlewick(path: &[Vec2], size: f64, points: usize, spacing: f64, pitch: f64) -> Run {
-    let Some(pieces) = candlewick_pieces(path, size, points, spacing, pitch, false) else {
+/// to the next one's, every node kept, the short stitch first, then `pitch`. A curved leg
+/// (between two of the `nodes`, see [`nodes_of`]) is measured by arc length, so its knots are
+/// evenly spaced along the curve (#464).
+pub fn candlewick(
+    path: &[Vec2],
+    nodes: &[usize],
+    size: f64,
+    points: usize,
+    spacing: f64,
+    pitch: f64,
+) -> Run {
+    let Some(pieces) = candlewick_pieces(path, nodes, size, points, spacing, pitch, false) else {
         return path.to_vec();
     };
     let mut run = Vec::new();
@@ -212,6 +332,7 @@ pub fn candlewick(path: &[Vec2], size: f64, points: usize, spacing: f64, pitch: 
 /// lead comes from the knot before it.
 fn candlewick_pieces(
     path: &[Vec2],
+    nodes: &[usize],
     size: f64,
     points: usize,
     spacing: f64,
@@ -228,22 +349,17 @@ fn candlewick_pieces(
     let step = (points / 2).saturating_sub(1).max(1);
     // Knot stations (arc length, facing direction).
     let mut stations: Vec<(f64, Vec2)> = Vec::new();
-    let mut s0 = 0.0;
-    for seg in path.windows(2) {
-        let l = seg[0].distance(seg[1]);
-        if l <= 1e-9 {
-            continue;
-        }
-        let t = (seg[1] - seg[0]) * (1.0 / l);
+    for leg in legs(path, nodes) {
+        let l = leg.len;
         let n = (l / (size + spacing).max(1e-6)).round().max(1.0) as usize;
         for j in 0..=n {
+            let d = l * j as f64 / n as f64;
             if j == 0 && !stations.is_empty() {
-                stations.last_mut().expect("station").1 = t;
+                stations.last_mut().expect("station").1 = leg.dir(&w, d);
                 continue;
             }
-            stations.push((s0 + l * j as f64 / n as f64, t));
+            stations.push((leg.a + d, leg.dir(&w, d)));
         }
-        s0 += l;
     }
     // Where the loop closes, the knot there faces along the last leg (it ends the loop) and
     // the first leg's runs on from the corner without one (line-candlewick-startend-*.pes).
@@ -251,6 +367,8 @@ fn candlewick_pieces(
     if closed {
         stations.remove(0);
     }
+    let arcs = node_arcs(path, nodes);
+    let at_node = |s: f64| arcs.iter().any(|&n| (n - s).abs() < 1e-6);
     let front = |&(s, t): &(f64, Vec2)| w.at(s) + t * r;
     // Running stitch along the line from `prev`'s front point to arc `b`, then to `to`. After
     // the closing knot (facing away from the next leg) it runs on from the corner, and a short
@@ -272,10 +390,14 @@ fn candlewick_pieces(
                 cuts.push(d);
                 d += pitch;
             }
+            // The nodes' needle points are kept (a curve's flattening vertices are not, or
+            // they would leave short stitches between the pitch's).
             let mut cum = 0.0;
-            for q in slice.windows(2) {
+            for (i, q) in slice.windows(2).enumerate() {
                 cum += q[0].distance(q[1]);
-                cuts.push(cum);
+                if i + 2 == slice.len() || at_node(a + cum) {
+                    cuts.push(cum);
+                }
             }
             cuts.sort_by(f64::total_cmp);
             cuts.dedup_by(|x, y| (*x - *y).abs() < 1e-6);
@@ -438,8 +560,17 @@ pub fn zigzag_underlay(path: &[Vec2], offset: f64, pitch: f64) -> Run {
 /// its point on the line to a base `size` further on and `size / 3` to either side, sewn point,
 /// left, right, point `times` times; then to the left corner, the base's middle and back to
 /// the next link's point (links overlap; the last runs past the leg's end). Diamonds: links of
-/// `size` along the line, upper halves forward, lower halves back, repeated `times`.
-pub fn chain(path: &[Vec2], size: f64, shape: ChainShape, times: u32, arrange: Arrange) -> Run {
+/// `size` along the line, upper halves forward, lower halves back, repeated `times`. A curved
+/// triangle leg (between two of the `nodes`, see [`nodes_of`]) is measured by arc length, so
+/// its links are evenly spaced and equal along the curve (#464).
+pub fn chain(
+    path: &[Vec2],
+    nodes: &[usize],
+    size: f64,
+    shape: ChainShape,
+    times: u32,
+    arrange: Arrange,
+) -> Run {
     let w = Walker::new(path);
     let len = w.length();
     if len <= 0.0 || size <= 0.0 {
@@ -447,7 +578,7 @@ pub fn chain(path: &[Vec2], size: f64, shape: ChainShape, times: u32, arrange: A
     }
     if shape == ChainShape::Triangle {
         let mut run = Vec::new();
-        for p in chain_pieces(path, size, times, arrange) {
+        for p in chain_pieces(path, nodes, size, times, arrange) {
             extend(&mut run, p.lead);
             run.extend(p.pts);
         }
@@ -474,19 +605,29 @@ pub fn chain(path: &[Vec2], size: f64, shape: ChainShape, times: u32, arrange: A
 
 /// The triangle links of [`chain`] in sewing order, each with its point on the line as its
 /// lead.
-fn chain_pieces(path: &[Vec2], size: f64, times: u32, arrange: Arrange) -> Vec<Piece> {
+fn chain_pieces(
+    path: &[Vec2],
+    nodes: &[usize],
+    size: f64,
+    times: u32,
+    arrange: Arrange,
+) -> Vec<Piece> {
+    let w = Walker::new(path);
     let mut pieces = Vec::new();
-    let mut s0 = 0.0;
-    for seg in path.windows(2) {
-        let l = seg[0].distance(seg[1]);
-        if l <= 1e-9 {
-            continue;
-        }
-        let t = (seg[1] - seg[0]) * (1.0 / l);
+    for leg in legs(path, nodes) {
+        let l = leg.len;
         let n = (l / (0.75 * size) + 1e-9).floor().max(1.0) as usize;
         for j in 0..n {
+            let d = l * j as f64 / n as f64;
+            let p = leg.at(&w, d);
+            // On a curve the link points at the curve one size further on (the chord), so its
+            // base stays on the line (#464).
+            let ahead = leg.at(&w, (d + size).min(l)) - p;
+            let t = match ahead.x.dhypot(ahead.y) {
+                h if !leg.straight && h > 1e-6 => ahead * (1.0 / h),
+                _ => leg.dir(&w, d),
+            };
             let nrm = normal(t) * (size / 3.0 * side(arrange, pieces.len()));
-            let p = seg[0] + t * (l * j as f64 / n as f64);
             let base = p + t * size;
             let mut pts = Vec::new();
             for _ in 0..times.max(1) {
@@ -494,12 +635,11 @@ fn chain_pieces(path: &[Vec2], size: f64, times: u32, arrange: Arrange) -> Vec<P
             }
             pts.extend([base - nrm, base]);
             pieces.push(Piece {
-                at: s0 + l * j as f64 / n as f64,
+                at: leg.a + d,
                 lead: vec![p],
                 pts,
             });
         }
-        s0 += l;
     }
     pieces
 }
@@ -548,6 +688,7 @@ pub enum LoopLine {
 /// Returns the stitches and whether they start with leads rather than an element.
 pub fn start_loop(
     path: &[Vec2],
+    nodes: &[usize],
     line: LoopLine,
     exit: f64,
     run_from: Option<f64>,
@@ -560,7 +701,7 @@ pub fn start_loop(
             angle,
             single,
         } => {
-            let mut p = stem_pieces(path, width, spacing, angle, single)?;
+            let mut p = stem_pieces(path, nodes, width, spacing, angle, single)?;
             // Where the loop closes PE-DESIGN sews the corner point and the last station's
             // bottom point instead of the whole station (the first station is there too).
             let last = p.last_mut().expect("station");
@@ -579,7 +720,7 @@ pub fn start_loop(
             spacing,
             pitch,
         } => (
-            candlewick_pieces(path, size, points, spacing, pitch, true)?,
+            candlewick_pieces(path, nodes, size, points, spacing, pitch, true)?,
             false,
             true,
         ),
@@ -587,7 +728,11 @@ pub fn start_loop(
             size,
             times,
             arrange,
-        } => (chain_pieces(path, size, times, arrange), false, false),
+        } => (
+            chain_pieces(path, nodes, size, times, arrange),
+            false,
+            false,
+        ),
     };
     let n = pieces.len();
     if n < 2 || len <= 0.0 {
@@ -639,6 +784,34 @@ pub fn start_loop(
         }
     }
     Some((run, k2 != k1 || defer))
+}
+
+/// The elements of a stem, candlewick or triangle chain line in sewing order, each as its lead
+/// and its own stitches (for the tests).
+#[cfg(test)]
+pub(crate) fn elements(path: &[Vec2], nodes: &[usize], line: LoopLine) -> Vec<(Run, Run)> {
+    let pieces = match line {
+        LoopLine::Stem {
+            width,
+            spacing,
+            angle,
+            single,
+        } => stem_pieces(path, nodes, width, spacing, angle, single).unwrap_or_default(),
+        LoopLine::Candlewick {
+            size,
+            points,
+            spacing,
+            pitch,
+        } => {
+            candlewick_pieces(path, nodes, size, points, spacing, pitch, false).unwrap_or_default()
+        }
+        LoopLine::Chain {
+            size,
+            times,
+            arrange,
+        } => chain_pieces(path, nodes, size, times, arrange),
+    };
+    pieces.into_iter().map(|p| (p.lead, p.pts)).collect()
 }
 
 /// Arc length along `path` of the point on it nearest `p`.

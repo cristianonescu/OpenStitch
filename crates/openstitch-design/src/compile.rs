@@ -1252,7 +1252,9 @@ fn line_elements(object: &DesignObject, line: &LineSewing, user: &[Pattern]) -> 
                     StartEnd::Feed => None,
                     StartEnd::Run => Some(lines::arc_of(&path, entry)),
                 };
-                if let Some((top, lead)) = lines::start_loop(&path, l, exit, run_from) {
+                if let Some((top, lead)) =
+                    lines::start_loop(&path, &lines::nodes_of(c), l, exit, run_from)
+                {
                     lead_in |= lead && runs_so_far == 0;
                     run.extend(top);
                     run.dedup_by(|a, b| a.distance(*b) < 1e-9);
@@ -1291,6 +1293,7 @@ fn line_elements(object: &DesignObject, line: &LineSewing, user: &[Pattern]) -> 
                 }
                 LineType::Stem => lines::stem(
                     &c.path(),
+                    &lines::nodes_of(c),
                     width,
                     spacing,
                     // Counter-clockwise from the line on screen, as stored.
@@ -1300,6 +1303,7 @@ fn line_elements(object: &DesignObject, line: &LineSewing, user: &[Pattern]) -> 
                 // PE-DESIGN's Medium knot is a star of 24 points (density 12).
                 LineType::Candlewick => lines::candlewick(
                     &c.path(),
+                    &lines::nodes_of(c),
                     width,
                     (line.density * 2.0).round().clamp(4.0, 48.0) as usize,
                     spacing,
@@ -1322,6 +1326,7 @@ fn line_elements(object: &DesignObject, line: &LineSewing, user: &[Pattern]) -> 
                 }
                 LineType::Chain => lines::chain(
                     &c.path(),
+                    &lines::nodes_of(c),
                     width,
                     line.chain_shape,
                     line.run_times,

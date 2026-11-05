@@ -43,8 +43,29 @@ pub fn along(contour: &Contour, pitch: f64) -> Vec<Vec2> {
 /// circle (#121); no PE-DESIGN reference reaches that far, its page being at most 360 mm.
 const MAX_CURVE_HALVINGS: u32 = 16;
 
+/// Farthest a curve may bulge from a running stitch's chord (0.1 mm), measured at the chord's
+/// middle parameter: a curve shorter than one stitch (a 2 mm scallop or wave of a decorative
+/// frame under a 2 mm pitch) was sewn as its chord, flattening the ornament into a straight
+/// edge (#464). A curve of radius r bulges pitch² / 8r from its chord, so at the 2-2.5 mm
+/// pitches this only halves curves tighter than about 2.5 mm in radius; PE-DESIGN's 60 mm
+/// circle (bulge 0.01 mm) keeps its 32 chords per quarter.
+const MAX_CURVE_SAG: f64 = 3.0;
+
+/// Distance from `m` to the segment `p`-`q`.
+fn sag(m: Vec2, p: Vec2, q: Vec2) -> f64 {
+    let d = q - p;
+    let l2 = d.x * d.x + d.y * d.y;
+    let t = if l2 > 0.0 {
+        (((m - p).x * d.x + (m - p).y * d.y) / l2).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    m.distance(p + d * t)
+}
+
 /// Needle points on the cubic Bézier `a`, `c1`, `c2`, `b` at equal parameter steps, the
-/// parameter halved until every chord is no longer than `pitch`: PE-DESIGN 11.50 sews a
+/// parameter halved until every chord is no longer than `pitch` and no part of the curve
+/// bulges more than [`MAX_CURVE_SAG`] from its chord: PE-DESIGN 11.50 sews a
 /// 60 mm circle's running stitch (pitch 2 mm) as 4 × 32 chords of 1.44-1.60 mm whose needle
 /// points lie at the quarter arcs' parameters k/32 (compat text-fit-default), not at equal
 /// arc length and not on a flatness-tolerance polyline resampled at the pitch (#121: that
@@ -60,9 +81,12 @@ pub fn halve_curve(a: Vec2, c1: Vec2, c2: Vec2, b: Vec2, pitch: f64) -> Vec<Vec2
     loop {
         let n = 1usize << halvings;
         let pts: Vec<Vec2> = (0..=n).map(|k| at(k as f64 / n as f64)).collect();
-        if halvings >= MAX_CURVE_HALVINGS
-            || pts.windows(2).all(|w| w[0].distance(w[1]) <= pitch + 1e-9)
-        {
+        let fits = |k: usize| {
+            let (p, q) = (pts[k], pts[k + 1]);
+            p.distance(q) <= pitch + 1e-9
+                && sag(at((k as f64 + 0.5) / n as f64), p, q) <= MAX_CURVE_SAG
+        };
+        if halvings >= MAX_CURVE_HALVINGS || (0..n).all(fits) {
             return pts;
         }
         halvings += 1;
