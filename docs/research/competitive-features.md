@@ -1093,3 +1093,88 @@ Grouped by product. Pages seen only through search summaries are marked (summary
 - https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/7996103
 - https://patents.google.com/patent/WO2005061774A1/en
 - https://patents.justia.com/patent/6587745
+
+---
+
+## Updates
+
+### 2026-11-05 scan
+
+Period checked: 2026-10-28 to 2026-11-05.
+
+**Commercial products.** No material release or feature announcement in the period.
+Checked: Wilcom blog (newest post 2026-10-08) and Hatch blog (newest 2026-10-25, a free-design
+post); BERNINA (V9 still current, no V10 found); mySewnet (no 2026 release notes found);
+Janome Artistic Digitizer (2.0 still current); Tajima DG (DG17 17.1.1 already listed on the
+download page, nothing dated in the period); Embird (the "what is new" page now headlines
+Embird 2026 but gives no date, so it is not counted here and is left for a full re-survey);
+Ink/Stitch (newest post is v3.3.0 of 2026-07-31, already covered); Embrilliance (no dated
+release found); PE-DESIGN 11 one-click update history (11.50 of September 2026, already covered).
+Sources: https://wilcom.com/resources/blog, https://hatchembroidery.com/resources/blog,
+https://inkstitch.org/news, https://www.embird.net/what-is-new/,
+https://support.brother.com/g/s/hf/ped_info/ped11/one_click_update/en/ped11update_info.html,
+https://cloud.pulsemicro.com/Download.
+
+#### Open-source projects
+
+First scan of each repository: baseline entries. Features were read from READMEs, release
+lists and commit titles only. None of their code may be copied, ported or paraphrased into
+OpenStitch; the GPL and unlicensed repositories are concept-only, exactly as Ink/Stitch is
+(section 5).
+
+- **vomitselfie/Morale** (GPL-3.0, Python/PySide6; created 2026-08, last push 2026-11-01;
+  latest release v0.3.0 of 2026-09-27, a 0.4.0 release commit on 2026-10-30). A cross-platform
+  digitizing app: artwork auto-digitizing, about 120 embroidery fonts plus system fonts,
+  drawing tools, stitch preview and a pre-sew check. The 0.4.0 commits add blanket, meander
+  and cross-stitch types, sharp satin corners sewn as fans instead of refused (O3), staggered
+  satin split points so long satins do not form a groove (new row: split-line staggering),
+  travel kept inside fills with chosen start/end points (D3), test swatches of the selection,
+  copy/paste of stitch settings and "select same stitch type", stitch settings read from SVG
+  layer and object names (W5), and an INF colour file written beside EXP for Bernina.
+  Ideas for OpenStitch: test swatch of a selection, staggered splits, settings carried in
+  SVG names. https://github.com/vomitselfie/Morale (single source)
+- **alexandra03/threadspool** (no licence: all rights reserved, concept-only; Python; created
+  2026-07, last push 2026-07-21, no releases). An experiment where an LLM agent writes a
+  design spec from a natural-language prompt and a deterministic engine compiles it to VP3,
+  with a notes file of learned format facts. Relevant to OpenStitch's AI-feature track as
+  prior art for prompt-to-design; also a VP3 writer (W6, OpenStitch ○).
+  https://github.com/alexandra03/threadspool (single source)
+- **lork-fork/Roidery** (Apache-2.0, Rust; created 2026-10-14, last push 2026-10-20, no
+  releases). An Illustrator-style digitizer built on a vector editor. Beyond OpenStitch today:
+  two-rail satin blocks with draggable rungs and width tapering (O2, OS ◐), a "convert filled
+  shape to centre-line satin" command (D12-adjacent, new row), a fill-angle drag tool (F4,
+  OS ○), contour and circular fills (F1), garment mockups (T-shirt, cap, tote) exported as
+  images for customers (new row), a one-page production worksheet (W7), match-to-chart thread
+  conversion with imported charts (W3, OS ○), and VP3, U01, TAP export plus DSB/DSZ/HUS reading
+  (W6, OS ○). Optional download of the Ink/Stitch community fonts (OFL/GPL assets, not for
+  OpenStitch). Licence is permissive, but the project rule still applies: ideas only.
+  https://github.com/lork-fork/Roidery (single source)
+- **bastanja/stitch_generator** (MIT, Python; created 2020, v1.0.0 on 2026-10-14). A library,
+  not an app: turns paths with a width function into stitch effects (satin, motif, meander,
+  scribble with noise) and offers "subdivision functions" that split a length into equal or
+  varying segments shifted per row. Relevant to F8/F9 (meander, hand-stitch randomisation)
+  and O5 (motif distribution); the documented catalogue of decorative stitch effects is a
+  useful checklist. https://github.com/bastanja/stitch_generator (single source)
+- **EvenDog/openhoop** (GPL-3.0, Swift, macOS; created 2026-10-15, last push and release
+  v0.9.3 on 2026-11-05, releases almost daily). A Mac digitizer that has sewn real designs on
+  a Brother SE600. Beyond OpenStitch today: branching of touching shapes without trims (D1,
+  OS ○ B4), short stitches on curves and split wide satin (O4), contour fills that spiral on
+  cornered shapes (F1), colour blend from one thread into a second with a levels-style mix
+  control (F6, OS ○ B6), arched lettering with several lines as concentric rings (D9),
+  envelope lettering and monograms, laydown and basting box (F12, OS ○ B12), 21 thread-brand
+  charts (W3), multi-hooping with alignment marks (W1), user-named custom hoops, SVG import of
+  `<use>`, `<style>` and gradients as gradient fills (W5), and every exported file read back
+  and checked before saving (D15-adjacent). https://github.com/EvenDog/openhoop (single source)
+- **benkl/filum** (GPL-3.0, Rust engine + TypeScript UI, web and Tauri desktop; created
+  2026-11-04, release 0.1.0 the same day). Its README states the Rust engine is a port of the
+  Ink/Stitch algorithms, so it is GPL-derived: concepts only, never a source. Beyond
+  OpenStitch today: auto-digitize presets (logo, patch, line art, photo, pixel art), 134
+  bundled fonts, knockdown and basting (F12), a stitch-out player with a colour-block
+  timeline, fabric calibration that sews a swatch and starts settings from measured values
+  (new row; ties into OpenStitch's own calibration-scan work), G-code and video export, and a
+  browser build. https://github.com/benkl/filum (single source)
+
+No comparison-matrix row changes: the matrix compares the surveyed commercial products and
+Ink/Stitch; the open-source projects above are tracked here. Candidate new matrix rows for
+the coordinator: satin split staggering, convert fill to centre-line satin, garment mockups,
+fabric calibration swatch, selection test swatch.
