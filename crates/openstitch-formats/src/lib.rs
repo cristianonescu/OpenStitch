@@ -29,6 +29,7 @@ pub mod sew;
 pub mod shv;
 pub mod split;
 pub mod vip;
+pub mod vp3;
 pub mod xxx;
 
 /// Why a file could not be read or written.
@@ -72,10 +73,12 @@ pub enum FileType {
     /// Read only.
     Phc,
     Csd,
+    /// Husqvarna Viking / Pfaff; beyond PE-DESIGN's set (#480).
+    Vp3,
 }
 
 impl FileType {
-    pub const ALL: [FileType; 13] = [
+    pub const ALL: [FileType; 14] = [
         Self::Pes,
         Self::Pec,
         Self::Dst,
@@ -89,6 +92,7 @@ impl FileType {
         Self::Shv,
         Self::Phc,
         Self::Csd,
+        Self::Vp3,
     ];
 
     /// Whether OpenStitch can write this format ([`FileType::write`] fails otherwise).
@@ -117,6 +121,7 @@ impl FileType {
             Self::Shv => "shv",
             Self::Phc => "phc",
             Self::Csd => "csd",
+            Self::Vp3 => "vp3",
         }
     }
 
@@ -151,6 +156,7 @@ impl FileType {
             Self::Shv => shv::read(data),
             Self::Phc => phc::read(data),
             Self::Csd => csd::read(data),
+            Self::Vp3 => vp3::read(data),
         }
     }
 
@@ -169,6 +175,7 @@ impl FileType {
             Self::Vip => vip::write(pattern),
             Self::Shv => shv::write(pattern),
             Self::Csd => csd::write(pattern),
+            Self::Vp3 => vp3::write(pattern),
             Self::Phc => Err(FormatError::UnsupportedFormat(format!(
                 "{self} is read only"
             ))),

@@ -30,6 +30,7 @@ Notes that do not change the fixture bytes:
 | VIP | ✅ | ✅ | PE-DESIGN 11.50 reference write (streams and header identical); colour table confirmed by libembroidery's reader | No independent stitch decoder exists (pyembroidery has no VIP module; libembroidery's decompressor is a stub). |
 | SHV | ✅ | ✅ | Oracle-verified read; PE-DESIGN 11.50 reference write (header, bounds, counts and records identical; preview pixels approximate) | Six header bytes copied from PE-DESIGN's export, meaning unknown. See "SHV" below. |
 | CSD | ✅ | ✅ | Read verified against PE-DESIGN 11.50's export (type 0; type 1 spec-derived); PE-DESIGN 11.50 reference write (byte-identical) | Fixed-key obfuscation (libembroidery's masks). See "CSD" below. |
+| VP3 | ✅ | ✅ **experimental** (beyond PE-DESIGN, #480) | Round-trip and oracle tested only (pyembroidery 1.5.1 both ways, the 35 kit designs); **no reference file from Husqvarna or Pfaff software and no sew-out on a machine yet** | Thread brand, catalogue number and name per colour. See "VP3" below. |
 | PHC | ✅ | — (read only, as in PE-DESIGN) | Oracle-verified read (pyembroidery) | PEC stitch data in a Brother wrapper. |
 | PHX | ❌ | — | **Blocked** | No public description or open-source reader; studying PE-DESIGN output would be reverse engineering (LEGAL_AND_LICENSING.md). |
 | PEN | ❌ | — | **Blocked** | Brother's encrypted format for designs bought from iBroidery; decrypting it would circumvent a protection measure. Out of scope. |
@@ -39,7 +40,12 @@ Notes that do not change the fixture bytes:
 **Authoritative list (Brother online guide, "Saving" and "Converting Embroidery Design
 Files"):** PE-DESIGN 11 saves `.pes` and exports `.dst .hus .exp .pcs .vip .sew .jef .csd .xxx .shv`.
 Design Database converts between `.pes .dst .exp .pcs .hus .vip .shv .jef .sew .csd .xxx`.
-`.phc .phx .pen` cannot be produced. VP3 is not in the list.
+`.phc .phx .pen` cannot be produced. VP3 is not in the list: OpenStitch reads and writes it as a
+format beyond PE-DESIGN's set (#480, below).
+
+**Verified on a machine:** PES only (Brother Innov-is NV880E, TESTING.md). Every other format,
+including VP3, is checked by computer tests only: against PE-DESIGN 11.50's exports where the
+table says so, and otherwise by round trips and the pyembroidery oracle.
 
 ## PEC
 
@@ -1532,3 +1538,60 @@ The built-in templates are in `crates/openstitch-engine/templates/`, generated b
   OpenStitch PES opens in PE-DESIGN as a stitch group (v1/v6 with objects) or stitch-only
   design (truncated). Version 6 keeps RGB threads, names and metadata.
 - SHV and CSD are written as PE-DESIGN 11.50 exports them (see above); PHC is read only.
+
+## VP3 (Husqvarna Viking / Pfaff, #480)
+
+Beyond PE-DESIGN's set (PE-DESIGN 11 exports HUS, VIP and SHV for Viking, not VP3). **Writing is
+experimental:** no VP3 from Husqvarna or Pfaff software (mySewnet, Premier+) and no sew-out on a
+Husqvarna Viking or Pfaff machine has been checked yet; TESTING.md asks for one.
+
+Sources: Roidery's VP3 notes (`crates/emb-formats/src/vp3.rs`, MIT OR Apache-2.0,
+THIRD_PARTY_NOTICES.md) and the bytes of files pyembroidery 1.5.1 writes, which match them
+field for field. No code from pyembroidery, threadspool (no licence) or any GPL project was used.
+
+Big-endian. Blocks are a 3-byte tag and a u32 length of what follows the length field. Strings
+are a u16 byte length and the text: UTF-16BE in the headers, UTF-8 in the thread blocks.
+Positions in the headers are micrometres with y up; stitch records are 0.1 mm with y down.
+
+| Part | Content |
+|---|---|
+| `%vsm%` 00 | magic |
+| string (UTF-16) | producer, `Produced by     Software Ltd` |
+| `00 02 00` u32 | file block: settings string (UTF-16, empty), right, −top, left, −bottom (i32 µm), u32 record count, u16 colour blocks, `0C 00`, `01` |
+| `00 03 00` u32 | design block: centre x, −centre y (i32 µm), `00 00 00`, −w/2, w/2, −h/2, h/2, w, h (i32 µm), notes string (UTF-16), `64 64`, i32 4096, 0, 0, 4096, `xxPP 01 00`, producer string, u16 colour blocks |
+| `00 05 00` u32 | per colour block: start x, −start y (i32 µm from the centre), thread, shift x, −shift y (i32 µm, end − start), `00 01 00` u32 `0A F6 00` records, `00` |
+| thread | u8 colours (1), u8 transition (0), per colour r g b and 3 bytes (0), u8 type (5), u8 weight (`28`), then UTF-8 strings: catalogue number, colour name, brand |
+
+Records: `dx dy` (signed bytes, ±12.7 mm) a stitch; `80 01` i16 dx, i16 dy, `80 02` a longer
+move; `80 03` a trim. There is no jump record and no stop.
+
+**Writer (`vp3::write`).** The design is centred like every writer's (`layout::events`). A frame
+move is always the long form, after `80 03` when the design trims there (not before the first
+move and not at the start of a colour block); a stitch over 12.7 mm is one long record, so the
+needle goes down once. A colour change starts a new block; a stop starts one too, with the same
+thread (VP3 has no stop). The last block ends with `80 03`. Each thread's catalogue number, name
+and brand are written as the design holds them (empty strings when it has none; long strings are
+cut at a character boundary to 65,535 bytes). More than 255 colour blocks is `ValueOutOfRange`,
+so `design.export {split: true}` writes several files.
+
+**Reader (`vp3::read`).** Follows the block lengths. A long record read first in a colour block
+or right after a trim is a jump; every other record is a stitch, so an untrimmed jump written by
+another program comes back as a stitch, as pyembroidery reads it. A colour block that starts
+away from the current position gets a jump to its start. Thread strings are kept as they are;
+an empty one is `None`. The RGB is not matched to a thread chart: a VP3 does not say which chart
+its colours come from, and guessing one would invent a brand.
+
+**Evidence.**
+- `oracle.vp3` (pyembroidery's VP3 of a 12-colour test design with brand, number and name per
+  thread, 20 mm stitches and 30 mm trimmed moves) reads like pyembroidery reads it and like the
+  design it was written from; `oracle_kit.vp3` (pyembroidery's VP3 of `machine-formats.pes`)
+  reads like pyembroidery reads it; `openstitch.vp3` (this writer's file of the same 12-colour
+  design) reads in pyembroidery with the same needle path (±0.1 mm), colour blocks, trims and
+  thread strings (`tests/survey_formats.rs`, fixtures from `tools/genfixtures_survey.py`).
+- All 35 kit designs in `examples/sew`, checked once both ways on 2026-11-05 (not in CI, it
+  needs pyembroidery): OpenStitch's VP3 read by pyembroidery and pyembroidery's VP3 read by
+  OpenStitch give the same needle path (±0.1 mm, moves the writers fold into one left out),
+  colour changes, trims and colours.
+- `vp3::tests` (block lengths, empty and 40,000-character names, more than 255 colours, every
+  truncation and every flipped byte without a panic); the `read_vp3` fuzz target (1.49 M runs,
+  30 s, no crash); `tools/sew_check.py` reads VP3.
