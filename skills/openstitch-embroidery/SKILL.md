@@ -40,6 +40,18 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   their ellipse, which `fitsPage` checks; round hoops cannot rotate. Brother is the default.
 - Keep the whole design inside the page: `design.export` reports `fitsPage` and the
   `smallestHoop`.
+- Larger than the hoop: on a custom page, `sections.set {hoop}` splits it (PE-DESIGN's grid);
+  `sections.autoLayout` switches to free hoopings, where each object stays whole in one hooping
+  with alignment marks and a stop between them. `sections.list` names objects that fit no
+  hooping; `sections.export {path}` writes "Name - hooping k of n" files.
+  Free hoopings by hand: `sections.set {mode: "free", hoopings: [{x, y, rotated}], marks:
+  "boxX" | "cross" | "none", minOverlap, stopAfterMarks}` (x, y: the hooping's top-left corner
+  on the page in mm, in sewing order; `rotated` turns the hoop 90°; consecutive hoopings must
+  overlap by `minOverlap`, 16 mm by default, for the marks). Example: `sections.list` says
+  "object 7 (60.0 × 40.0 mm) fits no hooping" → read the hoopings' `area`s, then send the
+  whole list again with one hooping moved (or one added) so that its area holds the object's
+  bounds, and check `sections.list` until `errors` is empty. `{mode: "grid"}` returns to
+  PE-DESIGN's sections.
 
 ## Build order
 
