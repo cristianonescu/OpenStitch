@@ -416,6 +416,45 @@ fan, Shapes ▸ Satin Skeleton from Shape), a prompt-to-spec LLM design agent (B
 the engine's commands), and stitch_generator's effect catalogue (a checklist for B9, not a
 feature of its own).
 
+The full survey of the same six projects (2026-11-05, second pass: 544 features read from their
+docs, release notes and wikis, each checked against OpenStitch's docs and code; per-repo notes in
+[research/competitive-features.md](research/competitive-features.md), Updates) opened 88 issues
+(#472–#559) and added details to 16 existing ones. Better results where
+OpenStitch already has the feature count too ("improve"). Ranked by user benefit and effort, none
+started:
+
+| Rank | Theme | Issues | Ties to |
+|---|---|---|---|
+| 1 | Sewing quality checks before the needle: Check Design pane, density map, Review Sewing Order, export read-back, random-design invariant test | #503, #504, #505, #457, #506 | B13, D15 |
+| 2 | Satin quality: corner styles, short stitches on every satin, compensation per side and in %, automatic underlay by width, branching shapes to satin, variable-width satin line | #520, #521, #522, #523, #526, #524 (and the bug #460) | B3, B5, B10 |
+| 3 | Fewer trims: travel under later fills, branching and auto-routing, nearest start per object, leave out hidden stitching | #545, #546, #547, #511 | B4, B6, B11 |
+| 4 | Assistant: memory between conversations, example designs and a composition guide, illustrated benchmark tasks, every batch error at once, only the user's threads | #491, #492, #493, #494, #495 | B17 |
+| 5 | Production: parameter test swatches, fabric and thread-weight presets, basting box, knockdown, Stop at Jumps, job sheets | #507, #508, #509, #510, #512, #513 (with #452, #453) | B5, B12, D6, W7 |
+| 6 | Fills: colour blends and gradients, Fill Angle tool and angle lines, maze and tiled meander, tatami textures, wave and flow fills | #532, #534, #533, #537, #538 | B2, B6, B9 |
+| 7 | Editing: align and distribute, precision bar, copies along a line and scatter, snapping, select same, knife, smoothing, continue drawing, shape tools, stitch table, sewing-order list | #472, #474, #476, #473, #475, #477, #478, #479, #497, #501, #502, #500 | B11 |
+| 8 | Lettering: font library with size ranges, single-line text, Ink/Stitch-format font folders, envelopes with handles | #527, #530, #529, #535 | B15 |
+| 9 | Formats and threads: VP3, perceptual thread matching, richer SVG import, more formats, thread list files, `.gpl` palettes, merge similar colours, more charts, extra exports | #480, #484, #487, #481, #482, #483, #485, #486, #488 | W3, W6 |
+| 10 | Views and hoops: stitch-out player, millimetres or inches, free multi-hooping, view toggles, zoom box and real size, hoop lists for other brands | #516, #519, #515, #517, #518, #514 | W1, W4 |
+| 11 | Image wizard: purpose presets, region table with reasons and overrides | #489 (and the bug #469) | B16 |
+| 12 | Workflow and platform: autosave and recovery, command palette, custom UI, tabs, new-object defaults, getting started, translations, Finder/Explorer thumbnails, accessibility, `stitchtool` one-line verbs | #549, #550, #551, #552, #553, #554, #555, #557, #499, #496 | W9 |
+| 13 | Satin, line and fill looks: satin variants, raised satin, rail and rung editing, hand-stitch and scribble, back stitch and variable running stitch, decorative hand-embroidery lines, motif lines, per-object trim and tie | #528, #531, #525, #540, #542, #543, #544, #548 | B7, B9 |
+| Ideas | Tartan fill, ripple line, pixel text, on-device digitizing helpers, browser build, background open, accent colour, Python package | #539, #541, #536, #490, #556, #558, #559, #498 | — |
+
+Skipped as already in OpenStitch (the survey's "have" rows, 261 of 544): tatami, gradient,
+contour, spiral, radial, motif, cross-stitch, guided and stippling fills; running, triple,
+E-stitch, zigzag, stem, motif and candlewick lines; satin columns from rails and from a centre
+line, Half Stitch, staggered splits, underlay passes, pull compensation, fill travel inside the
+shape, fill start and end points, ties and trims; appliqué with stops; lettering on a path and
+arcs, multi-line text, monograms, per-letter moves, batch lettering (Name Drop); node editing,
+booleans, weld, groups, outlines and offsets, convert outline and fill, rebuild shapes from
+stitches; copy/paste of stitch settings; three views and the simulator; rulers, guides, measure;
+thread charts with matching, owned threads, sort by colour; hoop presets, custom hoops, split
+for multi-hooping; worksheets and catalogue PDFs; the design library; PES, PEC, DST, EXP, JEF,
+XXX, HUS and imports of machine files; SVG import with `<use>`, `<style>` and CSS; signed
+updates; desktop installers; the automation socket, `stitchtool` and the MCP server; the
+Assistant's prompt-to-design. Where those projects do one of these better, the improvement is
+an issue or a comment above (#460, #462, #463, #464, #446, #447, #471, #291).
+
 Deferred: linear colour-gradient and tartan fills, shape and vine fills, photo
 thread-painting, sequin/chenille/bead types (machine-specific), the TrueType turning-satin
 rework, an intelligent multi-hoop split with editable lines, VP3 and other extra formats.

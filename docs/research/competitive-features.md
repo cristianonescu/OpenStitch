@@ -1184,3 +1184,65 @@ rows in FEATURE_MATRIX.md and a ranking in ROADMAP.md: export read-back check (#
 test swatch (#452), fabric calibration swatch (#453), arched text with several lines (#456),
 settings from SVG names (#455), garment mockups (#454). Satin split staggering and convert fill
 to centre-line satin were candidates but OpenStitch already has both.
+
+#### Open-source projects: full survey (2026-11-05, second pass)
+
+The owner asked for every missing feature and every place where these projects do better. Six
+research passes, one per project, read each project's README, docs, wiki, user guide, every
+release note and changelog, issue tracker and example files; code only to understand what a
+feature does, never how. Each feature (544 in all) was checked against FEATURE_MATRIX.md,
+ROADMAP.md, BACKLOG.md, this document's matrix and a search of `crates/` and `tools/`, and
+classed as have, partial, missing or "improve" (we have it, theirs is measurably better). The
+same features from several projects became one issue citing all of them. Result: 88 new issues
+(#472–#559) and new details on 16 existing ones (#291, #292, #446, #447, #453, #454, #455, #456,
+#457, #458, #460, #462, #463, #464, #469, #471). The ranking is in ROADMAP.md (Beyond PE-DESIGN),
+the planned rows in FEATURE_MATRIX.md, the proposed batches in BACKLOG.md. Ideas only: none of
+their code may be copied, ported or paraphrased; the GPL and unlicensed projects are
+concept-only, and the thread charts and fonts some of them ship (from Ink/Stitch, GPL) are not
+a source for OpenStitch's data either.
+
+- **Morale** (GPL-3.0): 97 features; have 55, partial 28 (13 of them "improve"), missing 14.
+  Main gaps: an in-app Check design with click-to-select (#503), density and coverage review
+  (#504), test swatches stepping one setting (#507), branch splitting into satin columns
+  (#526), the image wizard's per-region table with reasons and overrides (#489), richer SVG
+  import (#487), autosave and recovery (#549), align and distribute (#472). Improvements: satin
+  split on by default (#460), the inside-only corner fan (#520), meander spacing (#462),
+  distinct artwork colours kept on separate threads (#447). Already in OpenStitch: underlay out
+  and back, Half Stitch, travel inside fills, fill start and end points, E-stitch, cross
+  stitch, the ripple centre, guides, copy/paste of stitch settings, design notes, catalogue PDF,
+  batch conversion.
+- **threadspool** (no licence): 42 features; have 26, improve 7, partial 3, missing 6. The
+  first pass said no issue was needed; the second found concrete Assistant gaps: memory
+  between conversations (#491), a bank of complete example designs and a composition guide in
+  the skill (#492), illustrated benchmark tasks scored on the render (#493), every batch error
+  reported at once (#494), only the user's own threads (#495); plus VP3 (#480) and single-line
+  text (#530). Already in OpenStitch: prompt to design through engine commands, any agent
+  harness, deterministic compile, self-check on the render, short-stitch filter, ties, trims,
+  hoop bounds.
+- **Roidery** (Apache-2.0): 75 features; have 39, partial 15 (8 "improve"), missing 21. Main
+  gaps: Check Design with one-click fixes (#503), travel under later fills (#545), branching
+  Convert to Satin (#526), short stitches on every satin (#521), a density × pull-compensation
+  test grid (#507), the Fill Angle drag tool (#534), Remove Overlaps with a margin (#511),
+  VP3/TAP/U01/DSB/DSZ (#480, #481), Ink/Stitch-format fonts (#529), garment mockup details
+  (#454). Already in OpenStitch: the fills, satin underlays, the Sew-Out Player, the worksheet,
+  headless SVG to machine file, the JSON control channel and MCP server, signed updates.
+- **stitch_generator** (MIT, a library): 75 features; have 37, partial 18, missing 20, 3
+  "improve" (stem as a rope and spacing by length along curves, #464). Main gaps: variable
+  running stitch and back stitch (#542), hand-embroidery decorative lines (#543), motif
+  placement patterns (#544), variable underlay (#523), scribble with smooth noise (#540),
+  tatami row shifts (#537), stroke alignment (#524), a Python package (#498, idea).
+- **openhoop** (GPL-3.0): 128 features from the user guide and all 36 release notes; have 53,
+  partial 45 (22 "improve"), missing 30. Main gaps: smart satin corners (#520), colour blend
+  (#532), Review Sewing Order (#505), density map (#504), branching (#546), test swatches
+  (#507), automatic underlay by width and compensation in % (#523, #522), raised satin (#531),
+  basting and laydown (#509, #510), Stop at Jumps (#512), free multi-hooping (#515), copies
+  along a line (#476), hoop lists for other brands (#514), size-tuned fonts (#527), envelopes
+  (#535), tabs (#552), a random-design crash hunt (#506). Its 21 thread charts come from
+  Ink/Stitch (GPL) and are not a source for OpenStitch.
+- **filum** (GPL-3.0, an Ink/Stitch port): 127 features; have 51, partial 42 (10 "improve"),
+  missing 34. Main gaps: a thread- and fabric-aware density map (#504), a live Issues panel
+  (#503), a pre-export check of hoop and colour limit (#457), fabric calibration from one card
+  (#453), leaving out hidden stitching without cutting shapes (#511), the stitch-out player's
+  colour-block timeline (#516), gradients and blends with dithering (#532), perceptual thread
+  fitting and merging similar colours (#484, #485), auto-digitize presets (#489), command
+  palette (#550), job sheets (#513), extra exports including video and G-code (#488).
