@@ -5,14 +5,13 @@
 //!
 //! - *Block* and *Script*: text objects (editable text). The middle letter is full height and
 //!   the side letters smaller; Script letters overlap, like joined initials.
-//! - *Diamond* and *Circle*: each letter is stretched to fill a vertical band of a diamond or
-//!   circle and clipped to its outline, so together the letters form the silhouette. They
-//!   are shape objects.
+//! - *Diamond* and *Circle*: each letter is warped onto a vertical band of a diamond or
+//!   circle (an envelope: its top and bottom follow the silhouette), so together the letters
+//!   form the silhouette and every letter keeps all its strokes. They are shape objects.
 //!
 //! Frames are built around a box (the monogram or any selection); with "maintain aspect
 //! ratio" a frame keeps its natural proportions and grows to enclose the box.
 
-use crate::boolean::{self, BoolOp};
 use crate::fmath::Det;
 use crate::fonts::DesignFont;
 use crate::geometry::{Contour, Rect, Transform, Vec2, v2};
@@ -68,7 +67,7 @@ impl MonogramStyle {
         }
     }
 
-    /// Whether the letters stay text objects (else they are clipped shapes).
+    /// Whether the letters stay text objects (else they are warped shapes).
     pub fn is_text(self) -> bool {
         matches!(self, MonogramStyle::Block | MonogramStyle::Script)
     }
@@ -116,7 +115,7 @@ pub fn normalize_letters(s: &str) -> Option<String> {
 pub enum Letter {
     /// A text object's spec (Block, Script).
     Text(Box<TextSpec>),
-    /// Clipped outlines (Diamond, Circle).
+    /// Warped outlines (Diamond, Circle).
     Shape { ch: char, contours: Vec<Contour> },
 }
 
@@ -164,62 +163,126 @@ pub fn letters(spec: &MonogramSpec, fonts: &[DesignFont]) -> Result<Vec<Letter>,
         return Ok(out);
     }
 
-    let w = h * if spec.style == MonogramStyle::Diamond {
-        1.15
-    } else {
-        1.0
-    };
-    let silhouette = silhouette(spec.style, center, w, h);
-    let n = chars.len();
-    // Band edges across the silhouette: the middle letter gets the widest band.
-    let bands: Vec<(f64, f64)> = match n {
-        1 => vec![(-0.5, 0.5)],
-        2 => vec![(-0.5, -0.025), (0.025, 0.5)],
-        _ => vec![(-0.5, -0.2), (-0.17, 0.17), (0.2, 0.5)],
-    };
+    let w = silhouette_width(spec.style, h);
     let mut out = Vec::new();
-    for (&c, &(a, b)) in chars.iter().zip(&bands) {
+    for (&c, band) in chars.iter().zip(bands(spec.style, chars.len())) {
         let (contours, _) = text::glyph_outline(&spec.font, fonts, c, 10.0)?
             .filter(|(c, _)| !c.is_empty())
             .ok_or_else(|| TextError::BadFont(format!("no glyph for {c}")))?;
         let gb = Rect::enclosing(contours.iter().flat_map(Contour::outline_points))
             .ok_or_else(|| TextError::BadFont(format!("no glyph for {c}")))?;
-        let (x0, x1) = (center.x + a * w, center.x + b * w);
-        // A side band is as tall as the silhouette at its inner edge, so the letter loses only
-        // its outer side to the clip.
-        let near = if a < 0.0 && b > 0.0 {
-            0.0
-        } else {
-            a.abs().min(b.abs())
+        // The glyph's box is warped onto its band: across linearly, and down from the
+        // silhouette's top to its bottom at each x (an envelope), so every stroke stays whole
+        // and bends with the silhouette instead of being cut off by it (#458).
+        let warp = |p: Vec2| {
+            let u = (p.x - gb.min_x) / gb.width().max(1e-9);
+            let v = (p.y - gb.min_y) / gb.height().max(1e-9);
+            band_point(spec.style, center, w, h, band, u, v)
         };
-        let share = match spec.style {
-            MonogramStyle::Circle => (1.0 - (2.0 * near).powi(2)).max(0.0).sqrt(),
-            _ => 1.0 - 2.0 * near,
-        };
-        let (y0, y1) = (center.y - share * h / 2.0, center.y + share * h / 2.0);
-        let t = Transform::translation(-gb.min_x, -gb.min_y)
-            .then(&Transform::scaling(
-                (x1 - x0) / gb.width().max(1e-9),
-                (y1 - y0) / gb.height().max(1e-9),
-                v2(0.0, 0.0),
-            ))
-            .then(&Transform::translation(x0, y0));
-        let stretched: Vec<Contour> = contours.iter().map(|k| k.transformed(&t)).collect();
-        let clipped = boolean::contours(&boolean::combine(
-            &stretched,
-            std::slice::from_ref(&silhouette),
-            BoolOp::Intersection,
-        ));
-        if !clipped.is_empty() {
-            out.push(Letter::Shape {
-                ch: c,
-                contours: clipped,
-            });
-        }
+        // Straight edges are split finely enough to follow the silhouette's curve.
+        let step = gb.width().max(gb.height()) / 80.0;
+        let warped: Vec<Contour> = contours
+            .iter()
+            .map(|k| warp_contour(k, step, &warp))
+            .collect();
+        out.push(Letter::Shape {
+            ch: c,
+            contours: warped,
+        });
     }
     Ok(out)
 }
 
+/// Width of the Diamond or Circle silhouette `h` tall.
+fn silhouette_width(style: MonogramStyle, h: f64) -> f64 {
+    h * if style == MonogramStyle::Diamond {
+        1.15
+    } else {
+        1.0
+    }
+}
+
+/// How far the side letters reach towards the silhouette's left and right tips, as a share
+/// of its half width. The very tip has no height left for a stroke (a stem there would be
+/// squeezed to a point), so each side letter stops where the silhouette is still tall enough
+/// to show it.
+fn reach(style: MonogramStyle) -> f64 {
+    match style {
+        MonogramStyle::Circle => 0.94,
+        _ => 0.86,
+    }
+}
+
+/// The bands of `n` letters across the silhouette, as shares of its width from its centre
+/// (−0.5 left tip, 0.5 right tip): the middle letter gets the widest band.
+fn bands(style: MonogramStyle, n: usize) -> Vec<(f64, f64)> {
+    let r = 0.5 * reach(style);
+    match n {
+        1 => vec![(-r, r)],
+        2 => vec![(-r, -0.025), (0.025, r)],
+        _ => vec![(-r, -0.2), (-0.17, 0.17), (0.2, r)],
+    }
+}
+
+/// Top and bottom of the silhouette (`w` × `h` about `c`) at `x`.
+fn silhouette_span(style: MonogramStyle, c: Vec2, w: f64, h: f64, x: f64) -> (f64, f64) {
+    let t = ((x - c.x) / (w / 2.0)).clamp(-1.0, 1.0);
+    let half = h / 2.0
+        * match style {
+            MonogramStyle::Circle => (1.0 - t * t).max(0.0).sqrt(),
+            _ => 1.0 - t.abs(),
+        };
+    (c.y - half, c.y + half)
+}
+
+/// The point `(u, v)` of a letter's unit box (0..=1 across and down) in its band.
+fn band_point(
+    style: MonogramStyle,
+    c: Vec2,
+    w: f64,
+    h: f64,
+    (a, b): (f64, f64),
+    u: f64,
+    v: f64,
+) -> Vec2 {
+    let x = c.x + (a + u.clamp(0.0, 1.0) * (b - a)) * w;
+    let (top, bottom) = silhouette_span(style, c, w, h, x);
+    v2(x, top + v.clamp(0.0, 1.0) * (bottom - top))
+}
+
+/// How far (0.1 mm) a warped outline may stray from its dense warped points once the points
+/// that add nothing are dropped: the outline keeps its shape but no run of needle-short
+/// edges where the warp squeezes a letter (sew_check's "stitching in place").
+const WARP_TOLERANCE: f64 = 0.3;
+
+/// `c` flattened, its segments split to `step`, every point moved by `warp`, then thinned to
+/// [`WARP_TOLERANCE`].
+fn warp_contour(c: &Contour, step: f64, warp: &impl Fn(Vec2) -> Vec2) -> Contour {
+    let mut path = c.path();
+    if c.closed && path.len() > 1 {
+        path.pop();
+    }
+    let n = path.len();
+    let segments = if c.closed { n } else { n.saturating_sub(1) };
+    let mut out = Vec::with_capacity(n * 2);
+    for i in 0..n {
+        out.push(warp(path[i]));
+        if i < segments {
+            let (a, b) = (path[i], path[(i + 1) % n]);
+            let pieces = (a.distance(b) / step.max(1e-9)).ceil() as usize;
+            for k in 1..pieces {
+                out.push(warp(a + (b - a) * (k as f64 / pieces as f64)));
+            }
+        }
+    }
+    Contour::new(
+        crate::freehand::simplify(&out, c.closed, WARP_TOLERANCE),
+        c.closed,
+    )
+}
+
+/// The Diamond or Circle outline the letters fill (the tests check them against it).
+#[cfg(test)]
 fn silhouette(style: MonogramStyle, c: Vec2, w: f64, h: f64) -> Contour {
     match style {
         MonogramStyle::Circle => shapes::arc(c, w / 2.0, h / 2.0, 0.0, 360.0, ArcMode::Arc),
@@ -549,6 +612,7 @@ fn leaf(base: Vec2, tip: Vec2, width: f64) -> Contour {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::boolean;
     use crate::geometry::contains;
 
     fn spec(letters: &str, style: MonogramStyle) -> MonogramSpec {
@@ -637,7 +701,7 @@ mod tests {
             let mut all = Vec::new();
             for x in &l {
                 let Letter::Shape { contours, .. } = x else {
-                    panic!("clipped letters are shapes")
+                    panic!("warped letters are shapes")
                 };
                 // Every point lies inside (or on) the silhouette.
                 for p in contours.iter().flat_map(Contour::outline_points) {
@@ -655,6 +719,68 @@ mod tests {
         }
         let one = letters(&spec("Q", MonogramStyle::Circle), &[]).expect("one");
         assert_eq!(one.len(), 1);
+    }
+
+    /// Outer boundaries and holes of a region (even-odd, cleaned up).
+    fn topology(c: &[Contour]) -> (usize, usize) {
+        let r = boolean::simplify(c);
+        (r.len(), r.iter().map(|x| x.len() - 1).sum())
+    }
+
+    /// Diamond and Circle letters keep every stroke (#458): an outer letter is warped onto
+    /// its band of the silhouette, not cut by it, so a K keeps its stem, an O its counter and
+    /// an E its lower arm.
+    #[test]
+    fn diamond_and_circle_letters_keep_every_stroke() {
+        let c = v2(500.0, 500.0);
+        let h = 300.0;
+        for (style, sets) in [
+            (MonogramStyle::Diamond, ["KLM", "OSK", "ABC"]),
+            (MonogramStyle::Circle, ["OSE", "XYZ", "DBK"]),
+        ] {
+            let w = silhouette_width(style, h);
+            let sil = silhouette(style, c, w, h);
+            for s in sets {
+                let sp = at(spec(s, style), c);
+                let l = letters(&sp, &[]).expect("letters");
+                assert_eq!(l.len(), 3, "{style:?} {s}");
+                for ((x, ch), band) in l.iter().zip(s.chars()).zip(bands(style, 3)) {
+                    let Letter::Shape { contours, .. } = x else {
+                        panic!("warped letters are shapes")
+                    };
+                    let (glyph, _) = text::glyph_outline(&sp.font, &[], ch, 10.0)
+                        .expect("font")
+                        .expect("glyph");
+                    // As many pieces and counters as the upright letter.
+                    assert_eq!(
+                        topology(contours),
+                        topology(&glyph),
+                        "{style:?} {s}: {ch} lost or split a stroke"
+                    );
+                    for p in contours.iter().flat_map(Contour::outline_points) {
+                        let inward = c + (p - c) * 0.995;
+                        assert!(contains(inward, std::slice::from_ref(&sil)), "{p:?}");
+                    }
+                    // Read back through its band, the letter is the upright glyph.
+                    let gb = bounds(&glyph);
+                    let (mut both, mut either) = (0, 0);
+                    for i in 0..40 {
+                        for j in 0..40 {
+                            let (u, v) = ((i as f64 + 0.5) / 40.0, (j as f64 + 0.5) / 40.0);
+                            let g = contains(
+                                v2(gb.min_x + u * gb.width(), gb.min_y + v * gb.height()),
+                                &glyph,
+                            );
+                            let m = contains(band_point(style, c, w, h, band, u, v), contours);
+                            both += usize::from(g && m);
+                            either += usize::from(g || m);
+                        }
+                    }
+                    let iou = both as f64 / either.max(1) as f64;
+                    assert!(iou > 0.9, "{style:?} {s}: {ch} matches its glyph {iou:.2}");
+                }
+            }
+        }
     }
 
     #[test]

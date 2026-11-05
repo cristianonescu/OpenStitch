@@ -355,11 +355,10 @@ def monograms():
                                                "frame": "ring", "fill": 2, "frameColor": 20}},
         {"command": "monogram.add", "params": {"letters": "ABC", "style": "script", "size": 16, "x": 110, "y": 40,
                                                "frame": "laurel", "fill": 5, "frameColor": 37}},
-        # Diamond and Circle letters are clipped to the silhouette, which cuts an outer letter's
-        # stem or bowl (#450, issue below): letters whose outer sides follow it read whole.
-        {"command": "monogram.add", "params": {"letters": "V", "style": "diamond", "size": 16, "x": 40, "y": 110,
+        # Diamond and Circle letters are warped onto the silhouette, keeping every stroke (#458).
+        {"command": "monogram.add", "params": {"letters": "OSK", "style": "diamond", "size": 16, "x": 40, "y": 110,
                                                "frame": "diamond", "fill": 7, "frameColor": 20}},
-        {"command": "monogram.add", "params": {"letters": "CHD", "style": "circle", "size": 16, "x": 110, "y": 110,
+        {"command": "monogram.add", "params": {"letters": "DBK", "style": "circle", "size": 16, "x": 110, "y": 110,
                                                "frame": "stars", "fill": 21, "frameColor": 12}},
     ]
 
