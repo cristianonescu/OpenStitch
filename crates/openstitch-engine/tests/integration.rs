@@ -116,6 +116,8 @@ mod stitch_edit;
 mod stitch_types;
 #[path = "svg_import.rs"]
 mod svg_import;
+#[path = "svg_settings.rs"]
+mod svg_settings;
 #[path = "templates.rs"]
 mod templates;
 #[path = "thread_lists.rs"]

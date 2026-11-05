@@ -50,6 +50,8 @@ mod sewing_cmds;
 mod shape_ops;
 mod stamps;
 mod stitch_edit;
+#[cfg(feature = "formats")]
+mod svg_settings;
 pub mod templates;
 #[cfg(feature = "formats")]
 pub mod thread_match;
