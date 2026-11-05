@@ -98,6 +98,10 @@ These act on the editor window, not the design file: `ui.state`, `ui.select`, `u
   and folders the user approves). A refused path is not an error to work around: tell the user.
 - To import model-made artwork, write it with `scratch_write` (SVG text, or a PNG/JPEG as
   base64) and pass the returned `path` to `import.svg` or a `digitize.*` command.
+- When you write an SVG for `import.svg`, you can name each element's sewing and import with
+  `settings: true`: give the element an `id` and a `data-name` such as `"fill a=45 s=0.4"`,
+  `"satin"`, `"run r=3"` or `"stroke.satin w=3"`; the result lists unknown words and refused
+  values (FILE_FORMATS.md has the words).
 - `file` commands (`project.save`, `design.export`, ...) may ask the user first. Never
   overwrite a user's file without being asked to.
 

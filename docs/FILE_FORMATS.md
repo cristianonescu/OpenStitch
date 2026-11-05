@@ -1180,6 +1180,38 @@ Limits: 16 MB file, 5,000 paths, 500,000 vertices. Not imported: `<text>`, `<ima
 clipping and masks (ignored), stroke widths. SVG's `nonzero` fill rule is approximated by
 OpenStitch's even-odd rule (overlapping same-direction subpaths read as holes).
 
+**Stitch settings in SVG names** (`import.svg` with `settings: true`, #455; off by default, so
+the default import is unchanged). Each shape takes settings from the names of its named groups
+(outermost first, Inkscape layers included) and then its own; inner names override outer ones
+word by word. An element's name is its `inkscape:label`, else Illustrator's `data-name`, else its
+`id` (Illustrator's `_xHH_` escapes decoded, `_` also separating words in an id). Words are
+separated by spaces or commas, in any case:
+
+| Word | Meaning |
+|---|---|
+| `fill`, `satin` | region sew type (`satin` on a shape with no fill: a satin line) |
+| `run`, `triple`, `zigzag` | line sew type |
+| `skip` | the shape is not imported |
+| `stroke.satin` / `stroke.zigzag`, `stroke.run`, `stroke.triple`, `stroke.skip` | the outline's sew type; `stroke.skip` drops the outline |
+| `a=` | fill angle, degrees |
+| `s=` / `d=` | row spacing in mm / density in rows per mm |
+| `l=` | stitch length (region) or run pitch (line), mm |
+| `pc=` | pull compensation, mm |
+| `u=0` / `u=1` | underlay off / on |
+| `c=` | colour, `#rrggbb` or a Brother thread name |
+| `w=` | line width (satin line, zigzag), mm |
+| `r=` | running passes, 1–5 (`run r=3`: triple run) |
+
+`l=`, `d=` and `c=` belong to the region when the shape has a fill and to the line otherwise;
+the `stroke.` prefix (`stroke.w=3`) always means the line. A name with no recognised word (an
+Inkscape id such as `path1234`) is not read. In a settings name, unknown words are listed in the
+result (`settings.unknown`), and values the sewing commands refuse (`object.setRegion`,
+`object.setLine`, applied one setting at a time) are listed with the reason
+(`settings.invalid`); the other settings still apply. With `settings: true` a dashed stroke
+(`stroke-dasharray`, `stroke-dashoffset`) becomes one running line per dash, and
+`paint-order: stroke` makes the outline its own object, sewn before the fill. Ink/Stitch's own
+`inkstitch:` attributes are not read.
+
 **WMF / EMF** (`import.metafile`, engine module `metafile`, #321): OpenStitch's own record
 player, in safe Rust with no platform APIs and no new dependency (`wmf-core`/`emf-core` were
 too young to trust with untrusted files and need Rust 1.88). It replays the records a GDI

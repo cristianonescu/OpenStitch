@@ -104,6 +104,8 @@ mod stamps;
 mod stitch_edit;
 #[path = "stitch_types.rs"]
 mod stitch_types;
+#[path = "svg_settings.rs"]
+mod svg_settings;
 #[path = "templates.rs"]
 mod templates;
 #[path = "thread_lists.rs"]

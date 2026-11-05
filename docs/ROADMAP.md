@@ -424,7 +424,7 @@ Updates; concepts only, no code from the GPL or unlicensed projects), ranked by 
 and effort: 1. export read-back check (#457, done in `batch:quality-checks`); 2. test swatch of the
 selection (#452, planned, P2); 3. fabric calibration swatch (#453, planned, P2, with B5's
 fabric table); 4. arched text with several lines as concentric rings (#456, idea, with B15);
-5. SVG import reading stitch settings from layer names (#455, idea); 6. garment mockups (#454,
+5. SVG import reading stitch settings from layer names (#455: name tokens, dashes and paint-order landed as `import.svg {settings: true}`; Ink/Stitch attributes open); 6. garment mockups (#454,
 idea). Not taken: staggered satin splits, sharp satin corners as fans and converting a filled
 shape to a centre-line satin (OpenStitch has them: `splitLength` staggered, Auto satin's corner
 fan, Shapes ▸ Satin Skeleton from Shape), a prompt-to-spec LLM design agent (B17 already drives

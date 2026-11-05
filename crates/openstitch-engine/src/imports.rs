@@ -33,11 +33,18 @@ pub const MAX_SVG_POINTS: usize = 500_000;
 const PX: f64 = 254.0 / 96.0;
 
 /// A shape read from an SVG, in 0.1 mm with the SVG's own origin.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct SvgShape {
     pub contours: Vec<Contour>,
     pub fill: Option<Thread>,
     pub stroke: Option<Thread>,
+    /// The ids of the element and of the named groups around it, outermost first (for the
+    /// stitch settings in names, #455).
+    pub names: Vec<String>,
+    /// The stroke's dash pattern (dash, gap, …) and offset in 0.1 mm, if it is dashed.
+    pub dashes: Option<(Vec<f64>, f64)>,
+    /// `paint-order` puts the stroke before the fill.
+    pub stroke_first: bool,
 }
 
 /// Why an SVG could not be imported.
@@ -85,7 +92,7 @@ pub fn parse_svg(data: &[u8]) -> Result<Vec<SvgShape>, SvgError> {
         usvg::Tree::from_data(data, &options()).map_err(|e| SvgError::Parse(e.to_string()))?;
     let mut shapes = Vec::new();
     let mut points = 0;
-    collect(tree.root(), &mut shapes, &mut points)?;
+    collect(tree.root(), &mut shapes, &mut points, &mut Vec::new())?;
     Ok(shapes)
 }
 
@@ -93,10 +100,20 @@ fn collect(
     group: &usvg::Group,
     out: &mut Vec<SvgShape>,
     points: &mut usize,
+    names: &mut Vec<String>,
 ) -> Result<(), SvgError> {
     for node in group.children() {
         match node {
-            usvg::Node::Group(g) => collect(g, out, points)?,
+            usvg::Node::Group(g) => {
+                let named = !g.id().is_empty();
+                if named {
+                    names.push(g.id().to_string());
+                }
+                collect(g, out, points, names)?;
+                if named {
+                    names.pop();
+                }
+            }
             usvg::Node::Path(path) if path.is_visible() => {
                 let fill = path.fill();
                 let stroke = path.stroke();
@@ -119,10 +136,28 @@ fn collect(
                     )));
                 }
                 let default = |t: Option<Thread>| t.unwrap_or_else(|| Thread::rgb(0));
+                let mut ids = names.clone();
+                if !path.id().is_empty() {
+                    ids.push(path.id().to_string());
+                }
+                // Dash lengths are in the path's units: scaled by its transform's mean scale.
+                let t = path.abs_transform();
+                let scale = f64::from((t.sx * t.sy - t.kx * t.ky).abs()).sqrt() * PX;
+                let dashes = stroke.and_then(|s| {
+                    s.dasharray().map(|d| {
+                        (
+                            d.iter().map(|&v| f64::from(v) * scale).collect(),
+                            f64::from(s.dashoffset()) * scale,
+                        )
+                    })
+                });
                 out.push(SvgShape {
                     contours,
                     fill: fill.map(|f| default(paint_thread(f.paint()))),
                     stroke: stroke.map(|s| default(paint_thread(s.paint()))),
+                    names: ids,
+                    dashes,
+                    stroke_first: path.paint_order() == usvg::PaintOrder::StrokeAndFill,
                 });
             }
             _ => {} // images, text (not parsed), hidden paths
@@ -256,11 +291,40 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
                     "bool",
                     "Keep the SVG's own RGB instead of the nearest Brother chart thread (default false: PE-DESIGN's behaviour)",
                 ),
+                opt(
+                    "settings",
+                    "bool",
+                    "Read stitch settings from layer and object names (\"fill a=45 s=0.4\", \"satin\", \"run r=3\", \"stroke.satin w=3\", \"skip\"; docs/FILE_FORMATS.md), split dashed strokes into one line per dash and sew paint-order: stroke outlines first (default false)",
+                ),
             ],
             |s, p| {
                 let (_, data) = read_file(s, p, MAX_SVG_BYTES)?;
                 let shapes = parse_svg(&data).map_err(|e| p.failed(e.to_string()))?;
-                import_shapes(s, p, shapes, "the SVG")
+                if !p.bool("settings", Some(false))? {
+                    return import_shapes(s, p, shapes, "the SVG");
+                }
+                use crate::svg_settings as names;
+                let mut report = names::Report::default();
+                let prepared = names::prepare(shapes, &names::names_by_id(&data), &mut report);
+                let (shapes, sets): (Vec<SvgShape>, Vec<names::Settings>) =
+                    prepared.into_iter().unzip();
+                let mut out = import_shapes(s, p, shapes, "the SVG")?;
+                let ids: Vec<u64> = out["ids"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(serde_json::Value::as_u64)
+                    .collect();
+                let placed: Vec<(u64, names::Settings)> = ids.into_iter().zip(sets).collect();
+                names::apply(s, &placed, &mut report);
+                out["settings"] = json!({
+                    "applied": report.applied,
+                    "skipped": report.skipped,
+                    "dashed": report.dashed,
+                    "unknown": report.unknown,
+                    "invalid": report.invalid,
+                });
+                Ok(out)
             },
         ),
         spec(

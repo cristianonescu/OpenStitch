@@ -548,6 +548,7 @@ impl Player {
             contours,
             fill,
             stroke,
+            ..SvgShape::default()
         });
         Ok(())
     }
