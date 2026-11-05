@@ -70,6 +70,18 @@ jobs:
       # runs the ~90 binaries one after another). It does not run doctests, so they follow.
       - run: cargo nextest run --workspace --locked
       - run: cargo test --doc --workspace --locked
+      # The Assistant's keys in the real system keychain (#401): a dummy key under a throwaway
+      # service name is saved, read back and removed through openstitch_app::keys. Linux needs a
+      # Secret Service, so a headless gnome-keyring runs in its own D-Bus session.
+      - name: Keychain round trip (dummy key)
+        if: matrix.os != 'ubuntu-latest'
+        run: 'cargo test -p openstitch-app --test integration --locked -- --ignored keychain::'
+      - name: Keychain round trip (dummy key, Secret Service)
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          sudo apt-get install -y --no-install-recommends gnome-keyring dbus-daemon >/dev/null
+          dbus-run-session -- bash -c 'echo -n ci-only | gnome-keyring-daemon --unlock --components=secrets >/dev/null && cargo test -p openstitch-app --test integration --locked -- --ignored keychain::'
       # The editor's assistant scratch folders (the next launch removes them, #314) and the print
       # dialog's PDFs are the product's, not test leftovers.
       - name: Tests left no temp files

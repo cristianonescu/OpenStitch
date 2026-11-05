@@ -159,6 +159,20 @@ fn text(result: &Value) -> Value {
     serde_json::from_str(t).unwrap_or_else(|_| Value::String(t.to_string()))
 }
 
+/// Whether a JSON schema has a property called `name` at any depth (#425).
+fn has_name_property(schema: &Value) -> bool {
+    match schema {
+        Value::Object(map) => {
+            map.get("properties")
+                .and_then(Value::as_object)
+                .is_some_and(|p| p.contains_key("name"))
+                || map.values().any(has_name_property)
+        }
+        Value::Array(list) => list.iter().any(has_name_property),
+        _ => false,
+    }
+}
+
 #[test]
 fn assistant_lists_exactly_the_seven_meta_tools_sorted_and_stable() {
     let (editor, client) = Editor::start();
@@ -191,6 +205,10 @@ fn assistant_lists_exactly_the_seven_meta_tools_sorted_and_stable() {
         assert_eq!(schema["type"], json!("object"), "{tool}");
         assert_eq!(schema["additionalProperties"], json!(false), "{tool}");
         assert!(schema.get("anyOf").is_none(), "{tool}");
+        assert!(
+            !has_name_property(schema),
+            "#425: Ollama's generic parser drops calls whose arguments have a 'name': {tool}"
+        );
     }
     // Listing needs no editor round trip.
     assert!(editor.log().is_empty(), "{:?}", editor.log());
@@ -474,15 +492,22 @@ fn scratch_write_forwards_and_needs_exactly_one_content() {
     let mut mcp = Mcp::new(client);
     let written = mcp.call(
         "scratch_write",
-        json!({"name": "logo.svg", "text": "<svg xmlns=\"http://www.w3.org/2000/svg\"/>"}),
+        json!({"file": "logo.svg", "text": "<svg xmlns=\"http://www.w3.org/2000/svg\"/>"}),
     );
     assert_eq!(written["isError"], json!(false), "{written}");
     assert_eq!(text(&written)["path"], json!("/scratch/logo.svg"));
+    // The old argument name still works (#425 renamed it to `file`).
+    let old = mcp.call(
+        "scratch_write",
+        json!({"name": "old.svg", "text": "<svg/>"}),
+    );
+    assert_eq!(text(&old)["path"], json!("/scratch/old.svg"), "{old}");
     for bad in [
-        json!({"name": "a.svg"}),
-        json!({"name": "a.svg", "text": "x", "base64": "eA=="}),
+        json!({"file": "a.svg"}),
+        json!({"file": "a.svg", "text": "x", "base64": "eA=="}),
         json!({"text": "x"}),
-        json!({"name": "a.svg", "text": "x", "path": "/etc"}),
+        json!({"file": "a.svg", "text": "x", "path": "/etc"}),
+        json!({"file": "a.svg", "name": "b.svg", "text": "x"}),
     ] {
         assert_eq!(
             mcp.call("scratch_write", bad.clone())["isError"],
@@ -495,7 +520,7 @@ fn scratch_write_forwards_and_needs_exactly_one_content() {
         .iter()
         .filter(|c| *c == "ui.scratchWrite")
         .count();
-    assert_eq!(writes, 1);
+    assert_eq!(writes, 2);
     editor.finish();
 }
 
@@ -522,19 +547,22 @@ fn skill_reference_lists_and_returns_the_bundled_files() {
     for file in list["files"].as_array().expect("files") {
         assert!(!file["title"].as_str().expect("title").is_empty(), "{file}");
     }
-    let skill = mcp.call("skill_reference", json!({"name": "SKILL.md"}));
+    let skill = mcp.call("skill_reference", json!({"file": "SKILL.md"}));
     assert_eq!(skill["isError"], json!(false));
     let body = skill["content"][0]["text"].as_str().expect("text");
     assert!(body.contains("# OpenStitch embroidery"), "{body}");
-    let recipes = mcp.call("skill_reference", json!({"name": "recipes"}));
+    let recipes = mcp.call("skill_reference", json!({"file": "recipes"}));
     assert!(
         recipes["content"][0]["text"]
             .as_str()
             .expect("text")
             .contains("run_batch")
     );
-    let missing = mcp.call("skill_reference", json!({"name": "secrets.md"}));
+    let missing = mcp.call("skill_reference", json!({"file": "secrets.md"}));
     assert_eq!(missing["isError"], json!(true));
+    // The old argument name still works.
+    let old = mcp.call("skill_reference", json!({"name": "SKILL.md"}));
+    assert_eq!(old["isError"], json!(false), "{old}");
     // No editor round trip for the skill.
     assert!(editor.log().is_empty());
     editor.finish();

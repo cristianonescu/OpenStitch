@@ -5,5 +5,6 @@
 //! [`openstitch_engine::Session::execute`].
 
 pub mod editor;
+pub mod keys;
 pub mod os_print;
 pub mod png;

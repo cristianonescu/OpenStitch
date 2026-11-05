@@ -205,6 +205,12 @@ pub(crate) fn find_in(program: &str, dirs: &[PathBuf]) -> Option<PathBuf> {
         .find(|p| p.is_file())
 }
 
+/// `program` on [`search_dirs`], as [`discover`] finds it: on Windows only an `.exe`, `.cmd` or
+/// `.bat`, never npm's extensionless shell script beside the `.cmd` (#401).
+pub fn find_program(program: &str) -> Option<PathBuf> {
+    find_in(program, &search_dirs())
+}
+
 /// A command for `program` whose PATH is `extra` followed by [`search_dirs`], so an npm adapter's
 /// `#!/usr/bin/env node` finds Node even when the app started without the shell's PATH. Windows
 /// `.cmd`/`.bat` shims run through `cmd /C`.
@@ -412,5 +418,24 @@ mod tests {
             ["codex-acp.exe", "codex-acp.cmd", "codex-acp.bat"]
         );
         assert_eq!(names_for("codex-acp", false), ["codex-acp"]);
+    }
+
+    /// npm puts an extensionless `#!/bin/sh` script beside `claude-agent-acp.cmd`; on Windows
+    /// starting it fails with "not a valid Win32 application" (#401), so the `.cmd` is found.
+    #[test]
+    fn npm_shell_script_is_skipped_on_windows() {
+        let dir = openstitch_testutil::TempDir::new("discover-npm-shim");
+        std::fs::write(dir.join("claude-agent-acp"), "#!/bin/sh\n").expect("write");
+        std::fs::write(dir.join("claude-agent-acp.cmd"), "@echo off\r\n").expect("write");
+        let found = find_in("claude-agent-acp", &[dir.path().to_path_buf()]).expect("found");
+        let name = found
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or_default();
+        if cfg!(windows) {
+            assert_eq!(name, "claude-agent-acp.cmd");
+        } else {
+            assert_eq!(name, "claude-agent-acp");
+        }
     }
 }

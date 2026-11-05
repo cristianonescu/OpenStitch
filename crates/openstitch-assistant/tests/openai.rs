@@ -222,8 +222,9 @@ fn text_turn() {
         events,
         vec![
             Event::Text("Hello.".into()),
+            // prompt_tokens (12) already counts the 4 cached ones: 8 uncached + 4 cached.
             Event::Usage {
-                input_tokens: 12,
+                input_tokens: 8,
                 output_tokens: 7,
                 cache_read_input_tokens: 4,
                 cache_creation_input_tokens: 0,
@@ -712,6 +713,128 @@ fn an_unreadable_tool_call_is_asked_for_again() {
     let (stop, _) = run(&mut conv, &cfg(), &t, &mut tools, "Hi");
     assert!(matches!(stop, StopKind::Error(m) if m.contains("500")));
     assert_eq!(t.bodies().len(), 6);
+}
+
+/// The stream Ollama 0.40.14 sends when its gpt-oss parser cannot read a tool call after the
+/// reply's text went out (#429; captured through a proxy on the Mac and reproduced on Windows):
+/// text chunks, then one chunk with no model name, empty content and no finish reason, then the
+/// connection closes without `[DONE]`.
+fn swallowed_error(text: &str) -> Vec<u8> {
+    let last = json!({"id": "chatcmpl-813", "object": "chat.completion.chunk", "created": 1,
+        "model": "", "system_fingerprint": "fp_ollama",
+        "choices": [{"index": 0, "delta": {"content": ""}, "finish_reason": null}]});
+    let mut out = String::new();
+    for c in [
+        chunk(json!({"role": "assistant", "content": ""}), None),
+        chunk(json!({"content": text}), None),
+        last,
+    ] {
+        out.push_str(&format!("data: {c}\n\n"));
+    }
+    out.into_bytes()
+}
+
+/// #429: the text that arrived is kept, and the model is told and asked again, as for the 500
+/// of #427 (twice at most).
+#[test]
+fn a_tool_call_ollama_lost_mid_stream_is_asked_for_again() {
+    let t = FakeTransport::new(vec![
+        Ok(swallowed_error("Here's the badge. I'll adjust it!")),
+        Ok(text_reply("Done.")),
+    ]);
+    let mut tools = FakeTools::default();
+    let mut conv = Conversation::new();
+    let (stop, events) = run(&mut conv, &cfg(), &t, &mut tools, "Make a badge");
+    assert_eq!(stop, StopKind::EndTurn);
+    assert!(events.iter().any(
+        |e| matches!(e, Event::Retrying { reason, .. } if reason.contains("asking it again"))
+    ));
+    let second = &t.bodies()[1]["messages"];
+    assert_eq!(
+        second[2],
+        json!({"role": "assistant", "content": "Here's the badge. I'll adjust it!"}),
+        "the text that arrived is kept"
+    );
+    assert_eq!(second[3]["role"], "user");
+    let note = second[3]["content"].as_str().expect("a text note");
+    assert!(note.contains("could not read its tool call"), "{note}");
+
+    // It gives up after asking twice, with the error it had before.
+    let t = FakeTransport::new((0..3).map(|_| Ok(swallowed_error("Hm."))).collect());
+    let mut conv = Conversation::new();
+    let (stop, _) = run(&mut conv, &cfg(), &t, &mut tools, "Hi");
+    assert!(
+        matches!(&stop, StopKind::Error(m) if m.contains("closed before the reply finished")),
+        "{stop:?}"
+    );
+    assert_eq!(t.bodies().len(), 3);
+}
+
+/// A stream that just stops, with the model's name on its last chunk, is still an error and
+/// is not retried: only Ollama's swallowed-error shape is (#429).
+#[test]
+fn a_stream_that_just_stops_is_not_retried() {
+    let t = FakeTransport::new(vec![Ok(stream_without_done(&[
+        chunk(json!({"content": "Hi"}), None),
+        chunk(json!({"content": ""}), None),
+    ]))]);
+    let mut tools = FakeTools::default();
+    let mut conv = Conversation::new();
+    let (stop, _) = run(&mut conv, &cfg(), &t, &mut tools, "Hi");
+    assert!(matches!(stop, StopKind::Error(_)), "{stop:?}");
+    assert_eq!(t.bodies().len(), 1);
+}
+
+fn stream_without_done(chunks: &[Value]) -> Vec<u8> {
+    let mut out = String::new();
+    for c in chunks {
+        out.push_str(&format!("data: {c}\n\n"));
+    }
+    out.into_bytes()
+}
+
+/// #425: Ollama's generic tool parser drops a call whose arguments hold a key `name` and answers
+/// an empty `stop` with the tokens the model wrote (mistral-small3.2: 13). That is reported, not
+/// taken for a finished turn; an empty reply without output tokens still ends the turn.
+#[test]
+fn an_empty_reply_with_output_tokens_is_reported() {
+    let empty = |completion: u64| {
+        stream(&[
+            chunk(json!({"role": "assistant", "content": ""}), None),
+            chunk(json!({}), Some("stop")),
+            json!({"id": "c", "object": "chat.completion.chunk", "created": 1, "model": "m",
+                   "choices": [], "usage": {"prompt_tokens": 1048, "completion_tokens": completion,
+                   "total_tokens": 1048 + completion}}),
+        ])
+    };
+    let t = FakeTransport::new(vec![Ok(empty(13))]);
+    let mut tools = FakeTools::default();
+    let mut conv = Conversation::new();
+    let (stop, _) = run(&mut conv, &cfg(), &t, &mut tools, "Make a badge");
+    assert!(
+        matches!(&stop, StopKind::Error(m) if m.contains("arrived empty") && m.contains("13 tokens")),
+        "{stop:?}"
+    );
+
+    let t = FakeTransport::new(vec![Ok(empty(0))]);
+    let mut conv = Conversation::new();
+    let (stop, _) = run(&mut conv, &cfg(), &t, &mut tools, "Hi");
+    assert_eq!(stop, StopKind::EndTurn);
+
+    // A model that only reasoned and then said nothing is not this case.
+    let t = FakeTransport::new(vec![Ok(stream(&[
+        chunk(
+            json!({"role": "assistant", "content": "", "reasoning": "Thinking."}),
+            None,
+        ),
+        chunk(json!({}), Some("stop")),
+        json!({"id": "c", "object": "chat.completion.chunk", "created": 1, "model": "m",
+               "choices": [], "usage": {"prompt_tokens": 10, "completion_tokens": 5,
+               "total_tokens": 15}}),
+    ]))]);
+    let mut conv = Conversation::new();
+    let (stop, _) = run(&mut conv, &cfg(), &t, &mut tools, "Hi");
+    assert_eq!(stop, StopKind::EndTurn);
 }
 
 /// A 400 without pictures in the request is not retried.

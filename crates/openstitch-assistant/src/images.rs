@@ -122,7 +122,7 @@ impl<T: Tools> Tools for WithImages<'_, T> {
                 "type": "object",
                 "properties": {
                     "prompt": {"type": "string", "minLength": 1, "description": "What to draw"},
-                    "name": {"type": "string", "description": "File name ending in .png (default generated.png)"},
+                    "file": {"type": "string", "description": "File name ending in .png (default generated.png)"},
                 },
                 "required": ["prompt"],
                 "additionalProperties": false,
@@ -149,8 +149,10 @@ impl<T: Tools> Tools for WithImages<'_, T> {
         else {
             return fail("generate_image: 'prompt' is required");
         };
+        // `file`, not `name` (#425: Ollama's generic parser drops calls with a `name` key).
         let file = input
-            .get("name")
+            .get("file")
+            .or_else(|| input.get("name"))
             .and_then(Value::as_str)
             .unwrap_or("generated.png");
         let bytes = match generate_image(self.transport, cfg, prompt) {
@@ -160,7 +162,7 @@ impl<T: Tools> Tools for WithImages<'_, T> {
         use base64::Engine;
         let data = base64::engine::general_purpose::STANDARD.encode(&bytes);
         self.inner
-            .call("scratch_write", &json!({"name": file, "base64": data}))
+            .call("scratch_write", &json!({"file": file, "base64": data}))
     }
 }
 
@@ -258,7 +260,10 @@ mod tests {
             image: Some(config()),
             transport: &t,
         };
-        let r = tools.call(GENERATE_IMAGE, &json!({"prompt": "a fox"}));
+        let r = tools.call(
+            GENERATE_IMAGE,
+            &json!({"prompt": "a fox", "file": "fox.png"}),
+        );
         assert!(!r.is_error, "{r:?}");
         let sent = t.sent.lock().expect("lock");
         assert_eq!(sent[0].0, "http://localhost:8080/v1/images/generations");
@@ -268,6 +273,13 @@ mod tests {
             (Some("flux"), Some("b64_json"))
         );
         assert_eq!(tools.inner.0[0]["input"]["base64"], json!(b64));
+        // `file`, never `name` (#425: Ollama's generic tool parser drops calls with a `name`).
+        assert_eq!(tools.inner.0[0]["input"]["file"], json!("fox.png"));
+        let def = tools.definitions().pop().expect("generate_image");
+        assert!(
+            def["inputSchema"]["properties"].get("name").is_none(),
+            "{def}"
+        );
     }
 
     #[test]

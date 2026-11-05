@@ -163,12 +163,8 @@ fn bench_assistant(args: &[&str]) -> ExitCode {
         };
         let program = get("agent-program")
             .map(std::path::PathBuf::from)
-            .or_else(|| {
-                ai::search_dirs()
-                    .into_iter()
-                    .map(|d| d.join(agent.program))
-                    .find(|p| p.is_file())
-            });
+            // As the editor finds it: on Windows the `.cmd`, never npm's shell script (#401).
+            .or_else(|| ai::find_program(agent.program));
         let Some(program) = program else {
             return fail(&format!(
                 "{} is not installed: {}",

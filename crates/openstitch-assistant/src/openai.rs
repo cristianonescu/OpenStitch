@@ -46,10 +46,16 @@ pub(crate) const PICTURE_LEFT_OUT: &str =
 const UNREADABLE_CALL: &str = "error parsing tool call";
 /// How often one turn asks the model again after such a 500.
 const MAX_UNREADABLE_CALLS: usize = 2;
+/// What the model is told when Ollama ended its reply with a swallowed error (#429).
+pub(crate) const SWALLOWED_NOTE: &str = "[Your last reply stopped early: the server could not \
+read its tool call, probably because the arguments were not valid JSON. Send the call again with \
+valid JSON.]";
 /// The notice when the model is asked again.
 pub(crate) const ASKED_AGAIN: &str =
     "The server could not read the model's tool call; asking it again";
 /// The notice when the server refused the pictures.
+/// The turn's end when the reply came back empty although the model wrote tokens (#425).
+pub(crate) const EMPTY_REPLY: &str = "The reply arrived empty although the model wrote";
 pub(crate) const TEXT_ONLY: &str =
     "The model refused the pictures (400); they go as text notes from now on";
 
@@ -69,6 +75,12 @@ struct Reply {
     calls: Vec<StreamCall>,
     finish_reason: Option<String>,
     end: End,
+    /// The last chunk had the shape Ollama gives an error it swallows mid-stream (#429).
+    swallowed_error: bool,
+    /// Reasoning text arrived (`delta.reasoning` or `delta.reasoning_content`).
+    reasoned: bool,
+    /// The usage's `completion_tokens`, when the server sent it.
+    output_tokens: u64,
 }
 
 struct Call {
@@ -163,6 +175,24 @@ impl Conversation {
             let generated = self.messages.len();
             let mut reply = read_stream(reader, generated, cancel, on_event);
             match reply.end {
+                // Ollama lost an error mid-stream (#429): the same "error parsing tool call" as
+                // the 500 above, raised after the reply's text had been sent. The text stays;
+                // the unreadable call is asked for again.
+                End::Error(_)
+                    if reply.swallowed_error
+                        && reply.finish_reason.is_none()
+                        && unreadable < MAX_UNREADABLE_CALLS =>
+                {
+                    unreadable += 1;
+                    self.commit_openai(reply.text, Vec::new());
+                    self.messages
+                        .push(json!({"role": "user", "content": SWALLOWED_NOTE}));
+                    on_event(Event::Retrying {
+                        after: std::time::Duration::ZERO,
+                        reason: ASKED_AGAIN.to_string(),
+                    });
+                    continue;
+                }
                 End::Error(msg) => return StopKind::Error(msg),
                 End::Cancelled => {
                     // Tool calls are known to be whole only once `finish_reason` arrived;
@@ -176,6 +206,7 @@ impl Conversation {
                 }
                 End::Complete => {}
             }
+            let said_nothing = reply.text.is_empty();
             let calls = self.commit_openai(reply.text, reply.calls);
             // [OAI-CHUNK] finish_reason: "stop", "length", "tool_calls", "content_filter",
             // "function_call" (deprecated; never asked for here). [OAI-CREATE] `refusal`: "The
@@ -200,6 +231,21 @@ impl Conversation {
                         .map(|c| tool_message(&c.id, DECLINED))
                         .collect();
                     return StopKind::Refusal { category: None };
+                }
+                // Nothing came back although the model wrote tokens and did not reason: a tool call
+                // the server could not read. Ollama's generic tool parser drops a call whose
+                // arguments hold a key `name` and answers an empty `stop` (#425).
+                _ if calls.is_empty()
+                    && said_nothing
+                    && reply.refusal.is_empty()
+                    && !reply.reasoned
+                    && reply.output_tokens > 0 =>
+                {
+                    return StopKind::Error(format!(
+                        "{EMPTY_REPLY} {} tokens: the server probably could not read a tool call. \
+                         With Ollama, try another model (see the Assistant's notes on models).",
+                        reply.output_tokens
+                    ));
                 }
                 // `tool_calls`, and `stop` from servers that report it with calls.
                 _ if calls.is_empty() => return StopKind::EndTurn,
@@ -492,6 +538,25 @@ pub(crate) fn request_body(cfg: &Config, tools: &[Value], messages: &[Value]) ->
     serde_json::to_vec(&Value::Object(body)).unwrap_or_default()
 }
 
+/// Whether a chunk is what Ollama's OpenAI layer makes of an error raised mid-stream (#429).
+/// Ollama 0.40.14 sends `{"error": ...}` down an HTTP 200 stream when, for example, its gpt-oss
+/// parser cannot read a tool call's JSON (`server/routes.go` ChatHandler, `streamResponse`);
+/// `middleware/openai.go` `ChatWriter` reads that as an empty response, so the error text is lost
+/// and what arrives is one chunk with no model name, empty content and no finish reason, then
+/// the end of the stream without `[DONE]`. Ollama's own chunks always carry the model name.
+fn is_swallowed_error(chunk: &Value) -> bool {
+    let Some(choice) = chunk
+        .get("choices")
+        .and_then(Value::as_array)
+        .and_then(|c| c.first())
+    else {
+        return false;
+    };
+    chunk.get("model").and_then(Value::as_str) == Some("")
+        && choice.get("finish_reason").is_none_or(Value::is_null)
+        && choice.get("delta") == Some(&json!({"content": ""}))
+}
+
 /// Reads the SSE stream: `data:` lines carrying `chat.completion.chunk` objects, ended by
 /// `data: [DONE]` ([OAI-CREATE] `stream_options`, and its streaming example).
 fn read_stream(
@@ -507,6 +572,9 @@ fn read_stream(
         calls: Vec::new(),
         finish_reason: None,
         end: End::Error("The connection closed before the reply finished.".to_string()),
+        swallowed_error: false,
+        reasoned: false,
+        output_tokens: 0,
     };
     loop {
         if cancel.load(Ordering::SeqCst) {
@@ -543,6 +611,7 @@ fn read_stream(
         let Ok(chunk) = serde_json::from_str::<Value>(data) else {
             continue;
         };
+        reply.swallowed_error = is_swallowed_error(&chunk);
         if let Some(err) = chunk.get("error").filter(|e| !e.is_null()) {
             let msg = err
                 .get("message")
@@ -555,10 +624,14 @@ fn read_stream(
         // [OAI-CHUNK] `usage`: null "except for the last chunk", whose `choices` may be empty.
         if let Some(u) = chunk.get("usage").filter(|u| u.is_object()) {
             let n = |p: &str| u.pointer(p).and_then(Value::as_u64).unwrap_or(0);
+            // `prompt_tokens` already counts the cached ones ([OAI-CREATE] usage; Ollama 0.40.14
+            // reports CacheN + PromptN), unlike Anthropic's `input_tokens`: count them once.
+            let cached = n("/prompt_tokens_details/cached_tokens");
+            reply.output_tokens = n("/completion_tokens");
             on_event(Event::Usage {
-                input_tokens: n("/prompt_tokens"),
-                output_tokens: n("/completion_tokens"),
-                cache_read_input_tokens: n("/prompt_tokens_details/cached_tokens"),
+                input_tokens: n("/prompt_tokens").saturating_sub(cached),
+                output_tokens: reply.output_tokens,
+                cache_read_input_tokens: cached,
                 cache_creation_input_tokens: 0,
             });
         }
@@ -579,6 +652,14 @@ fn read_stream(
             }
             if let Some(r) = delta.get("refusal").and_then(Value::as_str) {
                 reply.refusal.push_str(r);
+            }
+            if ["reasoning", "reasoning_content"].iter().any(|k| {
+                delta
+                    .get(*k)
+                    .and_then(Value::as_str)
+                    .is_some_and(|t| !t.is_empty())
+            }) {
+                reply.reasoned = true;
             }
             if let Some(list) = delta.get("tool_calls").and_then(Value::as_array) {
                 for (pos, frag) in list.iter().enumerate() {

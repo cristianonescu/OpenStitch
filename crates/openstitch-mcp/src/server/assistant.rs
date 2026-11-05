@@ -129,11 +129,11 @@ pub(super) fn tools(max_batch_steps: usize, max_render_pixels: u32) -> Vec<Tool>
             json!({
                 "type": "object",
                 "properties": {
-                    "name": { "type": "string", "minLength": 1, "description": "File name with its extension, such as logo.svg" },
+                    "file": { "type": "string", "minLength": 1, "description": "File name with its extension, such as logo.svg" },
                     "text": { "type": "string", "description": "Text content (SVG, CSV, ...)" },
                     "base64": { "type": "string", "description": "Binary content, base64-encoded (PNG, JPEG)" },
                 },
-                "required": ["name"],
+                "required": ["file"],
                 "additionalProperties": false,
             }),
             write,
@@ -142,12 +142,12 @@ pub(super) fn tools(max_batch_steps: usize, max_render_pixels: u32) -> Vec<Tool>
             "skill_reference",
             Meta::SkillReference,
             "Skill reference",
-            "OpenStitch's embroidery guide. With no name, lists the files; with a name (SKILL.md, \
+            "OpenStitch's embroidery guide. With no file, lists the files; with a file (SKILL.md, \
              reference/recipes.md, ...), returns that file. Read SKILL.md before building anything.".to_string(),
             json!({
                 "type": "object",
                 "properties": {
-                    "name": { "type": "string", "description": "File name from the list, such as SKILL.md" },
+                    "file": { "type": "string", "description": "File name from the list, such as SKILL.md" },
                 },
                 "additionalProperties": false,
             }),
@@ -236,14 +236,26 @@ impl Server {
             Meta::RunBatch => self.meta_batch(arguments),
             Meta::ViewRender => self.view_render(arguments),
             Meta::ScratchWrite => {
-                only("scratch_write", arguments, &["name", "text", "base64"])?;
-                req_str("scratch_write", arguments, "name")?;
+                only(
+                    "scratch_write",
+                    arguments,
+                    &["file", "name", "text", "base64"],
+                )?;
+                let file = file_arg("scratch_write", arguments)?
+                    .ok_or("scratch_write: needs a string 'file'")?;
                 let text = opt_str("scratch_write", arguments, "text")?;
                 let data = opt_str("scratch_write", arguments, "base64")?;
                 if text.is_some() == data.is_some() {
                     return Err("scratch_write: give exactly one of 'text' and 'base64'".into());
                 }
-                self.run("ui.scratchWrite", arguments)
+                // The editor's own command keeps its `name` parameter.
+                let mut params = json!({ "name": file });
+                match (text, data) {
+                    (Some(t), _) => params["text"] = json!(t),
+                    (_, Some(d)) => params["base64"] = json!(d),
+                    _ => {}
+                }
+                self.run("ui.scratchWrite", &params)
                     .map(|v| tool_success(&v))
             }
             Meta::SkillReference => skill_reference(arguments),
@@ -434,9 +446,22 @@ impl Server {
     }
 }
 
+/// The file a meta tool names: `file`, or `name` as the tools called it before #425. Ollama's
+/// generic tool-call parser (0.40.14, `tools/tools.go` `findArguments`) drops every call whose
+/// arguments hold a key `name`, taking it for a `{name, arguments}` wrapper; mistral-small3.2's
+/// first call, `skill_reference {"name": "SKILL.md"}`, vanished that way in every bench task.
+fn file_arg<'a>(tool: &str, arguments: &'a Value) -> Result<Option<&'a str>, String> {
+    let file = opt_str(tool, arguments, "file")?;
+    let name = opt_str(tool, arguments, "name")?;
+    if file.is_some() && name.is_some() {
+        return Err(format!("{tool}: give 'file' only"));
+    }
+    Ok(file.or(name).filter(|s| !s.is_empty()))
+}
+
 fn skill_reference(arguments: &Value) -> Result<Value, String> {
-    only("skill_reference", arguments, &["name"])?;
-    match opt_str("skill_reference", arguments, "name")?.filter(|s| !s.is_empty()) {
+    only("skill_reference", arguments, &["file", "name"])?;
+    match file_arg("skill_reference", arguments)? {
         None => {
             let files: Vec<Value> = skills::FILES
                 .iter()
