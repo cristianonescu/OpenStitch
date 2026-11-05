@@ -184,6 +184,42 @@ header = b"LA:survey".ljust(0x1FF, b" ") + b"\x1a"
 open(os.path.join(out, "oracle.dsb"), "wb").write(header + records(seq, dsb) + bytes([0xF8, 0, 0]))
 open(os.path.join(out, "oracle.dsz"), "wb").write(header + records(seq, dsz) + bytes([0, 0, 0xFF]))
 open(os.path.join(out, "oracle.ksm"), "wb").write(bytes(0x200) + ksm_records(seq) + bytes([0, 0, 0x1F]))
+
+
+def zxy(kind, dx, dy):
+    """ZXY record: ctrl |dx| |dy|; 08 x negative, 04 y down, 02 jump, 20 needle change."""
+    sign = (0x08 if dx < 0 else 0) | (0x04 if dy >= 0 else 0)
+    if kind in ("stitch", "jump"):
+        return bytes([sign | (0x02 if kind == "jump" else 0), abs(dx), abs(dy)])
+    if kind == "needle":
+        return bytes([0x20, 0, 0])
+    return b""  # ZXY has no trim: the jump run after it is the move
+
+
+def stx(kind, dx, dy):
+    """STX record: dx dy (signed, y up); 80 04 jump, 80 01 colour change + move, 80 80 trim."""
+    s8 = lambda v: v & 255  # noqa: E731
+    if kind == "stitch":
+        return bytes([s8(dx), s8(-dy)])
+    if kind == "jump":
+        return bytes([0x80, 0x04, s8(dx), s8(-dy)])
+    if kind == "trim":
+        return bytes([0x80, 0x80, 0, 0])
+    return bytes([0x80, 0x01, 0, 0])  # needle: colour change
+
+
+# ZXY: byte 0 unused, u16 BE skip 2 (two filler bytes), then records. STX: the stitch offset at
+# byte 20, records from offset 24. The first needle record of each is dropped (it would pick the
+# first colour; STX would read it as a colour change before anything is sewn).
+zxy_body = records(seq, zxy)[3:]
+open(os.path.join(out, "oracle.zxy"), "wb").write(bytes([0, 0, 2]) + b"OS" + zxy_body)
+stx_body = records(seq, stx)[4:]
+stx_head = bytearray(b"STX0110\x00".ljust(24, b"\x00"))
+stx_head[20:24] = (24).to_bytes(4, "little")
+open(os.path.join(out, "oracle.stx"), "wb").write(bytes(stx_head) + stx_body + bytes([0x80, 0x00]))
+for ext in ("zxy", "stx"):
+    dump_read("oracle." + ext)
+
 for ext in ("dsb", "dsz", "ksm"):
     dump_read("oracle." + ext)
 

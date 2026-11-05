@@ -62,6 +62,11 @@ or move it on the machine, say so in the report.
 Please keep the exported file and mention its name: it lets us compare it byte for byte with what
 OpenStitch writes.
 
+**Files OpenStitch only reads.** OpenStitch opens ZSK **ZXY** and Data Stitch **STX** files, but its
+readers have only been checked against another program's reader, never against a real file. If
+you have one made by ZSK or Data Stitch software, please attach it to a report together with a
+photo or screenshot of the design: it shows whether OpenStitch opens it correctly.
+
 ## 3. Scanning or photographing the result
 
 Needed only if you sew the calibration designs (see the kit README's

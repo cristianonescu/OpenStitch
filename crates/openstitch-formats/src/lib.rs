@@ -34,6 +34,7 @@ pub mod sew;
 pub mod shv;
 pub mod split;
 pub mod stitchlist;
+pub mod stx;
 pub mod tap;
 pub mod tbf;
 pub mod threadlist;
@@ -41,6 +42,7 @@ pub mod u01;
 pub mod vip;
 pub mod vp3;
 pub mod xxx;
+pub mod zxy;
 
 /// Why a file could not be read or written.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -97,10 +99,14 @@ pub enum FileType {
     Dsz,
     /// Pfaff, read only (#481).
     Ksm,
+    /// ZSK, read only (#481).
+    Zxy,
+    /// Data Stitch, read only (#481).
+    Stx,
 }
 
 impl FileType {
-    pub const ALL: [FileType; 20] = [
+    pub const ALL: [FileType; 22] = [
         Self::Pes,
         Self::Pec,
         Self::Dst,
@@ -121,11 +127,16 @@ impl FileType {
         Self::Dsb,
         Self::Dsz,
         Self::Ksm,
+        Self::Zxy,
+        Self::Stx,
     ];
 
     /// Whether OpenStitch can write this format ([`FileType::write`] fails otherwise).
     pub const fn can_write(self) -> bool {
-        !matches!(self, Self::Phc | Self::Dsb | Self::Dsz | Self::Ksm)
+        !matches!(
+            self,
+            Self::Phc | Self::Dsb | Self::Dsz | Self::Ksm | Self::Zxy | Self::Stx
+        )
     }
 
     /// The formats OpenStitch can write.
@@ -156,6 +167,8 @@ impl FileType {
             Self::Dsb => "dsb",
             Self::Dsz => "dsz",
             Self::Ksm => "ksm",
+            Self::Zxy => "zxy",
+            Self::Stx => "stx",
         }
     }
 
@@ -197,6 +210,8 @@ impl FileType {
             Self::Dsb => dsb::read(data),
             Self::Dsz => dsz::read(data),
             Self::Ksm => ksm::read(data),
+            Self::Zxy => zxy::read(data),
+            Self::Stx => stx::read(data),
         }
     }
 
@@ -219,9 +234,9 @@ impl FileType {
             Self::Tap => tap::write(pattern),
             Self::Tbf => tbf::write(pattern),
             Self::U01 => u01::write(pattern),
-            Self::Phc | Self::Dsb | Self::Dsz | Self::Ksm => Err(FormatError::UnsupportedFormat(
-                format!("{self} is read only"),
-            )),
+            Self::Phc | Self::Dsb | Self::Dsz | Self::Ksm | Self::Zxy | Self::Stx => Err(
+                FormatError::UnsupportedFormat(format!("{self} is read only")),
+            ),
         }
     }
 }

@@ -210,7 +210,7 @@ fn more_machine_formats_export_and_import_through_the_engine() {
         let imported = run(&mut t, "stitches.import", json!({"path": name}));
         assert!(imported["id"].is_u64(), "{imported}");
     }
-    for ext in ["dsb", "dsz", "ksm"] {
+    for ext in ["dsb", "dsz", "ksm", "zxy", "stx"] {
         let err = s
             .execute("design.export", Some(&json!({"path": format!("a.{ext}")})))
             .expect_err("read only");

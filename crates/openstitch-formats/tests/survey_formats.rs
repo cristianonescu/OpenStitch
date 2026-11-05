@@ -320,6 +320,8 @@ fn new_readers_read_their_oracle_files_like_pyembroidery() {
         FileType::Dsb,
         FileType::Dsz,
         FileType::Ksm,
+        FileType::Zxy,
+        FileType::Stx,
     ] {
         reads_like_pyembroidery(ty);
     }
@@ -336,6 +338,8 @@ fn new_readers_read_the_oracle_design() {
         FileType::Dsb,
         FileType::Dsz,
         FileType::Ksm,
+        FileType::Zxy,
+        FileType::Stx,
     ] {
         let ours = ty
             .read(&data(&format!("oracle.{}", ty.extension())))
@@ -345,7 +349,10 @@ fn new_readers_read_the_oracle_design() {
             count(&design.stitches, Command::ColorChange),
             "{ty}"
         );
-        assert!(count(&ours.stitches, Command::Trim) >= 12, "{ty}");
+        // ZXY has no trim record: its trimmed moves are plain jump runs.
+        if ty != FileType::Zxy {
+            assert!(count(&ours.stitches, Command::Trim) >= 12, "{ty}");
+        }
         let sewn = |s: &[Stitch]| {
             let mut v: Vec<[f64; 2]> = s
                 .iter()
@@ -458,7 +465,13 @@ fn u01_and_tbf_round_trip_stops_and_reuse_a_needle_for_a_colour() {
 
 #[test]
 fn read_only_formats_refuse_to_write() {
-    for ty in [FileType::Dsb, FileType::Dsz, FileType::Ksm] {
+    for ty in [
+        FileType::Dsb,
+        FileType::Dsz,
+        FileType::Ksm,
+        FileType::Zxy,
+        FileType::Stx,
+    ] {
         assert!(!ty.can_write());
         assert!(ty.write(&survey_design()).is_err());
     }
@@ -476,6 +489,8 @@ fn new_readers_reject_short_files_and_never_panic() {
         FileType::Dsb,
         FileType::Dsz,
         FileType::Ksm,
+        FileType::Zxy,
+        FileType::Stx,
     ] {
         let good = data(&format!("oracle.{}", ty.extension()));
         for n in (0..good.len()).step_by(7) {
@@ -487,8 +502,15 @@ fn new_readers_reject_short_files_and_never_panic() {
             let _ = ty.read(&bad);
             bad[i] ^= 0x5A;
         }
-        if ty != FileType::Tap {
-            assert!(ty.read(&good[..100]).is_err(), "{ty}");
+        // Shorter than the header is an error (TAP has none).
+        let header = match ty {
+            FileType::Tap => 0,
+            FileType::Zxy => 3,
+            FileType::Stx => 24,
+            _ => 101,
+        };
+        if header > 0 {
+            assert!(ty.read(&good[..header - 1]).is_err(), "{ty}");
         }
     }
 }
