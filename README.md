@@ -306,7 +306,9 @@ that ends in a trim ties in and locks, as PE-DESIGN sews them, the image tools i
   are exceeded.
 - **Thread charts:** Brother's 64-colour PEC chart with its catalogue numbers, PE-DESIGN's
   colour matching, and your own charts as CSV, exported in the layout PE-DESIGN's Import Chart
-  reads.
+  reads. Beyond PE-DESIGN: match a design to any chart (Madeira, Isacord, Sulky, Robison-Anton
+  or your own) by perceived colour (CIEDE2000) with a preview that keeps distinct colours apart,
+  merge near-identical colours to save thread changes, and find a thread by number or name.
 
 ### Machine transfer
 
