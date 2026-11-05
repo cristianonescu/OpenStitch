@@ -514,8 +514,8 @@ others SolidCraft lists, each with its version. A missing agent shows its instal
   round 2: the agent no longer loads the user's own Claude Code setup).
 - The Claude Code `_meta` option keys and the exact error `session/new` returns when sign-in is
   needed come from SolidCraft's code, not from the ACP spec.
-- Killing an agent's process tree on Windows (`taskkill /T`) is not exercised; the
-  process-group tests are Unix-only.
+- Killing an agent's process tree on Windows (`taskkill /T`): the process-group tests are
+  Unix-only; see "Windows and Linux" below for the run on Windows.
 
 ### A4, pictures (2026-11-04, #364)
 
@@ -691,11 +691,12 @@ What the local models showed, and what changed:
 - gpt-oss read only `SKILL.md`, saw that satin is a region type, and said a satin border can't
   be made. SKILL.md now says a satin border is a zigzag line (#424).
 - mistral-small3.2 answers a minimal tool request properly, streamed or not, but every bench
-  request with an empty message, and its prompts count only 1-2k tokens. Why is not established
-  (#425).
+  request with an empty message, and its prompts count only 1-2k tokens. Found on 2026-11-05: Ollama drops
+  its calls with a `name` argument (#425, see "Windows and Linux" below).
 - Three runs ended with "The connection closed before the reply finished". The proxy caught
   one: Ollama sent HTTP 200 and 158 chunks of text, then a chunk with an empty model name and no
-  finish reason, and closed, with nothing in its log. Why is not established (#429).
+  finish reason, and closed, with nothing in its log. Found on 2026-11-05: Ollama's lost tool-call
+  error (#429, see "Windows and Linux" below).
 - Ollama 0.40.14 has no `/v1/images/generations` (404), so it can't serve as the image
   generator.
 
@@ -742,3 +743,65 @@ Done after the first real Claude API chats, in #395:
 
 Checked in the running app on macOS, with throwaway profiles and no Keychain prompts. Not checked: Windows and Linux (#401); the Higgsfield icons (#399).
 
+
+### Windows and Linux (2026-11-05, #401, #420, #425, #429)
+
+Run on Windows 11 (16 GB, Intel Iris Xe, no discrete GPU, so every local model ran on the CPU).
+No WSL (installing it changes the system) and no Linux machine, so Linux was covered only by CI.
+
+**Keychain (#401).** The key functions moved to `openstitch_app::keys`, which Save key and
+Remove key use. `tests/keychain.rs` saves a dummy key under a throwaway service name, reads it
+back through a fresh entry, checks that another address holds nothing, replaces it, removes it,
+reads it back as gone, and removes it again. It is ignored by default, so a developer's
+`cargo test` never touches their keychain, and CI runs it with `--ignored` on all three systems:
+the Windows Credential Manager, the macOS Keychain, and on Linux a headless gnome-keyring
+(Secret Service) in its own D-Bus session. On this Windows machine it passed, and `cmdkey /list`
+showed no entry left. The portable zip and the Flatpak were still not tried.
+
+**Coding agent settings (#420).** With Protocol ▸ Coding agent the settings showed the Endpoint
+and API key rows of the hidden address. They now show neither, only "API key: none needed. The
+agent signs in with its own login; OpenStitch never asks for it." Test
+`a_coding_agent_is_offered_no_api_key` renders the settings for both protocols and reads the text.
+
+**#429, gpt-oss streams that stop without a finish reason: found.** Ollama 0.40.14, read at the
+`v0.40.14` tag and reproduced on this machine. gpt-oss uses Ollama's built-in harmony parser,
+which reads tool calls only at the end of the reply. When the call's JSON is broken it fails with
+"error parsing tool call", and Ollama sends `{"error": ...}` into the stream (`server/routes.go`
+`ChatHandler`). If nothing was sent yet this is the HTTP 500 that #427 handles. If reply text was
+already streamed, the OpenAI-compatible writer (`middleware/openai.go` `ChatWriter`) decodes the
+error object as an empty chat response: one chunk with `"model":""`, `delta {"content":""}` and
+`finish_reason: null`, then the stream closes with no finish chunk, no usage and no `[DONE]`.
+The error text is lost, and nothing is logged. A model built to write text and then a call with
+a missing `}` gave exactly #429's capture; the native `/api/chat` stream carries the error.
+Ollama's Responses API writer keeps such errors; the chat completions one does not, on `main`
+either. **Fix:** a stream that ends right after that chunk is treated like the 500: the text is
+kept, the model is told its call could not be read and asked again, at most twice (test
+`a_tool_call_ollama_lost_mid_stream_is_asked_for_again`). A stream that just stops still ends
+with "The connection closed before the reply finished" (`a_stream_that_just_stops_is_not_retried`).
+
+**#425, mistral-small3.2's empty answers: found.** The prompt was complete (system prompt and
+tools, about 1,050 tokens; `strict`, `tool_choice` and content parts make no difference).
+mistral-small3.2 declares no parser in the Ollama registry, so Ollama reads its calls with its
+generic tool parser, which drops any call whose arguments contain a key `name` at any depth
+(`tools/tools.go` `findArguments` takes such an object for a `{"name", "arguments"}` wrapper). The
+model's first call is the one the system prompt asks for, `skill_reference {"name": "SKILL.md"}`,
+about 13 tokens: the 13 output tokens per task. Ollama then answers an empty message with finish
+reason `stop`, and no error. Reproduced with a small model given mistral's tool-call tag:
+`{"name": ...}` arguments vanish, `{"filter": ...}` and `{}` parse, and the same call parses with
+`PARSER ministral`. The 24B model itself does not fit on this machine and was not run.
+**Fixes:**
+- The meta tools' `name` argument is now `file` (`scratch_write`, `skill_reference`,
+  `generate_image`); the old `name` is still accepted. A test checks that no meta tool's schema
+  has a `name` property at any depth.
+- Ollama reports the output tokens of a swallowed call, so a reply with no text, no call, no
+  reasoning and output tokens above zero now ends with an error that says the server probably
+  could not read a tool call, instead of an empty message
+  (`an_empty_reply_with_output_tokens_is_reported`).
+- Not fixable here: `execute`'s `params` are free-form, so a command with a `name` parameter is
+  still dropped for this model. Workaround: a copy of the model with Ollama's own parser for this
+  format, `ollama show mistral-small3.2 --modelfile > Modelfile`, add the line `PARSER ministral`,
+  `ollama create mistral-small3.2-tools -f Modelfile`. Its template has two more defects: tools
+  are left out of the prompt after the first tool round, and tool results go in unquoted.
+
+**Token counts.** OpenAI-compatible servers report `prompt_tokens` with the cached tokens
+included, and the client counted them twice (input plus cache read). Input now excludes them.

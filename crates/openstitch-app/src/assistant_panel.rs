@@ -19,6 +19,7 @@ use openstitch_app::editor::assistant_chat::{
     Verdict, is_this_computer, verdict,
 };
 use openstitch_app::editor::ribbon::Action;
+use openstitch_app::keys;
 use openstitch_assistant as claude;
 use openstitch_engine::Effect;
 use openstitch_mcp::EditorLink;
@@ -27,9 +28,6 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::{Duration, Instant};
-
-/// The keychain service the API key is stored under, one entry per endpoint address.
-const KEYCHAIN_SERVICE: &str = "OpenStitch assistant";
 
 /// Where a command's answer goes: the in-process server, or a coding agent's MCP bridge on
 /// the private socket (A3).
@@ -321,7 +319,7 @@ pub fn tool_label(name: &str, input: &Value) -> String {
             None => "Read a command's help".into(),
         },
         "skill_reference" => "Read the embroidery guide".into(),
-        "scratch_write" => match arg("name") {
+        "scratch_write" => match arg("file").or_else(|| arg("name")) {
             Some(n) => format!("Wrote {n}"),
             None => "Wrote a file".into(),
         },
@@ -400,37 +398,17 @@ fn keychain(base_url: &str) -> Option<keyring::Entry> {
     if cfg!(test) {
         return None;
     }
-    let service = std::env::var("OPENSTITCH_KEYCHAIN_SERVICE")
-        .ok()
-        .filter(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| KEYCHAIN_SERVICE.to_string());
-    keyring::Entry::new(&service, base_url).ok()
+    keys::entry(&keys::service(), base_url)
 }
 
 /// The stored key for `base_url`, if any.
 fn load_key(base_url: &str) -> Option<String> {
-    keychain(base_url)?
-        .get_password()
-        .ok()
-        .filter(|k| !k.is_empty())
+    keys::load(&keychain(base_url)?)
 }
 
 fn store_key(base_url: &str, key: &str) -> Result<(), String> {
     let entry = keychain(base_url).ok_or("the system keychain is not available")?;
-    if key.is_empty() {
-        match entry.delete_credential() {
-            Ok(()) | Err(keyring::Error::NoEntry) => {}
-            Err(e) => return Err(e.to_string()),
-        }
-        // Removed means gone: read it back (the owner, 2026-11-04).
-        match entry.get_password() {
-            Err(keyring::Error::NoEntry) => Ok(()),
-            Ok(_) => Err("the system keychain still holds the key".into()),
-            Err(e) => Err(format!("could not check that the key is gone: {e}")),
-        }
-    } else {
-        entry.set_password(key).map_err(|e| e.to_string())
-    }
+    keys::store(&entry, key)
 }
 
 impl Panel {
@@ -1250,6 +1228,9 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
     egui::Grid::new("assistant-settings")
         .num_columns(2)
         .show(ui, |ui| {
+            // A coding agent has no address of its own (#420): the Endpoint presets and the key
+            // rows below are the hidden Claude API address's, so they are not shown.
+            if prefs.protocol != Protocol::Agent {
             ui.label("Endpoint");
             egui::ComboBox::from_id_salt("assistant-preset")
                 .selected_text(
@@ -1272,6 +1253,7 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                     }
                 });
             ui.end_row();
+            }
             ui.label("Protocol");
             egui::ComboBox::from_id_salt("assistant-protocol")
                 .selected_text(prefs.protocol.label())
@@ -1460,7 +1442,22 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
             }
         });
     }
-    let base_url = prefs.base_url.clone();
+    if prefs.protocol == Protocol::Agent {
+        ui.separator();
+        ui.label(AGENT_KEY_NOTE);
+    } else {
+        endpoint_key(app, ui);
+    }
+    image_and_reset(app, ui, changed);
+}
+
+/// What the settings say about keys while the protocol is Coding agent (#420).
+const AGENT_KEY_NOTE: &str =
+    "API key: none needed. The agent signs in with its own login; OpenStitch never asks for it.";
+
+/// The endpoint's API key: the https warning, whether one is stored, Save key and Remove key.
+fn endpoint_key(app: &mut EditorApp, ui: &mut egui::Ui) {
+    let base_url = app.ui.prefs.ai.base_url.clone();
     if !claude::key_safe_for(&base_url) {
         ui.colored_label(
             ui.visuals().error_fg_color,
@@ -1499,6 +1496,10 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
         Some(KeyAction::Remove) => remove_key(app, &base_url),
         None => {}
     }
+}
+
+/// The image generator's address, model and key, and Reset AI settings.
+fn image_and_reset(app: &mut EditorApp, ui: &mut egui::Ui, mut changed: bool) {
     ui.separator();
     ui.label("Image generator (optional): an OpenAI-compatible /images/generations address ending in /v1. Without one, the assistant draws pictures as vector shapes.");
     let prefs = &mut app.ui.prefs.ai;
@@ -2776,6 +2777,68 @@ mod tests {
             }
         });
         assert!(!before.is_empty(), "the clash check must detect a clash");
+    }
+
+    /// Every text the settings paint for this protocol (two frames, so the grid has its size).
+    fn settings_text(app: &mut EditorApp) -> String {
+        let ctx = egui::Context::default();
+        let mut text = String::new();
+        for _ in 0..2 {
+            text.clear();
+            let mut out = ctx.run_ui(egui::RawInput::default(), |ui| settings(app, ui));
+            out.textures_delta.clear();
+            for s in &out.shapes {
+                if let egui::epaint::Shape::Text(t) = &s.shape {
+                    text.push_str(t.galley.text());
+                    text.push('\n');
+                }
+            }
+        }
+        text
+    }
+
+    /// In Coding agent mode the settings offer no key and no endpoint preset (#420): the agent
+    /// signs in with its own login, and a key saved there would go to the hidden Claude API
+    /// address. The keychain is not even asked.
+    #[test]
+    fn a_coding_agent_is_offered_no_api_key() {
+        let (mut app, _) = app_with(Vec::new());
+        // Control: the Claude API shows the key rows and the preset.
+        app.ui.prefs.ai.protocol = Protocol::Anthropic;
+        let api = settings_text(&mut app);
+        for t in [
+            "Endpoint",
+            "API key: none. Add the key",
+            "Save key",
+            "Remove key",
+        ] {
+            assert!(api.contains(t), "{t:?} in the Claude API settings:\n{api}");
+        }
+        app.ui.prefs.ai.protocol = Protocol::Agent;
+        app.assistant.panel.key_stored = None;
+        let agent = settings_text(&mut app);
+        for t in [
+            "Endpoint",
+            "Custom",
+            "Add the key",
+            "Save key",
+            "Remove key",
+            "neither https",
+        ] {
+            assert!(
+                !agent.contains(t),
+                "{t:?} must not show for an agent:\n{agent}"
+            );
+        }
+        assert!(agent.contains(AGENT_KEY_NOTE), "{agent}");
+        assert!(
+            agent.contains("Agent") && agent.contains("Permissions"),
+            "{agent}"
+        );
+        assert!(
+            app.assistant.panel.key_stored.is_none(),
+            "the keychain is not asked for an agent"
+        );
     }
 
     /// The ID clash warnings egui paints while drawing `add` (two frames, warnings on).

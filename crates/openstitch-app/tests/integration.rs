@@ -8,6 +8,8 @@
 mod coverage_editor;
 #[path = "coverage_editor_more.rs"]
 mod coverage_editor_more;
+#[path = "keychain.rs"]
+mod keychain;
 
 /// A test file left out of this list would compile and run nowhere.
 #[test]
