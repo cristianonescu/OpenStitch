@@ -227,6 +227,8 @@ actions! {
     SmoothTolerance => "smoothTolerance", "Smooth tolerance", "How far Smooth Shape may move an outline (default 0.2 mm).", None, Some("shape.simplify"), true;
     Knife => "knife", "Knife", "Click the points of an open cut line; double-click or Return cuts every object it crosses (fills and outlines into both sides, satin columns across, lines where crossed). Shift: 45° steps. A single click then Return splits the line under the pointer. Stays active; Esc leaves.", None, Some("shape.knife"), true;
     ShapeEffects => "shapeEffects", "Shape Effects", "Warp, twist, roughen, pucker & bloat or zigzag the selected outlines, with a preview; the result is ordinary editable geometry (shape.effect).", None, Some("shape.effect"), true;
+    ShapeBuilder => "shapeBuilder", "Shape Builder", "Select two or more overlapping shapes, then drag across the pieces of their overlaps: the pieces you touch become one shape (sewn like the topmost of them). Hold Alt to remove the pieces instead.", None, Some("shape.build"), true;
+    LineGap => "lineGap", "Turning Gap", "Leave part of the selected closed line unsewn, the opening for turning in-the-hoop pieces: where it starts along the outline and how long it is. Running, triple, zigzag, E and V lines.", None, Some("object.setLineGap"), true;
     SplitOutline => "splitOutline", "Split Outline", "Draw a cut line that splits the selected shape.", None, Some("shape.split"), true;
     AddDirectionLine => "addDirection", "Add Direction Line", "Draw a curved sewing direction across the region.", None, Some("object.setDirectionCurve"), true;
     DeleteDirectionLine => "deleteDirection", "Delete Direction Line", "Back to a straight sewing direction.", None, Some("object.setDirectionLines"), true;
@@ -295,6 +297,7 @@ impl Action {
                 | SkeletonWidth
                 | SmoothTolerance
                 | ShapeEffects
+                | LineGap
                 | EditCharacter
         )
     }
@@ -347,6 +350,7 @@ impl Action {
             Feed => Tool::Feed,
             SatinSkeleton => Tool::Skeleton,
             Knife => Tool::Knife,
+            ShapeBuilder => Tool::ShapeBuilder,
             _ => return None,
         })
     }
@@ -677,7 +681,7 @@ const SHAPES: &[Group] = &[
             ]),
             Small(&[A::EditPoint, A::DeletePoint, A::SplitAtPoint]),
             Small(&[A::DeriveSkeleton, A::SmoothShape, A::SmoothTolerance]),
-            Small(&[A::DeriveSkeleton, A::ShapeEffects]),
+            Small(&[A::ShapeEffects, A::ShapeBuilder, A::LineGap]),
         ],
     },
     COLORS,
@@ -877,7 +881,7 @@ pub fn contextual_tabs(f: &Facts) -> Vec<TabId> {
         Tool::Punch | Tool::CurvedBlock | Tool::Running | Tool::Feed | Tool::Skeleton => {
             add(TabId::ManualPunch)
         }
-        Tool::Ellipse | Tool::Point | Tool::Knife => add(TabId::Shapes),
+        Tool::Ellipse | Tool::Point | Tool::Knife | Tool::ShapeBuilder => add(TabId::Shapes),
         Tool::Select => {}
     }
     if f.text {
@@ -936,6 +940,18 @@ mod tests {
         assert_eq!(keys.len(), n, "duplicate action key");
         for t in TabId::ALL {
             assert_eq!(TabId::from_key(t.key()), Some(t));
+        }
+    }
+
+    #[test]
+    fn no_group_shows_a_command_twice() {
+        for t in TabId::ALL {
+            for g in t.groups() {
+                let mut seen = std::collections::BTreeSet::new();
+                for a in g.actions() {
+                    assert!(seen.insert(a), "{t:?} / {}: {a:?} twice", g.name);
+                }
+            }
         }
     }
 

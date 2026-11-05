@@ -10,6 +10,7 @@ use openstitch_design::{Contour, Design, DesignObject, ObjectKind, Rect, Transfo
 use serde_json::json;
 use std::collections::BTreeSet;
 
+pub mod builder;
 pub mod characters;
 pub mod continuation;
 pub mod knife;
@@ -48,10 +49,12 @@ pub enum Tool {
     Skeleton,
     /// Knife: click an open cut line; every object it crosses is cut (#477).
     Knife,
+    /// Shape Builder: drag across overlapping shapes' pieces to merge (Alt: remove) them (#497).
+    ShapeBuilder,
 }
 
 impl Tool {
-    pub const ALL: [Tool; 15] = [
+    pub const ALL: [Tool; 16] = [
         Tool::Select,
         Tool::Point,
         Tool::Rectangle,
@@ -67,6 +70,7 @@ impl Tool {
         Tool::Feed,
         Tool::Skeleton,
         Tool::Knife,
+        Tool::ShapeBuilder,
     ];
 
     pub fn label(self) -> &'static str {
@@ -86,6 +90,7 @@ impl Tool {
             Tool::Feed => "Feed",
             Tool::Skeleton => "Skeleton",
             Tool::Knife => "Knife",
+            Tool::ShapeBuilder => "ShapeBuilder",
         }
     }
 
@@ -552,7 +557,9 @@ impl ToolController {
     pub fn handle(&mut self, mut e: PointerEvent, ctx: &ToolContext) -> Vec<ToolEffect> {
         self.hover = Some(e.location);
         // Drawing tools place every point on the grid.
-        if !matches!(self.tool(), Tool::Select | Tool::Point) && !self.tool().is_pencil() {
+        if !matches!(self.tool(), Tool::Select | Tool::Point | Tool::ShapeBuilder)
+            && !self.tool().is_pencil()
+        {
             e.location = self.snapped(e.location);
         }
         match self.tool() {
@@ -565,6 +572,7 @@ impl ToolController {
             Tool::Punch | Tool::CurvedBlock | Tool::Running | Tool::Feed => self.punch_tool(e, ctx),
             Tool::Skeleton => self.skeleton_tool(e, ctx),
             Tool::Knife => self.knife_tool(e, ctx),
+            Tool::ShapeBuilder => self.builder_tool(e, ctx),
         }
     }
 

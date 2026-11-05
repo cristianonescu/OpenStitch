@@ -30,6 +30,9 @@ after `clean_icons.py`.
 fixes after `clean_icons.py`.
 `shape_effects` (Shapes ▸ Edit Outline ▸ Shape Effects, #497) was added on 2026-11-05 the same way
 (2.5 credits); it needed no hand fixes after `clean_icons.py`.
+`shape_builder` (the Shape Builder tool, #497) was added on 2026-11-05 the same way (2.5 credits);
+after `clean_icons.py` its arrow, generated as a green gradient, was set to the palette green by
+hand and the gradient removed.
 The job ids of the first set (2026-10-27) were recovered from the Higgsfield history on 2026-11-04:
 each job's output, cleaned with `clean_icons.py`, is byte-identical to its SVG. The `credits`
 column is empty where the cost was not recorded at the time.

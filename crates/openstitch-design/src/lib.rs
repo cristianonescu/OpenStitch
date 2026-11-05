@@ -3,6 +3,7 @@
 //! Pure computation: no I/O, deterministic output.
 
 pub mod boolean;
+pub mod builder;
 pub mod calibration;
 pub mod column;
 pub mod compile;
@@ -57,9 +58,9 @@ pub use machine::{
 pub use model::{
     Arrange, BackgroundImage, BackgroundLayer, ChainShape, ContourJoin, ContourStrategy, Design,
     DesignObject, DesignPage, DesignProperties, Feather, FeatherSide, FillStitchType, Gradation,
-    Guides, ImageAdjust, LineSewing, LineType, ObjectKind, OptimizeOrder, RegionSewing, RegionType,
-    RunningStitchPath, StaggerKind, StartEnd, StitchBlock, UnderlayDensity, UnderlayParts,
-    UnderlayStyle,
+    Guides, ImageAdjust, LineGap, LineSewing, LineType, ObjectKind, OptimizeOrder, RegionSewing,
+    RegionType, RunningStitchPath, StaggerKind, StartEnd, StitchBlock, UnderlayDensity,
+    UnderlayParts, UnderlayStyle,
 };
 pub use text::{
     CharEdit, FONTS, FontInfo, Layout, PathFit, Spread, TextAlign, TextDirection, TextError,

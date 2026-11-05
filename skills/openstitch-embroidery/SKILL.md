@@ -112,6 +112,9 @@ then style them in the next.
   `shape.rectangle` `cornerRadii: [tl, tr, br, bl]`; `shape.combine` `op: divide` (every
   overlap its own shape); `shape.effect` `{ids, kind: warp|twist|roughen|puckerBloat|zigzag,
   amount, size, seed}`.
+- Shape builder and gaps: `shape.build` `{ids, path: [[x, y], ...], mode: merge|remove}`
+  merges (or removes) the overlap pieces a path crosses; `object.setLineGap` `{ids, offset,
+  length}` leaves a turning gap in a closed line (`length: null` removes it).
 - Find objects like others: `object.list` `{sameAs: [ids], match: color|type|both,
   visible: true}`, or filter by `color`, `regionType`, `lineType`; then `ui.select` the ids.
 - Text: `object.setText` (text, font, size, spacing), `text.setPath` (fit to an outline).

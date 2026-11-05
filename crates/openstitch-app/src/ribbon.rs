@@ -263,6 +263,7 @@ pub fn enabled(app: &EditorApp, a: Action) -> bool {
         SmoothShape => crate::shape_tools_ui::can_smooth_shape(app),
         SmoothStitches => convert_ui::stitch_selection(app).1.is_some(),
         ShapeEffects => crate::shape_effects_ui::can_apply(app),
+        LineGap => crate::line_gap_ui::target(app).is_some(),
         AddDirectionLine | DeleteDirectionLine | ReverseDirectionLine | SewingPoints => {
             edit_ui::single_region(app).is_some()
         }
@@ -596,13 +597,13 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
         // Tools are handled above; menus open their list; the rest are not available yet.
         SelectTool | PointTool | Rectangle | Ellipse | ClosedStraight | ClosedCurve | OpenCurve
         | StraightBlock | EditPoint | PencilClosed | OpenStraight | PencilOpen | CurvedBlock
-        | Running | Feed | SatinSkeleton | Knife => {}
+        | Running | Feed | SatinSkeleton | Knife | ShapeBuilder => {}
         Print | Wizard | Export | Options | Help | TextTools | ShapesTools | OtherZoom
         | Arrange | Align | SelectSame | RotateFlip | Size | StampEmboss | ModifyOverlap
         | DecorativeFrame | FitTextToOutline | SendEmbroidery | SaveImage | ImageDensity
         | GridSpacing | ViewShow | Font | TextSize | EditText | LineColor | LineSewType
         | RegionColor | RegionSewType | EntryExit | SewingPoints | EdgeRadius | ChangeColor
-        | SkeletonWidth | SmoothTolerance | ShapeEffects | EditCharacter => {}
+        | SkeletonWidth | SmoothTolerance | ShapeEffects | LineGap | EditCharacter => {}
     }
 }
 
@@ -988,6 +989,7 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
         SkeletonWidth => skeleton_width_menu(app, ui),
         SmoothTolerance => crate::shape_tools_ui::smooth_tolerance_menu(app, ui),
         ShapeEffects => crate::shape_effects_ui::effects_menu(app, ui),
+        LineGap => crate::line_gap_ui::gap_menu(app, ui),
         EditCharacter => crate::lettering_ui::character_menu(app, ui),
         _ => {}
     }

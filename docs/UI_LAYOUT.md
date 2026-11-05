@@ -317,6 +317,8 @@ Behaviour follows the guide's pages
 | Edit Outline | Smooth Shape (beyond PE-DESIGN, #478) |  | `Action::SmoothShape` | `shape.simplify` | yes |
 | Edit Outline | Smooth tolerance (beyond PE-DESIGN, #478) |  | `Action::SmoothTolerance` | `shape.simplify` (`tolerance`) | yes |
 | Edit Outline | Shape Effects (beyond PE-DESIGN, #497) |  | `Action::ShapeEffects` | `shape.effect` | yes |
+| Edit Outline | Shape Builder (beyond PE-DESIGN, #497) |  | `Action::ShapeBuilder` | `shape.build` | yes |
+| Edit Outline | Turning Gap (beyond PE-DESIGN, #497) |  | `Action::LineGap` | `object.setLineGap` | yes |
 | Color / Sew Type | Line color |  | `Action::LineColor` | `object.setLine` | yes |
 | Color / Sew Type | Line sew type |  | `Action::LineSewType` | `object.setLine` | yes |
 | Color / Sew Type | Region color |  | `Action::RegionColor` | `object.setRegion` | yes |
@@ -419,6 +421,12 @@ and [Adjusting the split positions](https://support.brother.com/g/s/hf/htmldoc/p
   the selected shapes into its own shape, sewn like the topmost one (`shape.combine op:
   divide`). Shapes ▸ Edit Outline ▸ Shape Effects warps, twists, roughens, puckers or bloats, or
   zigzags the selected outlines, with a preview of the result before Apply (`shape.effect`).
+- **Shape Builder** (Shapes ▸ Edit Outline, beyond PE-DESIGN, #497): with two or more
+  overlapping shapes selected, drag across the pieces of their overlaps; on release the pieces
+  touched become one shape, sewn like the topmost of them (`shape.build`, one Undo); hold Alt
+  to remove them instead. **Turning Gap** leaves part of the selected closed running, triple,
+  zigzag, E or V line unsewn: where it starts along the outline and how long it is
+  (`object.setLineGap`); the line is tied in and locked at both ends of the gap.
 - **Change Color** lists the selected stitch pattern's threads; pick one and its new colour.
 - **Editing characters** (after the guide's
   [Editing individual characters](https://support.brother.com/g/s/hf/htmldoc/ped/im/ped11/en/PED11_EN/pages/05_1904502.html)):

@@ -1898,6 +1898,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         l = LineSewing {
                             entry: l.entry,
                             exit: l.exit,
+                            gap: l.gap,
                             ..LineSewing::new(k, l.thread.clone())
                         };
                     }
