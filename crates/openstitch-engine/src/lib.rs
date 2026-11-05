@@ -52,6 +52,7 @@ pub mod templates;
 #[cfg(feature = "formats")]
 pub mod thread_match;
 pub mod threadlists;
+mod timeline;
 #[cfg(feature = "formats")]
 pub mod transfer;
 pub mod user;

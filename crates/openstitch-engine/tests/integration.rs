@@ -112,6 +112,8 @@ mod templates;
 mod thread_lists;
 #[path = "thread_match.rs"]
 mod thread_match;
+#[path = "timeline.rs"]
+mod timeline;
 #[path = "transfer.rs"]
 mod transfer;
 #[path = "user.rs"]
