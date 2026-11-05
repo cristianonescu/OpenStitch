@@ -56,6 +56,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    Run each finding's `fix` command or fix it yourself, and check again; never report a design
    done while `design.check` has errors. `design.route` names every move between objects
    (untrimmed jumps, long moves), `design.density` shows where thread piles up.
+   `design.timeline` lists the colour blocks in sewing order with their stitch ranges, trims,
+   object starts and machine time ("when does the red start?"); in the editor,
+   `ui.simulate {stitch}` or `{step: "block" | "object" | "trim"}` moves the player there.
 6. Save only when asked: `project.save` `{path: "name.osd"}` (editable) and/or
    `design.export` `{path: "name.pes"}` (machine file; the extension picks the format).
 

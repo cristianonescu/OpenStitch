@@ -16,6 +16,7 @@ pub mod lettering;
 pub mod objects;
 pub mod pattern_wizards;
 pub mod pen;
+pub mod player;
 pub mod points;
 pub mod precision;
 pub mod prefs;

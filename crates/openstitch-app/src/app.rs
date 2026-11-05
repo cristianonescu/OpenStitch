@@ -144,6 +144,10 @@ pub struct EditorApp {
     pub playing: bool,
     pub play_speed: f64,
     play_accumulator: f64,
+    /// The compiled design as the machine sews it (#516): colour blocks, trims, objects, time.
+    pub timeline: openstitch_design::timeline::Timeline,
+    /// Stitch-out player toggles (#516), all off by default.
+    pub stitch_player: PlayerToggles,
     pub show_travel: bool,
     pub path: Option<PathBuf>,
     pub status: String,
@@ -268,6 +272,8 @@ impl EditorApp {
             simulate: None,
             playing: false,
             play_speed: 400.0,
+            timeline: Default::default(),
+            stitch_player: PlayerToggles::default(),
             play_accumulator: 0.0,
             show_travel: true,
             path: None,
@@ -628,6 +634,7 @@ impl EditorApp {
         let d = self.session.design();
         self.selection.retain(|id| d.index_of(*id).is_some());
         let (pattern, spans) = Compiler::for_design(d).compile_traced(d);
+        self.timeline = openstitch_design::timeline::Timeline::build(&pattern, &spans, &d.machine);
         self.pattern = pattern;
         self.quality.spans = spans;
         self.stats = PatternStats::of(&self.pattern);
@@ -1310,6 +1317,7 @@ impl EditorApp {
             let effects = self.tools.finish();
             self.apply_effects(effects);
         }
+        let player_t = self.player_keys(&take);
         for (key, dx, dy) in [
             (Key::ArrowLeft, -1.0, 0.0),
             (Key::ArrowRight, 1.0, 0.0),
@@ -1340,6 +1348,9 @@ impl EditorApp {
         });
         if !ctx.input(|i| i.modifiers.command) {
             for c in typed {
+                if player_t && c.eq_ignore_ascii_case(&'t') {
+                    continue;
+                }
                 // Point tool: C curves, S straightens the segment under the pointer.
                 if c.eq_ignore_ascii_case(&'m') {
                     self.ui.pan = false;
@@ -1431,24 +1442,75 @@ impl EditorApp {
         };
     }
 
+    /// Stitch-out player keys while the simulator shows part of the design (#516): ←/→ a
+    /// stitch, Shift a colour block, Ctrl/Cmd an object, T the next trim, Home/End. Returns
+    /// whether T was taken, so it does not also pick a tool.
+    fn player_keys(&mut self, take: &dyn Fn(KeyboardShortcut) -> bool) -> bool {
+        use openstitch_app::editor::player::{Step, step};
+        if self.simulate.is_none() {
+            return false;
+        }
+        let keys = [
+            (Modifiers::SHIFT, Key::ArrowLeft, Step::BlockBack),
+            (Modifiers::SHIFT, Key::ArrowRight, Step::BlockForward),
+            (Modifiers::COMMAND, Key::ArrowLeft, Step::ObjectBack),
+            (Modifiers::COMMAND, Key::ArrowRight, Step::ObjectForward),
+            (Modifiers::NONE, Key::ArrowLeft, Step::StitchBack),
+            (Modifiers::NONE, Key::ArrowRight, Step::StitchForward),
+            (Modifiers::NONE, Key::Home, Step::Start),
+            (Modifiers::NONE, Key::End, Step::End),
+            (Modifiers::NONE, Key::T, Step::NextTrim),
+        ];
+        let mut t = false;
+        for (mods, key, s) in keys {
+            if take(KeyboardShortcut::new(mods, key)) {
+                self.simulate = step(&self.timeline, self.simulate, s);
+                self.playing = false;
+                t |= key == Key::T;
+            }
+        }
+        t
+    }
+
     /// Advances the simulator while playing.
     fn tick(&mut self, ctx: &egui::Context) {
         if !self.playing {
             return;
         }
         let dt = f64::from(ctx.input(|i| i.stable_dt)).min(0.1);
-        self.play_accumulator += dt * self.play_speed;
+        let speed = if self.stitch_player.auto {
+            openstitch_app::editor::player::auto_speed(&self.timeline)
+        } else {
+            self.play_speed
+        };
+        self.play_accumulator += dt * speed;
         let step = self.play_accumulator.floor() as usize;
         self.play_accumulator -= step as f64;
-        let n = self.simulate.unwrap_or(0) + step;
-        if n >= self.stats.stitches {
-            self.simulate = None;
+        // Pause at trims: playback stops at each trim, stop and colour change (#516).
+        let (next, stopped) = openstitch_app::editor::player::advance(
+            &self.timeline,
+            Some(self.simulate.unwrap_or(0)),
+            step,
+            self.stitch_player.pause,
+        );
+        self.simulate = next;
+        if stopped {
             self.playing = false;
-        } else {
-            self.simulate = Some(n);
+            self.play_accumulator = 0.0;
         }
         ctx.request_repaint();
     }
+}
+
+/// Stitch-out player toggles (#516), beyond PE-DESIGN and off by default.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PlayerToggles {
+    /// Play the whole design in about 12 seconds.
+    pub auto: bool,
+    /// Keep the needle in view.
+    pub follow: bool,
+    /// Stop at each trim, stop and colour change.
+    pub pause: bool,
 }
 
 impl eframe::App for EditorApp {

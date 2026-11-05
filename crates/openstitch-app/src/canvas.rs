@@ -62,6 +62,15 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
         pointer(app, ui, &response, vp);
     }
     app.ensure_render_model();
+    // Follow the needle while the player shows part of the design (#516).
+    if app.stitch_player.follow
+        && app.simulate.is_some()
+        && let Some(n) = app.render.needle
+        && let Some(moved) = openstitch_app::editor::player::follow(&vp, screen, n)
+    {
+        vp = moved;
+        app.viewport = Some(vp);
+    }
 
     app.workspace.canvas = Some(rect);
     let painter = ui.painter_at(rect);
