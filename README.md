@@ -78,7 +78,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 291: 185 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 96 planned beyond PE-DESIGN |
+| Feature matrix rows | 291: 186 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 95 planned beyond PE-DESIGN |
 | Compatibility specs | 454: 454 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 36: 29 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 10 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
@@ -317,7 +317,9 @@ that ends in a trim ties in and locks, as PE-DESIGN sews them, the image tools i
 ### Scripting and MCP
 
 - **➕ `stitchtool`:** run JSON command scripts, list every command, or drive a JSON-lines
-  control channel. Every editor action is the same engine command.
+  control channel. Every editor action is the same engine command. One-line commands do the
+  everyday file jobs: `stitchtool convert in.dst out.pes` (or a whole folder with
+  `--format pes`), `info`, `optimize`, `digitize logo.png out.pes --size 80mm` and `formats`.
 - **➕ `openstitch-mcp`:** an MCP server for Claude Code and other MCP clients, with one tool per
   command, batches and PNG previews; file access only to folders you grant.
 - **➕ Live editor socket:** `openstitch --listen` lets scripts and MCP act on the running editor
@@ -656,7 +658,6 @@ PE-DESIGN 11 does not. Each item is sketched in
 - Assistant benchmark with illustrated-subject tasks scored on structure and on the rendered result (#493)
 - Batches validate every step's parameters first and report all errors at once before running anything (#494)
 - Assistant picks colours only from the user's own or named thread chart and never quotes a catalogue number that is not in a chart (#495)
-- stitchtool one-line commands: convert, info, optimize, digitize and formats (#496)
 - Shape tools beyond PE: band frames, per-corner radii, spiral line, gap in a closed outline, Divide, shape builder and shape effects (warp, twist, roughen) (#497)
 - Python package (pyo3 wheel) for scripting designs with the engine's command set (#498)
 - Draw shapes, lines and Manual Punch columns from the keyboard; follow the system text size; WCAG contrast; visible focus; screen-reader names checked in CI (#499)
@@ -798,6 +799,18 @@ cargo run -p stitchtool -- exec examples/badge.json   # run a command script →
 cargo run -p stitchtool -- exec examples/heart.json   # Bézier example
 cargo run -p stitchtool -- commands                   # list every command (JSON)
 cargo run -p stitchtool -- serve                      # JSON-lines control channel on stdio
+```
+
+One-line commands (formats follow the file extensions; `--json` prints the engine's replies,
+`stitchtool help` lists every option):
+
+```bash
+stitchtool convert in.dst out.pes                     # one file to another format
+stitchtool convert dsts/ pes/ --format pes            # every design in a folder (existing targets skipped)
+stitchtool info design.pes                            # size, stitches, colours, trims, jumps, thread, time
+stitchtool optimize in.pes out.pes --by-color         # sewing order / fewer colour changes
+stitchtool digitize logo.png out.pes --size 80mm      # Auto Punch an image
+stitchtool formats                                    # what OpenStitch reads and writes
 ```
 
 ```bash

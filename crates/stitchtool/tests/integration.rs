@@ -8,6 +8,8 @@
 mod connect;
 #[path = "coverage_cli.rs"]
 mod coverage_cli;
+#[path = "oneline.rs"]
+mod oneline;
 
 /// A test file left out of this list would compile and run nowhere.
 #[test]
