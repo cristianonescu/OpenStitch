@@ -300,13 +300,19 @@ that ends in a trim ties in and locks, as PE-DESIGN sews them, the image tools i
   [docs/FILE_FORMATS.md](docs/FILE_FORMATS.md).
 - **PES versions 1, 6 and 11** on export, with Design Property (category, author, keywords,
   comments). Version 6 with its stitch group is the default. Every PES version is read (1 to 11).
-- **SVG import** as editable shapes, colours snapped to the Brother chart.
+- **SVG import** as editable shapes, colours snapped to the Brother chart; clip paths and masks
+  applied, gradients as one colour or as colour bands, a list of what was left out (text, images,
+  invisible parts), and optionally stitch settings read from layer and object names
+  (`fill a=45`, `satin`, `run r=3`).
 - **WMF and EMF import** (placeable and standard WMF, EMF) as editable shapes.
 - **Editable `.osd` projects**, and large designs split into several files when a format's limits
   are exceeded.
 - **Thread charts:** Brother's 64-colour PEC chart with its catalogue numbers, PE-DESIGN's
   colour matching, and your own charts as CSV, exported in the layout PE-DESIGN's Import Chart
-  reads.
+  reads, or as GIMP / Inkscape `.gpl` palettes. Beyond PE-DESIGN: match a design to any chart
+  (Madeira, Isacord, Sulky, Robison-Anton or your own) by perceived colour (CIEDE2000) with a
+  preview that keeps distinct colours apart, merge near-identical colours to save thread
+  changes, and find a thread by number or name.
 
 ### Machine transfer
 
