@@ -216,6 +216,8 @@ pub struct EditorApp {
     pub splash: Option<crate::splash::Splash>,
     /// Ribbon, Quick Access Toolbar, panes and window preferences.
     pub ui: crate::ribbon::RibbonState,
+    /// Check Design, the density map and the sewing-order review (#503-#505).
+    pub quality: crate::quality_ui::QualityState,
     /// Self-update: startup check, dialog, download and restart.
     pub update: crate::update_ui::UpdateState,
     /// "Save changes to NAME?" when closing, File ▸ New or Open would lose unsaved changes.
@@ -299,6 +301,7 @@ impl EditorApp {
             assistant: Default::default(),
             splash: None,
             ui: Default::default(),
+            quality: Default::default(),
             update: Default::default(),
             close_prompt: ClosePrompt::default(),
             exit_approved: false,
@@ -605,7 +608,9 @@ impl EditorApp {
         self.revision += 1;
         let d = self.session.design();
         self.selection.retain(|id| d.index_of(*id).is_some());
-        self.pattern = Compiler::for_design(d).compile(d);
+        let (pattern, spans) = Compiler::for_design(d).compile_traced(d);
+        self.pattern = pattern;
+        self.quality.spans = spans;
         self.stats = PatternStats::of(&self.pattern);
         self.workspace.estimate = Some(openstitch_design::estimate(&self.pattern, &d.machine));
         if self.simulate.is_some_and(|n| n >= self.stats.stitches) {
@@ -1408,6 +1413,7 @@ impl eframe::App for EditorApp {
         crate::lettering_ui::windows(self, &ctx);
         crate::pattern_wizard_ui::windows(self, &ctx);
         crate::view_ui::windows(self, &ctx);
+        crate::quality_ui::window(self, &ctx);
         let canvas = self.workspace.canvas;
         crate::workspace_ui::reference_window(self, &ctx, canvas);
         self.screenshot_step(&ctx);
