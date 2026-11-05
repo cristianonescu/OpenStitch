@@ -228,6 +228,10 @@ pub fn region_controls_with(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> 
     if row_based {
         v.push(toggle("Auto direction", "autoDirection", r.auto_direction));
     }
+    // PE-DESIGN offers Half Stitch with Auto direction only (greyed otherwise, #372).
+    if r.kind == RegionType::Satin && r.auto_direction {
+        v.push(toggle("Half Stitch", "halfStitch", r.half_stitch));
+    }
     let centred = matches!(
         r.kind,
         RegionType::ConcentricCircle

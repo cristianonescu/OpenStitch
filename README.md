@@ -369,7 +369,7 @@ Also missing, from the [roadmap](docs/ROADMAP.md#still-to-do):
   letter by region (#428), and no lettering has under sewing per stroke yet.
 - **Text details:** per-character colour, multi-character selection, Connection Points, minimum
   font sizes and small-text fonts, kerning that reflows the line.
-- **Satin and fill details:** Half Stitch for Auto satin, Miter limit, gradation per-step
+- **Satin and fill details:** Miter limit (needs PE-DESIGN captures, #373), gradation per-step
   editing and Blend.
 - **PES:** opening PE-DESIGN's texts and stitch groups as editable OpenStitch objects; motif
   fill, motif lines, several groups, right-aligned and vertical text in the editable PES 11

@@ -1151,6 +1151,22 @@ fn auto_satin_offers_no_travel() {
 }
 
 #[test]
+fn half_stitch_is_offered_for_auto_satin_only() {
+    use super::inspector::region_controls;
+    use openstitch_design::RegionSewing;
+    let half = |r: &RegionSewing| region_controls(r).iter().any(|c| c.param() == "halfStitch");
+    let mut r = RegionSewing::new(RegionType::Satin, Thread::rgb(0));
+    assert!(
+        !half(&r),
+        "PE-DESIGN greys Half Stitch without Auto direction"
+    );
+    r.auto_direction = true;
+    assert!(half(&r));
+    r.kind = RegionType::Fill;
+    assert!(!half(&r));
+}
+
+#[test]
 fn region_option_controls_are_accepted_by_the_engine() {
     use super::inspector::{Control, region_controls};
     use openstitch_design::RegionSewing;

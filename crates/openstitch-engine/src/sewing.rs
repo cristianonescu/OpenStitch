@@ -13,7 +13,7 @@ pub fn commands() -> Vec<CommandSpec> {
     vec![
         spec(
             "object.setCenterPoint",
-            "Centre of concentric circle, radial and spiral stitches (null = centre of the region)",
+            "Centre of concentric circle and radial stitches (null = centre of the region); a spiral follows its outline and has none",
             Effect::Edit,
             vec![
                 req("id", "int", "Object with region sewing"),

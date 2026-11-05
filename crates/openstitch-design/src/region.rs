@@ -399,12 +399,138 @@ fn layers_inner(
                     .flat_map(|run| split_outside(run, closed, holes))
                     .collect();
                 let mut graph = travel_graph(closed, holes, path, params.pull_compensation);
-                join(pieces, Some(&mut graph), SATIN_TRAVEL_PITCH)
+                join_spread(pieces, &mut graph, SATIN_TRAVEL_PITCH, closed, holes)
             }
             _ => reroute_with(runs, closed, holes, path, params.pull_compensation),
         };
     }
     out.push(runs);
+    out
+}
+
+/// How close (0.1 mm) a satin travel's needle point may come to an earlier travel's in the
+/// same region before [`join_spread`] slides it along its path: `tools/sew_check.py`'s
+/// 0.5 mm spot.
+const TRAVEL_SPREAD: f64 = 5.0;
+
+/// [`join`] for satin sections, with each travel's needle points kept apart from the earlier
+/// travels' (#304). A satin in many sections round holes, as Auto Punch traces them, travels
+/// again and again by the shortest way inside, which bends on the same corners of the holes,
+/// and every walk dropped the needle on them: 20 drops on one point of the storybook
+/// picture's khaki region. A needle point within [`TRAVEL_SPREAD`] of earlier travels' moves
+/// to the least crowded point up to three spreads away (rings of 12, nearest first) whose two
+/// stitches stay inside the region and no longer than 1.25 pitches; otherwise it stays.
+fn join_spread(
+    pieces: Vec<Run>,
+    graph: &mut TravelGraph,
+    pitch: f64,
+    closed: &[Contour],
+    holes: &[Contour],
+) -> Vec<Run> {
+    let inside = |a: Vec2, b: Vec2| inside_between(a, b, closed, holes);
+    let offsets: Vec<Vec2> = (1..=3)
+        .flat_map(|ring| {
+            (0..12).map(move |k| {
+                let a = f64::from(k) * std::f64::consts::PI / 6.0 + f64::from(ring) * 0.26;
+                v2(a.dcos(), a.dsin()) * (f64::from(ring) * TRAVEL_SPREAD)
+            })
+        })
+        .collect();
+    let mut used: Vec<Vec2> = Vec::new();
+    let mut runs: Vec<Run> = Vec::new();
+    for piece in pieces {
+        let Some(last) = runs.last_mut() else {
+            runs.push(piece);
+            continue;
+        };
+        let end = *last.last().expect("non-empty run");
+        let start = piece[0];
+        if end.distance(start) < 1e-6 {
+            last.extend(piece.into_iter().skip(1));
+            continue;
+        }
+        let Some(path) = graph.path(end, start) else {
+            runs.push(piece);
+            continue;
+        };
+        let mut pts = subdivide(&path, pitch);
+        let crowd = |p: Vec2, used: &[Vec2]| {
+            used.iter()
+                .filter(|u| u.distance(p) < TRAVEL_SPREAD)
+                .count()
+        };
+        for j in 1..pts.len().saturating_sub(1) {
+            let (prev, here, next) = (pts[j - 1], pts[j], pts[j + 1]);
+            let mut best = (crowd(here, &used), here);
+            if best.0 == 0 {
+                continue;
+            }
+            for q in offsets.iter().map(|&o| here + o) {
+                let c = crowd(q, &used);
+                if c < best.0
+                    && q.distance(prev) <= 1.25 * pitch
+                    && q.distance(next) <= 1.25 * pitch
+                    && inside(prev, q)
+                    && inside(q, next)
+                {
+                    best = (c, q);
+                    if c == 0 {
+                        break;
+                    }
+                }
+            }
+            pts[j] = best.1;
+        }
+        if pts.len() > 2 {
+            used.extend_from_slice(&pts[1..pts.len() - 1]);
+        }
+        last.extend(pts.into_iter().skip(1));
+        last.extend(piece.into_iter().skip(1));
+    }
+    runs
+}
+
+/// Whether the stitch from `a` to `b` stays inside the region `closed` minus `holes` between
+/// its ends (sampled every 0.1 mm; the ends themselves may lie on the outline, as a travel's
+/// corners do).
+fn inside_between(a: Vec2, b: Vec2, closed: &[Contour], holes: &[Contour]) -> bool {
+    let n = (a.distance(b).ceil() as usize).max(2);
+    (1..n).all(|i| {
+        let p = a.lerp(b, i as f64 / n as f64);
+        contains(p, closed) && !contains(p, holes)
+    })
+}
+
+/// Shortest stitch (0.1 mm) [`skip_short`] keeps in a travel.
+const TRAVEL_MIN_STITCH: f64 = 5.0;
+
+/// A travel `run` without the needle points closer than [`TRAVEL_MIN_STITCH`] to the last one
+/// kept, where the stitch past them stays inside the region (#304): the travel round a small
+/// Auto satin's inset outline (a 1.7 mm Auto Punch region) dropped the needle on every
+/// vertex, nine stitches under 0.3 mm in a row. The ends stay.
+fn skip_short(run: Run, closed: &[Contour], holes: &[Contour]) -> Run {
+    let Some((&end, body)) = run.split_last() else {
+        return run;
+    };
+    let inside = |a: Vec2, b: Vec2| inside_between(a, b, closed, holes);
+    let mut out: Run = Vec::with_capacity(run.len());
+    for (i, &p) in body.iter().enumerate() {
+        let next = body.get(i + 1).copied().unwrap_or(end);
+        match out.last() {
+            Some(&k) if k.distance(p) < TRAVEL_MIN_STITCH && inside(k, next) => {}
+            _ => out.push(p),
+        }
+    }
+    if out
+        .last()
+        .is_some_and(|&k| k.distance(end) < TRAVEL_MIN_STITCH && out.len() > 1)
+    {
+        let k = out[out.len() - 2];
+        if inside(k, end) {
+            out.pop();
+        }
+    }
+    out.push(end);
     out
 }
 
@@ -1680,6 +1806,13 @@ fn auto_satin(closed: &[Contour], r: &RegionSewing, holes: &[Contour]) -> Option
         rungs
     };
     let mut rungs = fan_corners(rungs, &closed[0]);
+    // A skeleton derived from a jagged blob (an Auto Punch region a few millimetres across)
+    // can double back, and its crossings then cross each other and pile up (#304: 171
+    // stitches in a 6 mm region, 68 mm of thread per mm²). Such a shape keeps the
+    // fixed-direction satin across its principal axis instead.
+    if crossed_rungs(&rungs) * AUTO_CROSSED_SHARE_INV > rungs.len() {
+        return None;
+    }
     // Sewn from the far end back to the start point: one needle point per rung, on the start
     // point's side for every other rung counted from the start, so the last needle point is
     // the start point itself (PE-DESIGN, satin-auto-bend-60 and -90-nohalf).
@@ -1696,17 +1829,20 @@ fn auto_satin(closed: &[Contour], r: &RegionSewing, holes: &[Contour]) -> Option
         Some(st) if last[1].distance(st) < last[0].distance(st) => 1,
         _ => 0,
     };
-    let mut run: Run = rungs
-        .iter()
-        .enumerate()
-        .map(|(i, g)| {
-            g[if (n - 1 - i).is_multiple_of(2) {
+    let sides: Vec<usize> = (0..n)
+        .map(|i| {
+            if (n - 1 - i).is_multiple_of(2) {
                 start_side
             } else {
                 1 - start_side
-            }]
+            }
         })
         .collect();
+    let mut run: Run = if r.half_stitch {
+        half_stitch(&rungs, &sides)
+    } else {
+        rungs.iter().zip(&sides).map(|(g, &k)| g[k]).collect()
+    };
     run.dedup_by(|a, b| a.distance(*b) < 1e-9);
     if let (Some(s), Some(&first)) = (start, run.first()) {
         let mut graph = TravelGraph::new(closed, holes);
@@ -1716,12 +1852,97 @@ fn auto_satin(closed: &[Contour], r: &RegionSewing, holes: &[Contour]) -> Option
         // band's outer edge), not the shorter way round.
         graph.outline_forward = true;
         let path = graph.path(s, first).unwrap_or(vec![s, first]);
-        let mut lead = subdivide(&path, SATIN_TRAVEL_PITCH);
+        let mut lead = skip_short(subdivide(&path, SATIN_TRAVEL_PITCH), closed, holes);
         lead.pop();
         lead.extend(run);
         run = lead;
     }
     Some(run)
+}
+
+/// Auto satin falls back to fixed-direction satin when more than one crossing in this many
+/// crosses its neighbour ([`crossed_rungs`]). PE-DESIGN's bends (satin-auto-bend-30 … 120,
+/// auto-satin-bent-band) have none; a doubled-back skeleton has them by the dozen.
+const AUTO_CROSSED_SHARE_INV: usize = 10;
+
+/// How many of `rungs` cross the next one or the one after it, ends shared or touching not
+/// counted (the corner fan's crossings meet at the inner corner).
+fn crossed_rungs(rungs: &[[Vec2; 2]]) -> usize {
+    let proper = |[a, b]: [Vec2; 2], [c, d]: [Vec2; 2]| {
+        let side = |p: Vec2, q: Vec2, r: Vec2| crate::paths::cross(q - p, r - p);
+        let (d1, d2) = (side(a, b, c), side(a, b, d));
+        let (d3, d4) = (side(c, d, a), side(c, d, b));
+        let eps = 1e-6 * (a.distance(b) * c.distance(d)).max(1e-12);
+        d1 * d2 < -eps && d3 * d4 < -eps
+    };
+    (0..rungs.len())
+        .filter(|&i| (i + 1..(i + 3).min(rungs.len())).any(|j| proper(rungs[i], rungs[j])))
+        .count()
+}
+
+/// Below this share of the other side's needle spacing, a side's needle points are crowded
+/// for [`half_stitch`]: PE-DESIGN's 90 degree bend (inner points 0.2 mm apart against 0.8 mm
+/// outside, a share of 0.25) is the mildest it thins; its 30 to 75 degree bends it leaves
+/// alone.
+const HALF_STITCH_CROWDED: f64 = 0.3;
+
+/// How far [`half_stitch`] pulls a needle point back, as a share of its crossing, per unit of
+/// crowding below [`HALF_STITCH_CROWDED`]: PE-DESIGN pulls 8 % at a crowding share of 0.25
+/// (satin-auto-bend-90) and about 22 % at 0.15 (satin-auto-bend-120).
+const HALF_STITCH_PULL: f64 = 1.4;
+
+/// The most [`half_stitch`] pulls a needle point back, as a share of its crossing (PE-DESIGN's
+/// largest at 120 degrees: 26 %).
+const HALF_STITCH_MAX: f64 = 0.25;
+
+/// PE-DESIGN 11.50's Half Stitch on Auto satin (satin-auto-bend-90/-120 against their
+/// -nohalf companions: the same stitches, some needle points moved): where a bend crowds the
+/// needle points on one side (their spacing under [`HALF_STITCH_CROWDED`] of the other
+/// side's), every other crowded needle point on that side, from the first, is pulled back
+/// along its crossing towards the other side. PE-DESIGN's 120 degree bend moves them 0.8 to
+/// 2.4 mm, its 90 degree bend about 0.5 mm, and its 30 to 75 degree bends not at all.
+/// `rungs[i][sides[i]]` is the needle point of crossing `i`.
+pub(crate) fn half_stitch(rungs: &[[Vec2; 2]], sides: &[usize]) -> Run {
+    let n = rungs.len();
+    // Mean distance between the needle points on side `k` from crossing `a` to `b` (one
+    // needle step is two crossings).
+    let step = |a: usize, b: usize, k: usize| -> f64 {
+        rungs[a][k].distance(rungs[b][k]) * 2.0 / (b - a) as f64
+    };
+    // The crowding of each needle point: its side's spacing over the other side's.
+    let crowding: Vec<f64> = (0..n)
+        .map(|i| {
+            if i == 0 || i + 1 >= n {
+                return 1.0;
+            }
+            let k = sides[i];
+            let inner = step(i.saturating_sub(2), (i + 2).min(n - 1), k);
+            let outer = step(i - 1, i + 1, 1 - k);
+            if outer > 0.0 { inner / outer } else { 1.0 }
+        })
+        .collect();
+    let crowded = |i: usize| crowding[i] < HALF_STITCH_CROWDED;
+    // Whether the last crowded needle point on each side was pulled back.
+    let mut pulled = [false; 2];
+    (0..n)
+        .map(|i| {
+            let (k, g) = (sides[i], rungs[i]);
+            // A bend crowds a run of needle points; a lone one where a gentle bend's fan
+            // meets a leg is left alone, as PE-DESIGN leaves its 30 to 75 degree bends.
+            let run = (i >= 2 && crowded(i - 2)) || (i + 2 < n && crowded(i + 2));
+            if !crowded(i) || !run {
+                pulled[k] = false;
+                return g[k];
+            }
+            let crowding = crowding[i];
+            pulled[k] = !pulled[k];
+            if !pulled[k] {
+                return g[k];
+            }
+            let t = (HALF_STITCH_PULL * (HALF_STITCH_CROWDED - crowding)).min(HALF_STITCH_MAX);
+            g[k].lerp(g[1 - k], t)
+        })
+        .collect()
 }
 
 /// The turn (radians) past which Auto satin's rungs are rebuilt on the outer edge
