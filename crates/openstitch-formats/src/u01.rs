@@ -29,7 +29,7 @@ pub fn read(data: &[u8]) -> Result<StitchPattern> {
         .get(HEADER_SIZE..)
         .ok_or_else(|| FormatError::Truncated("U01: shorter than its 256-byte header".into()))?;
     let mut b = Builder::new("U01");
-    for r in records.chunks_exact(3) {
+    for r in records.as_chunks::<3>().0 {
         let (ctrl, by, bx) = (r[0], f64::from(r[1]), f64::from(r[2]));
         let dy = if ctrl & 0x40 != 0 { by } else { -by };
         let dx = if ctrl & 0x20 != 0 { -bx } else { bx };

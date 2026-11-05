@@ -49,7 +49,7 @@ pub fn read(data: &[u8]) -> Result<StitchPattern> {
             .threads
             .push(Thread::rgb(u32::from_be_bytes([0, e[1], e[2], e[3]])));
     }
-    for r in data[HEADER_SIZE..].chunks_exact(3) {
+    for r in data[HEADER_SIZE..].as_chunks::<3>().0 {
         let (dx, dy) = (signed8(r[0]), -signed8(r[1]));
         match r[2] {
             0x80 => b.moved(dx, dy, Command::Stitch)?,

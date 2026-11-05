@@ -438,7 +438,9 @@ fn u01_and_tbf_round_trip_stops_and_reuse_a_needle_for_a_colour() {
     // U01 needle records: needle 1, then 2, then 1 again for the red.
     let u01 = openstitch_formats::u01::write(&p).expect("u01");
     let needles: Vec<u8> = u01[openstitch_formats::u01::HEADER_SIZE..]
-        .chunks_exact(3)
+        .as_chunks::<3>()
+        .0
+        .iter()
         .map(|r| r[0] & 0x1F)
         .filter(|low| (0x09..=0x17).contains(low))
         .map(|low| low - 0x08)

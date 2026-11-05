@@ -26,7 +26,7 @@ pub fn read(data: &[u8]) -> Result<StitchPattern> {
         .ok_or_else(|| FormatError::Truncated("KSM: shorter than its 512-byte header".into()))?;
     let mut b = Builder::new("KSM");
     let mut moving = false;
-    for r in records.chunks_exact(3) {
+    for r in records.as_chunks::<3>().0 {
         let (by, bx, ctrl) = (f64::from(r[0]), f64::from(r[1]), r[2]);
         let dy = if ctrl & 0x20 != 0 { by } else { -by };
         let dx = if ctrl & 0x40 != 0 { -bx } else { bx };
