@@ -1727,3 +1727,40 @@ change per change; a 2 × 3 repeat with 5 mm gaps: six times the stitches, no ex
 change, the expected size, the design unchanged, a 20 × 20 repeat refused with its size;
 `tools/sew_check.py` passes on a 2 × 3 repeat exported as PES and VP3 (65 × 100 mm in the
 100 × 100 mm hoop, the same needle-drop stacking as one copy).
+
+## Picture, stitch-out video and ZIP bundle (#488, part 2)
+
+Beyond PE-DESIGN; only when chosen. The flat preview renderer moved from `openstitch-render`
+to `openstitch_engine::preview` (re-exported there unchanged) so the engine can write these.
+
+**Picture (`design.exportPicture {path, size}`).** A PNG of the stitches in their thread colours
+on the Design Page outline, the longest side `size` pixels (64–4096, default 1024): the same
+picture as the MCP `preview` tool.
+
+**Stitch-out video (`design.exportVideo {path, fps, speed, size}`).** An animated PNG (APNG; no
+video codec, plays in browsers and most image viewers): `ceil(stitches / speed × fps)` frames of
+`1/fps` s (fps 1–60, default 10; speed 10–20,000 stitches per second of video, default 300),
+played once, at most 3,000 frames (more is refused with the reason). Every frame shows the
+whole design's view; each draws only the stitches added since the one before and stores only
+the rectangle that changed; the last frame is the design drawn at once, pixel for pixel the
+picture at the same size. Default size 1280 px on the longest side (720p for a wide design).
+Measured: 32,844 stitches, 1,095 frames at 1280 × 1280 px in 4.9 s (release build), 9.1 MB;
+Pillow reads it as 1,095 frames of 100 ms whose last equals the picture.
+
+**Bundle (`design.exportBundle {path, formats, threadList, picture}`).** A ZIP (deflate) of the
+design in the listed formats (default PES, DST, JEF; a design too large for a format is split as
+`split: true` does), its thread list (default the CSV; or `inf`, `edr`, `col`, `txt`, or
+`false`) and a picture (default on). The bundle runs the same `design.export`,
+`design.exportThreads` and `design.exportPicture` the user would, into a scratch folder beside
+the ZIP that is removed afterwards, so each file is the individual export byte for byte (a JEF's
+time stamp aside). Uses the `zip` crate (MIT), already in the workspace for updates.
+
+Editor: File ▸ Export ▸ Picture (PNG), Stitch-out Video (animated PNG), Bundle (ZIP).
+
+**Evidence.** Engine `tests/media_exports.rs`: the picture's size and colours; the video's frame
+count, last frame equal to the picture, a growing amount of thread (about half at the halfway
+frame), too many frames refused with no file; the bundle's five files equal to the individual
+exports and no scratch files left, other formats and options, a read-only format refused with
+no ZIP; `media_exports::tests`: drawing step by step (1, 7, 37 stitches a step) ends within
+anti-aliasing noise of drawing at once, the changed-rectangle search, the frame count.
+Checked once with Python's `zipfile` (CRCs good) and Pillow (APNG frames and timing).

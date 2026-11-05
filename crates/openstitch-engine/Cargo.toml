@@ -10,7 +10,7 @@ autotests = false
 [features]
 default = ["formats", "digitize", "library"]
 # File import/export commands (stitches.import, design.export, import.svg).
-formats = ["dep:openstitch-formats", "dep:usvg"]
+formats = ["dep:openstitch-formats", "dep:usvg", "dep:zip"]
 # Image conversions (digitize.autoPunch, digitize.crossStitch, digitize.photoStitch, Design Center).
 digitize = ["dep:openstitch-digitize"]
 # Design Database commands (library.*): browse, search, organise, convert, catalogue.
@@ -28,6 +28,11 @@ openstitch-library = { path = "../openstitch-library", default-features = false,
 usvg = { version = "0.48.1", default-features = false, optional = true }
 serde.workspace = true
 serde_json.workspace = true
+# Flat previews, pictures and stitch-out videos (`preview`, #488); moved from openstitch-render.
+png = "0.18.1"
+tiny-skia = { version = "0.12.0", default-features = false, features = ["std", "simd"] }
+# Export bundles (#488); the same crate and features openstitch-update uses.
+zip = { version = "9", default-features = false, features = ["deflate-flate2"], optional = true }
 
 [dev-dependencies]
 # Temp folders that are removed when a test ends (#366).

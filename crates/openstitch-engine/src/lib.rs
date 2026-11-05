@@ -22,6 +22,8 @@ mod lettering;
 mod library;
 pub mod machine;
 #[cfg(feature = "formats")]
+pub mod media_exports;
+#[cfg(feature = "formats")]
 pub mod metafile;
 pub mod order;
 mod ornament;
@@ -31,6 +33,7 @@ mod pattern_cmds;
 pub mod pes11_export;
 #[cfg(feature = "formats")]
 pub mod pes11_import;
+pub mod preview;
 pub mod print;
 pub mod project;
 mod punch;

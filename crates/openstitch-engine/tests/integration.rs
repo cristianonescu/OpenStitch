@@ -58,6 +58,8 @@ mod library;
 mod machine;
 #[path = "mapped_text.rs"]
 mod mapped_text;
+#[path = "media_exports.rs"]
+mod media_exports;
 #[path = "monogram.rs"]
 mod monogram;
 #[path = "name_drop.rs"]

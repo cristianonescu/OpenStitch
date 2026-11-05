@@ -641,6 +641,25 @@ fn export_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
             app.export_extra(ext);
         }
     }
+    // A picture, a stitch-out video (animated PNG) and a ZIP of PES, DST, JEF, the thread list
+    // and the picture (#488).
+    for (command, ext, label) in [
+        ("design.exportPicture", "png", "Picture (PNG)…"),
+        (
+            "design.exportVideo",
+            "png",
+            "Stitch-out Video (animated PNG)…",
+        ),
+        (
+            "design.exportBundle",
+            "zip",
+            "Bundle (ZIP: PES, DST, JEF, threads, picture)…",
+        ),
+    ] {
+        if ui.button(label).clicked() {
+            app.export_media(command, ext);
+        }
+    }
     ui.menu_button("Thread List", |ui| {
         for (ext, label) in EditorApp::THREAD_LISTS {
             if ui.button(format!("{label}…")).clicked() {
