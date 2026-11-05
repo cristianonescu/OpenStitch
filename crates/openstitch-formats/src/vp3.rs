@@ -306,8 +306,10 @@ impl<'a> In<'a> {
     fn utf16(&mut self) -> Result<String> {
         let b = self.string()?;
         let units: Vec<u16> = b
-            .chunks_exact(2)
-            .map(|c| u16::from_be_bytes([c[0], c[1]]))
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|&c| u16::from_be_bytes(c))
             .collect();
         Ok(String::from_utf16_lossy(&units))
     }
