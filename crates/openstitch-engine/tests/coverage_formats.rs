@@ -152,3 +152,32 @@ fn text_transform_preset_and_level_are_written_to_pes_0110() {
     assert!(section.texts[0].envelope.is_none());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// VP3 (#480) goes through the same `design.export` and `stitches.import` as every format:
+/// the export check reports the hoop, and the file opens again with the same stitches.
+#[test]
+fn vp3_exports_and_imports_through_the_engine() {
+    let dir = temp_dir("vp3");
+    let mut s = Session::new(&dir);
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 10, "y": 10, "width": 20, "height": 20}),
+    );
+    let out = run(&mut s, "design.export", json!({"path": "a.vp3"}));
+    assert!(out["hoopMM"].is_array(), "{out}");
+    assert_eq!(out["fitsPage"], json!(true), "{out}");
+    let written = out["stats"]["stitches"].as_u64().expect("stitches");
+    let bytes = std::fs::read(dir.join("a.vp3")).expect("vp3");
+    assert!(bytes.starts_with(b"%vsm%"));
+    let pattern = openstitch_formats::vp3::read(&bytes).expect("read");
+    assert_eq!(
+        pattern.count(openstitch_core::Command::Stitch) as u64,
+        written,
+        "{out}"
+    );
+    let mut t = Session::new(&dir);
+    let imported = run(&mut t, "stitches.import", json!({"path": "a.vp3"}));
+    assert!(imported["id"].is_u64(), "{imported}");
+    assert_eq!(t.design().objects.len(), 1);
+}

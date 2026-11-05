@@ -18,6 +18,8 @@ mod malformed;
 mod pes11;
 #[path = "pes_versions.rs"]
 mod pes_versions;
+#[path = "survey_formats.rs"]
+mod survey_formats;
 
 /// A test file left out of this list would compile and run nowhere.
 #[test]

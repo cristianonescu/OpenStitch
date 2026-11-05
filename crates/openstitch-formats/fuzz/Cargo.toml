@@ -108,3 +108,10 @@ path = "fuzz_targets/read_csd.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "read_vp3"
+path = "fuzz_targets/read_vp3.rs"
+test = false
+doc = false
+bench = false

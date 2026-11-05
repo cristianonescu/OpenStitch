@@ -11,6 +11,7 @@
 
     python3 -I tools/sew_check.py examples/sew            # every .pes under the folder
     python3 -I tools/sew_check.py file.pes --hoop 100x100
+    python3 -I tools/sew_check.py file.vp3 --hoop 100x100   # VP3 (#480): no PEC frame to check
 
 Reads the PEC block's stitches directly (the part the machine sews), not OpenStitch's objects.
 The hoop comes from `--hoop`, else from examples/sew/manifest.json, else 100 × 100 mm.
@@ -87,8 +88,60 @@ def read_pec(path):
     return out, (width / 10.0, height / 10.0), ncol
 
 
+def read_vp3(path):
+    """Husqvarna/Pfaff VP3 (docs/FILE_FORMATS.md "VP3"), as read_pec returns it. VP3 has no PEC
+    frame: the header returned is the stitches' own extent, and the points are moved so the
+    extent starts at (0, 0)."""
+    data = Path(path).read_bytes()
+    be16 = lambda at: struct.unpack_from(">H", data, at)[0]  # noqa: E731
+    i = 6 + 2 + be16(6)  # magic, producer
+    i += 7  # file block tag and length
+    i += 2 + be16(i) + 16 + 4 + 5  # settings, bounds, record count, colours, 0C 00 01
+    i += 7 + 8 + 3 + 24  # design block, centre, 00 00 00, extents
+    i += 2 + be16(i) + 2 + 16 + 6  # notes, 64 64, matrix, "xxPP" 01 00
+    i += 2 + be16(i)  # producer
+    ncol = be16(i)
+    i += 2
+    x = y = 0
+    out = []
+    for colour in range(ncol):
+        end = i + 7 + struct.unpack_from(">I", data, i + 3)[0]
+        i += 7 + 8  # block tag, length, start
+        n = data[i]
+        i += 2 + 6 * n + 2  # colours, transition, rgb + 3 each, type, weight
+        for _ in range(3):  # catalogue number, name, brand
+            i += 2 + be16(i)
+        i += 8 + 7 + 3  # shift, stitch block tag and length, 0A F6 00
+        moving = True
+        while i + 1 < end - 1:
+            a, b = data[i], data[i + 1]
+            i += 2
+            if a == 0x80:
+                if b == 0x03:
+                    out.append((x / 10.0, y / 10.0, "trim", colour))
+                    moving = True
+                elif b == 0x01:
+                    dx, dy = struct.unpack_from(">hh", data, i)
+                    i += 6  # the two words and 80 02
+                    x += dx
+                    y += dy
+                    out.append((x / 10.0, y / 10.0, "jump" if moving else "stitch", colour))
+                continue
+            x += a - 256 if a > 127 else a
+            y += b - 256 if b > 127 else b
+            out.append((x / 10.0, y / 10.0, "stitch", colour))
+            moving = False
+        i = end
+    xs = [s[0] for s in out] or [0]
+    ys = [s[1] for s in out] or [0]
+    mx, my = min(xs), min(ys)
+    out = [(s[0] - mx, s[1] - my, s[2], s[3]) for s in out]
+    return out, (max(xs) - mx, max(ys) - my), ncol
+
+
 def check(path, hoop):
-    st, (hw, hh), ncol = read_pec(path)
+    reader = read_vp3 if Path(path).suffix.lower() == ".vp3" else read_pec
+    st, (hw, hh), ncol = reader(path)
     drops = [s for s in st if s[2] == "stitch"]
     problems = []
     xs = [s[0] for s in st]
@@ -104,7 +157,7 @@ def check(path, hoop):
     # 290 × 190 mm frame), whatever the stitches' own size.
     frame_fits = (hw <= hoop[0] + FIELD_SLACK_MM and hh <= hoop[1] + FIELD_SLACK_MM) or (
         hw <= hoop[1] + FIELD_SLACK_MM and hh <= hoop[0] + FIELD_SLACK_MM)
-    if not frame_fits:
+    if not frame_fits and reader is read_pec:
         problems.append(f"REFUSED BY THE MACHINE: PEC frame {hw:.1f} × {hh:.1f} mm is larger than the "
                         f"{hoop[0]:.0f} × {hoop[1]:.0f} mm hoop")
     over = (-min(xs), -min(ys), max(xs) - hw, max(ys) - hh)

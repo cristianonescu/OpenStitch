@@ -1,6 +1,6 @@
 [package]
 name = "openstitch-formats"
-description = "Embroidery machine file codecs: PES, PEC, DST, EXP, JEF, PCS, SEW, XXX, HUS, VIP; SHV, PHC, CSD (read)"
+description = "Embroidery machine file codecs: PES, PEC, DST, EXP, JEF, PCS, SEW, XXX, HUS, VIP, SHV, CSD, VP3; PHC (read)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
