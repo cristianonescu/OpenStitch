@@ -37,6 +37,7 @@ the 100 × 100 mm hoop and each a minute or less of sewing. They test what only 
 |---|---|---|
 | Brother, Baby Lock, Bernette (PES machines) | PES | The four machine checks, then the calibration designs ([step 3](#3-scanning-or-photographing-the-result)) and anything else in the kit you like. Machines other than the NV880E matter: please say the model. |
 | Janome, Elna, Singer, Husqvarna Viking, Pfaff, Tajima-style and commercial machines | JEF, SEW, XXX, HUS, VIP, PCS, DST, EXP: whichever your manual says the machine reads | `machine-formats.pes` exported to your format, then `satin-zigzag-rect.pes` and `shape-start-points.pes` the same way. |
+| Husqvarna Viking and Pfaff machines that read **VP3** (Designer, Sapphire, Jade, Epic, creative…) | VP3 (new, experimental: no VP3 sew-out yet) | `machine-formats.pes` exported as `.vp3`. Please report whether the machine opens it, shows each colour's thread brand, number and name, cuts between the two Red lines and sews the 15 mm satin whole. |
 
 If your machine reads several formats, sew the same check in each: a result that differs between
 formats is exactly what we are after. Check your machine's manual for the formats it reads; if you
@@ -47,7 +48,7 @@ are unsure, try one, and say so in the report.
 1. Open the kit file in OpenStitch (**File ▸ Open**).
 2. **Export** (in the File group) writes the design as a machine embroidery file; give the file
    name the format's extension (`.jef`, `.dst`, `.hus`,
-   `.vip`, `.sew`, `.xxx`, `.pcs`, `.exp`).
+   `.vip`, `.sew`, `.xxx`, `.pcs`, `.exp`, `.vp3`).
 3. Copy the file to the machine's USB stick or card the way your manual describes. Some machines
    need a short file name (8 characters) or a particular folder.
 
