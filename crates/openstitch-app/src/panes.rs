@@ -566,6 +566,8 @@ pub fn status_bar(app: &mut EditorApp, ui: &mut egui::Ui) {
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             zoom_controls(app, ui);
             ui.separator();
+            crate::quality_ui::indicator(app, ui);
+            ui.separator();
             for a in [Action::DesignProperty, Action::ShowGrid] {
                 let info = a.info();
                 let on = ribbon::active(app, a);
