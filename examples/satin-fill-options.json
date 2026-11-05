@@ -42,9 +42,9 @@
  {
   "command": "shape.rectangle",
   "params": {
-   "x": 48,
+   "x": 57,
    "y": 8,
-   "width": 30,
+   "width": 10,
    "height": 30,
    "fill": "Blue"
   }
@@ -62,9 +62,9 @@
   "command": "shape.rectangle",
   "params": {
    "x": 88,
-   "y": 8,
+   "y": 18,
    "width": 34,
-   "height": 30,
+   "height": 10,
    "fill": "Emerald Green"
   }
  },
@@ -116,7 +116,7 @@
    "underlay": true,
    "underlayStyle": "double",
    "underlaySpacing": 3,
-   "density": 1.2,
+   "density": 2.5,
    "id": 5
   }
  },

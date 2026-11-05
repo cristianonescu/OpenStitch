@@ -148,8 +148,8 @@
    86.0,
    86.0
   ],
-  "stitches": 6783,
-  "trims": 10,
+  "stitches": 7246,
+  "trims": 11,
   "threads": [
    "405 Blue",
    "800 Red",
@@ -161,10 +161,10 @@
    "019 Sky Blue",
    "058 Dark Brown"
   ],
-  "sewingMinutes": 9.0,
+  "sewingMinutes": 9.6,
   "image": null,
   "preview": "previews/region-sew-types-1.png",
-  "sha256": "816beb2f884ab30610564f1fe6792aac5c3c503c05d9fbab8cec6affa0e52475"
+  "sha256": "d0cc32d20160fb4160424a8ca6a61362b439cec58ab6d8a269275d1351ae0200"
  },
  "fills/region-sew-types-2.pes": {
   "title": "Region sew types (2 of 2)",
@@ -226,8 +226,8 @@
    86.0,
    86.0
   ],
-  "stitches": 8443,
-  "trims": 14,
+  "stitches": 8863,
+  "trims": 15,
   "threads": [
    "405 Blue",
    "800 Red",
@@ -239,10 +239,10 @@
    "019 Sky Blue",
    "058 Dark Brown"
   ],
-  "sewingMinutes": 11.3,
+  "sewingMinutes": 11.8,
   "image": null,
   "preview": "previews/underlay-styles.png",
-  "sha256": "b5ea7dea27e3832de8b6dfcd80a197b94f42ad4a50e09175187c47d6f4ed3d36"
+  "sha256": "01b004b37f210be9300255263dc3ff21420ae217557fda0c05becb6db9d09ca7"
  },
  "fills/holes-and-emboss.pes": {
   "title": "Hole sewing, engraving and embossing",
@@ -298,7 +298,7 @@
    84.5,
    84.0
   ],
-  "stitches": 4540,
+  "stitches": 4463,
   "trims": 10,
   "threads": [
    "405 Blue",
@@ -312,20 +312,20 @@
    "900 Black",
    "620 Magenta"
   ],
-  "sewingMinutes": 6.2,
+  "sewingMinutes": 6.1,
   "image": null,
   "preview": "previews/shape-tools.png",
-  "sha256": "c115c61cd8bf1cea177e3ba2cead724d73a1f7aac3fb4e0e5a5281428c38fcda"
+  "sha256": "c64b88b2fadb3e6477bb5b285f0af6459608cdeb6eb8e96f37e7d6b677b2bca1"
  },
  "shapes/decorative-frames.pes": {
   "title": "Decorative frames",
   "about": "Five Shape-tool frames (scallop, wave, zigzag, scallop oval, corners) around small circles, and the laurel frame from the decorative library.",
   "hoop": "100 × 100 mm",
   "sizeMM": [
-   77.0,
-   79.5
+   82.7,
+   81.8
   ],
-  "stitches": 1331,
+  "stitches": 1432,
   "trims": 42,
   "threads": [
    "800 Red",
@@ -340,10 +340,10 @@
    "900 Black",
    "509 Leaf Green"
   ],
-  "sewingMinutes": 3.8,
+  "sewingMinutes": 3.9,
   "image": null,
   "preview": "previews/decorative-frames.png",
-  "sha256": "d13dddeb917bee7b3b5410b81045a315b6d53b65d6cdaa3a0a7213a14c00a212"
+  "sha256": "6c4d619fb94ab350a7bb05468f8911f7c4908dfe520027e75e95e4585a9920a9"
  },
  "lettering/fonts-and-text.pes": {
   "title": "Lettering",
@@ -365,18 +365,18 @@
   "sewingMinutes": 6.9,
   "image": null,
   "preview": "previews/fonts-and-text.png",
-  "sha256": "1cddead9900192c913594620394eb2e79504d2affae57a621b89866f84cd863a"
+  "sha256": "c58992c2f5102121e2322171116231d46dffadcd5202aa1100efb0465df6be61"
  },
  "lettering/monograms.pes": {
   "title": "Monograms",
   "about": "The four monogram styles (block, script, diamond, circle), each in a decorative frame, for the 150 × 150 mm hoop.",
   "hoop": "150 × 150 mm",
   "sizeMM": [
-   124.9,
-   119.7
+   120.1,
+   117.6
   ],
-  "stitches": 6350,
-  "trims": 56,
+  "stitches": 5874,
+  "trims": 53,
   "threads": [
    "900 Black",
    "405 Blue",
@@ -387,31 +387,30 @@
    "208 Orange",
    "406 Ultra Marine"
   ],
-  "sewingMinutes": 10.8,
+  "sewingMinutes": 10.1,
   "image": null,
   "preview": "previews/monograms.png",
-  "sha256": "348644cd732edb6bfc5934c0abb17deefea96697fa3ce59a62ba7821b0ae4820"
+  "sha256": "c9f8f4b33e4dc614297fb6a0a6a4b3d233bdc7dd5dfec6a44869dd68df05e648"
  },
  "wizards/applique.pes": {
   "title": "Appliqué wizard",
   "about": "A heart as appliqué: material line, stop, position line, stop, tack-down, stop, covering zigzag. Lay the fabric at the first stop, trim it at the second.",
   "hoop": "100 × 100 mm",
   "sizeMM": [
-   57.5,
-   57.3
+   54.0,
+   53.8
   ],
-  "stitches": 4365,
+  "stitches": 1808,
   "trims": 4,
   "threads": [
-   "800 Red",
    "#ffc864",
    "#ffc896",
    "#ffc8c8"
   ],
-  "sewingMinutes": 5.7,
+  "sewingMinutes": 2.5,
   "image": null,
   "preview": "previews/applique.png",
-  "sha256": "b5c14e69fe4d1ff8b1d56316e439bdfc4c26ea0b445d391f73c23d9674b593bd"
+  "sha256": "dc9cafe6e9aafb465f98aa4614a1c33be45be8d6590effc329f470b99ab599d5"
  },
  "wizards/patch.pes": {
   "title": "Embroidered patch wizard",

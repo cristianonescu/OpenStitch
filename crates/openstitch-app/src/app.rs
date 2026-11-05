@@ -160,6 +160,11 @@ pub struct EditorApp {
     pub fit_requested: bool,
     /// Zoom applied once after the first fit (`--zoom`).
     pub initial_zoom: Option<f64>,
+    /// The automatic fit last made: the canvas it was made for, the view it gave and the
+    /// `--zoom` applied. While the view is still that one, a change of the canvas (the panes are
+    /// laid out a frame after the canvas; the window resized) fits again (#450: kit previews and
+    /// screenshots lost the page's bottom to the Stitch Simulator pane).
+    pub auto_fit: Option<(openstitch_app::editor::ScreenRect, Viewport, Option<f64>)>,
     player: Option<crate::script::Player>,
     frames: u64,
     /// Engine history steps per user-level edit, so one gesture (e.g. scale + move, or
@@ -269,6 +274,7 @@ impl EditorApp {
             clicks: Default::default(),
             fit_requested: false,
             initial_zoom: None,
+            auto_fit: None,
             player: None,
             frames: 0,
             undo_groups: Vec::new(),

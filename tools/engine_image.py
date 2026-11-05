@@ -26,23 +26,24 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(ROOT / "tools"))
 import pescmp  # noqa: E402
 
-EXE = ROOT / "target" / "debug" / ("stitchtool.exe" if sys.platform == "win32" else "stitchtool")
+EXE = ROOT / "target" / ("release" if "--release" in sys.argv else "debug") / ("stitchtool.exe" if sys.platform == "win32" else "stitchtool")
 MARGIN = 16
 
 
 def run(script: Path, work: Path):
     steps = json.loads(script.read_text(encoding="utf-8"))
-    ids = [i + 1 for i, s in enumerate(s for s in steps if s.get("command", "").startswith("shape."))]
-    steps = steps + [{"command": "design.export", "params": {"path": "out.pes"}}]
-    steps += [{"command": "object.get", "params": {"id": i}, "id": f"object-{i}"} for i in ids]
+    steps = [s for s in steps if s.get("command") not in ("design.export", "project.save")]
+    # Run from examples/, where the scripts' relative paths (fonts, images) point.
+    steps += [{"command": "design.export", "params": {"path": str(work / "out.pes")}}, {"command": "design.info"}]
     (work / "script.json").write_text(json.dumps(steps), encoding="utf-8")
-    out = subprocess.run([str(EXE), "exec", str(work / "script.json")], capture_output=True, text=True, check=True)
+    out = subprocess.run([str(EXE), "exec", str(work / "script.json")], capture_output=True, text=True,
+                         cwd=ROOT / "examples")
     replies = [json.loads(line) for line in out.stdout.splitlines() if line.strip()]
-    colours = []
-    for r in replies[-len(ids):]:
-        obj = r.get("result", {})
-        t = (obj.get("region") or obj.get("line") or {}).get("thread", {})
-        colours.append((t.get("red", 0), t.get("green", 0), t.get("blue", 0)))
+    if out.returncode or not replies or not replies[-1].get("ok"):
+        sys.exit(f"{script}: {[r for r in replies if not r.get('ok')][:1] or out.stderr}")
+    # The thread of each colour block, in sewing order (design.info's stitch statistics), so a
+    # design whose wizards or combines replaced objects is drawn in its own colours too.
+    colours = [tuple(int(h[i:i + 2], 16) for i in (1, 3, 5)) for h in replies[-1]["result"]["stitchStats"]["colors"]]
     return pescmp.read(work / "out.pes"), colours
 
 
@@ -72,6 +73,7 @@ def main():
     ap.add_argument("script", type=Path)
     ap.add_argument("out", type=Path)
     ap.add_argument("--width", type=int, default=1600)
+    ap.add_argument("--release", action="store_true", help="use the release build")
     a = ap.parse_args()
     work = Path(tempfile.mkdtemp(prefix="engine-image-"))
     try:

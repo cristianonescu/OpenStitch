@@ -1645,6 +1645,31 @@ fn pec_frame_is_the_design_and_holds_its_stitches() {
     assert_eq!(s.last(), Some(&[860.0, 800.0]));
 }
 
+#[test]
+fn pec_frame_holds_a_design_reaching_above_its_page() {
+    // The name-drop badge's lettering reached 0.5 mm above its page (5 units): the writer kept
+    // its page layout (as for pyembroidery's files, which start at the origin), so its stitches
+    // ran 4.3 mm past the frame's right edge and the machine would cut them off (#450). A
+    // pattern that does not start at the origin is moved into its frame.
+    let mut p = with_threads(&[0]);
+    p.jump_to(53.0, 5.0);
+    p.stitch_to(56.0, 5.0);
+    p.stitch_to(46.0, -5.0);
+    p.stitch_to(670.0, 704.0);
+    p.push(Command::End);
+    let bytes = pec::write(&p).expect("write");
+    let block = 8 + 512;
+    let w = u16::from_le_bytes([bytes[block + 8], bytes[block + 9]]);
+    let h = u16::from_le_bytes([bytes[block + 10], bytes[block + 11]]);
+    assert_eq!((w, h), (624, 709));
+    let back = FileType::Pec.read(&bytes).expect("read");
+    assert!(
+        sewn(&back)
+            .iter()
+            .all(|q| q[0] >= 0.0 && q[0] <= f64::from(w) && q[1] >= 0.0 && q[1] <= f64::from(h))
+    );
+}
+
 /// PE-DESIGN 11.50's CSD export of `sample-basic`, read and written again, comes out byte for
 /// byte: identifier, palette with PE's fill colours, the unknown `7F 7F`, colour order, the
 /// leading stop, trim-move pieces, the folded remainder, the colour-change record and the end.

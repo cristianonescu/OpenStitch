@@ -42,13 +42,14 @@ fn builtin_templates_open_fill_and_sew() {
     for t in templates {
         let id = t["id"].as_str().expect("id");
         let opened = run(&mut s, "template.open", json!({ "template": id }));
-        // Version-1 templates keep the capital-height text metrics they were made with.
+        // The built-ins are version 2 (regenerated with the current engine, #450: the
+        // version-1 files sewed with old defaults), so their texts use PE-DESIGN's metrics.
         assert!(
             s.design()
                 .objects
                 .iter()
                 .filter_map(|o| o.text.as_ref())
-                .all(|t| t.metrics == openstitch_design::TextMetrics::CapHeight),
+                .all(|t| t.metrics == openstitch_design::TextMetrics::Pe),
             "{id}"
         );
         let slots = opened["slots"].as_array().expect("slots");
@@ -196,5 +197,20 @@ fn template_bad_input_fails_cleanly() {
     assert!(
         t.execute("template.open", Some(&json!({"template": "/etc/passwd"})))
             .is_err()
+    );
+}
+
+#[test]
+fn version_1_templates_keep_their_capital_height_metrics() {
+    let v2 = include_str!("../templates/team-badge.ostemplate");
+    let v1 = v2.replacen("\"version\": 2", "\"version\": 1", 1);
+    assert_ne!(v1, v2);
+    let t = openstitch_engine::templates::decode(v1.as_bytes()).expect("decode");
+    assert!(
+        t.design
+            .objects
+            .iter()
+            .filter_map(|o| o.text.as_ref())
+            .all(|t| t.metrics == openstitch_design::TextMetrics::CapHeight)
     );
 }

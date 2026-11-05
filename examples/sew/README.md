@@ -286,7 +286,7 @@ Every region sew type and the fill, satin and underlay options.
 
 #### Region sew types (1 of 2)
 
-[`fills/region-sew-types-1.pes`](fills/region-sew-types-1.pes) · 100 × 100 mm hoop · 86 × 86 mm · 6,783 stitches · 10 trims · about 9 min
+[`fills/region-sew-types-1.pes`](fills/region-sew-types-1.pes) · 100 × 100 mm hoop · 86 × 86 mm · 7,246 stitches · 11 trims · about 9.6 min
 
 Nine region sew types, left to right, top to bottom: fill, satin, programmable fill (diamonds), motif fill (heart), piping, cross stitch, concentric circle, radial, spiral.
 
@@ -316,7 +316,7 @@ Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 208 Orange, 620 Mag
 
 #### Underlay styles
 
-[`fills/underlay-styles.pes`](fills/underlay-styles.pes) · 100 × 100 mm hoop · 86 × 86 mm · 8,443 stitches · 14 trims · about 11.3 min
+[`fills/underlay-styles.pes`](fills/underlay-styles.pes) · 100 × 100 mm hoop · 86 × 86 mm · 8,863 stitches · 15 trims · about 11.8 min
 
 No underlay, edge, zigzag, edge + zigzag, double (crossing layers), PE-DESIGN's first type (edge and rows), its second (edge and lattice), centre piping under a satin, and light underlay density.
 
@@ -354,7 +354,7 @@ The shape tools and decorative frames.
 
 #### Shape tools
 
-[`shapes/shape-tools.pes`](shapes/shape-tools.pes) · 100 × 100 mm hoop · 84.5 × 84 mm · 4,540 stitches · 10 trims · about 6.2 min
+[`shapes/shape-tools.pes`](shapes/shape-tools.pes) · 100 × 100 mm hoop · 84.5 × 84 mm · 4,463 stitches · 10 trims · about 6.1 min
 
 Preset star, heart, crescent, arrow, teardrop and hexagon; then a skeleton satin of changing width, a curved Manual Punch column, and a floral pattern inside a circle.
 
@@ -364,7 +364,7 @@ Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 208 Orange, 620 Mag
 
 #### Decorative frames
 
-[`shapes/decorative-frames.pes`](shapes/decorative-frames.pes) · 100 × 100 mm hoop · 77 × 79.5 mm · 1,331 stitches · 42 trims · about 3.8 min
+[`shapes/decorative-frames.pes`](shapes/decorative-frames.pes) · 100 × 100 mm hoop · 82.7 × 81.8 mm · 1,432 stitches · 42 trims · about 3.9 min
 
 Five Shape-tool frames (scallop, wave, zigzag, scallop oval, corners) around small circles, and the laurel frame from the decorative library.
 
@@ -388,7 +388,7 @@ Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 399 Warm Gray, 620 
 
 #### Monograms
 
-[`lettering/monograms.pes`](lettering/monograms.pes) · 150 × 150 mm hoop · 124.9 × 119.7 mm · 6,350 stitches · 56 trims · about 10.8 min
+[`lettering/monograms.pes`](lettering/monograms.pes) · 150 × 150 mm hoop · 120.1 × 117.6 mm · 5,874 stitches · 53 trims · about 10.1 min
 
 The four monogram styles (block, script, diamond, circle), each in a decorative frame, for the 150 × 150 mm hoop.
 
@@ -402,13 +402,13 @@ Appliqué, embroidered patch, cutwork and background fill.
 
 #### Appliqué wizard
 
-[`wizards/applique.pes`](wizards/applique.pes) · 100 × 100 mm hoop · 57.5 × 57.3 mm · 4,365 stitches · 4 trims · about 5.7 min
+[`wizards/applique.pes`](wizards/applique.pes) · 100 × 100 mm hoop · 54 × 53.8 mm · 1,808 stitches · 4 trims · about 2.5 min
 
 A heart as appliqué: material line, stop, position line, stop, tack-down, stop, covering zigzag. Lay the fabric at the first stop, trim it at the second.
 
 <img src="previews/applique.png" height="180" alt="Realistic view of wizards/applique.pes">
 
-Threads, in sewing order: 800 Red, #ffc864, #ffc896, #ffc8c8.
+Threads, in sewing order: #ffc864, #ffc896, #ffc8c8.
 
 #### Embroidered patch wizard
 

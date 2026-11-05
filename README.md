@@ -82,7 +82,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 | Compatibility specs | 454: 454 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 36: 29 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 10 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
-| Open GitHub issues | 45 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
+| Open GitHub issues | 153 ([list](https://github.com/cristianonescu/OpenStitch/issues)) |
 <!-- /status:glance -->
 
 Tiers, weakest first: *internal regression* (our own earlier output), *oracle* (an independent
@@ -126,8 +126,8 @@ regenerates them.
 | <img src="examples/images/p12-backlit-tree.jpg" width="200"> | <img src="docs/images/readme/gallery/p12.png" width="260"> | **Photo Stitch 1, mono, defaults**<br>4,261 stitches, 130 trims, 1 colour |
 | <img src="examples/images/p03-storybook.jpg" width="200"> | <img src="docs/images/readme/gallery/p03.png" width="260"> | **Photo Stitch 1, colour, defaults**<br>19,888 stitches, 789 trims, 8 colours |
 | <img src="examples/images/g01-emblem.png" width="200"> | <img src="docs/images/readme/gallery/g01.png" width="260"> | **Auto Punch, defaults**<br>8,655 stitches, 10 trims, 3 colours |
-| <img src="examples/images/g02-balloon.png" width="200"> | <img src="docs/images/readme/gallery/g02.png" width="260"> | **Auto Punch, defaults**<br>7,912 stitches, 12 trims, 5 colours |
-| <img src="examples/images/g05-robot-cartoon.png" width="200"> | <img src="docs/images/readme/gallery/g05.png" width="260"> | **Auto Punch, defaults**<br>12,473 stitches, 231 trims, 6 colours |
+| <img src="examples/images/g02-balloon.png" width="200"> | <img src="docs/images/readme/gallery/g02.png" width="260"> | **Auto Punch, defaults**<br>7,641 stitches, 12 trims, 5 colours |
+| <img src="examples/images/g05-robot-cartoon.png" width="200"> | <img src="docs/images/readme/gallery/g05.png" width="260"> | **Auto Punch, defaults**<br>11,232 stitches, 232 trims, 6 colours |
 | <img src="examples/images/g08-lettering.png" width="200"> | <img src="docs/images/readme/gallery/g08.png" width="260"> | **Auto Punch, defaults**<br>1,247 stitches, 11 trims, 2 colours |
 | <img src="examples/images/g04-butterfly-outline.png" width="200"> | <img src="docs/images/readme/gallery/g04.png" width="260"> | **Design Center, running line**<br>1,635 stitches, 92 trims, 1 colour |
 | <img src="examples/images/g07-pixel-strawberry.png" width="200"> | <img src="docs/images/readme/gallery/g07.png" width="260"> | **Cross Stitch, defaults**<br>4,691 stitches, 190 trims, 6 colours |
@@ -164,9 +164,9 @@ truer in its PE-DESIGN-compatible mode, whose three threads suit its skin and ba
 <!-- gallery-modes:start -->
 | Image | OpenStitch, PE-DESIGN-compatible mode (default) | OpenStitch, OpenStitch mode ➕ |
 |---|---|---|
-| <img src="examples/images/g05-robot-cartoon.png" width="200"><br>Auto Punch | <img src="docs/images/readme/gallery/g05-pe.png" width="260"><br>12,473 stitches, 231 trims, 6 colours | <img src="docs/images/readme/gallery/g05-os.png" width="260"><br>13,604 stitches, 129 trims, 7 colours |
-| <img src="examples/images/g06-watercolour-lemons.jpg" width="200"><br>Auto Punch | <img src="docs/images/readme/gallery/g06-pe.png" width="260"><br>18,297 stitches, 284 trims, 9 colours | <img src="docs/images/readme/gallery/g06-os.png" width="260"><br>15,578 stitches, 185 trims, 10 colours |
-| <img src="examples/images/p03-storybook.jpg" width="200"><br>Auto Punch | <img src="docs/images/readme/gallery/p03-pe.png" width="260"><br>41,879 stitches, 699 trims, 8 colours | <img src="docs/images/readme/gallery/p03-os.png" width="260"><br>31,326 stitches, 380 trims, 10 colours |
+| <img src="examples/images/g05-robot-cartoon.png" width="200"><br>Auto Punch | <img src="docs/images/readme/gallery/g05-pe.png" width="260"><br>11,232 stitches, 232 trims, 6 colours | <img src="docs/images/readme/gallery/g05-os.png" width="260"><br>13,594 stitches, 129 trims, 7 colours |
+| <img src="examples/images/g06-watercolour-lemons.jpg" width="200"><br>Auto Punch | <img src="docs/images/readme/gallery/g06-pe.png" width="260"><br>14,373 stitches, 285 trims, 9 colours | <img src="docs/images/readme/gallery/g06-os.png" width="260"><br>14,837 stitches, 191 trims, 10 colours |
+| <img src="examples/images/p03-storybook.jpg" width="200"><br>Auto Punch | <img src="docs/images/readme/gallery/p03-pe.png" width="260"><br>34,787 stitches, 700 trims, 8 colours | <img src="docs/images/readme/gallery/p03-os.png" width="260"><br>30,090 stitches, 383 trims, 10 colours |
 | <img src="examples/images/p01-portrait.jpg" width="200"><br>Photo Stitch 1 | <img src="docs/images/readme/gallery/p01-pe.png" width="260"><br>14,454 stitches, 385 trims, 7 colours | <img src="docs/images/readme/gallery/p01-os.png" width="260"><br>12,853 stitches, 308 trims, 11 colours |
 | <img src="examples/images/p06-sunset.jpg" width="200"><br>Photo Stitch 1 | <img src="docs/images/readme/gallery/p06-pe.png" width="260"><br>12,881 stitches, 370 trims, 11 colours | <img src="docs/images/readme/gallery/p06-os.png" width="260"><br>9,820 stitches, 128 trims, 11 colours |
 | <img src="examples/images/p10-night-street.jpg" width="200"><br>Photo Stitch 1 | <img src="docs/images/readme/gallery/p10-pe.png" width="260"><br>13,625 stitches, 464 trims, 7 colours | <img src="docs/images/readme/gallery/p10-os.png" width="260"><br>10,059 stitches, 182 trims, 9 colours |
@@ -434,18 +434,31 @@ Bugs reported on GitHub:
 
 <!-- status:issues-bugs -->
 - [#290](https://github.com/cristianonescu/OpenStitch/issues/290) Auto Punch storybook pictures stack needle drops and fail sew_check
-- [#304](https://github.com/cristianonescu/OpenStitch/issues/304) Satin over a jagged outline fans its needle drops into the notches (Auto Punch PE-compatible mode)
-- [#354](https://github.com/cristianonescu/OpenStitch/issues/354) object.setCenterPoint has no effect on spiral regions, though documented for spiral
 - [#368](https://github.com/cristianonescu/OpenStitch/issues/368) Storybook (OpenStitch mode): a hairline satin crosses 20 times in place and a lock sews 6 tiny stitches
 - [#384](https://github.com/cristianonescu/OpenStitch/issues/384) Print: catalogue PDFs pile up in the temp folder (openstitch-print)
-- [#391](https://github.com/cristianonescu/OpenStitch/issues/391) CI: macos-latest jobs cancelled after 15 min without ever getting a runner
 - [#398](https://github.com/cristianonescu/OpenStitch/issues/398) PES 0110 reader: CEmbLine variant in tatami-40 references stops the object list
 - [#420](https://github.com/cristianonescu/OpenStitch/issues/420) B17 Assistant settings: Coding agent mode still offers an API key for the hidden address
 - [#421](https://github.com/cristianonescu/OpenStitch/issues/421) CI: macos-latest jobs cancelled while queued (0 steps, often at exactly 15:00) during the 2026-11-04 Actions incident
 - [#425](https://github.com/cristianonescu/OpenStitch/issues/425) B17 Ollama: mistral-small3.2 answers every bench task with an empty message
 - [#429](https://github.com/cristianonescu/OpenStitch/issues/429) B17 Ollama: gpt-oss streams sometimes stop without a finish reason ("The connection closed before the reply finished")
-- [#430](https://github.com/cristianonescu/OpenStitch/issues/430) Satin text: crossings interpolated between 3 mm rungs end inside curved outlines (O's counter)
 - [#433](https://github.com/cristianonescu/OpenStitch/issues/433) Digitizing got about 8x slower with #299: fidelity_high_raises_the_colour_counts 12 s → 97 s
+- [#441](https://github.com/cristianonescu/OpenStitch/issues/441) Kit designs, previews and README screenshots look sloppy: overlaps, cut-off previews, ragged lettering, jump lines
+- [#446](https://github.com/cristianonescu/OpenStitch/issues/446) Satin text: N's acute corner sews as a spike, slanted arm ends fan, X sewn as chevrons (+13 %)
+- [#450](https://github.com/cristianonescu/OpenStitch/issues/450) Review every calibration, demo and kit design and every screenshot for the defects #443 and #444 found
+- [#458](https://github.com/cristianonescu/OpenStitch/issues/458) Diamond and Circle monograms cut letters: an outer letter loses its stem or bowl (K, E, M, O)
+- [#459](https://github.com/cristianonescu/OpenStitch/issues/459) Programmable fill: the pattern does not show and stitches run 8-12 mm whatever stitchLength is
+- [#460](https://github.com/cristianonescu/OpenStitch/issues/460) Region satin has no stitch-length limit: 20-30 mm stitches on wide shapes
+- [#461](https://github.com/cristianonescu/OpenStitch/issues/461) Concentric, spiral, contour and radial fills: visible seams and a run back out from the centre
+- [#462](https://github.com/cristianonescu/OpenStitch/issues/462) Stippling ignores spacing, leaves a 3-6 mm margin and runs an exposed L along the outline
+- [#463](https://github.com/cristianonescu/OpenStitch/issues/463) Cross stitch and zigzag net regions: half crosses, travel per column, honeycomb leaving the region
+- [#464](https://github.com/cristianonescu/OpenStitch/issues/464) Line sew types: stem stitch is not a rope, chain links uneven, candlewick spacing varies along the path
+- [#465](https://github.com/cristianonescu/OpenStitch/issues/465) Small lettering: the i loses its dot, travel shows inside small N's and between letters, t crossbars loop
+- [#466](https://github.com/cristianonescu/OpenStitch/issues/466) Satin and zigzag covers spike at heart cusps and fan at skeleton apexes
+- [#467](https://github.com/cristianonescu/OpenStitch/issues/467) Laurel and stars frames trim leaf by leaf (28-31 trims in one colour)
+- [#468](https://github.com/cristianonescu/OpenStitch/issues/468) Photo Stitch 1/2: colours off-hue, every layer sewn everywhere, needle drops in columns
+- [#469](https://github.com/cristianonescu/OpenStitch/issues/469) Auto Punch / Cross Stitch from images: edge cells become a halo thread, thin features dropped, travel sewn on top
+- [#470](https://github.com/cristianonescu/OpenStitch/issues/470) Appliqué wizard "add" keeps the original fill and sews it before the appliqué fabric
+- [#471](https://github.com/cristianonescu/OpenStitch/issues/471) Fill with a direction curve sews a chaotic crosshatch; piping leaves a dense bar
 <!-- /status:issues-bugs -->
 
 [Report a bug](https://github.com/cristianonescu/OpenStitch/issues/new).
@@ -481,14 +494,12 @@ Open enhancement issues:
 - [#319](https://github.com/cristianonescu/OpenStitch/issues/319) macOS: verify Help ▸ Ready-to-Sew Designs opens Finder at the bundled kit with a real click
 - [#349](https://github.com/cristianonescu/OpenStitch/issues/349) SHV and CSD export: settle the parts one PE-DESIGN reference could not (preview, palette fill, long stitches)
 - [#356](https://github.com/cristianonescu/OpenStitch/issues/356) Tests: weak points that need a product seam or a CI step (rest of #351)
-- [#372](https://github.com/cristianonescu/OpenStitch/issues/372) Half Stitch for Auto satin (PE-DESIGN's satin attribute)
 - [#373](https://github.com/cristianonescu/OpenStitch/issues/373) Miter limit for satin and zigzag corners (PE-DESIGN attribute)
 - [#374](https://github.com/cristianonescu/OpenStitch/issues/374) Write PES versions 4, 5 and 7–10 (readers done; blocked on PE-DESIGN Save As captures)
 - [#377](https://github.com/cristianonescu/OpenStitch/issues/377) Connection Points (Default / Closest / Farther) for text
 - [#397](https://github.com/cristianonescu/OpenStitch/issues/397) import.pes: PE-DESIGN texts and stitch groups as design objects
 - [#401](https://github.com/cristianonescu/OpenStitch/issues/401) Test the AI Assistant and its key handling on Windows and Linux (so far macOS only)
 - [#403](https://github.com/cristianonescu/OpenStitch/issues/403) CI: the warm Windows build is spent compiling ~100 test targets; consolidate integration tests per crate
-- [#404](https://github.com/cristianonescu/OpenStitch/issues/404) Flaky test: transfer::writes_plain_names_to_the_volume_root_without_overwriting reuses a PID-named temp dir
 - [#406](https://github.com/cristianonescu/OpenStitch/issues/406) readme_status.py: refuse inputs with merge-conflict markers instead of counting a truncated matrix
 - [#408](https://github.com/cristianonescu/OpenStitch/issues/408) Design Database: the folder list draws a 📁 emoji, not the Higgsfield folder icon
 - [#409](https://github.com/cristianonescu/OpenStitch/issues/409) Move up/down buttons use arrow characters (▲ ▼ ↑ ↓) instead of icons
@@ -500,6 +511,103 @@ Open enhancement issues:
 - [#428](https://github.com/cristianonescu/OpenStitch/issues/428) Fill text under a Text Transform: sew by stroke once warped letters are cut reliably
 - [#431](https://github.com/cristianonescu/OpenStitch/issues/431) B17 gate: a bare file name the assistant just wrote with scratch_write asks for permission
 - [#432](https://github.com/cristianonescu/OpenStitch/issues/432) B17 settings: choosing the Ollama or LM Studio preset keeps the Claude model name
+- [#439](https://github.com/cristianonescu/OpenStitch/issues/439) Higgsfield guard: cover every graphic in assets/, not only icons and illustrations
+- [#445](https://github.com/cristianonescu/OpenStitch/issues/445) OpenStitch-mode Auto Punch sews a cream background and fuses letters across their gaps (g08)
+- [#447](https://github.com/cristianonescu/OpenStitch/issues/447) Auto Punch (PE-compatible) maps 10 colours to 8 threads on p03 and drops the fox's orange; PE-DESIGN keeps 10
+- [#452](https://github.com/cristianonescu/OpenStitch/issues/452) Sew a test swatch of the selection
+- [#453](https://github.com/cristianonescu/OpenStitch/issues/453) Fabric calibration swatch: sew a graded card and start settings from the chosen rows
+- [#454](https://github.com/cristianonescu/OpenStitch/issues/454) Garment mockups: show the design on a T-shirt, cap or tote as an image
+- [#455](https://github.com/cristianonescu/OpenStitch/issues/455) SVG import: read stitch settings from layer and object names (opt-in)
+- [#456](https://github.com/cristianonescu/OpenStitch/issues/456) Arched text with several lines as concentric rings
+- [#457](https://github.com/cristianonescu/OpenStitch/issues/457) Read every exported file back and check it before reporting the export done
+- [#472](https://github.com/cristianonescu/OpenStitch/issues/472) Align and distribute objects (to the sewing field or to each other, space evenly)
+- [#473](https://github.com/cristianonescu/OpenStitch/issues/473) Snap to other objects while dragging, with smart guide lines
+- [#474](https://github.com/cristianonescu/OpenStitch/issues/474) Precision bar: type exact position, size, rotation and skew; grid-step nudge
+- [#475](https://github.com/cristianonescu/OpenStitch/issues/475) Select same colour or stitch type, and click inside an outline to select it
+- [#476](https://github.com/cristianonescu/OpenStitch/issues/476) Copies along a line, scattered copies inside a shape, and kaleidoscope circles
+- [#477](https://github.com/cristianonescu/OpenStitch/issues/477) Knife tool: cut many objects at once with an open line (fills, satins and lines)
+- [#478](https://github.com/cristianonescu/OpenStitch/issues/478) Smooth shapes (remove extra nodes within a tolerance) and smooth stitch runs
+- [#479](https://github.com/cristianonescu/OpenStitch/issues/479) Continue drawing a finished line or satin column from either end
+- [#480](https://github.com/cristianonescu/OpenStitch/issues/480) Open and save Husqvarna/Pfaff VP3 files with thread brand, number and name
+- [#481](https://github.com/cristianonescu/OpenStitch/issues/481) Read and write more machine formats: Tajima TAP/TBF, Barudan U01/DSB, ZSK DSZ, KSM, ZXY, STX
+- [#482](https://github.com/cristianonescu/OpenStitch/issues/482) Thread list files: design colours in sewing order as CSV, INF beside EXP, INF/EDR/COL/TXT import and export
+- [#483](https://github.com/cristianonescu/OpenStitch/issues/483) Import and export thread charts as GIMP/Inkscape .gpl palettes
+- [#484](https://github.com/cristianonescu/OpenStitch/issues/484) Match a design to a thread chart by perceived colour (CIEDE2000), with a preview, keeping distinct colours apart
+- [#485](https://github.com/cristianonescu/OpenStitch/issues/485) Merge similar thread colours in a design
+- [#486](https://github.com/cristianonescu/OpenStitch/issues/486) More built-in thread charts from makers' own colour data, with search by number or name
+- [#487](https://github.com/cristianonescu/OpenStitch/issues/487) SVG import: apply clip paths, masks and opacity, gradients as colour bands, and report what was skipped
+- [#488](https://github.com/cristianonescu/OpenStitch/issues/488) Extra exports: stitch list CSV/TXT, multi-format ZIP bundle, stitch-out video, G-code, export repeats
+- [#489](https://github.com/cristianonescu/OpenStitch/issues/489) Image wizard: purpose presets, a region table with reasons and overrides, click-to-fix on the picture, sew order and fill-angle choice
+- [#490](https://github.com/cristianonescu/OpenStitch/issues/490) On-device helpers for picture digitizing: one-click subject cut-out, line drawing from photos, text found as lettering
+- [#491](https://github.com/cristianonescu/OpenStitch/issues/491) Assistant remembers the user's machine, threads and preferences between conversations
+- [#492](https://github.com/cristianonescu/OpenStitch/issues/492) Assistant skill: complete illustrated example designs and a composition guide
+- [#493](https://github.com/cristianonescu/OpenStitch/issues/493) Assistant benchmark: illustrated-subject tasks scored on structure and on the render
+- [#494](https://github.com/cristianonescu/OpenStitch/issues/494) run_batch and stitchtool exec report every parameter error at once before running
+- [#495](https://github.com/cristianonescu/OpenStitch/issues/495) Assistant uses only the user's own threads and never invents catalogue numbers
+- [#496](https://github.com/cristianonescu/OpenStitch/issues/496) stitchtool one-line commands: convert, info, optimize, digitize, formats
+- [#497](https://github.com/cristianonescu/OpenStitch/issues/497) More shape tools: band frames, per-corner radii, spiral line, gap in an outline, divide, shape builder, shape effects
+- [#498](https://github.com/cristianonescu/OpenStitch/issues/498) Python package for scripting OpenStitch designs
+- [#499](https://github.com/cristianonescu/OpenStitch/issues/499) Keyboard-only drawing and an accessibility pass (text size, contrast, focus, screen reader)
+- [#500](https://github.com/cristianonescu/OpenStitch/issues/500) Copy and paste objects through the system clipboard, also between editor windows
+- [#501](https://github.com/cristianonescu/OpenStitch/issues/501) Stitch table for exact needle-point editing, and hand edits kept on live objects
+- [#502](https://github.com/cristianonescu/OpenStitch/issues/502) Sewing order list: rename, lock, sew in click order, fill and outline order per object
+- [#503](https://github.com/cristianonescu/OpenStitch/issues/503) Check Design pane: list sewing problems with located objects and one-click fixes
+- [#504](https://github.com/cristianonescu/OpenStitch/issues/504) Density map: see where thread piles up, judged for the chosen fabric and thread
+- [#505](https://github.com/cristianonescu/OpenStitch/issues/505) Review Sewing Order: step through every move with labels, a route map and warnings for long or untrimmed jumps
+- [#506](https://github.com/cristianonescu/OpenStitch/issues/506) Random-design test: seeded designs must never crash, sew stitches over 12.1 mm or stray outside their shape
+- [#507](https://github.com/cristianonescu/OpenStitch/issues/507) Parameter test swatches: copies of the selection with one setting stepped, each labelled with its value
+- [#508](https://github.com/cristianonescu/OpenStitch/issues/508) Fabric and thread-weight presets with stabiliser and needle advice, machine profiles and a first-run machine setup
+- [#509](https://github.com/cristianonescu/OpenStitch/issues/509) Basting box: a tacking run sewn first round the design, kept inside the hoop
+- [#510](https://github.com/cristianonescu/OpenStitch/issues/510) Knockdown fill under the design or selection for towels and fleece
+- [#511](https://github.com/cristianonescu/OpenStitch/issues/511) Leave out stitching hidden under later objects, with an overlap margin and without cutting the shapes
+- [#512](https://github.com/cristianonescu/OpenStitch/issues/512) Stop after an object, and Stop at Jumps for machines without a thread cutter
+- [#513](https://github.com/cristianonescu/OpenStitch/issues/513) Job sheets: client approval and operator worksheets with the colour sequence and job details
+- [#514](https://github.com/cristianonescu/OpenStitch/issues/514) Hoop lists for other machine brands (Janome, Bernina, Husqvarna Viking/Pfaff, Baby Lock, Elna, Singer) and round hoops
+- [#515](https://github.com/cristianonescu/OpenStitch/issues/515) Multi-hooping with free, overlapping hoopings that keep objects whole, with alignment marks and a stop
+- [#516](https://github.com/cristianonescu/OpenStitch/issues/516) Stitch-out player: colour-block timeline, machine time, and stepping by colour, object or trim
+- [#517](https://github.com/cristianonescu/OpenStitch/issues/517) View toggles: needle points, underlay only, trim marks, hide unselected, colour by order or monochrome, solo colour
+- [#518](https://github.com/cristianonescu/OpenStitch/issues/518) Zoom box, display-calibrated real size, and a reference image that can sit between objects
+- [#519](https://github.com/cristianonescu/OpenStitch/issues/519) Millimetres or inches throughout the editor
+- [#520](https://github.com/cristianonescu/OpenStitch/issues/520) Satin corner styles: mitre and cap for sharp corners on satin lines, columns and borders
+- [#521](https://github.com/cristianonescu/OpenStitch/issues/521) Short stitches on the inside of curves for every satin (columns, skeleton satin, borders, lettering)
+- [#522](https://github.com/cristianonescu/OpenStitch/issues/522) Pull compensation per side and as a percentage of width; push compensation for fills
+- [#523](https://github.com/cristianonescu/OpenStitch/issues/523) Automatic underlay chosen by column width and fabric, with a centre walk and a second underlay layer
+- [#524](https://github.com/cristianonescu/OpenStitch/issues/524) Satin line with variable width: width while drawing, width handles anywhere, tapered ends, off-centre columns
+- [#525](https://github.com/cristianonescu/OpenStitch/issues/525) Edit Manual Punch satin columns on the canvas: add, delete and drag rungs, swap sides, untangle twisted pairs
+- [#526](https://github.com/cristianonescu/OpenStitch/issues/526) Convert a branching shape to satin: one column per arm, joined with an overlap, also inside Auto Punch
+- [#527](https://github.com/cristianonescu/OpenStitch/issues/527) Embroidery font library with recommended size ranges, a font chooser with live sample, and a size warning
+- [#528](https://github.com/cristianonescu/OpenStitch/issues/528) More satin looks: S-stitch, open zigzag, double satin, one-sided jagged edge, density measured across the column
+- [#529](https://github.com/cristianonescu/OpenStitch/issues/529) Import Ink/Stitch-format embroidery font folders (font.json + SVG glyphs)
+- [#530](https://github.com/cristianonescu/OpenStitch/issues/530) Single-line (centre-line) running text for small labels, like PE-DESIGN's Small Text
+- [#531](https://github.com/cristianonescu/OpenStitch/issues/531) Raised (padded) satin: padding lanes sewn under the satin for a 3D look
+- [#532](https://github.com/cristianonescu/OpenStitch/issues/532) Colour blends and gradient fills: two-colour blend, multicolour gradients with dithering, density profiles
+- [#533](https://github.com/cristianonescu/OpenStitch/issues/533) Maze (space-filling) and tiled meander fills
+- [#534](https://github.com/cristianonescu/OpenStitch/issues/534) Fill Angle drag tool and stitch angle lines that turn the rows inside one fill
+- [#535](https://github.com/cristianonescu/OpenStitch/issues/535) Text envelopes with draggable handles (bridge, pennant, perspective, diamond)
+- [#536](https://github.com/cristianonescu/OpenStitch/issues/536) Pixel (bitmap) font text sewn as short runs
+- [#537](https://github.com/cristianonescu/OpenStitch/issues/537) Tatami textures: named needle-hole patterns, stepped and wave row shifts
+- [#538](https://github.com/cristianonescu/OpenStitch/issues/538) Wave fill, and a flow fill whose rows follow the picture when digitizing
+- [#539](https://github.com/cristianonescu/OpenStitch/issues/539) Tartan (plaid) fill
+- [#540](https://github.com/cristianonescu/OpenStitch/issues/540) Hand-stitch look and scribble line with seeded smooth randomness
+- [#541](https://github.com/cristianonescu/OpenStitch/issues/541) Ripple line: copies shrinking towards a target point or spiralling in as one run
+- [#542](https://github.com/cristianonescu/OpenStitch/issues/542) Back stitch and a variable running stitch that follows a thickness profile
+- [#543](https://github.com/cristianonescu/OpenStitch/issues/543) Decorative hand-embroidery lines: chevron, Cretan, feather, overlock, triangles, double zigzag, lattice, stripes, slanted E-stitch
+- [#544](https://github.com/cristianonescu/OpenStitch/issues/544) Motif lines: groups with gaps, free ends, alternating or cycling motifs, motifs that scale with a band, more built-in motifs
+- [#545](https://github.com/cristianonescu/OpenStitch/issues/545) Travel under later fills and run connectors instead of jumps and trims between same-thread objects
+- [#546](https://github.com/cristianonescu/OpenStitch/issues/546) Branching and auto-routing: touching objects and line networks sewn in one go without trims
+- [#547](https://github.com/cristianonescu/OpenStitch/issues/547) Start each object nearest to where the last ended, and report what Optimize changed
+- [#548](https://github.com/cristianonescu/OpenStitch/issues/548) Per-object trim and tie settings, and trimming between letters, words or lines of text
+- [#549](https://github.com/cristianonescu/OpenStitch/issues/549) Autosave and recovery after a crash or power cut
+- [#550](https://github.com/cristianonescu/OpenStitch/issues/550) Command palette (search every command), a modifier-aware hints line, and search in the properties
+- [#551](https://github.com/cristianonescu/OpenStitch/issues/551) Customisable shortcuts, tool band, dockable panels and saved layouts
+- [#552](https://github.com/cristianonescu/OpenStitch/issues/552) Several designs open as tabs in one window
+- [#553](https://github.com/cristianonescu/OpenStitch/issues/553) Defaults for new objects, Basic/Advanced stitch settings, and picture pickers with live hover preview
+- [#554](https://github.com/cristianonescu/OpenStitch/issues/554) Getting started: a first-run sample design, start cards and an in-app first-steps page
+- [#555](https://github.com/cristianonescu/OpenStitch/issues/555) Translate the interface into other languages
+- [#556](https://github.com/cristianonescu/OpenStitch/issues/556) Run the editor in a web browser (WebAssembly build)
+- [#557](https://github.com/cristianonescu/OpenStitch/issues/557) Design thumbnails in macOS Finder (Quick Look) and Windows Explorer
+- [#558](https://github.com/cristianonescu/OpenStitch/issues/558) Open and import large files in the background with progress and Cancel
+- [#559](https://github.com/cristianonescu/OpenStitch/issues/559) Accent colour choice beside the Light / Dark / System theme
 <!-- /status:issues-planned -->
 
 ### Beyond PE-DESIGN

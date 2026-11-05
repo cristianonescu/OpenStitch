@@ -13,7 +13,7 @@
     "text": "Hello", "font": "pacifico", "size": 14, "x": 50, "y": 72, "fill": "Blue"}},
   {"command": "object.setRegion", "params": {"id": 3, "angle": 45, "underlay": true}},
   {"command": "text.add", "params": {
-    "text": "made with\nopen fonts", "size": 4, "lineSpacing": 1, "x": 50, "y": 82,
+    "text": "made with\nopen fonts", "size": 6, "lineSpacing": 1, "x": 50, "y": 82,
     "fill": "Black", "letterSpacing": 0.3}},
   {"command": "design.info"},
   {"command": "design.export", "params": {"path": "lettering.pes"}},

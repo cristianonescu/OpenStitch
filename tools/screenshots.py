@@ -2,7 +2,7 @@
 """Regenerates the editor screenshots in docs/images and docs/images/readme with the real app.
 
     cargo build -p openstitch-app -p stitchtool
-    python3 tools/screenshots.py [--only NAME,NAME]
+    python3 tools/screenshots.py [--only NAME,NAME] [--release]
 
 Each scene runs `openstitch --screenshot` (1440x900 window) on a sample design built from
 examples/ by `stitchtool exec`. The app runs inside a temporary folder and is given relative
@@ -25,7 +25,7 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
-BIN = ROOT / "target" / "debug"
+BIN = ROOT / "target" / ("release" if "--release" in sys.argv else "debug")
 FIXTURES = ROOT / "crates" / "openstitch-formats" / "tests" / "fixtures"
 
 
@@ -203,6 +203,7 @@ def shrink(src, dst, width):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--only", help="comma-separated scene names")
+    p.add_argument("--release", action="store_true", help="use the release build")
     a = p.parse_args()
     names = a.only.split(",") if a.only else list(SCENES)
     with tempfile.TemporaryDirectory() as tmp:

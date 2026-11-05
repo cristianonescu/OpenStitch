@@ -121,6 +121,15 @@ similarity scorer draw thread as wide as it covers at its row density. Next: Pho
 trims (#298), Auto Punch's stacked satin points on the storybook picture (#290, the Mac's track),
 then a sew-out of the regenerated kit.
 
+Done 2026-11-05 (#450): every kit, demo and screenshot design reviewed at full size (stitches alone
+at 15 px/mm and the Realistic view). Kit and demo designs fixed, built-in templates regenerated,
+CI checks that the committed kit is what the code makes and passes `sew_check`. Engine follow-ups,
+in rough order of what shows most: Diamond/Circle monograms (#458), programmable fill (#459),
+satin stitch length (#460), centre-out fill seams (#461), stippling (#462), cross stitch and
+zigzag net regions (#463), line types (#464), small lettering (#465), satin cusps (#466), frame
+trims (#467), Photo Stitch density and stagger (#468), image tools' edge cells and thin features
+(#469), appliqué "add" order (#470), direction-curve fills (#471).
+
 Done 2026-11-05 (#443): Auto Punch on flat graphics (bold lettering, logos) sews clean satin
 columns as PE-DESIGN does (T and H bar by bar, S and C along their curve, the image's own colours
 only); photographs convert as before. Next for lettering images: OpenStitch mode's sewn cream

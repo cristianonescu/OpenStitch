@@ -321,12 +321,17 @@ fn framed(pattern: &StitchPattern) -> (std::borrow::Cow<'_, StitchPattern>, (i64
             (0..=w).contains(&round_coordinate(s.x)) && (0..=h).contains(&round_coordinate(s.y))
         });
     // pyembroidery's files start at the pattern's origin with stitches above or left of it:
-    // they keep that layout, so they rewrite byte for byte.
-    let above_or_left = pattern
-        .stitches
-        .iter()
-        .filter(|s| s.command == Command::Stitch)
-        .any(|s| round_coordinate(s.x) < 0 || round_coordinate(s.y) < 0);
+    // they keep that layout, so they rewrite byte for byte. Only a pattern whose first needle
+    // point is the origin: a design that merely reaches above or left of its page (the name-drop
+    // badge's lettering, 0.5 mm above the page) is moved into its frame like any other, or the
+    // machine would cut off as much on the far side (#450).
+    let starts_at_origin = moves().next() == Some((0, 0));
+    let above_or_left = starts_at_origin
+        && pattern
+            .stitches
+            .iter()
+            .filter(|s| s.command == Command::Stitch)
+            .any(|s| round_coordinate(s.x) < 0 || round_coordinate(s.y) < 0);
     if fits || above_or_left {
         return (std::borrow::Cow::Borrowed(pattern), (w, h));
     }

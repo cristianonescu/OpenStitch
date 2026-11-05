@@ -218,16 +218,62 @@ fn applique(s: &mut EngineState, p: &Params) -> CommandResult {
 }
 
 /// `contours` grown by `mm` (shrunk when negative) with round corners; holes kept when `holes`.
+/// The round corners' vertices are thinned to [`MIN_VERTEX_GAP_MM`]: running stitch keeps every
+/// vertex, and a sharp tip grown by 0.5 mm (a heart's point) became an arc of 0.1 mm steps, 15
+/// stitches under 0.3 mm in a row on the machine (#450).
 fn grow(contours: &[Contour], mm: f64, holes: bool) -> Vec<Contour> {
     if mm == 0.0 {
         return contours.to_vec();
     }
     let regions = boolean::offset(contours, mm * MM, true);
-    if holes {
+    let grown = if holes {
         boolean::contours(&regions)
     } else {
         outer(&regions)
+    };
+    grown.into_iter().map(thinned).collect()
+}
+
+/// Shortest distance between consecutive vertices of a grown outline (a straight edge's
+/// vertices are far apart; only the round corners' arcs are thinned).
+const MIN_VERTEX_GAP_MM: f64 = 0.4;
+
+/// `c` without the vertices closer than [`MIN_VERTEX_GAP_MM`] to the last one kept. Only vertices
+/// between two straight edges go (a curve's ends stay, and so does the first vertex); the edges
+/// they joined become one straight edge.
+fn thinned(c: Contour) -> Contour {
+    let n = c.points.len();
+    if n < 4 {
+        return c;
     }
+    let curve = |i: usize| c.curves.get(i).copied().flatten();
+    let gap = MIN_VERTEX_GAP_MM * MM;
+    let mut points = Vec::with_capacity(n);
+    let mut curves = Vec::with_capacity(n);
+    for i in 0..n {
+        let straight_both = i > 0 && curve(i - 1).is_none() && curve(i).is_none();
+        let closing_gap = c.closed && i == n - 1 && c.points[i].distance(c.points[0]) < gap;
+        if straight_both
+            && (closing_gap
+                || points
+                    .last()
+                    .is_some_and(|&q: &openstitch_design::Vec2| q.distance(c.points[i]) < gap))
+        {
+            continue;
+        }
+        points.push(c.points[i]);
+        curves.push(curve(i));
+    }
+    if points.len() < 3 {
+        return c;
+    }
+    // A dropped vertex sat between straight edges, so the edge from the kept vertex before it
+    // is straight: `curves[k]` (the original curve leaving that kept vertex) is None then.
+    let mut out = Contour::new(points, c.closed);
+    if curves.iter().any(Option::is_some) {
+        out.curves = curves;
+    }
+    out
 }
 
 fn tack_down(p: &Params) -> Result<Option<LineSewing>, CommandError> {
