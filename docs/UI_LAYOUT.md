@@ -88,6 +88,13 @@ Behaviour follows the guide's pages
   PE-DESIGN). Kept in `ui.json`; the Assistant reads and sets them with `ui.settings` / `ui.set`
   (`nudgeStep`, `nudgeByGrid`, `clickInsideOutlines`, `snapToObjects`, `precisionBar`,
   `alignTo`).
+- **Options ▾ ▸ Units** (#519): Millimetres (default, as PE-DESIGN) or Inches, the same setting
+  as the Design Database's Select System Unit. It changes every length the editor shows and
+  accepts: precision bar, rulers, grid presets, measure tool, pointer position, lettering
+  sizes, Design Page and hoop sizes (hoops show both units), split positions, background image,
+  shape tool sizes, Design Property, status bar and the print scale bar. A field takes `2"`,
+  `2 in`, `1 1/2"`, `50.8 mm` or `5 cm` in either mode. Stitch settings stay in mm. Kept in
+  `ui.json`; the Assistant reads and sets it with `ui.settings` / `ui.set` (`units`).
 - **Alt-click on a stitch pattern** selects every stitch pattern that sews the thread colour
   under the pointer (PE-DESIGN's selection of stitch patterns by thread colour, #475).
 - **Save Image** ▸ to File… writes the background image as shown (turned, cropped, colours
@@ -725,7 +732,7 @@ tracker.
 
 | Command | Shortcut | OpenStitch action | Engine command | Available |
 |---|---|---|---|---|
-| Select System Unit |  | `DbAction::SystemUnit` | view/UI only | yes |
+| Select System Unit |  | `DbAction::SystemUnit` (one setting with the editor's Options ▸ Units, #519) | view/UI only | yes |
 | Application Color |  | `DbAction::ApplicationColor` | view/UI only | yes |
 | USB Link |  | `DbAction::UsbLink` | view/UI only | **not yet** (disabled, ScreenTip says so) |
 | Wireless Link |  | `DbAction::WirelessLink` | view/UI only | **not yet** (disabled, ScreenTip says so) |

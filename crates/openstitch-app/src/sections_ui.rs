@@ -138,6 +138,7 @@ pub fn draw_sections(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
 
 /// The large-design part of the Design Settings window.
 pub fn settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<CommandRequest>) {
+    let units = app.ui.prefs.units;
     let d = app.session.design();
     let m = &d.machine;
     let set = |v: serde_json::Value| CommandRequest::new("sections.set", v);
@@ -163,7 +164,7 @@ pub fn settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<CommandRe
             ui.horizontal(|ui| {
                 ui.label("Side overlap");
                 let mut o = m.jumbo_overlap;
-                let r = ui.add(egui::DragValue::new(&mut o).range(0.0..=50.0).suffix(" mm"));
+                let r = ui.add(crate::units_ui::drag(&mut o, units).range(0.0..=50.0));
                 if r.drag_stopped() || r.lost_focus() {
                     requests.push(set(json!({ "jumboOverlap": o })));
                 }
@@ -187,6 +188,7 @@ pub fn settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<CommandRe
 }
 
 fn split_settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<CommandRequest>) {
+    let units = app.ui.prefs.units;
     let d = app.session.design();
     let s = d.machine.sections.clone();
     let set = |v: serde_json::Value| CommandRequest::new("sections.set", v);
@@ -210,11 +212,13 @@ fn split_settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<Command
                 }
                 for h in BROTHER_HOOPS.iter().filter(|h| sectionable(h)) {
                     let label = format!(
-                        "{} × {} mm ({} × {} mm hoop)",
-                        h.width - sections::SECTION_MARGIN_MM,
-                        h.height - sections::SECTION_MARGIN_MM,
-                        h.width,
-                        h.height
+                        "{} ({} hoop)",
+                        openstitch_app::editor::units::size(
+                            units,
+                            h.width - sections::SECTION_MARGIN_MM,
+                            h.height - sections::SECTION_MARGIN_MM,
+                        ),
+                        openstitch_app::editor::units::hoop_size(units, h.width, h.height)
                     );
                     if ui.selectable_label(current == h.id, label).clicked() && current != h.id {
                         requests.push(set(json!({ "hoop": h.id })));
@@ -223,7 +227,7 @@ fn split_settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<Command
             });
     });
     let Some(s) = s else { return };
-    free_settings(&s, ui, requests);
+    free_settings(&s, units, ui, requests);
     if s.free.is_some() {
         return;
     }
@@ -248,7 +252,7 @@ fn split_settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<Command
             let mut edited = values.clone();
             let mut commit = false;
             for v in &mut edited {
-                let r = ui.add(egui::DragValue::new(v).speed(0.5).suffix(" mm"));
+                let r = ui.add(crate::units_ui::drag(v, units).speed(0.5));
                 commit |= r.drag_stopped() || r.lost_focus();
             }
             if commit && edited != values {
@@ -266,6 +270,7 @@ fn split_settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<Command
 /// positions, Add left / right / up / down, Auto layout, the marks and the stop.
 fn free_settings(
     s: &sections::SectionSettings,
+    units: openstitch_app::editor::units::Units,
     ui: &mut egui::Ui,
     requests: &mut Vec<CommandRequest>,
 ) {
@@ -295,7 +300,7 @@ fn free_settings(
         ui.horizontal(|ui| {
             ui.label(format!("{}.", i + 1));
             for v in [&mut h.x, &mut h.y] {
-                let r = ui.add(egui::DragValue::new(v).speed(0.5).suffix(" mm"));
+                let r = ui.add(crate::units_ui::drag(v, units));
                 changed |= r.drag_stopped() || r.lost_focus();
             }
             changed |= ui.checkbox(&mut h.rotated, "Turned 90°").changed();
@@ -359,11 +364,8 @@ fn free_settings(
             }
         }
         let mut o = f.min_overlap;
-        let r = ui.add(
-            egui::DragValue::new(&mut o)
-                .range(0.0..=100.0)
-                .suffix(" mm overlap"),
-        );
+        ui.label("overlap");
+        let r = ui.add(crate::units_ui::drag(&mut o, units).range(0.0..=100.0));
         if (r.drag_stopped() || r.lost_focus()) && o != f.min_overlap {
             requests.push(set(json!({ "minOverlap": o })));
         }

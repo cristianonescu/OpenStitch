@@ -273,6 +273,7 @@ pub const SETTINGS: &[Setting] = &[
         "Click inside outlines selects them",
         "bool",
     ),
+    s("units", "Units: Millimetres / Inches", "mm|inch"),
     s("nudgeStep", "Nudge step (mm; Shift ×10)", "number 0.1..50"),
     s(
         "nudgeByGrid",
