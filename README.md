@@ -78,7 +78,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 291: 177 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 104 planned beyond PE-DESIGN |
+| Feature matrix rows | 291: 178 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 103 planned beyond PE-DESIGN |
 | Compatibility specs | 454: 454 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 36: 29 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 10 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
@@ -676,7 +676,6 @@ PE-DESIGN 11 does not. Each item is sketched in
 - Machine stops: stop after a chosen object and a one-click Stop at Jumps for machines without a thread cutter (#512) (#512)
 - Job sheets: client approval and operator worksheets with job fields, colour sequence, stops, time and branding (W7) (#513) (#513)
 - Hoop lists for other machine brands and round commercial hoops, each from the maker's published sizes (#514) (#514)
-- Free multi-hooping: overlapping hoopings placed freely, objects kept whole, alignment marks followed by a stop, per-hooping files (W1) (#515) (#515)
 - Stitch-out player: colour-block timeline with trim ticks, machine time at the needle, stepping by colour/object/trim, pause at trims, follow the needle (#516) (#516)
 - View toggles: needle points, underlay or top only, trim marks, hide unselected, colour by sewing order or monochrome, solo colour (#517) (#517)
 - Zoom box, real size calibrated to the display, and a reference image placed between objects in the sewing order with canvas handles (#518) (#518)

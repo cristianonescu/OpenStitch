@@ -58,7 +58,7 @@ pub fn draw_sections(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
             SectionKind::Split => {
                 painter.rect_stroke(r, 0.0, stroke, egui::StrokeKind::Middle);
             }
-            SectionKind::Position | SectionKind::JumboSide => {
+            SectionKind::Position | SectionKind::JumboSide | SectionKind::Hooping => {
                 let c = [
                     r.left_top(),
                     r.right_top(),
@@ -81,7 +81,12 @@ pub fn draw_sections(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
         let at = r.left_top()
             + egui::vec2(
                 4.0,
-                4.0 + 14.0 * (i % 3) as f32 * f32::from(u8::from(s.kind == SectionKind::Position)),
+                4.0 + 14.0
+                    * (i % 3) as f32
+                    * f32::from(u8::from(matches!(
+                        s.kind,
+                        SectionKind::Position | SectionKind::Hooping
+                    ))),
             );
         painter.text(
             at,
@@ -90,6 +95,35 @@ pub fn draw_sections(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
             egui::FontId::proportional(12.0),
             SECTION,
         );
+    }
+    // Free hoopings (#515): objects that fit no hooping are outlined in red.
+    let free = app
+        .session
+        .design()
+        .machine
+        .sections
+        .as_ref()
+        .is_some_and(|s| s.free.is_some());
+    if free {
+        let placed: Vec<u64> = plan
+            .sections
+            .iter()
+            .flat_map(|s| s.objects.clone().unwrap_or_default())
+            .collect();
+        for o in app.session.design().objects.iter().filter(|o| o.visible) {
+            if let (false, Some(b)) = (placed.contains(&o.id), o.bounds()) {
+                let r = egui::Rect::from_two_pos(
+                    pos(vp.to_screen(openstitch_design::v2(b.min_x, b.min_y))),
+                    pos(vp.to_screen(openstitch_design::v2(b.max_x, b.max_y))),
+                );
+                painter.rect_stroke(
+                    r.expand(2.0),
+                    0.0,
+                    Stroke::new(2.0, egui::Color32::from_rgb(0xd3, 0x2f, 0x2f)),
+                    egui::StrokeKind::Middle,
+                );
+            }
+        }
     }
     for e in &plan.errors {
         painter.text(
@@ -189,6 +223,10 @@ fn split_settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<Command
             });
     });
     let Some(s) = s else { return };
+    free_settings(&s, ui, requests);
+    if s.free.is_some() {
+        return;
+    }
     let mut smaller = s.smaller;
     if ui
         .checkbox(&mut smaller, "Use smaller section sizes")
@@ -221,6 +259,121 @@ fn split_settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<Command
     if (!s.splits_x.is_empty() || !s.splits_y.is_empty()) && ui.small_button("Even split").clicked()
     {
         requests.push(set(json!({ "splitsX": [], "splitsY": [] })));
+    }
+}
+
+/// Grid (PE-DESIGN) or free hoopings (#515, beyond PE-DESIGN): the hoopings with their
+/// positions, Add left / right / up / down, Auto layout, the marks and the stop.
+fn free_settings(
+    s: &sections::SectionSettings,
+    ui: &mut egui::Ui,
+    requests: &mut Vec<CommandRequest>,
+) {
+    let set = |v: serde_json::Value| CommandRequest::new("sections.set", v);
+    ui.horizontal(|ui| {
+        ui.label("Hoopings");
+        if ui.selectable_label(s.free.is_none(), "Grid").on_hover_text("PE-DESIGN's sections, cut at the borders").clicked() && s.free.is_some() {
+            requests.push(set(json!({ "mode": "grid" })));
+        }
+        if ui
+            .selectable_label(s.free.is_some(), "Free")
+            .on_hover_text("Hoopings placed anywhere, overlapping; each object sewn whole in the first hooping that holds it")
+            .clicked()
+            && s.free.is_none()
+        {
+            requests.push(CommandRequest::new("sections.autoLayout", json!({})));
+        }
+    });
+    let Some(f) = &s.free else { return };
+    let Some((sw, sh)) = s.section_size() else {
+        return;
+    };
+    let mut list = f.hoopings.clone();
+    let mut changed = false;
+    let mut remove = None;
+    for (i, h) in list.iter_mut().enumerate() {
+        ui.horizontal(|ui| {
+            ui.label(format!("{}.", i + 1));
+            for v in [&mut h.x, &mut h.y] {
+                let r = ui.add(egui::DragValue::new(v).speed(0.5).suffix(" mm"));
+                changed |= r.drag_stopped() || r.lost_focus();
+            }
+            changed |= ui.checkbox(&mut h.rotated, "Turned 90°").changed();
+            if ui.small_button("Remove").clicked() {
+                remove = Some(i);
+            }
+        });
+    }
+    if let Some(i) = remove {
+        list.remove(i);
+        changed = true;
+    }
+    ui.horizontal(|ui| {
+        let last = list.last().copied().unwrap_or_default();
+        let (w, h) = if last.rotated { (sh, sw) } else { (sw, sh) };
+        let o = f.min_overlap;
+        for (label, dx, dy) in [
+            ("Add left", -(w - o), 0.0),
+            ("Add right", w - o, 0.0),
+            ("Add up", 0.0, -(h - o)),
+            ("Add down", 0.0, h - o),
+        ] {
+            if ui.small_button(label).clicked() && list.len() < sections::MAX_HOOPINGS {
+                list.push(sections::Hooping {
+                    x: last.x + dx,
+                    y: last.y + dy,
+                    rotated: last.rotated,
+                });
+                changed = true;
+            }
+        }
+        if ui
+            .small_button("Auto layout")
+            .on_hover_text("The fewest hoopings covering the design")
+            .clicked()
+        {
+            requests.push(CommandRequest::new("sections.autoLayout", json!({})));
+        }
+    });
+    if changed {
+        let v: Vec<_> = list
+            .iter()
+            .map(|h| json!({ "x": h.x, "y": h.y, "rotated": h.rotated }))
+            .collect();
+        requests.push(set(json!({ "hoopings": v })));
+    }
+    ui.horizontal(|ui| {
+        ui.label("Marks");
+        for m in [
+            sections::MarkStyle::BoxX,
+            sections::MarkStyle::Cross,
+            sections::MarkStyle::None,
+        ] {
+            let label = match m {
+                sections::MarkStyle::BoxX => "Boxed X",
+                sections::MarkStyle::Cross => "Cross",
+                sections::MarkStyle::None => "None",
+            };
+            if ui.selectable_label(f.marks == m, label).clicked() && f.marks != m {
+                requests.push(set(json!({ "marks": m.as_str() })));
+            }
+        }
+        let mut o = f.min_overlap;
+        let r = ui.add(
+            egui::DragValue::new(&mut o)
+                .range(0.0..=100.0)
+                .suffix(" mm overlap"),
+        );
+        if (r.drag_stopped() || r.lost_focus()) && o != f.min_overlap {
+            requests.push(set(json!({ "minOverlap": o })));
+        }
+    });
+    let mut stop = f.stop_after_marks;
+    if ui
+        .checkbox(&mut stop, "Stop after the marks to line the fabric up")
+        .changed()
+    {
+        requests.push(set(json!({ "stopAfterMarks": stop })));
     }
 }
 

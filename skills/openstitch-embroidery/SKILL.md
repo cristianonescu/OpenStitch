@@ -37,6 +37,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   `{hoop: "custom", width, height}` sets a custom page; `machine: "single" | "multi"`.
 - Keep the whole design inside the page: `design.export` reports `fitsPage` and the
   `smallestHoop`.
+- Larger than the hoop: on a custom page, `sections.set {hoop}` splits it (PE-DESIGN's grid);
+  `sections.autoLayout` switches to free hoopings, where each object stays whole in one hooping
+  with alignment marks and a stop between them. `sections.list` names objects that fit no
+  hooping; `sections.export {path}` writes "Name - hooping k of n" files.
 
 ## Build order
 

@@ -341,7 +341,8 @@ Behaviour follows the guide's pages
 | Select | Select All | `Ctrl+A` | `Action::SelectAll` | view/UI only | yes |
 | Hoop Settings | Move Sections |  | `Action::MoveSections` | `sections.set` (`splitsX` / `splitsY`) | yes |
 | Hoop Settings | Design Settings |  | `Action::DesignSettings` | `machine.set` | yes |
-| Hoop Settings | Export Sections |  | `Action::ExportSections` | `sections.export` | yes |
+| Hoop Settings | Export Sections (free hoopings: "Name - hooping k of n") |  | `Action::ExportSections` | `sections.export` | yes |
+| Design Settings | Split design ▸ Hoopings: Grid (PE-DESIGN) or Free (#515, beyond PE-DESIGN): hooping list (x, y, Turned 90°, Remove), Add left / right / up / down, Auto layout, Marks (Boxed X, Cross, None), overlap, Stop after the marks; objects that fit no hooping outlined red on the canvas |  | `Action::DesignSettings` | `sections.set` (`mode`, `hoopings`, `marks`, `minOverlap`, `stopAfterMarks`), `sections.autoLayout` | yes |
 
 ### How the drawing and editing commands work
 
