@@ -2309,3 +2309,28 @@ fn stitch_type_is_saved_only_when_it_is_type_2() {
     let back: RegionSewing = serde_json::from_str(&json).expect("parse");
     assert_eq!(back.stitch_type, FillStitchType::Two);
 }
+
+#[test]
+fn auto_satin_on_a_straight_bar_travels_along_its_outline() {
+    // PE-DESIGN 11.50's Auto Punch I of g08 (a 4.1 × 14.6 mm bar): from its start at the top it
+    // runs 0.5 mm inside the left edge to the far end and along that end to the first row, under
+    // the rows' ends. OpenStitch travelled the shortest way inside, diagonally through the
+    // column, and the travel showed between the rows (#450 follow-up).
+    let bar = Contour::new(
+        vec![v2(0.0, 0.0), v2(41.0, 0.0), v2(41.0, 146.0), v2(0.0, 146.0)],
+        true,
+    );
+    let mut r = region(RegionType::Satin);
+    r.auto_direction = true;
+    r.underlay = false;
+    let run = crate::region::layers(std::slice::from_ref(&bar), &r, &[])
+        .concat()
+        .concat();
+    assert!(run.len() > 60, "{}", run.len());
+    let from_edge = |p: Vec2| p.x.min(41.0 - p.x).min(p.y).min(146.0 - p.y);
+    let deepest = run.iter().map(|&p| from_edge(p)).fold(0.0, f64::max);
+    assert!(
+        deepest <= 8.0,
+        "a needle point {deepest} (0.1 mm) inside the bar"
+    );
+}
