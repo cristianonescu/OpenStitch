@@ -122,6 +122,20 @@ pub struct UiPrefs {
     pub ai: super::assistant_chat::AiPrefs,
     /// Editing aids beyond PE-DESIGN (#473, #474, #475); all off by default.
     pub editing: EditingPrefs,
+    /// View ▸ Show (#517, beyond PE-DESIGN); all off by default.
+    pub show: ShowPrefs,
+}
+
+/// View ▸ Show: view-only toggles (#517). The design and its export never change.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ShowPrefs {
+    pub needle_points: bool,
+    pub layers: openstitch_design::view::Layers,
+    pub trim_marks: bool,
+    pub hide_unselected: bool,
+    pub color_by: openstitch_design::view::ColorBy,
+    /// Fade every colour block but the current one (the simulator's, else the selection's).
+    pub solo: bool,
 }
 
 /// View ▸ Snap to Objects and Precision Bar, and the Options menu's nudge and click settings.
@@ -168,6 +182,7 @@ impl Default for UiPrefs {
             updates: UpdatePrefs::default(),
             ai: Default::default(),
             editing: EditingPrefs::default(),
+            show: ShowPrefs::default(),
         }
     }
 }
@@ -211,6 +226,14 @@ impl UiPrefs {
                 "clickInsideOutlines": self.editing.click_inside,
                 "nudgeMM": self.editing.nudge_mm,
                 "nudgeByGrid": self.editing.nudge_grid,
+            },
+            "show": {
+                "needlePoints": self.show.needle_points,
+                "layers": self.show.layers.as_str(),
+                "trimMarks": self.show.trim_marks,
+                "hideUnselected": self.show.hide_unselected,
+                "colorBy": self.show.color_by.as_str(),
+                "soloColor": self.show.solo,
             },
         })
     }
@@ -295,6 +318,25 @@ impl UiPrefs {
                             n.clamp(EditingPrefs::NUDGE_MIN, EditingPrefs::NUDGE_MAX)
                         }),
                     nudge_grid: b("nudgeByGrid", d.nudge_grid),
+                }
+            },
+            show: {
+                use openstitch_design::view::{ColorBy, Layers};
+                let e = &v["show"];
+                let b = |k: &str| e[k].as_bool().unwrap_or(false);
+                ShowPrefs {
+                    needle_points: b("needlePoints"),
+                    layers: e["layers"]
+                        .as_str()
+                        .and_then(Layers::parse)
+                        .unwrap_or_default(),
+                    trim_marks: b("trimMarks"),
+                    hide_unselected: b("hideUnselected"),
+                    color_by: e["colorBy"]
+                        .as_str()
+                        .and_then(ColorBy::parse)
+                        .unwrap_or_default(),
+                    solo: b("soloColor"),
                 }
             },
         }
@@ -385,6 +427,24 @@ mod tests {
         let wild = json!({ "realisticView": { "threadWidthMM": 50, "contrast": "x" }, "fontFilter": { "on": 1, "hidden": [3, "a"] } });
         let w = UiPrefs::from_json(&wild);
         assert_eq!(w.editing, EditingPrefs::default(), "off unless chosen");
+        assert_eq!(
+            w.show,
+            ShowPrefs::default(),
+            "view toggles off unless chosen"
+        );
+        let shown = ShowPrefs {
+            needle_points: true,
+            layers: openstitch_design::view::Layers::UnderlayOnly,
+            trim_marks: true,
+            hide_unselected: true,
+            color_by: openstitch_design::view::ColorBy::SewingOrder,
+            solo: true,
+        };
+        let q = UiPrefs {
+            show: shown,
+            ..UiPrefs::default()
+        };
+        assert_eq!(UiPrefs::from_json(&q.to_json()).show, shown);
         let e = UiPrefs::from_json(&json!({ "editing": { "nudgeMM": 900, "snapToObjects": "y" } }));
         assert_eq!((e.editing.nudge_mm, e.editing.snap_objects), (50.0, false));
         assert_eq!(w.realistic.thread_width_mm, 1.0);

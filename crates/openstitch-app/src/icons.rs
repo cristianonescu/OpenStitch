@@ -383,6 +383,8 @@ fn glyph(a: Action) -> Glyph {
         StitchView => G::Own("view_stitch"),
         RealisticView => G::Own("view_realistic"),
         RealisticSettings => G::Eye,
+        // #517: no new graphic; the view's eye.
+        ViewShow => G::Eye,
         ViewThreadTrimming => G::Own("thread_trim"),
         PaneSewingOrder => G::Own("pane_order"),
         PaneSimulator => G::Own("pane_simulator"),

@@ -61,6 +61,8 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
     if !app.ui.pan && !crate::view_ui::guide_pointer(app, ui, &response, rect, &vp) {
         pointer(app, ui, &response, vp);
     }
+    let page_colour = crate::theme::canvas(ui.ctx()).page;
+    app.page_rgb = [page_colour.r(), page_colour.g(), page_colour.b()];
     app.ensure_render_model();
 
     app.workspace.canvas = Some(rect);
@@ -86,6 +88,7 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
     } else {
         draw_stitches(app, &painter, &vp);
     }
+    crate::view_ui::draw_show(app, &painter, &vp);
     draw_unsewn_outlines(app, &painter, &vp);
     crate::quality_ui::draw(app, &painter, &vp);
     draw_selection(app, &painter, &vp);

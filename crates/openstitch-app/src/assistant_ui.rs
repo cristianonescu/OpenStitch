@@ -397,6 +397,12 @@ impl EditorApp {
                 "paneAttributes" => json!(prefs.panes.attributes.visible),
                 "fontFilter" => json!(prefs.font_filter.on),
                 "fontFilterHidden" => json!(prefs.font_filter.hidden),
+                "needlePoints" => json!(prefs.show.needle_points),
+                "showLayers" => json!(prefs.show.layers.as_str()),
+                "trimMarks" => json!(prefs.show.trim_marks),
+                "hideUnselected" => json!(prefs.show.hide_unselected),
+                "colorBy" => json!(prefs.show.color_by.as_str()),
+                "soloColor" => json!(prefs.show.solo),
                 "simulatorSpeed" => json!(self.play_speed),
                 other => unreachable!("setting {other} has no value"),
             };
@@ -502,6 +508,22 @@ impl EditorApp {
                 self.ui.prefs.font_filter.hidden = serde_json::from_value(v.clone())
                     .map_err(|_| "fontFilterHidden takes a list of font ids".to_string())?
             }
+            "needlePoints" => self.ui.prefs.show.needle_points = bool_value(name, v)?,
+            "showLayers" => {
+                self.ui.prefs.show.layers = v
+                    .as_str()
+                    .and_then(openstitch_design::view::Layers::parse)
+                    .ok_or("showLayers takes both, underlay or top")?;
+            }
+            "trimMarks" => self.ui.prefs.show.trim_marks = bool_value(name, v)?,
+            "hideUnselected" => self.ui.prefs.show.hide_unselected = bool_value(name, v)?,
+            "colorBy" => {
+                self.ui.prefs.show.color_by = v
+                    .as_str()
+                    .and_then(openstitch_design::view::ColorBy::parse)
+                    .ok_or("colorBy takes thread, order or mono")?;
+            }
+            "soloColor" => self.ui.prefs.show.solo = bool_value(name, v)?,
             "simulatorSpeed" => {
                 (self.play_speed, save) = (number_value(name, v, 1.0, 5000.0)?, false)
             }
@@ -683,6 +705,23 @@ mod tests {
         )
         .expect("view");
         assert!(app.workspace.realistic);
+        // #517: "show me only the underlay".
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "showLayers", "value": "underlay" })),
+        )
+        .expect("layers");
+        assert_eq!(
+            app.ui.prefs.show.layers,
+            openstitch_design::view::Layers::UnderlayOnly
+        );
+        assert!(
+            app.ui_command(
+                "ui.set",
+                Some(&json!({ "name": "colorBy", "value": "plaid" }))
+            )
+            .is_err()
+        );
         assert!(
             app.ui_command(
                 "ui.set",

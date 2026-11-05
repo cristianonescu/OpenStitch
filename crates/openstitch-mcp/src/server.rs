@@ -489,9 +489,39 @@ impl Server {
                     .into(),
             );
         }
+        // View filters (#517): the same as the editor's View ▸ Show.
+        use openstitch_design::view::{self, ColorBy, Layers, ViewFilter};
+        let err = |e: openstitch_engine::CommandError| e.to_string();
+        let layers = Layers::parse(&p.string("layers", Some("both")).map_err(err)?)
+            .ok_or("layers takes both, underlay or top")?;
+        let color_by = ColorBy::parse(&p.string("colorBy", Some("thread")).map_err(err)?)
+            .ok_or("colorBy takes thread, order or mono")?;
+        let only = match arguments.get("only") {
+            None => None,
+            Some(v) => Some(
+                serde_json::from_value::<Vec<u64>>(v.clone())
+                    .map_err(|_| "only takes a list of object ids")?,
+            ),
+        };
+        let solo = match arguments.get("solo") {
+            None => None,
+            Some(_) => Some(p.int("solo", None, 0, 10_000).map_err(err)? as usize),
+        };
+        let filter = ViewFilter {
+            layers,
+            only,
+            color_by,
+            solo,
+        };
         let design = self.session.design();
-        let pattern = Compiler::for_design(design).compile(design);
-        let png = preview::png(design, &pattern, size as u32, show_travel)?;
+        let (pattern, spans) = Compiler::for_design(design).compile_traced(design);
+        let flags = if layers == Layers::Both {
+            Vec::new()
+        } else {
+            view::underlay_flags(design, &pattern, &spans)
+        };
+        let shown = view::apply(&pattern, &filter, &flags, &spans, [255, 255, 255]);
+        let png = preview::png(design, &shown, size as u32, show_travel)?;
         let stats = self
             .session
             .execute("design.generate", None)

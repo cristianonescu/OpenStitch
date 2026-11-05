@@ -288,6 +288,16 @@ pub const SETTINGS: &[Setting] = &[
     s("paneAttributes", "Attributes Setting", "bool"),
     s("fontFilter", "Font Filter", "bool"),
     s("fontFilterHidden", "Font Filter Settings", "[string]"),
+    s("needlePoints", "View ▸ Show ▸ Needle Points", "bool"),
+    s(
+        "showLayers",
+        "View ▸ Show ▸ Underlay (both, underlay only, top only)",
+        "both|underlay|top",
+    ),
+    s("trimMarks", "View ▸ Show ▸ Trim Marks", "bool"),
+    s("hideUnselected", "View ▸ Show ▸ Hide Unselected", "bool"),
+    s("colorBy", "View ▸ Show ▸ Colour by", "thread|order|mono"),
+    s("soloColor", "View ▸ Show ▸ Solo Colour", "bool"),
     s(
         "simulatorSpeed",
         "Stitch Simulator: speed",

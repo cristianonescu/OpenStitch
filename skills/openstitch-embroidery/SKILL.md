@@ -110,6 +110,9 @@ Do not undo the user's own earlier work; to retry, undo or delete your own objec
 
 - Prefer `run_batch`; a malformed batch changes nothing, and it stops at the first failure.
 - After building or changing anything visible, call `view_render` and look before you answer.
+- To check one aspect: `preview {layers: "underlay" | "top", colorBy: "order" | "mono", only: [ids],
+  solo: block}` (MCP), or in the editor `ui.set` `showLayers`, `colorBy`, `trimMarks`,
+  `needlePoints`, `hideUnselected`, `soloColor`. They change only the view, never the design.
 - Never claim a result you did not check. Report sizes and stitch counts from `design.info`.
 - "PE-DESIGN-compatible mode" is the default behaviour of the wizards; "OpenStitch mode"
   (`compatMode: "openStitch"`) is the optional alternative.
