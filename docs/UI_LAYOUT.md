@@ -155,7 +155,7 @@ Behaviour follows the guide's pages
 | Tools | Shapes |  | `Action::ShapesTools` | `shape.preset` | yes |
 | Tools | Zoom In | `Ctrl+=` | `Action::ZoomIn` | view/UI only | yes |
 | Tools | Zoom Out | `Ctrl+-` | `Action::ZoomOut` | view/UI only | yes |
-| Tools | Zoom | `Ctrl+0` | `Action::OtherZoom` | view/UI only | yes |
+| Tools | Zoom (Fit Design Page, Zoom to Selection, Zoom Box (Z, beyond PE-DESIGN, #518), 50–400 %, Calibrate Real Size… (#518)) | `Ctrl+0` | `Action::OtherZoom` | view/UI only | yes |
 | Tools | Pan | `H` | `Action::Pan` | view/UI only | yes |
 | Tools | Measure | `M` | `Action::Measure` | `design.measure` | yes |
 | Import | Import Patterns | `Ctrl+Shift+I` | `Action::ImportPatterns` | `stitches.import` | yes |

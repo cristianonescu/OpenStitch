@@ -600,7 +600,8 @@ pub fn status_bar(app: &mut EditorApp, ui: &mut egui::Ui) {
 
 fn zoom_controls(app: &mut EditorApp, ui: &mut egui::Ui) {
     let Some(vp) = app.viewport else { return };
-    let now = vp.zoom_percent(96.0 / 25.4);
+    let ppm = app.points_per_mm();
+    let now = vp.zoom_percent(ppm);
     // Slider on a log scale, 10 %–2000 %.
     let mut log = now.clamp(10.0, 2000.0).log10();
     ui.spacing_mut().slider_width = 110.0;

@@ -1081,6 +1081,7 @@ mod tests {
             opacity: 1.0,
             visible: true,
             adjust: Default::default(),
+            layer: Default::default(),
         });
         let img = Image {
             width: 2,

@@ -82,7 +82,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     },
     UiCommand {
         id: "ui.zoom",
-        summary: "Zoom the view: a percentage, or fit the Design Page or the selection",
+        summary: "Zoom the view: a percentage (100 % = real size, calibrated per monitor), fit the Design Page or the selection, or zoom to a rectangle",
         effect: Effect::Read,
         params: &[
             p("percent", "percent", false, "Zoom, 5-3200 %"),
@@ -91,6 +91,12 @@ pub const UI_COMMANDS: &[UiCommand] = &[
                 "page|selection",
                 false,
                 "Fit the Design Page or the selection",
+            ),
+            p(
+                "rect",
+                "[x, y, width, height] mm",
+                false,
+                "Zoom Box: this rectangle fills the view",
             ),
         ],
     },

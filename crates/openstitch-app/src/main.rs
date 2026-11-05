@@ -73,6 +73,7 @@ mod update_ui;
 mod view_ui;
 mod wizard_ui;
 mod workspace_ui;
+mod zoom_ui;
 
 use app::{EditorApp, Launch};
 use eframe::egui;

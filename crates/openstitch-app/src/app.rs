@@ -144,6 +144,17 @@ pub struct EditorApp {
     pub playing: bool,
     pub play_speed: f64,
     play_accumulator: f64,
+    /// View ▸ Zoom ▸ Zoom Box (#518).
+    pub zoom_box: crate::zoom_ui::ZoomBox,
+    /// Options ▸ Calibrate Real Size (#518).
+    pub calibration: crate::zoom_ui::Calibration,
+    /// A background-image handle drag in progress (#518).
+    pub image_drag: Option<crate::zoom_ui::ImageDrag>,
+    /// The monitor the window is on (real-size calibrations are kept per monitor).
+    pub monitor: Option<String>,
+    /// The design drawn in two halves around a background image above an object (#518):
+    /// (revision, simulator limit, split stitch) and the halves.
+    pub background_split: Option<((u64, usize, usize), RenderModel, RenderModel)>,
     pub show_travel: bool,
     pub path: Option<PathBuf>,
     pub status: String,
@@ -268,6 +279,11 @@ impl EditorApp {
             simulate: None,
             playing: false,
             play_speed: 400.0,
+            zoom_box: Default::default(),
+            calibration: Default::default(),
+            image_drag: None,
+            monitor: None,
+            background_split: None,
             play_accumulator: 0.0,
             show_travel: true,
             path: None,
@@ -1292,7 +1308,9 @@ impl EditorApp {
             }
         }
         if take(KeyboardShortcut::new(Modifiers::NONE, Key::Escape)) {
-            if self.edit.cancel() {
+            if self.zoom_box.active {
+                self.zoom_box = Default::default();
+            } else if self.edit.cancel() {
                 self.tools.cancel();
                 self.status = "Cancelled".into();
             } else if self.workspace.measure.active {
@@ -1341,7 +1359,11 @@ impl EditorApp {
         if !ctx.input(|i| i.modifiers.command) {
             for c in typed {
                 // Point tool: C curves, S straightens the segment under the pointer.
-                if c.eq_ignore_ascii_case(&'m') {
+                if c.eq_ignore_ascii_case(&'z') {
+                    // Zoom Box (#518).
+                    self.ui.pan = false;
+                    self.zoom_box.toggle();
+                } else if c.eq_ignore_ascii_case(&'m') {
                     self.ui.pan = false;
                     self.toggle_measure();
                 } else if c.eq_ignore_ascii_case(&'h') {
@@ -1539,6 +1561,8 @@ impl eframe::App for EditorApp {
         crate::lettering_ui::windows(self, &ctx);
         crate::pattern_wizard_ui::windows(self, &ctx);
         crate::view_ui::windows(self, &ctx);
+        crate::zoom_ui::calibration_window(self, &ctx);
+        self.monitor = crate::zoom_ui::monitor(&ctx);
         crate::quality_ui::window(self, &ctx);
         let canvas = self.workspace.canvas;
         crate::workspace_ui::reference_window(self, &ctx, canvas);

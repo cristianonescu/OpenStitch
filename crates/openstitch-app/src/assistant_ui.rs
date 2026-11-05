@@ -198,11 +198,35 @@ impl EditorApp {
                 ) {
                     (Some("page"), None) => self.fit_requested = true,
                     (Some("selection"), None) => crate::ribbon::zoom_to_selection(self),
+                    (None, None) if params.and_then(|v| v.get("rect")).is_some() => {
+                        // Zoom Box (#518): [x, y, width, height] in mm fills the view.
+                        let r: Vec<f64> = params
+                            .and_then(|v| v.get("rect"))
+                            .and_then(|v| serde_json::from_value(v.clone()).ok())
+                            .filter(|r: &Vec<f64>| r.len() == 4 && r.iter().all(|v| v.is_finite()))
+                            .ok_or("rect takes [x, y, width, height] in mm")?;
+                        let rect = openstitch_design::Rect {
+                            min_x: r[0] * 10.0,
+                            min_y: r[1] * 10.0,
+                            max_x: (r[0] + r[2]) * 10.0,
+                            max_y: (r[1] + r[3]) * 10.0,
+                        };
+                        let canvas = self.workspace.canvas.ok_or("the canvas is not shown yet")?;
+                        self.viewport = Some(
+                            openstitch_app::editor::Viewport::zoom_box(
+                                rect,
+                                crate::workspace_ui::screen_rect(canvas),
+                            )
+                            .ok_or("rect needs a positive width and height")?,
+                        );
+                    }
                     (None, Some(v)) => {
                         let percent = number_value("percent", v, 5.0, 3200.0)?;
                         crate::ribbon::zoom_to_percent(self, percent);
                     }
-                    _ => return Err("give either percent or fit (page or selection)".into()),
+                    _ => {
+                        return Err("give one of percent, fit (page or selection) or rect".into());
+                    }
                 }
                 Ok(json!({ "zoomPercent": self.zoom_percent() }))
             }
@@ -320,7 +344,8 @@ impl EditorApp {
     }
 
     fn zoom_percent(&self) -> Option<f64> {
-        self.viewport.map(|vp| vp.zoom_percent(96.0 / 25.4))
+        let ppm = self.points_per_mm();
+        self.viewport.map(|vp| vp.zoom_percent(ppm))
     }
 
     fn stats_json(&self) -> Value {
