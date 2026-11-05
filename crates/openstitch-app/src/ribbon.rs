@@ -479,6 +479,7 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
         }
         ImportPatterns => app.import_dialog(),
         ImportSvg => app.import_svg_dialog(),
+        ImportPesObjects => app.import_pes_objects_dialog(),
         Group => edit_ui::group(app),
         Ungroup => edit_ui::ungroup(app),
         BackgroundFill => app.pattern_wizards.open = Some(WizardKind::Background),
@@ -1694,6 +1695,7 @@ mod tests {
                 | Exit
                 | ImportPatterns
                 | ImportSvg
+                | ImportPesObjects
                 | OpenImage
                 | PasteImage
                 | TrueTypeAttributes

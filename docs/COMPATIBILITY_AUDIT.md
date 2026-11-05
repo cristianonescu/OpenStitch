@@ -667,7 +667,7 @@ Line references are relative to `crates/`.
 
 ## 9. PE-DESIGN-made PES files lose objects, properties and colours on re-save
 
-- **Status (2026-11-04, #375): partly fixed, internal regression over PE-DESIGN's own files.**
+- **Status (2026-11-05, #375, #397, #398, #120): mostly fixed, internal regression over PE-DESIGN's own files.**
   - **Reproduced** on every `#PES0110` file of PE-DESIGN's in compat/reference and the pe11
     fixtures (529 files): File ▸ Open (`stitches.import`) then File ▸ Export ▸ PES, version 6
     or 11, and `import.pes` then version 11. Losses before the fix:
@@ -707,11 +707,30 @@ Line references are relative to `crates/`.
       settings at OpenStitch's defaults, as the writer writes them at PE-DESIGN's) and adopts
       the Design Property into a design that has none
       (`import_pes_reads_the_other_region_types_and_the_design_property`).
-  - **Still lost when a PE-DESIGN file is edited** (documented difference): texts and stitch
-    groups are not imported as objects (#397), the other region types' own settings,
-    programmable fill / motif / decorative patterns on import, hole pairs on import, the hoop
-    (Design Settings) from the file (item 10, PR #363 writes it), and header fields the reader
-    keeps only verbatim.
+  - **Fixed (2026-11-05, `batch:pe-formats`):**
+    - #398: the tatami-40 `CEmbLine` "variant" is a moved or resized shape. PE-DESIGN keeps its
+      vertices where they were drawn and stores the move as a transform at body +16. The reader
+      places the vertices with it before its bounds check, keeps it and writes it back, and
+      `import.pes` imports the shape where PE-DESIGN shows it. All 23 tatami-40 files read
+      whole, and every `#PES0110` file of PE-DESIGN's now reads with nothing unparsed
+      (`moved_and_resized_shapes_keep_their_transform`,
+      `moved_and_resized_shapes_import_where_pe_design_shows_them`).
+    - #397: `import.pes` imports texts (Lato Bold; Text Transform preset and level, fit to an
+      outline, alignment, spacing, line breaks, click point), stitch groups (at their place,
+      one thread per colour block), the hole sewing pair, and the programmable, decorative and
+      motif patterns (owner patterns only; PE-DESIGN's built-in motif is replaced by
+      OpenStitch's default, noted). It no longer refuses files without shapes. All 547
+      PE-DESIGN `#PES0110` files import with nothing skipped
+      (`import_pes_takes_the_objects_of_every_pe_design_file`). In the editor this is Home ▸
+      Import ▸ Import PE-DESIGN Objects.
+    - #120: an edited design opened from a `#PES0110` file is exported as `#PES0110` by
+      default, not as version 6. Only when version 11 cannot hold an object yet is it written
+      as 6, with a warning that names the object (`a_changed_design_is_written_from_the_design_with_a_warning`).
+  - **Still lost when a PE-DESIGN file is edited** (documented difference): the other region
+    types' own settings, motif size and spacing, per-letter colours and sew types (the first
+    letter's are used, noted), the hoop (Design Settings) from the file (item 10), and header
+    fields the reader keeps only verbatim. Object kinds the version 11 export still refuses:
+    #608.
 
 - **Impact:** severity 4. Opening a user's own PE-DESIGN file and saving it again, even with
   no change, removes:

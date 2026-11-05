@@ -151,7 +151,7 @@ the owner's machine (docs/COMPATIBILITY_AUDIT.md item 2).
 | `1` | ✅ | ❌ | ❌ | ✅ (colours as PEC indexes) | ❌ |
 | `6t` | ✅ | ✅ | ✅ | ❌ | ❌ |
 | `6` (default) | ✅ | ✅ | ✅ | ✅ | ❌ |
-| `11` (PE-DESIGN 11, `#PES0110`) | ✅ | ✅ (thread table in sewing order; each thread named with its PEC chart index, as PE-DESIGN names its own colours) | ✅ | ✅ (a stitch pattern is a `CEmbOne`) | ✅ shapes: fill and satin regions; running, zigzag, triple, E and V lines; groups; Lato Bold text, with a Text Transform or fitted to an outline. ❌ the other region and line types, other fonts: the export fails and names the object. PE-DESIGN 11.50 opens shapes and text editable (specs `pes-0110-editable-shapes`, `-text`, `-text-transform`); stitch patterns: spec `pes-0110-stitches`, reference pending |
+| `11` (PE-DESIGN 11, `#PES0110`) | ✅ | ✅ (thread table in sewing order; each thread named with its PEC chart index, as PE-DESIGN names its own colours) | ✅ | ✅ (a stitch pattern is a `CEmbOne`) | ✅ shapes: fill, satin, programmable and decorative fill and the region types Cross Stitch to Flexible Spiral at PE-DESIGN's defaults; running, zigzag, triple, E, V, stem, candlewick, chain and cutting lines; one group; one hole sewing pair; Lato Bold text, with a Text Transform or fitted to an outline; stitch patterns. A design opened from a `#PES0110` file is exported as one by default (#120). ❌ refused with the object named: motif fill and line, contour fill; fonts other than Lato Bold, text not sewn as a region, right-aligned or vertical text, per-character edits; several groups, two hole pairs, a hole pair with groups, a second programmable fill pattern; non-square pattern tiles; shapes with more than one outline (follow-up #608). PE-DESIGN 11.50 opens shapes and text editable (specs `pes-0110-editable-shapes`, `-text`, `-text-transform`, `-text-fit`); stitch patterns: spec `pes-0110-stitches` |
 | 4, 5 (5.5, 5.6), 7–10 | **Blocked** (read, not written) | | | | |
 
 Editor: File ▸ Export ▸ PES offers the five. Engine: `design.export` `pesVersion`.
@@ -314,7 +314,7 @@ below is pinned by a test in `tests/pes11.rs`.
 |---|---|---|
 | 0 | bounds `x0 y0 x1 y1` (i16) | r02 width, r03 position |
 | 8 | sewn extent `x0 y0 x1 y1` (i16): the bounds plus half the line width | r07 (equals the bounds when the line is not sewn) |
-| 16 | transform, 6 × f32 (identity so far) | all |
+| 16 | transform, 6 × f32 `a b c d tx ty` placing the vertices on the page (x' = a x + c y + tx, y' = b x + d y + ty): the identity on every shape as drawn; a shape moved or resized afterwards keeps its vertices and gets the move here, and the bounds (+0) are the placed outline's. The 23 `tatami-40-*` references all have one (the 40 mm square stored with a 1.013 x scale and tx −10.152; moved to the corner tx −112.152, ty −100; resized to 40 × 20 mm d 0.5, ty 300). Read, written back and applied on import since #398 (2026-11-05); OpenStitch's own exports write the identity | r01, the 23 tatami-40-* references |
 | 40 | 0 closed, 1 open | r11 line |
 | 42 | line sewn 1, not sewn 0 | r07 |
 | 44 | line sew type: 0 Zigzag, 1 Running, 2 Motif, 3 E or V stitch, 4 Triple, 5 Stem, 6 Candlewick, 7 Cutting (the Applique Wizard's cutting line), 8 Chain, 9 while not sewn | r07, r19, the 22 `line-*` references (compat/reference/stitches), a02-applique-cutting |
@@ -398,16 +398,32 @@ Convert to Blocks writes one group of blocks with running pieces between them (o
 line Running, region Not Sewn) whose two position lists are empty (stroke-blocks-H, -A); their
 marks follow the open-line placement the writer doesn't reproduce.
 
-**Import** (`import.pes`, `openstitch_engine::pes11_import`, 2026-10-31): each `CEmbLine` becomes a
-shape at its file position less `PAGE_ORIGIN` (500), its vertices a contour whose segment i is a
+**Import** (`import.pes`, `openstitch_engine::pes11_import`, 2026-10-31; texts, stitch groups,
+holes and patterns since #397, 2026-11-05): each `CEmbLine` becomes a
+shape at its file position less `PAGE_ORIGIN` (500), its vertices placed by the body's transform
+(+16), a contour whose segment i is a
 Bézier curve when vertex i has `KIND_CURVE_AFTER` (vertex i's leaving handle, vertex i + 1's
 arriving one); Fill and Satin regions with density, direction, under sewing, Frequency and
-Running Stitch Path, Not Sewn as no region; running, zigzag, triple, E or V (read as E) and
-cutting lines with their width, density, pitch and under sewing; colours from the thread table.
-A block's `punch` pairs become its direction lines (vertex a to vertex b), curved when any
-vertex has a curve kind. The groups are kept. Texts and stitch groups are counted and not
-imported yet; region types other than Fill and Satin, and unmapped line codes, skip the shape
-with the reason. The under sewing type (+182) and +178 are not carried.
+Running Stitch Path, Not Sewn as no region; running, zigzag, triple, E and V (+86), stem,
+candlewick, chain and cutting lines with their width, density, pitch and under sewing; colours
+from the thread table. A block's `punch` pairs become its direction lines (vertex a to vertex b),
+curved when any vertex has a curve kind. The groups are kept. The region types Cross Stitch to
+Flexible Spiral come in at OpenStitch's defaults (their own fields are not mapped); a
+programmable fill takes the header's one fill pattern and a decorative fill its object's pattern
+block, each as a design pattern (`pes-fill-N`, `pes-decorative-N`) at the stored tile size; a hole
+sewing pair becomes the outer shape's hole around the inner object. Each `CEmbNText` becomes a
+Lato Bold text (any Lato weight: +144 is 700 or 900 on the same font) with the first letter's
+size, region, density and line, letters of another size as character edits, the line breaks,
+character spacing, line spacing, alignment, vertical direction and its click point moved by its
+own transform (+16: a 0.3 mm / −0.1 mm move on the agjy Text Transform files); a `CEmbDText`
+gets its preset from the code and its level when it isn't the preset's default; a `CEmbAText`
+is fitted to its outline again (alignment, even spread, vertical side, upright, other side). A
+`CEmbOne` becomes a stitch pattern: each run's points through the group's transform, a jump run
+as a jump to its end, a new thread at each colour change. Every `#PES0110` file of PE-DESIGN's in
+compat/reference and the pe11 fixtures imports with nothing skipped
+(`import_pes_takes_the_objects_of_every_pe_design_file`). Unmapped region and line codes skip the
+object with the reason; per-letter colours or sew types other than the first letter's are
+listed as notes. The under sewing type (+182) and +178 are not carried.
 
 PE-DESIGN numbers the lines across the whole object: one object for the eight clicks of m03.
 Manual Punch > Running is an open line with one entry per list, an ordinary shape

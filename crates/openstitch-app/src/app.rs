@@ -872,6 +872,38 @@ impl EditorApp {
         }
     }
 
+    /// Home ▸ Import ▸ Import PE-DESIGN Objects: a PE-DESIGN 11 (`#PES0110`) file's shapes,
+    /// texts and stitch groups as editable objects at their places, its groups kept (#397).
+    pub fn import_pes_objects_dialog(&mut self) {
+        let Some(p) = rfd::FileDialog::new()
+            .add_filter("PE-DESIGN 11 file", &["pes"])
+            .pick_file()
+        else {
+            return;
+        };
+        self.import_pes_objects(&p);
+    }
+
+    /// Imports `p`'s PE-DESIGN objects in one undo step; the status says what was skipped.
+    pub fn import_pes_objects(&mut self, p: &Path) -> bool {
+        let request = CommandRequest::new("import.pes", json!({ "path": p.display().to_string() }));
+        let Some(r) = self.grouped(|app| app.execute(&request)) else {
+            return false;
+        };
+        let n = r["ids"].as_array().map_or(0, Vec::len);
+        let skipped = r["skipped"].as_array().cloned().unwrap_or_default();
+        self.status = match skipped.first() {
+            None => format!("Imported {n} objects from {}", p.display()),
+            Some(first) => format!(
+                "Imported {n} objects from {}; {} not imported (first: {})",
+                p.display(),
+                skipped.len(),
+                first["reason"].as_str().unwrap_or("not mapped")
+            ),
+        };
+        true
+    }
+
     /// File ▸ Import SVG: the artwork's paths (or a WMF/EMF drawing's shapes) become a group of
     /// editable shapes, centred.
     pub fn import_svg_dialog(&mut self) {
@@ -1004,7 +1036,7 @@ impl EditorApp {
         ("6", "Version 6 — RGB colours, names, stitch group"),
         (
             "11",
-            "PE-DESIGN 11 (#PES0110) — editable shapes (experimental)",
+            "PE-DESIGN 11 (#PES0110) — editable shapes, texts and stitch groups",
         ),
         ("6t", "Version 6, stitches only"),
         ("1", "Version 1 — stitch group, chart colours"),
@@ -1735,6 +1767,34 @@ mod tests {
         let source = d.source.as_ref().expect("the file is kept");
         assert!(source.unchanged(d));
         assert_eq!(source.version.as_deref(), Some("0110"));
+    }
+
+    #[test]
+    fn importing_pe_design_objects_adds_texts_and_shapes_in_one_undo_step() {
+        // #397: Home ▸ Import ▸ Import PE-DESIGN Objects: a fitted text and its circle
+        // (text-fit-default) become a text object and a shape; one undo removes both.
+        let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../compat/reference/text/text-fit-default.pes");
+        let mut app = EditorApp::new(Launch::default());
+        let before = app.session.design().objects.len();
+        assert!(app.import_pes_objects(&fixture), "{}", app.status);
+        let d = app.session.design();
+        let kinds: Vec<_> = d.objects[before..].iter().map(|o| o.kind).collect();
+        assert!(
+            kinds.contains(&openstitch_design::ObjectKind::Text),
+            "{kinds:?}"
+        );
+        assert!(
+            kinds.contains(&openstitch_design::ObjectKind::Shape),
+            "{kinds:?}"
+        );
+        assert!(
+            app.status.starts_with("Imported 2 objects"),
+            "{}",
+            app.status
+        );
+        app.undo();
+        assert_eq!(app.session.design().objects.len(), before);
     }
 
     #[test]

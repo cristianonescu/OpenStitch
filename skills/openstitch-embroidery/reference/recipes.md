@@ -165,5 +165,7 @@ the imported shapes sew types with `object.setRegion` / `object.setLine` as for 
 ```
 
 The extension picks the format (pes, pec, dst, exp, jef, pcs, sew, xxx, hus, vip). PES is
-version 6 by default (`pesVersion`: `1`, `1t`, `6`, `6t`, `11`). The result reports
+version 6 by default (`pesVersion`: `1`, `1t`, `6`, `6t`, `11`), except for a design opened from a
+PE-DESIGN 11 (`#PES0110`) file, which is written back as `11` unless another version is asked
+for (what version 11 cannot hold yet is then written as 6, with a warning). The result reports
 `fitsPage` and the `smallestHoop`. `.osd` keeps everything editable in OpenStitch.

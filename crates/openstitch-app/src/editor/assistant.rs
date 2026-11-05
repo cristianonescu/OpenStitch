@@ -352,6 +352,7 @@ pub const FILE_ACTIONS: &[Action] = &[
     Action::SaveAs,
     Action::ImportPatterns,
     Action::ImportSvg,
+    Action::ImportPesObjects,
     Action::OpenImage,
     Action::PasteImage,
     Action::TrueTypeAttributes,

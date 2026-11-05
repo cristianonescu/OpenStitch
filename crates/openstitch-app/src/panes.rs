@@ -220,6 +220,7 @@ fn import_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
     ui.vertical(|ui| {
         pane_command(app, ui, Action::ImportPatterns);
         pane_command(app, ui, Action::ImportSvg);
+        pane_command(app, ui, Action::ImportPesObjects);
         pane_command(app, ui, Action::OpenImage);
         pane_command(app, ui, Action::DesignDatabase);
         if ui.button("Template Wizard").clicked() {

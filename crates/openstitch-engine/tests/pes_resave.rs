@@ -144,6 +144,23 @@ fn a_changed_design_is_written_from_the_design_with_a_warning() {
         std::fs::read(dir.join("a.pes")).expect("a"),
         std::fs::read(&file).expect("pe")
     );
+    // Written in the opened file's own version, not downgraded to version 6 (#120), unless
+    // another version is asked for.
+    assert!(
+        std::fs::read(dir.join("a.pes"))
+            .expect("a")
+            .starts_with(b"#PES0110")
+    );
+    run(
+        &mut s,
+        "design.export",
+        json!({"path": "v6.pes", "pesVersion": "6"}),
+    );
+    assert!(
+        std::fs::read(dir.join("v6.pes"))
+            .expect("v6")
+            .starts_with(b"#PES0060")
+    );
     // Undo brings the design back to what was opened: the file again.
     run(&mut s, "history.undo", json!({}));
     let r = run(&mut s, "design.export", json!({"path": "b.pes"}));
@@ -212,4 +229,36 @@ fn import_pes_reads_the_other_region_types_and_the_design_property() {
     let r = run(&mut s, "import.pes", json!({"path": "in.pes"}));
     assert_eq!(r["propertiesAdopted"], true);
     assert!(!s.design().properties.is_empty());
+}
+
+#[test]
+fn import_pes_takes_the_objects_of_every_pe_design_file() {
+    // #397: every PE-DESIGN `#PES0110` file imports as editable objects: shapes, texts and
+    // stitch groups (315 of them were refused for having no shapes). What is still skipped is
+    // listed with its reason.
+    let dir = TempDir::canonical("import-all");
+    let mut skipped = std::collections::BTreeMap::<String, usize>::new();
+    let mut files = 0;
+    for file in pe_design_files() {
+        std::fs::copy(&file, dir.join("in.pes")).expect("copy");
+        let mut s = Session::new(dir.path());
+        run(
+            &mut s,
+            "design.new",
+            json!({"name": "t", "width": 100, "height": 100}),
+        );
+        let r = s
+            .execute("import.pes", Some(&json!({"path": "in.pes"})))
+            .unwrap_or_else(|e| panic!("{}: {e}", file.display()));
+        files += 1;
+        assert_eq!(r["unparsed"], Value::Null, "{}", file.display());
+        for k in r["skipped"].as_array().expect("skipped") {
+            let why = k["reason"].as_str().unwrap_or_default().to_string();
+            println!("{}: {why}", file.display());
+            *skipped.entry(why).or_default() += 1;
+        }
+    }
+    println!("{files} files, skipped {skipped:?}");
+    assert!(files > 400, "{files}");
+    assert_eq!(skipped, std::collections::BTreeMap::new());
 }
