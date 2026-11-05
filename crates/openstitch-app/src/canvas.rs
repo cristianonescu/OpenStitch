@@ -71,6 +71,7 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
     if app.workspace.realistic {
         draw_fabric(ui.ctx(), &painter, &vp, &page_rect, colors.page);
     }
+    draw_hoop_field(app, &painter, &vp, &page_rect);
     draw_background(app, ui.ctx(), &painter, &vp);
     crate::quality_ui::draw_background(app, &painter, &vp, &page_rect);
     crate::workspace_ui::draw_grid(&painter, &vp, &page_rect, &app.workspace.grid);
@@ -271,6 +272,24 @@ fn draw_page(painter: &egui::Painter, vp: &Viewport, page: &Rect, fill: Color32)
         Stroke::new(1.0, Color32::from_gray(150)),
         StrokeKind::Outside,
     );
+}
+
+/// An oval or round hoop (#514): its sewing field inside the Design Page, the shape the hoop-fit
+/// check uses.
+fn draw_hoop_field(app: &EditorApp, painter: &egui::Painter, vp: &Viewport, page: &Rect) {
+    let shape = app.session.design().machine.hoop_shape();
+    if shape == openstitch_design::HoopShape::Rectangle {
+        return;
+    }
+    let pts: Vec<Pos2> = shape
+        .outline(page.width(), page.height(), 96)
+        .into_iter()
+        .map(|(x, y)| pos(vp.to_screen(v2(x, y))))
+        .collect();
+    painter.add(Shape::closed_line(
+        pts,
+        Stroke::new(1.5, Color32::from_rgb(0x43, 0x8a, 0x5e)),
+    ));
 }
 
 /// The background reference image, decoded once per path (size limits as for the wizard).

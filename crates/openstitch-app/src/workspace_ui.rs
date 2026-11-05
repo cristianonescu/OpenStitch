@@ -6,7 +6,7 @@ use crate::app::EditorApp;
 use eframe::egui::{self, Color32, Pos2, Sense, Shape, Stroke};
 use openstitch_app::editor::workspace::{GridSettings, MeasureTool, ReferenceMap, ruler_ticks};
 use openstitch_app::editor::{CommandRequest, ScreenRect, Viewport};
-use openstitch_design::{BROTHER_HOOPS, Estimate, MachineType, Rect, SewingArea, Vec2, v2};
+use openstitch_design::{BRANDS, Estimate, MachineType, Rect, SewingArea, Vec2, v2};
 use serde_json::json;
 
 pub const RULER: f32 = 20.0;
@@ -322,10 +322,11 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
 
                 ui.label("Hoop");
                 let current = m.hoop.clone().unwrap_or_else(|| "custom".into());
-                let text = BROTHER_HOOPS
-                    .iter()
-                    .find(|h| h.id == current)
-                    .map(|h| h.label.to_string())
+                let text = openstitch_design::find_hoop(&current)
+                    .map(|h| match h.brand {
+                        "Brother" => h.label.to_string(),
+                        b => format!("{b} {}", h.label),
+                    })
                     .or_else(|| {
                         m.user_hoop(&current)
                             .map(|u| format!("{} × {} mm (user)", u.width, u.height))
@@ -335,15 +336,37 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
                     .selected_text(text)
                     .width(230.0)
                     .show_ui(ui, |ui| {
-                        for h in BROTHER_HOOPS {
-                            if ui
-                                .selectable_label(current == h.id, h.label)
-                                .on_hover_text(h.source)
-                                .clicked()
-                            {
-                                requests.push(set(json!({ "hoop": h.id })));
+                        // Grouped by brand, Brother first (#514); the filter matches brand or
+                        // name and is kept for the session.
+                        let fid = egui::Id::unique("hoop-filter");
+                        let mut filter: String = ui.data_mut(|d| d.get_temp(fid).unwrap_or_default());
+                        ui.add(egui::TextEdit::singleline(&mut filter).hint_text("Filter hoops"));
+                        let needle = filter.to_lowercase();
+                        egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
+                            for brand in BRANDS {
+                                let shown: Vec<_> = openstitch_design::machine::brand_hoops(brand)
+                                    .filter(|h| {
+                                        needle.is_empty()
+                                            || h.label.to_lowercase().contains(&needle)
+                                            || h.brand.to_lowercase().contains(&needle)
+                                    })
+                                    .collect();
+                                if shown.is_empty() {
+                                    continue;
+                                }
+                                ui.label(egui::RichText::new(brand).strong());
+                                for h in shown {
+                                    if ui
+                                        .selectable_label(current == h.id, h.label)
+                                        .on_hover_text(h.source)
+                                        .clicked()
+                                    {
+                                        requests.push(set(json!({ "hoop": h.id })));
+                                    }
+                                }
                             }
-                        }
+                        });
+                        ui.data_mut(|d| d.insert_temp(fid, filter));
                         if !m.user_hoops.is_empty() {
                             ui.separator();
                         }
@@ -366,10 +389,14 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
                 ui.end_row();
 
                 let user = m.hoop.as_deref().is_some_and(|k| m.user_hoop(k).is_some());
+                let turns = m.listed_hoop().is_none_or(|h| h.can_rotate());
                 ui.label("");
                 let mut rotate = m.rotate90;
                 if ui
-                    .add_enabled(m.hoop.is_some() && !user, egui::Checkbox::new(&mut rotate, "Rotate 90°"))
+                    .add_enabled(
+                        m.hoop.is_some() && !user && turns,
+                        egui::Checkbox::new(&mut rotate, "Rotate 90°"),
+                    )
                     .changed()
                 {
                     requests.push(set(json!({ "rotate90": rotate })));

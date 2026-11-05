@@ -340,7 +340,7 @@ Behaviour follows the guide's pages
 | Select | Point Edit | `A` | `Action::PointTool` | `object.setPoint` | yes |
 | Select | Select All | `Ctrl+A` | `Action::SelectAll` | view/UI only | yes |
 | Hoop Settings | Move Sections |  | `Action::MoveSections` | `sections.set` (`splitsX` / `splitsY`) | yes |
-| Hoop Settings | Design Settings |  | `Action::DesignSettings` | `machine.set` | yes |
+| Hoop Settings | Design Settings (hoop list grouped by brand, Brother first, with a filter; other brands and round hoops beyond PE-DESIGN, #514; an oval or round hoop's field is drawn on the canvas) |  | `Action::DesignSettings` | `machine.set`, `machine.hoops` | yes |
 | Hoop Settings | Export Sections |  | `Action::ExportSections` | `sections.export` | yes |
 
 ### How the drawing and editing commands work
@@ -402,7 +402,7 @@ and [Adjusting the split positions](https://support.brother.com/g/s/hf/htmldoc/p
 | Save As | `Ctrl+Shift+S` | `Action::SaveAs` | `project.save` | yes |
 | Print |  | `Action::Print` | `design.print` | yes |
 | Design Property |  | `Action::DesignProperty` | `design.info` | yes |
-| Design Settings |  | `Action::DesignSettings` | `machine.set` | yes |
+| Design Settings (hoop list grouped by brand, Brother first, with a filter; other brands and round hoops beyond PE-DESIGN, #514; an oval or round hoop's field is drawn on the canvas) |  | `Action::DesignSettings` | `machine.set`, `machine.hoops` | yes |
 | Fabric Selector |  | `Action::FabricSelector` | `fabric.apply` | yes |
 | Select Color Palette |  | `Action::SelectColorPalette` | `threads.charts` | yes |
 | Wizard |  | `Action::Wizard` | view/UI only | yes |

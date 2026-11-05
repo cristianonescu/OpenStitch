@@ -50,6 +50,8 @@ mod font_creator;
 mod font_from_image;
 #[path = "fonts.rs"]
 mod fonts;
+#[path = "hoop_lists.rs"]
+mod hoop_lists;
 #[path = "imports.rs"]
 mod imports;
 #[path = "layout.rs"]

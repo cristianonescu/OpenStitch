@@ -35,6 +35,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 - `machine.hoops` lists Brother hoop ids (`100x100`, `130x180`, `160x260`, `200x300`, ...) and
   the current settings. `machine.set` `{hoop: "130x180"}` sizes the Design Page to that hoop;
   `{hoop: "custom", width, height}` sets a custom page; `machine: "single" | "multi"`.
+  Other brands' hoops are in `groups` (`machine.hoops {brand: "Janome"}` lists one brand; ids
+  such as `janome-re20b`, `bernina-large-oval`, `round-15cm`). Oval and round hoops sew only
+  their ellipse, which `fitsPage` checks; round hoops cannot rotate. Brother is the default.
 - Keep the whole design inside the page: `design.export` reports `fitsPage` and the
   `smallestHoop`.
 

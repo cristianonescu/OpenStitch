@@ -45,7 +45,8 @@ pub use compile::Compiler;
 pub use fonts::{DesignFont, FontBytes, FontData};
 pub use geometry::{Bezier, Contour, Rect, Transform, Vec2, v2};
 pub use machine::{
-    BROTHER_HOOPS, Estimate, Hoop, MachineSettings, MachineType, SewingArea, UserHoop, estimate,
+    BRANDS, BROTHER_HOOPS, Estimate, Hoop, HoopShape, MachineSettings, MachineType, OTHER_HOOPS,
+    SewingArea, UserHoop, estimate, find_hoop,
 };
 pub use model::{
     Arrange, BackgroundImage, ChainShape, ContourJoin, ContourStrategy, Design, DesignObject,
