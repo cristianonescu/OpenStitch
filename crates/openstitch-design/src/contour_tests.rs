@@ -111,8 +111,9 @@ fn circle_rings_are_concentric_half_a_spacing_in_then_a_spacing_apart() {
                 p.distance(C)
             );
         }
+        // Closed: back at its start, then (but for the last ring) on over a few stitches.
         assert!(
-            ring[0].distance(*ring.last().expect("ring")) < 1e-6,
+            ring[1..].iter().any(|p| ring[0].distance(*p) < 1e-6),
             "closed"
         );
         assert!(longest(ring) <= 20.0 + 1e-9);
@@ -330,6 +331,73 @@ fn a_ring_that_collapses_is_sewn_all_round_before_the_remnant() {
         );
         for path in &paths {
             assert!(longest(path) <= 20.5, "{strategy:?}: {}", longest(path));
+        }
+    }
+}
+
+#[test]
+fn ring_joins_are_staggered_not_lined_up_into_a_seam() {
+    // Each ring started at its point nearest the last one's end, under a stitch further on:
+    // the steps between rings lined up into a zigzag seam from the outline to the middle
+    // (#461). Neighbouring steps are now at least 1.5 mm apart round the ring (before: from 0
+    // to a stitch), and every ring is still sewn all round.
+    let rings = contour(&[circle(200.0)], &[], &params(ContourStrategy::Rings));
+    assert_eq!(rings.len(), 10);
+    let angle = |p: Vec2| p.y.atan2(p.x);
+    for w in rings.windows(2) {
+        let (a, b) = (w[0][0], w[1][0]);
+        let r = b.distance(C);
+        let mut turn = (angle(a) - angle(b)).abs();
+        if turn > std::f64::consts::PI {
+            turn = std::f64::consts::TAU - turn;
+        }
+        assert!(
+            turn * r >= 15.0,
+            "steps {:.1} mm apart at r {r:.0}",
+            turn * r / 10.0
+        );
+    }
+    for ring in &rings {
+        let len: f64 = ring.windows(2).map(|w| w[0].distance(w[1])).sum();
+        let r = ring[0].distance(C);
+        assert!(len >= std::f64::consts::TAU * r * 0.9, "{len} round r {r}");
+    }
+}
+
+#[test]
+fn double_spiral_arms_never_cross_and_keep_their_spacing() {
+    // The way back out was wound against the way in: the arms crossed on one side and the
+    // spacing swung 1-4 mm (#461). Along a ray the rows are a spacing apart, give or take.
+    let shape = [circle(200.0)];
+    let paths = contour(&shape, &[], &params(ContourStrategy::DoubleSpiral));
+    assert_eq!(paths.len(), 1);
+    assert_eq!(crossings(&paths[0]), 0);
+    for deg in [0.0f64, 60.0, 135.0, 200.0, 290.0] {
+        let dir = v2(deg.to_radians().cos(), deg.to_radians().sin());
+        let mut hits: Vec<f64> = Vec::new();
+        for w in paths[0].windows(2) {
+            // Where the stitch crosses the ray from the centre.
+            let (a, b) = (w[0], w[1]);
+            let cross = |p: Vec2| dir.x * p.y - dir.y * p.x;
+            let (ca, cb) = (cross(a), cross(b));
+            if ca * cb < 0.0 {
+                let p = a.lerp(b, ca / (ca - cb));
+                if p.x * dir.x + p.y * dir.y > 0.0 {
+                    hits.push(p.distance(C));
+                }
+            }
+        }
+        hits.sort_by(f64::total_cmp);
+        let gaps: Vec<f64> = hits.windows(2).map(|h| h[1] - h[0]).collect();
+        for (k, g) in gaps.iter().enumerate() {
+            if hits[k] < 30.0 || k + 2 >= hits.len() {
+                continue; // the turn-round in the middle; the two arms leaving the start
+            }
+            assert!(
+                (12.0..=28.0).contains(g),
+                "{deg}°: gap {g:.1} at r {:.0}: {hits:?}",
+                hits[k]
+            );
         }
     }
 }

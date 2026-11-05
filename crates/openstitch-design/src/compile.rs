@@ -513,10 +513,15 @@ fn elements(
                 let runs = stamp::apply(std::mem::take(top), &region.stamps);
                 // PE-DESIGN 11.50 sews Concentric Circle and Spiral in the order the Start
                 // Point button gives, jumping in and ending where the pattern ends (references
-                // concentric-*, spiral-*): no travel from R1 or to R2, no reversal.
+                // concentric-*, spiral-*): no travel from R1 or to R2, no reversal. So does
+                // the flexible spiral, which starts at R1 and ends in the middle: travel to R2
+                // ran straight back out across its turns (#461).
                 *top = if matches!(
                     region.kind,
-                    RegionType::ConcentricCircle | RegionType::Spiral | RegionType::Contour
+                    RegionType::ConcentricCircle
+                        | RegionType::Spiral
+                        | RegionType::Contour
+                        | RegionType::FlexibleSpiral
                 ) {
                     runs
                 } else {

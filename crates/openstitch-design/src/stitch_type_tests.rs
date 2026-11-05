@@ -2281,6 +2281,154 @@ fn radial_lines_thin_out_towards_the_centre() {
     assert!(inner < outer * 4.0, "inner {inner} outer {outer}");
 }
 
+/// The sewn stretches of a compiled design: needle points between jumps and trims.
+fn sewn_stretches(d: &Design) -> Vec<Vec<Vec2>> {
+    let p = Compiler::default().compile(d);
+    let mut out: Vec<Vec<Vec2>> = vec![Vec::new()];
+    for s in &p.stitches {
+        match s.command {
+            Command::Stitch => out.last_mut().expect("one").push(v2(s.x, s.y)),
+            _ => out.push(Vec::new()),
+        }
+    }
+    out.retain(|s| s.len() >= 2);
+    out
+}
+
+/// The longest stretch of three or more consecutive stitches of 1 mm or more (travel, not the
+/// 0.5 mm steps along a seam) whose needle points all lie within `tol` of the straight line
+/// between its ends.
+fn longest_straight(points: &[Vec2], tol: f64) -> f64 {
+    let mut best: f64 = 0.0;
+    for i in 0..points.len() {
+        let mut j = i + 1;
+        while j + 1 < points.len() {
+            let (a, b) = (points[i], points[j + 1]);
+            let len = a.distance(b);
+            let straight = len > 1e-9
+                && points[j].distance(points[j + 1]) >= 10.0
+                && points[i].distance(points[i + 1]) >= 10.0
+                && points[i + 1..=j].iter().all(|p| {
+                    ((b.x - a.x) * (a.y - p.y) - (a.x - p.x) * (b.y - a.y)).abs() / len <= tol
+                });
+            if !straight {
+                break;
+            }
+            j += 1;
+        }
+        if j - i >= 3 {
+            best = best.max(points[i].distance(points[j]));
+        }
+    }
+    best
+}
+
+#[test]
+fn circles_spirals_and_rings_never_run_straight_back_across_their_rows() {
+    // A 30 mm circle with its start and end points at the bottom, as the shape tools set them.
+    // The flexible spiral ended in the middle and travelled straight out to the end point
+    // across its turns; concentric circles about a centre well off the middle stepped from the
+    // outermost arc straight in to the whole circles, 16 mm across the arcs (#461).
+    let c = circle();
+    let bottom = v2(200.0, 350.0);
+    let mut cases = Vec::new();
+    for kind in [
+        RegionType::FlexibleSpiral,
+        RegionType::ConcentricCircle,
+        RegionType::Spiral,
+        RegionType::Contour,
+    ] {
+        cases.push((kind, ContourStrategy::Rings, None));
+    }
+    cases.push((RegionType::Contour, ContourStrategy::DoubleSpiral, None));
+    cases.push((
+        RegionType::ConcentricCircle,
+        ContourStrategy::Rings,
+        Some(v2(245.0, 155.0)),
+    ));
+    for (kind, strategy, centre) in cases {
+        let mut r = region(kind);
+        r.contour_strategy = strategy;
+        r.center = centre;
+        r.entry = Some(bottom);
+        r.exit = Some(bottom);
+        let mut d = Design::new("t", DesignPage::default());
+        d.add(DesignObject::shape(vec![c.clone()], Some(r), None));
+        let straight = sewn_stretches(&d)
+            .iter()
+            .map(|s| longest_straight(s, 2.0))
+            .fold(0.0, f64::max);
+        assert!(
+            straight < 60.0,
+            "{kind:?} {strategy:?} {centre:?}: a straight run of {:.1} mm",
+            straight / 10.0
+        );
+    }
+}
+
+#[test]
+fn radial_lines_keep_their_needle_points_apart_at_the_centre() {
+    // The lines converged on the centre, needle points of neighbouring lines 0.1-0.25 mm apart
+    // there (#461): within 3 mm of the centre no two needle points are closer than 0.4 mm,
+    // unless they are the same point sewn over again. On centre and off it.
+    let c = vec![circle()];
+    for centre in [None, Some(v2(245.0, 155.0))] {
+        let mut r = region(RegionType::Radial);
+        r.center = centre;
+        r.entry = Some(v2(200.0, 350.0));
+        let runs = crate::region::layers(&c, &r, &[]).pop().expect("top");
+        let mid = centre.unwrap_or(v2(200.0, 200.0));
+        let mut pts: Vec<Vec2> = runs
+            .iter()
+            .flatten()
+            .copied()
+            .filter(|p| p.distance(mid) < 30.0)
+            .collect();
+        pts.sort_by(|a, b| a.x.total_cmp(&b.x).then(a.y.total_cmp(&b.y)));
+        pts.dedup_by(|a, b| a.distance(*b) < 1e-6);
+        let mut close = 0;
+        for i in 0..pts.len() {
+            for j in i + 1..pts.len() {
+                let d = pts[i].distance(pts[j]);
+                if d < 3.9 {
+                    close += 1;
+                }
+            }
+        }
+        assert_eq!(
+            close,
+            0,
+            "{centre:?}: {close} pairs under 0.4 mm of {}",
+            pts.len()
+        );
+        // It starts and ends on the outline, near the start point.
+        let (first, last) = (
+            runs[0][0],
+            *runs.last().and_then(|r| r.last()).expect("points"),
+        );
+        for p in [first, last] {
+            assert!(
+                (p.distance(v2(200.0, 200.0)) - 150.0).abs() < 3.0,
+                "{centre:?}: {p:?}"
+            );
+        }
+        assert!(
+            first.distance(v2(200.0, 350.0)) < 15.0,
+            "{centre:?}: {first:?}"
+        );
+        // No stitch shorter than 0.3 mm at the outline.
+        let short: Vec<(Vec2, Vec2)> = runs
+            .iter()
+            .flat_map(|run| run.windows(2).map(|w| (w[0], w[1])))
+            .filter(|(a, b)| a.distance(*b) < 3.0)
+            .collect();
+        assert!(
+            short.len() <= 2,
+            "{centre:?}: stitches under 0.3 mm {short:?}"
+        );
+    }
+}
+
 #[test]
 fn stippling_is_a_closed_path_that_never_crosses_itself() {
     let c = vec![Contour::ellipse(v2(150.0, 150.0), 120.0, 90.0, 48)];
