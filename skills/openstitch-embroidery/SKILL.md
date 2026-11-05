@@ -35,6 +35,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 - `machine.hoops` lists Brother hoop ids (`100x100`, `130x180`, `160x260`, `200x300`, ...) and
   the current settings. `machine.set` `{hoop: "130x180"}` sizes the Design Page to that hoop;
   `{hoop: "custom", width, height}` sets a custom page; `machine: "single" | "multi"`.
+  Other brands' hoops are in `groups` (`machine.hoops {brand: "Janome"}` lists one brand; ids
+  such as `janome-re20b`, `bernina-large-oval`, `round-15cm`). Oval and round hoops sew only
+  their ellipse, which `fitsPage` checks; round hoops cannot rotate. Brother is the default.
 - Keep the whole design inside the page: `design.export` reports `fitsPage` and the
   `smallestHoop`.
 
@@ -56,6 +59,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    Run each finding's `fix` command or fix it yourself, and check again; never report a design
    done while `design.check` has errors. `design.route` names every move between objects
    (untrimmed jumps, long moves), `design.density` shows where thread piles up.
+   `design.timeline` lists the colour blocks in sewing order with their stitch ranges, trims,
+   object starts and machine time ("when does the red start?"); in the editor,
+   `ui.simulate {stitch}` or `{step: "block" | "object" | "trim"}` moves the player there.
 6. Save only when asked: `project.save` `{path: "name.osd"}` (editable) and/or
    `design.export` `{path: "name.pes"}` (machine file; the extension picks the format).
 
@@ -79,9 +85,19 @@ then style them in the next.
 - Repeat a motif: `object.arrangeCopies` `{ids, mode: path, pathId, count, side, orient}`
   along a line, `{mode: scatter, shapeId, count, gap, seed}` inside a closed shape, or
   `{mode: circle, count, radius, mirrorAlternate: true}` for a kaleidoscope.
+- Continue in place: `object.extendPath` `{id, end: start|end, points, curves?, widths?}` adds
+  to an open line, path or satin skeleton, `object.extendColumn` `{id, end, lines}` to a Manual
+  Punch column (points added at the start are listed outward from it).
 - Find objects like others: `object.list` `{sameAs: [ids], match: color|type|both,
   visible: true}`, or filter by `color`, `regionType`, `lineType`; then `ui.select` the ids.
 - Text: `object.setText` (text, font, size, spacing), `text.setPath` (fit to an outline).
+- Threads: to change the design to a thread chart ("use my Madeira threads"), run
+  `threads.remap` `{builtin | chart, metric: ciede2000, keepDistinct: true, dryRun: true}`
+  first and show the user the plan (design colour → thread, ΔE, objects, and `merged`), then
+  run it without `dryRun` if they agree (`metric: rgb` is PE-DESIGN's rule). `threads.find`
+  `{query}` finds a thread by code or name. After `import.svg` or a `digitize.*` wizard gives
+  many near-identical colours, offer `threads.mergeSimilar` (`dryRun` first; it reports the
+  colour changes saved, and `order.byColor` when `suggestSortByColor`).
 - Delete: `object.delete` `{ids}`. Undo: `history.undo` (only for your own mistakes).
 
 ## Editor commands (`ui.*`)
@@ -92,12 +108,19 @@ These act on the editor window, not the design file: `ui.state`, `ui.select`, `u
 `ui.update`, `ui.scratchWrite` (what `scratch_write` uses). Read their parameters with
 `command_describe` before the first use.
 
+Units: every command takes millimetres. The user may work in inches (`ui.settings` → `units`,
+also named in the editor note with each message); then answer in inches (1 in = 25.4 mm) and
+still send mm to commands. `design.print {units: "inch"}` adds a 2-inch scale bar.
+
 ## Files
 
 - File commands only reach the folders the editor allows (the conversation's scratch folder,
   and folders the user approves). A refused path is not an error to work around: tell the user.
 - To import model-made artwork, write it with `scratch_write` (SVG text, or a PNG/JPEG as
   base64) and pass the returned `path` to `import.svg` or a `digitize.*` command.
+- `import.svg` returns `skipped` (text, images, nearly transparent or clipped-away shapes) and
+  `approximated` (gradients, patterns, masks, filters): tell the user what was left out instead
+  of leaving it unsaid. `gradients: "bands"` turns a gradient fill into 2–8 colour bands.
 - `file` commands (`project.save`, `design.export`, ...) may ask the user first. Never
   overwrite a user's file without being asked to.
 

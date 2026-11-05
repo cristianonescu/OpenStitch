@@ -142,6 +142,22 @@ lines, colours snapped to the Brother chart unless `exactColors: true`):
 Give the SVG real sizes (`width="40mm"`) or pass `width`. Keep paths closed for fills, and give
 the imported shapes sew types with `object.setRegion` / `object.setLine` as for any shape.
 
+## The user's own threads from a palette
+
+A GIMP or Inkscape palette (`.gpl`) becomes a user thread chart; a colour named "1800 Ruby" gets
+thread code 1800. Then change the design to those threads:
+
+```json
+{"steps": [
+  {"command": "threads.importPalette", "params": {"path": "spools.gpl"}},
+  {"command": "threads.remap", "params": {"chart": "<the returned chart>"}}
+]}
+```
+
+`threads.importPalette` refuses a chart name already in use (pass `name`) and a file with bad
+lines (it names them; `partial: true` imports the rest). `threads.exportPalette`
+`{chart | builtin, path}` writes a chart as a palette.
+
 ## A shape with a curve
 
 `shape.path` takes vertices and one optional cubic Bézier per segment

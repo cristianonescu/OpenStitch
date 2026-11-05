@@ -241,6 +241,33 @@ impl EditorApp {
                     self.simulate =
                         (f < 1.0).then(|| (f * self.stats.stitches as f64).round() as usize);
                 }
+                if let Some(x) = v("stitch") {
+                    let n = number_value("stitch", x, 0.0, self.timeline.total as f64)?;
+                    if n.fract() != 0.0 {
+                        return Err("stitch takes a whole number".into());
+                    }
+                    self.simulate =
+                        openstitch_app::editor::player::position(&self.timeline, n as usize);
+                    self.playing = false;
+                }
+                if let Some(x) = v("step") {
+                    let s = x
+                        .as_str()
+                        .and_then(openstitch_app::editor::player::Step::from_key)
+                        .ok_or("step takes start, end, stitch, stitchBack, block, blockBack, object, objectBack or trim")?;
+                    self.simulate =
+                        openstitch_app::editor::player::step(&self.timeline, self.simulate, s);
+                    self.playing = false;
+                }
+                for (key, flag) in [
+                    ("auto", &mut self.stitch_player.auto),
+                    ("pauseAtTrims", &mut self.stitch_player.pause),
+                    ("followNeedle", &mut self.stitch_player.follow),
+                ] {
+                    if let Some(x) = v(key) {
+                        *flag = bool_value(key, x)?;
+                    }
+                }
                 if let Some(x) = v("play") {
                     self.playing = bool_value("play", x)?;
                     if self.playing && self.simulate.is_none() {
@@ -333,9 +360,16 @@ impl EditorApp {
     }
 
     fn simulator_json(&self) -> Value {
+        let t = &self.timeline;
+        let n = openstitch_app::editor::player::at(t, self.simulate);
         json!({
             "stitch": self.simulate, "stitches": self.stats.stitches,
             "playing": self.playing, "speed": self.play_speed,
+            "block": t.block_at(n),
+            "seconds": (t.seconds_at(n) * 10.0).round() / 10.0,
+            "totalSeconds": (t.total_seconds() * 10.0).round() / 10.0,
+            "auto": self.stitch_player.auto, "pauseAtTrims": self.stitch_player.pause,
+            "followNeedle": self.stitch_player.follow,
         })
     }
 
@@ -386,6 +420,7 @@ impl EditorApp {
                 "snapToObjects" => json!(prefs.editing.snap_objects),
                 "precisionBar" => json!(prefs.editing.precision_bar),
                 "clickInsideOutlines" => json!(prefs.editing.click_inside),
+                "units" => json!(openstitch_app::editor::units::key(prefs.units)),
                 "nudgeStep" => json!(prefs.editing.nudge_mm),
                 "nudgeByGrid" => json!(prefs.editing.nudge_grid),
                 "alignTo" => json!(self.align_to),
@@ -475,6 +510,13 @@ impl EditorApp {
             "snapToObjects" => self.ui.prefs.editing.snap_objects = bool_value(name, v)?,
             "precisionBar" => self.ui.prefs.editing.precision_bar = bool_value(name, v)?,
             "clickInsideOutlines" => self.ui.prefs.editing.click_inside = bool_value(name, v)?,
+            "units" => {
+                self.ui.prefs.units = v
+                    .as_str()
+                    .and_then(openstitch_app::editor::units::from_key)
+                    .ok_or("units takes mm or inch")?;
+                self.database.units = self.ui.prefs.units;
+            }
             "nudgeStep" => self.ui.prefs.editing.nudge_mm = number_value(name, v, 0.1, 50.0)?,
             "nudgeByGrid" => self.ui.prefs.editing.nudge_grid = bool_value(name, v)?,
             "alignTo" => {
@@ -683,6 +725,18 @@ mod tests {
         )
         .expect("view");
         assert!(app.workspace.realistic);
+        // #519: the Assistant switches the unit; the Design Database follows.
+        app.ui_command("ui.set", Some(&json!({ "name": "units", "value": "inch" })))
+            .expect("units");
+        assert_eq!(
+            app.ui.prefs.units,
+            openstitch_app::editor::units::Units::Inch
+        );
+        assert_eq!(app.database.units, app.ui.prefs.units);
+        assert!(
+            app.ui_command("ui.set", Some(&json!({ "name": "units", "value": "cm" })))
+                .is_err()
+        );
         assert!(
             app.ui_command(
                 "ui.set",
@@ -692,6 +746,39 @@ mod tests {
         );
         assert!(
             app.ui_command("ui.set", Some(&json!({ "name": "nope", "value": 1 })))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn the_player_steps_through_ui_simulate() {
+        use openstitch_app::editor::player;
+        let mut app = demo();
+        let t = app.timeline.clone();
+        assert!(t.total > 0 && !t.blocks.is_empty());
+        let r = app
+            .ui_command("ui.simulate", Some(&json!({ "stitch": 0 })))
+            .expect("seek");
+        assert_eq!(r["stitch"], json!(0));
+        assert_eq!(
+            r["totalSeconds"],
+            json!((t.total_seconds() * 10.0).round() / 10.0)
+        );
+        app.ui_command("ui.simulate", Some(&json!({ "step": "block" })))
+            .expect("block");
+        assert_eq!(app.simulate, player::position(&t, t.next_block(0)));
+        app.ui_command(
+            "ui.simulate",
+            Some(&json!({ "auto": true, "pauseAtTrims": true, "followNeedle": true })),
+        )
+        .expect("toggles");
+        assert!(app.stitch_player.auto && app.stitch_player.pause && app.stitch_player.follow);
+        assert!(
+            app.ui_command("ui.simulate", Some(&json!({ "step": "sideways" })))
+                .is_err()
+        );
+        assert!(
+            app.ui_command("ui.simulate", Some(&json!({ "stitch": t.total + 1 })))
                 .is_err()
         );
     }

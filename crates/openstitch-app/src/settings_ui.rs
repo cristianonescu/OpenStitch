@@ -106,6 +106,25 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
         .open(&mut open)
         .default_width(380.0)
         .show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                if ui
+                    .button("Match to thread chart…")
+                    .on_hover_text(
+                        "Change the design's colours to a chart's threads, with a preview",
+                    )
+                    .clicked()
+                {
+                    app.colour_match.match_open = true;
+                }
+                if ui
+                    .button("Merge similar colours…")
+                    .on_hover_text("Join near-identical thread colours to save thread changes")
+                    .clicked()
+                {
+                    app.colour_match.merge_open = true;
+                }
+            });
+            ui.separator();
             let charts = app.session.user_settings().thread_charts.clone();
             let st = &mut app.settings;
             if st
@@ -139,6 +158,20 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                         json!({ "name": name }),
                     ));
                     st.chart = Some(name.clone());
+                }
+                if ui
+                    .button("Import palette…")
+                    .on_hover_text("A GIMP or Inkscape palette (.gpl) as a new chart")
+                    .clicked()
+                    && let Some(path) = rfd::FileDialog::new()
+                        .add_filter("GIMP / Inkscape palette", &["gpl"])
+                        .pick_file()
+                {
+                    let mut p = json!({ "path": path.to_string_lossy() });
+                    if !name.is_empty() {
+                        p["name"] = json!(name);
+                    }
+                    request = Some(CommandRequest::new("threads.importPalette", p));
                 }
                 if let Some(c) = st.chart.clone() {
                     if ui
@@ -248,6 +281,17 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                         json!({ "chart": name, "path": path.to_string_lossy() }),
                     ));
                 }
+                if ui.button("Export palette…").clicked()
+                    && let Some(path) = rfd::FileDialog::new()
+                        .add_filter("GIMP / Inkscape palette", &["gpl"])
+                        .set_file_name(format!("{name}.gpl"))
+                        .save_file()
+                {
+                    request = Some(CommandRequest::new(
+                        "threads.exportPalette",
+                        json!({ "chart": name, "path": path.to_string_lossy() }),
+                    ));
+                }
                 if ui.button("Export CSV…").clicked()
                     && let Some(path) = rfd::FileDialog::new()
                         .add_filter("CSV", &["csv"])
@@ -268,6 +312,14 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                         "threads.remap",
                         json!({ "chart": name }),
                     ));
+                }
+                if ui
+                    .button("Match…")
+                    .on_hover_text("Preview the match to this chart before it applies")
+                    .clicked()
+                {
+                    app.colour_match.target = crate::colour_match_ui::Target::User(name.clone());
+                    app.colour_match.match_open = true;
                 }
             });
         });

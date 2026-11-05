@@ -62,6 +62,15 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
         pointer(app, ui, &response, vp);
     }
     app.ensure_render_model();
+    // Follow the needle while the player shows part of the design (#516).
+    if app.stitch_player.follow
+        && app.simulate.is_some()
+        && let Some(n) = app.render.needle
+        && let Some(moved) = openstitch_app::editor::player::follow(&vp, screen, n)
+    {
+        vp = moved;
+        app.viewport = Some(vp);
+    }
 
     app.workspace.canvas = Some(rect);
     let painter = ui.painter_at(rect);
@@ -71,6 +80,7 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
     if app.workspace.realistic {
         draw_fabric(ui.ctx(), &painter, &vp, &page_rect, colors.page);
     }
+    draw_hoop_field(app, &painter, &vp, &page_rect);
     draw_background(app, ui.ctx(), &painter, &vp);
     crate::quality_ui::draw_background(app, &painter, &vp, &page_rect);
     crate::workspace_ui::draw_grid(&painter, &vp, &page_rect, &app.workspace.grid);
@@ -94,7 +104,7 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
     crate::edit_ui::draw_arrange_preview(app, &painter, &vp);
     crate::edit_ui::draw_markers(app, &painter, &vp);
     crate::sections_ui::draw_sections(app, &painter, &vp);
-    crate::workspace_ui::draw_measure(&painter, &vp, &app.workspace.measure);
+    crate::workspace_ui::draw_measure(&painter, &vp, &app.workspace.measure, app.ui.prefs.units);
     crate::view_ui::draw_image_frame(app, &painter, &vp);
     crate::view_ui::draw_guides(app, &painter, rect, &vp);
     if let (Some(_), Some(n)) = (app.simulate, app.render.needle) {
@@ -115,10 +125,12 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
     }
     if let Some(h) = response.hover_pos() {
         let m = vp.to_model(v2(f64::from(h.x), f64::from(h.y)));
+        let u = app.ui.prefs.units;
         let text = format!(
-            "{:.1}, {:.1} mm   {:.0}%",
-            m.x / 10.0,
-            m.y / 10.0,
+            "{}, {}{}   {:.0}%",
+            openstitch_app::editor::units::number(u, m.x / 10.0),
+            openstitch_app::editor::units::number(u, m.y / 10.0),
+            openstitch_app::editor::units::suffix(u),
             vp.zoom_percent(96.0 / 25.4)
         );
         painter.text(
@@ -130,12 +142,25 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
         );
     }
     if app.workspace.rulers {
-        crate::workspace_ui::draw_rulers(&painter, rect, &vp, response.hover_pos());
+        crate::workspace_ui::draw_rulers(
+            &painter,
+            rect,
+            &vp,
+            response.hover_pos(),
+            app.ui.prefs.units,
+        );
         crate::view_ui::draw_guide_markers(app, &painter, rect, &vp);
     }
+    // Over an end of the selected line or column the drawing tool can continue (#479).
+    let continues = response.hover_pos().is_some_and(|h| {
+        let m = vp.to_model(v2(f64::from(h.x), f64::from(h.y)));
+        let d = app.session.design();
+        app.tools.continue_target(&app.tool_context(d), m).is_some()
+    });
     let cursor = match app.tools.tool() {
         _ if app.ui.pan => egui::CursorIcon::Grab,
         _ if app.workspace.measure.active => egui::CursorIcon::Crosshair,
+        _ if continues => egui::CursorIcon::PointingHand,
         openstitch_app::editor::Tool::Select | openstitch_app::editor::Tool::Point => {
             egui::CursorIcon::Default
         }
@@ -271,6 +296,24 @@ fn draw_page(painter: &egui::Painter, vp: &Viewport, page: &Rect, fill: Color32)
         Stroke::new(1.0, Color32::from_gray(150)),
         StrokeKind::Outside,
     );
+}
+
+/// An oval or round hoop (#514): its sewing field inside the Design Page, the shape the hoop-fit
+/// check uses.
+fn draw_hoop_field(app: &EditorApp, painter: &egui::Painter, vp: &Viewport, page: &Rect) {
+    let shape = app.session.design().machine.hoop_shape();
+    if shape == openstitch_design::HoopShape::Rectangle {
+        return;
+    }
+    let pts: Vec<Pos2> = shape
+        .outline(page.width(), page.height(), 96)
+        .into_iter()
+        .map(|(x, y)| pos(vp.to_screen(v2(x, y))))
+        .collect();
+    painter.add(Shape::closed_line(
+        pts,
+        Stroke::new(1.5, Color32::from_rgb(0x43, 0x8a, 0x5e)),
+    ));
 }
 
 /// The background reference image, decoded once per path (size limits as for the wizard).
