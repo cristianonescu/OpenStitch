@@ -5,6 +5,7 @@
 mod arrange_modes;
 pub mod capabilities;
 pub mod commands;
+mod continuing;
 mod convert;
 #[cfg(feature = "digitize")]
 mod digitize;
@@ -50,7 +51,9 @@ mod stamps;
 mod stitch_edit;
 pub mod templates;
 #[cfg(feature = "formats")]
+pub mod thread_match;
 pub mod threadlists;
+mod timeline;
 #[cfg(feature = "formats")]
 pub mod transfer;
 pub mod user;

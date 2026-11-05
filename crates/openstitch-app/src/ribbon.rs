@@ -860,13 +860,9 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
         SaveImage => crate::view_ui::save_image_menu(app, ui),
         ViewShow => crate::view_ui::show_menu(app, ui),
         GridSpacing => {
-            for s in openstitch_app::editor::workspace::GridSettings::SPACINGS_MM {
-                let label = if s == 25.4 {
-                    "1 inch".to_string()
-                } else {
-                    format!("{s} mm")
-                };
-                ui.radio_value(&mut app.workspace.grid.spacing_mm, s, label);
+            use openstitch_app::editor::units;
+            for &s in units::grid_spacings(app.ui.prefs.units) {
+                ui.radio_value(&mut app.workspace.grid.spacing_mm, s, units::grid_label(s));
             }
         }
         Font => {
@@ -882,8 +878,10 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
                 });
         }
         TextSize => {
+            let u = app.ui.prefs.units;
             for mm in [5.0, 8.0, 10.0, 15.0, 20.0, 30.0, 50.0] {
-                if ui.button(format!("{mm} mm")).clicked() {
+                let label = openstitch_app::editor::units::length(u, mm);
+                if ui.button(label).clicked() {
                     set_text(app, json!({ "size": mm }));
                 }
             }
@@ -972,14 +970,14 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
 
 /// Shapes (Rectangle) ▸ Edge radius: the corner radius of the rectangles drawn next.
 fn edge_radius_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
+    let units = app.ui.prefs.units;
     let mut r = app.tools.corner_radius();
     ui.horizontal(|ui| {
         ui.label("Edge radius");
         ui.add(
-            egui::DragValue::new(&mut r)
+            crate::units_ui::drag(&mut r, units)
                 .range(0.0..=100.0)
-                .speed(0.1)
-                .suffix(" mm"),
+                .speed(0.1),
         );
     });
     for mm in [0.0, 2.0, 5.0, 10.0] {
@@ -992,14 +990,14 @@ fn edge_radius_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
 
 /// Shapes (Manual Punch) ▸ Column width: the width of the next Satin Skeleton points.
 fn skeleton_width_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
+    let units = app.ui.prefs.units;
     let mut w = app.tools.skeleton_width();
     ui.horizontal(|ui| {
         ui.label("Column width");
         ui.add(
-            egui::DragValue::new(&mut w)
+            crate::units_ui::drag(&mut w, units)
                 .range(0.1..=openstitch_design::skeleton::MAX_WIDTH)
-                .speed(0.1)
-                .suffix(" mm"),
+                .speed(0.1),
         );
     });
     for mm in [1.5, 3.0, 5.0, 8.0] {
@@ -1144,16 +1142,33 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         app.assistant.panel.open = true;
     }
     ui.separator();
+    ui.label(RichText::new("Units").weak());
+    ui.horizontal(|ui| {
+        use openstitch_app::editor::units::Units;
+        let tip =
+            "Sizes, positions, rulers, grid and lettering heights; stitch settings stay in mm";
+        let u = &mut app.ui.prefs.units;
+        changed |= ui
+            .radio_value(u, Units::Mm, "Millimetres")
+            .on_hover_text(tip)
+            .changed();
+        changed |= ui
+            .radio_value(u, Units::Inch, "Inches")
+            .on_hover_text(tip)
+            .changed();
+    });
+    let units = app.ui.prefs.units;
+    app.database.units = units;
+    ui.separator();
     ui.label(RichText::new("Editing").weak());
     let e = &mut app.ui.prefs.editing;
     ui.horizontal(|ui| {
         ui.label("Nudge step");
         changed |= ui
             .add(
-                egui::DragValue::new(&mut e.nudge_mm)
+                crate::units_ui::drag(&mut e.nudge_mm, units)
                     .range(EditingPrefs::NUDGE_MIN..=EditingPrefs::NUDGE_MAX)
-                    .speed(0.05)
-                    .suffix(" mm"),
+                    .speed(0.05),
             )
             .on_hover_text("How far an arrow key moves the selection; Shift moves ten times as far")
             .changed();

@@ -10,6 +10,7 @@ pub mod concentric;
 pub mod contour;
 pub mod direction;
 mod envelope_presets;
+pub mod extend;
 pub mod fmath;
 pub mod fonts;
 pub mod freehand;
@@ -40,13 +41,15 @@ pub mod stamp;
 pub mod stitch_edit;
 pub mod strokes;
 pub mod text;
+pub mod timeline;
 pub mod view;
 
 pub use compile::Compiler;
 pub use fonts::{DesignFont, FontBytes, FontData};
 pub use geometry::{Bezier, Contour, Rect, Transform, Vec2, v2};
 pub use machine::{
-    BROTHER_HOOPS, Estimate, Hoop, MachineSettings, MachineType, SewingArea, UserHoop, estimate,
+    BRANDS, BROTHER_HOOPS, Estimate, Hoop, HoopShape, MachineSettings, MachineType, OTHER_HOOPS,
+    SewingArea, UserHoop, estimate, find_hoop,
 };
 pub use model::{
     Arrange, BackgroundImage, ChainShape, ContourJoin, ContourStrategy, Design, DesignObject,

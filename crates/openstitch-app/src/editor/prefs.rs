@@ -122,6 +122,9 @@ pub struct UiPrefs {
     pub ai: super::assistant_chat::AiPrefs,
     /// Editing aids beyond PE-DESIGN (#473, #474, #475); all off by default.
     pub editing: EditingPrefs,
+    /// Millimetres or inches for every length shown and typed (#519); the Design Database's
+    /// System Unit is the same setting. Millimetres by default, as PE-DESIGN.
+    pub units: super::units::Units,
     /// View ▸ Show (#517, beyond PE-DESIGN); all off by default.
     pub show: ShowPrefs,
 }
@@ -182,6 +185,7 @@ impl Default for UiPrefs {
             updates: UpdatePrefs::default(),
             ai: Default::default(),
             editing: EditingPrefs::default(),
+            units: super::units::Units::Mm,
             show: ShowPrefs::default(),
         }
     }
@@ -227,6 +231,7 @@ impl UiPrefs {
                 "nudgeMM": self.editing.nudge_mm,
                 "nudgeByGrid": self.editing.nudge_grid,
             },
+            "units": super::units::key(self.units),
             "show": {
                 "needlePoints": self.show.needle_points,
                 "layers": self.show.layers.as_str(),
@@ -320,6 +325,10 @@ impl UiPrefs {
                     nudge_grid: b("nudgeByGrid", d.nudge_grid),
                 }
             },
+            units: v["units"]
+                .as_str()
+                .and_then(super::units::from_key)
+                .unwrap_or(d.units),
             show: {
                 use openstitch_design::view::{ColorBy, Layers};
                 let e = &v["show"];
@@ -402,6 +411,7 @@ mod tests {
         p.splash = false;
         p.updates.check = false;
         p.updates.skip_version = Some("v0.1.0-alpha.4".into());
+        p.units = super::super::units::Units::Inch;
         p.editing = EditingPrefs {
             snap_objects: true,
             precision_bar: true,
@@ -427,6 +437,11 @@ mod tests {
         let wild = json!({ "realisticView": { "threadWidthMM": 50, "contrast": "x" }, "fontFilter": { "on": 1, "hidden": [3, "a"] } });
         let w = UiPrefs::from_json(&wild);
         assert_eq!(w.editing, EditingPrefs::default(), "off unless chosen");
+        assert_eq!(
+            w.units,
+            super::super::units::Units::Mm,
+            "millimetres by default"
+        );
         assert_eq!(
             w.show,
             ShowPrefs::default(),

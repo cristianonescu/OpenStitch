@@ -414,6 +414,7 @@ impl ImageDraft {
 }
 
 fn modify_image_window(app: &mut EditorApp, ctx: &egui::Context) {
+    let units = app.ui.prefs.units;
     let mut open = app.workspace.view.image_open;
     let mut commit: Option<Value> = None;
     let mut turn: Option<&str> = None;
@@ -441,18 +442,16 @@ fn modify_image_window(app: &mut EditorApp, ctx: &egui::Context) {
                     ui.horizontal(|ui| {
                         finish(
                             &ui.add(
-                                egui::DragValue::new(&mut d.x)
+                                crate::units_ui::drag(&mut d.x, units)
                                     .speed(0.5)
-                                    .prefix("x ")
-                                    .suffix(" mm"),
+                                    .prefix("x "),
                             ),
                         );
                         finish(
                             &ui.add(
-                                egui::DragValue::new(&mut d.y)
+                                crate::units_ui::drag(&mut d.y, units)
                                     .speed(0.5)
-                                    .prefix("y ")
-                                    .suffix(" mm"),
+                                    .prefix("y "),
                             ),
                         );
                     });
@@ -461,10 +460,9 @@ fn modify_image_window(app: &mut EditorApp, ctx: &egui::Context) {
                     ui.horizontal(|ui| {
                         finish(
                             &ui.add(
-                                egui::DragValue::new(&mut d.width)
+                                crate::units_ui::drag(&mut d.width, units)
                                     .range(1.0..=2000.0)
-                                    .speed(0.5)
-                                    .suffix(" mm"),
+                                    .speed(0.5),
                             ),
                         );
                         ui.label(format!("height {:.1} mm", b.height / 10.0));
