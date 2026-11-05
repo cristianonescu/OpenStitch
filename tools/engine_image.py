@@ -9,6 +9,11 @@ its stitches are read back (tools/pescmp.py's reader). Each colour block is draw
 colour of the object it belongs to (the example's shapes in order, one block each), stitches as
 lines and needle points as black dots, on white, at the width given (default 1600 px) with a
 small margin. Jumps and trims are not drawn. Needs numpy and Pillow.
+
+    python3 tools/engine_image.py --templates docs/images/engine-templates.png
+
+draws the four built-in templates (`template.open builtin:<id>` filled with sample texts by
+`template.fill`) side by side, each in a thin grey frame, at a common scale.
 """
 
 import argparse
@@ -30,11 +35,22 @@ EXE = ROOT / "target" / ("release" if "--release" in sys.argv else "debug") / ("
 MARGIN = 16
 
 
+def absolute_paths(value, base: Path):
+    """The script's relative file paths (fonts, images), made absolute against `base`: stitchtool
+    resolves them against the script's own folder, and the copy runs from a temporary one."""
+    if isinstance(value, dict):
+        return {k: (str((base / v).resolve()) if k == "path" and isinstance(v, str) and not Path(v).is_absolute()
+                    and (base / v).exists() else absolute_paths(v, base)) for k, v in value.items()}
+    if isinstance(value, list):
+        return [absolute_paths(v, base) for v in value]
+    return value
+
+
 def run(script: Path, work: Path):
     steps = json.loads(script.read_text(encoding="utf-8"))
     steps = [s for s in steps if s.get("command") not in ("design.export", "project.save")]
-    # Run from examples/, where the scripts' relative paths (fonts, images) point.
-    steps += [{"command": "design.export", "params": {"path": str(work / "out.pes")}}, {"command": "design.info"}]
+    steps = absolute_paths(steps, script.parent)
+    steps +=[{"command": "design.export", "params": {"path": str(work / "out.pes")}}, {"command": "design.info"}]
     (work / "script.json").write_text(json.dumps(steps), encoding="utf-8")
     out = subprocess.run([str(EXE), "exec", str(work / "script.json")], capture_output=True, text=True,
                          cwd=ROOT / "examples")
@@ -45,6 +61,54 @@ def run(script: Path, work: Path):
     # design whose wizards or combines replaced objects is drawn in its own colours too.
     colours = [tuple(int(h[i:i + 2], 16) for i in (1, 3, 5)) for h in replies[-1]["result"]["stitchStats"]["colors"]]
     return pescmp.read(work / "out.pes"), colours
+
+
+# The built-in templates in docs/images/engine-templates.png, with the sample texts they show.
+TEMPLATES = [
+    ("team-badge", {"Name": "Yuki", "Team": "HARRIERS"}),
+    ("name-tag", {"Name": "Sam Okafor", "Role": "Sous Chef"}),
+    ("initials-ring", {"Initials": "JMK"}),
+    ("baby-bib", {"Name": "Amélie", "Date": "12 - 03 - 2026"}),
+]
+
+
+def run_template(template, values, work):
+    script = work / "template.json"
+    script.write_text(json.dumps([
+        {"command": "template.open", "params": {"template": f"builtin:{template}"}},
+        {"command": "template.fill", "params": {"values": values}},
+    ]), encoding="utf-8")
+    return run(script, work)
+
+
+def templates(out, height=480, gap=40):
+    """The four built-in templates side by side, each scaled to `height` and framed."""
+    work = Path(tempfile.mkdtemp(prefix="engine-templates-"))
+    try:
+        tiles = []
+        for template, values in TEMPLATES:
+            f, colours = run_template(template, values, work)
+            sewn = [p for p, k in zip(f["pts"], f["kinds"]) if k == "stitch"]
+            w = max(p[0] for p in sewn) - min(p[0] for p in sewn)
+            h = max(p[1] for p in sewn) - min(p[1] for p in sewn)
+            tile = draw(f, colours, max(2 * MARGIN + 1, round((height - 2 * MARGIN) * w / h) + 2 * MARGIN))
+            framed = Image.new("RGB", (tile.width + 2 * gap, height + 2 * gap), "white")
+            framed.paste(tile, (gap, gap + (height - tile.height) // 2))
+            ImageDraw.Draw(framed).rectangle([1, 1, framed.width - 2, framed.height - 2], outline=(200, 200, 200), width=2)
+            tiles.append(framed)
+        img = Image.new("RGB", (sum(t.width for t in tiles) + gap * (len(tiles) - 1), tiles[0].height), "white")
+        x = 0
+        for tile in tiles:
+            img.paste(tile, (x, 0))
+            x += tile.width + gap
+        save(img, out)
+        print(out, img.size)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def save(img, out):
+    img.quantize(colors=64).save(out, optimize=True)
 
 
 def draw(f, colours, width):
@@ -70,16 +134,21 @@ def draw(f, colours, width):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("script", type=Path)
-    ap.add_argument("out", type=Path)
+    ap.add_argument("script", type=Path, nargs="?")
+    ap.add_argument("out", type=Path, nargs="?")
+    ap.add_argument("--templates", type=Path, metavar="OUT", help="draw the four built-in templates into OUT")
     ap.add_argument("--width", type=int, default=1600)
     ap.add_argument("--release", action="store_true", help="use the release build")
     a = ap.parse_args()
+    if a.templates:
+        return templates(a.templates)
+    if not (a.script and a.out):
+        ap.error("give SCRIPT and OUT, or --templates OUT")
     work = Path(tempfile.mkdtemp(prefix="engine-image-"))
     try:
         f, colours = run(a.script.resolve(), work)
         img = draw(f, colours, a.width)
-        img.quantize(colors=64).save(a.out, optimize=True)
+        save(img, a.out)
         print(a.out, img.size, len(f["kinds"]), "records")
     finally:
         shutil.rmtree(work, ignore_errors=True)

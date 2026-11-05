@@ -18,10 +18,10 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
     };
     let mut open = true;
     let mut apply = false;
-    egui::Window::new(kind.title())
+    let shown = app
+        .dialog_window(ctx, kind.title(), Some([260.0, 90.0]))
         .open(&mut open)
         .default_width(380.0)
-        .default_pos([260.0, 90.0])
         .resizable(false)
         .show(ctx, |ui| {
             let n = app.selection.len();
@@ -62,6 +62,9 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
                 }
             });
         });
+    if let Some(shown) = shown {
+        app.dialog_rect_next = Some(shown.response.rect);
+    }
     if !open {
         app.pattern_wizards.open = None;
     }

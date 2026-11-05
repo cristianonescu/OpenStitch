@@ -60,24 +60,27 @@ with current screenshots. Refresh it in a pull request before every release:
 3. **Hand-written lists:** check "Also missing", "Other things to know" and "Planned" against
    `docs/ROADMAP.md`; remove what the release fixed.
 4. **Release line:** set "Current release" in "Status at a glance" to the new tag and its notes.
-5. **Screenshots:** build the app and regenerate them from that build. Drive the editor with
-   `--script` and `--screenshot` only (no screen control):
+5. **Screenshots and documentation images:** build the release binaries and regenerate every
+   image under `docs/images` from that build. The editor is driven with `--script` and
+   `--screenshot` only (no screen control):
 
    ```bash
-   cargo build -p openstitch-app -p stitchtool
+   cargo build --release -p openstitch-app -p stitchtool -p openstitch-mcp
    ```
 
    ```bash
-   python -I tools/screenshots.py
+   python -I tools/docs_images.py
    ```
 
-   ```bash
-   python -I tools/gallery.py
-   ```
-
-   The second command converts the test images in `examples/images` and rewrites the README's
-   "From image to embroidery" gallery between its markers. Check that it shows OpenStitch's
-   results only, never PE-DESIGN's.
+   It runs every generator (`tools/screenshots.py`, `tools/gallery.py`, `tools/engine_image.py`
+   for the engine plots and the four templates, `tools/digitize_examples.py`, the Stitch Design
+   Factory SVGs and the catalogue page; `--only NAME,NAME` picks some) and then its own
+   `--check`, which CI's `kit` job also runs: every file under `docs/images` must have a
+   generator or be one of the dated records listed in the script. `gallery.py` converts the
+   test images in `examples/images` and rewrites the README's "From image to embroidery"
+   gallery between its markers. Check that it shows OpenStitch's results only, never
+   PE-DESIGN's. In screenshots the wizard dialogs open at the top right and the page is fitted
+   beside them (#565); look at each image at full size.
 
    `docs/images/readme/` holds the README's set. A new feature worth showing gets a scene in
    `tools/screenshots.py` with a `docs/images/readme/` output and a cell in the README's
@@ -86,7 +89,9 @@ with current screenshots. Refresh it in a pull request before every release:
 6. **Ready-to-sew kit:** CI's `kit` job fails when a fresh release build of the kit differs
    from the committed `examples/sew` files or a file fails `tools/sew_check.py` (#450). After
    regenerating it (`python -I tools/sew_kit.py`), open every preview in
-   `examples/sew/previews` at full size and look at the stitches before the release.
+   `examples/sew/previews` at full size and look at the stitches before the release. The job
+   also fails when a preview lacks one of its design's thread colours
+   (`tools/sew_kit.py --check-previews`, #564).
 7. **Links:** check that the README's links to docs and issues still resolve.
 
 ## Steps

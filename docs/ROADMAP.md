@@ -135,6 +135,12 @@ zigzag net regions (#463), line types (#464), small lettering (#465), satin cusp
 trims (#467), Photo Stitch density and stagger (#468), image tools' edge cells and thin features
 (#469), appliqué "add" order (#470), direction-curve fills (#471).
 
+Done 2026-11-05 (#563-#565): the kit previews show their real thread colours (a 128-colour
+palette had turned Ultra Marine green and Red and Magenta alike; CI now checks every preview
+against its threads), every image under `docs/images` has a generator that
+`tools/docs_images.py` runs at the release gate (CI checks none is missing), the wizard dialogs
+no longer cover the design in screenshots, and the cotton texture's Higgsfield job is recorded.
+
 Done 2026-11-05 (#443): Auto Punch on flat graphics (bold lettering, logos) sews clean satin
 columns as PE-DESIGN does (T and H bar by bar, S and C along their curve, the image's own colours
 only); photographs convert as before. Next for lettering images: OpenStitch mode's sewn cream
