@@ -33,15 +33,20 @@ fn rungs(p: &Params) -> Result<Vec<[Vec2; 2]>, CommandError> {
             _ => Err(p.invalid("lines", "each line must be [[x1, y1], [x2, y2]] in mm")),
         })
         .collect::<Result<Vec<_>, _>>()?;
-    column::validate(&lines).map_err(|e| match e {
+    column::validate(&lines).map_err(|e| rung_error(p, e))?;
+    Ok(lines)
+}
+
+/// The user-facing message for direction lines that cannot make a column.
+pub(crate) fn rung_error(p: &Params, e: RungError) -> CommandError {
+    match e {
         RungError::TooFew => p.invalid("lines", "needs at least 2 lines"),
         RungError::Degenerate(i) => p.invalid("lines", format!("line {i} is too short")),
         RungError::Crossing(i) => p.invalid(
             "lines",
             format!("lines {i} and {} (or the sides between them) cross", i + 1),
         ),
-    })?;
-    Ok(lines)
+    }
 }
 
 /// `points` (mm) with `widths` (mm, one per point) or one `width` (default 3 mm).

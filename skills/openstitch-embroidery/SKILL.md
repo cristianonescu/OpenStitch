@@ -85,6 +85,9 @@ then style them in the next.
 - Repeat a motif: `object.arrangeCopies` `{ids, mode: path, pathId, count, side, orient}`
   along a line, `{mode: scatter, shapeId, count, gap, seed}` inside a closed shape, or
   `{mode: circle, count, radius, mirrorAlternate: true}` for a kaleidoscope.
+- Continue in place: `object.extendPath` `{id, end: start|end, points, curves?, widths?}` adds
+  to an open line, path or satin skeleton, `object.extendColumn` `{id, end, lines}` to a Manual
+  Punch column (points added at the start are listed outward from it).
 - Find objects like others: `object.list` `{sameAs: [ids], match: color|type|both,
   visible: true}`, or filter by `color`, `regionType`, `lineType`; then `ui.select` the ids.
 - Text: `object.setText` (text, font, size, spacing), `text.setPath` (fit to an outline).

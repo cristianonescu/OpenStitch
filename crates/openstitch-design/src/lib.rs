@@ -10,6 +10,7 @@ pub mod concentric;
 pub mod contour;
 pub mod direction;
 mod envelope_presets;
+pub mod extend;
 pub mod fmath;
 pub mod fonts;
 pub mod freehand;

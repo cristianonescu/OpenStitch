@@ -5,6 +5,7 @@
 mod arrange_modes;
 pub mod capabilities;
 pub mod commands;
+mod continuing;
 mod convert;
 #[cfg(feature = "digitize")]
 mod digitize;
