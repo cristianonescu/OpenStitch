@@ -236,6 +236,7 @@ pub fn all() -> Vec<CommandSpec> {
     v.extend(attribute_commands());
     v.extend(path_commands());
     v.extend(transform_commands());
+    v.extend(crate::layout::commands());
     v.extend(text_commands());
     v.extend(crate::fonts::commands());
     #[cfg(feature = "digitize")]
@@ -272,6 +273,7 @@ pub fn all() -> Vec<CommandSpec> {
     v.extend(crate::pattern_cmds::commands());
     v.extend(crate::sewing_cmds::commands());
     v.extend(crate::wizards::commands());
+    v.extend(crate::quality::commands());
     v.push(spec(
         "commands.list",
         "Describe every command",
@@ -474,12 +476,49 @@ fn design_commands() -> Vec<CommandSpec> {
         ),
         spec(
             "object.list",
-            "List objects in sewing order",
+            "List objects in sewing order; the optional filters keep only matching ones (Select Same)",
             Effect::Read,
-            vec![],
-            |s, _| {
+            vec![
+                opt(
+                    "color",
+                    "color",
+                    "Only objects sewing this thread (region, line or a stitch-pattern block)",
+                ),
+                opt(
+                    "regionType",
+                    "string",
+                    "Only objects with this region sew type (fill, satin…)",
+                ),
+                opt(
+                    "lineType",
+                    "string",
+                    "Only objects with this line sew type (running, triple…)",
+                ),
+                opt(
+                    "visible",
+                    "bool",
+                    "Only shown (true) or hidden (false) objects",
+                ),
+                opt(
+                    "sameAs",
+                    "[int] | int",
+                    "Only visible objects like these (Select Same)",
+                ),
+                opt(
+                    "match",
+                    "color|type|both",
+                    "sameAs: same thread colour (default), sew type (region type, else line type) or both",
+                ),
+            ],
+            |s, p| {
+                let keep = crate::layout::list_filter(&s.design, p)?;
                 Ok(Value::Array(
-                    s.design.objects.iter().map(describe).collect(),
+                    s.design
+                        .objects
+                        .iter()
+                        .filter(|o| keep.as_ref().is_none_or(|f| f(o)))
+                        .map(describe)
+                        .collect(),
                 ))
             },
         ),
@@ -2852,11 +2891,20 @@ fn codec_commands() -> Vec<CommandSpec> {
                     "bool",
                     "EXP only: also write NAME.inf with the colours in sewing order, as Bernina machines read them (default false, as PE-DESIGN writes the EXP alone)",
                 ),
+                opt(
+                    "verify",
+                    "warn|strict|off",
+                    "Read every written file back and compare it with the stitches meant for it (#457): warn (default) adds a mismatch to the warnings, strict removes the files and fails",
+                ),
             ],
             |s, p| {
                 let raw_path = p.string("path", None)?;
                 let path = s.resolve(&raw_path, Access::Write, &p.command)?;
                 let split = p.bool("split", Some(false))?;
+                let verify = p.string("verify", Some("warn"))?;
+                if !["warn", "strict", "off"].contains(&verify.as_str()) {
+                    return Err(p.invalid("verify", "must be warn, strict or off"));
+                }
                 // Stitch lists and G-code (#488): not machine files, written whole.
                 let extra = if p.has("format") {
                     p.string("format", None)?
@@ -2934,6 +2982,13 @@ fn codec_commands() -> Vec<CommandSpec> {
                 // (#375). Only when no other version is asked for, or the file's own one.
                 if !arranged && let Some(bytes) = unchanged_source(s, p, ty)? {
                     std::fs::write(&path, &*bytes).map_err(|e| p.failed(e.to_string()))?;
+                    // The original file's bytes: read back, they must be the same bytes.
+                    if verify != "off" && std::fs::read(&path).ok().as_deref() != Some(&*bytes) {
+                        if verify == "strict" {
+                            let _ = std::fs::remove_file(&path);
+                        }
+                        return Err(p.failed("the written file did not read back as written"));
+                    }
                     let check = crate::machine::export_check(&s.design, &pattern);
                     return Ok(json!({
                         "path": path.display().to_string(),
@@ -3012,7 +3067,44 @@ fn codec_commands() -> Vec<CommandSpec> {
                 files.sort_by_key(|(t, _)| t.extension().is_some_and(|e| e == "inf"));
                 let paths: Vec<String> =
                     files.iter().map(|(t, _)| t.display().to_string()).collect();
+                let read_back = if verify == "off" {
+                    Vec::new()
+                } else {
+                    files
+                        .iter()
+                        .zip(&parts)
+                        .map(|((target, bytes), part)| {
+                            // A PES for a hoop turned 90° holds the stitches turned with it.
+                            let turned =
+                                (ty == FileType::Pes && !editable && pes_options.hoop_rotated)
+                                    .then(|| openstitch_formats::pec::turned_for_hoop(part));
+                            crate::quality::verify_file(
+                                ty,
+                                turned.as_ref().unwrap_or(part),
+                                target,
+                                bytes,
+                            )
+                        })
+                        .collect()
+                };
+                let mismatches: Vec<String> = read_back
+                    .iter()
+                    .flat_map(|r| r["problems"].as_array().cloned().unwrap_or_default())
+                    .filter_map(|m| m.as_str().map(String::from))
+                    .collect();
+                if verify == "strict" && !mismatches.is_empty() {
+                    for (target, _) in &files {
+                        let _ = std::fs::remove_file(target);
+                    }
+                    return Err(p.failed(format!(
+                        "the written file did not read back as written, so it was removed: {}",
+                        mismatches.join("; ")
+                    )));
+                }
                 let mut check = crate::machine::export_check(&s.design, &pattern);
+                if let Some(w) = check["warnings"].as_array_mut() {
+                    w.extend(mismatches.iter().map(|m| json!(format!("read-back: {m}"))));
+                }
                 if changed_source && let Some(w) = check["warnings"].as_array_mut() {
                     w.push(json!(
                         "the design changed since it was opened, so the file is written from the design: what OpenStitch does not read from the original file (PE-DESIGN's other objects, page and hoop fields) is not kept"
@@ -3027,6 +3119,9 @@ fn codec_commands() -> Vec<CommandSpec> {
                     "hoopMM": check["hoopMM"],
                     "smallestHoop": check["smallestHoop"],
                     "warnings": check["warnings"],
+                    "verified": (verify != "off").then_some(mismatches.is_empty()),
+                    "readBack": read_back,
+                    "problems": crate::quality::errors(&s.design),
                 }))
             },
         ),

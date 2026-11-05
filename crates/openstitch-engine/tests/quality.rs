@@ -1,0 +1,541 @@
+//! Quality checks (#503 Check Design, #504 density map, #505 Review Sewing Order, #457 export
+//! read-back): known-bad designs are flagged, the kit's designs pass.
+
+use openstitch_core::{Command, Stitch, StitchPattern, Thread};
+use openstitch_engine::Session;
+use openstitch_engine::quality::{Traced, verify, verify_file};
+use openstitch_formats::FileType;
+use openstitch_testutil::TempDir;
+use serde_json::{Value, json};
+use std::path::Path;
+
+fn run(s: &mut Session, id: &str, params: Value) -> Value {
+    s.execute(id, Some(&params))
+        .unwrap_or_else(|e| panic!("{id}: {e}"))
+}
+
+fn rules(r: &Value) -> Vec<(String, Vec<u64>)> {
+    r["findings"]
+        .as_array()
+        .expect("findings")
+        .iter()
+        .map(|f| {
+            let ids = f["ids"]
+                .as_array()
+                .expect("value")
+                .iter()
+                .map(|i| i.as_u64().expect("value"))
+                .collect();
+            (f["rule"].as_str().expect("value").to_string(), ids)
+        })
+        .collect()
+}
+
+/// A stitch file made of `stitches` (0.1 mm), imported as one stitch object.
+fn import(s: &mut Session, dir: &Path, name: &str, stitches: Vec<Stitch>) {
+    let pattern = StitchPattern {
+        stitches,
+        threads: vec![Thread::rgb(0xff0000)],
+        ..StitchPattern::default()
+    };
+    let path = dir.join(name);
+    std::fs::write(&path, FileType::Pes.write(&pattern).expect("value")).expect("value");
+    run(
+        s,
+        "stitches.import",
+        json!({"path": path.display().to_string()}),
+    );
+}
+
+fn tatami(s: &mut Session, x: f64) -> u64 {
+    let id = run(
+        s,
+        "shape.rectangle",
+        json!({"x": x, "y": 10, "width": 20, "height": 20, "fill": "Red"}),
+    )["id"]
+        .as_u64()
+        .expect("value");
+    run(
+        s,
+        "object.setRegion",
+        json!({"ids": [id], "underlay": false}),
+    );
+    id
+}
+
+fn inner_layers(d: &Value) -> Vec<f64> {
+    let (w, h) = (
+        d["width"].as_u64().expect("value") as usize,
+        d["height"].as_u64().expect("value") as usize,
+    );
+    let v = d["values"].as_array().expect("value");
+    (3..h - 3)
+        .flat_map(|y| (3..w - 3).map(move |x| y * w + x))
+        .map(|k| v[k].as_f64().expect("value"))
+        .collect()
+}
+
+#[test]
+fn density_reads_one_layer_per_fill_and_stacks() {
+    let mut s = Session::new(std::env::temp_dir());
+    tatami(&mut s, 10.0);
+    let one = run(&mut s, "design.density", json!({}));
+    let l = inner_layers(&one);
+    assert!(l.iter().all(|v| (0.9..=1.1).contains(v)), "{l:?}");
+    assert_eq!(one["hotspots"], json!([]));
+    tatami(&mut s, 10.0);
+    let two = run(&mut s, "design.density", json!({}));
+    let l = inner_layers(&two);
+    assert!(l.iter().all(|v| (1.8..=2.2).contains(v)), "{l:?}");
+    assert_eq!(two["hotspots"], json!([]));
+    // A lighter fabric judges the same stitches heavier, without recompiling them.
+    let thin = run(&mut s, "design.density", json!({"fabric": "thin"}));
+    assert!(
+        thin["classes"]["heavy"].as_f64() > two["classes"]["heavy"].as_f64(),
+        "{thin}"
+    );
+    tatami(&mut s, 10.0);
+    let three = run(&mut s, "design.density", json!({}));
+    let hot = three["hotspots"].as_array().expect("value");
+    assert_eq!(hot.len(), 1, "{three}");
+    assert_eq!(hot[0]["ids"], json!([1, 2, 3]));
+    assert!(hot[0]["maxLayers"].as_f64().expect("value") > 2.7);
+    assert!(
+        three["classes"]["tooDense"].as_f64().expect("value") > 0.5,
+        "{three}"
+    );
+    // The check names the overlap; one object's own dense spots are left out.
+    let c = run(&mut s, "design.check", json!({"rules": ["stacked"]}));
+    assert_eq!(rules(&c), [("stacked".to_string(), vec![1, 2, 3])], "{c}");
+    assert!(
+        s.execute("design.density", Some(&json!({"fabric": "silk"})))
+            .is_err()
+    );
+}
+
+/// `sew_check`'s limits are errors here too, so every kit file it fails fails this check.
+#[test]
+fn sew_check_failures_are_errors() {
+    let dir = TempDir::new("quality-sewcheck");
+    // 25 drops in one 0.5 mm spot.
+    let mut s = Session::new(&dir);
+    let mut st = vec![Stitch::new(0.0, 0.0, Command::Stitch)];
+    for k in 0..25 {
+        st.push(Stitch::new(400.0, 400.0, Command::Stitch));
+        st.push(Stitch::new(450.0 + f64::from(k), 450.0, Command::Stitch));
+    }
+    import(&mut s, &dir, "stacked.pes", st);
+    let c = run(&mut s, "design.check", json!({}));
+    assert_eq!(c["ready"], json!(false), "{c}");
+    assert!(rules(&c).iter().any(|r| r.0 == "stacked"), "{c}");
+    let d = run(&mut s, "design.density", json!({}));
+    assert_eq!(d["hotspots"][0]["stackedDrops"], json!(true), "{d}");
+    // Eight stitches of 0.1 mm in a row: stitching in place.
+    let mut s = Session::new(&dir);
+    let mut st: Vec<_> = (0..20)
+        .map(|k| Stitch::new(f64::from(k) * 20.0, 0.0, Command::Stitch))
+        .collect();
+    st.extend((0..8).map(|k| Stitch::new(400.0 + f64::from(k), 0.0, Command::Stitch)));
+    import(&mut s, &dir, "inplace.pes", st);
+    assert!(
+        rules(&run(&mut s, "design.check", json!({})))
+            .iter()
+            .any(|r| r.0 == "inPlace")
+    );
+    // Larger than the hoop either way round.
+    let mut s = Session::new(&dir);
+    run(&mut s, "machine.set", json!({"hoop": "100x100"}));
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": -10, "y": 10, "width": 120, "height": 20, "fill": "Red"}),
+    );
+    let c = run(&mut s, "design.check", json!({}));
+    assert_eq!(c["findings"][0]["rule"], json!("outsideHoop"));
+    assert_eq!(c["findings"][0]["severity"], json!("error"), "{c}");
+}
+
+/// The fixture of #503: each problem is found once, on its own object, and its fix clears it
+/// as one undo step.
+#[test]
+fn check_design_finds_the_six_problems_and_fixes_them() {
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "machine.set",
+        json!({"machine": "multi", "hoop": "130x180"}),
+    );
+    let rect = |s: &mut Session, x: f64, y: f64, w: f64, h: f64, satin: bool| {
+        let id = run(
+            s,
+            "shape.rectangle",
+            json!({"x": x, "y": y, "width": w, "height": h, "fill": "Blue"}),
+        )["id"]
+            .as_u64()
+            .expect("value");
+        if satin {
+            run(s, "object.setRegion", json!({"ids": [id], "type": "satin"}));
+        }
+        id
+    };
+    let narrow = rect(&mut s, 10.0, 10.0, 0.8, 20.0, true);
+    let thin = rect(&mut s, 20.0, 10.0, 1.0, 2.0, false);
+    // 15 mm from the thin fill, same thread, trimming off on this object.
+    let jump = rect(&mut s, 36.0, 10.0, 8.0, 8.0, false);
+    run(
+        &mut s,
+        "object.setJumpTrimming",
+        json!({"ids": [jump], "enabled": false}),
+    );
+    let outside = rect(&mut s, 125.0, 60.0, 10.0, 10.0, false);
+    let text = run(
+        &mut s,
+        "text.add",
+        json!({"text": "Hi", "size": 3, "x": 40, "y": 120}),
+    )["id"]
+        .as_u64()
+        .expect("value");
+    let wide = rect(&mut s, 60.0, 30.0, 13.0, 40.0, true);
+    let before = serde_json::to_string(s.design()).expect("value");
+    let c = run(&mut s, "design.check", json!({}));
+    let mut found = rules(&c);
+    found.sort();
+    let mut want = vec![
+        ("fillTooThin".to_string(), vec![thin]),
+        ("outsideHoop".to_string(), vec![outside]),
+        ("satinTooNarrow".to_string(), vec![narrow]),
+        ("satinTooWide".to_string(), vec![wide]),
+        ("textTooSmall".to_string(), vec![text]),
+        ("untrimmedJump".to_string(), vec![thin, jump]),
+    ];
+    want.sort();
+    assert_eq!(found, want, "{c}");
+    assert_eq!(c["ready"], json!(false), "the 13 mm satin is an error");
+    assert_eq!(
+        c["findings"][0]["severity"],
+        json!("error"),
+        "errors come first"
+    );
+    for f in c["findings"].as_array().expect("value") {
+        let fix = &f["fix"];
+        let rule = f["rule"].as_str().expect("value");
+        run(
+            &mut s,
+            fix["command"].as_str().expect("value"),
+            fix["params"].clone(),
+        );
+        let again = run(&mut s, "design.check", json!({"rules": [rule]}));
+        assert!(
+            !rules(&again)
+                .iter()
+                .any(|r| r.1 == rules(&json!({"findings": [f]}))[0].1),
+            "{rule} still found after its fix: {again}"
+        );
+    }
+    for _ in 0..6 {
+        run(&mut s, "history.undo", json!({}));
+    }
+    assert_eq!(serde_json::to_string(s.design()).expect("value"), before);
+    // Filters.
+    let only = run(&mut s, "design.check", json!({"ids": [wide]}));
+    assert_eq!(rules(&only), [("satinTooWide".to_string(), vec![wide])]);
+}
+
+#[test]
+fn just_inside_the_limits_is_clean() {
+    let mut s = Session::new(std::env::temp_dir());
+    run(&mut s, "machine.set", json!({"hoop": "100x100"}));
+    // Satin stitches run at an angle, so a 6 mm column sews stitches under 10 mm.
+    for (x, w) in [(10.0, 1.2), (20.0, 6.0)] {
+        let id = run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": x, "y": 10, "width": w, "height": 30, "fill": "Red"}),
+        )["id"]
+            .clone();
+        run(
+            &mut s,
+            "object.setRegion",
+            json!({"ids": [id], "type": "satin"}),
+        );
+    }
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 40, "y": 10, "width": 2, "height": 30, "fill": "Red"}),
+    );
+    run(
+        &mut s,
+        "text.add",
+        json!({"text": "Hi", "size": 4, "x": 50, "y": 60}),
+    );
+    let c = run(&mut s, "design.check", json!({}));
+    assert_eq!(c["findings"], json!([]), "{c}");
+    assert_eq!(c["summary"], json!("Ready to sew"));
+}
+
+#[test]
+fn cleanup_removes_only_tiny_or_empty_objects() {
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 10, "y": 10, "width": 10, "height": 10}),
+    );
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 30, "y": 10, "width": 1, "height": 1}),
+    );
+    // An outline that sews nothing on purpose stays.
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 40, "y": 10, "width": 1, "height": 1}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"ids": [3], "type": "none"}),
+    );
+    let c = run(&mut s, "design.check", json!({}));
+    assert_eq!(rules(&c), [("tinyObject".to_string(), vec![2])], "{c}");
+    let r = run(&mut s, "design.cleanup", json!({}));
+    assert_eq!(r["removed"], json!([2]));
+    let ids: Vec<u64> = s.design().objects.iter().map(|o| o.id).collect();
+    assert_eq!(ids, [1, 3]);
+    run(&mut s, "history.undo", json!({}));
+    assert_eq!(s.design().objects.len(), 3);
+}
+
+#[test]
+fn route_labels_moves_and_warns() {
+    let mut s = Session::new(std::env::temp_dir());
+    run(&mut s, "machine.set", json!({"machine": "multi"}));
+    for x in [10, 40] {
+        run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": x, "y": 10, "width": 10, "height": 10, "fill": "Red"}),
+        );
+    }
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 10, "y": 40, "width": 10, "height": 10, "fill": "Blue"}),
+    );
+    let r = run(&mut s, "design.route", json!({}));
+    let steps = r["steps"].as_array().expect("value");
+    assert_eq!(steps.len(), 3);
+    assert_eq!(steps[0]["move"]["kind"], json!("trim"), "{r}");
+    assert_eq!(
+        steps[0]["warnings"][0]["rule"],
+        json!("longSameThreadMove"),
+        "{r}"
+    );
+    let label = steps[0]["move"]["label"].as_str().expect("value");
+    assert!(
+        label.starts_with("Trim, then ") && label.ends_with(" mm"),
+        "{label}"
+    );
+    assert_eq!(steps[1]["move"]["kind"], json!("colorChange"));
+    assert_eq!(steps[1]["move"]["to"], json!(3));
+    assert_eq!(steps[2]["move"]["kind"], json!("none"));
+    assert_eq!(steps[0]["color"], steps[1]["color"]);
+    let info = run(&mut s, "design.info", json!({}));
+    for (a, b) in [
+        ("trims", "trims"),
+        ("colorChanges", "colorChanges"),
+        ("jumps", "jumps"),
+    ] {
+        assert_eq!(r["totals"][a], info["stitchStats"][b], "{a}");
+    }
+    // Untrimmed: one untrimmedJump, no longSameThreadMove.
+    run(
+        &mut s,
+        "object.setJumpTrimming",
+        json!({"ids": [2], "enabled": false}),
+    );
+    let r = run(&mut s, "design.route", json!({}));
+    assert_eq!(r["steps"][0]["move"]["kind"], json!("jump"), "{r}");
+    assert_eq!(
+        r["steps"][0]["warnings"].as_array().expect("value").len(),
+        1
+    );
+    assert_eq!(r["steps"][0]["warnings"][0]["rule"], json!("untrimmedJump"));
+    assert_eq!(r["totals"]["warnings"], json!(1));
+}
+
+/// Every kit design: no errors, no route warnings. Their warnings are listed in the PR (#295).
+#[test]
+fn kit_designs_pass() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/sew");
+    let manifest: Value =
+        serde_json::from_str(&std::fs::read_to_string(root.join("manifest.json")).expect("value"))
+            .expect("value");
+    let mut files = Vec::new();
+    let mut todo = vec![root.clone()];
+    while let Some(d) = todo.pop() {
+        for e in std::fs::read_dir(d).expect("value").flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                todo.push(p);
+            } else if p.extension().is_some_and(|x| x == "pes") {
+                files.push(p);
+            }
+        }
+    }
+    assert!(files.len() >= 30, "{files:?}");
+    for f in files {
+        let rel = f
+            .strip_prefix(&root)
+            .expect("value")
+            .to_string_lossy()
+            .replace('\\', "/");
+        let hoop = manifest[&rel]["hoop"]
+            .as_str()
+            .unwrap_or("100 × 100 mm")
+            .replace('×', "x")
+            .replace([' ', 'm'], "");
+        let mut s = Session::new(std::env::temp_dir());
+        let (w, h) = hoop.split_once('x').expect("value");
+        match hoop.as_str() {
+            "100x100" => run(&mut s, "machine.set", json!({"hoop": "100x100"})),
+            // The 260 × 160 mm hoop is used upright on the NV880E.
+            "260x160" => run(&mut s, "machine.set", json!({"hoop": "160x260"})),
+            _ => run(
+                &mut s,
+                "design.new",
+                json!({"width": w.parse::<f64>().expect("value"), "height": h.parse::<f64>().expect("value")}),
+            ),
+        };
+        run(
+            &mut s,
+            "stitches.import",
+            json!({"path": f.display().to_string()}),
+        );
+        let c = run(&mut s, "design.check", json!({}));
+        assert_eq!(c["errors"], json!(0), "{rel}: {c}");
+        let r = run(&mut s, "design.route", json!({}));
+        assert_eq!(r["totals"]["warnings"], json!(0), "{rel}: {r}");
+    }
+}
+
+#[test]
+fn exports_read_back_in_every_writable_format() {
+    let dir = TempDir::new("quality-readback");
+    let mut s = Session::new(&dir);
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 10, "y": 10, "width": 30, "height": 20, "fill": "Red"}),
+    );
+    run(
+        &mut s,
+        "shape.ellipse",
+        json!({"cx": 70, "cy": 40, "rx": 12, "ry": 8, "fill": "Blue"}),
+    );
+    let id = run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 10, "y": 60, "width": 15, "height": 30, "fill": "Black"}),
+    )["id"]
+        .clone();
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"ids": [id], "type": "satin"}),
+    );
+    for ty in FileType::writable() {
+        let path = format!("out.{}", ty.extension());
+        let r = run(
+            &mut s,
+            "design.export",
+            json!({"path": path, "split": true}),
+        );
+        assert_eq!(r["verified"], json!(true), "{ty}: {r}");
+        for rb in r["readBack"].as_array().expect("value") {
+            assert!(
+                rb["maxDeviationMm"].as_f64().expect("value") <= 0.1,
+                "{ty}: {rb}"
+            );
+        }
+    }
+    // A hoop turned 90°: the PES holds the stitches turned, and still reads back as written.
+    run(
+        &mut s,
+        "machine.set",
+        json!({"hoop": "130x180", "rotate90": true}),
+    );
+    let r = run(&mut s, "design.export", json!({"path": "turned.pes"}));
+    assert_eq!(r["verified"], json!(true), "{r}");
+    let r = run(
+        &mut s,
+        "design.export",
+        json!({"path": "off.pes", "verify": "off"}),
+    );
+    assert_eq!(r["verified"], Value::Null);
+    assert!(
+        s.execute(
+            "design.export",
+            Some(&json!({"path": "x.pes", "verify": "maybe"}))
+        )
+        .is_err()
+    );
+
+    // A writer that drops one needle drop, a truncated file and a short write are all caught.
+    let t = Traced::new(s.design());
+    let mut dropped = t.pattern.clone();
+    let k = dropped
+        .stitches
+        .iter()
+        .rposition(|st| st.command == Command::Stitch)
+        .expect("value")
+        - 40;
+    dropped.stitches.remove(k);
+    for ty in [FileType::Pes, FileType::Dst, FileType::Jef] {
+        let bytes = ty.write(&dropped).expect("value");
+        let v = verify(ty, &t.pattern, &bytes);
+        assert_eq!(v["verified"], json!(false), "{ty}: {v}");
+        let good = ty.write(&t.pattern).expect("value");
+        assert_eq!(verify(ty, &t.pattern, &good)["verified"], json!(true));
+        let v = verify(ty, &t.pattern, &good[..good.len() / 2]);
+        assert_eq!(v["verified"], json!(false), "{ty} truncated: {v}");
+        let path = dir.join(format!("short.{}", ty.extension()));
+        std::fs::write(&path, &good[..good.len() - 1]).expect("value");
+        assert_eq!(
+            verify_file(ty, &t.pattern, &path, &good)["verified"],
+            json!(false)
+        );
+    }
+}
+
+#[test]
+fn cheap_rules_are_fast_on_a_large_design() {
+    let mut s = Session::new(std::env::temp_dir());
+    run(&mut s, "design.new", json!({"width": 200, "height": 200}));
+    for k in 0..5 {
+        run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": 10, "y": 10 + k * 35, "width": 180, "height": 30, "fill": "Red"}),
+        );
+    }
+    let t = Traced::new(s.design());
+    assert!(
+        t.pattern.count(Command::Stitch) > 30_000,
+        "{}",
+        t.pattern.count(Command::Stitch)
+    );
+    let start = std::time::Instant::now();
+    let found = openstitch_engine::quality::check(
+        s.design(),
+        &t,
+        &openstitch_engine::quality::CheckOptions { fabric: (2.0, 3.0) },
+    );
+    let took = start.elapsed();
+    // 50 ms in a release build; a debug build is about ten times slower.
+    let budget = if cfg!(debug_assertions) { 1000 } else { 50 };
+    assert!(took.as_millis() < budget, "{took:?}");
+    assert!(found.is_empty(), "{found:?}");
+}

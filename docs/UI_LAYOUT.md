@@ -22,8 +22,33 @@ Icons, colours and visual style are OpenStitch's own (see
 | 7 Import / Color / Sewing Attributes / Text Attributes | Docked right as four tabs |
 | 8 Stitch Simulator pane | Docked under the work area |
 | 9–10 Design Page, work area | White page on a grey work area (light theme) |
-| 11 Status bar | Design size, stitch count, the ScreenTip of the command under the pointer or the active tool's hint |
+| 11 Status bar | Design size, stitch count, the ScreenTip of the command under the pointer or the active tool's hint; at the right, the Check Design indicator ("Ready to sew", or the problem count and the first reason; beyond PE-DESIGN) |
 | 12–15 View mode, Show grid, Design Property, zoom | Right of the status bar: Solid / Stitch / Realistic, Show Grid, Design Property, zoom percentage (type or drag) and zoom slider |
+
+**Check Design** (beyond PE-DESIGN, #503–#505) opens from the status-bar indicator or the
+Sewing Order pane's **Review sewing order** button. It has three tabs, judged for the fabric
+chosen at the top:
+
+- **Problems**: what is likely to sew badly, errors first (outside the hoop, satin too wide or
+  narrow, thin fills, small text, long stitches, untrimmed jumps, stacked or dense thread,
+  stitching in place, tiny objects, self-crossing outlines). Clicking a row selects and zooms to
+  its objects; **Fix** runs the suggested command as one undo step. While the tab is open the
+  canvas rings each problem and draws stitches past the hoop in red.
+- **Density map**: thread layers per 1 mm cell (one layer = one default fill), heavy cells in
+  amber and too-dense cells in red over the design, the share of each class, and the hotspots
+  with **Show** / **Next**. **Dark background** puts the design on near-black to review light
+  threads; it changes only the view.
+- **Sewing order**: every object in sewing order with the move to the next ("Trim, then
+  18.6 mm", "Jump of 6.0 mm, not trimmed"), the totals (trims, trims per 1,000 stitches, thread
+  changes, travel) and warnings for untrimmed jumps and long same-thread moves, each with a fix.
+  **Step by step** moves the Stitch Simulator to the end of the chosen step and marks its start
+  (+), end (×) and the labelled move into it; **Route map** numbers every start and draws each
+  move as an arrow (red: untrimmed jump, blue: thread change).
+
+The same checks are the engine commands `design.check`, `design.density`, `design.route` and
+`design.cleanup`, so `stitchtool exec`, the MCP server and the Assistant see what the window
+shows. `design.export` reads every file it writes back and compares it with the stitches meant
+for it (`verify`: warn, strict or off), and lists Check Design's errors as `problems`.
 
 Panes 6, 7 and 8 are shown or hidden from View ▸ Show/Hide or their × button, and float as a
 window (⧉) or dock again (⊟ Dock) ([screenshot](images/rust-editor-floating-panes.png)).
@@ -56,6 +81,15 @@ Behaviour follows the guide's pages
   Snap to Grid on, guidelines move in grid steps. The status bar shows the position while
   dragging. Up to 100 per ruler; they are saved in the `.osd` (`guides.set`, one Undo per
   change) and hidden when Ruler or Guideline is off.
+- **Options ▾ ▸ Editing** (beyond PE-DESIGN, #474, #475): Nudge step (0.1 mm by default as in
+  PE-DESIGN; Shift moves ten times as far), Nudge by the grid step while snapping (with Snap to
+  Grid on, an arrow moves one grid step) and Click inside outlines selects them (off: the inside
+  of a shape that sews only its outline is not a hit, its line must be clicked, as in
+  PE-DESIGN). Kept in `ui.json`; the Assistant reads and sets them with `ui.settings` / `ui.set`
+  (`nudgeStep`, `nudgeByGrid`, `clickInsideOutlines`, `snapToObjects`, `precisionBar`,
+  `alignTo`).
+- **Alt-click on a stitch pattern** selects every stitch pattern that sews the thread colour
+  under the pointer (PE-DESIGN's selection of stitch patterns by thread colour, #475).
 - **Save Image** ▸ to File… writes the background image as shown (turned, cropped, colours
   adjusted) as PNG, BMP or JPEG (`background.save`); ▸ to Clipboard copies it.
 - **Modify Image** opens a window with the image's position and width (the height keeps its
@@ -110,6 +144,7 @@ Behaviour follows the guide's pages
 | Select | Select | `V` | `Action::SelectTool` | view/UI only | yes |
 | Select | Point Edit | `A` | `Action::PointTool` | `object.setPoint` | yes |
 | Select | Select All | `Ctrl+A` | `Action::SelectAll` | view/UI only | yes |
+| Select | Select Same ▾ (Same Thread Colour, Same Stitch Type, Same Colour and Type; beyond PE-DESIGN, #475) |  | `Action::SelectSame`, `SelectSameColor`, `SelectSameType`, `SelectSameBoth` | `object.list` (`sameAs`, `match`) | yes |
 | Clipboard | Paste | `Ctrl+V` | `Action::Paste` | `object.duplicate` | yes |
 | Clipboard | Cut | `Ctrl+X` | `Action::Cut` | `object.delete`, then `object.paste` on Paste | yes |
 | Clipboard | Copy | `Ctrl+C` | `Action::Copy` | view/UI only | yes |
@@ -126,6 +161,7 @@ Behaviour follows the guide's pages
 | Import | Import Patterns | `Ctrl+Shift+I` | `Action::ImportPatterns` | `stitches.import` | yes |
 | Import | Import SVG |  | `Action::ImportSvg` | `import.svg`, `import.metafile` for `.wmf`/`.emf` | yes |
 | Edit | Arrange |  | `Action::Arrange` | `order.move` | yes |
+| Edit | Align ▾ (Relative to Selection / Last Selected / Design Page; Align Left, Centre, Right, Top, Middle, Bottom; Distribute Horizontally, Vertically; beyond PE-DESIGN, #472) |  | `Action::Align`, `AlignLeft` … `AlignBottom`, `DistributeHorizontal`, `DistributeVertical` | `object.align`, `object.distribute` | yes |
 | Edit | Rotate/Flip |  | `Action::RotateFlip` | `object.rotate` | yes |
 | Edit | Size |  | `Action::Size` | `object.scale` | yes |
 | Edit | Group | `Ctrl+G` | `Action::Group` | `object.group` | yes |
@@ -172,10 +208,12 @@ Behaviour follows the guide's pages
 | Show/Hide | Attributes Setting |  | `Action::PaneAttributes` | view/UI only | yes |
 | Show/Hide | Import Pane |  | `Action::PaneImport` | view/UI only | yes |
 | Show/Hide | Assistant ➕ | Ctrl+Shift+A | `Action::PaneAssistant` | view/UI only; the panel runs engine and `ui.*` commands (B17) | yes |
+| Show/Hide | Precision Bar (beyond PE-DESIGN, #474): a row under the ribbon with the selection's X, Y (top-left or centre), W, H, Lock aspect, Rotate and Skew; Enter commits, Esc reverts |  | `Action::PrecisionBar` | `object.move`, `object.scale`, `object.rotate`, `object.skew` | yes |
 | Show/Hide | Reference Window |  | `Action::ReferenceWindow` | view/UI only | yes |
 | Grid | Show Grid |  | `Action::ShowGrid` | view/UI only | yes |
 | Grid | Show Grid with Axes |  | `Action::GridAxes` | view/UI only | yes |
 | Grid | Snap to Grid |  | `Action::SnapToGrid` | view/UI only | yes |
+| Grid | Snap to Objects (beyond PE-DESIGN, #473): a dragged selection snaps to other objects' edges and centres, the page and the guidelines, with dashed guides; Ctrl (Cmd) drags freely |  | `Action::SnapToObjects` | view/UI only (the drag ends as one `object.move`) | yes |
 | Grid | Grid Spacing |  | `Action::GridSpacing` | view/UI only | yes |
 | Ruler | Ruler |  | `Action::Ruler` | view/UI only | yes |
 | Guideline | Guideline |  | `Action::Guideline` | `guides.set` | yes |

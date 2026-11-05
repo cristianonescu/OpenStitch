@@ -51,8 +51,11 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `reference/recipes.md`).
 4. Order: `order.optimize` (PE-DESIGN-compatible order) or `order.byColor`; check with
    `object.list` (sewing order).
-5. Check: `view_render` (look at it), `design.info` (size, stitches, colours, trims, time).
-   Fix and check again.
+5. Check: `view_render` (look at it), `design.info` (size, stitches, colours, trims, time) and
+   `design.check` (sewing problems, errors first; `ready` is false while there are errors).
+   Run each finding's `fix` command or fix it yourself, and check again; never report a design
+   done while `design.check` has errors. `design.route` names every move between objects
+   (untrimmed jumps, long moves), `design.density` shows where thread piles up.
 6. Save only when asked: `project.save` `{path: "name.osd"}` (editable) and/or
    `design.export` `{path: "name.pes"}` (machine file; the extension picks the format).
 
@@ -68,7 +71,13 @@ then style them in the next.
 - `object.list` lists objects (id, kind, bounds in mm, sew types, colours, text);
   `object.get` gives one object in full.
 - Move, size, turn: `object.move` `{ids, dx, dy}`, `object.scale` `{ids, sx, sy}`,
-  `object.rotate` `{ids, degrees}`, `object.flip`, `object.center`.
+  `object.rotate` `{ids, degrees}`, `object.flip`, `object.center`, `object.skew`
+  `{ids, angleX, angleY}` (lean; fill directions turn with it).
+- Line up and space: `object.align` `{ids, edge: left|right|top|bottom|centerX|centerY,
+  to: selection|key|page, keyId}` and `object.distribute` `{ids, axis: x|y, by: gaps|centers}`
+  (three or more; the outermost two stay). Groups move whole.
+- Find objects like others: `object.list` `{sameAs: [ids], match: color|type|both,
+  visible: true}`, or filter by `color`, `regionType`, `lineType`; then `ui.select` the ids.
 - Text: `object.setText` (text, font, size, spacing), `text.setPath` (fit to an outline).
 - Delete: `object.delete` `{ids}`. Undo: `history.undo` (only for your own mistakes).
 
