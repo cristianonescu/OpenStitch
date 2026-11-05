@@ -2014,7 +2014,7 @@ fn cross_stitch_sews_an_x_in_every_cell() {
     let mut r = region(RegionType::CrossStitch);
     r.running_stitch_path = None;
     let runs = crate::region::layers(&c, &r, &[]).pop().expect("top");
-    assert_eq!(runs.len(), 4, "one run per row of cells");
+    assert_eq!(runs.len(), 1, "rows joined along the crosses");
     let diagonals = |runs: &[Run]| {
         runs.iter()
             .flat_map(|r| r.windows(2))
@@ -2029,6 +2029,184 @@ fn cross_stitch_sews_an_x_in_every_cell() {
     let small = vec![Contour::rectangle(0.0, 0.0, 90.0, 90.0)];
     let partial = crate::region::layers(&small, &region(RegionType::CrossStitch), &[]);
     assert_eq!(diagonals(partial.last().expect("top")), 9 * 2);
+}
+
+/// Cross stitch cells of `runs` on a `size` grid from the origin: per cell, how many of its
+/// four half diagonals are sewn; also the stitches that are not on a half diagonal of the
+/// grid (along a cell side, or off the grid).
+fn cross_cells(runs: &[Run], size: f64) -> (std::collections::BTreeMap<(i64, i64), usize>, usize) {
+    let h = size / 2.0;
+    let on_lattice = |p: Vec2| (p.x - p.x.round()).abs() < 1e-6 && (p.y - p.y.round()).abs() < 1e-6;
+    let mut halves = std::collections::BTreeSet::new();
+    let mut off = 0;
+    for w in runs.iter().flat_map(|r| r.windows(2)) {
+        let (a, b) = (w[0] * (1.0 / h), w[1] * (1.0 / h));
+        let d = b - a;
+        if !on_lattice(a) || !on_lattice(b) || (d.x.abs() - d.y.abs()).abs() > 1e-6 || d.x == 0.0 {
+            off += 1;
+            continue;
+        }
+        let steps = d.x.abs().round() as i64;
+        for k in 0..steps {
+            let p = a + d * ((k as f64 + 0.5) / steps as f64);
+            let (cx, cy) = ((p.x / 2.0).floor() as i64, (p.y / 2.0).floor() as i64);
+            // Which half diagonal of the cell: the quadrant round its centre.
+            let quadrant = (p.x > (2 * cx + 1) as f64, p.y > (2 * cy + 1) as f64);
+            halves.insert((cx, cy, quadrant));
+        }
+    }
+    let mut cells = std::collections::BTreeMap::new();
+    for (cx, cy, _) in halves {
+        *cells.entry((cx, cy)).or_insert(0) += 1;
+    }
+    (cells, off)
+}
+
+#[test]
+fn cross_stitch_sews_whole_xs_with_travel_only_under_them_at_any_direction() {
+    // A 20 × 20 mm square at (10, 10) mm: 8 × 8 cells of 2.5 mm (#463).
+    let c = vec![Contour::rectangle(100.0, 100.0, 200.0, 200.0)];
+    for angle in [0.0, 30.0, 45.0, 90.0] {
+        let mut r = region(RegionType::CrossStitch);
+        r.angle = angle;
+        r.running_stitch_path = None;
+        let runs = crate::region::layers(&c, &r, &[]).pop().expect("top");
+        assert_eq!(runs.len(), 1, "{angle}°: one run, no trim");
+        let (cells, off) = cross_cells(&runs, 25.0);
+        // Nothing along a cell side or off the diagonals: travel lies under the crosses.
+        assert_eq!(off, 0, "{angle}°");
+        assert_eq!(cells.len(), 64, "{angle}°");
+        assert!(cells.values().all(|&n| n == 4), "{angle}°: every X whole");
+        assert!(
+            cells
+                .keys()
+                .all(|&(x, y)| (4..12).contains(&x) && (4..12).contains(&y)),
+            "{angle}°: inside the square"
+        );
+        assert!(longest(&runs[0]) <= 25.0 * std::f64::consts::SQRT_2 + 1e-6);
+    }
+    // A concave region, an L of six cells: still every X whole and nothing on a side.
+    let l = vec![Contour::new(
+        vec![
+            v2(0.0, 0.0),
+            v2(75.0, 0.0),
+            v2(75.0, 25.0),
+            v2(25.0, 25.0),
+            v2(25.0, 100.0),
+            v2(0.0, 100.0),
+        ],
+        true,
+    )];
+    let mut r = region(RegionType::CrossStitch);
+    r.running_stitch_path = None;
+    let runs = crate::region::layers(&l, &r, &[]).pop().expect("top");
+    let (cells, off) = cross_cells(&runs, 25.0);
+    assert_eq!((cells.len(), off, runs.len()), (6, 0, 1));
+    assert!(cells.values().all(|&n| n == 4));
+}
+
+#[test]
+fn zigzag_net_stays_inside_and_its_rungs_do_not_cross() {
+    // #463: the honeycomb's bands fanned round the hexagon corners (rungs crossing their
+    // neighbours) and their rungs reached about 1 mm past the outline.
+    // Two stitches crossing more than 0.3 mm from all their ends (where the rungs of two bands
+    // meet in a corner their ends touch, which is not a crossing).
+    let proper_cross = |a: Vec2, b: Vec2, c: Vec2, d: Vec2| {
+        let side =
+            |p: Vec2, q: Vec2, r: Vec2| (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+        let (d1, d2) = (side(a, b, c), side(a, b, d));
+        let (d3, d4) = (side(c, d, a), side(c, d, b));
+        if d1 * d2 >= -1e-6 || d3 * d4 >= -1e-6 {
+            return false;
+        }
+        let x = c.lerp(d, d1 / (d1 - d2));
+        [a, b, c, d].iter().all(|p| p.distance(x) > 3.0)
+    };
+    for (c, name) in [
+        (
+            vec![Contour::rectangle(100.0, 100.0, 200.0, 200.0)],
+            "square",
+        ),
+        (vec![circle()], "circle"),
+    ] {
+        for id in ["honeycomb", "square", "diamond", "triangle"] {
+            for angle in [0.0, 30.0] {
+                let mut r = region(RegionType::ZigzagNetFill);
+                r.pattern = Some(id.into());
+                r.angle = angle;
+                let runs = crate::region::layers(&c, &r, &[]).pop().expect("top");
+                assert_eq!(runs.len(), 1, "{name} {id} {angle}°");
+                let run = &runs[0];
+                for p in run {
+                    assert!(
+                        inside_or_on(*p, &c, 0.5),
+                        "{name} {id} {angle}°: {p:?} outside"
+                    );
+                }
+                // Stitches along a net line (travel, and the run under a band, which every rung
+                // crosses) lie in a line direction; rungs and their diagonals do not.
+                let lines: &[f64] = match id {
+                    "square" => &[0.0, 90.0],
+                    "diamond" => &[45.0, -45.0],
+                    _ => &[0.0, 60.0, 120.0],
+                };
+                let along_line = |j: usize| {
+                    let d = run[j + 1] - run[j];
+                    let a = d.y.atan2(d.x).to_degrees();
+                    // The net turns the other way round on the page (y down).
+                    lines.iter().any(|l| {
+                        let off = (a + l + angle).rem_euclid(180.0);
+                        off.min(180.0 - off) < 2.0
+                    })
+                };
+                let crosses = |i: usize| {
+                    !along_line(i)
+                        && !along_line(i + 2)
+                        && proper_cross(run[i], run[i + 1], run[i + 2], run[i + 3])
+                };
+                let crossing = (0..run.len().saturating_sub(3))
+                    .filter(|&i| crosses(i))
+                    .count();
+                let first = (0..run.len().saturating_sub(3))
+                    .find(|&i| crosses(i))
+                    .map(|i| (i, &run[i.saturating_sub(4)..(i + 6).min(run.len())]));
+                assert_eq!(
+                    crossing, 0,
+                    "{name} {id} {angle}°: a rung crosses the next {first:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn neighbouring_cross_stitch_regions_share_one_grid() {
+    // Two squares side by side at an offset that is no multiple of the cell: every needle
+    // point of both lies on the same 2.5 mm grid, at a cell corner or a cell centre.
+    let half = 12.5;
+    let left = vec![Contour::rectangle(33.0, 17.0, 120.0, 120.0)];
+    let right = vec![Contour::rectangle(153.0, 17.0, 120.0, 120.0)];
+    for angle in [0.0, 45.0] {
+        let mut r = region(RegionType::CrossStitch);
+        r.angle = angle;
+        r.running_stitch_path = None;
+        for c in [&left, &right] {
+            let runs = crate::region::layers(c, &r, &[]).pop().expect("top");
+            assert!(runs.iter().map(Vec::len).sum::<usize>() > 50);
+            for p in runs.iter().flatten() {
+                let (u, v) = (p.x / half, p.y / half);
+                assert!(
+                    (u - u.round()).abs() < 1e-6 && (v - v.round()).abs() < 1e-6,
+                    "{p:?} off the shared grid"
+                );
+                assert_eq!(
+                    (u.round() as i64 % 2 == 0),
+                    (v.round() as i64 % 2 == 0),
+                    "{p:?}: a corner or a centre"
+                );
+            }
+        }
+    }
 }
 
 #[test]
