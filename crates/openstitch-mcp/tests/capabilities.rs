@@ -106,7 +106,7 @@ fn read_only_lists_and_runs_only_reads() {
     // View filters (#517) are read-only too, and checked.
     let r = c.call(
         "preview",
-        json!({"size": 128, "layers": "underlay", "colorBy": "order", "only": [], "solo": 0}),
+        json!({"size": 128, "layers": "underlay", "colorBy": "order", "only": [], "solo": 0, "needlePoints": true, "trimMarks": true}),
     );
     assert_ne!(r["result"]["isError"], true, "{r}");
     let r = c.call("preview", json!({"size": 128, "colorBy": "plaid"}));

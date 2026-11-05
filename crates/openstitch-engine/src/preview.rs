@@ -6,7 +6,7 @@ use openstitch_core::{Command, StitchPattern};
 use openstitch_design::Design;
 pub use tiny_skia::Pixmap;
 use tiny_skia::{
-    Color, LineCap, LineJoin, Paint, PathBuilder, Rect, Stroke, StrokeDash, Transform,
+    Color, FillRule, LineCap, LineJoin, Paint, PathBuilder, Rect, Stroke, StrokeDash, Transform,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -130,6 +130,163 @@ pub fn png(
 ) -> Result<Vec<u8>, String> {
     let view = View::fit(design, pattern, max_pixels);
     encode(&draw(design, pattern, &view, show_travel)?)
+}
+
+/// View ▸ Show settings for a rendered picture (#517): the filter and the two overlays.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ShowArgs {
+    pub filter: openstitch_design::view::ViewFilter,
+    pub needle_points: bool,
+    pub trim_marks: bool,
+}
+
+/// The arguments the picture tools share (`preview`, `ui.render`, `view_render`): `layers`,
+/// `colorBy`, `only`, `solo`, `needlePoints`, `trimMarks`; each one given replaces the value in
+/// `defaults`.
+pub fn show_args(args: &serde_json::Value, defaults: ShowArgs) -> Result<ShowArgs, String> {
+    use openstitch_design::view::{ColorBy, Layers};
+    let mut s = defaults;
+    if let Some(v) = args.get("layers") {
+        s.filter.layers = v
+            .as_str()
+            .and_then(Layers::parse)
+            .ok_or("layers takes both, underlay or top")?;
+    }
+    if let Some(v) = args.get("colorBy") {
+        s.filter.color_by = v
+            .as_str()
+            .and_then(ColorBy::parse)
+            .ok_or("colorBy takes thread, order or mono")?;
+    }
+    if let Some(v) = args.get("only") {
+        s.filter.only = match v {
+            serde_json::Value::Null => None,
+            v => Some(
+                serde_json::from_value::<Vec<u64>>(v.clone())
+                    .map_err(|_| "only takes a list of object ids")?,
+            ),
+        };
+    }
+    if let Some(v) = args.get("solo") {
+        s.filter.solo = match v {
+            serde_json::Value::Null => None,
+            v => Some(
+                v.as_u64()
+                    .filter(|n| *n <= 10_000)
+                    .ok_or("solo takes a colour block number (0-based)")? as usize,
+            ),
+        };
+    }
+    for (key, flag) in [
+        ("needlePoints", &mut s.needle_points),
+        ("trimMarks", &mut s.trim_marks),
+    ] {
+        if let Some(v) = args.get(key) {
+            *flag = v
+                .as_bool()
+                .ok_or_else(|| format!("{key} takes true or false"))?;
+        }
+    }
+    Ok(s)
+}
+
+/// The design's picture as `show` sets it: the filtered pattern, needle points and trim marks.
+/// `pattern` and `spans` are the compiled design ([`openstitch_design::Compiler::compile_traced`]).
+pub fn png_shown(
+    design: &Design,
+    pattern: &StitchPattern,
+    spans: &[(u64, std::ops::Range<usize>)],
+    max_pixels: u32,
+    show_travel: bool,
+    show: &ShowArgs,
+) -> Result<Vec<u8>, String> {
+    use openstitch_design::view;
+    let flags = if show.filter.layers == view::Layers::Both {
+        Vec::new()
+    } else {
+        view::underlay_flags(design, pattern, spans)
+    };
+    let shown = view::apply(pattern, &show.filter, &flags, spans, [255, 255, 255]);
+    let overlays = Overlays {
+        needle_points: show.needle_points,
+        trims: if show.trim_marks {
+            view::trim_points(pattern)
+                .iter()
+                .map(|p| (p.x, p.y))
+                .collect()
+        } else {
+            Vec::new()
+        },
+    };
+    png_with(design, &shown, max_pixels, show_travel, &overlays)
+}
+
+/// View ▸ Show overlays drawn over the stitches (#517).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Overlays {
+    /// A dot at every needle drop.
+    pub needle_points: bool,
+    /// Cut marks at these positions (0.1 mm): where the machine trims.
+    pub trims: Vec<(f64, f64)>,
+}
+
+/// [`png`] with `overlays` drawn over the stitches.
+pub fn png_with(
+    design: &Design,
+    pattern: &StitchPattern,
+    max_pixels: u32,
+    show_travel: bool,
+    overlays: &Overlays,
+) -> Result<Vec<u8>, String> {
+    let view = View::fit(design, pattern, max_pixels);
+    let mut pixmap = draw(design, pattern, &view, show_travel)?;
+    draw_overlays(&mut pixmap, pattern, &view, overlays);
+    encode(&pixmap)
+}
+
+/// Needle points in their thread colour and red cut marks at the trims.
+pub fn draw_overlays(pixmap: &mut Pixmap, pattern: &StitchPattern, view: &View, o: &Overlays) {
+    let transform = transform(view);
+    let px = (1.0 / view.scale) as f32;
+    let mut paint = Paint::default();
+    if o.needle_points {
+        let threads: Vec<_> = pattern.color_blocks().into_iter().map(|(t, _)| t).collect();
+        let r = (1.6 * px).max(1.5);
+        let mut block = 0;
+        for s in &pattern.stitches {
+            match s.command {
+                Command::ColorChange => block += 1,
+                Command::Stitch => {
+                    let t = threads.get(block).copied().flatten();
+                    paint.set_color_rgba8(
+                        t.map_or(0, |t| t.red / 2),
+                        t.map_or(0, |t| t.green / 2),
+                        t.map_or(0, |t| t.blue / 2),
+                        255,
+                    );
+                    if let Some(c) = PathBuilder::from_circle(s.x as f32, s.y as f32, r) {
+                        pixmap.fill_path(&c, &paint, FillRule::Winding, transform, None);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    paint.set_color_rgba8(0xd3, 0x2f, 0x2f, 255);
+    let mark = Stroke {
+        width: 1.5 * px,
+        ..Stroke::default()
+    };
+    for &(x, y) in &o.trims {
+        let (x, y) = (x as f32, y as f32);
+        let mut pb = PathBuilder::new();
+        pb.push_circle(x, y, 4.0 * px);
+        pb.move_to(x - 5.0 * px, y - 5.0 * px);
+        pb.line_to(x + 5.0 * px, y + 5.0 * px);
+        if let Some(p) = pb.finish() {
+            pixmap.stroke_path(&p, &paint, &mark, transform, None);
+        }
+    }
 }
 
 /// The design drawn into a white bitmap of `view`'s size.

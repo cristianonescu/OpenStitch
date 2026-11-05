@@ -131,6 +131,27 @@ pub const UI_COMMANDS: &[UiCommand] = &[
                 false,
                 "Draw jumps as dashed lines (default false)",
             ),
+            p(
+                "layers",
+                "both|underlay|top",
+                false,
+                "Underlay only or top stitching only (default: View ▸ Show's setting)",
+            ),
+            p(
+                "colorBy",
+                "thread|order|mono",
+                false,
+                "Colour by thread, sewing order or one colour (default: View ▸ Show's setting)",
+            ),
+            p("only", "[int]", false, "Only these objects' stitches"),
+            p(
+                "solo",
+                "int",
+                false,
+                "Fade every colour block but this one (0-based)",
+            ),
+            p("needlePoints", "bool", false, "A dot at every needle drop"),
+            p("trimMarks", "bool", false, "A red cut mark at every trim"),
         ],
     },
     UiCommand {
