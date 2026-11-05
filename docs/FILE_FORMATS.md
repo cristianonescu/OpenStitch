@@ -1692,3 +1692,38 @@ applied to a five-block DST and undone in one step, a four-colour list refused, 
 applied with names and brands, lists to and from user charts, the EXP + INF option: off by
 default, the EXP byte for byte the same with it, INF colours = EXP colour blocks); fuzz target
 `read_threadlist` (766 k runs, 20 s, no crash).
+
+## Stitch lists, G-code and export-time repeats (#488)
+
+Beyond PE-DESIGN; nothing changes unless chosen. All through `design.export` (and File ▸
+Export ▸ Stitch List (CSV / TXT), G-code), never changing the design.
+
+**Stitch list (`csv`, `txt`; `openstitch_formats::stitchlist`).** One row per record of the
+compiled stream: `index, command, x_mm, y_mm, dx_mm, dy_mm, color, brand, code`. Positions to
+0.01 mm, +y down as the design holds them; dx and dy are taken between the rounded positions,
+so they sum exactly to the last row's position. CSV has a header row; TXT aligns the columns
+after a `#` header. Fields are cleaned of separators (`,`, tabs, spaces become `_`).
+
+**G-code (`gcode`; `openstitch_formats::gcode`).** Millimetres, absolute (`G21`, `G90`), y up.
+`G0` for jumps, `G1 … F` for stitches followed by the needle command, the trim command or a
+`; trim` comment, `M0 ; colour change N: #rrggbb brand code name`, `M0 ; stop`, `M2 ; end`, and
+a header of comments with the settings. Options `gcode: {needle, trim, feed, profile}`; the
+needle and trim commands are empty by default, because builds differ (no standard exists).
+**Experimental:** not run on any machine; pyembroidery's G-code was not used.
+
+**Repeat (`repeat: {columns, rows, gapMm}`).** The design 1–20 × 1–20 times with a gap
+between the copies' needle points, centred on the Design Page; each colour block is sewn on
+every copy before the next colour (a trim between copies), so the copies add no colour
+changes. A layout larger than the hoop (either way round) is refused with the size it needs.
+Works with every writable format and the extras.
+
+**Frame park (`framePark: {xMm, yMm}`).** At every stop: trim, move the frame to that point
+(mm from the Design Page centre), stop, move back.
+
+**Evidence.** `stitchlist::tests`, `gcode::tests`, `extra_exports::tests` (frame park); engine
+`tests/extra_exports.rs`: a row per record, deltas summing to the end, command counts equal to
+`design.info`; G-code read back to the same needle points within 0.01 mm and one `M0` colour
+change per change; a 2 × 3 repeat with 5 mm gaps: six times the stitches, no extra colour
+change, the expected size, the design unchanged, a 20 × 20 repeat refused with its size;
+`tools/sew_check.py` passes on a 2 × 3 repeat exported as PES and VP3 (65 × 100 mm in the
+100 × 100 mm hoop, the same needle-drop stacking as one copy).

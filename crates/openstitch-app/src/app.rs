@@ -1004,6 +1004,26 @@ impl EditorApp {
         self.export_with_params(FileType::Exp, None, true);
     }
 
+    /// Writes a stitch list (`csv`, `txt`) or G-code (`gcode`) through `design.export` (#488).
+    pub fn export_extra(&mut self, ext: &str) {
+        let name = format!("{}.{ext}", self.session.design().name);
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter(ext.to_uppercase(), &[ext])
+            .set_file_name(name)
+            .save_file()
+        else {
+            return;
+        };
+        let params = json!({ "path": path.display().to_string(), "format": ext });
+        if let Some(r) = self.execute(&CommandRequest::new("design.export", params)) {
+            self.status = format!(
+                "Exported {} ({} stitches)",
+                path.display(),
+                r["stats"]["stitches"]
+            );
+        }
+    }
+
     /// Writes the design's colours in sewing order (`design.exportThreads`).
     pub fn export_thread_list(&mut self, ext: &str) {
         let name = format!("{} threads.{ext}", self.session.design().name);

@@ -8,6 +8,8 @@ mod convert;
 #[cfg(feature = "digitize")]
 mod digitize;
 mod drawing;
+#[cfg(feature = "formats")]
+pub mod extra_exports;
 pub mod fabric;
 #[cfg(feature = "digitize")]
 mod font_images;

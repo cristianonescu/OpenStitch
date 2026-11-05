@@ -78,7 +78,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 290: 165 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 115 planned beyond PE-DESIGN |
+| Feature matrix rows | 291: 166 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 115 planned beyond PE-DESIGN |
 | Compatibility specs | 454: 454 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 36: 29 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 10 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
@@ -660,7 +660,7 @@ PE-DESIGN 11 does not. Each item is sketched in
 - Merge similar colours: threads closer than a ΔE threshold joined into one, previewed and undoable (#485)
 - More built-in thread charts compiled from each maker's own published colour data, searchable by number or name (#486)
 - Vector image import (PE-compat area): clip paths, masks and opacity applied, gradients as optional colour bands, and a report of skipped elements (#487)
-- Extra exports: stitch list CSV/TXT, multi-format ZIP bundle, stitch-out video, G-code and export-time repeats (#488)
+- Extra exports, part 2: multi-format ZIP bundle and stitch-out video (#488)
 - Image wizard (OpenStitch mode): purpose presets, a region table with reasons and overrides, click-to-fix on the picture, colour order, varied or least-travel fill angles and outline SVG export (#489)
 - Optional on-device helpers for digitizing: one-click subject segmentation, line drawing from photos and OCR to lettering (#490)
 - Assistant memory: per-user notes read into every conversation, written through the permission gate, viewable and clearable (#491)
