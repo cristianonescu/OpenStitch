@@ -118,6 +118,10 @@ still send mm to commands. `design.print {units: "inch"}` adds a 2-inch scale ba
   and folders the user approves). A refused path is not an error to work around: tell the user.
 - To import model-made artwork, write it with `scratch_write` (SVG text, or a PNG/JPEG as
   base64) and pass the returned `path` to `import.svg` or a `digitize.*` command.
+- `import.svg` returns `skipped` (text, images, nearly transparent or clipped-away shapes) and
+  `approximated` (gradients, patterns, masks, filters): tell the user what was left out instead
+  of leaving it unsaid. `gradients: "bands"` turns a gradient fill into 2–8 colour bands;
+  `minOpacity` (default 0.1) sets how faint a fill or stroke may be before it is left out.
 - When you write an SVG for `import.svg`, you can name each element's sewing and import with
   `settings: true`: give the element an `id` and a `data-name` such as `"fill a=45 s=0.4"`,
   `"satin"`, `"run r=3"` or `"stroke.satin w=3"`; the result lists unknown words and refused

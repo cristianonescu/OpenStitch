@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" viewBox="0 0 200 100">
+  <defs>
+    <linearGradient id="dusk" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#101040"/>
+      <stop offset="1" stop-color="#d0d0ff"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#802000"/>
+    </radialGradient>
+  </defs>
+  <rect id="bar" x="0" y="0" width="90" height="90" fill="url(#dusk)"/>
+  <circle id="sun" cx="150" cy="45" r="45" fill="url(#glow)"/>
+</svg>

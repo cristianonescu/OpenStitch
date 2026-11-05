@@ -8,19 +8,23 @@
 //! the engine read outside the sandbox. usvg resolves CSS, units, `viewBox` and transforms and
 //! turns rectangles, circles, ellipses, lines and polygons into paths. Each visible path becomes
 //! one shape object: subpaths become contours (quadratic segments are raised to cubics, so
-//! curves stay exact), a solid fill becomes a fill region in that colour, a solid stroke a
-//! running line. Gradient and pattern paints use the default colour. SVG's `nonzero` fill rule
-//! is approximated by OpenStitch's even-odd rule.
+//! curves stay exact), a fill becomes a fill region in its colour, a stroke a running line.
+//! Clip paths and masks cut what they apply to (a mask keeps the area where it is at least half
+//! opaque), a fill or stroke whose opacity is below `minOpacity` is left out, a gradient gives
+//! its colour half way along or, opt-in, bands of its colours, and a pattern paint is black.
+//! The result lists everything left out (text, images, transparent or clipped-away shapes) and
+//! approximated (#487). SVG's `nonzero` fill rule is approximated by OpenStitch's even-odd rule.
 
 use crate::commands::{CommandSpec, Effect, MM, opt, read_file, req, spec};
 use crate::params::{CommandError, Params};
 use crate::session::EngineState;
 use openstitch_core::Thread;
+use openstitch_design::boolean::{self, BoolOp};
 use openstitch_design::{
     Bezier, Contour, DesignObject, LineSewing, LineType, Rect, RegionSewing, RegionType, Transform,
     Vec2, v2,
 };
-use serde_json::json;
+use serde_json::{Value, json};
 
 /// Largest SVG file accepted.
 pub const MAX_SVG_BYTES: usize = 16 << 20;
@@ -74,96 +78,769 @@ fn options() -> usvg::Options<'static> {
     }
 }
 
-fn paint_thread(paint: &usvg::Paint) -> Option<Thread> {
+fn rgb_thread(c: usvg::Color) -> Thread {
+    Thread::rgb(u32::from(c.red) << 16 | u32::from(c.green) << 8 | u32::from(c.blue))
+}
+
+/// The colour of a gradient's stops at `t` (0–1), interpolated in sRGB between the stops
+/// around it (SVG's default `color-interpolation`); outside the stops, the end stop's colour.
+fn stop_colour(stops: &[usvg::Stop], t: f64) -> Thread {
+    let at = |s: &usvg::Stop| f64::from(s.offset().get());
+    let Some(first) = stops.first() else {
+        return Thread::rgb(0);
+    };
+    if t <= at(first) {
+        return rgb_thread(first.color());
+    }
+    for w in stops.windows(2) {
+        let (a, b) = (&w[0], &w[1]);
+        if t <= at(b) {
+            let span = at(b) - at(a);
+            let f = if span > 0.0 { (t - at(a)) / span } else { 1.0 };
+            let mix =
+                |x: u8, y: u8| (f64::from(x) + (f64::from(y) - f64::from(x)) * f).round() as u8;
+            let (ca, cb) = (a.color(), b.color());
+            return Thread::rgb(
+                u32::from(mix(ca.red, cb.red)) << 16
+                    | u32::from(mix(ca.green, cb.green)) << 8
+                    | u32::from(mix(ca.blue, cb.blue)),
+            );
+        }
+    }
+    rgb_thread(stops[stops.len() - 1].color())
+}
+
+/// The one thread a paint gives: its colour, a gradient's colour half way along, or, for a
+/// pattern (not read), black.
+fn paint_thread(paint: &usvg::Paint) -> Thread {
     match paint {
-        usvg::Paint::Color(c) => Some(Thread::rgb(
-            u32::from(c.red) << 16 | u32::from(c.green) << 8 | u32::from(c.blue),
-        )),
-        _ => None,
+        usvg::Paint::Color(c) => rgb_thread(*c),
+        usvg::Paint::LinearGradient(g) => stop_colour(g.stops(), 0.5),
+        usvg::Paint::RadialGradient(g) => stop_colour(g.stops(), 0.5),
+        usvg::Paint::Pattern(_) => Thread::rgb(0),
     }
 }
 
-/// Parses `data` into shapes, in document order.
+/// How `import.svg` turns a gradient fill into threads.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Gradients {
+    /// One fill in the gradient's colour half way along (the default).
+    OneColour,
+    /// That many fills (2–8), bands along a linear gradient or rings of a radial one, each in
+    /// the gradient's colour at its middle.
+    Bands(usize),
+}
+
+/// Options of an SVG import.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SvgOptions {
+    pub gradients: Gradients,
+    /// A fill or stroke whose opacity (its own times its groups') is below this is left out.
+    pub min_opacity: f64,
+}
+
+impl Default for SvgOptions {
+    fn default() -> Self {
+        Self {
+            gradients: Gradients::OneColour,
+            min_opacity: 0.1,
+        }
+    }
+}
+
+/// What an import left out (`skipped`) or changed to fit embroidery (`approximated`), by kind,
+/// with the SVG ids of the elements (or of their nearest named group) where there are any.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct SvgReport {
+    pub skipped: std::collections::BTreeMap<&'static str, (usize, Vec<String>)>,
+    pub approximated: std::collections::BTreeMap<&'static str, (usize, Vec<String>)>,
+}
+
+/// Most ids listed per kind.
+const MAX_REPORT_IDS: usize = 50;
+
+impl SvgReport {
+    fn add(
+        map: &mut std::collections::BTreeMap<&'static str, (usize, Vec<String>)>,
+        kind: &'static str,
+        id: &str,
+    ) {
+        let e = map.entry(kind).or_default();
+        e.0 += 1;
+        if !id.is_empty() && e.1.len() < MAX_REPORT_IDS && !e.1.iter().any(|x| x == id) {
+            e.1.push(id.to_string());
+        }
+    }
+
+    fn skip(&mut self, kind: &'static str, id: &str) {
+        Self::add(&mut self.skipped, kind, id);
+    }
+
+    fn approx(&mut self, kind: &'static str, id: &str) {
+        Self::add(&mut self.approximated, kind, id);
+    }
+
+    fn list(map: &std::collections::BTreeMap<&'static str, (usize, Vec<String>)>) -> Value {
+        Value::Array(
+            map.iter()
+                .map(|(k, (n, ids))| json!({ "kind": k, "count": n, "ids": ids }))
+                .collect(),
+        )
+    }
+
+    /// `{skipped: [{kind, count, ids}], approximated: [...]}`.
+    pub fn to_json(&self) -> Value {
+        json!({
+            "skipped": Self::list(&self.skipped),
+            "approximated": Self::list(&self.approximated),
+        })
+    }
+}
+
+/// An SVG's shapes and what was left out or approximated.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct SvgImport {
+    pub shapes: Vec<SvgShape>,
+    pub report: SvgReport,
+}
+
+/// Parses `data` into shapes, in document order, with the default options.
 pub fn parse_svg(data: &[u8]) -> Result<Vec<SvgShape>, SvgError> {
+    parse_svg_with(data, &SvgOptions::default()).map(|i| i.shapes)
+}
+
+/// Parses `data` into shapes, in document order: clip paths and masks cut the shapes they
+/// apply to, fills and strokes below `min_opacity` are left out, gradients become one colour or
+/// bands, and the report lists everything left out or approximated (#487).
+pub fn parse_svg_with(data: &[u8], opts: &SvgOptions) -> Result<SvgImport, SvgError> {
     if data.len() > MAX_SVG_BYTES {
         return Err(SvgError::TooLarge(format!("{} bytes", data.len())));
     }
+    let mut report = SvgReport::default();
+    let resolved = css_variables(data, &mut report);
+    let data = resolved.as_deref().unwrap_or(data);
     let tree =
         usvg::Tree::from_data(data, &options()).map_err(|e| SvgError::Parse(e.to_string()))?;
-    let mut shapes = Vec::new();
-    let mut points = 0;
-    collect(tree.root(), &mut shapes, &mut points, &mut Vec::new())?;
-    Ok(shapes)
+    let mut out = Walk {
+        opts,
+        import: SvgImport::default(),
+        points: 0,
+    };
+    out.import.report = report;
+    unsupported_elements(data, &mut out.import.report);
+    let ctx = Ctx {
+        opacity: 1.0,
+        clip: None,
+        id: String::new(),
+        names: Vec::new(),
+    };
+    out.group(tree.root(), &ctx)?;
+    Ok(out.import)
 }
 
-fn collect(
-    group: &usvg::Group,
-    out: &mut Vec<SvgShape>,
-    points: &mut usize,
-    names: &mut Vec<String>,
-) -> Result<(), SvgError> {
-    for node in group.children() {
-        match node {
-            usvg::Node::Group(g) => {
-                let named = !g.id().is_empty();
-                if named {
-                    names.push(g.id().to_string());
-                }
-                collect(g, out, points, names)?;
-                if named {
-                    names.pop();
-                }
+/// CSS custom properties, which usvg does not read: every `var(--name)` or
+/// `var(--name, fallback)` is replaced by the value a `--name: value` declaration anywhere in
+/// the file gives (the first one; selectors and scopes are not followed), else by the fallback.
+/// One with neither is left for usvg (which then uses SVG's default) and listed. `None` when
+/// the file has no `var(`.
+fn css_variables(data: &[u8], report: &mut SvgReport) -> Option<Vec<u8>> {
+    let text = std::str::from_utf8(data).ok()?;
+    if !text.contains("var(") {
+        return None;
+    }
+    let mut vars: Vec<(&str, &str)> = Vec::new();
+    let mut rest = text;
+    while let Some(i) = rest.find("--") {
+        let after = &rest[i + 2..];
+        let name_len = after
+            .find(|c: char| !(c.is_ascii_alphanumeric() || c == '-' || c == '_'))
+            .unwrap_or(after.len());
+        let name = &after[..name_len];
+        let tail = after[name_len..].trim_start();
+        if !name.is_empty()
+            && let Some(v) = tail.strip_prefix(':')
+        {
+            let end = v.find([';', '}', '"', '\'', '<']).unwrap_or(v.len());
+            let value = v[..end].trim();
+            if !value.is_empty() && !vars.iter().any(|(n, _)| *n == name) {
+                vars.push((name, value));
             }
-            usvg::Node::Path(path) if path.is_visible() => {
-                let fill = path.fill();
-                let stroke = path.stroke();
-                if fill.is_none() && stroke.is_none() {
-                    continue;
-                }
-                let contours = contours(
-                    path.data(),
-                    &path.abs_transform(),
-                    fill.is_some(),
-                    stroke.is_some(),
-                );
-                if contours.is_empty() {
-                    continue;
-                }
-                *points += contours.iter().map(|c| c.points.len()).sum::<usize>();
-                if out.len() >= MAX_SVG_PATHS || *points > MAX_SVG_POINTS {
-                    return Err(SvgError::TooLarge(format!(
-                        "more than {MAX_SVG_PATHS} paths or {MAX_SVG_POINTS} points"
-                    )));
-                }
-                let default = |t: Option<Thread>| t.unwrap_or_else(|| Thread::rgb(0));
-                let mut ids = names.clone();
-                if !path.id().is_empty() {
-                    ids.push(path.id().to_string());
-                }
-                // Dash lengths are in the path's units: scaled by its transform's mean scale.
-                let t = path.abs_transform();
-                let scale = f64::from((t.sx * t.sy - t.kx * t.ky).abs()).sqrt() * PX;
-                let dashes = stroke.and_then(|s| {
-                    s.dasharray().map(|d| {
-                        (
-                            d.iter().map(|&v| f64::from(v) * scale).collect(),
-                            f64::from(s.dashoffset()) * scale,
-                        )
-                    })
-                });
-                out.push(SvgShape {
-                    contours,
-                    fill: fill.map(|f| default(paint_thread(f.paint()))),
-                    stroke: stroke.map(|s| default(paint_thread(s.paint()))),
-                    names: ids,
-                    dashes,
-                    stroke_first: path.paint_order() == usvg::PaintOrder::StrokeAndFill,
-                });
+        }
+        rest = &after[name_len..];
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(i) = rest.find("var(") {
+        out.push_str(&rest[..i]);
+        let inner = &rest[i + 4..];
+        let Some(close) = inner.find(')') else {
+            out.push_str(&rest[i..]);
+            rest = "";
+            break;
+        };
+        let (name, fallback) = match inner[..close].split_once(',') {
+            Some((n, f)) => (n.trim(), Some(f.trim())),
+            None => (inner[..close].trim(), None),
+        };
+        let value = name
+            .strip_prefix("--")
+            .and_then(|n| vars.iter().find(|(v, _)| *v == n).map(|(_, x)| *x))
+            .or(fallback);
+        match value {
+            Some(v) => out.push_str(v),
+            None => {
+                report.approx("cssVariable", name);
+                out.push_str(&rest[i..i + 4 + close + 1]);
             }
-            _ => {} // images, text (not parsed), hidden paths
+        }
+        rest = &inner[close + 1..];
+    }
+    out.push_str(rest);
+    Some(out.into_bytes())
+}
+
+/// `<text>`, `<image>` and `<foreignObject>` elements that would show: usvg is built without
+/// text and with images refused, so they are counted from the XML itself.
+fn unsupported_elements(data: &[u8], report: &mut SvgReport) {
+    let Ok(text) = std::str::from_utf8(data) else {
+        return;
+    };
+    let opt = roxmltree::ParsingOptions {
+        allow_dtd: true,
+        ..roxmltree::ParsingOptions::default()
+    };
+    let Ok(doc) = roxmltree::Document::parse_with_options(text, opt) else {
+        return;
+    };
+    for n in doc.descendants().filter(roxmltree::Node::is_element) {
+        let kind = match n.tag_name().name() {
+            "text" => "text",
+            "image" => "image",
+            "foreignObject" => "foreignObject",
+            _ => continue,
+        };
+        let hidden = n.ancestors().skip(1).any(|a| {
+            matches!(
+                a.tag_name().name(),
+                "defs" | "clipPath" | "mask" | "pattern" | "marker" | "symbol" | "text"
+            )
+        });
+        if !hidden {
+            report.skip(kind, n.attribute("id").unwrap_or(""));
         }
     }
-    Ok(())
+}
+
+/// What the groups around a node pass down to it.
+#[derive(Clone)]
+struct Ctx {
+    /// The product of the groups' opacities.
+    opacity: f64,
+    /// The area clip paths and masks leave visible, in 0.1 mm; `None` = everything.
+    clip: Option<std::rc::Rc<Vec<Contour>>>,
+    /// The id of the nearest named element, for the report.
+    id: String,
+    /// The ids of the named groups around the node, outermost first.
+    names: Vec<String>,
+}
+
+struct Walk<'a> {
+    opts: &'a SvgOptions,
+    import: SvgImport,
+    points: usize,
+}
+
+/// `a ∩ b` (`None` is everything).
+fn intersect(a: Option<&[Contour]>, b: Vec<Contour>) -> Vec<Contour> {
+    match a {
+        None => b,
+        Some(a) => boolean::contours(&boolean::combine(a, &b, BoolOp::Intersection)),
+    }
+}
+
+/// The paths of `g` and its subgroups with the transform each is drawn with and the group
+/// opacity above it.
+fn paths_of<'a>(
+    g: &'a usvg::Group,
+    ts: usvg::Transform,
+    opacity: f64,
+    out: &mut Vec<(&'a usvg::Path, usvg::Transform, f64)>,
+) {
+    for node in g.children() {
+        match node {
+            usvg::Node::Group(c) => paths_of(c, ts, opacity * f64::from(c.opacity().get()), out),
+            usvg::Node::Path(p) if p.is_visible() => {
+                out.push((p, ts.pre_concat(p.abs_transform()), opacity));
+            }
+            _ => {}
+        }
+    }
+}
+
+/// The area a clip path leaves visible, for an element drawn with `ts`: the union of its
+/// shapes, cut by its own clip path.
+fn clip_region(cp: &usvg::ClipPath, ts: usvg::Transform) -> Vec<Contour> {
+    let mut paths = Vec::new();
+    paths_of(cp.root(), ts.pre_concat(cp.transform()), 1.0, &mut paths);
+    let parts: Vec<Vec<Contour>> = paths
+        .iter()
+        .map(|(p, t, _)| contours(p.data(), t, true, false))
+        .collect();
+    let mut region = boolean::contours(&boolean::union_all(parts.iter().map(Vec::as_slice)));
+    if let Some(inner) = cp.clip_path() {
+        region = intersect(Some(&region), clip_region(inner, ts));
+    }
+    region
+}
+
+/// The area a mask leaves visible, for an element drawn with `ts`: its shapes in document
+/// order, each adding its area when it is at least half opaque (luminance times opacity for a
+/// luminance mask, opacity for an alpha mask) and removing it otherwise; inside the mask's
+/// rectangle; cut by its own mask. Strokes in a mask are not read.
+fn mask_region(m: &usvg::Mask, ts: usvg::Transform) -> Vec<Contour> {
+    let mut paths = Vec::new();
+    paths_of(m.root(), ts, 1.0, &mut paths);
+    let mut acc: Vec<Contour> = Vec::new();
+    for (p, t, opacity) in paths {
+        let Some(fill) = p.fill() else { continue };
+        let alpha = opacity * f64::from(fill.opacity().get());
+        let value = match m.kind() {
+            usvg::MaskType::Alpha => alpha,
+            usvg::MaskType::Luminance => {
+                let c = paint_thread(fill.paint());
+                let l = (0.2125 * f64::from(c.red)
+                    + 0.7154 * f64::from(c.green)
+                    + 0.0721 * f64::from(c.blue))
+                    / 255.0;
+                l * alpha
+            }
+        };
+        let shape = contours(p.data(), &t, true, false);
+        let op = if value >= 0.5 {
+            BoolOp::Union
+        } else {
+            BoolOp::Difference
+        };
+        acc = boolean::contours(&boolean::combine(&acc, &shape, op));
+    }
+    let r = m.rect();
+    let rect = tiny_skia_rect(r.x(), r.y(), r.width(), r.height(), &ts);
+    acc = intersect(Some(&acc), vec![rect]);
+    if let Some(inner) = m.mask() {
+        acc = intersect(Some(&acc), mask_region(inner, ts));
+    }
+    acc
+}
+
+/// A rectangle in SVG units drawn with `t`, as a closed contour in 0.1 mm.
+fn tiny_skia_rect(x: f32, y: f32, w: f32, h: f32, t: &usvg::Transform) -> Contour {
+    let a = Affine::of(t);
+    let pts = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
+        .map(|(px, py)| a.apply(f64::from(px), f64::from(py)));
+    Contour::new(pts.to_vec(), true)
+}
+
+/// An SVG transform in f64, mapping SVG units to 0.1 mm.
+#[derive(Clone, Copy)]
+struct Affine([f64; 6]);
+
+impl Affine {
+    fn of(t: &usvg::Transform) -> Affine {
+        Affine([t.sx, t.ky, t.kx, t.sy, t.tx, t.ty].map(f64::from))
+    }
+
+    fn apply(&self, x: f64, y: f64) -> Vec2 {
+        let [sx, ky, kx, sy, tx, ty] = self.0;
+        v2((sx * x + kx * y + tx) * PX, (ky * x + sy * y + ty) * PX)
+    }
+
+    /// The inverse, from 0.1 mm back to SVG units.
+    fn invert(&self, p: Vec2) -> Option<(f64, f64)> {
+        let [sx, ky, kx, sy, tx, ty] = self.0;
+        let det = sx * sy - kx * ky;
+        if det.abs() < 1e-12 {
+            return None;
+        }
+        let (x, y) = (p.x / PX - tx, p.y / PX - ty);
+        Some(((sy * x - kx * y) / det, (-ky * x + sx * y) / det))
+    }
+}
+
+/// A gradient fill as `n` bands: along a linear gradient's axis, or rings around a radial
+/// gradient's centre (its focal point is not used). Each band is the shape cut to the part
+/// where the gradient runs through that band, in the gradient's colour at the band's middle;
+/// empty bands are left out. Beyond the gradient's ends the end bands go on (pad).
+fn gradient_bands(
+    paint: &usvg::Paint,
+    shape: &[Contour],
+    path_ts: &usvg::Transform,
+    n: usize,
+) -> Option<Vec<(Vec<Contour>, Thread)>> {
+    let (stops, gts) = match paint {
+        usvg::Paint::LinearGradient(g) => (g.stops(), g.transform()),
+        usvg::Paint::RadialGradient(g) => (g.stops(), g.transform()),
+        _ => return None,
+    };
+    let a = Affine::of(&path_ts.pre_concat(gts));
+    // The shape in gradient space.
+    let local: Vec<(f64, f64)> = shape
+        .iter()
+        .flat_map(Contour::outline_points)
+        .map(|p| a.invert(p))
+        .collect::<Option<_>>()?;
+    let mut bands = Vec::with_capacity(n);
+    for k in 0..n {
+        let (lo, hi) = (k as f64 / n as f64, (k + 1) as f64 / n as f64);
+        let band: Vec<Contour> = match paint {
+            usvg::Paint::LinearGradient(g) => {
+                let (x1, y1) = (f64::from(g.x1()), f64::from(g.y1()));
+                let (ux, uy) = (f64::from(g.x2()) - x1, f64::from(g.y2()) - y1);
+                let len2 = ux * ux + uy * uy;
+                if len2 < 1e-12 {
+                    return None;
+                }
+                let (wx, wy) = (-uy / len2.sqrt(), ux / len2.sqrt());
+                let t = |&(x, y): &(f64, f64)| ((x - x1) * ux + (y - y1) * uy) / len2;
+                let s = |&(x, y): &(f64, f64)| (x - x1) * wx + (y - y1) * wy;
+                let tmin = local.iter().map(t).fold(0.0, f64::min) - 1.0;
+                let tmax = local.iter().map(t).fold(1.0, f64::max) + 1.0;
+                let smin = local.iter().map(s).fold(f64::INFINITY, f64::min) - 1.0;
+                let smax = local.iter().map(s).fold(f64::NEG_INFINITY, f64::max) + 1.0;
+                let (t0, t1) = (
+                    if k == 0 { tmin } else { lo },
+                    if k + 1 == n { tmax } else { hi },
+                );
+                let at = |t: f64, s: f64| a.apply(x1 + ux * t + wx * s, y1 + uy * t + wy * s);
+                vec![Contour::new(
+                    vec![at(t0, smin), at(t1, smin), at(t1, smax), at(t0, smax)],
+                    true,
+                )]
+            }
+            usvg::Paint::RadialGradient(g) => {
+                let (cx, cy, r) = (f64::from(g.cx()), f64::from(g.cy()), f64::from(g.r().get()));
+                let far = local
+                    .iter()
+                    .map(|&(x, y)| (x - cx).hypot(y - cy))
+                    .fold(r, f64::max)
+                    * 1.5;
+                let circle = |radius: f64| {
+                    let pts = (0..72)
+                        .map(|i| {
+                            let ang = i as f64 * std::f64::consts::TAU / 72.0;
+                            a.apply(cx + radius * ang.cos(), cy + radius * ang.sin())
+                        })
+                        .collect();
+                    Contour::new(pts, true)
+                };
+                let outer = circle(if k + 1 == n { far } else { hi * r });
+                if k == 0 {
+                    vec![outer]
+                } else {
+                    boolean::contours(&boolean::combine(
+                        &[outer],
+                        &[circle(lo * r)],
+                        BoolOp::Difference,
+                    ))
+                }
+            }
+            _ => return None,
+        };
+        let part = boolean::contours(&boolean::combine(shape, &band, BoolOp::Intersection));
+        if !part.is_empty() {
+            bands.push((part, stop_colour(stops, (lo + hi) / 2.0)));
+        }
+    }
+    Some(bands)
+}
+
+/// The parts of an open or closed stroke inside `clip` (even-odd), as open contours of
+/// straight segments (curves flattened). A stroke wholly inside is returned unchanged.
+fn clip_stroke(c: &Contour, clip: &[Contour]) -> Vec<Contour> {
+    let edges: Vec<(Vec2, Vec2)> = clip
+        .iter()
+        .flat_map(|k| {
+            let p = k.path();
+            let mut e: Vec<(Vec2, Vec2)> = p.windows(2).map(|w| (w[0], w[1])).collect();
+            if let (Some(&a), Some(&b)) = (p.last(), p.first())
+                && a.distance(b) > 1e-9
+            {
+                e.push((a, b));
+            }
+            e
+        })
+        .collect();
+    let flat: Vec<Contour> = clip.iter().map(|k| Contour::new(k.path(), true)).collect();
+    let path = c.path();
+    let mut runs: Vec<Vec<Vec2>> = Vec::new();
+    let mut current: Vec<Vec2> = Vec::new();
+    let mut crossed = false;
+    for w in path.windows(2) {
+        let (a, b) = (w[0], w[1]);
+        let d = b - a;
+        let mut ts = vec![0.0, 1.0];
+        for &(p, q) in &edges {
+            let e = q - p;
+            let den = d.x * e.y - d.y * e.x;
+            if den.abs() < 1e-12 {
+                continue;
+            }
+            let t = ((p.x - a.x) * e.y - (p.y - a.y) * e.x) / den;
+            let u = ((p.x - a.x) * d.y - (p.y - a.y) * d.x) / den;
+            if (0.0..=1.0).contains(&t) && (0.0..=1.0).contains(&u) {
+                ts.push(t);
+                crossed = true;
+            }
+        }
+        ts.sort_by(f64::total_cmp);
+        ts.dedup_by(|x, y| (*x - *y).abs() < 1e-9);
+        for s in ts.windows(2) {
+            let (p, q) = (a + d * s[0], a + d * s[1]);
+            if openstitch_design::geometry::contains(p + (q - p) * 0.5, &flat) {
+                if current.last().is_none_or(|l| l.distance(p) > 1e-6) {
+                    if current.len() >= 2 {
+                        runs.push(std::mem::take(&mut current));
+                    }
+                    current = vec![p];
+                }
+                current.push(q);
+            } else if current.len() >= 2 {
+                runs.push(std::mem::take(&mut current));
+            } else {
+                current.clear();
+            }
+        }
+    }
+    if current.len() >= 2 {
+        runs.push(current);
+    }
+    if !crossed && runs.len() == 1 {
+        return vec![c.clone()];
+    }
+    runs.into_iter()
+        .filter(|r| r.len() >= 2)
+        .map(|r| Contour::new(r, false))
+        .collect()
+}
+
+impl Walk<'_> {
+    fn push(&mut self, shape: SvgShape) -> Result<(), SvgError> {
+        self.points += shape.contours.iter().map(|c| c.points.len()).sum::<usize>();
+        if self.import.shapes.len() >= MAX_SVG_PATHS || self.points > MAX_SVG_POINTS {
+            return Err(SvgError::TooLarge(format!(
+                "more than {MAX_SVG_PATHS} paths or {MAX_SVG_POINTS} points"
+            )));
+        }
+        self.import.shapes.push(shape);
+        Ok(())
+    }
+
+    fn group(&mut self, group: &usvg::Group, ctx: &Ctx) -> Result<(), SvgError> {
+        for node in group.children() {
+            match node {
+                usvg::Node::Group(g) => {
+                    let mut c = ctx.clone();
+                    c.opacity *= f64::from(g.opacity().get());
+                    if !g.id().is_empty() {
+                        c.id = g.id().to_string();
+                        c.names.push(g.id().to_string());
+                    }
+                    let ts = g.abs_transform();
+                    if let Some(cp) = g.clip_path() {
+                        let r =
+                            intersect(c.clip.as_deref().map(Vec::as_slice), clip_region(cp, ts));
+                        c.clip = Some(std::rc::Rc::new(r));
+                    }
+                    if let Some(m) = g.mask() {
+                        let r = intersect(c.clip.as_deref().map(Vec::as_slice), mask_region(m, ts));
+                        c.clip = Some(std::rc::Rc::new(r));
+                        self.import.report.approx("mask", &c.id);
+                    }
+                    if !g.filters().is_empty() {
+                        self.import.report.approx("filter", &c.id);
+                    }
+                    self.group(g, &c)?;
+                }
+                usvg::Node::Path(path) => {
+                    let start = self.import.shapes.len();
+                    self.path(path, ctx)?;
+                    self.annotate(path, ctx, start);
+                }
+                usvg::Node::Image(i) => self.import.report.skip("image", i.id()),
+                usvg::Node::Text(t) => self.import.report.skip("text", t.id()),
+            }
+        }
+        Ok(())
+    }
+
+    /// Gives the shapes `path` added (from `start`) its names, dash pattern and paint order;
+    /// with `paint-order: stroke`, its stroke-only pieces go before its fills.
+    fn annotate(&mut self, path: &usvg::Path, ctx: &Ctx, start: usize) {
+        let mut names = ctx.names.clone();
+        if !path.id().is_empty() {
+            names.push(path.id().to_string());
+        }
+        // Dash lengths are in the path's units: scaled by its transform's mean scale.
+        let t = path.abs_transform();
+        let scale = f64::from((t.sx * t.sy - t.kx * t.ky).abs()).sqrt() * PX;
+        let dashes = path.stroke().and_then(|s| {
+            s.dasharray().map(|d| {
+                (
+                    d.iter()
+                        .map(|&v| f64::from(v) * scale)
+                        .collect::<Vec<f64>>(),
+                    f64::from(s.dashoffset()) * scale,
+                )
+            })
+        });
+        let stroke_first = path.paint_order() == usvg::PaintOrder::StrokeAndFill;
+        let added = &mut self.import.shapes[start..];
+        for shape in added.iter_mut() {
+            shape.names = names.clone();
+            shape.dashes = dashes.clone();
+            shape.stroke_first = stroke_first;
+        }
+        if stroke_first {
+            added.sort_by_key(|s| s.fill.is_some());
+        }
+    }
+
+    fn path(&mut self, path: &usvg::Path, ctx: &Ctx) -> Result<(), SvgError> {
+        let id = if path.id().is_empty() {
+            ctx.id.clone()
+        } else {
+            path.id().to_string()
+        };
+        let report = &mut self.import.report;
+        if !path.is_visible() {
+            if path.fill().is_some() || path.stroke().is_some() {
+                report.skip("hidden", &id);
+            }
+            return Ok(());
+        }
+        let min = self.opts.min_opacity;
+        let mut seen = |o: f64| {
+            let keep = ctx.opacity * o >= min;
+            if !keep {
+                report.skip("transparent", &id);
+            }
+            keep
+        };
+        let fill = path.fill().filter(|f| seen(f64::from(f.opacity().get())));
+        let stroke = path.stroke().filter(|s| seen(f64::from(s.opacity().get())));
+        if fill.is_none() && stroke.is_none() {
+            return Ok(());
+        }
+        let ts = path.abs_transform();
+        let contours = contours(path.data(), &ts, fill.is_some(), stroke.is_some());
+        if contours.is_empty() {
+            return Ok(());
+        }
+        for (paint, _) in fill
+            .map(|f| (f.paint(), ()))
+            .into_iter()
+            .chain(stroke.map(|s| (s.paint(), ())))
+        {
+            match paint {
+                usvg::Paint::Color(_) => {}
+                usvg::Paint::Pattern(_) => report.approx("pattern", &id),
+                _ => report.approx("gradient", &id),
+            }
+        }
+        let closed = contours.iter().all(|c| c.closed);
+        // Fills: one, or gradient bands.
+        let mut fills: Vec<(Vec<Contour>, Thread)> = Vec::new();
+        if let Some(f) = fill {
+            let bands = match self.opts.gradients {
+                Gradients::Bands(n) if closed => gradient_bands(f.paint(), &contours, &ts, n),
+                _ => None,
+            };
+            fills = bands.unwrap_or_else(|| vec![(contours.clone(), paint_thread(f.paint()))]);
+        }
+        let stroke_thread = stroke.map(|s| paint_thread(s.paint()));
+        let Some(clip) = ctx.clip.clone() else {
+            // Not clipped: one shape as before, or the bands and then the stroke.
+            if fills.len() <= 1 {
+                return self.push(SvgShape {
+                    contours,
+                    fill: fills.pop().map(|f| f.1),
+                    stroke: stroke_thread,
+                    ..SvgShape::default()
+                });
+            }
+            for (c, t) in fills {
+                self.push(SvgShape {
+                    contours: c,
+                    fill: Some(t),
+                    stroke: None,
+                    ..SvgShape::default()
+                })?;
+            }
+            if let Some(t) = stroke_thread {
+                self.push(SvgShape {
+                    contours,
+                    fill: None,
+                    stroke: Some(t),
+                    ..SvgShape::default()
+                })?;
+            }
+            return Ok(());
+        };
+        // Clipped: fills cut to the visible area, strokes to their visible pieces.
+        let mut kept = false;
+        for (c, t) in fills {
+            if closed {
+                let cut = boolean::contours(&boolean::combine(&c, &clip, BoolOp::Intersection));
+                let area = |c: &[Contour]| -> f64 {
+                    boolean::simplify(c)
+                        .iter()
+                        .map(|r| boolean::region_area(r))
+                        .sum()
+                };
+                let whole = (area(&c) - area(&cut)).abs() < 1.0;
+                let c = if whole { c } else { cut };
+                if !c.is_empty() {
+                    kept = true;
+                    self.push(SvgShape {
+                        contours: c,
+                        fill: Some(t),
+                        stroke: None,
+                        ..SvgShape::default()
+                    })?;
+                }
+            } else {
+                // An open fill sews as a running line: cut it as a stroke.
+                let pieces: Vec<Contour> = c.iter().flat_map(|k| clip_stroke(k, &clip)).collect();
+                if !pieces.is_empty() {
+                    kept = true;
+                    self.push(SvgShape {
+                        contours: pieces,
+                        fill: Some(t),
+                        stroke: None,
+                        ..SvgShape::default()
+                    })?;
+                }
+            }
+        }
+        if let Some(t) = stroke_thread {
+            let pieces: Vec<Contour> = contours
+                .iter()
+                .flat_map(|k| clip_stroke(k, &clip))
+                .collect();
+            if !pieces.is_empty() {
+                kept = true;
+                self.push(SvgShape {
+                    contours: pieces,
+                    fill: None,
+                    stroke: Some(t),
+                    ..SvgShape::default()
+                })?;
+            }
+        }
+        if !kept {
+            self.import.report.skip("clipped", &id);
+        }
+        Ok(())
+    }
 }
 
 /// Subpaths as contours in 0.1 mm. Filled paths close every subpath with an area, as SVG fills
@@ -292,6 +969,21 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
                     "Keep the SVG's own RGB instead of the nearest Brother chart thread (default false: PE-DESIGN's behaviour)",
                 ),
                 opt(
+                    "gradients",
+                    "\"one\" | \"bands\"",
+                    "A gradient fill as one colour (its colour half way along; default) or as bands of its colours",
+                ),
+                opt(
+                    "bands",
+                    "2–8",
+                    "Bands per gradient with gradients: bands (default 3)",
+                ),
+                opt(
+                    "minOpacity",
+                    "0–1",
+                    "Fills and strokes less opaque than this are left out and listed (default 0.1)",
+                ),
+                opt(
                     "settings",
                     "bool",
                     "Read stitch settings from layer and object names (\"fill a=45 s=0.4\", \"satin\", \"run r=3\", \"stroke.satin w=3\", \"skip\"; docs/FILE_FORMATS.md), split dashed strokes into one line per dash and sew paint-order: stroke outlines first (default false)",
@@ -299,31 +991,46 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
             ],
             |s, p| {
                 let (_, data) = read_file(s, p, MAX_SVG_BYTES)?;
-                let shapes = parse_svg(&data).map_err(|e| p.failed(e.to_string()))?;
-                if !p.bool("settings", Some(false))? {
-                    return import_shapes(s, p, shapes, "the SVG");
-                }
-                use crate::svg_settings as names;
-                let mut report = names::Report::default();
-                let prepared = names::prepare(shapes, &names::names_by_id(&data), &mut report);
-                let (shapes, sets): (Vec<SvgShape>, Vec<names::Settings>) =
-                    prepared.into_iter().unzip();
-                let mut out = import_shapes(s, p, shapes, "the SVG")?;
-                let ids: Vec<u64> = out["ids"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .filter_map(serde_json::Value::as_u64)
-                    .collect();
-                let placed: Vec<(u64, names::Settings)> = ids.into_iter().zip(sets).collect();
-                names::apply(s, &placed, &mut report);
-                out["settings"] = json!({
-                    "applied": report.applied,
-                    "skipped": report.skipped,
-                    "dashed": report.dashed,
-                    "unknown": report.unknown,
-                    "invalid": report.invalid,
-                });
+                let gradients = match p.string("gradients", Some("one"))?.as_str() {
+                    "one" => Gradients::OneColour,
+                    "bands" => Gradients::Bands(p.int("bands", Some(3), 2, 8)? as usize),
+                    _ => return Err(p.invalid("gradients", "must be \"one\" or \"bands\"")),
+                };
+                let opts = SvgOptions {
+                    gradients,
+                    min_opacity: p.opt("minOpacity", 0.1, 0.0, 1.0)?,
+                };
+                let import = parse_svg_with(&data, &opts).map_err(|e| p.failed(e.to_string()))?;
+                let report = import.report.to_json();
+                let mut out = if p.bool("settings", Some(false))? {
+                    use crate::svg_settings as names;
+                    let mut named = names::Report::default();
+                    let prepared =
+                        names::prepare(import.shapes, &names::names_by_id(&data), &mut named);
+                    let (shapes, sets): (Vec<SvgShape>, Vec<names::Settings>) =
+                        prepared.into_iter().unzip();
+                    let mut out = import_shapes(s, p, shapes, "the SVG")?;
+                    let ids: Vec<u64> = out["ids"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(Value::as_u64)
+                        .collect();
+                    let placed: Vec<(u64, names::Settings)> = ids.into_iter().zip(sets).collect();
+                    names::apply(s, &placed, &mut named);
+                    out["settings"] = json!({
+                        "applied": named.applied,
+                        "skipped": named.skipped,
+                        "dashed": named.dashed,
+                        "unknown": named.unknown,
+                        "invalid": named.invalid,
+                    });
+                    out
+                } else {
+                    import_shapes(s, p, import.shapes, "the SVG")?
+                };
+                out["skipped"] = report["skipped"].clone();
+                out["approximated"] = report["approximated"].clone();
                 Ok(out)
             },
         ),
@@ -753,6 +1460,18 @@ mod tests {
             shapes[2].stroke.as_ref().map(Thread::hex).as_deref(),
             Some("#ff0000")
         );
+    }
+
+    #[test]
+    fn css_variables_are_resolved_with_fallbacks_and_unknown_ones_listed() {
+        let mut r = SvgReport::default();
+        let svg = br#"<svg><style>:root{--a: #ff0000; --b-2:blue}</style><rect style="fill:var(--a)"/><rect fill="var(--b-2)"/><rect fill="var(--c, #00ff00)"/><rect fill="var(--d)"/></svg>"#;
+        let out = String::from_utf8(css_variables(svg, &mut r).expect("vars")).expect("utf8");
+        assert!(out.contains(r#"style="fill:#ff0000""#), "{out}");
+        assert!(out.contains(r#"fill="blue""#) && out.contains(r##"fill="#00ff00""##));
+        assert!(out.contains(r#"fill="var(--d)""#));
+        assert_eq!(r.approximated["cssVariable"], (1, vec!["--d".to_string()]));
+        assert_eq!(css_variables(b"<svg/>", &mut r), None);
     }
 
     #[test]

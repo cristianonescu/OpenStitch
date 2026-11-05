@@ -80,6 +80,8 @@ mod order_holes;
 mod order_min_jump;
 #[path = "ornament.rs"]
 mod ornament;
+#[path = "palette.rs"]
+mod palette;
 #[path = "pes_compat.rs"]
 mod pes_compat;
 #[path = "pes_resave.rs"]
@@ -108,6 +110,8 @@ mod stamps;
 mod stitch_edit;
 #[path = "stitch_types.rs"]
 mod stitch_types;
+#[path = "svg_import.rs"]
+mod svg_import;
 #[path = "svg_settings.rs"]
 mod svg_settings;
 #[path = "templates.rs"]

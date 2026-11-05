@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+  <!-- A luminance mask: white keeps the left half, a black bar cuts a slot out of it. -->
+  <defs>
+    <mask id="half" maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100">
+      <rect x="0" y="0" width="50" height="100" fill="#ffffff"/>
+      <rect x="20" y="40" width="10" height="20" fill="#000000"/>
+    </mask>
+  </defs>
+  <rect id="logo" x="10" y="10" width="80" height="80" fill="#c02020" mask="url(#half)"/>
+</svg>

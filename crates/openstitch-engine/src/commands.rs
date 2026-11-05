@@ -247,6 +247,7 @@ pub fn all() -> Vec<CommandSpec> {
     v.extend(crate::ornament::commands());
     v.extend(crate::user::commands());
     v.extend(crate::thread_match::commands());
+    v.extend(crate::palette::commands());
     v.extend(crate::punch::commands());
     v.extend(crate::order::commands());
     v.extend(crate::convert::commands());
