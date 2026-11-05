@@ -601,7 +601,7 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                     .map(|c| {
                         let contours =
                             regions::trace_mask(&c.mask, mw, mh, k.x0, k.y0, &p.trace, &frame);
-                        (contours, Sewn::Bar(c.direction))
+                        (bar_outline(contours), Sewn::Bar(c.direction))
                     })
                     .filter(|(c, _)| !c.is_empty())
                     .collect(),
@@ -629,6 +629,14 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                 if satin {
                     region.auto_direction = matches!(sewn, Sewn::Auto);
                     region.underlay = false;
+                    // A bar travels to its far end along its outline, under the rows' ends, as
+                    // PE-DESIGN 11.50's Auto Punch columns of g08 do (0.5 mm inside the edge);
+                    // the shortest path inside crossed the column diagonally and showed
+                    // between its rows. (Auto satin travels that way by itself.)
+                    if matches!(sewn, Sewn::Bar(_)) {
+                        region.running_stitch_path =
+                            Some(openstitch_design::RunningStitchPath::AlongOutline);
+                    }
                 }
                 if p.mode == Mode::OpenStitch {
                     // OpenStitch mode sews one covering layer and no more needle points than
@@ -686,6 +694,56 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
     })
 }
 
+/// A straight bar's outline with clean ends: the convex hull of its traced outline. Cut from
+/// its letter on pixels, a bar's end carries notches of 0.3-0.5 mm where the junction was
+/// split (the T's stem under its bar), and the fixed-direction satin's rows broke into slivers
+/// there, sewn after the column with travel across it (g08, #450 follow-up). A bar is convex
+/// ([`columns::RECTANGULAR`]), so its hull adds only the notches, which lie inside the letter
+/// or within the outline's tracing tolerance. A bar traced with a hole keeps its outline.
+fn bar_outline(contours: Vec<Contour>) -> Vec<Contour> {
+    let [c] = &contours[..] else {
+        return contours;
+    };
+    let hull = convex_hull(&c.path());
+    if hull.len() < 3 {
+        return contours;
+    }
+    vec![Contour::new(hull, true)]
+}
+
+/// Convex hull of `points`, counter-clockwise from the lowest-then-leftmost point (Andrew's
+/// monotone chain).
+fn convex_hull(points: &[openstitch_design::Vec2]) -> Vec<openstitch_design::Vec2> {
+    let mut p: Vec<openstitch_design::Vec2> = points.to_vec();
+    p.sort_by(|a, b| a.x.total_cmp(&b.x).then(a.y.total_cmp(&b.y)));
+    p.dedup_by(|a, b| a.distance(*b) < 1e-9);
+    if p.len() < 3 {
+        return p;
+    }
+    let cross =
+        |o: openstitch_design::Vec2, a: openstitch_design::Vec2, b: openstitch_design::Vec2| {
+            (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x)
+        };
+    let mut lower: Vec<openstitch_design::Vec2> = Vec::new();
+    for &q in &p {
+        while lower.len() >= 2 && cross(lower[lower.len() - 2], lower[lower.len() - 1], q) <= 0.0 {
+            lower.pop();
+        }
+        lower.push(q);
+    }
+    let mut upper: Vec<openstitch_design::Vec2> = Vec::new();
+    for &q in p.iter().rev() {
+        while upper.len() >= 2 && cross(upper[upper.len() - 2], upper[upper.len() - 1], q) <= 0.0 {
+            upper.pop();
+        }
+        upper.push(q);
+    }
+    lower.pop();
+    upper.pop();
+    lower.extend(upper);
+    lower
+}
+
 /// How a satin region (or a piece of one) is sewn.
 enum Sewn {
     /// Auto direction, as PE-DESIGN sets it.
@@ -706,4 +764,57 @@ fn normalize(deg: f64) -> f64 {
         d -= 180.0;
     }
     d
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use openstitch_design::v2;
+
+    #[test]
+    fn a_bar_cut_from_its_letter_gets_clean_ends() {
+        // g08's T stem as traced (0.1 mm): notches of 0.3-0.5 mm where it was cut from the bar
+        // above it broke the satin's top rows into slivers, sewn after the column with travel
+        // across it (#450 follow-up). Its outline becomes the hull: four straight sides.
+        let stem = [
+            (145.2, 37.8),
+            (149.1, 41.7),
+            (151.7, 41.7),
+            (154.3, 39.1),
+            (175.1, 39.1),
+            (179.0, 44.3),
+            (181.6, 44.3),
+            (184.2, 41.7),
+            (187.5, 42.3),
+            (186.2, 44.9),
+            (186.2, 145.2),
+            (184.9, 146.5),
+            (186.2, 149.1),
+            (182.9, 152.4),
+            (180.3, 151.1),
+            (147.8, 151.1),
+            (143.2, 149.1),
+            (143.2, 44.9),
+            (141.9, 43.6),
+            (143.2, 41.0),
+            (141.9, 39.7),
+        ];
+        let c = Contour::new(stem.iter().map(|&(x, y)| v2(x, y)).collect(), true);
+        let out = bar_outline(vec![c]);
+        assert_eq!(out.len(), 1);
+        let hull = &out[0].points;
+        assert!(hull.len() <= 10, "{} vertices", hull.len());
+        // Every turn is the same way round: a convex outline, no notch left.
+        let n = hull.len();
+        let turns: Vec<f64> = (0..n)
+            .map(|i| {
+                let (a, b, c) = (hull[i], hull[(i + 1) % n], hull[(i + 2) % n]);
+                (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x)
+            })
+            .collect();
+        assert!(turns.iter().all(|&t| t >= 0.0) || turns.iter().all(|&t| t <= 0.0));
+        // Two contours (a bar traced with a hole) are left as they are.
+        let two = vec![out[0].clone(), out[0].clone()];
+        assert_eq!(bar_outline(two.clone()), two);
+    }
 }

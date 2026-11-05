@@ -399,6 +399,21 @@ fn layers_inner(
                     .flat_map(|run| split_outside(run, closed, holes))
                     .collect();
                 let mut graph = travel_graph(closed, holes, path, params.pull_compensation);
+                // Auto satin that falls back to its fixed direction (a straight bar has no
+                // bend to follow; #304's doubled-back skeletons) still travels as Auto satin
+                // does: along the outline just inside it, under the rows' ends. PE-DESIGN
+                // 11.50's Auto Punch I of g08 runs 0.5 mm inside its left edge to the far end
+                // and along it to the first row; the shortest path inside ran diagonally
+                // through the column and showed between its rows (#450 follow-up). Only a
+                // plain column (its start row and one section): a jagged region in many
+                // sections (Auto Punch on a photo) walked round its outline between every
+                // section, a third more stitches, and a region with holes repeated walks along
+                // one outline onto the same needle points (#304); both keep the inside path,
+                // whose travels are spread apart.
+                if r.auto_direction && closed.len() == 1 && holes.is_empty() && pieces.len() <= 2 {
+                    graph.outline = Some(OutlineTravel::Inset(AUTO_TRAVEL_INSET));
+                    graph.outline_tolerance = AUTO_TRAVEL_INSET + 1.0;
+                }
                 join_spread(pieces, &mut graph, SATIN_TRAVEL_PITCH, closed, holes)
             }
             _ => reroute_with(runs, closed, holes, path, params.pull_compensation),

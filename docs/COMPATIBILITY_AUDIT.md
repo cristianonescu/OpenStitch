@@ -2279,6 +2279,29 @@ Line references are relative to `crates/`.
   both cards; the Realistic view and the similarity scorer now draw thread that wide
   (`openstitch_design::calibration`, #291).
 
+### Auto Punch columns: travel through the column, 2026-11-05 (#450 follow-up)
+
+- **Finding:** the README's g08 still showed diagonal threads across both T's and the I after
+  #448. The PES shows two causes. (1) A one-section satin (the I; OpenStitch's Auto satin falling
+  back to its fixed direction) travelled from its start at the top to its far end by the
+  shortest way inside, diagonally through the column, and the travel showed between the rows.
+  (2) The T's stem, cut from its bar on pixels, had 0.3-0.5 mm notches at its top; the
+  fixed-direction rows broke into slivers there, sewn after the column with four diagonal
+  passes on top of it.
+- **PE-DESIGN 11.50** (round 5, `g08-lettering__autopunch.pes`, black-box): the I enters at its
+  top left, runs 0.5 mm inside its left edge to the bottom, along the bottom edge to the right,
+  then sews the satin back up; its objects are whole letters with clean outlines and
+  "inside" travel.
+- **Fix:** a bar's outline is the convex hull of its traced outline; Auto Punch bars travel along
+  the outline (0.5 mm in), and Auto satin that falls back to its fixed direction does the same
+  when it is one section without holes (a jagged photo region in many sections, or one with
+  holes, keeps the spread inside travel of #304: walking round the outline between sections
+  added a third more stitches to p03).
+- **Measured** (`tools/image_similarity.py --mode both --no-dists`, main vs this change): g08
+  MS-SSIM 0.9376 → 0.9402, dE 10.06 → 9.96, 1,247 → 1,215 stitches (PE-DESIGN 1,268), trims 9;
+  g05 and g15 better; the photos within ±0.0011 MS-SSIM and ±0.06 dE with up to 3 % more stitches
+  (longer edge travel); 58 of 70 cases unchanged.
+
 ### Full-size review of the kit, demos and screenshots, 2026-11-05 (#450)
 
 - **Kit drift:** a fresh release build of main (e9e1e08) rebuilds all 35 kit files byte for byte,

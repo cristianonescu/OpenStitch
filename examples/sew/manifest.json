@@ -48,7 +48,7 @@
    81.0,
    79.0
   ],
-  "stitches": 4525,
+  "stitches": 4527,
   "trims": 9,
   "threads": [
    "900 Black",
@@ -57,7 +57,7 @@
   "sewingMinutes": 6.1,
   "image": null,
   "preview": "previews/satin-and-underlay.png",
-  "sha256": "77bbd8b51633f70927ca2e6db62aa10fcaa75641f1de59ae45a141839b2d8b78"
+  "sha256": "6eeb399ae9949d2ebf80eaab067c7eb369dec1d315caa01d0cccbcf31a527fe5"
  },
  "machine-checks/satin-zigzag-rect.pes": {
   "title": "Machine check: Region satin is a zigzag across the column",
@@ -480,7 +480,7 @@
    90.0,
    67.9
   ],
-  "stitches": 7798,
+  "stitches": 7810,
   "trims": 15,
   "threads": [
    "001 White",
@@ -493,7 +493,7 @@
   "sewingMinutes": 10.5,
   "image": "../images/g02-balloon.png",
   "preview": "previews/S-autopunch-balloon-openstitch.png",
-  "sha256": "a4d4c3c1737e788c6f54d6af934e3afed8278eced59243ce657d4d65f8687733"
+  "sha256": "203955e23af62f0b5952783a4e9dc8e8c0f749af7fdfd007f7157ce23e9f0957"
  },
  "image-tools/S-autopunch-balloon-pe-compatible.pes": {
   "title": "Auto Punch, PE-DESIGN-compatible mode",
@@ -503,7 +503,7 @@
    89.6,
    62.1
   ],
-  "stitches": 5697,
+  "stitches": 5806,
   "trims": 13,
   "threads": [
    "001 White",
@@ -512,10 +512,10 @@
    "339 Clay Brown",
    "704 Pewter"
   ],
-  "sewingMinutes": 7.8,
+  "sewingMinutes": 7.9,
   "image": "../images/g02-balloon.png",
   "preview": "previews/S-autopunch-balloon-pe-compatible.png",
-  "sha256": "5640e120917c670ca215c3eee7d6ceb6eb9c193fba27ea1cba51e98694c203a4"
+  "sha256": "682da0879950ac9cb0954a92e5c40b542708f0cbb2d7efd524a37225017153df"
  },
  "image-tools/S-cross-stitch-strawberry-openstitch.pes": {
   "title": "Cross Stitch, OpenStitch mode",
@@ -754,7 +754,7 @@
    199.0,
    150.1
   ],
-  "stitches": 94659,
+  "stitches": 94925,
   "trims": 1118,
   "threads": [
    "017 Light Blue",
@@ -768,10 +768,10 @@
    "704 Pewter",
    "058 Dark Brown"
   ],
-  "sewingMinutes": 175.6,
+  "sewingMinutes": 176.0,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-openstitch.png",
-  "sha256": "7a1ef6dbd7f385911a3928005cf955b7b2ae5d97dec2925bc9156ec1920c53ef"
+  "sha256": "4d2bc0a0af5c02552caa9a282bf132754cb84570279fb89cee95e397228b7348"
  },
  "image-tools/L-autopunch-storybook-pe-compatible.pes": {
   "title": "Auto Punch, PE-DESIGN-compatible mode",
@@ -781,7 +781,7 @@
    199.3,
    151.1
   ],
-  "stitches": 96641,
+  "stitches": 98781,
   "trims": 1640,
   "threads": [
    "843 Beige",
@@ -793,9 +793,9 @@
    "330 Russet Brown",
    "517 Dark Olive"
   ],
-  "sewingMinutes": 204.9,
+  "sewingMinutes": 207.5,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-pe-compatible.png",
-  "sha256": "073cb1647b2360925d2df9adb9e80deee60573afc2dddd33a51eca661e2de509"
+  "sha256": "818b45e8367ac42b33d9a8fd1e3c7fe22f5c60b056d23447455d5512ef94e83c"
  }
 }
