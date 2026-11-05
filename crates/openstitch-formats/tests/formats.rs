@@ -805,6 +805,7 @@ fn jef_command_trims_write_zero_jumps() {
         date: Some(JEF_DATE.into()),
         command_trims: true,
         trim_jumps: 2,
+        hoop: None,
     };
     let data = jef::write_with(&p, &options).expect("write");
     let records = &data[0x74 + 8..];

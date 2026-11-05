@@ -20,7 +20,7 @@ Icons, colours and visual style are OpenStitch's own (see
 | 5 Help button | **Help ▾**: instruction manual (this repository), Ready-to-Sew Designs (the kit packaged with the app, `examples/sew`; GitHub when none is packaged), Ready-to-Sew Designs Online, keyboard shortcuts, About |
 | 6 Sewing Order pane | Docked left: buttons at the top (sew first / earlier / later / last, sort by colour, optimise, frames by thread colour), one frame per object with a thumbnail and its thread colours; drag to reorder |
 | 7 Import / Color / Sewing Attributes / Text Attributes | Docked right as four tabs |
-| 8 Stitch Simulator pane | Docked under the work area |
+| 8 Stitch Simulator pane | Docked under the work area. Under PE-DESIGN's controls, the stitch-out player (#516, beyond PE-DESIGN): counters (stitch and machine time at the needle), Prev/Next block, Prev/Next object and Next trim, the Auto, Pause at trims and Follow needle toggles; a lane per colour block with trim ticks and colour-change / stop markers (click or drag to seek); one button per block named by its thread. Keys while part of the design is shown: ←/→ stitch, Shift block, Ctrl object, T next trim, Home/End |
 | 9–10 Design Page, work area | White page on a grey work area (light theme) |
 | 11 Status bar | Design size, stitch count, the ScreenTip of the command under the pointer or the active tool's hint; at the right, the Check Design indicator ("Ready to sew", or the problem count and the first reason; beyond PE-DESIGN) |
 | 12–15 View mode, Show grid, Design Property, zoom | Right of the status bar: Solid / Stitch / Realistic, Show Grid, Design Property, zoom percentage (type or drag) and zoom slider |
@@ -347,7 +347,7 @@ Behaviour follows the guide's pages
 | Select | Point Edit | `A` | `Action::PointTool` | `object.setPoint` | yes |
 | Select | Select All | `Ctrl+A` | `Action::SelectAll` | view/UI only | yes |
 | Hoop Settings | Move Sections |  | `Action::MoveSections` | `sections.set` (`splitsX` / `splitsY`) | yes |
-| Hoop Settings | Design Settings |  | `Action::DesignSettings` | `machine.set` | yes |
+| Hoop Settings | Design Settings (hoop list grouped by brand, Brother first, with a filter; other brands and round hoops beyond PE-DESIGN, #514; an oval or round hoop's field is drawn on the canvas) |  | `Action::DesignSettings` | `machine.set`, `machine.hoops` | yes |
 | Hoop Settings | Export Sections |  | `Action::ExportSections` | `sections.export` | yes |
 
 ### How the drawing and editing commands work
@@ -385,6 +385,14 @@ and [Adjusting the split positions](https://support.brother.com/g/s/hf/htmldoc/p
   a centre line derived from its outline — an approximation of the medial axis (grid
   clearance, the longest path through the shape, corner ends trimmed; branches are not
   followed). Edit the result with the Satin Skeleton tool.
+- **Continue a line** (beyond PE-DESIGN, #479): with the Closed/Open Curve pen, Open Straight
+  Line, Running, Straight/Curved Block or Satin Skeleton tool active and one finished open
+  line, path, column or skeleton of that kind selected, the pointer becomes a hand within 6
+  screen points of either end. Click there and keep adding points (or direction lines);
+  Return or a double-click adds them to the same object (`object.extendPath`,
+  `object.extendColumn`, one Undo), Esc leaves it unchanged. On a skeleton, a click without a
+  drag on an end point continues it (a drag still moves the point), and new points keep the
+  end's width. Closed outlines are not offered.
 - **Change Color** lists the selected stitch pattern's threads; pick one and its new colour.
 - **Editing characters** (after the guide's
   [Editing individual characters](https://support.brother.com/g/s/hf/htmldoc/ped/im/ped11/en/PED11_EN/pages/05_1904502.html)):
@@ -409,7 +417,7 @@ and [Adjusting the split positions](https://support.brother.com/g/s/hf/htmldoc/p
 | Save As | `Ctrl+Shift+S` | `Action::SaveAs` | `project.save` | yes |
 | Print |  | `Action::Print` | `design.print` | yes |
 | Design Property |  | `Action::DesignProperty` | `design.info` | yes |
-| Design Settings |  | `Action::DesignSettings` | `machine.set` | yes |
+| Design Settings (hoop list grouped by brand, Brother first, with a filter; other brands and round hoops beyond PE-DESIGN, #514; an oval or round hoop's field is drawn on the canvas) |  | `Action::DesignSettings` | `machine.set`, `machine.hoops` | yes |
 | Fabric Selector |  | `Action::FabricSelector` | `fabric.apply` | yes |
 | Select Color Palette |  | `Action::SelectColorPalette` | `threads.charts` | yes |
 | Wizard |  | `Action::Wizard` | view/UI only | yes |

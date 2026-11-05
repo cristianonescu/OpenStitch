@@ -286,7 +286,12 @@ impl ToolController {
                     return vec![];
                 }
                 self.pen.push(PenNode::corner(p));
-                self.widths.push(self.skeleton_width());
+                // A continued column keeps the width of the end it grows from.
+                let width = match (self.continuing, self.widths.first()) {
+                    (Some(_), Some(&w)) => w,
+                    _ => self.skeleton_width(),
+                };
+                self.widths.push(width);
                 self.gesture = Some(Gesture::PenAnchor {
                     index: self.pen.len() - 1,
                 });
@@ -336,6 +341,22 @@ impl ToolController {
                 Some(g @ (Gesture::SkeletonWidth { .. } | Gesture::SkeletonPoint { .. })),
             ) => {
                 let edits_stored = !matches!(g, Gesture::SkeletonWidth { stored: None, .. });
+                // A click (no drag) on an end of the stored centre line continues it (#479).
+                if let Gesture::SkeletonPoint {
+                    index,
+                    edited: None,
+                    ..
+                } = g
+                    && ctx
+                        .skeleton_target()
+                        .is_some_and(|(_, sk)| index == 0 || index + 1 == sk.points.len())
+                {
+                    self.gesture = None;
+                    if self.start_continuation(ctx, p) {
+                        self.skeleton_preview(None);
+                    }
+                    return vec![];
+                }
                 let effects = if edits_stored {
                     self.set_stored(ctx)
                 } else {
@@ -391,6 +412,9 @@ impl ToolController {
         let widths = std::mem::take(&mut self.widths);
         self.preview = None;
         self.gesture = None;
+        if let Some(c) = self.continuing.filter(|_| self.tool() == Tool::Skeleton) {
+            return self.extend_skeleton(c, &nodes, &widths);
+        }
         if self.tool() != Tool::Skeleton || nodes.len() < 2 {
             return vec![];
         }
