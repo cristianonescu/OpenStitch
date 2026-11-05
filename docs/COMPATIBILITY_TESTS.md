@@ -278,6 +278,7 @@ reads back to the same needle points). Golden engine regressions:
 | cargo-fuzz, one target per reader, 30 s each seeded with the fixture (1.0–7.9 M runs per reader, 32.6 M total) | no crash | pass |
 | cargo-fuzz `read_hus` / `read_vip` / `read_shv`, 25 s each (236 k / 977 k / 3.65 M runs); `read_phc` / `read_csd`, 20 s each (1.18 M / 1.36 M runs), 2026-10-19 | no crash | pass |
 | cargo-fuzz `read_vp3`, 30 s seeded with the VP3 fixtures (1.49 M runs), 2026-11-05 (#480) | no crash | pass |
+| cargo-fuzz `read_tap` / `read_u01` / `read_tbf` / `read_dsb` / `read_dsz` / `read_ksm`, 20 s each seeded with their fixtures (838 k / 825 k / 797 k / 684 k / 566 k / 1.35 M runs), 2026-11-05 (#481) | no crash | pass |
 
 Fuzz locally (nightly + `cargo install cargo-fuzz`):
 `cd crates/openstitch-formats && cargo +nightly fuzz run read_dst -- -max_total_time=30`.

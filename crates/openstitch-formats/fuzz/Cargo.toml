@@ -115,3 +115,45 @@ path = "fuzz_targets/read_vp3.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "read_tap"
+path = "fuzz_targets/read_tap.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "read_u01"
+path = "fuzz_targets/read_u01.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "read_tbf"
+path = "fuzz_targets/read_tbf.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "read_dsb"
+path = "fuzz_targets/read_dsb.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "read_dsz"
+path = "fuzz_targets/read_dsz.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "read_ksm"
+path = "fuzz_targets/read_ksm.rs"
+test = false
+doc = false
+bench = false

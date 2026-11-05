@@ -12,6 +12,7 @@
     python3 -I tools/sew_check.py examples/sew            # every .pes under the folder
     python3 -I tools/sew_check.py file.pes --hoop 100x100
     python3 -I tools/sew_check.py file.vp3 --hoop 100x100   # VP3 (#480): no PEC frame to check
+    python3 -I tools/sew_check.py file.u01 --hoop 100x100   # also .tbf and .tap (#481)
 
 Reads the PEC block's stitches directly (the part the machine sews), not OpenStitch's objects.
 The hoop comes from `--hoop`, else from examples/sew/manifest.json, else 100 × 100 mm.
@@ -139,8 +140,77 @@ def read_vp3(path):
     return out, (max(xs) - mx, max(ys) - my), ncol
 
 
+def _framed(out, ncol):
+    """Moves the points so their extent starts at (0, 0); the header is that extent."""
+    xs = [s[0] for s in out] or [0]
+    ys = [s[1] for s in out] or [0]
+    mx, my = min(xs), min(ys)
+    out = [(s[0] - mx, s[1] - my, s[2], s[3]) for s in out]
+    return out, (max(xs) - mx, max(ys) - my), ncol
+
+
+def read_records(path):
+    """Tajima TAP/TBF and Barudan U01 (docs/FILE_FORMATS.md, #481), as read_vp3 returns them."""
+    data = Path(path).read_bytes()
+    ext = Path(path).suffix.lower()
+    x = y = 0
+    colour = 0
+    sewn = False
+    out = []
+    s8 = lambda b: b - 256 if b > 127 else b  # noqa: E731
+    if ext == ".tap":
+        for i in range(0, len(data) - 2, 3):
+            b0, b1, b2 = data[i], data[i + 1], data[i + 2]
+            if b2 & 0xF3 == 0xF3:
+                break
+            if b2 & 0xC3 == 0xC3:
+                colour += 1
+                continue
+            bit = lambda b, n: (b >> n) & 1  # noqa: E731
+            dx = (81 * (bit(b2, 2) - bit(b2, 3)) + 27 * (bit(b1, 2) - bit(b1, 3)) + 9 * (bit(b0, 2) - bit(b0, 3))
+                  + 3 * (bit(b1, 0) - bit(b1, 1)) + (bit(b0, 0) - bit(b0, 1)))
+            dy = (81 * (bit(b2, 5) - bit(b2, 4)) + 27 * (bit(b1, 5) - bit(b1, 4)) + 9 * (bit(b0, 5) - bit(b0, 4))
+                  + 3 * (bit(b1, 7) - bit(b1, 6)) + (bit(b0, 7) - bit(b0, 6)))
+            x += dx
+            y -= dy
+            out.append((x / 10.0, y / 10.0, "jump" if b2 & 0x80 else "stitch", colour))
+    elif ext == ".tbf":
+        for i in range(0x600, len(data) - 2, 3):
+            dx, dy, c = s8(data[i]), s8(data[i + 1]), data[i + 2]
+            if c in (0x80, 0x90):
+                x += dx
+                y -= dy
+                out.append((x / 10.0, y / 10.0, "stitch" if c == 0x80 else "jump", colour))
+                sewn |= c == 0x80
+            elif c == 0x86:
+                out.append((x / 10.0, y / 10.0, "trim", colour))
+            elif c == 0x81:
+                colour += sewn
+            elif c != 0x40:
+                break
+    else:  # .u01
+        for i in range(0x100, len(data) - 2, 3):
+            c, by, bx = data[i], data[i + 1], data[i + 2]
+            dy = by if c & 0x40 else -by
+            dx = -bx if c & 0x20 else bx
+            low = c & 0x1F
+            if low > 0x17:
+                break
+            if low <= 0x05:
+                x += dx
+                y += dy
+                out.append((x / 10.0, y / 10.0, "jump" if low & 1 else "stitch", colour))
+                sewn |= not low & 1
+            elif low in (6, 7):
+                out.append((x / 10.0, y / 10.0, "trim", colour))
+            elif low >= 9:
+                colour += sewn
+    return _framed(out, colour + 1)
+
+
 def check(path, hoop):
-    reader = read_vp3 if Path(path).suffix.lower() == ".vp3" else read_pec
+    suffix = Path(path).suffix.lower()
+    reader = read_vp3 if suffix == ".vp3" else read_records if suffix in (".tap", ".tbf", ".u01") else read_pec
     st, (hw, hh), ncol = reader(path)
     drops = [s for s in st if s[2] == "stitch"]
     problems = []

@@ -181,3 +181,39 @@ fn vp3_exports_and_imports_through_the_engine() {
     assert!(imported["id"].is_u64(), "{imported}");
     assert_eq!(t.design().objects.len(), 1);
 }
+
+/// TAP, U01 and TBF (#481) export through `design.export` and import again; DSB, DSZ and KSM
+/// are read only, and exporting to them names the formats that can be written.
+#[test]
+fn more_machine_formats_export_and_import_through_the_engine() {
+    let dir = temp_dir("more-formats");
+    let mut s = Session::new(&dir);
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 10, "y": 10, "width": 20, "height": 20}),
+    );
+    for ext in ["tap", "u01", "tbf"] {
+        let name = format!("a.{ext}");
+        let out = run(&mut s, "design.export", json!({"path": name}));
+        assert!(out["hoopMM"].is_array(), "{out}");
+        let ty = openstitch_formats::FileType::from_extension(ext).expect("type");
+        let pattern = ty
+            .read(&std::fs::read(dir.join(&name)).expect("file"))
+            .expect("read");
+        assert_eq!(
+            pattern.count(openstitch_core::Command::Stitch) as u64,
+            out["stats"]["stitches"].as_u64().expect("stitches"),
+            "{ext}"
+        );
+        let mut t = Session::new(&dir);
+        let imported = run(&mut t, "stitches.import", json!({"path": name}));
+        assert!(imported["id"].is_u64(), "{imported}");
+    }
+    for ext in ["dsb", "dsz", "ksm"] {
+        let err = s
+            .execute("design.export", Some(&json!({"path": format!("a.{ext}")})))
+            .expect_err("read only");
+        assert!(err.to_string().contains("read only"), "{err}");
+    }
+}

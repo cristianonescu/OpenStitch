@@ -31,6 +31,13 @@ Notes that do not change the fixture bytes:
 | SHV | ✅ | ✅ | Oracle-verified read; PE-DESIGN 11.50 reference write (header, bounds, counts and records identical; preview pixels approximate) | Six header bytes copied from PE-DESIGN's export, meaning unknown. See "SHV" below. |
 | CSD | ✅ | ✅ | Read verified against PE-DESIGN 11.50's export (type 0; type 1 spec-derived); PE-DESIGN 11.50 reference write (byte-identical) | Fixed-key obfuscation (libembroidery's masks). See "CSD" below. |
 | VP3 | ✅ | ✅ **experimental** (beyond PE-DESIGN, #480) | Round-trip and oracle tested only (pyembroidery 1.5.1 both ways, the 35 kit designs); **no reference file from Husqvarna or Pfaff software and no sew-out on a machine yet** | Thread brand, catalogue number and name per colour. See "VP3" below. |
+| TAP (Tajima) | ✅ | ✅ **experimental** (beyond PE-DESIGN, #481) | Oracle tested only (pyembroidery 1.5.1 both ways, the 35 kit designs); no Tajima reference file, no sew-out | DST's records without the header; no colours. See "More machine formats" below. |
+| TBF (Tajima) | ✅ | ✅ **experimental** (#481) | Oracle tested only (as TAP) | RGB per colour block, needle order. |
+| U01 (Barudan) | ✅ | ✅ **experimental** (#481) | Oracle tested only (as TAP) | No colours: needles. |
+| DSB (Barudan) | ✅ | — (read only, #481) | Oracle tested only (pyembroidery's read of a file assembled from the layout) | |
+| DSZ (ZSK) | ✅ | — (read only, #481) | Oracle tested only (as DSB) | |
+| KSM (Pfaff) | ✅ | — (read only, #481) | Oracle tested only (as DSB); no public description | |
+| ZXY, STX | ❌ | — | **Not done** (#481) | No public description of ZXY; STX's is partial. See "More machine formats". |
 | PHC | ✅ | — (read only, as in PE-DESIGN) | Oracle-verified read (pyembroidery) | PEC stitch data in a Brother wrapper. |
 | PHX | ❌ | — | **Blocked** | No public description or open-source reader; studying PE-DESIGN output would be reverse engineering (LEGAL_AND_LICENSING.md). |
 | PEN | ❌ | — | **Blocked** | Brother's encrypted format for designs bought from iBroidery; decrypting it would circumvent a protection measure. Out of scope. |
@@ -1595,3 +1602,57 @@ its colours come from, and guessing one would invent a brand.
 - `vp3::tests` (block lengths, empty and 40,000-character names, more than 255 colours, every
   truncation and every flipped byte without a panic); the `read_vp3` fuzz target (1.49 M runs,
   30 s, no crash); `tools/sew_check.py` reads VP3.
+
+## More machine formats (TAP, TBF, U01, DSB, DSZ, KSM; #481)
+
+Beyond PE-DESIGN's set. **Writing TAP, TBF and U01 is experimental**: no file saved by Tajima
+or Barudan software has been compared and nothing has been sewn on a commercial machine yet
+(TESTING.md asks). Readers and writers are OpenStitch's own code. Sources: Roidery's notes for
+TAP, U01, DSB and DSZ (MIT OR Apache-2.0, THIRD_PARTY_NOTICES.md); for TBF and KSM, which
+have no public description, the bytes pyembroidery 1.5.1 writes (TBF) and what its readers do
+with crafted files (every control value of TBF, DSB, DSZ, KSM was tried; its code was not
+read or copied); libembroidery's KSM notes for the header size. Each module's doc comment has
+the full layout.
+
+| Format | Layout | Records |
+|---|---|---|
+| TAP | DST's records, no header | As DST: written and read by the DST codec (PE-DESIGN's DST layout, trims as jump runs) |
+| TBF | 0x600 header: `3.00`; at 0x80 DST-like lines `LA ST CO +X -X +Y -Y AX AY TP`; `JC:3`; `DO:` 256 needle bytes; `DA:` 72 × `45 r g b 20` | `dx dy ctrl` (signed, y up): `80` stitch, `90` jump, `86` trim, `81` needle change, `40` stop, `8F` end; then `1A` |
+| U01 | 0x100 header: 0x80 × `0`, i16 extents, u32 0, u32 record count, i16 end | `ctrl |dy| |dx|`: 0x40 down, 0x20 left; low bits `00` stitch, `01` jump, `02`–`05` speed + stitch/jump, `06`/`07` trim (+ move), `08` stop, `09`–`17` needle 1–15, `18` end |
+| DSB | DST header | `ctrl |dy| |dx|`: 0x40 down, 0x20 left, low bits 0 stitch, 1 jump; `E7` trim, `E8` stop, `E9`–`F7` needle; else end |
+| DSZ | DST header | `|dy| |dx| ctrl`: 0x20 down, 0x40 left, low bits 0 stitch, 1 jump; `82` stop, `83`–`9A` needle, `9B` trim; else end |
+| KSM | 512 bytes, not read | `|dy| |dx| ctrl`: 0x20 down, 0x40 left; low bits `00`/`17`–`1B` move (a jump while moving after a trim or needle change, `17`–`1B` end the moving), `05` stop, `07`/`13`/`1D` trim, `0B`–`12` needle; else end |
+
+**Writers.** Centred and split as every writer (`records::ops`): a trim before each trimmed
+frame move, frame moves as jumps of at most 12.7 mm (TBF 10 mm, as pyembroidery writes it,
+TAP 12.1 mm as DST), a longer stitch as jumps and one stitch (the needle goes down once). U01
+and TBF start with a needle change; each distinct colour gets its own needle in the order the
+colours are first sewn (1–15, then 1 again), so a colour sewn twice uses the same needle. TBF
+stores each block's RGB; TAP and U01 store no colour. TBF holds at most 72 colour blocks
+(more is `ValueOutOfRange`, so `split: true` works).
+
+**Readers.** A needle change before anything is sewn picks the first colour and is not a colour
+change. Control records do not move (DSB, DSZ, U01 stop/needle, TBF); a KSM control record
+sews its move first, as pyembroidery reads it.
+
+**Evidence.**
+- `tests/survey_formats.rs` (fixtures from `tools/genfixtures_survey.py`): pyembroidery's
+  U01, TBF and TAP (its DST without the header) of the 12-colour survey design, and DSB, DSZ,
+  KSM files assembled from the layouts above, read like pyembroidery reads them (needle path,
+  trims, colour changes, stops, jumps, colours) and contain every needle point of the design;
+  OpenStitch's TAP, U01 and TBF of the design read in pyembroidery like OpenStitch reads them,
+  with the design's needle points, trims and colour changes, and TBF's colours; stops and
+  needle reuse; short and corrupted files never panic. pyembroidery's KSM reader leaves out
+  zero-length records, which OpenStitch keeps (they are needle drops).
+- All 35 kit designs, once both ways (2026-11-05, not in CI): OpenStitch's U01, TBF and TAP
+  read by pyembroidery have the same needle points, colour changes and trims (35/35 each);
+  pyembroidery's U01 read by OpenStitch 35/35; its TBF 33/35, the two others differing only in
+  a zero-length jump pyembroidery writes first and reads back as a trim.
+- Fuzz targets `read_tap`, `read_u01`, `read_tbf`, `read_dsb`, `read_dsz`, `read_ksm` (20 s
+  each, 0.57–1.35 M runs, no crash); engine `more_machine_formats_export_and_import_through_the_engine`;
+  `tools/sew_check.py` reads TAP, TBF and U01.
+
+**Not done: ZXY and STX.** No public description of ZXY was found, and STX's (libembroidery's
+notes) leaves several fields unknown. A reader derived only from probing pyembroidery's reader
+would be checked against nothing but that reader. Both stay open in #481 until a description
+or real files are available.

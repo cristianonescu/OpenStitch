@@ -119,8 +119,10 @@ follows SolidCraft's, as recorded in docs/research/beyond/ai-integration.md.
 ## Roidery — https://github.com/lork-fork/Roidery
 
 Consulted (not linked, no code copied) for the VP3 block layout described in its
-`crates/emb-formats/src/vp3.rs` (#480). OpenStitch's `crates/openstitch-formats/src/vp3.rs` was
-written from that description and checked against files pyembroidery writes. Licensed MIT OR
+`crates/emb-formats/src/vp3.rs` (#480) and the TAP, U01, DSB and DSZ layouts in `tap.rs`,
+`u01.rs`, `dsb.rs` and `dsz.rs` (#481). OpenStitch's modules of the same names in
+`crates/openstitch-formats/src` were written from those descriptions and checked against files
+pyembroidery writes or reads. Licensed MIT OR
 Apache-2.0; the MIT terms:
 
 ```
@@ -149,7 +151,7 @@ SOFTWARE.
 
 ## libembroidery — https://github.com/Embroidermodder/libembroidery
 
-Consulted (not linked) for the PCS, SEW, XXX, HUS, VIP, PHC and CSD layouts. The 400-byte VIP colour-table
+Consulted (not linked) for the PCS, SEW, XXX, HUS, VIP, PHC and CSD layouts, and the KSM header size (#481). The 400-byte VIP colour-table
 key in `crates/openstitch-formats/src/vip.rs` is copied from its `vipDecodingTable`, and the
 256-entry CSD offset table in `crates/openstitch-formats/src/csd.rs` from its `csd_decryptArray`. A local
 build of its `sew` CLI was used once as a test oracle for VIP. zlib licence:
