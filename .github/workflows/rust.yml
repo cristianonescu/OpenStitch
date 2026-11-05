@@ -75,7 +75,7 @@ jobs:
       # Secret Service, so a headless gnome-keyring runs in its own D-Bus session.
       - name: Keychain round trip (dummy key)
         if: matrix.os != 'ubuntu-latest'
-        run: cargo test -p openstitch-app --test integration --locked -- --ignored keychain::
+        run: 'cargo test -p openstitch-app --test integration --locked -- --ignored keychain::'
       - name: Keychain round trip (dummy key, Secret Service)
         if: matrix.os == 'ubuntu-latest'
         shell: bash
