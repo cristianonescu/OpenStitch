@@ -2856,7 +2856,11 @@ fn codec_commands() -> Vec<CommandSpec> {
             Effect::File,
             vec![
                 PATH,
-                opt("format", "pes|pec|dst|...", "Override the extension"),
+                opt(
+                    "format",
+                    "pes|pec|dst|...|csv|txt|gcode",
+                    "Override the extension; csv and txt write a stitch list, gcode G-code (#488)",
+                ),
                 opt(
                     "pesVersion",
                     "1t|1|6|6t|11",
@@ -2866,6 +2870,21 @@ fn codec_commands() -> Vec<CommandSpec> {
                     "split",
                     "bool",
                     "When the design exceeds the format's limits, write NAME-1.ext, NAME-2.ext… (default false: fail)",
+                ),
+                opt(
+                    "repeat",
+                    "{columns, rows, gapMm}",
+                    "Export-time copies side by side (1–20 each way, gap 0–100 mm between the copies), centred on the page, each colour sewn on every copy before the next; refused, with the size it needs, when larger than the hoop; the design is unchanged",
+                ),
+                opt(
+                    "framePark",
+                    "{xMm, yMm}",
+                    "At every stop, cut the thread and move the frame to this point (mm from the Design Page centre), then back",
+                ),
+                opt(
+                    "gcode",
+                    "{needle, trim, feed, profile}",
+                    "G-code only: the command after each stitch move and for a trim (default none), feed mm/min (6000), a machine name for the header",
                 ),
                 opt(
                     "companionInf",
@@ -2885,6 +2904,39 @@ fn codec_commands() -> Vec<CommandSpec> {
                 let verify = p.string("verify", Some("warn"))?;
                 if !["warn", "strict", "off"].contains(&verify.as_str()) {
                     return Err(p.invalid("verify", "must be warn, strict or off"));
+                }
+                // Stitch lists and G-code (#488): not machine files, written whole.
+                let extra = if p.has("format") {
+                    p.string("format", None)?
+                } else {
+                    path.extension()
+                        .and_then(|e| e.to_str())
+                        .unwrap_or_default()
+                        .to_ascii_lowercase()
+                };
+                if crate::extra_exports::EXTRA_FORMATS.contains(&extra.as_str()) {
+                    let pattern = Compiler::for_design(&s.design).compile(&s.design);
+                    if pattern.count(Command::Stitch) == 0 {
+                        return Err(p.failed("design has no stitches"));
+                    }
+                    let pattern = crate::extra_exports::arrange(&s.design, p, pattern)?;
+                    let bytes = crate::extra_exports::encode(&extra, &pattern, p)?
+                        .expect("an extra format");
+                    std::fs::write(&path, bytes).map_err(|e| p.failed(e.to_string()))?;
+                    let check = crate::machine::export_check(&s.design, &pattern);
+                    return Ok(json!({
+                        "path": path.display().to_string(),
+                        "paths": [path.display().to_string()],
+                        "stats": stats(&pattern),
+                        "sewingArea": crate::machine::sewing_area(&s.design, &pattern),
+                        "fitsPage": check["fitsPage"],
+                        "hoopMM": check["hoopMM"],
+                        "smallestHoop": check["smallestHoop"],
+                        "warnings": check["warnings"],
+                    }));
+                }
+                if p.has("gcode") {
+                    return Err(p.invalid("gcode", "only with the gcode format"));
                 }
                 let ty = file_type(p, &path)?;
                 let companion_inf = p.bool("companionInf", Some(false))?;
@@ -2920,10 +2972,15 @@ fn codec_commands() -> Vec<CommandSpec> {
                 if pattern.count(Command::Stitch) == 0 {
                     return Err(p.failed("design has no stitches"));
                 }
+                // Export-time copies and frame park position (#488).
+                let arranged = p.has("repeat") || p.has("framePark");
+                if arranged {
+                    pattern = crate::extra_exports::arrange(&s.design, p, pattern)?;
+                }
                 // A design opened from a PES and not changed since is written back as the file
                 // itself: PE-DESIGN's objects, page, hoop and thread table stay as they were
                 // (#375). Only when no other version is asked for, or the file's own one.
-                if let Some(bytes) = unchanged_source(s, p, ty)? {
+                if !arranged && let Some(bytes) = unchanged_source(s, p, ty)? {
                     std::fs::write(&path, &*bytes).map_err(|e| p.failed(e.to_string()))?;
                     // The original file's bytes: read back, they must be the same bytes.
                     if verify != "off" && std::fs::read(&path).ok().as_deref() != Some(&*bytes) {

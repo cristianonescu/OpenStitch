@@ -40,6 +40,8 @@ mod drawing;
 mod edit_tools;
 #[path = "engine.rs"]
 mod engine;
+#[path = "extra_exports.rs"]
+mod extra_exports;
 #[path = "font_creator.rs"]
 mod font_creator;
 #[path = "font_from_image.rs"]

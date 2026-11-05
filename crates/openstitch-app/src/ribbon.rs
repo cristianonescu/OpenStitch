@@ -648,6 +648,16 @@ fn export_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         }
     }
     ui.separator();
+    // Not machine files (#488): every stitch record as a table, and G-code for DIY machines.
+    for (ext, label) in [
+        ("csv", "Stitch List (CSV)…"),
+        ("txt", "Stitch List (TXT)…"),
+        ("gcode", "G-code…"),
+    ] {
+        if ui.button(label).clicked() {
+            app.export_extra(ext);
+        }
+    }
     ui.menu_button("Thread List", |ui| {
         for (ext, label) in EditorApp::THREAD_LISTS {
             if ui.button(format!("{label}…")).clicked() {
