@@ -2334,3 +2334,27 @@ fn auto_satin_on_a_straight_bar_travels_along_its_outline() {
         "a needle point {deepest} (0.1 mm) inside the bar"
     );
 }
+
+#[test]
+fn narrow_auto_satin_travels_to_its_far_end_without_a_long_stitch() {
+    // #460: the kit's 1 mm × 40 mm Auto satin column (calibration/satin-and-underlay) started
+    // with one 39.5 mm stitch from its start point (the middle of the bottom edge) to the far
+    // end: the travel along the inset outline found no path in a column narrower than twice
+    // the inset, and the fallback was a single straight stitch.
+    for width in [10.0, 15.0, 20.0, 60.0] {
+        let col = Contour::rectangle(90.0, 90.0, width, 400.0);
+        let mut r = region(RegionType::Satin);
+        r.auto_direction = true;
+        r.underlay = false;
+        r.entry = Some(v2(90.0 + width / 2.0, 490.0));
+        let layers = crate::region::layers(std::slice::from_ref(&col), &r, &[]);
+        for run in layers.iter().flatten() {
+            let l = longest(run);
+            // Travel stitches up to 2 mm; crossings as wide as the column (6 mm: 6.04 mm).
+            assert!(
+                l <= f64::max(25.0, width + 2.0),
+                "{width}: a {l} stitch in {run:?}"
+            );
+        }
+    }
+}
