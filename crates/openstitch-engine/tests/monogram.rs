@@ -77,7 +77,7 @@ fn block_monogram_in_a_ring_is_one_group_of_text_and_frame() {
 }
 
 #[test]
-fn diamond_monogram_letters_are_clipped_shapes() {
+fn diamond_monogram_letters_are_warped_shapes() {
     let mut s = Session::new(std::env::temp_dir());
     let r = run(
         &mut s,
@@ -87,7 +87,8 @@ fn diamond_monogram_letters_are_clipped_shapes() {
     let all = ids(&r);
     assert_eq!(all.len(), 4);
     let letters = bounds(&s, &all[1..]);
-    assert!(letters.width() > 0.9 * 46.0 * 10.0, "{letters:?}");
+    // The side letters stop short of the diamond's tips, where no height is left (#458).
+    assert!(letters.width() > 0.85 * 46.0 * 10.0, "{letters:?}");
     assert!(
         s.design()
             .objects

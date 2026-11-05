@@ -7,7 +7,8 @@
 //!   the side letters smaller; Script letters overlap, like joined initials.
 //! - *Diamond* and *Circle*: each letter is warped onto a vertical band of a diamond or
 //!   circle (an envelope: its top and bottom follow the silhouette), so together the letters
-//!   form the silhouette and every letter keeps all its strokes. They are shape objects.
+//!   form the silhouette and every letter keeps all its strokes. A single letter stays
+//!   upright, as large as fits inside the silhouette. They are shape objects.
 //!
 //! Frames are built around a box (the monogram or any selection); with "maintain aspect
 //! ratio" a frame keeps its natural proportions and grows to enclose the box.
@@ -171,6 +172,16 @@ pub fn letters(spec: &MonogramSpec, fonts: &[DesignFont]) -> Result<Vec<Letter>,
             .ok_or_else(|| TextError::BadFont(format!("no glyph for {c}")))?;
         let gb = Rect::enclosing(contours.iter().flat_map(Contour::outline_points))
             .ok_or_else(|| TextError::BadFont(format!("no glyph for {c}")))?;
+        if chars.len() == 1 {
+            // A single letter has no neighbours to make up the silhouette: bending its top and
+            // bottom into the diamond's point gives a V wings, so it stays upright, as large
+            // as fits inside.
+            out.push(Letter::Shape {
+                ch: c,
+                contours: fit_upright(&contours, gb, spec.style, center, w, h),
+            });
+            continue;
+        }
         // The glyph's box is warped onto its band: across linearly, and down from the
         // silhouette's top to its bottom at each x (an envelope), so every stroke stays whole
         // and bends with the silhouette instead of being cut off by it (#458).
@@ -191,6 +202,38 @@ pub fn letters(spec: &MonogramSpec, fonts: &[DesignFont]) -> Result<Vec<Letter>,
         });
     }
     Ok(out)
+}
+
+/// `contours` (bounded by `gb`) scaled evenly about the silhouette's centre `c`, as large as
+/// fits inside the `w` × `h` diamond or circle, upright and unbent.
+fn fit_upright(
+    contours: &[Contour],
+    gb: Rect,
+    style: MonogramStyle,
+    c: Vec2,
+    w: f64,
+    h: f64,
+) -> Vec<Contour> {
+    let gc = gb.center();
+    let (rx, ry) = (w / 2.0, h / 2.0);
+    // Each outline point limits the scale; the silhouette is convex, so the chords between
+    // the points stay inside too.
+    let scale = contours
+        .iter()
+        .flat_map(Contour::outline_points)
+        .map(|p| {
+            let (dx, dy) = ((p.x - gc.x) / rx, (p.y - gc.y) / ry);
+            let reach = match style {
+                MonogramStyle::Circle => dx.dhypot(dy),
+                _ => dx.abs() + dy.abs(),
+            };
+            1.0 / reach.max(1e-9)
+        })
+        .fold(f64::INFINITY, f64::min);
+    let t = Transform::translation(-gc.x, -gc.y)
+        .then(&Transform::scaling(scale, scale, v2(0.0, 0.0)))
+        .then(&Transform::translation(c.x, c.y));
+    contours.iter().map(|k| k.transformed(&t)).collect()
 }
 
 /// Width of the Diamond or Circle silhouette `h` tall.
@@ -779,6 +822,65 @@ mod tests {
                     let iou = both as f64 / either.max(1) as f64;
                     assert!(iou > 0.9, "{style:?} {s}: {ch} matches its glyph {iou:.2}");
                 }
+            }
+        }
+    }
+
+    /// A single Diamond or Circle letter stays upright (the glyph scaled evenly, its top and
+    /// bottom unbent: no wings on a V), inside the silhouette and as large as fits.
+    #[test]
+    fn a_single_diamond_or_circle_letter_stays_upright() {
+        let c = v2(500.0, 500.0);
+        let h = 300.0;
+        for style in [MonogramStyle::Diamond, MonogramStyle::Circle] {
+            let w = silhouette_width(style, h);
+            let sil = silhouette(style, c, w, h);
+            for ch in ['V', 'A', 'O', 'M', 'K'] {
+                let sp = at(spec(&ch.to_string(), style), c);
+                let l = letters(&sp, &[]).expect("letters");
+                let [Letter::Shape { contours, .. }] = l.as_slice() else {
+                    panic!("one shape letter")
+                };
+                let (glyph, _) = text::glyph_outline(&sp.font, &[], ch, 10.0)
+                    .expect("font")
+                    .expect("glyph");
+                // Evenly scaled and moved: every vertex is the glyph's vertex scaled by one
+                // factor (vertex boxes, which a scaling maps exactly).
+                let vbox = |cs: &[Contour]| {
+                    Rect::enclosing(cs.iter().flat_map(|k| k.points.iter().copied()))
+                        .expect("points")
+                };
+                let (gv, mv) = (vbox(&glyph), vbox(contours));
+                let k = mv.height() / gv.height();
+                assert!(
+                    (mv.width() / gv.width() - k).abs() < 1e-9 * k,
+                    "{style:?} {ch}"
+                );
+                let b = bounds(contours);
+                assert!(b.center().distance(c) < 1.0, "{style:?} {ch} centred");
+                assert_eq!(glyph.len(), contours.len());
+                for (g, m) in glyph.iter().zip(contours) {
+                    assert_eq!(g.points.len(), m.points.len(), "{style:?} {ch}");
+                    for (p, q) in g.points.iter().zip(&m.points) {
+                        let want = mv.center() + (*p - gv.center()) * k;
+                        assert!(want.distance(*q) < 1e-6, "{style:?} {ch} not upright");
+                    }
+                }
+                assert_eq!(topology(contours), topology(&glyph), "{style:?} {ch}");
+                // Inside, and touching: as large as fits.
+                let mut nearest = f64::INFINITY;
+                for p in contours.iter().flat_map(Contour::outline_points) {
+                    let inward = c + (p - c) * 0.995;
+                    assert!(contains(inward, std::slice::from_ref(&sil)), "{p:?}");
+                    let (dx, dy) = ((p.x - c.x) / (w / 2.0), (p.y - c.y) / (h / 2.0));
+                    let r = match style {
+                        MonogramStyle::Circle => dx.dhypot(dy),
+                        _ => dx.abs() + dy.abs(),
+                    };
+                    nearest = nearest.min(1.0 - r);
+                }
+                assert!(nearest.abs() < 0.01, "{style:?} {ch} fills: {nearest}");
+                assert!(b.height() > 0.5 * h, "{style:?} {ch} {b:?}");
             }
         }
     }
