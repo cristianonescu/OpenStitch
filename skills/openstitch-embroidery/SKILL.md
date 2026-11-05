@@ -76,6 +76,9 @@ then style them in the next.
 - Line up and space: `object.align` `{ids, edge: left|right|top|bottom|centerX|centerY,
   to: selection|key|page, keyId}` and `object.distribute` `{ids, axis: x|y, by: gaps|centers}`
   (three or more; the outermost two stay). Groups move whole.
+- Repeat a motif: `object.arrangeCopies` `{ids, mode: path, pathId, count, side, orient}`
+  along a line, `{mode: scatter, shapeId, count, gap, seed}` inside a closed shape, or
+  `{mode: circle, count, radius, mirrorAlternate: true}` for a kaleidoscope.
 - Find objects like others: `object.list` `{sameAs: [ids], match: color|type|both,
   visible: true}`, or filter by `color`, `regionType`, `lineType`; then `ui.select` the ids.
 - Text: `object.setText` (text, font, size, spacing), `text.setPath` (fit to an outline).

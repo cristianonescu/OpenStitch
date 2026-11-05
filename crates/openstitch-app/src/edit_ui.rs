@@ -6,7 +6,7 @@
 use crate::app::EditorApp;
 use eframe::egui::{self, Color32, Pos2, Stroke};
 use openstitch_app::editor::edit_ops::{
-    self, ArrangeForm, ArrangeMode, EntryExit, FloralForm, OffsetForm, Pick,
+    self, ArrangeForm, ArrangeMode, EntryExit, FloralForm, OffsetForm, PATH_SIDES, Pick,
 };
 use openstitch_app::editor::hit::bounds_of;
 use openstitch_app::editor::objects;
@@ -452,6 +452,20 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.edit.arrange_open;
     let mut apply = false;
     let bounds = bounds_of(app.session.design(), &app.selection);
+    // Path and scatter: the objects that can guide the copies (lines and outlines).
+    let guides: Vec<(u64, String)> = app
+        .session
+        .design()
+        .objects
+        .iter()
+        .filter(|o| !o.contours.is_empty())
+        .map(|o| {
+            (
+                o.id,
+                format!("#{} {}", o.id, o.name.clone().unwrap_or_default()),
+            )
+        })
+        .collect();
     egui::Window::new("Arrange Copies")
         .open(&mut open)
         .resizable(false)
@@ -488,6 +502,84 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
                         ui.label("");
                         ui.checkbox(&mut f.rotate, "Turn copies");
                         ui.end_row();
+                        ui.label("");
+                        ui.checkbox(&mut f.mirror_alternate, "Mirror every other (kaleidoscope)")
+                            .on_hover_text("Beyond PE-DESIGN: every second copy mirrored about its radial axis");
+                        ui.end_row();
+                    }
+                    ArrangeMode::Path | ArrangeMode::Scatter => {
+                        let path = f.mode == ArrangeMode::Path;
+                        ui.label(if path { "Line" } else { "Shape" });
+                        let shown = guides
+                            .iter()
+                            .find(|(id, _)| Some(*id) == f.guide)
+                            .map_or("Choose…".to_string(), |(_, l)| l.clone());
+                        egui::ComboBox::from_id_salt("arrange-guide")
+                            .selected_text(shown)
+                            .show_ui(ui, |ui| {
+                                for (id, label) in &guides {
+                                    ui.selectable_value(&mut f.guide, Some(*id), label);
+                                }
+                            });
+                        ui.end_row();
+                        ui.label(if path { "Copies" } else { "At most" });
+                        ui.add(egui::DragValue::new(&mut f.count).range(1..=200));
+                        ui.end_row();
+                        if path {
+                            ui.label("Side");
+                            egui::ComboBox::from_id_salt("arrange-side")
+                                .selected_text(
+                                    PATH_SIDES
+                                        .iter()
+                                        .find(|(k, _)| *k == f.side)
+                                        .map_or("", |(_, l)| l),
+                                )
+                                .show_ui(ui, |ui| {
+                                    for (k, l) in PATH_SIDES {
+                                        ui.selectable_value(&mut f.side, k, l);
+                                    }
+                                });
+                            ui.end_row();
+                            ui.label("");
+                            ui.checkbox(&mut f.follow, "Turn with the line");
+                            ui.end_row();
+                            ui.label("");
+                            ui.checkbox(&mut f.mirror_alternate, "Mirror every other");
+                            ui.end_row();
+                        } else {
+                            ui.label("Size");
+                            ui.horizontal(|ui| {
+                                ui.add(
+                                    egui::DragValue::new(&mut f.size_min)
+                                        .range(0.05..=20.0)
+                                        .speed(0.01),
+                                );
+                                ui.add(
+                                    egui::DragValue::new(&mut f.size_max)
+                                        .range(0.05..=20.0)
+                                        .speed(0.01),
+                                );
+                            });
+                            ui.end_row();
+                            ui.label("Gap");
+                            ui.add(
+                                egui::DragValue::new(&mut f.gap)
+                                    .range(0.0..=100.0)
+                                    .suffix(" mm"),
+                            );
+                            ui.end_row();
+                            ui.label("");
+                            ui.checkbox(&mut f.random_rotate, "Turn at random");
+                            ui.end_row();
+                            ui.label("Seed");
+                            ui.horizontal(|ui| {
+                                ui.add(egui::DragValue::new(&mut f.seed));
+                                if ui.button("Shuffle").clicked() {
+                                    f.seed = f.seed.wrapping_mul(1_103_515_245).wrapping_add(12_345) % 1_000_000;
+                                }
+                            });
+                            ui.end_row();
+                        }
                     }
                     ArrangeMode::Matrix => {
                         ui.label("Rows × columns");
@@ -524,13 +616,17 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
             ui.weak("Drag the handle on the canvas to set the spacing or circle centre.");
             ui.checkbox(&mut f.merge, "Merge overlapping shapes");
             ui.checkbox(&mut f.optimize, "Optimize sewing order");
+            let ready = !app.selection.is_empty() && (!f.mode.needs_guide() || f.guide.is_some());
             apply = ui
-                .add_enabled(!app.selection.is_empty(), egui::Button::new("Arrange"))
+                .add_enabled(ready, egui::Button::new("Arrange"))
                 .clicked();
         });
     if apply {
         let r = app.edit.arrange.request(&app.selection);
         if let Some(result) = app.execute(&r) {
+            if app.edit.arrange.mode == ArrangeMode::Scatter {
+                app.status = format!("{} copies fitted", result["placed"]);
+            }
             let mut sel: BTreeSet<u64> = CommandRequest::created_ids(&result);
             if let Some(all) = result.get("objects").and_then(|v| v.as_array()) {
                 sel = all.iter().filter_map(|v| v.as_u64()).collect();
@@ -1107,6 +1203,62 @@ mod tests {
         out.sort();
         app.undo();
         out
+    }
+
+    #[test]
+    fn arrange_dialog_kaleidoscope_path_and_scatter() {
+        let mut app = EditorApp::new(Launch::default());
+        // A rectangle: the preview's boxes match the engine's copies exactly (the mirroring
+        // itself is checked in the engine's arrange_modes tests).
+        rect(&mut app, 10.0);
+        app.selection = BTreeSet::from([1]);
+        app.edit.arrange.mode = ArrangeMode::Circle;
+        app.edit.arrange.count = 6;
+        app.edit.arrange.mirror_alternate = true;
+        // The dashed preview shows the kaleidoscope exactly as the engine places it.
+        assert_eq!(preview_bounds(&app).len(), 5);
+        assert_eq!(preview_bounds(&app), applied_bounds(&mut app));
+        // Along a line: needs a guide; the preview is left to the engine.
+        let line = app
+            .execute(&CommandRequest::new(
+                "shape.polygon",
+                json!({ "points": [[10, 60], [90, 60]], "closed": false }),
+            ))
+            .expect("line")["id"]
+            .as_u64()
+            .expect("id");
+        let f = &mut app.edit.arrange;
+        f.mode = ArrangeMode::Path;
+        f.count = 5;
+        let b = bounds(&app, 1);
+        let f = &app.edit.arrange;
+        assert!(f.mode.needs_guide() && f.transforms(&b).is_empty());
+        app.edit.arrange.guide = Some(line);
+        app.selection = BTreeSet::from([1]);
+        let r = app
+            .execute(&app.edit.arrange.request(&app.selection))
+            .unwrap_or_else(|| panic!("path: {}", app.status));
+        assert_eq!(r["ids"].as_array().map(Vec::len), Some(5));
+        app.undo();
+        // Scatter inside a circle, reported back.
+        let circle = app
+            .execute(&CommandRequest::new(
+                "shape.ellipse",
+                json!({ "cx": 60, "cy": 60, "rx": 30, "outline": "Red" }),
+            ))
+            .expect("circle")["id"]
+            .as_u64()
+            .expect("id");
+        let f = &mut app.edit.arrange;
+        f.mode = ArrangeMode::Scatter;
+        f.guide = Some(circle);
+        f.count = 8;
+        f.size_min = 0.3;
+        app.selection = BTreeSet::from([1]);
+        let r = app
+            .execute(&app.edit.arrange.request(&app.selection))
+            .expect("scatter");
+        assert!(r["placed"].as_u64().is_some_and(|n| n >= 1));
     }
 
     #[test]

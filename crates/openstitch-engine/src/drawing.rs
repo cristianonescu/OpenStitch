@@ -200,14 +200,65 @@ fn expanded(s: &EngineState, p: &Params) -> Result<Vec<u64>, CommandError> {
 fn arrange_command() -> CommandSpec {
     spec(
         "object.arrangeCopies",
-        "Arrange copies: mirror (horizontal, vertical, four-way), circle or matrix",
+        "Arrange copies: mirror (horizontal, vertical, four-way), circle (optionally a kaleidoscope), matrix, along a line (path) or scattered inside a shape (scatter)",
         Effect::Edit,
         vec![
             IDS,
             req(
                 "mode",
-                "mirrorHorizontal|mirrorVertical|mirrorFourWay|circle|matrix",
+                "mirrorHorizontal|mirrorVertical|mirrorFourWay|circle|matrix|path|scatter",
                 "Arrangement",
+            ),
+            opt(
+                "mirrorAlternate",
+                "bool",
+                "Circle and path: mirror every other copy (circle: about its radial axis, a kaleidoscope)",
+            ),
+            opt(
+                "pathId",
+                "int",
+                "Path: the line or outline the copies follow; it is kept, with its sewing turned off",
+            ),
+            opt(
+                "orient",
+                "follow|upright",
+                "Path: copies turn with the line (default) or stay upright",
+            ),
+            opt(
+                "side",
+                "center|above|below|alternate",
+                "Path: copies centred on the line (default), above, below or alternating",
+            ),
+            opt(
+                "offset",
+                "mm",
+                "Path: distance from the line to a copy's centre (default half the motif's height off centre)",
+            ),
+            opt(
+                "shapeId",
+                "int",
+                "Scatter: the closed shape the copies are placed inside",
+            ),
+            opt(
+                "sizeMin",
+                "factor",
+                "Scatter: smallest copy scale (default 1)",
+            ),
+            opt(
+                "sizeMax",
+                "factor",
+                "Scatter: largest copy scale (default sizeMin)",
+            ),
+            opt(
+                "gap",
+                "mm",
+                "Scatter: least distance between copies (default 1)",
+            ),
+            opt("randomRotate", "bool", "Scatter: turn each copy at random"),
+            opt(
+                "seed",
+                "int",
+                "Scatter: random seed; the same seed gives the same layout (default 1)",
             ),
             opt(
                 "spacing",
@@ -217,7 +268,7 @@ fn arrange_command() -> CommandSpec {
             opt(
                 "count",
                 "int 2-360",
-                "Circle: patterns on the circle, original included",
+                "Circle: patterns on the circle, original included; path: copies (1-200, default 10); scatter: most copies (1-200, default 20)",
             ),
             opt(
                 "radius",
@@ -255,18 +306,32 @@ fn arrange_command() -> CommandSpec {
             opt(
                 "optimizeOrder",
                 "bool",
-                "Sew same-colour patterns together to save colour changes (default false)",
+                "Sew same-colour patterns together to save colour changes (default false; true for path, scatter and the kaleidoscope)",
             ),
         ],
         |s, p| {
             let mut idx = indexes(p, &s.design)?;
             idx.sort_unstable();
             idx.dedup();
+            let mode = p.string("mode", None)?;
+            let beyond = matches!(mode.as_str(), "path" | "scatter");
+            let guide = if beyond {
+                Some(crate::arrange_modes::guide(&s.design, p, &mut idx)?)
+            } else {
+                None
+            };
             let Some(b) = Rect::enclosing(idx.iter().flat_map(|&i| s.design.objects[i].points()))
             else {
                 return Err(p.failed("the objects have no geometry"));
             };
-            let transforms = arrangement(p, b)?;
+            let transforms = match (mode.as_str(), guide) {
+                ("path", Some(g)) => crate::arrange_modes::path(&s.design, p, g, b)?,
+                ("scatter", Some(g)) => {
+                    let motif = crate::arrange_modes::motif_outline(&s.design, &idx, b);
+                    crate::arrange_modes::scatter(&s.design, p, g, &motif, b)?
+                }
+                _ => arrangement(p, b)?,
+            };
             if transforms.len() * idx.len() > MAX_COPIES {
                 return Err(p.failed(format!("would add more than {MAX_COPIES} objects")));
             }
@@ -274,8 +339,23 @@ fn arrange_command() -> CommandSpec {
             for t in &transforms {
                 copies.extend(copy_set(&mut s.design, &idx, t));
             }
-            let mut all: Vec<u64> = idx.iter().map(|&i| s.design.objects[i].id).collect();
+            let originals: Vec<u64> = idx.iter().map(|&i| s.design.objects[i].id).collect();
+            let mut all = originals.clone();
             all.extend(&copies);
+            if let Some(g) = guide {
+                if mode == "path" {
+                    // The guide sews nothing and stays editable.
+                    let o = &mut s.design.objects[g];
+                    o.region = None;
+                    o.line = None;
+                } else {
+                    // Scatter: the copies replace the motif.
+                    s.design.objects.retain(|o| !originals.contains(&o.id));
+                    s.design.dissolve_single_groups();
+                    all.retain(|id| !originals.contains(id));
+                }
+            }
+            let kaleidoscope = p.bool("mirrorAlternate", Some(false))?;
             if p.bool("mergeOverlapping", Some(false))? {
                 if all.len() > 200 {
                     return Err(p.invalid("mergeOverlapping", "works on at most 200 objects"));
@@ -284,10 +364,10 @@ fn arrange_command() -> CommandSpec {
                 all.retain(|id| !gone.contains(id));
                 copies.retain(|id| !gone.contains(id));
             }
-            if p.bool("optimizeOrder", Some(false))? {
+            if p.bool("optimizeOrder", Some(beyond || kaleidoscope))? {
                 group_by_colour(&mut s.design, &all);
             }
-            Ok(json!({ "ids": copies, "objects": all }))
+            Ok(json!({ "ids": copies, "objects": all, "placed": transforms.len() }))
         },
     )
 }
@@ -326,14 +406,29 @@ fn arrangement(p: &Params, b: Rect) -> Result<Vec<Transform>, CommandError> {
                 b.center() + v2(0.0, radius)
             };
             let rotate = p.bool("rotate", Some(true))?;
+            // Kaleidoscope: every other copy mirrored about its radial axis (the line from the
+            // circle centre through the motif's centre, turned with it).
+            let kaleidoscope = p.bool("mirrorAlternate", Some(false))?;
+            let radial = b.center() - center;
+            let axis = if radial.length() > 0.0 {
+                radial * (1.0 / radial.length())
+            } else {
+                v2(0.0, -1.0)
+            };
+            let mirror = crate::arrange_modes::reflection(b.center(), axis);
             (1..n)
                 .map(|k| {
                     let r = Transform::rotation(360.0 * k as f64 / n as f64, center);
-                    if rotate {
+                    let r = if rotate {
                         r
                     } else {
                         let to = r.apply(b.center()) - b.center();
                         Transform::translation(to.x, to.y)
+                    };
+                    if kaleidoscope && k % 2 == 1 {
+                        mirror.then(&r)
+                    } else {
+                        r
                     }
                 })
                 .collect()
@@ -358,7 +453,7 @@ fn arrangement(p: &Params, b: Rect) -> Result<Vec<Transform>, CommandError> {
         _ => {
             return Err(p.invalid(
                 "mode",
-                "must be mirrorHorizontal, mirrorVertical, mirrorFourWay, circle or matrix",
+                "must be mirrorHorizontal, mirrorVertical, mirrorFourWay, circle, matrix, path or scatter",
             ));
         }
     })
