@@ -492,3 +492,30 @@ fn new_readers_reject_short_files_and_never_panic() {
         }
     }
 }
+
+// MARK: Thread lists (#482)
+
+#[test]
+fn thread_lists_read_pyembroidery_files_and_pyembroidery_reads_ours() {
+    use openstitch_formats::threadlist::ListType;
+    let design = survey_design();
+    let hexes = |t: &[Thread]| t.iter().map(Thread::hex).collect::<Vec<_>>();
+    for ty in [ListType::Inf, ListType::Edr, ListType::Col] {
+        let ext = ty.extension();
+        // pyembroidery's file, read here.
+        let ours = ty.read(&data(&format!("oracle.{ext}"))).expect("read");
+        let theirs = oracle(&format!("oracle_{ext}_read.json"));
+        assert_eq!(hexes(&ours), hexes(&theirs.threads), "{ext}");
+        assert_eq!(hexes(&ours), hexes(&design.threads), "{ext}");
+        // This writer's file, read by pyembroidery.
+        let bytes = ty.write(&design.threads).expect("write");
+        assert_golden(&format!("openstitch.{ext}"), &bytes);
+        let theirs = oracle(&format!("openstitch_{ext}_read.json"));
+        assert_eq!(hexes(&theirs.threads), hexes(&design.threads), "{ext}");
+        if ty == ListType::Inf {
+            let names = |t: &[Thread]| t.iter().map(|t| t.name.clone()).collect::<Vec<_>>();
+            assert_eq!(names(&ours), names(&design.threads));
+            assert_eq!(names(&theirs.threads), names(&design.threads));
+        }
+    }
+}

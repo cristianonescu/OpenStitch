@@ -258,6 +258,8 @@ pub fn all() -> Vec<CommandSpec> {
     #[cfg(feature = "formats")]
     v.extend(crate::imports::commands());
     #[cfg(feature = "formats")]
+    v.extend(crate::threadlists::commands());
+    #[cfg(feature = "formats")]
     v.extend(crate::pes11_import::commands());
     #[cfg(feature = "library")]
     v.extend(crate::library::commands());
@@ -2866,6 +2868,11 @@ fn codec_commands() -> Vec<CommandSpec> {
                     "When the design exceeds the format's limits, write NAME-1.ext, NAME-2.ext… (default false: fail)",
                 ),
                 opt(
+                    "companionInf",
+                    "bool",
+                    "EXP only: also write NAME.inf with the colours in sewing order, as Bernina machines read them (default false, as PE-DESIGN writes the EXP alone)",
+                ),
+                opt(
                     "verify",
                     "warn|strict|off",
                     "Read every written file back and compare it with the stitches meant for it (#457): warn (default) adds a mismatch to the warnings, strict removes the files and fails",
@@ -2880,6 +2887,10 @@ fn codec_commands() -> Vec<CommandSpec> {
                     return Err(p.invalid("verify", "must be warn, strict or off"));
                 }
                 let ty = file_type(p, &path)?;
+                let companion_inf = p.bool("companionInf", Some(false))?;
+                if companion_inf && ty != FileType::Exp {
+                    return Err(p.invalid("companionInf", "only with the EXP format"));
+                }
                 let mut pes_options = openstitch_formats::pes::WriteOptions::parse(&p.string(
                     "pesVersion",
                     Some(openstitch_formats::pes::WriteOptions::DEFAULT_NAME),
@@ -2983,11 +2994,20 @@ fn codec_commands() -> Vec<CommandSpec> {
                     } else {
                         s.resolve(&numbered(&raw_path, i + 1), Access::Write, &p.command)?
                     };
+                    if companion_inf {
+                        let list = openstitch_formats::threadlist::sewing_order(part);
+                        let inf = openstitch_formats::threadlist::ListType::Inf
+                            .write(&list)
+                            .map_err(|e| p.failed(e.to_string()))?;
+                        files.push((target.with_extension("inf"), inf));
+                    }
                     files.push((target, bytes));
                 }
                 for (target, bytes) in &files {
                     std::fs::write(target, bytes).map_err(|e| p.failed(e.to_string()))?;
                 }
+                // The machine files first, then any companion lists.
+                files.sort_by_key(|(t, _)| t.extension().is_some_and(|e| e == "inf"));
                 let paths: Vec<String> =
                     files.iter().map(|(t, _)| t.display().to_string()).collect();
                 let read_back = if verify == "off" {

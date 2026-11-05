@@ -628,6 +628,18 @@ fn export_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
             });
             continue;
         }
+        if ty == FileType::Exp {
+            // Bernina machines read the colours from an INF beside the EXP (#482).
+            ui.menu_button("EXP", |ui| {
+                if ui.button("EXP…").clicked() {
+                    app.export(ty);
+                }
+                if ui.button("EXP with .inf colour file…").clicked() {
+                    app.export_exp_with_inf();
+                }
+            });
+            continue;
+        }
         if ui
             .button(format!("{}…", ty.extension().to_uppercase()))
             .clicked()
@@ -636,6 +648,21 @@ fn export_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         }
     }
     ui.separator();
+    ui.menu_button("Thread List", |ui| {
+        for (ext, label) in EditorApp::THREAD_LISTS {
+            if ui.button(format!("{label}…")).clicked() {
+                app.export_thread_list(ext);
+            }
+        }
+        ui.separator();
+        if ui
+            .button("Apply Thread List to the Design…")
+            .on_hover_text("Give the colour blocks, in sewing order, the colours of a CSV, INF, EDR, COL or TXT list (one undo step)")
+            .clicked()
+        {
+            app.apply_thread_list();
+        }
+    });
     menu_item(app, ui, Action::ExportSections);
 }
 

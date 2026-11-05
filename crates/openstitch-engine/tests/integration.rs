@@ -100,6 +100,8 @@ mod stitch_edit;
 mod stitch_types;
 #[path = "templates.rs"]
 mod templates;
+#[path = "thread_lists.rs"]
+mod thread_lists;
 #[path = "transfer.rs"]
 mod transfer;
 #[path = "user.rs"]

@@ -157,3 +157,10 @@ path = "fuzz_targets/read_ksm.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "read_threadlist"
+path = "fuzz_targets/read_threadlist.rs"
+test = false
+doc = false
+bench = false
