@@ -80,4 +80,71 @@ impl Viewport {
     pub fn zoom_percent(&self, points_per_mm: f64) -> f64 {
         self.scale * 10.0 / points_per_mm * 100.0
     }
+
+    /// Zoom Box (#518): the view that makes the model rectangle `content` fill `screen`
+    /// (the tighter side touches the edges), or `None` for a box too small to mean anything.
+    pub fn zoom_box(content: Rect, screen: ScreenRect) -> Option<Viewport> {
+        (content.width() > 1e-6 && content.height() > 1e-6)
+            .then(|| Viewport::fit(content, screen, 0.0))
+    }
+}
+
+/// Points per mm at 100 % without a calibration: a 96 dpi screen, as before #518.
+pub const DEFAULT_POINTS_PER_MM: f64 = 96.0 / 25.4;
+
+/// Calibration limits: from a 48 dpi to a 600 dpi display, in points per mm.
+pub const CALIBRATION_RANGE: std::ops::RangeInclusive<f64> = 1.8..=24.0;
+
+/// Points per mm from a calibration line `points` long that measures `mm` on a ruler held to
+/// the screen; `None` outside [`CALIBRATION_RANGE`].
+pub fn calibrated(points: f64, mm: f64) -> Option<f64> {
+    let k = points / mm;
+    (mm > 0.0 && k.is_finite() && CALIBRATION_RANGE.contains(&k)).then_some(k)
+}
+
+#[cfg(test)]
+mod zoom_tests {
+    use super::*;
+
+    #[test]
+    fn a_zoom_box_fills_the_view() {
+        let screen = ScreenRect {
+            x: 10.0,
+            y: 20.0,
+            width: 800.0,
+            height: 600.0,
+        };
+        let r = Rect {
+            min_x: 100.0,
+            min_y: 200.0,
+            max_x: 500.0,
+            max_y: 400.0,
+        };
+        let vp = Viewport::zoom_box(r, screen).expect("box");
+        let a = vp.to_screen(v2(r.min_x, r.min_y));
+        let b = vp.to_screen(v2(r.max_x, r.max_y));
+        // 400 × 200 into 800 × 600: the width fills the view exactly, centred.
+        assert!(((b.x - a.x) / screen.width - 1.0).abs() < 0.02);
+        assert!(((a.y + b.y) / 2.0 - screen.center().y).abs() < 1e-9);
+        assert!(Viewport::zoom_box(Rect { max_x: 100.0, ..r }, screen).is_none());
+    }
+
+    #[test]
+    fn calibration_sets_what_100_percent_means() {
+        // A 100 mm ruler covers 470 points on this screen.
+        let k = calibrated(470.0, 100.0).expect("plausible");
+        // 1 mm (10 model units) = k points.
+        let vp = Viewport {
+            scale: k / 10.0,
+            offset: v2(0.0, 0.0),
+        };
+        assert!((vp.zoom_percent(k) - 100.0).abs() < 1e-9);
+        // So a 100 mm line is 100 mm on screen at 100 %: 470 points.
+        assert!(
+            (vp.to_screen(v2(1000.0, 0.0)).x - vp.to_screen(v2(0.0, 0.0)).x - 470.0).abs() < 1e-9
+        );
+        assert_eq!(calibrated(5.0, 100.0), None);
+        assert_eq!(calibrated(470.0, 0.0), None);
+        assert!((DEFAULT_POINTS_PER_MM - 3.7795).abs() < 1e-4);
+    }
 }

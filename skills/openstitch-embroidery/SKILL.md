@@ -108,7 +108,9 @@ These act on the editor window, not the design file: `ui.state`, `ui.select`, `u
 `ui.run` (the ribbon's actions), `ui.zoom`, `ui.settings` and `ui.set` (view settings),
 `ui.render` (what `view_render` uses), `ui.simulate` (the stitch simulator), `ui.help`,
 `ui.update`, `ui.scratchWrite` (what `scratch_write` uses). Read their parameters with
-`command_describe` before the first use.
+`command_describe` before the first use. `ui.zoom {rect: [x, y, w, h]}` zooms to a rectangle.
+`background.setLayer {position: "top" | "bottom" | "afterObject", afterId}` puts the tracing
+picture above the design or between objects ("put the picture above the fills"); it never sews.
 
 Units: every command takes millimetres. The user may work in inches (`ui.settings` → `units`,
 also named in the editor note with each message); then answer in inches (1 in = 25.4 mm) and

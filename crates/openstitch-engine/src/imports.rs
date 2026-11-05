@@ -1046,9 +1046,21 @@ fn place(s: &mut EngineState, p: &Params, shapes: Vec<SvgShape>, b: Rect) -> cra
 #[cfg(feature = "digitize")]
 fn background_commands() -> Vec<CommandSpec> {
     use crate::sandbox::Access;
-    use openstitch_design::{BackgroundImage, ImageAdjust};
+    use openstitch_design::{BackgroundImage, BackgroundLayer, ImageAdjust};
     use openstitch_digitize::Raster;
     use openstitch_digitize::raster::MAX_FILE_BYTES;
+
+    /// The background's layer as `background.setLayer` reports it.
+    fn layer_json(b: &openstitch_design::BackgroundImage) -> serde_json::Value {
+        use openstitch_design::BackgroundLayer;
+        match b.layer {
+            BackgroundLayer::Bottom => json!({ "position": "bottom", "opacity": b.opacity }),
+            BackgroundLayer::Top => json!({ "position": "top", "opacity": b.opacity }),
+            BackgroundLayer::AfterObject { after } => {
+                json!({ "position": "afterObject", "afterId": after, "opacity": b.opacity })
+            }
+        }
+    }
 
     fn opacity(p: &Params, default: f64) -> Result<f64, CommandError> {
         p.opt("opacity", default, 0.0, 1.0)
@@ -1129,6 +1141,7 @@ fn background_commands() -> Vec<CommandSpec> {
                     opacity: opacity(p, 0.5)?,
                     visible: true,
                     adjust: ImageAdjust::default(),
+                    layer: BackgroundLayer::default(),
                 };
                 let out = json!({
                     "path": background.path,
@@ -1157,6 +1170,46 @@ fn background_commands() -> Vec<CommandSpec> {
                 b.visible = visible;
                 b.opacity = o;
                 Ok(json!({ "visible": visible, "opacity": o }))
+            },
+        ),
+        spec(
+            "background.setLayer",
+            "Where the background image is drawn (beyond PE-DESIGN): bottom (behind the design, the default), top (over it, with its opacity) or afterObject (above that object, below the ones sewn after it). It never sews and machine files are unchanged",
+            Effect::Edit,
+            vec![
+                req(
+                    "position",
+                    "bottom|top|afterObject",
+                    "Where to draw the image",
+                ),
+                opt(
+                    "afterId",
+                    "int",
+                    "afterObject: the object the image sits above",
+                ),
+                opt("opacity", "0–1", "Opacity (default: unchanged)"),
+            ],
+            |s, p| {
+                let layer = match p.string("position", None)?.as_str() {
+                    "bottom" => BackgroundLayer::Bottom,
+                    "top" => BackgroundLayer::Top,
+                    "afterObject" => {
+                        let id = p.int("afterId", None, 0, i64::MAX)? as u64;
+                        if s.design.index_of(id).is_none() {
+                            return Err(p.not_found(format!("object {id}")));
+                        }
+                        BackgroundLayer::AfterObject { after: id }
+                    }
+                    _ => return Err(p.invalid("position", "use bottom, top or afterObject")),
+                };
+                if p.has("afterId") && !matches!(layer, BackgroundLayer::AfterObject { .. }) {
+                    return Err(p.invalid("afterId", "only with position afterObject"));
+                }
+                let b = background(s, p)?;
+                let o = opacity(p, b.opacity)?;
+                b.layer = layer;
+                b.opacity = o;
+                Ok(layer_json(b))
             },
         ),
         spec(

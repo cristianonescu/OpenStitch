@@ -125,6 +125,9 @@ pub struct UiPrefs {
     /// Millimetres or inches for every length shown and typed (#519); the Design Database's
     /// System Unit is the same setting. Millimetres by default, as PE-DESIGN.
     pub units: super::units::Units,
+    /// Real size (#518): points per mm measured with Options ▸ Calibrate Real Size, per monitor
+    /// (keyed by its size in points). Without one, 100 % assumes a 96 dpi screen.
+    pub screen_calibration: Vec<(String, f64)>,
 }
 
 /// View ▸ Snap to Objects and Precision Bar, and the Options menu's nudge and click settings.
@@ -172,6 +175,7 @@ impl Default for UiPrefs {
             ai: Default::default(),
             editing: EditingPrefs::default(),
             units: super::units::Units::Mm,
+            screen_calibration: Vec::new(),
         }
     }
 }
@@ -217,6 +221,9 @@ impl UiPrefs {
                 "nudgeByGrid": self.editing.nudge_grid,
             },
             "units": super::units::key(self.units),
+            "screenCalibration": self.screen_calibration.iter()
+                .map(|(k, v)| (k.clone(), json!(v)))
+                .collect::<serde_json::Map<_, _>>(),
         })
     }
 
@@ -306,6 +313,20 @@ impl UiPrefs {
                 .as_str()
                 .and_then(super::units::from_key)
                 .unwrap_or(d.units),
+            screen_calibration: v["screenCalibration"]
+                .as_object()
+                .map(|m| {
+                    m.iter()
+                        .filter_map(|(k, v)| {
+                            let k2 = v.as_f64()?;
+                            super::viewport::CALIBRATION_RANGE
+                                .contains(&k2)
+                                .then(|| (k.clone(), k2))
+                        })
+                        .take(16)
+                        .collect()
+                })
+                .unwrap_or_default(),
         }
     }
 
@@ -323,6 +344,24 @@ impl UiPrefs {
         }
         let text = serde_json::to_string_pretty(&self.to_json()).map_err(std::io::Error::other)?;
         std::fs::write(path, text)
+    }
+
+    /// Points per mm at 100 % on `monitor` (its calibration, else a 96 dpi screen).
+    pub fn points_per_mm(&self, monitor: Option<&str>) -> f64 {
+        monitor
+            .and_then(|m| self.screen_calibration.iter().find(|(k, _)| k == m))
+            .map_or(super::viewport::DEFAULT_POINTS_PER_MM, |(_, v)| *v)
+    }
+
+    /// Stores (or with `None` removes) `monitor`'s calibration.
+    pub fn calibrate(&mut self, monitor: &str, points_per_mm: Option<f64>) {
+        self.screen_calibration.retain(|(k, _)| k != monitor);
+        if let Some(v) = points_per_mm {
+            self.screen_calibration.push((monitor.to_string(), v));
+            if self.screen_calibration.len() > 16 {
+                self.screen_calibration.remove(0);
+            }
+        }
     }
 
     /// Puts `path` first in the recent files list.
@@ -377,6 +416,14 @@ mod tests {
             nudge_mm: 0.5,
             nudge_grid: true,
         };
+        p.calibrate("1512x982", Some(4.25));
+        p.calibrate("1920x1080", Some(3.5));
+        p.calibrate("1920x1080", None);
+        assert_eq!(p.points_per_mm(Some("1512x982")), 4.25);
+        assert_eq!(
+            p.points_per_mm(Some("1920x1080")),
+            crate::editor::viewport::DEFAULT_POINTS_PER_MM
+        );
         for i in 0..12 {
             p.add_recent(Path::new(&format!("/d/{i}.osd")));
         }
@@ -400,6 +447,7 @@ mod tests {
             super::super::units::Units::Mm,
             "millimetres by default"
         );
+        assert!(w.screen_calibration.is_empty(), "96 dpi unless calibrated");
         let e = UiPrefs::from_json(&json!({ "editing": { "nudgeMM": 900, "snapToObjects": "y" } }));
         assert_eq!((e.editing.nudge_mm, e.editing.snap_objects), (50.0, false));
         assert_eq!(w.realistic.thread_width_mm, 1.0);

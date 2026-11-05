@@ -6,6 +6,8 @@
 
 #[path = "arrange_modes.rs"]
 mod arrange_modes;
+#[path = "background_layer.rs"]
+mod background_layer;
 #[path = "capabilities.rs"]
 mod capabilities;
 #[path = "continuing.rs"]

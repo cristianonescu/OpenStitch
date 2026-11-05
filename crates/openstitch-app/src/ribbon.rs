@@ -320,10 +320,12 @@ fn set_tool(app: &mut EditorApp, t: Tool) {
     app.ui.pan = false;
 }
 
-/// Zooms so the view shows `percent` % (100 % = real size on a 96 dpi screen).
+/// Zooms so the view shows `percent` % (100 % = real size: on this monitor once calibrated,
+/// else on a 96 dpi screen).
 pub fn zoom_to_percent(app: &mut EditorApp, percent: f64) {
+    let ppm = app.points_per_mm();
     if let Some(vp) = &mut app.viewport {
-        let now = vp.zoom_percent(96.0 / 25.4);
+        let now = vp.zoom_percent(ppm);
         if now > 0.0 && percent > 0.0 {
             let anchor = app.workspace.canvas.map_or_else(
                 || vp.to_screen(app.session.design().page.center()),
@@ -760,11 +762,26 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
             {
                 zoom_to_selection(app);
             }
+            if ui
+                .add(egui::Button::new("Zoom Box").shortcut_text("Z"))
+                .on_hover_text("Drag a rectangle on the canvas to zoom to it; Esc cancels")
+                .clicked()
+            {
+                app.zoom_box.toggle();
+            }
             ui.separator();
             for p in [50.0, 100.0, 200.0, 400.0] {
                 if ui.button(format!("{p:.0} %")).clicked() {
                     zoom_to_percent(app, p);
                 }
+            }
+            ui.separator();
+            if ui
+                .button("Calibrate Real Size…")
+                .on_hover_text("Make 100 % real size on this screen with a ruler")
+                .clicked()
+            {
+                app.calibration.open = true;
             }
         }
         FitTextToOutline => {
