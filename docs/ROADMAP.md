@@ -404,6 +404,18 @@ choice, 2026-11-04, as in SolidCraft): it adds no stitch behaviour, changes desi
 the existing engine commands, and sends nothing until the user opens it. Its plan is
 [research/beyond/ai-integration.md](research/beyond/ai-integration.md).
 
+From the open-source scan of 2026-11-05 ([research/competitive-features.md](research/competitive-features.md),
+Updates; concepts only, no code from the GPL or unlicensed projects), ranked by user benefit
+and effort, none started: 1. export read-back check (#457, planned, P2); 2. test swatch of the
+selection (#452, planned, P2); 3. fabric calibration swatch (#453, planned, P2, with B5's
+fabric table); 4. arched text with several lines as concentric rings (#456, idea, with B15);
+5. SVG import reading stitch settings from layer names (#455, idea); 6. garment mockups (#454,
+idea). Not taken: staggered satin splits, sharp satin corners as fans and converting a filled
+shape to a centre-line satin (OpenStitch has them: `splitLength` staggered, Auto satin's corner
+fan, Shapes ▸ Satin Skeleton from Shape), a prompt-to-spec LLM design agent (B17 already drives
+the engine's commands), and stitch_generator's effect catalogue (a checklist for B9, not a
+feature of its own).
+
 Deferred: linear colour-gradient and tartan fills, shape and vine fills, photo
 thread-painting, sequin/chenille/bead types (machine-specific), the TrueType turning-satin
 rework, an intelligent multi-hoop split with editable lines, VP3 and other extra formats.
