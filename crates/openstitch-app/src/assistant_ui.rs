@@ -386,6 +386,7 @@ impl EditorApp {
                 "snapToObjects" => json!(prefs.editing.snap_objects),
                 "precisionBar" => json!(prefs.editing.precision_bar),
                 "clickInsideOutlines" => json!(prefs.editing.click_inside),
+                "units" => json!(openstitch_app::editor::units::key(prefs.units)),
                 "nudgeStep" => json!(prefs.editing.nudge_mm),
                 "nudgeByGrid" => json!(prefs.editing.nudge_grid),
                 "alignTo" => json!(self.align_to),
@@ -475,6 +476,13 @@ impl EditorApp {
             "snapToObjects" => self.ui.prefs.editing.snap_objects = bool_value(name, v)?,
             "precisionBar" => self.ui.prefs.editing.precision_bar = bool_value(name, v)?,
             "clickInsideOutlines" => self.ui.prefs.editing.click_inside = bool_value(name, v)?,
+            "units" => {
+                self.ui.prefs.units = v
+                    .as_str()
+                    .and_then(openstitch_app::editor::units::from_key)
+                    .ok_or("units takes mm or inch")?;
+                self.database.units = self.ui.prefs.units;
+            }
             "nudgeStep" => self.ui.prefs.editing.nudge_mm = number_value(name, v, 0.1, 50.0)?,
             "nudgeByGrid" => self.ui.prefs.editing.nudge_grid = bool_value(name, v)?,
             "alignTo" => {
@@ -683,6 +691,18 @@ mod tests {
         )
         .expect("view");
         assert!(app.workspace.realistic);
+        // #519: the Assistant switches the unit; the Design Database follows.
+        app.ui_command("ui.set", Some(&json!({ "name": "units", "value": "inch" })))
+            .expect("units");
+        assert_eq!(
+            app.ui.prefs.units,
+            openstitch_app::editor::units::Units::Inch
+        );
+        assert_eq!(app.database.units, app.ui.prefs.units);
+        assert!(
+            app.ui_command("ui.set", Some(&json!({ "name": "units", "value": "cm" })))
+                .is_err()
+        );
         assert!(
             app.ui_command(
                 "ui.set",

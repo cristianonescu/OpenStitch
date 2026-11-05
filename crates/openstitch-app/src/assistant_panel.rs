@@ -434,8 +434,13 @@ fn context(app: &EditorApp) -> String {
         .map_or("an unsaved design".to_string(), |n| {
             n.to_string_lossy().into_owned()
         });
+    // #519: the user's unit, so answers use it; commands still take mm.
+    let units = match app.ui.prefs.units {
+        openstitch_app::editor::units::Units::Mm => "mm",
+        openstitch_app::editor::units::Units::Inch => "inches (commands still take mm)",
+    };
     format!(
-        "[Editor: {file}; {} objects; selected ids {:?}; scratch folder {}]",
+        "[Editor: {file}; {} objects; selected ids {:?}; units {units}; scratch folder {}]",
         app.session.design().objects.len(),
         app.selection,
         app.assistant

@@ -95,7 +95,7 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
     crate::edit_ui::draw_arrange_preview(app, &painter, &vp);
     crate::edit_ui::draw_markers(app, &painter, &vp);
     crate::sections_ui::draw_sections(app, &painter, &vp);
-    crate::workspace_ui::draw_measure(&painter, &vp, &app.workspace.measure);
+    crate::workspace_ui::draw_measure(&painter, &vp, &app.workspace.measure, app.ui.prefs.units);
     crate::view_ui::draw_image_frame(app, &painter, &vp);
     crate::view_ui::draw_guides(app, &painter, rect, &vp);
     if let (Some(_), Some(n)) = (app.simulate, app.render.needle) {
@@ -116,10 +116,12 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
     }
     if let Some(h) = response.hover_pos() {
         let m = vp.to_model(v2(f64::from(h.x), f64::from(h.y)));
+        let u = app.ui.prefs.units;
         let text = format!(
-            "{:.1}, {:.1} mm   {:.0}%",
-            m.x / 10.0,
-            m.y / 10.0,
+            "{}, {}{}   {:.0}%",
+            openstitch_app::editor::units::number(u, m.x / 10.0),
+            openstitch_app::editor::units::number(u, m.y / 10.0),
+            openstitch_app::editor::units::suffix(u),
             vp.zoom_percent(96.0 / 25.4)
         );
         painter.text(
@@ -131,7 +133,13 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
         );
     }
     if app.workspace.rulers {
-        crate::workspace_ui::draw_rulers(&painter, rect, &vp, response.hover_pos());
+        crate::workspace_ui::draw_rulers(
+            &painter,
+            rect,
+            &vp,
+            response.hover_pos(),
+            app.ui.prefs.units,
+        );
         crate::view_ui::draw_guide_markers(app, &painter, rect, &vp);
     }
     let cursor = match app.tools.tool() {

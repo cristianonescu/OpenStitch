@@ -679,7 +679,6 @@ PE-DESIGN 11 does not. Each item is sketched in
 - Stitch-out player: colour-block timeline with trim ticks, machine time at the needle, stepping by colour/object/trim, pause at trims, follow the needle (#516) (#516)
 - View toggles: needle points, underlay or top only, trim marks, hide unselected, colour by sewing order or monochrome, solo colour (#517) (#517)
 - Zoom box, real size calibrated to the display, and a reference image placed between objects in the sewing order with canvas handles (#518) (#518)
-- Millimetres or inches throughout the editor (Inspector, rulers, grid, lettering, hoops, print), stitch settings kept in mm (#519) (#519)
 - Satin corner styles (turn / mitre below 75° / cap below 45°, 0.5 mm overlap) on satin regions, columns, skeleton satin, zigzag lines and borders (B3) (#520)
 - Short stitches on inner curves for every satin kind (Manual Punch, skeleton satin, borders, lettering), with distance and inset settings (B3) (#521)
 - Pull compensation per side and as a percentage of stitch width, plus push compensation on straight-row fills (B5) (#522)

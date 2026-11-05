@@ -142,6 +142,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
             "path": path.display().to_string(), "mode": d.mode, "paper": d.paper,
             "sewingAreaBox": d.box_axes, "centerMark": d.mark, "templateGrid": d.grid,
             "mirror": d.mirror,
+            "units": openstitch_app::editor::units::key(app.ui.prefs.units),
         });
         if let Some(r) = app.execute(&CommandRequest::new("design.print", params)) {
             if system {
