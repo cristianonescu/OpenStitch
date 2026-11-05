@@ -70,6 +70,21 @@ fn import_remap_export_and_import_back() {
     assert!(r["colors"].as_u64() > Some(70));
     let text = std::fs::read_to_string(dir.join("jef.gpl")).expect("read");
     assert!(text.starts_with("GIMP Palette\nName: Janome (JEF chart)\n"));
+    // The thread makers' charts too, with their codes.
+    let r = run(
+        &mut s,
+        "threads.exportPalette",
+        json!({"builtin": "isacord40", "path": "isacord.gpl"}),
+    );
+    assert_eq!(r["colors"], json!(345));
+    let r = run(
+        &mut s,
+        "threads.importPalette",
+        json!({"path": "isacord.gpl", "name": "Isacord"}),
+    );
+    assert_eq!(r["added"], json!(345));
+    let back = &s.user_settings().thread_charts[2].threads;
+    assert!(back.iter().all(|t| t.catalog_number.is_some()));
 }
 
 #[test]
