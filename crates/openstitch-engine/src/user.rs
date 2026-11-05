@@ -112,7 +112,7 @@ impl UserSettings {
         std::fs::rename(&tmp, path).map_err(|e| e.to_string())
     }
 
-    fn chart_index(&self, name: &str) -> Option<usize> {
+    pub(crate) fn chart_index(&self, name: &str) -> Option<usize> {
         self.thread_charts.iter().position(|c| c.name == name)
     }
 }
@@ -151,7 +151,10 @@ fn name(p: &Params, key: &str) -> Result<String, CommandError> {
     Ok(n)
 }
 
-fn chart<'a>(s: &'a mut EngineState, p: &Params) -> Result<&'a mut ThreadChart, CommandError> {
+pub(crate) fn chart<'a>(
+    s: &'a mut EngineState,
+    p: &Params,
+) -> Result<&'a mut ThreadChart, CommandError> {
     let n = p.string("chart", None)?;
     let i = s
         .user
@@ -312,7 +315,7 @@ pub fn builtin_charts() -> [(&'static str, &'static str, &'static [Option<Thread
 /// BROTHER EMBROIDERY catalogue code and brand (`openstitch_core::BROTHER_EMBROIDERY`: 800 for
 /// Red), as PE-DESIGN shows and writes them; 62–64, which PE's chart does not have, keep their
 /// chart number and brand `Brother`.
-fn builtin_entries(id: &str, chart: &[Option<Thread>]) -> Vec<(usize, Thread)> {
+pub(crate) fn builtin_entries(id: &str, chart: &[Option<Thread>]) -> Vec<(usize, Thread)> {
     chart
         .iter()
         .enumerate()
@@ -330,7 +333,7 @@ fn builtin_entries(id: &str, chart: &[Option<Thread>]) -> Vec<(usize, Thread)> {
 }
 
 /// One CSV line `code,brand,description,R,G,B` (OpenStitch's thread-chart CSV, [`CSV_COLUMNS`]).
-fn csv_thread(line: &str) -> Result<Thread, String> {
+pub(crate) fn csv_thread(line: &str) -> Result<Thread, String> {
     let f = csv_fields(line)?;
     let f: Vec<&str> = f.iter().map(String::as_str).collect();
     if f.len() != 6 {

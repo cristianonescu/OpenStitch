@@ -42,6 +42,8 @@ mod stamps;
 mod stitch_edit;
 pub mod templates;
 #[cfg(feature = "formats")]
+pub mod threadlists;
+#[cfg(feature = "formats")]
 pub mod transfer;
 pub mod user;
 pub(crate) mod wizards;

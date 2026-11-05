@@ -987,8 +987,59 @@ impl EditorApp {
         ("1t", "Version 1, stitches only (machine only, smallest)"),
     ];
 
+    /// Thread list files in File ▸ Export ▸ Thread List (#482): extension and menu label.
+    pub const THREAD_LISTS: [(&'static str, &'static str); 5] = [
+        (
+            "csv",
+            "CSV — colours in sewing order with stitches and thread length",
+        ),
+        ("inf", "INF (Bernina)"),
+        ("edr", "EDR"),
+        ("col", "COL"),
+        ("txt", "TXT"),
+    ];
+
+    /// File ▸ Export ▸ EXP with .inf colour file: `design.export {companionInf: true}`.
+    pub fn export_exp_with_inf(&mut self) {
+        self.export_with_params(FileType::Exp, None, true);
+    }
+
+    /// Writes the design's colours in sewing order (`design.exportThreads`).
+    pub fn export_thread_list(&mut self, ext: &str) {
+        let name = format!("{} threads.{ext}", self.session.design().name);
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter(ext.to_uppercase(), &[ext])
+            .set_file_name(name)
+            .save_file()
+        else {
+            return;
+        };
+        let params = json!({ "path": path.display().to_string(), "format": ext });
+        if let Some(r) = self.execute(&CommandRequest::new("design.exportThreads", params)) {
+            self.status = format!("Wrote {} colours to {}", r["colors"], path.display());
+        }
+    }
+
+    /// Applies a thread list file to the colour blocks (`design.applyThreads`).
+    pub fn apply_thread_list(&mut self) {
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("Thread lists", &["csv", "inf", "edr", "col", "txt"])
+            .pick_file()
+        else {
+            return;
+        };
+        let params = json!({ "path": path.display().to_string() });
+        if let Some(r) = self.execute(&CommandRequest::new("design.applyThreads", params)) {
+            self.status = format!("Applied {} colours from {}", r["colors"], path.display());
+        }
+    }
+
     /// Exports `ty`; `pes_version` picks the PES variant (`None` = the engine default).
     pub fn export_with(&mut self, ty: FileType, pes_version: Option<&str>) {
+        self.export_with_params(ty, pes_version, false);
+    }
+
+    fn export_with_params(&mut self, ty: FileType, pes_version: Option<&str>, companion_inf: bool) {
         let name = format!("{}.{}", self.session.design().name, ty.extension());
         let Some(path) = rfd::FileDialog::new()
             .add_filter(ty.extension().to_uppercase(), &[ty.extension()])
@@ -1005,6 +1056,9 @@ impl EditorApp {
         });
         if let Some(v) = pes_version {
             params["pesVersion"] = json!(v);
+        }
+        if companion_inf {
+            params["companionInf"] = json!(true);
         }
         if let Some(r) = self.execute(&CommandRequest::new("design.export", params)) {
             let files = r["paths"].as_array().map_or(1, Vec::len);

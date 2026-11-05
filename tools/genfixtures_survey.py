@@ -187,7 +187,13 @@ open(os.path.join(out, "oracle.ksm"), "wb").write(bytes(0x200) + ksm_records(seq
 for ext in ("dsb", "dsz", "ksm"):
     dump_read("oracle." + ext)
 
-for ext in ("vp3", "tap", "u01", "tbf"):
+# #482: thread lists. pyembroidery writes and reads INF, EDR and COL (its TXT is a stitch list,
+# not a thread list, so OpenStitch's TXT list has no oracle).
+for ext in ("inf", "edr", "col"):
+    pe.write(p, os.path.join(out, "oracle." + ext))
+    dump_read("oracle." + ext)
+
+for ext in ("vp3", "tap", "u01", "tbf", "inf", "edr", "col"):
     if os.path.exists(os.path.join(out, "openstitch." + ext)):
         dump_read("openstitch." + ext)
 print("ok")

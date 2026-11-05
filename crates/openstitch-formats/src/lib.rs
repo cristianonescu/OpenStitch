@@ -34,6 +34,7 @@ pub mod shv;
 pub mod split;
 pub mod tap;
 pub mod tbf;
+pub mod threadlist;
 pub mod u01;
 pub mod vip;
 pub mod vp3;

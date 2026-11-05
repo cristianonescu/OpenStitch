@@ -1656,3 +1656,39 @@ sews its move first, as pyembroidery reads it.
 notes) leaves several fields unknown. A reader derived only from probing pyembroidery's reader
 would be checked against nothing but that reader. Both stay open in #481 until a description
 or real files are available.
+
+## Thread lists (#482)
+
+Lists of threads in order, no stitches (`openstitch_formats::threadlist`). Beyond PE-DESIGN:
+nothing is written unless asked, and an EXP is still written alone by default.
+
+| Format | Layout | Oracle |
+|---|---|---|
+| INF | Big-endian: u32 1, u32 8, u32 length of the rest, u32 count; per thread u16 record length, u16 index, r g b, u16 index + 1, name `00`, chart string `00` | pyembroidery 1.5.1 both ways (RGB and names) |
+| EDR | `r g b 00` per thread | pyembroidery both ways |
+| COL | Text: the count, then `index,r,g,b` per line (CR LF) | pyembroidery both ways |
+| TXT | OpenStitch's: `#rrggbb` TAB catalogue number TAB name TAB brand per line, `#` comments; reads `r,g,b`, `r g b` or a hex colour anywhere in a line too | none (pyembroidery's TXT is a stitch list) |
+| CSV | The design list: `block,brand,code,name,hex,r,g,b,stitches,threadM`, one row per colour block, then `total,,,,,,,,stitches,threadM`. Read back by `design.applyThreads`, which also takes the thread-chart CSV (`code,brand,description,R,G,B`) | none |
+
+What INF's second string means is not documented: OpenStitch writes the brand there
+(`Unknown` without one, as pyembroidery does) and reads it back as the brand.
+
+Engine commands: `design.exportThreads {path, format}` (sewing order; thread length per colour
+from the same estimate as `design.info`), `design.applyThreads {path}` (colour block `i` gets
+list entry `i`; a list of another length is refused with both counts, nothing is guessed; one
+undo step; the result is checked by compiling again, and a design whose blocks do not map onto
+its objects one to one is refused), `threads.importList {chart, path}` and `threads.exportList
+{chart | builtin, path}` for user charts, `design.export {format: exp, companionInf: true}`
+(writes `NAME.inf` beside `NAME.exp`, one colour per EXP colour block: a stop repeats the
+current colour, as the EXP writes a stop as a colour change). Editor: File ▸ Export ▸ Thread
+List (CSV, INF, EDR, COL, TXT, and Apply Thread List to the Design), File ▸ Export ▸ EXP ▸ EXP
+with .inf colour file.
+
+**Evidence.** `threadlist::tests` (round trips, names and strings, hand-made TXT, damaged lists);
+`tests/survey_formats.rs` `thread_lists_read_pyembroidery_files_and_pyembroidery_reads_ours`
+(INF, EDR, COL of the 12-colour design both ways, INF names); engine `tests/thread_lists.rs`
+(CSV rows and totals against `design.info`, every list's colours in order, a five-colour INF
+applied to a five-block DST and undone in one step, a four-colour list refused, a design CSV
+applied with names and brands, lists to and from user charts, the EXP + INF option: off by
+default, the EXP byte for byte the same with it, INF colours = EXP colour blocks); fuzz target
+`read_threadlist` (766 k runs, 20 s, no crash).
