@@ -10,7 +10,7 @@ autotests = false
 [features]
 default = ["formats", "digitize", "library"]
 # File import/export commands (stitches.import, design.export, import.svg).
-formats = ["dep:openstitch-formats", "dep:usvg", "dep:zip"]
+formats = ["dep:openstitch-formats", "dep:usvg", "dep:zip", "dep:roxmltree"]
 # Image conversions (digitize.autoPunch, digitize.crossStitch, digitize.photoStitch, Design Center).
 digitize = ["dep:openstitch-digitize"]
 # Design Database commands (library.*): browse, search, organise, convert, catalogue.
@@ -26,6 +26,9 @@ openstitch-print = { path = "../openstitch-print" }
 openstitch-library = { path = "../openstitch-library", default-features = false, optional = true }
 # SVG import: parsing, CSS, units and transforms; no text, fonts or compressed SVG.
 usvg = { version = "0.48.1", default-features = false, optional = true }
+# The SVG's own XML, read again to list the elements usvg leaves out (text, images; #487)
+# and for layer and object names (#455); the version usvg uses.
+roxmltree = { version = "0.21.1", optional = true }
 serde.workspace = true
 serde_json.workspace = true
 # Flat previews, pictures and stitch-out videos (`preview`, #488); moved from openstitch-render.

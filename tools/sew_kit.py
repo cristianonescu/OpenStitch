@@ -6,6 +6,7 @@ demo designs for a single-needle Brother machine (written for the NV880E and its
     cargo build --release -p stitchtool -p openstitch-app
     python3 -I tools/sew_kit.py            # rewrite the .pes files, previews, manifest, README
     python3 -I tools/sew_kit.py --check    # fail if a committed .pes differs from a fresh build
+    python3 -I tools/sew_kit.py --check-previews   # fail if a preview lacks a thread's colour
 
 Each design is a `stitchtool exec` script (the KIT list below), except the machine checks, which
 are the compatibility specs with a sew-out record (`compat/machine`), exported by
@@ -16,7 +17,8 @@ gets a preview (the editor's Realistic view, `openstitch --screenshot`, cropped 
 stitches, trims and threads (Brother catalogue code and name where the colour is on the PEC
 chart). manifest.json records each file's SHA-256. OpenStitch's output is the same on macOS,
 Windows and Linux, so a fresh build matches the committed files byte for byte until the stitch
-engine changes. Needs Pillow.
+engine changes. A preview must show every thread of its design within 20 ΔE of the
+thread's RGB (`--check-previews`, #564). Needs Pillow and numpy.
 """
 
 import argparse
@@ -520,15 +522,70 @@ def machine_check(work, spec_id):
     return (ROOT / "target" / "compat" / "work" / spec_id / name).read_bytes(), spec
 
 
-def preview(work, pes, dst):
+# A preview shows a thread when at least PREVIEW_PIXELS of its pixels are within PREVIEW_DE
+# (CIE76) of the thread's RGB. The Realistic view shades thread, so most of it sits a few ΔE
+# away; a 128-colour median-cut palette had pulled whole threads 40-60 ΔE off (#564).
+PREVIEW_DE = 20.0
+PREVIEW_PIXELS = 20
+
+
+def lab(rgb):
+    """CIE L*a*b* (D65) of an array of sRGB triples (0-255)."""
+    import numpy as np
+    a = np.asarray(rgb, float) / 255
+    a = np.where(a > 0.04045, ((a + 0.055) / 1.055) ** 2.4, a / 12.92)
+    xyz = a @ np.array([[0.4124, 0.3576, 0.1805], [0.2126, 0.7152, 0.0722], [0.0193, 0.1192, 0.9505]]).T
+    f = xyz / np.array([0.9505, 1.0, 1.089])
+    f = np.where(f > 0.008856, np.cbrt(f), 7.787 * f + 16 / 116)
+    return np.stack([116 * f[..., 1] - 16, 500 * (f[..., 0] - f[..., 1]), 200 * (f[..., 1] - f[..., 2])], -1)
+
+
+def missing_threads(im, colours):
+    """The thread colours ('#rrggbb') the image does not show (see PREVIEW_DE)."""
+    import numpy as np
+    pixels = lab(np.asarray(im.convert("RGB"))).reshape(-1, 3)
+    out = []
+    for hexc in dict.fromkeys(colours):
+        c = lab([[int(hexc[i:i + 2], 16) for i in (1, 3, 5)]])[0]
+        if int((np.linalg.norm(pixels - c, axis=1) < PREVIEW_DE).sum()) < PREVIEW_PIXELS:
+            out.append(hexc)
+    return out
+
+
+def thread_colours(threads):
+    """'#rrggbb' of each manifest thread ('405 Blue' or '#rrggbb')."""
+    rgb = {name: hexc for hexc, name in thread_names().items()}
+    return [t if t.startswith("#") else rgb[t] for t in threads]
+
+
+def preview(work, pes, dst, colours):
     shot = work / "shot.png"
     subprocess.run([str(BIN / "openstitch"), str(pes), "--show", "realistic", "--no-splash", "--size", "1440x900",
                     "--screenshot", str(shot)], cwd=work, check=True, capture_output=True)
     im = Image.open(shot).convert("RGB")
     im = im.crop(gallery.design_box(im))
     im = im.resize((360, round(im.height * 360 / im.width)), Image.LANCZOS)
-    small = im.quantize(colors=128, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
+    if missing_threads(im, colours):
+        sys.exit(f"{dst.name}: the render itself lacks threads {missing_threads(im, colours)}")
+    # 256 octree colours keep every thread (mean 1.4 ΔE from the render on decorative-frames);
+    # a preview that would still lose one is kept in full colour.
+    small = im.quantize(colors=256, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE)
+    if missing_threads(small, colours):
+        small = im
     retry(lambda: small.save(dst, optimize=True))
+
+
+def check_previews():
+    """Every committed preview shows each of its design's threads (#564)."""
+    manifest = json.loads((KIT / "manifest.json").read_text(encoding="utf-8"))
+    bad = []
+    for rel, m in manifest.items():
+        lost = missing_threads(Image.open(KIT / m["preview"]), thread_colours(m["threads"]))
+        if lost:
+            bad.append(f"{m['preview']}: no pixels of {', '.join(lost)}")
+    if bad:
+        sys.exit("previews with wrong thread colours (run tools/sew_kit.py):\n" + "\n".join(bad))
+    print(f"examples/sew previews show their threads ({len(manifest)} files)")
 
 
 def build(out, previews):
@@ -577,7 +634,7 @@ def build(out, previews):
             if previews:
                 # The design as built, in its own page orientation (a .pes for a 260 × 160 hoop opens
                 # turned to the machine's 160 × 260).
-                preview(work, work / "out.osd" if steps is not None else out / rel, out / png)
+                preview(work, work / "out.osd" if steps is not None else out / rel, out / png, stats["colors"])
             manifest[rel] = {
                 "title": title,
                 "about": about,
@@ -634,7 +691,11 @@ def describe(manifest):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="compare a fresh build with the committed .pes files")
+    ap.add_argument("--check-previews", action="store_true",
+                    help="check that every committed preview shows its threads' colours (no build needed)")
     a = ap.parse_args()
+    if a.check_previews:
+        return check_previews()
     if a.check:
         with tempfile.TemporaryDirectory() as tmp:
             manifest = build(Path(tmp), previews=False)

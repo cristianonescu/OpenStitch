@@ -57,6 +57,8 @@ not listed.
 | Editing | Sewing Order pane: the Optimise mode box and the mixed jump-trimming checkbox | weak: inline egui code | #356: `optimize_mode_request`, `jump_trimming_state` and `jump_trimming_request` factored out of `edit_ui.rs`; tests `optimise_mode_box_sets_the_design_mode`, `jump_trimming_checkbox_shows_mixed_and_sets_the_selection` |
 | OS integration | File associations: the MSI's `.osd`/`.pes` ProgIds and extensions, the macOS `.pes` alternate document type | none in CI | #356: `tools/check_file_associations.py` (with `--self-test`) in the CI `icons` job |
 | Automation | `tools/sew_kit.py --check` in CI | none | #561: CI job `kit` |
+| Automation | Kit preview colours | none: an image could lose a thread unnoticed | #564: `tools/sew_kit.py --check-previews` in CI job `kit` |
+| Docs | Every image under `docs/images` regenerable | none: engine-templates.png had no generator | #565: `tools/docs_images.py --check` in CI job `kit`; app tests `page_is_fitted_left_of_a_dialog_reaching_in_from_the_right`, `dialogs_outside_or_over_most_of_the_canvas_leave_it_whole` |
 | Docs | PES 0110 write, entry/exit points, Photo Stitch, PEC chart | stale test names in the evidence column | #326 (this file's PR) |
 | Docs | PEC preview icons, app icon and logo, image similarity Phase 1, VIP colour table | tests existed but were not cited | #326 |
 | Docs | OpenStitch-mode Fidelity row; Satin row; CSD | unescaped `\|` split the row on GitHub; a passage repeated; CSD read listed twice | #326 |

@@ -38,7 +38,104 @@ pub struct SectionSettings {
     pub splits_x: Vec<f64>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub splits_y: Vec<f64>,
+    /// Free hoopings (#515, beyond PE-DESIGN): placed anywhere, overlapping, each object sewn
+    /// whole in the first hooping that holds it. Off (PE-DESIGN's grid) unless chosen.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub free: Option<FreeHoopings>,
 }
+
+/// Free multi-hooping (#515): hoopings placed by the user or [`auto_layout`].
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct FreeHoopings {
+    /// In sewing order.
+    pub hoopings: Vec<Hooping>,
+    /// Overlap wanted between consecutive hoopings, mm; the alignment marks sit in it.
+    pub min_overlap: f64,
+    pub marks: MarkStyle,
+    /// A stop after the marks at the start of every later hooping, to line the fabric up.
+    pub stop_after_marks: bool,
+}
+
+impl Default for FreeHoopings {
+    fn default() -> Self {
+        FreeHoopings {
+            hoopings: Vec::new(),
+            min_overlap: DEFAULT_OVERLAP_MM,
+            marks: MarkStyle::BoxX,
+            stop_after_marks: true,
+        }
+    }
+}
+
+/// One free hooping: the section's top-left corner on the page, mm, and whether the hoop is
+/// turned 90° (width and height swapped).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Hooping {
+    pub x: f64,
+    pub y: f64,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub rotated: bool,
+}
+
+/// The alignment mark sewn in the overlap of consecutive free hoopings.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum MarkStyle {
+    /// A 6 mm square with both diagonals.
+    #[default]
+    BoxX,
+    /// A 10 mm plus sign.
+    Cross,
+    None,
+}
+
+impl MarkStyle {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            MarkStyle::BoxX => "boxX",
+            MarkStyle::Cross => "cross",
+            MarkStyle::None => "none",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<MarkStyle> {
+        [MarkStyle::BoxX, MarkStyle::Cross, MarkStyle::None]
+            .into_iter()
+            .find(|m| m.as_str() == s)
+    }
+
+    /// The mark centred on `c` (0.1 mm) as edges of running stitch, one continuous path.
+    pub fn edges(self, c: Vec2) -> Vec<(Vec2, Vec2)> {
+        let path: Vec<Vec2> = match self {
+            MarkStyle::BoxX => {
+                let h = MARK_BOX_MM * 5.0;
+                let [tl, tr, br, bl] = [v2(-h, -h), v2(h, -h), v2(h, h), v2(-h, h)];
+                vec![tl, tr, br, bl, tl, br, tr, bl]
+            }
+            MarkStyle::Cross => {
+                let h = MARK_CROSS_MM * 5.0;
+                vec![
+                    v2(-h, 0.0),
+                    v2(h, 0.0),
+                    v2(0.0, 0.0),
+                    v2(0.0, -h),
+                    v2(0.0, h),
+                ]
+            }
+            MarkStyle::None => return Vec::new(),
+        };
+        path.windows(2).map(|w| (c + w[0], c + w[1])).collect()
+    }
+}
+
+/// openhoop's minimum overlap between hoopings, mm (an idea, not its code).
+pub const DEFAULT_OVERLAP_MM: f64 = 16.0;
+pub const MARK_BOX_MM: f64 = 6.0;
+pub const MARK_CROSS_MM: f64 = 10.0;
+/// Most free hoopings.
+pub const MAX_HOOPINGS: usize = 64;
 
 impl SectionSettings {
     /// Section width and height in mm.
@@ -98,6 +195,8 @@ pub enum SectionKind {
     Position,
     /// One side of the jumbo frame.
     JumboSide,
+    /// A free hooping (#515).
+    Hooping,
 }
 
 /// One hooping.
@@ -117,6 +216,9 @@ pub struct Section {
     /// Multi-position hoops: the objects sewn in this hooping, in order (whole objects, not
     /// clipped). `None`: the stitches inside `rect`.
     pub objects: Option<Vec<u64>>,
+    /// Free hoopings: `marks_before` are sewn in the hooping's first thread and followed by a
+    /// stop, to line the fabric up before the design part.
+    pub stop_after_marks: bool,
 }
 
 /// What [`plan`] found: the hoopings in sewing order and objects that fit no position.
@@ -146,6 +248,7 @@ pub fn plan(design: &Design) -> Plan {
         _ => {}
     }
     match (&m.sections, m.hoop.is_none()) {
+        (Some(s), true) if s.free.is_some() => free(design, s),
         (Some(s), true) => split(design, s),
         _ => Plan {
             sections: vec![Section {
@@ -156,6 +259,7 @@ pub fn plan(design: &Design) -> Plan {
                 marks_before: Vec::new(),
                 marks_after: Vec::new(),
                 objects: None,
+                stop_after_marks: false,
             }],
             errors: Vec::new(),
         },
@@ -231,10 +335,171 @@ fn split(design: &Design, s: &SectionSettings) -> Plan {
                 marks_before: before,
                 marks_after: after,
                 objects: None,
+                stop_after_marks: false,
             });
         }
     }
     Plan { sections, errors }
+}
+
+/// Free hoopings (#515): every visible object (a group as one) goes whole to the first hooping,
+/// in sewing order of the hoopings, that holds its bounds; objects that fit none are errors.
+/// Consecutive hoopings get the alignment mark in the middle of their overlap, sewn at the end
+/// of the earlier one and at the start of the later one.
+fn free(design: &Design, s: &SectionSettings) -> Plan {
+    let f = s.free.clone().unwrap_or_default();
+    let fail = |e: String| Plan {
+        sections: Vec::new(),
+        errors: vec![e],
+    };
+    let Some(size) = s.section_size() else {
+        return fail(format!("hoop {} cannot give a section size", s.hoop));
+    };
+    if f.hoopings.is_empty() {
+        return fail("no hoopings: add one or run sections.autoLayout".into());
+    }
+    let rects: Vec<Rect> = f.hoopings.iter().map(|h| hooping_rect(h, size)).collect();
+    let n = rects.len();
+    let mut assigned: Vec<Vec<u64>> = vec![Vec::new(); n];
+    let mut errors = Vec::new();
+    for (ids, b, name) in units(design) {
+        match rects.iter().position(|r| contains(r, &b)) {
+            Some(k) => assigned[k].extend(ids),
+            None => errors.push(format!(
+                "{name} ({:.1} × {:.1} mm) fits no hooping",
+                b.width() / 10.0,
+                b.height() / 10.0
+            )),
+        }
+    }
+    let mut before: Vec<Vec<(Vec2, Vec2)>> = vec![Vec::new(); n];
+    let mut after: Vec<Vec<(Vec2, Vec2)>> = vec![Vec::new(); n];
+    if f.marks != MarkStyle::None {
+        for k in 1..n {
+            match intersection(&rects[k - 1], &rects[k]) {
+                Some(o) if o.width().min(o.height()) >= f.min_overlap * 10.0 - 1e-9 => {
+                    let mark = f.marks.edges(o.center());
+                    after[k - 1].extend(mark.iter().copied());
+                    before[k].extend(mark);
+                }
+                _ => errors.push(format!(
+                    "hoopings {k} and {} overlap less than {} mm, too little for the alignment marks",
+                    k + 1,
+                    f.min_overlap
+                )),
+            }
+        }
+    }
+    let sections = (0..n)
+        .map(|k| Section {
+            kind: SectionKind::Hooping,
+            label: format!("hooping {} of {n}", k + 1),
+            rect: rects[k],
+            rotate180: false,
+            marks_before: std::mem::take(&mut before[k]),
+            marks_after: std::mem::take(&mut after[k]),
+            objects: Some(std::mem::take(&mut assigned[k])),
+            stop_after_marks: f.stop_after_marks,
+        })
+        .collect();
+    Plan { sections, errors }
+}
+
+/// A free hooping's sewing area on the page (0.1 mm).
+pub fn hooping_rect(h: &Hooping, (sw, sh): (f64, f64)) -> Rect {
+    let (w, hh) = if h.rotated { (sh, sw) } else { (sw, sh) };
+    rect(h.x * 10.0, h.y * 10.0, (h.x + w) * 10.0, (h.y + hh) * 10.0)
+}
+
+fn intersection(a: &Rect, b: &Rect) -> Option<Rect> {
+    let r = rect(
+        a.min_x.max(b.min_x),
+        a.min_y.max(b.min_y),
+        a.max_x.min(b.max_x),
+        a.max_y.min(b.max_y),
+    );
+    (r.min_x < r.max_x && r.min_y < r.max_y).then_some(r)
+}
+
+/// What moves into a hooping as one: each visible object, a group's members together, in
+/// sewing order (a group where its first member sews), with their bounds and a name.
+fn units(design: &Design) -> Vec<(Vec<u64>, Rect, String)> {
+    let mut out: Vec<(Vec<u64>, Rect, String)> = Vec::new();
+    let mut groups: Vec<(u64, usize)> = Vec::new();
+    for o in design.objects.iter().filter(|o| o.visible) {
+        let Some(b) = o.bounds() else { continue };
+        match o
+            .group
+            .and_then(|g| groups.iter().find(|(id, _)| *id == g).map(|x| x.1))
+        {
+            Some(i) => {
+                let u = &mut out[i];
+                u.0.push(o.id);
+                u.1 = rect(
+                    u.1.min_x.min(b.min_x),
+                    u.1.min_y.min(b.min_y),
+                    u.1.max_x.max(b.max_x),
+                    u.1.max_y.max(b.max_y),
+                );
+            }
+            None => {
+                if let Some(g) = o.group {
+                    groups.push((g, out.len()));
+                }
+                let name = match o.group {
+                    Some(g) => format!("group {g}"),
+                    None => format!("object {}", o.id),
+                };
+                out.push((vec![o.id], b, name));
+            }
+        }
+    }
+    out
+}
+
+/// The fewest hoopings of `size` (mm, either orientation) covering every visible object's
+/// bounds in a grid, overlapping at least `overlap` mm, in sewing order (rows top to bottom,
+/// left to right). Empty for a design without stitches.
+pub fn auto_layout(design: &Design, size: (f64, f64), overlap: f64) -> Vec<Hooping> {
+    let Some(b) = units(design).into_iter().map(|u| u.1).reduce(|a, b| {
+        rect(
+            a.min_x.min(b.min_x),
+            a.min_y.min(b.min_y),
+            a.max_x.max(b.max_x),
+            a.max_y.max(b.max_y),
+        )
+    }) else {
+        return Vec::new();
+    };
+    let (bw, bh) = (b.width() / 10.0, b.height() / 10.0);
+    // Positions along one axis: hoopings of length `len` spread evenly over `extent`.
+    let axis = |extent: f64, len: f64, start: f64| -> Option<Vec<f64>> {
+        if len <= overlap {
+            return None;
+        }
+        if extent <= len {
+            return Some(vec![start + (extent - len) / 2.0]);
+        }
+        let k = ((extent - overlap) / (len - overlap)).ceil() as usize;
+        let step = (extent - len) / (k - 1) as f64;
+        Some((0..k).map(|i| start + step * i as f64).collect())
+    };
+    let grid = |rotated: bool| -> Option<Vec<Hooping>> {
+        let (w, h) = if rotated { (size.1, size.0) } else { size };
+        let xs = axis(bw, w, b.min_x / 10.0)?;
+        let ys = axis(bh, h, b.min_y / 10.0)?;
+        Some(
+            ys.iter()
+                .flat_map(|&y| xs.iter().map(move |&x| Hooping { x, y, rotated }))
+                .collect(),
+        )
+    };
+    match (grid(false), grid(true)) {
+        (Some(a), Some(r)) if r.len() < a.len() => r,
+        (Some(a), _) => a,
+        (None, Some(r)) => r,
+        (None, None) => Vec::new(),
+    }
 }
 
 /// Areas a, b, c of a multi-position hoop: the hoop's single-pattern size, a at the top, c at
@@ -301,6 +566,7 @@ fn multi_position(design: &Design, h: &Hoop) -> Plan {
             marks_before: Vec::new(),
             marks_after: Vec::new(),
             objects: Some(ids),
+            stop_after_marks: false,
         })
         .collect();
     Plan { sections, errors }
@@ -350,6 +616,7 @@ fn jumbo(design: &Design, overlap_mm: f64) -> Plan {
         marks_before: Vec::new(),
         marks_after: Vec::new(),
         objects: None,
+        stop_after_marks: false,
     };
     Plan {
         sections: vec![
@@ -514,6 +781,7 @@ pub fn section_pattern(design: &Design, full: &StitchPattern, section: &Section)
             )
         })
     };
+    let marks_first = !section.marks_before.is_empty();
     blocks.extend(marks(&section.marks_before));
     match &section.objects {
         Some(ids) => {
@@ -529,7 +797,22 @@ pub fn section_pattern(design: &Design, full: &StitchPattern, section: &Section)
         None => blocks.extend(clipped_blocks(full, &section.rect)),
     }
     blocks.extend(marks(&section.marks_after));
+    // Free hoopings: the marks at the start are sewn in the design's first thread, then the
+    // machine stops (a colour change to the same thread would add a colour block).
+    let stop = section.stop_after_marks && marks_first && blocks.len() > 1;
+    if stop {
+        blocks[0].0 = blocks[1].0.clone();
+    }
     let mut out = write_blocks(blocks, compiler.trim_distance);
+    if stop
+        && let Some(i) = out
+            .stitches
+            .iter()
+            .position(|s| s.command == Command::ColorChange)
+    {
+        out.stitches[i].command = Command::Stop;
+        out.threads.remove(1);
+    }
     let c = section.rect.center();
     for s in &mut out.stitches {
         let (dx, dy) = (s.x - c.x, s.y - c.y);
@@ -576,6 +859,130 @@ mod tests {
             None,
             Some(LineSewing::new(LineType::Running, Thread::rgb(0xFF0000))),
         ))
+    }
+
+    /// Two hoopings 5..125 and 95..215 mm across a 220 × 100 mm page, the 130 × 180 mm hoop's
+    /// 120 × 170 mm sections.
+    fn free_banner() -> Design {
+        let mut d = page(220.0, 100.0);
+        d.machine.sections = Some(SectionSettings {
+            hoop: "130x180".into(),
+            free: Some(FreeHoopings {
+                hoopings: vec![
+                    Hooping {
+                        x: 5.0,
+                        y: 0.0,
+                        rotated: false,
+                    },
+                    Hooping {
+                        x: 95.0,
+                        y: 0.0,
+                        rotated: false,
+                    },
+                ],
+                ..FreeHoopings::default()
+            }),
+            ..SectionSettings::default()
+        });
+        line(&mut d, &[(10.0, 50.0), (50.0, 50.0)]);
+        // Across the middle (110 mm) where a grid would cut it: whole in hooping 1.
+        line(&mut d, &[(100.0, 40.0), (120.0, 60.0)]);
+        line(&mut d, &[(170.0, 50.0), (210.0, 50.0)]);
+        d
+    }
+
+    #[test]
+    fn free_hoopings_keep_objects_whole_and_share_the_marks() {
+        let d = free_banner();
+        let p = plan(&d);
+        assert!(p.errors.is_empty(), "{:?}", p.errors);
+        assert_eq!(p.sections.len(), 2);
+        let ids: Vec<u64> = d.objects.iter().map(|o| o.id).collect();
+        assert_eq!(p.sections[0].objects, Some(vec![ids[0], ids[1]]));
+        assert_eq!(p.sections[1].objects, Some(vec![ids[2]]));
+        assert_eq!(p.sections[0].label, "hooping 1 of 2");
+        let full = Compiler::for_design(&d).compile(&d);
+        let a = section_pattern(&d, &full, &p.sections[0]);
+        let b = section_pattern(&d, &full, &p.sections[1]);
+        // The crossing line is sewn whole: all its stitches are in hooping 1's file.
+        let whole = Compiler::for_design(&d).compile_object(&d, 1);
+        let sewn = |pat: &StitchPattern, c: Vec2| -> Vec<(i64, i64)> {
+            pat.stitches
+                .iter()
+                .filter(|s| s.command == Command::Stitch)
+                .map(|s| ((s.x + c.x).round() as i64, (s.y + c.y).round() as i64))
+                .collect()
+        };
+        let (ca, cb) = (p.sections[0].rect.center(), p.sections[1].rect.center());
+        let in_a = sewn(&a, ca);
+        assert!(sewn(&whole, v2(0.0, 0.0)).iter().all(|q| in_a.contains(q)));
+        // The same mark at the same fabric position: the end of hooping 1, the start of 2.
+        let mark: Vec<(i64, i64)> = MarkStyle::BoxX
+            .edges(
+                intersection(&p.sections[0].rect, &p.sections[1].rect)
+                    .expect("overlap")
+                    .center(),
+            )
+            .iter()
+            .map(|e| (e.1.x.round() as i64, e.1.y.round() as i64))
+            .collect();
+        let in_b = sewn(&b, cb);
+        assert!(mark.iter().all(|q| in_a.contains(q) && in_b.contains(q)));
+        // Hooping 2: marks in its first thread, then a stop, no extra colour.
+        let first_design = b
+            .stitches
+            .iter()
+            .position(|s| s.command == Command::Stop)
+            .expect("a stop after the marks");
+        assert!(
+            b.stitches[..first_design]
+                .iter()
+                .all(|s| s.command != Command::ColorChange)
+        );
+        assert_eq!(b.threads.len(), 1, "{:?}", b.threads);
+        assert!(!a.stitches.iter().any(|s| s.command == Command::Stop));
+    }
+
+    #[test]
+    fn objects_that_fit_no_hooping_are_reported_and_auto_layout_covers_the_design() {
+        let mut d = free_banner();
+        let big = line(&mut d, &[(5.0, 90.0), (200.0, 90.0)]);
+        let p = plan(&d);
+        assert_eq!(p.errors.len(), 1);
+        assert!(
+            p.errors[0].contains(&format!("object {big}")),
+            "{:?}",
+            p.errors
+        );
+        d.objects.pop();
+        // 200 mm of lines (10..210) with 120 mm sections and 16 mm overlap: two hoopings.
+        let h = auto_layout(&d, (120.0, 170.0), 16.0);
+        assert_eq!(h.len(), 2, "{h:?}");
+        assert_eq!((h[0].x, h[1].x), (10.0, 90.0));
+        let sec = d.machine.sections.as_mut().expect("sections");
+        sec.free.as_mut().expect("free").hoopings = h;
+        assert!(plan(&d).errors.is_empty(), "{:?}", plan(&d).errors);
+        // A small design: one hooping, centred.
+        let mut small = page(100.0, 100.0);
+        line(&mut small, &[(10.0, 10.0), (40.0, 30.0)]);
+        let one = auto_layout(&small, (120.0, 170.0), 16.0);
+        assert_eq!(one.len(), 1);
+        // Too little overlap between consecutive hoopings for the marks: an error.
+        let free = |d: &mut Design| {
+            d.machine
+                .sections
+                .as_mut()
+                .and_then(|s| s.free.as_mut())
+                .expect("free")
+                .clone()
+        };
+        let mut f = free(&mut d);
+        f.hoopings[1].x = 128.0;
+        d.machine.sections.as_mut().expect("sections").free = Some(f.clone());
+        assert!(plan(&d).errors.iter().any(|e| e.contains("overlap")));
+        f.marks = MarkStyle::None;
+        d.machine.sections.as_mut().expect("sections").free = Some(f);
+        assert!(plan(&d).errors.is_empty());
     }
 
     #[test]

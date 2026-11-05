@@ -40,6 +40,18 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   their ellipse, which `fitsPage` checks; round hoops cannot rotate. Brother is the default.
 - Keep the whole design inside the page: `design.export` reports `fitsPage` and the
   `smallestHoop`.
+- Larger than the hoop: on a custom page, `sections.set {hoop}` splits it (PE-DESIGN's grid);
+  `sections.autoLayout` switches to free hoopings, where each object stays whole in one hooping
+  with alignment marks and a stop between them. `sections.list` names objects that fit no
+  hooping; `sections.export {path}` writes "Name - hooping k of n" files.
+  Free hoopings by hand: `sections.set {mode: "free", hoopings: [{x, y, rotated}], marks:
+  "boxX" | "cross" | "none", minOverlap, stopAfterMarks}` (x, y: the hooping's top-left corner
+  on the page in mm, in sewing order; `rotated` turns the hoop 90°; consecutive hoopings must
+  overlap by `minOverlap`, 16 mm by default, for the marks). Example: `sections.list` says
+  "object 7 (60.0 × 40.0 mm) fits no hooping" → read the hoopings' `area`s, then send the
+  whole list again with one hooping moved (or one added) so that its area holds the object's
+  bounds, and check `sections.list` until `errors` is empty. `{mode: "grid"}` returns to
+  PE-DESIGN's sections.
 
 ## Build order
 
@@ -94,7 +106,9 @@ then style them in the next.
 - Threads: to change the design to a thread chart ("use my Madeira threads"), run
   `threads.remap` `{builtin | chart, metric: ciede2000, keepDistinct: true, dryRun: true}`
   first and show the user the plan (design colour → thread, ΔE, objects, and `merged`), then
-  run it without `dryRun` if they agree (`metric: rgb` is PE-DESIGN's rule). `threads.find`
+  run it without `dryRun` if they agree (`metric: rgb` is PE-DESIGN's rule). The thread
+  makers' charts (Madeira, Isacord, Sulky, Robison-Anton) are `builtin` ids: `threads.builtinCharts`
+  lists them with `kind: "brand"`. `threads.find`
   `{query}` finds a thread by code or name. After `import.svg` or a `digitize.*` wizard gives
   many near-identical colours, offer `threads.mergeSimilar` (`dryRun` first; it reports the
   colour changes saved, and `order.byColor` when `suggestSortByColor`).
@@ -106,7 +120,9 @@ These act on the editor window, not the design file: `ui.state`, `ui.select`, `u
 `ui.run` (the ribbon's actions), `ui.zoom`, `ui.settings` and `ui.set` (view settings),
 `ui.render` (what `view_render` uses), `ui.simulate` (the stitch simulator), `ui.help`,
 `ui.update`, `ui.scratchWrite` (what `scratch_write` uses). Read their parameters with
-`command_describe` before the first use.
+`command_describe` before the first use. `ui.zoom {rect: [x, y, w, h]}` zooms to a rectangle.
+`background.setLayer {position: "top" | "bottom" | "afterObject", afterId}` puts the tracing
+picture above the design or between objects ("put the picture above the fills"); it never sews.
 
 Units: every command takes millimetres. The user may work in inches (`ui.settings` → `units`,
 also named in the editor note with each message); then answer in inches (1 in = 25.4 mm) and
@@ -118,6 +134,14 @@ still send mm to commands. `design.print {units: "inch"}` adds a 2-inch scale ba
   and folders the user approves). A refused path is not an error to work around: tell the user.
 - To import model-made artwork, write it with `scratch_write` (SVG text, or a PNG/JPEG as
   base64) and pass the returned `path` to `import.svg` or a `digitize.*` command.
+- `import.svg` returns `skipped` (text, images, nearly transparent or clipped-away shapes) and
+  `approximated` (gradients, patterns, masks, filters): tell the user what was left out instead
+  of leaving it unsaid. `gradients: "bands"` turns a gradient fill into 2–8 colour bands;
+  `minOpacity` (default 0.1) sets how faint a fill or stroke may be before it is left out.
+- When you write an SVG for `import.svg`, you can name each element's sewing and import with
+  `settings: true`: give the element an `id` and a `data-name` such as `"fill a=45 s=0.4"`,
+  `"satin"`, `"run r=3"` or `"stroke.satin w=3"`; the result lists unknown words and refused
+  values (FILE_FORMATS.md has the words).
 - `file` commands (`project.save`, `design.export`, ...) may ask the user first. Never
   overwrite a user's file without being asked to.
 

@@ -114,6 +114,23 @@ pub struct BackgroundImage {
     /// Left, Modify Image); the file itself is never changed. Omitted while unchanged.
     #[serde(default, skip_serializing_if = "is_default")]
     pub adjust: ImageAdjust,
+    /// Where the image sits in the drawing order (#518, beyond PE-DESIGN): behind the design
+    /// (PE-DESIGN's place, the default), above an object, or on top. It never sews.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub layer: BackgroundLayer,
+}
+
+/// The background image's place among the objects when drawn.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "position")]
+pub enum BackgroundLayer {
+    /// Behind every object, as PE-DESIGN draws it.
+    #[default]
+    Bottom,
+    /// Above everything, shown with its opacity.
+    Top,
+    /// Above the stitches of object `after`, below the objects sewn after it.
+    AfterObject { after: u64 },
 }
 
 /// How the background image is shown, applied in this order: turned, cropped, then colours.

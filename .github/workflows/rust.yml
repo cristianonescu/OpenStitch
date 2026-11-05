@@ -163,7 +163,8 @@ jobs:
     # The ready-to-sew kit (examples/sew) must be what the code makes (#450): a fresh release
     # build of every kit design matches the committed .pes files byte for byte, and every
     # committed file passes sew_check. When the stitch engine changes a kit file, regenerate the
-    # kit (`python3 -I tools/sew_kit.py`) in the same PR.
+    # kit (`python3 -I tools/sew_kit.py`) in the same PR. The previews must show their threads'
+    # colours (#564) and every image under docs/images needs a generator (#565).
     name: kit
     runs-on: ubuntu-latest
     steps:
@@ -176,7 +177,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m pip install pillow==11.3.0
+      - run: python -m pip install pillow==11.3.0 numpy==2.3.5
+      - name: kit previews show their threads
+        # Each preview's pixels include every thread of its design within 20 ΔE (#564).
+        run: python -I tools/sew_kit.py --check-previews
+      - name: every docs image has a generator
+        # tools/docs_images.py regenerates docs/images; a file it can't make fails (#565).
+        run: python -I tools/docs_images.py --check
       - run: cargo build --release --locked -p stitchtool
       - name: sew_kit --check
         run: python -I tools/sew_kit.py --check

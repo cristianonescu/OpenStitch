@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+  <!-- A square and a diagonal stroke clipped to a circle of radius 30 at (50, 50). -->
+  <defs>
+    <clipPath id="disc"><circle cx="50" cy="50" r="30"/></clipPath>
+  </defs>
+  <g id="icon" clip-path="url(#disc)">
+    <rect id="square" x="10" y="10" width="80" height="80" fill="#2060c0"/>
+    <path id="slash" d="M 0 0 L 100 100" stroke="#000000" fill="none"/>
+  </g>
+  <rect id="away" x="0" y="0" width="5" height="5" fill="#ff0000" clip-path="url(#disc)"/>
+</svg>

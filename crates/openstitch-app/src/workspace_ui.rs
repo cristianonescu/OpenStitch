@@ -305,7 +305,8 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
     let units = app.ui.prefs.units;
     let mut open = app.workspace.settings_open;
     let mut requests: Vec<CommandRequest> = Vec::new();
-    egui::Window::new("Design Settings")
+    let shown = app
+        .dialog_window(ctx, "Design Settings", None)
         .open(&mut open)
         .default_width(340.0)
         .resizable(false)
@@ -547,6 +548,9 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
                 .small(),
             );
         });
+    if let Some(shown) = shown {
+        app.dialog_rect_next = Some(shown.response.rect);
+    }
     app.workspace.settings_open = open;
     for r in requests {
         if app.execute(&r).is_some() {

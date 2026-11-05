@@ -2887,6 +2887,7 @@ dependencies = [
  "openstitch-print",
  "openstitch-testutil",
  "png",
+ "roxmltree",
  "serde",
  "serde_json",
  "tiny-skia 0.12.0",

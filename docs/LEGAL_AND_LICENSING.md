@@ -62,7 +62,9 @@ the project keeps:
   account, in the command icons' style. Every prompt is in `assets/illustrations/prompts.tsv`
   and `assets/illustrations/README.md`: each describes a generic object (a hoop, a folder, a
   spool, a woven cotton surface) and none names or describes Brother, PE-DESIGN or their
-  artwork; no reference images were used. Ten empty-state and dialog illustrations
+  artwork; no reference images were used. The cloth's job id is in
+  `assets/textures/higgsfield-jobs.tsv` (job of 2026-10-27, recovered from the account's
+  history for #563). Ten empty-state and dialog illustrations
   (`sew_empty`, `no_media`, `no_image`, `objects_empty` and six `update_*` states of the update
   dialog) were added the same way on 2026-10-30 and 2026-10-31 (job ids in
   `assets/illustrations/higgsfield-jobs.tsv`). Without them the editor shows

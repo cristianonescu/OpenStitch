@@ -300,7 +300,8 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
     };
     let mut open = true;
     let mut action = None;
-    egui::Window::new("Fonts")
+    let shown = app
+        .dialog_window(ctx, "Fonts", None)
         .open(&mut open)
         .default_width(380.0)
         .show(ctx, |ui| {
@@ -405,6 +406,9 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
                 }
             });
         });
+    if let Some(shown) = shown {
+        app.dialog_rect_next = Some(shown.response.rect);
+    }
     app.lettering.fonts.open = open;
     let f = app.lettering.fonts.clone();
     let ext = openstitch_engine::fonts::FONT_EXTENSION;
@@ -736,7 +740,8 @@ fn monogram_window(app: &mut EditorApp, ctx: &egui::Context) {
     };
     let mut open = true;
     let (mut add, mut edit, mut decorate) = (false, false, false);
-    egui::Window::new("Monogram")
+    let shown = app
+        .dialog_window(ctx, "Monogram", None)
         .open(&mut open)
         .resizable(false)
         .show(ctx, |ui| {
@@ -813,6 +818,9 @@ fn monogram_window(app: &mut EditorApp, ctx: &egui::Context) {
             });
             ui.weak("Letter styles and frames are OpenStitch's own designs.");
         });
+    if let Some(shown) = shown {
+        app.dialog_rect_next = Some(shown.response.rect);
+    }
     app.lettering.monogram.open = open;
     let f = app.lettering.monogram.clone();
     let summary =

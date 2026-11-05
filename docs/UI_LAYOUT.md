@@ -162,7 +162,7 @@ Behaviour follows the guide's pages
 | Tools | Shapes |  | `Action::ShapesTools` | `shape.preset` | yes |
 | Tools | Zoom In | `Ctrl+=` | `Action::ZoomIn` | view/UI only | yes |
 | Tools | Zoom Out | `Ctrl+-` | `Action::ZoomOut` | view/UI only | yes |
-| Tools | Zoom | `Ctrl+0` | `Action::OtherZoom` | view/UI only | yes |
+| Tools | Zoom (Fit Design Page, Zoom to Selection, Zoom Box (Z, beyond PE-DESIGN, #518), 50–400 %, Calibrate Real Size… (#518)) | `Ctrl+0` | `Action::OtherZoom` | view/UI only | yes |
 | Tools | Pan | `H` | `Action::Pan` | view/UI only | yes |
 | Tools | Measure | `M` | `Action::Measure` | `design.measure` | yes |
 | Import | Import Patterns | `Ctrl+Shift+I` | `Action::ImportPatterns` | `stitches.import` | yes |
@@ -349,7 +349,8 @@ Behaviour follows the guide's pages
 | Select | Select All | `Ctrl+A` | `Action::SelectAll` | view/UI only | yes |
 | Hoop Settings | Move Sections |  | `Action::MoveSections` | `sections.set` (`splitsX` / `splitsY`) | yes |
 | Hoop Settings | Design Settings (hoop list grouped by brand, Brother first, with a filter; other brands and round hoops beyond PE-DESIGN, #514; an oval or round hoop's field is drawn on the canvas) |  | `Action::DesignSettings` | `machine.set`, `machine.hoops` | yes |
-| Hoop Settings | Export Sections |  | `Action::ExportSections` | `sections.export` | yes |
+| Hoop Settings | Export Sections (free hoopings: "Name - hooping k of n") |  | `Action::ExportSections` | `sections.export` | yes |
+| Design Settings | Split design ▸ Hoopings: Grid (PE-DESIGN) or Free (#515, beyond PE-DESIGN): hooping list (x, y, Turned 90°, Remove), Add left / right / up / down, Auto layout, Marks (Boxed X, Cross, None), overlap, Stop after the marks; objects that fit no hooping outlined red on the canvas |  | `Action::DesignSettings` | `sections.set` (`mode`, `hoopings`, `marks`, `minOverlap`, `stopAfterMarks`), `sections.autoLayout` | yes |
 
 ### How the drawing and editing commands work
 

@@ -30,6 +30,7 @@ pub mod media_exports;
 pub mod metafile;
 pub mod order;
 mod ornament;
+pub mod palette;
 pub mod params;
 mod pattern_cmds;
 #[cfg(feature = "formats")]
@@ -49,6 +50,8 @@ mod sewing_cmds;
 mod shape_ops;
 mod stamps;
 mod stitch_edit;
+#[cfg(feature = "formats")]
+mod svg_settings;
 pub mod templates;
 #[cfg(feature = "formats")]
 pub mod thread_match;

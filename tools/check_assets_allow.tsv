@@ -16,4 +16,3 @@ assets/icons/openstitch-1024.png	jobs:assets/brand/higgsfield-jobs.tsv#mark	Rend
 assets/icons/openstitch-64.rgba	jobs:assets/brand/higgsfield-jobs.tsv#mark	Raw RGBA of openstitch-64.png (window icon), written by tools/gen_icons.py
 assets/icons/openstitch.ico	jobs:assets/brand/higgsfield-jobs.tsv#mark	Windows icon packed from the openstitch-*.png renders by tools/gen_icons.py
 assets/icons/openstitch.icns	jobs:assets/brand/higgsfield-jobs.tsv#mark	macOS icon written from the 1024 px render by tools/gen_icons.py
-assets/textures/fabric_cotton.png	note	Generated with Higgsfield (Recraft V4.1 utility, 2026-10-27, #46), then cropped, made to tile and levelled; prompt in assets/illustrations/README.md, LEGAL entry "Illustrations and textures". Its job id is not recorded yet (#563): recover it from the owner's Higgsfield history into assets/textures/higgsfield-jobs.tsv (row fabric_cotton) and delete this row

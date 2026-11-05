@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="30" viewBox="0 0 60 30">
+  <style>
+    :root { --brand: #10a050; }
+    .brand { fill: var(--brand); }
+    #second { fill: rgb(20, 40, 200); }
+  </style>
+  <rect class="brand" x="0" y="0" width="25" height="30"/>
+  <rect id="second" x="30" y="0" width="25" height="30"/>
+</svg>
