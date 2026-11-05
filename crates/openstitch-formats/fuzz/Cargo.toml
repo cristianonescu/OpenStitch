@@ -164,3 +164,17 @@ path = "fuzz_targets/read_threadlist.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "read_zxy"
+path = "fuzz_targets/read_zxy.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "read_stx"
+path = "fuzz_targets/read_stx.rs"
+test = false
+doc = false
+bench = false

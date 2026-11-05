@@ -279,6 +279,8 @@ reads back to the same needle points). Golden engine regressions:
 | cargo-fuzz `read_hus` / `read_vip` / `read_shv`, 25 s each (236 k / 977 k / 3.65 M runs); `read_phc` / `read_csd`, 20 s each (1.18 M / 1.36 M runs), 2026-10-19 | no crash | pass |
 | cargo-fuzz `read_vp3`, 30 s seeded with the VP3 fixtures (1.49 M runs), 2026-11-05 (#480) | no crash | pass |
 | cargo-fuzz `read_tap` / `read_u01` / `read_tbf` / `read_dsb` / `read_dsz` / `read_ksm`, 20 s each seeded with their fixtures (838 k / 825 k / 797 k / 684 k / 566 k / 1.35 M runs), 2026-11-05 (#481) | no crash | pass |
+| cargo-fuzz `read_zxy` / `read_stx`, 20 s each seeded with their fixtures (1.38 M / 2.33 M runs), 2026-11-05 (#481) | no crash | pass |
+| ZXY and STX readers against pyembroidery 1.5.1 on 2,500 random files each (500 structured, 2,000 fully random) | every stream identical | pass |
 | cargo-fuzz `read_threadlist` (INF, EDR, COL, TXT readers on every input), 20 s seeded with the list fixtures (766 k runs), 2026-11-05 (#482) | no crash | pass |
 
 Fuzz locally (nightly + `cargo install cargo-fuzz`):

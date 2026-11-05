@@ -37,7 +37,8 @@ Notes that do not change the fixture bytes:
 | DSB (Barudan) | ✅ | — (read only, #481) | Oracle tested only (pyembroidery's read of a file assembled from the layout) | |
 | DSZ (ZSK) | ✅ | — (read only, #481) | Oracle tested only (as DSB) | |
 | KSM (Pfaff) | ✅ | — (read only, #481) | Oracle tested only (as DSB); no public description | |
-| ZXY, STX | ❌ | — | **Not done** (#481) | No public description of ZXY; STX's is partial. See "More machine formats". |
+| ZXY (ZSK) | ✅ | — (read only, #481) | Oracle tested only: pyembroidery's read of an assembled file and of 2,500 random files, all identical; no public description, no ZSK file | See "ZXY and STX" below. |
+| STX (Data Stitch) | ✅ stitches; no colours | — (read only, #481) | Oracle tested only (as ZXY); pyembroidery reads no STX colours, so none are read | See "ZXY and STX" below. |
 | PHC | ✅ | — (read only, as in PE-DESIGN) | Oracle-verified read (pyembroidery) | PEC stitch data in a Brother wrapper. |
 | PHX | ❌ | — | **Blocked** | No public description or open-source reader; studying PE-DESIGN output would be reverse engineering (LEGAL_AND_LICENSING.md). |
 | PEN | ❌ | — | **Blocked** | Brother's encrypted format for designs bought from iBroidery; decrypting it would circumvent a protection measure. Out of scope. |
@@ -1652,10 +1653,30 @@ sews its move first, as pyembroidery reads it.
   each, 0.57–1.35 M runs, no crash); engine `more_machine_formats_export_and_import_through_the_engine`;
   `tools/sew_check.py` reads TAP, TBF and U01.
 
-**Not done: ZXY and STX.** No public description of ZXY was found, and STX's (libembroidery's
-notes) leaves several fields unknown. A reader derived only from probing pyembroidery's reader
-would be checked against nothing but that reader. Both stay open in #481 until a description
-or real files are available.
+## ZXY and STX (#481)
+
+Read only. Neither has a public description (libembroidery's STX notes give the stitch offset
+and a thread table with fields of unknown meaning). Both readers were derived by probing
+pyembroidery 1.5.1's readers with crafted files, every control value and header field tried
+(its code was not read or copied), so they are **checked against nothing but that reader**: no
+file written by ZSK or Data Stitch software and no machine. Each module's doc comment has the
+full table.
+
+| Format | Layout | Records |
+|---|---|---|
+| ZXY | byte 0 unused; u16 BE at 1 = bytes to skip; records from `3 + skip` | `ctrl |dx| |dy|`: `08` x left, `04` y down; `02` jump (whatever else is set); else `20` needle change, ending the design when the x byte is `FF`; else `01`, `10`, `40` or `80` ignored; else stitch |
+| STX | LE u32 at 20 = stitch offset | `dx dy` (signed, y up); `80 01 dx dy` colour change then jump; `80 02 dx dy` stitch (lets `dx` be `80`); `80 04 dx dy` jump; `80 80 x x` trim; any other `80 ..` ends |
+
+STX colours are not read: pyembroidery reads none from any STX (0 of 3,000 random headers gave a
+thread list), so a reader of libembroidery's thread table would have nothing to be checked
+against.
+
+**Evidence.** `tests/survey_formats.rs`: assembled ZXY and STX files of the 12-colour design read
+like pyembroidery reads them and contain every needle point of the design; short and corrupted
+files never panic. A differential run on 2,500 random files per format (500 structured, 2,000
+fully random, random header bytes and offsets), each read by both readers: every stream
+identical (stitches, jumps, trims, colour changes, end), 2026-11-05, not in CI. Fuzz targets
+`read_zxy` (1.38 M runs) and `read_stx` (2.33 M runs), 20 s each, no crash.
 
 ## Thread lists (#482)
 
