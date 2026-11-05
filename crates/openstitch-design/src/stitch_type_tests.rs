@@ -2347,14 +2347,30 @@ fn narrow_auto_satin_travels_to_its_far_end_without_a_long_stitch() {
         r.auto_direction = true;
         r.underlay = false;
         r.entry = Some(v2(90.0 + width / 2.0, 490.0));
+        r.exit = r.entry;
+        r.running_stitch_path = Some(RunningStitchPath::Inside);
+        // Travel stitches up to 2 mm; crossings as wide as the column (6 mm: 6.04 mm).
+        let limit = f64::max(25.0, width + 2.0);
         let layers = crate::region::layers(std::slice::from_ref(&col), &r, &[]);
         for run in layers.iter().flatten() {
             let l = longest(run);
-            // Travel stitches up to 2 mm; crossings as wide as the column (6 mm: 6.04 mm).
-            assert!(
-                l <= f64::max(25.0, width + 2.0),
-                "{width}: a {l} stitch in {run:?}"
-            );
+            assert!(l <= limit, "{width}: a {l} stitch in {run:?}");
         }
+        // As the design sews it (travel from the start point, tie-in and lock).
+        let mut d = Design::new("column", DesignPage::default());
+        d.add(DesignObject::shape(vec![col], Some(r), None));
+        let p = Compiler::default().compile(&d);
+        let pts: Vec<Vec2> = p
+            .stitches
+            .iter()
+            .filter(|s| s.command == Command::Stitch)
+            .map(|s| v2(s.x, s.y))
+            .collect();
+        let l = longest(&pts);
+        assert!(
+            l <= limit,
+            "{width}: a {l} stitch in {:?}",
+            &pts[..12.min(pts.len())]
+        );
     }
 }
