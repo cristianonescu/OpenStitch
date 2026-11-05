@@ -64,6 +64,14 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
     if let Some(r) = crate::edit_ui::order_controls(app, ui) {
         app.execute(&r);
     }
+    if ui
+        .button("Review sewing order")
+        .on_hover_text("Step through every move between objects, with trims, jumps and warnings")
+        .clicked()
+    {
+        app.quality.open = true;
+        app.quality.tab = crate::quality_ui::Tab::Route;
+    }
     ui.checkbox(&mut app.edit.by_colour, "Frames by thread colour")
         .on_hover_text("One frame per run of objects in the same colour");
     ui.separator();

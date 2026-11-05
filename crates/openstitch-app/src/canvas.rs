@@ -72,6 +72,7 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
         draw_fabric(ui.ctx(), &painter, &vp, &page_rect, colors.page);
     }
     draw_background(app, ui.ctx(), &painter, &vp);
+    crate::quality_ui::draw_background(app, &painter, &vp, &page_rect);
     crate::workspace_ui::draw_grid(&painter, &vp, &page_rect, &app.workspace.grid);
     if app.session.design().objects.is_empty() && app.session.design().background.is_none() {
         draw_empty_hint(&painter, &vp, &page_rect);
@@ -86,6 +87,7 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
         draw_stitches(app, &painter, &vp);
     }
     draw_unsewn_outlines(app, &painter, &vp);
+    crate::quality_ui::draw(app, &painter, &vp);
     draw_selection(app, &painter, &vp);
     draw_preview(app, &painter, &vp);
     draw_points(app, &painter, &vp);

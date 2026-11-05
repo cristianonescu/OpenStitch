@@ -114,6 +114,7 @@ the counsel record (`research/beyond/image-similarity-plan.md`).
 | #321 (branch, PR after #369) | Import WMF/EMF vector images as shapes | Windows |
 | #395 | Assistant panel polish (#394): framed icon buttons, chat bubbles, light Markdown, keys read back after Remove, throwaway profile (`OPENSTITCH_CONFIG_DIR`, `OPENSTITCH_KEYCHAIN_SERVICE`) | Mac |
 | `batch:ci-tooling` (branch) | #357, #366, #367 | Mac |
+| `batch:quality-checks` (PR) | #506 random-design test, #503 Check Design, #504 density map, #505 Review Sewing Order, #457 export read-back: engine `quality.rs`, `design.check` / `design.density` / `design.route` / `design.cleanup`, the editor's Check Design window. New bugs from the random-design test: #570, #571 (and seeds on #373) | Cloud session |
 
 ## Mac batches
 

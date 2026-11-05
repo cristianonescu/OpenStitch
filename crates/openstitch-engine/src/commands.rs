@@ -271,6 +271,7 @@ pub fn all() -> Vec<CommandSpec> {
     v.extend(crate::pattern_cmds::commands());
     v.extend(crate::sewing_cmds::commands());
     v.extend(crate::wizards::commands());
+    v.extend(crate::quality::commands());
     v.push(spec(
         "commands.list",
         "Describe every command",
@@ -2864,11 +2865,20 @@ fn codec_commands() -> Vec<CommandSpec> {
                     "bool",
                     "When the design exceeds the format's limits, write NAME-1.ext, NAME-2.ext… (default false: fail)",
                 ),
+                opt(
+                    "verify",
+                    "warn|strict|off",
+                    "Read every written file back and compare it with the stitches meant for it (#457): warn (default) adds a mismatch to the warnings, strict removes the files and fails",
+                ),
             ],
             |s, p| {
                 let raw_path = p.string("path", None)?;
                 let path = s.resolve(&raw_path, Access::Write, &p.command)?;
                 let split = p.bool("split", Some(false))?;
+                let verify = p.string("verify", Some("warn"))?;
+                if !["warn", "strict", "off"].contains(&verify.as_str()) {
+                    return Err(p.invalid("verify", "must be warn, strict or off"));
+                }
                 let ty = file_type(p, &path)?;
                 let mut pes_options = openstitch_formats::pes::WriteOptions::parse(&p.string(
                     "pesVersion",
@@ -2904,6 +2914,13 @@ fn codec_commands() -> Vec<CommandSpec> {
                 // (#375). Only when no other version is asked for, or the file's own one.
                 if let Some(bytes) = unchanged_source(s, p, ty)? {
                     std::fs::write(&path, &*bytes).map_err(|e| p.failed(e.to_string()))?;
+                    // The original file's bytes: read back, they must be the same bytes.
+                    if verify != "off" && std::fs::read(&path).ok().as_deref() != Some(&*bytes) {
+                        if verify == "strict" {
+                            let _ = std::fs::remove_file(&path);
+                        }
+                        return Err(p.failed("the written file did not read back as written"));
+                    }
                     let check = crate::machine::export_check(&s.design, &pattern);
                     return Ok(json!({
                         "path": path.display().to_string(),
@@ -2973,7 +2990,44 @@ fn codec_commands() -> Vec<CommandSpec> {
                 }
                 let paths: Vec<String> =
                     files.iter().map(|(t, _)| t.display().to_string()).collect();
+                let read_back = if verify == "off" {
+                    Vec::new()
+                } else {
+                    files
+                        .iter()
+                        .zip(&parts)
+                        .map(|((target, bytes), part)| {
+                            // A PES for a hoop turned 90° holds the stitches turned with it.
+                            let turned =
+                                (ty == FileType::Pes && !editable && pes_options.hoop_rotated)
+                                    .then(|| openstitch_formats::pec::turned_for_hoop(part));
+                            crate::quality::verify_file(
+                                ty,
+                                turned.as_ref().unwrap_or(part),
+                                target,
+                                bytes,
+                            )
+                        })
+                        .collect()
+                };
+                let mismatches: Vec<String> = read_back
+                    .iter()
+                    .flat_map(|r| r["problems"].as_array().cloned().unwrap_or_default())
+                    .filter_map(|m| m.as_str().map(String::from))
+                    .collect();
+                if verify == "strict" && !mismatches.is_empty() {
+                    for (target, _) in &files {
+                        let _ = std::fs::remove_file(target);
+                    }
+                    return Err(p.failed(format!(
+                        "the written file did not read back as written, so it was removed: {}",
+                        mismatches.join("; ")
+                    )));
+                }
                 let mut check = crate::machine::export_check(&s.design, &pattern);
+                if let Some(w) = check["warnings"].as_array_mut() {
+                    w.extend(mismatches.iter().map(|m| json!(format!("read-back: {m}"))));
+                }
                 if changed_source && let Some(w) = check["warnings"].as_array_mut() {
                     w.push(json!(
                         "the design changed since it was opened, so the file is written from the design: what OpenStitch does not read from the original file (PE-DESIGN's other objects, page and hoop fields) is not kept"
@@ -2988,6 +3042,9 @@ fn codec_commands() -> Vec<CommandSpec> {
                     "hoopMM": check["hoopMM"],
                     "smallestHoop": check["smallestHoop"],
                     "warnings": check["warnings"],
+                    "verified": (verify != "off").then_some(mismatches.is_empty()),
+                    "readBack": read_back,
+                    "problems": crate::quality::errors(&s.design),
                 }))
             },
         ),
