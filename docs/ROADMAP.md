@@ -400,7 +400,7 @@ before any code; the ranking and the proposed tracks are in
 | B10 | Variable-width satin line | B | [research/beyond/variable-width-satin-line.md](research/beyond/variable-width-satin-line.md) | Sketched; not started |
 | B11 | Closest join, auto start/end, continue digitizing, overlap removal | C | [research/beyond/closest-join-and-overlap.md](research/beyond/closest-join-and-overlap.md) | Sketched; not started. Related, shipped 2026-10-29 (#137): `order.optimize` mode `minJump`, a 2-opt shortest-jump order per colour block with every neighbouring pair linked, as a design setting (`optimizeOrder`); PE-DESIGN's order stays the default |
 | B12 | Carving lines, knockdown fill | A | [research/beyond/carving-and-knockdown.md](research/beyond/carving-and-knockdown.md) | Sketched; not started |
-| B13 | Density map, troubleshoot, thread conversion, auto hoop | E | [research/beyond/quality-tools.md](research/beyond/quality-tools.md) | Sketched; not started |
+| B13 | Density map, troubleshoot, thread conversion, auto hoop | E | [research/beyond/quality-tools.md](research/beyond/quality-tools.md) | Density map and troubleshoot rules done (Check Design, #503/#504); thread conversion and auto hoop not started |
 | B14 | Stitch-file resize with density | E | [research/beyond/stitch-file-resize.md](research/beyond/stitch-file-resize.md) | Sketched; not started |
 | B15 | Lettering: baselines, kerning, team names, connections | E | [research/beyond/lettering-depth.md](research/beyond/lettering-depth.md) | Sketched; not started |
 | B16 | Image wizards' "OpenStitch" mode beside the PE-DESIGN default: perceptual colour reduction (CIELAB k-means, CIEDE2000 thread matching) and region cleanup for Auto Punch first | — | [research/beyond/image-digitizing.md](research/beyond/image-digitizing.md) | Auto Punch's OpenStitch mode done 2026-10-31 (`compatMode: openStitch`, image dialog Mode): measured on the test images (`tools/image_eval.py`), mean ΔE00 9.1 → 8.6, stitches −14 %, trims −48 %, specks 220 → 10; line art keeps its lines since 2026-10-31 (mandala 2,195 stitches, PE mode 2,590); Photo Stitch 1 in colour since 2026-10-31 (perceptual palette, CIELAB dithering: mean ΔE00 10.0 → 8.2 on nine photos, trims +13 %); Photo Stitch 2 in colour since 2026-10-31 (perceptual Auto Select, linear-light mix: mean ΔE00 19.8 → 16.2 on seven images); Cross Stitch measured, no gain at B16 (B16.1 added its OpenStitch mode, #263); next: Photo Stitch 1's trims, the Photo Stitch 2 portrait, SLIC |
@@ -415,7 +415,7 @@ the existing engine commands, and sends nothing until the user opens it. Its pla
 
 From the open-source scan of 2026-11-05 ([research/competitive-features.md](research/competitive-features.md),
 Updates; concepts only, no code from the GPL or unlicensed projects), ranked by user benefit
-and effort, none started: 1. export read-back check (#457, planned, P2); 2. test swatch of the
+and effort: 1. export read-back check (#457, done in `batch:quality-checks`); 2. test swatch of the
 selection (#452, planned, P2); 3. fabric calibration swatch (#453, planned, P2, with B5's
 fabric table); 4. arched text with several lines as concentric rings (#456, idea, with B15);
 5. SVG import reading stitch settings from layer names (#455, idea); 6. garment mockups (#454,
@@ -434,13 +434,13 @@ started:
 
 | Rank | Theme | Issues | Ties to |
 |---|---|---|---|
-| 1 | Sewing quality checks before the needle: Check Design pane, density map, Review Sewing Order, export read-back, random-design invariant test | #503, #504, #505, #457, #506 | B13, D15 |
+| 1 | Sewing quality checks before the needle: Check Design pane, density map, Review Sewing Order, export read-back, random-design invariant test (**done**, `batch:quality-checks`; engine `quality.rs`) | #503, #504, #505, #457, #506 | B13, D15 |
 | 2 | Satin quality: corner styles, short stitches on every satin, compensation per side and in %, automatic underlay by width, branching shapes to satin, variable-width satin line | #520, #521, #522, #523, #526, #524 (and the bug #460) | B3, B5, B10 |
 | 3 | Fewer trims: travel under later fills, branching and auto-routing, nearest start per object, leave out hidden stitching | #545, #546, #547, #511 | B4, B6, B11 |
 | 4 | Assistant: memory between conversations, example designs and a composition guide, illustrated benchmark tasks, every batch error at once, only the user's threads | #491, #492, #493, #494, #495 | B17 |
 | 5 | Production: parameter test swatches, fabric and thread-weight presets, basting box, knockdown, Stop at Jumps, job sheets | #507, #508, #509, #510, #512, #513 (with #452, #453) | B5, B12, D6, W7 |
 | 6 | Fills: colour blends and gradients, Fill Angle tool and angle lines, maze and tiled meander, tatami textures, wave and flow fills | #532, #534, #533, #537, #538 | B2, B6, B9 |
-| 7 | Editing: align and distribute, precision bar, copies along a line and scatter, snapping, select same, knife, smoothing, continue drawing, shape tools, stitch table, sewing-order list | #472, #474, #476, #473, #475, #477, #478, #479, #497, #501, #502, #500 | B11 |
+| 7 | Editing: align and distribute, precision bar, copies along a line and scatter, snapping, select same, knife, smoothing, continue drawing, shape tools, stitch table, sewing-order list. Done in `batch:editor-tools` (2026-11-05): align and distribute (#472), snapping (#473), precision bar, skew and nudge step (#474), select same and click inside (#475); copies along a line, scatter and kaleidoscope (#476) follow in their own PR | #472, #474, #476, #473, #475, #477, #478, #479, #497, #501, #502, #500 | B11 |
 | 8 | Lettering: font library with size ranges, single-line text, Ink/Stitch-format font folders, envelopes with handles | #527, #530, #529, #535 | B15 |
 | 9 | Formats and threads: VP3 (read and write landed for v0.1.0-alpha.13, writing experimental until a sew-out, #480), TAP/TBF/U01 read and write and DSB/DSZ/KSM read (#481; ZXY and STX not yet), thread list files (#482), perceptual thread matching, richer SVG import, more formats, thread list files, `.gpl` palettes, merge similar colours, more charts, extra exports | #480, #484, #487, #481, #482, #483, #485, #486, #488 | W3, W6 |
 | 10 | Views and hoops: stitch-out player, millimetres or inches, free multi-hooping, view toggles, zoom box and real size, hoop lists for other brands | #516, #519, #515, #517, #518, #514 | W1, W4 |

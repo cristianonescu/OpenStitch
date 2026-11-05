@@ -41,6 +41,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
+mod arrange_ui;
 mod art;
 mod assistant_panel;
 mod assistant_ui;
@@ -57,6 +58,7 @@ mod panels;
 mod panes;
 mod pattern_wizard_ui;
 mod print_ui;
+mod quality_ui;
 mod remote;
 mod ribbon;
 mod script;
