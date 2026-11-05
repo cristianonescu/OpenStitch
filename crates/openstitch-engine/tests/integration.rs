@@ -76,6 +76,8 @@ mod order_holes;
 mod order_min_jump;
 #[path = "ornament.rs"]
 mod ornament;
+#[path = "palette.rs"]
+mod palette;
 #[path = "pes_compat.rs"]
 mod pes_compat;
 #[path = "pes_resave.rs"]

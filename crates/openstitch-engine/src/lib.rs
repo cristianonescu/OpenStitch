@@ -29,6 +29,7 @@ pub mod media_exports;
 pub mod metafile;
 pub mod order;
 mod ornament;
+pub mod palette;
 pub mod params;
 mod pattern_cmds;
 #[cfg(feature = "formats")]

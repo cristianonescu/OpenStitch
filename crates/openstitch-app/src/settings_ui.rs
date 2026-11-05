@@ -140,6 +140,20 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                     ));
                     st.chart = Some(name.clone());
                 }
+                if ui
+                    .button("Import palette…")
+                    .on_hover_text("A GIMP or Inkscape palette (.gpl) as a new chart")
+                    .clicked()
+                    && let Some(path) = rfd::FileDialog::new()
+                        .add_filter("GIMP / Inkscape palette", &["gpl"])
+                        .pick_file()
+                {
+                    let mut p = json!({ "path": path.to_string_lossy() });
+                    if !name.is_empty() {
+                        p["name"] = json!(name);
+                    }
+                    request = Some(CommandRequest::new("threads.importPalette", p));
+                }
                 if let Some(c) = st.chart.clone() {
                     if ui
                         .add_enabled(!name.is_empty(), egui::Button::new("Rename"))
@@ -245,6 +259,17 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                 {
                     request = Some(CommandRequest::new(
                         "threads.importCsv",
+                        json!({ "chart": name, "path": path.to_string_lossy() }),
+                    ));
+                }
+                if ui.button("Export palette…").clicked()
+                    && let Some(path) = rfd::FileDialog::new()
+                        .add_filter("GIMP / Inkscape palette", &["gpl"])
+                        .set_file_name(format!("{name}.gpl"))
+                        .save_file()
+                {
+                    request = Some(CommandRequest::new(
+                        "threads.exportPalette",
                         json!({ "chart": name, "path": path.to_string_lossy() }),
                     ));
                 }

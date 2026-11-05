@@ -78,7 +78,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 291: 177 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 104 planned beyond PE-DESIGN |
+| Feature matrix rows | 291: 178 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 103 planned beyond PE-DESIGN |
 | Compatibility specs | 454: 454 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 36: 29 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 10 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
@@ -306,7 +306,7 @@ that ends in a trim ties in and locks, as PE-DESIGN sews them, the image tools i
   are exceeded.
 - **Thread charts:** Brother's 64-colour PEC chart with its catalogue numbers, PE-DESIGN's
   colour matching, and your own charts as CSV, exported in the layout PE-DESIGN's Import Chart
-  reads.
+  reads, or as GIMP / Inkscape `.gpl` palettes (import and export).
 
 ### Machine transfer
 
@@ -649,7 +649,6 @@ PE-DESIGN 11 does not. Each item is sketched in
 - Knife: an open cut line splits every crossed fill, outline, Manual Punch column and line in one step (shape.knife) (#477)
 - Smooth Shape removes nodes within a tolerance (shape.simplify, 0.2 mm) and Smooth Stitches relaxes needle points of stitch patterns (stitches.smooth) (#478)
 - Continue digitizing: pick the tool and click an end of a finished line or column to add more points (B11) (#479)
-- GIMP/Inkscape .gpl palettes imported and exported as user thread charts (#483)
 - Perceptual thread matching (CIEDE2000) for threads.remap as an opt-in, with a match preview and keep-distinct rule; PE's RGB rule stays the default (#484)
 - Merge similar colours: threads closer than a ΔE threshold joined into one, previewed and undoable (#485)
 - More built-in thread charts compiled from each maker's own published colour data, searchable by number or name (#486)
