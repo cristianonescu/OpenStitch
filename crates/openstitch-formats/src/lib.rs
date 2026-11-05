@@ -14,12 +14,16 @@ use std::fmt;
 mod io;
 mod layout;
 pub mod lzh;
+mod records;
 
 pub mod csd;
+pub mod dsb;
 pub mod dst;
+pub mod dsz;
 pub mod exp;
 pub mod hus;
 pub mod jef;
+pub mod ksm;
 pub mod pcs;
 pub mod pec;
 pub mod pes;
@@ -28,6 +32,9 @@ pub mod phc;
 pub mod sew;
 pub mod shv;
 pub mod split;
+pub mod tap;
+pub mod tbf;
+pub mod u01;
 pub mod vip;
 pub mod vp3;
 pub mod xxx;
@@ -75,10 +82,22 @@ pub enum FileType {
     Csd,
     /// Husqvarna Viking / Pfaff; beyond PE-DESIGN's set (#480).
     Vp3,
+    /// Tajima, DST records without a header; beyond PE-DESIGN's set (#481).
+    Tap,
+    /// Tajima; beyond PE-DESIGN's set (#481).
+    Tbf,
+    /// Barudan; beyond PE-DESIGN's set (#481).
+    U01,
+    /// Barudan, read only (#481).
+    Dsb,
+    /// ZSK, read only (#481).
+    Dsz,
+    /// Pfaff, read only (#481).
+    Ksm,
 }
 
 impl FileType {
-    pub const ALL: [FileType; 14] = [
+    pub const ALL: [FileType; 20] = [
         Self::Pes,
         Self::Pec,
         Self::Dst,
@@ -93,11 +112,17 @@ impl FileType {
         Self::Phc,
         Self::Csd,
         Self::Vp3,
+        Self::Tap,
+        Self::Tbf,
+        Self::U01,
+        Self::Dsb,
+        Self::Dsz,
+        Self::Ksm,
     ];
 
     /// Whether OpenStitch can write this format ([`FileType::write`] fails otherwise).
     pub const fn can_write(self) -> bool {
-        !matches!(self, Self::Phc)
+        !matches!(self, Self::Phc | Self::Dsb | Self::Dsz | Self::Ksm)
     }
 
     /// The formats OpenStitch can write.
@@ -122,6 +147,12 @@ impl FileType {
             Self::Phc => "phc",
             Self::Csd => "csd",
             Self::Vp3 => "vp3",
+            Self::Tap => "tap",
+            Self::Tbf => "tbf",
+            Self::U01 => "u01",
+            Self::Dsb => "dsb",
+            Self::Dsz => "dsz",
+            Self::Ksm => "ksm",
         }
     }
 
@@ -157,6 +188,12 @@ impl FileType {
             Self::Phc => phc::read(data),
             Self::Csd => csd::read(data),
             Self::Vp3 => vp3::read(data),
+            Self::Tap => tap::read(data),
+            Self::Tbf => tbf::read(data),
+            Self::U01 => u01::read(data),
+            Self::Dsb => dsb::read(data),
+            Self::Dsz => dsz::read(data),
+            Self::Ksm => ksm::read(data),
         }
     }
 
@@ -176,9 +213,12 @@ impl FileType {
             Self::Shv => shv::write(pattern),
             Self::Csd => csd::write(pattern),
             Self::Vp3 => vp3::write(pattern),
-            Self::Phc => Err(FormatError::UnsupportedFormat(format!(
-                "{self} is read only"
-            ))),
+            Self::Tap => tap::write(pattern),
+            Self::Tbf => tbf::write(pattern),
+            Self::U01 => u01::write(pattern),
+            Self::Phc | Self::Dsb | Self::Dsz | Self::Ksm => Err(FormatError::UnsupportedFormat(
+                format!("{self} is read only"),
+            )),
         }
     }
 }

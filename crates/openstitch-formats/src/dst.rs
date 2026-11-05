@@ -66,7 +66,7 @@ pub fn decode(b0: u8, b1: u8, b2: u8) -> (i32, i32) {
     (x, -y)
 }
 
-fn parse_header(header: &[u8], pattern: &mut StitchPattern) {
+pub(crate) fn parse_header(header: &[u8], pattern: &mut StitchPattern) {
     let mut start = 0;
     for (i, &b) in header.iter().enumerate() {
         if b != 0x0D && b != 0x0A {
