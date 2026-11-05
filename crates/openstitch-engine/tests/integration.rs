@@ -8,6 +8,8 @@
 mod arrange_modes;
 #[path = "capabilities.rs"]
 mod capabilities;
+#[path = "continuing.rs"]
+mod continuing;
 #[path = "contour_fill.rs"]
 mod contour_fill;
 #[path = "convert.rs"]
@@ -50,6 +52,8 @@ mod font_creator;
 mod font_from_image;
 #[path = "fonts.rs"]
 mod fonts;
+#[path = "hoop_lists.rs"]
+mod hoop_lists;
 #[path = "imports.rs"]
 mod imports;
 #[path = "layout.rs"]
@@ -110,6 +114,10 @@ mod svg_import;
 mod templates;
 #[path = "thread_lists.rs"]
 mod thread_lists;
+#[path = "thread_match.rs"]
+mod thread_match;
+#[path = "timeline.rs"]
+mod timeline;
 #[path = "transfer.rs"]
 mod transfer;
 #[path = "user.rs"]

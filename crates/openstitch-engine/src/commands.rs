@@ -246,6 +246,7 @@ pub fn all() -> Vec<CommandSpec> {
     v.extend(crate::drawing::commands());
     v.extend(crate::ornament::commands());
     v.extend(crate::user::commands());
+    v.extend(crate::thread_match::commands());
     v.extend(crate::punch::commands());
     v.extend(crate::order::commands());
     v.extend(crate::convert::commands());
@@ -270,6 +271,7 @@ pub fn all() -> Vec<CommandSpec> {
     v.extend(crate::machine::commands());
     v.extend(crate::sections::commands());
     v.extend(crate::guides::commands());
+    v.extend(crate::timeline::commands());
     v.extend(crate::fabric::commands());
     v.extend(crate::print::commands());
     v.extend(crate::pattern_cmds::commands());
@@ -3026,10 +3028,18 @@ fn codec_commands() -> Vec<CommandSpec> {
                 } else {
                     None
                 };
+                // A Janome or Elna hoop with a JEF hoop code writes that code (#514).
+                let jef_options = openstitch_formats::jef::WriteOptions {
+                    hoop: crate::machine::jef_hoop(&s.design),
+                    ..Default::default()
+                };
                 let write = |part: &openstitch_core::StitchPattern| match (&objects, ty) {
                     (Some(o), _) => openstitch_formats::pes11::write(o, part),
                     (None, FileType::Pes) => {
                         openstitch_formats::pes::write_with(part, &pes_options)
+                    }
+                    (None, FileType::Jef) if jef_options.hoop.is_some() => {
+                        openstitch_formats::jef::write_with(part, &jef_options)
                     }
                     _ => ty.write(part),
                 };

@@ -11,9 +11,11 @@ use serde_json::json;
 use std::collections::BTreeSet;
 
 pub mod characters;
+pub mod continuation;
 pub mod needles;
 pub mod skeleton;
 pub use characters::{CharacterDrag, CharacterFrame, CharacterOverlay};
+pub use continuation::Continuation;
 pub use needles::NeedleOverlay;
 pub use skeleton::SkeletonOverlay;
 
@@ -381,6 +383,8 @@ pub struct ToolController {
     guides: Vec<SnapGuide>,
     /// Clicks inside a closed outline without region sewing select it (#475).
     click_inside: bool,
+    /// The finished object being continued from one of its ends (#479).
+    continuing: Option<Continuation>,
 }
 
 /// Drags shorter than this (points) are clicks.
@@ -411,6 +415,7 @@ impl ToolController {
             || !self.pen.is_empty()
             || !self.punch.is_empty()
             || !self.pencil.is_empty()
+            || self.continuing.is_some()
     }
 
     /// Edge radius (mm) for new rectangles; 0 = square corners.
@@ -513,6 +518,7 @@ impl ToolController {
         self.widths.clear();
         self.punch.clear();
         self.pencil.clear();
+        self.continuing = None;
         self.preview = None;
     }
 
@@ -840,7 +846,15 @@ impl ToolController {
         let p = e.location;
         match (e.phase, self.gesture.clone()) {
             (Phase::Down, _) => {
-                if self.pen.len() >= 2 && p.distance(self.pen[0].at) <= 2.0 * ctx.tolerance() {
+                if self.pen.is_empty() && self.start_continuation(ctx, p) {
+                    self.gesture = Some(Gesture::PenAnchor { index: 0 });
+                    self.pen_preview(None);
+                    return vec![];
+                }
+                if self.pen.len() >= 2
+                    && self.continuing.is_none()
+                    && p.distance(self.pen[0].at) <= 2.0 * ctx.tolerance()
+                {
                     return self.finish_pen(true);
                 }
                 if self
@@ -881,6 +895,9 @@ impl ToolController {
         let nodes = std::mem::take(&mut self.pen);
         self.preview = None;
         self.gesture = None;
+        if let Some(c) = self.continuing.filter(|_| self.tool() == Tool::Pen) {
+            return self.extend_pen(c, &nodes);
+        }
         if self.tool() != Tool::Pen || !is_valid(&nodes, closed) {
             return vec![];
         }
@@ -1069,6 +1086,16 @@ impl ToolController {
     fn polygon_tool(&mut self, e: PointerEvent, ctx: &ToolContext) -> Vec<ToolEffect> {
         match e.phase {
             Phase::Down => {
+                if self.polygon.is_empty()
+                    && self.tool() == Tool::Line
+                    && self.start_continuation(ctx, e.location)
+                {
+                    self.preview = Some(ToolPreview::Outline(Contour::new(
+                        self.polygon.clone(),
+                        false,
+                    )));
+                    return vec![];
+                }
                 let closes_on_first = self.tool() == Tool::Polygon
                     && self.polygon.len() >= 3
                     && e.location.distance(self.polygon[0]) <= 2.0 * ctx.tolerance();
@@ -1108,6 +1135,14 @@ impl ToolController {
             Phase::Down => {
                 if e.clicks >= 2 {
                     return self.finish_punch();
+                }
+                if self.punch.is_empty()
+                    && self.continuing.is_none()
+                    && matches!(self.tool(), Tool::Running | Tool::Punch | Tool::CurvedBlock)
+                    && self.start_continuation(ctx, e.location)
+                {
+                    self.preview = Some(ToolPreview::Outline(self.punch_preview(None)));
+                    return vec![];
                 }
                 if self
                     .punch
@@ -1152,6 +1187,16 @@ impl ToolController {
     pub fn finish_punch(&mut self) -> Vec<ToolEffect> {
         let pts = std::mem::take(&mut self.punch);
         self.preview = None;
+        if let Some(c) = self.continuing {
+            return match self.tool() {
+                Tool::Running => self.extend_line(c, &pts),
+                Tool::Punch | Tool::CurvedBlock => self.extend_column(c, &pts),
+                _ => {
+                    self.continuing = None;
+                    vec![]
+                }
+            };
+        }
         let points = || -> Vec<serde_json::Value> {
             pts.iter().map(|p| json!([mm(p.x), mm(p.y)])).collect()
         };
@@ -1200,6 +1245,9 @@ impl ToolController {
             Tool::Line => false,
             _ => return vec![],
         };
+        if let Some(c) = self.continuing.filter(|_| !closed) {
+            return self.extend_line(c, &pts);
+        }
         if pts.len() < if closed { 3 } else { 2 } {
             return vec![];
         }

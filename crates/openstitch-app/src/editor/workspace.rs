@@ -139,11 +139,17 @@ impl Measurement {
     }
 
     pub fn label(&self) -> String {
+        self.label_in(super::units::Units::Mm)
+    }
+
+    /// The readout in the chosen unit (#519); the angle stays in degrees.
+    pub fn label_in(&self, u: super::units::Units) -> String {
+        use super::units::{length, number};
         format!(
-            "{:.1} mm   Δx {:.1}  Δy {:.1}   {:.1}°",
-            self.distance_mm(),
-            self.dx_mm(),
-            self.dy_mm(),
+            "{}   Δx {}  Δy {}   {:.1}°",
+            length(u, self.distance_mm()),
+            number(u, self.dx_mm()),
+            number(u, self.dy_mm()),
             self.angle_degrees()
         )
     }
@@ -452,6 +458,10 @@ mod tests {
             Some((m.angle_degrees() * 100.0).round() / 100.0)
         );
         assert!(m.label().starts_with("50.0 mm"));
+        assert!(
+            m.label_in(super::super::units::Units::Inch)
+                .starts_with("1.97\"")
+        );
     }
 
     #[test]
