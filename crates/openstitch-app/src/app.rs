@@ -166,6 +166,12 @@ pub struct EditorApp {
     /// screenshots lost the page's bottom to the Stitch Simulator pane).
     pub auto_fit: Option<(openstitch_app::editor::ScreenRect, Viewport, Option<f64>)>,
     player: Option<crate::script::Player>,
+    /// The object selected last (Align ▸ relative to Last Selected keeps it in place).
+    pub key_object: Option<u64>,
+    /// Align ▸ relative to: `"selection"`, `"key"` or `"page"` (#472).
+    pub align_to: &'static str,
+    /// View ▸ Precision Bar (#474).
+    pub precision: crate::arrange_ui::PrecisionState,
     frames: u64,
     /// Engine history steps per user-level edit, so one gesture (e.g. scale + move, or
     /// new design + import + centre) is one Undo.
@@ -216,6 +222,8 @@ pub struct EditorApp {
     pub splash: Option<crate::splash::Splash>,
     /// Ribbon, Quick Access Toolbar, panes and window preferences.
     pub ui: crate::ribbon::RibbonState,
+    /// Check Design, the density map and the sewing-order review (#503-#505).
+    pub quality: crate::quality_ui::QualityState,
     /// Self-update: startup check, dialog, download and restart.
     pub update: crate::update_ui::UpdateState,
     /// "Save changes to NAME?" when closing, File ▸ New or Open would lose unsaved changes.
@@ -276,6 +284,9 @@ impl EditorApp {
             initial_zoom: None,
             auto_fit: None,
             player: None,
+            key_object: None,
+            align_to: "selection",
+            precision: Default::default(),
             frames: 0,
             undo_groups: Vec::new(),
             redo_groups: Vec::new(),
@@ -299,6 +310,7 @@ impl EditorApp {
             assistant: Default::default(),
             splash: None,
             ui: Default::default(),
+            quality: Default::default(),
             update: Default::default(),
             close_prompt: ClosePrompt::default(),
             exit_approved: false,
@@ -577,6 +589,9 @@ impl EditorApp {
             scale_takes_origin: self.scale_takes_origin,
         };
         self.tools.set_snap(self.workspace.grid.snap_step());
+        let editing = self.ui.prefs.editing;
+        self.tools
+            .set_object_snapping(editing.snap_objects, editing.click_inside);
         let effects = f(&mut self.tools, &ctx);
         self.apply_effects(effects);
     }
@@ -584,7 +599,14 @@ impl EditorApp {
     pub fn apply_effects(&mut self, effects: Vec<ToolEffect>) {
         for e in effects {
             match crate::edit_ui::filter_effect(self, e) {
-                ToolEffect::Select(sel) => self.selection = sel,
+                ToolEffect::Select(sel) => {
+                    // The object added last is the key object Align ▸ Last Selected keeps.
+                    let added: Vec<u64> = sel.difference(&self.selection).copied().collect();
+                    if let [one] = added[..] {
+                        self.key_object = Some(one);
+                    }
+                    self.selection = sel;
+                }
                 ToolEffect::Execute {
                     requests,
                     select_result,
@@ -605,7 +627,9 @@ impl EditorApp {
         self.revision += 1;
         let d = self.session.design();
         self.selection.retain(|id| d.index_of(*id).is_some());
-        self.pattern = Compiler::for_design(d).compile(d);
+        let (pattern, spans) = Compiler::for_design(d).compile_traced(d);
+        self.pattern = pattern;
+        self.quality.spans = spans;
         self.stats = PatternStats::of(&self.pattern);
         self.workspace.estimate = Some(openstitch_design::estimate(&self.pattern, &d.machine));
         if self.simulate.is_some_and(|n| n >= self.stats.stitches) {
@@ -1292,8 +1316,14 @@ impl EditorApp {
             (Key::ArrowUp, 0.0, -1.0),
             (Key::ArrowDown, 0.0, 1.0),
         ] {
-            // Arrow: 0.1 mm, Shift+Arrow: 1 mm.
-            for (mods, step) in [(Modifiers::SHIFT, 10.0), (Modifiers::NONE, 1.0)] {
+            // Arrow: the nudge step (0.1 mm by default), or one grid step while snapping with
+            // Nudge by Grid on; Shift: ten times that.
+            let e = self.ui.prefs.editing;
+            let base = match self.workspace.grid.snap_step() {
+                Some(grid) if e.nudge_grid => grid,
+                _ => e.nudge_mm * 10.0,
+            };
+            for (mods, step) in [(Modifiers::SHIFT, base * 10.0), (Modifiers::NONE, base)] {
                 if take(KeyboardShortcut::new(mods, key)) {
                     self.on_selection(|s| CommandRequest::move_by(s, dx * step, dy * step));
                 }
@@ -1489,6 +1519,9 @@ impl eframe::App for EditorApp {
         self.tick(&ctx);
         self.update_title(&ctx);
         egui::Panel::top("ribbon").show(ui, |ui| crate::ribbon::ribbon(self, ui));
+        if self.ui.prefs.editing.precision_bar {
+            egui::Panel::top("precision").show(ui, |ui| crate::arrange_ui::precision_bar(self, ui));
+        }
         egui::Panel::bottom("status").show(ui, |ui| crate::panes::status_bar(self, ui));
         crate::assistant_panel::panel(self, ui);
         crate::panes::docked(self, ui);
@@ -1506,6 +1539,7 @@ impl eframe::App for EditorApp {
         crate::lettering_ui::windows(self, &ctx);
         crate::pattern_wizard_ui::windows(self, &ctx);
         crate::view_ui::windows(self, &ctx);
+        crate::quality_ui::window(self, &ctx);
         let canvas = self.workspace.canvas;
         crate::workspace_ui::reference_window(self, &ctx, canvas);
         self.screenshot_step(&ctx);
@@ -1980,3 +2014,7 @@ mod tests {
 #[cfg(test)]
 #[path = "app_coverage_tests.rs"]
 mod coverage_tests;
+
+#[cfg(test)]
+#[path = "editor_tools_tests.rs"]
+mod editor_tools_tests;

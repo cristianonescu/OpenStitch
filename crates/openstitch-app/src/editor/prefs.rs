@@ -120,6 +120,38 @@ pub struct UiPrefs {
     pub updates: UpdatePrefs,
     /// Preferences ▸ AI (the Assistant panel, B17); the API key is in the keychain.
     pub ai: super::assistant_chat::AiPrefs,
+    /// Editing aids beyond PE-DESIGN (#473, #474, #475); all off by default.
+    pub editing: EditingPrefs,
+}
+
+/// View ▸ Snap to Objects and Precision Bar, and the Options menu's nudge and click settings.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EditingPrefs {
+    pub snap_objects: bool,
+    pub precision_bar: bool,
+    /// A click inside a closed outline that sews no region selects it.
+    pub click_inside: bool,
+    /// Arrow-key step in mm (Shift: ten times); PE-DESIGN's 0.1 mm by default.
+    pub nudge_mm: f64,
+    /// While Snap to Grid is on, arrows move one grid step.
+    pub nudge_grid: bool,
+}
+
+impl EditingPrefs {
+    pub const NUDGE_MIN: f64 = 0.1;
+    pub const NUDGE_MAX: f64 = 50.0;
+}
+
+impl Default for EditingPrefs {
+    fn default() -> Self {
+        EditingPrefs {
+            snap_objects: false,
+            precision_bar: false,
+            click_inside: false,
+            nudge_mm: 0.1,
+            nudge_grid: false,
+        }
+    }
 }
 
 impl Default for UiPrefs {
@@ -135,6 +167,7 @@ impl Default for UiPrefs {
             splash: true,
             updates: UpdatePrefs::default(),
             ai: Default::default(),
+            editing: EditingPrefs::default(),
         }
     }
 }
@@ -172,6 +205,13 @@ impl UiPrefs {
             "showSplash": self.splash,
             "updates": self.updates.to_json(),
             "ai": self.ai.to_json(),
+            "editing": {
+                "snapToObjects": self.editing.snap_objects,
+                "precisionBar": self.editing.precision_bar,
+                "clickInsideOutlines": self.editing.click_inside,
+                "nudgeMM": self.editing.nudge_mm,
+                "nudgeByGrid": self.editing.nudge_grid,
+            },
         })
     }
 
@@ -240,6 +280,23 @@ impl UiPrefs {
             splash: v["showSplash"].as_bool().unwrap_or(d.splash),
             updates: UpdatePrefs::from_json(&v["updates"]),
             ai: super::assistant_chat::AiPrefs::from_json(&v["ai"]),
+            editing: {
+                let e = &v["editing"];
+                let d = d.editing;
+                let b = |k: &str, d: bool| e[k].as_bool().unwrap_or(d);
+                EditingPrefs {
+                    snap_objects: b("snapToObjects", d.snap_objects),
+                    precision_bar: b("precisionBar", d.precision_bar),
+                    click_inside: b("clickInsideOutlines", d.click_inside),
+                    nudge_mm: e["nudgeMM"]
+                        .as_f64()
+                        .filter(|n| n.is_finite())
+                        .map_or(d.nudge_mm, |n| {
+                            n.clamp(EditingPrefs::NUDGE_MIN, EditingPrefs::NUDGE_MAX)
+                        }),
+                    nudge_grid: b("nudgeByGrid", d.nudge_grid),
+                }
+            },
         }
     }
 
@@ -303,6 +360,13 @@ mod tests {
         p.splash = false;
         p.updates.check = false;
         p.updates.skip_version = Some("v0.1.0-alpha.4".into());
+        p.editing = EditingPrefs {
+            snap_objects: true,
+            precision_bar: true,
+            click_inside: true,
+            nudge_mm: 0.5,
+            nudge_grid: true,
+        };
         for i in 0..12 {
             p.add_recent(Path::new(&format!("/d/{i}.osd")));
         }
@@ -320,6 +384,9 @@ mod tests {
         assert_eq!(UiPrefs::from_json(&json!(null)), UiPrefs::default());
         let wild = json!({ "realisticView": { "threadWidthMM": 50, "contrast": "x" }, "fontFilter": { "on": 1, "hidden": [3, "a"] } });
         let w = UiPrefs::from_json(&wild);
+        assert_eq!(w.editing, EditingPrefs::default(), "off unless chosen");
+        let e = UiPrefs::from_json(&json!({ "editing": { "nudgeMM": 900, "snapToObjects": "y" } }));
+        assert_eq!((e.editing.nudge_mm, e.editing.snap_objects), (50.0, false));
         assert_eq!(w.realistic.thread_width_mm, 1.0);
         assert_eq!(w.realistic.contrast, 0.0);
         assert_eq!(

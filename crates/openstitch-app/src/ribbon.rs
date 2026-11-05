@@ -7,7 +7,7 @@ use crate::app::EditorApp;
 use crate::{convert_ui, edit_ui, icons, panels};
 use eframe::egui::{self, Color32, CornerRadius, RichText, Sense, Stroke, StrokeKind, vec2};
 use openstitch_app::editor::close_prompt::Pending;
-use openstitch_app::editor::prefs::{Theme, UiPrefs};
+use openstitch_app::editor::prefs::{EditingPrefs, Theme, UiPrefs};
 use openstitch_app::editor::ribbon::{
     self, APPLICATION_MENU, Action, Facts, Info, Item, OPTION_MENU, TabId,
 };
@@ -230,7 +230,10 @@ pub fn enabled(app: &EditorApp, a: Action) -> bool {
         Undo => app.session.can_undo(),
         Redo => app.session.can_redo(),
         Cut | Copy | Duplicate | Delete | ArrangeCopy | Arrange | RotateFlip | Size
-        | DecorativeFrame => any,
+        | DecorativeFrame | Align | SelectSame | SelectSameColor | SelectSameType
+        | SelectSameBoth => any,
+        AlignLeft | AlignCenter | AlignRight | AlignTop | AlignMiddle | AlignBottom
+        | DistributeHorizontal | DistributeVertical => crate::arrange_ui::can_align(app, a),
         Paste => !clipboard_ids(app).is_empty() || !app.ui.cut.is_empty(),
         CopyAttributes => edit_ui::copy_attributes_source(app).is_some(),
         PasteAttributes => edit_ui::paste_attributes_source(app).is_some(),
@@ -299,6 +302,8 @@ pub fn active(app: &EditorApp, a: Action) -> bool {
         ReferenceWindow => app.workspace.reference,
         ShowGrid => app.workspace.grid.visible,
         SnapToGrid => app.workspace.grid.snap,
+        SnapToObjects => app.ui.prefs.editing.snap_objects,
+        PrecisionBar => app.ui.prefs.editing.precision_bar,
         Ruler => app.workspace.rulers,
         Pan => app.ui.pan,
         Measure => app.workspace.measure.active,
@@ -524,6 +529,17 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
         ReferenceWindow => app.workspace.reference ^= true,
         ShowGrid => app.workspace.grid.visible ^= true,
         SnapToGrid => app.toggle_snap_to_grid(),
+        SnapToObjects => {
+            app.ui.prefs.editing.snap_objects ^= true;
+            app.ui.save_prefs();
+        }
+        PrecisionBar => {
+            app.ui.prefs.editing.precision_bar ^= true;
+            app.ui.save_prefs();
+        }
+        AlignLeft | AlignCenter | AlignRight | AlignTop | AlignMiddle | AlignBottom
+        | DistributeHorizontal | DistributeVertical => crate::arrange_ui::align(app, a),
+        SelectSameColor | SelectSameType | SelectSameBoth => crate::arrange_ui::select_same(app, a),
         Ruler => app.workspace.rulers ^= true,
         TrueTypeAttributes => crate::lettering_ui::load_truetype(app),
         ConvertToBlocks => convert_ui::to_shapes(app, "blocks"),
@@ -574,15 +590,16 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
         | StraightBlock | EditPoint | PencilClosed | OpenStraight | PencilOpen | CurvedBlock
         | Running | Feed | SatinSkeleton => {}
         Print | Wizard | Export | Options | Help | TextTools | ShapesTools | OtherZoom
-        | Arrange | RotateFlip | Size | StampEmboss | ModifyOverlap | DecorativeFrame
-        | FitTextToOutline | SendEmbroidery | SaveImage | ImageDensity | GridSpacing | Font
-        | TextSize | EditText | LineColor | LineSewType | RegionColor | RegionSewType
-        | EntryExit | SewingPoints | EdgeRadius | ChangeColor | SkeletonWidth | EditCharacter => {}
+        | Arrange | Align | SelectSame | RotateFlip | Size | StampEmboss | ModifyOverlap
+        | DecorativeFrame | FitTextToOutline | SendEmbroidery | SaveImage | ImageDensity
+        | GridSpacing | Font | TextSize | EditText | LineColor | LineSewType | RegionColor
+        | RegionSewType | EntryExit | SewingPoints | EdgeRadius | ChangeColor | SkeletonWidth
+        | EditCharacter => {}
     }
 }
 
 /// A command inside a dropdown list: icon, label, shortcut and ScreenTip.
-fn menu_item(app: &mut EditorApp, ui: &mut egui::Ui, a: Action) {
+pub fn menu_item(app: &mut EditorApp, ui: &mut egui::Ui, a: Action) {
     let info = a.info();
     let mut b = egui::Button::new(info.label);
     if let Some(s) = info.shortcut_for(MAC) {
@@ -778,6 +795,8 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
                 });
             }
         }
+        Align => crate::arrange_ui::align_menu(app, ui),
+        SelectSame => crate::arrange_ui::select_same_menu(app, ui),
         Arrange => {
             if ui.button("Center on Design Page").clicked() {
                 app.on_selection(|s| {
@@ -1123,6 +1142,31 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         // Back on: the panel returns as the user left it (#422).
         app.assistant.panel.open = true;
     }
+    ui.separator();
+    ui.label(RichText::new("Editing").weak());
+    let e = &mut app.ui.prefs.editing;
+    ui.horizontal(|ui| {
+        ui.label("Nudge step");
+        changed |= ui
+            .add(
+                egui::DragValue::new(&mut e.nudge_mm)
+                    .range(EditingPrefs::NUDGE_MIN..=EditingPrefs::NUDGE_MAX)
+                    .speed(0.05)
+                    .suffix(" mm"),
+            )
+            .on_hover_text("How far an arrow key moves the selection; Shift moves ten times as far")
+            .changed();
+    });
+    changed |= ui
+        .checkbox(&mut e.nudge_grid, "Nudge by the grid step while snapping")
+        .on_hover_text("With Snap to Grid on, an arrow key moves one grid step")
+        .changed();
+    changed |= ui
+        .checkbox(&mut e.click_inside, "Click inside outlines selects them")
+        .on_hover_text(
+            "A click inside a shape that sews only its outline selects it; open lines are easier to hit",
+        )
+        .changed();
     ui.separator();
     ui.label(RichText::new("Updates").weak());
     changed |= ui

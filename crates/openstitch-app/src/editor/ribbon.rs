@@ -106,6 +106,10 @@ actions! {
     SelectTool => "select", "Select", "Select objects; drag to move, handles scale and rotate.", Some("V"), None, true;
     PointTool => "point", "Point Edit", "Move, add and delete points of the selected outline.", Some("A"), Some("object.setPoint"), true;
     SelectAll => "selectAll", "Select All", "Select every visible object.", Some("Ctrl+A"), None, true;
+    SelectSame => "selectSame", "Select Same", "Select every visible object sewn like the selection: same thread colour, same stitch type, or both.", None, Some("object.list"), true;
+    SelectSameColor => "selectSameColor", "Same Thread Colour", "Select every visible object (or stitch pattern) that sews a thread colour of the selection. Alt-click on a stitch pattern does the same for the colour under the pointer.", None, Some("object.list"), true;
+    SelectSameType => "selectSameType", "Same Stitch Type", "Select every visible object with the selection's region sew type (or line sew type for outlines).", None, Some("object.list"), true;
+    SelectSameBoth => "selectSameBoth", "Same Colour and Type", "Select every visible object that shares both a thread colour and the stitch type with the selection.", None, Some("object.list"), true;
     // Home ▸ Clipboard.
     Cut => "cut", "Cut", "Move the selection to the clipboard; Paste puts it back.", Some("Ctrl+X"), Some("object.paste"), true;
     Copy => "copy", "Copy", "Copy the selection; Paste adds a copy of it.", Some("Ctrl+C"), None, true;
@@ -135,6 +139,15 @@ actions! {
     ImportPatterns => "import", "Import Patterns", "Add an embroidery file to the design.", Some("Ctrl+Shift+I"), Some("stitches.import"), true;
     ImportSvg => "importSvg", "Import SVG", "Add vector artwork as editable shapes.", None, Some("import.svg"), true;
     // Home ▸ Edit.
+    Align => "align", "Align", "Line the selection up on an edge or centre, relative to the selection, the last-selected object or the Design Page, or space it evenly.", None, Some("object.align"), true;
+    AlignLeft => "alignLeft", "Align Left", "Line up the left edges.", None, Some("object.align"), true;
+    AlignCenter => "alignCenter", "Align Centre", "Line up the horizontal centres (one vertical line through every centre).", None, Some("object.align"), true;
+    AlignRight => "alignRight", "Align Right", "Line up the right edges.", None, Some("object.align"), true;
+    AlignTop => "alignTop", "Align Top", "Line up the top edges.", None, Some("object.align"), true;
+    AlignMiddle => "alignMiddle", "Align Middle", "Line up the vertical centres (one horizontal line through every centre).", None, Some("object.align"), true;
+    AlignBottom => "alignBottom", "Align Bottom", "Line up the bottom edges.", None, Some("object.align"), true;
+    DistributeHorizontal => "distributeHorizontal", "Distribute Horizontally", "Equal gaps between three or more objects from left to right; the outermost two stay put.", None, Some("object.distribute"), true;
+    DistributeVertical => "distributeVertical", "Distribute Vertically", "Equal gaps between three or more objects from top to bottom; the outermost two stay put.", None, Some("object.distribute"), true;
     Arrange => "arrange", "Arrange", "Centre the selection or change where it sews in the order.", None, Some("order.move"), true;
     RotateFlip => "rotateFlip", "Rotate/Flip", "Rotate by 90° or mirror the selection.", None, Some("object.rotate"), true;
     Size => "size", "Size", "Scale the selection by a percentage.", None, Some("object.scale"), true;
@@ -180,6 +193,8 @@ actions! {
     ShowGrid => "showGrid", "Show Grid", "Show the grid on the Design Page.", None, None, true;
     GridAxes => "gridAxes", "Show Grid with Axes", "Grid drawn as solid lines; off, it is dotted.", None, None, true;
     SnapToGrid => "snapToGrid", "Snap to Grid", "Objects move and draw in grid steps.", None, None, true;
+    SnapToObjects => "snapToObjects", "Snap to Objects", "A dragged selection snaps to the edges and centres of other objects, the Design Page and the guidelines, with a dashed guide line. Hold Ctrl (Cmd on macOS) to drag freely.", None, None, true;
+    PrecisionBar => "precisionBar", "Precision Bar", "Show or hide the bar for typing the selection's exact position, size, rotation and skew.", None, Some("object.scale"), true;
     GridSpacing => "gridSpacing", "Grid Spacing", "Distance between grid lines.", None, None, true;
     Ruler => "ruler", "Ruler", "Show rulers along the work area.", None, None, true;
     Guideline => "guideline", "Guideline", "Click a ruler to add a guideline; drag its marker to move it, click × to delete. Saved with the design.", None, Some("guides.set"), true;
@@ -246,6 +261,8 @@ impl Action {
                 | ShapesTools
                 | OtherZoom
                 | Arrange
+                | Align
+                | SelectSame
                 | RotateFlip
                 | Size
                 | StampEmboss
@@ -290,6 +307,8 @@ impl Action {
                 | ShowGrid
                 | GridAxes
                 | SnapToGrid
+                | SnapToObjects
+                | PrecisionBar
                 | Ruler
                 | Guideline
                 | FontFilter
@@ -448,7 +467,10 @@ use Item::{Large, Small};
 
 const SELECT: Group = Group {
     name: "Select",
-    items: &[Large(A::SelectTool), Small(&[A::PointTool, A::SelectAll])],
+    items: &[
+        Large(A::SelectTool),
+        Small(&[A::PointTool, A::SelectAll, A::SelectSame]),
+    ],
 };
 
 const COLORS: Group = Group {
@@ -488,6 +510,7 @@ const HOME: &[Group] = &[
             Small(&[A::Arrange, A::RotateFlip, A::Size]),
             Small(&[A::Group, A::Ungroup, A::FitTextToOutline]),
             Small(&[A::StampEmboss, A::ModifyOverlap, A::DecorativeFrame]),
+            Small(&[A::Align]),
         ],
     },
     Group {
@@ -543,6 +566,7 @@ const VIEW: &[Group] = &[
         items: &[
             Small(&[A::PaneSewingOrder, A::PaneSimulator, A::PaneAttributes]),
             Small(&[A::PaneImport, A::ReferenceWindow, A::PaneAssistant]),
+            Small(&[A::PrecisionBar]),
         ],
     },
     Group {
@@ -550,6 +574,7 @@ const VIEW: &[Group] = &[
         items: &[
             Large(A::ShowGrid),
             Small(&[A::GridAxes, A::SnapToGrid, A::GridSpacing]),
+            Small(&[A::SnapToObjects]),
         ],
     },
     Group {
@@ -710,6 +735,50 @@ pub const OPTION_MENU: [Action; 6] = [
     A::AttributeSets,
     A::UserThreadCharts,
 ];
+
+/// The Align dropdown (Home ▸ Edit), beyond PE-DESIGN (#472).
+pub const ALIGN_MENU: [Action; 8] = [
+    A::AlignLeft,
+    A::AlignCenter,
+    A::AlignRight,
+    A::AlignTop,
+    A::AlignMiddle,
+    A::AlignBottom,
+    A::DistributeHorizontal,
+    A::DistributeVertical,
+];
+
+/// The Select Same dropdown (Home ▸ Select), beyond PE-DESIGN (#475).
+pub const SELECT_SAME_MENU: [Action; 3] =
+    [A::SelectSameColor, A::SelectSameType, A::SelectSameBoth];
+
+impl Action {
+    /// `object.align`'s edge or `object.distribute`'s axis (as `"x"` / `"y"`) of an Align
+    /// dropdown entry.
+    pub fn align_edge(self) -> Option<&'static str> {
+        Some(match self {
+            A::AlignLeft => "left",
+            A::AlignCenter => "centerX",
+            A::AlignRight => "right",
+            A::AlignTop => "top",
+            A::AlignMiddle => "centerY",
+            A::AlignBottom => "bottom",
+            A::DistributeHorizontal => "x",
+            A::DistributeVertical => "y",
+            _ => return None,
+        })
+    }
+
+    /// `object.list`'s `match` of a Select Same entry.
+    pub fn same_match(self) -> Option<&'static str> {
+        Some(match self {
+            A::SelectSameColor => "color",
+            A::SelectSameType => "type",
+            A::SelectSameBoth => "both",
+            _ => return None,
+        })
+    }
+}
 
 /// Quick Access Toolbar default.
 pub const QAT_DEFAULT: [Action; 7] = [
@@ -872,6 +941,8 @@ mod tests {
                 || APPLICATION_MENU.contains(&a)
                 || OPTION_MENU.contains(&a)
                 || help.contains(&a)
+                || ALIGN_MENU.contains(&a)
+                || SELECT_SAME_MENU.contains(&a)
                 || a.tool().is_some()
                 || [A::Ellipse, A::Rectangle].contains(&a);
             assert!(placed, "{a:?} is in no tab or menu");

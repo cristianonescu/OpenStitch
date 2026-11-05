@@ -72,6 +72,7 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
         draw_fabric(ui.ctx(), &painter, &vp, &page_rect, colors.page);
     }
     draw_background(app, ui.ctx(), &painter, &vp);
+    crate::quality_ui::draw_background(app, &painter, &vp, &page_rect);
     crate::workspace_ui::draw_grid(&painter, &vp, &page_rect, &app.workspace.grid);
     if app.session.design().objects.is_empty() && app.session.design().background.is_none() {
         draw_empty_hint(&painter, &vp, &page_rect);
@@ -86,6 +87,7 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
         draw_stitches(app, &painter, &vp);
     }
     draw_unsewn_outlines(app, &painter, &vp);
+    crate::quality_ui::draw(app, &painter, &vp);
     draw_selection(app, &painter, &vp);
     draw_preview(app, &painter, &vp);
     draw_points(app, &painter, &vp);
@@ -174,7 +176,7 @@ fn pointer(app: &mut EditorApp, ui: &egui::Ui, response: &egui::Response, vp: Vi
     if ui.input(|i| i.key_down(egui::Key::Space)) {
         return;
     }
-    let (pressed, down, released, at, shift, moved) = ui.input(|i| {
+    let (pressed, down, released, at, shift, moved, free, alt) = ui.input(|i| {
         (
             i.pointer.primary_pressed(),
             i.pointer.primary_down(),
@@ -186,6 +188,8 @@ fn pointer(app: &mut EditorApp, ui: &egui::Ui, response: &egui::Response, vp: Vi
                 || i.events
                     .iter()
                     .any(|e| matches!(e, egui::Event::PointerMoved(_))),
+            i.modifiers.command,
+            i.modifiers.alt,
         )
     });
     let Some(at) = at else { return };
@@ -248,6 +252,8 @@ fn pointer(app: &mut EditorApp, ui: &egui::Ui, response: &egui::Response, vp: Vi
     let mut e = PointerEvent::new(phase, model);
     e.shift = shift;
     e.clicks = clicks;
+    e.free = free;
+    e.alt = alt;
     app.with_tools(|t, ctx| t.handle(e, ctx));
 }
 
@@ -613,7 +619,27 @@ fn draw_points(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
     }
 }
 
+/// Snap to Objects: dashed lines through what the moving selection lined up with.
+fn draw_snap_guides(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
+    use openstitch_app::editor::snap::SnapGuide;
+    let page = &app.session.design().page;
+    for g in app.tools.guides() {
+        let (a, b) = match *g {
+            SnapGuide::Vertical(x) => (v2(x, 0.0), v2(x, page.height)),
+            SnapGuide::Horizontal(y) => (v2(0.0, y), v2(page.width, y)),
+        };
+        let shapes = egui::Shape::dashed_line(
+            &[pos(vp.to_screen(a)), pos(vp.to_screen(b))],
+            Stroke::new(1.0, Color32::from_rgb(0xd8, 0x43, 0x3a)),
+            6.0,
+            4.0,
+        );
+        painter.extend(shapes);
+    }
+}
+
 fn draw_preview(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
+    draw_snap_guides(app, painter, vp);
     match app.tools.preview() {
         Some(ToolPreview::Marquee(r)) => {
             let r = model_rect(vp, r);
