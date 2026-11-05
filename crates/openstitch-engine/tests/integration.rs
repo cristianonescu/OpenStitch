@@ -76,6 +76,10 @@ mod pes_resave;
 mod print;
 #[path = "punch.rs"]
 mod punch;
+#[path = "quality.rs"]
+mod quality;
+#[path = "random_designs.rs"]
+mod random_designs;
 #[path = "region_compat.rs"]
 mod region_compat;
 #[path = "satin_compat.rs"]

@@ -32,6 +32,7 @@ pub mod pes11_import;
 pub mod print;
 pub mod project;
 mod punch;
+pub mod quality;
 pub mod sandbox;
 pub mod sections;
 pub mod session;

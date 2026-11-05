@@ -12,6 +12,7 @@ use crate::regions;
 use crate::route;
 use crate::stamp;
 use openstitch_core::{Command, Stitch, StitchPattern, Thread, round_coordinate};
+use std::ops::Range;
 
 /// Turns an editable [`Design`] into a machine [`StitchPattern`].
 ///
@@ -242,6 +243,13 @@ impl Compiler {
     }
 
     pub fn compile(&self, design: &Design) -> StitchPattern {
+        self.compile_traced(design).0
+    }
+
+    /// [`Self::compile`] plus, per visible object in sewing order, its id and the range of
+    /// the pattern's stitches it wrote, travel into it included (the quality checks name the
+    /// objects behind a problem from this).
+    pub fn compile_traced(&self, design: &Design) -> (StitchPattern, Vec<(u64, Range<usize>)>) {
         let mut w = self.writer();
         w.out.set_name(design.name.clone());
         for (key, value) in design.properties.fields() {
@@ -249,10 +257,13 @@ impl Compiler {
                 w.out.metadata.insert(key.into(), value.into());
             }
         }
+        let mut spans = Vec::new();
         for object in design.objects.iter().filter(|o| o.visible) {
+            let start = w.out.stitches.len();
             sew_object(&mut w, object, design);
+            spans.push((object.id, start..w.out.stitches.len()));
         }
-        w.finish()
+        (w.finish(), spans)
     }
 
     /// The stitches `design.objects[index]` alone generates, as it would be sewn inside the
