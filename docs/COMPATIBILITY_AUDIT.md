@@ -2440,6 +2440,16 @@ Line references are relative to `crates/`.
   scatter; the double spiral's arms no longer cross (spacing steady at a row); radial lines start
   only where their neighbours are 0.4 mm away, so the centre no longer piles up (stitches under
   0.3 mm on `sewing-direction.json`'s radial block 60 → 4, longest straight run 33.5 → 23.4 mm).
+- **Stippling (#462, no PE-DESIGN reference captured):** the meander ignored `spacing`, stayed
+  about 3.5 mm inside the shape and reached its start point by walking the outline (the exposed
+  L). The grid is now fitted to the shape, the passes are evened to the spacing and the outer ones
+  moved to about half a spacing from the outline and holes, and the meander starts and ends at
+  its point nearest the start point. 50 mm square at 2 mm: mean pass spacing 2.35 → 2.27 mm, gap
+  to the outline mean / max 2.84 / 6.40 → 1.06 / 1.68 mm, run along the outline 142 → 3 mm, no
+  crossings; the Background Fill wizard fills its circle to the edge. Reading of the issue's
+  "gap ≤ spacing / 2": mean ≤ 0.55 spacing and largest ≤ 0.9 spacing (two round turns meeting
+  the outline side by side leave about 0.8 spacing). Open: a region with a hole in narrow bands
+  (a ring at 3 mm) stays in separate pieces whose travel crosses the hole, as on main.
 - **Cross stitch and zigzag net regions (#463):** PE-DESIGN 11.50's `o-region-cross.pes` (direction
   45°) sews X's on the page axes; ours turned the grid with the direction and read as "+". The
   grid now stays on the page axes from the design origin (two regions share it), each row is sewn
