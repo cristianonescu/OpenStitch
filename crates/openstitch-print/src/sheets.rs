@@ -97,6 +97,9 @@ pub struct Options {
     pub sewing_area_box: bool,
     pub center_mark: bool,
     pub template_grid: bool,
+    /// The editor works in inches (#519): actual-size pages also get a 2-inch scale bar beside
+    /// the 50 mm one.
+    pub inches: bool,
 }
 
 impl Default for Options {
@@ -106,6 +109,7 @@ impl Default for Options {
             sewing_area_box: true,
             center_mark: true,
             template_grid: false,
+            inches: false,
         }
     }
 }
@@ -345,6 +349,47 @@ pub fn place(d: &Drawing, title: &str, scale: Option<f64>, paper: (f64, f64)) ->
             pages
         }
     }
+}
+
+/// [`place`] at actual size, adding a 2-inch scale bar to every page when `opts.inches`.
+fn place_actual(d: &Drawing, title: &str, opts: &Options) -> Vec<Page> {
+    let mut pages = place(d, title, Some(1.0), opts.paper);
+    if opts.inches {
+        for p in &mut pages {
+            inch_scale_bar(p);
+        }
+    }
+    pages
+}
+
+/// A 2-inch bar to the right of the 50 mm bar, to check an inch ruler against the printout.
+fn inch_scale_bar(p: &mut Page) {
+    use std::fmt::Write as _;
+    let k = PT_PER_MM;
+    let y = (MARGIN + 4.0) * k;
+    let (bx0, bx1) = ((MARGIN + 75.0) * k, (MARGIN + 75.0 + 2.0 * 25.4) * k);
+    let _ = writeln!(
+        p.content,
+        "0 0 0 RG 0.6 w [] 0 d {} {} m {} {} l S {} {} m {} {} l S {} {} m {} {} l S",
+        n(bx0),
+        n(y),
+        n(bx1),
+        n(y),
+        n(bx0),
+        n(y - 3.0),
+        n(bx0),
+        n(y + 3.0),
+        n(bx1),
+        n(y - 3.0),
+        n(bx1),
+        n(y + 3.0)
+    );
+    let _ = writeln!(
+        p.content,
+        "0 0 0 rg BT /F1 8 Tf {} {} Td (2 in) Tj ET",
+        n(bx1 + 6.0),
+        n(y - 3.0)
+    );
 }
 
 /// One page showing drawing region `from..to` (mm) at `scale`, under a heading.
@@ -684,7 +729,7 @@ pub fn actual_size(design: &Design, opts: &Options) -> Vec<Page> {
     area_guides(r, opts, &mut items);
     items.extend(stitch_items(&pattern, false));
     let d = Drawing { items, extent: r };
-    let mut pages = place(&d, &design.name, Some(1.0), opts.paper);
+    let mut pages = place_actual(&d, &design.name, opts);
     pages.push(info_page(design, &pattern, opts.paper));
     pages
 }
@@ -855,11 +900,10 @@ fn section_sheet(design: &Design, full: &StitchPattern, s: &Section, opts: &Opti
             hh + ext + 3.0,
         ),
     };
-    place(
+    place_actual(
         &d,
         &format!("{}: {kind} {}{turned}", design.name, s.label),
-        Some(1.0),
-        opts.paper,
+        opts,
     )
 }
 
@@ -901,15 +945,14 @@ pub fn print_and_stitch(
         items,
         extent: page_rect,
     };
-    let mut pages = place(
+    let mut pages = place_actual(
         &image_sheet,
         &format!(
             "{}: image{}",
             design.name,
             if mirror { " (mirrored)" } else { "" }
         ),
-        Some(1.0),
-        opts.paper,
+        opts,
     );
     let pattern = compiled(design);
     let mut items = Vec::new();
@@ -951,14 +994,13 @@ pub fn print_and_stitch(
         items,
         extent: page_rect,
     };
-    pages.extend(place(
+    pages.extend(place_actual(
         &align,
         &format!(
             "{}: alignment sheet (lay on the printed image, align the needle with the centre mark)",
             design.name
         ),
-        Some(1.0),
-        opts.paper,
+        opts,
     ));
     Ok(pages)
 }
@@ -1015,6 +1057,31 @@ mod tests {
         let (x0, x1) = (v[v.len() - 4], v[v.len() - 2]);
         assert!((x1 - x0 - 283.465).abs() < 0.002, "{seg}");
         assert!(p.content.contains("(50 mm) Tj"));
+        assert!(!p.content.contains("(2 in) Tj"), "inch bar only when asked");
+    }
+
+    #[test]
+    fn inches_add_a_two_inch_scale_bar_on_actual_size_pages_only() {
+        let d = Drawing {
+            items: vec![line((0.0, 0.0), (100.0, 0.0), 0.2, BLACK)],
+            extent: (0.0, 0.0, 100.0, 10.0),
+        };
+        let opts = Options {
+            inches: true,
+            ..Options::default()
+        };
+        let p = &place_actual(&d, "t", &opts)[0];
+        assert!(p.content.contains("(50 mm) Tj") && p.content.contains("(2 in) Tj"));
+        let bar = p
+            .content
+            .lines()
+            .rfind(|l| l.starts_with("0 0 0 RG 0.6 w"))
+            .expect("inch bar");
+        let v = numbers(bar);
+        // "0 0 0 RG 0.6 w [] 0 d x0 y m x1 y l S …": 2 inches is 144 pt.
+        assert!((v[7] - v[5] - 144.0).abs() < 0.002, "{bar}");
+        let plain = &place_actual(&d, "t", &Options::default())[0];
+        assert!(!plain.content.contains("(2 in) Tj"));
     }
 
     #[test]

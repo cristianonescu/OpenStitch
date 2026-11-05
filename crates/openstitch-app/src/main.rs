@@ -69,6 +69,7 @@ mod splash;
 mod suite_chrome;
 mod theme;
 mod transfer_ui;
+mod units_ui;
 mod update_ui;
 mod view_ui;
 mod wizard_ui;

@@ -28,6 +28,7 @@ pub mod sewing;
 pub mod snap;
 pub mod suite;
 pub mod tools;
+pub mod units;
 pub mod updates;
 pub mod viewport;
 pub mod wizard;

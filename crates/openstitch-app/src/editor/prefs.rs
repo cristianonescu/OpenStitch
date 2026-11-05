@@ -122,6 +122,9 @@ pub struct UiPrefs {
     pub ai: super::assistant_chat::AiPrefs,
     /// Editing aids beyond PE-DESIGN (#473, #474, #475); all off by default.
     pub editing: EditingPrefs,
+    /// Millimetres or inches for every length shown and typed (#519); the Design Database's
+    /// System Unit is the same setting. Millimetres by default, as PE-DESIGN.
+    pub units: super::units::Units,
 }
 
 /// View ▸ Snap to Objects and Precision Bar, and the Options menu's nudge and click settings.
@@ -168,6 +171,7 @@ impl Default for UiPrefs {
             updates: UpdatePrefs::default(),
             ai: Default::default(),
             editing: EditingPrefs::default(),
+            units: super::units::Units::Mm,
         }
     }
 }
@@ -212,6 +216,7 @@ impl UiPrefs {
                 "nudgeMM": self.editing.nudge_mm,
                 "nudgeByGrid": self.editing.nudge_grid,
             },
+            "units": super::units::key(self.units),
         })
     }
 
@@ -297,6 +302,10 @@ impl UiPrefs {
                     nudge_grid: b("nudgeByGrid", d.nudge_grid),
                 }
             },
+            units: v["units"]
+                .as_str()
+                .and_then(super::units::from_key)
+                .unwrap_or(d.units),
         }
     }
 
@@ -360,6 +369,7 @@ mod tests {
         p.splash = false;
         p.updates.check = false;
         p.updates.skip_version = Some("v0.1.0-alpha.4".into());
+        p.units = super::super::units::Units::Inch;
         p.editing = EditingPrefs {
             snap_objects: true,
             precision_bar: true,
@@ -385,6 +395,11 @@ mod tests {
         let wild = json!({ "realisticView": { "threadWidthMM": 50, "contrast": "x" }, "fontFilter": { "on": 1, "hidden": [3, "a"] } });
         let w = UiPrefs::from_json(&wild);
         assert_eq!(w.editing, EditingPrefs::default(), "off unless chosen");
+        assert_eq!(
+            w.units,
+            super::super::units::Units::Mm,
+            "millimetres by default"
+        );
         let e = UiPrefs::from_json(&json!({ "editing": { "nudgeMM": 900, "snapToObjects": "y" } }));
         assert_eq!((e.editing.nudge_mm, e.editing.snap_objects), (50.0, false));
         assert_eq!(w.realistic.thread_width_mm, 1.0);
