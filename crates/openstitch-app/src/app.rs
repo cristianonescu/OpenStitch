@@ -97,7 +97,7 @@ impl Launch {
 }
 
 /// Values `--show` accepts.
-pub const SHOW: [&str; 26] = [
+pub const SHOW: [&str; 28] = [
     "update",
     "close-prompt",
     "realistic",
@@ -112,6 +112,8 @@ pub const SHOW: [&str; 26] = [
     "sdf",
     "attributes",
     "charts",
+    "matchThreads",
+    "mergeColours",
     "usb",
     "fonts",
     "monogram",

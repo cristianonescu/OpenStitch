@@ -94,7 +94,9 @@ then style them in the next.
 - Threads: to change the design to a thread chart ("use my Madeira threads"), run
   `threads.remap` `{builtin | chart, metric: ciede2000, keepDistinct: true, dryRun: true}`
   first and show the user the plan (design colour → thread, ΔE, objects, and `merged`), then
-  run it without `dryRun` if they agree (`metric: rgb` is PE-DESIGN's rule). `threads.find`
+  run it without `dryRun` if they agree (`metric: rgb` is PE-DESIGN's rule). The thread
+  makers' charts (Madeira, Isacord, Sulky, Robison-Anton) are `builtin` ids: `threads.builtinCharts`
+  lists them with `kind: "brand"`. `threads.find`
   `{query}` finds a thread by code or name. After `import.svg` or a `digitize.*` wizard gives
   many near-identical colours, offer `threads.mergeSimilar` (`dryRun` first; it reports the
   colour changes saved, and `order.byColor` when `suggestSortByColor`).
@@ -120,7 +122,8 @@ still send mm to commands. `design.print {units: "inch"}` adds a 2-inch scale ba
   base64) and pass the returned `path` to `import.svg` or a `digitize.*` command.
 - `import.svg` returns `skipped` (text, images, nearly transparent or clipped-away shapes) and
   `approximated` (gradients, patterns, masks, filters): tell the user what was left out instead
-  of leaving it unsaid. `gradients: "bands"` turns a gradient fill into 2–8 colour bands.
+  of leaving it unsaid. `gradients: "bands"` turns a gradient fill into 2–8 colour bands;
+  `minOpacity` (default 0.1) sets how faint a fill or stroke may be before it is left out.
 - `file` commands (`project.save`, `design.export`, ...) may ask the user first. Never
   overwrite a user's file without being asked to.
 
