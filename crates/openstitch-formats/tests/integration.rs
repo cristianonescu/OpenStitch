@@ -4,6 +4,10 @@
 //! `every_test_file_is_listed` fails when one is missing. The files keep their own `mod` items
 //! (`mod common;`), which `#[path]` resolves from this folder as before.
 
+// Each file declares its own `mod common;`, as when it was a binary of its own, so the shared
+// helpers load once per file.
+#![allow(clippy::duplicate_mod)]
+
 #[path = "coverage_formats.rs"]
 mod coverage_formats;
 #[path = "formats.rs"]
@@ -21,8 +25,12 @@ fn every_test_file_is_listed() {
     let listed = include_str!("integration.rs");
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
     let mut missing = Vec::new();
-    for entry in std::fs::read_dir(&dir).unwrap() {
-        let name = entry.unwrap().file_name().into_string().unwrap();
+    for entry in std::fs::read_dir(&dir).expect("tests folder") {
+        let name = entry
+            .expect("tests folder entry")
+            .file_name()
+            .into_string()
+            .expect("UTF-8 file name");
         if name.ends_with(".rs") && name != "integration.rs" {
             let line = format!("#[path = \"{name}\"]");
             if !listed.contains(&line) {

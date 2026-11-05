@@ -15,8 +15,12 @@ fn every_test_file_is_listed() {
     let listed = include_str!("integration.rs");
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
     let mut missing = Vec::new();
-    for entry in std::fs::read_dir(&dir).unwrap() {
-        let name = entry.unwrap().file_name().into_string().unwrap();
+    for entry in std::fs::read_dir(&dir).expect("tests folder") {
+        let name = entry
+            .expect("tests folder entry")
+            .file_name()
+            .into_string()
+            .expect("UTF-8 file name");
         if name.ends_with(".rs") && name != "integration.rs" {
             let line = format!("#[path = \"{name}\"]");
             if !listed.contains(&line) {
