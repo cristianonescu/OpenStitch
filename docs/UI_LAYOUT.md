@@ -22,8 +22,33 @@ Icons, colours and visual style are OpenStitch's own (see
 | 7 Import / Color / Sewing Attributes / Text Attributes | Docked right as four tabs |
 | 8 Stitch Simulator pane | Docked under the work area |
 | 9–10 Design Page, work area | White page on a grey work area (light theme) |
-| 11 Status bar | Design size, stitch count, the ScreenTip of the command under the pointer or the active tool's hint |
+| 11 Status bar | Design size, stitch count, the ScreenTip of the command under the pointer or the active tool's hint; at the right, the Check Design indicator ("Ready to sew", or the problem count and the first reason; beyond PE-DESIGN) |
 | 12–15 View mode, Show grid, Design Property, zoom | Right of the status bar: Solid / Stitch / Realistic, Show Grid, Design Property, zoom percentage (type or drag) and zoom slider |
+
+**Check Design** (beyond PE-DESIGN, #503–#505) opens from the status-bar indicator or the
+Sewing Order pane's **Review sewing order** button. It has three tabs, judged for the fabric
+chosen at the top:
+
+- **Problems**: what is likely to sew badly, errors first (outside the hoop, satin too wide or
+  narrow, thin fills, small text, long stitches, untrimmed jumps, stacked or dense thread,
+  stitching in place, tiny objects, self-crossing outlines). Clicking a row selects and zooms to
+  its objects; **Fix** runs the suggested command as one undo step. While the tab is open the
+  canvas rings each problem and draws stitches past the hoop in red.
+- **Density map**: thread layers per 1 mm cell (one layer = one default fill), heavy cells in
+  amber and too-dense cells in red over the design, the share of each class, and the hotspots
+  with **Show** / **Next**. **Dark background** puts the design on near-black to review light
+  threads; it changes only the view.
+- **Sewing order**: every object in sewing order with the move to the next ("Trim, then
+  18.6 mm", "Jump of 6.0 mm, not trimmed"), the totals (trims, trims per 1,000 stitches, thread
+  changes, travel) and warnings for untrimmed jumps and long same-thread moves, each with a fix.
+  **Step by step** moves the Stitch Simulator to the end of the chosen step and marks its start
+  (+), end (×) and the labelled move into it; **Route map** numbers every start and draws each
+  move as an arrow (red: untrimmed jump, blue: thread change).
+
+The same checks are the engine commands `design.check`, `design.density`, `design.route` and
+`design.cleanup`, so `stitchtool exec`, the MCP server and the Assistant see what the window
+shows. `design.export` reads every file it writes back and compares it with the stitches meant
+for it (`verify`: warn, strict or off), and lists Check Design's errors as `problems`.
 
 Panes 6, 7 and 8 are shown or hidden from View ▸ Show/Hide or their × button, and float as a
 window (⧉) or dock again (⊟ Dock) ([screenshot](images/rust-editor-floating-panes.png)).

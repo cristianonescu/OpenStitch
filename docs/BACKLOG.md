@@ -25,6 +25,7 @@ Updated 2026-11-04 evening, for the round after v0.1.0-alpha.12. Merged since th
 | #321 (branch, PR after #369) | Import WMF/EMF vector images as shapes | Windows |
 | #395 | Assistant panel polish (#394): framed icon buttons, chat bubbles, light Markdown, keys read back after Remove, throwaway profile (`OPENSTITCH_CONFIG_DIR`, `OPENSTITCH_KEYCHAIN_SERVICE`) | Mac |
 | `batch:ci-tooling` (branch) | #357, #366, #367 | Mac |
+| `batch:quality-checks` (PR) | #506 random-design test, #503 Check Design, #504 density map, #505 Review Sewing Order, #457 export read-back: engine `quality.rs`, `design.check` / `design.density` / `design.route` / `design.cleanup`, the editor's Check Design window. New bugs from the random-design test: #570, #571 (and seeds on #373) | Cloud session |
 
 ## Mac batches
 
@@ -56,7 +57,6 @@ below is the suggested order of taking them.
 | Proposed batch | Area | Issues | Notes |
 |---|---|---|---|
 | `batch:ai-assistant` (survey) | `skills/openstitch-embroidery`, `openstitch-mcp`, `openstitch-assistant`, `stitchtool` bench | #491 (memory), #492 (example designs, composition guide), #493 (illustrated bench tasks), #494 (every batch error at once), #495 (only the user's threads) | Assistant comes before bugs in the merge order |
-| `batch:quality-checks` | `openstitch-engine` (a new quality module), `openstitch-render`, the editor's panes | #503 (Check Design), #504 (density map), #505 (Review Sewing Order), #457 (export read-back), #506 (random-design test) | #506 first: it guards the others |
 | `batch:satin-quality` | `openstitch-design` (column.rs, region.rs, skeleton.rs, lines.rs) | #520 (corner styles), #521 (short stitches on every satin), #522 (compensation per side and %), #523 (automatic underlay by width), #526 (branching shapes to satin) | After `batch:stitch-engine`; next round: #524, #525, #528, #531 |
 | `batch:routing` | `openstitch-design` (compile.rs, order), `openstitch-engine` | #545 (travel under later fills), #546 (branching and auto-routing), #547 (nearest start), #511 (leave out hidden stitching), #548 (per-object trim and tie) | Needs a sew-out per change |
 | `batch:production` | `openstitch-engine` (wizards, fabric), `openstitch-print` | #507 (parameter test swatches), #508 (fabric and thread-weight presets), #509 (basting box), #510 (knockdown), #512 (Stop at Jumps), #513 (job sheets) | With #452 and #453 |
