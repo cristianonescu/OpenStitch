@@ -73,8 +73,11 @@ struct Element {
 
 /// The longest move from one letter of a text to the next sewn across as a stitch (0.1 mm):
 /// longer ones are trimmed (#465). Every move between letters in PE-DESIGN 11.50's text
-/// captures is trimmed (all of them longer than 2.3 mm); none below 8 mm satin exists.
-const LETTER_ACROSS: f64 = 20.0;
+/// captures is trimmed, and all of them are longer than 2.3 mm, so the compiler's own
+/// sew-across distance is kept: at 2.0 mm, six Text Transform captures lost a needle point
+/// each against PE-DESIGN's. No satin capture below 8 mm exists to tell where PE-DESIGN's
+/// bound lies under 2.3 mm.
+const LETTER_ACROSS: f64 = 23.0;
 
 struct Writer {
     cfg: Compiler,
@@ -494,7 +497,14 @@ fn elements(
                 && (region.kind == RegionType::Satin
                     || (region.kind == RegionType::Fill && !warped))
                 && region.stamps.is_empty())
-            .then(|| stroke_columns(&closed, region, turns.get(index).copied().flatten()))
+            .then(|| {
+                stroke_columns(
+                    &closed,
+                    region,
+                    turns.get(index).copied().flatten(),
+                    object.text.as_ref().is_some_and(|t| t.size < SMALL_TEXT),
+                )
+            })
             .flatten();
             let stroked = by_stroke.is_some() && !layers.is_empty();
             if let (Some(runs), Some(top)) = (by_stroke, layers.last_mut()) {
@@ -603,10 +613,19 @@ const PIECE_JOIN: f64 = 40.0;
 /// to +32 degrees match the upright H within 0.1 mm), and the stroke cut of a turned outline
 /// is not stable (Lato's I lost its stroke at 35 degrees, P and E fell apart at -40: #444).
 /// `None` where the letter has no strokes.
+/// Text below this size (mm) takes [`letter_travel`]'s straight cuts between a letter's
+/// blocks; larger text walks the outline. PE-DESIGN's captures (6 mm and up) are matched by
+/// the walk in stitch count (text-defaults-h, stroke-satin-a, text-fit-satin-ahhhh,
+/// text-size-hg, text-fit-size-6: the cut lowered each 5-45 needle points away from
+/// PE-DESIGN's), and no capture exists below 6 mm, where the walk drew boxes round t's bar
+/// (#465).
+const SMALL_TEXT: f64 = 6.0;
+
 fn stroke_columns(
     closed: &[Contour],
     region: &crate::model::RegionSewing,
     turn: Option<f64>,
+    small: bool,
 ) -> Option<Vec<Run>> {
     let (upright, back) = match turn.filter(|t| t.abs() > UPRIGHT_TURN) {
         Some(t) => {
@@ -753,11 +772,12 @@ fn stroke_columns(
         } else if let (Some(&from), Some(&to)) = (run.last(), column.first()) {
             // PE-DESIGN walks the letter's outline between its blocks (stroke-blocks-H:
             // running pieces between them).
-            run.extend(
+            let travel = if small {
                 letter_travel(closed, from, to, &quads[quads_from[i]..])
-                    .into_iter()
-                    .skip(1),
-            );
+            } else {
+                route::travel(closed, from, to, STROKE_TRAVEL)
+            };
+            run.extend(travel.into_iter().skip(1));
             run.pop();
         }
         run.extend(column);
@@ -1515,7 +1535,7 @@ mod stroke_fill_tests {
             .zip(&turns)
         {
             let sewn = |closed: &[Contour], turn: Option<f64>| {
-                stroke_columns(closed, &text_satin(), turn)
+                stroke_columns(closed, &text_satin(), turn, false)
                     .map(|runs| runs.iter().map(Vec::len).collect::<Vec<_>>())
             };
             let want = sewn(up, None).expect("upright strokes");
@@ -1536,7 +1556,7 @@ mod stroke_fill_tests {
         spec.letter_spacing = 0.3;
         let (obj, _) = DesignObject::text(spec, Some(text_satin()), None).expect("text");
         for (k, closed) in obj.glyph_groups().into_iter().enumerate() {
-            let Some(runs) = stroke_columns(closed, &text_satin(), None) else {
+            let Some(runs) = stroke_columns(closed, &text_satin(), None, true) else {
                 panic!("letter {k} is not sewn by stroke");
             };
             let edges: Vec<(Vec2, Vec2)> = closed.iter().flat_map(Contour::edges).collect();
@@ -1645,7 +1665,8 @@ mod stroke_fill_tests {
                     dot.max_y < stem.min_y,
                     "{size} mm: the dot is the top piece"
                 );
-                let runs = stroke_columns(&closed, &text_satin(), None).expect("by stroke");
+                let runs = stroke_columns(&closed, &text_satin(), None, size < SMALL_TEXT)
+                    .expect("by stroke");
                 assert_eq!(runs.len(), 2, "{size} mm: the dot and the stem apart");
                 // The dot's satin spans the dot (within 0.3 mm of each side) and stays in it.
                 let sewn = Rect::enclosing(runs[0].iter().copied()).expect("dot run");
