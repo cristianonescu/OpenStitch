@@ -2279,6 +2279,25 @@ Line references are relative to `crates/`.
   both cards; the Realistic view and the similarity scorer now draw thread that wide
   (`openstitch_design::calibration`, #291).
 
+### Full-size review of the kit, demos and screenshots, 2026-11-05 (#450)
+
+- **Kit drift:** a fresh release build of main (e9e1e08) rebuilds all 35 kit files byte for byte,
+  and all pass `tools/sew_check.py` (storybook PE-compatible 17 drops per spot). The STACKED 23
+  reported in #449 came from a build of 4421457, which lacked #440's jagged-satin fix (23 → 17).
+  CI's `kit` job now runs `tools/sew_kit.py --check` and `sew_check` on every pull request.
+- **PEC frame:** a design reaching 0.5 mm above its page (the name-drop badge's lettering) kept
+  its page layout, as pyembroidery's files do, so its stitches ran 4.3 mm past the frame's right
+  edge and the machine would cut them off. Only a pattern whose first needle point is the origin
+  keeps its layout now.
+- **Realistic view:** trimmed travel was drawn as grey dashed lines across every preview and
+  screenshot; PE-DESIGN's Realistic Preview shows the sewn piece, where a trimmed jump leaves no
+  thread. Travel joining stitches across a trim or colour change is no longer drawn there.
+- **Design files:** the review (stitches alone at 15 px/mm, the Realistic view, sew_check) found
+  satins 20-30 mm long, cross stitch reading as "+", 2 mm frame ornaments sewn as plain squares,
+  an appliqué heart sewn whole under its fabric, a name wider than its shield, 4 mm text, stale
+  built-in templates (version 1, old defaults) and monogram letters cut by the Diamond/Circle
+  clip; all fixed in the kit script and the examples. Engine causes are #458-#471.
+
 ### Auto Punch on bold lettering, 2026-11-05 (#443)
 
 - **Finding:** the README gallery's g08 (navy "STITCH" over a red bar on cream) sewed its letters

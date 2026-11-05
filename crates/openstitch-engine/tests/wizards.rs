@@ -936,3 +936,42 @@ fn bad_cutwork_parameters_fail_cleanly() {
         assert_eq!(s.design(), &before, "{params} changed the design");
     }
 }
+
+#[test]
+fn applique_lines_round_a_sharp_point_without_stitches_in_place() {
+    // A heart's point grown by the material and position offsets became a round arc of 0.1 mm
+    // vertices, and running stitch keeps every vertex: 15 stitches under 0.3 mm in a row, which
+    // tools/sew_check.py fails (the ready-to-sew kit's appliqué, #450).
+    let mut s = Session::new(temp_dir());
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    run(
+        &mut s,
+        "shape.preset",
+        json!({"kind": "heart", "cx": 50, "cy": 50, "width": 50, "fill": "Red"}),
+    );
+    run(
+        &mut s,
+        "wizard.applique",
+        json!({"ids": [1], "material": "running", "output": "replace"}),
+    );
+    let pattern = compile(s.design());
+    let (mut run_len, mut worst) = (0, 0);
+    let mut prev: Option<(f64, f64)> = None;
+    for st in &pattern.stitches {
+        if st.command == Command::Stitch {
+            if let Some((x, y)) = prev
+                && (st.x - x).hypot(st.y - y) < 3.0
+            {
+                run_len += 1;
+                worst = worst.max(run_len);
+            } else {
+                run_len = 0;
+            }
+            prev = Some((st.x, st.y));
+        } else {
+            run_len = 0;
+            prev = None;
+        }
+    }
+    assert!(worst <= 6, "{worst} stitches under 0.3 mm in a row");
+}

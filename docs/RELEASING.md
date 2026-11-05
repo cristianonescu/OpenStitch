@@ -83,7 +83,11 @@ with current screenshots. Refresh it in a pull request before every release:
    `tools/screenshots.py` with a `docs/images/readme/` output and a cell in the README's
    Screenshots table. Never use PE-DESIGN screenshots or Brother artwork; new illustrations and
    icons are made with Higgsfield (see [LEGAL_AND_LICENSING.md](LEGAL_AND_LICENSING.md)).
-6. **Links:** check that the README's links to docs and issues still resolve.
+6. **Ready-to-sew kit:** CI's `kit` job fails when a fresh release build of the kit differs
+   from the committed `examples/sew` files or a file fails `tools/sew_check.py` (#450). After
+   regenerating it (`python -I tools/sew_kit.py`), open every preview in
+   `examples/sew/previews` at full size and look at the stitches before the release.
+7. **Links:** check that the README's links to docs and issues still resolve.
 
 ## Steps
 

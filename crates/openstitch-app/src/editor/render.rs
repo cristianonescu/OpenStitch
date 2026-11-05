@@ -24,6 +24,10 @@ pub struct RenderModel {
     pub layers: Vec<ColorLayer>,
     /// Jumps (travel without sewing), drawn dimmed.
     pub travel: Vec<(Vec2, Vec2)>,
+    /// Per `travel` entry: the thread is cut on the way (a trim or a colour change between the
+    /// stitches it joins), so the sewn piece has no thread there. The Realistic view leaves those
+    /// out, as the fabric shows no thread there (#450: grey travel lines crossed every preview).
+    pub travel_cut: Vec<bool>,
     /// Needle position after the last shown stitch.
     pub needle: Option<Vec2>,
     /// Stitches (penetrations) shown.
@@ -49,6 +53,9 @@ impl RenderModel {
         };
         let mut stroke: Vec<Vec2> = Vec::new();
         let mut pos: Option<Vec2> = None;
+        // Travel entries since the last stitch, and whether the thread was cut since it.
+        let mut pending = 0;
+        let mut cut = false;
         for s in &pattern.stitches {
             if m.shown >= limit {
                 break;
@@ -56,6 +63,9 @@ impl RenderModel {
             let p = v2(s.x, s.y);
             match s.command {
                 Command::Stitch => {
+                    let n = m.travel_cut.len();
+                    m.travel_cut[n - pending..].fill(cut);
+                    (pending, cut) = (0, false);
                     if stroke.is_empty() {
                         stroke.push(pos.unwrap_or(p));
                     }
@@ -67,12 +77,18 @@ impl RenderModel {
                     flush(&mut layer, &mut stroke);
                     if let Some(from) = pos.filter(|&from| from != p) {
                         m.travel.push((from, p));
+                        m.travel_cut.push(true);
+                        pending += 1;
                     }
                     pos = Some(p);
                 }
-                Command::Trim | Command::Stop => flush(&mut layer, &mut stroke),
+                Command::Trim | Command::Stop => {
+                    flush(&mut layer, &mut stroke);
+                    cut = true;
+                }
                 Command::ColorChange => {
                     flush(&mut layer, &mut stroke);
+                    cut = true;
                     color += 1;
                     let next = ColorLayer {
                         rgb: rgb(color),

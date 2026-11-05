@@ -12,7 +12,7 @@
   "params": {
    "kind": "teardrop",
    "cx": 60.0,
-   "cy": 38.0,
+   "cy": 40.0,
    "width": 24,
    "height": 36,
    "rotation": 180,
@@ -23,7 +23,7 @@
   "command": "shape.preset",
   "params": {
    "kind": "teardrop",
-   "cx": 82.0,
+   "cx": 80.0,
    "cy": 60.0,
    "width": 24,
    "height": 36,
@@ -36,7 +36,7 @@
   "params": {
    "kind": "teardrop",
    "cx": 60.0,
-   "cy": 82.0,
+   "cy": 80.0,
    "width": 24,
    "height": 36,
    "rotation": 360,
@@ -47,7 +47,7 @@
   "command": "shape.preset",
   "params": {
    "kind": "teardrop",
-   "cx": 38.0,
+   "cx": 40.0,
    "cy": 60.0,
    "width": 24,
    "height": 36,

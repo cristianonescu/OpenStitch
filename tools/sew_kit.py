@@ -183,11 +183,13 @@ def line_rows(variants):
 
 REGION_TYPES_A = [
     ("rect", {"type": "fill"}),
-    ("rect", {"type": "satin", "angle": 90}),
+    # A 26 mm satin split at 7 mm, so no stitch is long enough to snag (#450).
+    ("rect", {"type": "satin", "angle": 90, "splitLength": 7}),
     ("rect", {"type": "programmableFill", "pattern": "diamonds"}),
     ("rect", {"type": "motifFill", "pattern": "heart"}),
     ("rect", {"type": "piping"}),
-    ("rect", {"type": "crossStitch", "spacing": 2.5}),
+    # At 0° the cells are crosses (X); at the default 45° they read as "+" (#450).
+    ("rect", {"type": "crossStitch", "spacing": 2.5, "angle": 0}),
     ("circle", {"type": "concentricCircle"}),
     ("circle", {"type": "radial"}),
     ("circle", {"type": "spiral"}),
@@ -222,7 +224,7 @@ UNDERLAYS = [
     ("rect", {"type": "fill", "underlay": True, "underlayStyle": "double"}),
     ("rect", {"type": "fill", "underlay": True, "underlayStyle": "edgeFill"}),
     ("rect", {"type": "fill", "underlay": True, "underlayStyle": "cross"}),
-    ("rect", {"type": "satin", "angle": 90, "underlay": True, "underlayParts": ["center"]}),
+    ("rect", {"type": "satin", "angle": 90, "splitLength": 7, "underlay": True, "underlayParts": ["center"]}),
     ("rect", {"type": "fill", "underlay": True, "underlayDensity": "light"}),
 ]
 LINE_TYPES = [
@@ -248,8 +250,10 @@ def shapes():
     steps += [
         {"command": "shape.skeletonSatin", "params": {"points": [[8, 82], [20, 70], [32, 82]],
                                                       "widths": [1.5, 4, 1.5], "fill": 24}},
-        {"command": "shape.column", "params": {"lines": [[[40, 70], [40, 90]], [[50, 68], [52, 92]],
-                                                         [[60, 70], [62, 90]]], "curved": True, "fill": 32}},
+        # Manual Punch rungs are the column's crossings: 6 mm rungs make a 6 mm column (20 mm
+        # rungs sewed 20-24 mm stitches, #450).
+        {"command": "shape.column", "params": {"lines": [[[40, 77], [40, 83]], [[51, 74], [51, 80]],
+                                                         [[62, 77], [62, 83]]], "curved": True, "fill": 32}},
         {"command": "shape.ellipse", "params": {"cx": 80, "cy": 80, "rx": 12, "outline": 20}},
         {"command": "shape.floral", "params": {"id": 9, "density": 3, "pattern": 12, "color": 7}},
     ]
@@ -276,7 +280,9 @@ def holes_and_emboss():
 
 
 def frames():
-    """The decorative frames: five Shape-tool frames and an imported one."""
+    """The decorative frames: five Shape-tool frames and an imported one. Ornaments 5 mm long (at
+    2 mm a scallop or wave was shorter than one running stitch and sewed as a plain square, #450); the
+    corners frame keeps 2 mm brackets, which at 5 mm cross its circle."""
     steps = []
     for i, ((x, y), kind) in enumerate(zip(cells(5, size=20, gap=12, x0=12, y0=12),
                                            ["scallop", "wave", "zigzag", "scallopOval", "corners"]), 1):
@@ -284,7 +290,8 @@ def frames():
             {"command": "shape.ellipse", "params": {"cx": x + 10, "cy": y + 10, "rx": 4, "fill": THREADS[i]}},
             {"command": "shape.decorative", "params": {"kind": kind, "ids": [len([s for s in steps if s["command"]
                                                                                  .startswith("shape.")]) + 1],
-                                                       "margin": 2, "size": 2, "color": 20}},
+                                                       "margin": 3, "size": 2 if kind == "corners" else 5,
+                                                       "color": 20}},
         ]
     # decoration.add frames a box, as PE-DESIGN's Decorative Import does: the laurel's opening is a
     # small part of it, so a 14 mm box makes a frame about 32 x 28 mm. It goes below the grid, clear
@@ -334,7 +341,7 @@ def lettering():
                                            "fill": 2}},
         {"command": "text.add", "params": {"text": "Pacifico", "font": "pacifico", "size": 10, "x": 50, "y": 34,
                                            "align": "center", "fill": 5}},
-        {"command": "text.add", "params": {"text": "ARCH", "size": 9, "x": 50, "y": 52, "align": "center",
+        {"command": "text.add", "params": {"text": "ARCH", "size": 9, "x": 50, "y": 48, "align": "center",
                                            "envelope": 1, "fill": 37}},
         {"command": "shape.ellipse", "params": {"cx": 50, "cy": 76, "rx": 16, "outline": 40}},
         {"command": "text.add", "params": {"text": "ROUND AND ROUND", "size": 5, "fill": 7}},
@@ -348,9 +355,11 @@ def monograms():
                                                "frame": "ring", "fill": 2, "frameColor": 20}},
         {"command": "monogram.add", "params": {"letters": "ABC", "style": "script", "size": 16, "x": 110, "y": 40,
                                                "frame": "laurel", "fill": 5, "frameColor": 37}},
-        {"command": "monogram.add", "params": {"letters": "OSK", "style": "diamond", "size": 16, "x": 40, "y": 110,
+        # Diamond and Circle letters are clipped to the silhouette, which cuts an outer letter's
+        # stem or bowl (#450, issue below): letters whose outer sides follow it read whole.
+        {"command": "monogram.add", "params": {"letters": "V", "style": "diamond", "size": 16, "x": 40, "y": 110,
                                                "frame": "diamond", "fill": 7, "frameColor": 20}},
-        {"command": "monogram.add", "params": {"letters": "XYZ", "style": "circle", "size": 16, "x": 110, "y": 110,
+        {"command": "monogram.add", "params": {"letters": "CHD", "style": "circle", "size": 16, "x": 110, "y": 110,
                                                "frame": "stars", "fill": 21, "frameColor": 12}},
     ]
 
@@ -360,7 +369,10 @@ def wizard(kind):
     for scissors."""
     heart = {"command": "shape.preset", "params": {"kind": "heart", "cx": 50, "cy": 50, "width": 50, "fill": 5}}
     if kind == "applique":
-        return [heart, {"command": "wizard.applique", "params": {"ids": [1], "material": "running"}}]
+        # Replace: the heart becomes the appliqué; "add" kept its full fill, sewn first under the
+        # fabric (#450).
+        return [heart, {"command": "wizard.applique", "params": {"ids": [1], "material": "running",
+                                                                 "output": "replace"}}]
     if kind == "patch":
         return [dict(heart, params=dict(heart["params"], width=40)),
                 {"command": "wizard.patch", "params": {"ids": [1], "cutting": "running", "color": 21}}]

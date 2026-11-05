@@ -448,6 +448,21 @@ fn render_model_splits_colours_strokes_and_travel() {
 }
 
 #[test]
+fn trimmed_travel_is_marked_cut_and_a_plain_jump_is_not() {
+    // The Realistic view leaves out travel the machine trims (#450); a jump without a trim or
+    // colour change leaves its thread on the fabric and stays.
+    assert_eq!(
+        RenderModel::build(&pattern(), usize::MAX).travel_cut,
+        vec![true]
+    );
+    let mut p = pattern();
+    p.stitches.remove(4);
+    let m = RenderModel::build(&p, usize::MAX);
+    assert_eq!(m.travel, vec![(v2(20.0, 0.0), v2(50.0, 50.0))]);
+    assert_eq!(m.travel_cut, vec![false]);
+}
+
+#[test]
 fn render_model_stops_at_simulator_position() {
     let m = RenderModel::build(&pattern(), 4);
     assert_eq!(m.shown, 4);

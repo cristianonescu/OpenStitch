@@ -38,12 +38,20 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
         max_x: page.width,
         max_y: page.height,
     };
-    if app.viewport.is_none() || app.fit_requested {
+    let untouched_fit = app
+        .auto_fit
+        .filter(|&(s, v, _)| s != screen && app.viewport == Some(v));
+    if app.viewport.is_none() || app.fit_requested || untouched_fit.is_some() {
         let mut fitted = Viewport::fit(page_rect, screen, 24.0);
-        if let Some(z) = app.initial_zoom.take() {
+        let zoom = match untouched_fit {
+            Some((_, _, z)) if !app.fit_requested => z,
+            _ => app.initial_zoom.take(),
+        };
+        if let Some(z) = zoom {
             fitted.zoom_about(screen.center(), z);
         }
         app.viewport = Some(fitted);
+        app.auto_fit = Some((screen, fitted, zoom));
         app.fit_requested = false;
     }
     let mut vp = app.viewport.unwrap_or_default();
@@ -70,7 +78,7 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
     }
     if app.workspace.realistic {
         crate::workspace_ui::draw_realistic(app, &painter, &vp);
-        draw_travel(app, &painter, &vp);
+        draw_travel_left_on_fabric(app, &painter, &vp);
     } else if app.workspace.solid {
         crate::view_ui::draw_solid(app, &painter, &vp);
         draw_travel(app, &painter, &vp);
@@ -387,6 +395,25 @@ fn draw_travel(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
                 4.0,
                 3.0,
             ));
+        }
+    }
+}
+
+/// The Realistic view's travel: only jumps whose thread stays on the fabric (no trim or colour
+/// change between the stitches they join); a trimmed jump leaves no thread on the sewn piece.
+fn draw_travel_left_on_fabric(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
+    if app.show_travel {
+        let stroke = Stroke::new(1.0, Color32::from_rgba_unmultiplied(90, 90, 90, 110));
+        let cut = &app.render.travel_cut;
+        for (i, &(a, b)) in app.render.travel.iter().enumerate() {
+            if !cut.get(i).copied().unwrap_or(false) {
+                painter.add(Shape::dashed_line(
+                    &[pos(vp.to_screen(a)), pos(vp.to_screen(b))],
+                    stroke,
+                    4.0,
+                    3.0,
+                ));
+            }
         }
     }
 }
