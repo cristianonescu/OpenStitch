@@ -78,7 +78,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 291: 183 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 98 planned beyond PE-DESIGN |
+| Feature matrix rows | 291: 185 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 96 planned beyond PE-DESIGN |
 | Compatibility specs | 454: 454 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 36: 29 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 10 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
@@ -648,9 +648,7 @@ PE-DESIGN 11 does not. Each item is sketched in
 - AI assistant benchmark (B17, phase A5): stitchtool bench-assistant sends 12 embroidery tasks (badge, monogram, arc text, appliqué, star, two colours, a wider rectangle, recolour, delete, picture to embroidery, vector route, a question) to the Claude API, an OpenAI-compatible endpoint or an ACP coding agent, through the assistant's own tools over a headless editor. Each task is scored on the resulting design (object.list, design.info), failures are sorted into categories, and it writes JSON and Markdown reports
 - Knife: an open cut line splits every crossed fill, outline, Manual Punch column and line in one step (shape.knife) (#477)
 - Smooth Shape removes nodes within a tolerance (shape.simplify, 0.2 mm) and Smooth Stitches relaxes needle points of stitch patterns (stitches.smooth) (#478)
-- GIMP/Inkscape .gpl palettes imported and exported as user thread charts (#483)
 - More built-in thread charts compiled from each maker's own published colour data, searchable by number or name (#486)
-- Vector image import (PE-compat area): clip paths, masks and opacity applied, gradients as optional colour bands, and a report of skipped elements (#487)
 - Image wizard (OpenStitch mode): purpose presets, a region table with reasons and overrides, click-to-fix on the picture, colour order, varied or least-travel fill angles and outline SVG export (#489)
 - Optional on-device helpers for digitizing: one-click subject segmentation, line drawing from photos and OCR to lettering (#490)
 - Assistant memory: per-user notes read into every conversation, written through the permission gate, viewable and clearable (#491)

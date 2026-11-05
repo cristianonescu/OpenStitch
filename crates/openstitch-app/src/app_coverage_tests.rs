@@ -457,3 +457,27 @@ fn snap_to_grid_places_the_arrange_copies_handle_on_the_grid() {
     let off = spacing_after_drag(false, 372.0);
     assert!((off - 14.4).abs() < 1e-9, "{off}");
 }
+
+/// #487: Import SVG's status line says what the import left out or approximated.
+#[test]
+fn svg_import_status_lists_what_was_left_out() {
+    let dir = openstitch_testutil::TempDir::new("app-svg-report");
+    let svg = dir.join("art.svg");
+    std::fs::write(
+        &svg,
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20" viewBox="0 0 40 20">
+          <rect x="0" y="0" width="20" height="20" fill="#e01010"/>
+          <text id="t" x="0" y="10">Hi</text>
+        </svg>"##,
+    )
+    .expect("svg");
+    let mut app = EditorApp::new(Launch::default());
+    let r = app
+        .execute(&CommandRequest::new(
+            "import.svg",
+            json!({ "path": svg.display().to_string() }),
+        ))
+        .expect("import");
+    assert_eq!(import_report(&r), "; left out: 1 text");
+    assert_eq!(import_report(&json!({"ids": [1]})), "");
+}
