@@ -808,7 +808,11 @@ openstitch_app::editor (lib, no egui, unit-tested)
   in `docs/images/engine-*.png` need no window: `python3 tools/engine_image.py
   examples/NAME.json docs/images/engine-NAME.png` runs the example with `stitchtool exec`,
   exports PES and draws the stitches in their thread colours with the needle points as dots
-  (engine-programmable-fill.png regenerated this way, 2026-10-30).
+  (engine-programmable-fill.png regenerated this way, 2026-10-30); `--templates OUT` draws the
+  four built-in templates side by side. `python3 -I tools/docs_images.py` runs every generator of
+  `docs/images` from the release build, and `--check` fails on an image without one (#565). In a
+  `--screenshot` run the wizard dialogs open at the window's top right and the automatic fit
+  keeps the page clear of them (`EditorApp::dialog_window`, `canvas::beside_dialog`).
 
 ## Decisions
 

@@ -1,7 +1,9 @@
 """Renders docs/images/digitize-*.png and convert-*.png from examples/digitize/*.png through openstitch-mcp.
 
-Run from the repository root after `cargo build -p openstitch-mcp`:
-    python3 -I tools/digitize_examples.py
+    python3 -I tools/digitize_examples.py [--release]
+
+The server is target/debug/openstitch-mcp (target/release with `--release`); when it is missing,
+the script builds it first (`cargo build -p openstitch-mcp`, with `--release` when asked).
 Each example converts one sample image (made by
 `cargo run -p openstitch-digitize --example samples`) and saves the MCP `preview` PNG.
 """
@@ -11,8 +13,9 @@ import pathlib
 import subprocess
 import sys
 
-ROOT = pathlib.Path.cwd()
-SERVER = ROOT / "target" / "debug" / "openstitch-mcp"
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+PROFILE = "release" if "--release" in sys.argv else "debug"
+SERVER = ROOT / "target" / PROFILE / ("openstitch-mcp.exe" if sys.platform == "win32" else "openstitch-mcp")
 
 EXAMPLES = {
     "digitize-autopunch.png": [
@@ -55,7 +58,17 @@ EXAMPLES = {
 }
 
 
+def server():
+    """The openstitch-mcp binary, built first when it is missing."""
+    if not SERVER.exists():
+        cmd = ["cargo", "build", "-p", "openstitch-mcp"] + (["--release"] if PROFILE == "release" else [])
+        print(" ".join(cmd), flush=True)
+        subprocess.run(cmd, cwd=ROOT, check=True)
+    return SERVER
+
+
 def main():
+    server()
     proc = subprocess.Popen(
         [str(SERVER), "--root", str(ROOT / "examples" / "digitize")],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,

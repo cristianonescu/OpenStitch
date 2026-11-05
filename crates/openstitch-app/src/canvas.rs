@@ -23,6 +23,26 @@ fn model_rect(v: &Viewport, r: &Rect) -> egui::Rect {
     )
 }
 
+/// The part of the canvas left of a dialog that reaches into it from the right (its whole
+/// width when there is none, or when that part would be under half the canvas).
+pub(crate) fn beside_dialog(screen: ScreenRect, dialog: Option<egui::Rect>) -> ScreenRect {
+    match dialog {
+        Some(d) => {
+            let left = f64::from(d.min.x);
+            let free = left - screen.x;
+            if left < screen.x + screen.width && free >= screen.width / 2.0 {
+                ScreenRect {
+                    width: free,
+                    ..screen
+                }
+            } else {
+                screen
+            }
+        }
+        None => screen,
+    }
+}
+
 pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
     let (rect, response) = ui.allocate_exact_size(ui.available_size(), Sense::click_and_drag());
     let screen = ScreenRect {
@@ -38,20 +58,21 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
         max_x: page.width,
         max_y: page.height,
     };
+    let fit_screen = beside_dialog(screen, app.dialog_rect.filter(|_| app.screenshot_run()));
     let untouched_fit = app
         .auto_fit
-        .filter(|&(s, v, _)| s != screen && app.viewport == Some(v));
+        .filter(|&(s, v, _)| s != fit_screen && app.viewport == Some(v));
     if app.viewport.is_none() || app.fit_requested || untouched_fit.is_some() {
-        let mut fitted = Viewport::fit(page_rect, screen, 24.0);
+        let mut fitted = Viewport::fit(page_rect, fit_screen, 24.0);
         let zoom = match untouched_fit {
             Some((_, _, z)) if !app.fit_requested => z,
             _ => app.initial_zoom.take(),
         };
         if let Some(z) = zoom {
-            fitted.zoom_about(screen.center(), z);
+            fitted.zoom_about(fit_screen.center(), z);
         }
         app.viewport = Some(fitted);
-        app.auto_fit = Some((screen, fitted, zoom));
+        app.auto_fit = Some((fit_screen, fitted, zoom));
         app.fit_requested = false;
     }
     let mut vp = app.viewport.unwrap_or_default();
@@ -723,5 +744,38 @@ fn draw_preview(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
             }
         }
         None => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn canvas() -> ScreenRect {
+        ScreenRect {
+            x: 300.0,
+            y: 160.0,
+            width: 900.0,
+            height: 600.0,
+        }
+    }
+
+    #[test]
+    fn page_is_fitted_left_of_a_dialog_reaching_in_from_the_right() {
+        let dialog = egui::Rect::from_min_max(egui::pos2(1000.0, 170.0), egui::pos2(1440.0, 700.0));
+        let free = beside_dialog(canvas(), Some(dialog));
+        assert_eq!(free.x, 300.0);
+        assert_eq!(free.width, 700.0);
+        assert_eq!(free.height, 600.0);
+    }
+
+    #[test]
+    fn dialogs_outside_or_over_most_of_the_canvas_leave_it_whole() {
+        assert_eq!(beside_dialog(canvas(), None), canvas());
+        let outside =
+            egui::Rect::from_min_max(egui::pos2(1250.0, 170.0), egui::pos2(1440.0, 700.0));
+        assert_eq!(beside_dialog(canvas(), Some(outside)), canvas());
+        let wide = egui::Rect::from_min_max(egui::pos2(500.0, 170.0), egui::pos2(1440.0, 700.0));
+        assert_eq!(beside_dialog(canvas(), Some(wide)), canvas());
     }
 }

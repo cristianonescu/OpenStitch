@@ -169,6 +169,11 @@ pub struct EditorApp {
     /// laid out a frame after the canvas; the window resized) fits again (#450: kit previews and
     /// screenshots lost the page's bottom to the Stitch Simulator pane).
     pub auto_fit: Option<(openstitch_app::editor::ScreenRect, Viewport, Option<f64>)>,
+    /// A wizard dialog's rectangle in the previous frame, and the one being drawn this frame
+    /// (`dialog_window`). In a `--screenshot` run the automatic fit keeps the page clear of it
+    /// (#565: the dialogs hid part of the design in the documentation images).
+    pub dialog_rect: Option<egui::Rect>,
+    pub dialog_rect_next: Option<egui::Rect>,
     player: Option<crate::script::Player>,
     /// The object selected last (Align ▸ relative to Last Selected keeps it in place).
     pub key_object: Option<u64>,
@@ -291,6 +296,8 @@ impl EditorApp {
             fit_requested: false,
             initial_zoom: None,
             auto_fit: None,
+            dialog_rect: None,
+            dialog_rect_next: None,
             player: None,
             key_object: None,
             align_to: "selection",
@@ -1392,6 +1399,32 @@ impl EditorApp {
         }
     }
 
+    /// Whether this is a `--screenshot` run.
+    pub fn screenshot_run(&self) -> bool {
+        self.screenshot.is_some()
+    }
+
+    /// A wizard dialog's window. In a `--screenshot` run it opens at the window's top right,
+    /// over the right-hand pane, and the page is fitted beside it (#565); otherwise at
+    /// `default_pos` (egui's own placement when `None`).
+    pub fn dialog_window<'a>(
+        &self,
+        ctx: &egui::Context,
+        title: &'static str,
+        default_pos: Option<[f32; 2]>,
+    ) -> egui::Window<'a> {
+        let window = egui::Window::new(title);
+        match (self.screenshot_run(), self.workspace.canvas) {
+            (true, Some(canvas)) => window
+                .pivot(egui::Align2::RIGHT_TOP)
+                .default_pos([ctx.content_rect().max.x - 8.0, canvas.min.y]),
+            _ => match default_pos {
+                Some(pos) => window.default_pos(pos),
+                None => window,
+            },
+        }
+    }
+
     fn screenshot_step(&mut self, ctx: &egui::Context) {
         let Some(shot) = &mut self.screenshot else {
             return;
@@ -1549,6 +1582,7 @@ impl eframe::App for EditorApp {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        self.dialog_rect = self.dialog_rect_next.take();
         self.ui.apply_theme(&ctx);
         if let Some(s) = &mut self.splash
             && !s.show(&ctx)
