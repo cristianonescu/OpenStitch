@@ -17,7 +17,7 @@ pub fn read(data: &[u8]) -> Result<StitchPattern> {
     let mut b = Builder::new("DSB");
     dst::parse_header(header, &mut b.pattern);
     b.pattern.metadata.retain(|k, _| !k.starts_with("dst."));
-    for r in data[dst::HEADER_SIZE..].chunks_exact(3) {
+    for r in data[dst::HEADER_SIZE..].as_chunks::<3>().0 {
         let (ctrl, by, bx) = (r[0], f64::from(r[1]), f64::from(r[2]));
         let dy = if ctrl & 0x40 != 0 { by } else { -by };
         let dx = if ctrl & 0x20 != 0 { -bx } else { bx };
