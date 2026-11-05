@@ -933,8 +933,8 @@ fn fine_rows(
     let lin = |c: [f64; 3]| c.map(|v| crate::screen::linear(v / 255.0));
     let image: Vec<Option<[f64; 3]>> = cells.iter().map(|c| c.map(lin)).collect();
     let target_lin: Vec<[f64; 3]> = targets.iter().map(|&t| lin(t)).collect();
-    let search = |labels: &mut [Option<usize>], passes: usize| {
-        crate::optimise::optimise(
+    let search = |labels: &mut [Option<usize>], passes: usize, stop: &dyn Fn() -> bool| {
+        crate::optimise::optimise_until(
             &crate::optimise::Search {
                 cols,
                 rows,
@@ -948,30 +948,85 @@ fn fine_rows(
             },
             labels,
             |n| run_points(n as f64 * cw, pitch),
+            stop,
         );
     };
-    if OPTIMISE_PASSES > 0 {
-        for &boost in &OPTIMISE_BOOSTS {
-            let mut labels = fit(boost);
-            search(&mut labels, OPTIMISE_PASSES);
-            if !crate::rows::over_cap(cols, rows, cap, &needles(&labels)) {
-                return labels;
+    let fits = |labels: &[Option<usize>]| !crate::rows::over_cap(cols, rows, cap, &needles(labels));
+    // The rows at the caps: with the search, then with one pass, then without.
+    let at_caps = |stop: &dyn Fn() -> bool| {
+        let labels = fit(1.0);
+        let mut tries = vec![OPTIMISE_PASSES];
+        if OPTIMISE_PASSES > 1 {
+            tries.push(1);
+        }
+        for passes in tries.into_iter().filter(|&p| p > 0) {
+            let mut better = labels.clone();
+            search(&mut better, passes, stop);
+            if stop() {
+                return None;
+            }
+            if fits(&better) {
+                return Some(better);
             }
         }
+        Some(labels)
+    };
+    if OPTIMISE_PASSES == 0 || OPTIMISE_BOOSTS.is_empty() {
+        return at_caps(&|| false).expect("never stopped");
     }
-    let labels = fit(1.0);
-    let mut tries = vec![OPTIMISE_PASSES];
-    if OPTIMISE_PASSES > 1 {
-        tries.push(1);
-    }
-    for passes in tries.into_iter().filter(|&p| p > 0) {
-        let mut better = labels.clone();
-        search(&mut better, passes);
-        if !crate::rows::over_cap(cols, rows, cap, &needles(&better)) {
-            return better;
+    // Each attempt is independent of the others, so they run at once (#433): the lock-aware
+    // caps (#299) leave the boosted attempts over on many images, and one after another they
+    // cost up to three searches. The first that holds the caps, in the order above, is kept,
+    // so the result is the same as trying them in turn.
+    let parallel = std::thread::available_parallelism().map_or(1, |n| n.get()) > 1;
+    first_held(OPTIMISE_BOOSTS.len() + 1, parallel, |i, stop| {
+        let Some(&boost) = OPTIMISE_BOOSTS.get(i) else {
+            return at_caps(stop);
+        };
+        let mut labels = fit(boost);
+        if stop() {
+            return None;
         }
+        search(&mut labels, OPTIMISE_PASSES, stop);
+        (!stop() && fits(&labels)).then_some(labels)
+    })
+    .expect("the attempt at the caps always returns")
+}
+
+/// The result of the first of `n` attempts, in order, that gives one: on threads at once when
+/// `parallel` (each told by `stop()` once an earlier attempt has given one, so it may give up
+/// and return `None`), else in turn. Either way the same as trying them in turn (#433).
+fn first_held<T: Send>(
+    n: usize,
+    parallel: bool,
+    attempt: impl Fn(usize, &dyn Fn() -> bool) -> Option<T> + Sync,
+) -> Option<T> {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    if !parallel {
+        return (0..n).find_map(|i| attempt(i, &|| false));
     }
-    labels
+    let first = AtomicUsize::new(usize::MAX);
+    std::thread::scope(|scope| {
+        let workers: Vec<_> = (0..n)
+            .map(|i| {
+                let (attempt, first) = (&attempt, &first);
+                scope.spawn(move || {
+                    let r = attempt(i, &|| first.load(Ordering::Relaxed) < i);
+                    if r.is_some() {
+                        first.fetch_min(i, Ordering::Relaxed);
+                    }
+                    r
+                })
+            })
+            .collect();
+        workers
+            .into_iter()
+            .map(|w| w.join().expect("an attempt panicked"))
+            .collect::<Vec<_>>()
+    })
+    .into_iter()
+    .flatten()
+    .next()
 }
 
 /// Saliency (plan T10) per cell, mean 1 over the opaque cells: where the image's lightness
@@ -1467,4 +1522,40 @@ fn on_units(mut stitches: Vec<Stitch>) -> Vec<Stitch> {
         s.y = s.y.round();
     }
     stitches
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// #433: run at once or in turn, the attempts give the first result in order, whichever
+    /// finishes first; later attempts are told to stop, earlier ones never are.
+    #[test]
+    fn first_held_keeps_the_first_result_in_order() {
+        use std::time::Duration;
+        // Attempt i finishes after `delay[i]` ms with `held[i]`; the earliest that holds is 1
+        // but finishes last.
+        let held = [false, true, true, false, true];
+        let delay = [5, 60, 1, 1, 1];
+        for parallel in [false, true] {
+            let stopped = std::sync::Mutex::new(Vec::new());
+            let r = first_held(held.len(), parallel, |i, stop| {
+                std::thread::sleep(Duration::from_millis(delay[i]));
+                if i <= 1 {
+                    assert!(!stop(), "attempt {i} told to stop");
+                }
+                if stop() {
+                    stopped.lock().expect("lock").push(i);
+                    return None;
+                }
+                held[i].then_some(i)
+            });
+            assert_eq!(r, Some(1), "parallel {parallel}");
+            if !parallel {
+                assert!(stopped.lock().expect("lock").is_empty());
+            }
+        }
+        assert_eq!(first_held(3, true, |_, _| None::<usize>), None);
+        assert_eq!(first_held(0, true, |i, _| Some(i)), None);
+    }
 }
