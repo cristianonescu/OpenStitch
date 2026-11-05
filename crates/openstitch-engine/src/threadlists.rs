@@ -8,7 +8,7 @@ use crate::commands::{CommandSpec, Effect, PATH, opt, req, spec};
 use crate::params::{CommandError, Params};
 use crate::sandbox::Access;
 use crate::session::EngineState;
-use crate::user::{MAX_CHART_COLORS, MAX_FILE, builtin_charts, builtin_entries, chart, csv_thread};
+use crate::user::{MAX_CHART_COLORS, MAX_FILE, chart, csv_thread};
 use openstitch_core::{Command, StitchPattern, Thread};
 use openstitch_design::{Compiler, Design};
 use openstitch_formats::threadlist::ListType;
@@ -239,14 +239,11 @@ fn chart_threads(s: &EngineState, p: &Params) -> Result<Vec<Thread>, CommandErro
         }
         (false, true) => {
             let id = p.string("builtin", None)?;
-            let (_, _, c) = builtin_charts()
+            let b = crate::thread_match::builtins()
                 .into_iter()
-                .find(|(i, _, _)| *i == id)
+                .find(|b| b.id == id)
                 .ok_or_else(|| p.invalid("builtin", "see threads.builtinCharts"))?;
-            Ok(builtin_entries(&id, c)
-                .into_iter()
-                .map(|(_, t)| t)
-                .collect())
+            Ok(b.entries.into_iter().map(|(_, t)| t).collect())
         }
         _ => Err(p.invalid("chart", "give either chart or builtin")),
     }

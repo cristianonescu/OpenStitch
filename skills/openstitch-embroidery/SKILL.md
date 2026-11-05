@@ -85,6 +85,13 @@ then style them in the next.
 - Find objects like others: `object.list` `{sameAs: [ids], match: color|type|both,
   visible: true}`, or filter by `color`, `regionType`, `lineType`; then `ui.select` the ids.
 - Text: `object.setText` (text, font, size, spacing), `text.setPath` (fit to an outline).
+- Threads: to change the design to a thread chart ("use my Madeira threads"), run
+  `threads.remap` `{builtin | chart, metric: ciede2000, keepDistinct: true, dryRun: true}`
+  first and show the user the plan (design colour → thread, ΔE, objects, and `merged`), then
+  run it without `dryRun` if they agree (`metric: rgb` is PE-DESIGN's rule). `threads.find`
+  `{query}` finds a thread by code or name. After `import.svg` or a `digitize.*` wizard gives
+  many near-identical colours, offer `threads.mergeSimilar` (`dryRun` first; it reports the
+  colour changes saved, and `order.byColor` when `suggestSortByColor`).
 - Delete: `object.delete` `{ids}`. Undo: `history.undo` (only for your own mistakes).
 
 ## Editor commands (`ui.*`)

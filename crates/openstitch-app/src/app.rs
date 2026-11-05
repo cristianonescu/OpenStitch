@@ -198,6 +198,8 @@ pub struct EditorApp {
     pub pattern_wizards: openstitch_app::editor::pattern_wizards::PatternWizards,
     /// Attribute sets and user thread charts windows.
     pub settings: crate::settings_ui::SettingsState,
+    /// Match to Thread Chart and Merge Similar Colours (#484, #485).
+    pub colour_match: crate::colour_match_ui::MatchState,
     /// The background image as shown, keyed by its path and adjustments (`None` when it
     /// cannot be read).
     pub background_texture: Option<(
@@ -300,6 +302,7 @@ impl EditorApp {
             sewing: Default::default(),
             pattern_wizards: Default::default(),
             settings: Default::default(),
+            colour_match: Default::default(),
             background_texture: None,
             database: Default::default(),
             db_textures: Default::default(),
@@ -388,6 +391,8 @@ impl EditorApp {
                 "settings" => self.workspace.settings_open = true,
                 "attributes" => self.settings.sets_open = true,
                 "charts" => self.settings.charts_open = true,
+                "matchThreads" => self.colour_match.match_open = true,
+                "mergeColours" => self.colour_match.merge_open = true,
                 "text" => self.lettering.text.open = true,
                 "fonts" => self.lettering.fonts.open = true,
                 "monogram" => self.lettering.monogram.open = true,
@@ -1536,6 +1541,7 @@ impl eframe::App for EditorApp {
         crate::transfer_ui::window(self, &ctx);
         crate::edit_ui::windows(self, &ctx);
         crate::settings_ui::windows(self, &ctx);
+        crate::colour_match_ui::windows(self, &ctx);
         crate::wizard_ui::image_wizard_window(self, &ctx);
         crate::lettering_ui::windows(self, &ctx);
         crate::pattern_wizard_ui::windows(self, &ctx);
