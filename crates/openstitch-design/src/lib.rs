@@ -42,6 +42,7 @@ pub mod stitch_edit;
 pub mod strokes;
 pub mod text;
 pub mod timeline;
+pub mod view;
 
 pub use compile::Compiler;
 pub use fonts::{DesignFont, FontBytes, FontData};
@@ -51,9 +52,9 @@ pub use machine::{
     SewingArea, UserHoop, estimate, find_hoop,
 };
 pub use model::{
-    Arrange, BackgroundImage, ChainShape, ContourJoin, ContourStrategy, Design, DesignObject,
-    DesignPage, DesignProperties, Feather, FeatherSide, FillStitchType, Gradation, Guides,
-    ImageAdjust, LineSewing, LineType, ObjectKind, OptimizeOrder, RegionSewing, RegionType,
+    Arrange, BackgroundImage, BackgroundLayer, ChainShape, ContourJoin, ContourStrategy, Design,
+    DesignObject, DesignPage, DesignProperties, Feather, FeatherSide, FillStitchType, Gradation,
+    Guides, ImageAdjust, LineSewing, LineType, ObjectKind, OptimizeOrder, RegionSewing, RegionType,
     RunningStitchPath, StaggerKind, StartEnd, StitchBlock, UnderlayDensity, UnderlayParts,
     UnderlayStyle,
 };

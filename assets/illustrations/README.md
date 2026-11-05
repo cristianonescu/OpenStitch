@@ -35,4 +35,5 @@ from the prompt "Flat top-down macro photo texture of plain-weave natural cotton
 even crosshatch of warp and weft threads, uniform soft lighting, very light warm off-white
 colour, no folds, no wrinkles, no shadows, no vignette, seamless tileable texture filling the
 whole frame", then cropped to one repeat of the weave (382 × 383 px), cross-faded over a 28 px
-seam so it tiles, scaled down and levelled to a light grey.
+seam so it tiles, scaled down and levelled to a light grey. Its Higgsfield job id is in
+`../textures/higgsfield-jobs.tsv`.

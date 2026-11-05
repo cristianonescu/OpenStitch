@@ -114,6 +114,12 @@ pub(super) fn tools(max_batch_steps: usize, max_render_pixels: u32) -> Vec<Tool>
                     "size": { "type": "integer", "minimum": 64, "maximum": max_render_pixels,
                               "description": format!("Longest image side in pixels (default {RENDER_SIZE})") },
                     "showTravel": { "type": "boolean", "description": "Draw jumps as dashed grey lines (default false)" },
+                    "layers": { "type": "string", "enum": ["both", "underlay", "top"], "description": "Underlay only or top stitching only (default: the editor's View ▸ Show)" },
+                    "colorBy": { "type": "string", "enum": ["thread", "order", "mono"], "description": "Colour by thread, by sewing order (a gradient from first to last) or one colour" },
+                    "only": { "type": "array", "items": { "type": "integer" }, "description": "Only these objects' stitches" },
+                    "solo": { "type": "integer", "minimum": 0, "description": "Fade every colour block but this one (0-based, sewing order)" },
+                    "needlePoints": { "type": "boolean", "description": "A dot at every needle drop" },
+                    "trimMarks": { "type": "boolean", "description": "A red cut mark at every trim" },
                 },
                 "additionalProperties": false,
             }),
@@ -416,7 +422,16 @@ impl Server {
     }
 
     fn view_render(&mut self, arguments: &Value) -> Result<Value, String> {
-        only("view_render", arguments, &["size", "showTravel"])?;
+        const SHOW: [&str; 6] = [
+            "layers",
+            "colorBy",
+            "only",
+            "solo",
+            "needlePoints",
+            "trimMarks",
+        ];
+        let keys: Vec<&str> = ["size", "showTravel"].into_iter().chain(SHOW).collect();
+        only("view_render", arguments, &keys)?;
         let max = i64::from(self.config.max_preview_pixels);
         let size = match arguments.get("size") {
             None | Some(Value::Null) => RENDER_SIZE.min(max),
@@ -426,10 +441,14 @@ impl Server {
                 .ok_or_else(|| format!("view_render: 'size' must be an integer 64-{max}"))?,
         };
         let show_travel = opt_bool("view_render", arguments, "showTravel")?.unwrap_or(false);
-        let reply = self.run(
-            "ui.render",
-            &json!({ "size": size, "showTravel": show_travel }),
-        )?;
+        // View ▸ Show overrides (#517) go through to the editor, which checks them.
+        let mut params = json!({ "size": size, "showTravel": show_travel });
+        for k in SHOW {
+            if let Some(v) = arguments.get(k) {
+                params[k] = v.clone();
+            }
+        }
+        let reply = self.run("ui.render", &params)?;
         let png = reply
             .get("png")
             .and_then(Value::as_str)

@@ -82,7 +82,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     },
     UiCommand {
         id: "ui.zoom",
-        summary: "Zoom the view: a percentage, or fit the Design Page or the selection",
+        summary: "Zoom the view: a percentage (100 % = real size, calibrated per monitor), fit the Design Page or the selection, or zoom to a rectangle",
         effect: Effect::Read,
         params: &[
             p("percent", "percent", false, "Zoom, 5-3200 %"),
@@ -91,6 +91,12 @@ pub const UI_COMMANDS: &[UiCommand] = &[
                 "page|selection",
                 false,
                 "Fit the Design Page or the selection",
+            ),
+            p(
+                "rect",
+                "[x, y, width, height] mm",
+                false,
+                "Zoom Box: this rectangle fills the view",
             ),
         ],
     },
@@ -131,6 +137,27 @@ pub const UI_COMMANDS: &[UiCommand] = &[
                 false,
                 "Draw jumps as dashed lines (default false)",
             ),
+            p(
+                "layers",
+                "both|underlay|top",
+                false,
+                "Underlay only or top stitching only (default: View ▸ Show's setting)",
+            ),
+            p(
+                "colorBy",
+                "thread|order|mono",
+                false,
+                "Colour by thread, sewing order or one colour (default: View ▸ Show's setting)",
+            ),
+            p("only", "[int]", false, "Only these objects' stitches"),
+            p(
+                "solo",
+                "int",
+                false,
+                "Fade every colour block but this one (0-based)",
+            ),
+            p("needlePoints", "bool", false, "A dot at every needle drop"),
+            p("trimMarks", "bool", false, "A red cut mark at every trim"),
         ],
     },
     UiCommand {
@@ -306,6 +333,11 @@ pub const SETTINGS: &[Setting] = &[
         "bool",
     ),
     s("alignTo", "Align relative to", "selection|key|page"),
+    s(
+        "realSizePointsPerMM",
+        "Calibrate Real Size: points per mm at 100 % on this monitor",
+        "number 1.8..24 (0 = 96 dpi)",
+    ),
     s("rulers", "Ruler", "bool"),
     s("guides", "Guideline", "bool"),
     s("referenceWindow", "Reference Window", "bool"),
@@ -314,6 +346,16 @@ pub const SETTINGS: &[Setting] = &[
     s("paneAttributes", "Attributes Setting", "bool"),
     s("fontFilter", "Font Filter", "bool"),
     s("fontFilterHidden", "Font Filter Settings", "[string]"),
+    s("needlePoints", "View ▸ Show ▸ Needle Points", "bool"),
+    s(
+        "showLayers",
+        "View ▸ Show ▸ Underlay (both, underlay only, top only)",
+        "both|underlay|top",
+    ),
+    s("trimMarks", "View ▸ Show ▸ Trim Marks", "bool"),
+    s("hideUnselected", "View ▸ Show ▸ Hide Unselected", "bool"),
+    s("colorBy", "View ▸ Show ▸ Colour by", "thread|order|mono"),
+    s("soloColor", "View ▸ Show ▸ Solo Colour", "bool"),
     s(
         "simulatorSpeed",
         "Stitch Simulator: speed",

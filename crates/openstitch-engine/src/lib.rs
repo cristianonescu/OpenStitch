@@ -50,9 +50,11 @@ mod sewing_cmds;
 mod shape_ops;
 mod stamps;
 mod stitch_edit;
-pub mod templates;
 #[cfg(feature = "formats")]
+mod svg_settings;
+pub mod templates;
 pub mod thread_match;
+#[cfg(feature = "formats")]
 pub mod threadlists;
 mod timeline;
 #[cfg(feature = "formats")]

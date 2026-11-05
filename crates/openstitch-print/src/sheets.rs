@@ -885,6 +885,7 @@ fn section_sheet(design: &Design, full: &StitchPattern, s: &Section, opts: &Opti
         SectionKind::Split => "Section",
         SectionKind::Position => "Hoop position",
         SectionKind::JumboSide => "Jumbo frame",
+        SectionKind::Hooping => "Hooping",
     };
     let turned = if s.rotate180 {
         " (frame turned 180°)"
@@ -1148,6 +1149,7 @@ mod tests {
             opacity: 1.0,
             visible: true,
             adjust: Default::default(),
+            layer: Default::default(),
         });
         let img = Image {
             width: 2,

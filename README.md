@@ -78,7 +78,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 291: 186 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 95 planned beyond PE-DESIGN |
+| Feature matrix rows | 291: 190 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 91 planned beyond PE-DESIGN |
 | Compatibility specs | 454: 454 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 36: 29 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 10 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
@@ -300,13 +300,19 @@ that ends in a trim ties in and locks, as PE-DESIGN sews them, the image tools i
   [docs/FILE_FORMATS.md](docs/FILE_FORMATS.md).
 - **PES versions 1, 6 and 11** on export, with Design Property (category, author, keywords,
   comments). Version 6 with its stitch group is the default. Every PES version is read (1 to 11).
-- **SVG import** as editable shapes, colours snapped to the Brother chart.
+- **SVG import** as editable shapes, colours snapped to the Brother chart; clip paths and masks
+  applied, gradients as one colour or as colour bands, a list of what was left out (text, images,
+  invisible parts), and optionally stitch settings read from layer and object names
+  (`fill a=45`, `satin`, `run r=3`).
 - **WMF and EMF import** (placeable and standard WMF, EMF) as editable shapes.
 - **Editable `.osd` projects**, and large designs split into several files when a format's limits
   are exceeded.
 - **Thread charts:** Brother's 64-colour PEC chart with its catalogue numbers, PE-DESIGN's
   colour matching, and your own charts as CSV, exported in the layout PE-DESIGN's Import Chart
-  reads.
+  reads, or as GIMP / Inkscape `.gpl` palettes. Beyond PE-DESIGN: match a design to any chart
+  (Madeira, Isacord, Sulky, Robison-Anton or your own) by perceived colour (CIEDE2000) with a
+  preview that keeps distinct colours apart, merge near-identical colours to save thread
+  changes, and find a thread by number or name.
 
 ### Machine transfer
 
@@ -641,7 +647,6 @@ PE-DESIGN 11 does not. Each item is sketched in
 - Test swatch of the selection: the selected objects centred in the smallest hoop they fit and exported or sent on their own, the design unchanged (#452)
 - Fabric calibration swatch: a graded card of fill density, satin density and pull compensation sewn on the user's fabric, the chosen rows saved as a custom fabric entry beside the Fabric Selector's types (#453)
 - Garment mockups: the Realistic preview placed on a T-shirt, cap or tote picture (OpenStitch's own artwork) and saved as an image (#454)
-- SVG import reads stitch settings from layer and object names (opt-in naming syntax; the default import unchanged) (#455)
 - Arched text with several lines as concentric rings around one centre (#456)
 - AI assistant tool surface (B17, phase A0): everything the user can do in the editor is reachable from the assistant. The automation socket answers ui.* editor commands beside the engine's (state, every ribbon/menu command through ui.run, selection, zoom, settings, live render, simulator, Help, updates, a scratch folder for SVGs and pictures). openstitch-mcp --assistant offers seven meta tools (commands_list, command_describe, execute, run_batch, view_render, scratch_write, skill_reference) over them, and a bundled embroidery skill (skills/openstitch-embroidery)
 - AI assistant panel (B17, phase A1): a chat beside the design (View ▸ Show/Hide ▸ Assistant, Ctrl/Cmd+Shift+A). Claude API with the user's own key in the OS keychain (default claude-opus-5-5, streaming, adaptive thinking). The model drives the editor through the A0 tools in-process. A permission gate judges each command by its effect: files, machine transfer, Exit and undoing earlier work ask (Allow once / Always allow / Deny, declined after 4 minutes), and there is an optional change limit. Everything one message changes is one undo step, Save as script writes it out, and messages typed during a turn are queued. Preferences: Options ▸ Show AI features (on by default, owner 2026-11-04) and the panel's settings. The panel opens on first start and then as the user left it (panelOpen in ui.json; an older ui.json reads as open), and closing it says how to reopen it (View ▸ Show/Hide ▸ Assistant, the shortcut, and Options ▸ Show AI features when AI is off) until "Don't show this again" (#422)
@@ -671,9 +676,6 @@ PE-DESIGN 11 does not. Each item is sketched in
 - Live remove-hidden-stitching: stitches under later objects left out at compile time with an overlap margin, shapes unchanged, stitches saved reported (B11) (#511) (#511)
 - Machine stops: stop after a chosen object and a one-click Stop at Jumps for machines without a thread cutter (#512) (#512)
 - Job sheets: client approval and operator worksheets with job fields, colour sequence, stops, time and branding (W7) (#513) (#513)
-- Free multi-hooping: overlapping hoopings placed freely, objects kept whole, alignment marks followed by a stop, per-hooping files (W1) (#515) (#515)
-- View toggles: needle points, underlay or top only, trim marks, hide unselected, colour by sewing order or monochrome, solo colour (#517) (#517)
-- Zoom box, real size calibrated to the display, and a reference image placed between objects in the sewing order with canvas handles (#518) (#518)
 - Satin corner styles (turn / mitre below 75° / cap below 45°, 0.5 mm overlap) on satin regions, columns, skeleton satin, zigzag lines and borders (B3) (#520)
 - Short stitches on inner curves for every satin kind (Manual Punch, skeleton satin, borders, lettering), with distance and inset settings (B3) (#521)
 - Pull compensation per side and as a percentage of stitch width, plus push compensation on straight-row fills (B5) (#522)

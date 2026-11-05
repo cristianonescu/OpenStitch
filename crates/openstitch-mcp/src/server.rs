@@ -489,9 +489,11 @@ impl Server {
                     .into(),
             );
         }
+        // View ▸ Show (#517), the same as the editor's.
+        let show = preview::show_args(arguments, preview::ShowArgs::default())?;
         let design = self.session.design();
-        let pattern = Compiler::for_design(design).compile(design);
-        let png = preview::png(design, &pattern, size as u32, show_travel)?;
+        let (pattern, spans) = Compiler::for_design(design).compile_traced(design);
+        let png = preview::png_shown(design, &pattern, &spans, size as u32, show_travel, &show)?;
         let stats = self
             .session
             .execute("design.generate", None)

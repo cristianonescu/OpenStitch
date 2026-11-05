@@ -183,6 +183,7 @@ actions! {
     StitchView => "stitchView", "Stitch View", "Stitches drawn as lines.", None, None, true;
     RealisticView => "realisticView", "Realistic View", "Stitches drawn as thread with shading.", None, None, true;
     ViewThreadTrimming => "viewTrimming", "View Thread Trimming", "Show the jumps between stitched areas.", None, None, true;
+    ViewShow => "viewShow", "Show", "One aspect of the stitching at a time: needle points, underlay or top only, trim marks, only the selection, colour by sewing order or one colour, solo colour.", None, None, true;
     RealisticSettings => "realisticSettings", "Realistic View Settings", "Thread width, contrast and brightness of the realistic view.", None, None, true;
     PaneSewingOrder => "paneSewingOrder", "Sewing Order", "Show or hide the Sewing Order pane.", None, None, true;
     PaneSimulator => "paneSimulator", "Stitch Simulator", "Show or hide the Stitch Simulator pane.", None, None, true;
@@ -273,6 +274,7 @@ impl Action {
                 | SaveImage
                 | ImageDensity
                 | GridSpacing
+                | ViewShow
                 | Font
                 | TextSize
                 | EditText
@@ -558,7 +560,7 @@ const VIEW: &[Group] = &[
             Large(A::SolidView),
             Large(A::StitchView),
             Large(A::RealisticView),
-            Small(&[A::ViewThreadTrimming, A::RealisticSettings]),
+            Small(&[A::ViewThreadTrimming, A::RealisticSettings, A::ViewShow]),
         ],
     },
     Group {

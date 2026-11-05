@@ -37,11 +37,18 @@ pub const MAX_SVG_POINTS: usize = 500_000;
 const PX: f64 = 254.0 / 96.0;
 
 /// A shape read from an SVG, in 0.1 mm with the SVG's own origin.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct SvgShape {
     pub contours: Vec<Contour>,
     pub fill: Option<Thread>,
     pub stroke: Option<Thread>,
+    /// The ids of the element and of the named groups around it, outermost first (for the
+    /// stitch settings in names, #455).
+    pub names: Vec<String>,
+    /// The stroke's dash pattern (dash, gap, …) and offset in 0.1 mm, if it is dashed.
+    pub dashes: Option<(Vec<f64>, f64)>,
+    /// `paint-order` puts the stroke before the fill.
+    pub stroke_first: bool,
 }
 
 /// Why an SVG could not be imported.
@@ -225,6 +232,7 @@ pub fn parse_svg_with(data: &[u8], opts: &SvgOptions) -> Result<SvgImport, SvgEr
         opacity: 1.0,
         clip: None,
         id: String::new(),
+        names: Vec::new(),
     };
     out.group(tree.root(), &ctx)?;
     Ok(out.import)
@@ -332,6 +340,8 @@ struct Ctx {
     clip: Option<std::rc::Rc<Vec<Contour>>>,
     /// The id of the nearest named element, for the report.
     id: String,
+    /// The ids of the named groups around the node, outermost first.
+    names: Vec<String>,
 }
 
 struct Walk<'a> {
@@ -632,6 +642,7 @@ impl Walk<'_> {
                     c.opacity *= f64::from(g.opacity().get());
                     if !g.id().is_empty() {
                         c.id = g.id().to_string();
+                        c.names.push(g.id().to_string());
                     }
                     let ts = g.abs_transform();
                     if let Some(cp) = g.clip_path() {
@@ -649,12 +660,48 @@ impl Walk<'_> {
                     }
                     self.group(g, &c)?;
                 }
-                usvg::Node::Path(path) => self.path(path, ctx)?,
+                usvg::Node::Path(path) => {
+                    let start = self.import.shapes.len();
+                    self.path(path, ctx)?;
+                    self.annotate(path, ctx, start);
+                }
                 usvg::Node::Image(i) => self.import.report.skip("image", i.id()),
                 usvg::Node::Text(t) => self.import.report.skip("text", t.id()),
             }
         }
         Ok(())
+    }
+
+    /// Gives the shapes `path` added (from `start`) its names, dash pattern and paint order;
+    /// with `paint-order: stroke`, its stroke-only pieces go before its fills.
+    fn annotate(&mut self, path: &usvg::Path, ctx: &Ctx, start: usize) {
+        let mut names = ctx.names.clone();
+        if !path.id().is_empty() {
+            names.push(path.id().to_string());
+        }
+        // Dash lengths are in the path's units: scaled by its transform's mean scale.
+        let t = path.abs_transform();
+        let scale = f64::from((t.sx * t.sy - t.kx * t.ky).abs()).sqrt() * PX;
+        let dashes = path.stroke().and_then(|s| {
+            s.dasharray().map(|d| {
+                (
+                    d.iter()
+                        .map(|&v| f64::from(v) * scale)
+                        .collect::<Vec<f64>>(),
+                    f64::from(s.dashoffset()) * scale,
+                )
+            })
+        });
+        let stroke_first = path.paint_order() == usvg::PaintOrder::StrokeAndFill;
+        let added = &mut self.import.shapes[start..];
+        for shape in added.iter_mut() {
+            shape.names = names.clone();
+            shape.dashes = dashes.clone();
+            shape.stroke_first = stroke_first;
+        }
+        if stroke_first {
+            added.sort_by_key(|s| s.fill.is_some());
+        }
     }
 
     fn path(&mut self, path: &usvg::Path, ctx: &Ctx) -> Result<(), SvgError> {
@@ -717,6 +764,7 @@ impl Walk<'_> {
                     contours,
                     fill: fills.pop().map(|f| f.1),
                     stroke: stroke_thread,
+                    ..SvgShape::default()
                 });
             }
             for (c, t) in fills {
@@ -724,6 +772,7 @@ impl Walk<'_> {
                     contours: c,
                     fill: Some(t),
                     stroke: None,
+                    ..SvgShape::default()
                 })?;
             }
             if let Some(t) = stroke_thread {
@@ -731,6 +780,7 @@ impl Walk<'_> {
                     contours,
                     fill: None,
                     stroke: Some(t),
+                    ..SvgShape::default()
                 })?;
             }
             return Ok(());
@@ -754,6 +804,7 @@ impl Walk<'_> {
                         contours: c,
                         fill: Some(t),
                         stroke: None,
+                        ..SvgShape::default()
                     })?;
                 }
             } else {
@@ -765,6 +816,7 @@ impl Walk<'_> {
                         contours: pieces,
                         fill: Some(t),
                         stroke: None,
+                        ..SvgShape::default()
                     })?;
                 }
             }
@@ -780,6 +832,7 @@ impl Walk<'_> {
                     contours: pieces,
                     fill: None,
                     stroke: Some(t),
+                    ..SvgShape::default()
                 })?;
             }
         }
@@ -930,6 +983,11 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
                     "0–1",
                     "Fills and strokes less opaque than this are left out and listed (default 0.1)",
                 ),
+                opt(
+                    "settings",
+                    "bool",
+                    "Read stitch settings from layer and object names (\"fill a=45 s=0.4\", \"satin\", \"run r=3\", \"stroke.satin w=3\", \"skip\"; docs/FILE_FORMATS.md), split dashed strokes into one line per dash and sew paint-order: stroke outlines first (default false)",
+                ),
             ],
             |s, p| {
                 let (_, data) = read_file(s, p, MAX_SVG_BYTES)?;
@@ -944,7 +1002,33 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
                 };
                 let import = parse_svg_with(&data, &opts).map_err(|e| p.failed(e.to_string()))?;
                 let report = import.report.to_json();
-                let mut out = import_shapes(s, p, import.shapes, "the SVG")?;
+                let mut out = if p.bool("settings", Some(false))? {
+                    use crate::svg_settings as names;
+                    let mut named = names::Report::default();
+                    let prepared =
+                        names::prepare(import.shapes, &names::names_by_id(&data), &mut named);
+                    let (shapes, sets): (Vec<SvgShape>, Vec<names::Settings>) =
+                        prepared.into_iter().unzip();
+                    let mut out = import_shapes(s, p, shapes, "the SVG")?;
+                    let ids: Vec<u64> = out["ids"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(Value::as_u64)
+                        .collect();
+                    let placed: Vec<(u64, names::Settings)> = ids.into_iter().zip(sets).collect();
+                    names::apply(s, &placed, &mut named);
+                    out["settings"] = json!({
+                        "applied": named.applied,
+                        "skipped": named.skipped,
+                        "dashed": named.dashed,
+                        "unknown": named.unknown,
+                        "invalid": named.invalid,
+                    });
+                    out
+                } else {
+                    import_shapes(s, p, import.shapes, "the SVG")?
+                };
                 out["skipped"] = report["skipped"].clone();
                 out["approximated"] = report["approximated"].clone();
                 Ok(out)
@@ -1046,9 +1130,21 @@ fn place(s: &mut EngineState, p: &Params, shapes: Vec<SvgShape>, b: Rect) -> cra
 #[cfg(feature = "digitize")]
 fn background_commands() -> Vec<CommandSpec> {
     use crate::sandbox::Access;
-    use openstitch_design::{BackgroundImage, ImageAdjust};
+    use openstitch_design::{BackgroundImage, BackgroundLayer, ImageAdjust};
     use openstitch_digitize::Raster;
     use openstitch_digitize::raster::MAX_FILE_BYTES;
+
+    /// The background's layer as `background.setLayer` reports it.
+    fn layer_json(b: &openstitch_design::BackgroundImage) -> serde_json::Value {
+        use openstitch_design::BackgroundLayer;
+        match b.layer {
+            BackgroundLayer::Bottom => json!({ "position": "bottom", "opacity": b.opacity }),
+            BackgroundLayer::Top => json!({ "position": "top", "opacity": b.opacity }),
+            BackgroundLayer::AfterObject { after } => {
+                json!({ "position": "afterObject", "afterId": after, "opacity": b.opacity })
+            }
+        }
+    }
 
     fn opacity(p: &Params, default: f64) -> Result<f64, CommandError> {
         p.opt("opacity", default, 0.0, 1.0)
@@ -1129,6 +1225,7 @@ fn background_commands() -> Vec<CommandSpec> {
                     opacity: opacity(p, 0.5)?,
                     visible: true,
                     adjust: ImageAdjust::default(),
+                    layer: BackgroundLayer::default(),
                 };
                 let out = json!({
                     "path": background.path,
@@ -1157,6 +1254,46 @@ fn background_commands() -> Vec<CommandSpec> {
                 b.visible = visible;
                 b.opacity = o;
                 Ok(json!({ "visible": visible, "opacity": o }))
+            },
+        ),
+        spec(
+            "background.setLayer",
+            "Where the background image is drawn (beyond PE-DESIGN): bottom (behind the design, the default), top (over it, with its opacity) or afterObject (above that object, below the ones sewn after it). It never sews and machine files are unchanged",
+            Effect::Edit,
+            vec![
+                req(
+                    "position",
+                    "bottom|top|afterObject",
+                    "Where to draw the image",
+                ),
+                opt(
+                    "afterId",
+                    "int",
+                    "afterObject: the object the image sits above",
+                ),
+                opt("opacity", "0–1", "Opacity (default: unchanged)"),
+            ],
+            |s, p| {
+                let layer = match p.string("position", None)?.as_str() {
+                    "bottom" => BackgroundLayer::Bottom,
+                    "top" => BackgroundLayer::Top,
+                    "afterObject" => {
+                        let id = p.int("afterId", None, 0, i64::MAX)? as u64;
+                        if s.design.index_of(id).is_none() {
+                            return Err(p.not_found(format!("object {id}")));
+                        }
+                        BackgroundLayer::AfterObject { after: id }
+                    }
+                    _ => return Err(p.invalid("position", "use bottom, top or afterObject")),
+                };
+                if p.has("afterId") && !matches!(layer, BackgroundLayer::AfterObject { .. }) {
+                    return Err(p.invalid("afterId", "only with position afterObject"));
+                }
+                let b = background(s, p)?;
+                let o = opacity(p, b.opacity)?;
+                b.layer = layer;
+                b.opacity = o;
+                Ok(layer_json(b))
             },
         ),
         spec(

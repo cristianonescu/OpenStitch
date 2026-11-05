@@ -198,11 +198,35 @@ impl EditorApp {
                 ) {
                     (Some("page"), None) => self.fit_requested = true,
                     (Some("selection"), None) => crate::ribbon::zoom_to_selection(self),
+                    (None, None) if params.and_then(|v| v.get("rect")).is_some() => {
+                        // Zoom Box (#518): [x, y, width, height] in mm fills the view.
+                        let r: Vec<f64> = params
+                            .and_then(|v| v.get("rect"))
+                            .and_then(|v| serde_json::from_value(v.clone()).ok())
+                            .filter(|r: &Vec<f64>| r.len() == 4 && r.iter().all(|v| v.is_finite()))
+                            .ok_or("rect takes [x, y, width, height] in mm")?;
+                        let rect = openstitch_design::Rect {
+                            min_x: r[0] * 10.0,
+                            min_y: r[1] * 10.0,
+                            max_x: (r[0] + r[2]) * 10.0,
+                            max_y: (r[1] + r[3]) * 10.0,
+                        };
+                        let canvas = self.workspace.canvas.ok_or("the canvas is not shown yet")?;
+                        self.viewport = Some(
+                            openstitch_app::editor::Viewport::zoom_box(
+                                rect,
+                                crate::workspace_ui::screen_rect(canvas),
+                            )
+                            .ok_or("rect needs a positive width and height")?,
+                        );
+                    }
                     (None, Some(v)) => {
                         let percent = number_value("percent", v, 5.0, 3200.0)?;
                         crate::ribbon::zoom_to_percent(self, percent);
                     }
-                    _ => return Err("give either percent or fit (page or selection)".into()),
+                    _ => {
+                        return Err("give one of percent, fit (page or selection) or rect".into());
+                    }
                 }
                 Ok(json!({ "zoomPercent": self.zoom_percent() }))
             }
@@ -219,11 +243,21 @@ impl EditorApp {
             "ui.render" => {
                 let size = p.int("size", Some(800), 64, 2048).map_err(err)? as u32;
                 let travel = p.bool("showTravel", Some(false)).map_err(err)?;
-                let png = openstitch_render::preview::png(
+                // What View ▸ Show shows (#517), each setting overridable here.
+                use openstitch_render::preview;
+                let defaults = preview::ShowArgs {
+                    filter: self.view_filter(),
+                    needle_points: self.ui.prefs.show.needle_points,
+                    trim_marks: self.ui.prefs.show.trim_marks,
+                };
+                let show = preview::show_args(params.unwrap_or(&Value::Null), defaults)?;
+                let png = preview::png_shown(
                     self.session.design(),
                     &self.pattern,
+                    &self.quality.spans,
                     size,
                     travel,
+                    &show,
                 )?;
                 let (width, height) = png_size(&png);
                 Ok(json!({
@@ -347,7 +381,8 @@ impl EditorApp {
     }
 
     fn zoom_percent(&self) -> Option<f64> {
-        self.viewport.map(|vp| vp.zoom_percent(96.0 / 25.4))
+        let ppm = self.points_per_mm();
+        self.viewport.map(|vp| vp.zoom_percent(ppm))
     }
 
     fn stats_json(&self) -> Value {
@@ -384,6 +419,21 @@ impl EditorApp {
             "simulator": self.simulator_json(),
             "canUndo": self.session.can_undo(), "canRedo": self.session.can_redo(),
             "settings": self.ui_settings(),
+            // The background image and its layer (#518): pictures never draw it.
+            "background": self.session.design().background.as_ref().map(|b| {
+                let layer = match b.layer {
+                    openstitch_design::BackgroundLayer::Bottom => json!({ "position": "bottom" }),
+                    openstitch_design::BackgroundLayer::Top => json!({ "position": "top" }),
+                    openstitch_design::BackgroundLayer::AfterObject { after } => {
+                        json!({ "position": "afterObject", "afterId": after })
+                    }
+                };
+                json!({
+                    "visible": b.visible, "opacity": b.opacity, "layer": layer,
+                    "xMM": b.x / 10.0, "yMM": b.y / 10.0,
+                    "widthMM": b.width / 10.0, "heightMM": b.height / 10.0,
+                })
+            }),
         })
     }
 
@@ -424,6 +474,7 @@ impl EditorApp {
                 "nudgeStep" => json!(prefs.editing.nudge_mm),
                 "nudgeByGrid" => json!(prefs.editing.nudge_grid),
                 "alignTo" => json!(self.align_to),
+                "realSizePointsPerMM" => json!(self.points_per_mm()),
                 "rulers" => json!(w.rulers),
                 "guides" => json!(w.guides),
                 "referenceWindow" => json!(w.reference),
@@ -432,6 +483,12 @@ impl EditorApp {
                 "paneAttributes" => json!(prefs.panes.attributes.visible),
                 "fontFilter" => json!(prefs.font_filter.on),
                 "fontFilterHidden" => json!(prefs.font_filter.hidden),
+                "needlePoints" => json!(prefs.show.needle_points),
+                "showLayers" => json!(prefs.show.layers.as_str()),
+                "trimMarks" => json!(prefs.show.trim_marks),
+                "hideUnselected" => json!(prefs.show.hide_unselected),
+                "colorBy" => json!(prefs.show.color_by.as_str()),
+                "soloColor" => json!(prefs.show.solo),
                 "simulatorSpeed" => json!(self.play_speed),
                 other => unreachable!("setting {other} has no value"),
             };
@@ -527,6 +584,18 @@ impl EditorApp {
                     .ok_or("alignTo takes selection, key or page")?;
                 save = false;
             }
+            "realSizePointsPerMM" => {
+                // #518: a ruler reading turned into points per mm; 0 goes back to 96 dpi.
+                let k = v.as_f64().ok_or("realSizePointsPerMM takes a number")?;
+                let key = self.monitor_key();
+                if k == 0.0 {
+                    self.ui.prefs.calibrate(&key, None);
+                } else {
+                    let k = openstitch_app::editor::viewport::calibrated(k, 1.0)
+                        .ok_or("realSizePointsPerMM takes 1.8-24 points per mm, or 0 for 96 dpi")?;
+                    self.ui.prefs.calibrate(&key, Some(k));
+                }
+            }
             "rulers" => (self.workspace.rulers, save) = (bool_value(name, v)?, false),
             "guides" => {
                 self.workspace.guides = bool_value(name, v)?;
@@ -544,6 +613,22 @@ impl EditorApp {
                 self.ui.prefs.font_filter.hidden = serde_json::from_value(v.clone())
                     .map_err(|_| "fontFilterHidden takes a list of font ids".to_string())?
             }
+            "needlePoints" => self.ui.prefs.show.needle_points = bool_value(name, v)?,
+            "showLayers" => {
+                self.ui.prefs.show.layers = v
+                    .as_str()
+                    .and_then(openstitch_design::view::Layers::parse)
+                    .ok_or("showLayers takes both, underlay or top")?;
+            }
+            "trimMarks" => self.ui.prefs.show.trim_marks = bool_value(name, v)?,
+            "hideUnselected" => self.ui.prefs.show.hide_unselected = bool_value(name, v)?,
+            "colorBy" => {
+                self.ui.prefs.show.color_by = v
+                    .as_str()
+                    .and_then(openstitch_design::view::ColorBy::parse)
+                    .ok_or("colorBy takes thread, order or mono")?;
+            }
+            "soloColor" => self.ui.prefs.show.solo = bool_value(name, v)?,
             "simulatorSpeed" => {
                 (self.play_speed, save) = (number_value(name, v, 1.0, 5000.0)?, false)
             }
@@ -725,6 +810,46 @@ mod tests {
         )
         .expect("view");
         assert!(app.workspace.realistic);
+        // #517: "show me only the underlay".
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "showLayers", "value": "underlay" })),
+        )
+        .expect("layers");
+        assert_eq!(
+            app.ui.prefs.show.layers,
+            openstitch_design::view::Layers::UnderlayOnly
+        );
+        // #518: real size from a ruler reading, and back to 96 dpi.
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "realSizePointsPerMM", "value": 4.5 })),
+        )
+        .expect("calibrate");
+        assert_eq!(app.points_per_mm(), 4.5);
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "realSizePointsPerMM", "value": 0 })),
+        )
+        .expect("reset");
+        assert_eq!(
+            app.points_per_mm(),
+            openstitch_app::editor::viewport::DEFAULT_POINTS_PER_MM
+        );
+        assert!(
+            app.ui_command(
+                "ui.set",
+                Some(&json!({ "name": "colorBy", "value": "plaid" }))
+            )
+            .is_err()
+        );
+        assert!(
+            app.ui_command(
+                "ui.set",
+                Some(&json!({ "name": "realSizePointsPerMM", "value": 900 }))
+            )
+            .is_err()
+        );
         // #519: the Assistant switches the unit; the Design Database follows.
         app.ui_command("ui.set", Some(&json!({ "name": "units", "value": "inch" })))
             .expect("units");
@@ -746,6 +871,78 @@ mod tests {
         );
         assert!(
             app.ui_command("ui.set", Some(&json!({ "name": "nope", "value": 1 })))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn ui_render_shows_what_view_show_sets() {
+        let mut app = demo();
+        let render = |app: &mut EditorApp, extra: Value| -> String {
+            let mut params = json!({ "size": 300 });
+            for (k, v) in extra.as_object().expect("object") {
+                params[k] = v.clone();
+            }
+            app.ui_command("ui.render", Some(&params)).expect("render")["png"]
+                .as_str()
+                .expect("png")
+                .to_string()
+        };
+        let plain = render(&mut app, json!({}));
+        // Settings made with ui.set change view_render's picture ("show me only the underlay").
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "showLayers", "value": "top" })),
+        )
+        .expect("layers");
+        let top = render(&mut app, json!({}));
+        assert_ne!(top, plain);
+        assert_eq!(
+            render(&mut app, json!({ "layers": "both" })),
+            plain,
+            "override"
+        );
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "showLayers", "value": "both" })),
+        )
+        .expect("back");
+        // Hide unselected and solo colour, through the editor's own settings.
+        app.selection = [app.session.design().objects[0].id].into_iter().collect();
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "hideUnselected", "value": true })),
+        )
+        .expect("hide");
+        let only = render(&mut app, json!({}));
+        assert_ne!(only, plain);
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "hideUnselected", "value": false })),
+        )
+        .expect("unhide");
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "soloColor", "value": true })),
+        )
+        .expect("solo");
+        let solo = render(&mut app, json!({}));
+        assert_ne!(solo, plain);
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "soloColor", "value": false })),
+        )
+        .expect("no solo");
+        for extra in [
+            json!({ "needlePoints": true }),
+            json!({ "trimMarks": true }),
+            json!({ "colorBy": "mono" }),
+        ] {
+            assert_ne!(render(&mut app, extra.clone()), plain, "{extra}");
+        }
+        assert_eq!(render(&mut app, json!({})), plain);
+        assert!(
+            app.ui_command("ui.render", Some(&json!({ "layers": "inside" })))
                 .is_err()
         );
     }
@@ -797,6 +994,34 @@ mod tests {
         app.ui_command("ui.select", Some(&json!({ "mode": "none" })))
             .expect("none");
         assert!(app.selection.is_empty());
+        // #518: Zoom Box through ui.zoom: the rectangle fills the canvas.
+        app.workspace.canvas = Some(eframe::egui::Rect::from_min_size(
+            eframe::egui::pos2(0.0, 0.0),
+            eframe::egui::vec2(800.0, 600.0),
+        ));
+        let state = app.ui_command("ui.state", None).expect("state");
+        assert!(
+            state["background"].is_null(),
+            "no image: {}",
+            state["background"]
+        );
+        let before = app.viewport;
+        app.ui_command("ui.zoom", Some(&json!({ "rect": [10, 10, 40, 20] })))
+            .expect("zoom box");
+        let vp = app.viewport.expect("viewport");
+        assert_ne!(Some(vp), before);
+        let (a, b) = (
+            vp.to_screen(openstitch_design::v2(100.0, 100.0)),
+            vp.to_screen(openstitch_design::v2(500.0, 300.0)),
+        );
+        assert!(((b.x - a.x) / 800.0 - 1.0).abs() < 0.02, "{a:?} {b:?}");
+        for bad in [json!([10, 10, 40]), json!([10, 10, 0, 20]), json!("box")] {
+            assert!(
+                app.ui_command("ui.zoom", Some(&json!({ "rect": bad.clone() })))
+                    .is_err(),
+                "{bad}"
+            );
+        }
         app.ui_command("ui.zoom", Some(&json!({ "fit": "page" })))
             .expect("fit");
         assert!(app.fit_requested);
