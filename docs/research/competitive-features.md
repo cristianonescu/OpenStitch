@@ -1126,25 +1126,29 @@ OpenStitch; the GPL and unlicensed repositories are concept-only, exactly as Ink
   latest release v0.3.0 of 2026-09-27, a 0.4.0 release commit on 2026-10-30). A cross-platform
   digitizing app: artwork auto-digitizing, about 120 embroidery fonts plus system fonts,
   drawing tools, stitch preview and a pre-sew check. The 0.4.0 commits add blanket, meander
-  and cross-stitch types, sharp satin corners sewn as fans instead of refused (O3), staggered
-  satin split points so long satins do not form a groove (new row: split-line staggering),
-  travel kept inside fills with chosen start/end points (D3), test swatches of the selection,
+  and cross-stitch types, sharp satin corners sewn as fans instead of refused (O3; OpenStitch's Auto satin already
+  sews a corner fan), staggered satin split points so long satins do not form a groove
+  (OpenStitch has it: `splitLength` splits long rows into staggered stitches),
+  travel kept inside fills with chosen start/end points (D3), test swatches of the selection
+  (#452),
   copy/paste of stitch settings and "select same stitch type", stitch settings read from SVG
-  layer and object names (W5), and an INF colour file written beside EXP for Bernina.
-  Ideas for OpenStitch: test swatch of a selection, staggered splits, settings carried in
-  SVG names. https://github.com/vomitselfie/Morale (single source)
+  layer and object names (W5, #455), and an INF colour file written beside EXP for Bernina.
+  Ideas for OpenStitch: test swatch of a selection (#452), settings carried in SVG names
+  (#455). https://github.com/vomitselfie/Morale (single source)
 - **alexandra03/threadspool** (no licence: all rights reserved, concept-only; Python; created
   2026-07, last push 2026-07-21, no releases). An experiment where an LLM agent writes a
   design spec from a natural-language prompt and a deterministic engine compiles it to VP3,
   with a notes file of learned format facts. Relevant to OpenStitch's AI-feature track as
-  prior art for prompt-to-design; also a VP3 writer (W6, OpenStitch ○).
+  prior art for prompt-to-design; also a VP3 writer (W6, OpenStitch ○). No issue: the
+  Assistant (B17) already turns a prompt into a design through the engine's commands.
   https://github.com/alexandra03/threadspool (single source)
 - **lork-fork/Roidery** (Apache-2.0, Rust; created 2026-10-14, last push 2026-10-20, no
   releases). An Illustrator-style digitizer built on a vector editor. Beyond OpenStitch today:
   two-rail satin blocks with draggable rungs and width tapering (O2, OS ◐), a "convert filled
-  shape to centre-line satin" command (D12-adjacent, new row), a fill-angle drag tool (F4,
+  shape to centre-line satin" command (D12-adjacent; OpenStitch has it as Shapes ▸ Satin
+  Skeleton from Shape, `object.deriveSkeleton`), a fill-angle drag tool (F4,
   OS ○), contour and circular fills (F1), garment mockups (T-shirt, cap, tote) exported as
-  images for customers (new row), a one-page production worksheet (W7), match-to-chart thread
+  images for customers (new row, #454), a one-page production worksheet (W7), match-to-chart thread
   conversion with imported charts (W3, OS ○), and VP3, U01, TAP export plus DSB/DSZ/HUS reading
   (W6, OS ○). Optional download of the Ink/Stitch community fonts (OFL/GPL assets, not for
   OpenStitch). Licence is permissive, but the project rule still applies: ideas only.
@@ -1154,27 +1158,29 @@ OpenStitch; the GPL and unlicensed repositories are concept-only, exactly as Ink
   scribble with noise) and offers "subdivision functions" that split a length into equal or
   varying segments shifted per row. Relevant to F8/F9 (meander, hand-stitch randomisation)
   and O5 (motif distribution); the documented catalogue of decorative stitch effects is a
-  useful checklist. https://github.com/bastanja/stitch_generator (single source)
+  useful checklist for B9 (no issue of its own). https://github.com/bastanja/stitch_generator (single source)
 - **EvenDog/openhoop** (GPL-3.0, Swift, macOS; created 2026-10-15, last push and release
   v0.9.3 on 2026-11-05, releases almost daily). A Mac digitizer that has sewn real designs on
   a Brother SE600. Beyond OpenStitch today: branching of touching shapes without trims (D1,
   OS ○ B4), short stitches on curves and split wide satin (O4), contour fills that spiral on
   cornered shapes (F1), colour blend from one thread into a second with a levels-style mix
-  control (F6, OS ○ B6), arched lettering with several lines as concentric rings (D9),
+  control (F6, OS ○ B6), arched lettering with several lines as concentric rings (D9, #456),
   envelope lettering and monograms, laydown and basting box (F12, OS ○ B12), 21 thread-brand
   charts (W3), multi-hooping with alignment marks (W1), user-named custom hoops, SVG import of
   `<use>`, `<style>` and gradients as gradient fills (W5), and every exported file read back
-  and checked before saving (D15-adjacent). https://github.com/EvenDog/openhoop (single source)
+  and checked before saving (D15-adjacent, #457). https://github.com/EvenDog/openhoop (single source)
 - **benkl/filum** (GPL-3.0, Rust engine + TypeScript UI, web and Tauri desktop; created
   2026-11-04, release 0.1.0 the same day). Its README states the Rust engine is a port of the
   Ink/Stitch algorithms, so it is GPL-derived: concepts only, never a source. Beyond
   OpenStitch today: auto-digitize presets (logo, patch, line art, photo, pixel art), 134
   bundled fonts, knockdown and basting (F12), a stitch-out player with a colour-block
   timeline, fabric calibration that sews a swatch and starts settings from measured values
-  (new row; ties into OpenStitch's own calibration-scan work), G-code and video export, and a
+  (new row, #453; ties into OpenStitch's own calibration-scan work), G-code and video export, and a
   browser build. https://github.com/benkl/filum (single source)
 
 No comparison-matrix row changes: the matrix compares the surveyed commercial products and
-Ink/Stitch; the open-source projects above are tracked here. Candidate new matrix rows for
-the coordinator: satin split staggering, convert fill to centre-line satin, garment mockups,
-fabric calibration swatch, selection test swatch.
+Ink/Stitch; the open-source projects above are tracked here. New "Planned (beyond PE-DESIGN)"
+rows in FEATURE_MATRIX.md and a ranking in ROADMAP.md: export read-back check (#457), selection
+test swatch (#452), fabric calibration swatch (#453), arched text with several lines (#456),
+settings from SVG names (#455), garment mockups (#454). Satin split staggering and convert fill
+to centre-line satin were candidates but OpenStitch already has both.
