@@ -508,6 +508,18 @@ Line references are relative to `crates/`.
   149; X 314 against 277 and T 208 against 186 unchanged and the furthest (#446). Fill text is
   unchanged (8.0 %). Under sewing per stroke is
   still open (step 5 of the research note), and no satin capture under 8 mm exists yet.
+  Since 2026-11-05 (#465, small lettering): each separate piece of a letter is cut into strokes
+  and sewn on its own, with trims between (the i's dot and stem, the pieces a small N is cut
+  into), as PE-DESIGN sews its lower-case i in separate runs; cut together, the stem's column
+  ran up into the dot, which tapered or vanished at 5-10 mm. stroke-satin-lower-i: IoU 0.81 →
+  0.94, mean distance 0.243 → 0.148 mm (ours) and 0.224 → 0.183 mm (PE-DESIGN's), count 121 → 117
+  against 128 (PE-DESIGN ties its dot in two runs); stroke-fill-lower-i: count 213 → 201, PE-DESIGN's
+  exactly, IoU 0.86 → 0.96. Text under 6 mm travels straight under a stroke still to be sewn
+  where the outline walk would go round it (the walk drew boxes round t's bar); from 6 mm up
+  the walk stays, since every capture (6 mm and larger) matches it in stitch count. Letters are
+  still sewn across up to 2.3 mm (PE-DESIGN's captures trim every letter move, all longer
+  than that). The other 226 text captures are unchanged. #446 (N's corner, X's chevrons,
+  slanted arm ends) stays open: ten tries measured in the issue, none closer on every letter.
 - **Test:**
   - Inputs: `text.add {"text":"AVOW","size":30,"x":50,"y":50}` →
     `object.setRegion {"id":1,"type":"satin"}` → `design.generate`.
@@ -2319,7 +2331,8 @@ Line references are relative to `crates/`.
   satins 20-30 mm long, cross stitch reading as "+", 2 mm frame ornaments sewn as plain squares,
   an appliqué heart sewn whole under its fabric, a name wider than its shield, 4 mm text, stale
   built-in templates (version 1, old defaults) and monogram letters cut by the Diamond/Circle
-  clip; all fixed in the kit script and the examples. Engine causes are #458-#471.
+  clip; all fixed in the kit script and the examples (the monogram clip in the engine since,
+  #458: letters are warped onto the silhouette, and the kit's varied letters are back). Engine causes are #458-#471.
 
 ### Auto Punch on bold lettering, 2026-11-05 (#443)
 

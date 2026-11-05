@@ -50,7 +50,7 @@
   {
     "command": "monogram.add",
     "params": {
-      "letters": "V",
+      "letters": "KLM",
       "style": "diamond",
       "size": 26,
       "x": 200,
@@ -63,7 +63,7 @@
   {
     "command": "monogram.add",
     "params": {
-      "letters": "CAD",
+      "letters": "OSE",
       "style": "circle",
       "size": 26,
       "x": 40,

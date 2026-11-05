@@ -60,7 +60,24 @@ struct Element {
     /// its objects (all but one of the 2,590 trimmed runs in its reference files end with a
     /// lock). Off for fixed needle points (opened stitch files) and cutwork blades.
     lock: bool,
+    /// The runs are separate pieces of a letter (an i's dot and stem, the pieces of a small N):
+    /// each run after the first starts after a trim, as PE-DESIGN 11.50 trims between a
+    /// letter's separate runs (stroke-satin-lower-i, text-size-hg's x and g), never a straight
+    /// stitch across the gap.
+    pieces: bool,
+    /// The longest move into this element sewn across as a stitch instead of a trim (0.1 mm);
+    /// `None` for the compiler's `sew_across_distance`. A letter of a text takes
+    /// [`LETTER_ACROSS`].
+    across: Option<f64>,
 }
+
+/// The longest move from one letter of a text to the next sewn across as a stitch (0.1 mm):
+/// longer ones are trimmed (#465). Every move between letters in PE-DESIGN 11.50's text
+/// captures is trimmed, and all of them are longer than 2.3 mm, so the compiler's own
+/// sew-across distance is kept: at 2.0 mm, six Text Transform captures lost a needle point
+/// each against PE-DESIGN's. No satin capture below 8 mm exists to tell where PE-DESIGN's
+/// bound lies under 2.3 mm.
+const LETTER_ACROSS: f64 = 23.0;
 
 struct Writer {
     cfg: Compiler,
@@ -130,7 +147,7 @@ impl Writer {
         self.cut = false;
     }
 
-    fn travel(&mut self, p: Vec2, within_element: bool) {
+    fn travel(&mut self, p: Vec2, within_element: bool, across: f64) {
         let Some(from) = self.position else {
             self.push(p, Command::Jump);
             self.position = Some(p);
@@ -145,7 +162,7 @@ impl Writer {
             return;
         }
         // PE-DESIGN sews a short move between objects across as a stitch rather than jumping.
-        if !within_element && d <= self.cfg.sew_across_distance && !self.cut {
+        if !within_element && d <= across && !self.cut {
             self.stitch_line(p);
             return;
         }
@@ -191,8 +208,12 @@ impl Writer {
             _ => {}
         }
         self.thread = Some(element.thread);
+        let across = element.across.unwrap_or(self.cfg.sew_across_distance);
         for (i, run) in runs.iter().enumerate() {
-            self.travel(run[0], i > 0);
+            // A letter's separate pieces are trimmed apart (pieces close enough to join inside
+            // the letter are one run already: `stroke_columns`).
+            let across = if i > 0 { 0.0 } else { across };
+            self.travel(run[0], i > 0 && !element.pieces, across);
             // A run the writer starts after a trim ties in (unless its generator already did).
             let fresh = self.position.is_none()
                 || self.cut
@@ -362,6 +383,8 @@ fn sew_block(w: &mut Writer, block: &StitchBlock) {
     // machine-sample-basic), so the run starts with the landing twice and the writer sews the
     // second as the zero-length stitch after the jump.
     let mut landing: Option<Vec2> = None;
+    // The move into the next element sewn: trimmed after a trim in the block.
+    let mut across: Option<f64> = None;
     for s in &block.stitches {
         match s.command {
             Command::Stitch => {
@@ -378,6 +401,20 @@ fn sew_block(w: &mut Writer, block: &StitchBlock) {
                 }
                 run.push(p);
             }
+            Command::Trim if pending.iter().any(|r| !r.is_empty()) => {
+                // A trim stays a trim: the runs after it are sewn as a new element that the
+                // writer trims to however short the move (a letter's dot and stem, #465), not
+                // joined by a stitch within the connect distance.
+                w.sew(Element {
+                    thread: thread_for(block_index),
+                    runs: std::mem::replace(&mut pending, vec![Vec::new()]),
+                    whole: true,
+                    lock: false,
+                    pieces: false,
+                    across: across.take(),
+                });
+                across = Some(0.0);
+            }
             Command::Jump | Command::Trim => {
                 if pending.last().is_some_and(|r| !r.is_empty()) {
                     pending.push(Vec::new());
@@ -393,6 +430,8 @@ fn sew_block(w: &mut Writer, block: &StitchBlock) {
                     runs: std::mem::replace(&mut pending, vec![Vec::new()]),
                     whole: true,
                     lock: false,
+                    pieces: false,
+                    across: across.take(),
                 });
                 block_index += 1;
             }
@@ -404,6 +443,8 @@ fn sew_block(w: &mut Writer, block: &StitchBlock) {
         runs: pending,
         whole: true,
         lock: false,
+        pieces: false,
+        across,
     });
 }
 
@@ -456,8 +497,16 @@ fn elements(
                 && (region.kind == RegionType::Satin
                     || (region.kind == RegionType::Fill && !warped))
                 && region.stamps.is_empty())
-            .then(|| stroke_columns(&closed, region, turns.get(index).copied().flatten()))
+            .then(|| {
+                stroke_columns(
+                    &closed,
+                    region,
+                    turns.get(index).copied().flatten(),
+                    object.text.as_ref().is_some_and(|t| t.size < SMALL_TEXT),
+                )
+            })
             .flatten();
+            let stroked = by_stroke.is_some() && !layers.is_empty();
             if let (Some(runs), Some(top)) = (by_stroke, layers.last_mut()) {
                 *top = runs;
             } else if let Some(top) = layers.last_mut() {
@@ -521,12 +570,17 @@ fn elements(
                     *run = one.pop().and_then(|mut l| l.pop()).unwrap_or_default();
                 }
             }
-            for runs in layers {
+            let n = layers.len();
+            for (k, runs) in layers.into_iter().enumerate() {
                 out.push(Element {
                     thread: region.thread.clone(),
                     runs,
                     whole: region.kind == RegionType::Satin,
                     lock: true,
+                    // A letter sewn by stroke: its top layer's runs are its separate pieces.
+                    pieces: stroked && k + 1 == n,
+                    // The move into a letter from the one before (#465).
+                    across: (text && k == 0).then_some(LETTER_ACROSS),
                 });
             }
         }
@@ -544,6 +598,9 @@ const STROKE_RUNGS: f64 = 30.0;
 const STROKE_FILL_RUNGS: f64 = 2.0;
 /// Travel between a letter's blocks: running stitches along its outline at most 2 mm long.
 const STROKE_TRAVEL: f64 = 20.0;
+/// A letter's next piece this close (0.1 mm), straight through the letter, is travelled to
+/// instead of trimmed to: the compiler's connect distance, which joined them before #465.
+const PIECE_JOIN: f64 = 40.0;
 
 /// A letter sewn stroke by stroke: each block a column along its rungs, joined by travel along
 /// the outline, a new run (a trim) where a piece is not joined to the one before. Satin text
@@ -556,10 +613,19 @@ const STROKE_TRAVEL: f64 = 20.0;
 /// to +32 degrees match the upright H within 0.1 mm), and the stroke cut of a turned outline
 /// is not stable (Lato's I lost its stroke at 35 degrees, P and E fell apart at -40: #444).
 /// `None` where the letter has no strokes.
+/// Text below this size (mm) takes [`letter_travel`]'s straight cuts between a letter's
+/// blocks; larger text walks the outline. PE-DESIGN's captures (6 mm and up) are matched by
+/// the walk in stitch count (text-defaults-h, stroke-satin-a, text-fit-satin-ahhhh,
+/// text-size-hg, text-fit-size-6: the cut lowered each 5-45 needle points away from
+/// PE-DESIGN's), and no capture exists below 6 mm, where the walk drew boxes round t's bar
+/// (#465).
+const SMALL_TEXT: f64 = 6.0;
+
 fn stroke_columns(
     closed: &[Contour],
     region: &crate::model::RegionSewing,
     turn: Option<f64>,
+    small: bool,
 ) -> Option<Vec<Run>> {
     let (upright, back) = match turn.filter(|t| t.abs() > UPRIGHT_TURN) {
         Some(t) => {
@@ -573,7 +639,6 @@ fn stroke_columns(
         }
         None => (closed.to_vec(), None),
     };
-    let g = crate::strokes::strokes(&upright)?;
     let turned = |mut blocks: Vec<crate::strokes::Block>| {
         if let Some(t) = &back {
             for p in blocks.iter_mut().flat_map(|b| b.rungs.iter_mut().flatten()) {
@@ -591,34 +656,73 @@ fn stroke_columns(
     } else {
         crate::strokes::Pairing::Progress
     };
-    let blocks = g.blocks_paired(&upright, STROKE_RUNGS, pairing);
-    if !blocks_cover(&blocks, &upright) {
-        return None;
-    }
-    let blocks = turned(blocks);
+    // Each separate piece of the letter (an i's dot and its stem) is cut into strokes on its
+    // own, top piece first: cut together, the stem's free end reached across the gap into the
+    // dot's outline, so the stem tapered into it and a small dot was lost in the stem's
+    // column (#465). PE-DESIGN sews the dot, then the stem, with trims between
+    // (stroke-satin-lower-i).
     // Rows and crossings take their ends from rungs this close together, so they stay on the
     // outline where it curves: fill rows interpolated between the 3 mm rungs ended up to
     // 0.2 mm inside O's counter, and satin crossings cut the chords of a small letter's bowls
     // (the 4 mm o's crossings stopped short of its outer edge, #444). The same strokes give
     // the same blocks in the same order at any rung spacing.
-    let fine = Some(turned(g.blocks_paired(
-        &upright,
-        STROKE_FILL_RUNGS,
-        pairing,
-    )))
-    .filter(|f| f.len() == blocks.len());
+    // `alone`: blocks that are a whole piece of the letter on their own (an i's dot, its
+    // stem).
+    let cut = |pieces: &[Vec<Contour>]| {
+        let mut blocks = Vec::new();
+        let mut fine_blocks = Vec::new();
+        let mut fine_match = true;
+        let mut alone = Vec::new();
+        for (k, piece) in pieces.iter().enumerate() {
+            let g = crate::strokes::strokes(piece)?;
+            let mut b = g.blocks_paired(piece, STROKE_RUNGS, pairing);
+            let f = g.blocks_paired(piece, STROKE_FILL_RUNGS, pairing);
+            fine_match &= f.len() == b.len();
+            if k > 0
+                && let Some(first) = b.first_mut()
+            {
+                first.new_run = true;
+            }
+            alone.extend(std::iter::repeat_n(
+                b.len() == 1 && pieces.len() > 1,
+                b.len(),
+            ));
+            blocks.extend(b);
+            fine_blocks.extend(f);
+        }
+        blocks_cover(&blocks, &upright).then_some((blocks, fine_blocks, fine_match, alone))
+    };
+    // A letter whose pieces do not all cut into strokes on their own (a small script i, its
+    // dot too small) is cut whole, as before #465.
+    let pieces = letter_pieces(&upright);
+    let (blocks, fine_blocks, fine_match, alone) = cut(&pieces).or_else(|| {
+        (pieces.len() > 1)
+            .then(|| cut(std::slice::from_ref(&upright)))
+            .flatten()
+    })?;
+    let blocks = turned(blocks);
+    let fine = fine_match.then(|| turned(fine_blocks));
     let spacing = 10.0 / region.density.max(0.1);
     let pull = region.pull_compensation * 10.0;
     let fill = region.kind == RegionType::Fill;
     let stitch = (region.stitch_length * 10.0).max(1.0);
+    // The quads between each block's rungs, block by block: where travel may cut across
+    // the letter under a block still to be sewn.
+    let mut quads: Vec<Contour> = Vec::new();
+    let mut quads_from = Vec::with_capacity(blocks.len());
+    for b in &blocks {
+        quads_from.push(quads.len());
+        quads.extend(
+            b.rungs
+                .windows(2)
+                .map(|w| Contour::new(vec![w[0][0], w[0][1], w[1][1], w[1][0]], true)),
+        );
+    }
     let mut runs: Vec<Run> = Vec::new();
     let mut run: Run = Vec::new();
     for (i, b) in blocks.iter().enumerate() {
         if b.rungs.len() < 2 {
             continue;
-        }
-        if b.new_run && run.len() >= 2 {
-            runs.push(std::mem::take(&mut run));
         }
         let column = if fill {
             stroke_fill(
@@ -636,13 +740,17 @@ fn stroke_columns(
             // fine rungs would fan where a junction cuts one side short (A's legs at the bar).
             // A block of one or two 3 mm sections (small letters) takes the fine rungs: its
             // chords would cut its ends (a 4 mm i's slanted top). A junction square keeps its
-            // rungs (T's, short and skewed, would read as bending).
+            // rungs (T's, short and skewed, would read as bending). A piece sewn as one block
+            // whose chords cut its outline takes the fine rungs too: an i's dot, cut on its
+            // own, is a short column across a round outline, and its chords sewed it as a
+            // hexagon 3.9 mm wide where the dot is 4.5 mm (stroke-satin-lower-i, #465).
             let rungs = match fine.as_ref() {
                 Some(f)
                     if !b.junction
                         && (b.rungs.len() <= 3
                             || block_bends(&f[i].rungs)
-                            || turns_corner(&b.rungs)) =>
+                            || turns_corner(&b.rungs)
+                            || (alone[i] && chords_cut(&b.rungs, &f[i].rungs))) =>
                 {
                     satin_rungs(&f[i].rungs, turns_corner(&b.rungs), 2.0 * spacing)
                 }
@@ -650,14 +758,26 @@ fn stroke_columns(
             };
             crate::column::satin(&rungs, spacing, pull)
         };
-        // PE-DESIGN walks the letter's outline between its blocks (stroke-blocks-H: running
-        // pieces between them).
-        if let (Some(&from), Some(&to)) = (run.last(), column.first()) {
-            run.extend(
+        // A piece not joined to the one before starts a new run, which the writer trims to,
+        // unless the needle can reach it without leaving the letter (V's arms at its foot,
+        // within the writer's connect distance): one stitch there, as the writer sewed it
+        // before #465.
+        if b.new_run
+            && run.len() >= 2
+            && let (Some(&from), Some(&to)) = (run.last(), column.first())
+        {
+            if from.distance(to) > PIECE_JOIN || !inside_letter(from, to, closed) {
+                runs.push(std::mem::take(&mut run));
+            }
+        } else if let (Some(&from), Some(&to)) = (run.last(), column.first()) {
+            // PE-DESIGN walks the letter's outline between its blocks (stroke-blocks-H:
+            // running pieces between them).
+            let travel = if small {
+                letter_travel(closed, from, to, &quads[quads_from[i]..])
+            } else {
                 route::travel(closed, from, to, STROKE_TRAVEL)
-                    .into_iter()
-                    .skip(1),
-            );
+            };
+            run.extend(travel.into_iter().skip(1));
             run.pop();
         }
         run.extend(column);
@@ -666,6 +786,157 @@ fn stroke_columns(
         runs.push(run);
     }
     (!runs.is_empty()).then_some(runs)
+}
+
+/// How far (0.1 mm) a block's rung ends may lie off the chords between its 3 mm rungs
+/// before the chords are said to cut its outline ([`chords_cut`]).
+const CHORD_CUT: f64 = 3.0;
+
+/// Whether the chords between a block's `coarse` rungs, on either side, pass more than
+/// [`CHORD_CUT`] from the ends of its `fine` rungs (the outline).
+fn chords_cut(coarse: &[[Vec2; 2]], fine: &[[Vec2; 2]]) -> bool {
+    (0..2).any(|k| {
+        fine.iter().any(|r| {
+            coarse
+                .windows(2)
+                .map(|w| crate::skeleton::segment_distance(r[k], w[0][k], w[1][k]))
+                .fold(f64::INFINITY, f64::min)
+                > CHORD_CUT
+        })
+    })
+}
+
+/// The separate pieces of a letter's region (even-odd): each outer contour with the holes
+/// inside it, top piece first (then left). The whole letter is one piece when its contours
+/// overlap (some script fonts draw a letter as crossing strokes).
+fn letter_pieces(closed: &[Contour]) -> Vec<Vec<Contour>> {
+    let n = closed.len();
+    if n < 2 {
+        return vec![closed.to_vec()];
+    }
+    let pts: Vec<Vec<Vec2>> = closed.iter().map(Contour::outline_points).collect();
+    // inside[a][b]: contour a lies inside contour b.
+    let mut inside = vec![vec![false; n]; n];
+    for a in 0..n {
+        for b in 0..n {
+            if a == b || pts[a].is_empty() {
+                continue;
+            }
+            let one = std::slice::from_ref(&closed[b]);
+            let count = pts[a]
+                .iter()
+                .filter(|&&p| crate::geometry::contains(p, one))
+                .count();
+            if count == pts[a].len() {
+                inside[a][b] = true;
+            } else if count > 0 {
+                return vec![closed.to_vec()];
+            }
+        }
+    }
+    let depth: Vec<usize> = (0..n)
+        .map(|a| (0..n).filter(|&b| inside[a][b]).count())
+        .collect();
+    let mut pieces: Vec<Vec<usize>> = Vec::new();
+    let mut owner = vec![usize::MAX; n];
+    for a in (0..n).filter(|&a| depth[a].is_multiple_of(2)) {
+        owner[a] = pieces.len();
+        pieces.push(vec![a]);
+    }
+    for a in (0..n).filter(|&a| depth[a] % 2 == 1) {
+        // A hole belongs to the outer contour it lies directly inside.
+        match (0..n).find(|&b| inside[a][b] && depth[b] + 1 == depth[a]) {
+            Some(b) if owner[b] != usize::MAX => pieces[owner[b]].push(a),
+            _ => return vec![closed.to_vec()],
+        }
+    }
+    let mut out: Vec<Vec<Contour>> = pieces
+        .into_iter()
+        .map(|p| p.into_iter().map(|i| closed[i].clone()).collect())
+        .collect();
+    let key = |p: &Vec<Contour>| {
+        Rect::enclosing(p.iter().flat_map(|c| c.points.iter().copied()))
+            .map_or((0.0, 0.0), |r| (r.min_y, r.min_x))
+    };
+    out.sort_by(|a, b| {
+        let (ka, kb) = (key(a), key(b));
+        ka.0.total_cmp(&kb.0).then(ka.1.total_cmp(&kb.1))
+    });
+    out
+}
+
+/// Whether the stitch from `a` to `b` stays inside the letter `closed` between its ends
+/// (sampled every 0.1 mm; on the outline counts as inside, within [`ON_OUTLINE`]).
+fn inside_letter(a: Vec2, b: Vec2, closed: &[Contour]) -> bool {
+    let n = (a.distance(b).ceil() as usize).max(2);
+    (1..n).all(|i| {
+        let p = a.lerp(b, i as f64 / n as f64);
+        crate::geometry::contains(p, closed)
+            || closed
+                .iter()
+                .flat_map(Contour::edges)
+                .any(|(e, f)| crate::skeleton::segment_distance(p, e, f) <= ON_OUTLINE)
+    })
+}
+
+/// Whether the stitch from `a` to `b` lies under the quads `later` (within [`ON_OUTLINE`])
+/// between its ends, sampled every 0.1 mm.
+fn under(a: Vec2, b: Vec2, later: &[Contour]) -> bool {
+    let n = (a.distance(b).ceil() as usize).max(2);
+    (1..n).all(|i| {
+        let p = a.lerp(b, i as f64 / n as f64);
+        later.iter().any(|q| {
+            crate::geometry::contains(p, std::slice::from_ref(q))
+                || q.edges()
+                    .into_iter()
+                    .any(|(e, f)| crate::skeleton::segment_distance(p, e, f) <= ON_OUTLINE)
+        })
+    })
+}
+
+/// A point this close to a letter's outline (0.1 mm) is on it.
+const ON_OUTLINE: f64 = 0.5;
+
+/// Travel between two blocks of a letter: along its outline, as PE-DESIGN walks it, cut
+/// short straight through the letter wherever the outline goes round a stroke the straight
+/// way crosses (the walk more than twice as long) and the straight way lies under blocks
+/// still to be sewn (`later`: quads between their rungs): the t's travel from its stem above
+/// the bar to the stem below went round the bar's outline, a box drawn round the bar at
+/// 5-10 mm (#465); it now runs under the bar's satin. The shortest such cut from where the
+/// needle is is taken, then the walk goes on: H's travel from its left stem's top part to its foot walked
+/// up round the stem's top (18 stitches); it now crosses the stem under the junction square
+/// and runs down its edge, as PE-DESIGN's 8 travel stitches (text-defaults-h). A walk along
+/// one straight edge is the straight way already and stays as it is.
+fn letter_travel(closed: &[Contour], from: Vec2, to: Vec2, later: &[Contour]) -> Run {
+    let walk = route::travel(closed, from, to, STROKE_TRAVEL);
+    if walk.len() < 3 {
+        return walk;
+    }
+    let mut along = vec![0.0];
+    for w in walk.windows(2) {
+        along.push(along[along.len() - 1] + w[0].distance(w[1]));
+    }
+    let mut out = vec![walk[0]];
+    let mut i = 0;
+    while i + 1 < walk.len() {
+        // Of the cuts from here, the shortest (the farthest of equal ones): straight across
+        // the stroke, not along it.
+        let j = (i + 2..walk.len())
+            .filter(|&j| {
+                along[j] - along[i] > 2.0 * walk[i].distance(walk[j])
+                    && inside_letter(walk[i], walk[j], closed)
+                    && under(walk[i], walk[j], later)
+            })
+            .min_by(|&a, &b| {
+                let (da, db) = (walk[i].distance(walk[a]), walk[i].distance(walk[b]));
+                da.total_cmp(&db).then(b.cmp(&a))
+            })
+            .unwrap_or(i + 1);
+        let n = ((walk[i].distance(walk[j]) / STROKE_TRAVEL).ceil() as usize).max(1);
+        out.extend((1..=n).map(|k| walk[i].lerp(walk[j], k as f64 / n as f64)));
+        i = j;
+    }
+    out
 }
 
 /// A block bends when its middle line turns by more than this (degrees) at its median step of
@@ -935,6 +1206,8 @@ fn line_elements(object: &DesignObject, line: &LineSewing, user: &[Pattern]) -> 
                 runs,
                 whole: false,
                 lock: false,
+                pieces: false,
+                across: None,
             })
             .collect();
     }
@@ -1082,6 +1355,8 @@ fn line_elements(object: &DesignObject, line: &LineSewing, user: &[Pattern]) -> 
         runs,
         whole: false,
         lock: true,
+        pieces: false,
+        across: None,
     }]
 }
 
@@ -1260,7 +1535,7 @@ mod stroke_fill_tests {
             .zip(&turns)
         {
             let sewn = |closed: &[Contour], turn: Option<f64>| {
-                stroke_columns(closed, &text_satin(), turn)
+                stroke_columns(closed, &text_satin(), turn, false)
                     .map(|runs| runs.iter().map(Vec::len).collect::<Vec<_>>())
             };
             let want = sewn(up, None).expect("upright strokes");
@@ -1281,7 +1556,7 @@ mod stroke_fill_tests {
         spec.letter_spacing = 0.3;
         let (obj, _) = DesignObject::text(spec, Some(text_satin()), None).expect("text");
         for (k, closed) in obj.glyph_groups().into_iter().enumerate() {
-            let Some(runs) = stroke_columns(closed, &text_satin(), None) else {
+            let Some(runs) = stroke_columns(closed, &text_satin(), None, true) else {
                 panic!("letter {k} is not sewn by stroke");
             };
             let edges: Vec<(Vec2, Vec2)> = closed.iter().flat_map(Contour::edges).collect();
@@ -1296,11 +1571,12 @@ mod stroke_fill_tests {
                 })
                 .collect();
             // Off the outline: only crossings fanning into a pointed end (w's feet, i's slanted
-            // top), by at most 0.35 mm.
+            // top), by at most 0.35 mm, and travel cut straight through the letter under a
+            // block still to be sewn (#465: one letter here has 6 such of its 58 points).
             let off = inside.iter().filter(|&&d| d > 1.0).count();
             let worst = inside.iter().copied().fold(0.0, f64::max);
             assert!(
-                10 * off <= inside.len(),
+                8 * off <= inside.len(),
                 "letter {k}: {off} of {} needle points inside",
                 inside.len()
             );
@@ -1328,5 +1604,170 @@ mod stroke_fill_tests {
             .count();
         assert!(steps > 20, "{steps}");
         assert!(p.count(Command::Stitch) > 100);
+    }
+
+    /// `text` in Lato Bold at `size` mm, Satin (PE-DESIGN's text default), compiled.
+    fn satin_text(text: &str, size: f64) -> (DesignObject, StitchPattern) {
+        let (obj, _) = DesignObject::text(
+            TextSpec::new(text, DEFAULT_FONT, size),
+            Some(text_satin()),
+            None,
+        )
+        .expect("text");
+        let mut d = Design::default();
+        d.add(obj.clone());
+        (obj, Compiler::default().compile(&d))
+    }
+
+    /// How far `p` lies outside the region `closed` (0 inside), 0.1 mm.
+    fn outside_by(p: Vec2, closed: &[Contour]) -> f64 {
+        if crate::geometry::contains(p, closed) {
+            return 0.0;
+        }
+        closed
+            .iter()
+            .flat_map(Contour::edges)
+            .map(|(a, b)| crate::skeleton::segment_distance(p, a, b))
+            .fold(f64::INFINITY, f64::min)
+    }
+
+    /// The stitches (needle to needle, no trim or jump between) whose middle lies more than
+    /// 0.3 mm outside the text: exposed travel, connectors across gaps, spikes. `(length, from,
+    /// to)`, 0.1 mm.
+    fn exposed(obj: &DesignObject, p: &StitchPattern) -> Vec<(f64, Vec2, Vec2)> {
+        let closed: Vec<Contour> = obj.contours.iter().filter(|c| c.closed).cloned().collect();
+        p.stitches
+            .windows(2)
+            .filter(|w| w[0].command == Command::Stitch && w[1].command == Command::Stitch)
+            .map(|w| (v2(w[0].x, w[0].y), v2(w[1].x, w[1].y)))
+            .filter(|&(a, b)| outside_by(a.lerp(b, 0.5), &closed) > 3.0)
+            .map(|(a, b)| (a.distance(b), a, b))
+            .collect()
+    }
+
+    #[test]
+    fn an_is_dot_is_sewn_as_its_own_piece() {
+        // #465: cut together with its stem, the i's dot was lost at 5-10 mm (the stem's column
+        // reached up through the gap into it) and the stem tapered into the dot at 20 mm.
+        // PE-DESIGN 11.50 sews the dot, trims, then sews the stem (stroke-satin-lower-i).
+        for size in [4.0, 5.0, 10.0, 20.0] {
+            let (obj, p) = satin_text("iji", size);
+            let groups = obj.glyph_groups();
+            for k in [0, 2] {
+                let closed: Vec<Contour> = groups[k].iter().filter(|c| c.closed).cloned().collect();
+                let pieces = letter_pieces(&closed);
+                assert_eq!(pieces.len(), 2, "{size} mm");
+                let dot = Rect::enclosing(pieces[0].iter().flat_map(Contour::outline_points))
+                    .expect("dot");
+                let stem = Rect::enclosing(pieces[1].iter().flat_map(Contour::outline_points))
+                    .expect("stem");
+                assert!(
+                    dot.max_y < stem.min_y,
+                    "{size} mm: the dot is the top piece"
+                );
+                let runs = stroke_columns(&closed, &text_satin(), None, size < SMALL_TEXT)
+                    .expect("by stroke");
+                assert_eq!(runs.len(), 2, "{size} mm: the dot and the stem apart");
+                // The dot's satin spans the dot (within 0.3 mm of each side) and stays in it.
+                let sewn = Rect::enclosing(runs[0].iter().copied()).expect("dot run");
+                for (got, want) in [
+                    (sewn.min_x, dot.min_x),
+                    (sewn.max_x, dot.max_x),
+                    (sewn.min_y, dot.min_y),
+                    (sewn.max_y, dot.max_y),
+                ] {
+                    assert!(
+                        (got - want).abs() <= 3.0,
+                        "{size} mm: dot {sewn:?} vs {dot:?}"
+                    );
+                }
+                // No needle point of the stem in the gap above it.
+                let top = runs[1].iter().map(|q| q.y).fold(f64::INFINITY, f64::min);
+                assert!(
+                    top >= stem.min_y - 1.0,
+                    "{size} mm: stem from {top} ({stem:?})"
+                );
+            }
+            // Nothing sewn across the gaps: every move from a dot to its stem is a trim.
+            let gaps = exposed(&obj, &p);
+            assert!(gaps.is_empty(), "{size} mm: {gaps:?}");
+        }
+    }
+
+    #[test]
+    fn small_lettering_shows_no_travel_outside_its_letters() {
+        // #465: at 5 mm the N's separate pieces were joined by straight stitches along its top
+        // and bottom (a crossed box), e->n ("Open") and o->n ("fonts") by connectors across
+        // the gap between the letters. PE-DESIGN 11.50 trims between letters and between a
+        // letter's separate runs; a move of up to 2 mm between letters may still be sewn
+        // across (LETTER_ACROSS).
+        for text in [
+            "Open",
+            "fonts",
+            "ROUND AND ROUND",
+            "NNN",
+            "tttt",
+            "made with open fonts",
+        ] {
+            for size in [4.0, 5.0, 6.0, 8.0, 10.0] {
+                let (obj, p) = satin_text(text, size);
+                let long: Vec<_> = exposed(&obj, &p)
+                    .into_iter()
+                    .filter(|e| e.0 > LETTER_ACROSS)
+                    .collect();
+                assert!(long.is_empty(), "{text} at {size} mm: {long:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn travel_cuts_straight_under_a_stroke_it_would_walk_round() {
+        // #465: a t's travel from its stem above the bar to the stem below walked round the
+        // bar's outline, a box drawn round the bar at 5-10 mm. A stem 2 mm wide from y 0 to
+        // 100 with a bar 3 mm long out of its right side at y 40-52: the travel down the
+        // stem's right edge from above the bar to below it crosses the bar's root under the
+        // bar's satin, still to be sewn, instead of walking round the bar's end.
+        let outline = vec![Contour::new(
+            vec![
+                v2(0.0, 0.0),
+                v2(20.0, 0.0),
+                v2(20.0, 40.0),
+                v2(50.0, 40.0),
+                v2(50.0, 52.0),
+                v2(20.0, 52.0),
+                v2(20.0, 100.0),
+                v2(0.0, 100.0),
+            ],
+            true,
+        )];
+        let bar = Contour::new(
+            vec![
+                v2(20.0, 40.0),
+                v2(20.0, 52.0),
+                v2(50.0, 52.0),
+                v2(50.0, 40.0),
+            ],
+            true,
+        );
+        let (from, to) = (v2(20.0, 30.0), v2(20.0, 70.0));
+        let length = |r: &Run| r.windows(2).map(|w| w[0].distance(w[1])).sum::<f64>();
+        let cut = letter_travel(&outline, from, to, std::slice::from_ref(&bar));
+        assert!((length(&cut) - 40.0).abs() < 1e-6, "{cut:?}");
+        assert!(cut.iter().all(|p| (p.x - 20.0).abs() < 1e-6), "{cut:?}");
+        assert!(
+            cut.windows(2)
+                .all(|w| w[0].distance(w[1]) <= STROKE_TRAVEL + 1e-9)
+        );
+        // With nothing left to sew over the bar's root it walks round the bar, as before.
+        let walk = letter_travel(&outline, from, to, &[]);
+        assert!((length(&walk) - 100.0).abs() < 1e-6, "{walk:?}");
+        // Along one straight edge the walk is the straight way and stays.
+        let edge = letter_travel(
+            &outline,
+            v2(0.0, 10.0),
+            v2(0.0, 90.0),
+            std::slice::from_ref(&bar),
+        );
+        assert!((length(&edge) - 80.0).abs() < 1e-6, "{edge:?}");
     }
 }
