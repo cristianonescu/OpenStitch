@@ -20,6 +20,9 @@ are a sound start; change them only for a reason.
 - Good satin width: about **1.5-7 mm**. Narrower than about 1 mm looks like a running line and
   can bury in the fabric; wider than 7-8 mm makes long, snagging stitches. For wider areas use
   fill, or satin with `splitLength` (2-12 mm) to break long stitches.
+  Satin is never split automatically (PE-DESIGN sends 30 mm crossings whole), and
+  `tools/sew_check.py` warns on any stitch over 12 mm. Auto Punch sews a region as fill when
+  its satin would cross more than 10.5 mm.
 - Density around 4-5 lines/mm for covering satin; lower (1-2) for tack-downs and light
   edges.
 - Borders sew last, over the fill they edge, and should overlap it slightly.
@@ -35,6 +38,18 @@ are a sound start; change them only for a reason.
   neighbouring areas so they catch the light differently.
 - Large overlapping fills sew thick and stiff: remove hidden parts with `shape.removeOverlap`
   instead of stacking fills.
+
+## Decorative region and line types
+
+- Cross stitch regions use one grid on the page axes from the design origin (`angle` does not
+  turn it), so neighbouring cross stitch regions with the same size line up cell for cell; only
+  whole cells are sewn, each a full X.
+- Stippling honours `spacing` (mean gap between passes about the spacing) and reaches to about
+  half a spacing from the outline; it starts and ends inside the shape.
+- Concentric circle, spiral, flexible spiral and contour fills end in the middle (no run back
+  out); radial lines thin out near the centre.
+- Stem, candlewick and chain lines are spaced along curves by distance, so curved paths sew as
+  evenly as straight ones.
 
 ## Running and detail lines
 
