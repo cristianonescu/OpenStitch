@@ -71,7 +71,13 @@ then style them in the next.
 - `object.list` lists objects (id, kind, bounds in mm, sew types, colours, text);
   `object.get` gives one object in full.
 - Move, size, turn: `object.move` `{ids, dx, dy}`, `object.scale` `{ids, sx, sy}`,
-  `object.rotate` `{ids, degrees}`, `object.flip`, `object.center`.
+  `object.rotate` `{ids, degrees}`, `object.flip`, `object.center`, `object.skew`
+  `{ids, angleX, angleY}` (lean; fill directions turn with it).
+- Line up and space: `object.align` `{ids, edge: left|right|top|bottom|centerX|centerY,
+  to: selection|key|page, keyId}` and `object.distribute` `{ids, axis: x|y, by: gaps|centers}`
+  (three or more; the outermost two stay). Groups move whole.
+- Find objects like others: `object.list` `{sameAs: [ids], match: color|type|both,
+  visible: true}`, or filter by `color`, `regionType`, `lineType`; then `ui.select` the ids.
 - Text: `object.setText` (text, font, size, spacing), `text.setPath` (fit to an outline).
 - Delete: `object.delete` `{ids}`. Undo: `history.undo` (only for your own mistakes).
 

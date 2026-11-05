@@ -236,6 +236,7 @@ pub fn all() -> Vec<CommandSpec> {
     v.extend(attribute_commands());
     v.extend(path_commands());
     v.extend(transform_commands());
+    v.extend(crate::layout::commands());
     v.extend(text_commands());
     v.extend(crate::fonts::commands());
     #[cfg(feature = "digitize")]
@@ -473,12 +474,49 @@ fn design_commands() -> Vec<CommandSpec> {
         ),
         spec(
             "object.list",
-            "List objects in sewing order",
+            "List objects in sewing order; the optional filters keep only matching ones (Select Same)",
             Effect::Read,
-            vec![],
-            |s, _| {
+            vec![
+                opt(
+                    "color",
+                    "color",
+                    "Only objects sewing this thread (region, line or a stitch-pattern block)",
+                ),
+                opt(
+                    "regionType",
+                    "string",
+                    "Only objects with this region sew type (fill, satin…)",
+                ),
+                opt(
+                    "lineType",
+                    "string",
+                    "Only objects with this line sew type (running, triple…)",
+                ),
+                opt(
+                    "visible",
+                    "bool",
+                    "Only shown (true) or hidden (false) objects",
+                ),
+                opt(
+                    "sameAs",
+                    "[int] | int",
+                    "Only visible objects like these (Select Same)",
+                ),
+                opt(
+                    "match",
+                    "color|type|both",
+                    "sameAs: same thread colour (default), sew type (region type, else line type) or both",
+                ),
+            ],
+            |s, p| {
+                let keep = crate::layout::list_filter(&s.design, p)?;
                 Ok(Value::Array(
-                    s.design.objects.iter().map(describe).collect(),
+                    s.design
+                        .objects
+                        .iter()
+                        .filter(|o| keep.as_ref().is_none_or(|f| f(o)))
+                        .map(describe)
+                        .collect(),
                 ))
             },
         ),

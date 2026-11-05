@@ -81,6 +81,15 @@ Behaviour follows the guide's pages
   Snap to Grid on, guidelines move in grid steps. The status bar shows the position while
   dragging. Up to 100 per ruler; they are saved in the `.osd` (`guides.set`, one Undo per
   change) and hidden when Ruler or Guideline is off.
+- **Options ▾ ▸ Editing** (beyond PE-DESIGN, #474, #475): Nudge step (0.1 mm by default as in
+  PE-DESIGN; Shift moves ten times as far), Nudge by the grid step while snapping (with Snap to
+  Grid on, an arrow moves one grid step) and Click inside outlines selects them (off: the inside
+  of a shape that sews only its outline is not a hit, its line must be clicked, as in
+  PE-DESIGN). Kept in `ui.json`; the Assistant reads and sets them with `ui.settings` / `ui.set`
+  (`nudgeStep`, `nudgeByGrid`, `clickInsideOutlines`, `snapToObjects`, `precisionBar`,
+  `alignTo`).
+- **Alt-click on a stitch pattern** selects every stitch pattern that sews the thread colour
+  under the pointer (PE-DESIGN's selection of stitch patterns by thread colour, #475).
 - **Save Image** ▸ to File… writes the background image as shown (turned, cropped, colours
   adjusted) as PNG, BMP or JPEG (`background.save`); ▸ to Clipboard copies it.
 - **Modify Image** opens a window with the image's position and width (the height keeps its
@@ -135,6 +144,7 @@ Behaviour follows the guide's pages
 | Select | Select | `V` | `Action::SelectTool` | view/UI only | yes |
 | Select | Point Edit | `A` | `Action::PointTool` | `object.setPoint` | yes |
 | Select | Select All | `Ctrl+A` | `Action::SelectAll` | view/UI only | yes |
+| Select | Select Same ▾ (Same Thread Colour, Same Stitch Type, Same Colour and Type; beyond PE-DESIGN, #475) |  | `Action::SelectSame`, `SelectSameColor`, `SelectSameType`, `SelectSameBoth` | `object.list` (`sameAs`, `match`) | yes |
 | Clipboard | Paste | `Ctrl+V` | `Action::Paste` | `object.duplicate` | yes |
 | Clipboard | Cut | `Ctrl+X` | `Action::Cut` | `object.delete`, then `object.paste` on Paste | yes |
 | Clipboard | Copy | `Ctrl+C` | `Action::Copy` | view/UI only | yes |
@@ -151,6 +161,7 @@ Behaviour follows the guide's pages
 | Import | Import Patterns | `Ctrl+Shift+I` | `Action::ImportPatterns` | `stitches.import` | yes |
 | Import | Import SVG |  | `Action::ImportSvg` | `import.svg`, `import.metafile` for `.wmf`/`.emf` | yes |
 | Edit | Arrange |  | `Action::Arrange` | `order.move` | yes |
+| Edit | Align ▾ (Relative to Selection / Last Selected / Design Page; Align Left, Centre, Right, Top, Middle, Bottom; Distribute Horizontally, Vertically; beyond PE-DESIGN, #472) |  | `Action::Align`, `AlignLeft` … `AlignBottom`, `DistributeHorizontal`, `DistributeVertical` | `object.align`, `object.distribute` | yes |
 | Edit | Rotate/Flip |  | `Action::RotateFlip` | `object.rotate` | yes |
 | Edit | Size |  | `Action::Size` | `object.scale` | yes |
 | Edit | Group | `Ctrl+G` | `Action::Group` | `object.group` | yes |
@@ -197,10 +208,12 @@ Behaviour follows the guide's pages
 | Show/Hide | Attributes Setting |  | `Action::PaneAttributes` | view/UI only | yes |
 | Show/Hide | Import Pane |  | `Action::PaneImport` | view/UI only | yes |
 | Show/Hide | Assistant ➕ | Ctrl+Shift+A | `Action::PaneAssistant` | view/UI only; the panel runs engine and `ui.*` commands (B17) | yes |
+| Show/Hide | Precision Bar (beyond PE-DESIGN, #474): a row under the ribbon with the selection's X, Y (top-left or centre), W, H, Lock aspect, Rotate and Skew; Enter commits, Esc reverts |  | `Action::PrecisionBar` | `object.move`, `object.scale`, `object.rotate`, `object.skew` | yes |
 | Show/Hide | Reference Window |  | `Action::ReferenceWindow` | view/UI only | yes |
 | Grid | Show Grid |  | `Action::ShowGrid` | view/UI only | yes |
 | Grid | Show Grid with Axes |  | `Action::GridAxes` | view/UI only | yes |
 | Grid | Snap to Grid |  | `Action::SnapToGrid` | view/UI only | yes |
+| Grid | Snap to Objects (beyond PE-DESIGN, #473): a dragged selection snaps to other objects' edges and centres, the page and the guidelines, with dashed guides; Ctrl (Cmd) drags freely |  | `Action::SnapToObjects` | view/UI only (the drag ends as one `object.move`) | yes |
 | Grid | Grid Spacing |  | `Action::GridSpacing` | view/UI only | yes |
 | Ruler | Ruler |  | `Action::Ruler` | view/UI only | yes |
 | Guideline | Guideline |  | `Action::Guideline` | `guides.set` | yes |
