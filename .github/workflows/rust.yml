@@ -130,15 +130,22 @@ jobs:
           ./gitleaks git --log-opts="--all" --redact --no-banner --exit-code 1 .
 
   icons:
-    # Every icon and graphic is a Higgsfield asset with a recorded job (#400): each file in
-    # assets/icons and assets/illustrations has a higgsfield-jobs.tsv row, and the app's source
-    # has no emoji or symbol button labels and no painter-drawn icons outside the allow-list.
+    # Every icon and graphic is a Higgsfield asset with a recorded job (#400, #439): every image
+    # file anywhere under assets/ (any folder, a new one too) has a higgsfield-jobs.tsv row
+    # beside it or a row in tools/check_assets_allow.tsv (files our tools make from a logo job,
+    # jobs not yet recovered), and the app's source has no emoji or symbol button labels and no
+    # painter-drawn icons outside tools/check_icons_allow.tsv. Both lists only shrink.
     name: icons
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - name: check_icons
         run: python3 tools/check_icons.py
+      # The installers' file associations (#356): the MSI's .osd ProgId and .pes Open-with,
+      # SupportedTypes and ProgId entries, the .app's Owner (.osd) and Alternate (.pes) document
+      # types, and the Linux MIME glob must exist and agree. Builds nothing; runs its self-test first.
+      - name: check_file_associations
+        run: python3 -I tools/check_file_associations.py
 
   kit:
     # The ready-to-sew kit (examples/sew) must be what the code makes (#450): a fresh release

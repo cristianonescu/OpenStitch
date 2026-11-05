@@ -79,3 +79,14 @@ below is the suggested order of taking them.
 | #120 PES 0110 editable-object writer | The owner (the card for it was dismissed on 2026-11-04) |
 | #377 Connection Points | Owner captures in a built-in PE-DESIGN font (Connection Points is greyed out for TrueType fonts); the captures stay outside the repo and only measurements taken from them may be committed |
 | T1/T8 image-similarity steps | The calibration sew-outs and the counsel record (see `research/beyond/image-similarity-plan.md`) |
+
+## Session/batch brief template
+
+Coordinators start every batch session with a brief that carries these lines, filled in:
+
+- **Batch:** `batch:<name>`; issues #a #b #c (one commit each, "Closes #a #b #c"); code area and the files it owns.
+- **Before the first edit:** an issue for every piece of work (search `gh issue list --state all --search` first; comment on a duplicate instead).
+- **Graphics:** any icon, image, illustration, texture or other graphic is generated with Higgsfield, its job recorded in the `higgsfield-jobs.tsv` beside it, with a LEGAL entry; never an emoji, a painter-drawn glyph or an image from elsewhere. `tools/check_icons.py` (CI job `icons`) fails on any graphic under `assets/` without a jobs row.
+- **Docs:** FEATURE_MATRIX, AUDIT and ROADMAP updated in the same PR.
+- **Before every push:** `cargo fmt` and `cargo clippy`; every PES sent to the owner passes `sew_check`.
+- **Finish:** one PR, watched until it merges; then clean up the branch and worktree, report what closed, what moved and any new issues, and stop.

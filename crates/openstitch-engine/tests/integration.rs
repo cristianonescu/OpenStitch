@@ -1,0 +1,131 @@
+//! Every integration test of this crate in one test binary (#403): one compile and one link
+//! instead of one per file, which was most of the warm CI build. Cargo.toml sets
+//! `autotests = false`, so a new file under tests/ needs its own line here;
+//! `every_test_file_is_listed` fails when one is missing. The files keep their own `mod` items
+//! (`mod common;`), which `#[path]` resolves from this folder as before.
+
+#[path = "capabilities.rs"]
+mod capabilities;
+#[path = "contour_fill.rs"]
+mod contour_fill;
+#[path = "convert.rs"]
+mod convert;
+#[path = "coverage_digitize.rs"]
+mod coverage_digitize;
+#[path = "coverage_editing.rs"]
+mod coverage_editing;
+#[path = "coverage_fabric.rs"]
+mod coverage_fabric;
+#[path = "coverage_formats.rs"]
+mod coverage_formats;
+#[path = "coverage_lettering.rs"]
+mod coverage_lettering;
+#[path = "coverage_library.rs"]
+mod coverage_library;
+#[path = "coverage_pattern_points.rs"]
+mod coverage_pattern_points;
+#[path = "coverage_shape_ops.rs"]
+mod coverage_shape_ops;
+#[path = "coverage_stitch_types.rs"]
+mod coverage_stitch_types;
+#[path = "determinism.rs"]
+mod determinism;
+#[path = "digitize.rs"]
+mod digitize;
+#[path = "direction.rs"]
+mod direction;
+#[path = "drawing.rs"]
+mod drawing;
+#[path = "edit_tools.rs"]
+mod edit_tools;
+#[path = "engine.rs"]
+mod engine;
+#[path = "font_creator.rs"]
+mod font_creator;
+#[path = "font_from_image.rs"]
+mod font_from_image;
+#[path = "fonts.rs"]
+mod fonts;
+#[path = "imports.rs"]
+mod imports;
+#[path = "lettering.rs"]
+mod lettering;
+#[path = "library.rs"]
+mod library;
+#[path = "machine.rs"]
+mod machine;
+#[path = "mapped_text.rs"]
+mod mapped_text;
+#[path = "monogram.rs"]
+mod monogram;
+#[path = "name_drop.rs"]
+mod name_drop;
+#[path = "order.rs"]
+mod order;
+#[path = "order_holes.rs"]
+mod order_holes;
+#[path = "order_min_jump.rs"]
+mod order_min_jump;
+#[path = "ornament.rs"]
+mod ornament;
+#[path = "pes_compat.rs"]
+mod pes_compat;
+#[path = "pes_resave.rs"]
+mod pes_resave;
+#[path = "print.rs"]
+mod print;
+#[path = "punch.rs"]
+mod punch;
+#[path = "region_compat.rs"]
+mod region_compat;
+#[path = "satin_compat.rs"]
+mod satin_compat;
+#[path = "sections.rs"]
+mod sections;
+#[path = "sewing.rs"]
+mod sewing;
+#[path = "shaping.rs"]
+mod shaping;
+#[path = "stamps.rs"]
+mod stamps;
+#[path = "stitch_edit.rs"]
+mod stitch_edit;
+#[path = "stitch_types.rs"]
+mod stitch_types;
+#[path = "templates.rs"]
+mod templates;
+#[path = "transfer.rs"]
+mod transfer;
+#[path = "user.rs"]
+mod user;
+#[path = "user_patterns.rs"]
+mod user_patterns;
+#[path = "view.rs"]
+mod view;
+#[path = "wizards.rs"]
+mod wizards;
+
+/// A test file left out of this list would compile and run nowhere.
+#[test]
+fn every_test_file_is_listed() {
+    let listed = include_str!("integration.rs");
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
+    let mut missing = Vec::new();
+    for entry in std::fs::read_dir(&dir).expect("tests folder") {
+        let name = entry
+            .expect("tests folder entry")
+            .file_name()
+            .into_string()
+            .expect("UTF-8 file name");
+        if name.ends_with(".rs") && name != "integration.rs" {
+            let line = format!("#[path = \"{name}\"]");
+            if !listed.contains(&line) {
+                missing.push(name);
+            }
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "add these to tests/integration.rs: {missing:?}"
+    );
+}

@@ -646,11 +646,8 @@ pub fn order_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandR
             })
             .response
             .on_hover_text("How Optimise arranges the objects; saved with the design");
-        if chosen != mode {
-            out = Some(CommandRequest::new(
-                "design.setProperties",
-                serde_json::json!({ "optimizeOrder": chosen.id() }),
-            ));
+        if let Some(r) = optimize_mode_request(mode, chosen) {
+            out = Some(r);
         }
     });
     let d = app.session.design();
@@ -660,21 +657,50 @@ pub fn order_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandR
             .iter()
             .filter(|o| app.selection.contains(&o.id))
             .collect();
-        let mut on = selected.iter().any(|o| o.trim_jumps != Some(false));
-        let mixed = on && selected.iter().any(|o| o.trim_jumps == Some(false));
-        let label = if mixed {
-            "Jump stitch trimming (mixed)"
-        } else {
-            "Jump stitch trimming"
-        };
+        let (mut on, label) = jump_trimming_state(selected.iter().map(|o| o.trim_jumps));
         if ui.checkbox(&mut on, label).changed() {
-            out = Some(CommandRequest::new(
-                "object.setJumpTrimming",
-                serde_json::json!({ "ids": CommandRequest::ids(&app.selection), "enabled": on }),
-            ));
+            out = Some(jump_trimming_request(&app.selection, on));
         }
     }
     out
+}
+
+/// The command the Optimise mode box sends when `chosen` is picked while the design has
+/// `current`; `None` when the mode is unchanged.
+fn optimize_mode_request(current: OptimizeOrder, chosen: OptimizeOrder) -> Option<CommandRequest> {
+    (chosen != current).then(|| {
+        CommandRequest::new(
+            "design.setProperties",
+            serde_json::json!({ "optimizeOrder": chosen.id() }),
+        )
+    })
+}
+
+/// The jump-trimming checkbox for the selected objects' `trim_jumps`: ticked unless every object
+/// has it off, and labelled "(mixed)" when ticked but some object has it off.
+fn jump_trimming_state(trims: impl Iterator<Item = Option<bool>>) -> (bool, &'static str) {
+    let (mut on, mut off) = (false, false);
+    for t in trims {
+        if t == Some(false) {
+            off = true;
+        } else {
+            on = true;
+        }
+    }
+    let label = if on && off {
+        "Jump stitch trimming (mixed)"
+    } else {
+        "Jump stitch trimming"
+    };
+    (on, label)
+}
+
+/// The command the jump-trimming checkbox sends for the selection when it becomes `enabled`.
+fn jump_trimming_request(ids: &BTreeSet<u64>, enabled: bool) -> CommandRequest {
+    CommandRequest::new(
+        "object.setJumpTrimming",
+        serde_json::json!({ "ids": CommandRequest::ids(ids), "enabled": enabled }),
+    )
 }
 
 /// The sewing order as colour frames: click selects a frame's objects; the arrows move it past
@@ -1139,5 +1165,71 @@ mod tests {
         app.undo();
         app.edit.arrange_open = false;
         assert!(!drag(&mut app, Phase::Down, v2(110.0, 100.0)));
+    }
+
+    #[test]
+    fn optimise_mode_box_sets_the_design_mode() {
+        let mut app = EditorApp::new(Launch::default());
+        rect(&mut app, 10.0);
+        let mode = app.session.design().optimize_order;
+        assert_eq!(mode, OptimizeOrder::PeDesign);
+        assert!(
+            optimize_mode_request(mode, mode).is_none(),
+            "an unchanged box sends nothing"
+        );
+        let r = optimize_mode_request(mode, OptimizeOrder::MinJump).expect("a change");
+        assert_eq!(r.command, "design.setProperties");
+        assert_eq!(r.params, json!({ "optimizeOrder": "minJump" }));
+        assert!(app.execute(&r).is_some(), "{}", app.status);
+        assert_eq!(app.session.design().optimize_order, OptimizeOrder::MinJump);
+        let back = optimize_mode_request(OptimizeOrder::MinJump, OptimizeOrder::PeDesign)
+            .expect("a change");
+        assert!(app.execute(&back).is_some(), "{}", app.status);
+        assert_eq!(app.session.design().optimize_order, OptimizeOrder::PeDesign);
+    }
+
+    #[test]
+    fn jump_trimming_checkbox_shows_mixed_and_sets_the_selection() {
+        fn state(t: &[Option<bool>]) -> (bool, &'static str) {
+            jump_trimming_state(t.iter().copied())
+        }
+        assert_eq!(state(&[None, Some(true)]), (true, "Jump stitch trimming"));
+        assert_eq!(
+            state(&[Some(false), Some(false)]),
+            (false, "Jump stitch trimming")
+        );
+        assert_eq!(
+            state(&[None, Some(false)]),
+            (true, "Jump stitch trimming (mixed)")
+        );
+        let mut app = EditorApp::new(Launch::default());
+        rect(&mut app, 10.0);
+        rect(&mut app, 50.0);
+        app.selection = BTreeSet::from([2]);
+        let off = jump_trimming_request(&app.selection, false);
+        assert_eq!(off.command, "object.setJumpTrimming");
+        assert_eq!(off.params, json!({ "ids": [2], "enabled": false }));
+        assert!(app.execute(&off).is_some(), "{}", app.status);
+        let trims = |app: &EditorApp| -> Vec<Option<bool>> {
+            app.session
+                .design()
+                .objects
+                .iter()
+                .map(|o| o.trim_jumps)
+                .collect()
+        };
+        assert_eq!(trims(&app), [None, Some(false)]);
+        assert_eq!(
+            jump_trimming_state(trims(&app).into_iter()),
+            (true, "Jump stitch trimming (mixed)")
+        );
+        app.selection = BTreeSet::from([1, 2]);
+        let on = jump_trimming_request(&app.selection, true);
+        assert!(app.execute(&on).is_some(), "{}", app.status);
+        assert_eq!(trims(&app), [None, None]);
+        assert_eq!(
+            jump_trimming_state(trims(&app).into_iter()),
+            (true, "Jump stitch trimming")
+        );
     }
 }

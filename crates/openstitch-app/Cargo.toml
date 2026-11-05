@@ -6,6 +6,7 @@ edition.workspace = true
 license.workspace = true
 # eframe 0.37 needs Rust 1.95.
 rust-version = "1.95"
+autotests = false
 
 [[bin]]
 name = "openstitch"
@@ -55,3 +56,7 @@ openstitch-testutil.workspace = true
 
 [lints]
 workspace = true
+
+[[test]]
+name = "integration"
+path = "tests/integration.rs"
