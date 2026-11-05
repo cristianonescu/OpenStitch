@@ -197,15 +197,12 @@ fn export_palette(s: &mut EngineState, p: &Params) -> crate::CommandResult {
         }
         (false, true) => {
             let id = p.string("builtin", None)?;
-            let (_, name, chart) = crate::user::builtin_charts()
+            let b = crate::thread_match::builtins()
                 .into_iter()
-                .find(|(i, _, _)| *i == id)
+                .find(|b| b.id == id)
                 .ok_or_else(|| p.invalid("builtin", "see threads.builtinCharts"))?;
-            let threads = crate::user::builtin_entries(&id, chart)
-                .into_iter()
-                .map(|(_, t)| t)
-                .collect();
-            (name.to_string(), threads)
+            let threads = b.entries.into_iter().map(|(_, t)| t).collect();
+            (b.name.to_string(), threads)
         }
         _ => return Err(p.invalid("chart", "give either chart or builtin")),
     };

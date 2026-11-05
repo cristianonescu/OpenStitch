@@ -131,13 +131,14 @@ pub fn precision_bar(app: &mut EditorApp, ui: &mut egui::Ui) {
                     .on_hover_text("Lock aspect: width and height scale together");
             }
             ui.label(f.label());
-            let shown = format!("{:.2}", precision::value(f, b, app.precision.options));
+            let units = app.ui.prefs.units;
+            let shown = precision::shown(f, b, app.precision.options, units);
             let mut text = match &app.precision.editing {
                 Some((k, t)) if *k == i => t.clone(),
                 _ => shown,
             };
             let r = ui.add(egui::TextEdit::singleline(&mut text).desired_width(56.0));
-            ui.weak(f.unit());
+            ui.weak(f.unit_in(units));
             if r.has_focus() {
                 app.precision.editing = Some((i, text.clone()));
             }
@@ -150,7 +151,7 @@ pub fn precision_bar(app: &mut EditorApp, ui: &mut egui::Ui) {
                 });
                 if enter
                     && !esc
-                    && let Ok(v) = text.trim().replace(',', ".").parse::<f64>()
+                    && let Some(v) = precision::parse(f, &text, units)
                 {
                     done = Some((f, v));
                 }

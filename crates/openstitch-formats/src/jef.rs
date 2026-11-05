@@ -30,6 +30,20 @@ pub enum Hoop {
 }
 
 impl Hoop {
+    /// The code of a hoop whose sewing field is exactly `width` × `height` mm, if JEF has one.
+    pub fn from_size_mm(width: f64, height: f64) -> Option<Self> {
+        [
+            (Self::H110x110, 110.0, 110.0),
+            (Self::H50x50, 50.0, 50.0),
+            (Self::H140x200, 140.0, 200.0),
+            (Self::H126x110, 126.0, 110.0),
+            (Self::H200x200, 200.0, 200.0),
+        ]
+        .into_iter()
+        .find(|&(_, w, h)| w == width && h == height)
+        .map(|(c, _, _)| c)
+    }
+
     /// Smallest hoop the design (0.1 mm) fits, falling back to 110×110.
     pub fn fitting(width: i64, height: i64) -> Self {
         if width < 500 && height < 500 {
@@ -128,6 +142,8 @@ pub struct WriteOptions {
     /// PE-DESIGN: a trimmed move is its jump run alone and readers infer the trim).
     pub command_trims: bool,
     pub trim_jumps: usize,
+    /// The header's hoop code; `None` picks the smallest hoop the design fits.
+    pub hoop: Option<Hoop>,
 }
 
 impl Default for WriteOptions {
@@ -136,6 +152,7 @@ impl Default for WriteOptions {
             date: None,
             command_trims: false,
             trim_jumps: 3,
+            hoop: None,
         }
     }
 }
@@ -290,7 +307,7 @@ pub fn write_with(input: &StitchPattern, options: &WriteOptions) -> Result<Vec<u
     w.u8(0);
     w.u32le(palette.len() as i64);
     w.u32le(points);
-    w.u32le(Hoop::fitting(width, height) as i64);
+    w.u32le(options.hoop.unwrap_or(Hoop::fitting(width, height)) as i64);
     for _ in 0..2 {
         w.u32le(half_w);
         w.u32le(half_h);

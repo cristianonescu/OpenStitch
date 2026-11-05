@@ -16,6 +16,7 @@ pub mod lettering;
 pub mod objects;
 pub mod pattern_wizards;
 pub mod pen;
+pub mod player;
 pub mod points;
 pub mod precision;
 pub mod prefs;
@@ -28,6 +29,7 @@ pub mod sewing;
 pub mod snap;
 pub mod suite;
 pub mod tools;
+pub mod units;
 pub mod updates;
 pub mod viewport;
 pub mod wizard;
@@ -43,6 +45,8 @@ pub use viewport::{ScreenRect, Viewport};
 
 #[cfg(test)]
 mod drawing_tests;
+#[cfg(test)]
+mod shape_tools_tests;
 #[cfg(test)]
 mod skeleton_char_tests;
 #[cfg(test)]
