@@ -169,7 +169,9 @@ fn read_edr(d: &[u8]) -> Result<Vec<Thread>> {
             d.len()
         )));
     }
-    Ok(d.chunks_exact(4)
+    Ok(d.as_chunks::<4>()
+        .0
+        .iter()
         .map(|c| Thread::rgb(u32::from_be_bytes([0, c[0], c[1], c[2]])))
         .collect())
 }
