@@ -5,6 +5,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+autotests = false
 
 [dependencies]
 # Decoding only, PNG / JPEG / BMP; every decode is bounded (see raster.rs).
@@ -18,3 +19,7 @@ serde_json.workspace = true
 
 [lints]
 workspace = true
+
+[[test]]
+name = "integration"
+path = "tests/integration.rs"

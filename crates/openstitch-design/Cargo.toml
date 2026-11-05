@@ -6,6 +6,7 @@ edition.workspace = true
 license.workspace = true
 # i_overlay needs 1.88; the rest of the workspace keeps 1.85.
 rust-version = "1.88"
+autotests = false
 
 [dependencies]
 base64 = "0.23.1"
@@ -23,3 +24,7 @@ unicode-script = "=0.5.8"
 
 [lints]
 workspace = true
+
+[[test]]
+name = "integration"
+path = "tests/integration.rs"

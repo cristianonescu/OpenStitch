@@ -1,0 +1,19 @@
+path	provenance	reason
+assets/brand/openstitch-mark.svg	jobs:assets/brand/higgsfield-jobs.tsv#mark	The Higgsfield mark without its tile, written by tools/clean_logo.py (assets/brand/README.md)
+assets/brand/openstitch-wordmark.svg	jobs:assets/brand/higgsfield-jobs.tsv#mark+lettering	The Higgsfield mark and lettering laid out by tools/clean_logo.py (assets/brand/README.md)
+assets/brand/openstitch-wordmark-dark.svg	jobs:assets/brand/higgsfield-jobs.tsv#mark+lettering	The wordmark with cream lettering, written by tools/clean_logo.py (assets/brand/README.md)
+assets/brand/openstitch-wordmark.png	jobs:assets/brand/higgsfield-jobs.tsv#mark+lettering	Rendered from openstitch-wordmark.svg by tools/gen_icons.py
+assets/brand/openstitch-wordmark-dark.png	jobs:assets/brand/higgsfield-jobs.tsv#mark+lettering	Rendered from openstitch-wordmark-dark.svg by tools/gen_icons.py
+assets/icons/openstitch.svg	jobs:assets/brand/higgsfield-jobs.tsv#mark	App icon master: the Higgsfield mark centred on a new tile by tools/clean_logo.py (assets/brand/README.md)
+assets/icons/openstitch-16.png	jobs:assets/brand/higgsfield-jobs.tsv#mark	Rendered from assets/icons/openstitch.svg by tools/gen_icons.py
+assets/icons/openstitch-32.png	jobs:assets/brand/higgsfield-jobs.tsv#mark	Rendered from assets/icons/openstitch.svg by tools/gen_icons.py
+assets/icons/openstitch-48.png	jobs:assets/brand/higgsfield-jobs.tsv#mark	Rendered from assets/icons/openstitch.svg by tools/gen_icons.py
+assets/icons/openstitch-64.png	jobs:assets/brand/higgsfield-jobs.tsv#mark	Rendered from assets/icons/openstitch.svg by tools/gen_icons.py
+assets/icons/openstitch-128.png	jobs:assets/brand/higgsfield-jobs.tsv#mark	Rendered from assets/icons/openstitch.svg by tools/gen_icons.py
+assets/icons/openstitch-256.png	jobs:assets/brand/higgsfield-jobs.tsv#mark	Rendered from assets/icons/openstitch.svg by tools/gen_icons.py
+assets/icons/openstitch-512.png	jobs:assets/brand/higgsfield-jobs.tsv#mark	Rendered from assets/icons/openstitch.svg by tools/gen_icons.py
+assets/icons/openstitch-1024.png	jobs:assets/brand/higgsfield-jobs.tsv#mark	Rendered from assets/icons/openstitch.svg by tools/gen_icons.py
+assets/icons/openstitch-64.rgba	jobs:assets/brand/higgsfield-jobs.tsv#mark	Raw RGBA of openstitch-64.png (window icon), written by tools/gen_icons.py
+assets/icons/openstitch.ico	jobs:assets/brand/higgsfield-jobs.tsv#mark	Windows icon packed from the openstitch-*.png renders by tools/gen_icons.py
+assets/icons/openstitch.icns	jobs:assets/brand/higgsfield-jobs.tsv#mark	macOS icon written from the 1024 px render by tools/gen_icons.py
+assets/textures/fabric_cotton.png	note	Generated with Higgsfield (Recraft V4.1 utility, 2026-10-27, #46), then cropped, made to tile and levelled; prompt in assets/illustrations/README.md, LEGAL entry "Illustrations and textures". Its job id is not recorded yet (#563): recover it from the owner's Higgsfield history into assets/textures/higgsfield-jobs.tsv (row fabric_cotton) and delete this row

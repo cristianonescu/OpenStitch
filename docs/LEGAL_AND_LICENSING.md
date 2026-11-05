@@ -39,9 +39,13 @@ the project keeps:
   close icons were added the same way on 2026-11-04 (#399). The job ids of the first set
   (2026-10-27, #35, `gear` among them) were recovered from the owner's Higgsfield history on
   2026-11-04 and are in the same file: each cleaned job output matches its SVG exactly, or with
-  only the hand-set fills different. `tools/check_icons.py` (CI) fails when an icon or
-  illustration has no job row, or when the app draws an emoji, Unicode symbol or painter shape
-  as an icon. The vector shapes in
+  only the hand-set fills different. `tools/check_icons.py` (CI) fails when any image file
+  anywhere under `assets/` (icons, illustrations, brand, textures, or a new folder) has neither
+  a row in the `higgsfield-jobs.tsv` beside it nor a row in `tools/check_assets_allow.tsv`
+  (which names the logo job each app icon, wordmark and render was made from by
+  `tools/clean_logo.py` and `tools/gen_icons.py`, and the cloth texture, whose job id is still
+  to be recovered), or when the app draws an emoji, Unicode symbol or painter shape as an
+  icon. The vector shapes in
   `crates/openstitch-app/src/icons.rs` are the fallback when an SVG cannot be rendered. The OpenStitch logo (the app icon `assets/icons/openstitch*`, the
   Application button mark, the About window, the startup splash and the README header, all
   from `assets/brand`) is the project's own: it was generated for OpenStitch with Higgsfield

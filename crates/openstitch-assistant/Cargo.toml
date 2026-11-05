@@ -5,6 +5,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+autotests = false
 
 [dependencies]
 base64 = "0.23.1"
@@ -26,3 +27,7 @@ name = "openstitch-acp-fake-agent"
 path = "tests/support/acp_fake_agent.rs"
 test = false
 doc = false
+
+[[test]]
+name = "integration"
+path = "tests/integration.rs"
