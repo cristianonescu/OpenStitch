@@ -1133,27 +1133,64 @@ impl GlyphStrokes {
     ) -> Vec<Vec<[Vec2; 2]>> {
         self.sides_along(contours)
             .into_iter()
-            .map(|[l, r]| {
+            .zip(&self.strokes)
+            .map(|([l, r], st)| {
                 if l.len() < 2 || r.len() < 2 || spacing <= 0.0 {
                     return Vec::new();
                 }
                 let line = |v: &[(f64, Vec2)]| v.iter().map(|q| q.1).collect::<Vec<_>>();
-                let (ll, lr) = (length(&line(&l)), length(&line(&r)));
+                let (pl, pr) = (line(&l), line(&r));
+                let (ll, lr) = (length(&pl), length(&pr));
                 let n = (ll.max(lr) / spacing).ceil().clamp(1.0, 10_000.0) as usize;
+                // Only a bending stroke needs the progress pairing: on a straight one the two
+                // agree, except where a junction cuts one side short (A's legs at the bar),
+                // where the progress pairing fans.
+                let progress = pairing == Pairing::Progress && bends(st);
                 (0..=n)
                     .map(|k| {
                         let f = k as f64 / n as f64;
-                        match pairing {
-                            Pairing::Progress => [progress_at(&l, f), progress_at(&r, f)],
-                            Pairing::Length => {
-                                [point_at(&line(&l), f * ll), point_at(&line(&r), f * lr)]
-                            }
+                        if progress {
+                            [progress_at(&l, f), progress_at(&r, f)]
+                        } else {
+                            [point_at(&pl, f * ll), point_at(&pr, f * lr)]
                         }
                     })
                     .collect()
             })
             .collect()
     }
+}
+
+/// A stroke bends when its centre line turns by more than this (degrees) at its median step,
+/// measured between stretches [`BEND_STEP`] long: S's spine and bowls, O, C turn at nearly
+/// every step; a straight stem or leg never, and a column through X's crossing only there.
+const BEND: f64 = 4.0;
+/// See [`BEND`] (0.1 mm).
+const BEND_STEP: f64 = 10.0;
+
+/// Whether `st` bends (see [`BEND`]).
+fn bends(st: &Stroke) -> bool {
+    if st.closed {
+        return true;
+    }
+    let total = length(&st.centre);
+    let steps = (total / BEND_STEP).floor() as usize;
+    if steps < 2 {
+        return false;
+    }
+    let pts: Vec<Vec2> = (0..=steps)
+        .map(|k| point_at(&st.centre, total * k as f64 / steps as f64))
+        .collect();
+    let mut turns: Vec<f64> = pts
+        .windows(3)
+        .map(|w| {
+            let (u, v) = (w[1] - w[0], w[2] - w[1]);
+            let cos = (u.x * v.x + u.y * v.y) / (u.length() * v.length()).max(1e-12);
+            cos.clamp(-1.0, 1.0).dacos().to_degrees()
+        })
+        .collect();
+    turns.sort_by(f64::total_cmp);
+    turns.get(turns.len() / 2).is_some_and(|&t| t > BEND)
 }
 
 // ------------------------------------------------------------------ order

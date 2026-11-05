@@ -496,12 +496,17 @@ Line references are relative to `crates/`.
   apart); satin crossings are spaced 0.4 mm along the block's outer side between rungs 0.02 mm
   apart (stroke-satin-O: 0.41 mm outside), along the inner side round a corner, instead of
   cutting chords between 3 mm rungs (a 4 mm o's crossings stopped 0.3-0.45 mm inside its
-  outline); a satin stroke's sides are joined by the centre line's progress, so crossings stay
-  across S's spine as PE-DESIGN's do (fill rows keep the length pairing their spacing was
-  measured with); and the stroke cut's grid has 200 cells across every letter (it never went
+  outline), in blocks that bend, turn a corner or are one or two 3 mm sections long; straight
+  blocks and junction squares keep their 3 mm rungs (fine rungs fanned where a junction cuts a
+  side short: A's legs at the bar); a bending satin stroke's sides are joined by the centre
+  line's progress, so crossings stay across S's spine as PE-DESIGN's do (fill rows keep the
+  length pairing their spacing was measured with); and the stroke cut's grid has 200 cells across every letter (it never went
   under 0.02 mm cells, which coarsened 4 mm letters: n lost its stem's top and fell back to
-  region). The 13 satin captures and text-defaults-h are now 5.7 % from PE-DESIGN's needle points on average (was
-  9 %; X 342 against 277 and T 209 against 186 the furthest). Under sewing per stroke is
+  region). The 13 satin captures and text-defaults-h are now 5.6 % from PE-DESIGN's needle points on average (was
+  9.3 %), none further than before: O 338 (was 310) against 358, S 267 (215) against 278, 8 357
+  (317) against 373, e 267 (247) against 267, L 136 (176) against 152, H-10 151 (145) against
+  149; X 314 against 277 and T 208 against 186 unchanged and the furthest (#446). Fill text is
+  unchanged (8.0 %). Under sewing per stroke is
   still open (step 5 of the research note), and no satin capture under 8 mm exists yet.
 - **Test:**
   - Inputs: `text.add {"text":"AVOW","size":30,"x":50,"y":50}` →

@@ -621,10 +621,22 @@ fn stroke_columns(
                 region.fill_stagger(),
             )
         } else {
-            let rungs = fine.as_ref().map_or_else(
-                || b.rungs.clone(),
-                |f| satin_rungs(&f[i].rungs, turns_corner(&b.rungs), 2.0 * spacing),
-            );
+            // A long straight block keeps its 3 mm rungs: their chords are its sides, and the
+            // fine rungs would fan where a junction cuts one side short (A's legs at the bar).
+            // A block of one or two 3 mm sections (small letters) takes the fine rungs: its
+            // chords would cut its ends (a 4 mm i's slanted top). A junction square keeps its
+            // rungs (T's, short and skewed, would read as bending).
+            let rungs = match fine.as_ref() {
+                Some(f)
+                    if !b.junction
+                        && (b.rungs.len() <= 3
+                            || block_bends(&f[i].rungs)
+                            || turns_corner(&b.rungs)) =>
+                {
+                    satin_rungs(&f[i].rungs, turns_corner(&b.rungs), 2.0 * spacing)
+                }
+                _ => b.rungs.clone(),
+            };
             crate::column::satin(&rungs, spacing, pull)
         };
         // PE-DESIGN walks the letter's outline between its blocks (stroke-blocks-H: running
@@ -643,6 +655,47 @@ fn stroke_columns(
         runs.push(run);
     }
     (!runs.is_empty()).then_some(runs)
+}
+
+/// A block bends when its middle line turns by more than this (degrees) at its median step of
+/// [`BLOCK_BEND_STEP`]: O, S, e and the bowls of small letters turn at nearly every step; a
+/// straight stem, leg or bar never, and X's chevrons only where their arms meet.
+const BLOCK_BEND: f64 = 4.0;
+/// See [`BLOCK_BEND`] (0.1 mm).
+const BLOCK_BEND_STEP: f64 = 10.0;
+
+/// Whether a block, by its rungs close together `fine`, bends (see [`BLOCK_BEND`]).
+fn block_bends(fine: &[[Vec2; 2]]) -> bool {
+    let mids: Vec<Vec2> = fine.iter().map(|[l, r]| l.lerp(*r, 0.5)).collect();
+    let total: f64 = mids.windows(2).map(|w| w[0].distance(w[1])).sum();
+    let steps = (total / BLOCK_BEND_STEP).floor() as usize;
+    if steps < 2 {
+        return false;
+    }
+    let at = |s: f64| {
+        let mut run = 0.0;
+        for w in mids.windows(2) {
+            let d = w[0].distance(w[1]);
+            if run + d >= s {
+                return w[0].lerp(w[1], ((s - run) / d.max(1e-9)).clamp(0.0, 1.0));
+            }
+            run += d;
+        }
+        mids[mids.len() - 1]
+    };
+    let pts: Vec<Vec2> = (0..=steps)
+        .map(|k| at(total * k as f64 / steps as f64))
+        .collect();
+    let mut turns: Vec<f64> = pts
+        .windows(3)
+        .map(|w| {
+            let (u, v) = (w[1] - w[0], w[2] - w[1]);
+            let cos = (u.x * v.x + u.y * v.y) / (u.length() * v.length()).max(1e-12);
+            cos.clamp(-1.0, 1.0).dacos().to_degrees()
+        })
+        .collect();
+    turns.sort_by(f64::total_cmp);
+    turns.get(turns.len() / 2).is_some_and(|&t| t > BLOCK_BEND)
 }
 
 /// Letters turned by less than this (degrees) are cut into strokes as they stand.
