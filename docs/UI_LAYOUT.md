@@ -378,6 +378,14 @@ and [Adjusting the split positions](https://support.brother.com/g/s/hf/htmldoc/p
   a centre line derived from its outline — an approximation of the medial axis (grid
   clearance, the longest path through the shape, corner ends trimmed; branches are not
   followed). Edit the result with the Satin Skeleton tool.
+- **Continue a line** (beyond PE-DESIGN, #479): with the Closed/Open Curve pen, Open Straight
+  Line, Running, Straight/Curved Block or Satin Skeleton tool active and one finished open
+  line, path, column or skeleton of that kind selected, the pointer becomes a hand within 6
+  screen points of either end. Click there and keep adding points (or direction lines);
+  Return or a double-click adds them to the same object (`object.extendPath`,
+  `object.extendColumn`, one Undo), Esc leaves it unchanged. On a skeleton, a click without a
+  drag on an end point continues it (a drag still moves the point), and new points keep the
+  end's width. Closed outlines are not offered.
 - **Change Color** lists the selected stitch pattern's threads; pick one and its new colour.
 - **Editing characters** (after the guide's
   [Editing individual characters](https://support.brother.com/g/s/hf/htmldoc/ped/im/ped11/en/PED11_EN/pages/05_1904502.html)):

@@ -8,6 +8,8 @@
 mod arrange_modes;
 #[path = "capabilities.rs"]
 mod capabilities;
+#[path = "continuing.rs"]
+mod continuing;
 #[path = "contour_fill.rs"]
 mod contour_fill;
 #[path = "convert.rs"]

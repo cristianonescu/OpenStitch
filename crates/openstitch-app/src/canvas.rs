@@ -133,9 +133,16 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
         crate::workspace_ui::draw_rulers(&painter, rect, &vp, response.hover_pos());
         crate::view_ui::draw_guide_markers(app, &painter, rect, &vp);
     }
+    // Over an end of the selected line or column the drawing tool can continue (#479).
+    let continues = response.hover_pos().is_some_and(|h| {
+        let m = vp.to_model(v2(f64::from(h.x), f64::from(h.y)));
+        let d = app.session.design();
+        app.tools.continue_target(&app.tool_context(d), m).is_some()
+    });
     let cursor = match app.tools.tool() {
         _ if app.ui.pan => egui::CursorIcon::Grab,
         _ if app.workspace.measure.active => egui::CursorIcon::Crosshair,
+        _ if continues => egui::CursorIcon::PointingHand,
         openstitch_app::editor::Tool::Select | openstitch_app::editor::Tool::Point => {
             egui::CursorIcon::Default
         }

@@ -44,6 +44,8 @@ pub use viewport::{ScreenRect, Viewport};
 #[cfg(test)]
 mod drawing_tests;
 #[cfg(test)]
+mod shape_tools_tests;
+#[cfg(test)]
 mod skeleton_char_tests;
 #[cfg(test)]
 mod tests;

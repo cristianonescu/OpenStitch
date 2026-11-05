@@ -78,7 +78,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 291: 177 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 104 planned beyond PE-DESIGN |
+| Feature matrix rows | 291: 178 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 103 planned beyond PE-DESIGN |
 | Compatibility specs | 454: 454 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 36: 29 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 10 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
@@ -648,7 +648,6 @@ PE-DESIGN 11 does not. Each item is sketched in
 - AI assistant benchmark (B17, phase A5): stitchtool bench-assistant sends 12 embroidery tasks (badge, monogram, arc text, appliqué, star, two colours, a wider rectangle, recolour, delete, picture to embroidery, vector route, a question) to the Claude API, an OpenAI-compatible endpoint or an ACP coding agent, through the assistant's own tools over a headless editor. Each task is scored on the resulting design (object.list, design.info), failures are sorted into categories, and it writes JSON and Markdown reports
 - Knife: an open cut line splits every crossed fill, outline, Manual Punch column and line in one step (shape.knife) (#477)
 - Smooth Shape removes nodes within a tolerance (shape.simplify, 0.2 mm) and Smooth Stitches relaxes needle points of stitch patterns (stitches.smooth) (#478)
-- Continue digitizing: pick the tool and click an end of a finished line or column to add more points (B11) (#479)
 - GIMP/Inkscape .gpl palettes imported and exported as user thread charts (#483)
 - Perceptual thread matching (CIEDE2000) for threads.remap as an opt-in, with a match preview and keep-distinct rule; PE's RGB rule stays the default (#484)
 - Merge similar colours: threads closer than a ΔE threshold joined into one, previewed and undoable (#485)
