@@ -353,7 +353,7 @@
    71.0,
    89.7
   ],
-  "stitches": 3540,
+  "stitches": 3903,
   "trims": 40,
   "threads": [
    "405 Blue",
@@ -362,10 +362,10 @@
    "399 Warm Gray",
    "620 Magenta"
   ],
-  "sewingMinutes": 6.5,
+  "sewingMinutes": 6.9,
   "image": null,
   "preview": "previews/fonts-and-text.png",
-  "sha256": "57181170b48dfe6e7a69a2d42ee187443553c770b27c566510e61e5a9e089909"
+  "sha256": "1cddead9900192c913594620394eb2e79504d2affae57a621b89866f84cd863a"
  },
  "lettering/monograms.pes": {
   "title": "Monograms",

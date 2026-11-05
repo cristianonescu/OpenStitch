@@ -495,6 +495,18 @@ pub struct Glyph {
     pub index: usize,
     pub contours: Vec<Contour>,
     pub stitches: Option<StitchBlock>,
+    /// Where the font's glyph was placed (font units to 0.1 mm on the page) when it was only
+    /// moved, turned and scaled, `None` once a Text Transform envelope warped it: compiling
+    /// cuts a turned letter into strokes upright, as PE-DESIGN 11.50 does (#444).
+    pub placement: Option<Transform>,
+}
+
+impl Glyph {
+    /// How far the letter is turned, degrees (counter-clockwise in its coordinates): the
+    /// angle of its placed x axis. `None` for a warped letter.
+    pub fn turn(&self) -> Option<f64> {
+        self.placement.map(|t| t.b.datan2(t.a).to_degrees())
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -1122,6 +1134,7 @@ pub fn layout_in(
         if let Some(b) = Rect::enclosing(points) {
             let t = nd.fit(&b).then(&spec.transform);
             for g in &mut l.glyphs {
+                g.placement = g.placement.map(|p| p.then(&t));
                 for c in &mut g.contours {
                     *c = c.transformed(&t);
                 }
@@ -1357,6 +1370,7 @@ pub fn layout_in(
             index: g.index,
             contours,
             stitches,
+            placement: Some(at),
         });
     }
     Ok(Layout {
@@ -1380,6 +1394,7 @@ fn layout_bounds(l: &Layout) -> Option<Rect> {
 /// Applies `t` to every outline and stitch of `l`.
 fn transform_layout(l: &mut Layout, t: &Transform) {
     for g in &mut l.glyphs {
+        g.placement = g.placement.map(|p| p.then(t));
         for c in &mut g.contours {
             *c = c.transformed(t);
         }
@@ -1496,6 +1511,7 @@ fn envelope_layout(spec: &TextSpec, preset: u8, fonts: &[DesignFont]) -> Result<
             )
         };
         for g in &mut l.glyphs {
+            g.placement = None;
             for c in &mut g.contours {
                 *c = warp_contour(c, &warp);
             }

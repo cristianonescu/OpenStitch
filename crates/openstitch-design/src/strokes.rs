@@ -122,7 +122,7 @@ struct Grid {
 
 impl Grid {
     fn new(edges: &[(Vec2, Vec2)], b: &Rect) -> Option<Grid> {
-        let step = (b.width().max(b.height()) / GRID_CELLS).max(0.2);
+        let step = (b.width().max(b.height()) / GRID_CELLS).max(0.05);
         // One cell of margin on every side, so the thinning never touches the border.
         let nx = (b.width() / step).ceil() as usize + 3;
         let ny = (b.height() / step).ceil() as usize + 3;
@@ -965,6 +965,65 @@ fn point_at(line: &[Vec2], s: f64) -> Vec2 {
     line.last().copied().unwrap_or(v2(0.0, 0.0))
 }
 
+/// The point of a side (points with their place along the stroke, non-decreasing) at fraction
+/// `f` of the way along it: its first point at 0, its last at 1, and in between the point at
+/// that fraction of the way from its first place to its last, not counting an end corner (the
+/// corner of an end edge projects onto the centre line's very end, so a straight stroke cut
+/// slanting, X's legs, would stand still there and fan). A side that does not progress is
+/// taken by length instead.
+fn progress_at(side: &[(f64, Vec2)], f: f64) -> Vec2 {
+    let n = side.len();
+    let pts = || side.iter().map(|q| q.1).collect::<Vec<_>>();
+    let ends = (side[0].0, side[n - 1].0);
+    let inner: Vec<(f64, Vec2)> = side
+        .iter()
+        .copied()
+        .enumerate()
+        .filter(|&(i, q)| !(i == 0 && q.0 <= ends.0 + 1e-6 || i == n - 1 && q.0 >= ends.1 - 1e-6))
+        .map(|(_, q)| q)
+        .collect();
+    if f <= 0.0 {
+        return side[0].1;
+    }
+    if f >= 1.0 {
+        return side[n - 1].1;
+    }
+    let (Some(first), Some(last)) = (inner.first(), inner.last()) else {
+        let p = pts();
+        return point_at(&p, f * length(&p));
+    };
+    if last.0 - first.0 <= 1e-6 {
+        let p = pts();
+        return point_at(&p, f * length(&p));
+    }
+    // The end corners stand before and after the inner points.
+    let mut walk: Vec<(f64, Vec2)> = Vec::with_capacity(n);
+    let span = last.0 - first.0;
+    let lead = side[0].1.distance(first.1);
+    let tail = side[n - 1].1.distance(last.1);
+    let total = span + lead + tail;
+    if lead > 1e-9 {
+        walk.push((0.0, side[0].1));
+    }
+    walk.extend(inner.iter().map(|&(a, p)| (lead + a - first.0, p)));
+    if tail > 1e-9 {
+        walk.push((total, side[n - 1].1));
+    }
+    let at = f * total;
+    for w in walk.windows(2) {
+        let ((a, p), (b, q)) = (w[0], w[1]);
+        if b >= at {
+            let t = if b - a > 1e-9 {
+                (at - a) / (b - a)
+            } else {
+                1.0
+            };
+            return p.lerp(q, t.clamp(0.0, 1.0));
+        }
+    }
+    walk.last().map_or(side[n - 1].1, |q| q.1)
+}
+
 fn length(line: &[Vec2]) -> f64 {
     line.windows(2).map(|w| w[0].distance(w[1])).sum()
 }
@@ -975,6 +1034,15 @@ impl GlyphStrokes {
     /// the stretch both sides cover. `[left, right]` per stroke; empty sides where the stroke
     /// has no outline of its own.
     pub fn sides(&self, contours: &[Contour]) -> Vec<[Vec<Vec2>; 2]> {
+        self.sides_along(contours)
+            .into_iter()
+            .map(|sides| sides.map(|v| v.into_iter().map(|(_, p)| p).collect()))
+            .collect()
+    }
+
+    /// [`Self::sides`] with each point's place along the stroke: the arc length of its
+    /// projection onto the centre line (0.1 mm), non-decreasing along each side.
+    fn sides_along(&self, contours: &[Contour]) -> Vec<[Vec<(f64, Vec2)>; 2]> {
         let mut sides: Vec<[Vec<(f64, f64, Vec2)>; 2]> = self
             .strokes
             .iter()
@@ -1033,10 +1101,10 @@ impl GlyphStrokes {
                     (Some(a), Some(b), Some(c), Some(d)) => (a.0.max(c.0), b.0.min(d.0)),
                     _ => return [Vec::new(), Vec::new()],
                 };
-                let keep = |v: Vec<(f64, f64, Vec2)>| -> Vec<Vec2> {
+                let keep = |v: Vec<(f64, f64, Vec2)>| -> Vec<(f64, Vec2)> {
                     v.into_iter()
                         .filter(|&(at, _, _)| at >= lo - SIDE_STEP && at <= hi + SIDE_STEP)
-                        .map(|(_, _, p)| p)
+                        .map(|(at, _, p)| (at, p))
                         .collect()
                 };
                 [keep(l), keep(r)]
@@ -1045,21 +1113,47 @@ impl GlyphStrokes {
     }
 
     /// Each stroke's rungs `spacing` apart (0.1 mm along its longer side): the two side edges
-    /// joined at equal fractions of their lengths, as PE-DESIGN 11.50 joins them (its Convert
-    /// to Blocks lines on A's slanted right leg are about horizontal, not across the leg).
+    /// joined at equal fractions of the centre line's progress over each side, from its first
+    /// point to its last. On a straight stroke that is the fraction of the side's length, as
+    /// PE-DESIGN 11.50 joins them (its Convert to Blocks lines on A's slanted right leg are
+    /// about horizontal, not across the leg); where the stroke bends, the side on the outside
+    /// of the bend is much longer than the one inside, and joining them by length would slant
+    /// the rungs further and further along (S's spine, where PE-DESIGN's crossings stay across
+    /// the stroke: stroke-satin-S, #444).
     pub fn rungs(&self, contours: &[Contour], spacing: f64) -> Vec<Vec<[Vec2; 2]>> {
-        self.sides(contours)
+        self.rungs_paired(contours, spacing, Pairing::Progress)
+    }
+
+    /// [`Self::rungs`] with the sides joined by `pairing`.
+    pub fn rungs_paired(
+        &self,
+        contours: &[Contour],
+        spacing: f64,
+        pairing: Pairing,
+    ) -> Vec<Vec<[Vec2; 2]>> {
+        self.sides_along(contours)
             .into_iter()
-            .map(|[l, r]| {
+            .zip(&self.strokes)
+            .map(|([l, r], st)| {
                 if l.len() < 2 || r.len() < 2 || spacing <= 0.0 {
                     return Vec::new();
                 }
-                let (ll, lr) = (length(&l), length(&r));
+                let line = |v: &[(f64, Vec2)]| v.iter().map(|q| q.1).collect::<Vec<_>>();
+                let (pl, pr) = (line(&l), line(&r));
+                let (ll, lr) = (length(&pl), length(&pr));
                 let n = (ll.max(lr) / spacing).ceil().clamp(1.0, 10_000.0) as usize;
+                // Only a bending stroke needs the progress pairing: on a straight one the two
+                // agree, except where a junction cuts one side short (A's legs at the bar),
+                // where the progress pairing fans.
+                let progress = pairing == Pairing::Progress && bends(st);
                 (0..=n)
                     .map(|k| {
                         let f = k as f64 / n as f64;
-                        [point_at(&l, f * ll), point_at(&r, f * lr)]
+                        if progress {
+                            [progress_at(&l, f), progress_at(&r, f)]
+                        } else {
+                            [point_at(&pl, f * ll), point_at(&pr, f * lr)]
+                        }
                     })
                     .collect()
             })
@@ -1067,7 +1161,50 @@ impl GlyphStrokes {
     }
 }
 
+/// A stroke bends when its centre line turns by more than this (degrees) at its median step,
+/// measured between stretches [`BEND_STEP`] long: S's spine and bowls, O, C turn at nearly
+/// every step; a straight stem or leg never, and a column through X's crossing only there.
+const BEND: f64 = 4.0;
+/// See [`BEND`] (0.1 mm).
+const BEND_STEP: f64 = 10.0;
+
+/// Whether `st` bends (see [`BEND`]).
+fn bends(st: &Stroke) -> bool {
+    if st.closed {
+        return true;
+    }
+    let total = length(&st.centre);
+    let steps = (total / BEND_STEP).floor() as usize;
+    if steps < 2 {
+        return false;
+    }
+    let pts: Vec<Vec2> = (0..=steps)
+        .map(|k| point_at(&st.centre, total * k as f64 / steps as f64))
+        .collect();
+    let mut turns: Vec<f64> = pts
+        .windows(3)
+        .map(|w| {
+            let (u, v) = (w[1] - w[0], w[2] - w[1]);
+            let cos = (u.x * v.x + u.y * v.y) / (u.length() * v.length()).max(1e-12);
+            cos.clamp(-1.0, 1.0).dacos().to_degrees()
+        })
+        .collect();
+    turns.sort_by(f64::total_cmp);
+    turns.get(turns.len() / 2).is_some_and(|&t| t > BEND)
+}
+
 // ------------------------------------------------------------------ order
+
+/// How a stroke's two sides are joined into rungs (see [`GlyphStrokes::rungs`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Pairing {
+    /// At equal fractions of the centre line's progress: crossings stay across a bending
+    /// stroke, as PE-DESIGN's satin S (the default).
+    Progress,
+    /// At equal fractions of each side's length: the rows of fill text, whose spacing was
+    /// measured against PE-DESIGN's fill captures with them (#376).
+    Length,
+}
 
 /// Two strokes through a junction whose directions out of it differ from straight by at most
 /// this (degrees) are one column through it (H's stems, A's legs, T's bar).
@@ -1241,6 +1378,16 @@ impl GlyphStrokes {
     /// (upwards), the junction square, the bar, the right stem whole; A: the left leg's upper
     /// and lower parts, the square, the bar, the right leg whole with the apex.
     pub fn blocks(&self, contours: &[Contour], spacing: f64) -> Vec<Block> {
+        self.blocks_paired(contours, spacing, Pairing::Progress)
+    }
+
+    /// [`Self::blocks`] with each stroke's sides joined by `pairing`.
+    pub fn blocks_paired(
+        &self,
+        contours: &[Contour],
+        spacing: f64,
+        pairing: Pairing,
+    ) -> Vec<Block> {
         let cols = self.columns();
         if cols.is_empty() || spacing <= 0.0 {
             return Vec::new();
@@ -1254,7 +1401,7 @@ impl GlyphStrokes {
         else {
             return Vec::new();
         };
-        let mut rungs = merged.rungs(contours, spacing);
+        let mut rungs = merged.rungs_paired(contours, spacing, pairing);
         let sewn = |rungs: &[Vec<[Vec2; 2]>]| {
             let mut order = Order {
                 g: self,
@@ -1736,6 +1883,38 @@ mod tests {
     fn off(a: f64, b: f64) -> f64 {
         let d = (a - b).rem_euclid(180.0);
         d.min(180.0 - d)
+    }
+
+    #[test]
+    fn rungs_stay_across_a_bending_stroke() {
+        // PE-DESIGN's S (stroke-satin-S) crosses its spine across the stroke all along. Joined
+        // at equal fractions of the sides' lengths, the rungs slanted further and further along
+        // the spine, where the side outside each bend is much longer than the one inside
+        // (#444). Each rung's middle sits on the centre line, so measure how far a rung is from
+        // square to the centre line there.
+        for size in [40.0, 80.0, 200.0] {
+            let spec = TextSpec::new("S", DEFAULT_FONT, size / 10.0);
+            let contours = layout(&spec, None).expect("layout").contours();
+            let g = strokes(&contours).expect("strokes");
+            let rungs = g.rungs(&contours, 30.0);
+            let mut worst: f64 = 0.0;
+            for (st, rs) in g.strokes.iter().zip(&rungs) {
+                for r in rs.iter().filter(|r| r[0].distance(r[1]) > 1.0) {
+                    let mid = r[0].lerp(r[1], 0.5);
+                    let (at, _, _) = project(&st.centre, st.closed, mid);
+                    let (a, b) = (
+                        point_at(&st.centre, at - 5.0),
+                        point_at(&st.centre, at + 5.0),
+                    );
+                    let along = angle(&[a, b]);
+                    worst = worst.max(off(off(angle(r), along), 90.0).abs());
+                }
+            }
+            assert!(
+                worst < 40.0,
+                "S at {size}: a rung {worst} degrees off square"
+            );
+        }
     }
 
     #[test]
