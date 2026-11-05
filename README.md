@@ -78,7 +78,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 291: 179 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 102 planned beyond PE-DESIGN |
+| Feature matrix rows | 291: 184 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 97 planned beyond PE-DESIGN |
 | Compatibility specs | 454: 454 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 36: 29 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 10 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
@@ -648,10 +648,7 @@ PE-DESIGN 11 does not. Each item is sketched in
 - AI assistant benchmark (B17, phase A5): stitchtool bench-assistant sends 12 embroidery tasks (badge, monogram, arc text, appliqué, star, two colours, a wider rectangle, recolour, delete, picture to embroidery, vector route, a question) to the Claude API, an OpenAI-compatible endpoint or an ACP coding agent, through the assistant's own tools over a headless editor. Each task is scored on the resulting design (object.list, design.info), failures are sorted into categories, and it writes JSON and Markdown reports
 - Knife: an open cut line splits every crossed fill, outline, Manual Punch column and line in one step (shape.knife) (#477)
 - Smooth Shape removes nodes within a tolerance (shape.simplify, 0.2 mm) and Smooth Stitches relaxes needle points of stitch patterns (stitches.smooth) (#478)
-- Continue digitizing: pick the tool and click an end of a finished line or column to add more points (B11) (#479)
 - GIMP/Inkscape .gpl palettes imported and exported as user thread charts (#483)
-- Perceptual thread matching (CIEDE2000) for threads.remap as an opt-in, with a match preview and keep-distinct rule; PE's RGB rule stays the default (#484)
-- Merge similar colours: threads closer than a ΔE threshold joined into one, previewed and undoable (#485)
 - More built-in thread charts compiled from each maker's own published colour data, searchable by number or name (#486)
 - Vector image import (PE-compat area): clip paths, masks and opacity applied, gradients as optional colour bands, and a report of skipped elements (#487)
 - Image wizard (OpenStitch mode): purpose presets, a region table with reasons and overrides, click-to-fix on the picture, colour order, varied or least-travel fill angles and outline SVG export (#489)
@@ -675,9 +672,7 @@ PE-DESIGN 11 does not. Each item is sketched in
 - Live remove-hidden-stitching: stitches under later objects left out at compile time with an overlap margin, shapes unchanged, stitches saved reported (B11) (#511) (#511)
 - Machine stops: stop after a chosen object and a one-click Stop at Jumps for machines without a thread cutter (#512) (#512)
 - Job sheets: client approval and operator worksheets with job fields, colour sequence, stops, time and branding (W7) (#513) (#513)
-- Hoop lists for other machine brands and round commercial hoops, each from the maker's published sizes (#514) (#514)
 - Free multi-hooping: overlapping hoopings placed freely, objects kept whole, alignment marks followed by a stop, per-hooping files (W1) (#515) (#515)
-- Stitch-out player: colour-block timeline with trim ticks, machine time at the needle, stepping by colour/object/trim, pause at trims, follow the needle (#516) (#516)
 - View toggles: needle points, underlay or top only, trim marks, hide unselected, colour by sewing order or monochrome, solo colour (#517) (#517)
 - Satin corner styles (turn / mitre below 75° / cap below 45°, 0.5 mm overlap) on satin regions, columns, skeleton satin, zigzag lines and borders (B3) (#520)
 - Short stitches on inner curves for every satin kind (Manual Punch, skeleton satin, borders, lettering), with distance and inset settings (B3) (#521)

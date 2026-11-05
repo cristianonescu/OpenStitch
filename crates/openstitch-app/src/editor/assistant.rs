@@ -141,7 +141,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     },
     UiCommand {
         id: "ui.simulate",
-        summary: "Stitch Simulator: show the design sewn up to a point, play or stop, and the play speed",
+        summary: "Stitch Simulator and stitch-out player: show the design sewn up to a point (a fraction, a stitch, or a step by block, object or trim), play or stop, the speed and the player toggles",
         effect: Effect::Read,
         params: &[
             p(
@@ -162,6 +162,31 @@ pub const UI_COMMANDS: &[UiCommand] = &[
                 false,
                 "Stitches per second while playing, 1-5000",
             ),
+            p(
+                "stitch",
+                "int",
+                false,
+                "Go to this many stitches sewn (design.timeline gives block and object starts)",
+            ),
+            p(
+                "step",
+                "start|end|stitch|stitchBack|block|blockBack|object|objectBack|trim",
+                false,
+                "Step the player: a stitch, to the next or previous colour block or object, or to the next trim",
+            ),
+            p(
+                "auto",
+                "bool",
+                false,
+                "Auto speed: the whole design in about 12 s",
+            ),
+            p(
+                "pauseAtTrims",
+                "bool",
+                false,
+                "Stop playing at each trim, stop and colour change",
+            ),
+            p("followNeedle", "bool", false, "Keep the needle in view"),
         ],
     },
     UiCommand {
