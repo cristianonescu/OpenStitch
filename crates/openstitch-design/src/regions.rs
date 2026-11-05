@@ -255,11 +255,26 @@ pub fn generate(
         RegionType::Stippling => {
             // The meander is a smooth curve of many short segments: sew it at the Run Pitch,
             // at most half the spacing so its turns stay round (never at its 0.2 mm vertices).
-            let step = pitch.min(spacing / 2.0).max(5.0);
-            let loops = stipple(closed, holes, angle, spacing)
+            // At most 2 mm on wide spacings too (#462).
+            let step = pitch.min(spacing / 2.0).clamp(5.0, 20.0);
+            let mut loops: Vec<Vec<Vec2>> = stipple(closed, holes, angle, spacing)
                 .iter()
                 .map(|l| crate::ornament::resample_closed(l, step))
                 .collect();
+            // Start (and so end) at the meander's point nearest the start point: the travel
+            // there and back is one short stitch in from the outline, not a walk along it
+            // (the exposed L of #462).
+            if let Some(e) = r.entry.or(r.exit)
+                && let Some((li, pi)) = loops
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(li, l)| l.iter().enumerate().map(move |(pi, p)| (li, pi, *p)))
+                    .min_by(|a, b| e.distance(a.2).total_cmp(&e.distance(b.2)))
+                    .map(|(li, pi, _)| (li, pi))
+            {
+                let first = loops.remove(li);
+                loops.insert(0, first[pi..].iter().chain(&first[..pi]).copied().collect());
+            }
             vec![region.loops(loops)]
         }
         RegionType::Contour => {
@@ -1443,37 +1458,71 @@ fn centroid(c: &Contour) -> Vec2 {
 
 // ------------------------------------------------------------------ stippling
 
-/// Stippling: a meandering closed path that never crosses itself. Cells of twice the spacing
-/// that lie wholly inside the region get a random spanning tree (fixed seed); the path walks
-/// around the tree at half a cell, through every quarter cell (a Hamiltonian cycle of the
-/// doubled grid), then is rounded by three corner-cutting passes. One loop per connected part.
+/// Stippling: a meandering closed path that never crosses itself, its neighbouring passes
+/// `spacing` apart and reaching to about half a spacing from the outline and the holes (#462).
+/// 1. A lattice of points about `spacing` apart, fitted to the region's (rotated) bounds so a
+///    rectangle's outer points lie half a spacing inside; points 0.35 spacing or more inside
+///    are usable.
+/// 2. Cells of 2 × 2 usable points get a random spanning tree (fixed seed); the path walks
+///    around the tree through every point of its cells (a Hamiltonian cycle of the doubled
+///    grid). One loop per connected part.
+/// 3. Usable points of the partial cells along the outline are taken in by detours: a step
+///    u → v becomes u → u' → v' → v through two free neighbours; loops whose steps face each
+///    other one point apart are joined into one.
+/// 4. Rounded by corner cutting, then relaxed: each point moves square to the path towards
+///    the middle between the passes (or the outline, counted at half a spacing) on its two
+///    sides, never so that it crosses or comes near another pass.
 fn stipple(closed: &[Contour], holes: &[Contour], angle: f64, spacing: f64) -> Vec<Vec<Vec2>> {
     let Some(b) = rotated_bounds(closed, angle) else {
         return Vec::new();
     };
     let cell = spacing * 2.0;
-    if cell <= 0.0 {
+    if cell <= 0.0 || !cell.is_finite() {
         return Vec::new();
     }
-    let rad = angle.to_radians();
-    let at = |x: f64, y: f64| v2(x, y).rotated(rad);
-    let inside = |p: Vec2| contains(p, closed) && !contains(p, holes);
-    let cols = ((b.width() / cell).floor() as usize).max(1);
-    let rows = ((b.height() / cell).floor() as usize).max(1);
+    // Cells fitted to the bounds when that changes the spacing by 15 % or less.
+    let fit = |len: f64| {
+        let n = (len / cell).round().max(1.0);
+        if (len / n - cell).abs() <= 0.15 * cell {
+            (n as usize, len / n / 2.0, 0.0)
+        } else {
+            let n = (len / cell).floor().max(1.0);
+            (n as usize, spacing, (len - n * cell) / 2.0)
+        }
+    };
+    let ((cols, sx, mx), (rows, sy, my)) = (fit(b.width()), fit(b.height()));
     if cols.saturating_mul(rows) > MAX_POINTS / 8 {
         return Vec::new();
     }
-    let ox = b.min_x + (b.width() - cols as f64 * cell) / 2.0;
-    let oy = b.min_y + (b.height() - rows as f64 * cell) / 2.0;
+    let rad = angle.to_radians();
+    let edges = EdgeIndex::new(closed.iter().chain(holes), 2.5 * spacing);
+    let inside = |p: Vec2, margin: f64| {
+        contains(p, closed) && !contains(p, holes) && edges.distance(p, margin).is_none()
+    };
+    // Fine lattice: w × h points, id = y * w + x.
+    let (w, h) = (2 * cols, 2 * rows);
+    let pos = |x: usize, y: usize| {
+        v2(
+            b.min_x + mx + (x as f64 + 0.5) * sx,
+            b.min_y + my + (y as f64 + 0.5) * sy,
+        )
+        .rotated(rad)
+    };
+    let usable: Vec<bool> = (0..w * h)
+        .map(|i| inside(pos(i % w, i / w), 0.35 * spacing))
+        .collect();
+    let step_ok = |a: (usize, usize), b: (usize, usize)| {
+        usable[a.1 * w + a.0]
+            && usable[b.1 * w + b.0]
+            && inside(pos(a.0, a.1).lerp(pos(b.0, b.1), 0.5), 0.2 * spacing)
+    };
     let on: Vec<bool> = (0..rows * cols)
         .map(|i| {
-            let (cx, cy) = (i % cols, i / cols);
-            let (x, y) = (ox + cx as f64 * cell, oy + cy as f64 * cell);
-            [0.0, 0.5, 1.0].iter().all(|&fx| {
-                [0.0, 0.5, 1.0]
-                    .iter()
-                    .all(|&fy| inside(at(x + fx * cell, y + fy * cell)))
-            })
+            let (x, y) = (2 * (i % cols), 2 * (i / cols));
+            step_ok((x, y), (x + 1, y))
+                && step_ok((x, y + 1), (x + 1, y + 1))
+                && step_ok((x, y), (x, y + 1))
+                && step_ok((x + 1, y), (x + 1, y + 1))
         })
         .collect();
     let mut rng = Rng::new(0x57_1991E);
@@ -1481,7 +1530,7 @@ fn stipple(closed: &[Contour], holes: &[Contour], angle: f64, spacing: f64) -> V
     // Tree edges: right[i] links cell i to i + 1, down[i] links i to i + cols.
     let mut right = vec![false; rows * cols];
     let mut down = vec![false; rows * cols];
-    let mut loops = Vec::new();
+    let mut cycles = Vec::new();
     for root in 0..rows * cols {
         if !on[root] || visited[root] {
             continue;
@@ -1491,17 +1540,24 @@ fn stipple(closed: &[Contour], holes: &[Contour], angle: f64, spacing: f64) -> V
         let mut members = vec![root];
         while let Some(&cur) = stack.last() {
             let (cx, cy) = (cur % cols, cur / cols);
+            let (x, y) = (2 * cx, 2 * cy);
             let mut options: Vec<usize> = Vec::with_capacity(4);
-            if cx + 1 < cols {
+            if cx + 1 < cols
+                && step_ok((x + 1, y), (x + 2, y))
+                && step_ok((x + 1, y + 1), (x + 2, y + 1))
+            {
                 options.push(cur + 1);
             }
-            if cx > 0 {
+            if cx > 0 && step_ok((x - 1, y), (x, y)) && step_ok((x - 1, y + 1), (x, y + 1)) {
                 options.push(cur - 1);
             }
-            if cy + 1 < rows {
+            if cy + 1 < rows
+                && step_ok((x, y + 1), (x, y + 2))
+                && step_ok((x + 1, y + 1), (x + 1, y + 2))
+            {
                 options.push(cur + cols);
             }
-            if cy > 0 {
+            if cy > 0 && step_ok((x, y - 1), (x, y)) && step_ok((x + 1, y - 1), (x + 1, y)) {
                 options.push(cur - cols);
             }
             options.retain(|&n| on[n] && !visited[n]);
@@ -1520,29 +1576,327 @@ fn stipple(closed: &[Contour], holes: &[Contour], angle: f64, spacing: f64) -> V
             }
             stack.push(next);
         }
-        loops.push(walk_tree(&members, cols, &right, &down, |fx, fy| {
-            at(
-                ox + (fx as f64 + 0.5) * spacing,
-                oy + (fy as f64 + 0.5) * spacing,
-            )
-        }));
+        cycles.push(walk_tree(&members, cols, &right, &down));
     }
-    loops
+    // Detours through the free usable points next to each step (step 3).
+    let mut next = vec![usize::MAX; w * h];
+    for c in &cycles {
+        for (k, &(x, y)) in c.iter().enumerate() {
+            let (nx, ny) = c[(k + 1) % c.len()];
+            next[y * w + x] = ny * w + nx;
+        }
+    }
+    let free = |id: usize, next: &[usize]| usable[id] && next[id] == usize::MAX;
+    // The points one aside of the step u → v (on `side`), if on the lattice.
+    let aside = |u: usize, v: usize, side: isize| {
+        let (dx, dy) = if u / w == v / w { (0, side) } else { (side, 0) };
+        let shift = |i: usize| {
+            let (x, y) = ((i % w) as isize + dx, (i / w) as isize + dy);
+            (x >= 0 && y >= 0 && (x as usize) < w && (y as usize) < h)
+                .then(|| y as usize * w + x as usize)
+        };
+        Some((shift(u)?, shift(v)?))
+    };
+    let at = |i: usize| (i % w, i / w);
+    for c in &cycles {
+        let Some(&(x0, y0)) = c.first() else {
+            continue;
+        };
+        let start = y0 * w + x0;
+        let mut u = start;
+        loop {
+            let v = next[u];
+            let detour = [1, -1].into_iter().find_map(|side| {
+                aside(u, v, side).filter(|&(a, b)| {
+                    free(a, &next)
+                        && free(b, &next)
+                        && step_ok(at(u), at(a))
+                        && step_ok(at(a), at(b))
+                        && step_ok(at(b), at(v))
+                })
+            });
+            if let Some((a, b)) = detour {
+                next[u] = a;
+                next[a] = b;
+                next[b] = v;
+                continue;
+            }
+            u = v;
+            if u == start {
+                break;
+            }
+        }
+    }
+    // Neighbouring loops (parts joined only corner to corner) become one where two of their
+    // steps face each other: u → v and y → x one point aside become u → x and y → v.
+    let walk = |start: usize, next: &[usize]| {
+        let mut l = vec![start];
+        let mut u = next[start];
+        while u != start {
+            l.push(u);
+            u = next[u];
+        }
+        l
+    };
+    let mut part = vec![usize::MAX; w * h];
+    for u in 0..w * h {
+        if next[u] != usize::MAX && part[u] == usize::MAX {
+            for i in walk(u, &next) {
+                part[i] = u;
+            }
+        }
+    }
+    for u in 0..w * h {
+        if next[u] == usize::MAX {
+            continue;
+        }
+        for side in [1, -1] {
+            let v = next[u];
+            let Some((x, y)) = aside(u, v, side) else {
+                continue;
+            };
+            if part[x] == usize::MAX
+                || part[x] == part[u]
+                || part[y] != part[x]
+                || !step_ok(at(u), at(x))
+                || !step_ok(at(y), at(v))
+            {
+                continue;
+            }
+            if next[x] == y {
+                let l = walk(x, &next);
+                for k in 0..l.len() {
+                    next[l[(k + 1) % l.len()]] = l[k];
+                }
+            }
+            if next[y] == x {
+                next[u] = x;
+                next[y] = v;
+                for i in walk(u, &next) {
+                    part[i] = part[u];
+                }
+                break;
+            }
+        }
+    }
+    let mut loops = Vec::new();
+    let mut seen = vec![false; w * h];
+    for u in 0..w * h {
+        if next[u] != usize::MAX && !seen[u] {
+            let l = walk(u, &next);
+            for &i in &l {
+                seen[i] = true;
+            }
+            loops.push(l.into_iter().map(|i| pos(i % w, i / w)).collect::<Vec<_>>());
+        }
+    }
+    let pitch = spacing / 4.0;
+    let mut loops: Vec<Vec<Vec2>> = loops
         .into_iter()
-        .map(|l| chaikin(&chaikin(&chaikin(&l))))
-        .collect()
+        .map(|l| crate::ornament::resample_closed(&chaikin(&chaikin(&l)), pitch))
+        .collect();
+    relax(&mut loops, &edges, spacing);
+    loops
+}
+
+/// The edges of some contours, bucketed for nearest-edge queries.
+struct EdgeIndex {
+    edges: Vec<(Vec2, Vec2)>,
+    cell: f64,
+    buckets: std::collections::HashMap<(i64, i64), Vec<usize>>,
+}
+
+impl EdgeIndex {
+    fn new<'a>(contours: impl Iterator<Item = &'a Contour>, cell: f64) -> Self {
+        let edges: Vec<(Vec2, Vec2)> = contours.flat_map(Contour::edges).collect();
+        let mut buckets: std::collections::HashMap<(i64, i64), Vec<usize>> = Default::default();
+        let key = |v: f64| (v / cell).floor() as i64;
+        for (i, &(a, b)) in edges.iter().enumerate() {
+            // Sampled every half cell: an edge closer than half a cell to a point is in the
+            // point's bucket.
+            let n = ((2.0 * a.distance(b) / cell).ceil() as usize).clamp(1, 1 << 16);
+            for k in 0..=n {
+                let p = a.lerp(b, k as f64 / n as f64);
+                let at = (key(p.x), key(p.y));
+                for dx in -1..=1 {
+                    for dy in -1..=1 {
+                        buckets.entry((at.0 + dx, at.1 + dy)).or_default().push(i);
+                    }
+                }
+            }
+        }
+        for list in buckets.values_mut() {
+            list.sort_unstable();
+            list.dedup();
+        }
+        EdgeIndex {
+            edges,
+            cell,
+            buckets,
+        }
+    }
+
+    /// The nearest outline point to `p` closer than `within` (at most half a cell), and its
+    /// distance.
+    fn distance(&self, p: Vec2, within: f64) -> Option<(f64, Vec2)> {
+        let key = (
+            (p.x / self.cell).floor() as i64,
+            (p.y / self.cell).floor() as i64,
+        );
+        let mut best: Option<(f64, Vec2)> = None;
+        for &i in self.buckets.get(&key).into_iter().flatten() {
+            let (a, b) = self.edges[i];
+            let d = b - a;
+            let len2 = d.x * d.x + d.y * d.y;
+            let t = if len2 > 0.0 {
+                (((p.x - a.x) * d.x + (p.y - a.y) * d.y) / len2).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            let q = a + d * t;
+            let dist = p.distance(q);
+            if dist < within && best.is_none_or(|(bd, _)| dist < bd) {
+                best = Some((dist, q));
+            }
+        }
+        best
+    }
+}
+
+/// Evens out stippling (step 4 of [`stipple`]): points about a quarter spacing apart along
+/// closed loops move square to their loop, a little per round, to the middle between the
+/// nearest passes on their two sides; the outline counts as a pass half a spacing beyond.
+/// Smoothing keeps the turns round. A move is kept only if the point stays a quarter spacing
+/// inside the outline and 0.4 spacing from every other pass, and neither of its two stitches
+/// crosses another.
+fn relax(loops: &mut [Vec<Vec2>], edges: &EdgeIndex, spacing: f64) {
+    use std::collections::HashMap;
+    let pitch = spacing / 4.0;
+    let reach = 2.5 * spacing;
+    let total: usize = loops.iter().map(Vec::len).sum();
+    let rounds = 40.min(2_000_000 / total.max(1));
+    // Points closer than this many steps along a loop are neighbours on the same pass; all
+    // others (the other leg of a turn too) must keep apart.
+    let local = (0.75 * spacing / pitch).ceil() as usize;
+    let key = |p: Vec2| {
+        (
+            (p.x / spacing).floor() as i64,
+            (p.y / spacing).floor() as i64,
+        )
+    };
+    let o = |p: Vec2, q: Vec2, r: Vec2| (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+    let cross = |a: Vec2, b: Vec2, c: Vec2, d: Vec2| {
+        o(a, b, c) * o(a, b, d) < 0.0 && o(c, d, a) * o(c, d, b) < 0.0
+    };
+    for round in 0..rounds {
+        if round > 0 && round % 4 == 0 {
+            for l in loops.iter_mut() {
+                *l = crate::ornament::resample_closed(l, pitch);
+            }
+        }
+        let mut grid: HashMap<(i64, i64), Vec<(usize, usize)>> = HashMap::new();
+        for (li, l) in loops.iter().enumerate() {
+            for (pi, &p) in l.iter().enumerate() {
+                grid.entry(key(p)).or_default().push((li, pi));
+            }
+        }
+        for li in 0..loops.len() {
+            let n = loops[li].len();
+            if n < 8 {
+                continue;
+            }
+            for pi in 0..n {
+                let l = &loops[li];
+                let (a, p, c) = (l[(pi + n - 1) % n], l[pi], l[(pi + 1) % n]);
+                let t = c - a;
+                let tl = t.length();
+                if tl <= 0.0 {
+                    continue;
+                }
+                let normal = v2(-t.y / tl, t.x / tl);
+                let near = |lj: usize, pj: usize| {
+                    lj == li && {
+                        let d = pj.abs_diff(pi);
+                        d.min(n - d) <= local
+                    }
+                };
+                // Nearest pass on each side, within a 60 degree cone round the normal.
+                let mut side = [reach, reach];
+                let (kx, ky) = key(p);
+                for gx in kx - 3..=kx + 3 {
+                    for gy in ky - 3..=ky + 3 {
+                        for &(lj, pj) in grid.get(&(gx, gy)).into_iter().flatten() {
+                            if near(lj, pj) {
+                                continue;
+                            }
+                            let d = loops[lj][pj] - p;
+                            let dist = d.length();
+                            let along = d.x * normal.x + d.y * normal.y;
+                            if along.abs() > 0.5 * dist {
+                                let s = usize::from(along < 0.0);
+                                side[s] = side[s].min(dist);
+                            }
+                        }
+                    }
+                }
+                if let Some((dist, q)) = edges.distance(p, reach / 2.0) {
+                    let d = q - p;
+                    let along = d.x * normal.x + d.y * normal.y;
+                    if along.abs() > 0.5 * dist {
+                        let s = usize::from(along < 0.0);
+                        side[s] = side[s].min(2.0 * dist);
+                    }
+                }
+                let shift = ((side[0] - side[1]) / 4.0).clamp(-0.1 * spacing, 0.1 * spacing);
+                let smooth = (a.lerp(c, 0.5) - p) * 0.1;
+                let to = p + normal * shift + smooth;
+                if to.distance(p) < 1e-3 {
+                    continue;
+                }
+                // Keep the move only if it is safe. A move shorter than a quarter spacing to
+                // a point a quarter spacing from the outline cannot have crossed it.
+                if to.distance(p) >= 0.25 * spacing || edges.distance(to, 0.25 * spacing).is_some()
+                {
+                    continue;
+                }
+                let mut safe = true;
+                let (kx, ky) = key(to);
+                'check: for gx in kx - 2..=kx + 2 {
+                    for gy in ky - 2..=ky + 2 {
+                        for &(lj, pj) in grid.get(&(gx, gy)).into_iter().flatten() {
+                            let m = loops[lj].len();
+                            let q = loops[lj][pj];
+                            if !near(lj, pj) && q.distance(to) < 0.4 * spacing {
+                                safe = false;
+                                break 'check;
+                            }
+                            // The stitch pj → pj + 1 against the two moved ones.
+                            let pk = (pj + 1) % m;
+                            if lj == li && (pj == pi || pk == pi) {
+                                continue;
+                            }
+                            let r = loops[lj][pk];
+                            if (!(lj == li && pk == (pi + n - 1) % n) && cross(a, to, q, r))
+                                || (!(lj == li && pj == (pi + 1) % n) && cross(to, c, q, r))
+                            {
+                                safe = false;
+                                break 'check;
+                            }
+                        }
+                    }
+                }
+                if safe {
+                    loops[li][pi] = to;
+                }
+            }
+        }
+    }
 }
 
 /// The Hamiltonian cycle of the doubled grid around a spanning tree: each tree cell is a ring
 /// of four quarter cells; a tree edge swaps the two ring edges facing it for two edges joining
-/// the rings. Returns the cycle (without the closing repeat) mapped by `at(fine x, fine y)`.
-fn walk_tree(
-    members: &[usize],
-    cols: usize,
-    right: &[bool],
-    down: &[bool],
-    at: impl Fn(usize, usize) -> Vec2,
-) -> Vec<Vec2> {
+/// the rings. Returns the cycle (without the closing repeat) as (fine x, fine y) points.
+fn walk_tree(members: &[usize], cols: usize, right: &[bool], down: &[bool]) -> Vec<(usize, usize)> {
     use std::collections::HashMap;
     type Node = (usize, usize);
     let mut adj: HashMap<Node, Vec<Node>> = HashMap::new();
@@ -1597,7 +1951,7 @@ fn walk_tree(
         prev = cur;
         cur = next;
     }
-    path.into_iter().map(|(x, y)| at(x, y)).collect()
+    path
 }
 
 /// One pass of Chaikin corner cutting on a closed loop (no closing repeat).

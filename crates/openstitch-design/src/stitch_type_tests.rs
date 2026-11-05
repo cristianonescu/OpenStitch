@@ -2497,6 +2497,172 @@ fn stippling_sews_at_the_run_pitch_not_at_its_curve_vertices() {
     );
 }
 
+/// Stippling of `closed` minus `holes` at `spacing` mm (no travel): the sewn runs.
+fn stippled(closed: &[Contour], holes: &[Contour], spacing: Option<f64>) -> Vec<Vec<Vec2>> {
+    let mut r = region(RegionType::Stippling);
+    r.running_stitch_path = None;
+    r.spacing = spacing;
+    crate::region::layers(closed, &r, holes).pop().expect("top")
+}
+
+fn seg_distance(p: Vec2, a: Vec2, b: Vec2) -> f64 {
+    let d = b - a;
+    let len2 = d.x * d.x + d.y * d.y;
+    let t = if len2 > 0.0 {
+        (((p.x - a.x) * d.x + (p.y - a.y) * d.y) / len2).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    p.distance(a + d * t)
+}
+
+/// Mean distance (0.1 mm) between neighbouring passes: from the middle of each stitch, square
+/// to it on both sides, to the first other stitch hit within 2.5 spacings that lies more than
+/// 1.2 spacings away along the path (the other leg of a turn counts).
+fn mean_pass_spacing(runs: &[Vec<Vec2>], spacing: f64) -> f64 {
+    let pts: Vec<Vec2> = runs.iter().flatten().copied().collect();
+    let segs: Vec<(Vec2, Vec2)> = pts.windows(2).map(|w| (w[0], w[1])).collect();
+    let mut along = vec![0.0];
+    for (a, b) in &segs {
+        along.push(along.last().expect("start") + a.distance(*b));
+    }
+    let mut found = Vec::new();
+    for (i, &(a, b)) in segs.iter().enumerate() {
+        let len = a.distance(b);
+        if len < 1e-6 {
+            continue;
+        }
+        let mid = a.lerp(b, 0.5);
+        let n = v2(-(b.y - a.y) / len, (b.x - a.x) / len);
+        for side in [1.0, -1.0] {
+            let d = n * side;
+            let hit = segs
+                .iter()
+                .enumerate()
+                .filter(|&(j, _)| (along[j] - along[i]).abs() > 1.2 * spacing)
+                .filter_map(|(_, &(c, e))| {
+                    let ex = e - c;
+                    let den = d.x * ex.y - d.y * ex.x;
+                    if den.abs() < 1e-12 {
+                        return None;
+                    }
+                    let w = c - mid;
+                    let t = (w.x * ex.y - w.y * ex.x) / den;
+                    let u = (w.x * d.y - w.y * d.x) / den;
+                    (t > 0.0 && t <= 2.5 * spacing && (0.0..=1.0).contains(&u)).then_some(t)
+                })
+                .fold(None, |m: Option<f64>, t| Some(m.map_or(t, |m| m.min(t))));
+            if let Some(t) = hit {
+                found.push(t);
+            }
+        }
+    }
+    found.iter().sum::<f64>() / found.len().max(1) as f64
+}
+
+/// Distances (0.1 mm) from points every 0.5 mm along the outlines to the nearest stitch:
+/// (largest, mean).
+fn outline_gaps(runs: &[Vec<Vec2>], outlines: &[Contour]) -> (f64, f64) {
+    let segs: Vec<(Vec2, Vec2)> = runs
+        .iter()
+        .flat_map(|r| r.windows(2).map(|w| (w[0], w[1])))
+        .collect();
+    let gaps: Vec<f64> = outlines
+        .iter()
+        .flat_map(|c| {
+            c.edges().into_iter().flat_map(|(a, b)| {
+                let n = (a.distance(b) / 5.0).ceil().max(1.0) as usize;
+                (0..n).map(move |k| a.lerp(b, k as f64 / n as f64))
+            })
+        })
+        .map(|p| {
+            segs.iter()
+                .map(|&(a, b)| seg_distance(p, a, b))
+                .fold(f64::MAX, f64::min)
+        })
+        .collect();
+    let max = gaps.iter().copied().fold(0.0, f64::max);
+    (max, gaps.iter().sum::<f64>() / gaps.len().max(1) as f64)
+}
+
+fn stipple_crossings(runs: &[Vec<Vec2>]) -> usize {
+    let segs: Vec<(Vec2, Vec2)> = runs
+        .iter()
+        .flat_map(|r| r.windows(2).map(|w| (w[0], w[1])))
+        .collect();
+    let o = |p: Vec2, q: Vec2, r: Vec2| (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+    let mut n = 0;
+    for i in 0..segs.len() {
+        for j in i + 2..segs.len() {
+            let ((a, b), (c, d)) = (segs[i], segs[j]);
+            if o(a, b, c) * o(a, b, d) < -1e-9 && o(c, d, a) * o(c, d, b) < -1e-9 {
+                n += 1;
+            }
+        }
+    }
+    n
+}
+
+#[test]
+fn stippling_honours_its_spacing_and_fills_a_square_to_the_outline() {
+    // #462: the meander kept 3-6 mm off the outline; spacing must hold on 2 and 4 mm alike.
+    let c = vec![Contour::rectangle(0.0, 0.0, 500.0, 500.0)];
+    for spacing in [2.0, 4.0] {
+        let runs = stippled(&c, &[], Some(spacing));
+        let s = spacing * 10.0;
+        let mean = mean_pass_spacing(&runs, s);
+        assert!(
+            (mean - s).abs() <= 0.15 * s,
+            "spacing {spacing}: mean pass spacing {mean}"
+        );
+        // Half a spacing to the outline on average; the most, between two turns that meet
+        // the outline side by side, is under 0.9 spacing (it was 2.7: a 5.5 mm band).
+        let (max, avg) = outline_gaps(&runs, &c);
+        assert!(
+            avg <= 0.55 * s && max <= 0.9 * s,
+            "spacing {spacing}: gaps {max} {avg}"
+        );
+        assert_eq!(stipple_crossings(&runs), 0, "spacing {spacing}");
+    }
+}
+
+#[test]
+fn stippling_fills_a_ring_to_its_outline_and_its_hole() {
+    let outer = Contour::ellipse(v2(250.0, 250.0), 250.0, 250.0, 96);
+    let hole = Contour::ellipse(v2(250.0, 250.0), 100.0, 100.0, 48);
+    let runs = stippled(
+        std::slice::from_ref(&outer),
+        std::slice::from_ref(&hole),
+        None,
+    );
+    let mean = mean_pass_spacing(&runs, 20.0);
+    assert!((mean - 20.0).abs() <= 3.0, "mean pass spacing {mean}");
+    let (max, avg) = outline_gaps(&runs, &[outer, hole]);
+    assert!(avg <= 11.0 && max <= 18.0, "gaps {max} {avg}");
+    assert_eq!(stipple_crossings(&runs), 0);
+}
+
+#[test]
+fn stippling_starts_and_ends_inside_and_never_runs_along_the_outline() {
+    // The exposed L of #462 ran along the bottom and left outline.
+    let c = vec![Contour::rectangle(0.0, 0.0, 260.0, 260.0)];
+    let runs = stippled(&c, &[], None);
+    let edges = c[0].edges();
+    let near = |p: Vec2| edges.iter().any(|&(a, b)| seg_distance(p, a, b) < 4.0);
+    let along: f64 = runs
+        .iter()
+        .flat_map(|r| r.windows(2))
+        .filter(|w| near(w[0]) && near(w[1]))
+        .map(|w| w[0].distance(w[1]))
+        .sum();
+    assert!(along < 1.0, "{along} (0.1 mm) along the outline");
+    let first = runs[0][0];
+    let last = *runs.last().and_then(|r| r.last()).expect("stitches");
+    assert!(!near(first) && !near(last), "{first:?} {last:?}");
+    // Repeatable.
+    assert_eq!(runs, stippled(&c, &[], None));
+}
+
 #[test]
 fn square_net_lines_are_straight_and_axis_aligned() {
     let c = vec![Contour::rectangle(0.0, 0.0, 200.0, 200.0)];
