@@ -257,16 +257,27 @@ pub enum ArrangeMode {
     MirrorFourWay,
     Circle,
     Matrix,
+    /// Beyond PE-DESIGN (#476): copies along a line or outline.
+    Path,
+    /// Beyond PE-DESIGN (#476): copies scattered inside a closed shape.
+    Scatter,
 }
 
 impl ArrangeMode {
-    pub const ALL: [ArrangeMode; 5] = [
+    pub const ALL: [ArrangeMode; 7] = [
         ArrangeMode::MirrorHorizontal,
         ArrangeMode::MirrorVertical,
         ArrangeMode::MirrorFourWay,
         ArrangeMode::Circle,
         ArrangeMode::Matrix,
+        ArrangeMode::Path,
+        ArrangeMode::Scatter,
     ];
+
+    /// Path and scatter need a second object: the line to follow or the shape to fill.
+    pub fn needs_guide(self) -> bool {
+        matches!(self, ArrangeMode::Path | ArrangeMode::Scatter)
+    }
 
     pub fn label(self) -> &'static str {
         match self {
@@ -275,6 +286,8 @@ impl ArrangeMode {
             ArrangeMode::MirrorFourWay => "Mirror four-way",
             ArrangeMode::Circle => "Circle",
             ArrangeMode::Matrix => "Matrix",
+            ArrangeMode::Path => "Along a line",
+            ArrangeMode::Scatter => "Scatter in shape",
         }
     }
 
@@ -285,6 +298,8 @@ impl ArrangeMode {
             ArrangeMode::MirrorFourWay => "mirrorFourWay",
             ArrangeMode::Circle => "circle",
             ArrangeMode::Matrix => "matrix",
+            ArrangeMode::Path => "path",
+            ArrangeMode::Scatter => "scatter",
         }
     }
 }
@@ -305,7 +320,28 @@ pub struct ArrangeForm {
     pub optimize: bool,
     /// Circle centre (mm) dragged on the canvas; `None`: `radius` below the selection centre.
     pub center: Option<Vec2>,
+    /// Circle (kaleidoscope) and path: mirror every other copy.
+    pub mirror_alternate: bool,
+    /// Path: the line followed; scatter: the shape filled.
+    pub guide: Option<u64>,
+    /// Path: copies turn with the line; `side` is center, above, below or alternate.
+    pub follow: bool,
+    pub side: &'static str,
+    /// Scatter: copy scale range, least gap (mm), random turn and seed.
+    pub size_min: f64,
+    pub size_max: f64,
+    pub gap: f64,
+    pub random_rotate: bool,
+    pub seed: u32,
 }
+
+/// Path ▸ Side choices: key and label.
+pub const PATH_SIDES: [(&str, &str); 4] = [
+    ("center", "Centred on the line"),
+    ("above", "Above"),
+    ("below", "Below"),
+    ("alternate", "Alternating"),
+];
 
 impl Default for ArrangeForm {
     fn default() -> Self {
@@ -322,6 +358,15 @@ impl Default for ArrangeForm {
             merge: false,
             optimize: false,
             center: None,
+            mirror_alternate: false,
+            guide: None,
+            follow: true,
+            side: "center",
+            size_min: 1.0,
+            size_max: 1.0,
+            gap: 1.0,
+            random_rotate: false,
+            seed: 1,
         }
     }
 }
@@ -335,7 +380,24 @@ impl ArrangeForm {
             "optimizeOrder": self.optimize,
         });
         match self.mode {
+            ArrangeMode::Path => {
+                p["pathId"] = json!(self.guide);
+                p["count"] = json!(self.count.clamp(1, 200));
+                p["orient"] = json!(if self.follow { "follow" } else { "upright" });
+                p["side"] = json!(self.side);
+                p["mirrorAlternate"] = json!(self.mirror_alternate);
+            }
+            ArrangeMode::Scatter => {
+                p["shapeId"] = json!(self.guide);
+                p["count"] = json!(self.count.clamp(1, 200));
+                p["sizeMin"] = json!(self.size_min);
+                p["sizeMax"] = json!(self.size_max.max(self.size_min));
+                p["gap"] = json!(self.gap);
+                p["randomRotate"] = json!(self.random_rotate);
+                p["seed"] = json!(self.seed);
+            }
             ArrangeMode::Circle => {
+                p["mirrorAlternate"] = json!(self.mirror_alternate);
                 p["count"] = json!(self.count);
                 p["radius"] = json!(self.radius);
                 p["rotate"] = json!(self.rotate);
@@ -383,18 +445,41 @@ impl ArrangeForm {
             ArrangeMode::Circle => {
                 let n = self.count.clamp(2, 360);
                 let center = self.circle_center(b);
+                let radial = b.center() - center;
+                let u = if radial.length() > 0.0 {
+                    radial * (1.0 / radial.length())
+                } else {
+                    v2(0.0, -1.0)
+                };
+                // Kaleidoscope: a mirror about the radial axis through the motif's centre.
+                let (cs, sn, c) = (u.x * u.x - u.y * u.y, 2.0 * u.x * u.y, b.center());
+                let mirror = Transform {
+                    a: cs,
+                    b: sn,
+                    c: sn,
+                    d: -cs,
+                    tx: c.x - (cs * c.x + sn * c.y),
+                    ty: c.y - (sn * c.x - cs * c.y),
+                };
                 (1..n)
                     .map(|k| {
                         let r = Transform::rotation(360.0 * f64::from(k) / f64::from(n), center);
-                        if self.rotate {
+                        let r = if self.rotate {
                             r
                         } else {
                             let to = r.apply(b.center()) - b.center();
                             Transform::translation(to.x, to.y)
+                        };
+                        if self.mirror_alternate && k % 2 == 1 {
+                            mirror.then(&r)
+                        } else {
+                            r
                         }
                     })
                     .collect()
             }
+            // Placed by the engine from the guide; the preview shows nothing for them.
+            ArrangeMode::Path | ArrangeMode::Scatter => Vec::new(),
             ArrangeMode::Matrix => {
                 let (sx, sy) = self.matrix_steps(b);
                 (0..self.rows)
@@ -433,6 +518,7 @@ impl ArrangeForm {
                     b.min_y + f64::from(self.rows - 1) * sy,
                 ))
             }
+            ArrangeMode::Path | ArrangeMode::Scatter => None,
         }
     }
 
@@ -463,6 +549,7 @@ impl ArrangeForm {
                     self.spacing_y = tenth(step - b.height(), lo);
                 }
             }
+            ArrangeMode::Path | ArrangeMode::Scatter => {}
         }
     }
 
@@ -701,7 +788,7 @@ mod tests {
         );
         let lines = r["id"].as_u64().expect("id");
         run(&mut s, &paste_attributes(1, &BTreeSet::from([1, lines])));
-        for mode in ArrangeMode::ALL {
+        for mode in ArrangeMode::ALL.into_iter().filter(|m| !m.needs_guide()) {
             let form = ArrangeForm {
                 mode,
                 ..Default::default()

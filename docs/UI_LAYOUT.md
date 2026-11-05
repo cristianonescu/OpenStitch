@@ -150,7 +150,7 @@ Behaviour follows the guide's pages
 | Clipboard | Copy | `Ctrl+C` | `Action::Copy` | view/UI only | yes |
 | Clipboard | Duplicate | `Ctrl+D` | `Action::Duplicate` | `object.duplicate` | yes |
 | Clipboard | Delete | `Delete` | `Action::Delete` | `object.delete` | yes |
-| Clipboard | Arrange Copy |  | `Action::ArrangeCopy` | `object.arrangeCopies` | yes |
+| Clipboard | Arrange Copy (mirror, circle, matrix; beyond PE-DESIGN, #476: Along a line, Scatter in shape with Shuffle, Mirror every other on the circle) |  | `Action::ArrangeCopy` | `object.arrangeCopies` | yes |
 | Tools | Text |  | `Action::TextTools` | `text.add` | yes |
 | Tools | Shapes |  | `Action::ShapesTools` | `shape.preset` | yes |
 | Tools | Zoom In | `Ctrl+=` | `Action::ZoomIn` | view/UI only | yes |

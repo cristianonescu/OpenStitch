@@ -4,6 +4,8 @@
 //! `every_test_file_is_listed` fails when one is missing. The files keep their own `mod` items
 //! (`mod common;`), which `#[path]` resolves from this folder as before.
 
+#[path = "arrange_modes.rs"]
+mod arrange_modes;
 #[path = "capabilities.rs"]
 mod capabilities;
 #[path = "contour_fill.rs"]
