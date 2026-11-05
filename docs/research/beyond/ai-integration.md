@@ -803,5 +803,28 @@ reason `stop`, and no error. Reproduced with a small model given mistral's tool-
   `ollama create mistral-small3.2-tools -f Modelfile`. Its template has two more defects: tools
   are left out of the prompt after the first tool round, and tool results go in unquoted.
 
+**The editor on Windows (#401).** The release build was driven with `--script` and `--screenshot`
+(no screen control), with a throwaway profile (`OPENSTITCH_CONFIG_DIR`,
+`OPENSTITCH_KEYCHAIN_SERVICE`, `OPENSTITCH_NO_UPDATE_CHECK`), in both themes; the only key
+typed was a dummy one.
+
+| Check | Result |
+|---|---|
+| Settings, Claude API | Works: Endpoint, Address, Model, Effort, timeout, Permissions, "API key: none", Save key, Remove key (dimmed). |
+| Settings, Coding agent (#420) | Works: no Endpoint, Address, Model or key rows, only the note that the agent signs in itself. |
+| Dummy key | Works: Save key shows "stored in the system keychain", dots and an enabled Remove key; the Credential Manager holds one entry under the throwaway service, and a fresh launch still finds it. Remove key empties the row, says the key was removed, and the entry is gone (`cmdkey /list`). |
+| Clear image generator, Reset AI settings | Works: ui.json gets the address and model, Clear empties them; Reset asks first, then restores the defaults. |
+| Dropping a PNG on the panel | Works: a chip with the file name. |
+| Coding agent, Claude Code | **Broken, fixed here:** "%1 is not a valid Win32 application". The panel looked for the agent's bare name before `.cmd`, and npm puts a `#!/bin/sh` script with the bare name beside `claude-agent-acp.cmd`. The panel now uses the same lookup as the agent list (`.exe`, `.cmd`, `.bat` only on Windows; test `npm_shell_script_is_skipped_on_windows`). After the fix it starts and answers with its own sign-in error ("Authentication required"), as it should when not signed in. No agent process was left after closing the editor. The agent list showed "Claude Code ·" with no version when `--version` took over 3 s on the loaded machine; the dot is now left out. |
+| Ollama turn, permission prompt, Stop and the queue | Endpoint ▸ Ollama and List worked (qwen3:4b listed). Two turns on the CPU ran 8.5 and 21 minutes without a reply and were not ended by the 300 s timeout (#580). Then **not run on this PC (too weak), owner's decision 2026-11-05**: local models were stopped and Ollama removed. The busy state (Send becomes Queue, Stop and a spinner) was seen. |
+| Look | Framed header buttons, bubbles and the Send and red buttons read well in both themes. The status lines are tiny grey italics, hard to read in the dark theme (#581). |
+
+**Local models on Windows: not run on this PC (too weak), owner's decision 2026-11-05.** No
+local-model bench was run. Ollama 0.40.14 (installed per-user for this batch) was uninstalled,
+with its six models (qwen3:4b, qwen2.5:0.5b and four test copies of it), its server, its
+`%USERPROFILE%\.ollama` and `%LOCALAPPDATA%\Ollama` folders and its startup entry.
+
+**The 12-task bench on Windows: not run.** Claude Code over claude-agent-acp 0.100.0: not run: owner sign-in failed (an auth-provider error), retry later (#582); Claude Code 2.1.318 is installed. The Claude API: no key. Local models: not run on this PC (too weak), owner's decision 2026-11-05.
+
 **Token counts.** OpenAI-compatible servers report `prompt_tokens` with the cached tokens
 included, and the client counted them twice (input plus cache read). Input now excludes them.

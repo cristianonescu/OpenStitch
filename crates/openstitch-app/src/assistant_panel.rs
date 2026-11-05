@@ -676,18 +676,11 @@ fn mcp_program() -> Option<std::path::PathBuf> {
     std::env::current_exe().ok().filter(|p| p.is_file())
 }
 
-/// Finds a coding agent's program on PATH and in the usual install folders.
+/// Finds a coding agent's program on PATH and in the usual install folders, as the settings'
+/// agent list does: on Windows never npm's extensionless shell script, which Windows can't run
+/// ("not a valid Win32 application", #401).
 fn find_program(name: &str) -> Option<std::path::PathBuf> {
-    claude::search_dirs().into_iter().find_map(|d| {
-        [
-            name.to_string(),
-            format!("{name}.cmd"),
-            format!("{name}{}", std::env::consts::EXE_SUFFIX),
-        ]
-        .into_iter()
-        .map(|n| d.join(n))
-        .find(|p| p.is_file())
-    })
+    claude::find_program(name)
 }
 
 /// Starts a coding agent with a private socket for its MCP bridge.
@@ -1341,6 +1334,8 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                         for a in claude::KNOWN_AGENTS {
                             let state = found.as_ref().and_then(|f| {
                                 f.iter().find(|d| d.agent.id == a.id).map(|d| match &d.state {
+                                    // An empty version: `--version` was too slow to say (#401).
+                                    claude::AgentState::Ready { version, .. } if version.is_empty() => String::new(),
                                     claude::AgentState::Ready { version, .. } => format!(" · {version}"),
                                     claude::AgentState::NotInstalled => " · not installed".to_string(),
                                     claude::AgentState::DoesNotStart(_) => " · does not start".to_string(),

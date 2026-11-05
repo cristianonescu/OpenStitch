@@ -29,7 +29,8 @@ use serde_json::{Value, json};
 
 use crate::{Event, StopKind};
 pub use discover::{
-    AgentState, Discovered, KNOWN_AGENTS, KnownAgent, discover, discover_in, search_dirs,
+    AgentState, Discovered, KNOWN_AGENTS, KnownAgent, discover, discover_in, find_program,
+    search_dirs,
 };
 use process::{AgentProcess, Writer};
 pub use protocol::PROTOCOL_VERSION;

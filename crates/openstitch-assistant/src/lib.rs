@@ -34,7 +34,7 @@ use serde_json::{Value, json};
 pub use acp::{
     AcpConfig, AcpConversation, AcpError, AgentState, AuthMethod, BRIDGE_NAME, Discovered,
     KNOWN_AGENTS, KnownAgent, McpServer, claude_disallowed_tools, discover, discover_in,
-    search_dirs,
+    find_program, search_dirs,
 };
 pub use conversation::Conversation;
 pub use images::{GENERATE_IMAGE, ImageConfig, NO_GENERATOR, WithImages, generate_image};
