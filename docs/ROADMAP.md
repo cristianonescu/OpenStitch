@@ -121,6 +121,11 @@ similarity scorer draw thread as wide as it covers at its row density. Next: Pho
 trims (#298), Auto Punch's stacked satin points on the storybook picture (#290, the Mac's track),
 then a sew-out of the regenerated kit.
 
+Done 2026-11-05 (#433): Photo Stitch 1 in OpenStitch mode is fast again after the locks of
+#299: its fitting attempts run at once and its local search scores only the cells in reach,
+with the same stitches as before (High on the issue's stripes 899 → 41 s, Standard 258 → 24 s,
+on a loaded machine).
+
 Done 2026-11-05 (#450): every kit, demo and screenshot design reviewed at full size (stitches alone
 at 15 px/mm and the Realistic view). Kit and demo designs fixed, built-in templates regenerated,
 CI checks that the committed kit is what the code makes and passes `sew_check`. Engine follow-ups,

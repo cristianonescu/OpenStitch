@@ -75,6 +75,17 @@ pub struct Search<'a> {
 
 /// Improves `labels` in place by the local search; `points(cells)` is a run's needle points.
 pub fn optimise(s: &Search, labels: &mut [Option<usize>], points: impl Fn(usize) -> usize) {
+    optimise_until(s, labels, points, &|| false);
+}
+
+/// [`optimise`], giving up between rows once `stop()` is true (its caller then discards
+/// `labels`); while `stop()` stays false, the same result.
+pub fn optimise_until(
+    s: &Search,
+    labels: &mut [Option<usize>],
+    points: impl Fn(usize) -> usize,
+    stop: &dyn Fn() -> bool,
+) {
     let (cols, rows) = (s.cols, s.rows);
     let tgt: Vec<[f64; 3]> = s.targets.iter().map(|&c| opponent(c)).collect();
     let img: Vec<Option<[f64; 3]>> = s.image.iter().map(|c| c.map(opponent)).collect();
@@ -158,6 +169,7 @@ pub fn optimise(s: &Search, labels: &mut [Option<usize>], points: impl Fn(usize)
             y0 = y0.min(y.saturating_sub(cr));
             y1 = y1.max((y + cr + 1).min(crows));
         }
+        let reach = in_reach(&cd, x0..x1, cr);
         let mut total = 0.0;
         for y in y0..y1 {
             for x in x0..x1 {
@@ -166,7 +178,7 @@ pub fn optimise(s: &Search, labels: &mut [Option<usize>], points: impl Fn(usize)
                     continue;
                 }
                 let mut d = [0.0; 3];
-                for &(cx, cy, v) in &cd {
+                for &(cx, cy, v) in &cd[reach[x - x0].clone()] {
                     let (dx, dy) = (x.abs_diff(cx), y.abs_diff(cy));
                     for q in 0..3 {
                         let h = wide[q].len() / 2;
@@ -204,6 +216,7 @@ pub fn optimise(s: &Search, labels: &mut [Option<usize>], points: impl Fn(usize)
             y0 = y0.min(y.saturating_sub(radius));
             y1 = y1.max((y + radius + 1).min(rows));
         }
+        let reach = in_reach(delta, x0..x1, radius);
         let mut total = 0.0;
         for y in y0..y1 {
             for x in x0..x1 {
@@ -212,7 +225,7 @@ pub fn optimise(s: &Search, labels: &mut [Option<usize>], points: impl Fn(usize)
                     continue;
                 }
                 let mut d = [0.0; 3];
-                for &(cx, cy, v) in delta {
+                for &(cx, cy, v) in &delta[reach[x - x0].clone()] {
                     let (dx, dy) = (x.abs_diff(cx), y.abs_diff(cy));
                     for q in 0..3 {
                         let h = kernels[q].len() / 2;
@@ -319,6 +332,9 @@ pub fn optimise(s: &Search, labels: &mut [Option<usize>], points: impl Fn(usize)
     for _ in 0..s.passes {
         let mut changed = false;
         for y in 0..rows {
+            if stop() {
+                return;
+            }
             let mut x = 0;
             while x < cols {
                 let Some(t) = labels[y * cols + x] else {
@@ -382,6 +398,28 @@ pub fn optimise(s: &Search, labels: &mut [Option<usize>], points: impl Fn(usize)
     }
 }
 
+/// For each column `x` of `xs`, the entries of `delta` within `reach` columns of it: the only
+/// ones a kernel at most `reach` wide adds at `x`. `delta` is sorted by column (runs are
+/// visited left to right), so they are one slice, in the same order as in `delta`, and the sums
+/// over it equal those over all of `delta` bit for bit; unsorted, every entry is kept (#433).
+fn in_reach(
+    delta: &[(usize, usize, [f64; 3])],
+    xs: std::ops::Range<usize>,
+    reach: usize,
+) -> Vec<std::ops::Range<usize>> {
+    let sorted = delta.windows(2).all(|p| p[0].0 <= p[1].0);
+    xs.map(|x| {
+        if sorted {
+            let a = delta.partition_point(|e| e.0 + reach < x);
+            let b = delta.partition_point(|e| e.0 <= x + reach);
+            a..b.max(a)
+        } else {
+            0..delta.len()
+        }
+    })
+    .collect()
+}
+
 /// A 1-D kernel over `cell_mm` cells: the weighted sum of Gaussians `(spread mm, weight)`,
 /// truncated at [`REACH`] of the widest spread, normalised to sum 1.
 fn kernel(parts: &[(f64, f64)], cell_mm: f64) -> Vec<f64> {
@@ -435,6 +473,28 @@ fn blur(field: &[[f64; 3]], cols: usize, rows: usize, kernels: &[Vec<f64>]) -> V
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #433: the slice `in_reach` keeps holds exactly the entries within reach, in order, and an
+    /// unsorted delta keeps them all.
+    #[test]
+    fn in_reach_keeps_exactly_the_entries_within_reach() {
+        let v = [0.0; 3];
+        let delta: Vec<(usize, usize, [f64; 3])> = [2, 2, 3, 7, 7, 7, 12, 30]
+            .iter()
+            .map(|&x| (x, 0, v))
+            .collect();
+        let reach = 3;
+        let ranges = in_reach(&delta, 0..40, reach);
+        for (x, r) in ranges.iter().enumerate() {
+            let want: Vec<usize> = (0..delta.len())
+                .filter(|&i| delta[i].0.abs_diff(x) <= reach)
+                .collect();
+            assert_eq!(r.clone().collect::<Vec<_>>(), want, "column {x}");
+        }
+        let unsorted = [(5, 0, v), (1, 0, v)];
+        assert!(in_reach(&unsorted, 0..3, 1).iter().all(|r| *r == (0..2)));
+        assert!(in_reach(&[], 0..0, 1).is_empty());
+    }
 
     fn row_points(l: &[Option<usize>], cols: usize, points: &dyn Fn(usize) -> usize) -> usize {
         let mut n = 0;

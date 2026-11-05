@@ -2360,6 +2360,34 @@ Line references are relative to `crates/`.
   across their gaps (#445). Auto satin itself (drawn shapes) still fans at the corners of
   branched shapes.
 
+### Photo Stitch 1 speed since the locks, 2026-11-05 (#433)
+
+- **Finding:** since #299 counted every trimmed run's tie-in and lock against the needle caps,
+  Photo Stitch 1 in OpenStitch mode was much slower: the issue's 16-stripe test image took
+  171.2 s at High fidelity (23.1 s before #299) and 37.6 s at Standard (32.0 s), release
+  build. A trace of each attempt confirmed the cause: the rows are fitted to a 15 %, then
+  7 %, larger budget for the local search (T9) to bring back under the caps, but the locks hold
+  about a quarter of the cap that the search cannot free, so both boosted attempts ended over
+  (105.4 % of the total cap; then 98.9 % with 33 windows over) and the search ran three times.
+  Each search was also slower: the locks make the fit choose fewer, longer runs, and the
+  search's cost per run grew with the square of its length.
+- **Not taken:** reserving the locks' share of the boosted caps (the issue's suggestion) still
+  left the 15 % attempt over by 0.2 % on the stripes, and on the photos it changed which
+  attempt held: likeness moved both ways (p04 dE 12.08 → 11.43, p01 14.52 → 15.35, MS-SSIM
+  0.573 → 0.519).
+- **Fix (no change to any result):** the attempts are independent, so they now run at once on
+  their own threads, and the first in the old order that holds the caps is kept; a later
+  attempt stops as soon as an earlier one has held (in turn on a one-core machine). The search
+  adds, for each cell it scores, only the changed cells within the eye kernel's reach, a slice
+  of the change kept in order, so every sum is the same bit for bit.
+- **Measured** (release, the issue's stripes at 160 mm, OpenStitch mode, one loaded
+  8-thread Windows machine, wall / CPU): High 899 / 616 s on main, 40.6 / 100.7 s with this
+  change, 46.9 / 46.2 s before #299; Standard 258 / 105 s on main, 24.2 / 68.2 s with this
+  change, 42.0 / 41.5 s before #299 (the attempts that lose cost CPU time, not wall time). The
+  DST files are byte-identical to main's; `tools/image_similarity.py --no-dists` gives the
+  same numbers on all 16 Photo Stitch cases in both modes and the nine Photo Stitch 1 photos at
+  High; `sew_check` passes; compat 454/454.
+
 ## Order of work
 
 1. **Fix without a reference:** items 1, 3, 7, 14, 15 (ranges), 16 and 17, plus the
