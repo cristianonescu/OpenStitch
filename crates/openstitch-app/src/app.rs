@@ -336,6 +336,7 @@ impl EditorApp {
             self.ui.prefs = openstitch_app::editor::prefs::UiPrefs::load(&ui);
             self.ui.prefs_path = Some(ui);
         }
+        self.database.units = self.ui.prefs.units;
         if let Some(t) = l.theme {
             self.ui.prefs.theme = t;
         }
