@@ -138,8 +138,10 @@ pub fn fill_angle(m: &[bool], mw: usize, mh: usize, mm_per_px: f64) -> f64 {
     best.map_or(FILL_ANGLES[0], |b| b.1)
 }
 
-/// PE-DESIGN-compatible mode traces an image of at most this many automatic colours (flat
-/// graphics, lettering, logos) at twice the working resolution ([`convert`]).
+/// An image of at most this many automatic colours at the working resolution is flat graphics
+/// (lettering, logos, clip art): PE-DESIGN-compatible mode traces it at twice the working
+/// resolution and sews its satins as straight bars or curved columns, and both modes label it
+/// keeping shades ([`convert`], #443).
 pub const FLAT_COLORS: usize = 5;
 
 /// Most regions one conversion may produce.
@@ -159,7 +161,8 @@ pub struct Converted {
 /// ([`Census::labels`]): thread index into `palette.threads`, or [`NONE`] where the pixel is
 /// transparent.
 pub fn label(census: &Census, palette: &Palette) -> Vec<u16> {
-    (if std::env::var("OST_EXACT").is_ok() { &census.modal } else { &census.labels })
+    census
+        .labels
         .iter()
         .map(|m| m.map_or(NONE, |c| palette.classify(c) as u16))
         .collect()
@@ -351,15 +354,26 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
     // at twice the working size: lettering's 0.1-0.3 mm gaps and straight edges survive, and
     // the edge shades a box-mode copy makes no longer count as a colour (g08 at 400 px: a grey
     // fourth colour and the S and the T fused; at its own 768 px: 3 colours and every letter
-    // apart, as PE-DESIGN's own Auto Punch, #443). Photographs and paintings stay at the
-    // working size, whose colours the reduction was calibrated on (at 800 px the storybook
-    // picture's orange thread gave way to a grey, #447).
-    if p.mode == Mode::PeDesign && census.auto_colors() <= FLAT_COLORS {
+    // apart, as PE-DESIGN's own Auto Punch, #443). The threads are still chosen on the working
+    // size's census, on which the reduction was calibrated (chosen at 800 px, the teapot's
+    // black outline became a dark green). Photographs and paintings stay at the working size
+    // (at 800 px the storybook picture's orange thread gave way to a grey, #447).
+    let flat = census.auto_colors() <= FLAT_COLORS;
+    let mut base = None;
+    if p.mode == Mode::PeDesign && flat {
         let fine = image.fit_mode((p.resolution.clamp(16, 2048) * 2).min(2048));
         if fine.width() > work.width() {
-            census = palette::census(&fine);
+            base = Some(std::mem::replace(&mut census, palette::census(&fine)));
             work = fine;
         }
+    }
+    // Flat graphics only (#443): pixels keep the shades of their colour against a flat
+    // neighbour ([`Census::labels`]), and in PE-DESIGN mode satin regions are split into
+    // straight bars or sewn along their curve ([`columns`]). Photographs and paintings keep the plain modal and Auto
+    // satin, which serve them better (the storybook picture, the dog and the fruit lost
+    // likeness with either).
+    if !flat {
+        census.labels = census.modal.clone();
     }
     let frame = frame.rescaled(image.width(), work.width());
     let (w, h) = (work.width() as usize, work.height() as usize);
@@ -376,7 +390,7 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
         n => n.min(64),
     };
     let palette = match p.mode {
-        Mode::PeDesign => Palette::from_census(&census, colors),
+        Mode::PeDesign => Palette::from_census(base.as_ref().unwrap_or(&census), colors),
         Mode::OpenStitch => Palette::from_census_perceptual_in(&census, colors, &p.threads),
     };
     let mut labels = label(&census, &palette);
@@ -571,10 +585,12 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                 }
             };
             let satin = stroke && (p.satin_min_mm..=p.satin_max_mm).contains(&width_mm);
-            // A satin region made of straight bars (T, H) is sewn bar by bar, each straight
-            // across; a curved stroke (S, C) as one column through rungs square to its centre
-            // line; a single bar keeps Auto satin ([`columns`], #443).
-            let strokes = if satin && std::env::var("OST_NOCOL").is_err() {
+            // Flat graphics, PE-DESIGN mode (OpenStitch mode sews wide strokes as fill and its
+            // thin ones as satin outlines; the split did not help it): a satin region made of
+            // straight bars (T, H) is sewn bar by bar,
+            // each straight across; a curved stroke (S, C) as one column through rungs square to
+            // its centre line; a single bar keeps Auto satin ([`columns`], #443).
+            let strokes = if satin && flat && p.mode == Mode::PeDesign {
                 columns::split(&m, mw, mh, width_mm / frame.mm_per_px())
             } else {
                 columns::Strokes::Single

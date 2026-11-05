@@ -34,6 +34,8 @@ README = ROOT / "README.md"
 # with the panes, the rulers and the platform's fonts (#271), so it is found by its colour.
 SURROUND = (180, 184, 190)
 LONG_SIDE_MM = 100
+# The editor's pointer-position and zoom label in the canvas's bottom-right corner, pixels.
+LABEL_W, LABEL_H = 220, 30
 
 # id -> (image, wizard caption, command, parameters)
 GALLERY = {
@@ -166,10 +168,15 @@ def design_box(im):
                 py.append(yy)
     if px:
         left, right, top, bottom = min(px), max(px), min(py), max(py)
+    # The pointer label sits in the canvas's bottom-right corner, over the page when the page
+    # fills the view (g01): grey pixels there are its text, not thread.
+    label_x, label_y = max(sx) - LABEL_W, max(sy) - LABEL_H
     xs, ys = [], []
     for yy in range(top, bottom, 2):
         for xx in range(left, right, 2):
             r, g, b = im.getpixel((xx, yy))
+            if xx > label_x and yy > label_y and max(r, g, b) - min(r, g, b) < 30:
+                continue
             if max(r, g, b) - min(r, g, b) > 60 or max(r, g, b) < 120:
                 xs.append(xx)
                 ys.append(yy)
