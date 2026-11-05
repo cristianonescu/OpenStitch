@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50" viewBox="0 0 100 50">
+  <g id="solid"><rect x="0" y="0" width="40" height="40" fill="#202020"/></g>
+  <g id="faint" opacity="0.3"><rect x="50" y="0" width="40" height="40" fill="#202020"/></g>
+  <g id="ghost" opacity="0.05"><rect x="0" y="45" width="90" height="5" fill="#202020"/></g>
+</svg>
