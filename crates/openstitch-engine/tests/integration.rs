@@ -108,6 +108,8 @@ mod satin_compat;
 mod sections;
 #[path = "sewing.rs"]
 mod sewing;
+#[path = "shape_tools.rs"]
+mod shape_tools;
 #[path = "shaping.rs"]
 mod shaping;
 #[path = "smoothing.rs"]

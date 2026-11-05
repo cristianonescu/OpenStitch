@@ -81,7 +81,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 293: 194 implemented (4 of them partially compatible), 0 documented only, 10 blocked, 89 planned beyond PE-DESIGN |
+| Feature matrix rows | 294: 195 implemented (4 of them partially compatible), 0 documented only, 10 blocked, 89 planned beyond PE-DESIGN |
 | Compatibility specs | 454: 454 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 36: 29 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 10 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
@@ -669,7 +669,7 @@ PE-DESIGN 11 does not. Each item is sketched in
 - Assistant benchmark with illustrated-subject tasks scored on structure and on the rendered result (#493)
 - Batches validate every step's parameters first and report all errors at once before running anything (#494)
 - Assistant picks colours only from the user's own or named thread chart and never quotes a catalogue number that is not in a chart (#495)
-- Shape tools beyond PE: band frames, per-corner radii, spiral line, gap in a closed outline, Divide, shape builder and shape effects (warp, twist, roughen) (#497)
+- Shape tools beyond PE, part 2: a gap of a set length in a closed line (the turning gap of in-the-hoop pieces) and an interactive shape builder (drag across overlapping pieces to merge them) (#497)
 - Python package (pyo3 wheel) for scripting designs with the engine's command set (#498)
 - Draw shapes, lines and Manual Punch columns from the keyboard; follow the system text size; WCAG contrast; visible focus; screen-reader names checked in CI (#499)
 - Cut/Copy/Paste objects through the system clipboard so they survive between two editor windows and app restarts (#500)

@@ -27,6 +27,7 @@ pub mod ribbon;
 pub mod sections;
 pub mod sew_kit;
 pub mod sewing;
+pub mod shape_effects;
 pub mod shape_tools;
 pub mod snap;
 pub mod suite;

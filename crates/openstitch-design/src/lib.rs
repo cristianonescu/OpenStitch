@@ -9,6 +9,7 @@ pub mod compile;
 pub mod concentric;
 pub mod contour;
 pub mod direction;
+pub mod effects;
 mod envelope_presets;
 pub mod extend;
 pub mod fmath;

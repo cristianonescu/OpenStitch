@@ -226,6 +226,7 @@ actions! {
     SmoothShape => "smoothShape", "Smooth Shape", "Remove the nodes of the selected outlines that deviate less than the smoothing tolerance (curves refitted, corners and open ends kept). A Manual Punch column loses one direction line per click; click again to smooth further.", None, Some("shape.simplify"), true;
     SmoothTolerance => "smoothTolerance", "Smooth tolerance", "How far Smooth Shape may move an outline (default 0.2 mm).", None, Some("shape.simplify"), true;
     Knife => "knife", "Knife", "Click the points of an open cut line; double-click or Return cuts every object it crosses (fills and outlines into both sides, satin columns across, lines where crossed). Shift: 45° steps. A single click then Return splits the line under the pointer. Stays active; Esc leaves.", None, Some("shape.knife"), true;
+    ShapeEffects => "shapeEffects", "Shape Effects", "Warp, twist, roughen, pucker & bloat or zigzag the selected outlines, with a preview; the result is ordinary editable geometry (shape.effect).", None, Some("shape.effect"), true;
     SplitOutline => "splitOutline", "Split Outline", "Draw a cut line that splits the selected shape.", None, Some("shape.split"), true;
     AddDirectionLine => "addDirection", "Add Direction Line", "Draw a curved sewing direction across the region.", None, Some("object.setDirectionCurve"), true;
     DeleteDirectionLine => "deleteDirection", "Delete Direction Line", "Back to a straight sewing direction.", None, Some("object.setDirectionLines"), true;
@@ -293,6 +294,7 @@ impl Action {
                 | ChangeColor
                 | SkeletonWidth
                 | SmoothTolerance
+                | ShapeEffects
                 | EditCharacter
         )
     }
@@ -675,6 +677,7 @@ const SHAPES: &[Group] = &[
             ]),
             Small(&[A::EditPoint, A::DeletePoint, A::SplitAtPoint]),
             Small(&[A::DeriveSkeleton, A::SmoothShape, A::SmoothTolerance]),
+            Small(&[A::DeriveSkeleton, A::ShapeEffects]),
         ],
     },
     COLORS,

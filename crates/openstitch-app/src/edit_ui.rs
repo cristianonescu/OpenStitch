@@ -39,6 +39,8 @@ pub struct EditState {
     pub stamp_effect: usize,
     /// Smooth Shape's tolerance, mm (`None`: the default, 0.2 mm).
     pub smooth_tolerance: Option<f64>,
+    /// Shape Effects dropdown settings (#497).
+    pub effect: openstitch_app::editor::shape_effects::EffectForm,
     /// The next polygon drawn is the cut outline splitting this shape.
     pub split_target: Option<u64>,
     /// Alt held: clicking a group member selects it alone.
@@ -175,6 +177,7 @@ pub fn overlap_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         ("Subtract from first", "difference"),
         ("Intersect", "intersection"),
         ("Exclude overlap", "xor"),
+        ("Divide", "divide"),
     ] {
         if ui.add_enabled(many, egui::Button::new(label)).clicked() {
             let r = edit_ops::combine(app.session.design(), &app.selection, op);

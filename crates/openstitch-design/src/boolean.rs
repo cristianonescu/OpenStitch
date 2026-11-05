@@ -126,6 +126,42 @@ pub fn contours(regions: &[Region]) -> Vec<Contour> {
     regions.iter().flatten().cloned().collect()
 }
 
+/// Divide (beyond PE-DESIGN, #497): the planar arrangement of `objects` (in sewing order,
+/// each even-odd within itself). Every connected piece comes back once with the index of the
+/// object that owns it: where objects overlap, the last-sewn (topmost) one. The pieces cover
+/// the union exactly once.
+pub fn divide(objects: &[&[Contour]]) -> Vec<(usize, Region)> {
+    let mut pieces: Vec<(usize, Vec<Contour>)> = Vec::new();
+    for (k, o) in objects.iter().enumerate() {
+        let mut next = Vec::new();
+        let mut covered: Vec<Contour> = Vec::new();
+        for (owner, p) in pieces {
+            let inside = combine(&p, o, BoolOp::Intersection);
+            let outside = combine(&p, o, BoolOp::Difference);
+            if !inside.is_empty() {
+                next.push((k, contours(&inside)));
+            }
+            if !outside.is_empty() {
+                next.push((owner, contours(&outside)));
+            }
+            covered.extend(p);
+        }
+        let fresh = if covered.is_empty() {
+            simplify(o)
+        } else {
+            combine(o, &contours(&union_all([&covered[..]])), BoolOp::Difference)
+        };
+        if !fresh.is_empty() {
+            next.push((k, contours(&fresh)));
+        }
+        pieces = next;
+    }
+    pieces
+        .into_iter()
+        .flat_map(|(owner, c)| simplify(&c).into_iter().map(move |r| (owner, r)))
+        .collect()
+}
+
 /// Centre of the bounding box of a region's outer boundary.
 pub fn centre(r: &[Contour]) -> Vec2 {
     crate::geometry::Rect::enclosing(r.iter().take(1).flat_map(|c| c.points.iter().copied()))
@@ -144,6 +180,38 @@ mod tests {
 
     fn total(r: &[Region]) -> f64 {
         r.iter().map(|r| region_area(r)).sum()
+    }
+
+    #[test]
+    fn divide_leaves_every_overlap_its_own_piece() {
+        let (a, b) = ([square(0.0, 0.0, 100.0)], [square(50.0, 50.0, 100.0)]);
+        let pieces = divide(&[&a, &b]);
+        assert_eq!(pieces.len(), 3);
+        let area = |owner: usize| -> f64 {
+            pieces
+                .iter()
+                .filter(|(o, _)| *o == owner)
+                .map(|(_, r)| region_area(r))
+                .sum()
+        };
+        assert!((area(0) - 7_500.0).abs() < 1.0);
+        assert!(
+            (area(1) - 10_000.0).abs() < 1.0,
+            "the topmost owns the overlap"
+        );
+        // No two pieces overlap; together they make the union.
+        for i in 0..pieces.len() {
+            for j in i + 1..pieces.len() {
+                assert!(combine(&pieces[i].1, &pieces[j].1, BoolOp::Intersection).is_empty());
+            }
+        }
+        assert!(
+            (total(&pieces.iter().map(|p| p.1.clone()).collect::<Vec<_>>()) - 17_500.0).abs() < 1.0
+        );
+        // Three circles' Venn diagram: seven pieces.
+        let c = |x: f64, y: f64| [Contour::ellipse(v2(x, y), 60.0, 60.0, 64)];
+        let (p, q, r) = (c(0.0, 0.0), c(60.0, 0.0), c(30.0, 50.0));
+        assert_eq!(divide(&[&p, &q, &r]).len(), 7);
     }
 
     #[test]

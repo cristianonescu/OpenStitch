@@ -66,6 +66,7 @@ mod script;
 mod sections_ui;
 mod settings_ui;
 mod sewing_ui;
+mod shape_effects_ui;
 mod shape_tools_ui;
 mod splash;
 mod suite_chrome;

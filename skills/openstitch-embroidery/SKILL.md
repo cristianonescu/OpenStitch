@@ -107,6 +107,11 @@ then style them in the next.
 - Cut: `shape.knife` `{line: [[x, y], ...]}` splits every object an open line crosses (fills
   into both sides, satin columns across, lines where crossed; `ids` limits it, `skipped` says
   what was not cut through); `{at: [x, y]}` splits the line under a point.
+- More shapes: `shape.preset` `{kind: frame, frameOf, bandWidth}` (a band around an open
+  middle) or `{kind: spiral, turns, innerRadius, direction}` (an open line);
+  `shape.rectangle` `cornerRadii: [tl, tr, br, bl]`; `shape.combine` `op: divide` (every
+  overlap its own shape); `shape.effect` `{ids, kind: warp|twist|roughen|puckerBloat|zigzag,
+  amount, size, seed}`.
 - Find objects like others: `object.list` `{sameAs: [ids], match: color|type|both,
   visible: true}`, or filter by `color`, `regionType`, `lineType`; then `ui.select` the ids.
 - Text: `object.setText` (text, font, size, spacing), `text.setPath` (fit to an outline).

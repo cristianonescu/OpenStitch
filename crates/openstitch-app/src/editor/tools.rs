@@ -367,6 +367,8 @@ pub struct ToolController {
     pencil: Vec<Vec2>,
     /// Edge radius (mm) of the rectangles the Rectangle tool draws.
     corner_radius: f64,
+    /// A radius per corner instead (top left, top right, bottom right, bottom left; mm).
+    corner_radii: Option<[f64; 4]>,
     /// Point tool: the selected vertex.
     point: Option<PointRef>,
     /// Last pointer location (for the Point tool's segment shortcuts).
@@ -436,6 +438,24 @@ impl ToolController {
         } else {
             0.0
         };
+    }
+
+    /// A radius per corner (top left, top right, bottom right, bottom left; mm) for new
+    /// rectangles, or `None` for the one Edge radius (#497).
+    pub fn corner_radii(&self) -> Option<[f64; 4]> {
+        self.corner_radii
+    }
+
+    pub fn set_corner_radii(&mut self, radii: Option<[f64; 4]>) {
+        self.corner_radii = radii.map(|r| {
+            r.map(|x| {
+                if x.is_finite() {
+                    x.clamp(0.0, 1000.0)
+                } else {
+                    0.0
+                }
+            })
+        });
     }
 
     /// Snaps drawing, moving and point editing to a grid of `step` model units (`None`: off).
@@ -1079,7 +1099,9 @@ impl ToolController {
                     )
                 } else {
                     let mut params = json!({ "x": mm(r.min_x), "y": mm(r.min_y), "width": mm(r.width()), "height": mm(r.height()), "name": "Rectangle" });
-                    if self.corner_radius > 0.0 {
+                    if let Some(radii) = self.corner_radii {
+                        params["cornerRadii"] = json!(radii);
+                    } else if self.corner_radius > 0.0 {
                         params["cornerRadius"] = json!(self.corner_radius);
                     }
                     CommandRequest::new("shape.rectangle", params)
