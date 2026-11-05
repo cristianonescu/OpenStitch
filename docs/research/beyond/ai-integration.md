@@ -824,7 +824,24 @@ local-model bench was run. Ollama 0.40.14 (installed per-user for this batch) wa
 with its six models (qwen3:4b, qwen2.5:0.5b and four test copies of it), its server, its
 `%USERPROFILE%\.ollama` and `%LOCALAPPDATA%\Ollama` folders and its startup entry.
 
-**The 12-task bench on Windows: not run.** Claude Code over claude-agent-acp 0.100.0: not run: owner sign-in failed (an auth-provider error), retry later (#582); Claude Code 2.1.318 is installed. The Claude API: no key. Local models: not run on this PC (too weak), owner's decision 2026-11-05.
+**The 12-task bench on Windows, Claude Code: 12 of 12** (2026-11-05, #582). Claude Code 2.1.318 with `claude-agent-acp` 0.100.0, signed in by the owner, on the model Claude Code picks for that account (the agent does not report it). 326 s in all (17-35 s a task), 102 tool calls with 2 errors, 3,220,029 input tokens (cache reads and writes included) and 15,895 output tokens; the Mac's final run was 12 of 12 in 299 s with 113 calls and 5.72 M input before #390. Both errors were the agent's and it recovered: a monogram `fill` in the wrong form, and `ui.state`, which the bench's headless editor does not answer. The bench needed `--agent-program` pointing at `claude-agent-acp.cmd`: `stitchtool` had the same bare-name lookup as the panel, now fixed the same way.
+
+| Task | Result | Tool calls (errors) | Tokens in / out | Seconds |
+|---|---|---|---|---|
+| badge | pass | 7 (0) | 286,006 / 1,438 | 33.3 |
+| monogram | pass | 8 (1) | 321,189 / 1,541 | 34.1 |
+| arc-text | pass | 11 (1) | 333,837 / 2,128 | 35.3 |
+| applique | pass | 10 (0) | 286,996 / 1,701 | 30.8 |
+| star | pass | 7 (0) | 235,854 / 1,023 | 24.0 |
+| two-colours | pass | 8 (0) | 206,636 / 1,352 | 26.1 |
+| wider | pass | 9 (0) | 234,356 / 880 | 19.8 |
+| recolour | pass | 11 (0) | 255,417 / 1,035 | 24.8 |
+| delete | pass | 7 (0) | 192,546 / 823 | 19.2 |
+| picture | pass | 12 (0) | 390,293 / 1,659 | 30.3 |
+| vector | pass | 10 (0) | 369,430 / 2,010 | 30.7 |
+| question | pass | 2 (0) | 107,469 / 305 | 16.8 |
+
+The Claude API: no key. Local models: not run on this PC (too weak), owner's decision 2026-11-05.
 
 **Token counts.** OpenAI-compatible servers report `prompt_tokens` with the cached tokens
 included, and the client counted them twice (input plus cache read). Input now excludes them.
