@@ -1,10 +1,11 @@
 use super::handles::{Handle, SelectionHandles};
-use super::hit::{bounds_of, object_at, objects_in, rect_from};
+use super::hit::{bounds_of, object_at, object_at_opts, objects_in, rect_from};
 use super::pen::{PenNode, is_valid, path_request, pen_contour};
 use super::points::{
     Control, PointHit, PointRef, point_at, smooth_curve, with_control, with_vertex,
 };
 use super::request::{CommandRequest, mm};
+use super::snap::{SnapGuide, SnapLines, TOLERANCE_POINTS, snap_move};
 use openstitch_design::{Contour, Design, DesignObject, ObjectKind, Rect, Transform, Vec2, v2};
 use serde_json::json;
 use std::collections::BTreeSet;
@@ -133,6 +134,11 @@ pub struct PointerEvent {
     pub shift: bool,
     /// 2 on the second press of a double click.
     pub clicks: u32,
+    /// Ctrl (Cmd on macOS) held: this drag ignores Snap to Grid and Snap to Objects.
+    pub free: bool,
+    /// Alt held: a click on a stitch pattern selects every pattern sewing the colour under
+    /// the pointer (PE-DESIGN's selection by thread colour).
+    pub alt: bool,
 }
 
 impl PointerEvent {
@@ -142,6 +148,8 @@ impl PointerEvent {
             location,
             shift: false,
             clicks: 1,
+            free: false,
+            alt: false,
         }
     }
 
@@ -366,6 +374,13 @@ pub struct ToolController {
     skeleton_width: Option<f64>,
     /// Point tool on a text: the selected character (text id, character index).
     character: Option<(u64, usize)>,
+    /// Snap to Objects (#473) is on, and the lines collected when the current move began.
+    snap_objects: bool,
+    snap_lines: Option<SnapLines>,
+    /// Guides the moving selection lines up with, drawn dashed.
+    guides: Vec<SnapGuide>,
+    /// Clicks inside a closed outline without region sewing select it (#475).
+    click_inside: bool,
 }
 
 /// Drags shorter than this (points) are clicks.
@@ -420,23 +435,64 @@ impl ToolController {
         self.snap
     }
 
+    /// Snap to Objects on or off, and whether clicks inside unfilled outlines select them.
+    pub fn set_object_snapping(&mut self, on: bool, click_inside: bool) {
+        self.snap_objects = on;
+        self.click_inside = click_inside;
+    }
+
+    /// The lines the moving selection snapped to (empty unless a move is snapping).
+    pub fn guides(&self) -> &[SnapGuide] {
+        &self.guides
+    }
+
     /// `p` on the nearest grid crossing when snapping is on.
     pub fn snapped(&self, p: Vec2) -> Vec2 {
         self.snap.map_or(p, |s| snap_to_grid(p, s))
     }
 
-    /// The move for a drag from `start` to `p`; with snapping the selection's top-left corner
-    /// lands on the grid (an axis-locked move stays on its axis).
-    fn move_by(&self, start: Vec2, p: Vec2, axis_lock: bool, ctx: &ToolContext) -> Vec2 {
-        let d = move_delta(start, p, axis_lock);
-        let (Some(step), Some(b)) = (self.snap, bounds_of(ctx.design, ctx.selection)) else {
-            return d;
+    /// The move for a drag from `start` to `p`, and the snap guides it lined up with. With
+    /// Snap to Objects an axis within reach of another object's edge or centre, the page or a
+    /// guideline snaps there; otherwise, with Snap to Grid, the selection's top-left corner
+    /// lands on the grid. An axis-locked move stays on its axis; `e.free` (Ctrl/Cmd) turns
+    /// both off for the drag.
+    fn move_by(&self, start: Vec2, e: &PointerEvent, ctx: &ToolContext) -> (Vec2, Vec<SnapGuide>) {
+        let axis_lock = e.shift;
+        let d = move_delta(start, e.location, axis_lock);
+        let Some(b) = bounds_of(ctx.design, ctx.selection).filter(|_| !e.free) else {
+            return (d, Vec::new());
         };
+        let locked = |v: f64| v == 0.0 && axis_lock;
+        let (mut ox, mut oy, mut guides) = (None, None, Vec::new());
+        if let Some(lines) = self.snap_lines.as_ref().filter(|_| self.snap_objects) {
+            let tol = TOLERANCE_POINTS * ctx.units_per_point;
+            (ox, oy, guides) = snap_move(b, d, lines, tol);
+            if locked(d.x) {
+                ox = None;
+                guides.retain(|g| matches!(g, SnapGuide::Horizontal(_)));
+            }
+            if locked(d.y) {
+                oy = None;
+                guides.retain(|g| matches!(g, SnapGuide::Vertical(_)));
+            }
+        }
         let corner = v2(b.min_x, b.min_y);
-        let to = snap_to_grid(corner + d, step) - corner;
-        v2(
-            if d.x == 0.0 && axis_lock { 0.0 } else { to.x },
-            if d.y == 0.0 && axis_lock { 0.0 } else { to.y },
+        let grid = self
+            .snap
+            .map(|step| snap_to_grid(corner + d, step) - corner);
+        let axis = |object: Option<f64>, grid: Option<f64>, raw: f64| {
+            if locked(raw) {
+                0.0
+            } else {
+                object.or(grid).unwrap_or(raw)
+            }
+        };
+        (
+            v2(
+                axis(ox, grid.map(|g| g.x), d.x),
+                axis(oy, grid.map(|g| g.y), d.y),
+            ),
+            guides,
         )
     }
 
@@ -450,6 +506,8 @@ impl ToolController {
     /// Escape: abandon the gesture, polygon or pen path in progress.
     pub fn cancel(&mut self) {
         self.gesture = None;
+        self.snap_lines = None;
+        self.guides.clear();
         self.polygon.clear();
         self.pen.clear();
         self.widths.clear();
@@ -848,12 +906,31 @@ impl ToolController {
                     });
                     return vec![];
                 }
-                let hit = object_at(ctx.design, p, ctx.tolerance());
+                let hit = object_at_opts(ctx.design, p, ctx.tolerance(), self.click_inside);
                 self.gesture = Some(Gesture::Pending {
                     start: p,
                     hit,
                     shift: e.shift,
                 });
+                if e.alt
+                    && let Some(o) = hit
+                        .and_then(|id| ctx.design.index_of(id))
+                        .map(|i| &ctx.design.objects[i])
+                    && let Some(colour) = openstitch_engine::layout::colour_at(o, p)
+                {
+                    // PE-DESIGN: Alt-click on a stitch pattern's colour block selects every
+                    // block of that colour.
+                    let same = ctx
+                        .design
+                        .objects
+                        .iter()
+                        .filter(|o| {
+                            o.visible && openstitch_engine::layout::colours(o).contains(&colour)
+                        })
+                        .map(|o| o.id)
+                        .collect();
+                    return vec![ToolEffect::Select(same)];
+                }
                 match hit {
                     Some(id) if e.shift => {
                         let mut s = ctx.selection.clone();
@@ -875,6 +952,9 @@ impl ToolController {
                     return vec![];
                 }
                 self.gesture = Some(if hit.is_some() && !shift && !ctx.selection.is_empty() {
+                    self.snap_lines = self
+                        .snap_objects
+                        .then(|| SnapLines::collect(ctx.design, ctx.selection));
                     Gesture::Moving { start }
                 } else {
                     Gesture::Marquee {
@@ -890,7 +970,8 @@ impl ToolController {
                 self.select_tool(e, ctx)
             }
             (Phase::Dragged, Some(Gesture::Moving { start })) => {
-                let d = self.move_by(start, p, e.shift, ctx);
+                let (d, guides) = self.move_by(start, &e, ctx);
+                self.guides = guides;
                 self.preview = Some(ToolPreview::Transform(Transform::translation(d.x, d.y)));
                 vec![]
             }
@@ -931,9 +1012,11 @@ impl ToolController {
                 self.gesture = None;
                 self.preview = None;
                 let moved = match g {
-                    Gesture::Moving { start } => Some(self.move_by(start, p, e.shift, ctx)),
+                    Gesture::Moving { start } => Some(self.move_by(start, &e, ctx).0),
                     _ => None,
                 };
+                self.snap_lines = None;
+                self.guides.clear();
                 finish_select(g, e, ctx, moved)
             }
             _ => vec![],
