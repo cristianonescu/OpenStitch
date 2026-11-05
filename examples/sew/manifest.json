@@ -623,7 +623,7 @@
   "sewingMinutes": 15.9,
   "image": "../images/p06-sunset.jpg",
   "preview": "previews/S-photo1-sunset-openstitch.png",
-  "sha256": "adba11713fc77eb4dff8e0ab7de0b0e8c1c81098e644d2d3386d436b4ab2c607"
+  "sha256": "74a72e51e0c74d5e7444df38498d741bc912db9cce714b4129f728a8a5831e6d"
  },
  "image-tools/S-photo1-sunset-pe-compatible.pes": {
   "title": "Photo Stitch 1, PE-DESIGN-compatible mode",
@@ -631,10 +631,10 @@
   "hoop": "100 × 100 mm",
   "sizeMM": [
    90.0,
-   50.1
+   50.2
   ],
-  "stitches": 10523,
-  "trims": 317,
+  "stitches": 10027,
+  "trims": 108,
   "threads": [
    "001 White",
    "209 Tangerine",
@@ -647,10 +647,10 @@
    "707 Dark Gray",
    "900 Black"
   ],
-  "sewingMinutes": 29.4,
+  "sewingMinutes": 18.1,
   "image": "../images/p06-sunset.jpg",
   "preview": "previews/S-photo1-sunset-pe-compatible.png",
-  "sha256": "954ad5da1ce086eb4453c0790aab81319a01dddb1a84952def2b0fca5af58750"
+  "sha256": "924c60badd013570b80433e2270934abe7027f76b355a7232f9b5dfccbea4347"
  },
  "image-tools/M-photo1-portrait-openstitch.pes": {
   "title": "Photo Stitch 1, OpenStitch mode",
@@ -678,7 +678,7 @@
   "sewingMinutes": 56.4,
   "image": "../images/p01-portrait.jpg",
   "preview": "previews/M-photo1-portrait-openstitch.png",
-  "sha256": "09b009c1a578b2489c81c9f59e8cfb8333eb632e764073bcf7636effba208735"
+  "sha256": "8f920462de4365f7903594ba784c1b3cf44f5d4ac573ac559fac68f40c51b2d6"
  },
  "image-tools/M-photo1-portrait-pe-compatible.pes": {
   "title": "Photo Stitch 1, PE-DESIGN-compatible mode",
@@ -688,8 +688,8 @@
    94.1,
    139.8
   ],
-  "stitches": 28268,
-  "trims": 750,
+  "stitches": 26968,
+  "trims": 184,
   "threads": [
    "001 White",
    "348 Khaki",
@@ -699,10 +699,10 @@
    "707 Dark Gray",
    "519 Olive Green"
   ],
-  "sewingMinutes": 73.8,
+  "sewingMinutes": 43.1,
   "image": "../images/p01-portrait.jpg",
   "preview": "previews/M-photo1-portrait-pe-compatible.png",
-  "sha256": "4e1c6aa039da1700f49f07d78d23e64d5ea15595bb40532dedd3c9db259a27fe"
+  "sha256": "19ad562eb76f14c959ff3607d66d282520b8ea2e96fcdf5e2e32004c21bd28f8"
  },
  "image-tools/M-photo2-poppies-openstitch.pes": {
   "title": "Photo Stitch 2, OpenStitch mode",
