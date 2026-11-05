@@ -47,6 +47,7 @@ mod assistant_panel;
 mod assistant_ui;
 mod canvas;
 mod close_ui;
+mod colour_match_ui;
 mod convert_ui;
 mod creator_ui;
 mod database_ui;

@@ -11,6 +11,7 @@ use std::collections::BTreeMap;
 pub mod brands;
 mod brother;
 mod charts;
+pub mod colour;
 mod trims;
 
 pub use brother::{

@@ -11,7 +11,7 @@ use crate::sandbox::Access;
 use crate::session::EngineState;
 use openstitch_core::{
     BROTHER_EMBROIDERY_BRAND, HUS_CHART, JEF_CHART, PEC_CHART, SEW_CHART, SHV_CHART, Thread,
-    brother_embroidery_code, color_distance, pec_basic_chart,
+    brother_embroidery_code, pec_basic_chart,
 };
 use openstitch_design::{LineSewing, RegionSewing};
 use serde::{Deserialize, Serialize};
@@ -745,20 +745,21 @@ fn chart_commands() -> Vec<CommandSpec> {
         ),
         spec(
             "threads.builtinCharts",
-            "The thread charts built into OpenStitch (Brother, Janome JEF and SEW, Husqvarna Viking HUS and SHV) with each entry's number, colour, code, brand and name",
+            "The thread charts built into OpenStitch: the machine charts (Brother, Janome JEF and SEW, Husqvarna Viking HUS and SHV; kind machine) and the thread makers' charts (kind brand), with each entry's number, colour, code, brand and name",
             Effect::Read,
             vec![],
             |_, _| {
                 Ok(Value::Array(
-                    builtin_charts()
+                    crate::thread_match::builtins()
                         .iter()
-                        .map(|(id, name, chart)| {
-                            let threads: Vec<Value> = builtin_entries(id, chart)
+                        .map(|b| {
+                            let threads: Vec<Value> = b
+                                .entries
                                 .iter()
                                 .map(|(i, t)| {
                                     let mut v = describe_thread(t);
                                     v["index"] = json!(i);
-                                    if *id == "brother" {
+                                    if b.id == "brother" {
                                         // Matched to (1–61, `pec_basic_chart`) or only
                                         // kept from files (62–64).
                                         v["basic"] = json!(*i < pec_basic_chart().len());
@@ -766,7 +767,7 @@ fn chart_commands() -> Vec<CommandSpec> {
                                     v
                                 })
                                 .collect();
-                            json!({ "id": id, "name": name, "threads": threads })
+                            json!({ "id": b.id, "name": b.name, "kind": b.kind, "threads": threads })
                         })
                         .collect(),
                 ))
@@ -798,14 +799,13 @@ fn chart_commands() -> Vec<CommandSpec> {
                     }
                     (false, true) => {
                         let id = p.string("builtin", None)?;
-                        let (_, _, chart) = builtin_charts()
-                            .into_iter()
-                            .find(|(i, _, _)| *i == id)
-                            .ok_or_else(|| {
-                                let ids: Vec<&str> = builtin_charts().iter().map(|c| c.0).collect();
-                                p.invalid("builtin", format!("use one of {}", ids.join(", ")))
-                            })?;
-                        builtin_entries(&id, chart)
+                        let all = crate::thread_match::builtins();
+                        let ids: Vec<&str> = all.iter().map(|b| b.id).collect();
+                        let ids = ids.join(", ");
+                        all.into_iter()
+                            .find(|b| b.id == id)
+                            .ok_or_else(|| p.invalid("builtin", format!("use one of {ids}")))?
+                            .entries
                             .into_iter()
                             .map(|(_, t)| t)
                             .collect()
@@ -815,53 +815,6 @@ fn chart_commands() -> Vec<CommandSpec> {
                 let path = s.resolve(&p.string("path", None)?, Access::Write, &p.command)?;
                 std::fs::write(&path, chart_csv(&threads)).map_err(|e| p.failed(e.to_string()))?;
                 Ok(json!({ "path": path.display().to_string(), "colors": threads.len() }))
-            },
-        ),
-        spec(
-            "threads.remap",
-            "Change every thread of the design (or of the given objects) to the nearest colour of a user chart",
-            Effect::Edit,
-            vec![
-                req("chart", "string", "Chart"),
-                opt("ids", "[int]", "Objects (default all)"),
-            ],
-            |s, p| {
-                let n = p.string("chart", None)?;
-                let chart = s
-                    .user
-                    .chart_index(&n)
-                    .map(|i| s.user.thread_charts[i].threads.clone())
-                    .ok_or_else(|| p.not_found(format!("thread chart '{n}'")))?;
-                if chart.is_empty() {
-                    return Err(p.failed("the chart is empty"));
-                }
-                let idx: Vec<usize> = if p.has("ids") || p.has("id") {
-                    indexes(p, &s.design)?
-                } else {
-                    (0..s.design.objects.len()).collect()
-                };
-                let nearest = |t: &Thread| {
-                    chart
-                        .iter()
-                        .min_by_key(|c| color_distance(t, c))
-                        .cloned()
-                        .unwrap_or_else(|| t.clone())
-                };
-                for i in idx {
-                    let o = &mut s.design.objects[i];
-                    if let Some(r) = &mut o.region {
-                        r.thread = nearest(&r.thread);
-                    }
-                    if let Some(l) = &mut o.line {
-                        l.thread = nearest(&l.thread);
-                    }
-                    if let Some(b) = &mut o.stitch_block {
-                        for t in &mut b.threads {
-                            *t = nearest(t);
-                        }
-                    }
-                }
-                Ok(json!(null))
             },
         ),
     ]
