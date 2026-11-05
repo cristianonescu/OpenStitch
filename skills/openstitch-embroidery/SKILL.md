@@ -94,7 +94,9 @@ then style them in the next.
 - Threads: to change the design to a thread chart ("use my Madeira threads"), run
   `threads.remap` `{builtin | chart, metric: ciede2000, keepDistinct: true, dryRun: true}`
   first and show the user the plan (design colour → thread, ΔE, objects, and `merged`), then
-  run it without `dryRun` if they agree (`metric: rgb` is PE-DESIGN's rule). `threads.find`
+  run it without `dryRun` if they agree (`metric: rgb` is PE-DESIGN's rule). The thread
+  makers' charts (Madeira, Isacord, Sulky, Robison-Anton) are `builtin` ids: `threads.builtinCharts`
+  lists them with `kind: "brand"`. `threads.find`
   `{query}` finds a thread by code or name. After `import.svg` or a `digitize.*` wizard gives
   many near-identical colours, offer `threads.mergeSimilar` (`dryRun` first; it reports the
   colour changes saved, and `order.byColor` when `suggestSortByColor`).

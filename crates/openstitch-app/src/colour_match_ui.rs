@@ -367,6 +367,18 @@ mod tests {
     }
 
     #[test]
+    fn show_opens_both_windows() {
+        for v in ["matchThreads", "mergeColours"] {
+            assert!(crate::app::SHOW.contains(&v), "--show accepts {v}");
+        }
+        let app = EditorApp::new(Launch {
+            show: vec!["matchThreads".into(), "mergeColours".into()],
+            ..Default::default()
+        });
+        assert!(app.colour_match.match_open && app.colour_match.merge_open);
+    }
+
+    #[test]
     fn merge_window_previews_and_applies() {
         let mut app = EditorApp::new(Launch::default());
         for (x, c) in [(0, "#2050c0"), (20, "#2252c2"), (40, "#e01010")] {
