@@ -34,6 +34,8 @@ README = ROOT / "README.md"
 # with the panes, the rulers and the platform's fonts (#271), so it is found by its colour.
 SURROUND = (180, 184, 190)
 LONG_SIDE_MM = 100
+# The editor's pointer-position and zoom label in the canvas's bottom-right corner, pixels.
+LABEL_W, LABEL_H = 220, 30
 
 # id -> (image, wizard caption, command, parameters)
 GALLERY = {
@@ -109,12 +111,23 @@ def convert(work, key):
     return replies[2]["result"]["stitchStats"]
 
 
-def shoot(work, key):
+def shoot(work, key, size_mm=None):
+    """Screenshots the design and crops it. With the design's size (`size_mm`, width and height
+    in mm), a crop whose proportions are more than 25 % off the design's is retaken, up to three
+    times: a screenshot taken before the window settled framed g08 off-centre with its top cut off
+    and the status bar inside (#441, #443)."""
     shot = work / f"{key}.png"
-    run([str(BIN / "openstitch"), f"{key}.osd", "--show", "realistic", "--no-splash",
-         "--size", "1440x900", "--screenshot", str(shot)], work)
-    im = Image.open(shot).convert("RGB")
-    im = im.crop(design_box(im))
+    for attempt in range(3):
+        run([str(BIN / "openstitch"), f"{key}.osd", "--show", "realistic", "--no-splash",
+             "--size", "1440x900", "--screenshot", str(shot)], work)
+        im = Image.open(shot).convert("RGB")
+        box = design_box(im)
+        if not size_mm or framed(box, size_mm):
+            break
+        print(f"{key}: crop {box} does not match the design's {size_mm} mm, retaking", file=sys.stderr)
+    else:
+        sys.exit(f"gallery.py: {key}: no screenshot framed the design")
+    im = im.crop(box)
     im = im.resize((480, round(im.height * 480 / im.width)), Image.LANCZOS)
     OUT.mkdir(parents=True, exist_ok=True)
     dst = OUT / f"{key}.png"
@@ -122,9 +135,22 @@ def shoot(work, key):
     return dst
 
 
+def framed(box, size_mm, pad=12):
+    """Whether the crop `box` (with design_box's padding) has the design's proportions, within
+    25 %."""
+    w, h = box[2] - box[0] - 2 * pad, box[3] - box[1] - 2 * pad
+    dw, dh = size_mm
+    if w <= 0 or h <= 0 or dw <= 0 or dh <= 0:
+        return False
+    return abs((w / h) / (dw / dh) - 1.0) <= 0.25
+
+
 def design_box(im):
     """The stitched area of the canvas, with a small margin: pixels that are coloured or dark
-    (thread), not the light grey fabric, the grey surround or the rulers."""
+    (thread), not the light grey fabric, the grey surround or the rulers. Only the Design Page
+    (the light fabric inside the surround) is searched: the editor draws the pointer's position
+    and the zoom on the surround below it while the mouse is over the canvas, which stretched
+    g08's crop to the canvas corner (#443)."""
     sx, sy = [], []
     for yy in range(0, im.height, 4):
         for xx in range(0, im.width, 4):
@@ -134,10 +160,23 @@ def design_box(im):
     if not sx:
         sys.exit("gallery.py: no canvas found in the screenshot (surround colour changed?)")
     left, right, top, bottom = min(sx), max(sx), min(sy), max(sy)
+    px, py = [], []
+    for yy in range(top, bottom, 4):
+        for xx in range(left, right, 4):
+            if min(im.getpixel((xx, yy))) >= 200:
+                px.append(xx)
+                py.append(yy)
+    if px:
+        left, right, top, bottom = min(px), max(px), min(py), max(py)
+    # The pointer label sits in the canvas's bottom-right corner, over the page when the page
+    # fills the view (g01): grey pixels there are its text, not thread.
+    label_x, label_y = max(sx) - LABEL_W, max(sy) - LABEL_H
     xs, ys = [], []
     for yy in range(top, bottom, 2):
         for xx in range(left, right, 2):
             r, g, b = im.getpixel((xx, yy))
+            if xx > label_x and yy > label_y and max(r, g, b) - min(r, g, b) < 30:
+                continue
             if max(r, g, b) - min(r, g, b) > 60 or max(r, g, b) < 120:
                 xs.append(xx)
                 ys.append(yy)
@@ -191,7 +230,7 @@ def main():
             shutil.copy(IMAGES / GALLERY[key][0], work / GALLERY[key][0])
             s = convert(work, key)
             stats[key] = {"stitches": s["stitches"], "colors": s["colors"], "trims": s["trims"]}
-            dst = shoot(work, key)
+            dst = shoot(work, key, (s["widthMM"], s["heightMM"]))
             print(f"{key}: {s['stitches']} stitches, {len(s['colors'])} colours, {dst.stat().st_size // 1024} KB")
     cache.write_text(json.dumps(stats, indent=1, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
     text = README.read_text(encoding="utf-8")

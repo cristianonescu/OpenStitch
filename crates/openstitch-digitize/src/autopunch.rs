@@ -13,17 +13,18 @@ use crate::palette::{self, Census, Palette, Rgb};
 use crate::perceptual;
 use crate::raster::{Frame, Raster};
 use crate::regions::{self, NONE, TraceOptions};
-use crate::{DigitizeError, Fidelity, Mode, outline};
+use crate::{DigitizeError, Fidelity, Mode, columns, outline};
 use openstitch_core::Thread;
 use openstitch_design::fmath::Det;
-use openstitch_design::{DesignObject, RegionSewing, RegionType};
+use openstitch_design::{Contour, DesignObject, RegionSewing, RegionType};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct AutoPunch {
     /// Thread colours to reduce to (1–64), or 0 for the automatic count PE-DESIGN 11.50 fills in
     /// from the image ([`Census::auto_colors`]; the default).
     pub colors: usize,
-    /// Longest side of the working raster, pixels.
+    /// Longest side of the working raster, pixels. PE-DESIGN mode traces flat graphics (at most
+    /// [`FLAT_COLORS`] automatic colours) at twice this.
     pub resolution: u32,
     /// Small-region parameter, mm²: a 4-connected region of at most
     /// `max(4, round(min_area_mm2 / mmPerPx²))` working pixels is recoloured into a neighbour
@@ -137,6 +138,12 @@ pub fn fill_angle(m: &[bool], mw: usize, mh: usize, mm_per_px: f64) -> f64 {
     best.map_or(FILL_ANGLES[0], |b| b.1)
 }
 
+/// An image of at most this many automatic colours at the working resolution is flat graphics
+/// (lettering, logos, clip art): PE-DESIGN-compatible mode traces it at twice the working
+/// resolution and sews its satins as straight bars or curved columns, and both modes label it
+/// keeping shades ([`convert`], #443).
+pub const FLAT_COLORS: usize = 5;
+
 /// Most regions one conversion may produce.
 pub const MAX_REGIONS: usize = 5000;
 
@@ -150,11 +157,12 @@ pub struct Converted {
     pub background: Option<Thread>,
 }
 
-/// Labels per working pixel from the census's modal colours: thread index into
-/// `palette.threads`, or [`NONE`] where the pixel is transparent.
+/// Labels per working pixel from the census's modal colours with their shades kept
+/// ([`Census::labels`]): thread index into `palette.threads`, or [`NONE`] where the pixel is
+/// transparent.
 pub fn label(census: &Census, palette: &Palette) -> Vec<u16> {
     census
-        .modal
+        .labels
         .iter()
         .map(|m| m.map_or(NONE, |c| palette.classify(c) as u16))
         .collect()
@@ -340,10 +348,35 @@ pub fn open_slivers(labels: &mut [u16], w: usize, h: usize, r: usize, hairlines:
 pub const FABRIC_DE: f64 = 5.0;
 
 pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted, DigitizeError> {
-    let work = image.fit_mode(p.resolution.clamp(16, 2048));
+    let mut work = image.fit_mode(p.resolution.clamp(16, 2048));
+    let mut census = palette::census(&work);
+    // PE-DESIGN-compatible mode traces flat graphics (at most FLAT_COLORS automatic colours)
+    // at twice the working size: lettering's 0.1-0.3 mm gaps and straight edges survive, and
+    // the edge shades a box-mode copy makes no longer count as a colour (g08 at 400 px: a grey
+    // fourth colour and the S and the T fused; at its own 768 px: 3 colours and every letter
+    // apart, as PE-DESIGN's own Auto Punch, #443). The threads are still chosen on the working
+    // size's census, on which the reduction was calibrated (chosen at 800 px, the teapot's
+    // black outline became a dark green). Photographs and paintings stay at the working size
+    // (at 800 px the storybook picture's orange thread gave way to a grey, #447).
+    let flat = census.auto_colors() <= FLAT_COLORS;
+    let mut base = None;
+    if p.mode == Mode::PeDesign && flat {
+        let fine = image.fit_mode((p.resolution.clamp(16, 2048) * 2).min(2048));
+        if fine.width() > work.width() {
+            base = Some(std::mem::replace(&mut census, palette::census(&fine)));
+            work = fine;
+        }
+    }
+    // Flat graphics only (#443): pixels keep the shades of their colour against a flat
+    // neighbour ([`Census::labels`]), and in PE-DESIGN mode satin regions are split into
+    // straight bars or sewn along their curve ([`columns`]). Photographs and paintings keep the plain modal and Auto
+    // satin, which serve them better (the storybook picture, the dog and the fruit lost
+    // likeness with either).
+    if !flat {
+        census.labels = census.modal.clone();
+    }
     let frame = frame.rescaled(image.width(), work.width());
     let (w, h) = (work.width() as usize, work.height() as usize);
-    let census = palette::census(&work);
     if census.colors.is_empty() {
         return Err(DigitizeError::Empty(
             "the image is fully transparent".into(),
@@ -357,7 +390,7 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
         n => n.min(64),
     };
     let palette = match p.mode {
-        Mode::PeDesign => Palette::from_census(&census, colors),
+        Mode::PeDesign => Palette::from_census(base.as_ref().unwrap_or(&census), colors),
         Mode::OpenStitch => Palette::from_census_perceptual_in(&census, colors, &p.threads),
     };
     let mut labels = label(&census, &palette);
@@ -413,7 +446,7 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
             // shares its thread: a thin line's light-grey edge shades sew in the white thread
             // rather than vanish with the white background (round-5 mandala, g11).
             let means: Vec<u16> = census
-                .modal
+                .labels
                 .iter()
                 .map(|m| m.map_or(NONE, |c| palette.nearest_mean(c) as u16))
                 .collect();
@@ -552,43 +585,76 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                 }
             };
             let satin = stroke && (p.satin_min_mm..=p.satin_max_mm).contains(&width_mm);
-            let mut region = RegionSewing::new(
-                if satin {
-                    RegionType::Satin
-                } else {
-                    RegionType::Fill
-                },
-                thread.clone(),
-            );
-            // As PE-DESIGN 11.50 sets them (round-4 captures): satin with Auto direction and
-            // no under sewing, across the stroke; fill with under sewing, in the direction
-            // whose rows spread furthest across the region ([`fill_angle`]). The axis is
-            // measured with the design's y pointing down; region angles are stored
-            // counter-clockwise on screen, as PE-DESIGN gives them.
-            if satin {
-                region.auto_direction = true;
-                region.underlay = false;
-            }
-            if p.mode == Mode::OpenStitch {
-                // OpenStitch mode sews one covering layer and no more needle points than it
-                // needs (owner, 2026-10-31: a normal single-layer fill is within the density
-                // limits): rows at 4.5 per mm, fill stitches up to 6.5 mm, no under sewing.
-                region.density = OPEN_STITCH_DENSITY;
-                region.stitch_length = OPEN_STITCH_FILL_STITCH_MM;
-                region.underlay = false;
-            }
-            region.angle = if satin {
-                normalize(-across) + 0.0
+            // Flat graphics, PE-DESIGN mode (OpenStitch mode sews wide strokes as fill and its
+            // thin ones as satin outlines; the split did not help it): a satin region made of
+            // straight bars (T, H) is sewn bar by bar,
+            // each straight across; a curved stroke (S, C) as one column through rungs square to
+            // its centre line; a single bar keeps Auto satin ([`columns`], #443).
+            let strokes = if satin && flat && p.mode == Mode::PeDesign {
+                columns::split(&m, mw, mh, width_mm / frame.mm_per_px())
             } else {
-                fill_angle(&m, mw, mh, frame.mm_per_px())
+                columns::Strokes::Single
             };
-            let mut o = DesignObject::shape(contours, Some(region), None);
-            o.name = Some(format!(
-                "Auto Punch {} {}",
-                objects.len() + 1,
-                thread.name.as_deref().unwrap_or("thread")
-            ));
-            objects.push(o);
+            let parts: Vec<(Vec<Contour>, Sewn)> = match strokes {
+                columns::Strokes::Bars(cols) => cols
+                    .iter()
+                    .map(|c| {
+                        let contours =
+                            regions::trace_mask(&c.mask, mw, mh, k.x0, k.y0, &p.trace, &frame);
+                        (contours, Sewn::Bar(c.direction))
+                    })
+                    .filter(|(c, _)| !c.is_empty())
+                    .collect(),
+                columns::Strokes::Curved => match columns::rungs(&contours) {
+                    Some(rungs) => vec![(contours, Sewn::Column(rungs))],
+                    None => vec![(contours, Sewn::Auto)],
+                },
+                columns::Strokes::Single => vec![(contours, Sewn::Auto)],
+            };
+            for (contours, sewn) in parts {
+                let mut region = RegionSewing::new(
+                    if satin {
+                        RegionType::Satin
+                    } else {
+                        RegionType::Fill
+                    },
+                    thread.clone(),
+                );
+                // As PE-DESIGN 11.50 sets them (round-4 captures): satin with Auto direction
+                // and no under sewing, across the stroke; fill with under sewing, in the
+                // direction whose rows spread furthest across the region ([`fill_angle`]). The
+                // axis is measured with the design's y pointing down; region angles are stored
+                // counter-clockwise on screen, as PE-DESIGN gives them. A bar of a split region
+                // has its own fixed direction, straight across it; a curved column its rungs.
+                if satin {
+                    region.auto_direction = matches!(sewn, Sewn::Auto);
+                    region.underlay = false;
+                }
+                if p.mode == Mode::OpenStitch {
+                    // OpenStitch mode sews one covering layer and no more needle points than
+                    // it needs (owner, 2026-10-31: a normal single-layer fill is within the
+                    // density limits): rows at 4.5 per mm, fill stitches up to 6.5 mm, no
+                    // under sewing.
+                    region.density = OPEN_STITCH_DENSITY;
+                    region.stitch_length = OPEN_STITCH_FILL_STITCH_MM;
+                    region.underlay = false;
+                }
+                region.angle = match (satin, &sewn) {
+                    (true, Sewn::Bar(d)) => normalize(-(d + 90.0)) + 0.0,
+                    (true, _) => normalize(-across) + 0.0,
+                    _ => fill_angle(&m, mw, mh, frame.mm_per_px()),
+                };
+                if satin && let Sewn::Column(rungs) = sewn {
+                    region.direction_lines = rungs;
+                }
+                let mut o = DesignObject::shape(contours, Some(region), None);
+                o.name = Some(format!(
+                    "Auto Punch {} {}",
+                    objects.len() + 1,
+                    thread.name.as_deref().unwrap_or("thread")
+                ));
+                objects.push(o);
+            }
         }
     }
     // The outlines are sewn last, on the regions they border; their ink is the darkest
@@ -618,6 +684,16 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
         threads,
         background: background.map(|b| palette.threads[b as usize].clone()),
     })
+}
+
+/// How a satin region (or a piece of one) is sewn.
+enum Sewn {
+    /// Auto direction, as PE-DESIGN sets it.
+    Auto,
+    /// A straight bar of a split region, running this way (degrees, y down).
+    Bar(f64),
+    /// A curved column through these rungs (0.1 mm).
+    Column(Vec<[openstitch_design::Vec2; 2]>),
 }
 
 /// Angle in (-90, 90].

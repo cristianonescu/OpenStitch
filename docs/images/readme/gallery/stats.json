@@ -5,7 +5,7 @@
    "#d15c00",
    "#0e1f7c"
   ],
-  "stitches": 8690,
+  "stitches": 8655,
   "trims": 10
  },
  "g02": {
@@ -146,12 +146,11 @@
  },
  "g08": {
   "colors": [
-   "#a8a8a8",
    "#ed171f",
    "#0b3d91"
   ],
-  "stitches": 1984,
-  "trims": 16
+  "stitches": 1247,
+  "trims": 11
  },
  "g15": {
   "colors": [

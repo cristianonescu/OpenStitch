@@ -1320,3 +1320,130 @@ fn strokes_rasterize_as_round_capped_bands() {
     assert!((0..20).all(|x| line[x]));
     assert!((20..200).all(|i| !line[i]));
 }
+
+/// `examples/images/g08-lettering.png` at its own size: "STITCH" in navy over a red bar on
+/// cream, 100 mm wide, as the README gallery converts it.
+fn lettering() -> (Raster, Frame) {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/images/g08-lettering.png");
+    let img = Raster::decode(&std::fs::read(path).expect("reads")).expect("decodes");
+    let frame = Frame::new(0.0, 0.0, 100.0, img.width());
+    (img, frame)
+}
+
+/// Share of consecutive stitches longer than 1 mm, within one colour, whose direction turns
+/// by more than 45°: a satin column turns gradually, spokes fanning across one another do not.
+/// PE-DESIGN 11.50's own Auto Punch of g08 (`g08-lettering__autopunch.pes`) measures 0.7 %;
+/// OpenStitch before #443, 13 %.
+fn sharp_turns(pattern: &openstitch_core::StitchPattern) -> f64 {
+    use openstitch_core::Command;
+    let mut dirs: Vec<Option<f64>> = Vec::new();
+    for w in pattern.stitches.windows(2) {
+        let (a, b) = (w[0], w[1]);
+        let both = a.command == Command::Stitch && b.command == Command::Stitch;
+        let (dx, dy) = (b.x - a.x, b.y - a.y);
+        dirs.push(
+            (both && dx.hypot(dy) > 10.0).then(|| dy.atan2(dx).to_degrees().rem_euclid(180.0)),
+        );
+    }
+    let (mut pairs, mut sharp) = (0usize, 0usize);
+    for w in dirs.windows(2) {
+        if let (Some(a), Some(b)) = (w[0], w[1]) {
+            let d = (a - b).abs();
+            pairs += 1;
+            sharp += usize::from(d.min(180.0 - d) > 45.0);
+        }
+    }
+    sharp as f64 / pairs.max(1) as f64
+}
+
+/// #443: bold lettering in flat colours sews as clean satin columns in the image's three
+/// colours, as PE-DESIGN 11.50's Auto Punch sews it (round 5, `g08-lettering__autopunch.pes`:
+/// the cream left out, navy letters and a red bar, all satin, 1,268 stitches).
+#[test]
+fn bold_lettering_sews_clean_columns_in_three_colours() {
+    let (img, frame) = lettering();
+    let out = autopunch::convert(&img, &frame, &AutoPunch::default()).expect("converts");
+    // Three colours: the cream background left out, navy and red sewn; no edge shade.
+    assert_eq!(out.threads.len(), 2, "{:?}", out.threads);
+    assert!(out.background.is_some());
+    let red = out
+        .threads
+        .iter()
+        .position(|t| t.rgb_value() >> 16 > 0xc0)
+        .expect("red");
+    let navy = 1 - red;
+    // The bar is one satin region, straight across.
+    let bars: Vec<_> = out
+        .objects
+        .iter()
+        .filter_map(|o| o.region.as_ref())
+        .filter(|r| r.thread == out.threads[red])
+        .collect();
+    assert_eq!(bars.len(), 1);
+    assert_eq!((bars[0].kind, bars[0].angle), (RegionType::Satin, 90.0));
+    // Six letters, each its own satin; the T's bar and stem, the H's stems and crossbar are
+    // sewn each straight across (S 1, T 2, I 1, T 2, C 1, H 3), the S and the C along rungs.
+    let letters: Vec<_> = out
+        .objects
+        .iter()
+        .filter_map(|o| o.region.as_ref())
+        .filter(|r| r.thread == out.threads[navy])
+        .collect();
+    assert!(letters.iter().all(|r| r.kind == RegionType::Satin));
+    assert_eq!(letters.len(), 10);
+    assert_eq!(
+        letters
+            .iter()
+            .filter(|r| r.direction_lines.len() >= 2)
+            .count(),
+        2,
+        "the S and the C are columns along their curve"
+    );
+    let mut d = Design::new(
+        "g08",
+        DesignPage {
+            width: 1000.0,
+            height: 700.0,
+        },
+    );
+    for o in out.objects {
+        d.add(o);
+    }
+    let pattern = Compiler::default().compile(&d);
+    let turns = sharp_turns(&pattern);
+    assert!(turns < 0.03, "{:.1} % sharp turns", 100.0 * turns);
+}
+
+/// The column split itself: a T of two bars, an H of three, a plain bar alone, an S-like
+/// curve not made of bars.
+#[test]
+fn straight_bars_split_and_curves_do_not() {
+    use openstitch_digitize::columns::{self, Strokes};
+    let shape = |w: usize, h: usize, f: &dyn Fn(usize, usize) -> bool| -> Vec<bool> {
+        (0..w * h).map(|i| f(i % w, i / w)).collect()
+    };
+    let bars = |s: Strokes| match s {
+        Strokes::Bars(b) => b.iter().map(|c| c.direction).collect::<Vec<_>>(),
+        other => panic!("{other:?}"),
+    };
+    // T: a 60 × 20 bar over a 20 × 80 stem.
+    let t = shape(60, 100, &|x, y| y < 20 || (20..40).contains(&x));
+    assert_eq!(bars(columns::split(&t, 60, 100, 20.0)), vec![0.0, 90.0]);
+    // H: two 20 × 100 stems and a 30 × 20 crossbar.
+    let h = shape(70, 100, &|x, y| {
+        !(20..50).contains(&x) || (40..60).contains(&y)
+    });
+    let mut got = bars(columns::split(&h, 70, 100, 20.0));
+    got.sort_by(f64::total_cmp);
+    assert_eq!(got, vec![0.0, 90.0, 90.0]);
+    // A single bar is left to Auto satin.
+    let bar = shape(100, 20, &|_, _| true);
+    assert_eq!(columns::split(&bar, 100, 20, 20.0), Strokes::Single);
+    // A ring (a C closed up) changes direction all round.
+    let ring = shape(100, 100, &|x, y| {
+        let r = ((x as f64 - 49.5).powi(2) + (y as f64 - 49.5).powi(2)).sqrt();
+        (30.0..48.0).contains(&r)
+    });
+    assert_eq!(columns::split(&ring, 100, 100, 18.0), Strokes::Curved);
+}

@@ -24,6 +24,7 @@ white fabric, at the image's own pixel scale. The measures:
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -32,7 +33,10 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parent.parent
-BIN = ROOT / "target" / "release" / "stitchtool"
+# The release stitchtool (`stitchtool.exe` on Windows); OPENSTITCH_STITCHTOOL names another build,
+# for example main's, to score before and after a change with the same script.
+BIN = Path(os.environ.get("OPENSTITCH_STITCHTOOL")
+           or ROOT / "target" / "release" / ("stitchtool.exe" if os.name == "nt" else "stitchtool"))
 IMAGES = ROOT / "examples" / "images"
 LONG_SIDE_MM = 100.0
 THREAD_MM = 0.4

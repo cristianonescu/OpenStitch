@@ -121,6 +121,11 @@ similarity scorer draw thread as wide as it covers at its row density. Next: Pho
 trims (#298), Auto Punch's stacked satin points on the storybook picture (#290, the Mac's track),
 then a sew-out of the regenerated kit.
 
+Done 2026-11-05 (#443): Auto Punch on flat graphics (bold lettering, logos) sews clean satin
+columns as PE-DESIGN does (T and H bar by bar, S and C along their curve, the image's own colours
+only); photographs convert as before. Next for lettering images: OpenStitch mode's sewn cream
+background and fused letters (#445); for photographs, keep as many threads as colours (#447).
+
 Done 2026-10-30: stitch generation is bit-identical on Windows, macOS and Linux (transcendental
 math through the `libm` crate instead of each platform's C library); the arched Text Transform
 spec, deferred at alpha.6 because Linux measured it 0.2 mm lower, has its PE-DESIGN reference

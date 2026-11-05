@@ -71,6 +71,9 @@ pub struct Census {
     pub colors: Vec<(Rgb, u64)>,
     /// The modal colour of every pixel, `None` where it is transparent.
     pub modal: Vec<Option<Rgb>>,
+    /// The modal colour of every pixel with its shades kept ([`MODAL_DIST`]): the colour Auto
+    /// Punch labels the pixel by (#443); `None` where it is transparent.
+    pub labels: Vec<Option<Rgb>>,
 }
 
 impl Census {
@@ -127,16 +130,38 @@ pub fn brightness_order(palette: &Palette, threads: impl IntoIterator<Item = usi
     order
 }
 
+/// RGB distance within which a window pixel counts as a shade of the centre's colour when the
+/// census labels a pixel ([`Census::modal`]). The shade runs of a flat colour drawn in slightly
+/// different shades differ by up to 14 (`examples/images/g08-lettering.png`).
+pub const MODAL_DIST: u32 = 16;
+
+/// The commonest colour of a 3×3 window counts as flat when at least this many of its pixels
+/// have it exactly (a row of three across an edge).
+pub const FLAT_RUN: u8 = 3;
+
 /// Modal colour of the 3×3 window around `(x, y)`: the colour most of the window's opaque
 /// pixels have. Ties keep the centre's own colour when it is among them, otherwise the
 /// smallest packed colour. `None` for a transparent centre.
-fn modal_at(image: &Raster, x: u32, y: u32) -> Option<Rgb> {
+///
+/// With `keep_shades`, the centre also keeps its colour when it and the window's shades of it
+/// (within [`MODAL_DIST`]) are at least as many as the most common colour (#443). A flat colour
+/// drawn in runs of slightly different shades (g08: the red bar's edge row alternates
+/// 243,68,82 and 244,79,91, the cream above it 254,245,237 and 252,250,240) otherwise splits
+/// its votes where two runs meet, and its edge pixel there took the other side's colour: one-
+/// pixel notches along straight edges, which Auto satin fanned its rows round. The rule only
+/// ever keeps a centre the plain modal would replace, so a one-pixel line between edge shades
+/// stays as it did (the leaf's veins, `g10-leaf-transparent.png`). It applies only against a
+/// flat colour, one at least [`FLAT_RUN`] window pixels have exactly: in a photograph's
+/// gradients no colour repeats that often, and the plain modal smooths them as before (keeping
+/// every centre there lowered the storybook picture's and the mosaic's likeness).
+fn modal_at(image: &Raster, x: u32, y: u32, keep_shades: bool) -> Option<Rgb> {
     let [r, g, b, a] = image.pixel(x, y);
     if a < 128 {
         return None;
     }
     let centre = [r, g, b];
     let mut counts: Vec<(Rgb, u8)> = Vec::with_capacity(9);
+    let mut shades = 0u8;
     for ny in y.saturating_sub(1)..(y + 2).min(image.height()) {
         for nx in x.saturating_sub(1)..(x + 2).min(image.width()) {
             let [r, g, b, a] = image.pixel(nx, ny);
@@ -144,6 +169,7 @@ fn modal_at(image: &Raster, x: u32, y: u32) -> Option<Rgb> {
                 continue;
             }
             let c = [r, g, b];
+            shades += u8::from(sq_dist(c, centre) <= MODAL_DIST * MODAL_DIST);
             match counts.iter_mut().find(|k| k.0 == c) {
                 Some(k) => k.1 += 1,
                 None => counts.push((c, 1)),
@@ -151,6 +177,9 @@ fn modal_at(image: &Raster, x: u32, y: u32) -> Option<Rgb> {
         }
     }
     let most = counts.iter().map(|k| k.1).max().unwrap_or(0);
+    if keep_shades && most >= FLAT_RUN && shades >= most {
+        return Some(centre);
+    }
     let mut tied: Vec<Rgb> = counts.iter().filter(|k| k.1 == most).map(|k| k.0).collect();
     if tied.contains(&centre) {
         return Some(centre);
@@ -179,13 +208,21 @@ fn sq_dist(a: Rgb, b: Rgb) -> u32 {
 /// `examples/images/g01-emblem.png`): their many small edge shades filled all 100 slots by the
 /// 32nd row, so the emblem's orange and yellow counted as grey. PE-DESIGN keeps all four
 /// colours (4 automatic colours), as this census does. Deterministic for a given image.
+///
+/// The colours are counted from the exact modal colour (each colour voting alone), which keeps
+/// PE-DESIGN's automatic colour counts (the edge shades it keeps as regions on the small
+/// emblem `d02`); [`Census::labels`] also holds the one that keeps the centre's shades, which
+/// Auto Punch labels its regions by, so a flat colour drawn in slightly different shades keeps
+/// straight edges (#443).
 pub fn census(image: &Raster) -> Census {
     let mut seen: HashMap<Rgb, usize> = HashMap::new();
     let mut all: Vec<(Rgb, u64)> = Vec::new();
     let mut modal = Vec::with_capacity(image.width() as usize * image.height() as usize);
+    let mut labels = Vec::with_capacity(modal.capacity());
     for y in 0..image.height() {
         for x in 0..image.width() {
-            let m = modal_at(image, x, y);
+            labels.push(modal_at(image, x, y, true));
+            let m = modal_at(image, x, y, false);
             modal.push(m);
             let Some(c) = m else { continue };
             let i = *seen.entry(c).or_insert_with(|| {
@@ -218,7 +255,11 @@ pub fn census(image: &Raster) -> Census {
     }
     tracked.sort_by_key(|k| k.0);
     let colors = tracked.into_iter().map(|(_, c, n)| (c, n)).collect();
-    Census { colors, modal }
+    Census {
+        colors,
+        modal,
+        labels,
+    }
 }
 
 impl Palette {
@@ -307,7 +348,13 @@ impl Palette {
             palette.means.push(c);
             palette.thread_of.push(k);
         }
-        let mut met: Vec<u32> = census.modal.iter().flatten().map(|&c| pack(c)).collect();
+        let mut met: Vec<u32> = census
+            .modal
+            .iter()
+            .chain(&census.labels)
+            .flatten()
+            .map(|&c| pack(c))
+            .collect();
         met.sort_unstable();
         met.dedup();
         let mean_labs: Vec<Lab> = palette.means.iter().map(|&m| perceptual::lab(m)).collect();

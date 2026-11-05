@@ -125,10 +125,10 @@ regenerates them.
 | <img src="examples/images/p08-poppies.jpg" width="200"> | <img src="docs/images/readme/gallery/p08.png" width="260"> | **Photo Stitch 2, Color Set CMYK**<br>35,734 stitches, 4 trims, 4 colours |
 | <img src="examples/images/p12-backlit-tree.jpg" width="200"> | <img src="docs/images/readme/gallery/p12.png" width="260"> | **Photo Stitch 1, mono, defaults**<br>4,261 stitches, 130 trims, 1 colour |
 | <img src="examples/images/p03-storybook.jpg" width="200"> | <img src="docs/images/readme/gallery/p03.png" width="260"> | **Photo Stitch 1, colour, defaults**<br>19,888 stitches, 789 trims, 8 colours |
-| <img src="examples/images/g01-emblem.png" width="200"> | <img src="docs/images/readme/gallery/g01.png" width="260"> | **Auto Punch, defaults**<br>8,690 stitches, 10 trims, 3 colours |
+| <img src="examples/images/g01-emblem.png" width="200"> | <img src="docs/images/readme/gallery/g01.png" width="260"> | **Auto Punch, defaults**<br>8,655 stitches, 10 trims, 3 colours |
 | <img src="examples/images/g02-balloon.png" width="200"> | <img src="docs/images/readme/gallery/g02.png" width="260"> | **Auto Punch, defaults**<br>7,912 stitches, 12 trims, 5 colours |
 | <img src="examples/images/g05-robot-cartoon.png" width="200"> | <img src="docs/images/readme/gallery/g05.png" width="260"> | **Auto Punch, defaults**<br>12,473 stitches, 231 trims, 6 colours |
-| <img src="examples/images/g08-lettering.png" width="200"> | <img src="docs/images/readme/gallery/g08.png" width="260"> | **Auto Punch, defaults**<br>1,984 stitches, 16 trims, 3 colours |
+| <img src="examples/images/g08-lettering.png" width="200"> | <img src="docs/images/readme/gallery/g08.png" width="260"> | **Auto Punch, defaults**<br>1,247 stitches, 11 trims, 2 colours |
 | <img src="examples/images/g04-butterfly-outline.png" width="200"> | <img src="docs/images/readme/gallery/g04.png" width="260"> | **Design Center, running line**<br>1,635 stitches, 92 trims, 1 colour |
 | <img src="examples/images/g07-pixel-strawberry.png" width="200"> | <img src="docs/images/readme/gallery/g07.png" width="260"> | **Cross Stitch, defaults**<br>4,691 stitches, 190 trims, 6 colours |
 | <img src="examples/images/g15-folk-bird.png" width="200"> | <img src="docs/images/readme/gallery/g15.png" width="260"> | **Cross Stitch, defaults**<br>5,679 stitches, 303 trims, 4 colours |

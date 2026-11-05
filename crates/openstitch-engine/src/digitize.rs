@@ -326,7 +326,7 @@ pub fn commands() -> Vec<CommandSpec> {
                 opt(
                     "resolution",
                     "int 64-2048",
-                    "Working resolution, longest side in pixels (default 400; 800 in OpenStitch mode)",
+                    "Working resolution, longest side in pixels (default 400, flat graphics of at most 5 colours traced at twice that; 800 in OpenStitch mode)",
                 ),
                 opt(
                     "minArea",

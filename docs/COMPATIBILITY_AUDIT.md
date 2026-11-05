@@ -2279,6 +2279,45 @@ Line references are relative to `crates/`.
   both cards; the Realistic view and the similarity scorer now draw thread that wide
   (`openstitch_design::calibration`, #291).
 
+### Auto Punch on bold lettering, 2026-11-05 (#443)
+
+- **Finding:** the README gallery's g08 (navy "STITCH" over a red bar on cream) sewed its letters
+  as satin fanning in every direction, with a grey fourth thread inside them and a ragged bar
+  (1,984 stitches, 13 % of consecutive stitches turning by more than 45°; after #440's jagged-
+  satin fix 1,504 and 5.8 %, letters partly sewn along their strokes, the grey still there).
+  PE-DESIGN 11.50's own Auto Punch of the image (round 5, `g08-lettering__autopunch.pes`) sews 7
+  satin regions, one per letter and the bar, 2 colours, 1,268 stitches and 0.7 % sharp turns:
+  the T's bar across at 90° and its stem at 0°, the H's stems at 0° and its crossbar at 90°, the
+  S and the C fanned round their curves, the bar at 90°.
+- **Causes, measured:** (1) at the 400 px working size the 768 px image's box-mode copy gives an
+  edge shade 0.57 % of the pixels, over the 0.5 % automatic-colour share, so 4 colours (grey);
+  at the image's own size the count is 3, as PE's, and the 1-2 px gaps between S-T and T-C
+  survive. (2) The 3×3 modal filter votes on exact colours; the image draws its flat colours in
+  runs of slightly different shades (the bar's edge row 243,68,82 and 244,79,91; the cream
+  254,245,237 and 252,250,240), so where two runs meet the edge pixel lost the vote (8 of the
+  bar's 470 top-edge pixels): one-pixel notches every few millimetres. (3) Auto satin derives one
+  centre line per region and fans its rungs at outline corners: it cannot follow the junctions
+  of the T and the H or the cut ends of the S and the C.
+- **Fixed, for flat graphics only** (at most 5 automatic colours at the working size): PE-
+  compatible mode traces them at twice the working size, choosing the threads at the working
+  size as before (chosen at 800 px, the teapot's black outline became a dark green); pixels keep
+  their colour's shades against a flat neighbour (three identical pixels); in PE-compatible mode
+  satin regions made of straight bars are split into one satin per bar, straight across, and
+  curved strokes sew along non-crossing rungs square to their smoothed centre line. Now 11
+  regions, 1,247 stitches, 2 colours, 1.0 % sharp turns; at most 8 needle drops per 0.5 mm spot
+  (`tools/sew_check.py`). PE keeps each letter one region and links the letters with short
+  stitches (0 trims); OpenStitch trims between them (11).
+- **No regression (owner's rule):** against main, scored twice to measure noise (none: the
+  scorer is deterministic), likeness without DISTS is unchanged on every photograph and
+  painting (the same stitches) and higher on the flat images (g08 +0.34 / +0.95, g11 +1.31, g01
+  +0.89 / +0.32, g15 +0.00 / +0.08); no case loses a thread except g08's grey, which PE's own
+  file lacks (18 images, both modes). Applying the changes to every image was measured first
+  and rejected: tracing photographs at 800 px swapped their threads (the storybook fox's orange,
+  #447) and the bar split and the shade labels lowered their likeness by up to 1.4.
+- **Open:** OpenStitch mode on the same image sews the cream background and fuses the letters
+  across their gaps (#445). Auto satin itself (drawn shapes) still fans at the corners of
+  branched shapes.
+
 ## Order of work
 
 1. **Fix without a reference:** items 1, 3, 7, 14, 15 (ranges), 16 and 17, plus the
