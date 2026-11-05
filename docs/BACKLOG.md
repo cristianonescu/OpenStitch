@@ -45,6 +45,31 @@ Updated 2026-11-04 evening, for the round after v0.1.0-alpha.12. Merged since th
 | `batch:lettering` | compile.rs, strokes.rs | #376 (stroke-wise fill lettering) | After `batch:stitch-engine` (both touch compile.rs) |
 | `batch:assistant-platforms` | the Assistant on Windows (and Linux if CI can host a Secret Service) | #401 | After #395. Throwaway profile only; a real Claude API turn needs the owner's own key, otherwise real turns go through Claude Code |
 
+## Proposed batches from the open-source survey (2026-11-05)
+
+The 88 issues from the full survey of Morale, threadspool, Roidery, stitch_generator, openhoop and
+filum (#472–#559), grouped by code area. They come after the batches above and after the bugs
+#458–#471 (merge order: release blockers and P1, CI, Assistant, bugs, planned features, ideas).
+No `batch:*` label is set yet: the coordinator labels a batch when a session takes it. The order
+below is the suggested order of taking them.
+
+| Proposed batch | Area | Issues | Notes |
+|---|---|---|---|
+| `batch:ai-assistant` (survey) | `skills/openstitch-embroidery`, `openstitch-mcp`, `openstitch-assistant`, `stitchtool` bench | #491 (memory), #492 (example designs, composition guide), #493 (illustrated bench tasks), #494 (every batch error at once), #495 (only the user's threads) | Assistant comes before bugs in the merge order |
+| `batch:quality-checks` | `openstitch-engine` (a new quality module), `openstitch-render`, the editor's panes | #503 (Check Design), #504 (density map), #505 (Review Sewing Order), #457 (export read-back), #506 (random-design test) | #506 first: it guards the others |
+| `batch:satin-quality` | `openstitch-design` (column.rs, region.rs, skeleton.rs, lines.rs) | #520 (corner styles), #521 (short stitches on every satin), #522 (compensation per side and %), #523 (automatic underlay by width), #526 (branching shapes to satin) | After `batch:stitch-engine`; next round: #524, #525, #528, #531 |
+| `batch:routing` | `openstitch-design` (compile.rs, order), `openstitch-engine` | #545 (travel under later fills), #546 (branching and auto-routing), #547 (nearest start), #511 (leave out hidden stitching), #548 (per-object trim and tie) | Needs a sew-out per change |
+| `batch:production` | `openstitch-engine` (wizards, fabric), `openstitch-print` | #507 (parameter test swatches), #508 (fabric and thread-weight presets), #509 (basting box), #510 (knockdown), #512 (Stop at Jumps), #513 (job sheets) | With #452 and #453 |
+| `batch:fills` | `openstitch-design` (fill generators) | #532 (blends and gradients), #534 (Fill Angle tool), #533 (maze and tiled meander), #537 (tatami textures), #538 (wave and flow fills) | Ideas #539, #540, #541 later |
+| `batch:lines` | `openstitch-design` (lines.rs, motifs) | #542 (back stitch, variable running), #543 (decorative hand-embroidery lines), #544 (motif lines) | After the line bugs #464 |
+| `batch:editor-tools` | `openstitch-app` (canvas, ribbon), `openstitch-engine` object commands | #472 (align, distribute), #474 (precision bar), #476 (copies along a line, scatter), #473 (snapping), #475 (select same) | Next round: #477, #478, #479, #497, #500, #501, #502 |
+| `batch:lettering` (survey) | `openstitch-design` (fonts, text), the lettering pane | #527 (font library with size ranges), #530 (single-line text), #529 (Ink/Stitch font folders), #535 (envelopes) | After `batch:lettering`; idea #536 |
+| `batch:formats` (survey) | `openstitch-formats` | #480 (VP3), #481 (more machine formats), #482 (thread list files), #488 (extra exports) | After the current `batch:formats` |
+| `batch:colour` | `openstitch-engine` (threads, imports.rs), `openstitch-core` (brands) | #484 (perceptual thread matching), #485 (merge similar colours), #483 (`.gpl` palettes), #486 (more charts), #487 (richer SVG import) | |
+| `batch:views-hoops` | `openstitch-app` (panels, canvas), `openstitch-design` (machine.rs, sections.rs) | #516 (stitch-out player), #519 (millimetres or inches), #515 (free multi-hooping), #517 (view toggles), #518 (zoom box, real size), #514 (hoop lists) | |
+| `batch:image-digitizing` (survey) | `openstitch-digitize`, the image dialog | #489 (presets, region table) | After the current image round; idea #490 |
+| `batch:ux` | `openstitch-app` | #549 (autosave and recovery), #550 (command palette), #551 (custom UI), #552 (tabs), #553 (new-object defaults), #554 (getting started) | Next round: #555, #557, #499, #496; ideas #556, #558, #559, #498 |
+
 ## Blocked
 
 | Issue | Waiting for |
