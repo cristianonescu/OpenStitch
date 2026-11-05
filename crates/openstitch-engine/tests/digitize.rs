@@ -617,3 +617,25 @@ fn auto_punch_isolates_the_subject() {
     assert_eq!(a["colors"], b["colors"]);
     assert_eq!(a["regions"], b["regions"]);
 }
+
+/// #298: PE-DESIGN-compatible Photo Stitch 1 travels hidden between a thread's runs (under its
+/// own cells and the darker layers sewn after it) instead of trimming: the sunset photo at
+/// 60 mm trims 53 times (141 before), as PE-DESIGN sews a colour in one to five paths.
+#[test]
+fn compatible_photo_stitch_travels_instead_of_trimming() {
+    let dir = temp_dir();
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/images/p06-sunset.jpg");
+    std::fs::copy(src, dir.join("sunset.jpg")).expect("copy");
+    let mut s = Session::new(&dir);
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    run(
+        &mut s,
+        "digitize.photoStitch",
+        json!({"path": "sunset.jpg", "width": 60}),
+    );
+    let stats = run(&mut s, "design.info", json!({}))["stitchStats"].clone();
+    let trims = stats["trims"].as_u64().expect("trims");
+    let stitches = stats["stitches"].as_u64().expect("stitches");
+    assert!(trims <= 80, "{trims} trims in {stitches} stitches");
+}

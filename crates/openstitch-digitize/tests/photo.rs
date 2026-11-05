@@ -222,7 +222,9 @@ fn low_contrast_gradient_sews_like_the_full_one() {
     let full = photo::convert(&gradient(), &frame, &p).expect("converts");
     let low = photo::convert(&narrow, &frame, &p).expect("converts");
     let (a, b) = (full.stitches[0] as f64, low.stitches[0] as f64);
-    assert!((a - b).abs() / a < 0.03, "{a} vs {b} needle points");
+    // Within 4 %: the tone rows match, and the hidden travel between a thread's runs (#298)
+    // takes the two images' runs in a slightly different order (518 against 534 points).
+    assert!((a - b).abs() / a < 0.04, "{a} vs {b} needle points");
     // The weights show in colour: pure red (luminance 76) sews denser than pure green (150).
     let halves = rects(
         100,
@@ -872,4 +874,91 @@ fn open_stitch_line_screen_keeps_the_limits() {
             );
         }
     }
+}
+
+/// #468: on full-width bands every fine run is a whole number of Run Pitches long, so equal
+/// stitches would put each row's needle points in the same columns (vertical grooves on the
+/// sewn sunset). The rows stagger them: fewer than one inner needle point in ten shares its
+/// column with the row above (on main before #468 nearly all did).
+#[test]
+fn fine_rows_stagger_needle_points_on_full_width_bands() {
+    let frame = Frame::new(0.0, 0.0, 30.0, 60);
+    let bands = rects(
+        60,
+        60,
+        [200, 30, 30, 255],
+        &[
+            (0, 20, 60, 40, [30, 60, 200, 255]),
+            (0, 40, 60, 60, [30, 160, 60, 255]),
+        ],
+    );
+    let p = fine(3);
+    let out = photo::convert(&bands, &frame, &p).expect("converts");
+    let (mut shared, mut inner) = (0usize, 0usize);
+    for o in &out.objects {
+        let pts = needles(o);
+        // Rows of needle points on one y, in sewing order.
+        let mut rows: Vec<(f64, Vec<f64>)> = Vec::new();
+        for w in pts.windows(2) {
+            let ((x0, y0), (x1, y1)) = (w[0], w[1]);
+            if (y1 - y0).abs() > 1e-6 {
+                continue;
+            }
+            match rows.last_mut() {
+                Some((y, xs)) if (*y - y0).abs() < 1e-6 => xs.push(x1),
+                _ => rows.push((y0, vec![x0, x1])),
+            }
+        }
+        rows.sort_by(|a, b| a.0.total_cmp(&b.0));
+        for pair in rows.windows(2) {
+            let (above, here) = (&pair[0].1, &pair[1].1);
+            if here.len() < 4 || above.len() < 4 {
+                continue;
+            }
+            let (lo, hi) = (
+                here.iter().copied().fold(f64::MAX, f64::min),
+                here.iter().copied().fold(f64::MIN, f64::max),
+            );
+            for &x in here.iter().filter(|&&x| x > lo + 1.0 && x < hi - 1.0) {
+                inner += 1;
+                if above.iter().any(|&a| (a - x).abs() < 1.0) {
+                    shared += 1;
+                }
+            }
+        }
+    }
+    assert!(inner > 100, "{inner} inner needle points");
+    assert!(
+        shared * 10 < inner,
+        "{shared} of {inner} inner needle points share a column"
+    );
+}
+
+/// #298: PE-DESIGN-compatible mode travels between a thread's runs under its own cells and the
+/// darker layers sewn after it, as PE-DESIGN sews a colour in one to five paths, instead of
+/// jumping to the next run in row order.
+#[test]
+fn compatible_fill_travels_hidden_instead_of_jumping() {
+    let frame = Frame::new(0.0, 0.0, 30.0, 60);
+    let p = PhotoStitch::new(PhotoStyle::Fill, PhotoMode::Color(8));
+    let out = photo::convert(&photo_like(), &frame, &p).expect("converts");
+    let jumps: usize = out
+        .objects
+        .iter()
+        .map(|o| {
+            o.stitch_block
+                .as_ref()
+                .expect("block")
+                .stitches
+                .iter()
+                .filter(|s| s.command == Command::Jump)
+                .count()
+        })
+        .sum();
+    // 95 jumps before #298, 24 with it.
+    assert!(
+        jumps <= 40,
+        "{jumps} jumps over {} threads",
+        out.objects.len()
+    );
 }

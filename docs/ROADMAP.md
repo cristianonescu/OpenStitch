@@ -126,6 +126,13 @@ Done 2026-11-05 (#433): Photo Stitch 1 in OpenStitch mode is fast again after th
 with the same stitches as before (High on the issue's stripes 899 → 41 s, Standard 258 → 24 s,
 on a loaded machine).
 
+Done 2026-11-05 (`batch:photo-stitch`, #298, #468): PE-DESIGN-compatible Photo Stitch 1 travels
+hidden between a thread's runs instead of jumping (trims per 1,000 stitches 11–46 → 3–15 on the
+nine photos), and OpenStitch mode staggers the needle points of runs that are a whole number of
+Run Pitches long (no more columns of needle drops on the sunset). Measured and not taken:
+Photo Stitch 2 without its running-stitch floor and on the T1 coverage curve (#129), and a
+general sewn-colour model from the six T1 threads (#291); details in COMPATIBILITY_AUDIT.
+
 Done 2026-11-05 (#450): every kit, demo and screenshot design reviewed at full size (stitches alone
 at 15 px/mm and the Realistic view). Kit and demo designs fixed, built-in templates regenerated,
 CI checks that the committed kit is what the code makes and passes `sew_check`. Engine follow-ups,

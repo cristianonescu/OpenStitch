@@ -388,7 +388,7 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
     // Fine rows: each target's place in the sewing order; an unsewn fabric is below every
     // thread.
     let mut sew_rank = vec![0; targets.len()];
-    if fine {
+    if p.style == PhotoStyle::Fill {
         let mut order: Vec<usize> = (0..targets.len()).collect();
         order.sort_by(light_first);
         for (i, &t) in order.iter().filter(|&&t| t < threads.len()).enumerate() {
@@ -458,8 +458,8 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
     }
     for (layer, &t) in order.iter().enumerate() {
         let stitches = match &screen {
-            None if fine => fine_layer(&dithered, &grid, &sew_rank, t, pitch),
-            None => fill_layer(&dithered, cols, rows, t, frame, cw, ch),
+            None if fine => fine_layer(&dithered, &grid, &sew_rank, t, pitch, true),
+            None => fill_layer(&dithered, &grid, &sew_rank, t),
             Some((shares, settings)) => {
                 let angle = crate::screen::angle(layer, p.direction_deg);
                 let lines = crate::screen::layer(shares, t, angle, frame, settings);
@@ -567,16 +567,11 @@ struct Run {
 /// (round-4 captures: 1–5 jumps a colour): from where the needle is, the closest unsewn run
 /// end within [`JOIN_CELLS`] of a cell width in x and two rows in y is sewn next, entered from
 /// that end, and reached with a travel stitch; when none is that close, the needle jumps to
-/// the first unsewn run in row order.
-fn fill_layer(
-    d: &[Option<usize>],
-    cols: usize,
-    rows: usize,
-    t: usize,
-    frame: &Frame,
-    cw: f64,
-    ch: f64,
-) -> Vec<Stitch> {
+/// the first unsewn run in row order — unless a hidden path leads to one (#298): travel under
+/// the thread's own cells and the darker layers sewn after it ([`Router`]), as PE-DESIGN sews a
+/// colour in one to five paths.
+fn fill_layer(d: &[Option<usize>], g: &Grid, rank: &[usize], t: usize) -> Vec<Stitch> {
+    let (cols, rows, cw, ch, frame) = (g.cols, g.rows, g.cw, g.ch, g.frame);
     let runs = cell_runs(d, cols, rows, t, frame, cw, ch);
     let sewing = Sewing {
         reach_x: JOIN_CELLS * cw + 1e-6,
@@ -586,7 +581,16 @@ fn fill_layer(
         turn: TURN_CELLS * cw + 1e-6,
         away: None,
     };
-    sew_runs(&runs, rows, ch, &sewing, |_, _, _, _| true, None)
+    let router = Router::new(d, g, rank, t, &runs);
+    let route = |x: f64, y: f64, done: &[bool]| router.route(x, y, done);
+    sew_runs(
+        &runs,
+        rows,
+        ch,
+        &sewing,
+        |_, _, _, _| true,
+        Some(&route as Route),
+    )
 }
 
 /// Thread `t`'s runs in grid order: each run of neighbouring cells in a row has a needle point
@@ -883,7 +887,7 @@ fn fine_rows(
         let mut n = vec![0u32; d.len()];
         for t in 0..sewn {
             let sewn_layer = openstitch_design::stitch_edit::lock_runs(
-                &fine_layer(d, g, rank, t, pitch),
+                &fine_layer(d, g, rank, t, pitch, false),
                 CONNECT,
                 MIN_STITCH_MM * 10.0,
             );
@@ -1099,10 +1103,20 @@ struct Grid<'a> {
 }
 
 /// Thread `t`'s stitches from the fine rows `d`: its runs ([`fine_runs`]) sewn nearest first,
-/// travelling up to [`TRAVEL_MM`] only where later layers (by `rank`) cover the travel.
-fn fine_layer(d: &[Option<usize>], g: &Grid, rank: &[usize], t: usize, pitch: f64) -> Vec<Stitch> {
+/// travelling up to [`TRAVEL_MM`] only where later layers (by `rank`) cover the travel. `stagger`
+/// lets a run's end stitch reach past `pitch` to shift its needle points ([`STAGGER_ROOM`]); the
+/// density fit counts needle points without it (the same count, nearly the same cells), so the
+/// rows it chooses are not moved by the stagger.
+fn fine_layer(
+    d: &[Option<usize>],
+    g: &Grid,
+    rank: &[usize],
+    t: usize,
+    pitch: f64,
+    stagger: bool,
+) -> Vec<Stitch> {
     let (cols, rows, cw, ch, frame) = (g.cols, g.rows, g.cw, g.ch, g.frame);
-    let runs = fine_runs(d, cols, rows, t, frame, cw, ch, pitch);
+    let runs = fine_runs(d, cols, rows, t, frame, cw, ch, pitch, stagger);
     // A travel is sewn where later layers cover it, or (fewer trims) where it is short.
     let hidden = |x0: f64, y0: f64, x1: f64, y1: f64| {
         (x1 - x0).dhypot(y1 - y0) <= g.visible
@@ -1289,10 +1303,17 @@ fn run_points(len: f64, pitch: f64) -> usize {
     (len / pitch - 1e-9).ceil().max(1.0) as usize + 1
 }
 
+/// How far past `pitch` a fine run's first or last stitch may reach so its inner needle points
+/// can still shift from row to row, as a fraction of a stitch (#468: a run whose length is a
+/// multiple of the pitch, such as a sunset's full-width bands, has equal stitches of exactly
+/// `pitch` and otherwise puts every row's needle points in the same columns).
+const STAGGER_ROOM: f64 = 1.0 / 6.0;
+
 /// Thread `t`'s fine runs in grid order: each run of neighbouring cells in a row is split into
 /// equal stitches no longer than `pitch`; inside a run the needle points shift by up to a third
 /// of a stitch from row to row (so neighbouring rows do not line their holes up), never making
-/// a stitch shorter than [`MIN_STITCH_MM`] or longer than `pitch`. Runs shorter than
+/// a stitch shorter than [`MIN_STITCH_MM`], and none longer than `pitch` but, when `stagger`, the
+/// run's first or last, by at most [`STAGGER_ROOM`] of a stitch. Runs shorter than
 /// [`MIN_STITCH_MM`] (slivers between transparent cells) are left unsewn.
 #[allow(clippy::too_many_arguments)]
 fn fine_runs(
@@ -1304,8 +1325,10 @@ fn fine_runs(
     cw: f64,
     ch: f64,
     pitch: f64,
+    stagger: bool,
 ) -> Vec<Run> {
     let min = MIN_STITCH_MM * 10.0;
+    let past = if stagger { STAGGER_ROOM } else { 0.0 };
     let mut runs = Vec::new();
     for y in 0..rows {
         let row_y = frame.origin.y + (y as f64 + 0.5) * ch;
@@ -1328,7 +1351,7 @@ fn fine_runs(
             let seg = len / n as f64;
             let room = (seg / 3.0)
                 .min(seg - min - QUANTUM)
-                .min(pitch - seg)
+                .min((pitch - seg).max(seg * past))
                 .max(0.0);
             let shift = room * [0.0, 1.0, -1.0][y % 3];
             // On whole design units (0.1 mm), as machine files hold them: a run of at least
