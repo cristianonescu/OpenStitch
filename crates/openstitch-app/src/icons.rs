@@ -348,6 +348,12 @@ fn glyph(a: Action) -> Glyph {
         ImportPatterns => G::Import,
         ImportSvg => G::Own("import_svg"),
         Arrange => G::Align,
+        // Reused until generated icons land (#472, #473, #474, #475 follow-up).
+        Align | AlignLeft | AlignCenter | AlignRight | AlignTop | AlignMiddle | AlignBottom
+        | DistributeHorizontal | DistributeVertical => G::Align,
+        SelectSame | SelectSameColor | SelectSameType | SelectSameBoth => G::SelectAll,
+        SnapToObjects => G::Magnet,
+        PrecisionBar => G::Size,
         RotateFlip => G::Rotate,
         ImageRotateRight => G::Own("image_rotate_right"),
         ImageRotateLeft => G::Own("image_rotate_left"),

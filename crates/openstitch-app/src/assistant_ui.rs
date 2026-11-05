@@ -383,6 +383,12 @@ impl EditorApp {
                 "gridSpacing" => json!(w.grid.spacing_mm),
                 "gridMajorEvery" => json!(w.grid.major_every),
                 "snapToGrid" => json!(w.grid.snap),
+                "snapToObjects" => json!(prefs.editing.snap_objects),
+                "precisionBar" => json!(prefs.editing.precision_bar),
+                "clickInsideOutlines" => json!(prefs.editing.click_inside),
+                "nudgeStep" => json!(prefs.editing.nudge_mm),
+                "nudgeByGrid" => json!(prefs.editing.nudge_grid),
+                "alignTo" => json!(self.align_to),
                 "rulers" => json!(w.rulers),
                 "guides" => json!(w.guides),
                 "referenceWindow" => json!(w.reference),
@@ -464,6 +470,19 @@ impl EditorApp {
                 if bool_value(name, v)? != self.workspace.grid.snap {
                     self.toggle_snap_to_grid();
                 }
+                save = false;
+            }
+            "snapToObjects" => self.ui.prefs.editing.snap_objects = bool_value(name, v)?,
+            "precisionBar" => self.ui.prefs.editing.precision_bar = bool_value(name, v)?,
+            "clickInsideOutlines" => self.ui.prefs.editing.click_inside = bool_value(name, v)?,
+            "nudgeStep" => self.ui.prefs.editing.nudge_mm = number_value(name, v, 0.1, 50.0)?,
+            "nudgeByGrid" => self.ui.prefs.editing.nudge_grid = bool_value(name, v)?,
+            "alignTo" => {
+                self.align_to = crate::arrange_ui::ALIGN_TO
+                    .iter()
+                    .find(|(k, _)| Some(*k) == v.as_str())
+                    .map(|(k, _)| *k)
+                    .ok_or("alignTo takes selection, key or page")?;
                 save = false;
             }
             "rulers" => (self.workspace.rulers, save) = (bool_value(name, v)?, false),

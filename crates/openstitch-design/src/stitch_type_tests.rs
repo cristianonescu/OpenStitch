@@ -2294,7 +2294,7 @@ fn stitch_type_2_needle_grid_follows_the_row_a_pass_ends_on() {
         .collect();
     for o in &offsets {
         let d = (o - offsets[0]).rem_euclid(40.0);
-        assert!(d < 1e-6 || d > 40.0 - 1e-6, "{offsets:?}");
+        assert!(!(1e-6..=40.0 - 1e-6).contains(&d), "{offsets:?}");
     }
 }
 
