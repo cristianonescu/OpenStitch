@@ -97,7 +97,7 @@ impl Launch {
 }
 
 /// Values `--show` accepts.
-pub const SHOW: [&str; 26] = [
+pub const SHOW: [&str; 28] = [
     "update",
     "close-prompt",
     "realistic",
@@ -112,6 +112,8 @@ pub const SHOW: [&str; 26] = [
     "sdf",
     "attributes",
     "charts",
+    "matchThreads",
+    "mergeColours",
     "usb",
     "fonts",
     "monogram",
@@ -135,7 +137,11 @@ pub struct EditorApp {
     pub pattern: StitchPattern,
     pub stats: PatternStats,
     pub render: RenderModel,
-    render_key: Option<(u64, usize)>,
+    render_key: Option<(u64, usize, openstitch_design::view::ViewFilter, [u8; 3])>,
+    /// The Design Page colour of the current theme (faded colours blend into it).
+    pub page_rgb: [u8; 3],
+    /// Underlay flags of the compiled pattern per revision (#517), computed when asked for.
+    underlay: Option<(u64, Vec<bool>)>,
     /// Bumped after every change to the design.
     pub revision: u64,
     saved_revision: u64,
@@ -144,6 +150,21 @@ pub struct EditorApp {
     pub playing: bool,
     pub play_speed: f64,
     play_accumulator: f64,
+    /// View ▸ Zoom ▸ Zoom Box (#518).
+    pub zoom_box: crate::zoom_ui::ZoomBox,
+    /// Options ▸ Calibrate Real Size (#518).
+    pub calibration: crate::zoom_ui::Calibration,
+    /// A background-image handle drag in progress (#518).
+    pub image_drag: Option<crate::zoom_ui::ImageDrag>,
+    /// The monitor the window is on (real-size calibrations are kept per monitor).
+    pub monitor: Option<String>,
+    /// The design drawn in two halves around a background image above an object (#518):
+    /// (revision, simulator limit, split stitch) and the halves.
+    pub background_split: Option<((u64, usize, usize), RenderModel, RenderModel)>,
+    /// The compiled design as the machine sews it (#516): colour blocks, trims, objects, time.
+    pub timeline: openstitch_design::timeline::Timeline,
+    /// Stitch-out player toggles (#516), all off by default.
+    pub stitch_player: PlayerToggles,
     pub show_travel: bool,
     pub path: Option<PathBuf>,
     pub status: String,
@@ -165,6 +186,11 @@ pub struct EditorApp {
     /// laid out a frame after the canvas; the window resized) fits again (#450: kit previews and
     /// screenshots lost the page's bottom to the Stitch Simulator pane).
     pub auto_fit: Option<(openstitch_app::editor::ScreenRect, Viewport, Option<f64>)>,
+    /// A wizard dialog's rectangle in the previous frame, and the one being drawn this frame
+    /// (`dialog_window`). In a `--screenshot` run the automatic fit keeps the page clear of it
+    /// (#565: the dialogs hid part of the design in the documentation images).
+    pub dialog_rect: Option<egui::Rect>,
+    pub dialog_rect_next: Option<egui::Rect>,
     player: Option<crate::script::Player>,
     /// The object selected last (Align ▸ relative to Last Selected keeps it in place).
     pub key_object: Option<u64>,
@@ -198,6 +224,8 @@ pub struct EditorApp {
     pub pattern_wizards: openstitch_app::editor::pattern_wizards::PatternWizards,
     /// Attribute sets and user thread charts windows.
     pub settings: crate::settings_ui::SettingsState,
+    /// Match to Thread Chart and Merge Similar Colours (#484, #485).
+    pub colour_match: crate::colour_match_ui::MatchState,
     /// The background image as shown, keyed by its path and adjustments (`None` when it
     /// cannot be read).
     pub background_texture: Option<(
@@ -263,11 +291,20 @@ impl EditorApp {
             stats: PatternStats::default(),
             render: RenderModel::default(),
             render_key: None,
+            underlay: None,
+            page_rgb: [255; 3],
             revision: 0,
             saved_revision: 0,
             simulate: None,
             playing: false,
             play_speed: 400.0,
+            zoom_box: Default::default(),
+            calibration: Default::default(),
+            image_drag: None,
+            monitor: None,
+            background_split: None,
+            timeline: Default::default(),
+            stitch_player: PlayerToggles::default(),
             play_accumulator: 0.0,
             show_travel: true,
             path: None,
@@ -283,6 +320,8 @@ impl EditorApp {
             fit_requested: false,
             initial_zoom: None,
             auto_fit: None,
+            dialog_rect: None,
+            dialog_rect_next: None,
             player: None,
             key_object: None,
             align_to: "selection",
@@ -300,6 +339,7 @@ impl EditorApp {
             sewing: Default::default(),
             pattern_wizards: Default::default(),
             settings: Default::default(),
+            colour_match: Default::default(),
             background_texture: None,
             database: Default::default(),
             db_textures: Default::default(),
@@ -336,6 +376,7 @@ impl EditorApp {
             self.ui.prefs = openstitch_app::editor::prefs::UiPrefs::load(&ui);
             self.ui.prefs_path = Some(ui);
         }
+        self.database.units = self.ui.prefs.units;
         if let Some(t) = l.theme {
             self.ui.prefs.theme = t;
         }
@@ -387,6 +428,8 @@ impl EditorApp {
                 "settings" => self.workspace.settings_open = true,
                 "attributes" => self.settings.sets_open = true,
                 "charts" => self.settings.charts_open = true,
+                "matchThreads" => self.colour_match.match_open = true,
+                "mergeColours" => self.colour_match.merge_open = true,
                 "text" => self.lettering.text.open = true,
                 "fonts" => self.lettering.fonts.open = true,
                 "monogram" => self.lettering.monogram.open = true,
@@ -628,6 +671,7 @@ impl EditorApp {
         let d = self.session.design();
         self.selection.retain(|id| d.index_of(*id).is_some());
         let (pattern, spans) = Compiler::for_design(d).compile_traced(d);
+        self.timeline = openstitch_design::timeline::Timeline::build(&pattern, &spans, &d.machine);
         self.pattern = pattern;
         self.quality.spans = spans;
         self.stats = PatternStats::of(&self.pattern);
@@ -640,10 +684,82 @@ impl EditorApp {
 
     pub fn ensure_render_model(&mut self) {
         let limit = self.simulate.unwrap_or(usize::MAX);
-        if self.render_key != Some((self.revision, limit)) {
-            self.render = RenderModel::build(&self.pattern, limit);
-            self.render_key = Some((self.revision, limit));
+        let filter = self.view_filter();
+        let key = (self.revision, limit, filter.clone(), self.page_rgb);
+        if self.render_key.as_ref() != Some(&key) {
+            self.render = if filter.is_identity() {
+                RenderModel::build(&self.pattern, limit)
+            } else {
+                if filter.layers != openstitch_design::view::Layers::Both
+                    && self
+                        .underlay
+                        .as_ref()
+                        .is_none_or(|(r, _)| *r != self.revision)
+                {
+                    let d = self.session.design();
+                    let flags = openstitch_design::view::underlay_flags(
+                        d,
+                        &self.pattern,
+                        &self.quality.spans,
+                    );
+                    self.underlay = Some((self.revision, flags));
+                }
+                let flags = self.underlay.as_ref().map_or(&[][..], |(_, f)| &f[..]);
+                let page = self.page_rgb;
+                let shown = openstitch_design::view::apply(
+                    &self.pattern,
+                    &filter,
+                    flags,
+                    &self.quality.spans,
+                    page,
+                );
+                RenderModel::build(&shown, limit)
+            };
+            self.render_key = Some(key);
         }
+    }
+
+    /// View ▸ Show as a filter (#517): hide unselected only with a selection; solo colour on the
+    /// simulator's block, else the selection's first block.
+    pub fn view_filter(&self) -> openstitch_design::view::ViewFilter {
+        let s = self.ui.prefs.show;
+        let only = (s.hide_unselected && !self.selection.is_empty())
+            .then(|| self.selection.iter().copied().collect());
+        let solo = s.solo.then(|| self.current_block()).flatten();
+        openstitch_design::view::ViewFilter {
+            layers: s.layers,
+            only,
+            color_by: s.color_by,
+            solo,
+        }
+    }
+
+    /// The colour block of the simulator position, else of the first selected object's first
+    /// stitch.
+    fn current_block(&self) -> Option<usize> {
+        let records = match self.simulate {
+            Some(n) => {
+                let mut sewn = 0;
+                self.pattern.stitches.iter().position(|s| {
+                    sewn += usize::from(s.command == openstitch_core::Command::Stitch);
+                    sewn > n
+                })?
+            }
+            None => {
+                let (_, r) = self
+                    .quality
+                    .spans
+                    .iter()
+                    .find(|(id, _)| self.selection.contains(id))?;
+                r.start
+            }
+        };
+        Some(
+            self.pattern.stitches[..records]
+                .iter()
+                .filter(|s| s.command == openstitch_core::Command::ColorChange)
+                .count(),
+        )
     }
 
     pub fn is_dirty(&self) -> bool {
@@ -895,7 +1011,7 @@ impl EditorApp {
         let request = CommandRequest::new(command, json!({ "path": p.display().to_string() }));
         if let Some(result) = self.grouped(|app| app.execute(&request)) {
             self.selection = CommandRequest::created_ids(&result);
-            self.status = format!("Imported {}", p.display());
+            self.status = format!("Imported {}{}", p.display(), import_report(&result));
         }
     }
 
@@ -1292,7 +1408,9 @@ impl EditorApp {
             }
         }
         if take(KeyboardShortcut::new(Modifiers::NONE, Key::Escape)) {
-            if self.edit.cancel() {
+            if self.zoom_box.active {
+                self.zoom_box = Default::default();
+            } else if self.edit.cancel() {
                 self.tools.cancel();
                 self.status = "Cancelled".into();
             } else if self.workspace.measure.active {
@@ -1310,6 +1428,7 @@ impl EditorApp {
             let effects = self.tools.finish();
             self.apply_effects(effects);
         }
+        let player_t = self.player_keys(&take);
         for (key, dx, dy) in [
             (Key::ArrowLeft, -1.0, 0.0),
             (Key::ArrowRight, 1.0, 0.0),
@@ -1340,8 +1459,15 @@ impl EditorApp {
         });
         if !ctx.input(|i| i.modifiers.command) {
             for c in typed {
+                if player_t && c.eq_ignore_ascii_case(&'t') {
+                    continue;
+                }
                 // Point tool: C curves, S straightens the segment under the pointer.
-                if c.eq_ignore_ascii_case(&'m') {
+                if c.eq_ignore_ascii_case(&'z') {
+                    // Zoom Box (#518).
+                    self.ui.pan = false;
+                    self.zoom_box.toggle();
+                } else if c.eq_ignore_ascii_case(&'m') {
                     self.ui.pan = false;
                     self.toggle_measure();
                 } else if c.eq_ignore_ascii_case(&'h') {
@@ -1372,6 +1498,32 @@ impl EditorApp {
             self.guarded(Pending::Exit);
         } else if take(Key::M) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+        }
+    }
+
+    /// Whether this is a `--screenshot` run.
+    pub fn screenshot_run(&self) -> bool {
+        self.screenshot.is_some()
+    }
+
+    /// A wizard dialog's window. In a `--screenshot` run it opens at the window's top right,
+    /// over the right-hand pane, and the page is fitted beside it (#565); otherwise at
+    /// `default_pos` (egui's own placement when `None`).
+    pub fn dialog_window<'a>(
+        &self,
+        ctx: &egui::Context,
+        title: &'static str,
+        default_pos: Option<[f32; 2]>,
+    ) -> egui::Window<'a> {
+        let window = egui::Window::new(title);
+        match (self.screenshot_run(), self.workspace.canvas) {
+            (true, Some(canvas)) => window
+                .pivot(egui::Align2::RIGHT_TOP)
+                .default_pos([ctx.content_rect().max.x - 8.0, canvas.min.y]),
+            _ => match default_pos {
+                Some(pos) => window.default_pos(pos),
+                None => window,
+            },
         }
     }
 
@@ -1431,24 +1583,75 @@ impl EditorApp {
         };
     }
 
+    /// Stitch-out player keys while the simulator shows part of the design (#516): ←/→ a
+    /// stitch, Shift a colour block, Ctrl/Cmd an object, T the next trim, Home/End. Returns
+    /// whether T was taken, so it does not also pick a tool.
+    fn player_keys(&mut self, take: &dyn Fn(KeyboardShortcut) -> bool) -> bool {
+        use openstitch_app::editor::player::{Step, step};
+        if self.simulate.is_none() {
+            return false;
+        }
+        let keys = [
+            (Modifiers::SHIFT, Key::ArrowLeft, Step::BlockBack),
+            (Modifiers::SHIFT, Key::ArrowRight, Step::BlockForward),
+            (Modifiers::COMMAND, Key::ArrowLeft, Step::ObjectBack),
+            (Modifiers::COMMAND, Key::ArrowRight, Step::ObjectForward),
+            (Modifiers::NONE, Key::ArrowLeft, Step::StitchBack),
+            (Modifiers::NONE, Key::ArrowRight, Step::StitchForward),
+            (Modifiers::NONE, Key::Home, Step::Start),
+            (Modifiers::NONE, Key::End, Step::End),
+            (Modifiers::NONE, Key::T, Step::NextTrim),
+        ];
+        let mut t = false;
+        for (mods, key, s) in keys {
+            if take(KeyboardShortcut::new(mods, key)) {
+                self.simulate = step(&self.timeline, self.simulate, s);
+                self.playing = false;
+                t |= key == Key::T;
+            }
+        }
+        t
+    }
+
     /// Advances the simulator while playing.
     fn tick(&mut self, ctx: &egui::Context) {
         if !self.playing {
             return;
         }
         let dt = f64::from(ctx.input(|i| i.stable_dt)).min(0.1);
-        self.play_accumulator += dt * self.play_speed;
+        let speed = if self.stitch_player.auto {
+            openstitch_app::editor::player::auto_speed(&self.timeline)
+        } else {
+            self.play_speed
+        };
+        self.play_accumulator += dt * speed;
         let step = self.play_accumulator.floor() as usize;
         self.play_accumulator -= step as f64;
-        let n = self.simulate.unwrap_or(0) + step;
-        if n >= self.stats.stitches {
-            self.simulate = None;
+        // Pause at trims: playback stops at each trim, stop and colour change (#516).
+        let (next, stopped) = openstitch_app::editor::player::advance(
+            &self.timeline,
+            Some(self.simulate.unwrap_or(0)),
+            step,
+            self.stitch_player.pause,
+        );
+        self.simulate = next;
+        if stopped {
             self.playing = false;
-        } else {
-            self.simulate = Some(n);
+            self.play_accumulator = 0.0;
         }
         ctx.request_repaint();
     }
+}
+
+/// Stitch-out player toggles (#516), beyond PE-DESIGN and off by default.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PlayerToggles {
+    /// Play the whole design in about 12 seconds.
+    pub auto: bool,
+    /// Keep the needle in view.
+    pub follow: bool,
+    /// Stop at each trim, stop and colour change.
+    pub pause: bool,
 }
 
 impl eframe::App for EditorApp {
@@ -1481,6 +1684,7 @@ impl eframe::App for EditorApp {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        self.dialog_rect = self.dialog_rect_next.take();
         self.ui.apply_theme(&ctx);
         if let Some(s) = &mut self.splash
             && !s.show(&ctx)
@@ -1535,10 +1739,13 @@ impl eframe::App for EditorApp {
         crate::transfer_ui::window(self, &ctx);
         crate::edit_ui::windows(self, &ctx);
         crate::settings_ui::windows(self, &ctx);
+        crate::colour_match_ui::windows(self, &ctx);
         crate::wizard_ui::image_wizard_window(self, &ctx);
         crate::lettering_ui::windows(self, &ctx);
         crate::pattern_wizard_ui::windows(self, &ctx);
         crate::view_ui::windows(self, &ctx);
+        crate::zoom_ui::calibration_window(self, &ctx);
+        self.monitor = crate::zoom_ui::monitor(&ctx);
         crate::quality_ui::window(self, &ctx);
         let canvas = self.workspace.canvas;
         crate::workspace_ui::reference_window(self, &ctx, canvas);
@@ -1625,6 +1832,33 @@ fn star(cx: f64, cy: f64, r: f64, inner: f64) -> Value {
         })
         .collect();
     Value::Array(pts)
+}
+
+/// What an SVG import left out or approximated (#487), for the status line: "; left out: 2
+/// text, 1 image; approximated: 1 gradient", or nothing.
+pub(crate) fn import_report(result: &Value) -> String {
+    let list = |key: &str| -> Vec<String> {
+        result[key]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|k| {
+                format!(
+                    "{} {}",
+                    k["count"].as_u64().unwrap_or(0),
+                    k["kind"].as_str().unwrap_or("")
+                )
+            })
+            .collect()
+    };
+    let mut out = String::new();
+    for (key, label) in [("skipped", "left out"), ("approximated", "approximated")] {
+        let l = list(key);
+        if !l.is_empty() {
+            out.push_str(&format!("; {label}: {}", l.join(", ")));
+        }
+    }
+    out
 }
 
 /// Where pasted background images are kept: the per-user application data folder.

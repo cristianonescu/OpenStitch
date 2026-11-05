@@ -266,6 +266,7 @@ enum FontAction {
 }
 
 fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
+    let units = app.ui.prefs.units;
     if !app.lettering.fonts.open {
         return;
     }
@@ -299,7 +300,8 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
     };
     let mut open = true;
     let mut action = None;
-    egui::Window::new("Fonts")
+    let shown = app
+        .dialog_window(ctx, "Fonts", None)
         .open(&mut open)
         .default_width(380.0)
         .show(ctx, |ui| {
@@ -333,9 +335,9 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
             ui.horizontal(|ui| {
                 ui.label("Standard character height");
                 ui.add(
-                    egui::DragValue::new(&mut f.new_height)
+                    crate::units_ui::drag(&mut f.new_height, units)
                         .range(1.0..=500.0)
-                        .suffix(" mm"),
+                        ,
                 );
             });
             if ui.button("Create").clicked() {
@@ -376,9 +378,9 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
                 }
                 ui.horizontal(|ui| {
                     ui.label("Draw at set line");
-                    ui.add(egui::DragValue::new(&mut f.glyph_x).suffix(" mm"));
+                    ui.add(crate::units_ui::drag(&mut f.glyph_x, units));
                     ui.label("baseline");
-                    ui.add(egui::DragValue::new(&mut f.glyph_y).suffix(" mm"));
+                    ui.add(crate::units_ui::drag(&mut f.glyph_y, units));
                 });
                 ui.horizontal(|ui| {
                     if ui
@@ -404,6 +406,9 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
                 }
             });
         });
+    if let Some(shown) = shown {
+        app.dialog_rect_next = Some(shown.response.rect);
+    }
     app.lettering.fonts.open = open;
     let f = app.lettering.fonts.clone();
     let ext = openstitch_engine::fonts::FONT_EXTENSION;
@@ -652,6 +657,7 @@ fn draw_outline(ui: &egui::Ui, rect: egui::Rect, outline: &[Vec<[f64; 2]>]) {
 }
 
 fn text_window(app: &mut EditorApp, ctx: &egui::Context) {
+    let units = app.ui.prefs.units;
     if !app.lettering.text.open {
         return;
     }
@@ -670,9 +676,9 @@ fn text_window(app: &mut EditorApp, ctx: &egui::Context) {
                 ui.end_row();
                 ui.label("Size");
                 ui.add(
-                    egui::DragValue::new(&mut f.size)
+                    crate::units_ui::drag(&mut f.size, units)
                         .range(1.0..=300.0)
-                        .suffix(" mm"),
+                        ,
                 );
                 ui.end_row();
                 ui.label("Align");
@@ -713,6 +719,7 @@ fn run(app: &mut EditorApp, r: &CommandRequest, summary: fn(&serde_json::Value) 
 }
 
 fn monogram_window(app: &mut EditorApp, ctx: &egui::Context) {
+    let units = app.ui.prefs.units;
     if !app.lettering.monogram.open {
         return;
     }
@@ -733,7 +740,8 @@ fn monogram_window(app: &mut EditorApp, ctx: &egui::Context) {
     };
     let mut open = true;
     let (mut add, mut edit, mut decorate) = (false, false, false);
-    egui::Window::new("Monogram")
+    let shown = app
+        .dialog_window(ctx, "Monogram", None)
         .open(&mut open)
         .resizable(false)
         .show(ctx, |ui| {
@@ -767,11 +775,7 @@ fn monogram_window(app: &mut EditorApp, ctx: &egui::Context) {
                     f.font = Some(font);
                     ui.end_row();
                     ui.label("Height");
-                    ui.add(
-                        egui::DragValue::new(&mut f.size)
-                            .range(5.0..=300.0)
-                            .suffix(" mm"),
-                    );
+                    ui.add(crate::units_ui::drag(&mut f.size, units).range(5.0..=300.0));
                     ui.end_row();
                     ui.label("Frame");
                     let label = f
@@ -790,11 +794,7 @@ fn monogram_window(app: &mut EditorApp, ctx: &egui::Context) {
                         });
                     ui.end_row();
                     ui.label("Margin");
-                    ui.add(
-                        egui::DragValue::new(&mut f.margin)
-                            .range(0.0..=50.0)
-                            .suffix(" mm"),
-                    );
+                    ui.add(crate::units_ui::drag(&mut f.margin, units).range(0.0..=50.0));
                     ui.end_row();
                     ui.label("");
                     ui.checkbox(&mut f.keep_aspect, "Maintain aspect ratio");
@@ -818,6 +818,9 @@ fn monogram_window(app: &mut EditorApp, ctx: &egui::Context) {
             });
             ui.weak("Letter styles and frames are OpenStitch's own designs.");
         });
+    if let Some(shown) = shown {
+        app.dialog_rect_next = Some(shown.response.rect);
+    }
     app.lettering.monogram.open = open;
     let f = app.lettering.monogram.clone();
     let summary =

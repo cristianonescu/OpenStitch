@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="100mm" height="100mm" viewBox="0 0 100 100">
+  <!-- Written in Inkscape's layout for the #455 tests: three named layers, an Illustrator-style
+       id, a dashed stroke, a stroke painted before its fill and a wide stroke made a satin. -->
+  <g id="layer1" inkscape:groupmode="layer" inkscape:label="Fill a=45 s=0.4">
+    <rect id="rect10" x="5" y="5" width="25" height="25" fill="#c02020"/>
+  </g>
+  <g id="layer2" inkscape:groupmode="layer" inkscape:label="satin">
+    <rect id="rect20" x="40" y="5" width="10" height="25" fill="#2040c0"/>
+  </g>
+  <g id="layer3" inkscape:groupmode="layer" inkscape:label="run r=3 wobble">
+    <path id="path30" d="M 60 5 L 95 30" stroke="#008000" fill="none"/>
+  </g>
+  <path id="skip" d="M 0 95 L 10 95" stroke="#000000" fill="none"/>
+  <path id="dashes" d="M 5 50 L 95 50" stroke="#404040" fill="none" stroke-dasharray="10 10"/>
+  <rect id="border" inkscape:label="fill stroke.run" x="5" y="60" width="30" height="30" fill="#e0c000" stroke="#000000" style="paint-order: stroke fill"/>
+  <path id="band" inkscape:label="stroke.satin w=3" d="M 45 75 L 95 75" stroke="#800080" stroke-width="3" fill="none"/>
+</svg>

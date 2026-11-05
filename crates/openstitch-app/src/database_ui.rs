@@ -314,12 +314,19 @@ impl Host<DbAction> for EditorApp {
 
     fn menu(&mut self, a: DbAction, ui: &mut egui::Ui) {
         use DbAction::*;
+        if a == SystemUnit {
+            // One setting for the Design Database and the editor (#519).
+            let before = self.ui.prefs.units;
+            ui.radio_value(&mut self.ui.prefs.units, Units::Mm, "mm");
+            ui.radio_value(&mut self.ui.prefs.units, Units::Inch, "inch");
+            self.database.units = self.ui.prefs.units;
+            if self.ui.prefs.units != before {
+                self.ui.save_prefs();
+            }
+            return;
+        }
         let db = &mut self.database;
         match a {
-            SystemUnit => {
-                ui.radio_value(&mut db.units, Units::Mm, "mm");
-                ui.radio_value(&mut db.units, Units::Inch, "inch");
-            }
             ApplicationColor => suite_chrome::theme_menu(self, ui),
             DstSettings => {
                 ui.horizontal(|ui| {

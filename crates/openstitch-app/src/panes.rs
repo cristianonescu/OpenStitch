@@ -398,6 +398,7 @@ fn transform_palette(app: &mut EditorApp, ui: &mut egui::Ui, spec: &openstitch_d
 }
 
 fn text_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
+    let units = app.ui.prefs.units;
     let d = app.session.design();
     let first = crate::convert_ui::texts(app)
         .first()
@@ -436,11 +437,7 @@ fn text_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
             ui.end_row();
             ui.label("Size");
             let mut size = spec.size;
-            let r = ui.add(
-                egui::DragValue::new(&mut size)
-                    .range(1.0..=200.0)
-                    .suffix(" mm"),
-            );
+            let r = ui.add(crate::units_ui::drag(&mut size, units).range(1.0..=200.0));
             if (r.drag_stopped() || r.lost_focus()) && (size - spec.size).abs() > 1e-9 {
                 ribbon::set_text(app, serde_json::json!({ "size": size }));
             }
@@ -448,10 +445,9 @@ fn text_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
             ui.label("Character Spacing");
             let mut letter = spec.letter_spacing;
             let r = ui.add(
-                egui::DragValue::new(&mut letter)
+                crate::units_ui::drag(&mut letter, units)
                     .range(-100.0..=100.0)
-                    .speed(0.1)
-                    .suffix(" mm"),
+                    .speed(0.1),
             );
             if (r.drag_stopped() || r.lost_focus()) && (letter - spec.letter_spacing).abs() > 1e-9 {
                 ribbon::set_text(app, serde_json::json!({ "letterSpacing": letter }));
@@ -551,8 +547,12 @@ pub fn thumbnail(ui: &mut egui::Ui, o: &DesignObject, size: f32) -> egui::Respon
 pub fn status_bar(app: &mut EditorApp, ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
         let s = &app.stats;
-        ui.label(format!("{:.1} × {:.1} mm", s.width_mm, s.height_mm))
-            .on_hover_text("Design size");
+        ui.label(openstitch_app::editor::units::size(
+            app.ui.prefs.units,
+            s.width_mm,
+            s.height_mm,
+        ))
+        .on_hover_text("Design size");
         ui.separator();
         ui.label(format!("{} stitches", s.stitches));
         ui.separator();
@@ -600,7 +600,8 @@ pub fn status_bar(app: &mut EditorApp, ui: &mut egui::Ui) {
 
 fn zoom_controls(app: &mut EditorApp, ui: &mut egui::Ui) {
     let Some(vp) = app.viewport else { return };
-    let now = vp.zoom_percent(96.0 / 25.4);
+    let ppm = app.points_per_mm();
+    let now = vp.zoom_percent(ppm);
     // Slider on a log scale, 10 %–2000 %.
     let mut log = now.clamp(10.0, 2000.0).log10();
     ui.spacing_mut().slider_width = 110.0;
@@ -638,7 +639,14 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
             let s = &app.stats;
             egui::Grid::new("property").num_columns(2).show(ui, |ui| {
                 for (k, v) in [
-                    ("Size", format!("{:.1} × {:.1} mm", s.width_mm, s.height_mm)),
+                    (
+                        "Size",
+                        openstitch_app::editor::units::size(
+                            app.ui.prefs.units,
+                            s.width_mm,
+                            s.height_mm,
+                        ),
+                    ),
                     ("Stitches", s.stitches.to_string()),
                     ("Colours", s.colors.len().to_string()),
                     ("Colour changes", s.color_changes.to_string()),

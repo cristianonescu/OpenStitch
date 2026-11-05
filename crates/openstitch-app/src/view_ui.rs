@@ -414,6 +414,7 @@ impl ImageDraft {
 }
 
 fn modify_image_window(app: &mut EditorApp, ctx: &egui::Context) {
+    let units = app.ui.prefs.units;
     let mut open = app.workspace.view.image_open;
     let mut commit: Option<Value> = None;
     let mut turn: Option<&str> = None;
@@ -441,18 +442,16 @@ fn modify_image_window(app: &mut EditorApp, ctx: &egui::Context) {
                     ui.horizontal(|ui| {
                         finish(
                             &ui.add(
-                                egui::DragValue::new(&mut d.x)
+                                crate::units_ui::drag(&mut d.x, units)
                                     .speed(0.5)
-                                    .prefix("x ")
-                                    .suffix(" mm"),
+                                    .prefix("x "),
                             ),
                         );
                         finish(
                             &ui.add(
-                                egui::DragValue::new(&mut d.y)
+                                crate::units_ui::drag(&mut d.y, units)
                                     .speed(0.5)
-                                    .prefix("y ")
-                                    .suffix(" mm"),
+                                    .prefix("y "),
                             ),
                         );
                     });
@@ -461,10 +460,9 @@ fn modify_image_window(app: &mut EditorApp, ctx: &egui::Context) {
                     ui.horizontal(|ui| {
                         finish(
                             &ui.add(
-                                egui::DragValue::new(&mut d.width)
+                                crate::units_ui::drag(&mut d.width, units)
                                     .range(1.0..=2000.0)
-                                    .speed(0.5)
-                                    .suffix(" mm"),
+                                    .speed(0.5),
                             ),
                         );
                         ui.label(format!("height {:.1} mm", b.height / 10.0));
@@ -818,4 +816,101 @@ fn fabric_window(app: &mut EditorApp, ctx: &egui::Context) {
         open = false;
     }
     app.workspace.view.fabric_open = open;
+}
+
+// MARK: View ▸ Show (#517)
+
+/// View ▸ Show: view-only toggles, beyond PE-DESIGN and off by default; kept in `ui.json`.
+pub fn show_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
+    use openstitch_design::view::{ColorBy, Layers};
+    let s = &mut app.ui.prefs.show;
+    let mut changed = false;
+    changed |= ui
+        .checkbox(&mut s.needle_points, "Needle Points")
+        .on_hover_text("A dot at every needle drop")
+        .changed();
+    ui.separator();
+    ui.label(egui::RichText::new("Underlay").weak());
+    for (l, label) in [
+        (Layers::Both, "Underlay and top stitching"),
+        (Layers::UnderlayOnly, "Underlay only"),
+        (Layers::TopOnly, "Top stitching only"),
+    ] {
+        changed |= ui.radio_value(&mut s.layers, l, label).changed();
+    }
+    ui.separator();
+    changed |= ui
+        .checkbox(&mut s.trim_marks, "Trim Marks")
+        .on_hover_text(
+            "A cut mark where the machine trims; trimmed moves drawn red, untrimmed jumps grey",
+        )
+        .changed();
+    changed |= ui
+        .checkbox(&mut s.hide_unselected, "Hide Unselected")
+        .on_hover_text("Only the selected objects' stitches")
+        .changed();
+    ui.separator();
+    ui.label(egui::RichText::new("Colour by").weak());
+    for (c, label) in [
+        (ColorBy::Thread, "Thread"),
+        (ColorBy::SewingOrder, "Sewing order"),
+        (ColorBy::Monochrome, "Monochrome"),
+    ] {
+        changed |= ui.radio_value(&mut s.color_by, c, label).changed();
+    }
+    changed |= ui
+        .checkbox(&mut s.solo, "Solo Colour")
+        .on_hover_text(
+            "Fade every colour but the current one (the simulator's, else the selection's)",
+        )
+        .changed();
+    if changed {
+        app.ui.save_prefs();
+    }
+}
+
+/// Needle points and trim marks over the stitches (#517).
+pub fn draw_show(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
+    let s = app.ui.prefs.show;
+    let p = |q: Vec2| {
+        let v = vp.to_screen(q);
+        Pos2::new(v.x as f32, v.y as f32)
+    };
+    if s.needle_points {
+        let r = (vp.scale * 3.0).clamp(1.0, 2.5) as f32;
+        for layer in &app.render.layers {
+            let [cr, cg, cb] = layer.rgb;
+            let c = Color32::from_rgb(cr, cg, cb).gamma_multiply(0.9);
+            for stroke in &layer.strokes {
+                for &q in stroke {
+                    painter.circle_filled(p(q), r, c);
+                }
+            }
+        }
+    }
+    if s.trim_marks {
+        let cut = Color32::from_rgb(0xd3, 0x2f, 0x2f);
+        for (i, &(a, b)) in app.render.travel.iter().enumerate() {
+            let trimmed = app.render.travel_cut.get(i).copied().unwrap_or(false);
+            let (c, w) = if trimmed {
+                (cut.gamma_multiply(0.8), 1.2)
+            } else {
+                (Color32::from_gray(110), 1.0)
+            };
+            painter.add(egui::Shape::dashed_line(
+                &[p(a), p(b)],
+                Stroke::new(w, c),
+                5.0,
+                3.0,
+            ));
+        }
+        for t in openstitch_design::view::trim_points(&app.pattern) {
+            let c = p(t);
+            painter.circle_stroke(c, 4.0, Stroke::new(1.5, cut));
+            painter.line_segment(
+                [c + egui::vec2(-5.0, -5.0), c + egui::vec2(5.0, 5.0)],
+                Stroke::new(1.5, cut),
+            );
+        }
+    }
 }

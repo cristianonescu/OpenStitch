@@ -142,6 +142,12 @@ zigzag net regions (#463), line types (#464), small lettering (#465), satin cusp
 trims (#467), Photo Stitch density and stagger (#468), image tools' edge cells and thin features
 (#469), appliqué "add" order (#470), direction-curve fills (#471).
 
+Done 2026-11-05 (#563-#565): the kit previews show their real thread colours (a 128-colour
+palette had turned Ultra Marine green and Red and Magenta alike; CI now checks every preview
+against its threads), every image under `docs/images` has a generator that
+`tools/docs_images.py` runs at the release gate (CI checks none is missing), the wizard dialogs
+no longer cover the design in screenshots, and the cotton texture's Higgsfield job is recorded.
+
 Done 2026-11-05 (#443): Auto Punch on flat graphics (bold lettering, logos) sews clean satin
 columns as PE-DESIGN does (T and H bar by bar, S and C along their curve, the image's own colours
 only); photographs convert as before. Next for lettering images: OpenStitch mode's sewn cream
@@ -411,7 +417,7 @@ before any code; the ranking and the proposed tracks are in
 | B8 | Crosshatch, curved crosshatch, lace | A | [research/beyond/crosshatch-and-lace.md](research/beyond/crosshatch-and-lace.md) | Sketched; not started |
 | B9 | Maze and meander fills, fur, randomisation | D | [research/beyond/meander-maze-and-randomisation.md](research/beyond/meander-maze-and-randomisation.md) | Sketched; not started |
 | B10 | Variable-width satin line | B | [research/beyond/variable-width-satin-line.md](research/beyond/variable-width-satin-line.md) | Sketched; not started |
-| B11 | Closest join, auto start/end, continue digitizing, overlap removal | C | [research/beyond/closest-join-and-overlap.md](research/beyond/closest-join-and-overlap.md) | Sketched; not started. Related, shipped 2026-10-29 (#137): `order.optimize` mode `minJump`, a 2-opt shortest-jump order per colour block with every neighbouring pair linked, as a design setting (`optimizeOrder`); PE-DESIGN's order stays the default |
+| B11 | Closest join, auto start/end, continue digitizing, overlap removal | C | [research/beyond/closest-join-and-overlap.md](research/beyond/closest-join-and-overlap.md) | Sketched. Continue digitizing shipped (#479: `object.extendPath`, `object.extendColumn`, the drawing tools continue a selected line from either end); the rest not started. Related, shipped 2026-10-29 (#137): `order.optimize` mode `minJump`, a 2-opt shortest-jump order per colour block with every neighbouring pair linked, as a design setting (`optimizeOrder`); PE-DESIGN's order stays the default |
 | B12 | Carving lines, knockdown fill | A | [research/beyond/carving-and-knockdown.md](research/beyond/carving-and-knockdown.md) | Sketched; not started |
 | B13 | Density map, troubleshoot, thread conversion, auto hoop | E | [research/beyond/quality-tools.md](research/beyond/quality-tools.md) | Density map and troubleshoot rules done (Check Design, #503/#504); thread conversion and auto hoop not started |
 | B14 | Stitch-file resize with density | E | [research/beyond/stitch-file-resize.md](research/beyond/stitch-file-resize.md) | Sketched; not started |
@@ -431,7 +437,7 @@ Updates; concepts only, no code from the GPL or unlicensed projects), ranked by 
 and effort: 1. export read-back check (#457, done in `batch:quality-checks`); 2. test swatch of the
 selection (#452, planned, P2); 3. fabric calibration swatch (#453, planned, P2, with B5's
 fabric table); 4. arched text with several lines as concentric rings (#456, idea, with B15);
-5. SVG import reading stitch settings from layer names (#455, idea); 6. garment mockups (#454,
+5. SVG import reading stitch settings from layer names (#455: name tokens, dashes and paint-order landed as `import.svg {settings: true}`; Ink/Stitch attributes open); 6. garment mockups (#454,
 idea). Not taken: staggered satin splits, sharp satin corners as fans and converting a filled
 shape to a centre-line satin (OpenStitch has them: `splitLength` staggered, Auto satin's corner
 fan, Shapes ▸ Satin Skeleton from Shape), a prompt-to-spec LLM design agent (B17 already drives
@@ -453,10 +459,10 @@ started:
 | 4 | Assistant: memory between conversations, example designs and a composition guide, illustrated benchmark tasks, every batch error at once, only the user's threads | #491, #492, #493, #494, #495 | B17 |
 | 5 | Production: parameter test swatches, fabric and thread-weight presets, basting box, knockdown, Stop at Jumps, job sheets | #507, #508, #509, #510, #512, #513 (with #452, #453) | B5, B12, D6, W7 |
 | 6 | Fills: colour blends and gradients, Fill Angle tool and angle lines, maze and tiled meander, tatami textures, wave and flow fills | #532, #534, #533, #537, #538 | B2, B6, B9 |
-| 7 | Editing: align and distribute, precision bar, copies along a line and scatter, snapping, select same, knife, smoothing, continue drawing, shape tools, stitch table, sewing-order list. Done in `batch:editor-tools` (2026-11-05): align and distribute (#472), snapping (#473), precision bar, skew and nudge step (#474), select same and click inside (#475); copies along a line, scatter and kaleidoscope (#476) in a second PR | #472, #474, #476, #473, #475, #477, #478, #479, #497, #501, #502, #500 | B11 |
+| 7 | Editing: align and distribute, precision bar, copies along a line and scatter, snapping, select same, knife, smoothing, continue drawing, shape tools, stitch table, sewing-order list. Done in `batch:editor-tools` (2026-11-05): align and distribute (#472), snapping (#473), precision bar, skew and nudge step (#474), select same and click inside (#475); copies along a line, scatter and kaleidoscope (#476) in a second PR. `batch:editor-shapes`: continuing a line, skeleton or column from either end (#479) | #472, #474, #476, #473, #475, #477, #478, #479, #497, #501, #502, #500 | B11 |
 | 8 | Lettering: font library with size ranges, single-line text, Ink/Stitch-format font folders, envelopes with handles | #527, #530, #529, #535 | B15 |
-| 9 | Formats and threads: VP3 (read and write landed for v0.1.0-alpha.13, writing experimental until a sew-out, #480), TAP/TBF/U01 read and write and DSB/DSZ/KSM/ZXY/STX read (#481), thread list files (#482), stitch lists, G-code, export repeats, pictures, stitch-out videos and ZIP bundles (#488), perceptual thread matching, richer SVG import, more formats, thread list files, `.gpl` palettes, merge similar colours, more charts, extra exports | #480, #484, #487, #481, #482, #483, #485, #486, #488 | W3, W6 |
-| 10 | Views and hoops: stitch-out player, millimetres or inches, free multi-hooping, view toggles, zoom box and real size, hoop lists for other brands | #516, #519, #515, #517, #518, #514 | W1, W4 |
+| 9 | Formats and threads: VP3 (read and write landed for v0.1.0-alpha.13, writing experimental until a sew-out, #480), TAP/TBF/U01 read and write and DSB/DSZ/KSM/ZXY/STX read (#481), thread list files (#482), stitch lists, G-code, export repeats, pictures, stitch-out videos and ZIP bundles (#488), perceptual thread matching and merge similar colours (#484, #485, `threads.remap` metrics and `threads.mergeSimilar`), thread search across charts (`threads.find`, part of #486), richer SVG import (#487: clip paths, masks, opacity, gradient bands and a report of what was left out), more formats, thread list files, `.gpl` palettes (#483, `threads.importPalette` / `threads.exportPalette`), more charts, extra exports | #480, #484, #487, #481, #482, #483, #485, #486, #488 | W3, W6 |
+| 10 | Views and hoops: stitch-out player, millimetres or inches, free multi-hooping, view toggles, zoom box and real size, hoop lists for other brands. `batch:views-hoops` (2026-11-05): millimetres or inches (#519); hoop lists for other brands and round hoops (#514); stitch-out player (#516); zoom box, real size, reference image layer (#518); free multi-hooping (#515); view toggles (#517) | #516, #519, #515, #517, #518, #514 | W1, W4 |
 | 11 | Image wizard: purpose presets, region table with reasons and overrides | #489 (and the bug #469) | B16 |
 | 12 | Workflow and platform: autosave and recovery, command palette, custom UI, tabs, new-object defaults, getting started, translations, Finder/Explorer thumbnails, accessibility, `stitchtool` one-line verbs | #549, #550, #551, #552, #553, #554, #555, #557, #499, #496 | W9 |
 | 13 | Satin, line and fill looks: satin variants, raised satin, rail and rung editing, hand-stitch and scribble, back stitch and variable running stitch, decorative hand-embroidery lines, motif lines, per-object trim and tie | #528, #531, #525, #540, #542, #543, #544, #548 | B7, B9 |

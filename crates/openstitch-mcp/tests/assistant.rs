@@ -81,7 +81,7 @@ impl Editor {
                 let canned = match command.as_str() {
                     "ui.render" => Some(json!({
                         "png": PNG_BASE64, "width": params["size"], "height": params["size"],
-                        "stats": { "stitches": 1234, "showTravel": params["showTravel"] },
+                        "stats": { "stitches": 1234, "showTravel": params["showTravel"], "layers": params["layers"] },
                     })),
                     "ui.scratchWrite" => Some(json!({
                         "path": format!("/scratch/{}", params["name"].as_str().unwrap_or("")),
@@ -461,7 +461,10 @@ fn view_render_returns_an_image_block_and_the_stats() {
     assert_eq!(content[1]["type"], json!("text"));
     let stats: Value =
         serde_json::from_str(content[1]["text"].as_str().expect("text")).expect("json");
-    assert_eq!(stats, json!({"stitches": 1234, "showTravel": true}));
+    assert_eq!(
+        stats,
+        json!({"stitches": 1234, "showTravel": true, "layers": null})
+    );
 
     // Default size, and range checks before anything is sent.
     let default = mcp.call("view_render", json!({}));
@@ -477,12 +480,27 @@ fn view_render_returns_an_image_block_and_the_stats() {
             "{bad}"
         );
     }
+    // View ▸ Show overrides (#517) reach the editor; unknown keys are refused.
+    let under = mcp.call(
+        "view_render",
+        json!({"layers": "underlay", "needlePoints": true}),
+    );
+    assert!(
+        under["content"][1]["text"]
+            .as_str()
+            .is_some_and(|t| t.contains("\"layers\":\"underlay\"")),
+        "{under}"
+    );
+    assert_eq!(
+        mcp.call("view_render", json!({"sparkle": true}))["isError"],
+        json!(true)
+    );
     let renders: Vec<String> = editor
         .log()
         .into_iter()
         .filter(|c| c == "ui.render")
         .collect();
-    assert_eq!(renders.len(), 2);
+    assert_eq!(renders.len(), 3);
     editor.finish();
 }
 

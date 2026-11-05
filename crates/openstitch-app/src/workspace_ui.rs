@@ -4,9 +4,10 @@
 
 use crate::app::EditorApp;
 use eframe::egui::{self, Color32, Pos2, Sense, Shape, Stroke};
-use openstitch_app::editor::workspace::{GridSettings, MeasureTool, ReferenceMap, ruler_ticks};
+use openstitch_app::editor::units::{self, Units, ruler_ticks};
+use openstitch_app::editor::workspace::{GridSettings, MeasureTool, ReferenceMap};
 use openstitch_app::editor::{CommandRequest, ScreenRect, Viewport};
-use openstitch_design::{BROTHER_HOOPS, Estimate, MachineType, Rect, SewingArea, Vec2, v2};
+use openstitch_design::{BRANDS, Estimate, MachineType, Rect, SewingArea, Vec2, v2};
 use serde_json::json;
 
 pub const RULER: f32 = 20.0;
@@ -74,7 +75,13 @@ pub fn screen_rect(r: egui::Rect) -> ScreenRect {
 
 /// Rulers along the top and left edge of the canvas, in mm from the Design Page origin, with
 /// the pointer position marked.
-pub fn draw_rulers(painter: &egui::Painter, rect: egui::Rect, vp: &Viewport, hover: Option<Pos2>) {
+pub fn draw_rulers(
+    painter: &egui::Painter,
+    rect: egui::Rect,
+    vp: &Viewport,
+    hover: Option<Pos2>,
+    units: Units,
+) {
     let colors = crate::theme::canvas(painter.ctx());
     let (bg, fg) = (colors.ruler_bg, colors.ruler_fg);
     let top = egui::Rect::from_min_max(rect.min, Pos2::new(rect.max.x, rect.min.y + RULER));
@@ -84,7 +91,7 @@ pub fn draw_rulers(painter: &egui::Painter, rect: egui::Rect, vp: &Viewport, hov
     let font = egui::FontId::monospace(9.0);
     let a = vp.to_model(v2(f64::from(rect.min.x), f64::from(rect.min.y)));
     let b = vp.to_model(v2(f64::from(rect.max.x), f64::from(rect.max.y)));
-    for t in ruler_ticks(a.x, b.x, vp.scale, 6.0) {
+    for t in ruler_ticks(units, a.x, b.x, vp.scale, 6.0) {
         let x = vp.to_screen(v2(t.at, 0.0)).x as f32;
         if x < left.max.x {
             continue;
@@ -104,7 +111,7 @@ pub fn draw_rulers(painter: &egui::Painter, rect: egui::Rect, vp: &Viewport, hov
             );
         }
     }
-    for t in ruler_ticks(a.y, b.y, vp.scale, 6.0) {
+    for t in ruler_ticks(units, a.y, b.y, vp.scale, 6.0) {
         let y = vp.to_screen(v2(0.0, t.at)).y as f32;
         if y < top.max.y {
             continue;
@@ -203,14 +210,14 @@ pub fn draw_realistic(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
 }
 
 /// The measure line and its readout.
-pub fn draw_measure(painter: &egui::Painter, vp: &Viewport, tool: &MeasureTool) {
+pub fn draw_measure(painter: &egui::Painter, vp: &Viewport, tool: &MeasureTool, units: Units) {
     let Some(m) = tool.current else { return };
     let (a, b) = (pos(vp.to_screen(m.from)), pos(vp.to_screen(m.to)));
     let c = Color32::from_rgb(0xe6, 0x3b, 0x7a);
     painter.add(Shape::dashed_line(&[a, b], Stroke::new(1.5, c), 6.0, 3.0));
     painter.circle_stroke(a, 3.0, Stroke::new(1.5, c));
     painter.circle_stroke(b, 3.0, Stroke::new(1.5, c));
-    let text = m.label();
+    let text = m.label_in(units);
     let galley = painter.layout_no_wrap(text, egui::FontId::monospace(12.0), Color32::WHITE);
     let size = galley.size();
     // Beside the end point, flipped to the other side where it would leave the canvas.
@@ -295,9 +302,11 @@ pub fn reference_window(app: &mut EditorApp, ctx: &egui::Context, canvas: Option
 /// PE-DESIGN's Design Settings: machine type, hoop, rotation, custom size, user hoops, sewing
 /// area and jump-stitch trimming. Every change is one `machine.*` command (one Undo).
 pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
+    let units = app.ui.prefs.units;
     let mut open = app.workspace.settings_open;
     let mut requests: Vec<CommandRequest> = Vec::new();
-    egui::Window::new("Design Settings")
+    let shown = app
+        .dialog_window(ctx, "Design Settings", None)
         .open(&mut open)
         .default_width(340.0)
         .resizable(false)
@@ -322,37 +331,60 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
 
                 ui.label("Hoop");
                 let current = m.hoop.clone().unwrap_or_else(|| "custom".into());
-                let text = BROTHER_HOOPS
-                    .iter()
-                    .find(|h| h.id == current)
-                    .map(|h| h.label.to_string())
+                let text = openstitch_design::find_hoop(&current)
+                    .map(|h| match h.brand {
+                        "Brother" => h.label.to_string(),
+                        b => format!("{b} {}", h.label),
+                    })
                     .or_else(|| {
                         m.user_hoop(&current)
-                            .map(|u| format!("{} × {} mm (user)", u.width, u.height))
+                            .map(|u| format!("{} (user)", units::hoop_size(units, u.width, u.height)))
                     })
                     .unwrap_or_else(|| "Custom size".into());
                 egui::ComboBox::from_id_salt("hoop")
                     .selected_text(text)
                     .width(230.0)
                     .show_ui(ui, |ui| {
-                        for h in BROTHER_HOOPS {
-                            if ui
-                                .selectable_label(current == h.id, h.label)
-                                .on_hover_text(h.source)
-                                .clicked()
-                            {
-                                requests.push(set(json!({ "hoop": h.id })));
+                        // Grouped by brand, Brother first (#514); the filter matches brand or
+                        // name and is kept for the session.
+                        let fid = egui::Id::unique("hoop-filter");
+                        let mut filter: String = ui.data_mut(|d| d.get_temp(fid).unwrap_or_default());
+                        ui.add(egui::TextEdit::singleline(&mut filter).hint_text("Filter hoops"));
+                        let needle = filter.to_lowercase();
+                        egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
+                            for brand in BRANDS {
+                                let shown: Vec<_> = openstitch_design::machine::brand_hoops(brand)
+                                    .filter(|h| {
+                                        needle.is_empty()
+                                            || h.label.to_lowercase().contains(&needle)
+                                            || h.brand.to_lowercase().contains(&needle)
+                                    })
+                                    .collect();
+                                if shown.is_empty() {
+                                    continue;
+                                }
+                                ui.label(egui::RichText::new(brand).strong());
+                                for h in shown {
+                                    if ui
+                                        .selectable_label(current == h.id, h.label)
+                                        .on_hover_text(h.source)
+                                        .clicked()
+                                    {
+                                        requests.push(set(json!({ "hoop": h.id })));
+                                    }
+                                }
                             }
-                        }
+                        });
+                        ui.data_mut(|d| d.insert_temp(fid, filter));
                         if !m.user_hoops.is_empty() {
                             ui.separator();
                         }
                         for u in &m.user_hoops {
                             let key = openstitch_design::machine::user_hoop_key(u.id);
                             let label = if u.comment.is_empty() {
-                                format!("{} × {} mm", u.width, u.height)
+                                units::hoop_size(units, u.width, u.height)
                             } else {
-                                format!("{} × {} mm  {}", u.width, u.height, u.comment)
+                                format!("{}  {}", units::hoop_size(units, u.width, u.height), u.comment)
                             };
                             if ui.selectable_label(current == key, label).clicked() {
                                 requests.push(set(json!({ "hoop": key })));
@@ -366,10 +398,14 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
                 ui.end_row();
 
                 let user = m.hoop.as_deref().is_some_and(|k| m.user_hoop(k).is_some());
+                let turns = m.listed_hoop().is_none_or(|h| h.can_rotate());
                 ui.label("");
                 let mut rotate = m.rotate90;
                 if ui
-                    .add_enabled(m.hoop.is_some() && !user, egui::Checkbox::new(&mut rotate, "Rotate 90°"))
+                    .add_enabled(
+                        m.hoop.is_some() && !user && turns,
+                        egui::Checkbox::new(&mut rotate, "Rotate 90°"),
+                    )
                     .changed()
                 {
                     requests.push(set(json!({ "rotate90": rotate })));
@@ -382,12 +418,12 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
                     let (mut w, mut h) = (pw, ph);
                     let rw = ui.add_enabled(
                         custom,
-                        egui::DragValue::new(&mut w).range(10.0..=2000.0).suffix(" mm"),
+                        crate::units_ui::drag(&mut w, units).range(10.0..=2000.0),
                     );
                     ui.label("×");
                     let rh = ui.add_enabled(
                         custom,
-                        egui::DragValue::new(&mut h).range(10.0..=2000.0).suffix(" mm"),
+                        crate::units_ui::drag(&mut h, units).range(10.0..=2000.0),
                     );
                     let done = |r: &egui::Response| r.drag_stopped() || r.lost_focus();
                     if (done(&rw) || done(&rh)) && (w != pw || h != ph) {
@@ -460,7 +496,7 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
             for (i, u) in m.user_hoops.iter().enumerate() {
                 let key = openstitch_design::machine::user_hoop_key(u.id);
                 ui.horizontal(|ui| {
-                    ui.label(format!("{} × {} mm", u.width, u.height));
+                    ui.label(units::hoop_size(units, u.width, u.height));
                     if !u.comment.is_empty() {
                         ui.label(egui::RichText::new(&u.comment).weak());
                     }
@@ -491,9 +527,9 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
             }
             ui.horizontal(|ui| {
                 let (w, h, c) = &mut app.workspace.user_hoop;
-                ui.add(egui::DragValue::new(w).range(10.0..=2000.0).suffix(" mm"));
+                ui.add(crate::units_ui::drag(w, units).range(10.0..=2000.0));
                 ui.label("×");
-                ui.add(egui::DragValue::new(h).range(10.0..=2000.0).suffix(" mm"));
+                ui.add(crate::units_ui::drag(h, units).range(10.0..=2000.0));
                 ui.add(egui::TextEdit::singleline(c).hint_text("comment").desired_width(80.0));
                 if ui.button("Add Hoop").clicked() {
                     requests.push(CommandRequest::new(
@@ -512,6 +548,9 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
                 .small(),
             );
         });
+    if let Some(shown) = shown {
+        app.dialog_rect_next = Some(shown.response.rect);
+    }
     app.workspace.settings_open = open;
     for r in requests {
         if app.execute(&r).is_some() {

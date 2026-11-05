@@ -8,6 +8,8 @@ rust-version.workspace = true
 
 [dependencies]
 serde.workspace = true
+# Deterministic maths for the perceptual colour metrics (the same pin as openstitch-design).
+libm = "=0.2.16"
 
 [dev-dependencies]
 serde_json.workspace = true

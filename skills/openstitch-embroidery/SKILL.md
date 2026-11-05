@@ -35,8 +35,23 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 - `machine.hoops` lists Brother hoop ids (`100x100`, `130x180`, `160x260`, `200x300`, ...) and
   the current settings. `machine.set` `{hoop: "130x180"}` sizes the Design Page to that hoop;
   `{hoop: "custom", width, height}` sets a custom page; `machine: "single" | "multi"`.
+  Other brands' hoops are in `groups` (`machine.hoops {brand: "Janome"}` lists one brand; ids
+  such as `janome-re20b`, `bernina-large-oval`, `round-15cm`). Oval and round hoops sew only
+  their ellipse, which `fitsPage` checks; round hoops cannot rotate. Brother is the default.
 - Keep the whole design inside the page: `design.export` reports `fitsPage` and the
   `smallestHoop`.
+- Larger than the hoop: on a custom page, `sections.set {hoop}` splits it (PE-DESIGN's grid);
+  `sections.autoLayout` switches to free hoopings, where each object stays whole in one hooping
+  with alignment marks and a stop between them. `sections.list` names objects that fit no
+  hooping; `sections.export {path}` writes "Name - hooping k of n" files.
+  Free hoopings by hand: `sections.set {mode: "free", hoopings: [{x, y, rotated}], marks:
+  "boxX" | "cross" | "none", minOverlap, stopAfterMarks}` (x, y: the hooping's top-left corner
+  on the page in mm, in sewing order; `rotated` turns the hoop 90°; consecutive hoopings must
+  overlap by `minOverlap`, 16 mm by default, for the marks). Example: `sections.list` says
+  "object 7 (60.0 × 40.0 mm) fits no hooping" → read the hoopings' `area`s, then send the
+  whole list again with one hooping moved (or one added) so that its area holds the object's
+  bounds, and check `sections.list` until `errors` is empty. `{mode: "grid"}` returns to
+  PE-DESIGN's sections.
 
 ## Build order
 
@@ -56,6 +71,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    Run each finding's `fix` command or fix it yourself, and check again; never report a design
    done while `design.check` has errors. `design.route` names every move between objects
    (untrimmed jumps, long moves), `design.density` shows where thread piles up.
+   `design.timeline` lists the colour blocks in sewing order with their stitch ranges, trims,
+   object starts and machine time ("when does the red start?"); in the editor,
+   `ui.simulate {stitch}` or `{step: "block" | "object" | "trim"}` moves the player there.
 6. Save only when asked: `project.save` `{path: "name.osd"}` (editable) and/or
    `design.export` `{path: "name.pes"}` (machine file; the extension picks the format).
 
@@ -79,9 +97,21 @@ then style them in the next.
 - Repeat a motif: `object.arrangeCopies` `{ids, mode: path, pathId, count, side, orient}`
   along a line, `{mode: scatter, shapeId, count, gap, seed}` inside a closed shape, or
   `{mode: circle, count, radius, mirrorAlternate: true}` for a kaleidoscope.
+- Continue in place: `object.extendPath` `{id, end: start|end, points, curves?, widths?}` adds
+  to an open line, path or satin skeleton, `object.extendColumn` `{id, end, lines}` to a Manual
+  Punch column (points added at the start are listed outward from it).
 - Find objects like others: `object.list` `{sameAs: [ids], match: color|type|both,
   visible: true}`, or filter by `color`, `regionType`, `lineType`; then `ui.select` the ids.
 - Text: `object.setText` (text, font, size, spacing), `text.setPath` (fit to an outline).
+- Threads: to change the design to a thread chart ("use my Madeira threads"), run
+  `threads.remap` `{builtin | chart, metric: ciede2000, keepDistinct: true, dryRun: true}`
+  first and show the user the plan (design colour → thread, ΔE, objects, and `merged`), then
+  run it without `dryRun` if they agree (`metric: rgb` is PE-DESIGN's rule). The thread
+  makers' charts (Madeira, Isacord, Sulky, Robison-Anton) are `builtin` ids: `threads.builtinCharts`
+  lists them with `kind: "brand"`. `threads.find`
+  `{query}` finds a thread by code or name. After `import.svg` or a `digitize.*` wizard gives
+  many near-identical colours, offer `threads.mergeSimilar` (`dryRun` first; it reports the
+  colour changes saved, and `order.byColor` when `suggestSortByColor`).
 - Delete: `object.delete` `{ids}`. Undo: `history.undo` (only for your own mistakes).
 
 ## Editor commands (`ui.*`)
@@ -90,7 +120,13 @@ These act on the editor window, not the design file: `ui.state`, `ui.select`, `u
 `ui.run` (the ribbon's actions), `ui.zoom`, `ui.settings` and `ui.set` (view settings),
 `ui.render` (what `view_render` uses), `ui.simulate` (the stitch simulator), `ui.help`,
 `ui.update`, `ui.scratchWrite` (what `scratch_write` uses). Read their parameters with
-`command_describe` before the first use.
+`command_describe` before the first use. `ui.zoom {rect: [x, y, w, h]}` zooms to a rectangle.
+`background.setLayer {position: "top" | "bottom" | "afterObject", afterId}` puts the tracing
+picture above the design or between objects ("put the picture above the fills"); it never sews.
+
+Units: every command takes millimetres. The user may work in inches (`ui.settings` → `units`,
+also named in the editor note with each message); then answer in inches (1 in = 25.4 mm) and
+still send mm to commands. `design.print {units: "inch"}` adds a 2-inch scale bar.
 
 ## Files
 
@@ -98,6 +134,14 @@ These act on the editor window, not the design file: `ui.state`, `ui.select`, `u
   and folders the user approves). A refused path is not an error to work around: tell the user.
 - To import model-made artwork, write it with `scratch_write` (SVG text, or a PNG/JPEG as
   base64) and pass the returned `path` to `import.svg` or a `digitize.*` command.
+- `import.svg` returns `skipped` (text, images, nearly transparent or clipped-away shapes) and
+  `approximated` (gradients, patterns, masks, filters): tell the user what was left out instead
+  of leaving it unsaid. `gradients: "bands"` turns a gradient fill into 2–8 colour bands;
+  `minOpacity` (default 0.1) sets how faint a fill or stroke may be before it is left out.
+- When you write an SVG for `import.svg`, you can name each element's sewing and import with
+  `settings: true`: give the element an `id` and a `data-name` such as `"fill a=45 s=0.4"`,
+  `"satin"`, `"run r=3"` or `"stroke.satin w=3"`; the result lists unknown words and refused
+  values (FILE_FORMATS.md has the words).
 - `file` commands (`project.save`, `design.export`, ...) may ask the user first. Never
   overwrite a user's file without being asked to.
 
@@ -110,6 +154,11 @@ Do not undo the user's own earlier work; to retry, undo or delete your own objec
 
 - Prefer `run_batch`; a malformed batch changes nothing, and it stops at the first failure.
 - After building or changing anything visible, call `view_render` and look before you answer.
+- To check one aspect: `view_render` (or MCP `preview`) takes `layers: "underlay" | "top"`,
+  `colorBy: "order" | "mono"`, `only: [ids]`, `solo: block`, `needlePoints`, `trimMarks`; in
+  the editor `ui.set` `showLayers`, `colorBy`, `trimMarks`, `needlePoints`, `hideUnselected`,
+  `soloColor` set View ▸ Show, which `view_render` then follows. They change only the view,
+  never the design.
 - Never claim a result you did not check. Report sizes and stitch counts from `design.info`.
 - "PE-DESIGN-compatible mode" is the default behaviour of the wizards; "OpenStitch mode"
   (`compatMode: "openStitch"`) is the optional alternative.

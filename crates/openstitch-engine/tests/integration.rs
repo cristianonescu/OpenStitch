@@ -6,8 +6,12 @@
 
 #[path = "arrange_modes.rs"]
 mod arrange_modes;
+#[path = "background_layer.rs"]
+mod background_layer;
 #[path = "capabilities.rs"]
 mod capabilities;
+#[path = "continuing.rs"]
+mod continuing;
 #[path = "contour_fill.rs"]
 mod contour_fill;
 #[path = "convert.rs"]
@@ -50,6 +54,10 @@ mod font_creator;
 mod font_from_image;
 #[path = "fonts.rs"]
 mod fonts;
+#[path = "free_hoopings.rs"]
+mod free_hoopings;
+#[path = "hoop_lists.rs"]
+mod hoop_lists;
 #[path = "imports.rs"]
 mod imports;
 #[path = "layout.rs"]
@@ -76,6 +84,8 @@ mod order_holes;
 mod order_min_jump;
 #[path = "ornament.rs"]
 mod ornament;
+#[path = "palette.rs"]
+mod palette;
 #[path = "pes_compat.rs"]
 mod pes_compat;
 #[path = "pes_resave.rs"]
@@ -104,10 +114,18 @@ mod stamps;
 mod stitch_edit;
 #[path = "stitch_types.rs"]
 mod stitch_types;
+#[path = "svg_import.rs"]
+mod svg_import;
+#[path = "svg_settings.rs"]
+mod svg_settings;
 #[path = "templates.rs"]
 mod templates;
 #[path = "thread_lists.rs"]
 mod thread_lists;
+#[path = "thread_match.rs"]
+mod thread_match;
+#[path = "timeline.rs"]
+mod timeline;
 #[path = "transfer.rs"]
 mod transfer;
 #[path = "user.rs"]

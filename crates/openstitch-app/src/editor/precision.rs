@@ -4,6 +4,7 @@
 //! undo step and the Assistant reaches the same edits through the engine.
 
 use super::request::{CommandRequest, mm};
+use super::units::{self, Units};
 use openstitch_design::{Rect, Vec2, v2};
 use serde_json::json;
 use std::collections::BTreeSet;
@@ -43,10 +44,40 @@ impl Field {
     }
 
     pub fn unit(self) -> &'static str {
-        match self {
-            Field::Rotate | Field::Skew => "°",
-            _ => "mm",
+        self.unit_in(Units::Mm)
+    }
+
+    /// The unit shown after the field (#519): degrees, or the chosen length unit.
+    pub fn unit_in(self, u: Units) -> &'static str {
+        match (self, u) {
+            (Field::Rotate | Field::Skew, _) => "°",
+            (_, Units::Mm) => "mm",
+            (_, Units::Inch) => "in",
         }
+    }
+
+    fn is_length(self) -> bool {
+        !matches!(self, Field::Rotate | Field::Skew)
+    }
+}
+
+/// What a field shows in unit `u`: lengths at 0.01 mm or 0.001 inch, angles in degrees.
+pub fn shown(f: Field, b: Rect, o: Options, u: Units) -> String {
+    let v = value(f, b, o);
+    match (f.is_length(), u) {
+        (true, Units::Inch) => format!("{:.3}", v / units::MM_PER_INCH),
+        _ => format!("{v:.2}"),
+    }
+}
+
+/// A typed field value: mm for lengths (a bare number is in `u`; `2"` or `50.8 mm` also work,
+/// and a decimal comma is accepted), degrees for angles.
+pub fn parse(f: Field, text: &str, u: Units) -> Option<f64> {
+    let t = text.trim().replace(',', ".");
+    if f.is_length() {
+        units::parse(&t, u)
+    } else {
+        t.trim_end_matches('°').trim().parse::<f64>().ok()
     }
 }
 
@@ -195,6 +226,26 @@ mod tests {
         assert_eq!(bounds(&s).min_x, 125.0);
         assert_eq!(value(Field::X, bounds(&s), Options::default()), 12.5);
         assert!(requests(Field::X, 12.5, &ids, bounds(&s), Options::default()).is_empty());
+    }
+
+    #[test]
+    fn inches_show_and_parse_to_the_same_millimetres() {
+        let (mut s, ids) = session();
+        let b = bounds(&s);
+        let o = Options::default();
+        assert_eq!(shown(Field::Width, b, o, Units::Inch), "1.575");
+        assert_eq!(shown(Field::Width, b, o, Units::Mm), "40.00");
+        assert_eq!(Field::Width.unit_in(Units::Inch), "in");
+        assert_eq!(Field::Rotate.unit_in(Units::Inch), "°");
+        assert_eq!(parse(Field::Width, "2", Units::Inch), Some(50.8));
+        assert_eq!(parse(Field::Width, "50,8 mm", Units::Inch), Some(50.8));
+        assert_eq!(parse(Field::X, "2\"", Units::Mm), Some(50.8));
+        assert_eq!(parse(Field::Rotate, "15°", Units::Inch), Some(15.0));
+        assert_eq!(parse(Field::Rotate, "x", Units::Inch), None);
+        // Typing 2 inches gives exactly the 50.8 mm typing 50.8 in mm gives.
+        let v = parse(Field::Width, "2", Units::Inch).expect("parses");
+        apply(&mut s, Field::Width, v, &ids, Options { lock: false, ..o });
+        assert!((mm(bounds(&s).width()) - 50.8).abs() < 1e-9);
     }
 
     #[test]

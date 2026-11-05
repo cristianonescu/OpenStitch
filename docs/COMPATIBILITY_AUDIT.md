@@ -2334,6 +2334,23 @@ Line references are relative to `crates/`.
   clip; all fixed in the kit script and the examples (the monogram clip in the engine since,
   #458: letters are warped onto the silhouette, and the kit's varied letters are back). Engine causes are #458-#471.
 
+### Kit previews and documentation images, 2026-11-05 (#563-#565)
+
+- **Preview colours (#564):** on decorative-frames, a full-colour Realistic render holds every
+  thread exactly (nearest pixel 0 ΔE), but `preview()`'s 128-colour median-cut palette put the
+  nearest pixel 61 ΔE from Red, 58 from Orange, 50 from Ultra Marine and 44 from Magenta. 11 of 35
+  committed previews lacked a thread. The previews now use 256 octree colours (mean 1.4 ΔE from
+  the render), fall back to full colour if a thread would still be lost, and
+  `sew_kit.py --check-previews` (CI job `kit`) requires 20 pixels within 20 ΔE of each thread.
+- **Documentation images (#565):** `tools/docs_images.py` runs every generator (screenshots,
+  gallery, engine plots, the four templates, digitize and convert previews, Stitch Design Factory
+  SVGs, the catalogue page) and `--check` fails on a file under `docs/images` without one. The
+  Assistant screenshots and the image-similarity comparisons stay as dated records of the runs
+  their documents describe. In `--screenshot` runs the wizard dialogs (pattern wizards, Monogram,
+  Fonts, Design Settings) open at the top right and the page is fitted beside them.
+- **Cotton texture (#563):** its Higgsfield job (Recraft V4.1, 2026-10-27) was found in the
+  account's history; the committed file matches a crop of it at correlation 0.9999.
+
 ### Auto Punch on bold lettering, 2026-11-05 (#443)
 
 - **Finding:** the README gallery's g08 (navy "STITCH" over a red bar on cream) sewed its letters
