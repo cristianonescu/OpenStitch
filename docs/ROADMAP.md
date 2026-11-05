@@ -442,7 +442,7 @@ started:
 | 6 | Fills: colour blends and gradients, Fill Angle tool and angle lines, maze and tiled meander, tatami textures, wave and flow fills | #532, #534, #533, #537, #538 | B2, B6, B9 |
 | 7 | Editing: align and distribute, precision bar, copies along a line and scatter, snapping, select same, knife, smoothing, continue drawing, shape tools, stitch table, sewing-order list | #472, #474, #476, #473, #475, #477, #478, #479, #497, #501, #502, #500 | B11 |
 | 8 | Lettering: font library with size ranges, single-line text, Ink/Stitch-format font folders, envelopes with handles | #527, #530, #529, #535 | B15 |
-| 9 | Formats and threads: VP3, perceptual thread matching, richer SVG import, more formats, thread list files, `.gpl` palettes, merge similar colours, more charts, extra exports | #480, #484, #487, #481, #482, #483, #485, #486, #488 | W3, W6 |
+| 9 | Formats and threads: VP3 (read and write landed for v0.1.0-alpha.13, writing experimental until a sew-out, #480), perceptual thread matching, richer SVG import, more formats, thread list files, `.gpl` palettes, merge similar colours, more charts, extra exports | #480, #484, #487, #481, #482, #483, #485, #486, #488 | W3, W6 |
 | 10 | Views and hoops: stitch-out player, millimetres or inches, free multi-hooping, view toggles, zoom box and real size, hoop lists for other brands | #516, #519, #515, #517, #518, #514 | W1, W4 |
 | 11 | Image wizard: purpose presets, region table with reasons and overrides | #489 (and the bug #469) | B16 |
 | 12 | Workflow and platform: autosave and recovery, command palette, custom UI, tabs, new-object defaults, getting started, translations, Finder/Explorer thumbnails, accessibility, `stitchtool` one-line verbs | #549, #550, #551, #552, #553, #554, #555, #557, #499, #496 | W9 |
@@ -466,7 +466,8 @@ an issue or a comment above (#460, #462, #463, #464, #446, #447, #471, #291).
 
 Deferred: linear colour-gradient and tartan fills, shape and vine fills, photo
 thread-painting, sequin/chenille/bead types (machine-specific), the TrueType turning-satin
-rework, an intelligent multi-hoop split with editable lines, VP3 and other extra formats.
+rework, an intelligent multi-hoop split with editable lines, extra formats beyond VP3 (VP3 itself
+landed with #480).
 The patents named in the research document are checked by number before the related item
 ships; the facts per patent and the items each touches are in
 [research/beyond/patents.md](research/beyond/patents.md) (shown active: Brother's

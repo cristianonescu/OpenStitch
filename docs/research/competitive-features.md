@@ -132,7 +132,7 @@ section 4. Product levels are given in the notes, not here.
 | W3 | Thread-brand conversion (nearest colour across charts) | ○ | ○ B13 | ● | ● | ● (My Threads) | ● (Colour Manager) | ● | ● (sort by similarity, owned threads) | ● (Apply Palette) | ● (one-click) | ● (SWP) |
 | W4 | Realistic 3D preview and stitch simulator | ● | ● | ● (TrueView, Stitch Player) | ● | ● (Life View, Design Player) | ● | ● | ● (1–10 000 sps) | ● | ● | ● |
 | W5 | Vector import and live link to a drawing program | ◐ (SVG/EMF/WMF) | ◐ (SVG) | ● (CorelDRAW embedded) | ● (CorelDRAW SE) | ◐ | ◐ | ● (AI/CDR/EPS/DXF, DrawFusion) | ◐ (EMF/WMF/CMX) | ● (is Inkscape) | ◐ | ◐ (WMF/EMF/AI/SVG) |
-| W6 | Machine formats beyond PE-DESIGN's set (VP3/VP4, DSB/DSZ, TBF, U01, TAP, KSM, Z01, EMB read) | ○ | ○ | ● | ● | ● (VP3/VP4) | ◐ | ● | ● (≈ 60 formats) | ● (VP3, TBF, U01, G-code) | ● (VP3, TAP, DSZ, EXP+) | ● (≈ 30 read) |
+| W6 | Machine formats beyond PE-DESIGN's set (VP3/VP4, DSB/DSZ, TBF, U01, TAP, KSM, Z01, EMB read) | ○ | ◐ (VP3, #480) | ● | ● | ● (VP3/VP4) | ◐ | ● | ● (≈ 60 formats) | ● (VP3, TBF, U01, G-code) | ● (VP3, TAP, DSZ, EXP+) | ● (≈ 30 read) |
 | W7 | Operator worksheet / approval print with barcodes | ◐ (catalog print) | ◐ (catalog, templates) | ● | ◐ | ◐ | ○ | ● | ● | ● (PDF layouts) | ● (templates) | ◐ |
 | W8 | Batch and command-line format conversion | ◐ (Design Database batch) | ● (`stitchtool`, `library.convert`) | ◐ | ◐ | ○ | ○ | ◐ | ● (Manager batch) | ● (zip batch) | ◐ | ● (SWP CLI) |
 | W9 | Shell thumbnails | ◐ (Windows) | ◐ (Linux) | ○ | ○ | ○ | ○ | ○ | ● (Iconizer) | ○ | ● (Thumbnailer) | ○ |

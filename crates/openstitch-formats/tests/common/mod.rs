@@ -6,7 +6,7 @@
 use openstitch_core::{Command, Stitch};
 use std::path::PathBuf;
 
-pub const FIXTURE_FILES: [&str; 13] = [
+pub const FIXTURE_FILES: [&str; 14] = [
     "oracle.pes",
     "oracle.pec",
     "oracle.dst",
@@ -20,6 +20,7 @@ pub const FIXTURE_FILES: [&str; 13] = [
     "openstitch.vip",
     "oracle.shv",
     "oracle.phc",
+    "oracle.vp3",
 ];
 
 pub fn fixture_dir() -> PathBuf {
