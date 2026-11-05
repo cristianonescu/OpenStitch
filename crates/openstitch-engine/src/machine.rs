@@ -10,7 +10,8 @@ use openstitch_core::StitchPattern;
 use openstitch_design::fmath::Det;
 use openstitch_design::machine::{self, user_hoop_key};
 use openstitch_design::{
-    BROTHER_HOOPS, Design, MachineSettings, MachineType, SewingArea, Transform, UserHoop, v2,
+    BRANDS, BROTHER_HOOPS, Design, Hoop, HoopShape, MachineSettings, MachineType, SewingArea,
+    Transform, UserHoop, v2,
 };
 use serde_json::{Value, json};
 
@@ -60,10 +61,23 @@ pub fn commands() -> Vec<CommandSpec> {
     vec![
         spec(
             "machine.hoops",
-            "Machine types, Brother and user hoops, and the current Design Settings",
+            "Machine types, Brother and user hoops, other brands' hoops grouped by brand (#514), and the current Design Settings",
             Effect::Read,
-            vec![],
-            |s, _| Ok(hoops(&s.design)),
+            vec![opt(
+                "brand",
+                "string",
+                "Only this brand's group in `groups` (Brother, Baby Lock, Bernina, Elna, Husqvarna Viking, Janome, Pfaff, Singer, Commercial round)",
+            )],
+            |s, p| {
+                let mut v = hoops(&s.design);
+                if p.has("brand") {
+                    let brand = p.string("brand", None)?;
+                    let known = BRANDS.iter().find(|b| b.eq_ignore_ascii_case(&brand));
+                    let b = known.ok_or_else(|| p.not_found(format!("brand {brand}")))?;
+                    v["groups"] = json!([group(b)]);
+                }
+                Ok(v)
+            },
         ),
         spec(
             "machine.set",
@@ -74,12 +88,12 @@ pub fn commands() -> Vec<CommandSpec> {
                 opt(
                     "hoop",
                     "string",
-                    "Brother hoop id (see machine.hoops), user-<n> for a user hoop, or custom",
+                    "Hoop id from machine.hoops (Brother or another brand), user-<n> for a user hoop, or custom",
                 ),
                 opt(
                     "rotate90",
                     "bool",
-                    "Rotate the hoop 90° (not for user hoops)",
+                    "Rotate the hoop 90° (not for user or round hoops)",
                 ),
                 opt("width", "mm", "Custom Design Page width (hoop: custom)"),
                 opt("height", "mm", "Custom Design Page height (hoop: custom)"),
@@ -271,7 +285,7 @@ fn set(s: &mut EngineState, p: &Params) -> CommandResult {
         let key = p.string("hoop", None)?;
         m.hoop = match key.as_str() {
             "custom" => None,
-            k if machine::brother_hoop(k).is_some() || m.user_hoop(k).is_some() => Some(key),
+            k if machine::find_hoop(k).is_some() || m.user_hoop(k).is_some() => Some(key),
             _ => return Err(p.not_found(format!("hoop {key}"))),
         };
     } else if custom_size {
@@ -283,6 +297,13 @@ fn set(s: &mut EngineState, p: &Params) -> CommandResult {
     }
     if user && m.rotate90 {
         return Err(p.invalid("rotate90", "a user hoop cannot be rotated 90°"));
+    }
+    let fixed = m.listed_hoop().is_some_and(|h| !h.can_rotate());
+    if fixed && m.rotate90 && !p.has("rotate90") {
+        m.rotate90 = false;
+    }
+    if fixed && m.rotate90 {
+        return Err(p.invalid("rotate90", "a round hoop cannot be rotated 90°"));
     }
     if m.hoop.is_none() {
         // A custom page cannot rotate; its width and height are given directly.
@@ -328,14 +349,37 @@ fn resize_page(d: &mut Design, width: f64, height: f64) {
     }
 }
 
+fn hoop_json(h: &Hoop) -> Value {
+    let mut v = json!({
+        "id": h.id, "widthMM": h.width, "heightMM": h.height, "label": h.label,
+        "multiPosition": h.multi_position, "source": h.source,
+    });
+    if h.brand != "Brother" {
+        v["brand"] = json!(h.brand);
+        v["shape"] = json!(h.shape.as_str());
+        v["canRotate"] = json!(h.can_rotate());
+        if let Some(d) = h.inside_diameter() {
+            v["insideDiameterMM"] = json!(d);
+            v["clearanceMM"] = json!(h.clearance);
+        }
+    }
+    v
+}
+
+/// One brand's hoops for `machine.hoops`.
+fn group(brand: &str) -> Value {
+    json!({
+        "brand": brand,
+        "hoops": machine::brand_hoops(brand).map(hoop_json).collect::<Vec<_>>(),
+    })
+}
+
 fn hoops(d: &Design) -> Value {
     let m = &d.machine;
     json!({
         "machines": ["single", "multi"],
-        "brother": BROTHER_HOOPS.iter().map(|h| json!({
-            "id": h.id, "widthMM": h.width, "heightMM": h.height, "label": h.label,
-            "multiPosition": h.multi_position, "source": h.source,
-        })).collect::<Vec<_>>(),
+        "brother": BROTHER_HOOPS.iter().map(hoop_json).collect::<Vec<_>>(),
+        "groups": BRANDS.iter().map(|b| group(b)).collect::<Vec<_>>(),
         "user": m.user_hoops.iter().map(|h| json!({
             "id": user_hoop_key(h.id), "widthMM": h.width, "heightMM": h.height,
             "comment": h.comment,
@@ -343,6 +387,8 @@ fn hoops(d: &Design) -> Value {
         "current": {
             "machine": m.machine.as_str(),
             "hoop": m.hoop.as_deref().unwrap_or("custom"),
+            "brand": m.listed_hoop().map(|h| h.brand),
+            "shape": m.hoop_shape().as_str(),
             "rotate90": m.rotate90,
             "pageWidthMM": d.page.width / MM,
             "pageHeightMM": d.page.height / MM,
@@ -437,26 +483,41 @@ pub fn export_check(d: &Design, pattern: &StitchPattern) -> Value {
     let (pw, ph) = (d.page.width, d.page.height);
     // Half a unit: coordinates are rounded to 0.1 mm when written.
     let tol = 0.5;
-    let fits_page =
-        b.min_x >= -tol && b.min_y >= -tol && b.max_x <= pw + tol && b.max_y <= ph + tol;
+    let shape = d.machine.hoop_shape();
+    // An oval or round hoop (#514) sews only its ellipse: every needle point must lie in it.
+    let fits_page = if shape == HoopShape::Rectangle {
+        b.min_x >= -tol && b.min_y >= -tol && b.max_x <= pw + tol && b.max_y <= ph + tol
+    } else {
+        pattern
+            .stitches
+            .iter()
+            .filter(|s| s.command == openstitch_core::Command::Stitch)
+            .all(|s| shape.contains(pw, ph, s.x, s.y, tol))
+    };
     let (dw, dh) = (b.width() / MM, b.height() / MM);
-    let smallest = BROTHER_HOOPS
-        .iter()
+    // The smallest hoop of the selected hoop's brand (Brother when none is chosen).
+    let brand = d.machine.listed_hoop().map_or("Brother", |h| h.brand);
+    let smallest = machine::brand_hoops(brand)
         .filter(|h| !h.multi_position)
-        .filter(|h| (dw <= h.width && dh <= h.height) || (dw <= h.height && dh <= h.width))
+        .filter(|h| fits_hoop(h, dw, dh))
         .min_by(|a, b| (a.width * a.height).total_cmp(&(b.width * b.height)));
     let mut warnings = Vec::new();
     if !fits_page {
         let hint = smallest.map_or_else(
-            || " It is larger than every single-position Brother hoop.".to_string(),
-            |h| format!(" The smallest Brother hoop it fits is {}.", h.label),
+            || format!(" It is larger than every single-position {brand} hoop."),
+            |h| format!(" The smallest {brand} hoop it fits is {}.", h.label),
         );
         warnings.push(format!(
-            "The design ({dw:.1} × {dh:.1} mm) does not lie within the {:.1} × {:.1} mm Design \
-             Page, so a machine with this hoop may refuse it. It was written anyway, as \
+            "The design ({dw:.1} × {dh:.1} mm) does not lie within the {:.1} × {:.1} mm {}, \
+             so a machine with this hoop may refuse it. It was written anyway, as \
              PE-DESIGN 11 writes it.{hint}",
             pw / MM,
-            ph / MM
+            ph / MM,
+            match shape {
+                HoopShape::Rectangle => "Design Page",
+                HoopShape::Oval => "oval hoop field",
+                HoopShape::Round => "round hoop field",
+            }
         ));
     }
     let (hw, hh) = hoop_mm(d);
@@ -467,6 +528,29 @@ pub fn export_check(d: &Design, pattern: &StitchPattern) -> Value {
         "smallestHoop": smallest.map(|h| h.id),
         "warnings": warnings,
     })
+}
+
+/// Whether a `dw` × `dh` mm design fits hoop `h` in either orientation (its bounding box in
+/// the field: inside the inscribed ellipse for oval and round hoops).
+fn fits_hoop(h: &Hoop, dw: f64, dh: f64) -> bool {
+    let fits = |w: f64, hh: f64| match h.shape {
+        HoopShape::Rectangle => dw <= w && dh <= hh,
+        HoopShape::Oval | HoopShape::Round => (dw / w).powi(2) + (dh / hh).powi(2) <= 1.0 + 1e-12,
+    };
+    fits(h.width, h.height) || (h.can_rotate() && fits(h.height, h.width))
+}
+
+/// The JEF header hoop code for the selected hoop: a Janome or Elna hoop (both write Janome's
+/// JEF) whose field, rotation applied, is one of JEF's hoop sizes. `None` leaves the writer to
+/// pick the smallest code the design fits, as before.
+#[cfg(feature = "formats")]
+pub fn jef_hoop(d: &Design) -> Option<openstitch_formats::jef::Hoop> {
+    let h = d.machine.listed_hoop()?;
+    if !matches!(h.brand, "Janome" | "Elna") {
+        return None;
+    }
+    let (w, hh) = d.machine.hoop_size()?;
+    openstitch_formats::jef::Hoop::from_size_mm(w, hh)
 }
 
 /// Hoop size written to the PES header, mm: the selected hoop (rotation applied), else the
