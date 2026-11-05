@@ -12,6 +12,7 @@ use std::collections::BTreeSet;
 
 pub mod characters;
 pub mod continuation;
+pub mod knife;
 pub mod needles;
 pub mod skeleton;
 pub use characters::{CharacterDrag, CharacterFrame, CharacterOverlay};
@@ -45,10 +46,12 @@ pub enum Tool {
     Feed,
     /// Satin Skeleton: draw a satin column's centre line like the pen, with a width per point.
     Skeleton,
+    /// Knife: click an open cut line; every object it crosses is cut (#477).
+    Knife,
 }
 
 impl Tool {
-    pub const ALL: [Tool; 14] = [
+    pub const ALL: [Tool; 15] = [
         Tool::Select,
         Tool::Point,
         Tool::Rectangle,
@@ -63,6 +66,7 @@ impl Tool {
         Tool::Running,
         Tool::Feed,
         Tool::Skeleton,
+        Tool::Knife,
     ];
 
     pub fn label(self) -> &'static str {
@@ -81,6 +85,7 @@ impl Tool {
             Tool::Running => "Running",
             Tool::Feed => "Feed",
             Tool::Skeleton => "Skeleton",
+            Tool::Knife => "Knife",
         }
     }
 
@@ -385,6 +390,8 @@ pub struct ToolController {
     click_inside: bool,
     /// The finished object being continued from one of its ends (#479).
     continuing: Option<Continuation>,
+    /// Knife: how far (model units) a single click may be from the line it splits.
+    knife_reach: f64,
 }
 
 /// Drags shorter than this (points) are clicks.
@@ -537,6 +544,7 @@ impl ToolController {
             Tool::Pencil | Tool::PencilOpen => self.pencil_tool(e, ctx),
             Tool::Punch | Tool::CurvedBlock | Tool::Running | Tool::Feed => self.punch_tool(e, ctx),
             Tool::Skeleton => self.skeleton_tool(e, ctx),
+            Tool::Knife => self.knife_tool(e, ctx),
         }
     }
 
@@ -547,6 +555,7 @@ impl ToolController {
             Tool::Polygon | Tool::Line => self.finish_polygon(),
             Tool::Pen => self.finish_pen(false),
             Tool::Skeleton => self.finish_skeleton(),
+            Tool::Knife => self.finish_knife(),
             t if t.is_punch() => self.finish_punch(),
             _ => vec![],
         }

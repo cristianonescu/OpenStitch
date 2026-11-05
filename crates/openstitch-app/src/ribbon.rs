@@ -595,7 +595,7 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
         // Tools are handled above; menus open their list; the rest are not available yet.
         SelectTool | PointTool | Rectangle | Ellipse | ClosedStraight | ClosedCurve | OpenCurve
         | StraightBlock | EditPoint | PencilClosed | OpenStraight | PencilOpen | CurvedBlock
-        | Running | Feed | SatinSkeleton => {}
+        | Running | Feed | SatinSkeleton | Knife => {}
         Print | Wizard | Export | Options | Help | TextTools | ShapesTools | OtherZoom
         | Arrange | Align | SelectSame | RotateFlip | Size | StampEmboss | ModifyOverlap
         | DecorativeFrame | FitTextToOutline | SendEmbroidery | SaveImage | ImageDensity

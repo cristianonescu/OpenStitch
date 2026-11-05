@@ -1452,6 +1452,9 @@ impl EditorApp {
                 self.workspace.sections.toggle();
             } else if self.tools.is_busy() {
                 self.tools.cancel();
+            } else if self.tools.tool() == Tool::Knife {
+                // The Knife stays active between cuts; Esc leaves it.
+                self.tools.set_tool(Tool::Select);
             } else {
                 self.selection.clear();
             }

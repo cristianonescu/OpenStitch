@@ -225,6 +225,7 @@ actions! {
     DeriveSkeleton => "deriveSkeleton", "Satin Skeleton from Shape", "Sew the selected shape as satin along a centre line derived from its outline (an approximation of its medial axis).", None, Some("object.deriveSkeleton"), true;
     SmoothShape => "smoothShape", "Smooth Shape", "Remove the nodes of the selected outlines that deviate less than the smoothing tolerance (curves refitted, corners and open ends kept). A Manual Punch column loses one direction line per click; click again to smooth further.", None, Some("shape.simplify"), true;
     SmoothTolerance => "smoothTolerance", "Smooth tolerance", "How far Smooth Shape may move an outline (default 0.2 mm).", None, Some("shape.simplify"), true;
+    Knife => "knife", "Knife", "Click the points of an open cut line; double-click or Return cuts every object it crosses (fills and outlines into both sides, satin columns across, lines where crossed). Shift: 45° steps. A single click then Return splits the line under the pointer. Stays active; Esc leaves.", None, Some("shape.knife"), true;
     SplitOutline => "splitOutline", "Split Outline", "Draw a cut line that splits the selected shape.", None, Some("shape.split"), true;
     AddDirectionLine => "addDirection", "Add Direction Line", "Draw a curved sewing direction across the region.", None, Some("object.setDirectionCurve"), true;
     DeleteDirectionLine => "deleteDirection", "Delete Direction Line", "Back to a straight sewing direction.", None, Some("object.setDirectionLines"), true;
@@ -343,6 +344,7 @@ impl Action {
             Running => Tool::Running,
             Feed => Tool::Feed,
             SatinSkeleton => Tool::Skeleton,
+            Knife => Tool::Knife,
             _ => return None,
         })
     }
@@ -665,6 +667,7 @@ const SHAPES: &[Group] = &[
         name: "Edit Outline",
         items: &[
             Large(A::SplitOutline),
+            Large(A::Knife),
             Small(&[
                 A::AddDirectionLine,
                 A::DeleteDirectionLine,
@@ -871,7 +874,7 @@ pub fn contextual_tabs(f: &Facts) -> Vec<TabId> {
         Tool::Punch | Tool::CurvedBlock | Tool::Running | Tool::Feed | Tool::Skeleton => {
             add(TabId::ManualPunch)
         }
-        Tool::Ellipse | Tool::Point => add(TabId::Shapes),
+        Tool::Ellipse | Tool::Point | Tool::Knife => add(TabId::Shapes),
         Tool::Select => {}
     }
     if f.text {

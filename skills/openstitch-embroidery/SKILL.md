@@ -104,6 +104,9 @@ then style them in the next.
   Manual Punch column loses one direction line per call; `ui.run smoothShape` uses the
   `smoothTolerance` setting), and `stitches.smooth`
   `{id, from, to, iterations, strength}` evens out a stitch pattern's needle points.
+- Cut: `shape.knife` `{line: [[x, y], ...]}` splits every object an open line crosses (fills
+  into both sides, satin columns across, lines where crossed; `ids` limits it, `skipped` says
+  what was not cut through); `{at: [x, y]}` splits the line under a point.
 - Find objects like others: `object.list` `{sameAs: [ids], match: color|type|both,
   visible: true}`, or filter by `color`, `regionType`, `lineType`; then `ui.select` the ids.
 - Text: `object.setText` (text, font, size, spacing), `text.setPath` (fit to an outline).
