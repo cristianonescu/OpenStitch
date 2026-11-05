@@ -314,7 +314,11 @@ pub fn design_info(app: &mut EditorApp, ui: &mut egui::Ui) {
         ui.label(name);
         ui.end_row();
         ui.label("Design Page");
-        ui.label(format!("{w:.0} × {h:.0} mm"));
+        ui.label(openstitch_app::editor::units::size(
+            app.ui.prefs.units,
+            w,
+            h,
+        ));
         ui.end_row();
         ui.label("Objects");
         ui.label(n.to_string());
@@ -700,8 +704,12 @@ pub fn simulator(app: &mut EditorApp, ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
         let s = &app.stats;
         ui.label(format!(
-            "Stitches {}   Jumps {}   Trims {}   Colour changes {}   Size {:.1} × {:.1} mm",
-            s.stitches, s.jumps, s.trims, s.color_changes, s.width_mm, s.height_mm
+            "Stitches {}   Jumps {}   Trims {}   Colour changes {}   Size {}",
+            s.stitches,
+            s.jumps,
+            s.trims,
+            s.color_changes,
+            openstitch_app::editor::units::size(app.ui.prefs.units, s.width_mm, s.height_mm)
         ));
         if let Some(e) = &app.workspace.estimate {
             ui.separator();

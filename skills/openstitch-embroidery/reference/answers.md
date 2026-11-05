@@ -71,9 +71,14 @@ The window is laid out like PE-DESIGN 11's Layout & Editing window.
   Rotate/Flip, Size, Group, Fit Text, Stamp/Emboss, Modify Overlap, Decorative Frame), Wizards
   (Background fill, Applique, Embroidered Patch, Cutwork), Sew (Sew Embroidery: USB/SD).
 - **Image tab:** background image (open, paste, save, modify, rotate, delete) and Image to
-  Stitch: Auto Punch, Cross Stitch, Photo Stitch 1 and 2, Design Center.
+  Stitch: Auto Punch, Cross Stitch, Photo Stitch 1 and 2, Design Center. While Modify Image is
+  open the image has handles on the canvas (drag to move, a corner to scale). Where it is drawn:
+  `background.setLayer` behind the design (default), on top, or above one object; `ui.state`
+  reports it under `background`. It never sews.
 - **View tab:** Solid, Stitch and Realistic views, thread trimming, show/hide panes, grid,
-  ruler, guidelines, Reference window.
+  ruler, guidelines, Reference window. Zoom ▾ has Zoom Box (Z: drag a rectangle; `ui.zoom
+  {rect}`) and Calibrate Real Size… (stretch a line to 100 mm on a ruler, so 100 % is real
+  size on that monitor; `ui.set realSizePointsPerMM`, 0 resets to 96 dpi).
 - **Contextual tabs** (orange) appear for the selection or tool: Text, Shapes, Outline, Manual
   Punch, Stitches, Hoop Settings.
 - **Panes:** Sewing Order on the left (drag to reorder, sort by colour, optimise); Import,

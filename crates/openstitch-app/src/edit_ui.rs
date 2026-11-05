@@ -449,6 +449,7 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
 }
 
 fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
+    let units = app.ui.prefs.units;
     let mut open = app.edit.arrange_open;
     let mut apply = false;
     let bounds = bounds_of(app.session.design(), &app.selection);
@@ -489,9 +490,9 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
                         ui.label("Radius");
                         if ui
                             .add(
-                                egui::DragValue::new(&mut f.radius)
+                                crate::units_ui::drag(&mut f.radius, units)
                                     .range(0.0..=1000.0)
-                                    .suffix(" mm"),
+                                    ,
                             )
                             .changed()
                             && let Some(b) = bounds
@@ -563,9 +564,9 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
                             ui.end_row();
                             ui.label("Gap");
                             ui.add(
-                                egui::DragValue::new(&mut f.gap)
+                                crate::units_ui::drag(&mut f.gap, units)
                                     .range(0.0..=100.0)
-                                    .suffix(" mm"),
+                                    ,
                             );
                             ui.end_row();
                             ui.label("");
@@ -591,14 +592,14 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
                         ui.label("Spacing x / y");
                         ui.horizontal(|ui| {
                             ui.add(
-                                egui::DragValue::new(&mut f.spacing_x)
+                                crate::units_ui::drag(&mut f.spacing_x, units)
                                     .range(-100.0..=1000.0)
-                                    .suffix(" mm"),
+                                    ,
                             );
                             ui.add(
-                                egui::DragValue::new(&mut f.spacing_y)
+                                crate::units_ui::drag(&mut f.spacing_y, units)
                                     .range(-100.0..=1000.0)
-                                    .suffix(" mm"),
+                                    ,
                             );
                         });
                         ui.end_row();
@@ -606,9 +607,9 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
                     _ => {
                         ui.label("Spacing");
                         ui.add(
-                            egui::DragValue::new(&mut f.spacing)
+                            crate::units_ui::drag(&mut f.spacing, units)
                                 .range(-100.0..=1000.0)
-                                .suffix(" mm"),
+                                ,
                         );
                         ui.end_row();
                     }
@@ -638,6 +639,7 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
 }
 
 fn offset_window(app: &mut EditorApp, ctx: &egui::Context) {
+    let units = app.ui.prefs.units;
     let mut open = app.edit.offset_open;
     let mut apply = false;
     egui::Window::new("Offset Lines")
@@ -652,11 +654,7 @@ fn offset_window(app: &mut EditorApp, ctx: &egui::Context) {
             });
             egui::Grid::new("offset").num_columns(2).show(ui, |ui| {
                 ui.label("Spacing");
-                ui.add(
-                    egui::DragValue::new(&mut f.spacing)
-                        .range(0.1..=100.0)
-                        .suffix(" mm"),
-                );
+                ui.add(crate::units_ui::drag(&mut f.spacing, units).range(0.1..=100.0));
                 ui.end_row();
                 ui.label("Lines");
                 ui.add(egui::DragValue::new(&mut f.count).range(1..=20));

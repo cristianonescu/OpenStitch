@@ -94,6 +94,10 @@ These act on the editor window, not the design file: `ui.state`, `ui.select`, `u
 `background.setLayer {position: "top" | "bottom" | "afterObject", afterId}` puts the tracing
 picture above the design or between objects ("put the picture above the fills"); it never sews.
 
+Units: every command takes millimetres. The user may work in inches (`ui.settings` → `units`,
+also named in the editor note with each message); then answer in inches (1 in = 25.4 mm) and
+still send mm to commands. `design.print {units: "inch"}` adds a 2-inch scale bar.
+
 ## Files
 
 - File commands only reach the folders the editor allows (the conversation's scratch folder,

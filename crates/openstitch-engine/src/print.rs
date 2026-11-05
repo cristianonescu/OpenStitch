@@ -55,6 +55,11 @@ pub fn commands() -> Vec<CommandSpec> {
                 "10 mm template grid in green (default false)",
             ),
             opt(
+                "units",
+                "mm|inch",
+                "Scale bars on actual-size pages: mm draws the 50 mm bar (default), inch adds a 2-inch bar",
+            ),
+            opt(
                 "mirror",
                 "bool",
                 "Print and Stitch: mirror the image for iron-on transfer sheets",
@@ -84,6 +89,11 @@ fn run(s: &mut EngineState, p: &Params) -> CommandResult {
         sewing_area_box: p.bool("sewingAreaBox", Some(true))?,
         center_mark: p.bool("centerMark", Some(true))?,
         template_grid: p.bool("templateGrid", Some(false))?,
+        inches: match p.string("units", Some("mm"))?.as_str() {
+            "mm" => false,
+            "inch" => true,
+            _ => return Err(p.invalid("units", "use mm or inch")),
+        },
     };
     let mode = p.string("mode", Some("actual"))?;
     let d = &s.design;

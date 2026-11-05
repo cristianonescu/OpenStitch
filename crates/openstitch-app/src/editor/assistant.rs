@@ -279,6 +279,7 @@ pub const SETTINGS: &[Setting] = &[
         "Click inside outlines selects them",
         "bool",
     ),
+    s("units", "Units: Millimetres / Inches", "mm|inch"),
     s("nudgeStep", "Nudge step (mm; Shift ×10)", "number 0.1..50"),
     s(
         "nudgeByGrid",
@@ -286,6 +287,11 @@ pub const SETTINGS: &[Setting] = &[
         "bool",
     ),
     s("alignTo", "Align relative to", "selection|key|page"),
+    s(
+        "realSizePointsPerMM",
+        "Calibrate Real Size: points per mm at 100 % on this monitor",
+        "number 1.8..24 (0 = 96 dpi)",
+    ),
     s("rulers", "Ruler", "bool"),
     s("guides", "Guideline", "bool"),
     s("referenceWindow", "Reference Window", "bool"),

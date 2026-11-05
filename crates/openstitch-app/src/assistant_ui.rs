@@ -375,6 +375,21 @@ impl EditorApp {
             "simulator": self.simulator_json(),
             "canUndo": self.session.can_undo(), "canRedo": self.session.can_redo(),
             "settings": self.ui_settings(),
+            // The background image and its layer (#518): pictures never draw it.
+            "background": self.session.design().background.as_ref().map(|b| {
+                let layer = match b.layer {
+                    openstitch_design::BackgroundLayer::Bottom => json!({ "position": "bottom" }),
+                    openstitch_design::BackgroundLayer::Top => json!({ "position": "top" }),
+                    openstitch_design::BackgroundLayer::AfterObject { after } => {
+                        json!({ "position": "afterObject", "afterId": after })
+                    }
+                };
+                json!({
+                    "visible": b.visible, "opacity": b.opacity, "layer": layer,
+                    "xMM": b.x / 10.0, "yMM": b.y / 10.0,
+                    "widthMM": b.width / 10.0, "heightMM": b.height / 10.0,
+                })
+            }),
         })
     }
 
@@ -411,9 +426,11 @@ impl EditorApp {
                 "snapToObjects" => json!(prefs.editing.snap_objects),
                 "precisionBar" => json!(prefs.editing.precision_bar),
                 "clickInsideOutlines" => json!(prefs.editing.click_inside),
+                "units" => json!(openstitch_app::editor::units::key(prefs.units)),
                 "nudgeStep" => json!(prefs.editing.nudge_mm),
                 "nudgeByGrid" => json!(prefs.editing.nudge_grid),
                 "alignTo" => json!(self.align_to),
+                "realSizePointsPerMM" => json!(self.points_per_mm()),
                 "rulers" => json!(w.rulers),
                 "guides" => json!(w.guides),
                 "referenceWindow" => json!(w.reference),
@@ -500,6 +517,13 @@ impl EditorApp {
             "snapToObjects" => self.ui.prefs.editing.snap_objects = bool_value(name, v)?,
             "precisionBar" => self.ui.prefs.editing.precision_bar = bool_value(name, v)?,
             "clickInsideOutlines" => self.ui.prefs.editing.click_inside = bool_value(name, v)?,
+            "units" => {
+                self.ui.prefs.units = v
+                    .as_str()
+                    .and_then(openstitch_app::editor::units::from_key)
+                    .ok_or("units takes mm or inch")?;
+                self.database.units = self.ui.prefs.units;
+            }
             "nudgeStep" => self.ui.prefs.editing.nudge_mm = number_value(name, v, 0.1, 50.0)?,
             "nudgeByGrid" => self.ui.prefs.editing.nudge_grid = bool_value(name, v)?,
             "alignTo" => {
@@ -509,6 +533,18 @@ impl EditorApp {
                     .map(|(k, _)| *k)
                     .ok_or("alignTo takes selection, key or page")?;
                 save = false;
+            }
+            "realSizePointsPerMM" => {
+                // #518: a ruler reading turned into points per mm; 0 goes back to 96 dpi.
+                let k = v.as_f64().ok_or("realSizePointsPerMM takes a number")?;
+                let key = self.monitor_key();
+                if k == 0.0 {
+                    self.ui.prefs.calibrate(&key, None);
+                } else {
+                    let k = openstitch_app::editor::viewport::calibrated(k, 1.0)
+                        .ok_or("realSizePointsPerMM takes 1.8-24 points per mm, or 0 for 96 dpi")?;
+                    self.ui.prefs.calibrate(&key, Some(k));
+                }
             }
             "rulers" => (self.workspace.rulers, save) = (bool_value(name, v)?, false),
             "guides" => {
@@ -708,6 +744,41 @@ mod tests {
         )
         .expect("view");
         assert!(app.workspace.realistic);
+        // #518: real size from a ruler reading, and back to 96 dpi.
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "realSizePointsPerMM", "value": 4.5 })),
+        )
+        .expect("calibrate");
+        assert_eq!(app.points_per_mm(), 4.5);
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "realSizePointsPerMM", "value": 0 })),
+        )
+        .expect("reset");
+        assert_eq!(
+            app.points_per_mm(),
+            openstitch_app::editor::viewport::DEFAULT_POINTS_PER_MM
+        );
+        assert!(
+            app.ui_command(
+                "ui.set",
+                Some(&json!({ "name": "realSizePointsPerMM", "value": 900 }))
+            )
+            .is_err()
+        );
+        // #519: the Assistant switches the unit; the Design Database follows.
+        app.ui_command("ui.set", Some(&json!({ "name": "units", "value": "inch" })))
+            .expect("units");
+        assert_eq!(
+            app.ui.prefs.units,
+            openstitch_app::editor::units::Units::Inch
+        );
+        assert_eq!(app.database.units, app.ui.prefs.units);
+        assert!(
+            app.ui_command("ui.set", Some(&json!({ "name": "units", "value": "cm" })))
+                .is_err()
+        );
         assert!(
             app.ui_command(
                 "ui.set",
@@ -735,6 +806,34 @@ mod tests {
         app.ui_command("ui.select", Some(&json!({ "mode": "none" })))
             .expect("none");
         assert!(app.selection.is_empty());
+        // #518: Zoom Box through ui.zoom: the rectangle fills the canvas.
+        app.workspace.canvas = Some(eframe::egui::Rect::from_min_size(
+            eframe::egui::pos2(0.0, 0.0),
+            eframe::egui::vec2(800.0, 600.0),
+        ));
+        let state = app.ui_command("ui.state", None).expect("state");
+        assert!(
+            state["background"].is_null(),
+            "no image: {}",
+            state["background"]
+        );
+        let before = app.viewport;
+        app.ui_command("ui.zoom", Some(&json!({ "rect": [10, 10, 40, 20] })))
+            .expect("zoom box");
+        let vp = app.viewport.expect("viewport");
+        assert_ne!(Some(vp), before);
+        let (a, b) = (
+            vp.to_screen(openstitch_design::v2(100.0, 100.0)),
+            vp.to_screen(openstitch_design::v2(500.0, 300.0)),
+        );
+        assert!(((b.x - a.x) / 800.0 - 1.0).abs() < 0.02, "{a:?} {b:?}");
+        for bad in [json!([10, 10, 40]), json!([10, 10, 0, 20]), json!("box")] {
+            assert!(
+                app.ui_command("ui.zoom", Some(&json!({ "rect": bad.clone() })))
+                    .is_err(),
+                "{bad}"
+            );
+        }
         app.ui_command("ui.zoom", Some(&json!({ "fit": "page" })))
             .expect("fit");
         assert!(app.fit_requested);

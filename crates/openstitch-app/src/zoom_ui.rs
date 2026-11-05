@@ -63,9 +63,15 @@ pub fn monitor(ctx: &egui::Context) -> Option<String> {
 }
 
 impl EditorApp {
+    /// The key real-size calibrations are kept under: the monitor, or "screen" when the
+    /// platform does not say.
+    pub fn monitor_key(&self) -> String {
+        self.monitor.clone().unwrap_or_else(|| "screen".into())
+    }
+
     /// Points per mm at 100 %: this monitor's calibration, else a 96 dpi screen.
     pub fn points_per_mm(&self) -> f64 {
-        self.ui.prefs.points_per_mm(self.monitor.as_deref())
+        self.ui.prefs.points_per_mm(Some(&self.monitor_key()))
     }
 }
 
@@ -188,7 +194,7 @@ pub fn draw(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
 /// then Save; 100 % then shows real size on this monitor.
 pub fn calibration_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.calibration.open;
-    let key = app.monitor.clone();
+    let key = Some(app.monitor_key());
     egui::Window::new("Calibrate Real Size")
         .open(&mut open)
         .resizable(false)

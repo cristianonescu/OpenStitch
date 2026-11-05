@@ -122,6 +122,9 @@ pub struct UiPrefs {
     pub ai: super::assistant_chat::AiPrefs,
     /// Editing aids beyond PE-DESIGN (#473, #474, #475); all off by default.
     pub editing: EditingPrefs,
+    /// Millimetres or inches for every length shown and typed (#519); the Design Database's
+    /// System Unit is the same setting. Millimetres by default, as PE-DESIGN.
+    pub units: super::units::Units,
     /// Real size (#518): points per mm measured with Options ▸ Calibrate Real Size, per monitor
     /// (keyed by its size in points). Without one, 100 % assumes a 96 dpi screen.
     pub screen_calibration: Vec<(String, f64)>,
@@ -171,6 +174,7 @@ impl Default for UiPrefs {
             updates: UpdatePrefs::default(),
             ai: Default::default(),
             editing: EditingPrefs::default(),
+            units: super::units::Units::Mm,
             screen_calibration: Vec::new(),
         }
     }
@@ -216,6 +220,7 @@ impl UiPrefs {
                 "nudgeMM": self.editing.nudge_mm,
                 "nudgeByGrid": self.editing.nudge_grid,
             },
+            "units": super::units::key(self.units),
             "screenCalibration": self.screen_calibration.iter()
                 .map(|(k, v)| (k.clone(), json!(v)))
                 .collect::<serde_json::Map<_, _>>(),
@@ -304,6 +309,10 @@ impl UiPrefs {
                     nudge_grid: b("nudgeByGrid", d.nudge_grid),
                 }
             },
+            units: v["units"]
+                .as_str()
+                .and_then(super::units::from_key)
+                .unwrap_or(d.units),
             screen_calibration: v["screenCalibration"]
                 .as_object()
                 .map(|m| {
@@ -399,6 +408,7 @@ mod tests {
         p.splash = false;
         p.updates.check = false;
         p.updates.skip_version = Some("v0.1.0-alpha.4".into());
+        p.units = super::super::units::Units::Inch;
         p.editing = EditingPrefs {
             snap_objects: true,
             precision_bar: true,
@@ -432,6 +442,11 @@ mod tests {
         let wild = json!({ "realisticView": { "threadWidthMM": 50, "contrast": "x" }, "fontFilter": { "on": 1, "hidden": [3, "a"] } });
         let w = UiPrefs::from_json(&wild);
         assert_eq!(w.editing, EditingPrefs::default(), "off unless chosen");
+        assert_eq!(
+            w.units,
+            super::super::units::Units::Mm,
+            "millimetres by default"
+        );
         assert!(w.screen_calibration.is_empty(), "96 dpi unless calibrated");
         let e = UiPrefs::from_json(&json!({ "editing": { "nudgeMM": 900, "snapToObjects": "y" } }));
         assert_eq!((e.editing.nudge_mm, e.editing.snap_objects), (50.0, false));
