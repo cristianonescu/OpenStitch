@@ -1530,6 +1530,31 @@ reserved ids, or to ids 1–61 alone; that rule is the issue's and not verified 
 PE-DESIGN (no capture shows where PE-DESIGN matches to this palette; its vector import uses the
 BROTHER EMBROIDERY chart), and no default path calls it.
 
+## GIMP / Inkscape palette (`.gpl`)
+
+User thread charts as palettes (`threads.importPalette`, `threads.exportPalette`; editor: Edit ▸
+User Thread Charts… ▸ Import palette… / Export palette…; #483). Beyond PE-DESIGN, which does not
+read palettes. The layout is the one GIMP's and Inkscape's manuals describe; no palette file of
+theirs is bundled (their palettes are GPL), the tests use files written in the same layout.
+
+- The first non-empty line is `GIMP Palette` (a leading BOM is ignored); anything else is not a
+  palette and nothing is imported.
+- `Name: <text>` names the chart (else the `name` parameter, else the file name). `Columns:`
+  lines and `#` comment lines are ignored, as are empty lines. LF and CR LF are read.
+- One colour per line: red, green and blue as integers 0–255 separated by white space (spaces
+  or a tab), then an optional name (at most 100 characters kept).
+- A name whose first word is all digits is a thread code and the rest its name: `1800 Ruby`
+  is code 1800, name Ruby; `1001` alone is code 1001 with no name. A name-only colour whose name
+  starts with a number word would be read back as a code: give it a code or reword it.
+- The format has no brand: an exported chart's brands are not written.
+- A line that cannot be read (not three numbers 0–255) is reported with its line number and
+  nothing is imported, unless `partial: true` imports the other lines and lists the skipped ones.
+- A chart name already in use is refused, as `threads.createChart` refuses it; nothing is
+  replaced (built-in charts are separate and never changed).
+- Written as GIMP writes it: `GIMP Palette`, `Name:`, `Columns: 0`, `#`, then
+  `%3d %3d %3d<TAB>code name` per colour, LF line ends, UTF-8. Export then import gives the same
+  colours, codes, names and order.
+
 ## OpenStitch template (`.ostemplate`)
 
 Written by `template.save` and read by `template.list` / `template.open`. It is JSON:
