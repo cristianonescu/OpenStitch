@@ -85,6 +85,8 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
     {
         pointer(app, ui, &response, vp);
     }
+    let page_colour = crate::theme::canvas(ui.ctx()).page;
+    app.page_rgb = [page_colour.r(), page_colour.g(), page_colour.b()];
     app.ensure_render_model();
     // Follow the needle while the player shows part of the design (#516).
     if app.stitch_player.follow
@@ -150,6 +152,7 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
         }
         BackgroundLayer::Bottom => draw_design(app, &painter, &vp),
     }
+    crate::view_ui::draw_show(app, &painter, &vp);
     draw_unsewn_outlines(app, &painter, &vp);
     crate::quality_ui::draw(app, &painter, &vp);
     draw_selection(app, &painter, &vp);

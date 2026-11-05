@@ -42,6 +42,7 @@ pub mod stitch_edit;
 pub mod strokes;
 pub mod text;
 pub mod timeline;
+pub mod view;
 
 pub use compile::Compiler;
 pub use fonts::{DesignFont, FontBytes, FontData};
