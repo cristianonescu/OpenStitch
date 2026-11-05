@@ -353,8 +353,8 @@
    71.0,
    89.7
   ],
-  "stitches": 3903,
-  "trims": 40,
+  "stitches": 3928,
+  "trims": 47,
   "threads": [
    "405 Blue",
    "800 Red",
@@ -362,21 +362,21 @@
    "399 Warm Gray",
    "620 Magenta"
   ],
-  "sewingMinutes": 6.9,
+  "sewingMinutes": 7.3,
   "image": null,
   "preview": "previews/fonts-and-text.png",
-  "sha256": "c58992c2f5102121e2322171116231d46dffadcd5202aa1100efb0465df6be61"
+  "sha256": "d8c7bd84cfa01010482125d327926101cca993309a0258f4dc2b7d4b8a625f5f"
  },
  "lettering/monograms.pes": {
   "title": "Monograms",
   "about": "The four monogram styles (block, script, diamond, circle), each in a decorative frame, for the 150 × 150 mm hoop.",
   "hoop": "150 × 150 mm",
   "sizeMM": [
-   120.1,
-   117.6
+   123.5,
+   119.2
   ],
-  "stitches": 5874,
-  "trims": 53,
+  "stitches": 6532,
+  "trims": 56,
   "threads": [
    "900 Black",
    "405 Blue",
@@ -387,10 +387,10 @@
    "208 Orange",
    "406 Ultra Marine"
   ],
-  "sewingMinutes": 10.1,
+  "sewingMinutes": 11.0,
   "image": null,
   "preview": "previews/monograms.png",
-  "sha256": "c9f8f4b33e4dc614297fb6a0a6a4b3d233bdc7dd5dfec6a44869dd68df05e648"
+  "sha256": "092f7c7c6820ed7ee26047b0dc8e6805b770f34e6c6ccddbbf913c31d03c63ed"
  },
  "wizards/applique.pes": {
   "title": "Appliqué wizard",
