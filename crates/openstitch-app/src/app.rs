@@ -1048,6 +1048,30 @@ impl EditorApp {
         }
     }
 
+    /// Writes a picture, a stitch-out video or a ZIP bundle with `command` (#488).
+    pub fn export_media(&mut self, command: &'static str, ext: &str) {
+        let suffix = if command == "design.exportVideo" {
+            " stitch-out"
+        } else {
+            ""
+        };
+        let name = format!("{}{suffix}.{ext}", self.session.design().name);
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter(ext.to_uppercase(), &[ext])
+            .set_file_name(name)
+            .save_file()
+        else {
+            return;
+        };
+        let params = json!({ "path": path.display().to_string() });
+        if let Some(r) = self.execute(&CommandRequest::new(command, params)) {
+            self.status = match r["frames"].as_u64() {
+                Some(frames) => format!("Wrote {} ({frames} frames)", path.display()),
+                None => format!("Wrote {}", path.display()),
+            };
+        }
+    }
+
     /// Writes the design's colours in sewing order (`design.exportThreads`).
     pub fn export_thread_list(&mut self, ext: &str) {
         let name = format!("{} threads.{ext}", self.session.design().name);
