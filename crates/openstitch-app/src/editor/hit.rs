@@ -45,9 +45,28 @@ pub fn distance_to_segment(p: Vec2, a: Vec2, b: Vec2) -> f64 {
 /// Whether `p` hits `o`: inside a closed outline or within `tolerance` of any outline for a
 /// shape; anywhere in the (inflated) bounding box for a stitch pattern.
 pub fn hits(o: &DesignObject, p: Vec2, tolerance: f64) -> bool {
+    hit_test(o, p, tolerance, true)
+}
+
+/// [`hits`] with the Click Inside Outlines preference (#475). Off (`false`), the inside of a
+/// closed outline that sews no region (an outline-only shape, a Manual Punch column with its
+/// region off) does not count, as in PE-DESIGN, where its line must be clicked; on, it counts
+/// and open lines get twice the tolerance.
+pub fn hits_opts(o: &DesignObject, p: Vec2, tolerance: f64, click_inside: bool) -> bool {
+    let filled = o.region.is_some() || o.kind == ObjectKind::Text;
+    let open = o.contours.iter().all(|c| !c.closed);
+    let tolerance = if click_inside && open {
+        tolerance * 2.0
+    } else {
+        tolerance
+    };
+    hit_test(o, p, tolerance, filled || click_inside)
+}
+
+fn hit_test(o: &DesignObject, p: Vec2, tolerance: f64, inside: bool) -> bool {
     match o.kind {
         ObjectKind::Shape | ObjectKind::Text => {
-            contains(p, &o.contours)
+            (inside && contains(p, &o.contours))
                 || o.contours.iter().any(|c| {
                     c.edges()
                         .iter()
@@ -73,6 +92,16 @@ pub fn object_at(design: &Design, p: Vec2, tolerance: f64) -> Option<u64> {
         .iter()
         .rev()
         .find(|o| o.visible && hits(o, p, tolerance))
+        .map(|o| o.id)
+}
+
+/// [`object_at`] for the Select tool, with the Click Inside Outlines preference.
+pub fn object_at_opts(design: &Design, p: Vec2, tolerance: f64, click_inside: bool) -> Option<u64> {
+    design
+        .objects
+        .iter()
+        .rev()
+        .find(|o| o.visible && hits_opts(o, p, tolerance, click_inside))
         .map(|o| o.id)
 }
 

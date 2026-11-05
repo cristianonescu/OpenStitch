@@ -48,6 +48,8 @@ mod font_from_image;
 mod fonts;
 #[path = "imports.rs"]
 mod imports;
+#[path = "layout.rs"]
+mod layout;
 #[path = "lettering.rs"]
 mod lettering;
 #[path = "library.rs"]
