@@ -1216,7 +1216,11 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     "rows/mm",
                     "Row density (fill and satin 0.1-14, others 0.5-10)",
                 ),
-                opt("stitchLength", "mm", "Fill stitch length"),
+                opt(
+                    "stitchLength",
+                    "mm",
+                    "Fill stitch length (programmable fill places its needle points on the pattern's lines, as PE-DESIGN does, and ignores it: use splitLength to shorten its stitches)",
+                ),
                 opt("pullCompensation", "mm", "Row end extension"),
                 opt("underlay", "bool", "Underlay (style in underlayStyle)"),
                 opt(
@@ -1282,7 +1286,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "splitLength",
                     "mm",
-                    "Satin: split stitches longer than this, 2-12 (0 turns splitting off; off by default, as PE-DESIGN sends wide crossings whole: set it on satin wider than about 7 mm)",
+                    "Satin: split stitches longer than this, 2-12 (0 turns splitting off; off by default, as PE-DESIGN sends wide crossings whole: set it on satin wider than about 7 mm). Programmable fill: split the stitches between pattern crossings longer than this (off by default: PE-DESIGN sews crossing to crossing, up to 12 mm on a large or sparse pattern)",
                 ),
                 opt(
                     "halfStitch",

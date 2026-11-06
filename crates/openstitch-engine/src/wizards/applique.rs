@@ -101,6 +101,11 @@ pub fn commands() -> Vec<CommandSpec> {
                 "Add: distance from the patterns 0-50 (default 0)",
             ),
             opt(
+                "patterns",
+                "first|last",
+                "Add: sew the patterns first, under the appliqué fabric, as PE-DESIGN's Applique Wizard does (default), or last, on top of the fabric once it is covered (beyond PE-DESIGN)",
+            ),
+            opt(
                 "holes",
                 "bool",
                 "Replace: keep the patterns' holes as empty areas (default true)",
@@ -131,6 +136,14 @@ fn applique(s: &mut EngineState, p: &Params) -> CommandResult {
     let distance = p.opt("distance", 0.0, 0.0, 50.0)? * MM;
     if replace && p.has("distance") {
         return Err(p.invalid("distance", "applies to output add only"));
+    }
+    let on_top = match p.string("patterns", Some("first"))?.as_str() {
+        "first" => false,
+        "last" => true,
+        _ => return Err(p.invalid("patterns", "must be first or last")),
+    };
+    if replace && p.has("patterns") {
+        return Err(p.invalid("patterns", "applies to output add only"));
     }
     let holes = p.bool("holes", Some(true))?;
     let tack = tack_down(p)?;
@@ -201,16 +214,24 @@ fn applique(s: &mut EngineState, p: &Params) -> CommandResult {
         insert_stages(&mut s.design, at, stages)
     } else {
         // Add: the patterns sew first and form one group with their appliqué, as in
-        // PE-DESIGN's a01-a04 (Sewing Order: the square, then the appliqué; one group of all).
-        let ids = insert_stages(&mut s.design, idx[idx.len() - 1] + 1, stages);
+        // PE-DESIGN's a01-a04 (Sewing Order: the square, then the appliqué; one group of all;
+        // PEC colours 1, 62, 63, 64). With `patterns: last` (#470) the appliqué goes before
+        // them, so they sew on top of the covered fabric instead of under it.
+        let kept: Vec<u64> = idx.iter().map(|&i| s.design.objects[i].id).collect();
+        let at = if on_top {
+            idx[0]
+        } else {
+            idx[idx.len() - 1] + 1
+        };
+        let ids = insert_stages(&mut s.design, at, stages);
         let group = s
             .design
             .objects
             .iter()
             .find(|o| o.id == ids[0])
             .and_then(|o| o.group);
-        for &i in &idx {
-            s.design.objects[i].group = group;
+        for o in s.design.objects.iter_mut().filter(|o| kept.contains(&o.id)) {
+            o.group = group;
         }
         ids
     };

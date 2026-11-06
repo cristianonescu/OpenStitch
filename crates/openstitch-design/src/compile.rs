@@ -91,19 +91,25 @@ struct Writer {
     lock_open: bool,
 }
 
+/// Needle points closer than this (0.1 mm) are one penetration, wherever they lie on the
+/// export grid (#567): generators give the same point twice up to 0.004 mm apart, and merging
+/// only those that round to the same 0.1 mm cell made a moved shape gain or lose stitches.
+const SAME_POINT: f64 = 0.5;
+
 impl Writer {
     fn push(&mut self, p: Vec2, c: Command) {
         // A stitch on the needle point just sewn would be a zero-length record: a second
         // penetration in the same hole. PE-DESIGN 11.50 writes none (no PEC record of length 0 in
         // any of its 177 files measured on 2026-10-27), so generators that end one run where the
-        // next begins, or produce two points within 0.05 mm, sew one needle point. A zero-length
+        // next begins, or produce two points within 0.05 mm ([`SAME_POINT`]), sew one needle point. A zero-length
         // stitch right after a jump is kept: the jump's landing is not a penetration, so that
         // stitch is the first needle point of the block (PE-DESIGN ties in there instead).
         if c == Command::Stitch
             && let Some(last) = self.out.stitches.last()
             && last.command == Command::Stitch
-            && round_coordinate(last.x) == round_coordinate(p.x)
-            && round_coordinate(last.y) == round_coordinate(p.y)
+            && (v2(last.x, last.y).distance(p) < SAME_POINT
+                || (round_coordinate(last.x) == round_coordinate(p.x)
+                    && round_coordinate(last.y) == round_coordinate(p.y)))
         {
             return;
         }
@@ -127,7 +133,7 @@ impl Writer {
         if tail.len() < 2 || crate::region::ends_locked(&tail) {
             return;
         }
-        for p in crate::region::lock_points(tail[1], tail[0]) {
+        for p in crate::region::lock_after(&tail) {
             self.push(p, Command::Stitch);
         }
     }
@@ -336,7 +342,26 @@ fn sew_object(w: &mut Writer, object: &DesignObject, design: &Design) {
                 .position(|o| std::ptr::eq(o, object))
                 .map(|i| design.text_turns(i))
                 .unwrap_or_default();
-            for e in elements(object, &holes, &design.patterns, &turns) {
+            // Generated where the object's bounds start, then moved back (#567): row and needle
+            // grids follow the object, so moving it moves its stitches and nothing else.
+            let anchor = object
+                .bounds()
+                .map_or(v2(0.0, 0.0), |b| v2(b.min_x, b.min_y));
+            let (local, holes) = if anchor == v2(0.0, 0.0) {
+                (std::borrow::Cow::Borrowed(object), holes)
+            } else {
+                let to = Transform::translation(-anchor.x, -anchor.y);
+                let mut o = object.clone();
+                o.apply(&to);
+                let h = holes.iter().map(|c| c.transformed(&to)).collect();
+                (std::borrow::Cow::Owned(o), h)
+            };
+            for mut e in elements(&local, &holes, &design.patterns, &turns) {
+                if anchor != v2(0.0, 0.0) {
+                    for p in e.runs.iter_mut().flatten() {
+                        *p = *p + anchor;
+                    }
+                }
                 w.sew(e);
             }
             // Stitch glyphs of user-mapped text sew after the outlined glyphs.
@@ -506,6 +531,13 @@ fn elements(
                 )
             })
             .flatten();
+            // A hairline stretch of a region's satin sews as a running line (#368).
+            if region.kind == RegionType::Satin
+                && by_stroke.is_none()
+                && let Some(top) = layers.last_mut()
+            {
+                top.iter_mut().for_each(region::hairline_runs);
+            }
             let stroked = by_stroke.is_some() && !layers.is_empty();
             if let (Some(runs), Some(top)) = (by_stroke, layers.last_mut()) {
                 *top = runs;

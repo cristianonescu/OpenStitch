@@ -140,6 +140,21 @@ Run Pitches long (no more columns of needle drops on the sunset). Measured and n
 Photo Stitch 2 without its running-stitch floor and on the T1 coverage curve (#129), and a
 general sewn-colour model from the six T1 threads (#291); details in COMPATIBILITY_AUDIT.
 
+Done 2026-11-06 (`batch:stitch-engine-4 (2026-11-06)`, #567, #459, #467, #470, #471, #368,
+#609): moving a shape moves its stitches and nothing else (each object is sewn in a frame at
+its own corner, needle points 0.05 mm apart are one penetration wherever they fall on the
+export grid, float-noise ties no longer flip a stitch split or a row order, and a line's end
+point moves with it); fill and piping along a direction curve sew rows that are the curve's
+offsets, a row spacing apart all along it, never crossing and straight past its ends;
+programmable fill can split its crossing-to-crossing stitches at `splitLength` (beyond
+PE-DESIGN, which keeps them whole); the laurel and star frames sew each piece in one path; the
+appliqué wizard can sew a kept pattern on top of the fabric (`patterns: last`; PE-DESIGN and the
+default sew it first, under the fabric); hairline satin and outlines sew as a running line and a
+lock after a tiny last stitch steps a full 0.3 mm (the storybook passes `sew_check`); the arched
+text is the same on all three systems (#609, verified on Linux: the spec's reference re-save is
+in the repository). Left for later: programmable and motif fill along a direction curve still
+bend their tiles by the chord, and emboss and engrave strength against PE-DESIGN (#471).
+
 Done 2026-11-05 (#460-#464): the stitch-engine follow-ups of the review. Narrow Auto satin no
 longer starts with a 39.5 mm stitch, Auto Punch sews regions whose satin would cross more than
 10.5 mm as fill (PE-DESIGN's own maximum is 10.4 mm), and `sew_check` warns on stitches over

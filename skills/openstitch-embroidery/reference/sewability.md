@@ -38,6 +38,14 @@ are a sound start; change them only for a reason.
   neighbouring areas so they catch the light differently.
 - Large overlapping fills sew thick and stiff: remove hidden parts with `shape.removeOverlap`
   instead of stacking fills.
+- Programmable fill sews from one pattern line to the next, as PE-DESIGN does, so a large or
+  sparse pattern (12 mm tiles, under 3 lines/mm) makes 8-12 mm stitches whatever
+  `stitchLength` says. Set `splitLength` (2-12 mm) on it to split them; the added points line
+  up from row to row, so the pattern still reads.
+- A curved sewing direction (`object.setDirectionCurve`) on fill or piping sews rows that are
+  the curve moved sideways by whole row spacings: even density everywhere, no crossing rows,
+  straight on past the curve's ends. Draw the curve across the whole shape, gently bent; inside
+  a tight bend the rows close into a corner.
 
 ## Decorative region and line types
 
