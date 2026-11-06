@@ -76,7 +76,12 @@ fn basting_box_sews_first_in_the_first_thread() {
     assert_eq!(own.threads.len(), plain.threads.len() + 1);
     let info = run(&mut s, "design.info", json!({}));
     assert_eq!(info["production"]["basting"]["marginMM"], 3.0);
-    assert!(info["production"]["basting"]["stitches"].as_u64().unwrap() > 20);
+    assert!(
+        info["production"]["basting"]["stitches"]
+            .as_u64()
+            .expect("present")
+            > 20
+    );
 }
 
 #[test]
@@ -163,12 +168,12 @@ fn stop_after_an_object_and_at_jumps() {
         .stitches
         .iter()
         .position(|s| s.command == Command::Stop)
-        .unwrap();
+        .expect("present");
     let before = p.stitches[..at]
         .iter()
         .rev()
         .find(|s| s.command == Command::Stitch)
-        .unwrap();
+        .expect("present");
     assert!((400.0..=500.0).contains(&before.x), "{before:?}");
     assert!(p.stitches[at + 1..].iter().any(|s| s.x >= 700.0));
     assert!(
@@ -223,8 +228,8 @@ fn stop_after_an_object_and_at_jumps() {
         json!({"ids": [b], "on": true}),
     );
     run(&mut s, "design.export", json!({"path": "stop.pes"}));
-    let bytes = std::fs::read(tmp.path().join("stop.pes")).unwrap();
-    let back = openstitch_formats::pes::read(&bytes).unwrap();
+    let bytes = std::fs::read(tmp.path().join("stop.pes")).expect("present");
+    let back = openstitch_formats::pes::read(&bytes).expect("present");
     assert_eq!(back.count(Command::ColorChange), 2);
     assert_eq!(back.threads.len(), 3);
     assert_eq!(back.threads[1].hex(), back.threads[2].hex());
@@ -252,7 +257,7 @@ fn optimize_reports_before_and_after() {
     for k in ["colorChanges", "jumps", "trims", "travelMM"] {
         assert_eq!(r["after"][k], stats[k], "{k}");
     }
-    let summary = r["summary"].as_str().unwrap();
+    let summary = r["summary"].as_str().expect("present");
     assert!(
         summary.starts_with("colour changes 2 → 1, jumps "),
         "{summary}"
@@ -274,7 +279,7 @@ fn nearest_start_shortens_travel() {
     rect(&mut s, 60.0, 60.0, 20.0, 20.0, "#ff0000");
     let off = run(&mut s, "design.info", json!({}))["stitchStats"]["travelMM"]
         .as_f64()
-        .unwrap();
+        .expect("present");
     let r = run(
         &mut s,
         "design.setProperties",
@@ -282,7 +287,7 @@ fn nearest_start_shortens_travel() {
     );
     assert_eq!(r["autoStart"], "nearest");
     let info = run(&mut s, "design.info", json!({}));
-    let on = info["stitchStats"]["travelMM"].as_f64().unwrap();
+    let on = info["stitchStats"]["travelMM"].as_f64().expect("present");
     assert_eq!(info["production"]["autoStart"], "nearest");
     assert!(on < off * 0.8, "travel {off} -> {on}");
     // The line now starts at its end nearer the square.
@@ -290,13 +295,12 @@ fn nearest_start_shortens_travel() {
     let line_start = p
         .stitches
         .iter()
-        .skip_while(|st| st.x < 350.0 || st.command != Command::Stitch)
-        .next()
-        .unwrap();
+        .find(|st| st.x >= 350.0 && st.command == Command::Stitch)
+        .expect("present");
     assert!(line_start.x < 450.0, "{line_start:?}");
     run(&mut s, "design.setProperties", json!({"autoStart": "off"}));
     let back = run(&mut s, "design.info", json!({}))["stitchStats"]["travelMM"]
         .as_f64()
-        .unwrap();
+        .expect("present");
     assert_eq!(back, off);
 }
