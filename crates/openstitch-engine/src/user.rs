@@ -56,6 +56,9 @@ pub struct UserSettings {
     /// comes closest to the shape sewn before it, which leaves at that place.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub optimize_entry_exit: bool,
+    /// Fabrics saved from a calibration card (`fabric.calibrate`, #453).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub custom_fabrics: Vec<crate::fabric::CustomFabric>,
 }
 
 /// File format marker of the settings file.
@@ -88,6 +91,7 @@ impl UserSettings {
                 .map_err(|e| e.to_string())?;
         if s.attribute_sets.len() > MAX_SETS
             || s.thread_charts.len() > MAX_CHARTS
+            || s.custom_fabrics.len() > crate::fabric::MAX_CUSTOM
             || s.thread_charts
                 .iter()
                 .any(|c| c.threads.len() > MAX_CHART_COLORS)
@@ -823,6 +827,39 @@ fn chart_commands() -> Vec<CommandSpec> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A settings file written before custom fabrics (#453) loads unchanged and saves byte for
+    /// byte the same while it has none.
+    #[test]
+    fn settings_without_custom_fabrics_load_and_save_unchanged() {
+        let old = json!({
+            "format": FORMAT,
+            "version": 1,
+            "settings": {
+                "attributeSets": [],
+                "threadCharts": [{ "name": "Mine", "threads": [] }],
+                "optimizeEntryExit": true,
+            },
+        });
+        let bytes = serde_json::to_vec_pretty(&old).expect("json");
+        let s = UserSettings::decode(&bytes).expect("an old file loads");
+        assert!(s.custom_fabrics.is_empty());
+        assert!(s.optimize_entry_exit);
+        assert_eq!(s.thread_charts.len(), 1);
+        assert_eq!(s.encode(), bytes, "saved byte for byte as it was");
+        // With a custom fabric it round-trips too.
+        let mut s = s;
+        s.custom_fabrics.push(crate::fabric::CustomFabric {
+            id: "custom-denim".into(),
+            name: "Denim".into(),
+            base: "heavy".into(),
+            fill_density: 2.4,
+            satin_density: 3.3,
+            pull_compensation: 0.45,
+            stitch_length: 4.0,
+        });
+        assert_eq!(UserSettings::decode(&s.encode()).expect("loads"), s);
+    }
 
     #[test]
     fn csv_records_are_written_as_pe_design_reads_them_and_quotes_are_read() {

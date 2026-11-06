@@ -246,13 +246,15 @@ mod tests {
         let mut w = Watchdog::new(
             Box::new(Trickle {
                 bytes: b": ping\n\n",
-                every: Duration::from_millis(20),
+                every: Duration::from_millis(50),
             }),
-            Duration::from_millis(200),
+            // Per-gap timeout with a wide margin over the 50 ms gaps (a loaded CI runner can
+            // stall a thread for hundreds of ms), yet well under the 3 s the reads take in total.
+            Duration::from_secs(1),
             None,
         );
         let mut buf = [0u8; 64];
-        for _ in 0..20 {
+        for _ in 0..60 {
             assert!(w.read(&mut buf).expect("bytes keep coming") > 0);
         }
     }

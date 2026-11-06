@@ -539,6 +539,24 @@ pub fn memory_question(command: &str, params: &Value) -> Option<String> {
     }
 }
 
+/// What the gate asks before the user's custom fabrics change (#453): they live in the user's
+/// settings, with no undo. None for other commands.
+pub fn fabric_question(command: &str, params: &Value) -> Option<String> {
+    let text = |k: &str| params[k].as_str().unwrap_or_default().trim().to_string();
+    match command {
+        "fabric.calibrate" => Some(format!(
+            "save the custom fabric \"{}\" from the {} calibration card (fill F{}, satin S{}, pull P{}; one of the same name is replaced)",
+            text("name"),
+            text("fabric"),
+            params["fill"].as_u64().unwrap_or(3),
+            params["satin"].as_u64().unwrap_or(3),
+            params["pull"].as_u64().unwrap_or(3),
+        )),
+        "fabric.deleteCustom" => Some(format!("delete the custom fabric {}", text("fabric"))),
+        _ => None,
+    }
+}
+
 /// What the gate asks before the user's own thread charts change (#495), or None for other
 /// commands: a chart built from a photo of spools or a list is the user's, so it is made only
 /// with their yes.
@@ -590,6 +608,10 @@ pub fn verdict(g: &GateInput) -> Verdict {
     }
     // #495: so do the user's thread charts.
     if let Some(what) = chart_question(g.command, g.effect, g.params) {
+        return Verdict::Ask(what);
+    }
+    // #453: so do the user's custom fabrics.
+    if let Some(what) = fabric_question(g.command, g.params) {
         return Verdict::Ask(what);
     }
     // #549: deleting autosave snapshots asks, naming what goes.
@@ -906,6 +928,46 @@ mod tests {
         ));
         let _ = std::fs::remove_file(&link);
         let _ = std::fs::remove_dir_all(&outside);
+    }
+
+    /// #453: custom fabrics are saved or deleted only after the user's yes (no undo), and the
+    /// swatch files are written only after it (File effect), in Ask and Edits mode.
+    #[test]
+    fn custom_fabric_changes_and_swatch_files_ask_first() {
+        use PermissionMode::*;
+        for mode in [Ask, Edits] {
+            assert!(matches!(
+                gate(
+                    mode,
+                    "fabric.calibrate",
+                    Effect::Settings,
+                    json!({ "fabric": "knit", "name": "My jersey", "fill": 2, "pull": 5 })
+                ),
+                Verdict::Ask(w) if w.contains("My jersey") && w.contains("F2") && w.contains("P5")
+            ));
+            assert!(matches!(
+                gate(mode, "fabric.deleteCustom", Effect::Settings, json!({ "fabric": "custom-my-jersey" })),
+                Verdict::Ask(w) if w.contains("custom-my-jersey")
+            ));
+            assert!(matches!(
+                gate(
+                    mode,
+                    "design.testSwatches",
+                    Effect::File,
+                    json!({ "id": 1, "path": "/home/me/s.pes" })
+                ),
+                Verdict::Ask(_)
+            ));
+        }
+        assert_eq!(
+            gate(
+                All,
+                "fabric.calibrate",
+                Effect::Settings,
+                json!({ "name": "x" })
+            ),
+            Verdict::Run
+        );
     }
 
     /// #495: a thread chart (from a photo of the user's spools, say) is created or changed only
