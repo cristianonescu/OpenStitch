@@ -2497,6 +2497,50 @@ fn stippling_sews_at_the_run_pitch_not_at_its_curve_vertices() {
     );
 }
 
+/// #638: a region one grid cell wide (or high) gave a lattice of one column, where a step down
+/// (`cell + cols`) was taken for a step right (`cell + 1`). The loop left the lattice, the loop
+/// merge walked links that never closed and grew until a 32 GiB allocation aborted the process
+/// (random design seed 993: stippling on a 24 mm "!"). Thin bars stipple into closed loops
+/// that stay inside, quickly.
+#[test]
+fn stippling_one_cell_wide_or_high_closes_its_loops() {
+    let started = std::time::Instant::now();
+    // At 0° the lattice lies on the page axes; at the default spacing, bars 3.6-6.6 mm wide are
+    // one column (or, lying down, one row) of cells. Before the fix they sewed two broken
+    // loops of about 25 points over a 40 mm bar.
+    for width in [36.0, 42.0, 48.0, 54.0, 60.0, 66.0] {
+        for vertical in [true, false] {
+            let (w, h) = if vertical {
+                (width, 400.0)
+            } else {
+                (400.0, width)
+            };
+            let bar = vec![Contour::rectangle(100.0, 100.0, w, h)];
+            let mut r = region(RegionType::Stippling);
+            r.running_stitch_path = None;
+            r.angle = 0.0;
+            let runs = crate::region::layers(&bar, &r, &[]).pop().expect("top");
+            assert_eq!(runs.len(), 1, "{w} x {h}: one loop");
+            let pts = &runs[0];
+            assert!(pts.len() < 5_000, "{w} x {h}: {} points", pts.len());
+            for p in pts {
+                assert!(
+                    p.x > 99.0 && p.x < 101.0 + w && p.y > 99.0 && p.y < 101.0 + h,
+                    "{w} x {h}: {p:?} outside the bar"
+                );
+            }
+            let along = |p: &Vec2| if vertical { p.y } else { p.x };
+            let lo = pts.iter().map(along).fold(f64::MAX, f64::min);
+            let hi = pts.iter().map(along).fold(f64::MIN, f64::max);
+            assert!(
+                hi - lo > 0.9 * 400.0,
+                "{w} x {h}: covers {lo:.0}-{hi:.0} of 100-500"
+            );
+        }
+    }
+    assert!(started.elapsed().as_secs() < 20, "{:?}", started.elapsed());
+}
+
 /// Stippling of `closed` minus `holes` at `spacing` mm (no travel): the sewn runs.
 fn stippled(closed: &[Contour], holes: &[Contour], spacing: Option<f64>) -> Vec<Vec<Vec2>> {
     let mut r = region(RegionType::Stippling);

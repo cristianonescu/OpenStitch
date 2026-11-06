@@ -1490,6 +1490,14 @@ fn centroid(c: &Contour) -> Vec2 {
 /// 4. Rounded by corner cutting, then relaxed: each point moves square to the path towards
 ///    the middle between the passes (or the outline, counted at half a spacing) on its two
 ///    sides, never so that it crosses or comes near another pass.
+/// A spanning-tree edge of the stippling grid: `Right(i)` joins cell i to i + 1, `Down(i)`
+/// joins cell i to i + cols.
+#[derive(Clone, Copy)]
+enum Edge {
+    Right(usize),
+    Down(usize),
+}
+
 fn stipple(closed: &[Contour], holes: &[Contour], angle: f64, spacing: f64) -> Vec<Vec<Vec2>> {
     let Some(b) = rotated_bounds(closed, angle) else {
         return Vec::new();
@@ -1559,38 +1567,39 @@ fn stipple(closed: &[Contour], holes: &[Contour], angle: f64, spacing: f64) -> V
         while let Some(&cur) = stack.last() {
             let (cx, cy) = (cur % cols, cur / cols);
             let (x, y) = (2 * cx, 2 * cy);
-            let mut options: Vec<usize> = Vec::with_capacity(4);
+            // Each option with the tree edge it adds: `(cell, Some(edge))` sets `right[edge]`,
+            // `(cell, None)` is resolved below. The move's kind is recorded when it is offered,
+            // not read back from the index: with one column `cur + cols` is `cur + 1` (#638).
+            let mut options: Vec<(usize, Edge)> = Vec::with_capacity(4);
             if cx + 1 < cols
                 && step_ok((x + 1, y), (x + 2, y))
                 && step_ok((x + 1, y + 1), (x + 2, y + 1))
             {
-                options.push(cur + 1);
+                options.push((cur + 1, Edge::Right(cur)));
             }
             if cx > 0 && step_ok((x - 1, y), (x, y)) && step_ok((x - 1, y + 1), (x, y + 1)) {
-                options.push(cur - 1);
+                options.push((cur - 1, Edge::Right(cur - 1)));
             }
             if cy + 1 < rows
                 && step_ok((x, y + 1), (x, y + 2))
                 && step_ok((x + 1, y + 1), (x + 1, y + 2))
             {
-                options.push(cur + cols);
+                options.push((cur + cols, Edge::Down(cur)));
             }
             if cy > 0 && step_ok((x, y - 1), (x, y)) && step_ok((x + 1, y - 1), (x + 1, y)) {
-                options.push(cur - cols);
+                options.push((cur - cols, Edge::Down(cur - cols)));
             }
-            options.retain(|&n| on[n] && !visited[n]);
+            options.retain(|&(n, _)| on[n] && !visited[n]);
             if options.is_empty() {
                 stack.pop();
                 continue;
             }
-            let next = options[(rng.next_u64() % options.len() as u64) as usize];
+            let (next, edge) = options[(rng.next_u64() % options.len() as u64) as usize];
             visited[next] = true;
             members.push(next);
-            match next {
-                n if n == cur + 1 => right[cur] = true,
-                n if n + 1 == cur => right[n] = true,
-                n if n == cur + cols => down[cur] = true,
-                n => down[n] = true,
+            match edge {
+                Edge::Right(i) => right[i] = true,
+                Edge::Down(i) => down[i] = true,
             }
             stack.push(next);
         }
@@ -1622,7 +1631,14 @@ fn stipple(closed: &[Contour], holes: &[Contour], angle: f64, spacing: f64) -> V
         };
         let start = y0 * w + x0;
         let mut u = start;
+        // Each pass either inserts a detour (two free points used up) or moves on, so a closed
+        // loop ends within 3 × the lattice's points; the bound stops links that do not close.
+        let mut steps = 0;
         loop {
+            steps += 1;
+            if steps > 3 * w * h || next[u] >= next.len() {
+                break;
+            }
             let v = next[u];
             let detour = [1, -1].into_iter().find_map(|side| {
                 aside(u, v, side).filter(|&(a, b)| {
@@ -1647,10 +1663,12 @@ fn stipple(closed: &[Contour], holes: &[Contour], angle: f64, spacing: f64) -> V
     }
     // Neighbouring loops (parts joined only corner to corner) become one where two of their
     // steps face each other: u → v and y → x one point aside become u → x and y → v.
+    // A loop of the `next` links from `start`; it never holds more than the lattice's points,
+    // so links that do not close (a bug) end the walk instead of growing it without end (#638).
     let walk = |start: usize, next: &[usize]| {
         let mut l = vec![start];
         let mut u = next[start];
-        while u != start {
+        while u != start && u < next.len() && l.len() <= next.len() {
             l.push(u);
             u = next[u];
         }
