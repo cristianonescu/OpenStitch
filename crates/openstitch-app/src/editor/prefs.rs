@@ -128,6 +128,20 @@ pub struct UiPrefs {
     /// Real size (#518): points per mm measured with Options ▸ Calibrate Real Size, per monitor
     /// (keyed by its size in points). Without one, 100 % assumes a 96 dpi screen.
     pub screen_calibration: Vec<(String, f64)>,
+    /// View ▸ Show (#517, beyond PE-DESIGN); all off by default.
+    pub show: ShowPrefs,
+}
+
+/// View ▸ Show: view-only toggles (#517). The design and its export never change.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ShowPrefs {
+    pub needle_points: bool,
+    pub layers: openstitch_design::view::Layers,
+    pub trim_marks: bool,
+    pub hide_unselected: bool,
+    pub color_by: openstitch_design::view::ColorBy,
+    /// Fade every colour block but the current one (the simulator's, else the selection's).
+    pub solo: bool,
 }
 
 /// View ▸ Snap to Objects and Precision Bar, and the Options menu's nudge and click settings.
@@ -176,6 +190,7 @@ impl Default for UiPrefs {
             editing: EditingPrefs::default(),
             units: super::units::Units::Mm,
             screen_calibration: Vec::new(),
+            show: ShowPrefs::default(),
         }
     }
 }
@@ -224,6 +239,14 @@ impl UiPrefs {
             "screenCalibration": self.screen_calibration.iter()
                 .map(|(k, v)| (k.clone(), json!(v)))
                 .collect::<serde_json::Map<_, _>>(),
+            "show": {
+                "needlePoints": self.show.needle_points,
+                "layers": self.show.layers.as_str(),
+                "trimMarks": self.show.trim_marks,
+                "hideUnselected": self.show.hide_unselected,
+                "colorBy": self.show.color_by.as_str(),
+                "soloColor": self.show.solo,
+            },
         })
     }
 
@@ -327,6 +350,25 @@ impl UiPrefs {
                         .collect()
                 })
                 .unwrap_or_default(),
+            show: {
+                use openstitch_design::view::{ColorBy, Layers};
+                let e = &v["show"];
+                let b = |k: &str| e[k].as_bool().unwrap_or(false);
+                ShowPrefs {
+                    needle_points: b("needlePoints"),
+                    layers: e["layers"]
+                        .as_str()
+                        .and_then(Layers::parse)
+                        .unwrap_or_default(),
+                    trim_marks: b("trimMarks"),
+                    hide_unselected: b("hideUnselected"),
+                    color_by: e["colorBy"]
+                        .as_str()
+                        .and_then(ColorBy::parse)
+                        .unwrap_or_default(),
+                    solo: b("soloColor"),
+                }
+            },
         }
     }
 
@@ -448,6 +490,24 @@ mod tests {
             "millimetres by default"
         );
         assert!(w.screen_calibration.is_empty(), "96 dpi unless calibrated");
+        assert_eq!(
+            w.show,
+            ShowPrefs::default(),
+            "view toggles off unless chosen"
+        );
+        let shown = ShowPrefs {
+            needle_points: true,
+            layers: openstitch_design::view::Layers::UnderlayOnly,
+            trim_marks: true,
+            hide_unselected: true,
+            color_by: openstitch_design::view::ColorBy::SewingOrder,
+            solo: true,
+        };
+        let q = UiPrefs {
+            show: shown,
+            ..UiPrefs::default()
+        };
+        assert_eq!(UiPrefs::from_json(&q.to_json()).show, shown);
         let e = UiPrefs::from_json(&json!({ "editing": { "nudgeMM": 900, "snapToObjects": "y" } }));
         assert_eq!((e.editing.nudge_mm, e.editing.snap_objects), (50.0, false));
         assert_eq!(w.realistic.thread_width_mm, 1.0);

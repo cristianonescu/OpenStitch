@@ -137,7 +137,11 @@ pub struct EditorApp {
     pub pattern: StitchPattern,
     pub stats: PatternStats,
     pub render: RenderModel,
-    render_key: Option<(u64, usize)>,
+    render_key: Option<(u64, usize, openstitch_design::view::ViewFilter, [u8; 3])>,
+    /// The Design Page colour of the current theme (faded colours blend into it).
+    pub page_rgb: [u8; 3],
+    /// Underlay flags of the compiled pattern per revision (#517), computed when asked for.
+    underlay: Option<(u64, Vec<bool>)>,
     /// Bumped after every change to the design.
     pub revision: u64,
     saved_revision: u64,
@@ -287,6 +291,8 @@ impl EditorApp {
             stats: PatternStats::default(),
             render: RenderModel::default(),
             render_key: None,
+            underlay: None,
+            page_rgb: [255; 3],
             revision: 0,
             saved_revision: 0,
             simulate: None,
@@ -678,10 +684,82 @@ impl EditorApp {
 
     pub fn ensure_render_model(&mut self) {
         let limit = self.simulate.unwrap_or(usize::MAX);
-        if self.render_key != Some((self.revision, limit)) {
-            self.render = RenderModel::build(&self.pattern, limit);
-            self.render_key = Some((self.revision, limit));
+        let filter = self.view_filter();
+        let key = (self.revision, limit, filter.clone(), self.page_rgb);
+        if self.render_key.as_ref() != Some(&key) {
+            self.render = if filter.is_identity() {
+                RenderModel::build(&self.pattern, limit)
+            } else {
+                if filter.layers != openstitch_design::view::Layers::Both
+                    && self
+                        .underlay
+                        .as_ref()
+                        .is_none_or(|(r, _)| *r != self.revision)
+                {
+                    let d = self.session.design();
+                    let flags = openstitch_design::view::underlay_flags(
+                        d,
+                        &self.pattern,
+                        &self.quality.spans,
+                    );
+                    self.underlay = Some((self.revision, flags));
+                }
+                let flags = self.underlay.as_ref().map_or(&[][..], |(_, f)| &f[..]);
+                let page = self.page_rgb;
+                let shown = openstitch_design::view::apply(
+                    &self.pattern,
+                    &filter,
+                    flags,
+                    &self.quality.spans,
+                    page,
+                );
+                RenderModel::build(&shown, limit)
+            };
+            self.render_key = Some(key);
         }
+    }
+
+    /// View ▸ Show as a filter (#517): hide unselected only with a selection; solo colour on the
+    /// simulator's block, else the selection's first block.
+    pub fn view_filter(&self) -> openstitch_design::view::ViewFilter {
+        let s = self.ui.prefs.show;
+        let only = (s.hide_unselected && !self.selection.is_empty())
+            .then(|| self.selection.iter().copied().collect());
+        let solo = s.solo.then(|| self.current_block()).flatten();
+        openstitch_design::view::ViewFilter {
+            layers: s.layers,
+            only,
+            color_by: s.color_by,
+            solo,
+        }
+    }
+
+    /// The colour block of the simulator position, else of the first selected object's first
+    /// stitch.
+    fn current_block(&self) -> Option<usize> {
+        let records = match self.simulate {
+            Some(n) => {
+                let mut sewn = 0;
+                self.pattern.stitches.iter().position(|s| {
+                    sewn += usize::from(s.command == openstitch_core::Command::Stitch);
+                    sewn > n
+                })?
+            }
+            None => {
+                let (_, r) = self
+                    .quality
+                    .spans
+                    .iter()
+                    .find(|(id, _)| self.selection.contains(id))?;
+                r.start
+            }
+        };
+        Some(
+            self.pattern.stitches[..records]
+                .iter()
+                .filter(|s| s.command == openstitch_core::Command::ColorChange)
+                .count(),
+        )
     }
 
     pub fn is_dirty(&self) -> bool {

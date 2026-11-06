@@ -209,6 +209,7 @@ Behaviour follows the guide's pages
 | View | Stitch View |  | `Action::StitchView` | view/UI only | yes |
 | View | Realistic View |  | `Action::RealisticView` | view/UI only | yes |
 | View | View Thread Trimming |  | `Action::ViewThreadTrimming` | view/UI only | yes |
+| View | Show ▾ (beyond PE-DESIGN, #517): Needle Points; Underlay and top / Underlay only / Top only; Trim Marks; Hide Unselected; Colour by Thread / Sewing order / Monochrome; Solo Colour |  | `Action::ViewShow` | view/UI only | yes |
 | View | Realistic View Settings |  | `Action::RealisticSettings` | view/UI only | yes |
 | Show/Hide | Sewing Order |  | `Action::PaneSewingOrder` | view/UI only | yes |
 | Show/Hide | Stitch Simulator |  | `Action::PaneSimulator` | view/UI only | yes |

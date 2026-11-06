@@ -246,11 +246,21 @@ impl EditorApp {
             "ui.render" => {
                 let size = p.int("size", Some(800), 64, 2048).map_err(err)? as u32;
                 let travel = p.bool("showTravel", Some(false)).map_err(err)?;
-                let png = openstitch_render::preview::png(
+                // What View ▸ Show shows (#517), each setting overridable here.
+                use openstitch_render::preview;
+                let defaults = preview::ShowArgs {
+                    filter: self.view_filter(),
+                    needle_points: self.ui.prefs.show.needle_points,
+                    trim_marks: self.ui.prefs.show.trim_marks,
+                };
+                let show = preview::show_args(params.unwrap_or(&Value::Null), defaults)?;
+                let png = preview::png_shown(
                     self.session.design(),
                     &self.pattern,
+                    &self.quality.spans,
                     size,
                     travel,
+                    &show,
                 )?;
                 let (width, height) = png_size(&png);
                 Ok(json!({
@@ -498,6 +508,12 @@ impl EditorApp {
                 "paneAttributes" => json!(prefs.panes.attributes.visible),
                 "fontFilter" => json!(prefs.font_filter.on),
                 "fontFilterHidden" => json!(prefs.font_filter.hidden),
+                "needlePoints" => json!(prefs.show.needle_points),
+                "showLayers" => json!(prefs.show.layers.as_str()),
+                "trimMarks" => json!(prefs.show.trim_marks),
+                "hideUnselected" => json!(prefs.show.hide_unselected),
+                "colorBy" => json!(prefs.show.color_by.as_str()),
+                "soloColor" => json!(prefs.show.solo),
                 "simulatorSpeed" => json!(self.play_speed),
                 other => unreachable!("setting {other} has no value"),
             };
@@ -623,6 +639,22 @@ impl EditorApp {
                 self.ui.prefs.font_filter.hidden = serde_json::from_value(v.clone())
                     .map_err(|_| "fontFilterHidden takes a list of font ids".to_string())?
             }
+            "needlePoints" => self.ui.prefs.show.needle_points = bool_value(name, v)?,
+            "showLayers" => {
+                self.ui.prefs.show.layers = v
+                    .as_str()
+                    .and_then(openstitch_design::view::Layers::parse)
+                    .ok_or("showLayers takes both, underlay or top")?;
+            }
+            "trimMarks" => self.ui.prefs.show.trim_marks = bool_value(name, v)?,
+            "hideUnselected" => self.ui.prefs.show.hide_unselected = bool_value(name, v)?,
+            "colorBy" => {
+                self.ui.prefs.show.color_by = v
+                    .as_str()
+                    .and_then(openstitch_design::view::ColorBy::parse)
+                    .ok_or("colorBy takes thread, order or mono")?;
+            }
+            "soloColor" => self.ui.prefs.show.solo = bool_value(name, v)?,
             "simulatorSpeed" => {
                 (self.play_speed, save) = (number_value(name, v, 1.0, 5000.0)?, false)
             }
@@ -867,6 +899,16 @@ mod tests {
         )
         .expect("view");
         assert!(app.workspace.realistic);
+        // #517: "show me only the underlay".
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "showLayers", "value": "underlay" })),
+        )
+        .expect("layers");
+        assert_eq!(
+            app.ui.prefs.show.layers,
+            openstitch_design::view::Layers::UnderlayOnly
+        );
         // #518: real size from a ruler reading, and back to 96 dpi.
         app.ui_command(
             "ui.set",
@@ -882,6 +924,13 @@ mod tests {
         assert_eq!(
             app.points_per_mm(),
             openstitch_app::editor::viewport::DEFAULT_POINTS_PER_MM
+        );
+        assert!(
+            app.ui_command(
+                "ui.set",
+                Some(&json!({ "name": "colorBy", "value": "plaid" }))
+            )
+            .is_err()
         );
         assert!(
             app.ui_command(
@@ -911,6 +960,78 @@ mod tests {
         );
         assert!(
             app.ui_command("ui.set", Some(&json!({ "name": "nope", "value": 1 })))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn ui_render_shows_what_view_show_sets() {
+        let mut app = demo();
+        let render = |app: &mut EditorApp, extra: Value| -> String {
+            let mut params = json!({ "size": 300 });
+            for (k, v) in extra.as_object().expect("object") {
+                params[k] = v.clone();
+            }
+            app.ui_command("ui.render", Some(&params)).expect("render")["png"]
+                .as_str()
+                .expect("png")
+                .to_string()
+        };
+        let plain = render(&mut app, json!({}));
+        // Settings made with ui.set change view_render's picture ("show me only the underlay").
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "showLayers", "value": "top" })),
+        )
+        .expect("layers");
+        let top = render(&mut app, json!({}));
+        assert_ne!(top, plain);
+        assert_eq!(
+            render(&mut app, json!({ "layers": "both" })),
+            plain,
+            "override"
+        );
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "showLayers", "value": "both" })),
+        )
+        .expect("back");
+        // Hide unselected and solo colour, through the editor's own settings.
+        app.selection = [app.session.design().objects[0].id].into_iter().collect();
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "hideUnselected", "value": true })),
+        )
+        .expect("hide");
+        let only = render(&mut app, json!({}));
+        assert_ne!(only, plain);
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "hideUnselected", "value": false })),
+        )
+        .expect("unhide");
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "soloColor", "value": true })),
+        )
+        .expect("solo");
+        let solo = render(&mut app, json!({}));
+        assert_ne!(solo, plain);
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "soloColor", "value": false })),
+        )
+        .expect("no solo");
+        for extra in [
+            json!({ "needlePoints": true }),
+            json!({ "trimMarks": true }),
+            json!({ "colorBy": "mono" }),
+        ] {
+            assert_ne!(render(&mut app, extra.clone()), plain, "{extra}");
+        }
+        assert_eq!(render(&mut app, json!({})), plain);
+        assert!(
+            app.ui_command("ui.render", Some(&json!({ "layers": "inside" })))
                 .is_err()
         );
     }

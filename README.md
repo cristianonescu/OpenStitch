@@ -81,7 +81,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 292: 189 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 93 planned beyond PE-DESIGN |
+| Feature matrix rows | 292: 190 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 92 planned beyond PE-DESIGN |
 | Compatibility specs | 454: 454 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 36: 29 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 10 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
@@ -683,7 +683,6 @@ PE-DESIGN 11 does not. Each item is sketched in
 - Live remove-hidden-stitching: stitches under later objects left out at compile time with an overlap margin, shapes unchanged, stitches saved reported (B11) (#511) (#511)
 - Machine stops: stop after a chosen object and a one-click Stop at Jumps for machines without a thread cutter (#512) (#512)
 - Job sheets: client approval and operator worksheets with job fields, colour sequence, stops, time and branding (W7) (#513) (#513)
-- View toggles: needle points, underlay or top only, trim marks, hide unselected, colour by sewing order or monochrome, solo colour (#517) (#517)
 - Satin corner styles (turn / mitre below 75° / cap below 45°, 0.5 mm overlap) on satin regions, columns, skeleton satin, zigzag lines and borders (B3) (#520)
 - Short stitches on inner curves for every satin kind (Manual Punch, skeleton satin, borders, lettering), with distance and inset settings (B3) (#521)
 - Pull compensation per side and as a percentage of stitch width, plus push compensation on straight-row fills (B5) (#522)
