@@ -138,9 +138,10 @@ fn bad_punch_parameters_fail_cleanly() {
             "shape.column",
             json!({"lines": [[[0, 0], [0, 10]], [[-5, 5], [5, 5]]]}),
         ),
+        // Lines that overlap (a pair clicked right-then-left is turned round instead, #525).
         (
             "shape.column",
-            json!({"lines": [[[0, 0], [0, 10]], [[20, 10], [20, 0]]]}),
+            json!({"lines": [[[0, 0], [0, 10]], [[-10, 5], [10, 5]]]}),
         ),
         ("shape.column", json!({"lines": "x"})),
         ("shape.column", json!({"lines": good, "type": "radial"})),

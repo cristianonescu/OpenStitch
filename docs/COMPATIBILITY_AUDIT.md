@@ -1627,6 +1627,11 @@ Line references are relative to `crates/`.
   region-then-outline order unchanged): PE-DESIGN has no per-shape part order, so a PES 11
   export writes such a shape as two shapes, its outline then its region, and the stitch data
   sews them in that order.
+- **Image wizard, batch:mac-wizard (2026-11-06; #489):** the dialog's region table, click-to-fix,
+  colour order and Preset row drive `digitize.autoPunch`'s `dryRun`, `regionMap`, `overrides`,
+  `order` and `preset`; PE-DESIGN-compatible output with none of them set is unchanged.
+  PE-DESIGN has no per-region reasons, overrides, presets or click-to-toggle (toc:143-150), so
+  all of it is beyond PE-DESIGN.
 - **Image digitizing, batch:mac-digitize-2 (2026-11-06; #447, #469, #489, #490):** PE-DESIGN-compatible
   mode's output is unchanged (scorer identical on g01, g02, g05, g13, p03; every new option is
   OpenStitch mode only, off unless set). New in OpenStitch mode: `angleRule: leastTravel`,
@@ -2885,6 +2890,40 @@ auto, shortStitchDistance: 0.25`, read from the exported PES:
 - Not done here: skeleton and Auto satin (#675), satin lettering (#676), fill push and a
   region's second underlay (#677), lap corners. No sew-out yet: the owner's T-card scan of a
   tapered column with `pullPercent: 3` is still needed for #522's ±5 % width target.
+
+### Satin looks, raised satin and column rung edits, 2026-11-06 (#528, #531, #525 part, `batch:satin-2a`)
+
+All beyond PE-DESIGN and off by default on Manual Punch columns and zigzag lines. With the
+options unset, compat stays 454/454 and every compat output is byte-identical.
+
+Test design: a 6 mm Manual Punch column bent at 45° and a 4 mm zigzag line, read back from
+the exported PES with `tools/sew_check.py`. All six variants pass, and `design.check` reports
+no problems:
+
+| Variant | Density (sew_check) | Most drops in one spot |
+|---|---|---|
+| normal | 19.7 | 5 |
+| sStitch | 10.0 | 5 |
+| open | 8.3 | 5 |
+| double | 37.2 | 9 |
+| jagged (out, right side, 1 mm) | 17.5 | 5 |
+| raised | 20.9 | 6 |
+
+- Double satin's second pass starts where the first ends, and each of its needle points sits
+  midway between two of the first pass's on the same edge (unit test).
+- S-stitch bends each crossing into three short stitches. Its first and last crossings bulge
+  up to 0.3 mm past the column's end lines.
+- The jagged edge is the same for the same seed. Moving inwards, it never crosses more than
+  80 % of the column.
+- `spacingAt` 1 (unset) is PE-DESIGN's spacing on the longer side.
+- Raised satin sews an even number of lanes, so the last ends at the start, next to the
+  satin's first needle point. It is fully covered in the render.
+- `shape.column` and `object.setDirectionLines` now turn round a pair clicked
+  right-then-left instead of refusing it (`column::untangle`). A real overlap is still
+  refused.
+- Not done: satin regions and skeleton satin (#685), lettering (#686), the canvas rung-edit
+  mode (#525, satin-2b), and the NV880E sew-outs #528 and #531 ask for before the styles are
+  advertised.
 
 ## Order of work
 

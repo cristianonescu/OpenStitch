@@ -75,6 +75,51 @@ impl Method {
 }
 
 pub const LINE_SEWS: [&str; 4] = ["running", "triple", "zigzag", "none"];
+
+/// Auto Punch's purpose presets (#489), the engine's `preset` values with their labels, in the
+/// order `digitize.presets` lists them.
+pub const PRESETS: [(&str, &str); 6] = [
+    ("logo", "Logo"),
+    ("patch", "Patch"),
+    ("lineArt", "Line art"),
+    ("illustration", "Illustration / cartoon"),
+    ("photo", "Photo"),
+    ("pixelArt", "Pixel art"),
+];
+
+/// The stitch choices of the region table (#489): Auto Punch's own, or one of the engine's
+/// override types.
+pub const REGION_TYPES: [&str; 5] = ["auto", "fill", "satin", "line", "skip"];
+
+/// A "review" note shows when more than this share of the picture's region area is left out.
+pub const REVIEW_SHARE: f64 = 0.25;
+
+/// One region of an Auto Punch preview (#489), as the engine's `plan` gives it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PlanRegion {
+    pub id: usize,
+    pub color: String,
+    pub thread: String,
+    pub area_mm2: f64,
+    pub width_mm: f64,
+    /// fill, satin, line or skip.
+    pub kind: String,
+    pub reason: String,
+    pub why: String,
+}
+
+/// An Auto Punch preview (#489): its regions, the region under each map cell, and the request
+/// it was made for (without the overrides), so the overrides apply only while it matches.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct Plan {
+    pub regions: Vec<PlanRegion>,
+    pub map_size: (usize, usize),
+    /// Region per map cell, row by row; -1 where none is.
+    pub map: Vec<i64>,
+    /// The threads in sewing order.
+    pub colors: Vec<String>,
+    pub made_for: Value,
+}
 pub const REGION_SEWS: [&str; 4] = ["auto", "fill", "satin", "none"];
 
 /// Dialog state. Defaults match the engine commands' defaults.
@@ -119,6 +164,17 @@ pub struct ImageWizard {
     /// Auto Punch, OpenStitch mode: touching fills turned apart (`angleRule: varyNeighbours`,
     /// #489; off by default).
     pub vary_angles: bool,
+    /// Auto Punch, OpenStitch mode: a purpose preset (`preset`, #489); `None` is none.
+    pub preset: Option<&'static str>,
+    /// Auto Punch: the last preview (`dryRun`), for the region table and click-to-fix (#489).
+    pub plan: Option<Plan>,
+    /// Auto Punch: the user's stitch per region number (`overrides`, #489), sent while the
+    /// preview still matches the settings.
+    pub overrides: std::collections::BTreeMap<usize, &'static str>,
+    /// Auto Punch: the colours to sew first (`order`, `#rrggbb`, #489).
+    pub order: Vec<String>,
+    /// The click-to-fix window is open.
+    pub fixing: bool,
     /// Cross Stitch, OpenStitch mode: cover each cell with parallel diagonals (`fill`).
     pub cross_fill: bool,
     /// Cross Stitch, OpenStitch mode: three-quarter and quarter crosses where a cell is split by
@@ -173,6 +229,11 @@ impl Default for ImageWizard {
             mark_width: MARK_WIDTH,
             marking: false,
             vary_angles: false,
+            preset: None,
+            plan: None,
+            overrides: std::collections::BTreeMap::new(),
+            order: Vec::new(),
+            fixing: false,
             cross_fill: true,
             part_crosses: false,
             all_trims: None,
@@ -344,6 +405,12 @@ impl ImageWizard {
                 if self.open_stitch && self.vary_angles {
                     p.insert("angleRule".into(), json!("varyNeighbours"));
                 }
+                if let (true, Some(preset)) = (self.open_stitch, self.preset) {
+                    p.insert("preset".into(), json!(preset));
+                }
+                if !self.order.is_empty() {
+                    p.insert("order".into(), json!(self.order));
+                }
                 if !self.open_stitch || self.min_area_set {
                     p.insert("minArea".into(), json!(self.min_area));
                 }
@@ -400,7 +467,206 @@ impl ImageWizard {
                 "digitize.designCenter"
             }
         };
-        Some(CommandRequest::new(command, Value::Object(p)))
+        let mut request = CommandRequest::new(command, Value::Object(p));
+        // The table's choices, while the preview they were made on still matches.
+        if self.method == Method::AutoPunch
+            && !self.overrides.is_empty()
+            && self
+                .plan
+                .as_ref()
+                .is_some_and(|plan| plan.made_for == request.params)
+        {
+            let list: Vec<Value> = self
+                .overrides
+                .iter()
+                .map(|(region, kind)| json!({"region": region, "type": kind}))
+                .collect();
+            request.params["overrides"] = Value::Array(list);
+        }
+        Some(request)
+    }
+
+    /// Auto Punch's preview: the conversion as a dry run with its region map (#489), nothing
+    /// added to the design.
+    pub fn preview_request(&self) -> Option<CommandRequest> {
+        if self.method != Method::AutoPunch {
+            return None;
+        }
+        let mut r = self.request()?;
+        r.params["dryRun"] = json!(true);
+        r.params["regionMap"] = json!(true);
+        Some(r)
+    }
+
+    /// Whether the preview was made with today's settings (the overrides aside).
+    pub fn plan_current(&self) -> bool {
+        let Some(plan) = &self.plan else {
+            return false;
+        };
+        let mut now = self.clone();
+        now.overrides.clear();
+        now.request().is_some_and(|r| r.params == plan.made_for)
+    }
+
+    /// Keeps a preview's result (`preview_request`'s), as of the settings it was made with.
+    pub fn set_plan(&mut self, result: &Value) {
+        let made_for = {
+            let mut now = self.clone();
+            now.overrides.clear();
+            now.request().map_or(Value::Null, |r| r.params)
+        };
+        let s = |v: &Value, k: &str| v[k].as_str().unwrap_or_default().to_string();
+        let f = |v: &Value, k: &str| v[k].as_f64().unwrap_or(0.0);
+        let regions: Vec<PlanRegion> = result["plan"]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .map(|r| PlanRegion {
+                        id: r["region"].as_u64().unwrap_or(0) as usize,
+                        color: s(r, "color"),
+                        thread: s(r, "thread"),
+                        area_mm2: f(r, "areaMm2"),
+                        width_mm: f(r, "widthMm"),
+                        kind: s(r, "type"),
+                        reason: s(r, "reason"),
+                        why: s(r, "why"),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let m = &result["regionMap"];
+        let size = (
+            m["width"].as_u64().unwrap_or(0) as usize,
+            m["height"].as_u64().unwrap_or(0) as usize,
+        );
+        let cells = size.0 * size.1;
+        let mut map = Vec::with_capacity(cells);
+        for run in m["runs"].as_array().into_iter().flatten() {
+            let region = run[0].as_i64().unwrap_or(-1);
+            let count = run[1].as_u64().unwrap_or(0) as usize;
+            map.extend(std::iter::repeat_n(region, count.min(cells - map.len())));
+        }
+        map.resize(size.0 * size.1, -1);
+        let colors = result["colors"]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+        // Choices for regions the preview no longer has are dropped.
+        self.overrides.retain(|id, _| *id < regions.len());
+        self.plan = Some(Plan {
+            regions,
+            map_size: size,
+            map,
+            colors,
+            made_for,
+        });
+    }
+
+    /// The region under `at` (fractions of the image) in the preview, if any.
+    pub fn region_at(&self, at: [f64; 2]) -> Option<usize> {
+        let plan = self.plan.as_ref()?;
+        let (w, h) = plan.map_size;
+        if w == 0 || h == 0 {
+            return None;
+        }
+        let x = ((at[0].clamp(0.0, 1.0) * w as f64) as usize).min(w - 1);
+        let y = ((at[1].clamp(0.0, 1.0) * h as f64) as usize).min(h - 1);
+        usize::try_from(plan.map[y * w + x]).ok()
+    }
+
+    /// The stitch a region is sewn with: the user's choice, or the preview's.
+    pub fn region_kind(&self, id: usize) -> &str {
+        match self.overrides.get(&id) {
+            Some(k) => k,
+            None => self
+                .plan
+                .as_ref()
+                .and_then(|p| p.regions.get(id))
+                .map_or("", |r| r.kind.as_str()),
+        }
+    }
+
+    /// Sets region `id`'s stitch (`auto` drops the user's choice).
+    pub fn set_region(&mut self, id: usize, kind: &'static str) {
+        if kind == "auto" {
+            self.overrides.remove(&id);
+        } else {
+            self.overrides.insert(id, kind);
+        }
+    }
+
+    /// Click-to-fix (#489): flips the region under `at` between sewn and left out; returns it.
+    pub fn toggle_at(&mut self, at: [f64; 2]) -> Option<usize> {
+        let id = self.region_at(at)?;
+        let skipped = self.region_kind(id) == "skip";
+        let auto_skips = self
+            .plan
+            .as_ref()
+            .and_then(|p| p.regions.get(id))
+            .is_some_and(|r| r.kind == "skip");
+        if skipped {
+            // Back to Auto Punch's own stitch, or a fill if it left the region out itself.
+            self.set_region(id, if auto_skips { "fill" } else { "auto" });
+        } else {
+            self.set_region(id, if auto_skips { "auto" } else { "skip" });
+        }
+        Some(id)
+    }
+
+    /// The "review" note (#489): when more than [`REVIEW_SHARE`] of the regions' area is left
+    /// out, how much.
+    pub fn review_note(&self) -> Option<String> {
+        let plan = self.plan.as_ref()?;
+        let total: f64 = plan.regions.iter().map(|r| r.area_mm2).sum();
+        let left: f64 = plan
+            .regions
+            .iter()
+            .filter(|r| self.region_kind(r.id) == "skip")
+            .map(|r| r.area_mm2)
+            .sum();
+        (total > 0.0 && left > REVIEW_SHARE * total).then(|| {
+            format!(
+                "Review: {:.0} % of the picture's regions are left out.",
+                100.0 * left / total
+            )
+        })
+    }
+
+    /// The colours in sewing order: the user's order, else the preview's. With a preview, only
+    /// its colours (the threads change with the mode and the colour count).
+    pub fn colour_order(&self) -> Vec<String> {
+        let mut out = self.order.clone();
+        if let Some(plan) = &self.plan {
+            out.retain(|c| plan.colors.contains(c));
+            for c in &plan.colors {
+                if !out.contains(c) {
+                    out.push(c.clone());
+                }
+            }
+        }
+        out
+    }
+
+    /// Moves colour `i` of [`ImageWizard::colour_order`] one place earlier (`earlier`) or
+    /// later. Region numbers follow the sewing order, so the region choices are cleared.
+    pub fn move_colour(&mut self, i: usize, earlier: bool) {
+        let mut all = self.colour_order();
+        let j = if earlier {
+            i.checked_sub(1)
+        } else {
+            Some(i + 1)
+        };
+        let Some(j) = j.filter(|&j| j < all.len() && i < all.len()) else {
+            return;
+        };
+        all.swap(i, j);
+        self.order = all;
+        self.overrides.clear();
     }
 
     /// One line summarising a conversion's result for the status bar.
@@ -854,5 +1120,97 @@ mod tests {
         ap.change(|w| w.high_fidelity = true);
         assert_eq!(ap.colors, 0);
         assert_eq!(ap.request().expect("request").params["fidelity"], "high");
+    }
+
+    /// #489: the region table and click-to-fix. A preview adds nothing and fills the table and
+    /// the region map; a click on a region leaves it out (and back), the choice reaches the
+    /// conversion only while the preview matches the settings, the review note shows when most
+    /// is left out, and the colour order and the preset reach the command.
+    #[test]
+    fn preview_table_and_click_to_fix() {
+        let dir = openstitch_testutil::TempDir::new("wizard-plan");
+        let mut w = ImageWizard {
+            path: Some(sample(&dir)),
+            width_mm: Some(60.0),
+            colors: 4,
+            ..Default::default()
+        };
+        let mut s = Session::new(&dir);
+        let r = w.preview_request().expect("preview");
+        assert_eq!(r.params["dryRun"], true);
+        let result = s.execute(r.command, Some(&r.params)).expect("preview runs");
+        assert!(s.design().objects.is_empty(), "a preview adds nothing");
+        w.set_plan(&result);
+        assert!(w.plan_current());
+        let plan = w.plan.clone().expect("plan");
+        assert_eq!(plan.regions.len(), 3, "{result}");
+        assert_eq!(plan.map.len(), plan.map_size.0 * plan.map_size.1);
+        // The red block's middle (15, 20 of 60 × 40) is a region; the white corner none.
+        let red = w.region_at([15.0 / 60.0, 20.0 / 40.0]).expect("red region");
+        assert_eq!(plan.regions[red].color, "#ed171f");
+        assert_eq!(w.region_at([0.01, 0.01]), None);
+        // Click: left out; the conversion leaves it out.
+        assert_eq!(w.toggle_at([0.25, 0.5]), Some(red));
+        assert_eq!(w.region_kind(red), "skip");
+        let r = w.request().expect("request");
+        assert_eq!(
+            r.params["overrides"],
+            json!([{"region": red, "type": "skip"}])
+        );
+        let done = s.execute(r.command, Some(&r.params)).expect("converts");
+        assert_eq!(CommandRequest::created_ids(&done).len(), 2);
+        // Click again: back to Auto Punch's own stitch.
+        w.toggle_at([0.25, 0.5]);
+        assert!(w.overrides.is_empty());
+        // Most of the area left out: the review note.
+        w.set_region(red, "skip");
+        assert!(w.review_note().is_some_and(|n| n.contains("left out")));
+        w.set_region(red, "auto");
+        assert!(w.review_note().is_none());
+        // A changed setting: the preview no longer matches, and its choices are not sent.
+        w.set_region(red, "satin");
+        w.colors = 3;
+        assert!(!w.plan_current());
+        assert!(
+            w.request()
+                .expect("request")
+                .params
+                .get("overrides")
+                .is_none()
+        );
+        w.colors = 4;
+        // The colour order: moving a colour sends `order` and clears the choices.
+        let order = w.colour_order();
+        assert_eq!(order, plan.colors);
+        w.move_colour(1, true);
+        assert!(w.overrides.is_empty());
+        let r = w.request().expect("request");
+        assert_eq!(r.params["order"], json!([order[1], order[0], order[2]]));
+        let done = s
+            .execute(r.command, Some(&r.params))
+            .expect("order converts");
+        assert_eq!(done["colors"][0], json!(order[1]));
+        // The preset, in OpenStitch mode only.
+        w.preset = Some("logo");
+        assert!(w.request().expect("request").params.get("preset").is_none());
+        w.open_stitch = true;
+        let r = w.request().expect("request");
+        assert_eq!(r.params["preset"], "logo");
+        assert!(s.execute(r.command, Some(&r.params)).is_ok());
+    }
+
+    /// The dialog's presets are the engine's, in its order.
+    #[test]
+    fn presets_are_the_engines() {
+        let mut s = Session::new(".");
+        let list = s.execute("digitize.presets", None).expect("presets");
+        let engine: Vec<&str> = list
+            .as_array()
+            .expect("list")
+            .iter()
+            .map(|p| p["name"].as_str().expect("name"))
+            .collect();
+        let ours: Vec<&str> = PRESETS.iter().map(|p| p.0).collect();
+        assert_eq!(ours, engine);
     }
 }
