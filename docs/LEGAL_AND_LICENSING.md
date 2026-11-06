@@ -36,7 +36,7 @@ the project keeps:
   another command's icon, and the suite windows' own commands; rows from `connect` on in
   `prompts.tsv`; see [research/asset-audit.md](research/asset-audit.md)), with each Higgsfield
   job id in `higgsfield-jobs.tsv` next to the SVGs. The Assistant panel's attach (paperclip) and
-  close icons were added the same way on 2026-11-04 (#399). The job ids of the first set
+  close icons were added the same way on 2026-11-04 (#399). Smooth Shape, Smooth tolerance and Smooth Stitches (#478) were added the same way on 2026-11-05. The job ids of the first set
   (2026-10-27, #35, `gear` among them) were recovered from the owner's Higgsfield history on
   2026-11-04 and are in the same file: each cleaned job output matches its SVG exactly, or with
   only the hand-set fills different. `tools/check_icons.py` (CI) fails when any image file

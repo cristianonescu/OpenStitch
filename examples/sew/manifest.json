@@ -48,7 +48,7 @@
    81.0,
    79.0
   ],
-  "stitches": 4527,
+  "stitches": 4545,
   "trims": 9,
   "threads": [
    "900 Black",
@@ -57,7 +57,7 @@
   "sewingMinutes": 6.1,
   "image": null,
   "preview": "previews/satin-and-underlay.png",
-  "sha256": "6eeb399ae9949d2ebf80eaab067c7eb369dec1d315caa01d0cccbcf31a527fe5"
+  "sha256": "90d49002acc48d2d862ef4f491718fc8e752cdd9c0c70a8577f6eb48ff698279"
  },
  "machine-checks/satin-zigzag-rect.pes": {
   "title": "Machine check: Region satin is a zigzag across the column",
@@ -148,7 +148,7 @@
    86.0,
    86.0
   ],
-  "stitches": 7246,
+  "stitches": 7393,
   "trims": 11,
   "threads": [
    "405 Blue",
@@ -161,10 +161,10 @@
    "019 Sky Blue",
    "058 Dark Brown"
   ],
-  "sewingMinutes": 9.6,
+  "sewingMinutes": 9.8,
   "image": null,
   "preview": "previews/region-sew-types-1.png",
-  "sha256": "d0cc32d20160fb4160424a8ca6a61362b439cec58ab6d8a269275d1351ae0200"
+  "sha256": "1a217f7c754864e7df7df3f3412721e8bc9f00537ec769c6792a8f82aa053531"
  },
  "fills/region-sew-types-2.pes": {
   "title": "Region sew types (2 of 2)",
@@ -174,7 +174,7 @@
    86.0,
    86.0
   ],
-  "stitches": 4530,
+  "stitches": 4746,
   "trims": 9,
   "threads": [
    "405 Blue",
@@ -187,10 +187,10 @@
    "019 Sky Blue",
    "058 Dark Brown"
   ],
-  "sewingMinutes": 6.1,
+  "sewingMinutes": 6.4,
   "image": null,
   "preview": "previews/region-sew-types-2.png",
-  "sha256": "233e2d049c47ac828c73cf54572038c11f011f048de0133ffbcbb29e32d52de6"
+  "sha256": "c208630cccdd438602f3e2209b7085d25a4c273a08295b2d510643e3729ff6e8"
  },
  "fills/fill-options.pes": {
   "title": "Fill and satin options",
@@ -272,7 +272,7 @@
    86.0,
    87.5
   ],
-  "stitches": 3557,
+  "stitches": 3618,
   "trims": 9,
   "threads": [
    "405 Blue",
@@ -285,10 +285,10 @@
    "019 Sky Blue",
    "058 Dark Brown"
   ],
-  "sewingMinutes": 4.9,
+  "sewingMinutes": 5.0,
   "image": null,
   "preview": "previews/line-sew-types.png",
-  "sha256": "ea76032c1eb82a9da9e0521df7f721b6ab96ed59a3fe82e1a64b12102c47fc11"
+  "sha256": "b10a9867a0c5f4f2eb019d8fe5c1e93901d3b9bb6b122825d13e68d4df656ec3"
  },
  "shapes/shape-tools.pes": {
   "title": "Shape tools",
@@ -325,7 +325,7 @@
    82.7,
    81.8
   ],
-  "stitches": 1432,
+  "stitches": 1440,
   "trims": 42,
   "threads": [
    "800 Red",
@@ -340,10 +340,10 @@
    "900 Black",
    "509 Leaf Green"
   ],
-  "sewingMinutes": 3.9,
+  "sewingMinutes": 4.0,
   "image": null,
   "preview": "previews/decorative-frames.png",
-  "sha256": "6c4d619fb94ab350a7bb05468f8911f7c4908dfe520027e75e95e4585a9920a9"
+  "sha256": "84e5d980b00830fe4d81751837975772af96609f46574b059d5fadb54453788a"
  },
  "lettering/fonts-and-text.pes": {
   "title": "Lettering",
@@ -460,17 +460,17 @@
    88.0,
    88.0
   ],
-  "stitches": 3310,
+  "stitches": 4118,
   "trims": 3,
   "threads": [
    "019 Sky Blue",
    "800 Red",
    "900 Black"
   ],
-  "sewingMinutes": 4.3,
+  "sewingMinutes": 5.3,
   "image": null,
   "preview": "previews/background-fill.png",
-  "sha256": "a621fde979fbcf13590842d047de4ca20673ad159af2c75be538334aa3e4ceed"
+  "sha256": "3c500adc235731a5a0479d0f4abea1df6b52daa02f85327988d25697458a128b"
  },
  "image-tools/S-autopunch-balloon-openstitch.pes": {
   "title": "Auto Punch, OpenStitch mode",
@@ -515,7 +515,7 @@
   "sewingMinutes": 7.9,
   "image": "../images/g02-balloon.png",
   "preview": "previews/S-autopunch-balloon-pe-compatible.png",
-  "sha256": "682da0879950ac9cb0954a92e5c40b542708f0cbb2d7efd524a37225017153df"
+  "sha256": "2c532c3be5f510f0d5d82d713fb32f067f8d57a8a0e730b912919821458d26db"
  },
  "image-tools/S-cross-stitch-strawberry-openstitch.pes": {
   "title": "Cross Stitch, OpenStitch mode",
@@ -754,7 +754,7 @@
    199.0,
    150.1
   ],
-  "stitches": 94925,
+  "stitches": 94932,
   "trims": 1118,
   "threads": [
    "017 Light Blue",
@@ -771,7 +771,7 @@
   "sewingMinutes": 176.0,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-openstitch.png",
-  "sha256": "4d2bc0a0af5c02552caa9a282bf132754cb84570279fb89cee95e397228b7348"
+  "sha256": "aca14ca39c9d8207c040b6d25278fa982dd2da77560ca204a77bd21fc9076cac"
  },
  "image-tools/L-autopunch-storybook-pe-compatible.pes": {
   "title": "Auto Punch, PE-DESIGN-compatible mode",
@@ -781,7 +781,7 @@
    199.3,
    151.1
   ],
-  "stitches": 98781,
+  "stitches": 108571,
   "trims": 1640,
   "threads": [
    "843 Beige",
@@ -793,9 +793,9 @@
    "330 Russet Brown",
    "517 Dark Olive"
   ],
-  "sewingMinutes": 207.5,
+  "sewingMinutes": 219.8,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-pe-compatible.png",
-  "sha256": "818b45e8367ac42b33d9a8fd1e3c7fe22f5c60b056d23447455d5512ef94e83c"
+  "sha256": "adaa5546c269a90a8df4dc693470007f584063b45495bdf593e141f69738ae37"
  }
 }

@@ -37,6 +37,8 @@ pub struct EditState {
     /// Stamp pattern, effect and size (mm) chosen in the Stamp menu.
     pub stamp_pattern: usize,
     pub stamp_effect: usize,
+    /// Smooth Shape's tolerance, mm (`None`: the default, 0.2 mm).
+    pub smooth_tolerance: Option<f64>,
     /// The next polygon drawn is the cut outline splitting this shape.
     pub split_target: Option<u64>,
     /// Alt held: clicking a group member selects it alone.

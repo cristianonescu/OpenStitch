@@ -8,6 +8,9 @@
 - **Stacked needle drops:** too many penetrations in one small spot can break a needle.
   Reported per 0.5 mm cell, over the whole design and within one colour block.
 - **Stitching in place:** runs of stitches shorter than 0.3 mm that do not travel.
+- **Long stitches (warning only):** stitches longer than 12 mm snag and loop on the machine.
+  PE-DESIGN sends them too (its 30 mm satin reference keeps every crossing whole), so they are
+  reported but do not fail the file; split them with the satin's Split Stitch (`splitLength`).
 
     python3 -I tools/sew_check.py examples/sew            # every .pes under the folder
     python3 -I tools/sew_check.py file.pes --hoop 100x100
@@ -37,6 +40,7 @@ MAX_TINY_RUN = 6           # consecutive stitches shorter than 0.3 mm (tie-ins u
 FIELD_SLACK_MM = 0.0       # sewing field must not be exceeded at all
 DENS_CELL_MM = 2.0
 MAX_DENSITY = 80.0         # PE-DESIGN's wide satin references reach 75
+LONG_MM = 12.0             # a stitch longer than this is a warning (#460)
 
 
 def hoop_from(text):
@@ -268,10 +272,22 @@ def check(path, hoop):
         prev = s
     if best > MAX_TINY_RUN:
         problems.append(f"IN PLACE: {best} stitches in a row shorter than {TINY_MM} mm")
+    warnings = []
+    longs = []
+    prev = None
+    for s in st:
+        if s[2] == "stitch" and prev is not None:
+            d = math.hypot(s[0] - prev[0], s[1] - prev[1])
+            if d > LONG_MM:
+                longs.append(d)
+        prev = s
+    if longs:
+        warnings.append(f"LONG STITCHES: {len(longs)} stitches longer than {LONG_MM:.0f} mm "
+                        f"(longest {max(longs):.1f} mm); set a split length on wide satin")
     return {
         "size": (w, h), "header": (hw, hh), "stitches": len(drops), "colours": ncol,
         "max_cell": n, "max_cell_colour": pn, "tiny_run": best, "density": density,
-        "problems": problems,
+        "problems": problems, "warnings": warnings,
     }
 
 
@@ -306,6 +322,8 @@ def main():
               f"density {r['density']:.1f}")
         for p in r["problems"]:
             print("     ", p)
+        for wmsg in r["warnings"]:
+            print("      warning:", wmsg)
     print(f"{len(files) - failed}/{len(files)} pass")
     return 1 if failed else 0
 

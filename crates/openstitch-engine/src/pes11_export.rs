@@ -856,7 +856,7 @@ fn bent_box(preset: u8, r: f64, cx: f64, baseline: f64, size: f64) -> [f64; 4] {
 /// PE-DESIGN's code and default-level strength of Text Transform presets 1–26 (its palette
 /// order, as [`TextSpec::envelope`] numbers them): the same in every owner file
 /// (compat/reference/text/text-transform-N, the round-4 captures on two other texts).
-const ENVELOPES: [(u16, f32); 26] = [
+pub(crate) const ENVELOPES: [(u16, f32); 26] = [
     (24, 30.0),
     (25, 30.0),
     (0, 50.0),
@@ -997,11 +997,22 @@ fn bounds(c: &Contour) -> [i16; 4] {
         x1 = x1.max(p.x);
         y1 = y1.max(p.y);
     }
-    [x0, y0, x1, y1].map(|v| {
-        (v + f64::from(PAGE_ORIGIN))
-            .round()
-            .clamp(-32768.0, 32767.0) as i16
-    })
+    // Rounded outward, as PE-DESIGN stores them: a moved square at 500.5..1002.95 is stored as
+    // 500..1003 (tatami-40-pos0, #398); whole-unit outlines are unchanged. A rounding error
+    // just past a whole unit stays on it.
+    let o = f64::from(PAGE_ORIGIN);
+    let out = |v: f64, up: bool| {
+        let v = v + o;
+        let r = if (v - v.round()).abs() < 1e-4 {
+            v.round()
+        } else if up {
+            v.ceil()
+        } else {
+            v.floor()
+        };
+        r.clamp(-32768.0, 32767.0) as i16
+    };
+    [out(x0, false), out(y0, false), out(x1, true), out(y1, true)]
 }
 
 #[cfg(test)]

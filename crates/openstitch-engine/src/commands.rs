@@ -1175,7 +1175,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "angle",
                     "degrees",
-                    "Sewing direction, counter-clockwise on screen as in PE-DESIGN (0 = horizontal)",
+                    "Sewing direction, counter-clockwise on screen as in PE-DESIGN (0 = horizontal); a cross stitch grid stays on the page axes",
                 ),
                 opt(
                     "density",
@@ -1248,7 +1248,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "splitLength",
                     "mm",
-                    "Satin: split stitches longer than this, 2-12 (0 turns splitting off)",
+                    "Satin: split stitches longer than this, 2-12 (0 turns splitting off; off by default, as PE-DESIGN sends wide crossings whole: set it on satin wider than about 7 mm)",
                 ),
                 opt(
                     "halfStitch",
@@ -2869,7 +2869,7 @@ fn codec_commands() -> Vec<CommandSpec> {
                 opt(
                     "pesVersion",
                     "1t|1|6|6t|11",
-                    "PES only: version 1 or 6, `t` = no objects (default 6: RGB threads, names, stitch group; 1t = machine only, smallest); 11 = PE-DESIGN 11 `#PES0110` with shapes (fill and satin regions, running, zigzag, triple, E and V lines), Lato Bold texts and stitch patterns as editable objects; what it cannot hold is refused with the object named",
+                    "PES only: version 1 or 6, `t` = no objects (default 6, or 11 for a design opened from a PE-DESIGN 11 file: RGB threads, names, stitch group; 1t = machine only, smallest); 11 = PE-DESIGN 11 `#PES0110` with shapes (fill and satin regions, running, zigzag, triple, E and V lines), Lato Bold texts and stitch patterns as editable objects; what it cannot hold is refused with the object named",
                 ),
                 opt(
                     "split",
@@ -2948,10 +2948,21 @@ fn codec_commands() -> Vec<CommandSpec> {
                 if companion_inf && ty != FileType::Exp {
                     return Err(p.invalid("companionInf", "only with the EXP format"));
                 }
-                let mut pes_options = openstitch_formats::pes::WriteOptions::parse(&p.string(
-                    "pesVersion",
-                    Some(openstitch_formats::pes::WriteOptions::DEFAULT_NAME),
-                )?)
+                // A design opened from PE-DESIGN 11's `#PES0110` is written back as one unless
+                // another version is asked for (#120: no silent downgrade to version 6).
+                let follows_source = ty == FileType::Pes
+                    && !p.has("pesVersion")
+                    && s.design.source.as_ref().is_some_and(|src| {
+                        src.format == ty.extension() && src.version.as_deref() == Some("0110")
+                    });
+                let default_version = if follows_source {
+                    "11"
+                } else {
+                    openstitch_formats::pes::WriteOptions::DEFAULT_NAME
+                };
+                let mut pes_options = openstitch_formats::pes::WriteOptions::parse(
+                    &p.string("pesVersion", Some(default_version))?,
+                )
                 .ok_or_else(|| {
                     p.invalid(
                         "pesVersion",
@@ -3019,16 +3030,27 @@ fn codec_commands() -> Vec<CommandSpec> {
                     );
                 }
                 // PE-DESIGN 11 editable objects: the design's shapes, never split.
-                let editable = ty == FileType::Pes
-                    && pes_options.version == openstitch_formats::pes::Version::V11;
-                let objects = if editable {
-                    Some(
-                        crate::pes11_export::objects(&s.design)
-                            .map_err(|e| p.invalid("pesVersion", format!("11 (PES 0110): {e}")))?,
-                    )
+                let mut downgraded = None;
+                let objects = if ty == FileType::Pes
+                    && pes_options.version == openstitch_formats::pes::Version::V11
+                {
+                    match crate::pes11_export::objects(&s.design) {
+                        Ok(o) => Some(o),
+                        // Following the source file's version: what version 11 cannot hold yet
+                        // is written as version 6, and the warning says why.
+                        Err(e) if follows_source => {
+                            pes_options.version = openstitch_formats::pes::Version::V6;
+                            downgraded = Some(e);
+                            None
+                        }
+                        Err(e) => {
+                            return Err(p.invalid("pesVersion", format!("11 (PES 0110): {e}")));
+                        }
+                    }
                 } else {
                     None
                 };
+                let editable = objects.is_some();
                 // A Janome or Elna hoop with a JEF hoop code writes that code (#514).
                 let jef_options = openstitch_formats::jef::WriteOptions {
                     hoop: crate::machine::jef_hoop(&s.design),
@@ -3117,6 +3139,13 @@ fn codec_commands() -> Vec<CommandSpec> {
                 let mut check = crate::machine::export_check(&s.design, &pattern);
                 if let Some(w) = check["warnings"].as_array_mut() {
                     w.extend(mismatches.iter().map(|m| json!(format!("read-back: {m}"))));
+                }
+                if let Some(why) = &downgraded
+                    && let Some(w) = check["warnings"].as_array_mut()
+                {
+                    w.push(json!(format!(
+                        "written as PES version 6 (stitches), not as the opened file's PE-DESIGN 11 version: {why}"
+                    )));
                 }
                 if changed_source && let Some(w) = check["warnings"].as_array_mut() {
                     w.push(json!(

@@ -224,6 +224,9 @@ own!(
     "system_unit",
     "attach",
     "close",
+    "smooth_shape",
+    "smooth_tolerance",
+    "smooth_stitches",
 );
 
 /// The icons of buttons that run no command: the Assistant panel's attach and close.
@@ -347,6 +350,8 @@ fn glyph(a: Action) -> Glyph {
         Ruler => G::Ruler,
         ImportPatterns => G::Import,
         ImportSvg => G::Own("import_svg"),
+        // The Import Patterns icon: a PES file brought in, as objects.
+        ImportPesObjects => G::Import,
         Arrange => G::Align,
         // Reused until generated icons land (#472, #473, #474, #475 follow-up).
         Align | AlignLeft | AlignCenter | AlignRight | AlignTop | AlignMiddle | AlignBottom
@@ -412,6 +417,9 @@ fn glyph(a: Action) -> Glyph {
         ConvertToOutlines => G::Own("to_outlines"),
         ConvertRegionToLine => G::Own("region_to_line"),
         SplitOutline => G::Split,
+        SmoothShape => G::Own("smooth_shape"),
+        SmoothTolerance => G::Own("smooth_tolerance"),
+        SmoothStitches => G::Own("smooth_stitches"),
         SplitAtPoint => G::Own("split_point"),
         SplitStitchData => G::Own("split_stitches"),
         DivideByColor => G::Own("divide_color"),

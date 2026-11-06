@@ -108,6 +108,8 @@ mod sections;
 mod sewing;
 #[path = "shaping.rs"]
 mod shaping;
+#[path = "smoothing.rs"]
+mod smoothing;
 #[path = "stamps.rs"]
 mod stamps;
 #[path = "stitch_edit.rs"]

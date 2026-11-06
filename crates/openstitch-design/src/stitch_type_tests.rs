@@ -159,7 +159,7 @@ fn motif_line_closes_on_a_closed_contour() {
 fn stem_stitches_slant_across_the_line() {
     // PE-DESIGN's stem: 21 stations (300 / 15 = 20 intervals), each sewn top, bottom, top,
     // bottom, between the line's start and end points.
-    let run = lines::stem(&hline(300.0), 20.0, 15.0, 45.0, false);
+    let run = lines::stem(&hline(300.0), &[], 20.0, 15.0, 45.0, false);
     assert_eq!(run.len(), 21 * 4 + 2);
     assert_eq!(run.first().copied(), Some(v2(0.0, 0.0)));
     assert_eq!(run.last().copied(), Some(v2(300.0, 0.0)));
@@ -168,7 +168,7 @@ fn stem_stitches_slant_across_the_line() {
     assert!((run[1].distance(run[2]) - slant).abs() < 1e-9);
     // 45°: from the top right to the bottom left (y down).
     assert!(run[1].x > run[2].x && run[1].y < run[2].y);
-    let single = lines::stem(&hline(300.0), 20.0, 15.0, 90.0, true);
+    let single = lines::stem(&hline(300.0), &[], 20.0, 15.0, 90.0, true);
     assert_eq!(single.len(), 21 * 2 + 2);
     assert!(
         (single[1].x - single[2].x).abs() < 1e-9,
@@ -180,7 +180,7 @@ fn stem_stitches_slant_across_the_line() {
 fn candlewick_knots_sit_on_the_line() {
     // Knots at 0, 50, 100, 150, 200 (200 / (20 + 30) = 4 intervals), each a {24/11} star
     // visiting all 24 points of its circle.
-    let run = lines::candlewick(&hline(200.0), 20.0, 24, 30.0, 25.0);
+    let run = lines::candlewick(&hline(200.0), &[], 20.0, 24, 30.0, 25.0);
     assert!(longest(&run) <= 25.0 + 1e-9);
     assert!(run.iter().all(|p| p.y.abs() <= 10.0 + 1e-9));
     for x in [0.0, 50.0, 100.0, 150.0, 200.0] {
@@ -242,6 +242,7 @@ fn chain_links_stay_within_their_size() {
     // side, sewn twice and then to its left corner: 5 corners per link.
     let run = lines::chain(
         &hline(200.0),
+        &[],
         20.0,
         ChainShape::Triangle,
         2,
@@ -252,7 +253,14 @@ fn chain_links_stay_within_their_size() {
     assert!(longest(&run) <= 20.0f64.hypot(h) + 1e-9);
     let corners = run.iter().filter(|p| (p.y.abs() - h).abs() < 1e-9).count();
     assert_eq!(corners, 13 * 5);
-    let run = lines::chain(&hline(200.0), 20.0, ChainShape::Diamond, 2, Arrange::Normal);
+    let run = lines::chain(
+        &hline(200.0),
+        &[],
+        20.0,
+        ChainShape::Diamond,
+        2,
+        Arrange::Normal,
+    );
     assert!(run.iter().all(|p| p.y.abs() <= 10.0 + 1e-9));
     assert!(longest(&run) <= 10.0f64.hypot(10.0) + 1e-9);
     let peaks = run
@@ -278,25 +286,25 @@ fn moved_points_keep_chain_links_in_place_and_start_where_pe_does() {
         times: 5,
         arrange: Arrange::Normal,
     };
-    let in_place = lines::chain(&path, 40.0, ChainShape::Triangle, 5, Arrange::Normal);
+    let in_place = lines::chain(&path, &[], 40.0, ChainShape::Triangle, 5, Arrange::Normal);
     let same_points = |run: &Run| {
         run.iter()
             .all(|p| in_place.iter().any(|q| q.distance(*p) < 1e-6))
     };
     // Feed: the pattern starts with the link of the exit point (L2 at 25.5 mm: link 7) and
     // goes round to the one before.
-    let (feed, lead) = lines::start_loop(&path, line, at(255.0), None).expect("feed");
+    let (feed, lead) = lines::start_loop(&path, &[], line, at(255.0), None).expect("feed");
     assert!(!lead && same_points(&feed));
     assert!(feed[0].distance(link(7.0)) < 1e-6);
     assert_eq!(feed.len(), in_place.len());
     // Run: from the entry point's link (L1 at 29.8 mm: link 6) one stitch on to link 7.
-    let (run, lead) = lines::start_loop(&path, line, at(255.0), Some(at(298.0))).expect("run");
+    let (run, lead) = lines::start_loop(&path, &[], line, at(255.0), Some(at(298.0))).expect("run");
     assert!(lead && same_points(&run));
     assert!(run[0].distance(link(6.0)) < 1e-6);
     assert_eq!(&run[1..], &feed[..]);
     // The shorter way may be backwards: L2 at the corner (50, 30), L1 at 23.8 mm (link 8)
     // leads back over links 7 to 0 (line-chain-startend-l2side-run.pes).
-    let (run, _) = lines::start_loop(&path, line, at(500.0), Some(at(238.0))).expect("back");
+    let (run, _) = lines::start_loop(&path, &[], line, at(500.0), Some(at(238.0))).expect("back");
     for (k, j) in (0..=8).rev().enumerate() {
         assert!(run[k].distance(link(f64::from(j))) < 1e-6);
     }
@@ -317,9 +325,9 @@ fn moved_points_start_stem_and_candlewick_at_the_exit_element_and_lead_in_with_r
     };
     // Stations 400/27 apart on the bottom edge: L2's is the 16th (263.0), L1's the 13th (307.4).
     let station = |j: f64| v2(500.0 - j * 400.0 / 27.0, 300.0);
-    let (feed, _) = lines::start_loop(&path, stem, exit, None).expect("feed");
+    let (feed, _) = lines::start_loop(&path, &[], stem, exit, None).expect("feed");
     assert!(feed[0].distance(station(16.0)) < 1e-6);
-    let (run, lead) = lines::start_loop(&path, stem, exit, entry).expect("run");
+    let (run, lead) = lines::start_loop(&path, &[], stem, exit, entry).expect("run");
     assert!(lead);
     for (k, j) in [13.0, 14.0, 15.0, 16.0].into_iter().enumerate() {
         assert!(run[k].distance(station(j)) < 1e-6);
@@ -333,7 +341,7 @@ fn moved_points_start_stem_and_candlewick_at_the_exit_element_and_lead_in_with_r
         spacing: 10.0,
         pitch: 25.0,
     };
-    let (feed, lead) = lines::start_loop(&path, knots, exit, None).expect("candlewick");
+    let (feed, lead) = lines::start_loop(&path, &[], knots, exit, None).expect("candlewick");
     assert!(lead);
     assert!(feed[0].distance(v2(500.0 - 4.0 * 400.0 / 7.0 + 25.0, 300.0)) < 1e-6);
     let front = v2(500.0 - 4.0 * 400.0 / 7.0 - 25.0, 300.0);
@@ -2006,7 +2014,7 @@ fn cross_stitch_sews_an_x_in_every_cell() {
     let mut r = region(RegionType::CrossStitch);
     r.running_stitch_path = None;
     let runs = crate::region::layers(&c, &r, &[]).pop().expect("top");
-    assert_eq!(runs.len(), 4, "one run per row of cells");
+    assert_eq!(runs.len(), 1, "rows joined along the crosses");
     let diagonals = |runs: &[Run]| {
         runs.iter()
             .flat_map(|r| r.windows(2))
@@ -2021,6 +2029,184 @@ fn cross_stitch_sews_an_x_in_every_cell() {
     let small = vec![Contour::rectangle(0.0, 0.0, 90.0, 90.0)];
     let partial = crate::region::layers(&small, &region(RegionType::CrossStitch), &[]);
     assert_eq!(diagonals(partial.last().expect("top")), 9 * 2);
+}
+
+/// Cross stitch cells of `runs` on a `size` grid from the origin: per cell, how many of its
+/// four half diagonals are sewn; also the stitches that are not on a half diagonal of the
+/// grid (along a cell side, or off the grid).
+fn cross_cells(runs: &[Run], size: f64) -> (std::collections::BTreeMap<(i64, i64), usize>, usize) {
+    let h = size / 2.0;
+    let on_lattice = |p: Vec2| (p.x - p.x.round()).abs() < 1e-6 && (p.y - p.y.round()).abs() < 1e-6;
+    let mut halves = std::collections::BTreeSet::new();
+    let mut off = 0;
+    for w in runs.iter().flat_map(|r| r.windows(2)) {
+        let (a, b) = (w[0] * (1.0 / h), w[1] * (1.0 / h));
+        let d = b - a;
+        if !on_lattice(a) || !on_lattice(b) || (d.x.abs() - d.y.abs()).abs() > 1e-6 || d.x == 0.0 {
+            off += 1;
+            continue;
+        }
+        let steps = d.x.abs().round() as i64;
+        for k in 0..steps {
+            let p = a + d * ((k as f64 + 0.5) / steps as f64);
+            let (cx, cy) = ((p.x / 2.0).floor() as i64, (p.y / 2.0).floor() as i64);
+            // Which half diagonal of the cell: the quadrant round its centre.
+            let quadrant = (p.x > (2 * cx + 1) as f64, p.y > (2 * cy + 1) as f64);
+            halves.insert((cx, cy, quadrant));
+        }
+    }
+    let mut cells = std::collections::BTreeMap::new();
+    for (cx, cy, _) in halves {
+        *cells.entry((cx, cy)).or_insert(0) += 1;
+    }
+    (cells, off)
+}
+
+#[test]
+fn cross_stitch_sews_whole_xs_with_travel_only_under_them_at_any_direction() {
+    // A 20 × 20 mm square at (10, 10) mm: 8 × 8 cells of 2.5 mm (#463).
+    let c = vec![Contour::rectangle(100.0, 100.0, 200.0, 200.0)];
+    for angle in [0.0, 30.0, 45.0, 90.0] {
+        let mut r = region(RegionType::CrossStitch);
+        r.angle = angle;
+        r.running_stitch_path = None;
+        let runs = crate::region::layers(&c, &r, &[]).pop().expect("top");
+        assert_eq!(runs.len(), 1, "{angle}°: one run, no trim");
+        let (cells, off) = cross_cells(&runs, 25.0);
+        // Nothing along a cell side or off the diagonals: travel lies under the crosses.
+        assert_eq!(off, 0, "{angle}°");
+        assert_eq!(cells.len(), 64, "{angle}°");
+        assert!(cells.values().all(|&n| n == 4), "{angle}°: every X whole");
+        assert!(
+            cells
+                .keys()
+                .all(|&(x, y)| (4..12).contains(&x) && (4..12).contains(&y)),
+            "{angle}°: inside the square"
+        );
+        assert!(longest(&runs[0]) <= 25.0 * std::f64::consts::SQRT_2 + 1e-6);
+    }
+    // A concave region, an L of six cells: still every X whole and nothing on a side.
+    let l = vec![Contour::new(
+        vec![
+            v2(0.0, 0.0),
+            v2(75.0, 0.0),
+            v2(75.0, 25.0),
+            v2(25.0, 25.0),
+            v2(25.0, 100.0),
+            v2(0.0, 100.0),
+        ],
+        true,
+    )];
+    let mut r = region(RegionType::CrossStitch);
+    r.running_stitch_path = None;
+    let runs = crate::region::layers(&l, &r, &[]).pop().expect("top");
+    let (cells, off) = cross_cells(&runs, 25.0);
+    assert_eq!((cells.len(), off, runs.len()), (6, 0, 1));
+    assert!(cells.values().all(|&n| n == 4));
+}
+
+#[test]
+fn zigzag_net_stays_inside_and_its_rungs_do_not_cross() {
+    // #463: the honeycomb's bands fanned round the hexagon corners (rungs crossing their
+    // neighbours) and their rungs reached about 1 mm past the outline.
+    // Two stitches crossing more than 0.3 mm from all their ends (where the rungs of two bands
+    // meet in a corner their ends touch, which is not a crossing).
+    let proper_cross = |a: Vec2, b: Vec2, c: Vec2, d: Vec2| {
+        let side =
+            |p: Vec2, q: Vec2, r: Vec2| (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+        let (d1, d2) = (side(a, b, c), side(a, b, d));
+        let (d3, d4) = (side(c, d, a), side(c, d, b));
+        if d1 * d2 >= -1e-6 || d3 * d4 >= -1e-6 {
+            return false;
+        }
+        let x = c.lerp(d, d1 / (d1 - d2));
+        [a, b, c, d].iter().all(|p| p.distance(x) > 3.0)
+    };
+    for (c, name) in [
+        (
+            vec![Contour::rectangle(100.0, 100.0, 200.0, 200.0)],
+            "square",
+        ),
+        (vec![circle()], "circle"),
+    ] {
+        for id in ["honeycomb", "square", "diamond", "triangle"] {
+            for angle in [0.0, 30.0] {
+                let mut r = region(RegionType::ZigzagNetFill);
+                r.pattern = Some(id.into());
+                r.angle = angle;
+                let runs = crate::region::layers(&c, &r, &[]).pop().expect("top");
+                assert_eq!(runs.len(), 1, "{name} {id} {angle}°");
+                let run = &runs[0];
+                for p in run {
+                    assert!(
+                        inside_or_on(*p, &c, 0.5),
+                        "{name} {id} {angle}°: {p:?} outside"
+                    );
+                }
+                // Stitches along a net line (travel, and the run under a band, which every rung
+                // crosses) lie in a line direction; rungs and their diagonals do not.
+                let lines: &[f64] = match id {
+                    "square" => &[0.0, 90.0],
+                    "diamond" => &[45.0, -45.0],
+                    _ => &[0.0, 60.0, 120.0],
+                };
+                let along_line = |j: usize| {
+                    let d = run[j + 1] - run[j];
+                    let a = d.y.atan2(d.x).to_degrees();
+                    // The net turns the other way round on the page (y down).
+                    lines.iter().any(|l| {
+                        let off = (a + l + angle).rem_euclid(180.0);
+                        off.min(180.0 - off) < 2.0
+                    })
+                };
+                let crosses = |i: usize| {
+                    !along_line(i)
+                        && !along_line(i + 2)
+                        && proper_cross(run[i], run[i + 1], run[i + 2], run[i + 3])
+                };
+                let crossing = (0..run.len().saturating_sub(3))
+                    .filter(|&i| crosses(i))
+                    .count();
+                let first = (0..run.len().saturating_sub(3))
+                    .find(|&i| crosses(i))
+                    .map(|i| (i, &run[i.saturating_sub(4)..(i + 6).min(run.len())]));
+                assert_eq!(
+                    crossing, 0,
+                    "{name} {id} {angle}°: a rung crosses the next {first:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn neighbouring_cross_stitch_regions_share_one_grid() {
+    // Two squares side by side at an offset that is no multiple of the cell: every needle
+    // point of both lies on the same 2.5 mm grid, at a cell corner or a cell centre.
+    let half = 12.5;
+    let left = vec![Contour::rectangle(33.0, 17.0, 120.0, 120.0)];
+    let right = vec![Contour::rectangle(153.0, 17.0, 120.0, 120.0)];
+    for angle in [0.0, 45.0] {
+        let mut r = region(RegionType::CrossStitch);
+        r.angle = angle;
+        r.running_stitch_path = None;
+        for c in [&left, &right] {
+            let runs = crate::region::layers(c, &r, &[]).pop().expect("top");
+            assert!(runs.iter().map(Vec::len).sum::<usize>() > 50);
+            for p in runs.iter().flatten() {
+                let (u, v) = (p.x / half, p.y / half);
+                assert!(
+                    (u - u.round()).abs() < 1e-6 && (v - v.round()).abs() < 1e-6,
+                    "{p:?} off the shared grid"
+                );
+                assert_eq!(
+                    (u.round() as i64 % 2 == 0),
+                    (v.round() as i64 % 2 == 0),
+                    "{p:?}: a corner or a centre"
+                );
+            }
+        }
+    }
 }
 
 #[test]
@@ -2095,6 +2281,154 @@ fn radial_lines_thin_out_towards_the_centre() {
     assert!(inner < outer * 4.0, "inner {inner} outer {outer}");
 }
 
+/// The sewn stretches of a compiled design: needle points between jumps and trims.
+fn sewn_stretches(d: &Design) -> Vec<Vec<Vec2>> {
+    let p = Compiler::default().compile(d);
+    let mut out: Vec<Vec<Vec2>> = vec![Vec::new()];
+    for s in &p.stitches {
+        match s.command {
+            Command::Stitch => out.last_mut().expect("one").push(v2(s.x, s.y)),
+            _ => out.push(Vec::new()),
+        }
+    }
+    out.retain(|s| s.len() >= 2);
+    out
+}
+
+/// The longest stretch of three or more consecutive stitches of 1 mm or more (travel, not the
+/// 0.5 mm steps along a seam) whose needle points all lie within `tol` of the straight line
+/// between its ends.
+fn longest_straight(points: &[Vec2], tol: f64) -> f64 {
+    let mut best: f64 = 0.0;
+    for i in 0..points.len() {
+        let mut j = i + 1;
+        while j + 1 < points.len() {
+            let (a, b) = (points[i], points[j + 1]);
+            let len = a.distance(b);
+            let straight = len > 1e-9
+                && points[j].distance(points[j + 1]) >= 10.0
+                && points[i].distance(points[i + 1]) >= 10.0
+                && points[i + 1..=j].iter().all(|p| {
+                    ((b.x - a.x) * (a.y - p.y) - (a.x - p.x) * (b.y - a.y)).abs() / len <= tol
+                });
+            if !straight {
+                break;
+            }
+            j += 1;
+        }
+        if j - i >= 3 {
+            best = best.max(points[i].distance(points[j]));
+        }
+    }
+    best
+}
+
+#[test]
+fn circles_spirals_and_rings_never_run_straight_back_across_their_rows() {
+    // A 30 mm circle with its start and end points at the bottom, as the shape tools set them.
+    // The flexible spiral ended in the middle and travelled straight out to the end point
+    // across its turns; concentric circles about a centre well off the middle stepped from the
+    // outermost arc straight in to the whole circles, 16 mm across the arcs (#461).
+    let c = circle();
+    let bottom = v2(200.0, 350.0);
+    let mut cases = Vec::new();
+    for kind in [
+        RegionType::FlexibleSpiral,
+        RegionType::ConcentricCircle,
+        RegionType::Spiral,
+        RegionType::Contour,
+    ] {
+        cases.push((kind, ContourStrategy::Rings, None));
+    }
+    cases.push((RegionType::Contour, ContourStrategy::DoubleSpiral, None));
+    cases.push((
+        RegionType::ConcentricCircle,
+        ContourStrategy::Rings,
+        Some(v2(245.0, 155.0)),
+    ));
+    for (kind, strategy, centre) in cases {
+        let mut r = region(kind);
+        r.contour_strategy = strategy;
+        r.center = centre;
+        r.entry = Some(bottom);
+        r.exit = Some(bottom);
+        let mut d = Design::new("t", DesignPage::default());
+        d.add(DesignObject::shape(vec![c.clone()], Some(r), None));
+        let straight = sewn_stretches(&d)
+            .iter()
+            .map(|s| longest_straight(s, 2.0))
+            .fold(0.0, f64::max);
+        assert!(
+            straight < 60.0,
+            "{kind:?} {strategy:?} {centre:?}: a straight run of {:.1} mm",
+            straight / 10.0
+        );
+    }
+}
+
+#[test]
+fn radial_lines_keep_their_needle_points_apart_at_the_centre() {
+    // The lines converged on the centre, needle points of neighbouring lines 0.1-0.25 mm apart
+    // there (#461): within 3 mm of the centre no two needle points are closer than 0.4 mm,
+    // unless they are the same point sewn over again. On centre and off it.
+    let c = vec![circle()];
+    for centre in [None, Some(v2(245.0, 155.0))] {
+        let mut r = region(RegionType::Radial);
+        r.center = centre;
+        r.entry = Some(v2(200.0, 350.0));
+        let runs = crate::region::layers(&c, &r, &[]).pop().expect("top");
+        let mid = centre.unwrap_or(v2(200.0, 200.0));
+        let mut pts: Vec<Vec2> = runs
+            .iter()
+            .flatten()
+            .copied()
+            .filter(|p| p.distance(mid) < 30.0)
+            .collect();
+        pts.sort_by(|a, b| a.x.total_cmp(&b.x).then(a.y.total_cmp(&b.y)));
+        pts.dedup_by(|a, b| a.distance(*b) < 1e-6);
+        let mut close = 0;
+        for i in 0..pts.len() {
+            for j in i + 1..pts.len() {
+                let d = pts[i].distance(pts[j]);
+                if d < 3.9 {
+                    close += 1;
+                }
+            }
+        }
+        assert_eq!(
+            close,
+            0,
+            "{centre:?}: {close} pairs under 0.4 mm of {}",
+            pts.len()
+        );
+        // It starts and ends on the outline, near the start point.
+        let (first, last) = (
+            runs[0][0],
+            *runs.last().and_then(|r| r.last()).expect("points"),
+        );
+        for p in [first, last] {
+            assert!(
+                (p.distance(v2(200.0, 200.0)) - 150.0).abs() < 3.0,
+                "{centre:?}: {p:?}"
+            );
+        }
+        assert!(
+            first.distance(v2(200.0, 350.0)) < 15.0,
+            "{centre:?}: {first:?}"
+        );
+        // No stitch shorter than 0.3 mm at the outline.
+        let short: Vec<(Vec2, Vec2)> = runs
+            .iter()
+            .flat_map(|run| run.windows(2).map(|w| (w[0], w[1])))
+            .filter(|(a, b)| a.distance(*b) < 3.0)
+            .collect();
+        assert!(
+            short.len() <= 2,
+            "{centre:?}: stitches under 0.3 mm {short:?}"
+        );
+    }
+}
+
 #[test]
 fn stippling_is_a_closed_path_that_never_crosses_itself() {
     let c = vec![Contour::ellipse(v2(150.0, 150.0), 120.0, 90.0, 48)];
@@ -2161,6 +2495,172 @@ fn stippling_sews_at_the_run_pitch_not_at_its_curve_vertices() {
         max <= 10.5,
         "longest stitch {max} (0.1 mm), half the 2 mm spacing"
     );
+}
+
+/// Stippling of `closed` minus `holes` at `spacing` mm (no travel): the sewn runs.
+fn stippled(closed: &[Contour], holes: &[Contour], spacing: Option<f64>) -> Vec<Vec<Vec2>> {
+    let mut r = region(RegionType::Stippling);
+    r.running_stitch_path = None;
+    r.spacing = spacing;
+    crate::region::layers(closed, &r, holes).pop().expect("top")
+}
+
+fn seg_distance(p: Vec2, a: Vec2, b: Vec2) -> f64 {
+    let d = b - a;
+    let len2 = d.x * d.x + d.y * d.y;
+    let t = if len2 > 0.0 {
+        (((p.x - a.x) * d.x + (p.y - a.y) * d.y) / len2).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    p.distance(a + d * t)
+}
+
+/// Mean distance (0.1 mm) between neighbouring passes: from the middle of each stitch, square
+/// to it on both sides, to the first other stitch hit within 2.5 spacings that lies more than
+/// 1.2 spacings away along the path (the other leg of a turn counts).
+fn mean_pass_spacing(runs: &[Vec<Vec2>], spacing: f64) -> f64 {
+    let pts: Vec<Vec2> = runs.iter().flatten().copied().collect();
+    let segs: Vec<(Vec2, Vec2)> = pts.windows(2).map(|w| (w[0], w[1])).collect();
+    let mut along = vec![0.0];
+    for (a, b) in &segs {
+        along.push(along.last().expect("start") + a.distance(*b));
+    }
+    let mut found = Vec::new();
+    for (i, &(a, b)) in segs.iter().enumerate() {
+        let len = a.distance(b);
+        if len < 1e-6 {
+            continue;
+        }
+        let mid = a.lerp(b, 0.5);
+        let n = v2(-(b.y - a.y) / len, (b.x - a.x) / len);
+        for side in [1.0, -1.0] {
+            let d = n * side;
+            let hit = segs
+                .iter()
+                .enumerate()
+                .filter(|&(j, _)| (along[j] - along[i]).abs() > 1.2 * spacing)
+                .filter_map(|(_, &(c, e))| {
+                    let ex = e - c;
+                    let den = d.x * ex.y - d.y * ex.x;
+                    if den.abs() < 1e-12 {
+                        return None;
+                    }
+                    let w = c - mid;
+                    let t = (w.x * ex.y - w.y * ex.x) / den;
+                    let u = (w.x * d.y - w.y * d.x) / den;
+                    (t > 0.0 && t <= 2.5 * spacing && (0.0..=1.0).contains(&u)).then_some(t)
+                })
+                .fold(None, |m: Option<f64>, t| Some(m.map_or(t, |m| m.min(t))));
+            if let Some(t) = hit {
+                found.push(t);
+            }
+        }
+    }
+    found.iter().sum::<f64>() / found.len().max(1) as f64
+}
+
+/// Distances (0.1 mm) from points every 0.5 mm along the outlines to the nearest stitch:
+/// (largest, mean).
+fn outline_gaps(runs: &[Vec<Vec2>], outlines: &[Contour]) -> (f64, f64) {
+    let segs: Vec<(Vec2, Vec2)> = runs
+        .iter()
+        .flat_map(|r| r.windows(2).map(|w| (w[0], w[1])))
+        .collect();
+    let gaps: Vec<f64> = outlines
+        .iter()
+        .flat_map(|c| {
+            c.edges().into_iter().flat_map(|(a, b)| {
+                let n = (a.distance(b) / 5.0).ceil().max(1.0) as usize;
+                (0..n).map(move |k| a.lerp(b, k as f64 / n as f64))
+            })
+        })
+        .map(|p| {
+            segs.iter()
+                .map(|&(a, b)| seg_distance(p, a, b))
+                .fold(f64::MAX, f64::min)
+        })
+        .collect();
+    let max = gaps.iter().copied().fold(0.0, f64::max);
+    (max, gaps.iter().sum::<f64>() / gaps.len().max(1) as f64)
+}
+
+fn stipple_crossings(runs: &[Vec<Vec2>]) -> usize {
+    let segs: Vec<(Vec2, Vec2)> = runs
+        .iter()
+        .flat_map(|r| r.windows(2).map(|w| (w[0], w[1])))
+        .collect();
+    let o = |p: Vec2, q: Vec2, r: Vec2| (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+    let mut n = 0;
+    for i in 0..segs.len() {
+        for j in i + 2..segs.len() {
+            let ((a, b), (c, d)) = (segs[i], segs[j]);
+            if o(a, b, c) * o(a, b, d) < -1e-9 && o(c, d, a) * o(c, d, b) < -1e-9 {
+                n += 1;
+            }
+        }
+    }
+    n
+}
+
+#[test]
+fn stippling_honours_its_spacing_and_fills_a_square_to_the_outline() {
+    // #462: the meander kept 3-6 mm off the outline; spacing must hold on 2 and 4 mm alike.
+    let c = vec![Contour::rectangle(0.0, 0.0, 500.0, 500.0)];
+    for spacing in [2.0, 4.0] {
+        let runs = stippled(&c, &[], Some(spacing));
+        let s = spacing * 10.0;
+        let mean = mean_pass_spacing(&runs, s);
+        assert!(
+            (mean - s).abs() <= 0.15 * s,
+            "spacing {spacing}: mean pass spacing {mean}"
+        );
+        // Half a spacing to the outline on average; the most, between two turns that meet
+        // the outline side by side, is under 0.9 spacing (it was 2.7: a 5.5 mm band).
+        let (max, avg) = outline_gaps(&runs, &c);
+        assert!(
+            avg <= 0.55 * s && max <= 0.9 * s,
+            "spacing {spacing}: gaps {max} {avg}"
+        );
+        assert_eq!(stipple_crossings(&runs), 0, "spacing {spacing}");
+    }
+}
+
+#[test]
+fn stippling_fills_a_ring_to_its_outline_and_its_hole() {
+    let outer = Contour::ellipse(v2(250.0, 250.0), 250.0, 250.0, 96);
+    let hole = Contour::ellipse(v2(250.0, 250.0), 100.0, 100.0, 48);
+    let runs = stippled(
+        std::slice::from_ref(&outer),
+        std::slice::from_ref(&hole),
+        None,
+    );
+    let mean = mean_pass_spacing(&runs, 20.0);
+    assert!((mean - 20.0).abs() <= 3.0, "mean pass spacing {mean}");
+    let (max, avg) = outline_gaps(&runs, &[outer, hole]);
+    assert!(avg <= 11.0 && max <= 18.0, "gaps {max} {avg}");
+    assert_eq!(stipple_crossings(&runs), 0);
+}
+
+#[test]
+fn stippling_starts_and_ends_inside_and_never_runs_along_the_outline() {
+    // The exposed L of #462 ran along the bottom and left outline.
+    let c = vec![Contour::rectangle(0.0, 0.0, 260.0, 260.0)];
+    let runs = stippled(&c, &[], None);
+    let edges = c[0].edges();
+    let near = |p: Vec2| edges.iter().any(|&(a, b)| seg_distance(p, a, b) < 4.0);
+    let along: f64 = runs
+        .iter()
+        .flat_map(|r| r.windows(2))
+        .filter(|w| near(w[0]) && near(w[1]))
+        .map(|w| w[0].distance(w[1]))
+        .sum();
+    assert!(along < 1.0, "{along} (0.1 mm) along the outline");
+    let first = runs[0][0];
+    let last = *runs.last().and_then(|r| r.last()).expect("stitches");
+    assert!(!near(first) && !near(last), "{first:?} {last:?}");
+    // Repeatable.
+    assert_eq!(runs, stippled(&c, &[], None));
 }
 
 #[test]
@@ -2333,4 +2833,195 @@ fn auto_satin_on_a_straight_bar_travels_along_its_outline() {
         deepest <= 8.0,
         "a needle point {deepest} (0.1 mm) inside the bar"
     );
+}
+
+#[test]
+fn narrow_auto_satin_travels_to_its_far_end_without_a_long_stitch() {
+    // #460: the kit's 1 mm × 40 mm Auto satin column (calibration/satin-and-underlay) started
+    // with one 39.5 mm stitch from its start point (the middle of the bottom edge) to the far
+    // end: the travel along the inset outline found no path in a column narrower than twice
+    // the inset, and the fallback was a single straight stitch.
+    for width in [10.0, 15.0, 20.0, 60.0] {
+        let col = Contour::rectangle(90.0, 90.0, width, 400.0);
+        let mut r = region(RegionType::Satin);
+        r.auto_direction = true;
+        r.underlay = false;
+        r.entry = Some(v2(90.0 + width / 2.0, 490.0));
+        r.exit = r.entry;
+        r.running_stitch_path = Some(RunningStitchPath::Inside);
+        // Travel stitches up to 2 mm; crossings as wide as the column (6 mm: 6.04 mm).
+        let limit = f64::max(25.0, width + 2.0);
+        let layers = crate::region::layers(std::slice::from_ref(&col), &r, &[]);
+        for run in layers.iter().flatten() {
+            let l = longest(run);
+            assert!(l <= limit, "{width}: a {l} stitch in {run:?}");
+        }
+        // As the design sews it (travel from the start point, tie-in and lock).
+        let mut d = Design::new("column", DesignPage::default());
+        d.add(DesignObject::shape(vec![col], Some(r), None));
+        let p = Compiler::default().compile(&d);
+        let pts: Vec<Vec2> = p
+            .stitches
+            .iter()
+            .filter(|s| s.command == Command::Stitch)
+            .map(|s| v2(s.x, s.y))
+            .collect();
+        let l = longest(&pts);
+        assert!(
+            l <= limit,
+            "{width}: a {l} stitch in {:?}",
+            &pts[..12.min(pts.len())]
+        );
+    }
+}
+
+/// An S-curve about 60 mm long, one Bézier segment from (0, 0) to (50, 0) mm: flattened, its
+/// chords are short at the bends and long between them (#464).
+fn curve60() -> (Vec<Vec2>, Vec<usize>) {
+    let mut c = Contour::new(vec![v2(0.0, 0.0), v2(500.0, 0.0)], false);
+    c.set_curve(
+        0,
+        Some(crate::geometry::Bezier {
+            c1: v2(150.0, -220.0),
+            c2: v2(350.0, 220.0),
+        }),
+    );
+    (c.path(), lines::nodes_of(&c))
+}
+
+/// Mean, standard deviation and max/min ratio of the gaps between consecutive arcs.
+fn spacing_stats(arcs: &[f64]) -> (f64, f64, f64) {
+    let d: Vec<f64> = arcs.windows(2).map(|w| w[1] - w[0]).collect();
+    let mean = d.iter().sum::<f64>() / d.len() as f64;
+    let sd = (d.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / d.len() as f64).sqrt();
+    let (lo, hi) = d
+        .iter()
+        .fold((f64::MAX, f64::MIN), |(lo, hi), &x| (lo.min(x), hi.max(x)));
+    (mean, sd, hi / lo)
+}
+
+#[test]
+fn stem_on_a_curve_is_an_even_overlapping_rope() {
+    let (path, nodes) = curve60();
+    let len = crate::paths::length(&path);
+    assert!((550.0..650.0).contains(&len), "{len}");
+    let (width, spacing) = (25.0, 15.0);
+    let line = lines::LoopLine::Stem {
+        width,
+        spacing,
+        angle: 45.0,
+        single: false,
+    };
+    let stations = lines::elements(&path, &nodes, line);
+    // One leg: no corner points, a station every len / round(len / spacing).
+    assert_eq!(stations.len(), (len / spacing).round() as usize + 1);
+    let centres: Vec<f64> = stations
+        .iter()
+        .map(|(lead, _)| lines::arc_of(&path, lead[0]))
+        .collect();
+    let (mean, sd, ratio) = spacing_stats(&centres);
+    assert!((mean - spacing).abs() <= spacing * 0.1, "mean {mean}");
+    assert!(sd < 0.5 && ratio < 1.05, "sd {sd}, max/min {ratio}");
+    // Each slanted stitch, seen along the line, overlaps the one before by at least a third of
+    // its own extent: no gap anywhere along the rope.
+    let spans: Vec<(f64, f64)> = stations
+        .iter()
+        .map(|(_, pts)| {
+            let (a, b) = (lines::arc_of(&path, pts[1]), lines::arc_of(&path, pts[0]));
+            (a.min(b), a.max(b))
+        })
+        .collect();
+    for (k, w) in spans.windows(2).enumerate().skip(1) {
+        let (prev, cur) = (w[0], w[1]);
+        let overlap = prev.1 - cur.0;
+        assert!(
+            overlap >= (cur.1 - cur.0) / 3.0,
+            "station {k}: overlap {overlap} of {:?}",
+            cur
+        );
+    }
+}
+
+#[test]
+fn candlewick_knots_and_chain_links_are_spaced_by_arc_length_on_a_curve() {
+    let (path, nodes) = curve60();
+    let len = crate::paths::length(&path);
+    // Knots of 5 mm, 1 mm apart (PE-DESIGN's defaults): centres on the line, evenly spaced.
+    let knots = lines::elements(
+        &path,
+        &nodes,
+        lines::LoopLine::Candlewick {
+            size: 50.0,
+            points: 24,
+            spacing: 10.0,
+            pitch: 25.0,
+        },
+    );
+    assert_eq!(knots.len(), (len / 60.0).round() as usize + 1);
+    let centres: Vec<f64> = knots
+        .iter()
+        .map(|(_, pts)| {
+            let c = pts[..24].iter().fold(v2(0.0, 0.0), |s, &p| s + p) * (1.0 / 24.0);
+            assert!(path_distance(&path, c) < 0.5, "knot centre off the line");
+            lines::arc_of(&path, c)
+        })
+        .collect();
+    let (mean, sd, ratio) = spacing_stats(&centres);
+    assert!((mean - 60.0).abs() <= 6.0, "mean {mean}");
+    assert!(sd < 0.5 && ratio < 1.05, "sd {sd}, max/min {ratio}");
+    // The running stitch between knots keeps no flattening vertex: no stitch under 0.3 mm.
+    let run = lines::candlewick(&path, &nodes, 50.0, 24, 10.0, 25.0);
+    assert!(
+        run.windows(2)
+            .all(|w| w[0].distance(w[1]) >= 3.0 - 1e-9 || w[0] == w[1])
+    );
+    // Triangle links of 4 mm: evenly spaced, each the same size with its base on the line.
+    let links = lines::elements(
+        &path,
+        &nodes,
+        lines::LoopLine::Chain {
+            size: 40.0,
+            times: 5,
+            arrange: Arrange::Normal,
+        },
+    );
+    assert_eq!(links.len(), (len / 30.0).floor() as usize);
+    let points: Vec<f64> = links
+        .iter()
+        .map(|(lead, _)| lines::arc_of(&path, lead[0]))
+        .collect();
+    let (mean, sd, ratio) = spacing_stats(&points);
+    assert!((mean - 30.0).abs() <= 3.0 * 1.34, "mean {mean}");
+    assert!(sd < 0.5 && ratio < 1.05, "sd {sd}, max/min {ratio}");
+    for (lead, pts) in &links[..links.len() - 1] {
+        let base = (pts[0] + pts[1]) * 0.5;
+        assert!((lead[0].distance(base) - 40.0).abs() < 1e-6);
+        assert!(path_distance(&path, base) < 2.0, "base off the line");
+    }
+}
+
+/// Distance from `p` to the polyline `path`.
+fn path_distance(path: &[Vec2], p: Vec2) -> f64 {
+    let s = lines::arc_of(path, p);
+    crate::paths::Walker::new(path).at(s).distance(p)
+}
+
+#[test]
+fn running_stitch_keeps_ornaments_smaller_than_a_stitch() {
+    // A 2 mm scallop (a half circle of radius 1 mm as one Bézier) under a 2 mm pitch: sewn as
+    // its 2 mm chord it was a straight edge; now it follows the arc.
+    let k = 0.552_284_75 * 10.0;
+    let mut c = Contour::new(vec![v2(0.0, 0.0), v2(20.0, 0.0)], false);
+    c.set_curve(
+        0,
+        Some(crate::geometry::Bezier {
+            c1: v2(0.0, -k * 1.33),
+            c2: v2(20.0, -k * 1.33),
+        }),
+    );
+    let run = crate::generate::running(&c, 20.0, 1);
+    assert!(run.len() >= 3, "{run:?}");
+    let top = run.iter().map(|p| -p.y).fold(0.0, f64::max);
+    assert!(top > 5.0, "the scallop keeps its height: {top}");
+    assert!(run.windows(2).all(|w| w[0].distance(w[1]) >= 3.0));
 }

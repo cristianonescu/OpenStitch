@@ -500,6 +500,7 @@ impl EditorApp {
                 "nudgeByGrid" => json!(prefs.editing.nudge_grid),
                 "alignTo" => json!(self.align_to),
                 "realSizePointsPerMM" => json!(self.points_per_mm()),
+                "smoothTolerance" => json!(crate::shape_tools_ui::smooth_tolerance(self)),
                 "rulers" => json!(w.rulers),
                 "guides" => json!(w.guides),
                 "referenceWindow" => json!(w.reference),
@@ -602,6 +603,10 @@ impl EditorApp {
             }
             "nudgeStep" => self.ui.prefs.editing.nudge_mm = number_value(name, v, 0.1, 50.0)?,
             "nudgeByGrid" => self.ui.prefs.editing.nudge_grid = bool_value(name, v)?,
+            "smoothTolerance" => {
+                self.edit.smooth_tolerance = Some(number_value(name, v, 0.01, 10.0)?);
+                save = false;
+            }
             "alignTo" => {
                 self.align_to = crate::arrange_ui::ALIGN_TO
                     .iter()
