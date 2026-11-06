@@ -33,8 +33,47 @@ fn rungs(p: &Params) -> Result<Vec<[Vec2; 2]>, CommandError> {
             _ => Err(p.invalid("lines", "each line must be [[x1, y1], [x2, y2]] in mm")),
         })
         .collect::<Result<Vec<_>, _>>()?;
+    // A pair clicked right-then-left is turned round (#525); a real overlap still fails.
+    let (lines, _) = column::untangle(&lines);
     column::validate(&lines).map_err(|e| rung_error(p, e))?;
     Ok(lines)
+}
+
+/// The Manual Punch column `id`'s direction lines changed by `edit`, checked, and its outline
+/// redrawn from them (#525). `edit` returns the command's result.
+fn edit_rungs(
+    s: &mut crate::session::EngineState,
+    p: &Params,
+    edit: impl FnOnce(&mut Vec<[Vec2; 2]>) -> Result<serde_json::Value, CommandError>,
+) -> Result<serde_json::Value, CommandError> {
+    let id = p.int("id", None, 0, i64::MAX)? as u64;
+    let i = s
+        .design
+        .index_of(id)
+        .ok_or_else(|| p.not_found(format!("object {id}")))?;
+    let o = &mut s.design.objects[i];
+    let r = o
+        .region
+        .as_mut()
+        .filter(|r| r.direction_lines.len() >= 2 && o.contours.len() == 1)
+        .ok_or_else(|| p.failed(format!("object {id} is not a Manual Punch column")))?;
+    let mut lines = r.direction_lines.clone();
+    let out = edit(&mut lines)?;
+    column::validate(&lines).map_err(|e| rung_error(p, e))?;
+    if r.curved_lines && column::validate(&column::curved_rungs(&lines)).is_err() {
+        return Err(p.failed("the curved sides would cross"));
+    }
+    o.contours[0] = if r.curved_lines {
+        column::curved_outline(&lines)
+    } else {
+        column::outline(&lines)
+    };
+    r.direction_lines = lines;
+    Ok(out)
+}
+
+fn rung_index(p: &Params, lines: &[[Vec2; 2]]) -> Result<usize, CommandError> {
+    Ok(p.int("index", None, 0, lines.len() as i64 - 1)? as usize)
 }
 
 /// The user-facing message for direction lines that cannot make a column.
@@ -413,6 +452,134 @@ pub fn commands() -> Vec<CommandSpec> {
                     o.contours = vec![c];
                 }
                 Ok(result)
+            },
+        ),
+        spec(
+            "object.insertRung",
+            "Manual Punch column: add a direction line (rung) through the point, between the two it lies between, at the same slant (beyond PE-DESIGN)",
+            Effect::Edit,
+            vec![
+                req("id", "int", "Manual Punch column"),
+                req("at", "[x, y] mm", "Point on or near the column"),
+            ],
+            |s, p| {
+                let at = p.point("at")?;
+                edit_rungs(s, p, |lines| {
+                    // The section nearest the point, and where along it the point lies.
+                    let mut best = (f64::INFINITY, 0, 0.0);
+                    for (j, w) in lines.windows(2).enumerate() {
+                        let (a, b) = (w[0][0].lerp(w[0][1], 0.5), w[1][0].lerp(w[1][1], 0.5));
+                        let ab = b - a;
+                        let len2 = (ab.x * ab.x + ab.y * ab.y).max(1e-12);
+                        let t =
+                            (((at.x - a.x) * ab.x + (at.y - a.y) * ab.y) / len2).clamp(0.0, 1.0);
+                        let d = a.lerp(b, t).distance(at);
+                        if d < best.0 {
+                            best = (d, j, t);
+                        }
+                    }
+                    let (_, j, t) = best;
+                    if !(0.01..=0.99).contains(&t) {
+                        return Err(p.invalid("at", "is at a direction line already"));
+                    }
+                    let rung = [
+                        lines[j][0].lerp(lines[j + 1][0], t),
+                        lines[j][1].lerp(lines[j + 1][1], t),
+                    ];
+                    lines.insert(j + 1, rung);
+                    Ok(json!({ "index": j + 1 }))
+                })
+            },
+        ),
+        spec(
+            "object.deleteRung",
+            "Manual Punch column: remove direction line (rung) `index` (0 = first); at least two stay (beyond PE-DESIGN)",
+            Effect::Edit,
+            vec![
+                req("id", "int", "Manual Punch column"),
+                req("index", "int", "Direction line, 0 = first"),
+            ],
+            |s, p| {
+                edit_rungs(s, p, |lines| {
+                    let i = rung_index(p, lines)?;
+                    if lines.len() <= 2 {
+                        return Err(p.failed("a column needs at least two direction lines"));
+                    }
+                    lines.remove(i);
+                    Ok(json!(null))
+                })
+            },
+        ),
+        spec(
+            "object.moveRung",
+            "Manual Punch column: move one end of direction line (rung) `index` (beyond PE-DESIGN); refused when the column would cross itself",
+            Effect::Edit,
+            vec![
+                req("id", "int", "Manual Punch column"),
+                req("index", "int", "Direction line, 0 = first"),
+                req(
+                    "side",
+                    "left|right",
+                    "Which end: left is the end on the first stitch's start rail",
+                ),
+                req("point", "[x, y] mm", "New position of that end"),
+            ],
+            |s, p| {
+                let side = match p.string("side", None)?.as_str() {
+                    "left" => 0,
+                    "right" => 1,
+                    _ => return Err(p.invalid("side", "must be left or right")),
+                };
+                let to = p.point("point")?;
+                edit_rungs(s, p, |lines| {
+                    let i = rung_index(p, lines)?;
+                    lines[i][side] = to;
+                    Ok(json!(null))
+                })
+            },
+        ),
+        spec(
+            "object.swapSides",
+            "Manual Punch column: swap its two sides, so every satin crossing starts from the other rail; the needle points stay (beyond PE-DESIGN)",
+            Effect::Edit,
+            vec![req("id", "int", "Manual Punch column")],
+            |s, p| {
+                edit_rungs(s, p, |lines| {
+                    *lines = column::swap_sides(lines);
+                    Ok(json!(null))
+                })
+            },
+        ),
+        spec(
+            "object.untangle",
+            "Manual Punch column: turn round every direction line whose ends were swapped (sides crossing between it and the one before), e.g. after moving a point; a real overlap is still refused (beyond PE-DESIGN). Returns how many were turned",
+            Effect::Edit,
+            vec![req("id", "int", "Manual Punch column")],
+            |s, p| {
+                let id = p.int("id", None, 0, i64::MAX)? as u64;
+                let i = s
+                    .design
+                    .index_of(id)
+                    .ok_or_else(|| p.not_found(format!("object {id}")))?;
+                let lines = s.design.objects[i]
+                    .region
+                    .as_ref()
+                    .map(|r| r.direction_lines.clone())
+                    .unwrap_or_default();
+                let (fixed, turned) = column::untangle(&lines);
+                if let Err(e) = column::validate(&fixed) {
+                    let RungError::Crossing(k) = e else {
+                        return Err(p.failed(format!("object {id} is not a Manual Punch column")));
+                    };
+                    return Err(p.failed(format!(
+                        "direction lines {k} and {} overlap: move one of them",
+                        k + 1
+                    )));
+                }
+                edit_rungs(s, p, |l| {
+                    *l = fixed;
+                    Ok(json!({ "turned": turned }))
+                })
             },
         ),
     ]

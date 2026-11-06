@@ -129,12 +129,19 @@ fn curved_block_curves_its_sides_and_sewing() {
             .expect("r")
             .curved_lines
     );
-    // Lines whose curved sides would cross are refused.
+    // Lines whose curved sides would cross are refused (their straight sides do not cross).
     fails(
+        &mut s,
+        "shape.column",
+        json!({ "lines": [[[0, 0], [0, 10]], [[30, 0], [30, 10]], [[2, 3], [21, 23]], [[7, 56], [25, 39]]], "curved": true }),
+    );
+    // A line clicked right-then-left is turned round, not refused (#525).
+    run(
         &mut s,
         "shape.column",
         json!({ "lines": [[[0, 0], [0, 10]], [[30, 0], [30, 10]], [[31, 40], [29, 40]], [[0, 41], [0, 51]]], "curved": true }),
     );
+    run(&mut s, "history.undo", json!({}));
     fails(
         &mut s,
         "shape.column",
