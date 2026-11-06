@@ -2957,6 +2957,21 @@ PE-DESIGN's destructive `shape.removeOverlap` is unchanged.
   same ring flattened first (`paths::tests::curved_layers_timing`). PES output byte-identical on
   the 24 exportable example scripts; compat 454/454.
 
+### Tie-off after tiny last stitches, 2026-11-07 (#703)
+
+A run that ends in stitches of 0.3 mm or less (a fill's last clipped row pieces, a satin
+narrowing to a point) followed by its lock sewed up to 7 stitches in one spot, which
+`tools/sew_check.py` refuses (limit 6). The writer's tie-off now drops the run's own needle
+points just before the lock that make the run longer than 6 (0.35 mm counts as in place, for
+the machine file's 0.1 mm grid); the last needle point and the lock stay. Stitch files and other
+fixed needle points never lock, so they are not touched.
+
+Measured with Auto Punch in OpenStitch mode on p01 and p09 (long side 100 mm), with no preset
+and with each of the six presets: before, p01 with `lineArt` failed with 7 in place (the other
+13 runs passed on main by then); after, all 14 pass, the longest run in place 4-6. Compat
+454/454, and its 501 written files are byte-identical apart from two JEF time stamps.
+Tests `tie_off_tests::*`.
+
 ## Order of work
 
 1. **Fix without a reference:** items 1, 3, 7, 14, 15 (ranges), 16 and 17, plus the
