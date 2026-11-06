@@ -334,6 +334,68 @@ mod tests {
         assert!(restore(&mut c, "4000000000-7").is_err());
     }
 
+    /// A crashed window's files under a dead process id, copied from `from`'s snapshot.
+    fn crashed(dir: &std::path::Path, from: &str, id: &str) {
+        for ext in ["osd", "json", "lock"] {
+            std::fs::copy(
+                dir.join(format!("{from}.{ext}")),
+                dir.join(format!("{id}.{ext}")),
+            )
+            .expect("copy");
+        }
+    }
+
+    #[test]
+    fn discard_through_the_command_deletes_only_what_crashed() {
+        let tmp = openstitch_testutil::TempDir::new("recovery-discard");
+        let dir = tmp.path().join(recovery::FOLDER);
+        let mut a = window(&dir);
+        edit(&mut a);
+        write_now(&mut a, true).expect("snapshot");
+        let own = a.recovery.slot.as_ref().expect("slot").id().to_string();
+        crashed(&dir, &own, "4000000000-1");
+        crashed(&dir, &own, "4000000000-2");
+        // One by id: its files go, the other's stay.
+        let r = a
+            .ui_command("ui.recoveryDiscard", Some(&json!({ "id": "4000000000-1" })))
+            .expect("discard");
+        assert_eq!(r["discarded"], json!(["4000000000-1"]));
+        for ext in ["osd", "json", "lock"] {
+            assert!(!dir.join(format!("4000000000-1.{ext}")).exists(), "{ext}");
+        }
+        assert!(dir.join("4000000000-2.osd").exists());
+        // A running window's snapshot is refused and kept.
+        let e = a
+            .ui_command("ui.recoveryDiscard", Some(&json!({ "id": own })))
+            .expect_err("running");
+        assert!(e.contains("still open"), "{e}");
+        assert!(dir.join(format!("{own}.osd")).exists());
+        // Not a path.
+        assert!(
+            a.ui_command("ui.recoveryDiscard", Some(&json!({ "id": "../ui" })))
+                .is_err()
+        );
+        // All: every crashed copy goes, this window's own stays.
+        let r = a
+            .ui_command("ui.recoveryDiscard", Some(&json!({ "all": true })))
+            .expect("all");
+        assert_eq!(r["discarded"], json!(["4000000000-2"]));
+        assert!(!dir.join("4000000000-2.osd").exists());
+        assert!(dir.join(format!("{own}.osd")).exists());
+        assert!(
+            list(&mut a)["snapshots"]
+                .as_array()
+                .is_some_and(Vec::is_empty)
+        );
+        // Restore through the command as well.
+        crashed(&dir, &own, "4000000000-3");
+        let mut b = window(&dir);
+        b.ui_command("ui.recoveryRestore", Some(&json!({ "id": "4000000000-3" })))
+            .expect("restore");
+        assert_eq!(b.session.design().objects, a.session.design().objects);
+        assert!(!dir.join("4000000000-3.osd").exists());
+    }
+
     #[test]
     fn autosave_off_writes_nothing() {
         let tmp = openstitch_testutil::TempDir::new("recovery-off");
