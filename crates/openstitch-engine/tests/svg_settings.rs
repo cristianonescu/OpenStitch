@@ -142,3 +142,60 @@ fn refused_values_are_listed_and_the_rest_applies() {
     let fill = s.design().objects[0].region.as_ref().expect("fill");
     assert!((fill.angle - 30.0).abs() < 1e-9, "a=30 still applies");
 }
+
+/// #455: the long key names (`angle=`, `spacing=`, `density=`, `width=`, `length=`,
+/// `repeats=`, ...) import exactly as the short ones do, and the settings really apply. The SVG
+/// is test input written here (each element needs an `id` for its name to be read).
+#[test]
+fn long_key_names_import_like_the_short_ones() {
+    let svg = |fill: &str, satin: &str, run: &str| {
+        format!(
+            r##"<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="80mm" height="80mm" viewBox="0 0 80 80">
+              <rect id="r1" inkscape:label="{fill}" x="0" y="0" width="30" height="30" fill="#2060c0"/>
+              <path id="p1" inkscape:label="{satin}" d="M 40 10 L 75 10" stroke="#c02020" stroke-width="3" fill="none"/>
+              <path id="p2" inkscape:label="{run}" d="M 0 60 L 70 60" stroke="#000000" fill="none"/>
+            </svg>"##
+        )
+    };
+    let import = |text: String| {
+        let dir = TempDir::new("svg-settings-long");
+        std::fs::write(dir.join("a.svg"), text).expect("write");
+        let mut s = Session::new(&dir);
+        let r = run(
+            &mut s,
+            "import.svg",
+            json!({"path": "a.svg", "settings": true}),
+        );
+        assert_eq!(r["settings"]["unknown"], json!([]), "{r}");
+        assert_eq!(r["settings"]["invalid"], json!([]), "{r}");
+        s.design().objects.clone()
+    };
+    let long = import(svg(
+        "fill angle=30 spacing=0.4 pullCompensation=0.3",
+        "stroke.satin stroke.width=3",
+        "run repeats=3 length=2.5",
+    ));
+    let short = import(svg(
+        "fill a=30 s=0.4 pc=0.3",
+        "stroke.satin stroke.w=3",
+        "run r=3 l=2.5",
+    ));
+    assert_eq!(long.len(), 3);
+    for (a, b) in long.iter().zip(&short) {
+        assert_eq!(a.region, b.region);
+        assert_eq!(a.line, b.line);
+    }
+    let fill = long[0].region.as_ref().expect("fill");
+    assert!(
+        (fill.angle - 30.0).abs() < 1e-9 && (fill.density - 2.5).abs() < 1e-9,
+        "angle {}, density {}",
+        fill.angle,
+        fill.density
+    );
+    assert_eq!(
+        long[1].line.as_ref().map(|l| l.kind),
+        Some(LineType::Zigzag)
+    );
+    let line = long[2].line.as_ref().expect("run");
+    assert_eq!((line.kind, line.run_times), (LineType::Running, 3));
+}

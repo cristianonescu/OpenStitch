@@ -986,7 +986,7 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
                 opt(
                     "settings",
                     "bool",
-                    "Read stitch settings from layer and object names (\"fill a=45 s=0.4\", \"satin\", \"run r=3\", \"stroke.satin w=3\", \"skip\"; docs/FILE_FORMATS.md), split dashed strokes into one line per dash and sew paint-order: stroke outlines first (default false)",
+                    "Read stitch settings from layer and object names (\"fill a=45 s=0.4\" or \"fill angle=45 spacing=0.4\", \"satin\", \"run r=3\" or \"run repeats=3\", \"stroke.satin w=3\", \"skip\"; short and long key names alike; docs/FILE_FORMATS.md), split dashed strokes into one line per dash and sew paint-order: stroke outlines first (default false)",
                 ),
             ],
             |s, p| {
