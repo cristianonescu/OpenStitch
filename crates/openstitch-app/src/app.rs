@@ -2019,6 +2019,7 @@ impl eframe::App for EditorApp {
         crate::workspace_ui::design_settings_window(self, &ctx);
         crate::print_ui::window(self, &ctx);
         crate::swatch_ui::window(self, &ctx);
+        crate::jobsheet_ui::window(self, &ctx);
         crate::transfer_ui::window(self, &ctx);
         crate::edit_ui::windows(self, &ctx);
         crate::settings_ui::windows(self, &ctx);

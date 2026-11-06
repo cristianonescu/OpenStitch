@@ -164,6 +164,9 @@ fn row_pick(ui: &mut egui::Ui, label: &str, row: char, value: &mut u32) {
 }
 
 pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
+    if std::mem::take(&mut app.ui.open_swatches) {
+        open(ctx);
+    }
     let mut d: SwatchDialog =
         ctx.data_mut(|m| m.get_temp_mut_or_default::<SwatchDialog>(id()).clone());
     if !d.open {
@@ -384,5 +387,23 @@ mod tests {
         d.fill = 2;
         assert_eq!(calibrate_params(&d)["name"], json!("Denim"));
         assert_eq!(calibrate_params(&d)["fill"], json!(2));
+    }
+
+    /// The Assistant opens the dialog with `ui.run {action: "testSwatches"}`; it shows on the next
+    /// frame.
+    #[test]
+    fn ui_run_opens_the_test_swatches_dialog() {
+        let mut app = EditorApp::new(crate::app::Launch {
+            demo: true,
+            ..crate::app::Launch::default()
+        });
+        assert!(!app.ui.open_swatches);
+        app.ui_command("ui.run", Some(&json!({ "action": "testSwatches" })))
+            .expect("runs");
+        assert!(app.ui.open_swatches);
+        let ctx = egui::Context::default();
+        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| window(&mut app, ui.ctx()));
+        out.textures_delta.clear();
+        assert!(!app.ui.open_swatches, "taken by the window");
     }
 }

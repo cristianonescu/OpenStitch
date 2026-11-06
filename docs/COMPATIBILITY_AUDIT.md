@@ -2384,6 +2384,28 @@ Line references are relative to `crates/`.
   both cards; the Realistic view and the similarity scorer now draw thread that wide
   (`openstitch_design::calibration`, #291).
 
+### Job sheets, 2026-11-06 (`batch:mac-sewout`, #513)
+
+Beyond PE-DESIGN, off unless chosen: `design.print`'s existing modes and the PE-compatible
+output are unchanged.
+
+- **Commands:** `design.setJob` (an undoable edit) stores customer, order, due date, notes, fabric
+  and stabiliser in `Design.job`. `design.print {mode: client | operator, detail, shop}` writes the
+  client approval sheet or the operator worksheet, as an overview (one page) or detailed. The
+  editor has File ▸ Print ▸ Job Sheet….
+- **The job stays out of machine files:** it is in the project only. PES, PEC, DST, EXP, JEF,
+  VP3 and XXX exports are byte for byte the same with and without a job, and none holds a job
+  field (`the_job_never_reaches_a_machine_file`). A project without a job is written exactly as
+  before (the field is left out while empty).
+- **What the operator sheet reports:**
+  - its colour sequence is the compiled pattern's colour blocks, stops counted per block;
+  - its sewing time is `design.info`'s `sewingMinutes`.
+- **Checked by eye:** both sheets rendered from a two-colour design with text, on A4 and Letter.
+- **Not done:**
+  - a shop logo image (name only);
+  - scripts outside WinAnsi (the PDF uses the standard Helvetica);
+  - a print preview in the dialog.
+
 ### Knockdown fill, 2026-11-06 (#510, `batch:production`)
 
 Beyond PE-DESIGN (PE-DESIGN 11 has no fill under the design; its background fill sews around
