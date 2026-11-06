@@ -707,14 +707,18 @@ pub fn order_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandR
     let mut out = None;
     let any = !app.selection.is_empty();
     ui.horizontal_wrapped(|ui| {
-        for (label, to, hint) in [
-            ("First", "first", "Sew first"),
-            ("▲", "earlier", "Sew earlier"),
-            ("▼", "later", "Sew later"),
-            ("Last", "last", "Sew last"),
+        for (label, icon, to, hint) in [
+            ("First", None, "first", "Sew first"),
+            ("", Some("move_up"), "earlier", "Sew earlier"),
+            ("", Some("move_down"), "later", "Sew later"),
+            ("Last", None, "last", "Sew last"),
         ] {
+            let button = match icon {
+                Some(icon) => egui::Button::new(crate::icons::ui_image(ui, icon)),
+                None => egui::Button::new(label),
+            };
             if ui
-                .add_enabled(any, egui::Button::new(label))
+                .add_enabled(any, button)
                 .on_hover_text(hint)
                 .clicked()
             {
@@ -830,10 +834,13 @@ pub fn colour_frames(app: &mut EditorApp, ui: &mut egui::Ui) {
                         select = Some(frame.clone());
                     }
                     if selected {
-                        if ui.small_button("▲").on_hover_text("Sew earlier").clicked() {
+                        let up = egui::Button::new(crate::icons::ui_image(ui, "move_up")).small();
+                        if ui.add(up).on_hover_text("Sew earlier").clicked() {
                             pending = objects::shift_frame(&frames, k, -1);
                         }
-                        if ui.small_button("▼").on_hover_text("Sew later").clicked() {
+                        let down =
+                            egui::Button::new(crate::icons::ui_image(ui, "move_down")).small();
+                        if ui.add(down).on_hover_text("Sew later").clicked() {
                             pending = objects::shift_frame(&frames, k, 1);
                         }
                     }

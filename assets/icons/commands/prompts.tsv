@@ -185,3 +185,9 @@ smooth_stitches	2B2F36 D8433A A0A6AE	a gently curved red stitched line made of s
 knife	2B2F36 A0A6AE 2A7AD8 2E9D58	a craft knife with a light grey angled blade cutting diagonally across a blue square and a green circle, a dashed cut line through both
 shape_effects	2B2F36 8A52C8 E0A21B	a purple square whose sides are bent into a twisted wavy shape, with a small golden yellow four-pointed sparkle at one corner
 shape_builder	2B2F36 2A7AD8 A0A6AE 2E9D58	two overlapping circles, the overlapping lens and one circle filled blue, the other circle light grey, with a bold green curved arrow sweeping across them
+move_up	2B2F36 2A7AD8	a thick blue arrow pointing straight up, a broad triangular head on a short wide shaft
+move_down	2B2F36 2A7AD8	a thick blue arrow pointing straight down, a broad triangular head on a short wide shaft
+pane_dock	2B2F36 FFFFFF 2A7AD8 2E9D58	a large white window frame with a blue side panel attached flush inside its right edge, and a bold green arrow pointing right into that panel
+pane_float	2B2F36 A0A6AE FFFFFF 2A7AD8	two overlapping window frames, a light grey window at the back and a smaller white window with a blue title bar in front, lifted up and to the right as if floating free
+menu_caret	2B2F36	a drop-down caret, a single wide downward-pointing triangle with slightly rounded corners, filled dark charcoal
+line_gap	2B2F36 2A7AD8 D8433A	a very thick blue circular ring with a wide gap cut out of its bottom, the two open ends of the ring capped with small red square end blocks facing each other across the empty gap
