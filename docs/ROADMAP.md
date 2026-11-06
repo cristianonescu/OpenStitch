@@ -149,6 +149,13 @@ Run Pitches long (no more columns of needle drops on the sunset). Measured and n
 Photo Stitch 2 without its running-stitch floor and on the T1 coverage curve (#129), and a
 general sewn-colour model from the six T1 threads (#291); details in COMPATIBILITY_AUDIT.
 
+Measured 2026-11-06 (`batch:mac-photo`, #298, #291, #129, #468), nothing taken: Photo Stitch 1
+travel across up to 2 mm of a similar earlier colour saves trims only by costing likeness
+(−20 % trims for −0.7 points); `tools/image_similarity.py --scan` scores the sewn sunset patch
+against its render, where the calibrated widths read too light in the dark middle (50.3 against
+the flat render's 55.6); Photo Stitch 2's layered coverage solve scores lower (39.7 → 37.2).
+Details in COMPATIBILITY_AUDIT and the image-similarity plan.
+
 Done 2026-11-06 (`batch:stitch-engine-4 (2026-11-06)`, #567, #459, #467, #470, #471, #368,
 #609): moving a shape moves its stitches and nothing else (each object is sewn in a frame at
 its own corner, needle points 0.05 mm apart are one penetration wherever they fall on the
