@@ -78,7 +78,15 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `underlayStyle: auto` picks a centre walk, edge run or edge + zigzag by width (thresholds
    `underlayAuto {centreBelow, edgeBelow}`, set by `fabric.apply`), `centreWalk` for thin
    satins, and a column's `underlay2 {style, inset, spacing, stitchLength}` adds a second
-   layer (`null` removes it). Read them back with `object.get`.
+   layer (`null` removes it). Satin looks: `satinStyle` sStitch (corded edge), open (light),
+   double (raised X lattice); `jaggedEdge {mode: in|out|both, side, amount, seed}` (or just
+   `"in"`; `"none"`/`null` removes it) for fur, grass and feathers; `spacingAt: 0.5` evens a
+   curved column's density; `raised: true` (or `{laneSpacing, inset, stitchLength}`) pads
+   monograms and rims of 3 mm and wider (narrower ones return a `hints` entry). Read them back
+   with `object.get`. Fix a Manual Punch column instead of redrawing it:
+   `object.insertRung {id, at}`, `object.deleteRung {id, index}`, `object.moveRung {id, index,
+   side: left|right, point}`, `object.swapSides {id}` and `object.untangle {id}`; a line pair
+   clicked right-then-left is untangled when the column is made.
 4. Order: `order.optimize` (PE-DESIGN-compatible order) or `order.byColor`; check with
    `object.list` (sewing order). To sew objects in a set order, `order.byClickOrder`
    `{ids: [in sewing order]}` (they start where the earliest of them sews now); to sew a
