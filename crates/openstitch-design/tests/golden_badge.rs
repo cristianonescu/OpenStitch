@@ -29,10 +29,11 @@ fn golden_project_compiles_to_recorded_statistics() {
     // without edge points, straight 2 mm travel, a tie-in and lock (2937 before; this version-1
     // file stores no Frequency, so its fills keep the 1/3 stagger), then 4 more when every run
     // before a trim ends with PE-DESIGN's lock: the last run ended in an unlocked 20 mm stitch,
-    // now locked twice (2776 before; #289), then 2 fewer when every object was sewn in a frame
-    // at its own top-left corner so moving it moves its stitches (#567: the version-1 fills'
-    // 1/3 stagger moved with the page origin before; 2780 before).
-    assert_eq!(p.count(Command::Stitch), 2778);
+    // now locked twice (2776 before; #289). Unchanged in total when every object was sewn in
+    // a frame at its own top-left corner so moving it moves its stitches (#567: the version-1
+    // fills' 1/3 stagger moved with the page origin before, 2 fewer) and a lock after a last
+    // stitch under 0.15 mm stepped 0.3 mm back along the run (#368, 2 more).
+    assert_eq!(p.count(Command::Stitch), 2780);
     assert_eq!(p.count(Command::Jump), 3);
     assert_eq!(p.count(Command::Trim), 3);
     assert_eq!(p.count(Command::ColorChange), 2);

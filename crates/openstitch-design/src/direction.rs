@@ -700,11 +700,12 @@ mod tests {
         // The top rows only: under sewing runs across them.
         r.underlay = false;
         let spacing = 10.0 / r.density;
-        let w = Warp::new(&arch()).expect("warp");
         let points = layers(&rect, &r);
         assert!(points.len() > 200);
-        // Straightened, every needle point lies on a row: one phase modulo the spacing.
-        let phase = |p: &Vec2| (w.forward(*p).y / spacing).rem_euclid(1.0);
+        // Every needle point lies on a row: a whole number of spacings from the curve (its
+        // offsets since #471; before, its vertical copies).
+        let guide = guide_samples(&arch(), 2000.0).expect("samples");
+        let phase = |p: &Vec2| (signed_distance(&guide, *p) / spacing).rem_euclid(1.0);
         let p0 = phase(&points[0]);
         assert!(
             points.iter().all(|p| {

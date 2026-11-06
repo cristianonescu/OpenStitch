@@ -903,12 +903,12 @@ fn openstitch_mode_sews_one_covering_layer() {
     }
 }
 
-/// 200×200 px on white: a red disc inside a black ring 4 px wide (1 mm at 0.25 mm per pixel).
+/// 200×200 px on white: a red disc inside a black ring 6 px wide (1.5 mm at 0.25 mm per pixel).
 fn ringed_disc() -> Raster {
     Raster::from_fn(200, 200, |x, y| {
         let (dx, dy) = (x as f64 - 100.0, y as f64 - 100.0);
         let r = (dx * dx + dy * dy).sqrt();
-        if (60.0..64.0).contains(&r) {
+        if (60.0..66.0).contains(&r) {
             [0, 0, 0, 255]
         } else if r < 60.0 {
             [220, 20, 30, 255]
@@ -921,7 +921,8 @@ fn ringed_disc() -> Raster {
 
 #[test]
 fn openstitch_mode_sews_dark_outlines_on_top_along_their_skeleton() {
-    let frame = Frame::new(0.0, 0.0, 50.0, 200); // 0.25 mm per pixel: the ring is 1 mm wide
+    // 0.25 mm per pixel: the ring is 1.5 mm wide (a ring under 1 mm is a running line, #368).
+    let frame = Frame::new(0.0, 0.0, 50.0, 200);
     let p = AutoPunch {
         colors: 3,
         resolution: 200,
@@ -935,7 +936,7 @@ fn openstitch_mode_sews_dark_outlines_on_top_along_their_skeleton() {
     let last = out.objects.last().expect("objects");
     let line = last.line.as_ref().expect("the outline is a line");
     assert_eq!(line.kind, openstitch_design::LineType::Zigzag);
-    assert!((0.6..=1.6).contains(&line.width), "{}", line.width);
+    assert!((1.0..=2.1).contains(&line.width), "{}", line.width);
     assert!(last.region.is_none());
     assert_eq!(last.contours.len(), 1);
     assert!(last.contours[0].closed);
