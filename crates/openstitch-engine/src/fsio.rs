@@ -32,6 +32,57 @@ pub(crate) fn remove_file(path: &Path) -> io::Result<()> {
 #[cfg(target_arch = "wasm32")]
 pub(crate) use memfs::{len, read, remove_file, write};
 
+/// On the desktop the file commands still write real files at the path they resolved (the same
+/// `Access` checks and sandbox), and never touch the in-memory files.
+#[cfg(all(test, not(target_arch = "wasm32"), feature = "formats"))]
+mod native_tests {
+    use crate::Session;
+    use serde_json::json;
+
+    #[test]
+    fn save_and_export_write_real_files_at_the_given_path() {
+        let dir = openstitch_testutil::TempDir::new("fsio-native");
+        memfs_clear_and_check(|| {
+            let mut s = Session::new(dir.path());
+            s.execute(
+                "design.new",
+                Some(&json!({ "name": "t", "width": 100, "height": 100 })),
+            )
+            .expect("new");
+            s.execute(
+                "shape.ellipse",
+                Some(&json!({ "cx": 50, "cy": 50, "rx": 20, "ry": 15, "fill": "#1f4fa0" })),
+            )
+            .expect("rect");
+            let osd = dir.path().join("t.osd");
+            let dst = dir.path().join("t.dst");
+            s.execute(
+                "project.save",
+                Some(&json!({ "path": osd.display().to_string() })),
+            )
+            .expect("save");
+            s.execute("design.export", Some(&json!({ "path": "t.dst" })))
+                .expect("export");
+            assert!(std::fs::metadata(&osd).is_ok_and(|m| m.len() > 0));
+            assert!(std::fs::metadata(&dst).is_ok_and(|m| m.len() > 0));
+            s.execute(
+                "project.open",
+                Some(&json!({ "path": osd.display().to_string() })),
+            )
+            .expect("open");
+        });
+    }
+
+    fn memfs_clear_and_check(f: impl FnOnce()) {
+        super::memfs::clear();
+        f();
+        assert!(
+            super::memfs::paths().is_empty(),
+            "the desktop never uses the memory files"
+        );
+    }
+}
+
 /// The in-memory files of the browser build: one flat map from path to bytes, per thread (a
 /// browser tab runs the editor on one thread). Built natively too, so its tests run everywhere.
 pub mod memfs {

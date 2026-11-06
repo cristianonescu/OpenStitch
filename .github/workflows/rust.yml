@@ -186,6 +186,7 @@ jobs:
     # uploaded as an artifact; nothing is hosted.
     name: web
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
