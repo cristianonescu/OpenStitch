@@ -662,7 +662,7 @@ mod tests {
         let round = |r: f64, reverse: bool| {
             let k = 0.5523;
             let s = if reverse { -1.0 } else { 1.0 };
-            let mut pts = vec![v2(r, 0.0), v2(0.0, r), v2(-r, 0.0), v2(0.0, -r)];
+            let mut pts = [v2(r, 0.0), v2(0.0, r), v2(-r, 0.0), v2(0.0, -r)];
             if reverse {
                 pts.reverse();
             }
