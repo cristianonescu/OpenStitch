@@ -1,0 +1,16 @@
+[
+ {"command": "design.new", "params": {"name": "Croissant", "width": 100, "height": 100}},
+ {"command": "shape.ellipse", "params": {"cx": 24, "cy": 58, "rx": 12, "ry": 8, "fill": "#c98b3c", "name": "left tip"}},
+ {"command": "shape.ellipse", "params": {"cx": 76, "cy": 58, "rx": 12, "ry": 8, "fill": "#c98b3c", "name": "right tip"}},
+ {"command": "shape.ellipse", "params": {"cx": 36, "cy": 50, "rx": 12, "ry": 14, "fill": "#e0a458", "name": "left segment"}},
+ {"command": "shape.ellipse", "params": {"cx": 64, "cy": 50, "rx": 12, "ry": 14, "fill": "#e0a458", "name": "right segment"}},
+ {"command": "shape.ellipse", "params": {"cx": 50, "cy": 46, "rx": 13, "ry": 17, "fill": "#f2c078", "name": "middle"}},
+ {"command": "shape.removeOverlap", "params": {"ids": [1, 2, 3, 4, 5]}},
+ {"command": "object.setRegion", "params": {"ids": [1], "type": "fill", "angle": 30}},
+ {"command": "object.setRegion", "params": {"ids": [2], "type": "fill", "angle": 150}},
+ {"command": "object.setRegion", "params": {"ids": [3], "type": "fill", "angle": 60}},
+ {"command": "object.setRegion", "params": {"ids": [4], "type": "fill", "angle": 120}},
+ {"command": "object.setRegion", "params": {"ids": [5], "type": "fill", "angle": 90}},
+ {"command": "object.setLine", "params": {"ids": [1, 2, 5], "type": "zigzag", "width": 1.5, "color": "#7a4a1d"}},
+ {"command": "design.check"}
+]

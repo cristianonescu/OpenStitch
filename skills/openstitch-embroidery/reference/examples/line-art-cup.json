@@ -1,0 +1,11 @@
+[
+ {"command": "design.new", "params": {"name": "Coffee cup line art", "width": 100, "height": 100}},
+ {"command": "shape.path", "params": {"points": [[28, 40], [68, 40], [62, 78], [34, 78]], "curves": [null, [[68, 60], [66, 74]], null, [[30, 74], [28, 60]]], "outline": "#3e2723", "name": "cup"}},
+ {"command": "shape.path", "params": {"points": [[67, 47], [66, 64]], "closed": false, "curves": [[[80, 46], [80, 66]]], "outline": "#3e2723", "name": "handle"}},
+ {"command": "shape.path", "params": {"points": [[40, 34], [40, 20]], "closed": false, "curves": [[[34, 29], [46, 25]]], "outline": "#3e2723", "name": "steam"}},
+ {"command": "shape.path", "params": {"points": [[50, 34], [50, 18]], "closed": false, "curves": [[[44, 28], [56, 24]]], "outline": "#3e2723", "name": "steam"}},
+ {"command": "shape.path", "params": {"points": [[60, 34], [60, 20]], "closed": false, "curves": [[[54, 29], [66, 25]]], "outline": "#3e2723", "name": "steam"}},
+ {"command": "shape.polygon", "params": {"points": [[22, 82], [74, 82]], "closed": false, "outline": "#3e2723", "name": "saucer"}},
+ {"command": "object.setLine", "params": {"ids": [1, 2, 3, 4, 5, 6], "type": "running", "runTimes": 3}},
+ {"command": "design.check"}
+]
