@@ -124,6 +124,8 @@ mod sections;
 mod session_fork;
 #[path = "sewing.rs"]
 mod sewing;
+#[path = "shape_cut_attributes.rs"]
+mod shape_cut_attributes;
 #[path = "shape_tools.rs"]
 mod shape_tools;
 #[path = "shaping.rs"]

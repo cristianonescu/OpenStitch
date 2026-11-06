@@ -1627,6 +1627,11 @@ Line references are relative to `crates/`.
   region-then-outline order unchanged): PE-DESIGN has no per-shape part order, so a PES 11
   export writes such a shape as two shapes, its outline then its region, and the stitch data
   sews them in that order.
+- **Image wizard, batch:mac-wizard (2026-11-06; #489):** the dialog's region table, click-to-fix,
+  colour order and Preset row drive `digitize.autoPunch`'s `dryRun`, `regionMap`, `overrides`,
+  `order` and `preset`; PE-DESIGN-compatible output with none of them set is unchanged.
+  PE-DESIGN has no per-region reasons, overrides, presets or click-to-toggle (toc:143-150), so
+  all of it is beyond PE-DESIGN.
 - **Image digitizing, batch:mac-digitize-2 (2026-11-06; #447, #469, #489, #490):** PE-DESIGN-compatible
   mode's output is unchanged (scorer identical on g01, g02, g05, g13, p03; every new option is
   OpenStitch mode only, off unless set). New in OpenStitch mode: `angleRule: leastTravel`,
@@ -2384,6 +2389,16 @@ squares 2 mm apart give one 1,100 mm² piece (46 × 24 mm with 2 mm rounded corn
 closed); a ring with a 30 mm hole keeps the hole (no needle point within 12.5 mm of the
 centre). Sew-out on terry towel is left for the owner.
 
+### macOS platform, 2026-11-06 (#319, #557, `batch:mac-platform`)
+
+No PE-DESIGN-compatible output changed (no compat spec, golden or writer touched). Help ▸
+Ready-to-Sew Designs is now checked in the built macOS bundle (#319): CI runs the bundle's own
+`openstitch --sew-kit`, and a recording `open` receives exactly `Contents/Resources/sew`; with
+the kit moved away the editor falls back to GitHub. The real click stays the owner's manual
+check. Finder shows design thumbnails through a Quick Look extension, a Swift shim over the
+Rust renderer (#557; `stitchtool thumbnail` exposes the same renderer); the Explorer half is
+#669. PE-DESIGN 11 installs Explorer thumbnails for its own files on Windows only.
+
 ### Assistant fixes, 2026-11-06 (#580, #384, #494, #495)
 
 Beyond PE-DESIGN only; no PE-DESIGN-compatible output changed (no compat spec, golden or writer
@@ -2545,6 +2560,23 @@ Assistant's stream timeout (#580) and thread-chart rules (#495) are in
   DST files are byte-identical to main's; `tools/image_similarity.py --no-dists` gives the
   same numbers on all 16 Photo Stitch cases in both modes and the nine Photo Stitch 1 photos at
   High; `sew_check` passes; compat 454/454.
+
+### Shape cuts keep the sewing angle, 2026-11-06 (`batch:mac-shapes`, #652)
+
+- **Fixed:** Remove Overlap, Combine, Merge, Split and the shape builder's merge (all through
+  `shape_ops::set_region`) set the cut shape's sewing angle back to the region type's default
+  (45° for fill). Nothing in PE-DESIGN's references backed that. Now every cut keeps the
+  shape's angle and its other region and line sewing attributes and colour. Its entry and exit
+  points stay where they are still within 0.5 mm of the new outline and go back to the default
+  where the cut took that part away. Before, the knife, Divide, the shape builder and the shape
+  effects always reset them; Combine, Merge, Remove Overlap and Split always kept them.
+- **Merges** (`shape.merge`, a `shape.build` drag across two shapes) take the topmost parent's
+  attributes, the shape sewn last, as `shape.merge` always has.
+- **Open:** whether PE-DESIGN 11 keeps a region's Direction after Remove Overlap. The owner's
+  capture request is on #652; OpenStitch now keeps it.
+- Tests through the commands, one per operation, on a 135° fill (45° is the fill default and
+  could not show a reset): `every_cut_keeps_the_sewing_angle_and_attributes`,
+  `a_cut_away_exit_point_returns_to_the_default`, `merges_take_the_topmost_parents_angle`.
 
 ### Photo Stitch 2 Mono on the coverage curve, and thread search, 2026-11-06 (`batch:mac-photo-2`, #468, #486, #682)
 
@@ -2834,6 +2866,40 @@ auto, shortStitchDistance: 0.25`, read from the exported PES:
 - Not done here: skeleton and Auto satin (#675), satin lettering (#676), fill push and a
   region's second underlay (#677), lap corners. No sew-out yet: the owner's T-card scan of a
   tapered column with `pullPercent: 3` is still needed for #522's ±5 % width target.
+
+### Satin looks, raised satin and column rung edits, 2026-11-06 (#528, #531, #525 part, `batch:satin-2a`)
+
+All beyond PE-DESIGN and off by default on Manual Punch columns and zigzag lines. With the
+options unset, compat stays 454/454 and every compat output is byte-identical.
+
+Test design: a 6 mm Manual Punch column bent at 45° and a 4 mm zigzag line, read back from
+the exported PES with `tools/sew_check.py`. All six variants pass, and `design.check` reports
+no problems:
+
+| Variant | Density (sew_check) | Most drops in one spot |
+|---|---|---|
+| normal | 19.7 | 5 |
+| sStitch | 10.0 | 5 |
+| open | 8.3 | 5 |
+| double | 37.2 | 9 |
+| jagged (out, right side, 1 mm) | 17.5 | 5 |
+| raised | 20.9 | 6 |
+
+- Double satin's second pass starts where the first ends, and each of its needle points sits
+  midway between two of the first pass's on the same edge (unit test).
+- S-stitch bends each crossing into three short stitches. Its first and last crossings bulge
+  up to 0.3 mm past the column's end lines.
+- The jagged edge is the same for the same seed. Moving inwards, it never crosses more than
+  80 % of the column.
+- `spacingAt` 1 (unset) is PE-DESIGN's spacing on the longer side.
+- Raised satin sews an even number of lanes, so the last ends at the start, next to the
+  satin's first needle point. It is fully covered in the render.
+- `shape.column` and `object.setDirectionLines` now turn round a pair clicked
+  right-then-left instead of refusing it (`column::untangle`). A real overlap is still
+  refused.
+- Not done: satin regions and skeleton satin (#685), lettering (#686), the canvas rung-edit
+  mode (#525, satin-2b), and the NV880E sew-outs #528 and #531 ask for before the styles are
+  advertised.
 
 ## Order of work
 

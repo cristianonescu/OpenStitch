@@ -1,6 +1,9 @@
 //! One-line commands (#496): `convert`, `info`, `optimize`, `digitize` and `formats`. Each builds
 //! the engine requests an `exec` script would hold and runs them in a session on the current
 //! folder, so the result is the same as the script's. Formats follow the file extensions.
+//! `thumbnail` (#557) is the file-manager thumbnail renderer (`openstitch_render::thumbnail`,
+//! the same code as `openstitch-thumbnailer` and the macOS / Windows thumbnail handlers): it
+//! reads the file and draws its stitches, with no engine session.
 //!
 //! Exit codes match `exec`: 0 done, 1 usage, 2 a command failed (with a one-line message).
 
@@ -24,7 +27,14 @@ pub const USAGE: &str = "one-line commands (formats follow the file extensions):
   stitchtool digitize <image> <out> [--size MM] [--method pe|openstitch] [--colors N] [--json]
       Auto Punch a PNG, JPEG or BMP (digitize.autoPunch; --size is the width in mm)
   stitchtool formats [--json]
-      what OpenStitch reads and writes (formats.list)";
+      what OpenStitch reads and writes (formats.list)
+  stitchtool thumbnail <file> <out.png> [--size PX] [--json]
+      the file-manager thumbnail of a machine file or an .osd project: its stitches on a
+      transparent PX x PX square (default 256, 16 to 1024), as Finder, Explorer and the Linux
+      file managers show it";
+
+/// `thumbnail`'s default and allowed sizes in pixels.
+pub const THUMBNAIL_SIZE: u32 = 256;
 
 /// The requests that open `path`: an .osd project replaces the design, any other file is
 /// imported as stitches (the engine refuses an unknown extension).
@@ -206,8 +216,53 @@ pub fn requests(verb: &str, args: &[&str]) -> Option<Vec<Value>> {
     }
 }
 
+/// `thumbnail <file> <out.png> [--size PX] [--json]`'s file, output and size, or None for a
+/// usage error.
+pub fn thumbnail_args<'a>(args: &[&'a str]) -> Option<(&'a str, &'a str, u32)> {
+    let split = args
+        .iter()
+        .position(|a| a.starts_with("--"))
+        .unwrap_or(args.len());
+    let &[input, output] = &args[..split] else {
+        return None;
+    };
+    let f = Flags::parse(&args[split..], &["json"], &["size"])?;
+    let size = match f.get("size") {
+        Some(s) => s.trim_end_matches("px").parse::<u32>().ok().filter(|n| {
+            (openstitch_render::thumbnail::MIN_SIZE..=openstitch_render::thumbnail::MAX_SIZE)
+                .contains(n)
+        })?,
+        None => THUMBNAIL_SIZE,
+    };
+    Some((input, output, size))
+}
+
+/// Writes the thumbnail of `input` to `output` (both relative to `cwd`).
+fn thumbnail(args: &[&str], cwd: &Path) -> ExitCode {
+    let Some((input, output, size)) = thumbnail_args(args) else {
+        return usage();
+    };
+    let out = cwd.join(output);
+    let written = openstitch_render::thumbnail::load(&cwd.join(input))
+        .and_then(|p| openstitch_render::thumbnail::png(&p, size))
+        .and_then(|png| std::fs::write(&out, png).map_err(|e| format!("{output}: {e}")));
+    if let Err(e) = written {
+        eprintln!("stitchtool: thumbnail: {e}");
+        return ExitCode::from(2);
+    }
+    if args.contains(&"--json") {
+        println!("{}", json!({"path": output, "width": size, "height": size}));
+    } else {
+        println!("wrote {output} ({size} x {size} px)");
+    }
+    ExitCode::SUCCESS
+}
+
 /// Runs a one-line verb; `cwd` is the session folder relative paths resolve against.
 pub fn main(verb: &str, args: &[&str], cwd: &Path) -> ExitCode {
+    if verb == "thumbnail" {
+        return thumbnail(args, cwd);
+    }
     let Some(steps) = requests(verb, args) else {
         return usage();
     };

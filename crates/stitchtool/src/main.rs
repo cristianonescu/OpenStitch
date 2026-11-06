@@ -17,7 +17,7 @@
 //! stitchtool bench-assistant [options]
 //!                                  # the AI assistant benchmark (B17 A5); see bench_args
 //! stitchtool convert in.dst out.pes   # one-line commands (#496), see oneline::USAGE:
-//! stitchtool info design.pes          # convert, info, optimize, digitize, formats
+//! stitchtool info design.pes          # convert, info, optimize, digitize, formats, thumbnail
 //! ```
 
 mod bench;
@@ -31,7 +31,7 @@ use std::process::ExitCode;
 
 const MAX_LINE: usize = 1 << 20;
 const USAGE: &str = "usage: stitchtool commands | exec <script.json> | serve [--read-only] [--no-files] | connect [--endpoint FILE] | compat [options] | bench-assistant [options]
-       stitchtool convert | info | optimize | digitize | formats ... (stitchtool help)";
+       stitchtool convert | info | optimize | digitize | formats | thumbnail ... (stitchtool help)";
 const BENCH_USAGE: &str =
     "usage: stitchtool bench-assistant [--protocol anthropic|openai] [--base-url URL] [--model M]
        [--key-env VAR] [--effort E] [--timeout S] [--agent ID [--agent-program PATH] [--mcp PATH]]
@@ -77,7 +77,7 @@ fn main() -> ExitCode {
         ["compat", rest @ ..] => return compat(rest),
         ["bench-assistant", rest @ ..] => return bench_assistant(rest),
         [
-            verb @ ("convert" | "info" | "optimize" | "digitize" | "formats"),
+            verb @ ("convert" | "info" | "optimize" | "digitize" | "formats" | "thumbnail"),
             rest @ ..,
         ] => {
             return oneline::main(verb, rest, &cwd);

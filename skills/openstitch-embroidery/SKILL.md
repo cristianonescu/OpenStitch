@@ -78,7 +78,15 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `underlayStyle: auto` picks a centre walk, edge run or edge + zigzag by width (thresholds
    `underlayAuto {centreBelow, edgeBelow}`, set by `fabric.apply`), `centreWalk` for thin
    satins, and a column's `underlay2 {style, inset, spacing, stitchLength}` adds a second
-   layer (`null` removes it). Read them back with `object.get`.
+   layer (`null` removes it). Satin looks: `satinStyle` sStitch (corded edge), open (light),
+   double (raised X lattice); `jaggedEdge {mode: in|out|both, side, amount, seed}` (or just
+   `"in"`; `"none"`/`null` removes it) for fur, grass and feathers; `spacingAt: 0.5` evens a
+   curved column's density; `raised: true` (or `{laneSpacing, inset, stitchLength}`) pads
+   monograms and rims of 3 mm and wider (narrower ones return a `hints` entry). Read them back
+   with `object.get`. Fix a Manual Punch column instead of redrawing it:
+   `object.insertRung {id, at}`, `object.deleteRung {id, index}`, `object.moveRung {id, index,
+   side: left|right, point}`, `object.swapSides {id}` and `object.untangle {id}`; a line pair
+   clicked right-then-left is untangled when the column is made.
 4. Order: `order.optimize` (PE-DESIGN-compatible order) or `order.byColor`; check with
    `object.list` (sewing order). To sew objects in a set order, `order.byClickOrder`
    `{ids: [in sewing order]}` (they start where the earliest of them sews now); to sew a
@@ -248,6 +256,13 @@ still send mm to commands. `design.print {units: "inch"}` adds a 2-inch scale ba
   The result lists unknown words and refused values (FILE_FORMATS.md has the words).
 - A user who wants to script designs in Python can use the `openstitch` package (repository
   `python/README.md`: `Session().exec("shape.ellipse", ...)` with these same commands).
+- "Make a thumbnail / preview picture of this file" at a terminal: `stitchtool thumbnail
+  design.pes out.png [--size 256]` writes the stitches on a transparent square (16 to 1024
+  px), the same picture Finder (Quick Look, with OpenStitch.app installed) and Linux file
+  managers show; Explorer thumbnails are not available yet. In the editor, `view_render`
+  shows the design instead.
+- "Open the ready-to-sew designs": `ui.help {item: "sewKit"}` shows the packaged kit in the
+  file manager and replies with its `folder`, or with the GitHub `url` it opened instead.
 - `file` commands (`project.save`, `design.export`, ...) may ask the user first. Never
   overwrite a user's file without being asked to.
 

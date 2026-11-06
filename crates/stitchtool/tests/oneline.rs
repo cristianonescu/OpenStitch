@@ -293,3 +293,54 @@ fn errors_exit_non_zero_with_one_line() {
     ok(&out);
     assert!(String::from_utf8_lossy(&out.stdout).contains("stitchtool convert <in> <out>"));
 }
+
+#[test]
+fn thumbnail_writes_a_square_png_of_the_stitches() {
+    let dir = temp_dir("thumbnail");
+    kit_file(&dir, "a.pes");
+    let out = stitchtool(&dir, &["thumbnail", "a.pes", "a.png", "--size", "96"]);
+    ok(&out);
+    assert!(
+        String::from_utf8_lossy(&out.stdout).contains("wrote a.png (96 x 96 px)"),
+        "{out:?}"
+    );
+    let png = std::fs::read(dir.join("a.png")).expect("thumbnail written");
+    assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n", "a PNG");
+    // IHDR width and height, big-endian, right after the signature and chunk header.
+    assert_eq!(&png[16..24], &[0, 0, 0, 96, 0, 0, 0, 96], "96 x 96");
+    // The same bytes as the shared renderer (the macOS and Windows handlers' code).
+    let pattern = openstitch_render::thumbnail::load(&dir.join("a.pes")).expect("load");
+    assert_eq!(
+        png,
+        openstitch_render::thumbnail::png(&pattern, 96).expect("png")
+    );
+    // --json and the default size.
+    let out = stitchtool(&dir, &["thumbnail", "a.pes", "b.png", "--json"]);
+    ok(&out);
+    let reply: Value = serde_json::from_slice(&out.stdout).expect("json");
+    assert_eq!(reply, json!({"path": "b.png", "width": 256, "height": 256}));
+}
+
+#[test]
+fn thumbnail_refuses_malformed_files_and_bad_sizes() {
+    let dir = temp_dir("thumbnail-bad");
+    // A file named .pes that is not one: a one-line error, exit 2, nothing written, no panic.
+    std::fs::write(dir.join("junk.pes"), b"#PES0001 not really").expect("write");
+    let out = stitchtool(&dir, &["thumbnail", "junk.pes", "junk.png"]);
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+    assert!(!dir.join("junk.png").exists());
+    assert!(String::from_utf8_lossy(&out.stderr).starts_with("stitchtool: thumbnail:"));
+    // An extension no reader takes.
+    std::fs::write(dir.join("x.txt"), b"hello").expect("write");
+    let out = stitchtool(&dir, &["thumbnail", "x.txt", "x.png"]);
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+    // Sizes outside 16..=1024 and a missing output are usage errors.
+    kit_file(&dir, "a.pes");
+    for args in [
+        &["thumbnail", "a.pes", "a.png", "--size", "8"][..],
+        &["thumbnail", "a.pes", "a.png", "--size", "5000"],
+        &["thumbnail", "a.pes"],
+    ] {
+        assert_eq!(stitchtool(&dir, args).status.code(), Some(1), "{args:?}");
+    }
+}
