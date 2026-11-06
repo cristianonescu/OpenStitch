@@ -1664,3 +1664,53 @@ fn plan_overrides_and_neighbour_angles() {
     assert_eq!(autopunch::vary_angle(45.0, &[]), 45.0);
     assert_eq!(autopunch::vary_angle(45.0, &[45.0]), 75.0);
 }
+
+/// #489 `leastTravel`: a U-shaped fill sews less thread at the direction it picks than at
+/// PE-DESIGN's, and never more than at the direction it starts from.
+#[test]
+fn least_travel_picks_the_shortest_path() {
+    use openstitch_design::{Contour, RegionSewing, RegionType, v2};
+    let u = Contour::new(
+        [
+            (0.0, 0.0),
+            (80.0, 0.0),
+            (80.0, 220.0),
+            (220.0, 220.0),
+            (220.0, 0.0),
+            (300.0, 0.0),
+            (300.0, 300.0),
+            (0.0, 300.0),
+        ]
+        .iter()
+        .map(|&(x, y)| v2(x, y))
+        .collect(),
+        true,
+    );
+    let mut region = RegionSewing::new(RegionType::Fill, openstitch_core::Thread::rgb(0));
+    region.angle = 90.0;
+    region.underlay = false;
+    let region = region;
+    let thread = |deg: f64| -> f64 {
+        let mut r = region.clone();
+        r.angle = deg;
+        openstitch_design::region::layers(std::slice::from_ref(&u), &r, &[])
+            .iter()
+            .flatten()
+            .flat_map(|run| run.windows(2).map(|w| w[0].distance(w[1])))
+            .sum()
+    };
+    let chosen = autopunch::least_travel(std::slice::from_ref(&u), &region);
+    assert!(
+        thread(chosen) <= thread(90.0) - autopunch::TRAVEL_SAVING,
+        "{chosen}: {} against {}",
+        thread(chosen),
+        thread(90.0)
+    );
+    // Any start direction: the pick never sews more than it.
+    for own in [0.0, 45.0, 90.0, 135.0] {
+        let mut start = region.clone();
+        start.angle = own;
+        let chosen = autopunch::least_travel(std::slice::from_ref(&u), &start);
+        assert!(thread(chosen) <= thread(own), "{own} -> {chosen}");
+    }
+}

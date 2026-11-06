@@ -166,8 +166,20 @@ Auto Punch also returns a `plan`: every traced region with its `region` number, 
 Regions are numbered by the run's own options, so keep every other option the same between the
 dry run and the conversion. Thin lines and outlines can only be skipped. In OpenStitch mode
 `angleRule: "varyNeighbours"` turns touching fills at least 20° apart so fitted panels read as
-separate pieces; parts under 1 mm wide (ropes, whiskers) are sewn as running lines, and a
-white, cream or off-white paper background is left out as the fabric showing.
+separate pieces, and `angleRule: "leastTravel"` lays each fill of 10 mm² or more the way
+(every 15°) that sews the least thread, so the least travel between its sections; parts under
+1 mm wide (ropes, whiskers) are sewn as running lines, and a white, cream or off-white paper
+background is left out as the fabric showing.
+
+A purpose `preset` sets several Auto Punch options at once, only those the call leaves unset,
+and implies OpenStitch mode: `logo`, `patch` (background sewn too), `lineArt`, `illustration`,
+`photo`, `pixelArt`. `digitize.presets` lists each one's options. Name the preset from what the
+user says the picture is for ("a patch for my jacket" → `patch`).
+
+`digitize.exportOutlines` takes the same parameters plus `out` (an `.svg` file) and saves the
+traced regions as SVG paths in their thread colours, in mm, without changing the design; give it
+to another program, or bring it back with `import.svg` (one object per region). It writes a file,
+so the editor asks the user first.
 
 ## SVG artwork
 
