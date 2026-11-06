@@ -386,7 +386,12 @@ impl Compiler {
             }
             let start = w.out.stitches.len();
             w.under = unders.get(index).filter(|u| !u.inset.is_empty()).cloned();
-            w.region_area = crate::hidden::visible_area(design, index);
+            // Only where it saves stitches: routing round a cut-out can cost more than it
+            // leaves out.
+            w.region_area = crate::hidden::visible_area(design, index).filter(|area| {
+                self.stitches_of(object, design, Some(area.clone()))
+                    < self.stitches_of(object, design, None)
+            });
             let started = match (production.auto_start, w.position) {
                 (crate::production::AutoStart::Nearest, Some(from)) => {
                     crate::production::nearest_start(object, from).filter(|c| {
@@ -441,6 +446,19 @@ impl Compiler {
             }
         }
         (w.out.count(Command::Trim), travel)
+    }
+
+    /// Needle points `object` sews alone, its region over `area` when given (#511).
+    fn stitches_of(
+        &self,
+        object: &DesignObject,
+        design: &Design,
+        area: Option<Vec<Contour>>,
+    ) -> usize {
+        let mut w = self.writer();
+        w.region_area = area;
+        sew_object(&mut w, object, design);
+        w.out.count(Command::Stitch)
     }
 
     fn writer(&self) -> Writer {

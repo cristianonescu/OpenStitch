@@ -232,8 +232,18 @@ const MAX_NODES: usize = 600;
 
 impl TravelGraph {
     pub fn new(contours: &[Contour], holes: &[Contour]) -> Self {
+        // Curved outlines flattened once (#679): every visibility test, inside test and outline
+        // walk reads the polygon through `Contour::path`, which flattened the Béziers again on
+        // each call. The flattened contour's path is the same points, so routing is unchanged.
+        let flat = |c: &Contour| {
+            if c.has_curves() {
+                Contour::new(c.outline_points(), true)
+            } else {
+                c.clone()
+            }
+        };
         let closed =
-            |cs: &[Contour]| -> Vec<Contour> { cs.iter().filter(|c| c.closed).cloned().collect() };
+            |cs: &[Contour]| -> Vec<Contour> { cs.iter().filter(|c| c.closed).map(flat).collect() };
         let (regions, holes) = (closed(contours), closed(holes));
         let mut nodes = Vec::new();
         let mut edges = Vec::new();
@@ -635,5 +645,79 @@ impl Rng {
 
     pub fn next_f64(&mut self) -> f64 {
         (self.next_u64() >> 11) as f64 / (1u64 << 53) as f64
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::geometry::Bezier;
+    use crate::model::{RegionSewing, RegionType};
+    use openstitch_core::Thread;
+
+    /// A ring on Bézier curves: a 60 mm round outline with a 30 mm round hole, four cubic
+    /// quarters each, so fill rows split and travel is routed round the hole.
+    fn curved_ring() -> Vec<Contour> {
+        let centre = v2(400.0, 400.0);
+        let round = |r: f64, reverse: bool| {
+            let k = 0.5523;
+            let s = if reverse { -1.0 } else { 1.0 };
+            let mut pts = vec![v2(r, 0.0), v2(0.0, r), v2(-r, 0.0), v2(0.0, -r)];
+            if reverse {
+                pts.reverse();
+            }
+            let mut c = Contour::new(pts.iter().map(|&p| p + centre).collect(), true);
+            for i in 0..4 {
+                let (a, b) = (pts[i], pts[(i + 1) % 4]);
+                // Tangents perpendicular to the radius: a quarter circle's control points.
+                let ta = v2(-a.y, a.x) * (k * s);
+                let tb = v2(-b.y, b.x) * (k * s);
+                c.set_curve(
+                    i,
+                    Some(Bezier {
+                        c1: a + ta + centre,
+                        c2: b - tb + centre,
+                    }),
+                );
+            }
+            c
+        };
+        vec![round(300.0, false), round(150.0, true)]
+    }
+
+    fn flattened(cs: &[Contour]) -> Vec<Contour> {
+        cs.iter()
+            .map(|c| Contour::new(c.outline_points(), true))
+            .collect()
+    }
+
+    #[test]
+    fn a_curved_outline_routes_as_its_flattened_polygon() {
+        let ring = curved_ring();
+        let flat = flattened(&ring);
+        let (a, b) = (v2(150.0, 400.0), v2(650.0, 400.0));
+        let mut g1 = TravelGraph::new(&ring, &[]);
+        let mut g2 = TravelGraph::new(&flat, &[]);
+        assert_eq!(g1.path(a, b), g2.path(a, b));
+        assert!(g1.path(a, b).is_some_and(|p| p.len() > 2), "round the hole");
+    }
+
+    /// #679 timing: fill layers on curved outlines against the same outlines flattened first.
+    /// `cargo test -p openstitch-design --lib curved_layers_timing -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn curved_layers_timing() {
+        let ring = curved_ring();
+        let flat = flattened(&ring);
+        let r = RegionSewing::new(RegionType::Fill, Thread::rgb(0));
+        let time = |cs: &[Contour]| {
+            let t = std::time::Instant::now();
+            for _ in 0..5 {
+                std::hint::black_box(crate::region::layers_with(cs, &r, &[], &[]));
+            }
+            t.elapsed().as_secs_f64()
+        };
+        let (curved, flat_first) = (time(&ring), time(&flat));
+        eprintln!("curved {curved:.3} s, flattened first {flat_first:.3} s");
     }
 }
