@@ -477,6 +477,13 @@ minimises through the editor and Cmd+H, About, Services and Hide Others are not 
 from a menu (Help ▸ About OpenStitch stays; see docs/DISTRIBUTION.md "macOS application
 menu").
 
+**Large files open in the background (beyond PE-DESIGN, #558).** File ▸ Open, a recent file
+and File ▸ Import run on a worker thread, so the window keeps repainting. After 0.3 s a progress
+window shows the file, the step (reading the file, building the stitches, finishing), the
+seconds so far and **Cancel** (Esc). Cancel, or an edit made meanwhile, leaves the current
+design as it was; a finished open is one undo step, as before. The Assistant sees it as
+`ui.state` `loading` and can stop it with `ui.loading {cancel: true}`.
+
 ### Getting started (beyond PE-DESIGN, #554)
 
 An empty design shows start cards over the Design Page; the Application menu has **Open Sample**
