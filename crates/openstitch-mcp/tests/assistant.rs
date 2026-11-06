@@ -759,6 +759,8 @@ fn every_command_the_skill_names_exists() {
         "ui.recoveryList",
         "ui.recoveryRestore",
         "ui.recoveryDiscard",
+        "ui.layout",
+        "ui.resetPrefs",
     ];
     assert!(
         ui.iter()
