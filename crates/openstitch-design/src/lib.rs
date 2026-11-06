@@ -71,6 +71,8 @@ pub use text::{
 };
 
 #[cfg(test)]
+mod arc_tests;
+#[cfg(test)]
 mod concentric_spiral_tests;
 #[cfg(test)]
 mod contour_tests;

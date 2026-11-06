@@ -147,6 +147,13 @@ then style them in the next.
   bridge|pennant|perspective|diamond|preset}`, then `text.bendEnvelope {id, edge: top|bottom,
   handle: left|middle|right, dx, dy, symmetric}` (mm on the page; `text.envelopeHandles`
   says where the handles are). PES 0110 export refuses free envelopes: `text.toShapes` first.
+- Badges and patches with text round a circle: `text.add` or `object.setText` with `arc`
+  (mm, the first line's baseline radius; positive arches up over the top, negative arches
+  down under the bottom, read upright). Each `
+` line becomes a ring round the same centre,
+  one line spacing inward (up) or outward (down); a ring too tight for its line is refused
+  with the radius needed, so retry with that. `arc: null` straightens it. Beyond PE-DESIGN:
+  PES 0110 export refuses it (`text.toShapes` first).
 - Threads: to change the design to a thread chart ("use my Madeira threads"), run
   `threads.remap` `{builtin | chart, metric: ciede2000, keepDistinct: true, dryRun: true}`
   first and show the user the plan (design colour → thread, ΔE, objects, and `merged`), then
