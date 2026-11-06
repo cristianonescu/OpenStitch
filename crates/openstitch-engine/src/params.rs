@@ -99,11 +99,6 @@ impl Params {
         }
     }
 
-    /// Every parameter as given.
-    pub fn values(&self) -> &Map<String, Value> {
-        &self.values
-    }
-
     pub fn get(&self, key: &str) -> Option<&Value> {
         self.values.get(key).filter(|v| !v.is_null())
     }

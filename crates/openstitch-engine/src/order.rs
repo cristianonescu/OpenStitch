@@ -99,7 +99,7 @@ pub fn commands() -> Vec<CommandSpec> {
         ),
         spec(
             "order.optimize",
-            "Optimise the sewing order. peDesign (PE-DESIGN 11.50): same colours together, in drawing order within a colour, but an object never moves before one it overlaps that was sewn earlier; then each shape's entry and exit points move to where it comes closest to the same-colour shapes sewn before and after it. minJump (beyond PE-DESIGN): the same colour blocks, each arranged for the shortest total travel between outlines (greedy nearest, then 2-opt), and every neighbouring pair linked. Knockdown fills stay before what they cover. Returns the colour changes, jumps, trims and travel before and after, and a one-line summary",
+            "Optimise the sewing order. peDesign (PE-DESIGN 11.50): same colours together, in drawing order within a colour, but an object never moves before one it overlaps that was sewn earlier; then each shape's entry and exit points move to where it comes closest to the same-colour shapes sewn before and after it. minJump (beyond PE-DESIGN): the same colour blocks, each arranged for the shortest total travel between outlines (greedy nearest, then 2-opt), and every neighbouring pair linked. Returns the colour changes, jumps, trims and travel before and after, and a one-line summary",
             Effect::Edit,
             vec![opt(
                 "mode",
@@ -115,8 +115,7 @@ pub fn commands() -> Vec<CommandSpec> {
                     s.design.optimize_order
                 };
                 let before = crate::production::order_numbers(&s.design);
-                let mut order = optimized_with(&s.design, mode);
-                crate::wizards::knockdown::keep_first(&s.design, &mut order);
+                let order = optimized_with(&s.design, mode);
                 let mut objects = std::mem::take(&mut s.design.objects);
                 let mut slots: Vec<Option<DesignObject>> = objects.drain(..).map(Some).collect();
                 s.design.objects = order

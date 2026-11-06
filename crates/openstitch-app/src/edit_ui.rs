@@ -833,19 +833,6 @@ fn list_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandReques
         {
             out = Some(objects::set_stop_after(&app.selection, stop));
         }
-        // Beyond PE-DESIGN (#510).
-        let update = d
-            .objects
-            .iter()
-            .any(|o| app.selection.contains(&o.id) && o.knockdown.is_some());
-        let label = if update { "Update knockdown" } else { "Knockdown" };
-        if ui
-            .button(label)
-            .on_hover_text("Beyond PE-DESIGN: a light fill sewn first under the selection (or the whole design) that flattens towel and fleece pile; on a selected knockdown, rebuild it to cover what changed")
-            .clicked()
-        {
-            out = Some(objects::knockdown(d, &app.selection));
-        }
     });
     out
 }

@@ -316,7 +316,14 @@ impl Compiler {
             let start = w.out.stitches.len();
             let started = match (production.auto_start, w.position) {
                 (crate::production::AutoStart::Nearest, Some(from)) => {
-                    crate::production::nearest_start(object, from)
+                    crate::production::nearest_start(object, from).filter(|c| {
+                        // Only where it helps: the start rule must not add a trim inside the
+                        // object (an echo or stippling route can split up from another start)
+                        // and must shorten the travel, the move into the object included.
+                        let (t0, d0) = self.object_cost(object, design, from);
+                        let (t1, d1) = self.object_cost(c, design, from);
+                        t1 <= t0 && d1 < d0
+                    })
                 }
                 _ => None,
             };
@@ -338,6 +345,26 @@ impl Compiler {
             sew_object(&mut w, object, design);
         }
         w.finish()
+    }
+
+    /// Trims and total travel (0.1 mm) of `object` sewn alone from needle position `from`.
+    fn object_cost(&self, object: &DesignObject, design: &Design, from: Vec2) -> (usize, f64) {
+        let mut w = self.writer();
+        w.position = Some(from);
+        w.cut = false;
+        sew_object(&mut w, object, design);
+        let mut last = from;
+        let mut travel = 0.0;
+        for s in &w.out.stitches {
+            let p = v2(s.x, s.y);
+            if s.command == Command::Jump {
+                travel += last.distance(p);
+            }
+            if matches!(s.command, Command::Stitch | Command::Jump) {
+                last = p;
+            }
+        }
+        (w.out.count(Command::Trim), travel)
     }
 
     fn writer(&self) -> Writer {

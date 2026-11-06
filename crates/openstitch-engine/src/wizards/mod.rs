@@ -10,7 +10,6 @@
 pub(crate) mod applique;
 mod background;
 mod cutwork;
-pub(crate) mod knockdown;
 mod patch;
 
 use crate::commands::CommandSpec;
@@ -27,7 +26,6 @@ pub fn commands() -> Vec<CommandSpec> {
     v.extend(applique::commands());
     v.extend(patch::commands());
     v.extend(cutwork::commands());
-    v.extend(knockdown::commands());
     v
 }
 
