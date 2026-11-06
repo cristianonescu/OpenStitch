@@ -126,13 +126,10 @@ pub fn route_strokes(strokes: &[Vec<Vec2>], from: Option<Vec2>) -> Vec<Vec<Piece
             let mut prev = vec![usize::MAX; n];
             let mut seen = vec![false; n];
             dist[start] = 0.0;
-            loop {
-                let Some(u) = (0..n)
-                    .filter(|&i| !seen[i] && dist[i].is_finite())
-                    .min_by(|&a, &b| dist[a].total_cmp(&dist[b]))
-                else {
-                    break;
-                };
+            while let Some(u) = (0..n)
+                .filter(|&i| !seen[i] && dist[i].is_finite())
+                .min_by(|&a, &b| dist[a].total_cmp(&dist[b]))
+            {
                 seen[u] = true;
                 for &(v, w) in &sewn[u] {
                     if dist[u] + w < dist[v] {
@@ -147,7 +144,7 @@ pub fn route_strokes(strokes: &[Vec<Vec2>], from: Option<Vec2>) -> Vec<Vec<Piece
                 for (rev, end) in [(false, p[0]), (true, p[p.len() - 1])] {
                     let key = (dist[end], Some(origin[si]) != sewing);
                     if dist[end].is_finite()
-                        && (key.0 < best.0 - 1e-9 || (key.0 < best.0 + 1e-9 && key.1 < best.1))
+                        && (key.0 < best.0 - 1e-9 || (key.0 < best.0 + 1e-9 && !key.1 && best.1))
                     {
                         best = key;
                         let mut way = vec![end];
@@ -252,7 +249,7 @@ pub fn resample(points: &[Vec2], pitch: f64) -> Vec<Vec2> {
 /// each side into the same number of pieces).
 fn corners(c: &Contour) -> Option<[Vec2; 4]> {
     let n = c.points.len();
-    (c.closed && n >= 4 && n % 4 == 0).then(|| {
+    (c.closed && n >= 4 && n.is_multiple_of(4)).then(|| {
         [
             c.points[0],
             c.points[n / 4],

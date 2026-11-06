@@ -953,13 +953,14 @@ mod tests {
         let mut s = Session::new(&dir);
         let loaded = run(&mut s, &load_font_request(&font));
         let choices = font_choices(&run(&mut s, &CommandRequest::new("fonts.list", json!({}))));
-        assert_eq!(choices.len(), 3);
-        assert_eq!(choices[2].id, loaded["id"].as_str().expect("id"));
-        assert!(choices[2].label.starts_with("Pacifico"));
+        // Four bundled fonts, then the design's.
+        assert_eq!(choices.len(), 5);
+        assert_eq!(choices[4].id, loaded["id"].as_str().expect("id"));
+        assert!(choices[4].label.starts_with("Pacifico"));
 
         let mut form = TextForm {
             text: "Hi \u{05D0}".into(),
-            font: choices[2].id.clone(),
+            font: choices[4].id.clone(),
             ..TextForm::default()
         };
         let r = run(&mut s, &form.request().expect("request"));
