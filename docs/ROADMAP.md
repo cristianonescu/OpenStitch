@@ -123,8 +123,8 @@ then a sew-out of the regenerated kit.
 
 Done 2026-11-06 (#295, #441, #311, #312): the kit has a T2 card (two threads in alternating rows,
 to measure how far a later row covers its neighbour for Photo Stitch 1), the build checks every
-calibration swatch's density in the exported file, and `sew_check` checks long stitches, trims
-per 1,000 stitches and hairline satins with limits from PE-DESIGN's own files. Next: sew the T2
+calibration swatch's density in the exported file, and `sew_check` checks trims per 1,000
+stitches and hairline satins with limits from PE-DESIGN's own files. Next: sew the T2
 card and set `strip` from it; engine follow-ups #627 (Design Center line-art trims) and #628
 (entry travel across a region).
 

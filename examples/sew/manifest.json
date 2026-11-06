@@ -1,13 +1,13 @@
 {
  "calibration/t1-swatches.pes": {
   "title": "T1 calibration card: thread swatches and coverage ramp",
-  "about": "Six threads (White, Black, Red, Blue, Yellow, Leaf Green) as 12 mm fills at 3.0, 4.5 and 6.0 rows/mm, then Black at 0.5, 1, 1.5, 2, 3 and 4.5 rows/mm, all without underlay; the \"T1\" mark is the top left. Photographed under the protocol below, it calibrates the Realistic view and the similarity scorer (image-similarity plan, T1), shows how each density covers the fabric (#129), and whether a single layer without underlay sews cleanly. The card's photo patch is the Photo Stitch 1 sunset demo in OpenStitch mode (`image-tools/S-photo1-sunset-openstitch.pes`).",
+  "about": "Six threads (White, Black, Red, Blue, Yellow, Leaf Green) as 12 mm fills at 3.0, 4.5 and 6.0 rows/mm, then Black at 0.5, 1, 1.5, 2, 3 and 4.5 rows/mm, all without underlay; the \"T1\" mark is below the bottom-left swatch. Photographed under the protocol below, it calibrates the Realistic view and the similarity scorer (image-similarity plan, T1), shows how each density covers the fabric (#129), and whether a single layer without underlay sews cleanly. The card's photo patch is the Photo Stitch 1 sunset demo in OpenStitch mode (`image-tools/S-photo1-sunset-openstitch.pes`).",
   "hoop": "100 × 100 mm",
   "sizeMM": [
    86.9,
    68.0
   ],
-  "stitches": 5064,
+  "stitches": 5160,
   "trims": 26,
   "threads": [
    "001 White",
@@ -17,10 +17,562 @@
    "205 Yellow",
    "509 Leaf Green"
   ],
-  "sewingMinutes": 7.7,
+  "sewingMinutes": 7.8,
   "image": null,
   "preview": "previews/t1-swatches.png",
-  "sha256": "aeaacfe07a95cbd58fc395d341262276effae1f028529df981d5616359116f20"
+  "sha256": "06cc53830b92dfc1fd7d3fab078a301cb4ca0775e5b38edaca9fa546fa7fc941",
+  "swatches": [
+   {
+    "boxMM": [
+     9,
+     9,
+     12,
+     12
+    ],
+    "thread": "001 White",
+    "rowsPerMM": 3.0,
+    "measuredRowsPerMM": 3.0
+   },
+   {
+    "boxMM": [
+     9,
+     24,
+     12,
+     12
+    ],
+    "thread": "001 White",
+    "rowsPerMM": 4.5,
+    "measuredRowsPerMM": 4.5
+   },
+   {
+    "boxMM": [
+     9,
+     39,
+     12,
+     12
+    ],
+    "thread": "001 White",
+    "rowsPerMM": 6.0,
+    "measuredRowsPerMM": 6.0
+   },
+   {
+    "boxMM": [
+     23,
+     9,
+     12,
+     12
+    ],
+    "thread": "900 Black",
+    "rowsPerMM": 3.0,
+    "measuredRowsPerMM": 3.0
+   },
+   {
+    "boxMM": [
+     23,
+     24,
+     12,
+     12
+    ],
+    "thread": "900 Black",
+    "rowsPerMM": 4.5,
+    "measuredRowsPerMM": 4.5
+   },
+   {
+    "boxMM": [
+     23,
+     39,
+     12,
+     12
+    ],
+    "thread": "900 Black",
+    "rowsPerMM": 6.0,
+    "measuredRowsPerMM": 6.0
+   },
+   {
+    "boxMM": [
+     9,
+     54,
+     12,
+     12
+    ],
+    "thread": "900 Black",
+    "rowsPerMM": 0.5,
+    "measuredRowsPerMM": 0.5
+   },
+   {
+    "boxMM": [
+     23,
+     54,
+     12,
+     12
+    ],
+    "thread": "900 Black",
+    "rowsPerMM": 1.0,
+    "measuredRowsPerMM": 1.0
+   },
+   {
+    "boxMM": [
+     37,
+     54,
+     12,
+     12
+    ],
+    "thread": "900 Black",
+    "rowsPerMM": 1.5,
+    "measuredRowsPerMM": 1.5
+   },
+   {
+    "boxMM": [
+     51,
+     54,
+     12,
+     12
+    ],
+    "thread": "900 Black",
+    "rowsPerMM": 2.0,
+    "measuredRowsPerMM": 2.0
+   },
+   {
+    "boxMM": [
+     65,
+     54,
+     12,
+     12
+    ],
+    "thread": "900 Black",
+    "rowsPerMM": 3.0,
+    "measuredRowsPerMM": 3.0
+   },
+   {
+    "boxMM": [
+     79,
+     54,
+     12,
+     12
+    ],
+    "thread": "900 Black",
+    "rowsPerMM": 4.5,
+    "measuredRowsPerMM": 4.5
+   },
+   {
+    "boxMM": [
+     37,
+     9,
+     12,
+     12
+    ],
+    "thread": "800 Red",
+    "rowsPerMM": 3.0,
+    "measuredRowsPerMM": 3.0
+   },
+   {
+    "boxMM": [
+     37,
+     24,
+     12,
+     12
+    ],
+    "thread": "800 Red",
+    "rowsPerMM": 4.5,
+    "measuredRowsPerMM": 4.5
+   },
+   {
+    "boxMM": [
+     37,
+     39,
+     12,
+     12
+    ],
+    "thread": "800 Red",
+    "rowsPerMM": 6.0,
+    "measuredRowsPerMM": 6.0
+   },
+   {
+    "boxMM": [
+     51,
+     9,
+     12,
+     12
+    ],
+    "thread": "405 Blue",
+    "rowsPerMM": 3.0,
+    "measuredRowsPerMM": 3.0
+   },
+   {
+    "boxMM": [
+     51,
+     24,
+     12,
+     12
+    ],
+    "thread": "405 Blue",
+    "rowsPerMM": 4.5,
+    "measuredRowsPerMM": 4.5
+   },
+   {
+    "boxMM": [
+     51,
+     39,
+     12,
+     12
+    ],
+    "thread": "405 Blue",
+    "rowsPerMM": 6.0,
+    "measuredRowsPerMM": 6.0
+   },
+   {
+    "boxMM": [
+     65,
+     9,
+     12,
+     12
+    ],
+    "thread": "205 Yellow",
+    "rowsPerMM": 3.0,
+    "measuredRowsPerMM": 3.0
+   },
+   {
+    "boxMM": [
+     65,
+     24,
+     12,
+     12
+    ],
+    "thread": "205 Yellow",
+    "rowsPerMM": 4.5,
+    "measuredRowsPerMM": 4.5
+   },
+   {
+    "boxMM": [
+     65,
+     39,
+     12,
+     12
+    ],
+    "thread": "205 Yellow",
+    "rowsPerMM": 6.0,
+    "measuredRowsPerMM": 6.0
+   },
+   {
+    "boxMM": [
+     79,
+     9,
+     12,
+     12
+    ],
+    "thread": "509 Leaf Green",
+    "rowsPerMM": 3.0,
+    "measuredRowsPerMM": 3.0
+   },
+   {
+    "boxMM": [
+     79,
+     24,
+     12,
+     12
+    ],
+    "thread": "509 Leaf Green",
+    "rowsPerMM": 4.5,
+    "measuredRowsPerMM": 4.5
+   },
+   {
+    "boxMM": [
+     79,
+     39,
+     12,
+     12
+    ],
+    "thread": "509 Leaf Green",
+    "rowsPerMM": 6.0,
+    "measuredRowsPerMM": 6.0
+   }
+  ]
+ },
+ "calibration/t2-alternating-rows.pes": {
+  "title": "T2 calibration card: two threads in alternating rows",
+  "about": "How much a row sewn later covers its neighbour of another thread, which Photo Stitch 1's fine rows need (`rows::Rows::strip`, #311). Black 900 and Yellow 205 as 12 mm fills at 0° without underlay, one row of swatches per density: 2, 3, 4 and 5 rows/mm of each thread, top to bottom. Left to right: solid Black at the two threads' total (4, 6, 8, 10 rows/mm), Black rows with Yellow rows midway between them and sewn later, the same with Yellow sewn first, and solid Yellow at the total. The thread sewn later lies on top, so the two middle columns differ only in sewing order. The \"T2\" mark is below the bottom-left swatch. Sew it on the same fabric and thread as the T1 card and scan it the same way.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   61.9,
+   68.0
+  ],
+  "stitches": 6045,
+  "trims": 26,
+  "threads": [
+   "900 Black",
+   "205 Yellow",
+   "900 Black"
+  ],
+  "sewingMinutes": 8.9,
+  "image": null,
+  "preview": "previews/t2-alternating-rows.png",
+  "sha256": "1c194e12629b786842e5f29146cf0eb991d715d80ef8c130b338e33da66d3be6",
+  "swatches": [
+   {
+    "boxMM": [
+     9,
+     9.0,
+     12,
+     12
+    ],
+    "thread": "900 Black",
+    "rowsPerMM": 4.0,
+    "measuredRowsPerMM": 4.0
+   },
+   {
+    "boxMM": [
+     24,
+     9.0,
+     12,
+     12
+    ],
+    "thread": "900 Black",
+    "rowsPerMM": 2.0,
+    "measuredRowsPerMM": 2.0
+   },
+   {
+    "boxMM": [
+     9,
+     24.0,
+     12,
+     12
+    ],
+    "thread": "900 Black",
+    "rowsPerMM": 6.0,
+    "measuredRowsPerMM": 6.0
+   },
+   {
+    "boxMM": [
+     24,
+     24.0,
+     12,
+     12
+    ],
+    "thread": "900 Black",
+    "rowsPerMM": 3.0,
+    "measuredRowsPerMM": 3.0
+   },
+   {
+    "boxMM": [
+     9,
+     39.0,
+     12,
+     12
+    ],
+    "thread": "900 Black",
+    "rowsPerMM": 8.0,
+    "measuredRowsPerMM": 8.0
+   },
+   {
+    "boxMM": [
+     24,
+     39.0,
+     12,
+     12
+    ],
+    "thread": "900 Black",
+    "rowsPerMM": 4.0,
+    "measuredRowsPerMM": 4.0
+   },
+   {
+    "boxMM": [
+     9,
+     54.0,
+     12,
+     12
+    ],
+    "thread": "900 Black",
+    "rowsPerMM": 10.0,
+    "measuredRowsPerMM": 10.0
+   },
+   {
+    "boxMM": [
+     24,
+     54.0,
+     12,
+     12
+    ],
+    "thread": "900 Black",
+    "rowsPerMM": 5.0,
+    "measuredRowsPerMM": 5.0
+   },
+   {
+    "boxMM": [
+     24,
+     9.25,
+     12,
+     12
+    ],
+    "thread": "205 Yellow",
+    "rowsPerMM": 2.0,
+    "measuredRowsPerMM": 2.0
+   },
+   {
+    "boxMM": [
+     39,
+     9.0,
+     12,
+     12
+    ],
+    "thread": "205 Yellow",
+    "rowsPerMM": 2.0,
+    "measuredRowsPerMM": 2.0
+   },
+   {
+    "boxMM": [
+     54,
+     9.0,
+     12,
+     12
+    ],
+    "thread": "205 Yellow",
+    "rowsPerMM": 4.0,
+    "measuredRowsPerMM": 4.0
+   },
+   {
+    "boxMM": [
+     24,
+     24.1667,
+     12,
+     12
+    ],
+    "thread": "205 Yellow",
+    "rowsPerMM": 3.0,
+    "measuredRowsPerMM": 3.03
+   },
+   {
+    "boxMM": [
+     39,
+     24.0,
+     12,
+     12
+    ],
+    "thread": "205 Yellow",
+    "rowsPerMM": 3.0,
+    "measuredRowsPerMM": 3.0
+   },
+   {
+    "boxMM": [
+     54,
+     24.0,
+     12,
+     12
+    ],
+    "thread": "205 Yellow",
+    "rowsPerMM": 6.0,
+    "measuredRowsPerMM": 6.0
+   },
+   {
+    "boxMM": [
+     24,
+     39.125,
+     12,
+     12
+    ],
+    "thread": "205 Yellow",
+    "rowsPerMM": 4.0,
+    "measuredRowsPerMM": 4.03
+   },
+   {
+    "boxMM": [
+     39,
+     39.0,
+     12,
+     12
+    ],
+    "thread": "205 Yellow",
+    "rowsPerMM": 4.0,
+    "measuredRowsPerMM": 4.0
+   },
+   {
+    "boxMM": [
+     54,
+     39.0,
+     12,
+     12
+    ],
+    "thread": "205 Yellow",
+    "rowsPerMM": 8.0,
+    "measuredRowsPerMM": 8.0
+   },
+   {
+    "boxMM": [
+     24,
+     54.1,
+     12,
+     12
+    ],
+    "thread": "205 Yellow",
+    "rowsPerMM": 5.0,
+    "measuredRowsPerMM": 5.0
+   },
+   {
+    "boxMM": [
+     39,
+     54.0,
+     12,
+     12
+    ],
+    "thread": "205 Yellow",
+    "rowsPerMM": 5.0,
+    "measuredRowsPerMM": 5.0
+   },
+   {
+    "boxMM": [
+     54,
+     54.0,
+     12,
+     12
+    ],
+    "thread": "205 Yellow",
+    "rowsPerMM": 10.0,
+    "measuredRowsPerMM": 10.0
+   },
+   {
+    "boxMM": [
+     39,
+     9.25,
+     12,
+     12
+    ],
+    "thread": "900 Black",
+    "rowsPerMM": 2.0,
+    "measuredRowsPerMM": 2.0
+   },
+   {
+    "boxMM": [
+     39,
+     24.1667,
+     12,
+     12
+    ],
+    "thread": "900 Black",
+    "rowsPerMM": 3.0,
+    "measuredRowsPerMM": 3.03
+   },
+   {
+    "boxMM": [
+     39,
+     39.125,
+     12,
+     12
+    ],
+    "thread": "900 Black",
+    "rowsPerMM": 4.0,
+    "measuredRowsPerMM": 4.03
+   },
+   {
+    "boxMM": [
+     39,
+     54.1,
+     12,
+     12
+    ],
+    "thread": "900 Black",
+    "rowsPerMM": 5.0,
+    "measuredRowsPerMM": 5.0
+   }
+  ]
  },
  "calibration/ps2-grey-ramp.pes": {
   "title": "Photo Stitch 2 coverage ramp",
@@ -48,16 +600,16 @@
    81.0,
    79.0
   ],
-  "stitches": 4545,
+  "stitches": 4583,
   "trims": 9,
   "threads": [
    "900 Black",
    "800 Red"
   ],
-  "sewingMinutes": 6.1,
+  "sewingMinutes": 6.2,
   "image": null,
   "preview": "previews/satin-and-underlay.png",
-  "sha256": "90d49002acc48d2d862ef4f491718fc8e752cdd9c0c70a8577f6eb48ff698279"
+  "sha256": "eecffe9d6f84e7b790dad810b6e5d5aa94e94a3e11d9295d983d1be17ecde75d"
  },
  "machine-checks/satin-zigzag-rect.pes": {
   "title": "Machine check: Region satin is a zigzag across the column",
@@ -353,19 +905,18 @@
    71.0,
    89.7
   ],
-  "stitches": 3928,
-  "trims": 47,
+  "stitches": 3860,
+  "trims": 46,
   "threads": [
    "405 Blue",
    "800 Red",
    "509 Leaf Green",
-   "399 Warm Gray",
    "620 Magenta"
   ],
-  "sewingMinutes": 7.3,
+  "sewingMinutes": 7.2,
   "image": null,
   "preview": "previews/fonts-and-text.png",
-  "sha256": "d8c7bd84cfa01010482125d327926101cca993309a0258f4dc2b7d4b8a625f5f"
+  "sha256": "b3c2f2f678d190f343bd292a0683bd20d7276639d52001c0a0e02269dc5029b2"
  },
  "lettering/monograms.pes": {
   "title": "Monograms",
@@ -403,9 +954,9 @@
   "stitches": 1808,
   "trims": 4,
   "threads": [
-   "#ffc864",
-   "#ffc896",
-   "#ffc8c8"
+   "Appliqué material (PEC 62)",
+   "Appliqué position (PEC 63)",
+   "Appliqué (PEC 64)"
   ],
   "sewingMinutes": 2.5,
   "image": null,

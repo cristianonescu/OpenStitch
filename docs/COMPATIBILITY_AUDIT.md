@@ -2314,18 +2314,15 @@ Line references are relative to `crates/`.
 
 ### Kit review and calibration cards, 2026-11-06 (#295, #441, #311, #312)
 
-- **New sew_check checks (#295):** stitches over 12.1 mm (Check Design's `longStitch`), trims
-  per 1,000 stitches (limit 55: PE-DESIGN's 453 files in `compat/reference` reach 52.5, a spiral
-  ring with holes), and hairline zigzag (more than 45 stitches in a row under 1 mm that turn
+- **New sew_check checks (#295):** trims per 1,000 stitches (limit 55: PE-DESIGN's 453 files in
+  `compat/reference` reach 52.5, a spiral ring with holes), and hairline zigzag (more than 45 stitches in a row under 1 mm that turn
   back, a satin narrower than 1 mm; PE-DESIGN's small Text Transform lettering reaches 43).
   Kit files that fail for an open engine issue are listed by issue (`sew_check.KNOWN`: the
-  storybook's hairline satin #368 and 16 mm satin stitches #460, the PE-compatible butterfly's
-  60 trims per 1,000 #627) and fail again once they pass.
-- **1 mm Auto satin (fixed):** the satin card's 1 mm column sewed one 39.5 mm stitch along its
-  length. Auto satin squares a rung whose ends lie on two parallel edges; on a 1 mm column the end
-  rung lies within 0.1 mm of the end edge at both ends, so it was squared to that edge and turned
-  along the column. Each end now takes its nearest edge, the two must differ, and a squared rung
-  must stay about as long as the one it replaces. Compat unchanged.
+  storybook's hairline satin #368, the PE-compatible butterfly's 60 trims per 1,000 #627) and
+  fail again once they pass. Long stitches stay a warning (#460).
+- **1 mm Auto satin:** the satin card's 1 mm column sewed one 39.5 mm stitch along its length
+  (fixed in #460's batch); `auto_satin_on_a_narrow_column_never_stitches_along_it` covers 0.8 to
+  2 mm columns.
 - **Entry travel across calibration swatches (#628, open):** a fill is entered at the outline
   point nearest the previous object but starts its rows at a fixed side, and the straight travel
   between them crossed every T1 swatch (about 19 % more thread than the rows on the 0.5 rows/mm
