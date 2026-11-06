@@ -68,6 +68,8 @@ mod knife;
 mod layout;
 #[path = "lettering.rs"]
 mod lettering;
+#[path = "lettering_library.rs"]
+mod lettering_library;
 #[path = "library.rs"]
 mod library;
 #[path = "machine.rs"]

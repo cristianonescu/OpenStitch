@@ -438,7 +438,21 @@ fn text_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
             ui.end_row();
             ui.label("Size");
             let mut size = spec.size;
-            let r = ui.add(crate::units_ui::drag(&mut size, units).range(1.0..=200.0));
+            let warning = crate::lettering_ui::size_warning(app, &spec);
+            let r = ui
+                .scope(|ui| {
+                    if warning.is_some() {
+                        // Amber: outside the sizes the font sews well at (#527).
+                        ui.visuals_mut().override_text_color =
+                            Some(egui::Color32::from_rgb(0xE0, 0x9A, 0x1A));
+                    }
+                    ui.add(crate::units_ui::drag(&mut size, units).range(1.0..=200.0))
+                })
+                .inner;
+            let r = match &warning {
+                Some(w) => r.on_hover_text(w),
+                None => r,
+            };
             if (r.drag_stopped() || r.lost_focus()) && (size - spec.size).abs() > 1e-9 {
                 ribbon::set_text(app, serde_json::json!({ "size": size }));
             }
@@ -468,6 +482,22 @@ fn text_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
             }
             ui.end_row();
         });
+    if spec.font == "openstitch-pixel" {
+        ui.horizontal(|ui| {
+            ui.label("Pixels");
+            for (v, label) in [("run", "Run"), ("cross", "Cross"), ("block", "Block")] {
+                if ui
+                    .selectable_label(spec.pixel_style.as_str() == v, label)
+                    .clicked()
+                {
+                    ribbon::set_text(app, serde_json::json!({ "pixelStyle": v }));
+                }
+            }
+        });
+    }
+    egui::CollapsingHeader::new("Font list")
+        .default_open(true)
+        .show(ui, |ui| crate::lettering_ui::font_browser(app, ui, &spec));
     transform_palette(app, ui, &spec);
     ui.separator();
     ui.horizontal_wrapped(|ui| {

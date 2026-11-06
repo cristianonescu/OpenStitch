@@ -526,6 +526,8 @@ mod tests {
         let font = |id: &str| FontChoice {
             id: id.into(),
             label: id.into(),
+            size_range: None,
+            group: "text".into(),
         };
         let fonts = vec![font("a"), font("b")];
         let mut f = FontFilter::default();

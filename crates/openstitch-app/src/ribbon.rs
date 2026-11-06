@@ -91,6 +91,9 @@ pub struct RibbonState {
     pub pane_tab: PaneTab,
     /// Edit Text: the characters being typed.
     pub text_draft: String,
+    /// Undo groups before the current font browse (arrow keys in the font list, #527): the
+    /// browse is undone in one step.
+    pub font_browse_undo: Option<usize>,
     /// ScreenTip of the command under the pointer (status bar).
     pub hover: Option<&'static str>,
     applied_theme: Option<Theme>,
@@ -114,6 +117,7 @@ impl Default for RibbonState {
             about_open: false,
             pane_tab: PaneTab::default(),
             text_draft: String::new(),
+            font_browse_undo: None,
             hover: None,
             applied_theme: None,
         }

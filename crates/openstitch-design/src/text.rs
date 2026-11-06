@@ -18,8 +18,32 @@ use openstitch_core::{Command, Stitch};
 use serde::{Deserialize, Serialize};
 use ttf_parser::{Face, GlyphId, OutlineBuilder};
 
-/// A font bundled with OpenStitch. Only SIL OFL fonts are bundled, unmodified (see
-/// THIRD_PARTY_NOTICES.md and `crates/openstitch-design/fonts/`).
+/// What a bundled font is made of (#527).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FontKind {
+    /// A TrueType outline font, sewn as regions (satin or fill) letter by letter.
+    TrueType,
+    /// A single-line font ([`crate::stroke_fonts::line_font`]): open strokes along each
+    /// letter's centre, sewn by the text's line sewing (running, triple or a narrow satin).
+    SingleLine,
+    /// A pixel font ([`crate::stroke_fonts::pixel_font`]): each pixel sewn as a short run, a
+    /// cross or a small block ([`PixelStyle`]).
+    Pixel,
+}
+
+impl FontKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            FontKind::TrueType => "trueType",
+            FontKind::SingleLine => "singleLine",
+            FontKind::Pixel => "pixel",
+        }
+    }
+}
+
+/// A font bundled with OpenStitch: SIL OFL TrueType fonts, unmodified (see
+/// THIRD_PARTY_NOTICES.md and `crates/openstitch-design/fonts/`), and OpenStitch's own
+/// single-line and pixel fonts (`stroke_fonts.rs`, MIT OR Apache-2.0 like the code).
 #[derive(Debug)]
 pub struct FontInfo {
     /// Stable identifier stored in `.osd` files.
@@ -27,16 +51,32 @@ pub struct FontInfo {
     pub family: &'static str,
     pub style: &'static str,
     pub license: &'static str,
+    /// The TrueType file; empty for the other kinds.
     pub data: &'static [u8],
+    pub kind: FontKind,
+    /// Text sizes (mm, PE-DESIGN's size) the font sews well at with its first stitch type,
+    /// measured by `stroke_fonts::tests::size_ranges_hold` against `tools/sew_check.py`'s
+    /// limits: below it a TrueType font's strokes turn into hairline satins, above it satin
+    /// stitches pass 12 mm or needle drops pile up. OpenStitch Line's range is its design
+    /// (3-6 mm labels, legible up to 15 mm).
+    pub size_range: (f64, f64),
+    /// Stitch types the font is made for, in `object.setRegion` / `object.setLine` names.
+    pub stitch_types: &'static [&'static str],
+    /// PE-DESIGN's Font List group: "text" or "smallText".
+    pub group: &'static str,
 }
 
-pub static FONTS: [FontInfo; 2] = [
+pub static FONTS: [FontInfo; 4] = [
     FontInfo {
         id: "lato-bold",
         family: "Lato",
         style: "Bold",
         license: "OFL-1.1",
         data: include_bytes!("../fonts/Lato-Bold.ttf"),
+        kind: FontKind::TrueType,
+        size_range: (6.0, 20.0),
+        stitch_types: &["satin", "fill"],
+        group: "text",
     },
     FontInfo {
         id: "pacifico",
@@ -44,8 +84,89 @@ pub static FONTS: [FontInfo; 2] = [
         style: "Regular",
         license: "OFL-1.1",
         data: include_bytes!("../fonts/Pacifico-Regular.ttf"),
+        kind: FontKind::TrueType,
+        size_range: (7.0, 10.0),
+        stitch_types: &["satin", "fill"],
+        group: "text",
+    },
+    FontInfo {
+        id: "openstitch-line",
+        family: "OpenStitch Line",
+        style: "Single line",
+        license: "MIT OR Apache-2.0",
+        data: &[],
+        kind: FontKind::SingleLine,
+        size_range: (3.0, 15.0),
+        stitch_types: &["running", "triple", "zigzag"],
+        group: "smallText",
+    },
+    FontInfo {
+        id: "openstitch-pixel",
+        family: "OpenStitch Pixel",
+        style: "5x7",
+        license: "MIT OR Apache-2.0",
+        data: &[],
+        kind: FontKind::Pixel,
+        size_range: (5.0, 40.0),
+        stitch_types: &["pixelRun", "pixelCross", "pixelBlock"],
+        group: "text",
     },
 ];
+
+/// How each pixel of a pixel-font text is sewn (#536).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PixelStyle {
+    /// A short run across the pixel's middle.
+    #[default]
+    Run,
+    /// A cross stitch corner to corner.
+    Cross,
+    /// Rows filling the pixel.
+    Block,
+}
+
+impl PixelStyle {
+    pub fn parse(s: &str) -> Option<Self> {
+        Some(match s {
+            "run" => PixelStyle::Run,
+            "cross" => PixelStyle::Cross,
+            "block" => PixelStyle::Block,
+            _ => return None,
+        })
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            PixelStyle::Run => "run",
+            PixelStyle::Cross => "cross",
+            PixelStyle::Block => "block",
+        }
+    }
+
+    fn is_run(&self) -> bool {
+        *self == PixelStyle::Run
+    }
+}
+
+/// The kind of the bundled font `name` refers to; `None` for design fonts.
+pub fn bundled_kind(name: &str) -> Option<FontKind> {
+    font(name).map(|f| f.kind)
+}
+
+/// A warning when `size` (mm) lies outside the sizes bundled font `name` sews well at (#527);
+/// never a refusal.
+pub fn size_warning(name: &str, size: f64) -> Option<String> {
+    let f = font(name)?;
+    let (lo, hi) = f.size_range;
+    (size < lo - 1e-9 || size > hi + 1e-9).then(|| {
+        format!(
+            "{} sews best at {lo}-{hi} mm; {size} mm is {} its range",
+            f.family,
+            if size < lo { "below" } else { "above" }
+        )
+    })
+}
 
 pub const DEFAULT_FONT: &str = "lato-bold";
 
@@ -135,6 +256,9 @@ pub struct TextSpec {
     /// degrees for 1 and 2. `None` is the preset's default ([`envelope_default_level`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub envelope_level: Option<f64>,
+    /// How a pixel font's pixels are sewn (#536); ignored by other fonts.
+    #[serde(default, skip_serializing_if = "PixelStyle::is_run")]
+    pub pixel_style: PixelStyle,
 }
 
 /// Text Transform presets OpenStitch lays out: all 26, 1 and 2 (arches over and under) by
@@ -431,6 +555,7 @@ impl TextSpec {
             characters: Vec::new(),
             envelope: None,
             envelope_level: None,
+            pixel_style: PixelStyle::Run,
         }
     }
 
@@ -735,7 +860,21 @@ impl<'a> LoadedFont<'a> {
         let found = resolve(name, fonts).ok_or_else(|| TextError::UnknownFont(name.into()))?;
         let bad = || TextError::BadFont(found.id().to_string());
         let face = match found {
-            FontRef::Bundled(info) => Face::parse(info.data, 0).map_err(|_| bad())?,
+            FontRef::Bundled(info) => match info.kind {
+                FontKind::TrueType => Face::parse(info.data, 0).map_err(|_| bad())?,
+                FontKind::SingleLine | FontKind::Pixel => {
+                    let e = if info.kind == FontKind::Pixel {
+                        crate::stroke_fonts::pixel_font()
+                    } else {
+                        crate::stroke_fonts::line_font()
+                    };
+                    return Ok(LoadedFont {
+                        source: Source::Embroidery(e),
+                        unit_per_mm: 10.0 / e.cap_height,
+                        pe_unit_per_mm: 10.0 / e.cap_height,
+                    });
+                }
+            },
             FontRef::Design(f) => match &f.data {
                 FontData::TrueType { face, bytes } => {
                     parse_face(&bytes.0, *face).ok_or_else(bad)?
@@ -1661,7 +1800,7 @@ mod tests {
 
     #[test]
     fn bundled_fonts_parse_and_cover_ascii() {
-        for f in &FONTS {
+        for f in FONTS.iter().filter(|f| f.kind == FontKind::TrueType) {
             let font = LoadedFont::load(f.id).expect(f.id);
             assert!(font.glyph_count() > 90, "{}", f.id);
             assert!((' '..='~').all(|c| font.has_char(c)), "{}", f.id);

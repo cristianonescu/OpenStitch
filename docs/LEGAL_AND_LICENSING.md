@@ -107,6 +107,7 @@ the project keeps:
 | SolidCraft (tangency-labs/solidcraft, commit 6bca7d2) | MIT OR Apache-2.0 | Reference design for the AI Assistant (B17); its Agent Client Protocol client code is adapted, with attribution, in `crates/openstitch-assistant/src/acp/`. See `THIRD_PARTY_NOTICES.md`. |
 | libembroidery (Embroidermodder) | zlib | Read as a secondary format reference where pyembroidery has no writer (PCS version byte, SEW control codes, XXX offsets). No code or data copied. |
 | Noto Sans Hebrew, Arabic, Devanagari and JP subsets, `crates/openstitch-engine/tests/fixtures/fonts/` | SIL OFL 1.1 (licence files and provenance beside the fonts; no reserved name used) | Test fixtures only (#345): the shaping and CJK lettering tests run on every machine without system fonts. Never embedded in binaries or offered as lettering fonts. Made by `tools/test_font_subsets.py`. |
+| OpenStitch Line and OpenStitch Pixel, `crates/openstitch-design/src/stroke_fonts.rs` | MIT OR Apache-2.0 (the project's licence; LICENSE-MIT, LICENSE-APACHE) | Bundled lettering fonts (#527, #530, #536), drawn for OpenStitch as stroke and pixel tables: no outline of another font traced, no Brother, Ink/Stitch or Hershey glyph data used. Their size ranges come from OpenStitch's own tests (`size_ranges_hold`). |
 
 Runtime crates and bundled fonts are listed with their licences in `THIRD_PARTY_NOTICES.md`
 and docs/ARCHITECTURE.md.

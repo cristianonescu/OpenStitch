@@ -2227,6 +2227,11 @@ fn text_docs(text_required: bool) -> Vec<ParamDoc> {
             "horizontal|vertical",
             "Vertical: characters top to bottom, lines as columns right to left (not on a path)",
         ),
+        opt(
+            "pixelStyle",
+            "run|cross|block",
+            "How a pixel font's pixels are sewn (OpenStitch Pixel; one pixel is size/7): a short run, a cross stitch or a block of rows (default run)",
+        ),
     ]
 }
 
@@ -2271,6 +2276,11 @@ fn text_params(
             "vertical" => TextDirection::Vertical,
             _ => return Err(p.invalid("direction", "must be horizontal or vertical")),
         };
+    }
+    if p.has("pixelStyle") {
+        let v = p.string("pixelStyle", None)?;
+        spec.pixel_style = text::PixelStyle::parse(&v)
+            .ok_or_else(|| p.invalid("pixelStyle", "must be run, cross or block"))?;
     }
     if p.is_null("envelope") {
         spec.envelope = None;
@@ -2403,10 +2413,65 @@ pub(crate) fn relayout(s: &mut EngineState, p: &Params, i: usize) -> CommandResu
             b.height() / MM
         )));
     }
-    Ok(json!({
+    let mut out = json!({
         "id": o.id, "glyphs": layout.glyphs.len(), "missing": missing,
         "shaping": layout.shaping,
-    }))
+    });
+    if let Some(w) = o
+        .text
+        .as_ref()
+        .and_then(|t| text::size_warning(&t.font, t.size))
+    {
+        // A warning, never a refusal (#527).
+        out["sizeWarning"] = json!(w);
+    }
+    Ok(out)
+}
+
+/// Running stitch pitch of single-line text, mm (#530): short enough for 3-6 mm letters.
+pub(crate) const SINGLE_LINE_PITCH: f64 = 1.5;
+
+/// The sewing a new text in `font` gets: a single-line font (OpenStitch Line) is sewn by its
+/// line, a running line 1.5 mm long in the text's colour unless one was given, and no region.
+pub(crate) fn single_line_sewing(
+    font: &str,
+    region: Option<RegionSewing>,
+    line: Option<LineSewing>,
+) -> (Option<RegionSewing>, Option<LineSewing>) {
+    if text::bundled_kind(font) != Some(text::FontKind::SingleLine) {
+        return (region, line);
+    }
+    let line = line.unwrap_or_else(|| {
+        let mut l = LineSewing::new(
+            LineType::Running,
+            region
+                .as_ref()
+                .map_or_else(default_line, |r| r.thread.clone()),
+        );
+        l.pitch = SINGLE_LINE_PITCH;
+        l
+    });
+    (None, Some(line))
+}
+
+/// The sewing of a text whose font changes to `font`: to a single-line font as
+/// [`single_line_sewing`]; from one to an outline font, a Satin region in the line's colour
+/// when the text has no region (the line is kept).
+pub(crate) fn font_change_sewing(
+    font: &str,
+    region: Option<RegionSewing>,
+    line: Option<LineSewing>,
+) -> (Option<RegionSewing>, Option<LineSewing>) {
+    match text::bundled_kind(font) {
+        Some(text::FontKind::SingleLine) => single_line_sewing(font, region, line),
+        _ if region.is_none() => {
+            let thread = line
+                .as_ref()
+                .map_or_else(default_line, |l| l.thread.clone());
+            (Some(text_region(RegionType::Satin, thread)), None)
+        }
+        _ => (region, line),
+    }
 }
 
 pub(crate) fn text_index(s: &EngineState, p: &Params, id: u64) -> Result<usize, CommandError> {
@@ -2488,6 +2553,7 @@ fn text_commands() -> Vec<CommandSpec> {
                 let (region, line) = sewing(p, true)?;
                 // Text is Satin by default, with PE-DESIGN's text attributes.
                 let region = region.map(|r| text_region(RegionType::Satin, r.thread));
+                let (region, line) = single_line_sewing(&spec.font, region, line);
                 let mut object = DesignObject::shape(Vec::new(), region, line);
                 object.kind = ObjectKind::Text;
                 object.name = object_name(p)?;
@@ -2513,7 +2579,13 @@ fn text_commands() -> Vec<CommandSpec> {
                 for id in p.ids()? {
                     let i = text_index(s, p, id)?;
                     let mut spec = s.design.objects[i].text.clone().expect("text object");
+                    let font_before = spec.font.clone();
                     text_params(p, &mut spec, &s.design.fonts)?;
+                    if spec.font != font_before {
+                        let o = &mut s.design.objects[i];
+                        (o.region, o.line) =
+                            font_change_sewing(&spec.font, o.region.take(), o.line.take());
+                    }
                     s.design.objects[i].text = Some(spec);
                     let r = relayout(s, p, i)?;
                     for (key, all) in [("missing", &mut missing), ("shaping", &mut shaping)] {

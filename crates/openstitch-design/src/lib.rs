@@ -20,6 +20,7 @@ pub mod generate;
 pub mod geometry;
 pub mod holes;
 pub mod knife;
+pub mod letter_lines;
 pub mod lines;
 pub mod machine;
 pub mod model;
@@ -43,6 +44,7 @@ pub mod source;
 pub mod spiral;
 pub mod stamp;
 pub mod stitch_edit;
+pub mod stroke_fonts;
 pub mod strokes;
 pub mod text;
 pub mod timeline;
@@ -63,8 +65,8 @@ pub use model::{
     UnderlayParts, UnderlayStyle,
 };
 pub use text::{
-    CharEdit, FONTS, FontInfo, Layout, PathFit, Spread, TextAlign, TextDirection, TextError,
-    TextMetrics, TextSpec, VAlign,
+    CharEdit, FONTS, FontInfo, FontKind, Layout, PathFit, PixelStyle, Spread, TextAlign,
+    TextDirection, TextError, TextMetrics, TextSpec, VAlign,
 };
 
 #[cfg(test)]
