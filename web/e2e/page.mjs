@@ -7,8 +7,9 @@
 // NATIVE_DIR/<input name>.pes (`cargo run -p openstitch-web --example web_export`). DST goes
 // through openstitch.run and must match NATIVE_DIR/<input name>.dst. A screenshot per browser
 // goes to OUT_DIR when given. A browser named with --optional (chromium, firefox, webkit) that
-// cannot be launched (a missing system library) is reported as a CI warning, not a failure;
-// once it runs, every check counts.
+// cannot be launched (a missing system library) or has no WebGL on the machine is reported as a
+// CI warning, not a failure; once the editor has started in it, every check counts. Firefox may
+// use software GL (Mesa's llvmpipe), which it otherwise blocks.
 import { createServer } from "node:http";
 import { mkdirSync, readFileSync } from "node:fs";
 import { basename, extname, join, normalize, resolve } from "node:path";
@@ -55,7 +56,10 @@ for (const [label, type] of [["Chromium", chromium], ["Firefox", firefox], ["Web
   console.log(`${label}: launching`);
   let browser;
   try {
-    browser = await type.launch({ timeout: 60_000 });
+    browser = await type.launch({
+      timeout: 60_000,
+      ...(type === firefox ? { firefoxUserPrefs: { "webgl.force-enabled": true } } : {}),
+    });
   } catch (e) {
     const first = String(e.message).split("\n").slice(0, 3).join(" ");
     if (optional.has(label.toLowerCase())) {
@@ -78,6 +82,10 @@ for (const [label, type] of [["Chromium", chromium], ["Firefox", firefox], ["Web
       { timeout: 90_000 },
     );
     const message = await page.evaluate(() => document.getElementById("message")?.textContent ?? "");
+    if (message && /WebGL/i.test(message) && optional.has(label.toLowerCase())) {
+      console.log(`::warning::${label} has no WebGL on this runner, not tested: ${message}`);
+      continue;
+    }
     if (message) throw new Error(message);
     await page.waitForTimeout(500);
 

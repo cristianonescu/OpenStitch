@@ -219,12 +219,16 @@ Assistant (its key lives in the system keychain), Quick Look, sending to a machi
 updates, the Design Database, image digitizing, and the editor's drawing, lettering and
 object tools (#693). The `.wasm` is about 17 MB (#696).
 
-**Browsers:** CI job `web` loads the page in Chromium, Firefox and WebKit (Safari's engine) with
-Playwright (`web/e2e/page.mjs`, version pinned in `web/e2e/package-lock.json`): the page must start,
-"Open…" goes through the browser's real file picker, "Export" through a real download that must be
-byte-identical to the native build, and a DST export through `openstitch.run` too; the screenshots
-are kept as the `openstitch-web-screenshots` artifact. Safari itself (macOS, iPadOS) is not run in
-CI; WebKit is its engine.
+**Browsers:** `web/e2e/page.mjs` (Playwright, version pinned in `web/e2e/package-lock.json`)
+loads the page in Chromium, Firefox and WebKit (Safari's engine): the page must start, "Open…"
+goes through the browser's real file picker, "Export" through a real download that must be
+byte-identical to the native build, and a DST export through `openstitch.run` too. On macOS all
+three pass (2026-11-07, `node web/e2e/page.mjs WEB_DIR NATIVE_DIR INPUT`). CI job `web` runs it on
+Linux: Chromium always counts; Firefox counts when Mesa (for WebGL on the GPU-less runner)
+installs within 8 minutes, else it is a CI warning; WebKit needs GTK 4 and GStreamer, which the
+runner lacks, so there it is a warning too. The screenshots are kept as the
+`openstitch-web-screenshots` artifact. Safari itself (macOS, iPadOS) is not run; WebKit is its
+engine.
 
 **Toward the full editor (#693):** the desktop editor's library (`openstitch_app::editor`: the
 viewport, hit-testing, tools and render models, without a window) builds for `wasm32` too, checked

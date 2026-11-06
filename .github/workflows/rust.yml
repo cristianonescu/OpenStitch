@@ -226,19 +226,34 @@ jobs:
       # The page itself in Chromium, Firefox and WebKit (Safari's engine), #694: it starts,
       # "Open…" goes through the browser's file picker and "Export" through a real download,
       # byte-identical to the native build. Playwright is pinned in web/e2e/package-lock.json.
-      # Browsers only, no `--with-deps`: the runner image has Chrome and Firefox and their
-      # libraries, and the apt step took 57 minutes on a slow mirror. WebKit may lack a system
-      # library there; page.mjs then warns instead of failing (--optional webkit).
+      # Browsers only, no `--with-deps`: that apt step took 57 minutes on a slow mirror.
+      # Chromium brings its own software GL. Firefox needs Mesa for WebGL on this GPU-less
+      # runner: a small install, given 8 minutes; if it does not finish, Firefox is only warned
+      # about. WebKit needs GTK 4 and GStreamer, which the runner lacks: warned about too, and
+      # checked on macOS by hand (docs/DISTRIBUTION.md "Web editor").
       - name: Playwright and its browsers
         working-directory: web/e2e
         timeout-minutes: 10
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npx playwright install chromium firefox webkit
+      - name: Mesa for Firefox's WebGL
+        id: mesa
+        continue-on-error: true
+        timeout-minutes: 8
+        run: sudo apt-get install -y --no-install-recommends -o Acquire::Retries=3 libegl1 libgles2 libgl1-mesa-dri
       - name: Page test (Chromium, Firefox, WebKit)
         working-directory: web/e2e
         timeout-minutes: 10
-        run: node page.mjs --optional webkit .. ../../target/web-native ../../compat/reference/pes/pes-default-v6.pes ../../target/web-shots
+        env:
+          MESA: ${{ steps.mesa.outcome }}
+        run: |
+          optional=(--optional webkit)
+          if [ "$MESA" != success ]; then
+            echo "::warning::Mesa did not install, so Firefox may have no WebGL here"
+            optional+=(--optional firefox)
+          fi
+          node page.mjs "${optional[@]}" .. ../../target/web-native ../../compat/reference/pes/pes-default-v6.pes ../../target/web-shots
       - uses: actions/upload-artifact@v4
         if: always()
         with:
