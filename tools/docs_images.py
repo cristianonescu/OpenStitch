@@ -5,6 +5,7 @@
     python3 -I tools/docs_images.py               # regenerate everything (about 30 minutes)
     python3 -I tools/docs_images.py --only engine,sdf
     python3 -I tools/docs_images.py --check       # every file has exactly one generator (no build)
+    python3 -I tools/docs_images.py --self-test   # the check catches a stray or missing file
 
 The generators, by name (`--only` takes these):
 - `screenshots`: tools/screenshots.py, the editor screenshots (docs/images/rust-editor-*,
@@ -68,6 +69,23 @@ def absolute_paths(steps, base):
 def screenshot_outputs():
     import screenshots
     return sorted({out for _, outs in screenshots.SCENES.values() for out, _ in outs})
+
+
+def gallery_outputs():
+    """The gallery files tools/gallery.py writes, by name (#654): <id>.png for each GALLERY
+    entry, <id>-pe.png and <id>-os.png for each MODES entry, and its stats.json cache. Read
+    from the script's source, so `--check` needs neither a build nor Pillow."""
+    import ast
+    tree = ast.parse((TOOLS / "gallery.py").read_text(encoding="utf-8"))
+    keys = {}
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Dict):
+            for t in node.targets:
+                if isinstance(t, ast.Name) and t.id in ("GALLERY", "MODES"):
+                    keys[t.id] = [k.value for k in node.value.keys if isinstance(k, ast.Constant)]
+    names = [f"{k}.png" for k in keys.get("GALLERY", [])]
+    names += [f"{k}-{mode}.png" for k in keys.get("MODES", []) for mode in ("pe", "os")]
+    return sorted(f"docs/images/readme/gallery/{n}" for n in names + ["stats.json"])
 
 
 def engine_outputs():
@@ -165,7 +183,7 @@ def gen_catalogue():
 
 GENERATORS = {
     "screenshots": (gen_screenshots, screenshot_outputs),
-    "gallery": (gen_gallery, lambda: ["docs/images/readme/gallery/*"]),
+    "gallery": (gen_gallery, gallery_outputs),
     "engine": (gen_engine, engine_outputs),
     "digitize": (gen_digitize, lambda: ["docs/images/digitize-*.png", "docs/images/convert-*.png"]),
     "sdf": (gen_sdf, lambda: [sdf_name(p) for p in sdf_patterns()]),
@@ -175,6 +193,16 @@ GENERATORS = {
 
 def check():
     files = sorted(p.relative_to(ROOT).as_posix() for p in IMAGES.rglob("*") if p.is_file())
+    problems = problems_in(files)
+    for p in problems:
+        print(p)
+    print(f"docs_images: {len(files)} files, {len(problems)} problem(s)")
+    return 1 if problems else 0
+
+
+def problems_in(files):
+    """Every file under docs/images claimed by exactly one generator or record, and every
+    generator pattern and record matching a file."""
     problems = []
     claims = {f: [] for f in files}
     for name, (_, outputs) in GENERATORS.items():
@@ -194,19 +222,35 @@ def check():
             problems.append(f"{f}: no generator (add it to a generator in tools/docs_images.py)")
         elif len(owners) > 1:
             problems.append(f"{f}: claimed by {', '.join(owners)}")
-    for p in problems:
-        print(p)
-    print(f"docs_images: {len(files)} files, {len(problems)} problem(s)")
-    return 1 if problems else 0
+    return problems
+
+
+def self_test():
+    """A file dropped into the gallery folder, or one the gallery no longer makes, fails (#654)."""
+    real = sorted(p.relative_to(ROOT).as_posix() for p in IMAGES.rglob("*") if p.is_file())
+    fails = []
+    stray = "docs/images/readme/gallery/logo-from-the-web.png"
+    if not any(stray in p and "no generator" in p for p in problems_in(real + [stray])):
+        fails.append(f"a stray gallery file passed: {stray}")
+    made = [f for f in real if f.startswith("docs/images/readme/gallery/") and f.endswith(".png")]
+    if made and not any("matches no file" in p for p in problems_in([f for f in real if f != made[0]])):
+        fails.append(f"a missing gallery file passed: {made[0]}")
+    for f in fails:
+        print(f)
+    print(f"docs_images self-test: {len(fails)} problem(s)")
+    return 1 if fails else 0
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="check that every image has a generator")
+    ap.add_argument("--self-test", action="store_true", help="test the check itself")
     ap.add_argument("--only", help="comma-separated generators: " + ", ".join(GENERATORS))
     a = ap.parse_args()
+    if a.self_test:
+        return self_test()
     if a.check:
-        return check()
+        return self_test() or check()
     names = a.only.split(",") if a.only else list(GENERATORS)
     for name in names:
         if name not in GENERATORS:
