@@ -586,13 +586,19 @@ pub fn status_bar(app: &mut EditorApp, ui: &mut egui::Ui) {
         ui.separator();
         ui.label(format!("{} stitches", s.stitches));
         ui.separator();
-        let hint = crate::panels::tool_hint(app.tools.tool());
-        let text = app
-            .ui
-            .hover
-            .or(if app.status == "Ready" { hint } else { None })
-            .map_or_else(|| app.status.clone(), str::to_string);
-        ui.add(egui::Label::new(RichText::new(text).weak()).truncate());
+        // The hints line (#550): what clicks and keys do with this tool and the keys held.
+        let held = ui.input(|i| openstitch_app::editor::hints::Held {
+            shift: i.modifiers.shift,
+            command: i.modifiers.command,
+            alt: i.modifiers.alt,
+        });
+        let hint = openstitch_app::editor::hints::hint(app.tools.tool(), held);
+        let any_held = held != openstitch_app::editor::hints::Held::default();
+        let text = match app.ui.hover {
+            Some(h) => h.to_string(),
+            None if any_held || app.status == "Ready" => hint.to_string(),
+            None => format!("{}  ·  {hint}", app.status),
+        };
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             zoom_controls(app, ui);
             ui.separator();
@@ -624,6 +630,11 @@ pub fn status_bar(app: &mut EditorApp, ui: &mut egui::Ui) {
                     ribbon::run(app, a, ui.ctx());
                 }
             }
+            ui.separator();
+            // The message and hints take what is left, cut short rather than under the buttons.
+            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                ui.add(egui::Label::new(RichText::new(text).weak()).truncate());
+            });
         });
     });
 }
@@ -720,6 +731,10 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
                     &[]
                 };
                 for &(what, keys) in quit.iter().chain(&[
+                    (
+                        "Find and run any command (Command Palette)",
+                        crate::palette_ui::SHORTCUT,
+                    ),
                     ("Move the selection 0.1 mm / 1 mm", "Arrows / Shift+Arrows"),
                     ("Finish a shape", "Return"),
                     ("Cancel", "Esc"),

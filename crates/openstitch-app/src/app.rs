@@ -248,6 +248,10 @@ pub struct EditorApp {
     pub remote: Option<openstitch_remote::Server>,
     /// The AI assistant's scratch folder and pending Help link (`assistant_ui.rs`).
     pub assistant: crate::assistant_ui::AssistantState,
+    /// Autosave snapshots and the Recover Designs window (#549).
+    pub recovery: crate::recovery_ui::RecoveryState,
+    /// The command palette (#550).
+    pub palette: crate::palette_ui::PaletteState,
     /// Startup splash while it shows (see [`crate::splash`]).
     pub splash: Option<crate::splash::Splash>,
     /// Ribbon, Quick Access Toolbar, panes and window preferences.
@@ -351,6 +355,8 @@ impl EditorApp {
             printed: None,
             remote: None,
             assistant: Default::default(),
+            recovery: Default::default(),
+            palette: Default::default(),
             splash: None,
             ui: Default::default(),
             quality: Default::default(),
@@ -377,6 +383,13 @@ impl EditorApp {
         {
             let ui = openstitch_app::editor::prefs::path_beside(path);
             self.ui.prefs = openstitch_app::editor::prefs::UiPrefs::load(&ui);
+            // Autosave snapshots live beside ui.json (#549); screenshot runs have none.
+            if let Some(dir) = ui.parent() {
+                self.recovery.start(
+                    dir.join(openstitch_app::editor::recovery::FOLDER),
+                    l.script.is_empty(),
+                );
+            }
             self.ui.prefs_path = Some(ui);
         }
         self.database.units = self.ui.prefs.units;
@@ -849,9 +862,17 @@ impl EditorApp {
     /// or the design name while it has no file.
     pub fn document_name(&self) -> String {
         self.path.as_ref().and_then(|p| p.file_name()).map_or_else(
-            || self.session.design().name.clone(),
+            || match &self.recovery.recovered_from {
+                Some(from) => format!("{} (recovered from {from})", self.session.design().name),
+                None => self.session.design().name.clone(),
+            },
             |n| n.to_string_lossy().into_owned(),
         )
+    }
+
+    /// The design counts as unsaved until it is saved (a restored snapshot, #549).
+    pub(crate) fn mark_unsaved(&mut self) {
+        self.saved_revision = self.revision.wrapping_add(u64::MAX / 2);
     }
 
     /// Runs `what` now, or opens the unsaved-changes prompt for it when the design has
@@ -921,7 +942,8 @@ impl EditorApp {
         }
     }
 
-    fn after_load(&mut self, path: Option<PathBuf>) {
+    pub(crate) fn after_load(&mut self, path: Option<PathBuf>) {
+        self.recovery.recovered_from = None;
         self.path = path;
         self.selection.clear();
         self.simulate = None;
@@ -1399,6 +1421,10 @@ impl EditorApp {
         if take(cmd(Key::Num0)) {
             self.fit_requested = true;
         }
+        // Command palette (#550, beyond PE-DESIGN).
+        if take(cmd(Key::K)) {
+            self.palette.show();
+        }
         if take(cmd_shift(Key::A)) && self.ui.prefs.ai.enabled {
             let open = !self.assistant.panel.open;
             crate::assistant_panel::set_open(self, open);
@@ -1774,6 +1800,9 @@ impl eframe::App for EditorApp {
         }
         self.shortcuts(&ctx);
         self.tick(&ctx);
+        if crate::recovery_ui::tick(self, ctx.input(|i| i.time)) {
+            ctx.request_repaint_after(std::time::Duration::from_millis(500));
+        }
         self.update_title(&ctx);
         egui::Panel::top("ribbon").show(ui, |ui| crate::ribbon::ribbon(self, ui));
         if self.ui.prefs.editing.precision_bar {
@@ -1787,6 +1816,8 @@ impl eframe::App for EditorApp {
             .show(ui, |ui| crate::canvas::canvas(self, ui));
         crate::panes::floating_panes(self, &ctx);
         crate::panes::windows(self, &ctx);
+        crate::recovery_ui::window(self, &ctx);
+        crate::palette_ui::window(self, &ctx);
         crate::workspace_ui::design_settings_window(self, &ctx);
         crate::print_ui::window(self, &ctx);
         crate::transfer_ui::window(self, &ctx);

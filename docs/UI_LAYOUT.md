@@ -22,7 +22,7 @@ Icons, colours and visual style are OpenStitch's own (see
 | 7 Import / Color / Sewing Attributes / Text Attributes | Docked right as four tabs |
 | 8 Stitch Simulator pane | Docked under the work area. Under PE-DESIGN's controls, the stitch-out player (#516, beyond PE-DESIGN): counters (stitch and machine time at the needle), Prev/Next block, Prev/Next object and Next trim, the Auto, Pause at trims and Follow needle toggles; a lane per colour block with trim ticks and colour-change / stop markers (click or drag to seek); one button per block named by its thread. Keys while part of the design is shown: ←/→ stitch, Shift block, Ctrl object, T next trim, Home/End |
 | 9–10 Design Page, work area | White page on a grey work area (light theme) |
-| 11 Status bar | Design size, stitch count, the ScreenTip of the command under the pointer or the active tool's hint; at the right, the Check Design indicator ("Ready to sew", or the problem count and the first reason; beyond PE-DESIGN) |
+| 11 Status bar | Design size, stitch count, the ScreenTip of the command under the pointer, else the last message and the hints line (#550): what clicks and keys do with the active tool, and while Shift, Ctrl (Cmd) or Alt is held what that key changes; at the right, the Check Design indicator ("Ready to sew", or the problem count and the first reason; beyond PE-DESIGN) |
 | 12–15 View mode, Show grid, Design Property, zoom | Right of the status bar: Solid / Stitch / Realistic, Show Grid, Design Property, zoom percentage (type or drag) and zoom slider |
 
 **Check Design** (beyond PE-DESIGN, #503–#505) opens from the status-bar indicator or the
@@ -141,6 +141,9 @@ Behaviour follows the guide's pages
 | Tools ▸ Programmable Stitch Creator, Stitch Design Factory | Options ▸ |
 | View ▸ Fit, travel, realistic, rulers, grid, snap to grid, grid spacing, reference window, measure | Home ▸ Tools ▸ Zoom ▾, Measure; View tab |
 | Toolbar tools and hints | Home ▸ Select / Tools, contextual tabs; hints in the status bar |
+| (none in PE-DESIGN) Command palette | Ctrl+K (Cmd+K): a box over the canvas; type words, Up/Down, Return runs the command as its button would; recent commands first; disabled ones greyed with the reason; a menu command brings its ribbon tab forward (#550) |
+| (none in PE-DESIGN) Property search | A search box at the top of the Sewing Attributes pane: only the rows whose label or parameter match stay (#550) |
+| (none in PE-DESIGN) Autosave and recovery | Options ▸ Autosave for crash recovery (on), Autosave at most every N s, Clear Recovery Files; at start, a Recover Designs window lists designs a crashed window left: Restore (untitled, "recovered from …" in the title), Discard, Later (#549) |
 
 ## Commands by tab
 

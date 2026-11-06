@@ -1599,6 +1599,11 @@ Line references are relative to `crates/`.
     top just right of the middle); no single walking rule fits those and the rectangle's 75.4°.
     The new specs `concentric-circle30` and `concentric-ellipse40x30` compare counts, bounds and
     stitch lengths, not the seam.
+- **Editor, batch:editor-core part 2 (2026-11-06; #549, #550):** autosave and recovery, the
+  command palette, the hints line and the property search are beyond PE-DESIGN and change no
+  design, file or default PE-DESIGN behaviour: snapshots are written only to OpenStitch's own
+  settings folder (never the design's file), and the palette runs the same ribbon commands a
+  click runs.
 - **Editor, batch:editor-core (2026-11-06; #500, #502):** Copy, Cut and Paste go through the
   system clipboard as OpenStitch object data, and Paste puts objects back where they were copied
   from, as PE-DESIGN 11 does between its windows; nothing PE-DESIGN reads or writes changes. The

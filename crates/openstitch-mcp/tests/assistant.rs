@@ -755,6 +755,10 @@ fn every_command_the_skill_names_exists() {
         "ui.notesRead",
         "ui.notesWrite",
         "ui.notesClear",
+        "ui.searchCommands",
+        "ui.recoveryList",
+        "ui.recoveryRestore",
+        "ui.recoveryDiscard",
     ];
     assert!(
         ui.iter()

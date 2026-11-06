@@ -553,6 +553,15 @@ pub fn verdict(g: &GateInput) -> Verdict {
     if let Some(what) = chart_question(g.command, g.effect, g.params) {
         return Verdict::Ask(what);
     }
+    // #549: deleting autosave snapshots asks, naming what goes.
+    if g.command == "ui.recoveryDiscard" {
+        return Verdict::Ask(match g.params.get("id").and_then(Value::as_str) {
+            Some(id) => format!(
+                "delete the recovery copy {id} (a design a crashed window left; it cannot be restored afterwards)"
+            ),
+            None => "delete every recovery copy crashed windows left (Clear Recovery Files; they cannot be restored afterwards)".into(),
+        });
+    }
     if g.command == "ui.scratchWrite" {
         return if g.mode == PermissionMode::Ask {
             Verdict::Ask("write a file into the assistant's scratch folder".into())
@@ -740,6 +749,29 @@ mod tests {
             gate(Edits, "transfer.send", Effect::File, none.clone()),
             Verdict::Ask(_)
         ));
+        // #549: deleting recovery copies always asks and names what goes, whatever the
+        // command's declared effect.
+        for mode in [Ask, Edits] {
+            for effect in [Effect::File, Effect::Edit, Effect::Read] {
+                assert!(matches!(
+                    gate(mode, "ui.recoveryDiscard", effect, json!({ "all": true })),
+                    Verdict::Ask(w) if w.contains("delete every recovery copy")
+                ));
+                assert!(matches!(
+                    gate(mode, "ui.recoveryDiscard", effect, json!({ "id": "4242-0" })),
+                    Verdict::Ask(w) if w.contains("delete the recovery copy 4242-0")
+                ));
+            }
+        }
+        assert_eq!(
+            gate(
+                All,
+                "ui.recoveryDiscard",
+                Effect::File,
+                json!({ "all": true })
+            ),
+            Verdict::Run
+        );
         assert!(matches!(
             gate(Edits, "ui.run", Effect::Edit, json!({ "action": "exit" })),
             Verdict::Ask(w) if w.contains("quit")

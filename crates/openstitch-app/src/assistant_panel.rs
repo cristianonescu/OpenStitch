@@ -3656,6 +3656,43 @@ mod tests {
         assert!(b.contains("- Uses Madeira Polyneon 40"), "{b}");
     }
 
+    /// #549: the Assistant's Clear Recovery Files asks first, naming what goes; Deny deletes
+    /// nothing and the model hears it was declined.
+    #[test]
+    fn denied_recovery_discard_deletes_nothing() {
+        let (mut app, transport) = app_with(vec![
+            reply(
+                &[("ui.recoveryDiscard", json!({ "all": true }))],
+                "",
+                "tool_use",
+            ),
+            reply(&[], "Kept them.", "end_turn"),
+        ]);
+        let tmp = openstitch_testutil::TempDir::new("recovery-gate");
+        let dir = tmp.path().join(openstitch_app::editor::recovery::FOLDER);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let info = openstitch_app::editor::recovery::Info {
+            original: None,
+            name: "Rose".into(),
+            time: 1,
+            process: 4_000_000_000,
+        };
+        openstitch_app::editor::recovery::write_snapshot(&dir, "4000000000-0", b"{}", &info)
+            .expect("snapshot");
+        app.recovery.start(dir.clone(), false);
+        assert_eq!(app.recovery.offer.len(), 1);
+        send(&mut app, "clear the recovery files".into(), no_wake());
+        run(&mut app, |a| !a.assistant.panel.approvals.is_empty());
+        let what = &app.assistant.panel.approvals[0].what;
+        assert!(what.contains("delete every recovery copy"), "{what}");
+        answer(&mut app, 0, Answer::Deny);
+        run(&mut app, idle);
+        assert!(dir.join("4000000000-0.osd").exists());
+        assert!(dir.join("4000000000-0.json").exists());
+        let requests = transport.requests.lock().expect("lock");
+        assert!(requests[1].to_string().contains("declined"));
+    }
+
     /// A denied write changes nothing and the model hears why; memory off answers without
     /// asking, and the system prompt then carries no notes.
     #[test]
