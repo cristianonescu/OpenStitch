@@ -983,5 +983,43 @@ the heart took Madeira Polyneon 1637, and the alternatives it named (1747, 1839)
 Polyneon codes. Its error was a call to `run_batch` as a top-level tool, which the agent then
 made through the bridge. A local model was not run (owner's decision 2026-11-05).
 
-Still open on #582: one real turn in the editor on Windows (the permission prompt, Stop and the
-queue, undo) and a Windows Assistant screenshot for the README.
+**The full bench on Windows, 2026-11-06** (main with this batch merged, Claude Code over
+claude-agent-acp 0.100.0): **15 of 15** in 496 s, 141 tool calls with 4 errors, 5,505,166 input
+and 26,656 output tokens. Three errors were `ui.state`, which the bench's headless editor does
+not answer (the agent went on without it), and one was an `object.setRegion` colour in the wrong
+form, corrected on the next call.
+
+| Task | Result | Tool calls (errors) | Tokens in / out | Seconds |
+|---|---|---|---|---|
+| badge | pass | 9 (1) | 359,865 / 1,528 | 29.8 |
+| monogram | pass | 8 (0) | 309,324 / 1,254 | 27.3 |
+| arc-text | pass | 15 (0) | 473,983 / 2,157 | 38.8 |
+| applique | pass | 9 (0) | 311,595 / 1,413 | 28.6 |
+| star | pass | 8 (0) | 303,791 / 1,652 | 30.5 |
+| two-colours | pass | 8 (0) | 302,661 / 1,428 | 28.8 |
+| wider | pass | 9 (0) | 250,025 / 987 | 24.9 |
+| recolour | pass | 10 (0) | 315,844 / 935 | 22.4 |
+| delete | pass | 7 (0) | 284,660 / 740 | 20.9 |
+| picture | pass | 8 (0) | 323,287 / 1,554 | 28.6 |
+| vector | pass | 10 (1) | 467,733 / 2,026 | 36.0 |
+| question | pass | 2 (0) | 107,315 / 295 | 14.7 |
+| my-threads | pass | 21 (1) | 981,060 / 8,042 | 103.9 |
+| remember | pass | 4 (0) | 179,285 / 404 | 18.2 |
+| remembered-heart | pass | 13 (1) | 534,738 / 2,241 | 39.6 |
+
+**A real turn in the editor on Windows (#582).** The debug build of the same tree was driven with
+`--script` and `--screenshot` only (no screen control), with a throwaway profile. A screenshot run
+uses the default prefs, so each run switched ⚙ ▸ Protocol to Coding agent (Agent: Claude Code)
+and Permissions to Ask every time by clicks.
+
+| Check | Result |
+|---|---|
+| The panel starts Claude Code | Works: "Add a red circle 30 mm wide in the middle of the page." The agent read the skill, looked up `shape.ellipse`, ran `ui.state` and `design.info`. |
+| Permission prompt | Works: "The assistant wants to change the design (shape.ellipse)", Allow once / Always allow / Deny with the countdown. After Allow once, a 30 × 30 mm Brother Red fill at (50, 50), checked with `view_render`, `design.info` and `design.check`; "1 change, one undo step". |
+| Queue | Works: a message sent while the turn waited showed "Queued: Then make it blue." and ran after the first turn, asking again for `object.setRegion`. |
+| Stop | Works: Stop at that question ended the turn ("Stopped."), the pending call was refused, the circle stayed red. |
+| Undo | Works: Ctrl+Z after the turn removed the circle in one step (0 objects) and lit Redo. |
+| Processes | No Claude Code or claude-agent-acp process was left after the editor closed. |
+| Subtitle | **Wrong, fixed here (#645):** the line under the title showed the Claude API model (`claude-opus-5-5`) while Claude Code was in use; it now names the agent. |
+
+![The Assistant on Windows with Claude Code: a red circle added after the permission prompt, checked, one undo step](../../images/assistant-windows-claude-code.png)
