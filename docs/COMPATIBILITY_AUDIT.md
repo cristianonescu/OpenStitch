@@ -1627,6 +1627,23 @@ Line references are relative to `crates/`.
   region-then-outline order unchanged): PE-DESIGN has no per-shape part order, so a PES 11
   export writes such a shape as two shapes, its outline then its region, and the stitch data
   sews them in that order.
+- **Image digitizing, batch:mac-digitize-2 (2026-11-06; #447, #469, #489, #490):** PE-DESIGN-compatible
+  mode's output is unchanged (scorer identical on g01, g02, g05, g13, p03; every new option is
+  OpenStitch mode only, off unless set). New in OpenStitch mode: `angleRule: leastTravel`,
+  presets, `digitize.exportOutlines`, `underlap`, `subjectPoint`, `digitize.segment` and
+  `lines: edges`. `leastTravel` against `pe` (`--no-dists`, 100 mm): ΔE00 / MS-SSIM g01
+  9.44/0.8628 → 8.71/0.8732, g02 10.68/0.7821 → 11.02/0.8130, g05 8.06/0.8770 → 8.04/0.8813, g06
+  8.47/0.8245 → 8.27/0.8274, g08 8.61/0.9668 → 7.84/0.9789, g11 unchanged, g13 24.57/0.5749 →
+  21.17/0.5714, g15 14.50/0.8700 → 13.54/0.8849, p03 16.01/0.5335 → 15.54/0.5516, d01
+  23.80/0.3709 → 20.42/0.3917; thread (sewn plus connections) never higher. `underlap: 0.8`
+  is mixed (g01, g02, g08, g13, d01 better; g06, g11, g15, p03 slightly worse; p03 density
+  3.98 → 4.66 points/mm², g08 trims 12 → 32), so it stays off by default. Measured and not
+  shipped: #447's PE-compatible thread set (p03: main matches 2 of PE-DESIGN's 10 threads;
+  CIELAB median cut 3, p03 ΔE00 15.99 → 18.21; CIELAB until 10 distinct 3, 17.54; popularity 2;
+  boxes by their commonest colour 1) and #469's Cross Stitch edge cells (g07: own-colour rule
+  at 2.5 mm ΔE00 14.19 → 14.53, MS-SSIM 0.7573 → 0.7364; a grid snapped to the art's pixels
+  helps at the art's own 4.4 mm cell, 0.5978 → 0.6905, but g07's art pixels are not square,
+  34.5 × 33 px, so square cells drift by up to 4 mm).
 - **Image digitizing, batch:auto-punch (2026-11-06; #445, #447, #469, #489):** PE-DESIGN-compatible
   mode's output is unchanged on every gallery case (scorer identical, 17 cases). OpenStitch mode:
   a paper background is the fabric showing (#445), thin parts cut by the sliver opening are
