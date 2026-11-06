@@ -1604,6 +1604,14 @@ Line references are relative to `crates/`.
   design, file or default PE-DESIGN behaviour: snapshots are written only to OpenStitch's own
   settings folder (never the design's file), and the palette runs the same ribbon commands a
   click runs.
+- **Editor, batch:editor-core (2026-11-06; #500, #502):** Copy, Cut and Paste go through the
+  system clipboard as OpenStitch object data, and Paste puts objects back where they were copied
+  from, as PE-DESIGN 11 does between its windows; nothing PE-DESIGN reads or writes changes. The
+  Sewing Order list's rename, lock and click order change only names, a lock flag (`.osd` only)
+  and the object order. Sew outline first is beyond PE-DESIGN (off by default, PE-DESIGN's
+  region-then-outline order unchanged): PE-DESIGN has no per-shape part order, so a PES 11
+  export writes such a shape as two shapes, its outline then its region, and the stitch data
+  sews them in that order.
 - **Image digitizing, batch:auto-punch (2026-11-06; #445, #447, #469, #489):** PE-DESIGN-compatible
   mode's output is unchanged on every gallery case (scorer identical, 17 cases). OpenStitch mode:
   a paper background is the fabric showing (#445), thin parts cut by the sliver opening are

@@ -112,8 +112,8 @@ actions! {
     SelectSameBoth => "selectSameBoth", "Same Colour and Type", "Select every visible object that shares both a thread colour and the stitch type with the selection.", None, Some("object.list"), true;
     // Home ▸ Clipboard.
     Cut => "cut", "Cut", "Move the selection to the clipboard; Paste puts it back.", Some("Ctrl+X"), Some("object.paste"), true;
-    Copy => "copy", "Copy", "Copy the selection; Paste adds a copy of it.", Some("Ctrl+C"), None, true;
-    Paste => "paste", "Paste", "Add a copy of the copied objects.", Some("Ctrl+V"), Some("object.duplicate"), true;
+    Copy => "copy", "Copy", "Copy the selection to the clipboard; Paste adds a copy of it, here or in another window.", Some("Ctrl+C"), Some("object.get"), true;
+    Paste => "paste", "Paste", "Add the objects on the clipboard where they were copied from.", Some("Ctrl+V"), Some("object.paste"), true;
     Duplicate => "duplicate", "Duplicate", "Add a copy of the selection, slightly offset.", Some("Ctrl+D"), Some("object.duplicate"), true;
     Delete => "delete", "Delete", "Delete the selection.", Some("Delete"), Some("object.delete"), true;
     ArrangeCopy => "arrangeCopy", "Arrange Copy", "Copies in a row, a grid or around a circle.", None, Some("object.arrangeCopies"), true;

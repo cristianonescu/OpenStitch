@@ -5,6 +5,7 @@ pub mod assistant;
 pub mod assistant_attach;
 pub mod assistant_chat;
 pub mod background;
+pub mod clipboard;
 pub mod close_prompt;
 pub mod conversions;
 pub mod creator;

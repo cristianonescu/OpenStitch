@@ -131,6 +131,8 @@ pub const SHOW: [&str; 28] = [
 pub struct EditorApp {
     pub session: Session,
     pub selection: BTreeSet<u64>,
+    /// The selection in the order it was clicked (#502: Sew in Click Order).
+    pub click_order: Vec<u64>,
     pub tools: ToolController,
     /// `None` until the canvas size is known; then fitted to the Design Page.
     pub viewport: Option<Viewport>,
@@ -289,6 +291,7 @@ impl EditorApp {
         let mut app = EditorApp {
             session,
             selection: BTreeSet::new(),
+            click_order: Vec::new(),
             tools: ToolController::default(),
             viewport: None,
             pattern: StitchPattern::new(),
@@ -390,6 +393,8 @@ impl EditorApp {
             self.ui.prefs_path = Some(ui);
         }
         self.database.units = self.ui.prefs.units;
+        // Copy and Paste use the system clipboard (#500), except in screenshot runs.
+        self.ui.system_clipboard = l.screenshot.is_none();
         if let Some(t) = l.theme {
             self.ui.prefs.theme = t;
         }
@@ -825,6 +830,17 @@ impl EditorApp {
             .filter(|o| o.visible)
             .map(|o| o.id)
             .collect();
+    }
+
+    /// Whether the selection holds a locked object (#502); if so, says so in the status bar.
+    /// Delete, Cut and the arrow keys leave locked objects alone.
+    pub fn refuse_locked(&mut self) -> bool {
+        let locked =
+            openstitch_app::editor::objects::any_locked(self.session.design(), &self.selection);
+        if locked {
+            self.status = "Locked: unlock it in the Sewing Order list first".into();
+        }
+        locked
     }
 
     pub fn on_selection(&mut self, make: impl Fn(&BTreeSet<u64>) -> CommandRequest) {
@@ -1504,7 +1520,7 @@ impl EditorApp {
                 _ => e.nudge_mm * 10.0,
             };
             for (mods, step) in [(Modifiers::SHIFT, base * 10.0), (Modifiers::NONE, base)] {
-                if take(KeyboardShortcut::new(mods, key)) {
+                if take(KeyboardShortcut::new(mods, key)) && !self.refuse_locked() {
                     self.on_selection(|s| CommandRequest::move_by(s, dx * step, dy * step));
                 }
             }
@@ -1746,6 +1762,8 @@ impl eframe::App for EditorApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.dialog_rect = self.dialog_rect_next.take();
+        openstitch_app::editor::objects::track_click_order(&mut self.click_order, &self.selection);
+        crate::ribbon::poll_clipboard(self, ctx.input(|i| i.time));
         self.ui.apply_theme(&ctx);
         if let Some(s) = &mut self.splash
             && !s.show(&ctx)

@@ -996,3 +996,50 @@ fn shape_operations_keep_bezier_curves() {
         "{offset:?}"
     );
 }
+
+/// #500: a text using a font made in its design carries the font when pasted elsewhere.
+#[test]
+fn paste_carries_the_fonts_its_texts_use() {
+    let mut a = session();
+    run(&mut a, "fonts.create", json!({"id": "deco", "height": 10}));
+    let heart = run(
+        &mut a,
+        "shape.preset",
+        json!({"kind": "heart", "cx": 30, "cy": 30, "width": 10, "fill": "Red"}),
+    );
+    run(
+        &mut a,
+        "fonts.mapCharacter",
+        json!({"font": "deco", "char": "h", "object": id(&heart)}),
+    );
+    let text = id(&run(
+        &mut a,
+        "text.add",
+        json!({"text": "hh", "font": "deco", "size": 10, "x": 0, "y": 50, "align": "left"}),
+    ));
+    let object = run(&mut a, "object.get", json!({"id": text}));
+    let fonts = serde_json::to_value(&a.design().fonts).expect("fonts");
+    let mut b = session();
+    // Without the font the text is refused, never set in another font.
+    let bare = json!({"objects": [object.clone()]});
+    assert!(b.execute("object.paste", Some(&bare)).is_err());
+    assert!(b.design().objects.is_empty() && b.design().fonts.is_empty());
+    let r = run(
+        &mut b,
+        "object.paste",
+        json!({"objects": [object], "fonts": fonts}),
+    );
+    assert_eq!(r["ids"].as_array().map(Vec::len), Some(1));
+    assert_eq!(b.design().fonts, a.design().fonts);
+    // Pasting again finds the same font there and adds nothing.
+    let again =
+        json!({"objects": [run(&mut a, "object.get", json!({"id": text}))], "fonts": fonts});
+    run(&mut b, "object.paste", again);
+    assert_eq!(b.design().fonts.len(), 1);
+    // A different font under the same id is refused.
+    let mut other = fonts.clone();
+    other[0]["family"] = json!("Other");
+    let clash =
+        json!({"objects": [run(&mut a, "object.get", json!({"id": text}))], "fonts": other});
+    assert!(b.execute("object.paste", Some(&clash)).is_err());
+}
