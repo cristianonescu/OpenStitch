@@ -34,6 +34,7 @@ pub mod sections;
 pub mod sewing;
 pub mod shapes;
 pub(crate) mod shaping;
+pub mod simplify;
 pub mod skeleton;
 pub mod source;
 pub mod spiral;

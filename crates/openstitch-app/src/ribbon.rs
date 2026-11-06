@@ -260,6 +260,8 @@ pub fn enabled(app: &EditorApp, a: Action) -> bool {
         ConvertToStitches => outline,
         ConvertRegionToLine => region,
         SplitOutline | EntryExit => edit_ui::single_shape(app).is_some(),
+        SmoothShape => crate::shape_tools_ui::can_smooth_shape(app),
+        SmoothStitches => convert_ui::stitch_selection(app).1.is_some(),
         AddDirectionLine | DeleteDirectionLine | ReverseDirectionLine | SewingPoints => {
             edit_ui::single_region(app).is_some()
         }
@@ -481,6 +483,7 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
         }
         ImportPatterns => app.import_dialog(),
         ImportSvg => app.import_svg_dialog(),
+        ImportPesObjects => app.import_pes_objects_dialog(),
         Group => edit_ui::group(app),
         Ungroup => edit_ui::ungroup(app),
         BackgroundFill => app.pattern_wizards.open = Some(WizardKind::Background),
@@ -556,6 +559,8 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
         ConvertToStitches => convert_ui::to_stitches(app),
         ConvertRegionToLine => convert_ui::region_to_line(app),
         SplitOutline => edit_ui::split_outline(app),
+        SmoothShape => crate::shape_tools_ui::smooth_shape(app),
+        SmoothStitches => crate::shape_tools_ui::smooth_stitches(app),
         AddDirectionLine => edit_ui::add_direction(app),
         DeleteDirectionLine => edit_ui::delete_direction(app),
         DeletePoint => delete(app),
@@ -596,7 +601,7 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
         | DecorativeFrame | FitTextToOutline | SendEmbroidery | SaveImage | ImageDensity
         | GridSpacing | ViewShow | Font | TextSize | EditText | LineColor | LineSewType
         | RegionColor | RegionSewType | EntryExit | SewingPoints | EdgeRadius | ChangeColor
-        | SkeletonWidth | EditCharacter => {}
+        | SkeletonWidth | SmoothTolerance | EditCharacter => {}
     }
 }
 
@@ -980,6 +985,7 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
         EdgeRadius => edge_radius_menu(app, ui),
         ChangeColor => change_color_menu(app, ui),
         SkeletonWidth => skeleton_width_menu(app, ui),
+        SmoothTolerance => crate::shape_tools_ui::smooth_tolerance_menu(app, ui),
         EditCharacter => crate::lettering_ui::character_menu(app, ui),
         _ => {}
     }
@@ -1727,6 +1733,7 @@ mod tests {
                 | Exit
                 | ImportPatterns
                 | ImportSvg
+                | ImportPesObjects
                 | OpenImage
                 | PasteImage
                 | TrueTypeAttributes

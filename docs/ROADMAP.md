@@ -133,6 +133,18 @@ Run Pitches long (no more columns of needle drops on the sunset). Measured and n
 Photo Stitch 2 without its running-stitch floor and on the T1 coverage curve (#129), and a
 general sewn-colour model from the six T1 threads (#291); details in COMPATIBILITY_AUDIT.
 
+Done 2026-11-05 (#460-#464): the stitch-engine follow-ups of the review. Narrow Auto satin no
+longer starts with a 39.5 mm stitch, Auto Punch sews regions whose satin would cross more than
+10.5 mm as fill (PE-DESIGN's own maximum is 10.4 mm), and `sew_check` warns on stitches over
+12 mm (PE-DESIGN sends wide satin whole, so it is not split by default); concentric, spiral,
+contour and radial fills end without a run back out, scatter their ring joins and thin the radial
+centre; stippling keeps its spacing and fills to the outline; cross stitch regions sew whole X's
+on one page-axis grid and zigzag nets stay inside the outline; stem, candlewick and chain are
+spaced along curves. Left for later: what Direction should do on a cross stitch region (needs a
+PE-DESIGN reference) and cross kinds (#614), travel that crosses a hole between separate pieces
+of a fill (#615), the zigzag net's turned grid against PE-DESIGN's (#616), motif lines' runs of
+short stitches (#617), and a Beyond-PE rope stitch (#618).
+
 Done 2026-11-05 (#450): every kit, demo and screenshot design reviewed at full size (stitches alone
 at 15 px/mm and the Realistic view). Kit and demo designs fixed, built-in templates regenerated,
 CI checks that the committed kit is what the code makes and passes `sew_check`. Engine follow-ups,
@@ -459,7 +471,7 @@ started:
 | 4 | Assistant: memory between conversations, example designs and a composition guide, illustrated benchmark tasks, every batch error at once, only the user's threads | #491, #492, #493, #494, #495 | B17 |
 | 5 | Production: parameter test swatches, fabric and thread-weight presets, basting box, knockdown, Stop at Jumps, job sheets | #507, #508, #509, #510, #512, #513 (with #452, #453) | B5, B12, D6, W7 |
 | 6 | Fills: colour blends and gradients, Fill Angle tool and angle lines, maze and tiled meander, tatami textures, wave and flow fills | #532, #534, #533, #537, #538 | B2, B6, B9 |
-| 7 | Editing: align and distribute, precision bar, copies along a line and scatter, snapping, select same, knife, smoothing, continue drawing, shape tools, stitch table, sewing-order list. Done in `batch:editor-tools` (2026-11-05): align and distribute (#472), snapping (#473), precision bar, skew and nudge step (#474), select same and click inside (#475); copies along a line, scatter and kaleidoscope (#476) in a second PR. `batch:editor-shapes`: continuing a line, skeleton or column from either end (#479) | #472, #474, #476, #473, #475, #477, #478, #479, #497, #501, #502, #500 | B11 |
+| 7 | Editing: align and distribute, precision bar, copies along a line and scatter, snapping, select same, knife, smoothing, continue drawing, shape tools, stitch table, sewing-order list. Done in `batch:editor-tools` (2026-11-05): align and distribute (#472), snapping (#473), precision bar, skew and nudge step (#474), select same and click inside (#475); copies along a line, scatter and kaleidoscope (#476) in a second PR. `batch:editor-shapes`: continuing a line, skeleton or column from either end (#479); Smooth Shape and Smooth Stitches (#478) | #472, #474, #476, #473, #475, #477, #478, #479, #497, #501, #502, #500 | B11 |
 | 8 | Lettering: font library with size ranges, single-line text, Ink/Stitch-format font folders, envelopes with handles | #527, #530, #529, #535 | B15 |
 | 9 | Formats and threads: VP3 (read and write landed for v0.1.0-alpha.13, writing experimental until a sew-out, #480), TAP/TBF/U01 read and write and DSB/DSZ/KSM/ZXY/STX read (#481), thread list files (#482), stitch lists, G-code, export repeats, pictures, stitch-out videos and ZIP bundles (#488), perceptual thread matching and merge similar colours (#484, #485, `threads.remap` metrics and `threads.mergeSimilar`), thread search across charts (`threads.find`, part of #486), richer SVG import (#487: clip paths, masks, opacity, gradient bands and a report of what was left out), more formats, thread list files, `.gpl` palettes (#483, `threads.importPalette` / `threads.exportPalette`), more charts, extra exports | #480, #484, #487, #481, #482, #483, #485, #486, #488 | W3, W6 |
 | 10 | Views and hoops: stitch-out player, millimetres or inches, free multi-hooping, view toggles, zoom box and real size, hoop lists for other brands. `batch:views-hoops` (2026-11-05): millimetres or inches (#519); hoop lists for other brands and round hoops (#514); stitch-out player (#516); zoom box, real size, reference image layer (#518); free multi-hooping (#515); view toggles (#517) | #516, #519, #515, #517, #518, #514 | W1, W4 |

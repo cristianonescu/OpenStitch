@@ -100,6 +100,10 @@ then style them in the next.
 - Continue in place: `object.extendPath` `{id, end: start|end, points, curves?, widths?}` adds
   to an open line, path or satin skeleton, `object.extendColumn` `{id, end, lines}` to a Manual
   Punch column (points added at the start are listed outward from it).
+- Clean up: `shape.simplify` `{ids, tolerance: 0.2}` removes nodes within a tolerance (mm; a
+  Manual Punch column loses one direction line per call; `ui.run smoothShape` uses the
+  `smoothTolerance` setting), and `stitches.smooth`
+  `{id, from, to, iterations, strength}` evens out a stitch pattern's needle points.
 - Find objects like others: `object.list` `{sameAs: [ids], match: color|type|both,
   visible: true}`, or filter by `color`, `regionType`, `lineType`; then `ui.select` the ids.
 - Text: `object.setText` (text, font, size, spacing), `text.setPath` (fit to an outline).

@@ -325,10 +325,13 @@ pub(crate) enum Mode {
     /// One path per chain, each turn blending a ring into the next (PE-DESIGN's Spiral).
     Spiral,
     /// Every ring a closed loop of its own, its start moved on by a golden-ratio fraction of a
-    /// stitch from the last so needle points of neighbouring rings do not line up.
+    /// stitch from the last so needle points of neighbouring rings do not line up; each loop
+    /// sews on over its first 3-6 mm before the step to the next ring, so the steps do
+    /// not line up into a seam.
     Rings,
-    /// Two interleaved spirals per chain: inwards over the even rings, back out over the odd
-    /// ones, so the path ends next to where it began.
+    /// Two interleaved spirals per chain from the first ring: in over the odd rings, back out
+    /// between them over the even ones (their inward spiral sewn backwards), so the arms never
+    /// cross and the path ends where it began.
     DoubleSpiral,
 }
 
@@ -442,22 +445,51 @@ fn sew(
         let paths = match mode {
             Mode::Spiral => {
                 let full: Vec<bool> = ids.windows(2).map(|w| splits_between(w[0], w[1])).collect();
-                vec![chain_path(&order, &full, pos, pitch)]
+                vec![chain_path(&order, &full, pos, pitch, true)]
             }
             Mode::Rings => ring_paths(&order, pos, pitch, &mut phase),
             Mode::DoubleSpiral => {
-                let inward: Vec<usize> = ids.iter().copied().step_by(2).collect();
-                let mut outward: Vec<usize> = ids.iter().copied().skip(1).step_by(2).collect();
-                outward.reverse();
+                // Both arms leave the first ring at the start point: the way in over the odd
+                // rings (one row in on its first turn, then two a turn), the way back out over
+                // the even ones, wound the same way from the same start and sewn backwards. Both
+                // end on the innermost ring, where only the way out closes. So the arms keep a
+                // row apart and never cross, the outermost row is never more than a row in from
+                // the first ring, and the path ends where it began. The way out was wound
+                // against the way in before: it crossed it and the spacing swung 1-4 mm (#461).
+                let last = ids[ids.len() - 1];
+                let arm = |skip: usize| -> Vec<usize> {
+                    let mut v: Vec<usize> = ids[..1]
+                        .iter()
+                        .copied()
+                        .chain(ids.iter().copied().skip(skip).step_by(2))
+                        .collect();
+                    if v.last() != Some(&last) {
+                        v.push(last);
+                    }
+                    v
+                };
+                let (inward, between) = if ids.len() >= 3 {
+                    (arm(1), arm(2))
+                } else {
+                    (ids.clone(), Vec::new())
+                };
                 let rings_of = |v: &[usize]| v.iter().map(|&i| &rings.rings[i]).collect::<Vec<_>>();
                 let full_of = |v: &[usize]| {
                     v.windows(2)
                         .map(|w| splits_between(w[0], w[1]))
                         .collect::<Vec<_>>()
                 };
-                let mut path = chain_path(&rings_of(&inward), &full_of(&inward), pos, pitch);
-                if let (Some(&end), false) = (path.last(), outward.is_empty()) {
-                    let back = chain_path(&rings_of(&outward), &full_of(&outward), end, pitch);
+                let mut path = chain_path(
+                    &rings_of(&inward),
+                    &full_of(&inward),
+                    pos,
+                    pitch,
+                    between.is_empty(),
+                );
+                if !path.is_empty() && !between.is_empty() {
+                    let mut back =
+                        chain_path(&rings_of(&between), &full_of(&between), pos, pitch, true);
+                    back.reverse();
                     path.extend(back);
                     path = split_long(&path, pitch);
                 }
@@ -499,16 +531,37 @@ fn ring_paths(order: &[&Ring], mut pos: Vec2, pitch: f64, phase: &mut usize) -> 
         let start = (nearest_arc(&closed, pos) + shift) % len.max(1e-9);
         let loop_path = rotate(&w, start);
         let count = turn_points(len, pitch);
-        let path: Vec<Vec2> = samples(&loop_path, pitch, count)
+        let mut path: Vec<Vec2> = samples(&loop_path, pitch, count)
             .into_iter()
             .map(|(_, q)| q)
             .collect();
+        // Not after a chain's last ring.
+        if !std::ptr::eq(*ring, order[order.len() - 1]) {
+            path = lap(path, pitch, *phase);
+        }
         if let Some(&end) = path.last() {
             pos = end;
         }
         out.push(path);
     }
     out
+}
+
+/// The closed loop `path` (its last point its first) sewn on over its first 1.5-3 pitches
+/// (by the golden-ratio sequence at `k`), on its own needle points: the step to the next ring
+/// then comes 3-6 mm on from where this one started, so the steps between rings do not line
+/// up into a seam across them (#461).
+pub(crate) fn lap(mut path: Vec<Vec2>, pitch: f64, k: usize) -> Vec<Vec2> {
+    if path.len() <= 2 {
+        return path;
+    }
+    let len: f64 = path.windows(2).map(|w| w[0].distance(w[1])).sum();
+    let stitch = len / (path.len() - 1) as f64;
+    let target = (1.5 + 1.5 * (k as f64 * PHASE).fract()) * pitch;
+    let extra = ((target / stitch).ceil() as usize).min((path.len() - 1) / 2);
+    let more: Vec<Vec2> = path.iter().skip(1).take(extra).copied().collect();
+    path.extend(more);
+    path
 }
 
 /// The closed loop `points` (no repeated end point) as needle points from its point nearest
@@ -533,8 +586,8 @@ pub(crate) fn is_clockwise(points: &[Vec2]) -> bool {
 }
 
 /// One chain as a spiral: each turn blends ring `k` into ring `k+1`; the last ring closes
-/// the path when it is long enough. No stitch is longer than `pitch`.
-fn chain_path(order: &[&Ring], full: &[bool], pos: Vec2, pitch: f64) -> Vec<Vec2> {
+/// the path when `close` and it is long enough. No stitch is longer than `pitch`.
+fn chain_path(order: &[&Ring], full: &[bool], pos: Vec2, pitch: f64, close: bool) -> Vec<Vec2> {
     let Some(first) = order.first() else {
         return Vec::new();
     };
@@ -581,7 +634,7 @@ fn chain_path(order: &[&Ring], full: &[bool], pos: Vec2, pitch: f64) -> Vec<Vec2
         }
         a = b;
     }
-    if Walker::new(&a).length() >= MIN_CLOSING_STITCHES * pitch {
+    if close && Walker::new(&a).length() >= MIN_CLOSING_STITCHES * pitch {
         let count = turn_points(Walker::new(&a).length(), pitch);
         path.extend(
             samples(&a, pitch, count)

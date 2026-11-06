@@ -417,6 +417,66 @@ pub fn split_area(
     Ok((a, c))
 }
 
+/// Smooth Stitches (#478): each movable needle point of entries `from..=to` moves `strength`
+/// (0–1) of the way towards the midpoint of its two neighbours, `iterations` times (Laplacian
+/// smoothing, all points of a pass from the previous pass). A point moves only when the lines
+/// into and out of it are both stitches within the range; jumps, trims, colour changes and the
+/// ends of each run stay. A run whose first and last points coincide is closed and smooths all
+/// round. Returns how many points moved. The number of entries never changes.
+pub fn smooth(
+    b: &mut StitchBlock,
+    from: usize,
+    to: usize,
+    iterations: u32,
+    strength: f64,
+) -> Result<usize, EditError> {
+    let n = b.stitches.len();
+    if from >= n || to >= n || from > to {
+        return err(format!(
+            "the range {from}...{to} is not within the pattern's {n} entries"
+        ));
+    }
+    let st = &b.stitches;
+    // Closed: every entry of the range is a stitch and the ends meet.
+    let closed = to >= from + 3
+        && st[from..=to].iter().all(|s| s.command == Command::Stitch)
+        && pos(&st[from]).distance(pos(&st[to])) < 0.1;
+    let movable: Vec<Option<(usize, usize)>> = (0..n)
+        .map(|k| {
+            if k < from || k > to || st[k].command != Command::Stitch {
+                return None;
+            }
+            if closed && (k == from || k == to) {
+                return Some((to - 1, from + 1));
+            }
+            if k == from || k == to {
+                return None;
+            }
+            let (prev, next) = (&st[k - 1], &st[k + 1]);
+            (is_point(prev.command) && next.command == Command::Stitch).then_some((k - 1, k + 1))
+        })
+        .collect();
+    let count = movable.iter().filter(|m| m.is_some()).count();
+    let mut pts: Vec<Vec2> = st.iter().map(pos).collect();
+    for _ in 0..iterations {
+        let before = pts.clone();
+        for (k, m) in movable.iter().enumerate() {
+            if let Some((a, c)) = m {
+                let mid = before[*a].lerp(before[*c], 0.5);
+                pts[k] = before[k].lerp(mid, strength);
+            }
+        }
+        if closed {
+            pts[to] = pts[from];
+        }
+    }
+    for (s, p) in b.stitches.iter_mut().zip(pts) {
+        s.x = p.x;
+        s.y = p.y;
+    }
+    Ok(count)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

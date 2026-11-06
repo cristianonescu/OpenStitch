@@ -179,3 +179,6 @@ system_unit	2B2F36 E0A21B 2A7AD8	a golden ruler laid horizontally with tick mark
 assistant	2B2F36 2A7AD8 FFFFFF E0A21B	a blue speech bubble with three small white dots inside and a small golden four-pointed sparkle star at its upper right corner
 attach	2B2F36 A0A6AE	a paperclip standing upright, a tall rounded wire loop bent inside itself, light grey fill
 close	2B2F36	a close symbol, a bold X cross made of two thick straight bars with rounded ends, filled dark charcoal
+smooth_shape	2B2F36 2A7AD8 A0A6AE	a smooth flowing blue curved line with only three round dots on it, above a faint light grey jagged zigzag line with many points
+smooth_tolerance	2B2F36 2A7AD8 E0A21B	a blue wavy curved line running between two parallel golden yellow guide bars, a narrow band
+smooth_stitches	2B2F36 D8433A A0A6AE	a gently curved red stitched line made of short dashes with small round needle holes, over a faint light grey jagged dashed line

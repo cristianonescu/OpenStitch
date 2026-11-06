@@ -118,7 +118,8 @@ pub fn concentric(closed: &[Contour], holes: &[Contour], p: &ConcentricParams) -
     // A start point farther out than the whole circles (a portrait rectangle's or ellipse's
     // bottom, a triangle's corner): PE-DESIGN 11.50 starts there on the cut circles, works
     // inwards through them and then through the whole circles to the middle, without a trim
-    // (references concentric-rect30x40, concentric-ellipse30x40, concentric-triangle).
+    // where the arcs end next to the whole circles (concentric-ellipse30x40) and with one
+    // where they end farther out (concentric-rect30x40, concentric-triangle).
     let outermost_full = full_radii.last().copied().unwrap_or(0.0);
     if let Some(e) = p
         .entry
@@ -176,8 +177,9 @@ pub fn concentric(closed: &[Contour], holes: &[Contour], p: &ConcentricParams) -
 }
 
 /// The cut circles from the outermost in, ordered from the start point `entry`, then the
-/// whole circles from the largest in, starting where the arcs end: one sequence, joined by
-/// travel, ending in the middle.
+/// whole circles from the largest in, starting where the arcs end, ending in the middle: one
+/// sequence joined by travel, or two with a trim between when the arcs end more than two
+/// rows outside the whole circles.
 #[allow(clippy::too_many_arguments)]
 fn outside_in(
     c: Vec2,
@@ -221,11 +223,17 @@ fn outside_in(
         full.extend(ring);
     }
     full.dedup_by(|a, b| a.distance(*b) < 1e-9);
+    // Where the arcs end more than two rows outside the whole circles (a centre point well off
+    // the middle; a rectangle's corners), the step in to them ran straight across the arcs
+    // between (16 mm on a 40 mm circle, #461). PE-DESIGN 11.50 trims there and jumps to the
+    // whole circles (concentric-rect30x40, concentric-triangle); so does OpenStitch.
+    let outermost_full = full_radii.last().copied().unwrap_or(0.0);
+    let joined = end.distance(c) <= outermost_full + 2.0 * p.spacing + CLIP_TOLERANCE;
     let mut out = Concentric {
         full,
         arcs,
         arcs_first: true,
-        joined: true,
+        joined,
     };
     if p.start_inside {
         out.full.reverse();

@@ -53,6 +53,8 @@ const LINE_BODY: usize = 4432;
 /// The geometry header's three marks after its two lists.
 const GEOMETRY_MARKS: usize = 52;
 const VERTEX: usize = 28;
+/// The identity transform `a b c d tx ty`.
+const IDENTITY: [f32; 6] = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
 /// Where the body's pattern block starts and ends (`pattern_block`).
 #[cfg(test)]
 const PATTERN_START: usize = 386;
@@ -524,6 +526,12 @@ pub struct Shape {
     /// Convert to Blocks writes between blocks (stroke-blocks-H, -A). Every other shape has one
     /// position in each.
     pub no_positions: bool,
+    /// Body +16: `a b c d tx ty`, placing the vertices on the page (x' = a x + c y + tx,
+    /// y' = b x + d y + ty). The identity in every shape PE-DESIGN draws; a shape moved or
+    /// resized after it was drawn keeps its vertices and gets the move here (the tatami-40
+    /// references: scale 1.013 and a shift, 40 x 20 a y scale of 0.5). The bounds are the
+    /// transformed outline's.
+    pub transform: [f32; 6],
     pub vertices: Vec<Vertex>,
 }
 
@@ -576,8 +584,32 @@ impl Shape {
             punch: Vec::new(),
             punch_exit: 0,
             no_positions: false,
+            transform: IDENTITY,
             vertices: Vec::new(),
         }
+    }
+
+    /// Vertex `v`'s position on the page, through [`Shape::transform`].
+    pub fn place(&self, x: f32, y: f32) -> (f32, f32) {
+        let [a, b, c, d, tx, ty] = self.transform;
+        (a * x + c * y + tx, b * x + d * y + ty)
+    }
+
+    /// The vertices with [`Shape::transform`] applied (handles included); the identity leaves
+    /// them as they are.
+    pub fn placed_vertices(&self) -> Vec<Vertex> {
+        self.vertices
+            .iter()
+            .map(|v| {
+                let (x, y) = self.place(v.x, v.y);
+                Vertex {
+                    x,
+                    y,
+                    handles: v.handles.map(|(hx, hy)| self.place(hx, hy)),
+                    kind: v.kind,
+                }
+            })
+            .collect()
     }
 
     /// The bounds of `vertices` (the vertices themselves; a curve's bulge beyond them is not
@@ -1243,6 +1275,14 @@ fn read_line(r: &mut ByteReader<'_>) -> Result<Option<Shape>> {
     }
     let body = r.read(len)?;
     let bounds = [0, 1, 2, 3].map(|k| u16_at(body, 2 * k) as i16);
+    let mut transform = IDENTITY;
+    for (k, v) in transform.iter_mut().enumerate() {
+        *v = f32_at(body, 16 + 4 * k);
+    }
+    if transform.iter().any(|v| !v.is_finite()) {
+        r.offset = start;
+        return Ok(None);
+    }
     // The geometry header: two lists of outline positions (u32 count, then u32 vertex and f64
     // t each), then the three marks.
     let mut lists: [Vec<(u32, f64)>; 2] = [Vec::new(), Vec::new()];
@@ -1277,12 +1317,15 @@ fn read_line(r: &mut ByteReader<'_>) -> Result<Option<Shape>> {
             kind: r.u32le()?,
         });
     }
-    // The vertices lie inside the bounds (to 1 unit): the check that the layout was right.
+    // The vertices, placed by the transform, lie inside the bounds (to 1 unit): the check that
+    // the layout was right.
+    let [a, b, c, d, tx, ty] = transform;
     let inside = vertices.iter().all(|v| {
-        f32::from(bounds[0]) - 1.0 <= v.x
-            && v.x <= f32::from(bounds[2]) + 1.0
-            && f32::from(bounds[1]) - 1.0 <= v.y
-            && v.y <= f32::from(bounds[3]) + 1.0
+        let (x, y) = (a * v.x + c * v.y + tx, b * v.x + d * v.y + ty);
+        f32::from(bounds[0]) - 1.0 <= x
+            && x <= f32::from(bounds[2]) + 1.0
+            && f32::from(bounds[1]) - 1.0 <= y
+            && y <= f32::from(bounds[3]) + 1.0
     });
     if !inside {
         r.offset = start;
@@ -1354,6 +1397,7 @@ fn read_line(r: &mut ByteReader<'_>) -> Result<Option<Shape>> {
         punch,
         punch_exit,
         no_positions,
+        transform,
         vertices,
     }))
 }
@@ -1995,6 +2039,9 @@ fn write_line(w: &mut ByteWriter, s: &Shape) {
     put16(&mut head, 46, s.line_color);
     put16(&mut head, 84, s.line_flag_84);
     put16(&mut head, 86, s.line_variant);
+    for (k, v) in s.transform.iter().enumerate() {
+        head[16 + 4 * k..20 + 4 * k].copy_from_slice(&v.to_le_bytes());
+    }
     put16(&mut head, 48, tenths(s.zigzag_width));
     put16(&mut head, 50, tenths(s.zigzag_density));
     put16(&mut head, 52, tenths(s.run_pitch));

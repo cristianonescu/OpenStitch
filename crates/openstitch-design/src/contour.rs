@@ -8,11 +8,14 @@
 //!
 //! - **Rings**: every ring a closed running-stitch loop of its own (echo quilting), each
 //!   loop's start moved on by a golden-ratio fraction of a stitch so the needle points of
-//!   neighbouring rings do not line up.
+//!   neighbouring rings do not line up, and each loop sewn on over its first 3-6 mm
+//!   before the step to the next ring, so the steps do not line up into a seam.
 //! - **Single spiral**: one continuous path per branch, as PE-DESIGN's Spiral but half a
 //!   spacing inside the outline.
-//! - **Double spiral**: inwards over every other ring and back out over the rest, so the path
-//!   ends next to where it began (useful when the next object continues from the border).
+//! - **Double spiral**: inwards over every other ring and back out over the rest, between the
+//!   turns of the way in (the inward spiral of those rings sewn backwards, so the arms never
+//!   cross), so the path ends where it began (useful when the next object continues from the
+//!   border).
 //! - **Echo lines**: up to 30 rings *outside* the shape, the outline moved outward 1, 2, …
 //!   spacings, sewn first from the outermost in, so the needle works into the shape.
 //! - **Join**: corners of the offset rings rounded or mitred (matters for echo rings and for
@@ -24,7 +27,7 @@
 use crate::boolean::{self, BoolOp};
 use crate::geometry::{Contour, Vec2};
 use crate::model::ContourStrategy;
-use crate::spiral::{Mode, Tree, is_clockwise, loop_from};
+use crate::spiral::{Mode, Tree, is_clockwise, lap, loop_from};
 
 /// Most echo rings outside the shape.
 pub const MAX_ECHO_LINES: u32 = 30;
@@ -107,7 +110,10 @@ fn echo(base: &[Contour], p: &ContourParams, clockwise: bool) -> Vec<Vec2> {
             let here = pos
                 .or_else(|| out.last().copied())
                 .unwrap_or_else(|| lowest(&points));
-            let ring = loop_from(&points, here, p.pitch);
+            let mut ring = loop_from(&points, here, p.pitch);
+            // On over the ring's first stitches before the step to the next, as the rings
+            // inside do, so the steps do not line up into a seam (#461).
+            ring = lap(ring, p.pitch, out.len());
             if let Some(&end) = ring.last() {
                 pos = Some(end);
             }

@@ -339,12 +339,14 @@ fn spiral_winding_and_ending_follow_where_the_start_point_lies() {
 fn concentric_circle_starts_outside_in_from_a_start_point_beyond_the_whole_circles() {
     // PE-DESIGN 11.50 round 6 (concentric-rect30x40): on a portrait 30 × 40 mm rectangle the
     // start point (bottom middle, 20 mm out) lies beyond the largest whole circle (15 mm): PE
-    // starts there on the cut circles, works inwards and ends in the middle, without a trim.
+    // starts there on the cut circles, works inwards and ends in the middle. Its arcs end in a
+    // corner, 9.5 mm outside the whole circles: PE trims there and jumps in (the two trims
+    // after stitch 724 of concentric-rect30x40.pes), rather than run across the arcs (#461).
     let portrait = Contour::rectangle(-150.0, -200.0, 300.0, 400.0);
     let mut p = concentric_params();
     p.entry = Some(v2(0.0, 200.0));
     let cc = concentric(&[portrait], &[], &p);
-    assert!(cc.joined && cc.arcs_first);
+    assert!(!cc.joined && cc.arcs_first);
     let first = cc.arcs[0][0];
     assert!(
         first.distance(v2(0.0, 200.0)) < 25.0,

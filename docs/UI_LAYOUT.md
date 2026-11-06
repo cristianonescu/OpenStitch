@@ -313,6 +313,8 @@ Behaviour follows the guide's pages
 | Edit Outline | Delete Point | `Delete` | `Action::DeletePoint` | `object.deletePoint` | yes |
 | Edit Outline | Split at Point |  | `Action::SplitAtPoint` | `stitches.splitAt` | yes |
 | Edit Outline | Satin Skeleton from Shape |  | `Action::DeriveSkeleton` | `object.deriveSkeleton` | yes |
+| Edit Outline | Smooth Shape (beyond PE-DESIGN, #478) |  | `Action::SmoothShape` | `shape.simplify` | yes |
+| Edit Outline | Smooth tolerance (beyond PE-DESIGN, #478) |  | `Action::SmoothTolerance` | `shape.simplify` (`tolerance`) | yes |
 | Color / Sew Type | Line color |  | `Action::LineColor` | `object.setLine` | yes |
 | Color / Sew Type | Line sew type |  | `Action::LineSewType` | `object.setLine` | yes |
 | Color / Sew Type | Region color |  | `Action::RegionColor` | `object.setRegion` | yes |
@@ -336,6 +338,7 @@ Behaviour follows the guide's pages
 | Edit | Divide by Color |  | `Action::DivideByColor` | `stitches.divideByColor` | yes |
 | Edit | Split at Point |  | `Action::SplitAtPoint` | `stitches.splitAt` | yes |
 | Edit | Connect |  | `Action::Connect` | `stitches.connect` | yes |
+| Edit | Smooth Stitches (beyond PE-DESIGN, #478) |  | `Action::SmoothStitches` | `stitches.smooth` | yes |
 | Convert | Convert to Blocks |  | `Action::ConvertToBlocks` | `object.toShapes` | yes |
 | Convert | Convert to Outline |  | `Action::ConvertToOutline` | `object.toShapes` | yes |
 | Convert | Convert to Outlines |  | `Action::ConvertToOutlines` | `object.toShapes` | yes |
@@ -395,6 +398,11 @@ and [Adjusting the split positions](https://support.brother.com/g/s/hf/htmldoc/p
   `object.extendColumn`, one Undo), Esc leaves it unchanged. On a skeleton, a click without a
   drag on an end point continues it (a drag still moves the point), and new points keep the
   end's width. Closed outlines are not offered.
+- **Smooth Shape** (Shapes ▸ Edit Outline, beyond PE-DESIGN, #478) removes the nodes of the
+  selected shapes that deviate less than **Smooth tolerance** (0.2 mm): curves are refitted,
+  corners and open ends kept, a Manual Punch column loses one direction line per click. The
+  status line says how many nodes went. **Smooth Stitches** (Stitches ▸ Edit) evens out the
+  selected needle points' span, or the whole pattern, keeping jumps, trims and run ends.
 - **Change Color** lists the selected stitch pattern's threads; pick one and its new colour.
 - **Editing characters** (after the guide's
   [Editing individual characters](https://support.brother.com/g/s/hf/htmldoc/ped/im/ped11/en/PED11_EN/pages/05_1904502.html)):
