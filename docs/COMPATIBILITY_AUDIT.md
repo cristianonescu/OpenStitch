@@ -2688,6 +2688,30 @@ averaged 50/50, on the calibrated render; every result is OpenStitch's output.
 - **Flaky timing test (#633):** `cheap_rules_are_fast_on_a_large_design` compares the check
   with compiling the same design in the same run (best of three each) instead of a bare 50 ms.
 
+### Production aids, 2026-11-06 (#509, #512, #547, `batch:production`)
+
+All beyond PE-DESIGN and off by default: with no basting, no stop and `autoStart: off`, compiled
+output is byte-identical (tests `basting_box_sews_first_in_the_first_thread`,
+`stop_after_an_object_and_at_jumps`, `nearest_start_shortens_travel`); compat 454/454.
+
+- **Basting (#509).** Sewn first in the first thread with no added colour change (or its own
+  block); no tie-in or lock so it pulls out. Inside the field of every listed hoop, oval and
+  round included (`basting_box_stays_inside_every_hoop`); the outline form stays at the margin
+  within 0.3 mm. PES 0110 export refuses the Production settings (PE-DESIGN's objects cannot
+  hold them).
+- **Stops (#512).** PES/PEC, DST, EXP and JEF already wrote `Command::Stop` as a colour change
+  to the same thread; a PES read back shows it as a repeated thread (test above). A stop that a
+  colour change follows is dropped: the colour change stops the machine.
+- **Nearest start and the Optimize report (#547).** An object takes the nearest start only when
+  its own trims do not rise and its travel (approach included) falls. On the 24 editable example
+  scripts (`examples/*.json`; `user-fonts` needs a font file), total travel falls 10.1 % on
+  average and no design gets a trim more (cutwork 2,488 → 1,885 mm, monograms 1,500 → 1,128 mm,
+  line-types 690 → 110 mm; text, stitch patterns and one-object designs unchanged). The issue's
+  20 % target is not reached, and the kit (stitch files) keeps its own start, so #547 stays
+  open for part-way satin starts and draggable markers.
+- sew_check passes on the heart example with a basting box, an outline basting in its own
+  thread, stops after an object plus Stop at Jumps, and nearest start, as on the plain design.
+
 ## Order of work
 
 1. **Fix without a reference:** items 1, 3, 7, 14, 15 (ranges), 16 and 17, plus the

@@ -93,6 +93,8 @@ pub struct RibbonState {
     /// Design Property: the fields being edited (`None` = showing the design's own).
     pub property_draft: Option<openstitch_design::DesignProperties>,
     pub shortcuts_open: bool,
+    /// Getting started (#554): Open Sample and the Getting Started page.
+    pub start: crate::start_ui::StartState,
     pub about_open: bool,
     pub pane_tab: PaneTab,
     /// Edit Text: the characters being typed.
@@ -130,6 +132,7 @@ impl Default for RibbonState {
             property_open: false,
             property_draft: None,
             shortcuts_open: false,
+            start: Default::default(),
             about_open: false,
             pane_tab: PaneTab::default(),
             text_draft: String::new(),
@@ -488,6 +491,7 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
     match a {
         New => app.guarded(Pending::New),
         Open => app.guarded(Pending::Open(None)),
+        OpenSample => app.ui.start.samples_open = true,
         Save => app.save(false),
         SaveAs => app.save(true),
         DesignProperty => app.ui.property_open = true,
@@ -1171,6 +1175,70 @@ pub fn image_density_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     }
 }
 
+/// Options ▸ New Objects (#553): what new shapes start with; an unset value keeps the tools' own.
+fn new_objects_menu(app: &mut EditorApp, ui: &mut egui::Ui) -> bool {
+    use openstitch_app::editor::new_objects::FIELDS;
+    let mut changed = false;
+    ui.label(RichText::new("New shapes start with").strong());
+    let n = &mut app.ui.prefs.new_objects;
+    egui::Grid::new("new-objects")
+        .num_columns(2)
+        .show(ui, |ui| {
+            for f in FIELDS {
+                let mut on = n.get(f.key).is_some();
+                if ui.checkbox(&mut on, f.label).changed() {
+                    let v = on.then(|| (f.range.0 + f.range.1) / 2.0);
+                    let start = match f.key {
+                        "angle" => 45.0,
+                        "density" => 4.5,
+                        "stitchLength" => 4.0,
+                        "pullCompensation" => 0.2,
+                        _ => 2.5,
+                    };
+                    let _ = n.set(f.key, v.map(|_| start));
+                    changed = true;
+                }
+                if let Some(mut v) = n.get(f.key) {
+                    if ui
+                        .add(
+                            egui::DragValue::new(&mut v)
+                                .range(f.range.0..=f.range.1)
+                                .speed(0.1)
+                                .suffix(f.suffix),
+                        )
+                        .changed()
+                    {
+                        let _ = n.set(f.key, Some(v));
+                        changed = true;
+                    }
+                } else {
+                    ui.label(RichText::new("tool's own").weak());
+                }
+                ui.end_row();
+            }
+            let mut on = n.underlay.is_some();
+            if ui.checkbox(&mut on, "Underlay").changed() {
+                n.underlay = on.then_some(true);
+                changed = true;
+            }
+            if let Some(u) = n.underlay.as_mut() {
+                changed |= ui.checkbox(u, "on").changed();
+            } else {
+                ui.label(RichText::new("tool's own").weak());
+            }
+            ui.end_row();
+        });
+    if ui
+        .add_enabled(!n.is_empty(), egui::Button::new("Clear"))
+        .on_hover_text("New shapes start as the tools make them (PE-DESIGN's defaults)")
+        .clicked()
+    {
+        *n = Default::default();
+        changed = true;
+    }
+    changed
+}
+
 pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     for a in OPTION_MENU {
         menu_item(app, ui, a);
@@ -1205,6 +1273,11 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     changed |= ui
         .checkbox(&mut app.ui.prefs.splash, "Show splash at startup")
         .changed();
+    changed |= ui
+        .checkbox(&mut app.ui.prefs.start_cards, "Show start cards")
+        .on_hover_text("An empty design offers cards to draw, letter, digitize a picture, import, use a template or open a sample")
+        .changed();
+    ui.menu_button("New Objects", |ui| changed |= new_objects_menu(app, ui));
     changed |= ui
         .checkbox(&mut app.ui.prefs.autosave, "Autosave for crash recovery")
         .on_hover_text("Beyond PE-DESIGN: keeps a copy of each open design in OpenStitch's settings folder (never the design's own file) and offers it at the next start after a crash or power cut")
@@ -1340,6 +1413,13 @@ pub fn help_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         ui.ctx().open_url(egui::OpenUrl::new_tab(
             openstitch_app::editor::sew_kit::ONLINE,
         ));
+    }
+    if ui
+        .button("Getting Started")
+        .on_hover_text("Your first design, step by step, with a button for each step")
+        .clicked()
+    {
+        app.ui.start.page_open = true;
     }
     if ui.button("Keyboard Shortcuts").clicked() {
         app.ui.shortcuts_open = true;

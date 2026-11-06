@@ -97,7 +97,7 @@ impl Launch {
 }
 
 /// Values `--show` accepts.
-pub const SHOW: [&str; 28] = [
+pub const SHOW: [&str; 30] = [
     "update",
     "close-prompt",
     "realistic",
@@ -126,6 +126,8 @@ pub const SHOW: [&str; 28] = [
     "floating",
     "print",
     "assistant",
+    "basic",
+    "getting-started",
 ];
 
 pub struct EditorApp {
@@ -474,6 +476,9 @@ impl EditorApp {
                         crate::assistant_panel::attach_files(self, vec![note]);
                     }
                 }
+                // Sewing Attributes in its Basic view (#553), not saved.
+                "basic" => self.ui.prefs.advanced_attributes = false,
+                "getting-started" => self.ui.start.page_open = true,
                 "appmenu" => {
                     // Whichever window shows: the editor's or a suite window's.
                     self.ui.open_app_menu = true;
@@ -672,13 +677,59 @@ impl EditorApp {
                     requests,
                     select_result,
                 } => {
-                    if let Some(result) = self.execute_all(&requests) {
+                    // New shapes take the user's defaults (#553) in the same undo step.
+                    let defaults = self.ui.prefs.new_objects.clone();
+                    let drawn = requests.first().is_some_and(|r| {
+                        openstitch_app::editor::new_objects::DRAWN.contains(&r.command)
+                    });
+                    let result = self.grouped(|app| {
+                        let result = app.execute_all(&requests)?;
+                        if drawn && !defaults.is_empty() {
+                            let ids = CommandRequest::created_ids(&result);
+                            app.apply_new_object_defaults(&ids, &defaults);
+                        }
+                        Some(result)
+                    });
+                    if let Some(result) = result {
                         if select_result {
                             self.selection = CommandRequest::created_ids(&result);
                         }
-                        self.status = format!("{} done", requests[0].command);
+                        // A command that reports what it changed (order.optimize, #547).
+                        self.status = match result.get("summary").and_then(Value::as_str) {
+                            Some(summary) => format!("{} done: {summary}", requests[0].command),
+                            None => format!("{} done", requests[0].command),
+                        };
                     }
                 }
+            }
+        }
+    }
+
+    /// Sets the new-object defaults (#553) on the shapes just drawn: the region values on those
+    /// with a region, the outline's on those with a line.
+    pub(crate) fn apply_new_object_defaults(
+        &mut self,
+        ids: &BTreeSet<u64>,
+        defaults: &openstitch_app::editor::new_objects::NewObjects,
+    ) {
+        let d = self.session.design();
+        let with = |has: fn(&openstitch_design::DesignObject) -> bool| -> Vec<u64> {
+            ids.iter()
+                .copied()
+                .filter(|id| d.index_of(*id).is_some_and(|i| has(&d.objects[i])))
+                .collect()
+        };
+        let regions = with(|o| o.region.is_some());
+        let lines = with(|o| o.line.is_some());
+        for (command, ids, params) in [
+            ("object.setRegion", regions, defaults.region_params()),
+            ("object.setLine", lines, defaults.line_params()),
+        ] {
+            if let Some(mut p) = params
+                && !ids.is_empty()
+            {
+                p.insert("ids".into(), json!(ids));
+                self.execute(&CommandRequest::new(command, Value::Object(p)));
             }
         }
     }
@@ -1814,6 +1865,8 @@ impl eframe::App for EditorApp {
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
             .show(ui, |ui| crate::canvas::canvas(self, ui));
+        crate::start_ui::cards(self, &ctx);
+        crate::start_ui::windows(self, &ctx);
         crate::panes::floating_panes(self, &ctx);
         crate::panes::windows(self, &ctx);
         crate::recovery_ui::window(self, &ctx);

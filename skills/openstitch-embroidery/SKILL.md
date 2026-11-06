@@ -73,7 +73,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `object.list` (sewing order). To sew objects in a set order, `order.byClickOrder`
    `{ids: [in sewing order]}` (they start where the earliest of them sews now); to sew a
    shape's outline before its fill, `object.setPartOrder` `{ids, order: lineFirst}` (beyond
-   PE-DESIGN; `regionFirst` is PE-DESIGN's order).
+   PE-DESIGN; `regionFirst` is PE-DESIGN's order). `order.optimize` returns `before`/`after`
+   (colour changes, jumps, trims, travel mm) and a `summary` line: tell the user, and offer
+   `history.undo` when a number got worse. `design.setProperties {autoStart: nearest}` (beyond
+   PE-DESIGN) starts each shape without its own entry point nearest to where the last ended.
 5. Check: `view_render` (look at it), `design.info` (size, stitches, colours, trims, time) and
    `design.check` (sewing problems, errors first; `ready` is false while there are errors).
    Run each finding's `fix` command or fix it yourself, and check again; never report a design
@@ -181,7 +184,12 @@ by words ("where is arrange copy?"), `ui.searchCommands {query}` gives the same 
 user's Ctrl+K palette, with each command's ribbon place and shortcut; run it with `ui.run`.
 After a crash, `ui.recoveryList` shows designs autosave kept; `ui.recoveryRestore {id}`
 opens one as an untitled design (tell the user to save it), and `ui.recoveryDiscard`
-deletes snapshots (ask first). Autosave is `ui.set autosave` / `autosaveInterval`. Read their parameters with
+deletes snapshots (ask first). Autosave is `ui.set autosave` / `autosaveInterval`.
+For a new user, `ui.gettingStarted` lists the start cards and the kit's samples; `{sample:
+"sampler"}` opens one as an untitled design, `{card: "draw"}` runs a card, `{page: true}` opens
+Help ▸ Getting Started. "Make new shapes start at 30° and 4.5 rows/mm" is `ui.set
+newObjectDefaults {angle: 30, density: 4.5}` (also stitchLength, pullCompensation, pitch,
+underlay; `{}` back to the tools' own); it changes only shapes drawn afterwards. Read their parameters with
 `command_describe` before the first use. `ui.zoom {rect: [x, y, w, h]}` zooms to a rectangle.
 `background.setLayer {position: "top" | "bottom" | "afterObject", afterId}` puts the tracing
 picture above the design or between objects ("put the picture above the fills"); it never sews.

@@ -16,9 +16,9 @@ Icons, colours and visual style are OpenStitch's own (see
 | 1 Application button | **File** button at the top left: New, Open, Save, Save As, Print ▸, Design Property, Design Settings, Fabric Selector, Select Color Palette, Wizard ▸, Export ▸, Recent Files, Options, Exit ([screenshot](images/rust-editor-appmenu.png)) |
 | 2 Ribbon | Tabs Home, Image, View plus contextual tabs (orange) for the active tool or selection; large and small buttons, dropdown arrows, group captions, ScreenTips with shortcuts |
 | 3 Quick Access Toolbar | Above the ribbon (or below it, Options ▸ or ▾ ▸ Show below the Ribbon): New, Open, Save, Undo, Redo, Zoom, Help by default; ▾ adds or removes commands. Saved in `ui.json` next to the user settings file |
-| 4 Option button | **Options ▾** at the top right: Design Database, Programmable Stitch Creator, Stitch Design Factory, Font Creator, Sewing Attribute Sets, User Thread Charts, colour theme (Light, Dark, System) |
+| 4 Option button | **Options ▾** at the top right: Design Database, Programmable Stitch Creator, Stitch Design Factory, Font Creator, Sewing Attribute Sets, User Thread Charts, colour theme (Light, Dark, System); beyond PE-DESIGN: Show start cards and New Objects (#553, #554) |
 | 5 Help button | **Help ▾**: instruction manual (this repository), Ready-to-Sew Designs (the kit packaged with the app, `examples/sew`; GitHub when none is packaged), Ready-to-Sew Designs Online, keyboard shortcuts, About |
-| 6 Sewing Order pane | Docked left: buttons at the top (sew first / earlier / later / last, sort by colour, optimise, frames by thread colour), then Sew in click order, Lock and Sew outline first (#502); one frame per object with a thumbnail and its thread colours; drag to reorder; double-click a name to rename it (Return keeps, Esc cancels); locked objects show "(locked)" |
+| 6 Sewing Order pane | Docked left: buttons at the top (sew first / earlier / later / last, sort by colour, optimise, frames by thread colour), then Sew in click order, Lock and Sew outline first (#502), Stop after (#512, beyond PE-DESIGN); Optimise reports its before/after colour changes, jumps, trims and travel in the status bar (#547); one frame per object with a thumbnail and its thread colours; drag to reorder; double-click a name to rename it (Return keeps, Esc cancels); locked objects show "(locked)" |
 | 7 Import / Color / Sewing Attributes / Text Attributes | Docked right as four tabs |
 | 8 Stitch Simulator pane | Docked under the work area. Under PE-DESIGN's controls, the stitch-out player (#516, beyond PE-DESIGN): counters (stitch and machine time at the needle), Prev/Next block, Prev/Next object and Next trim, the Auto, Pause at trims and Follow needle toggles; a lane per colour block with trim ticks and colour-change / stop markers (click or drag to seek); one button per block named by its thread. Keys while part of the design is shown: ←/→ stitch, Shift block, Ctrl object, T next trim, Home/End |
 | 9–10 Design Page, work area | White page on a grey work area (light theme) |
@@ -361,6 +361,7 @@ Behaviour follows the guide's pages
 | Hoop Settings | Design Settings (hoop list grouped by brand, Brother first, with a filter; other brands and round hoops beyond PE-DESIGN, #514; an oval or round hoop's field is drawn on the canvas) |  | `Action::DesignSettings` | `machine.set`, `machine.hoops` | yes |
 | Hoop Settings | Export Sections (free hoopings: "Name - hooping k of n") |  | `Action::ExportSections` | `sections.export` | yes |
 | Design Settings | Split design ▸ Hoopings: Grid (PE-DESIGN) or Free (#515, beyond PE-DESIGN): hooping list (x, y, Turned 90°, Remove), Add left / right / up / down, Auto layout, Marks (Boxed X, Cross, None), overlap, Stop after the marks; objects that fit no hooping outlined red on the canvas |  | `Action::DesignSettings` | `sections.set` (`mode`, `hoopings`, `marks`, `minOverlap`, `stopAfterMarks`), `sections.autoLayout` | yes |
+| Design Settings | Production (beyond PE-DESIGN, #509, #512, #547): Basting box (Box / Follow outline, margin, stitch, Own thread), Stop at jumps (machine without thread cutter), Start each object nearest the last |  | `Action::DesignSettings` | `design.setBasting`, `design.setStopAtJumps`, `design.setProperties` (`autoStart`) | yes |
 
 ### How the drawing and editing commands work
 
@@ -474,6 +475,15 @@ without asking, and its items were named after the process, "Quit openstitch"), 
 minimises through the editor and Cmd+H, About, Services and Hide Others are not available
 from a menu (Help ▸ About OpenStitch stays; see docs/DISTRIBUTION.md "macOS application
 menu").
+
+### Getting started (beyond PE-DESIGN, #554)
+
+An empty design shows start cards over the Design Page; the Application menu has **Open Sample**
+under Open, and Help has **Getting Started** (the steps of docs/GETTING_STARTED.md, each with a
+button). The Sewing Attributes pane has **Basic / Advanced** and **Save as Default** beside Copy
+and Paste Attributes, and its Region and Line titles fold their sections (#553).
+
+![Start cards](images/rust-editor-start-cards.png)
 
 ### Option button
 
