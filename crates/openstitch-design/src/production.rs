@@ -25,6 +25,14 @@ pub struct Production {
     /// Where objects start (#547).
     #[serde(default, skip_serializing_if = "AutoStart::is_off")]
     pub auto_start: AutoStart,
+    /// Moves into an object of the same thread that lie inside fills sewn later are sewn as
+    /// short running stitches hidden under them instead of a jump and trim (#545).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub travel_under: bool,
+    /// Every shape's region leaves out the stitching later fills and satins hide, keeping
+    /// this overlap (mm) under their edges (#511); text only with its own setting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remove_hidden: Option<f64>,
 }
 
 impl Production {

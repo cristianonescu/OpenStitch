@@ -114,12 +114,16 @@ mod quality;
 mod random_designs;
 #[path = "region_compat.rs"]
 mod region_compat;
+#[path = "routing.rs"]
+mod routing;
 #[path = "satin_compat.rs"]
 mod satin_compat;
 #[path = "satin_shaping.rs"]
 mod satin_shaping;
 #[path = "sections.rs"]
 mod sections;
+#[path = "session_fork.rs"]
+mod session_fork;
 #[path = "session_sibling.rs"]
 mod session_sibling;
 #[path = "sewing.rs"]
@@ -144,6 +148,8 @@ mod stitch_types;
 mod svg_import;
 #[path = "svg_settings.rs"]
 mod svg_settings;
+#[path = "swatch.rs"]
+mod swatch;
 #[path = "templates.rs"]
 mod templates;
 #[path = "thread_lists.rs"]

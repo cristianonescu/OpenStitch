@@ -1614,6 +1614,12 @@ Line references are relative to `crates/`.
     top just right of the middle); no single walking rule fits those and the rectangle's 75.4°.
     The new specs `concentric-circle30` and `concentric-ellipse40x30` compare counts, bounds and
     stitch lengths, not the seam.
+- **Web editor, batch:mac-wasm (2026-11-06; #556):** the browser build is beyond PE-DESIGN
+  (PE-DESIGN 11 runs on Windows only) and changes no output: it runs the engine's own
+  `project.open`, `stitches.import`, `design.export` and `project.save`, whose file access now
+  goes through `openstitch_engine::fsio` (the same `std::fs` calls on the desktop, memory in the
+  browser). CI job `web` checks the browser build's PES, DST, EXP, VP3, XXX, CSV and G-code
+  exports are byte-identical to the native build's for reference PES and DST files.
 - **Editor, batch:editor-core part 2 (2026-11-06; #549, #550):** autosave and recovery, the
   command palette, the hints line and the property search are beyond PE-DESIGN and change no
   design, file or default PE-DESIGN behaviour: snapshots are written only to OpenStitch's own
@@ -2561,6 +2567,30 @@ Assistant's stream timeout (#580) and thread-chart rules (#495) are in
   same numbers on all 16 Photo Stitch cases in both modes and the nine Photo Stitch 1 photos at
   High; `sew_check` passes; compat 454/454.
 
+### Test swatches and the fabric calibration card, 2026-11-06 (`batch:mac-sewout`, #452, #453, #507)
+
+Beyond PE-DESIGN, off unless chosen: PE-DESIGN-compatible output is unchanged.
+
+- **What landed:** `design.testSwatch` (#452), `design.testSwatches` (#507),
+  `fabric.calibrationSwatch` and `fabric.calibrate` (#453), and `fabric.deleteCustom`.
+  `fabric.list` and `fabric.apply` take the custom fabrics. The editor has Send ▸ Test
+  Swatches….
+- **How they work:** each swatch is built from the engine's own commands (`object.paste`,
+  `object.setRegion`/`setLine`, `text.add` in the single-line font, `machine.set`) on the File
+  effect's scratch state. It is written through `design.export` or `project.save`, so the open
+  design never changes.
+- **Labels:** 3.5 mm running stitch in the piece's own thread, sewn after every piece (one colour
+  block per thread). A parameter swatch's columns are as wide as the widest label.
+- **Sewability:** `tools/sew_check.py` passes on a selection swatch (fill and satin, labelled), a
+  fill density swatch (2 × 2, then 4 × 2 with pull compensation), a satin swatch (4 × 2), a
+  running-line pitch swatch and the knit calibration card, all in the 100 × 100 mm hoop.
+- **Not done:**
+  - no owner sew-out yet;
+  - filum-style calibration from measured sizes;
+  - the editable fabric table (B5);
+  - a live layout preview in the dialog;
+  - job sheets (#513), which follow in their own PR.
+
 ### Shape cuts keep the sewing angle, 2026-11-06 (`batch:mac-shapes`, #652)
 
 - **Fixed:** Remove Overlap, Combine, Merge, Split and the shape builder's merge (all through
@@ -2900,6 +2930,32 @@ no problems:
 - Not done: satin regions and skeleton satin (#685), lettering (#686), the canvas rung-edit
   mode (#525, satin-2b), and the NV880E sew-outs #528 and #531 ask for before the styles are
   advertised.
+
+### Hidden stitching and hidden travel, 2026-11-06 (#511, #545, `batch:routing`)
+
+Beyond PE-DESIGN and off by default: with no object or design setting on, compiled output is
+byte-identical (tests `hidden_stitching_is_left_out_with_an_overlap`,
+`travel_under_a_later_fill_replaces_the_trim`, `run_connectors_join_objects_of_one_thread`).
+PE-DESIGN's destructive `shape.removeOverlap` is unchanged.
+
+- **Leave out hidden stitching (#511).** The region is generated over its outline minus the later
+  fills and satins shrunk by the overlap; the generators are not changed, only the area they are
+  given, and the outline is sewn as drawn. Two overlapping 30 mm squares with a 1 mm overlap: the
+  stitches saved are within 15 % of the hidden 14 × 14 mm share of the lower fill; no lower-fill
+  needle point lies deeper than 1.2 mm under the upper square, and some lie in the 1 mm band.
+- **Travel under later fills and run connectors (#545).** A move into an object of the same
+  thread (no colour change or stop before it) is sewn as ≤ 2 mm running stitches when a path,
+  straight or round one corner, lies 0.5 mm inside the fills sewn from that object on. A small
+  square under a larger one of the same thread: 1 trim between them with it off, 0 with it on.
+  On the editable example scripts few objects of one thread lie under later fills (401 → 400
+  trims), and the kit's stitch files keep their own moves, so the jumps-to-running pass and
+  per-design kit reductions remain open in #545.
+- **Fill travel on curved outlines (#679).** The travel graph and the row splitting tested every
+  point against `Contour::path`, which flattened the Béziers again on each call; both now flatten
+  each outline once (the same points). Fill layers of a 60 mm ring with a 30 mm hole on Bézier
+  curves (debug build, 5 builds): 2.7-5.1 s before, 0.48-0.65 s after, within 1.1-1.4× of the
+  same ring flattened first (`paths::tests::curved_layers_timing`). PES output byte-identical on
+  the 24 exportable example scripts; compat 454/454.
 
 ## Order of work
 

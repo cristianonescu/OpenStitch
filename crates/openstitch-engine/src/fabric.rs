@@ -10,6 +10,7 @@
 
 use crate::commands::{CommandSpec, Effect, indexes, opt, req, spec};
 use crate::params::Params;
+use crate::session::EngineState;
 use openstitch_design::column::AutoUnderlay;
 use openstitch_design::{ObjectKind, RegionType, UnderlayStyle};
 use serde_json::{Value, json};
@@ -173,10 +174,33 @@ pub fn commands() -> Vec<CommandSpec> {
     vec![
         spec(
             "fabric.list",
-            "Fabric types of the Fabric Selector with their description, advice and recommended sewing attributes (OpenStitch's approximations)",
+            "Fabric types of the Fabric Selector with their description, advice and recommended sewing attributes (OpenStitch's approximations), then the user's custom fabrics from calibration cards (`custom: true`, #453)",
             Effect::Read,
             vec![],
-            |_, _| Ok(Value::Array(FABRICS.iter().map(describe).collect())),
+            |s, _| {
+                let mut v: Vec<Value> = FABRICS.iter().map(describe).collect();
+                v.extend(s.user.custom_fabrics.iter().map(describe_custom));
+                Ok(Value::Array(v))
+            },
+        ),
+        spec(
+            "fabric.deleteCustom",
+            "Delete a custom fabric saved from a calibration card (#453)",
+            Effect::Settings,
+            vec![req(
+                "fabric",
+                "string",
+                "Custom fabric id (custom-…) from fabric.list",
+            )],
+            |s, p| {
+                let id = p.string("fabric", None)?;
+                let before = s.user.custom_fabrics.len();
+                s.user.custom_fabrics.retain(|c| c.id != id);
+                if s.user.custom_fabrics.len() == before {
+                    return Err(p.not_found(format!("custom fabric '{id}'")));
+                }
+                Ok(json!({ "deleted": id }))
+            },
         ),
         spec(
             "fabric.apply",
@@ -192,7 +216,7 @@ pub fn commands() -> Vec<CommandSpec> {
             ],
             |s, p| {
                 let id = p.string("fabric", None)?;
-                let f = find(&id).ok_or_else(|| p.not_found(format!("fabric '{id}'")))?;
+                let f = resolve(s, &id).ok_or_else(|| p.not_found(format!("fabric '{id}'")))?;
                 let targets: Vec<usize> = if p.has("ids") || p.has("id") {
                     indexes(p, &s.design)?
                 } else {
@@ -233,4 +257,103 @@ pub fn commands() -> Vec<CommandSpec> {
 
 fn all_objects(p: &Params) -> bool {
     !p.has("ids") && !p.has("id")
+}
+
+// MARK: custom fabrics (#453)
+
+/// Most custom fabrics the user settings hold.
+pub const MAX_CUSTOM: usize = 50;
+
+/// A fabric saved from a calibration card (`fabric.calibrate`): the base fabric's underlay and
+/// advice with the densities and pull compensation the user picked on the sewn card.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomFabric {
+    /// `custom-` and the name in lower case, letters and digits joined by `-`.
+    pub id: String,
+    pub name: String,
+    /// The Fabric Selector fabric the card was sewn from.
+    pub base: String,
+    pub fill_density: f64,
+    pub satin_density: f64,
+    pub pull_compensation: f64,
+    pub stitch_length: f64,
+}
+
+/// The id of a custom fabric named `name`.
+pub fn custom_id(name: &str) -> String {
+    let mut id = String::from("custom");
+    let mut dash = true;
+    for c in name.chars().flat_map(char::to_lowercase) {
+        if c.is_alphanumeric() {
+            if dash {
+                id.push('-');
+            }
+            id.push(c);
+            dash = false;
+        } else {
+            dash = true;
+        }
+    }
+    id
+}
+
+pub fn describe_custom(c: &CustomFabric) -> Value {
+    let base = find(&c.base).unwrap_or(&FABRICS[0]);
+    let mut v = describe(base);
+    v["id"] = json!(c.id);
+    v["name"] = json!(c.name);
+    v["custom"] = json!(true);
+    v["base"] = json!(c.base);
+    v["description"] = json!(format!("Calibrated from {} on a sewn card.", base.name));
+    v["fillDensity"] = json!(c.fill_density);
+    v["satinDensity"] = json!(c.satin_density);
+    v["pullCompensation"] = json!(c.pull_compensation);
+    v["stitchLength"] = json!(c.stitch_length);
+    v
+}
+
+/// A Fabric Selector fabric or a custom one, with the attributes it gives.
+#[derive(Clone, Debug)]
+pub struct Resolved {
+    pub id: String,
+    pub name: String,
+    /// The Fabric Selector fabric it is (or was calibrated from).
+    pub base_id: String,
+    pub fill_density: f64,
+    pub satin_density: f64,
+    pub stitch_length: f64,
+    pub pull_compensation: f64,
+    pub underlay: Option<UnderlayStyle>,
+    pub auto_underlay: AutoUnderlay,
+}
+
+/// The fabric `id`: one of [`FABRICS`] or the user's custom fabrics.
+pub fn resolve(s: &EngineState, id: &str) -> Option<Resolved> {
+    if let Some(f) = find(id) {
+        return Some(Resolved {
+            id: f.id.into(),
+            name: f.name.into(),
+            base_id: f.id.into(),
+            fill_density: f.fill_density,
+            satin_density: f.satin_density,
+            stitch_length: f.stitch_length,
+            pull_compensation: f.pull_compensation,
+            underlay: f.underlay,
+            auto_underlay: f.auto_underlay,
+        });
+    }
+    let c = s.user.custom_fabrics.iter().find(|c| c.id == id)?;
+    let base = find(&c.base).unwrap_or(&FABRICS[0]);
+    Some(Resolved {
+        id: c.id.clone(),
+        name: c.name.clone(),
+        base_id: base.id.into(),
+        fill_density: c.fill_density,
+        satin_density: c.satin_density,
+        stitch_length: c.stitch_length,
+        pull_compensation: c.pull_compensation,
+        underlay: base.underlay,
+        auto_underlay: base.auto_underlay,
+    })
 }

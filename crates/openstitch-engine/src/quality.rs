@@ -1065,7 +1065,7 @@ pub fn verify_file(
     path: &std::path::Path,
     bytes: &[u8],
 ) -> Value {
-    let mut r = match std::fs::read(path) {
+    let mut r = match crate::fsio::read(path) {
         Ok(disk) if disk == bytes => verify(ty, written, &disk),
         Ok(disk) => {
             json!({ "verified": false, "problems": [format!("{} bytes on disk, {} written", disk.len(), bytes.len())], "expected": [] })

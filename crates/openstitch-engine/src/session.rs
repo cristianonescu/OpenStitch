@@ -118,6 +118,30 @@ impl Session {
         Ok(())
     }
 
+    /// A session with this one's design, folders, sandbox, capabilities and user settings but
+    /// no history, for a worker thread (#558): it runs a slow open or import while this one
+    /// stays usable. It never saves user settings.
+    pub fn fork(&self) -> Session {
+        let mut s = Session::new(self.state.base_dir.clone());
+        s.state = self.state.clone();
+        s
+    }
+
+    /// Makes `design` (from a [`Session::fork`]) the current design as one undo step; `false`
+    /// when it equals the current one and nothing was recorded.
+    pub fn adopt_design(&mut self, design: Design) -> bool {
+        if design == self.state.design {
+            return false;
+        }
+        self.undo
+            .push(std::mem::replace(&mut self.state.design, design));
+        if self.undo.len() > HISTORY_LIMIT {
+            self.undo.remove(0);
+        }
+        self.redo.clear();
+        true
+    }
+
     pub fn user_settings(&self) -> &crate::user::UserSettings {
         &self.state.user
     }

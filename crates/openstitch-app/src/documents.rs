@@ -506,6 +506,7 @@ mod tests {
             .join("../openstitch-engine/tests/fixtures/badge-golden.pes");
         let mut app = EditorApp::new(Launch::default());
         app.guarded(Pending::Open(Some(fixture.clone())));
+        app.finish_job_blocking();
         assert_eq!(app.tab_count(), 1, "PE-DESIGN's behaviour: replace");
 
         app.ui_command(
@@ -515,6 +516,7 @@ mod tests {
         .expect("set");
         rectangle(&mut app, 5.0);
         app.guarded(Pending::Open(Some(fixture)));
+        app.finish_job_blocking();
         assert!(
             !app.close_prompt.is_open(),
             "the edited design stays in its tab"
@@ -523,6 +525,26 @@ mod tests {
         assert_eq!(app.tabs.active(), 1);
         app.guarded(Pending::New);
         assert_eq!(app.tab_count(), 3, "New adds a tab too");
+    }
+
+    #[test]
+    fn a_failed_open_in_a_tab_closes_the_tab_it_added() {
+        let dir = openstitch_testutil::TempDir::new("app-tabs");
+        let bad = dir.join("bad.osd");
+        std::fs::write(&bad, b"not a design").expect("write");
+        let mut app = EditorApp::new(Launch::default());
+        app.ui.prefs.open_in_tabs = true;
+        rectangle(&mut app, 5.0);
+        app.guarded(Pending::Open(Some(bad)));
+        assert_eq!(app.tab_count(), 2, "a tab for the open");
+        app.finish_job_blocking();
+        assert_eq!(app.tab_count(), 1, "closed again");
+        assert_eq!(
+            app.session.design().objects.len(),
+            1,
+            "back on the first design"
+        );
+        assert!(app.status.starts_with("Could not open"), "{}", app.status);
     }
 
     #[test]

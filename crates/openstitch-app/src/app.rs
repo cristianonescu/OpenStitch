@@ -9,7 +9,6 @@ use openstitch_app::editor::{
     CommandRequest, Tool, ToolContext, ToolController, ToolEffect, Viewport,
 };
 use openstitch_core::StitchPattern;
-use openstitch_design::Compiler;
 use openstitch_engine::{Effect, Session};
 use openstitch_formats::FileType;
 use serde_json::{Value, json};
@@ -202,6 +201,8 @@ pub struct EditorApp {
     player: Option<crate::script::Player>,
     /// The other designs open as tabs (#552).
     pub tabs: documents::Tabs,
+    /// A File ▸ Open or Import running on a worker thread (#558).
+    pub open_job: Option<crate::open_job::OpenJob>,
     /// The object selected last (Align ▸ relative to Last Selected keeps it in place).
     pub key_object: Option<u64>,
     /// Align ▸ relative to: `"selection"`, `"key"` or `"page"` (#472).
@@ -339,6 +340,7 @@ impl EditorApp {
             dialog_rect_next: None,
             player: None,
             tabs: Default::default(),
+            open_job: None,
             key_object: None,
             align_to: "selection",
             precision: Default::default(),
@@ -764,12 +766,25 @@ impl EditorApp {
         self.revision += 1;
         let d = self.session.design();
         self.selection.retain(|id| d.index_of(*id).is_some());
-        let (pattern, spans) = Compiler::for_design(d).compile_traced(d);
-        self.timeline = openstitch_design::timeline::Timeline::build(&pattern, &spans, &d.machine);
-        self.pattern = pattern;
-        self.quality.spans = spans;
-        self.stats = PatternStats::of(&self.pattern);
-        self.workspace.estimate = Some(openstitch_design::estimate(&self.pattern, &d.machine));
+        let compiled = crate::open_job::Compiled::of(d);
+        self.install_compiled(compiled);
+    }
+
+    /// Makes `c` the window's stitches: [`EditorApp::refresh`] without the compile, for a
+    /// design compiled on a worker (#558).
+    pub(crate) fn install(&mut self, c: crate::open_job::Compiled) {
+        self.revision += 1;
+        let d = self.session.design();
+        self.selection.retain(|id| d.index_of(*id).is_some());
+        self.install_compiled(c);
+    }
+
+    fn install_compiled(&mut self, c: crate::open_job::Compiled) {
+        self.timeline = c.timeline;
+        self.pattern = c.pattern;
+        self.quality.spans = c.spans;
+        self.stats = c.stats;
+        self.workspace.estimate = Some(c.estimate);
         if self.simulate.is_some_and(|n| n >= self.stats.stitches) {
             self.simulate = None;
         }
@@ -854,6 +869,12 @@ impl EditorApp {
                 .filter(|s| s.command == openstitch_core::Command::ColorChange)
                 .count(),
         )
+    }
+
+    /// A `--script` or `--screenshot` run: background work is waited for, so each step sees
+    /// its result.
+    pub(crate) fn scripted(&self) -> bool {
+        self.player.is_some() || self.screenshot.is_some()
     }
 
     pub fn is_dirty(&self) -> bool {
@@ -984,7 +1005,7 @@ impl EditorApp {
             Pending::CloseTab => self.close_active_tab(),
             Pending::New => self.new_design(),
             Pending::Open(None) => self.open_dialog(),
-            Pending::Open(Some(p)) => self.open_path(&p),
+            Pending::Open(Some(p)) => self.open_in_background(&p),
         }
     }
 
@@ -1014,12 +1035,19 @@ impl EditorApp {
             self.new_tab();
         }
         if let Some(p) = path {
-            let before = self.revision;
-            self.open_path(&p);
-            if self.revision == before && !reuse {
-                let status = std::mem::take(&mut self.status);
-                self.close_active_tab();
-                self.status = status;
+            self.open_in_background(&p);
+            match &mut self.open_job {
+                Some(job) => job.added_tab = !reuse,
+                // A scripted run applied it already; close the tab when nothing opened.
+                None if !reuse
+                    && self.session.design().objects.is_empty()
+                    && self.path.is_none() =>
+                {
+                    let status = std::mem::take(&mut self.status);
+                    self.close_active_tab();
+                    self.status = status;
+                }
+                None => {}
             }
         }
     }
@@ -1100,27 +1128,26 @@ impl EditorApp {
             .add_filter("Embroidery files", &exts[1..])
             .pick_file();
         if let Some(p) = file {
-            self.open_path(&p);
+            self.open_in_background(&p);
         }
     }
 
     /// `.osd` opens as the design; a machine file opens as a new design holding it as an
-    /// imported stitch pattern on a page large enough for it.
+    /// imported stitch pattern on a page large enough for it. Runs on the UI thread (launch
+    /// `--open`, tests); the menus use [`EditorApp::open_in_background`].
     pub fn open_path(&mut self, p: &Path) {
+        let steps = self.open_steps(p);
+        if self.grouped(|app| app.execute_all(&steps)).is_some() {
+            self.after_open(p);
+        }
+    }
+
+    /// The commands that open `p`: `project.open`, or a new design sized for a machine file
+    /// and its import.
+    pub(crate) fn open_steps(&self, p: &Path) -> Vec<CommandRequest> {
         let path = p.display().to_string();
         if is_project(p) {
-            if self
-                .execute(&CommandRequest::new(
-                    "project.open",
-                    json!({ "path": path }),
-                ))
-                .is_some()
-            {
-                self.after_load(Some(p.to_path_buf()));
-                self.status = format!("Opened {}", p.display());
-                self.ui.add_recent(p);
-            }
-            return;
+            return vec![CommandRequest::new("project.open", json!({ "path": path }))];
         }
         let (w, h) = machine_file_size_mm(p).unwrap_or((100.0, 100.0));
         let name = p
@@ -1129,7 +1156,7 @@ impl EditorApp {
         let page = |v: f64| ((v + 10.0) / 10.0).ceil().max(10.0) * 10.0;
         // A PE-DESIGN 11 file keeps its own Design Page size.
         let (page_w, page_h) = pes_page_mm(p).unwrap_or((page(w), page(h)));
-        let steps = [
+        vec![
             CommandRequest::new(
                 "design.new",
                 json!({ "name": name, "width": page_w, "height": page_h }),
@@ -1140,10 +1167,17 @@ impl EditorApp {
                 "stitches.import",
                 json!({ "path": path, "keepSource": true }),
             ),
-        ];
-        if self.grouped(|app| app.execute_all(&steps)).is_some() {
+        ]
+    }
+
+    /// After `p` opened: file name, recent files and status.
+    pub(crate) fn after_open(&mut self, p: &Path) {
+        self.ui.add_recent(p);
+        if is_project(p) {
+            self.after_load(Some(p.to_path_buf()));
+            self.status = format!("Opened {}", p.display());
+        } else {
             self.after_load(None);
-            self.ui.add_recent(p);
             self.status = format!(
                 "Opened {} as a new design (Save to keep it as .osd)",
                 p.display()
@@ -1156,9 +1190,8 @@ impl EditorApp {
         if let Some(p) = rfd::FileDialog::new()
             .add_filter("Embroidery files", &exts)
             .pick_file()
-            && self.grouped(|app| app.import(&p))
         {
-            self.status = format!("Imported {}", p.display());
+            self.import_in_background(&p);
         }
     }
 
@@ -1954,7 +1987,11 @@ impl eframe::App for EditorApp {
             self.screenshot_step(&ctx);
             return;
         }
-        self.shortcuts(&ctx);
+        self.poll_job(&ctx);
+        // The progress window is modal: no shortcut edits the design under a running open.
+        if self.open_job.is_none() {
+            self.shortcuts(&ctx);
+        }
         self.tick(&ctx);
         if crate::recovery_ui::tick(self, ctx.input(|i| i.time)) {
             ctx.request_repaint_after(std::time::Duration::from_millis(500));
@@ -1981,6 +2018,7 @@ impl eframe::App for EditorApp {
         crate::palette_ui::window(self, &ctx);
         crate::workspace_ui::design_settings_window(self, &ctx);
         crate::print_ui::window(self, &ctx);
+        crate::swatch_ui::window(self, &ctx);
         crate::transfer_ui::window(self, &ctx);
         crate::edit_ui::windows(self, &ctx);
         crate::settings_ui::windows(self, &ctx);
@@ -2150,6 +2188,7 @@ pub fn store_pasted_image(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use openstitch_design::Compiler;
 
     #[test]
     fn every_offered_pes_version_is_one_the_writer_knows() {
@@ -2521,6 +2560,8 @@ mod tests {
         app.guarded(Pending::Open(Some(file.clone())));
         assert!(app.close_prompt.is_open());
         app.answer_close_prompt(Choice::DontSave);
+        assert!(app.open_job.is_some(), "opens in the background (#558)");
+        app.finish_job_blocking();
         assert_eq!(app.path.as_deref(), Some(file.as_path()));
         assert!(!app.is_dirty());
         let _ = std::fs::remove_dir_all(&dir);
@@ -2537,3 +2578,7 @@ mod coverage_tests;
 #[cfg(test)]
 #[path = "editor_tools_tests.rs"]
 mod editor_tools_tests;
+
+#[cfg(test)]
+#[path = "open_bench_tests.rs"]
+mod open_bench_tests;
