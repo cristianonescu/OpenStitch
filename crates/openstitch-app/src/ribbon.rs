@@ -1566,7 +1566,7 @@ pub fn button(
         let bottom = text_pos.y + galley.size().y;
         ui.painter().galley(text_pos, galley, fg);
         if menu {
-            arrow(ui, egui::pos2(rect.center().x, bottom + 5.0), fg);
+            caret(ui, egui::pos2(rect.center().x, bottom + 5.0));
         }
     } else {
         let icon = egui::Rect::from_min_size(
@@ -1579,22 +1579,17 @@ pub fn button(
         let end = x + galley.size().x;
         ui.painter().galley(egui::pos2(x, y), galley, fg);
         if menu {
-            arrow(ui, egui::pos2(end + 7.0, rect.center().y), fg);
+            caret(ui, egui::pos2(end + 7.0, rect.center().y));
         }
     }
     resp.on_hover_text(info.screen_tip(MAC))
 }
 
-fn arrow(ui: &egui::Ui, c: egui::Pos2, color: Color32) {
-    ui.painter().add(egui::Shape::convex_polygon(
-        vec![
-            c + vec2(-3.5, -2.0),
-            c + vec2(3.5, -2.0),
-            c + vec2(0.0, 2.0),
-        ],
-        color,
-        Stroke::NONE,
-    ));
+/// The drop-down caret of a ribbon menu button, centred on `c`: the Higgsfield `menu_caret`
+/// icon (#653), as the other menu buttons show it.
+fn caret(ui: &egui::Ui, c: egui::Pos2) {
+    let r = egui::Rect::from_center_size(c, vec2(9.0, 9.0));
+    icons::paint_ui(ui.painter(), r, "menu_caret", ui.visuals().text_color());
 }
 
 /// A ribbon group of any window: its columns, drawn by `draw(ui, command, large)`, and the

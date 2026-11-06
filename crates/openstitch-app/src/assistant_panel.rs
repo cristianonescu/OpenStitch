@@ -658,7 +658,7 @@ fn model_config(app: &mut EditorApp, prefs: &AiPrefs) -> Option<claude::Config> 
     if prefs.model.trim().is_empty() {
         app.assistant.panel.show_settings = true;
         app.assistant.panel.items.push(Item::Notice(
-            "Choose a model first: in the Assistant's settings (⚙), Model ▸ List shows the endpoint's models.".into(),
+            "Choose a model first: in the Assistant's settings (the gear button at the top of this panel), Model ▸ List shows the endpoint's models.".into(),
         ));
         return None;
     }
@@ -677,7 +677,7 @@ fn model_config(app: &mut EditorApp, prefs: &AiPrefs) -> Option<claude::Config> 
         None => {
             app.assistant.panel.show_settings = true;
             app.assistant.panel.items.push(Item::Notice(
-                "Add the API key for this address in the Assistant's settings (⚙) first. It is kept in the system keychain and sent only to the address shown there.".into(),
+                "Add the API key for this address in the Assistant's settings (the gear button at the top of this panel) first. It is kept in the system keychain and sent only to the address shown there.".into(),
             ));
             return None;
         }
@@ -952,6 +952,10 @@ fn handle_job(app: &mut EditorApp, mut job: Job) {
         edits,
         edit_limit: prefs.edit_limit,
         undo_before_message: command == "history.undo" && app.undo_groups.len() <= undo_start,
+        existing_layout: command == "ui.layout"
+            && params["name"]
+                .as_str()
+                .is_some_and(|n| app.ui.prefs.layouts.iter().any(|(l, _)| l == n.trim())),
     });
     match v {
         Verdict::Run => run_job(app, job),
@@ -1838,6 +1842,20 @@ pub fn show_sample_notices(app: &mut EditorApp) {
     panel.show_settings = true;
     let url = app.ui.prefs.ai.base_url.clone();
     panel.key_stored = Some((url, true));
+    // #653: a tool step in each state shows its status icon.
+    for (i, (done, is_error)) in [(true, false), (true, true), (false, false)]
+        .into_iter()
+        .enumerate()
+    {
+        panel.items.push(Item::Tool {
+            id: format!("sample-{i}"),
+            name: "mcp__openstitch-app__execute".into(),
+            input: serde_json::json!({ "command": "shape.rectangle" }),
+            detail: String::new(),
+            done,
+            is_error,
+        });
+    }
     for n in [
         "Key saved in the system keychain.",
         "The image generator is off: its address and model are cleared.",
@@ -2088,7 +2106,7 @@ pub fn notice_is_problem(t: &str) -> bool {
         "length limit",
         "stopped; send again",
         "choose a model first",
-        "settings (⚙) first",
+        "top of this panel) first",
     ]
     .iter()
     .any(|w| t.contains(w))
@@ -2130,26 +2148,28 @@ fn item(ui: &mut egui::Ui, salt: (&str, u64, usize), it: &Item) {
             is_error,
             ..
         } => {
-            let state = if !done {
-                "…"
+            // #653: the step's state as an icon (running, failed, done), not a symbol.
+            let (state, tip) = if !done {
+                ("status_running", "Running")
             } else if *is_error {
-                "✗"
+                ("status_failed", "Failed")
             } else {
-                "✓"
+                ("status_done", "Done")
             };
-            egui::CollapsingHeader::new(
-                RichText::new(format!("{state} {}", tool_label(name, input))).small(),
-            )
-            .id_salt(salt)
-            .show(ui, |ui| {
-                ui.add(
-                    egui::Label::new(
-                        RichText::new(format!("{name}\n{detail}"))
-                            .monospace()
-                            .small(),
-                    )
-                    .wrap(),
-                );
+            ui.horizontal_top(|ui| {
+                ui.add(crate::icons::ui_image(ui, state)).on_hover_text(tip);
+                egui::CollapsingHeader::new(RichText::new(tool_label(name, input)).small())
+                    .id_salt(salt)
+                    .show(ui, |ui| {
+                        ui.add(
+                            egui::Label::new(
+                                RichText::new(format!("{name}\n{detail}"))
+                                    .monospace()
+                                    .small(),
+                            )
+                            .wrap(),
+                        );
+                    });
             });
         }
         // #581: readable at the normal size in the theme's text colour; problems in its error
@@ -3746,6 +3766,43 @@ mod tests {
 
     /// #549: the Assistant's Clear Recovery Files asks first, naming what goes; Deny deletes
     /// nothing and the model hears it was declined.
+    #[test]
+    fn preference_resets_ask_and_deny_keeps_them() {
+        // #551: Deny changes nothing; Allow resets.
+        let (mut app, _transport) = app_with(vec![
+            reply(
+                &[("ui.resetPrefs", json!({ "area": "shortcuts" }))],
+                "",
+                "tool_use",
+            ),
+            reply(&[], "Kept them.", "end_turn"),
+            reply(
+                &[("ui.resetPrefs", json!({ "area": "shortcuts" }))],
+                "",
+                "tool_use",
+            ),
+            reply(&[], "Done.", "end_turn"),
+        ]);
+        use openstitch_app::editor::ribbon::Action;
+        app.ui
+            .prefs
+            .keymap
+            .add(Action::Rectangle, "Alt+R")
+            .expect("free");
+        send(&mut app, "reset my shortcuts".into(), no_wake());
+        run(&mut app, |a| !a.assistant.panel.approvals.is_empty());
+        let what = &app.assistant.panel.approvals[0].what;
+        assert!(what.contains("reset your shortcuts preferences"), "{what}");
+        answer(&mut app, 0, Answer::Deny);
+        run(&mut app, idle);
+        assert!(!app.ui.prefs.keymap.is_default(), "denied: kept");
+        send(&mut app, "reset my shortcuts".into(), no_wake());
+        run(&mut app, |a| !a.assistant.panel.approvals.is_empty());
+        answer(&mut app, 0, Answer::Once);
+        run(&mut app, idle);
+        assert!(app.ui.prefs.keymap.is_default(), "allowed: reset");
+    }
+
     #[test]
     fn denied_recovery_discard_deletes_nothing() {
         let (mut app, transport) = app_with(vec![

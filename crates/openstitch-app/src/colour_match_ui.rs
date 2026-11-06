@@ -4,7 +4,7 @@
 //! "Restore original colours" undoes it while the window is open.
 
 use crate::app::EditorApp;
-use eframe::egui::{self, Color32};
+use eframe::egui::{self, Color32, RichText};
 use openstitch_app::editor::CommandRequest;
 use serde_json::{Value, json};
 
@@ -212,7 +212,8 @@ fn match_window(app: &mut EditorApp, ctx: &egui::Context) {
                                     swatch(ui, row["from"]["color"].as_str().unwrap_or(""));
                                     ui.label(row["from"]["color"].as_str().unwrap_or(""));
                                 });
-                                ui.label("→");
+                                // #653: a word, not an arrow character.
+                                ui.label(RichText::new("becomes").weak());
                                 ui.horizontal(|ui| {
                                     swatch(ui, row["to"]["color"].as_str().unwrap_or(""));
                                     ui.label(thread_label(&row["to"]));
@@ -296,7 +297,7 @@ fn merge_window(app: &mut EditorApp, ctx: &egui::Context) {
                                 for m in g["merge"].as_array().into_iter().flatten() {
                                     swatch(ui, m["thread"]["color"].as_str().unwrap_or(""));
                                 }
-                                ui.label("→");
+                                ui.label(RichText::new("merge into").weak());
                                 swatch(ui, g["keep"]["color"].as_str().unwrap_or(""));
                                 ui.label(g["keep"]["color"].as_str().unwrap_or(""));
                             });

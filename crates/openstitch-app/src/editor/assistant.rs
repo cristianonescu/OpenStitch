@@ -315,7 +315,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     },
     UiCommand {
         id: "ui.layout",
-        summary: "Saved window layouts (#551, Options ▸ Layouts): list them, save where the panes are and the toolbar position under a name, put one in place, or delete one",
+        summary: "Saved window layouts (#551, Options ▸ Layouts): list them, save where the panes are and the toolbar position under a name, put one in place, or delete one. Delete, and a save over an existing name, ask the user first",
         effect: Effect::Edit,
         params: &[
             p(
@@ -334,7 +334,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     },
     UiCommand {
         id: "ui.resetPrefs",
-        summary: "Options ▸ Reset Preferences (#551): put one area of the preferences back to its defaults and keep the others. Ask the user first",
+        summary: "Options ▸ Reset Preferences (#551): put one area of the preferences back to its defaults and keep the others. Always asks the user first (preferences have no undo)",
         effect: Effect::Edit,
         params: &[p(
             "area",
