@@ -723,12 +723,19 @@ pub fn font_browser(app: &mut EditorApp, ui: &mut egui::Ui, spec: &openstitch_de
                             egui::Button::selectable(Some(i) == current, ""),
                         );
                         let rect = r.rect.shrink(3.0);
+                        // Readable on the selection colour too.
+                        let (caption, ink) = if Some(i) == current {
+                            let c = ui.visuals().selection.stroke.color;
+                            (c, c)
+                        } else {
+                            (ui.visuals().weak_text_color(), ui.visuals().text_color())
+                        };
                         ui.painter().text(
                             rect.left_top(),
                             egui::Align2::LEFT_TOP,
                             format!("{}{range}", c.label),
                             egui::FontId::proportional(11.0),
-                            ui.visuals().weak_text_color(),
+                            caption,
                         );
                         let body = egui::Rect::from_min_max(
                             egui::pos2(rect.min.x, rect.min.y + 14.0),
@@ -737,7 +744,7 @@ pub fn font_browser(app: &mut EditorApp, ui: &mut egui::Ui, spec: &openstitch_de
                         if ui.is_rect_visible(body)
                             && let Some(lines) = sample_lines(&spec.text, &c.id, &design_fonts)
                         {
-                            draw_sample(ui, body, &lines, ui.visuals().text_color());
+                            draw_sample(ui, body, &lines, ink);
                         }
                         if r.clicked() {
                             pick = Some(i);

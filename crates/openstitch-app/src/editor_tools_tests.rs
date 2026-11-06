@@ -310,3 +310,33 @@ fn select_same_alt_click_and_click_inside() {
     app.ui.prefs.editing.click_inside = true;
     assert_eq!(click(&mut app), 1);
 }
+
+/// Text Attributes ▸ Font list (#527): browsing fonts with the arrow keys is one Undo.
+#[test]
+fn a_font_browse_is_undone_in_one_step() {
+    let mut app = EditorApp::new(Launch::default());
+    let r = app
+        .execute(&CommandRequest::new("text.add", json!({ "text": "Abc" })))
+        .expect("text");
+    let id = r["id"].as_u64().expect("id");
+    app.selection = BTreeSet::from([id]);
+    let font = |app: &EditorApp| {
+        let d = app.session.design();
+        d.objects[d.index_of(id).expect("object")]
+            .text
+            .as_ref()
+            .expect("text")
+            .font
+            .clone()
+    };
+    for f in ["pacifico", "openstitch-line", "openstitch-pixel"] {
+        crate::lettering_ui::browse_to(&mut app, f);
+    }
+    assert_eq!(font(&app), "openstitch-pixel");
+    app.undo();
+    assert_eq!(
+        font(&app),
+        "lato-bold",
+        "one Undo takes the whole browse back"
+    );
+}
