@@ -113,6 +113,16 @@ All beyond PE-DESIGN and off unless asked; each is one undo step.
 A satin border `distance` mm round the patterns, then a cutting line `cutDistance` mm outside
 it. `wizard.backgroundFill` fills behind the patterns for a fully stitched patch.
 
+## Towels and fleece: knockdown
+
+Beyond PE-DESIGN and off unless asked; one undo step.
+
+- Pile fabric (towel, fleece, velvet): `wizard.knockdown` `{}` for the whole design, or
+  `{ids: [...]}` for the selection, puts a light Fill named Knockdown under it, sewn first
+  (`reach` 2 mm past the edge, `gapClose` 3 mm, `spacing` 1 mm, `layers` 1 or 2, `angle`,
+  `color` defaults to the first covered object's thread, `shape: rectangle`, `keepHoles`).
+  After edits, `wizard.knockdown {update: <its id>}` rebuilds it. `order.optimize` keeps it first.
+
 ## Image to embroidery
 
 The picture must be a file the editor can read: one the user attached, or one you wrote with
