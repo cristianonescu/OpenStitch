@@ -541,8 +541,12 @@ pub fn zigzag_underlay(path: &[Vec2], offset: f64, pitch: f64) -> Run {
             }
             let (n1, n2) = (normal(w.tangent(s - 1e-3)), normal(w.tangent(s + 1e-3)));
             let k = 1.0 + (n1.x * n2.x + n1.y * n2.y);
-            if k > 1e-6 {
+            // A mitre longer than twice the offset (a turn over 120 degrees: a heart's cusp,
+            // a star's point) would spike far out of the column (#466): bevelled instead.
+            if k >= 0.5 {
                 pts.push(path[i] + (n1 + n2) * (d / k));
+            } else {
+                pts.extend([path[i] + n1 * d, path[i] + n2 * d]);
             }
         }
         pts.push(w.at(len - offset) + normal(w.tangent(len - offset)) * d);
@@ -1017,4 +1021,72 @@ pub fn zigzag_rails(path: &[Vec2], width: f64, spacing: f64) -> Run {
         }
     }
     run
+}
+
+/// A zigzag needle point closer to the line than this share of its half width has folded over
+/// it (#466): see [`unfold_zigzag`].
+const FOLDED: f64 = 0.5;
+
+/// Zigzag needle points that folded over the line (#466) moved onto it. On a curve tighter than
+/// the zigzag's half width, and at a cusp such as a heart's top, a point offset `width / 2` to
+/// the inner side lands near or past the line's other side: the stitches cross each other and
+/// knot there. Every needle point of a zigzag otherwise lies half the width from the line, so
+/// one nearer than [`FOLDED`] of that lies in a fold, and is sewn on the line instead (a half
+/// stitch, as PE-DESIGN's Half Stitch pulls crowded inner points in).
+pub fn unfold_zigzag(path: &[Vec2], run: &mut Run, width: f64) {
+    let h = width / 2.0;
+    if path.len() < 2 || h <= 0.0 {
+        return;
+    }
+    // Segments by grid cell (a cell as wide as the reach), so each point looks only at the
+    // segments near it: Design Center lines hold thousands of segments.
+    let cell = (FOLDED * h).max(1.0);
+    let key = |x: f64, y: f64| ((x / cell).floor() as i64, (y / cell).floor() as i64);
+    let mut grid: std::collections::HashMap<(i64, i64), Vec<usize>> = Default::default();
+    for (i, w) in path.windows(2).enumerate() {
+        // The segment's cells, sampled every half cell along it.
+        let n = ((w[0].distance(w[1]) / (cell / 2.0)).ceil() as usize).clamp(1, 100_000);
+        for k in 0..=n {
+            let q = w[0].lerp(w[1], k as f64 / n as f64);
+            let cells = grid.entry(key(q.x, q.y)).or_default();
+            if cells.last() != Some(&i) {
+                cells.push(i);
+            }
+        }
+    }
+    let nearest = |p: Vec2| -> (f64, Vec2) {
+        let mut best = (f64::INFINITY, p);
+        let (cx, cy) = key(p.x, p.y);
+        let mut near: Vec<usize> = (cx - 2..=cx + 2)
+            .flat_map(|gx| (cy - 2..=cy + 2).map(move |gy| (gx, gy)))
+            .filter_map(|k| grid.get(&k))
+            .flatten()
+            .copied()
+            .collect();
+        near.sort_unstable();
+        near.dedup();
+        for i in near {
+            let (a, b) = (path[i], path[i + 1]);
+            let ab = b - a;
+            let len2 = ab.x * ab.x + ab.y * ab.y;
+            let t = if len2 > 0.0 {
+                (((p.x - a.x) * ab.x + (p.y - a.y) * ab.y) / len2).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            let q = a.lerp(b, t);
+            let d = q.distance(p);
+            if d < best.0 {
+                best = (d, q);
+            }
+        }
+        best
+    };
+    for p in run.iter_mut() {
+        let (d, q) = nearest(*p);
+        if d > 1e-6 && d < FOLDED * h {
+            *p = q;
+        }
+    }
+    run.dedup_by(|a, b| a.distance(*b) < 1e-9);
 }

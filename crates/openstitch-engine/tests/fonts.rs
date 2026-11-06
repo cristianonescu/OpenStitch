@@ -46,9 +46,10 @@ fn a_user_font_lays_out_like_the_same_bundled_font() {
     assert_eq!(r["id"], "my-lato");
     let list = run(&mut s, "fonts.list", json!({}));
     let rows = list.as_array().expect("rows");
-    assert_eq!(rows.len(), 4);
-    assert_eq!(rows[3]["source"], "design");
-    assert_eq!(rows[3]["file"], "user.ttf");
+    // Four bundled fonts, then the two loaded.
+    assert_eq!(rows.len(), 6);
+    assert_eq!(rows[5]["source"], "design");
+    assert_eq!(rows[5]["file"], "user.ttf");
 
     let a = run(
         &mut s,

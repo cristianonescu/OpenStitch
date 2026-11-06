@@ -498,6 +498,9 @@ pub struct SewSettings {
     pub region: RegionSew,
     /// `Some` sews every region in this thread instead of its image colour.
     pub region_thread: Option<Thread>,
+    /// Running and triple lines that meet are sewn as one path, walking back over sewn
+    /// lines instead of trimming ([`join_lines`], #627).
+    pub join_lines: bool,
 }
 
 impl Default for SewSettings {
@@ -508,6 +511,7 @@ impl Default for SewSettings {
             line_width_mm: None,
             region: RegionSew::Auto,
             region_thread: None,
+            join_lines: true,
         }
     }
 }
@@ -711,9 +715,162 @@ pub fn sew_with(f: &Figure, s: &SewSettings, mode: Mode) -> Vec<DesignObject> {
     if let (Some(kind), false) = (s.line, f.lines.is_empty()) {
         let mut line = LineSewing::new(kind, s.line_thread.clone());
         line.width = s.line_width_mm.unwrap_or(f.line_width_mm).clamp(1.0, 6.0);
-        let mut o = DesignObject::shape(f.lines.clone(), None, Some(line));
+        let lines = if s.join_lines && matches!(kind, LineType::Running | LineType::Triple) {
+            join_lines(&f.lines)
+        } else {
+            f.lines.clone()
+        };
+        let mut o = DesignObject::shape(lines, None, Some(line));
         o.name = Some("Design Center lines".into());
         out.push(o);
+    }
+    out
+}
+
+/// Line ends this close (0.1 mm) meet at one junction of the figure for [`join_lines`].
+pub const JOIN_TOLERANCE: f64 = 8.0;
+/// The longest walk back over lines already sewn (0.1 mm) that [`join_lines`] takes to reach
+/// the next unsewn line; a farther one starts a new piece (a trim).
+pub const JOIN_MAX_BACKTRACK: f64 = 500.0;
+/// Figures with more lines than this keep them as they are (the route search is quadratic).
+const JOIN_MAX_LINES: usize = 4_000;
+
+/// The figure's running lines joined into as few pieces as the drawing allows (#627): the
+/// skeleton splits line art at every junction, and sewing each piece alone trims after it
+/// (the kit's butterfly outline: 91 pieces, 60 trims per 1,000 stitches). Pieces whose ends
+/// meet (within [`JOIN_TOLERANCE`]) form a graph; each connected part is sewn as one path
+/// that takes an unsewn line at every junction it can and otherwise walks back over lines
+/// already sewn (a double run along the shortest way, at most [`JOIN_MAX_BACKTRACK`]) to the
+/// nearest junction with one left. The result: open polylines in sewing order, every input
+/// line sewn once in full. Order within the figure starts at a line end (a junction with one
+/// line), else at the first line's start.
+pub fn join_lines(lines: &[Contour]) -> Vec<Contour> {
+    if lines.len() < 2 || lines.len() > JOIN_MAX_LINES {
+        return lines.to_vec();
+    }
+    // Junctions: line ends merged within the tolerance.
+    let mut nodes: Vec<Vec2> = Vec::new();
+    let mut node_of = |p: Vec2| -> usize {
+        if let Some(i) = nodes.iter().position(|q| q.distance(p) <= JOIN_TOLERANCE) {
+            return i;
+        }
+        nodes.push(p);
+        nodes.len() - 1
+    };
+    struct Edge {
+        a: usize,
+        b: usize,
+        pts: Vec<Vec2>,
+        len: f64,
+    }
+    let edges: Vec<Edge> = lines
+        .iter()
+        .map(|c| {
+            let pts = c.path();
+            let (first, last) = (pts[0], pts[pts.len() - 1]);
+            let (a, b) = (node_of(first), node_of(last));
+            Edge {
+                a,
+                b,
+                len: length(&pts),
+                pts,
+            }
+        })
+        .collect();
+    let n = nodes.len();
+    let mut incident: Vec<Vec<usize>> = vec![Vec::new(); n];
+    for (k, e) in edges.iter().enumerate() {
+        incident[e.a].push(k);
+        if e.b != e.a {
+            incident[e.b].push(k);
+        }
+    }
+    // The edge's points walked from node `from`.
+    let walk = |k: usize, from: usize| -> (Vec<Vec2>, usize) {
+        let e = &edges[k];
+        if e.a == from {
+            (e.pts.clone(), e.b)
+        } else {
+            (e.pts.iter().rev().copied().collect(), e.a)
+        }
+    };
+    let mut sewn = vec![false; edges.len()];
+    let mut out: Vec<Contour> = Vec::new();
+    let mut piece: Vec<Vec2> = Vec::new();
+    let push = |piece: &mut Vec<Vec2>, pts: Vec<Vec2>| {
+        for p in pts {
+            if piece.last().is_none_or(|l| l.distance(p) > 1e-9) {
+                piece.push(p);
+            }
+        }
+    };
+    let mut at: Option<usize> = None;
+    while let Some(next_unsewn) = sewn.iter().position(|s| !s) {
+        let here = match at {
+            Some(u) => u,
+            None => {
+                // A new piece: from a line end (a junction with one unsewn line) of the first
+                // part left, else from the first unsewn line's start.
+                let e = &edges[next_unsewn];
+                let start = [e.a, e.b]
+                    .into_iter()
+                    .find(|&u| incident[u].iter().filter(|&&k| !sewn[k]).count() == 1)
+                    .unwrap_or(e.a);
+                if !piece.is_empty() {
+                    out.push(Contour::new(std::mem::take(&mut piece), false));
+                }
+                start
+            }
+        };
+        if let Some(&k) = incident[here].iter().find(|&&k| !sewn[k]) {
+            sewn[k] = true;
+            let (pts, to) = walk(k, here);
+            push(&mut piece, pts);
+            at = Some(to);
+            continue;
+        }
+        // Nothing left here: walk back over sewn lines to the nearest junction with an
+        // unsewn line (Dijkstra over the line lengths).
+        let mut dist = vec![f64::INFINITY; n];
+        let mut via: Vec<Option<(usize, usize)>> = vec![None; n];
+        let mut done = vec![false; n];
+        dist[here] = 0.0;
+        let mut target = None;
+        while let Some(u) = (0..n)
+            .filter(|&u| !done[u] && dist[u] <= JOIN_MAX_BACKTRACK)
+            .min_by(|&x, &y| dist[x].total_cmp(&dist[y]))
+        {
+            done[u] = true;
+            if incident[u].iter().any(|&k| !sewn[k]) {
+                target = Some(u);
+                break;
+            }
+            for &k in &incident[u] {
+                let e = &edges[k];
+                let v = if e.a == u { e.b } else { e.a };
+                if dist[u] + e.len < dist[v] {
+                    dist[v] = dist[u] + e.len;
+                    via[v] = Some((u, k));
+                }
+            }
+        }
+        let Some(t) = target else {
+            at = None;
+            continue;
+        };
+        let mut steps = Vec::new();
+        let mut v = t;
+        while let Some((u, k)) = via[v] {
+            steps.push((u, k));
+            v = u;
+        }
+        for (u, k) in steps.into_iter().rev() {
+            push(&mut piece, walk(k, u).0);
+        }
+        at = Some(t);
+    }
+    if !piece.is_empty() {
+        out.push(Contour::new(piece, false));
     }
     out
 }

@@ -70,7 +70,8 @@ fn files_map_to_characters_by_name() {
         "too small"
     );
     let fonts = run(&mut s, "fonts.list", json!({}));
-    let row = &fonts.as_array().expect("rows")[2];
+    // After the four bundled fonts.
+    let row = &fonts.as_array().expect("rows")[4];
     assert_eq!(row["kind"], "embroidery");
     assert_eq!(row["glyphs"], 2);
     assert_eq!(row["stitchGlyphs"], 2);

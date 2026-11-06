@@ -121,6 +121,12 @@ then style them in the next.
 - Find objects like others: `object.list` `{sameAs: [ids], match: color|type|both,
   visible: true}`, or filter by `color`, `regionType`, `lineType`; then `ui.select` the ids.
 - Text: `object.setText` (text, font, size, spacing), `text.setPath` (fit to an outline).
+- Fonts: `fonts.list` gives each bundled font's `sizeRange` (mm), `stitchTypes`, `kind` and
+  `group`; pick a font whose range holds the size, and tell the user when `text.add` /
+  `object.setText` return `sizeWarning`. Labels of 3-6 mm: `font: "openstitch-line"` (Small
+  Text, a running line along each letter's centre; `object.setLine` `runTimes: 3` for bean
+  stitch, or `type: zigzag, width: 1.2` for a narrow satin). Retro or sampler text:
+  `font: "openstitch-pixel"` with `pixelStyle` run, cross or block (one pixel = size / 7).
 - Threads: to change the design to a thread chart ("use my Madeira threads"), run
   `threads.remap` `{builtin | chart, metric: ciede2000, keepDistinct: true, dryRun: true}`
   first and show the user the plan (design colour → thread, ΔE, objects, and `merged`), then
