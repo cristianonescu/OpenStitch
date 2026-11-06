@@ -550,6 +550,18 @@ def self_test():
         got = scan_source(pathlib.Path("x.rs"), src)
         if got:
             fails.append(f"flagged {src!r}: {got}")
+    # The allow list and CANVAS_MARKS only shrink: a row whose call site is gone fails (#654).
+    stale = ("crates/openstitch-app/src/no-such-file.rs", "▾")
+    if not any("no longer occurs; remove its row" in e for e in check_source({stale: "#0"})):
+        fails.append("a stale allow-list row passed")
+    global CANVAS_MARKS
+    saved = CANVAS_MARKS
+    CANVAS_MARKS = {**saved, ("crates/openstitch-app/src/gone.rs", "inline x"): "test"}
+    try:
+        if not any("CANVAS_MARKS" in e and "gone.rs" in e for e in check_source({})):
+            fails.append("a stale CANVAS_MARKS entry passed")
+    finally:
+        CANVAS_MARKS = saved
     return fails + self_test_assets() + self_test_outside()
 
 

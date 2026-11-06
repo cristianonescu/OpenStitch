@@ -46,29 +46,122 @@ impl Theme {
     }
 }
 
-/// A pane: shown or hidden, docked to the window or floating.
+/// The window edge a docked pane sits on (#551).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct PaneState {
-    pub visible: bool,
-    pub floating: bool,
+pub enum Side {
+    Left,
+    Right,
+    Top,
+    Bottom,
 }
 
-impl Default for PaneState {
-    fn default() -> Self {
-        PaneState {
-            visible: true,
-            floating: false,
+impl Side {
+    pub const ALL: [Side; 4] = [Side::Left, Side::Right, Side::Top, Side::Bottom];
+
+    pub fn key(self) -> &'static str {
+        match self {
+            Side::Left => "left",
+            Side::Right => "right",
+            Side::Top => "top",
+            Side::Bottom => "bottom",
+        }
+    }
+
+    pub fn from_key(k: &str) -> Option<Side> {
+        Side::ALL.into_iter().find(|s| s.key() == k)
+    }
+
+    /// Left/right panes stay left or right, top/bottom ones top or bottom.
+    pub fn fits(self, default: Side) -> bool {
+        matches!(self, Side::Left | Side::Right) == matches!(default, Side::Left | Side::Right)
+    }
+
+    /// The opposite edge.
+    pub fn other(self) -> Side {
+        match self {
+            Side::Left => Side::Right,
+            Side::Right => Side::Left,
+            Side::Top => Side::Bottom,
+            Side::Bottom => Side::Top,
         }
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// A pane: shown or hidden, docked to the window (on one side) or floating.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PaneState {
+    pub visible: bool,
+    pub floating: bool,
+    pub side: Side,
+}
+
+impl PaneState {
+    const fn docked(side: Side) -> Self {
+        PaneState {
+            visible: true,
+            floating: false,
+            side,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Panes {
     pub sewing_order: PaneState,
     pub simulator: PaneState,
     /// Import / Color / Sewing Attributes / Text Attributes.
     pub attributes: PaneState,
 }
+
+impl Default for Panes {
+    /// PE-DESIGN's places: Sewing Order left, attributes right, simulator at the bottom.
+    fn default() -> Self {
+        Panes {
+            sewing_order: PaneState::docked(Side::Left),
+            simulator: PaneState::docked(Side::Bottom),
+            attributes: PaneState::docked(Side::Right),
+        }
+    }
+}
+
+/// A saved window layout (Options ▸ Layouts, #551): where the panes are and the toolbar position.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Layout {
+    pub panes: Panes,
+    pub qat_below: bool,
+}
+
+impl Layout {
+    /// Most layouts kept, and the longest name.
+    pub const MAX: usize = 20;
+    pub const NAME_MAX: usize = 40;
+}
+
+/// Preference areas that reset on their own (#551): key, label and what they hold.
+pub const RESET_AREAS: &[(&str, &str, &str)] = &[
+    (
+        "display",
+        "Display",
+        "theme, accent colour, Quick Access Toolbar, splash, realistic view, View ▸ Show",
+    ),
+    (
+        "editing",
+        "Editing",
+        "units, nudge step, snapping, click inside outlines",
+    ),
+    (
+        "panes",
+        "Panes",
+        "which panes show, docked where or floating",
+    ),
+    ("shortcuts", "Keyboard shortcuts", "every changed shortcut"),
+    ("layouts", "Saved layouts", "every saved layout"),
+    (
+        "newObjects",
+        "New objects",
+        "what new shapes start with, the Basic/Advanced view, folded sections, start cards",
+    ),
+];
 
 /// Text ▸ Font Filter: fonts hidden from the font lists while the filter is on.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -107,6 +200,12 @@ impl FontFilter {
 #[derive(Clone, Debug, PartialEq)]
 pub struct UiPrefs {
     pub theme: Theme,
+    /// Accent colour (#559); `None` keeps each theme's own.
+    pub accent: Option<[u8; 3]>,
+    /// The user's keyboard shortcuts (#551).
+    pub keymap: super::keymap::Keymap,
+    /// Saved window layouts by name (#551).
+    pub layouts: Vec<(String, Layout)>,
     pub qat: Vec<Action>,
     /// Quick Access Toolbar under the ribbon instead of above it.
     pub qat_below: bool,
@@ -195,6 +294,9 @@ impl Default for UiPrefs {
     fn default() -> Self {
         UiPrefs {
             theme: Theme::default(),
+            accent: None,
+            keymap: Default::default(),
+            layouts: Vec::new(),
             qat: QAT_DEFAULT.to_vec(),
             qat_below: false,
             panes: Panes::default(),
@@ -221,28 +323,62 @@ impl Default for UiPrefs {
 }
 
 fn pane_json(p: PaneState) -> Value {
-    json!({ "visible": p.visible, "floating": p.floating })
+    json!({ "visible": p.visible, "floating": p.floating, "side": p.side.key() })
 }
 
-fn pane_from(v: &Value) -> PaneState {
-    let d = PaneState::default();
+fn pane_from(v: &Value, d: PaneState) -> PaneState {
     PaneState {
         visible: v["visible"].as_bool().unwrap_or(d.visible),
         floating: v["floating"].as_bool().unwrap_or(d.floating),
+        side: v["side"]
+            .as_str()
+            .and_then(Side::from_key)
+            .filter(|s| s.fits(d.side))
+            .unwrap_or(d.side),
     }
+}
+
+fn panes_json(p: &Panes) -> Value {
+    json!({
+        "sewingOrder": pane_json(p.sewing_order),
+        "simulator": pane_json(p.simulator),
+        "attributes": pane_json(p.attributes),
+    })
+}
+
+fn panes_from(v: &Value) -> Panes {
+    let d = Panes::default();
+    Panes {
+        sewing_order: pane_from(&v["sewingOrder"], d.sewing_order),
+        simulator: pane_from(&v["simulator"], d.simulator),
+        attributes: pane_from(&v["attributes"], d.attributes),
+    }
+}
+
+/// A layout name as stored: trimmed, 1-40 characters.
+pub fn layout_name(name: &str) -> Result<String, String> {
+    let n = name.trim();
+    if n.is_empty() || n.chars().count() > Layout::NAME_MAX {
+        return Err(format!(
+            "a layout name has 1-{} characters",
+            Layout::NAME_MAX
+        ));
+    }
+    Ok(n.to_string())
 }
 
 impl UiPrefs {
     pub fn to_json(&self) -> Value {
         json!({
             "theme": self.theme.key(),
+            "accent": self.accent.map(super::accent::to_hex),
+            "shortcuts": self.keymap.to_json(),
+            "layouts": self.layouts.iter()
+                .map(|(n, l)| json!({ "name": n, "panes": panes_json(&l.panes), "quickAccessBelow": l.qat_below }))
+                .collect::<Vec<_>>(),
             "quickAccess": self.qat.iter().map(|a| a.info().key).collect::<Vec<_>>(),
             "quickAccessBelow": self.qat_below,
-            "panes": {
-                "sewingOrder": pane_json(self.panes.sewing_order),
-                "simulator": pane_json(self.panes.simulator),
-                "attributes": pane_json(self.panes.attributes),
-            },
+            "panes": panes_json(&self.panes),
             "recent": self.recent.iter().map(|p| p.display().to_string()).collect::<Vec<_>>(),
             "realisticView": {
                 "threadWidthMM": self.realistic.thread_width_mm,
@@ -305,13 +441,26 @@ impl UiPrefs {
                 .as_str()
                 .and_then(Theme::from_key)
                 .unwrap_or(d.theme),
+            accent: v["accent"].as_str().and_then(super::accent::parse),
+            keymap: super::keymap::Keymap::load(&v["shortcuts"]),
+            layouts: v["layouts"]
+                .as_array()
+                .map(|list| {
+                    list.iter()
+                        .filter_map(|l| {
+                            let layout = Layout {
+                                panes: panes_from(&l["panes"]),
+                                qat_below: l["quickAccessBelow"].as_bool().unwrap_or(false),
+                            };
+                            Some((layout_name(l["name"].as_str()?).ok()?, layout))
+                        })
+                        .take(Layout::MAX)
+                        .collect()
+                })
+                .unwrap_or_default(),
             qat,
             qat_below: v["quickAccessBelow"].as_bool().unwrap_or(d.qat_below),
-            panes: Panes {
-                sewing_order: pane_from(&v["panes"]["sewingOrder"]),
-                simulator: pane_from(&v["panes"]["simulator"]),
-                attributes: pane_from(&v["panes"]["attributes"]),
-            },
+            panes: panes_from(&v["panes"]),
             recent: v["recent"]
                 .as_array()
                 .map(|l| {
@@ -488,6 +637,85 @@ impl UiPrefs {
         }
     }
 
+    /// The current layout.
+    pub fn layout(&self) -> Layout {
+        Layout {
+            panes: self.panes,
+            qat_below: self.qat_below,
+        }
+    }
+
+    /// Saves the current layout as `name` (replacing one of that name).
+    pub fn save_layout(&mut self, name: &str) -> Result<String, String> {
+        let name = layout_name(name)?;
+        let layout = self.layout();
+        let full = self.layouts.len() >= Layout::MAX;
+        match self.layouts.iter_mut().find(|(n, _)| *n == name) {
+            Some(slot) => slot.1 = layout,
+            None if full => {
+                return Err(format!("at most {} layouts; delete one first", Layout::MAX));
+            }
+            None => self.layouts.push((name.clone(), layout)),
+        }
+        Ok(name)
+    }
+
+    /// Puts the saved layout `name` in place.
+    pub fn apply_layout(&mut self, name: &str) -> Result<(), String> {
+        let l = self
+            .layouts
+            .iter()
+            .find(|(n, _)| n == name.trim())
+            .map(|(_, l)| *l)
+            .ok_or_else(|| format!("no layout '{}'", name.trim()))?;
+        self.panes = l.panes;
+        self.qat_below = l.qat_below;
+        Ok(())
+    }
+
+    pub fn delete_layout(&mut self, name: &str) -> Result<(), String> {
+        let before = self.layouts.len();
+        self.layouts.retain(|(n, _)| n != name.trim());
+        if self.layouts.len() == before {
+            return Err(format!("no layout '{}'", name.trim()));
+        }
+        Ok(())
+    }
+
+    /// Resets one area of [`RESET_AREAS`] and leaves the others as they are.
+    pub fn reset_area(&mut self, area: &str) -> Result<(), String> {
+        let d = UiPrefs::default();
+        match area {
+            "display" => {
+                self.theme = d.theme;
+                self.accent = d.accent;
+                self.qat = d.qat;
+                self.qat_below = d.qat_below;
+                self.splash = d.splash;
+                self.realistic = d.realistic;
+                self.show = d.show;
+            }
+            "editing" => {
+                self.editing = d.editing;
+                self.units = d.units;
+            }
+            "panes" => self.panes = d.panes,
+            "shortcuts" => self.keymap = d.keymap,
+            "layouts" => self.layouts.clear(),
+            "newObjects" => {
+                self.new_objects = d.new_objects;
+                self.advanced_attributes = d.advanced_attributes;
+                self.folded_sections = d.folded_sections;
+                self.start_cards = d.start_cards;
+            }
+            _ => {
+                let keys: Vec<&str> = RESET_AREAS.iter().map(|a| a.0).collect();
+                return Err(format!("area takes {}", keys.join(", ")));
+            }
+        }
+        Ok(())
+    }
+
     /// Puts `path` first in the recent files list.
     pub fn add_recent(&mut self, path: &Path) {
         self.recent.retain(|p| p != path);
@@ -604,6 +832,55 @@ mod tests {
                 hidden: vec!["a".into()]
             }
         );
+    }
+
+    #[test]
+    fn layouts_survive_a_restart_and_areas_reset_alone() {
+        let dir = openstitch_testutil::TempDir::new("layouts");
+        let path = dir.join("ui.json");
+        let mut p = UiPrefs::default();
+        p.panes.sewing_order.side = Side::Right;
+        p.panes.simulator.floating = true;
+        p.qat_below = true;
+        assert_eq!(p.save_layout("  Lettering ").as_deref(), Ok("Lettering"));
+        p.panes = Panes::default();
+        p.save_layout("Digitizing").expect("save");
+        assert!(p.save_layout("").is_err() && p.save_layout(&"x".repeat(41)).is_err());
+        p.accent = Some([0xef, 0x6c, 0x00]);
+        p.keymap.add(Action::Rectangle, "Alt+R").expect("free");
+        p.save(&path).expect("save");
+        let mut q = UiPrefs::load(&path);
+        assert_eq!(
+            q, p,
+            "layouts, accent and shortcuts come back after a restart"
+        );
+        q.apply_layout("Lettering").expect("apply");
+        assert_eq!(q.panes.sewing_order.side, Side::Right);
+        assert!(q.panes.simulator.floating && q.qat_below);
+        assert!(q.apply_layout("nope").is_err());
+        q.delete_layout("Digitizing").expect("delete");
+        assert_eq!(q.layouts.len(), 1);
+        // A side that does not fit the pane falls back to its own.
+        let odd = json!({ "panes": { "simulator": { "side": "left" } } });
+        assert_eq!(UiPrefs::from_json(&odd).panes, Panes::default());
+        // Resetting one area leaves the others.
+        let before = q.clone();
+        q.reset_area("display").expect("display");
+        assert_eq!((q.accent, q.qat_below), (None, false));
+        assert_eq!(
+            (&q.keymap, &q.layouts, q.panes),
+            (&before.keymap, &before.layouts, before.panes)
+        );
+        q.reset_area("shortcuts").expect("shortcuts");
+        assert!(q.keymap.is_default() && !q.layouts.is_empty());
+        q.reset_area("panes").expect("panes");
+        assert_eq!(q.panes, Panes::default());
+        q.reset_area("layouts").expect("layouts");
+        assert!(q.layouts.is_empty());
+        assert!(q.reset_area("everything").is_err());
+        for (area, _, _) in RESET_AREAS {
+            q.reset_area(area).expect(area);
+        }
     }
 
     #[test]

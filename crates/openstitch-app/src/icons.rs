@@ -236,6 +236,13 @@ own!(
     "pane_float",
     "menu_caret",
     "line_gap",
+    "status_done",
+    "status_failed",
+    "status_running",
+    "player_start",
+    "player_back",
+    "player_forward",
+    "player_end",
 );
 
 /// The icons of buttons that run no command: the Assistant panel's attach and close, the panes'
@@ -252,12 +259,21 @@ pub const UI: &[&str] = &[
     "folder",
     "image_rotate_left",
     "image_rotate_right",
+    "status_done",
+    "status_failed",
+    "status_running",
+    "hand",
+    "player_start",
+    "player_back",
+    "player_forward",
+    "player_end",
 ];
 
 /// The glyph of the [`UI`] icon `name`.
 fn ui_glyph(name: &'static str) -> Glyph {
     match name {
         "folder" => Glyph::Folder,
+        "hand" => Glyph::Hand,
         n => Glyph::Own(n),
     }
 }

@@ -191,3 +191,10 @@ pane_dock	2B2F36 FFFFFF 2A7AD8 2E9D58	a large white window frame with a blue sid
 pane_float	2B2F36 A0A6AE FFFFFF 2A7AD8	two overlapping window frames, a light grey window at the back and a smaller white window with a blue title bar in front, lifted up and to the right as if floating free
 menu_caret	2B2F36	a drop-down caret, a single wide downward-pointing triangle with slightly rounded corners, filled dark charcoal
 line_gap	2B2F36 2A7AD8 D8433A	a very thick blue circular ring with a wide gap cut out of its bottom, the two open ends of the ring capped with small red square end blocks facing each other across the empty gap
+status_done	2B2F36 2E9D58	a bold check mark inside a round green badge
+status_failed	2B2F36 D8433A	a bold X cross mark inside a round red badge
+status_running	2B2F36 A0A6AE	an hourglass with light grey sand
+player_start	2B2F36 2A7AD8	a bold vertical bar on the left and a solid blue triangle pointing left (player_end mirrored)
+player_back	2B2F36 2A7AD8	a single solid blue triangle pointing left, with no frame, no box and no other shape around it
+player_forward	2B2F36 2A7AD8	a media player step-forward button: a single blue triangle pointing right
+player_end	2B2F36 2A7AD8	a media player skip-to-end button: a blue triangle pointing right followed by a bold vertical bar on the right

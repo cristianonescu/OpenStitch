@@ -529,6 +529,10 @@ pub struct DesignObject {
     /// or a patch without a colour change. A colour change right after it is the stop.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub stop_after: bool,
+    /// A knockdown fill made by `wizard.knockdown` (#510, beyond PE-DESIGN): the parameters it
+    /// was made with, so it can be rebuilt and kept before what it covers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub knockdown: Option<serde_json::Value>,
 }
 
 fn yes() -> bool {
@@ -563,6 +567,7 @@ impl DesignObject {
             locked: false,
             line_first: false,
             stop_after: false,
+            knockdown: None,
         }
     }
 
@@ -585,6 +590,7 @@ impl DesignObject {
             locked: false,
             line_first: false,
             stop_after: false,
+            knockdown: None,
         }
     }
 

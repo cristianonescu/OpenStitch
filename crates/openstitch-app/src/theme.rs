@@ -44,6 +44,54 @@ pub fn canvas(ctx: &egui::Context) -> CanvasColors {
     }
 }
 
+/// The canvas accent before #559: selection outlines, handles and point markers.
+pub const DEFAULT_ACCENT: Color32 = Color32::from_rgb(0x1e, 0x88, 0xe5);
+
+static CANVAS_ACCENT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0x1e88e5);
+
+/// The accent the canvas paints the selection, handles and points with.
+pub fn accent() -> Color32 {
+    let v = CANVAS_ACCENT.load(std::sync::atomic::Ordering::Relaxed);
+    Color32::from_rgb((v >> 16) as u8, (v >> 8) as u8, v as u8)
+}
+
+/// Installs the styles with the accent colour (#559): `None` keeps each theme's own colours.
+/// Selected buttons get a shade dark enough for white text (4.5:1); links and the canvas use the
+/// colour itself.
+pub fn set_accent(ctx: &egui::Context, accent: Option<[u8; 3]>) {
+    // The themes' own colours first, so going back to the default undoes a custom accent.
+    for (theme, base) in [
+        (egui::Theme::Light, egui::Visuals::light()),
+        (egui::Theme::Dark, egui::Visuals::dark()),
+    ] {
+        ctx.style_mut_of(theme, |s| {
+            let v = &mut s.visuals;
+            v.selection = base.selection;
+            v.hyperlink_color = base.hyperlink_color;
+            v.widgets.hovered.weak_bg_fill = base.widgets.hovered.weak_bg_fill;
+        });
+    }
+    install(ctx);
+    let canvas = accent.map_or(DEFAULT_ACCENT, |[r, g, b]| Color32::from_rgb(r, g, b));
+    let [r, g, b, _] = canvas.to_array();
+    CANVAS_ACCENT.store(
+        u32::from(r) << 16 | u32::from(g) << 8 | u32::from(b),
+        std::sync::atomic::Ordering::Relaxed,
+    );
+    let Some(c) = accent else { return };
+    let [r, g, b] = openstitch_app::editor::accent::for_white_text(c);
+    let fill = Color32::from_rgb(r, g, b);
+    for theme in [egui::Theme::Light, egui::Theme::Dark] {
+        ctx.style_mut_of(theme, |s| {
+            let v = &mut s.visuals;
+            v.selection.bg_fill = fill;
+            v.selection.stroke = egui::Stroke::new(1.0, Color32::WHITE);
+            v.hyperlink_color = canvas;
+            v.widgets.hovered.weak_bg_fill = fill.gamma_multiply(0.25);
+        });
+    }
+}
+
 /// Adjusts egui's light style towards a desktop application (once, at start-up).
 pub fn install(ctx: &egui::Context) {
     ctx.style_mut_of(egui::Theme::Light, |s| {

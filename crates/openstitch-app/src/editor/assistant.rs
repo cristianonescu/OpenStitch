@@ -314,6 +314,36 @@ pub const UI_COMMANDS: &[UiCommand] = &[
         ],
     },
     UiCommand {
+        id: "ui.layout",
+        summary: "Saved window layouts (#551, Options ▸ Layouts): list them, save where the panes are and the toolbar position under a name, put one in place, or delete one. Delete, and a save over an existing name, ask the user first",
+        effect: Effect::Edit,
+        params: &[
+            p(
+                "op",
+                "list|save|apply|delete",
+                false,
+                "list (default), save, apply or delete",
+            ),
+            p(
+                "name",
+                "string",
+                false,
+                "Layout name, 1-40 characters (save, apply, delete)",
+            ),
+        ],
+    },
+    UiCommand {
+        id: "ui.resetPrefs",
+        summary: "Options ▸ Reset Preferences (#551): put one area of the preferences back to its defaults and keep the others. Always asks the user first (preferences have no undo)",
+        effect: Effect::Edit,
+        params: &[p(
+            "area",
+            "display|editing|panes|shortcuts|layouts|newObjects",
+            true,
+            "display (theme, accent, toolbar, splash, view), editing (units, nudge, snapping), panes, shortcuts, layouts or newObjects (new-shape defaults, Basic/Advanced, start cards)",
+        )],
+    },
+    UiCommand {
         id: "ui.gettingStarted",
         summary: "Getting started (#554): without parameters, the start cards (shown while the design is empty), the kit's samples and whether the cards show; card runs one card's action; sample opens a kit design as a new untitled design (asks about unsaved changes first, as Open does); page opens or closes Help ▸ Getting Started",
         effect: Effect::Edit,
@@ -384,6 +414,31 @@ const fn s(name: &'static str, label: &'static str, kind: &'static str) -> Setti
 
 pub const SETTINGS: &[Setting] = &[
     s("theme", "Theme", "light|dark|system"),
+    s(
+        "accent",
+        "Accent colour: selection outline, handles, selected buttons (default = the theme's own)",
+        "default|blue|orange|green|magenta|purple|teal|#rrggbb",
+    ),
+    s(
+        "shortcuts",
+        "Keyboard Shortcuts: the changed ones as { commandKey: [\"Ctrl+Alt+R\", …] } (keys from ui.actions; {} = all default; a clash is refused)",
+        "object",
+    ),
+    s(
+        "paneSewingOrderSide",
+        "Sewing Order: docked on the left or right",
+        "left|right",
+    ),
+    s(
+        "paneAttributesSide",
+        "Attributes Setting: docked on the left or right",
+        "left|right",
+    ),
+    s(
+        "paneSimulatorSide",
+        "Stitch Simulator: docked at the top or bottom",
+        "top|bottom",
+    ),
     s("qatBelow", "Quick Access Toolbar below the Ribbon", "bool"),
     s("splash", "Show splash at startup", "bool"),
     s("showStartCards", "Show start cards", "bool"),
@@ -521,6 +576,8 @@ pub const HELP_ITEMS: &[(&str, &str)] = &[
 pub const OPTION_BUTTONS: &[(&str, &str)] = &[
     ("Check for Updates Now", "ui.update"),
     ("Clear Recovery Files", "ui.recoveryDiscard"),
+    ("Save Layout", "ui.layout"),
+    ("Reset Preferences", "ui.resetPrefs"),
 ];
 
 /// How the assistant reaches a ribbon or menu command.
