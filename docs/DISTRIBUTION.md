@@ -234,7 +234,14 @@ wasm-bindgen --target web --no-typescript --out-dir web/pkg \
 `.wasm` as `application/wasm`; for a local try, `python3 -m http.server --directory web` and open
 `http://localhost:8000`. Opening `index.html` as a file does not work (browsers refuse to load
 the module from `file://`). CI job `web` uploads the built page as the `openstitch-web` artifact
-on every run; it is not hosted anywhere yet (GitHub Pages waits for the owner's OK, #695).
+on every run.
+
+**Published:** <https://cristianonescu.github.io/OpenStitch/> (#695, with the owner's OK).
+`.github/workflows/pages.yml` builds the page from `main` whenever the crates, `web/` or the lock
+file change (or by hand), writes the commit to `version.txt` beside it, and deploys it with
+GitHub's Pages actions. Only its deploy job has `pages: write` and `id-token: write`, in the
+`github-pages` environment, which accepts `main` only. It is its own workflow because
+`release.yml` calls `rust.yml` without Pages permissions.
 
 **Automation:** the page's `openstitch.run({command, params})` takes every engine command and the
 web editor's `ui.state`, `ui.simulate`, `ui.openFile {name, base64}`, `ui.saveFile` and
