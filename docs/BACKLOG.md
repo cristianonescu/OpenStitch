@@ -79,9 +79,9 @@ round" and "ideas" issues have batches of their own.
 | 31 | `batch:satin-2` | #524 (variable-width satin line), #525 (edit Manual Punch rungs), #528 (more satin looks), #531 (raised satin) | `openstitch-design` (column.rs, lines.rs), the canvas | `batch:satin-quality` | ready | Cloud |
 | 32 | `batch:lines` | #542 (back stitch, variable running), #543 (decorative hand-embroidery lines), #544 (motif lines), #540 (hand-stitch look, idea), #541 (ripple line, idea) | `openstitch-design` (lines.rs, motifs) | `batch:stitch-engine` (#464 in lines.rs) | ready | Cloud |
 | 33 | `batch:ux-2` | #499 (keyboard drawing, accessibility), #555 (translations), #558 (background open with Cancel), #559 (accent colour), #454 (garment mockups) | `openstitch-app` (theme, i18n, loading), `openstitch-render` (mockups) | `batch:ux` | ready | Windows (screen-reader check; #555 asks the owner which language) |
-| 34 | `batch:platform-ideas` | #556 (WebAssembly editor), #498 (Python package), #490 (on-device picture helpers) | new crates / packaging, `openstitch-digitize` | `batch:ux-2`, `batch:auto-punch` | ready | Cloud (owner decisions before merge: PyPI publishing for #498, ML dependencies and model downloads for #490) |
+| 34 | `batch:platform-ideas` | #556 (WebAssembly editor), #498 (Python package), #490 (on-device picture helpers; no ML in alpha.13, owner 2026-11-06: deterministic helpers close it, ML models go to a Future issue) | new crates / packaging, `openstitch-digitize` | `batch:ux-2`, `batch:auto-punch` | ready | Cloud (owner decisions before merge: PyPI publishing for #498, ML dependencies and model downloads for #490) |
 | 35 | `batch:pe-captures` | #373 (Miter limit), #374 (PES versions 4, 5, 7–10), #377 (Connection Points) | `openstitch-design` (column.rs, text.rs), `openstitch-formats` (pes.rs) | — | blocked | Windows |
-| 36 | `batch:owner-input` | #130 (PMV reader), #134 (Font Creator fonts), #557 (Finder / Explorer thumbnails), #292 (sew-outs on other machines), #319 (macOS Ready-to-Sew click) | `openstitch-formats`, `openstitch-design` (fonts.rs), OS integration | — | blocked | Windows (#319 on a Mac) |
+| 36 | `batch:owner-input` | #130 (PMV reader), #134 (Font Creator fonts), #292 (sew-outs on other machines) | `openstitch-formats`, `openstitch-design` (fonts.rs), OS integration | — | blocked | Windows (#319 on a Mac) |
 
 ### Blocked: what each issue waits for
 
@@ -92,9 +92,9 @@ round" and "ideas" issues have batches of their own.
 | #377 Connection Points | The owner's captures in a built-in PE-DESIGN font (Connection Points is greyed out for TrueType fonts); only measurements are committed |
 | #130 PMV reader | Owner-made PMV files and screen access to PE-DESIGN |
 | #134 Font Creator fonts | Screen access to PE-DESIGN's Font Creator and owner-drawn `.pef` files (built-in `.pf1` fonts are out of scope) |
-| #557 Finder / Explorer thumbnails | The owner's decision on a non-Rust shim or an `unsafe` exception (the issue says so); otherwise closed as won't-do |
+| #557 Finder / Explorer thumbnails | Unblocked 2026-11-06: the owner allows native stacks for OS integrations (Rust-first rule). The Mac builds the Swift Quick Look extension on the shared Rust renderer; Windows adds the Explorer shell extension later, on the same renderer |
 | #292 Sew-outs on other machines | Sew-out reports from users of other machines (help wanted); the owner decides whether alpha.13 waits for them |
-| #319 macOS Ready-to-Sew click | A Mac session with real screen control (background presses do not reach egui's menus) |
+| #319 macOS Ready-to-Sew click | Assigned 2026-11-06 to the Mac (mac-platform): a scripted test of `open_folder`, plus an owner check by hand if a real click is still needed (no screen control) |
 
 Not issues, still waiting: the T1/T8 image-similarity steps wait for the calibration sew-outs and
 the counsel record (`research/beyond/image-similarity-plan.md`).
