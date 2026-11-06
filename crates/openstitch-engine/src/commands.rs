@@ -2982,13 +2982,13 @@ pub(crate) fn read_file(
     max: usize,
 ) -> Result<(std::path::PathBuf, Vec<u8>), CommandError> {
     let path = s.resolve(&p.string("path", None)?, Access::Read, &p.command)?;
-    let meta = std::fs::metadata(&path)
-        .map_err(|_| p.failed(format!("cannot read {}", path.display())))?;
-    if meta.len() > max as u64 {
+    let len =
+        crate::fsio::len(&path).map_err(|_| p.failed(format!("cannot read {}", path.display())))?;
+    if len > max as u64 {
         return Err(p.failed("file too large"));
     }
-    let data =
-        std::fs::read(&path).map_err(|_| p.failed(format!("cannot read {}", path.display())))?;
+    let data = crate::fsio::read(&path)
+        .map_err(|_| p.failed(format!("cannot read {}", path.display())))?;
     Ok((path, data))
 }
 
@@ -3001,7 +3001,7 @@ fn file_commands() -> Vec<CommandSpec> {
             vec![PATH],
             |s, p| {
                 let path = s.resolve(&p.string("path", None)?, Access::Write, &p.command)?;
-                std::fs::write(&path, project::encode(&s.design)?)
+                crate::fsio::write(&path, project::encode(&s.design)?)
                     .map_err(|e| p.failed(e.to_string()))?;
                 Ok(json!({ "path": path.display().to_string() }))
             },
@@ -3239,7 +3239,7 @@ fn codec_commands() -> Vec<CommandSpec> {
                     let pattern = crate::extra_exports::arrange(&s.design, p, pattern)?;
                     let bytes = crate::extra_exports::encode(&extra, &pattern, p)?
                         .expect("an extra format");
-                    std::fs::write(&path, bytes).map_err(|e| p.failed(e.to_string()))?;
+                    crate::fsio::write(&path, bytes).map_err(|e| p.failed(e.to_string()))?;
                     let check = crate::machine::export_check(&s.design, &pattern);
                     return Ok(json!({
                         "path": path.display().to_string(),
@@ -3309,11 +3309,12 @@ fn codec_commands() -> Vec<CommandSpec> {
                 // itself: PE-DESIGN's objects, page, hoop and thread table stay as they were
                 // (#375). Only when no other version is asked for, or the file's own one.
                 if !arranged && let Some(bytes) = unchanged_source(s, p, ty)? {
-                    std::fs::write(&path, &*bytes).map_err(|e| p.failed(e.to_string()))?;
+                    crate::fsio::write(&path, &*bytes).map_err(|e| p.failed(e.to_string()))?;
                     // The original file's bytes: read back, they must be the same bytes.
-                    if verify != "off" && std::fs::read(&path).ok().as_deref() != Some(&*bytes) {
+                    if verify != "off" && crate::fsio::read(&path).ok().as_deref() != Some(&*bytes)
+                    {
                         if verify == "strict" {
-                            let _ = std::fs::remove_file(&path);
+                            let _ = crate::fsio::remove_file(&path);
                         }
                         return Err(p.failed("the written file did not read back as written"));
                     }
@@ -3408,7 +3409,7 @@ fn codec_commands() -> Vec<CommandSpec> {
                     files.push((target, bytes));
                 }
                 for (target, bytes) in &files {
-                    std::fs::write(target, bytes).map_err(|e| p.failed(e.to_string()))?;
+                    crate::fsio::write(target, bytes).map_err(|e| p.failed(e.to_string()))?;
                 }
                 // The machine files first, then any companion lists.
                 files.sort_by_key(|(t, _)| t.extension().is_some_and(|e| e == "inf"));
@@ -3441,7 +3442,7 @@ fn codec_commands() -> Vec<CommandSpec> {
                     .collect();
                 if verify == "strict" && !mismatches.is_empty() {
                     for (target, _) in &files {
-                        let _ = std::fs::remove_file(target);
+                        let _ = crate::fsio::remove_file(target);
                     }
                     return Err(p.failed(format!(
                         "the written file did not read back as written, so it was removed: {}",

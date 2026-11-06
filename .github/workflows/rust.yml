@@ -178,6 +178,56 @@ jobs:
           git fetch --no-tags --depth=1 origin "+refs/heads/${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}"
           python3 -I tools/readme_status.py --pr-guard "origin/${{ github.base_ref }}"
 
+  web:
+    # The editor in a web browser (#556, docs/DISTRIBUTION.md "Web editor"): clippy for
+    # wasm32, the release build, wasm-bindgen, then web/smoke.mjs in Node, which opens
+    # reference files through the browser build's API and checks that every export is
+    # byte-identical to the same steps run natively. The page (web/index.html + pkg/) is
+    # uploaded as an artifact; nothing is hosted.
+    name: web
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: wasm
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          cache-on-failure: true
+      # The CLI must be the wasm-bindgen version in Cargo.lock.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@0.2.129
+      - run: cargo clippy -p openstitch-web --target wasm32-unknown-unknown --locked -- -D warnings
+      - run: cargo build -p openstitch-web --target wasm32-unknown-unknown --release --locked
+      - name: wasm-bindgen (page and Node)
+        run: |
+          wasm=target/wasm32-unknown-unknown/release/openstitch_web.wasm
+          wasm-bindgen --target web --no-typescript --out-dir web/pkg "$wasm"
+          wasm-bindgen --target nodejs --no-typescript --out-dir target/web-node "$wasm"
+          du -h web/pkg/* | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Smoke test (browser build against the native build)
+        shell: bash
+        run: |
+          inputs=(compat/reference/pes/pes-default-v6.pes compat/reference/pes/pes-0110-stitches.pes compat/reference/stitches/import-rect20x10.dst)
+          formats=(pes dst exp vp3 xxx csv gcode)
+          mkdir -p target/web-native
+          for f in "${inputs[@]}"; do
+            cargo run -p openstitch-web --example web_export --locked -- "$f" target/web-native "${formats[@]}"
+          done
+          node web/smoke.mjs target/web-node target/web-native "${inputs[@]}" -- "${formats[@]}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openstitch-web
+          path: |
+            web/index.html
+            web/pkg/
+          retention-days: 14
+
   kit:
     # The ready-to-sew kit (examples/sew) must be what the code makes (#450): a fresh release
     # build of every kit design matches the committed .pes files byte for byte, and every
