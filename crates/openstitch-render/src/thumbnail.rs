@@ -27,18 +27,23 @@ pub fn load(path: &Path) -> Result<StitchPattern, String> {
         ));
     }
     let data = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let is_project = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .is_some_and(|e| e.eq_ignore_ascii_case(openstitch_engine::project::EXTENSION));
-    if is_project {
-        let design = openstitch_engine::project::decode(&data).map_err(|e| e.to_string())?;
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    load_bytes(&data, ext).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// The stitches of a file's contents, its format named by `extension` (without the dot):
+/// `osd` for a project, else a machine format. For callers that hand over the bytes instead
+/// of a path, such as the sandboxed macOS Quick Look extension (#557).
+pub fn load_bytes(data: &[u8], extension: &str) -> Result<StitchPattern, String> {
+    if data.len() as u64 > MAX_INPUT {
+        return Err(format!("larger than {} MiB", MAX_INPUT >> 20));
+    }
+    if extension.eq_ignore_ascii_case(openstitch_engine::project::EXTENSION) {
+        let design = openstitch_engine::project::decode(data).map_err(|e| e.to_string())?;
         return Ok(Compiler::for_design(&design).compile(&design));
     }
-    let ty = FileType::from_path(path)
-        .ok_or_else(|| format!("{}: not an embroidery file", path.display()))?;
-    ty.read(&data)
-        .map_err(|e| format!("{}: {e}", path.display()))
+    let ty = FileType::from_extension(extension).ok_or("not an embroidery file")?;
+    ty.read(data).map_err(|e| e.to_string())
 }
 
 /// A `size`×`size` RGBA PNG of the sewn stitches, scaled to fit with a small margin. Travel is
@@ -216,5 +221,13 @@ mod tests {
         std::fs::write(dir.join("d.pes"), b"#PES0001 garbage").expect("write");
         assert!(load(&dir.join("d.pes")).is_err());
         assert!(load(&dir.join("missing.pes")).is_err());
+        // The same from bytes, the Quick Look extension's way (#557).
+        let bytes = std::fs::read(&pes).expect("read");
+        assert_eq!(
+            load_bytes(&bytes, "PES").expect("pes bytes"),
+            load(&pes).expect("pes")
+        );
+        assert!(load_bytes(b"hello", "txt").is_err());
+        assert!(load_bytes(b"#PES0001 garbage", "pes").is_err());
     }
 }

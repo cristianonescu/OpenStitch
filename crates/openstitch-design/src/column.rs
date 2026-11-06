@@ -121,6 +121,28 @@ pub fn validate(rungs: &[[Vec2; 2]]) -> Result<(), RungError> {
     Ok(())
 }
 
+/// Untangles twisted rungs (#525): a rung clicked right-then-left, so that the rails between
+/// it and the rung before cross, is turned round. Returns the rungs and how many were turned.
+/// Rungs that cross each other (a real overlap) stay, and [`validate`] still reports them.
+pub fn untangle(rungs: &[[Vec2; 2]]) -> (Vec<[Vec2; 2]>, usize) {
+    let mut out = rungs.to_vec();
+    let mut turned = 0;
+    for i in 1..out.len() {
+        let ([a, b], [c, d]) = (out[i - 1], out[i]);
+        if cross(a, c, b, d) && !cross(a, d, b, c) {
+            out[i] = [d, c];
+            turned += 1;
+        }
+    }
+    (out, turned)
+}
+
+/// The column with its two sides swapped (#525): every crossing starts from the other rail.
+/// The needle points stay the same; their order is mirrored across the column.
+pub fn swap_sides(rungs: &[[Vec2; 2]]) -> Vec<[Vec2; 2]> {
+    rungs.iter().map(|&[l, r]| [r, l]).collect()
+}
+
 /// Points along the column, `spacing` apart on the longer rail of each section: one
 /// interpolated rung per step, first and last rungs included.
 fn rungs_at(rungs: &[[Vec2; 2]], spacing: f64) -> Vec<[Vec2; 2]> {
@@ -167,10 +189,21 @@ fn rungs_leaning(rungs: &[[Vec2; 2]], pitch: f64) -> Vec<[Vec2; 2]> {
 /// section (the number of steps rounded down, as PE-DESIGN 11 places Manual Punch satin),
 /// first and last rungs included.
 fn rungs_within_pitch(rungs: &[[Vec2; 2]], pitch: f64) -> Vec<[Vec2; 2]> {
+    rungs_within_pitch_at(rungs, pitch, 1.0)
+}
+
+/// [`rungs_within_pitch`] with the spacing measured `at` across the column (#528): 1 on the
+/// longer side (PE-DESIGN's), 0 on the shorter side, 0.5 halfway.
+fn rungs_within_pitch_at(rungs: &[[Vec2; 2]], pitch: f64, at: f64) -> Vec<[Vec2; 2]> {
     let mut out = vec![rungs[0]];
     for w in rungs.windows(2) {
         let ([a, b], [c, d]) = (w[0], w[1]);
-        let len = a.distance(c).max(b.distance(d));
+        let (l, r) = (a.distance(c), b.distance(d));
+        let len = if at >= 1.0 {
+            l.max(r)
+        } else {
+            l.min(r) + at.max(0.0) * (l.max(r) - l.min(r))
+        };
         let n = ((len / pitch.max(0.1) + 1e-9).floor() as usize).clamp(1, 100_000);
         for k in 1..=n {
             let t = k as f64 / n as f64;
@@ -545,6 +578,19 @@ pub struct SatinShaping {
     pub short_stitches: ShortStitches,
     #[serde(skip_serializing_if = "is_default")]
     pub compensation: Compensation,
+    /// The satin's look (#528): normal, S-stitch, open or double.
+    #[serde(skip_serializing_if = "is_default")]
+    pub style: SatinStyle,
+    /// A jagged edge (#528).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub jagged: Option<Jagged>,
+    /// Where across a Manual Punch column the density is measured (#528), 0 (shorter side)
+    /// to 1 (longer side, PE-DESIGN's; unset).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spacing_at: Option<f64>,
+    /// Padding lanes under the satin for a raised look (#531).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raised: Option<Raised>,
 }
 
 impl SatinShaping {
@@ -553,7 +599,227 @@ impl SatinShaping {
         self.corners.style == CornerStyle::Turn
             && self.short_stitches.distance <= 0.0
             && self.compensation == Compensation::default()
+            && self.style == SatinStyle::Normal
+            && self.jagged.is_none()
+            && self.spacing_at.is_none_or(|a| a >= 1.0)
+            && self.raised.is_none()
     }
+
+    /// The rung pitch for `pitch`: three times wider for the open style.
+    fn pitch(&self, pitch: f64) -> f64 {
+        if self.style == SatinStyle::Open {
+            3.0 * pitch
+        } else {
+            pitch
+        }
+    }
+}
+
+/// The look of a satin (#528, beyond PE-DESIGN).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SatinStyle {
+    #[default]
+    Normal,
+    /// Each crossing sewn as three short slanted stitches in an S: a corded edge.
+    SStitch,
+    /// A light satin: the rows three times as far apart.
+    Open,
+    /// The satin sewn twice, the second pass back from the end with its needle points midway
+    /// between the first's, so the crossings form an X lattice.
+    Double,
+}
+
+impl SatinStyle {
+    pub const ALL: [SatinStyle; 4] = [
+        SatinStyle::Normal,
+        SatinStyle::SStitch,
+        SatinStyle::Open,
+        SatinStyle::Double,
+    ];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            SatinStyle::Normal => "normal",
+            SatinStyle::SStitch => "sStitch",
+            SatinStyle::Open => "open",
+            SatinStyle::Double => "double",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|s| s.id() == id)
+    }
+}
+
+/// Which way a jagged edge's needle points move.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum JaggedMode {
+    /// Into the column (the outline stays the limit).
+    #[default]
+    In,
+    /// Out past the edge.
+    Out,
+    /// Both ways.
+    Both,
+}
+
+/// Which edges are jagged.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum JaggedSide {
+    #[default]
+    Both,
+    /// The left edge (the first stitch's start).
+    Left,
+    Right,
+}
+
+/// A jagged edge for fur, grass and feathers (#528): each needle point on the chosen edges
+/// moves by a pseudo-random share of `amount` across the column, the same for the same
+/// `seed`.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Jagged {
+    pub mode: JaggedMode,
+    pub side: JaggedSide,
+    /// Largest move, mm (default 1).
+    pub amount: f64,
+    pub seed: u64,
+}
+
+impl Default for Jagged {
+    fn default() -> Self {
+        Jagged {
+            mode: JaggedMode::In,
+            side: JaggedSide::Both,
+            amount: 1.0,
+            seed: 1,
+        }
+    }
+}
+
+/// Raised satin (#531): running-stitch lanes along the column under the satin, about one
+/// per `lane_spacing` of width (an even number, at least two, so they end where the satin
+/// starts), `inset` in from the edges.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Raised {
+    /// mm (default 1.5).
+    pub lane_spacing: f64,
+    /// mm (default 0.5).
+    pub inset: f64,
+    /// mm (default 2.5).
+    pub stitch_length: f64,
+}
+
+impl Default for Raised {
+    fn default() -> Self {
+        Raised {
+            lane_spacing: 1.5,
+            inset: 0.5,
+            stitch_length: 2.5,
+        }
+    }
+}
+
+/// Narrowest column (mm) raised satin is meant for: a narrower one gets a hint.
+pub const RAISED_MIN_WIDTH: f64 = 3.0;
+
+/// The padding lanes of raised satin (#531) on a column of `rungs`, starting at its start end
+/// and ending there, nearest the first rung's left end where the satin begins.
+pub fn padding(rungs: &[[Vec2; 2]], raised: &Raised) -> Run {
+    if rungs.len() < 2 {
+        return Vec::new();
+    }
+    let inner = inset_rungs(rungs, raised.inset.max(0.0) * 10.0);
+    let width = mean_width(&inner);
+    let mut lanes = ((width / raised.lane_spacing.max(0.1)).floor() as usize + 1).max(2);
+    lanes += lanes % 2;
+    let pitch = (raised.stitch_length * 10.0).max(1.0);
+    let mut run: Run = Vec::new();
+    // From the right lane forwards to the left lane backwards: lanes alternate direction and,
+    // being even in number, the last ends at the start end's left.
+    for j in 0..lanes {
+        let f = 1.0 - j as f64 / (lanes - 1) as f64;
+        let mut lane: Vec<Vec2> = inner.iter().map(|r| r[0].lerp(r[1], f)).collect();
+        if j % 2 == 1 {
+            lane.reverse();
+        }
+        run.extend(subdivide(&lane, pitch));
+    }
+    run.dedup_by(|a, b| a.distance(*b) < 1e-9);
+    run
+}
+
+fn splitmix(mut x: u64) -> u64 {
+    x = x.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    x = (x ^ (x >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    x = (x ^ (x >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    x ^ (x >> 31)
+}
+
+/// The jagged edge on a satin run whose needle points alternate edges, left first (#528):
+/// `n` counts the needle points before this run, so each point keeps its own move.
+fn jag(run: &mut Run, j: &Jagged, n: usize) {
+    let amount = j.amount.max(0.0) * 10.0;
+    if amount <= 0.0 || run.len() < 3 {
+        return;
+    }
+    let orig = run.clone();
+    for i in 0..orig.len() {
+        let side = i % 2;
+        match (j.side, side) {
+            (JaggedSide::Left, 1) | (JaggedSide::Right, 0) => continue,
+            _ => {}
+        }
+        let across = match (i.checked_sub(1), orig.get(i + 1)) {
+            (Some(a), Some(&b)) => orig[a].lerp(b, 0.5),
+            (Some(a), None) => orig[a],
+            (None, Some(&b)) => b,
+            (None, None) => continue,
+        };
+        let Some(out) = unit(orig[i] - across) else {
+            continue;
+        };
+        let r = (splitmix(j.seed ^ splitmix((n + i) as u64)) >> 11) as f64 / (1u64 << 53) as f64;
+        let d = match j.mode {
+            JaggedMode::In => -r,
+            JaggedMode::Out => r,
+            JaggedMode::Both => 2.0 * r - 1.0,
+        };
+        // Never across the column: an inward move stops short of the other edge.
+        let room = orig[i].distance(across) * 0.8;
+        run[i] = orig[i] + out * (d * amount).max(-room);
+    }
+}
+
+/// S-stitch (#528): every stitch of `run` sewn as three short stitches bent into an S.
+fn s_stitch(run: &Run) -> Run {
+    let mut out: Run = Vec::with_capacity(run.len() * 3);
+    for (i, w) in run.windows(2).enumerate() {
+        let (p, q) = (w[0], w[1]);
+        if i == 0 {
+            out.push(p);
+        }
+        let len = p.distance(q);
+        if let Some(d) = unit(q - p).filter(|_| len > 6.0) {
+            let n = v2(-d.y, d.x) * (len / 6.0).min(3.0);
+            out.push(p.lerp(q, 1.0 / 3.0) + n);
+            out.push(p.lerp(q, 2.0 / 3.0) - n);
+        }
+        out.push(q);
+    }
+    out
+}
+
+/// Double satin's second pass (#528) over a run whose needle points alternate edges: back
+/// from its end, each needle point midway between two of the first pass's on its edge.
+fn second_pass(run: &Run) -> Run {
+    let mut back: Run = run.windows(3).map(|w| w[0].lerp(w[2], 0.5)).collect();
+    back.reverse();
+    back
 }
 
 /// Automatic under sewing (#523, `UnderlayStyle::Auto`): chosen from the column's average
@@ -703,6 +969,14 @@ pub fn layers(lines: &[[Vec2; 2]], r: &RegionSewing) -> Vec<Vec<Run>> {
             }
         }
     }
+    if r.kind == RegionType::Satin
+        && let Some(raised) = &r.satin_shaping.raised
+    {
+        let pad = padding(lines, raised);
+        if pad.len() > 1 {
+            out.push(vec![pad]);
+        }
+    }
     out.push(vec![match r.kind {
         RegionType::Satin => satin_with(lines, spacing, pull, &r.satin_shaping),
         _ => fill(lines, spacing, r.stitch_length * 10.0, pull),
@@ -743,8 +1017,15 @@ pub fn satin_with(rungs: &[[Vec2; 2]], spacing: f64, pull: f64, shaping: &SatinS
     if shaping.is_plain() || rungs.len() < 2 {
         return satin(rungs, spacing, pull);
     }
+    let at = shaping.spacing_at.unwrap_or(1.0);
     stitch_pieces(
-        pieces(rungs, 2.0 * spacing, true, &shaping.corners),
+        pieces_at(
+            rungs,
+            shaping.pitch(2.0 * spacing),
+            true,
+            &shaping.corners,
+            at,
+        ),
         pull,
         shaping,
         sawtooth,
@@ -755,7 +1036,7 @@ pub fn satin_with(rungs: &[[Vec2; 2]], spacing: f64, pull: f64, shaping: &SatinS
 /// [`crate::lines::zigzag_shaped`]): rungs `spacing` apart, one needle point each.
 pub fn zigzag_with(rungs: &[[Vec2; 2]], spacing: f64, shaping: &SatinShaping) -> Run {
     stitch_pieces(
-        pieces(rungs, spacing, false, &shaping.corners),
+        pieces(rungs, shaping.pitch(spacing), false, &shaping.corners),
         0.0,
         shaping,
         zigzag,
@@ -777,7 +1058,7 @@ fn stitch_pieces(
     shaping: &SatinShaping,
     stitch: impl Fn(Vec<[Vec2; 2]>) -> Run,
 ) -> Run {
-    let mut run: Run = Vec::new();
+    let mut passes: Vec<(Run, bool)> = Vec::new();
     for p in pieces {
         match p {
             Piece::Rungs(r) => {
@@ -793,15 +1074,45 @@ fn stitch_pieces(
                         [l - d * el, rt + d * er]
                     })
                     .collect();
-                let mut s = stitch(r);
-                short_stitches(
-                    &mut s,
-                    shaping.short_stitches.distance * 10.0,
-                    shaping.short_stitches.inset / 100.0,
-                );
-                run.extend(s);
+                passes.push((stitch(r), true));
             }
-            Piece::Run(r) => run.extend(r),
+            Piece::Run(r) => passes.push((r, false)),
+        }
+    }
+    finish(passes, shaping)
+}
+
+/// The satin runs of a shaped column in sewing order (`true`: needle points alternating
+/// edges, left first; `false`: a hidden run) with the run-based options applied: the jagged
+/// edge, short stitches, double satin's second pass and S-stitch; then joined.
+pub(crate) fn finish(mut passes: Vec<(Run, bool)>, shaping: &SatinShaping) -> Run {
+    let mut points = 0;
+    for (s, _) in passes.iter_mut().filter(|p| p.1) {
+        if let Some(j) = &shaping.jagged {
+            jag(s, j, points);
+        }
+        points += s.len();
+        short_stitches(
+            s,
+            shaping.short_stitches.distance * 10.0,
+            shaping.short_stitches.inset / 100.0,
+        );
+    }
+    if shaping.style == SatinStyle::Double {
+        let back: Vec<(Run, bool)> = passes
+            .iter()
+            .rev()
+            .filter(|p| p.1)
+            .map(|p| (second_pass(&p.0), true))
+            .collect();
+        passes.extend(back);
+    }
+    let mut run: Run = Vec::new();
+    for (s, satin) in passes {
+        if satin && shaping.style == SatinStyle::SStitch {
+            run.extend(s_stitch(&s));
+        } else {
+            run.extend(s);
         }
     }
     run.dedup_by(|a, b| a.distance(*b) < 1e-9);
@@ -1032,9 +1343,15 @@ pub fn has_corners(rungs: &[[Vec2; 2]], pitch: f64, c: &Corners) -> bool {
 /// (see [`Corners`]); `floor` places the plain sections as [`satin`] does (a whole number of
 /// steps at least `pitch` apart), otherwise at most `pitch` apart.
 pub fn pieces(rungs: &[[Vec2; 2]], pitch: f64, floor: bool, c: &Corners) -> Vec<Piece> {
+    pieces_at(rungs, pitch, floor, c, 1.0)
+}
+
+/// [`pieces`] with a `floor` column's spacing measured `at` across it (see
+/// [`SatinShaping::spacing_at`]).
+fn pieces_at(rungs: &[[Vec2; 2]], pitch: f64, floor: bool, c: &Corners, at: f64) -> Vec<Piece> {
     let plain = |r: &[[Vec2; 2]]| {
         if floor {
-            rungs_within_pitch(r, pitch)
+            rungs_within_pitch_at(r, pitch, at)
         } else {
             rungs_leaning(r, pitch)
         }
@@ -1479,5 +1796,173 @@ mod tests {
         assert_eq!(two[0], edge[0]);
         assert_eq!(two[2], edge[1]);
         assert!(two[1][0].len() > 2);
+    }
+
+    fn straight(w: f64) -> Vec<[Vec2; 2]> {
+        vec![[v2(0.0, 0.0), v2(0.0, w)], [v2(300.0, 0.0), v2(300.0, w)]]
+    }
+
+    fn styled(style: SatinStyle) -> SatinShaping {
+        SatinShaping {
+            style,
+            ..SatinShaping::default()
+        }
+    }
+
+    #[test]
+    fn double_satin_sews_back_between_the_first_pass() {
+        let one = satin(&straight(40.0), 2.0, 0.0);
+        let two = satin_with(&straight(40.0), 2.0, 0.0, &styled(SatinStyle::Double));
+        assert_eq!(&two[..one.len()], &one[..], "pass 1 is the plain satin");
+        let back = &two[one.len()..];
+        // Pass 2 starts where pass 1 ends (no jump) and ends near the start.
+        assert!(one.last().expect("end").distance(back[0]) < 10.0);
+        assert!(back.last().expect("start").x < 10.0);
+        // Its needle points sit midway between pass-1 points on the same edge.
+        for (k, q) in back.iter().enumerate() {
+            let i = one.len() - 3 - k;
+            assert_eq!(*q, one[i].lerp(one[i + 2], 0.5));
+        }
+    }
+
+    #[test]
+    fn open_and_s_stitch_satin() {
+        let plain = satin(&straight(40.0), 2.0, 0.0);
+        let open = satin_with(&straight(40.0), 2.0, 0.0, &styled(SatinStyle::Open));
+        let ratio = plain.len() as f64 / open.len() as f64;
+        assert!((ratio - 3.0).abs() < 0.2, "{ratio}");
+        let s = satin_with(&straight(40.0), 2.0, 0.0, &styled(SatinStyle::SStitch));
+        assert_eq!(s.len(), 3 * plain.len() - 2, "two bends per stitch");
+        for w in s.windows(2) {
+            let l = w[0].distance(w[1]);
+            assert!((5.0..=70.0).contains(&l), "{l}");
+        }
+        // Inside the column.
+        assert!(s.iter().all(|q| (-1e-6..=40.0 + 1e-6).contains(&q.y)));
+    }
+
+    #[test]
+    fn jagged_edge_is_seeded_and_one_sided() {
+        let one_side = SatinShaping {
+            jagged: Some(Jagged {
+                mode: JaggedMode::In,
+                side: JaggedSide::Right,
+                amount: 1.0,
+                seed: 7,
+            }),
+            ..SatinShaping::default()
+        };
+        let plain = satin(&straight(40.0), 2.0, 0.0);
+        let a = satin_with(&straight(40.0), 2.0, 0.0, &one_side);
+        assert_eq!(
+            a,
+            satin_with(&straight(40.0), 2.0, 0.0, &one_side),
+            "same seed"
+        );
+        let mut other = one_side;
+        other.jagged.as_mut().expect("j").seed = 8;
+        assert_ne!(a, satin_with(&straight(40.0), 2.0, 0.0, &other));
+        // The left edge stays smooth; the right moves in by up to 1 mm, never out.
+        for (p, q) in plain.iter().zip(&a) {
+            if p.y == 0.0 {
+                assert_eq!(p, q);
+            } else {
+                assert!(q.y <= 40.0 + 1e-9 && q.y >= 30.0 - 1e-9, "{q:?}");
+            }
+        }
+        assert!(a.iter().any(|q| q.y > 0.0 && q.y < 39.0));
+        let out = SatinShaping {
+            jagged: Some(Jagged {
+                mode: JaggedMode::Out,
+                ..Jagged::default()
+            }),
+            ..SatinShaping::default()
+        };
+        let o = satin_with(&straight(40.0), 2.0, 0.0, &out);
+        assert!(o.iter().any(|q| q.y > 40.0) && o.iter().any(|q| q.y < 0.0));
+    }
+
+    #[test]
+    fn spacing_measured_across_a_curved_column() {
+        // A section whose left rail is 10 mm and right rail 20 mm long.
+        let fan = vec![
+            [v2(0.0, 0.0), v2(0.0, 100.0)],
+            [v2(100.0, 0.0), v2(173.2, 100.0)],
+        ];
+        let at = |a: Option<f64>| {
+            satin_with(
+                &fan,
+                2.0,
+                0.0,
+                &SatinShaping {
+                    spacing_at: a,
+                    ..SatinShaping::default()
+                },
+            )
+            .len()
+        };
+        assert_eq!(at(None), satin(&fan, 2.0, 0.0).len());
+        assert_eq!(at(Some(1.0)), at(None), "1 is PE-DESIGN's");
+        assert!(at(Some(0.0)) < at(Some(0.5)) && at(Some(0.5)) < at(None));
+    }
+
+    #[test]
+    fn raised_satin_pads_under_the_column() {
+        let raised = Raised::default();
+        // 3, 5 and 8 mm columns: lanes inset 0.5 mm, about one per 1.5 mm, an even number.
+        for (w, lanes) in [(30.0, 2), (50.0, 4), (80.0, 6)] {
+            let pad = padding(&straight(w), &raised);
+            let mut ys: Vec<i64> = pad.iter().map(|q| (q.y * 100.0).round() as i64).collect();
+            ys.sort_unstable();
+            ys.dedup();
+            assert_eq!(ys.len(), lanes, "{w}: {ys:?}");
+            assert!(
+                pad.iter()
+                    .all(|q| q.y >= 5.0 - 1e-6 && q.y <= w - 5.0 + 1e-6)
+            );
+            // Ends at the start end next to the satin's first needle point.
+            let end = *pad.last().expect("end");
+            assert!(end.distance(v2(5.0, 5.0)) < 1e-6, "{end:?}");
+            // Stitch count follows the length.
+            let long = vec![[v2(0.0, 0.0), v2(0.0, w)], [v2(600.0, 0.0), v2(600.0, w)]];
+            assert!(padding(&long, &raised).len() > pad.len() * 3 / 2);
+        }
+        let mut r = RegionSewing::new(RegionType::Satin, openstitch_core::Thread::rgb(0xED171F));
+        r.underlay = false;
+        r.direction_lines = straight(50.0);
+        r.satin_shaping.raised = Some(raised);
+        let l = layers(&straight(50.0), &r);
+        assert_eq!(l.len(), 2, "padding, then the satin");
+        assert_eq!(l[1][0], satin(&straight(50.0), 10.0 / 4.5, 0.0));
+    }
+
+    #[test]
+    fn twisted_rungs_untangle_and_sides_swap() {
+        let mut twisted = bend();
+        twisted[1] = [twisted[1][1], twisted[1][0]];
+        assert_eq!(validate(&twisted), Err(RungError::Crossing(0)));
+        let (fixed, turned) = untangle(&twisted);
+        assert_eq!(turned, 1);
+        assert_eq!(fixed, bend());
+        assert_eq!(untangle(&bend()), (bend(), 0));
+        // A real overlap stays an error.
+        let crossing = vec![
+            [v2(0.0, 0.0), v2(0.0, 40.0)],
+            [v2(-20.0, 20.0), v2(20.0, 20.0)],
+        ];
+        assert!(validate(&untangle(&crossing).0).is_err());
+        // Swapping sides keeps the needle points and starts each crossing on the other rail.
+        let a = satin(&bend(), 4.0, 0.0);
+        let b = satin(&swap_sides(&bend()), 4.0, 0.0);
+        let key = |v: &Run| {
+            let mut k: Vec<(i64, i64)> = v
+                .iter()
+                .map(|q| ((q.x * 1e6) as i64, (q.y * 1e6) as i64))
+                .collect();
+            k.sort_unstable();
+            k
+        };
+        assert_eq!(key(&a), key(&b));
+        assert_eq!(b[0], bend()[0][1]);
     }
 }

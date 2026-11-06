@@ -55,7 +55,7 @@ fn one_cut_across_a_fill_a_column_and_a_line_gives_six_objects() {
     );
     assert_eq!(r["cut"].as_array().expect("cut").len(), 3, "{r}");
     assert_eq!(s.design().objects.len(), 6);
-    // The fill's halves keep its attributes (entry/exit reset) and its area.
+    // The fill's halves keep its attributes and its area.
     let fills: Vec<&DesignObject> = s
         .design()
         .objects
@@ -79,8 +79,22 @@ fn one_cut_across_a_fill_a_column_and_a_line_gives_six_objects() {
             (r.kind, r.density, r.angle),
             (region.kind, region.density, region.angle)
         );
-        assert_eq!((r.entry, r.exit), (None, None));
+        // Entry and exit stay where they are still on the piece's outline (#652), or reset.
+        assert!(
+            r.entry.is_none() || r.entry == region.entry,
+            "{:?}",
+            r.entry
+        );
+        assert!(r.exit.is_none() || r.exit == region.exit, "{:?}", r.exit);
     }
+    // The original points are on the bottom edge: the lower half keeps them, the upper resets.
+    assert_eq!(
+        fills
+            .iter()
+            .filter(|f| f.region.as_ref().expect("region").entry.is_some())
+            .count(),
+        usize::from(region.entry.is_some())
+    );
     // The first piece keeps the id; the rest follow it in sewing order.
     let order: Vec<u64> = s.design().objects.iter().map(|o| o.id).collect();
     assert_eq!(order[0], fill);

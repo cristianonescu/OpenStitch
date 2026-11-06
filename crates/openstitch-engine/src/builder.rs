@@ -17,15 +17,10 @@ fn piece(o: &DesignObject, r: Vec<Contour>) -> DesignObject {
     p.contours = r;
     p.name = None;
     if let Some(reg) = &mut p.region {
-        reg.entry = None;
-        reg.exit = None;
         reg.direction_lines.clear();
         reg.skeleton = None;
     }
-    if let Some(l) = &mut p.line {
-        l.entry = None;
-        l.exit = None;
-    }
+    crate::shape_ops::keep_points_on_outline(&mut p);
     p
 }
 

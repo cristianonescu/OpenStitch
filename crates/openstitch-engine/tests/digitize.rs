@@ -1029,3 +1029,68 @@ fn picture_helpers_cut_out_and_draw_lines() {
         assert!(e.to_string().contains(needle), "{command} {extra}: {e}");
     }
 }
+
+/// #489: `order` sews the listed colours first and renumbers the regions; `regionMap` gives
+/// the region under each cell.
+#[test]
+fn auto_punch_colour_order_and_region_map() {
+    let dir = temp_dir();
+    write_sample(&dir);
+    let mut s = Session::new(&dir);
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    let base =
+        json!({"path": "sample.png", "colors": 4, "width": 60, "dryRun": true, "regionMap": true});
+    let r = run(&mut s, "digitize.autoPunch", base.clone());
+    let colors: Vec<String> = r["colors"]
+        .as_array()
+        .expect("colors")
+        .iter()
+        .map(|c| c.as_str().expect("hex").to_string())
+        .collect();
+    assert_eq!(colors.len(), 3);
+    let map = &r["regionMap"];
+    let (w, h) = (
+        map["width"].as_u64().expect("w"),
+        map["height"].as_u64().expect("h"),
+    );
+    let cells: u64 = map["runs"]
+        .as_array()
+        .expect("runs")
+        .iter()
+        .map(|run| run[1].as_u64().expect("count"))
+        .sum();
+    assert_eq!(cells, w * h);
+    // Every region of the plan is somewhere on the map, and -1 marks the background.
+    let mut seen: Vec<i64> = map["runs"]
+        .as_array()
+        .expect("runs")
+        .iter()
+        .map(|run| run[0].as_i64().expect("region"))
+        .collect();
+    seen.sort_unstable();
+    seen.dedup();
+    assert_eq!(seen, [-1, 0, 1, 2]);
+    // The last colour first.
+    let mut p = base.clone();
+    p["order"] = json!([colors[2]]);
+    let reordered = run(&mut s, "digitize.autoPunch", p);
+    assert_eq!(reordered["colors"][0], json!(colors[2]));
+    assert_eq!(reordered["plan"][0]["color"], json!(colors[2]));
+    // A colour this run does not sew is passed over and reported.
+    let mut p = base.clone();
+    p["order"] = json!(["#123456", colors[2]]);
+    let r = run(&mut s, "digitize.autoPunch", p);
+    assert_eq!(r["orderIgnored"], json!(["#123456"]));
+    assert_eq!(r["colors"][0], json!(colors[2]));
+    for (order, needle) in [
+        (json!([colors[0], colors[0]]), "twice"),
+        (json!(["red"]), "order"),
+    ] {
+        let mut p = base.clone();
+        p["order"] = order.clone();
+        let e = s
+            .execute("digitize.autoPunch", Some(&p))
+            .expect_err("rejected");
+        assert!(e.to_string().contains(needle), "{order}: {e}");
+    }
+}

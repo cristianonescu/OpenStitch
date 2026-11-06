@@ -136,15 +136,10 @@ pub(crate) fn divide(s: &mut EngineState, p: &Params) -> Result<serde_json::Valu
             o.contours = r;
             o.name = None;
             if let Some(reg) = &mut o.region {
-                reg.entry = None;
-                reg.exit = None;
                 reg.direction_lines.clear();
                 reg.skeleton = None;
             }
-            if let Some(l) = &mut o.line {
-                l.entry = None;
-                l.exit = None;
-            }
+            crate::shape_ops::keep_points_on_outline(&mut o);
             o
         })
         .collect();
@@ -233,14 +228,7 @@ pub fn commands() -> Vec<CommandSpec> {
                     return Err(p.failed(format!("object {}: the effect leaves too little", o.id)));
                 }
                 o.contours = out;
-                if let Some(r) = &mut o.region {
-                    r.entry = None;
-                    r.exit = None;
-                }
-                if let Some(l) = &mut o.line {
-                    l.entry = None;
-                    l.exit = None;
-                }
+                crate::shape_ops::keep_points_on_outline(o);
             }
             Ok(json!(null))
         },
