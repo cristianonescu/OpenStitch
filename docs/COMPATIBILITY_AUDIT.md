@@ -488,7 +488,11 @@ Line references are relative to `crates/`.
   moved by the Frequency, rows fanned round L's corner. The 11 round-5 fill captures
   (`stroke-fill-*`) and `text-defaults-fill` are within 25 %, 8 % on average against 22 % by
   region (H 504 against 483, was 595; L 274 against 276). Fill text under a Text Transform keeps its region rows
-  until the stroke cut of warped letters is measured (#428). Since 2026-11-05 (#444, the
+  (#428): measured 2026-11-06, sewing it by stroke brings the needle points nearer PE-DESIGN's
+  (PE → ours 0.24 → 0.18 mm over the 182 transform captures) but sews them far denser (needle
+  count 11 % → 28 % off on average, 167 of 182 further) and moves four references 0.6 mm past
+  their bounds (text-transform-1-agjy, -1-openstitch-l25, -2, -18-openstitch-l100) and
+  text-transform-10's stem columns; next, the fill rows' spacing on warped strokes. Since 2026-11-05 (#444, the
   README's arched title and 4 mm text sewn as broken pieces): a turned letter (fitted to an
   outline, on an arch, turned by Edit Character) is cut into strokes upright and its blocks
   turned back, as PE-DESIGN sews it (text-fit-satin-ahhhh: its H's at -18 to +32 degrees match
@@ -518,8 +522,19 @@ Line references are relative to `crates/`.
   where the outline walk would go round it (the walk drew boxes round t's bar); from 6 mm up
   the walk stays, since every capture (6 mm and larger) matches it in stitch count. Letters are
   still sewn across up to 2.3 mm (PE-DESIGN's captures trim every letter move, all longer
-  than that). The other 226 text captures are unchanged. #446 (N's corner, X's chevrons,
-  slanted arm ends) stays open: ten tries measured in the issue, none closer on every letter.
+  than that). The other 226 text captures are unchanged. Since 2026-11-06 (#446, part): X is
+  sewn as PE-DESIGN sews it, one diagonal through and the other in two halves meeting it, each
+  arm run out to from the crossing under its satin and its level-cut foot sewn corner to
+  corner, instead of two chevrons; only a crossing of four arms that all end free takes it (M's
+  notch loops and the joins of g and Pacifico keep their chevrons). stroke-satin-X 314 → 269
+  needle points against 277 (mean distance 0.267 → 0.182 mm ours, 0.201 → 0.182 mm
+  PE-DESIGN's); stroke-fill-X 503 → 470 against 473, in PE-DESIGN's two runs (224 + 249 from
+  0-9.6 and 6.8-18.9 mm; ours 220 + 250 from 0-10.4 and 6.5-18.9 mm, main sewed the left and
+  right halves), PE → ours 0.214 → 0.220 mm (row phase); text-size-hg 1445 → 1405 against
+  1445, its x alone 345 → 305 against 324 and closer both ways (0.228 → 0.211 and 0.215 →
+  0.206 mm: main's total matched only because H's +21 and g's −42 cancelled). Letter sweep
+  (588 samples): 24 changed (X, x, KNOX), none worse. N's corner and A's and V's slanted feet
+  stay open (#446): no N, M, W, K, Z capture exists yet.
 - **Test:**
   - Inputs: `text.add {"text":"AVOW","size":30,"x":50,"y":50}` →
     `object.setRegion {"id":1,"type":"satin"}` → `design.generate`.

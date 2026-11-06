@@ -282,7 +282,7 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    turned letters cut upright and satin crossings along the outer side since 2026-11-05 (#444,
    satin 5.6 % on average, no capture further than before, the README's arched and 4 mm text whole), small lettering's i dots, pieces and travel since
    2026-11-05 (#465); next, under sewing per
-   stroke, X's chevrons and N's corner (#446, ten measured tries in the issue), and a satin capture of small text) — the structural
+   stroke, N's corner and A's and V's slanted feet (#446; X sewn as PE-DESIGN's, one diagonal through, since 2026-11-06), and a satin capture of small text) — the structural
    gap behind text-fit-*, text-transform-* and text-sewing-order; the fitted circle's running
    stitch follows PE-DESIGN's Bézier halving since 2026-10-28 (text-fit-default mean needle
    distance 0.27 → 0.20 mm); Text Transform presets 13 and 14 (fan out / in) done 2026-10-28; round 4 (2026-10-29)
