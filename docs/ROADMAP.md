@@ -97,6 +97,9 @@ harness. The details per item are in [COMPATIBILITY_AUDIT.md](COMPATIBILITY_AUDI
   run (optimised dependencies and stitch pipeline in debug builds, one stitch compile for the
   demo design); the repository renamed to `cristianonescu/OpenStitch`;
   releases v0.1.0-alpha.1 and v0.1.0-alpha.2 ([docs/releases](releases/)).
+  2026-11-07 (#705, `batch:editor-2`): the app's binary tests no longer touch the OS clipboard
+  (their parallel use of macOS's pasteboard crashed the test binary now and then), and their
+  temporary folders are per test.
 
 ## Still to do
 
