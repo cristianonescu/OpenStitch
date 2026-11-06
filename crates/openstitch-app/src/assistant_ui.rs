@@ -327,12 +327,17 @@ impl EditorApp {
                             Some("https://github.com/cristianonescu/OpenStitch#readme".into())
                     }
                     "sewKit" => {
-                        let kit = std::env::current_exe()
-                            .ok()
-                            .and_then(|e| sew_kit::bundled(&e));
-                        if kit.is_none_or(|k| sew_kit::open_folder(&k).is_err()) {
-                            self.assistant.open_url = Some(sew_kit::ONLINE.into());
-                        }
+                        // The same as the menu item: the packaged kit's folder, else GitHub.
+                        let exe = std::env::current_exe().ok();
+                        return Ok(match sew_kit::open_kit(exe.as_deref()) {
+                            sew_kit::Opened::Folder(kit) => {
+                                json!({ "opened": item, "folder": kit.to_string_lossy() })
+                            }
+                            sew_kit::Opened::Online => {
+                                self.assistant.open_url = Some(sew_kit::ONLINE.into());
+                                json!({ "opened": item, "url": sew_kit::ONLINE })
+                            }
+                        });
                     }
                     "sewKitOnline" => self.assistant.open_url = Some(sew_kit::ONLINE.into()),
                     "shortcuts" => self.ui.shortcuts_open = true,
@@ -1517,6 +1522,20 @@ mod tests {
         app.ui_command("ui.help", Some(&json!({ "item": "manual" })))
             .expect("manual");
         assert!(app.assistant.open_url.is_some());
+        // The test binary has no packaged kit beside it: the reply names the GitHub page the
+        // editor opens instead (#319).
+        app.assistant.open_url = None;
+        let reply = app
+            .ui_command("ui.help", Some(&json!({ "item": "sewKit" })))
+            .expect("sewKit");
+        assert_eq!(
+            reply,
+            json!({ "opened": "sewKit", "url": openstitch_app::editor::sew_kit::ONLINE })
+        );
+        assert_eq!(
+            app.assistant.open_url.as_deref(),
+            Some(openstitch_app::editor::sew_kit::ONLINE)
+        );
 
         assert!(
             app.ui_command(

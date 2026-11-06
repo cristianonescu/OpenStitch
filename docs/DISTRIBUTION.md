@@ -247,14 +247,97 @@ code: `crates/openstitch-update`, `crates/openstitch-app/src/update_ui.rs`).
 `openstitch-thumbnailer` (crate `openstitch-render`) writes a PNG of the stitches of an `.osd`
 project or any machine file OpenStitch reads, cropped to the design on a transparent square:
 `openstitch-thumbnailer -s SIZE INPUT OUTPUT.png`. Inputs over 64 MiB are refused; the readers
-are the fuzzed `openstitch-formats` codecs.
+are the fuzzed `openstitch-formats` codecs. `stitchtool thumbnail FILE OUT.png [--size PX]
+[--json]` runs the same renderer (`openstitch_render::thumbnail`, platform-neutral: a path in,
+a PX × PX PNG out) for scripts and the Assistant; a malformed file is a one-line error with
+exit code 2 (#557). The macOS Quick Look extension calls this renderer too, and the Windows
+Explorer handler (#669) will.
+
+### Shared thumbnail interface
+
+Every file-manager handler (Linux, macOS Quick Look, Windows Explorer) draws through one of
+these two entry points. Keep them stable: add options, never rename or drop one.
+
+- **Rust API** (`openstitch-render`): `thumbnail::load(path)` and `thumbnail::load_bytes(data,
+  extension)` read a design (`osd` or any machine format OpenStitch reads; over 64 MiB refused)
+  into stitches; `thumbnail::png(&stitches, size)` draws a `size` × `size` RGBA PNG (clamped to
+  16-1024), cropped to the design on a transparent square.
+- **Command line** (`openstitch-thumbnailer`):
+  - `openstitch-thumbnailer [-s|--size N] INPUT OUTPUT.png` (the freedesktop form);
+  - `openstitch-thumbnailer [-s|--size N] --stdin EXT`: the file's bytes on stdin, its format
+    named by EXT (`pes`, `.PES`, `osd`; case and a leading dot are ignored), the PNG on stdout.
+    For handlers that may not open the file by path (a sandboxed Quick Look extension).
+  - Size defaults to 256. Exit 0 on success; 1 when the file cannot be read or drawn (a
+    message on stderr starting `openstitch-thumbnailer: `, nothing on stdout); 2 on a usage
+    error.
+  - `crates/openstitch-render/tests/thumbnailer_cli.rs` pins these flags, outputs and exit
+    codes.
 
 | OS | State |
 |---|---|
 | Linux | Done: `packaging/linux/openstitch.thumbnailer` (`Exec=openstitch-thumbnailer -s %s %i %o`) for `application/x-openstitch-design` and `application/x-pes-embroidery`; `build-executables.yml` builds it next to the editor, `package.sh` ships it, `install.sh` installs it into `share/thumbnailers`, and the Linux job renders a thumbnail from the installed copy. |
-| macOS | Blocked. Quick Look thumbnails come from an app extension (`.appex`) implementing `QLThumbnailProvider`, loaded by the system into its own process; the old `.qlgenerator` plug-ins are no longer loaded by current macOS. Writing either from Rust means Objective-C runtime FFI, which needs `unsafe` (forbidden workspace-wide); the alternative is a small Swift extension, which the Rust-only rule excludes. |
+| macOS | Done (#557): `OpenStitch.app/Contents/PlugIns/OpenStitchThumbnail.appex`, a Quick Look thumbnail extension (`QLThumbnailProvider`) for `.osd`, `.pes` and the machine formats the app's Info.plist declares (DST, JEF, VP3, PEC, XXX, HUS, VIP, SHV, PCS, PHC, U01, TBF, DSB, DSZ, KSM, ZXY). See *Quick Look extension* below. |
 | Windows | Blocked. Explorer thumbnails come from an in-process COM server DLL implementing `IThumbnailProvider` and `IInitializeWithStream`, registered under the file type. COM vtables from Rust need `unsafe`. |
 | PEN | Blocked: the format is undocumented (see FILE_FORMATS.md). |
 
-Lifting the `unsafe` ban for one small, separately audited crate per OS (objc2 for Quick Look,
-`windows` crate COM for Explorer) would unblock both; that is the owner's decision.
+The owner's decision (2026-11-06): the project is built in Rust, but a feature that needs
+another tech stack on one OS may use it. Quick Look is therefore a small Swift shim; Explorer
+can be a small native shim or a separately audited Rust crate the same way (#669).
+
+### Quick Look extension
+
+`packaging/macos/quicklook` holds the extension, built outside the Cargo workspace by
+`quicklook/build.sh` (Xcode's `swiftc`, arm64 + x86_64), which `bundle.sh` runs when given the
+`openstitch-thumbnailer` binary:
+
+- `ThumbnailProvider.swift` answers Finder's request: it reads the file Quick Look hands it and
+  draws the PNG it gets back into Quick Look's context.
+- `Renderer.swift` runs the Rust renderer bundled inside the extension,
+  `Contents/MacOS/openstitch-thumbnailer -s PX --stdin EXT`, with the file's bytes on stdin and
+  the PNG on stdout (a 10-second timeout; files over 64 MiB are refused). No drawing or format
+  code is in Swift.
+- The extension is sandboxed (`Thumbnail.entitlements`, as macOS requires for extensions); the
+  helper carries `com.apple.security.inherit` (`Helper.entitlements`) and runs in the
+  extension's sandbox, which is why it is given bytes rather than a path. Run on its own, the
+  bundled helper is stopped by the system; the unsigned build is the same code.
+- Its `QLSupportedContentTypes` are every type the app's Info.plist declares (filled in by
+  `build.sh`). Generic extensions other programs use (.exp, .sew, .tap, .csd, .stx) are not
+  declared; a type another installed program exports first keeps that program's identifier,
+  and Finder then shows its icon instead.
+
+CI (`build-executables.yml`, macOS) runs `quicklook/check.sh`: the extension's plist, types,
+architectures and signatures; the Swift code path (`openstitch-quicklook-check`, built from
+`Renderer.swift`) giving a 256 × 256 PNG for a kit design and a clean error for a malformed
+file; and, on the throwaway runner only, registering the extension (`lsregister`,
+`pluginkit -a`) and drawing a `.pes` with `qlmanage -t`. That registration is never run on
+someone's own Mac.
+
+Signing: the bundle and the extension are ad-hoc signed (`codesign --sign -`), as before; CI
+holds no certificate and none is added without the owner. Owner steps that CI cannot do:
+
+1. Check Finder by hand once on the release build: move OpenStitch.app to /Applications, open
+   it once, then look at a folder of `.pes`, `.dst` and `.osd` files in icon view (thumbnails
+   appear; `qlmanage -r` resets Quick Look's cache if old icons stay). If none appear, check
+   `pluginkit -m -i io.github.cristianonescu.openstitch.thumbnail`; macOS may refuse to load
+   an ad-hoc signed extension from a downloaded (quarantined) app.
+2. For distribution without that risk, sign the app and the extension with a Developer ID and
+   notarize them (`xcrun notarytool`); this needs the owner's Apple Developer account and is
+   not set up.
+
+## Ready-to-Sew Designs on macOS
+
+Help ▸ Ready-to-Sew Designs (and the Assistant's `ui.help {"item": "sewKit"}`) runs
+`sew_kit::open_kit`: it finds the kit at `OpenStitch.app/Contents/Resources/sew` from the
+running executable (its `manifest.json` marks it) and passes that folder to `open`, which
+shows it in Finder; without a kit, or if `open` cannot start, it opens the kit on GitHub.
+
+`build-executables.yml` checks this in the built bundle with `packaging/macos/check_sew_kit.sh`
+(#319): it runs `OpenStitch.app/Contents/MacOS/openstitch --sew-kit`, which does what the menu
+item does and prints the result, with a stand-in `open` first on `PATH` that records its
+argument. The check passes when `open` receives exactly the bundle's `Contents/Resources/sew`,
+and, with the kit moved away, when no `open` runs and the GitHub page is printed.
+
+Not covered by the check: the click itself, and Finder coming to the front at that folder.
+The owner checks this once, by hand: with the app in /Applications, click Help ▸ Ready-to-Sew
+Designs (Finder opens at `OpenStitch.app/Contents/Resources/sew`); then rename `sew` and click
+again (the GitHub page opens in the browser).

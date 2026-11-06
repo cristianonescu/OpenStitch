@@ -226,6 +226,13 @@ still send mm to commands. `design.print {units: "inch"}` adds a 2-inch scale ba
   values (FILE_FORMATS.md has the words).
 - A user who wants to script designs in Python can use the `openstitch` package (repository
   `python/README.md`: `Session().exec("shape.ellipse", ...)` with these same commands).
+- "Make a thumbnail / preview picture of this file" at a terminal: `stitchtool thumbnail
+  design.pes out.png [--size 256]` writes the stitches on a transparent square (16 to 1024
+  px), the same picture Finder (Quick Look, with OpenStitch.app installed) and Linux file
+  managers show; Explorer thumbnails are not available yet. In the editor, `view_render`
+  shows the design instead.
+- "Open the ready-to-sew designs": `ui.help {item: "sewKit"}` shows the packaged kit in the
+  file manager and replies with its `folder`, or with the GitHub `url` it opened instead.
 - `file` commands (`project.save`, `design.export`, ...) may ask the user first. Never
   overwrite a user's file without being asked to.
 

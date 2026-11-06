@@ -92,9 +92,9 @@ round" and "ideas" issues have batches of their own.
 | #377 Connection Points | The owner's captures in a built-in PE-DESIGN font (Connection Points is greyed out for TrueType fonts); only measurements are committed |
 | #130 PMV reader | Owner-made PMV files and screen access to PE-DESIGN |
 | #134 Font Creator fonts | Screen access to PE-DESIGN's Font Creator and owner-drawn `.pef` files (built-in `.pf1` fonts are out of scope) |
-| #557 Finder / Explorer thumbnails | The owner's decision on a non-Rust shim or an `unsafe` exception (the issue says so); otherwise closed as won't-do |
+| #557 Finder / Explorer thumbnails | Decided 2026-11-06 (owner: other tech stacks are fine where an OS needs them): the macOS Quick Look extension is a small Swift shim over the Rust renderer (`batch:mac-platform`); the Windows Explorer half is #669 |
 | #292 Sew-outs on other machines | Sew-out reports from users of other machines (help wanted); the owner decides whether alpha.13 waits for them |
-| #319 macOS Ready-to-Sew click | A Mac session with real screen control (background presses do not reach egui's menus) |
+| #319 macOS Ready-to-Sew click | Scripted in the built bundle by `batch:mac-platform` (`packaging/macos/check_sew_kit.sh`); only the real click, once, by the owner (docs/DISTRIBUTION.md "Ready-to-Sew Designs on macOS") |
 
 Not issues, still waiting: the T1/T8 image-similarity steps wait for the calibration sew-outs and
 the counsel record (`research/beyond/image-similarity-plan.md`).

@@ -2367,6 +2367,16 @@ squares 2 mm apart give one 1,100 mm² piece (46 × 24 mm with 2 mm rounded corn
 closed); a ring with a 30 mm hole keeps the hole (no needle point within 12.5 mm of the
 centre). Sew-out on terry towel is left for the owner.
 
+### macOS platform, 2026-11-06 (#319, #557, `batch:mac-platform`)
+
+No PE-DESIGN-compatible output changed (no compat spec, golden or writer touched). Help ▸
+Ready-to-Sew Designs is now checked in the built macOS bundle (#319): CI runs the bundle's own
+`openstitch --sew-kit`, and a recording `open` receives exactly `Contents/Resources/sew`; with
+the kit moved away the editor falls back to GitHub. The real click stays the owner's manual
+check. Finder shows design thumbnails through a Quick Look extension, a Swift shim over the
+Rust renderer (#557; `stitchtool thumbnail` exposes the same renderer); the Explorer half is
+#669. PE-DESIGN 11 installs Explorer thumbnails for its own files on Windows only.
+
 ### Assistant fixes, 2026-11-06 (#580, #384, #494, #495)
 
 Beyond PE-DESIGN only; no PE-DESIGN-compatible output changed (no compat spec, golden or writer

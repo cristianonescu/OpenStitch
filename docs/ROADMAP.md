@@ -592,4 +592,7 @@ encrypted purchase format). See the Blocked rows in [FEATURE_MATRIX.md](FEATURE_
   since 2026-10-27; [LEGAL_AND_LICENSING.md](LEGAL_AND_LICENSING.md)).
 - Code-signing certificates (macOS, Windows) and a Flathub account.
 - The decision on `unsafe` in one small, audited crate per OS (macOS file opening, Quick Look
-  and Explorer thumbnails).
+  and Explorer thumbnails). Decided 2026-11-06: another tech stack is fine where an OS needs
+  it. `batch:mac-platform` (2026-11-06) shipped #557's macOS half (a Swift Quick Look
+  extension over the Rust renderer, plus `stitchtool thumbnail`); the Explorer half is #669. #319's Ready-to-Sew Designs path is checked in the built macOS bundle, with the real
+  click left to the owner.
