@@ -1193,6 +1193,43 @@ mod tests {
     }
 
     #[test]
+    fn resetting_new_objects_leaves_the_other_preferences() {
+        // #551 + #553/#554: the newObjects area resets only its own preferences.
+        let mut app = demo();
+        let set = |app: &mut EditorApp, name: &str, value: Value| {
+            app.ui_command("ui.set", Some(&json!({ "name": name, "value": value })))
+                .unwrap_or_else(|e| panic!("{name}: {e}"));
+        };
+        set(
+            &mut app,
+            "newObjectDefaults",
+            json!({ "angle": 30, "density": 4.5 }),
+        );
+        set(&mut app, "advancedAttributes", json!(false));
+        set(&mut app, "showStartCards", json!(false));
+        set(&mut app, "accent", json!("teal"));
+        set(&mut app, "shortcuts", json!({ "rectangle": ["Alt+R"] }));
+        set(&mut app, "paneSewingOrderSide", json!("right"));
+        app.ui_command("ui.resetPrefs", Some(&json!({ "area": "newObjects" })))
+            .expect("reset");
+        let all = app.ui_command("ui.settings", None).expect("settings");
+        assert_eq!(all["newObjectDefaults"]["value"], json!({}));
+        assert_eq!(all["advancedAttributes"]["value"], json!(true));
+        assert_eq!(all["showStartCards"]["value"], json!(true));
+        assert_eq!(all["accent"]["value"], json!("teal"), "display kept");
+        assert_eq!(
+            all["shortcuts"]["value"],
+            json!({ "rectangle": ["Alt+R"] }),
+            "keys kept"
+        );
+        assert_eq!(
+            all["paneSewingOrderSide"]["value"],
+            json!("right"),
+            "panes kept"
+        );
+    }
+
+    #[test]
     fn settings_read_and_write_every_entry() {
         let mut app = demo();
         let all = app.ui_command("ui.settings", None).expect("settings");

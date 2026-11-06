@@ -191,7 +191,7 @@ or `#rrggbb`); `ui.set shortcuts` takes the changed commands as `{ commandKey: [
 so tell the user which); `ui.set paneSewingOrderSide` / `paneAttributesSide` (left, right) and
 `paneSimulatorSide` (top, bottom). "Use my lettering layout" is `ui.layout {op: "apply", name}`
 (`list`, `save`, `delete` too); `ui.resetPrefs {area}` resets display, editing, panes,
-shortcuts or layouts alone (ask first).
+shortcuts, layouts or newObjects (new-shape defaults, Basic/Advanced, start cards) alone (ask first).
 For a new user, `ui.gettingStarted` lists the start cards and the kit's samples; `{sample:
 "sampler"}` opens one as an untitled design, `{card: "draw"}` runs a card, `{page: true}` opens
 Help ▸ Getting Started. "Make new shapes start at 30° and 4.5 rows/mm" is `ui.set
