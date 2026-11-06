@@ -91,6 +91,7 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
     }
     let mut pending: Option<CommandRequest> = None;
     let mut select: Option<(u64, bool)> = None;
+    let (mut rename, mut rename_done) = (None, false);
     let modifiers = ui.input(|i| i.modifiers);
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
@@ -127,11 +128,33 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
                                     swatch(ui, c, 9.0);
                                 }
                             });
-                            let text = format!("{}. {}", row.index + 1, row.label);
+                            if let Some((id, name)) = &mut app.edit.renaming
+                                && *id == row.id
+                            {
+                                let edit = ui.add(
+                                    egui::TextEdit::singleline(name)
+                                        .desired_width(140.0)
+                                        .char_limit(objects::MAX_NAME),
+                                );
+                                edit.request_focus();
+                                if edit.lost_focus() {
+                                    let typed = name.clone();
+                                    let escaped = ui.input(|i| i.key_pressed(egui::Key::Escape));
+                                    if !escaped && Some(typed.trim()) != row.name.as_deref() {
+                                        pending = Some(objects::set_name(row.id, &typed));
+                                    }
+                                    rename_done = true;
+                                }
+                                return;
+                            }
+                            let lock = if row.locked { " (locked)" } else { "" };
+                            let text = format!("{}. {}{lock}", row.index + 1, row.label);
                             let resp = ui
                                 .selectable_label(row.selected, text)
-                                .on_hover_text(&row.detail);
-                            if resp.clicked() {
+                                .on_hover_text(format!("{} · double-click to rename", row.detail));
+                            if resp.double_clicked() {
+                                rename = Some((row.id, row.name.clone().unwrap_or_default()));
+                            } else if resp.clicked() {
                                 select = Some((row.id, modifiers.shift || modifiers.command));
                             }
                         });
@@ -145,6 +168,12 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
                 }
             }
         });
+    if rename_done {
+        app.edit.renaming = None;
+    }
+    if rename.is_some() {
+        app.edit.renaming = rename;
+    }
     if let Some((id, toggle)) = select {
         if toggle {
             if !app.selection.remove(&id) {

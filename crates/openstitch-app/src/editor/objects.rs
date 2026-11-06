@@ -15,7 +15,14 @@ pub struct ObjectRow {
     pub swatches: Vec<[u8; 3]>,
     pub visible: bool,
     pub selected: bool,
+    /// Locked (#502): the canvas does not pick it.
+    pub locked: bool,
+    /// The name the user gave it, if any (`label` falls back to the stitch type).
+    pub name: Option<String>,
 }
+
+/// Longest name the list takes (the engine's `object.setName` limit).
+pub const MAX_NAME: usize = openstitch_engine::order::MAX_NAME;
 
 pub fn label(o: &DesignObject) -> String {
     o.name.clone().unwrap_or_else(|| match o.kind {
@@ -86,6 +93,8 @@ pub fn rows(design: &Design, selection: &BTreeSet<u64>) -> Vec<ObjectRow> {
             swatches: swatches(o),
             visible: o.visible,
             selected: selection.contains(&o.id),
+            locked: o.locked,
+            name: o.name.clone(),
         })
         .collect()
 }
@@ -111,6 +120,63 @@ pub fn drop_index(from: usize, before: usize) -> usize {
 
 pub fn set_visible(id: u64, visible: bool) -> CommandRequest {
     CommandRequest::new("object.setVisible", json!({ "id": id, "visible": visible }))
+}
+
+/// `object.setName` (#502); an empty name goes back to the stitch-type label.
+pub fn set_name(id: u64, name: &str) -> CommandRequest {
+    CommandRequest::new("object.setName", json!({ "id": id, "name": name.trim() }))
+}
+
+pub fn set_locked(ids: &BTreeSet<u64>, locked: bool) -> CommandRequest {
+    CommandRequest::new(
+        "object.setLocked",
+        json!({ "ids": CommandRequest::ids(ids), "locked": locked }),
+    )
+}
+
+/// `object.setPartOrder` for `ids`: the outline first or PE-DESIGN's region first.
+pub fn set_line_first(ids: &[u64], line_first: bool) -> CommandRequest {
+    let order = if line_first {
+        "lineFirst"
+    } else {
+        "regionFirst"
+    };
+    CommandRequest::new("object.setPartOrder", json!({ "ids": ids, "order": order }))
+}
+
+/// `order.byClickOrder` of the selection in the order it was clicked; `None` below 2 objects.
+pub fn click_order(order: &[u64]) -> Option<CommandRequest> {
+    (order.len() >= 2).then(|| CommandRequest::new("order.byClickOrder", json!({ "ids": order })))
+}
+
+/// Keeps `order` as the selection in the order its members were added: drops what left the
+/// selection and appends what joined it (several at once, by id).
+pub fn track_click_order(order: &mut Vec<u64>, selection: &BTreeSet<u64>) {
+    order.retain(|id| selection.contains(id));
+    for id in selection {
+        if !order.contains(id) {
+            order.push(*id);
+        }
+    }
+}
+
+/// Shapes among `ids` that have both a region and an outline, so their part order matters.
+pub fn two_part_shapes(design: &Design, ids: &BTreeSet<u64>) -> Vec<u64> {
+    design
+        .objects
+        .iter()
+        .filter(|o| ids.contains(&o.id) && o.kind == ObjectKind::Shape)
+        .filter(|o| o.region.is_some() && o.line.is_some())
+        .map(|o| o.id)
+        .collect()
+}
+
+/// Whether any of `ids` is locked (#502): the canvas and Delete leave them alone.
+pub fn any_locked(design: &Design, ids: &BTreeSet<u64>) -> bool {
+    design
+        .objects
+        .iter()
+        .any(|o| o.locked && ids.contains(&o.id))
 }
 
 /// `order.move` of `ids` to `to` (first, last, earlier, later).
