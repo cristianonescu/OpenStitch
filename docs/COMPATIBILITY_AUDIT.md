@@ -2953,6 +2953,36 @@ no problems:
   mode (#525, satin-2b), and the NV880E sew-outs #528 and #531 ask for before the styles are
   advertised.
 
+### Satin lines with variable width and branch split, 2026-11-06 (#524, #526 part, `batch:satin-2b`)
+
+Both are beyond PE-DESIGN. They are new line types and commands, so no existing design changes
+and every compat output stays byte-identical. PES 0110 export refuses a satin line with the
+message it gives other unmapped line types; the machine formats sew it.
+
+- **Satin line (#524):**
+  - A satin line with one width all along, square to the line, sews the same needle points as
+    skeleton satin of that width (engine test).
+  - Width keys interpolate smoothly. Left 0 / right 3 mm puts the whole column on one side.
+  - Tapers reach a point at the ends.
+  - A 30° slant keeps the edges at their widths (unit test).
+- **Branch split (#526), `object.deriveSkeleton {branches: true}` on Lato Bold letters at 10
+  and 25 mm:**
+
+  | Letter | Columns |
+  |---|---|
+  | K | 3 |
+  | X | 3 |
+  | Y | 2 |
+  | R | 4 |
+  | N | 1 (an unbranched path) |
+
+  - All ten files pass sew_check.
+  - The synthetic Y, plus and star are over 90 % covered, and each arm ends `joinOverlap`
+    inside the column it leaves.
+  - Not met: on K and R the main stroke bends through the junction and fans, leaving a gap in
+    the stem. #526's IoU ≥ 0.95 and "no gap over 0.3 mm" are therefore not reached on letters,
+    and #526 stays open.
+
 ### Hidden stitching and hidden travel, 2026-11-06 (#511, #545, `batch:routing`)
 
 Beyond PE-DESIGN and off by default: with no object or design setting on, compiled output is
