@@ -1,0 +1,140 @@
+matrix_feature	readme_phrase
+PES read	every version read (1 to 11)
+PES write v1 and v6, truncated or with a CEmbOne/CSewSeg stitch group	PES written as version 1, 6 or 11
+Design Property	Design Property (category, author, keywords
+Import stitch files into the design	Import a stitch file into the design
+PEC read/write	Read and write PEC
+PES save as version 1, 6 or 11	PES written as version 1, 6 or 11
+PES versions 4, 5 and 7–10 read	every version read (1 to 11)
+DST read/write, configurable jumps-for-trim	Read and write PEC, DST
+EXP read/write	DST, EXP
+JEF read/write	EXP, JEF
+XXX read/write	SEW, XXX
+PCS read/write	JEF, PCS
+SEW read/write	PCS, SEW
+HUS read and write	XXX, HUS
+VIP read and write	HUS, VIP
+SHV read and write	VIP, SHV
+Export CSD, SHV	SHV and CSD
+CSD read and write	SHV and CSD
+Import PHC	PHC read only
+Import SVG as editable shapes	SVG import as editable shapes
+Background image from a file	Background image (PNG, JPEG, BMP
+Background image	place, rotate, crop, adjust, save
+Background image from the clipboard	or the clipboard
+Large designs split into several files on export when they exceed a format's limits	large designs split into several files
+Three data types	Conversions: between stitch, text and shape patterns
+Sewing area	the sewing area shown against the page
+Move, scale, rotate, flip, centre, duplicate, delete, reorder	Move, scale, rotate, flip, centre, duplicate and nudge
+Group / ungroup	group and ungroup
+Arrange copies	Arrange Copies: mirror, circle and matrix copies
+Hole sewing	Hole sewing:
+Boolean shape operations	combine (union, subtract, intersect, exclude)
+Split shape along a closed cut outline	split along an outline
+Offset line pattern	offset lines
+Region→line conversion	a region to a line
+Floral pattern	floral patterns
+Decorative patterns	decorative frames
+Point editing	Point editing:
+Stitch pattern editing	Stitch pattern editing:
+Drawing	Drawing tools:
+Entry/exit points	Entry and exit points
+Centre point for concentric circle and radial	centre points for concentric and radial fills
+Thread colour, sew type, straight sewing direction	region and line type, thread colour, direction
+Copy sewing attributes	Copy Sewing Attributes
+Embossing/engraving	stamps, embossing and engraving
+Sewing order editing	Sewing order commands:
+Jump stitch trimming	Jump trimming:
+Measure tool	the measure tool
+Manual Punch	Manual Punch: columns built from direction lines
+Manual Punch Curved Block	Curved Block, Running and Feed tools
+Reverse Direction Line	Reverse Direction Line
+Pencil	Pencil (freehand)
+Change Color of a stitch pattern's colour block	change a block's colour
+Zigzag	Zigzag lines
+Running	Running and triple lines
+Motif	Motif, stem, candlewicking, E and V, and chain lines
+Satin	Satin: PE-DESIGN's satin
+Fill	Fill (tatami):
+Fill Stitch Type 2	Stitch Type 2: partially compatible
+Zigzag net fill as PE-DESIGN 11.50 sews it	zigzag net fill
+Tie-in and end lock on every run a trim separates, as PE-DESIGN 11.50 sews them	Every run that ends in a trim ties in and locks
+Split designs	Split designs over several hoopings
+Multi-position hoops	Multi-position hoops
+Jumbo frame	jumbo frame
+Printing as PDF	Printing: actual size (tiled)
+Background fill around patterns	Background fill:
+Appliqué wizard	Appliqué wizard:
+Embroidered patch wizard	Embroidered patch wizard:
+Cutwork wizard	Cutwork wizard:
+Text entry and attributes	Text: multi-line text
+Shaping, kerning, vertical text and per-character edits	Complex scripts (Arabic, Indic, right-to-left) are shaped
+Fit text to outline	Fit Text to Outline
+Text Transform	26 Text Transform presets
+Convert text to outline shapes	Convert text to outline shapes
+Fonts	Bundled fonts:
+Templates and Template Wizard	Templates and the Template Wizard
+User-mapped text	User-mapped text and Font Creator
+Name Drop	Name Drop:
+Converting CJK characters	CJK characters
+Stitch Wizard / Image To Stitch Wizard	Image to Embroidery wizard
+Auto Punch	Auto Punch (regions)
+Cross Stitch from image	Cross Stitch
+Photo Stitch 1 and Photo Stitch 2	Photo Stitch 1 and 2
+Transfer via USB media	USB stick or SD card:
+Brother 64-colour PEC chart mapping	64-colour chart the machine shows
+PEC preview icons	PEC preview icons
+Fill/stamp tile, motif and decorative-fill pattern editor	Programmable Stitch Creator:
+Folder listing and Property information	see each file's properties
+Design Database window with the guide's menu bar, toolbar and status bar	Design Database: browse folders as thumbnails
+Hostile files and folders	hostile files are handled safely
+Search	Design Database: browse folders as thumbnails, see each file's properties, search
+Organise	copy, move and rename
+Convert format in batch	convert formats in batch
+Catalogue	print catalogues (PDF, PNG, HTML, CSV)
+Printing through the operating system	or to the system printer
+Automation	Design Database commands
+Transfer to machine by USB media	Design Database's Writing List
+Import of the user's own .pas, .pmf and .plf files, PE-DESIGN 11.50's own Save types for user patterns, in th…	.pas, .pmf and .plf files
+Decorative, satin, decorative satin and cross sewing-stitch patterns for sewing machines	Stitch Design Factory:
+Brother sewing-machine files	PMV export and import
+Create OpenStitch embroidery fonts	User-mapped text and Font Creator
+Editable design model separate from stitch output	every editor action is the same engine command
+Command registry	every editor action is the same engine command
+Per-command capabilities	each command declares what it needs
+Editable project persistence	Editable .osd projects
+Compatibility harness	Compatibility harness (stitchtool compat)
+CLI scripts, JSON control channel over stdio	stitchtool exec and serve
+Ready-to-sew kit	Ready-to-sew kit
+MCP server	openstitch-mcp:
+Loopback socket for the running editor	Live editor socket:
+Per-OS packages as workflow artifacts on every merge to main	Packages for macOS
+App icon and logo	its own icons generated for OpenStitch
+File associations	File associations for .osd and .pes
+File-manager thumbnails, Linux	Linux file-manager thumbnails
+Thread length and sewing time in design.info	thread length per colour and bobbin, and sewing time
+Realistic preview	Realistic view
+Solid View	Solid view
+Cross-platform desktop editor openstitch	Desktop editor for macOS, Windows and Linux
+Window laid out like PE-DESIGN 11's Layout & Editing window	Editor laid out like PE-DESIGN 11's Layout & Editing window
+Command icons and illustrations	its own icons generated for OpenStitch
+Files	Editable .osd projects
+Unsaved changes	Unsaved changes are flagged
+Canvas	Rulers, grid and guides:
+Rulers	Rulers, grid and guides:
+Font Filter and Font Filter Settings	Font Filter:
+Fabric Selector	Fabric Selector:
+Tools	Move, scale, rotate, flip, centre, duplicate and nudge
+Point tool	Point editing:
+Pen tool	Bézier pen
+Shapes menu	Shape operations:
+Inspector	Sewing Attributes pane:
+Undo/redo with one step per gesture, also when a gesture takes several engine commands	Undo and redo, one step per gesture
+Self-update	Self-update from GitHub releases
+Image similarity, Phase 1	Thread sources:
+Image wizards' OpenStitch mode, thread selection for the image	OpenStitch mode: colours reduced and matched to threads
+Image wizards' OpenStitch mode, dithering only where the image is tonal	OpenStitch mode: colours reduced and matched to threads
+Photo Stitch 2 within the owner's needle limits in OpenStitch mode	Photo Stitch 2 within a needle-density limit
+Image wizards' OpenStitch mode, Fidelity Standard / High	Fidelity Standard or High
+Image wizards' OpenStitch mode, thread sources and My Threads	only the threads you own
+Image dialog, OpenStitch-mode options	OpenStitch mode: colours reduced and matched to threads
