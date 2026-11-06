@@ -1811,8 +1811,8 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 IDS,
                 opt(
                     "type",
-                    "running|triple|zigzag|motif|stem|candlewick|eStitch|vStitch|chain|cutting|none",
-                    "Line sew type",
+                    "running|triple|zigzag|motif|stem|candlewick|eStitch|vStitch|chain|cutting|satin|none",
+                    "Line sew type. satin (beyond PE-DESIGN) is a satin column along the line whose width can change along it: width (mm, all along), widthKeys, taperStart, taperEnd and slant shape it, and the satin options (cornerStyle, shortStitchDistance, pull*, satinStyle, jaggedEdge, raised) apply as on zigzag; object.setWidthKey and object.deleteWidthKey edit single keys",
                 ),
                 opt("color", "color", "Thread"),
                 opt(

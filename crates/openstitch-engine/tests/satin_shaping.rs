@@ -446,6 +446,22 @@ fn satin_lines_with_width_keys_tapers_and_slant() {
         "object.setLine",
         json!({"id": 1, "type": "satin", "width": 3, "underSewing": false}),
     );
+    // The command's own list offers satin, and its help names the satin line's parameters.
+    let spec = s
+        .commands()
+        .iter()
+        .find(|c| c.id == "object.setLine")
+        .expect("setLine")
+        .clone();
+    let ty = spec.params.iter().find(|d| d.name == "type").expect("type");
+    assert!(ty.kind.split('|').any(|k| k == "satin"), "{}", ty.kind);
+    for name in ["widthKeys", "taperStart", "taperEnd", "slant"] {
+        assert!(ty.summary.contains(name), "{name}");
+        assert!(
+            spec.params.iter().any(|d| d.name == name),
+            "{name} documented"
+        );
+    }
     // One width all along: the skeleton satin of that width.
     let path = s.design().objects[0].contours[0].path();
     let plain = Compiler::default().compile(s.design());
