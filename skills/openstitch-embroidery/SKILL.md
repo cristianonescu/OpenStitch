@@ -147,6 +147,12 @@ then style them in the next.
   bridge|pennant|perspective|diamond|preset}`, then `text.bendEnvelope {id, edge: top|bottom,
   handle: left|middle|right, dx, dy, symmetric}` (mm on the page; `text.envelopeHandles`
   says where the handles are). PES 0110 export refuses free envelopes: `text.toShapes` first.
+- Badges and patches with text round a circle: `text.add` or `object.setText` with `arc`
+  (mm, the first line's baseline radius; positive arches up over the top, negative arches
+  down under the bottom, read upright). Each line (a `\n` in the text) becomes a ring round the same centre,
+  one line spacing inward (up) or outward (down); a ring too tight for its line is refused
+  with the radius needed, so retry with that. `arc: null` straightens it. Beyond PE-DESIGN:
+  PES 0110 export refuses it (`text.toShapes` first).
 - Trims and ties per object (beyond PE-DESIGN; defaults are PE-DESIGN's rules):
   `object.setFinish {ids, trim: auto|always|off, trimDistance, tie: auto|always|off,
   tieCount, tieLength, between}`. For a machine without an automatic cutter: `trim: off`

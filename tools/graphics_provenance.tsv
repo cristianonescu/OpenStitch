@@ -1,0 +1,11 @@
+pattern	kind	source	note
+docs/images/*	generated	tools/docs_images.py	Screenshots and renders of OpenStitch; docs_images.py --check names the generator of every file
+examples/sew/previews/*	generated	tools/sew_kit.py	Preview renders of the ready-to-sew kit, written by sew_kit.py
+examples/sew/calibration/grey-ramp.png	generated	tools/sew_kit.py	The eight-step grey ramp, drawn by sew_kit.py (grey_ramp_png)
+examples/images/*	higgsfield	examples/images/PROVENANCE.md	Higgsfield test images (GPT Image 2.5, 2026-10-30); d01/d02 made in code from them
+examples/sew/calibration/results/*	evidence	-	The owner's scans of sew-outs on the owner's NV880E (calibration rounds 1 and 2); evidence, not graphics
+examples/digitize/*	test-input	tools/digitize_examples.py	Flat test pictures for the image wizards (a six-colour badge, a three-colour drawing, a shaded sphere), made for the project in its first commit (2026-10-19); test input, not artwork
+examples/imports/leaf.svg	test-input	examples/imports.json	A leaf, a sun and a box written by hand as SVG text for the import example (first commit, 2026-10-19); test input, not artwork
+crates/openstitch-engine/tests/fixtures/svg/*	test-input	crates/openstitch-engine/tests/svg_import.rs	SVG fixtures written by hand for the importer's tests (#487, #455): clips, masks, gradients, named layers
+crates/openstitch-digitize/tests/fixtures/pe11-wizards/owner-shapes.bmp	test-input	crates/openstitch-digitize/tests/fixtures/pe11-wizards/PROVENANCE.md	A four-shape test bitmap (a red disc, a green triangle, a yellow rectangle, a blue square on white) made for the PE-DESIGN wizard references; its PROVENANCE.md records it
+compat/reference/pes/thread-match-swatches.svg	test-input	compat/specs/pes/thread-match-swatches.json	Twelve 20 mm squares in set RGB colours, written by the owner as SVG text for the thread-match reference

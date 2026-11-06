@@ -490,6 +490,11 @@ fn text_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
                 ribbon::set_text(app, serde_json::json!({ "lineSpacingPercent": line }));
             }
             ui.end_row();
+            if spec.path.is_none() && spec.direction == openstitch_design::TextDirection::Horizontal
+            {
+                crate::arc_ui::arc_row(app, ui, &spec);
+                ui.end_row();
+            }
         });
     if spec.font == "openstitch-pixel" {
         ui.horizontal(|ui| {
