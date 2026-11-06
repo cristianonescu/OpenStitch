@@ -129,7 +129,9 @@ then style them in the next.
   Text, a running line along each letter's centre; `object.setLine` `runTimes: 3` for bean
   stitch, or `type: zigzag, width: 1.2` for a narrow satin). Retro or sampler text:
   `font: "openstitch-pixel"` with `pixelStyle` run, cross or block (one pixel = size / 7).
-- Ink/Stitch fonts the user installed: `fonts.scanFolder {path}` lists the font folders,
+- Ink/Stitch fonts the user installed: their folder is the `inkStitchFolder` setting
+  (`ui.settings`; `ui.set` changes it after the user agrees, as the editor asks);
+  `fonts.scanFolder {path}` lists the font folders,
   `fonts.importInkStitch {path}` loads one (tell the user its licence and what `notRead`
   lists); then `text.add {font: <id>}`.
 - Bent lettering beyond the 26 Text Transform presets: `text.setEnvelope {ids, shape:

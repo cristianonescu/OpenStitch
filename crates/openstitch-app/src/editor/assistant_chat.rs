@@ -483,6 +483,16 @@ pub fn memory_question(command: &str, params: &Value) -> Option<String> {
             })
         }
         "ui.notesClear" => Some("forget everything it remembers about you".into()),
+        // A folder the editor reads fonts from is the user's to choose (#529).
+        "ui.set" if params["name"] == json!("inkStitchFolder") => Some(
+            match params["value"].as_str().map(str::trim).unwrap_or_default() {
+                "" => "forget the Ink/Stitch fonts folder".into(),
+                p => format!(
+                    "use {} as the Ink/Stitch fonts folder",
+                    p.chars().take(200).collect::<String>()
+                ),
+            },
+        ),
         "ui.set" if params["name"] == json!("assistantMemory") => {
             Some(if params["value"] == json!(true) {
                 "turn its memory on".into()
@@ -756,6 +766,11 @@ mod tests {
             assert!(matches!(
                 gate(mode, "ui.set", Effect::Edit, json!({ "name": "assistantMemory", "value": true })),
                 Verdict::Ask(w) if w == "turn its memory on"
+            ));
+            // #529: the Ink/Stitch fonts folder is a path the editor reads from: asked.
+            assert!(matches!(
+                gate(mode, "ui.set", Effect::Edit, json!({ "name": "inkStitchFolder", "value": "fonts" })),
+                Verdict::Ask(w) if w == "use fonts as the Ink/Stitch fonts folder"
             ));
         }
         assert!(matches!(
