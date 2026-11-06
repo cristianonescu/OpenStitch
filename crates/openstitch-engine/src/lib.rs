@@ -61,6 +61,7 @@ mod stamps;
 mod stitch_edit;
 #[cfg(feature = "formats")]
 mod svg_settings;
+pub mod swatch;
 pub mod templates;
 pub mod thread_match;
 #[cfg(feature = "formats")]

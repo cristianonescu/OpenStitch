@@ -81,6 +81,7 @@ mod shape_tools_ui;
 mod splash;
 mod start_ui;
 mod suite_chrome;
+mod swatch_ui;
 mod theme;
 mod transfer_ui;
 mod units_ui;
