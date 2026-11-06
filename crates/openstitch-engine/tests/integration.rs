@@ -50,14 +50,14 @@ mod edit_tools;
 mod engine;
 #[path = "extra_exports.rs"]
 mod extra_exports;
+#[path = "finish.rs"]
+mod finish;
 #[path = "font_creator.rs"]
 mod font_creator;
 #[path = "font_from_image.rs"]
 mod font_from_image;
 #[path = "fonts.rs"]
 mod fonts;
-#[path = "finish.rs"]
-mod finish;
 #[path = "free_hoopings.rs"]
 mod free_hoopings;
 #[path = "hoop_lists.rs"]

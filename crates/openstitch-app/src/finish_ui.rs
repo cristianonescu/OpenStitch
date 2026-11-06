@@ -2,11 +2,10 @@
 //! between letters. Every control sends one `object.setFinish`, one undo step.
 
 use crate::app::EditorApp;
-use eframe::egui::{self, Color32, Stroke};
-use openstitch_app::editor::{CommandRequest, Phase, Viewport};
+use eframe::egui;
+use openstitch_app::editor::CommandRequest;
 use openstitch_design::ObjectKind;
 use openstitch_design::finish::{Finish, FinishMode, LetterTrim};
-use openstitch_design::{Vec2, v2};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
