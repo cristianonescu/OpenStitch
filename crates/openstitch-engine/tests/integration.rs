@@ -116,6 +116,8 @@ mod quality;
 mod random_designs;
 #[path = "region_compat.rs"]
 mod region_compat;
+#[path = "routing.rs"]
+mod routing;
 #[path = "satin_compat.rs"]
 mod satin_compat;
 #[path = "satin_shaping.rs"]
