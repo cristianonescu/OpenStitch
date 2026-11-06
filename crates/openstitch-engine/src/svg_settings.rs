@@ -124,12 +124,32 @@ enum Word {
     Key(&'static str, Option<bool>, Value),
 }
 
+/// A key's short form: the long names (`angle=45`, `spacing=0.4`, `density=4.5`,
+/// `length=2.5`, `pullcompensation=0.2`, `underlay=on`, `color=red`, `width=3`, `repeats=3`)
+/// mean the same as `a=`, `s=`, `d=`, `l=`, `pc=`, `u=`, `c=`, `w=` and `r=` (#455). Words are
+/// lower-cased first, so `pullCompensation` and `runTimes` are long names too.
+fn long_key(k: &str) -> &str {
+    match k {
+        "angle" | "direction" => "a",
+        "spacing" | "rowspacing" => "s",
+        "density" => "d",
+        "length" | "stitchlength" | "pitch" => "l",
+        "pull" | "pullcompensation" => "pc",
+        "underlay" => "u",
+        "color" | "colour" => "c",
+        "width" => "w",
+        "repeats" | "runs" | "runtimes" | "passes" => "r",
+        short => short,
+    }
+}
+
 fn parse_word(w: &str) -> Option<Word> {
     let (stroke, w) = match w.strip_prefix("stroke.") {
         Some(r) => (true, r),
         None => (false, w),
     };
     if let Some((k, v)) = w.split_once('=') {
+        let k = long_key(k);
         let num = || v.parse::<f64>().ok().filter(|n| n.is_finite());
         let line = if stroke { Some(false) } else { None };
         return Some(match k {
@@ -484,6 +504,48 @@ mod tests {
         let (s, _) = settings_for(&named(&["fill stroke.satin stroke.w=3"]), true);
         assert_eq!((s.region_type, s.line_type), (Some("fill"), Some("zigzag")));
         assert_eq!(s.line[0].0, "width");
+    }
+
+    /// #455: the long key names mean what the short ones do.
+    #[test]
+    fn long_key_names_are_the_short_ones() {
+        let pairs = [
+            ("fill angle=45 spacing=0.4", "fill a=45 s=0.4"),
+            (
+                "fill density=4.5 pullCompensation=0.3 underlay=off",
+                "fill d=4.5 pc=0.3 u=off",
+            ),
+            ("fill colour=#ff0000", "fill c=#ff0000"),
+            ("run repeats=3 length=2.5", "run r=3 l=2.5"),
+            ("run runTimes=3 stitchLength=2.5", "run r=3 l=2.5"),
+            (
+                "fill stroke.satin stroke.width=3",
+                "fill stroke.satin stroke.w=3",
+            ),
+        ];
+        // The same settings; each keeps the word as written, for the report.
+        let keys = |s: &Settings| {
+            let kv = |v: &[(&'static str, Value, String)]| -> Vec<(&'static str, Value)> {
+                v.iter().map(|(k, v, _)| (*k, v.clone())).collect()
+            };
+            (
+                s.region_type,
+                s.line_type,
+                s.satin,
+                kv(&s.region),
+                kv(&s.line),
+            )
+        };
+        for (long, short) in pairs {
+            for fill in [true, false] {
+                let (a, unknown) = settings_for(&named(&[long]), fill);
+                let (b, _) = settings_for(&named(&[short]), fill);
+                assert_eq!(keys(&a), keys(&b), "{long} vs {short}");
+                assert!(unknown.is_empty(), "{long}: {unknown:?}");
+            }
+        }
+        // A long name with a bad value is refused as the short one is.
+        assert_eq!(settings_for(&named(&["fill angle=x"]), true).1, ["angle=x"]);
     }
 
     #[test]

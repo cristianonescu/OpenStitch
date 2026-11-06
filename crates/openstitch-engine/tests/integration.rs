@@ -70,6 +70,8 @@ mod knockdown;
 mod layout;
 #[path = "lettering.rs"]
 mod lettering;
+#[path = "lettering_arc.rs"]
+mod lettering_arc;
 #[path = "lettering_envelopes.rs"]
 mod lettering_envelopes;
 #[path = "lettering_library.rs"]
@@ -114,6 +116,8 @@ mod random_designs;
 mod region_compat;
 #[path = "satin_compat.rs"]
 mod satin_compat;
+#[path = "satin_shaping.rs"]
+mod satin_shaping;
 #[path = "sections.rs"]
 mod sections;
 #[path = "session_fork.rs"]
