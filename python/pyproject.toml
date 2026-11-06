@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openstitch"
+version = "0.1.0a13"
+description = "Script OpenStitch embroidery designs from Python"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT OR Apache-2.0" }
+authors = [{ name = "Cristian Onescu" }]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: Artistic Software",
+]
+
+[project.urls]
+Homepage = "https://github.com/cristianonescu/OpenStitch"
+
+[tool.setuptools]
+packages = ["openstitch"]

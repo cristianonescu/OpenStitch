@@ -70,6 +70,14 @@ jobs:
       # runs the ~90 binaries one after another). It does not run doctests, so they follow.
       - run: cargo nextest run --workspace --locked
       - run: cargo test --doc --workspace --locked
+      # The Python package (#498): installed from python/, imported outside the repository, then
+      # its tests against the debug stitchtool just built (same PES bytes as `stitchtool exec`).
+      - name: Python package
+        shell: bash
+        run: |
+          python -m pip install ./python
+          (cd "$RUNNER_TEMP" && python -c "import openstitch; print(openstitch.__version__)")
+          python -m unittest discover -s python/tests -v
       # The Assistant's keys in the real system keychain (#401): a dummy key under a throwaway
       # service name is saved, read back and removed through openstitch_app::keys. Linux needs a
       # Secret Service, so a headless gnome-keyring runs in its own D-Bus session.
