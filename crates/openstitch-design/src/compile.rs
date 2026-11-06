@@ -700,7 +700,7 @@ fn letter_line_elements(object: &DesignObject, _user: &[Pattern]) -> Option<Vec<
         {
             let mut connector = resample(&[f, start], pitch);
             connector.pop();
-            connector.extend(first.drain(..));
+            connector.append(first);
             *first = connector;
         }
         from = runs.last().and_then(|r| r.last().copied()).or(from);
