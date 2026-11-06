@@ -2529,6 +2529,40 @@ Assistant's stream timeout (#580) and thread-chart rules (#495) are in
   same numbers on all 16 Photo Stitch cases in both modes and the nine Photo Stitch 1 photos at
   High; `sew_check` passes; compat 454/454.
 
+### Photo Stitch travel, the sewn sunset and the layered screen, 2026-11-06 (`batch:mac-photo`, #298, #291, #129, #468)
+
+Likeness is `tools/image_similarity.py`'s score (S, C and DISTS) on the calibrated render;
+every result is OpenStitch's output. No generator change landed: each one measured lowered
+likeness, so the issues stay open with the numbers below.
+
+- **Photo Stitch 1 travel across a thin stripe (#298), measured and not taken.** When a
+  thread's island is done and no hidden path leads on, a second search let its routed travel
+  (Fewer trims) cross up to 2 mm of an earlier colour within CIEDE2000 `limit` of its own, in
+  sight, instead of trimming. Over the nine Photo Stitch 1 cases (OpenStitch mode, main's 2633
+  trims, 20.0 per 1,000 stitches, mean likeness 64.21):
+
+  | Limit | Trims | Per 1,000 | Mean likeness |
+  |---|---|---|---|
+  | ΔE00 5 | 2633 | 20.0 | 64.21 |
+  | ΔE00 8 | 2615 | 19.9 | 64.25 |
+  | ΔE00 11 | 2505 | 19.1 | 63.76 (p01 −1.7, p05 −2.5) |
+  | ΔE00 15 | 2102 | 15.9 | 63.47 (p01 −4.7, p05 −3.3, p04 +2.1) |
+  | any colour (an earlier build of the patch, indicative) | about 600 | about 4 | about 61.6 |
+
+  The travel's needle points count against the density caps and its crossings show, so every
+  limit that saves trims costs likeness. The patch is kept as a design record outside the repo;
+  PE-DESIGN-compatible mode was unchanged by it. PE-DESIGN's own rate (0.4 per 1,000) still
+  needs visible travel the owner decides on after the sunset sew-out.
+- **The sewn sunset patch against its render (#291).** New `tools/image_similarity.py --scan`
+  mode; on the round-2 scan the calibrated render scores 50.3 (flat 55.6, realistic 56.5,
+  calibrated with the Realistic view's shading 50.6) and reads 11–19 L* too light in the
+  patch's dark middle, where several threads' rows interleave. Details and the table are in
+  the image-similarity plan's progress (2026-11-06).
+- **Photo Stitch 2's layered coverage solve (#129, #468), measured and not taken:** mean
+  likeness 39.7 → 37.2 on the seven Photo Stitch 2 cases; details in the plan.
+- **Checked:** #433's timing test (`fidelity_high_raises_the_colour_counts`) 8.8–9.0 s before
+  and with the travel patch; workspace tests unchanged (no generator change lands).
+
 ### Photo Stitch trims, needle drops, coverage and colour, 2026-11-05 (#298, #468, #129, #291)
 
 All likeness numbers are `tools/image_similarity.py`'s S and C terms (DISTS not installed),
