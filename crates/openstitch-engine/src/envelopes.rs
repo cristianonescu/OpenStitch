@@ -149,6 +149,10 @@ fn set_envelope(s: &mut EngineState, p: &Params) -> Result<Value, CommandError> 
             spec.envelope = None;
             spec.envelope_level = None;
         }
+        if envelope.is_some() {
+            // A free envelope replaces an arc (#456).
+            spec.arc = None;
+        }
         spec.custom_envelope = envelope;
         s.design.objects[i].text = Some(spec);
         out.push(relayout(s, p, i)?);

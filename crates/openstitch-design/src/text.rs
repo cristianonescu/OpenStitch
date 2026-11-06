@@ -277,7 +277,18 @@ pub struct TextSpec {
     /// A free envelope (#535), edited with handles; it replaces a Text Transform preset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_envelope: Option<CustomEnvelope>,
+    /// Arched text (#456, beyond PE-DESIGN): the first line's baseline radius, mm. Positive
+    /// arches up (the text over the top of a circle), negative arches down (under the bottom,
+    /// read upright). Every line is a ring around the same centre, each further line one line
+    /// spacing inward (arch up) or outward (arch down). Horizontal text without a path or a
+    /// Text Transform only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub arc: Option<f64>,
 }
+
+/// The smallest and largest arc radius, mm ([`TextSpec::arc`]).
+pub const MIN_ARC: f64 = 5.0;
+pub const MAX_ARC: f64 = 1000.0;
 
 /// The most knots one edge of a free envelope may have.
 pub const MAX_ENVELOPE_KNOTS: usize = 129;
@@ -748,6 +759,7 @@ impl TextSpec {
             envelope_level: None,
             pixel_style: PixelStyle::Run,
             custom_envelope: None,
+            arc: None,
         }
     }
 
@@ -787,6 +799,9 @@ pub enum TextError {
     BadFont(String),
     /// The laid-out outlines exceed [`MAX_LAYOUT_SEGMENTS`].
     TooComplex,
+    /// An arched text's ring is too tight for its line: the first line's radius needs to be
+    /// at least this, mm ([`TextSpec::arc`]).
+    ArcTooTight(f64),
 }
 
 impl std::fmt::Display for TextError {
@@ -797,6 +812,10 @@ impl std::fmt::Display for TextError {
             TextError::TooComplex => write!(
                 f,
                 "the text's outlines are too complex (more than {MAX_LAYOUT_SEGMENTS} segments)"
+            ),
+            TextError::ArcTooTight(r) => write!(
+                f,
+                "the arc is too tight for the text: its radius needs to be at least {r:.1} mm"
             ),
         }
     }
@@ -1650,6 +1669,40 @@ pub fn layout_in(
                 });
             }
         }
+        None if spec.arc.is_some_and(|r| r.abs() >= MIN_ARC) && !vertical => {
+            let r = spec.arc.unwrap_or_default();
+            let runs: Vec<Run> = shaped_lines
+                .iter()
+                .map(|line| Run::along(line, spec, scale, spacing, false, cap))
+                .collect();
+            let lengths: Vec<f64> = runs.iter().map(|r| r.length).collect();
+            let need = arc_radius_needed(&lengths, line_height, cap, r > 0.0);
+            if r.abs() * 10.0 < need - 1e-6 {
+                return Err(TextError::ArcTooTight((need / 10.0 * 10.0).ceil() / 10.0));
+            }
+            for (row, (line, run)) in shaped_lines.iter().zip(&runs).enumerate() {
+                let shift = match spec.align {
+                    TextAlign::Left => 0.0,
+                    TextAlign::Center => -run.length / 2.0,
+                    TextAlign::Right => -run.length,
+                };
+                for (g, p) in line.iter().zip(&run.glyphs) {
+                    let along = shift + p.anchor.x;
+                    let (q, turn) = arc_point(r * 10.0, row as f64 * line_height, along);
+                    let at = glyph_scale
+                        .then(&p.local)
+                        .then(&Transform::translation(0.0, p.anchor.y))
+                        .then(&Transform::rotation(turn.to_degrees(), v2(0.0, 0.0)))
+                        .then(&Transform::translation(q.x, q.y));
+                    placed.push(Placed {
+                        ch: char_of(g.cluster),
+                        index: g.cluster,
+                        glyph: g.glyph,
+                        at,
+                    });
+                }
+            }
+        }
         None => {
             for (row, line) in shaped_lines.iter().enumerate() {
                 let run = Run::along(line, spec, scale, spacing, vertical, cap);
@@ -1724,6 +1777,43 @@ pub fn layout_in(
         missing,
         shaping,
     })
+}
+
+/// The point `along` (0.1 mm, from the top or bottom of the ring) on the baseline of an arched
+/// text's line `down` (0.1 mm) below the first, and the baseline's angle there (radians).
+/// `r` is the first line's signed radius (0.1 mm, [`TextSpec::arc`]): the centre lies `r`
+/// below the first baseline's middle when arching up, `-r` above it when arching down. Lines
+/// below the first sit on smaller rings arching up, larger ones arching down, so every line
+/// keeps its place below the one before.
+pub fn arc_point(r: f64, down: f64, along: f64) -> (Vec2, f64) {
+    if r > 0.0 {
+        let ring = r - down;
+        let a = along / ring;
+        (v2(ring * a.dsin(), r - ring * a.dcos()), a)
+    } else {
+        let ring = -r + down;
+        let a = along / ring;
+        (v2(ring * a.dsin(), r + ring * a.dcos()), -a)
+    }
+}
+
+/// The smallest first-line radius (0.1 mm) at which every line of an arched text fits its
+/// ring: each line no longer than its ring's circumference, and each ring larger than the
+/// capitals' height (the letters would cross the centre). `lengths` are the lines' advances,
+/// `step` the line spacing, `up` whether the text arches up (inner rings) or down.
+pub fn arc_radius_needed(lengths: &[f64], step: f64, cap: f64, up: bool) -> f64 {
+    lengths
+        .iter()
+        .enumerate()
+        .map(|(k, len)| {
+            let ring = (len / std::f64::consts::TAU).max(cap);
+            if up {
+                ring + k as f64 * step
+            } else {
+                ring - k as f64 * step
+            }
+        })
+        .fold(cap, f64::max)
 }
 
 /// Ink bounds of a layout's outlines and stitches.

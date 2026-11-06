@@ -487,7 +487,7 @@ From the open-source scan of 2026-11-05 ([research/competitive-features.md](rese
 Updates; concepts only, no code from the GPL or unlicensed projects), ranked by user benefit
 and effort: 1. export read-back check (#457, done in `batch:quality-checks`); 2. test swatch of the
 selection (#452, planned, P2); 3. fabric calibration swatch (#453, planned, P2, with B5's
-fabric table); 4. arched text with several lines as concentric rings (#456, idea, with B15);
+fabric table); 4. arched text with several lines as concentric rings (#456, **done** 2026-11-06 in `batch:lettering-text`: `arc` on `text.add`/`object.setText`, the Text Attributes pane's Arc row and a centre handle on the canvas);
 5. SVG import reading stitch settings from layer names (#455 **done**: name tokens with short or long key names, dashes and paint-order as `import.svg {settings: true}`; Ink/Stitch attributes moved to #661); 6. garment mockups (#454,
 idea). Not taken: staggered satin splits, sharp satin corners as fans and converting a filled
 shape to a centre-line satin (OpenStitch has them: `splitLength` staggered, Auto satin's corner

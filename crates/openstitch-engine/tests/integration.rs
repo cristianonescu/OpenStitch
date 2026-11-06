@@ -70,6 +70,8 @@ mod knockdown;
 mod layout;
 #[path = "lettering.rs"]
 mod lettering;
+#[path = "lettering_arc.rs"]
+mod lettering_arc;
 #[path = "lettering_envelopes.rs"]
 mod lettering_envelopes;
 #[path = "lettering_library.rs"]
