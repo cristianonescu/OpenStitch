@@ -158,6 +158,10 @@ jobs:
       # types, and the Linux MIME glob must exist and agree. Builds nothing; runs its self-test first.
       - name: check_file_associations
         run: python3 -I tools/check_file_associations.py
+      # readme_status.py refuses inputs holding merge-conflict markers, naming file and line,
+      # and warns when the matrix row count drops sharply (#406). Writes nothing.
+      - name: readme_status --self-test
+        run: python3 -I tools/readme_status.py --self-test
 
   kit:
     # The ready-to-sew kit (examples/sew) must be what the code makes (#450): a fresh release

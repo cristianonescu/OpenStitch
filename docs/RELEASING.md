@@ -54,7 +54,9 @@ with current screenshots. Refresh it in a pull request before every release:
    `docs/COMPATIBILITY_STATUS.md`, `docs/COMPATIBILITY_AUDIT.md` and `gh issue list`. Then run it
    with `--issues --write`. This is the only place the GitHub issue lists and count are
    refreshed; pull requests regenerate the other blocks without `--issues`. `--check` exits 1
-   when a block derived from the repository is out of date.
+   when a block derived from the repository is out of date. It refuses to run (exit 2, naming
+   each file and line) while README.md or a source still holds merge-conflict markers, and
+   warns when the matrix row count drops by more than a tenth (#406).
 2. **Features:** add a line for each feature the release adds, in its group; mark features
    PE-DESIGN 11 does not have with **➕**. Take the facts from the FEATURE_MATRIX rows.
 3. **Hand-written lists:** check "Also missing", "Other things to know" and "Planned" against

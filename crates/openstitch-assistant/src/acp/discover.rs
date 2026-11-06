@@ -356,6 +356,17 @@ pub fn discover() -> Vec<Discovered> {
 /// [`discover`] in the given folders, with `home` for the login files (for tests and for a
 /// panel that wants to look somewhere else).
 pub fn discover_in(dirs: &[PathBuf], home: Option<&Path>) -> Vec<Discovered> {
+    discover_in_within(dirs, home, PROBE_LIMIT)
+}
+
+/// [`discover_in`] with each `--version` probe given `limit` instead of 3 s. A probe that runs
+/// out of time reads as Ready with no version (a slow machine says nothing either way), so a
+/// test that checks what the probes found waits for them to finish instead (#426).
+pub fn discover_in_within(
+    dirs: &[PathBuf],
+    home: Option<&Path>,
+    limit: Duration,
+) -> Vec<Discovered> {
     let handles: Vec<_> = KNOWN_AGENTS
         .iter()
         .map(|agent| {
@@ -364,7 +375,7 @@ pub fn discover_in(dirs: &[PathBuf], home: Option<&Path>) -> Vec<Discovered> {
             std::thread::spawn(move || {
                 let state = match &path {
                     None => AgentState::NotInstalled,
-                    Some(p) => match probe(p, PROBE_LIMIT) {
+                    Some(p) => match probe(p, limit) {
                         Ok(version) => AgentState::Ready { version, logged_in },
                         Err(why) => AgentState::DoesNotStart(why),
                     },

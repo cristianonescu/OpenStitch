@@ -2790,6 +2790,29 @@ fn codec_commands() -> Vec<CommandSpec> {
 
     vec![
         spec(
+            "formats.list",
+            "The file formats OpenStitch reads and writes: every machine format with read and write flags (stitches.import, design.export, library.convert), the stitch-list and G-code exports, and the editable .osd project",
+            Effect::Read,
+            vec![],
+            |_, _| {
+                let machine: Vec<Value> = FileType::ALL
+                    .iter()
+                    .map(|t| {
+                        json!({
+                            "extension": t.extension(),
+                            "read": true,
+                            "write": t.can_write(),
+                        })
+                    })
+                    .collect();
+                Ok(json!({
+                    "machine": machine,
+                    "exports": crate::extra_exports::EXTRA_FORMATS,
+                    "project": "osd",
+                }))
+            },
+        ),
+        spec(
             "stitches.import",
             "Import an embroidery file as a stitch pattern object",
             Effect::Edit,

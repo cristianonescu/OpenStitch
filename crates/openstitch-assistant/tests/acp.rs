@@ -3,12 +3,13 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 #[cfg(unix)]
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use openstitch_assistant::{
     AcpConfig, AcpConversation, AcpError, AgentState, AuthMethod, BRIDGE_NAME, Event, McpServer,
-    StopKind, claude_disallowed_tools, discover_in,
+    StopKind, claude_disallowed_tools, discover_in_within,
 };
 use openstitch_testutil::TempDir;
 use serde_json::Value;
@@ -363,7 +364,10 @@ fn discovery_reports_ready_missing_and_broken_agents() {
     std::fs::write(home.join(".claude/.credentials.json"), "{}").expect("write");
     script(&dir, "claude-agent-acp", "echo 2.1.0");
     script(&dir, "codex-acp", "exit 1");
-    let found = discover_in(&[dir.to_path_buf()], Some(&home));
+    // The probes are waited for: with discover_in's 3 s a probe starved on a busy machine reads
+    // as Ready with no version, which is right for the panel but not what this test checks
+    // (#426).
+    let found = discover_in_within(&[dir.to_path_buf()], Some(&home), Duration::from_secs(120));
     assert_eq!(found.len(), openstitch_assistant::KNOWN_AGENTS.len());
     assert_eq!(
         state_of(&found, "claude"),

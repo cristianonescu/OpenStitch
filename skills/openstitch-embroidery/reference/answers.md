@@ -94,3 +94,11 @@ The window is laid out like PE-DESIGN 11's Layout & Editing window.
 Every editor action is an engine command. `stitchtool` runs JSON command scripts,
 `openstitch-mcp` is an MCP server for MCP clients, and `openstitch --listen` lets scripts act
 on the running editor (127.0.0.1 only, with a per-launch token).
+
+For a user at a terminal, `stitchtool` also has one-line commands built on the same engine
+commands: `convert in.dst out.pes` (`stitches.import` + `design.export`; a folder with
+`--format pes` is `library.convert`), `info x.pes` (`design.info`), `optimize in out
+[--by-color]` (`stitches.divideByColor`, then `order.optimize` or `order.byColor`), `digitize
+logo.png out.pes --size 80mm` (`digitize.autoPunch`) and `formats`. When asked which formats
+OpenStitch reads or writes, call `formats.list`: every machine format with read and write flags
+(PHC, DSB, DSZ, KSM, ZXY and STX are read only), plus the CSV, TXT and G-code exports and .osd.

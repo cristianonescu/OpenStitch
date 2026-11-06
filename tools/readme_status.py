@@ -5,6 +5,12 @@
     python -I tools/readme_status.py --write            # update README.md
     python -I tools/readme_status.py --check            # exit 1 if README.md is out of date
     python -I tools/readme_status.py --issues --write   # also refresh the GitHub issue lists
+    python -I tools/readme_status.py --self-test        # check the guards below (CI runs it)
+
+It refuses to run (exit 2, naming each file and line) while README.md or any source below holds
+a merge-conflict marker (`<<<<<<< `, `||||||| `, `=======`, `>>>>>>> ` at the start of a line;
+a Markdown setext underline of exactly seven `=` reads the same, so the docs use `#` headings),
+and warns when the matrix row count drops by more than a tenth (#406).
 
 Pull requests run it without --issues: the issue lists and the open-issue count change whenever
 anyone opens or closes an issue, so they are refreshed once per release (docs/RELEASING.md)
@@ -42,6 +48,56 @@ STATUS = ROOT / "docs" / "COMPATIBILITY_STATUS.md"
 AUDIT = ROOT / "docs" / "COMPATIBILITY_AUDIT.md"
 REPO = "cristianonescu/OpenStitch"
 ISSUES = f"https://github.com/{REPO}/issues"
+
+# Git's conflict markers (#406): `<<<<<<< ours`, `||||||| base` (diff3), `=======`,
+# `>>>>>>> theirs`. A table parse stops at the first one, so the counts would silently shrink.
+MARKER = re.compile(r"^(?:<{7}|\|{7}|>{7})(?: |$)|^={7}$")
+
+
+def conflict_markers(paths):
+    """(path, line number, line) of every conflict-marker line in `paths`."""
+    found = []
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        for n, line in enumerate(text.splitlines(), 1):
+            if MARKER.match(line):
+                found.append((path, n, line))
+    return found
+
+
+def matrix_row_count(readme):
+    """The glance table's matrix row count in README.md, or None."""
+    m = re.search(r"^\| Feature matrix rows \| (\d+):", readme, re.M)
+    return int(m.group(1)) if m else None
+
+
+def shrank(before, after):
+    """Whether the matrix row count dropped sharply (more than a tenth): a sign of a cut-short
+    parse rather than rows really removed."""
+    return before is not None and after < before * 0.9
+
+
+def self_test():
+    """Conflict markers are found with file and line; ordinary lines are not."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        p = Path(d) / "FEATURE_MATRIX.md"
+        p.write_text("| Area | Feature | Status |\n|---|---|---|\n<<<<<<< HEAD\n| a | b | c |\n"
+                     "||||||| base\n=======\n| a | b | d |\n>>>>>>> feature\n"
+                     "Heading\n=======\nx ======= y\n<<<<<<<<\n", encoding="utf-8")
+        got = [(n, line) for _, n, line in conflict_markers([p])]
+        want = [(3, "<<<<<<< HEAD"), (5, "||||||| base"), (6, "======="),
+                (8, ">>>>>>> feature"), (10, "=======")]
+        assert got == want, got
+        clean = Path(d) / "README.md"
+        clean.write_text("| Feature matrix rows | 120: 100 implemented |\n== x ==\n",
+                         encoding="utf-8")
+        assert conflict_markers([clean]) == []
+        assert matrix_row_count(clean.read_text(encoding="utf-8")) == 120
+    assert shrank(120, 24) and not shrank(120, 115) and not shrank(None, 3)
+    print("readme_status self-test passed.")
+    return 0
+
 
 def table_rows(text, header):
     """Rows of the first Markdown table whose header line starts with `header`."""
@@ -215,10 +271,26 @@ def main():
                    help="also refresh the GitHub issue lists and count (release gate)")
     p.add_argument("--offline", action="store_true",
                    help="skip the GitHub issue list (the default; kept for old commands)")
+    p.add_argument("--self-test", action="store_true",
+                   help="check the conflict-marker and row-count guards, then exit")
     a = p.parse_args()
+    if a.self_test:
+        return self_test()
+
+    markers = conflict_markers([README, MATRIX, STATUS, AUDIT])
+    if markers:
+        for path, n, line in markers:
+            print(f"{path.relative_to(ROOT).as_posix()}:{n}: merge-conflict marker {line!r}",
+                  file=sys.stderr)
+        print("Resolve the conflicts first; nothing was written.", file=sys.stderr)
+        return 2
 
     old = README.read_text(encoding="utf-8")
     new, missing = apply(old, blocks(a.offline or not a.issues, old))
+    before, after = matrix_row_count(old), matrix_row_count(new)
+    if after is not None and shrank(before, after):
+        print(f"warning: feature matrix rows drop from {before} to {after}; check "
+              "docs/FEATURE_MATRIX.md before writing", file=sys.stderr)
     for name in missing:
         print(f"README.md has no <!-- status:{name} --> block", file=sys.stderr)
     diff = list(difflib.unified_diff(old.splitlines(), new.splitlines(), "README.md (now)",

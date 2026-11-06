@@ -14,7 +14,7 @@
 use std::collections::VecDeque;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::process::{Child, Command, Stdio};
-use std::sync::mpsc::{Sender, channel};
+use std::sync::mpsc::{RecvTimeoutError, Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -24,12 +24,32 @@ const MAX_LINE: usize = 8 << 20;
 const STDERR_LINES: usize = 40;
 /// How long an agent gets to end by itself once its input is closed, and then once asked to stop.
 const GRACE: Duration = Duration::from_millis(1200);
+/// Once the agent has ended, how long the stderr reader may sit on an empty, still-open pipe
+/// before the exit is reported anyway: only a helper process still holding the agent's stderr
+/// does that. Time the reader spends unscheduled on a busy machine does not count (#426).
+const STDERR_DRAIN: Duration = Duration::from_secs(2);
+/// The same when the reader was already waiting before the exit was seen: then it cannot show
+/// whether the agent's last words are still in the pipe for a reader the machine has not run
+/// yet, so it gets far longer than the starvation measured on a loaded 4-core PC (over 2 s).
+const STDERR_DRAIN_UNSEEN: Duration = Duration::from_secs(10);
+/// The longest wait after stdout closes before the exit is reported whatever stderr does: an
+/// agent that closed stdout but keeps running.
+const STDERR_BACKSTOP: Duration = Duration::from_secs(30);
 
 /// The agent's stderr tail.
 pub(crate) type Tail = Arc<Mutex<VecDeque<String>>>;
 
+/// Whether the agent process has ended (or is being stopped, which takes it out of the slot).
+fn agent_ended(child: &Mutex<Option<Child>>) -> bool {
+    child.lock().map_or(true, |mut c| match c.as_mut() {
+        None => true,
+        Some(child) => !matches!(child.try_wait(), Ok(None)),
+    })
+}
+
 pub(crate) struct AgentProcess {
-    child: Mutex<Option<Child>>,
+    /// Shared with the stdout reader, which checks whether the agent has ended.
+    child: Arc<Mutex<Option<Child>>>,
     /// Lines for the agent's stdin; `None` once stopped (dropping the sender closes stdin).
     to_agent: Arc<Mutex<Option<Sender<String>>>>,
     pub(crate) tail: Tail,
@@ -170,14 +190,41 @@ impl AgentProcess {
             }
             // Every sender is gone: stdin closes here, which is how an ACP agent learns to end.
         });
+        let child = Arc::new(Mutex::new(Some(child)));
+        let child_w = child.clone();
         let tail: Tail = Arc::new(Mutex::new(VecDeque::new()));
         let tail_w = tail.clone();
+        // Dropped when the stderr reader ends: the stdout reader waits for that before it
+        // reports the exit, so the tail holds the agent's last words (#426).
+        let (stderr_open, stderr_closed) = channel::<()>();
+        // When the stderr reader last went to wait on an empty pipe (None while it has data in
+        // hand): how the stdout reader tells a helper holding stderr open from a reader that
+        // simply has not run yet on a busy machine.
+        let waiting: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
+        let waiting_w = waiting.clone();
         std::thread::spawn(move || {
-            for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+            let _open = stderr_open;
+            let mut reader = BufReader::new(stderr);
+            loop {
+                if reader.buffer().is_empty()
+                    && let Ok(mut w) = waiting_w.lock()
+                {
+                    *w = Some(Instant::now());
+                }
+                let mut line = String::new();
+                let read = reader.read_line(&mut line);
+                if let Ok(mut w) = waiting_w.lock() {
+                    *w = None;
+                }
+                match read {
+                    Ok(0) | Err(_) => break,
+                    Ok(_) => {}
+                }
                 if let Ok(mut t) = tail_w.lock() {
                     if t.len() >= STDERR_LINES {
                         t.pop_front();
                     }
+                    let line = line.trim_end_matches(['\r', '\n']);
                     t.push_back(line.chars().take(400).collect());
                 }
             }
@@ -201,12 +248,39 @@ impl AgentProcess {
                     Ok(_) => on_line(&String::from_utf8_lossy(&buf)),
                 }
             }
-            // Give stderr a moment to deliver the agent's last words.
-            std::thread::sleep(Duration::from_millis(100));
+            // Wait until stderr has been read to its end, however slowly this machine runs, so
+            // the exit is reported with the agent's last words (#426). A helper that inherited
+            // stderr and outlives the agent keeps it open. That is told apart from a stderr
+            // reader that has not been scheduled yet by the reader's own state: once the agent
+            // has exited, its last words are in the pipe, and a reader that went to wait on an
+            // empty pipe after that and is still waiting STDERR_DRAIN later has read them all.
+            // A reader that was already waiting when the exit was seen proves less (it may not
+            // have run since the last words arrived), so it is given STDERR_DRAIN_UNSEEN.
+            let closed_stdout = Instant::now();
+            let mut exit_seen: Option<Instant> = None;
+            while let Err(RecvTimeoutError::Timeout) =
+                stderr_closed.recv_timeout(Duration::from_millis(50))
+            {
+                if exit_seen.is_none() && agent_ended(&child_w) {
+                    exit_seen = Some(Instant::now());
+                }
+                let drained = exit_seen.is_some_and(|seen| {
+                    waiting.lock().ok().and_then(|w| *w).is_some_and(|since| {
+                        if since >= seen {
+                            since.elapsed() >= STDERR_DRAIN
+                        } else {
+                            seen.elapsed() >= STDERR_DRAIN_UNSEEN
+                        }
+                    })
+                });
+                if drained || closed_stdout.elapsed() >= STDERR_BACKSTOP {
+                    break;
+                }
+            }
             on_exit();
         });
         Ok(AgentProcess {
-            child: Mutex::new(Some(child)),
+            child,
             to_agent: Arc::new(Mutex::new(Some(tx))),
             tail,
         })
@@ -242,5 +316,34 @@ pub(crate) fn tail_text(tail: &Tail) -> String {
 impl Drop for AgentProcess {
     fn drop(&mut self) {
         self.shutdown();
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::sync::mpsc::channel;
+
+    /// An agent that ends while a helper it started still holds its stderr (not its stdout) is
+    /// reported as ended once the pipe has stayed empty long enough, with its last words in the
+    /// tail, well before the helper ends.
+    #[test]
+    fn the_exit_is_reported_while_a_helper_holds_stderr() {
+        let mut cmd = Command::new("sh");
+        cmd.args(["-c", "echo last words >&2; sleep 60 >/dev/null & exit 0"]);
+        let (tx, rx) = channel();
+        let started = Instant::now();
+        let process = AgentProcess::spawn(
+            cmd,
+            |_| {},
+            move || {
+                let _ = tx.send(());
+            },
+        )
+        .expect("spawn sh");
+        rx.recv_timeout(STDERR_DRAIN_UNSEEN + Duration::from_secs(15))
+            .expect("the exit is reported before the helper ends");
+        assert!(started.elapsed() >= STDERR_DRAIN);
+        assert_eq!(process.stderr_tail(), "last words");
     }
 }
