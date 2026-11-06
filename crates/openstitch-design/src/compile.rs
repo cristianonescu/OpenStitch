@@ -311,7 +311,8 @@ impl Writer {
                     .stitches
                     .last()
                     .is_some_and(|s| s.command == Command::Jump);
-            let force = std::mem::take(&mut self.force_tie);
+            // Only a run that locks takes the object's forced tie-in (not a basting run).
+            let force = element.lock && std::mem::take(&mut self.force_tie);
             let tied;
             let run = match self.ties {
                 // The object's own ties: its generators' ties were left out (#548).
@@ -473,6 +474,7 @@ fn basting_element(runs: Vec<Run>, thread: Thread) -> Element {
         lock: false,
         pieces: true,
         across: Some(0.0),
+        rule: Rule::Pe,
     }
 }
 
