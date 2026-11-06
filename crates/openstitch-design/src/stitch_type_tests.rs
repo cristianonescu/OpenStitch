@@ -2136,6 +2136,15 @@ fn zigzag_net_stays_inside_and_its_rungs_do_not_cross() {
                 r.angle = angle;
                 let runs = crate::region::layers(&c, &r, &[]).pop().expect("top");
                 assert_eq!(runs.len(), 1, "{name} {id} {angle}°");
+                // #616: the Direction does not turn the net (PE-DESIGN 11.50 sews it on the page
+                // axes at Direction 45°).
+                let mut at_zero = r.clone();
+                at_zero.angle = 0.0;
+                assert_eq!(
+                    runs,
+                    crate::region::layers(&c, &at_zero, &[]).pop().expect("top"),
+                    "{name} {id} {angle}°: the same net as at 0°"
+                );
                 let run = &runs[0];
                 for p in run {
                     assert!(
@@ -2153,9 +2162,10 @@ fn zigzag_net_stays_inside_and_its_rungs_do_not_cross() {
                 let along_line = |j: usize| {
                     let d = run[j + 1] - run[j];
                     let a = d.y.atan2(d.x).to_degrees();
-                    // The net turns the other way round on the page (y down).
+                    // The net lies on the page axes whatever the Direction (#616), and turns the
+                    // other way round on the page (y down).
                     lines.iter().any(|l| {
-                        let off = (a + l + angle).rem_euclid(180.0);
+                        let off = (a + l).rem_euclid(180.0);
                         off.min(180.0 - off) < 2.0
                     })
                 };
@@ -2781,6 +2791,62 @@ fn square_net_lines_are_straight_and_axis_aligned() {
         .filter(|x| x % 40 == 0)
         .collect();
     assert_eq!(xs.into_iter().collect::<Vec<_>>(), vec![40, 80, 120, 160]);
+}
+
+/// #617: motif lines and motif fill sewed every vertex of the motif, many closer than 0.3 mm
+/// (170 such stitches in the kit's wave row, 56 in line-types.json's heart row, a run of 10 in
+/// region-types.json's heart fill). No motif stitch is shorter now, and the lines still start
+/// and end at the path's ends.
+#[test]
+fn motifs_never_stitch_under_0_3_mm() {
+    let short = |run: &[Vec2]| {
+        run.windows(2)
+            .filter(|w| w[0].distance(w[1]) < crate::generate::MOTIF_MIN_STITCH - 1e-9)
+            .count()
+    };
+    let curve: Vec<Vec2> = (0..=60)
+        .map(|k| {
+            let t = k as f64 / 60.0;
+            v2(t * 600.0, (t * std::f64::consts::TAU).sin() * 120.0)
+        })
+        .collect();
+    for (id, width, height, gap) in [
+        ("wave", 60.0, 50.0, 10.0),
+        ("heart", 60.0, 50.0, 10.0),
+        ("heart", 30.0, 25.0, 5.0),
+    ] {
+        let pattern = patterns::find(PatternKind::Motif, id).expect(id);
+        for path in [hline(500.0), curve.clone()] {
+            let m = MotifLine {
+                pattern,
+                width,
+                height,
+                gap,
+                pitch: 25.0,
+                arrange: Arrange::Normal,
+            };
+            let run = lines::motif(&path, false, &m);
+            assert_eq!(short(&run), 0, "{id} {width}: motif line");
+            let at = |a: Option<&Vec2>, b: Option<&Vec2>| {
+                a.zip(b).is_some_and(|(a, b)| a.distance(*b) < 1e-6)
+            };
+            assert!(
+                at(run.first(), path.first()),
+                "{id}: starts at the path's start"
+            );
+            assert!(at(run.last(), path.last()), "{id}: ends at the path's end");
+        }
+    }
+    let c = vec![Contour::rectangle(0.0, 0.0, 300.0, 200.0)];
+    let mut r = region(RegionType::MotifFill);
+    r.pattern = Some("heart".into());
+    r.pattern_width = Some(3.0);
+    r.pattern_height = Some(2.5);
+    r.spacing = Some(0.5);
+    r.running_stitch_path = None;
+    for run in crate::region::layers(&c, &r, &[]).pop().expect("top") {
+        assert_eq!(short(&run), 0, "heart motif fill");
+    }
 }
 
 #[test]

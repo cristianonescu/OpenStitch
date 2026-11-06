@@ -129,7 +129,14 @@ pub fn generate(
                 join_pitch: MOTIF_FILL_TRAVEL_PITCH,
                 ..region
             };
-            vec![region.sequence(rows)]
+            // Each row split to the pitch, without points under 0.3 mm apart (#617).
+            let runs = rows
+                .into_iter()
+                .map(|row| {
+                    generate::drop_close(&subdivide(&row, pitch), generate::MOTIF_MIN_STITCH, pitch)
+                })
+                .collect();
+            vec![region.sequence_raw(runs)]
         }
         RegionType::DecorativeFill => {
             let pattern = patterns::resolve(user, PatternKind::Decorative, r.pattern.as_deref());
@@ -311,10 +318,18 @@ pub fn generate(
             // rung straight across then a diagonal back, 0.44 mm apart, inside the outline.
             let width = pw.min(spacing * 0.8);
             let step = 10.0 / r.density.max(0.1);
-            let lines: Vec<Vec<Vec2>> = net_families(closed, holes, angle, spacing, id)
-                .into_iter()
-                .flatten()
-                .collect();
+            // PE-DESIGN 11.50 (o-region-zigzag-net, Direction 45°) sews the net on the page axes,
+            // its first lines half a band in from the shape's left and top edges: the Direction
+            // does not turn it (as with cross stitch, #463), and the lines start from the shape,
+            // not from the page origin (#616).
+            // With a reference point, `region::layers` put it at (0, 0): the net starts there.
+            let lines: Vec<Vec<Vec2>> = match r.reference {
+                Some(_) => net_families(closed, holes, 0.0, spacing, id)
+                    .into_iter()
+                    .flatten()
+                    .collect(),
+                None => net_from_shape(closed, holes, spacing, width / 2.0, id),
+            };
             // A net edge two lines share (the honeycomb's rows meet along theirs) is sewn once:
             // a second band over it piled thread into knots on the machine (#293).
             let pieces = once_each(lines.clone());
@@ -2027,6 +2042,29 @@ fn chaikin(l: &[Vec2]) -> Vec<Vec2> {
 // ------------------------------------------------------------------ nets
 
 /// The line families of net pattern `id`: per family, clipped pieces in row order.
+/// The net lines of pattern `id` on the page axes, lined up so that a line runs `inset` in from
+/// the left and the top of the shape's bounds (PE-DESIGN's zigzag net, #616).
+fn net_from_shape(
+    closed: &[Contour],
+    holes: &[Contour],
+    spacing: f64,
+    inset: f64,
+    id: &str,
+) -> Vec<Vec<Vec2>> {
+    let Some(b) = Rect::enclosing(closed.iter().flat_map(|c| c.outline_points())) else {
+        return Vec::new();
+    };
+    let o = v2(b.min_x + inset, b.min_y + inset);
+    let to_origin = crate::geometry::Transform::translation(-o.x, -o.y);
+    let shift =
+        |cs: &[Contour]| -> Vec<Contour> { cs.iter().map(|c| c.transformed(&to_origin)).collect() };
+    net_families(&shift(closed), &shift(holes), 0.0, spacing, id)
+        .into_iter()
+        .flatten()
+        .map(|line| line.into_iter().map(|p| p + o).collect())
+        .collect()
+}
+
 fn net_families(
     closed: &[Contour],
     holes: &[Contour],
