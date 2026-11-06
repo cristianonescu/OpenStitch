@@ -145,7 +145,184 @@ pub const FABRICS: &[Fabric] = &[
         underlay: None,
         auto_underlay: AUTO_FIRM,
     },
+    // Beyond PE-DESIGN (#508): five more fabrics after PE-DESIGN's eight, with the same kind of
+    // approximations (no maker publishes density or pull compensation per fabric); their
+    // backing, topping and needle advice is sourced (data/fabric_advice.json).
+    Fabric {
+        id: "polyester",
+        name: "Polyester woven (sportswear, linings)",
+        description: "Smooth, often slippery woven polyester that puckers if the stitches pull.",
+        advice: "Stabilise firmly and keep the hoop tight; an edge and zigzag underlay holds the fabric.",
+        fill_density: 2.5,
+        satin_density: 3.0,
+        stitch_length: 3.5,
+        pull_compensation: 0.25,
+        underlay: Some(UnderlayStyle::EdgeZigzag),
+        auto_underlay: AUTO_FIRM,
+    },
+    Fabric {
+        id: "pique",
+        name: "Piqué knit (polo shirts)",
+        description: "A textured knit with a honeycomb surface; it stretches and the stitches sink into it.",
+        advice: "Treat it as a knit: a soft cut-away below and a film topping over the texture.",
+        fill_density: 2.3,
+        satin_density: 3.0,
+        stitch_length: 3.5,
+        pull_compensation: 0.4,
+        underlay: Some(UnderlayStyle::EdgeZigzag),
+        auto_underlay: AUTO_STRETCH,
+    },
+    Fabric {
+        id: "organza",
+        name: "Organza and sheers",
+        description: "A see-through fabric: the back of the design and any stabiliser left behind show.",
+        advice: "Use a wash-away stabiliser and a light design; avoid heavy fills.",
+        fill_density: 2.0,
+        satin_density: 2.6,
+        stitch_length: 3.0,
+        pull_compensation: 0.1,
+        underlay: Some(UnderlayStyle::Edge),
+        auto_underlay: AUTO_FIRM,
+    },
+    Fabric {
+        id: "canvas",
+        name: "Canvas, duck (bags)",
+        description: "A heavy, firm woven fabric that holds dense stitching well.",
+        advice: "Use a strong needle and slow the machine on thick seams.",
+        fill_density: 2.8,
+        satin_density: 3.4,
+        stitch_length: 4.0,
+        pull_compensation: 0.2,
+        underlay: Some(UnderlayStyle::EdgeZigzag),
+        auto_underlay: AUTO_FIRM,
+    },
+    Fabric {
+        id: "cap",
+        name: "Caps (structured)",
+        description: "A stiff, curved front panel sewn on a cap frame, often across a centre seam.",
+        advice: "Sew from the centre outwards and bottom to top; an edge and zigzag underlay keeps the design on the curve.",
+        fill_density: 2.8,
+        satin_density: 3.4,
+        stitch_length: 4.0,
+        pull_compensation: 0.3,
+        underlay: Some(UnderlayStyle::EdgeZigzag),
+        auto_underlay: AUTO_FIRM,
+    },
 ];
+
+/// PE-DESIGN's Fabric Selector fabrics: the first eight of [`FABRICS`].
+pub const PE_FABRICS: usize = 8;
+
+// MARK: advice (#508)
+
+/// One maker source of the advice.
+#[derive(Clone, Debug, serde::Deserialize)]
+pub struct Source {
+    pub id: String,
+    pub maker: String,
+    pub title: String,
+    pub url: String,
+}
+
+/// The sourced backing, topping and needle advice for one fabric.
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FabricAdvice {
+    pub backing: String,
+    pub topping: String,
+    pub needle_point: String,
+    /// The smallest needle a maker gives for the fabric (metric), if any.
+    pub needle_min: Option<u32>,
+    #[serde(default)]
+    pub disagree: Option<String>,
+    pub sources: Vec<String>,
+}
+
+/// Needle and smallest text for one thread weight.
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ThreadAdvice {
+    /// Needle size (metric).
+    pub needle: u32,
+    /// The maker's stitch spacing for the weight, mm.
+    pub spacing_mm: f64,
+    /// Smallest legible block-letter height, mm.
+    pub min_text_mm: f64,
+    /// `published`, or how the value was estimated.
+    pub min_text_basis: String,
+    pub sources: Vec<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct Advice {
+    pub sources: Vec<Source>,
+    pub fabrics: std::collections::BTreeMap<String, FabricAdvice>,
+    pub threads: std::collections::BTreeMap<String, ThreadAdvice>,
+}
+
+/// The thread weights the advice covers (No. 12 thickest, No. 60 finest).
+pub const WEIGHTS: [u32; 4] = [12, 30, 40, 60];
+
+/// The advice table (`data/fabric_advice.json`), parsed once.
+pub fn advice() -> &'static Advice {
+    static ADVICE: std::sync::OnceLock<Advice> = std::sync::OnceLock::new();
+    ADVICE.get_or_init(|| {
+        serde_json::from_str(include_str!("../data/fabric_advice.json"))
+            .expect("data/fabric_advice.json is valid")
+    })
+}
+
+/// A metric needle size with its US number ("75/11").
+pub fn needle_name(metric: u32) -> String {
+    let us = match metric {
+        60 => "8",
+        65 => "9",
+        70 => "10",
+        75 => "11",
+        80 => "12",
+        90 => "14",
+        100 => "16",
+        110 => "18",
+        _ => return metric.to_string(),
+    };
+    format!("{metric}/{us}")
+}
+
+/// The advice for fabric `id` (a custom fabric takes its base's) sewn with thread No. `weight`.
+pub fn advise(s: &EngineState, id: &str, weight: u32) -> Option<Value> {
+    let f = resolve(s, id)?;
+    let a = advice();
+    let fa = a.fabrics.get(&f.base_id)?;
+    let t = a.threads.get(&weight.to_string())?;
+    let size = fa.needle_min.map_or(t.needle, |m| m.max(t.needle));
+    let mut ids: Vec<&String> = fa.sources.iter().chain(&t.sources).collect();
+    ids.sort();
+    ids.dedup();
+    let sources: Vec<Value> = ids
+        .iter()
+        .filter_map(|id| a.sources.iter().find(|s| &&s.id == id))
+        .map(|s| json!({ "id": s.id, "maker": s.maker, "title": s.title, "url": s.url }))
+        .collect();
+    Some(json!({
+        "fabric": f.id,
+        "weight": weight,
+        "backing": fa.backing,
+        "topping": fa.topping,
+        "needle": {
+            "point": fa.needle_point,
+            "size": needle_name(size),
+            "basis": if fa.needle_min.is_some_and(|m| m > t.needle) {
+                "the fabric's own minimum"
+            } else {
+                "the thread weight's needle"
+            },
+        },
+        "minTextMm": t.min_text_mm,
+        "minTextBasis": t.min_text_basis,
+        "disagree": fa.disagree,
+        "sources": sources,
+    }))
+}
 
 fn describe(f: &Fabric) -> Value {
     json!({
@@ -163,6 +340,17 @@ fn describe(f: &Fabric) -> Value {
             "centreBelow": f.auto_underlay.centre_below,
             "edgeBelow": f.auto_underlay.edge_below,
         },
+        // Beyond PE-DESIGN (#508): the fabrics after PE-DESIGN's eight, and the sourced advice
+        // for No. 40 thread (fabric.advise gives it for other weights, with the sources).
+        "beyondPeDesign": FABRICS.iter().position(|x| x.id == f.id).is_some_and(|i| i >= PE_FABRICS),
+        "backing": advice().fabrics.get(f.id).map(|a| a.backing.as_str()),
+        "topping": advice().fabrics.get(f.id).map(|a| a.topping.as_str()),
+        "needle": advice().fabrics.get(f.id).map(|a| {
+            let forty = advice().threads.get("40").map_or(75, |t| t.needle);
+            let size = a.needle_min.map_or(forty, |m| m.max(forty));
+            format!("{} {}", a.needle_point, needle_name(size))
+        }),
+        "minTextMm": advice().threads.get("40").map(|t| t.min_text_mm),
     })
 }
 
@@ -174,13 +362,38 @@ pub fn commands() -> Vec<CommandSpec> {
     vec![
         spec(
             "fabric.list",
-            "Fabric types of the Fabric Selector with their description, advice and recommended sewing attributes (OpenStitch's approximations), then the user's custom fabrics from calibration cards (`custom: true`, #453)",
+            "Fabric types of the Fabric Selector with their description, advice and recommended sewing attributes (OpenStitch's approximations): PE-DESIGN's eight, then five more (`beyondPeDesign: true`, #508), then the user's custom fabrics from calibration cards (`custom: true`, #453). Each also gives the makers' backing, topping, needle and smallest text height for No. 40 thread (`backing`, `topping`, `needle`, `minTextMm`; fabric.advise for other weights and the sources)",
             Effect::Read,
             vec![],
             |s, _| {
                 let mut v: Vec<Value> = FABRICS.iter().map(describe).collect();
                 v.extend(s.user.custom_fabrics.iter().map(describe_custom));
                 Ok(Value::Array(v))
+            },
+        ),
+        spec(
+            "fabric.advise",
+            "What to sew a fabric with (beyond PE-DESIGN, #508): backing, topping, needle point and size, and the smallest legible block-letter height for a thread weight, from the stabiliser, needle and thread makers' published guidance (each source listed; `disagree` names where makers differ, `minTextBasis` says whether the height is published or estimated)",
+            Effect::Read,
+            vec![
+                req(
+                    "fabric",
+                    "string",
+                    "Fabric id from fabric.list (a custom fabric takes its base fabric's advice)",
+                ),
+                opt(
+                    "weight",
+                    "12|30|40|60",
+                    "Thread weight number (default 40; a higher number is a finer thread)",
+                ),
+            ],
+            |s, p| {
+                let id = p.string("fabric", None)?;
+                let weight = p.int("weight", Some(40), 1, 200)? as u32;
+                if !WEIGHTS.contains(&weight) {
+                    return Err(p.invalid("weight", "use 12, 30, 40 or 60"));
+                }
+                advise(s, &id, weight).ok_or_else(|| p.not_found(format!("fabric '{id}'")))
             },
         ),
         spec(

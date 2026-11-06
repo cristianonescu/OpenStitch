@@ -2384,6 +2384,24 @@ Line references are relative to `crates/`.
   both cards; the Realistic view and the similarity scorer now draw thread that wide
   (`openstitch_design::calibration`, #291).
 
+### Fabric presets and advice, 2026-11-07 (`batch:mac-fabric`, #508 part 1)
+
+Beyond PE-DESIGN. PE-DESIGN's eight Fabric Selector types and their values are unchanged and
+listed first.
+
+- **Five more fabrics:** polyester woven, piqué knit, organza and sheers, canvas, and structured
+  caps. Their density, stitch length, pull compensation and underlay are OpenStitch's
+  approximations, like the eight: no stabiliser, needle or thread maker publishes these per fabric.
+- **`fabric.advise {fabric, weight}`:** backing, topping, needle point and size, and the smallest
+  legible block-letter height for No. 12, 30, 40 or 60 thread. The values come from the makers'
+  published guidance (`data/fabric_advice.json`, 21 sources checked 2026-11-07), and makers'
+  disagreements are named (leather needle points, caps, towel and denim backings). Minimum text is
+  published for No. 60 (3 mm) and No. 40 (6–7 mm, 6 used); No. 30 and No. 12 are estimates scaled
+  by Madeira's stitch spacing, and say so. The Fabric Selector shows backing, topping, needle and
+  smallest text.
+- **Not done (parts 2 and 3):** thread weight driving density, a default fabric for new objects,
+  machine profiles, and the first-run setup.
+
 ### Job sheets, 2026-11-06 (`batch:mac-sewout`, #513)
 
 Beyond PE-DESIGN, off unless chosen: `design.print`'s existing modes and the PE-compatible
