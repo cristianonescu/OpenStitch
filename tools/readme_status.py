@@ -77,6 +77,44 @@ def shrank(before, after):
     return before is not None and after < before * 0.9
 
 
+BLOCK = re.compile(r"<!-- status:([\w-]+) -->\n(.*?)<!-- /status:\1 -->", re.S)
+
+
+def status_blocks(text):
+    """The generated blocks of a README text, by name."""
+    return {m.group(1): m.group(2) for m in BLOCK.finditer(text)}
+
+
+def changed_blocks(base_text, head_text):
+    """Names of the generated blocks a change adds, removes or edits (#632)."""
+    base, head = status_blocks(base_text), status_blocks(head_text)
+    return sorted(n for n in base.keys() | head.keys() if base.get(n) != head.get(n))
+
+
+def pr_guard(base_ref):
+    """Feature PRs leave the generated README blocks alone (#632): they changed on nearly every
+    merge and turned green PRs CONFLICTING. The coordinator refreshes them on main in a
+    docs-only PR (branch `docs/readme-status-*`, which CI skips)."""
+    import subprocess
+    try:
+        base = subprocess.run(["git", "show", f"{base_ref}:README.md"], cwd=ROOT, check=True,
+                              capture_output=True).stdout.decode("utf-8")
+    except (OSError, subprocess.CalledProcessError) as e:
+        print(f"cannot read README.md at {base_ref}: {e}", file=sys.stderr)
+        return 2
+    changed = changed_blocks(base, README.read_text(encoding="utf-8"))
+    if not changed:
+        print("README.md generated blocks are untouched.")
+        return 0
+    for name in changed:
+        print(f"README.md: the generated <!-- status:{name} --> block differs from {base_ref}",
+              file=sys.stderr)
+    print("Feature PRs don't edit the generated README blocks (#632): restore them with "
+          f"`git checkout {base_ref} -- README.md` and re-add your hand-written lines. The "
+          "coordinator refreshes the blocks on main after merging.", file=sys.stderr)
+    return 1
+
+
 def self_test():
     """Conflict markers are found with file and line; ordinary lines are not."""
     import tempfile
@@ -95,6 +133,10 @@ def self_test():
         assert conflict_markers([clean]) == []
         assert matrix_row_count(clean.read_text(encoding="utf-8")) == 120
     assert shrank(120, 24) and not shrank(120, 115) and not shrank(None, 3)
+    base = "x\n<!-- status:glance -->\n| a | 1 |\n<!-- /status:glance -->\nhand\n"
+    assert changed_blocks(base, base.replace("hand", "hand, edited")) == []
+    assert changed_blocks(base, base.replace("| a | 1 |", "| a | 2 |")) == ["glance"]
+    assert changed_blocks(base, base + "<!-- status:new -->\ny\n<!-- /status:new -->\n") == ["new"]
     print("readme_status self-test passed.")
     return 0
 
@@ -273,9 +315,13 @@ def main():
                    help="skip the GitHub issue list (the default; kept for old commands)")
     p.add_argument("--self-test", action="store_true",
                    help="check the conflict-marker and row-count guards, then exit")
+    p.add_argument("--pr-guard", metavar="BASE",
+                   help="exit 1 if README.md's generated blocks differ from git ref BASE (#632)")
     a = p.parse_args()
     if a.self_test:
         return self_test()
+    if a.pr_guard:
+        return pr_guard(a.pr_guard)
 
     markers = conflict_markers([README, MATRIX, STATUS, AUDIT])
     if markers:

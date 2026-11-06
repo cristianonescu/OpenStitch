@@ -70,6 +70,14 @@ jobs:
       # runs the ~90 binaries one after another). It does not run doctests, so they follow.
       - run: cargo nextest run --workspace --locked
       - run: cargo test --doc --workspace --locked
+      # The Python package (#498): installed from python/, imported outside the repository, then
+      # its tests against the debug stitchtool just built (same PES bytes as `stitchtool exec`).
+      - name: Python package
+        shell: bash
+        run: |
+          python -m pip install ./python
+          (cd "$RUNNER_TEMP" && python -c "import openstitch; print(openstitch.__version__)")
+          python -m unittest discover -s python/tests -v
       # The Assistant's keys in the real system keychain (#401): a dummy key under a throwaway
       # service name is saved, read back and removed through openstitch_app::keys. Linux needs a
       # Secret Service, so a headless gnome-keyring runs in its own D-Bus session.
@@ -162,6 +170,13 @@ jobs:
       # and warns when the matrix row count drops sharply (#406). Writes nothing.
       - name: readme_status --self-test
         run: python3 -I tools/readme_status.py --self-test
+      # Feature PRs leave README's generated status blocks alone (#632): the coordinator refreshes
+      # them on main in a docs-only PR from a `docs/readme-status-*` branch, which is skipped here.
+      - name: readme_status --pr-guard
+        if: github.event_name == 'pull_request' && !startsWith(github.head_ref, 'docs/readme-status-')
+        run: |
+          git fetch --no-tags --depth=1 origin "+refs/heads/${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}"
+          python3 -I tools/readme_status.py --pr-guard "origin/${{ github.base_ref }}"
 
   kit:
     # The ready-to-sew kit (examples/sew) must be what the code makes (#450): a fresh release
