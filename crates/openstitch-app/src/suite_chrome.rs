@@ -649,9 +649,11 @@ mod tests {
     fn every_database_command_runs_or_is_marked_unavailable() {
         use DbAction as D;
         let dir = temp_folder();
+        // Every app here prints into this test's folder, never the system temp folder (#384).
         let empty = || {
             let mut app = demo();
             app.database.open = true;
+            app.database.print_dir = Some(dir.join("print"));
             app
         };
         let folder = || {
@@ -668,9 +670,7 @@ mod tests {
         );
         let ctx = egui::Context::default();
         let mut app = folder();
-        // Print hands the catalogue PDF over; test builds never start the OS print dialog, and
-        // the PDF goes to this test's folder, not the system temp folder (#384).
-        app.database.print_dir = Some(dir.join("print"));
+        // Print hands the catalogue PDF over; test builds never start the OS print dialog.
         app.run(D::Print, &ctx);
         let pdf = app
             .printed
