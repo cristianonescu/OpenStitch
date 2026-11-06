@@ -1627,6 +1627,11 @@ Line references are relative to `crates/`.
   region-then-outline order unchanged): PE-DESIGN has no per-shape part order, so a PES 11
   export writes such a shape as two shapes, its outline then its region, and the stitch data
   sews them in that order.
+- **Image wizard, batch:mac-wizard (2026-11-06; #489):** the dialog's region table, click-to-fix,
+  colour order and Preset row drive `digitize.autoPunch`'s `dryRun`, `regionMap`, `overrides`,
+  `order` and `preset`; PE-DESIGN-compatible output with none of them set is unchanged.
+  PE-DESIGN has no per-region reasons, overrides, presets or click-to-toggle (toc:143-150), so
+  all of it is beyond PE-DESIGN.
 - **Image digitizing, batch:mac-digitize-2 (2026-11-06; #447, #469, #489, #490):** PE-DESIGN-compatible
   mode's output is unchanged (scorer identical on g01, g02, g05, g13, p03; every new option is
   OpenStitch mode only, off unless set). New in OpenStitch mode: `angleRule: leastTravel`,
