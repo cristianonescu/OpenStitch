@@ -38,6 +38,23 @@ pub fn layers_with(
     holes: &[Contour],
     user: &[Pattern],
 ) -> Vec<Vec<Run>> {
+    // Entry and exit points off the outline (a node moved after they were placed, as
+    // `object.setPoint` leaves them) are sewn where they snap to it: a fill travelled to the
+    // old point outside the reshaped outline (#570, #571).
+    let off = |p: Option<Vec2>| {
+        p.map(|p| (p, crate::route::snap(closed, p)))
+            .filter(|(p, q)| p.distance(*q) > 1.0)
+    };
+    let snapped;
+    let r = if off(r.entry).is_some() || off(r.exit).is_some() {
+        let mut c = r.clone();
+        c.entry = off(r.entry).map_or(r.entry, |(_, q)| Some(q));
+        c.exit = off(r.exit).map_or(r.exit, |(_, q)| Some(q));
+        snapped = c;
+        &snapped
+    } else {
+        r
+    };
     let mut out = layers_inner(closed, r, holes, user);
     if r.kind == RegionType::Satin && r.underlay {
         link_underlay(&mut out, closed, holes);
@@ -360,13 +377,14 @@ fn layers_inner(
         return out;
     }
     let mut runs = match r.kind {
-        RegionType::Fill if !shaped => generate::fill_edge_to_edge(
+        RegionType::Fill if !shaped => generate::fill_edge_to_edge_travel(
             closed,
             &params,
             holes,
             r.fill_stagger(),
             r.entry,
             r.stitch_type == FillStitchType::Two,
+            entry_travel_along_outline(r),
         ),
         // A feathered edge alone keeps the sawtooth (PE-DESIGN 11.50, satin-feather); so does
         // a pattern gradation on a satin split at its start point (satin-gradation).
@@ -421,6 +439,23 @@ fn layers_inner(
     }
     out.push(runs);
     out
+}
+
+/// How far (0.1 mm) inside the outline an under sewing run may end and still be joined along
+/// the outline to the next under an open pattern ([`fill_underlay`], #628): the edge under
+/// sewing runs about 1 mm inside.
+const OPEN_JOIN_REACH: f64 = 20.0;
+
+/// Whether a fill's travel from its entry point to its rows, between its halves and back to
+/// its exit walks the outline (#628): when Running Stitch Path is Along or On outline.
+/// Inside of region (the default) runs it straight across, as PE-DESIGN 11.50 sews it at any
+/// density (tatami-40-pos-*, and sweep-fill-density-min at 0.1 rows/mm, where the straight
+/// run shows between the rows).
+pub fn entry_travel_along_outline(r: &RegionSewing) -> bool {
+    matches!(
+        r.travel_path(),
+        Some(RunningStitchPath::AlongOutline | RunningStitchPath::OnOutline)
+    )
 }
 
 /// How close (0.1 mm) a satin travel's needle point may come to an earlier travel's in the
@@ -622,11 +657,16 @@ fn fill_underlay(
         .chain(rows)
         .flat_map(|run| split_outside(run, closed, holes))
         .collect();
-    vec![join(
-        pieces,
-        Some(&mut TravelGraph::new(closed, holes)),
-        25.0,
-    )]
+    let mut graph = TravelGraph::new(closed, holes);
+    // Under a programmable fill's open pattern the travel from the edge run to the first
+    // under sewing row walks along the outline instead of cutting straight across the
+    // region, where it showed (#628; kit fills/region-sew-types-1). A fill does so when its
+    // Running Stitch Path says Along or On outline; Inside keeps the straight join.
+    if r.kind != RegionType::Fill || entry_travel_along_outline(r) {
+        graph.outline = Some(OutlineTravel::Inset(ALONG_OUTLINE_INSET));
+        graph.outline_tolerance = OPEN_JOIN_REACH;
+    }
+    vec![join(pieces, Some(&mut graph), 25.0)]
 }
 
 /// Stitch pitch (0.1 mm) of the walks along the inset outline between the lines of

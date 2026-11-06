@@ -1292,7 +1292,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "runningStitchPath",
                     "inside|alongOutline|onOutline",
-                    "Fill and satin: running stitches between separate parts (default inside; not with Auto direction, a feathered edge or text; inside not with gradation)",
+                    "Fill and satin: running stitches between separate parts, and for fill also the travel from the start point to the first row and back to the end point (inside: straight across, as PE-DESIGN; alongOutline / onOutline: along the edge, where open rows do not show it). Default inside; not with Auto direction, a feathered edge or text; inside not with gradation",
                 ),
                 opt(
                     "travel",

@@ -205,7 +205,12 @@ pub fn satin(s: &Skeleton, spacing: f64, pull: f64) -> Run {
     let Some(c) = Centre::new(s) else {
         return Vec::new();
     };
-    let mut run = crate::column::zigzag(c.rungs(spacing, pull));
+    let rungs = c.rungs(spacing, pull);
+    // The needle points of `column::zigzag`, with Half Stitch where a bend crowds one side
+    // (#466): at a sharp apex every rung's inner end met in one spot, a pile of needle points.
+    let sides: Vec<usize> = (0..rungs.len()).map(|k| 1 - k % 2).collect();
+    let mut run = vec![rungs[0][0]];
+    run.extend(crate::region::half_stitch(&rungs, &sides));
     run.dedup_by(|a, b| a.distance(*b) < 1e-9);
     run
 }
