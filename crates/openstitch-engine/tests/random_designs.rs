@@ -25,9 +25,9 @@ use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
 
 /// Seeds that fail because of an open bug: (seed, issue). Only seeds an open issue names:
-/// #373 zigzag corners reach past the outline (no miter limit). 1,000 seeds pass otherwise
-/// (#570 and #571's seeds 150, 154, 339 and 398 since start points snap to a reshaped
-/// outline).
+/// #373 zigzag corners reach past the outline (no miter limit). The other seeds up to 1,000
+/// pass (#570 and #571's seeds 150, 154, 339 and 398 since start points snap to a reshaped
+/// outline), except 993, which aborts the process (#638) and so cannot be listed here.
 const KNOWN: &[(u64, u32)] = &[
     (13, 373),
     (42, 373),
