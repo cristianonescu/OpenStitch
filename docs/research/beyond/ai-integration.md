@@ -1023,3 +1023,14 @@ and Permissions to Ask every time by clicks.
 | Subtitle | **Wrong, fixed here (#645):** the line under the title showed the Claude API model (`claude-opus-5-5`) while Claude Code was in use; it now names the agent. |
 
 ![The Assistant on Windows with Claude Code: a red circle added after the permission prompt, checked, one undo step](../../images/assistant-windows-claude-code.png)
+
+### Python scripting (2026-11-06, #498)
+
+The same command set the Assistant drives is now scriptable from Python: `python/` holds the
+`openstitch` package (pure Python, no dependencies). `Session()` starts `stitchtool serve` and
+sends JSON-line requests; `Session.connect()` goes through `stitchtool connect` to the running
+editor, where the editor's own rules apply. Command names and parameters are the engine's, so
+`commands_list` / `command_describe` and the skill's examples apply unchanged (a skill example's
+steps run with `Session.batch`). It adds no engine command or option. Tested on the three systems
+in CI, including a byte comparison of the exported PES with the equivalent `stitchtool exec`
+script. Not published to PyPI: that waits for the owner.
