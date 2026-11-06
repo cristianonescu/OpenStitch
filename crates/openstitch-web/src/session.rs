@@ -59,7 +59,9 @@ pub struct WebSession {
 impl WebSession {
     /// A session whose files live in `dir`: `/web` in the browser, a real folder natively.
     pub fn new(dir: impl Into<PathBuf>) -> Self {
+        // Absolute, as the engine resolves relative paths against this same folder.
         let dir = dir.into();
+        let dir = std::path::absolute(&dir).unwrap_or(dir);
         let mut s = Self {
             session: Session::new(&dir),
             dir,
@@ -619,6 +621,37 @@ mod tests {
             // Nothing is left behind: the picked file and the downloads were taken.
             assert_eq!(std::fs::read_dir(web_dir.path()).expect("dir").count(), 0);
         }
+    }
+
+    #[test]
+    fn a_relative_folder_works() {
+        let dir = TempDir::new("web-rel");
+        let rel = PathBuf::from(format!(
+            "{}/../{}",
+            dir.path().display(),
+            dir.path()
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or_default()
+        ));
+        let cwd = std::env::current_dir().expect("cwd");
+        let rel = pathdiff(&rel, &cwd);
+        let mut web = WebSession::new(&rel);
+        web.open("rect.dst", reference("stitches/import-rect20x10.dst"))
+            .expect("open");
+        assert_eq!(web.export("dst").expect("export").len(), 1);
+    }
+
+    /// `to` relative to `from` (both absolute), with `..` steps.
+    fn pathdiff(to: &Path, from: &Path) -> PathBuf {
+        let (to, from): (Vec<_>, Vec<_>) = (to.components().collect(), from.components().collect());
+        let same = to.iter().zip(&from).take_while(|(a, b)| a == b).count();
+        let mut out = PathBuf::new();
+        for _ in same..from.len() {
+            out.push("..");
+        }
+        to[same..].iter().for_each(|c| out.push(c));
+        out
     }
 
     #[test]
