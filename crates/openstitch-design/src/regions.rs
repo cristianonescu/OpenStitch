@@ -81,8 +81,13 @@ pub fn generate(
             }
             // `programmable` places every needle point itself (crossings, area edges, splits
             // of long gaps); the rows are only rerouted, not split again.
-            let limit = PROGRAMMABLE_MAX_STITCH.max(stamp::EMBOSS_MAX);
-            layers.push(region.rows(programmable(closed, holes, &p, &tile), limit));
+            let split = r.split_length.map(|l| l * 10.0);
+            let limit = match split {
+                // The travel between rows keeps to the split length too.
+                Some(l) if r.stamps.is_empty() => l,
+                _ => PROGRAMMABLE_MAX_STITCH.max(stamp::EMBOSS_MAX),
+            };
+            layers.push(region.rows(programmable(closed, holes, &p, &tile, split), limit));
             layers
         }
         RegionType::Piping => {
@@ -557,7 +562,20 @@ struct Tile<'a> {
 /// [`PROGRAMMABLE_MAX_STITCH`] and are split evenly beyond it. Embossed and engraved tile
 /// areas add needle points at their edges, drop those inside embossed areas and split
 /// engraved stretches into short stitches.
-fn programmable(closed: &[Contour], holes: &[Contour], p: &RegionParams, tile: &Tile) -> Vec<Run> {
+///
+/// `split` (beyond PE-DESIGN, which has no stitch length for this type; #459): gaps between
+/// crossings longer than this are split evenly too, so a large or sparse pattern (12 mm
+/// diamonds at 2.2 lines/mm sews 8-12 mm stitches) can be kept to a sewable length. The added
+/// points divide each gap evenly, so they line up from row to row like the crossings and the
+/// pattern's lines still read.
+fn programmable(
+    closed: &[Contour],
+    holes: &[Contour],
+    p: &RegionParams,
+    tile: &Tile,
+    split: Option<f64>,
+) -> Vec<Run> {
+    let plain = split.map_or(PROGRAMMABLE_MAX_STITCH, |l| l.min(PROGRAMMABLE_MAX_STITCH));
     let rad = p.angle.to_radians();
     let spans = row_spans(closed, holes, p);
     let mask = tile.pattern.region_mask();
@@ -605,9 +623,9 @@ fn programmable(closed: &[Contour], holes: &[Contour], p: &RegionParams, tile: &
             let max = match effect((w[0] + w[1]) / 2.0) {
                 Some(RegionEffect::Engrave) => stamp::ENGRAVE_STEP,
                 Some(RegionEffect::Emboss) => stamp::EMBOSS_MAX.max(PROGRAMMABLE_MAX_STITCH),
-                None => PROGRAMMABLE_MAX_STITCH,
+                None => plain,
             };
-            let n = ((w[1] - w[0]) / max).ceil().max(1.0) as usize;
+            let n = generate::parts(w[1] - w[0], max);
             out.extend((1..=n).map(|k| w[0] + (w[1] - w[0]) * k as f64 / n as f64));
         }
         if !forward {
@@ -835,7 +853,7 @@ fn tile_rows(
 /// rows that overlap along the row (so each lobe of a shape is finished in one sweep), and
 /// only when a sweep ends, on to the nearest unsewn piece. Each piece is entered from the end
 /// nearer the needle.
-fn order_rows(rows: Vec<Vec<Vec<Vec2>>>, angle: f64) -> Vec<Vec<Vec2>> {
+pub(crate) fn order_rows(rows: Vec<Vec<Vec<Vec2>>>, angle: f64) -> Vec<Vec<Vec2>> {
     let u = v2(1.0, 0.0).rotated(angle.to_radians());
     struct Piece {
         row: usize,

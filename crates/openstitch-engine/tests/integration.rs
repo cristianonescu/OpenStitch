@@ -100,6 +100,8 @@ mod pes_compat;
 mod pes_resave;
 #[path = "print.rs"]
 mod print;
+#[path = "production.rs"]
+mod production;
 #[path = "punch.rs"]
 mod punch;
 #[path = "quality.rs"]
@@ -124,6 +126,8 @@ mod smoothing;
 mod stamps;
 #[path = "stitch_edit.rs"]
 mod stitch_edit;
+#[path = "stitch_engine_4.rs"]
+mod stitch_engine_4;
 #[path = "stitch_types.rs"]
 mod stitch_types;
 #[path = "svg_import.rs"]

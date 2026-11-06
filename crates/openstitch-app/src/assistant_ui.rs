@@ -336,6 +336,7 @@ impl EditorApp {
                     }
                     "sewKitOnline" => self.assistant.open_url = Some(sew_kit::ONLINE.into()),
                     "shortcuts" => self.ui.shortcuts_open = true,
+                    "gettingStarted" => self.ui.start.page_open = true,
                     "checkUpdates" => self.update.check(true),
                     "about" => self.ui.about_open = true,
                     _ => return Err(format!("unknown Help item '{item}'")),
@@ -417,6 +418,10 @@ impl EditorApp {
                 }
                 self.ui.save_prefs();
                 Ok(json!({ "reset": area }))
+            }
+            "ui.gettingStarted" => {
+                // The ribbon's run takes no input from the context (as ui.run).
+                crate::start_ui::command(self, params, &eframe::egui::Context::default())
             }
             "ui.notesClear" => {
                 self.set_notes(Notes::default())?;
@@ -540,6 +545,9 @@ impl EditorApp {
                 "paneSimulatorSide" => json!(prefs.panes.simulator.side.key()),
                 "qatBelow" => json!(prefs.qat_below),
                 "splash" => json!(prefs.splash),
+                "showStartCards" => json!(prefs.start_cards),
+                "newObjectDefaults" => prefs.new_objects.to_json(),
+                "advancedAttributes" => json!(prefs.advanced_attributes),
                 "aiFeatures" => json!(prefs.ai.enabled),
                 "assistantMemory" => json!(prefs.ai.memory),
                 "checkUpdates" => json!(prefs.updates.check),
@@ -642,6 +650,12 @@ impl EditorApp {
             }
             "qatBelow" => self.ui.prefs.qat_below = bool_value(name, v)?,
             "splash" => self.ui.prefs.splash = bool_value(name, v)?,
+            "showStartCards" => self.ui.prefs.start_cards = bool_value(name, v)?,
+            "newObjectDefaults" => {
+                self.ui.prefs.new_objects =
+                    openstitch_app::editor::new_objects::NewObjects::from_json(v)?;
+            }
+            "advancedAttributes" => self.ui.prefs.advanced_attributes = bool_value(name, v)?,
             "aiFeatures" => self.ui.prefs.ai.enabled = bool_value(name, v)?,
             "assistantMemory" => self.ui.prefs.ai.memory = bool_value(name, v)?,
             "checkUpdates" => self.ui.prefs.updates.check = bool_value(name, v)?,
@@ -947,6 +961,93 @@ mod tests {
             .iter()
             .map(|c| c["id"].as_str().expect("id").to_string())
             .collect()
+    }
+
+    #[test]
+    fn new_shapes_take_the_defaults_in_one_undo_step() {
+        // #553: with defaults set, a drawn rectangle carries them; existing objects keep theirs.
+        use openstitch_app::editor::{CommandRequest, ToolEffect};
+        let mut app = EditorApp::new(Launch::default());
+        let draw = |app: &mut EditorApp| {
+            app.apply_effects(vec![ToolEffect::Execute {
+                requests: vec![CommandRequest::new(
+                    "shape.rectangle",
+                    json!({ "x": 10, "y": 10, "width": 20, "height": 20 }),
+                )],
+                select_result: true,
+            }]);
+            let d = app.session.design();
+            d.objects.last().expect("drawn").clone()
+        };
+        let before = draw(&mut app);
+        let r = before.region.as_ref().expect("filled");
+        assert_eq!(r.angle, 45.0, "no defaults: PE-DESIGN's 45 degrees");
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "newObjectDefaults", "value": { "density": 4.5, "angle": 30, "underlay": false, "pitch": 2.0 } })),
+        )
+        .expect("defaults");
+        let after = draw(&mut app);
+        let r = after.region.as_ref().expect("filled");
+        assert_eq!((r.angle, r.density, r.underlay), (30.0, 4.5, false));
+        let first = &app.session.design().objects[0];
+        assert_eq!(
+            first.region.as_ref().map(|r| r.angle),
+            Some(45.0),
+            "existing unchanged"
+        );
+        let n = app.session.design().objects.len();
+        app.undo();
+        assert_eq!(
+            app.session.design().objects.len(),
+            n - 1,
+            "one undo removes shape and defaults"
+        );
+        assert!(
+            app.ui_command(
+                "ui.set",
+                Some(&json!({ "name": "newObjectDefaults", "value": { "angle": 999 } }))
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn start_cards_and_samples_through_the_assistant() {
+        // #554: an empty design shows the cards; a card runs its action; a sample opens untitled.
+        let mut app = EditorApp::new(Launch::default());
+        let list = app.ui_command("ui.gettingStarted", None).expect("list");
+        assert_eq!(list["cardsShown"], json!(true));
+        assert_eq!(list["cards"].as_array().map(Vec::len), Some(6));
+        app.ui_command("ui.gettingStarted", Some(&json!({ "card": "draw" })))
+            .expect("card");
+        assert_eq!(app.tools.tool(), openstitch_app::editor::Tool::Rectangle);
+        app.ui_command("ui.gettingStarted", Some(&json!({ "card": "lettering" })))
+            .expect("card");
+        assert!(app.lettering.text.open);
+        app.ui_command("ui.gettingStarted", Some(&json!({ "sample": "sampler" })))
+            .expect("sample");
+        assert!(
+            !app.session.design().objects.is_empty(),
+            "the sample opened"
+        );
+        assert!(app.path.is_none(), "untitled: Save asks for a name");
+        let list = app.ui_command("ui.gettingStarted", None).expect("list");
+        assert_eq!(
+            list["cardsShown"],
+            json!(false),
+            "hidden once the design has objects"
+        );
+        assert!(
+            app.ui_command("ui.gettingStarted", Some(&json!({ "sample": "nope" })))
+                .is_err()
+        );
+        app.ui_command("ui.help", Some(&json!({ "item": "gettingStarted" })))
+            .expect("page");
+        assert!(app.ui.start.page_open);
+        app.ui_command("ui.run", Some(&json!({ "action": "openSample" })))
+            .expect("menu");
+        assert!(app.ui.start.samples_open);
     }
 
     /// The coverage rule the owner set for B17: everything the user can do by hand has a way

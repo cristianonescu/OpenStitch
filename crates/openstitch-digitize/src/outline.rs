@@ -39,8 +39,11 @@ pub const RIM_SHARE_DIV: usize = 4;
 /// Zigzag density of the outlines, stitches per mm (PE-DESIGN's zigzag default).
 pub const DENSITY: f64 = 4.5;
 
-/// Thinnest outline zigzag, mm; a narrower stroke (a hairline) is a running stitch.
-pub const MIN_WIDTH_MM: f64 = 0.6;
+/// Thinnest outline zigzag, mm; a narrower stroke (a hairline) is a running stitch. 1 mm, as
+/// `tools/sew_check.py`'s hairline bound: the storybook's 0.6-0.9 mm outlines sewed 48
+/// crossings under 1 mm in a row, a lump of thread, where a running line looks the same (#368;
+/// 0.6 before).
+pub const MIN_WIDTH_MM: f64 = 1.0;
 
 /// Stitch length of a hairline's running stitch, mm.
 pub const RUN_PITCH_MM: f64 = 1.5;

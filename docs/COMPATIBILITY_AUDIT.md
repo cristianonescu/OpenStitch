@@ -2596,6 +2596,63 @@ averaged 50/50, on the calibrated render; every result is OpenStitch's output.
   PE-DESIGN sews each chain triangle five times over as well (`line-chain-default`), so that is
   kept.
 
+### Stitch engine batch 4, 2026-11-06 (#567, #459, #467, #470, #471, #368, #609)
+
+- **Moving a shape (#567):** `object.move` by (d, d) mm changed a 20 x 10 mm rectangle's
+  satin from 195 to 213 stitches and its fill from 392 to 391-393, because the tatami, satin
+  under sewing and piping grids were anchored at the page origin, the writer merged needle
+  points that rounded to the same 0.1 mm cell (generators repeat a point up to 0.004 mm away),
+  and float noise flipped `ceil` stitch splits and nearest-row ties. Each shape and text is now
+  generated with its bounding box's corner at the origin and moved back, points under 0.05 mm
+  apart are one penetration wherever they fall on the grid, stitch splits treat a length within
+  1e-9 of a whole number of stitches as that number, and the row chain breaks ties to the first
+  row. Satin, fill, running line, programmable fill, piping, a 37° satin and text moved by 1,
+  0.5, 0.37, 3.5, 12.25, 35, 0.05 and -7.13 mm one after another sew the same needle points
+  moved (`moving_a_shape_moves_its_stitches_and_nothing_else`). PE-DESIGN anchors its fill grid
+  to the region too (`grid_anchor`, from its references), so (a) of the issue holds without a
+  PE-DESIGN reference pair. `DesignObject::apply` also left a line's exit point behind (fixed).
+  Compat: 454 of 454 specs pass before and after. One measurement moves tier: the PES 0110 Text
+  Transform spec's arch height measured 26.0 mm only because a travel stitch walked 0.2 mm out
+  to the top letter's corner and back; the rows span 25.8 mm wherever the text stands, against
+  PE-DESIGN's 26.5 (its arch is bent round a 40.8 mm circle, OpenStitch's round 39.6, the known
+  difference of item 5), so the height joins the width at the internal-regression tier until the
+  arch matches. Golden counts: badge 2780 → 2778 stitches, the determinism pins re-recorded
+  (arch 1731 → 1726, rotated satin 357 → 353).
+- **Programmable fill stitch length (#459):** PE-DESIGN sews programmable fill crossing to
+  crossing (prog-fill-line-2pt 5.3 mm stitches, owner-v up to 10.6 mm) and has no stitch
+  length for it, so the default is unchanged and `stitchLength` stays a fill setting.
+  `splitLength` (2-12 mm, beyond PE-DESIGN) now also splits the gaps between crossings evenly,
+  so the added points line up from row to row: the issue's 12 mm diamonds at 2.2 lines/mm go
+  from over 8 mm to at most 4 mm with every crossing kept.
+- **Laurel and stars frames (#467):** each laurel side is one region (a 1 mm stem band with its
+  leaves, at least 4 mm long, three to nine pairs) and the stars one region on a 1 mm band, so
+  the laurel trims once across its opening and the stars not at all
+  (`laurel_and_star_frames_sew_each_piece_in_one_path`). Kit: shapes/decorative-frames 42 → 15
+  trims, lettering/monograms 56 → 15.
+- **Appliqué kept pattern (#470):** PE-DESIGN's own wizard files a01-a04 keep the pattern and
+  sew it first (PEC 1, then 62, 63, 64), under the fabric, which is OpenStitch's default.
+  `wizard.applique` `patterns: last` sews it after the covering stitch instead (beyond
+  PE-DESIGN).
+- **Direction curve (#471, in part):** fill and piping rows along a curve are the curve
+  (carried straight on past its ends) offset by whole row spacings: on the issue's heart every
+  row needle point lies within 10 % of a spacing of its row and no two rows cross
+  (`a_direction_curve_fills_with_rows_a_spacing_apart_that_never_cross`); the warp kept rows a
+  spacing apart only across the chord, so they bunched where the curve is steep (piping's
+  dark bar). Open: programmable and motif fill along a curve still bend their tiles by the
+  chord, and emboss and engrave strength against PE-DESIGN.
+- **Hairline satin and tiny locks (#368):** the storybook's 0.4-0.9 mm columns sewed 52
+  crossings under 1 mm in a row. A region satin with more than 30 such crossings in a row now
+  sews that stretch as a running line through their middles, and OpenStitch mode's outlines
+  are running lines below 1 mm (0.6 before). A lock after a last stitch under 0.15 mm steps back
+  0.3 mm along the run instead of 0.1 mm (PE-DESIGN locks along last stitches of 0.2 mm and
+  more, satin-zigzag-rect). No PE-DESIGN reference has a satin under 2 mm wide, so this is
+  OpenStitch's own rule. Storybook (OpenStitch mode): hairline 52 → 28, longest run under 0.3 mm
+  6 → 5 (a lone 0.3 mm speck tied in and locked); it leaves sew_check's KNOWN list. The kit is
+  regenerated (19 files change; all 36 pass `sew_check`; previews rendered on Linux).
+- **Platform-independent arch (#609):** fixed 2026-10-30 (above); on Linux the spec measures
+  the same as on Windows and macOS, `determinism.rs` pins the bits on all three systems, and
+  PE-DESIGN's re-save is the spec's reference.
+
 ### Stitch-engine bug batch 3, 2026-11-06 (`batch:engine-bugs-3`: #570, #571, #628, #466, #627, #633)
 
 - **Needle drops past reshaped outlines (#570, #571):** the four random-design seeds (150, 154,
@@ -2630,6 +2687,30 @@ averaged 50/50, on the calibrated render; every result is OpenStitch's output.
   unchanged (15.4 per 1,000). No PE-DESIGN Design Center capture exists to compare the routing.
 - **Flaky timing test (#633):** `cheap_rules_are_fast_on_a_large_design` compares the check
   with compiling the same design in the same run (best of three each) instead of a bare 50 ms.
+
+### Production aids, 2026-11-06 (#509, #512, #547, `batch:production`)
+
+All beyond PE-DESIGN and off by default: with no basting, no stop and `autoStart: off`, compiled
+output is byte-identical (tests `basting_box_sews_first_in_the_first_thread`,
+`stop_after_an_object_and_at_jumps`, `nearest_start_shortens_travel`); compat 454/454.
+
+- **Basting (#509).** Sewn first in the first thread with no added colour change (or its own
+  block); no tie-in or lock so it pulls out. Inside the field of every listed hoop, oval and
+  round included (`basting_box_stays_inside_every_hoop`); the outline form stays at the margin
+  within 0.3 mm. PES 0110 export refuses the Production settings (PE-DESIGN's objects cannot
+  hold them).
+- **Stops (#512).** PES/PEC, DST, EXP and JEF already wrote `Command::Stop` as a colour change
+  to the same thread; a PES read back shows it as a repeated thread (test above). A stop that a
+  colour change follows is dropped: the colour change stops the machine.
+- **Nearest start and the Optimize report (#547).** An object takes the nearest start only when
+  its own trims do not rise and its travel (approach included) falls. On the 24 editable example
+  scripts (`examples/*.json`; `user-fonts` needs a font file), total travel falls 10.1 % on
+  average and no design gets a trim more (cutwork 2,488 → 1,885 mm, monograms 1,500 → 1,128 mm,
+  line-types 690 → 110 mm; text, stitch patterns and one-object designs unchanged). The issue's
+  20 % target is not reached, and the kit (stitch files) keeps its own start, so #547 stays
+  open for part-way satin starts and draggable markers.
+- sew_check passes on the heart example with a basting box, an outline basting in its own
+  thread, stops after an object plus Stop at Jumps, and nearest start, as on the plain design.
 
 ## Order of work
 

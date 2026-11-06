@@ -90,21 +90,34 @@ struct Writer {
     trim_jumps: bool,
     /// The stitches since the last trim belong to an element that locks ([`Element::lock`]).
     lock_open: bool,
+    /// A stop before every trimmed move between parts (`stopAtJumps`, #512).
+    stop_at_jumps: bool,
+    /// An object asked for a stop after it (#512): written before the next move unless a
+    /// colour change (itself a stop) comes first.
+    stop_pending: bool,
+    /// The basting run (#509) waiting to be sewn in the first element's thread.
+    basting: Vec<Run>,
 }
+
+/// Needle points closer than this (0.1 mm) are one penetration, wherever they lie on the
+/// export grid (#567): generators give the same point twice up to 0.004 mm apart, and merging
+/// only those that round to the same 0.1 mm cell made a moved shape gain or lose stitches.
+const SAME_POINT: f64 = 0.5;
 
 impl Writer {
     fn push(&mut self, p: Vec2, c: Command) {
         // A stitch on the needle point just sewn would be a zero-length record: a second
         // penetration in the same hole. PE-DESIGN 11.50 writes none (no PEC record of length 0 in
         // any of its 177 files measured on 2026-10-27), so generators that end one run where the
-        // next begins, or produce two points within 0.05 mm, sew one needle point. A zero-length
+        // next begins, or produce two points within 0.05 mm ([`SAME_POINT`]), sew one needle point. A zero-length
         // stitch right after a jump is kept: the jump's landing is not a penetration, so that
         // stitch is the first needle point of the block (PE-DESIGN ties in there instead).
         if c == Command::Stitch
             && let Some(last) = self.out.stitches.last()
             && last.command == Command::Stitch
-            && round_coordinate(last.x) == round_coordinate(p.x)
-            && round_coordinate(last.y) == round_coordinate(p.y)
+            && (v2(last.x, last.y).distance(p) < SAME_POINT
+                || (round_coordinate(last.x) == round_coordinate(p.x)
+                    && round_coordinate(last.y) == round_coordinate(p.y)))
         {
             return;
         }
@@ -128,7 +141,7 @@ impl Writer {
         if tail.len() < 2 || crate::region::ends_locked(&tail) {
             return;
         }
-        for p in crate::region::lock_points(tail[1], tail[0]) {
+        for p in crate::region::lock_after(&tail) {
             self.push(p, Command::Stitch);
         }
     }
@@ -171,6 +184,10 @@ impl Writer {
             self.end_lock();
             self.push(from, Command::Trim);
             self.cut = true;
+            // No cutter: the machine stops so the user can snip the thread before the jump.
+            if self.stop_at_jumps && d > self.cfg.trim_distance.max(self.cfg.sew_across_distance) {
+                self.push(from, Command::Stop);
+            }
         }
         self.push(p, Command::Jump);
         self.position = Some(p);
@@ -194,6 +211,11 @@ impl Writer {
         if runs.is_empty() {
             return;
         }
+        if self.thread.is_none() && !self.basting.is_empty() {
+            // Basting in the first thread: no colour change of its own (#509).
+            let basting = std::mem::take(&mut self.basting);
+            self.sew(basting_element(basting, element.thread.clone()));
+        }
         match &self.thread {
             Some(t) if *t != element.thread => {
                 let p = self.position.unwrap_or_default();
@@ -202,6 +224,8 @@ impl Writer {
                     self.push(p, Command::Trim);
                     self.cut = true;
                 }
+                // The colour change stops the machine: no separate stop (#512).
+                self.stop_pending = false;
                 self.push(p, Command::ColorChange);
                 self.out.threads.push(element.thread.clone());
             }
@@ -209,6 +233,11 @@ impl Writer {
             _ => {}
         }
         self.thread = Some(element.thread);
+        if std::mem::take(&mut self.stop_pending)
+            && let Some(p) = self.position
+        {
+            self.push(p, Command::Stop);
+        }
         let across = element.across.unwrap_or(self.cfg.sew_across_distance);
         for (i, run) in runs.iter().enumerate() {
             // A letter's separate pieces are trimmed apart (pieces close enough to join inside
@@ -279,10 +308,35 @@ impl Compiler {
                 w.out.metadata.insert(key.into(), value.into());
             }
         }
+        let production = &design.production;
+        w.stop_at_jumps = production.stop_at_jumps;
+        if let Some(b) = &production.basting {
+            let runs = crate::production::basting_runs(design, b);
+            match &b.thread {
+                Some(t) => w.sew(basting_element(runs, t.clone())),
+                None => w.basting = runs,
+            }
+        }
         let mut spans = Vec::new();
         for object in design.objects.iter().filter(|o| o.visible) {
             let start = w.out.stitches.len();
-            sew_object(&mut w, object, design);
+            let started = match (production.auto_start, w.position) {
+                (crate::production::AutoStart::Nearest, Some(from)) => {
+                    crate::production::nearest_start(object, from).filter(|c| {
+                        // Only where it helps: the start rule must not add a trim inside the
+                        // object (an echo or stippling route can split up from another start)
+                        // and must shorten the travel, the move into the object included.
+                        let (t0, d0) = self.object_cost(object, design, from);
+                        let (t1, d1) = self.object_cost(c, design, from);
+                        t1 <= t0 && d1 < d0
+                    })
+                }
+                _ => None,
+            };
+            sew_object(&mut w, started.as_ref().unwrap_or(object), design);
+            if object.stop_after && w.position.is_some() {
+                w.stop_after();
+            }
             spans.push((object.id, start..w.out.stitches.len()));
         }
         (w.finish(), spans)
@@ -299,6 +353,26 @@ impl Compiler {
         w.finish()
     }
 
+    /// Trims and total travel (0.1 mm) of `object` sewn alone from needle position `from`.
+    fn object_cost(&self, object: &DesignObject, design: &Design, from: Vec2) -> (usize, f64) {
+        let mut w = self.writer();
+        w.position = Some(from);
+        w.cut = false;
+        sew_object(&mut w, object, design);
+        let mut last = from;
+        let mut travel = 0.0;
+        for s in &w.out.stitches {
+            let p = v2(s.x, s.y);
+            if s.command == Command::Jump {
+                travel += last.distance(p);
+            }
+            if matches!(s.command, Command::Stitch | Command::Jump) {
+                last = p;
+            }
+        }
+        (w.out.count(Command::Trim), travel)
+    }
+
     fn writer(&self) -> Writer {
         Writer {
             cfg: *self,
@@ -308,11 +382,40 @@ impl Compiler {
             cut: true,
             trim_jumps: true,
             lock_open: false,
+            stop_at_jumps: false,
+            stop_pending: false,
+            basting: Vec::new(),
         }
     }
 }
 
+/// The basting run as an element: loose running stitches, no locks (it is pulled out after
+/// sewing), separate loops trimmed apart.
+fn basting_element(runs: Vec<Run>, thread: Thread) -> Element {
+    Element {
+        thread,
+        runs,
+        whole: false,
+        lock: false,
+        pieces: true,
+        across: Some(0.0),
+    }
+}
+
 impl Writer {
+    /// "Stop after this object" (#512): the run is locked and trimmed here, and the stop is
+    /// written before the next move.
+    fn stop_after(&mut self) {
+        if let Some(p) = self.position
+            && !self.cut
+        {
+            self.end_lock();
+            self.push(p, Command::Trim);
+            self.cut = true;
+        }
+        self.stop_pending = true;
+    }
+
     fn finish(mut self) -> StitchPattern {
         if let Some(p) = self.position {
             if !self.cut {
@@ -337,7 +440,26 @@ fn sew_object(w: &mut Writer, object: &DesignObject, design: &Design) {
                 .position(|o| std::ptr::eq(o, object))
                 .map(|i| design.text_turns(i))
                 .unwrap_or_default();
-            for e in elements(object, &holes, &design.patterns, &turns) {
+            // Generated where the object's bounds start, then moved back (#567): row and needle
+            // grids follow the object, so moving it moves its stitches and nothing else.
+            let anchor = object
+                .bounds()
+                .map_or(v2(0.0, 0.0), |b| v2(b.min_x, b.min_y));
+            let (local, holes) = if anchor == v2(0.0, 0.0) {
+                (std::borrow::Cow::Borrowed(object), holes)
+            } else {
+                let to = Transform::translation(-anchor.x, -anchor.y);
+                let mut o = object.clone();
+                o.apply(&to);
+                let h = holes.iter().map(|c| c.transformed(&to)).collect();
+                (std::borrow::Cow::Owned(o), h)
+            };
+            for mut e in elements(&local, &holes, &design.patterns, &turns) {
+                if anchor != v2(0.0, 0.0) {
+                    for p in e.runs.iter_mut().flatten() {
+                        *p = *p + anchor;
+                    }
+                }
                 w.sew(e);
             }
             // Stitch glyphs of user-mapped text sew after the outlined glyphs.
@@ -510,6 +632,13 @@ fn elements(
                 )
             })
             .flatten();
+            // A hairline stretch of a region's satin sews as a running line (#368).
+            if region.kind == RegionType::Satin
+                && by_stroke.is_none()
+                && let Some(top) = layers.last_mut()
+            {
+                top.iter_mut().for_each(region::hairline_runs);
+            }
             let stroked = by_stroke.is_some() && !layers.is_empty();
             if let (Some(runs), Some(top)) = (by_stroke, layers.last_mut()) {
                 *top = runs;

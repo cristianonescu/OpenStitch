@@ -21,6 +21,13 @@ use openstitch_formats::pes11::{
 
 /// The `#PES0110` objects of `design`'s visible objects, in design order.
 pub fn objects(design: &Design) -> Result<Objects, String> {
+    // PE-DESIGN's objects have no basting run, stop or start rule (#509, #512, #547).
+    if !design.production.is_default() || design.objects.iter().any(|o| o.stop_after) {
+        return Err(
+            "the Production settings (basting, stops, nearest start) are not held by PES 0110 objects; export PES version 6"
+                .into(),
+        );
+    }
     // Sew outline first (#502): PE-DESIGN sews a shape's region before its outline, so the
     // shape is written as two, its outline alone and then its region alone.
     let split;

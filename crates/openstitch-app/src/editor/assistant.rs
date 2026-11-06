@@ -338,10 +338,35 @@ pub const UI_COMMANDS: &[UiCommand] = &[
         effect: Effect::Edit,
         params: &[p(
             "area",
-            "display|editing|panes|shortcuts|layouts",
+            "display|editing|panes|shortcuts|layouts|newObjects",
             true,
-            "display (theme, accent, toolbar, splash, view), editing (units, nudge, snapping), panes, shortcuts or layouts",
+            "display (theme, accent, toolbar, splash, view), editing (units, nudge, snapping), panes, shortcuts, layouts or newObjects (new-shape defaults, Basic/Advanced, start cards)",
         )],
+    },
+    UiCommand {
+        id: "ui.gettingStarted",
+        summary: "Getting started (#554): without parameters, the start cards (shown while the design is empty), the kit's samples and whether the cards show; card runs one card's action; sample opens a kit design as a new untitled design (asks about unsaved changes first, as Open does); page opens or closes Help ▸ Getting Started",
+        effect: Effect::Edit,
+        params: &[
+            p(
+                "card",
+                "draw|lettering|picture|import|template|sample",
+                false,
+                "Run this start card",
+            ),
+            p(
+                "sample",
+                "sampler|shapes|frames|lettering|monograms|applique",
+                false,
+                "Open this sample",
+            ),
+            p(
+                "page",
+                "bool",
+                false,
+                "Show or hide the Getting Started page",
+            ),
+        ],
     },
     UiCommand {
         id: "ui.notesClear",
@@ -416,6 +441,17 @@ pub const SETTINGS: &[Setting] = &[
     ),
     s("qatBelow", "Quick Access Toolbar below the Ribbon", "bool"),
     s("splash", "Show splash at startup", "bool"),
+    s("showStartCards", "Show start cards", "bool"),
+    s(
+        "newObjectDefaults",
+        "New Objects: what new shapes start with, { angle 0-359, density 0.5-10, stitchLength 1-10, pullCompensation 0-2, pitch 1-10 (outline), underlay bool }; {} = the tools' own",
+        "object",
+    ),
+    s(
+        "advancedAttributes",
+        "Sewing Attributes: Advanced (every row) or Basic (the common ones)",
+        "bool",
+    ),
     s("aiFeatures", "Show AI features", "bool"),
     s(
         "assistantMemory",
@@ -530,6 +566,7 @@ pub const HELP_ITEMS: &[(&str, &str)] = &[
     ("manual", "Instruction Manual"),
     ("sewKit", "Ready-to-Sew Designs"),
     ("sewKitOnline", "Ready-to-Sew Designs Online"),
+    ("gettingStarted", "Getting Started"),
     ("shortcuts", "Keyboard Shortcuts"),
     ("checkUpdates", "Check for Updates"),
     ("about", "About OpenStitch"),

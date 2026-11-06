@@ -148,10 +148,40 @@ fn layers_inner(
         flat.entry = r.entry.map(|p| w.forward(p));
         flat.reference = r.reference.map(|p| w.forward(p));
         let (c, h) = (w.forward_contours(closed), w.forward_contours(holes));
-        return layers_with(&c, &flat, &h, user)
+        let mut out: Vec<Vec<Run>> = layers_with(&c, &flat, &h, user)
             .into_iter()
             .map(|l| w.back_runs(l))
             .collect();
+        // Fill and piping rows are the curve's offsets, a row spacing apart all along it
+        // (#471): the straightening warp above keeps rows a spacing apart only across the
+        // chord, so they bunched where the curve is steep (piping's dark bar) and went flat past
+        // its ends. The under sewing keeps the warp.
+        let guided = match r.kind {
+            RegionType::Fill => Some((r.stitch_length * 10.0, r.fill_shift().unwrap_or(0.3))),
+            RegionType::Piping => {
+                Some((r.run_pitch_mm() * 10.0, r.frequency.unwrap_or(33.0) / 100.0))
+            }
+            _ => None,
+        };
+        if let Some((stitch, shift)) = guided
+            && let Some(rows) = direction::guided_rows(
+                closed,
+                holes,
+                curve,
+                10.0 / r.density.max(0.1),
+                stitch,
+                shift,
+            )
+            && let Some(top) = out.last_mut()
+        {
+            let pieces: Vec<Run> = rows.into_iter().filter(|r| r.len() >= 2).collect();
+            *top = join(
+                pieces,
+                Some(&mut TravelGraph::new(closed, holes)),
+                SATIN_TRAVEL_PITCH,
+            );
+        }
+        return out;
     }
     // Reference point: the pattern grid starts there. A programmable or motif fill without one
     // starts its grid at the region's top-left corner, as PE-DESIGN 11.50 does
@@ -1688,6 +1718,66 @@ fn split_satin(
 /// A first stitch longer than this (0.1 mm) gets PE-DESIGN's three-step tie-in.
 const TIE_IN_THREE_STEPS: f64 = 26.5;
 
+/// Satin crossings shorter than this (0.1 mm) are a hairline (`tools/sew_check.py`'s 1 mm).
+const HAIRLINE: f64 = 10.0;
+/// More hairline crossings than this in a row are sewn as a running stitch (#368), well within
+/// `tools/sew_check.py`'s 45. PE-DESIGN 11.50's own files reach 43 crossings under 1 mm in a row,
+/// in small Text Transform lettering, which is sewn by stroke and not touched here.
+const MAX_HAIRLINE_CROSSINGS: usize = 30;
+/// Stitch length of the running stitch that replaces a hairline, 0.1 mm (as an outline's).
+const HAIRLINE_RUN: f64 = 15.0;
+
+/// A satin column narrower than [`HAIRLINE`] for more than [`MAX_HAIRLINE_CROSSINGS`] crossings
+/// in a row is sewn there as a running stitch along its middle (#368): a 0.3-0.7 mm column
+/// (Auto Punch's storybook, a region's thin tail) sewed 52 crossings in one spot, a lump of
+/// thread on the machine, where a single running line looks the same. The crossings' midpoints
+/// make the line, in stitches of about [`HAIRLINE_RUN`].
+pub fn hairline_runs(run: &mut Run) {
+    let n = run.len();
+    if n <= MAX_HAIRLINE_CROSSINGS + 2 {
+        return;
+    }
+    // hair[i]: the stitch into point i is a short crossing that turns back from the one before.
+    let hair: Vec<bool> = (0..n)
+        .map(|i| {
+            i >= 2 && {
+                let (a, b) = (run[i - 1] - run[i - 2], run[i] - run[i - 1]);
+                let l = b.length();
+                l > 0.5 && l < HAIRLINE && a.x * b.x + a.y * b.y < 0.0
+            }
+        })
+        .collect();
+    let mut out: Run = Vec::with_capacity(n);
+    let mut i = 0;
+    while i < n {
+        if !hair[i] {
+            out.push(run[i]);
+            i += 1;
+            continue;
+        }
+        let start = i;
+        while i < n && hair[i] {
+            i += 1;
+        }
+        if i - start <= MAX_HAIRLINE_CROSSINGS {
+            out.extend_from_slice(&run[start..i]);
+            continue;
+        }
+        // Points start - 1 .. i - 1 zigzag across the hairline: its middle line runs through
+        // the midpoints of the crossings.
+        let mids: Vec<Vec2> = (start..i).map(|k| run[k - 1].lerp(run[k], 0.5)).collect();
+        let mut last = *out.last().unwrap_or(&mids[0]);
+        for &m in &mids {
+            if m.distance(last) >= HAIRLINE_RUN {
+                out.push(m);
+                last = m;
+            }
+        }
+        out.push(run[i - 1]);
+    }
+    *run = out;
+}
+
 /// Tie-in and end lock of a satin object, as PE-DESIGN 11.50 sews them. From the start point
 /// the needle steps 0.3 mm along the first stitch (at most its length) and back, then sews on
 /// over that stitch; after a first stitch over 2.65 mm it steps out three times (0.9 mm)
@@ -1706,9 +1796,36 @@ pub fn tie_and_lock(layers: &mut [Vec<Run>]) {
         .rev()
         .find(|r| r.len() >= 2)
     {
-        let (a, b) = (run[run.len() - 2], run[run.len() - 1]);
-        run.extend(lock_points(a, b));
+        let tail: Vec<Vec2> = run.iter().rev().take(5).copied().collect();
+        run.extend(lock_after(&tail));
     }
+}
+
+/// A lock steps back along a last stitch at least this long (0.1 mm): PE-DESIGN 11.50 steps
+/// back along stitches of 0.2 mm and more (satin-zigzag-rect), so the bound lies below that.
+const LOCK_ALONG_MIN: f64 = 1.5;
+
+/// The end lock after the needle points `tail` (the last first, as [`ends_locked`] takes them):
+/// [`lock_points`] along the last stitch, or, after a last stitch shorter than
+/// [`LOCK_ALONG_MIN`], along the line back to the nearest earlier point a lock step away
+/// (#368: a run ending in 0.1 mm stitches locked 0.1 mm back and forth, stitches in place).
+pub fn lock_after(tail: &[Vec2]) -> Vec<Vec2> {
+    let Some(&b) = tail.first() else {
+        return Vec::new();
+    };
+    let along = tail
+        .get(1)
+        .filter(|p| p.distance(b) >= LOCK_ALONG_MIN)
+        .copied();
+    let a = along
+        .or_else(|| {
+            tail[1..]
+                .iter()
+                .copied()
+                .find(|p| p.distance(b) >= TIE_STEP)
+        })
+        .or_else(|| tail.get(1).copied());
+    a.map_or_else(Vec::new, |a| lock_points(a, b))
 }
 
 /// The tie-in step, 0.1 mm.

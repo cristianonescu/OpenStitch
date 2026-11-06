@@ -761,6 +761,7 @@ fn every_command_the_skill_names_exists() {
         "ui.recoveryDiscard",
         "ui.layout",
         "ui.resetPrefs",
+        "ui.gettingStarted",
     ];
     assert!(
         ui.iter()

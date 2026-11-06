@@ -47,6 +47,13 @@ pub struct Design {
     /// PE-DESIGN's.
     #[serde(default, skip_serializing_if = "is_default")]
     pub optimize_order: OptimizeOrder,
+    /// Production aids beyond PE-DESIGN (basting, stops at jumps, nearest start; #509, #512,
+    /// #547). Omitted while all off.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::production::Production::is_default"
+    )]
+    pub production: crate::production::Production,
     /// The machine file the design was opened from, written back unchanged when the design is
     /// exported to it again without a change (File ▸ Open of a PE-DESIGN PES, #375). Omitted
     /// when absent.
@@ -251,6 +258,7 @@ impl Design {
             guides: Guides::default(),
             properties: DesignProperties::default(),
             optimize_order: OptimizeOrder::default(),
+            production: Default::default(),
             source: None,
         }
     }
@@ -517,6 +525,10 @@ pub struct DesignObject {
     /// region-then-outline order).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub line_first: bool,
+    /// The machine stops after this object (#512, beyond PE-DESIGN): to place appliqué fabric
+    /// or a patch without a colour change. A colour change right after it is the stop.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub stop_after: bool,
 }
 
 fn yes() -> bool {
@@ -550,6 +562,7 @@ impl DesignObject {
             monogram: None,
             locked: false,
             line_first: false,
+            stop_after: false,
         }
     }
 
@@ -571,6 +584,7 @@ impl DesignObject {
             monogram: None,
             locked: false,
             line_first: false,
+            stop_after: false,
         }
     }
 
@@ -681,6 +695,7 @@ impl DesignObject {
         }
         if let Some(l) = &mut self.line {
             l.entry = l.entry.map(|p| t.apply(p));
+            l.exit = l.exit.map(|p| t.apply(p));
         }
         if let Some(block) = &mut self.stitch_block {
             for s in &mut block.stitches {

@@ -76,6 +76,7 @@ mod sewing_ui;
 mod shape_effects_ui;
 mod shape_tools_ui;
 mod splash;
+mod start_ui;
 mod suite_chrome;
 mod theme;
 mod transfer_ui;

@@ -477,7 +477,8 @@ fn commands_documented_and_unique() {
 /// the stitches kept their page position, and refused PE-DESIGN's 290 × 190 mm frame as too large
 /// for its largest hoop. Re-recorded on 2026-11-04 when every run before a trim got PE-DESIGN's end
 /// lock (#289): the badge's last run ends in an unlocked 20 mm stitch, now locked twice (4
-/// stitches more). The same design
+/// stitches more). Re-recorded on 2026-11-06 when every object was sewn in a frame at its own
+/// top-left corner, so moving an object moves its stitches (#567). The same design
 /// exported as `1t`
 /// must keep writing the identical bytes; the
 /// script's default export is now version 6 with objects and sews the same stitches.

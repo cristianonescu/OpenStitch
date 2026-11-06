@@ -156,6 +156,11 @@ pub const RESET_AREAS: &[(&str, &str, &str)] = &[
     ),
     ("shortcuts", "Keyboard shortcuts", "every changed shortcut"),
     ("layouts", "Saved layouts", "every saved layout"),
+    (
+        "newObjects",
+        "New objects",
+        "what new shapes start with, the Basic/Advanced view, folded sections, start cards",
+    ),
 ];
 
 /// Text ▸ Font Filter: fonts hidden from the font lists while the filter is on.
@@ -232,6 +237,15 @@ pub struct UiPrefs {
     pub autosave_interval: f64,
     /// Command palette (#550): the keys of the commands run from it, newest first.
     pub recent_commands: Vec<String>,
+    /// Start cards over an empty design (#554); on by default.
+    pub start_cards: bool,
+    /// What new shapes start with (#553); none set by default (the tools' own values).
+    pub new_objects: super::new_objects::NewObjects,
+    /// Sewing Attributes: every row (Advanced, the default, as PE-DESIGN) or the common ones
+    /// (Basic) (#553).
+    pub advanced_attributes: bool,
+    /// Sewing Attributes sections folded shut ("region", "line") (#553).
+    pub folded_sections: Vec<String>,
 }
 
 /// View ▸ Show: view-only toggles (#517). The design and its export never change.
@@ -300,6 +314,10 @@ impl Default for UiPrefs {
             autosave: true,
             autosave_interval: super::recovery::DEFAULT_INTERVAL,
             recent_commands: Vec::new(),
+            start_cards: true,
+            new_objects: Default::default(),
+            advanced_attributes: true,
+            folded_sections: Vec::new(),
         }
     }
 }
@@ -394,6 +412,10 @@ impl UiPrefs {
             "autosave": self.autosave,
             "autosaveInterval": self.autosave_interval,
             "recentCommands": self.recent_commands,
+            "showStartCards": self.start_cards,
+            "newObjectDefaults": self.new_objects.to_json(),
+            "advancedAttributes": self.advanced_attributes,
+            "foldedSections": self.folded_sections,
         })
     }
 
@@ -551,6 +573,33 @@ impl UiPrefs {
                         .collect()
                 })
                 .unwrap_or_default(),
+            start_cards: v["showStartCards"].as_bool().unwrap_or(d.start_cards),
+            new_objects: super::new_objects::NewObjects::load(&v["newObjectDefaults"]),
+            advanced_attributes: v["advancedAttributes"]
+                .as_bool()
+                .unwrap_or(d.advanced_attributes),
+            folded_sections: v["foldedSections"]
+                .as_array()
+                .map(|l| {
+                    l.iter()
+                        .filter_map(Value::as_str)
+                        .filter(|s| SECTIONS.contains(s))
+                        .map(str::to_string)
+                        .collect()
+                })
+                .unwrap_or_default(),
+        }
+    }
+
+    /// Whether the Sewing Attributes section `key` is folded shut.
+    pub fn folded(&self, key: &str) -> bool {
+        self.folded_sections.iter().any(|s| s == key)
+    }
+
+    pub fn set_folded(&mut self, key: &str, folded: bool) {
+        self.folded_sections.retain(|s| s != key);
+        if folded && SECTIONS.contains(&key) {
+            self.folded_sections.push(key.to_string());
         }
     }
 
@@ -653,6 +702,12 @@ impl UiPrefs {
             "panes" => self.panes = d.panes,
             "shortcuts" => self.keymap = d.keymap,
             "layouts" => self.layouts.clear(),
+            "newObjects" => {
+                self.new_objects = d.new_objects;
+                self.advanced_attributes = d.advanced_attributes;
+                self.folded_sections = d.folded_sections;
+                self.start_cards = d.start_cards;
+            }
             _ => {
                 let keys: Vec<&str> = RESET_AREAS.iter().map(|a| a.0).collect();
                 return Err(format!("area takes {}", keys.join(", ")));
@@ -677,6 +732,9 @@ impl UiPrefs {
         }
     }
 }
+
+/// The Sewing Attributes sections that fold (#553).
+pub const SECTIONS: [&str; 2] = ["region", "line"];
 
 /// `ui.json` beside the user settings file.
 pub fn path_beside(user_settings: &Path) -> PathBuf {

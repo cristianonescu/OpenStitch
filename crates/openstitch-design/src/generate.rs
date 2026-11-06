@@ -5,6 +5,13 @@ use crate::geometry::{Contour, Span, Vec2, from_rotated, scan_rows, v2};
 /// Needle points sewn one after another; moving between runs is travel.
 pub type Run = Vec<Vec2>;
 
+/// Parts of `len` no longer than `max`: `len / max` rounded up, except that a length a
+/// whole number of `max` long within float noise (1e-9 of a part) is that many parts (#567:
+/// a 10 mm edge at 2.5 mm came out as 4 or 5 stitches depending on where the shape stood).
+pub fn parts(len: f64, max: f64) -> usize {
+    ((len / max.max(1e-6) - 1e-9).ceil() as usize).max(1)
+}
+
 /// Keeps every vertex and splits each edge into equal parts no longer than `max_len`.
 pub fn subdivide(path: &[Vec2], max_len: f64) -> Vec<Vec2> {
     let Some(&first) = path.first() else {
@@ -12,7 +19,7 @@ pub fn subdivide(path: &[Vec2], max_len: f64) -> Vec<Vec2> {
     };
     let mut out = vec![first];
     for w in path.windows(2) {
-        let n = ((w[0].distance(w[1]) / max_len.max(1e-6)).ceil() as usize).max(1);
+        let n = parts(w[0].distance(w[1]), max_len);
         out.extend((1..=n).map(|k| w[0].lerp(w[1], k as f64 / n as f64)));
     }
     out
@@ -804,6 +811,9 @@ enum Chain {
     Sawtooth,
 }
 
+/// Distances closer than this (0.1 mm) are equal when [`chain`] picks the nearest span.
+const TIE: f64 = 1e-9;
+
 fn chain(
     spans: &[RowSpan],
     p: &RegionParams,
@@ -826,10 +836,13 @@ fn chain(
         for (i, s) in spans.iter().enumerate().filter(|(i, _)| !used[*i]) {
             let dl = position.distance(v2(*s.range.start(), s.y));
             let du = position.distance(v2(*s.range.end(), s.y));
-            if dl < best_d {
+            // Ties within float noise go to the first span (#567): a span whose ends are
+            // equally near, as rows at 30 degrees are, was picked by the last bits of where
+            // the shape stood.
+            if dl < best_d - TIE {
                 (best, forward, best_d) = (i, true, dl);
             }
-            if du < best_d {
+            if du < best_d - TIE {
                 (best, forward, best_d) = (i, false, du);
             }
         }

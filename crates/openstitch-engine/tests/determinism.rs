@@ -76,6 +76,10 @@ fn rotated_shapes_and_curves_sew_the_same_bits_on_every_platform() {
 }
 
 // Recorded on Windows (MSVC) with the libm-backed functions; Linux and macOS must match.
-const EXPECTED_ARCH: (usize, u64) = (1731, 4783615289628419459);
-// 353 stitches until every run the writer trims after got PE-DESIGN's tie-in and lock (#289).
-const EXPECTED_ROTATED: (usize, u64) = (357, 15416047400722805582);
+// Re-recorded on Linux on 2026-11-06 (#567): every object is sewn in a frame at its own
+// top-left corner and points 0.05 mm apart are one needle point, so a moved object sews the
+// same stitches moved (1731 stitches before; the arch lost a travel stitch out to a corner).
+const EXPECTED_ARCH: (usize, u64) = (1726, 17080775051636260830);
+// 353 stitches until every run the writer trims after got PE-DESIGN's tie-in and lock (#289),
+// 357 until #567 (above).
+const EXPECTED_ROTATED: (usize, u64) = (353, 4314453351267217905);

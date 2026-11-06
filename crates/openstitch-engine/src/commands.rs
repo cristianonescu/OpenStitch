@@ -194,6 +194,9 @@ fn describe(o: &DesignObject) -> Value {
     if o.line_first {
         r["partOrder"] = json!("lineFirst");
     }
+    if o.stop_after {
+        r["stopAfter"] = json!(true);
+    }
     if let Some(t) = &o.text {
         r["text"] = json!(t.text);
         r["font"] = json!(t.font);
@@ -229,6 +232,8 @@ pub fn stats(p: &StitchPattern) -> Value {
         "jumps": p.count(Command::Jump),
         "trims": p.count(Command::Trim),
         "colorChanges": p.count(Command::ColorChange),
+        "stops": p.count(Command::Stop),
+        "travelMM": crate::production::travel_mm(p),
         "widthMM": (b.width() / MM * 10.0).round() / 10.0,
         "heightMM": (b.height() / MM * 10.0).round() / 10.0,
         "colors": p.threads.iter().map(Thread::hex).collect::<Vec<_>>(),
@@ -258,6 +263,7 @@ pub fn all() -> Vec<CommandSpec> {
     v.extend(crate::palette::commands());
     v.extend(crate::punch::commands());
     v.extend(crate::order::commands());
+    v.extend(crate::production::commands());
     v.extend(crate::convert::commands());
     v.extend(crate::stitch_edit::commands());
     v.extend(crate::sewing::commands());
@@ -413,7 +419,7 @@ fn design_commands() -> Vec<CommandSpec> {
         ),
         spec(
             "design.setProperties",
-            "Set the Design Property fields written to PES (category, author, keywords, comments) and the design's Optimize Sewing Order mode",
+            "Set the Design Property fields written to PES (category, author, keywords, comments), the design's Optimize Sewing Order mode and its start rule (autoStart)",
             Effect::Edit,
             vec![
                 opt("category", "string", "Category (\"\" clears)"),
@@ -425,11 +431,23 @@ fn design_commands() -> Vec<CommandSpec> {
                     "peDesign|minJump",
                     "What order.optimize does by default: PE-DESIGN 11.50's order (default) or the shortest total jump (beyond PE-DESIGN; saved with the design)",
                 ),
+                opt(
+                    "autoStart",
+                    "off|nearest",
+                    "Where objects start when the design is compiled: off = each at its own entry point (PE-DESIGN, default); nearest (beyond PE-DESIGN) = a shape without an entry point of its own starts nearest to where the needle stopped (regions and closed lines at the nearest point of the outline, open lines at the nearer end; text and stitch patterns keep their own start)",
+                ),
             ],
             |s, p| {
                 let mut properties = s.design.properties.clone();
                 let mut given = false;
                 let mut optimize_order = s.design.optimize_order;
+                let mut auto_start = s.design.production.auto_start;
+                if p.has("autoStart") {
+                    given = true;
+                    let m = p.string("autoStart", None)?;
+                    auto_start = openstitch_design::production::AutoStart::from_id(&m)
+                        .ok_or_else(|| p.invalid("autoStart", "must be off or nearest"))?;
+                }
                 if p.has("optimizeOrder") {
                     given = true;
                     let m = p.string("optimizeOrder", None)?;
@@ -450,13 +468,15 @@ fn design_commands() -> Vec<CommandSpec> {
                 if !given {
                     return Err(p.invalid(
                         "category",
-                        "give category, author, keywords, comments or optimizeOrder",
+                        "give category, author, keywords, comments, optimizeOrder or autoStart",
                     ));
                 }
                 s.design.properties = properties;
                 s.design.optimize_order = optimize_order;
+                s.design.production.auto_start = auto_start;
                 let mut out = json!(s.design.properties);
                 out["optimizeOrder"] = json!(optimize_order.id());
+                out["autoStart"] = json!(auto_start.id());
                 Ok(out)
             },
         ),
@@ -477,6 +497,7 @@ fn design_commands() -> Vec<CommandSpec> {
                     "stitchStats": stats(&pattern),
                     "estimates": crate::machine::estimates(&s.design, &pattern),
                     "sewingArea": crate::machine::sewing_area(&s.design, &pattern),
+                    "production": crate::production::info(&s.design, &pattern),
                 }))
             },
         ),
@@ -1224,7 +1245,11 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     "rows/mm",
                     "Row density (fill and satin 0.1-14, others 0.5-10)",
                 ),
-                opt("stitchLength", "mm", "Fill stitch length"),
+                opt(
+                    "stitchLength",
+                    "mm",
+                    "Fill stitch length (programmable fill places its needle points on the pattern's lines, as PE-DESIGN does, and ignores it: use splitLength to shorten its stitches)",
+                ),
                 opt("pullCompensation", "mm", "Row end extension"),
                 opt("underlay", "bool", "Underlay (style in underlayStyle)"),
                 opt(
@@ -1290,7 +1315,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "splitLength",
                     "mm",
-                    "Satin: split stitches longer than this, 2-12 (0 turns splitting off; off by default, as PE-DESIGN sends wide crossings whole: set it on satin wider than about 7 mm)",
+                    "Satin: split stitches longer than this, 2-12 (0 turns splitting off; off by default, as PE-DESIGN sends wide crossings whole: set it on satin wider than about 7 mm). Programmable fill: split the stitches between pattern crossings longer than this (off by default: PE-DESIGN sews crossing to crossing, up to 12 mm on a large or sparse pattern)",
                 ),
                 opt(
                     "halfStitch",
