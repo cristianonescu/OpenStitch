@@ -29,6 +29,7 @@ pub mod ornament;
 pub mod paths;
 pub mod pattern_text;
 pub mod patterns;
+pub mod production;
 pub mod project;
 mod provenance;
 pub mod region;

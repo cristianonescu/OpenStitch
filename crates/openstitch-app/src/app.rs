@@ -676,7 +676,11 @@ impl EditorApp {
                         if select_result {
                             self.selection = CommandRequest::created_ids(&result);
                         }
-                        self.status = format!("{} done", requests[0].command);
+                        // A command that reports what it changed (order.optimize, #547).
+                        self.status = match result.get("summary").and_then(Value::as_str) {
+                            Some(summary) => format!("{} done: {summary}", requests[0].command),
+                            None => format!("{} done", requests[0].command),
+                        };
                     }
                 }
             }

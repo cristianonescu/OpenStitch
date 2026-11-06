@@ -144,6 +144,29 @@ pub fn set_line_first(ids: &[u64], line_first: bool) -> CommandRequest {
     CommandRequest::new("object.setPartOrder", json!({ "ids": ids, "order": order }))
 }
 
+/// `object.setStopAfter` (#512): the machine stops after these objects.
+pub fn set_stop_after(ids: &BTreeSet<u64>, on: bool) -> CommandRequest {
+    CommandRequest::new(
+        "object.setStopAfter",
+        json!({ "ids": CommandRequest::ids(ids), "on": on }),
+    )
+}
+
+/// `wizard.knockdown` (#510): rebuild the selected knockdown, else one under the selection
+/// (the whole design when nothing is selected), with the default settings.
+pub fn knockdown(d: &openstitch_design::Design, selection: &BTreeSet<u64>) -> CommandRequest {
+    let existing = d
+        .objects
+        .iter()
+        .find(|o| selection.contains(&o.id) && o.knockdown.is_some());
+    let params = match existing {
+        Some(o) => json!({ "update": o.id }),
+        None if selection.is_empty() => json!({}),
+        None => json!({ "ids": CommandRequest::ids(selection) }),
+    };
+    CommandRequest::new("wizard.knockdown", params)
+}
+
 /// `order.byClickOrder` of the selection in the order it was clicked; `None` below 2 objects.
 pub fn click_order(order: &[u64]) -> Option<CommandRequest> {
     (order.len() >= 2).then(|| CommandRequest::new("order.byClickOrder", json!({ "ids": order })))
