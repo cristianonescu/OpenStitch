@@ -1614,6 +1614,12 @@ Line references are relative to `crates/`.
     top just right of the middle); no single walking rule fits those and the rectangle's 75.4°.
     The new specs `concentric-circle30` and `concentric-ellipse40x30` compare counts, bounds and
     stitch lengths, not the seam.
+- **Web editor, batch:mac-wasm (2026-11-06; #556):** the browser build is beyond PE-DESIGN
+  (PE-DESIGN 11 runs on Windows only) and changes no output: it runs the engine's own
+  `project.open`, `stitches.import`, `design.export` and `project.save`, whose file access now
+  goes through `openstitch_engine::fsio` (the same `std::fs` calls on the desktop, memory in the
+  browser). CI job `web` checks the browser build's PES, DST, EXP, VP3, XXX, CSV and G-code
+  exports are byte-identical to the native build's for reference PES and DST files.
 - **Editor, batch:editor-core part 2 (2026-11-06; #549, #550):** autosave and recovery, the
   command palette, the hints line and the property search are beyond PE-DESIGN and change no
   design, file or default PE-DESIGN behaviour: snapshots are written only to OpenStitch's own
