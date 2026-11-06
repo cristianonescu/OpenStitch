@@ -155,7 +155,7 @@ pub mod memfs {
             assert!(read(p).is_err());
             put(p, vec![1, 2, 3]);
             assert_eq!(len(p).ok(), Some(3));
-            write(Path::new("/web/b.dst"), &[9]).ok();
+            write(Path::new("/web/b.dst"), [9]).ok();
             assert_eq!(paths().len(), 2);
             assert_eq!(read(p).ok(), Some(vec![1, 2, 3]));
             assert!(remove_file(p).is_ok());
