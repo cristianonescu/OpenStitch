@@ -10,8 +10,6 @@ use openstitch_app::editor::{
 };
 use openstitch_design::{BackgroundLayer, Contour, ObjectKind, Rect, Transform, Vec2, v2};
 
-const ACCENT: Color32 = Color32::from_rgb(0x1e, 0x88, 0xe5);
-
 fn pos(p: Vec2) -> Pos2 {
     Pos2::new(p.x as f32, p.y as f32)
 }
@@ -636,7 +634,7 @@ fn draw_selection(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
                 painter,
                 vp,
                 c,
-                Stroke::new(1.0, ACCENT.gamma_multiply(0.7)),
+                Stroke::new(1.0, crate::theme::accent().gamma_multiply(0.7)),
                 None,
             );
         }
@@ -669,18 +667,18 @@ fn draw_box_handles(painter: &egui::Painter, vp: &Viewport, h: &SelectionHandles
             r.left_bottom(),
             r.left_top(),
         ],
-        Stroke::new(1.0, ACCENT),
+        Stroke::new(1.0, crate::theme::accent()),
         5.0,
         3.0,
     ));
     let top = pos(vp.to_screen(h.position(Handle::Top)));
     let rot = pos(vp.to_screen(h.position(Handle::Rotate)));
-    painter.line_segment([top, rot], Stroke::new(1.0, ACCENT));
+    painter.line_segment([top, rot], Stroke::new(1.0, crate::theme::accent()));
     painter.circle(
         rot,
         SelectionHandles::RADIUS as f32,
         Color32::WHITE,
-        Stroke::new(1.5, ACCENT),
+        Stroke::new(1.5, crate::theme::accent()),
     );
     for handle in Handle::SCALE {
         let c = pos(vp.to_screen(h.position(handle)));
@@ -689,7 +687,7 @@ fn draw_box_handles(painter: &egui::Painter, vp: &Viewport, h: &SelectionHandles
             egui::Rect::from_center_size(c, egui::vec2(2.0 * s, 2.0 * s)),
             CornerRadius::same(1),
             Color32::WHITE,
-            Stroke::new(1.5, ACCENT),
+            Stroke::new(1.5, crate::theme::accent()),
             StrokeKind::Middle,
         );
     }
@@ -698,9 +696,14 @@ fn draw_box_handles(painter: &egui::Painter, vp: &Viewport, h: &SelectionHandles
 /// Point tool: the target's outline, curve handles and vertices (the selected one filled);
 /// Pen tool: the handles of the anchor being placed.
 fn draw_points(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
-    let handle_stroke = Stroke::new(1.0, ACCENT.gamma_multiply(0.8));
+    let handle_stroke = Stroke::new(1.0, crate::theme::accent().gamma_multiply(0.8));
     let handle = |at: Pos2| {
-        painter.circle(at, 3.5, Color32::WHITE, Stroke::new(1.5, ACCENT));
+        painter.circle(
+            at,
+            3.5,
+            Color32::WHITE,
+            Stroke::new(1.5, crate::theme::accent()),
+        );
     };
     for (a, h) in app.tools.pen_handles() {
         let (a, h) = (pos(vp.to_screen(a)), pos(vp.to_screen(h)));
@@ -716,11 +719,17 @@ fn draw_points(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
                 painter,
                 vp,
                 c,
-                Stroke::new(1.0, ACCENT.gamma_multiply(0.6)),
+                Stroke::new(1.0, crate::theme::accent().gamma_multiply(0.6)),
                 None,
             );
         }
-        draw_contour(painter, vp, &sk.centre, Stroke::new(1.5, ACCENT), None);
+        draw_contour(
+            painter,
+            vp,
+            &sk.centre,
+            Stroke::new(1.5, crate::theme::accent()),
+            None,
+        );
         for (at, left, right) in sk.widths {
             let (a, l, r) = (
                 pos(vp.to_screen(at)),
@@ -730,13 +739,19 @@ fn draw_points(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
             painter.line_segment([l, r], handle_stroke);
             handle(l);
             handle(r);
-            painter.circle_filled(a, 3.0, ACCENT);
+            painter.circle_filled(a, 3.0, crate::theme::accent());
         }
     }
     if let Some(ch) = app.tools.character_overlay(&ctx) {
         // Point Edit on a text: the selected character, its box and handles.
         for c in &ch.outlines {
-            draw_contour(painter, vp, c, Stroke::new(1.5, ACCENT), None);
+            draw_contour(
+                painter,
+                vp,
+                c,
+                Stroke::new(1.5, crate::theme::accent()),
+                None,
+            );
         }
         draw_box_handles(painter, vp, &ch.handles);
     }
@@ -745,15 +760,19 @@ fn draw_points(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
         // ones filled.
         for (_, p, selected, jump) in needles.points {
             let at = pos(vp.to_screen(p));
-            let fill = if selected { ACCENT } else { Color32::WHITE };
+            let fill = if selected {
+                crate::theme::accent()
+            } else {
+                Color32::WHITE
+            };
             if jump {
-                painter.circle(at, 3.0, fill, Stroke::new(1.0, ACCENT));
+                painter.circle(at, 3.0, fill, Stroke::new(1.0, crate::theme::accent()));
             } else {
                 painter.rect(
                     egui::Rect::from_center_size(at, egui::vec2(5.0, 5.0)),
                     CornerRadius::ZERO,
                     fill,
-                    Stroke::new(1.0, ACCENT),
+                    Stroke::new(1.0, crate::theme::accent()),
                     StrokeKind::Middle,
                 );
             }
@@ -764,7 +783,13 @@ fn draw_points(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
         return;
     };
     for (ci, c) in overlay.contours.iter().enumerate() {
-        draw_contour(painter, vp, c, Stroke::new(1.5, ACCENT), None);
+        draw_contour(
+            painter,
+            vp,
+            c,
+            Stroke::new(1.5, crate::theme::accent()),
+            None,
+        );
         for h in handle_lines(c) {
             let (a, at) = (pos(vp.to_screen(h.anchor)), pos(vp.to_screen(h.at)));
             painter.line_segment([a, at], handle_stroke);
@@ -776,8 +801,12 @@ fn draw_points(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
             painter.rect(
                 egui::Rect::from_center_size(pos(vp.to_screen(p)), egui::vec2(2.0 * s, 2.0 * s)),
                 CornerRadius::ZERO,
-                if selected { ACCENT } else { Color32::WHITE },
-                Stroke::new(1.5, ACCENT),
+                if selected {
+                    crate::theme::accent()
+                } else {
+                    Color32::WHITE
+                },
+                Stroke::new(1.5, crate::theme::accent()),
                 StrokeKind::Middle,
             );
         }
@@ -811,15 +840,21 @@ fn draw_preview(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
             painter.rect(
                 r,
                 CornerRadius::ZERO,
-                ACCENT.gamma_multiply(0.12),
-                Stroke::new(1.0, ACCENT),
+                crate::theme::accent().gamma_multiply(0.12),
+                Stroke::new(1.0, crate::theme::accent()),
                 StrokeKind::Middle,
             );
         }
         Some(ToolPreview::Outline(c)) => {
-            draw_contour(painter, vp, c, Stroke::new(1.5, ACCENT), None);
+            draw_contour(
+                painter,
+                vp,
+                c,
+                Stroke::new(1.5, crate::theme::accent()),
+                None,
+            );
             for &p in &c.points {
-                painter.circle_filled(pos(vp.to_screen(p)), 3.0, ACCENT);
+                painter.circle_filled(pos(vp.to_screen(p)), 3.0, crate::theme::accent());
             }
         }
         Some(ToolPreview::Transform(t)) => {
@@ -832,13 +867,25 @@ fn draw_preview(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
                 match o.kind {
                     ObjectKind::Shape | ObjectKind::Text => {
                         for c in &o.contours {
-                            draw_contour(painter, vp, c, Stroke::new(1.5, ACCENT), Some(t));
+                            draw_contour(
+                                painter,
+                                vp,
+                                c,
+                                Stroke::new(1.5, crate::theme::accent()),
+                                Some(t),
+                            );
                         }
                     }
                     ObjectKind::Stitches => {
                         if let Some(b) = o.bounds() {
                             let c = Contour::rectangle(b.min_x, b.min_y, b.width(), b.height());
-                            draw_contour(painter, vp, &c, Stroke::new(1.5, ACCENT), Some(t));
+                            draw_contour(
+                                painter,
+                                vp,
+                                &c,
+                                Stroke::new(1.5, crate::theme::accent()),
+                                Some(t),
+                            );
                         }
                     }
                 }

@@ -94,7 +94,8 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
                                 ui.scope_id().with(("row", row.id)),
                                 row.index,
                                 |ui| {
-                                    ui.label(RichText::new("::").weak());
+                                    // #653: the Higgsfield hand icon as the drag grip.
+                                    ui.add(crate::icons::ui_image(ui, "hand"));
                                 },
                             );
                             handle
