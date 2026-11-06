@@ -466,6 +466,9 @@ fn elements(
     user: &[Pattern],
     turns: &[Option<f64>],
 ) -> Vec<Element> {
+    if let Some(letters) = letter_line_elements(object, user) {
+        return letters;
+    }
     let mut out = Vec::new();
     if let (Some(stored), true) = (&object.region, object.has_closed_contour()) {
         // The guide's exclusions: no gradation or feathered edge on text, no feathered edge
@@ -594,6 +597,123 @@ fn elements(
         out.extend(line_elements(object, line, user));
     }
     out
+}
+
+/// The longest move between two letters of pixel text sewn across as a stitch (0.1 mm);
+/// farther letters are trimmed (#536). Single-line letters on a line are joined by running
+/// stitch up to 1.2 times the text size, at least this far (#530).
+const LINE_LETTER_ACROSS: f64 = 20.0;
+
+/// Text in a pixel font (#536), or text whose letters are all open centre lines (OpenStitch
+/// Line, #530, or an imported single-line font), sewn letter by letter: pixels as
+/// [`crate::letter_lines::pixel_runs`] walks them, centre lines with the text's line sewing
+/// along [`crate::letter_lines::route_strokes`]. `None` for other objects, and for centre-line
+/// text whose line type is not running, triple or zigzag (sewn as plain lines then).
+fn letter_line_elements(object: &DesignObject, _user: &[Pattern]) -> Option<Vec<Element>> {
+    use crate::letter_lines::{Piece, pixel_runs, resample, route_strokes};
+    let spec = object
+        .text
+        .as_ref()
+        .filter(|_| object.kind == ObjectKind::Text)?;
+    let pixel = crate::text::bundled_kind(&spec.font) == Some(crate::text::FontKind::Pixel);
+    let open = !object.contours.is_empty() && object.contours.iter().all(|c| !c.closed);
+    if !pixel && !open {
+        return None;
+    }
+    let mut out = Vec::new();
+    let mut from: Option<Vec2> = None;
+    if pixel {
+        let thread = object
+            .region
+            .as_ref()
+            .map(|r| r.thread.clone())
+            .or_else(|| object.line.as_ref().map(|l| l.thread.clone()))?;
+        for group in object.glyph_groups() {
+            let runs = pixel_runs(group, spec.pixel_style, from);
+            from = runs.last().and_then(|r| r.last().copied()).or(from);
+            out.push(Element {
+                thread: thread.clone(),
+                runs,
+                whole: false,
+                lock: true,
+                pieces: true,
+                across: Some(LINE_LETTER_ACROSS),
+            });
+        }
+        return Some(out);
+    }
+    let line = object.line.as_ref()?;
+    if !matches!(
+        line.kind,
+        LineType::Running | LineType::Triple | LineType::Zigzag
+    ) {
+        return None;
+    }
+    let pitch = (line.pitch * 10.0).max(3.0);
+    let passes = match line.kind {
+        LineType::Triple => 3,
+        _ => line.run_times.clamp(1, 5) as usize,
+    };
+    let width = line.width * 10.0;
+    let spacing = 10.0 / line.density.max(0.1);
+    for group in object.glyph_groups() {
+        let strokes: Vec<Vec<Vec2>> = group.iter().map(Contour::path).collect();
+        let mut runs: Vec<Run> = Vec::new();
+        for pieces in route_strokes(&strokes, from) {
+            let mut run: Run = Vec::new();
+            for piece in pieces {
+                let (pts, stroke) = match &piece {
+                    Piece::Travel(p) => (p, false),
+                    Piece::Stroke(p) => (p, true),
+                };
+                if stroke && line.kind == LineType::Zigzag {
+                    if run.is_empty() {
+                        run.push(pts[0]);
+                    }
+                    run.extend(lines::zigzag_rails(pts, width, spacing));
+                    // The column ends on its centre line, where the next travel starts.
+                    run.push(*pts.last().expect("stroke"));
+                    continue;
+                }
+                let r = resample(pts, pitch);
+                if run.is_empty() {
+                    run.push(r[0]);
+                }
+                for w in r.windows(2) {
+                    // Bean stitch: each stitch sewn forward, back and forward again.
+                    let n = if stroke { passes } else { 1 };
+                    for k in 0..n {
+                        run.push(if k % 2 == 0 { w[1] } else { w[0] });
+                    }
+                }
+            }
+            run.dedup_by(|a, b| a.distance(*b) < 1e-9);
+            runs.push(run);
+        }
+        // Letters on a line are joined by running stitch, as PE-DESIGN's Small Text sews its
+        // characters without trims between them; farther letters are trimmed.
+        let join = (spec.size * 12.0).max(LINE_LETTER_ACROSS);
+        if let (Some(f), Some(first)) = (from, runs.first_mut())
+            && let Some(&start) = first.first()
+            && f.distance(start) <= join
+            && f.distance(start) > 1e-9
+        {
+            let mut connector = resample(&[f, start], pitch);
+            connector.pop();
+            connector.append(first);
+            *first = connector;
+        }
+        from = runs.last().and_then(|r| r.last().copied()).or(from);
+        out.push(Element {
+            thread: line.thread.clone(),
+            runs,
+            whole: line.kind == LineType::Zigzag,
+            lock: true,
+            pieces: true,
+            across: Some(LINE_LETTER_ACROSS),
+        });
+    }
+    Some(out)
 }
 
 /// Rungs of a letter's blocks this far apart (0.1 mm): the direction lines the satin follows.

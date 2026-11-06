@@ -888,6 +888,13 @@ Line references are relative to `crates/`.
 
 ## 12. No minimum font sizes or small-text fonts
 
+- **Status (2026-11-06, #527, #530):** largely done. `fonts.list` reports each bundled font's
+  `sizeRange` and `group` (text / smallText); `text.add` and `object.setText` return a
+  `sizeWarning` outside it (a warning, as OpenStitch never refuses a size); OpenStitch Line is a
+  small-text single-line font sewn as a running line with trims only for dots and letters more
+  than 2 mm apart. Left: comparing with PE-DESIGN's Small Text output (owner capture, #530), and
+  the attributes PE-DESIGN disables for small text (OpenStitch removes the region instead).
+
 - **Impact:** severity 4.
   - Text of any size from 1 to 300 mm is accepted without a warning.
   - 3–6 mm text is sewn as an ordinary fill, which puckers and fills in.

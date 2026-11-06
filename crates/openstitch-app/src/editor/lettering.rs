@@ -11,6 +11,18 @@ use std::path::Path;
 pub struct FontChoice {
     pub id: String,
     pub label: String,
+    /// Sizes (mm) the font sews well at, from `fonts.list` (#527).
+    pub size_range: Option<(f64, f64)>,
+    /// PE-DESIGN's Font List group: "text" or "smallText".
+    pub group: String,
+}
+
+impl FontChoice {
+    /// Whether `size` (mm) lies outside the font's size range.
+    pub fn out_of_range(&self, size: f64) -> bool {
+        self.size_range
+            .is_some_and(|(lo, hi)| size < lo - 1e-9 || size > hi + 1e-9)
+    }
 }
 
 /// Font choices from a `fonts.list` result: bundled fonts first, then the design's.
@@ -26,7 +38,16 @@ pub fn font_choices(list: &Value) -> Vec<FontChoice> {
             if f["source"] == "design" {
                 label.push_str(&format!(" ({id})"));
             }
-            Some(FontChoice { id, label })
+            let size_range = f["sizeRange"]["minMm"]
+                .as_f64()
+                .zip(f["sizeRange"]["maxMm"].as_f64());
+            let group = f["group"].as_str().unwrap_or("text").to_string();
+            Some(FontChoice {
+                id,
+                label,
+                size_range,
+                group,
+            })
         })
         .collect()
 }
@@ -932,13 +953,14 @@ mod tests {
         let mut s = Session::new(&dir);
         let loaded = run(&mut s, &load_font_request(&font));
         let choices = font_choices(&run(&mut s, &CommandRequest::new("fonts.list", json!({}))));
-        assert_eq!(choices.len(), 3);
-        assert_eq!(choices[2].id, loaded["id"].as_str().expect("id"));
-        assert!(choices[2].label.starts_with("Pacifico"));
+        // Four bundled fonts, then the design's.
+        assert_eq!(choices.len(), 5);
+        assert_eq!(choices[4].id, loaded["id"].as_str().expect("id"));
+        assert!(choices[4].label.starts_with("Pacifico"));
 
         let mut form = TextForm {
             text: "Hi \u{05D0}".into(),
-            font: choices[2].id.clone(),
+            font: choices[4].id.clone(),
             ..TextForm::default()
         };
         let r = run(&mut s, &form.request().expect("request"));

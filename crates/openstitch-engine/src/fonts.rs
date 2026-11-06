@@ -829,7 +829,11 @@ pub(crate) fn list(s: &EngineState) -> Value {
             json!({
                 "id": f.id, "family": f.family, "style": f.style,
                 "license": f.license, "glyphs": glyphs,
-                "default": f.id == text::DEFAULT_FONT, "source": "bundled", "kind": "trueType",
+                "default": f.id == text::DEFAULT_FONT, "source": "bundled",
+                "kind": f.kind.as_str(),
+                "sizeRange": { "minMm": f.size_range.0, "maxMm": f.size_range.1 },
+                "stitchTypes": f.stitch_types,
+                "group": f.group,
             })
         })
         .collect();
