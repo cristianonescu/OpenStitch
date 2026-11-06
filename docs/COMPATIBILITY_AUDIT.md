@@ -2925,6 +2925,25 @@ no problems:
   mode (#525, satin-2b), and the NV880E sew-outs #528 and #531 ask for before the styles are
   advertised.
 
+### Auto-route, Redwork and branching, 2026-11-06 (#546, `batch:routing`)
+
+Beyond PE-DESIGN; nothing changes until `shape.autoRoute` or `object.branch` is run.
+
+- **Auto-route.** The lines are split at crossings and where an end comes within `join`
+  (0.5 mm) of another line; each connected piece is one walk. With more than two odd vertices,
+  the shortest paths between them are sewn twice, paired by a minimum matching (exact by
+  bitmask up to 16, greedy above), leaving the two whose pairing costs most as the walk's
+  ends; Hierholzer's walk takes the straightest unused line at each vertex. A "Y" of three
+  lines: one line, no trims, the shortest leg sewn twice (test
+  `a_tree_of_lines_sews_with_no_trims`); a 2 × 2 window grid doubles exactly 20 mm.
+- **Redwork.** Every line twice, the walk closed: a branch of three lines is 2 × 60 mm and ends
+  where it started.
+- **Branching.** Touching shapes in one thread, ordered nearest-next, each entered at the
+  closest point to the one before (the `minJump` link of `order.optimize`): a chain of three
+  touching rectangles in two colours sews with no colour change and no trim, and stays so after
+  a member is moved; moved apart, that member trims as usual. Satin branching with the
+  centre-run underlay of the B4 sketch (§5) is not done.
+
 ## Order of work
 
 1. **Fix without a reference:** items 1, 3, 7, 14, 15 (ranges), 16 and 17, plus the

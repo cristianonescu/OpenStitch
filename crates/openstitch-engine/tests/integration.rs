@@ -8,6 +8,8 @@
 mod arrange_modes;
 #[path = "background_layer.rs"]
 mod background_layer;
+#[path = "branching.rs"]
+mod branching;
 #[path = "builder.rs"]
 mod builder;
 #[path = "capabilities.rs"]

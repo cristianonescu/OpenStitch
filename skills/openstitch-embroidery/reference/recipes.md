@@ -100,6 +100,17 @@ All beyond PE-DESIGN and off unless asked; each is one undo step.
   user can snip the thread; off removes only those. PES writes stops as colour changes to the
   same thread (255 blocks at most); PES 0110 (`pesVersion: 11`) cannot hold these settings.
 
+## Line drawings and touching shapes in one go
+
+Beyond PE-DESIGN and off unless asked; one undo step each.
+
+- Running lines that touch or cross (a tree, a redwork drawing): `shape.autoRoute {ids}` turns
+  them into one line per connected piece, sewn without trims; `{redwork: true}` sews every
+  line twice and ends where it started. Each thread is routed on its own.
+- Touching fills or satins (petals and a stem): `object.branch {ids}` sews them in one go in the
+  first one's thread, each starting where the one before touches it; it reports `gapsMM` (0
+  where they touch). `object.unbranch {ids}` takes it apart.
+
 ## Embroidered patch
 
 ```json

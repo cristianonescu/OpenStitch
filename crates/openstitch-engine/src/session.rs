@@ -239,6 +239,8 @@ impl Session {
                 }
                 // Text on a path follows any edit of its path.
                 scratch.design.relayout_text();
+                // A branch follows its members (#546).
+                crate::branching::relink(&mut scratch.design);
                 scratch.design.dissolve_single_groups();
                 if scratch.design != self.state.design {
                     self.undo

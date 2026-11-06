@@ -197,6 +197,9 @@ fn describe(o: &DesignObject) -> Value {
     if o.stop_after {
         r["stopAfter"] = json!(true);
     }
+    if o.branch {
+        r["branch"] = json!(true);
+    }
     if o.knockdown.is_some() {
         r["knockdown"] = json!(true);
     }
@@ -266,6 +269,7 @@ pub fn all() -> Vec<CommandSpec> {
     v.extend(crate::palette::commands());
     v.extend(crate::punch::commands());
     v.extend(crate::order::commands());
+    v.extend(crate::branching::commands());
     v.extend(crate::production::commands());
     v.extend(crate::convert::commands());
     v.extend(crate::stitch_edit::commands());
