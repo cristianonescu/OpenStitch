@@ -126,6 +126,18 @@ Done 2026-11-05 (#433): Photo Stitch 1 in OpenStitch mode is fast again after th
 with the same stitches as before (High on the issue's stripes 899 → 41 s, Standard 258 → 24 s,
 on a loaded machine).
 
+Done 2026-11-05 (#460-#464): the stitch-engine follow-ups of the review. Narrow Auto satin no
+longer starts with a 39.5 mm stitch, Auto Punch sews regions whose satin would cross more than
+10.5 mm as fill (PE-DESIGN's own maximum is 10.4 mm), and `sew_check` warns on stitches over
+12 mm (PE-DESIGN sends wide satin whole, so it is not split by default); concentric, spiral,
+contour and radial fills end without a run back out, scatter their ring joins and thin the radial
+centre; stippling keeps its spacing and fills to the outline; cross stitch regions sew whole X's
+on one page-axis grid and zigzag nets stay inside the outline; stem, candlewick and chain are
+spaced along curves. Left for later: what Direction should do on a cross stitch region (needs a
+PE-DESIGN reference) and cross kinds (#614), travel that crosses a hole between separate pieces
+of a fill (#615), the zigzag net's turned grid against PE-DESIGN's (#616), motif lines' runs of
+short stitches (#617), and a Beyond-PE rope stitch (#618).
+
 Done 2026-11-05 (#450): every kit, demo and screenshot design reviewed at full size (stitches alone
 at 15 px/mm and the Realistic view). Kit and demo designs fixed, built-in templates regenerated,
 CI checks that the committed kit is what the code makes and passes `sew_check`. Engine follow-ups,

@@ -2130,11 +2130,15 @@ const AUTO_TRAVEL_INSET: f64 = 5.0;
 /// straight leg are square to it (satin-auto-bend-60: the needle points on the two edges
 /// alternate at exactly half a spacing).
 fn square_rungs(mut rungs: Vec<[Vec2; 2]>, edges: &[(Vec2, Vec2)]) -> Vec<[Vec2; 2]> {
+    // The edge nearest each end (within 0.1 mm): near a corner the first edge found could be
+    // the end edge, which both ends of the last rung lie by (#460).
     let edge_at = |p: Vec2| {
         edges
             .iter()
-            .find(|&&(a, b)| crate::skeleton::segment_distance(p, a, b) <= 1.0)
-            .map(|&(a, b)| crate::paths::unit(b - a))
+            .map(|&(a, b)| (crate::skeleton::segment_distance(p, a, b), a, b))
+            .filter(|&(d, _, _)| d <= 1.0)
+            .min_by(|x, y| x.0.total_cmp(&y.0))
+            .map(|(_, a, b)| crate::paths::unit(b - a))
     };
     for g in &mut rungs {
         let (Some(ua), Some(ub)) = (edge_at(g[0]), edge_at(g[1])) else {
@@ -2153,6 +2157,12 @@ fn square_rungs(mut rungs: Vec<[Vec2; 2]>, edges: &[(Vec2, Vec2)]) -> Vec<[Vec2;
             }
         };
         let (da, db) = (towards(g[0]), towards(g[1]));
+        // Both ends on the same side of the middle: the rung lies along the edge, not across
+        // it, and squaring it would send both ends to the far side (a 1 mm column's last rung
+        // became a point 40 mm away, sewn as one 39.5 mm stitch, #460).
+        if crate::paths::dot(da, db) > 0.0 {
+            continue;
+        }
         if let (Some(ta), Some(tb)) = (ray_to(m, da, edges), ray_to(m, db, edges)) {
             *g = [m + da * ta, m + db * tb];
         }

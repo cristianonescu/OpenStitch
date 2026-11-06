@@ -1175,7 +1175,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "angle",
                     "degrees",
-                    "Sewing direction, counter-clockwise on screen as in PE-DESIGN (0 = horizontal)",
+                    "Sewing direction, counter-clockwise on screen as in PE-DESIGN (0 = horizontal); a cross stitch grid stays on the page axes",
                 ),
                 opt(
                     "density",
@@ -1248,7 +1248,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "splitLength",
                     "mm",
-                    "Satin: split stitches longer than this, 2-12 (0 turns splitting off)",
+                    "Satin: split stitches longer than this, 2-12 (0 turns splitting off; off by default, as PE-DESIGN sends wide crossings whole: set it on satin wider than about 7 mm)",
                 ),
                 opt(
                     "halfStitch",

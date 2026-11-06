@@ -179,7 +179,10 @@ pub fn generate(
             vec![runs]
         }
         RegionType::CrossStitch => {
-            vec![region.pieces_raw(cross_stitch(closed, holes, angle, spacing, r.triple))]
+            // The grid lies on the page axes whatever the direction (see `cross_stitch`).
+            vec![region.pieces_raw(cross_stitch(
+                closed, holes, spacing, r.triple, r.entry, r.exit,
+            ))]
         }
         RegionType::ConcentricCircle => {
             // PE-DESIGN 11.50 (see crate::concentric): whole circles, a trim, the cut ones.
@@ -217,7 +220,7 @@ pub fn generate(
         }
         RegionType::Radial => {
             let c = r.center.unwrap_or_else(|| centre(closed));
-            vec![region.sequence(radial(closed, holes, c, row_spacing, pitch))]
+            vec![region.sequence_raw(radial(closed, holes, c, row_spacing, pitch, r.entry))]
         }
         RegionType::Spiral => {
             // PE-DESIGN 11.50 (see crate::spiral): the outline offset a row per turn.
@@ -241,7 +244,7 @@ pub fn generate(
             vec![runs]
         }
         RegionType::FlexibleSpiral => {
-            let spiral = flexible_spiral(closed, spacing, pitch, r.counterclockwise);
+            let spiral = flexible_spiral(closed, spacing, pitch, r.counterclockwise, r.entry);
             let mut pieces = clip(&spiral, closed, holes);
             if r.start_inside {
                 pieces.reverse();
@@ -252,11 +255,26 @@ pub fn generate(
         RegionType::Stippling => {
             // The meander is a smooth curve of many short segments: sew it at the Run Pitch,
             // at most half the spacing so its turns stay round (never at its 0.2 mm vertices).
-            let step = pitch.min(spacing / 2.0).max(5.0);
-            let loops = stipple(closed, holes, angle, spacing)
+            // At most 2 mm on wide spacings too (#462).
+            let step = pitch.min(spacing / 2.0).clamp(5.0, 20.0);
+            let mut loops: Vec<Vec<Vec2>> = stipple(closed, holes, angle, spacing)
                 .iter()
                 .map(|l| crate::ornament::resample_closed(l, step))
                 .collect();
+            // Start (and so end) at the meander's point nearest the start point: the travel
+            // there and back is one short stitch in from the outline, not a walk along it
+            // (the exposed L of #462).
+            if let Some(e) = r.entry.or(r.exit)
+                && let Some((li, pi)) = loops
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(li, l)| l.iter().enumerate().map(move |(pi, p)| (li, pi, *p)))
+                    .min_by(|a, b| e.distance(a.2).total_cmp(&e.distance(b.2)))
+                    .map(|(li, pi, _)| (li, pi))
+            {
+                let first = loops.remove(li);
+                loops.insert(0, first[pi..].iter().chain(&first[..pi]).copied().collect());
+            }
             vec![region.loops(loops)]
         }
         RegionType::Contour => {
@@ -292,29 +310,68 @@ pub fn generate(
                 .into_iter()
                 .flatten()
                 .collect();
-            let mut out = Vec::new();
             // A net edge two lines share (the honeycomb's rows meet along theirs) is sewn once:
             // a second band over it piled thread into knots on the machine (#293).
-            for piece in once_each(lines) {
-                let band = zigzag_band(&piece, width, step, closed, holes);
-                if band.len() < 2 {
-                    continue;
+            let pieces = once_each(lines.clone());
+            // The directions of the net edges leaving each vertex, where bands meet.
+            let mut leaving: std::collections::HashMap<(i64, i64), Vec<Vec2>> =
+                std::collections::HashMap::new();
+            for l in &lines {
+                for w in l.windows(2) {
+                    let len = w[0].distance(w[1]);
+                    if len > 1e-9 {
+                        for (v, d) in [(w[0], w[1] - w[0]), (w[1], w[0] - w[1])] {
+                            let d = d * (1.0 / len);
+                            let list = leaving.entry(net_key(v)).or_default();
+                            if list.iter().all(|e| e.distance(d) > 1e-6) {
+                                list.push(d);
+                            }
+                        }
+                    }
                 }
-                // Starting and ending on the line itself, so travel between lines stays inside
-                // the region.
+            }
+            let edges = |v: Vec2| leaving.get(&net_key(v)).cloned().unwrap_or_default();
+            let out = along_net(&lines, pieces, pitch, |piece| {
+                let band = zigzag_band(piece, width, step, closed, holes, &edges);
+                if band.len() < 2 {
+                    return None;
+                }
+                // Starting and ending on the line itself, so travel between lines runs along
+                // the net, under the bands. A piece ending at the outline (nothing else leaves
+                // its end) is sewn out along its line and back as a band, as with under sewing,
+                // so the needle does not travel back over the band it has just sewn.
                 let (first, last) = (piece[0], *piece.last().expect("2+ points"));
                 let mut run = Vec::new();
-                if r.underlay {
-                    run.extend(subdivide(&piece, pitch));
+                let end = if r.underlay || edges(last).len() <= 1 {
+                    run.extend(subdivide(piece, pitch));
                     run.extend(band.into_iter().rev());
-                    run.push(first);
+                    first
                 } else {
                     run.push(first);
                     run.extend(band);
-                    run.push(last);
+                    last
+                };
+                // No stitch shorter than 0.3 mm (a rung cut short at a corner or the outline
+                // next to the line's end): the needle point is left out, the run still ends on
+                // the line.
+                let mut kept: Run = Vec::with_capacity(run.len() + 1);
+                for p in run {
+                    if kept
+                        .last()
+                        .is_none_or(|q: &Vec2| q.distance(p) >= ZIGZAG_NET_MIN_STITCH)
+                    {
+                        kept.push(p);
+                    }
                 }
-                out.push(run);
-            }
+                if kept
+                    .last()
+                    .is_some_and(|q| q.distance(end) < ZIGZAG_NET_MIN_STITCH)
+                {
+                    kept.pop();
+                }
+                kept.push(end);
+                Some((kept, end))
+            });
             vec![region.sequence_raw(out)]
         }
     }
@@ -919,135 +976,413 @@ fn free_line_pieces(
 
 // ------------------------------------------------------------------ cross stitch
 
-/// Cross stitch: an X in every grid cell (`size` square, rotated by `angle`) that lies wholly
-/// inside the region. Each row of neighbouring cells is one run: "/" diagonals forward, "\"
-/// diagonals back; `triple` sews every diagonal three times.
+/// Cross stitch: an X in every cell of a `size` grid that lies wholly inside the region.
+///
+/// The grid lies on the page axes, its lines on multiples of `size` from the design origin, so
+/// every cross reads as an X and two regions of the same size share one grid. PE-DESIGN 11.50
+/// sews its cross stitch region this way at its default 45° direction
+/// (crates/openstitch-formats/tests/fixtures/pe11/o-region-cross.pes); a grid turned with the
+/// direction read as "+" at 45° (#463), so the direction does not turn it.
+///
+/// Each row of neighbouring cells is sewn out and back as Cross Stitch from an image sews it
+/// (`openstitch-digitize`'s `cross::sew_run`): out along the row each cell top-left → centre →
+/// bottom-left, then "/" in full; back each cell top-right → centre → bottom-right, then "\"
+/// in full, ending where the row began. Every diagonal is covered whole and in halves and no
+/// stitch runs along a cell side. From one row to the next the needle travels along the half
+/// diagonals of the region's crosses only (the nearest row end first), so travel lies under
+/// the crosses; only cells no diagonal path reaches start a new run. The sewing starts at the
+/// cell corner nearest the start point and goes back along the crosses to the corner nearest
+/// the end point, so the travel along the outline from and to them stays short (it ran along
+/// two sides of the region, #463). `triple` sews every full diagonal three times.
 fn cross_stitch(
     closed: &[Contour],
     holes: &[Contour],
-    angle: f64,
     size: f64,
     triple: bool,
+    entry: Option<Vec2>,
+    exit: Option<Vec2>,
 ) -> Vec<Run> {
-    let Some(b) = rotated_bounds(closed, angle) else {
+    let Some(b) = Rect::enclosing(closed.iter().flat_map(Contour::outline_points)) else {
         return Vec::new();
     };
     if size <= 0.0 {
         return Vec::new();
     }
-    let rad = angle.to_radians();
-    let at = |x: f64, y: f64| v2(x, y).rotated(rad);
     let inside = |p: Vec2| contains(p, closed) && !contains(p, holes);
     let x0 = (b.min_x / size).floor() * size;
     let y0 = (b.min_y / size).floor() * size;
-    let cols = ((b.max_x - x0) / size).ceil() as usize;
-    let rows = ((b.max_y - y0) / size).ceil() as usize;
-    if cols.saturating_mul(rows) > MAX_POINTS {
+    let cols = ((b.max_x - x0) / size).ceil().max(0.0) as usize;
+    let rows = ((b.max_y - y0) / size).ceil().max(0.0) as usize;
+    if cols == 0 || rows == 0 || cols.saturating_mul(rows) > MAX_POINTS / 4 {
         return Vec::new();
     }
-    let shrink = 0.02 * size;
-    let cell_in = |cx: usize, cy: usize| {
-        let (x, y) = (x0 + cx as f64 * size, y0 + cy as f64 * size);
-        [
-            (x + shrink, y + shrink),
-            (x + size - shrink, y + shrink),
-            (x + shrink, y + size - shrink),
-            (x + size - shrink, y + size - shrink),
-            (x + size / 2.0, y + size / 2.0),
-        ]
-        .iter()
-        .all(|&(px, py)| inside(at(px, py)))
-    };
-    let diag = |run: &mut Run, from: Vec2, to: Vec2| {
-        if triple {
-            run.extend([to, from, to]);
-        } else {
-            run.push(to);
-        }
-        let _ = from;
-    };
-    let mut out = Vec::new();
+    // A cell is sewn when its corners (drawn in a little), centre, side midpoints and the
+    // quarter points of its diagonals are all inside: no cross is cut by the outline.
+    const PROBES: [(f64, f64); 13] = [
+        (0.02, 0.02),
+        (0.98, 0.02),
+        (0.02, 0.98),
+        (0.98, 0.98),
+        (0.5, 0.5),
+        (0.5, 0.02),
+        (0.5, 0.98),
+        (0.02, 0.5),
+        (0.98, 0.5),
+        (0.25, 0.25),
+        (0.75, 0.25),
+        (0.25, 0.75),
+        (0.75, 0.75),
+    ];
+    let sewn: Vec<bool> = (0..rows * cols)
+        .map(|k| {
+            let (x, y) = (x0 + (k % cols) as f64 * size, y0 + (k / cols) as f64 * size);
+            PROBES
+                .iter()
+                .all(|&(fx, fy)| inside(v2(x + fx * size, y + fy * size)))
+        })
+        .collect();
+    // Runs of neighbouring cells per row: (row, first column, end column).
+    let mut segments: Vec<(usize, usize, usize)> = Vec::new();
     for cy in 0..rows {
         let mut cx = 0;
         while cx < cols {
-            if !cell_in(cx, cy) {
+            if !sewn[cy * cols + cx] {
                 cx += 1;
                 continue;
             }
-            let start = cx;
-            while cx < cols && cell_in(cx, cy) {
+            let a = cx;
+            while cx < cols && sewn[cy * cols + cx] {
                 cx += 1;
             }
-            let (top, bottom) = (y0 + cy as f64 * size, y0 + (cy + 1) as f64 * size);
-            let xs = |c: usize| x0 + c as f64 * size;
-            let mut run = vec![at(xs(start), bottom)];
-            for c in start..cx {
-                let (bl, tr, br) = (at(xs(c), bottom), at(xs(c + 1), top), at(xs(c + 1), bottom));
-                diag(&mut run, bl, tr);
-                run.push(br);
-            }
-            for c in (start..cx).rev() {
-                let (br, tl, bl) = (at(xs(c + 1), bottom), at(xs(c), top), at(xs(c), bottom));
-                diag(&mut run, br, tl);
-                run.push(bl);
-            }
-            out.push(run);
+            segments.push((cy, a, cx));
         }
+    }
+    // Needle points on a half-cell lattice: node (u, v) is (x0 + u·size/2, y0 + v·size/2);
+    // cell corners have even u and v, centres odd ones.
+    let w = 2 * cols + 1;
+    let nodes = w * (2 * rows + 1);
+    let node = |u: usize, v: usize| v * w + u;
+    let at = |n: usize| {
+        v2(
+            x0 + (n % w) as f64 * size / 2.0,
+            y0 + (n / w) as f64 * size / 2.0,
+        )
+    };
+    let cell_sewn = |cx: usize, cy: usize| cx < cols && cy < rows && sewn[cy * cols + cx];
+    // Half diagonals of sewn cells: a centre to its four corners, a corner to the centres of
+    // the sewn cells round it.
+    let neighbours = |n: usize, out: &mut Vec<usize>| {
+        out.clear();
+        let (u, v) = (n % w, n / w);
+        if u % 2 == 1 {
+            if cell_sewn(u / 2, v / 2) {
+                out.extend([
+                    node(u - 1, v - 1),
+                    node(u + 1, v - 1),
+                    node(u - 1, v + 1),
+                    node(u + 1, v + 1),
+                ]);
+            }
+            return;
+        }
+        for (du, dv) in [(-1i64, -1i64), (1, -1), (-1, 1), (1, 1)] {
+            let (cu, cv) = (u as i64 + du, v as i64 + dv);
+            if cu >= 0 && cv >= 0 && cell_sewn(cu as usize / 2, cv as usize / 2) {
+                out.push(node(cu as usize, cv as usize));
+            }
+        }
+    };
+    // Breadth-first search from `from` along the half diagonals: steps to every node (MAX where
+    // unreachable) and the node each was reached from.
+    let search = |from: usize| -> (Vec<usize>, Vec<usize>) {
+        let mut dist = vec![usize::MAX; nodes];
+        let mut prev = vec![usize::MAX; nodes];
+        let mut queue = std::collections::VecDeque::from([from]);
+        let mut adjacent = Vec::with_capacity(4);
+        dist[from] = 0;
+        while let Some(n) = queue.pop_front() {
+            neighbours(n, &mut adjacent);
+            for &m in &adjacent {
+                if dist[m] == usize::MAX {
+                    dist[m] = dist[n] + 1;
+                    prev[m] = n;
+                    queue.push_back(m);
+                }
+            }
+        }
+        (dist, prev)
+    };
+    // A full diagonal from `from` to `to`, once or three times.
+    let diagonal = |run: &mut Run, from: usize, to: usize| {
+        run.push(at(to));
+        if triple {
+            run.extend([at(from), at(to)]);
+        }
+    };
+    // Out along the row and back (from its left end), or back and out (from its right end);
+    // either way the tour ends where it began.
+    let tour = |run: &mut Run, (r, a, e): (usize, usize, usize), from_left: bool| {
+        let (top, mid, bottom) = (2 * r, 2 * r + 1, 2 * r + 2);
+        let out = |run: &mut Run| {
+            for i in a..e {
+                run.extend([at(node(2 * i + 1, mid)), at(node(2 * i, bottom))]);
+                diagonal(run, node(2 * i, bottom), node(2 * i + 2, top));
+            }
+        };
+        let back = |run: &mut Run| {
+            for i in (a..e).rev() {
+                run.extend([at(node(2 * i + 1, mid)), at(node(2 * i + 2, bottom))]);
+                diagonal(run, node(2 * i + 2, bottom), node(2 * i, top));
+            }
+        };
+        if from_left {
+            out(run);
+            back(run);
+        } else {
+            back(run);
+            out(run);
+        }
+    };
+    let start = |(r, a, e): (usize, usize, usize), left: bool| {
+        node(if left { 2 * a } else { 2 * e }, 2 * r)
+    };
+    // The cell corner nearest `p` (snapped to the outline).
+    let corner_near = |p: Vec2| {
+        let p = crate::route::snap(closed, p);
+        segments
+            .iter()
+            .flat_map(|&(r, a, e)| (a..=e).flat_map(move |i| [(2 * i, 2 * r), (2 * i, 2 * r + 2)]))
+            .map(|(u, v)| node(u, v))
+            .min_by(|&m, &n| {
+                at(m)
+                    .distance(p)
+                    .total_cmp(&at(n).distance(p))
+                    .then(m.cmp(&n))
+            })
+    };
+    let mut done = vec![false; segments.len()];
+    let mut out = Vec::new();
+    let mut here = entry.and_then(corner_near);
+    let mut run: Run = here.map(|n| vec![at(n)]).unwrap_or_default();
+    for _ in 0..segments.len() {
+        // The nearest row end the needle can reach along the crosses (ties: the upper row, then
+        // the left one, then its left end) …
+        let reached = here.and_then(|h| {
+            let (dist, prev) = search(h);
+            segments
+                .iter()
+                .enumerate()
+                .filter(|&(k, _)| !done[k])
+                .flat_map(|(k, &s)| [(k, s, true), (k, s, false)])
+                .filter_map(|(k, s, left)| {
+                    let d = dist[start(s, left)];
+                    (d != usize::MAX).then_some((d, s.0, s.1, !left, k))
+                })
+                .min()
+                .map(|(_, _, _, right, k)| {
+                    let mut path = vec![start(segments[k], !right)];
+                    while path[path.len() - 1] != h {
+                        path.push(prev[path[path.len() - 1]]);
+                    }
+                    (k, !right, path)
+                })
+        });
+        let (k, left) = match reached {
+            Some((k, left, path)) => {
+                run.extend(path.iter().rev().skip(1).map(|&n| at(n)));
+                (k, left)
+            }
+            // … else the first row left starts a new run.
+            None => {
+                let k = done.iter().position(|d| !d).expect("a row is left");
+                if run.len() >= 2 {
+                    out.push(std::mem::take(&mut run));
+                }
+                run = vec![at(start(segments[k], true))];
+                (k, true)
+            }
+        };
+        tour(&mut run, segments[k], left);
+        done[k] = true;
+        here = Some(start(segments[k], left));
+    }
+    if let (Some(h), Some(to)) = (here, exit.and_then(corner_near)) {
+        let (dist, prev) = search(h);
+        if dist[to] != usize::MAX {
+            let mut path = vec![to];
+            while path[path.len() - 1] != h {
+                path.push(prev[path[path.len() - 1]]);
+            }
+            run.extend(path.iter().rev().skip(1).map(|&n| at(n)));
+        }
+    }
+    if run.len() >= 2 {
+        out.push(run);
     }
     out
 }
 
 // ------------------------------------------------------------------ circles and spirals
 
-/// Radial lines from the centre, `spacing` apart at the outer edge. Lines are thinned towards
-/// the centre: a line of level L (the number of trailing zero bits of its index) starts where
-/// the lines of higher levels are `spacing` apart, so the centre is not overloaded. Lines run
-/// out and in alternately, in angular order.
+/// Radial lines from the centre, `spacing` apart at the farthest outline point. Lines are
+/// thinned towards the centre: a line of level L (the number of trailing zero bits of its
+/// index) starts where the lines of level L and higher are half a spacing apart, and never
+/// closer than [`RADIAL_MIN_GAP`] to them, so only line 0 reaches the centre and needle points
+/// there do not pile up (#461). The lines are sewn in angular order from the one nearest the
+/// start point `entry`, alternately in from the outline and back out, the last one out, so the
+/// fill starts and ends on the outline. Between two lines at the inner end the needle runs along
+/// one of them over its own needle points and steps across, rather than out between the lines.
 fn radial(
     closed: &[Contour],
     holes: &[Contour],
     c: Vec2,
     spacing: f64,
     pitch: f64,
+    entry: Option<Vec2>,
 ) -> Vec<Vec<Vec2>> {
+    use std::f64::consts::{FRAC_PI_2, TAU};
     let r_max = reach(closed, c) + 1.0;
-    let n_min = (std::f64::consts::TAU * r_max / spacing).ceil().max(8.0) as usize;
+    let n_min = (TAU * r_max / spacing).ceil().max(8.0) as usize;
     let n = n_min.next_power_of_two().min(1 << 16);
-    let mut out = Vec::new();
+    let gap_min = (spacing / 2.0).max(RADIAL_MIN_GAP);
+    // Each line: its pieces inside the region from the centre out, in needle points.
+    let mut lines: Vec<Vec<Vec<Vec2>>> = Vec::new();
     for i in 0..n {
-        let level = if i == 0 { 16 } else { i.trailing_zeros() };
-        let gap = std::f64::consts::TAU * 2f64.powi(level as i32) / n as f64;
-        let start = if level >= 16 {
+        let start = if i == 0 {
             0.0
         } else {
-            spacing / (2.0 * gap)
+            // The nearest line of this level or higher is `gap` round: at radius `start` it is
+            // `start · sin(gap)` away (the opposite line, past a right angle, `start`).
+            let gap = TAU * f64::from(1u32 << i.trailing_zeros()) / n as f64;
+            gap_min / if gap < FRAC_PI_2 { gap.dsin() } else { 1.0 }
         };
         if start >= r_max {
             continue;
         }
-        let dir = v2(1.0, 0.0).rotated(std::f64::consts::TAU * i as f64 / n as f64);
-        let ray = subdivide(&[c + dir * start, c + dir * r_max], pitch);
-        let mut pieces = clip(&ray, closed, holes);
-        if out.len() % 2 == 1 {
-            pieces.reverse();
-            pieces.iter_mut().for_each(|p| p.reverse());
+        let dir = v2(1.0, 0.0).rotated(TAU * i as f64 / n as f64);
+        // Clipped first, then split: splitting first left slivers of stitches at the outline.
+        let pieces: Vec<Vec<Vec2>> = clip(&[c + dir * start, c + dir * r_max], closed, holes)
+            .iter()
+            // A ray through an outline corner clips to slivers: none under a needle gap.
+            .filter(|p| p.len() >= 2 && p[0].distance(p[p.len() - 1]) >= RADIAL_MIN_GAP)
+            .map(|p| subdivide(p, pitch))
+            .collect();
+        if !pieces.is_empty() {
+            lines.push(pieces);
+        }
+    }
+    if lines.is_empty() {
+        return Vec::new();
+    }
+    let outer_end = |l: &Vec<Vec<Vec2>>| *l.last().and_then(|p| p.last()).expect("non-empty");
+    if let Some(e) = entry
+        && let Some(first) = (0..lines.len()).min_by(|&a, &b| {
+            outer_end(&lines[a])
+                .distance(e)
+                .total_cmp(&outer_end(&lines[b]).distance(e))
+        })
+    {
+        lines.rotate_left(first);
+    }
+    // In, out, in, …, out; with an odd count the first line is sewn in and straight back out.
+    let m = lines.len();
+    let mut out: Vec<Vec<Vec2>> = Vec::new();
+    let mut inward = true;
+    for (j, line) in lines.iter().enumerate() {
+        let mut pieces: Vec<Vec<Vec2>> = Vec::new();
+        if j == 0 && m % 2 == 1 {
+            let mut back: Vec<Vec<Vec2>> = line
+                .iter()
+                .rev()
+                .map(|p| p.iter().rev().copied().collect())
+                .collect();
+            back.extend(line.iter().cloned());
+            pieces = back;
+        } else if inward {
+            pieces.extend(
+                line.iter()
+                    .rev()
+                    .map(|p| p.iter().rev().copied().collect::<Vec<_>>()),
+            );
+            // From the last line's outer end straight on when that stays inside: travel round
+            // by the outline's corners left slivers of stitches there (24-51 under 0.3 mm on a
+            // 40 mm circle).
+            if let Some(prev) = out.last_mut()
+                && let (Some(&a), Some(b)) = (prev.last(), pieces.first().map(|p| p[0]))
+            {
+                let chord = subdivide(&[a, b], pitch);
+                let inside = chord.windows(2).all(|w| {
+                    let m = w[0].lerp(w[1], 0.5);
+                    contains(m, closed) && !contains(m, holes)
+                });
+                if a.distance(b) <= pitch || (inside && a.distance(b) <= 3.0 * pitch) {
+                    prev.extend(chord.into_iter().skip(1));
+                    prev.extend(pieces.remove(0).into_iter().skip(1));
+                }
+            }
+        } else {
+            pieces.extend(line.iter().cloned());
+            // From the last line's inner end: along the longer of the two lines to the other's
+            // inner end, on its own needle points, then one step across.
+            if let Some(prev) = out.last_mut()
+                && let (Some(&a), Some(b)) = (prev.last(), pieces.first().map(|p| p[0]))
+            {
+                let (ra, rb) = (a.distance(c), b.distance(c));
+                let near = |pts: &[Vec2], r: f64| {
+                    (0..pts.len())
+                        .min_by(|&x, &y| {
+                            (pts[x].distance(c) - r)
+                                .abs()
+                                .total_cmp(&(pts[y].distance(c) - r).abs())
+                        })
+                        .unwrap_or(0)
+                };
+                if ra > rb {
+                    let own = &pieces[0];
+                    let k = near(own, ra);
+                    let mut lead: Vec<Vec2> = own[..=k].iter().rev().copied().collect();
+                    lead.extend(own.iter().skip(1).copied());
+                    pieces[0] = lead;
+                } else {
+                    let prev_line = &lines[j - 1][0];
+                    let k = near(prev_line, rb);
+                    prev.extend(prev_line[1..=k].iter().copied());
+                }
+            }
         }
         out.extend(pieces);
+        inward = !inward;
+        if j == 0 && m % 2 == 1 {
+            inward = true;
+        }
     }
     out
 }
 
+/// Least distance (0.1 mm) at which a radial line starts from the lines beside it.
+const RADIAL_MIN_GAP: f64 = 4.0;
+
 /// Flexible spiral: the region's outer outline shrunk towards its centre, turn by turn, so the
 /// spiral follows the shape. Each turn shrinks by `spacing` relative to the mean distance of
-/// the outline from the centre. Starts outside.
-fn flexible_spiral(closed: &[Contour], spacing: f64, pitch: f64, ccw: bool) -> Vec<Vec2> {
+/// the outline from the centre. Starts outside, on the outline at the start point (`entry`)
+/// when set, and ends in the middle.
+fn flexible_spiral(
+    closed: &[Contour],
+    spacing: f64,
+    pitch: f64,
+    ccw: bool,
+    entry: Option<Vec2>,
+) -> Vec<Vec2> {
     let Some(outer) = closed
         .iter()
         .max_by(|a, b| area(a).abs().total_cmp(&area(b).abs()))
     else {
         return Vec::new();
     };
-    let mut ring = outer.path();
+    let mut ring = match entry {
+        Some(e) => outer.starting_at(e).path(),
+        None => outer.path(),
+    };
     // Clockwise on screen (y down) is positive signed area in this convention.
     if (area(outer) < 0.0) != ccw {
         ring.reverse();
@@ -1123,37 +1458,71 @@ fn centroid(c: &Contour) -> Vec2 {
 
 // ------------------------------------------------------------------ stippling
 
-/// Stippling: a meandering closed path that never crosses itself. Cells of twice the spacing
-/// that lie wholly inside the region get a random spanning tree (fixed seed); the path walks
-/// around the tree at half a cell, through every quarter cell (a Hamiltonian cycle of the
-/// doubled grid), then is rounded by three corner-cutting passes. One loop per connected part.
+/// Stippling: a meandering closed path that never crosses itself, its neighbouring passes
+/// `spacing` apart and reaching to about half a spacing from the outline and the holes (#462).
+/// 1. A lattice of points about `spacing` apart, fitted to the region's (rotated) bounds so a
+///    rectangle's outer points lie half a spacing inside; points 0.35 spacing or more inside
+///    are usable.
+/// 2. Cells of 2 × 2 usable points get a random spanning tree (fixed seed); the path walks
+///    around the tree through every point of its cells (a Hamiltonian cycle of the doubled
+///    grid). One loop per connected part.
+/// 3. Usable points of the partial cells along the outline are taken in by detours: a step
+///    u → v becomes u → u' → v' → v through two free neighbours; loops whose steps face each
+///    other one point apart are joined into one.
+/// 4. Rounded by corner cutting, then relaxed: each point moves square to the path towards
+///    the middle between the passes (or the outline, counted at half a spacing) on its two
+///    sides, never so that it crosses or comes near another pass.
 fn stipple(closed: &[Contour], holes: &[Contour], angle: f64, spacing: f64) -> Vec<Vec<Vec2>> {
     let Some(b) = rotated_bounds(closed, angle) else {
         return Vec::new();
     };
     let cell = spacing * 2.0;
-    if cell <= 0.0 {
+    if cell <= 0.0 || !cell.is_finite() {
         return Vec::new();
     }
-    let rad = angle.to_radians();
-    let at = |x: f64, y: f64| v2(x, y).rotated(rad);
-    let inside = |p: Vec2| contains(p, closed) && !contains(p, holes);
-    let cols = ((b.width() / cell).floor() as usize).max(1);
-    let rows = ((b.height() / cell).floor() as usize).max(1);
+    // Cells fitted to the bounds when that changes the spacing by 15 % or less.
+    let fit = |len: f64| {
+        let n = (len / cell).round().max(1.0);
+        if (len / n - cell).abs() <= 0.15 * cell {
+            (n as usize, len / n / 2.0, 0.0)
+        } else {
+            let n = (len / cell).floor().max(1.0);
+            (n as usize, spacing, (len - n * cell) / 2.0)
+        }
+    };
+    let ((cols, sx, mx), (rows, sy, my)) = (fit(b.width()), fit(b.height()));
     if cols.saturating_mul(rows) > MAX_POINTS / 8 {
         return Vec::new();
     }
-    let ox = b.min_x + (b.width() - cols as f64 * cell) / 2.0;
-    let oy = b.min_y + (b.height() - rows as f64 * cell) / 2.0;
+    let rad = angle.to_radians();
+    let edges = EdgeIndex::new(closed.iter().chain(holes), 2.5 * spacing);
+    let inside = |p: Vec2, margin: f64| {
+        contains(p, closed) && !contains(p, holes) && edges.distance(p, margin).is_none()
+    };
+    // Fine lattice: w × h points, id = y * w + x.
+    let (w, h) = (2 * cols, 2 * rows);
+    let pos = |x: usize, y: usize| {
+        v2(
+            b.min_x + mx + (x as f64 + 0.5) * sx,
+            b.min_y + my + (y as f64 + 0.5) * sy,
+        )
+        .rotated(rad)
+    };
+    let usable: Vec<bool> = (0..w * h)
+        .map(|i| inside(pos(i % w, i / w), 0.35 * spacing))
+        .collect();
+    let step_ok = |a: (usize, usize), b: (usize, usize)| {
+        usable[a.1 * w + a.0]
+            && usable[b.1 * w + b.0]
+            && inside(pos(a.0, a.1).lerp(pos(b.0, b.1), 0.5), 0.2 * spacing)
+    };
     let on: Vec<bool> = (0..rows * cols)
         .map(|i| {
-            let (cx, cy) = (i % cols, i / cols);
-            let (x, y) = (ox + cx as f64 * cell, oy + cy as f64 * cell);
-            [0.0, 0.5, 1.0].iter().all(|&fx| {
-                [0.0, 0.5, 1.0]
-                    .iter()
-                    .all(|&fy| inside(at(x + fx * cell, y + fy * cell)))
-            })
+            let (x, y) = (2 * (i % cols), 2 * (i / cols));
+            step_ok((x, y), (x + 1, y))
+                && step_ok((x, y + 1), (x + 1, y + 1))
+                && step_ok((x, y), (x, y + 1))
+                && step_ok((x + 1, y), (x + 1, y + 1))
         })
         .collect();
     let mut rng = Rng::new(0x57_1991E);
@@ -1161,7 +1530,7 @@ fn stipple(closed: &[Contour], holes: &[Contour], angle: f64, spacing: f64) -> V
     // Tree edges: right[i] links cell i to i + 1, down[i] links i to i + cols.
     let mut right = vec![false; rows * cols];
     let mut down = vec![false; rows * cols];
-    let mut loops = Vec::new();
+    let mut cycles = Vec::new();
     for root in 0..rows * cols {
         if !on[root] || visited[root] {
             continue;
@@ -1171,17 +1540,24 @@ fn stipple(closed: &[Contour], holes: &[Contour], angle: f64, spacing: f64) -> V
         let mut members = vec![root];
         while let Some(&cur) = stack.last() {
             let (cx, cy) = (cur % cols, cur / cols);
+            let (x, y) = (2 * cx, 2 * cy);
             let mut options: Vec<usize> = Vec::with_capacity(4);
-            if cx + 1 < cols {
+            if cx + 1 < cols
+                && step_ok((x + 1, y), (x + 2, y))
+                && step_ok((x + 1, y + 1), (x + 2, y + 1))
+            {
                 options.push(cur + 1);
             }
-            if cx > 0 {
+            if cx > 0 && step_ok((x - 1, y), (x, y)) && step_ok((x - 1, y + 1), (x, y + 1)) {
                 options.push(cur - 1);
             }
-            if cy + 1 < rows {
+            if cy + 1 < rows
+                && step_ok((x, y + 1), (x, y + 2))
+                && step_ok((x + 1, y + 1), (x + 1, y + 2))
+            {
                 options.push(cur + cols);
             }
-            if cy > 0 {
+            if cy > 0 && step_ok((x, y - 1), (x, y)) && step_ok((x + 1, y - 1), (x + 1, y)) {
                 options.push(cur - cols);
             }
             options.retain(|&n| on[n] && !visited[n]);
@@ -1200,29 +1576,327 @@ fn stipple(closed: &[Contour], holes: &[Contour], angle: f64, spacing: f64) -> V
             }
             stack.push(next);
         }
-        loops.push(walk_tree(&members, cols, &right, &down, |fx, fy| {
-            at(
-                ox + (fx as f64 + 0.5) * spacing,
-                oy + (fy as f64 + 0.5) * spacing,
-            )
-        }));
+        cycles.push(walk_tree(&members, cols, &right, &down));
     }
-    loops
+    // Detours through the free usable points next to each step (step 3).
+    let mut next = vec![usize::MAX; w * h];
+    for c in &cycles {
+        for (k, &(x, y)) in c.iter().enumerate() {
+            let (nx, ny) = c[(k + 1) % c.len()];
+            next[y * w + x] = ny * w + nx;
+        }
+    }
+    let free = |id: usize, next: &[usize]| usable[id] && next[id] == usize::MAX;
+    // The points one aside of the step u → v (on `side`), if on the lattice.
+    let aside = |u: usize, v: usize, side: isize| {
+        let (dx, dy) = if u / w == v / w { (0, side) } else { (side, 0) };
+        let shift = |i: usize| {
+            let (x, y) = ((i % w) as isize + dx, (i / w) as isize + dy);
+            (x >= 0 && y >= 0 && (x as usize) < w && (y as usize) < h)
+                .then(|| y as usize * w + x as usize)
+        };
+        Some((shift(u)?, shift(v)?))
+    };
+    let at = |i: usize| (i % w, i / w);
+    for c in &cycles {
+        let Some(&(x0, y0)) = c.first() else {
+            continue;
+        };
+        let start = y0 * w + x0;
+        let mut u = start;
+        loop {
+            let v = next[u];
+            let detour = [1, -1].into_iter().find_map(|side| {
+                aside(u, v, side).filter(|&(a, b)| {
+                    free(a, &next)
+                        && free(b, &next)
+                        && step_ok(at(u), at(a))
+                        && step_ok(at(a), at(b))
+                        && step_ok(at(b), at(v))
+                })
+            });
+            if let Some((a, b)) = detour {
+                next[u] = a;
+                next[a] = b;
+                next[b] = v;
+                continue;
+            }
+            u = v;
+            if u == start {
+                break;
+            }
+        }
+    }
+    // Neighbouring loops (parts joined only corner to corner) become one where two of their
+    // steps face each other: u → v and y → x one point aside become u → x and y → v.
+    let walk = |start: usize, next: &[usize]| {
+        let mut l = vec![start];
+        let mut u = next[start];
+        while u != start {
+            l.push(u);
+            u = next[u];
+        }
+        l
+    };
+    let mut part = vec![usize::MAX; w * h];
+    for u in 0..w * h {
+        if next[u] != usize::MAX && part[u] == usize::MAX {
+            for i in walk(u, &next) {
+                part[i] = u;
+            }
+        }
+    }
+    for u in 0..w * h {
+        if next[u] == usize::MAX {
+            continue;
+        }
+        for side in [1, -1] {
+            let v = next[u];
+            let Some((x, y)) = aside(u, v, side) else {
+                continue;
+            };
+            if part[x] == usize::MAX
+                || part[x] == part[u]
+                || part[y] != part[x]
+                || !step_ok(at(u), at(x))
+                || !step_ok(at(y), at(v))
+            {
+                continue;
+            }
+            if next[x] == y {
+                let l = walk(x, &next);
+                for k in 0..l.len() {
+                    next[l[(k + 1) % l.len()]] = l[k];
+                }
+            }
+            if next[y] == x {
+                next[u] = x;
+                next[y] = v;
+                for i in walk(u, &next) {
+                    part[i] = part[u];
+                }
+                break;
+            }
+        }
+    }
+    let mut loops = Vec::new();
+    let mut seen = vec![false; w * h];
+    for u in 0..w * h {
+        if next[u] != usize::MAX && !seen[u] {
+            let l = walk(u, &next);
+            for &i in &l {
+                seen[i] = true;
+            }
+            loops.push(l.into_iter().map(|i| pos(i % w, i / w)).collect::<Vec<_>>());
+        }
+    }
+    let pitch = spacing / 4.0;
+    let mut loops: Vec<Vec<Vec2>> = loops
         .into_iter()
-        .map(|l| chaikin(&chaikin(&chaikin(&l))))
-        .collect()
+        .map(|l| crate::ornament::resample_closed(&chaikin(&chaikin(&l)), pitch))
+        .collect();
+    relax(&mut loops, &edges, spacing);
+    loops
+}
+
+/// The edges of some contours, bucketed for nearest-edge queries.
+struct EdgeIndex {
+    edges: Vec<(Vec2, Vec2)>,
+    cell: f64,
+    buckets: std::collections::HashMap<(i64, i64), Vec<usize>>,
+}
+
+impl EdgeIndex {
+    fn new<'a>(contours: impl Iterator<Item = &'a Contour>, cell: f64) -> Self {
+        let edges: Vec<(Vec2, Vec2)> = contours.flat_map(Contour::edges).collect();
+        let mut buckets: std::collections::HashMap<(i64, i64), Vec<usize>> = Default::default();
+        let key = |v: f64| (v / cell).floor() as i64;
+        for (i, &(a, b)) in edges.iter().enumerate() {
+            // Sampled every half cell: an edge closer than half a cell to a point is in the
+            // point's bucket.
+            let n = ((2.0 * a.distance(b) / cell).ceil() as usize).clamp(1, 1 << 16);
+            for k in 0..=n {
+                let p = a.lerp(b, k as f64 / n as f64);
+                let at = (key(p.x), key(p.y));
+                for dx in -1..=1 {
+                    for dy in -1..=1 {
+                        buckets.entry((at.0 + dx, at.1 + dy)).or_default().push(i);
+                    }
+                }
+            }
+        }
+        for list in buckets.values_mut() {
+            list.sort_unstable();
+            list.dedup();
+        }
+        EdgeIndex {
+            edges,
+            cell,
+            buckets,
+        }
+    }
+
+    /// The nearest outline point to `p` closer than `within` (at most half a cell), and its
+    /// distance.
+    fn distance(&self, p: Vec2, within: f64) -> Option<(f64, Vec2)> {
+        let key = (
+            (p.x / self.cell).floor() as i64,
+            (p.y / self.cell).floor() as i64,
+        );
+        let mut best: Option<(f64, Vec2)> = None;
+        for &i in self.buckets.get(&key).into_iter().flatten() {
+            let (a, b) = self.edges[i];
+            let d = b - a;
+            let len2 = d.x * d.x + d.y * d.y;
+            let t = if len2 > 0.0 {
+                (((p.x - a.x) * d.x + (p.y - a.y) * d.y) / len2).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            let q = a + d * t;
+            let dist = p.distance(q);
+            if dist < within && best.is_none_or(|(bd, _)| dist < bd) {
+                best = Some((dist, q));
+            }
+        }
+        best
+    }
+}
+
+/// Evens out stippling (step 4 of [`stipple`]): points about a quarter spacing apart along
+/// closed loops move square to their loop, a little per round, to the middle between the
+/// nearest passes on their two sides; the outline counts as a pass half a spacing beyond.
+/// Smoothing keeps the turns round. A move is kept only if the point stays a quarter spacing
+/// inside the outline and 0.4 spacing from every other pass, and neither of its two stitches
+/// crosses another.
+fn relax(loops: &mut [Vec<Vec2>], edges: &EdgeIndex, spacing: f64) {
+    use std::collections::HashMap;
+    let pitch = spacing / 4.0;
+    let reach = 2.5 * spacing;
+    let total: usize = loops.iter().map(Vec::len).sum();
+    let rounds = 40.min(2_000_000 / total.max(1));
+    // Points closer than this many steps along a loop are neighbours on the same pass; all
+    // others (the other leg of a turn too) must keep apart.
+    let local = (0.75 * spacing / pitch).ceil() as usize;
+    let key = |p: Vec2| {
+        (
+            (p.x / spacing).floor() as i64,
+            (p.y / spacing).floor() as i64,
+        )
+    };
+    let o = |p: Vec2, q: Vec2, r: Vec2| (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+    let cross = |a: Vec2, b: Vec2, c: Vec2, d: Vec2| {
+        o(a, b, c) * o(a, b, d) < 0.0 && o(c, d, a) * o(c, d, b) < 0.0
+    };
+    for round in 0..rounds {
+        if round > 0 && round % 4 == 0 {
+            for l in loops.iter_mut() {
+                *l = crate::ornament::resample_closed(l, pitch);
+            }
+        }
+        let mut grid: HashMap<(i64, i64), Vec<(usize, usize)>> = HashMap::new();
+        for (li, l) in loops.iter().enumerate() {
+            for (pi, &p) in l.iter().enumerate() {
+                grid.entry(key(p)).or_default().push((li, pi));
+            }
+        }
+        for li in 0..loops.len() {
+            let n = loops[li].len();
+            if n < 8 {
+                continue;
+            }
+            for pi in 0..n {
+                let l = &loops[li];
+                let (a, p, c) = (l[(pi + n - 1) % n], l[pi], l[(pi + 1) % n]);
+                let t = c - a;
+                let tl = t.length();
+                if tl <= 0.0 {
+                    continue;
+                }
+                let normal = v2(-t.y / tl, t.x / tl);
+                let near = |lj: usize, pj: usize| {
+                    lj == li && {
+                        let d = pj.abs_diff(pi);
+                        d.min(n - d) <= local
+                    }
+                };
+                // Nearest pass on each side, within a 60 degree cone round the normal.
+                let mut side = [reach, reach];
+                let (kx, ky) = key(p);
+                for gx in kx - 3..=kx + 3 {
+                    for gy in ky - 3..=ky + 3 {
+                        for &(lj, pj) in grid.get(&(gx, gy)).into_iter().flatten() {
+                            if near(lj, pj) {
+                                continue;
+                            }
+                            let d = loops[lj][pj] - p;
+                            let dist = d.length();
+                            let along = d.x * normal.x + d.y * normal.y;
+                            if along.abs() > 0.5 * dist {
+                                let s = usize::from(along < 0.0);
+                                side[s] = side[s].min(dist);
+                            }
+                        }
+                    }
+                }
+                if let Some((dist, q)) = edges.distance(p, reach / 2.0) {
+                    let d = q - p;
+                    let along = d.x * normal.x + d.y * normal.y;
+                    if along.abs() > 0.5 * dist {
+                        let s = usize::from(along < 0.0);
+                        side[s] = side[s].min(2.0 * dist);
+                    }
+                }
+                let shift = ((side[0] - side[1]) / 4.0).clamp(-0.1 * spacing, 0.1 * spacing);
+                let smooth = (a.lerp(c, 0.5) - p) * 0.1;
+                let to = p + normal * shift + smooth;
+                if to.distance(p) < 1e-3 {
+                    continue;
+                }
+                // Keep the move only if it is safe. A move shorter than a quarter spacing to
+                // a point a quarter spacing from the outline cannot have crossed it.
+                if to.distance(p) >= 0.25 * spacing || edges.distance(to, 0.25 * spacing).is_some()
+                {
+                    continue;
+                }
+                let mut safe = true;
+                let (kx, ky) = key(to);
+                'check: for gx in kx - 2..=kx + 2 {
+                    for gy in ky - 2..=ky + 2 {
+                        for &(lj, pj) in grid.get(&(gx, gy)).into_iter().flatten() {
+                            let m = loops[lj].len();
+                            let q = loops[lj][pj];
+                            if !near(lj, pj) && q.distance(to) < 0.4 * spacing {
+                                safe = false;
+                                break 'check;
+                            }
+                            // The stitch pj → pj + 1 against the two moved ones.
+                            let pk = (pj + 1) % m;
+                            if lj == li && (pj == pi || pk == pi) {
+                                continue;
+                            }
+                            let r = loops[lj][pk];
+                            if (!(lj == li && pk == (pi + n - 1) % n) && cross(a, to, q, r))
+                                || (!(lj == li && pj == (pi + 1) % n) && cross(to, c, q, r))
+                            {
+                                safe = false;
+                                break 'check;
+                            }
+                        }
+                    }
+                }
+                if safe {
+                    loops[li][pi] = to;
+                }
+            }
+        }
+    }
 }
 
 /// The Hamiltonian cycle of the doubled grid around a spanning tree: each tree cell is a ring
 /// of four quarter cells; a tree edge swaps the two ring edges facing it for two edges joining
-/// the rings. Returns the cycle (without the closing repeat) mapped by `at(fine x, fine y)`.
-fn walk_tree(
-    members: &[usize],
-    cols: usize,
-    right: &[bool],
-    down: &[bool],
-    at: impl Fn(usize, usize) -> Vec2,
-) -> Vec<Vec2> {
+/// the rings. Returns the cycle (without the closing repeat) as (fine x, fine y) points.
+fn walk_tree(members: &[usize], cols: usize, right: &[bool], down: &[bool]) -> Vec<(usize, usize)> {
     use std::collections::HashMap;
     type Node = (usize, usize);
     let mut adj: HashMap<Node, Vec<Node>> = HashMap::new();
@@ -1277,7 +1951,7 @@ fn walk_tree(
         prev = cur;
         cur = next;
     }
-    path.into_iter().map(|(x, y)| at(x, y)).collect()
+    path
 }
 
 /// One pass of Chaikin corner cutting on a closed loop (no closing repeat).
@@ -1399,61 +2073,107 @@ fn once_each(lines: Vec<Vec<Vec2>>) -> Vec<Vec<Vec2>> {
 }
 
 /// A satin band `width` wide along `line`, as PE-DESIGN's zigzag net sews it: every `step` along
-/// the line a rung straight across, then on to the next rung's first side. At a corner the band's
-/// sides meet at the mitre (at most twice the half width out), so the rungs fan evenly instead of
-/// crossing; a rung end outside the region is drawn in to its edge.
-fn zigzag_band(line: &[Vec2], width: f64, step: f64, closed: &[Contour], holes: &[Contour]) -> Run {
+/// the line a rung straight across, then on to the next rung's first side. Along each edge the
+/// rungs stay square to it. Where the line meets other net edges (`edges` gives the directions
+/// of every net edge leaving a point, the line's own included), each rung is cut back at the
+/// line halving the angle to each of them, so bands meeting at a corner or a junction share
+/// it wedge by wedge instead of fanning or piling over each other (#463); at the line's own
+/// corners one rung runs from the corner out along that halving line on the outer side (at
+/// most √2 × the half width). Every rung is cut to the region: no needle point lies outside
+/// it.
+fn zigzag_band(
+    line: &[Vec2],
+    width: f64,
+    step: f64,
+    closed: &[Contour],
+    holes: &[Contour],
+    edges: &dyn Fn(Vec2) -> Vec<Vec2>,
+) -> Run {
     let n = line.len();
     if n < 2 || step <= 0.0 || width <= 0.0 {
         return line.to_vec();
     }
+    let unit = |d: Vec2| d * (1.0 / d.x.dhypot(d.y).max(1e-12));
     let normal = |a: Vec2, b: Vec2| {
-        let d = b - a;
-        let l = a.distance(b).max(1e-12);
-        v2(-d.y / l, d.x / l)
+        let d = unit(b - a);
+        v2(-d.y, d.x)
     };
-    // The side direction at each vertex: the mitre of its two edges.
-    let sides: Vec<Vec2> = (0..n)
-        .map(|i| {
-            let before = (i > 0).then(|| normal(line[i - 1], line[i]));
-            let after = (i + 1 < n).then(|| normal(line[i], line[i + 1]));
-            match (before, after) {
-                (Some(u), Some(v)) => {
-                    let m = u + v;
-                    let l = m.x.dhypot(m.y);
-                    if l < 1e-9 {
-                        v
-                    } else {
-                        let m = m * (1.0 / l);
-                        // At most √2 out (a right-angle corner), so no rung grows past
-                        // √2 × the band's width.
-                        let cos = (m.x * v.x + m.y * v.y).max(std::f64::consts::FRAC_1_SQRT_2);
-                        m * (1.0 / cos)
-                    }
+    let dot = |a: Vec2, b: Vec2| a.x * b.x + a.y * b.y;
+    // Turns of less than a degree count as running straight on.
+    const STRAIGHT: f64 = 0.999_85;
+    // The halving lines at vertex `v` between the edge leaving it along `own` and every other
+    // net edge there.
+    let halving = |v: Vec2, own: Vec2| -> Vec<Vec2> {
+        edges(v)
+            .into_iter()
+            .filter(|&e| dot(e, own) < 1.0 - 1e-9)
+            .map(|e| {
+                let m = own + e;
+                if m.x.dhypot(m.y) < 1e-9 {
+                    v2(-own.y, own.x)
+                } else {
+                    unit(m)
                 }
-                (Some(u), None) => u,
-                (None, Some(v)) => v,
-                (None, None) => v2(0.0, 1.0),
+            })
+            .collect()
+    };
+    // `p` drawn back towards `c` onto the line through `v` along `m` when it lies past it.
+    let before = |c: Vec2, p: Vec2, v: Vec2, m: Vec2| {
+        let side = |q: Vec2| m.x * (q.y - v.y) - m.y * (q.x - v.x);
+        let (sc, sp) = (side(c), side(p));
+        if sc.abs() < 1e-9 || sc * sp >= 0.0 {
+            p
+        } else {
+            c.lerp(p, sc / (sc - sp))
+        }
+    };
+    // The mitre at each inner vertex of the line (None at its ends and where it turns back).
+    let mitres: Vec<Option<Vec2>> = (0..n)
+        .map(|i| {
+            if i == 0 || i + 1 == n {
+                return None;
             }
+            let (u, v) = (normal(line[i - 1], line[i]), normal(line[i], line[i + 1]));
+            let m = u + v;
+            if m.x.dhypot(m.y) < 1e-9 || dot(u, v) > STRAIGHT {
+                return None;
+            }
+            let m = unit(m);
+            // At most √2 out (a right-angle corner), so no rung grows past √2 × the width.
+            let cos = dot(m, v).max(std::f64::consts::FRAC_1_SQRT_2);
+            Some(m * (1.0 / cos))
         })
         .collect();
     let inside = |p: Vec2| contains(p, closed) && !contains(p, holes);
-    let pull_in = |c: Vec2, p: Vec2| {
-        if inside(p) || !inside(c) {
-            return p;
+    // A rung from `a` to `b` about `c`, cut to the region (the part nearest `c`), or none.
+    let cut = |c: Vec2, a: Vec2, b: Vec2| -> Option<(Vec2, Vec2)> {
+        if a.distance(b) < 1e-6 {
+            return None;
         }
-        let (mut lo, mut hi) = (0.0, 1.0);
-        for _ in 0..20 {
-            let mid = (lo + hi) / 2.0;
-            if inside(c.lerp(p, mid)) {
-                lo = mid;
-            } else {
-                hi = mid;
-            }
+        if inside(a) && inside(b) && inside(c) {
+            return Some((a, b));
         }
-        c.lerp(p, lo)
+        clip(&[a, b], closed, holes)
+            .into_iter()
+            .filter(|p| p.len() >= 2)
+            .map(|p| (p[0], p[p.len() - 1]))
+            .min_by(|x, y| {
+                let d = |(p, q): (Vec2, Vec2)| {
+                    let (pq, pc) = (q - p, c - p);
+                    let t = (dot(pc, pq) / dot(pq, pq).max(1e-12)).clamp(0.0, 1.0);
+                    (p + pq * t).distance(c)
+                };
+                d(*x).total_cmp(&d(*y))
+            })
     };
+    let half = width / 2.0;
     let mut run = Vec::new();
+    let mut rung = |c: Vec2, a: Vec2, b: Vec2| {
+        if let Some((a, b)) = cut(c, a, b) {
+            run.push(a);
+            run.push(b);
+        }
+    };
     let mut t = 0.0;
     for i in 0..n - 1 {
         let (a, b) = (line[i], line[i + 1]);
@@ -1461,19 +2181,195 @@ fn zigzag_band(line: &[Vec2], width: f64, step: f64, closed: &[Contour], holes: 
         if len <= 1e-9 {
             continue;
         }
+        let d = unit(b - a);
+        let off = normal(a, b) * half;
+        // Bands are cut only where the line ends or turns: where it runs straight on through a
+        // crossing, its band crosses the other band whole, as PE-DESIGN's square net does
+        // (o-region-zigzag-net.pes).
+        let ends_or_turns = |k: usize| k == 0 || k + 1 == n || mitres[k].is_some();
+        let cuts: Vec<(Vec2, Vec2)> = (if ends_or_turns(i) {
+            halving(a, d)
+        } else {
+            Vec::new()
+        })
+        .into_iter()
+        .map(|m| (a, m))
+        .chain(
+            (if ends_or_turns(i + 1) {
+                halving(b, d * -1.0)
+            } else {
+                Vec::new()
+            })
+            .into_iter()
+            .map(|m| (b, m)),
+        )
+        .collect();
         while t <= len + 1e-9 {
-            let f = t / len;
-            let c = a.lerp(b, f);
-            let side = sides[i].lerp(sides[i + 1], f);
-            let off = side * (width / 2.0);
-            run.push(pull_in(c, c - off));
-            run.push(pull_in(c, c + off));
+            let c = a.lerp(b, t / len);
+            // No rung stands on a vertex where other edges meet: the wedges pinch to it (at the
+            // line's own corners the mitre rung below stands there).
+            let at_vertex = (t < 1e-6 && !cuts.iter().all(|&(v, _)| v != a))
+                || (t > len - 1e-6 && !cuts.iter().all(|&(v, _)| v != b));
+            if !at_vertex {
+                let mut ends = [c - off, c + off];
+                for &(v, m) in &cuts {
+                    for e in &mut ends {
+                        *e = before(c, *e, v, m);
+                    }
+                }
+                rung(c, ends[0], ends[1]);
+            }
             t += step;
         }
         t -= len;
+        if let Some(m) = mitres[i + 1] {
+            // The mitre rung on the outer side only, from the corner out (the rungs either side
+            // already meet on the inner side), and none where another edge leaves there.
+            let next = unit(line[i + 2] - b);
+            let others: Vec<Vec2> = edges(b)
+                .into_iter()
+                .filter(|&e| dot(e, d * -1.0) < 1.0 - 1e-9 && dot(e, next) < 1.0 - 1e-9)
+                .collect();
+            let end = |p: Vec2| {
+                if dot(p - b, d) <= 0.0 || others.iter().any(|&e| dot(e, p - b) > 0.0) {
+                    b
+                } else {
+                    p
+                }
+            };
+            rung(b, end(b - m * half), end(b + m * half));
+        }
     }
     run.dedup_by(|a, b| a.distance(*b) < 1e-9);
     run
+}
+
+/// Shortest zigzag net stitch, 0.1 mm: a needle point nearer the previous one is left out.
+const ZIGZAG_NET_MIN_STITCH: f64 = 3.0;
+
+/// A net vertex as a map key (to 0.001 mm: the lines share their vertices exactly).
+fn net_key(p: Vec2) -> (i64, i64) {
+    ((p.x * 100.0).round() as i64, (p.y * 100.0).round() as i64)
+}
+
+/// The zigzag net's lines `pieces` (each sewn once, see [`once_each`]) as runs: each piece's
+/// band from `sew`, the needle travelling from one piece to the nearest unsewn piece end along
+/// the net's own lines `net`, which the bands cover, so no travel crosses an open cell (#463).
+/// Pieces the net does not connect start a new run.
+fn along_net(
+    net: &[Vec<Vec2>],
+    pieces: Vec<Vec<Vec2>>,
+    pitch: f64,
+    mut sew: impl FnMut(&[Vec2]) -> Option<(Run, Vec2)>,
+) -> Vec<Run> {
+    use std::cmp::Reverse;
+    use std::collections::{BinaryHeap, HashMap};
+    let key = net_key;
+    let mut ids: HashMap<(i64, i64), usize> = HashMap::new();
+    let mut points: Vec<Vec2> = Vec::new();
+    let mut edges: Vec<Vec<(usize, f64)>> = Vec::new();
+    for l in net.iter().chain(&pieces) {
+        for w in l.windows(2) {
+            let [a, b] = [w[0], w[1]].map(|p| {
+                *ids.entry(key(p)).or_insert_with(|| {
+                    points.push(p);
+                    edges.push(Vec::new());
+                    points.len() - 1
+                })
+            });
+            if a != b {
+                let d = w[0].distance(w[1]);
+                edges[a].push((b, d));
+                edges[b].push((a, d));
+            }
+        }
+    }
+    let node = |p: Vec2| ids.get(&key(p)).copied();
+    let ends: Vec<(usize, usize)> = pieces
+        .iter()
+        .map(|p| {
+            let at = |q: Vec2| node(q).expect("a piece end is a net node");
+            (at(p[0]), at(p[p.len() - 1]))
+        })
+        .collect();
+    // Shortest paths from `from` along the net: (distance, previous node) per node.
+    let paths = |from: usize| {
+        let mut best = vec![(f64::INFINITY, usize::MAX); points.len()];
+        best[from].0 = 0.0;
+        let mut heap = BinaryHeap::from([(Reverse(0u64), from)]);
+        while let Some((Reverse(bits), n)) = heap.pop() {
+            let d = f64::from_bits(bits);
+            if d > best[n].0 {
+                continue;
+            }
+            for &(m, w) in &edges[n] {
+                let e = d + w;
+                if e < best[m].0 {
+                    best[m] = (e, n);
+                    heap.push((Reverse(e.to_bits()), m));
+                }
+            }
+        }
+        best
+    };
+    let mut done = vec![false; pieces.len()];
+    let mut out = Vec::new();
+    let mut run: Run = Vec::new();
+    let mut here: Option<usize> = None;
+    for _ in 0..pieces.len() {
+        // The nearest piece end along the net (ties: earlier piece, its start) …
+        let next = here.and_then(|h| {
+            let best = paths(h);
+            (0..pieces.len())
+                .filter(|&k| !done[k])
+                .flat_map(|k| [(k, false), (k, true)])
+                .filter_map(|(k, rev)| {
+                    let e = if rev { ends[k].1 } else { ends[k].0 };
+                    best[e].0.is_finite().then_some((best[e].0, k, rev, e))
+                })
+                .min_by(|x, y| x.0.total_cmp(&y.0).then((x.1, x.2).cmp(&(y.1, y.2))))
+                .map(|(_, k, rev, e)| {
+                    let mut path = vec![points[e]];
+                    let mut n = e;
+                    while n != h {
+                        n = best[n].1;
+                        path.push(points[n]);
+                    }
+                    path.reverse();
+                    (k, rev, path)
+                })
+        });
+        let (k, rev) = match next {
+            Some((k, rev, path)) => {
+                run.extend(subdivide(&path, pitch).into_iter().skip(1));
+                here = Some(if rev { ends[k].1 } else { ends[k].0 });
+                (k, rev)
+            }
+            // … else the first piece left starts a new run.
+            None => {
+                if run.len() >= 2 {
+                    out.push(std::mem::take(&mut run));
+                }
+                let k = done.iter().position(|d| !d).expect("a piece is left");
+                here = Some(ends[k].0);
+                (k, false)
+            }
+        };
+        done[k] = true;
+        let mut piece = pieces[k].clone();
+        if rev {
+            piece.reverse();
+        }
+        if let Some((sewn, end)) = sew(&piece) {
+            let skip = usize::from(run.last() == sewn.first());
+            run.extend(sewn.into_iter().skip(skip));
+            here = node(end).or(here);
+        }
+    }
+    if run.len() >= 2 {
+        out.push(run);
+    }
+    out
 }
 
 /// Moves needle points by up to `amount` (deterministic), keeping each inside the region.

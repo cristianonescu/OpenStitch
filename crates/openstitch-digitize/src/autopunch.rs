@@ -612,48 +612,60 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                 columns::Strokes::Single => vec![(contours, Sewn::Auto)],
             };
             for (contours, sewn) in parts {
-                let mut region = RegionSewing::new(
+                let build = |satin: bool| -> RegionSewing {
+                    let mut region = RegionSewing::new(
+                        if satin {
+                            RegionType::Satin
+                        } else {
+                            RegionType::Fill
+                        },
+                        thread.clone(),
+                    );
+                    // As PE-DESIGN 11.50 sets them (round-4 captures): satin with Auto direction
+                    // and no under sewing, across the stroke; fill with under sewing, in the
+                    // direction whose rows spread furthest across the region ([`fill_angle`]). The
+                    // axis is measured with the design's y pointing down; region angles are stored
+                    // counter-clockwise on screen, as PE-DESIGN gives them. A bar of a split region
+                    // has its own fixed direction, straight across it; a curved column its rungs.
                     if satin {
-                        RegionType::Satin
-                    } else {
-                        RegionType::Fill
-                    },
-                    thread.clone(),
-                );
-                // As PE-DESIGN 11.50 sets them (round-4 captures): satin with Auto direction
-                // and no under sewing, across the stroke; fill with under sewing, in the
-                // direction whose rows spread furthest across the region ([`fill_angle`]). The
-                // axis is measured with the design's y pointing down; region angles are stored
-                // counter-clockwise on screen, as PE-DESIGN gives them. A bar of a split region
-                // has its own fixed direction, straight across it; a curved column its rungs.
-                if satin {
-                    region.auto_direction = matches!(sewn, Sewn::Auto);
-                    region.underlay = false;
-                    // A bar travels to its far end along its outline, under the rows' ends, as
-                    // PE-DESIGN 11.50's Auto Punch columns of g08 do (0.5 mm inside the edge);
-                    // the shortest path inside crossed the column diagonally and showed
-                    // between its rows. (Auto satin travels that way by itself.)
-                    if matches!(sewn, Sewn::Bar(_)) {
-                        region.running_stitch_path =
-                            Some(openstitch_design::RunningStitchPath::AlongOutline);
+                        region.auto_direction = matches!(sewn, Sewn::Auto);
+                        region.underlay = false;
+                        // A bar travels to its far end along its outline, under the rows' ends, as
+                        // PE-DESIGN 11.50's Auto Punch columns of g08 do (0.5 mm inside the edge);
+                        // the shortest path inside crossed the column diagonally and showed
+                        // between its rows. (Auto satin travels that way by itself.)
+                        if matches!(sewn, Sewn::Bar(_)) {
+                            region.running_stitch_path =
+                                Some(openstitch_design::RunningStitchPath::AlongOutline);
+                        }
                     }
-                }
-                if p.mode == Mode::OpenStitch {
-                    // OpenStitch mode sews one covering layer and no more needle points than
-                    // it needs (owner, 2026-10-31: a normal single-layer fill is within the
-                    // density limits): rows at 4.5 per mm, fill stitches up to 6.5 mm, no
-                    // under sewing.
-                    region.density = OPEN_STITCH_DENSITY;
-                    region.stitch_length = OPEN_STITCH_FILL_STITCH_MM;
-                    region.underlay = false;
-                }
-                region.angle = match (satin, &sewn) {
-                    (true, Sewn::Bar(d)) => normalize(-(d + 90.0)) + 0.0,
-                    (true, _) => normalize(-across) + 0.0,
-                    _ => fill_angle(&m, mw, mh, frame.mm_per_px()),
+                    if p.mode == Mode::OpenStitch {
+                        // OpenStitch mode sews one covering layer and no more needle points than
+                        // it needs (owner, 2026-10-31: a normal single-layer fill is within the
+                        // density limits): rows at 4.5 per mm, fill stitches up to 6.5 mm, no
+                        // under sewing.
+                        region.density = OPEN_STITCH_DENSITY;
+                        region.stitch_length = OPEN_STITCH_FILL_STITCH_MM;
+                        region.underlay = false;
+                    }
+                    region.angle = match (satin, &sewn) {
+                        (true, Sewn::Bar(d)) => normalize(-(d + 90.0)) + 0.0,
+                        (true, _) => normalize(-across) + 0.0,
+                        _ => fill_angle(&m, mw, mh, frame.mm_per_px()),
+                    };
+                    if satin && let Sewn::Column(rungs) = &sewn {
+                        region.direction_lines = rungs.clone();
+                    }
+                    region
                 };
-                if satin && let Sewn::Column(rungs) = sewn {
-                    region.direction_lines = rungs;
+                // A satin whose crossings come out longer than PE-DESIGN's Auto Punch ever sews
+                // them (10.4 mm over 12 round-5 pictures; its 30 mm satin reference shows it does
+                // not split them) is sewn as fill: a region that keeps area beyond the stroke
+                // width falls back to one fixed direction across its principal axis, and the
+                // storybook's PE-compatible picture had 30 stitches of 12-16 mm (#460).
+                let mut region = build(satin);
+                if satin && longest_crossing(&contours, &region) > AUTO_PUNCH_LONGEST_SATIN {
+                    region = build(false);
                 }
                 let mut o = DesignObject::shape(contours, Some(region), None);
                 o.name = Some(format!(
@@ -692,6 +704,21 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
         threads,
         background: background.map(|b| palette.threads[b as usize].clone()),
     })
+}
+
+/// Longest stitch (0.1 mm) Auto Punch lets a satin region sew: PE-DESIGN 11.50's Auto Punch
+/// output reaches 10.4 mm (round-5 g02-balloon), 9.1 mm on the storybook picture (#460).
+const AUTO_PUNCH_LONGEST_SATIN: f64 = 105.0;
+
+/// The longest stitch of a region's top layer, as the design compiler sews it (0.1 mm).
+fn longest_crossing(contours: &[Contour], region: &RegionSewing) -> f64 {
+    let closed: Vec<Contour> = contours.iter().filter(|c| c.closed).cloned().collect();
+    openstitch_design::region::layers(&closed, region, &[])
+        .last()
+        .into_iter()
+        .flatten()
+        .flat_map(|run| run.windows(2).map(|w| w[0].distance(w[1])))
+        .fold(0.0, f64::max)
 }
 
 /// A straight bar's outline with clean ends: the convex hull of its traced outline. Cut from
