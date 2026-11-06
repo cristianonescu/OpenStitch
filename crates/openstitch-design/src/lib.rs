@@ -77,3 +77,5 @@ mod contour_tests;
 mod stitch_type_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod arc_tests;

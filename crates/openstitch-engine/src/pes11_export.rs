@@ -717,6 +717,10 @@ fn text_object(
         // PE-DESIGN holds only its 26 Text Transform presets (#535).
         return refuse("a free text envelope (convert it to outlines first)");
     }
+    if spec.arc.is_some() {
+        // PE-DESIGN's arches are single-line Text Transform presets (#456).
+        return refuse("arched text in rings (convert it to outlines first)");
+    }
     if spec.metrics != TextMetrics::Pe {
         return refuse("a text sized by its capital height (an older OpenStitch file)");
     }

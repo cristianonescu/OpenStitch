@@ -2248,6 +2248,11 @@ fn text_docs(text_required: bool) -> Vec<ParamDoc> {
             "run|cross|block",
             "How a pixel font's pixels are sewn (OpenStitch Pixel; one pixel is size/7): a short run, a cross stitch or a block of rows (default run)",
         ),
+        opt(
+            "arc",
+            "mm | null",
+            "Arched text (beyond PE-DESIGN, #456): the first line's baseline radius, 5-1000 mm; positive arches up (over the top of a circle), negative arches down (under the bottom, read upright). Each further line is a concentric ring one line spacing inward (arch up) or outward (arch down). Too tight a ring is refused with the radius needed. Replaces Text Transform; not for vertical text or text fitted to an outline; null: straight",
+        ),
     ]
 }
 
@@ -2328,6 +2333,41 @@ fn text_params(
         };
         let (lo, hi) = text::envelope_level_range(n);
         spec.envelope_level = Some(p.req("envelopeLevel", lo, hi)?);
+    }
+    if p.has("envelope") {
+        // A Text Transform preset replaces an arc (#456).
+        spec.arc = None;
+    }
+    if p.is_null("arc") {
+        spec.arc = None;
+    } else if p.has("arc") {
+        let r = p.number("arc", None, Some((-text::MAX_ARC, text::MAX_ARC)))?;
+        if r.abs() < text::MIN_ARC {
+            return Err(p.invalid(
+                "arc",
+                format!(
+                    "the radius must be at least {} mm either way",
+                    text::MIN_ARC
+                ),
+            ));
+        }
+        if spec.path.is_some() {
+            return Err(p.failed(
+                "an arc is not available for text fitted to an outline; release it first",
+            ));
+        }
+        if spec.direction == TextDirection::Vertical {
+            return Err(p.invalid("arc", "not available for vertical text"));
+        }
+        if p.has("envelope") {
+            return Err(p.invalid("arc", "give either an arc or a Text Transform preset"));
+        }
+        spec.envelope = None;
+        spec.envelope_level = None;
+        spec.custom_envelope = None;
+        spec.arc = Some(r);
+    } else if spec.direction == TextDirection::Vertical {
+        spec.arc = None;
     }
     Ok(())
 }
@@ -2612,6 +2652,7 @@ fn text_commands() -> Vec<CommandSpec> {
                 let path = path_param(s, p, s.design.next_object_id)?;
                 if let Some(path) = path {
                     spec.path = Some(path);
+                    spec.arc = None;
                     spec.envelope = None;
                     spec.envelope_level = None;
                     spec.custom_envelope = None;
@@ -2760,7 +2801,8 @@ fn text_commands() -> Vec<CommandSpec> {
                         };
                         let t = s.design.objects[i].text.as_mut().expect("text object");
                         t.path = Some(path);
-                        // Fitting to an outline cancels Text Transform (the guide).
+                        // Fitting to an outline cancels Text Transform (the guide) and an arc.
+                        t.arc = None;
                         t.envelope = None;
                         t.envelope_level = None;
                         t.custom_envelope = None;

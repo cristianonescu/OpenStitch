@@ -41,6 +41,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
+mod arc_ui;
 mod arrange_ui;
 mod art;
 mod assistant_panel;
