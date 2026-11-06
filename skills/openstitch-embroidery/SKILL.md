@@ -11,7 +11,9 @@ commands with `commands_list`, read their parameters with `command_describe`, ru
 `execute` or, better, several at once with `run_batch`.
 
 More detail: `reference/recipes.md` (worked batches), `reference/sewability.md` (what sews
-well), `reference/answers.md` (what OpenStitch can do, where things are, file formats).
+well), `reference/answers.md` (what OpenStitch can do, where things are, file formats),
+`reference/composition.md` (planning an illustrated design) and `reference/examples.md`
+(complete example designs: strawberry, mushroom, watermelon, cat face, ...).
 
 ## Units and coordinates
 
@@ -55,6 +57,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 
 ## Build order
 
+0. For an illustrated subject ("a strawberry with leaves", "a cartoon cat"), open the closest
+   example first (`skill_reference {"file": "strawberry"}`; `reference/examples.md` lists
+   them), plan the regions as `reference/composition.md` says, and adapt the example.
 1. `design.new` (and `machine.set` for the hoop), unless the user wants to edit what is open.
 2. Shapes and lettering: `shape.rectangle`, `shape.ellipse`, `shape.preset`, `shape.path`,
    `shape.polygon`, `text.add`, `monogram.add`, `import.svg`, or a `digitize.*` wizard.
@@ -209,6 +214,8 @@ still send mm to commands. `design.print {units: "inch"}` adds a 2-inch scale ba
   `settings: true`: give the element an `id` and a `data-name` such as `"fill a=45 s=0.4"`,
   `"satin"`, `"run r=3"` or `"stroke.satin w=3"`; the result lists unknown words and refused
   values (FILE_FORMATS.md has the words).
+- A user who wants to script designs in Python can use the `openstitch` package (repository
+  `python/README.md`: `Session().exec("shape.ellipse", ...)` with these same commands).
 - `file` commands (`project.save`, `design.export`, ...) may ask the user first. Never
   overwrite a user's file without being asked to.
 

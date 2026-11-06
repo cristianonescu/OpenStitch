@@ -29,6 +29,7 @@ pub struct Task {
 }
 
 /// What a task is scored on.
+#[derive(Default)]
 pub struct Design {
     pub objects: Vec<Value>,
     pub info: Value,
@@ -36,6 +37,14 @@ pub struct Design {
     pub reply: String,
     /// The Assistant's notes after the task (#491).
     pub notes: String,
+    /// Each object's `object.get`, in `objects` order (#493: fill angles, line repeats).
+    pub full: Vec<Value>,
+    /// `design.check` after the task (#493: the sew_check-like rules).
+    pub check: Value,
+    /// `fonts.list` (#493: the small-lettering task's size ranges).
+    pub fonts: Value,
+    /// Every tool call, `name input`, uncut (#493: the Auto Punch task's plan and override).
+    pub calls: Vec<String>,
 }
 
 impl Design {
@@ -79,6 +88,170 @@ impl Design {
 
 fn need(ok: bool, what: &str) -> Result<(), String> {
     if ok { Ok(()) } else { Err(what.to_string()) }
+}
+
+/// A colour's red, green and blue (0-255).
+fn rgb(hex: &str) -> [i32; 3] {
+    let v = |i: usize| {
+        u8::from_str_radix(
+            hex.trim_start_matches('#').get(i..i + 2).unwrap_or("00"),
+            16,
+        )
+        .unwrap_or(0) as i32
+    };
+    [v(0), v(2), v(4)]
+}
+
+/// Yellow or gold: red and green high, blue well below both.
+fn yellowish(hex: &str) -> bool {
+    let [r, g, b] = rgb(hex);
+    r > 170 && g > 120 && b < g - 50 && b < r - 70
+}
+
+/// Brown, orange or golden: red above green above blue.
+fn brownish(hex: &str) -> bool {
+    let [r, g, b] = rgb(hex);
+    r > 90 && r > g + 15 && g > b + 15
+}
+
+/// Near black or a very dark colour.
+fn darkish(hex: &str) -> bool {
+    rgb(hex).iter().all(|&c| c < 90)
+}
+
+/// Near white (the fabric).
+fn whitish(hex: &str) -> bool {
+    rgb(hex).iter().all(|&c| c > 225)
+}
+
+/// The design's extent: the larger side of the union of every object's bounds, mm.
+fn extent(d: &Design) -> f64 {
+    let b = |o: &Value, k: &str| o["bounds"][k].as_f64();
+    let boxes: Vec<[f64; 4]> = d
+        .objects
+        .iter()
+        .filter_map(|o| {
+            let (x, y) = (b(o, "x")?, b(o, "y")?);
+            Some([x, y, x + b(o, "width")?, y + b(o, "height")?])
+        })
+        .collect();
+    if boxes.is_empty() {
+        return 0.0;
+    }
+    let lo = |i: usize| boxes.iter().map(|q| q[i]).fold(f64::INFINITY, f64::min);
+    let hi = |i: usize| boxes.iter().map(|q| q[i]).fold(f64::NEG_INFINITY, f64::max);
+    (hi(2) - lo(0)).max(hi(3) - lo(1))
+}
+
+/// The fill regions: `(bounds [x0, y0, x1, y1], angle in degrees)`.
+fn fills(d: &Design) -> Vec<([f64; 4], f64)> {
+    d.objects
+        .iter()
+        .zip(d.full.iter())
+        .filter(|(o, _)| o["region"] == "fill")
+        .filter_map(|(o, f)| {
+            let b = |k: &str| o["bounds"][k].as_f64();
+            let (x, y) = (b("x")?, b("y")?);
+            Some((
+                [x, y, x + b("width")?, y + b("height")?],
+                f["region"]["angle"].as_f64().unwrap_or(45.0),
+            ))
+        })
+        .collect()
+}
+
+/// How far apart two sewing directions are, 0-90°.
+fn angle_gap(a: f64, b: f64) -> f64 {
+    let d = (a - b).rem_euclid(180.0);
+    d.min(180.0 - d)
+}
+
+/// Fill pairs whose bounds touch (within 0.5 mm) but whose rows run within 20° of each other
+/// (#493: touching panels must read apart). A fill wholly inside another's bounds (a cheek on a
+/// face) is a detail on it, not a neighbour, so it is not counted.
+fn same_angle_neighbours(d: &Design) -> Vec<(usize, usize)> {
+    let f = fills(d);
+    let inside =
+        |a: &[f64; 4], b: &[f64; 4]| a[0] >= b[0] && a[1] >= b[1] && a[2] <= b[2] && a[3] <= b[3];
+    let mut out = Vec::new();
+    for i in 0..f.len() {
+        for j in i + 1..f.len() {
+            let (a, b) = (&f[i].0, &f[j].0);
+            let touch = a[0] <= b[2] + 0.5
+                && b[0] <= a[2] + 0.5
+                && a[1] <= b[3] + 0.5
+                && b[1] <= a[3] + 0.5;
+            if touch && !inside(a, b) && !inside(b, a) && angle_gap(f[i].1, f[j].1) < 20.0 {
+                out.push((i, j));
+            }
+        }
+    }
+    out
+}
+
+/// The sewing checks a machine sew-out shows (tools/sew_check.py's rules, as `design.check`
+/// errors: long stitches, untrimmed long jumps, out of the hoop).
+fn sews_clean(d: &Design) -> Result<(), String> {
+    let errors: Vec<String> = d.check["findings"]
+        .as_array()
+        .map(|f| {
+            f.iter()
+                .filter(|f| f["severity"] == "error")
+                .map(|f| f["message"].as_str().unwrap_or("?").to_string())
+                .collect()
+        })
+        .unwrap_or_default();
+    need(
+        errors.is_empty(),
+        &format!("design.check without errors (has {errors:?})"),
+    )
+}
+
+/// The structural rules every illustrated task shares (#493): at least `parts` objects, the
+/// size (largest side) within `size`, touching fills apart in angle, and clean sewing.
+fn illustrated(
+    d: &Design,
+    parts: usize,
+    size: std::ops::RangeInclusive<f64>,
+) -> Result<(), String> {
+    need(
+        d.objects.len() >= parts,
+        &format!("at least {parts} parts (has {})", d.objects.len()),
+    )?;
+    need(
+        size.contains(&extent(d)),
+        &format!(
+            "{:.0}-{:.0} mm across (is {:.1})",
+            size.start(),
+            size.end(),
+            extent(d)
+        ),
+    )?;
+    let same = same_angle_neighbours(d);
+    need(
+        same.is_empty(),
+        &format!(
+            "touching fills at least 20° apart ({} pairs are not)",
+            same.len()
+        ),
+    )?;
+    sews_clean(d)
+}
+
+/// A satin edge: a zigzag (satin) line, or a satin region.
+fn has_satin(d: &Design, color: fn(&str) -> bool) -> bool {
+    d.objects.iter().any(|o| {
+        (o["line"] == "zigzag" && o["lineColor"].as_str().is_some_and(color))
+            || (o["region"] == "satin" && o["regionColor"].as_str().is_some_and(color))
+    })
+}
+
+/// Objects with a line and no region (whiskers, a smile, line art).
+fn open_lines(d: &Design) -> usize {
+    d.objects
+        .iter()
+        .filter(|o| o["region"].is_null() && !o["line"].is_null())
+        .count()
 }
 
 /// The design's overall width: the union of the objects' bounds (a monogram is one object per
@@ -147,7 +320,7 @@ pub fn invented_codes(reply: &str, known: &std::collections::HashSet<String>) ->
     const UNITS: &[&str] = &[
         "mm", "cm", "in", "inch", "inches", "px", "pixels", "stitch", "stitches", "spm", "rpm",
         "object", "objects", "colour", "colours", "color", "colors", "min", "minutes", "s", "sec",
-        "seconds", "x", "bytes", "kb", "lines",
+        "seconds", "x", "bytes", "kb", "lines", "hoop", "hoops",
     ];
     let norm = |c: &str| c.trim_start_matches('0').to_ascii_lowercase();
     let known: std::collections::HashSet<String> = known.iter().map(|c| norm(c)).collect();
@@ -189,6 +362,8 @@ pub fn invented_codes(reply: &str, known: &std::collections::HashSet<String>) ->
                 .is_some_and(|c| c.is_ascii_digit());
         let measured = part
             || matches!(before, Some('#' | '×'))
+            // `100 × 100`: the second number, after the sign and a space.
+            || reply[..at].trim_end().ends_with('×')
             || matches!(after, Some('%' | '°' | '×'))
             || next_word.is_some_and(|w| UNITS.contains(&w.as_str()))
             || reply[end..].trim_start().starts_with('×');
@@ -215,6 +390,10 @@ pub fn known_codes() -> std::collections::HashSet<String> {
 
 const RECT: &str = r##"{"x": 20, "y": 20, "width": 30, "height": 20, "fill": "#1f3a93"}"##;
 const PICTURE: &str = "{PICTURE}";
+/// The Auto Punch task's picture (#493): the Higgsfield emblem, 128 px (examples/images,
+/// PROVENANCE.md `d02-emblem-small.png`), written to the scratch folder as `emblem.png`.
+const EMBLEM: &str = "{EMBLEM}";
+const EMBLEM_PNG: &[u8] = include_bytes!("../../../examples/images/d02-emblem-small.png");
 
 pub const TASKS: &[Task] = &[
     Task {
@@ -247,8 +426,19 @@ pub const TASKS: &[Task] = &[
         setup: &[],
         prompt: "Write OPENSTITCH around a circle about 50 mm across.",
         check: |d| {
+            // The text, or (a real run, #446: Lato Bold's N sews broken) the text.add that made
+            // it, once turned into shapes.
+            let converted = called_steps(d)
+                .iter()
+                .any(|s| s["command"] == "text.toShapes")
+                && called_steps(d).iter().any(|s| {
+                    s["command"] == "text.add"
+                        && s["params"]["text"]
+                            .as_str()
+                            .is_some_and(|t| t.to_uppercase().contains("OPENSTITCH"))
+                });
             need(
-                d.text().to_uppercase().contains("OPENSTITCH"),
+                d.text().to_uppercase().contains("OPENSTITCH") || converted,
                 "the word OPENSTITCH",
             )?;
             need(widest(d) >= 30.0, "at least 30 mm wide")
@@ -441,7 +631,266 @@ pub const TASKS: &[Task] = &[
             )
         },
     },
+    // #493: illustrated subjects, scored on structure (and on the render with --judge).
+    Task {
+        id: "strawberry",
+        setup: &[],
+        prompt: "Make a strawberry with green leaves and small yellow seeds, about 60 mm tall.",
+        check: |d| {
+            illustrated(d, 5, 45.0..=75.0)?;
+            let c = d.colors();
+            need(c.iter().any(|c| reddish(c)), "a red berry")?;
+            need(c.iter().any(|c| greenish(c)), "green leaves")?;
+            need(
+                d.objects
+                    .iter()
+                    .filter(|o| {
+                        o["regionColor"].as_str().is_some_and(yellowish)
+                            && o["bounds"]["width"].as_f64().unwrap_or(99.0) < 6.0
+                    })
+                    .count()
+                    >= 3,
+                "at least 3 small yellow seeds",
+            )
+        },
+    },
+    Task {
+        id: "mushroom",
+        setup: &[],
+        prompt: "Make a mushroom about 60 mm wide: a red cap made of three panels sewn in different fill directions, on a pale stem.",
+        check: |d| {
+            illustrated(d, 4, 45.0..=75.0)?;
+            let red: Vec<f64> = d
+                .objects
+                .iter()
+                .zip(d.full.iter())
+                .filter(|(o, _)| {
+                    o["region"] == "fill" && o["regionColor"].as_str().is_some_and(reddish)
+                })
+                .map(|(_, f)| f["region"]["angle"].as_f64().unwrap_or(45.0))
+                .collect();
+            need(
+                red.len() >= 3,
+                &format!("three red cap fills (has {})", red.len()),
+            )?;
+            let mut distinct: Vec<f64> = Vec::new();
+            for a in red {
+                if distinct.iter().all(|&b| angle_gap(a, b) >= 20.0) {
+                    distinct.push(a);
+                }
+            }
+            need(
+                distinct.len() >= 3,
+                "three cap panels in different directions (20° apart)",
+            )
+        },
+    },
+    Task {
+        id: "watermelon",
+        setup: &[],
+        prompt: "Make a watermelon slice about 70 mm wide: red flesh with black seeds and a green satin rind.",
+        check: |d| {
+            illustrated(d, 3, 55.0..=85.0)?;
+            let c = d.colors();
+            need(c.iter().any(|c| reddish(c)), "red flesh")?;
+            need(c.iter().any(|c| darkish(c)), "black seeds")?;
+            need(has_satin(d, greenish), "a green satin rind")
+        },
+    },
+    Task {
+        id: "lightbulb",
+        setup: &[],
+        prompt: "Make a yellow lightbulb with a smiling face, about 55 mm tall.",
+        check: |d| {
+            illustrated(d, 4, 40.0..=70.0)?;
+            let c = d.colors();
+            need(c.iter().any(|c| yellowish(c)), "a yellow bulb")?;
+            need(c.iter().any(|c| darkish(c)), "a dark face")
+        },
+    },
+    Task {
+        id: "croissant",
+        setup: &[],
+        prompt: "Make a croissant about 70 mm wide in golden browns, its segments separated by satin outlines.",
+        check: |d| {
+            illustrated(d, 3, 55.0..=85.0)?;
+            need(
+                d.objects.iter().filter(|o| o["region"] == "fill").count() >= 3,
+                "at least 3 filled segments",
+            )?;
+            need(d.colors().iter().any(|c| brownish(c)), "golden browns")?;
+            need(has_satin(d, |_| true), "satin outlines")
+        },
+    },
+    Task {
+        id: "cat-face",
+        setup: &[],
+        prompt: "Make a cartoon cat face about 60 mm wide with ears, eyes, a nose and whiskers.",
+        check: |d| {
+            illustrated(d, 6, 45.0..=75.0)?;
+            need(open_lines(d) >= 2, "whiskers as lines")
+        },
+    },
+    // #493 (from #637): Auto Punch through its plan and overrides, on a Higgsfield test image.
+    Task {
+        id: "auto-punch",
+        setup: &[],
+        prompt: "Digitize the emblem picture at {EMBLEM} with Auto Punch, about 60 mm wide. Look at its region plan first, then sew the largest region with fill rows at 30 degrees, and leave the white background unsewn as fabric.",
+        check: |d| {
+            let punch: Vec<&String> = d
+                .calls
+                .iter()
+                .filter(|c| c.contains("digitize.autoPunch"))
+                .collect();
+            need(
+                punch.iter().any(|c| c.contains("dryRun")),
+                "the region plan read first (dryRun)",
+            )?;
+            need(
+                punch.iter().any(|c| c.contains("overrides")),
+                "an override of the plan",
+            )?;
+            need(d.objects.len() >= 3, "the emblem's regions")?;
+            need((50.0..=70.0).contains(&widest(d)), "about 60 mm wide")?;
+            need(
+                !d.objects
+                    .iter()
+                    .any(|o| o["regionColor"].as_str().is_some_and(whitish)),
+                "the white background left unsewn",
+            )?;
+            need(
+                d.full
+                    .iter()
+                    .any(|f| (f["region"]["angle"].as_f64().unwrap_or(-1.0) - 30.0).abs() < 1.0),
+                "a region at 30°",
+            )
+        },
+    },
+    // #493 (from #639): small lettering in bean stitch, a Small Text font within its range.
+    Task {
+        id: "small-name",
+        setup: &[],
+        prompt: "Write the name Mia about 5 mm tall in bean stitch, for a baby's bib label.",
+        check: |d| {
+            // The text; or one text per letter, left to right (a real run, to trim between
+            // letters, #548); or, once turned into shapes (`text.toShapes`, a real run: to give
+            // the i's dot its own trim), the `text.add` that made it and every line it left.
+            let mut texts: Vec<(&Value, &Value)> = d
+                .objects
+                .iter()
+                .zip(d.full.iter())
+                .filter(|(o, _)| o["text"].is_string())
+                .collect();
+            texts.sort_by(|a, b| {
+                let x = |o: &Value| o["bounds"]["x"].as_f64().unwrap_or(0.0);
+                x(a.0).total_cmp(&x(b.0))
+            });
+            let whole = texts
+                .iter()
+                .find(|(o, _)| o["text"].as_str().is_some_and(|t| t.contains("Mia")));
+            let joined: String = texts
+                .iter()
+                .filter_map(|(o, _)| o["text"].as_str())
+                .collect();
+            let used: Vec<(String, f64, bool)> = match whole {
+                Some(t) => vec![*t],
+                None if joined.contains("Mia") => texts,
+                None => Vec::new(),
+            }
+            .into_iter()
+            .map(|(o, f)| {
+                (
+                    o["font"].as_str().unwrap_or("").to_string(),
+                    o["sizeMM"].as_f64().unwrap_or(0.0),
+                    o["line"] == "running" && f["line"]["runTimes"].as_u64() == Some(3),
+                )
+            })
+            .collect();
+            let used = if used.is_empty() {
+                let steps = called_steps(d);
+                need(
+                    steps.iter().any(|s| s["command"] == "text.toShapes"),
+                    "the text Mia",
+                )?;
+                let add = steps
+                    .iter()
+                    .rev()
+                    .find(|s| {
+                        s["command"] == "text.add"
+                            && s["params"]["text"]
+                                .as_str()
+                                .is_some_and(|t| t.contains("Mia"))
+                    })
+                    .ok_or("the text Mia")?;
+                let lines: Vec<(&Value, &Value)> = d
+                    .objects
+                    .iter()
+                    .zip(d.full.iter())
+                    .filter(|(o, _)| !o["line"].is_null())
+                    .collect();
+                vec![(
+                    add["params"]["font"].as_str().unwrap_or("").to_string(),
+                    add["params"]["size"].as_f64().unwrap_or(0.0),
+                    !lines.is_empty()
+                        && lines.iter().all(|(o, f)| {
+                            o["line"] == "running" && f["line"]["runTimes"].as_u64() == Some(3)
+                        }),
+                )]
+            } else {
+                used
+            };
+            for (font, size, bean) in &used {
+                small_name_part(d, font, *size, *bean)?;
+            }
+            Ok(())
+        },
+    },
 ];
+
+/// One part of the small-name task (#493): about 5 mm, in a font whose `sizeRange` holds the
+/// size, sewn as bean stitch.
+fn small_name_part(d: &Design, font: &str, size: f64, bean: bool) -> Result<(), String> {
+    need(
+        (3.0..=7.0).contains(&size),
+        &format!("about 5 mm (is {size})"),
+    )?;
+    let entry = d.fonts["fonts"]
+        .as_array()
+        .or(d.fonts.as_array())
+        .and_then(|l| l.iter().find(|e| e["id"] == font))
+        .cloned()
+        .unwrap_or_default();
+    let range = &entry["sizeRange"];
+    let (lo, hi) = (
+        range["minMm"].as_f64().unwrap_or(f64::NAN),
+        range["maxMm"].as_f64().unwrap_or(f64::NAN),
+    );
+    need(
+        (lo..=hi).contains(&size),
+        &format!("a font whose sizeRange holds the size ({font}: {lo}-{hi} mm)"),
+    )?;
+    need(bean, "bean stitch (a running line, runTimes 3)")
+}
+
+/// Every engine command the model sent, `{command, params}`, from `execute` and `run_batch`
+/// calls in order (tool names may carry an MCP prefix).
+fn called_steps(d: &Design) -> Vec<Value> {
+    d.calls
+        .iter()
+        .filter_map(|c| {
+            let (name, input) = c.split_once(' ')?;
+            let input: Value = serde_json::from_str(input).ok()?;
+            Some(if name.ends_with("run_batch") {
+                input["steps"].as_array().cloned().unwrap_or_default()
+            } else if name.ends_with("execute") {
+                vec![input]
+            } else {
+                Vec::new()
+            })
+        })
+        .flatten()
+        .collect()
+}
 
 /// The headless editor: engine commands, plus the `ui.*` commands the meta tools use.
 pub struct Headless {
@@ -583,6 +1032,10 @@ pub struct Outcome {
     pub tool_calls: Vec<String>,
     pub tool_errors: Vec<String>,
     pub reply: String,
+    /// Every tool call uncut, for the checks (`tool_calls` is cut for the report).
+    pub calls: Vec<String>,
+    /// The judge's scores of the render (recognisable, parts, colours; 1-5 each), with --judge.
+    pub judge: Option<[u8; 3]>,
     pub input_tokens: u64,
     pub output_tokens: u64,
     pub seconds: f64,
@@ -625,6 +1078,7 @@ pub fn run(
     tasks: &[&Task],
     scratch: &Path,
     picture: &Path,
+    judge: Option<&Backend>,
     log: &mut dyn FnMut(&Outcome),
 ) -> Vec<Outcome> {
     let mut out = Vec::new();
@@ -656,7 +1110,14 @@ pub fn run(
             out.push(o);
             continue;
         }
-        let prompt = task.prompt.replace(PICTURE, &picture.display().to_string());
+        let emblem = scratch.join("emblem.png");
+        if task.prompt.contains(EMBLEM) && !emblem.exists() {
+            let _ = std::fs::write(&emblem, EMBLEM_PNG);
+        }
+        let prompt = task
+            .prompt
+            .replace(PICTURE, &picture.display().to_string())
+            .replace(EMBLEM, &emblem.display().to_string());
         let mut o = Outcome {
             task: task.id.into(),
             ..Outcome::default()
@@ -665,9 +1126,11 @@ pub fn run(
         let stop = AtomicBool::new(false);
         let mut on_event = |e: ai::Event| match e {
             ai::Event::Text(t) => o.reply.push_str(&t),
-            ai::Event::ToolCall { name, input, .. } => o
-                .tool_calls
-                .push(format!("{name} {}", cut(&input.to_string(), 300))),
+            ai::Event::ToolCall { name, input, .. } => {
+                o.tool_calls
+                    .push(format!("{name} {}", cut(&input.to_string(), 300)));
+                o.calls.push(format!("{name} {input}"));
+            }
             ai::Event::ToolDone {
                 is_error: true,
                 summary,
@@ -725,17 +1188,10 @@ pub fn run(
         let mut ed = ed.lock().unwrap_or_else(|e| e.into_inner());
         o.seconds = start.elapsed().as_secs_f64();
         notes = ed.notes.clone();
-        let design = Design {
-            objects: ed
-                .session
-                .execute("object.list", None)
-                .ok()
-                .and_then(|v| v.as_array().cloned())
-                .unwrap_or_default(),
-            info: ed.session.execute("design.info", None).unwrap_or_default(),
-            reply: o.reply.clone(),
-            notes: notes.text().to_string(),
-        };
+        let design = scored(&mut ed.session, &o, notes.text());
+        if let Some(judge) = judge {
+            o.judge = judge_render(judge, &mut ed, task.prompt);
+        }
         match (task.check)(&design) {
             Ok(()) if !matches!(end, ai::StopKind::Error(_)) => o.passed = true,
             Ok(()) => o.category = classify(&o, &end, ""),
@@ -748,6 +1204,107 @@ pub fn run(
         out.push(o);
     }
     out
+}
+
+/// What a task is scored on, read from the session after the turn.
+fn scored(session: &mut Session, o: &Outcome, notes: &str) -> Design {
+    let objects: Vec<Value> = session
+        .execute("object.list", None)
+        .ok()
+        .and_then(|v| v.as_array().cloned())
+        .unwrap_or_default();
+    let full = objects
+        .iter()
+        .map(|ob| {
+            session
+                .execute("object.get", Some(&json!({ "id": ob["id"] })))
+                .unwrap_or_default()
+        })
+        .collect();
+    Design {
+        objects,
+        info: session.execute("design.info", None).unwrap_or_default(),
+        reply: o.reply.clone(),
+        notes: notes.to_string(),
+        full,
+        check: session.execute("design.check", None).unwrap_or_default(),
+        fonts: session.execute("fonts.list", None).unwrap_or_default(),
+        calls: o.calls.clone(),
+    }
+}
+
+/// The judge's fixed rubric (#493 `--judge`): it sees the render and the request only.
+pub const JUDGE_RUBRIC: &str = "You judge a machine-embroidery design from its rendered picture. \
+The request was: \"{REQUEST}\". Score each from 1 (poor) to 5 (excellent): recognisable (is the \
+subject recognisable), parts (are the requested parts present), colours (are the colours \
+plausible for the subject). Answer with one line of JSON only, for example \
+{\"recognisable\": 4, \"parts\": 3, \"colours\": 5}.";
+
+/// The three scores from the judge's reply: the first JSON object in it with all three keys,
+/// each 1-5. Deterministic for a given reply.
+pub fn judge_scores(reply: &str) -> Option<[u8; 3]> {
+    let mut from = 0;
+    while let Some(start) = reply[from..].find('{').map(|i| i + from) {
+        let end = reply[start..].find('}').map(|i| i + start + 1)?;
+        if let Ok(v) = serde_json::from_str::<Value>(&reply[start..end]) {
+            let score = |k: &str| {
+                v[k].as_u64()
+                    .filter(|n| (1..=5).contains(n))
+                    .map(|n| n as u8)
+            };
+            if let (Some(a), Some(b), Some(c)) =
+                (score("recognisable"), score("parts"), score("colours"))
+            {
+                return Some([a, b, c]);
+            }
+        }
+        from = start + 1;
+    }
+    None
+}
+
+/// No tools: the judge only looks.
+struct NoTools;
+
+impl ai::Tools for NoTools {
+    fn definitions(&self) -> Vec<Value> {
+        Vec::new()
+    }
+    fn call(&mut self, name: &str, _: &Value) -> ai::ToolResult {
+        ai::from_mcp_result(&openstitch_mcp::server::tool_failure(&format!(
+            "the judge has no tool '{name}'"
+        )))
+    }
+}
+
+/// Asks the judge model to score the design's render (a model backend; an agent cannot judge).
+fn judge_render(judge: &Backend, ed: &mut Headless, request: &str) -> Option<[u8; 3]> {
+    let Backend::Model { config, transport } = judge else {
+        return None;
+    };
+    let render = ed.handle(&json!({ "command": "ui.render", "params": { "size": 512 } }));
+    let png = render["result"]["png"].as_str()?.to_string();
+    let request = request
+        .replace(EMBLEM, "a picture")
+        .replace(PICTURE, "a picture");
+    let mut reply = String::new();
+    let stop = AtomicBool::new(false);
+    ai::Conversation::new().run_turn(
+        config,
+        transport.as_ref(),
+        &mut NoTools,
+        ai::user_content(
+            &JUDGE_RUBRIC.replace("{REQUEST}", &request),
+            &[("image/png".into(), png)],
+        ),
+        &stop,
+        &mut |e| {
+            if let ai::Event::Text(t) = e {
+                reply.push_str(&t);
+            }
+        },
+    );
+    judge_scores(&reply)
 }
 
 /// A coding agent's turn: it runs on its own thread while this one serves its MCP bridge's
@@ -819,7 +1376,7 @@ pub fn reports(label: &str, outcomes: &[Outcome]) -> (Value, String) {
         "backend": label, "passed": passed, "tasks": outcomes.len(), "inputTokens": tin, "outputTokens": tout,
         "results": outcomes.iter().map(|o| json!({
             "task": o.task, "passed": o.passed, "category": o.category, "detail": o.detail,
-            "toolCalls": o.tool_calls, "toolErrors": o.tool_errors, "reply": o.reply,
+            "toolCalls": o.tool_calls, "toolErrors": o.tool_errors, "reply": o.reply, "judge": o.judge, "calls": o.calls,
             "inputTokens": o.input_tokens, "outputTokens": o.output_tokens, "seconds": (o.seconds * 10.0).round() / 10.0,
         })).collect::<Vec<_>>(),
     });
@@ -836,7 +1393,10 @@ pub fn reports(label: &str, outcomes: &[Outcome]) -> (Value, String) {
         md.push_str(&format!(
             "| {} | {} | {} ({}) | {} / {} | {:.1} |\n",
             o.task,
-            result.replace('|', "/"),
+            match o.judge {
+                Some([a, b, c]) => format!("{} (judge {a}/{b}/{c})", result.replace('|', "/")),
+                None => result.replace('|', "/"),
+            },
             o.tool_calls.len(),
             o.tool_errors.len(),
             o.input_tokens,
@@ -940,6 +1500,7 @@ mod tests {
             &[pick("wider"), pick("star"), pick("question")],
             &dir,
             &dir.join("none.bmp"),
+            None,
             &mut |_| {},
         );
         let _ = std::fs::remove_dir_all(&dir);
@@ -954,7 +1515,7 @@ mod tests {
         let (json, md) = reports("scripted", &out);
         assert_eq!(json["passed"], 2);
         assert!(md.contains("| star | fail: only talked |"));
-        assert_eq!(TASKS.len(), 15);
+        assert_eq!(TASKS.len(), 23);
     }
 
     #[test]
@@ -982,6 +1543,8 @@ mod tests {
         assert!(
             invented_codes("about 120 mm, 30 %, 45°, 200x300, 1,250 and 4.500", &known).is_empty()
         );
+        // A real reply (2026-11-06): the hoop's second side.
+        assert!(invented_codes("It's set up for the 100 × 100 hoop.", &known).is_empty());
     }
 
     #[test]
@@ -992,7 +1555,7 @@ mod tests {
             objects: colors.iter().map(|c| obj(c)).collect(),
             info: json!({}),
             reply: reply.into(),
-            notes: String::new(),
+            ..Design::default()
         };
         assert!(
             (task.check)(&design(
@@ -1098,6 +1661,7 @@ mod tests {
             &[pick("remember"), pick("remembered-heart")],
             &dir,
             &dir.join("none.bmp"),
+            None,
             &mut |_| {},
         );
         assert!(out[0].passed, "{:?}", out[0]);
@@ -1164,9 +1728,274 @@ mod tests {
         let d = Design {
             objects: vec![letters(20.0), letters(41.0), letters(63.0)],
             info: Value::Null,
-            reply: String::new(),
-            notes: String::new(),
+            ..Design::default()
         };
         assert!((widest(&d) - 63.0).abs() < 1e-9);
+    }
+
+    /// A design from `(x, y, w, h, region, colour, angle)` parts, as object.list and object.get
+    /// give them.
+    fn parts(list: &[(f64, f64, f64, f64, &str, &str, f64)]) -> Design {
+        let (objects, full) = list
+            .iter()
+            .map(|&(x, y, w, h, region, color, angle)| {
+                let mut o = json!({"bounds": {"x": x, "y": y, "width": w, "height": h}});
+                let mut f = json!({});
+                match region {
+                    "line" => {
+                        o["line"] = json!("running");
+                        o["lineColor"] = json!(color);
+                    }
+                    "zigzag" => {
+                        o["region"] = json!("fill");
+                        o["regionColor"] = json!("#e0a458");
+                        o["line"] = json!("zigzag");
+                        o["lineColor"] = json!(color);
+                        f["region"] = json!({"angle": angle});
+                    }
+                    _ => {
+                        o["region"] = json!(region);
+                        o["regionColor"] = json!(color);
+                        f["region"] = json!({"angle": angle});
+                    }
+                }
+                (o, f)
+            })
+            .unzip();
+        Design {
+            objects,
+            full,
+            check: json!({"ready": true, "findings": []}),
+            ..Design::default()
+        }
+    }
+
+    fn check(id: &str, d: &Design) -> Result<(), String> {
+        (TASKS.iter().find(|t| t.id == id).expect("task").check)(d)
+    }
+
+    /// #493: each illustrated rule on hand-made passing and failing designs.
+    #[test]
+    fn the_illustrated_tasks_score_structure() {
+        let seed = |x: f64| (x, 50.0, 2.0, 3.4, "satin", "#f6d55c", 0.0);
+        let mut berry = vec![
+            (25.0, 27.0, 50.0, 58.0, "fill", "#d7263d", 45.0),
+            (31.0, 22.0, 38.0, 16.0, "fill", "#2e8b3a", 135.0),
+        ];
+        berry.extend([seed(40.0), seed(50.0), seed(60.0)]);
+        assert_eq!(check("strawberry", &parts(&berry)), Ok(()));
+        // Leaves sewn in the berry's direction: the panels do not read apart.
+        let mut flat = berry.clone();
+        flat[1].6 = 50.0;
+        let e = check("strawberry", &parts(&flat)).expect_err("same angle");
+        assert!(e.contains("20°"), "{e}");
+        // Two seeds only.
+        let e = check("strawberry", &parts(&berry[..4])).expect_err("seeds");
+        assert!(e.contains("parts") || e.contains("seeds"), "{e}");
+        // A design.check error fails it.
+        let mut bad = parts(&berry);
+        bad.check = json!({"ready": false, "findings": [{"severity": "error", "message": "untrimmed jump 14 mm"}]});
+        let e = check("strawberry", &bad).expect_err("check");
+        assert!(e.contains("untrimmed jump"), "{e}");
+        // Too big for "about 60 mm".
+        let mut big = berry.clone();
+        big[0].3 = 95.0;
+        assert!(check("strawberry", &parts(&big)).is_err());
+
+        let cap = [
+            (40.0, 50.0, 20.0, 30.0, "fill", "#efe3c8", 90.0),
+            (16.0, 20.0, 24.0, 34.0, "fill", "#c0392b", 120.0),
+            (36.0, 17.0, 28.0, 37.0, "fill", "#e74c3c", 0.0),
+            (60.0, 20.0, 24.0, 34.0, "fill", "#c0392b", 60.0),
+        ];
+        assert_eq!(check("mushroom", &parts(&cap)), Ok(()));
+        let mut two = cap;
+        two[3].6 = 130.0;
+        assert!(check("mushroom", &parts(&two)).is_err());
+
+        let melon = [
+            (16.0, 34.0, 68.0, 34.0, "fill", "#e8475f", 0.0),
+            (13.0, 34.0, 74.0, 38.0, "zigzag", "#2e7d32", 90.0),
+            (35.0, 45.0, 3.0, 5.0, "satin", "#1b1b1b", 0.0),
+        ];
+        assert_eq!(check("watermelon", &parts(&melon)), Ok(()));
+        let mut plain = melon;
+        plain[1].4 = "line";
+        let e = check("watermelon", &parts(&plain)).expect_err("rind");
+        assert!(e.contains("satin rind"), "{e}");
+
+        let cat = [
+            (20.0, 18.0, 60.0, 62.0, "fill", "#f7b267", 0.0),
+            (37.0, 45.0, 6.0, 9.0, "satin", "#2d6a4f", 0.0),
+            (57.0, 45.0, 6.0, 9.0, "satin", "#2d6a4f", 0.0),
+            (47.0, 58.0, 6.0, 4.0, "satin", "#e56b6f", 0.0),
+            (20.0, 60.0, 18.0, 2.0, "line", "#8a4b14", 0.0),
+            (62.0, 60.0, 18.0, 2.0, "line", "#8a4b14", 0.0),
+        ];
+        assert_eq!(check("cat-face", &parts(&cat)), Ok(()));
+        assert!(check("cat-face", &parts(&cat[..5])).is_err());
+        assert!((angle_gap(170.0, 10.0) - 20.0).abs() < 1e-9);
+        assert!(yellowish("#ffd23f") && !yellowish("#e8475f") && brownish("#c98b3c"));
+    }
+
+    #[test]
+    fn the_auto_punch_and_small_name_tasks() {
+        let mut d = parts(&[
+            (20.0, 20.0, 60.0, 60.0, "fill", "#1f2a44", 30.0),
+            (30.0, 30.0, 20.0, 20.0, "fill", "#f28c28", 90.0),
+            (40.0, 40.0, 10.0, 10.0, "fill", "#ffd23f", 0.0),
+        ]);
+        d.calls = vec![
+            r#"execute {"command":"digitize.autoPunch","params":{"dryRun":true}}"#.into(),
+            r#"execute {"command":"digitize.autoPunch","params":{"overrides":[{"region":1,"angle":30}]}}"#.into(),
+        ];
+        assert_eq!(check("auto-punch", &d), Ok(()));
+        d.objects[2]["regionColor"] = json!("#ffffff");
+        assert!(
+            check("auto-punch", &d)
+                .expect_err("white")
+                .contains("background")
+        );
+        d.calls.remove(0);
+        assert!(
+            check("auto-punch", &d)
+                .expect_err("plan")
+                .contains("dryRun")
+        );
+
+        let fonts = json!([{"id": "openstitch-line", "sizeRange": {"minMm": 3.0, "maxMm": 15.0}}, {"id": "openstitch-sans", "sizeRange": {"minMm": 8.0, "maxMm": 40.0}}]);
+        let name = |font: &str, runs: u64| Design {
+            objects: vec![json!({"text": "Mia", "font": font, "sizeMM": 5.0, "line": "running"})],
+            full: vec![json!({"line": {"runTimes": runs}})],
+            fonts: fonts.clone(),
+            ..Design::default()
+        };
+        assert_eq!(check("small-name", &name("openstitch-line", 3)), Ok(()));
+        assert!(
+            check("small-name", &name("openstitch-sans", 3))
+                .expect_err("range")
+                .contains("sizeRange")
+        );
+        assert!(
+            check("small-name", &name("openstitch-line", 1))
+                .expect_err("bean")
+                .contains("bean")
+        );
+        // Turned into shapes (a real run): scored on the text.add call and the lines left.
+        let shapes = |font: &str| {
+            Design {
+            objects: vec![json!({"line": "running"}), json!({"line": "running"})],
+            full: vec![json!({"line": {"runTimes": 3}}), json!({"line": {"runTimes": 3}})],
+            fonts: fonts.clone(),
+            calls: vec![
+                format!(r#"mcp__openstitch-app__execute {{"command":"text.add","params":{{"text":"Mia","font":"{font}","size":5}}}}"#),
+                r#"mcp__openstitch-app__run_batch {"steps":[{"command":"text.toShapes","params":{"id":1}}]}"#.into(),
+            ],
+            ..Design::default()
+        }
+        };
+        assert_eq!(check("small-name", &shapes("openstitch-line")), Ok(()));
+        // One text per letter, left to right (a real run).
+        let letter = |t: &str, x: f64| json!({"text": t, "font": "openstitch-line", "sizeMM": 5.0, "line": "running", "bounds": {"x": x}});
+        let letters = Design {
+            objects: vec![letter("a", 52.0), letter("i", 50.0), letter("M", 45.0)],
+            full: vec![json!({"line": {"runTimes": 3}}); 3],
+            fonts: fonts.clone(),
+            ..Design::default()
+        };
+        assert_eq!(check("small-name", &letters), Ok(()));
+        assert!(check("small-name", &shapes("openstitch-sans")).is_err());
+        assert!(
+            check(
+                "small-name",
+                &Design {
+                    calls: Vec::new(),
+                    ..shapes("openstitch-line")
+                }
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn the_judge_scores_are_read_from_its_reply() {
+        assert_eq!(
+            judge_scores(r#"Here: {"recognisable": 4, "parts": 3, "colours": 5}"#),
+            Some([4, 3, 5])
+        );
+        assert_eq!(
+            judge_scores(r#"{"note": 1} then {"recognisable": 2, "parts": 2, "colours": 1}"#),
+            Some([2, 2, 1])
+        );
+        assert_eq!(
+            judge_scores(r#"{"recognisable": 9, "parts": 3, "colours": 5}"#),
+            None
+        );
+        assert_eq!(judge_scores("no idea"), None);
+    }
+
+    /// --judge against a scripted model: the render goes to it, its answer is the score.
+    #[test]
+    fn the_judge_scores_the_render_of_each_task() {
+        let backend = Backend::Model {
+            config: ai::Config { api_key: "sk-test".into(), ..ai::Config::default() },
+            transport: Box::new(Scripted(Mutex::new(
+                [
+                    message("", &[json!({"command": "shape.rectangle", "params": {"x": 20, "y": 50, "width": 60, "height": 20}})]),
+                    message("Done.", &[]),
+                ]
+                .into_iter()
+                .collect(),
+            ))),
+        };
+        let transport = Arc::new(Recording(
+            Mutex::new(
+                [message(
+                    r#"{"recognisable": 5, "parts": 4, "colours": 3}"#,
+                    &[],
+                )]
+                .into_iter()
+                .collect(),
+            ),
+            Mutex::new(Vec::new()),
+        ));
+        struct Shared(Arc<Recording>);
+        impl ai::Transport for Shared {
+            fn post(
+                &self,
+                url: &str,
+                headers: &[(String, String)],
+                body: &[u8],
+                timeout: Duration,
+            ) -> Result<Box<dyn std::io::Read + Send>, ai::HttpError> {
+                self.0.post(url, headers, body, timeout)
+            }
+        }
+        let judge = Backend::Model {
+            config: ai::Config {
+                api_key: "sk-test".into(),
+                ..ai::Config::default()
+            },
+            transport: Box::new(Shared(transport.clone())),
+        };
+        let dir = openstitch_testutil::TempDir::new("bench-judge");
+        let wider = TASKS.iter().find(|t| t.id == "wider").expect("task");
+        let out = run(
+            &backend,
+            &[wider],
+            &dir,
+            &dir.join("none.bmp"),
+            Some(&judge),
+            &mut |_| {},
+        );
+        assert_eq!(out[0].judge, Some([5, 4, 3]), "{:?}", out[0]);
+        let request = transport.1.lock().expect("lock")[0].to_string();
+        assert!(
+            request.contains("image/png") && request.contains("twice as wide"),
+            "{request}"
+        );
+        let (json, md) = reports("scripted", &out);
+        assert_eq!(json["results"][0]["judge"], json!([5, 4, 3]));
+        assert!(md.contains("(judge 5/4/3)"), "{md}");
     }
 }
