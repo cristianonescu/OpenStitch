@@ -210,6 +210,59 @@ pub fn isolate(
     Some(fg)
 }
 
+/// Radius of the subject mark a click makes, as a share of the image's shorter side.
+pub const CLICK_SHARE: f64 = 0.015;
+
+/// One-click subject cut-out (#490, no model): the graph cut learns the background from the
+/// border ([`Seed::Border`]), the clicked point (`[x, y]` in fractions of the image) is subject
+/// for certain, together with `marks`, and of the subject found only the part that holds the
+/// click is kept (8-connected), so other things the cut also took (a second animal, a flower
+/// at the edge) are left out. `None` as [`isolate`] gives it; a mask with no subject pixel when
+/// the click finds nothing beyond its own mark (a click on the background).
+pub fn isolate_at(
+    colors: &[Option<Rgb>],
+    w: usize,
+    h: usize,
+    point: [f64; 2],
+    marks: &Marks,
+) -> Option<Vec<bool>> {
+    let mut marks = marks.clone();
+    let click = Stroke {
+        points: vec![point],
+        width: 2.0 * CLICK_SHARE,
+    };
+    let dot = rasterize(std::slice::from_ref(&click), w, h);
+    marks.subject.push(click);
+    let fg = isolate(colors, w, h, Seed::Border, &marks)?;
+    let at = |f: f64, n: usize| ((f.clamp(0.0, 1.0) * n as f64) as usize).min(n.saturating_sub(1));
+    let start = at(point[1], h) * w + at(point[0], w);
+    let mut keep = vec![false; w * h];
+    if !fg.get(start).copied().unwrap_or(false) {
+        return Some(keep);
+    }
+    let mut queue = VecDeque::from([start]);
+    keep[start] = true;
+    while let Some(i) = queue.pop_front() {
+        let (x, y) = ((i % w) as isize, (i / w) as isize);
+        for (dx, dy) in DIRS {
+            let (nx, ny) = (x + dx, y + dy);
+            if nx < 0 || ny < 0 || nx >= w as isize || ny >= h as isize {
+                continue;
+            }
+            let j = ny as usize * w + nx as usize;
+            if fg[j] && !keep[j] {
+                keep[j] = true;
+                queue.push_back(j);
+            }
+        }
+    }
+    // Nothing beyond the click's own mark: the click is on the background.
+    if (0..w * h).all(|i| !keep[i] || dot[i]) {
+        keep.iter_mut().for_each(|k| *k = false);
+    }
+    Some(keep)
+}
+
 /// The 8 neighbour directions; `(d + 4) % 8` is the opposite one.
 const DIRS: [(isize, isize); 8] = [
     (1, 0),

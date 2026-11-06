@@ -185,6 +185,18 @@ so the editor asks the user first.
 colour sewn after it, so no fabric shows along seams; it adds stitches, so leave it off for
 thin lettering.
 
+Helpers that need no model and send nothing anywhere:
+- **Cut out the subject with one click.** `digitize.segment` `{path, point: [x, y]}` (fractions
+  of the picture: `[0.5, 0.5]` is its centre) returns the subject's `box` and `share`, and with
+  `out` writes the mask as a PNG. Convert with Auto Punch's `isolateSubject: true,
+  subjectPoint: [x, y]`: the background is learnt from the border and only the part holding
+  the click is sewn. Add `subjectStrokes` / `backgroundStrokes` when it takes too much or too
+  little.
+- **Line drawing from a photo.** `lines: "edges"` on `digitize.lineImage`, `digitize.figure`
+  or `digitize.designCenter` traces the photo's edges instead of its dark pixels
+  (`edgeStrength` 1-100, default 20: lower keeps fainter edges). Sew it with
+  `digitize.designCenter` `{lines: "edges", regionSew: "none"}` for redwork.
+
 ## SVG artwork
 
 Write the SVG, then import it as editable shapes (fills become fill regions, strokes running

@@ -364,3 +364,39 @@ fn parallel_lines_cover_the_band_in_one_path() {
     let one = center::parallel_lines(&fig, 0.0, 1);
     assert!(one[0].points.len() <= original.len());
 }
+
+/// #490: a line drawing from a photo. A shaded disc's edge becomes a one-pixel ring at its
+/// radius; a flat picture has no edges; the same image gives the same lines.
+#[test]
+fn edges_draw_a_photos_outlines() {
+    let disc = Raster::from_fn(80, 80, |x, y| {
+        let d = (f64::from(x) - 40.0).hypot(f64::from(y) - 40.0);
+        if d < 25.0 {
+            // A shaded disc: darker towards its lower right, as a lit object.
+            let v = (90.0 + f64::from(x + y) * 0.6) as u8;
+            [v, v / 2, 40, 255]
+        } else {
+            [200, 220, 240, 255]
+        }
+    })
+    .expect("size");
+    let o = LineImageOptions {
+        edges: Some(center::EDGE_STRENGTH),
+        ..Default::default()
+    };
+    let li = center::line_image(&disc, &o);
+    assert!(li.line_pixels() > 100, "{}", li.line_pixels());
+    for (i, _) in li.mask.iter().enumerate().filter(|(_, m)| **m) {
+        let (x, y) = ((i % li.width) as f64, (i / li.width) as f64);
+        let d = (x + 0.5 - 40.0).hypot(y + 0.5 - 40.0);
+        assert!(
+            (d - 25.0).abs() <= 3.0,
+            "edge pixel at {x}, {y} ({d:.1} from the centre)"
+        );
+    }
+    // One pixel wide: the ring is about its circumference long, not a band.
+    assert!(li.line_pixels() < 2 * 160, "{}", li.line_pixels());
+    assert_eq!(center::line_image(&disc, &o).mask, li.mask);
+    let flat = Raster::from_fn(40, 40, |_, _| [120, 130, 140, 255]).expect("size");
+    assert_eq!(center::line_image(&flat, &o).line_pixels(), 0);
+}

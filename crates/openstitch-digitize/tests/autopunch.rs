@@ -1715,6 +1715,50 @@ fn least_travel_picks_the_shortest_path() {
     }
 }
 
+/// #490: one click cuts out the subject it lands on. Two red discs on mottled grass: the
+/// clicked disc's mask matches it (IoU ≥ 0.85) and leaves the other disc out; a click on the
+/// grass finds no subject.
+#[test]
+fn a_click_cuts_out_the_subject_under_it() {
+    use openstitch_digitize::grabcut::{self, Marks};
+    let (w, h) = (120usize, 80usize);
+    let inside =
+        |x: usize, y: usize, cx: f64| (x as f64 + 0.5 - cx).hypot(y as f64 + 0.5 - 40.0) < 18.0;
+    let img = Raster::from_fn(w as u32, h as u32, |x, y| {
+        let (x, y) = (x as usize, y as usize);
+        if inside(x, y, 35.0) || inside(x, y, 85.0) {
+            [200, 30 + ((x * 7 + y * 3) % 20) as u8, 40, 255]
+        } else {
+            [
+                60 + ((x * 13 + y * 7) % 30) as u8,
+                150 + ((x * 5 + y * 11) % 40) as u8,
+                50,
+                255,
+            ]
+        }
+    })
+    .expect("size");
+    let census = palette::census(&img);
+    let mask = grabcut::isolate_at(&census.modal, w, h, [35.0 / 120.0, 0.5], &Marks::default())
+        .expect("a background to learn");
+    let (mut both, mut either, mut other) = (0, 0, 0);
+    for y in 0..h {
+        for x in 0..w {
+            let truth = inside(x, y, 35.0);
+            let got = mask[y * w + x];
+            both += usize::from(truth && got);
+            either += usize::from(truth || got);
+            other += usize::from(got && inside(x, y, 85.0));
+        }
+    }
+    let iou = both as f64 / either as f64;
+    assert!(iou >= 0.85, "IoU {iou:.3}");
+    assert_eq!(other, 0, "the other disc is left out");
+    let grass = grabcut::isolate_at(&census.modal, w, h, [0.02, 0.02], &Marks::default())
+        .expect("a background to learn");
+    assert!(!grass.contains(&true));
+}
+
 /// #469: with `underlap_mm`, a fill reaches under the touching region sewn after it, never
 /// under one sewn before or into the background; PE-DESIGN mode ignores it.
 #[test]

@@ -13,7 +13,7 @@ use openstitch_digitize::center::{
     self, FigureOptions, LineImageOptions, OpenLine, RegionSew, SewSettings,
 };
 use openstitch_digitize::cross::{self, CrossStitch, CrossType};
-use openstitch_digitize::grabcut::{Marks, Seed, Stroke};
+use openstitch_digitize::grabcut::{self, Marks, Seed, Stroke};
 use openstitch_digitize::photo::{self, ColorSet, PhotoMode, PhotoStitch, PhotoStyle, Travel};
 use openstitch_digitize::raster::MAX_FILE_BYTES;
 use openstitch_digitize::regions::TraceOptions;
@@ -102,6 +102,42 @@ fn subject_seed(p: &Params) -> Result<Option<Seed>, CommandError> {
         return Err(p.invalid("subjectRect", "needs isolateSubject: true"));
     }
     Ok(Some(Seed::Rect(r)))
+}
+
+/// Auto Punch's `subjectPoint` (#490): a click on the subject, `[x, y]` in fractions of the
+/// image; it needs `isolateSubject: true` and takes the place of `subjectRect`.
+fn subject_point(p: &Params) -> Result<Option<[f64; 2]>, CommandError> {
+    if !p.has("subjectPoint") {
+        return Ok(None);
+    }
+    if !p.bool("isolateSubject", Some(false))? {
+        return Err(p.invalid("subjectPoint", "needs isolateSubject: true"));
+    }
+    if p.has("subjectRect") {
+        return Err(p.invalid("subjectPoint", "takes the place of subjectRect; give one"));
+    }
+    point_param(p, "subjectPoint").map(Some)
+}
+
+/// An `[x, y]` parameter in fractions of the image (0-1).
+fn point_param(p: &Params, key: &str) -> Result<[f64; 2], CommandError> {
+    let bad = || p.invalid(key, "must be [x, y], each 0-1 (fractions of the image)");
+    let a = p.array(key)?;
+    let f = |v: &Value| v.as_f64().filter(|f| (0.0..=1.0).contains(f));
+    match &a[..] {
+        [x, y] => Ok([f(x).ok_or_else(bad)?, f(y).ok_or_else(bad)?]),
+        _ => Err(bad()),
+    }
+}
+
+/// `digitize.segment`'s strokes: as Auto Punch's, without `isolateSubject`.
+fn segment_strokes(p: &Params, key: &str) -> Result<Vec<Stroke>, CommandError> {
+    if !p.has(key) {
+        return Ok(Vec::new());
+    }
+    let mut values = p.values().clone();
+    values.insert("isolateSubject".into(), json!(true));
+    strokes(&Params::new(&p.command, Some(&Value::Object(values)))?, key)
 }
 
 /// Most strokes, and points per stroke, in `subjectStrokes` or `backgroundStrokes`.
@@ -550,6 +586,11 @@ fn auto_punch_docs() -> Vec<ParamDoc> {
         .chain(thread_source_docs())
         .collect();
     v.push(opt(
+        "subjectPoint",
+        "[x, y]",
+        "With isolateSubject: one click on the subject, in fractions of the image (0-1): the cut learns the background from the border, the click is subject for certain, and only the part of the subject holding it is kept (#490, no model); in place of subjectRect",
+    ));
+    v.push(opt(
         "underlap",
         "mm 0-1.5",
         "OpenStitch mode: each fill reaches this far under the touching regions sewn after it, so no fabric shows along the seams between colours (default 0, off; 0.8 is typical) (#469; needs compatMode openStitch)",
@@ -690,6 +731,7 @@ fn auto_punch_options(
             subject: strokes(p, "subjectStrokes")?,
             background: strokes(p, "backgroundStrokes")?,
         },
+        subject_point: subject_point(p)?,
         overrides: overrides(p)?,
         angle_rule,
         underlap_mm: underlap(p, mode)?,
@@ -774,6 +816,82 @@ pub fn commands() -> Vec<CommandSpec> {
                     "lines": lines,
                     "colors": hexes(&out.threads),
                 }))
+            },
+        ),
+        spec(
+            "digitize.segment",
+            "One-click subject cut-out (#490, no model): the subject's mask from a click on it; preview for Auto Punch's isolateSubject with subjectPoint, optionally written as a PNG (subject black)",
+            Effect::File,
+            vec![
+                IMAGE,
+                req(
+                    "point",
+                    "[x, y]",
+                    "The click on the subject, in fractions of the image (0-1)",
+                ),
+                opt(
+                    "resolution",
+                    "int 64-2048",
+                    "Working resolution, longest side in pixels (default 800, as Auto Punch's OpenStitch mode)",
+                ),
+                opt(
+                    "subjectStrokes",
+                    "[{points: [[x, y], ...], width}]",
+                    "Brush strokes over parts that are subject for certain, as Auto Punch takes them",
+                ),
+                opt(
+                    "backgroundStrokes",
+                    "[{points: [[x, y], ...], width}]",
+                    "Brush strokes over parts that are background for certain",
+                ),
+                opt("out", "string", "Write the mask to this PNG file"),
+            ],
+            |s, p| {
+                let (_, data) = read_file(s, p, MAX_FILE_BYTES)?;
+                let image = Raster::decode(&data).map_err(|e| failed(p, e))?;
+                let point = point_param(p, "point")?;
+                let work = image.fit_mode(count(p, "resolution", 800, 64, 2048)? as u32);
+                let (w, h) = (work.width() as usize, work.height() as usize);
+                let marks = Marks {
+                    subject: segment_strokes(p, "subjectStrokes")?,
+                    background: segment_strokes(p, "backgroundStrokes")?,
+                };
+                let census = openstitch_digitize::palette::census(&work);
+                let mask = grabcut::isolate_at(&census.modal, w, h, point, &marks)
+                    .ok_or_else(|| p.failed("no background to learn from: the image has no opaque border"))?;
+                let n = mask.iter().filter(|&&m| m).count();
+                let (mut x0, mut y0, mut x1, mut y1) = (w, h, 0, 0);
+                for (i, _) in mask.iter().enumerate().filter(|(_, m)| **m) {
+                    let (x, y) = (i % w, i / w);
+                    (x0, y0, x1, y1) = (x0.min(x), y0.min(y), x1.max(x + 1), y1.max(y + 1));
+                }
+                let mut r = json!({
+                    "width": w,
+                    "height": h,
+                    "subjectPixels": n,
+                    "share": round(n as f64 / (w * h).max(1) as f64),
+                    "box": (n > 0).then(|| [
+                        round(x0 as f64 / w as f64),
+                        round(y0 as f64 / h as f64),
+                        round(x1 as f64 / w as f64),
+                        round(y1 as f64 / h as f64),
+                    ]),
+                });
+                if p.has("out") {
+                    let path = s.resolve(&p.string("out", None)?, Access::Write, &p.command)?;
+                    let png = Raster::from_fn(w as u32, h as u32, |x, y| {
+                        if mask[y as usize * w + x as usize] {
+                            [0, 0, 0, 255]
+                        } else {
+                            [255, 255, 255, 255]
+                        }
+                    })
+                    .and_then(|m| m.encode_png())
+                    .map_err(|e| failed(p, e))?;
+                    std::fs::write(&path, png).map_err(|e| p.failed(e.to_string()))?;
+                    r["out"] = json!(path.display().to_string());
+                }
+                Ok(r)
             },
         ),
         spec(
@@ -1015,7 +1133,10 @@ pub fn commands() -> Vec<CommandSpec> {
                     "Working resolution, longest side in pixels (default 600)",
                 ),
                 opt("out", "string", "Write the line image to this PNG file"),
-            ],
+            ]
+            .into_iter()
+            .chain(edge_docs())
+            .collect(),
             |s, p| {
                 let (_, data) = read_file(s, p, MAX_FILE_BYTES)?;
                 let image = Raster::decode(&data).map_err(|e| failed(p, e))?;
@@ -1192,21 +1313,49 @@ fn figure_docs(mut v: Vec<ParamDoc>) -> Vec<ParamDoc> {
         ),
         opt("curves", "bool", "Fit Bézier curves (default true)"),
     ]);
+    v.extend(edge_docs());
     v
 }
 
 fn line_options(p: &Params) -> Result<LineImageOptions, CommandError> {
+    let edges = match choice(p, "lines", "dark", &["dark", "edges"])? {
+        "edges" => Some(p.opt("edgeStrength", center::EDGE_STRENGTH, 1.0, 100.0)?),
+        _ if p.has("edgeStrength") => {
+            return Err(p.invalid("edgeStrength", "needs lines: edges"));
+        }
+        _ => None,
+    };
+    if edges.is_some() && p.has("threshold") {
+        return Err(p.invalid("threshold", "lines: edges takes edgeStrength instead"));
+    }
     Ok(LineImageOptions {
         threshold: p.int("threshold", Some(128), 0, 255)? as f64,
         resolution: count(p, "resolution", 600, 64, 2048)? as u32,
+        edges,
     })
+}
+
+/// The `lines` and `edgeStrength` parameters' documentation (#490).
+fn edge_docs() -> [ParamDoc; 2] {
+    [
+        opt(
+            "lines",
+            "dark|edges",
+            "What the line image's lines are: dark (default, PE-DESIGN's: pixels darker than threshold) or edges (a line drawing from a photo: the picture's edges, one pixel wide, found without any model, #490)",
+        ),
+        opt(
+            "edgeStrength",
+            "1-100",
+            "With lines: edges, the weakest edge kept, % of the strongest (default 20; lower keeps fainter edges)",
+        ),
+    ]
 }
 
 /// Stages 1–3; OpenStitch mode takes the threshold from the image (Otsu) unless it is set.
 fn figure(s: &EngineState, p: &Params, mode: Mode) -> Result<center::Figure, CommandError> {
     let (image, frame) = load(s, p)?;
     let mut lo = line_options(p)?;
-    if mode == Mode::OpenStitch && !p.has("threshold") {
+    if mode == Mode::OpenStitch && !p.has("threshold") && lo.edges.is_none() {
         lo.threshold = center::otsu_threshold(&image, lo.resolution);
     }
     let li = center::line_image(&image, &lo);

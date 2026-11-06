@@ -915,3 +915,117 @@ fn auto_punch_outlines_export_as_svg() {
     );
     assert!(!outside.join("x.svg").exists());
 }
+
+/// #490: the no-model picture helpers through their commands: a click's subject mask
+/// (`digitize.segment`, Auto Punch's `subjectPoint`) and a line drawing from a photo
+/// (`lines: edges`).
+#[test]
+fn picture_helpers_cut_out_and_draw_lines() {
+    let dir = temp_dir();
+    // A red disc on mottled green.
+    let img = Raster::from_fn(90, 60, |x, y| {
+        if (f64::from(x) - 45.0).hypot(f64::from(y) - 30.0) < 15.0 {
+            [210, 30, 40, 255]
+        } else {
+            [
+                50 + ((x * 13 + y * 7) % 30) as u8,
+                150 + ((x * 5 + y * 11) % 40) as u8,
+                50,
+                255,
+            ]
+        }
+    })
+    .expect("size");
+    std::fs::write(dir.join("disc.png"), img.encode_png().expect("png")).expect("write");
+    let mut s = Session::sandboxed(&dir);
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    let r = run(
+        &mut s,
+        "digitize.segment",
+        json!({"path": "disc.png", "point": [0.5, 0.5], "out": "mask.png"}),
+    );
+    let b = r["box"].as_array().expect("box");
+    let f = |i: usize| b[i].as_f64().expect("number");
+    assert!(
+        f(0) > 0.25 && f(2) < 0.75 && f(1) > 0.15 && f(3) < 0.85,
+        "{r}"
+    );
+    let mask = Raster::decode(&std::fs::read(dir.join("mask.png")).expect("written")).expect("png");
+    assert_eq!(
+        mask.pixel(mask.width() / 2, mask.height() / 2),
+        [0, 0, 0, 255]
+    );
+    assert_eq!(mask.pixel(1, 1), [255, 255, 255, 255]);
+    // Auto Punch with the click sews the disc and leaves the green out.
+    let ap = run(
+        &mut s,
+        "digitize.autoPunch",
+        json!({"path": "disc.png", "width": 60, "compatMode": "openStitch", "isolateSubject": true, "subjectPoint": [0.5, 0.5], "colors": 2}),
+    );
+    // The disc, and at most a thin fringe of the grass's colour round its edge.
+    let plan = ap["plan"].as_array().expect("plan");
+    let area = |red: bool| -> f64 {
+        plan.iter()
+            .filter(|r| (r["color"] == "#ed171f") == red)
+            .map(|r| r["areaMm2"].as_f64().expect("area"))
+            .sum()
+    };
+    assert!(
+        area(true) > 300.0 && area(false) < 0.05 * area(true),
+        "{ap}"
+    );
+    // The edges as a line image: a ring round the disc.
+    let li = run(
+        &mut s,
+        "digitize.lineImage",
+        json!({"path": "disc.png", "lines": "edges", "edgeStrength": 30}),
+    );
+    assert!(li["linePixels"].as_u64().expect("count") > 50, "{li}");
+    let dc = run(
+        &mut s,
+        "digitize.designCenter",
+        json!({"path": "disc.png", "lines": "edges", "width": 60, "regionSew": "none"}),
+    );
+    assert!(!dc["ids"].as_array().expect("ids").is_empty(), "{dc}");
+    let base = json!({"path": "disc.png", "width": 60, "compatMode": "openStitch"});
+    for (command, extra, needle) in [
+        (
+            "digitize.autoPunch",
+            json!({"subjectPoint": [0.5, 0.5]}),
+            "isolateSubject",
+        ),
+        (
+            "digitize.autoPunch",
+            json!({"isolateSubject": true, "subjectPoint": [0.5, 0.5], "subjectRect": [0, 0, 1, 1]}),
+            "subjectRect",
+        ),
+        (
+            "digitize.autoPunch",
+            json!({"isolateSubject": true, "subjectPoint": [1.5, 0.5]}),
+            "subjectPoint",
+        ),
+        ("digitize.segment", json!({"point": [0.5]}), "point"),
+        (
+            "digitize.lineImage",
+            json!({"edgeStrength": 30}),
+            "lines: edges",
+        ),
+        (
+            "digitize.lineImage",
+            json!({"lines": "edges", "threshold": 100}),
+            "edgeStrength",
+        ),
+        (
+            "digitize.segment",
+            json!({"point": [0.5, 0.5], "out": "../m.png"}),
+            "",
+        ),
+    ] {
+        let mut p = base.clone();
+        for (k, v) in extra.as_object().expect("object") {
+            p[k] = v.clone();
+        }
+        let e = s.execute(command, Some(&p)).expect_err("rejected");
+        assert!(e.to_string().contains(needle), "{command} {extra}: {e}");
+    }
+}

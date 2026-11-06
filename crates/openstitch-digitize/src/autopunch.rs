@@ -67,6 +67,10 @@ pub struct AutoPunch {
     pub isolate: Option<grabcut::Seed>,
     /// With `isolate`: the user's subject and background strokes (#350).
     pub marks: grabcut::Marks,
+    /// With `isolate`: a click on the subject (`[x, y]`, fractions of the image), which keeps
+    /// only the part of the subject holding it ([`grabcut::isolate_at`], #490); the border is
+    /// then the background the cut learns from.
+    pub subject_point: Option<[f64; 2]>,
     /// Per-region choices that replace Auto Punch's own (#489), by region number in sewing
     /// order ([`Region::id`], as a run with the same options numbers them).
     pub overrides: Vec<Override>,
@@ -252,6 +256,7 @@ impl Default for AutoPunch {
             fidelity: Fidelity::Standard,
             isolate: None,
             marks: grabcut::Marks::default(),
+            subject_point: None,
             overrides: Vec::new(),
             angle_rule: AngleRule::Pe,
             underlap_mm: 0.0,
@@ -589,7 +594,10 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
     // OpenStitch mode with `isolate`: the graph cut decides the subject; everything outside it
     // is left out, and the background thread is the one most common there.
     let subject = match (p.isolate, p.mode) {
-        (Some(seed), Mode::OpenStitch) => grabcut::isolate(&census.modal, w, h, seed, &p.marks),
+        (Some(seed), Mode::OpenStitch) => match p.subject_point {
+            Some(at) => grabcut::isolate_at(&census.modal, w, h, at, &p.marks),
+            None => grabcut::isolate(&census.modal, w, h, seed, &p.marks),
+        },
         _ => None,
     };
     if subject.as_ref().is_some_and(|s| !s.contains(&true)) {
