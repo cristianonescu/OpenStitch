@@ -170,7 +170,8 @@ then style them in the next.
   run it without `dryRun` if they agree (`metric: rgb` is PE-DESIGN's rule). The thread
   makers' charts (Madeira, Isacord, Sulky, Robison-Anton) are `builtin` ids: `threads.builtinCharts`
   lists them with `kind: "brand"`. `threads.find`
-  `{query}` finds a thread by code or name. After `import.svg` or a `digitize.*` wizard gives
+  `{query}` finds a thread by code or name (`charts: ["brother"]` searches the PEC chart as the
+  editor's colour picker search does). After `import.svg` or a `digitize.*` wizard gives
   many near-identical colours, offer `threads.mergeSimilar` (`dryRun` first; it reports the
   colour changes saved, and `order.byColor` when `suggestSortByColor`).
 - The user's own threads: when they say "use my threads", have a thread chart (`threads.charts`
