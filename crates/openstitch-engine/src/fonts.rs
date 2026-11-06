@@ -389,7 +389,7 @@ fn load_truetype(s: &mut EngineState, p: &Params) -> Result<Value, CommandError>
     }))
 }
 
-fn id_taken(s: &EngineState, id: &str) -> bool {
+pub(crate) fn id_taken(s: &EngineState, id: &str) -> bool {
     text::font(id).is_some_and(|f| f.id == id) || s.design.fonts.iter().any(|f| f.id == id)
 }
 
@@ -417,7 +417,7 @@ fn family_param(p: &Params, id: &str) -> Result<String, CommandError> {
 }
 
 /// Refuses growth past the per-design font budget.
-fn check_room(s: &EngineState, p: &Params, extra: usize) -> Result<(), CommandError> {
+pub(crate) fn check_room(s: &EngineState, p: &Params, extra: usize) -> Result<(), CommandError> {
     let total: usize = s.design.fonts.iter().map(DesignFont::byte_size).sum();
     if s.design.fonts.len() >= MAX_DESIGN_FONTS || total + extra > MAX_TOTAL_FONT_BYTES {
         return Err(p.failed(format!(
@@ -850,6 +850,15 @@ pub(crate) fn list(s: &EngineState) -> Value {
             row["file"] = json!(file);
         }
         if let FontData::Embroidery(e) = &f.data {
+            if let Some((lo, hi)) = e.size_range {
+                row["sizeRange"] = json!({ "minMm": lo, "maxMm": hi });
+            }
+            if let Some(s) = &e.sewing {
+                row["stitchTypes"] = json!([s]);
+            }
+            if !e.kerning.is_empty() {
+                row["kerningPairs"] = json!(e.kerning.len());
+            }
             row["heightMM"] = json!(e.cap_height / MM);
             row["stitchGlyphs"] = json!(e.glyphs.iter().filter(|g| g.stitches.is_some()).count());
         }

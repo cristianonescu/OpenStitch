@@ -117,6 +117,8 @@ pub struct UiPrefs {
     pub font_filter: FontFilter,
     /// Startup splash on an interactive start.
     pub splash: bool,
+    /// The folder of Ink/Stitch-format embroidery fonts (Text ▸ Ink/Stitch Fonts, #529).
+    pub inkstitch_folder: Option<PathBuf>,
     pub updates: UpdatePrefs,
     /// Preferences ▸ AI (the Assistant panel, B17); the API key is in the keychain.
     pub ai: super::assistant_chat::AiPrefs,
@@ -185,6 +187,7 @@ impl Default for UiPrefs {
             realistic: RealisticSettings::default(),
             font_filter: FontFilter::default(),
             splash: true,
+            inkstitch_folder: None,
             updates: UpdatePrefs::default(),
             ai: Default::default(),
             editing: EditingPrefs::default(),
@@ -226,6 +229,7 @@ impl UiPrefs {
             },
             "fontFilter": { "on": self.font_filter.on, "hidden": self.font_filter.hidden },
             "showSplash": self.splash,
+            "inkStitchFolder": self.inkstitch_folder.as_ref().map(|p| p.display().to_string()),
             "updates": self.updates.to_json(),
             "ai": self.ai.to_json(),
             "editing": {
@@ -313,6 +317,10 @@ impl UiPrefs {
                     .unwrap_or_default(),
             },
             splash: v["showSplash"].as_bool().unwrap_or(d.splash),
+            inkstitch_folder: v["inkStitchFolder"]
+                .as_str()
+                .filter(|s| !s.is_empty() && s.len() < 4096)
+                .map(PathBuf::from),
             updates: UpdatePrefs::from_json(&v["updates"]),
             ai: super::assistant_chat::AiPrefs::from_json(&v["ai"]),
             editing: {

@@ -119,11 +119,20 @@ then style them in the next.
   visible: true}`, or filter by `color`, `regionType`, `lineType`; then `ui.select` the ids.
 - Text: `object.setText` (text, font, size, spacing), `text.setPath` (fit to an outline).
 - Fonts: `fonts.list` gives each bundled font's `sizeRange` (mm), `stitchTypes`, `kind` and
-  `group`; pick a font whose range holds the size, and tell the user when `text.add` /
-  `object.setText` return `sizeWarning`. Labels of 3-6 mm: `font: "openstitch-line"` (Small
+  `group`; pick a font whose range holds the size. `text.add` returns `sizeWarning` and
+  `object.setText` returns `sizeWarnings` (`[{id, warning}]`) when a size lies outside its
+  font's range: act on them (a font whose `sizeRange` fits, or a size inside the range) and
+  tell the user what you changed. Labels of 3-6 mm: `font: "openstitch-line"` (Small
   Text, a running line along each letter's centre; `object.setLine` `runTimes: 3` for bean
   stitch, or `type: zigzag, width: 1.2` for a narrow satin). Retro or sampler text:
   `font: "openstitch-pixel"` with `pixelStyle` run, cross or block (one pixel = size / 7).
+- Ink/Stitch fonts the user installed: `fonts.scanFolder {path}` lists the font folders,
+  `fonts.importInkStitch {path}` loads one (tell the user its licence and what `notRead`
+  lists); then `text.add {font: <id>}`.
+- Bent lettering beyond the 26 Text Transform presets: `text.setEnvelope {ids, shape:
+  bridge|pennant|perspective|diamond|preset}`, then `text.bendEnvelope {id, edge: top|bottom,
+  handle: left|middle|right, dx, dy, symmetric}` (mm on the page; `text.envelopeHandles`
+  says where the handles are). PES 0110 export refuses free envelopes: `text.toShapes` first.
 - Threads: to change the design to a thread chart ("use my Madeira threads"), run
   `threads.remap` `{builtin | chart, metric: ciede2000, keepDistinct: true, dryRun: true}`
   first and show the user the plan (design colour → thread, ΔE, objects, and `merged`), then

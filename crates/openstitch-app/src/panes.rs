@@ -497,6 +497,7 @@ fn text_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
         .default_open(true)
         .show(ui, |ui| crate::lettering_ui::font_browser(app, ui, &spec));
     transform_palette(app, ui, &spec);
+    crate::envelope_ui::pane(app, ui, &spec);
     ui.separator();
     ui.horizontal_wrapped(|ui| {
         for a in [
