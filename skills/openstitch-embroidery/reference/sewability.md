@@ -36,6 +36,11 @@ are a sound start; change them only for a reason.
 - `pullCompensation` (0.2-0.4 mm) widens row ends so shapes do not shrink when sewn.
 - Choose the sewing `angle` to cross the shape's long narrow parts, and vary it between
   neighbouring areas so they catch the light differently.
+- A fill travels from its start point to its first row straight across the region, as
+  PE-DESIGN does; dense rows hide it, open ones (low `density`, a light swatch) show it. Set
+  `runningStitchPath: "alongOutline"` (or `"onOutline"`) on such a fill so that travel walks
+  the edge instead, or place the start point where the first row begins
+  (`object.setEntryExit`).
 - Large overlapping fills sew thick and stiff: remove hidden parts with `shape.removeOverlap`
   instead of stacking fills.
 - Programmable fill sews from one pattern line to the next, as PE-DESIGN does, so a large or

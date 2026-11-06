@@ -888,6 +888,13 @@ Line references are relative to `crates/`.
 
 ## 12. No minimum font sizes or small-text fonts
 
+- **Status (2026-11-06, #527, #530):** largely done. `fonts.list` reports each bundled font's
+  `sizeRange` and `group` (text / smallText); `text.add` and `object.setText` return a
+  `sizeWarning` outside it (a warning, as OpenStitch never refuses a size); OpenStitch Line is a
+  small-text single-line font sewn as a running line with trims only for dots and letters more
+  than 2 mm apart. Left: comparing with PE-DESIGN's Small Text output (owner capture, #530), and
+  the attributes PE-DESIGN disables for small text (OpenStitch removes the region instead).
+
 - **Impact:** severity 4.
   - Text of any size from 1 to 300 mm is accepted without a warning.
   - 3–6 mm text is sewn as an ordinary fill, which puckers and fills in.
@@ -1592,6 +1599,28 @@ Line references are relative to `crates/`.
     top just right of the middle); no single walking rule fits those and the rectangle's 75.4°.
     The new specs `concentric-circle30` and `concentric-ellipse40x30` compare counts, bounds and
     stitch lengths, not the seam.
+- **Editor, batch:editor-core part 2 (2026-11-06; #549, #550):** autosave and recovery, the
+  command palette, the hints line and the property search are beyond PE-DESIGN and change no
+  design, file or default PE-DESIGN behaviour: snapshots are written only to OpenStitch's own
+  settings folder (never the design's file), and the palette runs the same ribbon commands a
+  click runs.
+- **Editor, batch:editor-core (2026-11-06; #500, #502):** Copy, Cut and Paste go through the
+  system clipboard as OpenStitch object data, and Paste puts objects back where they were copied
+  from, as PE-DESIGN 11 does between its windows; nothing PE-DESIGN reads or writes changes. The
+  Sewing Order list's rename, lock and click order change only names, a lock flag (`.osd` only)
+  and the object order. Sew outline first is beyond PE-DESIGN (off by default, PE-DESIGN's
+  region-then-outline order unchanged): PE-DESIGN has no per-shape part order, so a PES 11
+  export writes such a shape as two shapes, its outline then its region, and the stitch data
+  sews them in that order.
+- **Image digitizing, batch:auto-punch (2026-11-06; #445, #447, #469, #489):** PE-DESIGN-compatible
+  mode's output is unchanged on every gallery case (scorer identical, 17 cases). OpenStitch mode:
+  a paper background is the fabric showing (#445), thin parts cut by the sliver opening are
+  running lines (#469), the region plan, overrides and neighbour angles are new options (#489).
+  Measured and not shipped: giving PE-compatible mode as many distinct nearest threads as its
+  colour count (#447) gives p03 10 threads with Pewter, as PE-DESIGN's capture has, but
+  ΔE00 15.97 → 16.96 and MS-SSIM 0.625 → 0.611 (d01 improves, 23.97 → 23.40); Cross Stitch
+  edge cells taking one of their own threads (#469) helps g02 and g07 but g05 drops
+  (ΔE00 10.94 → 11.32).
 - **Image digitizing (Phase 6, issues #127, #128, #132, #129):** the Auto Punch, Cross Stitch
   and Photo Stitch pipelines were this project's own approximations; the Phase 6 gap analysis
   pins their arithmetic. Done 2026-10-29 (#128): mono Photo Stitch uses integer Rec. 601
@@ -2312,6 +2341,16 @@ Line references are relative to `crates/`.
   both cards; the Realistic view and the similarity scorer now draw thread that wide
   (`openstitch_design::calibration`, #291).
 
+### Assistant fixes, 2026-11-06 (#580, #384, #494, #495)
+
+Beyond PE-DESIGN only; no PE-DESIGN-compatible output changed (no compat spec, golden or writer
+touched). The new batch check (#494) reads the same parameter documentation as the MCP schemas
+and finds no problem in any of the repository's scripts: every compat spec's and example's steps
+validate clean (`openstitch-engine` `tests/validate.rs`), so a script that ran before still
+runs. Print PDFs handed to the operating system are cleaned up after a day (#384). The
+Assistant's stream timeout (#580) and thread-chart rules (#495) are in
+[ai-integration.md](research/beyond/ai-integration.md) "Assistant fixes".
+
 ### Kit review and calibration cards, 2026-11-06 (#295, #441, #311, #312)
 
 - **New sew_check checks (#295):** trims per 1,000 stitches (limit 55: PE-DESIGN's 453 files in
@@ -2611,6 +2650,41 @@ averaged 50/50, on the calibrated render; every result is OpenStitch's output.
 - **Platform-independent arch (#609):** fixed 2026-10-30 (above); on Linux the spec measures
   the same as on Windows and macOS, `determinism.rs` pins the bits on all three systems, and
   PE-DESIGN's re-save is the spec's reference.
+
+### Stitch-engine bug batch 3, 2026-11-06 (`batch:engine-bugs-3`: #570, #571, #628, #466, #627, #633)
+
+- **Needle drops past reshaped outlines (#570, #571):** the four random-design seeds (150, 154,
+  339, 398) were not E-stitch, chain or fill-row defects: `object.setPoint` reshaped an
+  outline and left its start and end points (the old bottom centre) off it, and the fill
+  travelled out to them (seed 150: a run of 2 mm stitches to 9.6 mm past the bounds). A region's
+  start and end points more than 0.1 mm off its outline are now sewn where they snap to it. All
+  four seeds pass and leave the test's `KNOWN` list
+  (`a_moved_node_leaves_no_needle_drop_at_the_old_start_point`).
+- **Travel across a region (#628), partly:** PE-DESIGN 11.50 runs a fill's travel from its start
+  point to its first row straight across, at every density: `sweep-fill-density-min` (0.1
+  rows/mm) fails when it walks the outline (37 needle points differ), so Inside keeps it. Running
+  Stitch Path Along / On outline now walks that travel along the edge too (12 mm swatch at 0.5
+  rows/mm entered mid-bottom: a 13.4 mm straight travel to the top-left corner → none more than
+  2 mm inside the swatch).
+  A programmable fill's under sewing joins its edge run to its first row along the outline,
+  0.5 mm inside, instead of 26 mm straight across under the open diamonds. The 39.5 mm satin
+  travel of the comment was fixed in #460. Open: whether the default should leave PE-DESIGN's
+  straight travel where rows do not cover it (an owner decision).
+- **Cusps and apexes (#466):** a zigzag line round a heart folded its inner needle points over
+  the line at the top cusp (stitches crossing into a knot); a needle point nearer the line than
+  half its offset is now sewn on the line (a half stitch). The zigzag under sewing's mitre had no
+  limit and spiked out at the cusp; it is bevelled past 120°. Skeleton satin takes Half
+  Stitch, so the apex of `[[8,82],[20,70],[32,82]]` no longer piles its inner needle points (7
+  needle points within 0.2 mm of the one two before → 0). Straight-leg zigzag mitres (a star's
+  inner corners) wait for the Miter limit attribute (#373, PE captures listed).
+- **Design Center line art (#627):** the skeleton splits line art at every junction and each
+  piece was sewn alone with a trim. Pieces whose ends meet within 0.8 mm are now sewn as one path
+  per figure, walking back over sewn lines (at most 50 mm) to the nearest junction with an
+  unsewn line (`joinLines`, default on). Kit butterfly, PE-compatible mode: 91 → 14 trims, 60.0
+  → 7.8 per 1,000 stitches, 1,516 → 1,786 stitches; OpenStitch mode's parallel lines are
+  unchanged (15.4 per 1,000). No PE-DESIGN Design Center capture exists to compare the routing.
+- **Flaky timing test (#633):** `cheap_rules_are_fast_on_a_large_design` compares the check
+  with compiling the same design in the same run (best of three each) instead of a bare 50 ms.
 
 ## Order of work
 

@@ -502,6 +502,63 @@ fn batch_stops_at_first_failure_unless_asked() {
     assert_eq!(c.objects(), 3);
 }
 
+/// #494: an unknown parameter, an out-of-range value and a wrong type in three steps come back
+/// together, each with its step and parameter, and nothing runs (no object, no undo step).
+#[test]
+fn batch_reports_every_parameter_error_and_runs_nothing() {
+    let mut c = Client::new(Config::default());
+    let r = c.call(
+        "run_batch",
+        json!({"steps": [
+            {"tool": "shape_rectangle", "arguments": rect(0.0)},
+            {"tool": "shape_rectangle", "arguments": {"x": 0, "y": 0, "width": 5, "height": 5, "widht": 3}},
+            {"tool": "object_arrangeCopies", "arguments": {"ids": [1], "mode": "matrix", "rows": 500}},
+            {"tool": "object.get", "arguments": {"id": "one"}},
+        ]}),
+    );
+    assert_eq!(r["isError"], true, "{r}");
+    let s = &r["structuredContent"];
+    assert_eq!(
+        (s["ok"].clone(), s["ran"].clone()),
+        (json!(false), json!(0))
+    );
+    let errors: Vec<(u64, String)> = s["errors"]
+        .as_array()
+        .expect("errors")
+        .iter()
+        .map(|e| {
+            (
+                e["step"].as_u64().unwrap_or(99),
+                e["param"].as_str().unwrap_or("").to_string(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        errors,
+        [
+            (1, "widht".to_string()),
+            (2, "rows".to_string()),
+            (3, "id".to_string())
+        ],
+        "{s}"
+    );
+    assert!(
+        s["errors"][1]["message"]
+            .as_str()
+            .unwrap_or("")
+            .contains("1...100")
+    );
+    assert_eq!(c.objects(), 0, "the good first step did not run either");
+
+    let check = c.call(
+        "run_batch",
+        json!({"validateOnly": true, "steps": [{"tool": "shape_rectangle", "arguments": rect(0.0)}]}),
+    );
+    assert_eq!(check["isError"], false, "{check}");
+    assert_eq!(check["structuredContent"]["ok"], true);
+    assert_eq!(c.objects(), 0);
+}
+
 #[test]
 fn batch_enforces_step_limit_and_validates_before_running() {
     let mut c = Client::new(Config::default());

@@ -388,7 +388,8 @@ fn folder_node(app: &mut EditorApp, ui: &mut egui::Ui, dir: &Path, depth: usize)
     }
     let current = app.database.folder.as_deref() == Some(dir);
     let header = state.show_header(ui, |ui| {
-        let r = ui.selectable_label(current, format!("📁 {}", folder_label(dir)));
+        let icon = crate::icons::ui_image(ui, "folder");
+        let r = ui.selectable_label(current, (icon, folder_label(dir)));
         drop_target(app, ui, &r, dir);
         if current && app.database.reveal {
             app.database.reveal = false;
@@ -540,11 +541,13 @@ fn tiles(app: &mut EditorApp, ui: &mut egui::Ui, side: f32) {
             if r.hovered() {
                 painter.rect_filled(rect, 4.0, ui.visuals().widgets.hovered.weak_bg_fill);
             }
-            painter.text(
-                rect.center_top() + egui::vec2(0.0, side * 0.5 + 4.0),
-                egui::Align2::CENTER_CENTER,
-                "📁",
-                egui::FontId::proportional(side * 0.45),
+            crate::icons::paint_ui(
+                &painter,
+                egui::Rect::from_center_size(
+                    rect.center_top() + egui::vec2(0.0, side * 0.5 + 4.0),
+                    egui::Vec2::splat(side * 0.5),
+                ),
+                "folder",
                 ui.visuals().text_color(),
             );
             label_under(ui, &painter, rect, side, &folder_label(f));

@@ -507,8 +507,11 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
                                 json!({ "hoop": key }),
                             ));
                         }
+                        let down =
+                            egui::Button::new(crate::icons::ui_image(ui, "move_down")).small();
                         if ui
-                            .add_enabled(i + 1 < m.user_hoops.len(), egui::Button::new("↓").small())
+                            .add_enabled(i + 1 < m.user_hoops.len(), down)
+                            .on_hover_text("Move down")
                             .clicked()
                         {
                             requests.push(CommandRequest::new(
@@ -516,7 +519,8 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
                                 json!({ "hoop": key, "direction": "down" }),
                             ));
                         }
-                        if ui.add_enabled(i > 0, egui::Button::new("↑").small()).clicked() {
+                        let up = egui::Button::new(crate::icons::ui_image(ui, "move_up")).small();
+                        if ui.add_enabled(i > 0, up).on_hover_text("Move up").clicked() {
                             requests.push(CommandRequest::new(
                                 "machine.moveUserHoop",
                                 json!({ "hoop": key, "direction": "up" }),

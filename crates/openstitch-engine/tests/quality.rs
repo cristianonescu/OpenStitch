@@ -521,21 +521,40 @@ fn cheap_rules_are_fast_on_a_large_design() {
             json!({"x": 10, "y": 10 + k * 35, "width": 180, "height": 30, "fill": "Red"}),
         );
     }
-    let t = Traced::new(s.design());
+    // #633: a wall-clock budget alone failed on a busy machine (0.08 s against 50 ms while
+    // other builds ran). The check is measured against compiling the same design in the same
+    // run, which a loaded machine slows alike: the cheap rules must cost less than one
+    // compile, the best of three runs each. On an idle machine the fixed budget still holds
+    // on its own.
+    let mut traced = std::time::Duration::MAX;
+    let mut t = None;
+    for _ in 0..3 {
+        let start = std::time::Instant::now();
+        t = Some(Traced::new(s.design()));
+        traced = traced.min(start.elapsed());
+    }
+    let t = t.expect("traced");
     assert!(
         t.pattern.count(Command::Stitch) > 30_000,
         "{}",
         t.pattern.count(Command::Stitch)
     );
-    let start = std::time::Instant::now();
-    let found = openstitch_engine::quality::check(
-        s.design(),
-        &t,
-        &openstitch_engine::quality::CheckOptions { fabric: (2.0, 3.0) },
-    );
-    let took = start.elapsed();
+    let mut took = std::time::Duration::MAX;
+    let mut found = Vec::new();
+    for _ in 0..3 {
+        let start = std::time::Instant::now();
+        found = openstitch_engine::quality::check(
+            s.design(),
+            &t,
+            &openstitch_engine::quality::CheckOptions { fabric: (2.0, 3.0) },
+        );
+        took = took.min(start.elapsed());
+    }
     // 50 ms in a release build; a debug build is about ten times slower.
-    let budget = if cfg!(debug_assertions) { 1000 } else { 50 };
-    assert!(took.as_millis() < budget, "{took:?}");
+    let budget = std::time::Duration::from_millis(if cfg!(debug_assertions) { 1000 } else { 50 });
+    assert!(
+        took < budget.max(traced),
+        "the cheap rules took {took:?}; compiling the design took {traced:?}"
+    );
     assert!(found.is_empty(), "{found:?}");
 }

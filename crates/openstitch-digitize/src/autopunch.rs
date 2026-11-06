@@ -16,7 +16,7 @@ use crate::regions::{self, NONE, TraceOptions};
 use crate::{DigitizeError, Fidelity, Mode, columns, outline};
 use openstitch_core::Thread;
 use openstitch_design::fmath::Det;
-use openstitch_design::{Contour, DesignObject, RegionSewing, RegionType};
+use openstitch_design::{Contour, DesignObject, LineSewing, LineType, RegionSewing, RegionType};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct AutoPunch {
@@ -67,7 +67,146 @@ pub struct AutoPunch {
     pub isolate: Option<grabcut::Seed>,
     /// With `isolate`: the user's subject and background strokes (#350).
     pub marks: grabcut::Marks,
+    /// Per-region choices that replace Auto Punch's own (#489), by region number in sewing
+    /// order ([`Region::id`], as a run with the same options numbers them).
+    pub overrides: Vec<Override>,
+    /// How fills choose their direction (#489).
+    pub angle_rule: AngleRule,
 }
+
+/// How a traced region is sewn (#489).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Stitch {
+    Fill,
+    Satin,
+    /// A running line along the region's skeleton (or a satin outline, for the dark
+    /// contour lines OpenStitch mode takes out).
+    Line,
+    /// Left out.
+    Skip,
+}
+
+impl Stitch {
+    pub const ALL: [Stitch; 4] = [Stitch::Fill, Stitch::Satin, Stitch::Line, Stitch::Skip];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Stitch::Fill => "fill",
+            Stitch::Satin => "satin",
+            Stitch::Line => "line",
+            Stitch::Skip => "skip",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Stitch> {
+        Stitch::ALL
+            .into_iter()
+            .find(|k| k.name().eq_ignore_ascii_case(s))
+    }
+}
+
+/// Why a region got its stitch (#489), as a code with an English sentence ([`Region::why`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Reason {
+    /// A stroke within the satin widths.
+    SatinWidth,
+    /// Wider than the satin maximum.
+    Wide,
+    /// Narrower than the satin minimum.
+    Narrow,
+    /// OpenStitch mode: compact, not a stroke.
+    Compact,
+    /// A satin whose stitches would be too long.
+    LongSatin,
+    /// OpenStitch mode: a dark contour line, sewn as a satin outline on top.
+    Outline,
+    /// OpenStitch mode: under [`outline::THIN_MM`] wide, a running line.
+    ThinLine,
+    /// Set by an override.
+    Override,
+}
+
+impl Reason {
+    pub fn code(self) -> &'static str {
+        match self {
+            Reason::SatinWidth => "satin_width",
+            Reason::Wide => "wide",
+            Reason::Narrow => "narrow",
+            Reason::Compact => "compact",
+            Reason::LongSatin => "long_satin",
+            Reason::Outline => "outline",
+            Reason::ThinLine => "thin_line",
+            Reason::Override => "override",
+        }
+    }
+}
+
+/// One traced region of a conversion and how it is sewn (#489).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Region {
+    /// Number in sewing order, what an [`Override`] names.
+    pub id: usize,
+    pub thread: Thread,
+    pub area_mm2: f64,
+    /// Stroke width, mm (twice the deepest inscribed distance; 0 for lines).
+    pub width_mm: f64,
+    pub stitch: Stitch,
+    pub reason: Reason,
+    /// Fill or fixed satin direction, degrees counter-clockwise on screen.
+    pub angle: Option<f64>,
+}
+
+impl Region {
+    /// The reason as a sentence.
+    pub fn why(&self, p: &AutoPunch) -> String {
+        let w = self.width_mm;
+        match self.reason {
+            Reason::SatinWidth => format!(
+                "{w:.1} mm wide, within the satin widths {:.1}-{:.1} mm: satin",
+                p.satin_min_mm, p.satin_max_mm
+            ),
+            Reason::Wide => format!(
+                "{w:.1} mm wide, over the satin maximum {:.1} mm: fill",
+                p.satin_max_mm
+            ),
+            Reason::Narrow => format!(
+                "{w:.1} mm wide, under the satin minimum {:.1} mm: fill",
+                p.satin_min_mm
+            ),
+            Reason::Compact => {
+                format!("a compact shape, not a stroke {SATIN_ASPECT} times as long as wide: fill")
+            }
+            Reason::LongSatin => "satin stitches would be over 10.5 mm long: fill".to_string(),
+            Reason::Outline => "a dark contour line: satin outline sewn on top".to_string(),
+            Reason::ThinLine => format!("under {} mm wide: running line", outline::THIN_MM),
+            Reason::Override => format!("set to {} by an override", self.stitch.name()),
+        }
+    }
+}
+
+/// A user's choice for one region (#489).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Override {
+    pub region: usize,
+    /// The stitch, or `None` to keep Auto Punch's.
+    pub stitch: Option<Stitch>,
+    /// Fill or satin direction, degrees counter-clockwise on screen.
+    pub angle: Option<f64>,
+}
+
+/// How fills choose their direction (#489).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum AngleRule {
+    /// PE-DESIGN's rule, [`fill_angle`] (the default).
+    #[default]
+    Pe,
+    /// [`fill_angle`], turned in steps of 30° until it is at least [`NEIGHBOUR_DEG`] from
+    /// every touching fill sewn before it, so fitted panels read apart.
+    VaryNeighbours,
+}
+
+/// With [`AngleRule::VaryNeighbours`]: least angle between touching fills, degrees.
+pub const NEIGHBOUR_DEG: f64 = 20.0;
 
 impl Default for AutoPunch {
     fn default() -> Self {
@@ -87,6 +226,8 @@ impl Default for AutoPunch {
             fidelity: Fidelity::Standard,
             isolate: None,
             marks: grabcut::Marks::default(),
+            overrides: Vec::new(),
+            angle_rule: AngleRule::Pe,
         }
     }
 }
@@ -155,6 +296,8 @@ pub struct Converted {
     pub threads: Vec<Thread>,
     /// The background thread left out, if any.
     pub background: Option<Thread>,
+    /// Every traced region and how it is sewn, in sewing order (#489).
+    pub regions: Vec<Region>,
 }
 
 /// Labels per working pixel from the census's modal colours with their shades kept
@@ -206,6 +349,11 @@ pub fn border_majority(labels: &[u16], w: usize, h: usize) -> Option<u16> {
 /// OpenStitch mode: a region under the minimum area is kept as a piece of a line when its mean
 /// width (area over its longest side) is at most this, mm, and it is at least twice as long.
 pub const LINE_WIDTH_MM: f64 = 0.5;
+
+/// OpenStitch mode keeps thin features as lines (#469) on pictures of at most this many
+/// colours (graphics: g02's balloon with its basket's brown, 7). On photographs (p03 and d01,
+/// 10) such slivers are shading, and as lines they added 3-4 colour changes for no likeness.
+pub const THIN_LINE_COLORS: usize = 7;
 
 /// OpenStitch mode's rows per mm in fills and satins: the sparsest that still covers the
 /// fabric with OpenStitch's fill (fewer rows leave gaps a thread wide).
@@ -347,6 +495,21 @@ pub fn open_slivers(labels: &mut [u16], w: usize, h: usize, r: usize, hairlines:
 /// the fabric showing. A sky, a cream card or any other coloured background is sewn.
 pub const FABRIC_DE: f64 = 5.0;
 
+/// A background at least this light (CIELAB L*) …
+pub const PAPER_L: f64 = 88.0;
+/// … and at most this colourful (CIELAB chroma) is paper (white, cream, off-white scans): on a
+/// light fabric it is the fabric showing, not a picture to sew (#445: g08's cream ground,
+/// ΔE00 6-7 from white, was sewn as a 100 × 67 mm fill and fused the letters).
+pub const PAPER_CHROMA: f64 = 15.0;
+
+/// Whether a background of colour `bg` is fabric `fabric` showing: within [`FABRIC_DE`] of it,
+/// or paper ([`PAPER_L`], [`PAPER_CHROMA`]) on a fabric that is itself paper-light.
+pub fn is_fabric(bg: Rgb, fabric: Rgb) -> bool {
+    let (b, f) = (perceptual::lab(bg), perceptual::lab(fabric));
+    let paper = |l: perceptual::Lab| l[0] >= PAPER_L && l[1].dhypot(l[2]) <= PAPER_CHROMA;
+    perceptual::de2000(b, f) <= FABRIC_DE || (paper(b) && paper(f))
+}
+
 pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted, DigitizeError> {
     let mut work = image.fit_mode(p.resolution.clamp(16, 2048));
     let mut census = palette::census(&work);
@@ -457,10 +620,8 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
             // With a fabric colour, a background of another colour is part of the picture, and
             // is sewn.
             let bg = bg.filter(|&m| {
-                p.fabric.is_none_or(|f| {
-                    let bg = perceptual::lab(palette.means[m as usize]);
-                    perceptual::de2000(bg, perceptual::lab(f)) <= FABRIC_DE
-                })
+                p.fabric
+                    .is_none_or(|f| is_fabric(palette.means[m as usize], f))
             });
             if let Some(bg) = bg {
                 for (l, m) in labels.iter_mut().zip(&means) {
@@ -509,9 +670,14 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
     };
     // OpenStitch mode, after the outlines are taken out: spikes and necks thinner than about 1.25 mm on a larger region go to
     // their neighbours (#290): rows or satin crossing them land their ends on one spot.
+    // Of what it takes, parts under 1 mm wide on one ground (a balloon's ropes cut from its
+    // basket) become running lines in their thread rather than vanish (#469); line art
+    // keeps its thin strokes whole, so has none.
+    let mut thin = Vec::new();
     if p.mode == Mode::OpenStitch {
         let opaque = census.modal.iter().filter(|m| m.is_some()).count().max(1);
         let line_art = border_pixels as f64 >= LINE_ART_SHARE * opaque as f64;
+        let before = labels.clone();
         open_slivers(
             &mut labels,
             w,
@@ -519,6 +685,9 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
             sliver_radius(frame.mm_per_px()),
             !line_art,
         );
+        if !line_art && colors <= THIN_LINE_COLORS {
+            thin = outline::thin_lines(&before, &labels, w, h, &frame, &p.trace);
+        }
     }
     let (mut id, mut comps) = regions::components(&labels, w, h);
     if comps.is_empty() && p.mode == Mode::OpenStitch && outlines.is_none() {
@@ -553,7 +722,23 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
         &palette,
         (0..palette.threads.len()).filter(|&t| area[t] > 0),
     );
+    let mm = frame.mm_per_px();
+    // Touching regions, for the neighbour angle rule.
+    let adjacent = match p.angle_rule {
+        AngleRule::VaryNeighbours => adjacency(&id, w, h, comps.len()),
+        AngleRule::Pe => Vec::new(),
+    };
+    let mut fill_of: Vec<Option<f64>> = vec![None; comps.len()];
     let mut objects = Vec::new();
+    let mut plan: Vec<Region> = Vec::new();
+    let mut threads: Vec<Thread> = Vec::new();
+    let mut sew = |o: DesignObject, thread: &Thread, objects: &mut Vec<DesignObject>| {
+        if threads.last() != Some(thread) {
+            threads.push(thread.clone());
+        }
+        objects.push(o);
+    };
+    let override_of = |id: usize| p.overrides.iter().find(|o| o.region == id);
     for (colour, &t) in order.iter().enumerate() {
         let thread = palette.threads[t].clone();
         let mut mine: Vec<(usize, &regions::Component)> = comps
@@ -574,24 +759,81 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
             let across = normalize(axis + 90.0);
             // Centerline test: a region is a stroke (satin across it) when its width at its
             // deepest point is within the satin width; one that keeps area beyond it is fill.
-            let width_mm = regions::thickness(&m, mw, mh) * frame.mm_per_px();
+            let width_mm = regions::thickness(&m, mw, mh) * mm;
             // OpenStitch mode keeps satin for strokes: a compact shape (a dot, a pupil) sewn
             // in one satin direction shows long, uneven stitches, so it is filled.
             let stroke = match p.mode {
                 Mode::PeDesign => true,
                 Mode::OpenStitch => {
-                    let w_px = width_mm / frame.mm_per_px();
+                    let w_px = width_mm / mm;
                     k.area as f64 >= SATIN_ASPECT * w_px * w_px
                 }
             };
-            let satin = stroke && (p.satin_min_mm..=p.satin_max_mm).contains(&width_mm);
+            let (auto, reason) = if width_mm > p.satin_max_mm {
+                (Stitch::Fill, Reason::Wide)
+            } else if width_mm < p.satin_min_mm {
+                (Stitch::Fill, Reason::Narrow)
+            } else if !stroke {
+                (Stitch::Fill, Reason::Compact)
+            } else {
+                (Stitch::Satin, Reason::SatinWidth)
+            };
+            let ov = override_of(plan.len());
+            let set = ov.and_then(|o| o.stitch);
+            let mut entry = Region {
+                id: plan.len(),
+                thread: thread.clone(),
+                area_mm2: k.area as f64 * mm * mm,
+                width_mm,
+                stitch: set.unwrap_or(auto),
+                reason: if set.is_some() {
+                    Reason::Override
+                } else {
+                    reason
+                },
+                angle: None,
+            };
+            match entry.stitch {
+                Stitch::Skip => {
+                    plan.push(entry);
+                    continue;
+                }
+                Stitch::Line => {
+                    let mut line = LineSewing::new(LineType::Running, thread.clone());
+                    line.pitch = outline::THIN_PITCH_MM;
+                    if let Some(mut o) =
+                        outline::skeleton_line(&m, mw, mh, (k.x0, k.y0), &frame, &p.trace, line)
+                    {
+                        o.name = Some(format!("Auto Punch {} line", objects.len() + 1));
+                        sew(o, &thread, &mut objects);
+                    }
+                    plan.push(entry);
+                    continue;
+                }
+                Stitch::Fill | Stitch::Satin => {}
+            }
+            let satin = entry.stitch == Stitch::Satin;
+            let set_angle = ov.and_then(|o| o.angle);
+            // The fill direction: the override's, PE-DESIGN's rule, or turned away from the
+            // touching fills sewn before (#489).
+            let fill_deg = set_angle.unwrap_or_else(|| {
+                let base = fill_angle(&m, mw, mh, mm);
+                match p.angle_rule {
+                    AngleRule::Pe => base,
+                    AngleRule::VaryNeighbours => {
+                        let near: Vec<f64> =
+                            adjacent[c].iter().filter_map(|&n| fill_of[n]).collect();
+                        vary_angle(base, &near)
+                    }
+                }
+            });
             // Flat graphics, PE-DESIGN mode (OpenStitch mode sews wide strokes as fill and its
             // thin ones as satin outlines; the split did not help it): a satin region made of
-            // straight bars (T, H) is sewn bar by bar,
-            // each straight across; a curved stroke (S, C) as one column through rungs square to
-            // its centre line; a single bar keeps Auto satin ([`columns`], #443).
-            let strokes = if satin && flat && p.mode == Mode::PeDesign {
-                columns::split(&m, mw, mh, width_mm / frame.mm_per_px())
+            // straight bars (T, H) is sewn bar by bar, each straight across; a curved stroke
+            // (S, C) as one column through rungs square to its centre line; a single bar keeps
+            // Auto satin ([`columns`], #443). A set angle keeps one satin.
+            let strokes = if satin && flat && p.mode == Mode::PeDesign && set_angle.is_none() {
+                columns::split(&m, mw, mh, width_mm / mm)
             } else {
                 columns::Strokes::Single
             };
@@ -628,7 +870,7 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                     // counter-clockwise on screen, as PE-DESIGN gives them. A bar of a split region
                     // has its own fixed direction, straight across it; a curved column its rungs.
                     if satin {
-                        region.auto_direction = matches!(sewn, Sewn::Auto);
+                        region.auto_direction = matches!(sewn, Sewn::Auto) && set_angle.is_none();
                         region.underlay = false;
                         // A bar travels to its far end along its outline, under the rows' ends, as
                         // PE-DESIGN 11.50's Auto Punch columns of g08 do (0.5 mm inside the edge);
@@ -648,10 +890,11 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                         region.stitch_length = OPEN_STITCH_FILL_STITCH_MM;
                         region.underlay = false;
                     }
-                    region.angle = match (satin, &sewn) {
-                        (true, Sewn::Bar(d)) => normalize(-(d + 90.0)) + 0.0,
-                        (true, _) => normalize(-across) + 0.0,
-                        _ => fill_angle(&m, mw, mh, frame.mm_per_px()),
+                    region.angle = match (satin, &sewn, set_angle) {
+                        (true, Sewn::Bar(d), _) => normalize(-(d + 90.0)) + 0.0,
+                        (true, _, Some(a)) => normalize(a) + 0.0,
+                        (true, _, None) => normalize(-across) + 0.0,
+                        _ => fill_deg,
                     };
                     if satin && let Sewn::Column(rungs) = &sewn {
                         region.direction_lines = rungs.clone();
@@ -666,44 +909,194 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                 let mut region = build(satin);
                 if satin && longest_crossing(&contours, &region) > AUTO_PUNCH_LONGEST_SATIN {
                     region = build(false);
+                    entry.stitch = Stitch::Fill;
+                    entry.reason = Reason::LongSatin;
                 }
+                if region.kind == RegionType::Fill {
+                    fill_of[c] = Some(region.angle);
+                }
+                entry.angle.get_or_insert(region.angle);
                 let mut o = DesignObject::shape(contours, Some(region), None);
                 o.name = Some(format!(
                     "Auto Punch {} {}",
                     objects.len() + 1,
                     thread.name.as_deref().unwrap_or("thread")
                 ));
-                objects.push(o);
+                sew(o, &thread, &mut objects);
+            }
+            plan.push(entry);
+        }
+        // Thin features of this colour lying on a ground sewn already (or left out) are sewn
+        // with it, at no extra colour change (#469).
+        let early: Vec<outline::ThinLine> = thin
+            .extract_if(.., |l| {
+                l.thread == t
+                    && (l.ground == NONE || order[..=colour].contains(&(l.ground as usize)))
+            })
+            .collect();
+        for l in early {
+            let n = objects.len();
+            if let Some(o) = place_line(
+                &mut plan,
+                &p.overrides,
+                &thread,
+                l.line,
+                Reason::ThinLine,
+                n,
+            )? {
+                sew(o, &thread, &mut objects);
             }
         }
     }
-    // The outlines are sewn last, on the regions they border; their ink is the darkest
-    // thread, so normally the colour sewn last already.
-    let mut threads: Vec<Thread> = order.iter().map(|&t| palette.threads[t].clone()).collect();
+    // The other thin features after every region, colour by colour; then the outlines, sewn
+    // last on the regions they border (their ink is the darkest thread, so normally the
+    // colour sewn last already). Either can be left out by an override; they are no longer
+    // regions, so no other override applies.
+    let mut lines: Vec<(Thread, DesignObject, Reason)> = Vec::new();
+    let mut thin_threads: Vec<usize> = thin.iter().map(|l| l.thread).collect();
+    thin_threads.sort_unstable();
+    thin_threads.dedup();
+    for t in palette::brightness_order(&palette, thin_threads) {
+        for l in thin.iter().filter(|l| l.thread == t) {
+            lines.push((palette.threads[t].clone(), l.line.clone(), Reason::ThinLine));
+        }
+    }
     if let Some(o) = outlines {
         let ink = palette.threads[o.thread].clone();
-        if order.last() != Some(&o.thread) {
-            threads.push(ink.clone());
+        for line in o.lines {
+            lines.push((ink.clone(), line, Reason::Outline));
         }
-        for mut line in o.lines {
-            line.name = Some(format!(
-                "Auto Punch {} {} outline",
-                objects.len() + 1,
-                ink.name.as_deref().unwrap_or("thread")
-            ));
-            objects.push(line);
+    }
+    for (thread, line, reason) in lines {
+        if let Some(o) = place_line(
+            &mut plan,
+            &p.overrides,
+            &thread,
+            line,
+            reason,
+            objects.len(),
+        )? {
+            sew(o, &thread, &mut objects);
         }
+    }
+    if let Some(o) = p.overrides.iter().find(|o| o.region >= plan.len()) {
+        return Err(DigitizeError::Invalid(format!(
+            "override of region {}: the image has regions 0-{}",
+            o.region,
+            plan.len().saturating_sub(1)
+        )));
     }
     if objects.is_empty() {
         return Err(DigitizeError::Empty(
-            "every region was too small to trace".into(),
+            "every region was too small to trace or left out".into(),
         ));
     }
     Ok(Converted {
         objects,
         threads,
         background: background.map(|b| palette.threads[b as usize].clone()),
+        regions: plan,
     })
+}
+
+/// Adds a line taken out of the picture (a thin feature or an outline, `reason`) to the plan
+/// as the next region, and returns it in `thread`, named as object `n + 1`, unless an override
+/// leaves it out. Such a line is no longer a region: an override can only skip it.
+fn place_line(
+    plan: &mut Vec<Region>,
+    overrides: &[Override],
+    thread: &Thread,
+    mut line: DesignObject,
+    reason: Reason,
+    n: usize,
+) -> Result<Option<DesignObject>, DigitizeError> {
+    let id = plan.len();
+    let stitch = match overrides
+        .iter()
+        .find(|o| o.region == id)
+        .and_then(|o| o.stitch)
+    {
+        None | Some(Stitch::Line) => Stitch::Line,
+        Some(Stitch::Skip) => Stitch::Skip,
+        Some(other) => {
+            return Err(DigitizeError::Invalid(format!(
+                "region {id} is a line ({}); an override can only skip it, not make it {}",
+                reason.code(),
+                other.name()
+            )));
+        }
+    };
+    plan.push(Region {
+        id,
+        thread: thread.clone(),
+        area_mm2: 0.0,
+        width_mm: 0.0,
+        stitch,
+        reason: if stitch == Stitch::Skip {
+            Reason::Override
+        } else {
+            reason
+        },
+        angle: None,
+    });
+    if stitch == Stitch::Skip {
+        return Ok(None);
+    }
+    if let Some(l) = line.line.as_mut() {
+        l.thread = thread.clone();
+    }
+    line.name = Some(format!(
+        "Auto Punch {} {} {}",
+        n + 1,
+        thread.name.as_deref().unwrap_or("thread"),
+        if reason == Reason::Outline {
+            "outline"
+        } else {
+            "line"
+        }
+    ));
+    Ok(Some(line))
+}
+
+/// For each of `n` components, the others it touches (4-neighbours).
+fn adjacency(id: &[u32], w: usize, h: usize, n: usize) -> Vec<Vec<usize>> {
+    let mut adj: Vec<Vec<usize>> = vec![Vec::new(); n];
+    let mut link = |a: u32, b: u32| {
+        if a != b && a != u32::MAX && b != u32::MAX {
+            let (a, b) = (a as usize, b as usize);
+            if !adj[a].contains(&b) {
+                adj[a].push(b);
+                adj[b].push(a);
+            }
+        }
+    };
+    for y in 0..h {
+        for x in 0..w {
+            let i = y * w + x;
+            if x + 1 < w {
+                link(id[i], id[i + 1]);
+            }
+            if y + 1 < h {
+                link(id[i], id[i + w]);
+            }
+        }
+    }
+    adj
+}
+
+/// [`AngleRule::VaryNeighbours`]: `base`, or the first of it turned by 30°, -30°, 60°, -60°
+/// and 90° that is at least [`NEIGHBOUR_DEG`] from every angle of `near` (directions, so
+/// modulo 180°); `base` when none is.
+pub fn vary_angle(base: f64, near: &[f64]) -> f64 {
+    let apart = |a: f64, b: f64| {
+        let d = (a - b).rem_euclid(180.0);
+        d.min(180.0 - d)
+    };
+    [0.0, 30.0, -30.0, 60.0, -60.0, 90.0]
+        .into_iter()
+        .map(|t| normalize(base + t) + 0.0)
+        .find(|&a| near.iter().all(|&n| apart(a, n) >= NEIGHBOUR_DEG))
+        .unwrap_or(base)
 }
 
 /// Longest stitch (0.1 mm) Auto Punch lets a satin region sew: PE-DESIGN 11.50's Auto Punch

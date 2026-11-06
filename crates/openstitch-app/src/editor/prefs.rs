@@ -117,6 +117,8 @@ pub struct UiPrefs {
     pub font_filter: FontFilter,
     /// Startup splash on an interactive start.
     pub splash: bool,
+    /// The folder of Ink/Stitch-format embroidery fonts (Text ▸ Ink/Stitch Fonts, #529).
+    pub inkstitch_folder: Option<PathBuf>,
     pub updates: UpdatePrefs,
     /// Preferences ▸ AI (the Assistant panel, B17); the API key is in the keychain.
     pub ai: super::assistant_chat::AiPrefs,
@@ -130,6 +132,12 @@ pub struct UiPrefs {
     pub screen_calibration: Vec<(String, f64)>,
     /// View ▸ Show (#517, beyond PE-DESIGN); all off by default.
     pub show: ShowPrefs,
+    /// Autosave for crash recovery (#549): on by default, writes only to the recovery folder.
+    pub autosave: bool,
+    /// Longest time between snapshots while changes keep coming, seconds.
+    pub autosave_interval: f64,
+    /// Command palette (#550): the keys of the commands run from it, newest first.
+    pub recent_commands: Vec<String>,
 }
 
 /// View ▸ Show: view-only toggles (#517). The design and its export never change.
@@ -185,12 +193,16 @@ impl Default for UiPrefs {
             realistic: RealisticSettings::default(),
             font_filter: FontFilter::default(),
             splash: true,
+            inkstitch_folder: None,
             updates: UpdatePrefs::default(),
             ai: Default::default(),
             editing: EditingPrefs::default(),
             units: super::units::Units::Mm,
             screen_calibration: Vec::new(),
             show: ShowPrefs::default(),
+            autosave: true,
+            autosave_interval: super::recovery::DEFAULT_INTERVAL,
+            recent_commands: Vec::new(),
         }
     }
 }
@@ -226,6 +238,7 @@ impl UiPrefs {
             },
             "fontFilter": { "on": self.font_filter.on, "hidden": self.font_filter.hidden },
             "showSplash": self.splash,
+            "inkStitchFolder": self.inkstitch_folder.as_ref().map(|p| p.display().to_string()),
             "updates": self.updates.to_json(),
             "ai": self.ai.to_json(),
             "editing": {
@@ -247,6 +260,9 @@ impl UiPrefs {
                 "colorBy": self.show.color_by.as_str(),
                 "soloColor": self.show.solo,
             },
+            "autosave": self.autosave,
+            "autosaveInterval": self.autosave_interval,
+            "recentCommands": self.recent_commands,
         })
     }
 
@@ -313,6 +329,10 @@ impl UiPrefs {
                     .unwrap_or_default(),
             },
             splash: v["showSplash"].as_bool().unwrap_or(d.splash),
+            inkstitch_folder: v["inkStitchFolder"]
+                .as_str()
+                .filter(|s| !s.is_empty() && s.len() < 4096)
+                .map(PathBuf::from),
             updates: UpdatePrefs::from_json(&v["updates"]),
             ai: super::assistant_chat::AiPrefs::from_json(&v["ai"]),
             editing: {
@@ -369,6 +389,24 @@ impl UiPrefs {
                     solo: b("soloColor"),
                 }
             },
+            autosave: v["autosave"].as_bool().unwrap_or(d.autosave),
+            autosave_interval: v["autosaveInterval"]
+                .as_f64()
+                .filter(|n| n.is_finite())
+                .map_or(d.autosave_interval, |n| {
+                    n.clamp(super::recovery::MIN_INTERVAL, super::recovery::MAX_INTERVAL)
+                }),
+            recent_commands: v["recentCommands"]
+                .as_array()
+                .map(|l| {
+                    l.iter()
+                        .filter_map(Value::as_str)
+                        .filter(|k| Action::from_key(k).is_some())
+                        .map(str::to_string)
+                        .take(super::palette::MAX_RECENT)
+                        .collect()
+                })
+                .unwrap_or_default(),
         }
     }
 
@@ -526,6 +564,8 @@ mod tests {
         let font = |id: &str| FontChoice {
             id: id.into(),
             label: id.into(),
+            size_range: None,
+            group: "text".into(),
         };
         let fonts = vec![font("a"), font("b")];
         let mut f = FontFilter::default();

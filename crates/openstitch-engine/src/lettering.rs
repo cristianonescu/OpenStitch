@@ -24,6 +24,7 @@ const MAX_CSV_BYTES: usize = 1 << 20;
 pub(crate) fn commands() -> Vec<CommandSpec> {
     let mut v = name_drop_commands();
     v.extend(monogram_commands());
+    v.extend(crate::envelopes::commands());
     v
 }
 

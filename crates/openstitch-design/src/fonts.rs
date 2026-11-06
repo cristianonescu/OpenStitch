@@ -117,7 +117,21 @@ pub struct EmbroideryFont {
     /// Sorted by character, one per character.
     #[serde(default)]
     pub glyphs: Vec<EmbroideryGlyph>,
+    /// Kerning pairs (#529): (left, right, change of the space between them, 0.1 mm;
+    /// negative pulls them together), sorted by pair, applied whenever the font is used.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub kerning: Vec<(char, char, f64)>,
+    /// Text sizes (mm) the font sews well at, as its maker states them (#527, #529).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size_range: Option<(f64, f64)>,
+    /// The sewing the font is made for: "satin", "fill" or "running" (text in it gets that
+    /// sewing when none is asked for).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sewing: Option<String>,
 }
+
+/// Most kerning pairs an embroidery font may have.
+pub const MAX_KERNING_PAIRS: usize = 100_000;
 
 /// One character of an [`EmbroideryFont`]: outlines sewn with the text object's sewing
 /// attributes, a stitch design sewn as registered, or both.
@@ -143,7 +157,17 @@ impl EmbroideryFont {
             descender: cap_height * 0.3,
             line_gap: 0.0,
             glyphs: Vec::new(),
+            kerning: Vec::new(),
+            size_range: None,
+            sewing: None,
         }
+    }
+
+    /// The change of the space between `left` and `right`, 0.1 mm (0 without a pair).
+    pub fn kern(&self, left: char, right: char) -> f64 {
+        self.kerning
+            .binary_search_by(|&(l, r, _)| (l, r).cmp(&(left, right)))
+            .map_or(0.0, |i| self.kerning[i].2)
     }
 
     pub fn glyph(&self, ch: char) -> Option<&EmbroideryGlyph> {
@@ -240,6 +264,30 @@ impl EmbroideryFont {
                     return bad("stitch data without stitches");
                 }
             }
+        }
+        if self.kerning.len() > MAX_KERNING_PAIRS
+            || self
+                .kerning
+                .windows(2)
+                .any(|w| (w[0].0, w[0].1) >= (w[1].0, w[1].1))
+            || !self
+                .kerning
+                .iter()
+                .all(|k| ok(k.2, -MAX_GLYPH_COORD, MAX_GLYPH_COORD))
+        {
+            return Err("kerning pairs must be sorted, unique and in range".into());
+        }
+        if let Some((lo, hi)) = self.size_range
+            && !(ok(lo, 0.1, 1000.0) && ok(hi, lo, 1000.0))
+        {
+            return Err("sizeRange must be 0.1-1000 mm, smallest first".into());
+        }
+        if self
+            .sewing
+            .as_deref()
+            .is_some_and(|s| !matches!(s, "satin" | "fill" | "running"))
+        {
+            return Err("sewing must be satin, fill or running".into());
         }
         if points > MAX_FONT_POINTS {
             return Err(format!("more than {MAX_FONT_POINTS} outline points"));

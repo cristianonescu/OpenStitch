@@ -1,6 +1,7 @@
 //! A Server-Sent Events reader (the WHATWG event-stream format) over any `BufRead`.
 
 use std::io::{self, BufRead};
+use std::time::{Duration, Instant};
 
 /// One dispatched event: its `event:` name (empty when the stream gave none) and its data,
 /// the `data:` lines joined with `\n`.
@@ -13,6 +14,10 @@ pub(crate) struct SseEvent {
 pub(crate) struct SseReader<R> {
     inner: R,
     line: Vec<u8>,
+    /// Ends the read when lines keep coming but no event has for this long: a stream of
+    /// comments or blank lines only (#580).
+    idle: Option<Duration>,
+    since: Instant,
 }
 
 impl<R: BufRead> SseReader<R> {
@@ -20,6 +25,26 @@ impl<R: BufRead> SseReader<R> {
         SseReader {
             inner,
             line: Vec::new(),
+            idle: None,
+            since: Instant::now(),
+        }
+    }
+
+    /// A reader that gives up with [`io::ErrorKind::TimedOut`] after `idle` without an event.
+    pub fn with_idle(inner: R, idle: Duration) -> Self {
+        SseReader {
+            idle: Some(idle),
+            ..SseReader::new(inner)
+        }
+    }
+
+    fn quiet_too_long(&self) -> io::Result<()> {
+        match self.idle {
+            Some(idle) if self.since.elapsed() >= idle => Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                crate::idle::idle_message(idle),
+            )),
+            _ => Ok(()),
         }
     }
 
@@ -44,14 +69,17 @@ impl<R: BufRead> SseReader<R> {
             }
             if line.is_empty() {
                 if let Some(data) = data.take() {
+                    self.since = Instant::now();
                     return Ok(Some(SseEvent { event, data }));
                 }
+                self.quiet_too_long()?;
                 // A blank line with no data dispatches nothing (the event name resets).
                 event.clear();
                 continue;
             }
             let text = String::from_utf8_lossy(line);
             if text.starts_with(':') {
+                self.quiet_too_long()?;
                 continue;
             }
             let (field, value) = match text.find(':') {
@@ -112,6 +140,24 @@ mod tests {
     #[test]
     fn unterminated_last_event_is_dispatched() {
         assert_eq!(all("event: e\ndata: z"), vec![ev("e", "z")]);
+    }
+
+    #[test]
+    fn comments_alone_time_out() {
+        struct Pings;
+        impl io::Read for Pings {
+            fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {
+                std::thread::sleep(Duration::from_millis(10));
+                let b = b": ping
+
+";
+                out[..b.len()].copy_from_slice(b);
+                Ok(b.len())
+            }
+        }
+        let mut r = SseReader::with_idle(io::BufReader::new(Pings), Duration::from_millis(80));
+        let e = r.next_event().expect_err("no event ever comes");
+        assert_eq!(e.kind(), io::ErrorKind::TimedOut);
     }
 
     #[test]

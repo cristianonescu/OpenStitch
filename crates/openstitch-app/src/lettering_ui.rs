@@ -209,6 +209,7 @@ pub fn text_tools_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     if ui.button("Load TrueType Font…").clicked() {
         load_truetype(app);
     }
+    crate::inkstitch_ui::menu(app, ui);
 }
 
 /// Loads a TrueType / OpenType font into the design.
@@ -247,6 +248,7 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
     template_window(app, ctx);
     fonts_window(app, ctx);
     fit_window(app, ctx);
+    crate::inkstitch_ui::window(app, ctx);
 }
 
 /// What the Fonts window asked for this frame.
@@ -614,6 +616,190 @@ fn image_characters(
     if ui.button("Create characters").clicked() {
         *action = Some(FontAction::FromImage);
     }
+}
+
+/// The first line of `text` (at most 24 characters) laid out in `font` at 10 mm, as polylines
+/// (0.1 mm), for a font list sample; `None` when the font cannot set it.
+fn sample_lines(
+    text: &str,
+    font: &str,
+    fonts: &[openstitch_design::DesignFont],
+) -> Option<Vec<Vec<[f64; 2]>>> {
+    let line: String = text
+        .lines()
+        .next()
+        .unwrap_or_default()
+        .chars()
+        .take(24)
+        .collect();
+    let line = if line.trim().is_empty() {
+        "Abc".to_string()
+    } else {
+        line
+    };
+    let spec = openstitch_design::TextSpec::new(line, font, 10.0);
+    let layout = openstitch_design::text::layout_in(&spec, None, fonts).ok()?;
+    let mut out: Vec<Vec<[f64; 2]>> = layout
+        .glyphs
+        .iter()
+        .flat_map(|g| &g.contours)
+        .map(|c| {
+            let mut pts: Vec<[f64; 2]> = c.path().iter().map(|p| [p.x, p.y]).collect();
+            if c.closed
+                && let Some(&f) = pts.first()
+            {
+                pts.push(f);
+            }
+            pts
+        })
+        .collect();
+    out.extend(
+        layout
+            .glyphs
+            .iter()
+            .filter_map(|g| g.stitches.as_ref())
+            .map(|b| b.stitches.iter().map(|s| [s.x, s.y]).collect()),
+    );
+    (!out.is_empty()).then_some(out)
+}
+
+/// Draws `lines` (0.1 mm) fitted into `rect`, left aligned.
+fn draw_sample(ui: &egui::Ui, rect: egui::Rect, lines: &[Vec<[f64; 2]>], color: egui::Color32) {
+    let painter = ui.painter_at(rect);
+    let (mut x0, mut y0, mut x1, mut y1) = (f64::MAX, f64::MAX, f64::MIN, f64::MIN);
+    for q in lines.iter().flatten() {
+        (x0, y0, x1, y1) = (x0.min(q[0]), y0.min(q[1]), x1.max(q[0]), y1.max(q[1]));
+    }
+    if x0 > x1 {
+        return;
+    }
+    let scale = (f64::from(rect.height() - 4.0) / (y1 - y0).max(1e-6))
+        .min(f64::from(rect.width() - 4.0) / (x1 - x0).max(1e-6));
+    let stroke = egui::Stroke::new(1.0, color);
+    for line in lines {
+        let points: Vec<egui::Pos2> = line
+            .iter()
+            .map(|q| {
+                rect.min
+                    + egui::vec2(
+                        2.0 + ((q[0] - x0) * scale) as f32,
+                        2.0 + ((q[1] - y0) * scale) as f32,
+                    )
+            })
+            .collect();
+        painter.add(egui::Shape::line(points, stroke));
+    }
+}
+
+/// Text Attributes ▸ Font list (#527): every font with the selected text set in it, grouped as
+/// PE-DESIGN's Font List (Text, Small Text), with the sizes each sews well at. A click picks a
+/// font; with the pointer over the list, Up and Down step through it with the canvas updating
+/// live, and the whole browse is one Undo.
+pub fn font_browser(app: &mut EditorApp, ui: &mut egui::Ui, spec: &openstitch_design::TextSpec) {
+    let choices = fonts(app);
+    let design_fonts = app.session.design().fonts.clone();
+    let current = choices.iter().position(|c| c.id == spec.font);
+    let mut pick: Option<usize> = None;
+    let list = egui::Frame::group(ui.style()).show(ui, |ui| {
+        egui::ScrollArea::vertical()
+            .id_salt("font-browser-scroll")
+            .max_height(220.0)
+            .show(ui, |ui| {
+                for small in [false, true] {
+                    let members: Vec<usize> = (0..choices.len())
+                        .filter(|&i| (choices[i].group == "smallText") == small)
+                        .collect();
+                    if members.is_empty() {
+                        continue;
+                    }
+                    let title = if small { "Small Text" } else { "Text" };
+                    ui.label(egui::RichText::new(title).small().strong());
+                    for i in members {
+                        let c = &choices[i];
+                        let range = c
+                            .size_range
+                            .map(|(lo, hi)| format!("   {lo}-{hi} mm"))
+                            .unwrap_or_default();
+                        let r = ui.add_sized(
+                            [ui.available_width(), 44.0],
+                            egui::Button::selectable(Some(i) == current, ""),
+                        );
+                        let rect = r.rect.shrink(3.0);
+                        // Readable on the selection colour too.
+                        let (caption, ink) = if Some(i) == current {
+                            let c = ui.visuals().selection.stroke.color;
+                            (c, c)
+                        } else {
+                            (ui.visuals().weak_text_color(), ui.visuals().text_color())
+                        };
+                        ui.painter().text(
+                            rect.left_top(),
+                            egui::Align2::LEFT_TOP,
+                            format!("{}{range}", c.label),
+                            egui::FontId::proportional(11.0),
+                            caption,
+                        );
+                        let body = egui::Rect::from_min_max(
+                            egui::pos2(rect.min.x, rect.min.y + 14.0),
+                            rect.max,
+                        );
+                        if ui.is_rect_visible(body)
+                            && let Some(lines) = sample_lines(&spec.text, &c.id, &design_fonts)
+                        {
+                            draw_sample(ui, body, &lines, ink);
+                        }
+                        if r.clicked() {
+                            pick = Some(i);
+                        }
+                    }
+                }
+            });
+    });
+    let over = list.response.contains_pointer();
+    if over && let Some(cur) = current {
+        let (up, down) = ui.input(|i| {
+            (
+                i.key_pressed(egui::Key::ArrowUp),
+                i.key_pressed(egui::Key::ArrowDown),
+            )
+        });
+        if up && cur > 0 {
+            pick = Some(cur - 1);
+        } else if down && cur + 1 < choices.len() {
+            pick = Some(cur + 1);
+        }
+    }
+    if !over {
+        app.ui.font_browse_undo = None;
+    }
+    if let Some(i) = pick.filter(|&i| Some(i) != current) {
+        browse_to(app, &choices[i].id);
+    }
+}
+
+/// Sets the selected text's font as one step of a font browse: every step since the browse
+/// began is one Undo (#527).
+pub fn browse_to(app: &mut EditorApp, font: &str) {
+    let start = *app.ui.font_browse_undo.get_or_insert(app.undo_groups.len());
+    crate::ribbon::set_text(app, json!({ "font": font }));
+    let start = start.min(app.undo_groups.len());
+    let steps: usize = app.undo_groups.drain(start..).sum();
+    if steps > 0 {
+        app.undo_groups.push(steps);
+    }
+}
+
+/// Why the selected text's size is shown amber: it lies outside the sizes its font sews well
+/// at (#527). `None` inside the range or for fonts without one.
+pub fn size_warning(app: &mut EditorApp, spec: &openstitch_design::TextSpec) -> Option<String> {
+    let c = fonts(app).into_iter().find(|c| c.id == spec.font)?;
+    let (lo, hi) = c.size_range?;
+    c.out_of_range(spec.size).then(|| {
+        format!(
+            "{} sews best at {lo}-{hi} mm: smaller letters lose their detail, larger ones get loose stitches",
+            c.label
+        )
+    })
 }
 
 /// A found character's outline, fitted into `rect`.

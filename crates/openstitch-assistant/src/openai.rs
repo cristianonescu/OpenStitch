@@ -23,10 +23,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde_json::{Map, Value, json};
 
+use crate::conversation::stream_error;
 use crate::conversation::{
     BAD_JSON, CUT_OFF, DECLINED, End, NO_KEY, STOPPED, TOO_MANY, post_with_retry_status, str_field,
     summary, unsafe_address,
 };
+use crate::idle::{Progress, Watchdog};
 use crate::sse::SseReader;
 use crate::{
     Config, Conversation, Event, MAX_TOOL_CALLS_PER_MESSAGE, StopKind, ToolResult, Tools,
@@ -173,7 +175,7 @@ impl Conversation {
                 Err((stop, _)) => return stop,
             };
             let generated = self.messages.len();
-            let mut reply = read_stream(reader, generated, cancel, on_event);
+            let mut reply = read_stream(reader, generated, cfg.request_timeout, cancel, on_event);
             match reply.end {
                 // Ollama lost an error mid-stream (#429): the same "error parsing tool call" as
                 // the 500 above, raised after the reply's text had been sent. The text stays;
@@ -562,10 +564,17 @@ fn is_swallowed_error(chunk: &Value) -> bool {
 fn read_stream(
     reader: Box<dyn std::io::Read + Send>,
     generated: usize,
+    timeout: std::time::Duration,
     cancel: &AtomicBool,
     on_event: &mut dyn FnMut(Event),
 ) -> Reply {
-    let mut sse = SseReader::new(BufReader::new(reader));
+    let mut sse = SseReader::with_idle(
+        BufReader::new(Watchdog::new(reader, timeout, Some(cancel))),
+        timeout,
+    );
+    // Reset by text, reasoning, tool-call pieces and the finish; not by keep-alive chunks with
+    // an empty delta or a usage chunk alone (#580).
+    let mut progress = Progress::new(timeout);
     let mut reply = Reply {
         text: String::new(),
         refusal: String::new(),
@@ -592,10 +601,14 @@ fn read_stream(
                 return reply;
             }
             Err(e) => {
-                reply.end = End::Error(format!("The connection to the endpoint broke: {e}"));
+                reply.end = stream_error(&e, cancel, "endpoint");
                 return reply;
             }
         };
+        if let Some(msg) = progress.expired() {
+            reply.end = End::Error(msg);
+            return reply;
+        }
         let data = ev.data.trim();
         if data.is_empty() {
             continue;
@@ -648,20 +661,29 @@ fn read_stream(
                 && !t.is_empty()
             {
                 reply.text.push_str(t);
+                progress.made();
                 on_event(Event::Text(t.to_string()));
             }
             if let Some(r) = delta.get("refusal").and_then(Value::as_str) {
                 reply.refusal.push_str(r);
+                progress.made();
             }
-            if ["reasoning", "reasoning_content"].iter().any(|k| {
+            // Reasoning shows as the Thinking row, so a slow local model that reasons for
+            // minutes shows that it is still working (#580). It is not sent back.
+            if let Some(t) = ["reasoning", "reasoning_content"].iter().find_map(|k| {
                 delta
                     .get(*k)
                     .and_then(Value::as_str)
-                    .is_some_and(|t| !t.is_empty())
+                    .filter(|t| !t.is_empty())
             }) {
                 reply.reasoned = true;
+                progress.made();
+                on_event(Event::Thinking(t.to_string()));
             }
             if let Some(list) = delta.get("tool_calls").and_then(Value::as_array) {
+                if !list.is_empty() {
+                    progress.made();
+                }
                 for (pos, frag) in list.iter().enumerate() {
                     let index = frag
                         .get("index")
@@ -709,6 +731,7 @@ fn read_stream(
         }
         if let Some(r) = choice.get("finish_reason").and_then(Value::as_str) {
             reply.finish_reason = Some(r.to_string());
+            progress.made();
         }
     }
 }

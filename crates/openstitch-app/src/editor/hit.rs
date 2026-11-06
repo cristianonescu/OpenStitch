@@ -95,22 +95,25 @@ pub fn object_at(design: &Design, p: Vec2, tolerance: f64) -> Option<u64> {
         .map(|o| o.id)
 }
 
-/// [`object_at`] for the Select tool, with the Click Inside Outlines preference.
+/// [`object_at`] for the Select tool, with the Click Inside Outlines preference. Locked
+/// objects (#502) are passed over: they are selected from the Sewing Order list.
 pub fn object_at_opts(design: &Design, p: Vec2, tolerance: f64, click_inside: bool) -> Option<u64> {
     design
         .objects
         .iter()
         .rev()
-        .find(|o| o.visible && hits_opts(o, p, tolerance, click_inside))
+        .find(|o| o.visible && !o.locked && hits_opts(o, p, tolerance, click_inside))
         .map(|o| o.id)
 }
 
-/// Visible objects whose bounds lie entirely inside `rect` (marquee selection).
+/// Visible, unlocked objects whose bounds lie entirely inside `rect` (marquee selection).
 pub fn objects_in(design: &Design, rect: &Rect) -> BTreeSet<u64> {
     design
         .objects
         .iter()
-        .filter(|o| o.visible && o.bounds().is_some_and(|b| rect_contains_rect(rect, &b)))
+        .filter(|o| {
+            o.visible && !o.locked && o.bounds().is_some_and(|b| rect_contains_rect(rect, &b))
+        })
         .map(|o| o.id)
         .collect()
 }

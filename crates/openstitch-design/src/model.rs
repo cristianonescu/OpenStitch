@@ -509,6 +509,14 @@ pub struct DesignObject {
     /// `monogram.edit` can rebuild its group.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub monogram: Option<Box<crate::monogram::MonogramSpec>>,
+    /// Locked in the editor (#502): the canvas does not pick, move, scale or point-edit it;
+    /// it stays selectable from the Sewing Order list. Commands are not affected.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub locked: bool,
+    /// Sew the outline before the region (#502, beyond PE-DESIGN; `false` = PE-DESIGN's
+    /// region-then-outline order).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub line_first: bool,
 }
 
 fn yes() -> bool {
@@ -540,6 +548,8 @@ impl DesignObject {
             group: None,
             trim_jumps: None,
             monogram: None,
+            locked: false,
+            line_first: false,
         }
     }
 
@@ -559,6 +569,8 @@ impl DesignObject {
             group: None,
             trim_jumps: None,
             monogram: None,
+            locked: false,
+            line_first: false,
         }
     }
 

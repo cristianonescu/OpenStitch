@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Map, Value, json};
 
+use crate::idle::{Progress, Watchdog};
 use crate::sse::SseReader;
 use crate::{
     ANTHROPIC_VERSION, Config, Event, FALLBACK_BETA, HttpError, MAX_TOOL_CALLS_PER_MESSAGE,
@@ -128,7 +129,7 @@ impl Conversation {
                     Ok(r) => r,
                     Err(stop) => return stop,
                 };
-            let reply = read_stream(reader, cancel, on_event);
+            let reply = read_stream(reader, cfg.request_timeout, cancel, on_event);
             let blocks = match reply.end {
                 End::Error(msg) => return StopKind::Error(msg),
                 End::Cancelled => {
@@ -464,10 +465,15 @@ struct Reply {
 
 fn read_stream(
     reader: Box<dyn std::io::Read + Send>,
+    timeout: std::time::Duration,
     cancel: &AtomicBool,
     on_event: &mut dyn FnMut(Event),
 ) -> Reply {
-    let mut sse = SseReader::new(BufReader::new(reader));
+    let mut sse = SseReader::with_idle(
+        BufReader::new(Watchdog::new(reader, timeout, Some(cancel))),
+        timeout,
+    );
+    let mut progress = Progress::new(timeout);
     let mut reply = Reply {
         blocks: Vec::new(),
         stop_reason: None,
@@ -486,21 +492,26 @@ fn read_stream(
             Ok(Some(ev)) => ev,
             Ok(None) => return reply,
             Err(e) => {
-                reply.end = End::Error(format!("The connection to the server broke: {e}"));
+                reply.end = stream_error(&e, cancel, "server");
                 return reply;
             }
         };
-        if ev.data.trim().is_empty() {
-            continue;
-        }
-        let Ok(data) = serde_json::from_str::<Value>(&ev.data) else {
-            continue;
-        };
+        let data = serde_json::from_str::<Value>(&ev.data).unwrap_or(Value::Null);
         let kind = data
             .get("type")
             .and_then(Value::as_str)
             .map(str::to_string)
             .unwrap_or(ev.event);
+        // Everything but keep-alives is part of the reply (#580).
+        if data.is_object() && kind != "ping" {
+            progress.made();
+        } else if let Some(msg) = progress.expired() {
+            reply.end = End::Error(msg);
+            return reply;
+        }
+        if !data.is_object() {
+            continue;
+        }
         let at = |index: &[(u64, usize)], data: &Value| -> Option<usize> {
             let i = data.get("index").and_then(Value::as_u64)?;
             index.iter().rev().find(|(k, _)| *k == i).map(|(_, p)| *p)
@@ -637,6 +648,17 @@ fn read_stream(
             // `ping` and event types this client does not know.
             _ => {}
         }
+    }
+}
+
+/// How a broken read ends the turn: Stop, the request timeout (#580), or a broken connection.
+pub(crate) fn stream_error(e: &std::io::Error, cancel: &AtomicBool, who: &str) -> End {
+    if cancel.load(Ordering::SeqCst) {
+        return End::Cancelled;
+    }
+    match e.kind() {
+        std::io::ErrorKind::TimedOut => End::Error(e.to_string()),
+        _ => End::Error(format!("The connection to the {who} broke: {e}")),
     }
 }
 
