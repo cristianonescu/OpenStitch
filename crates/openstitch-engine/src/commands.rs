@@ -297,6 +297,7 @@ pub fn all() -> Vec<CommandSpec> {
     v.extend(crate::guides::commands());
     v.extend(crate::timeline::commands());
     v.extend(crate::fabric::commands());
+    v.extend(crate::swatch::commands());
     v.extend(crate::print::commands());
     v.extend(crate::pattern_cmds::commands());
     v.extend(crate::sewing_cmds::commands());
@@ -1456,6 +1457,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     })?)),
                 };
                 let color = thread(p, "color")?;
+                let mut hints: Vec<String> = Vec::new();
                 let user_patterns = s.design.patterns.clone();
                 let hole_inners: Vec<u64> = s
                     .design
@@ -1615,6 +1617,14 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     crate::satin_shaping::apply_shaping(p, &mut r.satin_shaping)?;
                     crate::satin_shaping::apply_auto(p, &mut r.underlay_auto)?;
                     crate::satin_shaping::apply_underlay2(p, &mut r.underlay2)?;
+                    if r.direction_lines.len() >= 2
+                        && let Some(h) = crate::satin_shaping::raised_hint(
+                            &r.satin_shaping,
+                            openstitch_design::column::mean_width(&r.direction_lines),
+                        )
+                    {
+                        hints.push(format!("object {}: {h}", o.id));
+                    }
                     if p.has("travel") {
                         r.running_stitch_path = if p.bool("travel", None)? {
                             r.running_stitch_path.or(Some(RunningStitchPath::Inside))
@@ -1785,7 +1795,11 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     }
                     o.region = Some(r);
                 }
-                Ok(Value::Null)
+                Ok(if hints.is_empty() {
+                    Value::Null
+                } else {
+                    json!({ "hints": hints })
+                })
             },
         ),
         spec(
@@ -1884,6 +1898,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     })?)),
                 };
                 let color = thread(p, "color")?;
+                let mut hints: Vec<String> = Vec::new();
                 let motif = match p.get("motif") {
                     None => None,
                     Some(_) => {
@@ -2019,9 +2034,18 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     }
                     crate::satin_shaping::apply_shaping(p, &mut l.satin_shaping)?;
                     crate::satin_shaping::apply_auto(p, &mut l.underlay_auto)?;
+                    if l.kind == LineType::Zigzag
+                        && let Some(h) = crate::satin_shaping::raised_hint(&l.satin_shaping, l.width)
+                    {
+                        hints.push(format!("object {}: {h}", o.id));
+                    }
                     o.line = Some(l);
                 }
-                Ok(Value::Null)
+                Ok(if hints.is_empty() {
+                    Value::Null
+                } else {
+                    json!({ "hints": hints })
+                })
             },
         ),
         spec(

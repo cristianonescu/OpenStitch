@@ -78,7 +78,15 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `underlayStyle: auto` picks a centre walk, edge run or edge + zigzag by width (thresholds
    `underlayAuto {centreBelow, edgeBelow}`, set by `fabric.apply`), `centreWalk` for thin
    satins, and a column's `underlay2 {style, inset, spacing, stitchLength}` adds a second
-   layer (`null` removes it). Read them back with `object.get`.
+   layer (`null` removes it). Satin looks: `satinStyle` sStitch (corded edge), open (light),
+   double (raised X lattice); `jaggedEdge {mode: in|out|both, side, amount, seed}` (or just
+   `"in"`; `"none"`/`null` removes it) for fur, grass and feathers; `spacingAt: 0.5` evens a
+   curved column's density; `raised: true` (or `{laneSpacing, inset, stitchLength}`) pads
+   monograms and rims of 3 mm and wider (narrower ones return a `hints` entry). Read them back
+   with `object.get`. Fix a Manual Punch column instead of redrawing it:
+   `object.insertRung {id, at}`, `object.deleteRung {id, index}`, `object.moveRung {id, index,
+   side: left|right, point}`, `object.swapSides {id}` and `object.untangle {id}`; a line pair
+   clicked right-then-left is untangled when the column is made.
 4. Order: `order.optimize` (PE-DESIGN-compatible order) or `order.byColor`; check with
    `object.list` (sewing order). To sew objects in a set order, `order.byClickOrder`
    `{ids: [in sewing order]}` (they start where the earliest of them sews now); to sew a
@@ -203,6 +211,9 @@ user's Ctrl+K palette, with each command's ribbon place and shortcut; run it wit
 After a crash, `ui.recoveryList` shows designs autosave kept; `ui.recoveryRestore {id}`
 opens one as an untitled design (tell the user to save it), and `ui.recoveryDiscard`
 deletes snapshots (ask first). Autosave is `ui.set autosave` / `autosaveInterval`.
+Opening or importing a large file in the window runs in the background: `ui.state` shows
+`loading` (file, step, seconds), and `ui.loading {cancel: true}` stops it, leaving the design
+as it was.
 The window's look and keys (#551, #559): `ui.set accent` (`default`, a preset such as `orange`,
 or `#rrggbb`); `ui.set shortcuts` takes the changed commands as `{ commandKey: ["Ctrl+Alt+R"] }`
 (keys from `ui.actions`; `{}` restores every default; a key another command uses is refused,
@@ -252,6 +263,23 @@ still send mm to commands. `design.print {units: "inch"}` adds a 2-inch scale ba
   shows the design instead.
 - "Open the ready-to-sew designs": `ui.help {item: "sewKit"}` shows the packaged kit in the
   file manager and replies with its `folder`, or with the GitHub `url` it opened instead.
+- **Test swatches** (sew a test before the real thing; each writes a new design file to
+  `path`, `.pes` or `.osd`, and leaves the open design unchanged; editor: Send ▸ Test
+  Swatches…):
+  - "Sew a test of this part": `design.testSwatch {ids, path, label?}`, the objects alone,
+    centred in the smallest hoop they fit (`label: true` sews their main settings below).
+  - "Which density / pull compensation should I use on this?": `design.testSwatches {id, path,
+    attribute, start, step, count}` copies one object with one setting stepped (`density`,
+    `stitchLength`, `pullCompensation`, `angle`, `underlaySpacing` for regions; `linePitch`,
+    `lineWidth`, `lineDensity` for lines), each copy named and labelled with its value;
+    `attribute2/start2/step2/count2` makes a rows × columns grid (25 copies at most). A grid
+    larger than the page is refused with the size it needs.
+  - "Calibrate for my fabric": `fabric.calibrationSwatch {fabric, path}` writes a 100 mm card
+    (fill F1–F5, satin S1–S5 at 0.8–1.2 × the fabric's density, satin P1–P5 at 0–0.6 mm pull
+    compensation, a 10 mm square). After the user sews it and names the best piece of each
+    row, `fabric.calibrate {fabric, name, fill, satin, pull}` (1–5 each) saves a custom
+    fabric (`custom-…` in `fabric.list`) that `fabric.apply` gives to objects;
+    `fabric.deleteCustom {fabric}` removes it. Both change the user's settings: say so first.
 - `file` commands (`project.save`, `design.export`, ...) may ask the user first. Never
   overwrite a user's file without being asked to.
 

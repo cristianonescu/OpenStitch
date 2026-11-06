@@ -369,6 +369,17 @@ pub const UI_COMMANDS: &[UiCommand] = &[
         ],
     },
     UiCommand {
+        id: "ui.loading",
+        summary: "A File ▸ Open or Import running in the background (#558): file, open or import, stage and seconds, or running: false. cancel: true stops it; the design stays as it was and no undo step is recorded",
+        effect: Effect::Edit,
+        params: &[p(
+            "cancel",
+            "bool",
+            false,
+            "true: stop the running open or import",
+        )],
+    },
+    UiCommand {
         id: "ui.notesClear",
         summary: "Forget everything: clear the Assistant's notes (Assistant settings, Memory, Forget everything). Always asks the user first",
         effect: Effect::Settings,
