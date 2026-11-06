@@ -2186,7 +2186,11 @@ fn text_docs(text_required: bool) -> Vec<ParamDoc> {
             "string",
             "Font id or family from fonts.list (default lato-bold)",
         ),
-        opt("size", "mm", "Capital letter height, 1-300 (default 10)"),
+        opt(
+            "size",
+            "mm",
+            "Capital letter height, 1-300 (default 10); outside the font's sizeRange (fonts.list) the result has a sizeWarning",
+        ),
         opt(
             "letterSpacing",
             "mm",
@@ -2532,14 +2536,14 @@ fn text_commands() -> Vec<CommandSpec> {
         ),
         spec(
             "fonts.list",
-            "Fonts available for lettering: bundled fonts, then fonts loaded into the design",
+            "Fonts available for lettering: bundled fonts, then fonts loaded into the design. Each row has id, family, style, glyphs and kind (trueType, singleLine, pixel, embroidery); bundled fonts also have sizeRange {minMm, maxMm} (the sizes they sew well at), stitchTypes (what they are made for) and group (text or smallText, as PE-DESIGN's Font List)",
             Effect::Read,
             vec![],
             |s, _| Ok(crate::fonts::list(s)),
         ),
         spec(
             "text.add",
-            "Add lettering (a text object sewn like a shape, glyph by glyph)",
+            "Add lettering (a text object sewn like a shape, glyph by glyph). Returns id, glyphs, missing and shaping, and sizeWarning when the size lies outside the font's sizeRange (a warning, never a refusal). A single-line font (openstitch-line) gets a 1.5 mm running line and no region",
             Effect::Edit,
             shape_docs(add_docs),
             |s, p| {
@@ -2571,11 +2575,11 @@ fn text_commands() -> Vec<CommandSpec> {
         ),
         spec(
             "object.setText",
-            "Change the text, font, size, spacing or alignment of text objects",
+            "Change the text, font, size, spacing or alignment of text objects. Returns missing and shaping, and sizeWarnings ({id, warning} per text whose size lies outside its font's sizeRange; a warning, never a refusal). Switching to a single-line font gives the text a running line instead of its region",
             Effect::Edit,
             set_docs,
             |s, p| {
-                let (mut missing, mut shaping) = (Vec::new(), Vec::new());
+                let (mut missing, mut shaping, mut warnings) = (Vec::new(), Vec::new(), Vec::new());
                 for id in p.ids()? {
                     let i = text_index(s, p, id)?;
                     let mut spec = s.design.objects[i].text.clone().expect("text object");
@@ -2588,6 +2592,9 @@ fn text_commands() -> Vec<CommandSpec> {
                     }
                     s.design.objects[i].text = Some(spec);
                     let r = relayout(s, p, i)?;
+                    if let Some(w) = r.get("sizeWarning") {
+                        warnings.push(json!({ "id": id, "warning": w }));
+                    }
                     for (key, all) in [("missing", &mut missing), ("shaping", &mut shaping)] {
                         for m in r[key].as_array().into_iter().flatten() {
                             if !all.contains(m) {
@@ -2596,7 +2603,7 @@ fn text_commands() -> Vec<CommandSpec> {
                         }
                     }
                 }
-                Ok(json!({ "missing": missing, "shaping": shaping }))
+                Ok(json!({ "missing": missing, "shaping": shaping, "sizeWarnings": warnings }))
             },
         ),
         spec(

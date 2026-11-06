@@ -113,8 +113,12 @@ fn text_outside_the_fonts_sizes_gets_a_warning_not_a_refusal() {
         "object.setText",
         json!({"ids": [id], "font": "openstitch-line", "size": 40}),
     );
-    // object.setText reports per object only what it merges; the object still changed.
-    assert!(r.is_object());
+    let w = &r["sizeWarnings"][0];
+    assert_eq!(w["id"], id);
+    assert!(
+        w["warning"].as_str().expect("warning").contains("above"),
+        "{r}"
+    );
     let i = s.design().index_of(id).expect("object");
     assert_eq!(
         s.design().objects[i].text.as_ref().expect("text").size,
