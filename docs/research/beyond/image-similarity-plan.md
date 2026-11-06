@@ -533,6 +533,16 @@ one patch on one fabric does not pin a multi-thread model, and changing it moves
 recorded score. A second sewn photo patch (the portrait or the fruit, Photo Stitch 1 in
 OpenStitch mode) on the same fabric would show whether the flat widths' fit holds.
 
+**2026-11-06, Photo Stitch 2's layered coverage (#129, #468), measured and not taken:** the
+coverage solve recorded on #129 (threads laid on the fabric in sewing order in linear light,
+each line's coverage between its straight run's and the zigzag's at Max. Density by the T1
+curve, fitted per colour by coordinate descent on cube-root channels, turned back into zigzag
+spacing by the inverse curve) scores lower on the seven Photo Stitch 2 cases, 39.7 → 37.2
+(poppies 41.8 → 40.0, gradient 41.5 → 42.3, portrait 37.5 → 36.3, cat 48.3 → 45.2, sunset
+37.8 → 35.8, fruit 35.4 → 29.7, CMYK poppies 35.7 → 31.4): every thread then spreads over the
+image at mid coverage and the subjects lose their edges (MS-SSIM 0.188 → 0.117 on the fruit).
+The screen keeps its least-squares shares and running-stitch floor.
+
 ## Sources
 
 - Zhang, X., and Wandell, B. A. (1996). A spatial extension of CIELAB for digital color image reproduction (S-CIELAB). SID Digest.
