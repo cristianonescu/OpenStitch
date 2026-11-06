@@ -142,8 +142,18 @@ fn number_value(name: &str, v: &Value, lo: f64, hi: f64) -> Result<f64, String> 
 }
 
 impl EditorApp {
-    /// Runs one `ui.*` command; `Err` is the message for the client.
+    /// Runs one `ui.*` command; `Err` is the message for the client. An open it starts (a
+    /// sample, a recent file) is waited for, so the client sees the opened design (#558).
     pub(crate) fn ui_command(&mut self, id: &str, params: Option<&Value>) -> Result<Value, String> {
+        let running = self.open_job.is_some();
+        let out = self.ui_command_now(id, params);
+        if !running && self.open_job.is_some() {
+            self.finish_job_blocking();
+        }
+        out
+    }
+
+    fn ui_command_now(&mut self, id: &str, params: Option<&Value>) -> Result<Value, String> {
         let spec = assistant::ui_command(id).ok_or_else(|| format!("unknown command '{id}'"))?;
         if !permitted(spec.effect, self.session.capabilities()) {
             return Err(format!("'{id}' is not permitted for this client"));
@@ -386,6 +396,17 @@ impl EditorApp {
                         .collect(),
                 ))
             }
+            "ui.loading" => {
+                let state = self
+                    .open_job
+                    .as_ref()
+                    .map_or_else(|| json!({ "running": false }), |j| j.describe());
+                if p.bool("cancel", Some(false)).map_err(err)? {
+                    let cancelled = self.cancel_job();
+                    return Ok(json!({ "cancelled": cancelled, "was": state }));
+                }
+                Ok(state)
+            }
             "ui.recoveryList" => Ok(crate::recovery_ui::list(self)),
             "ui.recoveryRestore" => {
                 let id = p.string("id", None).map_err(err)?;
@@ -504,6 +525,7 @@ impl EditorApp {
         json!({
             "file": self.path.as_ref().map(|p| p.display().to_string()),
             "unsaved": self.is_dirty(),
+            "loading": self.open_job.as_ref().map(crate::open_job::OpenJob::describe),
             "selection": self.selection,
             "tool": format!("{:?}", self.tools.tool()),
             "zoomPercent": self.zoom_percent(),

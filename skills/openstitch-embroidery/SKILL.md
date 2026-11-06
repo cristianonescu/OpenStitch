@@ -211,6 +211,9 @@ user's Ctrl+K palette, with each command's ribbon place and shortcut; run it wit
 After a crash, `ui.recoveryList` shows designs autosave kept; `ui.recoveryRestore {id}`
 opens one as an untitled design (tell the user to save it), and `ui.recoveryDiscard`
 deletes snapshots (ask first). Autosave is `ui.set autosave` / `autosaveInterval`.
+Opening or importing a large file in the window runs in the background: `ui.state` shows
+`loading` (file, step, seconds), and `ui.loading {cancel: true}` stops it, leaving the design
+as it was.
 The window's look and keys (#551, #559): `ui.set accent` (`default`, a preset such as `orange`,
 or `#rrggbb`); `ui.set shortcuts` takes the changed commands as `{ commandKey: ["Ctrl+Alt+R"] }`
 (keys from `ui.actions`; `{}` restores every default; a key another command uses is refused,
@@ -274,6 +277,23 @@ digitizing are desktop-only; say so instead of trying them in the browser.
   shows the design instead.
 - "Open the ready-to-sew designs": `ui.help {item: "sewKit"}` shows the packaged kit in the
   file manager and replies with its `folder`, or with the GitHub `url` it opened instead.
+- **Test swatches** (sew a test before the real thing; each writes a new design file to
+  `path`, `.pes` or `.osd`, and leaves the open design unchanged; editor: Send ▸ Test
+  Swatches…):
+  - "Sew a test of this part": `design.testSwatch {ids, path, label?}`, the objects alone,
+    centred in the smallest hoop they fit (`label: true` sews their main settings below).
+  - "Which density / pull compensation should I use on this?": `design.testSwatches {id, path,
+    attribute, start, step, count}` copies one object with one setting stepped (`density`,
+    `stitchLength`, `pullCompensation`, `angle`, `underlaySpacing` for regions; `linePitch`,
+    `lineWidth`, `lineDensity` for lines), each copy named and labelled with its value;
+    `attribute2/start2/step2/count2` makes a rows × columns grid (25 copies at most). A grid
+    larger than the page is refused with the size it needs.
+  - "Calibrate for my fabric": `fabric.calibrationSwatch {fabric, path}` writes a 100 mm card
+    (fill F1–F5, satin S1–S5 at 0.8–1.2 × the fabric's density, satin P1–P5 at 0–0.6 mm pull
+    compensation, a 10 mm square). After the user sews it and names the best piece of each
+    row, `fabric.calibrate {fabric, name, fill, satin, pull}` (1–5 each) saves a custom
+    fabric (`custom-…` in `fabric.list`) that `fabric.apply` gives to objects;
+    `fabric.deleteCustom {fabric}` removes it. Both change the user's settings: say so first.
 - `file` commands (`project.save`, `design.export`, ...) may ask the user first. Never
   overwrite a user's file without being asked to.
 
