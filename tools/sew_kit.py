@@ -77,7 +77,10 @@ SATIN_WIDTHS = [1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 6.0]
 
 def swatches():
     """Six threads at three densities, and a black coverage ramp, all without underlay. Objects
-    go in thread order (Black's column, ramp and mark together), so each thread is sewn once."""
+    go in thread order (Black's column, ramp and mark together), so each thread is sewn once.
+    Each swatch is entered at its top-left corner, where its first row starts: entered elsewhere,
+    the fill sewed a straight travel across the swatch first (#628), extra thread inside the
+    area the calibration measures."""
     cells = []
     for col, thread in enumerate(CARD_THREADS):
         cells += [(col, row, thread, d) for row, d in enumerate(CARD_DENSITIES)]
@@ -94,12 +97,65 @@ def swatches():
                                                       "height": 12, "fill": thread}},
             {"command": "object.setRegion", "params": {"ids": [n], "type": "fill", "density": d,
                                                        "underlay": False, "angle": 0}},
+            # Entered where its first row starts (#628).
+            {"command": "object.setEntryExit", "params": {"id": n, "regionEntry": [9 + col * 14, 9 + row * 15]}},
         ]
         if (thread, row, col) == (20, 3, len(RAMP_DENSITIES) - 1):
             steps.append({"command": "text.add", "params": {"text": "T1", "size": 6, "x": 9, "y": 77,
                                                             "fill": 20}})
             n += 1
     return steps
+
+
+# T2 card (#311): two contrasting threads in alternating rows. Black and Yellow, as on the T1 card,
+# both far from the owner's pink cotton and from each other.
+T2_THREADS = (20, 13)                     # PEC chart: 20 Black (900), 13 Yellow (205)
+T2_DENSITIES = [2.0, 3.0, 4.0, 5.0]       # rows/mm of each thread
+
+
+def t2_cells():
+    """The T2 card's swatches in sewing order: (box (x, y, w, h) in mm, PEC thread, rows/mm
+    of that thread, column). One row per density; the columns, left to right: solid Black at the
+    two threads' total density, Black rows then Yellow rows between them, Yellow then Black,
+    solid Yellow at the total density. A fill's rows start half a spacing below its top edge
+    (`region::row_positions`), so the second thread's rectangle sits half a spacing lower and
+    its rows fall midway between the first thread's. Sewing order: Black, Yellow, Black, so in
+    each mixed swatch the thread named second is sewn later and lies on top."""
+    black, yellow = T2_THREADS
+    out = {1: [], 2: [], 3: []}  # thread block: its swatches
+    for row, d in enumerate(T2_DENSITIES):
+        y, half = 9 + row * 15, 0.5 / d
+        box = lambda col, dy=0.0: (9 + col * 15, round(y + dy, 4), 12, 12)  # noqa: E731
+        out[1] += [(box(0), black, 2 * d, 0), (box(1), black, d, 1)]
+        out[2] += [(box(1, half), yellow, d, 1), (box(2), yellow, d, 2), (box(3), yellow, 2 * d, 3)]
+        out[3] += [(box(2, half), black, d, 2)]
+    return [cell for block in (1, 2, 3) for cell in out[block]]
+
+
+def t2_card():
+    """The T2 calibration card (#311): 16 swatches 12 mm square, all fills at 0° without underlay
+    (as T1), and a satin "T2" mark below the bottom-left swatch."""
+    steps = []
+    for n, ((x, y, w, h), thread, d, _) in enumerate(t2_cells(), 1):
+        steps += [
+            {"command": "shape.rectangle", "params": {"x": x, "y": y, "width": w, "height": h, "fill": thread}},
+            {"command": "object.setRegion", "params": {"ids": [n], "type": "fill", "density": d,
+                                                       "underlay": False, "angle": 0}},
+            {"command": "object.setEntryExit", "params": {"id": n, "regionEntry": [x, y]}},
+        ]
+    steps.append({"command": "text.add", "params": {"text": "T2", "size": 6, "x": 9, "y": 77,
+                                                    "fill": T2_THREADS[0]}})
+    return steps
+
+
+def t1_cells():
+    """The T1 card's swatches as t2_cells lists them."""
+    out = []
+    for col, thread in enumerate(CARD_THREADS):
+        out += [((9 + col * 14, 9 + row * 15, 12, 12), thread, d, col) for row, d in enumerate(CARD_DENSITIES)]
+        if thread == 20:
+            out += [((9 + c * 14, 54, 12, 12), 20, d, c) for c, d in enumerate(RAMP_DENSITIES)]
+    return out
 
 
 def satin_ladder():
@@ -120,6 +176,9 @@ def satin_ladder():
                                                       "fill": 5}},
             {"command": "object.setRegion", "params": {"ids": [n], "type": "fill", "density": 4.5,
                                                        "underlay": underlay, "angle": 45}},
+            # Entered at a corner, the travel to the first row runs along the edge, not across
+            # the single layer (#628).
+            {"command": "object.setEntryExit", "params": {"id": n, "regionEntry": [9 + i * 45, 88]}},
         ]
     return steps
 
@@ -321,6 +380,79 @@ def check_objects(rel, objects):
         sys.exit(f"{rel}: every swatch must be a fill")
 
 
+# Calibration cards whose swatch densities are measured in the exported file (#312): the build
+# fails when a swatch's rows per mm differ from what the card says it sews by more than
+# DENSITY_TOLERANCE, and the manifest records the measured values.
+CARDS = {"calibration/t1-swatches.pes": t1_cells, "calibration/t2-alternating-rows.pes": t2_cells}
+DENSITY_TOLERANCE = 0.2   # rows/mm
+SWATCH_INSET = 2.0        # mm cut from each side of a swatch before its rows are counted
+
+
+def stitch_runs(st):
+    """Runs of needle drops in one colour without a jump or trim between them: (colour, points)."""
+    runs, cur = [], None
+    for x, y, kind, colour in st:
+        if kind != "stitch":
+            cur = None
+            continue
+        if cur is None or cur[0] != colour:
+            cur = (colour, [])
+            runs.append(cur)
+        cur[1].append((x, y))
+    return runs
+
+
+def row_density(points):
+    """Rows per mm of fill rows at 0° (horizontal): every needle point of a row has the same y,
+    so the rows are the distinct y values (PEC's 0.1 mm grid; rows closer than that cannot be
+    told apart, i.e. above 10 rows/mm)."""
+    ys = sorted({round(y, 1) for _, y in points})
+    if len(ys) < 3:
+        return None
+    return (len(ys) - 1) / (ys[-1] - ys[0])
+
+
+def measure_card(rel, path):
+    """Each swatch's measured rows/mm in the exported PES, in t1_cells/t2_cells order. The PEC
+    frame starts at the stitches' top-left corner, not the page's, so the swatches are found by
+    matching the sewn runs' box centres to the swatches' centres, then cut out SWATCH_INSET inside
+    their box and measured on their own colour block's needle points. Exits on a swatch that
+    is missing or sewn at the wrong density."""
+    import sew_check  # noqa: E402
+    st, _, _ = sew_check.read_pec(path)
+    cells = CARDS[rel]()
+    block, blocks, last = -1, [], None
+    for _, thread, _, _ in cells:
+        block += thread != last
+        last = thread
+        blocks.append(block)
+    runs = [(c, pts) for c, pts in stitch_runs(st) if len(pts) > 30]
+    def centre(pts):
+        xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+        return (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+    want = [(x + w / 2, y + h / 2) for (x, y, w, h), _, _, _ in cells]
+
+    def matched(t):
+        return sum(any(c == b and abs(cx - t[0] - wx) < 1 and abs(cy - t[1] - wy) < 1
+                       for c, pts in runs for cx, cy in [centre(pts)])
+                   for b, (wx, wy) in zip(blocks, want))
+    shifts = [(cx - want[0][0], cy - want[0][1]) for c, pts in runs if c == blocks[0] for cx, cy in [centre(pts)]]
+    t = max(shifts, key=matched, default=None)
+    if t is None or matched(t) != len(cells):
+        sys.exit(f"{rel}: could not find every swatch in the exported stitches")
+    out = []
+    for ((x, y, w, h), thread, d, _), b in zip(cells, blocks):
+        x0, y0 = x + t[0] + SWATCH_INSET, y + t[1] + SWATCH_INSET
+        pts = [(px, py) for px, py, kind, c in st if kind == "stitch" and c == b
+               and x0 <= px <= x0 + w - 2 * SWATCH_INSET and y0 <= py <= y0 + h - 2 * SWATCH_INSET]
+        got = row_density(pts)
+        if got is None or abs(got - d) > DENSITY_TOLERANCE:
+            sys.exit(f"{rel}: the swatch at ({x:g}, {y:g}) mm sews {got and round(got, 2)} rows/mm, "
+                     f"the card says {d:g} (#312)")
+        out.append({"boxMM": [x, y, w, h], "thread": thread, "rowsPerMM": d, "measuredRowsPerMM": round(got, 2)})
+    return out
+
+
 def check_apart(rel, path):
     """Exits when two groups of colour blocks in APART[rel] overlap (their stitch boxes intersect)."""
     sys.path.insert(0, str(ROOT / "tools"))
@@ -348,6 +480,8 @@ def lettering():
         {"command": "shape.ellipse", "params": {"cx": 50, "cy": 76, "rx": 16, "outline": 40}},
         {"command": "text.add", "params": {"text": "ROUND AND ROUND", "size": 5, "fill": 7}},
         {"command": "text.setPath", "params": {"id": 5, "path": 4, "align": "spaced"}},
+        # The circle only guides the text: not sewn (a thin grey ring read as a stray line, #441).
+        {"command": "object.setLine", "params": {"ids": [4], "type": "none"}},
     ]
 
 
@@ -439,11 +573,21 @@ def kit():
         ("calibration/t1-swatches.pes", "S", "T1 calibration card: thread swatches and coverage ramp",
          "Six threads (White, Black, Red, Blue, Yellow, Leaf Green) as 12 mm fills at 3.0, 4.5 and 6.0 "
          "rows/mm, then Black at 0.5, 1, 1.5, 2, 3 and 4.5 rows/mm, all without underlay; the \"T1\" "
-         "mark is the top left. Photographed under the protocol below, it calibrates the Realistic "
+         "mark is below the bottom-left swatch. Photographed under the protocol below, it calibrates the Realistic "
          "view and the similarity scorer (image-similarity plan, T1), shows how each density covers "
          "the fabric (#129), and whether a single layer without underlay sews cleanly. The card's photo "
          "patch is the Photo Stitch 1 sunset demo in OpenStitch mode (`image-tools/S-photo1-sunset-openstitch.pes`).",
          swatches(), None),
+        ("calibration/t2-alternating-rows.pes", "S", "T2 calibration card: two threads in alternating rows",
+         "How much a row sewn later covers its neighbour of another thread, which Photo Stitch 1's fine "
+         "rows need (`rows::Rows::strip`, #311). Black 900 and Yellow 205 as 12 mm fills at 0° without "
+         "underlay, one row of swatches per density: 2, 3, 4 and 5 rows/mm of each thread, top to "
+         "bottom. Left to right: solid Black at the two threads' total (4, 6, 8, 10 rows/mm), Black "
+         "rows with Yellow rows midway between them and sewn later, the same with Yellow sewn first, "
+         "and solid Yellow at the total. The thread sewn later lies on top, so the two middle "
+         "columns differ only in sewing order. The \"T2\" mark is below the bottom-left swatch. "
+         "Sew it on the same fabric and thread as the T1 card and scan it the same way.",
+         t2_card(), None),
         ("calibration/ps2-grey-ramp.pes", "S", "Photo Stitch 2 coverage ramp",
          "An eight-step grey ramp (`grey-ramp.png`, white to black) as Photo Stitch 2 sews it in one "
          "Black thread: how much of each grey its line screen covers, the data the Photo Stitch 2 "
@@ -489,8 +633,20 @@ def spec_of(spec_id):
     sys.exit(f"no compat spec {spec_id}")
 
 
+def pec_names():
+    """Brother catalogue code and name by PEC chart index ('900 Black' for 20)."""
+    rgb, codes = chart_codes()
+    return {i: codes[i] for i in rgb if i in codes}
+
+
 def thread_names():
     """Brother catalogue code and name for each PEC chart colour, from openstitch-core."""
+    rgb, codes = chart_codes()
+    return {hexc: codes[i] for i, hexc in rgb.items() if i in codes}
+
+
+def chart_codes():
+    """({PEC index: '#rrggbb'}, {PEC index: 'code Name'}) from openstitch-core."""
     charts = (ROOT / "crates/openstitch-core/src/charts.rs").read_text(encoding="utf-8")
     pec = charts[charts.index("PEC_CHART"):]
     pec = pec[:pec.index("];")]
@@ -500,7 +656,9 @@ def thread_names():
     brother = brother[brother.index("BROTHER_EMBROIDERY:"):]
     codes = {int(i): f"{code} {name.title()}" for i, code, name in
              re.findall(r'\((\d+), "(\d+)", "([^"]+)"\)', brother[:brother.index("];")])}
-    return {hexc: codes[i] for i, hexc in rgb.items() if i in codes}
+    # 62-64 are PE-DESIGN's Applique Wizard colours, not catalogue threads: named for their step.
+    codes.update({62: "Appliqué material (PEC 62)", 63: "Appliqué position (PEC 63)", 64: "Appliqué (PEC 64)"})
+    return rgb, codes
 
 
 def exec_script(work, script):
@@ -629,6 +787,7 @@ def build(out, previews):
             retry(lambda: (out / rel).write_bytes(data))
             if rel in APART:
                 check_apart(rel, out / rel)
+            measured = measure_card(rel, out / rel) if rel in CARDS else None
             stats = info["stitchStats"]
             png = f"previews/{Path(rel).stem}.png"
             if previews:
@@ -649,6 +808,9 @@ def build(out, previews):
                 "preview": png,
                 "sha256": hashlib.sha256(data).hexdigest(),
             }
+            if measured:
+                pec = pec_names()
+                manifest[rel]["swatches"] = [dict(m, thread=pec[m["thread"]]) for m in measured]
     return manifest
 
 

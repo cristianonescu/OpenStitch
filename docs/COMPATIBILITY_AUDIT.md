@@ -2312,6 +2312,31 @@ Line references are relative to `crates/`.
   both cards; the Realistic view and the similarity scorer now draw thread that wide
   (`openstitch_design::calibration`, #291).
 
+### Kit review and calibration cards, 2026-11-06 (#295, #441, #311, #312)
+
+- **New sew_check checks (#295):** trims per 1,000 stitches (limit 55: PE-DESIGN's 453 files in
+  `compat/reference` reach 52.5, a spiral ring with holes), and hairline zigzag (more than 45 stitches in a row under 1 mm that turn
+  back, a satin narrower than 1 mm; PE-DESIGN's small Text Transform lettering reaches 43).
+  Kit files that fail for an open engine issue are listed by issue (`sew_check.KNOWN`: the
+  storybook's hairline satin #368, the PE-compatible butterfly's 60 trims per 1,000 #627) and
+  fail again once they pass. Long stitches stay a warning (#460).
+- **1 mm Auto satin:** the satin card's 1 mm column sewed one 39.5 mm stitch along its length
+  (fixed in #460's batch); `auto_satin_on_a_narrow_column_never_stitches_along_it` covers 0.8 to
+  2 mm columns.
+- **Entry travel across calibration swatches (#628, open):** a fill is entered at the outline
+  point nearest the previous object but starts its rows at a fixed side, and the straight travel
+  between them crossed every T1 swatch (about 19 % more thread than the rows on the 0.5 rows/mm
+  ramp swatch). The kit now sets each T1 and T2 swatch's entry at its first row; the engine rule
+  is #628.
+- **T2 card (#311):** Black and Yellow fills in alternating rows at 2-5 rows/mm each, in both
+  sewing orders, with solid swatches at the total density; the kit README gives the fit of the
+  later thread's visible share, from which `rows::Rows::strip` is set once it is sewn.
+- **Swatch densities (#312):** the kit build measures every T1 and T2 swatch's rows per mm in the
+  exported PEC stitches (each within 0.03 rows/mm) and fails beyond 0.2; #297's shifted settings
+  are caught. `manifest.json` records the values.
+- **Realistic view:** shapes that sew nothing (a text path's guide circle) are no longer outlined
+  there unless selected; the lettering preview showed the circle as a sewn grey ring (#441).
+
 ### Auto Punch columns: travel through the column, 2026-11-05 (#450 follow-up)
 
 - **Finding:** the README's g08 still showed diagonal threads across both T's and the I after

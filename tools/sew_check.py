@@ -11,6 +11,13 @@
 - **Long stitches (warning only):** stitches longer than 12 mm snag and loop on the machine.
   PE-DESIGN sends them too (its 30 mm satin reference keeps every crossing whole), so they are
   reported but do not fail the file; split them with the satin's Split Stitch (`splitLength`).
+- **Trims per 1,000 stitches:** each trim leaves tails and costs time (#289, #295).
+- **Hairline zigzag:** a run of stitches under 1 mm that turn back each time is a satin column
+  narrower than 1 mm, which sews as a lump (#288, #295).
+
+A file listed in KNOWN fails a check for an open engine issue: the check is reported as known
+with the issue number instead of failing, and fails again once the file passes it (so the entry
+is removed when the issue is fixed).
 
     python3 -I tools/sew_check.py examples/sew            # every .pes under the folder
     python3 -I tools/sew_check.py file.pes --hoop 100x100
@@ -41,6 +48,16 @@ FIELD_SLACK_MM = 0.0       # sewing field must not be exceeded at all
 DENS_CELL_MM = 2.0
 MAX_DENSITY = 80.0         # PE-DESIGN's wide satin references reach 75
 LONG_MM = 12.0             # a stitch longer than this is a warning (#460)
+# Limits from PE-DESIGN's own files (the 453 PES files in compat/reference, measured 2026-11-06):
+MAX_TRIMS_PER_1000 = 55.0  # they reach 52.5 (a spiral ring with holes, 64 trims in 1,219 stitches)
+HAIRLINE_MM = 1.0
+MAX_HAIRLINE_RUN = 45      # they reach 43 (small Text Transform lettering)
+
+# Kit files that fail a check for an open engine issue: {path under examples/sew: {check: issue}}.
+KNOWN = {
+    "image-tools/L-autopunch-storybook-openstitch.pes": {"HAIRLINE": 368},
+    "image-tools/S-design-center-butterfly-pe-compatible.pes": {"TRIMS": 627},
+}
 
 
 def hoop_from(text):
@@ -284,11 +301,42 @@ def check(path, hoop):
     if longs:
         warnings.append(f"LONG STITCHES: {len(longs)} stitches longer than {LONG_MM:.0f} mm "
                         f"(longest {max(longs):.1f} mm); set a split length on wide satin")
+    trims = sum(1 for s in st if s[2] == "trim")
+    per_1000 = 1000.0 * trims / max(len(drops), 1)
+    if per_1000 > MAX_TRIMS_PER_1000:
+        problems.append(f"TRIMS: {per_1000:.1f} trims per 1,000 stitches (over {MAX_TRIMS_PER_1000:g})")
+    hairline = run = 0
+    prev = step = None
+    for s in st:
+        if s[2] == "stitch" and prev is not None and prev[2] == "stitch":
+            v = (s[0] - prev[0], s[1] - prev[1])
+            turned = step is not None and v[0] * step[0] + v[1] * step[1] < 0
+            run = run + 1 if 0.05 < math.hypot(*v) < HAIRLINE_MM and turned else 0
+            hairline = max(hairline, run)
+            step = v
+        else:
+            run, step = 0, None
+        prev = s
+    if hairline > MAX_HAIRLINE_RUN:
+        problems.append(f"HAIRLINE: {hairline} zigzag stitches in a row under {HAIRLINE_MM:g} mm wide")
     return {
         "size": (w, h), "header": (hw, hh), "stitches": len(drops), "colours": ncol,
         "max_cell": n, "max_cell_colour": pn, "tiny_run": best, "density": density,
+        "trims_per_1000": per_1000, "hairline": hairline,
         "problems": problems, "warnings": warnings,
     }
+
+
+def known(rel, problems):
+    """Splits `problems` into (failures, known): a problem whose check KNOWN lists for `rel` is
+    known; a KNOWN check the file no longer fails is a failure (remove its entry)."""
+    listed = KNOWN.get(rel, {})
+    fail = [p for p in problems if p.split(":")[0] not in listed]
+    ok = [f"{p} (known: {issue if isinstance(issue, str) else f'#{issue}'})"
+          for p in problems for check, issue in listed.items() if p.split(":")[0] == check]
+    gone = sorted(set(listed) - {p.split(":")[0] for p in problems})
+    fail += [f"KNOWN BUT PASSING: {rel} now passes {c}; remove it from sew_check.KNOWN" for c in gone]
+    return fail, ok
 
 
 def main():
@@ -301,26 +349,28 @@ def main():
         files += sorted(p.rglob("*.pes")) if p.is_dir() else [p]
     failed = 0
     for f in files:
-        hoop = None
+        hoop = rel = None
         if a.hoop:
             hoop = hoop_from(a.hoop)
         else:
             for parent in f.parents:
                 m = parent / "manifest.json"
                 if m.is_file():
-                    entry = json.loads(m.read_text(encoding="utf-8")).get(f.relative_to(parent).as_posix())
+                    rel = f.relative_to(parent).as_posix()
+                    entry = json.loads(m.read_text(encoding="utf-8")).get(rel)
                     if entry and "hoop" in entry:
                         hoop = hoop_from(entry["hoop"])
                     break
         hoop = hoop or (100.0, 100.0)
         r = check(f, hoop)
-        status = "FAIL" if r["problems"] else "ok"
-        failed += bool(r["problems"])
+        problems, ok = known(rel, r["problems"])
+        status = "FAIL" if problems else "ok"
+        failed += bool(problems)
         print(f"{status:4} {f.as_posix()}  {r['size'][0]:.1f}×{r['size'][1]:.1f} mm (header "
               f"{r['header'][0]:.1f}×{r['header'][1]:.1f}, hoop {hoop[0]:.0f}×{hoop[1]:.0f})  "
               f"max/spot {r['max_cell']} (colour {r['max_cell_colour']})  tiny run {r['tiny_run']}  "
-              f"density {r['density']:.1f}")
-        for p in r["problems"]:
+              f"density {r['density']:.1f}  trims/1000 {r['trims_per_1000']:.1f}  hairline {r['hairline']}")
+        for p in problems + ok:
             print("     ", p)
         for wmsg in r["warnings"]:
             print("      warning:", wmsg)

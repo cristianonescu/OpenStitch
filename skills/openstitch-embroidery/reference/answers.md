@@ -75,7 +75,9 @@ The window is laid out like PE-DESIGN 11's Layout & Editing window.
   open the image has handles on the canvas (drag to move, a corner to scale). Where it is drawn:
   `background.setLayer` behind the design (default), on top, or above one object; `ui.state`
   reports it under `background`. It never sews.
-- **View tab:** Solid, Stitch and Realistic views, thread trimming, show/hide panes, grid,
+- **View tab:** Solid, Stitch and Realistic views (`ui.set view`; the Realistic view shows only
+  what is sewn: trimmed travel and shapes that sew nothing, such as a text path's guide, are
+  not drawn unless selected), thread trimming, show/hide panes, grid,
   ruler, guidelines, Reference window. Zoom ▾ has Zoom Box (Z: drag a rectangle; `ui.zoom
   {rect}`) and Calibrate Real Size… (stretch a line to 100 mm on a ruler, so 100 % is real
   size on that monitor; `ui.set realSizePointsPerMM`, 0 resets to 96 dpi).
@@ -86,7 +88,9 @@ The window is laid out like PE-DESIGN 11's Layout & Editing window.
   design.
 - **Options ▾** (top right): Design Database, Programmable Stitch Creator, Stitch Design
   Factory, Font Creator, Sewing Attribute Sets, User Thread Charts, colour theme.
-- **Help ▾:** manual, Ready-to-Sew Designs (the bundled kit), keyboard shortcuts, About.
+- **Help ▾:** manual, Ready-to-Sew Designs (the bundled kit, with the T1 and T2 calibration
+  cards: thread coverage, and how far a row sewn later covers its neighbour), keyboard
+  shortcuts, About.
 - Undo and Redo: Quick Access Toolbar, ⌘/Ctrl+Z and ⌘/Ctrl+Y.
 
 ## Scripting

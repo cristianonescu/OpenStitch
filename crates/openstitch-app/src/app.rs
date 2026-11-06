@@ -1842,7 +1842,9 @@ pub fn demo_design() -> Vec<CommandRequest> {
         ),
         c(
             "object.setRegion",
-            json!({ "id": 2, "type": "satin", "angle": 90 }),
+            // Split at 7 mm: the 44 mm star sewed 31.8 mm satin stitches, which Check Design
+            // reported as an error in every screenshot's status bar (#441).
+            json!({ "id": 2, "type": "satin", "angle": 90, "splitLength": 7 }),
         ),
         c(
             "shape.rectangle",
@@ -1984,6 +1986,13 @@ mod tests {
         assert_eq!(app.pattern, Compiler::for_design(d).compile(d));
         assert_eq!(app.undo_groups, vec![1; demo_design().len()]);
         assert_eq!(app.refresh_deferred, None);
+        // Every documentation screenshot shows it: Check Design finds no error in it (#441:
+        // its unsplit satin star sewed 31.8 mm stitches).
+        let mut app = app;
+        let check = app
+            .session
+            .handle(&serde_json::json!({ "command": "design.check" }));
+        assert_eq!(check["result"]["errors"], 0, "{check}");
     }
 
     #[test]
