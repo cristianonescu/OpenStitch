@@ -171,6 +171,18 @@ separate pieces, and `angleRule: "leastTravel"` lays each fill of 10 mm² or mor
 1 mm wide (ropes, whiskers) are sewn as running lines, and a white, cream or off-white paper
 background is left out as the fabric showing.
 
+`order: ["#rrggbb", ...]` sews those colours first (the plan's `color` values; the others
+follow brightest first). Region numbers follow the sewing order, so dry-run again after
+changing it before you send `overrides`; colours a run does not sew come back in
+`orderIgnored`. `regionMap: true` adds the region under each cell of a small grid
+(`{width, height, runs: [[region, count], ...]}`, -1 for none), to name the region under a
+point the user means ("the hat" at the top left).
+
+The image dialog (Design ▸ Image to Embroidery, Auto Punch) does the same with buttons:
+Preview regions (a dry run), a Regions table where each row's Stitch can be changed, Fix on
+the picture (click a part to leave it out or put it back), a Colour order list and a Preset
+row; Convert then sends the choices as `overrides`, `order` and `preset`.
+
 A purpose `preset` sets several Auto Punch options at once, only those the call leaves unset,
 and implies OpenStitch mode: `logo`, `patch` (background sewn too), `lineArt`, `illustration`,
 `photo`, `pixelArt`. `digitize.presets` lists each one's options. Name the preset from what the

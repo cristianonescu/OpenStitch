@@ -80,6 +80,11 @@ pub struct AutoPunch {
     /// it, so no fabric shows along the seam where two colours meet (#469; 0 = off, the
     /// default; at most [`MAX_UNDERLAP_MM`]). PE-DESIGN mode ignores it.
     pub underlap_mm: f64,
+    /// The colours to sew first, in this order, by thread colour (`0xRRGGBB`, #489); the
+    /// others follow in PE-DESIGN's order. Empty (the default) is PE-DESIGN's order. A colour
+    /// the conversion does not sew is passed over and listed in [`Converted::order_ignored`]
+    /// (the threads change with the mode and colour count); one listed twice is an error.
+    pub order: Vec<u32>,
 }
 
 /// Longest [`AutoPunch::underlap_mm`], mm.
@@ -260,6 +265,7 @@ impl Default for AutoPunch {
             overrides: Vec::new(),
             angle_rule: AngleRule::Pe,
             underlap_mm: 0.0,
+            order: Vec::new(),
         }
     }
 }
@@ -330,6 +336,14 @@ pub struct Converted {
     pub background: Option<Thread>,
     /// Every traced region and how it is sewn, in sewing order (#489).
     pub regions: Vec<Region>,
+    /// The region ([`Region::id`]) of every working pixel, `u32::MAX` where none is (the
+    /// background, thin lines and outlines), row by row, [`Converted::map_size`] pixels: what
+    /// the image dialog's click-to-fix looks up (#489).
+    pub region_map: Vec<u32>,
+    /// Width and height of [`Converted::region_map`], working pixels.
+    pub map_size: (usize, usize),
+    /// The colours of [`AutoPunch::order`] this conversion does not sew.
+    pub order_ignored: Vec<u32>,
 }
 
 /// Labels per working pixel from the census's modal colours with their shades kept
@@ -753,10 +767,30 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
     for c in &comps {
         area[c.label as usize] += c.area;
     }
-    let order = palette::brightness_order(
+    let mut order = palette::brightness_order(
         &palette,
         (0..palette.threads.len()).filter(|&t| area[t] > 0),
     );
+    // The user's colours first (#489).
+    let mut order_ignored = Vec::new();
+    let mut k = 0;
+    for (n, &rgb) in p.order.iter().enumerate() {
+        if p.order[..n].contains(&rgb) {
+            return Err(DigitizeError::Invalid(format!(
+                "order: #{rgb:06x} is listed twice"
+            )));
+        }
+        let Some(at) = order
+            .iter()
+            .position(|&t| palette.threads[t].rgb_value() == rgb)
+        else {
+            order_ignored.push(rgb);
+            continue;
+        };
+        let t = order.remove(at);
+        order.insert(k, t);
+        k += 1;
+    }
     let mm = frame.mm_per_px();
     // Touching regions, for the neighbour angle rule.
     let adjacent = match p.angle_rule {
@@ -789,6 +823,8 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
     let mut fill_of: Vec<Option<f64>> = vec![None; comps.len()];
     let mut objects = Vec::new();
     let mut plan: Vec<Region> = Vec::new();
+    // The plan region of each component, for the region map.
+    let mut region_of: Vec<u32> = vec![u32::MAX; comps.len()];
     let mut threads: Vec<Thread> = Vec::new();
     let mut sew = |o: DesignObject, thread: &Thread, objects: &mut Vec<DesignObject>| {
         if threads.last() != Some(thread) {
@@ -836,6 +872,7 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
             } else {
                 (Stitch::Satin, Reason::SatinWidth)
             };
+            region_of[c] = plan.len() as u32;
             let ov = override_of(plan.len());
             let set = ov.and_then(|o| o.stitch);
             let mut entry = Region {
@@ -1073,6 +1110,12 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
         threads,
         background: background.map(|b| palette.threads[b as usize].clone()),
         regions: plan,
+        region_map: id
+            .iter()
+            .map(|&c| region_of.get(c as usize).copied().unwrap_or(u32::MAX))
+            .collect(),
+        map_size: (w, h),
+        order_ignored,
     })
 }
 
