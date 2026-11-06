@@ -797,22 +797,32 @@ pub fn sim_controls(
                 *pos = Some(0);
             }
         }
+        // #653: the player's buttons are Higgsfield icons, not ASCII marks.
         if ui
-            .add_enabled(total > 0, egui::Button::new("|<"))
+            .add_enabled(
+                total > 0,
+                egui::Button::new(crate::icons::ui_image(ui, "player_start")),
+            )
             .on_hover_text("Start")
             .clicked()
         {
             *pos = Some(0);
         }
         if ui
-            .add_enabled(total > 0, egui::Button::new("<"))
+            .add_enabled(
+                total > 0,
+                egui::Button::new(crate::icons::ui_image(ui, "player_back")),
+            )
             .on_hover_text("Previous stitch")
             .clicked()
         {
             *pos = Some(pos.unwrap_or(total).saturating_sub(1));
         }
         if ui
-            .add_enabled(total > 0, egui::Button::new(">"))
+            .add_enabled(
+                total > 0,
+                egui::Button::new(crate::icons::ui_image(ui, "player_forward")),
+            )
             .on_hover_text("Next stitch")
             .clicked()
         {
@@ -820,7 +830,10 @@ pub fn sim_controls(
             *pos = (n < total).then_some(n);
         }
         if ui
-            .add_enabled(total > 0, egui::Button::new(">|"))
+            .add_enabled(
+                total > 0,
+                egui::Button::new(crate::icons::ui_image(ui, "player_end")),
+            )
             .on_hover_text("End")
             .clicked()
         {
