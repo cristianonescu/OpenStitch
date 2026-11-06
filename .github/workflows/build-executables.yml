@@ -138,6 +138,8 @@ jobs:
 
       - name: macOS app bundle
         if: runner.os == 'macOS'
+        # Fails fast instead of hanging: the Quick Look check once waited 78 minutes on qlmanage.
+        timeout-minutes: 20
         shell: bash
         run: |
           set -euo pipefail

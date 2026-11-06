@@ -309,8 +309,10 @@ CI (`build-executables.yml`, macOS) runs `quicklook/check.sh`: the extension's p
 architectures and signatures; the Swift code path (`openstitch-quicklook-check`, built from
 `Renderer.swift`) giving a 256 × 256 PNG for a kit design and a clean error for a malformed
 file; and, on the throwaway runner only, registering the extension (`lsregister`,
-`pluginkit -a`) and drawing a `.pes` with `qlmanage -t`. That registration is never run on
-someone's own Mac.
+`pluginkit -a`, which must list it) and asking `qlmanage -t` for a `.pes` thumbnail for at most
+90 seconds. A runner has no login session and `qlmanage` may never answer there, so a missing
+picture is a warning rather than a failure; the step has a 20-minute limit. That registration
+is never run on someone's own Mac.
 
 Signing: the bundle and the extension are ad-hoc signed (`codesign --sign -`), as before; CI
 holds no certificate and none is added without the owner. Owner steps that CI cannot do:
