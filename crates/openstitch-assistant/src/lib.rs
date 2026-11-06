@@ -23,6 +23,7 @@ pub mod acp;
 mod conversation;
 mod images;
 mod models;
+pub mod notes;
 mod openai;
 mod sse;
 mod transport;
@@ -38,7 +39,9 @@ pub use acp::{
 };
 pub use conversation::Conversation;
 pub use images::{GENERATE_IMAGE, ImageConfig, NO_GENERATOR, WithImages, generate_image};
-pub use models::{ModelInfo, edit_request_without_tools, list_models, ollama_tools_capability};
+pub use models::{
+    ModelInfo, edit_request_without_tools, list_models, ollama_tools_capability, pick_model,
+};
 pub use transport::UreqTransport;
 
 /// The model the assistant uses unless the user picks another.

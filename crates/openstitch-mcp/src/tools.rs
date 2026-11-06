@@ -24,6 +24,8 @@ pub enum Meta {
     ViewRender,
     ScratchWrite,
     SkillReference,
+    NotesRead,
+    NotesWrite,
 }
 
 #[derive(Clone, Debug)]

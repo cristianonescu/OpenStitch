@@ -172,6 +172,34 @@ pub fn ollama_tools_capability(
     Some(caps.iter().any(|c| c.as_str() == Some("tools")))
 }
 
+/// The most models [`pick_model`] asks Ollama about.
+const MAX_PROBED: usize = 20;
+
+/// A model for a local endpoint the user just chose (#432): the first model it lists that can
+/// call tools. On an Ollama server each listed model is asked for its capabilities in order (at
+/// most [`MAX_PROBED`]) and the first with `tools` wins; a server that is not Ollama (LM Studio,
+/// llama.cpp, ...) cannot say, so its first model is taken. Err: the endpoint lists nothing, or
+/// no model it lists has tools; the message tells the user what to do.
+pub fn pick_model(cfg: &Config, transport: &dyn Transport) -> Result<String, String> {
+    let models = list_models(cfg, transport)?;
+    let Some(first) = models.first() else {
+        return Err("The endpoint lists no models. Load or pull one, then press List.".into());
+    };
+    for m in models.iter().take(MAX_PROBED) {
+        match ollama_tools_capability(&cfg.base_url, &m.id, transport) {
+            Some(true) => return Ok(m.id.clone()),
+            Some(false) => continue,
+            // Not Ollama, or it cannot say: the endpoint's first model.
+            None => return Ok(first.id.clone()),
+        }
+    }
+    Err(
+        "None of the endpoint's models lists the \"tools\" capability, so none can change the \
+         design. Pull one that does (Ollama shows tools in its capabilities), then press List."
+            .into(),
+    )
+}
+
 /// Verbs that open a request to change the design.
 const EDIT_VERBS: &[&str] = &[
     "make",

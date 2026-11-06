@@ -5,6 +5,8 @@
 //! `OPENSTITCH_KEEP_TEMP=1` to keep the folders of failing tests for a look afterwards; their
 //! paths are printed to stderr.
 
+pub mod mock_http;
+
 use std::ffi::OsStr;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};

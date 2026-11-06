@@ -4036,6 +4036,7 @@ dependencies = [
  "base64",
  "openstitch-assistant",
  "openstitch-compat",
+ "openstitch-core",
  "openstitch-design",
  "openstitch-engine",
  "openstitch-mcp",

@@ -3,24 +3,28 @@
 //! anything in the editor.
 //!
 //! - A worker thread runs the conversation (`openstitch-assistant`). The model's tools are the
-//!   `openstitch-mcp` assistant server's seven meta tools, driven through an in-process
+//!   `openstitch-mcp` assistant server's nine meta tools, driven through an in-process
 //!   [`EditorLink`] instead of the loopback socket.
 //! - Every engine and `ui.*` command the server sends arrives here on the UI thread as a
 //!   [`Job`]. It passes the permission gate (`editor::assistant_chat::verdict`), then runs
 //!   through the same path as socket requests.
 //! - All the changes of one message fold into one undo step.
 //! - The API key lives only in the system keychain.
+//! - The Assistant's memory (#491) goes into each conversation's system prompt (a coding agent:
+//!   its first message) and changes only through the gate (`notes_write`) or the user's own
+//!   edits in the settings.
 
 use crate::app::EditorApp;
 use eframe::egui::{self, RichText};
 use openstitch_app::editor::assistant_attach::{self, Attachment, MAX_FILES};
 use openstitch_app::editor::assistant_chat::{
-    APPROVAL_TIMEOUT_S, AiPrefs, GateInput, PRESETS, PermissionMode, Protocol, ScriptRecord,
-    Verdict, is_this_computer, verdict,
+    APPROVAL_TIMEOUT_S, AiPrefs, GateInput, PRESETS, PermissionMode, Preset, Protocol,
+    ScriptRecord, Verdict, apply_preset, is_this_computer, resolve_scratch_names, verdict,
 };
 use openstitch_app::editor::ribbon::Action;
 use openstitch_app::keys;
 use openstitch_assistant as claude;
+use openstitch_assistant::notes::{MAX_NOTES_BYTES, Notes};
 use openstitch_engine::Effect;
 use openstitch_mcp::EditorLink;
 use serde_json::{Value, json};
@@ -324,6 +328,11 @@ pub fn tool_label(name: &str, input: &Value) -> String {
             None => "Wrote a file".into(),
         },
         "generate_image" => "Generated a picture".into(),
+        "notes_read" => "Read its notes".into(),
+        "notes_write" => match arg("section") {
+            Some(s) => format!("Remembered ({s})"),
+            None => "Remembered something".into(),
+        },
         "ToolSearch" => "Looked up tools".into(),
         other => other.to_string(),
     }
@@ -375,6 +384,10 @@ pub struct Panel {
     image_key_stored: Option<(String, bool)>,
     /// Reset AI settings is waiting for its confirmation.
     confirm_reset: bool,
+    /// Memory (#491): the notes as last shown, and the user's edits of them.
+    notes_draft: Option<(String, String)>,
+    /// Forget everything is waiting for its confirmation.
+    confirm_forget: bool,
     /// The closing dialog (#422) is showing, and its "Don't show this again" box.
     pub close_hint_open: bool,
     close_hint_dont_show: bool,
@@ -460,6 +473,7 @@ pub fn send(app: &mut EditorApp, text: String, wake: Waker) {
         app.assistant.panel.queue.push(text);
         return;
     }
+    apply_picked(app);
     let prefs = app.ui.prefs.ai.clone();
     scratch(app);
     let kind = (
@@ -639,6 +653,15 @@ fn image_config(app: &EditorApp, prefs: &AiPrefs) -> Option<claude::ImageConfig>
 
 /// The model request settings, or `None` (with a notice) when the key may not be sent.
 fn model_config(app: &mut EditorApp, prefs: &AiPrefs) -> Option<claude::Config> {
+    // #432: no model (a local preset whose list is still coming, or had none with tools): say
+    // so instead of sending a request the server answers with a 404.
+    if prefs.model.trim().is_empty() {
+        app.assistant.panel.show_settings = true;
+        app.assistant.panel.items.push(Item::Notice(
+            "Choose a model first: in the Assistant's settings (⚙), Model ▸ List shows the endpoint's models.".into(),
+        ));
+        return None;
+    }
     if !claude::key_safe_for(&prefs.base_url) {
         app.assistant.panel.items.push(Item::Notice(format!(
             "The address {} is neither https nor this computer, so the key is not sent. Change it in the Assistant's settings.",
@@ -665,7 +688,7 @@ fn model_config(app: &mut EditorApp, prefs: &AiPrefs) -> Option<claude::Config> 
         model: prefs.model.clone(),
         effort: prefs.effort.clone(),
         request_timeout: Duration::from_secs(prefs.request_timeout_s),
-        system: openstitch_mcp::server::assistant_instructions().to_string(),
+        system: system_prompt(app),
         protocol: match prefs.protocol {
             Protocol::OpenAi => claude::Protocol::OpenAi,
             Protocol::Anthropic | Protocol::Agent => claude::Protocol::Anthropic,
@@ -673,6 +696,16 @@ fn model_config(app: &mut EditorApp, prefs: &AiPrefs) -> Option<claude::Config> 
         reasoning_effort: Some(prefs.reasoning_effort.clone()).filter(|e| !e.is_empty()),
         ..claude::Config::default()
     })
+}
+
+/// The system prompt: the instructions, then what the Assistant remembers (#491; nothing when
+/// memory is off or empty). A coding agent gets it as its `systemPrompt` append.
+pub fn system_prompt(app: &mut EditorApp) -> String {
+    format!(
+        "{}{}",
+        openstitch_mcp::server::assistant_instructions(),
+        app.memory_prompt().unwrap_or_default()
+    )
 }
 
 /// The agent's tool server is this editor's own executable in `--assistant-mcp` mode, so it
@@ -730,7 +763,7 @@ fn start_agent(app: &mut EditorApp, id: &str, wake: Waker) -> Result<Worker, Str
             args: vec!["--assistant-mcp".into(), endpoint.display().to_string()],
             env: Vec::new(),
         },
-        system: openstitch_mcp::server::assistant_instructions().to_string(),
+        system: system_prompt(app),
         extra_path: claude::search_dirs(),
     };
     let mut w = Worker::start_agent(config, listener, wake);
@@ -878,7 +911,7 @@ fn run_job(app: &mut EditorApp, job: Job) {
     job.answer(reply);
 }
 
-fn handle_job(app: &mut EditorApp, job: Job) {
+fn handle_job(app: &mut EditorApp, mut job: Job) {
     let command = job.request["command"]
         .as_str()
         .unwrap_or_default()
@@ -888,7 +921,20 @@ fn handle_job(app: &mut EditorApp, job: Job) {
         return;
     };
     let empty = json!({});
-    let params = job.request.get("params").unwrap_or(&empty).clone();
+    let mut params = job.request.get("params").unwrap_or(&empty).clone();
+    // #431: `heart.svg` just written with scratch_write means the scratch folder's heart.svg, for
+    // the gate and for the command alike.
+    if resolve_scratch_names(&mut params, app.assistant.scratch.as_deref()) {
+        job.request["params"] = params.clone();
+    }
+    // #491: with memory off the notes are neither read nor written, and nobody is asked.
+    if !app.ui.prefs.ai.memory && matches!(command.as_str(), "ui.notesRead" | "ui.notesWrite") {
+        reply_err(
+            job,
+            "the user turned the Assistant's memory off; do not try to remember things".into(),
+        );
+        return;
+    }
     let prefs = &app.ui.prefs.ai;
     let (edits, undo_start) = app
         .assistant
@@ -1161,6 +1207,8 @@ pub struct Lookups {
     ollama_tools: Option<(String, Option<bool>)>,
     /// Coding agents found on this computer (A3), once looked for.
     agents: Option<Vec<claude::Discovered>>,
+    /// The model picked for a local endpoint just chosen (#432), for the address it was asked of.
+    picked: Option<(String, Result<String, String>)>,
     /// What is being looked up now.
     busy: Vec<&'static str>,
 }
@@ -1199,6 +1247,65 @@ fn list_models(app: &EditorApp, lookups: &Shared, ctx: &egui::Context) {
     });
 }
 
+/// #432: asks a local endpoint just chosen for its first model with tools, in the background.
+fn start_pick(app: &EditorApp, ctx: Option<egui::Context>) {
+    let config = lookup_config(app);
+    let lookups = app.assistant.panel.lookups.clone();
+    {
+        let mut l = lookups.lock().unwrap_or_else(|e| e.into_inner());
+        l.picked = None;
+        l.busy.push("pick");
+    }
+    std::thread::spawn(move || {
+        let r = claude::pick_model(&config, &claude::UreqTransport);
+        let mut l = lookups.lock().unwrap_or_else(|e| e.into_inner());
+        l.picked = Some((config.base_url.clone(), r));
+        if let Some(i) = l.busy.iter().position(|b| *b == "pick") {
+            l.busy.remove(i);
+        }
+        if let Some(ctx) = ctx {
+            ctx.request_repaint();
+        }
+    });
+}
+
+/// Chooses an Endpoint preset (#432): a local endpoint without a model gets the first of its
+/// models that can call tools, picked in the background.
+pub fn choose_preset(app: &mut EditorApp, preset: &Preset, ctx: Option<egui::Context>) {
+    if apply_preset(&mut app.ui.prefs.ai, preset) && is_this_computer(preset.base_url) {
+        start_pick(app, ctx);
+    }
+}
+
+/// Takes the model the background pick found, when the settings still wait for one on that
+/// address; returns whether it did.
+pub fn apply_picked(app: &mut EditorApp) -> bool {
+    let picked = {
+        let l = app
+            .assistant
+            .panel
+            .lookups
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        match &l.picked {
+            Some((base, Ok(model))) => Some((base.clone(), model.clone())),
+            _ => None,
+        }
+    };
+    let prefs = &mut app.ui.prefs.ai;
+    match picked {
+        Some((base, model)) if base == prefs.base_url && prefs.model.trim().is_empty() => {
+            prefs.model = model.clone();
+            app.ui.save_prefs();
+            app.assistant.panel.items.push(Item::Notice(format!(
+                "Model {model}: the first this endpoint lists that can use tools. Change it in the settings."
+            )));
+            true
+        }
+        _ => false,
+    }
+}
+
 fn check_ollama_tools(app: &EditorApp, lookups: &Shared, ctx: &egui::Context) {
     let (base, model) = (
         app.ui.prefs.ai.base_url.clone(),
@@ -1216,9 +1323,11 @@ fn check_ollama_tools(app: &EditorApp, lookups: &Shared, ctx: &egui::Context) {
 }
 
 fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
+    apply_picked(app);
     let ctx = ui.ctx().clone();
     let lookups = app.assistant.panel.lookups.clone();
     let mut changed = false;
+    let mut chosen: Option<Preset> = None;
     let mut model_changed = false;
     let mut want_models = false;
     let mut want_agents = false;
@@ -1240,11 +1349,8 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                 .show_ui(ui, |ui| {
                     for p in PRESETS {
                         if ui.selectable_label(prefs.base_url == p.base_url, p.name).clicked() {
-                            prefs.protocol = p.protocol;
-                            prefs.base_url = p.base_url.to_string();
-                            if !p.model.is_empty() || prefs.protocol == Protocol::Anthropic {
-                                prefs.model = p.model.to_string();
-                            }
+                            // #432: no Claude model left on a local server.
+                            chosen = Some(p);
                             changed = true;
                             model_changed = true;
                         }
@@ -1396,6 +1502,21 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
         {
             ui.colored_label(ui.visuals().warn_fg_color, format!("No model list: {e}"));
         }
+        if l.busy.contains(&"pick") {
+            ui.label("Looking for a model that can use tools on this endpoint…");
+        } else if prefs.protocol != Protocol::Agent && prefs.model.trim().is_empty() {
+            match &l.picked {
+                Some((base, Err(e))) if *base == prefs.base_url => {
+                    ui.colored_label(ui.visuals().warn_fg_color, format!("No model: {e}"));
+                }
+                _ => {
+                    ui.colored_label(
+                        ui.visuals().warn_fg_color,
+                        "Choose a model: List shows the endpoint's models.",
+                    );
+                }
+            }
+        }
         if let Some((model, Some(false))) = &l.ollama_tools
             && *model == prefs.model
         {
@@ -1408,6 +1529,9 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
     let local_openai = prefs.protocol == Protocol::OpenAi && is_this_computer(&prefs.base_url);
     if want_models {
         list_models(app, &lookups, &ctx);
+    }
+    if let Some(p) = chosen {
+        choose_preset(app, &p, Some(ctx.clone()));
     }
     if want_agents {
         let mut l = lookups.lock().unwrap_or_else(|e| e.into_inner());
@@ -1448,7 +1572,106 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
     } else {
         endpoint_key(app, ui);
     }
+    memory_settings(app, ui, &mut changed);
     image_and_reset(app, ui, changed);
+}
+
+/// The notes the user typed in Memory (#491), kept and saved; over the cap they are refused.
+pub fn save_notes_text(app: &mut EditorApp, text: &str) -> Result<(), String> {
+    let mut notes = Notes::default();
+    notes.set_text(text)?;
+    app.set_notes(notes)
+}
+
+/// Memory (#491): the switch, what the Assistant remembers (the user can edit it) and Forget
+/// everything.
+fn memory_settings(app: &mut EditorApp, ui: &mut egui::Ui, changed: &mut bool) {
+    ui.separator();
+    *changed |= ui
+        .checkbox(
+            &mut app.ui.prefs.ai.memory,
+            "Let the Assistant remember things",
+        )
+        .on_hover_text(
+            "It keeps short notes about your machine, threads, fabrics and preferences between conversations, and asks before each change. They stay on this computer and go only to the model chosen here.",
+        )
+        .changed();
+    if !app.ui.prefs.ai.memory {
+        ui.label(
+            "Memory is off: the notes are kept but not sent, and the Assistant cannot change them.",
+        );
+    }
+    let current = app.notes().text().to_string();
+    let panel = &mut app.assistant.panel;
+    let (base, draft) = panel
+        .notes_draft
+        .get_or_insert_with(|| (current.clone(), current.clone()));
+    if *base != current {
+        // The Assistant (or Forget everything) changed them: show the new notes unless the user
+        // is editing.
+        if *draft == *base {
+            *draft = current.clone();
+        }
+        *base = current.clone();
+    }
+    ui.label(format!(
+        "What it remembers ({} of {MAX_NOTES_BYTES} bytes):",
+        current.len()
+    ));
+    ui.add(
+        egui::TextEdit::multiline(draft)
+            .desired_rows(4)
+            .desired_width(f32::INFINITY)
+            .hint_text(
+                "Nothing yet. Tell it about your machine, threads or fabrics, or type here.",
+            ),
+    );
+    let dirty = *draft != current;
+    let draft = draft.clone();
+    let (mut save, mut revert, mut forget) = (false, false, false);
+    ui.horizontal(|ui| {
+        save = ui
+            .add_enabled(dirty, egui::Button::new("Save notes"))
+            .clicked();
+        revert = ui
+            .add_enabled(dirty, egui::Button::new("Undo edits"))
+            .clicked();
+        if panel.confirm_forget {
+            ui.colored_label(
+                ui.visuals().warn_fg_color,
+                "Forget everything it remembers?",
+            );
+            forget = danger_button(ui, "Forget", true).clicked();
+            if ui.button("Cancel").clicked() {
+                panel.confirm_forget = false;
+            }
+        } else if danger_button(ui, "Forget everything…", !current.is_empty())
+            .on_hover_text("Clear the notes the Assistant keeps between conversations")
+            .clicked()
+        {
+            panel.confirm_forget = true;
+        }
+    });
+    if save {
+        let note = match save_notes_text(app, &draft) {
+            Ok(()) => "Notes saved.".to_string(),
+            Err(e) => format!("The notes were not saved: {e}"),
+        };
+        app.assistant.panel.items.push(Item::Notice(note));
+    }
+    if revert {
+        app.assistant.panel.notes_draft = None;
+    }
+    if forget {
+        let note = match app.set_notes(Notes::default()) {
+            Ok(()) => "The Assistant forgot everything it remembered.".to_string(),
+            Err(e) => format!("The notes could not be cleared: {e}"),
+        };
+        let panel = &mut app.assistant.panel;
+        panel.confirm_forget = false;
+        panel.notes_draft = None;
+        panel.items.push(Item::Notice(note));
+    }
 }
 
 /// What the settings say about keys while the protocol is Coding agent (#420).
@@ -2254,6 +2477,38 @@ pub mod testing {
             );
             index += 1;
         }
+        s += &sse(
+            "message_delta",
+            json!({ "type": "message_delta", "delta": { "stop_reason": stop, "stop_sequence": null },
+            "usage": { "output_tokens": 20 } }),
+        );
+        s += &sse("message_stop", json!({ "type": "message_stop" }));
+        s
+    }
+
+    /// A streamed assistant message calling one meta tool (`notes_write`, `scratch_write`, ...)
+    /// by its own name.
+    pub fn reply_tool(name: &str, input: Value, stop: &str) -> String {
+        let mut s = sse(
+            "message_start",
+            json!({ "type": "message_start", "message": { "id": "msg", "type": "message", "role": "assistant",
+                "content": [], "model": "claude-opus-5-5", "stop_reason": null,
+                "usage": { "input_tokens": 10, "output_tokens": 1 } } }),
+        );
+        s += &sse(
+            "content_block_start",
+            json!({ "type": "content_block_start", "index": 0,
+            "content_block": { "type": "tool_use", "id": "meta0", "name": name, "input": {} } }),
+        );
+        s += &sse(
+            "content_block_delta",
+            json!({ "type": "content_block_delta", "index": 0,
+            "delta": { "type": "input_json_delta", "partial_json": input.to_string() } }),
+        );
+        s += &sse(
+            "content_block_stop",
+            json!({ "type": "content_block_stop", "index": 0 }),
+        );
         s += &sse(
             "message_delta",
             json!({ "type": "message_delta", "delta": { "stop_reason": stop, "stop_sequence": null },
@@ -3269,5 +3524,295 @@ mod tests {
                     .contains(&Item::Assistant("two".into()))
         });
         assert_eq!(transport.requests.lock().expect("lock").len(), 3);
+    }
+
+    // MARK: #431, #432, #491 (batch:assistant-settings)
+
+    /// #431: the vector route of the #393 live check. `scratch_write heart.svg`, then
+    /// `import.svg {"path": "heart.svg"}`: the bare name is the scratch file, so nothing asks and
+    /// the import finds it (it used to ask "use heart.svg", then look in the working folder).
+    #[test]
+    fn a_scratch_file_imported_by_its_bare_name_runs_without_a_question() {
+        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg" width="40mm" height="40mm" viewBox="0 0 40 40"><path d="M5 5 H35 V35 H5 Z" fill="red"/></svg>"#;
+        let (mut app, transport) = app_with(vec![
+            reply(
+                &[(
+                    "ui.scratchWrite",
+                    json!({ "name": "heart.svg", "text": svg }),
+                )],
+                "",
+                "tool_use",
+            ),
+            reply(
+                &[("import.svg", json!({ "path": "heart.svg" }))],
+                "",
+                "tool_use",
+            ),
+            reply(&[], "Imported.", "end_turn"),
+        ]);
+        let before = app.session.design().objects.len();
+        send(&mut app, "draw a heart".into(), no_wake());
+        run(&mut app, |a| {
+            idle(a) || !a.assistant.panel.approvals.is_empty()
+        });
+        assert!(
+            app.assistant.panel.approvals.is_empty(),
+            "asked: {:?}",
+            app.assistant
+                .panel
+                .approvals
+                .iter()
+                .map(|a| a.what.clone())
+                .collect::<Vec<_>>()
+        );
+        assert!(app.session.design().objects.len() > before, "imported");
+        let requests = transport.requests.lock().expect("lock");
+        let result = requests[2]["messages"]
+            .as_array()
+            .expect("m")
+            .last()
+            .cloned()
+            .expect("last");
+        assert!(
+            !result.to_string().contains("\"is_error\":true"),
+            "{result}"
+        );
+    }
+
+    /// The `notes_write` meta tool through the Claude API stream (not `execute`).
+    fn remember(section: &str, text: &str) -> String {
+        reply_tool(
+            "notes_write",
+            json!({ "section": section, "text": text }),
+            "tool_use",
+        )
+    }
+
+    fn system_of(request: &Value) -> String {
+        request["system"].to_string()
+    }
+
+    /// #491 acceptance: a fact written in conversation A, with the user's yes, is in the system
+    /// prompt of a new conversation B, and in the notes file beside ui.json for the next start.
+    #[test]
+    fn a_fact_remembered_in_one_conversation_is_in_the_next_ones_system_prompt() {
+        let dir = openstitch_testutil::TempDir::new("notes-panel");
+        let (mut app, transport) = app_with(vec![
+            remember("Threads", "Uses Madeira Polyneon 40"),
+            reply(&[], "I'll remember that.", "end_turn"),
+            reply(&[], "A red heart in Madeira Polyneon 1747.", "end_turn"),
+        ]);
+        app.ui.prefs_path = Some(dir.join("ui.json"));
+        send(
+            &mut app,
+            "remember that I use Madeira Polyneon".into(),
+            no_wake(),
+        );
+        run(&mut app, |a| !a.assistant.panel.approvals.is_empty());
+        assert_eq!(
+            app.assistant.panel.approvals[0].what,
+            "remember (Threads): Uses Madeira Polyneon 40"
+        );
+        assert!(app.notes().is_empty(), "nothing written before the yes");
+        answer(&mut app, 0, Answer::Once);
+        run(&mut app, idle);
+        let file = dir.join(openstitch_assistant::notes::FILE_NAME);
+        assert_eq!(
+            std::fs::read_to_string(&file).expect("notes file"),
+            "## Threads\n- Uses Madeira Polyneon 40\n"
+        );
+        // A new conversation in a freshly started editor reads them from the file.
+        new_chat(&mut app);
+        app.assistant.notes = None;
+        send(&mut app, "make a red heart".into(), no_wake());
+        run(&mut app, idle);
+        let requests = transport.requests.lock().expect("lock");
+        assert!(!system_of(&requests[0]).contains("<notes>"), "none yet");
+        let b = system_of(&requests[2]);
+        assert!(b.contains("What you remember about this user"), "{b}");
+        assert!(b.contains("- Uses Madeira Polyneon 40"), "{b}");
+    }
+
+    /// A denied write changes nothing and the model hears why; memory off answers without
+    /// asking, and the system prompt then carries no notes.
+    #[test]
+    fn denied_writes_and_memory_off_change_nothing() {
+        let (mut app, transport) = app_with(vec![
+            remember("Machine", "Brother NV880E"),
+            reply(&[], "ok", "end_turn"),
+            remember("Machine", "Brother NV880E"),
+            reply(&[], "ok", "end_turn"),
+        ]);
+        app.set_notes(Notes::from_text("## Fabric\n- knits\n"))
+            .expect("seed");
+        send(&mut app, "I sew on an NV880E".into(), no_wake());
+        run(&mut app, |a| !a.assistant.panel.approvals.is_empty());
+        answer(&mut app, 0, Answer::Deny);
+        run(&mut app, idle);
+        assert_eq!(app.notes().text(), "## Fabric\n- knits\n");
+        app.ui.prefs.ai.memory = false;
+        new_chat(&mut app);
+        send(&mut app, "I sew on an NV880E".into(), no_wake());
+        run(&mut app, |a| {
+            idle(a) || !a.assistant.panel.approvals.is_empty()
+        });
+        assert!(app.assistant.panel.approvals.is_empty(), "nobody asked");
+        assert_eq!(app.notes().text(), "## Fabric\n- knits\n");
+        let requests = transport.requests.lock().expect("lock");
+        assert!(requests[1].to_string().contains("declined"), "denied");
+        assert!(system_of(&requests[0]).contains("- knits"), "memory on");
+        assert!(!system_of(&requests[2]).contains("knits"), "memory off");
+        assert!(
+            requests[3].to_string().contains("memory off"),
+            "the model is told"
+        );
+        // The memory switch is a ui.* setting too (the gate asks before the model flips it).
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "assistantMemory", "value": true })),
+        )
+        .expect("set");
+        assert!(app.ui.prefs.ai.memory);
+    }
+
+    /// #491: every protocol gets the notes: the OpenAI-compatible system message, and a coding
+    /// agent's systemPrompt append (the same `system_prompt`).
+    #[test]
+    fn the_notes_reach_every_protocol() {
+        let (mut app, transport) = app_with(vec![openai_reply(&[], "Hi.", "stop")]);
+        local_openai(&mut app);
+        app.set_notes(Notes::from_text(
+            "## Machine\n- NV880E, 130 x 180 mm hoop\n",
+        ))
+        .expect("seed");
+        send(&mut app, "hello".into(), no_wake());
+        run(&mut app, idle);
+        let requests = transport.requests.lock().expect("lock");
+        let system = &requests[0]["messages"][0];
+        assert_eq!(system["role"], "system");
+        assert!(
+            system["content"].to_string().contains("130 x 180 mm hoop"),
+            "{system}"
+        );
+        let agent = system_prompt(&mut app);
+        assert!(agent.starts_with(openstitch_mcp::server::assistant_instructions()));
+        assert!(agent.contains("<notes>\n## Machine"), "{agent}");
+        app.ui.prefs.ai.memory = false;
+        assert_eq!(
+            system_prompt(&mut app),
+            openstitch_mcp::server::assistant_instructions()
+        );
+    }
+
+    /// #491: the `ui.*` commands read, write and clear the notes and refuse junk; the settings
+    /// show them with Forget everything.
+    #[test]
+    fn notes_through_ui_commands_and_in_the_settings() {
+        let (mut app, _) = app_with(Vec::new());
+        let read = app.ui_command("ui.notesRead", None).expect("read");
+        assert_eq!(read["text"], "");
+        assert_eq!(read["limit"], json!(MAX_NOTES_BYTES));
+        let w = app
+            .ui_command(
+                "ui.notesWrite",
+                Some(&json!({ "section": "preferences", "text": "satin borders on everything" })),
+            )
+            .expect("write");
+        assert_eq!(w["text"], "## Preferences\n- satin borders on everything\n");
+        for bad in [
+            json!({ "section": "Diary", "text": "x" }),
+            json!({ "section": "Lessons", "text": "x", "mode": "prepend" }),
+            json!({ "section": "Lessons", "text": "password hunter2" }),
+        ] {
+            assert!(
+                app.ui_command("ui.notesWrite", Some(&bad)).is_err(),
+                "{bad}"
+            );
+        }
+        let text = settings_text(&mut app);
+        for t in [
+            "Let the Assistant remember things",
+            "satin borders on everything",
+            "Forget everything",
+        ] {
+            assert!(text.contains(t), "{t:?} in the settings:\n{text}");
+        }
+        save_notes_text(&mut app, "## Lessons\n- denser satin on knits\n").expect("typed");
+        assert_eq!(app.notes().text(), "## Lessons\n- denser satin on knits\n");
+        assert!(save_notes_text(&mut app, &"x".repeat(MAX_NOTES_BYTES + 10)).is_err());
+        assert_eq!(app.notes().text(), "## Lessons\n- denser satin on knits\n");
+        app.ui_command("ui.notesClear", None).expect("clear");
+        assert!(app.notes().is_empty());
+        app.ui.prefs.ai.memory = false;
+        assert!(app.ui_command("ui.notesRead", None).is_err());
+        assert!(
+            settings_text(&mut app).contains("Memory is off"),
+            "the settings say so"
+        );
+    }
+
+    /// #432 with a mock Ollama on 127.0.0.1 (no model server runs): choosing the local preset
+    /// drops the Claude model, picks the first model with tools, and the first message uses it.
+    #[test]
+    fn a_local_preset_picks_a_model_with_tools_for_the_first_message() {
+        use openstitch_testutil::mock_http::{MockHttp, Seen};
+        let server = MockHttp::start(|r: &Seen| match r.path.as_str() {
+            "/v1/models" => (
+                200,
+                json!({ "object": "list", "data": [{ "id": "llava:7b" }, { "id": "qwen3:8b" }] })
+                    .to_string(),
+            ),
+            "/api/version" => (200, json!({ "version": "0.40.14" }).to_string()),
+            "/api/show" if r.body.contains("qwen3") => (
+                200,
+                json!({ "capabilities": ["completion", "tools"] }).to_string(),
+            ),
+            "/api/show" => (200, json!({ "capabilities": ["completion"] }).to_string()),
+            _ => (404, "{}".into()),
+        });
+        let (mut app, transport) = app_with(vec![openai_reply(&[], "Hi.", "stop")]);
+        app.assistant.panel.test_key = None;
+        assert_eq!(app.ui.prefs.ai.model, "claude-opus-5-5");
+        let base: &'static str = Box::leak(format!("{}/v1", server.origin()).into_boxed_str());
+        let ollama = Preset {
+            name: "Ollama (test)",
+            protocol: Protocol::OpenAi,
+            base_url: base,
+            model: "",
+        };
+        choose_preset(&mut app, &ollama, None);
+        assert_eq!(app.ui.prefs.ai.model, "", "the Claude model is gone");
+        // A message before the pick lands asks for a model instead of a 404.
+        let start = Instant::now();
+        while !apply_picked(&mut app) {
+            assert!(start.elapsed() < Duration::from_secs(30), "no model picked");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert_eq!(app.ui.prefs.ai.model, "qwen3:8b");
+        send(&mut app, "hello".into(), no_wake());
+        run(&mut app, idle);
+        let requests = transport.requests.lock().expect("lock");
+        assert_eq!(requests[0]["model"], "qwen3:8b");
+    }
+
+    /// #432: with no model (the pick found none, or is still running) a message says what to
+    /// do and opens the settings; nothing is sent.
+    #[test]
+    fn an_empty_model_asks_for_one_instead_of_sending() {
+        let (mut app, transport) = app_with(vec![openai_reply(&[], "Hi.", "stop")]);
+        local_openai(&mut app);
+        app.ui.prefs.ai.model.clear();
+        send(&mut app, "hello".into(), no_wake());
+        assert!(!app.assistant.panel.busy());
+        assert!(app.assistant.panel.show_settings);
+        assert!(
+            app.assistant
+                .panel
+                .items
+                .iter()
+                .any(|i| matches!(i, Item::Notice(n) if n.starts_with("Choose a model first")))
+        );
+        assert!(transport.requests.lock().expect("lock").is_empty());
+        assert!(settings_text(&mut app).contains("Choose a model: List"));
     }
 }

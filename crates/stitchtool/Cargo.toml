@@ -17,6 +17,8 @@ openstitch-remote = { path = "../openstitch-remote" }
 openstitch-compat = { path = "../openstitch-compat" }
 # bench-assistant (B17 A5): the assistant's client and tools over a headless editor.
 openstitch-assistant = { path = "../openstitch-assistant" }
+# The thread makers' charts, for the memory pair's check (#491).
+openstitch-core.workspace = true
 openstitch-design = { path = "../openstitch-design" }
 openstitch-mcp = { path = "../openstitch-mcp" }
 openstitch-render = { path = "../openstitch-render" }
