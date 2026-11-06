@@ -50,6 +50,8 @@ mod edit_tools;
 mod engine;
 #[path = "extra_exports.rs"]
 mod extra_exports;
+#[path = "finish.rs"]
+mod finish;
 #[path = "font_creator.rs"]
 mod font_creator;
 #[path = "font_from_image.rs"]

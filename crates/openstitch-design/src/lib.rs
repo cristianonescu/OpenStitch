@@ -13,6 +13,7 @@ pub mod direction;
 pub mod effects;
 mod envelope_presets;
 pub mod extend;
+pub mod finish;
 pub mod fmath;
 pub mod fonts;
 pub mod freehand;
@@ -77,6 +78,8 @@ mod arc_tests;
 mod concentric_spiral_tests;
 #[cfg(test)]
 mod contour_tests;
+#[cfg(test)]
+mod finish_tests;
 #[cfg(test)]
 mod stitch_type_tests;
 #[cfg(test)]

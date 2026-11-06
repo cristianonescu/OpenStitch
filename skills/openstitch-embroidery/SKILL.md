@@ -167,11 +167,17 @@ then style them in the next.
   says where the handles are). PES 0110 export refuses free envelopes: `text.toShapes` first.
 - Badges and patches with text round a circle: `text.add` or `object.setText` with `arc`
   (mm, the first line's baseline radius; positive arches up over the top, negative arches
-  down under the bottom, read upright). Each `
-` line becomes a ring round the same centre,
+  down under the bottom, read upright). Each line (a `\n` in the text) becomes a ring round the same centre,
   one line spacing inward (up) or outward (down); a ring too tight for its line is refused
   with the radius needed, so retry with that. `arc: null` straightens it. Beyond PE-DESIGN:
   PES 0110 export refuses it (`text.toShapes` first).
+- Trims and ties per object (beyond PE-DESIGN; defaults are PE-DESIGN's rules):
+  `object.setFinish {ids, trim: auto|always|off, trimDistance, tie: auto|always|off,
+  tieCount, tieLength, between}`. For a machine without an automatic cutter: `trim: off`
+  (jumps instead of trims; the user cuts them by hand), and on text `between: word` or
+  `never` so letters of a word are not trimmed apart. Slippery or thick threads: `tie:
+  always` with `tieCount: 2`. `reset: true` goes back to PE-DESIGN's rules; check the result
+  with `design.info` (trims, jumps).
 - Threads: to change the design to a thread chart ("use my Madeira threads"), run
   `threads.remap` `{builtin | chart, metric: ciede2000, keepDistinct: true, dryRun: true}`
   first and show the user the plan (design colour → thread, ΔE, objects, and `merged`), then

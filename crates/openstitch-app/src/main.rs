@@ -58,6 +58,7 @@ mod database_ui;
 mod database_writing;
 mod edit_ui;
 mod envelope_ui;
+mod finish_ui;
 mod icons;
 mod inkstitch_ui;
 mod keymap_ui;
