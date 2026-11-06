@@ -447,12 +447,11 @@ fn satin_lines_with_width_keys_tapers_and_slant() {
         json!({"id": 1, "type": "satin", "width": 3, "underSewing": false}),
     );
     // The command's own list offers satin, and its help names the satin line's parameters.
-    let spec = s
-        .commands()
+    let commands = s.commands();
+    let spec = commands
         .iter()
         .find(|c| c.id == "object.setLine")
-        .expect("setLine")
-        .clone();
+        .expect("setLine");
     let ty = spec.params.iter().find(|d| d.name == "type").expect("type");
     assert!(ty.kind.split('|').any(|k| k == "satin"), "{}", ty.kind);
     for name in ["widthKeys", "taperStart", "taperEnd", "slant"] {
