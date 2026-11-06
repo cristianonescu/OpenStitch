@@ -175,7 +175,12 @@ by words ("where is arrange copy?"), `ui.searchCommands {query}` gives the same 
 user's Ctrl+K palette, with each command's ribbon place and shortcut; run it with `ui.run`.
 After a crash, `ui.recoveryList` shows designs autosave kept; `ui.recoveryRestore {id}`
 opens one as an untitled design (tell the user to save it), and `ui.recoveryDiscard`
-deletes snapshots (ask first). Autosave is `ui.set autosave` / `autosaveInterval`. Read their parameters with
+deletes snapshots (ask first). Autosave is `ui.set autosave` / `autosaveInterval`.
+For a new user, `ui.gettingStarted` lists the start cards and the kit's samples; `{sample:
+"sampler"}` opens one as an untitled design, `{card: "draw"}` runs a card, `{page: true}` opens
+Help ▸ Getting Started. "Make new shapes start at 30° and 4.5 rows/mm" is `ui.set
+newObjectDefaults {angle: 30, density: 4.5}` (also stitchLength, pullCompensation, pitch,
+underlay; `{}` back to the tools' own); it changes only shapes drawn afterwards. Read their parameters with
 `command_describe` before the first use. `ui.zoom {rect: [x, y, w, h]}` zooms to a rectangle.
 `background.setLayer {position: "top" | "bottom" | "afterObject", afterId}` puts the tracing
 picture above the design or between objects ("put the picture above the fills"); it never sews.

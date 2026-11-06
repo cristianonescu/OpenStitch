@@ -317,7 +317,7 @@ fn glyph(a: Action) -> Glyph {
     use Glyph as G;
     match a {
         New => G::Page,
-        Open => G::Folder,
+        Open | OpenSample => G::Folder,
         Save => G::Disk,
         SaveAs => G::DiskPen,
         Print => G::Printer,
