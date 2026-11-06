@@ -197,6 +197,12 @@ fn describe(o: &DesignObject) -> Value {
     if o.stop_after {
         r["stopAfter"] = json!(true);
     }
+    if let Some(mm) = o.hide_under {
+        r["hideUnderMM"] = json!(mm);
+    }
+    if o.connector_run {
+        r["connector"] = json!("run");
+    }
     if let Some(t) = &o.text {
         r["text"] = json!(t.text);
         r["font"] = json!(t.font);

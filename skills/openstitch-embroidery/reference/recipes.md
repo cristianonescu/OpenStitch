@@ -86,6 +86,19 @@ stitch, as one group. `output: "add"` keeps the shape and puts the appliqué aro
 `patterns: "last"` after the covering stitch, on top of the fabric (use `replace` when the
 shape would only be hidden).
 
+## Fewer trims and less bulk
+
+Beyond PE-DESIGN and off unless asked; each is one undo step.
+
+- Many trims between objects of one thread: `design.setTravelUnder {on: true}` sews a move that
+  a later fill will cover as hidden running stitches (it reports trims before and after).
+  `object.setConnector {ids, connector: run}` joins an object to the next of its thread with a
+  visible running connector; tell the user about any in `longConnectors` (15 mm or more).
+- Stiff or bulky overlaps: `object.setHideUnder {ids, on: true, overlap: 1}` (or
+  `design.setRemoveHidden {on: true}` for every shape) leaves out the stitching later fills and
+  satins hide, keeping 1 mm under their edges; the shapes stay whole. It reports
+  `stitchesSaved`.
+
 ## Floated fabric, appliqué stops and machines without a cutter
 
 All beyond PE-DESIGN and off unless asked; each is one undo step.

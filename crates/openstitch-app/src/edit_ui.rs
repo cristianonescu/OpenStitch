@@ -833,6 +833,30 @@ fn list_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandReques
         {
             out = Some(objects::set_stop_after(&app.selection, stop));
         }
+        // Beyond PE-DESIGN (#511, #545).
+        let chosen: Vec<_> = d
+            .objects
+            .iter()
+            .filter(|o| app.selection.contains(&o.id))
+            .collect();
+        let any = !chosen.is_empty();
+        let mut hide = any && chosen.iter().all(|o| o.hide_under.is_some());
+        if ui
+            .add_enabled(any, egui::Checkbox::new(&mut hide, "Leave out hidden stitching"))
+            .on_hover_text("Beyond PE-DESIGN: skip the stitching later fills and satins cover, keeping 1 mm under their edges; the shape is not cut")
+            .changed()
+        {
+            out = Some(objects::set_flag(&app.selection, "object.setHideUnder", serde_json::json!({ "on": hide })));
+        }
+        let mut run = any && chosen.iter().all(|o| o.connector_run);
+        if ui
+            .add_enabled(any, egui::Checkbox::new(&mut run, "Then: run"))
+            .on_hover_text("Beyond PE-DESIGN: reach the next object of the same thread with a running-stitch connector instead of a jump and trim")
+            .changed()
+        {
+            let connector = if run { "run" } else { "jump" };
+            out = Some(objects::set_flag(&app.selection, "object.setConnector", serde_json::json!({ "connector": connector })));
+        }
     });
     out
 }

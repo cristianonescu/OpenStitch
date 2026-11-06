@@ -2,7 +2,7 @@
 
 use super::request::CommandRequest;
 use openstitch_design::{Design, DesignObject, ObjectKind};
-use serde_json::json;
+use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -145,6 +145,13 @@ pub fn set_line_first(ids: &[u64], line_first: bool) -> CommandRequest {
 }
 
 /// `object.setStopAfter` (#512): the machine stops after these objects.
+/// `command` for the objects `ids` with `params` (an object) added.
+pub fn set_flag(ids: &BTreeSet<u64>, command: &'static str, params: Value) -> CommandRequest {
+    let mut p = params;
+    p["ids"] = json!(CommandRequest::ids(ids));
+    CommandRequest::new(command, p)
+}
+
 pub fn set_stop_after(ids: &BTreeSet<u64>, on: bool) -> CommandRequest {
     CommandRequest::new(
         "object.setStopAfter",
