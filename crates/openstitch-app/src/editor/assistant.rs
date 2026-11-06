@@ -433,6 +433,11 @@ pub const SETTINGS: &[Setting] = &[
     s("paneAttributes", "Attributes Setting", "bool"),
     s("fontFilter", "Font Filter", "bool"),
     s("fontFilterHidden", "Font Filter Settings", "[string]"),
+    s(
+        "inkStitchFolder",
+        "Ink/Stitch Fonts: the folder holding the user's Ink/Stitch font folders (\"\" for none; fonts.scanFolder lists it)",
+        "string",
+    ),
     s("needlePoints", "View ▸ Show ▸ Needle Points", "bool"),
     s(
         "showLayers",

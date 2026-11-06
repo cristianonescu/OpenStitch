@@ -68,6 +68,8 @@ mod knife;
 mod layout;
 #[path = "lettering.rs"]
 mod lettering;
+#[path = "lettering_envelopes.rs"]
+mod lettering_envelopes;
 #[path = "lettering_library.rs"]
 mod lettering_library;
 #[path = "library.rs"]
@@ -142,6 +144,8 @@ mod transfer;
 mod user;
 #[path = "user_patterns.rs"]
 mod user_patterns;
+#[path = "validate.rs"]
+mod validate;
 #[path = "view.rs"]
 mod view;
 #[path = "wizards.rs"]

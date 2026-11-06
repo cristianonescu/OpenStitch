@@ -120,14 +120,12 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     if let Some(system) = print {
         let name = app.session.design().name.clone();
         let path = if system {
-            let path = openstitch_app::os_print::temp_pdf(&name);
-            if let Some(dir) = path.parent()
-                && let Err(e) = std::fs::create_dir_all(dir)
-            {
+            let dir = openstitch_app::os_print::print_dir();
+            if let Err(e) = openstitch_app::os_print::prepare_dir(&dir) {
                 app.status = format!("{}: {e}", dir.display());
                 return;
             }
-            path
+            openstitch_app::os_print::temp_pdf_in(&dir, &name)
         } else {
             let Some(path) = rfd::FileDialog::new()
                 .add_filter("PDF", &["pdf"])

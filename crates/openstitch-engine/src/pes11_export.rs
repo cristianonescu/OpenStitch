@@ -713,6 +713,10 @@ fn text_object(
     if spec.direction == TextDirection::Vertical {
         return refuse("vertical text");
     }
+    if spec.custom_envelope.is_some() {
+        // PE-DESIGN holds only its 26 Text Transform presets (#535).
+        return refuse("a free text envelope (convert it to outlines first)");
+    }
     if spec.metrics != TextMetrics::Pe {
         return refuse("a text sized by its capital height (an older OpenStitch file)");
     }

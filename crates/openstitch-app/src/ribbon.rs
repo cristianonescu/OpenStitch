@@ -100,6 +100,12 @@ pub struct RibbonState {
     /// Undo groups before the current font browse (arrow keys in the font list, #527): the
     /// browse is undone in one step.
     pub font_browse_undo: Option<usize>,
+    /// Text Attributes ▸ Free envelope ▸ Edit handles (#535).
+    pub envelope_edit: bool,
+    /// The free-envelope handle being dragged on the canvas.
+    pub envelope_drag: Option<crate::envelope_ui::EnvelopeDrag>,
+    /// Text ▸ Ink/Stitch Fonts (#529).
+    pub inkstitch: crate::inkstitch_ui::InkStitchFonts,
     /// ScreenTip of the command under the pointer (status bar).
     pub hover: Option<&'static str>,
     /// Sewing Attributes property search (#550).
@@ -128,6 +134,9 @@ impl Default for RibbonState {
             pane_tab: PaneTab::default(),
             text_draft: String::new(),
             font_browse_undo: None,
+            envelope_edit: false,
+            envelope_drag: None,
+            inkstitch: Default::default(),
             hover: None,
             property_search: String::new(),
             applied_theme: None,

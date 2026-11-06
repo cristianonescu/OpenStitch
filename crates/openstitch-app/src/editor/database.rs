@@ -335,6 +335,9 @@ pub struct Database {
     /// The Writing List: designs queued for Write to USB media, and whether it is shown.
     pub writing: Vec<PathBuf>,
     pub show_writing: bool,
+    /// Where File ▸ Print puts the catalogue PDF for the print dialog: `None` is
+    /// [`os_print::print_dir`](crate::os_print::print_dir). Tests point it at their own folder.
+    pub print_dir: Option<PathBuf>,
 }
 
 impl Default for Database {
@@ -365,6 +368,7 @@ impl Default for Database {
             generation: 0,
             writing: Vec::new(),
             show_writing: false,
+            print_dir: None,
         }
     }
 }
@@ -965,10 +969,12 @@ impl Database {
         let items = catalog::load_items(&paths, &self.limits);
         let mut setup = self.catalog.setup.clone();
         setup.units = self.units;
-        let path = crate::os_print::temp_pdf("catalogue");
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-        }
+        let dir = self
+            .print_dir
+            .clone()
+            .unwrap_or_else(crate::os_print::print_dir);
+        crate::os_print::prepare_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        let path = crate::os_print::temp_pdf_in(&dir, "catalogue");
         convert::write_file(&path, &catalog::pdf(&items, &setup), true)
             .map_err(|e| e.to_string())?;
         Ok(path)
@@ -1298,12 +1304,13 @@ mod tests {
 
     #[test]
     fn print_writes_the_catalogue_pdf_for_the_print_dialog() {
-        let (_t, mut db) = setup();
+        let (t, mut db) = setup();
         assert!(db.can_print());
+        // The real folder is the system temp folder's `openstitch-print` (#384).
+        db.print_dir = Some(t.0.join("print"));
         let pdf = db.print_catalog().unwrap();
-        assert!(pdf.starts_with(std::env::temp_dir()));
+        assert!(pdf.starts_with(t.0.join("print")));
         assert!(std::fs::read(&pdf).unwrap().starts_with(b"%PDF"));
-        let _ = std::fs::remove_file(&pdf);
         db.catalog.selected_only = true;
         assert!(!db.can_print());
         assert!(db.print_catalog().is_err());

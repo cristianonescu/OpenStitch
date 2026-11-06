@@ -245,6 +245,8 @@ pub fn all() -> Vec<CommandSpec> {
     v.extend(crate::layout::commands());
     v.extend(text_commands());
     v.extend(crate::fonts::commands());
+    #[cfg(feature = "formats")]
+    v.extend(crate::inkstitch_fonts::commands());
     #[cfg(feature = "digitize")]
     v.extend(crate::font_images::commands());
     v.extend(crate::lettering::commands());
@@ -2294,6 +2296,8 @@ fn text_params(
     }
     if p.is_null("envelope") {
         spec.envelope = None;
+        // Text Transform off: a free envelope goes too (#535).
+        spec.custom_envelope = None;
     } else if p.has("envelope") {
         let n = p.int("envelope", None, 1, 26)? as u8;
         if !text::ENVELOPE_PRESETS.contains(&n) {
@@ -2308,6 +2312,8 @@ fn text_params(
             // Choosing a preset resets its level, as PE-DESIGN does.
             spec.envelope_level = None;
         }
+        // A preset replaces a free envelope (#535).
+        spec.custom_envelope = None;
         spec.envelope = Some(n);
     }
     if p.is_null("envelopeLevel") {
@@ -2430,7 +2436,7 @@ pub(crate) fn relayout(s: &mut EngineState, p: &Params, i: usize) -> CommandResu
     if let Some(w) = o
         .text
         .as_ref()
-        .and_then(|t| text::size_warning(&t.font, t.size))
+        .and_then(|t| text::size_warning_in(&t.font, &s.design.fonts, t.size))
     {
         // A warning, never a refusal (#527).
         out["sizeWarning"] = json!(w);
@@ -2441,16 +2447,46 @@ pub(crate) fn relayout(s: &mut EngineState, p: &Params, i: usize) -> CommandResu
 /// Running stitch pitch of single-line text, mm (#530): short enough for 3-6 mm letters.
 pub(crate) const SINGLE_LINE_PITCH: f64 = 1.5;
 
-/// The sewing a new text in `font` gets: a single-line font (OpenStitch Line) is sewn by its
-/// line, a running line 1.5 mm long in the text's colour unless one was given, and no region.
-pub(crate) fn single_line_sewing(
+/// The sewing an embroidery font is made for ("satin", "fill", "running"): OpenStitch Line's
+/// is running, an imported font's what its glyphs are sewn with (#529).
+fn made_for(font: &str, fonts: &[openstitch_design::DesignFont]) -> Option<String> {
+    match text::resolve(font, fonts)? {
+        text::FontRef::Bundled(f) => {
+            (f.kind == text::FontKind::SingleLine).then(|| "running".to_string())
+        }
+        text::FontRef::Design(f) => match &f.data {
+            openstitch_design::fonts::FontData::Embroidery(e) => e.sewing.clone(),
+            _ => None,
+        },
+    }
+}
+
+/// The sewing a new text in `font` gets when none was asked for: a single-line font is sewn
+/// by [`single_line_sewing`]; an imported font made for fill gets a Fill region unless a fill
+/// colour chose the default (`chosen`).
+pub(crate) fn font_sewing(
     font: &str,
+    fonts: &[openstitch_design::DesignFont],
+    region: Option<RegionSewing>,
+    line: Option<LineSewing>,
+    chosen: bool,
+) -> (Option<RegionSewing>, Option<LineSewing>) {
+    match made_for(font, fonts).as_deref() {
+        Some("running") => single_line_sewing(region, line),
+        Some("fill") if !chosen => (
+            region.map(|r| text_region(RegionType::Fill, r.thread)),
+            line,
+        ),
+        _ => (region, line),
+    }
+}
+
+/// A single-line font's sewing (OpenStitch Line, #530): its line, a running line 1.5 mm long
+/// in the text's colour unless one was given, and no region.
+pub(crate) fn single_line_sewing(
     region: Option<RegionSewing>,
     line: Option<LineSewing>,
 ) -> (Option<RegionSewing>, Option<LineSewing>) {
-    if text::bundled_kind(font) != Some(text::FontKind::SingleLine) {
-        return (region, line);
-    }
     let line = line.unwrap_or_else(|| {
         let mut l = LineSewing::new(
             LineType::Running,
@@ -2469,11 +2505,12 @@ pub(crate) fn single_line_sewing(
 /// when the text has no region (the line is kept).
 pub(crate) fn font_change_sewing(
     font: &str,
+    fonts: &[openstitch_design::DesignFont],
     region: Option<RegionSewing>,
     line: Option<LineSewing>,
 ) -> (Option<RegionSewing>, Option<LineSewing>) {
-    match text::bundled_kind(font) {
-        Some(text::FontKind::SingleLine) => single_line_sewing(font, region, line),
+    match made_for(font, fonts).as_deref() {
+        Some("running") => single_line_sewing(region, line),
         _ if region.is_none() => {
             let thread = line
                 .as_ref()
@@ -2563,7 +2600,8 @@ fn text_commands() -> Vec<CommandSpec> {
                 let (region, line) = sewing(p, true)?;
                 // Text is Satin by default, with PE-DESIGN's text attributes.
                 let region = region.map(|r| text_region(RegionType::Satin, r.thread));
-                let (region, line) = single_line_sewing(&spec.font, region, line);
+                let (region, line) =
+                    font_sewing(&spec.font, &s.design.fonts, region, line, p.has("fill"));
                 let mut object = DesignObject::shape(Vec::new(), region, line);
                 object.kind = ObjectKind::Text;
                 object.name = object_name(p)?;
@@ -2572,6 +2610,7 @@ fn text_commands() -> Vec<CommandSpec> {
                     spec.path = Some(path);
                     spec.envelope = None;
                     spec.envelope_level = None;
+                    spec.custom_envelope = None;
                     spec.transform = Transform::IDENTITY;
                 }
                 object.text = Some(spec);
@@ -2593,8 +2632,12 @@ fn text_commands() -> Vec<CommandSpec> {
                     text_params(p, &mut spec, &s.design.fonts)?;
                     if spec.font != font_before {
                         let o = &mut s.design.objects[i];
-                        (o.region, o.line) =
-                            font_change_sewing(&spec.font, o.region.take(), o.line.take());
+                        (o.region, o.line) = font_change_sewing(
+                            &spec.font,
+                            &s.design.fonts,
+                            o.region.take(),
+                            o.line.take(),
+                        );
                     }
                     s.design.objects[i].text = Some(spec);
                     let r = relayout(s, p, i)?;
@@ -2716,6 +2759,7 @@ fn text_commands() -> Vec<CommandSpec> {
                         // Fitting to an outline cancels Text Transform (the guide).
                         t.envelope = None;
                         t.envelope_level = None;
+                        t.custom_envelope = None;
                         t.fit = fit;
                         t.align = align;
                         t.transform = Transform::IDENTITY;

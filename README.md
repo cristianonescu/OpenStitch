@@ -51,6 +51,11 @@ editing by hand, and everything one message changes is a single undo step.
 *A real run, not a mock-up: Claude Code (on the user's own account) turning a dropped picture
 into a 50 × 63 mm strawberry, correcting its own first attempt, then checking the result.*
 
+![The Assistant on Windows with Claude Code over claude-agent-acp: asked for a red circle 30 mm wide in the middle of the page, it asked permission for the edit, drew it, checked it and reported one undo step](docs/images/assistant-windows-claude-code.png)
+
+*The same on Windows (2026-11-06): Claude Code asked before its edit, drew and checked the
+circle, and the whole message is one undo step.*
+
 - **Your choice of AI:** the Claude API with your own key (kept in the system keychain), a model
   on your computer through Ollama or LM Studio (no key, works offline), OpenRouter or any
   OpenAI- or Anthropic-compatible service, or a coding agent you already use (Claude Code, Codex,

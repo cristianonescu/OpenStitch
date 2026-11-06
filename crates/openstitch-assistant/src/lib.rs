@@ -21,6 +21,7 @@
 
 pub mod acp;
 mod conversation;
+mod idle;
 mod images;
 mod models;
 pub mod notes;
@@ -82,7 +83,8 @@ pub struct Config {
     pub reasoning_effort: Option<String>,
     /// Anthropic only. OpenAI-compatible requests send no output limit (the server's default).
     pub max_tokens: u32,
-    /// The longest wait for the response headers, and for each read of the stream after that.
+    /// The longest wait for the response headers, and then the longest the stream may go
+    /// without any part of the reply (keep-alives and empty chunks do not count, #580).
     pub request_timeout: Duration,
     /// The system prompt. Keep it stable: volatile context belongs in the user turn.
     pub system: String,

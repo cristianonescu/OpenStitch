@@ -10,6 +10,8 @@ mod acp;
 mod local_preset;
 #[path = "openai.rs"]
 mod openai;
+#[path = "stuck.rs"]
+mod stuck;
 #[path = "turns.rs"]
 mod turns;
 

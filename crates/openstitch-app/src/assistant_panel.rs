@@ -1426,7 +1426,7 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                 ui.label("Request timeout (s)");
                 changed |= ui
                     .add(egui::DragValue::new(&mut prefs.request_timeout_s).range(30..=3600))
-                    .on_hover_text("How long one model request may take; a large local model may need more")
+                    .on_hover_text("How long the server may go without sending any of the reply (text, thinking or a tool call) before the turn ends; a slow local model may need more")
                     .changed();
                 ui.end_row();
             } else {
@@ -2236,7 +2236,7 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
             ui.label(
                 RichText::new(format!(
                     "{} · {} · {} in / {} out tokens",
-                    app.ui.prefs.ai.model,
+                    backend_name(&app.ui.prefs.ai),
                     app.ui.prefs.ai.mode.label(),
                     app.assistant.panel.tokens.0,
                     app.assistant.panel.tokens.1
@@ -2562,8 +2562,31 @@ pub mod testing {
     }
 }
 
+/// What the line under the title names: the model, or for a coding agent the agent, which
+/// picks its own model (#645).
+fn backend_name(prefs: &AiPrefs) -> String {
+    if prefs.protocol != Protocol::Agent {
+        return prefs.model.clone();
+    }
+    claude::KNOWN_AGENTS
+        .iter()
+        .find(|a| a.id == prefs.agent)
+        .map_or_else(|| prefs.agent.clone(), |a| a.name.to_string())
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_subtitle_names_the_agent_not_the_claude_model() {
+        let mut prefs = AiPrefs::default();
+        assert_eq!(backend_name(&prefs), prefs.model);
+        prefs.protocol = Protocol::Agent;
+        prefs.agent = "claude".into();
+        assert_eq!(backend_name(&prefs), "Claude Code");
+        prefs.agent = "my-agent".into();
+        assert_eq!(backend_name(&prefs), "my-agent");
+    }
+
     use super::testing::*;
     use super::*;
     use crate::app::Launch;

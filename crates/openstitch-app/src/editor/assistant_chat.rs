@@ -483,6 +483,16 @@ pub fn memory_question(command: &str, params: &Value) -> Option<String> {
             })
         }
         "ui.notesClear" => Some("forget everything it remembers about you".into()),
+        // A folder the editor reads fonts from is the user's to choose (#529).
+        "ui.set" if params["name"] == json!("inkStitchFolder") => Some(
+            match params["value"].as_str().map(str::trim).unwrap_or_default() {
+                "" => "forget the Ink/Stitch fonts folder".into(),
+                p => format!(
+                    "use {} as the Ink/Stitch fonts folder",
+                    p.chars().take(200).collect::<String>()
+                ),
+            },
+        ),
         "ui.set" if params["name"] == json!("assistantMemory") => {
             Some(if params["value"] == json!(true) {
                 "turn its memory on".into()
@@ -492,6 +502,34 @@ pub fn memory_question(command: &str, params: &Value) -> Option<String> {
         }
         _ => None,
     }
+}
+
+/// What the gate asks before the user's own thread charts change (#495), or None for other
+/// commands: a chart built from a photo of spools or a list is the user's, so it is made only
+/// with their yes.
+pub fn chart_question(command: &str, effect: Effect, params: &Value) -> Option<String> {
+    if effect != Effect::Settings || !command.starts_with("threads.") {
+        return None;
+    }
+    let text = |k: &str| params[k].as_str().unwrap_or_default().trim().to_string();
+    let chart = if params["chart"].is_string() {
+        text("chart")
+    } else {
+        text("name")
+    };
+    Some(match command {
+        "threads.createChart" => format!("create the thread chart \"{chart}\""),
+        "threads.addColor" => {
+            let what = [text("code"), text("description"), text("color")]
+                .into_iter()
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>()
+                .join(" ");
+            format!("add {what} to your thread chart \"{chart}\"")
+        }
+        _ if chart.is_empty() => format!("change your thread charts ({command})"),
+        _ => format!("change your thread chart \"{chart}\" ({command})"),
+    })
 }
 
 /// The permission gate (plan section 4.4). Commands are judged by their declared effect, with
@@ -509,6 +547,10 @@ pub fn verdict(g: &GateInput) -> Verdict {
     }
     // #491: the memory changes only with the user's yes, in every mode but Allow everything.
     if let Some(what) = memory_question(g.command, g.params) {
+        return Verdict::Ask(what);
+    }
+    // #495: so do the user's thread charts.
+    if let Some(what) = chart_question(g.command, g.effect, g.params) {
         return Verdict::Ask(what);
     }
     // #549: deleting autosave snapshots asks, naming what goes.
@@ -770,6 +812,60 @@ mod tests {
         let _ = std::fs::remove_dir_all(&outside);
     }
 
+    /// #495: a thread chart (from a photo of the user's spools, say) is created or changed only
+    /// after the user's yes, in Ask and Edits mode; reading charts and remapping the design to
+    /// one are not asked about here.
+    #[test]
+    fn thread_chart_changes_ask_first() {
+        use PermissionMode::*;
+        for mode in [Ask, Edits] {
+            assert_eq!(
+                gate(
+                    mode,
+                    "threads.createChart",
+                    Effect::Settings,
+                    json!({ "name": "My shelf" })
+                ),
+                Verdict::Ask("create the thread chart \"My shelf\"".into())
+            );
+            assert_eq!(
+                gate(
+                    mode,
+                    "threads.addColor",
+                    Effect::Settings,
+                    json!({ "chart": "My shelf", "color": "#c8102e", "code": "7101", "description": "Holly Red" })
+                ),
+                Verdict::Ask("add 7101 Holly Red #c8102e to your thread chart \"My shelf\"".into())
+            );
+            assert!(matches!(
+                gate(mode, "threads.removeColor", Effect::Settings, json!({ "chart": "My shelf", "index": 1 })),
+                Verdict::Ask(w) if w.contains("My shelf") && w.contains("threads.removeColor")
+            ));
+        }
+        assert_eq!(
+            gate(
+                All,
+                "threads.createChart",
+                Effect::Settings,
+                json!({ "name": "x" })
+            ),
+            Verdict::Run
+        );
+        assert_eq!(
+            gate(Edits, "threads.charts", Effect::Read, json!({})),
+            Verdict::Run
+        );
+        assert_eq!(
+            gate(
+                Edits,
+                "threads.remap",
+                Effect::Edit,
+                json!({ "chart": "My shelf" })
+            ),
+            Verdict::Run
+        );
+    }
+
     /// #491: writing or clearing the notes, and the memory switch, ask in Ask and Edits mode
     /// and say what would be remembered; Always allow and Allow everything run them.
     #[test]
@@ -788,6 +884,11 @@ mod tests {
             assert!(matches!(
                 gate(mode, "ui.set", Effect::Edit, json!({ "name": "assistantMemory", "value": true })),
                 Verdict::Ask(w) if w == "turn its memory on"
+            ));
+            // #529: the Ink/Stitch fonts folder is a path the editor reads from: asked.
+            assert!(matches!(
+                gate(mode, "ui.set", Effect::Edit, json!({ "name": "inkStitchFolder", "value": "fonts" })),
+                Verdict::Ask(w) if w == "use fonts as the Ink/Stitch fonts folder"
             ));
         }
         assert!(matches!(
