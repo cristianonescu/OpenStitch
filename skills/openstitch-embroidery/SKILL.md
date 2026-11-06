@@ -68,7 +68,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `object.list` (sewing order). To sew objects in a set order, `order.byClickOrder`
    `{ids: [in sewing order]}` (they start where the earliest of them sews now); to sew a
    shape's outline before its fill, `object.setPartOrder` `{ids, order: lineFirst}` (beyond
-   PE-DESIGN; `regionFirst` is PE-DESIGN's order).
+   PE-DESIGN; `regionFirst` is PE-DESIGN's order). `order.optimize` returns `before`/`after`
+   (colour changes, jumps, trims, travel mm) and a `summary` line: tell the user, and offer
+   `history.undo` when a number got worse. `design.setProperties {autoStart: nearest}` (beyond
+   PE-DESIGN) starts each shape without its own entry point nearest to where the last ended.
 5. Check: `view_render` (look at it), `design.info` (size, stitches, colours, trims, time) and
    `design.check` (sewing problems, errors first; `ready` is false while there are errors).
    Run each finding's `fix` command or fix it yourself, and check again; never report a design

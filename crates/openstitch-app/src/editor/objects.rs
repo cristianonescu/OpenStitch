@@ -144,6 +144,14 @@ pub fn set_line_first(ids: &[u64], line_first: bool) -> CommandRequest {
     CommandRequest::new("object.setPartOrder", json!({ "ids": ids, "order": order }))
 }
 
+/// `object.setStopAfter` (#512): the machine stops after these objects.
+pub fn set_stop_after(ids: &BTreeSet<u64>, on: bool) -> CommandRequest {
+    CommandRequest::new(
+        "object.setStopAfter",
+        json!({ "ids": CommandRequest::ids(ids), "on": on }),
+    )
+}
+
 /// `order.byClickOrder` of the selection in the order it was clicked; `None` below 2 objects.
 pub fn click_order(order: &[u64]) -> Option<CommandRequest> {
     (order.len() >= 2).then(|| CommandRequest::new("order.byClickOrder", json!({ "ids": order })))

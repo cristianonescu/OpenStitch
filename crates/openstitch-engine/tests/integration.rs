@@ -100,6 +100,8 @@ mod pes_compat;
 mod pes_resave;
 #[path = "print.rs"]
 mod print;
+#[path = "production.rs"]
+mod production;
 #[path = "punch.rs"]
 mod punch;
 #[path = "quality.rs"]

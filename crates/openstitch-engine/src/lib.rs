@@ -44,6 +44,7 @@ pub mod pes11_export;
 pub mod pes11_import;
 pub mod preview;
 pub mod print;
+pub mod production;
 pub mod project;
 mod punch;
 pub mod quality;

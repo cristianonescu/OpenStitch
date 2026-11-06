@@ -86,6 +86,20 @@ stitch, as one group. `output: "add"` keeps the shape and puts the appliqué aro
 `patterns: "last"` after the covering stitch, on top of the fabric (use `replace` when the
 shape would only be hidden).
 
+## Floated fabric, appliqué stops and machines without a cutter
+
+All beyond PE-DESIGN and off unless asked; each is one undo step.
+
+- Floated fabric (not hooped): `design.setBasting {on: true}` adds a basting box sewn first in
+  the first thread (`shape: outline` follows the objects; `margin` 5, `stitch` 6 mm;
+  `thread: own` for its own colour). It always stays inside the hoop; `design.info` reports
+  its stitches in the `basting` part of its `production` field.
+- Appliqué or a patch placed mid-design: `object.setStopAfter {ids, on: true}`: the machine
+  pauses after those objects without a colour change (a colour change right after is the stop).
+- No thread cutter: `design.setStopAtJumps {on: true}` adds a stop before every jump so the
+  user can snip the thread; off removes only those. PES writes stops as colour changes to the
+  same thread (255 blocks at most); PES 0110 (`pesVersion: 11`) cannot hold these settings.
+
 ## Embroidered patch
 
 ```json

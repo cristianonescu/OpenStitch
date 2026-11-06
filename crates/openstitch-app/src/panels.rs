@@ -39,8 +39,12 @@ pub fn zoom_center(app: &mut EditorApp, factor: f64) {
 // MARK: object list
 
 pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
-    if let Some(r) = crate::edit_ui::order_controls(app, ui) {
-        app.execute(&r);
+    if let Some(r) = crate::edit_ui::order_controls(app, ui)
+        && let Some(result) = app.execute(&r)
+        && let Some(summary) = result.get("summary").and_then(|v| v.as_str())
+    {
+        // Optimise reports what it changed (#547); Undo takes it back.
+        app.status = format!("Optimise: {summary}");
     }
     if ui
         .button("Review sewing order")
