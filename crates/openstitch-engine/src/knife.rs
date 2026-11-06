@@ -1,8 +1,8 @@
 //! Knife (#477): one open cut line splits every object it crosses in one step: regions into
 //! their pieces on either side, Manual Punch columns and satin skeletons across the column,
 //! lines at the crossings (a closed outline cut once opens there). Every piece keeps the
-//! object's sewing attributes; entry and exit points return to their defaults. The first piece
-//! keeps the object's id and place, the others are sewn right after it. Beyond PE-DESIGN; its
+//! object's sewing attributes; entry and exit points stay where they are still on its outline
+//! (#652). The first piece keeps the object's id and place, the others are sewn right after it. Beyond PE-DESIGN; its
 //! Split with Outline (`shape.split`) is unchanged. Geometry in `openstitch_design::knife`.
 
 use crate::commands::{CommandSpec, Effect, MM, opt, spec};
@@ -37,18 +37,12 @@ fn column_outline(lines: &[[Vec2; 2]], curved: bool) -> Contour {
     }
 }
 
-/// The piece of `o` with new geometry: sewing attributes kept, entry and exit points reset.
+/// The piece of `o` with new geometry: sewing attributes kept, entry and exit points kept where
+/// they are still on the piece's outline (#652).
 fn piece(o: &DesignObject, contours: Vec<Contour>) -> DesignObject {
     let mut p = o.clone();
     p.contours = contours;
-    if let Some(r) = &mut p.region {
-        r.entry = None;
-        r.exit = None;
-    }
-    if let Some(l) = &mut p.line {
-        l.entry = None;
-        l.exit = None;
-    }
+    crate::shape_ops::keep_points_on_outline(&mut p);
     p
 }
 
@@ -158,7 +152,7 @@ fn replace(d: &mut Design, i: usize, mut pieces: Vec<DesignObject>) -> Vec<u64> 
 pub fn commands() -> Vec<CommandSpec> {
     vec![spec(
         "shape.knife",
-        "Knife: cut every object an open line crosses (regions into both sides, Manual Punch columns and satin skeletons across the column, lines at the crossings; a closed outline cut once opens there), or with `at` split the line under a point; sewing attributes kept, entry/exit reset, the first piece keeps the id",
+        "Knife: cut every object an open line crosses (regions into both sides, Manual Punch columns and satin skeletons across the column, lines at the crossings; a closed outline cut once opens there), or with `at` split the line under a point; sewing attributes kept (angle included), entry/exit kept where still on the piece's outline, the first piece keeps the id",
         Effect::Edit,
         vec![
             opt(

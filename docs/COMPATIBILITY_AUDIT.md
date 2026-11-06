@@ -2546,6 +2546,23 @@ Assistant's stream timeout (#580) and thread-chart rules (#495) are in
   same numbers on all 16 Photo Stitch cases in both modes and the nine Photo Stitch 1 photos at
   High; `sew_check` passes; compat 454/454.
 
+### Shape cuts keep the sewing angle, 2026-11-06 (`batch:mac-shapes`, #652)
+
+- **Fixed:** Remove Overlap, Combine, Merge, Split and the shape builder's merge (all through
+  `shape_ops::set_region`) set the cut shape's sewing angle back to the region type's default
+  (45° for fill). Nothing in PE-DESIGN's references backed that. Now every cut keeps the
+  shape's angle and its other region and line sewing attributes and colour. Its entry and exit
+  points stay where they are still within 0.5 mm of the new outline and go back to the default
+  where the cut took that part away. Before, the knife, Divide, the shape builder and the shape
+  effects always reset them; Combine, Merge, Remove Overlap and Split always kept them.
+- **Merges** (`shape.merge`, a `shape.build` drag across two shapes) take the topmost parent's
+  attributes, the shape sewn last, as `shape.merge` always has.
+- **Open:** whether PE-DESIGN 11 keeps a region's Direction after Remove Overlap. The owner's
+  capture request is on #652; OpenStitch now keeps it.
+- Tests through the commands, one per operation, on a 135° fill (45° is the fill default and
+  could not show a reset): `every_cut_keeps_the_sewing_angle_and_attributes`,
+  `a_cut_away_exit_point_returns_to_the_default`, `merges_take_the_topmost_parents_angle`.
+
 ### Photo Stitch 2 Mono on the coverage curve, and thread search, 2026-11-06 (`batch:mac-photo-2`, #468, #486, #682)
 
 - **Measured and not taken: an OpenStitch-mode Mono on the T1 coverage curve (#468).** The grey
