@@ -230,10 +230,37 @@ own!(
     "knife",
     "shape_effects",
     "shape_builder",
+    "move_up",
+    "move_down",
+    "pane_dock",
+    "pane_float",
+    "menu_caret",
+    "line_gap",
 );
 
-/// The icons of buttons that run no command: the Assistant panel's attach and close.
-pub const UI: &[&str] = &["attach", "close"];
+/// The icons of buttons that run no command: the Assistant panel's attach and close, the panes'
+/// close, dock and float, the move up and down of reorder lists, the drop-down caret of menu
+/// buttons, the Design Database's folders and the background image's Rotate Left and Right.
+pub const UI: &[&str] = &[
+    "attach",
+    "close",
+    "pane_dock",
+    "pane_float",
+    "move_up",
+    "move_down",
+    "menu_caret",
+    "folder",
+    "image_rotate_left",
+    "image_rotate_right",
+];
+
+/// The glyph of the [`UI`] icon `name`.
+fn ui_glyph(name: &'static str) -> Glyph {
+    match name {
+        "folder" => Glyph::Folder,
+        n => Glyph::Own(n),
+    }
+}
 
 /// The own icon of the suite window command with the key `key`, if it has one.
 fn suite_glyph(key: &str) -> Option<Glyph> {
@@ -427,7 +454,7 @@ fn glyph(a: Action) -> Glyph {
         ShapeEffects => G::Own("shape_effects"),
         ShapeBuilder => G::Own("shape_builder"),
         // Reused until a generated icon lands (#497).
-        LineGap => G::Own("split_point"),
+        LineGap => G::Own("line_gap"),
         SplitAtPoint => G::Own("split_point"),
         SplitStitchData => G::Own("split_stitches"),
         DivideByColor => G::Own("divide_color"),
@@ -619,10 +646,28 @@ pub fn paint(painter: &egui::Painter, r: Rect, icon: impl Into<Icon>, fg: Color3
 pub fn paint_ui(painter: &egui::Painter, r: Rect, name: &'static str, fg: Color32) {
     debug_assert!(UI.contains(&name), "{name} is not in UI");
     let px = (r.width() * painter.ctx().pixels_per_point()).round() as u32;
-    if let Some(t) = texture(painter.ctx(), Glyph::Own(name), px, fg) {
+    if let Some(t) = texture(painter.ctx(), ui_glyph(name), px, fg) {
         let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
         painter.image(t.id(), r, uv, Color32::WHITE);
     }
+}
+
+/// The icon `name` of [`UI`] as an image the height of a button label in `ui`, drawn in its text
+/// colour (the drop-down caret smaller), to put in a button: `Button::new(ui_image(ui, "move_up"))`, or with a label before or
+/// after it (`Button::new((label, ui_image(ui, "menu_caret")))`). A disabled button fades it.
+pub fn ui_image(ui: &egui::Ui, name: &'static str) -> egui::Image<'static> {
+    debug_assert!(UI.contains(&name), "{name} is not in UI");
+    // The caret only marks a drop-down, so it sits smaller than the label beside it.
+    let scale = if name == "menu_caret" { 0.7 } else { 1.0 };
+    let side = ui.text_style_height(&egui::TextStyle::Button) * scale;
+    let px = (side * ui.ctx().pixels_per_point()).round() as u32;
+    let fg = ui.visuals().text_color();
+    // Every UI icon renders (a test checks it); a blank square keeps the layout if one did not.
+    let (id, tint) = texture(ui.ctx(), ui_glyph(name), px, fg)
+        .map_or((egui::TextureId::default(), Color32::TRANSPARENT), |t| {
+            (t.id(), Color32::WHITE)
+        });
+    egui::Image::new(egui::load::SizedTexture::new(id, egui::vec2(side, side))).tint(tint)
 }
 
 /// Draws the code-drawn fallback icon of `a` filling the square `r`.
@@ -1466,7 +1511,7 @@ mod tests {
         let mut used = std::collections::BTreeSet::new();
         for g in icons
             .map(|icon| glyph_of(icon).0)
-            .chain(UI.iter().map(|&n| Glyph::Own(n)))
+            .chain(UI.iter().map(|&n| ui_glyph(n)))
         {
             let (name, src) = svg(g);
             assert!(src.contains(OUTLINE), "{name}: no outline colour");

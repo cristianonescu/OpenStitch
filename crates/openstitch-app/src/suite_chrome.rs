@@ -184,7 +184,10 @@ pub fn ribbon<A: Command, H: Host<A>>(
             for &a in w.buttons {
                 let info = a.info();
                 let r = ui
-                    .add(egui::Button::new(format!("{} ▾", info.label)).frame(false))
+                    .add(
+                        egui::Button::new((info.label, crate::icons::ui_image(ui, "menu_caret")))
+                            .frame(false),
+                    )
                     .on_hover_text(info.screen_tip(MAC));
                 egui::Popup::menu(&r).show(|ui| h.menu(a, ui));
             }

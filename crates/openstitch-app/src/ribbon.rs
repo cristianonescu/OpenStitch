@@ -1051,18 +1051,27 @@ fn change_color_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     for (k, t) in threads.iter().enumerate() {
         let name = t.name.as_deref().unwrap_or("Thread").to_string();
         let (r, g, b) = (t.red, t.green, t.blue);
-        ui.menu_button(
-            RichText::new(format!("■ {}. {name}", k + 1)).color(Color32::from_rgb(r, g, b)),
-            |ui| {
-                if let Some(i) = panels::pec_grid(ui, &format!("change-color-{k}"), Some(t)) {
-                    app.execute(&CommandRequest::new(
-                        "stitches.setThread",
-                        json!({ "id": id, "index": k, "color": i }),
-                    ));
-                    ui.close();
-                }
-            },
-        );
+        // The thread colour as a swatch: a filled square (egui's white texel tinted), not a glyph.
+        let side = ui.text_style_height(&egui::TextStyle::Button);
+        let swatch = egui::Image::new(egui::load::SizedTexture::new(
+            egui::TextureId::default(),
+            egui::Vec2::splat(side),
+        ))
+        .uv(egui::Rect::from_min_max(
+            egui::epaint::WHITE_UV,
+            egui::epaint::WHITE_UV,
+        ))
+        .tint(Color32::from_rgb(r, g, b))
+        .corner_radius(2.0);
+        ui.menu_button((swatch, format!("{}. {name}", k + 1)), |ui| {
+            if let Some(i) = panels::pec_grid(ui, &format!("change-color-{k}"), Some(t)) {
+                app.execute(&CommandRequest::new(
+                    "stitches.setThread",
+                    json!({ "id": id, "index": k, "color": i }),
+                ));
+                ui.close();
+            }
+        });
     }
 }
 
@@ -1458,7 +1467,10 @@ fn tab_strip(app: &mut EditorApp, ui: &mut egui::Ui, ctx_tabs: &[TabId]) {
             for a in [Action::Help, Action::Options] {
                 let info = a.info();
                 let r = ui
-                    .add(egui::Button::new(format!("{} ▾", info.label)).frame(false))
+                    .add(
+                        egui::Button::new((info.label, crate::icons::ui_image(ui, "menu_caret")))
+                            .frame(false),
+                    )
                     .on_hover_text(info.screen_tip(MAC));
                 egui::Popup::menu(&r).show(|ui| menu(app, a, ui));
             }
@@ -1651,7 +1663,7 @@ pub fn quick_access(app: &mut EditorApp, ui: &mut egui::Ui) {
             }
         }
         let r = ui
-            .add(egui::Button::new("▾").frame(false))
+            .add(egui::Button::new(crate::icons::ui_image(ui, "menu_caret")).frame(false))
             .on_hover_text("Customize Quick Access Toolbar");
         egui::Popup::menu(&r).show(|ui| {
             ui.label(RichText::new("Customize Quick Access Toolbar").strong());

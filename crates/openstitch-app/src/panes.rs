@@ -49,8 +49,9 @@ fn header(app: &mut EditorApp, ui: &mut egui::Ui, pane: Pane) {
         ui.label(RichText::new(pane.title()).strong());
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             let mut changed = false;
+            let close = egui::Button::new(crate::icons::ui_image(ui, "close")).small();
             if ui
-                .small_button("×")
+                .add(close)
                 .on_hover_text("Hide (View ▸ Show/Hide shows it again)")
                 .clicked()
             {
@@ -59,11 +60,12 @@ fn header(app: &mut EditorApp, ui: &mut egui::Ui, pane: Pane) {
             }
             let floating = pane.state(app).floating;
             let (icon, tip) = if floating {
-                ("⊟", "Dock to the window")
+                ("pane_dock", "Dock to the window")
             } else {
-                ("⧉", "Float as a window")
+                ("pane_float", "Float as a window")
             };
-            if ui.small_button(icon).on_hover_text(tip).clicked() {
+            let button = egui::Button::new(crate::icons::ui_image(ui, icon)).small();
+            if ui.add(button).on_hover_text(tip).clicked() {
                 pane.state(app).floating = !floating;
                 changed = true;
             }
@@ -93,11 +95,9 @@ fn floating(
         .resizable(true)
         .show(ctx, |ui| {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                if ui
-                    .small_button("⊟ Dock")
-                    .on_hover_text("Dock to the window")
-                    .clicked()
-                {
+                let dock =
+                    egui::Button::new((crate::icons::ui_image(ui, "pane_dock"), "Dock")).small();
+                if ui.add(dock).on_hover_text("Dock to the window").clicked() {
                     pane.state(app).floating = false;
                     app.ui.save_prefs();
                 }
@@ -180,15 +180,13 @@ pub fn attributes(app: &mut EditorApp, ui: &mut egui::Ui) {
         }
         if !app.ui.prefs.panes.attributes.floating {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button("×").on_hover_text("Hide").clicked() {
+                let close = egui::Button::new(crate::icons::ui_image(ui, "close")).small();
+                if ui.add(close).on_hover_text("Hide").clicked() {
                     app.ui.prefs.panes.attributes.visible = false;
                     app.ui.save_prefs();
                 }
-                if ui
-                    .small_button("⧉")
-                    .on_hover_text("Float as a window")
-                    .clicked()
-                {
+                let float = egui::Button::new(crate::icons::ui_image(ui, "pane_float")).small();
+                if ui.add(float).on_hover_text("Float as a window").clicked() {
                     app.ui.prefs.panes.attributes.floating = true;
                     app.ui.save_prefs();
                 }
@@ -299,7 +297,7 @@ fn pane_menu(app: &mut EditorApp, ui: &mut egui::Ui, a: Action) {
     let r = ui
         .add_enabled(
             ribbon::enabled(app, a),
-            egui::Button::new(format!("{} ▾", info.label)),
+            egui::Button::new((info.label, crate::icons::ui_image(ui, "menu_caret"))),
         )
         .on_hover_text(info.tip);
     egui::Popup::menu(&r).show(|ui| ribbon::menu(app, a, ui));
