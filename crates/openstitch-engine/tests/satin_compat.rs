@@ -228,3 +228,33 @@ fn auto_direction_satin_follows_a_bent_band() {
         assert!(d < 7.5, "stitch of {d} mm in a 5 mm band");
     }
 }
+
+/// Auto satin on columns about a millimetre wide (the kit's satin card, #628): a rung at the
+/// column's end lies within 0.1 mm of the end edge at both of its ends, and squaring it to that
+/// edge turned it along the column, one stitch the column's 40 mm length. Every stitch stays
+/// within a row or two of crossing the column.
+#[test]
+fn auto_satin_on_a_narrow_column_never_stitches_along_it() {
+    for width in [0.8, 1.0, 1.2, 1.5, 2.0] {
+        let mut s = session();
+        run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": 9, "y": 9, "width": width, "height": 40}),
+        );
+        run(
+            &mut s,
+            "object.setRegion",
+            json!({"ids": [1], "type": "satin", "autoDirection": true, "underlay": false}),
+        );
+        let pts = needle_points(&mut s, 1);
+        let longest = pts
+            .windows(2)
+            .map(|w| (w[1].0 - w[0].0).hypot(w[1].1 - w[0].1))
+            .fold(0.0, f64::max);
+        assert!(
+            longest < width + 2.5,
+            "{width} mm column: a {longest:.1} mm stitch"
+        );
+    }
+}

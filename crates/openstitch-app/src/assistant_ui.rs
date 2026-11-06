@@ -782,6 +782,34 @@ mod tests {
         })
     }
 
+    #[test]
+    fn realistic_view_hides_unsewn_outlines_unless_selected() {
+        // A text path's guide circle sews nothing: the Realistic view shows only what is sewn
+        // (#441), the other views still outline it so it can be found.
+        let mut app = demo();
+        for (command, params) in [
+            (
+                "shape.ellipse",
+                json!({ "cx": 50, "cy": 50, "rx": 10, "outline": "Red" }),
+            ),
+            ("object.setLine", json!({ "ids": [4], "type": "none" })),
+        ] {
+            let reply = app
+                .session
+                .handle(&json!({ "command": command, "params": params }));
+            assert_eq!(reply["ok"], true, "{command}: {reply}");
+        }
+        assert_eq!(crate::canvas::unsewn_outlines_shown(&app), vec![4]);
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "view", "value": "realistic" })),
+        )
+        .expect("view");
+        assert!(crate::canvas::unsewn_outlines_shown(&app).is_empty());
+        app.selection.insert(4);
+        assert_eq!(crate::canvas::unsewn_outlines_shown(&app), vec![4]);
+    }
+
     fn known_ids(app: &mut EditorApp) -> std::collections::BTreeSet<String> {
         let list = commands_list(
             app.session.handle(&json!({ "command": "commands.list" }))["result"].clone(),

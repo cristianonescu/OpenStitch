@@ -568,10 +568,26 @@ fn draw_travel_left_on_fabric(app: &EditorApp, painter: &egui::Painter, vp: &Vie
     }
 }
 
-/// Shapes without any sewing would be invisible; show their outlines.
+/// Shapes without any sewing whose outlines the canvas shows (they would be invisible): all of
+/// them, except in the Realistic view, which shows only what is sewn (a text path's guide circle
+/// read as a sewn grey ring in the kit's preview, #441), so there only the selected ones.
+pub(crate) fn unsewn_outlines_shown(app: &EditorApp) -> Vec<u64> {
+    app.session
+        .design()
+        .objects
+        .iter()
+        .filter(|o| {
+            o.kind == ObjectKind::Shape && o.visible && o.region.is_none() && o.line.is_none()
+        })
+        .filter(|o| !app.workspace.realistic || app.selection.contains(&o.id))
+        .map(|o| o.id)
+        .collect()
+}
+
 fn draw_unsewn_outlines(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
+    let shown = unsewn_outlines_shown(app);
     for o in &app.session.design().objects {
-        if o.kind == ObjectKind::Shape && o.visible && o.region.is_none() && o.line.is_none() {
+        if shown.contains(&o.id) {
             for c in &o.contours {
                 draw_contour(
                     painter,

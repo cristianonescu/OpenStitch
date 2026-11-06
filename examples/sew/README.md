@@ -41,9 +41,10 @@ The calibration designs measure what OpenStitch can only guess: how real thread 
 what each colour looks like once sewn. They feed the Realistic view, the image-similarity scorer
 and the Photo Stitch 2 coverage model (issue #129).
 
-1. Sew `calibration/t1-swatches.pes`, `calibration/ps2-grey-ramp.pes`,
-   `calibration/satin-and-underlay.pes` and the photo patch
-   `image-tools/S-photo1-sunset-openstitch.pes`.
+1. Sew `calibration/t1-swatches.pes`, `calibration/t2-alternating-rows.pes`,
+   `calibration/ps2-grey-ramp.pes`, `calibration/satin-and-underlay.pes` and the photo patch
+   `image-tools/S-photo1-sunset-openstitch.pes`. Sew the T1 and T2 cards on the same fabric with
+   the same threads.
 2. Scan each one on a flatbed scanner, the best way to capture them: Photo Mode (not Document
    Mode), Colour, 600 dpi, PNG, no rotation, skew correction and every automatic correction
    (exposure, colour restoration, backlight) off, and a plain white paper strip on the glass next
@@ -63,6 +64,28 @@ and the Photo Stitch 2 coverage model (issue #129).
    | Yellow | 205 | |
    | Leaf Green | 509 | |
 
+### What the T2 card measures
+
+Photo Stitch 1 sews fine rows of different threads side by side. Thread is wider than the row
+spacing, so where two rows meet, the one sewn later lies on top and hides part of its neighbour.
+OpenStitch guesses that share today (`rows::Rows::strip`, half the geometric overlap). The T2
+card measures it.
+
+Each row of the card is one density (2, 3, 4 and 5 rows/mm of each thread, top to bottom). In each
+row, read the central 6 × 6 mm of every swatch, white-balanced on the paper strip, in linear RGB:
+
+- `B` and `Y`: the solid Black and solid Yellow swatches (left and right), sewn at the two threads'
+  total density.
+- `BY`: Black rows with Yellow sewn later (second column). `YB`: Yellow with Black sewn later
+  (third column).
+
+The visible share of the thread sewn later is `p = (BY − B) / (Y − B)` in the second column and
+`p = (YB − Y) / (B − Y)` in the third, per channel, averaged over the three channels. Half the
+area would show each thread if neither covered the other. Each later row covers `p − 0.5` of
+its neighbour's band at each edge. That is the `strip` Photo Stitch 1 needs at that row spacing.
+The kit build checks each swatch's rows per mm in the exported file, and `manifest.json` records
+the measured values (`swatches`), so a result can quote them.
+
 ## Sending results
 
 Testing on another machine or format? [TESTING.md](../../TESTING.md) says what to sew and how to export.
@@ -73,8 +96,8 @@ form on GitHub (a free GitHub account is needed). To use your results, OpenStitc
 - **Machine and hoop**, and the **OpenStitch version** the files came from (Help ▸ About
   OpenStitch, or the release you downloaded).
 - **The files you sewed**, and whether you resized, rotated or moved a design on the machine.
-- **Thread:** brand and weight, and for the T1 card the thread used for each colour (the table
-  above).
+- **Thread:** brand and weight, and for the T1 and T2 cards the thread used for each colour (the
+  table above; T2 uses its Black and Yellow).
 - **Needle** (brand, type and size), **fabric** and **stabiliser**.
 - **How the images were made:** the scanner (or camera) and its settings, as in step 2.
 - **The original PNG scans or photos**, attached to the issue (not screenshots), with the white
@@ -208,13 +231,23 @@ For calibrating OpenStitch against real thread and fabric. Sew these first and s
 
 #### T1 calibration card: thread swatches and coverage ramp
 
-[`calibration/t1-swatches.pes`](calibration/t1-swatches.pes) · 100 × 100 mm hoop · 86.9 × 68 mm · 5,064 stitches · 26 trims · about 7.7 min
+[`calibration/t1-swatches.pes`](calibration/t1-swatches.pes) · 100 × 100 mm hoop · 86.9 × 68 mm · 5,160 stitches · 26 trims · about 7.8 min
 
-Six threads (White, Black, Red, Blue, Yellow, Leaf Green) as 12 mm fills at 3.0, 4.5 and 6.0 rows/mm, then Black at 0.5, 1, 1.5, 2, 3 and 4.5 rows/mm, all without underlay; the "T1" mark is the top left. Photographed under the protocol below, it calibrates the Realistic view and the similarity scorer (image-similarity plan, T1), shows how each density covers the fabric (#129), and whether a single layer without underlay sews cleanly. The card's photo patch is the Photo Stitch 1 sunset demo in OpenStitch mode (`image-tools/S-photo1-sunset-openstitch.pes`).
+Six threads (White, Black, Red, Blue, Yellow, Leaf Green) as 12 mm fills at 3.0, 4.5 and 6.0 rows/mm, then Black at 0.5, 1, 1.5, 2, 3 and 4.5 rows/mm, all without underlay; the "T1" mark is below the bottom-left swatch. Photographed under the protocol below, it calibrates the Realistic view and the similarity scorer (image-similarity plan, T1), shows how each density covers the fabric (#129), and whether a single layer without underlay sews cleanly. The card's photo patch is the Photo Stitch 1 sunset demo in OpenStitch mode (`image-tools/S-photo1-sunset-openstitch.pes`).
 
 <img src="previews/t1-swatches.png" height="180" alt="Realistic view of calibration/t1-swatches.pes">
 
 Threads, in sewing order: 001 White, 900 Black, 800 Red, 405 Blue, 205 Yellow, 509 Leaf Green.
+
+#### T2 calibration card: two threads in alternating rows
+
+[`calibration/t2-alternating-rows.pes`](calibration/t2-alternating-rows.pes) · 100 × 100 mm hoop · 61.9 × 68 mm · 6,045 stitches · 26 trims · about 8.9 min
+
+How much a row sewn later covers its neighbour of another thread, which Photo Stitch 1's fine rows need (`rows::Rows::strip`, #311). Black 900 and Yellow 205 as 12 mm fills at 0° without underlay, one row of swatches per density: 2, 3, 4 and 5 rows/mm of each thread, top to bottom. Left to right: solid Black at the two threads' total (4, 6, 8, 10 rows/mm), Black rows with Yellow rows midway between them and sewn later, the same with Yellow sewn first, and solid Yellow at the total. The thread sewn later lies on top, so the two middle columns differ only in sewing order. The "T2" mark is below the bottom-left swatch. Sew it on the same fabric and thread as the T1 card and scan it the same way.
+
+<img src="previews/t2-alternating-rows.png" height="180" alt="Realistic view of calibration/t2-alternating-rows.pes">
+
+Threads, in sewing order: 900 Black, 205 Yellow, 900 Black.
 
 #### Photo Stitch 2 coverage ramp
 
@@ -378,13 +411,13 @@ The fonts, Text Transform, text on a path and monograms.
 
 #### Lettering
 
-[`lettering/fonts-and-text.pes`](lettering/fonts-and-text.pes) · 100 × 100 mm hoop · 71 × 89.7 mm · 3,928 stitches · 47 trims · about 7.3 min
+[`lettering/fonts-and-text.pes`](lettering/fonts-and-text.pes) · 100 × 100 mm hoop · 71 × 89.7 mm · 3,860 stitches · 46 trims · about 7.2 min
 
 Lato Bold and Pacifico, a Text Transform arch, and text spaced around a circle (text on a path).
 
 <img src="previews/fonts-and-text.png" height="180" alt="Realistic view of lettering/fonts-and-text.pes">
 
-Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 399 Warm Gray, 620 Magenta.
+Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 620 Magenta.
 
 #### Monograms
 
@@ -408,7 +441,7 @@ A heart as appliqué: material line, stop, position line, stop, tack-down, stop,
 
 <img src="previews/applique.png" height="180" alt="Realistic view of wizards/applique.pes">
 
-Threads, in sewing order: #ffc864, #ffc896, #ffc8c8.
+Threads, in sewing order: Appliqué material (PEC 62), Appliqué position (PEC 63), Appliqué (PEC 64).
 
 #### Embroidered patch wizard
 

@@ -121,6 +121,13 @@ similarity scorer draw thread as wide as it covers at its row density. Next: Pho
 trims (#298), Auto Punch's stacked satin points on the storybook picture (#290, the Mac's track),
 then a sew-out of the regenerated kit.
 
+Done 2026-11-06 (#295, #441, #311, #312): the kit has a T2 card (two threads in alternating rows,
+to measure how far a later row covers its neighbour for Photo Stitch 1), the build checks every
+calibration swatch's density in the exported file, and `sew_check` checks long stitches, trims
+per 1,000 stitches and hairline satins with limits from PE-DESIGN's own files. Next: sew the T2
+card and set `strip` from it; engine follow-ups #627 (Design Center line-art trims) and #628
+(entry travel across a region).
+
 Done 2026-11-05 (#433): Photo Stitch 1 in OpenStitch mode is fast again after the locks of
 #299: its fitting attempts run at once and its local search scores only the cells in reach,
 with the same stitches as before (High on the issue's stripes 899 → 41 s, Standard 258 → 24 s,
