@@ -2627,7 +2627,8 @@ averaged 50/50, on the calibrated render; every result is OpenStitch's output.
 - **Laurel and stars frames (#467):** each laurel side is one region (a 1 mm stem band with its
   leaves, at least 4 mm long, three to nine pairs) and the stars one region on a 1 mm band, so
   the laurel trims once across its opening and the stars not at all
-  (`laurel_and_star_frames_sew_each_piece_in_one_path`).
+  (`laurel_and_star_frames_sew_each_piece_in_one_path`). Kit: shapes/decorative-frames 42 → 15
+  trims, lettering/monograms 56 → 15.
 - **Appliqué kept pattern (#470):** PE-DESIGN's own wizard files a01-a04 keep the pattern and
   sew it first (PEC 1, then 62, 63, 64), under the fabric, which is OpenStitch's default.
   `wizard.applique` `patterns: last` sews it after the covering stitch instead (beyond
@@ -2646,7 +2647,8 @@ averaged 50/50, on the calibrated render; every result is OpenStitch's output.
   0.3 mm along the run instead of 0.1 mm (PE-DESIGN locks along last stitches of 0.2 mm and
   more, satin-zigzag-rect). No PE-DESIGN reference has a satin under 2 mm wide, so this is
   OpenStitch's own rule. Storybook (OpenStitch mode): hairline 52 → 28, longest run under 0.3 mm
-  6 → 5; it leaves sew_check's KNOWN list.
+  6 → 5 (a lone 0.3 mm speck tied in and locked); it leaves sew_check's KNOWN list. The kit is
+  regenerated (19 files change; all 36 pass `sew_check`; previews rendered on Linux).
 - **Platform-independent arch (#609):** fixed 2026-10-30 (above); on Linux the spec measures
   the same as on Windows and macOS, `determinism.rs` pins the bits on all three systems, and
   PE-DESIGN's re-save is the spec's reference.
