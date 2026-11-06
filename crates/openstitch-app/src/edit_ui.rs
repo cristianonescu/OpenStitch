@@ -760,6 +760,9 @@ pub fn order_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandR
     if let Some(r) = list_controls(app, ui) {
         out = Some(r);
     }
+    if let Some(r) = crate::finish_ui::finish_controls(app, ui) {
+        out = Some(r);
+    }
     let d = app.session.design();
     if d.machine.machine == MachineType::MultiNeedle && any {
         let selected: Vec<_> = d

@@ -1289,6 +1289,11 @@ stores the absolute path, pixel size, placement (0.1 mm), opacity and visibility
 (`Design.background`, omitted from `.osd` when absent); the image itself is not embedded and
 is never sewn. The editor draws it behind the stitches.
 
+**Job fields** (`design.setJob`, #513): customer, order, due date, notes, fabric and stabiliser
+are stored in the project as `Design.job` (camelCase keys, each omitted while empty, the whole
+field omitted when there is no job) for the job sheets `design.print` writes. No machine format
+carries them: every export ignores the field.
+
 **Clipboard** (editor File ▸ Background Image ▸ Paste from Clipboard): the image is read with
 `arboard` 3.7 (MIT OR Apache-2.0, the clipboard crate eframe already uses), checked against the
 same size limits, and kept as `pasted-<hash>.png` in the per-user data folder, because the
