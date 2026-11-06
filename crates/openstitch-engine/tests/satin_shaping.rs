@@ -182,3 +182,50 @@ fn bad_shaping_values_are_refused() {
     let list = run(&mut s, "fabric.list", json!({}));
     assert!(list.to_string().contains("autoUnderlay"), "{list}");
 }
+
+#[test]
+fn designs_without_shaping_save_byte_identically() {
+    // Columns, satin and fill regions and zigzag lines at their defaults write none of the
+    // new keys, so an .osd saved before #520-#523 decodes and saves again byte for byte.
+    let mut s = Session::new(std::env::temp_dir());
+    vee_column(&mut s);
+    run(
+        &mut s,
+        "shape.ellipse",
+        json!({"cx": 60, "cy": 30, "rx": 15, "ry": 8, "fill": "Blue", "outline": "Black"}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 2, "type": "satin"}),
+    );
+    run(
+        &mut s,
+        "object.setLine",
+        json!({"id": 2, "type": "zigzag", "width": 3}),
+    );
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 50, "y": 60, "width": 30, "height": 20, "fill": "#00a000"}),
+    );
+    let saved = project::encode(s.design()).expect("encode");
+    let text = String::from_utf8(saved.clone()).expect("utf8");
+    for key in ["satinShaping", "underlayAuto", "underlay2"] {
+        assert!(!text.contains(key), "{key} written at its default");
+    }
+    // Lines keep PE-DESIGN's under sewing, so they write no underlayStyle.
+    let line =
+        serde_json::to_value(s.design().objects[1].line.as_ref().expect("line")).expect("json");
+    assert!(line.get("underlayStyle").is_none(), "{line}");
+    let again = project::encode(&project::decode(&saved).expect("decode")).expect("encode");
+    assert_eq!(again, saved, "decode and save again changes no byte");
+    // With options set, they survive the round trip.
+    run(
+        &mut s,
+        "object.setLine",
+        json!({"id": 2, "cornerStyle": "cap", "underlayStyle": "centreWalk"}),
+    );
+    let shaped = project::encode(s.design()).expect("encode");
+    assert_eq!(&project::decode(&shaped).expect("decode"), s.design());
+}
