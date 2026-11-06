@@ -16,7 +16,8 @@ use std::ops::Range;
 
 /// Turns an editable [`Design`] into a machine [`StitchPattern`].
 ///
-/// Order: objects in list order; within a shape, underlay, region, then outline. A thread change
+/// Order: objects in list order; within a shape, underlay, region, then outline (outline first
+/// when the object has `line_first`, #502). A thread change
 /// between elements is a colour change (after a trim); travel longer than `trim_distance` is a
 /// trim + jump, shorter travel a jump, or a straight stitch inside one element below
 /// `connect_distance`. All distances 0.1 mm.
@@ -591,7 +592,13 @@ fn elements(
         }
     }
     if let Some(line) = &object.line {
-        out.extend(line_elements(object, line, user));
+        let lines = line_elements(object, line, user);
+        if object.line_first {
+            // Sew outline first (#502): the outline's elements go before the region's.
+            out.splice(0..0, lines);
+        } else {
+            out.extend(lines);
+        }
     }
     out
 }

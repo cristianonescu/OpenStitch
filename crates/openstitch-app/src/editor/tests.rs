@@ -1259,3 +1259,89 @@ fn fill_offers_stitch_type_with_the_region_s_value() {
     let satin = RegionSewing::new(RegionType::Satin, Thread::rgb(0));
     assert_eq!(value(&satin), None);
 }
+
+// MARK: Sewing Order list (#502)
+
+#[test]
+fn locked_objects_stay_put_on_the_canvas() {
+    let mut s = session();
+    let a = rect_design(&mut s);
+    run(&mut s, &objects::set_locked(&BTreeSet::from([a]), true));
+    let before = s.design().objects[0].bounds().expect("bounds");
+    let mut t = ToolController::default();
+    // A click on it does not pick it, and a drag from it is a marquee that leaves it alone.
+    let sel = drag(
+        &mut t,
+        &mut s,
+        BTreeSet::new(),
+        v2(150.0, 150.0),
+        v2(170.0, 140.0),
+        false,
+    );
+    assert!(sel.is_empty());
+    assert!(objects_in(s.design(), &rect_from(v2(0.0, 0.0), v2(900.0, 900.0))).is_empty());
+    // Selected from the list: no handles, no point editing, no moving.
+    let sel = BTreeSet::from([a]);
+    let design = s.design().clone();
+    let c = ctx(&design, &sel);
+    assert!(c.locked() && c.handles().is_none() && c.point_target().is_none());
+    drag(
+        &mut t,
+        &mut s,
+        sel.clone(),
+        v2(150.0, 150.0),
+        v2(250.0, 250.0),
+        false,
+    );
+    assert_eq!(s.design().objects[0].bounds(), Some(before));
+    assert!(objects::any_locked(s.design(), &sel));
+    // Unlocked, it moves again.
+    run(&mut s, &objects::set_locked(&sel, false));
+    let sel = drag(
+        &mut t,
+        &mut s,
+        BTreeSet::new(),
+        v2(150.0, 150.0),
+        v2(170.0, 140.0),
+        false,
+    );
+    assert_eq!(sel, BTreeSet::from([a]));
+    assert_ne!(s.design().objects[0].bounds(), Some(before));
+}
+
+#[test]
+fn click_order_follows_the_clicks() {
+    let mut order = Vec::new();
+    objects::track_click_order(&mut order, &BTreeSet::from([5]));
+    objects::track_click_order(&mut order, &BTreeSet::from([2, 5]));
+    objects::track_click_order(&mut order, &BTreeSet::from([2, 4, 5]));
+    assert_eq!(order, [5, 2, 4]);
+    objects::track_click_order(&mut order, &BTreeSet::from([4, 5]));
+    assert_eq!(order, [5, 4]);
+    assert!(objects::click_order(&order[..1]).is_none());
+    let mut s = session();
+    for x in [0, 15, 30, 45, 60] {
+        run(
+            &mut s,
+            &CommandRequest::new(
+                "shape.rectangle",
+                json!({ "x": x, "y": 0, "width": 10, "height": 10 }),
+            ),
+        );
+    }
+    run(&mut s, &objects::click_order(&[5, 2, 4]).expect("request"));
+    let ids: Vec<u64> = s.design().objects.iter().map(|o| o.id).collect();
+    assert_eq!(ids, [1, 5, 2, 4, 3]);
+    // Rename, then back to the label.
+    run(&mut s, &objects::set_name(1, "  Leaf "));
+    let rows = objects::rows(s.design(), &BTreeSet::new());
+    assert_eq!(
+        (rows[0].label.as_str(), rows[0].name.as_deref()),
+        ("Leaf", Some("Leaf"))
+    );
+    run(&mut s, &objects::set_name(1, ""));
+    assert_eq!(
+        objects::rows(s.design(), &BTreeSet::new())[0].label,
+        "Shape 1"
+    );
+}

@@ -49,6 +49,8 @@ pub struct EditState {
     pub alt: bool,
     /// Sewing-order pane shows one frame per same-colour run.
     pub by_colour: bool,
+    /// Sewing-order pane: the object being renamed and the name typed so far (#502).
+    pub renaming: Option<(u64, String)>,
     /// The Arrange Copies handle is being dragged on the canvas.
     pub arrange_drag: bool,
     /// An entry/exit marker being dragged: object, which marker, where it is now.
@@ -755,6 +757,9 @@ pub fn order_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandR
             out = Some(r);
         }
     });
+    if let Some(r) = list_controls(app, ui) {
+        out = Some(r);
+    }
     let d = app.session.design();
     if d.machine.machine == MachineType::MultiNeedle && any {
         let selected: Vec<_> = d
@@ -767,6 +772,54 @@ pub fn order_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandR
             out = Some(jump_trimming_request(&app.selection, on));
         }
     }
+    out
+}
+
+/// Sewing Order list controls (#502): Sew in Click Order, Lock, Sew outline first.
+fn list_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandRequest> {
+    objects::track_click_order(&mut app.click_order, &app.selection);
+    let mut out = None;
+    let d = app.session.design();
+    let shapes = objects::two_part_shapes(d, &app.selection);
+    let all_locked = !app.selection.is_empty()
+        && d.objects
+            .iter()
+            .filter(|o| app.selection.contains(&o.id))
+            .all(|o| o.locked);
+    let line_first = !shapes.is_empty()
+        && shapes
+            .iter()
+            .all(|&id| d.index_of(id).is_some_and(|i| d.objects[i].line_first));
+    ui.horizontal_wrapped(|ui| {
+        if ui
+            .add_enabled(
+                app.click_order.len() >= 2,
+                egui::Button::new("Sew in click order"),
+            )
+            .on_hover_text("Sew the selected objects in the order you clicked them (Shift or Ctrl+click), starting where the first of them sews now")
+            .on_disabled_hover_text("Shift- or Ctrl+click two or more objects in the order they should sew")
+            .clicked()
+        {
+            out = objects::click_order(&app.click_order);
+        }
+        let mut locked = all_locked;
+        if ui
+            .add_enabled(!app.selection.is_empty(), egui::Checkbox::new(&mut locked, "Lock"))
+            .on_hover_text("Locked objects cannot be picked, moved, resized, point-edited or deleted on the canvas; select them here")
+            .changed()
+        {
+            out = Some(objects::set_locked(&app.selection, locked));
+        }
+        let mut first = line_first;
+        if ui
+            .add_enabled(!shapes.is_empty(), egui::Checkbox::new(&mut first, "Sew outline first"))
+            .on_hover_text("Beyond PE-DESIGN: sew the outline before the region (PE-DESIGN sews the region first)")
+            .on_disabled_hover_text("Select a shape with both a region and an outline")
+            .changed()
+        {
+            out = Some(objects::set_line_first(&shapes, first));
+        }
+    });
     out
 }
 

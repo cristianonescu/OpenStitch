@@ -6,7 +6,8 @@
 use crate::commands::{CommandSpec, Effect, IDS, MM, indexes, opt, req, spec};
 use crate::params::{CommandError, Params};
 use crate::session::EngineState;
-use openstitch_design::{Design, DesignObject, ObjectKind, Rect, Transform, v2};
+use openstitch_design::fonts::{self, DesignFont};
+use openstitch_design::{Design, DesignObject, ObjectKind, Rect, Transform, text, v2};
 use serde_json::json;
 use std::collections::HashMap;
 
@@ -103,6 +104,11 @@ fn paste_command() -> CommandSpec {
             req("objects", "[object]", "Object data (1-10000)"),
             opt("dx", "mm", "Offset (default 0)"),
             opt("dy", "mm", "Offset (default 0)"),
+            opt(
+                "fonts",
+                "[font]",
+                "Design fonts the texts use, as the design's fonts list holds them (the editor's clipboard carries them, #500); one this design lacks is added within its limits (16 fonts, 40 MiB); a text whose font is neither bundled, in the design nor given here is refused",
+            ),
         ],
         |s, p| {
             let arr = p.array("objects")?;
@@ -135,9 +141,71 @@ fn paste_command() -> CommandSpec {
                 p.opt("dx", 0.0, -5000.0, 5000.0)? * MM,
                 p.opt("dy", 0.0, -5000.0, 5000.0)? * MM,
             );
+            let fonts = pasted_fonts(s, p, &objects)?;
+            s.design.fonts.extend(fonts);
             Ok(json!({ "ids": add_set(&mut s.design, objects, &t) }))
         },
     )
+}
+
+/// The `fonts` of an `object.paste` the design lacks, checked: same id and different data is
+/// refused, the design's font limits hold, and every pasted text's font resolves.
+fn pasted_fonts(
+    s: &EngineState,
+    p: &Params,
+    objects: &[DesignObject],
+) -> Result<Vec<DesignFont>, CommandError> {
+    let given: Vec<DesignFont> = match p.get("fonts") {
+        None | Some(serde_json::Value::Null) => Vec::new(),
+        Some(v) => serde_json::from_value(v.clone())
+            .map_err(|e| p.invalid("fonts", format!("not a list of design fonts: {e}")))?,
+    };
+    let mut add = Vec::new();
+    for f in given {
+        match s.design.fonts.iter().find(|d| d.id == f.id) {
+            Some(d) if *d == f => {}
+            Some(_) => {
+                return Err(p.failed(format!(
+                    "the design already has a different font with id '{}'",
+                    f.id
+                )));
+            }
+            None if add.iter().any(|a: &DesignFont| a.id == f.id) => {}
+            None => {
+                if !fonts::valid_id(&f.id) || text::font(&f.id).is_some() {
+                    return Err(p.invalid("fonts", format!("font id '{}' is not usable", f.id)));
+                }
+                text::LoadedFont::load_in(&f.id, std::slice::from_ref(&f))
+                    .map_err(|e| p.invalid("fonts", format!("font '{}': {e}", f.id)))?;
+                add.push(f);
+            }
+        }
+    }
+    let count = s.design.fonts.len() + add.len();
+    let bytes: usize = s
+        .design
+        .fonts
+        .iter()
+        .chain(&add)
+        .map(DesignFont::byte_size)
+        .sum();
+    if !add.is_empty() && (count > fonts::MAX_DESIGN_FONTS || bytes > fonts::MAX_TOTAL_FONT_BYTES) {
+        return Err(p.failed(format!(
+            "the design's fonts would exceed {} fonts or {} MiB",
+            fonts::MAX_DESIGN_FONTS,
+            fonts::MAX_TOTAL_FONT_BYTES >> 20
+        )));
+    }
+    let all: Vec<DesignFont> = s.design.fonts.iter().chain(&add).cloned().collect();
+    for t in objects.iter().filter_map(|o| o.text.as_ref()) {
+        if text::resolve(&t.font, &all).is_none() {
+            return Err(p.failed(format!(
+                "the font '{}' of a pasted text is not in this design; paste from OpenStitch's Copy, which carries it",
+                t.font
+            )));
+        }
+    }
+    Ok(add)
 }
 
 // MARK: groups

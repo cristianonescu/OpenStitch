@@ -188,6 +188,12 @@ fn describe(o: &DesignObject) -> Value {
     if let Some(g) = o.group {
         r["group"] = json!(g);
     }
+    if o.locked {
+        r["locked"] = json!(true);
+    }
+    if o.line_first {
+        r["partOrder"] = json!("lineFirst");
+    }
     if let Some(t) = &o.text {
         r["text"] = json!(t.text);
         r["font"] = json!(t.font);
