@@ -70,6 +70,8 @@ pub struct Loaded {
 pub struct OpenJob {
     pub path: PathBuf,
     pub kind: JobKind,
+    /// The open added a tab for it (#552): a failed or cancelled open closes that tab again.
+    pub added_tab: bool,
     started: Instant,
     /// The design's revision when the job started; a later edit makes the result stale.
     revision: u64,
@@ -101,6 +103,7 @@ impl OpenJob {
         OpenJob {
             path: path.to_path_buf(),
             kind,
+            added_tab: false,
             started: Instant::now(),
             revision,
             cancel,
@@ -222,6 +225,7 @@ impl EditorApp {
             return false;
         };
         job.cancel();
+        self.close_tab_added_for(&job);
         self.status = format!(
             "Cancelled opening {}; the design is unchanged",
             job.path.display()
@@ -253,10 +257,18 @@ impl EditorApp {
         }
     }
 
+    /// Closes the empty tab an open added (#552), while it is still the active, untouched one.
+    fn close_tab_added_for(&mut self, job: &OpenJob) {
+        if job.added_tab && self.revision == job.revision {
+            self.close_active_tab();
+        }
+    }
+
     fn apply_job(&mut self, job: &OpenJob, out: Result<Loaded, String>) {
         let loaded = match out {
             Ok(l) => l,
             Err(e) => {
+                self.close_tab_added_for(job);
                 self.status = format!("Could not open {}: {e}", job.path.display());
                 return;
             }

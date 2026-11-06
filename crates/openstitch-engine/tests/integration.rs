@@ -114,6 +114,8 @@ mod quality;
 mod random_designs;
 #[path = "region_compat.rs"]
 mod region_compat;
+#[path = "routing.rs"]
+mod routing;
 #[path = "satin_compat.rs"]
 mod satin_compat;
 #[path = "satin_shaping.rs"]
@@ -122,6 +124,8 @@ mod satin_shaping;
 mod sections;
 #[path = "session_fork.rs"]
 mod session_fork;
+#[path = "session_sibling.rs"]
+mod session_sibling;
 #[path = "sewing.rs"]
 mod sewing;
 #[path = "shape_cut_attributes.rs"]

@@ -771,6 +771,7 @@ fn every_command_the_skill_names_exists() {
         "ui.layout",
         "ui.resetPrefs",
         "ui.gettingStarted",
+        "ui.documents",
         "ui.loading",
     ];
     // The web editor's own (crates/openstitch-web, #556; SKILL.md "Web editor").

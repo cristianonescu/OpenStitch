@@ -41,6 +41,7 @@ SCENES = {
     "update": (["--demo", "--show", "update"], [("docs/images/rust-editor-update.png", 1600),
                                                 ("docs/images/readme/update.png", 1280)]),
     "close-prompt": (["--demo", "--show", "close-prompt"], [("docs/images/rust-editor-close-prompt.png", 1600)]),
+    "tabs": (["--demo", "--show", "tabs"], [("docs/images/rust-editor-tabs.png", 1600)]),
     "view-dark": (["--demo", "--ribbon", "view", "--pane", "color", "--select", "2", "--theme", "dark"],
                   [("docs/images/rust-editor-view-dark.png", 1600),
                    ("docs/images/readme/dark-theme.png", 1280)]),

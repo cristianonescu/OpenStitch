@@ -2931,6 +2931,32 @@ no problems:
   mode (#525, satin-2b), and the NV880E sew-outs #528 and #531 ask for before the styles are
   advertised.
 
+### Hidden stitching and hidden travel, 2026-11-06 (#511, #545, `batch:routing`)
+
+Beyond PE-DESIGN and off by default: with no object or design setting on, compiled output is
+byte-identical (tests `hidden_stitching_is_left_out_with_an_overlap`,
+`travel_under_a_later_fill_replaces_the_trim`, `run_connectors_join_objects_of_one_thread`).
+PE-DESIGN's destructive `shape.removeOverlap` is unchanged.
+
+- **Leave out hidden stitching (#511).** The region is generated over its outline minus the later
+  fills and satins shrunk by the overlap; the generators are not changed, only the area they are
+  given, and the outline is sewn as drawn. Two overlapping 30 mm squares with a 1 mm overlap: the
+  stitches saved are within 15 % of the hidden 14 × 14 mm share of the lower fill; no lower-fill
+  needle point lies deeper than 1.2 mm under the upper square, and some lie in the 1 mm band.
+- **Travel under later fills and run connectors (#545).** A move into an object of the same
+  thread (no colour change or stop before it) is sewn as ≤ 2 mm running stitches when a path,
+  straight or round one corner, lies 0.5 mm inside the fills sewn from that object on. A small
+  square under a larger one of the same thread: 1 trim between them with it off, 0 with it on.
+  On the editable example scripts few objects of one thread lie under later fills (401 → 400
+  trims), and the kit's stitch files keep their own moves, so the jumps-to-running pass and
+  per-design kit reductions remain open in #545.
+- **Fill travel on curved outlines (#679).** The travel graph and the row splitting tested every
+  point against `Contour::path`, which flattened the Béziers again on each call; both now flatten
+  each outline once (the same points). Fill layers of a 60 mm ring with a 30 mm hole on Bézier
+  curves (debug build, 5 builds): 2.7-5.1 s before, 0.48-0.65 s after, within 1.1-1.4× of the
+  same ring flattened first (`paths::tests::curved_layers_timing`). PES output byte-identical on
+  the 24 exportable example scripts; compat 454/454.
+
 ## Order of work
 
 1. **Fix without a reference:** items 1, 3, 7, 14, 15 (ranges), 16 and 17, plus the
