@@ -2529,6 +2529,18 @@ Assistant's stream timeout (#580) and thread-chart rules (#495) are in
   same numbers on all 16 Photo Stitch cases in both modes and the nine Photo Stitch 1 photos at
   High; `sew_check` passes; compat 454/454.
 
+### Photo Stitch 2 Mono on the coverage curve, 2026-11-06 (`batch:mac-photo-2`, #468)
+
+- **Measured and not taken: an OpenStitch-mode Mono on the T1 coverage curve (#468).** The grey
+  after Mono's contrast stretch was turned into a target coverage and then into a zigzag share
+  by the T1 curve (the run alone is tanh(0.4 · 10/interval); rows = atanh(c / 0.9) / 0.4).
+  Variants: darkness in linear light, darkness in sRGB, and PE's ramp with its no-zigzag
+  threshold lowered from 17 % to 10 % or 5 %. On the six Photo Stitch 2 images in Mono plus the
+  eight-step grey ramp, every variant lowers mean likeness (PE ramp 34.4; variants 33.2–33.9),
+  the grey ramp included (35.2 → 34.2–35.1). Both modes keep PE's ramp; the 219 step stays lost.
+  Table on #468.
+- **#433 check:** `fidelity_high_raises_the_colour_counts` passes in 9.1 s on the Mac (`-j 2`).
+
 ### Photo Stitch travel, the sewn sunset and the layered screen, 2026-11-06 (`batch:mac-photo`, #298, #291, #129, #468)
 
 Likeness is `tools/image_similarity.py`'s score (S, C and DISTS) on the calibrated render;
