@@ -347,6 +347,8 @@ fn glyph(a: Action) -> Glyph {
         Ruler => G::Ruler,
         ImportPatterns => G::Import,
         ImportSvg => G::Own("import_svg"),
+        // The Import Patterns icon: a PES file brought in, as objects.
+        ImportPesObjects => G::Import,
         Arrange => G::Align,
         // Reused until generated icons land (#472, #473, #474, #475 follow-up).
         Align | AlignLeft | AlignCenter | AlignRight | AlignTop | AlignMiddle | AlignBottom

@@ -305,7 +305,10 @@ fn pe_designs_convert_to_blocks_imports_as_grouped_blocks_in_one_undo_step() {
     let mut s = Session::new(&dir);
     let out = run(&mut s, "import.pes", json!({"path": "h.pes"}));
     assert_eq!(out["ids"].as_array().map(Vec::len), Some(8));
-    assert_eq!(out["textsNotImported"], 0);
+    assert_eq!(
+        (out["texts"].as_u64(), out["stitchGroups"].as_u64()),
+        (Some(0), Some(0))
+    );
     let d = s.design();
     let lines: Vec<usize> = d
         .objects
@@ -329,6 +332,28 @@ fn pe_designs_convert_to_blocks_imports_as_grouped_blocks_in_one_undo_step() {
         .execute("import.pes", Some(&json!({"path": "v6.pes"})))
         .expect_err("v6 has no editable objects");
     assert!(e.to_string().contains("stitches.import"), "{e}");
+}
+
+#[test]
+fn pe_designs_text_only_files_import_as_text() {
+    // A #PES0110 file holding only a text (r12-text-a, PE-DESIGN's Text tool) was refused as
+    // having no shapes (#397): it imports as an editable Lato text object.
+    let dir = temp_dir();
+    let fixture = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../openstitch-formats/tests/fixtures/pe11/r12-text-a.pes"
+    );
+    std::fs::copy(fixture, dir.join("a.pes")).expect("fixture");
+    let mut s = Session::new(&dir);
+    let out = run(&mut s, "import.pes", json!({"path": "a.pes"}));
+    assert_eq!(out["ids"].as_array().map(Vec::len), Some(1));
+    assert_eq!(out["texts"], 1);
+    let d = s.design();
+    assert_eq!(d.objects[0].kind, openstitch_design::ObjectKind::Text);
+    assert_eq!(
+        d.objects[0].text.as_ref().map(|t| t.text.as_str()),
+        Some("A")
+    );
 }
 
 /// A placeable WMF (100 units per inch) with a red-brushed rectangle 2 × 1 in and a polyline.

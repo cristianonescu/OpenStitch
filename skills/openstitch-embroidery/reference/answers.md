@@ -53,7 +53,7 @@ stays the default.
 | Read and write | PES, PEC, DST, EXP, JEF, PCS, SEW, XXX, HUS, VIP |
 | Read only | SHV, PHC, CSD |
 | Editable project | `.osd` (OpenStitch) |
-| Import | SVG (as editable shapes), PES 11 shapes (`import.pes`), images PNG, JPEG, BMP |
+| Import | SVG (as editable shapes), PE-DESIGN 11 PES objects (`import.pes`: shapes, Manual Punch blocks, texts with Text Transform or fitted to an outline, stitch groups, hole pairs, programmable, decorative and motif patterns; the result lists `skipped` objects and `notes`), images PNG, JPEG, BMP |
 | Thread charts | CSV in the layout PE-DESIGN's Import Chart reads (`threads.importCsv`, `threads.exportCsv`); GIMP / Inkscape `.gpl` palettes (`threads.importPalette`, `threads.exportPalette`) |
 
 PES is written as version 6 by default; version 1 and PE-DESIGN 11 (`#PES0110`, whose shapes

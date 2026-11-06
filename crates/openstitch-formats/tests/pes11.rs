@@ -1578,6 +1578,78 @@ fn a_stitch_group_built_from_stitches_round_trips() {
     assert_eq!(back, objects);
 }
 
+#[test]
+fn moved_and_resized_shapes_keep_their_transform() {
+    // #398: PE-DESIGN keeps a moved or resized shape's vertices where they were drawn and stores
+    // the move in the body's transform (+16). The 14 tatami-40 references read whole, every
+    // vertex placed inside the bounds, and write back to the same shape.
+    let dir = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../compat/reference/stitches"
+    );
+    let mut moved = 0;
+    for e in std::fs::read_dir(dir).expect("dir").flatten() {
+        let name = e.file_name().to_string_lossy().into_owned();
+        if !name.starts_with("tatami-40") || !name.ends_with(".pes") {
+            continue;
+        }
+        let bytes = std::fs::read(e.path()).expect("read");
+        let objects = objects_of(&bytes);
+        assert_eq!(
+            (objects.shapes.len(), &objects.unparsed),
+            (1, &None),
+            "{name}"
+        );
+        let s = &objects.shapes[0];
+        assert_ne!(s.transform, [1.0, 0.0, 0.0, 1.0, 0.0, 0.0], "{name}");
+        for v in s.placed_vertices() {
+            assert!(
+                f32::from(s.bounds[0]) - 1.0 <= v.x
+                    && v.x <= f32::from(s.bounds[2]) + 1.0
+                    && f32::from(s.bounds[1]) - 1.0 <= v.y
+                    && v.y <= f32::from(s.bounds[3]) + 1.0,
+                "{name}"
+            );
+        }
+        let pattern = pes::read(&bytes).expect("stitches");
+        let back = objects_of(&pes11::write(&objects, &pattern).expect("write"));
+        assert_eq!(back.shapes, objects.shapes, "{name}");
+        moved += 1;
+    }
+    // Moved to the corner, the centre, 2 mm and 10 mm right, resized to 40 x 20, and the plain
+    // 40 mm square, which PE-DESIGN also stores with a 1.013 x scale.
+    assert_eq!(moved, 23);
+}
+
+#[test]
+fn a_stitch_run_longer_than_a_u16_count_round_trips() {
+    // #120: the writer gives every run a u32 point count after `0xFFFF`; a run of 70,000
+    // points (more than the 64,999 a u16 count would hold) reads back whole.
+    use openstitch_core::{Command, Stitch, StitchPattern, Thread};
+    let mut p = StitchPattern::new();
+    p.threads = vec![Thread::rgb(0xFF0000)];
+    let n = 70_000;
+    for k in 0..n {
+        let x = f64::from(k % 400) + 100.0;
+        let y = 100.0 + f64::from(k / 400) + f64::from(k % 2) * 3.0;
+        p.stitches.push(Stitch::new(x, y, Command::Stitch));
+    }
+    let g = pes11::StitchGroup::from_pattern(&p, 0, |k| k as u16).expect("group");
+    assert_eq!(g.segments.len(), 1);
+    assert_eq!(g.segments[0].points.len(), n as usize);
+    let objects = Objects {
+        page_mm: Some((100, 100)),
+        hoop_page: true,
+        threads: p.threads.clone(),
+        stitch_groups: vec![g],
+        ..Objects::default()
+    };
+    let written = pes11::write(&objects, &p).expect("write");
+    let back = objects_of(&written);
+    assert_eq!(back.unparsed, None);
+    assert_eq!(back.stitch_groups, objects.stitch_groups);
+}
+
 /// PE-DESIGN 11.50 saves a design outside its Design Page with an empty machine section (no
 /// colours, a 13-byte stitch block that only gives the design's size, 129 x 105 mm): reading
 /// it says so instead of decoding the preview icons as 169 stitches and 256 colours, and the

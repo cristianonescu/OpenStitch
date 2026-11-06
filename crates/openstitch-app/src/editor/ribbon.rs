@@ -138,6 +138,7 @@ actions! {
     // Home ▸ Import.
     ImportPatterns => "import", "Import Patterns", "Add an embroidery file to the design.", Some("Ctrl+Shift+I"), Some("stitches.import"), true;
     ImportSvg => "importSvg", "Import SVG", "Add vector artwork as editable shapes.", None, Some("import.svg"), true;
+    ImportPesObjects => "importPesObjects", "Import PE-DESIGN Objects", "Add a PE-DESIGN 11 file's shapes, texts and stitch groups as editable objects.", None, Some("import.pes"), true;
     // Home ▸ Edit.
     Align => "align", "Align", "Line the selection up on an edge or centre, relative to the selection, the last-selected object or the Design Page, or space it evenly.", None, Some("object.align"), true;
     AlignLeft => "alignLeft", "Align Left", "Line up the left edges.", None, Some("object.align"), true;
@@ -504,7 +505,10 @@ const HOME: &[Group] = &[
     },
     Group {
         name: "Import",
-        items: &[Large(A::ImportPatterns), Small(&[A::ImportSvg])],
+        items: &[
+            Large(A::ImportPatterns),
+            Small(&[A::ImportSvg, A::ImportPesObjects]),
+        ],
     },
     Group {
         name: "Edit",
