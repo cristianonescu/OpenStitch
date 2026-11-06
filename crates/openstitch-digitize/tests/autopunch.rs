@@ -1714,3 +1714,66 @@ fn least_travel_picks_the_shortest_path() {
         assert!(thread(chosen) <= thread(own), "{own} -> {chosen}");
     }
 }
+
+/// #469: with `underlap_mm`, a fill reaches under the touching region sewn after it, never
+/// under one sewn before or into the background; PE-DESIGN mode ignores it.
+#[test]
+fn underlap_reaches_under_the_next_colour_only() {
+    // Yellow (sewn first: brighter) beside blue, on white; 100 × 60 px over 50 mm.
+    let img = Raster::from_fn(100, 60, |x, y| {
+        if !(10..50).contains(&y) || !(10..90).contains(&x) {
+            [255, 255, 255, 255]
+        } else if x < 50 {
+            [250, 220, 20, 255]
+        } else {
+            [20, 40, 200, 255]
+        }
+    })
+    .expect("size");
+    let frame = Frame::new(0.0, 0.0, 50.0, 100);
+    let extents = |mode: Mode, underlap: f64| {
+        let out = autopunch::convert(
+            &img,
+            &frame,
+            &AutoPunch {
+                colors: 3,
+                mode,
+                fabric: Some([255, 255, 255]),
+                underlap_mm: underlap,
+                ..Default::default()
+            },
+        )
+        .expect("converts");
+        out.objects
+            .iter()
+            .map(|o| {
+                let xs: Vec<f64> = o
+                    .contours
+                    .iter()
+                    .flat_map(|c| c.path())
+                    .map(|p| p.x)
+                    .collect();
+                let ys: Vec<f64> = o
+                    .contours
+                    .iter()
+                    .flat_map(|c| c.path())
+                    .map(|p| p.y)
+                    .collect();
+                let lo = |v: &[f64]| v.iter().copied().fold(f64::MAX, f64::min);
+                let hi = |v: &[f64]| v.iter().copied().fold(f64::MIN, f64::max);
+                [lo(&xs), hi(&xs), lo(&ys), hi(&ys)]
+            })
+            .collect::<Vec<_>>()
+    };
+    let plain = extents(Mode::OpenStitch, 0.0);
+    let under = extents(Mode::OpenStitch, 0.8);
+    assert_eq!(plain.len(), 2);
+    // Yellow (first) reaches about 0.8 mm (8 units) further right, under the blue.
+    let grown = under[0][1] - plain[0][1];
+    assert!((6.0..=10.0).contains(&grown), "{grown}");
+    // Not into the background: its other sides stay.
+    assert!((under[0][0] - plain[0][0]).abs() < 1.0 && (under[0][2] - plain[0][2]).abs() < 1.0);
+    // Blue, sewn last, keeps its outline.
+    assert_eq!(under[1], plain[1]);
+    assert_eq!(extents(Mode::PeDesign, 0.8), extents(Mode::PeDesign, 0.0));
+}

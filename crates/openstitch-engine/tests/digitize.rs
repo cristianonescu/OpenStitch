@@ -718,6 +718,11 @@ fn auto_punch_plan_dry_run_and_overrides() {
         (json!({"overrides": [{"region": 0}]}), "overrides"),
         (json!({"angleRule": "varyNeighbours"}), "openStitch"),
         (json!({"angleRule": "leastTravel"}), "openStitch"),
+        (json!({"underlap": 0.8}), "openStitch"),
+        (
+            json!({"compatMode": "openStitch", "underlap": 2.0}),
+            "underlap",
+        ),
         (json!({"angleRule": "shortest"}), "angleRule"),
     ] {
         let e = s

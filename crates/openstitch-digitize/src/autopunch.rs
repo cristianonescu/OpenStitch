@@ -72,7 +72,14 @@ pub struct AutoPunch {
     pub overrides: Vec<Override>,
     /// How fills choose their direction (#489).
     pub angle_rule: AngleRule,
+    /// OpenStitch mode: each fill reaches this far, mm, under the touching regions sewn after
+    /// it, so no fabric shows along the seam where two colours meet (#469; 0 = off, the
+    /// default; at most [`MAX_UNDERLAP_MM`]). PE-DESIGN mode ignores it.
+    pub underlap_mm: f64,
 }
+
+/// Longest [`AutoPunch::underlap_mm`], mm.
+pub const MAX_UNDERLAP_MM: f64 = 1.5;
 
 /// How a traced region is sewn (#489).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -247,6 +254,7 @@ impl Default for AutoPunch {
             marks: grabcut::Marks::default(),
             overrides: Vec::new(),
             angle_rule: AngleRule::Pe,
+            underlap_mm: 0.0,
         }
     }
 }
@@ -747,6 +755,29 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
         AngleRule::VaryNeighbours => adjacency(&id, w, h, comps.len()),
         AngleRule::Pe | AngleRule::LeastTravel => Vec::new(),
     };
+    // Each region's place in the sewing order, for the underlap (#469).
+    let underlap_px = match p.mode {
+        Mode::OpenStitch if p.underlap_mm > 0.0 => {
+            (p.underlap_mm.min(MAX_UNDERLAP_MM) / mm).round() as usize
+        }
+        _ => 0,
+    };
+    let mut rank = vec![usize::MAX; comps.len()];
+    if underlap_px > 0 {
+        let mut n = 0;
+        for (colour, &t) in order.iter().enumerate() {
+            let mut mine: Vec<usize> = (0..comps.len())
+                .filter(|&c| comps[c].label as usize == t)
+                .collect();
+            if colour.is_multiple_of(2) {
+                mine.reverse();
+            }
+            for c in mine {
+                rank[c] = n;
+                n += 1;
+            }
+        }
+    }
     let mut fill_of: Vec<Option<f64>> = vec![None; comps.len()];
     let mut objects = Vec::new();
     let mut plan: Vec<Region> = Vec::new();
@@ -872,7 +903,17 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                     Some(rungs) => vec![(contours, Sewn::Column(rungs))],
                     None => vec![(contours, Sewn::Auto)],
                 },
-                columns::Strokes::Single => vec![(contours, Sewn::Auto)],
+                columns::Strokes::Single => {
+                    // A fill reaches under its later neighbours (#469).
+                    let contours = if !satin && underlap_px > 0 {
+                        let (u, uw, uh, ux, uy) = underlap(&id, w, h, c, k, underlap_px, &rank);
+                        let grown = regions::trace_mask(&u, uw, uh, ux, uy, &p.trace, &frame);
+                        if grown.is_empty() { contours } else { grown }
+                    } else {
+                        contours
+                    };
+                    vec![(contours, Sewn::Auto)]
+                }
             };
             for (contours, sewn) in parts {
                 let build = |satin: bool| -> RegionSewing {
@@ -1084,6 +1125,69 @@ fn place_line(
         }
     ));
     Ok(Some(line))
+}
+
+/// Component `c`'s mask grown by up to `r` pixels (a disc) into the components sewn after it
+/// (`rank`), never into the background or regions sewn before; cropped to its box, with the
+/// box's top-left pixel.
+fn underlap(
+    id: &[u32],
+    w: usize,
+    h: usize,
+    c: usize,
+    k: &regions::Component,
+    r: usize,
+    rank: &[usize],
+) -> (Vec<bool>, usize, usize, usize, usize) {
+    let (x0, y0) = (k.x0.saturating_sub(r), k.y0.saturating_sub(r));
+    let (x1, y1) = ((k.x1 + r).min(w), (k.y1 + r).min(h));
+    let (mw, mh) = (x1 - x0, y1 - y0);
+    let mut m = vec![false; mw * mh];
+    let later = |i: usize| {
+        let o = id[i];
+        o != u32::MAX && o as usize != c && rank[o as usize] > rank[c]
+    };
+    let rr = (r * r) as i64;
+    for y in k.y0..k.y1 {
+        for x in k.x0..k.x1 {
+            if id[y * w + x] as usize != c {
+                continue;
+            }
+            m[(y - y0) * mw + x - x0] = true;
+            // Only edge pixels grow.
+            let edge = [(0i64, 1i64), (1, 0), (0, -1), (-1, 0)]
+                .iter()
+                .any(|&(dx, dy)| {
+                    let (nx, ny) = (x as i64 + dx, y as i64 + dy);
+                    nx >= 0
+                        && ny >= 0
+                        && (nx as usize) < w
+                        && (ny as usize) < h
+                        && id[ny as usize * w + nx as usize] as usize != c
+                });
+            if !edge {
+                continue;
+            }
+            for dy in -(r as i64)..=r as i64 {
+                for dx in -(r as i64)..=r as i64 {
+                    let (nx, ny) = (x as i64 + dx, y as i64 + dy);
+                    if dx * dx + dy * dy > rr
+                        || nx < x0 as i64
+                        || ny < y0 as i64
+                        || nx >= x1 as i64
+                        || ny >= y1 as i64
+                    {
+                        continue;
+                    }
+                    let i = ny as usize * w + nx as usize;
+                    if later(i) {
+                        m[(ny as usize - y0) * mw + nx as usize - x0] = true;
+                    }
+                }
+            }
+        }
+    }
+    (m, mw, mh, x0, y0)
 }
 
 /// For each of `n` components, the others it touches (4-neighbours).

@@ -550,11 +550,25 @@ fn auto_punch_docs() -> Vec<ParamDoc> {
         .chain(thread_source_docs())
         .collect();
     v.push(opt(
+        "underlap",
+        "mm 0-1.5",
+        "OpenStitch mode: each fill reaches this far under the touching regions sewn after it, so no fabric shows along the seams between colours (default 0, off; 0.8 is typical) (#469; needs compatMode openStitch)",
+    ));
+    v.push(opt(
         "preset",
         "logo|patch|lineArt|illustration|photo|pixelArt",
         "OpenStitch mode: a purpose preset that sets several options at once, each only where the call does not set it (digitize.presets lists them); implies compatMode openStitch (#489)",
     ));
     v
+}
+
+/// Auto Punch's `underlap` (#469): mm, OpenStitch mode only.
+fn underlap(p: &Params, mode: Mode) -> Result<f64, CommandError> {
+    let v = p.opt("underlap", 0.0, 0.0, autopunch::MAX_UNDERLAP_MM)?;
+    if v > 0.0 && mode == Mode::PeDesign {
+        return Err(p.invalid("underlap", "needs compatMode openStitch"));
+    }
+    Ok(v)
 }
 
 /// Purpose presets for Auto Punch (#489): named bundles over its own options, OpenStitch mode
@@ -678,6 +692,7 @@ fn auto_punch_options(
         },
         overrides: overrides(p)?,
         angle_rule,
+        underlap_mm: underlap(p, mode)?,
         ..AutoPunch::default()
     };
     // OpenStitch mode sews anything in the picture: without skipBackground, only a
