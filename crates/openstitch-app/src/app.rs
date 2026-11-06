@@ -63,6 +63,8 @@ pub struct Launch {
     pub pane: Option<crate::ribbon::PaneTab>,
     /// Colour theme (`--theme`); otherwise the saved preference.
     pub theme: Option<openstitch_app::editor::prefs::Theme>,
+    /// Accent colour (`--accent`, #559); otherwise the saved preference.
+    pub accent: Option<[u8; 3]>,
     /// `--no-splash`: no startup splash (also set by `main` for `--listen`).
     pub no_splash: bool,
 }
@@ -97,7 +99,7 @@ impl Launch {
 }
 
 /// Values `--show` accepts.
-pub const SHOW: [&str; 28] = [
+pub const SHOW: [&str; 29] = [
     "update",
     "close-prompt",
     "realistic",
@@ -126,6 +128,7 @@ pub const SHOW: [&str; 28] = [
     "floating",
     "print",
     "assistant",
+    "assistant-notices",
 ];
 
 pub struct EditorApp {
@@ -395,6 +398,9 @@ impl EditorApp {
         self.database.units = self.ui.prefs.units;
         // Copy and Paste use the system clipboard (#500), except in screenshot runs.
         self.ui.system_clipboard = l.screenshot.is_none();
+        if l.accent.is_some() {
+            self.ui.prefs.accent = l.accent;
+        }
         if let Some(t) = l.theme {
             self.ui.prefs.theme = t;
         }
@@ -474,6 +480,7 @@ impl EditorApp {
                         crate::assistant_panel::attach_files(self, vec![note]);
                     }
                 }
+                "assistant-notices" => crate::assistant_panel::show_sample_notices(self),
                 "appmenu" => {
                     // Whichever window shows: the editor's or a suite window's.
                     self.ui.open_app_menu = true;
@@ -1395,45 +1402,60 @@ impl EditorApp {
     }
 
     fn shortcuts(&mut self, ctx: &egui::Context) {
+        use openstitch_app::editor::ribbon::Action as A;
+        // The user's keymap (#551); the defaults are the keys handled here before.
+        let hits = crate::keymap_ui::pressed(self, ctx);
+        let hit = |a: A| hits.contains(&a);
+        if self.ui.keys.recording.is_some() {
+            return;
+        }
         let cmd = |k| KeyboardShortcut::new(Modifiers::COMMAND, k);
-        let cmd_shift = |k| KeyboardShortcut::new(Modifiers::COMMAND | Modifiers::SHIFT, k);
         let take = |s: KeyboardShortcut| ctx.input_mut(|i| i.consume_shortcut(&s));
-        // Order matters: the shifted variants first.
-        if take(cmd_shift(Key::Z)) || take(cmd(Key::Y)) {
+        if hit(A::Redo) {
             self.redo();
-        } else if take(cmd(Key::Z)) {
+        } else if hit(A::Undo) {
             self.undo();
         }
-        if take(cmd_shift(Key::S)) {
+        if hit(A::SaveAs) {
             self.save(true);
-        } else if take(cmd(Key::S)) {
+        } else if hit(A::Save) {
             self.save(false);
         }
-        if take(cmd(Key::O)) {
+        if hit(A::Open) {
             self.open_dialog();
         }
-        if take(cmd_shift(Key::I)) {
+        if hit(A::ImportPatterns) {
             self.import_dialog();
         }
-        if take(cmd(Key::N)) {
+        if hit(A::New) {
             self.new_design();
         }
-        if take(cmd(Key::Num0)) {
+        if hit(A::OtherZoom) {
             self.fit_requested = true;
         }
         // Command palette (#550, beyond PE-DESIGN).
         if take(cmd(Key::K)) {
             self.palette.show();
         }
-        if take(cmd_shift(Key::A)) && self.ui.prefs.ai.enabled {
+        if hit(A::PaneAssistant) && self.ui.prefs.ai.enabled {
             let open = !self.assistant.panel.open;
             crate::assistant_panel::set_open(self, open);
         }
-        if take(cmd(Key::Equals)) || take(cmd(Key::Plus)) {
+        if hit(A::ZoomIn) {
             crate::panels::zoom_center(self, 1.25);
         }
-        if take(cmd(Key::Minus)) {
+        if hit(A::ZoomOut) {
             crate::panels::zoom_center(self, 1.0 / 1.25);
+        }
+        // Commands the user gave a shortcut (#551) run as a click on them would.
+        for &a in &hits {
+            if !openstitch_app::editor::keymap::DEFAULTS
+                .iter()
+                .any(|(d, _)| *d == a)
+                && crate::ribbon::enabled(self, a)
+            {
+                crate::ribbon::run(self, a, ctx);
+            }
         }
         if ctx.egui_wants_keyboard_input() {
             return;
@@ -1456,20 +1478,18 @@ impl EditorApp {
         if paste {
             crate::ribbon::run(self, openstitch_app::editor::ribbon::Action::Paste, ctx);
         }
-        if take(cmd(Key::A)) {
+        if hit(A::SelectAll) {
             self.select_all();
         }
-        if take(cmd(Key::D)) {
+        if hit(A::Duplicate) {
             self.on_selection(CommandRequest::duplicate);
         }
-        if take(cmd_shift(Key::G)) {
+        if hit(A::Ungroup) {
             crate::edit_ui::ungroup(self);
-        } else if take(cmd(Key::G)) {
+        } else if hit(A::Group) {
             crate::edit_ui::group(self);
         }
-        if take(KeyboardShortcut::new(Modifiers::NONE, Key::Delete))
-            || take(KeyboardShortcut::new(Modifiers::NONE, Key::Backspace))
-        {
+        if hit(A::Delete) {
             // The Point tool deletes the selected vertex; otherwise the selected objects.
             let mut point_deleted = false;
             self.with_tools(|t, c| {

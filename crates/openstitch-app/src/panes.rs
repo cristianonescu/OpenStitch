@@ -110,6 +110,17 @@ fn floating(
     }
 }
 
+/// An egui panel on `side` (#551: panes dock on either side).
+fn panel(id: &'static str, side: openstitch_app::editor::prefs::Side) -> egui::Panel {
+    use openstitch_app::editor::prefs::Side;
+    match side {
+        Side::Left => egui::Panel::left(id),
+        Side::Right => egui::Panel::right(id),
+        Side::Top => egui::Panel::top(id),
+        Side::Bottom => egui::Panel::bottom(id),
+    }
+}
+
 /// Docks the visible panes around the work area (call before the central panel).
 pub fn docked(app: &mut EditorApp, ui: &mut egui::Ui) {
     let docked = |app: &mut EditorApp, p: Pane| {
@@ -117,13 +128,13 @@ pub fn docked(app: &mut EditorApp, ui: &mut egui::Ui) {
         s.visible && !s.floating
     };
     if docked(app, Pane::Simulator) {
-        egui::Panel::bottom("simulator").show(ui, |ui| {
+        panel("simulator", app.ui.prefs.panes.simulator.side).show(ui, |ui| {
             header(app, ui, Pane::Simulator);
             crate::panels::simulator(app, ui);
         });
     }
     if docked(app, Pane::SewingOrder) {
-        egui::Panel::left("objects")
+        panel("objects", app.ui.prefs.panes.sewing_order.side)
             .default_size(250.0)
             .show(ui, |ui| {
                 header(app, ui, Pane::SewingOrder);
@@ -132,7 +143,7 @@ pub fn docked(app: &mut EditorApp, ui: &mut egui::Ui) {
             });
     }
     if docked(app, Pane::Attributes) {
-        egui::Panel::right("inspector")
+        panel("inspector", app.ui.prefs.panes.attributes.side)
             .default_size(330.0)
             .show(ui, |ui| attributes(app, ui));
     }
@@ -706,48 +717,7 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
         app.ui.property_draft = None;
     }
     app.ui.property_open = open;
-    let mut open = app.ui.shortcuts_open;
-    egui::Window::new("Keyboard Shortcuts")
-        .open(&mut open)
-        .show(ctx, |ui| {
-            egui::Grid::new("shortcuts").striped(true).show(ui, |ui| {
-                for &a in Action::ALL {
-                    let info = a.info();
-                    if let Some(s) = info.shortcut_for(cfg!(target_os = "macos")) {
-                        ui.label(info.label);
-                        ui.label(RichText::new(s).monospace());
-                        ui.end_row();
-                    }
-                }
-                let quit: &[(&str, &str)] = if cfg!(target_os = "macos") {
-                    &[
-                        (
-                            "Quit / close the window (asks to save changes)",
-                            "Cmd+Q, Cmd+W",
-                        ),
-                        ("Minimise", "Cmd+M"),
-                    ]
-                } else {
-                    &[]
-                };
-                for &(what, keys) in quit.iter().chain(&[
-                    (
-                        "Find and run any command (Command Palette)",
-                        crate::palette_ui::SHORTCUT,
-                    ),
-                    ("Move the selection 0.1 mm / 1 mm", "Arrows / Shift+Arrows"),
-                    ("Finish a shape", "Return"),
-                    ("Cancel", "Esc"),
-                    ("Pan", "Space+drag, middle button"),
-                    ("Zoom at the pointer", "Pinch, Ctrl+scroll"),
-                ]) {
-                    ui.label(what);
-                    ui.label(RichText::new(keys).monospace());
-                    ui.end_row();
-                }
-            });
-        });
-    app.ui.shortcuts_open = open;
+    crate::keymap_ui::window(app, ctx);
     about_window(app, ctx);
 }
 

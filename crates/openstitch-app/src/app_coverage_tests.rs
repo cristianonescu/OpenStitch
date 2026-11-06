@@ -114,6 +114,29 @@ fn undo_and_redo_keys() {
 }
 
 #[test]
+fn changed_shortcuts_run_their_commands() {
+    // #551: Undo moved to Alt+U; Ctrl+Z is given to nothing; Alt+R picks the Rectangle tool.
+    use openstitch_app::editor::ribbon::Action as A;
+    let ctx = egui::Context::default();
+    let mut app = EditorApp::new(Launch::default());
+    let keys = &mut app.ui.prefs.keymap;
+    keys.set(A::Undo, &["Alt+U".into()]).expect("free");
+    keys.add(A::Rectangle, "Alt+R").expect("free");
+    app.execute(&rectangle(10.0)).expect("rectangle");
+    let count = |app: &EditorApp| app.session.design().objects.len();
+    press(&ctx, &mut app, Key::Z, Modifiers::COMMAND);
+    assert_eq!(count(&app), 1, "Ctrl+Z no longer undoes");
+    press(&ctx, &mut app, Key::U, Modifiers::ALT);
+    assert_eq!(count(&app), 0, "Alt+U undoes");
+    press(&ctx, &mut app, Key::R, Modifiers::ALT);
+    assert_eq!(app.tools.tool(), openstitch_app::editor::Tool::Rectangle);
+    // While a shortcut is being recorded nothing runs.
+    app.ui.keys.recording = Some(A::Save);
+    press(&ctx, &mut app, Key::Y, Modifiers::COMMAND);
+    assert_eq!(count(&app), 0, "Ctrl+Y waits for the recording");
+}
+
+#[test]
 fn arrow_keys_nudge_the_selection_a_tenth_or_one_millimetre() {
     let ctx = egui::Context::default();
     let mut app = EditorApp::new(Launch::default());

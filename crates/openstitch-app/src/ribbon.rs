@@ -93,6 +93,8 @@ pub struct RibbonState {
     /// Design Property: the fields being edited (`None` = showing the design's own).
     pub property_draft: Option<openstitch_design::DesignProperties>,
     pub shortcuts_open: bool,
+    /// Help ▸ Keyboard Shortcuts editing (#551).
+    pub keys: crate::keymap_ui::KeysWindow,
     pub about_open: bool,
     pub pane_tab: PaneTab,
     /// Edit Text: the characters being typed.
@@ -110,7 +112,7 @@ pub struct RibbonState {
     pub hover: Option<&'static str>,
     /// Sewing Attributes property search (#550).
     pub property_search: String,
-    applied_theme: Option<Theme>,
+    applied_theme: Option<(Theme, Option<[u8; 3]>)>,
 }
 
 impl Default for RibbonState {
@@ -130,6 +132,7 @@ impl Default for RibbonState {
             property_open: false,
             property_draft: None,
             shortcuts_open: false,
+            keys: Default::default(),
             about_open: false,
             pane_tab: PaneTab::default(),
             text_draft: String::new(),
@@ -161,16 +164,17 @@ impl RibbonState {
     /// Applies the colour theme when it changed.
     pub fn apply_theme(&mut self, ctx: &egui::Context) {
         let theme = self.prefs.theme;
-        if self.applied_theme == Some(theme) {
+        let accent = self.prefs.accent;
+        if self.applied_theme == Some((theme, accent)) {
             return;
         }
-        crate::theme::install(ctx);
+        crate::theme::set_accent(ctx, accent);
         ctx.set_theme(match theme {
             Theme::Light => egui::ThemePreference::Light,
             Theme::Dark => egui::ThemePreference::Dark,
             Theme::System => egui::ThemePreference::System,
         });
-        self.applied_theme = Some(theme);
+        self.applied_theme = Some((theme, accent));
     }
 }
 
@@ -1171,6 +1175,136 @@ pub fn image_density_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     }
 }
 
+/// Options ▸ Accent colour (#559): the theme's own, a preset or any colour.
+fn accent_menu(app: &mut EditorApp, ui: &mut egui::Ui) -> bool {
+    use openstitch_app::editor::accent::PRESETS;
+    let mut changed = false;
+    ui.menu_button("Accent colour", |ui| {
+        let tip = "Selection outline, handles, selected buttons and links; text on it keeps a 4.5:1 contrast";
+        let a = &mut app.ui.prefs.accent;
+        changed |= ui.radio_value(a, None, "Theme default").on_hover_text(tip).changed();
+        for (_, label, c) in PRESETS {
+            changed |= ui.radio_value(a, Some(*c), *label).on_hover_text(tip).changed();
+        }
+        ui.horizontal(|ui| {
+            let mut rgb = a.unwrap_or(PRESETS[0].2);
+            if ui.color_edit_button_srgb(&mut rgb).on_hover_text(tip).changed() {
+                *a = Some(rgb);
+                changed = true;
+            }
+            ui.label("Custom");
+        });
+    });
+    changed
+}
+
+/// Options ▸ Layouts (#551): save where the panes are under a name, put a saved one back.
+fn layouts_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
+    let names: Vec<String> = app.ui.prefs.layouts.iter().map(|l| l.0.clone()).collect();
+    for name in &names {
+        ui.horizontal(|ui| {
+            if ui
+                .button(name.as_str())
+                .on_hover_text("Put this layout in place")
+                .clicked()
+            {
+                let _ = app.ui.prefs.apply_layout(name);
+                app.ui.save_prefs();
+                ui.close();
+            }
+            if ui.small_button("Delete").clicked() {
+                let _ = app.ui.prefs.delete_layout(name);
+                app.ui.save_prefs();
+            }
+        });
+    }
+    if !names.is_empty() {
+        ui.separator();
+    }
+    // Where each docked pane sits (#551).
+    {
+        use openstitch_app::editor::prefs::Side;
+        let panes = &mut app.ui.prefs.panes;
+        let mut changed = false;
+        for (label, state, sides) in [
+            (
+                "Sewing Order",
+                &mut panes.sewing_order,
+                [Side::Left, Side::Right],
+            ),
+            (
+                "Attributes",
+                &mut panes.attributes,
+                [Side::Left, Side::Right],
+            ),
+            (
+                "Stitch Simulator",
+                &mut panes.simulator,
+                [Side::Top, Side::Bottom],
+            ),
+        ] {
+            ui.horizontal(|ui| {
+                ui.label(label);
+                for side in sides {
+                    let text = match side {
+                        Side::Left => "Left",
+                        Side::Right => "Right",
+                        Side::Top => "Top",
+                        Side::Bottom => "Bottom",
+                    };
+                    changed |= ui.radio_value(&mut state.side, side, text).changed();
+                }
+            });
+        }
+        if changed {
+            app.ui.save_prefs();
+        }
+        ui.separator();
+    }
+    let id = egui::Id::unique("layout_name");
+    let mut name: String = ui.data_mut(|d| d.get_temp(id).unwrap_or_default());
+    ui.horizontal(|ui| {
+        ui.add(
+            egui::TextEdit::singleline(&mut name)
+                .hint_text("Lettering")
+                .desired_width(110.0),
+        );
+        if ui
+            .button("Save Layout")
+            .on_hover_text("Keep where the panes are and the toolbar position under this name")
+            .clicked()
+        {
+            match app.ui.prefs.save_layout(&name) {
+                Ok(n) => {
+                    app.status = format!("Layout '{n}' saved");
+                    app.ui.save_prefs();
+                    name.clear();
+                }
+                Err(e) => app.status = e,
+            }
+        }
+    });
+    ui.data_mut(|d| d.insert_temp(id, name));
+}
+
+/// Options ▸ Reset Preferences (#551): one area back to its defaults, the others kept.
+fn reset_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
+    use openstitch_app::editor::prefs::RESET_AREAS;
+    for (key, label, what) in RESET_AREAS {
+        if ui
+            .button(*label)
+            .on_hover_text(format!("Reset {what}"))
+            .clicked()
+        {
+            if app.ui.prefs.reset_area(key).is_ok() {
+                app.ui.save_prefs();
+                app.status = format!("{label} preferences reset");
+            }
+            ui.close();
+        }
+    }
+}
+
 pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     for a in OPTION_MENU {
         menu_item(app, ui, a);
@@ -1195,6 +1329,9 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
             .radio_value(&mut app.ui.prefs.theme, t, t.label())
             .changed();
     }
+    changed |= accent_menu(app, ui);
+    ui.menu_button("Layouts", |ui| layouts_menu(app, ui));
+    ui.menu_button("Reset Preferences", |ui| reset_menu(app, ui));
     ui.separator();
     changed |= ui
         .checkbox(

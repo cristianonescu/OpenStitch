@@ -1383,10 +1383,12 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                         && *base == prefs.base_url
                         && !models.is_empty()
                     {
-                        egui::ComboBox::from_id_salt("assistant-models")
-                            .selected_text("▾")
-                            .width(30.0)
-                            .show_ui(ui, |ui| {
+                        // #581: the drop-down caret is the app's own icon (a "▾" character
+                        // draws as a dot where the font lacks it).
+                        let list = ui
+                            .add(egui::Button::new(crate::icons::ui_image(ui, "menu_caret")))
+                            .on_hover_text("The models this address lists");
+                        egui::Popup::menu(&list).show(|ui| {
                                 for m in models {
                                     let text = m.name.as_deref().map_or(m.id.clone(), |n| format!("{n} ({})", m.id));
                                     if ui.selectable_label(prefs.model == m.id, text).clicked() {
@@ -1826,11 +1828,34 @@ enum KeyAction {
 
 /// A key field with Save key and a red Remove key, which is only enabled when a key is saved.
 /// A saved key shows as dots in the empty field; the key itself is never read back into it.
+/// `--show assistant-notices` (#581): the panel with its settings (a saved key) and three
+/// notices, information and a problem, for checking them in light and dark screenshots. Changes
+/// nothing on disk.
+pub fn show_sample_notices(app: &mut EditorApp) {
+    app.ui.prefs.ai.enabled = true;
+    let panel = &mut app.assistant.panel;
+    panel.open = true;
+    panel.show_settings = true;
+    let url = app.ui.prefs.ai.base_url.clone();
+    panel.key_stored = Some((url, true));
+    for n in [
+        "Key saved in the system keychain.",
+        "The image generator is off: its address and model are cleared.",
+        "The agent did not start: the program exited at once.",
+    ] {
+        panel.items.push(Item::Notice(n.into()));
+    }
+}
+
+/// What the key field shows while a key is saved.
+pub const SAVED_KEY_MASK: &str = "**** saved";
+
 fn key_row(ui: &mut egui::Ui, input: &mut String, stored: bool, what: &str) -> Option<KeyAction> {
     let mut action = None;
     ui.horizontal(|ui| {
         let hint = if stored {
-            RichText::new("●●●●●●●●●●●●  saved").color(ui.visuals().text_color())
+            // #581: a short fixed mask that fits the field (nothing cut off with "…").
+            RichText::new(SAVED_KEY_MASK).color(ui.visuals().text_color())
         } else {
             RichText::new("Paste a key")
         };
@@ -2042,6 +2067,33 @@ fn inline_job(ui: &egui::Ui, text: &str, heading: bool) -> egui::text::LayoutJob
     job
 }
 
+/// Whether a notice reports a problem (shown in the theme's error colour, #581) rather than
+/// information such as "Key saved".
+pub fn notice_is_problem(t: &str) -> bool {
+    let t = t.to_lowercase();
+    [
+        "error",
+        "could not",
+        "cannot",
+        "can't",
+        "did not start",
+        "is not installed",
+        "answered unexpectedly",
+        "declined",
+        "not sent",
+        "no picture",
+        "no script",
+        "no scratch folder",
+        "failed",
+        "length limit",
+        "stopped; send again",
+        "choose a model first",
+        "settings (⚙) first",
+    ]
+    .iter()
+    .any(|w| t.contains(w))
+}
+
 /// The conversation's rows; `chat` keeps a new chat's IDs apart from the last one's.
 fn transcript(ui: &mut egui::Ui, chat: u64, items: &[Item]) {
     for (i, it) in items.iter().enumerate() {
@@ -2100,9 +2152,20 @@ fn item(ui: &mut egui::Ui, salt: (&str, u64, usize), it: &Item) {
                 );
             });
         }
+        // #581: readable at the normal size in the theme's text colour; problems in its error
+        // colour.
         Item::Notice(t) => {
+            let color = if notice_is_problem(t) {
+                ui.visuals().error_fg_color
+            } else {
+                ui.visuals().text_color()
+            };
             ui.vertical_centered(|ui| {
-                ui.add(egui::Label::new(RichText::new(t).italics().weak().small()).wrap());
+                ui.add(
+                    egui::Label::new(RichText::new(t).color(color))
+                        .wrap()
+                        .selectable(true),
+                );
             });
         }
     }
@@ -2576,6 +2639,31 @@ fn backend_name(prefs: &AiPrefs) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn problems_stand_out_and_information_does_not() {
+        use super::{SAVED_KEY_MASK, notice_is_problem};
+        for p in [
+            "The agent did not start: x",
+            "Error: overloaded",
+            "Could not use the keychain: x",
+            "No picture of the view: x",
+            "Choose a model first: in the Assistant's settings",
+            "The address x is neither https nor this computer, so the key is not sent.",
+        ] {
+            assert!(notice_is_problem(p), "{p}");
+        }
+        for i in [
+            "Key saved in the system keychain.",
+            "The image generator is off: its address and model are cleared.",
+            "Model m: the first this endpoint lists that can use tools. Change it in the settings.",
+            "3 changes, one undo step.",
+            "Stopped.",
+        ] {
+            assert!(!notice_is_problem(i), "{i}");
+        }
+        assert!(SAVED_KEY_MASK.chars().count() <= 12, "fits the key field");
+    }
+
     #[test]
     fn the_subtitle_names_the_agent_not_the_claude_model() {
         let mut prefs = AiPrefs::default();

@@ -393,6 +393,31 @@ impl EditorApp {
                     _ => Err("give id or all: true".into()),
                 }
             }
+            "ui.layout" => {
+                let name = opt_str(params, "name").unwrap_or_default();
+                let prefs = &mut self.ui.prefs;
+                match opt_str(params, "op").unwrap_or("list") {
+                    "list" => {}
+                    "save" => {
+                        prefs.save_layout(name)?;
+                    }
+                    "apply" => prefs.apply_layout(name)?,
+                    "delete" => prefs.delete_layout(name)?,
+                    _ => return Err("op takes list, save, apply or delete".into()),
+                }
+                self.ui.save_prefs();
+                let names: Vec<&str> = self.ui.prefs.layouts.iter().map(|l| l.0.as_str()).collect();
+                Ok(json!({ "layouts": names }))
+            }
+            "ui.resetPrefs" => {
+                let area = p.string("area", None).map_err(err)?;
+                self.ui.prefs.reset_area(&area)?;
+                if area == "editing" {
+                    self.database.units = self.ui.prefs.units;
+                }
+                self.ui.save_prefs();
+                Ok(json!({ "reset": area }))
+            }
             "ui.notesClear" => {
                 self.set_notes(Notes::default())?;
                 Ok(self.notes_json())
@@ -508,6 +533,11 @@ impl EditorApp {
         for s in SETTINGS {
             let v = match s.name {
                 "theme" => json!(prefs.theme.key()),
+                "accent" => json!(openstitch_app::editor::accent::key(prefs.accent)),
+                "shortcuts" => prefs.keymap.to_json(),
+                "paneSewingOrderSide" => json!(prefs.panes.sewing_order.side.key()),
+                "paneAttributesSide" => json!(prefs.panes.attributes.side.key()),
+                "paneSimulatorSide" => json!(prefs.panes.simulator.side.key()),
                 "qatBelow" => json!(prefs.qat_below),
                 "splash" => json!(prefs.splash),
                 "aiFeatures" => json!(prefs.ai.enabled),
@@ -580,6 +610,35 @@ impl EditorApp {
                     .into_iter()
                     .find(|t| t.key() == key)
                     .ok_or("theme takes light, dark or system")?;
+            }
+            "accent" => {
+                let s = v
+                    .as_str()
+                    .ok_or("accent takes default, a preset or #rrggbb")?;
+                self.ui.prefs.accent = if s == "default" {
+                    None
+                } else {
+                    Some(openstitch_app::editor::accent::parse(s).ok_or(
+                        "accent takes default, blue, orange, green, magenta, purple, teal or #rrggbb",
+                    )?)
+                };
+            }
+            "shortcuts" => {
+                self.ui.prefs.keymap = openstitch_app::editor::keymap::Keymap::from_json(v)?;
+            }
+            "paneSewingOrderSide" | "paneAttributesSide" | "paneSimulatorSide" => {
+                use openstitch_app::editor::prefs::Side;
+                let panes = &mut self.ui.prefs.panes;
+                let (state, sides) = match name {
+                    "paneSewingOrderSide" => (&mut panes.sewing_order, "left or right"),
+                    "paneAttributesSide" => (&mut panes.attributes, "left or right"),
+                    _ => (&mut panes.simulator, "top or bottom"),
+                };
+                state.side = v
+                    .as_str()
+                    .and_then(Side::from_key)
+                    .filter(|s| s.fits(state.side))
+                    .ok_or_else(|| format!("{name} takes {sides}"))?;
             }
             "qatBelow" => self.ui.prefs.qat_below = bool_value(name, v)?,
             "splash" => self.ui.prefs.splash = bool_value(name, v)?,
@@ -982,6 +1041,54 @@ mod tests {
             app.ui_command("ui.run", Some(&json!({ "action": "nope" })))
                 .is_err()
         );
+    }
+
+    #[test]
+    fn accent_shortcuts_layouts_and_resets_through_the_assistant() {
+        let mut app = demo();
+        let set = |app: &mut EditorApp, name: &str, value: Value| {
+            app.ui_command("ui.set", Some(&json!({ "name": name, "value": value })))
+        };
+        // #559: presets, any colour, back to the theme's own.
+        set(&mut app, "accent", json!("orange")).expect("preset");
+        assert_eq!(app.ui.prefs.accent, Some([0xef, 0x6c, 0x00]));
+        let r = set(&mut app, "accent", json!("#123456")).expect("hex");
+        assert_eq!(r["accent"]["value"], json!("#123456"));
+        assert!(set(&mut app, "accent", json!("neon")).is_err());
+        set(&mut app, "accent", json!("default")).expect("default");
+        assert_eq!(app.ui.prefs.accent, None);
+        // #551: shortcuts as an object; a clash is refused and changes nothing.
+        set(&mut app, "shortcuts", json!({ "rectangle": ["Alt+R"] })).expect("free");
+        let e = set(&mut app, "shortcuts", json!({ "rectangle": ["Ctrl+S"] })).expect_err("clash");
+        assert!(e.contains("Save"), "{e}");
+        let all = app.ui_command("ui.settings", None).expect("settings");
+        assert_eq!(all["shortcuts"]["value"], json!({ "rectangle": ["Alt+R"] }));
+        set(&mut app, "paneSewingOrderSide", json!("right")).expect("side");
+        assert!(set(&mut app, "paneSimulatorSide", json!("left")).is_err());
+        // Layouts: save, change, apply.
+        let layout = |app: &mut EditorApp, op: &str, name: &str| {
+            app.ui_command("ui.layout", Some(&json!({ "op": op, "name": name })))
+        };
+        layout(&mut app, "save", "Lettering").expect("save");
+        set(&mut app, "paneSewingOrderSide", json!("left")).expect("side");
+        let r = layout(&mut app, "apply", "Lettering").expect("apply");
+        assert_eq!(r["layouts"], json!(["Lettering"]));
+        assert_eq!(
+            app.ui.prefs.panes.sewing_order.side,
+            openstitch_app::editor::prefs::Side::Right
+        );
+        assert!(layout(&mut app, "apply", "nope").is_err());
+        assert!(layout(&mut app, "save", "").is_err());
+        // Resetting the shortcuts keeps the layouts.
+        app.ui_command("ui.resetPrefs", Some(&json!({ "area": "shortcuts" })))
+            .expect("reset");
+        assert!(app.ui.prefs.keymap.is_default() && app.ui.prefs.layouts.len() == 1);
+        assert!(
+            app.ui_command("ui.resetPrefs", Some(&json!({ "area": "all" })))
+                .is_err()
+        );
+        layout(&mut app, "delete", "Lettering").expect("delete");
+        assert!(app.ui.prefs.layouts.is_empty());
     }
 
     #[test]
