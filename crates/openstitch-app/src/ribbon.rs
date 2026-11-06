@@ -96,6 +96,8 @@ pub struct RibbonState {
     pub font_browse_undo: Option<usize>,
     /// ScreenTip of the command under the pointer (status bar).
     pub hover: Option<&'static str>,
+    /// Sewing Attributes property search (#550).
+    pub property_search: String,
     applied_theme: Option<Theme>,
 }
 
@@ -119,6 +121,7 @@ impl Default for RibbonState {
             text_draft: String::new(),
             font_browse_undo: None,
             hover: None,
+            property_search: String::new(),
             applied_theme: None,
         }
     }
@@ -1169,6 +1172,39 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     changed |= ui
         .checkbox(&mut app.ui.prefs.splash, "Show splash at startup")
         .changed();
+    changed |= ui
+        .checkbox(&mut app.ui.prefs.autosave, "Autosave for crash recovery")
+        .on_hover_text("Beyond PE-DESIGN: keeps a copy of each open design in OpenStitch's settings folder (never the design's own file) and offers it at the next start after a crash or power cut")
+        .changed();
+    ui.add_enabled_ui(app.ui.prefs.autosave, |ui| {
+        ui.horizontal(|ui| {
+            use openstitch_app::editor::recovery::{MAX_INTERVAL, MIN_INTERVAL};
+            ui.label("Autosave at most every");
+            changed |= ui
+                .add(
+                    egui::DragValue::new(&mut app.ui.prefs.autosave_interval)
+                        .range(MIN_INTERVAL..=MAX_INTERVAL)
+                        .suffix(" s"),
+                )
+                .on_hover_text(
+                    "While you keep editing; after 3 s without a change a copy is kept at once",
+                )
+                .changed();
+        });
+    });
+    if ui
+        .button("Clear Recovery Files")
+        .on_hover_text("Delete the copies left by windows that crashed")
+        .clicked()
+    {
+        match crate::recovery_ui::discard(app, None) {
+            Ok(v) => {
+                let n = v["discarded"].as_array().map_or(0, Vec::len);
+                app.status = format!("{n} recovery files deleted");
+            }
+            Err(e) => app.status = e,
+        }
+    }
     let ai_changed = ui
         .checkbox(&mut app.ui.prefs.ai.enabled, "Show AI features")
         .on_hover_text(

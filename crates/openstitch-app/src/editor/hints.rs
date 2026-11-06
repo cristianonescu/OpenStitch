@@ -23,9 +23,13 @@ pub fn table(tool: Tool) -> (&'static str, [Option<&'static str>; 3]) {
         Tool::Select => (
             "Click selects · drag moves · handles resize and turn · drag on empty canvas selects by box · arrows nudge · Ctrl+K finds any command",
             [
-                Some("Shift: add or remove from the selection · move along one axis · resize in proportion · turn by 15°"),
+                Some(
+                    "Shift: add or remove from the selection · move along one axis · resize in proportion · turn by 15°",
+                ),
                 FREE,
-                Some("Alt: click selects a group member alone, or every stitch pattern of the colour under the pointer"),
+                Some(
+                    "Alt: click selects a group member alone, or every stitch pattern of the colour under the pointer",
+                ),
             ],
         ),
         Tool::Rectangle | Tool::Ellipse => (
@@ -74,7 +78,11 @@ pub fn table(tool: Tool) -> (&'static str, [Option<&'static str>; 3]) {
         ),
         Tool::ShapeBuilder => (
             "Drag across the pieces of overlapping shapes to merge them · Esc cancels",
-            [None, None, Some("Alt: the pieces dragged across are removed")],
+            [
+                None,
+                None,
+                Some("Alt: the pieces dragged across are removed"),
+            ],
         ),
     }
 }

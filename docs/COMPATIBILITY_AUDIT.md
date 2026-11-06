@@ -1599,6 +1599,11 @@ Line references are relative to `crates/`.
     top just right of the middle); no single walking rule fits those and the rectangle's 75.4°.
     The new specs `concentric-circle30` and `concentric-ellipse40x30` compare counts, bounds and
     stitch lengths, not the seam.
+- **Editor, batch:editor-core part 2 (2026-11-06; #549, #550):** autosave and recovery, the
+  command palette, the hints line and the property search are beyond PE-DESIGN and change no
+  design, file or default PE-DESIGN behaviour: snapshots are written only to OpenStitch's own
+  settings folder (never the design's file), and the palette runs the same ribbon commands a
+  click runs.
 - **Image digitizing, batch:auto-punch (2026-11-06; #445, #447, #469, #489):** PE-DESIGN-compatible
   mode's output is unchanged on every gallery case (scorer identical, 17 cases). OpenStitch mode:
   a paper background is the fabric showing (#445), thin parts cut by the sliver opening are

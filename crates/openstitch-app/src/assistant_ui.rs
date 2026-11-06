@@ -364,6 +364,35 @@ impl EditorApp {
                 self.set_notes(next)?;
                 Ok(self.notes_json())
             }
+            "ui.searchCommands" => {
+                let query = opt_str(params, "query").unwrap_or_default();
+                let limit = p.int("limit", Some(20), 1, 500).map_err(err)? as usize;
+                let hits =
+                    openstitch_app::editor::palette::search(query, &self.ui.prefs.recent_commands);
+                Ok(Value::Array(
+                    hits.into_iter()
+                        .take(limit)
+                        .map(|a| {
+                            let mut e = assistant::action_entry(a, crate::ribbon::enabled(self, a));
+                            e["path"] = json!(openstitch_app::editor::palette::path(a));
+                            e
+                        })
+                        .collect(),
+                ))
+            }
+            "ui.recoveryList" => Ok(crate::recovery_ui::list(self)),
+            "ui.recoveryRestore" => {
+                let id = p.string("id", None).map_err(err)?;
+                crate::recovery_ui::restore(self, &id)
+            }
+            "ui.recoveryDiscard" => {
+                let all = p.bool("all", Some(false)).map_err(err)?;
+                match (opt_str(params, "id"), all) {
+                    (Some(id), false) => crate::recovery_ui::discard(self, Some(id)),
+                    (None, true) => crate::recovery_ui::discard(self, None),
+                    _ => Err("give id or all: true".into()),
+                }
+            }
             "ui.notesClear" => {
                 self.set_notes(Notes::default())?;
                 Ok(self.notes_json())
@@ -516,6 +545,9 @@ impl EditorApp {
                 "colorBy" => json!(prefs.show.color_by.as_str()),
                 "soloColor" => json!(prefs.show.solo),
                 "simulatorSpeed" => json!(self.play_speed),
+                "autosave" => json!(prefs.autosave),
+                "autosaveInterval" => json!(prefs.autosave_interval),
+                "propertySearch" => json!(self.ui.property_search),
                 other => unreachable!("setting {other} has no value"),
             };
             out.insert(
@@ -662,6 +694,18 @@ impl EditorApp {
             "soloColor" => self.ui.prefs.show.solo = bool_value(name, v)?,
             "simulatorSpeed" => {
                 (self.play_speed, save) = (number_value(name, v, 1.0, 5000.0)?, false)
+            }
+            "autosave" => self.ui.prefs.autosave = bool_value(name, v)?,
+            "autosaveInterval" => {
+                use openstitch_app::editor::recovery::{MAX_INTERVAL, MIN_INTERVAL};
+                self.ui.prefs.autosave_interval = number_value(name, v, MIN_INTERVAL, MAX_INTERVAL)?
+            }
+            "propertySearch" => {
+                let text = v.as_str().ok_or("propertySearch takes a string")?;
+                if text.chars().count() > 100 {
+                    return Err("propertySearch takes at most 100 characters".into());
+                }
+                (self.ui.property_search, save) = (text.to_string(), false);
             }
             other => unreachable!("setting {other} cannot be set"),
         }

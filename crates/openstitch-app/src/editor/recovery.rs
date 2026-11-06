@@ -141,7 +141,10 @@ impl Drop for Slot {
 /// a temporary file renamed into place. Called off the UI thread.
 pub fn write_snapshot(dir: &Path, id: &str, osd: &[u8], info: &Info) -> std::io::Result<()> {
     atomic_write(&dir.join(format!("{id}.osd")), osd)?;
-    atomic_write(&dir.join(format!("{id}.json")), info.to_json().to_string().as_bytes())
+    atomic_write(
+        &dir.join(format!("{id}.json")),
+        info.to_json().to_string().as_bytes(),
+    )
 }
 
 fn atomic_write(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
@@ -211,9 +214,7 @@ pub fn discard(dir: &Path, id: &str) -> std::io::Result<()> {
 
 /// Ids are `<process>-<n>`: digits and one dash, never a path.
 fn check_id(id: &str) -> std::io::Result<()> {
-    let ok = !id.is_empty()
-        && id.len() <= 32
-        && id.chars().all(|c| c.is_ascii_digit() || c == '-');
+    let ok = !id.is_empty() && id.len() <= 32 && id.chars().all(|c| c.is_ascii_digit() || c == '-');
     if ok {
         Ok(())
     } else {
@@ -305,7 +306,10 @@ mod tests {
         assert!(orphans(&dir).is_empty(), "both still running");
         assert!(discard(&dir, a.id()).is_err());
         drop(a);
-        assert!(orphans(&dir).is_empty(), "a normal close removes the snapshot");
+        assert!(
+            orphans(&dir).is_empty(),
+            "a normal close removes the snapshot"
+        );
         assert!(!dir.join(format!("{}.tmp", b.id())).exists());
     }
 
@@ -316,11 +320,7 @@ mod tests {
         // A window that crashed: its files are there, nobody holds its lock.
         std::fs::create_dir_all(&dir).expect("dir");
         std::fs::write(dir.join("99999-1.osd"), "{\"x\":1}").expect("osd");
-        std::fs::write(
-            dir.join("99999-1.json"),
-            info("Rose").to_json().to_string(),
-        )
-        .expect("json");
+        std::fs::write(dir.join("99999-1.json"), info("Rose").to_json().to_string()).expect("json");
         std::fs::write(dir.join("99999-1.lock"), "").expect("lock");
         let found = orphans(&dir);
         assert_eq!(found.len(), 1);

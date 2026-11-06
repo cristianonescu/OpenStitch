@@ -141,7 +141,12 @@ These act on the editor window, not the design file: `ui.state`, `ui.select`, `u
 `ui.run` (the ribbon's actions), `ui.zoom`, `ui.settings` and `ui.set` (view settings),
 `ui.render` (what `view_render` uses), `ui.simulate` (the stitch simulator), `ui.help`,
 `ui.update`, `ui.scratchWrite` (what `scratch_write` uses), `ui.notesRead`, `ui.notesWrite`
-and `ui.notesClear` (what `notes_read` and `notes_write` use; see Memory). Read their parameters with
+and `ui.notesClear` (what `notes_read` and `notes_write` use; see Memory). To find a command
+by words ("where is arrange copy?"), `ui.searchCommands {query}` gives the same list as the
+user's Ctrl+K palette, with each command's ribbon place and shortcut; run it with `ui.run`.
+After a crash, `ui.recoveryList` shows designs autosave kept; `ui.recoveryRestore {id}`
+opens one as an untitled design (tell the user to save it), and `ui.recoveryDiscard`
+deletes snapshots (ask first). Autosave is `ui.set autosave` / `autosaveInterval`. Read their parameters with
 `command_describe` before the first use. `ui.zoom {rect: [x, y, w, h]}` zooms to a rectangle.
 `background.setLayer {position: "top" | "bottom" | "afterObject", afterId}` puts the tracing
 picture above the design or between objects ("put the picture above the fills"); it never sews.
