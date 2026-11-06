@@ -599,8 +599,9 @@ fn elements(
     out
 }
 
-/// The longest move between two letters of single-line or pixel text sewn across as a stitch
-/// (0.1 mm); farther letters are trimmed (#530).
+/// The longest move between two letters of pixel text sewn across as a stitch (0.1 mm);
+/// farther letters are trimmed (#536). Single-line letters on a line are joined by running
+/// stitch up to 1.2 times the text size, at least this far (#530).
 const LINE_LETTER_ACROSS: f64 = 20.0;
 
 /// Text in a pixel font (#536), or text whose letters are all open centre lines (OpenStitch
@@ -688,6 +689,19 @@ fn letter_line_elements(object: &DesignObject, _user: &[Pattern]) -> Option<Vec<
             }
             run.dedup_by(|a, b| a.distance(*b) < 1e-9);
             runs.push(run);
+        }
+        // Letters on a line are joined by running stitch, as PE-DESIGN's Small Text sews its
+        // characters without trims between them; farther letters are trimmed.
+        let join = (spec.size * 12.0).max(LINE_LETTER_ACROSS);
+        if let (Some(f), Some(first)) = (from, runs.first_mut())
+            && let Some(&start) = first.first()
+            && f.distance(start) <= join
+            && f.distance(start) > 1e-9
+        {
+            let mut connector = resample(&[f, start], pitch);
+            connector.pop();
+            connector.extend(first.drain(..));
+            *first = connector;
         }
         from = runs.last().and_then(|r| r.last().copied()).or(from);
         out.push(Element {

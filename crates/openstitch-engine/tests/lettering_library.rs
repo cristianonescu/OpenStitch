@@ -123,9 +123,9 @@ fn text_outside_the_fonts_sizes_gets_a_warning_not_a_refusal() {
 }
 
 /// "abc ijt 0123 Hello" in OpenStitch Line at 3, 4 and 6 mm: a running line along each letter's
-/// centre, every stitch on a stroke (travel only along strokes already sewn), the i and j keep
-/// their dots, no stitch longer than the pitch, and trims only for dots and letters more than
-/// 2 mm apart (#530).
+/// centre, every stitch on a stroke (travel only along strokes already sewn) or joining one
+/// letter to the next, the i and j keep their dots, no stitch longer than the pitch, and few
+/// trims: letters on a line are joined, as PE-DESIGN's Small Text joins them (#530).
 #[test]
 fn small_text_sews_along_the_centre_lines() {
     for size in [3.0, 4.0, 6.0] {
@@ -143,25 +143,41 @@ fn small_text_sews_along_the_centre_lines() {
         assert!((line.pitch - 1.5).abs() < 1e-9);
         let letters = letters(&s);
         let stitches = compiled(&s);
+        // Stitching off the strokes is only the straight connectors from one letter to the
+        // next (a connector crossing a stroke shows as two pieces): never bent travel.
+        let mut connectors = 0;
+        let mut check_chain = |chain: &[Vec2]| {
+            if chain.len() < 2 {
+                return;
+            }
+            connectors += 1;
+            let (a, b) = (chain[0], chain[chain.len() - 1]);
+            assert!(
+                chain.iter().all(|&q| dist_to_segment(q, a, b) < 0.5),
+                "{size} mm: bent travel off the strokes: {chain:?}"
+            );
+        };
         let mut prev: Option<Vec2> = None;
+        let mut chain: Vec<Vec2> = Vec::new();
         let mut trims = 0;
         for st in &stitches {
             match st.command {
                 Command::Stitch => {
                     let p = v2(st.x, st.y);
                     if let Some(a) = prev {
+                        // No stitch longer than the pitch: on a stroke, or a connector.
                         let len = a.distance(p);
-                        let mid = (a + p) * 0.5;
+                        assert!(len <= 15.0 + 0.5, "{size} mm: stitch {len} at {p:?}");
                         // Curves sew with stitches within 0.2 mm of the line.
-                        let on = letters.iter().any(|l| near_letter(mid, l, 2.5));
-                        if on {
-                            assert!(len <= 15.0 + 0.5, "{size} mm: stitch {len} at {p:?}");
+                        let mid = (a + p) * 0.5;
+                        if letters.iter().any(|l| near_letter(mid, l, 2.5)) {
+                            check_chain(&chain);
+                            chain.clear();
                         } else {
-                            // A move from one letter to the next sewn across: at most 2 mm.
-                            assert!(len <= 20.0 + 1e-6, "{size} mm: travel {len} at {p:?}");
-                            let la = letters.iter().position(|l| near_letter(a, l, 2.5));
-                            let lb = letters.iter().position(|l| near_letter(p, l, 2.5));
-                            assert_ne!(la, lb, "{size} mm: travel inside a letter at {p:?}");
+                            if chain.is_empty() {
+                                chain.push(a);
+                            }
+                            chain.push(p);
                         }
                     }
                     prev = Some(p);
@@ -169,12 +185,19 @@ fn small_text_sews_along_the_centre_lines() {
                 Command::Trim => {
                     trims += 1;
                     prev = None;
+                    check_chain(&chain);
+                    chain.clear();
                 }
                 _ => prev = None,
             }
         }
-        // 15 letters: at most the two dots and one trim per letter pair that is far apart.
-        assert!(trims <= 16, "{size} mm: {trims} trims");
+        check_chain(&chain);
+        assert!(
+            connectors <= 2 * letters.len(),
+            "{size} mm: {connectors} pieces of travel"
+        );
+        // The dots of i and j, the final trim and at most a few long gaps.
+        assert!(trims <= 6, "{size} mm: {trims} trims");
         // The dots are sewn.
         let needles: Vec<Vec2> = stitches
             .iter()
