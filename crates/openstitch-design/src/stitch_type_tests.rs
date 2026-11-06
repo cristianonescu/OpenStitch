@@ -2541,6 +2541,58 @@ fn stippling_one_cell_wide_or_high_closes_its_loops() {
     assert!(started.elapsed().as_secs() < 20, "{:?}", started.elapsed());
 }
 
+/// #615: a ring whose hole is a contour of the region itself (as `shape.combine` difference
+/// leaves it) or a separate hole. Stippling in several pieces and the net, motif and decorative
+/// fills join their pieces inside the band: no stitch of any layer crosses the hole. #708: at
+/// 3 mm the 7.5 mm band is too narrow for the meander's cells, and it still gets one.
+#[test]
+fn fills_on_a_ring_never_cross_its_hole_and_a_narrow_band_still_stipples() {
+    let c = v2(250.0, 250.0);
+    let outer = Contour::ellipse(c, 125.0, 125.0, 96);
+    let inner = Contour::ellipse(c, 50.0, 50.0, 48);
+    let shapes = [
+        ("inner contour", vec![outer.clone(), inner.clone()], vec![]),
+        ("separate hole", vec![outer.clone()], vec![inner.clone()]),
+    ];
+    let mut cases: Vec<(RegionType, f64)> = [1.5, 2.0, 2.5, 3.0]
+        .into_iter()
+        .map(|s| (RegionType::Stippling, s))
+        .collect();
+    cases.extend(
+        [
+            RegionType::NetFill,
+            RegionType::MotifFill,
+            RegionType::DecorativeFill,
+        ]
+        .into_iter()
+        .map(|k| (k, 3.0)),
+    );
+    for (name, closed, holes) in &shapes {
+        for &(kind, spacing) in &cases {
+            let mut r = region(kind);
+            r.spacing = Some(spacing);
+            let layers = crate::region::layers(closed, &r, holes);
+            let stitches: Vec<&[Vec2]> = layers
+                .iter()
+                .flatten()
+                .flat_map(|run| run.windows(2))
+                .collect();
+            assert!(
+                !stitches.is_empty(),
+                "{name} {kind:?} {spacing}: no stitches"
+            );
+            let across = stitches
+                .iter()
+                .filter(|w| seg_distance(c, w[0], w[1]) < 45.0)
+                .count();
+            assert_eq!(
+                across, 0,
+                "{name} {kind:?} {spacing}: stitches across the hole"
+            );
+        }
+    }
+}
+
 /// Stippling of `closed` minus `holes` at `spacing` mm (no travel): the sewn runs.
 fn stippled(closed: &[Contour], holes: &[Contour], spacing: Option<f64>) -> Vec<Vec<Vec2>> {
     let mut r = region(RegionType::Stippling);

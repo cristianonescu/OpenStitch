@@ -262,7 +262,7 @@ pub fn generate(
             // at most half the spacing so its turns stay round (never at its 0.2 mm vertices).
             // At most 2 mm on wide spacings too (#462).
             let step = pitch.min(spacing / 2.0).clamp(5.0, 20.0);
-            let mut loops: Vec<Vec<Vec2>> = stipple(closed, holes, angle, spacing)
+            let mut loops: Vec<Vec<Vec2>> = stipple_fitted(closed, holes, angle, spacing)
                 .iter()
                 .map(|l| crate::ornament::resample_closed(l, step))
                 .collect();
@@ -1490,6 +1490,25 @@ fn centroid(c: &Contour) -> Vec2 {
 /// 4. Rounded by corner cutting, then relaxed: each point moves square to the path towards
 ///    the middle between the passes (or the outline, counted at half a spacing) on its two
 ///    sides, never so that it crosses or comes near another pass.
+/// [`stipple`] at `spacing`, or, where the region is too narrow for the meander's cells at that
+/// spacing (a 7.5 mm ring band at 3 mm), at the largest tighter spacing that fits, in 10 % steps
+/// down to half the setting (#708). A region too small even then stays empty.
+fn stipple_fitted(
+    closed: &[Contour],
+    holes: &[Contour],
+    angle: f64,
+    spacing: f64,
+) -> Vec<Vec<Vec2>> {
+    let mut s = spacing;
+    loop {
+        let loops = stipple(closed, holes, angle, s);
+        if !loops.is_empty() || s * 0.9 < spacing * 0.5 {
+            return loops;
+        }
+        s *= 0.9;
+    }
+}
+
 /// A spanning-tree edge of the stippling grid: `Right(i)` joins cell i to i + 1, `Down(i)`
 /// joins cell i to i + cols.
 #[derive(Clone, Copy)]
