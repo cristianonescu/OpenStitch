@@ -56,7 +56,6 @@ MAX_HAIRLINE_RUN = 45      # they reach 43 (small Text Transform lettering)
 # Kit files that fail a check for an open engine issue: {path under examples/sew: {check: issue}}.
 KNOWN = {
     "image-tools/L-autopunch-storybook-openstitch.pes": {"HAIRLINE": 368},
-    "image-tools/S-design-center-butterfly-pe-compatible.pes": {"TRIMS": 627},
 }
 
 

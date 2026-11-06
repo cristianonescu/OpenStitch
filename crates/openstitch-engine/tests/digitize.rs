@@ -235,6 +235,25 @@ fn design_center_stages() {
         last.line.as_ref().map(|l| l.kind),
         Some(openstitch_design::LineType::Zigzag)
     );
+    // #627: running lines that meet are one path by default; joinLines false keeps one piece
+    // per figure line.
+    let joined = run(
+        &mut s,
+        "digitize.designCenter",
+        json!({"path": "sample.png", "width": 60, "regionSew": "none"}),
+    );
+    let pieces = s.design().objects.last().expect("lines").contours.len();
+    let apart = run(
+        &mut s,
+        "digitize.designCenter",
+        json!({"path": "sample.png", "width": 60, "regionSew": "none", "joinLines": false}),
+    );
+    let lines = apart["lines"].as_u64().expect("lines") as usize;
+    assert_eq!(
+        s.design().objects.last().expect("lines").contours.len(),
+        lines
+    );
+    assert!(pieces <= lines, "{pieces} {lines} {joined}");
 }
 
 #[test]

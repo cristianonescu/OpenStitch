@@ -128,6 +128,15 @@ stitches and hairline satins with limits from PE-DESIGN's own files. Next: sew t
 card and set `strip` from it; engine follow-ups #627 (Design Center line-art trims) and #628
 (entry travel across a region).
 
+Done 2026-11-06 (`batch:engine-bugs-3`, #570, #571, #466, #627, #633; #628 in part): start and end
+points left off a reshaped outline snap to it (the four random-design seeds pass); zigzag lines
+no longer fold at cusps and their under sewing bevels sharp corners; skeleton satin takes Half
+Stitch at an apex; Design Center joins line art into one path per figure (`joinLines`, the
+butterfly 60 → 7.8 trims per 1,000 stitches); Along / On outline walks a fill's entry travel and
+a programmable fill's under sewing joins along the outline. Open on #628: PE-DESIGN's straight
+entry travel stays the default (its sweep-fill-density-min reference); owner decision whether
+open rows should leave it.
+
 Done 2026-11-05 (#433): Photo Stitch 1 in OpenStitch mode is fast again after the locks of
 #299: its fitting attempts run at once and its local search scores only the cells in reach,
 with the same stitches as before (High on the issue's stripes 899 → 41 s, Standard 258 → 24 s,

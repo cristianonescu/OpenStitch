@@ -657,3 +657,129 @@ fn auto_satin_half_stitch_is_set_sewn_saved_and_undone() {
         .is_err()
     );
 }
+
+/// The longest straight travel (consecutive stitches of 0.5-2.6 mm in one direction) that
+/// runs more than 2 mm inside the rectangle (x0, y0)-(x1, y1), mm.
+fn straight_travel_inside(s: &Session, rect: [f64; 4]) -> f64 {
+    let p = Compiler::for_design(s.design()).compile(s.design());
+    let pts: Vec<(f64, f64)> = p
+        .stitches
+        .iter()
+        .filter(|q| q.command == Command::Stitch)
+        .map(|q| (q.x / 10.0, q.y / 10.0))
+        .collect();
+    let inside = |q: (f64, f64)| {
+        (q.0 - rect[0])
+            .min(rect[2] - q.0)
+            .min(q.1 - rect[1])
+            .min(rect[3] - q.1)
+            > 2.0
+    };
+    let (mut best, mut run, mut deep) = (0.0_f64, 0.0, false);
+    for w in pts.windows(3) {
+        let (a, b, c) = (w[0], w[1], w[2]);
+        let (u, v) = ((b.0 - a.0, b.1 - a.1), (c.0 - b.0, c.1 - b.1));
+        let len = |d: (f64, f64)| d.0.hypot(d.1);
+        let straight = (u.0 * v.1 - u.1 * v.0).abs() < 0.035 * len(u) * len(v)
+            && u.0 * v.0 + u.1 * v.1 > 0.0
+            && (0.5..=2.6).contains(&len(u))
+            && (0.5..=2.6).contains(&len(v));
+        if straight {
+            run += len(v);
+            deep |= inside(b);
+        } else {
+            run = len(v);
+            deep = false;
+        }
+        if deep {
+            best = best.max(run);
+        }
+    }
+    best
+}
+
+#[test]
+fn a_fill_entered_away_from_its_rows_travels_along_the_outline_when_asked() {
+    // #628: a 12 mm swatch at 0.5 rows/mm entered at the middle of its bottom edge sewed a
+    // 13 mm straight travel up to its first row. PE-DESIGN 11.50 travels straight at any
+    // density (sweep-fill-density-min), so Inside keeps it; Along outline walks the edge.
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 9, "y": 9, "width": 12, "height": 12, "fill": "Black"}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"ids": [1], "type": "fill", "density": 0.5, "underlay": false, "angle": 0}),
+    );
+    run(
+        &mut s,
+        "object.setEntryExit",
+        json!({"id": 1, "regionEntry": [15, 21]}),
+    );
+    let straight = straight_travel_inside(&s, [9.0, 9.0, 21.0, 21.0]);
+    assert!(straight > 8.0, "{straight}");
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"ids": [1], "runningStitchPath": "alongOutline"}),
+    );
+    let along = straight_travel_inside(&s, [9.0, 9.0, 21.0, 21.0]);
+    assert!(along < 3.0, "{along}");
+}
+
+#[test]
+fn a_programmable_fills_under_sewing_does_not_cut_across_the_region() {
+    // #628: in kit fills/region-sew-types-1 the programmable fill's under sewing went from
+    // the end of its edge run straight across the region to its first row (26 mm, shown
+    // through the open diamonds).
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 10, "y": 10, "width": 26, "height": 26, "fill": "Red"}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"ids": [1], "type": "programmableFill", "pattern": "diamonds"}),
+    );
+    let straight = straight_travel_inside(&s, [10.0, 10.0, 36.0, 36.0]);
+    // The pattern's own diagonal lines are up to about 8.5 mm straight.
+    assert!(straight < 9.0, "{straight}");
+}
+
+#[test]
+fn a_moved_node_leaves_no_needle_drop_at_the_old_start_point() {
+    // #570, #571 (random-design seeds 150, 398): `object.setPoint` moved an ellipse's bottom
+    // node, where its start and end points stay; the fill travelled out to them, 3-4 mm past
+    // the reshaped outline.
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
+    run(
+        &mut s,
+        "shape.ellipse",
+        json!({"cx": 38.5, "cy": 38.7, "rx": 11.3, "ry": 17.2, "fill": "Red"}),
+    );
+    run(
+        &mut s,
+        "object.setPoint",
+        json!({"id": 1, "index": 0, "x": 75.9, "y": 46.1}),
+    );
+    let b = s.design().objects[0].bounds().expect("bounds");
+    let p = Compiler::for_design(s.design()).compile(s.design());
+    let out: Vec<(f64, f64)> = p
+        .stitches
+        .iter()
+        .filter(|q| q.command == Command::Stitch)
+        .filter(|q| {
+            q.x < b.min_x - 5.0 || q.x > b.max_x + 5.0 || q.y < b.min_y - 5.0 || q.y > b.max_y + 5.0
+        })
+        .map(|q| (q.x / 10.0, q.y / 10.0))
+        .collect();
+    assert!(out.is_empty(), "{out:?}");
+}

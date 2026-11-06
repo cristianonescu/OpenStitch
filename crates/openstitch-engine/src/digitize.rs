@@ -763,6 +763,11 @@ pub fn commands() -> Vec<CommandSpec> {
                     "Region thread (default: each region's image colour)",
                 ),
                 opt(
+                    "joinLines",
+                    "bool",
+                    "Running and triple lines that meet are sewn as one path, walking back over lines already sewn instead of trimming between them (default true; false: one piece per line, a trim after each)",
+                ),
+                opt(
                     "compatMode",
                     "peDesign|openStitch",
                     "peDesign: as before (default); openStitch: the threshold by Otsu's method unless set; unless lineSew is set, strokes at least 0.6 mm wide as parallel running lines 0.3 mm apart across 1.2 × the measured stroke width, thinner ones as triple running stitch; region threads by CIEDE2000 (docs/research/beyond/image-similarity-plan.md, Phase 5)",
@@ -818,6 +823,7 @@ pub fn commands() -> Vec<CommandSpec> {
                         _ => RegionSew::Auto,
                     },
                     region_thread: thread(p, "regionColor")?,
+                    join_lines: p.bool("joinLines", Some(true))?,
                 };
                 let objects = center::sew_with(&figure, &settings, mode);
                 if objects.is_empty() {

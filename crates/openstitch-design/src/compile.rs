@@ -1287,10 +1287,18 @@ fn line_elements(object: &DesignObject, line: &LineSewing, user: &[Pattern]) -> 
                 LineType::Zigzag if !c.has_curves() => {
                     lines::zigzag_rails(&c.path(), width, 10.0 / line.density.max(0.1))
                 }
-                LineType::Zigzag if line.half_stitch => {
-                    lines::zigzag_half(&c.path(), width, 10.0 / line.density.max(0.1))
+                LineType::Zigzag => {
+                    let path = c.path();
+                    let spacing = 10.0 / line.density.max(0.1);
+                    let mut run = if line.half_stitch {
+                        lines::zigzag_half(&path, width, spacing)
+                    } else {
+                        generate::zigzag(c, width, spacing)
+                    };
+                    // Points folded over the line at a cusp or a tight curve (#466).
+                    lines::unfold_zigzag(&path, &mut run, width);
+                    run
                 }
-                LineType::Zigzag => generate::zigzag(c, width, 10.0 / line.density.max(0.1)),
                 LineType::Motif => {
                     let pattern =
                         patterns::resolve(user, PatternKind::Motif, line.motif.as_deref());

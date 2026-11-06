@@ -121,7 +121,9 @@ some pictures the compatible mode still sews truer: try both and compare with `v
 
 Useful options: Auto Punch `colors` (0 = automatic), `skipBackground`; Photo Stitch
 `colors`, `mode: "mono"` with `thread`; Cross Stitch `cellSize` (mm); Design Center
-`lineSew`, `regionSew`. In OpenStitch mode `threads: "all"` chooses from every built-in chart.
+`lineSew`, `regionSew`, `joinLines` (on by default: running and triple lines that meet are sewn
+as one path, walking back over lines already sewn instead of a trim after every piece; `false`
+keeps one piece per line). In OpenStitch mode `threads: "all"` chooses from every built-in chart.
 Each returns the new `ids`; Auto Punch, Photo Stitch and Cross Stitch also list the `colors` used.
 
 ## SVG artwork
