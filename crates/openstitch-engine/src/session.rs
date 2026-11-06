@@ -131,6 +131,24 @@ impl Session {
         self.state.capabilities
     }
 
+    /// Another document beside this one (#552, a tab): an empty design and its own history,
+    /// with this session's folders, sandbox, capabilities and user settings (saved to the same
+    /// file).
+    pub fn sibling(&self) -> Session {
+        let mut s = Session::new(self.state.base_dir.clone());
+        s.state.sandbox = self.state.sandbox.clone();
+        s.state.capabilities = self.state.capabilities;
+        s.state.user = self.state.user.clone();
+        s.user_path = self.user_path.clone();
+        s
+    }
+
+    /// Takes `other`'s user settings (attribute sets, thread charts), so a document switched
+    /// to sees changes made while another was active.
+    pub fn copy_user_settings(&mut self, other: &Session) {
+        self.state.user = other.state.user.clone();
+    }
+
     /// The commands this session's client may run.
     pub fn permitted_commands(&self) -> Vec<&CommandSpec> {
         let caps = self.state.capabilities;

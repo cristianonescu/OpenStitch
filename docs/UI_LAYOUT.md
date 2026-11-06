@@ -477,6 +477,19 @@ minimises through the editor and Cmd+H, About, Services and Hide Others are not 
 from a menu (Help ▸ About OpenStitch stays; see docs/DISTRIBUTION.md "macOS application
 menu").
 
+### Designs as tabs (beyond PE-DESIGN, #552)
+
+Several designs can be open in one window. A tab strip under the ribbon shows one tab per
+design (its file or design name, `•` while it has unsaved changes, **Close**) and **New Tab**;
+it appears when two designs are open or **Options ▸ Open designs in tabs** is on. Each tab keeps
+its own undo history, selection, zoom and simulator; Ctrl+Tab and Ctrl+Shift+Tab move between
+them. With Open designs in tabs on, File ▸ New and Open add a tab instead of replacing the
+design; off (the default, as PE-DESIGN), they replace it after the unsaved-changes prompt.
+Closing a tab with unsaved changes asks about that tab only; closing the window asks about
+each tab with unsaved changes in turn. The Assistant uses `ui.documents`.
+
+![Two designs as tabs](images/rust-editor-tabs.png)
+
 ### Getting started (beyond PE-DESIGN, #554)
 
 An empty design shows start cards over the Design Page; the Application menu has **Open Sample**

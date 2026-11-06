@@ -211,6 +211,10 @@ user's Ctrl+K palette, with each command's ribbon place and shortcut; run it wit
 After a crash, `ui.recoveryList` shows designs autosave kept; `ui.recoveryRestore {id}`
 opens one as an untitled design (tell the user to save it), and `ui.recoveryDiscard`
 deletes snapshots (ask first). Autosave is `ui.set autosave` / `autosaveInterval`.
+Several designs can be open as tabs: `ui.documents` lists them (index, name, unsaved, file),
+`{op: "activate", index}` switches (every command then acts on that tab), `{op: "new"}` adds an
+empty one, and `{op: "close", index}` closes a tab that has no unsaved changes (otherwise save
+it or ask the user). `ui.set openInTabs` makes File ▸ New and Open add a tab.
 The window's look and keys (#551, #559): `ui.set accent` (`default`, a preset such as `orange`,
 or `#rrggbb`); `ui.set shortcuts` takes the changed commands as `{ commandKey: ["Ctrl+Alt+R"] }`
 (keys from `ui.actions`; `{}` restores every default; a key another command uses is refused,

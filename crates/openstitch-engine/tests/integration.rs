@@ -120,6 +120,8 @@ mod satin_compat;
 mod satin_shaping;
 #[path = "sections.rs"]
 mod sections;
+#[path = "session_sibling.rs"]
+mod session_sibling;
 #[path = "sewing.rs"]
 mod sewing;
 #[path = "shape_cut_attributes.rs"]
