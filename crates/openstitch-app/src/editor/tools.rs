@@ -225,11 +225,16 @@ impl ToolContext<'_> {
         self.design
             .objects
             .iter()
-            .find(|o| o.id == id && o.kind == ObjectKind::Shape && o.visible)
+            .find(|o| o.id == id && o.kind == ObjectKind::Shape && o.visible && !o.locked)
+    }
+
+    /// Whether the selection holds a locked object (#502): no handles, no dragging.
+    pub fn locked(&self) -> bool {
+        super::objects::any_locked(self.design, self.selection)
     }
 
     pub fn handles(&self) -> Option<SelectionHandles> {
-        if self.selection.is_empty() {
+        if self.selection.is_empty() || self.locked() {
             return None;
         }
         bounds_of(self.design, self.selection).map(|bounds| SelectionHandles {
@@ -1005,7 +1010,8 @@ impl ToolController {
                 if p.distance(start) < DRAG_THRESHOLD * ctx.units_per_point {
                     return vec![];
                 }
-                self.gesture = Some(if hit.is_some() && !shift && !ctx.selection.is_empty() {
+                let movable = !ctx.selection.is_empty() && !ctx.locked();
+                self.gesture = Some(if hit.is_some() && !shift && movable {
                     self.snap_lines = self
                         .snap_objects
                         .then(|| SnapLines::collect(ctx.design, ctx.selection));

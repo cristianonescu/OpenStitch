@@ -7,7 +7,7 @@
 use crate::commands::{CommandSpec, Effect, indexes, opt, req, spec};
 use openstitch_design::boolean::{self, BoolOp};
 use openstitch_design::{Design, DesignObject, ObjectKind, OptimizeOrder, Vec2};
-use serde_json::json;
+use serde_json::{Value, json};
 
 pub fn commands() -> Vec<CommandSpec> {
     vec![
@@ -148,8 +148,118 @@ pub fn commands() -> Vec<CommandSpec> {
                 Ok(json!({ "order": ids(&s.design) }))
             },
         ),
+        spec(
+            "order.byClickOrder",
+            "Sew objects in the order given (the order they were clicked): they move together to the earliest place any of them had, in that order; the other objects keep their order (#502)",
+            Effect::Edit,
+            vec![req(
+                "ids",
+                "[int]",
+                "Objects in the order they should sew (2 or more, no repeats)",
+            )],
+            |s, p| {
+                let idx = indexes(p, &s.design)?;
+                let mut seen = idx.clone();
+                seen.sort_unstable();
+                seen.dedup();
+                if seen.len() != idx.len() {
+                    return Err(p.invalid("ids", "must not repeat an object"));
+                }
+                if idx.len() < 2 {
+                    return Err(p.invalid("ids", "needs at least 2 objects"));
+                }
+                let d = &mut s.design;
+                let start = seen[0];
+                let mut slots: Vec<Option<DesignObject>> = std::mem::take(&mut d.objects)
+                    .into_iter()
+                    .map(Some)
+                    .collect();
+                let clicked: Vec<DesignObject> = idx
+                    .iter()
+                    .map(|&i| slots[i].take().expect("each index once"))
+                    .collect();
+                let mut rest: Vec<DesignObject> = slots.into_iter().flatten().collect();
+                // `start` objects before the earliest member are not members, so it is
+                // also the block's place among the others.
+                rest.splice(start..start, clicked);
+                d.objects = rest;
+                Ok(json!({ "order": ids(d) }))
+            },
+        ),
+        spec(
+            "object.setName",
+            "Rename objects in the Sewing Order list (#502); an empty name goes back to the stitch-type label",
+            Effect::Edit,
+            vec![
+                crate::commands::IDS,
+                req(
+                    "name",
+                    "string",
+                    "New name (at most 100 characters; empty clears it)",
+                ),
+            ],
+            |s, p| {
+                let name = p.string("name", None)?;
+                let name = name.trim();
+                if name.chars().count() > MAX_NAME {
+                    return Err(p.invalid("name", format!("at most {MAX_NAME} characters")));
+                }
+                if name.chars().any(char::is_control) {
+                    return Err(p.invalid("name", "must not contain control characters"));
+                }
+                for i in indexes(p, &s.design)? {
+                    s.design.objects[i].name = (!name.is_empty()).then(|| name.to_string());
+                }
+                Ok(Value::Null)
+            },
+        ),
+        spec(
+            "object.setLocked",
+            "Lock or unlock objects (#502): a locked object cannot be picked, moved, scaled, point-edited or deleted on the canvas; it stays selectable from the Sewing Order list and commands still change it",
+            Effect::Edit,
+            vec![crate::commands::IDS, req("locked", "bool", "Locked")],
+            |s, p| {
+                let locked = p.bool("locked", None)?;
+                for i in indexes(p, &s.design)? {
+                    s.design.objects[i].locked = locked;
+                }
+                Ok(Value::Null)
+            },
+        ),
+        spec(
+            "object.setPartOrder",
+            "Which part of a shape sews first (#502): regionFirst (PE-DESIGN's order, the default) or lineFirst (the outline before the region, beyond PE-DESIGN). Shapes only; a PES 11 export writes a lineFirst shape as its outline and then its region",
+            Effect::Edit,
+            vec![
+                crate::commands::IDS,
+                req("order", "regionFirst|lineFirst", "Part sewn first"),
+            ],
+            |s, p| {
+                let order = p.string("order", None)?;
+                let first = match order.as_str() {
+                    "regionFirst" => false,
+                    "lineFirst" => true,
+                    _ => return Err(p.invalid("order", "must be regionFirst or lineFirst")),
+                };
+                let idx = indexes(p, &s.design)?;
+                if let Some(&i) = idx
+                    .iter()
+                    .find(|&&i| s.design.objects[i].kind != ObjectKind::Shape)
+                {
+                    let id = s.design.objects[i].id;
+                    return Err(p.invalid("ids", format!("object {id} is not a shape")));
+                }
+                for i in idx {
+                    s.design.objects[i].line_first = first;
+                }
+                Ok(Value::Null)
+            },
+        ),
     ]
 }
+
+/// Longest object name `object.setName` takes.
+pub const MAX_NAME: usize = 100;
 
 fn ids(d: &Design) -> Vec<u64> {
     d.objects.iter().map(|o| o.id).collect()

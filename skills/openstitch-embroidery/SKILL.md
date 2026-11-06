@@ -65,7 +65,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `object.setLine` with `type: zigzag`, about 2-4 mm wide (the badge recipe in
    `reference/recipes.md`).
 4. Order: `order.optimize` (PE-DESIGN-compatible order) or `order.byColor`; check with
-   `object.list` (sewing order).
+   `object.list` (sewing order). To sew objects in a set order, `order.byClickOrder`
+   `{ids: [in sewing order]}` (they start where the earliest of them sews now); to sew a
+   shape's outline before its fill, `object.setPartOrder` `{ids, order: lineFirst}` (beyond
+   PE-DESIGN; `regionFirst` is PE-DESIGN's order).
 5. Check: `view_render` (look at it), `design.info` (size, stitches, colours, trims, time) and
    `design.check` (sewing problems, errors first; `ready` is false while there are errors).
    Run each finding's `fix` command or fix it yourself, and check again; never report a design
@@ -142,6 +145,13 @@ then style them in the next.
   `{query}` finds a thread by code or name. After `import.svg` or a `digitize.*` wizard gives
   many near-identical colours, offer `threads.mergeSimilar` (`dryRun` first; it reports the
   colour changes saved, and `order.byColor` when `suggestSortByColor`).
+- Names and locks: `object.setName` `{ids, name}` names objects in the Sewing Order list
+  ("" clears it); `object.setLocked` `{ids, locked}` stops the user moving or deleting them on
+  the canvas by accident (your commands still work on them; `object.list` shows `locked`).
+- Copy between designs: `object.get` the objects, then `object.paste` `{objects, dx, dy,
+  fonts}` in the other design; give `fonts` (the source design's `fonts` entries) when a text
+  uses a font loaded into the source design. You never read or write the system clipboard:
+  `ui.run copy` / `paste` use the window's own copy.
 - Delete: `object.delete` `{ids}`. Undo: `history.undo` (only for your own mistakes).
 
 ## Editor commands (`ui.*`)

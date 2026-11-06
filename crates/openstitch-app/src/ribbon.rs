@@ -6,6 +6,7 @@
 use crate::app::EditorApp;
 use crate::{convert_ui, edit_ui, icons, panels};
 use eframe::egui::{self, Color32, CornerRadius, RichText, Sense, Stroke, StrokeKind, vec2};
+use openstitch_app::editor::clipboard::{self, Envelope};
 use openstitch_app::editor::close_prompt::Pending;
 use openstitch_app::editor::prefs::{EditingPrefs, Theme, UiPrefs};
 use openstitch_app::editor::ribbon::{
@@ -77,10 +78,15 @@ pub struct RibbonState {
     /// Opens the Print dialog on the next frame (`--show print`).
     pub open_print: bool,
     last_tool: Tool,
-    /// Objects Copy remembered; Paste duplicates the ones still in the design.
-    pub clipboard: BTreeSet<u64>,
-    /// Objects Cut took out of the design (`object.get` data); Paste adds them back.
-    pub cut: Vec<serde_json::Value>,
+    /// Objects Copy or Cut put on the clipboard (#500), kept here too: Paste falls back to
+    /// them when the system clipboard holds no OpenStitch objects.
+    pub copied: Option<Envelope>,
+    /// Copy, Cut and Paste use the system clipboard (off in tests, screenshots and `ui.run`).
+    pub system_clipboard: bool,
+    /// The system clipboard held OpenStitch objects at the last check (another window's Copy).
+    pub clipboard_objects: bool,
+    /// When the system clipboard was last checked (seconds).
+    pub clipboard_checked: f64,
     /// Pan: the primary button drags the view.
     pub pan: bool,
     pub property_open: bool,
@@ -114,8 +120,10 @@ impl Default for RibbonState {
             open_app_menu: false,
             open_print: false,
             last_tool: Tool::Select,
-            clipboard: BTreeSet::new(),
-            cut: Vec::new(),
+            copied: None,
+            system_clipboard: false,
+            clipboard_objects: false,
+            clipboard_checked: f64::NEG_INFINITY,
             pan: false,
             property_open: false,
             property_draft: None,
@@ -217,14 +225,29 @@ pub fn fitted_texts(app: &EditorApp) -> Vec<u64> {
         .collect()
 }
 
-fn clipboard_ids(app: &EditorApp) -> BTreeSet<u64> {
-    let d = app.session.design();
-    app.ui
-        .clipboard
-        .iter()
-        .copied()
-        .filter(|id| d.index_of(*id).is_some())
-        .collect()
+/// Checks, at most once a second, whether the system clipboard holds OpenStitch objects, so
+/// Paste is enabled after a Copy in another window.
+pub fn poll_clipboard(app: &mut EditorApp, now: f64) {
+    if !app.ui.system_clipboard || now - app.ui.clipboard_checked < 1.0 {
+        return;
+    }
+    app.ui.clipboard_checked = now;
+    app.ui.clipboard_objects = arboard::Clipboard::new()
+        .and_then(|mut c| c.get_text())
+        .is_ok_and(|t| clipboard::looks_like(&t));
+}
+
+/// Writes `env` to the system clipboard (when used) and keeps it.
+fn put_on_clipboard(app: &mut EditorApp, env: Envelope) {
+    if app.ui.system_clipboard {
+        let text = env.to_text();
+        if let Err(e) = arboard::Clipboard::new().and_then(|mut c| c.set_text(text)) {
+            app.status =
+                format!("Could not use the system clipboard ({e}); Paste works in this window");
+        }
+        app.ui.clipboard_objects = true;
+    }
+    app.ui.copied = Some(env);
 }
 
 /// Whether `a` can run now (implemented, and the selection suits it).
@@ -247,7 +270,7 @@ pub fn enabled(app: &EditorApp, a: Action) -> bool {
         | SelectSameBoth => any,
         AlignLeft | AlignCenter | AlignRight | AlignTop | AlignMiddle | AlignBottom
         | DistributeHorizontal | DistributeVertical => crate::arrange_ui::can_align(app, a),
-        Paste => !clipboard_ids(app).is_empty() || !app.ui.cut.is_empty(),
+        Paste => app.ui.copied.is_some() || app.ui.clipboard_objects,
         CopyAttributes => edit_ui::copy_attributes_source(app).is_some(),
         PasteAttributes => edit_ui::paste_attributes_source(app).is_some(),
         Group => many,
@@ -369,44 +392,49 @@ pub(crate) fn zoom_to_selection(app: &mut EditorApp) {
 
 /// Cut: the selection leaves the design (one Undo) and waits on the clipboard.
 fn cut(app: &mut EditorApp) {
-    let d = app.session.design();
-    let objects: Vec<serde_json::Value> = d
-        .objects
-        .iter()
-        .filter(|o| app.selection.contains(&o.id))
-        .filter_map(|o| serde_json::to_value(o).ok())
-        .collect();
-    if objects.is_empty() {
+    if app.refuse_locked() {
         return;
     }
-    let n = objects.len();
+    let Some(env) = Envelope::copy(app.session.design(), &app.selection) else {
+        return;
+    };
+    let n = env.objects.len();
     let request = CommandRequest::delete(&app.selection);
     if app.execute(&request).is_some() {
-        app.ui.cut = objects;
-        app.ui.clipboard.clear();
         app.selection.clear();
         app.status = format!("{n} objects cut");
+        put_on_clipboard(app, env);
     }
 }
 
+/// Copy: the selection goes to the clipboard as object data (#500), so it can be pasted in
+/// another window or after the originals are deleted.
+fn copy(app: &mut EditorApp) {
+    if let Some(env) = Envelope::copy(app.session.design(), &app.selection) {
+        app.status = format!("{} objects copied", env.objects.len());
+        put_on_clipboard(app, env);
+    }
+}
+
+/// Paste: the system clipboard's OpenStitch objects, else the ones copied in this window,
+/// added in one Undo step.
 fn paste(app: &mut EditorApp) {
-    if !app.ui.cut.is_empty() {
-        let r = CommandRequest::new("object.paste", json!({ "objects": app.ui.cut }));
-        if let Some(result) = app.execute(&r) {
-            app.selection = CommandRequest::created_ids(&result);
-            app.status = "Pasted".into();
-        }
+    let system = app
+        .ui
+        .system_clipboard
+        .then(|| {
+            arboard::Clipboard::new()
+                .and_then(|mut c| c.get_text())
+                .ok()
+        })
+        .flatten()
+        .and_then(|t| Envelope::parse(&t));
+    let Some(env) = system.or_else(|| app.ui.copied.clone()) else {
         return;
-    }
-    let ids = clipboard_ids(app);
-    if ids.is_empty() {
-        return;
-    }
-    if let Some(result) = app.execute(&CommandRequest::duplicate(&ids)) {
-        let created = CommandRequest::created_ids(&result);
-        if !created.is_empty() {
-            app.selection = created;
-        }
+    };
+    let r = env.paste_request(app.session.design());
+    if let Some(result) = app.execute(&r) {
+        app.selection = CommandRequest::created_ids(&result);
         app.status = "Pasted".into();
     }
 }
@@ -418,7 +446,7 @@ fn delete(app: &mut EditorApp) {
         point_deleted = effects.is_some();
         effects.unwrap_or_default()
     });
-    if !point_deleted {
+    if !point_deleted && !app.refuse_locked() {
         app.on_selection(CommandRequest::delete);
     }
 }
@@ -472,11 +500,7 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
         AttributeSets => app.settings.sets_open = true,
         SelectAll => app.select_all(),
         Cut => cut(app),
-        Copy => {
-            app.ui.cut.clear();
-            app.ui.clipboard = app.selection.clone();
-            app.status = format!("{} objects copied", app.ui.clipboard.len());
-        }
+        Copy => copy(app),
         Paste => paste(app),
         Duplicate => app.on_selection(CommandRequest::duplicate),
         Delete => delete(app),
@@ -1943,8 +1967,16 @@ mod tests {
         run(&mut app, Action::Undo, &ctx);
         assert_eq!(app.session.design().objects.len(), n);
         app.selection = BTreeSet::from([2]);
+        // Copy keeps the objects, not their ids: deleting the originals keeps Paste working.
         run(&mut app, Action::Copy, &ctx);
-        assert!(app.ui.cut.is_empty());
+        let d = app.session.design();
+        let copied = d.objects[d.index_of(2).expect("object 2")].clone();
+        run(&mut app, Action::Delete, &ctx);
+        assert!(enabled(&app, Action::Paste));
+        run(&mut app, Action::Paste, &ctx);
+        let pasted = app.session.design().objects.last().expect("pasted");
+        assert_eq!(pasted.contours, copied.contours);
+        assert_ne!(pasted.id, copied.id);
     }
 
     #[test]

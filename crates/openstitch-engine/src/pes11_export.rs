@@ -21,6 +21,15 @@ use openstitch_formats::pes11::{
 
 /// The `#PES0110` objects of `design`'s visible objects, in design order.
 pub fn objects(design: &Design) -> Result<Objects, String> {
+    // Sew outline first (#502): PE-DESIGN sews a shape's region before its outline, so the
+    // shape is written as two, its outline alone and then its region alone.
+    let split;
+    let design = if design.objects.iter().any(splits) {
+        split = outline_first_split(design);
+        &split
+    } else {
+        design
+    };
     let page = (mm(design.page.width).max(1), mm(design.page.height).max(1));
     // A 100 x 100 mm page is written as PE-DESIGN's own default, a Hoop Size page; other sizes
     // as a Custom Size page, which PE-DESIGN shows with a Hoop Settings tab and sections.
@@ -139,6 +148,36 @@ pub fn objects(design: &Design) -> Result<Objects, String> {
         );
     }
     Ok(out)
+}
+
+/// A shape sewing its outline before its region (#502), which PES 0110 holds as two shapes.
+fn splits(o: &DesignObject) -> bool {
+    o.line_first && o.kind == ObjectKind::Shape && o.region.is_some() && o.line.is_some()
+}
+
+/// `design` with each [`splits`] shape replaced by its outline alone (a new id, same group)
+/// and then its region alone (its own id, so hole pairs and fitted texts still find it).
+fn outline_first_split(design: &Design) -> Design {
+    let mut out = design.clone();
+    out.objects.clear();
+    for o in &design.objects {
+        if splits(o) {
+            let mut outline = o.clone();
+            outline.region = None;
+            outline.line_first = false;
+            outline.hole_sewing = false;
+            outline.hole_inner = None;
+            outline.id = out.new_group_id();
+            out.objects.push(outline);
+            let mut region = o.clone();
+            region.line = None;
+            region.line_first = false;
+            out.objects.push(region);
+        } else {
+            out.objects.push(o.clone());
+        }
+    }
+    out
 }
 
 /// The Not Sewn copy of `inner` that PE-DESIGN pairs with the hole-sewing `outer`: the inner

@@ -211,3 +211,103 @@ fn bad_order_parameters_fail_cleanly() {
         assert_eq!(s.design(), &before, "{cmd}");
     }
 }
+
+// MARK: Sewing Order list (#502)
+
+#[test]
+fn click_order_starts_at_the_earliest_member() {
+    let mut s = Session::new(std::env::temp_dir());
+    squares(&mut s);
+    run(&mut s, "order.byClickOrder", json!({"ids": [5, 2, 4]}));
+    assert_eq!(order(&s), [1, 5, 2, 4, 3]);
+    // One undo step.
+    run(&mut s, "history.undo", json!({}));
+    assert_eq!(order(&s), [1, 2, 3, 4, 5]);
+    for bad in [
+        json!({"ids": [2]}),
+        json!({"ids": [2, 3, 2]}),
+        json!({"ids": [2, 9]}),
+    ] {
+        assert!(
+            s.execute("order.byClickOrder", Some(&bad)).is_err(),
+            "{bad}"
+        );
+    }
+}
+
+#[test]
+fn names_and_locks_survive_save_and_load() {
+    let mut s = Session::new(std::env::temp_dir());
+    squares(&mut s);
+    run(
+        &mut s,
+        "object.setName",
+        json!({"id": 1, "name": "  Leaf  "}),
+    );
+    run(
+        &mut s,
+        "object.setLocked",
+        json!({"ids": [2, 3], "locked": true}),
+    );
+    let list = run(&mut s, "object.list", json!({}));
+    assert_eq!(list[0]["name"], "Leaf");
+    assert_eq!(list[1]["locked"], true);
+    assert!(list[3].get("locked").is_none());
+    let json = serde_json::to_string(s.design()).expect("osd");
+    let back: openstitch_design::Design = serde_json::from_str(&json).expect("load");
+    assert_eq!(back.objects[0].name.as_deref(), Some("Leaf"));
+    assert!(back.objects[1].locked && back.objects[2].locked && !back.objects[3].locked);
+    // An empty name goes back to the label; undo restores the name.
+    run(&mut s, "object.setName", json!({"id": 1, "name": ""}));
+    assert_eq!(s.design().objects[0].name, None);
+    run(&mut s, "history.undo", json!({}));
+    assert_eq!(s.design().objects[0].name.as_deref(), Some("Leaf"));
+    let long = "x".repeat(101);
+    assert!(
+        s.execute("object.setName", Some(&json!({"id": 1, "name": long})))
+            .is_err()
+    );
+    assert!(
+        s.execute("object.setName", Some(&json!({"id": 1, "name": "a\nb"})))
+            .is_err()
+    );
+}
+
+#[test]
+fn line_first_sews_the_outline_before_the_fill() {
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 0, "y": 0, "width": 20, "height": 20, "fill": "Red", "outline": "Blue"}),
+    );
+    let colours = |s: &Session| {
+        let p = Compiler::default().compile(s.design());
+        p.threads.iter().map(|t| t.hex()).collect::<Vec<_>>()
+    };
+    let before = colours(&s);
+    assert_eq!(before.len(), 2);
+    run(
+        &mut s,
+        "object.setPartOrder",
+        json!({"id": 1, "order": "lineFirst"}),
+    );
+    assert!(s.design().objects[0].line_first);
+    let after = colours(&s);
+    assert_eq!(after, [before[1].clone(), before[0].clone()]);
+    let list = run(&mut s, "object.list", json!({}));
+    assert_eq!(list[0]["partOrder"], "lineFirst");
+    // PES 11 holds it as two shapes: the outline, then the region, region keeping the id.
+    let o = openstitch_engine::pes11_export::objects(s.design()).expect("objects");
+    assert_eq!(o.shapes.len(), 2);
+    run(
+        &mut s,
+        "object.setPartOrder",
+        json!({"id": 1, "order": "regionFirst"}),
+    );
+    assert_eq!(colours(&s), before);
+    assert!(
+        s.execute("object.setPartOrder", Some(&json!({"id": 1, "order": "x"})))
+            .is_err()
+    );
+}
