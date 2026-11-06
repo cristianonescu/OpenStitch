@@ -103,8 +103,26 @@ fn the_job_never_reaches_a_machine_file() {
     let a: Vec<Vec<u8>> = exts.iter().map(|e| with(&mut s, e)).collect();
     run(&mut s, "design.setJob", json!({ "clear": true }));
     let b: Vec<Vec<u8>> = exts.iter().map(|e| with(&mut s, e)).collect();
+    // JEF is the only format here that stamps the clock: its header holds the export time as
+    // 14 ASCII digits (yyyyMMddHHmmss) at bytes 8..22, so two exports a second apart differ
+    // there. Blank that field before comparing; the rest of the file must be identical.
+    let unstamped = |e: &str, bytes: &[u8]| -> Vec<u8> {
+        let mut v = bytes.to_vec();
+        if e == "jef" {
+            assert!(
+                v[8..22].iter().all(u8::is_ascii_digit),
+                "the JEF date field"
+            );
+            v[8..22].fill(b'0');
+        }
+        v
+    };
     for ((e, x), y) in exts.iter().zip(&a).zip(&b) {
-        assert_eq!(x, y, "{e}: the job changed the machine file");
+        assert_eq!(
+            unstamped(e, x),
+            unstamped(e, y),
+            "{e}: the job changed the machine file"
+        );
         for word in ["Example Shop", "A-100", "Cut-away", "Pique"] {
             assert!(
                 !x.windows(word.len()).any(|w| w == word.as_bytes()),
