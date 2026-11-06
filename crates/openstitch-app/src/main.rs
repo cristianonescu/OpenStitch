@@ -63,6 +63,7 @@ mod inkstitch_ui;
 mod keymap_ui;
 mod lettering_ui;
 mod line_gap_ui;
+mod open_job;
 mod palette_ui;
 mod panels;
 mod panes;
