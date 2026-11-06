@@ -97,6 +97,15 @@ struct Writer {
     stop_pending: bool,
     /// The basting run (#509) waiting to be sewn in the first element's thread.
     basting: Vec<Run>,
+    /// Fills sewn from the object being entered on, inset: the move into it may run hidden
+    /// under them (#545). Taken by the object's first element.
+    under: Option<crate::hidden::Cover>,
+    /// The object just sewn asks for a run connector to the next (#545): its id.
+    run_from: Option<u64>,
+    /// Run connectors sewn: object id and length (0.1 mm).
+    connectors: Vec<(u64, f64)>,
+    /// The region area of the object being sewn with its hidden stitching left out (#511).
+    region_area: Option<Vec<Contour>>,
 }
 
 /// Needle points closer than this (0.1 mm) are one penetration, wherever they lie on the
@@ -193,6 +202,40 @@ impl Writer {
         self.position = Some(p);
     }
 
+    /// The move into an object of the same thread, beyond PE-DESIGN (#545): running stitches
+    /// along a path inside `under` (fills sewn later hide them), else a run connector when the
+    /// object before asked for one. False when neither applies (a jump as usual).
+    fn connect(
+        &mut self,
+        p: Vec2,
+        across: f64,
+        under: Option<&crate::hidden::Cover>,
+        run: Option<u64>,
+    ) -> bool {
+        let Some(from) = self.position else {
+            return false;
+        };
+        let d = from.distance(p);
+        if self.cut || d <= across {
+            return false;
+        }
+        let step = crate::hidden::TRAVEL_STITCH;
+        if let Some(path) =
+            under.and_then(|c| crate::hidden::path_inside(from, p, &c.area, &c.inset))
+        {
+            for &q in &path[1..] {
+                self.stitch_split(q, step);
+            }
+            return true;
+        }
+        if let Some(id) = run {
+            self.connectors.push((id, d));
+            self.stitch_split(p, step);
+            return true;
+        }
+        false
+    }
+
     /// Feed (Manual Punch): the frame moves to `p` with a jump stitch; the thread is not cut.
     fn feed(&mut self, p: Vec2) {
         if self.position != Some(p) {
@@ -238,12 +281,15 @@ impl Writer {
         {
             self.push(p, Command::Stop);
         }
+        let (under, run_from) = (self.under.take(), self.run_from.take());
         let across = element.across.unwrap_or(self.cfg.sew_across_distance);
         for (i, run) in runs.iter().enumerate() {
             // A letter's separate pieces are trimmed apart (pieces close enough to join inside
             // the letter are one run already: `stroke_columns`).
             let across = if i > 0 { 0.0 } else { across };
-            self.travel(run[0], i > 0 && !element.pieces, across);
+            if i > 0 || !self.connect(run[0], across, under.as_ref(), run_from) {
+                self.travel(run[0], i > 0 && !element.pieces, across);
+            }
             // A run the writer starts after a trim ties in (unless its generator already did).
             let fresh = self.position.is_none()
                 || self.cut
@@ -301,6 +347,17 @@ impl Compiler {
     /// the pattern's stitches it wrote, travel into it included (the quality checks name the
     /// objects behind a problem from this).
     pub fn compile_traced(&self, design: &Design) -> (StitchPattern, Vec<(u64, Range<usize>)>) {
+        let (w, spans) = self.sew_design(design);
+        (w.finish(), spans)
+    }
+
+    /// The run connectors the design sews (#545): the id of the object each follows and its
+    /// length (0.1 mm).
+    pub fn connectors(&self, design: &Design) -> Vec<(u64, f64)> {
+        self.sew_design(design).0.connectors
+    }
+
+    fn sew_design(&self, design: &Design) -> (Writer, Vec<(u64, Range<usize>)>) {
         let mut w = self.writer();
         w.out.set_name(design.name.clone());
         for (key, value) in design.properties.fields() {
@@ -318,8 +375,23 @@ impl Compiler {
             }
         }
         let mut spans = Vec::new();
-        for object in design.objects.iter().filter(|o| o.visible) {
+        let unders = if production.travel_under {
+            crate::hidden::later_cover(&design.objects)
+        } else {
+            Vec::new()
+        };
+        for (index, object) in design.objects.iter().enumerate() {
+            if !object.visible {
+                continue;
+            }
             let start = w.out.stitches.len();
+            w.under = unders.get(index).filter(|u| !u.inset.is_empty()).cloned();
+            // Only where it saves stitches: routing round a cut-out can cost more than it
+            // leaves out.
+            w.region_area = crate::hidden::visible_area(design, index).filter(|area| {
+                self.stitches_of(object, design, Some(area.clone()))
+                    < self.stitches_of(object, design, None)
+            });
             let started = match (production.auto_start, w.position) {
                 (crate::production::AutoStart::Nearest, Some(from)) => {
                     crate::production::nearest_start(object, from).filter(|c| {
@@ -334,12 +406,15 @@ impl Compiler {
                 _ => None,
             };
             sew_object(&mut w, started.as_ref().unwrap_or(object), design);
+            w.under = None;
+            w.region_area = None;
             if object.stop_after && w.position.is_some() {
                 w.stop_after();
             }
+            w.run_from = object.connector_run.then_some(object.id);
             spans.push((object.id, start..w.out.stitches.len()));
         }
-        (w.finish(), spans)
+        (w, spans)
     }
 
     /// The stitches `design.objects[index]` alone generates, as it would be sewn inside the
@@ -373,6 +448,19 @@ impl Compiler {
         (w.out.count(Command::Trim), travel)
     }
 
+    /// Needle points `object` sews alone, its region over `area` when given (#511).
+    fn stitches_of(
+        &self,
+        object: &DesignObject,
+        design: &Design,
+        area: Option<Vec<Contour>>,
+    ) -> usize {
+        let mut w = self.writer();
+        w.region_area = area;
+        sew_object(&mut w, object, design);
+        w.out.count(Command::Stitch)
+    }
+
     fn writer(&self) -> Writer {
         Writer {
             cfg: *self,
@@ -385,6 +473,10 @@ impl Compiler {
             stop_at_jumps: false,
             stop_pending: false,
             basting: Vec::new(),
+            under: None,
+            run_from: None,
+            connectors: Vec::new(),
+            region_area: None,
         }
     }
 }
@@ -445,16 +537,18 @@ fn sew_object(w: &mut Writer, object: &DesignObject, design: &Design) {
             let anchor = object
                 .bounds()
                 .map_or(v2(0.0, 0.0), |b| v2(b.min_x, b.min_y));
-            let (local, holes) = if anchor == v2(0.0, 0.0) {
-                (std::borrow::Cow::Borrowed(object), holes)
+            let area = w.region_area.take();
+            let (local, holes, area) = if anchor == v2(0.0, 0.0) {
+                (std::borrow::Cow::Borrowed(object), holes, area)
             } else {
                 let to = Transform::translation(-anchor.x, -anchor.y);
                 let mut o = object.clone();
                 o.apply(&to);
                 let h = holes.iter().map(|c| c.transformed(&to)).collect();
-                (std::borrow::Cow::Owned(o), h)
+                let a = area.map(|a| a.iter().map(|c| c.transformed(&to)).collect());
+                (std::borrow::Cow::Owned(o), h, a)
             };
-            for mut e in elements(&local, &holes, &design.patterns, &turns) {
+            for mut e in elements(&local, &holes, &design.patterns, &turns, area.as_deref()) {
                 if anchor != v2(0.0, 0.0) {
                     for p in e.runs.iter_mut().flatten() {
                         *p = *p + anchor;
@@ -583,11 +677,14 @@ fn holes_above(object: &DesignObject, design: &Design) -> Vec<Contour> {
 }
 
 /// `turns`: how far each letter of a text is turned ([`Design::text_turns`]).
+/// `area`: the region's area with its hidden stitching left out (#511), sewn instead of the
+/// shape's own closed outlines; the outline is sewn as drawn.
 fn elements(
     object: &DesignObject,
     holes: &[Contour],
     user: &[Pattern],
     turns: &[Option<f64>],
+    area: Option<&[Contour]>,
 ) -> Vec<Element> {
     if let Some(letters) = letter_line_elements(object, user) {
         return letters;
@@ -607,7 +704,10 @@ fn elements(
         let region = &sewn;
         // A shape is one region; text is one region per glyph, sewn letter by letter.
         for (index, group) in object.glyph_groups().into_iter().enumerate() {
-            let closed: Vec<Contour> = group.iter().filter(|c| c.closed).cloned().collect();
+            let closed: Vec<Contour> = match area {
+                Some(a) => a.to_vec(),
+                None => group.iter().filter(|c| c.closed).cloned().collect(),
+            };
             if closed.is_empty() {
                 continue;
             }

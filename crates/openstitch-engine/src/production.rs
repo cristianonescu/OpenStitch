@@ -92,7 +92,115 @@ pub fn commands() -> Vec<CommandSpec> {
                 Ok(json!({ "stopAfter": on }))
             },
         ),
+        spec(
+            "object.setHideUnder",
+            "Leave out stitching hidden under later objects (beyond PE-DESIGN): the region skips what later fills and satins cover, keeping an overlap under their edges so no fabric shows; the shape is not cut, so moving the top object brings the stitches back. Satin regions are not clipped",
+            Effect::Edit,
+            vec![
+                IDS,
+                req("on", "bool", "Leave out the hidden stitching"),
+                opt(
+                    "overlap",
+                    "mm",
+                    "How far the region still reaches under the covering edges 0-5 (default 1)",
+                ),
+            ],
+            |s, p| {
+                let on = p.bool("on", None)?;
+                let overlap = p.opt("overlap", 1.0, 0.0, 5.0)?;
+                for i in indexes(p, &s.design)? {
+                    s.design.objects[i].hide_under = on.then_some(overlap);
+                }
+                Ok(json!({ "hideUnder": on, "stitchesSaved": hidden_saved(&s.design) }))
+            },
+        ),
+        spec(
+            "design.setRemoveHidden",
+            "Leave out the stitching later fills and satins hide in every shape's region (beyond PE-DESIGN; text only with object.setHideUnder), keeping an overlap under their edges; shapes are not cut",
+            Effect::Edit,
+            vec![
+                req("on", "bool", "Leave out hidden stitching design-wide"),
+                opt(
+                    "overlap",
+                    "mm",
+                    "How far regions still reach under covering edges 0-5 (default 1)",
+                ),
+            ],
+            |s, p| {
+                let on = p.bool("on", None)?;
+                let overlap = p.opt("overlap", 1.0, 0.0, 5.0)?;
+                s.design.production.remove_hidden = on.then_some(overlap);
+                Ok(json!({ "removeHidden": on, "stitchesSaved": hidden_saved(&s.design) }))
+            },
+        ),
+        spec(
+            "design.setTravelUnder",
+            "Travel under later fills (beyond PE-DESIGN): a move into an object of the same thread that lies inside fills sewn later (0.5 mm in from their edges, straight or round one bend) is sewn as 2 mm running stitches hidden under them instead of a jump and trim",
+            Effect::Edit,
+            vec![req("on", "bool", "Sew hidden travel instead of trims")],
+            |s, p| {
+                let before = order_numbers(&s.design);
+                s.design.production.travel_under = p.bool("on", None)?;
+                let after = order_numbers(&s.design);
+                Ok(json!({
+                    "travelUnder": s.design.production.travel_under,
+                    "trims": { "before": before["trims"], "after": after["trims"] },
+                }))
+            },
+        ),
+        spec(
+            "object.setConnector",
+            "What follows an object before the next part of the same thread (beyond PE-DESIGN): jump (a jump and trim, as PE-DESIGN) or run (a 2 mm running-stitch connector, visible on the fabric). Only between objects of one thread with no stop between; connectors of 15 mm or more are listed in longConnectors",
+            Effect::Edit,
+            vec![
+                IDS,
+                req(
+                    "connector",
+                    "jump|run",
+                    "Jump and trim, or a running connector",
+                ),
+            ],
+            |s, p| {
+                let run = match p.string("connector", None)?.as_str() {
+                    "jump" => false,
+                    "run" => true,
+                    _ => return Err(p.invalid("connector", "must be jump or run")),
+                };
+                for i in indexes(p, &s.design)? {
+                    s.design.objects[i].connector_run = run;
+                }
+                Ok(
+                    json!({ "connector": if run { "run" } else { "jump" }, "longConnectors": long_connectors(&s.design) }),
+                )
+            },
+        ),
     ]
+}
+
+/// Stitches the design saves by leaving out hidden stitching (#511).
+pub fn hidden_saved(d: &Design) -> usize {
+    let on = Compiler::for_design(d).compile(d).count(Command::Stitch);
+    let mut plain = d.clone();
+    plain.production.remove_hidden = None;
+    plain.objects.iter_mut().for_each(|o| o.hide_under = None);
+    if plain == *d {
+        return 0;
+    }
+    let off = Compiler::for_design(&plain)
+        .compile(&plain)
+        .count(Command::Stitch);
+    off.saturating_sub(on)
+}
+
+/// Run connectors of 15 mm or more: they show on the fabric (#545).
+pub fn long_connectors(d: &Design) -> Value {
+    let long: Vec<Value> = Compiler::for_design(d)
+        .connectors(d)
+        .into_iter()
+        .filter(|&(_, len)| len >= openstitch_design::hidden::LONG_CONNECTOR)
+        .map(|(id, len)| json!({ "after": id, "lengthMM": (len / MM * 10.0).round() / 10.0 }))
+        .collect();
+    Value::Array(long)
 }
 
 /// The default basting thread: light grey, easy to see and pull out.
@@ -130,6 +238,12 @@ pub fn info(d: &Design, pattern: &StitchPattern) -> Value {
         "stopAfter": d.objects.iter().filter(|o| o.stop_after).map(|o| o.id).collect::<Vec<_>>(),
         "stops": pattern.count(Command::Stop),
         "autoStart": d.production.auto_start.id(),
+        "travelUnder": d.production.travel_under,
+        "removeHidden": d.production.remove_hidden,
+        "hideUnder": d.objects.iter().filter(|o| o.hide_under.is_some()).map(|o| o.id).collect::<Vec<_>>(),
+        "hiddenStitchesSaved": hidden_saved(d),
+        "runConnectors": d.objects.iter().filter(|o| o.connector_run).map(|o| o.id).collect::<Vec<_>>(),
+        "longConnectors": long_connectors(d),
     })
 }
 
