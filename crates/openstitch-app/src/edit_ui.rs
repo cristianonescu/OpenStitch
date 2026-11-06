@@ -41,6 +41,8 @@ pub struct EditState {
     pub smooth_tolerance: Option<f64>,
     /// Shape Effects dropdown settings (#497).
     pub effect: openstitch_app::editor::shape_effects::EffectForm,
+    /// Turning Gap dropdown: the last offset and length typed (mm).
+    pub line_gap: Option<(f64, f64)>,
     /// The next polygon drawn is the cut outline splitting this shape.
     pub split_target: Option<u64>,
     /// Alt held: clicking a group member selects it alone.

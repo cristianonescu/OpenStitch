@@ -3,6 +3,7 @@
 //! control channel, MCP server and tests all go through [`Session::execute`].
 
 mod arrange_modes;
+mod builder;
 pub mod capabilities;
 pub mod commands;
 mod continuing;

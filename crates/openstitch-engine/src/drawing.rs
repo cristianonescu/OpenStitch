@@ -37,6 +37,7 @@ pub fn commands() -> Vec<CommandSpec> {
     v.extend(crate::smoothing::commands());
     v.extend(crate::knife::commands());
     v.extend(crate::shape_tools::commands());
+    v.extend(crate::builder::commands());
     v
 }
 

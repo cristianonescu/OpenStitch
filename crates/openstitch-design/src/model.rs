@@ -1740,6 +1740,56 @@ pub struct LineSewing {
     /// Start/End Type of closed motif, stem, candlewick and chain lines with an entry point.
     #[serde(default, skip_serializing_if = "is_default")]
     pub start_end: StartEnd,
+    /// A part of the first closed outline left unsewn (beyond PE-DESIGN, #497): the turning
+    /// gap of in-the-hoop pieces. Running, triple, zigzag, E and V lines only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gap: Option<LineGap>,
+}
+
+/// An opening in a closed line: `length` mm left unsewn from `offset` mm along the outline
+/// (from its first point, in its drawing direction).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct LineGap {
+    pub offset: f64,
+    pub length: f64,
+}
+
+impl LineGap {
+    /// The line types a gap applies to.
+    pub fn applies_to(kind: LineType) -> bool {
+        matches!(
+            kind,
+            LineType::Running
+                | LineType::Triple
+                | LineType::Zigzag
+                | LineType::EStitch
+                | LineType::VStitch
+        )
+    }
+
+    /// The closed outline `c` without the gap, as an open line from the gap's far end round
+    /// to its near end; `None` when the gap is not shorter than the outline less 1 mm.
+    pub fn open(&self, c: &Contour) -> Option<Contour> {
+        if !c.closed {
+            return None;
+        }
+        let path = c.path();
+        let walker = crate::paths::Walker::new(&path);
+        let total = walker.length();
+        let len = self.length * 10.0;
+        if len.is_nan() || len <= 0.0 || len >= total - 10.0 {
+            return None;
+        }
+        let start = (self.offset * 10.0 + len).rem_euclid(total);
+        let end = start + total - len;
+        // Round the outline twice so the kept part never wraps.
+        let mut twice = path.clone();
+        twice.extend(path.iter().skip(1).copied());
+        let w2 = crate::paths::Walker::new(&twice);
+        let mut pts = w2.slice(start, end);
+        pts.dedup_by(|a, b| a.distance(*b) < 1e-9);
+        (pts.len() >= 2).then(|| Contour::new(pts, false))
+    }
 }
 
 impl LineSewing {
@@ -1785,6 +1835,7 @@ impl LineSewing {
             entry: None,
             exit: None,
             start_end: StartEnd::Feed,
+            gap: None,
         }
     }
 

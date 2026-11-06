@@ -3,8 +3,8 @@ use crate::generate::{self, Run};
 use crate::geometry::{Contour, Rect, Transform, Vec2, v2};
 use crate::lines;
 use crate::model::{
-    ChainShape, Design, DesignObject, LineSewing, LineType, ObjectKind, RegionType, StartEnd,
-    StitchBlock,
+    ChainShape, Design, DesignObject, LineGap, LineSewing, LineType, ObjectKind, RegionType,
+    StartEnd, StitchBlock,
 };
 use crate::patterns::{self, Pattern, PatternKind};
 use crate::region;
@@ -1183,11 +1183,22 @@ fn line_elements(object: &DesignObject, line: &LineSewing, user: &[Pattern]) -> 
             }
     };
     // The line entry point (L1): closed outlines start there, open ones from the nearer end.
+    // A gap (#497) opens the first closed outline: it is sewn from the gap's far end round to
+    // its near end, tied in and locked at both.
+    let gapped = line
+        .gap
+        .filter(|_| LineGap::applies_to(line.kind))
+        .and_then(|g| {
+            let first = object.contours.iter().position(|c| c.closed)?;
+            Some((first, g.open(&object.contours[first])?))
+        });
     let contours: Vec<Contour> = object
         .contours
         .iter()
-        .map(|c| match line.entry {
-            Some(p) if !in_place(c) => c.starting_at(p),
+        .enumerate()
+        .map(|(i, c)| match (&gapped, line.entry) {
+            (Some((first, open)), _) if *first == i => open.clone(),
+            (_, Some(p)) if !in_place(c) => c.starting_at(p),
             _ => c.clone(),
         })
         .collect();

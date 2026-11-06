@@ -55,6 +55,7 @@ mod database_writing;
 mod edit_ui;
 mod icons;
 mod lettering_ui;
+mod line_gap_ui;
 mod panels;
 mod panes;
 mod pattern_wizard_ui;
