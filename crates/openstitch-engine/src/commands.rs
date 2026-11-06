@@ -197,6 +197,9 @@ fn describe(o: &DesignObject) -> Value {
     if o.stop_after {
         r["stopAfter"] = json!(true);
     }
+    if o.knockdown.is_some() {
+        r["knockdown"] = json!(true);
+    }
     if let Some(t) = &o.text {
         r["text"] = json!(t.text);
         r["font"] = json!(t.font);

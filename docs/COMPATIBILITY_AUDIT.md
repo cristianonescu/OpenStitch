@@ -2341,6 +2341,17 @@ Line references are relative to `crates/`.
   both cards; the Realistic view and the similarity scorer now draw thread that wide
   (`openstitch_design::calibration`, #291).
 
+### Knockdown fill, 2026-11-06 (#510, `batch:production`)
+
+Beyond PE-DESIGN (PE-DESIGN 11 has no fill under the design; its background fill sews around
+patterns). Nothing changes until `wizard.knockdown` is run: it adds an ordinary Fill object
+named Knockdown (no underlay, 1 mm rows, 4 mm stitches) before what it covers, so the file stays
+a plain PE-compatible design and PES 0110 export writes it as a fill shape. `order.optimize`
+moves it back before the first object it covers. Measured in `tests/knockdown.rs`: two 20 mm
+squares 2 mm apart give one 1,100 mm² piece (46 × 24 mm with 2 mm rounded corners, the gap
+closed); a ring with a 30 mm hole keeps the hole (no needle point within 12.5 mm of the
+centre). Sew-out on terry towel is left for the owner.
+
 ### Assistant fixes, 2026-11-06 (#580, #384, #494, #495)
 
 Beyond PE-DESIGN only; no PE-DESIGN-compatible output changed (no compat spec, golden or writer

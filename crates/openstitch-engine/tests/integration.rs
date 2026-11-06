@@ -64,6 +64,8 @@ mod hoop_lists;
 mod imports;
 #[path = "knife.rs"]
 mod knife;
+#[path = "knockdown.rs"]
+mod knockdown;
 #[path = "layout.rs"]
 mod layout;
 #[path = "lettering.rs"]
