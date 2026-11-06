@@ -56,6 +56,8 @@ mod font_creator;
 mod font_from_image;
 #[path = "fonts.rs"]
 mod fonts;
+#[path = "finish.rs"]
+mod finish;
 #[path = "free_hoopings.rs"]
 mod free_hoopings;
 #[path = "hoop_lists.rs"]

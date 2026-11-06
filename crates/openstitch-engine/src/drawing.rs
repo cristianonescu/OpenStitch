@@ -33,6 +33,7 @@ pub fn commands() -> Vec<CommandSpec> {
             Ok(json!(null))
         },
     ));
+    v.extend(crate::finish::commands());
     v.extend(crate::shape_ops::commands());
     v.extend(crate::continuing::commands());
     v.extend(crate::smoothing::commands());

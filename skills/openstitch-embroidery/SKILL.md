@@ -139,6 +139,13 @@ then style them in the next.
   bridge|pennant|perspective|diamond|preset}`, then `text.bendEnvelope {id, edge: top|bottom,
   handle: left|middle|right, dx, dy, symmetric}` (mm on the page; `text.envelopeHandles`
   says where the handles are). PES 0110 export refuses free envelopes: `text.toShapes` first.
+- Trims and ties per object (beyond PE-DESIGN; defaults are PE-DESIGN's rules):
+  `object.setFinish {ids, trim: auto|always|off, trimDistance, tie: auto|always|off,
+  tieCount, tieLength, between}`. For a machine without an automatic cutter: `trim: off`
+  (jumps instead of trims; the user cuts them by hand), and on text `between: word` or
+  `never` so letters of a word are not trimmed apart. Slippery or thick threads: `tie:
+  always` with `tieCount: 2`. `reset: true` goes back to PE-DESIGN's rules; check the result
+  with `design.info` (trims, jumps).
 - Threads: to change the design to a thread chart ("use my Madeira threads"), run
   `threads.remap` `{builtin | chart, metric: ciede2000, keepDistinct: true, dryRun: true}`
   first and show the user the plan (design colour → thread, ΔE, objects, and `merged`), then

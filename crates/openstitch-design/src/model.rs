@@ -405,6 +405,44 @@ impl Design {
         layout.outlined().map(text::Glyph::turn).collect()
     }
 
+    /// For each outlined letter of text object `index` after the first, what lies between it
+    /// and the letter before: a space (a new word), a line break or nothing. Empty when the
+    /// object's outlines no longer match its layout (as [`Self::text_turns`]).
+    pub fn text_breaks(&self, index: usize) -> Vec<crate::finish::LetterBreak> {
+        use crate::finish::LetterBreak;
+        let Some(o) = self.objects.get(index) else {
+            return Vec::new();
+        };
+        let Some(spec) = o.text.as_ref().filter(|_| o.kind == ObjectKind::Text) else {
+            return Vec::new();
+        };
+        let path = spec.path.and_then(|id| self.path_contour(id));
+        let Ok(layout) = text::layout_in(spec, path.as_ref(), &self.fonts) else {
+            return Vec::new();
+        };
+        if layout.glyph_counts() != spec.glyphs {
+            return Vec::new();
+        }
+        let chars: Vec<char> = spec.text.chars().collect();
+        let mut out = Vec::new();
+        let mut before: Option<usize> = None;
+        for g in layout.outlined() {
+            if let Some(b) = before {
+                let (lo, hi) = (b.min(g.index), b.max(g.index));
+                let gap = chars.get(lo + 1..hi).unwrap_or(&[]);
+                out.push(if gap.contains(&'\n') {
+                    LetterBreak::Line
+                } else if gap.iter().any(|c| c.is_whitespace()) {
+                    LetterBreak::Word
+                } else {
+                    LetterBreak::Letter
+                });
+            }
+            before = Some(g.index);
+        }
+        out
+    }
+
     /// Takes the text of object `index` off its path; it continues as straight text whose
     /// baseline starts (or, centred / right-aligned, centres or ends) where it stood.
     pub fn detach_text(&mut self, index: usize) {
@@ -517,6 +555,10 @@ pub struct DesignObject {
     /// region-then-outline order).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub line_first: bool,
+    /// How the object finishes and connects (#548, beyond PE-DESIGN): trim after it, its
+    /// ties, and a text's trims between letters. `None` = PE-DESIGN's rules.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub finish: Option<crate::finish::Finish>,
 }
 
 fn yes() -> bool {
@@ -550,6 +592,7 @@ impl DesignObject {
             monogram: None,
             locked: false,
             line_first: false,
+            finish: None,
         }
     }
 
@@ -571,6 +614,7 @@ impl DesignObject {
             monogram: None,
             locked: false,
             line_first: false,
+            finish: None,
         }
     }
 

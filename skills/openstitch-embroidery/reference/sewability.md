@@ -43,14 +43,6 @@ are a sound start; change them only for a reason.
   (`object.setEntryExit`).
 - Large overlapping fills sew thick and stiff: remove hidden parts with `shape.removeOverlap`
   instead of stacking fills.
-- Programmable fill sews from one pattern line to the next, as PE-DESIGN does, so a large or
-  sparse pattern (12 mm tiles, under 3 lines/mm) makes 8-12 mm stitches whatever
-  `stitchLength` says. Set `splitLength` (2-12 mm) on it to split them; the added points line
-  up from row to row, so the pattern still reads.
-- A curved sewing direction (`object.setDirectionCurve`) on fill or piping sews rows that are
-  the curve moved sideways by whole row spacings: even density everywhere, no crossing rows,
-  straight on past the curve's ends. Draw the curve across the whole shape, gently bent; inside
-  a tight bend the rows close into a corner.
 
 ## Decorative region and line types
 
@@ -78,6 +70,10 @@ are a sound start; change them only for a reason.
   colour close together and use `order.optimize` (or `order.byColor`) to cut colour changes
   and jumps.
 - Fewer colour changes means a faster sew-out: reuse threads where the look allows.
+- **No thread cutter, or a thread that slips:** `object.setFinish` sets per object whether
+  it trims after itself (`trim: off` jumps instead), its ties (`tie`, `tieCount`,
+  `tieLength`) and, for text, where it trims between letters (`between: word` keeps a word
+  joined). Defaults are PE-DESIGN's rules; untrimmed jumps must be cut by hand.
 - Watch `design.info`: stitch count, `colorChanges`, `trims`, `jumps` and the sewing-time
   estimate. A small badge with thousands of trims or a 100 × 100 mm design with well over
   30,000 stitches deserves another look.
