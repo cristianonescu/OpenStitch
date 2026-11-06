@@ -217,6 +217,9 @@ user's Ctrl+K palette, with each command's ribbon place and shortcut; run it wit
 After a crash, `ui.recoveryList` shows designs autosave kept; `ui.recoveryRestore {id}`
 opens one as an untitled design (tell the user to save it), and `ui.recoveryDiscard`
 deletes snapshots (ask first). Autosave is `ui.set autosave` / `autosaveInterval`.
+Opening or importing a large file in the window runs in the background: `ui.state` shows
+`loading` (file, step, seconds), and `ui.loading {cancel: true}` stops it, leaving the design
+as it was.
 The window's look and keys (#551, #559): `ui.set accent` (`default`, a preset such as `orange`,
 or `#rrggbb`); `ui.set shortcuts` takes the changed commands as `{ commandKey: ["Ctrl+Alt+R"] }`
 (keys from `ui.actions`; `{}` restores every default; a key another command uses is refused,
