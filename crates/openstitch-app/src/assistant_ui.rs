@@ -400,7 +400,11 @@ impl EditorApp {
                 info.label
             ));
         }
+        // The Assistant never reads or writes the system clipboard (#500): its Copy, Cut and
+        // Paste use the window's own copy only.
+        let system = std::mem::replace(&mut self.ui.system_clipboard, false);
         crate::ribbon::run(self, a, &eframe::egui::Context::default());
+        self.ui.system_clipboard = system;
         Ok(json!({ "ran": info.key, "state": self.ui_state() }))
     }
 
