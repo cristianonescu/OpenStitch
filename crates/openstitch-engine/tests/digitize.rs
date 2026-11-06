@@ -235,6 +235,25 @@ fn design_center_stages() {
         last.line.as_ref().map(|l| l.kind),
         Some(openstitch_design::LineType::Zigzag)
     );
+    // #627: running lines that meet are one path by default; joinLines false keeps one piece
+    // per figure line.
+    let joined = run(
+        &mut s,
+        "digitize.designCenter",
+        json!({"path": "sample.png", "width": 60, "regionSew": "none"}),
+    );
+    let pieces = s.design().objects.last().expect("lines").contours.len();
+    let apart = run(
+        &mut s,
+        "digitize.designCenter",
+        json!({"path": "sample.png", "width": 60, "regionSew": "none", "joinLines": false}),
+    );
+    let lines = apart["lines"].as_u64().expect("lines") as usize;
+    assert_eq!(
+        s.design().objects.last().expect("lines").contours.len(),
+        lines
+    );
+    assert!(pieces <= lines, "{pieces} {lines} {joined}");
 }
 
 #[test]
@@ -638,4 +657,76 @@ fn compatible_photo_stitch_travels_instead_of_trimming() {
     let trims = stats["trims"].as_u64().expect("trims");
     let stitches = stats["stitches"].as_u64().expect("stitches");
     assert!(trims <= 80, "{trims} trims in {stitches} stitches");
+}
+
+/// #489: `dryRun` returns the region plan and adds nothing; `overrides` change one region;
+/// `angleRule` needs OpenStitch mode.
+#[test]
+fn auto_punch_plan_dry_run_and_overrides() {
+    let dir = temp_dir();
+    write_sample(&dir);
+    let mut s = Session::new(&dir);
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    let base = json!({"path": "sample.png", "colors": 4, "width": 60});
+    let with = |extra: Value| {
+        let mut p = base.clone();
+        for (k, v) in extra.as_object().expect("object") {
+            p[k] = v.clone();
+        }
+        p
+    };
+    let r = run(&mut s, "digitize.autoPunch", with(json!({"dryRun": true})));
+    assert!(
+        r.get("ids").is_none() && s.design().objects.is_empty(),
+        "{r}"
+    );
+    let plan = r["plan"].as_array().expect("plan");
+    assert_eq!(plan.len(), 3, "{r}");
+    for (i, region) in plan.iter().enumerate() {
+        assert_eq!(region["region"], json!(i));
+        assert!(region["why"].as_str().is_some_and(|w| !w.is_empty()));
+        assert!(
+            ["fill", "satin", "line", "skip"].contains(&region["type"].as_str().expect("type"))
+        );
+    }
+    let satin = plan
+        .iter()
+        .position(|r| r["type"] == "satin")
+        .expect("the blue bar is satin");
+    assert_eq!(plan[satin]["reason"], "satin_width");
+
+    // Skip the satin bar, and set the first region's fill angle.
+    let r = run(
+        &mut s,
+        "digitize.autoPunch",
+        with(json!({"overrides": [{"region": satin, "type": "skip"}, {"region": 0, "angle": 30}]})),
+    );
+    assert_eq!(r["ids"].as_array().expect("ids").len(), 2, "{r}");
+    assert_eq!(r["plan"][satin]["type"], "skip");
+    assert_eq!(r["plan"][satin]["reason"], "override");
+    assert_eq!(r["plan"][0]["angle"], json!(30.0));
+
+    for (extra, needle) in [
+        (
+            json!({"overrides": [{"region": 99, "type": "skip"}]}),
+            "region 99",
+        ),
+        (
+            json!({"overrides": [{"region": 0, "type": "zigzag"}]}),
+            "overrides",
+        ),
+        (json!({"overrides": [{"region": 0}]}), "overrides"),
+        (json!({"angleRule": "varyNeighbours"}), "openStitch"),
+    ] {
+        let e = s
+            .execute("digitize.autoPunch", Some(&with(extra.clone())))
+            .expect_err("rejected");
+        assert!(e.to_string().contains(needle), "{extra}: {e}");
+    }
+    let r = run(
+        &mut s,
+        "digitize.autoPunch",
+        with(json!({"compatMode": "openStitch", "angleRule": "varyNeighbours", "dryRun": true})),
+    );
+    assert!(!r["plan"].as_array().expect("plan").is_empty());
 }

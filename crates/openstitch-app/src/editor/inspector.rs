@@ -90,6 +90,20 @@ pub enum Control {
 }
 
 impl Control {
+    /// The label shown beside the control.
+    pub fn label(&self) -> &'static str {
+        match self {
+            Control::Number { label, .. }
+            | Control::Choice { label, .. }
+            | Control::Toggle { label, .. } => label,
+        }
+    }
+
+    /// Whether the property search `filter` shows this control (#550).
+    pub fn shown(&self, filter: &str) -> bool {
+        matches_filter(filter, &[self.label(), self.param()])
+    }
+
     /// The command parameter this control sets.
     pub fn param(&self) -> &'static str {
         match self {
@@ -1012,4 +1026,47 @@ pub fn pec_palette() -> Vec<(usize, &'static Thread)> {
 /// The PEC chart number closest to `t`.
 pub fn pec_index(t: &Thread) -> Option<usize> {
     nearest_index(t, pec_basic_chart())
+}
+
+/// The property search (#550): whether a row whose texts are `texts` (label, parameter name)
+/// is shown for `filter`. Every word of the filter must be in one of the texts, any case; an
+/// empty filter shows everything.
+pub fn matches_filter(filter: &str, texts: &[&str]) -> bool {
+    let texts: Vec<String> = texts.iter().map(|t| t.to_lowercase()).collect();
+    filter
+        .split_whitespace()
+        .all(|w| texts.iter().any(|t| t.contains(&w.to_lowercase())))
+}
+
+#[cfg(test)]
+mod search_tests {
+    use super::*;
+
+    #[test]
+    fn pull_leaves_only_pull_compensation_rows() {
+        let t = Thread::rgb(0);
+        for kind in RegionType::ALL {
+            let r = RegionSewing::new(kind, t.clone());
+            for c in region_controls_with(&r, &[]) {
+                let pull = c.label().to_lowercase().contains("pull")
+                    || c.param().to_lowercase().contains("pull");
+                assert_eq!(c.shown("pull"), pull, "{kind:?} {}", c.label());
+                assert!(c.shown(""));
+            }
+        }
+        let shown: Vec<_> = region_controls_with(&RegionSewing::new(RegionType::Fill, t), &[])
+            .into_iter()
+            .filter(|c| c.shown("PULL"))
+            .map(|c| c.label())
+            .collect();
+        assert!(
+            !shown.is_empty() && shown.iter().all(|l| l.contains("Pull")),
+            "{shown:?}"
+        );
+        assert!(matches_filter(
+            "under dens",
+            &["Underlay density", "underlayDensity"]
+        ));
+        assert!(!matches_filter("under pull", &["Underlay density", "x"]));
+    }
 }

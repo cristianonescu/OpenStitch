@@ -131,6 +131,8 @@ pub const SHOW: [&str; 28] = [
 pub struct EditorApp {
     pub session: Session,
     pub selection: BTreeSet<u64>,
+    /// The selection in the order it was clicked (#502: Sew in Click Order).
+    pub click_order: Vec<u64>,
     pub tools: ToolController,
     /// `None` until the canvas size is known; then fitted to the Design Page.
     pub viewport: Option<Viewport>,
@@ -246,6 +248,10 @@ pub struct EditorApp {
     pub remote: Option<openstitch_remote::Server>,
     /// The AI assistant's scratch folder and pending Help link (`assistant_ui.rs`).
     pub assistant: crate::assistant_ui::AssistantState,
+    /// Autosave snapshots and the Recover Designs window (#549).
+    pub recovery: crate::recovery_ui::RecoveryState,
+    /// The command palette (#550).
+    pub palette: crate::palette_ui::PaletteState,
     /// Startup splash while it shows (see [`crate::splash`]).
     pub splash: Option<crate::splash::Splash>,
     /// Ribbon, Quick Access Toolbar, panes and window preferences.
@@ -285,6 +291,7 @@ impl EditorApp {
         let mut app = EditorApp {
             session,
             selection: BTreeSet::new(),
+            click_order: Vec::new(),
             tools: ToolController::default(),
             viewport: None,
             pattern: StitchPattern::new(),
@@ -348,6 +355,8 @@ impl EditorApp {
             printed: None,
             remote: None,
             assistant: Default::default(),
+            recovery: Default::default(),
+            palette: Default::default(),
             splash: None,
             ui: Default::default(),
             quality: Default::default(),
@@ -374,9 +383,18 @@ impl EditorApp {
         {
             let ui = openstitch_app::editor::prefs::path_beside(path);
             self.ui.prefs = openstitch_app::editor::prefs::UiPrefs::load(&ui);
+            // Autosave snapshots live beside ui.json (#549); screenshot runs have none.
+            if let Some(dir) = ui.parent() {
+                self.recovery.start(
+                    dir.join(openstitch_app::editor::recovery::FOLDER),
+                    l.script.is_empty(),
+                );
+            }
             self.ui.prefs_path = Some(ui);
         }
         self.database.units = self.ui.prefs.units;
+        // Copy and Paste use the system clipboard (#500), except in screenshot runs.
+        self.ui.system_clipboard = l.screenshot.is_none();
         if let Some(t) = l.theme {
             self.ui.prefs.theme = t;
         }
@@ -814,6 +832,17 @@ impl EditorApp {
             .collect();
     }
 
+    /// Whether the selection holds a locked object (#502); if so, says so in the status bar.
+    /// Delete, Cut and the arrow keys leave locked objects alone.
+    pub fn refuse_locked(&mut self) -> bool {
+        let locked =
+            openstitch_app::editor::objects::any_locked(self.session.design(), &self.selection);
+        if locked {
+            self.status = "Locked: unlock it in the Sewing Order list first".into();
+        }
+        locked
+    }
+
     pub fn on_selection(&mut self, make: impl Fn(&BTreeSet<u64>) -> CommandRequest) {
         if self.selection.is_empty() {
             return;
@@ -833,9 +862,17 @@ impl EditorApp {
     /// or the design name while it has no file.
     pub fn document_name(&self) -> String {
         self.path.as_ref().and_then(|p| p.file_name()).map_or_else(
-            || self.session.design().name.clone(),
+            || match &self.recovery.recovered_from {
+                Some(from) => format!("{} (recovered from {from})", self.session.design().name),
+                None => self.session.design().name.clone(),
+            },
             |n| n.to_string_lossy().into_owned(),
         )
+    }
+
+    /// The design counts as unsaved until it is saved (a restored snapshot, #549).
+    pub(crate) fn mark_unsaved(&mut self) {
+        self.saved_revision = self.revision.wrapping_add(u64::MAX / 2);
     }
 
     /// Runs `what` now, or opens the unsaved-changes prompt for it when the design has
@@ -905,7 +942,8 @@ impl EditorApp {
         }
     }
 
-    fn after_load(&mut self, path: Option<PathBuf>) {
+    pub(crate) fn after_load(&mut self, path: Option<PathBuf>) {
+        self.recovery.recovered_from = None;
         self.path = path;
         self.selection.clear();
         self.simulate = None;
@@ -1383,6 +1421,10 @@ impl EditorApp {
         if take(cmd(Key::Num0)) {
             self.fit_requested = true;
         }
+        // Command palette (#550, beyond PE-DESIGN).
+        if take(cmd(Key::K)) {
+            self.palette.show();
+        }
         if take(cmd_shift(Key::A)) && self.ui.prefs.ai.enabled {
             let open = !self.assistant.panel.open;
             crate::assistant_panel::set_open(self, open);
@@ -1478,7 +1520,7 @@ impl EditorApp {
                 _ => e.nudge_mm * 10.0,
             };
             for (mods, step) in [(Modifiers::SHIFT, base * 10.0), (Modifiers::NONE, base)] {
-                if take(KeyboardShortcut::new(mods, key)) {
+                if take(KeyboardShortcut::new(mods, key)) && !self.refuse_locked() {
                     self.on_selection(|s| CommandRequest::move_by(s, dx * step, dy * step));
                 }
             }
@@ -1720,6 +1762,8 @@ impl eframe::App for EditorApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.dialog_rect = self.dialog_rect_next.take();
+        openstitch_app::editor::objects::track_click_order(&mut self.click_order, &self.selection);
+        crate::ribbon::poll_clipboard(self, ctx.input(|i| i.time));
         self.ui.apply_theme(&ctx);
         if let Some(s) = &mut self.splash
             && !s.show(&ctx)
@@ -1756,6 +1800,9 @@ impl eframe::App for EditorApp {
         }
         self.shortcuts(&ctx);
         self.tick(&ctx);
+        if crate::recovery_ui::tick(self, ctx.input(|i| i.time)) {
+            ctx.request_repaint_after(std::time::Duration::from_millis(500));
+        }
         self.update_title(&ctx);
         egui::Panel::top("ribbon").show(ui, |ui| crate::ribbon::ribbon(self, ui));
         if self.ui.prefs.editing.precision_bar {
@@ -1769,6 +1816,8 @@ impl eframe::App for EditorApp {
             .show(ui, |ui| crate::canvas::canvas(self, ui));
         crate::panes::floating_panes(self, &ctx);
         crate::panes::windows(self, &ctx);
+        crate::recovery_ui::window(self, &ctx);
+        crate::palette_ui::window(self, &ctx);
         crate::workspace_ui::design_settings_window(self, &ctx);
         crate::print_ui::window(self, &ctx);
         crate::transfer_ui::window(self, &ctx);

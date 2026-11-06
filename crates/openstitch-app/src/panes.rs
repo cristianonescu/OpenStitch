@@ -49,8 +49,9 @@ fn header(app: &mut EditorApp, ui: &mut egui::Ui, pane: Pane) {
         ui.label(RichText::new(pane.title()).strong());
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             let mut changed = false;
+            let close = egui::Button::new(crate::icons::ui_image(ui, "close")).small();
             if ui
-                .small_button("×")
+                .add(close)
                 .on_hover_text("Hide (View ▸ Show/Hide shows it again)")
                 .clicked()
             {
@@ -59,11 +60,12 @@ fn header(app: &mut EditorApp, ui: &mut egui::Ui, pane: Pane) {
             }
             let floating = pane.state(app).floating;
             let (icon, tip) = if floating {
-                ("⊟", "Dock to the window")
+                ("pane_dock", "Dock to the window")
             } else {
-                ("⧉", "Float as a window")
+                ("pane_float", "Float as a window")
             };
-            if ui.small_button(icon).on_hover_text(tip).clicked() {
+            let button = egui::Button::new(crate::icons::ui_image(ui, icon)).small();
+            if ui.add(button).on_hover_text(tip).clicked() {
                 pane.state(app).floating = !floating;
                 changed = true;
             }
@@ -93,11 +95,9 @@ fn floating(
         .resizable(true)
         .show(ctx, |ui| {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                if ui
-                    .small_button("⊟ Dock")
-                    .on_hover_text("Dock to the window")
-                    .clicked()
-                {
+                let dock =
+                    egui::Button::new((crate::icons::ui_image(ui, "pane_dock"), "Dock")).small();
+                if ui.add(dock).on_hover_text("Dock to the window").clicked() {
                     pane.state(app).floating = false;
                     app.ui.save_prefs();
                 }
@@ -180,15 +180,13 @@ pub fn attributes(app: &mut EditorApp, ui: &mut egui::Ui) {
         }
         if !app.ui.prefs.panes.attributes.floating {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button("×").on_hover_text("Hide").clicked() {
+                let close = egui::Button::new(crate::icons::ui_image(ui, "close")).small();
+                if ui.add(close).on_hover_text("Hide").clicked() {
                     app.ui.prefs.panes.attributes.visible = false;
                     app.ui.save_prefs();
                 }
-                if ui
-                    .small_button("⧉")
-                    .on_hover_text("Float as a window")
-                    .clicked()
-                {
+                let float = egui::Button::new(crate::icons::ui_image(ui, "pane_float")).small();
+                if ui.add(float).on_hover_text("Float as a window").clicked() {
                     app.ui.prefs.panes.attributes.floating = true;
                     app.ui.save_prefs();
                 }
@@ -299,7 +297,7 @@ fn pane_menu(app: &mut EditorApp, ui: &mut egui::Ui, a: Action) {
     let r = ui
         .add_enabled(
             ribbon::enabled(app, a),
-            egui::Button::new(format!("{} ▾", info.label)),
+            egui::Button::new((info.label, crate::icons::ui_image(ui, "menu_caret"))),
         )
         .on_hover_text(info.tip);
     egui::Popup::menu(&r).show(|ui| ribbon::menu(app, a, ui));
@@ -438,7 +436,21 @@ fn text_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
             ui.end_row();
             ui.label("Size");
             let mut size = spec.size;
-            let r = ui.add(crate::units_ui::drag(&mut size, units).range(1.0..=200.0));
+            let warning = crate::lettering_ui::size_warning(app, &spec);
+            let r = ui
+                .scope(|ui| {
+                    if warning.is_some() {
+                        // Amber: outside the sizes the font sews well at (#527).
+                        ui.visuals_mut().override_text_color =
+                            Some(egui::Color32::from_rgb(0xE0, 0x9A, 0x1A));
+                    }
+                    ui.add(crate::units_ui::drag(&mut size, units).range(1.0..=200.0))
+                })
+                .inner;
+            let r = match &warning {
+                Some(w) => r.on_hover_text(w),
+                None => r,
+            };
             if (r.drag_stopped() || r.lost_focus()) && (size - spec.size).abs() > 1e-9 {
                 ribbon::set_text(app, serde_json::json!({ "size": size }));
             }
@@ -468,7 +480,24 @@ fn text_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
             }
             ui.end_row();
         });
+    if spec.font == "openstitch-pixel" {
+        ui.horizontal(|ui| {
+            ui.label("Pixels");
+            for (v, label) in [("run", "Run"), ("cross", "Cross"), ("block", "Block")] {
+                if ui
+                    .selectable_label(spec.pixel_style.as_str() == v, label)
+                    .clicked()
+                {
+                    ribbon::set_text(app, serde_json::json!({ "pixelStyle": v }));
+                }
+            }
+        });
+    }
+    egui::CollapsingHeader::new("Font list")
+        .default_open(true)
+        .show(ui, |ui| crate::lettering_ui::font_browser(app, ui, &spec));
     transform_palette(app, ui, &spec);
+    crate::envelope_ui::pane(app, ui, &spec);
     ui.separator();
     ui.horizontal_wrapped(|ui| {
         for a in [
@@ -557,13 +586,19 @@ pub fn status_bar(app: &mut EditorApp, ui: &mut egui::Ui) {
         ui.separator();
         ui.label(format!("{} stitches", s.stitches));
         ui.separator();
-        let hint = crate::panels::tool_hint(app.tools.tool());
-        let text = app
-            .ui
-            .hover
-            .or(if app.status == "Ready" { hint } else { None })
-            .map_or_else(|| app.status.clone(), str::to_string);
-        ui.add(egui::Label::new(RichText::new(text).weak()).truncate());
+        // The hints line (#550): what clicks and keys do with this tool and the keys held.
+        let held = ui.input(|i| openstitch_app::editor::hints::Held {
+            shift: i.modifiers.shift,
+            command: i.modifiers.command,
+            alt: i.modifiers.alt,
+        });
+        let hint = openstitch_app::editor::hints::hint(app.tools.tool(), held);
+        let any_held = held != openstitch_app::editor::hints::Held::default();
+        let text = match app.ui.hover {
+            Some(h) => h.to_string(),
+            None if any_held || app.status == "Ready" => hint.to_string(),
+            None => format!("{}  ·  {hint}", app.status),
+        };
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             zoom_controls(app, ui);
             ui.separator();
@@ -595,6 +630,11 @@ pub fn status_bar(app: &mut EditorApp, ui: &mut egui::Ui) {
                     ribbon::run(app, a, ui.ctx());
                 }
             }
+            ui.separator();
+            // The message and hints take what is left, cut short rather than under the buttons.
+            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                ui.add(egui::Label::new(RichText::new(text).weak()).truncate());
+            });
         });
     });
 }
@@ -691,6 +731,10 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
                     &[]
                 };
                 for &(what, keys) in quit.iter().chain(&[
+                    (
+                        "Find and run any command (Command Palette)",
+                        crate::palette_ui::SHORTCUT,
+                    ),
                     ("Move the selection 0.1 mm / 1 mm", "Arrows / Shift+Arrows"),
                     ("Finish a shape", "Return"),
                     ("Cancel", "Esc"),

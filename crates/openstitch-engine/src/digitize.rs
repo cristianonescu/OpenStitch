@@ -8,7 +8,7 @@ use crate::sandbox::Access;
 use crate::session::EngineState;
 use openstitch_core::Thread;
 use openstitch_design::{Contour, DesignObject, LineType};
-use openstitch_digitize::autopunch::{self, AutoPunch};
+use openstitch_digitize::autopunch::{self, AngleRule, AutoPunch, Override, Stitch};
 use openstitch_digitize::center::{
     self, FigureOptions, LineImageOptions, OpenLine, RegionSew, SewSettings,
 };
@@ -151,6 +151,77 @@ fn strokes(p: &Params, key: &str) -> Result<Vec<Stroke>, CommandError> {
             Ok(Stroke { points, width })
         })
         .collect()
+}
+
+/// Most Auto Punch overrides one command takes.
+const MAX_OVERRIDES: usize = 5000;
+
+/// Auto Punch's `overrides` (#489): `[{region, type?, angle?}]`.
+fn overrides(p: &Params) -> Result<Vec<Override>, CommandError> {
+    if !p.has("overrides") {
+        return Ok(Vec::new());
+    }
+    let bad = || {
+        p.invalid(
+            "overrides",
+            format!(
+                "must be at most {MAX_OVERRIDES} entries {{region, type?: fill|satin|line|skip, \
+                 angle?: degrees -180-180}}, each with a type or an angle"
+            ),
+        )
+    };
+    let list = p.array("overrides")?;
+    if list.len() > MAX_OVERRIDES {
+        return Err(bad());
+    }
+    list.iter()
+        .map(|o| {
+            let region = o["region"].as_u64().ok_or_else(bad)? as usize;
+            let stitch = match o.get("type") {
+                None | Some(Value::Null) => None,
+                Some(t) => Some(t.as_str().and_then(Stitch::parse).ok_or_else(bad)?),
+            };
+            let angle = match o.get("angle") {
+                None | Some(Value::Null) => None,
+                Some(a) => Some(
+                    a.as_f64()
+                        .filter(|a| (-180.0..=180.0).contains(a))
+                        .ok_or_else(bad)?,
+                ),
+            };
+            if stitch.is_none() && angle.is_none() {
+                return Err(bad());
+            }
+            Ok(Override {
+                region,
+                stitch,
+                angle,
+            })
+        })
+        .collect()
+}
+
+/// Auto Punch's region plan as JSON (#489).
+fn plan_json(out: &autopunch::Converted, options: &AutoPunch) -> Value {
+    let round = |v: f64| (v * 100.0).round() / 100.0;
+    Value::Array(
+        out.regions
+            .iter()
+            .map(|r| {
+                json!({
+                    "region": r.id,
+                    "color": r.thread.hex(),
+                    "thread": r.thread.name,
+                    "areaMm2": round(r.area_mm2),
+                    "widthMm": round(r.width_mm),
+                    "type": r.stitch.name(),
+                    "reason": r.reason.code(),
+                    "why": r.why(options),
+                    "angle": r.angle.map(round),
+                })
+            })
+            .collect(),
+    )
 }
 
 fn compat_mode(p: &Params) -> Result<Mode, CommandError> {
@@ -399,6 +470,21 @@ pub fn commands() -> Vec<CommandSpec> {
                     "peDesign: as PE-DESIGN 11.50 (default); openStitch: colours reduced and matched to threads by appearance (CIELAB k-means, CIEDE2000), an 800 px working raster, regions under 2 mm² merged (docs/research/beyond/image-digitizing.md)",
                 ),
                 fidelity_doc(),
+                opt(
+                    "dryRun",
+                    "bool",
+                    "Return the region plan (plan) without adding anything to the design (default false); the regions are numbered as a run with the same options numbers them",
+                ),
+                opt(
+                    "overrides",
+                    "[{region, type?, angle?}]",
+                    "Per-region choices replacing Auto Punch's own, by plan region number: type fill|satin|line|skip (line: a running line along the region's skeleton; skip: left out) and/or angle, the fill or satin direction in degrees; regions that are lines (thin lines, outlines) can only be skipped (#489)",
+                ),
+                opt(
+                    "angleRule",
+                    "pe|varyNeighbours",
+                    "OpenStitch mode: how fills choose their direction: pe (default, PE-DESIGN's rule: of 90/45/135/0°, the one with the most rows) or varyNeighbours (that direction turned in 30° steps until it is at least 20° from every touching fill sewn before it, so fitted panels read apart) (#489; needs compatMode openStitch)",
+                ),
             ]
             .into_iter()
             .chain(thread_source_docs())
@@ -406,6 +492,16 @@ pub fn commands() -> Vec<CommandSpec> {
             |s, p| {
                 let (image, frame) = load(s, p)?;
                 let mode = compat_mode(p)?;
+                let angle_rule = match (
+                    choice(p, "angleRule", "pe", &["pe", "varyNeighbours"])?,
+                    mode,
+                ) {
+                    ("pe", _) => AngleRule::Pe,
+                    (_, Mode::OpenStitch) => AngleRule::VaryNeighbours,
+                    (_, Mode::PeDesign) => {
+                        return Err(p.invalid("angleRule", "varyNeighbours needs compatMode openStitch"));
+                    }
+                };
                 // OpenStitch mode works at 800 px, so thin lines and small details keep their
                 // shape, and merges regions under 2 mm², so no speck is sewn (B16.1 T11), unless
                 // the caller sets them.
@@ -433,6 +529,8 @@ pub fn commands() -> Vec<CommandSpec> {
                         subject: strokes(p, "subjectStrokes")?,
                         background: strokes(p, "backgroundStrokes")?,
                     },
+                    overrides: overrides(p)?,
+                    angle_rule,
                     ..AutoPunch::default()
                 };
                 // OpenStitch mode sews anything in the picture: without skipBackground, only a
@@ -444,12 +542,17 @@ pub fn commands() -> Vec<CommandSpec> {
                 let out = autopunch::convert(&image, &frame, &options).map_err(|e| failed(p, e))?;
                 let regions = out.objects.len();
                 let buy = to_buy(s, p, &out.threads)?;
+                let plan = plan_json(&out, &options);
+                let dry = p.bool("dryRun", Some(false))?;
                 let mut r = json!({
-                    "ids": add_all(s, out.objects),
                     "colors": hexes(&out.threads),
                     "regions": regions,
                     "background": out.background.as_ref().map(Thread::hex),
+                    "plan": plan,
                 });
+                if !dry {
+                    r["ids"] = json!(add_all(s, out.objects));
+                }
                 if let Some(b) = buy {
                     r["toBuy"] = b;
                 }
@@ -763,6 +866,11 @@ pub fn commands() -> Vec<CommandSpec> {
                     "Region thread (default: each region's image colour)",
                 ),
                 opt(
+                    "joinLines",
+                    "bool",
+                    "Running and triple lines that meet are sewn as one path, walking back over lines already sewn instead of trimming between them (default true; false: one piece per line, a trim after each)",
+                ),
+                opt(
                     "compatMode",
                     "peDesign|openStitch",
                     "peDesign: as before (default); openStitch: the threshold by Otsu's method unless set; unless lineSew is set, strokes at least 0.6 mm wide as parallel running lines 0.3 mm apart across 1.2 × the measured stroke width, thinner ones as triple running stitch; region threads by CIEDE2000 (docs/research/beyond/image-similarity-plan.md, Phase 5)",
@@ -818,6 +926,7 @@ pub fn commands() -> Vec<CommandSpec> {
                         _ => RegionSew::Auto,
                     },
                     region_thread: thread(p, "regionColor")?,
+                    join_lines: p.bool("joinLines", Some(true))?,
                 };
                 let objects = center::sew_with(&figure, &settings, mode);
                 if objects.is_empty() {

@@ -184,7 +184,10 @@ pub fn ribbon<A: Command, H: Host<A>>(
             for &a in w.buttons {
                 let info = a.info();
                 let r = ui
-                    .add(egui::Button::new(format!("{} ▾", info.label)).frame(false))
+                    .add(
+                        egui::Button::new((info.label, crate::icons::ui_image(ui, "menu_caret")))
+                            .frame(false),
+                    )
                     .on_hover_text(info.screen_tip(MAC));
                 egui::Popup::menu(&r).show(|ui| h.menu(a, ui));
             }
@@ -646,9 +649,11 @@ mod tests {
     fn every_database_command_runs_or_is_marked_unavailable() {
         use DbAction as D;
         let dir = temp_folder();
+        // Every app here prints into this test's folder, never the system temp folder (#384).
         let empty = || {
             let mut app = demo();
             app.database.open = true;
+            app.database.print_dir = Some(dir.join("print"));
             app
         };
         let folder = || {
@@ -671,8 +676,8 @@ mod tests {
             .printed
             .clone()
             .expect("a catalogue PDF for the print dialog");
+        assert!(pdf.starts_with(dir.join("print")), "{}", pdf.display());
         assert!(app.print_job.is_none(), "tests must not start a real print");
-        let _ = std::fs::remove_file(pdf);
         assert!(enabled(&app, D::ConvertFormat) && enabled(&app, D::Paste));
         app.run(D::Details, &ctx);
         assert!(app.active(D::Details) && !app.active(D::LargeThumbnails));

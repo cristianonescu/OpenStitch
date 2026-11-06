@@ -30,6 +30,15 @@ after `clean_icons.py`.
 fixes after `clean_icons.py`.
 `shape_effects` (Shapes ▸ Edit Outline ▸ Shape Effects, #497) was added on 2026-11-05 the same way
 (2.5 credits); it needed no hand fixes after `clean_icons.py`.
+`move_up` and `move_down` (the reorder buttons of the Sewing Order, thread chart and user hoop
+lists, #409), `pane_dock` and `pane_float` (the panes' dock and float buttons, #410) and
+`menu_caret` (the drop-down marker of menu buttons, #412) were added on 2026-11-06 the same way
+(2.5 credits each). `line_gap` (Shapes ▸ Edit Outline ▸ Turning Gap, #635) was added the same day
+on the third attempt (7.5 credits in all; the first two, a U-turn arrow and a downward arrow
+through a square, read as other commands at 16 pixels and were not kept). They run no command, so they are listed in `UI` in `icons.rs` and drawn with
+`paint_ui` or, inside a button, `ui_image`; so are `close`, `folder` and the two
+`image_rotate_*` icons where buttons outside the ribbon use them (#408, #410, #411). After
+`clean_icons.py`, `pane_dock`'s arrow, generated a bright mint, was set to the palette green by hand.
 `shape_builder` (the Shape Builder tool, #497) was added on 2026-11-05 the same way (2.5 credits);
 after `clean_icons.py` its arrow, generated as a green gradient, was set to the palette green by
 hand and the gradient removed.

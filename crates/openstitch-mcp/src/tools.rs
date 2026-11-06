@@ -84,7 +84,9 @@ pub fn tools(
             "description": format!(
                 "Run up to {max_batch_steps} engine commands in order and return every step's result. Stops at the first \
                  failure unless continueOnError is true; steps already done stay done (each edit is its own undo step). \
-                 The batch is checked before anything runs, so a malformed batch changes nothing."
+                 Every step's parameters are checked before anything runs: a batch with mistakes runs nothing and \
+                 returns every one at once as errors [{{step, command, param, message}}]; fix them all before resending. \
+                 validateOnly checks without running."
             ),
             "inputSchema": {
                 "type": "object",
@@ -102,6 +104,7 @@ pub fn tools(
                         },
                     },
                     "continueOnError": { "type": "boolean", "description": "Keep going after a failed step (default false)" },
+                    "validateOnly": { "type": "boolean", "description": "Only check every step's parameters; run nothing (default false)" },
                 },
                 "required": ["steps"],
                 "additionalProperties": false,

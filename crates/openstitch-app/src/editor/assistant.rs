@@ -274,6 +274,46 @@ pub const UI_COMMANDS: &[UiCommand] = &[
         ],
     },
     UiCommand {
+        id: "ui.searchCommands",
+        summary: "Command palette search (#550): ribbon, menu and Quick Access commands matching words from their label, ScreenTip, key or ribbon path, best first (recently used first for an empty query), with where each lives, its shortcut and whether it can run now; run one with ui.run",
+        effect: Effect::Read,
+        params: &[
+            p(
+                "query",
+                "string",
+                false,
+                "Words to find, e.g. \"arrange copy\", \"satin\", \"export\" (empty: recent commands first, then all)",
+            ),
+            p("limit", "int 1-500", false, "Most results (default 20)"),
+        ],
+    },
+    UiCommand {
+        id: "ui.recoveryList",
+        summary: "Autosave and recovery (#549): the snapshots of designs whose window crashed or lost power (id, design name, original file, time), and whether autosave is on",
+        effect: Effect::Read,
+        params: &[],
+    },
+    UiCommand {
+        id: "ui.recoveryRestore",
+        summary: "Restore a crashed window's design as an untitled design in this window (the original file is never written; save it with project.save). Refused while the open design has unsaved changes",
+        effect: Effect::Edit,
+        params: &[p("id", "string", true, "Snapshot id from ui.recoveryList")],
+    },
+    UiCommand {
+        id: "ui.recoveryDiscard",
+        summary: "Delete recovery snapshots crashed windows left (Options ▸ Clear Recovery Files for all). Deletes files: ask the user first",
+        effect: Effect::File,
+        params: &[
+            p("id", "string", false, "Snapshot id from ui.recoveryList"),
+            p(
+                "all",
+                "bool",
+                false,
+                "true: every snapshot ui.recoveryList lists",
+            ),
+        ],
+    },
+    UiCommand {
         id: "ui.notesClear",
         summary: "Forget everything: clear the Assistant's notes (Assistant settings, Memory, Forget everything). Always asks the user first",
         effect: Effect::Settings,
@@ -393,6 +433,11 @@ pub const SETTINGS: &[Setting] = &[
     s("paneAttributes", "Attributes Setting", "bool"),
     s("fontFilter", "Font Filter", "bool"),
     s("fontFilterHidden", "Font Filter Settings", "[string]"),
+    s(
+        "inkStitchFolder",
+        "Ink/Stitch Fonts: the folder holding the user's Ink/Stitch font folders (\"\" for none; fonts.scanFolder lists it)",
+        "string",
+    ),
     s("needlePoints", "View ▸ Show ▸ Needle Points", "bool"),
     s(
         "showLayers",
@@ -407,6 +452,17 @@ pub const SETTINGS: &[Setting] = &[
         "simulatorSpeed",
         "Stitch Simulator: speed",
         "number 1..5000",
+    ),
+    s("autosave", "Autosave for crash recovery", "bool"),
+    s(
+        "autosaveInterval",
+        "Autosave: at most this many seconds between snapshots while editing",
+        "number 5..600",
+    ),
+    s(
+        "propertySearch",
+        "Sewing Attributes: search properties",
+        "string",
     ),
 ];
 
@@ -425,7 +481,10 @@ pub const HELP_ITEMS: &[(&str, &str)] = &[
 ];
 
 /// Options menu buttons that are commands rather than settings, with the `ui.*` command.
-pub const OPTION_BUTTONS: &[(&str, &str)] = &[("Check for Updates Now", "ui.update")];
+pub const OPTION_BUTTONS: &[(&str, &str)] = &[
+    ("Check for Updates Now", "ui.update"),
+    ("Clear Recovery Files", "ui.recoveryDiscard"),
+];
 
 /// How the assistant reaches a ribbon or menu command.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

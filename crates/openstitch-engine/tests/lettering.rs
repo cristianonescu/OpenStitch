@@ -30,13 +30,31 @@ fn fonts_are_listed() {
         .iter()
         .filter_map(|f| f["id"].as_str())
         .collect();
-    assert_eq!(ids, ["lato-bold", "pacifico"]);
+    assert_eq!(
+        ids,
+        [
+            "lato-bold",
+            "pacifico",
+            "openstitch-line",
+            "openstitch-pixel"
+        ]
+    );
     assert!(
         fonts
             .as_array()
             .expect("array")
             .iter()
+            .filter(|f| f["kind"] == "trueType")
             .all(|f| f["license"] == "OFL-1.1" && f["glyphs"].as_u64() > Some(90))
+    );
+    // OpenStitch's own fonts: letters, digits and the usual punctuation.
+    assert!(
+        fonts
+            .as_array()
+            .expect("array")
+            .iter()
+            .filter(|f| f["kind"] != "trueType")
+            .all(|f| f["license"] == "MIT OR Apache-2.0" && f["glyphs"].as_u64() > Some(70))
     );
     assert!(!s.can_undo());
 }

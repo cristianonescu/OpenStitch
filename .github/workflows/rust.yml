@@ -70,6 +70,14 @@ jobs:
       # runs the ~90 binaries one after another). It does not run doctests, so they follow.
       - run: cargo nextest run --workspace --locked
       - run: cargo test --doc --workspace --locked
+      # The Python package (#498): installed from python/, imported outside the repository, then
+      # its tests against the debug stitchtool just built (same PES bytes as `stitchtool exec`).
+      - name: Python package
+        shell: bash
+        run: |
+          python -m pip install ./python
+          (cd "$RUNNER_TEMP" && python -c "import openstitch; print(openstitch.__version__)")
+          python -m unittest discover -s python/tests -v
       # The Assistant's keys in the real system keychain (#401): a dummy key under a throwaway
       # service name is saved, read back and removed through openstitch_app::keys. Linux needs a
       # Secret Service, so a headless gnome-keyring runs in its own D-Bus session.
@@ -82,13 +90,13 @@ jobs:
         run: |
           sudo apt-get install -y --no-install-recommends gnome-keyring dbus-daemon >/dev/null
           dbus-run-session -- bash -c 'echo -n ci-only | gnome-keyring-daemon --unlock --components=secrets >/dev/null && cargo test -p openstitch-app --test integration --locked -- --ignored keychain::'
-      # The editor's assistant scratch folders (the next launch removes them, #314) and the print
-      # dialog's PDFs are the product's, not test leftovers.
+      # The editor's assistant scratch folders (the next launch removes them, #314) are the
+      # product's, not test leftovers. Print PDFs go to each test's own folder (#384).
       - name: Tests left no temp files
         if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
-          left=$(find "$TMPDIR" -mindepth 1 -maxdepth 1 ! -name 'openstitch-assistant-*' ! -name openstitch-print)
+          left=$(find "$TMPDIR" -mindepth 1 -maxdepth 1 ! -name 'openstitch-assistant-*')
           if [ -n "$left" ]; then
             echo "::error::The tests left these in the temp folder; use openstitch_testutil::TempDir:"
             echo "$left"

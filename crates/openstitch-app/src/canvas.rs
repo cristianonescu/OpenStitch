@@ -156,6 +156,7 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
     draw_unsewn_outlines(app, &painter, &vp);
     crate::quality_ui::draw(app, &painter, &vp);
     draw_selection(app, &painter, &vp);
+    crate::envelope_ui::draw(app, &painter, &vp);
     draw_preview(app, &painter, &vp);
     draw_points(app, &painter, &vp);
     crate::edit_ui::draw_arrange_preview(app, &painter, &vp);
@@ -325,6 +326,10 @@ fn pointer(app: &mut EditorApp, ui: &egui::Ui, response: &egui::Response, vp: Vi
             }
             _ => {}
         }
+    }
+    let tolerance = 8.0 * vp.units_per_point();
+    if crate::envelope_ui::pointer(app, phase, model, shift, tolerance) {
+        return;
     }
     if matches!(phase, Phase::Down) && crate::edit_ui::pick(app, model) {
         return;

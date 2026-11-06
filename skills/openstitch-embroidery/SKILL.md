@@ -65,7 +65,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `object.setLine` with `type: zigzag`, about 2-4 mm wide (the badge recipe in
    `reference/recipes.md`).
 4. Order: `order.optimize` (PE-DESIGN-compatible order) or `order.byColor`; check with
-   `object.list` (sewing order).
+   `object.list` (sewing order). To sew objects in a set order, `order.byClickOrder`
+   `{ids: [in sewing order]}` (they start where the earliest of them sews now); to sew a
+   shape's outline before its fill, `object.setPartOrder` `{ids, order: lineFirst}` (beyond
+   PE-DESIGN; `regionFirst` is PE-DESIGN's order).
 5. Check: `view_render` (look at it), `design.info` (size, stitches, colours, trims, time) and
    `design.check` (sewing problems, errors first; `ready` is false while there are errors).
    Run each finding's `fix` command or fix it yourself, and check again; never report a design
@@ -119,6 +122,23 @@ then style them in the next.
 - Find objects like others: `object.list` `{sameAs: [ids], match: color|type|both,
   visible: true}`, or filter by `color`, `regionType`, `lineType`; then `ui.select` the ids.
 - Text: `object.setText` (text, font, size, spacing), `text.setPath` (fit to an outline).
+- Fonts: `fonts.list` gives each bundled font's `sizeRange` (mm), `stitchTypes`, `kind` and
+  `group`; pick a font whose range holds the size. `text.add` returns `sizeWarning` and
+  `object.setText` returns `sizeWarnings` (`[{id, warning}]`) when a size lies outside its
+  font's range: act on them (a font whose `sizeRange` fits, or a size inside the range) and
+  tell the user what you changed. Labels of 3-6 mm: `font: "openstitch-line"` (Small
+  Text, a running line along each letter's centre; `object.setLine` `runTimes: 3` for bean
+  stitch, or `type: zigzag, width: 1.2` for a narrow satin). Retro or sampler text:
+  `font: "openstitch-pixel"` with `pixelStyle` run, cross or block (one pixel = size / 7).
+- Ink/Stitch fonts the user installed: their folder is the `inkStitchFolder` setting
+  (`ui.settings`; `ui.set` changes it after the user agrees, as the editor asks);
+  `fonts.scanFolder {path}` lists the font folders,
+  `fonts.importInkStitch {path}` loads one (tell the user its licence and what `notRead`
+  lists); then `text.add {font: <id>}`.
+- Bent lettering beyond the 26 Text Transform presets: `text.setEnvelope {ids, shape:
+  bridge|pennant|perspective|diamond|preset}`, then `text.bendEnvelope {id, edge: top|bottom,
+  handle: left|middle|right, dx, dy, symmetric}` (mm on the page; `text.envelopeHandles`
+  says where the handles are). PES 0110 export refuses free envelopes: `text.toShapes` first.
 - Threads: to change the design to a thread chart ("use my Madeira threads"), run
   `threads.remap` `{builtin | chart, metric: ciede2000, keepDistinct: true, dryRun: true}`
   first and show the user the plan (design colour → thread, ΔE, objects, and `merged`), then
@@ -128,6 +148,21 @@ then style them in the next.
   `{query}` finds a thread by code or name. After `import.svg` or a `digitize.*` wizard gives
   many near-identical colours, offer `threads.mergeSimilar` (`dryRun` first; it reports the
   colour changes saved, and `order.byColor` when `suggestSortByColor`).
+- The user's own threads: when they say "use my threads", have a thread chart (`threads.charts`
+  lists theirs) or name a brand, take **every** colour from that chart: pick entries for new
+  objects, or `threads.remap {chart | builtin}` the design. Never quote a catalogue number
+  that is not in a chart: look it up with `threads.find {query}` first, and if it is not
+  there, give the colour as `#rrggbb` and say no thread matches. From a photo or list of their
+  spools, propose a chart (colour, and the code only when the label is legible) and create it
+  with `threads.createChart` and `threads.addColor` only after the user confirms; the editor
+  asks them too.
+- Names and locks: `object.setName` `{ids, name}` names objects in the Sewing Order list
+  ("" clears it); `object.setLocked` `{ids, locked}` stops the user moving or deleting them on
+  the canvas by accident (your commands still work on them; `object.list` shows `locked`).
+- Copy between designs: `object.get` the objects, then `object.paste` `{objects, dx, dy,
+  fonts}` in the other design; give `fonts` (the source design's `fonts` entries) when a text
+  uses a font loaded into the source design. You never read or write the system clipboard:
+  `ui.run copy` / `paste` use the window's own copy.
 - Delete: `object.delete` `{ids}`. Undo: `history.undo` (only for your own mistakes).
 
 ## Editor commands (`ui.*`)
@@ -136,7 +171,12 @@ These act on the editor window, not the design file: `ui.state`, `ui.select`, `u
 `ui.run` (the ribbon's actions), `ui.zoom`, `ui.settings` and `ui.set` (view settings),
 `ui.render` (what `view_render` uses), `ui.simulate` (the stitch simulator), `ui.help`,
 `ui.update`, `ui.scratchWrite` (what `scratch_write` uses), `ui.notesRead`, `ui.notesWrite`
-and `ui.notesClear` (what `notes_read` and `notes_write` use; see Memory). Read their parameters with
+and `ui.notesClear` (what `notes_read` and `notes_write` use; see Memory). To find a command
+by words ("where is arrange copy?"), `ui.searchCommands {query}` gives the same list as the
+user's Ctrl+K palette, with each command's ribbon place and shortcut; run it with `ui.run`.
+After a crash, `ui.recoveryList` shows designs autosave kept; `ui.recoveryRestore {id}`
+opens one as an untitled design (tell the user to save it), and `ui.recoveryDiscard`
+deletes snapshots (ask first). Autosave is `ui.set autosave` / `autosaveInterval`. Read their parameters with
 `command_describe` before the first use. `ui.zoom {rect: [x, y, w, h]}` zooms to a rectangle.
 `background.setLayer {position: "top" | "bottom" | "afterObject", afterId}` puts the tracing
 picture above the design or between objects ("put the picture above the fills"); it never sews.
@@ -192,7 +232,10 @@ Do not undo the user's own earlier work; to retry, undo or delete your own objec
 
 ## Rules
 
-- Prefer `run_batch`; a malformed batch changes nothing, and it stops at the first failure.
+- Prefer `run_batch`. Every step's parameters are checked before anything runs: a batch with
+  mistakes changes nothing and returns **all** of them at once in `errors` (`step`, `command`,
+  `param`, `message`); fix them all before resending. `validateOnly: true` checks a batch
+  without running it. Once it runs, it stops at the first failure unless `continueOnError`.
 - After building or changing anything visible, call `view_render` and look before you answer.
 - To check one aspect: `view_render` (or MCP `preview`) takes `layers: "underlay" | "top"`,
   `colorBy: "order" | "mono"`, `only: [ids]`, `solo: block`, `needlePoints`, `trimMarks`; in

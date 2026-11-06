@@ -125,8 +125,25 @@ some pictures the compatible mode still sews truer: try both and compare with `v
 
 Useful options: Auto Punch `colors` (0 = automatic), `skipBackground`; Photo Stitch
 `colors`, `mode: "mono"` with `thread`; Cross Stitch `cellSize` (mm); Design Center
-`lineSew`, `regionSew`. In OpenStitch mode `threads: "all"` chooses from every built-in chart.
+`lineSew`, `regionSew`, `joinLines` (on by default: running and triple lines that meet are sewn
+as one path, walking back over lines already sewn instead of a trim after every piece; `false`
+keeps one piece per line). In OpenStitch mode `threads: "all"` chooses from every built-in chart.
 Each returns the new `ids`; Auto Punch, Photo Stitch and Cross Stitch also list the `colors` used.
+
+Auto Punch also returns a `plan`: every traced region with its `region` number, `color`,
+`widthMm`, the `type` it got (`fill`, `satin`, `line`, `skip`) and why (`reason` code and a
+`why` sentence, such as "0.6 mm wide ... running line"). To correct a part, run it with
+`dryRun: true` first (nothing is added), read the plan, then convert with `overrides`:
+
+```json
+{"command": "digitize.autoPunch", "params": {"path": "/path/from/scratch_write/logo.png", "width": 60, "compatMode": "openStitch", "overrides": [{"region": 3, "type": "satin"}, {"region": 7, "type": "skip"}, {"region": 2, "angle": 30}]}}
+```
+
+Regions are numbered by the run's own options, so keep every other option the same between the
+dry run and the conversion. Thin lines and outlines can only be skipped. In OpenStitch mode
+`angleRule: "varyNeighbours"` turns touching fills at least 20° apart so fitted panels read as
+separate pieces; parts under 1 mm wide (ropes, whiskers) are sewn as running lines, and a
+white, cream or off-white paper background is left out as the fabric showing.
 
 ## SVG artwork
 

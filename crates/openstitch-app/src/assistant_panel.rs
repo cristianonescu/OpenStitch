@@ -1426,7 +1426,7 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                 ui.label("Request timeout (s)");
                 changed |= ui
                     .add(egui::DragValue::new(&mut prefs.request_timeout_s).range(30..=3600))
-                    .on_hover_text("How long one model request may take; a large local model may need more")
+                    .on_hover_text("How long the server may go without sending any of the reply (text, thinking or a tool call) before the turn ends; a slow local model may need more")
                     .changed();
                 ui.end_row();
             } else {
@@ -2236,7 +2236,7 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
             ui.label(
                 RichText::new(format!(
                     "{} · {} · {} in / {} out tokens",
-                    app.ui.prefs.ai.model,
+                    backend_name(&app.ui.prefs.ai),
                     app.ui.prefs.ai.mode.label(),
                     app.assistant.panel.tokens.0,
                     app.assistant.panel.tokens.1
@@ -2562,8 +2562,31 @@ pub mod testing {
     }
 }
 
+/// What the line under the title names: the model, or for a coding agent the agent, which
+/// picks its own model (#645).
+fn backend_name(prefs: &AiPrefs) -> String {
+    if prefs.protocol != Protocol::Agent {
+        return prefs.model.clone();
+    }
+    claude::KNOWN_AGENTS
+        .iter()
+        .find(|a| a.id == prefs.agent)
+        .map_or_else(|| prefs.agent.clone(), |a| a.name.to_string())
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_subtitle_names_the_agent_not_the_claude_model() {
+        let mut prefs = AiPrefs::default();
+        assert_eq!(backend_name(&prefs), prefs.model);
+        prefs.protocol = Protocol::Agent;
+        prefs.agent = "claude".into();
+        assert_eq!(backend_name(&prefs), "Claude Code");
+        prefs.agent = "my-agent".into();
+        assert_eq!(backend_name(&prefs), "my-agent");
+    }
+
     use super::testing::*;
     use super::*;
     use crate::app::Launch;
@@ -3631,6 +3654,43 @@ mod tests {
         let b = system_of(&requests[2]);
         assert!(b.contains("What you remember about this user"), "{b}");
         assert!(b.contains("- Uses Madeira Polyneon 40"), "{b}");
+    }
+
+    /// #549: the Assistant's Clear Recovery Files asks first, naming what goes; Deny deletes
+    /// nothing and the model hears it was declined.
+    #[test]
+    fn denied_recovery_discard_deletes_nothing() {
+        let (mut app, transport) = app_with(vec![
+            reply(
+                &[("ui.recoveryDiscard", json!({ "all": true }))],
+                "",
+                "tool_use",
+            ),
+            reply(&[], "Kept them.", "end_turn"),
+        ]);
+        let tmp = openstitch_testutil::TempDir::new("recovery-gate");
+        let dir = tmp.path().join(openstitch_app::editor::recovery::FOLDER);
+        std::fs::create_dir_all(&dir).expect("dir");
+        let info = openstitch_app::editor::recovery::Info {
+            original: None,
+            name: "Rose".into(),
+            time: 1,
+            process: 4_000_000_000,
+        };
+        openstitch_app::editor::recovery::write_snapshot(&dir, "4000000000-0", b"{}", &info)
+            .expect("snapshot");
+        app.recovery.start(dir.clone(), false);
+        assert_eq!(app.recovery.offer.len(), 1);
+        send(&mut app, "clear the recovery files".into(), no_wake());
+        run(&mut app, |a| !a.assistant.panel.approvals.is_empty());
+        let what = &app.assistant.panel.approvals[0].what;
+        assert!(what.contains("delete every recovery copy"), "{what}");
+        answer(&mut app, 0, Answer::Deny);
+        run(&mut app, idle);
+        assert!(dir.join("4000000000-0.osd").exists());
+        assert!(dir.join("4000000000-0.json").exists());
+        let requests = transport.requests.lock().expect("lock");
+        assert!(requests[1].to_string().contains("declined"));
     }
 
     /// A denied write changes nothing and the model hears why; memory off answers without

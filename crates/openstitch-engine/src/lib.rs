@@ -11,6 +11,7 @@ mod convert;
 #[cfg(feature = "digitize")]
 mod digitize;
 mod drawing;
+mod envelopes;
 #[cfg(feature = "formats")]
 pub mod extra_exports;
 pub mod fabric;
@@ -20,6 +21,8 @@ pub mod fonts;
 mod guides;
 #[cfg(feature = "formats")]
 pub mod imports;
+#[cfg(feature = "formats")]
+pub mod inkstitch_fonts;
 mod knife;
 pub mod layout;
 mod lettering;
@@ -64,6 +67,7 @@ mod timeline;
 #[cfg(feature = "formats")]
 pub mod transfer;
 pub mod user;
+pub mod validate;
 pub(crate) mod wizards;
 
 pub use capabilities::{Capabilities, Capability};
@@ -71,3 +75,4 @@ pub use commands::{CommandSpec, Effect, ParamDoc};
 pub use params::{CommandError, CommandResult, Params};
 pub use sandbox::{Access, Sandbox, SandboxError};
 pub use session::{EngineState, Session};
+pub use validate::{ParamProblem, check_docs, check_listed, check_params};

@@ -316,12 +316,28 @@ pub fn fill_edge_to_edge(
     entry: Option<Vec2>,
     sloped: bool,
 ) -> Vec<Run> {
-    let mut runs = edge_to_edge_rows(contours, p, holes, stagger, entry, sloped);
+    fill_edge_to_edge_travel(contours, p, holes, stagger, entry, sloped, false)
+}
+
+/// [`fill_edge_to_edge`] whose travel from the entry point to the first row, between its
+/// halves and back walks along the outline when `along` is set (#628), instead of PE-DESIGN's
+/// straight run across the region.
+pub fn fill_edge_to_edge_travel(
+    contours: &[Contour],
+    p: &RegionParams,
+    holes: &[Contour],
+    stagger: Stagger,
+    entry: Option<Vec2>,
+    sloped: bool,
+    along: bool,
+) -> Vec<Run> {
+    let mut runs = edge_rows_travel(contours, p, holes, stagger, entry, sloped, along);
     runs.iter_mut().for_each(join_short_stitches);
     runs
 }
 
 /// [`fill_edge_to_edge`] before [`join_short_stitches`].
+#[cfg(test)]
 pub(crate) fn edge_to_edge_rows(
     contours: &[Contour],
     p: &RegionParams,
@@ -329,6 +345,18 @@ pub(crate) fn edge_to_edge_rows(
     stagger: Stagger,
     entry: Option<Vec2>,
     sloped: bool,
+) -> Vec<Run> {
+    edge_rows_travel(contours, p, holes, stagger, entry, sloped, false)
+}
+
+fn edge_rows_travel(
+    contours: &[Contour],
+    p: &RegionParams,
+    holes: &[Contour],
+    stagger: Stagger,
+    entry: Option<Vec2>,
+    sloped: bool,
+    along: bool,
 ) -> Vec<Run> {
     let l = p.stitch_length;
     let start = entry.map(|e| e.rotated(-p.angle.to_radians()));
@@ -341,6 +369,7 @@ pub(crate) fn edge_to_edge_rows(
             s,
             a,
             sloped,
+            along.then_some(contours),
         )
     {
         return vec![run];
@@ -442,6 +471,7 @@ fn pe_halves(
     s: Vec2,
     min_x: f64,
     sloped: bool,
+    outline: Option<&[Contour]>,
 ) -> Option<Run> {
     let (first, last) = (spans.first()?, spans.last()?);
     let rows = last.row.checked_sub(first.row)? + 1;
@@ -495,6 +525,16 @@ fn pe_halves(
         let d = from.distance(to);
         if d < 1.0 {
             *run.last_mut().expect("starts at s") = to;
+            return;
+        }
+        // Along the outline (#628): the travel stays at the region's edge instead of
+        // crossing it, where open rows would show it and a calibration swatch would measure it.
+        if let Some(outline) = outline {
+            run.extend(
+                crate::route::travel(outline, from, to, FILL_TRAVEL)
+                    .into_iter()
+                    .skip(1),
+            );
             return;
         }
         let n = ((d / FILL_TRAVEL) - 1e-3).ceil().max(1.0) as usize;

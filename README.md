@@ -51,6 +51,11 @@ editing by hand, and everything one message changes is a single undo step.
 *A real run, not a mock-up: Claude Code (on the user's own account) turning a dropped picture
 into a 50 × 63 mm strawberry, correcting its own first attempt, then checking the result.*
 
+![The Assistant on Windows with Claude Code over claude-agent-acp: asked for a red circle 30 mm wide in the middle of the page, it asked permission for the edit, drew it, checked it and reported one undo step](docs/images/assistant-windows-claude-code.png)
+
+*The same on Windows (2026-11-06): Claude Code asked before its edit, drew and checked the
+circle, and the whole message is one undo step.*
+
 - **Your choice of AI:** the Claude API with your own key (kept in the system keychain), a model
   on your computer through Ollama or LM Studio (no key, works offline), OpenRouter or any
   OpenAI- or Anthropic-compatible service, or a coding agent you already use (Claude Code, Codex,
@@ -81,7 +86,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 294: 196 implemented (4 of them partially compatible), 0 documented only, 10 blocked, 88 planned beyond PE-DESIGN |
+| Feature matrix rows | 294: 207 implemented (4 of them partially compatible), 0 documented only, 10 blocked, 76 planned beyond PE-DESIGN |
 | Compatibility specs | 454: 454 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 36: 29 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 10 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
@@ -662,18 +667,13 @@ PE-DESIGN 11 does not. Each item is sketched in
 - AI assistant pictures (B17, phase A4): the composer's 📎 attaches up to 8 files per message (pictures PNG/JPEG/BMP sent as images, scaled to 2048 px and re-encoded under 3.75 MB; SVG and text sent as text; stitch files offered to stitches.import), each copied into the scratch folder. **View** sends a picture of the design and **Selection** the selected objects' ids, kinds and sizes, shown as chips. An attached picture is digitized with digitize.autoPunch in OpenStitch mode; a model-written SVG goes through scratch_write and import.svg. An optional image generator (an OpenAI-compatible /images/generations address, its key in the keychain) adds generate_image; without one the tool points the model at the vector route. OpenAI-compatible endpoints get tool-result pictures as a user message with image parts
 - AI assistant benchmark (B17, phase A5): stitchtool bench-assistant sends 12 embroidery tasks (badge, monogram, arc text, appliqué, star, two colours, a wider rectangle, recolour, delete, picture to embroidery, vector route, a question) to the Claude API, an OpenAI-compatible endpoint or an ACP coding agent, through the assistant's own tools over a headless editor. Each task is scored on the resulting design (object.list, design.info), failures are sorted into categories, and it writes JSON and Markdown reports
 - More built-in thread charts compiled from each maker's own published colour data, searchable by number or name (#486)
-- Image wizard (OpenStitch mode): purpose presets, a region table with reasons and overrides, click-to-fix on the picture, colour order, varied or least-travel fill angles and outline SVG export (#489)
 - Optional on-device helpers for digitizing: one-click subject segmentation, line drawing from photos and OCR to lettering (#490)
 - Assistant memory: per-user notes read into every conversation, written through the permission gate, viewable and clearable (#491)
 - Assistant skill with complete illustrated example designs and a composition guide (#492)
 - Assistant benchmark with illustrated-subject tasks scored on structure and on the rendered result (#493)
-- Batches validate every step's parameters first and report all errors at once before running anything (#494)
-- Assistant picks colours only from the user's own or named thread chart and never quotes a catalogue number that is not in a chart (#495)
 - Python package (pyo3 wheel) for scripting designs with the engine's command set (#498)
 - Draw shapes, lines and Manual Punch columns from the keyboard; follow the system text size; WCAG contrast; visible focus; screen-reader names checked in CI (#499)
-- Cut/Copy/Paste objects through the system clipboard so they survive between two editor windows and app restarts (#500)
 - Stitch table (coordinates and command per needle point, insert/delete) and hand stitch edits stored on a live object until a setting changes (#501)
-- Sewing Order list with rename, lock, sew-in-click-order and per-object part order (outline before fill), plus linked clones (#502)
 - Parameter test swatches: copies of the selected object with one or two settings stepped, labelled with their values, laid out in the hoop as a new design (design.testSwatches) (#507) (#507)
 - More fabric presets, thread weight driving density and stabiliser/needle/minimum-text advice, named machine profiles and a first-run machine setup (#508) (#508)
 - Basting box or outline: a tacking run sewn first in the first thread, at a margin and clipped to the hoop (#509) (#509)
@@ -688,16 +688,11 @@ PE-DESIGN 11 does not. Each item is sketched in
 - Satin line on any path with width keys, width set while drawing, tapered ends, per-side widths and a constant slant (B10) (#524)
 - Manual Punch column editing on the canvas: insert, delete and drag rungs, swap sides, automatic untangle of reversed pairs (#525)
 - Convert to satin with branches: one column per arm of a Y, star or letter, overlapping joins and corner rungs, also in Auto Punch's OpenStitch mode (#526)
-- Bundled embroidery fonts (licence-clean, incl. an OpenStitch centre-line satin font) with a recommended size range per font, a chooser showing the user's own words, and an out-of-range warning (#527)
 - Satin styles S-stitch, open zigzag and double satin, a one-sided seeded jagged edge, and fractional density spacing across curved columns (#528)
-- Read embroidery font folders in Ink/Stitch's published format (font.json + per-glyph SVG with stitch parameters, kerning) from a user font folder; no fonts bundled (#529)
-- Small Text: single-line fonts sewn as one running (or bean) line along each letter's centre for 3–6 mm labels (#530)
 - Raised satin: padding lanes sewn under the satin for a 3D look without foam (first step of B7) (#531)
 - Two-colour blend command, multicolour gradient fills with dithering, named density profiles and SVG linear gradients imported as blends (B6) (#532)
 - Maze (space-filling curve) and tiled meander fills sewn as one continuous line with own-drawn tiles (B9) (#533)
 - Stitch angle lines: several direction lines on one fill with rows turning smoothly between them (B2); the canvas Fill Angle tool is the PE-compat sewing-direction gesture (#534)
-- Free text envelopes edited with on-canvas handles (bridge, pennant, perspective, diamond; symmetric bending with a modifier) (#535)
-- Pixel-font lettering: text from a bitmap font sewn as short runs or cross stitches per pixel (#536)
 - Tatami textures: named needle-hole arrangements, steps x repetitions and wave/triangle/arc row shifts on plain fills (#537)
 - Wave fill (height, length) and an image-derived flow fill whose rows follow the picture's direction field in Auto Punch's OpenStitch mode (#538)
 - Tartan fill: warp and weft stripe sets woven in several threads inside one shape (deferred in the roadmap) (#539)
@@ -710,8 +705,6 @@ PE-DESIGN 11 does not. Each item is sketched in
 - Branching and auto-routing: touching objects and running-line networks (Redwork) sewn in one go with travel hidden inside (B4) (#546)
 - Automatic nearest start per object by stitch type and a before/after report from Optimize (B11) (#547)
 - Per-object trim and tie policies (when far / always / off, tie count and length) and text trimming per letter, word or line (#548)
-- Autosave snapshots of open designs and a recovery offer at the next start (never overwriting the original file) (#549)
-- Command palette searching every ribbon/menu command (recent first), a hints line for the current tool and modifiers, and a properties search box (#550)
 - Editable keyboard shortcuts (several per command, clash check, import/export), customisable tool band, dockable panels with saved layouts, per-area preference reset (#551)
 - Several designs open as tabs in one editor window, each with its own undo, selection and view (#552)
 - A settings page for what new objects start with, a Basic/Advanced split of the sewing attributes, and picture pickers that preview a style on hover (#553)

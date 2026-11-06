@@ -1448,3 +1448,219 @@ fn straight_bars_split_and_curves_do_not() {
     });
     assert_eq!(columns::split(&ring, 100, 100, 18.0), Strokes::Curved);
 }
+
+/// #445: OpenStitch mode on a white fabric leaves a paper-coloured (cream) background out, as
+/// the fabric showing, and keeps g08's letters apart; a coloured background is still sewn.
+#[test]
+fn openstitch_mode_leaves_a_cream_background_out() {
+    const CREAM: [u8; 4] = [246, 238, 220, 255];
+    assert!(autopunch::is_fabric([246, 238, 220], [255, 255, 255]));
+    assert!(
+        !autopunch::is_fabric([153, 207, 241], [255, 255, 255]),
+        "sky"
+    );
+    assert!(
+        !autopunch::is_fabric([246, 238, 220], [20, 20, 20]),
+        "dark fabric"
+    );
+    let img = rects(60, 40, CREAM, &[(20, 10, 40, 30, RED)]);
+    let p = AutoPunch {
+        colors: 2,
+        mode: Mode::OpenStitch,
+        fabric: Some([255, 255, 255]),
+        ..Default::default()
+    };
+    let out = autopunch::convert(&img, &Frame::new(0.0, 0.0, 60.0, 60), &p).expect("converts");
+    assert!(out.background.is_some());
+    assert_eq!(out.objects.len(), 1);
+
+    let (img, frame) = lettering();
+    let p = AutoPunch {
+        mode: Mode::OpenStitch,
+        resolution: 800,
+        min_area_mm2: 2.0,
+        satin_max_mm: 2.5,
+        outline_max_mm: 2.5,
+        fabric: Some([255, 255, 255]),
+        ..Default::default()
+    };
+    let out = autopunch::convert(&img, &frame, &p).expect("converts");
+    assert!(out.background.is_some(), "the cream is left out");
+    // Before: one fill for all six letters; now each letter is its own region.
+    let navy = out
+        .threads
+        .iter()
+        .find(|t| t.blue > t.red && t.red < 100)
+        .expect("navy")
+        .clone();
+    let letters = out
+        .objects
+        .iter()
+        .filter(|o| o.region.as_ref().is_some_and(|r| r.thread == navy))
+        .count();
+    assert!(letters >= 6, "{letters} letter regions");
+}
+
+/// #469: OpenStitch mode sews a part under 1 mm wide on one ground (a balloon's rope) as a
+/// running line in its own thread, after the ground, instead of dropping it.
+#[test]
+fn openstitch_mode_sews_thin_features_as_lines() {
+    const SKY: [u8; 4] = [120, 180, 235, 255];
+    const ROPE: [u8; 4] = [110, 60, 20, 255];
+    const GRASS: [u8; 4] = [60, 150, 50, 255];
+    // 0.1 mm per pixel: a 0.5 mm × 11 mm rope down to a 5 × 4 mm basket in the sky, a 10 mm
+    // red block beside it, grass below (so it is not line art, whose strokes stay whole). The
+    // sliver opening cuts the rope from the basket.
+    let img = rects(
+        400,
+        300,
+        SKY,
+        &[
+            (0, 200, 400, 300, GRASS),
+            (50, 50, 150, 150, RED),
+            (250, 40, 255, 150, ROPE),
+            (230, 150, 280, 190, ROPE),
+        ],
+    );
+    let frame = Frame::new(0.0, 0.0, 40.0, 400);
+    let p = AutoPunch {
+        colors: 4,
+        mode: Mode::OpenStitch,
+        resolution: 400,
+        fabric: Some([255, 255, 255]),
+        ..Default::default()
+    };
+    let out = autopunch::convert(&img, &frame, &p).expect("converts");
+    let line = out
+        .objects
+        .iter()
+        .position(|o| {
+            o.line
+                .as_ref()
+                .is_some_and(|l| l.kind == openstitch_design::LineType::Running)
+        })
+        .expect("the rope is a line");
+    let rope = &out.objects[line].line.as_ref().expect("line").thread;
+    assert!(rope.red > rope.blue, "{rope:?}");
+    assert_eq!(line, out.objects.len() - 1, "sewn after the sky");
+    let entry = out.regions.last().expect("plan");
+    assert_eq!(
+        (entry.stitch, entry.reason),
+        (autopunch::Stitch::Line, autopunch::Reason::ThinLine)
+    );
+    // PE-DESIGN-compatible mode is unchanged: no lines.
+    let pe = autopunch::convert(
+        &img,
+        &frame,
+        &AutoPunch {
+            mode: Mode::PeDesign,
+            ..p.clone()
+        },
+    )
+    .expect("converts");
+    assert!(pe.objects.iter().all(|o| o.line.is_none()));
+}
+
+/// #489: the plan lists every region with its stitch and reason; an override changes only
+/// its own region; a region the image does not have is an error; varyNeighbours turns
+/// touching fills apart.
+#[test]
+fn plan_overrides_and_neighbour_angles() {
+    use autopunch::{AngleRule, Override, Reason, Stitch};
+    let frame = Frame::new(0.0, 0.0, 60.0, 60);
+    let p = AutoPunch {
+        colors: 3,
+        ..Default::default()
+    };
+    let out = autopunch::convert(&two_shapes(), &frame, &p).expect("converts");
+    assert_eq!(out.regions.len(), 2);
+    assert_eq!(
+        (out.regions[0].stitch, out.regions[0].reason),
+        (Stitch::Fill, Reason::Wide)
+    );
+    assert_eq!(
+        (out.regions[1].stitch, out.regions[1].reason),
+        (Stitch::Satin, Reason::SatinWidth)
+    );
+    let why = out.regions[1].why(&p);
+    assert!(why.contains("satin"), "{why}");
+    let with = |overrides: Vec<Override>| {
+        autopunch::convert(
+            &two_shapes(),
+            &frame,
+            &AutoPunch {
+                overrides,
+                ..p.clone()
+            },
+        )
+    };
+    // The bar as fill at 30°: the block is untouched.
+    let o = with(vec![Override {
+        region: 1,
+        stitch: Some(Stitch::Fill),
+        angle: Some(30.0),
+    }])
+    .expect("converts");
+    assert_eq!(o.objects[0], out.objects[0]);
+    let bar = o.objects[1].region.as_ref().expect("region");
+    assert_eq!((bar.kind, bar.angle), (RegionType::Fill, 30.0));
+    assert_eq!(o.regions[1].reason, Reason::Override);
+    // Left out, or a line along its skeleton.
+    let o = with(vec![Override {
+        region: 0,
+        stitch: Some(Stitch::Skip),
+        angle: None,
+    }])
+    .expect("converts");
+    assert_eq!(o.objects.len(), 1);
+    assert_eq!(o.objects[0].region, out.objects[1].region);
+    let o = with(vec![Override {
+        region: 1,
+        stitch: Some(Stitch::Line),
+        angle: None,
+    }])
+    .expect("converts");
+    assert!(o.objects[1].line.is_some() && o.objects[1].region.is_none());
+    assert!(matches!(
+        with(vec![Override {
+            region: 9,
+            stitch: Some(Stitch::Skip),
+            angle: None
+        }]),
+        Err(DigitizeError::Invalid(_))
+    ));
+
+    // Two touching 20 × 20 mm panels: PE's rule gives both the same direction.
+    let panels = rects(
+        60,
+        40,
+        WHITE,
+        &[(10, 10, 30, 30, RED), (30, 10, 50, 30, BLUE)],
+    );
+    let angles = |rule| {
+        let out = autopunch::convert(
+            &panels,
+            &frame,
+            &AutoPunch {
+                colors: 3,
+                mode: Mode::OpenStitch,
+                fabric: Some([255, 255, 255]),
+                angle_rule: rule,
+                ..Default::default()
+            },
+        )
+        .expect("converts");
+        out.objects
+            .iter()
+            .map(|o| o.region.as_ref().expect("region").angle)
+            .collect::<Vec<f64>>()
+    };
+    let pe = angles(AngleRule::Pe);
+    assert_eq!(pe.len(), 2);
+    assert_eq!(pe[0], pe[1]);
+    let vary = angles(AngleRule::VaryNeighbours);
+    let d = (vary[0] - vary[1]).rem_euclid(180.0);
+    assert!(d.min(180.0 - d) >= autopunch::NEIGHBOUR_DEG, "{vary:?}");
+    assert_eq!(autopunch::vary_angle(45.0, &[]), 45.0);
+    assert_eq!(autopunch::vary_angle(45.0, &[45.0]), 75.0);
+}

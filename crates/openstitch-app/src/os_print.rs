@@ -232,9 +232,55 @@ pub fn start(pdf: &Path) -> Job {
     }
 }
 
-/// A fresh path in the temporary folder for a PDF to print, named after `name` (letters,
-/// digits, `-` and `_` only).
+/// How long a PDF handed to the print dialog is kept: the dialog or viewer has long finished
+/// with it by then (#384).
+pub const KEEP_PRINTED_FOR: std::time::Duration = std::time::Duration::from_secs(24 * 60 * 60);
+
+/// The folder for PDFs handed to the print dialog: `openstitch-print` in the temporary folder.
+pub fn print_dir() -> PathBuf {
+    std::env::temp_dir().join("openstitch-print")
+}
+
+/// Creates `dir` and removes the PDFs in it older than [`KEEP_PRINTED_FOR`], so printing does
+/// not fill the temporary folder (#384). Returns how many were removed.
+pub fn prepare_dir(dir: &Path) -> std::io::Result<usize> {
+    std::fs::create_dir_all(dir)?;
+    Ok(prune(dir, KEEP_PRINTED_FOR, std::time::SystemTime::now()))
+}
+
+/// Removes the `.pdf` files in `dir` last changed more than `keep` before `now`. Other files
+/// and folders stay; a file that cannot be read or removed is left alone.
+fn prune(dir: &Path, keep: std::time::Duration, now: std::time::SystemTime) -> usize {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return 0;
+    };
+    let mut removed = 0;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let is_pdf = path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("pdf"));
+        let Ok(meta) = entry.metadata() else { continue };
+        let old = meta
+            .modified()
+            .ok()
+            .and_then(|m| now.duration_since(m).ok())
+            .is_some_and(|age| age > keep);
+        if is_pdf && meta.is_file() && old && std::fs::remove_file(&path).is_ok() {
+            removed += 1;
+        }
+    }
+    removed
+}
+
+/// A fresh path in [`print_dir`] for a PDF to print, named after `name` (letters, digits, `-`
+/// and `_` only). Call [`prepare_dir`] first.
 pub fn temp_pdf(name: &str) -> PathBuf {
+    temp_pdf_in(&print_dir(), name)
+}
+
+/// [`temp_pdf`] in `dir`.
+pub fn temp_pdf_in(dir: &Path, name: &str) -> PathBuf {
     let stem: String = name
         .chars()
         .map(|c| {
@@ -254,9 +300,7 @@ pub fn temp_pdf(name: &str) -> PathBuf {
     let stamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_millis());
-    std::env::temp_dir()
-        .join("openstitch-print")
-        .join(format!("{stem}-{stamp}.pdf"))
+    dir.join(format!("{stem}-{stamp}.pdf"))
 }
 
 #[cfg(test)]
@@ -377,6 +421,43 @@ mod tests {
         assert!(d.contains("print dialog") && d.contains("catalogue.pdf"));
         let v = Outcome::Shown(Shows::Viewer, p).message();
         assert!(v.contains("PDF viewer") && v.contains("100 %"));
+    }
+
+    #[test]
+    fn old_printed_pdfs_are_removed_and_nothing_else() {
+        use std::time::{Duration, SystemTime};
+        let t = openstitch_testutil::TempDir::new("os-print-prune");
+        let dir = t.path().join("openstitch-print");
+        assert_eq!(prepare_dir(&dir).unwrap(), 0);
+        let two_days = SystemTime::now() - Duration::from_secs(2 * 24 * 60 * 60);
+        for (name, old) in [
+            ("old.pdf", true),
+            ("OLD2.PDF", true),
+            ("new.pdf", false),
+            ("old.txt", true),
+        ] {
+            let f = std::fs::File::create(dir.join(name)).unwrap();
+            if old {
+                f.set_modified(two_days).unwrap();
+            }
+        }
+        std::fs::create_dir(dir.join("sub.pdf")).unwrap();
+        assert_eq!(prepare_dir(&dir).unwrap(), 2);
+        let mut left: Vec<String> = std::fs::read_dir(&dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        left.sort();
+        assert_eq!(left, ["new.pdf", "old.txt", "sub.pdf"]);
+        // Just under a day old stays.
+        assert_eq!(
+            prune(
+                &dir,
+                KEEP_PRINTED_FOR,
+                SystemTime::now() + Duration::from_secs(3600)
+            ),
+            0
+        );
     }
 
     #[test]

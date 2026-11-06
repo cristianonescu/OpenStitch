@@ -456,6 +456,68 @@ fn run_batch_forwards_every_step_and_stops_at_a_failure() {
     assert_eq!(session.design().objects.len(), 2);
 }
 
+/// #494: every parameter mistake in the batch comes back at once, with its step, and nothing
+/// reaches the editor; `validateOnly` checks a good batch without running it.
+#[test]
+fn run_batch_reports_every_parameter_error_before_running() {
+    let (editor, client) = Editor::start();
+    let mut mcp = Mcp::new(client);
+    mcp.call("commands_list", json!({}));
+    let before = editor.log().len();
+    let bad = mcp.call(
+        "run_batch",
+        json!({"steps": [
+            {"command": "design.new", "params": {"name": "Badge"}},
+            {"command": "shape.rectangle", "params": {"x": 0, "y": 0, "width": 5, "height": 5, "colour": "red"}},
+            {"command": "object.setRegion", "params": {"id": 1, "type": "satin", "angle": "steep"}},
+            {"command": "ui.render", "params": {"size": 9}},
+        ]}),
+    );
+    assert_eq!(bad["isError"], json!(true), "{bad}");
+    let summary = text(&bad);
+    assert_eq!(
+        (summary["ok"].clone(), summary["ran"].clone()),
+        (json!(false), json!(0))
+    );
+    let errors = summary["errors"].as_array().expect("errors");
+    let found: Vec<(u64, &str)> = errors
+        .iter()
+        .map(|e| {
+            (
+                e["step"].as_u64().unwrap_or(99),
+                e["param"].as_str().unwrap_or(""),
+            )
+        })
+        .collect();
+    assert_eq!(
+        found,
+        [(1, "colour"), (2, "angle"), (3, "size")],
+        "{summary}"
+    );
+    assert_eq!(errors[1]["command"], json!("object.setRegion"));
+    assert_eq!(
+        editor.log().len(),
+        before,
+        "nothing ran: {:?}",
+        editor.log()
+    );
+
+    let check = mcp.call(
+        "run_batch",
+        json!({"validateOnly": true, "steps": [
+            {"command": "design.new", "params": {"name": "Badge"}},
+            {"command": "shape.ellipse", "params": {"cx": 50, "cy": 50, "rx": 30}},
+            {"command": "object.setRegion", "params": {"id": 1, "type": "satin"}},
+        ]}),
+    );
+    assert_eq!(check["isError"], json!(false), "{check}");
+    assert_eq!(text(&check)["ok"], json!(true));
+    assert_eq!(text(&check)["ran"], json!(0));
+    assert_eq!(editor.log().len(), before);
+    let session = editor.finish();
+    assert!(session.design().objects.is_empty());
+}
+
 #[test]
 fn run_batch_with_an_unknown_command_or_bad_step_runs_nothing() {
     let (editor, client) = Editor::start();
@@ -693,6 +755,10 @@ fn every_command_the_skill_names_exists() {
         "ui.notesRead",
         "ui.notesWrite",
         "ui.notesClear",
+        "ui.searchCommands",
+        "ui.recoveryList",
+        "ui.recoveryRestore",
+        "ui.recoveryDiscard",
     ];
     assert!(
         ui.iter()

@@ -225,10 +225,16 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                                     json!({ "chart": name, "index": i, "to": to }),
                                 )
                             };
-                            if ui.add_enabled(i > 0, egui::Button::new("▲")).clicked() {
+                            let up = egui::Button::new(crate::icons::ui_image(ui, "move_up"));
+                            if ui.add_enabled(i > 0, up).on_hover_text("Move up").clicked() {
                                 request = Some(mv(i - 1));
                             }
-                            if ui.add_enabled(i + 1 < n, egui::Button::new("▼")).clicked() {
+                            let down = egui::Button::new(crate::icons::ui_image(ui, "move_down"));
+                            if ui
+                                .add_enabled(i + 1 < n, down)
+                                .on_hover_text("Move down")
+                                .clicked()
+                            {
                                 request = Some(mv(i + 1));
                             }
                             if ui.button("Remove").clicked() {

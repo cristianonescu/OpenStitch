@@ -495,10 +495,18 @@ fn modify_image_window(app: &mut EditorApp, ctx: &egui::Context) {
                 }
             }
             ui.horizontal(|ui| {
-                if ui.button("⟲ Rotate Left").clicked() {
+                let left = (
+                    crate::icons::ui_image(ui, "image_rotate_left"),
+                    "Rotate Left",
+                );
+                if ui.button(left).clicked() {
                     turn = Some("left");
                 }
-                if ui.button("⟳ Rotate Right").clicked() {
+                let right = (
+                    crate::icons::ui_image(ui, "image_rotate_right"),
+                    "Rotate Right",
+                );
+                if ui.button(right).clicked() {
                     turn = Some("right");
                 }
                 if ui

@@ -89,8 +89,10 @@ pub(super) fn tools(max_batch_steps: usize, max_render_pixels: u32) -> Vec<Tool>
             format!(
                 "Run up to {max_batch_steps} commands in order and return every step's result. Stops at \
                  the first failure unless continueOnError is true; steps already done stay done. \
-                 Every step is checked (shape and command id) before anything runs, so a malformed \
-                 batch changes nothing."
+                 Every step (shape, command id and parameters) is checked before anything runs: a \
+                 batch with mistakes runs nothing and returns all of them at once as errors \
+                 [{{step, command, param, message}}]; fix them all before resending. validateOnly \
+                 checks without running."
             ),
             json!({
                 "type": "object",
@@ -105,6 +107,7 @@ pub(super) fn tools(max_batch_steps: usize, max_render_pixels: u32) -> Vec<Tool>
                         },
                     },
                     "continueOnError": { "type": "boolean", "description": "Keep going after a failed step (default false)" },
+                    "validateOnly": { "type": "boolean", "description": "Only check every step's parameters; run nothing (default false)" },
                 },
                 "required": ["steps"],
                 "additionalProperties": false,
@@ -449,9 +452,14 @@ impl Server {
     }
 
     fn meta_batch(&mut self, arguments: &Value) -> Result<Value, String> {
-        only("run_batch", arguments, &["steps", "continueOnError"])?;
+        only(
+            "run_batch",
+            arguments,
+            &["steps", "continueOnError", "validateOnly"],
+        )?;
         let continue_on_error =
             opt_bool("run_batch", arguments, "continueOnError")?.unwrap_or(false);
+        let validate_only = opt_bool("run_batch", arguments, "validateOnly")?.unwrap_or(false);
         let Some(steps) = arguments.get("steps").and_then(Value::as_array) else {
             return Err("run_batch: needs an array 'steps'".into());
         };
@@ -465,17 +473,30 @@ impl Server {
                 self.config.max_batch_steps
             ));
         }
-        // Check every step before running any.
+        // Check every step before running any: its shape and command first, then (#494) every
+        // step's parameters, all of whose mistakes come back together.
         let mut plan: Vec<(String, Value)> = Vec::with_capacity(steps.len());
+        let mut errors = Vec::new();
         for (i, step) in steps.iter().enumerate() {
             let at = format!("run_batch: step {i}");
             only(&at, step, &["command", "params"])?;
             let command = req_str(&at, step, "command")?;
             let params = params_of(&at, step)?;
-            let id = self
-                .check_command(command)
-                .map_err(|e| format!("{at}: {e}"))?;
+            let entry = self.entry(command).map_err(|e| format!("{at}: {e}"))?;
+            let id = entry["id"].as_str().unwrap_or(command).to_string();
+            let listed = entry
+                .get("params")
+                .and_then(Value::as_array)
+                .map_or(&[][..], Vec::as_slice);
+            for p in openstitch_engine::check_listed(listed, Some(&params)) {
+                errors.push(
+                    json!({ "step": i, "command": id, "param": p.param, "message": p.message }),
+                );
+            }
             plan.push((id, params));
+        }
+        if let Some(r) = super::checked(plan.len(), errors, validate_only) {
+            return Ok(r);
         }
         let mut results = Vec::with_capacity(plan.len());
         let mut failed = 0;

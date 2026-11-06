@@ -5,7 +5,7 @@ use crate::app::EditorApp;
 use eframe::egui::{self, Color32, RichText, Sense};
 use openstitch_app::editor::inspector::{self, Common, Control, InspectorModel};
 use openstitch_app::editor::render::color_at;
-use openstitch_app::editor::{CommandRequest, Tool, objects};
+use openstitch_app::editor::{CommandRequest, objects};
 use openstitch_core::Thread;
 use openstitch_design::{LineType, ObjectKind, RegionType};
 use serde_json::{Value, json};
@@ -25,28 +25,6 @@ pub fn swatch(ui: &mut egui::Ui, c: [u8; 3], size: f32) -> egui::Response {
         egui::StrokeKind::Inside,
     );
     resp
-}
-
-/// What the active tool expects, shown in the status bar.
-pub fn tool_hint(tool: Tool) -> Option<&'static str> {
-    match tool {
-        Tool::Polygon => Some(
-            "Click to add points · click the first point, double-click or Return to close · Esc cancels",
-        ),
-        Tool::Point => Some(
-            "Drag points or handles · double-click an edge to add a point · Delete removes it · C curve / S straight under the pointer · on a text: click a character, drag it, its top handle turns it, the others resize it",
-        ),
-        Tool::Pen => Some(
-            "Click for a corner, drag for a smooth point · click the first point to close · Return finishes open · Esc cancels",
-        ),
-        Tool::Punch => Some(
-            "Click both ends of each sewing-direction line in turn (one side first) · double-click or Return finishes · Esc cancels",
-        ),
-        Tool::Skeleton => Some(
-            "Click for a corner, drag for a smooth point · drag the handles beside a point to set its width · double-click or Return finishes · Esc cancels",
-        ),
-        _ => None,
-    }
 }
 
 pub fn zoom_center(app: &mut EditorApp, factor: f64) {
@@ -91,6 +69,7 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
     }
     let mut pending: Option<CommandRequest> = None;
     let mut select: Option<(u64, bool)> = None;
+    let (mut rename, mut rename_done) = (None, false);
     let modifiers = ui.input(|i| i.modifiers);
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
@@ -127,11 +106,33 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
                                     swatch(ui, c, 9.0);
                                 }
                             });
-                            let text = format!("{}. {}", row.index + 1, row.label);
+                            if let Some((id, name)) = &mut app.edit.renaming
+                                && *id == row.id
+                            {
+                                let edit = ui.add(
+                                    egui::TextEdit::singleline(name)
+                                        .desired_width(140.0)
+                                        .char_limit(objects::MAX_NAME),
+                                );
+                                edit.request_focus();
+                                if edit.lost_focus() {
+                                    let typed = name.clone();
+                                    let escaped = ui.input(|i| i.key_pressed(egui::Key::Escape));
+                                    if !escaped && Some(typed.trim()) != row.name.as_deref() {
+                                        pending = Some(objects::set_name(row.id, &typed));
+                                    }
+                                    rename_done = true;
+                                }
+                                return;
+                            }
+                            let lock = if row.locked { " (locked)" } else { "" };
+                            let text = format!("{}. {}{lock}", row.index + 1, row.label);
                             let resp = ui
                                 .selectable_label(row.selected, text)
-                                .on_hover_text(&row.detail);
-                            if resp.clicked() {
+                                .on_hover_text(format!("{} · double-click to rename", row.detail));
+                            if resp.double_clicked() {
+                                rename = Some((row.id, row.name.clone().unwrap_or_default()));
+                            } else if resp.clicked() {
                                 select = Some((row.id, modifiers.shift || modifiers.command));
                             }
                         });
@@ -145,6 +146,12 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
                 }
             }
         });
+    if rename_done {
+        app.edit.renaming = None;
+    }
+    if rename.is_some() {
+        app.edit.renaming = rename;
+    }
     if let Some((id, toggle)) = select {
         if toggle {
             if !app.selection.remove(&id) {
@@ -281,7 +288,19 @@ pub fn sewing_attributes(app: &mut EditorApp, ui: &mut egui::Ui) {
                     }
                 }
             });
-            transform_section(app, ui);
+            // Property search (#550): only the rows whose label or parameter match.
+            ui.add(
+                egui::TextEdit::singleline(&mut app.ui.property_search)
+                    .hint_text("Search properties: pull, underlay…")
+                    .desired_width(f32::INFINITY),
+            );
+            let filter = app.ui.property_search.clone();
+            if inspector::matches_filter(
+                &filter,
+                &["Transform", "rotate flip centre scale duplicate delete"],
+            ) {
+                transform_section(app, ui);
+            }
             if m.shapes.is_empty() {
                 ui.separator();
                 ui.label(
@@ -295,6 +314,9 @@ pub fn sewing_attributes(app: &mut EditorApp, ui: &mut egui::Ui) {
             let mut requests: Vec<CommandRequest> = Vec::new();
             region_section(app, ui, &m, &mut requests);
             line_section(app, ui, &m, &mut requests);
+            if !filter.trim().is_empty() && ui.button("Clear search").clicked() {
+                app.ui.property_search.clear();
+            }
             for r in requests {
                 app.execute(&r);
             }
@@ -442,6 +464,20 @@ pub fn region_section(
     m: &InspectorModel,
     out: &mut Vec<CommandRequest>,
 ) {
+    let filter = app.ui.property_search.clone();
+    let show = |texts: &[&str]| inspector::matches_filter(&filter, texts);
+    let any = filter.trim().is_empty()
+        || m.region.as_ref().is_some_and(|r| {
+            inspector::region_controls_with(r, &app.session.design().patterns)
+                .iter()
+                .any(|c| c.shown(&filter))
+        })
+        || show(&["Region sewing type", "regionType"])
+        || show(&["Colour", "color thread"])
+        || show(&["Hole sewing", "holeSewing"]);
+    if !any {
+        return;
+    }
     ui.separator();
     ui.label(RichText::new("Region sewing").strong());
     if !m.closed {
@@ -452,28 +488,32 @@ pub fn region_section(
         .num_columns(2)
         .spacing(egui::vec2(8.0, 6.0))
         .show(ui, |ui| {
-            ui.label("Type");
-            if let Some(k) = kind_combo::<Option<RegionType>>(
-                ui,
-                "region-type",
-                &m.region_kind,
-                &inspector::region_types(),
-                true,
-            ) {
-                out.push(m.set_region_type(k));
+            if show(&["Region sewing type", "regionType"]) {
+                ui.label("Type");
+                if let Some(k) = kind_combo::<Option<RegionType>>(
+                    ui,
+                    "region-type",
+                    &m.region_kind,
+                    &inspector::region_types(),
+                    true,
+                ) {
+                    out.push(m.set_region_type(k));
+                }
+                ui.end_row();
             }
-            ui.end_row();
             let Some(r) = m.region.clone() else { return };
-            ui.label("Colour");
-            let colour = if all_same_region_thread(app, m) {
-                Some(&r.thread)
-            } else {
-                None
-            };
-            if let Some(i) = thread_picker(ui, "region-colour", colour) {
-                out.push(m.set_region(json!({ "color": i })));
+            if show(&["Colour", "color thread"]) {
+                ui.label("Colour");
+                let colour = if all_same_region_thread(app, m) {
+                    Some(&r.thread)
+                } else {
+                    None
+                };
+                if let Some(i) = thread_picker(ui, "region-colour", colour) {
+                    out.push(m.set_region(json!({ "color": i })));
+                }
+                ui.end_row();
             }
-            ui.end_row();
             let user = app.session.design().patterns.clone();
             // Text has no Running Stitch Path (guide).
             let text = app
@@ -483,12 +523,15 @@ pub fn region_section(
                 .iter()
                 .any(|o| m.shapes.contains(&o.id) && o.kind == ObjectKind::Text);
             for c in inspector::region_controls_with(&r, &user) {
-                if text && c.param() == "runningStitchPath" {
+                if (text && c.param() == "runningStitchPath") || !c.shown(&filter) {
                     continue;
                 }
                 if let Some(v) = control(app, ui, &c) {
                     out.push(m.set_region(c.params(v)));
                 }
+            }
+            if !show(&["Hole sewing", "holeSewing"]) {
+                return;
             }
             ui.label("Hole sewing");
             let mut hole = matches!(m.hole_sewing, Common::Same(true));
@@ -532,36 +575,56 @@ pub fn line_section(
     m: &InspectorModel,
     out: &mut Vec<CommandRequest>,
 ) {
+    let filter = app.ui.property_search.clone();
+    let show = |texts: &[&str]| inspector::matches_filter(&filter, texts);
+    let any = filter.trim().is_empty()
+        || m.line.as_ref().is_some_and(|l| {
+            inspector::line_controls_with(l, &app.session.design().patterns)
+                .iter()
+                .any(|c| c.shown(&filter))
+        })
+        || show(&["Line sewing type", "lineType"])
+        || show(&["Colour", "color thread"]);
+    if !any {
+        return;
+    }
     ui.separator();
     ui.label(RichText::new("Line sewing").strong());
     egui::Grid::new("line")
         .num_columns(2)
         .spacing(egui::vec2(8.0, 6.0))
         .show(ui, |ui| {
-            ui.label("Type");
-            if let Some(k) = kind_combo::<Option<LineType>>(
-                ui,
-                "line-type",
-                &m.line_kind,
-                &inspector::line_types(),
-                true,
-            ) {
-                out.push(m.set_line_type(k));
+            if show(&["Line sewing type", "lineType"]) {
+                ui.label("Type");
+                if let Some(k) = kind_combo::<Option<LineType>>(
+                    ui,
+                    "line-type",
+                    &m.line_kind,
+                    &inspector::line_types(),
+                    true,
+                ) {
+                    out.push(m.set_line_type(k));
+                }
+                ui.end_row();
             }
-            ui.end_row();
             let Some(l) = m.line.clone() else { return };
-            ui.label("Colour");
-            let colour = if all_same_line_thread(app, m) {
-                Some(&l.thread)
-            } else {
-                None
-            };
-            if let Some(i) = thread_picker(ui, "line-colour", colour) {
-                out.push(m.set_line(json!({ "color": i })));
+            if show(&["Colour", "color thread"]) {
+                ui.label("Colour");
+                let colour = if all_same_line_thread(app, m) {
+                    Some(&l.thread)
+                } else {
+                    None
+                };
+                if let Some(i) = thread_picker(ui, "line-colour", colour) {
+                    out.push(m.set_line(json!({ "color": i })));
+                }
+                ui.end_row();
             }
-            ui.end_row();
             let user = app.session.design().patterns.clone();
             for c in inspector::line_controls_with(&l, &user) {
+                if !c.shown(&filter) {
+                    continue;
+                }
                 if let Some(v) = control(app, ui, &c) {
                     out.push(m.set_line(c.params(v)));
                 }

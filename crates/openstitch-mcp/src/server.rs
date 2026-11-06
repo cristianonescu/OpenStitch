@@ -406,6 +406,9 @@ impl Server {
         let continue_on_error = p
             .bool("continueOnError", Some(false))
             .map_err(|e| e.to_string())?;
+        let validate_only = p
+            .bool("validateOnly", Some(false))
+            .map_err(|e| e.to_string())?;
         if steps.is_empty() {
             return Err("run_batch: steps must not be empty".into());
         }
@@ -444,6 +447,21 @@ impl Server {
                 });
             };
             plan.push((name.to_string(), id, args.clone()));
+        }
+        // Every step's parameters before any runs (#494): all the mistakes come back at once.
+        let mut errors = Vec::new();
+        for (i, (_, id, args)) in plan.iter().enumerate() {
+            match self.session.validate(id, Some(args)) {
+                Ok(problems) => errors.extend(problems.into_iter().map(
+                    |p| json!({ "step": i, "command": id, "param": p.param, "message": p.message }),
+                )),
+                Err(e) => {
+                    errors.push(json!({ "step": i, "command": id, "message": e.to_string() }))
+                }
+            }
+        }
+        if let Some(r) = checked(plan.len(), errors, validate_only) {
+            return Ok(r);
         }
         let mut results = Vec::with_capacity(plan.len());
         let mut failed = 0;
@@ -573,4 +591,25 @@ pub fn nesting_depth(text: &str) -> usize {
         }
     }
     deepest
+}
+
+/// The result of a batch's parameter check (#494): `Some` when the batch stops here, because
+/// a step has errors (nothing ran) or only a check was asked for; `None` to run it.
+pub(crate) fn checked(steps: usize, errors: Vec<Value>, validate_only: bool) -> Option<Value> {
+    if errors.is_empty() && !validate_only {
+        return None;
+    }
+    let ok = errors.is_empty();
+    let mut r = tool_success(&json!({
+        "ok": ok,
+        "steps": steps,
+        "ran": 0,
+        "failed": 0,
+        "validated": true,
+        "errors": errors,
+    }));
+    if !ok {
+        r["isError"] = json!(true);
+    }
+    Some(r)
 }
