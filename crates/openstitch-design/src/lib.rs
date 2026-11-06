@@ -17,6 +17,7 @@ pub mod freehand;
 pub mod generate;
 pub mod geometry;
 pub mod holes;
+pub mod knife;
 pub mod lines;
 pub mod machine;
 pub mod model;

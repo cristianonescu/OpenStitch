@@ -19,6 +19,7 @@ pub mod fonts;
 mod guides;
 #[cfg(feature = "formats")]
 pub mod imports;
+mod knife;
 pub mod layout;
 mod lettering;
 #[cfg(feature = "library")]

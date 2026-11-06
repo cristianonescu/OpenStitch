@@ -306,6 +306,7 @@ Behaviour follows the guide's pages
 | Select | Point Edit | `A` | `Action::PointTool` | `object.setPoint` | yes |
 | Select | Select All | `Ctrl+A` | `Action::SelectAll` | view/UI only | yes |
 | Edit Outline | Split Outline |  | `Action::SplitOutline` | `shape.split` | yes |
+| Edit Outline | Knife (beyond PE-DESIGN, #477) |  | `Action::Knife` | `shape.knife` | yes |
 | Edit Outline | Add Direction Line |  | `Action::AddDirectionLine` | `object.setDirectionCurve` | yes |
 | Edit Outline | Delete Direction Line |  | `Action::DeleteDirectionLine` | `object.setDirectionLines` | yes |
 | Edit Outline | Reverse Direction Line |  | `Action::ReverseDirectionLine` | `object.reverseDirection` | yes |
@@ -403,6 +404,13 @@ and [Adjusting the split positions](https://support.brother.com/g/s/hf/htmldoc/p
   corners and open ends kept, a Manual Punch column loses one direction line per click. The
   status line says how many nodes went. **Smooth Stitches** (Stitches ▸ Edit) evens out the
   selected needle points' span, or the whole pattern, keeping jumps, trims and run ends.
+- **Knife** (Shapes ▸ Edit Outline, beyond PE-DESIGN, #477): click the points of an open cut
+  line (Shift: 45° steps); a double-click or Return cuts every visible object the line crosses
+  in one Undo (`shape.knife`): fills and closed outlines into both sides, Manual Punch columns
+  and satin skeletons across the column (the cut is a direction line of both halves), lines
+  where crossed, a closed outline cut once opening there. A single click then Return (or a
+  double-click with no line) splits the line under the pointer. The tool stays active for more
+  cuts; Esc drops the line, and with none leaves the tool. Split Outline is unchanged.
 - **Change Color** lists the selected stitch pattern's threads; pick one and its new colour.
 - **Editing characters** (after the guide's
   [Editing individual characters](https://support.brother.com/g/s/hf/htmldoc/ped/im/ped11/en/PED11_EN/pages/05_1904502.html)):

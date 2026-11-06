@@ -60,6 +60,8 @@ mod free_hoopings;
 mod hoop_lists;
 #[path = "imports.rs"]
 mod imports;
+#[path = "knife.rs"]
+mod knife;
 #[path = "layout.rs"]
 mod layout;
 #[path = "lettering.rs"]

@@ -227,6 +227,7 @@ own!(
     "smooth_shape",
     "smooth_tolerance",
     "smooth_stitches",
+    "knife",
 );
 
 /// The icons of buttons that run no command: the Assistant panel's attach and close.
@@ -420,6 +421,7 @@ fn glyph(a: Action) -> Glyph {
         SmoothShape => G::Own("smooth_shape"),
         SmoothTolerance => G::Own("smooth_tolerance"),
         SmoothStitches => G::Own("smooth_stitches"),
+        Knife => G::Own("knife"),
         SplitAtPoint => G::Own("split_point"),
         SplitStitchData => G::Own("split_stitches"),
         DivideByColor => G::Own("divide_color"),
