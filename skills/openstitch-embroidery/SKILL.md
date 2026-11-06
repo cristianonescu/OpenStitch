@@ -69,6 +69,16 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    a running line. Text is satin by default. A satin border or outline is a line:
    `object.setLine` with `type: zigzag`, about 2-4 mm wide (the badge recipe in
    `reference/recipes.md`).
+   Satin quality beyond PE-DESIGN (off by default; Manual Punch columns via
+   `object.setRegion`, zigzag lines via `object.setLine`): `cornerStyle: auto` for stars,
+   chevrons and badge borders (mitre below `mitreBelow` 75°, cap below `capBelow` 45°,
+   `cornerOverlap`, `capMaxLength`); `shortStitchDistance: 0.25` (with `shortStitchInset` %)
+   thins the inside of tight curves; `pullLeft`/`pullRight` (mm, `null` resets) and
+   `pullPercent` (3 for tapered columns; `pullMax` caps it) compensate per side and by width;
+   `underlayStyle: auto` picks a centre walk, edge run or edge + zigzag by width (thresholds
+   `underlayAuto {centreBelow, edgeBelow}`, set by `fabric.apply`), `centreWalk` for thin
+   satins, and a column's `underlay2 {style, inset, spacing, stitchLength}` adds a second
+   layer (`null` removes it). Read them back with `object.get`.
 4. Order: `order.optimize` (PE-DESIGN-compatible order) or `order.byColor`; check with
    `object.list` (sewing order). To sew objects in a set order, `order.byClickOrder`
    `{ids: [in sewing order]}` (they start where the earliest of them sews now); to sew a

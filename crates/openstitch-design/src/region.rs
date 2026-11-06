@@ -222,33 +222,14 @@ fn layers_inner(
     }
     // Several direction lines: the top stitching follows the column they make.
     if r.direction_lines.len() >= 2 && matches!(r.kind, RegionType::Satin | RegionType::Fill) {
-        let spacing = 10.0 / r.density.max(0.1);
-        let pull = r.pull_compensation * 10.0;
         let lines = if r.curved_lines {
             crate::column::curved_rungs(&r.direction_lines)
         } else {
             r.direction_lines.clone()
         };
-        let mut out = Vec::new();
-        if r.underlay {
-            // PE-DESIGN's under sewing of a Manual Punch column (see `column::underlay`).
-            let start = r.entry.unwrap_or(lines[0][0]);
-            let run = crate::column::underlay(
-                &lines,
-                r.underlay_parts(),
-                r.underlay_spacing_mm() * 10.0,
-                r.stitch_length * 10.0,
-                start,
-            );
-            if run.len() > 1 {
-                out.push(vec![run]);
-            }
-        }
-        out.push(vec![match r.kind {
-            RegionType::Satin => crate::column::satin(&lines, spacing, pull),
-            _ => crate::column::fill(&lines, spacing, r.stitch_length * 10.0, pull),
-        }]);
-        return out;
+        // PE-DESIGN's under sewing of a Manual Punch column and its top stitching, with
+        // OpenStitch's satin shaping (see `column::layers`).
+        return crate::column::layers(&lines, r);
     }
     // Auto direction, satin: the rows follow a skeleton derived from the region, so they stay
     // across the local axis on curved and bent regions. Travel (Running Stitch Path) does not

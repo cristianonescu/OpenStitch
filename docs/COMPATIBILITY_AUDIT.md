@@ -2772,6 +2772,33 @@ output is byte-identical (tests `basting_box_sews_first_in_the_first_thread`,
 - sew_check passes on the heart example with a basting box, an outline basting in its own
   thread, stops after an object plus Stop at Jumps, and nearest start, as on the plain design.
 
+### Satin shaping, 2026-11-06 (#520-#523, `batch:satin-1`)
+
+All beyond PE-DESIGN and off by default on Manual Punch columns and zigzag lines; with the
+options unset, every one of the 476 files the compat run writes is byte-identical to main and
+compat stays 454/454. The shared code is in `column.rs`: `pieces` (corners), `short_stitches`,
+`Compensation::sides`, `AutoUnderlay`, `centre_walk`, `underlay_at`.
+
+Coupon (a 3 mm star border, a 4 mm zigzag line with a 30° corner, a 6 mm Manual Punch column
+with a 60° corner and a 4 mm curved zigzag line), turned (PE-DESIGN) against `cornerStyle:
+auto, shortStitchDistance: 0.25`, read from the exported PES:
+
+| Object | Longest stitch, turned → shaped | Stitches | Note |
+|---|---|---|---|
+| Star border 3 mm | 9.9 → 6.9 mm | 557 → 975 | tips capped; mitred legs sew square stitches at the same spacing across the stitch, where PE-DESIGN's leaning ones are about 1.8× longer |
+| Zigzag line, 30° corner, 4 mm | 11.8 → 7.9 mm | 254 → 383 | `design.check` "satin stitches up to 12.3 mm" gone |
+| Column, 60° corner, 6 mm | 12.3 → 6.1 mm | 490 → 500 | mitred |
+| Curved zigzag line 4 mm | 4.1 → 4.1 mm | 221 → 221 | 0.5 mm cells with 2+ needle drops 43 → 25; one cell rises from 2 to 3 |
+
+- Corners classify on the rung chain's interior angle (≥ 75° turned, < 75° mitre, < 45° cap
+  with `auto`); a cap longer than `capMaxLength` is mitred, a leg shorter than the overlap or
+  a stitch spacing stays turned. A closed line with corners starts halfway along its first side.
+- A line with no corner sharp enough keeps PE-DESIGN's zigzag (and Half Stitch on curves);
+  short stitches then thin it further.
+- Not done here: skeleton and Auto satin (#675), satin lettering (#676), fill push and a
+  region's second underlay (#677), lap corners. No sew-out yet: the owner's T-card scan of a
+  tapered column with `pullPercent: 3` is still needed for #522's ±5 % width target.
+
 ## Order of work
 
 1. **Fix without a reference:** items 1, 3, 7, 14, 15 (ranges), 16 and 17, plus the

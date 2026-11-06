@@ -116,6 +116,8 @@ mod random_designs;
 mod region_compat;
 #[path = "satin_compat.rs"]
 mod satin_compat;
+#[path = "satin_shaping.rs"]
+mod satin_shaping;
 #[path = "sections.rs"]
 mod sections;
 #[path = "sewing.rs"]
