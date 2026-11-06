@@ -1592,6 +1592,15 @@ Line references are relative to `crates/`.
     top just right of the middle); no single walking rule fits those and the rectangle's 75.4°.
     The new specs `concentric-circle30` and `concentric-ellipse40x30` compare counts, bounds and
     stitch lengths, not the seam.
+- **Image digitizing, batch:auto-punch (2026-11-06; #445, #447, #469, #489):** PE-DESIGN-compatible
+  mode's output is unchanged on every gallery case (scorer identical, 17 cases). OpenStitch mode:
+  a paper background is the fabric showing (#445), thin parts cut by the sliver opening are
+  running lines (#469), the region plan, overrides and neighbour angles are new options (#489).
+  Measured and not shipped: giving PE-compatible mode as many distinct nearest threads as its
+  colour count (#447) gives p03 10 threads with Pewter, as PE-DESIGN's capture has, but
+  ΔE00 15.97 → 16.96 and MS-SSIM 0.625 → 0.611 (d01 improves, 23.97 → 23.40); Cross Stitch
+  edge cells taking one of their own threads (#469) helps g02 and g07 but g05 drops
+  (ΔE00 10.94 → 11.32).
 - **Image digitizing (Phase 6, issues #127, #128, #132, #129):** the Auto Punch, Cross Stitch
   and Photo Stitch pipelines were this project's own approximations; the Phase 6 gap analysis
   pins their arithmetic. Done 2026-10-29 (#128): mono Photo Stitch uses integer Rec. 601

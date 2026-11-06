@@ -116,6 +116,9 @@ pub struct ImageWizard {
     pub mark_width: f64,
     /// The marking window is open.
     pub marking: bool,
+    /// Auto Punch, OpenStitch mode: touching fills turned apart (`angleRule: varyNeighbours`,
+    /// #489; off by default).
+    pub vary_angles: bool,
     /// Cross Stitch, OpenStitch mode: cover each cell with parallel diagonals (`fill`).
     pub cross_fill: bool,
     /// Cross Stitch, OpenStitch mode: three-quarter and quarter crosses where a cell is split by
@@ -169,6 +172,7 @@ impl Default for ImageWizard {
             mark_subject: true,
             mark_width: MARK_WIDTH,
             marking: false,
+            vary_angles: false,
             cross_fill: true,
             part_crosses: false,
             all_trims: None,
@@ -336,6 +340,9 @@ impl ImageWizard {
                     }
                 } else if !self.sew_background {
                     p.insert("skipBackground".into(), json!(true));
+                }
+                if self.open_stitch && self.vary_angles {
+                    p.insert("angleRule".into(), json!("varyNeighbours"));
                 }
                 if !self.open_stitch || self.min_area_set {
                     p.insert("minArea".into(), json!(self.min_area));
@@ -673,6 +680,17 @@ mod tests {
             "PE-DESIGN mode sends it as before"
         );
         assert_eq!(r.params["satinMaxWidth"], 6.0);
+        assert!(r.params.get("angleRule").is_none());
+        // OpenStitch mode: touching fills turned apart only when chosen (#489).
+        let vary = ImageWizard {
+            open_stitch: true,
+            vary_angles: true,
+            ..base.clone()
+        };
+        assert_eq!(
+            vary.request().expect("request").params["angleRule"],
+            "varyNeighbours"
+        );
         // Cross Stitch: Mode, and fill sent only when turned off.
         let cs = ImageWizard {
             method: Method::CrossStitch,
