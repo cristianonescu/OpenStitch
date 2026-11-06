@@ -28,9 +28,12 @@ const GRACE: Duration = Duration::from_millis(1200);
 /// before the exit is reported anyway: only a helper process still holding the agent's stderr
 /// does that. Time the reader spends unscheduled on a busy machine does not count (#426).
 const STDERR_DRAIN: Duration = Duration::from_secs(2);
+/// The same when the reader was already waiting before the exit was seen: then it cannot show
+/// whether the agent's last words are still in the pipe for a reader the machine has not run
+/// yet, so it gets far longer than the starvation measured on a loaded 4-core PC (over 2 s).
+const STDERR_DRAIN_UNSEEN: Duration = Duration::from_secs(10);
 /// The longest wait after stdout closes before the exit is reported whatever stderr does: an
-/// agent that closed stdout but keeps running, or a helper holding stderr in an order the
-/// reader's state cannot show.
+/// agent that closed stdout but keeps running.
 const STDERR_BACKSTOP: Duration = Duration::from_secs(30);
 
 /// The agent's stderr tail.
@@ -251,6 +254,8 @@ impl AgentProcess {
             // reader that has not been scheduled yet by the reader's own state: once the agent
             // has exited, its last words are in the pipe, and a reader that went to wait on an
             // empty pipe after that and is still waiting STDERR_DRAIN later has read them all.
+            // A reader that was already waiting when the exit was seen proves less (it may not
+            // have run since the last words arrived), so it is given STDERR_DRAIN_UNSEEN.
             let closed_stdout = Instant::now();
             let mut exit_seen: Option<Instant> = None;
             while let Err(RecvTimeoutError::Timeout) =
@@ -260,11 +265,13 @@ impl AgentProcess {
                     exit_seen = Some(Instant::now());
                 }
                 let drained = exit_seen.is_some_and(|seen| {
-                    waiting
-                        .lock()
-                        .ok()
-                        .and_then(|w| *w)
-                        .is_some_and(|since| since >= seen && since.elapsed() >= STDERR_DRAIN)
+                    waiting.lock().ok().and_then(|w| *w).is_some_and(|since| {
+                        if since >= seen {
+                            since.elapsed() >= STDERR_DRAIN
+                        } else {
+                            seen.elapsed() >= STDERR_DRAIN_UNSEEN
+                        }
+                    })
                 });
                 if drained || closed_stdout.elapsed() >= STDERR_BACKSTOP {
                     break;
@@ -317,12 +324,13 @@ mod tests {
     use super::*;
     use std::sync::mpsc::channel;
 
-    /// An agent that ends while a helper it started still holds its stderr is reported as ended
-    /// once the pipe has stayed empty for STDERR_DRAIN, with its last words in the tail.
+    /// An agent that ends while a helper it started still holds its stderr (not its stdout) is
+    /// reported as ended once the pipe has stayed empty long enough, with its last words in the
+    /// tail, well before the helper ends.
     #[test]
     fn the_exit_is_reported_while_a_helper_holds_stderr() {
         let mut cmd = Command::new("sh");
-        cmd.args(["-c", "echo last words >&2; (sleep 20 >/dev/null) & exit 0"]);
+        cmd.args(["-c", "echo last words >&2; sleep 60 >/dev/null & exit 0"]);
         let (tx, rx) = channel();
         let started = Instant::now();
         let process = AgentProcess::spawn(
@@ -333,7 +341,7 @@ mod tests {
             },
         )
         .expect("spawn sh");
-        rx.recv_timeout(Duration::from_secs(15))
+        rx.recv_timeout(STDERR_DRAIN_UNSEEN + Duration::from_secs(15))
             .expect("the exit is reported before the helper ends");
         assert!(started.elapsed() >= STDERR_DRAIN);
         assert_eq!(process.stderr_tail(), "last words");
