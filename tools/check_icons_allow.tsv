@@ -1,1 +1,14 @@
 path	label_or_function	issue
+crates/openstitch-app/src/assistant_panel.rs	Choose a model first: in the Assistant's settings (⚙), Model ▸ List shows the endpoint's models.	#653
+crates/openstitch-app/src/assistant_panel.rs	Add the API key for this address in the Assistant's settings (⚙) first. It is kept in the system keychain and sent only to the address shown there.	#653
+crates/openstitch-app/src/assistant_panel.rs	▾	#653
+crates/openstitch-app/src/assistant_panel.rs	✗	#653
+crates/openstitch-app/src/assistant_panel.rs	✓	#653
+crates/openstitch-app/src/colour_match_ui.rs	→	#653
+crates/openstitch-app/src/panels.rs	::	#653
+crates/openstitch-app/src/panels.rs	|<	#653
+crates/openstitch-app/src/panels.rs	<	#653
+crates/openstitch-app/src/panels.rs	>	#653
+crates/openstitch-app/src/panels.rs	>|	#653
+crates/openstitch-app/src/ribbon.rs	arrow	#653
+crates/openstitch-app/src/ribbon.rs	inline arrow	#653
