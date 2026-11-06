@@ -186,6 +186,19 @@ impl Session {
         Ok(spec)
     }
 
+    /// Checks `params` for command `id` without running it (#494): every missing, unknown or
+    /// badly typed parameter at once. `Err` when the command does not exist or is not
+    /// permitted. Values the documented kinds cannot judge (lengths, object ids) are left to
+    /// [`Session::execute`].
+    pub fn validate(
+        &self,
+        id: &str,
+        params: Option<&Value>,
+    ) -> Result<Vec<crate::ParamProblem>, CommandError> {
+        let spec = self.permits(id)?;
+        Ok(crate::check_docs(&spec.params, params))
+    }
+
     /// Runs one command. Failures leave the document untouched; a successful edit that changes
     /// the design is one undo step.
     pub fn execute(&mut self, id: &str, params: Option<&Value>) -> CommandResult {

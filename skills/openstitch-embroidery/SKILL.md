@@ -127,6 +127,14 @@ then style them in the next.
   `{query}` finds a thread by code or name. After `import.svg` or a `digitize.*` wizard gives
   many near-identical colours, offer `threads.mergeSimilar` (`dryRun` first; it reports the
   colour changes saved, and `order.byColor` when `suggestSortByColor`).
+- The user's own threads: when they say "use my threads", have a thread chart (`threads.charts`
+  lists theirs) or name a brand, take **every** colour from that chart: pick entries for new
+  objects, or `threads.remap {chart | builtin}` the design. Never quote a catalogue number
+  that is not in a chart: look it up with `threads.find {query}` first, and if it is not
+  there, give the colour as `#rrggbb` and say no thread matches. From a photo or list of their
+  spools, propose a chart (colour, and the code only when the label is legible) and create it
+  with `threads.createChart` and `threads.addColor` only after the user confirms; the editor
+  asks them too.
 - Delete: `object.delete` `{ids}`. Undo: `history.undo` (only for your own mistakes).
 
 ## Editor commands (`ui.*`)
@@ -191,7 +199,10 @@ Do not undo the user's own earlier work; to retry, undo or delete your own objec
 
 ## Rules
 
-- Prefer `run_batch`; a malformed batch changes nothing, and it stops at the first failure.
+- Prefer `run_batch`. Every step's parameters are checked before anything runs: a batch with
+  mistakes changes nothing and returns **all** of them at once in `errors` (`step`, `command`,
+  `param`, `message`); fix them all before resending. `validateOnly: true` checks a batch
+  without running it. Once it runs, it stops at the first failure unless `continueOnError`.
 - After building or changing anything visible, call `view_render` and look before you answer.
 - To check one aspect: `view_render` (or MCP `preview`) takes `layers: "underlay" | "top"`,
   `colorBy: "order" | "mono"`, `only: [ids]`, `solo: block`, `needlePoints`, `trimMarks`; in

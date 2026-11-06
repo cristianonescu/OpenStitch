@@ -668,14 +668,16 @@ mod tests {
         );
         let ctx = egui::Context::default();
         let mut app = folder();
-        // Print hands the catalogue PDF over; test builds never start the OS print dialog.
+        // Print hands the catalogue PDF over; test builds never start the OS print dialog, and
+        // the PDF goes to this test's folder, not the system temp folder (#384).
+        app.database.print_dir = Some(dir.join("print"));
         app.run(D::Print, &ctx);
         let pdf = app
             .printed
             .clone()
             .expect("a catalogue PDF for the print dialog");
+        assert!(pdf.starts_with(dir.join("print")), "{}", pdf.display());
         assert!(app.print_job.is_none(), "tests must not start a real print");
-        let _ = std::fs::remove_file(pdf);
         assert!(enabled(&app, D::ConvertFormat) && enabled(&app, D::Paste));
         app.run(D::Details, &ctx);
         assert!(app.active(D::Details) && !app.active(D::LargeThumbnails));

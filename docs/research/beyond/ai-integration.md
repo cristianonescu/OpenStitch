@@ -926,3 +926,62 @@ Not done here: a real-model run of the bench pair (Claude Code over claude-agent
 by the owner, can run it with `stitchtool bench-assistant --agent claude --tasks
 remember,remembered-heart`), and automatic summarising of old Lessons (the model is asked to
 summarise when the cap is reached).
+
+### Assistant fixes (2026-11-06, #580, #494, #495, #582, #401)
+
+`batch:assistant-fixes`, on Windows. No local model ran (owner's decision 2026-11-05).
+
+**#580, the request timeout did not end a stuck turn.** `UreqTransport` gives ureq the timeout
+for the response headers and for each read, so a server that sends anything at least once per
+timeout was never cut off; and an OpenAI-compatible model's reasoning (`delta.reasoning`, as
+qwen3 sends through Ollama) was counted but never shown, so a model reasoning for minutes looked
+like a dead turn. What Ollama sent in the 8.5 and 21 minutes was not captured, so both are
+covered:
+- The stream is read on a helper thread (`openstitch_assistant::idle::Watchdog`), which ends the
+  read once no bytes came for the timeout, whatever the transport does, and soon after Stop
+  (Stop used to wait for the next byte).
+- The stream readers keep a clock of reply progress: text, reasoning, tool-call pieces, the
+  finish and, for the Claude API, every event but `ping`. SSE comments, pings, empty deltas and
+  usage-only chunks do not reset it. A stream without progress for the timeout ends the turn
+  with "The server sent no reply for 300 s (the request timeout) …".
+- Reasoning from OpenAI-compatible servers now shows as the Thinking row; it is not sent back.
+- The setting's hover text says what the timeout now means.
+
+Proved with fake providers (`tests/stuck.rs`, 300 ms timeout): one that never sends a byte (both
+protocols), one that sends empty deltas every 20 ms, SSE comments and Claude `ping` events every
+20 ms all end with the timeout error; a model that reasons for over three times the timeout in
+pieces 50 ms apart finishes and shows its thinking; Stop ends a silent turn with a 60 s timeout
+at once. Unit tests cover the watchdog and the SSE reader.
+
+**#494, every batch error at once.** `Session::validate` checks a step's parameters against the
+command's documentation without running it; `run_batch` (both servers) and `stitchtool exec`
+check every step first and return all problems (`errors: [{step, command, param, message}]`),
+running nothing. `validateOnly` only checks. The check never refuses what ran before: every step
+of every compat spec and example validates clean. Bench before and after for a local model: not
+run (no local models here).
+
+**#495, only the user's threads.** The skill's rule (above), the gate question for thread chart
+changes, and the bench task `my-threads` with its reply checker. Claude Code run: see the table
+below.
+
+**#582 and #401.** The 12-task bench on Windows (12 of 12, 2026-11-05) is recorded above. Linux
+is covered by CI (the keychain round trip with gnome-keyring, every Assistant test).
+
+**Claude Code on Windows, 2026-11-06** (claude-agent-acp 0.100.0, signed in by the owner): 3 of
+3, 1,510,892 input and 9,926 output tokens.
+
+| Task | Result | Tool calls (errors) | Tokens in / out | Seconds |
+|---|---|---|---|---|
+| my-threads | pass | 17 (1) | 726,931 / 7,268 | 113.8 |
+| remember | pass | 3 (0) | 143,849 / 411 | 17.2 |
+| remembered-heart | pass | 14 (1) | 640,112 / 2,247 | 36.3 |
+
+`my-threads` used only "My shelf" colours (Holly Green ground, red satin border and berries,
+light-green leaves) and quoted no code outside the charts; its one error was `ui.state`, which
+the headless bench does not answer. This is also the first real run of the #491 memory pair:
+the heart took Madeira Polyneon 1637, and the alternatives it named (1747, 1839) are real
+Polyneon codes. Its error was a call to `run_batch` as a top-level tool, which the agent then
+made through the bridge. A local model was not run (owner's decision 2026-11-05).
+
+Still open on #582: one real turn in the editor on Windows (the permission prompt, Stop and the
+queue, undo) and a Windows Assistant screenshot for the README.

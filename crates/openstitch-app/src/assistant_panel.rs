@@ -1426,7 +1426,7 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                 ui.label("Request timeout (s)");
                 changed |= ui
                     .add(egui::DragValue::new(&mut prefs.request_timeout_s).range(30..=3600))
-                    .on_hover_text("How long one model request may take; a large local model may need more")
+                    .on_hover_text("How long the server may go without sending any of the reply (text, thinking or a tool call) before the turn ends; a slow local model may need more")
                     .changed();
                 ui.end_row();
             } else {
