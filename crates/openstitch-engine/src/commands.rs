@@ -561,7 +561,7 @@ fn shape_docs(mut v: Vec<ParamDoc>) -> Vec<ParamDoc> {
 
 /// Region and line sewing from the `fill` / `outline` parameters: a closed outline is filled
 /// unless only `outline` is given.
-fn sewing(
+pub(crate) fn sewing(
     p: &Params,
     closed: bool,
 ) -> Result<(Option<RegionSewing>, Option<LineSewing>), CommandError> {
@@ -578,7 +578,7 @@ fn sewing(
     Ok((region, line))
 }
 
-fn object_name(p: &Params) -> Result<Option<String>, CommandError> {
+pub(crate) fn object_name(p: &Params) -> Result<Option<String>, CommandError> {
     if p.has("name") {
         Ok(Some(p.string("name", None)?))
     } else {
@@ -701,6 +701,11 @@ fn shape_commands() -> Vec<CommandSpec> {
                     "mm",
                     "Rounded corners (PE-DESIGN edge radius; default 0, clamped to half the shorter side)",
                 ),
+                opt(
+                    "cornerRadii",
+                    "[tl, tr, br, bl] mm",
+                    "A radius per corner instead (beyond PE-DESIGN; 0 = sharp; radii that would overlap along a side shrink together)",
+                ),
             ]),
             |s, p| {
                 let (x, y) = (
@@ -712,7 +717,11 @@ fn shape_commands() -> Vec<CommandSpec> {
                     p.req("height", 0.1, 2000.0)? * MM,
                 );
                 let radius = p.opt("cornerRadius", 0.0, 0.0, 1000.0)? * MM;
-                let r = if radius > 0.0 {
+                let radii = crate::shape_tools::corner_radii(p)?;
+                let r = if let Some(radii) = radii {
+                    shapes::rectangle_with_radii(w, h, radii)
+                        .transformed(&Transform::translation(x, y))
+                } else if radius > 0.0 {
                     shapes::rounded_rectangle(w, h, radius)
                         .transformed(&Transform::translation(x, y))
                 } else {
@@ -850,12 +859,12 @@ fn shape_commands() -> Vec<CommandSpec> {
         ),
         spec(
             "shape.preset",
-            "Add a preset shape fitted to a box: polygon, star, heart, triangle, diamond, arrow, cross, crescent, teardrop",
+            "Add a preset shape fitted to a box: polygon, star, heart, triangle, diamond, arrow, cross, crescent, teardrop; frame (a band of bandWidth around an open middle) and spiral (an open line) beyond PE-DESIGN",
             Effect::Edit,
             shape_docs(vec![
                 req(
                     "kind",
-                    "polygon|star|heart|triangle|diamond|arrow|cross|crescent|teardrop",
+                    "polygon|star|heart|triangle|diamond|arrow|cross|crescent|teardrop|frame|spiral",
                     "Preset",
                 ),
                 req("cx", "mm", "Centre x"),
@@ -873,11 +882,36 @@ fn shape_commands() -> Vec<CommandSpec> {
                     "factor 0.05-0.95",
                     "Star inner radius, arrow shaft or cross arm thickness, crescent bite (default 0.4)",
                 ),
+                opt(
+                    "frameOf",
+                    "rectangle|ellipse|roundedRectangle|heart",
+                    "Frame: the shape whose middle is left open (default rectangle)",
+                ),
+                opt(
+                    "bandWidth",
+                    "mm",
+                    "Frame: width of the band between the outer and inner outline (default 5)",
+                ),
+                opt("turns", "0.25-50", "Spiral: turns (default 3)"),
+                opt(
+                    "innerRadius",
+                    "mm",
+                    "Spiral: radius where it starts (default 0; the outer radius is half the width)",
+                ),
+                opt(
+                    "direction",
+                    "cw|ccw",
+                    "Spiral: turning clockwise or anticlockwise on screen, outwards (default cw); rotation is its start angle",
+                ),
             ]),
             |s, p| {
                 let sides = p.int("sides", Some(5), 3, 64)? as usize;
                 let ratio = p.opt("ratio", 0.4, 0.05, 0.95)?;
                 let kind = p.string("kind", None)?;
+                if matches!(kind.as_str(), "frame" | "spiral") {
+                    let object = crate::shape_tools::preset(p, &kind)?;
+                    return Ok(json!({ "id": s.design.add(object) }));
+                }
                 // PE-DESIGN 11's start point for the matching gallery shapes; its polygons follow
                 // no one rule (hexagon mid-edge, pentagon and octagon at a corner), so they keep none.
                 let ends: Option<fn(&Contour) -> Option<Vec2>> = match kind.as_str() {
@@ -898,7 +932,7 @@ fn shape_commands() -> Vec<CommandSpec> {
                     _ => {
                         return Err(p.invalid(
                             "kind",
-                            "must be polygon, star, heart, triangle, diamond, arrow, cross, crescent or teardrop",
+                            "must be polygon, star, heart, triangle, diamond, arrow, cross, crescent, teardrop, frame or spiral",
                         ));
                     }
                 };

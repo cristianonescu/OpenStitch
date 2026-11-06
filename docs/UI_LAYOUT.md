@@ -316,6 +316,7 @@ Behaviour follows the guide's pages
 | Edit Outline | Satin Skeleton from Shape |  | `Action::DeriveSkeleton` | `object.deriveSkeleton` | yes |
 | Edit Outline | Smooth Shape (beyond PE-DESIGN, #478) |  | `Action::SmoothShape` | `shape.simplify` | yes |
 | Edit Outline | Smooth tolerance (beyond PE-DESIGN, #478) |  | `Action::SmoothTolerance` | `shape.simplify` (`tolerance`) | yes |
+| Edit Outline | Shape Effects (beyond PE-DESIGN, #497) |  | `Action::ShapeEffects` | `shape.effect` | yes |
 | Color / Sew Type | Line color |  | `Action::LineColor` | `object.setLine` | yes |
 | Color / Sew Type | Line sew type |  | `Action::LineSewType` | `object.setLine` | yes |
 | Color / Sew Type | Region color |  | `Action::RegionColor` | `object.setRegion` | yes |
@@ -411,6 +412,13 @@ and [Adjusting the split positions](https://support.brother.com/g/s/hf/htmldoc/p
   where crossed, a closed outline cut once opening there. A single click then Return (or a
   double-click with no line) splits the line under the pointer. The tool stays active for more
   cuts; Esc drops the line, and with none leaves the tool. Split Outline is unchanged.
+- **More shapes** (beyond PE-DESIGN, #497): Home ▸ Tools ▸ Shapes adds Frame, Round frame,
+  Rounded frame and Heart frame (a band around an open middle, `shape.preset kind: frame`) and
+  Spiral line (`kind: spiral`). Shapes (Rectangle) ▸ Edge radius ▸ Different radius per corner
+  sets four radii (`cornerRadii`). Home ▸ Edit ▸ Modify Overlap ▸ Divide cuts every overlap of
+  the selected shapes into its own shape, sewn like the topmost one (`shape.combine op:
+  divide`). Shapes ▸ Edit Outline ▸ Shape Effects warps, twists, roughens, puckers or bloats, or
+  zigzags the selected outlines, with a preview of the result before Apply (`shape.effect`).
 - **Change Color** lists the selected stitch pattern's threads; pick one and its new colour.
 - **Editing characters** (after the guide's
   [Editing individual characters](https://support.brother.com/g/s/hf/htmldoc/ped/im/ped11/en/PED11_EN/pages/05_1904502.html)):

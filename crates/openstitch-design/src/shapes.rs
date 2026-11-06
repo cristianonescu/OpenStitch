@@ -142,6 +142,110 @@ pub fn rounded_rectangle(w: f64, h: f64, r: f64) -> Contour {
     c
 }
 
+/// Rectangle `w` × `h` from (0, 0) with its own corner radius at each corner, in the order
+/// top left, top right, bottom right, bottom left (beyond PE-DESIGN, #497). Each radius is
+/// clamped to half the shorter side, and the radii along a side are scaled down together when
+/// they would overlap. A radius of 0 leaves a sharp corner.
+pub fn rectangle_with_radii(w: f64, h: f64, radii: [f64; 4]) -> Contour {
+    let mut r = radii.map(|x| {
+        if x.is_finite() {
+            x.clamp(0.0, w.min(h) / 2.0)
+        } else {
+            0.0
+        }
+    });
+    // Neighbouring radii along each side must fit it.
+    for (a, b, side) in [(0, 1, w), (1, 2, h), (2, 3, w), (3, 0, h)] {
+        let sum = r[a] + r[b];
+        if sum > side && sum > 0.0 {
+            let f = side / sum;
+            r[a] *= f;
+            r[b] *= f;
+        }
+    }
+    let kappa = 4.0 / 3.0 * (std::f64::consts::PI / 8.0).dtan();
+    // Clockwise on screen: (vertex, direction arriving, direction leaving).
+    let corners = [
+        (v2(0.0, 0.0), v2(0.0, -1.0), v2(1.0, 0.0)),
+        (v2(w, 0.0), v2(1.0, 0.0), v2(0.0, 1.0)),
+        (v2(w, h), v2(0.0, 1.0), v2(-1.0, 0.0)),
+        (v2(0.0, h), v2(-1.0, 0.0), v2(0.0, -1.0)),
+    ];
+    let mut points: Vec<Vec2> = Vec::new();
+    let mut curves: Vec<Option<Bezier>> = Vec::new();
+    for (i, (v, din, dout)) in corners.into_iter().enumerate() {
+        let ri = r[i];
+        if ri <= 0.0 {
+            points.push(v);
+            curves.push(None);
+            continue;
+        }
+        let (a, b) = (v - din * ri, v + dout * ri);
+        let k = ri * kappa;
+        points.push(a);
+        curves.push(Some(Bezier {
+            c1: a + din * k,
+            c2: b - dout * k,
+        }));
+        points.push(b);
+        curves.push(None);
+    }
+    // Radii that meet along a side leave a zero-length straight segment: drop it.
+    let mut i = 0;
+    while i < points.len() && points.len() > 3 {
+        let next = (i + 1) % points.len();
+        if points[i].distance(points[next]) < 1e-9 && curves[i].is_none() {
+            points.remove(i);
+            curves.remove(i);
+        } else {
+            i += 1;
+        }
+    }
+    let mut c = Contour::new(points, true);
+    if curves.iter().any(Option::is_some) {
+        c.curves = curves;
+    }
+    c
+}
+
+/// Archimedean spiral line around `center` (beyond PE-DESIGN, #497): from `inner` × the outer
+/// radius out to the outer radii `rx`, `ry` over `turns` turns, starting at `start` degrees
+/// (clockwise from 3 o'clock), turning clockwise on screen or anticlockwise. An open polyline
+/// within the flattening tolerance of the true spiral.
+pub fn spiral(
+    center: Vec2,
+    rx: f64,
+    ry: f64,
+    inner: f64,
+    turns: f64,
+    start: f64,
+    clockwise: bool,
+) -> Contour {
+    let inner = inner.clamp(0.0, 0.99);
+    let total = TAU * turns.max(0.01);
+    let r = |theta: f64| inner + (1.0 - inner) * theta / total;
+    let dir = if clockwise { 1.0 } else { -1.0 };
+    let a0 = start.to_radians();
+    let at = |theta: f64| {
+        let (sn, cs) = (a0 + dir * theta).dsin_cos();
+        v2(center.x + rx * r(theta) * cs, center.y + ry * r(theta) * sn)
+    };
+    let mut points = vec![at(0.0)];
+    let mut theta = 0.0;
+    while theta < total && points.len() < 50_000 {
+        // Chord sagitta within the flattening tolerance at the current radius.
+        let radius = rx.max(ry) * r(theta).max(1e-3);
+        let step = if radius <= crate::geometry::FLATNESS {
+            FRAC_PI_2 / 4.0
+        } else {
+            (2.0 * (1.0 - crate::geometry::FLATNESS / radius).dacos()).clamp(0.002, FRAC_PI_2 / 4.0)
+        };
+        theta = (theta + step).min(total);
+        points.push(at(theta));
+    }
+    Contour::new(points, false)
+}
+
 /// Arrow pointing right: shaft `shaft` (0–1) of the height thick, head `head` (0–1) of the
 /// width long, in the unit square.
 pub fn arrow(shaft: f64, head: f64) -> Contour {
@@ -304,6 +408,55 @@ pub fn bottom_left(c: &Contour) -> Option<Vec2> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn per_corner_radii_give_each_corner_its_own_radius() {
+        let c = rectangle_with_radii(100.0, 60.0, [0.0, 10.0, 20.0, 30.0]);
+        // The sharp top-left corner stays a vertex; the others start and end r from it.
+        assert!(c.points.contains(&v2(0.0, 0.0)));
+        assert!(c.points.contains(&v2(90.0, 0.0)) && c.points.contains(&v2(100.0, 10.0)));
+        assert!(c.points.contains(&v2(100.0, 40.0)) && c.points.contains(&v2(80.0, 60.0)));
+        assert!(c.points.contains(&v2(30.0, 60.0)) && c.points.contains(&v2(0.0, 30.0)));
+        // Each corner curve's midpoint is its radius from the corner's centre.
+        let centres = [
+            (v2(90.0, 10.0), 10.0),
+            (v2(80.0, 40.0), 20.0),
+            (v2(30.0, 30.0), 30.0),
+        ];
+        let curved: Vec<usize> = (0..c.segment_count())
+            .filter(|&i| c.curve(i).is_some())
+            .collect();
+        for (i, (centre, r)) in curved.into_iter().zip(centres) {
+            let (a, b) = c.segment_ends(i);
+            let z = c.curve(i).expect("curve");
+            let mid = (a + b) * 0.125 + (z.c1 + z.c2) * 0.375;
+            assert!((mid.distance(centre) - r).abs() < r * 0.001, "{centre:?}");
+        }
+        assert_eq!(c.curves.iter().filter(|z| z.is_some()).count(), 3);
+        // Radii too large for a side shrink together; all zero is a plain rectangle.
+        let big = rectangle_with_radii(40.0, 100.0, [20.0, 20.0, 0.0, 0.0]);
+        assert!(big.points.contains(&v2(20.0, 0.0)));
+        assert_eq!(rectangle_with_radii(10.0, 10.0, [0.0; 4]).points.len(), 4);
+    }
+
+    #[test]
+    fn a_spiral_has_its_turns_and_radii() {
+        let s = spiral(v2(0.0, 0.0), 100.0, 100.0, 0.2, 3.0, 0.0, true);
+        assert!(!s.closed);
+        assert!((s.points[0].length() - 20.0).abs() < 1e-9);
+        assert!((s.points.last().expect("end").length() - 100.0).abs() < 1e-9);
+        // Three turns: the angle wraps three times.
+        let mut wraps = 0;
+        for w in s.points.windows(2) {
+            if w[0].y < -1e-6 && w[1].y >= -1e-6 && w[1].x > 0.0 {
+                wraps += 1;
+            }
+        }
+        assert_eq!(wraps, 3);
+        // Clockwise on screen (y down): the first step goes down.
+        assert!(s.points[1].y > 0.0);
+        assert!(spiral(v2(0.0, 0.0), 100.0, 100.0, 0.2, 3.0, 0.0, false).points[1].y < 0.0);
+    }
     use crate::geometry::contains;
 
     fn inside(p: Vec2, c: &Contour) -> bool {

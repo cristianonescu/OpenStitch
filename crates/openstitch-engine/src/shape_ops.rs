@@ -84,7 +84,11 @@ pub fn commands() -> Vec<CommandSpec> {
             Effect::Edit,
             vec![
                 req("ids", "[int]", "Subject first, then the operands"),
-                req("op", "union|difference|intersection|xor", "Operation"),
+                req(
+                    "op",
+                    "union|difference|intersection|xor|divide",
+                    "Operation; divide (beyond PE-DESIGN) cuts every overlap into its own shape, sewn like the topmost shape over it",
+                ),
                 opt(
                     "keepOperands",
                     "bool",
@@ -92,15 +96,19 @@ pub fn commands() -> Vec<CommandSpec> {
                 ),
             ],
             |s, p| {
+                if p.string("op", None)? == "divide" {
+                    return crate::shape_tools::divide(s, p);
+                }
                 let op = match p.string("op", None)?.as_str() {
                     "union" => BoolOp::Union,
                     "difference" => BoolOp::Difference,
                     "intersection" => BoolOp::Intersection,
                     "xor" => BoolOp::Xor,
                     _ => {
-                        return Err(
-                            p.invalid("op", "must be union, difference, intersection or xor")
-                        );
+                        return Err(p.invalid(
+                            "op",
+                            "must be union, difference, intersection, xor or divide",
+                        ));
                     }
                 };
                 let idx = indexes(p, &s.design)?;
@@ -255,7 +263,7 @@ fn ordered(s: &EngineState, p: &Params, minimum: usize) -> Result<Vec<usize>, Co
 }
 
 /// Shape operations work on shape objects made only of closed outlines.
-fn closed_shape(d: &Design, p: &Params, i: usize) -> Result<(), CommandError> {
+pub(crate) fn closed_shape(d: &Design, p: &Params, i: usize) -> Result<(), CommandError> {
     let o = &d.objects[i];
     match o.kind {
         ObjectKind::Shape => {}

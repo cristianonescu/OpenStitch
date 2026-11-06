@@ -49,6 +49,7 @@ pub mod session;
 mod sewing;
 mod sewing_cmds;
 mod shape_ops;
+mod shape_tools;
 mod smoothing;
 mod stamps;
 mod stitch_edit;

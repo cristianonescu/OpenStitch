@@ -262,6 +262,7 @@ pub fn enabled(app: &EditorApp, a: Action) -> bool {
         SplitOutline | EntryExit => edit_ui::single_shape(app).is_some(),
         SmoothShape => crate::shape_tools_ui::can_smooth_shape(app),
         SmoothStitches => convert_ui::stitch_selection(app).1.is_some(),
+        ShapeEffects => crate::shape_effects_ui::can_apply(app),
         AddDirectionLine | DeleteDirectionLine | ReverseDirectionLine | SewingPoints => {
             edit_ui::single_region(app).is_some()
         }
@@ -601,7 +602,7 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
         | DecorativeFrame | FitTextToOutline | SendEmbroidery | SaveImage | ImageDensity
         | GridSpacing | ViewShow | Font | TextSize | EditText | LineColor | LineSewType
         | RegionColor | RegionSewType | EntryExit | SewingPoints | EdgeRadius | ChangeColor
-        | SkeletonWidth | SmoothTolerance | EditCharacter => {}
+        | SkeletonWidth | SmoothTolerance | ShapeEffects | EditCharacter => {}
     }
 }
 
@@ -986,6 +987,7 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
         ChangeColor => change_color_menu(app, ui),
         SkeletonWidth => skeleton_width_menu(app, ui),
         SmoothTolerance => crate::shape_tools_ui::smooth_tolerance_menu(app, ui),
+        ShapeEffects => crate::shape_effects_ui::effects_menu(app, ui),
         EditCharacter => crate::lettering_ui::character_menu(app, ui),
         _ => {}
     }
@@ -1009,6 +1011,7 @@ fn edge_radius_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         }
     }
     app.tools.set_corner_radius(r);
+    crate::shape_effects_ui::corner_radii_ui(app, ui);
 }
 
 /// Shapes (Manual Punch) ▸ Column width: the width of the next Satin Skeleton points.

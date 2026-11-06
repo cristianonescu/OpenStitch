@@ -69,6 +69,23 @@ pub fn insert_preset(kind: &str, center: Vec2, size: f64) -> CommandRequest {
                 "height": size * 2.0 / 3.0, "cornerRadius": size / 8.0,
             }),
         ),
+        "frame" | "frameEllipse" | "frameRounded" | "frameHeart" => CommandRequest::new(
+            "shape.preset",
+            json!({
+                "kind": "frame", "cx": cx, "cy": cy, "width": size, "height": size * 2.0 / 3.0,
+                "bandWidth": size / 8.0,
+                "frameOf": match kind {
+                    "frameEllipse" => "ellipse",
+                    "frameRounded" => "roundedRectangle",
+                    "frameHeart" => "heart",
+                    _ => "rectangle",
+                },
+            }),
+        ),
+        "spiral" => CommandRequest::new(
+            "shape.preset",
+            json!({ "kind": "spiral", "cx": cx, "cy": cy, "width": size, "turns": 3 }),
+        ),
         "hexagon" => CommandRequest::new(
             "shape.preset",
             json!({ "kind": "polygon", "sides": 6, "cx": cx, "cy": cy, "width": size }),
@@ -81,7 +98,7 @@ pub fn insert_preset(kind: &str, center: Vec2, size: f64) -> CommandRequest {
 }
 
 /// Presets offered in the Shapes menu: (menu label, kind for [`insert_preset`]).
-pub const PRESETS: [(&str, &str); 13] = [
+pub const PRESETS: [(&str, &str); 18] = [
     ("Rounded rectangle", "roundedRectangle"),
     ("Arc", "arc"),
     ("Arc and string", "chord"),
@@ -95,6 +112,12 @@ pub const PRESETS: [(&str, &str); 13] = [
     ("Cross", "cross"),
     ("Crescent", "crescent"),
     ("Teardrop", "teardrop"),
+    // Beyond PE-DESIGN (#497).
+    ("Frame", "frame"),
+    ("Round frame", "frameEllipse"),
+    ("Rounded frame", "frameRounded"),
+    ("Heart frame", "frameHeart"),
+    ("Spiral line", "spiral"),
 ];
 
 /// Settings of the Floral Pattern dialog.
