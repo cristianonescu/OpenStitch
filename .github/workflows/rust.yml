@@ -186,7 +186,7 @@ jobs:
     # uploaded as an artifact; nothing is hosted.
     name: web
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -203,6 +203,9 @@ jobs:
         with:
           tool: wasm-bindgen@0.2.129
       - run: cargo clippy -p openstitch-web --target wasm32-unknown-unknown --locked -- -D warnings
+      # The desktop editor's library (editor logic, no window) builds for the browser too (#693
+      # phase A1); --no-deps: only the app's own code is linted for wasm32.
+      - run: cargo clippy -p openstitch-app --lib --target wasm32-unknown-unknown --no-deps --locked -- -D warnings
       - run: cargo build -p openstitch-web --target wasm32-unknown-unknown --release --locked
       - name: wasm-bindgen (page and Node)
         run: |
@@ -220,6 +223,22 @@ jobs:
             cargo run -p openstitch-web --example web_export --locked -- "$f" target/web-native "${formats[@]}"
           done
           node web/smoke.mjs target/web-node target/web-native "${inputs[@]}" -- "${formats[@]}"
+      # The page itself in Chromium, Firefox and WebKit (Safari's engine), #694: it starts,
+      # "Open…" goes through the browser's file picker and "Export" through a real download,
+      # byte-identical to the native build. Playwright is pinned in web/e2e/package-lock.json.
+      - name: Page test (Chromium, Firefox, WebKit)
+        working-directory: web/e2e
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx playwright install --with-deps chromium firefox webkit
+          node page.mjs .. ../../target/web-native ../../compat/reference/pes/pes-default-v6.pes ../../target/web-shots
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: openstitch-web-screenshots
+          path: target/web-shots/
+          if-no-files-found: ignore
+          retention-days: 14
       - uses: actions/upload-artifact@v4
         with:
           name: openstitch-web

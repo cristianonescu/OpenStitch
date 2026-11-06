@@ -774,7 +774,7 @@ fn every_command_the_skill_names_exists() {
         "ui.loading",
     ];
     // The web editor's own (crates/openstitch-web, #556; SKILL.md "Web editor").
-    let web_ui = ["ui.openFile", "ui.saveFile", "ui.exportFile"];
+    let web_ui = openstitch_web::session::UI_COMMANDS;
     assert!(
         ui.iter()
             .all(|e| all_ui.contains(&e["id"].as_str().expect("id")))
