@@ -6,7 +6,7 @@ use openstitch_design::patterns::{self, Pattern, PatternKind};
 use openstitch_design::{
     Arrange, ChainShape, Design, Feather, FeatherSide, FillStitchType, LineSewing, LineType,
     RegionSewing, RegionType, RunningStitchPath, UnderlayStyle,
-    column::{CornerStyle, SatinShaping},
+    column::{CornerStyle, JaggedMode, SatinShaping},
 };
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
@@ -329,6 +329,49 @@ fn shaping_controls(s: &SatinShaping, pull: f64, line: bool) -> Vec<Control> {
             " %",
         ));
     }
+    v.push(choice(
+        "Satin style",
+        "satinStyle",
+        s.style.id(),
+        &[
+            ("normal", "Normal"),
+            ("sStitch", "S-stitch"),
+            ("open", "Open zigzag"),
+            ("double", "Double"),
+        ],
+    ));
+    v.push(choice(
+        "Jagged edge",
+        "jaggedEdge",
+        match s.jagged.map(|j| j.mode) {
+            None => "none",
+            Some(JaggedMode::In) => "in",
+            Some(JaggedMode::Out) => "out",
+            Some(JaggedMode::Both) => "both",
+        },
+        &[
+            ("none", "None"),
+            ("in", "In"),
+            ("out", "Out"),
+            ("both", "In and out"),
+        ],
+    ));
+    if !line {
+        v.push(num(
+            "Density measured at",
+            "region.spacingAt",
+            "spacingAt",
+            s.spacing_at.unwrap_or(1.0),
+            (0.0, 1.0),
+            0.01,
+            "",
+        ));
+    }
+    v.push(Control::Toggle {
+        label: "Raised (padding)",
+        param: "raised",
+        value: s.raised.is_some(),
+    });
     let k = &s.compensation;
     v.push(num(
         "Pull left",
