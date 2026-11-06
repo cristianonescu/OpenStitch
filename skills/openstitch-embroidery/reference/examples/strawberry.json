@@ -1,0 +1,22 @@
+[
+ {"command": "design.new", "params": {"name": "Strawberry", "width": 100, "height": 100}},
+ {"command": "shape.preset", "params": {"kind": "teardrop", "cx": 50, "cy": 56, "width": 50, "height": 58, "rotation": 180, "fill": "#d7263d", "name": "berry"}},
+ {"command": "shape.preset", "params": {"kind": "star", "sides": 6, "ratio": 0.45, "cx": 50, "cy": 30, "width": 38, "height": 16, "fill": "#2e8b3a", "name": "leaves"}},
+ {"command": "shape.rectangle", "params": {"x": 48.5, "y": 17, "width": 3, "height": 11, "fill": "#2e8b3a", "name": "stalk"}},
+ {"command": "shape.removeOverlap", "params": {"ids": [1, 2, 3]}},
+ {"command": "object.setRegion", "params": {"ids": [1], "type": "fill", "angle": 45}},
+ {"command": "object.setRegion", "params": {"ids": [2], "type": "fill", "angle": 135}},
+ {"command": "object.setRegion", "params": {"ids": [3], "type": "satin", "angle": 0}},
+ {"command": "shape.ellipse", "params": {"cx": 40, "cy": 46, "rx": 1, "ry": 1.7, "fill": "#f6d55c", "name": "seed"}},
+ {"command": "shape.ellipse", "params": {"cx": 52, "cy": 44, "rx": 1, "ry": 1.7, "fill": "#f6d55c", "name": "seed"}},
+ {"command": "shape.ellipse", "params": {"cx": 63, "cy": 47, "rx": 1, "ry": 1.7, "fill": "#f6d55c", "name": "seed"}},
+ {"command": "shape.ellipse", "params": {"cx": 35, "cy": 57, "rx": 1, "ry": 1.7, "fill": "#f6d55c", "name": "seed"}},
+ {"command": "shape.ellipse", "params": {"cx": 46, "cy": 58, "rx": 1, "ry": 1.7, "fill": "#f6d55c", "name": "seed"}},
+ {"command": "shape.ellipse", "params": {"cx": 58, "cy": 57, "rx": 1, "ry": 1.7, "fill": "#f6d55c", "name": "seed"}},
+ {"command": "shape.ellipse", "params": {"cx": 67, "cy": 58, "rx": 1, "ry": 1.7, "fill": "#f6d55c", "name": "seed"}},
+ {"command": "shape.ellipse", "params": {"cx": 42, "cy": 69, "rx": 1, "ry": 1.7, "fill": "#f6d55c", "name": "seed"}},
+ {"command": "shape.ellipse", "params": {"cx": 54, "cy": 70, "rx": 1, "ry": 1.7, "fill": "#f6d55c", "name": "seed"}},
+ {"command": "shape.ellipse", "params": {"cx": 49, "cy": 80, "rx": 1, "ry": 1.7, "fill": "#f6d55c", "name": "seed"}},
+ {"command": "object.setRegion", "params": {"ids": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13], "type": "satin", "angle": 0}},
+ {"command": "design.check"}
+]

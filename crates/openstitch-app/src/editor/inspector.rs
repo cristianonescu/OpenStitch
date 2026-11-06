@@ -39,6 +39,20 @@ impl<T: PartialEq> Common<T> {
     }
 }
 
+/// The rows the Basic view of Sewing Attributes keeps (#553); Advanced shows every row.
+pub const BASIC_PARAMS: &[&str] = &[
+    "angle",
+    "density",
+    "stitchLength",
+    "pullCompensation",
+    "underlay",
+    "pitch",
+    "runTimes",
+    "width",
+    "pattern",
+    "motif",
+];
+
 /// Every region sew type, preceded by "None" (not sewn).
 pub fn region_types() -> Vec<(Option<RegionType>, &'static str)> {
     std::iter::once((None, "None"))
@@ -97,6 +111,12 @@ impl Control {
             | Control::Choice { label, .. }
             | Control::Toggle { label, .. } => label,
         }
+    }
+
+    /// Whether the Basic view of Sewing Attributes shows this control (#553): the settings most
+    /// designs change.
+    pub fn basic(&self) -> bool {
+        BASIC_PARAMS.contains(&self.param())
     }
 
     /// Whether the property search `filter` shows this control (#550).
@@ -1068,5 +1088,32 @@ mod search_tests {
             &["Underlay density", "underlayDensity"]
         ));
         assert!(!matches_filter("under pull", &["Underlay density", "x"]));
+    }
+
+    #[test]
+    fn basic_keeps_the_common_rows_and_advanced_all() {
+        // #553: Basic shows at most these rows per type; Advanced shows every one.
+        let t = Thread::rgb(0);
+        for kind in RegionType::ALL {
+            let all = region_controls_with(&RegionSewing::new(kind, t.clone()), &[]);
+            let basic: Vec<_> = all.iter().filter(|c| c.basic()).collect();
+            assert!(basic.len() <= BASIC_PARAMS.len(), "{kind:?}");
+            assert!(basic.iter().all(|c| BASIC_PARAMS.contains(&c.param())));
+        }
+        let fill = region_controls_with(&RegionSewing::new(RegionType::Fill, t.clone()), &[]);
+        let basic: Vec<_> = fill
+            .iter()
+            .filter(|c| c.basic())
+            .map(|c| c.param())
+            .collect();
+        for p in ["angle", "density", "pullCompensation", "underlay"] {
+            assert!(basic.contains(&p), "{p}: {basic:?}");
+        }
+        assert!(
+            fill.iter().any(|c| !c.basic()),
+            "Fill has advanced rows too"
+        );
+        let line = line_controls_with(&LineSewing::new(LineType::Running, t), &[]);
+        assert!(line.iter().any(|c| c.basic() && c.param() == "pitch"));
     }
 }

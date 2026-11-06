@@ -35,10 +35,12 @@ const USAGE: &str = "usage: stitchtool commands | exec <script.json> | serve [--
 const BENCH_USAGE: &str =
     "usage: stitchtool bench-assistant [--protocol anthropic|openai] [--base-url URL] [--model M]
        [--key-env VAR] [--effort E] [--timeout S] [--agent ID [--agent-program PATH] [--mcp PATH]]
-       [--tasks ID,ID] [--out DIR]
+       [--tasks ID,ID] [--judge MODEL] [--out DIR]
   The key is read from the environment variable VAR (default ANTHROPIC_API_KEY for anthropic,
   none for openai) and never printed. --agent runs a coding agent over ACP instead (claude,
-  codex, opencode, ...). Writes DIR/report.json and DIR/report.md (DIR: bench-assistant).";
+  codex, opencode, ...). --judge MODEL also has that vision model (same protocol, URL and key
+  flags) score each render 1-5 on recognisable, parts and colours (#493). Writes
+  DIR/report.json and DIR/report.md (DIR: bench-assistant).";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -242,49 +244,38 @@ fn bench_assistant(args: &[&str]) -> ExitCode {
             format!("agent {}", agent.name),
         )
     } else {
-        let openai = get("protocol").as_deref() == Some("openai");
-        let key_env = get("key-env").or_else(|| (!openai).then(|| "ANTHROPIC_API_KEY".into()));
-        let api_key = key_env
-            .as_deref()
-            .and_then(|v| std::env::var(v).ok())
-            .unwrap_or_default();
-        if !openai && api_key.is_empty() {
-            return fail("no key: set ANTHROPIC_API_KEY (or --key-env VAR)");
+        match model_backend(&get, get("model"), timeout) {
+            Ok(b) => b,
+            Err(e) => return fail(&e),
         }
-        let config = ai::Config {
-            protocol: if openai {
-                ai::Protocol::OpenAi
-            } else {
-                ai::Protocol::Anthropic
-            },
-            base_url: get("base-url").unwrap_or_else(|| ai::DEFAULT_BASE_URL.into()),
-            api_key,
-            model: get("model").unwrap_or_else(|| ai::DEFAULT_MODEL.into()),
-            effort: get("effort").unwrap_or_else(|| "high".into()),
-            request_timeout: timeout,
-            system: openstitch_mcp::server::assistant_instructions().to_string(),
-            ..ai::Config::default()
-        };
-        let label = format!("{} at {}", config.model, config.base_url);
-        (
-            bench::Backend::Model {
-                config,
-                transport: Box::new(ai::UreqTransport),
-            },
-            label,
-        )
     };
-    let outcomes = bench::run(&backend, &selected, &scratch, &picture, &mut |o| {
-        eprintln!(
-            "{}: {}",
-            o.task,
-            if o.passed {
-                "pass".to_string()
-            } else {
-                format!("fail ({})", o.category)
-            }
-        );
-    });
+    // #493: a vision model scores each task's render on a fixed rubric (the same protocol,
+    // base URL and key flags, with this model).
+    let judge = match get("judge") {
+        Some(model) => match model_backend(&get, Some(model), timeout) {
+            Ok((b, _)) => Some(b),
+            Err(e) => return fail(&e),
+        },
+        None => None,
+    };
+    let outcomes = bench::run(
+        &backend,
+        &selected,
+        &scratch,
+        &picture,
+        judge.as_ref(),
+        &mut |o| {
+            eprintln!(
+                "{}: {}",
+                o.task,
+                if o.passed {
+                    "pass".to_string()
+                } else {
+                    format!("fail ({})", o.category)
+                }
+            );
+        },
+    );
     let (json, md) = bench::reports(&label, &outcomes);
     let written = std::fs::write(
         out.join("report.json"),
@@ -296,6 +287,46 @@ fn bench_assistant(args: &[&str]) -> ExitCode {
     }
     println!("{md}");
     ExitCode::SUCCESS
+}
+
+/// A model reached over HTTP, from the protocol, base-URL and key flags.
+fn model_backend(
+    get: &dyn Fn(&str) -> Option<String>,
+    model: Option<String>,
+    timeout: std::time::Duration,
+) -> Result<(bench::Backend, String), String> {
+    use openstitch_assistant as ai;
+    let openai = get("protocol").as_deref() == Some("openai");
+    let key_env = get("key-env").or_else(|| (!openai).then(|| "ANTHROPIC_API_KEY".into()));
+    let api_key = key_env
+        .as_deref()
+        .and_then(|v| std::env::var(v).ok())
+        .unwrap_or_default();
+    if !openai && api_key.is_empty() {
+        return Err("no key: set ANTHROPIC_API_KEY (or --key-env VAR)".into());
+    }
+    let config = ai::Config {
+        protocol: if openai {
+            ai::Protocol::OpenAi
+        } else {
+            ai::Protocol::Anthropic
+        },
+        base_url: get("base-url").unwrap_or_else(|| ai::DEFAULT_BASE_URL.into()),
+        api_key,
+        model: model.unwrap_or_else(|| ai::DEFAULT_MODEL.into()),
+        effort: get("effort").unwrap_or_else(|| "high".into()),
+        request_timeout: timeout,
+        system: openstitch_mcp::server::assistant_instructions().to_string(),
+        ..ai::Config::default()
+    };
+    let label = format!("{} at {}", config.model, config.base_url);
+    Ok((
+        bench::Backend::Model {
+            config,
+            transport: Box::new(ai::UreqTransport),
+        },
+        label,
+    ))
 }
 
 fn compat(args: &[&str]) -> ExitCode {

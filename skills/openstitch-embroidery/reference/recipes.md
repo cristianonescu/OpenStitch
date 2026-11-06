@@ -86,6 +86,20 @@ stitch, as one group. `output: "add"` keeps the shape and puts the appliqué aro
 `patterns: "last"` after the covering stitch, on top of the fabric (use `replace` when the
 shape would only be hidden).
 
+## Floated fabric, appliqué stops and machines without a cutter
+
+All beyond PE-DESIGN and off unless asked; each is one undo step.
+
+- Floated fabric (not hooped): `design.setBasting {on: true}` adds a basting box sewn first in
+  the first thread (`shape: outline` follows the objects; `margin` 5, `stitch` 6 mm;
+  `thread: own` for its own colour). It always stays inside the hoop; `design.info` reports
+  its stitches in the `basting` part of its `production` field.
+- Appliqué or a patch placed mid-design: `object.setStopAfter {ids, on: true}`: the machine
+  pauses after those objects without a colour change (a colour change right after is the stop).
+- No thread cutter: `design.setStopAtJumps {on: true}` adds a stop before every jump so the
+  user can snip the thread; off removes only those. PES writes stops as colour changes to the
+  same thread (255 blocks at most); PES 0110 (`pesVersion: 11`) cannot hold these settings.
+
 ## Embroidered patch
 
 ```json
@@ -98,6 +112,16 @@ shape would only be hidden).
 
 A satin border `distance` mm round the patterns, then a cutting line `cutDistance` mm outside
 it. `wizard.backgroundFill` fills behind the patterns for a fully stitched patch.
+
+## Towels and fleece: knockdown
+
+Beyond PE-DESIGN and off unless asked; one undo step.
+
+- Pile fabric (towel, fleece, velvet): `wizard.knockdown` `{}` for the whole design, or
+  `{ids: [...]}` for the selection, puts a light Fill named Knockdown under it, sewn first
+  (`reach` 2 mm past the edge, `gapClose` 3 mm, `spacing` 1 mm, `layers` 1 or 2, `angle`,
+  `color` defaults to the first covered object's thread, `shape: rectangle`, `keepHoles`).
+  After edits, `wizard.knockdown {update: <its id>}` rebuilds it. `order.optimize` keeps it first.
 
 ## Image to embroidery
 

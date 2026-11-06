@@ -411,6 +411,24 @@ impl Graph {
             .sum()
     }
 
+    /// Whether node `id` is a crossing of four arms that each end free (X), not a junction
+    /// with more branches joined on (M's notch loops, g's and Pacifico's joins, #446).
+    fn free_crossing(&self, id: usize) -> bool {
+        self.degree(id) == 4
+            && self
+                .branches
+                .iter()
+                .filter(|b| b.ends.contains(&Some(id)))
+                .all(|b| {
+                    let other = if b.ends[0] == Some(id) {
+                        b.ends[1]
+                    } else {
+                        b.ends[0]
+                    };
+                    b.ends[0] != b.ends[1] && other.is_some_and(|o| self.nodes[o].free)
+                })
+    }
+
     fn radius(&self, grid: &Grid, id: usize) -> f64 {
         self.nodes[id]
             .cells
@@ -554,6 +572,12 @@ impl Graph {
         let mut strokes = Vec::new();
         for b in &self.branches {
             let closed = b.ends == [None, None];
+            // An arm of a crossing of four (X).
+            let crossing_arm = b
+                .ends
+                .iter()
+                .flatten()
+                .any(|&id| junction_of[id].is_some() && self.free_crossing(id));
             let mut pts: Vec<Vec2> = b.cells.iter().map(|&k| grid.centre(k)).collect();
             // Branch ends at a junction meet at its centre.
             let end_kind = |e: Option<usize>| match e.and_then(|id| junction_of[id]) {
@@ -622,7 +646,29 @@ impl Graph {
                         let chord = centre[centre.len() - 1] - tip;
                         let cos = (chord.x * d.x + chord.y * d.y)
                             / (chord.length() * d.length()).max(1e-12);
-                        let gentle = cos.clamp(-1.0, 1.0).dacos().to_degrees() < END_TURN;
+                        let hook = cos.clamp(-1.0, 1.0).dacos().to_degrees();
+                        // An arm of a four-arm crossing (X) dead straight before its last
+                        // stretch is straight however far the thinning hooks it into a corner
+                        // of its level cut foot (X's feet hook by 30°, #446). Kept to X: the
+                        // same rule on every letter cut t's tail off in fill (#446 notes).
+                        let before = point_at(&centre, total - 3.0 * width);
+                        let e = back - before;
+                        // A hook ends near where the straightened line reaches the outline; a
+                        // tail turning off the stroke (t's foot) ends far from it.
+                        let dn = d * (1.0 / d.length().max(1e-12));
+                        let near = ray_to(tip, dn, edges).is_some_and(|t| {
+                            (tip + dn * t).distance(centre[centre.len() - 1]) <= width
+                        });
+                        let straight_before = crossing_arm
+                            && total > 3.5 * width
+                            && near
+                            && hook < END_HOOK
+                            && ((e.x * d.x + e.y * d.y) / (e.length() * d.length()).max(1e-12))
+                                .clamp(-1.0, 1.0)
+                                .dacos()
+                                .to_degrees()
+                                < END_STRAIGHT;
+                        let gentle = hook < END_TURN || straight_before;
                         if kept.len() >= 2 && straight && gentle {
                             centre = kept;
                             trend = Some(d);
@@ -705,6 +751,11 @@ impl Graph {
 /// A free end whose last ¾ stroke width turns less than this (degrees) from the line before it is
 /// a straight stroke, which the thinning bent towards a corner: its end is straightened.
 const END_TURN: f64 = 12.0;
+/// A free end whose line before its last stretch turns less than this (degrees) is straight
+/// there, and its last stretch, turning by less than [`END_HOOK`], is a thinning hook.
+const END_STRAIGHT: f64 = 3.0;
+/// See [`END_STRAIGHT`].
+const END_HOOK: f64 = 60.0;
 
 /// Most distance between two centre-line points, 0.1 mm: widths are measured at every point.
 const MAX_SEGMENT: f64 = 20.0;
@@ -919,6 +970,62 @@ fn ray_to(p: Vec2, dir: Vec2, edges: &[(Vec2, Vec2)]) -> Option<f64> {
 
 /// Outline points are taken at most this far apart (0.1 mm) when the sides are found.
 const SIDE_STEP: f64 = 2.0;
+/// A free end's centre point this near the outline (0.1 mm) ends on an end edge.
+const EDGE_NEAR: f64 = 3.0;
+/// Outline points this near a straight end edge (0.1 mm) lie on it; its vertices may stray this
+/// far from the line between its corners.
+const EDGE_ON: f64 = 0.3;
+
+/// An end edge crosses the stroke at least this steeply (the sine of its angle to the stroke's
+/// direction at the end): a stroke whose thinned end hooks into a corner (S's top) ends near
+/// its side too.
+const EDGE_ACROSS: f64 = 0.5;
+
+/// The straight end edge a free end at `p`, arriving in direction `dir` (unit), reaches: the
+/// run of outline vertices on one line through the outline edge near `p` most square to `dir`,
+/// at most `limit` long; its two corners. `None` where `p` is not on the outline or no edge
+/// near it crosses the stroke.
+fn end_edge(outlines: &[Vec<Vec2>], p: Vec2, dir: Vec2, limit: f64) -> Option<(Vec2, Vec2)> {
+    let across = |a: Vec2, b: Vec2| {
+        let e = b - a;
+        (dir.x * e.y - dir.y * e.x).abs() / e.length().max(1e-12)
+    };
+    let (c, i, _) = outlines
+        .iter()
+        .enumerate()
+        .flat_map(|(c, pts)| {
+            let n = pts.len();
+            (0..n).filter_map(move |i| {
+                let (a, b) = (pts[i], pts[(i + 1) % n]);
+                (segment_distance(p, a, b) <= EDGE_NEAR).then(|| (c, i, across(a, b)))
+            })
+        })
+        .max_by(|a, b| a.2.total_cmp(&b.2))
+        .filter(|m| m.2 >= EDGE_ACROSS)?;
+    let pts = &outlines[c];
+    let n = pts.len();
+    if n < 3 {
+        return None;
+    }
+    let at = |k: isize| pts[k.rem_euclid(n as isize) as usize];
+    let straight = |lo: isize, hi: isize| {
+        let (a, b) = (at(lo), at(hi));
+        hi - lo < n as isize
+            && a.distance(b) <= limit
+            && (lo + 1..hi).all(|k| segment_distance(at(k), a, b) <= EDGE_ON)
+    };
+    let (mut lo, mut hi) = (i as isize, i as isize + 1);
+    if at(lo).distance(at(hi)) > limit {
+        return None;
+    }
+    while straight(lo, hi + 1) {
+        hi += 1;
+    }
+    while straight(lo - 1, hi) {
+        lo -= 1;
+    }
+    Some((at(lo), at(hi)))
+}
 
 /// Where `p` projects onto the polyline `line`: (arc length along it, distance, signed side:
 /// positive on the left of its direction with +y down, i.e. counter-clockwise on screen).
@@ -1040,6 +1147,15 @@ impl GlyphStrokes {
             .collect()
     }
 
+    /// Whether `st` runs through junction `j` (a column joined there) rather than ending there.
+    fn through(&self, st: &Stroke, j: usize) -> bool {
+        let at = self.junctions[j].at;
+        !st.closed
+            && !st.ends.contains(&StrokeEnd::Junction(j))
+            && st.centre.first().is_some_and(|p| p.distance(at) > 1e-6)
+            && project(&st.centre, false, at).1 < 0.5 * self.junctions[j].radius
+    }
+
     /// [`Self::sides`] with each point's place along the stroke: the arc length of its
     /// projection onto the centre line (0.1 mm), non-decreasing along each side.
     fn sides_along(&self, contours: &[Contour]) -> Vec<[Vec<(f64, Vec2)>; 2]> {
@@ -1070,14 +1186,82 @@ impl GlyphStrokes {
                 }
             }
         }
+        // Junctions where four arms cross (X): four stroke ends, or two and a column through,
+        // every arm ending free at its far end (not M's notch loops or joined junctions, #446).
+        let crossings: Vec<usize> = (0..self.junctions.len())
+            .filter(|&j| {
+                let at_j = StrokeEnd::Junction(j);
+                let ending: Vec<&Stroke> = self
+                    .strokes
+                    .iter()
+                    .filter(|o| o.ends.contains(&at_j))
+                    .collect();
+                let through: Vec<&Stroke> =
+                    self.strokes.iter().filter(|o| self.through(o, j)).collect();
+                let free = ending
+                    .iter()
+                    .all(|o| o.ends[0] != o.ends[1] && o.ends.contains(&StrokeEnd::Free))
+                    && through.iter().all(|o| o.ends == [StrokeEnd::Free; 2]);
+                ending.len() + 2 * through.len() == 4 && free
+            })
+            .collect();
+        let outlines: Vec<Vec<Vec2>> = contours
+            .iter()
+            .filter(|c| c.closed)
+            .map(Contour::outline_points)
+            .collect();
         sides
             .into_iter()
             .zip(&self.strokes)
             .map(|([l, r], st)| {
                 let total = st.length();
+                // A free end's straight end edge, between its two corners: a level cut across
+                // a slanted arm (X's, A's and V's feet) projects mostly inside the centre line's
+                // end, and would start one side along the edge and fan the crossings there.
+                let limit = 2.0 * st.widths.iter().copied().fold(0.0, f64::max);
+                // Kept to the arms of a four-arm crossing (X): on every letter it moved S's,
+                // f's and 5's ends and took needle points off S against PE-DESIGN (#446 notes).
+                let crossing_arm = crossings
+                    .iter()
+                    .any(|&j| st.ends.contains(&StrokeEnd::Junction(j)) || self.through(st, j));
+                let edges: Vec<(f64, Vec2, Vec2)> =
+                    if st.closed || st.centre.len() < 2 || !crossing_arm {
+                        Vec::new()
+                    } else {
+                        [(0, 0.0), (1, total)]
+                            .into_iter()
+                            .filter(|&(e, _)| st.ends[e] == StrokeEnd::Free)
+                            .filter_map(|(e, at)| {
+                                let along: Vec<Vec2> = if e == 0 {
+                                    st.centre.iter().rev().copied().collect()
+                                } else {
+                                    st.centre.clone()
+                                };
+                                let p = along[along.len() - 1];
+                                let reach = (0.5 * limit).min(total);
+                                let d = p - point_at(&along, total - reach);
+                                let dir = d * (1.0 / d.length().max(1e-12));
+                                end_edge(&outlines, p, dir, limit).map(|(a, b)| (at, a, b))
+                            })
+                            .collect()
+                    };
                 // An end edge projects onto the centre line's end point: keep only its corner
                 // (the outermost point there) on each side, not the edge between the corners.
-                let tidy = |mut v: Vec<(f64, f64, Vec2)>| -> Vec<(f64, f64, Vec2)> {
+                let tidy = |v: Vec<(f64, f64, Vec2)>| -> Vec<(f64, f64, Vec2)> {
+                    let mut v: Vec<(f64, f64, Vec2)> = v
+                        .into_iter()
+                        .filter_map(|(at, d, p)| {
+                            for &(end, a, b) in &edges {
+                                if p.distance(a) <= EDGE_ON || p.distance(b) <= EDGE_ON {
+                                    return Some((end, d, p));
+                                }
+                                if segment_distance(p, a, b) <= EDGE_ON {
+                                    return None;
+                                }
+                            }
+                            Some((at, d, p))
+                        })
+                        .collect();
                     v.sort_by(|a, b| a.0.total_cmp(&b.0));
                     if st.closed {
                         return v;
@@ -1218,8 +1402,12 @@ pub struct Block {
     /// The junction square: the piece of a column under the stroke that leaves it there.
     pub junction: bool,
     /// The first block of a piece not joined to the one before (an i's dot, X's second
-    /// chevron): PE-DESIGN trims before it.
+    /// half): PE-DESIGN trims before it.
     pub new_run: bool,
+    /// Where the needle runs straight from, under the block's satin, to its first rung instead
+    /// of along the outline: X's arms are sewn from their free ends in to the crossing, and
+    /// PE-DESIGN runs out along each arm first (stroke-satin-X). A new run starts there.
+    pub lead: Option<Vec2>,
 }
 
 /// A stroke's end: `(stroke, 0 or 1)`.
@@ -1284,8 +1472,43 @@ impl GlyphStrokes {
                     }
                 }
             }
-            // A crossing of four arms (X) is two chevrons, the arms on each side one column
-            // turning through it (stroke-satin-X: two runs with a trim between).
+            // A crossing of four arms (X): the diagonal from the arm nearest the top-left is one
+            // column through it, the other two arms end there (stroke-satin-X: PE-DESIGN sews
+            // one diagonal through and the other in two halves meeting it, #446).
+            if at.len() == 4
+                && at
+                    .iter()
+                    .all(|&(s, e)| self.strokes[s].ends[1 - e] == StrokeEnd::Free)
+            {
+                let far = |(s, e): StrokeAt| {
+                    let c = &self.strokes[s].centre;
+                    let p = if e == 0 { c[c.len() - 1] } else { c[0] };
+                    p.x + p.y
+                };
+                let first = *at
+                    .iter()
+                    .min_by(|a, b| far(**a).total_cmp(&far(**b)))
+                    .expect("four arms");
+                let d = self.out_of(first.0, first.1);
+                let opposite = at
+                    .iter()
+                    .filter(|&&o| o != first)
+                    .min_by(|a, b| {
+                        let dot = |o: &StrokeAt| {
+                            let v = self.out_of(o.0, o.1);
+                            v.x * d.x + v.y * d.y
+                        };
+                        dot(a).total_cmp(&dot(b))
+                    })
+                    .copied();
+                if let Some(o) = opposite.filter(|o| o.0 != first.0) {
+                    next[first.0][first.1] = Some((o.0, o.1, j));
+                    next[o.0][o.1] = Some((first.0, first.1, j));
+                    continue;
+                }
+            }
+            // Any other junction of four (M's notch loops, g's and Pacifico's joins): two
+            // chevrons, the arms on each side one column turning through it, as before #446.
             if at.len() == 4 {
                 let mut arms = at.clone();
                 arms.sort_by(|a, b| self.out_of(a.0, a.1).x.total_cmp(&self.out_of(b.0, b.1).x));
@@ -1324,7 +1547,7 @@ impl GlyphStrokes {
                 col.parts.push((s, e == 1));
                 match next[s][1 - e] {
                     Some((t, te, j)) if !used[t] => {
-                        // A crossing joins its chevrons without making them branch there.
+                        // A chevron joins its arms without making them branch there.
                         if j != usize::MAX {
                             col.through.push(j);
                         }
@@ -1633,7 +1856,17 @@ impl Order<'_> {
                 rungs,
                 junction,
                 new_run: false,
+                lead: None,
             });
+        }
+    }
+
+    /// [`Self::emit`] reached by running straight from `lead` (see [`Block::lead`]).
+    fn emit_led(&mut self, rungs: Vec<[Vec2; 2]>, lead: Vec2) {
+        let first = self.out.len();
+        self.emit(rungs, false);
+        if let Some(block) = self.out.get_mut(first) {
+            block.lead = Some(lead);
         }
     }
 
@@ -1668,7 +1901,68 @@ impl Order<'_> {
             Entry::Through => None,
         };
         let mut sewn_through = Vec::new();
+        let crossing = leave.and_then(|(j, _)| self.crossing_arms(c, j));
         match (entry, leave) {
+            (Entry::End(e), Some((j, s))) if crossing.is_some() => {
+                // X (stroke-satin-X): the column to the crossing, each arm from its free end in
+                // to the crossing, the second after a trim, then the crossing square and the
+                // rest of the column.
+                let h = self.square_half(c, j);
+                let (start, far) = if e == 0 { (0.0, len) } else { (len, 0.0) };
+                let toward = if e == 0 { -1.0 } else { 1.0 };
+                let near_edge = s + toward * h;
+                let a = self.piece(c, start, near_edge);
+                self.emit(a, false);
+                for (i, (k, free)) in crossing.into_iter().flatten().enumerate() {
+                    self.done[k] = true;
+                    self.seq.push(k);
+                    let lk = self.strokes[k].length();
+                    let (from, to) = if free == 0 { (0.0, lk) } else { (lk, 0.0) };
+                    let first = self.out.len();
+                    let mut arm = self.piece(k, from, to);
+                    // An arm one of whose sides reaches the crossing's corner while the other
+                    // stops short (the corner's outline is the column's) ends in a rung of almost
+                    // no width there (X's top-right arm), which would fan the crossings: its
+                    // last rung joins the side that reaches the corner to where the other side
+                    // stops, as PE-DESIGN's arm ends from corner to corner of the crossing.
+                    let mut spans: Vec<f64> = arm.iter().map(|r| r[0].distance(r[1])).collect();
+                    spans.sort_by(f64::total_cmp);
+                    let full = spans.get(spans.len() / 2).copied().unwrap_or(0.0) * 0.25;
+                    if let [.., prev, last] = arm[..]
+                        && last[0].distance(last[1]) < full
+                    {
+                        let a = [last[0], prev[1]];
+                        let b = [prev[0], last[1]];
+                        let best = if a[0].distance(a[1]) >= b[0].distance(b[1]) {
+                            a
+                        } else {
+                            b
+                        };
+                        let n = arm.len();
+                        if best[0].distance(best[1]) >= full {
+                            arm[n - 1] = best;
+                        } else {
+                            arm.pop();
+                        }
+                    }
+                    // Out along the arm from its crossing end, under the satin to come.
+                    let Some(inner) = arm.last().map(|r| r[0].lerp(r[1], 0.5)) else {
+                        continue;
+                    };
+                    self.emit_led(arm, inner);
+                    if i > 0
+                        && let Some(block) = self.out.get_mut(first)
+                    {
+                        block.new_run = true;
+                    }
+                }
+                // Across the crossing to its near edge, not round the outline.
+                let rest = self.piece(c, near_edge, far);
+                if let Some(start) = rest.first().map(|r| r[0].lerp(r[1], 0.5)) {
+                    self.emit_led(rest, start);
+                }
+                sewn_through.push(j);
+            }
             (Entry::End(e), Some((j, s))) => {
                 let h = self.square_half(c, j);
                 let (start, far) = if e == 0 { (0.0, len) } else { (len, 0.0) };
@@ -1722,6 +2016,47 @@ impl Order<'_> {
                 self.visit(k, self.entry_at(k, j));
             }
         }
+    }
+
+    /// Where column `c` runs through junction `j` and two arms end there from either side of
+    /// it, each with a free far end (X's crossing): those arms with their free end, the one
+    /// whose free end is further left first. `None` elsewhere (H's bar leads on to the other
+    /// stem, T's stem and K's arms leave one side only).
+    fn crossing_arms(&self, c: usize, j: usize) -> Option<Vec<(usize, usize)>> {
+        let waiting = self.waiting_at(j, c);
+        if waiting.len() != 2 {
+            return None;
+        }
+        let at = self.g.junctions[j].at;
+        let s = &self.strokes[c];
+        let (k_at, _, _) = project(&s.centre, false, at);
+        let ahead = point_at(&s.centre, k_at + 10.0) - point_at(&s.centre, (k_at - 10.0).max(0.0));
+        let mut arms = Vec::new();
+        let mut sides = Vec::new();
+        for &k in &waiting {
+            let st = &self.strokes[k];
+            if self.cols[k].parts.len() != 1 || st.closed || st.centre.len() < 2 {
+                return None;
+            }
+            let free = match st.ends {
+                [StrokeEnd::Junction(x), StrokeEnd::Free] if x == j => 1,
+                [StrokeEnd::Free, StrokeEnd::Junction(x)] if x == j => 0,
+                _ => return None,
+            };
+            let p = if free == 0 {
+                st.centre[0]
+            } else {
+                st.centre[st.centre.len() - 1]
+            };
+            let v = p - at;
+            sides.push((ahead.x * v.y - ahead.y * v.x).signum());
+            arms.push((k, free, p.x));
+        }
+        if sides[0] == sides[1] {
+            return None;
+        }
+        arms.sort_by(|a, b| a.2.total_cmp(&b.2));
+        Some(arms.into_iter().map(|(k, f, _)| (k, f)).collect())
     }
 
     /// How column `k` is entered from junction `j`: at its end there, or through it.
@@ -2115,10 +2450,10 @@ mod tests {
     }
 
     #[test]
-    fn crossings_are_chevrons_and_separate_pieces_start_new_runs() {
-        // stroke-satin-X: two chevrons, each one column turning through the crossing, a trim
-        // between them; stroke-satin-lower-i: the dot and the stem apart.
-        for (ch, blocks_n, runs) in [("X", 2, 2), ("i", 2, 2), ("H", 5, 1), ("A", 5, 1)] {
+    fn crossings_and_separate_pieces_start_new_runs() {
+        // stroke-satin-X: one diagonal through and the other in two halves meeting it, a trim
+        // between the halves; stroke-satin-lower-i: the dot and the stem apart.
+        for (ch, blocks_n, runs) in [("X", 4, 2), ("i", 2, 2), ("H", 5, 1), ("A", 5, 1)] {
             let spec = TextSpec::new(ch, DEFAULT_FONT, 20.0);
             let contours = layout(&spec, None).expect("layout").contours();
             let blocks = strokes(&contours).expect("strokes").blocks(&contours, 30.0);
@@ -2127,6 +2462,56 @@ mod tests {
             let n = 1 + blocks.iter().filter(|b| b.new_run).count();
             assert_eq!(n, runs, "{ch}");
             assert!(blocks.iter().all(|b| !b.junction) || ch != "X", "{ch}");
+        }
+    }
+
+    #[test]
+    fn x_is_one_diagonal_through_and_two_halves_meeting_it() {
+        // stroke-satin-X (PE-DESIGN 11.50): the top-left arm down to the crossing, the
+        // bottom-left arm from its foot up to it, a trim, the top-right arm from its top down to
+        // it, then the crossing and the bottom-right arm down to its foot (#446). Each arm's
+        // level cut end is sewn with a level crossing from corner to corner, as PE-DESIGN's
+        // (0.2-4.6 mm at the top, 0.0-4.1 mm at the foot), not fanned from the cut's middle.
+        let spec = TextSpec::new("X", DEFAULT_FONT, 20.0);
+        let contours = layout(&spec, None).expect("layout").contours();
+        let b = Rect::enclosing(contours.iter().flat_map(Contour::outline_points)).expect("box");
+        let blocks = strokes(&contours).expect("strokes").blocks(&contours, 30.0);
+        assert_eq!(blocks.len(), 4, "{blocks:?}");
+        let new_runs: Vec<bool> = blocks.iter().map(|bl| bl.new_run).collect();
+        assert_eq!(new_runs, [false, false, true, false]);
+        let e: Vec<_> = blocks.iter().map(|bl| ends_mm(bl, &b)).collect();
+        let (w, h) = (b.width() / 10.0, b.height() / 10.0);
+        // (start, end) of each block: top-left, foot-left, top-right, foot-right.
+        assert!(
+            e[0].0.0 < 4.0 && e[0].0.1 < 0.3 && e[0].1.1 > 8.0,
+            "{:?}",
+            e[0]
+        );
+        assert!(
+            e[1].0.0 < 4.0 && e[1].0.1 > h - 0.3 && e[1].1.1 < 13.0,
+            "{:?}",
+            e[1]
+        );
+        assert!(
+            e[2].0.0 > w - 4.0 && e[2].0.1 < 0.3 && e[2].1.1 > 7.0,
+            "{:?}",
+            e[2]
+        );
+        assert!(
+            e[3].0.1 < 11.0 && e[3].1.0 > w - 4.0 && e[3].1.1 > h - 0.3,
+            "{:?}",
+            e[3]
+        );
+        // The feet's rungs: level, across the whole cut.
+        let feet = [
+            blocks[0].rungs[0],
+            blocks[1].rungs[0],
+            blocks[2].rungs[0],
+            blocks[3].rungs[blocks[3].rungs.len() - 1],
+        ];
+        for r in feet {
+            assert!((r[0].y - r[1].y).abs() < 3.0, "{r:?}");
+            assert!(r[0].distance(r[1]) > 34.0, "{r:?}");
         }
     }
 

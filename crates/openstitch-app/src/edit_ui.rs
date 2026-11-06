@@ -822,6 +822,33 @@ fn list_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandReques
         {
             out = Some(objects::set_line_first(&shapes, first));
         }
+        // Beyond PE-DESIGN (#512): a machine stop after the object.
+        let stops = !app.selection.is_empty()
+            && d.objects
+                .iter()
+                .filter(|o| app.selection.contains(&o.id))
+                .all(|o| o.stop_after);
+        let mut stop = stops;
+        if ui
+            .add_enabled(!app.selection.is_empty(), egui::Checkbox::new(&mut stop, "Stop after"))
+            .on_hover_text("Beyond PE-DESIGN: the machine pauses after these objects (to place appliqué fabric or a patch) without a colour change")
+            .changed()
+        {
+            out = Some(objects::set_stop_after(&app.selection, stop));
+        }
+        // Beyond PE-DESIGN (#510).
+        let update = d
+            .objects
+            .iter()
+            .any(|o| app.selection.contains(&o.id) && o.knockdown.is_some());
+        let label = if update { "Update knockdown" } else { "Knockdown" };
+        if ui
+            .button(label)
+            .on_hover_text("Beyond PE-DESIGN: a light fill sewn first under the selection (or the whole design) that flattens towel and fleece pile; on a selected knockdown, rebuild it to cover what changed")
+            .clicked()
+        {
+            out = Some(objects::knockdown(d, &app.selection));
+        }
     });
     out
 }

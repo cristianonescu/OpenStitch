@@ -206,6 +206,10 @@ jobs:
       - run: cargo build --release --locked -p stitchtool
       - name: sew_kit --check
         run: python -I tools/sew_kit.py --check
+      - name: Assistant skill examples
+        # Every example design of the skill (#492) runs with stitchtool exec, its design.check
+        # has no errors, it fits the page, and its PES passes sew_check.
+        run: python -I tools/skill_examples.py --stitchtool target/release/stitchtool
       - name: sew_check
         run: python -I tools/sew_check.py examples/sew
 

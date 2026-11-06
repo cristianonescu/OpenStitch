@@ -336,6 +336,7 @@ impl EditorApp {
                     }
                     "sewKitOnline" => self.assistant.open_url = Some(sew_kit::ONLINE.into()),
                     "shortcuts" => self.ui.shortcuts_open = true,
+                    "gettingStarted" => self.ui.start.page_open = true,
                     "checkUpdates" => self.update.check(true),
                     "about" => self.ui.about_open = true,
                     _ => return Err(format!("unknown Help item '{item}'")),
@@ -392,6 +393,35 @@ impl EditorApp {
                     (None, true) => crate::recovery_ui::discard(self, None),
                     _ => Err("give id or all: true".into()),
                 }
+            }
+            "ui.layout" => {
+                let name = opt_str(params, "name").unwrap_or_default();
+                let prefs = &mut self.ui.prefs;
+                match opt_str(params, "op").unwrap_or("list") {
+                    "list" => {}
+                    "save" => {
+                        prefs.save_layout(name)?;
+                    }
+                    "apply" => prefs.apply_layout(name)?,
+                    "delete" => prefs.delete_layout(name)?,
+                    _ => return Err("op takes list, save, apply or delete".into()),
+                }
+                self.ui.save_prefs();
+                let names: Vec<&str> = self.ui.prefs.layouts.iter().map(|l| l.0.as_str()).collect();
+                Ok(json!({ "layouts": names }))
+            }
+            "ui.resetPrefs" => {
+                let area = p.string("area", None).map_err(err)?;
+                self.ui.prefs.reset_area(&area)?;
+                if area == "editing" {
+                    self.database.units = self.ui.prefs.units;
+                }
+                self.ui.save_prefs();
+                Ok(json!({ "reset": area }))
+            }
+            "ui.gettingStarted" => {
+                // The ribbon's run takes no input from the context (as ui.run).
+                crate::start_ui::command(self, params, &eframe::egui::Context::default())
             }
             "ui.notesClear" => {
                 self.set_notes(Notes::default())?;
@@ -508,8 +538,16 @@ impl EditorApp {
         for s in SETTINGS {
             let v = match s.name {
                 "theme" => json!(prefs.theme.key()),
+                "accent" => json!(openstitch_app::editor::accent::key(prefs.accent)),
+                "shortcuts" => prefs.keymap.to_json(),
+                "paneSewingOrderSide" => json!(prefs.panes.sewing_order.side.key()),
+                "paneAttributesSide" => json!(prefs.panes.attributes.side.key()),
+                "paneSimulatorSide" => json!(prefs.panes.simulator.side.key()),
                 "qatBelow" => json!(prefs.qat_below),
                 "splash" => json!(prefs.splash),
+                "showStartCards" => json!(prefs.start_cards),
+                "newObjectDefaults" => prefs.new_objects.to_json(),
+                "advancedAttributes" => json!(prefs.advanced_attributes),
                 "aiFeatures" => json!(prefs.ai.enabled),
                 "assistantMemory" => json!(prefs.ai.memory),
                 "checkUpdates" => json!(prefs.updates.check),
@@ -581,8 +619,43 @@ impl EditorApp {
                     .find(|t| t.key() == key)
                     .ok_or("theme takes light, dark or system")?;
             }
+            "accent" => {
+                let s = v
+                    .as_str()
+                    .ok_or("accent takes default, a preset or #rrggbb")?;
+                self.ui.prefs.accent = if s == "default" {
+                    None
+                } else {
+                    Some(openstitch_app::editor::accent::parse(s).ok_or(
+                        "accent takes default, blue, orange, green, magenta, purple, teal or #rrggbb",
+                    )?)
+                };
+            }
+            "shortcuts" => {
+                self.ui.prefs.keymap = openstitch_app::editor::keymap::Keymap::from_json(v)?;
+            }
+            "paneSewingOrderSide" | "paneAttributesSide" | "paneSimulatorSide" => {
+                use openstitch_app::editor::prefs::Side;
+                let panes = &mut self.ui.prefs.panes;
+                let (state, sides) = match name {
+                    "paneSewingOrderSide" => (&mut panes.sewing_order, "left or right"),
+                    "paneAttributesSide" => (&mut panes.attributes, "left or right"),
+                    _ => (&mut panes.simulator, "top or bottom"),
+                };
+                state.side = v
+                    .as_str()
+                    .and_then(Side::from_key)
+                    .filter(|s| s.fits(state.side))
+                    .ok_or_else(|| format!("{name} takes {sides}"))?;
+            }
             "qatBelow" => self.ui.prefs.qat_below = bool_value(name, v)?,
             "splash" => self.ui.prefs.splash = bool_value(name, v)?,
+            "showStartCards" => self.ui.prefs.start_cards = bool_value(name, v)?,
+            "newObjectDefaults" => {
+                self.ui.prefs.new_objects =
+                    openstitch_app::editor::new_objects::NewObjects::from_json(v)?;
+            }
+            "advancedAttributes" => self.ui.prefs.advanced_attributes = bool_value(name, v)?,
             "aiFeatures" => self.ui.prefs.ai.enabled = bool_value(name, v)?,
             "assistantMemory" => self.ui.prefs.ai.memory = bool_value(name, v)?,
             "checkUpdates" => self.ui.prefs.updates.check = bool_value(name, v)?,
@@ -890,6 +963,93 @@ mod tests {
             .collect()
     }
 
+    #[test]
+    fn new_shapes_take_the_defaults_in_one_undo_step() {
+        // #553: with defaults set, a drawn rectangle carries them; existing objects keep theirs.
+        use openstitch_app::editor::{CommandRequest, ToolEffect};
+        let mut app = EditorApp::new(Launch::default());
+        let draw = |app: &mut EditorApp| {
+            app.apply_effects(vec![ToolEffect::Execute {
+                requests: vec![CommandRequest::new(
+                    "shape.rectangle",
+                    json!({ "x": 10, "y": 10, "width": 20, "height": 20 }),
+                )],
+                select_result: true,
+            }]);
+            let d = app.session.design();
+            d.objects.last().expect("drawn").clone()
+        };
+        let before = draw(&mut app);
+        let r = before.region.as_ref().expect("filled");
+        assert_eq!(r.angle, 45.0, "no defaults: PE-DESIGN's 45 degrees");
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "newObjectDefaults", "value": { "density": 4.5, "angle": 30, "underlay": false, "pitch": 2.0 } })),
+        )
+        .expect("defaults");
+        let after = draw(&mut app);
+        let r = after.region.as_ref().expect("filled");
+        assert_eq!((r.angle, r.density, r.underlay), (30.0, 4.5, false));
+        let first = &app.session.design().objects[0];
+        assert_eq!(
+            first.region.as_ref().map(|r| r.angle),
+            Some(45.0),
+            "existing unchanged"
+        );
+        let n = app.session.design().objects.len();
+        app.undo();
+        assert_eq!(
+            app.session.design().objects.len(),
+            n - 1,
+            "one undo removes shape and defaults"
+        );
+        assert!(
+            app.ui_command(
+                "ui.set",
+                Some(&json!({ "name": "newObjectDefaults", "value": { "angle": 999 } }))
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn start_cards_and_samples_through_the_assistant() {
+        // #554: an empty design shows the cards; a card runs its action; a sample opens untitled.
+        let mut app = EditorApp::new(Launch::default());
+        let list = app.ui_command("ui.gettingStarted", None).expect("list");
+        assert_eq!(list["cardsShown"], json!(true));
+        assert_eq!(list["cards"].as_array().map(Vec::len), Some(6));
+        app.ui_command("ui.gettingStarted", Some(&json!({ "card": "draw" })))
+            .expect("card");
+        assert_eq!(app.tools.tool(), openstitch_app::editor::Tool::Rectangle);
+        app.ui_command("ui.gettingStarted", Some(&json!({ "card": "lettering" })))
+            .expect("card");
+        assert!(app.lettering.text.open);
+        app.ui_command("ui.gettingStarted", Some(&json!({ "sample": "sampler" })))
+            .expect("sample");
+        assert!(
+            !app.session.design().objects.is_empty(),
+            "the sample opened"
+        );
+        assert!(app.path.is_none(), "untitled: Save asks for a name");
+        let list = app.ui_command("ui.gettingStarted", None).expect("list");
+        assert_eq!(
+            list["cardsShown"],
+            json!(false),
+            "hidden once the design has objects"
+        );
+        assert!(
+            app.ui_command("ui.gettingStarted", Some(&json!({ "sample": "nope" })))
+                .is_err()
+        );
+        app.ui_command("ui.help", Some(&json!({ "item": "gettingStarted" })))
+            .expect("page");
+        assert!(app.ui.start.page_open);
+        app.ui_command("ui.run", Some(&json!({ "action": "openSample" })))
+            .expect("menu");
+        assert!(app.ui.start.samples_open);
+    }
+
     /// The coverage rule the owner set for B17: everything the user can do by hand has a way
     /// in from the chat. A new ribbon or menu command, Options or Help item, or engine command
     /// fails here until it has one.
@@ -981,6 +1141,91 @@ mod tests {
         assert!(
             app.ui_command("ui.run", Some(&json!({ "action": "nope" })))
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn accent_shortcuts_layouts_and_resets_through_the_assistant() {
+        let mut app = demo();
+        let set = |app: &mut EditorApp, name: &str, value: Value| {
+            app.ui_command("ui.set", Some(&json!({ "name": name, "value": value })))
+        };
+        // #559: presets, any colour, back to the theme's own.
+        set(&mut app, "accent", json!("orange")).expect("preset");
+        assert_eq!(app.ui.prefs.accent, Some([0xef, 0x6c, 0x00]));
+        let r = set(&mut app, "accent", json!("#123456")).expect("hex");
+        assert_eq!(r["accent"]["value"], json!("#123456"));
+        assert!(set(&mut app, "accent", json!("neon")).is_err());
+        set(&mut app, "accent", json!("default")).expect("default");
+        assert_eq!(app.ui.prefs.accent, None);
+        // #551: shortcuts as an object; a clash is refused and changes nothing.
+        set(&mut app, "shortcuts", json!({ "rectangle": ["Alt+R"] })).expect("free");
+        let e = set(&mut app, "shortcuts", json!({ "rectangle": ["Ctrl+S"] })).expect_err("clash");
+        assert!(e.contains("Save"), "{e}");
+        let all = app.ui_command("ui.settings", None).expect("settings");
+        assert_eq!(all["shortcuts"]["value"], json!({ "rectangle": ["Alt+R"] }));
+        set(&mut app, "paneSewingOrderSide", json!("right")).expect("side");
+        assert!(set(&mut app, "paneSimulatorSide", json!("left")).is_err());
+        // Layouts: save, change, apply.
+        let layout = |app: &mut EditorApp, op: &str, name: &str| {
+            app.ui_command("ui.layout", Some(&json!({ "op": op, "name": name })))
+        };
+        layout(&mut app, "save", "Lettering").expect("save");
+        set(&mut app, "paneSewingOrderSide", json!("left")).expect("side");
+        let r = layout(&mut app, "apply", "Lettering").expect("apply");
+        assert_eq!(r["layouts"], json!(["Lettering"]));
+        assert_eq!(
+            app.ui.prefs.panes.sewing_order.side,
+            openstitch_app::editor::prefs::Side::Right
+        );
+        assert!(layout(&mut app, "apply", "nope").is_err());
+        assert!(layout(&mut app, "save", "").is_err());
+        // Resetting the shortcuts keeps the layouts.
+        app.ui_command("ui.resetPrefs", Some(&json!({ "area": "shortcuts" })))
+            .expect("reset");
+        assert!(app.ui.prefs.keymap.is_default() && app.ui.prefs.layouts.len() == 1);
+        assert!(
+            app.ui_command("ui.resetPrefs", Some(&json!({ "area": "all" })))
+                .is_err()
+        );
+        layout(&mut app, "delete", "Lettering").expect("delete");
+        assert!(app.ui.prefs.layouts.is_empty());
+    }
+
+    #[test]
+    fn resetting_new_objects_leaves_the_other_preferences() {
+        // #551 + #553/#554: the newObjects area resets only its own preferences.
+        let mut app = demo();
+        let set = |app: &mut EditorApp, name: &str, value: Value| {
+            app.ui_command("ui.set", Some(&json!({ "name": name, "value": value })))
+                .unwrap_or_else(|e| panic!("{name}: {e}"));
+        };
+        set(
+            &mut app,
+            "newObjectDefaults",
+            json!({ "angle": 30, "density": 4.5 }),
+        );
+        set(&mut app, "advancedAttributes", json!(false));
+        set(&mut app, "showStartCards", json!(false));
+        set(&mut app, "accent", json!("teal"));
+        set(&mut app, "shortcuts", json!({ "rectangle": ["Alt+R"] }));
+        set(&mut app, "paneSewingOrderSide", json!("right"));
+        app.ui_command("ui.resetPrefs", Some(&json!({ "area": "newObjects" })))
+            .expect("reset");
+        let all = app.ui_command("ui.settings", None).expect("settings");
+        assert_eq!(all["newObjectDefaults"]["value"], json!({}));
+        assert_eq!(all["advancedAttributes"]["value"], json!(true));
+        assert_eq!(all["showStartCards"]["value"], json!(true));
+        assert_eq!(all["accent"]["value"], json!("teal"), "display kept");
+        assert_eq!(
+            all["shortcuts"]["value"],
+            json!({ "rectangle": ["Alt+R"] }),
+            "keys kept"
+        );
+        assert_eq!(
+            all["paneSewingOrderSide"]["value"],
+            json!("right"),
+            "panes kept"
         );
     }
 

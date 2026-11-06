@@ -1,0 +1,17 @@
+[
+ {"command": "design.new", "params": {"name": "Mushroom", "width": 100, "height": 100}},
+ {"command": "shape.rectangle", "params": {"x": 40, "y": 50, "width": 20, "height": 30, "cornerRadii": [0, 0, 6, 6], "fill": "#efe3c8", "name": "stem"}},
+ {"command": "shape.path", "params": {"points": [[16, 54], [36, 54], [40, 20]], "curves": [null, [[37, 40], [37, 30]], [[24, 22], [16, 36]]], "fill": "#c0392b", "name": "cap left"}},
+ {"command": "shape.path", "params": {"points": [[36, 54], [64, 54], [60, 20], [40, 20]], "curves": [null, [[63, 40], [63, 30]], [[55, 17], [45, 17]], [[37, 30], [37, 40]]], "fill": "#e74c3c", "name": "cap middle"}},
+ {"command": "shape.path", "params": {"points": [[64, 54], [84, 54], [60, 20]], "curves": [null, [[84, 36], [76, 22]], [[63, 30], [63, 40]]], "fill": "#c0392b", "name": "cap right"}},
+ {"command": "shape.ellipse", "params": {"cx": 28, "cy": 44, "rx": 3, "fill": "White", "name": "spot"}},
+ {"command": "shape.ellipse", "params": {"cx": 50, "cy": 32, "rx": 4, "fill": "White", "name": "spot"}},
+ {"command": "shape.ellipse", "params": {"cx": 72, "cy": 44, "rx": 3, "fill": "White", "name": "spot"}},
+ {"command": "shape.removeOverlap", "params": {"ids": [1, 2, 3, 4, 5, 6, 7]}},
+ {"command": "object.setRegion", "params": {"ids": [1], "type": "fill", "angle": 90}},
+ {"command": "object.setRegion", "params": {"ids": [2], "type": "fill", "angle": 120}},
+ {"command": "object.setRegion", "params": {"ids": [3], "type": "fill", "angle": 0}},
+ {"command": "object.setRegion", "params": {"ids": [4], "type": "fill", "angle": 60}},
+ {"command": "object.setRegion", "params": {"ids": [5, 6, 7], "type": "satin", "angle": 0}},
+ {"command": "design.check"}
+]

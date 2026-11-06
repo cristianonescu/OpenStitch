@@ -66,6 +66,8 @@ mod hoop_lists;
 mod imports;
 #[path = "knife.rs"]
 mod knife;
+#[path = "knockdown.rs"]
+mod knockdown;
 #[path = "layout.rs"]
 mod layout;
 #[path = "lettering.rs"]
@@ -102,6 +104,8 @@ mod pes_compat;
 mod pes_resave;
 #[path = "print.rs"]
 mod print;
+#[path = "production.rs"]
+mod production;
 #[path = "punch.rs"]
 mod punch;
 #[path = "quality.rs"]

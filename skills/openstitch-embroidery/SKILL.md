@@ -11,7 +11,9 @@ commands with `commands_list`, read their parameters with `command_describe`, ru
 `execute` or, better, several at once with `run_batch`.
 
 More detail: `reference/recipes.md` (worked batches), `reference/sewability.md` (what sews
-well), `reference/answers.md` (what OpenStitch can do, where things are, file formats).
+well), `reference/answers.md` (what OpenStitch can do, where things are, file formats),
+`reference/composition.md` (planning an illustrated design) and `reference/examples.md`
+(complete example designs: strawberry, mushroom, watermelon, cat face, ...).
 
 ## Units and coordinates
 
@@ -55,6 +57,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 
 ## Build order
 
+0. For an illustrated subject ("a strawberry with leaves", "a cartoon cat"), open the closest
+   example first (`skill_reference {"file": "strawberry"}`; `reference/examples.md` lists
+   them), plan the regions as `reference/composition.md` says, and adapt the example.
 1. `design.new` (and `machine.set` for the hoop), unless the user wants to edit what is open.
 2. Shapes and lettering: `shape.rectangle`, `shape.ellipse`, `shape.preset`, `shape.path`,
    `shape.polygon`, `text.add`, `monogram.add`, `import.svg`, or a `digitize.*` wizard.
@@ -68,7 +73,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `object.list` (sewing order). To sew objects in a set order, `order.byClickOrder`
    `{ids: [in sewing order]}` (they start where the earliest of them sews now); to sew a
    shape's outline before its fill, `object.setPartOrder` `{ids, order: lineFirst}` (beyond
-   PE-DESIGN; `regionFirst` is PE-DESIGN's order).
+   PE-DESIGN; `regionFirst` is PE-DESIGN's order). `order.optimize` returns `before`/`after`
+   (colour changes, jumps, trims, travel mm) and a `summary` line: tell the user, and offer
+   `history.undo` when a number got worse. `design.setProperties {autoStart: nearest}` (beyond
+   PE-DESIGN) starts each shape without its own entry point nearest to where the last ended.
 5. Check: `view_render` (look at it), `design.info` (size, stitches, colours, trims, time) and
    `design.check` (sewing problems, errors first; `ready` is false while there are errors).
    Run each finding's `fix` command or fix it yourself, and check again; never report a design
@@ -183,7 +191,22 @@ by words ("where is arrange copy?"), `ui.searchCommands {query}` gives the same 
 user's Ctrl+K palette, with each command's ribbon place and shortcut; run it with `ui.run`.
 After a crash, `ui.recoveryList` shows designs autosave kept; `ui.recoveryRestore {id}`
 opens one as an untitled design (tell the user to save it), and `ui.recoveryDiscard`
-deletes snapshots (ask first). Autosave is `ui.set autosave` / `autosaveInterval`. Read their parameters with
+deletes snapshots (ask first). Autosave is `ui.set autosave` / `autosaveInterval`.
+The window's look and keys (#551, #559): `ui.set accent` (`default`, a preset such as `orange`,
+or `#rrggbb`); `ui.set shortcuts` takes the changed commands as `{ commandKey: ["Ctrl+Alt+R"] }`
+(keys from `ui.actions`; `{}` restores every default; a key another command uses is refused,
+so tell the user which); `ui.set paneSewingOrderSide` / `paneAttributesSide` (left, right) and
+`paneSimulatorSide` (top, bottom). "Use my lettering layout" is `ui.layout {op: "apply", name}`
+(`list`, `save`, `delete` too); `ui.resetPrefs {area}` resets display, editing, panes,
+shortcuts, layouts or newObjects (new-shape defaults, Basic/Advanced, start cards) alone (ask first).
+For a new user, `ui.gettingStarted` lists the start cards and the kit's samples; `{sample:
+"sampler"}` opens one as an untitled design, `{card: "draw"}` runs a card, `{page: true}` opens
+Help ▸ Getting Started. "Make new shapes start at 30° and 4.5 rows/mm" is `ui.set
+newObjectDefaults {angle: 30, density: 4.5}` (also stitchLength, pullCompensation, pitch,
+underlay; `{}` back to the tools' own); it changes only shapes drawn afterwards.
+"Use this shape's settings for new shapes" (the pane's Save as Default) is the same setting:
+read the shape with `object.get`, then `ui.set newObjectDefaults` with its region's angle,
+density, stitchLength, pullCompensation and underlay and its line's pitch. Read their parameters with
 `command_describe` before the first use. `ui.zoom {rect: [x, y, w, h]}` zooms to a rectangle.
 `background.setLayer {position: "top" | "bottom" | "afterObject", afterId}` puts the tracing
 picture above the design or between objects ("put the picture above the fills"); it never sews.
@@ -208,6 +231,8 @@ still send mm to commands. `design.print {units: "inch"}` adds a 2-inch scale ba
   `settings: true`: give the element an `id` and a `data-name` such as `"fill a=45 s=0.4"`,
   `"satin"`, `"run r=3"` or `"stroke.satin w=3"`; the result lists unknown words and refused
   values (FILE_FORMATS.md has the words).
+- A user who wants to script designs in Python can use the `openstitch` package (repository
+  `python/README.md`: `Session().exec("shape.ellipse", ...)` with these same commands).
 - `file` commands (`project.save`, `design.export`, ...) may ask the user first. Never
   overwrite a user's file without being asked to.
 

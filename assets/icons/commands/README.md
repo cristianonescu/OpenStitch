@@ -42,6 +42,16 @@ through a square, read as other commands at 16 pixels and were not kept). They r
 `shape_builder` (the Shape Builder tool, #497) was added on 2026-11-05 the same way (2.5 credits);
 after `clean_icons.py` its arrow, generated as a green gradient, was set to the palette green by
 hand and the gradient removed.
+`status_done`, `status_failed` and `status_running` (the Assistant panel's tool-step marks, #653)
+were added on 2026-11-06 the same way (2.5 credits each); after `clean_icons.py`, `status_done`'s
+badge, generated a bright mint, was set to the palette green by hand. They run no command, so they
+are in `UI`; so is `hand`, used as the Sewing Order rows' drag grip.
+`player_start`, `player_back`, `player_forward` and `player_end` (the Stitch Simulator's start,
+previous, next and end buttons, #653) were added on 2026-11-06 the same way (2.5 credits each,
+plus 7.5 for three attempts not kept: a framed skip-to-start and step-back that did not match
+their pairs, and a skip-to-start that pointed right). `player_start` is `player_end` mirrored
+(a `transform` group around its paths), so its row in `higgsfield-jobs.tsv` names `player_end`'s
+job with 0 credits.
 The job ids of the first set (2026-10-27) were recovered from the Higgsfield history on 2026-11-04:
 each job's output, cleaned with `clean_icons.py`, is byte-identical to its SVG. The `credits`
 column is empty where the cost was not recorded at the time.

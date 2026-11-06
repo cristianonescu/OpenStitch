@@ -488,7 +488,11 @@ Line references are relative to `crates/`.
   moved by the Frequency, rows fanned round L's corner. The 11 round-5 fill captures
   (`stroke-fill-*`) and `text-defaults-fill` are within 25 %, 8 % on average against 22 % by
   region (H 504 against 483, was 595; L 274 against 276). Fill text under a Text Transform keeps its region rows
-  until the stroke cut of warped letters is measured (#428). Since 2026-11-05 (#444, the
+  (#428): measured 2026-11-06, sewing it by stroke brings the needle points nearer PE-DESIGN's
+  (PE → ours 0.24 → 0.18 mm over the 182 transform captures) but sews them far denser (needle
+  count 11 % → 28 % off on average, 167 of 182 further) and moves four references 0.6 mm past
+  their bounds (text-transform-1-agjy, -1-openstitch-l25, -2, -18-openstitch-l100) and
+  text-transform-10's stem columns; next, the fill rows' spacing on warped strokes. Since 2026-11-05 (#444, the
   README's arched title and 4 mm text sewn as broken pieces): a turned letter (fitted to an
   outline, on an arch, turned by Edit Character) is cut into strokes upright and its blocks
   turned back, as PE-DESIGN sews it (text-fit-satin-ahhhh: its H's at -18 to +32 degrees match
@@ -518,8 +522,19 @@ Line references are relative to `crates/`.
   where the outline walk would go round it (the walk drew boxes round t's bar); from 6 mm up
   the walk stays, since every capture (6 mm and larger) matches it in stitch count. Letters are
   still sewn across up to 2.3 mm (PE-DESIGN's captures trim every letter move, all longer
-  than that). The other 226 text captures are unchanged. #446 (N's corner, X's chevrons,
-  slanted arm ends) stays open: ten tries measured in the issue, none closer on every letter.
+  than that). The other 226 text captures are unchanged. Since 2026-11-06 (#446, part): X is
+  sewn as PE-DESIGN sews it, one diagonal through and the other in two halves meeting it, each
+  arm run out to from the crossing under its satin and its level-cut foot sewn corner to
+  corner, instead of two chevrons; only a crossing of four arms that all end free takes it (M's
+  notch loops and the joins of g and Pacifico keep their chevrons). stroke-satin-X 314 → 269
+  needle points against 277 (mean distance 0.267 → 0.182 mm ours, 0.201 → 0.182 mm
+  PE-DESIGN's); stroke-fill-X 503 → 470 against 473, in PE-DESIGN's two runs (224 + 249 from
+  0-9.6 and 6.8-18.9 mm; ours 220 + 250 from 0-10.4 and 6.5-18.9 mm, main sewed the left and
+  right halves), PE → ours 0.214 → 0.220 mm (row phase); text-size-hg 1445 → 1405 against
+  1445, its x alone 345 → 305 against 324 and closer both ways (0.228 → 0.211 and 0.215 →
+  0.206 mm: main's total matched only because H's +21 and g's −42 cancelled). Letter sweep
+  (588 samples): 24 changed (X, x, KNOX), none worse. N's corner and A's and V's slanted feet
+  stay open (#446): no N, M, W, K, Z capture exists yet.
 - **Test:**
   - Inputs: `text.add {"text":"AVOW","size":30,"x":50,"y":50}` →
     `object.setRegion {"id":1,"type":"satin"}` → `design.generate`.
@@ -2341,6 +2356,17 @@ Line references are relative to `crates/`.
   both cards; the Realistic view and the similarity scorer now draw thread that wide
   (`openstitch_design::calibration`, #291).
 
+### Knockdown fill, 2026-11-06 (#510, `batch:production`)
+
+Beyond PE-DESIGN (PE-DESIGN 11 has no fill under the design; its background fill sews around
+patterns). Nothing changes until `wizard.knockdown` is run: it adds an ordinary Fill object
+named Knockdown (no underlay, 1 mm rows, 4 mm stitches) before what it covers, so the file stays
+a plain PE-compatible design and PES 0110 export writes it as a fill shape. `order.optimize`
+moves it back before the first object it covers. Measured in `tests/knockdown.rs`: two 20 mm
+squares 2 mm apart give one 1,100 mm² piece (46 × 24 mm with 2 mm rounded corners, the gap
+closed); a ring with a 30 mm hole keeps the hole (no needle point within 12.5 mm of the
+centre). Sew-out on terry towel is left for the owner.
+
 ### Assistant fixes, 2026-11-06 (#580, #384, #494, #495)
 
 Beyond PE-DESIGN only; no PE-DESIGN-compatible output changed (no compat spec, golden or writer
@@ -2687,6 +2713,30 @@ averaged 50/50, on the calibrated render; every result is OpenStitch's output.
   unchanged (15.4 per 1,000). No PE-DESIGN Design Center capture exists to compare the routing.
 - **Flaky timing test (#633):** `cheap_rules_are_fast_on_a_large_design` compares the check
   with compiling the same design in the same run (best of three each) instead of a bare 50 ms.
+
+### Production aids, 2026-11-06 (#509, #512, #547, `batch:production`)
+
+All beyond PE-DESIGN and off by default: with no basting, no stop and `autoStart: off`, compiled
+output is byte-identical (tests `basting_box_sews_first_in_the_first_thread`,
+`stop_after_an_object_and_at_jumps`, `nearest_start_shortens_travel`); compat 454/454.
+
+- **Basting (#509).** Sewn first in the first thread with no added colour change (or its own
+  block); no tie-in or lock so it pulls out. Inside the field of every listed hoop, oval and
+  round included (`basting_box_stays_inside_every_hoop`); the outline form stays at the margin
+  within 0.3 mm. PES 0110 export refuses the Production settings (PE-DESIGN's objects cannot
+  hold them).
+- **Stops (#512).** PES/PEC, DST, EXP and JEF already wrote `Command::Stop` as a colour change
+  to the same thread; a PES read back shows it as a repeated thread (test above). A stop that a
+  colour change follows is dropped: the colour change stops the machine.
+- **Nearest start and the Optimize report (#547).** An object takes the nearest start only when
+  its own trims do not rise and its travel (approach included) falls. On the 24 editable example
+  scripts (`examples/*.json`; `user-fonts` needs a font file), total travel falls 10.1 % on
+  average and no design gets a trim more (cutwork 2,488 → 1,885 mm, monograms 1,500 → 1,128 mm,
+  line-types 690 → 110 mm; text, stitch patterns and one-object designs unchanged). The issue's
+  20 % target is not reached, and the kit (stitch files) keeps its own start, so #547 stays
+  open for part-way satin starts and draggable markers.
+- sew_check passes on the heart example with a basting box, an outline basting in its own
+  thread, stops after an object plus Stop at Jumps, and nearest start, as on the plain design.
 
 ## Order of work
 

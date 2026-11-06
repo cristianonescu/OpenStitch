@@ -299,6 +299,92 @@ pub fn reference_window(app: &mut EditorApp, ctx: &egui::Context, canvas: Option
     app.workspace.reference = open;
 }
 
+/// Design Settings ▸ Production (beyond PE-DESIGN, all off by default): basting box (#509),
+/// Stop at jumps (#512) and nearest start (#547). Each change is one command.
+fn production_settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<CommandRequest>) {
+    use openstitch_design::production::{AutoStart, BastingShape};
+    let p = app.session.design().production.clone();
+    ui.separator();
+    ui.label(egui::RichText::new("Production (beyond PE-DESIGN)").strong());
+    let basting = |v: serde_json::Value| CommandRequest::new("design.setBasting", v);
+    let mut on = p.basting.is_some();
+    if ui
+        .checkbox(&mut on, "Basting box")
+        .on_hover_text("Long running stitches sewn first round the design to tack floated fabric to the stabiliser; pull them out after sewing")
+        .changed()
+    {
+        requests.push(basting(json!({ "on": on })));
+    }
+    if let Some(b) = &p.basting {
+        ui.horizontal(|ui| {
+            for shape in [BastingShape::Box, BastingShape::Outline] {
+                let label = match shape {
+                    BastingShape::Box => "Box",
+                    BastingShape::Outline => "Follow outline",
+                };
+                if ui.radio(b.shape == shape, label).clicked() && b.shape != shape {
+                    requests.push(basting(json!({ "on": true, "shape": shape.id() })));
+                }
+            }
+        });
+        ui.horizontal(|ui| {
+            let mut margin = b.margin;
+            let r = ui
+                .add(
+                    egui::DragValue::new(&mut margin)
+                        .range(0.0..=30.0)
+                        .speed(0.1)
+                        .suffix(" mm margin"),
+                )
+                .on_hover_text("Distance from the design (shrunk to fit an oval or round hoop)");
+            if r.drag_stopped() || r.lost_focus() {
+                requests.push(basting(json!({ "on": true, "margin": margin })));
+            }
+            let mut stitch = b.stitch;
+            let r = ui
+                .add(
+                    egui::DragValue::new(&mut stitch)
+                        .range(2.0..=12.0)
+                        .speed(0.1)
+                        .suffix(" mm stitch"),
+                )
+                .on_hover_text("Basting stitch length");
+            if r.drag_stopped() || r.lost_focus() {
+                requests.push(basting(json!({ "on": true, "stitch": stitch })));
+            }
+        });
+        let mut own = b.thread.is_some();
+        if ui
+            .checkbox(&mut own, "Own thread")
+            .on_hover_text("Sew the basting in its own colour (an extra colour change); off sews it in the first thread")
+            .changed()
+        {
+            let thread = if own { "own" } else { "first" };
+            requests.push(basting(json!({ "on": true, "thread": thread })));
+        }
+    }
+    let mut stops = p.stop_at_jumps;
+    if ui
+        .checkbox(&mut stops, "Stop at jumps (machine without thread cutter)")
+        .on_hover_text("The machine stops before every jump so you can snip the thread; stops set with Stop after stay")
+        .changed()
+    {
+        requests.push(CommandRequest::new("design.setStopAtJumps", json!({ "on": stops })));
+    }
+    let mut nearest = p.auto_start == AutoStart::Nearest;
+    if ui
+        .checkbox(&mut nearest, "Start each object nearest the last")
+        .on_hover_text("Shapes without their own entry point start where the needle stopped: regions and closed lines at the nearest point, open lines at the nearer end")
+        .changed()
+    {
+        let rule = if nearest { AutoStart::Nearest } else { AutoStart::Off };
+        requests.push(CommandRequest::new(
+            "design.setProperties",
+            json!({ "autoStart": rule.id() }),
+        ));
+    }
+}
+
 /// PE-DESIGN's Design Settings: machine type, hoop, rotation, custom size, user hoops, sewing
 /// area and jump-stitch trimming. Every change is one `machine.*` command (one Undo).
 pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
@@ -490,6 +576,7 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
                 ui.end_row();
             });
             crate::sections_ui::settings(app, ui, &mut requests);
+            production_settings(app, ui, &mut requests);
 
             ui.separator();
             ui.label(egui::RichText::new("User hoops").strong());

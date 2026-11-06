@@ -80,6 +80,7 @@ actions! {
     // Application button menu.
     New => "new", "New", "Start a new design.", Some("Ctrl+N"), Some("design.new"), true;
     Open => "open", "Open", "Open an OpenStitch design, or an embroidery file as a new design.", Some("Ctrl+O"), Some("project.open"), true;
+    OpenSample => "openSample", "Open Sample", "Open a ready design from the kit (a satin and fill sampler, shapes, lettering, …) as a new untitled design.", None, None, true;
     Save => "save", "Save", "Save the design.", Some("Ctrl+S"), Some("project.save"), true;
     SaveAs => "saveAs", "Save As", "Save the design under a new name.", Some("Ctrl+Shift+S"), Some("project.save"), true;
     Print => "print", "Print", "Print the design with its colour list through the system print dialog, or save it as a PDF.", None, Some("design.print"), true;
@@ -732,9 +733,10 @@ const HOOP: &[Group] = &[
 
 /// Application button menu, top to bottom; [`Action::Options`] and [`Action::Exit`] sit at
 /// the bottom.
-pub const APPLICATION_MENU: [Action; 11] = [
+pub const APPLICATION_MENU: [Action; 12] = [
     A::New,
     A::Open,
+    A::OpenSample,
     A::Save,
     A::SaveAs,
     A::Print,

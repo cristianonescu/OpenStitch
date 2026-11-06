@@ -1,6 +1,7 @@
 //! UI-independent editor logic. Model coordinates are 0.1 mm, +y down (see
 //! [`openstitch_design::Design`]); screen coordinates are egui points.
 
+pub mod accent;
 pub mod assistant;
 pub mod assistant_attach;
 pub mod assistant_chat;
@@ -11,11 +12,14 @@ pub mod conversions;
 pub mod creator;
 pub mod database;
 pub mod edit_ops;
+pub mod getting_started;
 pub mod handles;
 pub mod hints;
 pub mod hit;
 pub mod inspector;
+pub mod keymap;
 pub mod lettering;
+pub mod new_objects;
 pub mod objects;
 pub mod palette;
 pub mod pattern_wizards;

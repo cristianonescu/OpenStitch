@@ -465,6 +465,41 @@ pub struct GateInput<'a> {
     pub edit_limit: u32,
     /// `history.undo` would undo something from before this message.
     pub undo_before_message: bool,
+    /// `ui.layout` names a layout the user already saved (#551).
+    pub existing_layout: bool,
+}
+
+/// What the gate asks before preferences the user set by hand are thrown away (#551): they have
+/// no undo. None for other commands.
+pub fn prefs_question(command: &str, params: &Value, existing_layout: bool) -> Option<String> {
+    let text = |k: &str| params[k].as_str().unwrap_or_default().trim().to_string();
+    match command {
+        "ui.resetPrefs" => {
+            let area = text("area");
+            let what = super::prefs::RESET_AREAS
+                .iter()
+                .find(|a| a.0 == area)
+                .map_or(String::new(), |a| format!(" ({})", a.2));
+            Some(format!(
+                "reset your {area} preferences to their defaults{what}"
+            ))
+        }
+        "ui.layout" => match params["op"].as_str() {
+            Some("delete") => Some(format!("delete your saved layout \"{}\"", text("name"))),
+            Some("save") if existing_layout => Some(format!(
+                "replace your saved layout \"{}\" with the current one",
+                text("name")
+            )),
+            _ => None,
+        },
+        "ui.set"
+            if params["name"] == json!("shortcuts")
+                && params["value"].as_object().is_some_and(|m| m.is_empty()) =>
+        {
+            Some("reset every keyboard shortcut you changed to its default".into())
+        }
+        _ => None,
+    }
 }
 
 /// What the gate asks before the Assistant's memory changes (#491), or None for other commands.
@@ -547,6 +582,10 @@ pub fn verdict(g: &GateInput) -> Verdict {
     }
     // #491: the memory changes only with the user's yes, in every mode but Allow everything.
     if let Some(what) = memory_question(g.command, g.params) {
+        return Verdict::Ask(what);
+    }
+    // #551: so do preferences that cannot be undone.
+    if let Some(what) = prefs_question(g.command, g.params, g.existing_layout) {
         return Verdict::Ask(what);
     }
     // #495: so do the user's thread charts.
@@ -673,7 +712,64 @@ mod tests {
             edits: 0,
             edit_limit: 0,
             undo_before_message: false,
+            existing_layout: false,
         })
+    }
+
+    #[test]
+    fn resetting_or_deleting_preferences_asks() {
+        use PermissionMode::*;
+        let ask = |mode, command, params: Value| match gate(mode, command, Effect::Edit, params) {
+            Verdict::Ask(w) => w,
+            v => panic!("{command}: {v:?}"),
+        };
+        for mode in [Ask, Edits] {
+            let w = ask(mode, "ui.resetPrefs", json!({ "area": "shortcuts" }));
+            assert!(
+                w.contains("shortcuts") && w.contains("changed shortcut"),
+                "{w}"
+            );
+            let w = ask(
+                mode,
+                "ui.layout",
+                json!({ "op": "delete", "name": "Lettering" }),
+            );
+            assert!(w.contains("delete") && w.contains("Lettering"), "{w}");
+            let w = ask(mode, "ui.set", json!({ "name": "shortcuts", "value": {} }));
+            assert!(w.contains("every keyboard shortcut"), "{w}");
+        }
+        // A save over an existing name asks; a new name, list and apply run.
+        let scratch = scratch();
+        let save = json!({ "op": "save", "name": "Lettering" });
+        let g = |existing_layout| GateInput {
+            mode: Edits,
+            command: "ui.layout",
+            effect: Effect::Edit,
+            params: &save,
+            scratch: Some(&scratch),
+            always_allow: &[],
+            edits: 0,
+            edit_limit: 0,
+            undo_before_message: false,
+            existing_layout,
+        };
+        assert!(matches!(verdict(&g(true)), Verdict::Ask(w) if w.contains("replace")));
+        assert_eq!(verdict(&g(false)), Verdict::Run);
+        for params in [
+            json!({ "op": "list" }),
+            json!({ "op": "apply", "name": "x" }),
+        ] {
+            assert_eq!(gate(Edits, "ui.layout", Effect::Edit, params), Verdict::Run);
+        }
+        assert_eq!(
+            gate(
+                Edits,
+                "ui.set",
+                Effect::Edit,
+                json!({ "name": "shortcuts", "value": { "rectangle": ["Alt+R"] } })
+            ),
+            Verdict::Run
+        );
     }
 
     #[test]
@@ -927,6 +1023,7 @@ mod tests {
                 edits: 0,
                 edit_limit: 0,
                 undo_before_message: false,
+                existing_layout: false,
             }),
             Verdict::Run
         );
@@ -1005,6 +1102,7 @@ mod tests {
             edits: 3,
             edit_limit: 3,
             undo_before_message: false,
+            existing_layout: false,
         };
         assert!(matches!(verdict(&g), Verdict::Refuse(_)));
         g.effect = Effect::Read;

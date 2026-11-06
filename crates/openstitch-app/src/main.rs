@@ -13,7 +13,8 @@
 //!            [--database FOLDER|FILE [--db-view large|small|details] [--db-dialog search|convert|catalog|delete|newfolder]]
 //!            [--listen PORT [--listen-read-only] [--listen-no-files] [--listen-root DIR]... [--listen-read-root DIR]...]
 //!            [--ribbon home|image|view|text|outline|rectangle|punch|shapes|stitches|hoop]
-//!            [--pane import|color|attributes|text] [--theme light|dark|system] [--no-splash]
+//!            [--pane import|color|attributes|text] [--theme light|dark|system] [--accent COLOUR]
+//!            [--no-splash]
 //! ```
 //! A plain start (at most a FILE) shows the logo splash for about a second; any other option
 //! above, or `--no-splash`, starts without it (see `Launch::splash_allowed`).
@@ -57,6 +58,7 @@ mod envelope_ui;
 mod finish_ui;
 mod icons;
 mod inkstitch_ui;
+mod keymap_ui;
 mod lettering_ui;
 mod line_gap_ui;
 mod palette_ui;
@@ -75,6 +77,7 @@ mod sewing_ui;
 mod shape_effects_ui;
 mod shape_tools_ui;
 mod splash;
+mod start_ui;
 mod suite_chrome;
 mod theme;
 mod transfer_ui;
@@ -166,6 +169,13 @@ fn parse(args: impl Iterator<Item = String>) -> Result<(Launch, [f32; 2]), Strin
                 l.theme = Some(
                     openstitch_app::editor::prefs::Theme::from_key(&v)
                         .ok_or("--theme takes light, dark or system")?,
+                );
+            }
+            "--accent" => {
+                let v = value("--accent")?;
+                l.accent = Some(
+                    openstitch_app::editor::accent::parse(&v)
+                        .ok_or("--accent takes a preset (blue, orange, ...) or #rrggbb")?,
                 );
             }
             "--select" => {
@@ -335,7 +345,7 @@ fn main() -> eframe::Result {
                 eprintln!("openstitch: {e}");
             }
             eprintln!(
-                "usage: openstitch [FILE] [--demo] [--select ID,ID] [--simulate F] [--tool NAME] [--size WxH] [--zoom F] [--show VIEWS] [--script STEPS] [--screenshot OUT.png] [--image IMAGE [--convert METHOD]] [--pattern PATTERN.json] [--wizard NAME [--apply]] [--database PATH [--db-view VIEW] [--db-dialog NAME]] [--listen PORT [--listen-read-only] [--listen-no-files] [--listen-root DIR] [--listen-read-root DIR]] [--ribbon TAB] [--pane TAB] [--theme THEME] [--no-splash]"
+                "usage: openstitch [FILE] [--demo] [--select ID,ID] [--simulate F] [--tool NAME] [--size WxH] [--zoom F] [--show VIEWS] [--script STEPS] [--screenshot OUT.png] [--image IMAGE [--convert METHOD]] [--pattern PATTERN.json] [--wizard NAME [--apply]] [--database PATH [--db-view VIEW] [--db-dialog NAME]] [--listen PORT [--listen-read-only] [--listen-no-files] [--listen-root DIR] [--listen-read-root DIR]] [--ribbon TAB] [--pane TAB] [--theme THEME] [--accent COLOUR] [--no-splash]"
             );
             std::process::exit(2);
         }
@@ -438,9 +448,11 @@ mod tests {
         assert!(parse(args("--db-view huge")).is_err());
         assert!(parse(args("--db-dialog format")).is_err());
         let (l, _) = parse(args(
-            "--ribbon view --pane color --theme dark --show appmenu",
+            "--ribbon view --pane color --theme dark --accent orange --show appmenu",
         ))
         .expect("ribbon");
+        assert_eq!(l.accent, Some([0xef, 0x6c, 0x00]));
+        assert!(parse(args("--accent neon")).is_err());
         assert_eq!(l.ribbon, Some(openstitch_app::editor::ribbon::TabId::View));
         assert_eq!(l.pane, Some(crate::ribbon::PaneTab::Color));
         assert_eq!(l.theme, Some(openstitch_app::editor::prefs::Theme::Dark));

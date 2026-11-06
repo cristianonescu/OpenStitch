@@ -39,8 +39,12 @@ pub fn zoom_center(app: &mut EditorApp, factor: f64) {
 // MARK: object list
 
 pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
-    if let Some(r) = crate::edit_ui::order_controls(app, ui) {
-        app.execute(&r);
+    if let Some(r) = crate::edit_ui::order_controls(app, ui)
+        && let Some(result) = app.execute(&r)
+        && let Some(summary) = result.get("summary").and_then(|v| v.as_str())
+    {
+        // Optimise reports what it changed (#547); Undo takes it back.
+        app.status = format!("Optimise: {summary}");
     }
     if ui
         .button("Review sewing order")
@@ -90,7 +94,8 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
                                 ui.scope_id().with(("row", row.id)),
                                 row.index,
                                 |ui| {
-                                    ui.label(RichText::new("::").weak());
+                                    // #653: the Higgsfield hand icon as the drag grip.
+                                    ui.add(crate::icons::ui_image(ui, "hand"));
                                 },
                             );
                             handle
@@ -287,6 +292,7 @@ pub fn sewing_attributes(app: &mut EditorApp, ui: &mut egui::Ui) {
                         crate::ribbon::run(app, a, ui.ctx());
                     }
                 }
+                basic_advanced_and_defaults(app, ui);
             });
             // Property search (#550): only the rows whose label or parameter match.
             ui.add(
@@ -321,6 +327,52 @@ pub fn sewing_attributes(app: &mut EditorApp, ui: &mut egui::Ui) {
                 app.execute(&r);
             }
         });
+}
+
+/// The Basic / Advanced switch and Save as Default (#553, beyond PE-DESIGN).
+fn basic_advanced_and_defaults(app: &mut EditorApp, ui: &mut egui::Ui) {
+    let adv = app.ui.prefs.advanced_attributes;
+    let mut pick = None;
+    if ui
+        .selectable_label(!adv, "Basic")
+        .on_hover_text("Only the settings most designs change")
+        .clicked()
+    {
+        pick = Some(false);
+    }
+    if ui
+        .selectable_label(adv, "Advanced")
+        .on_hover_text("Every sewing setting (as PE-DESIGN shows them)")
+        .clicked()
+    {
+        pick = Some(true);
+    }
+    if let Some(a) = pick {
+        app.ui.prefs.advanced_attributes = a;
+        app.ui.save_prefs();
+    }
+    let single = (app.selection.len() == 1)
+        .then(|| app.selection.iter().next().copied())
+        .flatten()
+        .and_then(|id| {
+            let d = app.session.design();
+            d.index_of(id).map(|i| d.objects[i].clone())
+        })
+        .filter(|o| o.region.is_some() || o.line.is_some());
+    if ui
+        .add_enabled(single.is_some(), egui::Button::new("Save as Default"))
+        .on_hover_text("New shapes start with this shape's fill angle, density, stitch length, pull compensation, underlay and outline stitch length (Options ▸ New Objects)")
+        .on_disabled_hover_text("Select one shape")
+        .clicked()
+        && let Some(o) = single
+    {
+        app.ui.prefs.new_objects = openstitch_app::editor::new_objects::NewObjects::from_object(
+            o.region.as_ref(),
+            o.line.as_ref(),
+        );
+        app.ui.save_prefs();
+        app.status = "New shapes start with these settings".into();
+    }
 }
 
 pub fn design_info(app: &mut EditorApp, ui: &mut egui::Ui) {
@@ -458,6 +510,43 @@ fn kind_combo<K: Copy + PartialEq>(
     chosen.filter(|k| current.same() != Some(k))
 }
 
+/// A section title that folds the section (#553; kept in ui.json). A search shows every
+/// section. Returns whether the section is folded.
+fn folded_header(
+    app: &mut EditorApp,
+    ui: &mut egui::Ui,
+    key: &str,
+    title: &str,
+    filter: &str,
+) -> bool {
+    let folded = app.ui.prefs.folded(key) && filter.trim().is_empty();
+    let mut text = egui::text::LayoutJob::default();
+    RichText::new(title).strong().append_to(
+        &mut text,
+        ui.style(),
+        egui::FontSelection::Default,
+        egui::Align::Center,
+    );
+    if folded {
+        RichText::new("  (folded: click to show)").weak().append_to(
+            &mut text,
+            ui.style(),
+            egui::FontSelection::Default,
+            egui::Align::Center,
+        );
+    }
+    if ui
+        .add(egui::Button::new(text).frame(false))
+        .on_hover_text("Fold or unfold this section")
+        .clicked()
+    {
+        let now = !app.ui.prefs.folded(key);
+        app.ui.prefs.set_folded(key, now);
+        app.ui.save_prefs();
+    }
+    folded
+}
+
 pub fn region_section(
     app: &mut EditorApp,
     ui: &mut egui::Ui,
@@ -479,7 +568,9 @@ pub fn region_section(
         return;
     }
     ui.separator();
-    ui.label(RichText::new("Region sewing").strong());
+    if folded_header(app, ui, "region", "Region sewing", &filter) {
+        return;
+    }
     if !m.closed {
         ui.label(RichText::new("Needs a closed outline.").weak());
         return;
@@ -523,7 +614,10 @@ pub fn region_section(
                 .iter()
                 .any(|o| m.shapes.contains(&o.id) && o.kind == ObjectKind::Text);
             for c in inspector::region_controls_with(&r, &user) {
-                if (text && c.param() == "runningStitchPath") || !c.shown(&filter) {
+                if (text && c.param() == "runningStitchPath")
+                    || !c.shown(&filter)
+                    || !(app.ui.prefs.advanced_attributes || c.basic())
+                {
                     continue;
                 }
                 if let Some(v) = control(app, ui, &c) {
@@ -589,7 +683,9 @@ pub fn line_section(
         return;
     }
     ui.separator();
-    ui.label(RichText::new("Line sewing").strong());
+    if folded_header(app, ui, "line", "Line sewing", &filter) {
+        return;
+    }
     egui::Grid::new("line")
         .num_columns(2)
         .spacing(egui::vec2(8.0, 6.0))
@@ -622,7 +718,7 @@ pub fn line_section(
             }
             let user = app.session.design().patterns.clone();
             for c in inspector::line_controls_with(&l, &user) {
-                if !c.shown(&filter) {
+                if !c.shown(&filter) || !(app.ui.prefs.advanced_attributes || c.basic()) {
                     continue;
                 }
                 if let Some(v) = control(app, ui, &c) {
@@ -701,22 +797,32 @@ pub fn sim_controls(
                 *pos = Some(0);
             }
         }
+        // #653: the player's buttons are Higgsfield icons, not ASCII marks.
         if ui
-            .add_enabled(total > 0, egui::Button::new("|<"))
+            .add_enabled(
+                total > 0,
+                egui::Button::new(crate::icons::ui_image(ui, "player_start")),
+            )
             .on_hover_text("Start")
             .clicked()
         {
             *pos = Some(0);
         }
         if ui
-            .add_enabled(total > 0, egui::Button::new("<"))
+            .add_enabled(
+                total > 0,
+                egui::Button::new(crate::icons::ui_image(ui, "player_back")),
+            )
             .on_hover_text("Previous stitch")
             .clicked()
         {
             *pos = Some(pos.unwrap_or(total).saturating_sub(1));
         }
         if ui
-            .add_enabled(total > 0, egui::Button::new(">"))
+            .add_enabled(
+                total > 0,
+                egui::Button::new(crate::icons::ui_image(ui, "player_forward")),
+            )
             .on_hover_text("Next stitch")
             .clicked()
         {
@@ -724,7 +830,10 @@ pub fn sim_controls(
             *pos = (n < total).then_some(n);
         }
         if ui
-            .add_enabled(total > 0, egui::Button::new(">|"))
+            .add_enabled(
+                total > 0,
+                egui::Button::new(crate::icons::ui_image(ui, "player_end")),
+            )
             .on_hover_text("End")
             .clicked()
         {

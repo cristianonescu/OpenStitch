@@ -1,0 +1,5 @@
+[
+ {"command": "design.new", "params": {"name": "Monogram", "width": 100, "height": 100}},
+ {"command": "monogram.add", "params": {"letters": "JDS", "style": "block", "size": 26, "frame": "ring", "margin": 3, "fill": "Prussian Blue", "frameColor": "Deep Gold"}},
+ {"command": "design.check"}
+]

@@ -702,14 +702,23 @@ fn skill_reference_lists_and_returns_the_bundled_files() {
         .map(|f| f["name"].as_str().expect("name"))
         .collect();
     assert_eq!(
-        names,
-        [
+        &[
             "SKILL.md",
             "reference/answers.md",
+            "reference/composition.md",
+            "reference/examples.md",
             "reference/recipes.md",
             "reference/sewability.md"
-        ]
+        ][..],
+        &names[..6]
     );
+    // The illustrated examples (#492) follow the guides, each returned by its bare name.
+    assert!(names.len() >= 14, "{names:?}");
+    let example = mcp.call("skill_reference", json!({"file": "strawberry"}));
+    assert_eq!(example["isError"], json!(false), "{example}");
+    let steps: Value =
+        serde_json::from_str(example["content"][0]["text"].as_str().expect("text")).expect("json");
+    assert_eq!(steps[0]["command"], "design.new");
     for file in list["files"].as_array().expect("files") {
         assert!(!file["title"].as_str().expect("title").is_empty(), "{file}");
     }
@@ -759,6 +768,9 @@ fn every_command_the_skill_names_exists() {
         "ui.recoveryList",
         "ui.recoveryRestore",
         "ui.recoveryDiscard",
+        "ui.layout",
+        "ui.resetPrefs",
+        "ui.gettingStarted",
     ];
     assert!(
         ui.iter()
