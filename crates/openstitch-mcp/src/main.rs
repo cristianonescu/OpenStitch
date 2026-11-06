@@ -19,10 +19,10 @@ const USAGE: &str =
                      instead of an own design; the editor's file roots apply
   --endpoint FILE    the editor's endpoint file (default: automation.json in the
                      OpenStitch config directory); implies --live
-  --assistant        for the editor's AI assistant: implies --live, and offers seven
+  --assistant        for the editor's AI assistant: implies --live, and offers nine
                      meta tools (commands_list, command_describe, execute, run_batch,
-                     view_render, scratch_write, skill_reference) instead of one tool
-                     per command
+                     view_render, scratch_write, skill_reference, notes_read,
+                     notes_write) instead of one tool per command
 With no roots, every file command is refused. Relative paths resolve against the first
 write root, else the first read root.";
 

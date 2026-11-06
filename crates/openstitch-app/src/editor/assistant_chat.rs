@@ -122,6 +122,25 @@ pub const PRESETS: [Preset; 4] = [
     },
 ];
 
+/// What choosing `preset` in Endpoint does to the settings (#432). A preset with its own model
+/// takes it. One without (Ollama, LM Studio, OpenRouter) clears a model that came from another
+/// endpoint, such as the Claude model, which no local server has: a message sent with it would
+/// fail with a 404. Returns whether the model is now empty, so the panel picks one (a local
+/// endpoint) or points at **List**.
+pub fn apply_preset(prefs: &mut AiPrefs, preset: &Preset) -> bool {
+    let moved = prefs.base_url != preset.base_url || prefs.protocol != preset.protocol;
+    prefs.protocol = preset.protocol;
+    prefs.base_url = preset.base_url.to_string();
+    if !preset.model.is_empty() {
+        prefs.model = preset.model.to_string();
+        return false;
+    }
+    if moved || prefs.model == DEFAULT_MODEL {
+        prefs.model.clear();
+    }
+    prefs.model.trim().is_empty()
+}
+
 /// Whether `url` is plain http or https to exactly this computer (localhost, 127.0.0.1, [::1]),
 /// where a local model server needs no key.
 pub fn is_this_computer(url: &str) -> bool {
@@ -181,6 +200,9 @@ pub struct AiPrefs {
     pub panel_open: bool,
     /// Closing the panel says how to reopen it, until "Don't show this again".
     pub close_hint: bool,
+    /// "Let the Assistant remember things" (#491): the notes go into each conversation's system
+    /// prompt and `notes_write` may change them. Off: neither.
+    pub memory: bool,
 }
 
 pub const DEFAULT_MODEL: &str = "claude-opus-5-5";
@@ -204,6 +226,7 @@ impl Default for AiPrefs {
             image_model: String::new(),
             panel_open: true,
             close_hint: true,
+            memory: true,
         }
     }
 }
@@ -219,6 +242,7 @@ impl AiPrefs {
             "agent": self.agent,
             "imageUrl": self.image_url, "imageModel": self.image_model,
             "panelOpen": self.panel_open, "closeHint": self.close_hint,
+            "memory": self.memory,
         })
     }
 
@@ -231,9 +255,18 @@ impl AiPrefs {
                 .unwrap_or(d)
                 .to_string()
         };
+        let protocol = v["protocol"]
+            .as_str()
+            .and_then(Protocol::from_key)
+            .unwrap_or(d.protocol);
         AiPrefs {
             enabled: v["enabled"].as_bool().unwrap_or(d.enabled),
-            model: text("model", &d.model),
+            // #432: an OpenAI-compatible endpoint keeps an empty model (pick one from its list)
+            // instead of getting the Claude model back, which no local server has.
+            model: match v["model"].as_str().map(str::trim) {
+                Some("") if protocol == Protocol::OpenAi => String::new(),
+                _ => text("model", &d.model),
+            },
             effort: v["effort"]
                 .as_str()
                 .filter(|e| EFFORTS.contains(e))
@@ -260,10 +293,7 @@ impl AiPrefs {
             request_timeout_s: v["requestTimeoutS"]
                 .as_u64()
                 .map_or(d.request_timeout_s, |s| s.clamp(30, 3600)),
-            protocol: v["protocol"]
-                .as_str()
-                .and_then(Protocol::from_key)
-                .unwrap_or(d.protocol),
+            protocol,
             reasoning_effort: v["reasoningEffort"]
                 .as_str()
                 .map(str::trim)
@@ -281,6 +311,7 @@ impl AiPrefs {
             image_model: text("imageModel", ""),
             panel_open: v["panelOpen"].as_bool().unwrap_or(d.panel_open),
             close_hint: v["closeHint"].as_bool().unwrap_or(d.close_hint),
+            memory: v["memory"].as_bool().unwrap_or(d.memory),
         }
     }
 }
@@ -349,6 +380,58 @@ pub fn inside(path: &str, scratch: Option<&Path>) -> bool {
     }
 }
 
+/// A file name with no folder part, such as `heart.svg`: one normal path component, no
+/// separator of either platform, not hidden (the scratch folder's own `.lock`).
+fn bare_name(s: &str) -> bool {
+    let mut parts = Path::new(s).components();
+    matches!(parts.next(), Some(std::path::Component::Normal(_)))
+        && parts.next().is_none()
+        && !s.contains(['/', '\\', ':'])
+        && !s.starts_with('.')
+}
+
+/// #431: a bare file name the model gave (`import.svg {"path": "heart.svg"}` right after
+/// `scratch_write heart.svg`) becomes that file's absolute path in the scratch folder, when the
+/// file exists there and really lies inside it ([`inside`]: a symlink pointing out stays a bare
+/// name, which the gate then asks about). Run before the gate and before the command, so both see
+/// the same path and the engine does not look in the editor's working folder. Returns whether
+/// anything changed.
+pub fn resolve_scratch_names(params: &mut Value, scratch: Option<&Path>) -> bool {
+    let Some(dir) = scratch else {
+        return false;
+    };
+    let resolve = |v: &mut Value| -> bool {
+        let Some(s) = v.as_str() else {
+            return false;
+        };
+        if !bare_name(s) {
+            return false;
+        }
+        let full = dir.join(s);
+        let full_text = full.display().to_string();
+        if full.is_file() && inside(&full_text, Some(dir)) {
+            *v = Value::String(full_text);
+            return true;
+        }
+        false
+    };
+    let mut changed = false;
+    if let Some(o) = params.as_object_mut() {
+        for k in FILE_KEYS {
+            match o.get_mut(k) {
+                Some(Value::Array(a)) => {
+                    for v in a {
+                        changed |= resolve(v);
+                    }
+                }
+                Some(v) => changed |= resolve(v),
+                None => {}
+            }
+        }
+    }
+    changed
+}
+
 /// The file names a command's parameters hold outside the scratch folder.
 pub fn outside_files(params: &Value, scratch: Option<&Path>) -> Vec<String> {
     let mut out = Vec::new();
@@ -384,6 +467,33 @@ pub struct GateInput<'a> {
     pub undo_before_message: bool,
 }
 
+/// What the gate asks before the Assistant's memory changes (#491), or None for other commands.
+pub fn memory_question(command: &str, params: &Value) -> Option<String> {
+    let text = |k: &str| params[k].as_str().unwrap_or_default().trim().to_string();
+    match command {
+        "ui.notesWrite" => {
+            let replace = params["mode"] == json!("replace");
+            let body = text("text");
+            let shown: String = body.chars().take(300).collect();
+            let more = if shown.len() < body.len() { "…" } else { "" };
+            Some(match (replace, body.is_empty()) {
+                (true, true) => format!("forget its {} notes", text("section")),
+                (true, false) => format!("rewrite its {} notes as: {shown}{more}", text("section")),
+                _ => format!("remember ({}): {shown}{more}", text("section")),
+            })
+        }
+        "ui.notesClear" => Some("forget everything it remembers about you".into()),
+        "ui.set" if params["name"] == json!("assistantMemory") => {
+            Some(if params["value"] == json!(true) {
+                "turn its memory on".into()
+            } else {
+                "turn its memory off".into()
+            })
+        }
+        _ => None,
+    }
+}
+
 /// The permission gate (plan section 4.4). Commands are judged by their declared effect, with
 /// files, machine transfer, quitting and undoing the user's own work behind a question.
 pub fn verdict(g: &GateInput) -> Verdict {
@@ -396,6 +506,10 @@ pub fn verdict(g: &GateInput) -> Verdict {
     }
     if g.mode == PermissionMode::All || g.always_allow.iter().any(|c| c == g.command) {
         return Verdict::Run;
+    }
+    // #491: the memory changes only with the user's yes, in every mode but Allow everything.
+    if let Some(what) = memory_question(g.command, g.params) {
+        return Verdict::Ask(what);
     }
     if g.command == "ui.scratchWrite" {
         return if g.mode == PermissionMode::Ask {
@@ -624,6 +738,127 @@ mod tests {
         let _ = std::fs::remove_dir_all(&outside);
     }
 
+    /// #491: writing or clearing the notes, and the memory switch, ask in Ask and Edits mode
+    /// and say what would be remembered; Always allow and Allow everything run them.
+    #[test]
+    fn memory_changes_always_ask() {
+        use PermissionMode::*;
+        let write = json!({ "section": "Threads", "text": "Madeira Polyneon 40" });
+        for mode in [Ask, Edits] {
+            assert_eq!(
+                gate(mode, "ui.notesWrite", Effect::Settings, write.clone()),
+                Verdict::Ask("remember (Threads): Madeira Polyneon 40".into())
+            );
+            assert!(matches!(
+                gate(mode, "ui.notesClear", Effect::Settings, json!({})),
+                Verdict::Ask(w) if w.contains("forget everything")
+            ));
+            assert!(matches!(
+                gate(mode, "ui.set", Effect::Edit, json!({ "name": "assistantMemory", "value": true })),
+                Verdict::Ask(w) if w == "turn its memory on"
+            ));
+        }
+        assert!(matches!(
+            gate(Edits, "ui.notesWrite", Effect::Settings,
+                json!({ "section": "Lessons", "text": "", "mode": "replace" })),
+            Verdict::Ask(w) if w == "forget its Lessons notes"
+        ));
+        assert_eq!(
+            gate(All, "ui.notesWrite", Effect::Settings, write.clone()),
+            Verdict::Run
+        );
+        // Reading the notes and other settings do not ask.
+        assert_eq!(
+            gate(Edits, "ui.notesRead", Effect::Read, json!({})),
+            Verdict::Run
+        );
+        assert_eq!(
+            gate(
+                Edits,
+                "ui.set",
+                Effect::Edit,
+                json!({ "name": "grid", "value": true })
+            ),
+            Verdict::Run
+        );
+        let scratch = scratch();
+        let allowed = ["ui.notesWrite".to_string()];
+        assert_eq!(
+            verdict(&GateInput {
+                mode: Edits,
+                command: "ui.notesWrite",
+                effect: Effect::Settings,
+                params: &write,
+                scratch: Some(&scratch),
+                always_allow: &allowed,
+                edits: 0,
+                edit_limit: 0,
+                undo_before_message: false,
+            }),
+            Verdict::Run
+        );
+    }
+
+    /// #431: `heart.svg` right after scratch_write is the scratch folder's file, so the gate
+    /// runs it without a question; names with folders, missing files and hidden files are left
+    /// as they are, and the gate asks about them as before.
+    #[test]
+    fn a_bare_name_of_a_scratch_file_becomes_its_path() {
+        let dir = scratch();
+        std::fs::write(dir.join("heart.svg"), "<svg/>").expect("file");
+        std::fs::write(dir.join(".lock"), "").expect("file");
+        let mut p = json!({ "path": "heart.svg", "x": 1 });
+        assert!(resolve_scratch_names(&mut p, Some(&dir)));
+        assert_eq!(p["path"], json!(in_scratch("heart.svg")));
+        assert_eq!(p["x"], json!(1));
+        assert_eq!(
+            gate(PermissionMode::Edits, "import.svg", Effect::Edit, p),
+            Verdict::Run
+        );
+        // Lists too.
+        let mut l = json!({ "files": ["heart.svg"], "source": ["heart.svg", "missing.svg"] });
+        assert!(resolve_scratch_names(&mut l, Some(&dir)));
+        assert_eq!(l["files"], json!(["heart.svg"]), "not a file key");
+        assert_eq!(l["source"], json!([in_scratch("heart.svg"), "missing.svg"]));
+        for left in [
+            "missing.svg",
+            "sub/heart.svg",
+            "..\\heart.svg",
+            "../heart.svg",
+            ".lock",
+            "..",
+            "C:heart.svg",
+        ] {
+            let mut p = json!({ "path": left });
+            assert!(!resolve_scratch_names(&mut p, Some(&dir)), "{left}");
+            assert_eq!(p["path"], json!(left));
+        }
+        let mut p = json!({ "path": "heart.svg" });
+        assert!(!resolve_scratch_names(&mut p, None), "no scratch folder");
+        assert!(matches!(
+            gate(PermissionMode::Edits, "import.svg", Effect::Edit, p),
+            Verdict::Ask(_)
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_bare_name_that_links_out_of_the_scratch_folder_still_asks() {
+        let dir = scratch();
+        let outside = openstitch_testutil::TempDir::new("gate-outside-431");
+        std::fs::write(outside.join("secret.svg"), "<svg/>").expect("file");
+        let link = dir.join("away.svg");
+        let _ = std::fs::remove_file(&link);
+        std::os::unix::fs::symlink(outside.join("secret.svg"), &link).expect("symlink");
+        let mut p = json!({ "path": "away.svg" });
+        assert!(!resolve_scratch_names(&mut p, Some(&dir)));
+        assert!(matches!(
+            gate(PermissionMode::Edits, "import.svg", Effect::Edit, p),
+            Verdict::Ask(_)
+        ));
+        let _ = std::fs::remove_file(&link);
+    }
+
     #[test]
     fn the_limit_and_undoing_earlier_work() {
         let p = json!({});
@@ -669,6 +904,39 @@ mod tests {
             AiPrefs::default().enabled,
             "on by default (owner, 2026-11-04)"
         );
+    }
+
+    /// #432: choosing Ollama or LM Studio drops the Claude model; the Claude API preset brings
+    /// it back; staying on the same endpoint keeps the model the user picked.
+    #[test]
+    fn a_local_preset_does_not_keep_the_claude_model() {
+        let mut p = AiPrefs::default();
+        let [claude, ollama, lm_studio, openrouter] = PRESETS;
+        assert!(apply_preset(&mut p, &ollama), "pick a model");
+        assert_eq!(
+            (p.protocol, p.base_url.as_str(), p.model.as_str()),
+            (Protocol::OpenAi, "http://localhost:11434/v1", "")
+        );
+        // An empty OpenAI-compatible model survives a restart (it used to read back as Claude).
+        assert_eq!(AiPrefs::from_json(&p.to_json()).model, "");
+        p.model = "qwen3:8b".into();
+        assert!(!apply_preset(&mut p, &ollama), "same endpoint: kept");
+        assert_eq!(p.model, "qwen3:8b");
+        assert!(apply_preset(&mut p, &lm_studio), "another server: cleared");
+        assert!(apply_preset(&mut p, &openrouter));
+        assert!(!apply_preset(&mut p, &claude));
+        assert_eq!(p.model, DEFAULT_MODEL);
+        assert_eq!(p.protocol, Protocol::Anthropic);
+        // The Claude API never keeps an empty model.
+        let back = AiPrefs::from_json(&json!({ "protocol": "anthropic", "model": "" }));
+        assert_eq!(back.model, DEFAULT_MODEL);
+        // Memory (#491) is on by default and its switch is kept.
+        assert!(AiPrefs::default().memory);
+        let off = AiPrefs {
+            memory: false,
+            ..AiPrefs::default()
+        };
+        assert_eq!(AiPrefs::from_json(&off.to_json()), off);
     }
 
     #[test]

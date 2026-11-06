@@ -157,6 +157,7 @@ sorted order, so prompt caching holds:
 | `view_render` | **New.** A PNG of the editor's design (Design Page plus stitches, 64–2048 px), drawn by `openstitch-render` from the live session, so the model can check its work. |
 | `scratch_write` | **New.** Writes an SVG (text) or a picture (base64 PNG/JPEG, at most 16 MiB) into the conversation's scratch folder and returns its path, ready for `import.svg` or `digitize.*`. |
 | `skill_reference` | **New.** Returns a bundled skill file (section 4.6). |
+| `notes_read` / `notes_write` | **New (#491).** The Assistant's memory between conversations: read the notes, or append to / replace one section (Machine, Threads, Fabric, Preferences, Lessons). Writes go through the permission gate (section 4.10). |
 
 ### 4.3 The default model and the Anthropic request
 
@@ -213,6 +214,14 @@ Commands are judged by their **declared effect**, not by guessing from parameter
   and the user's roots are reached through **Ask**.
 - The assistant cannot click the interface, change preferences, read crash reports, or drive
   the chat.
+- **Memory** (#491): `ui.notesWrite`, `ui.notesClear` and `ui.set assistantMemory` ask in Ask
+  and Auto-allow modes ("remember (Threads): ...", "forget everything it remembers about you",
+  "turn its memory off"); Always allow and Allow everything run them. With memory off,
+  `ui.notesRead` and `ui.notesWrite` are refused before anyone is asked.
+- **Bare scratch names** (#431): a file parameter that is a bare file name (`heart.svg`, no
+  folder) and names an existing file in the scratch folder becomes that file's absolute path
+  before the gate and the command see it. Names with a folder, `..`, hidden files and links
+  that lead out of the folder are left as they are, so the gate asks about them as before.
 
 ### 4.5 One undo per message
 
@@ -304,6 +313,37 @@ those are. Every turn keeps its tool calls, so **Save as script** writes them as
 `stitchtool exec` JSON script that rebuilds the same design byte for byte on every OS. No
 engine, generator or golden test changes. Tests use a scripted test backend (as SolidCraft's
 `acp_test_agent` does), never a live model.
+
+### 4.10 Memory between conversations (#491)
+
+The Assistant keeps short notes about the user: their machine and hoops, the threads they own,
+their fabrics, their preferences, and corrections that worked. The idea comes from threadspool's
+notes file (no licence: concepts only, no code), where the agent reads its notes at the start of
+every session and adds the smallest lasting lesson after each result.
+
+- **Store.** `assistant-notes.md` in the config folder, beside `ui.json`: Markdown with
+  `## Machine`, `## Threads`, `## Fabric`, `## Preferences` and `## Lessons`, at most 8 KB
+  (`openstitch_assistant::notes`). Written through a temporary file; empty notes remove it.
+- **Prompt.** At the start of each request the notes follow the instructions in the system
+  prompt ("What you remember about this user"), for the Claude API, OpenAI-compatible
+  endpoints and coding agents (their `systemPrompt` append). Nothing is added when memory is
+  off or the notes are empty. The notes go only to the provider the user chose, never into a
+  design or an export.
+- **Tools.** `notes_read` and `notes_write {section, text, mode: append|replace}` in
+  `openstitch-mcp --assistant`, over `ui.notesRead` / `ui.notesWrite`; `ui.notesClear` clears
+  them. A write is at most 1000 characters; text that looks like a password, key or token is
+  refused; a write that would pass 8 KB is refused with a request to summarise (replace a
+  section with a shorter version), and nothing changes.
+- **Gate.** Every write asks (section 4.4); a denied write changes nothing and the model is
+  told.
+- **Panel.** Assistant settings ▸ "Let the Assistant remember things" (on by default), the
+  notes as an editable text with their size, Save notes, Undo edits and Forget everything (with
+  a confirmation). The switch is also `ui.set assistantMemory`.
+- **Skill.** SKILL.md's Memory section says when to write (a lasting fact, a correction that
+  worked), when not to (one-off requests, guesses) and never to store secrets.
+- **Bench.** `stitchtool bench-assistant` carries the notes from task to task: `remember`
+  ("remember that I only own Madeira Polyneon threads") then `remembered-heart` ("make a red
+  heart"), which passes when the heart's thread is a red from the Madeira Polyneon chart.
 
 ## 5. Phased tasks
 
@@ -403,7 +443,8 @@ dialog sets its values.
   `ui.run` must succeed exactly when the button is enabled.
 
 **MCP and skills.**
-- `openstitch-mcp --assistant` offers seven meta tools. Their order is fixed and their bytes
+- `openstitch-mcp --assistant` offers seven meta tools (nine since #491 added `notes_read` and
+  `notes_write`). Their order is fixed and their bytes
   are identical across runs, so prompt caching holds. Their schemas are strict. A
   `view_render` image block replaces `preview`, which is refused in live mode.
 - `skills/openstitch-embroidery` holds `SKILL.md` and three references. A test checks that
@@ -845,3 +886,43 @@ The Claude API: no key. Local models: not run on this PC (too weak), owner's dec
 
 **Token counts.** OpenAI-compatible servers report `prompt_tokens` with the cached tokens
 included, and the client counted them twice (input plus cache read). Input now excludes them.
+
+### Settings and memory (2026-11-06, #431, #432, #491)
+
+`batch:assistant-settings`, on Windows. No local model ran (owner's decision 2026-11-05): the
+local-preset logic was tested against mock servers on 127.0.0.1.
+
+**#431, a bare scratch file name asked for permission.** In the #393 live check the model wrote
+`heart.svg` with `scratch_write` and imported it as `import.svg {"path": "heart.svg"}`. The gate
+only accepts absolute paths inside the scratch folder, so it asked "use heart.svg", and the
+engine would then have looked in the working folder. Now a file parameter that is a bare name of
+a file that exists in the scratch folder becomes that file's absolute path before the gate and
+the command see it (`assistant_chat::resolve_scratch_names`). A name with a folder part, `..`, a
+drive (`C:x`), a hidden file (the folder's `.lock`) or a link that leads out of the folder is
+left alone, so the gate asks about it as before. Tests: the unit test above, a Unix symlink
+test, and a scripted turn (`scratch_write heart.svg`, then the bare-name import) that runs
+without a question.
+
+**#432, the Ollama and LM Studio presets kept the Claude model.** Choosing a preset with no model
+of its own now clears a model that came from another endpoint (`apply_preset`), and for an
+endpoint on this computer the panel asks it in the background for the first model that can call
+tools (`openstitch_assistant::pick_model`: Ollama's `/api/show` capabilities in list order, at
+most 20; a server without `/api/version`, such as LM Studio, gives its first model). While no
+model is set, a message opens the settings and says "Choose a model first" instead of sending a
+request that ends in a 404, and an empty model for an OpenAI-compatible endpoint is kept in
+`ui.json` (it used to read back as the Claude model). The tests run the real `ureq` transport
+against `openstitch_testutil::mock_http`, a small std-only HTTP server: Ollama with and without
+a tool model, LM Studio, an empty list, no server, and in the panel the whole path from choosing
+the preset to the first request's `model`.
+
+**#491, memory between conversations.** Section 4.10. Tests: the notes module (append, replace,
+sections, secrets, the cap, the file), the gate (`memory_changes_always_ask`), the panel
+(a fact allowed in conversation A is in the system prompt of conversation B in a restarted
+editor; a denied write and memory off change nothing; the OpenAI-compatible system message and
+the coding agent's system prompt carry the notes; the `ui.*` commands and the settings text),
+the MCP tools against a fake editor, and the bench pair against a scripted model.
+
+Not done here: a real-model run of the bench pair (Claude Code over claude-agent-acp, signed in
+by the owner, can run it with `stitchtool bench-assistant --agent claude --tasks
+remember,remembered-heart`), and automatic summarising of old Lessons (the model is asked to
+summarise when the cap is reached).

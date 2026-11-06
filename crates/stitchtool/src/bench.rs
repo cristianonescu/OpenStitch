@@ -3,7 +3,9 @@
 //! scored on the design it leaves (`object.list`, `design.info`), never on the model's words.
 //!
 //! The editor is headless: an engine [`Session`] behind `openstitch-mcp --assistant`, with
-//! `ui.render` and `ui.scratchWrite` answered here. A coding agent reaches the same session
+//! `ui.render`, `ui.scratchWrite` and the notes commands answered here. The Assistant's notes
+//! (#491) carry from one task to the next, as they do between conversations in the editor, so
+//! `remember` then `remembered-heart` checks the memory. A coding agent reaches the same session
 //! through `openstitch-mcp --assistant --endpoint` on a private loopback socket.
 
 use std::path::{Path, PathBuf};
@@ -14,6 +16,7 @@ use std::time::{Duration, Instant};
 
 use base64::Engine;
 use openstitch_assistant as ai;
+use openstitch_assistant::notes::{MAX_NOTES_BYTES, Notes, WriteMode};
 use openstitch_engine::Session;
 use serde_json::{Value, json};
 
@@ -31,6 +34,8 @@ pub struct Design {
     pub info: Value,
     /// The reply text, for the one task that asks a question.
     pub reply: String,
+    /// The Assistant's notes after the task (#491).
+    pub notes: String,
 }
 
 impl Design {
@@ -88,6 +93,13 @@ fn widest(d: &Design) -> f64 {
     let left = spans.iter().map(|s| s.0).fold(f64::INFINITY, f64::min);
     let right = spans.iter().map(|s| s.1).fold(f64::NEG_INFINITY, f64::max);
     if spans.is_empty() { 0.0 } else { right - left }
+}
+
+/// Whether `hex` is a Madeira Polyneon chart colour.
+fn madeira_polyneon(hex: &str) -> bool {
+    openstitch_core::brands::MADEIRA_POLYNEON
+        .iter()
+        .any(|t| t.hex().eq_ignore_ascii_case(hex))
 }
 
 /// Red-ish: R well above G and B.
@@ -245,12 +257,40 @@ pub const TASKS: &[Task] = &[
             )
         },
     },
+    // #491: a pair. The first conversation is told a lasting fact; the second, a new
+    // conversation, must use it without being told again.
+    Task {
+        id: "remember",
+        setup: &[],
+        prompt: "Please remember for our later conversations that I only own Madeira Polyneon threads. There is nothing to embroider now.",
+        check: |d| {
+            need(
+                d.notes.to_lowercase().contains("madeira"),
+                "Madeira Polyneon in the notes",
+            )?;
+            need(d.objects.is_empty(), "nothing drawn")
+        },
+    },
+    Task {
+        id: "remembered-heart",
+        setup: &[],
+        prompt: "Make a red heart about 60 mm wide.",
+        check: |d| {
+            need(!d.objects.is_empty(), "a heart")?;
+            need(
+                d.colors().iter().any(|c| reddish(c) && madeira_polyneon(c)),
+                "a red Madeira Polyneon thread (the remembered brand)",
+            )
+        },
+    },
 ];
 
-/// The headless editor: engine commands, plus the two `ui.*` commands the meta tools use.
+/// The headless editor: engine commands, plus the `ui.*` commands the meta tools use.
 pub struct Headless {
     pub session: Session,
     pub scratch: PathBuf,
+    /// The Assistant's notes (#491); the bench has no permission gate, so writes go through.
+    pub notes: Notes,
 }
 
 impl Headless {
@@ -258,7 +298,25 @@ impl Headless {
         Headless {
             session: Session::new(&scratch),
             scratch,
+            notes: Notes::default(),
         }
+    }
+
+    fn notes_json(&self) -> Value {
+        json!({ "text": self.notes.text(), "bytes": self.notes.bytes(), "limit": MAX_NOTES_BYTES })
+    }
+
+    fn notes_write(&mut self, p: &Value) -> Result<Value, String> {
+        let mode = match p["mode"].as_str() {
+            None => WriteMode::Append,
+            Some(m) => WriteMode::from_key(m).ok_or("mode takes append or replace")?,
+        };
+        self.notes.write(
+            p["section"].as_str().unwrap_or(""),
+            p["text"].as_str().unwrap_or(""),
+            mode,
+        )?;
+        Ok(self.notes_json())
     }
 
     pub fn handle(&mut self, request: &Value) -> Value {
@@ -274,6 +332,8 @@ impl Headless {
                 })
             }
             "ui.scratchWrite" => self.scratch_write(params),
+            "ui.notesRead" => Ok(self.notes_json()),
+            "ui.notesWrite" => self.notes_write(params),
             _ => return self.session.handle(request),
         };
         match result {
@@ -410,8 +470,13 @@ pub fn run(
     log: &mut dyn FnMut(&Outcome),
 ) -> Vec<Outcome> {
     let mut out = Vec::new();
+    // What the Assistant remembers, carried from task to task like conversations (#491).
+    let mut notes = Notes::default();
     for task in tasks {
-        let ed = Arc::new(Mutex::new(Headless::new(scratch.to_path_buf())));
+        let mut fresh = Headless::new(scratch.to_path_buf());
+        fresh.notes = notes.clone();
+        let memory = notes.prompt_block().unwrap_or_default();
+        let ed = Arc::new(Mutex::new(fresh));
         let setup: Result<Vec<Value>, String> = task
             .setup
             .iter()
@@ -478,8 +543,10 @@ pub fn run(
                     image: None,
                     transport: transport.as_ref(),
                 };
+                let mut config = config.clone();
+                config.system.push_str(&memory);
                 ai::Conversation::new().run_turn(
-                    config,
+                    &config,
                     transport.as_ref(),
                     &mut tools,
                     ai::user_content(&prompt, &[]),
@@ -488,7 +555,10 @@ pub fn run(
                 )
             }
             Backend::Agent { config } => agent_turn(
-                config,
+                &ai::AcpConfig {
+                    system: format!("{}{memory}", config.system),
+                    ..config.clone()
+                },
                 &mut ed.lock().unwrap_or_else(|e| e.into_inner()),
                 &prompt,
                 &mut on_event,
@@ -496,6 +566,7 @@ pub fn run(
         };
         let mut ed = ed.lock().unwrap_or_else(|e| e.into_inner());
         o.seconds = start.elapsed().as_secs_f64();
+        notes = ed.notes.clone();
         let design = Design {
             objects: ed
                 .session
@@ -505,6 +576,7 @@ pub fn run(
                 .unwrap_or_default(),
             info: ed.session.execute("design.info", None).unwrap_or_default(),
             reply: o.reply.clone(),
+            notes: notes.text().to_string(),
         };
         match (task.check)(&design) {
             Ok(()) if !matches!(end, ai::StopKind::Error(_)) => o.passed = true,
@@ -724,7 +796,112 @@ mod tests {
         let (json, md) = reports("scripted", &out);
         assert_eq!(json["passed"], 2);
         assert!(md.contains("| star | fail: only talked |"));
-        assert_eq!(TASKS.len(), 12);
+        assert_eq!(TASKS.len(), 14);
+    }
+
+    /// One assistant message calling the `notes_write` meta tool.
+    fn remember_call(section: &str, text: &str) -> String {
+        let input = json!({ "section": section, "text": text });
+        let mut s = sse(
+            json!({"type": "message_start", "message": {"id": "m", "type": "message", "role": "assistant", "content": [],
+            "model": "scripted", "stop_reason": null, "usage": {"input_tokens": 100, "output_tokens": 1}}}),
+        );
+        s += &sse(json!({"type": "content_block_start", "index": 0,
+            "content_block": {"type": "tool_use", "id": "n0", "name": "notes_write", "input": {}}}));
+        s += &sse(json!({"type": "content_block_delta", "index": 0,
+            "delta": {"type": "input_json_delta", "partial_json": input.to_string()}}));
+        s += &sse(json!({"type": "content_block_stop", "index": 0}));
+        s += &sse(
+            json!({"type": "message_delta", "delta": {"stop_reason": "tool_use", "stop_sequence": null}, "usage": {"output_tokens": 20}}),
+        );
+        s + &sse(json!({"type": "message_stop"}))
+    }
+
+    /// Records each request body, then replies like [`Scripted`].
+    struct Recording(Mutex<VecDeque<String>>, Mutex<Vec<Value>>);
+
+    impl ai::Transport for Recording {
+        fn post(
+            &self,
+            _: &str,
+            _: &[(String, String)],
+            body: &[u8],
+            _: Duration,
+        ) -> Result<Box<dyn std::io::Read + Send>, ai::HttpError> {
+            self.1
+                .lock()
+                .expect("lock")
+                .push(serde_json::from_slice(body).unwrap_or(Value::Null));
+            let next = self.0.lock().expect("lock").pop_front().unwrap_or_default();
+            Ok(Box::new(std::io::Cursor::new(next.into_bytes())))
+        }
+    }
+
+    /// #491: the memory pair against a scripted model. The note written in `remember` is in the
+    /// system prompt of `remembered-heart`, and a Madeira red heart passes.
+    #[test]
+    fn the_memory_pair_carries_the_notes_into_the_next_conversation() {
+        // Madeira Polyneon 1747 is a red on the chart; take its colour from the chart itself.
+        let red = openstitch_core::brands::MADEIRA_POLYNEON
+            .iter()
+            .map(|t| t.hex())
+            .find(|h| reddish(h))
+            .expect("a red Madeira thread");
+        let replies = [
+            remember_call("Threads", "Owns only Madeira Polyneon threads"),
+            message("I'll remember.", &[]),
+            message(
+                "",
+                &[
+                    json!({"command": "shape.preset", "params": {"kind": "heart", "cx": 60, "cy": 50, "width": 60, "fill": red}}),
+                ],
+            ),
+            message("A red heart.", &[]),
+        ];
+        let transport = Arc::new(Recording(
+            Mutex::new(replies.into_iter().collect()),
+            Mutex::new(Vec::new()),
+        ));
+        struct Shared(Arc<Recording>);
+        impl ai::Transport for Shared {
+            fn post(
+                &self,
+                url: &str,
+                headers: &[(String, String)],
+                body: &[u8],
+                timeout: Duration,
+            ) -> Result<Box<dyn std::io::Read + Send>, ai::HttpError> {
+                self.0.post(url, headers, body, timeout)
+            }
+        }
+        let backend = Backend::Model {
+            config: ai::Config {
+                api_key: "sk-test".into(),
+                system: "instructions".into(),
+                ..ai::Config::default()
+            },
+            transport: Box::new(Shared(transport.clone())),
+        };
+        let pick = |id| TASKS.iter().find(|t| t.id == id).expect("task");
+        let dir = openstitch_testutil::TempDir::new("bench-memory");
+        let out = run(
+            &backend,
+            &[pick("remember"), pick("remembered-heart")],
+            &dir,
+            &dir.join("none.bmp"),
+            &mut |_| {},
+        );
+        assert!(out[0].passed, "{:?}", out[0]);
+        assert!(out[1].passed, "{:?}", out[1]);
+        let requests = transport.1.lock().expect("lock");
+        assert!(!requests[0]["system"].to_string().contains("Madeira"));
+        assert!(
+            requests[2]["system"]
+                .to_string()
+                .contains("Owns only Madeira Polyneon threads"),
+            "{}",
+            requests[2]["system"]
+        );
     }
 
     #[test]
@@ -779,6 +956,7 @@ mod tests {
             objects: vec![letters(20.0), letters(41.0), letters(63.0)],
             info: Value::Null,
             reply: String::new(),
+            notes: String::new(),
         };
         assert!((widest(&d) - 63.0).abs() < 1e-9);
     }

@@ -15,7 +15,16 @@ command_describe; prefer run_batch to many execute calls. Check your work with v
 design.info. Lengths are millimetres, angles degrees. Never claim a result you did not check. \
 Pictures: an attached one is in the scratch folder; stitch it with digitize.autoPunch \
 (compatMode openStitch). Else use generate_image if offered, or write an SVG with scratch_write \
-and import.svg, and say why.";
+and import.svg, and say why. Save lasting user facts with notes_write; never secrets.";
+
+/// The notes sections (`openstitch_assistant::notes::SECTIONS`; this crate does not depend on
+/// it, and the editor checks the names again).
+const NOTE_SECTIONS: [&str; 5] = ["Machine", "Threads", "Fabric", "Preferences", "Lessons"];
+
+/// The notes' size limit in bytes (`openstitch_assistant::notes::MAX_NOTES_BYTES`).
+const fn openstitch_assistant_notes_limit() -> usize {
+    8 * 1024
+}
 
 /// Default `view_render` size, in pixels.
 const RENDER_SIZE: i64 = 800;
@@ -145,6 +154,45 @@ pub(super) fn tools(max_batch_steps: usize, max_render_pixels: u32) -> Vec<Tool>
             write,
         ),
         (
+            "notes_read",
+            Meta::NotesRead,
+            "Read notes",
+            "Your notes about this user, kept between conversations (Machine, Threads, Fabric, \
+             Preferences, Lessons), as Markdown. They are also in your instructions at the start \
+             of each conversation; read them again after writing.".to_string(),
+            json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false,
+            }),
+            read.clone(),
+        ),
+        (
+            "notes_write",
+            Meta::NotesWrite,
+            "Write notes",
+            format!(
+                "Remember something for later conversations: a lasting fact the user stated (their \
+                 machine and hoops, threads they own, fabrics, preferences) or a correction they \
+                 confirmed worked (Lessons). The user is asked first and may decline. append adds \
+                 one short line; replace rewrites a section (use it to summarise when the notes are \
+                 full: at most {} bytes in all). Never store passwords, keys, tokens or personal \
+                 data the user did not give for this.",
+                openstitch_assistant_notes_limit()
+            ),
+            json!({
+                "type": "object",
+                "properties": {
+                    "section": { "type": "string", "enum": NOTE_SECTIONS, "description": "The notes section" },
+                    "text": { "type": "string", "maxLength": 1000, "description": "One short fact; for replace, the section's whole new text (empty removes the section)" },
+                    "mode": { "type": "string", "enum": ["append", "replace"], "description": "append (default) or replace" },
+                },
+                "required": ["section", "text"],
+                "additionalProperties": false,
+            }),
+            json!({ "readOnlyHint": false, "destructiveHint": false, "openWorldHint": false }),
+        ),
+        (
             "skill_reference",
             Meta::SkillReference,
             "Skill reference",
@@ -265,6 +313,38 @@ impl Server {
                     .map(|v| tool_success(&v))
             }
             Meta::SkillReference => skill_reference(arguments),
+            Meta::NotesRead => {
+                only("notes_read", arguments, &[])?;
+                let reply = self.run("ui.notesRead", &json!({}))?;
+                let text = reply.get("text").and_then(Value::as_str).unwrap_or("");
+                Ok(text_result(if text.trim().is_empty() {
+                    "(no notes yet)"
+                } else {
+                    text
+                }))
+            }
+            Meta::NotesWrite => {
+                only("notes_write", arguments, &["section", "text", "mode"])?;
+                let section = req_str("notes_write", arguments, "section")?;
+                let text = opt_str("notes_write", arguments, "text")?
+                    .ok_or("notes_write: needs a string 'text'")?;
+                let mode = opt_str("notes_write", arguments, "mode")?.unwrap_or("append");
+                if !matches!(mode, "append" | "replace") {
+                    return Err("notes_write: 'mode' is append or replace".into());
+                }
+                let reply = self.run(
+                    "ui.notesWrite",
+                    &json!({ "section": section, "text": text, "mode": mode }),
+                )?;
+                Ok(text_result(&format!(
+                    "Remembered. The notes are now {} of {} bytes.",
+                    reply.get("bytes").and_then(Value::as_u64).unwrap_or(0),
+                    reply
+                        .get("limit")
+                        .and_then(Value::as_u64)
+                        .unwrap_or(openstitch_assistant_notes_limit() as u64)
+                )))
+            }
         }
     }
 

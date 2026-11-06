@@ -10,6 +10,7 @@ use openstitch_app::editor::assistant::{
 };
 use openstitch_app::editor::prefs::Theme;
 use openstitch_app::editor::ribbon::Action;
+use openstitch_assistant::notes::{self, Notes, WriteMode};
 use openstitch_engine::{Capabilities, Effect, Params};
 use serde_json::{Value, json};
 use std::path::PathBuf;
@@ -23,6 +24,8 @@ pub struct AssistantState {
     pub open_url: Option<String>,
     /// The Assistant panel: conversation, worker and questions (A1).
     pub panel: crate::assistant_panel::Panel,
+    /// The Assistant's memory (#491), read from the config folder on first use.
+    pub notes: Option<Notes>,
 }
 
 /// Scratch folders are `openstitch-assistant-<pid>` in the OS temp folder.
@@ -344,6 +347,27 @@ impl EditorApp {
                 Ok(json!({ "checking": true }))
             }
             "ui.scratchWrite" => self.scratch_write(&p, params),
+            "ui.notesRead" => {
+                self.memory_on()?;
+                Ok(self.notes_json())
+            }
+            "ui.notesWrite" => {
+                self.memory_on()?;
+                let section = p.string("section", None).map_err(|e| e.to_string())?;
+                let text = p.string("text", None).map_err(|e| e.to_string())?;
+                let mode = match opt_str(params, "mode") {
+                    None => WriteMode::Append,
+                    Some(m) => WriteMode::from_key(m).ok_or("mode takes append or replace")?,
+                };
+                let mut next = self.notes().clone();
+                next.write(&section, &text, mode)?;
+                self.set_notes(next)?;
+                Ok(self.notes_json())
+            }
+            "ui.notesClear" => {
+                self.set_notes(Notes::default())?;
+                Ok(self.notes_json())
+            }
             _ => Err(format!("unknown command '{id}'")),
         }
     }
@@ -454,6 +478,7 @@ impl EditorApp {
                 "qatBelow" => json!(prefs.qat_below),
                 "splash" => json!(prefs.splash),
                 "aiFeatures" => json!(prefs.ai.enabled),
+                "assistantMemory" => json!(prefs.ai.memory),
                 "checkUpdates" => json!(prefs.updates.check),
                 "includePrereleases" => json!(prefs.updates.include_prereleases),
                 "optimizeEntryExit" => json!(self.session.user_settings().optimize_entry_exit),
@@ -516,6 +541,7 @@ impl EditorApp {
             "qatBelow" => self.ui.prefs.qat_below = bool_value(name, v)?,
             "splash" => self.ui.prefs.splash = bool_value(name, v)?,
             "aiFeatures" => self.ui.prefs.ai.enabled = bool_value(name, v)?,
+            "assistantMemory" => self.ui.prefs.ai.memory = bool_value(name, v)?,
             "checkUpdates" => self.ui.prefs.updates.check = bool_value(name, v)?,
             "includePrereleases" => {
                 self.ui.prefs.updates.include_prereleases = bool_value(name, v)?
@@ -643,6 +669,69 @@ impl EditorApp {
             self.ui.save_prefs();
         }
         Ok(())
+    }
+
+    /// The notes file: beside `ui.json`; None when there is none (the tests, `--demo` without a
+    /// config folder), and then the notes live only as long as the editor.
+    pub fn notes_path(&self) -> Option<PathBuf> {
+        Some(
+            self.ui
+                .prefs_path
+                .as_ref()?
+                .parent()?
+                .join(notes::FILE_NAME),
+        )
+    }
+
+    /// The Assistant's notes, read from their file on first use.
+    pub fn notes(&mut self) -> &Notes {
+        if self.assistant.notes.is_none() {
+            let loaded = match self.notes_path() {
+                Some(path) => Notes::load(&path).unwrap_or_else(|e| {
+                    eprintln!("cannot read {}: {e}", path.display());
+                    Notes::default()
+                }),
+                None => Notes::default(),
+            };
+            self.assistant.notes = Some(loaded);
+        }
+        self.assistant.notes.get_or_insert_with(Notes::default)
+    }
+
+    /// Keeps `next` as the notes and saves them. On a save error nothing changes.
+    pub fn set_notes(&mut self, next: Notes) -> Result<(), String> {
+        if let Some(path) = self.notes_path() {
+            next.save(&path)
+                .map_err(|e| format!("cannot save {}: {e}", path.display()))?;
+        }
+        self.assistant.notes = Some(next);
+        Ok(())
+    }
+
+    fn memory_on(&self) -> Result<(), String> {
+        if self.ui.prefs.ai.memory {
+            Ok(())
+        } else {
+            Err("the user turned the Assistant's memory off (Assistant settings, Memory)".into())
+        }
+    }
+
+    fn notes_json(&mut self) -> Value {
+        let enabled = self.ui.prefs.ai.memory;
+        let n = self.notes();
+        json!({
+            "enabled": enabled, "text": n.text(), "bytes": n.bytes(),
+            "limit": notes::MAX_NOTES_BYTES, "sections": notes::SECTIONS,
+        })
+    }
+
+    /// What goes after the instructions in a conversation's system prompt: the notes, when
+    /// memory is on and there are any.
+    pub fn memory_prompt(&mut self) -> Option<String> {
+        if !self.ui.prefs.ai.memory {
+            return None;
+        }
+        self.notes().prompt_block()
     }
 
     fn scratch_write(&mut self, p: &Params, params: Option<&Value>) -> Result<Value, String> {

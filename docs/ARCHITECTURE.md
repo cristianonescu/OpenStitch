@@ -668,7 +668,7 @@ link, and not through `serve_remote`'s `Policy`.
 
 View ▸ Show/Hide ▸ **Assistant** (Ctrl/Cmd+Shift+A) docks a chat on the right (`assistant_panel.rs`).
 
-**The worker thread** owns the conversation (`openstitch-assistant`) and an `openstitch-mcp` assistant `Server`. The server's `EditorLink` is a channel to the UI thread, not the socket, so the model sees the same seven tools as `openstitch-mcp --assistant`.
+**The worker thread** owns the conversation (`openstitch-assistant`) and an `openstitch-mcp` assistant `Server`. The server's `EditorLink` is a channel to the UI thread, not the socket, so the model sees the same nine tools as `openstitch-mcp --assistant`.
 
 **Running a command.** Each engine or `ui.*` command the server sends arrives on the UI thread as a job. It passes `editor::assistant_chat::verdict`, then runs through `remote_request`, the socket's own path. The gate judges each command by its declared effect:
 - reads run;

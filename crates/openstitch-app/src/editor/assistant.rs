@@ -242,6 +242,43 @@ pub const UI_COMMANDS: &[UiCommand] = &[
             p("base64", "string", false, "Binary content, base64"),
         ],
     },
+    UiCommand {
+        id: "ui.notesRead",
+        summary: "The Assistant's memory (#491): the notes it keeps about this user between conversations (machine, threads, fabric, preferences, lessons), as Markdown, with its size and limit; an error when the user turned memory off",
+        effect: Effect::Read,
+        params: &[],
+    },
+    UiCommand {
+        id: "ui.notesWrite",
+        summary: "Remember a lasting fact the user stated or a correction they confirmed: append a line to, or replace, one section of the Assistant's notes. Always asks the user first; never store passwords, keys or personal data the user did not give for this",
+        effect: Effect::Settings,
+        params: &[
+            p(
+                "section",
+                "Machine|Threads|Fabric|Preferences|Lessons",
+                true,
+                "The notes section",
+            ),
+            p(
+                "text",
+                "string",
+                true,
+                "The fact, short (at most 1000 characters); for replace, the section's whole new text (empty removes it)",
+            ),
+            p(
+                "mode",
+                "append|replace",
+                false,
+                "append (default) adds one line; replace rewrites the section, for example to summarise it",
+            ),
+        ],
+    },
+    UiCommand {
+        id: "ui.notesClear",
+        summary: "Forget everything: clear the Assistant's notes (Assistant settings, Memory, Forget everything). Always asks the user first",
+        effect: Effect::Settings,
+        params: &[],
+    },
 ];
 
 /// Largest file `ui.scratchWrite` writes.
@@ -285,6 +322,11 @@ pub const SETTINGS: &[Setting] = &[
     s("qatBelow", "Quick Access Toolbar below the Ribbon", "bool"),
     s("splash", "Show splash at startup", "bool"),
     s("aiFeatures", "Show AI features", "bool"),
+    s(
+        "assistantMemory",
+        "Let the Assistant remember things",
+        "bool",
+    ),
     s("checkUpdates", "Check for updates at startup", "bool"),
     s("includePrereleases", "Include pre-releases", "bool"),
     s("optimizeEntryExit", "Optimize Entry/Exit Points", "bool"),

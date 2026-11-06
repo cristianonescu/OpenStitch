@@ -1,4 +1,4 @@
-//! `--assistant`: seven meta tools over a live editor. The editor here is a fake host: a real
+//! `--assistant`: nine meta tools over a live editor. The editor here is a fake host: a real
 //! engine `Session` behind the loopback transport, plus canned replies for the editor's `ui.*`
 //! commands (which the real editor implements in `openstitch-app`).
 
@@ -36,6 +36,17 @@ fn ui_entries() -> Vec<Value> {
                 { "name": "base64", "type": "string", "required": false, "summary": "Bytes" },
             ]),
         ),
+        entry("ui.notesRead", "The Assistant's notes", "read", json!([])),
+        entry(
+            "ui.notesWrite",
+            "Remember something",
+            "settings",
+            json!([
+                { "name": "section", "type": "string", "required": true, "summary": "Section" },
+                { "name": "text", "type": "string", "required": true, "summary": "Text" },
+                { "name": "mode", "type": "append|replace", "required": false, "summary": "Mode" },
+            ]),
+        ),
         entry(
             "ui.set",
             "Change a view setting",
@@ -70,6 +81,7 @@ impl Editor {
         let seen = Arc::clone(&log);
         let host = std::thread::spawn(move || {
             let mut session = Session::new(".");
+            let notes = Mutex::new(String::new());
             while stopped.try_recv().is_err() {
                 let Some(job) = editor.wait_next(Duration::from_millis(20)) else {
                     continue;
@@ -88,6 +100,20 @@ impl Editor {
                         "bytes": params["text"].as_str().map_or(0, str::len),
                     })),
                     "ui.state" => Some(json!({ "selection": [] })),
+                    "ui.notesRead" => Some(json!({
+                        "text": notes.lock().expect("notes").clone(), "bytes": 0, "limit": 8192,
+                    })),
+                    "ui.notesWrite" if params["section"] == json!("Diary") => None,
+                    "ui.notesWrite" => {
+                        let mut n = notes.lock().expect("notes");
+                        n.push_str(&format!(
+                            "## {}\n- {} ({})\n",
+                            params["section"].as_str().unwrap_or(""),
+                            params["text"].as_str().unwrap_or(""),
+                            params["mode"].as_str().unwrap_or(""),
+                        ));
+                        Some(json!({ "text": n.clone(), "bytes": n.len(), "limit": 8192 }))
+                    }
                     _ => None,
                 };
                 let mut reply = match canned {
@@ -174,7 +200,7 @@ fn has_name_property(schema: &Value) -> bool {
 }
 
 #[test]
-fn assistant_lists_exactly_the_seven_meta_tools_sorted_and_stable() {
+fn assistant_lists_exactly_the_nine_meta_tools_sorted_and_stable() {
     let (editor, client) = Editor::start();
     let mut mcp = Mcp::new(client);
     assert!(mcp.server.is_assistant() && mcp.server.is_live());
@@ -194,6 +220,8 @@ fn assistant_lists_exactly_the_seven_meta_tools_sorted_and_stable() {
             "command_describe",
             "commands_list",
             "execute",
+            "notes_read",
+            "notes_write",
             "run_batch",
             "scratch_write",
             "skill_reference",
@@ -264,7 +292,14 @@ fn commands_list_filters_the_editors_list_and_is_fetched_once() {
         .collect();
     assert_eq!(
         ui_ids,
-        ["ui.render", "ui.scratchWrite", "ui.set", "ui.state"]
+        [
+            "ui.render",
+            "ui.scratchWrite",
+            "ui.notesRead",
+            "ui.notesWrite",
+            "ui.set",
+            "ui.state"
+        ]
     );
     // Matches summaries too.
     let lettering = text(&mcp.call("commands_list", json!({"filter": "lettering"})));
@@ -542,6 +577,57 @@ fn scratch_write_forwards_and_needs_exactly_one_content() {
     editor.finish();
 }
 
+/// #491: the notes tools forward to the editor's `ui.notesRead` / `ui.notesWrite` (where the
+/// permission gate and the checks are) and refuse malformed calls before reaching it.
+#[test]
+fn notes_tools_forward_to_the_editor() {
+    let (editor, client) = Editor::start();
+    let mut mcp = Mcp::new(client);
+    let empty = mcp.call("notes_read", json!({}));
+    assert_eq!(empty["isError"], json!(false), "{empty}");
+    assert_eq!(empty["content"][0]["text"], json!("(no notes yet)"));
+    let w = mcp.call(
+        "notes_write",
+        json!({"section": "Threads", "text": "Madeira Polyneon"}),
+    );
+    assert_eq!(w["isError"], json!(false), "{w}");
+    assert!(
+        w["content"][0]["text"]
+            .as_str()
+            .expect("text")
+            .starts_with("Remembered."),
+        "{w}"
+    );
+    let r = mcp.call("notes_read", json!({}));
+    assert_eq!(
+        r["content"][0]["text"],
+        json!("## Threads\n- Madeira Polyneon (append)\n")
+    );
+    for bad in [
+        json!({"text": "x"}),
+        json!({"section": "Threads"}),
+        json!({"section": "Threads", "text": "x", "mode": "prepend"}),
+        json!({"section": "Threads", "text": "x", "name": "y"}),
+    ] {
+        assert_eq!(
+            mcp.call("notes_write", bad.clone())["isError"],
+            json!(true),
+            "{bad}"
+        );
+    }
+    assert_eq!(
+        mcp.call("notes_read", json!({"x": 1}))["isError"],
+        json!(true)
+    );
+    let writes = editor
+        .log()
+        .iter()
+        .filter(|c| *c == "ui.notesWrite")
+        .count();
+    assert_eq!(writes, 1, "malformed calls never reach the editor");
+    editor.finish();
+}
+
 #[test]
 fn skill_reference_lists_and_returns_the_bundled_files() {
     let (editor, client) = Editor::start();
@@ -604,6 +690,9 @@ fn every_command_the_skill_names_exists() {
         "ui.help",
         "ui.update",
         "ui.scratchWrite",
+        "ui.notesRead",
+        "ui.notesWrite",
+        "ui.notesClear",
     ];
     assert!(
         ui.iter()
