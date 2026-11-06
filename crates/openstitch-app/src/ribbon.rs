@@ -782,6 +782,9 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
             if ui.button("Send to USB Media…").clicked() {
                 crate::transfer_ui::open(app);
             }
+            if ui.button("Test Swatches…").clicked() {
+                crate::swatch_ui::open(ui.ctx());
+            }
             menu_item(app, ui, ExportSections);
             ui.menu_button("Export", |ui| export_menu(app, ui));
         }

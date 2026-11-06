@@ -2556,6 +2556,30 @@ Assistant's stream timeout (#580) and thread-chart rules (#495) are in
   same numbers on all 16 Photo Stitch cases in both modes and the nine Photo Stitch 1 photos at
   High; `sew_check` passes; compat 454/454.
 
+### Test swatches and the fabric calibration card, 2026-11-06 (`batch:mac-sewout`, #452, #453, #507)
+
+Beyond PE-DESIGN, off unless chosen: PE-DESIGN-compatible output is unchanged.
+
+- **What landed:** `design.testSwatch` (#452), `design.testSwatches` (#507),
+  `fabric.calibrationSwatch` and `fabric.calibrate` (#453), and `fabric.deleteCustom`.
+  `fabric.list` and `fabric.apply` take the custom fabrics. The editor has Send ▸ Test
+  Swatches….
+- **How they work:** each swatch is built from the engine's own commands (`object.paste`,
+  `object.setRegion`/`setLine`, `text.add` in the single-line font, `machine.set`) on the File
+  effect's scratch state. It is written through `design.export` or `project.save`, so the open
+  design never changes.
+- **Labels:** 3.5 mm running stitch in the piece's own thread, sewn after every piece (one colour
+  block per thread). A parameter swatch's columns are as wide as the widest label.
+- **Sewability:** `tools/sew_check.py` passes on a selection swatch (fill and satin, labelled), a
+  fill density swatch (2 × 2, then 4 × 2 with pull compensation), a satin swatch (4 × 2), a
+  running-line pitch swatch and the knit calibration card, all in the 100 × 100 mm hoop.
+- **Not done:**
+  - no owner sew-out yet;
+  - filum-style calibration from measured sizes;
+  - the editable fabric table (B5);
+  - a live layout preview in the dialog;
+  - job sheets (#513), which follow in their own PR.
+
 ### Shape cuts keep the sewing angle, 2026-11-06 (`batch:mac-shapes`, #652)
 
 - **Fixed:** Remove Overlap, Combine, Merge, Split and the shape builder's merge (all through
