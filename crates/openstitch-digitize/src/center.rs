@@ -27,6 +27,7 @@ use crate::regions::{self, NONE, TraceOptions};
 use crate::trace;
 use crate::{DigitizeError, Mode};
 use openstitch_core::Thread;
+use openstitch_design::fmath::Det;
 use openstitch_design::{
     Contour, DesignObject, LineSewing, LineType, RegionSewing, RegionType, Vec2, v2,
 };
@@ -37,6 +38,10 @@ pub struct LineImageOptions {
     pub resolution: u32,
     /// Pixels with luminance (over white) below this are lines, 0–255.
     pub threshold: f64,
+    /// A line drawing from a photo (#490): the image's edges are the lines ([`edges`]), with
+    /// this edge strength, 1-100 (a share of the strongest edge, %), in place of `threshold`;
+    /// `None` (the default) is PE-DESIGN's dark-pixel line image.
+    pub edges: Option<f64>,
 }
 
 impl Default for LineImageOptions {
@@ -44,6 +49,7 @@ impl Default for LineImageOptions {
         LineImageOptions {
             resolution: 600,
             threshold: 128.0,
+            edges: None,
         }
     }
 }
@@ -75,6 +81,111 @@ impl LineImage {
         .unwrap_or_else(|_| self.image.clone())
     }
 }
+
+/// A line drawing of a photo's edges (#490, no model; Canny's method): the luminance over
+/// white is smoothed (a 5 × 5 binomial blur), its gradient taken (Sobel), every pixel that is
+/// not the strongest across its edge dropped (thinning along the gradient's direction, in four
+/// directions), and what is left kept where it is at least `strength` % of the strongest
+/// gradient, or at least half that and joined to such a pixel (hysteresis). One pixel wide;
+/// deterministic.
+pub fn edges(work: &Raster, strength: f64) -> Vec<bool> {
+    let (w, h) = (work.width() as usize, work.height() as usize);
+    if w < 3 || h < 3 {
+        return vec![false; w * h];
+    }
+    let luma: Vec<f64> = (0..h)
+        .flat_map(|y| (0..w).map(move |x| (x, y)))
+        .map(|(x, y)| work.luma_over_white(x as u32, y as u32))
+        .collect();
+    let at = |v: &[f64], x: isize, y: isize| {
+        v[(y.clamp(0, h as isize - 1) as usize) * w + x.clamp(0, w as isize - 1) as usize]
+    };
+    const K: [f64; 5] = [1.0, 4.0, 6.0, 4.0, 1.0];
+    let blur = |v: &[f64], horizontal: bool| -> Vec<f64> {
+        (0..w * h)
+            .map(|i| {
+                let (x, y) = ((i % w) as isize, (i / w) as isize);
+                (0..5)
+                    .map(|k| {
+                        let d = k as isize - 2;
+                        let (sx, sy) = if horizontal { (x + d, y) } else { (x, y + d) };
+                        K[k] * at(v, sx, sy)
+                    })
+                    .sum::<f64>()
+                    / 16.0
+            })
+            .collect()
+    };
+    let smooth = blur(&blur(&luma, true), false);
+    let mut gx = vec![0.0; w * h];
+    let mut gy = vec![0.0; w * h];
+    let mut mag = vec![0.0; w * h];
+    for y in 0..h as isize {
+        for x in 0..w as isize {
+            let p = |dx: isize, dy: isize| at(&smooth, x + dx, y + dy);
+            let i = y as usize * w + x as usize;
+            gx[i] = p(1, -1) + 2.0 * p(1, 0) + p(1, 1) - p(-1, -1) - 2.0 * p(-1, 0) - p(-1, 1);
+            gy[i] = p(-1, 1) + 2.0 * p(0, 1) + p(1, 1) - p(-1, -1) - 2.0 * p(0, -1) - p(1, -1);
+            mag[i] = gx[i].dhypot(gy[i]);
+        }
+    }
+    let top = mag.iter().copied().fold(0.0, f64::max);
+    if top <= 0.0 {
+        return vec![false; w * h];
+    }
+    // tan 22.5° and tan 67.5°: the gradient's direction to the nearest 45°.
+    const T1: f64 = 0.414_213_562_373_095;
+    const T2: f64 = 2.414_213_562_373_095;
+    let thin: Vec<f64> = (0..w * h)
+        .map(|i| {
+            let (x, y) = ((i % w) as isize, (i / w) as isize);
+            let (ax, ay) = (gx[i].abs(), gy[i].abs());
+            let (dx, dy) = if ay <= T1 * ax {
+                (1, 0)
+            } else if ay >= T2 * ax {
+                (0, 1)
+            } else if (gx[i] >= 0.0) == (gy[i] >= 0.0) {
+                (1, 1)
+            } else {
+                (1, -1)
+            };
+            let m = mag[i];
+            if m >= at(&mag, x + dx, y + dy) && m > at(&mag, x - dx, y - dy) {
+                m
+            } else {
+                0.0
+            }
+        })
+        .collect();
+    let high = top * strength.clamp(1.0, 100.0) / 100.0;
+    let low = high / 2.0;
+    let mut out = vec![false; w * h];
+    let mut queue: std::collections::VecDeque<usize> =
+        (0..w * h).filter(|&i| thin[i] >= high).collect();
+    for &i in &queue {
+        out[i] = true;
+    }
+    while let Some(i) = queue.pop_front() {
+        let (x, y) = ((i % w) as isize, (i / w) as isize);
+        for dy in -1..=1 {
+            for dx in -1..=1 {
+                let (nx, ny) = (x + dx, y + dy);
+                if nx < 0 || ny < 0 || nx >= w as isize || ny >= h as isize {
+                    continue;
+                }
+                let j = ny as usize * w + nx as usize;
+                if !out[j] && thin[j] >= low {
+                    out[j] = true;
+                    queue.push_back(j);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// [`LineImageOptions::edges`]' default edge strength, %.
+pub const EDGE_STRENGTH: f64 = 20.0;
 
 /// OpenStitch mode's stage 1 threshold: Otsu's method on the luminance (over white) of the
 /// working raster at `resolution`, the level that best splits the pixels into two classes
@@ -118,6 +229,15 @@ pub fn otsu_threshold(image: &Raster, resolution: u32) -> f64 {
 pub fn line_image(image: &Raster, o: &LineImageOptions) -> LineImage {
     let work = image.fit(o.resolution.clamp(16, 2048));
     let (w, h) = (work.width() as usize, work.height() as usize);
+    if let Some(strength) = o.edges {
+        let mask = edges(&work, strength);
+        return LineImage {
+            image: work,
+            mask,
+            width: w,
+            height: h,
+        };
+    }
     let mut mask = Vec::with_capacity(w * h);
     for y in 0..work.height() {
         for x in 0..work.width() {

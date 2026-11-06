@@ -38,10 +38,13 @@
 //! written, and a `--script` can answer the prompt (`sclick`, `key:Enter`, `key:Escape`).
 //! `--screenshot` renders a few frames, writes the window contents as PNG and exits (used for
 //! the documentation images and for checking the build on a platform).
+//! `openstitch --sew-kit` (alone) opens no window: it does what Help ▸ Ready-to-Sew Designs
+//! does and prints `folder PATH` or `online URL` (the packaging check for #319).
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
+mod arc_ui;
 mod arrange_ui;
 mod art;
 mod assistant_panel;
@@ -330,9 +333,28 @@ fn assistant_mcp(endpoint: &str) -> ! {
     std::process::exit(code)
 }
 
+/// `openstitch --sew-kit`: no window; does what Help ▸ Ready-to-Sew Designs does for this
+/// executable (the packaged kit in Finder, Explorer or the desktop's file manager) and prints
+/// `folder PATH`, or `online URL` when there is no kit (the menu opens that page in the
+/// browser; this mode only prints it). The packaging checks run it inside the built bundle with
+/// a recording stand-in for the opener on `PATH` (#319).
+fn sew_kit_check() -> ! {
+    use openstitch_app::editor::sew_kit;
+    let exe = std::env::current_exe().ok();
+    match sew_kit::open_kit(exe.as_deref()) {
+        sew_kit::Opened::Folder(kit) => println!("folder {}", kit.display()),
+        sew_kit::Opened::Online => println!("online {}", sew_kit::ONLINE),
+    }
+    std::process::exit(0)
+}
+
 fn main() -> eframe::Result {
     let mut args = std::env::args().skip(1);
-    if let (Some(flag), Some(endpoint)) = (args.next(), args.next())
+    let first = args.next();
+    if first.as_deref() == Some("--sew-kit") && args.next().is_none() {
+        sew_kit_check();
+    }
+    if let (Some(flag), Some(endpoint)) = (first, args.next())
         && flag == "--assistant-mcp"
     {
         assistant_mcp(&endpoint);

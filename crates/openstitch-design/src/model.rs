@@ -537,6 +537,10 @@ pub struct DesignObject {
     /// instead of a jump and trim (#545, beyond PE-DESIGN).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub connector_run: bool,
+    /// A knockdown fill made by `wizard.knockdown` (#510, beyond PE-DESIGN): the parameters it
+    /// was made with, so it can be rebuilt and kept before what it covers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub knockdown: Option<serde_json::Value>,
 }
 
 fn yes() -> bool {
@@ -573,6 +577,7 @@ impl DesignObject {
             stop_after: false,
             hide_under: None,
             connector_run: false,
+            knockdown: None,
         }
     }
 
@@ -597,6 +602,7 @@ impl DesignObject {
             stop_after: false,
             hide_under: None,
             connector_run: false,
+            knockdown: None,
         }
     }
 
@@ -916,6 +922,14 @@ pub enum UnderlayStyle {
     /// plus 45°, each sewn in two halves from the region's far corners towards the start point
     /// (see [`crate::region`]).
     Cross,
+    /// OpenStitch's automatic under sewing (#523, beyond PE-DESIGN): on a Manual Punch column
+    /// and a zigzag line, a centre walk, the inset edge run, or the edge run and the zigzag,
+    /// chosen from the average width each time it sews (see [`crate::column::AutoUnderlay`]);
+    /// on other regions the edge run and rows, as `edgeZigzag`.
+    Auto,
+    /// A running stitch down the middle and back (#523, beyond PE-DESIGN): for thin columns
+    /// and zigzag lines; a column's piping alone.
+    CentreWalk,
 }
 
 /// How a fill's needle grid moves from row to row (see [`crate::generate::Stagger`]).
@@ -931,6 +945,35 @@ pub enum StaggerKind {
 }
 
 impl UnderlayStyle {
+    pub const ALL: [UnderlayStyle; 8] = [
+        UnderlayStyle::Edge,
+        UnderlayStyle::Zigzag,
+        UnderlayStyle::EdgeZigzag,
+        UnderlayStyle::Double,
+        UnderlayStyle::EdgeFill,
+        UnderlayStyle::Cross,
+        UnderlayStyle::Auto,
+        UnderlayStyle::CentreWalk,
+    ];
+
+    /// The style's name in commands and files.
+    pub fn id(self) -> &'static str {
+        match self {
+            UnderlayStyle::Edge => "edge",
+            UnderlayStyle::Zigzag => "zigzag",
+            UnderlayStyle::EdgeZigzag => "edgeZigzag",
+            UnderlayStyle::Double => "double",
+            UnderlayStyle::EdgeFill => "edgeFill",
+            UnderlayStyle::Cross => "cross",
+            UnderlayStyle::Auto => "auto",
+            UnderlayStyle::CentreWalk => "centreWalk",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|s| s.id() == id)
+    }
+
     /// The components this style sews on a Manual Punch column (several direction lines), as
     /// PE-DESIGN 11.50's five exclusive under sewing buttons do on its own column (round-4
     /// captures satin-col-us-type-1..5): its first-row buttons (type 1, the default, and
@@ -946,6 +989,10 @@ impl UnderlayStyle {
             },
             UnderlayStyle::Zigzag => UnderlayParts {
                 zigzag: true,
+                center: true,
+                ..UnderlayParts::default()
+            },
+            UnderlayStyle::CentreWalk => UnderlayParts {
                 center: true,
                 ..UnderlayParts::default()
             },
@@ -969,7 +1016,13 @@ impl UnderlayStyle {
         match self {
             UnderlayStyle::Edge => p(true, false, false),
             UnderlayStyle::Zigzag => p(false, true, false),
-            UnderlayStyle::EdgeZigzag | UnderlayStyle::EdgeFill => p(true, true, false),
+            UnderlayStyle::EdgeZigzag | UnderlayStyle::EdgeFill | UnderlayStyle::Auto => {
+                p(true, true, false)
+            }
+            UnderlayStyle::CentreWalk => UnderlayParts {
+                center: true,
+                ..UnderlayParts::default()
+            },
             UnderlayStyle::Double => p(false, false, true),
             UnderlayStyle::Cross => p(true, false, true),
         }
@@ -1374,6 +1427,16 @@ pub struct RegionSewing {
     /// the line (variable-direction satin). Takes precedence over the other direction options.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skeleton: Option<crate::skeleton::Skeleton>,
+    /// Satin corner styles, short stitches and compensation per side (#520-#522, beyond
+    /// PE-DESIGN): Manual Punch satin columns. Off by default.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub satin_shaping: crate::column::SatinShaping,
+    /// Thresholds of `UnderlayStyle::Auto` (#523).
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub underlay_auto: crate::column::AutoUnderlay,
+    /// A second under sewing layer on a Manual Punch column (#523, beyond PE-DESIGN).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub underlay2: Option<crate::column::SecondUnderlay>,
 }
 
 impl RegionSewing {
@@ -1443,6 +1506,9 @@ impl RegionSewing {
             direction_lines: Vec::new(),
             curved_lines: false,
             skeleton: None,
+            satin_shaping: Default::default(),
+            underlay_auto: Default::default(),
+            underlay2: None,
         }
     }
 
@@ -1590,7 +1656,10 @@ impl RegionSewing {
             && match self.underlay_style {
                 UnderlayStyle::Edge | UnderlayStyle::Double => true,
                 UnderlayStyle::Zigzag | UnderlayStyle::EdgeZigzag => self.kind != RegionType::Satin,
-                UnderlayStyle::EdgeFill | UnderlayStyle::Cross => false,
+                UnderlayStyle::EdgeFill
+                | UnderlayStyle::Cross
+                | UnderlayStyle::Auto
+                | UnderlayStyle::CentreWalk => false,
             }
     }
 
@@ -1783,6 +1852,17 @@ pub struct LineSewing {
     /// gap of in-the-hoop pieces. Running, triple, zigzag, E and V lines only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gap: Option<LineGap>,
+    /// Zigzag: corner styles, short stitches and compensation per side (#520-#522, beyond
+    /// PE-DESIGN). Off by default.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub satin_shaping: crate::column::SatinShaping,
+    /// Zigzag: the under sewing when `underlay` is on: `edge` (PE-DESIGN's two runs a quarter
+    /// of the width to each side, the default), `centreWalk`, `edgeZigzag` or `auto` (#523).
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub underlay_style: UnderlayStyle,
+    /// Zigzag: thresholds of `auto` under sewing (#523).
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub underlay_auto: crate::column::AutoUnderlay,
 }
 
 /// An opening in a closed line: `length` mm left unsewn from `offset` mm along the outline
@@ -1875,6 +1955,9 @@ impl LineSewing {
             exit: None,
             start_end: StartEnd::Feed,
             gap: None,
+            satin_shaping: Default::default(),
+            underlay_style: UnderlayStyle::Edge,
+            underlay_auto: Default::default(),
         }
     }
 

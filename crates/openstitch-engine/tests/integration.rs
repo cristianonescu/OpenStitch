@@ -64,10 +64,14 @@ mod hoop_lists;
 mod imports;
 #[path = "knife.rs"]
 mod knife;
+#[path = "knockdown.rs"]
+mod knockdown;
 #[path = "layout.rs"]
 mod layout;
 #[path = "lettering.rs"]
 mod lettering;
+#[path = "lettering_arc.rs"]
+mod lettering_arc;
 #[path = "lettering_envelopes.rs"]
 mod lettering_envelopes;
 #[path = "lettering_library.rs"]
@@ -114,10 +118,14 @@ mod region_compat;
 mod routing;
 #[path = "satin_compat.rs"]
 mod satin_compat;
+#[path = "satin_shaping.rs"]
+mod satin_shaping;
 #[path = "sections.rs"]
 mod sections;
 #[path = "sewing.rs"]
 mod sewing;
+#[path = "shape_cut_attributes.rs"]
+mod shape_cut_attributes;
 #[path = "shape_tools.rs"]
 mod shape_tools;
 #[path = "shaping.rs"]

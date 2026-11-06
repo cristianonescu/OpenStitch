@@ -389,9 +389,10 @@ fn merge_similar(s: &mut EngineState, p: &Params) -> crate::CommandResult {
     }))
 }
 
-/// How well `t` answers `query` (lower is better): the exact code, a code that starts with
-/// it, then a name, brand or code that contains it (any case).
-fn find_rank(t: &Thread, query: &str) -> Option<u8> {
+/// How well `t` matches a `threads.find` query (lower is better): 0 the exact code, 1 a code
+/// prefix, 2 a name containing it, 3 the code or brand containing it; `None` when it does not
+/// match. The editor's chart pickers filter with it too (#486).
+pub fn find_rank(t: &Thread, query: &str) -> Option<u8> {
     let code = t.catalog_number.as_deref().unwrap_or("");
     let q = query.to_lowercase();
     if !code.is_empty() && code.eq_ignore_ascii_case(query) {

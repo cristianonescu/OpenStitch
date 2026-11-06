@@ -324,3 +324,39 @@ fn builtin_charts_list_the_brand_charts() {
     );
     assert_eq!(out["colors"], json!(335));
 }
+
+/// The editor's PEC chart picker filters with `threads.find`'s matching (#486, #682): a code or
+/// name search there and `threads.find {charts: ["brother"]}` find the same threads (the picker
+/// also takes a chart number).
+#[test]
+fn find_in_the_brother_chart_is_the_pickers_search() {
+    let dir = TempDir::new("find-brother");
+    let mut s = Session::new(&dir);
+    let r = run(
+        &mut s,
+        "threads.find",
+        json!({"query": "deep rose", "charts": ["brother"]}),
+    );
+    let threads = r["threads"].as_array().expect("threads");
+    assert!(!threads.is_empty());
+    for t in threads {
+        assert_eq!(t["chart"], json!("brother"));
+        let name = t["description"].as_str().unwrap_or("").to_lowercase();
+        assert!(name.contains("deep rose"), "{t}");
+        let pec = openstitch_core::PEC_CHART[t["index"].as_u64().expect("an index") as usize]
+            .as_ref()
+            .expect("a PEC thread");
+        assert_eq!(
+            openstitch_engine::thread_match::find_rank(pec, "deep rose"),
+            Some(2)
+        );
+    }
+    // The chart's threads carry their Brother Embroidery codes: a code finds that thread first.
+    let code = threads[0]["code"].as_str().expect("a code").to_string();
+    let r = run(
+        &mut s,
+        "threads.find",
+        json!({"query": code, "charts": ["brother"]}),
+    );
+    assert_eq!(r["threads"][0]["index"], threads[0]["index"], "{r}");
+}

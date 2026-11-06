@@ -126,6 +126,16 @@ All beyond PE-DESIGN and off unless asked; each is one undo step.
 A satin border `distance` mm round the patterns, then a cutting line `cutDistance` mm outside
 it. `wizard.backgroundFill` fills behind the patterns for a fully stitched patch.
 
+## Towels and fleece: knockdown
+
+Beyond PE-DESIGN and off unless asked; one undo step.
+
+- Pile fabric (towel, fleece, velvet): `wizard.knockdown` `{}` for the whole design, or
+  `{ids: [...]}` for the selection, puts a light Fill named Knockdown under it, sewn first
+  (`reach` 2 mm past the edge, `gapClose` 3 mm, `spacing` 1 mm, `layers` 1 or 2, `angle`,
+  `color` defaults to the first covered object's thread, `shape: rectangle`, `keepHoles`).
+  After edits, `wizard.knockdown {update: <its id>}` rebuilds it. `order.optimize` keeps it first.
+
 ## Image to embroidery
 
 The picture must be a file the editor can read: one the user attached, or one you wrote with
@@ -169,8 +179,36 @@ Auto Punch also returns a `plan`: every traced region with its `region` number, 
 Regions are numbered by the run's own options, so keep every other option the same between the
 dry run and the conversion. Thin lines and outlines can only be skipped. In OpenStitch mode
 `angleRule: "varyNeighbours"` turns touching fills at least 20° apart so fitted panels read as
-separate pieces; parts under 1 mm wide (ropes, whiskers) are sewn as running lines, and a
-white, cream or off-white paper background is left out as the fabric showing.
+separate pieces, and `angleRule: "leastTravel"` lays each fill of 10 mm² or more the way
+(every 15°) that sews the least thread, so the least travel between its sections; parts under
+1 mm wide (ropes, whiskers) are sewn as running lines, and a white, cream or off-white paper
+background is left out as the fabric showing.
+
+A purpose `preset` sets several Auto Punch options at once, only those the call leaves unset,
+and implies OpenStitch mode: `logo`, `patch` (background sewn too), `lineArt`, `illustration`,
+`photo`, `pixelArt`. `digitize.presets` lists each one's options. Name the preset from what the
+user says the picture is for ("a patch for my jacket" → `patch`).
+
+`digitize.exportOutlines` takes the same parameters plus `out` (an `.svg` file) and saves the
+traced regions as SVG paths in their thread colours, in mm, without changing the design; give it
+to another program, or bring it back with `import.svg` (one object per region). It writes a file,
+so the editor asks the user first.
+
+`underlap` (OpenStitch mode, mm, 0.8 is typical) makes each fill reach under the touching
+colour sewn after it, so no fabric shows along seams; it adds stitches, so leave it off for
+thin lettering.
+
+Helpers that need no model and send nothing anywhere:
+- **Cut out the subject with one click.** `digitize.segment` `{path, point: [x, y]}` (fractions
+  of the picture: `[0.5, 0.5]` is its centre) returns the subject's `box` and `share`, and with
+  `out` writes the mask as a PNG. Convert with Auto Punch's `isolateSubject: true,
+  subjectPoint: [x, y]`: the background is learnt from the border and only the part holding
+  the click is sewn. Add `subjectStrokes` / `backgroundStrokes` when it takes too much or too
+  little.
+- **Line drawing from a photo.** `lines: "edges"` on `digitize.lineImage`, `digitize.figure`
+  or `digitize.designCenter` traces the photo's edges instead of its dark pixels
+  (`edgeStrength` 1-100, default 20: lower keeps fainter edges). Sew it with
+  `digitize.designCenter` `{lines: "edges", regionSew: "none"}` for redwork.
 
 ## SVG artwork
 

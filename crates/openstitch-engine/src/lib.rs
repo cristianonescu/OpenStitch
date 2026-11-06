@@ -49,6 +49,7 @@ pub mod project;
 mod punch;
 pub mod quality;
 pub mod sandbox;
+mod satin_shaping;
 pub mod sections;
 pub mod session;
 mod sewing;

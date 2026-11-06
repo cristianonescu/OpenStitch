@@ -215,6 +215,7 @@ Behaviour follows the guide's pages
 | View | Show ▾ (beyond PE-DESIGN, #517): Needle Points; Underlay and top / Underlay only / Top only; Trim Marks; Hide Unselected; Colour by Thread / Sewing order / Monochrome; Solo Colour |  | `Action::ViewShow` | view/UI only | yes |
 | View | Realistic View Settings |  | `Action::RealisticSettings` | view/UI only | yes |
 | Show/Hide | Sewing Order |  | `Action::PaneSewingOrder` | view/UI only | yes |
+| Sewing Order pane | Knockdown / Update knockdown (beyond PE-DESIGN, #510): a knockdown fill under the selection or the whole design with the default settings; on a selected knockdown, rebuild it |  | Sewing Order pane button | `wizard.knockdown` | yes |
 | Show/Hide | Stitch Simulator |  | `Action::PaneSimulator` | view/UI only | yes |
 | Show/Hide | Attributes Setting |  | `Action::PaneAttributes` | view/UI only | yes |
 | Show/Hide | Import Pane |  | `Action::PaneImport` | view/UI only | yes |

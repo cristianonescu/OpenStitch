@@ -69,6 +69,16 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    a running line. Text is satin by default. A satin border or outline is a line:
    `object.setLine` with `type: zigzag`, about 2-4 mm wide (the badge recipe in
    `reference/recipes.md`).
+   Satin quality beyond PE-DESIGN (off by default; Manual Punch columns via
+   `object.setRegion`, zigzag lines via `object.setLine`): `cornerStyle: auto` for stars,
+   chevrons and badge borders (mitre below `mitreBelow` 75°, cap below `capBelow` 45°,
+   `cornerOverlap`, `capMaxLength`); `shortStitchDistance: 0.25` (with `shortStitchInset` %)
+   thins the inside of tight curves; `pullLeft`/`pullRight` (mm, `null` resets) and
+   `pullPercent` (3 for tapered columns; `pullMax` caps it) compensate per side and by width;
+   `underlayStyle: auto` picks a centre walk, edge run or edge + zigzag by width (thresholds
+   `underlayAuto {centreBelow, edgeBelow}`, set by `fabric.apply`), `centreWalk` for thin
+   satins, and a column's `underlay2 {style, inset, spacing, stitchLength}` adds a second
+   layer (`null` removes it). Read them back with `object.get`.
 4. Order: `order.optimize` (PE-DESIGN-compatible order) or `order.byColor`; check with
    `object.list` (sewing order). To sew objects in a set order, `order.byClickOrder`
    `{ids: [in sewing order]}` (they start where the earliest of them sews now); to sew a
@@ -147,13 +157,21 @@ then style them in the next.
   bridge|pennant|perspective|diamond|preset}`, then `text.bendEnvelope {id, edge: top|bottom,
   handle: left|middle|right, dx, dy, symmetric}` (mm on the page; `text.envelopeHandles`
   says where the handles are). PES 0110 export refuses free envelopes: `text.toShapes` first.
+- Badges and patches with text round a circle: `text.add` or `object.setText` with `arc`
+  (mm, the first line's baseline radius; positive arches up over the top, negative arches
+  down under the bottom, read upright). Each `
+` line becomes a ring round the same centre,
+  one line spacing inward (up) or outward (down); a ring too tight for its line is refused
+  with the radius needed, so retry with that. `arc: null` straightens it. Beyond PE-DESIGN:
+  PES 0110 export refuses it (`text.toShapes` first).
 - Threads: to change the design to a thread chart ("use my Madeira threads"), run
   `threads.remap` `{builtin | chart, metric: ciede2000, keepDistinct: true, dryRun: true}`
   first and show the user the plan (design colour → thread, ΔE, objects, and `merged`), then
   run it without `dryRun` if they agree (`metric: rgb` is PE-DESIGN's rule). The thread
   makers' charts (Madeira, Isacord, Sulky, Robison-Anton) are `builtin` ids: `threads.builtinCharts`
   lists them with `kind: "brand"`. `threads.find`
-  `{query}` finds a thread by code or name. After `import.svg` or a `digitize.*` wizard gives
+  `{query}` finds a thread by code or name (`charts: ["brother"]` searches the PEC chart as the
+  editor's colour picker search does). After `import.svg` or a `digitize.*` wizard gives
   many near-identical colours, offer `threads.mergeSimilar` (`dryRun` first; it reports the
   colour changes saved, and `order.byColor` when `suggestSortByColor`).
 - The user's own threads: when they say "use my threads", have a thread chart (`threads.charts`
@@ -222,10 +240,18 @@ still send mm to commands. `design.print {units: "inch"}` adds a 2-inch scale ba
   `minOpacity` (default 0.1) sets how faint a fill or stroke may be before it is left out.
 - When you write an SVG for `import.svg`, you can name each element's sewing and import with
   `settings: true`: give the element an `id` and a `data-name` such as `"fill a=45 s=0.4"`,
-  `"satin"`, `"run r=3"` or `"stroke.satin w=3"`; the result lists unknown words and refused
-  values (FILE_FORMATS.md has the words).
+  `"satin"`, `"run r=3"` or `"stroke.satin w=3"`; the long key names work too
+  (`"fill angle=45 density=4.5"`, `"run length=2.5 repeats=3"`, `"stroke.satin stroke.width=3"`).
+  The result lists unknown words and refused values (FILE_FORMATS.md has the words).
 - A user who wants to script designs in Python can use the `openstitch` package (repository
   `python/README.md`: `Session().exec("shape.ellipse", ...)` with these same commands).
+- "Make a thumbnail / preview picture of this file" at a terminal: `stitchtool thumbnail
+  design.pes out.png [--size 256]` writes the stitches on a transparent square (16 to 1024
+  px), the same picture Finder (Quick Look, with OpenStitch.app installed) and Linux file
+  managers show; Explorer thumbnails are not available yet. In the editor, `view_render`
+  shows the design instead.
+- "Open the ready-to-sew designs": `ui.help {item: "sewKit"}` shows the packaged kit in the
+  file manager and replies with its `folder`, or with the GitHub `url` it opened instead.
 - `file` commands (`project.save`, `design.export`, ...) may ask the user first. Never
   overwrite a user's file without being asked to.
 

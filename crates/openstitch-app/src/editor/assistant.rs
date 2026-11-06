@@ -212,7 +212,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     },
     UiCommand {
         id: "ui.help",
-        summary: "Help menu: with no item, lists the items; with one, opens it (manual, ready-to-sew designs, keyboard shortcuts, About)",
+        summary: "Help menu: with no item, lists the items; with one, opens it (manual, ready-to-sew designs, keyboard shortcuts, About). sewKit replies with the packaged kit's folder it showed in the file manager, or the GitHub url it opened instead",
         effect: Effect::Read,
         params: &[p(
             "item",

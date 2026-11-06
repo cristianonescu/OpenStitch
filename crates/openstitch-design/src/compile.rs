@@ -716,8 +716,11 @@ fn elements(
             // stroke a column, in its Convert to Blocks order (docs/research/stroke-lettering.md).
             // Fill text under a Text Transform keeps its region rows for now: PE-DESIGN sews it
             // by stroke as well (text-transform-9: level rows on the slanted stems), but the
-            // stroke cut of warped letters is not measured yet and drifts 0.1-0.3 mm past
-            // seven transform references' bounds (#428).
+            // stroke cut of warped letters drifts past the transform references' bounds and
+            // their stitch counts: measured 2026-11-06, five references 0.6 mm past their
+            // 0.5 mm bounds and 167 of 182 transform captures further from PE-DESIGN's count
+            // (11 % off on average by region, 28 % by stroke), though nearer its needle
+            // points (0.24 -> 0.18 mm) (#428).
             let warped = object.text.as_ref().is_some_and(|t| t.envelope.is_some());
             let by_stroke = (text
                 && (region.kind == RegionType::Satin
@@ -1005,6 +1008,9 @@ fn stroke_columns(
             for p in blocks.iter_mut().flat_map(|b| b.rungs.iter_mut().flatten()) {
                 *p = t.apply(*p);
             }
+            for p in blocks.iter_mut().filter_map(|b| b.lead.as_mut()) {
+                *p = t.apply(*p);
+            }
         }
         blocks
     };
@@ -1123,14 +1129,28 @@ fn stroke_columns(
         // unless the needle can reach it without leaving the letter (V's arms at its foot,
         // within the writer's connect distance): one stitch there, as the writer sewed it
         // before #465.
+        let mut walk = true;
         if b.new_run
             && run.len() >= 2
             && let (Some(&from), Some(&to)) = (run.last(), column.first())
         {
+            walk = false;
             if from.distance(to) > PIECE_JOIN || !inside_letter(from, to, closed) {
                 runs.push(std::mem::take(&mut run));
             }
-        } else if let (Some(&from), Some(&to)) = (run.last(), column.first()) {
+        }
+        // A block with a lead is reached straight from it, under its satin (X's arms run out
+        // along the arm first, stroke-satin-X, #446; a new run starts at the lead).
+        if let (Some(lead), Some(&to)) = (b.lead, column.first()) {
+            let mut path: Vec<Vec2> = run.last().copied().into_iter().chain([lead, to]).collect();
+            path.dedup_by(|a, b| a.distance(*b) < 1.0);
+            run.extend(
+                generate::subdivide(&path, STROKE_TRAVEL)
+                    .into_iter()
+                    .skip(usize::from(!run.is_empty())),
+            );
+            run.pop();
+        } else if walk && let (Some(&from), Some(&to)) = (run.last(), column.first()) {
             // PE-DESIGN walks the letter's outline between its blocks (stroke-blocks-H:
             // running pieces between them).
             let travel = if small {
@@ -1590,7 +1610,13 @@ fn line_elements(object: &DesignObject, line: &LineSewing, user: &[Pattern]) -> 
             let width = line.width * 10.0;
             let spacing = line.spacing_mm() * 10.0;
             let mut run = if line.kind == LineType::Zigzag && line.underlay {
-                lines::zigzag_underlay(&c.path(), width / 4.0, pitch)
+                lines::line_underlay(
+                    &c.path(),
+                    width,
+                    pitch,
+                    line.underlay_style,
+                    &line.underlay_auto,
+                )
             } else {
                 Vec::new()
             };
@@ -1640,6 +1666,14 @@ fn line_elements(object: &DesignObject, line: &LineSewing, user: &[Pattern]) -> 
                 LineType::Triple => generate::triple(c, pitch),
                 // PE-DESIGN's zigzag (rails matched along each leg) on straight-line paths;
                 // curves keep the evenly spaced zigzag, with half stitch where asked.
+                // OpenStitch's satin shaping (#520-#522) replaces both when set.
+                LineType::Zigzag if !line.satin_shaping.is_plain() => lines::zigzag_shaped(
+                    &c.path(),
+                    width,
+                    10.0 / line.density.max(0.1),
+                    &line.satin_shaping,
+                    c.has_curves().then_some(line.half_stitch),
+                ),
                 LineType::Zigzag if !c.has_curves() => {
                     lines::zigzag_rails(&c.path(), width, 10.0 / line.density.max(0.1))
                 }

@@ -13,7 +13,7 @@ use openstitch_digitize::center::{
     self, FigureOptions, LineImageOptions, OpenLine, RegionSew, SewSettings,
 };
 use openstitch_digitize::cross::{self, CrossStitch, CrossType};
-use openstitch_digitize::grabcut::{Marks, Seed, Stroke};
+use openstitch_digitize::grabcut::{self, Marks, Seed, Stroke};
 use openstitch_digitize::photo::{self, ColorSet, PhotoMode, PhotoStitch, PhotoStyle, Travel};
 use openstitch_digitize::raster::MAX_FILE_BYTES;
 use openstitch_digitize::regions::TraceOptions;
@@ -102,6 +102,42 @@ fn subject_seed(p: &Params) -> Result<Option<Seed>, CommandError> {
         return Err(p.invalid("subjectRect", "needs isolateSubject: true"));
     }
     Ok(Some(Seed::Rect(r)))
+}
+
+/// Auto Punch's `subjectPoint` (#490): a click on the subject, `[x, y]` in fractions of the
+/// image; it needs `isolateSubject: true` and takes the place of `subjectRect`.
+fn subject_point(p: &Params) -> Result<Option<[f64; 2]>, CommandError> {
+    if !p.has("subjectPoint") {
+        return Ok(None);
+    }
+    if !p.bool("isolateSubject", Some(false))? {
+        return Err(p.invalid("subjectPoint", "needs isolateSubject: true"));
+    }
+    if p.has("subjectRect") {
+        return Err(p.invalid("subjectPoint", "takes the place of subjectRect; give one"));
+    }
+    point_param(p, "subjectPoint").map(Some)
+}
+
+/// An `[x, y]` parameter in fractions of the image (0-1).
+fn point_param(p: &Params, key: &str) -> Result<[f64; 2], CommandError> {
+    let bad = || p.invalid(key, "must be [x, y], each 0-1 (fractions of the image)");
+    let a = p.array(key)?;
+    let f = |v: &Value| v.as_f64().filter(|f| (0.0..=1.0).contains(f));
+    match &a[..] {
+        [x, y] => Ok([f(x).ok_or_else(bad)?, f(y).ok_or_else(bad)?]),
+        _ => Err(bad()),
+    }
+}
+
+/// `digitize.segment`'s strokes: as Auto Punch's, without `isolateSubject`.
+fn segment_strokes(p: &Params, key: &str) -> Result<Vec<Stroke>, CommandError> {
+    if !p.has(key) {
+        return Ok(Vec::new());
+    }
+    let mut values = p.values().clone();
+    values.insert("isolateSubject".into(), json!(true));
+    strokes(&Params::new(&p.command, Some(&Value::Object(values)))?, key)
 }
 
 /// Most strokes, and points per stroke, in `subjectStrokes` or `backgroundStrokes`.
@@ -199,6 +235,70 @@ fn overrides(p: &Params) -> Result<Vec<Override>, CommandError> {
             })
         })
         .collect()
+}
+
+/// Auto Punch's objects as an SVG document in mm (#489), with how many filled paths (regions)
+/// and stroked paths (lines) it holds. Outlines are flattened to straight segments; a region's
+/// holes are its further contours, filled even-odd.
+fn outlines_svg(objects: &[DesignObject]) -> (String, usize, usize) {
+    use std::fmt::Write as _;
+    let mm = |v: f64| round(v / MM);
+    let all = objects
+        .iter()
+        .flat_map(|o| o.contours.iter())
+        .flat_map(|c| c.path());
+    let (mut x0, mut y0, mut x1, mut y1) = (f64::MAX, f64::MAX, f64::MIN, f64::MIN);
+    for q in all {
+        (x0, y0, x1, y1) = (x0.min(q.x), y0.min(q.y), x1.max(q.x), y1.max(q.y));
+    }
+    if x0 > x1 {
+        (x0, y0, x1, y1) = (0.0, 0.0, 0.0, 0.0);
+    }
+    let (w, h) = (mm(x1 - x0).max(0.01), mm(y1 - y0).max(0.01));
+    let mut svg = format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}mm\" height=\"{h}mm\" viewBox=\"{} {} {w} {h}\">\n",
+        mm(x0),
+        mm(y0)
+    );
+    let (mut fills, mut lines) = (0, 0);
+    for o in objects {
+        let mut d = String::new();
+        for c in &o.contours {
+            for (i, q) in c.path().iter().enumerate() {
+                let _ = write!(
+                    d,
+                    "{}{} {} ",
+                    if i == 0 { "M" } else { "L" },
+                    mm(q.x),
+                    mm(q.y)
+                );
+            }
+            if c.closed {
+                d.push_str("Z ");
+            }
+        }
+        let d = d.trim_end();
+        if d.is_empty() {
+            continue;
+        }
+        if let Some(r) = &o.region {
+            fills += 1;
+            let _ = writeln!(
+                svg,
+                "  <path fill=\"{}\" fill-rule=\"evenodd\" stroke=\"none\" d=\"{d}\"/>",
+                r.thread.hex()
+            );
+        } else if let Some(l) = &o.line {
+            lines += 1;
+            let _ = writeln!(
+                svg,
+                "  <path fill=\"none\" stroke=\"{}\" stroke-width=\"0.4\" d=\"{d}\"/>",
+                l.thread.hex()
+            );
+        }
+    }
+    svg.push_str("</svg>\n");
+    (svg, fills, lines)
 }
 
 /// Auto Punch's region plan as JSON (#489).
@@ -382,13 +482,9 @@ fn trace_options(p: &Params, default_simplify: f64) -> Result<TraceOptions, Comm
     })
 }
 
-pub fn commands() -> Vec<CommandSpec> {
-    vec![
-        spec(
-            "digitize.autoPunch",
-            "Auto Punch (approximation): convert an image's colour areas into fill and satin shapes",
-            Effect::Edit,
-            placement_docs(vec![
+/// Auto Punch's parameters (shared by `digitize.autoPunch` and `digitize.exportOutlines`).
+fn auto_punch_docs() -> Vec<ParamDoc> {
+    let mut v: Vec<ParamDoc> = placement_docs(vec![
                 opt(
                     "colors",
                     "int 0-64",
@@ -482,63 +578,183 @@ pub fn commands() -> Vec<CommandSpec> {
                 ),
                 opt(
                     "angleRule",
-                    "pe|varyNeighbours",
-                    "OpenStitch mode: how fills choose their direction: pe (default, PE-DESIGN's rule: of 90/45/135/0°, the one with the most rows) or varyNeighbours (that direction turned in 30° steps until it is at least 20° from every touching fill sewn before it, so fitted panels read apart) (#489; needs compatMode openStitch)",
+                    "pe|varyNeighbours|leastTravel",
+                    "OpenStitch mode: how fills choose their direction: pe (default, PE-DESIGN's rule: of 90/45/135/0°, the one with the most rows), varyNeighbours (that direction turned in 30° steps until it is at least 20° from every touching fill sewn before it, so fitted panels read apart) or leastTravel (of every 15°, the direction whose sewn path is shortest, so least travel between a region's sections; PE's direction kept unless another saves at least 1 mm of thread) (#489; needs compatMode openStitch)",
                 ),
-            ]
-            .into_iter()
-            .chain(thread_source_docs())
-            .collect()),
+            ])
+        .into_iter()
+        .chain(thread_source_docs())
+        .collect();
+    v.push(opt(
+        "subjectPoint",
+        "[x, y]",
+        "With isolateSubject: one click on the subject, in fractions of the image (0-1): the cut learns the background from the border, the click is subject for certain, and only the part of the subject holding it is kept (#490, no model); in place of subjectRect",
+    ));
+    v.push(opt(
+        "underlap",
+        "mm 0-1.5",
+        "OpenStitch mode: each fill reaches this far under the touching regions sewn after it, so no fabric shows along the seams between colours (default 0, off; 0.8 is typical) (#469; needs compatMode openStitch)",
+    ));
+    v.push(opt(
+        "preset",
+        "logo|patch|lineArt|illustration|photo|pixelArt",
+        "OpenStitch mode: a purpose preset that sets several options at once, each only where the call does not set it (digitize.presets lists them); implies compatMode openStitch (#489)",
+    ));
+    v
+}
+
+/// Auto Punch's `underlap` (#469): mm, OpenStitch mode only.
+fn underlap(p: &Params, mode: Mode) -> Result<f64, CommandError> {
+    let v = p.opt("underlap", 0.0, 0.0, autopunch::MAX_UNDERLAP_MM)?;
+    if v > 0.0 && mode == Mode::PeDesign {
+        return Err(p.invalid("underlap", "needs compatMode openStitch"));
+    }
+    Ok(v)
+}
+
+/// Purpose presets for Auto Punch (#489): named bundles over its own options, OpenStitch mode
+/// only. Each sets options the call leaves unset.
+pub const PRESETS: [(&str, &str); 6] = [
+    (
+        "logo",
+        "Logos and flat graphics: clean outlines, touching fills turned apart, nothing smaller than 2 mm²",
+    ),
+    (
+        "patch",
+        "Patches and badges: the whole picture sewn, background included, rows laid for the least travel",
+    ),
+    (
+        "lineArt",
+        "Line drawings: contour lines up to 4 mm sewn as satin outlines, thin strokes kept",
+    ),
+    (
+        "illustration",
+        "Illustrations and cartoons: outlines on top, touching fills turned apart",
+    ),
+    (
+        "photo",
+        "Photos: high fidelity colours, small specks merged, rows laid for the least travel",
+    ),
+    (
+        "pixelArt",
+        "Pixel art: straight edges, no smoothing, every block kept",
+    ),
+];
+
+/// The options preset `name` sets.
+fn preset_values(name: &str) -> Option<Value> {
+    Some(match name {
+        "logo" => json!({"angleRule": "varyNeighbours", "minArea": 2.0, "smooth": 1}),
+        "patch" => json!({"skipBackground": false, "angleRule": "leastTravel"}),
+        "lineArt" => json!({"outlineMaxWidth": 4.0, "minArea": 1.0}),
+        "illustration" => json!({"angleRule": "varyNeighbours", "outlineMaxWidth": 2.5}),
+        "photo" => {
+            json!({"fidelity": "high", "minArea": 4.0, "smooth": 1, "angleRule": "leastTravel"})
+        }
+        "pixelArt" => json!({"curves": false, "simplify": 0.2, "minArea": 0.5}),
+        _ => return None,
+    })
+}
+
+/// `p` with its `preset`'s options filled in where the call leaves them unset, and compatMode
+/// openStitch; `p` itself when it names no preset.
+fn with_preset(p: &Params) -> Result<Option<Params>, CommandError> {
+    if !p.has("preset") {
+        return Ok(None);
+    }
+    let name = p.string("preset", None)?;
+    let names: Vec<&str> = PRESETS.iter().map(|k| k.0).collect();
+    let Some(Value::Object(set)) = preset_values(&name) else {
+        return Err(p.invalid("preset", format!("must be one of {}", names.join(", "))));
+    };
+    if p.string("compatMode", Some("openStitch"))? != "openStitch" {
+        return Err(p.invalid("preset", "a preset needs compatMode openStitch"));
+    }
+    let mut values = p.values().clone();
+    values.insert("compatMode".into(), json!("openStitch"));
+    for (k, v) in set {
+        values.entry(k).or_insert(v);
+    }
+    Params::new(&p.command, Some(&Value::Object(values))).map(Some)
+}
+
+/// Auto Punch's image, placement and options from its parameters (shared by
+/// `digitize.autoPunch` and `digitize.exportOutlines`).
+fn auto_punch_options(
+    s: &EngineState,
+    p: &Params,
+) -> Result<(Raster, Frame, AutoPunch), CommandError> {
+    let preset = with_preset(p)?;
+    let p = preset.as_ref().unwrap_or(p);
+    let (image, frame) = load(s, p)?;
+    let mode = compat_mode(p)?;
+    let angle_rule = match (
+        choice(
+            p,
+            "angleRule",
+            "pe",
+            &["pe", "varyNeighbours", "leastTravel"],
+        )?,
+        mode,
+    ) {
+        ("pe", _) => AngleRule::Pe,
+        ("varyNeighbours", Mode::OpenStitch) => AngleRule::VaryNeighbours,
+        ("leastTravel", Mode::OpenStitch) => AngleRule::LeastTravel,
+        (rule, _) => {
+            return Err(p.invalid("angleRule", format!("{rule} needs compatMode openStitch")));
+        }
+    };
+    // OpenStitch mode works at 800 px, so thin lines and small details keep their
+    // shape, and merges regions under 2 mm², so no speck is sewn (B16.1 T11), unless
+    // the caller sets them.
+    // Its dark contour lines are satin lines along their skeleton, satin is kept
+    // for strokes up to 2.5 mm and wider shapes are filled (B16.1 T12).
+    let (resolution, min_area, outline_max, satin_max) = match mode {
+        Mode::PeDesign => (400, 1.0, 0.0, 6.5),
+        Mode::OpenStitch => (800, 2.0, 2.5, 2.5),
+    };
+    let mut options = AutoPunch {
+        colors: count(p, "colors", AutoPunch::default().colors as i64, 0, 64)?,
+        resolution: count(p, "resolution", resolution, 64, 2048)? as u32,
+        min_area_mm2: p.opt("minArea", min_area, 0.0, 1000.0)?,
+        smooth: count(p, "smooth", 0, 0, 5)? as u32,
+        trace: trace_options(p, 0.7)?,
+        satin_max_mm: p.opt("satinMaxWidth", satin_max, 1.0, 12.0)?,
+        satin_min_mm: p.opt("satinMinWidth", 0.7, 0.0, 6.0)?,
+        skip_background: p.bool("skipBackground", Some(true))?,
+        outline_max_mm: p.opt("outlineMaxWidth", outline_max, 0.0, 12.0)?,
+        mode,
+        threads: thread_source(s, p, mode)?,
+        fidelity: fidelity(p, mode)?,
+        isolate: subject_seed(p)?,
+        marks: Marks {
+            subject: strokes(p, "subjectStrokes")?,
+            background: strokes(p, "backgroundStrokes")?,
+        },
+        subject_point: subject_point(p)?,
+        overrides: overrides(p)?,
+        angle_rule,
+        underlap_mm: underlap(p, mode)?,
+        ..AutoPunch::default()
+    };
+    // OpenStitch mode sews anything in the picture: without skipBackground, only a
+    // background of the fabric's colour is left out.
+    if mode == Mode::OpenStitch && p.get("skipBackground").is_none() {
+        let f = thread(p, "fabric")?.unwrap_or(Thread::rgb(0xffffff));
+        options.fabric = Some([f.red, f.green, f.blue]);
+    }
+    Ok((image, frame, options))
+}
+
+pub fn commands() -> Vec<CommandSpec> {
+    vec![
+        spec(
+            "digitize.autoPunch",
+            "Auto Punch (approximation): convert an image's colour areas into fill and satin shapes",
+            Effect::Edit,
+            auto_punch_docs(),
             |s, p| {
-                let (image, frame) = load(s, p)?;
-                let mode = compat_mode(p)?;
-                let angle_rule = match (
-                    choice(p, "angleRule", "pe", &["pe", "varyNeighbours"])?,
-                    mode,
-                ) {
-                    ("pe", _) => AngleRule::Pe,
-                    (_, Mode::OpenStitch) => AngleRule::VaryNeighbours,
-                    (_, Mode::PeDesign) => {
-                        return Err(p.invalid("angleRule", "varyNeighbours needs compatMode openStitch"));
-                    }
-                };
-                // OpenStitch mode works at 800 px, so thin lines and small details keep their
-                // shape, and merges regions under 2 mm², so no speck is sewn (B16.1 T11), unless
-                // the caller sets them.
-                // Its dark contour lines are satin lines along their skeleton, satin is kept
-                // for strokes up to 2.5 mm and wider shapes are filled (B16.1 T12).
-                let (resolution, min_area, outline_max, satin_max) = match mode {
-                    Mode::PeDesign => (400, 1.0, 0.0, 6.5),
-                    Mode::OpenStitch => (800, 2.0, 2.5, 2.5),
-                };
-                let mut options = AutoPunch {
-                    colors: count(p, "colors", AutoPunch::default().colors as i64, 0, 64)?,
-                    resolution: count(p, "resolution", resolution, 64, 2048)? as u32,
-                    min_area_mm2: p.opt("minArea", min_area, 0.0, 1000.0)?,
-                    smooth: count(p, "smooth", 0, 0, 5)? as u32,
-                    trace: trace_options(p, 0.7)?,
-                    satin_max_mm: p.opt("satinMaxWidth", satin_max, 1.0, 12.0)?,
-                    satin_min_mm: p.opt("satinMinWidth", 0.7, 0.0, 6.0)?,
-                    skip_background: p.bool("skipBackground", Some(true))?,
-                    outline_max_mm: p.opt("outlineMaxWidth", outline_max, 0.0, 12.0)?,
-                    mode,
-                    threads: thread_source(s, p, mode)?,
-                    fidelity: fidelity(p, mode)?,
-                    isolate: subject_seed(p)?,
-                    marks: Marks {
-                        subject: strokes(p, "subjectStrokes")?,
-                        background: strokes(p, "backgroundStrokes")?,
-                    },
-                    overrides: overrides(p)?,
-                    angle_rule,
-                    ..AutoPunch::default()
-                };
-                // OpenStitch mode sews anything in the picture: without skipBackground, only a
-                // background of the fabric's colour is left out.
-                if mode == Mode::OpenStitch && p.get("skipBackground").is_none() {
-                    let f = thread(p, "fabric")?.unwrap_or(Thread::rgb(0xffffff));
-                    options.fabric = Some([f.red, f.green, f.blue]);
-                }
+                let (image, frame, options) = auto_punch_options(s, p)?;
                 let out = autopunch::convert(&image, &frame, &options).map_err(|e| failed(p, e))?;
                 let regions = out.objects.len();
                 let buy = to_buy(s, p, &out.threads)?;
@@ -555,6 +771,125 @@ pub fn commands() -> Vec<CommandSpec> {
                 }
                 if let Some(b) = buy {
                     r["toBuy"] = b;
+                }
+                Ok(r)
+            },
+        ),
+        spec(
+            "digitize.presets",
+            "Auto Punch's purpose presets (#489): each one's name, what it is for and the options it sets",
+            Effect::Read,
+            vec![],
+            |_, _| {
+                Ok(Value::Array(
+                    PRESETS
+                        .iter()
+                        .map(|(name, about)| {
+                            json!({"name": name, "about": about, "options": preset_values(name)})
+                        })
+                        .collect(),
+                ))
+            },
+        ),
+        spec(
+            "digitize.exportOutlines",
+            "Save Auto Punch's traced outlines as an SVG file (#489): one filled path per sewn region in its thread colour, one stroked path per line, in mm; import.svg reads it back as one object each",
+            Effect::File,
+            {
+                let mut v = auto_punch_docs();
+                v.push(req(
+                    "out",
+                    "string",
+                    "SVG file to write (relative to the session directory)",
+                ));
+                v
+            },
+            |s, p| {
+                let (image, frame, options) = auto_punch_options(s, p)?;
+                let target = s.resolve(&p.string("out", None)?, Access::Write, &p.command)?;
+                let out = autopunch::convert(&image, &frame, &options).map_err(|e| failed(p, e))?;
+                let (svg, fills, lines) = outlines_svg(&out.objects);
+                std::fs::write(&target, svg).map_err(|e| p.failed(e.to_string()))?;
+                Ok(json!({
+                    "out": target.display().to_string(),
+                    "fills": fills,
+                    "lines": lines,
+                    "colors": hexes(&out.threads),
+                }))
+            },
+        ),
+        spec(
+            "digitize.segment",
+            "One-click subject cut-out (#490, no model): the subject's mask from a click on it; preview for Auto Punch's isolateSubject with subjectPoint, optionally written as a PNG (subject black)",
+            Effect::File,
+            vec![
+                IMAGE,
+                req(
+                    "point",
+                    "[x, y]",
+                    "The click on the subject, in fractions of the image (0-1)",
+                ),
+                opt(
+                    "resolution",
+                    "int 64-2048",
+                    "Working resolution, longest side in pixels (default 800, as Auto Punch's OpenStitch mode)",
+                ),
+                opt(
+                    "subjectStrokes",
+                    "[{points: [[x, y], ...], width}]",
+                    "Brush strokes over parts that are subject for certain, as Auto Punch takes them",
+                ),
+                opt(
+                    "backgroundStrokes",
+                    "[{points: [[x, y], ...], width}]",
+                    "Brush strokes over parts that are background for certain",
+                ),
+                opt("out", "string", "Write the mask to this PNG file"),
+            ],
+            |s, p| {
+                let (_, data) = read_file(s, p, MAX_FILE_BYTES)?;
+                let image = Raster::decode(&data).map_err(|e| failed(p, e))?;
+                let point = point_param(p, "point")?;
+                let work = image.fit_mode(count(p, "resolution", 800, 64, 2048)? as u32);
+                let (w, h) = (work.width() as usize, work.height() as usize);
+                let marks = Marks {
+                    subject: segment_strokes(p, "subjectStrokes")?,
+                    background: segment_strokes(p, "backgroundStrokes")?,
+                };
+                let census = openstitch_digitize::palette::census(&work);
+                let mask = grabcut::isolate_at(&census.modal, w, h, point, &marks)
+                    .ok_or_else(|| p.failed("no background to learn from: the image has no opaque border"))?;
+                let n = mask.iter().filter(|&&m| m).count();
+                let (mut x0, mut y0, mut x1, mut y1) = (w, h, 0, 0);
+                for (i, _) in mask.iter().enumerate().filter(|(_, m)| **m) {
+                    let (x, y) = (i % w, i / w);
+                    (x0, y0, x1, y1) = (x0.min(x), y0.min(y), x1.max(x + 1), y1.max(y + 1));
+                }
+                let mut r = json!({
+                    "width": w,
+                    "height": h,
+                    "subjectPixels": n,
+                    "share": round(n as f64 / (w * h).max(1) as f64),
+                    "box": (n > 0).then(|| [
+                        round(x0 as f64 / w as f64),
+                        round(y0 as f64 / h as f64),
+                        round(x1 as f64 / w as f64),
+                        round(y1 as f64 / h as f64),
+                    ]),
+                });
+                if p.has("out") {
+                    let path = s.resolve(&p.string("out", None)?, Access::Write, &p.command)?;
+                    let png = Raster::from_fn(w as u32, h as u32, |x, y| {
+                        if mask[y as usize * w + x as usize] {
+                            [0, 0, 0, 255]
+                        } else {
+                            [255, 255, 255, 255]
+                        }
+                    })
+                    .and_then(|m| m.encode_png())
+                    .map_err(|e| failed(p, e))?;
+                    std::fs::write(&path, png).map_err(|e| p.failed(e.to_string()))?;
+                    r["out"] = json!(path.display().to_string());
                 }
                 Ok(r)
             },
@@ -798,7 +1133,10 @@ pub fn commands() -> Vec<CommandSpec> {
                     "Working resolution, longest side in pixels (default 600)",
                 ),
                 opt("out", "string", "Write the line image to this PNG file"),
-            ],
+            ]
+            .into_iter()
+            .chain(edge_docs())
+            .collect(),
             |s, p| {
                 let (_, data) = read_file(s, p, MAX_FILE_BYTES)?;
                 let image = Raster::decode(&data).map_err(|e| failed(p, e))?;
@@ -975,21 +1313,49 @@ fn figure_docs(mut v: Vec<ParamDoc>) -> Vec<ParamDoc> {
         ),
         opt("curves", "bool", "Fit Bézier curves (default true)"),
     ]);
+    v.extend(edge_docs());
     v
 }
 
 fn line_options(p: &Params) -> Result<LineImageOptions, CommandError> {
+    let edges = match choice(p, "lines", "dark", &["dark", "edges"])? {
+        "edges" => Some(p.opt("edgeStrength", center::EDGE_STRENGTH, 1.0, 100.0)?),
+        _ if p.has("edgeStrength") => {
+            return Err(p.invalid("edgeStrength", "needs lines: edges"));
+        }
+        _ => None,
+    };
+    if edges.is_some() && p.has("threshold") {
+        return Err(p.invalid("threshold", "lines: edges takes edgeStrength instead"));
+    }
     Ok(LineImageOptions {
         threshold: p.int("threshold", Some(128), 0, 255)? as f64,
         resolution: count(p, "resolution", 600, 64, 2048)? as u32,
+        edges,
     })
+}
+
+/// The `lines` and `edgeStrength` parameters' documentation (#490).
+fn edge_docs() -> [ParamDoc; 2] {
+    [
+        opt(
+            "lines",
+            "dark|edges",
+            "What the line image's lines are: dark (default, PE-DESIGN's: pixels darker than threshold) or edges (a line drawing from a photo: the picture's edges, one pixel wide, found without any model, #490)",
+        ),
+        opt(
+            "edgeStrength",
+            "1-100",
+            "With lines: edges, the weakest edge kept, % of the strongest (default 20; lower keeps fainter edges)",
+        ),
+    ]
 }
 
 /// Stages 1–3; OpenStitch mode takes the threshold from the image (Otsu) unless it is set.
 fn figure(s: &EngineState, p: &Params, mode: Mode) -> Result<center::Figure, CommandError> {
     let (image, frame) = load(s, p)?;
     let mut lo = line_options(p)?;
-    if mode == Mode::OpenStitch && !p.has("threshold") {
+    if mode == Mode::OpenStitch && !p.has("threshold") && lo.edges.is_none() {
         lo.threshold = center::otsu_threshold(&image, lo.resolution);
     }
     let li = center::line_image(&image, &lo);

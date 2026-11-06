@@ -108,6 +108,8 @@ pub struct RibbonState {
     pub envelope_edit: bool,
     /// The free-envelope handle being dragged on the canvas.
     pub envelope_drag: Option<crate::envelope_ui::EnvelopeDrag>,
+    /// An arched text's centre handle being dragged (#456): the text and where the pointer is.
+    pub arc_drag: Option<(u64, openstitch_design::Vec2)>,
     /// Text ▸ Ink/Stitch Fonts (#529).
     pub inkstitch: crate::inkstitch_ui::InkStitchFonts,
     /// ScreenTip of the command under the pointer (status bar).
@@ -142,6 +144,7 @@ impl Default for RibbonState {
             font_browse_undo: None,
             envelope_edit: false,
             envelope_drag: None,
+            arc_drag: None,
             inkstitch: Default::default(),
             hover: None,
             property_search: String::new(),
@@ -1540,9 +1543,9 @@ pub fn help_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         .clicked()
     {
         use openstitch_app::editor::sew_kit;
-        let kit = std::env::current_exe().ok().and_then(|e| sew_kit::bundled(&e));
         // The packaged kit in the file manager; GitHub when there is none or it cannot open.
-        if kit.is_none_or(|k| sew_kit::open_folder(&k).is_err()) {
+        let exe = std::env::current_exe().ok();
+        if sew_kit::open_kit(exe.as_deref()) == sew_kit::Opened::Online {
             ui.ctx().open_url(egui::OpenUrl::new_tab(sew_kit::ONLINE));
         }
     }

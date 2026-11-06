@@ -717,6 +717,13 @@ fn auto_punch_plan_dry_run_and_overrides() {
         ),
         (json!({"overrides": [{"region": 0}]}), "overrides"),
         (json!({"angleRule": "varyNeighbours"}), "openStitch"),
+        (json!({"angleRule": "leastTravel"}), "openStitch"),
+        (json!({"underlap": 0.8}), "openStitch"),
+        (
+            json!({"compatMode": "openStitch", "underlap": 2.0}),
+            "underlap",
+        ),
+        (json!({"angleRule": "shortest"}), "angleRule"),
     ] {
         let e = s
             .execute("digitize.autoPunch", Some(&with(extra.clone())))
@@ -729,4 +736,296 @@ fn auto_punch_plan_dry_run_and_overrides() {
         with(json!({"compatMode": "openStitch", "angleRule": "varyNeighbours", "dryRun": true})),
     );
     assert!(!r["plan"].as_array().expect("plan").is_empty());
+}
+
+/// #489: `angleRule: leastTravel` sews no more thread than PE-DESIGN's rule, through the command.
+#[test]
+fn auto_punch_least_travel_sews_no_more_thread() {
+    let dir = temp_dir();
+    // A U-shaped red region on white: its arms are sections a fill travels between.
+    let img = Raster::from_fn(60, 60, |x, y| {
+        let inside =
+            (6..54).contains(&x) && (6..54).contains(&y) && !((20..40).contains(&x) && y < 40);
+        if inside {
+            [200, 20, 30, 255]
+        } else {
+            [255, 255, 255, 255]
+        }
+    })
+    .expect("size");
+    std::fs::write(dir.join("u.png"), img.encode_png().expect("png")).expect("write");
+    let thread = |rule: &str| {
+        let mut s = Session::new(&dir);
+        run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+        let r = run(
+            &mut s,
+            "digitize.autoPunch",
+            json!({"path": "u.png", "width": 60, "compatMode": "openStitch", "angleRule": rule}),
+        );
+        let ids = r["ids"].clone();
+        run(&mut s, "object.toStitches", json!({"ids": ids}));
+        let mut total = 0.0;
+        for id in r["ids"].as_array().expect("ids") {
+            let pts = run(&mut s, "stitches.points", json!({"id": id}));
+            let pts = pts["points"].as_array().expect("points");
+            for w in pts.windows(2) {
+                if w[1]["command"] == "stitch" {
+                    let d = |k: &str| w[1][k].as_f64().expect("x") - w[0][k].as_f64().expect("y");
+                    total += d("x").hypot(d("y"));
+                }
+            }
+        }
+        (total, r["plan"][0]["angle"].as_f64().expect("angle"))
+    };
+    let (pe, pe_angle) = thread("pe");
+    let (least, least_angle) = thread("leastTravel");
+    assert!(least <= pe, "{least} mm against {pe} mm");
+    assert_ne!(least_angle, pe_angle, "the U is sewn another way");
+}
+
+/// #489: purpose presets fill in options the call leaves unset, need OpenStitch mode, and are
+/// listed by `digitize.presets`.
+#[test]
+fn auto_punch_presets() {
+    let dir = temp_dir();
+    write_sample(&dir);
+    let mut s = Session::new(&dir);
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    let list = run(&mut s, "digitize.presets", json!({}));
+    let names: Vec<&str> = list
+        .as_array()
+        .expect("list")
+        .iter()
+        .map(|p| p["name"].as_str().expect("name"))
+        .collect();
+    assert_eq!(
+        names,
+        [
+            "logo",
+            "patch",
+            "lineArt",
+            "illustration",
+            "photo",
+            "pixelArt"
+        ]
+    );
+    let base = json!({"path": "sample.png", "colors": 4, "width": 60, "dryRun": true});
+    let with = |extra: Value| {
+        let mut p = base.clone();
+        for (k, v) in extra.as_object().expect("object") {
+            p[k] = v.clone();
+        }
+        p
+    };
+    for preset in &names {
+        let r = run(
+            &mut s,
+            "digitize.autoPunch",
+            with(json!({"preset": preset})),
+        );
+        assert!(!r["plan"].as_array().expect("plan").is_empty(), "{preset}");
+        // The same as its options given by hand.
+        let options = list
+            .as_array()
+            .expect("list")
+            .iter()
+            .find(|p| p["name"] == *preset)
+            .expect("listed")["options"]
+            .clone();
+        let mut by_hand = with(options);
+        by_hand["compatMode"] = json!("openStitch");
+        assert_eq!(r, run(&mut s, "digitize.autoPunch", by_hand), "{preset}");
+    }
+    // The call's own option wins over the preset's.
+    let own = run(
+        &mut s,
+        "digitize.autoPunch",
+        with(json!({"preset": "patch", "skipBackground": true})),
+    );
+    let patch = run(
+        &mut s,
+        "digitize.autoPunch",
+        with(json!({"preset": "patch"})),
+    );
+    assert!(
+        own["background"].is_string() && patch["background"].is_null(),
+        "{own} {patch}"
+    );
+    for (extra, needle) in [
+        (json!({"preset": "embossed"}), "preset"),
+        (
+            json!({"preset": "logo", "compatMode": "peDesign"}),
+            "openStitch",
+        ),
+    ] {
+        let e = s
+            .execute("digitize.autoPunch", Some(&with(extra.clone())))
+            .expect_err("rejected");
+        assert!(e.to_string().contains(needle), "{extra}: {e}");
+    }
+    assert!(s.design().objects.is_empty());
+}
+
+/// #489: `digitize.exportOutlines` writes the traced regions as SVG; `import.svg` reads back
+/// one object per region; writes stay in the sandbox.
+#[test]
+fn auto_punch_outlines_export_as_svg() {
+    let dir = temp_dir();
+    write_sample(&dir);
+    let mut s = Session::new(&dir);
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    let r = run(
+        &mut s,
+        "digitize.exportOutlines",
+        json!({"path": "sample.png", "colors": 4, "width": 60, "out": "outlines.svg"}),
+    );
+    let svg = std::fs::read_to_string(dir.join("outlines.svg")).expect("written");
+    assert!(
+        svg.starts_with("<svg") && svg.contains("fill-rule=\"evenodd\""),
+        "{svg}"
+    );
+    assert!(s.design().objects.is_empty(), "the export adds nothing");
+    let regions = r["fills"].as_u64().expect("fills") + r["lines"].as_u64().expect("lines");
+    let converted = run(
+        &mut s,
+        "digitize.autoPunch",
+        json!({"path": "sample.png", "colors": 4, "width": 60, "dryRun": true}),
+    );
+    assert_eq!(converted["regions"].as_u64(), Some(regions), "{r}");
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    run(&mut s, "import.svg", json!({"path": "outlines.svg"}));
+    let shapes = run(&mut s, "object.list", json!({}))
+        .as_array()
+        .expect("list")
+        .iter()
+        .filter(|o| o["kind"] == "shape")
+        .count();
+    assert_eq!(shapes as u64, regions);
+    // A sandboxed session writes only inside its folder.
+    let outside = temp_dir();
+    let mut sandboxed = Session::sandboxed(&dir);
+    let escape = outside.join("x.svg").display().to_string();
+    assert!(
+        sandboxed
+            .execute(
+                "digitize.exportOutlines",
+                Some(&json!({"path": "sample.png", "out": escape})),
+            )
+            .is_err()
+    );
+    assert!(!outside.join("x.svg").exists());
+}
+
+/// #490: the no-model picture helpers through their commands: a click's subject mask
+/// (`digitize.segment`, Auto Punch's `subjectPoint`) and a line drawing from a photo
+/// (`lines: edges`).
+#[test]
+fn picture_helpers_cut_out_and_draw_lines() {
+    let dir = temp_dir();
+    // A red disc on mottled green.
+    let img = Raster::from_fn(90, 60, |x, y| {
+        if (f64::from(x) - 45.0).hypot(f64::from(y) - 30.0) < 15.0 {
+            [210, 30, 40, 255]
+        } else {
+            [
+                50 + ((x * 13 + y * 7) % 30) as u8,
+                150 + ((x * 5 + y * 11) % 40) as u8,
+                50,
+                255,
+            ]
+        }
+    })
+    .expect("size");
+    std::fs::write(dir.join("disc.png"), img.encode_png().expect("png")).expect("write");
+    let mut s = Session::sandboxed(&dir);
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    let r = run(
+        &mut s,
+        "digitize.segment",
+        json!({"path": "disc.png", "point": [0.5, 0.5], "out": "mask.png"}),
+    );
+    let b = r["box"].as_array().expect("box");
+    let f = |i: usize| b[i].as_f64().expect("number");
+    assert!(
+        f(0) > 0.25 && f(2) < 0.75 && f(1) > 0.15 && f(3) < 0.85,
+        "{r}"
+    );
+    let mask = Raster::decode(&std::fs::read(dir.join("mask.png")).expect("written")).expect("png");
+    assert_eq!(
+        mask.pixel(mask.width() / 2, mask.height() / 2),
+        [0, 0, 0, 255]
+    );
+    assert_eq!(mask.pixel(1, 1), [255, 255, 255, 255]);
+    // Auto Punch with the click sews the disc and leaves the green out.
+    let ap = run(
+        &mut s,
+        "digitize.autoPunch",
+        json!({"path": "disc.png", "width": 60, "compatMode": "openStitch", "isolateSubject": true, "subjectPoint": [0.5, 0.5], "colors": 2}),
+    );
+    // The disc, and at most a thin fringe of the grass's colour round its edge.
+    let plan = ap["plan"].as_array().expect("plan");
+    let area = |red: bool| -> f64 {
+        plan.iter()
+            .filter(|r| (r["color"] == "#ed171f") == red)
+            .map(|r| r["areaMm2"].as_f64().expect("area"))
+            .sum()
+    };
+    assert!(
+        area(true) > 300.0 && area(false) < 0.05 * area(true),
+        "{ap}"
+    );
+    // The edges as a line image: a ring round the disc.
+    let li = run(
+        &mut s,
+        "digitize.lineImage",
+        json!({"path": "disc.png", "lines": "edges", "edgeStrength": 30}),
+    );
+    assert!(li["linePixels"].as_u64().expect("count") > 50, "{li}");
+    let dc = run(
+        &mut s,
+        "digitize.designCenter",
+        json!({"path": "disc.png", "lines": "edges", "width": 60, "regionSew": "none"}),
+    );
+    assert!(!dc["ids"].as_array().expect("ids").is_empty(), "{dc}");
+    let base = json!({"path": "disc.png", "width": 60, "compatMode": "openStitch"});
+    for (command, extra, needle) in [
+        (
+            "digitize.autoPunch",
+            json!({"subjectPoint": [0.5, 0.5]}),
+            "isolateSubject",
+        ),
+        (
+            "digitize.autoPunch",
+            json!({"isolateSubject": true, "subjectPoint": [0.5, 0.5], "subjectRect": [0, 0, 1, 1]}),
+            "subjectRect",
+        ),
+        (
+            "digitize.autoPunch",
+            json!({"isolateSubject": true, "subjectPoint": [1.5, 0.5]}),
+            "subjectPoint",
+        ),
+        ("digitize.segment", json!({"point": [0.5]}), "point"),
+        (
+            "digitize.lineImage",
+            json!({"edgeStrength": 30}),
+            "lines: edges",
+        ),
+        (
+            "digitize.lineImage",
+            json!({"lines": "edges", "threshold": 100}),
+            "edgeStrength",
+        ),
+        (
+            "digitize.segment",
+            json!({"point": [0.5, 0.5], "out": "../m.png"}),
+            "",
+        ),
+    ] {
+        let mut p = base.clone();
+        for (k, v) in extra.as_object().expect("object") {
+            p[k] = v.clone();
+        }
+        let e = s.execute(command, Some(&p)).expect_err("rejected");
+        assert!(e.to_string().contains(needle), "{command} {extra}: {e}");
+    }
 }

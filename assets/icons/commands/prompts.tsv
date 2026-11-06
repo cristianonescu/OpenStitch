@@ -194,3 +194,7 @@ line_gap	2B2F36 2A7AD8 D8433A	a very thick blue circular ring with a wide gap cu
 status_done	2B2F36 2E9D58	a bold check mark inside a round green badge
 status_failed	2B2F36 D8433A	a bold X cross mark inside a round red badge
 status_running	2B2F36 A0A6AE	an hourglass with light grey sand
+player_start	2B2F36 2A7AD8	a bold vertical bar on the left and a solid blue triangle pointing left (player_end mirrored)
+player_back	2B2F36 2A7AD8	a single solid blue triangle pointing left, with no frame, no box and no other shape around it
+player_forward	2B2F36 2A7AD8	a media player step-forward button: a single blue triangle pointing right
+player_end	2B2F36 2A7AD8	a media player skip-to-end button: a blue triangle pointing right followed by a bold vertical bar on the right

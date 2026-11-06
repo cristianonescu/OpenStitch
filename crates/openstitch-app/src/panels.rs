@@ -211,10 +211,23 @@ pub fn pec_grid(ui: &mut egui::Ui, id: &str, current: Option<&Thread>) -> Option
     let mut chosen = None;
     let index = current.and_then(inspector::pec_index);
     ui.label(RichText::new("Brother PEC thread chart").strong());
+    // Search by chart number, code or name (#486), matched as `threads.find` matches.
+    let search_id = ui.make_persistent_id(("pec-search", id));
+    let mut query: String = ui.data_mut(|d| d.get_temp(search_id)).unwrap_or_default();
+    ui.add(
+        egui::TextEdit::singleline(&mut query)
+            .hint_text("Search number or name")
+            .desired_width(8.0 * 23.0),
+    );
+    ui.data_mut(|d| d.insert_temp(search_id, query.clone()));
+    let shown = pec_matches(&query);
+    if shown.is_empty() {
+        ui.label(RichText::new("No thread in this chart matches.").weak());
+    }
     egui::Grid::new(("pec", id))
         .spacing(egui::vec2(3.0, 3.0))
         .show(ui, |ui| {
-            for (n, (i, t)) in inspector::pec_palette().into_iter().enumerate() {
+            for (n, (i, t)) in shown.into_iter().enumerate() {
                 let tip = format!("{i} {} ({})", t.name.as_deref().unwrap_or(""), t.hex());
                 let r = swatch(ui, [t.red, t.green, t.blue], 20.0).on_hover_text(tip);
                 if Some(i) == index && current.is_some_and(|c| c.name.is_some()) {
@@ -235,6 +248,27 @@ pub fn pec_grid(ui: &mut egui::Ui, id: &str, current: Option<&Thread>) -> Option
             }
         });
     chosen
+}
+
+/// The PEC chart's threads matching a search: all of them for an empty query, otherwise those
+/// whose chart number starts with it and those `threads.find {charts: ["brother"]}` finds (by
+/// Brother Embroidery code or name, the engine's own entries for the chart).
+pub fn pec_matches(query: &str) -> Vec<(usize, &'static Thread)> {
+    let q = query.trim();
+    if q.is_empty() {
+        return inspector::pec_palette();
+    }
+    let found: Vec<usize> = openstitch_engine::thread_match::builtins()
+        .into_iter()
+        .filter(|b| b.id == "brother")
+        .flat_map(|b| b.entries)
+        .filter(|(_, t)| openstitch_engine::thread_match::find_rank(t, q).is_some())
+        .map(|(i, _)| i)
+        .collect();
+    inspector::pec_palette()
+        .into_iter()
+        .filter(|(i, _)| i.to_string().starts_with(q) || found.contains(i))
+        .collect()
 }
 
 /// PEC chart picker: returns the chart number chosen.
@@ -797,22 +831,32 @@ pub fn sim_controls(
                 *pos = Some(0);
             }
         }
+        // #653: the player's buttons are Higgsfield icons, not ASCII marks.
         if ui
-            .add_enabled(total > 0, egui::Button::new("|<"))
+            .add_enabled(
+                total > 0,
+                egui::Button::new(crate::icons::ui_image(ui, "player_start")),
+            )
             .on_hover_text("Start")
             .clicked()
         {
             *pos = Some(0);
         }
         if ui
-            .add_enabled(total > 0, egui::Button::new("<"))
+            .add_enabled(
+                total > 0,
+                egui::Button::new(crate::icons::ui_image(ui, "player_back")),
+            )
             .on_hover_text("Previous stitch")
             .clicked()
         {
             *pos = Some(pos.unwrap_or(total).saturating_sub(1));
         }
         if ui
-            .add_enabled(total > 0, egui::Button::new(">"))
+            .add_enabled(
+                total > 0,
+                egui::Button::new(crate::icons::ui_image(ui, "player_forward")),
+            )
             .on_hover_text("Next stitch")
             .clicked()
         {
@@ -820,7 +864,10 @@ pub fn sim_controls(
             *pos = (n < total).then_some(n);
         }
         if ui
-            .add_enabled(total > 0, egui::Button::new(">|"))
+            .add_enabled(
+                total > 0,
+                egui::Button::new(crate::icons::ui_image(ui, "player_end")),
+            )
             .on_hover_text("End")
             .clicked()
         {
@@ -1033,4 +1080,39 @@ fn player_strip(app: &mut EditorApp, ui: &mut egui::Ui) {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod pec_search_tests {
+    use super::*;
+
+    #[test]
+    fn pec_picker_search_finds_threads_by_number_or_name() {
+        assert_eq!(pec_matches("").len(), inspector::pec_palette().len());
+        let rose = pec_matches("deep rose");
+        assert!(!rose.is_empty());
+        assert!(rose.iter().all(|(_, t)| {
+            t.name
+                .as_deref()
+                .unwrap_or("")
+                .to_lowercase()
+                .contains("deep rose")
+        }));
+        // A chart number finds its own thread, and so does its Brother Embroidery code, as
+        // `threads.find {charts: ["brother"]}` does.
+        let (i, _) = rose[0];
+        assert!(pec_matches(&i.to_string()).iter().any(|(j, _)| *j == i));
+        let brother = openstitch_engine::thread_match::builtins()
+            .into_iter()
+            .find(|b| b.id == "brother")
+            .expect("the Brother chart");
+        let (_, entry) = brother
+            .entries
+            .iter()
+            .find(|(j, _)| *j == i)
+            .expect("entry");
+        let code = entry.catalog_number.as_deref().expect("a code");
+        assert!(pec_matches(code).iter().any(|(j, _)| *j == i));
+        assert!(pec_matches("no such thread").is_empty());
+    }
 }

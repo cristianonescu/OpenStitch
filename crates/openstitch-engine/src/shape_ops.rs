@@ -6,9 +6,7 @@ use crate::commands::{CommandSpec, Effect, IDS, MM, default_line, indexes, opt, 
 use crate::params::{CommandError, Params};
 use crate::session::EngineState;
 use openstitch_design::boolean::{self, BoolOp, Region};
-use openstitch_design::{
-    Contour, Design, DesignObject, LineSewing, LineType, ObjectKind, RegionSewing, Vec2,
-};
+use openstitch_design::{Contour, Design, DesignObject, LineSewing, LineType, ObjectKind, Vec2};
 use serde_json::json;
 
 /// Most vertices a cut outline may have.
@@ -322,12 +320,70 @@ pub(crate) fn merge_overlapping(d: &mut Design, ids: &[u64]) -> Vec<u64> {
     }
 }
 
-/// New outline for `o`. The sewing direction returns to the default, as in PE-DESIGN.
+/// New outline for `o`. Its sewing attributes stay as they were, the sewing angle included
+/// (#652: it used to return to the region type's default); entry and exit points stay where
+/// they still lie on the new outline ([`keep_points_on_outline`]).
 pub(crate) fn set_region(o: &mut DesignObject, regions: &[Region]) {
     o.contours = boolean::contours(regions);
+    keep_points_on_outline(o);
+}
+
+/// How far, in design units (0.1 mm), an entry or exit point may lie from the new outline after
+/// a cut and still be kept: half a millimetre, about a thread's width.
+pub(crate) const ON_OUTLINE: f64 = 5.0;
+
+/// After `o`'s outline changed (a cut, merge, knife, divide, shape builder or effect): its region
+/// and line entry and exit points stay where they are still on the outline (within
+/// [`ON_OUTLINE`]), and return to their defaults (`None`) where the cut took that part away.
+pub(crate) fn keep_points_on_outline(o: &mut DesignObject) {
+    let contours = &o.contours;
+    let on = |p: &Option<Vec2>| p.is_some_and(|p| distance_to_outline(contours, p) <= ON_OUTLINE);
     if let Some(r) = &mut o.region {
-        r.angle = RegionSewing::default_angle(r.kind);
+        if !on(&r.entry) {
+            r.entry = None;
+        }
+        if !on(&r.exit) {
+            r.exit = None;
+        }
     }
+    if let Some(l) = &mut o.line {
+        if !on(&l.entry) {
+            l.entry = None;
+        }
+        if !on(&l.exit) {
+            l.exit = None;
+        }
+    }
+}
+
+/// The distance from `p` to the nearest edge of `contours` (infinite when there is none).
+fn distance_to_outline(contours: &[Contour], p: Vec2) -> f64 {
+    let mut best = f64::INFINITY;
+    for c in contours {
+        let n = c.points.len();
+        let edges = if c.closed { n } else { n.saturating_sub(1) };
+        for i in 0..edges {
+            let (a, b) = (c.points[i], c.points[(i + 1) % n]);
+            let ab = Vec2 {
+                x: b.x - a.x,
+                y: b.y - a.y,
+            };
+            let len2 = ab.x * ab.x + ab.y * ab.y;
+            let t = if len2 <= 0.0 {
+                0.0
+            } else {
+                (((p.x - a.x) * ab.x + (p.y - a.y) * ab.y) / len2).clamp(0.0, 1.0)
+            };
+            best = best.min(p.distance(Vec2 {
+                x: a.x + t * ab.x,
+                y: a.y + t * ab.y,
+            }));
+        }
+        if n == 1 {
+            best = best.min(p.distance(c.points[0]));
+        }
+    }
+    best
 }
 
 /// Removes the objects at `idx` (any order).

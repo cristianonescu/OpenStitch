@@ -203,6 +203,9 @@ fn describe(o: &DesignObject) -> Value {
     if o.connector_run {
         r["connector"] = json!("run");
     }
+    if o.knockdown.is_some() {
+        r["knockdown"] = json!(true);
+    }
     if let Some(t) = &o.text {
         r["text"] = json!(t.text);
         r["font"] = json!(t.font);
@@ -1260,8 +1263,8 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt("underlay", "bool", "Underlay (style in underlayStyle)"),
                 opt(
                     "underlayStyle",
-                    "edge|zigzag|edgeZigzag|double|edgeFill|cross",
-                    "Underlay: edge run, inset rows, both, two crossing layers, PE-DESIGN's first type (edge and rows) or its second (edge and lattice); shorthand for underlayParts",
+                    "edge|zigzag|edgeZigzag|double|edgeFill|cross|auto|centreWalk",
+                    "Underlay: edge run, inset rows, both, two crossing layers, PE-DESIGN's first type (edge and rows) or its second (edge and lattice); shorthand for underlayParts. Beyond PE-DESIGN: auto (Manual Punch column: a centre walk, the edge run, or edge run and zigzag by the column's average width, see underlayAuto) and centreWalk (a running stitch down the middle)",
                 ),
                 opt(
                     "underlayParts",
@@ -1433,7 +1436,11 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     "bool",
                     "Programmable fill: sew a plain fill underneath",
                 ),
-            ],
+            ]
+            .into_iter()
+            .chain(crate::satin_shaping::SHAPING_PARAMS)
+            .chain(crate::satin_shaping::REGION_PARAMS)
+            .collect(),
             |s, p| {
                 let idx = indexes(p, &s.design)?;
                 let kind = match p
@@ -1505,6 +1512,8 @@ fn attribute_commands() -> Vec<CommandSpec> {
                             ("double", UnderlayStyle::Double),
                             ("edgeFill", UnderlayStyle::EdgeFill),
                             ("cross", UnderlayStyle::Cross),
+                            ("auto", UnderlayStyle::Auto),
+                            ("centreWalk", UnderlayStyle::CentreWalk),
                         ],
                     )? {
                         r.underlay_style = u;
@@ -1603,6 +1612,9 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         r.split_length = (l > 0.0).then_some(l);
                     }
                     r.half_stitch = p.bool("halfStitch", Some(r.half_stitch))?;
+                    crate::satin_shaping::apply_shaping(p, &mut r.satin_shaping)?;
+                    crate::satin_shaping::apply_auto(p, &mut r.underlay_auto)?;
+                    crate::satin_shaping::apply_underlay2(p, &mut r.underlay2)?;
                     if p.has("travel") {
                         r.running_stitch_path = if p.bool("travel", None)? {
                             r.running_stitch_path.or(Some(RunningStitchPath::Inside))
@@ -1848,7 +1860,15 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     "feed|run",
                     "Closed stem, candlewick and chain lines with moved points: the pattern begins and ends at the exit point L2; start with it (feed) or run there from the entry point L1 (run)",
                 ),
-            ],
+            ]
+            .into_iter()
+            .chain(crate::satin_shaping::SHAPING_PARAMS)
+            .chain([opt(
+                "underlayStyle",
+                "edge|centreWalk|edgeZigzag|auto",
+                "Zigzag: the under sewing when underSewing is on: edge (PE-DESIGN's two runs a quarter of the width to each side, the default), centreWalk (along the line and back), edgeZigzag (one edge run out, a zigzag back) or auto (by width: underlayAuto)",
+            )])
+            .collect(),
             |s, p| {
                 let idx = indexes(p, &s.design)?;
                 let kind = match p
@@ -1985,6 +2005,20 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     l.leave_uncut = p.bool("leaveUncut", Some(l.leave_uncut))?;
                     l.half_stitch = p.bool("halfStitch", Some(l.half_stitch))?;
                     l.underlay = p.bool("underSewing", Some(l.underlay))?;
+                    if let Some(u) = choice(
+                        p,
+                        "underlayStyle",
+                        &[
+                            ("edge", UnderlayStyle::Edge),
+                            ("centreWalk", UnderlayStyle::CentreWalk),
+                            ("edgeZigzag", UnderlayStyle::EdgeZigzag),
+                            ("auto", UnderlayStyle::Auto),
+                        ],
+                    )? {
+                        l.underlay_style = u;
+                    }
+                    crate::satin_shaping::apply_shaping(p, &mut l.satin_shaping)?;
+                    crate::satin_shaping::apply_auto(p, &mut l.underlay_auto)?;
                     o.line = Some(l);
                 }
                 Ok(Value::Null)
@@ -2275,6 +2309,11 @@ fn text_docs(text_required: bool) -> Vec<ParamDoc> {
             "run|cross|block",
             "How a pixel font's pixels are sewn (OpenStitch Pixel; one pixel is size/7): a short run, a cross stitch or a block of rows (default run)",
         ),
+        opt(
+            "arc",
+            "mm | null",
+            "Arched text (beyond PE-DESIGN, #456): the first line's baseline radius, 5-1000 mm; positive arches up (over the top of a circle), negative arches down (under the bottom, read upright). Each further line is a concentric ring one line spacing inward (arch up) or outward (arch down). Too tight a ring is refused with the radius needed. Replaces Text Transform; not for vertical text or text fitted to an outline; null: straight",
+        ),
     ]
 }
 
@@ -2355,6 +2394,41 @@ fn text_params(
         };
         let (lo, hi) = text::envelope_level_range(n);
         spec.envelope_level = Some(p.req("envelopeLevel", lo, hi)?);
+    }
+    if p.has("envelope") {
+        // A Text Transform preset replaces an arc (#456).
+        spec.arc = None;
+    }
+    if p.is_null("arc") {
+        spec.arc = None;
+    } else if p.has("arc") {
+        let r = p.number("arc", None, Some((-text::MAX_ARC, text::MAX_ARC)))?;
+        if r.abs() < text::MIN_ARC {
+            return Err(p.invalid(
+                "arc",
+                format!(
+                    "the radius must be at least {} mm either way",
+                    text::MIN_ARC
+                ),
+            ));
+        }
+        if spec.path.is_some() {
+            return Err(p.failed(
+                "an arc is not available for text fitted to an outline; release it first",
+            ));
+        }
+        if spec.direction == TextDirection::Vertical {
+            return Err(p.invalid("arc", "not available for vertical text"));
+        }
+        if p.has("envelope") {
+            return Err(p.invalid("arc", "give either an arc or a Text Transform preset"));
+        }
+        spec.envelope = None;
+        spec.envelope_level = None;
+        spec.custom_envelope = None;
+        spec.arc = Some(r);
+    } else if spec.direction == TextDirection::Vertical {
+        spec.arc = None;
     }
     Ok(())
 }
@@ -2639,6 +2713,7 @@ fn text_commands() -> Vec<CommandSpec> {
                 let path = path_param(s, p, s.design.next_object_id)?;
                 if let Some(path) = path {
                     spec.path = Some(path);
+                    spec.arc = None;
                     spec.envelope = None;
                     spec.envelope_level = None;
                     spec.custom_envelope = None;
@@ -2787,7 +2862,8 @@ fn text_commands() -> Vec<CommandSpec> {
                         };
                         let t = s.design.objects[i].text.as_mut().expect("text object");
                         t.path = Some(path);
-                        // Fitting to an outline cancels Text Transform (the guide).
+                        // Fitting to an outline cancels Text Transform (the guide) and an arc.
+                        t.arc = None;
                         t.envelope = None;
                         t.envelope_level = None;
                         t.custom_envelope = None;

@@ -239,6 +239,10 @@ own!(
     "status_done",
     "status_failed",
     "status_running",
+    "player_start",
+    "player_back",
+    "player_forward",
+    "player_end",
 );
 
 /// The icons of buttons that run no command: the Assistant panel's attach and close, the panes'
@@ -259,6 +263,10 @@ pub const UI: &[&str] = &[
     "status_failed",
     "status_running",
     "hand",
+    "player_start",
+    "player_back",
+    "player_forward",
+    "player_end",
 ];
 
 /// The glyph of the [`UI`] icon `name`.
