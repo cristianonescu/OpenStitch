@@ -116,6 +116,8 @@ mod region_compat;
 mod satin_compat;
 #[path = "sections.rs"]
 mod sections;
+#[path = "session_fork.rs"]
+mod session_fork;
 #[path = "sewing.rs"]
 mod sewing;
 #[path = "shape_tools.rs"]
