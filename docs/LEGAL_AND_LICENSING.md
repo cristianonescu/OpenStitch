@@ -35,17 +35,23 @@ the project keeps:
   used. On 2026-10-30 and 2026-10-31 102 icons were added the same way in three rounds (commands that showed
   another command's icon, and the suite windows' own commands; rows from `connect` on in
   `prompts.tsv`; see [research/asset-audit.md](research/asset-audit.md)), with each Higgsfield
-  job id in `higgsfield-jobs.tsv` next to the SVGs. The Assistant panel's attach (paperclip) and
-  close icons were added the same way on 2026-11-04 (#399). Smooth Shape, Smooth tolerance and Smooth Stitches (#478) were added the same way on 2026-11-05. The Shape Builder icon (#497) was added the same way on 2026-11-05. The Shape Effects icon (#497) was added the same way on 2026-11-05. The Knife icon (#477) was added the same way on 2026-11-05. The move up and move down arrows of reorder lists (#409), the panes' dock and float icons (#410) the drop-down caret of menu buttons (#412) and the Turning Gap icon (#635) were added the same way on 2026-11-06. The Assistant's tool-step status icons (done, failed, running; #653) and the Stitch Simulator's start, previous, next and end buttons (#653; start is end mirrored) were added the same way on 2026-11-06. The job ids of the first set
+  job id in `higgsfield-jobs.tsv` next to the SVGs. The Assistant command icon (`assistant`, #316) and the Assistant panel's attach (paperclip) and
+  close icons (#399) were added the same way on 2026-11-04. Smooth Shape, Smooth tolerance and Smooth Stitches (#478) were added the same way on 2026-11-05. The Shape Builder icon (#497) was added the same way on 2026-11-05. The Shape Effects icon (#497) was added the same way on 2026-11-05. The Knife icon (#477) was added the same way on 2026-11-05. The move up and move down arrows of reorder lists (#409), the panes' dock and float icons (#410) the drop-down caret of menu buttons (#412) and the Turning Gap icon (#635) were added the same way on 2026-11-06. The Assistant's tool-step status icons (done, failed, running; #653) and the Stitch Simulator's start, previous, next and end buttons (#653; start is end mirrored) were added the same way on 2026-11-06. The job ids of the first set
   (2026-10-27, #35, `gear` among them) were recovered from the owner's Higgsfield history on
   2026-11-04 and are in the same file: each cleaned job output matches its SVG exactly, or with
   only the hand-set fills different. `tools/check_icons.py` (CI) fails when any image file
   anywhere under `assets/` (icons, illustrations, brand, textures, or a new folder) has neither
   a row in the `higgsfield-jobs.tsv` beside it nor a row in `tools/check_assets_allow.tsv`
   (which names the logo job each app icon, wordmark and render was made from by
-  `tools/clean_logo.py` and `tools/gen_icons.py`, and the cloth texture, whose job id is still
-  to be recovered), or when the app draws an emoji, Unicode symbol or painter shape as an
-  icon. The vector shapes in
+  `tools/clean_logo.py` and `tools/gen_icons.py`). Outside `assets/` (#654), every image file
+  the repository tracks must match one row of `tools/graphics_provenance.tsv`: Higgsfield
+  images with a job in their provenance table (`examples/images/PROVENANCE.md`), images our
+  own tools generate (screenshots, renders, kit previews), test inputs written by hand, or
+  evidence (sew-out scans). It also fails when the app shows an emoji or Unicode symbol as an
+  icon, in any control, label, header, hover text or notice, even through a variable; when it
+  shows an ASCII mark such as "::" or ">|" on its own; or when it paints an icon, in an icon
+  function or inline as a small fixed shape. Marks on the design canvas, such as trim marks
+  and guide handles, are positions on the design, not icons, and are listed in the script. The vector shapes in
   `crates/openstitch-app/src/icons.rs` are the fallback when an SVG cannot be rendered. The OpenStitch logo (the app icon `assets/icons/openstitch*`, the
   Application button mark, the About window, the startup splash and the README header, all
   from `assets/brand`) is the project's own: it was generated for OpenStitch with Higgsfield
@@ -77,7 +83,20 @@ the project keeps:
   people (no real person's likeness), no brands, logos or copyrighted characters, and nothing
   modelled on Brother's or PE-DESIGN's samples. PE-DESIGN's conversions of these images are
   references kept in the owner's notes folder, outside the repository; the gallery shows
-  OpenStitch's results only.
+  OpenStitch's results only. `d01` and `d02` were made in code from `p07` and `g01` (same file).
+- **Test inputs and evidence (not artwork):** a few files are plain test inputs written for
+  the project, not graphics, and `tools/graphics_provenance.tsv` records each one:
+  - `examples/imports/leaf.svg`: a leaf, a sun and a box, written by hand as SVG text;
+  - `examples/digitize/*.png`: flat badge, drawing and sphere test pictures for the image
+    wizards;
+  - `crates/openstitch-engine/tests/fixtures/svg/*`: the SVG importer's fixtures, written by
+    hand;
+  - `owner-shapes.bmp`: four flat shapes, recorded in its folder's PROVENANCE.md;
+  - `compat/reference/pes/thread-match-swatches.svg`: twelve coloured squares.
+
+  The sew-out scans in `examples/sew/calibration/results` are the owner's photographs of the
+  owner's own sew-outs. They are kept as calibration evidence (#295), not as graphics of the
+  application.
 - **Never in the repository:** Brother artwork, icons, logos, fonts or screenshots of
   PE-DESIGN. Documentation screenshots show OpenStitch only.
 - **Naming:** "PE-DESIGN" is not used as product branding in the user interface. Compatibility

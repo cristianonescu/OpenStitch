@@ -62,6 +62,16 @@ were added on 2026-10-30 and 2026-10-31); the texture was cropped, made to tile 
 down. They contain no third-party artwork and are distributed under the repository's licence.
 See docs/LEGAL_AND_LICENSING.md.
 
+## Test images — generated with Higgsfield
+
+The pictures in `examples/images`, used to test the image wizards and shown in the README's
+"From image to embroidery" gallery, were generated for OpenStitch with Higgsfield
+(https://higgsfield.ai, GPT Image 2.5) on 2026-10-30, under the project owner's account and
+Higgsfield's terms for it, with no reference images. `examples/images/PROVENANCE.md` lists
+each prompt and job id; `d01` and `d02` were made in code from two of them. The prompts
+describe original content only: invented people, no brands, logos or copyrighted characters.
+They are distributed under the repository's licence. See docs/LEGAL_AND_LICENSING.md.
+
 ## OpenStitch logo — generated with Higgsfield
 
 The logo (the needle-and-thread mark and the "OpenStitch" lettering in `assets/brand`, and the
