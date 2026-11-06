@@ -1429,6 +1429,10 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         .changed();
     ui.menu_button("New Objects", |ui| changed |= new_objects_menu(app, ui));
     changed |= ui
+        .checkbox(&mut app.ui.prefs.open_in_tabs, "Open designs in tabs")
+        .on_hover_text("Beyond PE-DESIGN: New and Open add a tab and keep the current design open (Ctrl+Tab switches); off, they replace it as PE-DESIGN does")
+        .changed();
+    changed |= ui
         .checkbox(&mut app.ui.prefs.autosave, "Autosave for crash recovery")
         .on_hover_text("Beyond PE-DESIGN: keeps a copy of each open design in OpenStitch's settings folder (never the design's own file) and offers it at the next start after a crash or power cut")
         .changed();
