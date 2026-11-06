@@ -226,12 +226,19 @@ jobs:
       # The page itself in Chromium, Firefox and WebKit (Safari's engine), #694: it starts,
       # "Open…" goes through the browser's file picker and "Export" through a real download,
       # byte-identical to the native build. Playwright is pinned in web/e2e/package-lock.json.
-      - name: Page test (Chromium, Firefox, WebKit)
+      # Browsers only, no `--with-deps`: the runner image has Chrome and Firefox and their
+      # libraries, and the apt step took 57 minutes on a slow mirror. WebKit may lack a system
+      # library there; page.mjs then warns instead of failing (--optional webkit).
+      - name: Playwright and its browsers
         working-directory: web/e2e
+        timeout-minutes: 10
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
-          npx playwright install --with-deps chromium firefox webkit
-          node page.mjs .. ../../target/web-native ../../compat/reference/pes/pes-default-v6.pes ../../target/web-shots
+          npx playwright install chromium firefox webkit
+      - name: Page test (Chromium, Firefox, WebKit)
+        working-directory: web/e2e
+        timeout-minutes: 10
+        run: node page.mjs --optional webkit .. ../../target/web-native ../../compat/reference/pes/pes-default-v6.pes ../../target/web-shots
       - uses: actions/upload-artifact@v4
         if: always()
         with:
