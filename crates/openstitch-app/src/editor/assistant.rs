@@ -338,6 +338,11 @@ pub const SETTINGS: &[Setting] = &[
         "Calibrate Real Size: points per mm at 100 % on this monitor",
         "number 1.8..24 (0 = 96 dpi)",
     ),
+    s(
+        "smoothTolerance",
+        "Smooth Shape tolerance (mm; what ui.run smoothShape uses)",
+        "number 0.01..10",
+    ),
     s("rulers", "Ruler", "bool"),
     s("guides", "Guideline", "bool"),
     s("referenceWindow", "Reference Window", "bool"),

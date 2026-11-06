@@ -223,6 +223,8 @@ actions! {
     SatinSkeleton => "satinSkeleton", "Satin Skeleton", "Click (or drag for curves) the centre line of a satin column; drag the handles beside each point to set its width. Double-click or Return ends it.", None, Some("shape.skeletonSatin"), true;
     SkeletonWidth => "skeletonWidth", "Column width", "Width of the next points the Satin Skeleton tool places.", None, Some("shape.skeletonSatin"), true;
     DeriveSkeleton => "deriveSkeleton", "Satin Skeleton from Shape", "Sew the selected shape as satin along a centre line derived from its outline (an approximation of its medial axis).", None, Some("object.deriveSkeleton"), true;
+    SmoothShape => "smoothShape", "Smooth Shape", "Remove the nodes of the selected outlines that deviate less than the smoothing tolerance (curves refitted, corners and open ends kept). A Manual Punch column loses one direction line per click; click again to smooth further.", None, Some("shape.simplify"), true;
+    SmoothTolerance => "smoothTolerance", "Smooth tolerance", "How far Smooth Shape may move an outline (default 0.2 mm).", None, Some("shape.simplify"), true;
     SplitOutline => "splitOutline", "Split Outline", "Draw a cut line that splits the selected shape.", None, Some("shape.split"), true;
     AddDirectionLine => "addDirection", "Add Direction Line", "Draw a curved sewing direction across the region.", None, Some("object.setDirectionCurve"), true;
     DeleteDirectionLine => "deleteDirection", "Delete Direction Line", "Back to a straight sewing direction.", None, Some("object.setDirectionLines"), true;
@@ -238,6 +240,7 @@ actions! {
     SplitStitchData => "splitStitchData", "Split Stitch Data", "Draw around stitches to split them off.", None, Some("stitches.splitArea"), true;
     ChangeColor => "changeColor", "Change Color", "Change a thread colour of the stitch pattern.", None, Some("stitches.setThread"), true;
     DivideByColor => "divideByColor", "Divide by Color", "One stitch pattern per thread colour.", None, Some("stitches.divideByColor"), true;
+    SmoothStitches => "smoothStitches", "Smooth Stitches", "Even out the selected needle points (or the whole stitch pattern): each moves halfway towards the midpoint of its neighbours. Jumps, trims, colour changes and the ends of each run stay; the number of points does not change.", None, Some("stitches.smooth"), true;
     Connect => "connect", "Connect", "The pattern sewn later starts where the earlier one ends.", None, Some("stitches.connect"), true;
     ConvertToOutlines => "toOutlines", "Convert to Outlines", "One outline per thread colour of the stitches.", None, Some("object.toShapes"), true;
     MoveSections => "moveSections", "Move Sections", "Drag the split lines of a split design to move its sections.", None, Some("sections.set"), true;
@@ -288,6 +291,7 @@ impl Action {
                 | EdgeRadius
                 | ChangeColor
                 | SkeletonWidth
+                | SmoothTolerance
                 | EditCharacter
         )
     }
@@ -667,7 +671,7 @@ const SHAPES: &[Group] = &[
                 A::ReverseDirectionLine,
             ]),
             Small(&[A::EditPoint, A::DeletePoint, A::SplitAtPoint]),
-            Small(&[A::DeriveSkeleton]),
+            Small(&[A::DeriveSkeleton, A::SmoothShape, A::SmoothTolerance]),
         ],
     },
     COLORS,
@@ -691,7 +695,7 @@ const STITCHES: &[Group] = &[
         items: &[
             Large(A::SplitStitchData),
             Small(&[A::ChangeColor, A::DivideByColor, A::SplitAtPoint]),
-            Small(&[A::Connect]),
+            Small(&[A::Connect, A::SmoothStitches]),
         ],
     },
     Group {

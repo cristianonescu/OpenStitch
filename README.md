@@ -78,7 +78,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 291: 189 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 92 planned beyond PE-DESIGN |
+| Feature matrix rows | 291: 190 implemented (3 of them partially compatible), 0 documented only, 10 blocked, 91 planned beyond PE-DESIGN |
 | Compatibility specs | 454: 454 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 36: 29 at the reference tier, 5 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 10 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
@@ -652,7 +652,6 @@ PE-DESIGN 11 does not. Each item is sketched in
 - AI assistant pictures (B17, phase A4): the composer's 📎 attaches up to 8 files per message (pictures PNG/JPEG/BMP sent as images, scaled to 2048 px and re-encoded under 3.75 MB; SVG and text sent as text; stitch files offered to stitches.import), each copied into the scratch folder. **View** sends a picture of the design and **Selection** the selected objects' ids, kinds and sizes, shown as chips. An attached picture is digitized with digitize.autoPunch in OpenStitch mode; a model-written SVG goes through scratch_write and import.svg. An optional image generator (an OpenAI-compatible /images/generations address, its key in the keychain) adds generate_image; without one the tool points the model at the vector route. OpenAI-compatible endpoints get tool-result pictures as a user message with image parts
 - AI assistant benchmark (B17, phase A5): stitchtool bench-assistant sends 12 embroidery tasks (badge, monogram, arc text, appliqué, star, two colours, a wider rectangle, recolour, delete, picture to embroidery, vector route, a question) to the Claude API, an OpenAI-compatible endpoint or an ACP coding agent, through the assistant's own tools over a headless editor. Each task is scored on the resulting design (object.list, design.info), failures are sorted into categories, and it writes JSON and Markdown reports
 - Knife: an open cut line splits every crossed fill, outline, Manual Punch column and line in one step (shape.knife) (#477)
-- Smooth Shape removes nodes within a tolerance (shape.simplify, 0.2 mm) and Smooth Stitches relaxes needle points of stitch patterns (stitches.smooth) (#478)
 - More built-in thread charts compiled from each maker's own published colour data, searchable by number or name (#486)
 - Image wizard (OpenStitch mode): purpose presets, a region table with reasons and overrides, click-to-fix on the picture, colour order, varied or least-travel fill angles and outline SVG export (#489)
 - Optional on-device helpers for digitizing: one-click subject segmentation, line drawing from photos and OCR to lettering (#490)

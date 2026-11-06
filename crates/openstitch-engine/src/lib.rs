@@ -48,6 +48,7 @@ pub mod session;
 mod sewing;
 mod sewing_cmds;
 mod shape_ops;
+mod smoothing;
 mod stamps;
 mod stitch_edit;
 #[cfg(feature = "formats")]
