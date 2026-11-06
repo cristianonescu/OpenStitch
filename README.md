@@ -900,8 +900,9 @@ Desktop, IDEs) take the same command and arguments in their MCP server configura
   [docs/RELEASING.md](docs/RELEASING.md#merging-pull-requests).
 - Every merge to `main` builds the executables (see [Download a build](#download-a-build)).
 - Every PR that changes a feature updates [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md); the
-  README's status lists are generated from it (`python -I tools/readme_status.py --write`). The
-  GitHub issue lists are refreshed only at each release (`--issues`), so PRs don't carry them.
+  README's status lists are generated from it by `python -I tools/readme_status.py --write`,
+  run on `main` after merging, not in feature PRs: CI fails a PR that edits the generated
+  blocks (#632). The GitHub issue lists are refreshed only at each release (`--issues`).
 - Rules for the code (clean-room boundaries, command registry, golden tests) are in
   [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/LEGAL_AND_LICENSING.md](docs/LEGAL_AND_LICENSING.md).
 
