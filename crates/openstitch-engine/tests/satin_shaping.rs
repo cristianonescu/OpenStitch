@@ -652,3 +652,42 @@ fn a_branching_shape_becomes_one_satin_column_per_arm() {
         .is_err()
     );
 }
+
+#[test]
+fn pes_0110_refuses_a_satin_line_and_the_machine_formats_sew_it() {
+    let dir = openstitch_testutil::TempDir::new("satin-line-pes");
+    let mut s = Session::new(dir.path());
+    run(
+        &mut s,
+        "design.new",
+        json!({"name": "satin", "width": 100, "height": 100}),
+    );
+    run(
+        &mut s,
+        "shape.path",
+        json!({"points": [[10, 10], [60, 10]], "closed": false, "outline": "Black"}),
+    );
+    run(
+        &mut s,
+        "object.setLine",
+        json!({"id": 1, "type": "satin", "widthKeys": [[0, 0.5, 0.5], [1, 2, 2]]}),
+    );
+    // PES 0110 cannot hold an OpenStitch satin line: refused with the object and the type named.
+    let err = s
+        .execute(
+            "design.export",
+            Some(&json!({"path": "a.pes", "pesVersion": "11"})),
+        )
+        .expect_err("PES 0110 refuses a satin line")
+        .to_string();
+    assert!(
+        err.contains("Satin line") && err.contains("not mapped"),
+        "{err}"
+    );
+    assert!(!dir.path().join("a.pes").exists());
+    // The default PES (stitches) and a DST sew it.
+    for path in ["b.pes", "b.dst"] {
+        run(&mut s, "design.export", json!({ "path": path }));
+        assert!(std::fs::metadata(dir.path().join(path)).expect(path).len() > 100);
+    }
+}
