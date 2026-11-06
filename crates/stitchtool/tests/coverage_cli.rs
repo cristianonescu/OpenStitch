@@ -99,7 +99,7 @@ fn exec_stops_at_the_first_failure_with_exit_code_2() {
     std::fs::write(
         &script,
         r#"[{"command":"shape.ellipse","params":{"cx":0,"cy":0,"rx":5,"ry":5}},
-            {"command":"no.such.command"},
+            {"command":"object.get","params":{"id":99}},
             {"command":"project.save","params":{"path":"never.osd"}}]"#,
     )
     .expect("write");
@@ -111,6 +111,40 @@ fn exec_stops_at_the_first_failure_with_exit_code_2() {
     assert_eq!(r[1]["ok"], json!(false));
     assert!(r[1]["error"].is_string());
     assert!(!dir.join("never.osd").exists());
+}
+
+#[test]
+fn exec_reports_every_parameter_error_before_running_anything() {
+    // #494: an unknown parameter, an out-of-range value, a wrong type and an unknown command,
+    // all reported at once with their step numbers; the first step, which is fine, never runs.
+    let dir = temp_dir("check");
+    std::fs::write(
+        dir.join("s.json"),
+        r#"[{"command":"project.save","params":{"path":"never.osd"}},
+            {"command":"shape.rectangle","params":{"x":0,"y":0,"width":5,"height":5,"colour":"red"}},
+            {"command":"object.arrangeCopies","params":{"ids":[1],"mode":"matrix","rows":500}},
+            {"command":"no.such.command"},
+            {"command":"object.get","params":{"id":"one"}}]"#,
+    )
+    .expect("write");
+    let out = stitchtool(&dir, &["exec", "s.json"]);
+    assert_eq!(out.status.code(), Some(2));
+    assert!(out.stdout.is_empty(), "nothing ran");
+    assert!(!dir.join("never.osd").exists());
+    let err = String::from_utf8_lossy(&out.stderr);
+    for want in [
+        "step 2 (shape.rectangle): parameter 'colour' is not a parameter",
+        "step 4: unknown command 'no.such.command'",
+        "step 3 (object.arrangeCopies): parameter 'rows' must be an integer in 1...100",
+        "step 5 (object.get): parameter 'id' must be an integer",
+        "nothing was run",
+    ] {
+        assert!(
+            err.contains(want),
+            "{want} in:
+{err}"
+        );
+    }
 }
 
 #[test]

@@ -2,7 +2,8 @@
 //!
 //! ```text
 //! stitchtool commands              # command catalogue (JSON)
-//! stitchtool exec script.json      # JSON array of {"command", "params"}; stops at first failure
+//! stitchtool exec script.json      # JSON array of {"command", "params"}; checks every step's
+//!                                  # parameters first, then stops at the first failure
 //! stitchtool serve [--read-only] [--no-files]
 //!                                  # one JSON request per stdin line, one reply per stdout line;
 //!                                  # --read-only refuses edits, undo/redo and file writes,
@@ -103,6 +104,19 @@ fn exec(script: &Path) -> ExitCode {
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
     let mut session = Session::new(base);
+    // Every step's parameters before any runs (#494): all the mistakes at once, nothing run.
+    let errors = check_script(&session, &steps);
+    if !errors.is_empty() {
+        for e in &errors {
+            eprintln!("{e}");
+        }
+        eprintln!(
+            "{} problem(s) in {}; nothing was run",
+            errors.len(),
+            script.display()
+        );
+        return ExitCode::from(2);
+    }
     for step in &steps {
         let reply = session.handle(step);
         println!("{reply}");
@@ -111,6 +125,27 @@ fn exec(script: &Path) -> ExitCode {
         }
     }
     ExitCode::SUCCESS
+}
+
+/// Every problem in a script's steps, `step N (command): ...`, without running any (#494).
+fn check_script(session: &Session, steps: &[Value]) -> Vec<String> {
+    let mut out = Vec::new();
+    for (i, step) in steps.iter().enumerate() {
+        let n = i + 1;
+        let Some(command) = step.get("command").and_then(Value::as_str) else {
+            out.push(format!("step {n}: needs a string 'command'"));
+            continue;
+        };
+        match session.validate(command, step.get("params")) {
+            Ok(problems) => out.extend(
+                problems
+                    .into_iter()
+                    .map(|p| format!("step {n} ({command}): {p}")),
+            ),
+            Err(e) => out.push(format!("step {n}: {e}")),
+        }
+    }
+    out
 }
 
 /// A 120 × 120 BMP of a red disc on white: the picture task's input.

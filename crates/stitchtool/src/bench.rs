@@ -114,6 +114,105 @@ fn reddish(hex: &str) -> bool {
     v(0) > 140 && v(0) > v(2) + 60 && v(0) > v(4) + 60
 }
 
+/// The user's own chart for the `my-threads` task (#495): eight threads, codes that are in no
+/// built-in chart, so a quoted code is either one of these or invented.
+pub const SHELF: &[(&str, &str, &str)] = &[
+    ("#c8102e", "7101", "Holly Red"),
+    ("#0b5d1e", "7102", "Holly Green"),
+    ("#4caf50", "7103", "Leaf"),
+    ("#ffffff", "7104", "Snow"),
+    ("#000000", "7105", "Night"),
+    ("#d4a017", "7106", "Gold"),
+    ("#1f2a44", "7107", "Navy"),
+    ("#6b4226", "7108", "Bark"),
+];
+
+/// Green-ish: G well above R and B.
+fn greenish(hex: &str) -> bool {
+    let v = |i: usize| {
+        u8::from_str_radix(
+            hex.trim_start_matches('#').get(i..i + 2).unwrap_or("00"),
+            16,
+        )
+        .unwrap_or(0) as i32
+    };
+    v(2) > 60 && v(2) > v(0) + 30 && v(2) > v(4) + 20
+}
+
+/// The catalogue numbers `reply` quotes that are in no chart (#495): numbers of 3 to 6 digits,
+/// optionally after up to two letters, that are not a measurement or count (`100 mm`, `30 %`,
+/// `100 × 100`, `2400 stitches`) or part of a colour (`#c8102e`) or decimal. `known` holds every
+/// built-in and user chart code.
+pub fn invented_codes(reply: &str, known: &std::collections::HashSet<String>) -> Vec<String> {
+    const UNITS: &[&str] = &[
+        "mm", "cm", "in", "inch", "inches", "px", "pixels", "stitch", "stitches", "spm", "rpm",
+        "object", "objects", "colour", "colours", "color", "colors", "min", "minutes", "s", "sec",
+        "seconds", "x", "bytes", "kb", "lines",
+    ];
+    let norm = |c: &str| c.trim_start_matches('0').to_ascii_lowercase();
+    let known: std::collections::HashSet<String> = known.iter().map(|c| norm(c)).collect();
+    let words: Vec<(usize, &str)> = reply
+        .match_indices(|c: char| c.is_alphanumeric())
+        .fold(Vec::<(usize, usize)>::new(), |mut spans, (at, m)| {
+            match spans.last_mut() {
+                Some(last) if last.1 == at => last.1 = at + m.len(),
+                _ => spans.push((at, at + m.len())),
+            }
+            spans
+        })
+        .into_iter()
+        .map(|(a, b)| (a, &reply[a..b]))
+        .collect();
+    let mut out = Vec::new();
+    for (k, &(at, word)) in words.iter().enumerate() {
+        let letters = word.chars().take_while(char::is_ascii_alphabetic).count();
+        let digits = &word[letters..];
+        if letters > 2
+            || !(3..=6).contains(&digits.len())
+            || !digits.bytes().all(|b| b.is_ascii_digit())
+        {
+            continue;
+        }
+        let before = reply[..at].chars().next_back();
+        let end = at + word.len();
+        let after = reply[end..].chars().next();
+        let next_word = words
+            .get(k + 1)
+            .filter(|(n, _)| reply[end..*n].trim().is_empty())
+            .map(|(_, w)| w.to_lowercase());
+        // A decimal or thousands part (`4.500`, `1,200`) follows a digit and a point or comma.
+        let part = matches!(before, Some('.' | ','))
+            && reply[..at]
+                .chars()
+                .rev()
+                .nth(1)
+                .is_some_and(|c| c.is_ascii_digit());
+        let measured = part
+            || matches!(before, Some('#' | '×'))
+            || matches!(after, Some('%' | '°' | '×'))
+            || next_word.is_some_and(|w| UNITS.contains(&w.as_str()))
+            || reply[end..].trim_start().starts_with('×');
+        if measured {
+            continue;
+        }
+        if !known.contains(&norm(word)) && !known.contains(&norm(digits)) {
+            out.push(word.to_string());
+        }
+    }
+    out
+}
+
+/// Every catalogue number in the built-in charts and the bench's user chart.
+pub fn known_codes() -> std::collections::HashSet<String> {
+    let mut known: std::collections::HashSet<String> = openstitch_engine::thread_match::builtins()
+        .into_iter()
+        .flat_map(|b| b.entries.into_iter())
+        .filter_map(|(_, t)| t.catalog_number.map(|c| c.to_string()))
+        .collect();
+    known.extend(SHELF.iter().map(|(_, code, _)| code.to_string()));
+    known
+}
+
 const RECT: &str = r##"{"x": 20, "y": 20, "width": 30, "height": 20, "fill": "#1f3a93"}"##;
 const PICTURE: &str = "{PICTURE}";
 
@@ -254,6 +353,65 @@ pub const TASKS: &[Task] = &[
             need(
                 d.reply.contains('2') || d.reply.to_lowercase().contains("two"),
                 "the answer 2",
+            )
+        },
+    },
+    // #495: the user's own threads, and no invented catalogue numbers. Before `remember`, so
+    // the notes do not yet say Madeira.
+    Task {
+        id: "my-threads",
+        setup: &[
+            ("threads.createChart", r#"{"name": "My shelf"}"#),
+            (
+                "threads.addColor",
+                r##"{"chart": "My shelf", "color": "#c8102e", "code": "7101", "description": "Holly Red"}"##,
+            ),
+            (
+                "threads.addColor",
+                r##"{"chart": "My shelf", "color": "#0b5d1e", "code": "7102", "description": "Holly Green"}"##,
+            ),
+            (
+                "threads.addColor",
+                r##"{"chart": "My shelf", "color": "#4caf50", "code": "7103", "description": "Leaf"}"##,
+            ),
+            (
+                "threads.addColor",
+                r##"{"chart": "My shelf", "color": "#ffffff", "code": "7104", "description": "Snow"}"##,
+            ),
+            (
+                "threads.addColor",
+                r##"{"chart": "My shelf", "color": "#000000", "code": "7105", "description": "Night"}"##,
+            ),
+            (
+                "threads.addColor",
+                r##"{"chart": "My shelf", "color": "#d4a017", "code": "7106", "description": "Gold"}"##,
+            ),
+            (
+                "threads.addColor",
+                r##"{"chart": "My shelf", "color": "#1f2a44", "code": "7107", "description": "Navy"}"##,
+            ),
+            (
+                "threads.addColor",
+                r##"{"chart": "My shelf", "color": "#6b4226", "code": "7108", "description": "Bark"}"##,
+            ),
+        ],
+        prompt: "Make a red and green holly badge about 60 mm wide with my threads, then tell me which threads to put on the machine.",
+        check: |d| {
+            need(d.objects.len() >= 2, "a badge of several objects")?;
+            let mine = |c: &str| SHELF.iter().any(|(hex, ..)| hex.eq_ignore_ascii_case(c));
+            let colors = d.colors();
+            need(
+                colors.iter().all(|c| mine(c)),
+                "every colour from the user's chart",
+            )?;
+            need(
+                colors.iter().any(|c| reddish(c)) && colors.iter().any(|c| greenish(c)),
+                "red and green",
+            )?;
+            let invented = invented_codes(&d.reply, &known_codes());
+            need(
+                invented.is_empty(),
+                &format!("no invented catalogue numbers (quoted {invented:?})"),
             )
         },
     },
@@ -796,7 +954,58 @@ mod tests {
         let (json, md) = reports("scripted", &out);
         assert_eq!(json["passed"], 2);
         assert!(md.contains("| star | fail: only talked |"));
-        assert_eq!(TASKS.len(), 14);
+        assert_eq!(TASKS.len(), 15);
+    }
+
+    #[test]
+    fn quoted_catalogue_numbers_are_checked_against_the_charts() {
+        let known = known_codes();
+        assert!(
+            known.contains("7101") && known.len() > 1000,
+            "{}",
+            known.len()
+        );
+        let good = "Use Holly Red 7101 and Holly Green (7102) from My shelf; the badge is \
+                    60 mm wide, 100 × 100 mm hoop, 4.5 lines/mm, colour #c8102e, 2400 stitches.";
+        assert!(
+            invented_codes(good, &known).is_empty(),
+            "{:?}",
+            invented_codes(good, &known)
+        );
+        let madeira = openstitch_core::brands::MADEIRA_POLYNEON[0]
+            .catalog_number
+            .as_deref()
+            .expect("a Madeira code")
+            .to_string();
+        let reply = format!("Thread 7199 and Madeira {madeira}, then 7108. Also PN7123.");
+        assert_eq!(invented_codes(&reply, &known), ["7199", "PN7123"]);
+        assert!(
+            invented_codes("about 120 mm, 30 %, 45°, 200x300, 1,250 and 4.500", &known).is_empty()
+        );
+    }
+
+    #[test]
+    fn the_my_threads_task_needs_the_users_chart_and_real_codes() {
+        let task = TASKS.iter().find(|t| t.id == "my-threads").expect("task");
+        let obj = |c: &str| json!({"regionColor": c, "bounds": {"x": 0, "y": 0, "width": 60, "height": 60}});
+        let design = |colors: &[&str], reply: &str| Design {
+            objects: colors.iter().map(|c| obj(c)).collect(),
+            info: json!({}),
+            reply: reply.into(),
+            notes: String::new(),
+        };
+        assert!(
+            (task.check)(&design(
+                &["#C8102E", "#0b5d1e"],
+                "Holly Red 7101, Holly Green 7102."
+            ))
+            .is_ok()
+        );
+        let off_chart = (task.check)(&design(&["#ff0000", "#0b5d1e"], "")).expect_err("not mine");
+        assert!(off_chart.contains("user's chart"));
+        let invented = (task.check)(&design(&["#c8102e", "#0b5d1e"], "Use Holly Red 7111."))
+            .expect_err("invented");
+        assert!(invented.contains("7111"), "{invented}");
     }
 
     /// One assistant message calling the `notes_write` meta tool.

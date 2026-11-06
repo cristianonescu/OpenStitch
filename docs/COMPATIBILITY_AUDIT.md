@@ -2336,6 +2336,16 @@ Line references are relative to `crates/`.
   both cards; the Realistic view and the similarity scorer now draw thread that wide
   (`openstitch_design::calibration`, #291).
 
+### Assistant fixes, 2026-11-06 (#580, #384, #494, #495)
+
+Beyond PE-DESIGN only; no PE-DESIGN-compatible output changed (no compat spec, golden or writer
+touched). The new batch check (#494) reads the same parameter documentation as the MCP schemas
+and finds no problem in any of the repository's scripts: every compat spec's and example's steps
+validate clean (`openstitch-engine` `tests/validate.rs`), so a script that ran before still
+runs. Print PDFs handed to the operating system are cleaned up after a day (#384). The
+Assistant's stream timeout (#580) and thread-chart rules (#495) are in
+[ai-integration.md](research/beyond/ai-integration.md) "Assistant fixes".
+
 ### Kit review and calibration cards, 2026-11-06 (#295, #441, #311, #312)
 
 - **New sew_check checks (#295):** trims per 1,000 stitches (limit 55: PE-DESIGN's 453 files in

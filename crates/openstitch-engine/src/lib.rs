@@ -64,6 +64,7 @@ mod timeline;
 #[cfg(feature = "formats")]
 pub mod transfer;
 pub mod user;
+pub mod validate;
 pub(crate) mod wizards;
 
 pub use capabilities::{Capabilities, Capability};
@@ -71,3 +72,4 @@ pub use commands::{CommandSpec, Effect, ParamDoc};
 pub use params::{CommandError, CommandResult, Params};
 pub use sandbox::{Access, Sandbox, SandboxError};
 pub use session::{EngineState, Session};
+pub use validate::{ParamProblem, check_docs, check_listed, check_params};
