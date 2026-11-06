@@ -6,6 +6,7 @@ use openstitch_design::patterns::{self, Pattern, PatternKind};
 use openstitch_design::{
     Arrange, ChainShape, Design, Feather, FeatherSide, FillStitchType, LineSewing, LineType,
     RegionSewing, RegionType, RunningStitchPath, UnderlayStyle,
+    column::{CornerStyle, SatinShaping},
 };
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
@@ -250,6 +251,115 @@ fn choice(
     }
 }
 
+/// The satin shaping rows (#520-#522, beyond PE-DESIGN) of a Manual Punch column (`line`
+/// false, `pull` its single compensation) or a zigzag line.
+fn shaping_controls(s: &SatinShaping, pull: f64, line: bool) -> Vec<Control> {
+    let key = |region: &'static str, line_key: &'static str| if line { line_key } else { region };
+    let c = &s.corners;
+    let mut v = vec![choice(
+        "Corners",
+        "cornerStyle",
+        c.style.id(),
+        &[
+            ("turn", "Turned (PE-DESIGN)"),
+            ("auto", "By angle (mitre, cap)"),
+            ("mitre", "Mitre"),
+            ("cap", "Cap"),
+        ],
+    )];
+    if c.style != CornerStyle::Turn {
+        v.push(num(
+            "Mitre below",
+            key("region.mitreBelow", "line.mitreBelow"),
+            "mitreBelow",
+            c.mitre_below,
+            (10.0, 170.0),
+            1.0,
+            "°",
+        ));
+        if c.style == CornerStyle::Auto {
+            v.push(num(
+                "Cap below",
+                key("region.capBelow", "line.capBelow"),
+                "capBelow",
+                c.cap_below,
+                (5.0, 120.0),
+                1.0,
+                "°",
+            ));
+        }
+        v.push(num(
+            "Corner overlap",
+            key("region.cornerOverlap", "line.cornerOverlap"),
+            "cornerOverlap",
+            c.overlap,
+            (0.0, 2.0),
+            0.01,
+            " mm",
+        ));
+        if c.style != CornerStyle::Mitre {
+            v.push(num(
+                "Cap max length",
+                key("region.capMaxLength", "line.capMaxLength"),
+                "capMaxLength",
+                c.cap_max_length,
+                (2.0, 12.0),
+                0.05,
+                " mm",
+            ));
+        }
+    }
+    v.push(num(
+        "Short stitches below",
+        key("region.shortStitchDistance", "line.shortStitchDistance"),
+        "shortStitchDistance",
+        s.short_stitches.distance,
+        (0.0, 1.0),
+        0.01,
+        " mm",
+    ));
+    if s.short_stitches.distance > 0.0 {
+        v.push(num(
+            "Short stitch inset",
+            key("region.shortStitchInset", "line.shortStitchInset"),
+            "shortStitchInset",
+            s.short_stitches.inset,
+            (5.0, 80.0),
+            0.5,
+            " %",
+        ));
+    }
+    let k = &s.compensation;
+    v.push(num(
+        "Pull left",
+        key("region.pullLeft", "line.pullLeft"),
+        "pullLeft",
+        k.left.unwrap_or(pull),
+        (0.0, 2.0),
+        0.01,
+        " mm",
+    ));
+    v.push(num(
+        "Pull right",
+        key("region.pullRight", "line.pullRight"),
+        "pullRight",
+        k.right.unwrap_or(pull),
+        (0.0, 2.0),
+        0.01,
+        " mm",
+    ));
+    v.push(num(
+        "Pull % of width",
+        key("region.pullPercent", "line.pullPercent"),
+        "pullPercent",
+        k.percent,
+        (0.0, 20.0),
+        0.1,
+        " %",
+    ));
+    v
+}
+
 /// The controls the inspector shows for region sewing `r`, by sew type.
 pub fn region_controls(r: &RegionSewing) -> Vec<Control> {
     region_controls_with(r, &[])
@@ -334,14 +444,7 @@ pub fn region_controls_with(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> 
         ));
         v.push(toggle("Underlay", "underlay", r.underlay));
         if r.underlay {
-            let style = match r.underlay_style {
-                UnderlayStyle::Edge => "edge",
-                UnderlayStyle::Zigzag => "zigzag",
-                UnderlayStyle::EdgeZigzag => "edgeZigzag",
-                UnderlayStyle::Double => "double",
-                UnderlayStyle::EdgeFill => "edgeFill",
-                UnderlayStyle::Cross => "cross",
-            };
+            let style = r.underlay_style.id();
             v.push(choice(
                 "Underlay style",
                 "underlayStyle",
@@ -353,6 +456,8 @@ pub fn region_controls_with(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> 
                     ("double", "Double"),
                     ("edgeFill", "Edge and fill"),
                     ("cross", "Edge and cross-hatch (PE-DESIGN type 2)"),
+                    ("auto", "Automatic (by width)"),
+                    ("centreWalk", "Centre walk"),
                 ],
             ));
             v.push(choice(
@@ -372,6 +477,14 @@ pub fn region_controls_with(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> 
                     " mm",
                 ));
             }
+        }
+        // OpenStitch's satin shaping (#520-#522) on a Manual Punch satin column.
+        if r.kind == RegionType::Satin && r.direction_lines.len() >= 2 {
+            v.extend(shaping_controls(
+                &r.satin_shaping,
+                r.pull_compensation,
+                false,
+            ));
         }
         // The guide's exclusions: Gradation and Feathered edge exclude each other and Auto
         // direction.
@@ -852,7 +965,21 @@ pub fn line_controls_with(l: &LineSewing, user: &[Pattern]) -> Vec<Control> {
                 param: "halfStitch",
                 value: l.half_stitch,
             },
-        ],
+            choice(
+                "Under sewing style",
+                "underlayStyle",
+                l.underlay_style.id(),
+                &[
+                    ("edge", "Edge runs (PE-DESIGN)"),
+                    ("centreWalk", "Centre walk"),
+                    ("edgeZigzag", "Edge and zigzag"),
+                    ("auto", "Automatic (by width)"),
+                ],
+            ),
+        ]
+        .into_iter()
+        .chain(shaping_controls(&l.satin_shaping, 0.0, true))
+        .collect(),
         LineType::Motif => vec![
             Control::Choice {
                 label: "Motif",
