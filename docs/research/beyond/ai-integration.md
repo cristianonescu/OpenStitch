@@ -1034,3 +1034,32 @@ editor, where the editor's own rules apply. Command names and parameters are the
 steps run with `Session.batch`). It adds no engine command or option. Tested on the three systems
 in CI, including a byte comparison of the exported PES with the equivalent `stitchtool exec`
 script. Not published to PyPI: that waits for the owner.
+
+### Example designs, composition guide and illustrated bench tasks (2026-11-06, #492, #493)
+
+**The skill (#492).** `reference/composition.md` explains how to plan an illustrated design: regions with a colour, angle, layer and reason; 4-7 colours; the subject at 55-85 % of the hoop; base fills first, then major regions, borders and details; fitted panels cut with `shape.removeOverlap`; neighbouring fills at least 20° apart; borders only where they separate pieces. `reference/examples.md` lists ten complete designs. Each is a `stitchtool exec` script that `skill_reference` returns by its bare name (`"strawberry"`). SKILL.md's build order now starts with "open the closest example". `tools/skill_examples.py` (CI kit job) runs every example and fails on a `design.check` error or an unexpected warning, on a design off the page, or on a sew_check failure.
+
+**The bench (#493).** `stitchtool bench-assistant` has 23 tasks, eight of them new:
+- six illustrated subjects, scored on parts, size, colours, angles between touching fills and `design.check`;
+- an Auto Punch task on the Higgsfield emblem (plan read with `dryRun`, one override, white background unsewn);
+- a 5 mm bean-stitch name in a font whose `sizeRange` holds the size.
+
+`--judge MODEL` has a vision model score each render on a fixed rubric, read deterministically from its reply (tested against a scripted judge). The reports now carry the uncut tool calls.
+
+**Real runs** (Windows, Claude Code over claude-agent-acp, signed in by the owner; four full or partial runs while the checks and examples were settled):
+
+| Run | Result | Notes |
+|---|---|---|
+| New tasks only, first build | 6 of 8 | strawberry, small-name failed |
+| Full | 19 of 23 | arc-text (lettering converted to shapes around #446), my-threads ("100 × 100 hoop" read as a thread code), strawberry, small-name |
+| Full, after the checks were fixed | 21 of 23 | strawberry, small-name |
+| **Full, final build** | **22 of 23** | 1,218 s, 265 calls (7 errors), 10.4 M input / 55.6 k output tokens; new tasks 7 of 8 |
+
+What the runs found:
+- **#652:** `shape.removeOverlap` (and every cut through `set_region`) resets a fill's angle to 45°. The strawberry failed twice: the model set the leaves to 135° and then cut an overlap that `design.check` had warned about. The fix in the skill: the examples cut before setting angles and check clean, and the guide says to set angles after the last cut. The engine question waits on a PE-DESIGN capture.
+- **#548:** `openstitch-line` labels sew visible travel between letters. In all three runs Claude chose the font correctly and then dropped live text (shapes, per-letter texts, or hand-drawn paths). The check accepts per-letter texts and converted text, but not hand-drawn letters.
+- **#446:** Lato Bold's slanted strokes sew with gaps (A, M, N, V, W, X). The owner spotted it in the first monogram example, and Claude worked around it in arc-text.
+- The models open examples by name: `skill_reference {"file": "strawberry"}` in every illustrated task.
+
+`--judge` and local models were not run: no API key is used here, and no local models run on this PC.
+

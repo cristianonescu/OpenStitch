@@ -200,7 +200,9 @@ pub(super) fn tools(max_batch_steps: usize, max_render_pixels: u32) -> Vec<Tool>
             Meta::SkillReference,
             "Skill reference",
             "OpenStitch's embroidery guide. With no file, lists the files; with a file (SKILL.md, \
-             reference/recipes.md, ...), returns that file. Read SKILL.md before building anything.".to_string(),
+             reference/recipes.md, ...), returns that file. Read SKILL.md before building anything; \
+             for an illustrated design, open the closest example (strawberry, mushroom, ...; \
+             reference/examples.md lists them).".to_string(),
             json!({
                 "type": "object",
                 "properties": {
