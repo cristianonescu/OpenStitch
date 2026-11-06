@@ -87,6 +87,13 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `object.insertRung {id, at}`, `object.deleteRung {id, index}`, `object.moveRung {id, index,
    side: left|right, point}`, `object.swapSides {id}` and `object.untangle {id}`; a line pair
    clicked right-then-left is untangled when the column is made.
+   Brush strokes, leaves and calligraphic lines: `object.setLine {type: satin, width}` on any
+   path, then `widthKeys: [[at 0-1, left mm, right mm], ...]` (or `object.setWidthKey {id, at,
+   width | left, right}`, `object.deleteWidthKey {id, index}`), `taperStart`/`taperEnd` (mm,
+   pointed ends) and `slant` (-60 to 60 degrees). A Y, star or stick figure drawn as one
+   filled shape: `object.deriveSkeleton {id, branches: true, joinOverlap: 0.3}` makes a
+   grouped satin column per arm (the shape stays hidden); check `warnings` for columns over
+   10 mm and look at the junctions with `view_render`.
 4. Order: `order.optimize` (PE-DESIGN-compatible order) or `order.byColor`; check with
    `object.list` (sewing order). To sew objects in a set order, `order.byClickOrder`
    `{ids: [in sewing order]}` (they start where the earliest of them sews now); to sew a
