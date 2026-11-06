@@ -1004,6 +1004,21 @@ fn travel_graph(
     graph
 }
 
+/// `contours` with curved ones replaced by their flattened polygon (the same points
+/// `Contour::path` gives), for repeated inside tests (#679).
+pub(crate) fn flatten_once(contours: &[Contour]) -> Vec<Contour> {
+    contours
+        .iter()
+        .map(|c| {
+            if c.has_curves() {
+                Contour::new(c.outline_points(), c.closed)
+            } else {
+                c.clone()
+            }
+        })
+        .collect()
+}
+
 /// Splits `run` wherever a stitch leaves the region (its midpoint is outside and more than
 /// 0.05 mm from the outline).
 fn split_outside(run: Run, closed: &[Contour], holes: &[Contour]) -> Vec<Run> {
@@ -1024,7 +1039,9 @@ fn split_outside(run: Run, closed: &[Contour], holes: &[Contour]) -> Vec<Run> {
             p.distance(a + d * t) <= 0.5
         })
     };
-    let inside = |p: Vec2| contains(p, closed) && !contains(p, holes);
+    // Flattened once (#679): `contains` reads each curved outline through `Contour::path`.
+    let (closed, holes) = (flatten_once(closed), flatten_once(holes));
+    let inside = |p: Vec2| contains(p, &closed) && !contains(p, &holes);
     let mut out = Vec::new();
     let mut current: Run = Vec::new();
     for p in run {

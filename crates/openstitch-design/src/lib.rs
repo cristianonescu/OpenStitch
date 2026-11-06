@@ -19,6 +19,7 @@ pub mod fonts;
 pub mod freehand;
 pub mod generate;
 pub mod geometry;
+pub mod hidden;
 pub mod holes;
 pub mod knife;
 pub mod letter_lines;

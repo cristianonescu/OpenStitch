@@ -571,6 +571,14 @@ pub struct DesignObject {
     /// or a patch without a colour change. A colour change right after it is the stop.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub stop_after: bool,
+    /// Leave out this region's stitching hidden under later fills and satins, keeping this
+    /// overlap (mm) under their edges (#511, beyond PE-DESIGN). The shape is not cut.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hide_under: Option<f64>,
+    /// The move to the next object of the same thread is sewn as a running-stitch connector
+    /// instead of a jump and trim (#545, beyond PE-DESIGN).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub connector_run: bool,
     /// A knockdown fill made by `wizard.knockdown` (#510, beyond PE-DESIGN): the parameters it
     /// was made with, so it can be rebuilt and kept before what it covers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -610,6 +618,8 @@ impl DesignObject {
             line_first: false,
             finish: None,
             stop_after: false,
+            hide_under: None,
+            connector_run: false,
             knockdown: None,
         }
     }
@@ -634,6 +644,8 @@ impl DesignObject {
             line_first: false,
             finish: None,
             stop_after: false,
+            hide_under: None,
+            connector_run: false,
             knockdown: None,
         }
     }
