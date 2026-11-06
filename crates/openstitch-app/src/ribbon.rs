@@ -240,12 +240,23 @@ pub fn fitted_texts(app: &EditorApp) -> Vec<u64> {
 
 /// Checks, at most once a second, whether the system clipboard holds OpenStitch objects, so
 /// Paste is enabled after a Copy in another window.
+/// The OS clipboard: the one way the editor reaches it (#705). Tests never do: on macOS it is
+/// AppKit's pasteboard, which crashed the test binary when tests on several threads used it at
+/// once, and one test's Copy reached another's Paste. A test that gets here fails at once;
+/// `Launch` keeps `system_clipboard` off under `cfg(test)`.
+pub(crate) fn os_clipboard() -> Result<arboard::Clipboard, arboard::Error> {
+    #[cfg(test)]
+    panic!("a test reached the OS clipboard (#705): keep ui.system_clipboard off in tests");
+    #[cfg(not(test))]
+    arboard::Clipboard::new()
+}
+
 pub fn poll_clipboard(app: &mut EditorApp, now: f64) {
     if !app.ui.system_clipboard || now - app.ui.clipboard_checked < 1.0 {
         return;
     }
     app.ui.clipboard_checked = now;
-    app.ui.clipboard_objects = arboard::Clipboard::new()
+    app.ui.clipboard_objects = os_clipboard()
         .and_then(|mut c| c.get_text())
         .is_ok_and(|t| clipboard::looks_like(&t));
 }
@@ -254,7 +265,7 @@ pub fn poll_clipboard(app: &mut EditorApp, now: f64) {
 fn put_on_clipboard(app: &mut EditorApp, env: Envelope) {
     if app.ui.system_clipboard {
         let text = env.to_text();
-        if let Err(e) = arboard::Clipboard::new().and_then(|mut c| c.set_text(text)) {
+        if let Err(e) = os_clipboard().and_then(|mut c| c.set_text(text)) {
             app.status =
                 format!("Could not use the system clipboard ({e}); Paste works in this window");
         }
@@ -435,11 +446,7 @@ fn paste(app: &mut EditorApp) {
     let system = app
         .ui
         .system_clipboard
-        .then(|| {
-            arboard::Clipboard::new()
-                .and_then(|mut c| c.get_text())
-                .ok()
-        })
+        .then(|| os_clipboard().and_then(|mut c| c.get_text()).ok())
         .flatten()
         .and_then(|t| Envelope::parse(&t));
     let Some(env) = system.or_else(|| app.ui.copied.clone()) else {
