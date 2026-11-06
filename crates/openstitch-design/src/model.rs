@@ -681,6 +681,7 @@ impl DesignObject {
         }
         if let Some(l) = &mut self.line {
             l.entry = l.entry.map(|p| t.apply(p));
+            l.exit = l.exit.map(|p| t.apply(p));
         }
         if let Some(block) = &mut self.stitch_block {
             for s in &mut block.stitches {

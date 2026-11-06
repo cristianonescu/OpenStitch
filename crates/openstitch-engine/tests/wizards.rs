@@ -536,6 +536,43 @@ fn applique_add_keeps_the_pattern_and_offsets_the_outline() {
 }
 
 #[test]
+fn applique_add_can_sew_the_pattern_on_top_of_the_fabric() {
+    // #470: PE-DESIGN keeps the pattern first, under the fabric (a01-a04); `patterns: last`
+    // sews it after the covering stitch, on top of the covered fabric, still in one group.
+    let mut s = circle_session();
+    let r = run(
+        &mut s,
+        "wizard.applique",
+        json!({"ids": [1], "patterns": "last"}),
+    );
+    let new = ids(&r);
+    let d = s.design().clone();
+    assert_eq!(d.objects.last().map(|o| o.id), Some(1));
+    let order: Vec<u64> = d.objects.iter().map(|o| o.id).collect();
+    assert_eq!(&order[..new.len()], new.as_slice());
+    assert!(
+        d.objects
+            .iter()
+            .all(|o| o.group == d.objects[0].group && o.group.is_some())
+    );
+    let pattern = compile(&d);
+    assert_eq!(
+        block_names(&pattern),
+        ["Appliqué material", "Appliqué position", "Appliqué", "Red"]
+    );
+    // One undo step puts the pattern back alone.
+    run(&mut s, "history.undo", json!({}));
+    assert_eq!(s.design().objects.len(), 1);
+    // Only Add has patterns to keep; anything but first or last is refused.
+    for bad in [
+        json!({"ids": [1], "patterns": "last", "output": "replace"}),
+        json!({"ids": [1], "patterns": "middle"}),
+    ] {
+        assert!(s.execute("wizard.applique", Some(&bad)).is_err(), "{bad}");
+    }
+}
+
+#[test]
 fn applique_material_can_be_cut_by_cutwork_needles() {
     let mut s = Session::new(temp_dir());
     run(

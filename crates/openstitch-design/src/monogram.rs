@@ -511,34 +511,45 @@ pub fn frame(id: &str, b: Rect) -> Vec<FramePart> {
             }]
         }
         "laurel" => {
-            let mut parts = Vec::new();
-            for side in [-1.0, 1.0] {
-                // A stem from the bottom up each side, open at the top.
-                let stem: Vec<Vec2> = (0..=40)
-                    .map(|i| {
-                        let a = FRAC_PI_2
-                            - side * (0.15 + 0.7 * i as f64 / 40.0) * std::f64::consts::PI;
-                        at(a, 0.88)
-                    })
-                    .collect();
-                parts.push(FramePart {
-                    contours: vec![Contour::new(stem, false)],
-                    filled: false,
-                });
-                for k in 0..9 {
-                    let t = 0.2 + 0.68 * k as f64 / 8.0;
-                    let a = FRAC_PI_2 - side * t * std::f64::consts::PI;
-                    for out in [-1.0, 1.0] {
+            // Each side is one region: a stem band with its leaves on it, so a side sews in one
+            // path, travelling inside along the stem, and the frame trims once, across the
+            // opening at the bottom (#467: one part per leaf trimmed 28-31 times a colour).
+            let r = rx.min(ry);
+            // Leaves at least LEAF_MIN long, as many pairs as fit along the stem without
+            // crowding (three to nine a side).
+            let len = (0.16 * r).max(LEAF_MIN);
+            let stem_len = 0.7 * std::f64::consts::PI * 0.88 * r;
+            let pairs = ((stem_len / (0.75 * len)).floor() as usize).clamp(3, 9);
+            let half = (STEM_WIDTH / 2.0) / r;
+            [-1.0, 1.0]
+                .into_iter()
+                .map(|side| {
+                    let a_at = |t: f64| FRAC_PI_2 - side * (0.15 + 0.7 * t) * std::f64::consts::PI;
+                    // A stem from the bottom up each side, open at the top.
+                    let ts: Vec<f64> = (0..=40).map(|i| f64::from(i) / 40.0).collect();
+                    let mut band: Vec<Vec2> =
+                        ts.iter().map(|&t| at(a_at(t), 0.88 + half)).collect();
+                    band.extend(ts.iter().rev().map(|&t| at(a_at(t), 0.88 - half)));
+                    let mut pieces = vec![vec![Contour::new(band, true)]];
+                    for k in 0..pairs {
+                        let t = 0.07 + 0.88 * k as f64 / (pairs - 1) as f64;
+                        let a = a_at(t);
                         let base = at(a, 0.88);
-                        let tip = at(a - side * 0.09, 0.88 + out * 0.11);
-                        parts.push(FramePart {
-                            contours: vec![leaf(base, tip, 0.35)],
-                            filled: true,
-                        });
+                        for out in [-1.0, 1.0] {
+                            // Leaning towards the top, `len` long.
+                            let d = at(a - side * 0.09, 0.88 + out * 0.11) - base;
+                            let dir = d * (1.0 / d.length().max(1e-9));
+                            pieces.push(vec![leaf(base, base + dir * len, 0.35)]);
+                        }
                     }
-                }
-            }
-            parts
+                    FramePart {
+                        contours: crate::boolean::contours(&crate::boolean::union_all(
+                            pieces.iter().map(Vec::as_slice),
+                        )),
+                        filled: true,
+                    }
+                })
+                .collect()
         }
         "shield" => {
             let s = |k: f64| {
@@ -575,22 +586,26 @@ pub fn frame(id: &str, b: Rect) -> Vec<FramePart> {
                 filled: true,
             }]
         }
-        "stars" => (0..12)
-            .map(|i| {
-                let a = i as f64 / 12.0 * TAU - FRAC_PI_2;
+        "stars" => {
+            // The stars sit on a fine band round the circle, all one region, so the frame sews
+            // in one path instead of trimming between every star (#467: 11 trims).
+            let r = 0.08 * rx.min(ry);
+            let half = (STEM_WIDTH / 2.0) / rx.min(ry);
+            let mut pieces = vec![vec![ellipse(0.92 + half), ellipse(0.92 - half)]];
+            pieces.extend((0..12).map(|i| {
+                let a = f64::from(i) / 12.0 * TAU - FRAC_PI_2;
                 let p = at(a, 0.92);
-                let r = 0.08 * rx.min(ry);
-                FramePart {
-                    contours: vec![
-                        shapes::star(5, 0.45).transformed(
-                            &Transform::scaling(r, r, v2(0.0, 0.0))
-                                .then(&Transform::translation(p.x, p.y)),
-                        ),
-                    ],
-                    filled: true,
-                }
-            })
-            .collect(),
+                vec![shapes::star(5, 0.45).transformed(
+                    &Transform::scaling(r, r, v2(0.0, 0.0)).then(&Transform::translation(p.x, p.y)),
+                )]
+            }));
+            vec![FramePart {
+                contours: crate::boolean::contours(&crate::boolean::union_all(
+                    pieces.iter().map(Vec::as_slice),
+                )),
+                filled: true,
+            }]
+        }
         _ => {
             // "corners": a running square with a small diamond at each corner.
             let inset = 1.4 * band;
@@ -628,6 +643,11 @@ pub fn frame(id: &str, b: Rect) -> Vec<FramePart> {
         }
     }
 }
+
+/// Shortest laurel leaf, 0.1 mm: a fill leaf under 4 mm sews as a scribble (#467).
+const LEAF_MIN: f64 = 40.0;
+/// Width of the laurel's stem and of the band the stars sit on, 0.1 mm.
+const STEM_WIDTH: f64 = 10.0;
 
 /// A pointed leaf from `base` to `tip`, `width` of its length wide at the middle.
 fn leaf(base: Vec2, tip: Vec2, width: f64) -> Contour {
@@ -920,5 +940,42 @@ mod tests {
         }
         let stretched = frame_box(frame_info("ring").expect("ring"), inner, 0.0, false);
         assert!(stretched.width() > stretched.height());
+    }
+
+    #[test]
+    fn laurel_and_stars_are_connected_pieces_with_sewable_leaves() {
+        // #467: one region per laurel side and one for the ring of stars, so each sews in one
+        // path; the leaves at least 4 mm long however small the frame.
+        for size in [300.0, 600.0, 1500.0] {
+            let b = Rect {
+                min_x: 0.0,
+                min_y: 0.0,
+                max_x: size,
+                max_y: size,
+            };
+            let laurel = frame("laurel", b);
+            assert_eq!(laurel.len(), 2, "{size}");
+            for side in &laurel {
+                // One outer outline: the union of the stem and every leaf is connected.
+                let outers = side
+                    .contours
+                    .iter()
+                    .filter(|c| boolean::area(c) > 0.0)
+                    .count();
+                assert_eq!(outers, 1, "{size}: {} contours", side.contours.len());
+                // Leaves stand out from the stem by at least LEAF_MIN minus their lean.
+                let reach = side
+                    .contours
+                    .iter()
+                    .flat_map(Contour::outline_points)
+                    .map(|p| (p.distance(b.center()) - 0.44 * size).abs())
+                    .fold(0.0, f64::max);
+                assert!(reach > 0.8 * LEAF_MIN, "{size}: leaves reach {reach}");
+            }
+            let stars = frame("stars", b);
+            assert_eq!(stars.len(), 1, "{size}");
+            // The band's two circles: one outer outline and the band's inner edge as a hole.
+            assert_eq!(stars[0].contours.len(), 2, "{size}");
+        }
     }
 }

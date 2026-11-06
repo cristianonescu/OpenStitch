@@ -879,7 +879,8 @@ mod tests {
         assert!(form.decorate(&ids).is_none(), "no frame chosen");
         form.frame = Some("stars");
         let r = run(&mut s, &form.decorate(&ids).expect("request"));
-        assert_eq!(CommandRequest::created_ids(&r).len(), 12);
+        // The stars on their band are one piece (#467).
+        assert_eq!(CommandRequest::created_ids(&r).len(), 1);
     }
 
     #[test]

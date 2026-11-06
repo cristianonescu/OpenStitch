@@ -600,7 +600,7 @@
    81.0,
    79.0
   ],
-  "stitches": 4583,
+  "stitches": 4582,
   "trims": 9,
   "threads": [
    "900 Black",
@@ -609,7 +609,7 @@
   "sewingMinutes": 6.2,
   "image": null,
   "preview": "previews/satin-and-underlay.png",
-  "sha256": "eecffe9d6f84e7b790dad810b6e5d5aa94e94a3e11d9295d983d1be17ecde75d"
+  "sha256": "d4581deadcd9edf8ff68679596e6b2f9811eb95ca7608f3532b9f28a6e64d241"
  },
  "machine-checks/satin-zigzag-rect.pes": {
   "title": "Machine check: Region satin is a zigzag across the column",
@@ -656,7 +656,7 @@
    92.0,
    44.0
   ],
-  "stitches": 2857,
+  "stitches": 2854,
   "trims": 8,
   "threads": [
    "800 Red",
@@ -671,7 +671,7 @@
   "sewingMinutes": 4.0,
   "image": null,
   "preview": "previews/shape-start-points.png",
-  "sha256": "d7859411ff41a0bc8a898cf68922b9a523add5cefe56b8625b51ca8d89417865"
+  "sha256": "d23c728f036807dab7fd6db0ac08b5c0d619cc8a85e3ad2f6086c61aca29d019"
  },
  "machine-checks/pes-default-v6.pes": {
   "title": "Machine check: Default PES is version 6 with objects and a thread table",
@@ -700,7 +700,7 @@
    86.0,
    86.0
   ],
-  "stitches": 7402,
+  "stitches": 7375,
   "trims": 11,
   "threads": [
    "405 Blue",
@@ -716,7 +716,7 @@
   "sewingMinutes": 9.8,
   "image": null,
   "preview": "previews/region-sew-types-1.png",
-  "sha256": "6e3ad5c5ec88bf2001c582236d616995e215bbdfbbbf1945bf8c565552be7f67"
+  "sha256": "9f4060236e7d41e8f403604feb5a77e219a8a26b850020fc00df3308bdb1e57c"
  },
  "fills/region-sew-types-2.pes": {
   "title": "Region sew types (2 of 2)",
@@ -726,7 +726,7 @@
    86.0,
    86.0
   ],
-  "stitches": 4755,
+  "stitches": 4634,
   "trims": 9,
   "threads": [
    "405 Blue",
@@ -739,10 +739,10 @@
    "019 Sky Blue",
    "058 Dark Brown"
   ],
-  "sewingMinutes": 6.4,
+  "sewingMinutes": 6.3,
   "image": null,
   "preview": "previews/region-sew-types-2.png",
-  "sha256": "a602ddf44968048bbe7bbc9060ddbbe642746078ae794a9228647fa7fe035465"
+  "sha256": "46fdba75ada9d2ac2dc9b50836ac3bb6d08411938568cb1be3e0a49b81967186"
  },
  "fills/fill-options.pes": {
   "title": "Fill and satin options",
@@ -752,7 +752,7 @@
    86.0,
    86.4
   ],
-  "stitches": 8265,
+  "stitches": 8245,
   "trims": 10,
   "threads": [
    "405 Blue",
@@ -768,7 +768,7 @@
   "sewingMinutes": 10.8,
   "image": null,
   "preview": "previews/fill-options.png",
-  "sha256": "da9709872057a0f024595801be70035a8d1d918623f5789548cb39351799c528"
+  "sha256": "3d306de7843e7d056cb447434fdc7dcb13646b572428eb1073844b83ca1fe8c1"
  },
  "fills/underlay-styles.pes": {
   "title": "Underlay styles",
@@ -778,7 +778,7 @@
    86.0,
    86.0
   ],
-  "stitches": 8863,
+  "stitches": 8855,
   "trims": 15,
   "threads": [
    "405 Blue",
@@ -794,7 +794,7 @@
   "sewingMinutes": 11.8,
   "image": null,
   "preview": "previews/underlay-styles.png",
-  "sha256": "01b004b37f210be9300255263dc3ff21420ae217557fda0c05becb6db9d09ca7"
+  "sha256": "a42898b219576b5d9c78a22efb4e123d5ffdcf51b4b87c6bc79a0e91999a0c11"
  },
  "fills/holes-and-emboss.pes": {
   "title": "Hole sewing, engraving and embossing",
@@ -804,7 +804,7 @@
    86.0,
    86.0
   ],
-  "stitches": 10746,
+  "stitches": 10740,
   "trims": 5,
   "threads": [
    "405 Blue",
@@ -814,7 +814,7 @@
   "sewingMinutes": 13.7,
   "image": null,
   "preview": "previews/holes-and-emboss.png",
-  "sha256": "fd154c3aa38213727e89e1230648343b4d968fe696ea101381115214804765a1"
+  "sha256": "0518ed894d8f8b6acc860ad4d7b69668b8bd0028f5d3c24b8ada87a6cd2ff921"
  },
  "lines/line-sew-types.pes": {
   "title": "Line sew types",
@@ -850,7 +850,7 @@
    84.5,
    84.0
   ],
-  "stitches": 4463,
+  "stitches": 4475,
   "trims": 10,
   "threads": [
    "405 Blue",
@@ -867,7 +867,7 @@
   "sewingMinutes": 6.1,
   "image": null,
   "preview": "previews/shape-tools.png",
-  "sha256": "b00b0194ec7f1c1d5da1a435cd056656e9fdbd8e90a23d4958a752e9f79fdb5f"
+  "sha256": "84be20f42b1543be8271479a9f197ed1549689333952e48d2a8ced95b267a09c"
  },
  "shapes/decorative-frames.pes": {
   "title": "Decorative frames",
@@ -875,10 +875,10 @@
   "hoop": "100 × 100 mm",
   "sizeMM": [
    82.7,
-   81.8
+   82.2
   ],
-  "stitches": 1440,
-  "trims": 42,
+  "stitches": 2080,
+  "trims": 15,
   "threads": [
    "800 Red",
    "900 Black",
@@ -892,10 +892,10 @@
    "900 Black",
    "509 Leaf Green"
   ],
-  "sewingMinutes": 4.0,
+  "sewingMinutes": 3.4,
   "image": null,
   "preview": "previews/decorative-frames.png",
-  "sha256": "84e5d980b00830fe4d81751837975772af96609f46574b059d5fadb54453788a"
+  "sha256": "d0f0f3c84c524d10f71ff88e94b452f94810a16997566d9a6f3de96aa88d894d"
  },
  "lettering/fonts-and-text.pes": {
   "title": "Lettering",
@@ -905,7 +905,7 @@
    71.0,
    89.7
   ],
-  "stitches": 3860,
+  "stitches": 3856,
   "trims": 46,
   "threads": [
    "405 Blue",
@@ -916,18 +916,18 @@
   "sewingMinutes": 7.2,
   "image": null,
   "preview": "previews/fonts-and-text.png",
-  "sha256": "b3c2f2f678d190f343bd292a0683bd20d7276639d52001c0a0e02269dc5029b2"
+  "sha256": "6b3b4662cf71cfdd353b8b1351a9b240e151d08d74db817e486d448acc5b8976"
  },
  "lettering/monograms.pes": {
   "title": "Monograms",
   "about": "The four monogram styles (block, script, diamond, circle), each in a decorative frame, for the 150 × 150 mm hoop.",
   "hoop": "150 × 150 mm",
   "sizeMM": [
-   123.5,
-   119.2
+   123.9,
+   117.5
   ],
-  "stitches": 6532,
-  "trims": 56,
+  "stitches": 7587,
+  "trims": 15,
   "threads": [
    "900 Black",
    "405 Blue",
@@ -938,10 +938,10 @@
    "208 Orange",
    "406 Ultra Marine"
   ],
-  "sewingMinutes": 11.0,
+  "sewingMinutes": 10.3,
   "image": null,
   "preview": "previews/monograms.png",
-  "sha256": "092f7c7c6820ed7ee26047b0dc8e6805b770f34e6c6ccddbbf913c31d03c63ed"
+  "sha256": "35c41bb1a94829024a92ed7aed3fbefc2f63e6188c7e63a1a8e51a15ed254f31"
  },
  "wizards/applique.pes": {
   "title": "Appliqué wizard",
@@ -961,7 +961,7 @@
   "sewingMinutes": 2.5,
   "image": null,
   "preview": "previews/applique.png",
-  "sha256": "c82c27f6adfdb8bd817e3536cb4258cd0eaa4fecf4667074658ec9ed072f8682"
+  "sha256": "8661e61db8fcbaacd58e7f4085c7c13d32e777add1b2441e225e422976b1047f"
  },
  "wizards/patch.pes": {
   "title": "Embroidered patch wizard",
@@ -971,7 +971,7 @@
    62.0,
    62.0
   ],
-  "stitches": 2859,
+  "stitches": 2866,
   "trims": 3,
   "threads": [
    "800 Red",
@@ -981,7 +981,7 @@
   "sewingMinutes": 3.7,
   "image": null,
   "preview": "previews/patch.png",
-  "sha256": "164cd561dd3878252770a04e305525723179c7b064cea6d401c7c0b24639f471"
+  "sha256": "f1b4ef444777f80ebab8437ca7962776eb29d8a83c2a12eb8c1306b2058cc2ab"
  },
  "wizards/cutwork.pes": {
   "title": "Cutwork wizard",
@@ -1001,7 +1001,7 @@
   "sewingMinutes": 4.3,
   "image": null,
   "preview": "previews/cutwork.png",
-  "sha256": "88325248347f1fbf7c405ea253b5572e6c8872c97c907d6558b86a155b1fe16b"
+  "sha256": "10d778331beb4a3f8a162e225e83b815a15cb0fa2bba2b55aa31e3745d2c61c1"
  },
  "wizards/background-fill.pes": {
   "title": "Background fill wizard",
@@ -1011,7 +1011,7 @@
    88.0,
    88.0
   ],
-  "stitches": 4118,
+  "stitches": 4128,
   "trims": 3,
   "threads": [
    "019 Sky Blue",
@@ -1021,7 +1021,7 @@
   "sewingMinutes": 5.3,
   "image": null,
   "preview": "previews/background-fill.png",
-  "sha256": "3c500adc235731a5a0479d0f4abea1df6b52daa02f85327988d25697458a128b"
+  "sha256": "1fe323d535bfdc0a4c950bc001c4e6e9849a064a8ef53b2b31be5b275474c576"
  },
  "image-tools/S-autopunch-balloon-openstitch.pes": {
   "title": "Auto Punch, OpenStitch mode",
@@ -1031,7 +1031,7 @@
    90.0,
    67.9
   ],
-  "stitches": 7810,
+  "stitches": 7811,
   "trims": 15,
   "threads": [
    "001 White",
@@ -1044,7 +1044,7 @@
   "sewingMinutes": 10.5,
   "image": "../images/g02-balloon.png",
   "preview": "previews/S-autopunch-balloon-openstitch.png",
-  "sha256": "203955e23af62f0b5952783a4e9dc8e8c0f749af7fdfd007f7157ce23e9f0957"
+  "sha256": "ba9297e7a64a3eb5cbdbd656f5493fbc8cbc8786369598688320e033e399b530"
  },
  "image-tools/S-autopunch-balloon-pe-compatible.pes": {
   "title": "Auto Punch, PE-DESIGN-compatible mode",
@@ -1054,7 +1054,7 @@
    89.6,
    62.1
   ],
-  "stitches": 5806,
+  "stitches": 5794,
   "trims": 13,
   "threads": [
    "001 White",
@@ -1066,7 +1066,7 @@
   "sewingMinutes": 7.9,
   "image": "../images/g02-balloon.png",
   "preview": "previews/S-autopunch-balloon-pe-compatible.png",
-  "sha256": "2c532c3be5f510f0d5d82d713fb32f067f8d57a8a0e730b912919821458d26db"
+  "sha256": "d216a3d1d9c8210e5fc81c22a55e5b5d519accce9d4a2a7dd426fe591fc6771a"
  },
  "image-tools/S-cross-stitch-strawberry-openstitch.pes": {
   "title": "Cross Stitch, OpenStitch mode",
@@ -1305,8 +1305,8 @@
    199.0,
    150.1
   ],
-  "stitches": 94932,
-  "trims": 1118,
+  "stitches": 93877,
+  "trims": 1116,
   "threads": [
    "017 Light Blue",
    "843 Beige",
@@ -1319,10 +1319,10 @@
    "704 Pewter",
    "058 Dark Brown"
   ],
-  "sewingMinutes": 176.0,
+  "sewingMinutes": 174.5,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-openstitch.png",
-  "sha256": "b3ce50bd92f4af53d3854a1630131568d3643e1c874a30ff162511efd6b13c94"
+  "sha256": "dcf3b9c5da79d971ec7c94e989beec059319e7a5fdc17a4fd94f18efc15ee31b"
  },
  "image-tools/L-autopunch-storybook-pe-compatible.pes": {
   "title": "Auto Punch, PE-DESIGN-compatible mode",
@@ -1332,8 +1332,8 @@
    199.3,
    151.1
   ],
-  "stitches": 108571,
-  "trims": 1640,
+  "stitches": 108211,
+  "trims": 1633,
   "threads": [
    "843 Beige",
    "804 Lavender",
@@ -1344,9 +1344,9 @@
    "330 Russet Brown",
    "517 Dark Olive"
   ],
-  "sewingMinutes": 219.8,
+  "sewingMinutes": 219.0,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-pe-compatible.png",
-  "sha256": "adaa5546c269a90a8df4dc693470007f584063b45495bdf593e141f69738ae37"
+  "sha256": "2278204adb7ecba99b4835f2096cb797a7be7040cad9166e730753fa1ed3e256"
  }
 }

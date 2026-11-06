@@ -217,7 +217,8 @@ fn decorations_frame_any_selection() {
         "decoration.add",
         json!({"frame": "stars", "x": 0, "y": 0, "width": 20, "height": 20}),
     );
-    assert_eq!(ids(&r).len(), 12);
+    // The twelve stars on their band are one region, sewn in one path (#467).
+    assert_eq!(ids(&r).len(), 1);
 }
 
 #[test]

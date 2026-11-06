@@ -65,7 +65,9 @@ circle) and `upright: true`. `path: null` releases the text.
 
 Styles: `block`, `script`, `diamond`, `circle`. Frames come from `monogram.list` (`ring`,
 `double-ring`, `diamond`, `scallop`, `laurel`, `shield`, `stars`, `corners`). The monogram is
-one group; change it later with `monogram.edit`.
+one group; change it later with `monogram.edit`. The laurel is two pieces (a stem with its
+leaves each side, leaves at least 4 mm) and the stars one piece on a fine band, so each sews in
+one path with a trim only between pieces.
 
 ## Appliqué
 
@@ -80,7 +82,9 @@ Make the appliqué from a closed shape or text (here a heart, id 1 in a fresh de
 
 It sews a material line, stops, a position line, stops, a tack-down, stops, then the covering
 stitch, as one group. `output: "add"` keeps the shape and puts the appliqué around it
-(`distance` mm away).
+(`distance` mm away); the shape sews first, under the fabric, as PE-DESIGN does, or with
+`patterns: "last"` after the covering stitch, on top of the fabric (use `replace` when the
+shape would only be hidden).
 
 ## Embroidered patch
 

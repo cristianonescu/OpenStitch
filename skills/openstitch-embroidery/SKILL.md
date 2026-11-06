@@ -91,7 +91,8 @@ then style them in the next.
   "the selected text" mean the selected objects. `ui.select` changes the selection.
 - `object.list` lists objects (id, kind, bounds in mm, sew types, colours, text);
   `object.get` gives one object in full.
-- Move, size, turn: `object.move` `{ids, dx, dy}`, `object.scale` `{ids, sx, sy}`,
+- Move, size, turn: `object.move` `{ids, dx, dy}` (the stitches move with it, unchanged),
+  `object.scale` `{ids, sx, sy}`,
   `object.rotate` `{ids, degrees}`, `object.flip`, `object.center`, `object.skew`
   `{ids, angleX, angleY}` (lean; fill directions turn with it).
 - Line up and space: `object.align` `{ids, edge: left|right|top|bottom|centerX|centerY,
