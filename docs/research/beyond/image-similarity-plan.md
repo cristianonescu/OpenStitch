@@ -512,6 +512,37 @@ is still skipped silently when there is nothing to learn the background from (a 
 a transparent border, or `subjectRect` over the whole image): transparent pixels are left out
 anyway, and nothing was asked to be removed.
 
+**2026-11-06, the sewn sunset patch against its render (#291):** `tools/image_similarity.py
+--scan` scores a scanned sew-out against the render of the file that was sewn. On the round-2
+scan (`examples/sew/calibration/results/2026-11-04-round2-all.jpg`, the sunset patch sewn from
+the kit at 4cf8b7a; registered by correlation, 5.76 × 5.96 px/mm: the patch sewed about 3 %
+narrower than tall, relative to the design, as fill rows pull the fabric along themselves):
+
+| Render | Score | dE00 | MS-SSIM | L* render − scan, top to bottom fifth |
+|---|---|---|---|---|
+| calibrated (the scorer's default since #299) | 50.3 | 18.98 | 0.279 | +0.5, +6.5, +14.9, +10.7, −5.3 |
+| calibrated with the Realistic view's shading | 50.6 | 18.02 | 0.241 | +4.8, +5.5, +18.7, +13.1, +7.4 |
+| flat (0.4 mm) | 55.6 | 16.60 | 0.367 | −0.2, +5.1, −4.0, +3.4, −11.8 |
+| realistic (0.4 mm, shaded) | 56.5 | 14.24 | 0.327 | +4.6, +4.1, −1.6, +6.2, +3.0 |
+
+The calibrated widths read 11–19 L* too light in the dark middle of the patch, where the
+photo's rows of several threads interleave: the single-thread T1 curve (tanh 0.4 r per thread)
+under-covers a multi-thread fill, and taking the rows of all threads together makes it worse
+(47.4, +37 L* in the middle fifth). The calibrated model stays the scorer's default for now:
+one patch on one fabric does not pin a multi-thread model, and changing it moves every
+recorded score. A second sewn photo patch (the portrait or the fruit, Photo Stitch 1 in
+OpenStitch mode) on the same fabric would show whether the flat widths' fit holds.
+
+**2026-11-06, Photo Stitch 2's layered coverage (#129, #468), measured and not taken:** the
+coverage solve recorded on #129 (threads laid on the fabric in sewing order in linear light,
+each line's coverage between its straight run's and the zigzag's at Max. Density by the T1
+curve, fitted per colour by coordinate descent on cube-root channels, turned back into zigzag
+spacing by the inverse curve) scores lower on the seven Photo Stitch 2 cases, 39.7 → 37.2
+(poppies 41.8 → 40.0, gradient 41.5 → 42.3, portrait 37.5 → 36.3, cat 48.3 → 45.2, sunset
+37.8 → 35.8, fruit 35.4 → 29.7, CMYK poppies 35.7 → 31.4): every thread then spreads over the
+image at mid coverage and the subjects lose their edges (MS-SSIM 0.188 → 0.117 on the fruit).
+The screen keeps its least-squares shares and running-stitch floor.
+
 ## Sources
 
 - Zhang, X., and Wandell, B. A. (1996). A spatial extension of CIELAB for digital color image reproduction (S-CIELAB). SID Digest.

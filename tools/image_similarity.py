@@ -4,6 +4,8 @@
     cargo build --release -p stitchtool
     python -I tools/image_similarity.py [--only ID,ID] [--mode pe|openstitch|both]
         [--render flat|realistic] [--set NAME=JSON] [--no-dists] [--out FILE.json] [--renders DIR]
+    python -I tools/image_similarity.py --scan SCAN.jpg --scan-box X0,Y0,X1,Y1 --design FILE.pes
+        [--bands N] [--no-dists] [--out FILE.json] [--renders DIR]
 
 The metric is the one agreed for the image-similarity plan
 (docs/research/beyond/image-similarity-plan.md, section 2):
@@ -16,7 +18,8 @@ The metric is the one agreed for the image-similarity plan
    stitch is tanh(0.4 r) / r mm wide (0.4 mm where rows are sparse, 0.21 mm at 4.5 rows/mm).
    `--render flat` draws every stitch 0.4 mm wide; `--render realistic` adds the editor's
    realistic-view shading (an edge at 0.55 x the colour and a highlight lifted 45 % towards white
-   on the middle 60 % of a stitch).
+   on the middle 60 % of a stitch); `--render calibrated-realistic` draws both, the calibrated
+   widths with that shading, as the editor's Realistic view does.
 2. **Viewing.** The source (composited on white) and the render are area-averaged in linear
    light to 6 px/mm (about 150 dpi, the design at actual size), long side 100 mm.
 3. **Eye model.** S-CIELAB (Zhang and Wandell 1996): opponent channels filtered by the eye's
@@ -35,6 +38,16 @@ case in OpenStitch's PE-DESIGN-compatible mode (`compatMode: peDesign`), in Open
 (`openStitch`), or both. A command that does not have an OpenStitch mode yet ignores the
 parameter, so its two runs are identical. Every result is OpenStitch's output: nothing here is
 PE-DESIGN's own.
+
+**Scan mode** (`--scan`, #291) scores a sew-out against the render of the design file that was
+sewn, to check the render model on real stitches: the design is loaded with `stitches.import`
+and drawn as above (`--render`, calibrated by default) on the scan's own fabric colour; the
+stitched rectangle is found inside `--scan-box` (pixels of the scan around one design) as the
+rows and columns at least 70 % covered by thread, its edges moved to where the scan's brightness
+best correlates with the flat render's, and scaled to the design's size. The terms
+are computed as above with the scan in the source's place, and the mean CIEDE2000 and the mean
+L* of render minus scan (positive: the render reads lighter) are reported for `--bands`
+horizontal bands.
 
 Needs numpy, Pillow and scipy. The P term needs PyTorch and piq (`pip install torch piq`;
 piq downloads the published DISTS weights on first use). DISTS is evaluation-only and never
@@ -86,6 +99,11 @@ def shades(rgb, realistic):
     edge = tuple(int(round(v)) for v in r * 0.55)
     light = tuple(int(round(v)) for v in r + (255 - r) * 0.45)
     return edge, body, light
+
+
+# --render: (realistic shading, calibrated widths).
+RENDERS = {"calibrated": (False, True), "flat": (False, False), "realistic": (True, False),
+           "calibrated-realistic": (True, True)}
 
 
 # The T1 calibration (#291): one layer of rows r per mm covers tanh(COVER_K * r) of the fabric.
@@ -378,27 +396,147 @@ def run_case(tool, image, command, params, realistic, with_dists, calibrated=Tru
     return r, out
 
 
+# --- scan mode (#291) ---------------------------------------------------------------------------
+
+def stitched_box(rgb, share=0.7):
+    """(x0, y0, x1, y1) of the stitched rectangle in an RGB crop of a scan: the rows and columns
+    at least `share` covered by thread (pixels darker or more colourful than the fabric, whose
+    colour is the median of the crop's lightest quarter)."""
+    a = rgb.astype(np.float64)
+    light = a.sum(-1)
+    fabric = np.median(a[light >= np.percentile(light, 75)], axis=0)
+    thread = np.abs(a - fabric).max(-1) > 40
+    cols = np.flatnonzero(thread.mean(0) >= share)
+    rows = np.flatnonzero(thread.mean(1) >= share)
+    if len(cols) == 0 or len(rows) == 0:
+        raise ValueError("no stitched rectangle found in the scan box")
+    return (int(cols[0]), int(rows[0]), int(cols[-1]) + 1, int(rows[-1]) + 1), fabric
+
+
+def register(crop, box, out, slack=0.12):
+    """Refines `box` (x0, y0, x1, y1 in the crop) so the scan lines up with the render `out`: the
+    four edges, each within `slack` of the box's size, that maximise the correlation of the two
+    images' luminance at 2 px/mm, by coordinate search with a shrinking step. Loose thread ends
+    move the edges the coverage test finds, and the fabric pulled along the stitch rows sews a
+    patch a few per cent narrower than designed."""
+    full = Image.fromarray(crop).convert("L")
+    w, h = max(8, out.width // 10), max(8, out.height // 10)  # RES 20 px/mm -> 2 px/mm
+    ref = np.asarray(out.convert("L").resize((w, h), Image.BOX), np.float64)
+    ref = (ref - ref.mean()) / max(ref.std(), 1e-9)
+
+    def corr(b):
+        if b[2] - b[0] < 8 or b[3] - b[1] < 8:
+            return -2.0
+        a = np.asarray(full.crop(b).resize((w, h), Image.BOX), np.float64)
+        return float(((a - a.mean()) / max(a.std(), 1e-9) * ref).mean())
+
+    b = list(box)
+    limits = [(box[k] - int(slack * (box[2] - box[0] if k % 2 == 0 else box[3] - box[1])),
+               box[k] + int(slack * (box[2] - box[0] if k % 2 == 0 else box[3] - box[1])))
+              for k in range(4)]
+    limits = [(max(0, lo), min(crop.shape[1 - k % 2], hi)) for k, (lo, hi) in enumerate(limits)]
+    top = corr(b)
+    for step in (8, 4, 2, 1):
+        for _ in range(3):
+            moved = False
+            for k in range(4):
+                for d in (-step, step):
+                    c = list(b)
+                    c[k] = min(max(c[k] + d, limits[k][0]), limits[k][1])
+                    v = corr(c)
+                    if v > top + 1e-9:
+                        top, b, moved = v, c, True
+            if not moved:
+                break
+    return tuple(b)
+
+
+def scan_case(tool, scan, box, design, mode, with_dists, bands):
+    """Scores the scanned sew-out of `design` against its render (see the module's notes)."""
+    crop = np.asarray(Image.open(scan).convert("RGB").crop(box))
+    found, fabric = stitched_box(crop)
+    tool("design.new", width=400, height=400)
+    tool("stitches.import", path=str(Path(design).resolve()))
+    b = tool("object.list")[0]["bounds"]
+    W, H = b["width"], b["height"]
+    runs = [(rgb, [(x - b["x"], y - b["y"]) for x, y in pts]) for rgb, pts in stitch_runs(tool)]
+    fab = tuple(int(round(v)) for v in fabric)
+    shaded, calibrated = RENDERS[mode]
+    out = render(runs, W, H, shaded, fabric=fab, calibrated=calibrated)
+    # Registered on the flat render, so every render mode compares the same pixels of the scan.
+    x0, y0, x1, y1 = register(crop, found, render(runs, W, H, fabric=fab))
+    sewn = Image.fromarray(crop[y0:y1, x0:x1])
+    r = score(sewn, out, W, H, with_dists)
+    r["scanBoxPx"] = [box[0] + x0, box[1] + y0, box[0] + x1, box[1] + y1]
+    r["designMm"] = [W, H]
+    r["pxPerMm"] = [(x1 - x0) / W, (y1 - y0) / H]
+    r["fabric"] = list(fab)
+    a, o = scielab(to_view(sewn, W, H)), scielab(to_view(out, W, H))
+    de = de2000(a, o)
+    r["bands"] = []
+    for k in range(bands):
+        i0, i1 = de.shape[0] * k // bands, de.shape[0] * (k + 1) // bands
+        r["bands"].append({"dE": float(de[i0:i1].mean()),
+                           "dL": float((o[i0:i1, :, 0] - a[i0:i1, :, 0]).mean())})
+    return r, out, sewn
+
+
+def main_scan(a):
+    with_dists = not a.no_dists
+    box = tuple(int(v) for v in a.scan_box.split(","))
+    tool = ie.Tool(ie.ROOT)
+    try:
+        r, out, sewn = scan_case(tool, a.scan, box, a.design, a.render, with_dists, a.bands)
+    finally:
+        tool.close()
+    s = f"{r['score'] * 100:.1f}" if "score" in r else "-"
+    print(f"render: {a.render}; scan {Path(a.scan).name} box {r['scanBoxPx']} "
+          f"({r['pxPerMm'][0]:.2f} x {r['pxPerMm'][1]:.2f} px/mm), design {Path(a.design).name} "
+          f"{r['designMm'][0]:.1f} x {r['designMm'][1]:.1f} mm, fabric {r['fabric']}")
+    print(f"score {s}  dE {r['dE']:.2f}  dE90 {r['dE90']:.2f}  msssim {r['msssim']:.4f}"
+          + (f"  dists {r['dists']:.3f}" if "dists" in r else ""))
+    for k, band in enumerate(r["bands"]):
+        print(f"  band {k + 1}/{len(r['bands'])}: dE {band['dE']:6.2f}  "
+              f"L* render - scan {band['dL']:+6.2f}")
+    if a.renders:
+        folder = Path(a.renders)
+        folder.mkdir(parents=True, exist_ok=True)
+        stem = Path(a.design).stem
+        out.save(folder / f"{stem}-{a.render}.png")
+        sewn.save(folder / f"{stem}-scan.png")
+    if a.out:
+        Path(a.out).write_text(json.dumps({"render": a.render, "scan": r}, indent=1))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--only", help="comma-separated case ids")
     ap.add_argument("--mode", choices=["pe", "openstitch", "both"], default="both")
-    ap.add_argument("--render", choices=["calibrated", "flat", "realistic"], default="calibrated")
+    ap.add_argument("--render", choices=list(RENDERS), default="calibrated")
     ap.add_argument("--set", action="append", default=[], metavar="NAME=JSON",
                     help="extra digitize parameter for every case")
     ap.add_argument("--no-dists", action="store_true", help="skip DISTS (no PyTorch needed)")
     ap.add_argument("--out", help="write the results as JSON")
     ap.add_argument("--renders", help="save each render (quarter size) to this folder")
+    ap.add_argument("--scan", help="scan mode: a scanned sew-out (see the module's notes)")
+    ap.add_argument("--scan-box", help="scan mode: X0,Y0,X1,Y1 pixels around one design")
+    ap.add_argument("--design", help="scan mode: the design file that was sewn")
+    ap.add_argument("--bands", type=int, default=3, help="scan mode: horizontal bands reported")
     a = ap.parse_args()
 
     if not ie.BIN.exists():
         sys.exit(f"{ie.BIN} not found: cargo build --release -p stitchtool")
     with_dists = not a.no_dists
+    if a.scan and not (a.scan_box and a.design):
+        sys.exit("--scan needs --scan-box and --design")
     if with_dists:
         try:
             import piq  # noqa: F401
             import torch  # noqa: F401
         except ImportError:
             sys.exit("DISTS needs PyTorch and piq: pip install torch piq (or pass --no-dists)")
+    if a.scan:
+        return main_scan(a)
 
     extra = {k: json.loads(v) for k, v in (s.split("=", 1) for s in a.set)}
     keys = a.only.split(",") if a.only else list(CASES)
@@ -421,8 +559,9 @@ def main():
                 if command in MODAL:
                     p["compatMode"] = MODES[m]
                 try:
-                    r, out = run_case(tool, image, command, p, a.render == "realistic",
-                                      with_dists, calibrated=a.render == "calibrated")
+                    shaded, calibrated = RENDERS[a.render]
+                    r, out = run_case(tool, image, command, p, shaded, with_dists,
+                                      calibrated=calibrated)
                 except RuntimeError as e:
                     print(f"{k:9} {m:10} failed: {e}", flush=True)
                     continue

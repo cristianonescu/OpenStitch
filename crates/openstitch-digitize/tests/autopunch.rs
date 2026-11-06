@@ -1664,3 +1664,160 @@ fn plan_overrides_and_neighbour_angles() {
     assert_eq!(autopunch::vary_angle(45.0, &[]), 45.0);
     assert_eq!(autopunch::vary_angle(45.0, &[45.0]), 75.0);
 }
+
+/// #489 `leastTravel`: a U-shaped fill sews less thread at the direction it picks than at
+/// PE-DESIGN's, and never more than at the direction it starts from.
+#[test]
+fn least_travel_picks_the_shortest_path() {
+    use openstitch_design::{Contour, RegionSewing, RegionType, v2};
+    let u = Contour::new(
+        [
+            (0.0, 0.0),
+            (80.0, 0.0),
+            (80.0, 220.0),
+            (220.0, 220.0),
+            (220.0, 0.0),
+            (300.0, 0.0),
+            (300.0, 300.0),
+            (0.0, 300.0),
+        ]
+        .iter()
+        .map(|&(x, y)| v2(x, y))
+        .collect(),
+        true,
+    );
+    let mut region = RegionSewing::new(RegionType::Fill, openstitch_core::Thread::rgb(0));
+    region.angle = 90.0;
+    region.underlay = false;
+    let region = region;
+    let thread = |deg: f64| -> f64 {
+        let mut r = region.clone();
+        r.angle = deg;
+        openstitch_design::region::layers(std::slice::from_ref(&u), &r, &[])
+            .iter()
+            .flatten()
+            .flat_map(|run| run.windows(2).map(|w| w[0].distance(w[1])))
+            .sum()
+    };
+    let chosen = autopunch::least_travel(std::slice::from_ref(&u), &region);
+    assert!(
+        thread(chosen) <= thread(90.0) - autopunch::TRAVEL_SAVING,
+        "{chosen}: {} against {}",
+        thread(chosen),
+        thread(90.0)
+    );
+    // Any start direction: the pick never sews more than it.
+    for own in [0.0, 45.0, 90.0, 135.0] {
+        let mut start = region.clone();
+        start.angle = own;
+        let chosen = autopunch::least_travel(std::slice::from_ref(&u), &start);
+        assert!(thread(chosen) <= thread(own), "{own} -> {chosen}");
+    }
+}
+
+/// #490: one click cuts out the subject it lands on. Two red discs on mottled grass: the
+/// clicked disc's mask matches it (IoU ≥ 0.85) and leaves the other disc out; a click on the
+/// grass finds no subject.
+#[test]
+fn a_click_cuts_out_the_subject_under_it() {
+    use openstitch_digitize::grabcut::{self, Marks};
+    let (w, h) = (120usize, 80usize);
+    let inside =
+        |x: usize, y: usize, cx: f64| (x as f64 + 0.5 - cx).hypot(y as f64 + 0.5 - 40.0) < 18.0;
+    let img = Raster::from_fn(w as u32, h as u32, |x, y| {
+        let (x, y) = (x as usize, y as usize);
+        if inside(x, y, 35.0) || inside(x, y, 85.0) {
+            [200, 30 + ((x * 7 + y * 3) % 20) as u8, 40, 255]
+        } else {
+            [
+                60 + ((x * 13 + y * 7) % 30) as u8,
+                150 + ((x * 5 + y * 11) % 40) as u8,
+                50,
+                255,
+            ]
+        }
+    })
+    .expect("size");
+    let census = palette::census(&img);
+    let mask = grabcut::isolate_at(&census.modal, w, h, [35.0 / 120.0, 0.5], &Marks::default())
+        .expect("a background to learn");
+    let (mut both, mut either, mut other) = (0, 0, 0);
+    for y in 0..h {
+        for x in 0..w {
+            let truth = inside(x, y, 35.0);
+            let got = mask[y * w + x];
+            both += usize::from(truth && got);
+            either += usize::from(truth || got);
+            other += usize::from(got && inside(x, y, 85.0));
+        }
+    }
+    let iou = both as f64 / either as f64;
+    assert!(iou >= 0.85, "IoU {iou:.3}");
+    assert_eq!(other, 0, "the other disc is left out");
+    let grass = grabcut::isolate_at(&census.modal, w, h, [0.02, 0.02], &Marks::default())
+        .expect("a background to learn");
+    assert!(!grass.contains(&true));
+}
+
+/// #469: with `underlap_mm`, a fill reaches under the touching region sewn after it, never
+/// under one sewn before or into the background; PE-DESIGN mode ignores it.
+#[test]
+fn underlap_reaches_under_the_next_colour_only() {
+    // Yellow (sewn first: brighter) beside blue, on white; 100 × 60 px over 50 mm.
+    let img = Raster::from_fn(100, 60, |x, y| {
+        if !(10..50).contains(&y) || !(10..90).contains(&x) {
+            [255, 255, 255, 255]
+        } else if x < 50 {
+            [250, 220, 20, 255]
+        } else {
+            [20, 40, 200, 255]
+        }
+    })
+    .expect("size");
+    let frame = Frame::new(0.0, 0.0, 50.0, 100);
+    let extents = |mode: Mode, underlap: f64| {
+        let out = autopunch::convert(
+            &img,
+            &frame,
+            &AutoPunch {
+                colors: 3,
+                mode,
+                fabric: Some([255, 255, 255]),
+                underlap_mm: underlap,
+                ..Default::default()
+            },
+        )
+        .expect("converts");
+        out.objects
+            .iter()
+            .map(|o| {
+                let xs: Vec<f64> = o
+                    .contours
+                    .iter()
+                    .flat_map(|c| c.path())
+                    .map(|p| p.x)
+                    .collect();
+                let ys: Vec<f64> = o
+                    .contours
+                    .iter()
+                    .flat_map(|c| c.path())
+                    .map(|p| p.y)
+                    .collect();
+                let lo = |v: &[f64]| v.iter().copied().fold(f64::MAX, f64::min);
+                let hi = |v: &[f64]| v.iter().copied().fold(f64::MIN, f64::max);
+                [lo(&xs), hi(&xs), lo(&ys), hi(&ys)]
+            })
+            .collect::<Vec<_>>()
+    };
+    let plain = extents(Mode::OpenStitch, 0.0);
+    let under = extents(Mode::OpenStitch, 0.8);
+    assert_eq!(plain.len(), 2);
+    // Yellow (first) reaches about 0.8 mm (8 units) further right, under the blue.
+    let grown = under[0][1] - plain[0][1];
+    assert!((6.0..=10.0).contains(&grown), "{grown}");
+    // Not into the background: its other sides stay.
+    assert!((under[0][0] - plain[0][0]).abs() < 1.0 && (under[0][2] - plain[0][2]).abs() < 1.0);
+    // Blue, sewn last, keeps its outline.
+    assert_eq!(under[1], plain[1]);
+    assert_eq!(extents(Mode::PeDesign, 0.8), extents(Mode::PeDesign, 0.0));
+}

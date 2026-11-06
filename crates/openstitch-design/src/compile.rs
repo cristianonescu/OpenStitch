@@ -1673,7 +1673,13 @@ fn line_elements(
             let width = line.width * 10.0;
             let spacing = line.spacing_mm() * 10.0;
             let mut run = if line.kind == LineType::Zigzag && line.underlay {
-                lines::zigzag_underlay(&c.path(), width / 4.0, pitch)
+                lines::line_underlay(
+                    &c.path(),
+                    width,
+                    pitch,
+                    line.underlay_style,
+                    &line.underlay_auto,
+                )
             } else {
                 Vec::new()
             };
@@ -1723,6 +1729,14 @@ fn line_elements(
                 LineType::Triple => generate::triple(c, pitch),
                 // PE-DESIGN's zigzag (rails matched along each leg) on straight-line paths;
                 // curves keep the evenly spaced zigzag, with half stitch where asked.
+                // OpenStitch's satin shaping (#520-#522) replaces both when set.
+                LineType::Zigzag if !line.satin_shaping.is_plain() => lines::zigzag_shaped(
+                    &c.path(),
+                    width,
+                    10.0 / line.density.max(0.1),
+                    &line.satin_shaping,
+                    c.has_curves().then_some(line.half_stitch),
+                ),
                 LineType::Zigzag if !c.has_curves() => {
                     lines::zigzag_rails(&c.path(), width, 10.0 / line.density.max(0.1))
                 }

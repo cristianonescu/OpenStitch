@@ -1627,6 +1627,23 @@ Line references are relative to `crates/`.
   region-then-outline order unchanged): PE-DESIGN has no per-shape part order, so a PES 11
   export writes such a shape as two shapes, its outline then its region, and the stitch data
   sews them in that order.
+- **Image digitizing, batch:mac-digitize-2 (2026-11-06; #447, #469, #489, #490):** PE-DESIGN-compatible
+  mode's output is unchanged (scorer identical on g01, g02, g05, g13, p03; every new option is
+  OpenStitch mode only, off unless set). New in OpenStitch mode: `angleRule: leastTravel`,
+  presets, `digitize.exportOutlines`, `underlap`, `subjectPoint`, `digitize.segment` and
+  `lines: edges`. `leastTravel` against `pe` (`--no-dists`, 100 mm): ΔE00 / MS-SSIM g01
+  9.44/0.8628 → 8.71/0.8732, g02 10.68/0.7821 → 11.02/0.8130, g05 8.06/0.8770 → 8.04/0.8813, g06
+  8.47/0.8245 → 8.27/0.8274, g08 8.61/0.9668 → 7.84/0.9789, g11 unchanged, g13 24.57/0.5749 →
+  21.17/0.5714, g15 14.50/0.8700 → 13.54/0.8849, p03 16.01/0.5335 → 15.54/0.5516, d01
+  23.80/0.3709 → 20.42/0.3917; thread (sewn plus connections) never higher. `underlap: 0.8`
+  is mixed (g01, g02, g08, g13, d01 better; g06, g11, g15, p03 slightly worse; p03 density
+  3.98 → 4.66 points/mm², g08 trims 12 → 32), so it stays off by default. Measured and not
+  shipped: #447's PE-compatible thread set (p03: main matches 2 of PE-DESIGN's 10 threads;
+  CIELAB median cut 3, p03 ΔE00 15.99 → 18.21; CIELAB until 10 distinct 3, 17.54; popularity 2;
+  boxes by their commonest colour 1) and #469's Cross Stitch edge cells (g07: own-colour rule
+  at 2.5 mm ΔE00 14.19 → 14.53, MS-SSIM 0.7573 → 0.7364; a grid snapped to the art's pixels
+  helps at the art's own 4.4 mm cell, 0.5978 → 0.6905, but g07's art pixels are not square,
+  34.5 × 33 px, so square cells drift by up to 4 mm).
 - **Image digitizing, batch:auto-punch (2026-11-06; #445, #447, #469, #489):** PE-DESIGN-compatible
   mode's output is unchanged on every gallery case (scorer identical, 17 cases). OpenStitch mode:
   a paper background is the fabric showing (#445), thin parts cut by the sliver opening are
@@ -2529,6 +2546,59 @@ Assistant's stream timeout (#580) and thread-chart rules (#495) are in
   same numbers on all 16 Photo Stitch cases in both modes and the nine Photo Stitch 1 photos at
   High; `sew_check` passes; compat 454/454.
 
+### Photo Stitch 2 Mono on the coverage curve, and thread search, 2026-11-06 (`batch:mac-photo-2`, #468, #486, #682)
+
+- **Measured and not taken: an OpenStitch-mode Mono on the T1 coverage curve (#468).** The grey
+  after Mono's contrast stretch was turned into a target coverage and then into a zigzag share
+  by the T1 curve (the run alone is tanh(0.4 · 10/interval); rows = atanh(c / 0.9) / 0.4).
+  Variants: darkness in linear light, darkness in sRGB, and PE's ramp with its no-zigzag
+  threshold lowered from 17 % to 10 % or 5 %. On the six Photo Stitch 2 images in Mono plus the
+  eight-step grey ramp, every variant lowers mean likeness (PE ramp 34.4; variants 33.2–33.9),
+  the grey ramp included (35.2 → 34.2–35.1). Both modes keep PE's ramp; the 219 step stays lost.
+  Table on #468.
+- **#433 check:** `fidelity_high_raises_the_colour_counts` passes in 9.1 s on the Mac (`-j 2`).
+- **Thread search in the editor (#682, part of #486):** the PEC chart popup filters its swatches
+  by chart number, Brother Embroidery code or name, with `threads.find`'s matching
+  (`find_rank`, now public). Tests: `find_in_the_brother_chart_is_the_pickers_search`,
+  `pec_picker_search_finds_threads_by_number_or_name`.
+- **More thread charts (#486): none added.** No maker's terms allow reuse of its published values
+  (Gunold Poly and Cotty: silent; Coats Sylko, Hemingworth, Fil-Tec Glide: forbidden; the rest
+  publish none). The table and sources are in research/beyond/thread-charts.md; the owner decides.
+
+### Photo Stitch travel, the sewn sunset and the layered screen, 2026-11-06 (`batch:mac-photo`, #298, #291, #129, #468)
+
+Likeness is `tools/image_similarity.py`'s score (S, C and DISTS) on the calibrated render;
+every result is OpenStitch's output. No generator change landed: each one measured lowered
+likeness, so the issues stay open with the numbers below.
+
+- **Photo Stitch 1 travel across a thin stripe (#298), measured and not taken.** When a
+  thread's island is done and no hidden path leads on, a second search let its routed travel
+  (Fewer trims) cross up to 2 mm of an earlier colour within CIEDE2000 `limit` of its own, in
+  sight, instead of trimming. Over the nine Photo Stitch 1 cases (OpenStitch mode, main's 2633
+  trims, 20.0 per 1,000 stitches, mean likeness 64.21):
+
+  | Limit | Trims | Per 1,000 | Mean likeness |
+  |---|---|---|---|
+  | ΔE00 5 | 2633 | 20.0 | 64.21 |
+  | ΔE00 8 | 2615 | 19.9 | 64.25 |
+  | ΔE00 11 | 2505 | 19.1 | 63.76 (p01 −1.7, p05 −2.5) |
+  | ΔE00 15 | 2102 | 15.9 | 63.47 (p01 −4.7, p05 −3.3, p04 +2.1) |
+  | any colour (an earlier build of the patch, indicative) | about 600 | about 4 | about 61.6 |
+
+  The travel's needle points count against the density caps and its crossings show, so every
+  limit that saves trims costs likeness. The patch is kept as a design record outside the repo;
+  PE-DESIGN-compatible mode was unchanged by it. PE-DESIGN's own rate (0.4 per 1,000) still
+  needs visible travel the owner decides on after the sunset sew-out.
+- **The sewn sunset patch against its render (#291).** New `tools/image_similarity.py --scan`
+  mode; on the round-2 scan the calibrated render scores 50.3 (flat 55.6, realistic 56.5,
+  calibrated with the Realistic view's shading 50.6) and reads 11–19 L* too light in the
+  patch's dark middle, where several threads' rows interleave. Details and the table are in
+  the image-similarity plan's progress (2026-11-06).
+- **Photo Stitch 2's layered coverage solve (#129, #468), measured and not taken:** mean
+  likeness 39.7 → 37.2 on the seven Photo Stitch 2 cases; details in the plan.
+- **Checked:** #433's timing test (`fidelity_high_raises_the_colour_counts`) 8.8–9.0 s before
+  and with the travel patch; workspace tests unchanged (no generator change lands).
+
 ### Photo Stitch trims, needle drops, coverage and colour, 2026-11-05 (#298, #468, #129, #291)
 
 All likeness numbers are `tools/image_similarity.py`'s S and C terms (DISTS not installed),
@@ -2737,6 +2807,33 @@ output is byte-identical (tests `basting_box_sews_first_in_the_first_thread`,
   open for part-way satin starts and draggable markers.
 - sew_check passes on the heart example with a basting box, an outline basting in its own
   thread, stops after an object plus Stop at Jumps, and nearest start, as on the plain design.
+
+### Satin shaping, 2026-11-06 (#520-#523, `batch:satin-1`)
+
+All beyond PE-DESIGN and off by default on Manual Punch columns and zigzag lines; with the
+options unset, every one of the 476 files the compat run writes is byte-identical to main and
+compat stays 454/454. The shared code is in `column.rs`: `pieces` (corners), `short_stitches`,
+`Compensation::sides`, `AutoUnderlay`, `centre_walk`, `underlay_at`.
+
+Coupon (a 3 mm star border, a 4 mm zigzag line with a 30° corner, a 6 mm Manual Punch column
+with a 60° corner and a 4 mm curved zigzag line), turned (PE-DESIGN) against `cornerStyle:
+auto, shortStitchDistance: 0.25`, read from the exported PES:
+
+| Object | Longest stitch, turned → shaped | Stitches | Note |
+|---|---|---|---|
+| Star border 3 mm | 9.9 → 6.9 mm | 557 → 975 | tips capped; mitred legs sew square stitches at the same spacing across the stitch, where PE-DESIGN's leaning ones are about 1.8× longer |
+| Zigzag line, 30° corner, 4 mm | 11.8 → 7.9 mm | 254 → 383 | `design.check` "satin stitches up to 12.3 mm" gone |
+| Column, 60° corner, 6 mm | 12.3 → 6.1 mm | 490 → 500 | mitred |
+| Curved zigzag line 4 mm | 4.1 → 4.1 mm | 221 → 221 | 0.5 mm cells with 2+ needle drops 43 → 25; one cell rises from 2 to 3 |
+
+- Corners classify on the rung chain's interior angle (≥ 75° turned, < 75° mitre, < 45° cap
+  with `auto`); a cap longer than `capMaxLength` is mitred, a leg shorter than the overlap or
+  a stitch spacing stays turned. A closed line with corners starts halfway along its first side.
+- A line with no corner sharp enough keeps PE-DESIGN's zigzag (and Half Stitch on curves);
+  short stitches then thin it further.
+- Not done here: skeleton and Auto satin (#675), satin lettering (#676), fill push and a
+  region's second underlay (#677), lap corners. No sew-out yet: the owner's T-card scan of a
+  tapered column with `pullPercent: 3` is still needed for #522's ±5 % width target.
 
 ## Order of work
 

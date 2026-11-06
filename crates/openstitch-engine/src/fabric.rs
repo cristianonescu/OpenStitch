@@ -10,6 +10,7 @@
 
 use crate::commands::{CommandSpec, Effect, indexes, opt, req, spec};
 use crate::params::Params;
+use openstitch_design::column::AutoUnderlay;
 use openstitch_design::{ObjectKind, RegionType, UnderlayStyle};
 use serde_json::{Value, json};
 
@@ -30,7 +31,21 @@ pub struct Fabric {
     pub pull_compensation: f64,
     /// `None` = no underlay.
     pub underlay: Option<UnderlayStyle>,
+    /// Width thresholds of automatic under sewing (#523): stretchy and piled fabrics switch to
+    /// the stronger under sewing on narrower columns.
+    pub auto_underlay: AutoUnderlay,
 }
+
+/// Automatic under sewing on firm fabrics: a centre walk below 2 mm, the edge run to 4 mm.
+const AUTO_FIRM: AutoUnderlay = AutoUnderlay {
+    centre_below: 2.0,
+    edge_below: 4.0,
+};
+/// On knits, fleece and towels: a centre walk below 1.5 mm, the edge run to 3 mm.
+const AUTO_STRETCH: AutoUnderlay = AutoUnderlay {
+    centre_below: 1.5,
+    edge_below: 3.0,
+};
 
 pub const FABRICS: &[Fabric] = &[
     Fabric {
@@ -43,6 +58,7 @@ pub const FABRICS: &[Fabric] = &[
         stitch_length: 4.0,
         pull_compensation: 0.2,
         underlay: Some(UnderlayStyle::Edge),
+        auto_underlay: AUTO_FIRM,
     },
     Fabric {
         id: "thin",
@@ -54,6 +70,7 @@ pub const FABRICS: &[Fabric] = &[
         stitch_length: 3.5,
         pull_compensation: 0.1,
         underlay: Some(UnderlayStyle::Edge),
+        auto_underlay: AUTO_FIRM,
     },
     Fabric {
         id: "heavy",
@@ -65,6 +82,7 @@ pub const FABRICS: &[Fabric] = &[
         stitch_length: 4.0,
         pull_compensation: 0.3,
         underlay: Some(UnderlayStyle::EdgeZigzag),
+        auto_underlay: AUTO_FIRM,
     },
     Fabric {
         id: "knit",
@@ -76,6 +94,7 @@ pub const FABRICS: &[Fabric] = &[
         stitch_length: 3.5,
         pull_compensation: 0.4,
         underlay: Some(UnderlayStyle::EdgeZigzag),
+        auto_underlay: AUTO_STRETCH,
     },
     Fabric {
         id: "fleece",
@@ -87,6 +106,7 @@ pub const FABRICS: &[Fabric] = &[
         stitch_length: 4.0,
         pull_compensation: 0.4,
         underlay: Some(UnderlayStyle::Double),
+        auto_underlay: AUTO_STRETCH,
     },
     Fabric {
         id: "towel",
@@ -98,6 +118,7 @@ pub const FABRICS: &[Fabric] = &[
         stitch_length: 4.0,
         pull_compensation: 0.4,
         underlay: Some(UnderlayStyle::Double),
+        auto_underlay: AUTO_STRETCH,
     },
     Fabric {
         id: "felt",
@@ -109,6 +130,7 @@ pub const FABRICS: &[Fabric] = &[
         stitch_length: 4.0,
         pull_compensation: 0.1,
         underlay: Some(UnderlayStyle::Edge),
+        auto_underlay: AUTO_FIRM,
     },
     Fabric {
         id: "leather",
@@ -120,6 +142,7 @@ pub const FABRICS: &[Fabric] = &[
         stitch_length: 5.0,
         pull_compensation: 0.0,
         underlay: None,
+        auto_underlay: AUTO_FIRM,
     },
 ];
 
@@ -133,14 +156,12 @@ fn describe(f: &Fabric) -> Value {
         "satinDensity": f.satin_density,
         "stitchLength": f.stitch_length,
         "pullCompensation": f.pull_compensation,
-        "underlay": f.underlay.map(|u| match u {
-            UnderlayStyle::Edge => "edge",
-            UnderlayStyle::Zigzag => "zigzag",
-            UnderlayStyle::EdgeZigzag => "edgeZigzag",
-            UnderlayStyle::Double => "double",
-            UnderlayStyle::EdgeFill => "edgeFill",
-            UnderlayStyle::Cross => "cross",
-        }),
+        "underlay": f.underlay.map(UnderlayStyle::id),
+        // Thresholds of automatic under sewing on this fabric (#523), mm.
+        "autoUnderlay": {
+            "centreBelow": f.auto_underlay.centre_below,
+            "edgeBelow": f.auto_underlay.edge_below,
+        },
     })
 }
 
@@ -196,7 +217,10 @@ pub fn commands() -> Vec<CommandSpec> {
                     r.stitch_length = f.stitch_length;
                     r.pull_compensation = f.pull_compensation;
                     r.underlay = f.underlay.is_some();
-                    if let Some(u) = f.underlay {
+                    // Automatic under sewing stays automatic, with the fabric's thresholds.
+                    if r.underlay_style == UnderlayStyle::Auto {
+                        r.underlay_auto = f.auto_underlay;
+                    } else if let Some(u) = f.underlay {
                         r.underlay_style = u;
                     }
                     changed.push(o.id);
