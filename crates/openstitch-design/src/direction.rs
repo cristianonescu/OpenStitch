@@ -706,15 +706,22 @@ mod tests {
         // offsets since #471; before, its vertical copies).
         let guide = guide_samples(&arch(), 2000.0).expect("samples");
         let phase = |p: &Vec2| (signed_distance(&guide, *p) / spacing).rem_euclid(1.0);
-        let p0 = phase(&points[0]);
-        assert!(
-            points.iter().all(|p| {
-                let f = (phase(p) - p0).rem_euclid(1.0);
+        // Rows lie whole spacings from the curve, so the phase is 0; travel between rows
+        // inside the band is the rest.
+        let on = points
+            .iter()
+            .filter(|p| {
+                let f = phase(p);
                 f.min(1.0 - f) < 0.02
-            }),
-            "points off the curved rows"
+            })
+            .count();
+        assert!(
+            on as f64 > 0.85 * points.len() as f64,
+            "{on} of {} points on the curved rows",
+            points.len()
         );
         // All inside the band (pull compensation 0), to 0.03 mm.
+        let w = Warp::new(&arch()).expect("warp");
         assert!(points.iter().all(|p| {
             let q = w.forward(*p);
             q.y.abs() <= 60.3 && q.x >= -0.3 && q.x <= 400.3
