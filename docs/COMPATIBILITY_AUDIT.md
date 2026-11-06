@@ -2529,7 +2529,7 @@ Assistant's stream timeout (#580) and thread-chart rules (#495) are in
   same numbers on all 16 Photo Stitch cases in both modes and the nine Photo Stitch 1 photos at
   High; `sew_check` passes; compat 454/454.
 
-### Photo Stitch 2 Mono on the coverage curve, 2026-11-06 (`batch:mac-photo-2`, #468)
+### Photo Stitch 2 Mono on the coverage curve, and thread search, 2026-11-06 (`batch:mac-photo-2`, #468, #486, #682)
 
 - **Measured and not taken: an OpenStitch-mode Mono on the T1 coverage curve (#468).** The grey
   after Mono's contrast stretch was turned into a target coverage and then into a zigzag share
@@ -2540,6 +2540,13 @@ Assistant's stream timeout (#580) and thread-chart rules (#495) are in
   the grey ramp included (35.2 → 34.2–35.1). Both modes keep PE's ramp; the 219 step stays lost.
   Table on #468.
 - **#433 check:** `fidelity_high_raises_the_colour_counts` passes in 9.1 s on the Mac (`-j 2`).
+- **Thread search in the editor (#682, part of #486):** the PEC chart popup filters its swatches
+  by chart number, Brother Embroidery code or name, with `threads.find`'s matching
+  (`find_rank`, now public). Tests: `find_in_the_brother_chart_is_the_pickers_search`,
+  `pec_picker_search_finds_threads_by_number_or_name`.
+- **More thread charts (#486): none added.** No maker's terms allow reuse of its published values
+  (Gunold Poly and Cotty: silent; Coats Sylko, Hemingworth, Fil-Tec Glide: forbidden; the rest
+  publish none). The table and sources are in research/beyond/thread-charts.md; the owner decides.
 
 ### Photo Stitch travel, the sewn sunset and the layered screen, 2026-11-06 (`batch:mac-photo`, #298, #291, #129, #468)
 
