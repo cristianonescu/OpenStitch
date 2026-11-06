@@ -6,10 +6,13 @@
 use crate::commands::{ParamDoc, opt};
 use crate::params::{CommandError, Params};
 use openstitch_design::UnderlayStyle;
-use openstitch_design::column::{AutoUnderlay, CornerStyle, SatinShaping, SecondUnderlay};
+use openstitch_design::column::{
+    AutoUnderlay, CornerStyle, Jagged, JaggedMode, JaggedSide, RAISED_MIN_WIDTH, Raised,
+    SatinShaping, SatinStyle, SecondUnderlay,
+};
 
 /// The parameters shared by `object.setRegion` and `object.setLine`.
-pub(crate) const SHAPING_PARAMS: [ParamDoc; 12] = [
+pub(crate) const SHAPING_PARAMS: [ParamDoc; 16] = [
     opt(
         "cornerStyle",
         "turn|auto|mitre|cap",
@@ -66,6 +69,26 @@ pub(crate) const SHAPING_PARAMS: [ParamDoc; 12] = [
         "Largest compensation of one side, 0-3; null removes the limit",
     ),
     opt(
+        "satinStyle",
+        "normal|sStitch|open|double",
+        "Satin look (beyond PE-DESIGN; Manual Punch columns and zigzag lines): normal (default), sStitch (each crossing three short stitches bent into an S, a corded edge), open (rows three times as far apart) or double (sewn twice, the second pass back from the end midway between the first's needle points: an X lattice)",
+    ),
+    opt(
+        "jaggedEdge",
+        "{mode: in|out|both, side: both|left|right, amount, seed} | in|out|both|none | null",
+        "Jagged edge for fur, grass and feathers (beyond PE-DESIGN): needle points on the chosen edges move up to amount mm (0.1-5, default 1) into the column, out, or both, the same for the same seed (default 1); side left is the first stitch's start rail; null removes it",
+    ),
+    opt(
+        "spacingAt",
+        "0-1",
+        "Manual Punch column: where across a curved column the density is measured, 0 (shorter side) to 1 (longer side, PE-DESIGN's, the default); 0.5 evens it at the centre",
+    ),
+    opt(
+        "raised",
+        "{laneSpacing, inset, stitchLength} | true | null",
+        "Raised (padded) satin (beyond PE-DESIGN): running-stitch lanes along the column under the satin, about one per laneSpacing mm of width (0.5-5, default 1.5; an even number, at least two), inset mm from the edges (0-3, default 0.5), stitchLength mm (1-10, default 2.5); true turns it on (with its earlier settings, else the defaults), null removes it. Meant for columns of 3 mm and wider (the result gives a hint below that)",
+    ),
+    opt(
         "underlayAuto",
         "{centreBelow, edgeBelow}",
         "underlayStyle auto: a centre walk below centreBelow mm (default 2), the edge run below edgeBelow (default 4), the edge run and zigzag above; fabric.apply sets them for the fabric",
@@ -107,7 +130,130 @@ pub(crate) fn apply_shaping(p: &Params, s: &mut SatinShaping) -> Result<(), Comm
         }
     }
     k.percent = p.opt("pullPercent", k.percent, 0.0, 20.0)?;
+    if p.has("satinStyle") {
+        let id = p.string("satinStyle", None)?;
+        s.style = SatinStyle::from_id(&id)
+            .ok_or_else(|| p.invalid("satinStyle", "must be normal, sStitch, open or double"))?;
+    }
+    if p.has("spacingAt") {
+        let a = p.req("spacingAt", 0.0, 1.0)?;
+        s.spacing_at = (a < 1.0).then_some(a);
+    }
+    apply_jagged(p, &mut s.jagged)?;
+    apply_raised(p, &mut s.raised)?;
     Ok(())
+}
+
+/// A number field of an object parameter, within `lo..=hi`.
+fn field(
+    p: &Params,
+    key: &str,
+    v: &serde_json::Value,
+    name: &str,
+    cur: f64,
+    lo: f64,
+    hi: f64,
+) -> Result<f64, CommandError> {
+    match v.get(name) {
+        None => Ok(cur),
+        Some(x) => x
+            .as_f64()
+            .filter(|x| (lo..=hi).contains(x))
+            .ok_or_else(|| p.invalid(key, format!("{name} must be {lo}-{hi}"))),
+    }
+}
+
+fn apply_jagged(p: &Params, j: &mut Option<Jagged>) -> Result<(), CommandError> {
+    const KEY: &str = "jaggedEdge";
+    if p.is_null(KEY) {
+        *j = None;
+        return Ok(());
+    }
+    let Some(v) = p.get(KEY) else {
+        return Ok(());
+    };
+    // A mode name alone (the inspector's choice), or none.
+    if let Some(m) = v.as_str() {
+        let mode = match m {
+            "none" => {
+                *j = None;
+                return Ok(());
+            }
+            "in" => JaggedMode::In,
+            "out" => JaggedMode::Out,
+            "both" => JaggedMode::Both,
+            _ => return Err(p.invalid(KEY, "must be none, in, out, both or an object")),
+        };
+        *j = Some(Jagged {
+            mode,
+            ..j.unwrap_or_default()
+        });
+        return Ok(());
+    }
+    if !v.is_object() {
+        return Err(p.invalid(KEY, "must be {mode, side, amount, seed}, a mode or null"));
+    }
+    let mut out = j.unwrap_or_default();
+    if let Some(m) = v.get("mode") {
+        out.mode = match m.as_str() {
+            Some("in") => JaggedMode::In,
+            Some("out") => JaggedMode::Out,
+            Some("both") => JaggedMode::Both,
+            _ => return Err(p.invalid(KEY, "mode must be in, out or both")),
+        };
+    }
+    if let Some(m) = v.get("side") {
+        out.side = match m.as_str() {
+            Some("both") => JaggedSide::Both,
+            Some("left") => JaggedSide::Left,
+            Some("right") => JaggedSide::Right,
+            _ => return Err(p.invalid(KEY, "side must be both, left or right")),
+        };
+    }
+    out.amount = field(p, KEY, v, "amount", out.amount, 0.1, 5.0)?;
+    if let Some(x) = v.get("seed") {
+        out.seed = x
+            .as_u64()
+            .ok_or_else(|| p.invalid(KEY, "seed must be a whole number 0 or more"))?;
+    }
+    *j = Some(out);
+    Ok(())
+}
+
+fn apply_raised(p: &Params, r: &mut Option<Raised>) -> Result<(), CommandError> {
+    const KEY: &str = "raised";
+    if p.is_null(KEY) {
+        *r = None;
+        return Ok(());
+    }
+    let Some(v) = p.get(KEY) else {
+        return Ok(());
+    };
+    if let Some(on) = v.as_bool() {
+        *r = on.then(|| r.unwrap_or_default());
+        return Ok(());
+    }
+    if !v.is_object() {
+        return Err(p.invalid(
+            KEY,
+            "must be {laneSpacing, inset, stitchLength}, true or null",
+        ));
+    }
+    let mut out = r.unwrap_or_default();
+    out.lane_spacing = field(p, KEY, v, "laneSpacing", out.lane_spacing, 0.5, 5.0)?;
+    out.inset = field(p, KEY, v, "inset", out.inset, 0.0, 3.0)?;
+    out.stitch_length = field(p, KEY, v, "stitchLength", out.stitch_length, 1.0, 10.0)?;
+    *r = Some(out);
+    Ok(())
+}
+
+/// The hint for raised satin on a satin narrower than [`RAISED_MIN_WIDTH`] (mm wide).
+pub(crate) fn raised_hint(s: &SatinShaping, width_mm: f64) -> Option<String> {
+    (s.raised.is_some() && width_mm < RAISED_MIN_WIDTH).then(|| {
+        format!(
+            "raised satin is meant for columns {RAISED_MIN_WIDTH} mm and wider; this one is {width_mm:.1} mm, so the padding may show"
+        )
+    })
 }
 
 /// Applies `underlayAuto` when present.

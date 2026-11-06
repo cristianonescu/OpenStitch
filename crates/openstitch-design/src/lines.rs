@@ -1102,17 +1102,21 @@ pub fn zigzag_shaped(
     let mut run = if turned {
         let [l, r] = shaping.compensation.sides(0.0, width);
         let plain = l == 0.0 && r == 0.0;
-        let mut run = if half_stitch == Some(true) && plain {
-            zigzag_half(path, width, spacing)
+        let open = if shaping.style == crate::column::SatinStyle::Open {
+            3.0
         } else {
-            zigzag_rails_sided(path, [width / 2.0 + l, width / 2.0 + r], spacing)
+            1.0
         };
-        crate::column::short_stitches(
-            &mut run,
-            shaping.short_stitches.distance * 10.0,
-            shaping.short_stitches.inset / 100.0,
-        );
-        run
+        let mut run = if half_stitch == Some(true) && plain {
+            zigzag_half(path, width, spacing * open)
+        } else {
+            zigzag_rails_sided(path, [width / 2.0 + l, width / 2.0 + r], spacing * open)
+        };
+        // Folds undone before the styles add points off the edges.
+        if curved {
+            unfold_zigzag(path, &mut run, width);
+        }
+        crate::column::finish(vec![(run, true)], shaping)
     } else {
         let rungs = vertex_rungs(path, width);
         if rungs.len() < 2 {
@@ -1120,8 +1124,13 @@ pub fn zigzag_shaped(
         }
         crate::column::zigzag_with(&rungs, spacing, shaping)
     };
-    if curved {
-        unfold_zigzag(path, &mut run, width);
+    // Raised satin (#531): the padding lanes first, ending where the zigzag starts.
+    if let Some(raised) = &shaping.raised {
+        let mut pad = crate::column::padding(&vertex_rungs(path, width), raised);
+        if pad.len() > 1 {
+            pad.extend(run);
+            run = pad;
+        }
     }
     run
 }

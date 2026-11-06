@@ -591,6 +591,16 @@ fn auto_punch_docs() -> Vec<ParamDoc> {
         "With isolateSubject: one click on the subject, in fractions of the image (0-1): the cut learns the background from the border, the click is subject for certain, and only the part of the subject holding it is kept (#490, no model); in place of subjectRect",
     ));
     v.push(opt(
+        "order",
+        "[\"#rrggbb\", ...]",
+        "The colours to sew first, in this order (the plan's color values); the others follow in PE-DESIGN's order (brightest first); colours this run does not sew are passed over and listed in orderIgnored. Region numbers follow the sewing order, so overrides from a run with another order no longer match (#489)",
+    ));
+    v.push(opt(
+        "regionMap",
+        "bool",
+        "Also return regionMap {width, height, runs}: the plan region under each cell of a grid at most 256 long, run-length coded row by row as [region, count], -1 for none (background, thin lines, outlines): what the image dialog's click-to-fix looks up (default false, #489)",
+    ));
+    v.push(opt(
         "underlap",
         "mm 0-1.5",
         "OpenStitch mode: each fill reaches this far under the touching regions sewn after it, so no fabric shows along the seams between colours (default 0, off; 0.8 is typical) (#469; needs compatMode openStitch)",
@@ -601,6 +611,65 @@ fn auto_punch_docs() -> Vec<ParamDoc> {
         "OpenStitch mode: a purpose preset that sets several options at once, each only where the call does not set it (digitize.presets lists them); implies compatMode openStitch (#489)",
     ));
     v
+}
+
+/// Auto Punch's `order` (#489): `["#rrggbb", ...]`, the colours to sew first.
+fn colour_order(p: &Params) -> Result<Vec<u32>, CommandError> {
+    if !p.has("order") {
+        return Ok(Vec::new());
+    }
+    let bad = || p.invalid("order", "must be a list of at most 64 colours \"#rrggbb\"");
+    let list = p.array("order")?;
+    if list.len() > 64 {
+        return Err(bad());
+    }
+    list.iter()
+        .map(|v| {
+            let h = v
+                .as_str()
+                .and_then(|s| s.strip_prefix('#'))
+                .ok_or_else(bad)?;
+            if h.len() != 6 {
+                return Err(bad());
+            }
+            u32::from_str_radix(h, 16).map_err(|_| bad())
+        })
+        .collect()
+}
+
+/// Longest side of the region map Auto Punch returns with `regionMap` (#489).
+const REGION_MAP_SIDE: usize = 256;
+
+/// Auto Punch's region map (#489): the plan region under each cell of a grid at most
+/// [`REGION_MAP_SIDE`] long (nearest working pixel), run-length coded row by row as
+/// `[region, count]` pairs, `-1` where no region is.
+fn region_map_json(out: &autopunch::Converted) -> Value {
+    let (w, h) = out.map_size;
+    let long = w.max(h).max(1);
+    let (mw, mh) = if long <= REGION_MAP_SIDE {
+        (w, h)
+    } else {
+        (
+            (w * REGION_MAP_SIDE).div_ceil(long).max(1),
+            (h * REGION_MAP_SIDE).div_ceil(long).max(1),
+        )
+    };
+    let mut runs: Vec<[i64; 2]> = Vec::new();
+    for y in 0..mh {
+        for x in 0..mw {
+            let (sx, sy) = (
+                (x * w / mw.max(1)).min(w - 1),
+                (y * h / mh.max(1)).min(h - 1),
+            );
+            let r = out.region_map[sy * w + sx];
+            let v = if r == u32::MAX { -1 } else { i64::from(r) };
+            match runs.last_mut() {
+                Some(last) if last[0] == v => last[1] += 1,
+                _ => runs.push([v, 1]),
+            }
+        }
+    }
+    json!({"width": mw, "height": mh, "runs": runs})
 }
 
 /// Auto Punch's `underlap` (#469): mm, OpenStitch mode only.
@@ -633,11 +702,11 @@ pub const PRESETS: [(&str, &str); 6] = [
     ),
     (
         "photo",
-        "Photos: high fidelity colours, small specks merged, rows laid for the least travel",
+        "Photos: high fidelity colours, specks under 4 mm² merged, rows laid for the least travel",
     ),
     (
         "pixelArt",
-        "Pixel art: straight edges, no smoothing, every block kept",
+        "Pixel art: straight edges, blocks down to 0.5 mm² kept",
     ),
 ];
 
@@ -648,10 +717,12 @@ fn preset_values(name: &str) -> Option<Value> {
         "patch" => json!({"skipBackground": false, "angleRule": "leastTravel"}),
         "lineArt" => json!({"outlineMaxWidth": 4.0, "minArea": 1.0}),
         "illustration" => json!({"angleRule": "varyNeighbours", "outlineMaxWidth": 2.5}),
-        "photo" => {
-            json!({"fidelity": "high", "minArea": 4.0, "smooth": 1, "angleRule": "leastTravel"})
-        }
-        "pixelArt" => json!({"curves": false, "simplify": 0.2, "minArea": 0.5}),
+        // No smoothing pass at High fidelity: with it, the watercolour lemons (g06) sewed 7
+        // stitches in place in a row (sew_check allows 6); without, 6 (#489).
+        "photo" => json!({"fidelity": "high", "minArea": 4.0, "angleRule": "leastTravel"}),
+        // Straight edges at the usual simplification: at 0.2 px the staircase outlines sewed
+        // up to 64 stitches in place (g04, #489).
+        "pixelArt" => json!({"curves": false, "minArea": 0.5}),
         _ => return None,
     })
 }
@@ -735,6 +806,7 @@ fn auto_punch_options(
         overrides: overrides(p)?,
         angle_rule,
         underlap_mm: underlap(p, mode)?,
+        order: colour_order(p)?,
         ..AutoPunch::default()
     };
     // OpenStitch mode sews anything in the picture: without skipBackground, only a
@@ -759,6 +831,11 @@ pub fn commands() -> Vec<CommandSpec> {
                 let regions = out.objects.len();
                 let buy = to_buy(s, p, &out.threads)?;
                 let plan = plan_json(&out, &options);
+                let ignored: Vec<String> =
+                    out.order_ignored.iter().map(|v| format!("#{v:06x}")).collect();
+                let map = p
+                    .bool("regionMap", Some(false))?
+                    .then(|| region_map_json(&out));
                 let dry = p.bool("dryRun", Some(false))?;
                 let mut r = json!({
                     "colors": hexes(&out.threads),
@@ -771,6 +848,12 @@ pub fn commands() -> Vec<CommandSpec> {
                 }
                 if let Some(b) = buy {
                     r["toBuy"] = b;
+                }
+                if let Some(m) = map {
+                    r["regionMap"] = m;
+                }
+                if !ignored.is_empty() {
+                    r["orderIgnored"] = json!(ignored);
                 }
                 Ok(r)
             },
