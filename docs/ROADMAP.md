@@ -224,6 +224,12 @@ batch:mac-wizard (2026-11-06): the image dialog previews Auto Punch's regions, l
 the stitch each got and why, lets any row or a click on the picture change it, warns when
 more than a quarter is left out, and takes a colour order and a purpose preset (#489, done).
 
+batch:mac-digitize-3 (2026-11-06): OpenStitch-mode Auto Punch no longer sews stitches in place
+along staircase outlines (#688) or as knots in specks (#690); touching fills turn apart without
+lowering the likeness, and every purpose preset passes sew_check on the gallery (#690). Left: a
+fill's or satin's short ends plus the tie-off on two photos (#703, stitch engine) and the
+mandala's drawn dots sewn as knots (#713).
+
 Done 2026-10-30: stitch generation is bit-identical on Windows, macOS and Linux (transcendental
 math through the `libm` crate instead of each platform's C library); the arched Text Transform
 spec, deferred at alpha.6 because Linux measured it 0.2 mm lower, has its PE-DESIGN reference
