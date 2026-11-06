@@ -222,8 +222,9 @@ still send mm to commands. `design.print {units: "inch"}` adds a 2-inch scale ba
   `minOpacity` (default 0.1) sets how faint a fill or stroke may be before it is left out.
 - When you write an SVG for `import.svg`, you can name each element's sewing and import with
   `settings: true`: give the element an `id` and a `data-name` such as `"fill a=45 s=0.4"`,
-  `"satin"`, `"run r=3"` or `"stroke.satin w=3"`; the result lists unknown words and refused
-  values (FILE_FORMATS.md has the words).
+  `"satin"`, `"run r=3"` or `"stroke.satin w=3"`; the long key names work too
+  (`"fill angle=45 density=4.5"`, `"run length=2.5 repeats=3"`, `"stroke.satin stroke.width=3"`).
+  The result lists unknown words and refused values (FILE_FORMATS.md has the words).
 - A user who wants to script designs in Python can use the `openstitch` package (repository
   `python/README.md`: `Session().exec("shape.ellipse", ...)` with these same commands).
 - `file` commands (`project.save`, `design.export`, ...) may ask the user first. Never
