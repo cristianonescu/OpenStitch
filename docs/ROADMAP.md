@@ -126,6 +126,13 @@ Done 2026-11-05 (#433): Photo Stitch 1 in OpenStitch mode is fast again after th
 with the same stitches as before (High on the issue's stripes 899 → 41 s, Standard 258 → 24 s,
 on a loaded machine).
 
+Done 2026-11-05 (`batch:photo-stitch`, #298, #468): PE-DESIGN-compatible Photo Stitch 1 travels
+hidden between a thread's runs instead of jumping (trims per 1,000 stitches 11–46 → 3–15 on the
+nine photos), and OpenStitch mode staggers the needle points of runs that are a whole number of
+Run Pitches long (no more columns of needle drops on the sunset). Measured and not taken:
+Photo Stitch 2 without its running-stitch floor and on the T1 coverage curve (#129), and a
+general sewn-colour model from the six T1 threads (#291); details in COMPATIBILITY_AUDIT.
+
 Done 2026-11-05 (#460-#464): the stitch-engine follow-ups of the review. Narrow Auto satin no
 longer starts with a 39.5 mm stitch, Auto Punch sews regions whose satin would cross more than
 10.5 mm as fill (PE-DESIGN's own maximum is 10.4 mm), and `sew_check` warns on stitches over

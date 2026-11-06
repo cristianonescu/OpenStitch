@@ -2439,6 +2439,49 @@ Line references are relative to `crates/`.
   same numbers on all 16 Photo Stitch cases in both modes and the nine Photo Stitch 1 photos at
   High; `sew_check` passes; compat 454/454.
 
+### Photo Stitch trims, needle drops, coverage and colour, 2026-11-05 (#298, #468, #129, #291)
+
+All likeness numbers are `tools/image_similarity.py`'s S and C terms (DISTS not installed),
+averaged 50/50, on the calibrated render; every result is OpenStitch's output.
+
+- **PE-DESIGN-compatible Photo Stitch 1 trims (#298):** a thread's runs were joined only within
+  two cells and two rows, else it jumped to the next run in row order. It now travels to its
+  next run along a hidden path when one exists: under its own cells and the darker layers sewn
+  after it (the Router OpenStitch mode has used since #302), as PE-DESIGN sews a colour in one
+  to five paths. Trims per 1,000 stitches on the nine Photo Stitch 1 cases: 26.6 → 8.7 (p01),
+  33.3 → 10.9, 46.3 → 14.8, 39.7 → 14.2, 34.0 → 11.5, 28.7 → 9.4 (sunset), 34.1 → 6.0,
+  22.8 → 8.1, 10.7 → 3.3. Likeness rises on eight (p01 43.2 → 45.4, p07 51.0 → 54.6, p10
+  32.7 → 34.6) and falls on the high-key photo, 79.39 → 79.24. Over five widths (99.6–100.4 mm)
+  that photo scores 78.80–79.39 on main and 0.02–0.15 lower at each width with the change
+  (mean −0.07), so the fall is inside the scorer's spread. Travel only under the thread's own
+  cells was measured too: more trims, the sunset below main (48.4 against 49.2). PE-DESIGN
+  itself trims 6 times in 15,121 stitches, so the gap stays open (#298).
+- **Needle drops in columns (#468, Photo Stitch 1 OpenStitch mode):** a fine run whose length
+  is a whole number of Run Pitches has stitches of exactly the pitch, which left no room to shift
+  its needle points from row to row: on the sunset's full-width bands every row put them in the
+  same columns. Such a run's first or last stitch may now reach up to a sixth of a stitch past
+  the pitch. The share of needle points on the 30 most used columns falls 28–47 % on the nine
+  cases at Standard and High (sunset 0.215 → 0.136). Measured and dropped: one stitch more per
+  such run (no stitch past the pitch) makes the density fit choose other rows and lowers
+  likeness (portrait 66.5 → 60.7 at Standard); shifting the points inside the fit (p01 at High
+  61.8 → 55.2). Now the fit counts the unshifted points (same count, nearly the same cells), so
+  stitches, trims and colours are unchanged and likeness moves by at most ±0.06.
+- **Photo Stitch 2 without the floor (#468) and on the calibrated coverage curve (#129):**
+  measured in OpenStitch mode and not taken. Lifting the needle where a thread's share is below
+  8 % lowers likeness on all seven Photo Stitch 2 cases (poppies 39.8 → 35.6, cat 49.7 → 47.3,
+  CMYK poppies 34.3 → 33.4); spacing the zigzag so its thread hides the share by the T1 curve
+  (tanh 0.4 r) lowers it further (poppies 31.6, cat 44.2), because mid shares then sew about
+  half the stitches and the screen reads too light.
+- **Sewn thread colour (#291):** a gain and offset per channel in linear light, fitted to the
+  T1 swatches of both cards (White on pink left out, as the record says), cuts the mean ΔE00 per
+  swatch from 11.6 to 8.0, but only to 10.9 when each thread is left out of its own fit, and it
+  turns White 240 into 206/183/182 (the pink card). Six threads do not pin a general model, so
+  the Realistic view and the scorer keep catalogue colours. The sheen the issue names (dense
+  fills reading lighter) is not in the relabelled data (#297): L* at 6.0 minus 4.5 rows/mm is
+  −3.4 to +0.6 for ten thread/card pairs and +4.1 only for Yellow on pink.
+- **Checked:** `sew_check` passes on all 29 Photo Stitch 1 PES exports; Photo Stitch 2 output
+  is unchanged; compat 454/454; the golden hashes of Photo Stitch 1's OpenStitch mode re-pinned.
+
 ### Stitch-engine batch, 2026-11-05 (#460-#464)
 
 - **Long satin stitches (#460):** PE-DESIGN keeps 16-30 mm satin crossings whole
