@@ -723,6 +723,12 @@ The latest pre-release is on the
 [docs/releases](docs/releases/). It is an alpha for testing, not for production work: do a test
 sew-out on scrap fabric first.
 
+**Try it in a browser, with nothing to install:** <https://cristianonescu.github.io/OpenStitch/>
+opens designs and embroidery files from your disk, shows and simulates them, and saves and exports
+them as downloads; nothing leaves the browser. It is built from `main` and does less than the
+desktop app (no Assistant, drawing or lettering tools yet; see
+[docs/DISTRIBUTION.md](docs/DISTRIBUTION.md#web-editor)).
+
 Every merge to `main` also builds the executables for all three operating systems. Open the
 repository on GitHub, go to **Actions → Rust workspace**, pick the latest run on `main` and
 download the artifact for your system:

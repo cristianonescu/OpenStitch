@@ -2,8 +2,84 @@
 //!
 //! On the desktop every function here is a thin pass-through to exactly what the editor called
 //! before; the browser build (`wasm32`) gets its own version, because the crate behind the
-//! desktop one cannot run in a browser. Phase A1 holds the release-tag check; the file dialogs,
-//! clipboard, preferences and clock follow with the call sites that use them.
+//! desktop one cannot run in a browser. Phase A1 holds the release-tag check, phase A2 the
+//! system clipboard; the file dialogs, preferences and clock follow with their call sites.
+
+/// An RGBA picture on the system clipboard: `width × height` pixels, 4 bytes each, by rows.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ClipboardImage {
+    pub width: usize,
+    pub height: usize,
+    pub bytes: Vec<u8>,
+}
+
+/// Why the browser build has no system clipboard here: a page reads it only asynchronously and
+/// after a user gesture, so copy and paste stay inside the editor.
+#[cfg(target_arch = "wasm32")]
+const NO_CLIPBOARD: &str = "the browser does not give the system clipboard to the editor";
+
+/// The system clipboard's text (desktop: arboard).
+#[cfg(not(target_arch = "wasm32"))]
+pub fn clipboard_text() -> Result<String, String> {
+    arboard::Clipboard::new()
+        .and_then(|mut c| c.get_text())
+        .map_err(|e| e.to_string())
+}
+
+/// Puts `text` on the system clipboard (desktop: arboard).
+#[cfg(not(target_arch = "wasm32"))]
+pub fn set_clipboard_text(text: String) -> Result<(), String> {
+    arboard::Clipboard::new()
+        .and_then(|mut c| c.set_text(text))
+        .map_err(|e| e.to_string())
+}
+
+/// The system clipboard's picture (desktop: arboard).
+#[cfg(not(target_arch = "wasm32"))]
+pub fn clipboard_image() -> Result<ClipboardImage, String> {
+    arboard::Clipboard::new()
+        .and_then(|mut c| c.get_image())
+        .map(|img| ClipboardImage {
+            width: img.width,
+            height: img.height,
+            bytes: img.bytes.into_owned(),
+        })
+        .map_err(|e| e.to_string())
+}
+
+/// Puts a picture on the system clipboard (desktop: arboard).
+#[cfg(not(target_arch = "wasm32"))]
+pub fn set_clipboard_image(image: ClipboardImage) -> Result<(), String> {
+    arboard::Clipboard::new()
+        .and_then(|mut c| {
+            c.set_image(arboard::ImageData {
+                width: image.width,
+                height: image.height,
+                bytes: image.bytes.into(),
+            })
+        })
+        .map_err(|e| e.to_string())
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn clipboard_text() -> Result<String, String> {
+    Err(NO_CLIPBOARD.into())
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn set_clipboard_text(_text: String) -> Result<(), String> {
+    Err(NO_CLIPBOARD.into())
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn clipboard_image() -> Result<ClipboardImage, String> {
+    Err(NO_CLIPBOARD.into())
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn set_clipboard_image(_image: ClipboardImage) -> Result<(), String> {
+    Err(NO_CLIPBOARD.into())
+}
 
 /// Is `tag` a release tag (`vX.Y.Z`, optionally `-alpha.N`, `-beta.N` or `-rc.N`)? On the
 /// desktop, `openstitch_update::is_release_tag`; in the browser, where openstitch-update (an

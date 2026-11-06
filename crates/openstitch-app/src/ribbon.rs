@@ -245,16 +245,15 @@ pub fn poll_clipboard(app: &mut EditorApp, now: f64) {
         return;
     }
     app.ui.clipboard_checked = now;
-    app.ui.clipboard_objects = arboard::Clipboard::new()
-        .and_then(|mut c| c.get_text())
-        .is_ok_and(|t| clipboard::looks_like(&t));
+    app.ui.clipboard_objects =
+        openstitch_app::platform::clipboard_text().is_ok_and(|t| clipboard::looks_like(&t));
 }
 
 /// Writes `env` to the system clipboard (when used) and keeps it.
 fn put_on_clipboard(app: &mut EditorApp, env: Envelope) {
     if app.ui.system_clipboard {
         let text = env.to_text();
-        if let Err(e) = arboard::Clipboard::new().and_then(|mut c| c.set_text(text)) {
+        if let Err(e) = openstitch_app::platform::set_clipboard_text(text) {
             app.status =
                 format!("Could not use the system clipboard ({e}); Paste works in this window");
         }
@@ -435,11 +434,7 @@ fn paste(app: &mut EditorApp) {
     let system = app
         .ui
         .system_clipboard
-        .then(|| {
-            arboard::Clipboard::new()
-                .and_then(|mut c| c.get_text())
-                .ok()
-        })
+        .then(|| openstitch_app::platform::clipboard_text().ok())
         .flatten()
         .and_then(|t| Envelope::parse(&t));
     let Some(env) = system.or_else(|| app.ui.copied.clone()) else {

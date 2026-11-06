@@ -1273,17 +1273,12 @@ impl EditorApp {
     /// File ▸ Background Image ▸ Paste: the clipboard image becomes the background. It is kept
     /// as a PNG in the app's data folder (named by content), since the project only references it.
     pub fn paste_background(&mut self) {
-        let image = arboard::Clipboard::new().and_then(|mut c| c.get_image());
+        let image = openstitch_app::platform::clipboard_image();
         let stored = match image {
             Ok(img) => pasted_images_dir()
                 .ok_or_else(|| "no folder to keep pasted images in".to_string())
                 .and_then(|dir| {
-                    store_pasted_image(
-                        &dir,
-                        img.width as u32,
-                        img.height as u32,
-                        img.bytes.into_owned(),
-                    )
+                    store_pasted_image(&dir, img.width as u32, img.height as u32, img.bytes)
                 }),
             Err(e) => Err(format!("no image on the clipboard ({e})")),
         };

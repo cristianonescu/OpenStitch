@@ -346,15 +346,11 @@ fn copy_image(app: &EditorApp) -> Result<(), String> {
             bytes.extend_from_slice(&r.pixel(x, y));
         }
     }
-    arboard::Clipboard::new()
-        .and_then(|mut c| {
-            c.set_image(arboard::ImageData {
-                width: r.width() as usize,
-                height: r.height() as usize,
-                bytes: bytes.into(),
-            })
-        })
-        .map_err(|e| e.to_string())
+    openstitch_app::platform::set_clipboard_image(openstitch_app::platform::ClipboardImage {
+        width: r.width() as usize,
+        height: r.height() as usize,
+        bytes,
+    })
 }
 
 /// Modify Image window values while they are being edited.
