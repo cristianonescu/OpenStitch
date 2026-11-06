@@ -1538,6 +1538,39 @@ OpenStitch's own embroidery font format, written by `fonts.save` and read by `fo
   threads per stitch glyph.
 - `.osd` files carry the same font objects under `design.fonts`, next to TrueType fonts, which
   are stored as `{"trueType": {"face": 0, "bytes": "<base64>"}}`.
+- Optional (#529, #527): `kerning`, a list of `[left, right, change]` (the space between the
+  two characters changes by `change`, 0.1 mm; negative pulls them together), sorted by pair,
+  at most 100 000, always applied; `sizeRange`, `[minMm, maxMm]`, the sizes the font sews well
+  at (text outside it gets a `sizeWarning`); `sewing`, `"satin"`, `"fill"` or `"running"`,
+  the sewing a new text in the font gets.
+
+## Ink/Stitch font folders (read, #529)
+
+`fonts.importInkStitch {path}` reads an embroidery font folder in Ink/Stitch's published
+format into the design (as an OpenStitch embroidery font, so the design keeps a copy);
+`fonts.scanFolder {path}` lists the font folders in a folder. Read from Ink/Stitch's user
+documentation (inkstitch.org/docs/font-tools, /tutorials/font-creation) and published
+sample folders; no Ink/Stitch code is used and no font is bundled.
+
+- **Folder**: `font.json`, a variant `ltr.svg` (older folders `→.svg`, or the first SVG in an
+  `ltr` folder), and optionally a LICENSE file (shown on import).
+- **font.json** keys read: `name` (required), `font_license`, `leading` (px; 0 = the font's
+  own), `horiz_adv_x` (advance per glyph, px), `horiz_adv_x_default`, `horiz_adv_x_space`,
+  `kerning_pairs` (`"a b": px`, positive brings the pair closer; pairs of names longer than one
+  character are left out), `min_scale` / `max_scale` (× the capital height: the size range),
+  `letter_case` (`upper` / `lower`: the other case uses the same glyphs). Others (keywords,
+  sorting, colour indices, `auto_satin`, `reversible`) are not used.
+- **SVG**: a layer (`inkscape:groupmode="layer"`) per glyph labelled `GlyphLayer-` and the
+  character (longer names, ligatures and alternates, are listed as skipped); guides
+  (`sodipodi:guide`, Inkscape's position from the page's bottom-left) `baseline` (required),
+  `caps`, `ascender`, `descender`. The capital height is the caps guide, else the H's or M's
+  height, else font.json's `size` (mm).
+- **Stitch types**, as the documentation's table says: a closed path with a fill colour is a
+  fill; two or more combined stroked paths (or `inkstitch:satin_column="True"`) a satin column,
+  stored as the closed outline between its two longest subpaths (the rails; rungs are not
+  kept); one stroked path a running stitch, kept as an open line. The font's `sewing` is the
+  type most of its pieces have; other pieces are listed as approximated. Every other
+  `inkstitch:` parameter (angles, spacing, underlay, compensation) is listed as not read.
 
 ## Thread chart CSV
 

@@ -209,6 +209,7 @@ pub fn text_tools_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     if ui.button("Load TrueType Font…").clicked() {
         load_truetype(app);
     }
+    crate::inkstitch_ui::menu(app, ui);
 }
 
 /// Loads a TrueType / OpenType font into the design.
@@ -247,6 +248,7 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
     template_window(app, ctx);
     fonts_window(app, ctx);
     fit_window(app, ctx);
+    crate::inkstitch_ui::window(app, ctx);
 }
 
 /// What the Fonts window asked for this frame.

@@ -11,6 +11,7 @@ mod convert;
 #[cfg(feature = "digitize")]
 mod digitize;
 mod drawing;
+mod envelopes;
 #[cfg(feature = "formats")]
 pub mod extra_exports;
 pub mod fabric;
@@ -20,6 +21,8 @@ pub mod fonts;
 mod guides;
 #[cfg(feature = "formats")]
 pub mod imports;
+#[cfg(feature = "formats")]
+pub mod inkstitch_fonts;
 mod knife;
 pub mod layout;
 mod lettering;

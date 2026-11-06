@@ -513,6 +513,13 @@ impl EditorApp {
                 "paneAttributes" => json!(prefs.panes.attributes.visible),
                 "fontFilter" => json!(prefs.font_filter.on),
                 "fontFilterHidden" => json!(prefs.font_filter.hidden),
+                "inkStitchFolder" => json!(
+                    prefs
+                        .inkstitch_folder
+                        .as_ref()
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_default()
+                ),
                 "needlePoints" => json!(prefs.show.needle_points),
                 "showLayers" => json!(prefs.show.layers.as_str()),
                 "trimMarks" => json!(prefs.show.trim_marks),
@@ -647,6 +654,20 @@ impl EditorApp {
             "fontFilterHidden" => {
                 self.ui.prefs.font_filter.hidden = serde_json::from_value(v.clone())
                     .map_err(|_| "fontFilterHidden takes a list of font ids".to_string())?
+            }
+            "inkStitchFolder" => {
+                let path = v
+                    .as_str()
+                    .ok_or("inkStitchFolder takes a folder path, or \"\" for none")?
+                    .trim();
+                if path.len() > 4096 {
+                    return Err("inkStitchFolder: the path is too long".into());
+                }
+                self.ui.prefs.inkstitch_folder =
+                    (!path.is_empty()).then(|| std::path::PathBuf::from(path));
+                // The Ink/Stitch Fonts window lists the new folder when it opens next.
+                self.ui.inkstitch.scanned = false;
+                self.ui.inkstitch.rows.clear();
             }
             "needlePoints" => self.ui.prefs.show.needle_points = bool_value(name, v)?,
             "showLayers" => {
@@ -930,6 +951,33 @@ mod tests {
             app.ui_command("ui.set", Some(&json!({ "name": s.name, "value": current })))
                 .unwrap_or_else(|e| panic!("{}: {e}", s.name));
         }
+        // #529: the user's Ink/Stitch font folder, set and cleared.
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "inkStitchFolder", "value": "fonts/inkstitch" })),
+        )
+        .expect("folder");
+        assert_eq!(
+            app.ui_command("ui.settings", None).expect("settings")["inkStitchFolder"]["value"],
+            json!(
+                std::path::Path::new("fonts/inkstitch")
+                    .display()
+                    .to_string()
+            )
+        );
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "inkStitchFolder", "value": "" })),
+        )
+        .expect("none");
+        assert!(app.ui.prefs.inkstitch_folder.is_none());
+        assert!(
+            app.ui_command(
+                "ui.set",
+                Some(&json!({ "name": "inkStitchFolder", "value": 3 }))
+            )
+            .is_err()
+        );
         app.ui_command(
             "ui.set",
             Some(&json!({ "name": "view", "value": "realistic" })),

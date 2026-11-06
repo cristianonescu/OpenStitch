@@ -154,15 +154,30 @@ pub fn bundled_kind(name: &str) -> Option<FontKind> {
     font(name).map(|f| f.kind)
 }
 
+/// The sizes (mm) font `name` sews well at, and its family: a bundled font's measured range,
+/// or the range an embroidery font's maker states (#529).
+pub fn size_range(name: &str, fonts: &[DesignFont]) -> Option<(String, (f64, f64))> {
+    match resolve(name, fonts)? {
+        FontRef::Bundled(f) => Some((f.family.to_string(), f.size_range)),
+        FontRef::Design(f) => match &f.data {
+            FontData::Embroidery(e) => e.size_range.map(|r| (f.family.clone(), r)),
+            FontData::TrueType { .. } => None,
+        },
+    }
+}
+
 /// A warning when `size` (mm) lies outside the sizes bundled font `name` sews well at (#527);
 /// never a refusal.
 pub fn size_warning(name: &str, size: f64) -> Option<String> {
-    let f = font(name)?;
-    let (lo, hi) = f.size_range;
+    size_warning_in(name, &[], size)
+}
+
+/// [`size_warning`] for a bundled font or one of `fonts`.
+pub fn size_warning_in(name: &str, fonts: &[DesignFont], size: f64) -> Option<String> {
+    let (family, (lo, hi)) = size_range(name, fonts)?;
     (size < lo - 1e-9 || size > hi + 1e-9).then(|| {
         format!(
-            "{} sews best at {lo}-{hi} mm; {size} mm is {} its range",
-            f.family,
+            "{family} sews best at {lo}-{hi} mm; {size} mm is {} its range",
             if size < lo { "below" } else { "above" }
         )
     })
@@ -259,6 +274,182 @@ pub struct TextSpec {
     /// How a pixel font's pixels are sewn (#536); ignored by other fonts.
     #[serde(default, skip_serializing_if = "PixelStyle::is_run")]
     pub pixel_style: PixelStyle,
+    /// A free envelope (#535), edited with handles; it replaces a Text Transform preset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_envelope: Option<CustomEnvelope>,
+}
+
+/// The most knots one edge of a free envelope may have.
+pub const MAX_ENVELOPE_KNOTS: usize = 129;
+
+/// One of a free envelope's edges.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EnvelopeEdge {
+    Top,
+    Bottom,
+}
+
+/// One of an envelope edge's three handles: its ends and its middle.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EnvelopeHandle {
+    Left,
+    Middle,
+    Right,
+}
+
+impl EnvelopeHandle {
+    /// How much of a handle's move a knot at `u` (0..=1 along the edge) takes: all of it at the
+    /// handle, fading smoothly to none at the far end (left `(1-u)²`, right `u²`, middle
+    /// `4u(1-u)`), so dragging bends the edge instead of kinking it.
+    fn weight(self, u: f64) -> f64 {
+        match self {
+            EnvelopeHandle::Left => (1.0 - u) * (1.0 - u),
+            EnvelopeHandle::Middle => 4.0 * u * (1.0 - u),
+            EnvelopeHandle::Right => u * u,
+        }
+    }
+
+    fn mirrored(self) -> Self {
+        match self {
+            EnvelopeHandle::Left => EnvelopeHandle::Right,
+            EnvelopeHandle::Middle => EnvelopeHandle::Middle,
+            EnvelopeHandle::Right => EnvelopeHandle::Left,
+        }
+    }
+}
+
+/// A free text envelope (#535): the top and bottom edge as knots evenly spaced along the text
+/// (knot `k` of `n` at `u = k / (n - 1)`), each a point `(x, y)` in fractions of the straight
+/// text's capital-height box (x from its left, y from its top, y down), with `scale` how far
+/// they bow from the straight box, as a Text Transform level scales its preset. Laid out by the
+/// same warp as the presets, so a preset turned into a free envelope sews the same stitches
+/// until a handle moves.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomEnvelope {
+    pub top: Vec<(f64, f64)>,
+    pub bottom: Vec<(f64, f64)>,
+    #[serde(default = "one")]
+    pub scale: f64,
+}
+
+fn one() -> f64 {
+    1.0
+}
+
+impl CustomEnvelope {
+    /// Whether the envelope can be laid out: 2-129 finite knots per edge, values within -10..10.
+    pub fn is_valid(&self) -> bool {
+        let edge = |e: &[(f64, f64)]| {
+            (2..=MAX_ENVELOPE_KNOTS).contains(&e.len())
+                && e.iter().all(|&(x, y)| {
+                    x.is_finite() && y.is_finite() && x.abs() <= 10.0 && y.abs() <= 10.0
+                })
+        };
+        edge(&self.top) && edge(&self.bottom) && self.scale.is_finite() && self.scale.abs() <= 10.0
+    }
+
+    /// Text Transform preset `n` at `level` (`None`: its default) as a free envelope, its knots
+    /// and scale exactly the preset's. `None` for the arches (1, 2: text set on a circle, not
+    /// warped into an envelope) and presets OpenStitch does not lay out.
+    pub fn from_preset(n: u8, level: Option<f64>) -> Option<Self> {
+        let (_, top, bottom) = crate::envelope_presets::ENVELOPES
+            .iter()
+            .find(|(k, _, _)| *k == n)?;
+        Some(CustomEnvelope {
+            top: top.to_vec(),
+            bottom: bottom.to_vec(),
+            scale: level.map_or(1.0, |l| envelope_scale(n, l)),
+        })
+    }
+
+    /// A starting shape (#535), `amount` (0-0.45) of the box: `bridge` (the top bows down in
+    /// the middle, the baseline stays straight), `pennant` (tapering from the left to the
+    /// right), `perspective` (the top edge shorter than the baseline) and `diamond` (tall in
+    /// the middle, short at both ends).
+    pub fn shape(name: &str, amount: f64) -> Option<Self> {
+        let a = amount;
+        let u = |k: usize| k as f64 / 32.0;
+        let edge = |f: &dyn Fn(f64) -> (f64, f64)| (0..=32).map(|k| f(u(k))).collect::<Vec<_>>();
+        let (top, bottom) = match name {
+            "bridge" => (edge(&|u| (u, a * 4.0 * u * (1.0 - u))), edge(&|u| (u, 1.0))),
+            "pennant" => (edge(&|u| (u, a * u)), edge(&|u| (u, 1.0 - a * u))),
+            "perspective" => (
+                edge(&|u| (a / 2.0 + u * (1.0 - a), 0.0)),
+                edge(&|u| (u, 1.0)),
+            ),
+            "diamond" => (
+                edge(&|u| (u, a * (2.0 * u - 1.0).abs())),
+                edge(&|u| (u, 1.0 - a * (2.0 * u - 1.0).abs())),
+            ),
+            _ => return None,
+        };
+        Some(CustomEnvelope {
+            top,
+            bottom,
+            scale: 1.0,
+        })
+    }
+
+    /// The point of `edge` at `u` as laid out (the scale applied), in box fractions.
+    pub fn point(&self, edge: EnvelopeEdge, u: f64) -> Vec2 {
+        let k = self.scale;
+        match edge {
+            EnvelopeEdge::Top => {
+                let t = edge_at(&self.top, u);
+                v2(u + k * (t.x - u), k * t.y)
+            }
+            EnvelopeEdge::Bottom => {
+                let b = edge_at(&self.bottom, u);
+                v2(u + k * (b.x - u), 1.0 + k * (b.y - 1.0))
+            }
+        }
+    }
+
+    /// Moves `handle` of `edge` by `(dx, dy)` (box fractions, as laid out); with `symmetric`
+    /// the opposite handle mirrors the move about the text's centre line (the middle handle
+    /// then moves only up or down).
+    pub fn bend(
+        &mut self,
+        edge: EnvelopeEdge,
+        handle: EnvelopeHandle,
+        (dx, dy): (f64, f64),
+        symmetric: bool,
+    ) {
+        if self.scale.abs() < 1e-6 {
+            // A flattened envelope: start again from its straight box.
+            let straight = |y: f64, e: &[(f64, f64)]| {
+                (0..e.len())
+                    .map(|k| (k as f64 / (e.len() - 1) as f64, y))
+                    .collect::<Vec<_>>()
+            };
+            self.top = straight(0.0, &self.top);
+            self.bottom = straight(1.0, &self.bottom);
+            self.scale = 1.0;
+        }
+        let dx = if symmetric && handle == EnvelopeHandle::Middle {
+            0.0
+        } else {
+            dx
+        };
+        let mut moves = vec![(handle, dx)];
+        if symmetric && handle != EnvelopeHandle::Middle {
+            moves.push((handle.mirrored(), -dx));
+        }
+        let k = self.scale;
+        let knots = match edge {
+            EnvelopeEdge::Top => &mut self.top,
+            EnvelopeEdge::Bottom => &mut self.bottom,
+        };
+        let n = knots.len();
+        for (h, mx) in moves {
+            for (i, knot) in knots.iter_mut().enumerate() {
+                let w = h.weight(i as f64 / (n - 1) as f64);
+                knot.0 += w * mx / k;
+                knot.1 += w * dy / k;
+            }
+        }
+    }
 }
 
 /// Text Transform presets OpenStitch lays out: all 26, 1 and 2 (arches over and under) by
@@ -556,6 +747,7 @@ impl TextSpec {
             envelope: None,
             envelope_level: None,
             pixel_style: PixelStyle::Run,
+            custom_envelope: None,
         }
     }
 
@@ -1004,6 +1196,16 @@ impl<'a> LoadedFont<'a> {
                 }
             })
             .collect();
+        // An embroidery font's kerning pairs (#529), between neighbours on a line.
+        if let Source::Embroidery(e) = &self.source
+            && !e.kerning.is_empty()
+            && !options.vertical
+        {
+            for i in 1..out.len() {
+                let (l, r) = (chars[i - 1].0, chars[i].0);
+                out[i - 1].x_advance += e.kern(l, r);
+            }
+        }
         if options.rtl && !options.vertical {
             out.reverse();
         }
@@ -1287,6 +1489,11 @@ pub fn layout_in(
         }
         return Ok(l);
     }
+    if let (Some(e), None, TextDirection::Horizontal) =
+        (&spec.custom_envelope, path, spec.direction)
+    {
+        return custom_envelope_layout(spec, e, fonts);
+    }
     if let (Some(n), None, TextDirection::Horizontal) = (spec.envelope, path, spec.direction) {
         return envelope_layout(spec, n, fonts);
     }
@@ -1569,6 +1776,7 @@ fn advance(plain: &TextSpec, fonts: &[DesignFont]) -> Result<(f64, f64), TextErr
 fn envelope_layout(spec: &TextSpec, preset: u8, fonts: &[DesignFont]) -> Result<Layout, TextError> {
     let plain = TextSpec {
         envelope: None,
+        custom_envelope: None,
         transform: Transform::IDENTITY,
         ..spec.clone()
     };
@@ -1610,58 +1818,141 @@ fn envelope_layout(spec: &TextSpec, preset: u8, fonts: &[DesignFont]) -> Result<
             ..plain
         };
         l = layout_in(&arched, Some(&Contour::new(points, false)), fonts)?;
-    } else if let Some((_, top, bottom)) = crate::envelope_presets::ENVELOPES
-        .iter()
-        .find(|(n, _, _)| *n == preset)
-    {
+    } else if let Some(e) = CustomEnvelope::from_preset(preset, spec.envelope_level) {
         // The level scales how far the edges bow from the straight box (`envelope_scale`).
-        let k = spec
-            .envelope_level
-            .map_or(1.0, |level| envelope_scale(preset, level));
-        // PE-DESIGN warps the cap-height box, from the capital line to the baseline (y = 0):
-        // the envelopes were fitted on HHHHHHH, whose box it is, and letters below the
-        // baseline go on below the bottom edge (round-4 captures: "OpenStitch", "Agjy 123").
-        // A text of several lines keeps its own box.
-        let cap = TextSpec {
-            text: "H".into(),
-            characters: Vec::new(),
-            ..plain.clone()
-        };
-        let cap_top = layout_in(&cap, None, fonts)
-            .ok()
-            .as_ref()
-            .and_then(layout_bounds)
-            .map(|c| c.min_y);
-        let (cap_y, cap_h) = match cap_top {
-            Some(t) if t < 0.0 && !spec.text.contains('\n') => (t, -t),
-            _ => (b.min_y, b.height()),
-        };
-        let warp = |p: Vec2| {
-            let u = ((p.x - b.min_x) / b.width().max(1e-9)).clamp(0.0, 1.0);
-            let v = (p.y - cap_y) / cap_h.max(1e-9);
-            let (t, bt) = (edge_at(top, u), edge_at(bottom, u));
-            let (t, bt) = (
-                v2(u + k * (t.x - u), k * t.y),
-                v2(u + k * (bt.x - u), 1.0 + k * (bt.y - 1.0)),
-            );
-            v2(
-                b.min_x + b.width() * (t.x + v * (bt.x - t.x)),
-                cap_y + cap_h * (t.y + v * (bt.y - t.y)),
-            )
-        };
-        for g in &mut l.glyphs {
-            g.placement = None;
-            for c in &mut g.contours {
-                *c = warp_contour(c, &warp);
-            }
-            for s in g.stitches.iter_mut().flat_map(|b| b.stitches.iter_mut()) {
-                let p = warp(v2(s.x, s.y));
-                (s.x, s.y) = (p.x, p.y);
-            }
-        }
+        warp_layout(&mut l, &b, spec, &plain, fonts, &e);
     }
     transform_layout(&mut l, &spec.transform);
     Ok(l)
+}
+
+/// A free envelope (#535): the straight text warped by `e` as a preset's envelope warps it.
+fn custom_envelope_layout(
+    spec: &TextSpec,
+    e: &CustomEnvelope,
+    fonts: &[DesignFont],
+) -> Result<Layout, TextError> {
+    let plain = TextSpec {
+        envelope: None,
+        custom_envelope: None,
+        transform: Transform::IDENTITY,
+        ..spec.clone()
+    };
+    let mut l = layout_in(&plain, None, fonts)?;
+    if e.is_valid()
+        && let Some(b) = layout_bounds(&l)
+    {
+        warp_layout(&mut l, &b, spec, &plain, fonts, e);
+    }
+    transform_layout(&mut l, &spec.transform);
+    Ok(l)
+}
+
+/// The box an envelope warps: the straight text's left and width and its capital-height box
+/// (capital line to baseline; a text of several lines keeps its own box), 0.1 mm.
+fn envelope_box(b: &Rect, spec: &TextSpec, plain: &TextSpec, fonts: &[DesignFont]) -> (f64, f64) {
+    // PE-DESIGN warps the cap-height box, from the capital line to the baseline (y = 0):
+    // the envelopes were fitted on HHHHHHH, whose box it is, and letters below the
+    // baseline go on below the bottom edge (round-4 captures: "OpenStitch", "Agjy 123").
+    let cap = TextSpec {
+        text: "H".into(),
+        characters: Vec::new(),
+        ..plain.clone()
+    };
+    let cap_top = layout_in(&cap, None, fonts)
+        .ok()
+        .as_ref()
+        .and_then(layout_bounds)
+        .map(|c| c.min_y);
+    match cap_top {
+        Some(t) if t < 0.0 && !spec.text.contains('\n') => (t, -t),
+        _ => (b.min_y, b.height()),
+    }
+}
+
+/// Warps the straight layout `l` (bounds `b`) into envelope `e`.
+fn warp_layout(
+    l: &mut Layout,
+    b: &Rect,
+    spec: &TextSpec,
+    plain: &TextSpec,
+    fonts: &[DesignFont],
+    e: &CustomEnvelope,
+) {
+    let (top, bottom, k) = (&e.top, &e.bottom, e.scale);
+    let (cap_y, cap_h) = envelope_box(b, spec, plain, fonts);
+    let warp = |p: Vec2| {
+        let u = ((p.x - b.min_x) / b.width().max(1e-9)).clamp(0.0, 1.0);
+        let v = (p.y - cap_y) / cap_h.max(1e-9);
+        let (t, bt) = (edge_at(top, u), edge_at(bottom, u));
+        let (t, bt) = (
+            v2(u + k * (t.x - u), k * t.y),
+            v2(u + k * (bt.x - u), 1.0 + k * (bt.y - 1.0)),
+        );
+        v2(
+            b.min_x + b.width() * (t.x + v * (bt.x - t.x)),
+            cap_y + cap_h * (t.y + v * (bt.y - t.y)),
+        )
+    };
+    for g in &mut l.glyphs {
+        g.placement = None;
+        for c in &mut g.contours {
+            *c = warp_contour(c, &warp);
+        }
+        for s in g.stitches.iter_mut().flat_map(|b| b.stitches.iter_mut()) {
+            let p = warp(v2(s.x, s.y));
+            (s.x, s.y) = (p.x, p.y);
+        }
+    }
+}
+
+/// The handles of `spec`'s free envelope on the page (0.1 mm, the text's transform applied):
+/// `[top, bottom]`, each `[left, middle, right]`. `None` without a free envelope.
+pub fn envelope_handles(spec: &TextSpec, fonts: &[DesignFont]) -> Option<[[Vec2; 3]; 2]> {
+    let e = spec.custom_envelope.as_ref().filter(|e| e.is_valid())?;
+    let (b, box_y) = envelope_frame(spec, fonts)?;
+    let at = |edge, u| {
+        let p = e.point(edge, u);
+        spec.transform
+            .apply(v2(b.0 + b.1 * p.x, box_y.0 + box_y.1 * p.y))
+    };
+    let edge = |e| [at(e, 0.0), at(e, 0.5), at(e, 1.0)];
+    Some([edge(EnvelopeEdge::Top), edge(EnvelopeEdge::Bottom)])
+}
+
+/// `spec`'s free envelope edges on the page, `steps + 1` points each (0.1 mm): `[top, bottom]`.
+pub fn envelope_outline(
+    spec: &TextSpec,
+    fonts: &[DesignFont],
+    steps: usize,
+) -> Option<[Vec<Vec2>; 2]> {
+    let e = spec.custom_envelope.as_ref().filter(|e| e.is_valid())?;
+    let (b, box_y) = envelope_frame(spec, fonts)?;
+    let edge = |edge| {
+        (0..=steps)
+            .map(|i| {
+                let p = e.point(edge, i as f64 / steps as f64);
+                spec.transform
+                    .apply(v2(b.0 + b.1 * p.x, box_y.0 + box_y.1 * p.y))
+            })
+            .collect()
+    };
+    Some([edge(EnvelopeEdge::Top), edge(EnvelopeEdge::Bottom)])
+}
+
+/// The straight text's left and width, and its envelope box's top and height (0.1 mm, before
+/// the text's transform): what box fractions of an envelope measure.
+pub fn envelope_frame(spec: &TextSpec, fonts: &[DesignFont]) -> Option<((f64, f64), (f64, f64))> {
+    let plain = TextSpec {
+        envelope: None,
+        custom_envelope: None,
+        transform: Transform::IDENTITY,
+        ..spec.clone()
+    };
+    let l = layout_in(&plain, None, fonts).ok()?;
+    let b = layout_bounds(&l)?;
+    let (y, h) = envelope_box(&b, spec, &plain, fonts);
+    Some(((b.min_x, b.width()), (y, h)))
 }
 
 /// The top and bottom edge of Text Transform preset `n` in a unit box (x right, y down), for
@@ -1697,7 +1988,7 @@ pub fn envelope_edges(n: u8) -> Option<(Vec<Vec2>, Vec<Vec2>)> {
 }
 
 /// The point of an envelope edge at `u` (0..=1), between its knots.
-fn edge_at(edge: &crate::envelope_presets::Edge, u: f64) -> Vec2 {
+fn edge_at(edge: &[(f64, f64)], u: f64) -> Vec2 {
     let f = u * (edge.len() - 1) as f64;
     let k = (f.floor() as usize).min(edge.len() - 2);
     let t = f - k as f64;
