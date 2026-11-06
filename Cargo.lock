@@ -990,6 +990,7 @@ dependencies = [
  "egui-winit",
  "egui_glow",
  "egui_system_font_provider",
+ "glow",
  "glutin",
  "glutin-winit",
  "image",
@@ -2899,6 +2900,7 @@ dependencies = [
 name = "openstitch-formats"
 version = "0.1.0"
 dependencies = [
+ "js-sys",
  "openstitch-core",
  "serde",
  "serde_json",
@@ -2983,6 +2985,25 @@ dependencies = [
  "tar",
  "ureq",
  "zip",
+]
+
+[[package]]
+name = "openstitch-web"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "eframe",
+ "js-sys",
+ "openstitch-core",
+ "openstitch-design",
+ "openstitch-engine",
+ "openstitch-formats",
+ "openstitch-testutil",
+ "rfd",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]

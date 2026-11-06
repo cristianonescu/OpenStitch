@@ -243,6 +243,20 @@ Units: every command takes millimetres. The user may work in inches (`ui.setting
 also named in the editor note with each message); then answer in inches (1 in = 25.4 mm) and
 still send mm to commands. `design.print {units: "inch"}` adds a 2-inch scale bar.
 
+### Web editor (browser)
+
+OpenStitch also runs in a web browser (#556, `crates/openstitch-web`). The page exposes
+`openstitch.run({command, params})`, which takes every engine command (`object.rotate`,
+`design.info`, `history.undo`, ...) and the web editor's own `ui.*` commands: `ui.state` (file,
+page, stitches, simulator, undo/redo, export formats, what is desktop-only), `ui.simulate
+{stitch}` or `{step: "block"}`, `ui.openFile {name, base64}` (File ▸ Open), `ui.saveFile`
+(File ▸ Save: the `.osd` comes back as `{name, base64}`) and `ui.exportFile {format}`
+(`{files: [{name, base64}]}`). The page's buttons run the same commands (their tooltips name
+them); "Whole design" Rotate 90°, Flip and Centre are `object.rotate`, `object.flip` and
+`object.center` on every object. Undo there is per editor step: File ▸ Open is one. The
+Assistant, the other `ui.*` commands, machine transfer, the Design Database and image
+digitizing are desktop-only; say so instead of trying them in the browser.
+
 ## Files
 
 - File commands only reach the folders the editor allows (the conversation's scratch folder,

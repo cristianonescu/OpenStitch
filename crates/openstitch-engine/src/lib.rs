@@ -19,6 +19,7 @@ mod finish;
 #[cfg(feature = "digitize")]
 mod font_images;
 pub mod fonts;
+pub mod fsio;
 mod guides;
 #[cfg(feature = "formats")]
 pub mod imports;
