@@ -77,6 +77,10 @@ pub struct RibbonState {
     pub open_app_menu: bool,
     /// Opens the Print dialog on the next frame (`--show print`).
     pub open_print: bool,
+    /// Opens the Test Swatches dialog on the next frame (`ui.run testSwatches`).
+    pub open_swatches: bool,
+    /// Opens the Job Sheet dialog on the next frame (`ui.run jobSheet`).
+    pub open_job_sheet: bool,
     last_tool: Tool,
     /// Objects Copy or Cut put on the clipboard (#500), kept here too: Paste falls back to
     /// them when the system clipboard holds no OpenStitch objects.
@@ -127,6 +131,8 @@ impl Default for RibbonState {
             prefs_path: None,
             open_app_menu: false,
             open_print: false,
+            open_swatches: false,
+            open_job_sheet: false,
             last_tool: Tool::Select,
             copied: None,
             system_clipboard: false,
@@ -498,6 +504,8 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
     match a {
         New => app.guarded(Pending::New),
         Open => app.guarded(Pending::Open(None)),
+        TestSwatches => app.ui.open_swatches = true,
+        JobSheet => app.ui.open_job_sheet = true,
         OpenSample => app.ui.start.samples_open = true,
         Save => app.save(false),
         SaveAs => app.save(true),
@@ -764,6 +772,7 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
             if ui.button("Print…").clicked() {
                 crate::print_ui::open(ui.ctx());
             }
+            menu_item(app, ui, JobSheet);
         }
         Wizard => {
             if ui.button("Template Wizard…").clicked() {
@@ -782,9 +791,7 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
             if ui.button("Send to USB Media…").clicked() {
                 crate::transfer_ui::open(app);
             }
-            if ui.button("Test Swatches…").clicked() {
-                crate::swatch_ui::open(ui.ctx());
-            }
+            menu_item(app, ui, TestSwatches);
             menu_item(app, ui, ExportSections);
             ui.menu_button("Export", |ui| export_menu(app, ui));
         }
@@ -1421,6 +1428,10 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         .on_hover_text("An empty design offers cards to draw, letter, digitize a picture, import, use a template or open a sample")
         .changed();
     ui.menu_button("New Objects", |ui| changed |= new_objects_menu(app, ui));
+    changed |= ui
+        .checkbox(&mut app.ui.prefs.open_in_tabs, "Open designs in tabs")
+        .on_hover_text("Beyond PE-DESIGN: New and Open add a tab and keep the current design open (Ctrl+Tab switches); off, they replace it as PE-DESIGN does")
+        .changed();
     changed |= ui
         .checkbox(&mut app.ui.prefs.autosave, "Autosave for crash recovery")
         .on_hover_text("Beyond PE-DESIGN: keeps a copy of each open design in OpenStitch's settings folder (never the design's own file) and offers it at the next start after a crash or power cut")

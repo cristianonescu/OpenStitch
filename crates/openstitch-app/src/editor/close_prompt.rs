@@ -13,6 +13,8 @@ pub enum Pending {
     New,
     /// File ▸ Open: the file dialog (`None`) or a given file (Recent Files, Design Database).
     Open(Option<PathBuf>),
+    /// Close the active tab (#552): its close button, `ui.documents` close.
+    CloseTab,
 }
 
 /// The prompt's buttons (Enter = Save, Escape = Cancel).

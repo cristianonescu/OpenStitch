@@ -63,6 +63,8 @@ impl<'de> Deserialize<'de> for SourceBytes {
 pub fn fingerprint(design: &Design) -> u64 {
     let mut d = design.clone();
     d.source = None;
+    // The job (#513) is printed on job sheets, never sewn: setting it leaves the file unchanged.
+    d.job = None;
     let json = serde_json::to_vec(&d).unwrap_or_default();
     json.iter().fold(0xcbf2_9ce4_8422_2325_u64, |h, &b| {
         (h ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3)

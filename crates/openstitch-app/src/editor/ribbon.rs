@@ -84,6 +84,7 @@ actions! {
     Save => "save", "Save", "Save the design.", Some("Ctrl+S"), Some("project.save"), true;
     SaveAs => "saveAs", "Save As", "Save the design under a new name.", Some("Ctrl+Shift+S"), Some("project.save"), true;
     Print => "print", "Print", "Print the design with its colour list through the system print dialog, or save it as a PDF.", None, Some("design.print"), true;
+    JobSheet => "jobSheet", "Job Sheet", "Print a client approval sheet or an operator worksheet with the job's customer, order, due date and notes (design.setJob, design.print; beyond PE-DESIGN).", None, Some("design.print"), true;
     DesignProperty => "designProperty", "Design Property", "Sewing information of the design: size, stitches, colours, thread and time.", None, Some("design.info"), true;
     DesignSettings => "designSettings", "Design Settings", "Machine, hoop and Design Page size.", None, Some("machine.set"), true;
     FabricSelector => "fabricSelector", "Fabric Selector", "Sewing attributes suited to a fabric type, for all shape and text patterns or the selection.", None, Some("fabric.apply"), true;
@@ -166,6 +167,7 @@ actions! {
     Cutwork => "cutwork", "Cutwork Wizard", "Cut lines and the stitching around them.", None, Some("wizard.cutwork"), true;
     // Home ▸ Sew.
     SendEmbroidery => "send", "Sew Embroidery", "Write the design to USB media, or each hooping as its own file.", None, Some("transfer.send"), true;
+    TestSwatches => "testSwatches", "Test Swatches", "Write a test to sew first: the selection alone, one object with a setting stepped, or a fabric calibration card (beyond PE-DESIGN).", None, Some("design.testSwatches"), true;
     // Image tab.
     OpenImage => "openImage", "Open Image", "Show an image behind the design (PNG, JPEG, BMP).", None, Some("background.set"), true;
     PasteImage => "pasteImage", "Paste Image", "Use the image on the clipboard as the background.", None, Some("background.set"), true;
@@ -748,6 +750,10 @@ pub const APPLICATION_MENU: [Action; 12] = [
     A::Export,
 ];
 
+/// Commands inside the Application menu's Print and Sew Embroidery lists (beyond PE-DESIGN,
+/// #452, #507, #513).
+pub const SUBMENU_ACTIONS: [Action; 2] = [A::JobSheet, A::TestSwatches];
+
 /// The Option button: other applications and settings.
 pub const OPTION_MENU: [Action; 6] = [
     A::DesignDatabase,
@@ -974,6 +980,7 @@ mod tests {
             let placed = ribbon.contains(&a)
                 || APPLICATION_MENU.contains(&a)
                 || OPTION_MENU.contains(&a)
+                || SUBMENU_ACTIONS.contains(&a)
                 || help.contains(&a)
                 || ALIGN_MENU.contains(&a)
                 || SELECT_SAME_MENU.contains(&a)

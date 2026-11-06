@@ -243,6 +243,8 @@ own!(
     "player_back",
     "player_forward",
     "player_end",
+    "test_swatches",
+    "job_sheet",
 );
 
 /// The icons of buttons that run no command: the Assistant panel's attach and close, the panes'
@@ -468,6 +470,8 @@ fn glyph(a: Action) -> Glyph {
         SmoothStitches => G::Own("smooth_stitches"),
         Knife => G::Own("knife"),
         ShapeEffects => G::Own("shape_effects"),
+        TestSwatches => G::Own("test_swatches"),
+        JobSheet => G::Own("job_sheet"),
         ShapeBuilder => G::Own("shape_builder"),
         // Reused until a generated icon lands (#497).
         LineGap => G::Own("line_gap"),
