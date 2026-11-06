@@ -311,6 +311,121 @@ pub fn rungs_within_from(
         .collect()
 }
 
+/// A width key of a satin line (#524): at `at` (0 = the line's start, 1 = its end) the column
+/// reaches `left` mm to the left of the line and `right` mm to the right (left: the side to
+/// the left of the drawing direction). Between keys the widths change smoothly.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WidthKey {
+    pub at: f64,
+    pub left: f64,
+    pub right: f64,
+}
+
+/// How a satin line's column follows its line (#524).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct SatinLine {
+    /// Full width where there are no keys, mm.
+    pub width: f64,
+    /// Width keys, any order.
+    pub keys: Vec<WidthKey>,
+    /// Taper lengths at the start and the end, mm (0 = none).
+    pub taper: [f64; 2],
+    /// Degrees the crossings turn from square to the line (−60…60).
+    pub slant: f64,
+}
+
+impl SatinLine {
+    /// Whether the column is the line's width all along, square to it: plain skeleton satin.
+    pub fn is_uniform(&self) -> bool {
+        self.taper == [0.0, 0.0]
+            && self.slant == 0.0
+            && self
+                .keys
+                .iter()
+                .all(|k| k.left == k.right && k.left == self.keys[0].left)
+    }
+
+    /// The full width of a uniform line, mm.
+    pub fn uniform_width(&self) -> f64 {
+        self.keys.first().map_or(self.width, |k| k.left + k.right)
+    }
+
+    /// The left and right reach (mm) at `f` (0…1) along a line `length` (0.1 mm) long.
+    pub fn sides(&self, f: f64, length: f64) -> [f64; 2] {
+        let smooth = |t: f64| {
+            let t = t.clamp(0.0, 1.0);
+            t * t * (3.0 - 2.0 * t)
+        };
+        let mut keys = self.keys.clone();
+        keys.sort_by(|a, b| a.at.total_cmp(&b.at));
+        let [mut l, mut r] = match keys.as_slice() {
+            [] => [self.width / 2.0; 2],
+            [k] => [k.left, k.right],
+            _ => {
+                let j = keys.partition_point(|k| k.at <= f);
+                if j == 0 {
+                    [keys[0].left, keys[0].right]
+                } else if j == keys.len() {
+                    let k = keys[j - 1];
+                    [k.left, k.right]
+                } else {
+                    let (a, b) = (keys[j - 1], keys[j]);
+                    let t = smooth((f - a.at) / (b.at - a.at).max(1e-9));
+                    [
+                        a.left + (b.left - a.left) * t,
+                        a.right + (b.right - a.right) * t,
+                    ]
+                }
+            }
+        };
+        let s = f * length / 10.0;
+        let e = (1.0 - f) * length / 10.0;
+        let mut k = 1.0;
+        if self.taper[0] > 0.0 {
+            k *= smooth(s / self.taper[0]);
+        }
+        if self.taper[1] > 0.0 {
+            k *= smooth(e / self.taper[1]);
+        }
+        l *= k;
+        r *= k;
+        [l.clamp(0.0, MAX_WIDTH), r.clamp(0.0, MAX_WIDTH)]
+    }
+}
+
+/// The rungs [left, right] of a satin line along `path` (0.1 mm), about `step` apart: each
+/// crosses the line at its point, turned `slant` from square, reaching the line's left and
+/// right widths measured square to it. Empty for a degenerate line.
+pub fn satin_line_rungs(path: &[Vec2], line: &SatinLine, step: f64) -> Vec<[Vec2; 2]> {
+    let widest = line
+        .keys
+        .iter()
+        .map(|k| k.left + k.right)
+        .fold(line.width, f64::max)
+        .clamp(0.1, MAX_WIDTH);
+    let Some(c) = Centre::new(&Skeleton {
+        points: path.to_vec(),
+        widths: vec![widest; path.len()],
+    }) else {
+        return Vec::new();
+    };
+    let length = c.length();
+    let n = ((length / step.max(1.0)).ceil() as usize).clamp(1, MAX_RUNGS);
+    let a = line.slant.clamp(-60.0, 60.0).to_radians();
+    let (sin, cos) = (crate::fmath::Det::dsin(a), crate::fmath::Det::dcos(a));
+    (0..=n)
+        .map(|k| {
+            let f = k as f64 / n as f64;
+            let (p, t, _) = c.station(length * f);
+            let [l, r] = line.sides(f, length);
+            let left = v2(t.y, -t.x);
+            let dir = left * cos + t * sin;
+            [p + dir * (l * 10.0 / cos), p - dir * (r * 10.0 / cos)]
+        })
+        .collect()
+}
+
 /// The column's outline: the left side along the centre line, then the right side back.
 pub fn outline(s: &Skeleton) -> Option<Contour> {
     let c = Centre::new(s)?;
@@ -619,11 +734,202 @@ pub fn derive(contours: &[Contour]) -> Option<Skeleton> {
     };
     let head = reach(lo, inner_of(lo, 1));
     let tail = reach(hi, inner_of(hi, -1));
-    let mut pts: Vec<Vec2> = head
+    let pts: Vec<Vec2> = head
         .into_iter()
         .chain(pts[lo..=hi].iter().copied())
         .chain(tail)
         .collect();
+    line_to_skeleton(pts, head.is_some(), tail.is_some(), &edges, grid.step)
+}
+
+/// Most columns one branching region is cut into.
+const MAX_BRANCHES: usize = 16;
+
+/// How far cell `p` lies inside the satin columns of `arms` (0.1 mm): its distance in from the
+/// nearest column's edge, negative outside every column.
+fn depth_in(p: Vec2, arms: &[Skeleton]) -> f64 {
+    let mut best = f64::NEG_INFINITY;
+    for sk in arms {
+        for (w, ws) in sk.points.windows(2).zip(sk.widths.windows(2)) {
+            let (a, b) = (w[0], w[1]);
+            let d = b - a;
+            let len2 = d.x * d.x + d.y * d.y;
+            let t = if len2 > 0.0 {
+                (((p.x - a.x) * d.x + (p.y - a.y) * d.y) / len2).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            let half = (ws[0] + (ws[1] - ws[0]) * t) * 5.0;
+            best = best.max(half - p.distance(a + d * t));
+        }
+    }
+    best
+}
+
+/// One satin column per arm of a branching region (#526, beyond PE-DESIGN): the main stroke
+/// as [`derive`] finds it, then, while part of the region is left uncovered that is longer than
+/// it is wide (an arm of a Y, a star's point, a K's leg), a column from that arm's tip along
+/// its ridge into the column it leaves, ending `join_overlap` mm inside it so the two do not
+/// part. Broad leftovers and the nubs at a column's ends are not arms. A region without
+/// branches gives the one skeleton [`derive`] gives; empty when it gives none.
+pub fn branches(contours: &[Contour], join_overlap: f64) -> Vec<Skeleton> {
+    let Some(main) = derive(contours) else {
+        return Vec::new();
+    };
+    let edges: Vec<(Vec2, Vec2)> = contours
+        .iter()
+        .filter(|c| c.closed)
+        .flat_map(Contour::edges)
+        .filter(|(a, b)| a.x.is_finite() && a.y.is_finite() && b.x.is_finite() && b.y.is_finite())
+        .collect();
+    let Some(grid) = crate::geometry::Rect::enclosing(edges.iter().map(|e| e.0))
+        .and_then(|b| Grid::new(&edges, &b))
+    else {
+        return vec![main];
+    };
+    let overlap = join_overlap.clamp(0.0, 10.0) * 10.0;
+    let cells = grid.clearance.len();
+    let first = main.clone();
+    let mut arms = vec![main];
+    // The main column's widths are measured again along its whole length: derive simplifies a
+    // straight stroke to its two ends, whose width is then the nearest edge's (the end of the
+    // bar across a plus). The arms join this column; without arms derive's own is kept.
+    {
+        let mut dense = vec![first.points[0]];
+        for w in first.points.windows(2) {
+            let n = ((w[0].distance(w[1]) / (4.0 * grid.step)).ceil() as usize).max(1);
+            dense.extend((1..=n).map(|i| w[0].lerp(w[1], i as f64 / n as f64)));
+        }
+        if let Some(mut main) = measure(&dense, true, true, &edges, grid.step) {
+            // Where the chord runs on into another arm (the middle of a star), the column is
+            // as wide as the clearance there allows, not the chord.
+            for (q, w) in main.points.iter().zip(main.widths.iter_mut()) {
+                let near = edges
+                    .iter()
+                    .map(|&(a, c)| segment_distance(*q, a, c))
+                    .fold(f64::INFINITY, f64::min);
+                *w = w.min(2.6 * near / 10.0);
+            }
+            if main.validate().is_ok() {
+                arms[0] = main;
+            }
+        }
+    }
+    // Cells already tried as an arm that gave no column.
+    let mut tried = vec![false; cells];
+    while arms.len() < MAX_BRANCHES {
+        let depth: Vec<f64> = (0..cells)
+            .map(|k| {
+                if grid.clearance[k] < 0.0 {
+                    f64::NEG_INFINITY
+                } else {
+                    depth_in(grid.centre(k), &arms)
+                }
+            })
+            .collect();
+        let open =
+            |k: usize| grid.clearance[k] >= grid.step && depth[k] < -0.75 * grid.step && !tried[k];
+        // The uncovered parts, each with its farthest cell from the columns.
+        let mut seen = vec![false; cells];
+        let mut best: Option<(f64, usize, Vec<usize>)> = None;
+        for start in 0..cells {
+            if seen[start] || !open(start) {
+                continue;
+            }
+            let mut part = vec![start];
+            seen[start] = true;
+            let mut i = 0;
+            while i < part.len() {
+                let k = part[i];
+                for (n, _) in grid.neighbours(k) {
+                    if !seen[n] && open(n) {
+                        seen[n] = true;
+                        part.push(n);
+                    }
+                }
+                i += 1;
+            }
+            let (tip, reach) = part
+                .iter()
+                .map(|&k| (k, -depth[k]))
+                .max_by(|a, b| a.1.total_cmp(&b.1))
+                .expect("not empty");
+            let wide = part.iter().map(|&k| grid.clearance[k]).fold(0.0, f64::max);
+            // An arm reaches out further than twice its half width.
+            if reach >= (2.0 * wide).max(3.0 * grid.step)
+                && best.as_ref().is_none_or(|b| reach > b.0)
+            {
+                best = Some((reach, tip, part));
+            }
+        }
+        let Some((_, tip, part)) = best else {
+            break;
+        };
+        // Along the arm's ridge from its tip into the columns, as derive follows its stroke.
+        let widest = part
+            .iter()
+            .map(|&k| grid.clearance[k])
+            .fold(grid.step, f64::max);
+        let (cost, prev) = grid.paths(tip, |n, step| {
+            let k = widest / (grid.clearance[n].max(0.0) + grid.step * 0.5);
+            step * k * k
+        });
+        let target = (0..cells)
+            .filter(|&k| depth[k] >= overlap && cost[k].is_finite())
+            .min_by(|&a, &b| cost[a].total_cmp(&cost[b]));
+        let mut line: Vec<usize> = Vec::new();
+        if let Some(t) = target {
+            let mut k = t;
+            while k != usize::MAX && line.len() <= cells {
+                line.push(k);
+                if k == tip {
+                    break;
+                }
+                k = prev[k];
+            }
+        }
+        // From the join to the tip, the tip reaching out most of its clearance like derive's.
+        let mut pts: Vec<Vec2> = line.iter().map(|&k| grid.centre(k)).collect();
+        let last = pts.len().saturating_sub(1);
+        let inner = last.saturating_sub(3);
+        let reached = last > inner && grid.clearance[tip] > grid.step && {
+            let d = pts[last] - pts[inner];
+            let ok = d.length() > 1e-9;
+            if ok {
+                let extra = pts[last] + d * (0.8 * grid.clearance[tip] / d.length());
+                pts.push(extra);
+            }
+            ok
+        };
+        match (line.last() == Some(&tip))
+            .then(|| line_to_skeleton(pts, false, reached, &edges, grid.step))
+            .flatten()
+        {
+            // The arm's own cells are never an arm again; a part next to it (two arms meeting
+            // in the uncovered middle of a star) still is.
+            Some(sk) => {
+                arms.push(sk);
+                line.iter().for_each(|&k| tried[k] = true);
+            }
+            None => part.iter().for_each(|&k| tried[k] = true),
+        }
+    }
+    if arms.len() == 1 {
+        return vec![first];
+    }
+    arms
+}
+
+/// A skeleton from a centre line on the grid (`pts`, 0.1 mm): smoothed, simplified, each point
+/// moved to the middle of the chord across the region there and given its width (see
+/// [`derive`]); `head` and `tail` say whether the ends were reached out towards the outline.
+fn line_to_skeleton(
+    mut pts: Vec<Vec2>,
+    head: bool,
+    tail: bool,
+    edges: &[(Vec2, Vec2)],
+    step: f64,
+) -> Option<Skeleton> {
     // Smooth the grid staircase (ends stay).
     for _ in 0..3 {
         let old = pts.clone();
@@ -631,8 +937,21 @@ pub fn derive(contours: &[Contour]) -> Option<Skeleton> {
             pts[i] = (old[i - 1] + old[i] * 2.0 + old[i + 1]) * 0.25;
         }
     }
-    let keep = simplify(&pts, grid.step * 0.75);
+    let keep = simplify(&pts, step * 0.75);
     let line: Vec<Vec2> = keep.iter().map(|&i| pts[i]).collect();
+    measure(&line, head, tail, edges, step)
+}
+
+/// The skeleton along `line` (0.1 mm): each point moved to the middle of the chord across the
+/// region there and given its width; `head` and `tail` say whether the ends were reached out
+/// towards the outline (their width is then no wider than next door).
+fn measure(
+    line: &[Vec2],
+    head: bool,
+    tail: bool,
+    edges: &[(Vec2, Vec2)],
+    step: f64,
+) -> Option<Skeleton> {
     if line.len() < 2 {
         return None;
     }
@@ -650,10 +969,10 @@ pub fn derive(contours: &[Contour]) -> Option<Skeleton> {
         let chord = (t.length() > 1e-9).then(|| {
             let t = t * (1.0 / t.length());
             let left = v2(t.y, -t.x);
-            (left, ray(p, left, &edges), ray(p, left * -1.0, &edges))
+            (left, ray(p, left, edges), ray(p, left * -1.0, edges))
         });
         let (centre, width) = match chord {
-            Some((left, Some(l), Some(r))) if l + r <= 6.0 * near + 2.0 * grid.step => {
+            Some((left, Some(l), Some(r))) if l + r <= 6.0 * near + 2.0 * step => {
                 (p + left * ((l - r) / 2.0), l + r)
             }
             _ => (p, 2.0 * near),
@@ -663,7 +982,7 @@ pub fn derive(contours: &[Contour]) -> Option<Skeleton> {
         widths.push(width);
     }
     // The reached-out ends are close to the outline: their chord, no wider than next door.
-    for (end, next, reached) in [(0, 1, head.is_some()), (last, last - 1, tail.is_some())] {
+    for (end, next, reached) in [(0, 1, head), (last, last - 1, tail)] {
         if !reached || end == next {
             continue;
         }
@@ -687,6 +1006,7 @@ pub fn derive(contours: &[Contour]) -> Option<Skeleton> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fmath::Det;
 
     fn skeleton(points: &[(f64, f64)], widths: &[f64]) -> Skeleton {
         Skeleton {
@@ -893,5 +1213,150 @@ mod tests {
         let s = derive(&[disc]).expect("disc");
         assert!(s.widths.iter().all(|w| *w <= MAX_WIDTH));
         assert_eq!(s.validate(), Ok(()));
+    }
+
+    fn line(keys: &[(f64, f64, f64)]) -> SatinLine {
+        SatinLine {
+            width: 3.0,
+            keys: keys
+                .iter()
+                .map(|&(at, left, right)| WidthKey { at, left, right })
+                .collect(),
+            ..SatinLine::default()
+        }
+    }
+
+    #[test]
+    fn satin_line_widths_follow_keys_sides_tapers_and_slant() {
+        let path = vec![v2(0.0, 0.0), v2(400.0, 0.0)];
+        // Keys interpolate smoothly: 2 mm at the start, 6 mm at the end, 4 mm halfway.
+        let l = line(&[(0.0, 1.0, 1.0), (1.0, 3.0, 3.0)]);
+        assert_eq!(l.sides(0.0, 400.0), [1.0, 1.0]);
+        assert_eq!(l.sides(1.0, 400.0), [3.0, 3.0]);
+        assert!((l.sides(0.5, 400.0)[0] - 2.0).abs() < 1e-9);
+        assert!(l.sides(0.25, 400.0)[0] < 1.5, "smooth, not linear");
+        // One side only: the column lies wholly to the right of the line.
+        let right = line(&[(0.0, 0.0, 3.0)]);
+        for r in satin_line_rungs(&path, &right, 10.0) {
+            assert!(r[0].y.abs() < 1e-9, "{r:?}");
+            assert!((r[1].y - 30.0).abs() < 1e-9, "{r:?}");
+        }
+        // Tapers reach a point at the ends.
+        let taper = SatinLine {
+            taper: [10.0, 5.0],
+            ..line(&[])
+        };
+        let rungs = satin_line_rungs(&path, &taper, 10.0);
+        let w = |r: &[Vec2; 2]| r[0].distance(r[1]);
+        assert!(w(&rungs[0]) < 1e-9 && w(rungs.last().expect("end")) < 1e-9);
+        assert!(
+            (w(&rungs[20]) - 30.0).abs() < 1e-9,
+            "full width in the middle"
+        );
+        assert!(w(&rungs[5]) > 0.0 && w(&rungs[5]) < 30.0, "tapering");
+        // Slant: the crossings turn 30 degrees; the edges stay 1.5 mm from the line.
+        let slant = SatinLine {
+            slant: 30.0,
+            ..line(&[])
+        };
+        for r in satin_line_rungs(&path, &slant, 10.0) {
+            let d = r[1] - r[0];
+            let angle = (d.x / d.length()).dasin().to_degrees();
+            assert!((angle.abs() - 30.0).abs() < 1e-6, "{angle}");
+            assert!((r[0].y.abs() - 15.0).abs() < 1e-9 && (r[1].y.abs() - 15.0).abs() < 1e-9);
+        }
+        // One symmetric key and no slant: a uniform line.
+        assert!(line(&[(0.3, 1.5, 1.5)]).is_uniform());
+        assert_eq!(line(&[(0.3, 1.5, 1.5)]).uniform_width(), 3.0);
+        assert!(!line(&[(0.0, 0.0, 3.0)]).is_uniform());
+    }
+
+    fn polygon(pts: &[(f64, f64)]) -> Vec<Contour> {
+        vec![Contour::new(
+            pts.iter().map(|&(x, y)| v2(x, y)).collect(),
+            true,
+        )]
+    }
+
+    /// Share of the region's inside grid cells covered by the columns of `arms`.
+    fn coverage(c: &[Contour], arms: &[Skeleton]) -> f64 {
+        let edges: Vec<(Vec2, Vec2)> = c.iter().flat_map(Contour::edges).collect();
+        let b = crate::geometry::Rect::enclosing(edges.iter().map(|e| e.0)).expect("b");
+        let g = Grid::new(&edges, &b).expect("grid");
+        let inside: Vec<usize> = (0..g.clearance.len())
+            .filter(|&k| g.clearance[k] >= g.step)
+            .collect();
+        let covered = inside
+            .iter()
+            .filter(|&&k| depth_in(g.centre(k), arms) >= -g.step)
+            .count();
+        covered as f64 / inside.len() as f64
+    }
+
+    #[test]
+    fn branching_shapes_split_into_one_column_per_arm() {
+        let bar = polygon(&[(0.0, 0.0), (300.0, 0.0), (300.0, 40.0), (0.0, 40.0)]);
+        let one = branches(&bar, 0.3);
+        assert_eq!(one.len(), 1, "no branches: derive's one column");
+        assert_eq!(one[0], derive(&bar).expect("bar"));
+        // A Y 4 mm wide: the main stroke through two arms, a column for the third.
+        let y = polygon(&[
+            (180.0, 0.0),
+            (220.0, 0.0),
+            (220.0, 200.0),
+            (340.0, 320.0),
+            (312.0, 348.0),
+            (200.0, 236.0),
+            (88.0, 348.0),
+            (60.0, 320.0),
+            (180.0, 200.0),
+        ]);
+        let arms = branches(&y, 0.3);
+        assert_eq!(arms.len(), 2, "{arms:?}");
+        assert!(coverage(&y, &arms) > 0.9, "{}", coverage(&y, &arms));
+        // The arm ends inside the main column, by the overlap at least.
+        let join = arms[1].points[0];
+        assert!(
+            depth_in(join, &arms[..1]) >= 3.0 - 1e-6,
+            "{}",
+            depth_in(join, &arms[..1])
+        );
+        // A plus: one bar, then its two halves of the other.
+        let plus = polygon(&[
+            (130.0, 0.0),
+            (170.0, 0.0),
+            (170.0, 130.0),
+            (300.0, 130.0),
+            (300.0, 170.0),
+            (170.0, 170.0),
+            (170.0, 300.0),
+            (130.0, 300.0),
+            (130.0, 170.0),
+            (0.0, 170.0),
+            (0.0, 130.0),
+            (130.0, 130.0),
+        ]);
+        let arms = branches(&plus, 0.3);
+        assert_eq!(arms.len(), 3, "{arms:?}");
+        assert!(
+            coverage(&plus, &arms) > 0.9,
+            "{} {arms:?}",
+            coverage(&plus, &arms)
+        );
+        // A five-pointed star: the main stroke through two points, a column for each other.
+        let star: Vec<(f64, f64)> = (0..10)
+            .map(|i| {
+                let a = std::f64::consts::PI * i as f64 / 5.0 - std::f64::consts::FRAC_PI_2;
+                let r = if i % 2 == 0 { 250.0 } else { 70.0 };
+                (250.0 + r * a.dcos(), 250.0 + r * a.dsin())
+            })
+            .collect();
+        let star = polygon(&star);
+        let arms = branches(&star, 0.3);
+        assert_eq!(arms.len(), 4, "{arms:?}");
+        assert!(coverage(&star, &arms) > 0.9, "{}", coverage(&star, &arms));
+        for sk in &arms {
+            assert_eq!(sk.validate(), Ok(()));
+        }
     }
 }

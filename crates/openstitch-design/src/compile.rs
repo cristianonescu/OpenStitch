@@ -1509,17 +1509,23 @@ fn line_elements(object: &DesignObject, line: &LineSewing, user: &[Pattern]) -> 
         .map(|c| {
             let width = line.width * 10.0;
             let spacing = line.spacing_mm() * 10.0;
-            let mut run = if line.kind == LineType::Zigzag && line.underlay {
-                lines::line_underlay(
-                    &c.path(),
-                    width,
-                    pitch,
-                    line.underlay_style,
-                    &line.underlay_auto,
-                )
-            } else {
-                Vec::new()
-            };
+            let mut run =
+                if matches!(line.kind, LineType::Zigzag | LineType::Satin) && line.underlay {
+                    let width = if line.kind == LineType::Satin {
+                        lines::satin_line_width(line) * 10.0
+                    } else {
+                        width
+                    };
+                    lines::line_underlay(
+                        &c.path(),
+                        width,
+                        pitch,
+                        line.underlay_style,
+                        &line.underlay_auto,
+                    )
+                } else {
+                    Vec::new()
+                };
             let loop_line = match line.kind {
                 LineType::Stem => Some(lines::LoopLine::Stem {
                     width,
@@ -1567,6 +1573,7 @@ fn line_elements(object: &DesignObject, line: &LineSewing, user: &[Pattern]) -> 
                 // PE-DESIGN's zigzag (rails matched along each leg) on straight-line paths;
                 // curves keep the evenly spaced zigzag, with half stitch where asked.
                 // OpenStitch's satin shaping (#520-#522) replaces both when set.
+                LineType::Satin => lines::satin_line(&c.path(), line),
                 LineType::Zigzag if !line.satin_shaping.is_plain() => lines::zigzag_shaped(
                     &c.path(),
                     width,
