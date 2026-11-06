@@ -3025,3 +3025,100 @@ fn running_stitch_keeps_ornaments_smaller_than_a_stitch() {
     assert!(top > 5.0, "the scallop keeps its height: {top}");
     assert!(run.windows(2).all(|w| w[0].distance(w[1]) >= 3.0));
 }
+
+// ---------------------------------------------------------------- #466 cusps and apexes
+
+fn distance_to_path(p: Vec2, path: &[Vec2]) -> f64 {
+    path.windows(2)
+        .map(|w| {
+            let (a, b) = (w[0], w[1]);
+            let ab = b - a;
+            let len2 = ab.x * ab.x + ab.y * ab.y;
+            let t = if len2 > 0.0 {
+                (((p.x - a.x) * ab.x + (p.y - a.y) * ab.y) / len2).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            a.lerp(b, t).distance(p)
+        })
+        .fold(f64::INFINITY, f64::min)
+}
+
+fn heart_40mm() -> Contour {
+    crate::shapes::fit(&crate::shapes::heart(), v2(500.0, 500.0), 400.0, 400.0, 0.0)
+}
+
+#[test]
+fn a_zigzag_round_a_hearts_cusp_does_not_fold_over_the_line() {
+    // #466: the appliqué cover (zigzag 3 mm, 5 lines/mm) round a heart knotted at its top
+    // cusp: needle points offset to the inner side landed on or past the line's other side.
+    let heart = heart_40mm();
+    let path = heart.path();
+    let folded = |run: &[Vec2]| {
+        run.iter()
+            .filter(|&&p| {
+                let d = distance_to_path(p, &path);
+                d > 1e-6 && d < 0.5 * 15.0
+            })
+            .count()
+    };
+    let plain = crate::generate::zigzag(&heart, 30.0, 2.0);
+    let mut fixed = plain.clone();
+    lines::unfold_zigzag(&path, &mut fixed, 30.0);
+    assert!(folded(&plain) > 0, "the plain zigzag folds at the cusp");
+    assert_eq!(folded(&fixed), 0);
+    // Only the folded points move: elsewhere the zigzag is unchanged.
+    let moved = plain.iter().zip(&fixed).filter(|(a, b)| a != b).count();
+    assert!(moved <= folded(&plain), "{moved}");
+    // Compiled as a line: the same.
+    let mut line = LineSewing::new(LineType::Zigzag, RED);
+    line.width = 3.0;
+    line.density = 5.0;
+    // The top stitching alone (the under sewing runs along the line, within the column).
+    line.underlay = false;
+    let mut d = Design::new("heart", DesignPage::default());
+    d.add(DesignObject::shape(vec![heart.clone()], None, Some(line)));
+    let p = Compiler::default().compile(&d);
+    let pts: Vec<Vec2> = p
+        .stitches
+        .iter()
+        .filter(|s| s.command == Command::Stitch)
+        .map(|s| v2(s.x, s.y))
+        .collect();
+    // Needle points rounded to the 0.1 mm grid stay within 0.2 mm of the line or at least
+    // 0.5 mm from it; the tie-in and lock (0.3 mm steps along a crossing) are left out.
+    let bad: Vec<_> = pts[4..pts.len() - 4]
+        .iter()
+        .map(|&q| distance_to_path(q, &path))
+        .filter(|&d| d > 2.0 && d < 5.0)
+        .collect();
+    assert!(bad.is_empty(), "{bad:?}");
+}
+
+#[test]
+fn zigzag_under_sewing_bevels_a_cusp_instead_of_spiking() {
+    // #466: the under sewing's mitre at a cusp had no limit (1 / (1 + cos) of the offset).
+    let heart = heart_40mm();
+    let path = heart.path();
+    let offset = 30.0 / 4.0;
+    let run = lines::zigzag_underlay(&path, offset, 25.0);
+    let far = run
+        .iter()
+        .map(|&p| distance_to_path(p, &path))
+        .fold(0.0, f64::max);
+    assert!(far <= 2.0 * offset + 0.5, "{far}");
+}
+
+#[test]
+fn a_skeleton_satin_apex_does_not_pile_its_inner_needle_points() {
+    // #466: shape.skeletonSatin [[8,82],[20,70],[32,82]], widths [1.5, 4, 1.5]: every rung's
+    // inner end met at the apex, needle points piled on one spot (kit shapes/shape-tools).
+    let s = crate::skeleton::Skeleton {
+        points: vec![v2(80.0, 820.0), v2(200.0, 700.0), v2(320.0, 820.0)],
+        widths: vec![1.5, 4.0, 1.5],
+    };
+    let run = crate::skeleton::satin(&s, 10.0 / 4.5, 0.0);
+    // Needle points within 0.2 mm of another one sewn two before (the same side).
+    let piled = |run: &[Vec2]| run.windows(3).filter(|w| w[0].distance(w[2]) < 2.0).count();
+    assert!(piled(&run) <= 2, "{} piled: {run:?}", piled(&run));
+}

@@ -385,6 +385,14 @@ fn marking_window(app: &mut EditorApp, ctx: &egui::Context) {
 /// Center's automatic threshold and lines, Photo Stitch 1's trims.
 fn open_stitch_rows(ui: &mut egui::Ui, w: &mut ImageWizard) {
     match w.method {
+        Method::AutoPunch => {
+            ui.label("");
+            ui.checkbox(&mut w.vary_angles, "Vary angles of touching fills")
+                .on_hover_text(
+                    "Each fill turned in 30° steps until it is at least 20° from the fills it                      touches, so fitted panels read apart.",
+                );
+            ui.end_row();
+        }
         Method::CrossStitch => {
             ui.label("");
             ui.checkbox(&mut w.cross_fill, "Fill each cell")

@@ -167,6 +167,47 @@ fn junctions_split_open_lines() {
     assert!(fig.lines.iter().all(|c| !c.closed));
     assert_eq!(objects.len(), 1);
     assert!(all_inside(&objects, 50.0, 100.0, 550.0, 550.0, 5.0));
+    // #627: the pieces meet at the junction, so they are sewn as one path (a walk back over
+    // a sewn piece where needed), not one piece and a trim each.
+    assert_eq!(objects[0].contours.len(), 1, "{:?}", objects[0].contours);
+    let sewn: f64 = objects[0].contours.iter().map(path_length).sum();
+    let drawn: f64 = fig.lines.iter().map(path_length).sum();
+    assert!(sewn >= drawn - 1.0 && sewn <= 2.0 * drawn, "{sewn} {drawn}");
+    let trims = |objects: Vec<openstitch_design::DesignObject>| {
+        let mut d = Design::new(
+            "t",
+            DesignPage {
+                width: 600.0,
+                height: 600.0,
+            },
+        );
+        for o in objects {
+            d.add(o);
+        }
+        Compiler::default()
+            .compile(&d)
+            .stitches
+            .iter()
+            .filter(|s| s.command == openstitch_core::Command::Trim)
+            .count()
+    };
+    // Off: one piece per line, as before, and a trim between each.
+    let (_, apart) = run(
+        &img,
+        &SewSettings {
+            join_lines: false,
+            ..Default::default()
+        },
+    );
+    assert_eq!(apart[0].contours.len(), fig.lines.len());
+    // Joined: only the design's closing trim; apart, a trim after a piece whose next one
+    // starts farther than the writer sews across.
+    let (joined, apart) = (trims(objects), trims(apart));
+    assert!(joined <= 1 && apart > joined, "{joined} {apart}");
+}
+
+fn path_length(c: &openstitch_design::Contour) -> f64 {
+    c.path().windows(2).map(|w| w[0].distance(w[1])).sum()
 }
 
 #[test]

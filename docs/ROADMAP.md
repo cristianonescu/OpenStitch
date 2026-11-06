@@ -128,6 +128,15 @@ stitches and hairline satins with limits from PE-DESIGN's own files. Next: sew t
 card and set `strip` from it; engine follow-ups #627 (Design Center line-art trims) and #628
 (entry travel across a region).
 
+Done 2026-11-06 (`batch:engine-bugs-3`, #570, #571, #466, #627, #633; #628 in part): start and end
+points left off a reshaped outline snap to it (the four random-design seeds pass); zigzag lines
+no longer fold at cusps and their under sewing bevels sharp corners; skeleton satin takes Half
+Stitch at an apex; Design Center joins line art into one path per figure (`joinLines`, the
+butterfly 60 → 7.8 trims per 1,000 stitches); Along / On outline walks a fill's entry travel and
+a programmable fill's under sewing joins along the outline. Open on #628: PE-DESIGN's straight
+entry travel stays the default (its sweep-fill-density-min reference); owner decision whether
+open rows should leave it.
+
 Done 2026-11-05 (#433): Photo Stitch 1 in OpenStitch mode is fast again after the locks of
 #299: its fitting attempts run at once and its local search scores only the cells in reach,
 with the same stitches as before (High on the issue's stripes 899 → 41 s, Standard 258 → 24 s,
@@ -171,6 +180,14 @@ Done 2026-11-05 (#443): Auto Punch on flat graphics (bold lettering, logos) sews
 columns as PE-DESIGN does (T and H bar by bar, S and C along their curve, the image's own colours
 only); photographs convert as before. Next for lettering images: OpenStitch mode's sewn cream
 background and fused letters (#445); for photographs, keep as many threads as colours (#447).
+
+batch:auto-punch (2026-11-06): OpenStitch mode leaves a paper-coloured background out as the
+fabric (#445, done); Auto Punch reports a region plan with reasons, takes per-region overrides
+and a dry run, and can turn touching fills apart (#489, engine part; the dialog's table,
+presets and click-to-fix stay open); OpenStitch mode keeps thin parts such as ropes as
+running lines (#469, part). Measured and left open: one thread per colour in PE-compatible
+mode (#447: p03 gains Pewter but loses likeness) and Cross Stitch's edge cells (#469: g05
+loses likeness).
 
 Done 2026-10-30: stitch generation is bit-identical on Windows, macOS and Linux (transcendental
 math through the `libm` crate instead of each platform's C library); the arched Text Transform
@@ -479,13 +496,13 @@ started:
 | 5 | Production: parameter test swatches, fabric and thread-weight presets, basting box, knockdown, Stop at Jumps, job sheets | #507, #508, #509, #510, #512, #513 (with #452, #453) | B5, B12, D6, W7 |
 | 6 | Fills: colour blends and gradients, Fill Angle tool and angle lines, maze and tiled meander, tatami textures, wave and flow fills | #532, #534, #533, #537, #538 | B2, B6, B9 |
 | 7 | Editing: align and distribute, precision bar, copies along a line and scatter, snapping, select same, knife, smoothing, continue drawing, shape tools, stitch table, sewing-order list. Done in `batch:editor-tools` (2026-11-05): align and distribute (#472), snapping (#473), precision bar, skew and nudge step (#474), select same and click inside (#475); copies along a line, scatter and kaleidoscope (#476) in a second PR. `batch:editor-shapes`: continuing a line, skeleton or column from either end (#479); Smooth Shape and Smooth Stitches (#478); the Knife (#477); frames, per-corner radii, spiral lines, Divide and shape effects (#497, part 1); turning gaps and the shape builder (#497, part 2) | #472, #474, #476, #473, #475, #477, #478, #479, #497, #501, #502, #500 | B11 |
-| 8 | Lettering: font library with size ranges, single-line text, Ink/Stitch-format font folders, envelopes with handles | #527, #530, #529, #535 | B15 |
+| 8 | Lettering: font library with size ranges, single-line text, Ink/Stitch-format font folders, envelopes with handles. `batch:lettering-library` (2026-11-06): size ranges, the font list with the user's text and the size warning (#527), OpenStitch Line for Small Text (#530; the PE-DESIGN capture is pending), OpenStitch Pixel (#536) | #527, #530, #529, #535 | B15 |
 | 9 | Formats and threads: VP3 (read and write landed for v0.1.0-alpha.13, writing experimental until a sew-out, #480), TAP/TBF/U01 read and write and DSB/DSZ/KSM/ZXY/STX read (#481), thread list files (#482), stitch lists, G-code, export repeats, pictures, stitch-out videos and ZIP bundles (#488), perceptual thread matching and merge similar colours (#484, #485, `threads.remap` metrics and `threads.mergeSimilar`), thread search across charts (`threads.find`, part of #486), richer SVG import (#487: clip paths, masks, opacity, gradient bands and a report of what was left out), more formats, thread list files, `.gpl` palettes (#483, `threads.importPalette` / `threads.exportPalette`), more charts, extra exports | #480, #484, #487, #481, #482, #483, #485, #486, #488 | W3, W6 |
 | 10 | Views and hoops: stitch-out player, millimetres or inches, free multi-hooping, view toggles, zoom box and real size, hoop lists for other brands. `batch:views-hoops` (2026-11-05): millimetres or inches (#519); hoop lists for other brands and round hoops (#514); stitch-out player (#516); zoom box, real size, reference image layer (#518); free multi-hooping (#515); view toggles (#517) | #516, #519, #515, #517, #518, #514 | W1, W4 |
-| 11 | Image wizard: purpose presets, region table with reasons and overrides | #489 (and the bug #469) | B16 |
+| 11 | Image wizard: purpose presets, region table with reasons and overrides. batch:auto-punch (2026-11-06): the engine's plan, reasons, overrides, dry run and neighbour angle rule (#489 part); thin features as lines (#469 part); paper background as fabric (#445) | #489 (and the bug #469) | B16 |
 | 12 | Workflow and platform: autosave and recovery, command palette, custom UI, tabs, new-object defaults, getting started, translations, Finder/Explorer thumbnails, accessibility, `stitchtool` one-line verbs. `batch:ci-tooling` (2026-11-06): `stitchtool convert`, `info`, `optimize`, `digitize` and `formats` with the `formats.list` command (#496) | #549, #550, #551, #552, #553, #554, #555, #557, #499, #496 | W9 |
 | 13 | Satin, line and fill looks: satin variants, raised satin, rail and rung editing, hand-stitch and scribble, back stitch and variable running stitch, decorative hand-embroidery lines, motif lines, per-object trim and tie | #528, #531, #525, #540, #542, #543, #544, #548 | B7, B9 |
-| Ideas | Tartan fill, ripple line, pixel text, on-device digitizing helpers, browser build, background open, accent colour, Python package | #539, #541, #536, #490, #556, #558, #559, #498 | — |
+| Ideas | Tartan fill, ripple line, pixel text (**done**, #536, `batch:lettering-library`), on-device digitizing helpers, browser build, background open, accent colour, Python package | #539, #541, #536, #490, #556, #558, #559, #498 | — |
 
 Skipped as already in OpenStitch (the survey's "have" rows, 261 of 544): tatami, gradient,
 contour, spiral, radial, motif, cross-stitch, guided and stippling fills; running, triple,
