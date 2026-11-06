@@ -68,6 +68,9 @@ pub enum DigitizeError {
     TooLarge(String),
     /// The image has nothing to convert (empty, fully transparent, all background).
     Empty(String),
+    /// An option does not apply to this image (an Auto Punch override of a region it does not
+    /// have, #489).
+    Invalid(String),
 }
 
 impl std::fmt::Display for DigitizeError {
@@ -76,6 +79,7 @@ impl std::fmt::Display for DigitizeError {
             Self::Decode(m) => write!(f, "cannot decode image: {m}"),
             Self::TooLarge(m) => write!(f, "too large: {m}"),
             Self::Empty(m) => write!(f, "nothing to convert: {m}"),
+            Self::Invalid(m) => write!(f, "{m}"),
         }
     }
 }

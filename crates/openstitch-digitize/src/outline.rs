@@ -181,30 +181,7 @@ pub fn extract(
         if total < ASPECT * width || total * mm < MIN_LENGTH_MM || bw * bh < MIN_BOX_MM2 {
             continue;
         }
-        let shifted = Frame {
-            origin: frame.point(k.x0 as f64, k.y0 as f64),
-            scale: frame.scale,
-        };
-        let mut contours = Vec::new();
-        for (pts, closed) in kept_paths {
-            let kept = if *closed {
-                trace::simplify_closed(pts, trace_options.simplify)
-            } else {
-                trace::simplify_open(pts, trace_options.simplify)
-            };
-            if kept.len() < 2 {
-                continue;
-            }
-            contours.push(trace::contour(
-                pts,
-                &kept,
-                *closed,
-                trace_options.curves,
-                trace_options.simplify,
-                trace_options.corner_degrees,
-                &shifted,
-            ));
-        }
+        let contours = path_contours(&kept_paths, k.x0, k.y0, frame, trace_options);
         if contours.is_empty() {
             continue;
         }
@@ -233,7 +210,179 @@ pub fn extract(
     if lines.is_empty() {
         return None;
     }
-    // The strokes' pixels take the labels beside them, spreading in from every side.
+    hand_over(labels, &mut taken, w, h);
+    Some(Outlines {
+        thread: ink as usize,
+        lines,
+    })
+}
+
+/// Skeleton paths of a component mask at `(x0, y0)` as simplified contours in design units.
+fn path_contours(
+    paths: &[&(Vec<Vec2>, bool)],
+    x0: usize,
+    y0: usize,
+    frame: &Frame,
+    trace_options: &TraceOptions,
+) -> Vec<openstitch_design::Contour> {
+    let shifted = Frame {
+        origin: frame.point(x0 as f64, y0 as f64),
+        scale: frame.scale,
+    };
+    let mut contours = Vec::new();
+    for (pts, closed) in paths {
+        let kept = if *closed {
+            trace::simplify_closed(pts, trace_options.simplify)
+        } else {
+            trace::simplify_open(pts, trace_options.simplify)
+        };
+        if kept.len() < 2 {
+            continue;
+        }
+        contours.push(trace::contour(
+            pts,
+            &kept,
+            *closed,
+            trace_options.curves,
+            trace_options.simplify,
+            trace_options.corner_degrees,
+            &shifted,
+        ));
+    }
+    contours
+}
+
+/// A line object sewn along the skeleton of the component mask `m` (`mw` × `mh` at
+/// `(x0, y0)`), or `None` when it has no skeleton. Auto Punch's "line" override (#489) and its
+/// thin features (#469).
+pub fn skeleton_line(
+    m: &[bool],
+    mw: usize,
+    mh: usize,
+    (x0, y0): (usize, usize),
+    frame: &Frame,
+    trace_options: &TraceOptions,
+    line: LineSewing,
+) -> Option<DesignObject> {
+    let skeleton = center::thin(m, mw, mh);
+    let paths = center::skeleton_paths(&skeleton, mw, mh);
+    // Spurs shorter than [`SPUR_MM`] are left out: sewn three times over, their few short
+    // stitches stack in one spot (g05, g15: 9-14 stitches under 0.3 mm in a row).
+    let spur = (SPUR_MM / frame.mm_per_px().max(1e-9)).max(2.0);
+    let kept: Vec<&(Vec<Vec2>, bool)> = paths
+        .iter()
+        .filter(|(p, closed)| *closed || length(p) >= spur)
+        .collect();
+    let contours = path_contours(&kept, x0, y0, frame, trace_options);
+    (!contours.is_empty()).then(|| DesignObject::shape(contours, None, Some(line)))
+}
+
+/// OpenStitch mode (#469): a part narrower than this everywhere, mm, is a thin feature (a
+/// balloon's rope, a whisker) and is sewn as a running line along its skeleton, not
+/// dropped as a sliver.
+pub const THIN_MM: f64 = 1.0;
+
+/// A thin feature lies on one ground: at least this share of its border touches one colour.
+/// Edge shades between two regions (photos) border two colours about equally, and stay.
+pub const THIN_GROUND_SHARE: f64 = 0.8;
+
+/// A line along a skeleton leaves out open branches shorter than this, mm.
+pub const SPUR_MM: f64 = 1.0;
+
+/// Running stitch length of a thin feature, mm (as a hairline outline, [`RUN_PITCH_MM`]); a triple run doubled back over tight curls in place (g05, g15: 9-14 stitches under 0.3 mm in a row).
+pub const THIN_PITCH_MM: f64 = RUN_PITCH_MM;
+
+/// A thin feature found by [`thin_lines`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct ThinLine {
+    /// Thread index (into `palette.threads`) of the feature.
+    pub thread: usize,
+    /// The label it lies on (the ground sewn under it), [`NONE`] when that is left out.
+    pub ground: u16,
+    pub line: DesignObject,
+}
+
+/// OpenStitch mode (#469): the thin features among the pixels the sliver opening took from
+/// their region (`before` and `after` the opening, thread index per pixel): pieces narrower
+/// than [`THIN_MM`] everywhere, as long as an outline must be ([`ASPECT`],
+/// [`MIN_LENGTH_MM`]) and lying on one ground ([`THIN_GROUND_SHARE`]), such as a balloon's
+/// ropes cut from its basket. Each becomes a running line in its own thread along its
+/// skeleton, in scan order. Their pixels keep the ground the opening gave them, so the ground
+/// runs under the line.
+pub fn thin_lines(
+    before: &[u16],
+    after: &[u16],
+    w: usize,
+    h: usize,
+    frame: &Frame,
+    trace_options: &TraceOptions,
+) -> Vec<ThinLine> {
+    let mm = frame.mm_per_px();
+    if mm <= 0.0 || w == 0 || h == 0 {
+        return Vec::new();
+    }
+    let taken: Vec<u16> = (0..w * h)
+        .map(|i| {
+            if before[i] != after[i] {
+                before[i]
+            } else {
+                NONE
+            }
+        })
+        .collect();
+    let (id, comps) = regions::components(&taken, w, h);
+    let mut out = Vec::new();
+    for (c, k) in comps.iter().enumerate() {
+        let long = (k.x1 - k.x0).max(k.y1 - k.y0) as f64 * mm;
+        if long < MIN_LENGTH_MM {
+            continue;
+        }
+        let (m, mw, mh) = regions::mask(&id, w, c as u32, k);
+        let width = regions::thickness(&m, mw, mh);
+        if width * mm >= THIN_MM || (k.area as f64) < ASPECT * width * width {
+            continue;
+        }
+        // The labels around it, after the opening: one ground, not a seam between two.
+        let mut ground: Vec<(u16, usize)> = Vec::new();
+        let mut border = 0;
+        for y in 0..mh {
+            for x in 0..mw {
+                if !m[y * mw + x] {
+                    continue;
+                }
+                for j in neighbours((y + k.y0) * w + x + k.x0, w, h) {
+                    if id[j] != c as u32 && after[j] != k.label {
+                        border += 1;
+                        match ground.iter_mut().find(|g| g.0 == after[j]) {
+                            Some(g) => g.1 += 1,
+                            None => ground.push((after[j], 1)),
+                        }
+                    }
+                }
+            }
+        }
+        let Some(&(on, most)) = ground.iter().max_by_key(|g| (g.1, std::cmp::Reverse(g.0))) else {
+            continue;
+        };
+        if (most as f64) < THIN_GROUND_SHARE * border as f64 {
+            continue;
+        }
+        let mut line = LineSewing::new(LineType::Running, openstitch_core::Thread::rgb(0));
+        line.pitch = THIN_PITCH_MM;
+        if let Some(o) = skeleton_line(&m, mw, mh, (k.x0, k.y0), frame, trace_options, line) {
+            out.push(ThinLine {
+                thread: k.label as usize,
+                ground: on,
+                line: o,
+            });
+        }
+    }
+    out
+}
+
+/// The `taken` pixels take the labels beside them, spreading in from every side; a taken
+/// pixel with no untaken pixel connected keeps its label.
+fn hand_over(labels: &mut [u16], taken: &mut [bool], w: usize, h: usize) {
     let mut queue = VecDeque::new();
     for i in 0..w * h {
         if !taken[i] && neighbours(i, w, h).any(|j| taken[j]) {
@@ -249,10 +398,6 @@ pub fn extract(
             }
         }
     }
-    Some(Outlines {
-        thread: ink as usize,
-        lines,
-    })
 }
 
 fn neighbours(i: usize, w: usize, h: usize) -> impl Iterator<Item = usize> {
