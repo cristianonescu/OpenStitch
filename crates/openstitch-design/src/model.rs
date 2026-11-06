@@ -54,6 +54,11 @@ pub struct Design {
         skip_serializing_if = "crate::production::Production::is_default"
     )]
     pub production: crate::production::Production,
+    /// The job the design is sewn for (customer, order, due date, notes), printed on the job
+    /// sheets (#513, beyond PE-DESIGN). Saved in the project only, never written to machine
+    /// files. Omitted when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub job: Option<JobInfo>,
     /// The machine file the design was opened from, written back unchanged when the design is
     /// exported to it again without a change (File ▸ Open of a PE-DESIGN PES, #375). Omitted
     /// when absent.
@@ -180,6 +185,48 @@ impl Guides {
     }
 }
 
+/// The job a design is sewn for (#513): what the client approval sheet and the operator sheet
+/// print. Kept in the project (`.osd`) only; no machine format carries it. Each field is
+/// omitted while empty.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct JobInfo {
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub customer: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub order: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub due: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub notes: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub fabric: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub stabiliser: String,
+}
+
+impl JobInfo {
+    /// Field names, as `design.setJob` parameters.
+    pub const KEYS: [&str; 6] = ["customer", "order", "due", "notes", "fabric", "stabiliser"];
+
+    pub fn is_empty(&self) -> bool {
+        *self == JobInfo::default()
+    }
+
+    /// The field named `key` (one of [`JobInfo::KEYS`]).
+    pub fn field_mut(&mut self, key: &str) -> Option<&mut String> {
+        Some(match key {
+            "customer" => &mut self.customer,
+            "order" => &mut self.order,
+            "due" => &mut self.due,
+            "notes" => &mut self.notes,
+            "fabric" => &mut self.fabric,
+            "stabiliser" => &mut self.stabiliser,
+            _ => return None,
+        })
+    }
+}
+
 /// Design Property text fields, written to the PES v4+ header next to the design name and
 /// read back from it. Each field is omitted while empty.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -259,6 +306,7 @@ impl Design {
             properties: DesignProperties::default(),
             optimize_order: OptimizeOrder::default(),
             production: Default::default(),
+            job: None,
             source: None,
         }
     }

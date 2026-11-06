@@ -62,6 +62,8 @@ mod free_hoopings;
 mod hoop_lists;
 #[path = "imports.rs"]
 mod imports;
+#[path = "job_sheets.rs"]
+mod job_sheets;
 #[path = "knife.rs"]
 mod knife;
 #[path = "knockdown.rs"]

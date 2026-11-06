@@ -237,6 +237,12 @@ Units: every command takes millimetres. The user may work in inches (`ui.setting
 also named in the editor note with each message); then answer in inches (1 in = 25.4 mm) and
 still send mm to commands. `design.print {units: "inch"}` adds a 2-inch scale bar.
 
+Job sheets (#513): "print an approval sheet for my customer" or "a worksheet for the machine
+operator": set the job with `design.setJob {customer, order, due, notes, fabric, stabiliser}`
+(an edit, undoable; saved with the project, never in machine files), then `design.print {path,
+mode: "client" | "operator", detail: "overview" | "detailed", shop}`. Use only what the user
+gives for the job fields; never invent a customer or order.
+
 ### Web editor (browser)
 
 OpenStitch also runs in a web browser (#556, `crates/openstitch-web`). The page exposes
@@ -296,6 +302,8 @@ digitizing are desktop-only; say so instead of trying them in the browser.
     `fabric.deleteCustom {fabric}` removes it. Both change the user's settings: say so first.
 - `file` commands (`project.save`, `design.export`, ...) may ask the user first. Never
   overwrite a user's file without being asked to.
+- To show the user these dialogs in the editor: `ui.run {action: "testSwatches"}` (Send ▸ Test
+  Swatches…) and `ui.run {action: "jobSheet"}` (Print ▸ Job Sheet…).
 
 ## Memory
 

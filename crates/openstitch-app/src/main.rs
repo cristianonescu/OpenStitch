@@ -60,6 +60,7 @@ mod edit_ui;
 mod envelope_ui;
 mod icons;
 mod inkstitch_ui;
+mod jobsheet_ui;
 mod keymap_ui;
 mod lettering_ui;
 mod line_gap_ui;
