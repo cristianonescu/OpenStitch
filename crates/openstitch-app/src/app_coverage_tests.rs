@@ -504,3 +504,27 @@ fn svg_import_status_lists_what_was_left_out() {
     assert_eq!(import_report(&r), "; left out: 1 text");
     assert_eq!(import_report(&json!({"ids": [1]})), "");
 }
+
+#[test]
+fn backspace_while_drawing_takes_back_a_point_and_keeps_the_selection() {
+    // #499: Backspace is a Delete key, but while a drawing tool is placing points it removes
+    // the last point instead of deleting the selected objects.
+    let ctx = egui::Context::default();
+    let mut app = EditorApp::new(Launch::default());
+    app.execute(&rectangle(5.0)).expect("rectangle");
+    app.select_all();
+    app.tools.set_tool(Tool::Polygon);
+    for (x, y) in [(40.0, 40.0), (60.0, 40.0)] {
+        app.cursor_command(Some(&json!({ "x": x, "y": y, "action": "place" })))
+            .expect("place");
+    }
+    press(&ctx, &mut app, Key::Backspace, Modifiers::NONE);
+    assert_eq!(app.session.design().objects.len(), 1, "the rectangle stays");
+    assert_eq!(app.tools.polygon().len(), 1, "one point taken back");
+    app.tools.set_tool(Tool::Select);
+    press(&ctx, &mut app, Key::Backspace, Modifiers::NONE);
+    assert!(
+        app.session.design().objects.is_empty(),
+        "not drawing: Backspace deletes"
+    );
+}

@@ -534,7 +534,15 @@ Line references are relative to `crates/`.
   1445, its x alone 345 → 305 against 324 and closer both ways (0.228 → 0.211 and 0.215 →
   0.206 mm: main's total matched only because H's +21 and g's −42 cancelled). Letter sweep
   (588 samples): 24 changed (X, x, KNOX), none worse. N's corner and A's and V's slanted feet
-  stay open (#446): no N, M, W, K, Z capture exists yet.
+  stay open (#446). Round 8 (2026-11-07) added PE-DESIGN references for satin N, M, W, K and Z
+  in Lato Bold at 20 and 8 mm and N converted to blocks (`stroke-satin-{n,m,w,k,z}[-8]`,
+  `stroke-blocks-satin-n`, all within today's 25 % and 0.3 mm). Measured against them
+  (needle points ours / PE-DESIGN, mean distance PE → ours, trims ours / PE): N 283/293,
+  0.39 mm, 2/0; N-8 121/123, 0.21 mm, 2/0; M 342/374, 0.38 mm, 2/1; M-8 138/165, 0.27 mm,
+  1/0; W 384/363, 0.32 mm, 3/0; W-8 154/155, 0.19 mm; K 314/293, 0.26 mm; K-8 136/128,
+  0.14 mm; Z 246/237, 0.24 mm, 1/0; Z-8 95/99, 0.16 mm. PE-DESIGN sews N, W, K and Z in one run
+  without a trim (M with one): its strokes meet at the crotches instead of being cut apart, and
+  N's and M's PE → ours distances (the spike at the acute corner) are the largest.
 - **Test:**
   - Inputs: `text.add {"text":"AVOW","size":30,"x":50,"y":50}` →
     `object.setRegion {"id":1,"type":"satin"}` → `design.generate`.
@@ -1633,6 +1641,16 @@ Line references are relative to `crates/`.
   region-then-outline order unchanged): PE-DESIGN has no per-shape part order, so a PES 11
   export writes such a shape as two shapes, its outline then its region, and the stitch data
   sews them in that order.
+- **Image digitizing, batch:mac-digitize-3 (2026-11-06; #688, #690):** PE-DESIGN-compatible
+  output unchanged (scorer identical). OpenStitch mode: outline paths keep vertices at least
+  0.4 mm apart and, except on line art, specks (every stitch within 0.8 mm) are left out, so sew_check passes 27 of
+  the 30 example images (25 on main; p01 and p09 are #703, g11 is #713; with presets 197 of
+  210 runs, every preset clean on g01-g08). Likeness: g05 MS-SSIM 0.8770 → 0.8750 (its
+  outlines no longer follow pixel steps; 879 fewer stitches under 1 mm), the other Auto Punch
+  cases within 0.0003 or better. Leaving out g11's dots as specks cost MS-SSIM 0.653 → 0.611, so
+  line art keeps them. Two golden hashes change (specks left out): emblem Auto Punch
+  0xcfe047434a377450 → 0x6f8c38e54e037ddb and gradient Auto Punch 0x9fb965f4afbd6472 →
+  0xb90ef983b645fd84; the other 7 are unchanged.
 - **Image wizard, batch:mac-wizard (2026-11-06; #489):** the dialog's region table, click-to-fix,
   colour order and Preset row drive `digitize.autoPunch`'s `dryRun`, `regionMap`, `overrides`,
   `order` and `preset`; PE-DESIGN-compatible output with none of them set is unchanged.
@@ -2384,6 +2402,24 @@ Line references are relative to `crates/`.
   both cards; the Realistic view and the similarity scorer now draw thread that wide
   (`openstitch_design::calibration`, #291).
 
+### Fabric presets and advice, 2026-11-07 (`batch:mac-fabric`, #508 part 1)
+
+Beyond PE-DESIGN. PE-DESIGN's eight Fabric Selector types and their values are unchanged and
+listed first.
+
+- **Five more fabrics:** polyester woven, piqué knit, organza and sheers, canvas, and structured
+  caps. Their density, stitch length, pull compensation and underlay are OpenStitch's
+  approximations, like the eight: no stabiliser, needle or thread maker publishes these per fabric.
+- **`fabric.advise {fabric, weight}`:** backing, topping, needle point and size, and the smallest
+  legible block-letter height for No. 12, 30, 40 or 60 thread. The values come from the makers'
+  published guidance (`data/fabric_advice.json`, 21 sources checked 2026-11-07), and makers'
+  disagreements are named (leather needle points, caps, towel and denim backings). Minimum text is
+  published for No. 60 (3 mm) and No. 40 (6–7 mm, 6 used); No. 30 and No. 12 are estimates scaled
+  by Madeira's stitch spacing, and say so. The Fabric Selector shows backing, topping, needle and
+  smallest text.
+- **Not done (parts 2 and 3):** thread weight driving density, a default fabric for new objects,
+  machine profiles, and the first-run setup.
+
 ### Job sheets, 2026-11-06 (`batch:mac-sewout`, #513)
 
 Beyond PE-DESIGN, off unless chosen: `design.print`'s existing modes and the PE-compatible
@@ -2971,6 +3007,36 @@ no problems:
   mode (#525, satin-2b), and the NV880E sew-outs #528 and #531 ask for before the styles are
   advertised.
 
+### Satin lines with variable width and branch split, 2026-11-06 (#524, #526 part, `batch:satin-2b`)
+
+Both are beyond PE-DESIGN. They are new line types and commands, so no existing design changes
+and every compat output stays byte-identical. PES 0110 export refuses a satin line with the
+message it gives other unmapped line types; the machine formats sew it.
+
+- **Satin line (#524):**
+  - A satin line with one width all along, square to the line, sews the same needle points as
+    skeleton satin of that width (engine test).
+  - Width keys interpolate smoothly. Left 0 / right 3 mm puts the whole column on one side.
+  - Tapers reach a point at the ends.
+  - A 30° slant keeps the edges at their widths (unit test).
+- **Branch split (#526), `object.deriveSkeleton {branches: true}` on Lato Bold letters at 10
+  and 25 mm:**
+
+  | Letter | Columns |
+  |---|---|
+  | K | 3 |
+  | X | 3 |
+  | Y | 2 |
+  | R | 4 |
+  | N | 1 (an unbranched path) |
+
+  - All ten files pass sew_check.
+  - The synthetic Y, plus and star are over 90 % covered, and each arm ends `joinOverlap`
+    inside the column it leaves.
+  - Not met: on K and R the main stroke bends through the junction and fans, leaving a gap in
+    the stem. #526's IoU ≥ 0.95 and "no gap over 0.3 mm" are therefore not reached on letters,
+    and #526 stays open.
+
 ### Hidden stitching and hidden travel, 2026-11-06 (#511, #545, `batch:routing`)
 
 Beyond PE-DESIGN and off by default: with no object or design setting on, compiled output is
@@ -2996,6 +3062,25 @@ PE-DESIGN's destructive `shape.removeOverlap` is unchanged.
   curves (debug build, 5 builds): 2.7-5.1 s before, 0.48-0.65 s after, within 1.1-1.4× of the
   same ring flattened first (`paths::tests::curved_layers_timing`). PES output byte-identical on
   the 24 exportable example scripts; compat 454/454.
+
+### Auto-route, Redwork and branching, 2026-11-06 (#546, `batch:routing`)
+
+Beyond PE-DESIGN; nothing changes until `shape.autoRoute` or `object.branch` is run.
+
+- **Auto-route.** The lines are split at crossings and where an end comes within `join`
+  (0.5 mm) of another line; each connected piece is one walk. With more than two odd vertices,
+  the shortest paths between them are sewn twice, paired by a minimum matching (exact by
+  bitmask up to 16, greedy above), leaving the two whose pairing costs most as the walk's
+  ends; Hierholzer's walk takes the straightest unused line at each vertex. A "Y" of three
+  lines: one line, no trims, the shortest leg sewn twice (test
+  `a_tree_of_lines_sews_with_no_trims`); a 2 × 2 window grid doubles exactly 20 mm.
+- **Redwork.** Every line twice, the walk closed: a branch of three lines is 2 × 60 mm and ends
+  where it started.
+- **Branching.** Touching shapes in one thread, ordered nearest-next, each entered at the
+  closest point to the one before (the `minJump` link of `order.optimize`): a chain of three
+  touching rectangles in two colours sews with no colour change and no trim, and stays so after
+  a member is moved; moved apart, that member trims as usual. Satin branching with the
+  centre-run underlay of the B4 sketch (§5) is not done.
 
 ## Order of work
 

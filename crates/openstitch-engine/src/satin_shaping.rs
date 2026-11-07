@@ -3,13 +3,15 @@
 //! sewing), read by `object.setRegion` (Manual Punch columns) and `object.setLine` (zigzag
 //! lines). All are off by default; a column or line without them sews as PE-DESIGN's.
 
-use crate::commands::{ParamDoc, opt};
+use crate::commands::{CommandSpec, Effect, ParamDoc, opt, req, spec};
 use crate::params::{CommandError, Params};
-use openstitch_design::UnderlayStyle;
 use openstitch_design::column::{
     AutoUnderlay, CornerStyle, Jagged, JaggedMode, JaggedSide, RAISED_MIN_WIDTH, Raised,
     SatinShaping, SatinStyle, SecondUnderlay,
 };
+use openstitch_design::skeleton::{self, WidthKey};
+use openstitch_design::{LineSewing, LineType, UnderlayStyle};
+use serde_json::json;
 
 /// The parameters shared by `object.setRegion` and `object.setLine`.
 pub(crate) const SHAPING_PARAMS: [ParamDoc; 16] = [
@@ -341,4 +343,181 @@ pub(crate) fn apply_underlay2(
     }
     *u = Some(l);
     Ok(())
+}
+
+/// The satin line's parameters of `object.setLine` (#524).
+pub(crate) const SATIN_LINE_PARAMS: [ParamDoc; 4] = [
+    opt(
+        "widthKeys",
+        "[[at, left, right]] | [{at, left, right}] | null",
+        "Satin line (type satin, beyond PE-DESIGN): the column's width along the line, at = 0 (start) to 1 (end), left and right mm from the line (0-15; left is to the left of the drawing direction); widths change smoothly between keys; null or [] uses width all along",
+    ),
+    opt(
+        "taperStart",
+        "mm",
+        "Satin line: the start tapers to a point over this length, 0-50 (0 = none)",
+    ),
+    opt(
+        "taperEnd",
+        "mm",
+        "Satin line: the end tapers to a point over this length, 0-50 (0 = none)",
+    ),
+    opt(
+        "slant",
+        "degrees",
+        "Satin line: the crossings turned from square to the line, -60 to 60 (0 = square, the default), a calligraphic slant",
+    ),
+];
+
+/// One width key from `[at, left, right]` or `{at, left, right}`.
+fn width_key(p: &Params, key: &str, v: &serde_json::Value) -> Result<WidthKey, CommandError> {
+    let get = |i: usize, name: &str| {
+        v.get(i)
+            .or_else(|| v.get(name))
+            .and_then(serde_json::Value::as_f64)
+    };
+    let (Some(at), Some(left), Some(right)) = (get(0, "at"), get(1, "left"), get(2, "right"))
+    else {
+        return Err(p.invalid(key, "each key is [at, left, right] or {at, left, right}"));
+    };
+    if !(0.0..=1.0).contains(&at) {
+        return Err(p.invalid(key, "at must be 0-1"));
+    }
+    let half = skeleton::MAX_WIDTH / 2.0;
+    if !(0.0..=half).contains(&left) || !(0.0..=half).contains(&right) {
+        return Err(p.invalid(key, format!("left and right must be 0-{half} mm")));
+    }
+    Ok(WidthKey { at, left, right })
+}
+
+/// Applies the satin line's parameters present in `p` to `l`.
+pub(crate) fn apply_satin_line(p: &Params, l: &mut LineSewing) -> Result<(), CommandError> {
+    if p.is_null("widthKeys") {
+        l.width_keys.clear();
+    } else if p.has("widthKeys") {
+        let keys = p
+            .array("widthKeys")?
+            .iter()
+            .map(|v| width_key(p, "widthKeys", v))
+            .collect::<Result<Vec<_>, _>>()?;
+        if keys.len() > 1000 {
+            return Err(p.invalid("widthKeys", "at most 1000 keys"));
+        }
+        l.width_keys = keys;
+        l.width_keys.sort_by(|a, b| a.at.total_cmp(&b.at));
+    }
+    for (key, field) in [
+        ("taperStart", &mut l.taper_start),
+        ("taperEnd", &mut l.taper_end),
+    ] {
+        if p.has(key) {
+            let v = p.req(key, 0.0, 50.0)?;
+            *field = (v > 0.0).then_some(v);
+        }
+    }
+    if p.has("slant") {
+        let v = p.req("slant", -60.0, 60.0)?;
+        l.slant = (v != 0.0).then_some(v);
+    }
+    Ok(())
+}
+
+/// The satin line `id` to change.
+fn satin_line<'a>(
+    s: &'a mut crate::session::EngineState,
+    p: &Params,
+) -> Result<&'a mut LineSewing, CommandError> {
+    let id = p.int("id", None, 0, i64::MAX)? as u64;
+    let i = s
+        .design
+        .index_of(id)
+        .ok_or_else(|| p.not_found(format!("object {id}")))?;
+    s.design.objects[i]
+        .line
+        .as_mut()
+        .filter(|l| l.kind == LineType::Satin)
+        .ok_or_else(|| {
+            p.failed(format!(
+                "object {id} has no satin line (object.setLine type satin)"
+            ))
+        })
+}
+
+/// `object.setWidthKey` and `object.deleteWidthKey` (#524).
+pub fn commands() -> Vec<CommandSpec> {
+    vec![
+        spec(
+            "object.setWidthKey",
+            "Satin line: set the column's width at a place along the line (beyond PE-DESIGN): a key at `at` (0 = start, 1 = end) with `width` (both sides) or `left` and `right` mm; a key already within 0.5 % of `at` is replaced. Returns the key's index",
+            Effect::Edit,
+            vec![
+                req("id", "int", "Object with a satin line"),
+                req("at", "0-1", "Where along the line: 0 = start, 1 = end"),
+                opt("width", "mm", "Full width, split evenly (0-30)"),
+                opt("left", "mm", "Reach to the left of the line (0-15)"),
+                opt("right", "mm", "Reach to the right of the line (0-15)"),
+            ],
+            |s, p| {
+                let at = p.req("at", 0.0, 1.0)?;
+                let half = skeleton::MAX_WIDTH / 2.0;
+                let (left, right) = if p.has("width") {
+                    if p.has("left") || p.has("right") {
+                        return Err(p.invalid("width", "give width or left and right, not both"));
+                    }
+                    let w = p.req("width", 0.0, skeleton::MAX_WIDTH)? / 2.0;
+                    (w, w)
+                } else if p.has("left") || p.has("right") {
+                    // The side not given keeps the replaced key's, or the width there now.
+                    let l = satin_line(s, p)?;
+                    let here = match l.width_keys.iter().find(|k| (k.at - at).abs() <= 0.005) {
+                        Some(k) => [k.left, k.right],
+                        None => skeleton::SatinLine {
+                            width: l.width,
+                            keys: l.width_keys.clone(),
+                            ..Default::default()
+                        }
+                        .sides(at, 1.0),
+                    };
+                    (
+                        p.opt("left", here[0], 0.0, half)?,
+                        p.opt("right", here[1], 0.0, half)?,
+                    )
+                } else {
+                    return Err(p.invalid("width", "give width, or left and/or right"));
+                };
+                let l = satin_line(s, p)?;
+                let key = WidthKey { at, left, right };
+                let i = match l.width_keys.iter().position(|k| (k.at - at).abs() <= 0.005) {
+                    Some(i) => {
+                        l.width_keys[i] = key;
+                        i
+                    }
+                    None => {
+                        let i = l.width_keys.partition_point(|k| k.at < at);
+                        l.width_keys.insert(i, key);
+                        i
+                    }
+                };
+                Ok(json!({ "index": i }))
+            },
+        ),
+        spec(
+            "object.deleteWidthKey",
+            "Satin line: remove width key `index` (0 = nearest the start); with none left the line is `width` all along (beyond PE-DESIGN)",
+            Effect::Edit,
+            vec![
+                req("id", "int", "Object with a satin line"),
+                req("index", "int", "Width key, 0 = nearest the start"),
+            ],
+            |s, p| {
+                let l = satin_line(s, p)?;
+                if l.width_keys.is_empty() {
+                    return Err(p.failed("the satin line has no width keys"));
+                }
+                let i = p.int("index", None, 0, l.width_keys.len() as i64 - 1)? as usize;
+                l.width_keys.remove(i);
+                Ok(json!(null))
+            },
+        ),
+    ]
 }

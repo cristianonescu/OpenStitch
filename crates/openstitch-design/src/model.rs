@@ -619,6 +619,10 @@ pub struct DesignObject {
     /// or a patch without a colour change. A colour change right after it is the stop.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub stop_after: bool,
+    /// A member of a branch (#546, beyond PE-DESIGN): the members of its group are sewn in
+    /// one go, each entered where the one before it touches it; re-linked after every edit.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub branch: bool,
     /// Leave out this region's stitching hidden under later fills and satins, keeping this
     /// overlap (mm) under their edges (#511, beyond PE-DESIGN). The shape is not cut.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -666,6 +670,7 @@ impl DesignObject {
             line_first: false,
             finish: None,
             stop_after: false,
+            branch: false,
             hide_under: None,
             connector_run: false,
             knockdown: None,
@@ -692,6 +697,7 @@ impl DesignObject {
             line_first: false,
             finish: None,
             stop_after: false,
+            branch: false,
             hide_under: None,
             connector_run: false,
             knockdown: None,
@@ -1801,6 +1807,9 @@ pub enum LineType {
     VStitch,
     Chain,
     Cutting,
+    /// OpenStitch's satin line (#524, beyond PE-DESIGN): a satin column along the line whose
+    /// width can change along it (width keys, tapered ends, per-side widths, a slant).
+    Satin,
     /// Two stitches forward, one back (#542, beyond PE-DESIGN).
     BackStitch,
     /// A zigzag sewn several times with smooth random side offsets (#540, beyond PE-DESIGN).
@@ -1808,7 +1817,7 @@ pub enum LineType {
 }
 
 impl LineType {
-    pub const ALL: [LineType; 12] = [
+    pub const ALL: [LineType; 13] = [
         LineType::Running,
         LineType::Triple,
         LineType::Zigzag,
@@ -1819,6 +1828,7 @@ impl LineType {
         LineType::VStitch,
         LineType::Chain,
         LineType::Cutting,
+        LineType::Satin,
         LineType::BackStitch,
         LineType::Scribble,
     ];
@@ -1835,6 +1845,7 @@ impl LineType {
             LineType::VStitch => "vStitch",
             LineType::Chain => "chain",
             LineType::Cutting => "cutting",
+            LineType::Satin => "satin",
             LineType::BackStitch => "backStitch",
             LineType::Scribble => "scribble",
         }
@@ -1856,6 +1867,7 @@ impl LineType {
             LineType::VStitch => "V stitch",
             LineType::Chain => "Chain",
             LineType::Cutting => "Cutting",
+            LineType::Satin => "Satin line",
             LineType::BackStitch => "Back stitch",
             LineType::Scribble => "Scribble",
         }
@@ -1969,6 +1981,18 @@ pub struct LineSewing {
     /// Zigzag: thresholds of `auto` under sewing (#523).
     #[serde(default, skip_serializing_if = "is_default")]
     pub underlay_auto: crate::column::AutoUnderlay,
+    /// Satin line (#524): the width along the line, by keys (empty: `width` all along).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub width_keys: Vec<crate::skeleton::WidthKey>,
+    /// Satin line: the start tapers to a point over this length, mm.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub taper_start: Option<f64>,
+    /// Satin line: the end tapers to a point over this length, mm.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub taper_end: Option<f64>,
+    /// Satin line: the crossings turned this many degrees from square to the line (−60…60).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub slant: Option<f64>,
     /// Running: passes that follow a thickness profile (#542, beyond PE-DESIGN).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub profile: Option<crate::line_looks::RunProfile>,
@@ -2037,12 +2061,13 @@ impl LineSewing {
     /// 5.0 mm (Medium: 24 points) 1.0 mm apart; chain triangles of 4.0 mm sewn 5 times.
     pub fn new(kind: LineType, thread: Thread) -> Self {
         let zigzag = kind == LineType::Zigzag;
+        let satin = kind == LineType::Satin;
         let stroke = matches!(kind, LineType::EStitch | LineType::VStitch);
         LineSewing {
             kind,
             thread,
             pitch: match kind {
-                LineType::Running | LineType::Triple | LineType::Zigzag => 2.0,
+                LineType::Running | LineType::Triple | LineType::Zigzag | LineType::Satin => 2.0,
                 LineType::Scribble => 1.0,
                 _ if stroke => 2.0,
                 _ => 2.5,
@@ -2060,7 +2085,7 @@ impl LineSewing {
                 _ => 2.0,
             },
             density: match kind {
-                LineType::Zigzag => 4.5,
+                LineType::Zigzag | LineType::Satin => 4.5,
                 LineType::Candlewick => 12.0,
                 _ => 3.0,
             },
@@ -2074,7 +2099,7 @@ impl LineSewing {
             chain_shape: ChainShape::Triangle,
             leave_uncut: false,
             half_stitch: zigzag,
-            underlay: zigzag,
+            underlay: zigzag || satin,
             entry: None,
             exit: None,
             start_end: StartEnd::Feed,
@@ -2082,6 +2107,10 @@ impl LineSewing {
             satin_shaping: Default::default(),
             underlay_style: UnderlayStyle::Edge,
             underlay_auto: Default::default(),
+            width_keys: Vec::new(),
+            taper_start: None,
+            taper_end: None,
+            slant: None,
             profile: None,
             hand: None,
             noise_scale: None,

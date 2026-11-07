@@ -98,8 +98,10 @@ impl Launch {
 }
 
 /// Values `--show` accepts.
-pub const SHOW: [&str; 32] = [
+pub const SHOW: [&str; 34] = [
     "update",
+    "keyboard",
+    "pickers",
     "tabs",
     "close-prompt",
     "realistic",
@@ -199,6 +201,10 @@ pub struct EditorApp {
     pub dialog_rect: Option<egui::Rect>,
     pub dialog_rect_next: Option<egui::Rect>,
     player: Option<crate::script::Player>,
+    /// The keyboard drawing cursor (#499).
+    pub keyboard: crate::keyboard_ui::KeyboardCursor,
+    /// Picture pickers and their hover preview (#656).
+    pub pickers: crate::pickers_ui::Pickers,
     /// The other designs open as tabs (#552).
     pub tabs: documents::Tabs,
     /// A File ▸ Open or Import running on a worker thread (#558).
@@ -339,6 +345,8 @@ impl EditorApp {
             dialog_rect: None,
             dialog_rect_next: None,
             player: None,
+            keyboard: Default::default(),
+            pickers: Default::default(),
             tabs: Default::default(),
             open_job: None,
             key_object: None,
@@ -404,8 +412,9 @@ impl EditorApp {
             self.ui.prefs_path = Some(ui);
         }
         self.database.units = self.ui.prefs.units;
-        // Copy and Paste use the system clipboard (#500), except in screenshot runs.
-        self.ui.system_clipboard = l.screenshot.is_none();
+        // Copy and Paste use the system clipboard (#500), except in screenshot runs and tests
+        // (#705: see `ribbon::os_clipboard`).
+        self.ui.system_clipboard = l.screenshot.is_none() && !cfg!(test);
         if l.accent.is_some() {
             self.ui.prefs.accent = l.accent;
         }
@@ -504,6 +513,27 @@ impl EditorApp {
                 "update" => self.update.show_sample(),
                 "close-prompt" => {
                     self.close_prompt.request(Pending::Exit, true);
+                }
+                "keyboard" => {
+                    // A Satin Skeleton column drawn from the keyboard (#499, #707): three
+                    // points of growing width, the cursor at the next one.
+                    self.tools.set_tool(Tool::Skeleton);
+                    for (x, y, w) in [(30.0, 70.0, 2.0), (50.0, 45.0, 4.0), (75.0, 60.0, 7.0)] {
+                        let _ = self.cursor_command(Some(&json!({
+                            "x": x, "y": y, "width": w, "action": "smooth",
+                        })));
+                    }
+                    let _ =
+                        self.cursor_command(Some(&json!({ "x": 85.0, "y": 35.0, "width": 9.0 })));
+                }
+                "pickers" => {
+                    // The Region Type pictures open over a satin preview of the badge (#656).
+                    self.ui.prefs.picture_pickers = true;
+                    self.pickers.force_open = Some("region-type");
+                    let _ = self.preview_command(Some(&json!({
+                        "command": "object.setRegion",
+                        "params": { "ids": [1], "type": "satin" },
+                    })));
                 }
                 "tabs" => {
                     // Two designs as tabs (#552): the sample and an unsaved name tag.
@@ -715,6 +745,20 @@ impl EditorApp {
                             let ids = CommandRequest::created_ids(&result);
                             app.apply_new_object_defaults(&ids, &defaults);
                         }
+                        // A Pen line drawn with widths is a satin line (#707), same undo step.
+                        if requests[0].command == "shape.path"
+                            && let Some(keys) = app.tools.take_satin_keys()
+                        {
+                            let ids = CommandRequest::created_ids(&result);
+                            app.execute(&CommandRequest::new(
+                                "object.setLine",
+                                json!({
+                                    "ids": CommandRequest::ids(&ids),
+                                    "type": "satin",
+                                    "widthKeys": keys,
+                                }),
+                            ))?;
+                        }
                         Some(result)
                     });
                     if let Some(result) = result {
@@ -793,6 +837,20 @@ impl EditorApp {
 
     pub fn ensure_render_model(&mut self) {
         let limit = self.simulate.unwrap_or(usize::MAX);
+        // A picture picker's hover preview (#656): its own stitches, never the design's cache.
+        if let Some(p) = self.live_preview() {
+            let key = (
+                u64::MAX - p.generation,
+                limit,
+                openstitch_design::view::ViewFilter::default(),
+                self.page_rgb,
+            );
+            if self.render_key.as_ref() != Some(&key) {
+                self.render = RenderModel::build(&p.compiled.pattern, limit);
+                self.render_key = Some(key);
+            }
+            return;
+        }
         let filter = self.view_filter();
         let key = (self.revision, limit, filter.clone(), self.page_rgb);
         if self.render_key.as_ref() != Some(&key) {
@@ -1273,17 +1331,17 @@ impl EditorApp {
     /// File ▸ Background Image ▸ Paste: the clipboard image becomes the background. It is kept
     /// as a PNG in the app's data folder (named by content), since the project only references it.
     pub fn paste_background(&mut self) {
-        let image = arboard::Clipboard::new().and_then(|mut c| c.get_image());
+        if !self.ui.system_clipboard {
+            self.status = "Paste background: the system clipboard is not used here".into();
+            return;
+        }
+        let image = crate::ribbon::os_clipboard()
+            .and_then(|()| openstitch_app::platform::clipboard_image());
         let stored = match image {
             Ok(img) => pasted_images_dir()
                 .ok_or_else(|| "no folder to keep pasted images in".to_string())
                 .and_then(|dir| {
-                    store_pasted_image(
-                        &dir,
-                        img.width as u32,
-                        img.height as u32,
-                        img.bytes.into_owned(),
-                    )
+                    store_pasted_image(&dir, img.width as u32, img.height as u32, img.bytes)
                 }),
             Err(e) => Err(format!("no image on the clipboard ({e})")),
         };
@@ -1658,7 +1716,10 @@ impl EditorApp {
         } else if hit(A::Group) {
             crate::edit_ui::group(self);
         }
-        if hit(A::Delete) {
+        if hit(A::Delete) && self.tools.is_busy() && crate::keyboard_ui::draws(self.tools.tool()) {
+            // While drawing, Backspace / Delete take back the last point (#499).
+            self.tools.remove_last_point();
+        } else if hit(A::Delete) {
             // The Point tool deletes the selected vertex; otherwise the selected objects.
             let mut point_deleted = false;
             self.with_tools(|t, c| {
@@ -1671,6 +1732,7 @@ impl EditorApp {
             }
         }
         if take(KeyboardShortcut::new(Modifiers::NONE, Key::Escape)) {
+            self.keyboard = Default::default();
             if self.zoom_box.active {
                 self.zoom_box = Default::default();
             } else if self.edit.cancel() {
@@ -1695,6 +1757,8 @@ impl EditorApp {
             self.apply_effects(effects);
         }
         let player_t = self.player_keys(&take);
+        // Keyboard drawing (#499): with a drawing tool the arrows move the drawing cursor.
+        crate::keyboard_ui::keys(self, ctx);
         for (key, dx, dy) in [
             (Key::ArrowLeft, -1.0, 0.0),
             (Key::ArrowRight, 1.0, 0.0),
@@ -1950,6 +2014,12 @@ impl eframe::App for EditorApp {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        // A hover preview lasts while a picture picker's tile is hovered (#656).
+        self.pickers_frame_end();
+        self.pickers_frame_start();
+        if self.preview_pending() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(50));
+        }
         self.dialog_rect = self.dialog_rect_next.take();
         openstitch_app::editor::objects::track_click_order(&mut self.click_order, &self.selection);
         crate::ribbon::poll_clipboard(self, ctx.input(|i| i.time));

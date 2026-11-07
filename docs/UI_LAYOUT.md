@@ -18,7 +18,7 @@ Icons, colours and visual style are OpenStitch's own (see
 | 3 Quick Access Toolbar | Above the ribbon (or below it, Options ▸ or ▾ ▸ Show below the Ribbon): New, Open, Save, Undo, Redo, Zoom, Help by default; ▾ adds or removes commands. Saved in `ui.json` next to the user settings file |
 | 4 Option button | **Options ▾** at the top right: Design Database, Programmable Stitch Creator, Stitch Design Factory, Font Creator, Sewing Attribute Sets, User Thread Charts, colour theme (Light, Dark, System); beyond PE-DESIGN: Accent colour (#559), Layouts (save and apply where the panes are, #551) Reset Preferences (one area at a time, #551), Show start cards and New Objects (#553, #554) |
 | 5 Help button | **Help ▾**: instruction manual (this repository), Ready-to-Sew Designs (the kit packaged with the app, `examples/sew`; GitHub when none is packaged), Ready-to-Sew Designs Online, keyboard shortcuts, About |
-| 6 Sewing Order pane | Docked left: buttons at the top (sew first / earlier / later / last, sort by colour, optimise, frames by thread colour), then Sew in click order, Lock and Sew outline first (#502), Stop after (#512), Leave out hidden stitching (#511) and Then: run (#545), beyond PE-DESIGN; Optimise reports its before/after colour changes, jumps, trims and travel in the status bar (#547); one frame per object with a thumbnail and its thread colours; drag to reorder; double-click a name to rename it (Return keeps, Esc cancels); locked objects show "(locked)" |
+| 6 Sewing Order pane | Docked left: buttons at the top (sew first / earlier / later / last, sort by colour, optimise, frames by thread colour), then Sew in click order, Lock and Sew outline first (#502), Stop after (#512), Leave out hidden stitching (#511) and Then: run (#545), beyond PE-DESIGN; Branch / Unbranch, Auto-route lines and Redwork (#546, beyond PE-DESIGN); Optimise reports its before/after colour changes, jumps, trims and travel in the status bar (#547); one frame per object with a thumbnail and its thread colours; drag to reorder; double-click a name to rename it (Return keeps, Esc cancels); locked objects show "(locked)" |
 | 7 Import / Color / Sewing Attributes / Text Attributes | Docked right as four tabs |
 | 8 Stitch Simulator pane | Docked under the work area. Under PE-DESIGN's controls, the stitch-out player (#516, beyond PE-DESIGN): counters (stitch and machine time at the needle), Prev/Next block, Prev/Next object and Next trim, the Auto, Pause at trims and Follow needle toggles; a lane per colour block with trim ticks and colour-change / stop markers (click or drag to seek); one button per block named by its thread. Keys while part of the design is shown: ←/→ stitch, Shift block, Ctrl object, T next trim, Home/End |
 | 9–10 Design Page, work area | White page on a grey work area (light theme) |
@@ -372,6 +372,14 @@ Behaviour follows the guide pages
 [Specifying the straight sewing direction](https://support.brother.com/g/s/hf/htmldoc/ped/im/ped11/en/PED11_EN/pages/04_1869360.html)
 and [Adjusting the split positions](https://support.brother.com/g/s/hf/htmldoc/ped/im/ped11/en/PED11_EN/pages/07_1925948.html).
 
+- **Keyboard drawing** (beyond PE-DESIGN, #499): with a drawing tool, an arrow key shows a
+  cross-hair cursor and moves it (the nudge step, Shift ten times it); **Space** clicks there,
+  **Shift+Space** places a smooth Pen or Satin Skeleton point, **Return** finishes, **Esc**
+  cancels and **Backspace** takes back the last point. Rectangle and Ellipse: the first Space
+  starts the shape, the second ends it. While the Pen or Satin Skeleton draws, **[** and **]**
+  (or the scroll wheel; Ctrl+scroll still zooms) narrow and widen the next point by 0.5 mm, or
+  the point under the pointer; a Pen line drawn with widths becomes a satin line (#707).
+  ![Keyboard drawing](images/rust-editor-keyboard-draw.png)
 - **Cut** removes the selection (one Undo) and keeps it; **Paste** adds it back where it was
   (`object.paste`). After Copy, Paste duplicates the copied objects as before.
 - **Open Straight Line** (`L`): click the points; double-click or Return ends the line (it never
@@ -505,6 +513,16 @@ button). The Sewing Attributes pane has **Basic / Advanced** and **Save as Defau
 and Paste Attributes, and its Region and Line titles fold their sections (#553).
 
 ![Start cards](images/rust-editor-start-cards.png)
+
+**Picture pickers (beyond PE-DESIGN, #656).** With **Options ▸ Picture pickers with live
+preview** on (off by default, PE-DESIGN's lists), the Sewing Attributes pane's Region and Line
+Type, programmable fill and net patterns and motifs open as a grid of pictures: each is the
+program's own stitches of that choice on a sample shape. Hovering a picture re-stitches the
+selection on the canvas without changing the design or adding an undo step; moving off the
+pictures brings the design back, and a click makes the change as one undo step. The Assistant
+previews the same way with `ui.preview`.
+
+![Picture picker with a hover preview](images/rust-editor-pickers.png)
 
 ### Option button
 

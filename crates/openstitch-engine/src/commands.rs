@@ -197,6 +197,9 @@ fn describe(o: &DesignObject) -> Value {
     if o.stop_after {
         r["stopAfter"] = json!(true);
     }
+    if o.branch {
+        r["branch"] = json!(true);
+    }
     if let Some(mm) = o.hide_under {
         r["hideUnderMM"] = json!(mm);
     }
@@ -271,7 +274,9 @@ pub fn all() -> Vec<CommandSpec> {
     v.extend(crate::thread_match::commands());
     v.extend(crate::palette::commands());
     v.extend(crate::punch::commands());
+    v.extend(crate::satin_shaping::commands());
     v.extend(crate::order::commands());
+    v.extend(crate::branching::commands());
     v.extend(crate::production::commands());
     v.extend(crate::convert::commands());
     v.extend(crate::stitch_edit::commands());
@@ -1816,8 +1821,8 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 IDS,
                 opt(
                     "type",
-                    "running|triple|zigzag|motif|stem|candlewick|eStitch|vStitch|chain|cutting|backStitch|scribble|none",
-                    "Line sew type; backStitch (two forward, one back) and scribble (a zigzag sewn runTimes times with smooth random side offsets, width wide) are beyond PE-DESIGN",
+                    "running|triple|zigzag|motif|stem|candlewick|eStitch|vStitch|chain|cutting|satin|backStitch|scribble|none",
+                    "Line sew type. satin (beyond PE-DESIGN) is a satin column along the line whose width can change along it: width (mm, all along), widthKeys, taperStart, taperEnd and slant shape it, and the satin options (cornerStyle, shortStitchDistance, pull*, satinStyle, jaggedEdge, raised) apply as on zigzag; object.setWidthKey and object.deleteWidthKey edit single keys. backStitch (two forward, one back) and scribble (a zigzag sewn runTimes times with smooth random side offsets, width wide) are beyond PE-DESIGN too",
                 ),
                 opt("color", "color", "Thread"),
                 opt(
@@ -1889,6 +1894,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 "edge|centreWalk|edgeZigzag|auto",
                 "Zigzag: the under sewing when underSewing is on: edge (PE-DESIGN's two runs a quarter of the width to each side, the default), centreWalk (along the line and back), edgeZigzag (one edge run out, a zigzag back) or auto (by width: underlayAuto)",
             )])
+            .chain(crate::satin_shaping::SATIN_LINE_PARAMS)
             .collect(),
             |s, p| {
                 let idx = indexes(p, &s.design)?;
@@ -2042,7 +2048,8 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     crate::satin_shaping::apply_shaping(p, &mut l.satin_shaping)?;
                     crate::satin_shaping::apply_auto(p, &mut l.underlay_auto)?;
                     crate::line_looks::apply_line(p, &mut l)?;
-                    if l.kind == LineType::Zigzag
+                    crate::satin_shaping::apply_satin_line(p, &mut l)?;
+                    if matches!(l.kind, LineType::Zigzag | LineType::Satin)
                         && let Some(h) = crate::satin_shaping::raised_hint(&l.satin_shaping, l.width)
                     {
                         hints.push(format!("object {}: {h}", o.id));

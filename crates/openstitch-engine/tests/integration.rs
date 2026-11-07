@@ -8,6 +8,8 @@
 mod arrange_modes;
 #[path = "background_layer.rs"]
 mod background_layer;
+#[path = "branching.rs"]
+mod branching;
 #[path = "builder.rs"]
 mod builder;
 #[path = "capabilities.rs"]
@@ -50,6 +52,8 @@ mod edit_tools;
 mod engine;
 #[path = "extra_exports.rs"]
 mod extra_exports;
+#[path = "fabric_presets.rs"]
+mod fabric_presets;
 #[path = "finish.rs"]
 mod finish;
 #[path = "font_creator.rs"]

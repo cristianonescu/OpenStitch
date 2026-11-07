@@ -244,6 +244,18 @@ pub fn fitted_texts(app: &EditorApp) -> Vec<u64> {
         .collect()
 }
 
+/// The gate before every use of the OS clipboard (#705), whose calls are in
+/// `openstitch_app::platform` (#693: arboard on the desktop, none in the browser). Tests never
+/// pass it: on macOS the clipboard is AppKit's pasteboard, which crashed the test binary when
+/// tests on several threads used it at once, and one test's Copy reached another's Paste. A test
+/// that gets here fails at once; `Launch` keeps `system_clipboard` off under `cfg(test)`.
+pub(crate) fn os_clipboard() -> Result<(), String> {
+    #[cfg(test)]
+    panic!("a test reached the OS clipboard (#705): keep ui.system_clipboard off in tests");
+    #[cfg(not(test))]
+    Ok(())
+}
+
 /// Checks, at most once a second, whether the system clipboard holds OpenStitch objects, so
 /// Paste is enabled after a Copy in another window.
 pub fn poll_clipboard(app: &mut EditorApp, now: f64) {
@@ -251,8 +263,8 @@ pub fn poll_clipboard(app: &mut EditorApp, now: f64) {
         return;
     }
     app.ui.clipboard_checked = now;
-    app.ui.clipboard_objects = arboard::Clipboard::new()
-        .and_then(|mut c| c.get_text())
+    app.ui.clipboard_objects = os_clipboard()
+        .and_then(|()| openstitch_app::platform::clipboard_text())
         .is_ok_and(|t| clipboard::looks_like(&t));
 }
 
@@ -260,7 +272,9 @@ pub fn poll_clipboard(app: &mut EditorApp, now: f64) {
 fn put_on_clipboard(app: &mut EditorApp, env: Envelope) {
     if app.ui.system_clipboard {
         let text = env.to_text();
-        if let Err(e) = arboard::Clipboard::new().and_then(|mut c| c.set_text(text)) {
+        if let Err(e) =
+            os_clipboard().and_then(|()| openstitch_app::platform::set_clipboard_text(text))
+        {
             app.status =
                 format!("Could not use the system clipboard ({e}); Paste works in this window");
         }
@@ -442,8 +456,8 @@ fn paste(app: &mut EditorApp) {
         .ui
         .system_clipboard
         .then(|| {
-            arboard::Clipboard::new()
-                .and_then(|mut c| c.get_text())
+            os_clipboard()
+                .and_then(|()| openstitch_app::platform::clipboard_text())
                 .ok()
         })
         .flatten()
@@ -1431,6 +1445,10 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     changed |= ui
         .checkbox(&mut app.ui.prefs.open_in_tabs, "Open designs in tabs")
         .on_hover_text("Beyond PE-DESIGN: New and Open add a tab and keep the current design open (Ctrl+Tab switches); off, they replace it as PE-DESIGN does")
+        .changed();
+    changed |= ui
+        .checkbox(&mut app.ui.prefs.picture_pickers, "Picture pickers with live preview")
+        .on_hover_text("Beyond PE-DESIGN: sewing types, fill patterns and motifs as pictures of their stitches; hovering one shows it on the selection before you choose")
         .changed();
     changed |= ui
         .checkbox(&mut app.ui.prefs.autosave, "Autosave for crash recovery")

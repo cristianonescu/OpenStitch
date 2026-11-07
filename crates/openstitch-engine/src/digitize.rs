@@ -579,7 +579,7 @@ fn auto_punch_docs() -> Vec<ParamDoc> {
                 opt(
                     "angleRule",
                     "pe|varyNeighbours|leastTravel",
-                    "OpenStitch mode: how fills choose their direction: pe (default, PE-DESIGN's rule: of 90/45/135/0°, the one with the most rows), varyNeighbours (that direction turned in 30° steps until it is at least 20° from every touching fill sewn before it, so fitted panels read apart) or leastTravel (of every 15°, the direction whose sewn path is shortest, so least travel between a region's sections; PE's direction kept unless another saves at least 1 mm of thread) (#489; needs compatMode openStitch)",
+                    "OpenStitch mode: how fills choose their direction: pe (default, PE-DESIGN's rule: of 90/45/135/0°, the one with the most rows), varyNeighbours (a fill of at least 20 mm² within 20° of a touching fill as large, sewn before it, is turned by 30-90° as far from it as it can be, so fitted panels read apart) or leastTravel (of every 15°, the direction whose sewn path is shortest, so least travel between a region's sections; PE's direction kept unless another saves at least 1 mm of thread) (#489; needs compatMode openStitch)",
                 ),
             ])
         .into_iter()
@@ -686,7 +686,7 @@ fn underlap(p: &Params, mode: Mode) -> Result<f64, CommandError> {
 pub const PRESETS: [(&str, &str); 6] = [
     (
         "logo",
-        "Logos and flat graphics: clean outlines, touching fills turned apart, nothing smaller than 2 mm²",
+        "Logos and flat graphics: touching fills turned apart, nothing smaller than 2 mm²",
     ),
     (
         "patch",
@@ -694,7 +694,7 @@ pub const PRESETS: [(&str, &str); 6] = [
     ),
     (
         "lineArt",
-        "Line drawings: contour lines up to 4 mm sewn as satin outlines, thin strokes kept",
+        "Line drawings: contour lines up to 4 mm sewn as outlines on top",
     ),
     (
         "illustration",
@@ -702,27 +702,27 @@ pub const PRESETS: [(&str, &str); 6] = [
     ),
     (
         "photo",
-        "Photos: high fidelity colours, specks under 4 mm² merged, rows laid for the least travel",
+        "Photos: high fidelity colours, specks under 4 mm² merged, satin from 1 mm, rows laid for the least travel",
     ),
-    (
-        "pixelArt",
-        "Pixel art: straight edges, blocks down to 0.5 mm² kept",
-    ),
+    ("pixelArt", "Pixel art: straight edges"),
 ];
 
 /// The options preset `name` sets.
 fn preset_values(name: &str) -> Option<Value> {
     Some(match name {
-        "logo" => json!({"angleRule": "varyNeighbours", "minArea": 2.0, "smooth": 1}),
+        // Each preset sets only what its purpose needs: a smoothing pass (logo, photo) or a
+        // smaller small-region area (lineArt, pixelArt) left specks and short ends that sewed
+        // 7-64 stitches in place on the gallery and B16 images (sew_check, #690).
+        "logo" => json!({"angleRule": "varyNeighbours", "minArea": 2.0}),
         "patch" => json!({"skipBackground": false, "angleRule": "leastTravel"}),
-        "lineArt" => json!({"outlineMaxWidth": 4.0, "minArea": 1.0}),
+        "lineArt" => json!({"outlineMaxWidth": 4.0}),
         "illustration" => json!({"angleRule": "varyNeighbours", "outlineMaxWidth": 2.5}),
-        // No smoothing pass at High fidelity: with it, the watercolour lemons (g06) sewed 7
-        // stitches in place in a row (sew_check allows 6); without, 6 (#489).
-        "photo" => json!({"fidelity": "high", "minArea": 4.0, "angleRule": "leastTravel"}),
-        // Straight edges at the usual simplification: at 0.2 px the staircase outlines sewed
-        // up to 64 stitches in place (g04, #489).
-        "pixelArt" => json!({"curves": false, "minArea": 0.5}),
+        // Satin from 1 mm: High fidelity's narrow strokes sewed as hairline zigzags (p07: 49
+        // stitches under 1 mm wide in a row).
+        "photo" => {
+            json!({"fidelity": "high", "minArea": 4.0, "angleRule": "leastTravel", "satinMinWidth": 1.0})
+        }
+        "pixelArt" => json!({"curves": false}),
         _ => return None,
     })
 }

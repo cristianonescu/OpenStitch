@@ -339,6 +339,9 @@ pub fn shown_image(app: &EditorApp) -> Result<openstitch_digitize::Raster, Strin
 }
 
 fn copy_image(app: &EditorApp) -> Result<(), String> {
+    if !app.ui.system_clipboard {
+        return Err("the system clipboard is not used here".into());
+    }
     let r = shown_image(app)?;
     let mut bytes = Vec::with_capacity(r.width() as usize * r.height() as usize * 4);
     for y in 0..r.height() {
@@ -346,15 +349,13 @@ fn copy_image(app: &EditorApp) -> Result<(), String> {
             bytes.extend_from_slice(&r.pixel(x, y));
         }
     }
-    arboard::Clipboard::new()
-        .and_then(|mut c| {
-            c.set_image(arboard::ImageData {
-                width: r.width() as usize,
-                height: r.height() as usize,
-                bytes: bytes.into(),
-            })
+    crate::ribbon::os_clipboard().and_then(|()| {
+        openstitch_app::platform::set_clipboard_image(openstitch_app::platform::ClipboardImage {
+            width: r.width() as usize,
+            height: r.height() as usize,
+            bytes,
         })
-        .map_err(|e| e.to_string())
+    })
 }
 
 /// Modify Image window values while they are being edited.
@@ -782,6 +783,14 @@ fn fabric_window(app: &mut EditorApp, ctx: &egui::Context) {
                             (
                                 "Underlay",
                                 f["underlay"].as_str().unwrap_or("none").to_string(),
+                            ),
+                            // The makers' advice for No. 40 thread (#508; fabric.advise).
+                            ("Backing", f["backing"].as_str().unwrap_or("-").to_string()),
+                            ("Topping", f["topping"].as_str().unwrap_or("-").to_string()),
+                            ("Needle", f["needle"].as_str().unwrap_or("-").to_string()),
+                            (
+                                "Smallest text",
+                                format!("{} mm (No. 40 thread)", n("minTextMm")),
                             ),
                         ] {
                             ui.label(label);

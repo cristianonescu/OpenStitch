@@ -87,6 +87,13 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `object.insertRung {id, at}`, `object.deleteRung {id, index}`, `object.moveRung {id, index,
    side: left|right, point}`, `object.swapSides {id}` and `object.untangle {id}`; a line pair
    clicked right-then-left is untangled when the column is made.
+   Brush strokes, leaves and calligraphic lines: `object.setLine {type: satin, width}` on any
+   path, then `widthKeys: [[at 0-1, left mm, right mm], ...]` (or `object.setWidthKey {id, at,
+   width | left, right}`, `object.deleteWidthKey {id, index}`), `taperStart`/`taperEnd` (mm,
+   pointed ends) and `slant` (-60 to 60 degrees). A Y, star or stick figure drawn as one
+   filled shape: `object.deriveSkeleton {id, branches: true, joinOverlap: 0.3}` makes a
+   grouped satin column per arm (the shape stays hidden); check `warnings` for columns over
+   10 mm and look at the junctions with `view_render`.
    Hand-made lines (beyond PE-DESIGN): `object.setLine {type: backStitch}` for redwork and
    quilt outlines (two stitches forward, one back); `{type: scribble, width, runTimes,
    noiseScale, seed}` for sketchy doodles; on a running line `profile: arc` (or `linear`,
@@ -230,6 +237,16 @@ Several designs can be open as tabs: `ui.documents` lists them (index, name, uns
 `{op: "activate", index}` switches (every command then acts on that tab), `{op: "new"}` adds an
 empty one, and `{op: "close", index}` closes a tab that has no unsaved changes (otherwise save
 it or ask the user). `ui.set openInTabs` makes File ▸ New and Open add a tab.
+To draw point by point as the user would from the keyboard, pick a drawing tool with `ui.run`
+and step `ui.cursor`: `{x, y, action: "place"}` per point (`"smooth"` for a curved Pen point),
+then `{action: "finish"}`; `{width}` sets the next Pen or Satin Skeleton point's width (a Pen
+line with widths becomes a satin line). The shape commands (`shape.polygon`, `shape.path`)
+remain the direct way to draw.
+To show the user what a setting would look like before changing it, `ui.preview {command:
+"object.setRegion", params: {ids, type}}` swaps in the stitches of that change on the canvas
+(no undo step, the design unchanged; `ui.render` shows them too); `ui.preview {clear: true}`
+ends it, and running the command keeps the change. `ui.set picturePickers` shows the sewing
+types, fill patterns and motifs as pictures in the Sewing Attributes pane.
 Opening or importing a large file in the window runs in the background: `ui.state` shows
 `loading` (file, step, seconds), and `ui.loading {cancel: true}` stops it, leaving the design
 as it was.
@@ -319,6 +336,12 @@ digitizing are desktop-only; say so instead of trying them in the browser.
     row, `fabric.calibrate {fabric, name, fill, satin, pull}` (1–5 each) saves a custom
     fabric (`custom-…` in `fabric.list`) that `fabric.apply` gives to objects;
     `fabric.deleteCustom {fabric}` removes it. Both change the user's settings: say so first.
+- "What stabiliser / needle should I use on fleece?": `fabric.advise {fabric, weight}` (weight
+  12, 30, 40 or 60; default 40) gives backing, topping, needle point and size and the smallest
+  legible block-letter height, each from the makers' published guidance with `sources`; say so
+  when `disagree` is set, and say "estimate" when `minTextBasis` is not `published`.
+  `fabric.list` has 13 fabrics: PE-DESIGN's eight, then polyester, pique, organza, canvas and cap
+  (`beyondPeDesign: true`).
 - `file` commands (`project.save`, `design.export`, ...) may ask the user first. Never
   overwrite a user's file without being asked to.
 - To show the user these dialogs in the editor: `ui.run {action: "testSwatches"}` (Send ▸ Test

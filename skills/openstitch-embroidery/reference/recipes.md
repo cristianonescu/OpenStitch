@@ -113,6 +113,17 @@ All beyond PE-DESIGN and off unless asked; each is one undo step.
   user can snip the thread; off removes only those. PES writes stops as colour changes to the
   same thread (255 blocks at most); PES 0110 (`pesVersion: 11`) cannot hold these settings.
 
+## Line drawings and touching shapes in one go
+
+Beyond PE-DESIGN and off unless asked; one undo step each.
+
+- Running lines that touch or cross (a tree, a redwork drawing): `shape.autoRoute {ids}` turns
+  them into one line per connected piece, sewn without trims; `{redwork: true}` sews every
+  line twice and ends where it started. Each thread is routed on its own.
+- Touching fills or satins (petals and a stem): `object.branch {ids}` sews them in one go in the
+  first one's thread, each starting where the one before touches it; it reports `gapsMM` (0
+  where they touch). `object.unbranch {ids}` takes it apart.
+
 ## Embroidered patch
 
 ```json
@@ -178,11 +189,12 @@ Auto Punch also returns a `plan`: every traced region with its `region` number, 
 
 Regions are numbered by the run's own options, so keep every other option the same between the
 dry run and the conversion. Thin lines and outlines can only be skipped. In OpenStitch mode
-`angleRule: "varyNeighbours"` turns touching fills at least 20° apart so fitted panels read as
-separate pieces, and `angleRule: "leastTravel"` lays each fill of 10 mm² or more the way
+`angleRule: "varyNeighbours"` turns a fill of 20 mm² or more away from a touching fill as
+large that runs within 20° of it, so fitted panels read as separate pieces, and `angleRule: "leastTravel"` lays each fill of 10 mm² or more the way
 (every 15°) that sews the least thread, so the least travel between its sections; parts under
-1 mm wide (ropes, whiskers) are sewn as running lines, and a white, cream or off-white paper
-background is left out as the fabric showing.
+1 mm wide (ropes, whiskers) are sewn as running lines, a region whose stitches would all fall
+within 0.8 mm is left out as a speck (`reason: "speck"`; an override can still sew it), and a
+white, cream or off-white paper background is left out as the fabric showing.
 
 `order: ["#rrggbb", ...]` sews those colours first (the plan's `color` values; the others
 follow brightest first). Region numbers follow the sewing order, so dry-run again after
