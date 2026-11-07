@@ -615,7 +615,8 @@ See also [New: the Assistant](#new-the-assistant).
 - **Desktop editor** for macOS, Windows and Linux, with its own icons generated for OpenStitch.
 - (+) **[Editor in a web browser](https://cristianonescu.github.io/OpenStitch/)** (*partial*): the
   desktop editor in the page, opening files through the browser's picker and saving and exporting
-  every machine format as downloads ([#556], [#693]).
+  every machine format as downloads ([#556], [#693]). No Assistant and no MCP control in the
+  browser yet ([#766]).
 - (+) **macOS Finder thumbnails** through a Quick Look extension, for `.osd`, `.pes` and 16 more
   formats ([#557]).
 - (+) **Linux file-manager thumbnails** for `.osd` and `.pes`.
@@ -735,6 +736,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#554]: https://github.com/cristianonescu/OpenStitch/issues/554
 [#556]: https://github.com/cristianonescu/OpenStitch/issues/556
 [#693]: https://github.com/cristianonescu/OpenStitch/issues/693
+[#766]: https://github.com/cristianonescu/OpenStitch/issues/766
 [#557]: https://github.com/cristianonescu/OpenStitch/issues/557
 [#558]: https://github.com/cristianonescu/OpenStitch/issues/558
 [#559]: https://github.com/cristianonescu/OpenStitch/issues/559
@@ -1093,7 +1095,8 @@ sew-out on scrap fabric first.
 **Try it in a browser, with nothing to install:** <https://cristianonescu.github.io/OpenStitch/>
 runs the desktop editor: it opens designs and embroidery files from your disk and saves and
 exports them as downloads; nothing leaves the browser. It is built from `main` and does less than
-the desktop app (no Assistant, system clipboard, printing or image pickers yet; see
+the desktop app (no Assistant or MCP control, system clipboard, printing or image pickers yet;
+see
 [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md#web-editor)).
 
 Every merge to `main` also builds the executables for all three operating systems. Open the
