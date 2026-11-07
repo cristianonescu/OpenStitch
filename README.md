@@ -14,6 +14,10 @@ move between the two and onto Brother machines.
 OpenStitch is an **alpha**: good for trying out and testing, not for production work. Do a test
 sew-out on scrap fabric first.
 
+**Try it in your browser, nothing to install:** https://cristianonescu.github.io/OpenStitch/
+It opens, simulates, rotates, flips, saves and exports designs from your own disk (nothing is
+uploaded); drawing, lettering and the Assistant are still desktop-only.
+
 Not affiliated with Brother Industries. No Brother code or assets are included; see
 [docs/LEGAL_AND_LICENSING.md](docs/LEGAL_AND_LICENSING.md).
 
@@ -67,8 +71,9 @@ beyond PE-DESIGN 11.
   G-code, pictures, stitch-out animations and ZIP bundles.
 - **(+) Scripting:** a Python package, `stitchtool` one-line commands, an MCP server and a socket
   to the running editor.
-- **Everywhere:** macOS, Windows and Linux with self-update, (+) a first browser version, and
-  file-manager thumbnails in Finder (Quick Look) and on Linux.
+- **Everywhere:** macOS, Windows and Linux with self-update,
+  (+) [a first browser version](https://cristianonescu.github.io/OpenStitch/), and file-manager
+  thumbnails in Finder (Quick Look) and on Linux.
 - **Ready-to-sew kit:** designs for every feature and calibration cards, ready to copy to a
   machine.
 
@@ -566,8 +571,9 @@ See also [New: the Assistant](#new-the-assistant).
 ### Platforms (desktop, browser, Quick Look)
 
 - **Desktop editor** for macOS, Windows and Linux, with its own icons generated for OpenStitch.
-- (+) **Editor in a web browser** (*partial*: first slice): open, simulate, rotate, flip, save
-  `.osd` and export every machine format as downloads ([#556]).
+- (+) **[Editor in a web browser](https://cristianonescu.github.io/OpenStitch/)** (*partial*: first
+  slice): open, simulate, rotate, flip, save `.osd` and export every machine format as downloads
+  ([#556]).
 - (+) **macOS Finder thumbnails** through a Quick Look extension, for `.osd`, `.pes` and 16 more
   formats ([#557]).
 - (+) **Linux file-manager thumbnails** for `.osd` and `.pes`.
@@ -1021,6 +1027,12 @@ The latest pre-release is on the
 [Releases](https://github.com/cristianonescu/OpenStitch/releases) page, with notes in
 [docs/releases](docs/releases/). It is an alpha for testing, not for production work: do a test
 sew-out on scrap fabric first.
+
+**Try it in a browser, with nothing to install:** <https://cristianonescu.github.io/OpenStitch/>
+opens designs and embroidery files from your disk, shows and simulates them, and saves and exports
+them as downloads; nothing leaves the browser. It is built from `main` and does less than the
+desktop app (no Assistant, drawing or lettering tools yet; see
+[docs/DISTRIBUTION.md](docs/DISTRIBUTION.md#web-editor)).
 
 Every merge to `main` also builds the executables for all three operating systems. Open the
 repository on GitHub, go to **Actions → Rust workspace**, pick the latest run on `main` and
