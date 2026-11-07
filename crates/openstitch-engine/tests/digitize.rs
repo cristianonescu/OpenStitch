@@ -659,6 +659,32 @@ fn compatible_photo_stitch_travels_instead_of_trimming() {
     assert!(trims <= 80, "{trims} trims in {stitches} stitches");
 }
 
+/// #298: PE-compatible Photo Stitch 1 sews each colour in about one path, travelling in sight
+/// to the nearest run when no hidden way leads on, as PE-DESIGN 11.50 does (round-8 capture of
+/// the sunset at 90 mm: 11 trims in 8,683 stitches, 1.3 per 1,000). OpenStitch: 108 trims
+/// before, 14 now.
+#[test]
+fn compatible_photo_stitch_trims_about_as_rarely_as_pe_design() {
+    let dir = temp_dir();
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/images/p06-sunset.jpg");
+    std::fs::copy(src, dir.join("sunset.jpg")).expect("copy");
+    let mut s = Session::new(&dir);
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    run(
+        &mut s,
+        "digitize.photoStitch",
+        json!({"path": "sunset.jpg", "width": 90, "compatMode": "peDesign"}),
+    );
+    let stats = run(&mut s, "design.info", json!({}))["stitchStats"].clone();
+    let trims = stats["trims"].as_f64().expect("trims");
+    let stitches = stats["stitches"].as_f64().expect("stitches");
+    assert!(
+        trims * 1000.0 / stitches <= 2.0,
+        "{trims} trims in {stitches} stitches"
+    );
+}
+
 /// #713: line art's drawn dots stay, without knots, and a colour's small pieces are joined by
 /// short running connectors: the mandala sews at most 6 stitches in place and at most 55 trims
 /// per 1,000 stitches (77 before), with no preset and each preset but photo (whose satin tips
