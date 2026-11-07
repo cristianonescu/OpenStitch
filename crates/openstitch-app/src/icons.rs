@@ -472,6 +472,10 @@ fn glyph(a: Action) -> Glyph {
         ShapeEffects => G::Own("shape_effects"),
         TestSwatches => G::Own("test_swatches"),
         JobSheet => G::Own("job_sheet"),
+        // Check Design's actions (#599) reuse existing icons: no new graphic.
+        CheckDesign => G::Info,
+        DensityMap => G::Own("image_density"),
+        ReviewSewingOrder => G::Own("pane_order"),
         ShapeBuilder => G::Own("shape_builder"),
         // Reused until a generated icon lands (#497).
         LineGap => G::Own("line_gap"),
