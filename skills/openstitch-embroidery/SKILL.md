@@ -20,7 +20,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 - Lengths are **millimetres**. The Design Page's origin is its **top-left corner**; x grows to
   the right, y grows **down**. A 100 × 100 mm page has its centre at (50, 50).
 - **Sewing angles** (`object.setRegion` `angle`) are degrees **counter-clockwise on screen**,
-  0 = horizontal rows; 45 = rows rising to the right; 90 = vertical rows.
+  0 = horizontal rows; 45 = rows rising to the right; 90 = vertical rows. Cross stitch
+  (`type: crossStitch`) ignores `angle`: its grid stays on the page axes, as in PE-DESIGN. Set
+  its `spacing` (cell size) and `times` (`single`, `double`, `triple`); `crossKind` `half`,
+  `upright` or `smyrna` is beyond PE-DESIGN (default `full`).
 - **Rotation** of objects (`object.rotate` `degrees`) and of preset shapes (`shape.preset`
   `rotation`) is **clockwise**.
 - Densities are rows (or lines) per mm; `pitch` and `stitchLength` are mm.
@@ -242,6 +245,9 @@ and step `ui.cursor`: `{x, y, action: "place"}` per point (`"smooth"` for a curv
 then `{action: "finish"}`; `{width}` sets the next Pen or Satin Skeleton point's width (a Pen
 line with widths becomes a satin line). The shape commands (`shape.polygon`, `shape.path`)
 remain the direct way to draw.
+To fix single needle points of a stitch pattern, `stitches.points {id}` lists them and
+`stitches.setPoint` / `insertPoint` / `deletePoints` edit them; `ui.stitchTable {open: true,
+select: [indexes]}` shows the user the same rows and highlights them on the canvas.
 To show the user what a setting would look like before changing it, `ui.preview {command:
 "object.setRegion", params: {ids, type}}` swaps in the stitches of that change on the canvas
 (no undo step, the design unchanged; `ui.render` shows them too); `ui.preview {clear: true}`

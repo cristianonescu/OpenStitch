@@ -98,8 +98,9 @@ impl Launch {
 }
 
 /// Values `--show` accepts.
-pub const SHOW: [&str; 35] = [
+pub const SHOW: [&str; 36] = [
     "update",
+    "stitch-table",
     "large-text",
     "keyboard",
     "pickers",
@@ -202,6 +203,8 @@ pub struct EditorApp {
     pub dialog_rect: Option<egui::Rect>,
     pub dialog_rect_next: Option<egui::Rect>,
     player: Option<crate::script::Player>,
+    /// The Stitch Table window (#501).
+    pub stitch_table: crate::stitch_table_ui::StitchTable,
     /// The keyboard drawing cursor (#499).
     pub keyboard: crate::keyboard_ui::KeyboardCursor,
     /// Picture pickers and their hover preview (#656).
@@ -346,6 +349,7 @@ impl EditorApp {
             dialog_rect: None,
             dialog_rect_next: None,
             player: None,
+            stitch_table: Default::default(),
             keyboard: Default::default(),
             pickers: Default::default(),
             tabs: Default::default(),
@@ -514,6 +518,11 @@ impl EditorApp {
                 "print" => self.ui.open_print = true,
                 "shortcuts" => self.ui.shortcuts_open = true,
                 "update" => self.update.show_sample(),
+                "stitch-table" => {
+                    // The Stitch Table of the selected pattern, a few rows selected (#501).
+                    self.stitch_table.open = true;
+                    let _ = self.stitch_table_command(Some(&json!({ "select": [40, 41, 42] })));
+                }
                 "large-text" => self.ui.prefs.text_size = 150,
                 "close-prompt" => {
                     self.close_prompt.request(Pending::Exit, true);
@@ -2107,6 +2116,7 @@ impl eframe::App for EditorApp {
         crate::lettering_ui::windows(self, &ctx);
         crate::pattern_wizard_ui::windows(self, &ctx);
         crate::view_ui::windows(self, &ctx);
+        crate::stitch_table_ui::window(self, &ctx);
         crate::zoom_ui::calibration_window(self, &ctx);
         self.monitor = crate::zoom_ui::monitor(&ctx);
         crate::quality_ui::window(self, &ctx);

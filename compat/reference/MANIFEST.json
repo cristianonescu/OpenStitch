@@ -5905,6 +5905,42 @@
       "os": "Windows 11 Pro",
       "sha256": "38126e3b980a46eec2eb5cf31c2a6d8c2ef542e76c8bbcc1805d7c2d78a15f59",
       "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; owner notes folder PE-reference-notes\\round8, notes.md). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed Z, size 8.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
+    },
+    {
+      "file": "stitches/cross-single.pes",
+      "spec": "cross-single",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-07",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "On a 100 x 100 mm Design Page (grid 1 mm) draw a 20 x 20 mm square from (40, 40) to (60, 60) mm with Home > Shapes > Rectangle. Shapes tab > Sew: line Not Sewn (Line); region Cross Stitch, Size 2.5 mm (the default), Times Single; PE-DESIGN 11.50 shows no Direction for cross stitch. Save As 'Layout & Editing Ver 11.0 File (*.PES)'. Status bar 20,00 x 20,00 mm, 410 st.",
+      "sha256": "e29c5a38f47b7fa7cf060931fe253f8a9522c129ce7b66707d3901c8fa016a94",
+      "notes": "Round 8 (#614): 410 st in the status bar. PE-DESIGN writes Times at body +284 as 2, 4, 6 (Single, Double, Triple) and Size at +282 (25)."
+    },
+    {
+      "file": "stitches/cross-double.pes",
+      "spec": "cross-double",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-07",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "On a 100 x 100 mm Design Page (grid 1 mm) draw a 20 x 20 mm square from (40, 40) to (60, 60) mm with Home > Shapes > Rectangle. Shapes tab > Sew: line Not Sewn (Line); region Cross Stitch, Size 2.5 mm (the default), Times Double; PE-DESIGN 11.50 shows no Direction for cross stitch. Save As 'Layout & Editing Ver 11.0 File (*.PES)'. Status bar 20,00 x 20,00 mm, 666 st.",
+      "sha256": "63b7cdef3f30d1aeb009bb723f66176c070c9eada3fbff63c6f454e55c08522f",
+      "notes": "Round 8 (#614): 666 st in the status bar. PE-DESIGN writes Times at body +284 as 2, 4, 6 (Single, Double, Triple) and Size at +282 (25)."
+    },
+    {
+      "file": "stitches/cross-triple.pes",
+      "spec": "cross-triple",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-07",
+      "os": "Windows 11 Pro 10.0.26300",
+      "settings": "On a 100 x 100 mm Design Page (grid 1 mm) draw a 20 x 20 mm square from (40, 40) to (60, 60) mm with Home > Shapes > Rectangle. Shapes tab > Sew: line Not Sewn (Line); region Cross Stitch, Size 2.5 mm (the default), Times Triple; PE-DESIGN 11.50 shows no Direction for cross stitch. Save As 'Layout & Editing Ver 11.0 File (*.PES)'. Status bar 20,00 x 20,00 mm, 922 st.",
+      "sha256": "6c824c86ab659355c2dfca4e432de7ab098aa1721d13f5d601339929e85206d2",
+      "notes": "Round 8 (#614): 922 st in the status bar. PE-DESIGN writes Times at body +284 as 2, 4, 6 (Single, Double, Triple) and Size at +282 (25)."
     }
   ]
 }
