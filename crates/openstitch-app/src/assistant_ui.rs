@@ -467,6 +467,18 @@ impl EditorApp {
                 self.ui.save_prefs();
                 Ok(json!({ "reset": area }))
             }
+            "ui.startupWizard" => {
+                let v = |k: &str| params.and_then(|p| p.get(k));
+                if v("close").and_then(Value::as_bool) == Some(true) {
+                    self.startup_wizard.open = false;
+                } else if let Some(c) = v("choice") {
+                    let key = c.as_str().ok_or("choice must be a string")?;
+                    crate::startup_wizard_ui::choose(self, key, &eframe::egui::Context::default())?;
+                } else {
+                    self.startup_wizard.open = true;
+                }
+                Ok(json!({ "open": self.startup_wizard.open }))
+            }
             "ui.gettingStarted" => {
                 // The ribbon's run takes no input from the context (as ui.run).
                 crate::start_ui::command(self, params, &eframe::egui::Context::default())
@@ -599,6 +611,7 @@ impl EditorApp {
                 "qatBelow" => json!(prefs.qat_below),
                 "splash" => json!(prefs.splash),
                 "showStartCards" => json!(prefs.start_cards),
+                "startupWizard" => json!(prefs.startup_wizard),
                 "newObjectDefaults" => prefs.new_objects.to_json(),
                 "advancedAttributes" => json!(prefs.advanced_attributes),
                 "aiFeatures" => json!(prefs.ai.enabled),
@@ -718,6 +731,7 @@ impl EditorApp {
             "qatBelow" => self.ui.prefs.qat_below = bool_value(name, v)?,
             "splash" => self.ui.prefs.splash = bool_value(name, v)?,
             "showStartCards" => self.ui.prefs.start_cards = bool_value(name, v)?,
+            "startupWizard" => self.ui.prefs.startup_wizard = bool_value(name, v)?,
             "newObjectDefaults" => {
                 self.ui.prefs.new_objects =
                     openstitch_app::editor::new_objects::NewObjects::from_json(v)?;

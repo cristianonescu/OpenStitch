@@ -48,6 +48,7 @@ mod remote;
 mod ribbon;
 mod machine_setup_ui;
 mod ripple_ui;
+mod startup_wizard_ui;
 mod script;
 mod sections_ui;
 mod settings_ui;

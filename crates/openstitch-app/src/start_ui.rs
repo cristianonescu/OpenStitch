@@ -42,8 +42,10 @@ pub fn cards(app: &mut EditorApp, ctx: &egui::Context) {
     let Some(canvas) = app.workspace.canvas else {
         return;
     };
+    // The Startup Wizard replaces the cards while it is open (#657).
     if !gs::cards_shown(app.ui.prefs.start_cards, app.session.design().objects.len())
         || app.tools.is_busy()
+        || app.startup_wizard.open
     {
         return;
     }
