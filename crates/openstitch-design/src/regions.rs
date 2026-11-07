@@ -1491,20 +1491,6 @@ fn centroid(c: &Contour) -> Vec2 {
 
 // ------------------------------------------------------------------ stippling
 
-/// Stippling: a meandering closed path that never crosses itself, its neighbouring passes
-/// `spacing` apart and reaching to about half a spacing from the outline and the holes (#462).
-/// 1. A lattice of points about `spacing` apart, fitted to the region's (rotated) bounds so a
-///    rectangle's outer points lie half a spacing inside; points 0.35 spacing or more inside
-///    are usable.
-/// 2. Cells of 2 × 2 usable points get a random spanning tree (fixed seed); the path walks
-///    around the tree through every point of its cells (a Hamiltonian cycle of the doubled
-///    grid). One loop per connected part.
-/// 3. Usable points of the partial cells along the outline are taken in by detours: a step
-///    u → v becomes u → u' → v' → v through two free neighbours; loops whose steps face each
-///    other one point apart are joined into one.
-/// 4. Rounded by corner cutting, then relaxed: each point moves square to the path towards
-///    the middle between the passes (or the outline, counted at half a spacing) on its two
-///    sides, never so that it crosses or comes near another pass.
 /// [`stipple`] at `spacing`, or, where the region is too narrow for the meander's cells at that
 /// spacing (a 7.5 mm ring band at 3 mm), at the largest tighter spacing that fits, in 10 % steps
 /// down to half the setting (#708). A region too small even then stays empty.
@@ -1532,6 +1518,20 @@ enum Edge {
     Down(usize),
 }
 
+/// Stippling: a meandering closed path that never crosses itself, its neighbouring passes
+/// `spacing` apart and reaching to about half a spacing from the outline and the holes (#462).
+/// 1. A lattice of points about `spacing` apart, fitted to the region's (rotated) bounds so a
+///    rectangle's outer points lie half a spacing inside; points 0.35 spacing or more inside
+///    are usable.
+/// 2. Cells of 2 × 2 usable points get a random spanning tree (fixed seed); the path walks
+///    around the tree through every point of its cells (a Hamiltonian cycle of the doubled
+///    grid). One loop per connected part.
+/// 3. Usable points of the partial cells along the outline are taken in by detours: a step
+///    u → v becomes u → u' → v' → v through two free neighbours; loops whose steps face each
+///    other one point apart are joined into one.
+/// 4. Rounded by corner cutting, then relaxed: each point moves square to the path towards
+///    the middle between the passes (or the outline, counted at half a spacing) on its two
+///    sides, never so that it crosses or comes near another pass.
 fn stipple(closed: &[Contour], holes: &[Contour], angle: f64, spacing: f64) -> Vec<Vec<Vec2>> {
     let Some(b) = rotated_bounds(closed, angle) else {
         return Vec::new();
