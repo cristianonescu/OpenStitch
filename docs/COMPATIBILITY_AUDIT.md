@@ -492,7 +492,8 @@ Line references are relative to `crates/`.
   (2026-11-07, #428): it is simplified to within 0.1 mm of the outline and split into 2 mm
   stitches as on the straight letter. Satin text under a Transform sewed nearly twice the needle
   points it does straight (HHHHHHH, preset 3: 1831 against 1043), now about as many (1023).
-  Fill text under a Text Transform keeps its region rows (#428): with the walk fixed, sewing it
+  Fill text under a Text Transform or a free envelope (#535; a free envelope was sewn by stroke
+  until 2026-11-07, unlike the preset it copies) keeps its region rows (#428): with the walk fixed, sewing it
   by stroke is nearer PE-DESIGN on the 182 transform captures in every way (needle count 10.9 %
   off on average against 11.2 % by region, was 28 % before the walk; PE → ours 0.24 → 0.19 mm;
   coverage 0.761 → 0.772), but its rows reach the warped outline's corners and five references

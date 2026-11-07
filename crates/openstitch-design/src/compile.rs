@@ -964,7 +964,11 @@ fn elements(
             // shows: five references 0.1 mm past their 0.5 mm bounds (the arches 1 and 2 place
             // the left letters up to 0.6 mm too far along the arc, region rows as well;
             // text-transform-10's stems, 18-openstitch-l100's descender) (#428).
-            let warped = object.text.as_ref().is_some_and(|t| t.envelope.is_some());
+            // A preset or a free envelope (#535): both warp the letters alike.
+            let warped = object
+                .text
+                .as_ref()
+                .is_some_and(|t| t.envelope.is_some() || t.custom_envelope.is_some());
             let by_stroke = (text
                 && (region.kind == RegionType::Satin
                     || (region.kind == RegionType::Fill && !warped))
