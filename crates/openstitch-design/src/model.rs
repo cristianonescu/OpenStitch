@@ -635,6 +635,10 @@ pub struct DesignObject {
     /// was made with, so it can be rebuilt and kept before what it covers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub knockdown: Option<serde_json::Value>,
+    /// Needle points edited by hand on this live object (#501, beyond PE-DESIGN), sewn instead
+    /// of the generated ones while they still apply ([`crate::hand_edits`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hand_edits: Option<Box<crate::hand_edits::HandEdits>>,
 }
 
 fn yes() -> bool {
@@ -674,6 +678,7 @@ impl DesignObject {
             hide_under: None,
             connector_run: false,
             knockdown: None,
+            hand_edits: None,
         }
     }
 
@@ -701,6 +706,7 @@ impl DesignObject {
             hide_under: None,
             connector_run: false,
             knockdown: None,
+            hand_edits: None,
         }
     }
 
@@ -1912,10 +1918,26 @@ pub enum LineType {
     BackStitch,
     /// A zigzag sewn several times with smooth random side offsets (#540, beyond PE-DESIGN).
     Scribble,
+    /// Decorative hand-embroidery line (#543, beyond PE-DESIGN): chevron stitch.
+    Chevron,
+    /// Decorative hand-embroidery line (#543, beyond PE-DESIGN): cretan stitch.
+    Cretan,
+    /// Decorative hand-embroidery line (#543, beyond PE-DESIGN): feather stitch.
+    Feather,
+    /// Decorative hand-embroidery line (#543, beyond PE-DESIGN): overlock stitch.
+    Overlock,
+    /// Decorative hand-embroidery line (#543, beyond PE-DESIGN): alternating triangles stitch.
+    AlternatingTriangles,
+    /// Decorative hand-embroidery line (#543, beyond PE-DESIGN): double zigzag stitch.
+    DoubleZigzag,
+    /// Decorative hand-embroidery line (#543, beyond PE-DESIGN): lattice stitch.
+    Lattice,
+    /// Decorative hand-embroidery line (#543, beyond PE-DESIGN): stripes stitch.
+    Stripes,
 }
 
 impl LineType {
-    pub const ALL: [LineType; 13] = [
+    pub const ALL: [LineType; 21] = [
         LineType::Running,
         LineType::Triple,
         LineType::Zigzag,
@@ -1929,6 +1951,14 @@ impl LineType {
         LineType::Satin,
         LineType::BackStitch,
         LineType::Scribble,
+        LineType::Chevron,
+        LineType::Cretan,
+        LineType::Feather,
+        LineType::Overlock,
+        LineType::AlternatingTriangles,
+        LineType::DoubleZigzag,
+        LineType::Lattice,
+        LineType::Stripes,
     ];
 
     pub fn id(self) -> &'static str {
@@ -1946,11 +1976,34 @@ impl LineType {
             LineType::Satin => "satin",
             LineType::BackStitch => "backStitch",
             LineType::Scribble => "scribble",
+            LineType::Chevron => "chevron",
+            LineType::Cretan => "cretan",
+            LineType::Feather => "feather",
+            LineType::Overlock => "overlock",
+            LineType::AlternatingTriangles => "alternatingTriangles",
+            LineType::DoubleZigzag => "doubleZigzag",
+            LineType::Lattice => "lattice",
+            LineType::Stripes => "stripes",
         }
     }
 
     pub fn from_id(id: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|k| k.id() == id)
+    }
+
+    /// A decorative hand-embroidery line (#543): sewn by [`crate::decorative`].
+    pub fn is_decorative(self) -> bool {
+        matches!(
+            self,
+            LineType::Chevron
+                | LineType::Cretan
+                | LineType::Feather
+                | LineType::Overlock
+                | LineType::AlternatingTriangles
+                | LineType::DoubleZigzag
+                | LineType::Lattice
+                | LineType::Stripes
+        )
     }
 
     pub fn label(self) -> &'static str {
@@ -1968,6 +2021,14 @@ impl LineType {
             LineType::Satin => "Satin line",
             LineType::BackStitch => "Back stitch",
             LineType::Scribble => "Scribble",
+            LineType::Chevron => "Chevron",
+            LineType::Cretan => "Cretan",
+            LineType::Feather => "Feather",
+            LineType::Overlock => "Overlock",
+            LineType::AlternatingTriangles => "Alternating triangles",
+            LineType::DoubleZigzag => "Double zigzag",
+            LineType::Lattice => "Lattice",
+            LineType::Stripes => "Stripes",
         }
     }
 }
@@ -2103,6 +2164,15 @@ pub struct LineSewing {
     /// Scribble: the variant (another seed sews other stitches).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub seed: Option<u32>,
+    /// Lattice: strands crossing the band; stripes: rows across it (#543).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub strands: Option<u32>,
+    /// Stripes: the gaps between neighbouring rows, mm, instead of even rows (#543).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub gaps: Vec<f64>,
+    /// E stitch: its prongs slanted this many degrees from square to the line (#543).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prong_angle: Option<f64>,
 }
 
 /// An opening in a closed line: `length` mm left unsewn from `offset` mm along the outline
@@ -2213,6 +2283,9 @@ impl LineSewing {
             hand: None,
             noise_scale: None,
             seed: None,
+            strands: None,
+            gaps: Vec::new(),
+            prong_angle: None,
         }
     }
 
@@ -2223,6 +2296,7 @@ impl LineSewing {
             LineType::Stem => 1.5,
             LineType::Candlewick => 1.0,
             LineType::EStitch | LineType::VStitch => 5.0,
+            k if k.is_decorative() => 3.0,
             _ => 1.0,
         })
     }

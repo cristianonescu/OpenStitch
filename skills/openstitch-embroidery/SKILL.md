@@ -97,6 +97,12 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    filled shape: `object.deriveSkeleton {id, branches: true, joinOverlap: 0.3}` makes a
    grouped satin column per arm (the shape stays hidden); check `warnings` for columns over
    10 mm and look at the junctions with `view_render`.
+   Borders, quilting and crazy-quilt seams (beyond PE-DESIGN): `object.setLine {type: chevron |
+   cretan | feather | overlock | alternatingTriangles | doubleZigzag | lattice | stripes, width,
+   spacing}` (`height` sets the chevron bar or Cretan/feather side stitch, `strands` a lattice's
+   or the stripes' count, `gaps: [1, 2, 1]` pinstripes); overlock edges a patch or appliqué,
+   feather and Cretan suit crazy quilts, a lattice or double zigzag reads as a braid or lace;
+   an E stitch's `prongAngle: 45` slants its prongs.
    Hand-made lines (beyond PE-DESIGN): `object.setLine {type: backStitch}` for redwork and
    quilt outlines (two stitches forward, one back); `{type: scribble, width, runTimes,
    noiseScale, seed}` for sketchy doodles; on a running line `profile: arc` (or `linear`,
@@ -247,7 +253,10 @@ line with widths becomes a satin line). The shape commands (`shape.polygon`, `sh
 remain the direct way to draw.
 To fix single needle points of a stitch pattern, `stitches.points {id}` lists them and
 `stitches.setPoint` / `insertPoint` / `deletePoints` edit them; `ui.stitchTable {open: true,
-select: [indexes]}` shows the user the same rows and highlights them on the canvas.
+select: [indexes]}` shows the user the same rows and highlights them on the canvas. The same
+commands take a live shape or text: its generated stitches become hand edits and it stays
+editable; a sewing setting change drops them (the edit's reply lists `handEditsDropped`), and
+`object.regenerate {ids}` drops them on purpose.
 To show the user what a setting would look like before changing it, `ui.preview {command:
 "object.setRegion", params: {ids, type}}` swaps in the stitches of that change on the canvas
 (no undo step, the design unchanged; `ui.render` shows them too); `ui.preview {clear: true}`
