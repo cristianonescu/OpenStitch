@@ -493,8 +493,10 @@ impl EditorApp {
                 // features are on in ui.json; for checking the panel's icons in screenshots.
                 "assistant" => {
                     self.assistant.panel.open = true;
+                    // Not in tests: the accessibility audit opens every scene, and tests leave
+                    // nothing in the temp folder (#499).
                     let note = std::env::temp_dir().join("openstitch-notes.txt");
-                    if std::fs::write(&note, "Stitch the logo in blue.").is_ok() {
+                    if !cfg!(test) && std::fs::write(&note, "Stitch the logo in blue.").is_ok() {
                         crate::assistant_panel::attach_files(self, vec![note]);
                     }
                 }
