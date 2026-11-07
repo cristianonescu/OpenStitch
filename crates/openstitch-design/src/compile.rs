@@ -99,6 +99,13 @@ enum Rule {
 /// bound lies under 2.3 mm.
 const LETTER_ACROSS: f64 = 23.0;
 
+/// A stitch this short (0.1 mm) sews in place: 0.35 mm, so a 0.3 mm step still counts after
+/// the 0.1 mm grid of the machine file (#703).
+const IN_PLACE: f64 = 3.5;
+/// Most stitches in place in a row at the end of a run, its lock included (`tools/sew_check.py`
+/// allows 6).
+const MAX_IN_PLACE: usize = 6;
+
 struct Writer {
     cfg: Compiler,
     out: StitchPattern,
@@ -137,6 +144,9 @@ struct Writer {
     connectors: Vec<(u64, f64)>,
     /// The region area of the object being sewn with its hidden stitching left out (#511).
     region_area: Option<Vec<Contour>>,
+    /// Needle points the tie-off dropped (#703): where, and how many; the spans of the objects
+    /// already traced move back by them.
+    drains: Vec<(usize, usize)>,
 }
 
 /// An object's own ties (#548).
@@ -188,17 +198,46 @@ impl Writer {
             .take(5)
             .map(|s| v2(s.x, s.y))
             .collect();
-        // The object's own ties lock every run (its generators' locks were left out, #548).
-        if tail.len() < 2 || (self.open_ties.is_none() && crate::region::ends_locked(&tail)) {
+        if tail.len() < 2 {
             return;
         }
-        let lock = match self.open_ties {
-            Some(t) => crate::finish::lock_points(tail[1], tail[0], t.steps, t.len),
-            None => crate::region::lock_after(&tail),
-        };
-        for p in lock {
-            self.push(p, Command::Stitch);
+        // The object's own ties lock every run (its generators' locks were left out, #548).
+        if self.open_ties.is_some() || !crate::region::ends_locked(&tail) {
+            let lock = match self.open_ties {
+                Some(t) => crate::finish::lock_points(tail[1], tail[0], t.steps, t.len),
+                None => crate::region::lock_after(&tail),
+            };
+            for p in lock {
+                self.push(p, Command::Stitch);
+            }
         }
+        self.thin_tail();
+    }
+
+    /// A run that ends in stitches of 0.3 mm or less (a fill's last clipped row pieces, a
+    /// satin narrowing to a point) and then its lock would sew more than
+    /// [`MAX_IN_PLACE`] stitches in one spot (#703: 7 on Auto Punch photos p01 and p09).
+    /// The object's own needle points just before the lock give way: those that make the run
+    /// too long are dropped, the last three (the lock) stay. Stitch files never come here.
+    fn thin_tail(&mut self) {
+        let s = &self.out.stitches;
+        let tiny = |i: usize| {
+            s[i].command == Command::Stitch
+                && matches!(s[i - 1].command, Command::Stitch | Command::Jump)
+                && v2(s[i].x, s[i].y).distance(v2(s[i - 1].x, s[i - 1].y)) <= IN_PLACE
+        };
+        let mut i = s.len();
+        while i >= 2 && tiny(i - 1) {
+            i -= 1;
+        }
+        let run = s.len() - i;
+        if run <= MAX_IN_PLACE {
+            return;
+        }
+        let end = s.len() - 3;
+        let start = end - (run - MAX_IN_PLACE);
+        self.out.stitches.drain(start..end);
+        self.drains.push((start, end - start));
     }
 
     fn stitch_line(&mut self, p: Vec2) {
@@ -421,8 +460,15 @@ impl Compiler {
     /// the pattern's stitches it wrote, travel into it included (the quality checks name the
     /// objects behind a problem from this).
     pub fn compile_traced(&self, design: &Design) -> (StitchPattern, Vec<(u64, Range<usize>)>) {
-        let (w, spans) = self.sew_design(design);
-        (w.finish(), spans)
+        let (mut w, mut spans) = self.sew_design(design);
+        let mark = w.drains.len();
+        w.close();
+        // The last object's own tie-off is sewn at the end.
+        let dropped: usize = w.drains[mark..].iter().map(|&(_, n)| n).sum();
+        if let Some((_, r)) = spans.last_mut() {
+            r.end -= dropped.min(r.end - r.start);
+        }
+        (w.out, spans)
     }
 
     /// The run connectors the design sews (#545): the id of the object each follows and its
@@ -448,7 +494,7 @@ impl Compiler {
                 None => w.basting = runs,
             }
         }
-        let mut spans = Vec::new();
+        let mut spans: Vec<(u64, Range<usize>)> = Vec::new();
         let unders = if production.travel_under {
             crate::hidden::later_cover(&design.objects)
         } else {
@@ -458,7 +504,8 @@ impl Compiler {
             if !object.visible {
                 continue;
             }
-            let start = w.out.stitches.len();
+            let mut start = w.out.stitches.len();
+            let mark = w.drains.len();
             w.under = unders.get(index).filter(|u| !u.inset.is_empty()).cloned();
             // Only where it saves stitches: routing round a cut-out can cost more than it
             // leaves out.
@@ -486,6 +533,16 @@ impl Compiler {
                 w.stop_after();
             }
             w.run_from = object.connector_run.then_some(object.id);
+            // The tie-off of the object before is sewn as this one starts: its points dropped
+            // there (#703) move that span's end and this one's start back.
+            for &(at, n) in &w.drains[mark..] {
+                if at < start {
+                    if let Some((_, r)) = spans.last_mut() {
+                        r.end -= n;
+                    }
+                    start -= n;
+                }
+            }
             spans.push((object.id, start..w.out.stitches.len()));
         }
         (w, spans)
@@ -556,6 +613,7 @@ impl Compiler {
             run_from: None,
             connectors: Vec::new(),
             region_area: None,
+            drains: Vec::new(),
         }
     }
 }
@@ -589,6 +647,12 @@ impl Writer {
     }
 
     fn finish(mut self) -> StitchPattern {
+        self.close();
+        self.out
+    }
+
+    /// The last tie-off, trim and end record.
+    fn close(&mut self) {
         if let Some(p) = self.position {
             if !self.cut {
                 self.end_lock();
@@ -596,7 +660,6 @@ impl Writer {
             }
             self.push(p, Command::End);
         }
-        self.out
     }
 }
 
@@ -2014,6 +2077,71 @@ pub fn cutwork_needle(thread: &Thread, n: usize) -> Thread {
     t.catalog_number = None;
     t.brand = None;
     t
+}
+
+#[cfg(test)]
+mod tie_off_tests {
+    use super::*;
+
+    /// The longest run of stitches of 0.3 mm or less, as `tools/sew_check.py` counts them.
+    fn in_place(p: &StitchPattern) -> usize {
+        let (mut run, mut best) = (0, 0);
+        for w in p.stitches.windows(2) {
+            let d = v2(w[0].x, w[0].y).distance(v2(w[1].x, w[1].y));
+            if w[1].command == Command::Stitch && d <= IN_PLACE {
+                run += 1;
+                best = best.max(run);
+            } else {
+                run = 0;
+            }
+        }
+        best
+    }
+
+    fn sewn(run: Vec<Vec2>) -> StitchPattern {
+        let mut w = Compiler::default().writer();
+        w.sew(Element {
+            thread: Thread::rgb(0),
+            runs: vec![run],
+            whole: false,
+            lock: true,
+            pieces: false,
+            across: None,
+            rule: Rule::Pe,
+        });
+        w.finish()
+    }
+
+    #[test]
+    fn a_run_ending_in_tiny_stitches_is_locked_without_seven_in_place() {
+        // A satin narrowing to a point (#703, p09): 0.25 mm crossings at the end.
+        let mut run: Vec<Vec2> = (0..20).map(|k| v2(20.0 * k as f64, 0.0)).collect();
+        let end = *run.last().expect("non-empty");
+        for k in 1..=8 {
+            run.push(end + v2(1.5 * k as f64, if k % 2 == 1 { 2.0 } else { 0.0 }));
+        }
+        let p = sewn(run.clone());
+        assert!(in_place(&p) <= MAX_IN_PLACE, "{}", in_place(&p));
+        // It still ends where the run did, and only a few of the run's own points went.
+        let last = p
+            .stitches
+            .iter()
+            .rev()
+            .find(|s| s.command == Command::Stitch)
+            .expect("stitches");
+        assert_eq!(v2(last.x, last.y), *run.last().expect("non-empty"));
+        let n = p.count(Command::Stitch);
+        assert!(n >= run.len() - 3, "{n} of {}", run.len());
+    }
+
+    #[test]
+    fn an_ordinary_run_keeps_every_needle_point() {
+        let run: Vec<Vec2> = (0..20).map(|k| v2(20.0 * k as f64, 0.0)).collect();
+        let p = sewn(run.clone());
+        // Tie-in and lock added, nothing taken away.
+        assert!(p.count(Command::Stitch) >= run.len() + 2);
+        assert!(in_place(&p) <= 4);
+    }
 }
 
 #[cfg(test)]

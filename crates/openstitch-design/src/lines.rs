@@ -214,7 +214,9 @@ pub fn motif(path: &[Vec2], closed: bool, m: &MotifLine) -> Run {
         }
     }
     extend(&mut run, run_between(&w, s, len, m.pitch));
-    run
+    // A motif's own vertices can lie closer than a stitch should be (a wave's crests, the
+    // turns of a small motif): drop those, keeping the line's ends (#617).
+    crate::generate::drop_close(&run, crate::generate::MOTIF_MIN_STITCH, m.pitch)
 }
 
 /// Stem stitch, as PE-DESIGN 11.50 sews it (line-stem-default.pes): on every straight leg,
