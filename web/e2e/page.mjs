@@ -58,6 +58,8 @@ for (const [label, type] of [["Chromium", chromium], ["Firefox", firefox], ["Web
   try {
     browser = await type.launch({
       timeout: 60_000,
+      // Linux CI: headless Firefox has no WebGL there, so it runs on Xvfb's display instead.
+      headless: !(type === firefox && process.env.HEADED_FIREFOX === "1"),
       ...(type === firefox ? { firefoxUserPrefs: { "webgl.force-enabled": true } } : {}),
     });
   } catch (e) {

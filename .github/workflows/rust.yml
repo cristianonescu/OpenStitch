@@ -247,7 +247,7 @@ jobs:
         id: mesa
         continue-on-error: true
         timeout-minutes: 8
-        run: sudo apt-get install -y --no-install-recommends -o Acquire::Retries=3 libegl1 libgles2 libgl1-mesa-dri
+        run: sudo apt-get install -y --no-install-recommends -o Acquire::Retries=3 libegl1 libgles2 libgl1-mesa-dri xvfb xauth
       - name: Page test (Chromium, Firefox, WebKit)
         working-directory: web/e2e
         timeout-minutes: 10
@@ -259,7 +259,9 @@ jobs:
             echo "::warning::Mesa did not install, so Firefox may have no WebGL here"
             optional+=(--optional firefox)
           fi
-          node page.mjs "${optional[@]}" .. ../../target/web-native ../../compat/reference/pes/pes-default-v6.pes ../../target/web-shots
+          # Firefox has WebGL only with a display: it runs headed on a virtual one (Xvfb, Mesa's
+          # software GL); Chromium and WebKit stay headless.
+          HEADED_FIREFOX=1 xvfb-run -a node page.mjs "${optional[@]}" .. ../../target/web-native ../../compat/reference/pes/pes-default-v6.pes ../../target/web-shots
       - uses: actions/upload-artifact@v4
         if: always()
         with:
