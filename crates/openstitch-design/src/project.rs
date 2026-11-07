@@ -141,6 +141,12 @@ pub fn validate(d: &Design) -> Result<(), String> {
     if !skeletons_ok {
         return Err("invalid satin skeleton".into());
     }
+    if d.objects
+        .iter()
+        .any(|o| o.hand_edits.as_ref().is_some_and(|h| !h.is_valid()))
+    {
+        return Err("invalid hand edits".into());
+    }
     if !finite || !text_ok || !(d.page.width > 0.0 && d.page.height > 0.0) {
         return Err("invalid coordinates".into());
     }

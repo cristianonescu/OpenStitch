@@ -353,6 +353,7 @@ pub fn sewing_attributes(app: &mut EditorApp, ui: &mut egui::Ui) {
                 return;
             }
             let mut requests: Vec<CommandRequest> = Vec::new();
+            hand_edits_row(app, ui, &mut requests);
             region_section(app, ui, &m, &mut requests);
             line_section(app, ui, &m, &mut requests);
             if !filter.trim().is_empty() && ui.button("Clear search").clicked() {
@@ -786,6 +787,35 @@ pub fn line_section(
                 }
             }
         });
+}
+
+/// Selected live objects whose needle points were edited by hand (#501): say so and offer
+/// Regenerate, which sews their generated stitches again.
+fn hand_edits_row(app: &EditorApp, ui: &mut egui::Ui, out: &mut Vec<CommandRequest>) {
+    let d = app.session.design();
+    let ids: Vec<u64> = d
+        .objects
+        .iter()
+        .filter(|o| app.selection.contains(&o.id) && o.hand_edits.is_some())
+        .map(|o| o.id)
+        .collect();
+    if ids.is_empty() {
+        return;
+    }
+    ui.separator();
+    ui.horizontal_wrapped(|ui| {
+        ui.label(RichText::new("Stitches edited by hand").strong());
+        if ui
+            .button("Regenerate")
+            .on_hover_text("Drop the hand edits and sew the generated stitches again (a sewing setting change does it too)")
+            .clicked()
+        {
+            out.push(CommandRequest::new(
+                "object.regenerate",
+                json!({ "ids": ids }),
+            ));
+        }
+    });
 }
 
 /// Region sewing type as pictures (#656): each type's stitches on a sample shape.

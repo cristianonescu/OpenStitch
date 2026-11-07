@@ -642,6 +642,14 @@ impl EditorApp {
                         self.redo_groups.clear();
                     }
                 }
+                // Hand edits on live objects (#501) last only while their settings do.
+                let dropped = self.session.take_hand_edits_dropped();
+                if !dropped.is_empty() {
+                    self.status = format!(
+                        "Hand-edited stitches discarded on {} object(s): a sewing setting or the shape changed",
+                        dropped.len()
+                    );
+                }
                 if matches!(effect, Some(Effect::Edit | Effect::History)) {
                     match &mut self.refresh_deferred {
                         Some(pending) => *pending = true,

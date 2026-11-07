@@ -528,3 +528,40 @@ fn backspace_while_drawing_takes_back_a_point_and_keeps_the_selection() {
         "not drawing: Backspace deletes"
     );
 }
+
+#[test]
+fn hand_edits_on_a_live_fill_are_kept_until_a_setting_changes_and_the_user_is_told() {
+    // #501: a needle point moved on a live fill; changing its density discards the edit with a
+    // message; Regenerate drops edits on purpose.
+    let mut app = EditorApp::new(Launch::default());
+    let id = app.execute(&rectangle(5.0)).expect("rectangle")["id"]
+        .as_u64()
+        .expect("id");
+    app.execute(&CommandRequest::new(
+        "stitches.setPoint",
+        json!({ "id": id, "index": 3, "x": 12.3, "y": 21.0 }),
+    ))
+    .expect("edit a live fill");
+    let sewn = |app: &EditorApp| {
+        app.pattern
+            .stitches
+            .iter()
+            .any(|s| (s.x - 123.0).abs() < 1e-6 && (s.y - 210.0).abs() < 1e-6)
+    };
+    assert!(sewn(&app), "the canvas sews the edited point");
+    app.execute(&CommandRequest::new(
+        "object.setRegion",
+        json!({ "ids": [id], "density": 2.0 }),
+    ))
+    .expect("density");
+    assert!(app.status.contains("discarded"), "{}", app.status);
+    assert!(!sewn(&app));
+    app.undo();
+    assert!(sewn(&app), "Undo brings them back");
+    app.execute(&CommandRequest::new(
+        "object.regenerate",
+        json!({ "ids": [id] }),
+    ))
+    .expect("regenerate");
+    assert!(!sewn(&app));
+}

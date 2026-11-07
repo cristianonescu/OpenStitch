@@ -8,7 +8,7 @@ use crate::session::EngineState;
 use openstitch_core::Command;
 use openstitch_design::geometry::contains;
 use openstitch_design::stitch_edit::{self, EditError};
-use openstitch_design::{Contour, DesignObject, ObjectKind, StitchBlock, v2};
+use openstitch_design::{Contour, DesignObject, ObjectKind, StitchBlock, hand_edits, v2};
 use serde_json::{Value, json};
 
 const ID: crate::commands::ParamDoc = req("id", "int", "Stitch pattern object");
@@ -28,11 +28,63 @@ fn target(s: &EngineState, p: &Params, key: &str) -> Result<usize, CommandError>
     }
 }
 
+/// Index of `key`'s object for needle point editing: a stitch pattern, or (#501) a live
+/// shape or text whose generated stitches become its hand edits on the first edit (the object
+/// stays editable; a sewing setting change drops the edits, `object.regenerate` too).
+fn target_points(s: &mut EngineState, p: &Params, key: &str) -> Result<usize, CommandError> {
+    let id = p.int(key, None, 0, i64::MAX)? as u64;
+    let i = s
+        .design
+        .index_of(id)
+        .ok_or_else(|| p.not_found(format!("object {id}")))?;
+    let o = &s.design.objects[i];
+    match o.kind {
+        ObjectKind::Stitches if o.stitch_block.is_some() => Ok(i),
+        ObjectKind::Shape | ObjectKind::Text if o.region.is_some() || o.line.is_some() => {
+            ensure_hand_edits(s, i);
+            Ok(i)
+        }
+        _ => Err(p.invalid(
+            key,
+            format!("object {id} has no stitches to edit (no region or line sewing)"),
+        )),
+    }
+}
+
+/// Gives live object `i` hand edits: the ones it has, moved to where it is, or its generated
+/// stitches.
+fn ensure_hand_edits(s: &mut EngineState, i: usize) {
+    let o = &s.design.objects[i];
+    let anchor = hand_edits::anchor(o);
+    let key = hand_edits::key(o);
+    if let Some(h) = s.design.objects[i].hand_edits.as_mut()
+        && h.key == key
+    {
+        h.rebase(anchor);
+        return;
+    }
+    let pattern = openstitch_design::Compiler::for_design(&s.design).compile_object(&s.design, i);
+    let block = StitchBlock {
+        stitches: pattern
+            .stitches
+            .into_iter()
+            .filter(|st| st.command != Command::End)
+            .collect(),
+        threads: pattern.threads,
+    };
+    let o = &s.design.objects[i];
+    let edits = hand_edits::HandEdits::new(o, block);
+    s.design.objects[i].hand_edits = Some(Box::new(edits));
+}
+
+/// The needle points commands edit: a stitch pattern's block, or a live object's hand edits.
 fn block(s: &mut EngineState, i: usize) -> &mut StitchBlock {
-    s.design.objects[i]
-        .stitch_block
-        .as_mut()
-        .expect("checked by target")
+    let o = &mut s.design.objects[i];
+    if o.kind == ObjectKind::Stitches {
+        o.stitch_block.as_mut().expect("checked by target")
+    } else {
+        &mut o.hand_edits.as_mut().expect("made by target_points").block
+    }
 }
 
 fn index_list(p: &Params) -> Result<Vec<usize>, CommandError> {
@@ -93,6 +145,25 @@ fn command_name(c: Command) -> &'static str {
 pub fn commands() -> Vec<CommandSpec> {
     vec![
         spec(
+            "object.regenerate",
+            "Drop the needle points edited by hand on live objects (#501): they sew their generated stitches again",
+            Effect::Edit,
+            vec![crate::commands::IDS],
+            |s, p| {
+                let mut done = Vec::new();
+                for id in p.ids()? {
+                    let i = s
+                        .design
+                        .index_of(id)
+                        .ok_or_else(|| p.not_found(format!("object {id}")))?;
+                    if s.design.objects[i].hand_edits.take().is_some() {
+                        done.push(id);
+                    }
+                }
+                Ok(json!({ "regenerated": done }))
+            },
+        ),
+        spec(
             "stitches.setThread",
             "Change Color: give one colour block of a stitch pattern another thread",
             Effect::Edit,
@@ -131,8 +202,8 @@ pub fn commands() -> Vec<CommandSpec> {
             Effect::Read,
             vec![ID],
             |s, p| {
-                let i = target(s, p, "id")?;
-                let b = s.design.objects[i].stitch_block.as_ref().expect("checked");
+                let i = target_points(s, p, "id")?;
+                let b = &*block(s, i);
                 let colors = stitch_edit::colors(b);
                 let r = |v: f64| (v / MM * 100.0).round() / 100.0;
                 Ok(json!({
@@ -159,7 +230,7 @@ pub fn commands() -> Vec<CommandSpec> {
                 opt("dy", "mm", "Vertical move"),
             ],
             |s, p| {
-                let i = target(s, p, "id")?;
+                let i = target_points(s, p, "id")?;
                 let idx = index_list(p)?;
                 let d = v2(
                     p.opt("dx", 0.0, -2000.0, 2000.0)? * MM,
@@ -180,7 +251,7 @@ pub fn commands() -> Vec<CommandSpec> {
                 req("y", "mm", "Y"),
             ],
             |s, p| {
-                let i = target(s, p, "id")?;
+                let i = target_points(s, p, "id")?;
                 let k = p.int("index", None, 0, i64::MAX)? as usize;
                 let at = v2(
                     p.req("x", -5000.0, 5000.0)? * MM,
@@ -206,7 +277,7 @@ pub fn commands() -> Vec<CommandSpec> {
                 ),
             ],
             |s, p| {
-                let i = target(s, p, "id")?;
+                let i = target_points(s, p, "id")?;
                 let k = p.int("index", None, 0, i64::MAX)? as usize;
                 let at = match (p.has("x"), p.has("y")) {
                     (true, true) => Some(v2(
@@ -228,7 +299,7 @@ pub fn commands() -> Vec<CommandSpec> {
             Effect::Edit,
             vec![ID, req("indexes", "[int]", "Needle point indexes")],
             |s, p| {
-                let i = target(s, p, "id")?;
+                let i = target_points(s, p, "id")?;
                 let idx = index_list(p)?;
                 stitch_edit::delete_points(block(s, i), &idx).map_err(|e| edit_error(p, e))?;
                 Ok(Value::Null)
