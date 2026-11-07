@@ -6,6 +6,8 @@
     python -I tools/readme_status.py --check            # exit 1 if README.md is out of date
     python -I tools/readme_status.py --issues --write   # also refresh the GitHub issue lists
     python -I tools/readme_status.py --self-test        # check the guards below (CI runs it)
+    python -I tools/readme_status.py --check-features   # exit 1 if an implemented row has no
+                                                        # line in README's Features (#709)
 
 It refuses to run (exit 2, naming each file and line) while README.md or any source below holds
 a merge-conflict marker (`<<<<<<< `, `||||||| `, `=======`, `>>>>>>> ` at the start of a line;
@@ -46,6 +48,7 @@ README = ROOT / "README.md"
 MATRIX = ROOT / "docs" / "FEATURE_MATRIX.md"
 STATUS = ROOT / "docs" / "COMPATIBILITY_STATUS.md"
 AUDIT = ROOT / "docs" / "COMPATIBILITY_AUDIT.md"
+FEATURE_MAP = ROOT / "tools" / "readme_features.tsv"
 REPO = "cristianonescu/OpenStitch"
 ISSUES = f"https://github.com/{REPO}/issues"
 
@@ -137,6 +140,18 @@ def self_test():
     assert changed_blocks(base, base.replace("hand", "hand, edited")) == []
     assert changed_blocks(base, base.replace("| a | 1 |", "| a | 2 |")) == ["glance"]
     assert changed_blocks(base, base + "<!-- status:new -->\ny\n<!-- /status:new -->\n") == ["new"]
+    m = ("| Area | Feature | Status | E | R |\n|---|---|---|---|---|\n"
+         "| A | Knife (`shape.knife {line | at}`): cuts (#477) | Implemented | e | r |\n"
+         "| A | Drawing: tools | Implemented | e | r |\n"
+         "| A | Pencil | Implemented | e | r |\n"
+         "| A | Tabs (#552) | Planned (beyond PE-DESIGN) | e | r |\n")
+    assert implemented_rows(m) == [("A", "Knife (`shape.knife {line | at}`): cuts (#477)"),
+                                   ("A", "Drawing: tools"), ("A", "Pencil")]
+    readme = "## Features\n- **Drawing\n  tools:** x ([#477])\n\n## Next\nPencil\n"
+    got = unlisted_features(m, readme, {"Drawing": "drawing tools:", "Gone": "x"})
+    assert got == ([("A", "Pencil")], [], ["Gone"]), got
+    got = unlisted_features(m, readme, {"Pencil": "pencil (freehand)"})
+    assert got == ([("A", "Drawing")], ["Pencil"], []), got
     print("readme_status self-test passed.")
     return 0
 
@@ -304,6 +319,116 @@ def apply(text, generated):
     return text, missing
 
 
+# --check-features (#709): every implemented matrix row has a line in README's hand-written
+# `## Features` section, so the README cannot fall behind the matrix again. A row counts as
+# listed when the section cites one of the issues its Feature cell names (`[#NNN]` or
+# `issues/NNN`), or when tools/readme_features.tsv maps its name (the text `short()` gives) to a
+# phrase the section contains. Matching ignores case, `*`, backticks and line wraps.
+IMPLEMENTED = ("Implemented", "Partially Compatible", "Verified Compatible")
+
+
+def matrix_cells(line):
+    """A matrix row's cells; unlike `table_rows`, a `|` inside backticks or escaped as `\\|` stays
+    in its cell (#709: such rows otherwise shift their Status into the Feature column)."""
+    body = line.strip()
+    body = body[1:-1] if body.endswith("|") and len(body) > 1 else body[1:]
+    out, cur, tick, i = [], "", False, 0
+    while i < len(body):
+        c = body[i]
+        if c == "\\" and body[i + 1:i + 2] == "|":
+            cur, i = cur + "|", i + 2
+            continue
+        if c == "`":
+            tick = not tick
+        if c == "|" and not tick:
+            out.append(cur.strip())
+            cur = ""
+        else:
+            cur += c
+        i += 1
+    out.append(cur.strip())
+    return out
+
+
+def implemented_rows(matrix_text):
+    """(area, feature) of every row whose status starts with Implemented, Partially Compatible or
+    Verified Compatible."""
+    rows, inside = [], False
+    for line in matrix_text.splitlines():
+        if line.startswith("| Area | Feature | Status"):
+            inside = True
+            continue
+        if inside:
+            if not line.startswith("|"):
+                break
+            if line.startswith("|---"):
+                continue
+            c = matrix_cells(line)
+            if len(c) >= 3 and kind(c[2]) in IMPLEMENTED:
+                rows.append((c[0], c[1]))
+    return rows
+
+
+def features_section(readme):
+    m = re.search(r"^## Features\n(.*?)(?=^## )", readme, re.S | re.M)
+    return m.group(1) if m else ""
+
+
+def plain(text):
+    return re.sub(r"\s+", " ", re.sub(r"[*`]", "", text)).strip().lower()
+
+
+def feature_map(text):
+    """name -> phrase from tools/readme_features.tsv (header row skipped)."""
+    out = {}
+    for line in text.splitlines()[1:]:
+        if line.strip():
+            name, _, phrase = line.partition("\t")
+            out[name.strip()] = phrase.strip()
+    return out
+
+
+def unlisted_features(matrix_text, readme, mapping):
+    """(missing rows as (area, name), map entries whose phrase the section lacks, unused names)."""
+    section = features_section(readme)
+    text = plain(section)
+    cited = set(re.findall(r"\[#(\d+)\]|issues/(\d+)", section))
+    cited = {a or b for a, b in cited}
+    missing, used = [], set()
+    for area, feature in implemented_rows(matrix_text):
+        name = short(feature)
+        if name in mapping:
+            used.add(name)
+            continue
+        if set(re.findall(r"#(\d+)\b", feature)) & cited:
+            continue
+        missing.append((area, name))
+    stale = sorted(n for n, p in mapping.items() if plain(p) not in text)
+    unused = sorted(set(mapping) - used)
+    return missing, stale, unused
+
+
+def check_features():
+    missing, stale, unused = unlisted_features(MATRIX.read_text(encoding="utf-8"),
+                                               README.read_text(encoding="utf-8"),
+                                               feature_map(FEATURE_MAP.read_text(encoding="utf-8")))
+    for name in unused:
+        print(f"note: tools/readme_features.tsv: {name!r} matches no implemented matrix row",
+              file=sys.stderr)
+    for name in stale:
+        print(f"tools/readme_features.tsv: the phrase for {name!r} is not in README's Features",
+              file=sys.stderr)
+    for area, name in missing:
+        print(f"README.md Features has no line for the implemented matrix row {name!r} ({area})",
+              file=sys.stderr)
+    if missing or stale:
+        print("Add a line to README's ## Features (with the row's issue link, or a phrase mapped "
+              "in tools/readme_features.tsv) for each row above (#709).", file=sys.stderr)
+        return 1
+    print("README.md Features lists every implemented matrix row.")
+    return 0
+
+
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
     p = argparse.ArgumentParser()
@@ -317,7 +442,11 @@ def main():
                    help="check the conflict-marker and row-count guards, then exit")
     p.add_argument("--pr-guard", metavar="BASE",
                    help="exit 1 if README.md's generated blocks differ from git ref BASE (#632)")
+    p.add_argument("--check-features", action="store_true",
+                   help="exit 1 if an implemented matrix row has no line in README's Features")
     a = p.parse_args()
+    if a.check_features:
+        return check_features()
     if a.self_test:
         return self_test()
     if a.pr_guard:

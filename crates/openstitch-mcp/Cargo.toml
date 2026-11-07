@@ -21,6 +21,8 @@ serde_json.workspace = true
 openstitch-testutil.workspace = true
 png = "0.18.1"
 tiny-skia = { version = "0.12.0", default-features = false, features = ["std", "simd"] }
+# The web editor's ui.* command list, for the skill check (#556).
+openstitch-web = { path = "../openstitch-web" }
 
 [lints]
 workspace = true

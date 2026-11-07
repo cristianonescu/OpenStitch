@@ -227,7 +227,7 @@ fn canvas(ui: &mut egui::Ui) {
         Stroke::new(1.0, Color32::GRAY),
         egui::StrokeKind::Outside,
     );
-    let width = (scale * 3.0).clamp(0.5, 3.0);
+    let width = (scale * 3.0).clamp(1.0, 3.0);
     for s in segments {
         let colour = Color32::from_rgb(s.rgb[0], s.rgb[1], s.rgb[2]);
         painter.line_segment([at(s.from), at(s.to)], Stroke::new(width, colour));

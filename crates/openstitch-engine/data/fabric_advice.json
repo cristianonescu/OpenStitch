@@ -1,0 +1,360 @@
+{
+  "about": "Backing, topping, needle and thread-weight advice for the Fabric Selector's fabrics (#508), paraphrased from the stabiliser, needle and thread makers' own published guidance (sources below, checked 2026-11-07; docs/research/beyond/fabric-presets.md). Where makers disagree, 'disagree' names both views. needleMin is the smallest needle a maker gives for the fabric (metric size), null where none does; the thread weight's needle is used when it is larger.",
+  "sources": [
+    {
+      "id": "S1",
+      "maker": "Madeira UK",
+      "title": "Are you new to embroidery?",
+      "url": "https://www.madeira.co.uk/new-to-embroidery/"
+    },
+    {
+      "id": "S2",
+      "maker": "Madeira USA",
+      "title": "Needle Guide (PDF, NG1122)",
+      "url": "https://www.madeirausa.com/_resources/common/userfiles/file/Needle%20Guide.pdf"
+    },
+    {
+      "id": "S3",
+      "maker": "Madeira USA",
+      "title": "Quick Reference Needle Chart (PDF)",
+      "url": "https://www.madeirausa.com/_resources/common/userfiles/file/Quick%20Reference%20Needle%20Guide.pdf"
+    },
+    {
+      "id": "S4",
+      "maker": "Madeira USA",
+      "title": "Digitizing Density Guide (PDF)",
+      "url": "https://www.madeirausa.com/_resources/common/userfiles/file/Digitizing%20Density%20Guide.pdf"
+    },
+    {
+      "id": "S5",
+      "maker": "Madeira USA",
+      "title": "Working with 60 Weight Thread",
+      "url": "https://www.madeirausa.com/resources/embroidering-with-60-weight-thread/"
+    },
+    {
+      "id": "S6",
+      "maker": "Madeira USA",
+      "title": "How to Choose the Correct E-Zee Backing",
+      "url": "https://www.madeirausa.com/resources/how-to-choose-the-correct-backing/"
+    },
+    {
+      "id": "S7",
+      "maker": "Madeira GmbH",
+      "title": "Stabilisers: backing selector and product range (brochure, 09/2019)",
+      "url": "https://www.madeira.com/fileadmin/user_upload/Downloads/Backing_Selector/VliesU__bersicht_ENG_DINA3_Stand09_2019.pdf"
+    },
+    {
+      "id": "S8",
+      "maker": "OESD",
+      "title": "Stabilizer Guide (PDF)",
+      "url": "https://oesd.com/content/PDF/OESD_Stabilizers.pdf"
+    },
+    {
+      "id": "S10",
+      "maker": "RNK Floriani",
+      "title": "Floriani Stabilizer Recommendation (chart; copy served from a reseller's CDN)",
+      "url": "https://cdn.shopify.com/s/files/1/0442/7871/0437/files/floriani-stabilizer-guide.pdf"
+    },
+    {
+      "id": "S11",
+      "maker": "SCHMETZ",
+      "title": "Needle Guide D-87 (copy served from a reseller's CDN)",
+      "url": "https://cdn.shopify.com/s/files/1/0579/8857/9507/files/D-87-SCHMETZ-Needle-Guide.pdf"
+    },
+    {
+      "id": "S12",
+      "maker": "Groz-Beckert",
+      "title": "Needles for single- and multihead embroidery (copy served from a reseller's CDN)",
+      "url": "https://cdn.shopify.com/s/files/1/1658/0257/files/Embroidery_Needles.pdf"
+    },
+    {
+      "id": "S13",
+      "maker": "Sulky of America",
+      "title": "A Quick Reference Guide to using Sulky Threads (PDF)",
+      "url": "https://blog.sulky.com/wp-content/uploads/2015/01/Thread-and-Needle-Guide.pdf"
+    },
+    {
+      "id": "S14",
+      "maker": "Sulky of America",
+      "title": "Machine Embroidery Series: Leather",
+      "url": "https://blog.sulky.com/machine-embroidery-series-leather/"
+    },
+    {
+      "id": "S15",
+      "maker": "Sulky of America",
+      "title": "Machine Embroidery Series: Denim",
+      "url": "https://blog.sulky.com/machine-embroidery-series-denim"
+    },
+    {
+      "id": "S16",
+      "maker": "Sulky of America",
+      "title": "Embroidery on Canvas",
+      "url": "https://blog.sulky.com/machine-embroidery-series-embroidery-canvas/"
+    },
+    {
+      "id": "S17",
+      "maker": "Sulky of America",
+      "title": "Embroider Fleece",
+      "url": "https://blog.sulky.com/machine-embroidery-series-fleece/"
+    },
+    {
+      "id": "S18",
+      "maker": "Sulky of America",
+      "title": "Embroider Felted Wool",
+      "url": "https://blog.sulky.com/machine-embroidery-series-felted-wool/"
+    },
+    {
+      "id": "S19",
+      "maker": "Sulky of America",
+      "title": "Tips for Stabilizing Knits",
+      "url": "https://blog.sulky.com/machine-embroidery-series-embroidery-t-shirts-knits/"
+    },
+    {
+      "id": "S20",
+      "maker": "Sulky of America",
+      "title": "Machine Embroidery for the Summer (towels)",
+      "url": "https://blog.sulky.com/machine-embroidery-for-the-summer"
+    },
+    {
+      "id": "S22",
+      "maker": "Brother",
+      "title": "Operation manual: Embroidery Needles",
+      "url": "https://support.brother.com/g/s/hf/htmldoc/hsm/om/888p5x/en/02_04_03.html"
+    },
+    {
+      "id": "S23",
+      "maker": "Brother Canada",
+      "title": "SA540C Water Soluble Sheet Stabilizer",
+      "url": "https://www.brother.ca/en/p/SA540C"
+    }
+  ],
+  "fabrics": {
+    "standard": {
+      "backing": "Tear-away on stable woven cotton; cut-away under dense designs.",
+      "topping": "None needed.",
+      "needlePoint": "sharp",
+      "needleMin": 75,
+      "sources": [
+        "S1",
+        "S2",
+        "S7",
+        "S8",
+        "S10"
+      ]
+    },
+    "thin": {
+      "backing": "A light cut-away (no show-through) or a fused tear-away; wash-away on sheer batiste.",
+      "topping": "None needed.",
+      "needlePoint": "sharp",
+      "needleMin": 65,
+      "sources": [
+        "S1",
+        "S3",
+        "S7",
+        "S8",
+        "S10"
+      ]
+    },
+    "heavy": {
+      "backing": "Cut-away on denim and heavy twill; a heavy tear-away on stable shirt-weight denim.",
+      "topping": "None needed.",
+      "needlePoint": "sharp",
+      "needleMin": 90,
+      "disagree": "OESD and Madeira name cut-away for denim; Madeira and Floriani also give tear-away for shirt-weight denim.",
+      "sources": [
+        "S2",
+        "S6",
+        "S7",
+        "S8",
+        "S10",
+        "S15",
+        "S22"
+      ]
+    },
+    "knit": {
+      "backing": "Cut-away (mesh or medium) so the knit cannot stretch under the stitches; fusible mesh on light designs.",
+      "topping": "Water-soluble or heat-away film.",
+      "needlePoint": "ballpoint",
+      "needleMin": null,
+      "disagree": "Sulky hoops an adhesive tear-away instead of the knit.",
+      "sources": [
+        "S1",
+        "S2",
+        "S6",
+        "S7",
+        "S8",
+        "S10",
+        "S19"
+      ]
+    },
+    "fleece": {
+      "backing": "Cut-away (or an adhesive stabiliser without hooping the fleece).",
+      "topping": "Water-soluble film, or a permanent topping on textured fleece.",
+      "needlePoint": "ballpoint",
+      "needleMin": 80,
+      "disagree": "Floriani and Sulky also accept an adhesive tear-away.",
+      "sources": [
+        "S1",
+        "S7",
+        "S8",
+        "S10",
+        "S17"
+      ]
+    },
+    "towel": {
+      "backing": "Tear-away (adhesive, without hooping the towel); a heavy cut-away on loose pile.",
+      "topping": "Water-soluble film so the stitches do not sink into the loops.",
+      "needlePoint": "sharp",
+      "needleMin": 90,
+      "disagree": "OESD, Floriani and Sulky give tear-away; Madeira USA gives a heavy cut-away for pile.",
+      "sources": [
+        "S1",
+        "S6",
+        "S7",
+        "S8",
+        "S10",
+        "S20"
+      ]
+    },
+    "felt": {
+      "backing": "Tear-away; on felted wool a cut-away works as well.",
+      "topping": "None needed.",
+      "needlePoint": "sharp",
+      "needleMin": 90,
+      "sources": [
+        "S18"
+      ]
+    },
+    "leather": {
+      "backing": "An adhesive tear-away or cut-away, the leather not hooped (every needle hole stays).",
+      "topping": "None needed.",
+      "needlePoint": "leather",
+      "needleMin": null,
+      "disagree": "Sulky and Schmetz use a cutting (leather) point; Groz-Beckert advises a round point, as cutting points tear the hide in embroidery; Madeira UK names titanium.",
+      "sources": [
+        "S1",
+        "S7",
+        "S8",
+        "S10",
+        "S11",
+        "S12",
+        "S14"
+      ]
+    },
+    "polyester": {
+      "backing": "Tear-away on stable poly/cotton; a light cut-away on thin or slippery polyester.",
+      "topping": "None needed.",
+      "needlePoint": "sharp",
+      "needleMin": null,
+      "sources": [
+        "S1",
+        "S7",
+        "S8",
+        "S11"
+      ]
+    },
+    "pique": {
+      "backing": "A soft cut-away (mesh) as on other knits.",
+      "topping": "Water-soluble or heat-away film over the textured knit.",
+      "needlePoint": "ballpoint",
+      "needleMin": null,
+      "sources": [
+        "S1",
+        "S2",
+        "S6",
+        "S7",
+        "S10",
+        "S23"
+      ]
+    },
+    "organza": {
+      "backing": "Wash-away (fusible or adhesive), so nothing shows through the sheer fabric.",
+      "topping": "None needed.",
+      "needlePoint": "sharp",
+      "needleMin": 65,
+      "disagree": "No maker gives a needle for organza; OpenStitch uses the general advice of a smaller needle on light fabrics.",
+      "sources": [
+        "S1",
+        "S3",
+        "S6",
+        "S8",
+        "S10"
+      ]
+    },
+    "canvas": {
+      "backing": "Tear-away on canvas and duck; cut-away on heavy bag canvas.",
+      "topping": "None needed.",
+      "needlePoint": "sharp",
+      "needleMin": 100,
+      "sources": [
+        "S2",
+        "S6",
+        "S7",
+        "S8",
+        "S11",
+        "S16"
+      ]
+    },
+    "cap": {
+      "backing": "A cap tear-away (or a stiff cut-away on heavy caps).",
+      "topping": "None needed.",
+      "needlePoint": "sharp or titanium",
+      "needleMin": null,
+      "disagree": "Madeira USA says a sharp point and never ballpoint on caps; Madeira UK and Groz-Beckert name titanium-coated needles.",
+      "sources": [
+        "S1",
+        "S2",
+        "S7",
+        "S8",
+        "S12"
+      ]
+    }
+  },
+  "threads": {
+    "60": {
+      "needle": 65,
+      "spacingMm": 0.35,
+      "minTextMm": 3.0,
+      "minTextBasis": "published",
+      "sources": [
+        "S3",
+        "S4",
+        "S5"
+      ]
+    },
+    "40": {
+      "needle": 75,
+      "spacingMm": 0.4,
+      "minTextMm": 6.0,
+      "minTextBasis": "published",
+      "sources": [
+        "S1",
+        "S2",
+        "S4",
+        "S5"
+      ]
+    },
+    "30": {
+      "needle": 80,
+      "spacingMm": 0.5,
+      "minTextMm": 7.5,
+      "minTextBasis": "estimate: No. 40's 6 mm scaled by Madeira's stitch spacing (0.50 / 0.40 mm)",
+      "sources": [
+        "S3",
+        "S4",
+        "S13"
+      ]
+    },
+    "12": {
+      "needle": 100,
+      "spacingMm": 0.8,
+      "minTextMm": 12.0,
+      "minTextBasis": "estimate: No. 40's 6 mm scaled by Madeira's stitch spacing (0.80 / 0.40 mm)",
+      "sources": [
+        "S3",
+        "S4",
+        "S13"
+      ]
+    }
+  }
+}

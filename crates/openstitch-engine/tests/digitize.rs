@@ -1094,3 +1094,57 @@ fn auto_punch_colour_order_and_region_map() {
         assert!(e.to_string().contains(needle), "{order}: {e}");
     }
 }
+
+/// #690 through the command: OpenStitch mode's dry run lists a speck (a region whose stitches
+/// would all fall within 0.8 mm) as left out with the reason `speck`; an override sews it.
+#[test]
+fn auto_punch_specks_are_planned_and_can_be_sewn() {
+    let dir = temp_dir();
+    // 60 × 40 mm: red and blue halves (not line art) and a 0.5 mm yellow dot in the blue.
+    let img = Raster::from_fn(600, 400, |x, y| {
+        if (450..455).contains(&x) && (200..205).contains(&y) {
+            [250, 220, 20, 255]
+        } else if x < 300 {
+            [220, 20, 30, 255]
+        } else {
+            [20, 40, 200, 255]
+        }
+    })
+    .expect("size");
+    std::fs::write(dir.join("speck.png"), img.encode_png().expect("png")).expect("write");
+    let mut s = Session::new(&dir);
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    let base = json!({
+        "path": "speck.png", "width": 60, "x": 0, "y": 0, "colors": 3,
+        "compatMode": "openStitch", "minArea": 0, "resolution": 600,
+    });
+    let with = |extra: Value| {
+        let mut p = base.clone();
+        for (k, v) in extra.as_object().expect("object") {
+            p[k] = v.clone();
+        }
+        p
+    };
+    let r = run(&mut s, "digitize.autoPunch", with(json!({"dryRun": true})));
+    let plan = r["plan"].as_array().expect("plan");
+    let speck = plan
+        .iter()
+        .find(|p| p["reason"] == "speck")
+        .unwrap_or_else(|| panic!("a speck in {r}"));
+    assert_eq!(speck["type"], "skip");
+    assert!(speck["why"].as_str().is_some_and(|w| w.contains("0.8 mm")));
+    let id = speck["region"].clone();
+    let sewn_before = r["regions"].as_u64().expect("regions");
+    assert!(s.design().objects.is_empty(), "a dry run adds nothing");
+    // The override sews it: one more object, the region now a fill.
+    let r = run(
+        &mut s,
+        "digitize.autoPunch",
+        with(json!({"overrides": [{"region": id, "type": "fill"}]})),
+    );
+    assert_eq!(r["regions"].as_u64(), Some(sewn_before + 1), "{r}");
+    let region = &r["plan"][id.as_u64().expect("id") as usize];
+    assert_eq!(region["type"], "fill");
+    assert_eq!(region["reason"], "override");
+    assert_eq!(s.design().objects.len() as u64, sewn_before + 1);
+}

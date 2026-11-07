@@ -5,6 +5,8 @@
 //! [`openstitch_engine::Session::execute`].
 
 pub mod editor;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod keys;
 pub mod os_print;
+pub mod platform;
 pub mod png;
