@@ -191,6 +191,8 @@ pub fn write_new(path: &Path, bytes: &[u8]) -> Result<()> {
             }
         })?;
     if let Err(e) = f.write_all(bytes).and_then(|()| f.sync_all()) {
+        // Closed before it is removed (a browser build's File has no Drop, #693).
+        #[cfg_attr(target_arch = "wasm32", allow(clippy::drop_non_drop))]
         drop(f);
         let _ = std::fs::remove_file(path);
         return Err(LibraryError::Io {

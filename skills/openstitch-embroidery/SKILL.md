@@ -306,17 +306,17 @@ gives for the job fields; never invent a customer or order.
 
 ### Web editor (browser)
 
-OpenStitch also runs in a web browser (#556, `crates/openstitch-web`). The page exposes
-`openstitch.run({command, params})`, which takes every engine command (`object.rotate`,
-`design.info`, `history.undo`, ...) and the web editor's own `ui.*` commands: `ui.state` (file,
-page, stitches, simulator, undo/redo, export formats, what is desktop-only), `ui.simulate
-{stitch}` or `{step: "block"}`, `ui.openFile {name, base64}` (File ▸ Open), `ui.saveFile`
-(File ▸ Save: the `.osd` comes back as `{name, base64}`) and `ui.exportFile {format}`
-(`{files: [{name, base64}]}`). The page's buttons run the same commands (their tooltips name
-them); "Whole design" Rotate 90°, Flip and Centre are `object.rotate`, `object.flip` and
-`object.center` on every object. Undo there is per editor step: File ▸ Open is one. The
-Assistant, the other `ui.*` commands, machine transfer, the Design Database and image
-digitizing are desktop-only; say so instead of trying them in the browser.
+OpenStitch also runs in a web browser (#556, `crates/openstitch-web`): the page runs the desktop
+editor itself (#693). The page exposes `openstitch.run({command, params})`, which takes what the
+desktop editor's automation socket takes: every engine command (`object.rotate`, `design.info`,
+`history.undo`, ...) and the editor's `ui.*` commands (`ui.state`, `ui.simulate`, ...), on the
+editor's own undo history. The page adds its file commands, files as base64: `ui.openFile
+{name, base64}` (File ▸ Open; it opens on the next frames, so wait until `ui.state`'s `loading`
+is null), `ui.saveFile` (the `.osd` as `{name, base64}`) and `ui.exportFile {format}` (`{files:
+[{name, base64}]}`). A command that writes under `/web/save/` (for example `design.export
+{path: "/web/save/rose.pes"}`) hands the file to the user as a download. The Assistant, the
+system clipboard, printing, machine transfer, the Design Database's folders and image pickers
+are desktop-only; say so instead of trying them in the browser.
 
 ## Files
 

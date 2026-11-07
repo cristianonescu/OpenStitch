@@ -24,6 +24,13 @@ impl EditorApp {
     #[cfg(target_arch = "wasm32")]
     pub(crate) fn serve_remote(&mut self) {}
 
+    /// The web page's automation API (`openstitch.run`, #693): one request, run as the socket's
+    /// are, between frames on the editor's own history.
+    #[cfg(target_arch = "wasm32")]
+    pub fn web_request(&mut self, request: &Value) -> Value {
+        self.remote_request(request)
+    }
+
     /// Runs every request socket clients have queued, with their capabilities and file roots.
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn serve_remote(&mut self) {

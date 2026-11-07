@@ -2815,6 +2815,7 @@ dependencies = [
  "resvg",
  "rfd",
  "serde_json",
+ "web-time",
  "winit",
 ]
 
@@ -2995,6 +2996,7 @@ dependencies = [
  "base64",
  "eframe",
  "js-sys",
+ "openstitch-app",
  "openstitch-core",
  "openstitch-design",
  "openstitch-engine",

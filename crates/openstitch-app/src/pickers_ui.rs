@@ -144,7 +144,7 @@ impl EditorApp {
         let mut fork = self.session.fork();
         let (tx, rx) = std::sync::mpsc::channel();
         let request = wanted.request.clone();
-        std::thread::spawn(move || {
+        openstitch_app::platform::run_job(move || {
             let out = fork
                 .execute(request.command, Some(&request.params))
                 .map(|_| Compiled::of(fork.design()))
