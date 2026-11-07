@@ -105,6 +105,9 @@ const IN_PLACE: f64 = 3.5;
 /// Most stitches in place in a row at the end of a run, its lock included (`tools/sew_check.py`
 /// allows 6).
 const MAX_IN_PLACE: usize = 6;
+/// The farthest a tie-in step along a pointed start reaches (0.1 mm), as OpenStitch mode's
+/// 1 mm tie step (#732).
+const TIE_REACH: f64 = 10.0;
 
 struct Writer {
     cfg: Compiler,
@@ -238,6 +241,54 @@ impl Writer {
         let start = end - (run - MAX_IN_PLACE);
         self.out.stitches.drain(start..end);
         self.drains.push((start, end - start));
+    }
+
+    /// The start counterpart of [`Self::thin_tail`] (#732): a run that begins with stitches of
+    /// 0.3 mm or less (a fill's or satin's pointed tip, crossings 0.3 mm wide every 0.2 mm)
+    /// after the tie-in the writer gave it would sew more than [`MAX_IN_PLACE`] stitches in one spot.
+    /// Its tie-in steps along the tip instead, out to the first needle point that is no stitch
+    /// in place and back, so the steps are no stitches in place and every needle point of the
+    /// tip is kept (the likeness does not change). `first` is the first record after the
+    /// run's first needle point, `tie` the number of tie-in points written from there (out
+    /// and back in turn). Only the object's own ties (OpenStitch mode) come here: PE-DESIGN's
+    /// tie-in is kept as it sews it.
+    fn tie_along_tip(&mut self, first: usize, tie: usize) {
+        let s = &self.out.stitches;
+        if first == 0 || first > s.len() {
+            return;
+        }
+        let tiny = |i: usize| {
+            s[i].command == Command::Stitch
+                && matches!(s[i - 1].command, Command::Stitch | Command::Jump)
+                && v2(s[i].x, s[i].y).distance(v2(s[i - 1].x, s[i - 1].y)) <= IN_PLACE
+        };
+        // The run's first needle point: a jump's landing, or the stitch onto it.
+        let from = first - 1;
+        let mut end = first;
+        while end < s.len() && tiny(end) {
+            end += 1;
+        }
+        // The stitch onto the first needle point counts when it is a stitch in place too.
+        let run = end - first + usize::from(from > 0 && tiny(from));
+        // A tie the user set longer than that by itself is sewn as set.
+        if run <= MAX_IN_PLACE || tie > MAX_IN_PLACE || first + tie > s.len() {
+            return;
+        }
+        // The tie-in steps out to the tip's first needle point beyond a stitch in place
+        // (within the run in place or the stitch that ends it, at most 1 mm away) and back.
+        let a = v2(s[from].x, s[from].y);
+        let Some(far) = s[first + tie..(end + 1).min(s.len()).max(first + tie)]
+            .iter()
+            .map(|p| v2(p.x, p.y))
+            .find(|p| p.distance(a) > IN_PLACE)
+            .filter(|p| p.distance(a) <= TIE_REACH)
+        else {
+            return;
+        };
+        for k in (first..first + tie).step_by(2) {
+            self.out.stitches[k].x = far.x;
+            self.out.stitches[k].y = far.y;
+        }
     }
 
     fn stitch_line(&mut self, p: Vec2) {
@@ -403,6 +454,13 @@ impl Writer {
             // Only a run that locks takes the object's forced tie-in (not a basting run).
             let force = element.lock && std::mem::take(&mut self.force_tie);
             let tied;
+            // The object's own ties step along a pointed start (#732); PE-DESIGN's tie-in is
+            // kept as it sews it.
+            let own = if self.ties.is_some() {
+                run.len()
+            } else {
+                usize::MAX
+            };
             let run = match self.ties {
                 // The object's own ties: its generators' ties were left out (#548).
                 Some(t) if !t.off && element.lock && (fresh || force) => {
@@ -428,6 +486,7 @@ impl Writer {
                 .stitches
                 .last()
                 .is_some_and(|s| s.command == Command::Jump && v2(s.x, s.y) == run[0]);
+            let head = self.out.stitches.len();
             if landed {
                 self.cut = false;
             } else if self.position.is_none() || self.cut {
@@ -437,6 +496,10 @@ impl Writer {
             }
             for &p in &run[1..] {
                 self.stitch_split(p, max);
+            }
+            let tie = run.len().saturating_sub(own);
+            if tie > 0 {
+                self.tie_along_tip(head + usize::from(!landed), tie);
             }
         }
     }

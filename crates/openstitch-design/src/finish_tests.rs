@@ -188,3 +188,84 @@ fn text_trims_between_letters_words_or_lines() {
     let (st, r) = text(LetterTrim::Never);
     assert!(st[r].iter().any(|s| s.command == Command::Jump));
 }
+
+/// The longest run of stitches of 0.35 mm or less (a stitch in place on the 0.1 mm grid).
+fn longest_in_place(st: &[Stitch]) -> usize {
+    let (mut run, mut most) = (0, 0);
+    for w in st.windows(2) {
+        let short = w[1].command == Command::Stitch
+            && matches!(w[0].command, Command::Stitch | Command::Jump)
+            && v2(w[0].x, w[0].y).distance(v2(w[1].x, w[1].y)) <= 3.5;
+        run = if short { run + 1 } else { 0 };
+        most = most.max(run);
+    }
+    most
+}
+
+#[test]
+fn a_pointed_start_ties_in_along_the_tip() {
+    // #732: g11's Auto Punch photo piece "Auto Punch 41 White", a 2.5 × 0.8 mm fill whose rows
+    // start at a 0.3 mm tip, 0.22 mm apart. Its own one-step tie-in, out 0.3 mm and back,
+    // plus the tip's rows sewed 7 stitches in place.
+    let points = [
+        (467.45, 784.51),
+        (469.40, 787.76),
+        (470.05, 785.81),
+        (468.75, 784.51),
+        (472.01, 783.85),
+        (472.66, 787.11),
+        (471.35, 788.41),
+        (474.61, 787.76),
+        (477.86, 789.71),
+        (472.01, 790.36),
+        (470.70, 791.67),
+        (466.80, 790.36),
+        (455.08, 791.67),
+        (453.13, 789.71),
+        (458.98, 787.76),
+        (462.89, 787.76),
+        (464.19, 789.06),
+        (466.15, 787.11),
+        (466.15, 784.51),
+    ];
+    let piece = |finish: Finish| {
+        let mut d = Design::new("tip", DesignPage::default());
+        let mut region = RegionSewing::new(RegionType::Fill, RED);
+        region.angle = 90.0;
+        region.underlay = false;
+        let mut o = DesignObject::shape(
+            vec![Contour::new(
+                points.iter().map(|&(x, y)| v2(x, y)).collect(),
+                true,
+            )],
+            Some(region),
+            None,
+        );
+        o.finish = Some(finish);
+        d.add(o);
+        sewn(&d).0
+    };
+    let tied = piece(Finish {
+        tie_count: Some(1),
+        ..Finish::default()
+    });
+    assert!(longest_in_place(&tied) <= 6, "{}", longest_in_place(&tied));
+    // Every needle point of the piece is still sewn: only the tie-in's step moved.
+    let untied = piece(Finish {
+        tie: FinishMode::Off,
+        ..Finish::default()
+    });
+    let needles = |st: &[Stitch]| -> Vec<_> {
+        st.iter()
+            .filter(|s| s.command == Command::Stitch)
+            .map(|s| v2(s.x, s.y))
+            .collect()
+    };
+    let sewn_tied = needles(&tied);
+    for p in needles(&untied) {
+        assert!(
+            sewn_tied.iter().any(|q| q.distance(p) < 0.5),
+            "{p:?} is not sewn"
+        );
+    }
+}
