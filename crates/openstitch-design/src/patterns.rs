@@ -30,6 +30,10 @@ pub enum PatternKind {
     Motif,
     Fill,
     Decorative,
+    /// Meander fill tiles (#533, beyond PE-DESIGN): one path from (0, y) to (1, y) inside the
+    /// unit tile that never crosses itself, its neighbours in the row, or the rows above and
+    /// below; chained into rows like decorative paths.
+    Meander,
 }
 
 /// A parsed, validated pattern. Serializes as an `openstitch.pattern` document; deserializing
@@ -77,6 +81,67 @@ struct RegionFile {
 
 /// Most `regions` in one pattern.
 pub const MAX_REGIONS: usize = 256;
+
+/// Most points of a meander tile (its crossing check compares every pair of segments).
+pub const MAX_MEANDER_POINTS: usize = 500;
+
+/// Why a meander tile's path would cross or touch itself when chained into rows (tiles one
+/// unit apart along the row, rows one unit apart shifted by `row_shift`), if it would. The
+/// joint of two neighbouring tiles is the one place the path meets a copy of itself.
+fn meander_crossing(p: &[Vec2], row_shift: f64) -> Option<&'static str> {
+    let segs: Vec<(Vec2, Vec2)> = p.windows(2).map(|w| (w[0], w[1])).collect();
+    let n = segs.len();
+    if segs.iter().any(|(a, b)| a.distance(*b) < 1e-9) {
+        return Some("a meander path repeats a point");
+    }
+    const TOUCH: f64 = 1e-4;
+    for i in 0..n {
+        for j in i + 2..n {
+            if segment_gap(segs[i], segs[j]) < TOUCH {
+                return Some("a meander path crosses or touches itself");
+            }
+        }
+    }
+    for (dx, dy) in [
+        (1.0, 0.0),
+        (row_shift - 1.0, 1.0),
+        (row_shift, 1.0),
+        (row_shift + 1.0, 1.0),
+    ] {
+        let d = v2(dx, dy);
+        for (i, s) in segs.iter().enumerate() {
+            for (j, t) in segs.iter().enumerate() {
+                // The tiles' shared joint.
+                if dy == 0.0 && i == n - 1 && j == 0 {
+                    continue;
+                }
+                if segment_gap(*s, (t.0 + d, t.1 + d)) < TOUCH {
+                    return Some("a meander path crosses or touches its neighbours");
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Distance between two segments (0 where they cross).
+fn segment_gap((a, b): (Vec2, Vec2), (c, d): (Vec2, Vec2)) -> f64 {
+    let cross = |o: Vec2, p: Vec2, q: Vec2| (p.x - o.x) * (q.y - o.y) - (p.y - o.y) * (q.x - o.x);
+    if cross(a, b, c) * cross(a, b, d) < 0.0 && cross(c, d, a) * cross(c, d, b) < 0.0 {
+        return 0.0;
+    }
+    let to = |p: Vec2, u: Vec2, v: Vec2| {
+        let e = v - u;
+        let l2 = e.x * e.x + e.y * e.y;
+        let t = if l2 > 0.0 {
+            (((p.x - u.x) * e.x + (p.y - u.y) * e.y) / l2).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        p.distance(u + e * t)
+    };
+    to(a, c, d).min(to(b, c, d)).min(to(c, a, b)).min(to(d, a, b))
+}
 
 /// The JSON shape of an `openstitch.pattern` document.
 #[derive(Clone, Serialize, Deserialize)]
@@ -149,7 +214,7 @@ impl Pattern {
         match kind {
             PatternKind::Motif => (-0.5, -1.0, 1.5, 1.0),
             PatternKind::Decorative => (-0.5, 0.0, 1.5, 1.0),
-            PatternKind::Fill => (0.0, 0.0, 1.0, 1.0),
+            PatternKind::Fill | PatternKind::Meander => (0.0, 0.0, 1.0, 1.0),
         }
     }
 }
@@ -240,6 +305,24 @@ fn validate(f: PatternFile) -> Result<Pattern, String> {
                 }
             }
         }
+        PatternKind::Meander => {
+            let count = paths.first().map_or(0, Vec::len);
+            if paths.len() != 1 {
+                return Err("a meander tile is one path".into());
+            }
+            let (a, b) = (paths[0][0], paths[0][count - 1]);
+            if a.x != 0.0 || b.x != 1.0 || (a.y - b.y).abs() > 1e-6 {
+                return Err("a meander path runs from (0, y) to (1, y)".into());
+            }
+            if count > MAX_MEANDER_POINTS {
+                return Err(format!(
+                    "a meander tile has at most {MAX_MEANDER_POINTS} points"
+                ));
+            }
+            if let Some(why) = meander_crossing(&paths[0], f.row_shift) {
+                return Err(why.into());
+            }
+        }
         PatternKind::Fill => {}
     }
     if f.free_lines && f.kind != PatternKind::Decorative {
@@ -304,6 +387,18 @@ const BUNDLED: &[&str] = &[
     include_str!("../patterns/decorative/chevrons.json"),
     include_str!("../patterns/decorative/meander.json"),
     include_str!("../patterns/decorative/clouds.json"),
+    include_str!("../patterns/meander/vermicelli.json"),
+    include_str!("../patterns/meander/ribbon-candy.json"),
+    include_str!("../patterns/meander/ripple.json"),
+    include_str!("../patterns/meander/clamshell.json"),
+    include_str!("../patterns/meander/switchback.json"),
+    include_str!("../patterns/meander/serpentine.json"),
+    include_str!("../patterns/meander/skyline.json"),
+    include_str!("../patterns/meander/staircase.json"),
+    include_str!("../patterns/meander/sawtooth.json"),
+    include_str!("../patterns/meander/jigsaw.json"),
+    include_str!("../patterns/meander/hilbert.json"),
+    include_str!("../patterns/meander/hilbert-fine.json"),
 ];
 
 /// Every bundled pattern, in library order.

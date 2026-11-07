@@ -530,7 +530,7 @@ fn header(ui: &mut egui::Ui, st: &mut CreatorState, user: &[patterns::Pattern]) 
         ui.label("Name");
         let r = ui.add(egui::TextEdit::singleline(&mut st.doc.name).desired_width(140.0));
         crate::a11y::name(&r, "Name");
-        if st.doc.kind == PatternKind::Decorative {
+        if matches!(st.doc.kind, PatternKind::Decorative | PatternKind::Meander) {
             ui.label("Row shift");
             let r = ui.add(egui::Slider::new(&mut st.doc.row_shift, 0.0..=1.0));
             crate::a11y::name_slider(&r, "Row shift");

@@ -494,3 +494,42 @@ fn wave_fill_controls_reach_the_engine() {
     assert!(region(s.design()).wave().is_none());
     assert!(!keys(s.design()).contains(&"region.waveLength"));
 }
+
+/// Meander fill (#533, beyond PE-DESIGN): listed among the region sew types with a tile
+/// picker of at least 12 tiles; every tile and the size and pitch reach the engine.
+#[test]
+fn meander_fill_controls_reach_the_engine() {
+    let mut s = Session::new(std::env::temp_dir());
+    let id = exec(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 10, "y": 10, "width": 30, "height": 30}),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    let sel = BTreeSet::from([id]);
+    let m = InspectorModel::new(s.design(), &sel);
+    run(&mut s, &m.set_region_type(Some(RegionType::Meander)));
+    let region = |d: &Design| d.objects[0].region.clone().expect("region");
+    let options = inspector::region_controls(&region(s.design()))
+        .into_iter()
+        .find_map(|c| match c {
+            Control::Choice { param: "pattern", options, .. } => Some(options),
+            _ => None,
+        })
+        .expect("a pattern choice");
+    assert!(options.len() >= 12, "{} tiles", options.len());
+    for (value, _) in &options {
+        let m = InspectorModel::new(s.design(), &sel);
+        run(&mut s, &m.set_region(json!({"pattern": value})));
+        assert_eq!(region(s.design()).pattern.as_deref(), Some(value.as_str()));
+    }
+    let n = round_trip(
+        &mut s,
+        id,
+        |d| inspector::region_controls(&region(d)),
+        |m, p| m.set_region(p),
+        "meander fill",
+    );
+    assert!(n >= 3, "{n} number controls");
+}

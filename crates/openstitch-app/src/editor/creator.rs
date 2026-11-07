@@ -26,10 +26,11 @@ pub const SNAP: f64 = 1.0 / 16.0;
 /// Most files read from the library folder.
 pub const MAX_LIBRARY_FILES: usize = 500;
 
-pub const KINDS: [(PatternKind, &str); 3] = [
+pub const KINDS: [(PatternKind, &str); 4] = [
     (PatternKind::Fill, "Fill / stamp tile"),
     (PatternKind::Motif, "Motif"),
     (PatternKind::Decorative, "Decorative fill"),
+    (PatternKind::Meander, "Meander fill (+)"),
 ];
 
 pub fn kind_name(k: PatternKind) -> &'static str {
@@ -37,6 +38,7 @@ pub fn kind_name(k: PatternKind) -> &'static str {
         PatternKind::Motif => "motif",
         PatternKind::Fill => "fill",
         PatternKind::Decorative => "decorative",
+        PatternKind::Meander => "meander",
     }
 }
 
@@ -69,6 +71,8 @@ impl Creator {
             PatternKind::Motif => vec![vec![v2(0.0, 0.0), v2(0.5, -0.8), v2(1.0, 0.0)]],
             PatternKind::Fill => vec![vec![v2(0.0, 0.5), v2(0.5, 0.0), v2(1.0, 0.5)]],
             PatternKind::Decorative => vec![vec![v2(0.0, 0.7), v2(0.5, 0.2), v2(1.0, 0.7)]],
+            // A meander tile must not touch the rows above and below: kept within 0.15-0.85.
+            PatternKind::Meander => vec![vec![v2(0.0, 0.15), v2(0.5, 0.85), v2(1.0, 0.15)]],
         };
         Creator {
             kind,
@@ -153,7 +157,7 @@ impl Creator {
         }
         match (anchor, kind) {
             (false, _) => pts[index] = q,
-            (true, PatternKind::Decorative) => {
+            (true, PatternKind::Decorative | PatternKind::Meander) => {
                 let last = pts.len() - 1;
                 pts[0].y = q.y;
                 pts[last].y = q.y;
@@ -304,7 +308,9 @@ impl Creator {
                 .map(|p| p.iter().map(|q| json!([q.x, q.y])).collect::<Vec<_>>())
                 .collect::<Vec<_>>(),
         });
-        if self.kind == PatternKind::Decorative && self.row_shift != 0.0 {
+        if matches!(self.kind, PatternKind::Decorative | PatternKind::Meander)
+            && self.row_shift != 0.0
+        {
             doc["rowShift"] = json!(self.row_shift);
         }
         if self.kind == PatternKind::Fill && !self.regions.is_empty() {
@@ -401,6 +407,12 @@ impl Creator {
                 fill.pattern = Some(pattern.id.clone());
                 fill.pattern_width = Some(10.0);
                 fill.pattern_height = Some(8.0);
+                fill.run_pitch = Some(1.5);
+                d.add(DesignObject::shape(vec![rect], Some(fill), None));
+            }
+            PatternKind::Meander => {
+                let mut fill = RegionSewing::new(RegionType::Meander, thread);
+                fill.pattern = Some(pattern.id.clone());
                 fill.run_pitch = Some(1.5);
                 d.add(DesignObject::shape(vec![rect], Some(fill), None));
             }

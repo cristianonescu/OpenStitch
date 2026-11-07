@@ -342,6 +342,7 @@ impl Design {
                             PatternKind::Fill => r.kind == RegionType::ProgrammableFill,
                             PatternKind::Motif => r.kind == RegionType::MotifFill,
                             PatternKind::Decorative => r.kind == RegionType::DecorativeFill,
+                            PatternKind::Meander => r.kind == RegionType::Meander,
                         }
                 });
                 let line = o.line.as_ref().is_some_and(|l| {
@@ -875,6 +876,9 @@ pub enum RegionType {
     /// Beyond PE-DESIGN: rows that follow the outline at a constant distance (rings, single or
     /// double spiral, echo lines; see [`crate::contour`]).
     Contour,
+    /// Beyond PE-DESIGN (#533): a meander tile (`PatternKind::Meander`) chained into rows,
+    /// clipped to the region and joined along the outline.
+    Meander,
 }
 
 impl RegionType {
@@ -890,7 +894,7 @@ impl RegionType {
         }
     }
 
-    pub const ALL: [RegionType; 15] = [
+    pub const ALL: [RegionType; 16] = [
         RegionType::Fill,
         RegionType::Satin,
         RegionType::ProgrammableFill,
@@ -906,6 +910,7 @@ impl RegionType {
         RegionType::ZigzagNetFill,
         RegionType::DecorativeFill,
         RegionType::Contour,
+        RegionType::Meander,
     ];
 
     /// The JSON / command name (`"programmableFill"`).
@@ -926,6 +931,7 @@ impl RegionType {
             RegionType::ZigzagNetFill => "zigzagNetFill",
             RegionType::DecorativeFill => "decorativeFill",
             RegionType::Contour => "contour",
+            RegionType::Meander => "meander",
         }
     }
 
@@ -951,6 +957,7 @@ impl RegionType {
             RegionType::ZigzagNetFill => "Zigzag net fill",
             RegionType::DecorativeFill => "Decorative fill",
             RegionType::Contour => "Contour fill",
+            RegionType::Meander => "Meander fill",
         }
     }
 }

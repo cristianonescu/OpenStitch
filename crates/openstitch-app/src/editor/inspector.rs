@@ -503,6 +503,7 @@ pub fn region_controls_with(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> 
             | RegionType::NetFill
             | RegionType::FlexibleSpiral
             | RegionType::Contour
+            | RegionType::Meander
     );
     if uses_density {
         let unit = if r.kind == RegionType::ZigzagNetFill {
@@ -1042,6 +1043,12 @@ fn region_type_controls(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> {
                 0.0,
                 50.0,
             ));
+        }
+        // Beyond PE-DESIGN (#533): a meander tile, its size and the run pitch.
+        RegionType::Meander => {
+            v.push(pattern(PatternKind::Meander));
+            v.extend(size());
+            v.push(pitch);
         }
         RegionType::Contour => {
             v.push(choice(

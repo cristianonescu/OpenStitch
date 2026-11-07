@@ -513,6 +513,8 @@ fn bad_region_options_fail_cleanly() {
         json!({"id": 1, "staggerRepeat": 17}),
         json!({"id": 1, "staggerPeriod": 1}),
         json!({"id": 1, "staggerAmplitude": 101}),
+        json!({"id": 1, "type": "meander", "pattern": "waves"}),
+        json!({"id": 1, "type": "meander", "pattern": "no-such-tile"}),
         json!({"id": 1, "waveHeight": -1}),
         json!({"id": 1, "waveHeight": 21}),
         json!({"id": 1, "waveLength": 1}),
@@ -1115,4 +1117,67 @@ fn zigzag_sharp_corners_and_miter_limit_go_through_object_set_line() {
         assert!(s.execute("object.setLine", Some(&bad)).is_err(), "{bad}");
         assert_eq!(s.design(), &before, "{bad} changed the design");
     }
+}
+
+/// Meander fill (#533, beyond PE-DESIGN): its 12 own tiles are listed, each can be set and
+/// sews; a user tile of kind meander is checked for crossings; saved and undone.
+#[test]
+fn meander_fill_goes_through_the_command() {
+    use openstitch_design::RegionType;
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 0, "y": 0, "width": 30, "height": 30}),
+    );
+    let list = run(&mut s, "patterns.list", json!({}));
+    let tiles: Vec<String> = list
+        .as_array()
+        .or_else(|| list["patterns"].as_array())
+        .expect("list")
+        .iter()
+        .filter(|p| p["kind"] == "meander")
+        .map(|p| p["id"].as_str().expect("id").to_string())
+        .collect();
+    assert!(tiles.len() >= 12, "{tiles:?}");
+    run(&mut s, "object.setRegion", json!({"id": 1, "type": "meander"}));
+    assert_eq!(
+        s.design().objects[0].region.as_ref().expect("r").kind,
+        RegionType::Meander
+    );
+    let first = Compiler::default().compile(s.design());
+    assert!(first.count(Command::Stitch) > 100);
+    for id in &tiles {
+        run(&mut s, "object.setRegion", json!({"id": 1, "pattern": id}));
+        let p = Compiler::default().compile(s.design());
+        assert!(p.count(Command::Stitch) > 50, "{id}");
+    }
+    let bytes = project::encode(s.design()).expect("encode");
+    assert_eq!(&project::decode(&bytes).expect("decode"), s.design());
+    run(&mut s, "history.undo", json!({}));
+    // A user meander tile: refused when it crosses itself, kept when it does not.
+    let tile = |paths: Value| {
+        json!({"pattern": {"format": "openstitch.pattern", "version": 1, "kind": "meander",
+            "id": "my-meander", "name": "Mine", "paths": paths}})
+    };
+    assert!(
+        s.execute(
+            "pattern.define",
+            Some(&tile(json!([[[0, 0.5], [0.5, 0.2], [0.5, 0.8], [0.2, 0.4], [1, 0.5]]])))
+        )
+        .is_err()
+    );
+    run(
+        &mut s,
+        "pattern.define",
+        tile(json!([[[0, 0.3], [0.5, 0.7], [1, 0.3]]])),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "pattern": "my-meander"}),
+    );
+    let help = run(&mut s, "commands.list", json!({})).to_string();
+    assert!(help.contains("meander|"));
 }
