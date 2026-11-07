@@ -319,7 +319,7 @@ Every region sew type and the fill, satin and underlay options.
 
 #### Region sew types (1 of 2)
 
-[`fills/region-sew-types-1.pes`](fills/region-sew-types-1.pes) · 100 × 100 mm hoop · 86 × 86 mm · 7,375 stitches · 11 trims · about 9.8 min
+[`fills/region-sew-types-1.pes`](fills/region-sew-types-1.pes) · 100 × 100 mm hoop · 86 × 86 mm · 7,119 stitches · 11 trims · about 9.5 min
 
 Nine region sew types, left to right, top to bottom: fill, satin, programmable fill (diamonds), motif fill (heart), piping, cross stitch, concentric circle, radial, spiral.
 
@@ -329,7 +329,7 @@ Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 208 Orange, 620 Mag
 
 #### Region sew types (2 of 2)
 
-[`fills/region-sew-types-2.pes`](fills/region-sew-types-2.pes) · 100 × 100 mm hoop · 86 × 86 mm · 4,634 stitches · 9 trims · about 6.3 min
+[`fills/region-sew-types-2.pes`](fills/region-sew-types-2.pes) · 100 × 100 mm hoop · 86 × 86 mm · 4,545 stitches · 9 trims · about 6.1 min
 
 Flexible spiral, stippling, net fill (square), zigzag net fill (honeycomb), decorative fill (waves), contour fill as rings and as a double spiral (beyond PE-DESIGN), programmable fill (bricks) with base sewing, motif fill (leaf).
 
@@ -373,7 +373,7 @@ Every line sew type.
 
 #### Line sew types
 
-[`lines/line-sew-types.pes`](lines/line-sew-types.pes) · 100 × 100 mm hoop · 86 × 87.5 mm · 3,618 stitches · 9 trims · about 5 min
+[`lines/line-sew-types.pes`](lines/line-sew-types.pes) · 100 × 100 mm hoop · 86 × 87.5 mm · 3,452 stitches · 9 trims · about 4.8 min
 
 Top to bottom: running, triple, zigzag, motif (wave), stem, candlewick, E stitch, V stitch, chain.
 
