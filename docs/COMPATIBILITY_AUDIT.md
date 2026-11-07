@@ -2799,9 +2799,12 @@ averaged 50/50, on the calibrated render; every result is OpenStitch's output.
   half diagonals: stitches along a cell side 244 → 5 on the kit's cell (the 5 are the travel from
   the start point), trims per 100 crosses 0 → 0. The zigzag net keeps every needle point inside
   the outline (honeycomb 1.1 mm past the edge → 0), its rungs square to each edge and cut where
-  bands meet at a line's end or turn, and travels along the net lines. Open: what the Direction
-  should do on a cross stitch region (it now has no effect; PE reference at another direction
-  needed), and the net's turned grid against PE's page-axis one.
+  bands meet at a line's end or turn, and travels along the net lines. Open: the net's turned
+  grid against PE's page-axis one. Settled 2026-11-07 (#614, round 8): PE-DESIGN 11.50 has no
+  Direction for cross stitch (its Sewing Attributes show only Size and Times), so OpenStitch hides
+  it. Times Single, Double and Triple cover each diagonal 2, 4 or 6 times, 410, 666 and 922
+  stitches on a 20 mm square. OpenStitch sews the same 256 more per step and 18 more at each
+  (its route between rows differs; compat `cross-single`, `-double`, `-triple`).
 - **Line types on curves (#464):** stem, candlewick and chain placed their elements per
   flattened chord, so on a curve they bunched at bends with gaps between. A leg now runs from one
   contour point to the next and is measured along the curve: the stem is an even rope (spacing

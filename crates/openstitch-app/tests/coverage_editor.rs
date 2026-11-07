@@ -198,6 +198,50 @@ fn region_controls_of_fill_satin_and_programmable_fill_reach_the_engine() {
     assert_eq!(o.line, line);
 }
 
+/// Cross stitch shows PE-DESIGN's Size and Times and OpenStitch's cross kinds, but no Direction
+/// (PE-DESIGN 11.50 has none for it, #614); every choice reaches the engine and reads back.
+#[test]
+fn cross_stitch_choices_reach_the_engine_and_it_has_no_direction() {
+    let mut s = Session::new(std::env::temp_dir());
+    let id = exec(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 10, "y": 10, "width": 20, "height": 20}),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    let sel = BTreeSet::from([id]);
+    let m = InspectorModel::new(s.design(), &sel);
+    run(&mut s, &m.set_region_type(Some(RegionType::CrossStitch)));
+    let region = |d: &Design| d.objects[0].region.clone().expect("region");
+    let controls = |d: &Design| inspector::region_controls(&region(d));
+    let params: Vec<&str> = controls(s.design()).iter().map(Control::param).collect();
+    assert!(!params.contains(&"angle"), "{params:?}");
+    assert!(params.contains(&"spacing"), "Size: {params:?}");
+    let mut checked = 0;
+    for c in controls(s.design()) {
+        let Control::Choice { param, options, .. } = c.clone() else {
+            continue;
+        };
+        for (value, _) in options {
+            let m = InspectorModel::new(s.design(), &sel);
+            run(&mut s, &m.set_region(c.params(json!(value))));
+            let back = controls(s.design())
+                .into_iter()
+                .find_map(|c| match c {
+                    Control::Choice {
+                        param: p, value, ..
+                    } if p == param => Some(value),
+                    _ => None,
+                })
+                .expect("the choice stays");
+            assert_eq!(back, value, "{param}");
+            checked += 1;
+        }
+    }
+    assert_eq!(checked, 3 + 4, "Times and Cross options");
+}
+
 #[test]
 fn hiding_an_object_in_the_list_stops_it_sewing_until_undone() {
     let mut s = Session::new(std::env::temp_dir());

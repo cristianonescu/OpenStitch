@@ -7,7 +7,7 @@
 use crate::fmath::Det;
 use crate::generate::{self, RegionParams, RowSpan, Run, subdivide};
 use crate::geometry::{Contour, Rect, Span, Vec2, contains, v2};
-use crate::model::{RegionSewing, RegionType};
+use crate::model::{CrossKind, RegionSewing, RegionType};
 use crate::paths::{Rng, TravelGraph, Walker, clip, join, order};
 use crate::patterns::{self, NET_PATTERNS, Pattern, PatternKind, RegionEffect, RegionMask};
 use crate::region::{reroute, rotated_bounds, row_positions, spans_at};
@@ -191,10 +191,27 @@ pub fn generate(
             vec![runs]
         }
         RegionType::CrossStitch => {
-            // The grid lies on the page axes whatever the direction (see `cross_stitch`).
-            vec![region.pieces_raw(cross_stitch(
-                closed, holes, spacing, r.triple, r.entry, r.exit,
-            ))]
+            // The grid lies on the page axes whatever the direction (see `cross_stitch`):
+            // PE-DESIGN 11.50 has no Direction for cross stitch (#614).
+            let times = r.cross_times().count();
+            let runs = match r.cross_kind {
+                CrossKind::Full => cross_stitch(closed, holes, spacing, times, r.entry, r.exit),
+                CrossKind::Half | CrossKind::Upright => {
+                    cross_lines(closed, holes, spacing, times, r.cross_kind)
+                }
+                CrossKind::Smyrna => {
+                    let mut runs = cross_stitch(closed, holes, spacing, times, r.entry, None);
+                    runs.extend(cross_lines(
+                        closed,
+                        holes,
+                        spacing,
+                        times,
+                        CrossKind::Upright,
+                    ));
+                    runs
+                }
+            };
+            vec![region.pieces_raw(runs)]
         }
         RegionType::ConcentricCircle => {
             // PE-DESIGN 11.50 (see crate::concentric): whole circles, a trim, the cut ones.
@@ -1026,54 +1043,30 @@ fn free_line_pieces(
 /// the crosses; only cells no diagonal path reaches start a new run. The sewing starts at the
 /// cell corner nearest the start point and goes back along the crosses to the corner nearest
 /// the end point, so the travel along the outline from and to them stays short (it ran along
-/// two sides of the region, #463). `triple` sews every full diagonal three times.
+/// two sides of the region, #463).
+///
+/// `times` is PE-DESIGN's Times (#614): every full diagonal is sewn whole 2·times − 1 times, so
+/// with its halves each is covered 2, 4 or 6 times, as PE-DESIGN covers it (Single, Double,
+/// Triple; 256 more stitches per step on a 20 mm square, as its references).
 fn cross_stitch(
     closed: &[Contour],
     holes: &[Contour],
     size: f64,
-    triple: bool,
+    times: usize,
     entry: Option<Vec2>,
     exit: Option<Vec2>,
 ) -> Vec<Run> {
-    let Some(b) = Rect::enclosing(closed.iter().flat_map(Contour::outline_points)) else {
+    let Some(CrossGrid {
+        x0,
+        y0,
+        cols,
+        rows,
+        sewn,
+    }) = cross_grid(closed, holes, size)
+    else {
         return Vec::new();
     };
-    if size <= 0.0 {
-        return Vec::new();
-    }
-    let inside = |p: Vec2| contains(p, closed) && !contains(p, holes);
-    let x0 = (b.min_x / size).floor() * size;
-    let y0 = (b.min_y / size).floor() * size;
-    let cols = ((b.max_x - x0) / size).ceil().max(0.0) as usize;
-    let rows = ((b.max_y - y0) / size).ceil().max(0.0) as usize;
-    if cols == 0 || rows == 0 || cols.saturating_mul(rows) > MAX_POINTS / 4 {
-        return Vec::new();
-    }
-    // A cell is sewn when its corners (drawn in a little), centre, side midpoints and the
-    // quarter points of its diagonals are all inside: no cross is cut by the outline.
-    const PROBES: [(f64, f64); 13] = [
-        (0.02, 0.02),
-        (0.98, 0.02),
-        (0.02, 0.98),
-        (0.98, 0.98),
-        (0.5, 0.5),
-        (0.5, 0.02),
-        (0.5, 0.98),
-        (0.02, 0.5),
-        (0.98, 0.5),
-        (0.25, 0.25),
-        (0.75, 0.25),
-        (0.25, 0.75),
-        (0.75, 0.75),
-    ];
-    let sewn: Vec<bool> = (0..rows * cols)
-        .map(|k| {
-            let (x, y) = (x0 + (k % cols) as f64 * size, y0 + (k / cols) as f64 * size);
-            PROBES
-                .iter()
-                .all(|&(fx, fy)| inside(v2(x + fx * size, y + fy * size)))
-        })
-        .collect();
+    let extra = 2 * times.max(1) - 2;
     // Runs of neighbouring cells per row: (row, first column, end column).
     let mut segments: Vec<(usize, usize, usize)> = Vec::new();
     for cy in 0..rows {
@@ -1145,10 +1138,10 @@ fn cross_stitch(
         }
         (dist, prev)
     };
-    // A full diagonal from `from` to `to`, once or three times.
+    // A full diagonal from `from` to `to`, sewn whole 2·times − 1 times.
     let diagonal = |run: &mut Run, from: usize, to: usize| {
         run.push(at(to));
-        if triple {
+        for _ in 0..extra / 2 {
             run.extend([at(from), at(to)]);
         }
     };
@@ -1253,6 +1246,167 @@ fn cross_stitch(
         out.push(run);
     }
     out
+}
+
+/// The cross stitch grid: cells `size` square on the page axes from the design origin, cell
+/// (cx, cy) at (x0 + cx·size, y0 + cy·size), `sewn` row by row.
+struct CrossGrid {
+    x0: f64,
+    y0: f64,
+    cols: usize,
+    rows: usize,
+    sewn: Vec<bool>,
+}
+
+/// The cells of a cross stitch region: those wholly inside it. `None` for an empty region, a
+/// size of 0 or a grid too large to sew.
+fn cross_grid(closed: &[Contour], holes: &[Contour], size: f64) -> Option<CrossGrid> {
+    let b = Rect::enclosing(closed.iter().flat_map(Contour::outline_points))?;
+    if size <= 0.0 {
+        return None;
+    }
+    let inside = |p: Vec2| contains(p, closed) && !contains(p, holes);
+    let x0 = (b.min_x / size).floor() * size;
+    let y0 = (b.min_y / size).floor() * size;
+    let cols = ((b.max_x - x0) / size).ceil().max(0.0) as usize;
+    let rows = ((b.max_y - y0) / size).ceil().max(0.0) as usize;
+    if cols == 0 || rows == 0 || cols.saturating_mul(rows) > MAX_POINTS / 4 {
+        return None;
+    }
+    // A cell is sewn when its corners (drawn in a little), centre, side midpoints and the
+    // quarter points of its diagonals are all inside: no cross is cut by the outline.
+    const PROBES: [(f64, f64); 13] = [
+        (0.02, 0.02),
+        (0.98, 0.02),
+        (0.02, 0.98),
+        (0.98, 0.98),
+        (0.5, 0.5),
+        (0.5, 0.02),
+        (0.5, 0.98),
+        (0.02, 0.5),
+        (0.98, 0.5),
+        (0.25, 0.25),
+        (0.75, 0.25),
+        (0.25, 0.75),
+        (0.75, 0.75),
+    ];
+    let sewn = (0..rows * cols)
+        .map(|k| {
+            let (x, y) = (x0 + (k % cols) as f64 * size, y0 + (k / cols) as f64 * size);
+            PROBES
+                .iter()
+                .all(|&(fx, fy)| inside(v2(x + fx * size, y + fy * size)))
+        })
+        .collect();
+    Some(CrossGrid {
+        x0,
+        y0,
+        cols,
+        rows,
+        sewn,
+    })
+}
+
+/// Half (`/` only) or upright (`+`) crosses, beyond PE-DESIGN (#614), on [`cross_grid`]'s cells.
+/// The strokes of neighbouring cells line up: a half cross's `/` continues into the cell up
+/// and to the right, an upright cross's arms into the cells beside and below it. Each line of
+/// neighbouring cells is one run, sewn out and back `times` times, so every stroke is covered
+/// 2·times times, as [`cross_stitch`] covers a diagonal, and the run ends where it began; the
+/// region's travel joins the runs. Any other kind sews nothing.
+fn cross_lines(
+    closed: &[Contour],
+    holes: &[Contour],
+    size: f64,
+    times: usize,
+    kind: CrossKind,
+) -> Vec<Run> {
+    let Some(CrossGrid {
+        x0,
+        y0,
+        cols,
+        rows,
+        sewn,
+    }) = cross_grid(closed, holes, size)
+    else {
+        return Vec::new();
+    };
+    // Point (u, v) of the half-cell lattice.
+    let at = |u: usize, v: usize| v2(x0 + u as f64 * size / 2.0, y0 + v as f64 * size / 2.0);
+    // Every line as its cells in order: each a list of (cx, cy).
+    let mut lines: Vec<Vec<(usize, usize)>> = Vec::new();
+    // The sewn cells of `cells`, split where a cell is not sewn, onto `lines`.
+    let push_runs = |lines: &mut Vec<Vec<(usize, usize)>>,
+                     cells: &mut dyn Iterator<Item = (usize, usize)>| {
+        let mut current: Vec<(usize, usize)> = Vec::new();
+        for (cx, cy) in cells {
+            if sewn[cy * cols + cx] {
+                current.push((cx, cy));
+            } else if !current.is_empty() {
+                lines.push(std::mem::take(&mut current));
+            }
+        }
+        if !current.is_empty() {
+            lines.push(current);
+        }
+    };
+    let mut strokes: Vec<Vec<Vec2>> = Vec::new();
+    match kind {
+        CrossKind::Half => {
+            // "/" from a cell's bottom-left corner to its top-right one, the next cell up and
+            // to the right: the cells with cx + cy = d, from the bottom row up.
+            for d in 0..cols + rows - 1 {
+                let mut cells = (0..rows)
+                    .rev()
+                    .filter(|&cy| d >= cy && d - cy < cols)
+                    .map(|cy| (d - cy, cy));
+                push_runs(&mut lines, &mut cells);
+            }
+            for l in &lines {
+                let (cx, cy) = l[0];
+                let mut s = vec![at(2 * cx, 2 * cy + 2)];
+                s.extend(l.iter().map(|&(cx, cy)| at(2 * cx + 2, 2 * cy)));
+                strokes.push(s);
+            }
+        }
+        CrossKind::Upright => {
+            // Across each row through the cells' middles, then down each column.
+            for cy in 0..rows {
+                push_runs(&mut lines, &mut (0..cols).map(|cx| (cx, cy)));
+            }
+            let across = lines.len();
+            for cx in 0..cols {
+                push_runs(&mut lines, &mut (0..rows).map(|cy| (cx, cy)));
+            }
+            for (k, l) in lines.iter().enumerate() {
+                let (cx, cy) = l[0];
+                let s = if k < across {
+                    let mut s = vec![at(2 * cx, 2 * cy + 1)];
+                    s.extend(l.iter().map(|&(cx, cy)| at(2 * cx + 2, 2 * cy + 1)));
+                    s
+                } else {
+                    let mut s = vec![at(2 * cx + 1, 2 * cy)];
+                    s.extend(l.iter().map(|&(cx, cy)| at(2 * cx + 1, 2 * cy + 2)));
+                    s
+                };
+                strokes.push(s);
+            }
+        }
+        CrossKind::Full | CrossKind::Smyrna => {}
+    }
+    strokes
+        .into_iter()
+        .map(|s| {
+            let mut run = s.clone();
+            for k in 0..2 * times.max(1) - 1 {
+                if k % 2 == 0 {
+                    run.extend(s.iter().rev().skip(1));
+                } else {
+                    run.extend(s.iter().skip(1));
+                }
+            }
+            run
+        })
+        .collect()
 }
 
 // ------------------------------------------------------------------ circles and spirals

@@ -403,6 +403,8 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
   split evenly if you choose ([#459]).
 - **Concentric circle, radial and spiral** as PE-DESIGN 11.50 sews them ([#138]).
 - **Stippling, net fill, zigzag net fill, piping and cross stitch regions.**
+- **Cross stitch Times** (Single, Double, Triple) as PE-DESIGN 11.50 sews it, with no Direction,
+  and (+) half, upright and Smyrna crosses ([#614]).
 - (+) **Contour fill:** rows that follow the outline as rings, a single or double spiral, or echo
   lines ([#461]).
 - (+) **No piled-up tiny stitches in fill slivers:** stitches under 0.5 mm in a thin sliver are
@@ -702,6 +704,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#557]: https://github.com/cristianonescu/OpenStitch/issues/557
 [#558]: https://github.com/cristianonescu/OpenStitch/issues/558
 [#559]: https://github.com/cristianonescu/OpenStitch/issues/559
+[#614]: https://github.com/cristianonescu/OpenStitch/issues/614
 [#627]: https://github.com/cristianonescu/OpenStitch/issues/627
 [#652]: https://github.com/cristianonescu/OpenStitch/issues/652
 

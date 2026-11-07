@@ -497,6 +497,11 @@ pub struct Shape {
     /// Body +178: 1 in PE-DESIGN's tool defaults, 0 in the owner's machine-* files and on Convert
     /// to Blocks' blocks (meaning not mapped).
     pub flag_178: u16,
+    /// Cross Stitch Size, mm (body +282, 0.1 mm: 25 for PE-DESIGN's 2.5 mm default).
+    pub cross_size: f32,
+    /// Cross Stitch Times as PE-DESIGN writes it (body +284): 2 Single, 4 Double, 6 Triple,
+    /// the times each diagonal is covered (614-cross-single/-double/-triple, #614).
+    pub cross_passes: u16,
     /// The fields of the sew types the object doesn't use hold their plain values
     /// ([`PLAIN_SETTINGS`]) rather than PE-DESIGN's tool values ([`TOOL_SETTINGS`]): the
     /// Applique Wizard's covering line (a01-rect-applique) and shapes from a vector import
@@ -577,6 +582,8 @@ impl Shape {
             running_path: 0,
             under_sewing_type: 2,
             flag_178: 1,
+            cross_size: 2.5,
+            cross_passes: 2,
             plain_settings: false,
             flag_176: 1,
             gallery: false,
@@ -1380,6 +1387,8 @@ fn read_line(r: &mut ByteReader<'_>) -> Result<Option<Shape>> {
         running_path: u16_at(body, 186),
         under_sewing_type: u16_at(body, 182),
         flag_178: u16_at(body, 178),
+        cross_size: f32::from(u16_at(body, 282)) / 10.0,
+        cross_passes: u16_at(body, 284),
         plain_settings: SETTINGS_FIELDS
             .iter()
             .zip(PLAIN_SETTINGS)
@@ -2079,6 +2088,8 @@ fn write_line(w: &mut ByteWriter, s: &Shape) {
     put16(&mut head, 180, u16::from(s.under_sewing));
     put16(&mut head, 182, s.under_sewing_type);
     put16(&mut head, 186, s.running_path);
+    put16(&mut head, 282, tenths(s.cross_size));
+    put16(&mut head, 284, s.cross_passes);
     // Reference points: five at the bounds' top-left corner, two at their centre (i32 x, y).
     for at in [204, 262, 286, 354, 378] {
         put32(&mut head, at, i32::from(x0));
