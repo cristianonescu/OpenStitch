@@ -66,6 +66,8 @@ mod font_from_image;
 mod fonts;
 #[path = "free_hoopings.rs"]
 mod free_hoopings;
+#[path = "hand_edits.rs"]
+mod hand_edits;
 #[path = "hoop_lists.rs"]
 mod hoop_lists;
 #[path = "imports.rs"]

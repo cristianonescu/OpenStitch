@@ -276,8 +276,9 @@ feature is done and the rest is under [Planned](#planned).
   freezes ([#558]).
 - (+) **Several designs as tabs** in one window, each with its own undo, selection and zoom
   ([#552]).
-- (+) **Stitch Table:** every needle point of a stitch pattern with its exact position; type
-  coordinates, insert and delete points, each one undo step ([#501]).
+- (+) **Stitch Table:** every needle point of a stitch pattern, or of a live fill, satin or
+  line, with its exact position; type coordinates, insert and delete points, each one undo
+  step; hand edits on a live object last until a sewing setting changes ([#501]).
 - (+) **Keyboard-only drawing:** arrow keys move a drawing cursor, Space places points, Return
   finishes; `[` and `]` or the scroll wheel set a satin line's width while drawing ([#499],
   [#707]).
