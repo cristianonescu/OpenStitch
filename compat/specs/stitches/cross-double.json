@@ -1,0 +1,116 @@
+{
+  "schema": "openstitch-compat/1",
+  "id": "cross-double",
+  "area": "stitches",
+  "title": "Cross stitch, Times Double",
+  "description": "A 20 x 20 mm cross stitch region at PE-DESIGN's defaults (Size 2.5 mm) with Times Double: 64 whole cells on the page axes. PE-DESIGN covers every diagonal 4 times; OpenStitch sews each diagonal whole 3 times plus its two halves, so every step of Times adds 256 stitches in both programs (PE 410, 666, 922; OpenStitch 18 more each, its route between rows differs, #463).",
+  "covers": {
+    "audit": [],
+    "featureMatrix": [
+      {
+        "area": "Region sew types",
+        "feature": "Programmable fill"
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "kind": "measured",
+      "note": "compat/reference/stitches/cross-double.pes (PE-DESIGN 11.50, 2026-11-07, round 8, #614): 20,00 x 20,00 mm, 666 st"
+    }
+  ],
+  "script": [
+    {
+      "command": "design.new",
+      "params": {
+        "width": 100,
+        "height": 100
+      }
+    },
+    {
+      "command": "shape.rectangle",
+      "params": {
+        "x": 40,
+        "y": 40,
+        "width": 20,
+        "height": 20
+      }
+    },
+    {
+      "command": "object.setRegion",
+      "params": {
+        "id": 1,
+        "type": "crossStitch",
+        "times": "double"
+      }
+    },
+    {
+      "command": "object.setLine",
+      "params": {
+        "id": 1,
+        "type": "none"
+      }
+    }
+  ],
+  "exports": [
+    {
+      "path": "region.pes"
+    }
+  ],
+  "references": [
+    {
+      "id": "pe-design",
+      "file": "stitches/cross-double.pes",
+      "make": "On a 100 x 100 mm Design Page (grid 1 mm) draw a 20 x 20 mm square from (40, 40) to (60, 60) mm with Home > Shapes > Rectangle. Shapes tab > Sew: line Not Sewn (Line); region Cross Stitch, Size 2.5 mm (the default), Times Double; PE-DESIGN 11.50 shows no Direction for cross stitch. Save As 'Layout & Editing Ver 11.0 File (*.PES)'. Status bar 20,00 x 20,00 mm, 666 st."
+    }
+  ],
+  "measurements": [
+    {
+      "id": "stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "region.pes"
+      },
+      "evidence": "PE-DESIGN 11.50's file (666 st in the status bar): Times Double covers each diagonal the same number of times in both programs",
+      "reference": {
+        "tolerance": {
+          "percent": 5
+        }
+      }
+    },
+    {
+      "id": "bounds-width",
+      "measure": {
+        "kind": "bounds",
+        "property": "width"
+      },
+      "source": {
+        "export": "region.pes"
+      },
+      "evidence": "PE-DESIGN 11.50's file (20,00 x 20,00 mm): the grid on the page axes fills the square",
+      "reference": {
+        "tolerance": {
+          "mm": 0.35
+        }
+      }
+    },
+    {
+      "id": "bounds-height",
+      "measure": {
+        "kind": "bounds",
+        "property": "height"
+      },
+      "source": {
+        "export": "region.pes"
+      },
+      "evidence": "PE-DESIGN 11.50's file (20,00 x 20,00 mm): the grid on the page axes fills the square",
+      "reference": {
+        "tolerance": {
+          "mm": 0.35
+        }
+      }
+    }
+  ]
+}

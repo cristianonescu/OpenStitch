@@ -20,7 +20,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 - Lengths are **millimetres**. The Design Page's origin is its **top-left corner**; x grows to
   the right, y grows **down**. A 100 × 100 mm page has its centre at (50, 50).
 - **Sewing angles** (`object.setRegion` `angle`) are degrees **counter-clockwise on screen**,
-  0 = horizontal rows; 45 = rows rising to the right; 90 = vertical rows.
+  0 = horizontal rows; 45 = rows rising to the right; 90 = vertical rows. Cross stitch
+  (`type: crossStitch`) ignores `angle`: its grid stays on the page axes, as in PE-DESIGN. Set
+  its `spacing` (cell size) and `times` (`single`, `double`, `triple`); `crossKind` `half`,
+  `upright` or `smyrna` is beyond PE-DESIGN (default `full`).
 - **Rotation** of objects (`object.rotate` `degrees`) and of preset shapes (`shape.preset`
   `rotation`) is **clockwise**.
 - Densities are rows (or lines) per mm; `pitch` and `stitchLength` are mm.
@@ -97,6 +100,12 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    filled shape: `object.deriveSkeleton {id, branches: true, joinOverlap: 0.3}` makes a
    grouped satin column per arm (the shape stays hidden); check `warnings` for columns over
    10 mm and look at the junctions with `view_render`.
+   Borders, quilting and crazy-quilt seams (beyond PE-DESIGN): `object.setLine {type: chevron |
+   cretan | feather | overlock | alternatingTriangles | doubleZigzag | lattice | stripes, width,
+   spacing}` (`height` sets the chevron bar or Cretan/feather side stitch, `strands` a lattice's
+   or the stripes' count, `gaps: [1, 2, 1]` pinstripes); overlock edges a patch or appliqué,
+   feather and Cretan suit crazy quilts, a lattice or double zigzag reads as a braid or lace;
+   an E stitch's `prongAngle: 45` slants its prongs.
    Hand-made lines (beyond PE-DESIGN): `object.setLine {type: backStitch}` for redwork and
    quilt outlines (two stitches forward, one back); `{type: scribble, width, runTimes,
    noiseScale, seed}` for sketchy doodles; on a running line `profile: arc` (or `linear`,
@@ -247,7 +256,10 @@ line with widths becomes a satin line). The shape commands (`shape.polygon`, `sh
 remain the direct way to draw.
 To fix single needle points of a stitch pattern, `stitches.points {id}` lists them and
 `stitches.setPoint` / `insertPoint` / `deletePoints` edit them; `ui.stitchTable {open: true,
-select: [indexes]}` shows the user the same rows and highlights them on the canvas.
+select: [indexes]}` shows the user the same rows and highlights them on the canvas. The same
+commands take a live shape or text: its generated stitches become hand edits and it stays
+editable; a sewing setting change drops them (the edit's reply lists `handEditsDropped`), and
+`object.regenerate {ids}` drops them on purpose.
 To show the user what a setting would look like before changing it, `ui.preview {command:
 "object.setRegion", params: {ids, type}}` swaps in the stitches of that change on the canvas
 (no undo step, the design unchanged; `ui.render` shows them too); `ui.preview {clear: true}`
@@ -321,9 +333,9 @@ digitizing are desktop-only; say so instead of trying them in the browser.
   `python/README.md`: `Session().exec("shape.ellipse", ...)` with these same commands).
 - "Make a thumbnail / preview picture of this file" at a terminal: `stitchtool thumbnail
   design.pes out.png [--size 256]` writes the stitches on a transparent square (16 to 1024
-  px), the same picture Finder (Quick Look, with OpenStitch.app installed) and Linux file
-  managers show; Explorer thumbnails are not available yet. In the editor, `view_render`
-  shows the design instead.
+  px), the same picture Finder (Quick Look, with OpenStitch.app installed), Windows Explorer
+  (with OpenStitch installed from its MSI) and Linux file managers show. In the editor,
+  `view_render` shows the design instead.
 - "Open the ready-to-sew designs": `ui.help {item: "sewKit"}` shows the packaged kit in the
   file manager and replies with its `folder`, or with the GitHub `url` it opened instead.
 - **Test swatches** (sew a test before the real thing; each writes a new design file to

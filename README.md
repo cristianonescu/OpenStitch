@@ -276,8 +276,11 @@ feature is done and the rest is under [Planned](#planned).
   freezes ([#558]).
 - (+) **Several designs as tabs** in one window, each with its own undo, selection and zoom
   ([#552]).
-- (+) **Stitch Table:** every needle point of a stitch pattern with its exact position; type
-  coordinates, insert and delete points, each one undo step ([#501]).
+- (+) **Thumbnails in Windows Explorer:** designs and machine files show their stitches in
+  Explorer, as they do in the macOS Finder ([#669]).
+- (+) **Stitch Table:** every needle point of a stitch pattern, or of a live fill, satin or
+  line, with its exact position; type coordinates, insert and delete points, each one undo
+  step; hand edits on a live object last until a sewing setting changes ([#501]).
 - (+) **Keyboard-only drawing:** arrow keys move a drawing cursor, Space places points, Return
   finishes; `[` and `]` or the scroll wheel set a satin line's width while drawing ([#499],
   [#707]).
@@ -386,6 +389,9 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
 - **Cutting lines** for cutwork needles, with uncut bridges.
 - (+) **Back stitch and brush-stroke running lines:** two forward, one back; or a running line
   sewn more times where a thickness profile swells ([#542]).
+- (+) **Decorative hand-embroidery lines:** chevron, Cretan, feather, overlock, alternating
+  triangles, double zigzag, lattice and stripes along any line, and slanted E stitch prongs
+  ([#543]).
 - (+) **Hand-stitch look and scribble lines:** seeded, uneven hand-sewn stitches on lines and on
   one side of a satin, and a sketchy scribble ([#540]).
 - **Start/End Feed or Run** and line entry and exit points, as PE-DESIGN sews them.
@@ -405,6 +411,8 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
   split evenly if you choose ([#459]).
 - **Concentric circle, radial and spiral** as PE-DESIGN 11.50 sews them ([#138]).
 - **Stippling, net fill, zigzag net fill, piping and cross stitch regions.**
+- **Cross stitch Times** (Single, Double, Triple) as PE-DESIGN 11.50 sews it, with no Direction,
+  and (+) half, upright and Smyrna crosses ([#614]).
 - (+) **Contour fill:** rows that follow the outline as rings, a single or double spiral, or echo
   lines ([#461]).
 - (+) **No piled-up tiny stitches in fill slivers:** stitches under 0.5 mm in a thin sliver are
@@ -686,6 +694,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#537]: https://github.com/cristianonescu/OpenStitch/issues/537
 [#540]: https://github.com/cristianonescu/OpenStitch/issues/540
 [#542]: https://github.com/cristianonescu/OpenStitch/issues/542
+[#543]: https://github.com/cristianonescu/OpenStitch/issues/543
 [#545]: https://github.com/cristianonescu/OpenStitch/issues/545
 [#546]: https://github.com/cristianonescu/OpenStitch/issues/546
 [#547]: https://github.com/cristianonescu/OpenStitch/issues/547
@@ -696,15 +705,18 @@ See also [New: the Assistant](#new-the-assistant).
 [#552]: https://github.com/cristianonescu/OpenStitch/issues/552
 [#707]: https://github.com/cristianonescu/OpenStitch/issues/707
 [#499]: https://github.com/cristianonescu/OpenStitch/issues/499
+[#669]: https://github.com/cristianonescu/OpenStitch/issues/669
 [#501]: https://github.com/cristianonescu/OpenStitch/issues/501
 [#656]: https://github.com/cristianonescu/OpenStitch/issues/656
 [#499]: https://github.com/cristianonescu/OpenStitch/issues/499
+[#669]: https://github.com/cristianonescu/OpenStitch/issues/669
 [#553]: https://github.com/cristianonescu/OpenStitch/issues/553
 [#554]: https://github.com/cristianonescu/OpenStitch/issues/554
 [#556]: https://github.com/cristianonescu/OpenStitch/issues/556
 [#557]: https://github.com/cristianonescu/OpenStitch/issues/557
 [#558]: https://github.com/cristianonescu/OpenStitch/issues/558
 [#559]: https://github.com/cristianonescu/OpenStitch/issues/559
+[#614]: https://github.com/cristianonescu/OpenStitch/issues/614
 [#627]: https://github.com/cristianonescu/OpenStitch/issues/627
 [#652]: https://github.com/cristianonescu/OpenStitch/issues/652
 

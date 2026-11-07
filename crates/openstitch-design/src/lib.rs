@@ -9,6 +9,7 @@ pub mod column;
 pub mod compile;
 pub mod concentric;
 pub mod contour;
+pub mod decorative;
 pub mod direction;
 pub mod effects;
 mod envelope_presets;
@@ -20,6 +21,7 @@ pub mod freehand;
 pub mod generate;
 pub mod geometry;
 pub mod graph;
+pub mod hand_edits;
 pub mod hidden;
 pub mod holes;
 pub mod knife;
@@ -63,11 +65,11 @@ pub use machine::{
     SewingArea, UserHoop, estimate, find_hoop,
 };
 pub use model::{
-    Arrange, BackgroundImage, BackgroundLayer, ChainShape, ContourJoin, ContourStrategy, Design,
-    DesignObject, DesignPage, DesignProperties, FILL_TEXTURES, Feather, FeatherSide,
-    FillStitchType, FillTexture, Gradation, Guides, ImageAdjust, JobInfo, LineGap, LineSewing,
-    LineType, ObjectKind, OptimizeOrder, RegionSewing, RegionType, RunningStitchPath, StaggerKind,
-    StartEnd, StitchBlock, UnderlayDensity, UnderlayParts, UnderlayStyle,
+    Arrange, BackgroundImage, BackgroundLayer, ChainShape, ContourJoin, ContourStrategy, CrossKind,
+    CrossTimes, Design, DesignObject, DesignPage, DesignProperties, FILL_TEXTURES, Feather,
+    FeatherSide, FillStitchType, FillTexture, Gradation, Guides, ImageAdjust, JobInfo, LineGap,
+    LineSewing, LineType, ObjectKind, OptimizeOrder, RegionSewing, RegionType, RunningStitchPath,
+    StaggerKind, StartEnd, StitchBlock, UnderlayDensity, UnderlayParts, UnderlayStyle,
 };
 pub use text::{
     CharEdit, FONTS, FontInfo, FontKind, Layout, PathFit, PixelStyle, Spread, TextAlign,

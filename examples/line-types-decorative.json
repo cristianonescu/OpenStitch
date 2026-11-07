@@ -1,0 +1,361 @@
+[
+ {
+  "command": "design.new",
+  "params": {
+   "name": "decorative lines",
+   "width": 100,
+   "height": 110
+  }
+ },
+ {
+  "command": "shape.path",
+  "params": {
+   "points": [
+    [
+     8,
+     10
+    ],
+    [
+     92,
+     10
+    ]
+   ],
+   "closed": false,
+   "curves": [
+    [
+     [
+      35,
+      3
+     ],
+     [
+      65,
+      17
+     ]
+    ]
+   ],
+   "outline": "Black"
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 1,
+   "type": "chevron",
+   "width": 4,
+   "spacing": 4,
+   "height": 1.5
+  }
+ },
+ {
+  "command": "shape.path",
+  "params": {
+   "points": [
+    [
+     8,
+     21
+    ],
+    [
+     92,
+     21
+    ]
+   ],
+   "closed": false,
+   "curves": [
+    [
+     [
+      35,
+      14
+     ],
+     [
+      65,
+      28
+     ]
+    ]
+   ],
+   "outline": "Red"
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 2,
+   "type": "cretan",
+   "width": 4,
+   "spacing": 4,
+   "height": 1.5
+  }
+ },
+ {
+  "command": "shape.path",
+  "params": {
+   "points": [
+    [
+     8,
+     32
+    ],
+    [
+     92,
+     32
+    ]
+   ],
+   "closed": false,
+   "curves": [
+    [
+     [
+      35,
+      25
+     ],
+     [
+      65,
+      39
+     ]
+    ]
+   ],
+   "outline": "Blue"
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 3,
+   "type": "feather",
+   "width": 4,
+   "spacing": 4,
+   "height": 1.5
+  }
+ },
+ {
+  "command": "shape.path",
+  "params": {
+   "points": [
+    [
+     8,
+     43
+    ],
+    [
+     92,
+     43
+    ]
+   ],
+   "closed": false,
+   "curves": [
+    [
+     [
+      35,
+      36
+     ],
+     [
+      65,
+      50
+     ]
+    ]
+   ],
+   "outline": "Deep Rose"
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 4,
+   "type": "overlock",
+   "width": 3,
+   "spacing": 2
+  }
+ },
+ {
+  "command": "shape.path",
+  "params": {
+   "points": [
+    [
+     8,
+     54
+    ],
+    [
+     92,
+     54
+    ]
+   ],
+   "closed": false,
+   "curves": [
+    [
+     [
+      35,
+      47
+     ],
+     [
+      65,
+      61
+     ]
+    ]
+   ],
+   "outline": "Emerald Green"
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 5,
+   "type": "alternatingTriangles",
+   "width": 4,
+   "spacing": 4
+  }
+ },
+ {
+  "command": "shape.path",
+  "params": {
+   "points": [
+    [
+     8,
+     65
+    ],
+    [
+     92,
+     65
+    ]
+   ],
+   "closed": false,
+   "curves": [
+    [
+     [
+      35,
+      58
+     ],
+     [
+      65,
+      72
+     ]
+    ]
+   ],
+   "outline": "Purple"
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 6,
+   "type": "doubleZigzag",
+   "width": 4,
+   "spacing": 4
+  }
+ },
+ {
+  "command": "shape.path",
+  "params": {
+   "points": [
+    [
+     8,
+     76
+    ],
+    [
+     92,
+     76
+    ]
+   ],
+   "closed": false,
+   "curves": [
+    [
+     [
+      35,
+      69
+     ],
+     [
+      65,
+      83
+     ]
+    ]
+   ],
+   "outline": "Orange"
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 7,
+   "type": "lattice",
+   "width": 4,
+   "spacing": 5,
+   "strands": 3
+  }
+ },
+ {
+  "command": "shape.path",
+  "params": {
+   "points": [
+    [
+     8,
+     87
+    ],
+    [
+     92,
+     87
+    ]
+   ],
+   "closed": false,
+   "curves": [
+    [
+     [
+      35,
+      80
+     ],
+     [
+      65,
+      94
+     ]
+    ]
+   ],
+   "outline": "Dark Brown"
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 8,
+   "type": "stripes",
+   "width": 4,
+   "gaps": [
+    1,
+    2,
+    1
+   ]
+  }
+ },
+ {
+  "command": "shape.path",
+  "params": {
+   "points": [
+    [
+     8,
+     98
+    ],
+    [
+     92,
+     98
+    ]
+   ],
+   "closed": false,
+   "curves": [
+    [
+     [
+      35,
+      91
+     ],
+     [
+      65,
+      105
+     ]
+    ]
+   ],
+   "outline": "Teal Green"
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 9,
+   "type": "eStitch",
+   "width": 3,
+   "spacing": 3,
+   "prongAngle": 45
+  }
+ }
+]

@@ -10,9 +10,9 @@ use openstitch_design::patterns::{self, Pattern, PatternKind};
 use openstitch_design::shapes::{self, ArcMode};
 use openstitch_design::text::{self, TextAlign, TextDirection, TextSpec};
 use openstitch_design::{
-    Arrange, Bezier, ChainShape, Compiler, Contour, Design, DesignObject, DesignPage,
-    FILL_TEXTURES, Feather, FeatherSide, FillStitchType, Gradation, Layout, LineSewing, LineType,
-    ObjectKind, Rect, RegionSewing, RegionType, RunningStitchPath, StaggerKind, StartEnd,
+    Arrange, Bezier, ChainShape, Compiler, Contour, CrossKind, CrossTimes, Design, DesignObject,
+    DesignPage, FILL_TEXTURES, Feather, FeatherSide, FillStitchType, Gradation, Layout, LineSewing,
+    LineType, ObjectKind, Rect, RegionSewing, RegionType, RunningStitchPath, StaggerKind, StartEnd,
     Transform, UnderlayDensity, UnderlayParts, UnderlayStyle, Vec2, v2,
 };
 use serde_json::{Value, json};
@@ -1253,7 +1253,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "angle",
                     "degrees",
-                    "Sewing direction, counter-clockwise on screen as in PE-DESIGN (0 = horizontal); a cross stitch grid stays on the page axes",
+                    "Sewing direction, counter-clockwise on screen as in PE-DESIGN (0 = horizontal); ignored by cross stitch, which PE-DESIGN 11.50 sews on the page axes with no Direction",
                 ),
                 opt(
                     "density",
@@ -1453,9 +1453,19 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     "Contour fill: rings outside the shape, 0-30",
                 ),
                 opt(
+                    "times",
+                    "single|double|triple",
+                    "Cross stitch: PE-DESIGN's Times, how many times every cross is sewn (each diagonal covered 2, 4 or 6 times)",
+                ),
+                opt(
+                    "crossKind",
+                    "full|half|upright|smyrna",
+                    "Cross stitch: the stitch in every cell, a full X (PE-DESIGN, default), or beyond PE-DESIGN a half cross (/), an upright cross (+) or a Smyrna cross (X with a + over it)",
+                ),
+                opt(
                     "triple",
                     "bool",
-                    "Cross stitch: sew every diagonal three times",
+                    "Cross stitch: the old switch, true is times double (each diagonal three times whole), false single",
                 ),
                 opt(
                     "randomShift",
@@ -1818,7 +1828,38 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     if p.has("echoLines") {
                         r.echo_lines = p.req("echoLines", 0.0, 30.0)?.round() as u32;
                     }
-                    r.triple = p.bool("triple", Some(r.triple))?;
+                    if p.has("triple") {
+                        r.times = if p.bool("triple", None)? {
+                            CrossTimes::Double
+                        } else {
+                            CrossTimes::Single
+                        };
+                        r.triple = false;
+                    }
+                    if let Some(t) = choice(
+                        p,
+                        "times",
+                        &[
+                            ("single", CrossTimes::Single),
+                            ("double", CrossTimes::Double),
+                            ("triple", CrossTimes::Triple),
+                        ],
+                    )? {
+                        r.times = t;
+                        r.triple = false;
+                    }
+                    if let Some(k) = choice(
+                        p,
+                        "crossKind",
+                        &[
+                            ("full", CrossKind::Full),
+                            ("half", CrossKind::Half),
+                            ("upright", CrossKind::Upright),
+                            ("smyrna", CrossKind::Smyrna),
+                        ],
+                    )? {
+                        r.cross_kind = k;
+                    }
                     if p.has("randomShift") {
                         r.random_shift = Some(p.req("randomShift", 0.0, 50.0)?);
                     }
@@ -1869,8 +1910,8 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 IDS,
                 opt(
                     "type",
-                    "running|triple|zigzag|motif|stem|candlewick|eStitch|vStitch|chain|cutting|satin|backStitch|scribble|none",
-                    "Line sew type. satin (beyond PE-DESIGN) is a satin column along the line whose width can change along it: width (mm, all along), widthKeys, taperStart, taperEnd and slant shape it, and the satin options (cornerStyle, shortStitchDistance, pull*, satinStyle, jaggedEdge, raised) apply as on zigzag; object.setWidthKey and object.deleteWidthKey edit single keys. backStitch (two forward, one back) and scribble (a zigzag sewn runTimes times with smooth random side offsets, width wide) are beyond PE-DESIGN too",
+                    "running|triple|zigzag|motif|stem|candlewick|eStitch|vStitch|chain|cutting|satin|backStitch|scribble|chevron|cretan|feather|overlock|alternatingTriangles|doubleZigzag|lattice|stripes|none",
+                    "Line sew type. satin (beyond PE-DESIGN) is a satin column along the line whose width can change along it: width (mm, all along), widthKeys, taperStart, taperEnd and slant shape it, and the satin options (cornerStyle, shortStitchDistance, pull*, satinStyle, jaggedEdge, raised) apply as on zigzag; object.setWidthKey and object.deleteWidthKey edit single keys. backStitch (two forward, one back) and scribble (a zigzag sewn runTimes times with smooth random side offsets, width wide) are beyond PE-DESIGN too. Decorative hand-embroidery lines (beyond PE-DESIGN, #543), width the band: chevron (a bar along the line at each peak), cretan (a short stitch in from each peak, height long), feather (the side stitches turned forward), overlock (a serger-like edge), alternatingTriangles (triangles between two rails), doubleZigzag (a zigzag and its mirror: diamonds), lattice (strands crossing), stripes (rows along the band, strands or gaps); spacing is the zigzag period",
                 ),
                 opt("color", "color", "Thread"),
                 opt(
@@ -1898,7 +1939,11 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     "string",
                     "Motif id from patterns.list (motif lines)",
                 ),
-                opt("height", "mm", "Motif height, 0.5-20"),
+                opt(
+                    "height",
+                    "mm",
+                    "Motif height; chevron bar and Cretan and feather side-stitch length (default 1.5), 0.5-20",
+                ),
                 opt(
                     "spacing",
                     "mm",
@@ -1937,6 +1982,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
             .into_iter()
             .chain(crate::satin_shaping::SHAPING_PARAMS)
             .chain(crate::line_looks::LINE_PARAMS)
+            .chain(crate::decorative_params::PARAMS)
             .chain([opt(
                 "underlayStyle",
                 "edge|centreWalk|edgeZigzag|auto",
@@ -2096,6 +2142,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     crate::satin_shaping::apply_shaping(p, &mut l.satin_shaping)?;
                     crate::satin_shaping::apply_auto(p, &mut l.underlay_auto)?;
                     crate::line_looks::apply_line(p, &mut l)?;
+                    crate::decorative_params::apply(p, &mut l)?;
                     crate::satin_shaping::apply_satin_line(p, &mut l)?;
                     if matches!(l.kind, LineType::Zigzag | LineType::Satin)
                         && let Some(h) = crate::satin_shaping::raised_hint(&l.satin_shaping, l.width)

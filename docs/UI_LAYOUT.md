@@ -343,7 +343,11 @@ opens a window listing every needle point of the selected stitch pattern (index,
 command, colour block). Type or drag X and Y to move a point exactly; **Insert** adds a point
 halfway along the line into the first selected row, **Delete** removes the selected rows; each
 is one Undo. Click, Ctrl+click and Shift+click select rows, which the Point tool shows on the
-canvas.
+canvas. A selected shape or text (a fill, satin, line or lettering) has the same table: editing
+its points keeps it a live object with **stitches edited by hand**, sewn while its settings and
+shape stay as they are (moving it keeps them); a sewing setting change, a reshape, a rotation
+or a resize discards them with a message, and **Regenerate** (in the table and in Sewing
+Attributes) drops them on purpose.
 
 ![Stitch Table](images/rust-editor-stitch-table.png)
 

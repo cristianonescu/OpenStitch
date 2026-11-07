@@ -38,6 +38,8 @@ mod coverage_pattern_points;
 mod coverage_shape_ops;
 #[path = "coverage_stitch_types.rs"]
 mod coverage_stitch_types;
+#[path = "decorative_lines.rs"]
+mod decorative_lines;
 #[path = "determinism.rs"]
 mod determinism;
 #[path = "digitize.rs"]
@@ -64,6 +66,8 @@ mod font_from_image;
 mod fonts;
 #[path = "free_hoopings.rs"]
 mod free_hoopings;
+#[path = "hand_edits.rs"]
+mod hand_edits;
 #[path = "hoop_lists.rs"]
 mod hoop_lists;
 #[path = "imports.rs"]

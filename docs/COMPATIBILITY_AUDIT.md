@@ -2799,9 +2799,12 @@ averaged 50/50, on the calibrated render; every result is OpenStitch's output.
   half diagonals: stitches along a cell side 244 → 5 on the kit's cell (the 5 are the travel from
   the start point), trims per 100 crosses 0 → 0. The zigzag net keeps every needle point inside
   the outline (honeycomb 1.1 mm past the edge → 0), its rungs square to each edge and cut where
-  bands meet at a line's end or turn, and travels along the net lines. Open: what the Direction
-  should do on a cross stitch region (it now has no effect; PE reference at another direction
-  needed), and the net's turned grid against PE's page-axis one.
+  bands meet at a line's end or turn, and travels along the net lines. Open: the net's turned
+  grid against PE's page-axis one. Settled 2026-11-07 (#614, round 8): PE-DESIGN 11.50 has no
+  Direction for cross stitch (its Sewing Attributes show only Size and Times), so OpenStitch hides
+  it. Times Single, Double and Triple cover each diagonal 2, 4 or 6 times, 410, 666 and 922
+  stitches on a 20 mm square. OpenStitch sews the same 256 more per step and 18 more at each
+  (its route between rows differs; compat `cross-single`, `-double`, `-triple`).
 - **Line types on curves (#464):** stem, candlewick and chain placed their elements per
   flattened chord, so on a curve they bunched at bends with gaps between. A leg now runs from one
   contour point to the next and is measured along the curve: the stem is an even rope (spacing
@@ -2954,6 +2957,23 @@ auto, shortStitchDistance: 0.25`, read from the exported PES:
 - Not done here: skeleton and Auto satin (#675), satin lettering (#676), fill push and a
   region's second underlay (#677), lap corners. No sew-out yet: the owner's T-card scan of a
   tapered column with `pullPercent: 3` is still needed for #522's ±5 % width target.
+
+### Decorative hand-embroidery lines, 2026-11-07 (#543, `batch:lines`, part 2)
+
+Beyond PE-DESIGN and off unless chosen: no PE-compatible output changes (compat unchanged),
+and PES 0110 export refuses the new types and a slanted E stitch.
+
+- Eight line types laid out in the line's own frame (distance along, offset across), so they
+  follow curves and closed outlines: chevron, Cretan, feather, overlock, alternating
+  triangles, double zigzag, lattice, stripes. Every stitch is at most 7 mm (longer ones
+  split) and no needle point is sewn three times in place.
+- Double zigzag returns as the mirror of its first pass, each return point midway between
+  two first-pass points on its side, without a jump; stripes keep their row count, or sit at
+  the given gaps (±0.2 mm).
+- The E stitch's prong angle (default 0, PE-DESIGN's square prongs, unchanged) slants the
+  prongs forward at their full length.
+- PE-DESIGN 11.50 has E and V stitch and motif lines only; the defaults here are
+  OpenStitch's, to be checked on an NV880E sew-out.
 
 ### Hand-made lines, 2026-11-07 (#540, #542, `batch:lines`, part 1)
 

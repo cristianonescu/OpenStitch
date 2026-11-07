@@ -635,6 +635,10 @@ pub struct DesignObject {
     /// was made with, so it can be rebuilt and kept before what it covers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub knockdown: Option<serde_json::Value>,
+    /// Needle points edited by hand on this live object (#501, beyond PE-DESIGN), sewn instead
+    /// of the generated ones while they still apply ([`crate::hand_edits`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hand_edits: Option<Box<crate::hand_edits::HandEdits>>,
 }
 
 fn yes() -> bool {
@@ -674,6 +678,7 @@ impl DesignObject {
             hide_under: None,
             connector_run: false,
             knockdown: None,
+            hand_edits: None,
         }
     }
 
@@ -701,6 +706,7 @@ impl DesignObject {
             hide_under: None,
             connector_run: false,
             knockdown: None,
+            hand_edits: None,
         }
     }
 
@@ -1141,6 +1147,85 @@ pub const FILL_TEXTURES: [FillTexture; 14] = [
     texture("chevron", "Chevron", StaggerKind::Triangle, 3, 1, 80.0, 16),
     texture("scallops", "Scallops", StaggerKind::Arc, 3, 1, 50.0, 8),
 ];
+
+/// Cross stitch Times, as PE-DESIGN 11.50 offers it (Single | Double | Triple, #614): how many
+/// times every cross is sewn. PE-DESIGN covers each diagonal 2, 4 or 6 times (the round8
+/// references 614-cross-single/-double/-triple: 410, 666 and 922 stitches on a 20 mm square,
+/// 256 more per step for its 64 cells).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CrossTimes {
+    #[default]
+    Single,
+    Double,
+    Triple,
+}
+
+impl CrossTimes {
+    pub const ALL: [CrossTimes; 3] = [CrossTimes::Single, CrossTimes::Double, CrossTimes::Triple];
+
+    /// The name in commands and files.
+    pub fn id(self) -> &'static str {
+        match self {
+            CrossTimes::Single => "single",
+            CrossTimes::Double => "double",
+            CrossTimes::Triple => "triple",
+        }
+    }
+
+    /// 1, 2 or 3.
+    pub fn count(self) -> usize {
+        match self {
+            CrossTimes::Single => 1,
+            CrossTimes::Double => 2,
+            CrossTimes::Triple => 3,
+        }
+    }
+
+    /// From 1, 2 or 3 (anything above 3 is Triple, below 2 Single).
+    pub fn from_count(n: usize) -> Self {
+        match n {
+            0 | 1 => CrossTimes::Single,
+            2 => CrossTimes::Double,
+            _ => CrossTimes::Triple,
+        }
+    }
+}
+
+/// The stitch drawn in every cell of a cross stitch region. PE-DESIGN 11.50 sews only the full
+/// cross (X); the others are OpenStitch's own (beyond PE-DESIGN, #614).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CrossKind {
+    /// An X: both diagonals (PE-DESIGN's cross stitch).
+    #[default]
+    Full,
+    /// Half cross: the "/" diagonal only.
+    Half,
+    /// Upright cross: a "+" through the cell's middle.
+    Upright,
+    /// Smyrna (double) cross: an X with a "+" over it.
+    Smyrna,
+}
+
+impl CrossKind {
+    pub const ALL: [CrossKind; 4] = [
+        CrossKind::Full,
+        CrossKind::Half,
+        CrossKind::Upright,
+        CrossKind::Smyrna,
+    ];
+
+    /// The name in commands and files.
+    pub fn id(self) -> &'static str {
+        match self {
+            CrossKind::Full => "full",
+            CrossKind::Half => "half",
+            CrossKind::Upright => "upright",
+            CrossKind::Smyrna => "smyrna",
+        }
+    }
+}
 
 impl UnderlayStyle {
     pub const ALL: [UnderlayStyle; 8] = [
@@ -1585,9 +1670,16 @@ pub struct RegionSewing {
     /// Spirals turn counter-clockwise.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub counterclockwise: bool,
-    /// Cross stitch: each diagonal sewn three times.
+    /// Cross stitch: the old "triple" switch (each diagonal sewn three times whole), which is
+    /// Times Double's sewing; read from older files only (see [`RegionSewing::cross_times`]).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub triple: bool,
+    /// Cross stitch Times (PE-DESIGN's Single, Double, Triple).
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub times: CrossTimes,
+    /// Cross stitch kind: full (PE-DESIGN), half, upright or Smyrna (beyond PE-DESIGN).
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub cross_kind: CrossKind,
     /// Decorative fill: random shift of needle points, % of the run pitch.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub random_shift: Option<f64>,
@@ -1708,6 +1800,8 @@ impl RegionSewing {
             start_inside: false,
             counterclockwise: false,
             triple: false,
+            times: CrossTimes::Single,
+            cross_kind: CrossKind::Full,
             random_shift: None,
             base_sewing: false,
             contour_strategy: ContourStrategy::default(),
@@ -1920,6 +2014,16 @@ impl RegionSewing {
             }
     }
 
+    /// Cross stitch Times: `times`, or Double for a region saved with the old `triple` switch
+    /// (which sewed what Double sews).
+    pub fn cross_times(&self) -> CrossTimes {
+        if self.triple && self.times == CrossTimes::Single {
+            CrossTimes::Double
+        } else {
+            self.times
+        }
+    }
+
     /// The under sewing's components: `underlay_parts` when set, else those of
     /// `underlay_style` (on a column with several direction lines, PE-DESIGN's column
     /// under sewing for that style: [`UnderlayStyle::column_parts`]).
@@ -1969,10 +2073,26 @@ pub enum LineType {
     BackStitch,
     /// A zigzag sewn several times with smooth random side offsets (#540, beyond PE-DESIGN).
     Scribble,
+    /// Decorative hand-embroidery line (#543, beyond PE-DESIGN): chevron stitch.
+    Chevron,
+    /// Decorative hand-embroidery line (#543, beyond PE-DESIGN): cretan stitch.
+    Cretan,
+    /// Decorative hand-embroidery line (#543, beyond PE-DESIGN): feather stitch.
+    Feather,
+    /// Decorative hand-embroidery line (#543, beyond PE-DESIGN): overlock stitch.
+    Overlock,
+    /// Decorative hand-embroidery line (#543, beyond PE-DESIGN): alternating triangles stitch.
+    AlternatingTriangles,
+    /// Decorative hand-embroidery line (#543, beyond PE-DESIGN): double zigzag stitch.
+    DoubleZigzag,
+    /// Decorative hand-embroidery line (#543, beyond PE-DESIGN): lattice stitch.
+    Lattice,
+    /// Decorative hand-embroidery line (#543, beyond PE-DESIGN): stripes stitch.
+    Stripes,
 }
 
 impl LineType {
-    pub const ALL: [LineType; 13] = [
+    pub const ALL: [LineType; 21] = [
         LineType::Running,
         LineType::Triple,
         LineType::Zigzag,
@@ -1986,6 +2106,14 @@ impl LineType {
         LineType::Satin,
         LineType::BackStitch,
         LineType::Scribble,
+        LineType::Chevron,
+        LineType::Cretan,
+        LineType::Feather,
+        LineType::Overlock,
+        LineType::AlternatingTriangles,
+        LineType::DoubleZigzag,
+        LineType::Lattice,
+        LineType::Stripes,
     ];
 
     pub fn id(self) -> &'static str {
@@ -2003,11 +2131,34 @@ impl LineType {
             LineType::Satin => "satin",
             LineType::BackStitch => "backStitch",
             LineType::Scribble => "scribble",
+            LineType::Chevron => "chevron",
+            LineType::Cretan => "cretan",
+            LineType::Feather => "feather",
+            LineType::Overlock => "overlock",
+            LineType::AlternatingTriangles => "alternatingTriangles",
+            LineType::DoubleZigzag => "doubleZigzag",
+            LineType::Lattice => "lattice",
+            LineType::Stripes => "stripes",
         }
     }
 
     pub fn from_id(id: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|k| k.id() == id)
+    }
+
+    /// A decorative hand-embroidery line (#543): sewn by [`crate::decorative`].
+    pub fn is_decorative(self) -> bool {
+        matches!(
+            self,
+            LineType::Chevron
+                | LineType::Cretan
+                | LineType::Feather
+                | LineType::Overlock
+                | LineType::AlternatingTriangles
+                | LineType::DoubleZigzag
+                | LineType::Lattice
+                | LineType::Stripes
+        )
     }
 
     pub fn label(self) -> &'static str {
@@ -2025,6 +2176,14 @@ impl LineType {
             LineType::Satin => "Satin line",
             LineType::BackStitch => "Back stitch",
             LineType::Scribble => "Scribble",
+            LineType::Chevron => "Chevron",
+            LineType::Cretan => "Cretan",
+            LineType::Feather => "Feather",
+            LineType::Overlock => "Overlock",
+            LineType::AlternatingTriangles => "Alternating triangles",
+            LineType::DoubleZigzag => "Double zigzag",
+            LineType::Lattice => "Lattice",
+            LineType::Stripes => "Stripes",
         }
     }
 }
@@ -2160,6 +2319,15 @@ pub struct LineSewing {
     /// Scribble: the variant (another seed sews other stitches).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub seed: Option<u32>,
+    /// Lattice: strands crossing the band; stripes: rows across it (#543).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub strands: Option<u32>,
+    /// Stripes: the gaps between neighbouring rows, mm, instead of even rows (#543).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub gaps: Vec<f64>,
+    /// E stitch: its prongs slanted this many degrees from square to the line (#543).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prong_angle: Option<f64>,
 }
 
 /// An opening in a closed line: `length` mm left unsewn from `offset` mm along the outline
@@ -2270,6 +2438,9 @@ impl LineSewing {
             hand: None,
             noise_scale: None,
             seed: None,
+            strands: None,
+            gaps: Vec::new(),
+            prong_angle: None,
         }
     }
 
@@ -2280,6 +2451,7 @@ impl LineSewing {
             LineType::Stem => 1.5,
             LineType::Candlewick => 1.0,
             LineType::EStitch | LineType::VStitch => 5.0,
+            k if k.is_decorative() => 3.0,
             _ => 1.0,
         })
     }

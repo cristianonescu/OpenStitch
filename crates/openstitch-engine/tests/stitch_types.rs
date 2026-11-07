@@ -579,6 +579,76 @@ fn every_region_type_is_set_sewn_saved_and_undone() {
     assert!(r.underlay);
 }
 
+/// Cross stitch Times (PE-DESIGN's Single, Double, Triple) and the cross kinds beyond PE-DESIGN
+/// (#614) through `object.setRegion`: each sews, Times adds 4 stitches per cell per step, the
+/// old `triple` switch is Times Double, and the settings are saved and undone.
+#[test]
+fn cross_stitch_times_and_kinds_go_through_the_command() {
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 40, "y": 40, "width": 20, "height": 20}),
+    );
+    let stitches = |s: &Session| {
+        Compiler::default()
+            .compile(s.design())
+            .count(Command::Stitch)
+    };
+    let region = |s: &Session| s.design().objects[0].region.clone().expect("region");
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "crossStitch"}),
+    );
+    let single = stitches(&s);
+    for (times, step) in [("double", 1), ("triple", 2), ("single", 0)] {
+        run(&mut s, "object.setRegion", json!({"id": 1, "times": times}));
+        assert_eq!(region(&s).cross_times().id(), times);
+        // 64 cells on a 20 mm square at the default 2.5 mm, as PE-DESIGN's references.
+        assert_eq!(stitches(&s), single + step * 4 * 64, "{times}");
+    }
+    run(&mut s, "object.setRegion", json!({"id": 1, "triple": true}));
+    assert_eq!(region(&s).cross_times().id(), "double");
+    assert_eq!(stitches(&s), single + 4 * 64);
+    for kind in ["half", "upright", "smyrna", "full"] {
+        run(
+            &mut s,
+            "object.setRegion",
+            json!({"id": 1, "crossKind": kind, "times": "triple"}),
+        );
+        assert_eq!(region(&s).cross_kind.id(), kind);
+        assert!(stitches(&s) > 200, "{kind}");
+    }
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "crossKind": "smyrna"}),
+    );
+    let bytes = project::encode(s.design()).expect("encode");
+    assert_eq!(&project::decode(&bytes).expect("decode"), s.design());
+    run(&mut s, "history.undo", json!({}));
+    assert_eq!(region(&s).cross_kind.id(), "full");
+    // The help names the options and says cross stitch ignores the direction.
+    let help = run(&mut s, "commands.list", json!({}))
+        .as_array()
+        .expect("array")
+        .iter()
+        .find(|c| c["id"] == "object.setRegion")
+        .expect("object.setRegion")
+        .to_string();
+    for word in [
+        "times",
+        "single|double|triple",
+        "crossKind",
+        "smyrna",
+        "ignored by cross stitch",
+    ] {
+        assert!(help.contains(word), "{word}");
+    }
+}
+
 #[test]
 fn bad_region_type_parameters_fail_cleanly() {
     let tmp = temp_dir();
@@ -612,6 +682,9 @@ fn bad_region_type_parameters_fail_cleanly() {
         json!({"id": 1, "startInside": "yes"}),
         json!({"id": 1, "counterclockwise": 0}),
         json!({"id": 1, "triple": "no"}),
+        json!({"id": 1, "times": "quadruple"}),
+        json!({"id": 1, "times": 2}),
+        json!({"id": 1, "crossKind": "star"}),
         json!({"id": 1, "randomShift": 60}),
         json!({"id": 1, "baseSewing": null, "spacing": "wide"}),
     ] {
