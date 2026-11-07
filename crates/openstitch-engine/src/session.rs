@@ -264,6 +264,8 @@ impl Session {
                 if scratch.user.optimize_entry_exit {
                     link_new_shapes(&self.state.design, &mut scratch.design);
                 }
+                // New shapes and texts start from the default fabric (#508).
+                crate::fabric::apply_default(&mut scratch, &self.state.design, id);
                 // Text on a path follows any edit of its path.
                 scratch.design.relayout_text();
                 // A branch follows its members (#546).

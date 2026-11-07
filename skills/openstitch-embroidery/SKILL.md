@@ -381,6 +381,10 @@ are desktop-only; say so instead of trying them in the browser.
     row, `fabric.calibrate {fabric, name, fill, satin, pull}` (1–5 each) saves a custom
     fabric (`custom-…` in `fabric.list`) that `fabric.apply` gives to objects;
     `fabric.deleteCustom {fabric}` removes it. Both change the user's settings: say so first.
+- Thread weight (#508): `fabric.apply {fabric, weight}` with No. 60 for small text sews rows
+  closer (density × √(weight / 40)); No. 40 is the default and changes nothing. To make shapes and
+  texts drawn from now on start from a fabric, `fabric.setDefault {fabric, weight}` (`fabric:
+  "none"` clears it; it changes the user's settings, so say so first; `options.get` shows it).
 - "What stabiliser / needle should I use on fleece?": `fabric.advise {fabric, weight}` (weight
   12, 30, 40 or 60; default 40) gives backing, topping, needle point and size and the smallest
   legible block-letter height, each from the makers' published guidance with `sources`; say so
