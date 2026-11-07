@@ -11,10 +11,21 @@ use std::time::{Duration, Instant};
 
 const IDLE: Duration = Duration::from_millis(300);
 
+/// The idle timeout of the busy-client test: long beside its sending gap, so a slow test runner
+/// that oversleeps a gap several times over still sends in time (#751).
+const BUSY_IDLE: Duration = Duration::from_secs(2);
+/// The busy client's gap between sends: an eighth of its idle timeout.
+const BUSY_GAP: Duration = Duration::from_millis(250);
+
 /// Starts a one-connection server with a short idle timeout and a host thread answering requests.
 fn start() -> (std::net::SocketAddr, String, Arc<AtomicBool>) {
+    start_with(IDLE)
+}
+
+/// [`start`] with the given idle timeout.
+fn start_with(idle_timeout: Duration) -> (std::net::SocketAddr, String, Arc<AtomicBool>) {
     let server = Server::start(ServerConfig {
-        idle_timeout: IDLE,
+        idle_timeout,
         max_connections: 1,
         ..Default::default()
     })
@@ -92,14 +103,17 @@ fn a_silent_connection_is_closed_after_the_idle_timeout_and_frees_its_slot() {
 
 #[test]
 fn a_connection_that_keeps_sending_stays_open_past_the_idle_timeout() {
-    let (address, token, stop) = start();
+    // The gap between sends is an eighth of the idle timeout, so the test does not depend on how
+    // promptly the runner wakes from a sleep; it sends until well past the timeout (#751).
+    let (address, token, stop) = start_with(BUSY_IDLE);
     let mut busy = connect(address);
+    let began = Instant::now();
     // Blank lines get no reply but count as activity.
-    for _ in 0..6 {
-        std::thread::sleep(IDLE / 3);
+    while began.elapsed() < BUSY_IDLE + BUSY_IDLE / 2 {
+        std::thread::sleep(BUSY_GAP);
         busy.write_all(b"\n").expect("still open");
     }
-    let reply = request(&mut busy, &token).expect("still open after twice the idle timeout");
+    let reply = request(&mut busy, &token).expect("still open past the idle timeout");
     assert_eq!(reply["ok"], json!(true), "{reply}");
     stop.store(true, Ordering::SeqCst);
 }

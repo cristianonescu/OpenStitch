@@ -62,6 +62,15 @@ were added on 2026-10-30 and 2026-10-31); the texture was cropped, made to tile 
 down. They contain no third-party artwork and are distributed under the repository's licence.
 See docs/LEGAL_AND_LICENSING.md.
 
+## Garment mockups — generated with Higgsfield
+
+The garment pictures in `assets/mockups` (T-shirt, cap, tote bag; #454) were generated for
+OpenStitch with Higgsfield (https://higgsfield.ai, GPT Image 2.6) on 2026-11-07 and cut out with
+its background remover, under the project owner's account and Higgsfield's terms for it, with
+no reference images; prompts and job ids are in `assets/mockups/README.md` and
+`assets/mockups/higgsfield-jobs.tsv`. They were reduced to grey + alpha and scaled down. They
+contain no third-party artwork and are distributed under the repository's licence.
+
 ## Test images — generated with Higgsfield
 
 The pictures in `examples/images`, used to test the image wizards and shown in the README's

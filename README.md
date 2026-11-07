@@ -385,6 +385,7 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
   ([#531]).
 - **Running and triple lines** with run times, curves followed closely at any size.
 - **Zigzag lines** with width, density, under sewing and half stitch.
+- **Zigzag Sharp Corners and Miter Limit**: PE-DESIGN's two corner buttons and how far a sharp corner's point may reach ([#373](https://github.com/cristianonescu/OpenStitch/issues/373)).
 - **Motif, stem, candlewicking, E and V, and chain lines,** evenly spaced along curves.
 - **Cutting lines** for cutwork needles, with uncut bridges.
 - (+) **Back stitch and brush-stroke running lines:** two forward, one back; or a running line
@@ -544,6 +545,8 @@ The image tools have two methods, both OpenStitch's own: OpenStitch's PE-DESIGN-
 - (+) **More exports:** stitch list CSV/TXT, G-code for DIY machines, repeats and a park position
   at stops; a PNG picture, a stitch-out animation and a ZIP bundle ([#488]).
 - (+) **Export read-back check:** every exported file is read back and compared ([#457]).
+- (+) **Garment mockups:** the design at true size on a T-shirt, cap or tote bag in a fabric
+  colour, as a PNG to show a customer ([#454]).
 - **Design Database:** browse folders as thumbnails, see each file's properties, search, copy,
   move and rename, convert formats in batch, print catalogues (PDF, PNG, HTML, CSV). Damaged or
   hostile files are handled safely.
@@ -634,6 +637,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#445]: https://github.com/cristianonescu/OpenStitch/issues/445
 [#452]: https://github.com/cristianonescu/OpenStitch/issues/452
 [#453]: https://github.com/cristianonescu/OpenStitch/issues/453
+[#454]: https://github.com/cristianonescu/OpenStitch/issues/454
 [#455]: https://github.com/cristianonescu/OpenStitch/issues/455
 [#456]: https://github.com/cristianonescu/OpenStitch/issues/456
 [#457]: https://github.com/cristianonescu/OpenStitch/issues/457
@@ -744,8 +748,8 @@ Also missing, from the [roadmap](docs/ROADMAP.md#still-to-do):
   letter by region (#428), and no lettering has under sewing per stroke yet.
 - **Text details:** per-character colour, multi-character selection, Connection Points, minimum
   font sizes and small-text fonts, kerning that reflows the line.
-- **Satin and fill details:** Miter limit (needs PE-DESIGN captures, #373), gradation per-step
-  editing and Blend.
+- **Satin and fill details:** Miter limit on satin lines (#373; zigzag lines have it),
+  gradation per-step editing and Blend.
 - **PES:** opening PE-DESIGN's texts and stitch groups as editable OpenStitch objects; motif
   fill, motif lines, several groups, right-aligned and vertical text in the editable PES 11
   writer; writing PES versions 4, 5 and 7–10 (waiting for PE-DESIGN's own files of them).

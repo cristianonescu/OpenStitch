@@ -1044,4 +1044,74 @@ fn wave_fill_goes_through_the_command() {
     assert_eq!(Compiler::default().compile(s.design()), plain);
     let help = run(&mut s, "commands.list", json!({})).to_string();
     assert!(help.contains("waveHeight") && help.contains("waveLength"));
+
+#[test]
+fn zigzag_sharp_corners_and_miter_limit_go_through_object_set_line() {
+    // compat line-zigzag-miter-v-*: the 29.7-degree V of PE-DESIGN's #373 captures (#373).
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "shape.polygon",
+        json!({"points": [[10, 20], [50, 20], [15, 40]], "closed": false}),
+    );
+    run(&mut s, "object.setLine", json!({"id": 1, "type": "zigzag"}));
+    let corners = |s: &Session| {
+        s.design().objects[0]
+            .line
+            .as_ref()
+            .expect("line")
+            .sharp_corners
+    };
+    // How far right the corner's point reaches, mm (the corner is at x = 50).
+    let reach = |s: &Session| {
+        Compiler::for_design(s.design())
+            .compile(s.design())
+            .stitches
+            .iter()
+            .filter(|q| q.command == Command::Stitch)
+            .map(|q| q.x / 10.0)
+            .fold(f64::MIN, f64::max)
+    };
+    // PE-DESIGN's defaults: button 1 with 0.0 mm cuts the point at the corner (40.2 mm wide).
+    assert_eq!((corners(&s).button, corners(&s).limit()), (1, 0.0));
+    let cut = reach(&s);
+    assert!(cut < 50.4, "cut at the corner: {cut}");
+    run(
+        &mut s,
+        "object.setLine",
+        json!({"id": 1, "miterLimit": 3.0}),
+    );
+    assert!((reach(&s) - 53.0).abs() < 0.15, "{}", reach(&s));
+    // Button 2 recalls its own value (7.0 mm: past the full point, 43.8 mm wide).
+    run(
+        &mut s,
+        "object.setLine",
+        json!({"id": 1, "sharpCorners": 2}),
+    );
+    assert_eq!(corners(&s).limit(), 7.0);
+    assert!((reach(&s) - 53.8).abs() < 0.15, "{}", reach(&s));
+    run(
+        &mut s,
+        "object.setLine",
+        json!({"id": 1, "sharpCorners": "1"}),
+    );
+    assert_eq!(corners(&s).limit(), 3.0, "button 1 kept its 3.0 mm");
+    // Saved, read back and undone.
+    let saved = serde_json::to_string(s.design()).expect("json");
+    assert!(saved.contains("\"sharpCorners\""), "{saved}");
+    let bytes = project::encode(s.design()).expect("encode");
+    assert_eq!(&project::decode(&bytes).expect("decode"), s.design());
+    run(&mut s, "history.undo", json!({}));
+    assert_eq!(corners(&s).button, 2);
+    // Out of range or unknown: refused, the design unchanged.
+    let before = s.design().clone();
+    for bad in [
+        json!({"id": 1, "sharpCorners": 3}),
+        json!({"id": 1, "sharpCorners": "wedge"}),
+        json!({"id": 1, "miterLimit": 51}),
+        json!({"id": 1, "miterLimit": -1}),
+    ] {
+        assert!(s.execute("object.setLine", Some(&bad)).is_err(), "{bad}");
+        assert_eq!(s.design(), &before, "{bad} changed the design");
+    }
 }

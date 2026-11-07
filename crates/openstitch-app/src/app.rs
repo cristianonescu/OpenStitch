@@ -1522,6 +1522,48 @@ impl EditorApp {
         }
     }
 
+    /// File ▸ Export ▸ Garment Mockup's entries: garment, placement, label (#454).
+    pub const MOCKUPS: [(&'static str, &'static str, &'static str); 4] = [
+        ("tshirt", "centre", "T-shirt, centre chest"),
+        ("tshirt", "leftChest", "T-shirt, left chest"),
+        ("cap", "centre", "Cap"),
+        ("tote", "centre", "Tote bag"),
+    ];
+
+    /// The design on a garment as a PNG (`design.mockup`, #454); the status says when the
+    /// design is larger than the placement suits.
+    pub fn export_mockup(&mut self, garment: &str, placement: &str, fabric: [u8; 3]) {
+        let name = format!("{} on {garment}.png", self.session.design().name);
+        let Some(path) = crate::files::FileDialog::new()
+            .add_filter("PNG", &["png"])
+            .set_file_name(name)
+            .save_file()
+        else {
+            return;
+        };
+        let [r, g, b] = fabric;
+        let params = json!({
+            "path": path.display().to_string(),
+            "garment": garment,
+            "placement": placement,
+            "color": format!("#{r:02x}{g:02x}{b:02x}"),
+        });
+        if let Some(out) = self.execute(&CommandRequest::new("design.mockup", params)) {
+            self.status = if out["fits"] == json!(false) {
+                format!(
+                    "Wrote {}; the design ({} × {} mm) is larger than this place suits ({} × {} mm)",
+                    path.display(),
+                    out["designMm"][0],
+                    out["designMm"][1],
+                    out["suitsMm"][0],
+                    out["suitsMm"][1]
+                )
+            } else {
+                format!("Wrote {}", path.display())
+            };
+        }
+    }
+
     /// Writes the design's colours in sewing order (`design.exportThreads`).
     pub fn export_thread_list(&mut self, ext: &str) {
         let name = format!("{} threads.{ext}", self.session.design().name);

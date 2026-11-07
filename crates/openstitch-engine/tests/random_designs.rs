@@ -24,45 +24,11 @@ use openstitch_engine::quality::{CheckOptions, MAX_STITCH_MM, Severity, Traced, 
 use openstitch_testutil::TempDir;
 use serde_json::{Value, json};
 
-/// Seeds that fail because of an open bug: (seed, issue). Only seeds an open issue names:
-/// #373 zigzag corners reach past the outline (no miter limit). The other seeds up to 1,000
-/// pass (#570 and #571's seeds 150, 154, 339 and 398 since start points snap to a reshaped
-/// outline), except 993, which aborts the process (#638) and so cannot be listed here.
-const KNOWN: &[(u64, u32)] = &[
-    (13, 373),
-    (42, 373),
-    (57, 373),
-    (74, 373),
-    (110, 373),
-    (258, 373),
-    (276, 373),
-    (316, 373),
-    (365, 373),
-    (389, 373),
-    (419, 373),
-    (423, 373),
-    (434, 373),
-    (473, 373),
-    (479, 373),
-    (515, 373),
-    (518, 373),
-    (544, 373),
-    (548, 373),
-    (578, 373),
-    (593, 373),
-    (643, 373),
-    (682, 373),
-    (703, 373),
-    (709, 373),
-    (735, 373),
-    (737, 373),
-    (750, 373),
-    (762, 373),
-    (869, 373),
-    (978, 373),
-    (989, 373),
-    (996, 373),
-];
+/// Seeds that fail because of an open bug: (seed, issue). Only seeds an open issue names. The
+/// seeds up to 1,000 pass (#373's 33 zigzag corner spikes since the Miter Limit; #570 and
+/// #571's seeds 150, 154, 339 and 398 since start points snap to a reshaped outline), except
+/// 993, which aborts the process (#638) and so cannot be listed here.
+const KNOWN: &[(u64, u32)] = &[];
 
 /// xorshift64*: a plain, fixed generator (no dependency).
 struct Rng(u64);
