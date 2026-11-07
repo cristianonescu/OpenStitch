@@ -223,7 +223,7 @@ impl Job {
 pub fn start(pdf: &Path) -> Job {
     let (tx, rx) = mpsc::channel();
     let file = pdf.to_path_buf();
-    std::thread::spawn(move || {
+    crate::platform::run_job(move || {
         let _ = tx.send(run(&file, &plan(Os::current(), &file)));
     });
     Job {
