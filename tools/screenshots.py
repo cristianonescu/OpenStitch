@@ -60,6 +60,8 @@ SCENES = {
     "start-cards": (["--no-splash"], [("docs/images/rust-editor-start-cards.png", 1600)]),
     "basic-attributes": (["--demo", "--select", "2", "--show", "basic"],
                          [("docs/images/rust-editor-basic-attributes.png", 1600)]),
+    "stitch-table": (["badge.pes", "--select", "1", "--show", "stitch-table"],
+                     [("docs/images/rust-editor-stitch-table.png", 1600)]),
     "stitches-tab": (["badge.pes", "--select", "1", "--ribbon", "stitches"],
                      [("docs/images/rust-editor-stitches-tab.png", 1600)]),
     "floating": (["--demo", "--tool", "pen", "--show", "floating"],

@@ -245,6 +245,9 @@ and step `ui.cursor`: `{x, y, action: "place"}` per point (`"smooth"` for a curv
 then `{action: "finish"}`; `{width}` sets the next Pen or Satin Skeleton point's width (a Pen
 line with widths becomes a satin line). The shape commands (`shape.polygon`, `shape.path`)
 remain the direct way to draw.
+To fix single needle points of a stitch pattern, `stitches.points {id}` lists them and
+`stitches.setPoint` / `insertPoint` / `deletePoints` edit them; `ui.stitchTable {open: true,
+select: [indexes]}` shows the user the same rows and highlights them on the canvas.
 To show the user what a setting would look like before changing it, `ui.preview {command:
 "object.setRegion", params: {ids, type}}` swaps in the stitches of that change on the canvas
 (no undo step, the design unchanged; `ui.render` shows them too); `ui.preview {clear: true}`

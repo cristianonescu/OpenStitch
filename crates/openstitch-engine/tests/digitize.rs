@@ -659,6 +659,53 @@ fn compatible_photo_stitch_travels_instead_of_trimming() {
     assert!(trims <= 80, "{trims} trims in {stitches} stitches");
 }
 
+/// The tie-off drops tiny last needle points (#703); the traced object spans must stay valid
+/// when an object before them sewed nothing: exporting the mandala's line art panicked in the
+/// export checks ("slice index starts at 2982 but ends at 2981").
+#[test]
+fn auto_punch_line_art_exports_with_valid_spans_in_every_mode_and_preset() {
+    let dir = temp_dir();
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/images/g11-mandala.png");
+    std::fs::copy(src, dir.join("g11.png")).expect("copy");
+    // PE-compatible mode takes no preset; OpenStitch mode with none and with each (#728).
+    let mut runs = vec![
+        json!({"compatMode": "peDesign"}),
+        json!({"compatMode": "openStitch"}),
+    ];
+    for preset in [
+        "logo",
+        "patch",
+        "lineArt",
+        "illustration",
+        "photo",
+        "pixelArt",
+    ] {
+        runs.push(json!({"compatMode": "openStitch", "preset": preset}));
+    }
+    for extra in runs {
+        let mut s = Session::new(&dir);
+        run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+        let mut params = json!({"path": "g11.png", "width": 100, "x": 0, "y": 0});
+        for (k, v) in extra.as_object().expect("object") {
+            params[k] = v.clone();
+        }
+        run(&mut s, "digitize.autoPunch", params);
+        run(&mut s, "design.export", json!({"path": "g11.pes"}));
+        let (p, spans) =
+            openstitch_design::Compiler::for_design(s.design()).compile_traced(s.design());
+        let mut end = 0;
+        for (id, r) in &spans {
+            assert!(
+                r.start <= r.end && r.start >= end,
+                "{extra}: object {id}: {r:?} after {end}"
+            );
+            end = r.end;
+        }
+        assert!(end <= p.stitches.len(), "{extra}");
+    }
+}
+
 /// #489: `dryRun` returns the region plan and adds nothing; `overrides` change one region;
 /// `angleRule` needs OpenStitch mode.
 #[test]
