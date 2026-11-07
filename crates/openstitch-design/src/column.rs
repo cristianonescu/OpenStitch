@@ -173,8 +173,15 @@ fn rungs_leaning(rungs: &[[Vec2; 2]], pitch: f64) -> Vec<[Vec2; 2]> {
         let mut f = 0.0;
         loop {
             let r = b.lerp(d, f) - a.lerp(c, f);
-            let across = cross2(r, u).abs().max(1e-9);
-            f += pitch.max(0.1) * (r.length() / across) / len.max(1e-9);
+            // A rung leaning along the column steps further; a point (a tapered end) or a
+            // rung along the column steps as a square one, so every step moves on.
+            let across = cross2(r, u).abs();
+            let lean = if across > 1e-6 {
+                (r.length() / across).clamp(1.0, 10.0)
+            } else {
+                1.0
+            };
+            f += pitch.max(0.1) * lean / len.max(1e-9);
             if f >= 1.0 - 1e-9 {
                 break;
             }

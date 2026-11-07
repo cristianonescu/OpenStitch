@@ -70,6 +70,12 @@ jobs:
       # runs the ~90 binaries one after another). It does not run doctests, so they follow.
       - run: cargo nextest run --workspace --locked
       - run: cargo test --doc --workspace --locked
+      # #705: the app's binary tests crashed on macOS now and then when they ran on several
+      # threads of one process (nextest runs each test in its own process, so it cannot show
+      # it). Three threaded runs here as evidence for the fix; drop once it has stayed green.
+      - name: App binary tests, threaded, three times (#705)
+        if: matrix.os == 'macos-latest'
+        run: for i in 1 2 3; do cargo test -p openstitch-app --bin openstitch --locked || exit 1; done
       # The Python package (#498): installed from python/, imported outside the repository, then
       # its tests against the debug stitchtool just built (same PES bytes as `stitchtool exec`).
       - name: Python package

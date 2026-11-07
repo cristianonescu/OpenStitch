@@ -2921,8 +2921,8 @@ mod tests {
     #[test]
     fn files_dropped_on_the_window_attach_only_while_the_panel_is_open() {
         let (mut app, _) = app_with(Vec::new());
-        let src =
-            std::env::temp_dir().join(format!("openstitch-drop-disc-{}.png", std::process::id()));
+        let tmp = openstitch_testutil::TempDir::new("drop-disc");
+        let src = tmp.join("disc.png");
         disc_png(&src);
         let ctx = egui::Context::default();
         let drop = |app: &mut EditorApp| {
@@ -3104,9 +3104,7 @@ mod tests {
         }
         app.ui.prefs.ai.enabled = false;
         // A throwaway ui.json, never the user's: the reset is read back from it.
-        let dir =
-            std::env::temp_dir().join(format!("openstitch-reset-test-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("dir");
+        let dir = openstitch_testutil::TempDir::new("reset-test");
         let file = dir.join("ui.json");
         app.ui.prefs_path = Some(file.clone());
         reset_ai(&mut app);
@@ -3298,9 +3296,7 @@ mod tests {
     /// again"), and the open state survives a restart; an old ui.json reads as open (#422).
     #[test]
     fn the_panel_opens_by_default_and_remembers_being_closed() {
-        let dir = std::env::temp_dir().join(format!("openstitch-422-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("dir");
+        let dir = openstitch_testutil::TempDir::new("assistant-422");
         let launch = Launch {
             demo: true,
             user_settings: Some(dir.join("user.json")),

@@ -198,3 +198,5 @@ player_start	2B2F36 2A7AD8	a bold vertical bar on the left and a solid blue tria
 player_back	2B2F36 2A7AD8	a single solid blue triangle pointing left, with no frame, no box and no other shape around it
 player_forward	2B2F36 2A7AD8	a media player step-forward button: a single blue triangle pointing right
 player_end	2B2F36 2A7AD8	a media player skip-to-end button: a blue triangle pointing right followed by a bold vertical bar on the right
+test_swatches	2B2F36 2A7AD8	a small square fabric swatch with a pinked zigzag edge, with three short blue stitched bars across it, the bars getting thicker from top to bottom
+job_sheet	2B2F36 2E9D58	a clipboard holding a sheet of paper with two short lines and a bold green check mark

@@ -13,6 +13,7 @@ pub mod direction;
 pub mod effects;
 mod envelope_presets;
 pub mod extend;
+pub mod finish;
 pub mod fmath;
 pub mod fonts;
 pub mod freehand;
@@ -62,9 +63,9 @@ pub use machine::{
 pub use model::{
     Arrange, BackgroundImage, BackgroundLayer, ChainShape, ContourJoin, ContourStrategy, Design,
     DesignObject, DesignPage, DesignProperties, Feather, FeatherSide, FillStitchType, Gradation,
-    Guides, ImageAdjust, LineGap, LineSewing, LineType, ObjectKind, OptimizeOrder, RegionSewing,
-    RegionType, RunningStitchPath, StaggerKind, StartEnd, StitchBlock, UnderlayDensity,
-    UnderlayParts, UnderlayStyle,
+    Guides, ImageAdjust, JobInfo, LineGap, LineSewing, LineType, ObjectKind, OptimizeOrder,
+    RegionSewing, RegionType, RunningStitchPath, StaggerKind, StartEnd, StitchBlock,
+    UnderlayDensity, UnderlayParts, UnderlayStyle,
 };
 pub use text::{
     CharEdit, FONTS, FontInfo, FontKind, Layout, PathFit, PixelStyle, Spread, TextAlign,
@@ -77,6 +78,8 @@ mod arc_tests;
 mod concentric_spiral_tests;
 #[cfg(test)]
 mod contour_tests;
+#[cfg(test)]
+mod finish_tests;
 #[cfg(test)]
 mod stitch_type_tests;
 #[cfg(test)]

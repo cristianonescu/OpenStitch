@@ -1135,6 +1135,53 @@ pub fn zigzag_shaped(
     run
 }
 
+/// A satin line (#524): a satin column along `path` (0.1 mm) whose width follows the line's
+/// width keys, tapers and slant ([`crate::skeleton::SatinLine`]), with its satin shaping. With
+/// one width all along, square to the line and no shaping, it is the skeleton satin of that
+/// width ([`crate::skeleton::satin`]).
+pub fn satin_line(path: &[Vec2], line: &crate::model::LineSewing) -> Run {
+    let spacing = 10.0 / line.density.max(0.1);
+    let sl = crate::skeleton::SatinLine {
+        width: line.width,
+        keys: line.width_keys.clone(),
+        taper: [
+            line.taper_start.unwrap_or(0.0),
+            line.taper_end.unwrap_or(0.0),
+        ],
+        slant: line.slant.unwrap_or(0.0),
+    };
+    let shaping = &line.satin_shaping;
+    if sl.is_uniform() && shaping.is_plain() {
+        let skeleton = crate::skeleton::Skeleton {
+            points: path.to_vec(),
+            widths: vec![sl.uniform_width(); path.len()],
+        };
+        return crate::skeleton::satin(&skeleton, spacing, 0.0);
+    }
+    // Rungs every 1 mm carry the width; the stitches are placed between them.
+    let rungs = crate::skeleton::satin_line_rungs(path, &sl, 10.0);
+    if rungs.len() < 2 {
+        return Vec::new();
+    }
+    let mut run = crate::column::zigzag_with(&rungs, spacing, shaping);
+    if let Some(raised) = &shaping.raised {
+        let mut pad = crate::column::padding(&rungs, raised);
+        if pad.len() > 1 {
+            pad.extend(run);
+            run = pad;
+        }
+    }
+    run
+}
+
+/// The widest a satin line gets, mm: its width or its widest key.
+pub fn satin_line_width(line: &crate::model::LineSewing) -> f64 {
+    line.width_keys
+        .iter()
+        .map(|k| k.left + k.right)
+        .fold(line.width, f64::max)
+}
+
 /// The under sewing of a zigzag line `width` wide (#523): `edge` is PE-DESIGN's
 /// [`zigzag_underlay`]; `centreWalk` a running stitch along the line and back; `edgeZigzag`
 /// the right-hand edge run out and a zigzag between the edge runs back; `auto` one of them by

@@ -339,6 +339,9 @@ pub fn shown_image(app: &EditorApp) -> Result<openstitch_digitize::Raster, Strin
 }
 
 fn copy_image(app: &EditorApp) -> Result<(), String> {
+    if !app.ui.system_clipboard {
+        return Err("the system clipboard is not used here".into());
+    }
     let r = shown_image(app)?;
     let mut bytes = Vec::with_capacity(r.width() as usize * r.height() as usize * 4);
     for y in 0..r.height() {
@@ -346,7 +349,7 @@ fn copy_image(app: &EditorApp) -> Result<(), String> {
             bytes.extend_from_slice(&r.pixel(x, y));
         }
     }
-    arboard::Clipboard::new()
+    crate::ribbon::os_clipboard()
         .and_then(|mut c| {
             c.set_image(arboard::ImageData {
                 width: r.width() as usize,

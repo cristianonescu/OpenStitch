@@ -294,6 +294,7 @@ fn schemas_come_from_param_docs() {
             "vStitch",
             "chain",
             "cutting",
+            "satin",
             "none"
         ])
     );
