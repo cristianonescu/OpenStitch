@@ -548,7 +548,12 @@ Machine Setup and Startup Wizard dialogs (`ui-…`), and since part 4 every othe
 of the window (lettering, the image and pattern wizards, the Design Database, Stitch Creator,
 editing, sections, swatches, updates, keyboard shortcuts, job sheet, transfer and the rest; 726
 texts in all), and the window titles: each window has a fixed id, so a translated title keeps
-its place. Status messages and the printed worksheet follow. **Pseudo-locale (test)** shows every
+its place. Since part 5, status messages are messages with variables in Fluent's syntax
+(`{ $path }`, and plural choices such as `{ $n -> [one] { $n } design *[other] { $n } designs }`,
+each language with its plural rule), filled in by `tf!("id", name = value)`; a test checks that
+every call passes exactly its message's variables and that a translation uses only those. A few
+messages with number formats and multi-line ones are still English, and the printed worksheet
+follows. **Pseudo-locale (test)** shows every
 translated text accented and in brackets ("[Ópéñ]"), so text that is still hard-coded stands out.
 No real translation ships yet.
 

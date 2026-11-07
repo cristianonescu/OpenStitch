@@ -85,7 +85,7 @@ fn run_and_select(app: &mut EditorApp, r: CommandRequest) {
         if !created.is_empty() {
             app.selection = created;
         }
-        app.status = format!("{} done", r.command);
+        app.status = openstitch_app::tf!("ui-status-done", command = r.command);
     }
 }
 
@@ -97,7 +97,7 @@ pub fn copy_attributes_source(app: &EditorApp) -> Option<u64> {
 pub fn copy_attributes(app: &mut EditorApp) {
     if let Some(source) = copy_attributes_source(app) {
         app.edit.attributes_from = Some(source);
-        app.status = "Sewing attributes copied; select the targets and Paste Attributes".into();
+        app.status = openstitch_app::editor::ui_texts::t("ui-status-sewing-attributes-copied-select-the-targets").into();
     }
 }
 
@@ -196,7 +196,7 @@ pub fn split_outline(app: &mut EditorApp) {
     if let Some(shape) = single_shape(app) {
         app.edit.split_target = Some(shape);
         app.tools.set_tool(Tool::Polygon);
-        app.status = "Draw the cut outline; Return or double-click splits, Esc cancels".into();
+        app.status = openstitch_app::editor::ui_texts::t("ui-status-draw-the-cut-outline-return-or").into();
     }
 }
 
@@ -249,7 +249,7 @@ pub fn stamp_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
                 openstitch_design::stamp::PATTERNS[app.edit.stamp_pattern],
                 edit_ops::EMBOSS[app.edit.stamp_effect].1,
             ));
-            app.status = "Click inside the shape to place the stamp; Esc cancels".into();
+            app.status = openstitch_app::editor::ui_texts::t("ui-status-click-inside-the-shape-to-place").into();
         }
         if ui.button(t("ui-remove-stamps")).clicked()
             && let Some(id) = shape
@@ -287,7 +287,7 @@ pub fn add_direction(app: &mut EditorApp) {
     if let Some(id) = single_region(app) {
         app.edit.curve_target = Some(id);
         app.tools.set_tool(Tool::Pen);
-        app.status = "Draw an open curve across the shape; Return finishes, Esc cancels".into();
+        app.status = openstitch_app::editor::ui_texts::t("ui-status-draw-an-open-curve-across-the").into();
     }
 }
 
@@ -309,7 +309,7 @@ pub fn sewing_points_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     ] {
         if ui.button(label).clicked() {
             app.edit.pick = Some((id, which));
-            app.status = format!("Click where {} should be; Esc cancels", which.label());
+            app.status = openstitch_app::tf!("ui-status-click-where-should-be-esc-cancels", name = which.label());
         }
     }
 }
@@ -319,7 +319,7 @@ pub fn pick(app: &mut EditorApp, at: Vec2) -> bool {
     if let Some((id, pattern, effect)) = app.edit.stamp_pick.take() {
         let r = edit_ops::add_stamp(id, pattern, effect, at, 10.0);
         if app.execute(&r).is_some() {
-            app.status = "Stamp placed".into();
+            app.status = openstitch_app::editor::ui_texts::t("ui-status-stamp-placed").into();
         }
         return true;
     }
@@ -328,7 +328,7 @@ pub fn pick(app: &mut EditorApp, at: Vec2) -> bool {
     };
     let r = which.request(id, at);
     if app.execute(&r).is_some() {
-        app.status = format!("{} set", which.label());
+        app.status = openstitch_app::tf!("ui-status-set", name = which.label());
     }
     true
 }
@@ -361,7 +361,7 @@ pub fn drag(app: &mut EditorApp, phase: Phase, at: Vec2) -> bool {
                     .into_iter()
                     .any(|(w, p)| w == which && p.distance(at) > radius / 2.0);
                 if moved && app.execute(&which.set(id, at)).is_some() {
-                    app.status = format!("{} moved", which.label());
+                    app.status = openstitch_app::tf!("ui-status-moved", name = which.label());
                 }
             }
             Phase::Down => app.edit.marker_drag = None,
@@ -418,7 +418,7 @@ pub fn filter_effect(app: &mut EditorApp, e: ToolEffect) -> ToolEffect {
                         select_result: false,
                     },
                     None => {
-                        app.status = "The direction must be an open curve".into();
+                        app.status = openstitch_app::editor::ui_texts::t("ui-status-the-direction-must-be-an-open").into();
                         ToolEffect::Select(BTreeSet::from([id]))
                     }
                 }
@@ -637,7 +637,7 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
         let r = app.edit.arrange.request(&app.selection);
         if let Some(result) = app.execute(&r) {
             if app.edit.arrange.mode == ArrangeMode::Scatter {
-                app.status = format!("{} copies fitted", result["placed"]);
+                app.status = openstitch_app::tf!("ui-status-copies-fitted", placed = result["placed"]);
             }
             let mut sel: BTreeSet<u64> = CommandRequest::created_ids(&result);
             if let Some(all) = result.get("objects").and_then(|v| v.as_array()) {

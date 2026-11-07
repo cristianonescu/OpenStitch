@@ -258,7 +258,7 @@ fn match_window(app: &mut EditorApp, ctx: &egui::Context) {
             });
         });
     if apply && apply_match(app) {
-        app.status = "Threads matched to the chart".into();
+        app.status = openstitch_app::editor::ui_texts::t("ui-status-threads-matched-to-the-chart").into();
     }
     if undo {
         restore(app);
@@ -321,7 +321,7 @@ fn merge_window(app: &mut EditorApp, ctx: &egui::Context) {
             });
         });
     if apply && apply_merge(app) {
-        app.status = "Similar colours merged".into();
+        app.status = openstitch_app::editor::ui_texts::t("ui-status-similar-colours-merged").into();
     }
     if undo {
         restore(app);

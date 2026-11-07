@@ -62,7 +62,7 @@ pub fn select_same(app: &mut EditorApp, a: Action) {
     );
     if let Some(Value::Array(list)) = app.execute(&r) {
         app.selection = list.iter().filter_map(|o| o["id"].as_u64()).collect();
-        app.status = format!("{} objects selected", app.selection.len());
+        app.status = openstitch_app::tf!("ui-status-objects-selected", count = app.selection.len());
     }
 }
 

@@ -427,7 +427,7 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
         Some(FontAction::Create) => {
             if let Some(r) = app.execute(&f.create()) {
                 app.lettering.fonts.font = r["id"].as_str().unwrap_or_default().into();
-                app.status = "Created an empty embroidery font".into();
+                app.status = openstitch_app::editor::ui_texts::t("ui-status-created-an-empty-embroidery-font").into();
             }
         }
         Some(FontAction::Convert) => {
@@ -454,7 +454,7 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
         Some(FontAction::SetGlyph) => {
             let ids = app.selection.clone();
             if let Some(r) = app.execute(&f.set_glyph(&ids)) {
-                app.status = format!("Stored '{}' ({} mm wide)", f.character, r["advanceMM"]);
+                app.status = openstitch_app::tf!("ui-status-stored-mm-wide", character = f.character, advancemm = r["advanceMM"]);
             }
         }
         Some(FontAction::ChooseImage) => {
@@ -488,7 +488,7 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
         }
         Some(FontAction::MapSelection(id)) => {
             if let Some(r) = app.execute(&f.map_object(id)) {
-                app.status = format!("Registered '{}' ({} stitches)", f.character, r["stitches"]);
+                app.status = openstitch_app::tf!("ui-status-registered-stitches", character = f.character, stitches = r["stitches"]);
             }
         }
         Some(FontAction::MapFiles) => {
@@ -511,7 +511,7 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
                 .save_file()
                 && app.execute(&f.save(&p)).is_some()
             {
-                app.status = format!("Saved {}", p.display());
+                app.status = openstitch_app::tf!("ui-status-saved", path = p.display());
             }
         }
         Some(FontAction::Open) => {
@@ -1236,7 +1236,7 @@ fn name_drop_window(app: &mut EditorApp, ctx: &egui::Context) {
             if let Some(dir) = crate::files::FileDialog::new().pick_folder()
                 && let Some(r) = app.execute(&f.export(&dir))
             {
-                app.status = format!("Wrote {} file(s) to {}", r["count"], dir.display());
+                app.status = openstitch_app::tf!("ui-status-wrote-file-n-other-files-n", count = r["count"], path = dir.display());
             }
         }
         None => {}

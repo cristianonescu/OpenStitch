@@ -240,7 +240,7 @@ pub fn calibration_window(app: &mut EditorApp, ctx: &egui::Context) {
                 {
                     app.ui.prefs.calibrate(monitor, k);
                     app.ui.save_prefs();
-                    app.status = format!("Real size calibrated for {monitor}");
+                    app.status = openstitch_app::tf!("ui-status-real-size-calibrated-for", monitor = monitor);
                 }
                 if ui
                     .button(t("ui-use-96-dpi"))

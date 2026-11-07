@@ -1116,6 +1116,73 @@ ui-window-fix-on-the-picture = Fix on the picture
 ui-window-mark-the-subject = Mark the subject
 ui-window-reference = Reference
 ui-window-calibrate-real-size = Calibrate Real Size
+ui-status-could-not-read-the-user-settings = Could not read the user settings ({ $e }); they are not saved
+ui-status-status = { $path }: { $e }
+ui-status-opened = Opened { $path }
+ui-status-imported = Imported { $path }{ $result }
+ui-status-background = Background { $path }
+ui-status-paste-background = Paste background: { $e }
+ui-status-saved = Saved { $path }
+ui-status-wrote-colours-to = Wrote { $colors } colours to { $path }
+ui-status-applied-colours-from = Applied { $colors } colours from { $path }
+ui-status-exported = Exported { $path }. { $w }
+ui-status-opening-the-print-dialog-for = Opening the print dialog for { $path }…
+ui-status-locked-unlock-it-in-the-sewing = Locked: unlock it in the Sewing Order list first
+ui-status-paste-background-the-system-clipboard-is = Paste background: the system clipboard is not used here
+ui-status-background-pasted-from-the-clipboard = Background pasted from the clipboard
+ui-status-cancelled = Cancelled
+ui-status-objects-selected = { $count } objects selected
+ui-status-threads-matched-to-the-chart = Threads matched to the chart
+ui-status-similar-colours-merged = Similar colours merged
+ui-status-imported-design-n-other-designs-n = Imported { $n ->
+    [one] { $n } design
+    *[other] { $n } designs
+    } from the Design Database
+ui-status-done = { $command } done
+ui-status-click-where-should-be-esc-cancels = Click where { $name } should be; Esc cancels
+ui-status-set = { $name } set
+ui-status-moved = { $name } moved
+ui-status-copies-fitted = { $placed } copies fitted
+ui-status-sewing-attributes-copied-select-the-targets = Sewing attributes copied; select the targets and Paste Attributes
+ui-status-draw-the-cut-outline-return-or = Draw the cut outline; Return or double-click splits, Esc cancels
+ui-status-click-inside-the-shape-to-place = Click inside the shape to place the stamp; Esc cancels
+ui-status-draw-an-open-curve-across-the = Draw an open curve across the shape; Return finishes, Esc cancels
+ui-status-stamp-placed = Stamp placed
+ui-status-the-direction-must-be-an-open = The direction must be an open curve
+ui-status-saved-pages = Saved { $path } ({ $pages } pages)
+ui-status-stored-mm-wide = Stored '{ $character }' ({ $advancemm } mm wide)
+ui-status-registered-stitches = Registered '{ $character }' ({ $stitches } stitches)
+ui-status-wrote-file-n-other-files-n = Wrote { $count ->
+    [one] { $count } file
+    *[other] { $count } files
+    } to { $path }
+ui-status-created-an-empty-embroidery-font = Created an empty embroidery font
+ui-status-opening = Opening { $path }…
+ui-status-could-not-open = Could not open { $path }: { $e }
+ui-status-imported-2 = Imported { $path }
+ui-status-optimise = Optimise: { $summary }
+ui-status-new-shapes-start-with-these-settings = New shapes start with these settings
+ui-status-select-the-patterns-first = { $title }: select the patterns first
+ui-status-applied = { $title } applied
+ui-status-exported-section-files-next-to = Exported { $n } section files next to { $path }
+ui-status-applied-2 = { $name } applied
+ui-status-smooth-stitches-points-moved = Smooth Stitches: { $moved } points moved
+ui-status-stitch-table-select-the-row-to = Stitch Table: select the row to insert before
+ui-status-stitch-table-select-the-rows-to = Stitch Table: select the rows to delete
+ui-status-saved-the-test-swatch = Saved the test swatch { $path }
+ui-status-sent-to-usb-media = Sent to USB media
+ui-status-updated-from-to = Updated from { $from } to { $to }
+ui-status-at-most-guidelines-per-ruler = At most { $uides } guidelines per ruler
+ui-status-background-image-turned = Background image turned { $direction }
+ui-status-image-saved-to = Image saved to { $path }
+ui-status-fabric-settings-applied-to-pattern-n = Fabric settings applied to { $n ->
+    [one] { $n } pattern
+    *[other] { $n } patterns
+    }
+ui-status-background-image-changed = Background image changed
+ui-status-font-filter-on = Font filter on
+ui-status-auto-punch-preview-regions = Auto Punch preview: { $n } regions
+ui-status-real-size-calibrated-for = Real size calibrated for { $monitor }
 group-select = Select
 group-clipboard = Clipboard
 group-tools = Tools

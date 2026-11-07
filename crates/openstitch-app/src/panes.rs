@@ -252,7 +252,7 @@ fn import_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
                 .clicked()
                 && app.grouped(|a| a.import(p))
             {
-                app.status = format!("Imported {}", p.display());
+                app.status = openstitch_app::tf!("ui-status-imported-2", path = p.display());
             }
         }
     }

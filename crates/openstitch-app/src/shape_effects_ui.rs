@@ -103,7 +103,7 @@ pub fn effects_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         .clicked()
     {
         if app.execute(&form.request(&ids)).is_some() {
-            app.status = format!("{} applied", form.effect.label());
+            app.status = openstitch_app::tf!("ui-status-applied-2", name = form.effect.label());
         }
         ui.close();
     }

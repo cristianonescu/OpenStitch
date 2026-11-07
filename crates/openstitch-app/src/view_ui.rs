@@ -252,7 +252,7 @@ pub fn guide_pointer(
     let tolerance = f64::from(PICK) * vp.units_per_point();
     let index = guide_near(list, here, tolerance);
     if index.is_none() && list.len() >= Guides::MAX {
-        app.status = format!("At most {} guidelines per ruler", Guides::MAX);
+        app.status = openstitch_app::tf!("ui-status-at-most-guidelines-per-ruler", uides = Guides::MAX);
         return true;
     }
     app.workspace.view.guide_drag = Some(GuideDrag {
@@ -293,7 +293,7 @@ pub fn rotate_image(app: &mut EditorApp, direction: &str) {
         ))
         .is_some()
     {
-        app.status = format!("Background image turned {direction}");
+        app.status = openstitch_app::tf!("ui-status-background-image-turned", direction = direction);
     }
 }
 
@@ -314,7 +314,7 @@ pub fn save_image_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
                 ))
                 .is_some()
         {
-            app.status = format!("Image saved to {}", p.display());
+            app.status = openstitch_app::tf!("ui-status-image-saved-to", path = p.display());
         }
     }
     if ui.button(t("ui-to-clipboard")).clicked() {
@@ -551,7 +551,7 @@ fn modify_image_window(app: &mut EditorApp, ctx: &egui::Context) {
             .execute(&CommandRequest::new("background.modify", p))
             .is_some()
     {
-        app.status = "Background image changed".into();
+        app.status = openstitch_app::editor::ui_texts::t("ui-status-background-image-changed").into();
     }
     if let Some(t) = turn {
         rotate_image(app, t);
@@ -702,7 +702,7 @@ fn font_filter_window(app: &mut EditorApp, ctx: &egui::Context) {
         draft.on = true;
         app.ui.prefs.font_filter = draft;
         app.ui.save_prefs();
-        app.status = "Font filter on".into();
+        app.status = openstitch_app::editor::ui_texts::t("ui-status-font-filter-on").into();
         open = false;
     } else {
         app.workspace.view.fonts_draft = Some(draft);
@@ -884,7 +884,7 @@ fn fabric_window(app: &mut EditorApp, ctx: &egui::Context) {
         }
         if let Some(r) = app.execute(&CommandRequest::new("fabric.apply", params)) {
             let n = r["changed"].as_array().map_or(0, Vec::len);
-            app.status = format!("Fabric settings applied to {n} pattern(s)");
+            app.status = openstitch_app::tf!("ui-status-fabric-settings-applied-to-pattern-n", n = n);
         }
         // New shapes follow (or stop following) the fabric (#508); a user setting.
         let default = if for_new {

@@ -78,12 +78,12 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
 /// Applies the wizard to the selection and selects what it made.
 pub fn run(app: &mut EditorApp, kind: WizardKind) {
     let Some(request) = app.pattern_wizards.request(kind, &app.selection) else {
-        app.status = format!("{}: select the patterns first", kind.title());
+        app.status = openstitch_app::tf!("ui-status-select-the-patterns-first", title = kind.title());
         return;
     };
     if let Some(result) = app.grouped(|a| a.execute(&request)) {
         app.selection = CommandRequest::created_ids(&result);
-        app.status = format!("{} applied", kind.title());
+        app.status = openstitch_app::tf!("ui-status-applied", title = kind.title());
     }
 }
 

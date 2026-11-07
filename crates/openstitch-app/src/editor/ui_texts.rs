@@ -1442,11 +1442,194 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
     ("ui-window-mark-the-subject", "Mark the subject"),
     ("ui-window-reference", "Reference"),
     ("ui-window-calibrate-real-size", "Calibrate Real Size"),
+    (
+        "ui-status-could-not-read-the-user-settings",
+        "Could not read the user settings ({ $e }); they are not saved",
+    ),
+    ("ui-status-status", "{ $path }: { $e }"),
+    ("ui-status-opened", "Opened { $path }"),
+    ("ui-status-imported", "Imported { $path }{ $result }"),
+    ("ui-status-background", "Background { $path }"),
+    ("ui-status-paste-background", "Paste background: { $e }"),
+    ("ui-status-saved", "Saved { $path }"),
+    (
+        "ui-status-wrote-colours-to",
+        "Wrote { $colors } colours to { $path }",
+    ),
+    (
+        "ui-status-applied-colours-from",
+        "Applied { $colors } colours from { $path }",
+    ),
+    ("ui-status-exported", "Exported { $path }. { $w }"),
+    (
+        "ui-status-opening-the-print-dialog-for",
+        "Opening the print dialog for { $path }…",
+    ),
+    (
+        "ui-status-locked-unlock-it-in-the-sewing",
+        "Locked: unlock it in the Sewing Order list first",
+    ),
+    (
+        "ui-status-paste-background-the-system-clipboard-is",
+        "Paste background: the system clipboard is not used here",
+    ),
+    (
+        "ui-status-background-pasted-from-the-clipboard",
+        "Background pasted from the clipboard",
+    ),
+    ("ui-status-cancelled", "Cancelled"),
+    ("ui-status-objects-selected", "{ $count } objects selected"),
+    (
+        "ui-status-threads-matched-to-the-chart",
+        "Threads matched to the chart",
+    ),
+    ("ui-status-similar-colours-merged", "Similar colours merged"),
+    (
+        "ui-status-imported-design-n-other-designs-n",
+        "Imported { $n ->\n[one] { $n } design\n*[other] { $n } designs\n} from the Design Database",
+    ),
+    ("ui-status-done", "{ $command } done"),
+    (
+        "ui-status-click-where-should-be-esc-cancels",
+        "Click where { $name } should be; Esc cancels",
+    ),
+    ("ui-status-set", "{ $name } set"),
+    ("ui-status-moved", "{ $name } moved"),
+    ("ui-status-copies-fitted", "{ $placed } copies fitted"),
+    (
+        "ui-status-sewing-attributes-copied-select-the-targets",
+        "Sewing attributes copied; select the targets and Paste Attributes",
+    ),
+    (
+        "ui-status-draw-the-cut-outline-return-or",
+        "Draw the cut outline; Return or double-click splits, Esc cancels",
+    ),
+    (
+        "ui-status-click-inside-the-shape-to-place",
+        "Click inside the shape to place the stamp; Esc cancels",
+    ),
+    (
+        "ui-status-draw-an-open-curve-across-the",
+        "Draw an open curve across the shape; Return finishes, Esc cancels",
+    ),
+    ("ui-status-stamp-placed", "Stamp placed"),
+    (
+        "ui-status-the-direction-must-be-an-open",
+        "The direction must be an open curve",
+    ),
+    (
+        "ui-status-saved-pages",
+        "Saved { $path } ({ $pages } pages)",
+    ),
+    (
+        "ui-status-stored-mm-wide",
+        "Stored '{ $character }' ({ $advancemm } mm wide)",
+    ),
+    (
+        "ui-status-registered-stitches",
+        "Registered '{ $character }' ({ $stitches } stitches)",
+    ),
+    (
+        "ui-status-wrote-file-n-other-files-n",
+        "Wrote { $count ->\n[one] { $count } file\n*[other] { $count } files\n} to { $path }",
+    ),
+    (
+        "ui-status-created-an-empty-embroidery-font",
+        "Created an empty embroidery font",
+    ),
+    ("ui-status-opening", "Opening { $path }…"),
+    (
+        "ui-status-could-not-open",
+        "Could not open { $path }: { $e }",
+    ),
+    ("ui-status-imported-2", "Imported { $path }"),
+    ("ui-status-optimise", "Optimise: { $summary }"),
+    (
+        "ui-status-new-shapes-start-with-these-settings",
+        "New shapes start with these settings",
+    ),
+    (
+        "ui-status-select-the-patterns-first",
+        "{ $title }: select the patterns first",
+    ),
+    ("ui-status-applied", "{ $title } applied"),
+    (
+        "ui-status-exported-section-files-next-to",
+        "Exported { $n } section files next to { $path }",
+    ),
+    ("ui-status-applied-2", "{ $name } applied"),
+    (
+        "ui-status-smooth-stitches-points-moved",
+        "Smooth Stitches: { $moved } points moved",
+    ),
+    (
+        "ui-status-stitch-table-select-the-row-to",
+        "Stitch Table: select the row to insert before",
+    ),
+    (
+        "ui-status-stitch-table-select-the-rows-to",
+        "Stitch Table: select the rows to delete",
+    ),
+    (
+        "ui-status-saved-the-test-swatch",
+        "Saved the test swatch { $path }",
+    ),
+    ("ui-status-sent-to-usb-media", "Sent to USB media"),
+    (
+        "ui-status-updated-from-to",
+        "Updated from { $from } to { $to }",
+    ),
+    (
+        "ui-status-at-most-guidelines-per-ruler",
+        "At most { $uides } guidelines per ruler",
+    ),
+    (
+        "ui-status-background-image-turned",
+        "Background image turned { $direction }",
+    ),
+    ("ui-status-image-saved-to", "Image saved to { $path }"),
+    (
+        "ui-status-fabric-settings-applied-to-pattern-n",
+        "Fabric settings applied to { $n ->\n[one] { $n } pattern\n*[other] { $n } patterns\n}",
+    ),
+    (
+        "ui-status-background-image-changed",
+        "Background image changed",
+    ),
+    ("ui-status-font-filter-on", "Font filter on"),
+    (
+        "ui-status-auto-punch-preview-regions",
+        "Auto Punch preview: { $n } regions",
+    ),
+    (
+        "ui-status-real-size-calibrated-for",
+        "Real size calibrated for { $monitor }",
+    ),
 ];
 
 /// The English text of message `id`.
 pub fn english(id: &str) -> Option<&'static str> {
     UI_TEXTS.iter().find(|(i, _)| *i == id).map(|(_, e)| *e)
+}
+
+/// Message `id` with its variables (`tf!`): see [`super::i18n::message`].
+pub fn message(id: &'static str, args: &[(&str, &dyn std::fmt::Display)]) -> String {
+    match english(id) {
+        Some(e) => super::i18n::message(id, e, args),
+        None => id.to_string(),
+    }
+}
+
+/// A message with variables in this thread's language:
+/// `tf!("ui-status-opened", path = p.display())`. The names are the message's `$` variables.
+#[macro_export]
+macro_rules! tf {
+    ($id:literal $(, $name:ident = $value:expr)* $(,)?) => {
+        $crate::editor::ui_texts::message(
+            $id,
+            &[$((stringify!($name), &$value as &dyn ::std::fmt::Display)),*],
+        )
+    };
 }
 
 /// Message `id` in this thread's language. An unknown id (a bug the tests catch) shows as
@@ -1476,6 +1659,86 @@ mod tests {
             );
             let line = format!("{id} = {}", super::super::i18n::escape(text));
             assert_eq!(super::super::i18n::parse(&line).expect(id)[0].1, *text);
+        }
+    }
+
+    /// Every `tf!("…", name = …)` call names a message of this table and passes exactly the
+    /// variables its English uses (#555 part 5).
+    #[test]
+    fn every_tf_call_passes_its_messages_variables() {
+        use super::super::i18n::{is_message, variables};
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut stack = vec![dir];
+        let mut calls = 0;
+        while let Some(d) = stack.pop() {
+            for e in std::fs::read_dir(&d).expect("src").flatten() {
+                let p = e.path();
+                if p.is_dir() {
+                    stack.push(p);
+                    continue;
+                }
+                if p.extension().is_none_or(|x| x != "rs") || p.ends_with("ui_texts.rs") {
+                    continue;
+                }
+                let src = std::fs::read_to_string(&p).expect("read");
+                for (i, _) in src.match_indices("tf!(\"") {
+                    let rest = &src[i + 5..];
+                    let id = &rest[..rest.find('"').expect("quote")];
+                    let english = english(id)
+                        .unwrap_or_else(|| panic!("{}: unknown message {id}", p.display()));
+                    assert!(is_message(english), "{id} has no variables: use t()");
+                    // The call's names, up to its closing parenthesis.
+                    let call = &rest[id.len() + 1..];
+                    let mut depth = 1;
+                    let end = call
+                        .char_indices()
+                        .find(|&(_, c)| {
+                            match c {
+                                '(' | '[' | '{' => depth += 1,
+                                ')' | ']' | '}' => depth -= 1,
+                                _ => {}
+                            }
+                            depth == 0
+                        })
+                        .map_or(call.len(), |(k, _)| k);
+                    let mut names: Vec<String> = Vec::new();
+                    let mut d = 0;
+                    for part in call[..end].split(|c: char| {
+                        match c {
+                            '(' | '[' | '{' => d += 1,
+                            ')' | ']' | '}' => d -= 1,
+                            _ => {}
+                        }
+                        c == ',' && d == 0
+                    }) {
+                        if let Some((n, _)) = part.split_once('=') {
+                            names.push(n.trim().to_string());
+                        }
+                    }
+                    let mut want = variables(english);
+                    want.sort();
+                    names.sort();
+                    assert_eq!(names, want, "{}: tf!(\"{id}\")", p.display());
+                    calls += 1;
+                }
+            }
+        }
+        assert!(calls > 0);
+    }
+
+    /// A shipped translation may use only its English message's variables (#555 part 5).
+    #[test]
+    fn translations_use_only_their_messages_variables() {
+        use super::super::i18n::{parse, shipped, variables};
+        for (code, source) in shipped() {
+            for (id, text) in parse(source).expect("parses") {
+                if let Some(e) = english(id) {
+                    let allowed = variables(e);
+                    for v in variables(&text) {
+                        assert!(allowed.contains(&v), "{code} {id}: unknown variable ${v}");
+                    }
+                }
+            }
         }
     }
 

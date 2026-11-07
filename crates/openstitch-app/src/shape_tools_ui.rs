@@ -64,7 +64,7 @@ pub fn smooth_stitches(app: &mut EditorApp) {
     let (_, one, needles) = crate::convert_ui::stitch_selection(app);
     let Some(id) = one else { return };
     if let Some(v) = app.execute(&shape_tools::smooth_stitches(id, &needles)) {
-        app.status = format!("Smooth Stitches: {} points moved", v["moved"]);
+        app.status = openstitch_app::tf!("ui-status-smooth-stitches-points-moved", moved = v["moved"]);
     }
 }
 
