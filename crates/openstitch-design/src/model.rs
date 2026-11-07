@@ -1742,6 +1742,13 @@ pub struct RegionSewing {
     /// Satin: the hand-stitch look on one side (#540, beyond PE-DESIGN).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hand: Option<crate::line_looks::SatinHand>,
+    /// Fill: rows that ripple as a sine across the row direction (#538, beyond PE-DESIGN): the
+    /// wave's height, crest to trough, mm. Unset or 0: straight rows (PE-DESIGN's fill).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wave_height: Option<f64>,
+    /// Fill: the wave's length, crest to crest, mm (default [`RegionSewing::DEFAULT_WAVE_LENGTH`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wave_length: Option<f64>,
     /// Satin: a motif repeated along the column instead of the satin, stretched across its
     /// local width (#544, beyond PE-DESIGN).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1749,6 +1756,30 @@ pub struct RegionSewing {
 }
 
 impl RegionSewing {
+    /// Wave fill: default wave length, mm.
+    pub const DEFAULT_WAVE_LENGTH: f64 = 16.0;
+    /// Wave fill: the steepest the rows may slope, tan 40°. The rows are copies of one sine a
+    /// set step apart along the wave's height; across a row that slopes θ they are the step
+    /// × cos θ apart, so the step is chosen between the two (see [`RegionSewing::wave`]) and up
+    /// to 40° that keeps the spacing across the rows within ±15 % of the set density. A higher
+    /// wave is sewn at this slope.
+    pub const MAX_WAVE_SLOPE: f64 = 0.839_099_631_177_280;
+
+    /// Wave fill: `(amplitude, wave length)` in mm, the amplitude (half the height) capped at
+    /// [`RegionSewing::MAX_WAVE_SLOPE`]; `None` for straight rows (not a fill, or no height).
+    pub fn wave(&self) -> Option<(f64, f64)> {
+        if self.kind != RegionType::Fill {
+            return None;
+        }
+        let height = self.wave_height.filter(|h| *h > 0.0)?.min(20.0);
+        let length = self
+            .wave_length
+            .unwrap_or(Self::DEFAULT_WAVE_LENGTH)
+            .clamp(2.0, 100.0);
+        let max = Self::MAX_WAVE_SLOPE * length / std::f64::consts::TAU;
+        Some(((height / 2.0).min(max), length))
+    }
+
     pub fn new(kind: RegionType, thread: Thread) -> Self {
         RegionSewing {
             kind,
@@ -1825,6 +1856,8 @@ impl RegionSewing {
             underlay_auto: Default::default(),
             underlay2: None,
             hand: None,
+            wave_height: None,
+            wave_length: None,
             motif_band: None,
         }
     }

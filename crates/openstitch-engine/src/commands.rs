@@ -369,6 +369,7 @@ fn validate_property(p: &Params, key: &str, value: &str) -> Result<(), CommandEr
 }
 
 /// Moves `block` so the box around its needle points is centred on `page`.
+#[cfg(feature = "formats")]
 fn centre_on_page(block: &mut openstitch_design::StitchBlock, page: &DesignPage) {
     let needles = || {
         block
@@ -1271,7 +1272,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "underlayStyle",
                     "edge|zigzag|edgeZigzag|double|edgeFill|cross|auto|centreWalk",
-                    "Underlay: edge run, inset rows, both, two crossing layers, PE-DESIGN's first type (edge and rows) or its second (edge and lattice); shorthand for underlayParts. Beyond PE-DESIGN: auto (Manual Punch column: a centre walk, the edge run, or edge run and zigzag by the column's average width, see underlayAuto) and centreWalk (a running stitch down the middle)",
+                    "Underlay: edge run, inset rows, both, two crossing layers, PE-DESIGN's first type (edge and rows) or its second (edge and lattice); shorthand for underlayParts. Beyond PE-DESIGN: auto (Manual Punch column: a centre walk, the edge run, or edge run and zigzag by the column's average width, see underlayAuto; skeleton satin and Auto satin: rows along the column that follow its width, one where it is under 3 mm, about one per underlaySpacing where wider, never past the edge) and centreWalk (a running stitch down the middle)",
                 ),
                 opt(
                     "underlayParts",
@@ -1417,6 +1418,16 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     "staggerSeed",
                     "integer",
                     "Seed of the random stagger (0 to 2^53; the same seed always sews the same rows)",
+                ),
+                opt(
+                    "waveHeight",
+                    "mm",
+                    "Fill: wave fill (beyond PE-DESIGN), the rows' ripple crest to trough, 0-20 (0 = straight rows); a wave steeper than 40° is sewn at 40°",
+                ),
+                opt(
+                    "waveLength",
+                    "mm",
+                    "Fill: the wave fill's length crest to crest, 2-100 (default 16)",
                 ),
                 opt(
                     "rowOffset",
@@ -1806,6 +1817,13 @@ fn attribute_commands() -> Vec<CommandSpec> {
                             return Err(p.invalid("staggerSeed", "must be a whole number"));
                         }
                         r.stagger_seed = Some(seed as u64);
+                    }
+                    if p.has("waveHeight") {
+                        let h = p.req("waveHeight", 0.0, 20.0)?;
+                        r.wave_height = (h > 0.0).then_some(h);
+                    }
+                    if p.has("waveLength") {
+                        r.wave_length = Some(p.req("waveLength", 2.0, 100.0)?);
                     }
                     if p.has("rowOffset") {
                         r.row_offset = Some(p.req("rowOffset", 0.0, 100.0)?);
@@ -3137,6 +3155,7 @@ fn text_commands() -> Vec<CommandSpec> {
 // MARK: files
 
 /// `dir/name.ext` → `dir/name-N.ext` (split exports).
+#[cfg(feature = "formats")]
 fn numbered(path: &str, n: usize) -> String {
     let p = std::path::Path::new(path);
     let stem = p

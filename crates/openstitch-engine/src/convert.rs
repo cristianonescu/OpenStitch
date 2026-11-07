@@ -19,6 +19,7 @@ use openstitch_design::{Compiler, Design, LineSewing, LineType, ObjectKind, Stit
 use serde_json::json;
 
 pub fn commands() -> Vec<CommandSpec> {
+    #[cfg_attr(not(feature = "digitize"), allow(unused_mut))]
     let mut v = vec![to_stitches(), region_to_line()];
     #[cfg(feature = "digitize")]
     v.push(to_shapes());

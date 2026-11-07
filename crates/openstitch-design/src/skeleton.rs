@@ -3,6 +3,7 @@
 //! along it. Around a bend the direction turns smoothly over the column's half width. Own
 //! algorithm. Points are 0.1 mm, widths mm.
 
+use crate::fmath::Det;
 use crate::generate::Run;
 use crate::geometry::{Contour, Transform, Vec2, v2};
 use serde::{Deserialize, Serialize};
@@ -176,6 +177,35 @@ impl Centre {
         (centre, tangent.unwrap_or(u), half)
     }
 
+    /// One rung per centre-line point [left, right]: square to the line at its ends and to
+    /// the bisector at a vertex, as long as the column's offset edges make it there (half
+    /// width over the cosine of half the turn, at most five half widths).
+    fn vertex_rungs(&self) -> Vec<[Vec2; 2]> {
+        let n = self.points.len();
+        (0..n)
+            .map(|i| {
+                let (t, stretch) = if i == 0 {
+                    (self.direction(0), 1.0)
+                } else if i == n - 1 {
+                    (self.direction(n - 2), 1.0)
+                } else {
+                    let (a, b) = (self.direction(i - 1), self.direction(i));
+                    let sum = a + b;
+                    if sum.length() < 1e-6 {
+                        (a, 1.0)
+                    } else {
+                        let t = sum * (1.0 / sum.length());
+                        (t, 1.0 / (t.x * b.x + t.y * b.y).max(0.2))
+                    }
+                };
+                let h = self.half[i] * stretch;
+                let left = v2(t.y, -t.x);
+                let c = self.points[i];
+                [c + left * h, c - left * h]
+            })
+            .collect()
+    }
+
     /// Stitch ends across the column every `spacing` (or a little less) along the centre
     /// line, first and last ends included: [left, right], each lengthened by `pull`.
     fn rungs(&self, spacing: f64, pull: f64) -> Vec<[Vec2; 2]> {
@@ -213,6 +243,79 @@ pub fn satin(s: &Skeleton, spacing: f64, pull: f64) -> Run {
     run.extend(crate::region::half_stitch(&rungs, &sides));
     run.dedup_by(|a, b| a.distance(*b) < 1e-9);
     run
+}
+
+/// [`satin`] with OpenStitch's satin shaping (#675): corner constructions, short stitches,
+/// compensation per side and per cent of width, the satin styles. With corner constructions
+/// the column is one rung per centre-line point (square to the bisector, reaching the mitre
+/// of the column's edges), so a corner of the centre line is a corner of the rung chain;
+/// otherwise rungs every 1 mm along the smoothly turning column. Without shaping it is
+/// [`satin`].
+pub fn satin_with(
+    s: &Skeleton,
+    spacing: f64,
+    pull: f64,
+    shaping: &crate::column::SatinShaping,
+) -> Run {
+    if shaping.is_plain() {
+        return satin(s, spacing, pull);
+    }
+    let Some(c) = Centre::new(s) else {
+        return Vec::new();
+    };
+    let rungs = if shaping.corners.style == crate::column::CornerStyle::Turn {
+        c.rungs(10.0, 0.0)
+    } else {
+        c.vertex_rungs()
+    };
+    let pull = if pull.is_finite() { pull } else { 0.0 };
+    crate::column::zigzag_shaped(&rungs, spacing, pull, shaping)
+}
+
+/// One rung per centre-line point of `s` [left, right]: what [`satin_with`] builds corners
+/// on (#675). Empty for a degenerate skeleton.
+pub fn vertex_rungs(s: &Skeleton) -> Vec<[Vec2; 2]> {
+    Centre::new(s).map_or_else(Vec::new, |c| c.vertex_rungs())
+}
+
+/// [`vertex_rungs`] reaching the outline of the closed region `contours` along each rung
+/// (at most 0.5 mm past the skeleton's width): an Auto satin region's corner constructions
+/// (#675) on its derived skeleton, whose widths are only approximate.
+pub fn vertex_rungs_within(s: &Skeleton, contours: &[Contour]) -> Vec<[Vec2; 2]> {
+    let edges: Vec<(Vec2, Vec2)> = contours
+        .iter()
+        .filter(|c| c.closed)
+        .flat_map(Contour::edges)
+        .collect();
+    vertex_rungs(s)
+        .into_iter()
+        .map(|[l, r]| {
+            let c = l.lerp(r, 0.5);
+            let half = c.distance(l);
+            if half < 1e-6 || !crate::geometry::contains(c, contours) {
+                return [l, r];
+            }
+            let reach = |end: Vec2| {
+                let dir = (end - c) * (1.0 / half);
+                c + dir * ray(c, dir, &edges).map_or(half, |d| d.min(half + 5.0))
+            };
+            [reach(l), reach(r)]
+        })
+        .collect()
+}
+
+/// OpenStitch's under sewing of a skeleton satin where its region asks for it (#675, see
+/// [`crate::column::rung_underlay`]): the width-following rows of `underlay: auto`, the
+/// centre walk, the second layer. From the column's start, where the satin begins.
+pub fn underlay(s: &Skeleton, r: &crate::model::RegionSewing) -> [Option<Run>; 2] {
+    let Some(c) = Centre::new(s) else {
+        return [None, None];
+    };
+    let rungs = c.rungs(10.0, 0.0);
+    let Some(first) = rungs.first() else {
+        return [None, None];
+    };
+    crate::column::rung_underlay(&rungs, r, r.entry.unwrap_or(first[0]))
 }
 
 /// The column of a skeleton as rungs [left, right] about `step` (0.1 mm) apart along its
@@ -502,6 +605,16 @@ impl Grid {
             ny,
             clearance,
         })
+    }
+
+    /// The clearance of the cell `p` lies in; negative outside the grid or the region.
+    fn clearance_at(&self, p: Vec2) -> f64 {
+        let i = ((p.x - self.origin.x) / self.step).floor();
+        let j = ((p.y - self.origin.y) / self.step).floor();
+        if i < 0.0 || j < 0.0 || i >= self.nx as f64 || j >= self.ny as f64 {
+            return -1.0;
+        }
+        self.clearance[j as usize * self.nx + i as usize]
     }
 
     fn centre(&self, k: usize) -> Vec2 {
@@ -794,19 +907,315 @@ pub fn branches(contours: &[Contour], join_overlap: f64) -> Vec<Skeleton> {
         return vec![main];
     };
     let overlap = join_overlap.clamp(0.0, 10.0) * 10.0;
+    let first = main.clone();
+    let arms = arms_from(main, &grid, &edges, overlap, false);
+    if arms.len() == 1 {
+        return vec![first];
+    }
+    // A main stroke that bends sharply through a junction (a K's leg into its stem, an R's leg
+    // into its bowl) fans there and leaves a gap in the stroke it turns off (#526). Strokes
+    // between the columns' free ends that run straight are tried as the main stroke instead,
+    // and the split that covers the region best is kept.
+    if sharpest_bend(&arms[0]) <= STRAIGHT_TURN {
+        return arms;
+    }
+    let mut best = (covered(&grid, &arms), arms);
+    for main in straight_mains(&best.1, &grid, &edges) {
+        let arms = arms_from(main, &grid, &edges, overlap, true);
+        let share = covered(&grid, &arms);
+        if share > best.0 + 1e-9 {
+            best = (share, arms);
+        }
+    }
+    best.1
+}
+
+/// A main stroke turning more than this (degrees) within [`BEND_WINDOW`] widths bends
+/// through a junction (#526).
+const STRAIGHT_TURN: f64 = 40.0;
+/// The stretch of a stroke, in column widths, over which its turn is summed.
+const BEND_WINDOW: f64 = 1.5;
+/// Most straight strokes tried as a main stroke.
+const MAX_MAINS: usize = 4;
+
+/// The largest turn (degrees) of `s`'s centre line within [`BEND_WINDOW`] column widths: a
+/// sharp bend there, a gentle curve spread along it.
+fn sharpest_bend(s: &Skeleton) -> f64 {
+    let p = &s.points;
+    if p.len() < 3 {
+        return 0.0;
+    }
+    let width = s.widths.iter().copied().fold(0.0, f64::max) * 10.0;
+    let window = (BEND_WINDOW * width).max(10.0);
+    let at: Vec<f64> = std::iter::once(0.0)
+        .chain(p.windows(2).scan(0.0, |d, w| {
+            *d += w[0].distance(w[1]);
+            Some(*d)
+        }))
+        .collect();
+    // The ends reach out into the stroke's corners and may hook there: turns within a column
+    // width of either end do not count.
+    let total = at[at.len() - 1];
+    let turn: Vec<f64> = (1..p.len() - 1)
+        .map(|i| {
+            if at[i] < width || at[i] > total - width {
+                return 0.0;
+            }
+            let (a, b) = (p[i] - p[i - 1], p[i + 1] - p[i]);
+            (a.x * b.y - a.y * b.x).datan2(a.x * b.x + a.y * b.y)
+        })
+        .collect();
+    let mut most: f64 = 0.0;
+    for i in 0..turn.len() {
+        let mut sum: f64 = 0.0;
+        for j in i..turn.len() {
+            if at[j + 1] - at[i + 1] > window {
+                break;
+            }
+            sum += turn[j];
+            most = most.max(sum.abs());
+        }
+    }
+    most.to_degrees()
+}
+
+/// The share of the region's inner cells (a cell or more from the outline) that the satin of
+/// `arms` sews over: inside a quadrilateral between two of a column's crossings 1 mm apart, as
+/// the satin lays them (a column fanning round a sharp bend leaves gaps between its fans).
+fn covered(grid: &Grid, arms: &[Skeleton]) -> f64 {
+    let mut hit = vec![false; grid.clearance.len()];
+    for sk in arms {
+        let Some(c) = Centre::new(sk) else {
+            continue;
+        };
+        for w in c.rungs(10.0, 0.0).windows(2) {
+            let quad = [w[0][0], w[1][0], w[1][1], w[0][1]];
+            let Some(b) = crate::geometry::Rect::enclosing(quad.iter().copied()) else {
+                continue;
+            };
+            let poly = [Contour::new(quad.to_vec(), true)];
+            let (i0, j0) = (
+                ((b.min_x - grid.origin.x) / grid.step).floor().max(0.0) as usize,
+                ((b.min_y - grid.origin.y) / grid.step).floor().max(0.0) as usize,
+            );
+            let (i1, j1) = (
+                (((b.max_x - grid.origin.x) / grid.step).ceil().max(0.0) as usize).min(grid.nx),
+                (((b.max_y - grid.origin.y) / grid.step).ceil().max(0.0) as usize).min(grid.ny),
+            );
+            for j in j0..j1 {
+                for i in i0..i1 {
+                    let k = j * grid.nx + i;
+                    if !hit[k] && crate::geometry::contains(grid.centre(k), &poly) {
+                        hit[k] = true;
+                    }
+                }
+            }
+        }
+    }
+    let inside = (0..grid.clearance.len()).filter(|&k| grid.clearance[k] >= grid.step);
+    let (n, h) = inside.fold((0usize, 0usize), |(n, h), k| {
+        (n + 1, h + usize::from(hit[k]))
+    });
+    if n == 0 { 0.0 } else { h as f64 / n as f64 }
+}
+
+/// A straight main stroke's column along `line` (0.1 mm) as it lies (#526): at each point as
+/// wide as twice the nearer side of the chord across the region, so where the chord runs on
+/// into a junction (a K's legs leave its stem) the column keeps the stroke's own width and
+/// line instead of bending and widening into the junction. The ends, reached out towards the
+/// outline, are as wide as next door.
+fn along_line(line: &[Vec2], edges: &[(Vec2, Vec2)]) -> Option<Skeleton> {
+    let n = line.len();
+    if n < 2 {
+        return None;
+    }
+    let mut widths: Vec<f64> = (0..n)
+        .map(|i| {
+            let t = line[(i + 1).min(n - 1)] - line[i.saturating_sub(1)];
+            let p = line[i];
+            let near = edges
+                .iter()
+                .map(|&(a, c)| segment_distance(p, a, c))
+                .fold(f64::INFINITY, f64::min);
+            if t.length() <= 1e-9 {
+                return 2.0 * near;
+            }
+            let t = t * (1.0 / t.length());
+            let left = v2(t.y, -t.x);
+            match (ray(p, left, edges), ray(p, left * -1.0, edges)) {
+                (Some(l), Some(r)) => 2.0 * l.min(r),
+                _ => 2.0 * near,
+            }
+        })
+        .collect();
+    if n > 2 {
+        widths[0] = widths[1];
+        widths[n - 1] = widths[n - 2];
+    }
+    let s = Skeleton {
+        points: line.to_vec(),
+        widths: widths
+            .into_iter()
+            .map(|w| (w / 10.0).clamp(0.0, MAX_WIDTH))
+            .collect(),
+    };
+    s.validate().is_ok().then_some(s)
+}
+
+/// The inner cell nearest `p` (at least a cell from the outline).
+fn cell_near(grid: &Grid, p: Vec2) -> Option<usize> {
+    (0..grid.clearance.len())
+        .filter(|&k| grid.clearance[k] >= grid.step)
+        .min_by(|&a, &b| {
+            grid.centre(a)
+                .distance(p)
+                .total_cmp(&grid.centre(b).distance(p))
+        })
+}
+
+/// Straight strokes between the free ends of `arms` (the main stroke's two ends and each
+/// arm's tip) that run inside the region, longest first, at most [`MAX_MAINS`].
+fn straight_mains(arms: &[Skeleton], grid: &Grid, edges: &[(Vec2, Vec2)]) -> Vec<Skeleton> {
+    let mut tips: Vec<Vec2> = Vec::new();
+    if let (Some(&a), Some(&b)) = (arms[0].points.first(), arms[0].points.last()) {
+        tips.extend([a, b]);
+    }
+    tips.extend(arms[1..].iter().filter_map(|s| s.points.last().copied()));
+    let cells: Vec<usize> = tips.iter().filter_map(|&p| cell_near(grid, p)).collect();
+    let widest = grid.clearance.iter().copied().fold(grid.step, f64::max);
+    let mut found: Vec<(f64, Skeleton)> = Vec::new();
+    for (i, &from) in cells.iter().enumerate() {
+        let (_, prev) = grid.paths(from, |n, step| {
+            let k = widest / (grid.clearance[n].max(0.0) + grid.step * 0.5);
+            step * k * k
+        });
+        for &to in &cells[i + 1..] {
+            // The ridge between the two ends, as derive follows a stroke.
+            let mut ridge = vec![to];
+            while let Some(&k) = ridge.last() {
+                if k == from || ridge.len() > grid.clearance.len() {
+                    break;
+                }
+                match prev[k] {
+                    usize::MAX => break,
+                    p => ridge.push(p),
+                }
+            }
+            if ridge.last() != Some(&from) || ridge.len() < 8 {
+                continue;
+            }
+            if let Some(sk) = straight_stroke(&ridge, grid, edges) {
+                let len = sk.points[0].distance(sk.points[sk.points.len() - 1]);
+                found.push((len, sk));
+            }
+        }
+    }
+    found.sort_by(|a, b| b.0.total_cmp(&a.0));
+    found.into_iter().take(MAX_MAINS).map(|f| f.1).collect()
+}
+
+/// A straight line (a point on it and its unit direction) through `p` if at least 60 % of the
+/// points lie within `near` of it (fitted twice: then to those points only); `None` otherwise.
+fn straight_fit(p: &[Vec2], near: f64) -> Option<(Vec2, Vec2)> {
+    let fit = |p: &[Vec2]| -> Option<(Vec2, Vec2)> {
+        if p.len() < 3 {
+            return None;
+        }
+        let c = p.iter().fold(v2(0.0, 0.0), |a, &q| a + q) * (1.0 / p.len() as f64);
+        let (mut xx, mut xy, mut yy) = (0.0, 0.0, 0.0);
+        for q in p {
+            let d = *q - c;
+            xx += d.x * d.x;
+            xy += d.x * d.y;
+            yy += d.y * d.y;
+        }
+        let angle = 0.5 * (2.0 * xy).datan2(xx - yy);
+        Some((c, v2(angle.dcos(), angle.dsin())))
+    };
+    let off = |q: Vec2, (c, d): (Vec2, Vec2)| {
+        let e = q - c;
+        (e.x * d.y - e.y * d.x).abs()
+    };
+    let first = fit(p)?;
+    let close: Vec<Vec2> = p
+        .iter()
+        .copied()
+        .filter(|&q| off(q, first) <= near)
+        .collect();
+    if close.len() * 10 < p.len() * 6 {
+        return None;
+    }
+    let line = fit(&close)?;
+    (p.iter().filter(|&&q| off(q, line) <= near).count() * 10 >= p.len() * 6).then_some(line)
+}
+
+/// The straight stroke along the grid `ridge` (cells), if the ridge runs straight: a line
+/// fitted to its middle 70 % (the ends hook into the stroke's corners), on which at least 60 %
+/// of those cells lie within a third of the stroke's half width (a junction pulls the ridge
+/// aside for a while), from end to end of the ridge and on to the outline, a sixth of the
+/// stroke's width short of it. `None` for a bent ridge or a line that leaves the region.
+fn straight_stroke(ridge: &[usize], grid: &Grid, edges: &[(Vec2, Vec2)]) -> Option<Skeleton> {
+    let pts: Vec<Vec2> = ridge.iter().map(|&k| grid.centre(k)).collect();
+    let m = pts.len();
+    let inner = &pts[m * 15 / 100..m - m * 15 / 100];
+    let mut half: Vec<f64> = ridge.iter().map(|&k| grid.clearance[k]).collect();
+    half.sort_by(f64::total_cmp);
+    let median = half[half.len() / 2];
+    let (c, d) = straight_fit(inner, (median / 3.0).max(grid.step))?;
+    let along = |q: Vec2| (q - c).x * d.x + (q - c).y * d.y;
+    let (lo, hi) = pts
+        .iter()
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &q| {
+            (lo.min(along(q)), hi.max(along(q)))
+        });
+    let (a, b) = (c + d * lo, c + d * hi);
+    let n = ((a.distance(b) / grid.step).ceil() as usize).max(2);
+    if (0..=n).any(|k| grid.clearance_at(a.lerp(b, k as f64 / n as f64)) < grid.step) {
+        return None;
+    }
+    let inset = median / 3.0;
+    let head = a - d * ray(a, d * -1.0, edges).map_or(0.0, |e| (e - inset).max(0.0));
+    let tail = b + d * ray(b, d, edges).map_or(0.0, |e| (e - inset).max(0.0));
+    let n = ((head.distance(tail) / (4.0 * grid.step)).ceil() as usize).max(2);
+    let line: Vec<Vec2> = (0..=n)
+        .map(|k| head.lerp(tail, k as f64 / n as f64))
+        .collect();
+    along_line(&line, edges)
+}
+
+/// The columns of a branching region from its `main` stroke (see [`branches`]): the main
+/// column measured again along its whole length, then one column per arm left uncovered,
+/// each joining a column `overlap` (0.1 mm) deep. A `straight` main stroke keeps its line
+/// ([`along_line`]).
+fn arms_from(
+    main: Skeleton,
+    grid: &Grid,
+    edges: &[(Vec2, Vec2)],
+    overlap: f64,
+    straight: bool,
+) -> Vec<Skeleton> {
     let cells = grid.clearance.len();
     let first = main.clone();
     let mut arms = vec![main];
     // The main column's widths are measured again along its whole length: derive simplifies a
     // straight stroke to its two ends, whose width is then the nearest edge's (the end of the
     // bar across a plus). The arms join this column; without arms derive's own is kept.
-    {
+    if straight {
         let mut dense = vec![first.points[0]];
         for w in first.points.windows(2) {
             let n = ((w[0].distance(w[1]) / (4.0 * grid.step)).ceil() as usize).max(1);
             dense.extend((1..=n).map(|i| w[0].lerp(w[1], i as f64 / n as f64)));
         }
-        if let Some(mut main) = measure(&dense, true, true, &edges, grid.step) {
+        if let Some(main) = along_line(&dense, edges) {
+            arms[0] = main;
+        }
+    } else {
+        let mut dense = vec![first.points[0]];
+        for w in first.points.windows(2) {
+            let n = ((w[0].distance(w[1]) / (4.0 * grid.step)).ceil() as usize).max(1);
+            dense.extend((1..=n).map(|i| w[0].lerp(w[1], i as f64 / n as f64)));
+        }
+        if let Some(mut main) = measure(&dense, true, true, edges, grid.step) {
             // Where the chord runs on into another arm (the middle of a star), the column is
             // as wide as the clearance there allows, not the chord.
             for (q, w) in main.points.iter().zip(main.widths.iter_mut()) {
@@ -907,10 +1316,10 @@ pub fn branches(contours: &[Contour], join_overlap: f64) -> Vec<Skeleton> {
             }
             ok
         };
-        match (line.last() == Some(&tip))
-            .then(|| line_to_skeleton(pts, false, reached, &edges, grid.step))
-            .flatten()
-        {
+        let arm = (line.last() == Some(&tip))
+            .then(|| line_to_skeleton(pts, false, reached, edges, grid.step))
+            .flatten();
+        match arm {
             // The arm's own cells are never an arm again; a part next to it (two arms meeting
             // in the uncovered middle of a star) still is.
             Some(sk) => {
@@ -919,9 +1328,6 @@ pub fn branches(contours: &[Contour], join_overlap: f64) -> Vec<Skeleton> {
             }
             None => part.iter().for_each(|&k| tried[k] = true),
         }
-    }
-    if arms.len() == 1 {
-        return vec![first];
     }
     arms
 }
@@ -1364,5 +1770,62 @@ mod tests {
         for sk in &arms {
             assert_eq!(sk.validate(), Ok(()));
         }
+    }
+}
+
+#[cfg(test)]
+mod letter_tests {
+    use super::*;
+
+    fn letter(ch: &str, size: f64) -> Vec<Contour> {
+        let spec = crate::text::TextSpec::new(ch, "lato-bold", size);
+        crate::text::layout(&spec, None).expect("layout").contours()
+    }
+
+    /// The share of the letter's inner cells the satin of `arms` sews over, and the grid.
+    fn sewn(c: &[Contour], arms: &[Skeleton]) -> f64 {
+        let edges: Vec<(Vec2, Vec2)> = c.iter().flat_map(Contour::edges).collect();
+        let b = crate::geometry::Rect::enclosing(edges.iter().map(|e| e.0)).expect("b");
+        covered(&Grid::new(&edges, &b).expect("grid"), arms)
+    }
+
+    #[test]
+    fn k_and_r_keep_their_stem_straight_through_the_junction() {
+        // #526: Lato Bold K and R at 10 and 25 mm. Their longest stroke ran down a leg and
+        // turned up the stem at the junction, fanning there and leaving a gap in the stem.
+        for (ch, size, least) in [
+            ("K", 10.0, 0.97),
+            ("K", 25.0, 0.97),
+            ("R", 10.0, 0.93),
+            ("R", 25.0, 0.93),
+        ] {
+            let c = letter(ch, size);
+            let arms = branches(&c, 0.3);
+            assert!(arms.len() >= 3, "{ch} {size}: {}", arms.len());
+            // The first column is the stem: straight, upright, the letter's height.
+            let stem = &arms[0];
+            let (a, b) = (stem.points[0], stem.points[stem.points.len() - 1]);
+            assert!(sharpest_bend(stem) < 1.0, "{ch} {size}");
+            assert!(
+                (a.x - b.x).abs() < 0.05 * (a.y - b.y).abs(),
+                "{ch} {size}: {a:?} {b:?}"
+            );
+            assert!(
+                (a.y - b.y).abs() > 0.9 * size * 7.0,
+                "{ch} {size}: {a:?} {b:?}"
+            );
+            let share = sewn(&c, &arms);
+            assert!(share >= least, "{ch} {size}: {share:.3}");
+            for sk in &arms {
+                assert_eq!(sk.validate(), Ok(()));
+            }
+        }
+    }
+
+    #[test]
+    fn letters_without_a_bent_junction_split_as_before() {
+        // X keeps its two crossing strokes, N its one stroke.
+        assert_eq!(branches(&letter("X", 25.0), 0.3).len(), 3);
+        assert_eq!(branches(&letter("N", 25.0), 0.3).len(), 1);
     }
 }

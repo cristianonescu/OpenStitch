@@ -141,7 +141,7 @@ fn optimize_entry_exit_option_persists_and_applies_to_new_shapes() {
     s.with_user_settings(&file).expect("settings");
     assert_eq!(
         run(&mut s, "options.get", json!({})),
-        json!({"optimizeEntryExit": false})
+        json!({"optimizeEntryExit": false, "defaultFabric": null})
     );
     // Off: new shapes keep the Rectangle tool's default entry and exit, the middle of the bottom
     // edge (PE-DESIGN 11; spec shape-start-points).

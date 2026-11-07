@@ -864,6 +864,29 @@
   "preview": "previews/holes-and-emboss.png",
   "sha256": "0518ed894d8f8b6acc860ad4d7b69668b8bd0028f5d3c24b8ada87a6cd2ff921"
  },
+ "fills/wave-fill.pes": {
+  "title": "Wave fill (beyond PE-DESIGN)",
+  "about": "Fills whose rows ripple as a sine, height and length in mm: 2 and 16, 3 and 10, 5 and 24 (top row, rows across), 3 and 14 at 45°, 3 and 12 on a circle, and 8 and 8 at 90° (steeper than 40°, so sewn at 40°).",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   86.0,
+   56.0
+  ],
+  "stitches": 13909,
+  "trims": 6,
+  "threads": [
+   "405 Blue",
+   "800 Red",
+   "509 Leaf Green",
+   "208 Orange",
+   "620 Magenta",
+   "406 Ultra Marine"
+  ],
+  "sewingMinutes": 17.7,
+  "image": null,
+  "preview": "previews/wave-fill.png",
+  "sha256": "f6e3e9129dbe0bfd7e2e86c19f7ffae81d76e428ec774536647801b7207d444f"
+ },
  "lines/line-sew-types.pes": {
   "title": "Line sew types",
   "about": "Top to bottom: running, triple, zigzag, motif (wave), stem, candlewick, E stitch, V stitch, chain.",

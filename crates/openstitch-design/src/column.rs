@@ -1042,12 +1042,172 @@ pub fn satin_with(rungs: &[[Vec2; 2]], spacing: f64, pull: f64, shaping: &SatinS
 /// Zigzag across rungs with the shaping options (zigzag lines, see
 /// [`crate::lines::zigzag_shaped`]): rungs `spacing` apart, one needle point each.
 pub fn zigzag_with(rungs: &[[Vec2; 2]], spacing: f64, shaping: &SatinShaping) -> Run {
+    zigzag_shaped(rungs, spacing, 0.0, shaping)
+}
+
+/// [`zigzag_with`] with each crossing lengthened by `pull` (0.1 mm) at both ends, or by the
+/// shaping's compensation per side and per cent of width: skeleton satin and Auto satin with
+/// satin shaping (#675). `rungs` are the column's edges without compensation.
+pub fn zigzag_shaped(rungs: &[[Vec2; 2]], spacing: f64, pull: f64, shaping: &SatinShaping) -> Run {
     stitch_pieces(
         pieces(rungs, shaping.pitch(spacing), false, &shaping.corners),
-        0.0,
+        pull,
         shaping,
         zigzag,
     )
+}
+
+/// Below this satin width (mm) the width-following under sewing sews one row (#523, #675).
+pub const ONE_ROW_BELOW: f64 = 3.0;
+
+/// The number of width-following rows under a satin `width` wide (mm), rows `spacing` (mm)
+/// apart: one below [`ONE_ROW_BELOW`], else one per spacing, rounded down to an odd number so
+/// the rows end at the far end of their stretch.
+fn rows_for(width: f64, spacing: f64) -> usize {
+    if width < ONE_ROW_BELOW {
+        return 1;
+    }
+    let n = ((width / spacing.max(0.1)).round() as usize).clamp(1, 99);
+    if n.is_multiple_of(2) { n - 1 } else { n }
+}
+
+/// Width-following under sewing of a satin column (#523, #675, `underlay: auto` on a skeleton
+/// satin or an Auto satin region): running rows along the column, `inset` (0.1 mm) inside its
+/// edges, as many across as [`rows_for`] gives at each place (one where it is narrower than
+/// 3 mm, about one per `spacing` (0.1 mm) where it is wider), so a tapering column gets more
+/// rows where it is wide and never a row past its edge. Each stretch of one row count is sewn
+/// back and forth across the column; then a centre run back to `start`, its needle points
+/// between the rows'. Stitches up to `pitch` (0.1 mm).
+pub fn width_rows(rungs: &[[Vec2; 2]], start: Vec2, inset: f64, spacing: f64, pitch: f64) -> Run {
+    if rungs.len() < 2 {
+        return Vec::new();
+    }
+    let n = rungs.len();
+    let near_first = start.distance(mid(rungs[0])) <= start.distance(mid(rungs[n - 1]));
+    let ordered: Vec<[Vec2; 2]> = if near_first {
+        rungs.to_vec()
+    } else {
+        rungs.iter().rev().copied().collect()
+    };
+    let pitch = pitch.max(1.0);
+    let stations = rungs_at(&ordered, pitch);
+    let inset = inset.max(0.0);
+    let inner: Vec<[Vec2; 2]> = stations
+        .iter()
+        .map(|&[l, r]| {
+            let len = l.distance(r);
+            if len <= 2.0 * inset + 1.0 {
+                let m = l.lerp(r, 0.5);
+                return [m, m];
+            }
+            let d = (r - l) * (inset / len);
+            [l + d, r - d]
+        })
+        .collect();
+    let mut counts: Vec<usize> = stations
+        .iter()
+        .map(|&[l, r]| rows_for(l.distance(r) / 10.0, spacing / 10.0))
+        .collect();
+    // Stretches shorter than two spacings join the stretch before them, so the count does
+    // not flicker where the width hovers at a bound.
+    let min_len = 2.0 * spacing;
+    let mut i = 0;
+    while i < counts.len() {
+        let mut j = i;
+        while j < counts.len() && counts[j] == counts[i] {
+            j += 1;
+        }
+        let len = mid(stations[i]).distance(mid(stations[j - 1]));
+        if i > 0 && len < min_len {
+            let c = counts[i - 1];
+            counts[i..j].iter_mut().for_each(|k| *k = c);
+        }
+        i = j;
+    }
+    let mut run = vec![start];
+    // The side of the column the last row ended on (0 left, 1 right): the next stretch's rows
+    // start there.
+    let mut from_right = false;
+    let mut i = 0;
+    while i < counts.len() {
+        let c = counts[i];
+        let mut j = i;
+        while j < counts.len() && counts[j] == c {
+            j += 1;
+        }
+        // The stretch shares its first station with the one before it.
+        let lo = i.saturating_sub(1);
+        for row in 0..c {
+            let lane = if from_right { c - 1 - row } else { row };
+            let t = (lane as f64 + 0.5) / c as f64;
+            let points = inner[lo..j].iter().map(|&[l, r]| l.lerp(r, t));
+            if row % 2 == 0 {
+                run.extend(points);
+            } else {
+                run.extend(points.rev());
+            }
+        }
+        if c > 1 {
+            from_right = !from_right;
+        }
+        i = j;
+    }
+    // Back along the middle, between the outward needle points.
+    let mids: Vec<Vec2> = inner.iter().map(|&r| mid(r)).collect();
+    let back: Vec<Vec2> = mids
+        .windows(2)
+        .rev()
+        .map(|w| w[0].lerp(w[1], 0.5))
+        .collect();
+    run.extend(back);
+    run.push(mids[0]);
+    run.push(start);
+    run.dedup_by(|a, b| a.distance(*b) < 1e-9);
+    run
+}
+
+/// OpenStitch's under sewing on a satin column given by `rungs` from its start end, for a
+/// skeleton satin or an Auto satin region (#675), where `r` asks for it: the first layer for
+/// `underlayStyle` `auto` ([`width_rows`]) and `centreWalk`, and the second layer
+/// (`underlay2`). `None` where PE-DESIGN's region under sewing stays (the first layer of the
+/// other styles, no second layer). Both start and end at `start`.
+pub fn rung_underlay(rungs: &[[Vec2; 2]], r: &RegionSewing, start: Vec2) -> [Option<Run>; 2] {
+    if !r.underlay || rungs.len() < 2 {
+        return [None, None];
+    }
+    let keep = |run: Run| (run.len() > 1).then_some(run);
+    let first = match r.underlay_style {
+        UnderlayStyle::Auto => keep(width_rows(
+            rungs,
+            start,
+            UNDERLAY_INSET,
+            r.underlay_spacing_mm() * 10.0,
+            UNDERLAY_PITCH,
+        )),
+        UnderlayStyle::CentreWalk => {
+            keep(centre_walk(rungs, start, UNDERLAY_INSET, UNDERLAY_PITCH))
+        }
+        _ => None,
+    };
+    let second = r.underlay2.and_then(|u| {
+        let pitch = (u.stitch_length * 10.0).max(1.0);
+        keep(match u.style {
+            UnderlayStyle::Auto => {
+                width_rows(rungs, start, u.inset * 10.0, u.spacing * 10.0, pitch)
+            }
+            UnderlayStyle::CentreWalk => centre_walk(rungs, start, u.inset * 10.0, pitch),
+            s => underlay_at(
+                rungs,
+                s.column_parts(),
+                u.spacing * 10.0,
+                pitch,
+                start,
+                u.inset * 10.0,
+                pitch,
+            ),
+        })
+    });
+    [first, second]
 }
 
 /// A part of a shaped column in sewing order.

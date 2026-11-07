@@ -669,6 +669,7 @@ fn set_name_drop(s: &mut EngineState, p: &Params, id: u64) -> Result<(), Command
 }
 
 /// Checks a base file name: no directories, no control characters.
+#[cfg(feature = "formats")]
 fn base_name(p: &Params) -> Result<String, CommandError> {
     let n = p.string("name", None)?;
     let ok = (1..=64).contains(&n.chars().count())

@@ -2980,6 +2980,39 @@ auto, shortStitchDistance: 0.25`, read from the exported PES:
   region's second underlay (#677), lap corners. No sew-out yet: the owner's T-card scan of a
   tapered column with `pullPercent: 3` is still needed for #522's ±5 % width target.
 
+### Satin shaping on skeleton satin and Auto satin, 2026-11-07 (#675)
+
+The options of #520-#523 on the two satin kinds the batch above left out, beyond PE-DESIGN and
+off by default. Unset, a skeleton satin sews `skeleton::satin` and an Auto satin region its
+PE-DESIGN rungs with Half Stitch as before: compat 468/468, kit unchanged.
+
+- **Corners.** A skeleton satin builds its corners on one rung per centre-line point (square
+  to the bisector, reaching the mitre of the column's edges); an Auto satin region on its
+  derived centre line's points, each rung reaching the region's outline. Other shaping keeps
+  the smoothly turning rungs (every 1 mm on a skeleton; Auto satin's own lattice).
+- **Short stitches, compensation per side and per cent, satin looks** as on columns, on the
+  rungs without compensation (`pullCompensation` is then each side's default).
+- **Under sewing along the column.** `underlayStyle: auto` sews rows along the column that
+  follow its width: one where it is under 3 mm, about one per `underlaySpacing` where it is
+  wider (rounded down to an odd number so each stretch ends at its far end), 0.5 mm inside the
+  edges, then back along the middle. `centreWalk` and `underlay2` as on a column. Other styles
+  keep the region's PE-DESIGN under sewing.
+
+Measured with `stitches.points` (no under sewing; stitches, longest stitch, most needle drops
+in one 0.5 mm cell), turned → `cornerStyle: auto` → also `shortStitchDistance: 0.25`:
+
+| Object | Turned | Auto corners | + short stitches |
+|---|---|---|---|
+| Skeleton satin, 60° corner, 4 mm | 278, 4.2 mm, 4 | 316, 4.0 mm, 5 | 316, 4.0 mm, 4 |
+| Skeleton satin, 30° tip, 3 mm | 283, 3.1 mm, 4 | 298, 4.4 mm, 5 | 298, 4.4 mm, 5 |
+| Auto satin, 90° bend, 5 mm | 313, 7.3 mm, 7 | 280, 6.8 mm, 3 | 280, 6.8 mm, 2 |
+| Auto satin, 45° bend, 5 mm | 307, 5.4 mm, 7 | 293, 5.4 mm, 5 | 293, 5.4 mm, 5 |
+
+Skeleton satin already turns smoothly with Half Stitch (#466), so a mitre there adds the seam's
+needle points rather than removing a pile; on Auto satin's fanned bends the constructions
+halve the densest cell. Tests `satin_shaping_tests::*`, engine
+`skeleton_and_auto_satin_take_the_shaping_through_the_command`. No sew-out yet.
+
 ### Ripple lines and motif line placement, 2026-11-07 (#541, #544 part, `batch:lines`, part 3)
 
 Beyond PE-DESIGN and off unless chosen: a motif line without groups, free ends or motifs in
@@ -3105,6 +3138,25 @@ message it gives other unmapped line types; the machine formats sew it.
   - Not met: on K and R the main stroke bends through the junction and fans, leaving a gap in
     the stem. #526's IoU ≥ 0.95 and "no gap over 0.3 mm" are therefore not reached on letters,
     and #526 stays open.
+- **Straight stems, 2026-11-07 (#526).** When the main stroke turns more than 40° within
+  1.5 column widths (its ends, which hook into corners, not counted), straight strokes between
+  the columns' free ends are tried as the main stroke instead. A stroke qualifies when a line fits
+  60 % of the middle of its ridge within a third of its half width. Its column keeps that line
+  and the nearer side of each chord as its half width, so it does not widen into the junction.
+  The split whose satin covers the most of the region is kept, counting the quadrilaterals
+  between 1 mm crossings, so a fan's gaps count. Share of the letter's inner cells sewn
+  (Lato Bold):
+
+  | Letter | 10 mm before → after | 25 mm before → after |
+  |---|---|---|
+  | K | 0.902 → 0.985 | 0.926 → 0.984 |
+  | R | 0.800 → 0.943 | 0.836 → 0.945 |
+  | X, Y, N | unchanged | unchanged |
+
+  K and R now sew their stems from top to bottom as one straight column, with no gap. The legs
+  still turn into the stem along their ridge and fan a little where they join. The R's bowl
+  leaves a strip by the top of the stem, which is why R stays under 0.95. All ten letters pass
+  `tools/sew_check.py`. Tests `letter_tests::*`; the Y, plus and star tests are unchanged.
 
 ### Hidden stitching and hidden travel, 2026-11-06 (#511, #545, `batch:routing`)
 

@@ -30,6 +30,8 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 - A plain fill's look changes with `object.setRegion` `texture` (`smooth`, PE-DESIGN's default,
   or OpenStitch's `ribs`, `diagonal`, `blocks`, `waves`, `zigzag`, `chevron`, `scallops`, ...):
   same shape, density and stitch count, different needle-hole pattern.
+- Wave fill (beyond PE-DESIGN): `object.setRegion` on a fill with `waveHeight` (crest to trough,
+  mm, 0 = off) and `waveLength` (mm, default 16). PES 0110 refuses it; save PES version 6.
 - Colours: `"#rrggbb"`, a Brother thread name (`"Black"`, `"White"`, `"Red"`, `"Blue"`,
   `"Prussian Blue"`, `"Deep Gold"`, `"Leaf Green"`, ...; case-insensitive), or a Brother chart
   number 1-64. A name that is not in the chart is refused; use `#rrggbb` when unsure.
@@ -80,15 +82,16 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    short stitches) and `miterLimit` (0-50 mm from the corner along the bisector; 0, the
    default, cuts the point at the corner, about 4 mm on a 2 mm line at 30 degrees is the full
    point). Raise `miterLimit` for a pointed star or chevron border, keep 0 for a blunt one.
-   Satin quality beyond PE-DESIGN (off by default; Manual Punch columns via
-   `object.setRegion`, zigzag lines via `object.setLine`): `cornerStyle: auto` for stars,
-   chevrons and badge borders (mitre below `mitreBelow` 75°, cap below `capBelow` 45°,
+   Satin quality beyond PE-DESIGN (off by default; Manual Punch columns, skeleton satins and
+   Auto satin regions via `object.setRegion`, zigzag lines via `object.setLine`):
+   `cornerStyle: auto` for stars, chevrons and badge borders (mitre below `mitreBelow` 75°, cap below `capBelow` 45°,
    `cornerOverlap`, `capMaxLength`); `shortStitchDistance: 0.25` (with `shortStitchInset` %)
    thins the inside of tight curves; `pullLeft`/`pullRight` (mm, `null` resets) and
    `pullPercent` (3 for tapered columns; `pullMax` caps it) compensate per side and by width;
    `underlayStyle: auto` picks a centre walk, edge run or edge + zigzag by width (thresholds
-   `underlayAuto {centreBelow, edgeBelow}`, set by `fabric.apply`), `centreWalk` for thin
-   satins, and a column's `underlay2 {style, inset, spacing, stitchLength}` adds a second
+   `underlayAuto {centreBelow, edgeBelow}`, set by `fabric.apply`; on a skeleton or Auto
+   satin it sews rows along the column that follow its width instead), `centreWalk` for thin
+   satins, and `underlay2 {style, inset, spacing, stitchLength}` adds a second
    layer (`null` removes it). Satin looks: `satinStyle` sStitch (corded edge), open (light),
    double (raised X lattice); `jaggedEdge {mode: in|out|both, side, amount, seed}` (or just
    `"in"`; `"none"`/`null` removes it) for fur, grass and feathers; `spacingAt: 0.5` evens a
@@ -103,8 +106,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    width | left, right}`, `object.deleteWidthKey {id, index}`), `taperStart`/`taperEnd` (mm,
    pointed ends) and `slant` (-60 to 60 degrees). A Y, star or stick figure drawn as one
    filled shape: `object.deriveSkeleton {id, branches: true, joinOverlap: 0.3}` makes a
-   grouped satin column per arm (the shape stays hidden); check `warnings` for columns over
-   10 mm and look at the junctions with `view_render`.
+   grouped satin column per arm (the shape stays hidden); a letter's straight stem (K, R)
+   stays one straight column through its junction. Check `warnings` for columns over 10 mm
+   and look at the junctions with `view_render`.
    Ripples, echoes and spirals from one outline (beyond PE-DESIGN): `object.setLine {type:
    ripple, strands, target: [x, y]}` (a closed line spirals in to the target as one run; an
    open one repeats `spacing` apart towards the target's side). Motif lines (beyond
@@ -377,6 +381,10 @@ are desktop-only; say so instead of trying them in the browser.
     row, `fabric.calibrate {fabric, name, fill, satin, pull}` (1–5 each) saves a custom
     fabric (`custom-…` in `fabric.list`) that `fabric.apply` gives to objects;
     `fabric.deleteCustom {fabric}` removes it. Both change the user's settings: say so first.
+- Thread weight (#508): `fabric.apply {fabric, weight}` with No. 60 for small text sews rows
+  closer (density × √(weight / 40)); No. 40 is the default and changes nothing. To make shapes and
+  texts drawn from now on start from a fabric, `fabric.setDefault {fabric, weight}` (`fabric:
+  "none"` clears it; it changes the user's settings, so say so first; `options.get` shows it).
 - "What stabiliser / needle should I use on fleece?": `fabric.advise {fabric, weight}` (weight
   12, 30, 40 or 60; default 40) gives backing, topping, needle point and size and the smallest
   legible block-letter height, each from the makers' published guidance with `sources`; say so
