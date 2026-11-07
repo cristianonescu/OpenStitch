@@ -46,7 +46,9 @@ impl Info {
         if self.available {
             format!("{head}\n{}", self.tip)
         } else {
-            format!("{head}\nNot yet available in OpenStitch. {}", self.tip)
+            let not_yet =
+                super::i18n::text("ribbon-not-available", "Not yet available in OpenStitch.");
+            format!("{head}\n{not_yet} {}", self.tip)
         }
     }
 }
@@ -64,8 +66,8 @@ macro_rules! actions {
                 match self {
                     $(Action::$variant => Info {
                         key: $key,
-                        label: $label,
-                        tip: $tip,
+                        label: super::i18n::text(concat!("action-", $key, "-label"), $label),
+                        tip: super::i18n::text(concat!("action-", $key, "-tip"), $tip),
                         shortcut: $shortcut,
                         engine: $engine,
                         available: $available,
@@ -390,6 +392,11 @@ impl TabId {
     ];
 
     pub fn label(self) -> &'static str {
+        super::i18n::text(&format!("tab-{}", self.key()), self.english_label())
+    }
+
+    /// The tab's name in English (the source of [`TabId::label`]).
+    pub fn english_label(self) -> &'static str {
         match self {
             TabId::Home => "Home",
             TabId::Image => "Image",
@@ -405,6 +412,12 @@ impl TabId {
 
     /// Caption over a contextual tab (what it is for); `None` for the fixed tabs.
     pub fn context(self) -> Option<&'static str> {
+        self.english_context()
+            .map(|c| super::i18n::text(&format!("tab-{}-context", self.key()), c))
+    }
+
+    /// The contextual caption in English (the source of [`TabId::context`]).
+    pub fn english_context(self) -> Option<&'static str> {
         match self {
             TabId::Home | TabId::Image | TabId::View => None,
             TabId::Text => Some("Text"),
@@ -469,6 +482,14 @@ pub struct Group<A: 'static = Action> {
 }
 
 impl<A: Copy> Group<A> {
+    /// The caption in this thread's language (message id `group-<name as a slug>`).
+    pub fn caption(&self) -> &'static str {
+        super::i18n::text(
+            &format!("group-{}", super::i18n::slug(self.name)),
+            self.name,
+        )
+    }
+
     pub fn actions(&self) -> impl Iterator<Item = A> + '_ {
         self.items
             .iter()
@@ -1090,5 +1111,113 @@ mod tests {
             QAT_DEFAULT.map(|a| a.info().label),
             ["New", "Open", "Save", "Undo", "Redo", "Zoom", "Help"]
         );
+    }
+
+    /// Every message of the ribbon in English, as `assets/i18n/en.ftl` lists them (#555).
+    pub(crate) fn english_messages() -> Vec<(String, &'static str)> {
+        use crate::editor::i18n;
+        assert_eq!(i18n::language(), i18n::ENGLISH);
+        let mut out = vec![(
+            "ribbon-not-available".to_string(),
+            "Not yet available in OpenStitch.",
+        )];
+        for &a in Action::ALL {
+            let info = a.info();
+            out.push((format!("action-{}-label", info.key), info.label));
+            out.push((format!("action-{}-tip", info.key), info.tip));
+        }
+        for t in TabId::ALL {
+            out.push((format!("tab-{}", t.key()), t.english_label()));
+            if let Some(c) = t.english_context() {
+                out.push((format!("tab-{}-context", t.key()), c));
+            }
+        }
+        for t in TabId::ALL {
+            for g in t.groups() {
+                let id = format!("group-{}", i18n::slug(g.name));
+                match out.iter().find(|(i, _)| *i == id) {
+                    Some((_, text)) => assert_eq!(*text, g.name, "{id} names two captions"),
+                    None => out.push((id, g.name)),
+                }
+            }
+        }
+        out
+    }
+
+    fn english_catalogue() -> String {
+        let mut f = String::from(
+            "# OpenStitch interface texts in English (#555): the source every translation copies.\n\
+             # Generated from the code: OPENSTITCH_WRITE_I18N=1 cargo test -p openstitch-app --lib\n\
+             # the_english_catalogue_is_current. A translation is assets/i18n/<code>.ftl with the\n\
+             # same ids and translated texts (see crates/openstitch-app/src/editor/i18n.rs).\n",
+        );
+        for (id, text) in english_messages() {
+            f.push_str(&format!("{id} = {}\n", crate::editor::i18n::escape(text)));
+        }
+        f
+    }
+
+    #[test]
+    fn the_english_catalogue_is_current() {
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/i18n/en.ftl");
+        let want = english_catalogue();
+        if std::env::var_os("OPENSTITCH_WRITE_I18N").is_some() {
+            std::fs::write(&path, &want).expect("write en.ftl");
+        }
+        let got = std::fs::read_to_string(&path)
+            .expect("assets/i18n/en.ftl")
+            .replace("\r\n", "\n");
+        assert!(
+            got == want,
+            "assets/i18n/en.ftl is out of date: OPENSTITCH_WRITE_I18N=1 cargo test -p openstitch-app --lib the_english_catalogue_is_current"
+        );
+        // It reads back as the same texts, so a copy of it is a valid catalogue.
+        let parsed = crate::editor::i18n::parse(&got).expect("en.ftl parses");
+        let messages = english_messages();
+        assert_eq!(parsed.len(), messages.len(), "ids are unique");
+        for ((id, text), (pid, ptext)) in messages.iter().zip(&parsed) {
+            assert_eq!((id.as_str(), *text), (*pid, ptext.as_str()));
+        }
+    }
+
+    #[test]
+    fn shipped_catalogues_only_use_known_ids() {
+        let ids: std::collections::BTreeSet<String> =
+            english_messages().into_iter().map(|(id, _)| id).collect();
+        for (code, source) in crate::editor::i18n::shipped() {
+            for (id, _) in crate::editor::i18n::parse(source).expect("parses") {
+                assert!(ids.contains(id), "assets/i18n/{code}.ftl: unknown id {id}");
+            }
+        }
+    }
+
+    #[test]
+    fn the_pseudo_locale_reaches_every_ribbon_text() {
+        use crate::editor::i18n;
+        let english = english_messages();
+        assert!(i18n::set_language(i18n::PSEUDO));
+        for &a in Action::ALL {
+            let info = a.info();
+            assert!(
+                info.label.starts_with('[') && info.label.ends_with(']'),
+                "{a:?} label"
+            );
+            assert!(info.tip.starts_with('['), "{a:?} tip");
+            let tip = info.screen_tip(false);
+            assert!(!tip.contains("Not yet available"), "{a:?}: {tip}");
+        }
+        for t in TabId::ALL {
+            assert!(t.label().starts_with('['), "{t:?}");
+            assert!(t.context().is_none_or(|c| c.starts_with('[')), "{t:?}");
+            for g in t.groups() {
+                assert!(g.caption().starts_with('['), "{t:?} {}", g.name);
+            }
+        }
+        // Keys stay English: settings and the Quick Access Toolbar keep working.
+        assert_eq!(Action::from_key("open"), Some(A::Open));
+        assert!(i18n::set_language(i18n::ENGLISH));
+        assert_eq!(A::Open.info().label, "Open");
+        assert!(!english.is_empty());
     }
 }

@@ -528,6 +528,11 @@ pub const SETTINGS: &[Setting] = &[
         "Options ▸ Text size: the whole window at this percentage (on top of the system display scale)",
         "number 100..200",
     ),
+    s(
+        "language",
+        "Options ▸ Language: the interface language (ribbon so far; pseudo = a test language that brackets every translated text)",
+        "en|pseudo",
+    ),
     s("showStartCards", "Show start cards", "bool"),
     s(
         "newObjectDefaults",
