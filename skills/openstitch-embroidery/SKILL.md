@@ -314,7 +314,10 @@ so tell the user which); `ui.set paneSewingOrderSide` / `paneAttributesSide` (le
 shortcuts, layouts or newObjects (new-shape defaults, Basic/Advanced, start cards) alone (ask first).
 For a new user, `ui.gettingStarted` lists the start cards and the kit's samples; `{sample:
 "sampler"}` opens one as an untitled design, `{card: "draw"}` runs a card, `{page: true}` opens
-Help ▸ Getting Started. "Make new shapes start at 30° and 4.5 rows/mm" is `ui.set
+Help ▸ Getting Started. A user who knows PE-DESIGN may prefer its start-up dialog:
+`ui.startupWizard` opens the Startup Wizard, `{choice}` runs one of its choices (template, images,
+hoopAndFabric, importText, importShapes, importLibrary, open, database, manual), and `ui.set
+startupWizard true` shows it at every start instead of the start cards. "Make new shapes start at 30° and 4.5 rows/mm" is `ui.set
 newObjectDefaults {angle: 30, density: 4.5}` (also stitchLength, pullCompensation, pitch,
 underlay; `{}` back to the tools' own); it changes only shapes drawn afterwards.
 "Use this shape's settings for new shapes" (the pane's Save as Default) is the same setting:

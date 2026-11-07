@@ -253,6 +253,8 @@ pub struct UiPrefs {
     pub start_cards: bool,
     /// Help ▸ Machine Setup was answered or skipped (#508): not asked again at start.
     pub machine_setup_done: bool,
+    /// The Startup Wizard's "Always show Wizard at Startup" (#657): the PE-compatible start-up.
+    pub startup_wizard: bool,
     /// What new shapes start with (#553); none set by default (the tools' own values).
     pub new_objects: super::new_objects::NewObjects,
     /// Sewing Attributes: every row (Advanced, the default, as PE-DESIGN) or the common ones
@@ -334,6 +336,7 @@ impl Default for UiPrefs {
             recent_commands: Vec::new(),
             start_cards: true,
             machine_setup_done: false,
+            startup_wizard: false,
             new_objects: Default::default(),
             advanced_attributes: true,
             folded_sections: Vec::new(),
@@ -437,6 +440,7 @@ impl UiPrefs {
             "recentCommands": self.recent_commands,
             "showStartCards": self.start_cards,
             "machineSetupDone": self.machine_setup_done,
+            "startupWizard": self.startup_wizard,
             "newObjectDefaults": self.new_objects.to_json(),
             "advancedAttributes": self.advanced_attributes,
             "foldedSections": self.folded_sections,
@@ -611,6 +615,7 @@ impl UiPrefs {
             machine_setup_done: v["machineSetupDone"]
                 .as_bool()
                 .unwrap_or(d.machine_setup_done),
+            startup_wizard: v["startupWizard"].as_bool().unwrap_or(d.startup_wizard),
             new_objects: super::new_objects::NewObjects::load(&v["newObjectDefaults"]),
             advanced_attributes: v["advancedAttributes"]
                 .as_bool()
