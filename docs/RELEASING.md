@@ -137,7 +137,7 @@ with current screenshots. Refresh it in a pull request before every release:
 Before #742 every MSI (each `main` build and each self-update, all version 0.1.0 with a new
 ProductCode) installed beside the last instead of replacing it, so **Settings ▸ Apps** (or
 *Programs and Features*) lists one "OpenStitch 0.1.0" per install, all in
-`C:\Program Files\OpenStitch`. MSIs built since replace any installed OpenStitch of the same or
+`%ProgramFiles%\OpenStitch`. MSIs built since replace any installed OpenStitch of the same or
 an older version (`AllowSameVersionUpgrades`; CI checks the built MSI's Upgrade table), and the
 self-updater's `msiexec /i` relies on that.
 
