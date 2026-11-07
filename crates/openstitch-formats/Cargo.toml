@@ -10,6 +10,11 @@ autotests = false
 [dependencies]
 openstitch-core.workspace = true
 
+# The browser build (#556): the JEF header's time stamp comes from the page's clock, as a
+# browser has no system clock for std (SystemTime::now panics there).
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "0.3.106"
+
 [dev-dependencies]
 serde = { workspace = true }
 serde_json.workspace = true

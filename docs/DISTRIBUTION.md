@@ -194,6 +194,78 @@ code: `crates/openstitch-update`, `crates/openstitch-app/src/update_ui.rs`).
   http allowed) instead of GitHub. The release pipeline publishes `SHA256SUMS` since
   v0.1.0-alpha.4, the first version that checks; a release without it is never applied.
 
+## Web editor
+
+The design editor also runs in a web browser (#556), with nothing to install: `crates/openstitch-web`
+built for `wasm32-unknown-unknown`, drawn by egui on a WebGL 2 canvas, hosted by the static page
+`web/index.html`. It opens a design (`.osd`) or any embroidery file the engine reads through the
+browser's file picker, shows it on the Design Page, plays the stitch simulator, edits the whole
+design (rotate 90°, flip, centre, undo/redo), saves the `.osd` and exports every machine format,
+the stitch lists and G-code as downloads. Nothing leaves the browser.
+
+It runs the same engine commands as the desktop editor (`project.open`, `stitches.import
+{keepSource}`, `design.export`, `project.save`). In the browser those commands read and write
+in-memory files (`openstitch_engine::fsio`; on the desktop the same functions are `std::fs`, so
+native behaviour is unchanged): a picked file is stored, opened and removed, and an exported file
+is written, taken and handed to the browser as a download. The JEF header's time stamp comes from
+the page's clock. The exports are byte-identical to the desktop build: CI job `web` opens
+reference PES and DST files through the browser build's API in Node (`web/smoke.mjs`) and
+compares PES, DST, EXP, VP3, XXX, CSV and G-code with `cargo run -p openstitch-web --example
+web_export`, the same steps run natively; `openstitch-web`'s own tests compare those with the
+desktop editor's File ▸ Open and File ▸ Export.
+
+Desktop-only for now, and named on the page under "What the web version leaves out": the
+Assistant (its key lives in the system keychain), Quick Look, sending to a machine or USB stick,
+updates, the Design Database, image digitizing, and the editor's drawing, lettering and
+object tools (#693). The `.wasm` is about 17 MB (#696).
+
+**Browsers:** `web/e2e/page.mjs` (Playwright, version pinned in `web/e2e/package-lock.json`)
+loads the page in Chromium, Firefox and WebKit (Safari's engine): the page must start, "Open…"
+goes through the browser's real file picker, "Export" through a real download that must be
+byte-identical to the native build, and a DST export through `openstitch.run` too. On macOS all
+three pass (2026-11-07, `node web/e2e/page.mjs WEB_DIR NATIVE_DIR INPUT`). CI job `web` runs it on
+Linux: Chromium always counts; Firefox counts when Mesa (for WebGL on the GPU-less runner)
+installs within 8 minutes, else it is a CI warning; WebKit needs GTK 4 and GStreamer, which the
+runner lacks, so there it is a warning too. The screenshots are kept as the
+`openstitch-web-screenshots` artifact. Safari itself (macOS, iPadOS) is not run; WebKit is its
+engine.
+
+**Toward the full editor (#693):** the desktop editor's library (`openstitch_app::editor`: the
+viewport, hit-testing, tools and render models, without a window) builds for `wasm32` too, checked
+by CI job `web`. Its desktop-only dependencies (keychain, clipboard images, the automation socket,
+the updater, the Assistant's HTTPS client, the system trash) are target-gated in
+`crates/openstitch-app/Cargo.toml`, and `crates/openstitch-app/src/platform.rs` holds what differs:
+on the desktop each function is a pass-through to the call the editor made before (the system
+clipboard, the release-tag check); in the browser the clipboard stays inside the editor. The
+window itself (`main.rs` and the `*_ui.rs` dialogs) follows in later phases.
+
+**Build** (the CLI version must match `wasm-bindgen` in Cargo.lock):
+
+```sh
+rustup target add wasm32-unknown-unknown
+cargo install wasm-bindgen-cli --version 0.2.129 --locked
+cargo build -p openstitch-web --target wasm32-unknown-unknown --release --locked
+wasm-bindgen --target web --no-typescript --out-dir web/pkg \
+  target/wasm32-unknown-unknown/release/openstitch_web.wasm
+```
+
+**Host:** serve the `web/` folder (`index.html` and `pkg/`) from any static web server that sends
+`.wasm` as `application/wasm`; for a local try, `python3 -m http.server --directory web` and open
+`http://localhost:8000`. Opening `index.html` as a file does not work (browsers refuse to load
+the module from `file://`). CI job `web` uploads the built page as the `openstitch-web` artifact
+on every run.
+
+**Published:** <https://cristianonescu.github.io/OpenStitch/> (#695, with the owner's OK).
+`.github/workflows/pages.yml` builds the page from `main` whenever the crates, `web/` or the lock
+file change (or by hand), writes the commit to `version.txt` beside it, and deploys it with
+GitHub's Pages actions. Only its deploy job has `pages: write` and `id-token: write`, in the
+`github-pages` environment, which accepts `main` only. It is its own workflow because
+`release.yml` calls `rust.yml` without Pages permissions.
+
+**Automation:** the page's `openstitch.run({command, params})` takes every engine command and the
+web editor's `ui.state`, `ui.simulate`, `ui.openFile {name, base64}`, `ui.saveFile` and
+`ui.exportFile {format}` (skills/openstitch-embroidery/SKILL.md, "Web editor").
+
 ## Known limits
 
 - **MSI validation.** `light` runs with `-sice:ICE50`: the advertised Start-menu shortcut's

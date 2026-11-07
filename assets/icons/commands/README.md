@@ -46,6 +46,9 @@ hand and the gradient removed.
 were added on 2026-11-06 the same way (2.5 credits each); after `clean_icons.py`, `status_done`'s
 badge, generated a bright mint, was set to the palette green by hand. They run no command, so they
 are in `UI`; so is `hand`, used as the Sewing Order rows' drag grip.
+`test_swatches` and `job_sheet` (Send ▸ Test Swatches…, #452/#453/#507, and Print ▸ Job Sheet…,
+#513) were added on 2026-11-06 the same way (2.5 credits each); after `clean_icons.py`, `job_sheet`'s
+check mark, generated a bright mint, was set to the palette green by hand.
 `player_start`, `player_back`, `player_forward` and `player_end` (the Stitch Simulator's start,
 previous, next and end buttons, #653) were added on 2026-11-06 the same way (2.5 credits each,
 plus 7.5 for three attempts not kept: a framed skip-to-start and step-back that did not match

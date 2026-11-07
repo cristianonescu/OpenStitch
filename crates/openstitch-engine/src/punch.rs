@@ -152,6 +152,78 @@ fn kind(p: &Params) -> Result<RegionType, CommandError> {
     }
 }
 
+/// Widest satin column (mm) a branch split makes without a warning.
+const BRANCH_WARN_WIDTH: f64 = 10.0;
+
+/// `object.deriveSkeleton` with `branches` (#526): one skeleton satin per arm, in one group
+/// after the shape, the shape hidden or removed. `None` when the shape has no branches (the
+/// caller then derives one skeleton, as without `branches`).
+fn derive_branches(
+    s: &mut crate::session::EngineState,
+    p: &Params,
+) -> Result<Option<serde_json::Value>, CommandError> {
+    let overlap = p.opt("joinOverlap", 0.3, 0.0, 1.0)?;
+    let keep = p.bool("keepOriginal", Some(true))?;
+    let id = p.int("id", None, 0, i64::MAX)? as u64;
+    let i = s
+        .design
+        .index_of(id)
+        .ok_or_else(|| p.not_found(format!("object {id}")))?;
+    let o = &s.design.objects[i];
+    if o.kind != openstitch_design::ObjectKind::Shape || o.hole_sewing {
+        return Ok(None);
+    }
+    let Some(template) = o.region.clone() else {
+        return Ok(None);
+    };
+    let arms = skeleton::branches(&o.contours, overlap);
+    if arms.len() < 2 {
+        return Ok(None);
+    }
+    let name = o.name.clone().unwrap_or_else(|| "Shape".into());
+    let group = s.design.new_group_id();
+    let mut objects = Vec::new();
+    let mut warnings = Vec::new();
+    for (n, sk) in arms.into_iter().enumerate() {
+        let Some(outline) = skeleton::outline(&sk) else {
+            continue;
+        };
+        let widest = sk.widths.iter().copied().fold(0.0, f64::max);
+        if widest > BRANCH_WARN_WIDTH {
+            warnings.push(format!(
+                "column {} is {widest:.1} mm wide: satin over {BRANCH_WARN_WIDTH} mm sews loose; consider fill",
+                n + 1
+            ));
+        }
+        let mut region = template.clone();
+        region.kind = RegionType::Satin;
+        region.direction_lines.clear();
+        region.curved_lines = false;
+        region.entry = None;
+        region.exit = None;
+        region.skeleton = Some(sk);
+        let mut obj = DesignObject::shape(vec![outline], Some(region), None);
+        obj.name = Some(format!("{name} {}", n + 1));
+        obj.group = Some(group);
+        objects.push(obj);
+    }
+    // The columns sew where the shape sewed: inserted right after it.
+    let mut ids = Vec::new();
+    for (k, mut obj) in objects.into_iter().enumerate() {
+        obj.id = s.design.new_group_id();
+        ids.push(obj.id);
+        s.design.objects.insert(i + 1 + k, obj);
+    }
+    if keep {
+        s.design.objects[i].visible = false;
+    } else {
+        s.design.objects.remove(i);
+    }
+    Ok(Some(
+        json!({ "ids": ids, "group": group, "warnings": warnings }),
+    ))
+}
+
 pub fn commands() -> Vec<CommandSpec> {
     vec![
         spec(
@@ -410,8 +482,28 @@ pub fn commands() -> Vec<CommandSpec> {
                     "bool",
                     "Replace the outline with the column's (default false)",
                 ),
+                opt(
+                    "branches",
+                    "bool",
+                    "Split branches (beyond PE-DESIGN): a branching shape (Y, star, K, stick figure) becomes one satin column along its main stroke and one per further arm, each a new skeleton satin in one group after the shape; a shape without branches is sewn as without (default false)",
+                ),
+                opt(
+                    "joinOverlap",
+                    "mm",
+                    "With branches: how far each arm's column runs into the column it leaves, 0-1 (default 0.3)",
+                ),
+                opt(
+                    "keepOriginal",
+                    "bool",
+                    "With branches: keep the shape, hidden, under the columns (default true); false removes it",
+                ),
             ],
             |s, p| {
+                if p.bool("branches", Some(false))?
+                    && let Some(out) = derive_branches(s, p)?
+                {
+                    return Ok(out);
+                }
                 let reshape = p.bool("reshape", Some(false))?;
                 let id = p.int("id", None, 0, i64::MAX)? as u64;
                 let i = s

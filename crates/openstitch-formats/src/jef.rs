@@ -163,9 +163,13 @@ pub fn write(pattern: &StitchPattern) -> Result<Vec<u8>> {
 
 /// The current UTC time as `yyyyMMddHHmmss`.
 fn utc_stamp() -> String {
+    #[cfg(not(target_arch = "wasm32"))]
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs());
+    // A browser (#556): the page's clock, in ms since the epoch.
+    #[cfg(target_arch = "wasm32")]
+    let secs = (js_sys::Date::now() / 1000.0).max(0.0) as u64;
     let (days, rem) = ((secs / 86_400) as i64, secs % 86_400);
     // Howard Hinnant's civil_from_days.
     let z = days + 719_468;

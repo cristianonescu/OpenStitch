@@ -52,6 +52,10 @@ mod edit_tools;
 mod engine;
 #[path = "extra_exports.rs"]
 mod extra_exports;
+#[path = "fabric_presets.rs"]
+mod fabric_presets;
+#[path = "finish.rs"]
+mod finish;
 #[path = "font_creator.rs"]
 mod font_creator;
 #[path = "font_from_image.rs"]
@@ -64,6 +68,8 @@ mod free_hoopings;
 mod hoop_lists;
 #[path = "imports.rs"]
 mod imports;
+#[path = "job_sheets.rs"]
+mod job_sheets;
 #[path = "knife.rs"]
 mod knife;
 #[path = "knockdown.rs"]
@@ -116,6 +122,8 @@ mod quality;
 mod random_designs;
 #[path = "region_compat.rs"]
 mod region_compat;
+#[path = "routing.rs"]
+mod routing;
 #[path = "satin_compat.rs"]
 mod satin_compat;
 #[path = "satin_shaping.rs"]
@@ -124,6 +132,8 @@ mod satin_shaping;
 mod sections;
 #[path = "session_fork.rs"]
 mod session_fork;
+#[path = "session_sibling.rs"]
+mod session_sibling;
 #[path = "sewing.rs"]
 mod sewing;
 #[path = "shape_cut_attributes.rs"]

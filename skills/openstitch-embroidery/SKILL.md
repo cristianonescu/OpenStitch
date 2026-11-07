@@ -87,6 +87,13 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `object.insertRung {id, at}`, `object.deleteRung {id, index}`, `object.moveRung {id, index,
    side: left|right, point}`, `object.swapSides {id}` and `object.untangle {id}`; a line pair
    clicked right-then-left is untangled when the column is made.
+   Brush strokes, leaves and calligraphic lines: `object.setLine {type: satin, width}` on any
+   path, then `widthKeys: [[at 0-1, left mm, right mm], ...]` (or `object.setWidthKey {id, at,
+   width | left, right}`, `object.deleteWidthKey {id, index}`), `taperStart`/`taperEnd` (mm,
+   pointed ends) and `slant` (-60 to 60 degrees). A Y, star or stick figure drawn as one
+   filled shape: `object.deriveSkeleton {id, branches: true, joinOverlap: 0.3}` makes a
+   grouped satin column per arm (the shape stays hidden); check `warnings` for columns over
+   10 mm and look at the junctions with `view_render`.
 4. Order: `order.optimize` (PE-DESIGN-compatible order) or `order.byColor`; check with
    `object.list` (sewing order). To sew objects in a set order, `order.byClickOrder`
    `{ids: [in sewing order]}` (they start where the earliest of them sews now); to sew a
@@ -167,11 +174,17 @@ then style them in the next.
   says where the handles are). PES 0110 export refuses free envelopes: `text.toShapes` first.
 - Badges and patches with text round a circle: `text.add` or `object.setText` with `arc`
   (mm, the first line's baseline radius; positive arches up over the top, negative arches
-  down under the bottom, read upright). Each `
-` line becomes a ring round the same centre,
+  down under the bottom, read upright). Each line (a `\n` in the text) becomes a ring round the same centre,
   one line spacing inward (up) or outward (down); a ring too tight for its line is refused
   with the radius needed, so retry with that. `arc: null` straightens it. Beyond PE-DESIGN:
   PES 0110 export refuses it (`text.toShapes` first).
+- Trims and ties per object (beyond PE-DESIGN; defaults are PE-DESIGN's rules):
+  `object.setFinish {ids, trim: auto|always|off, trimDistance, tie: auto|always|off,
+  tieCount, tieLength, between}`. For a machine without an automatic cutter: `trim: off`
+  (jumps instead of trims; the user cuts them by hand), and on text `between: word` or
+  `never` so letters of a word are not trimmed apart. Slippery or thick threads: `tie:
+  always` with `tieCount: 2`. `reset: true` goes back to PE-DESIGN's rules; check the result
+  with `design.info` (trims, jumps).
 - Threads: to change the design to a thread chart ("use my Madeira threads"), run
   `threads.remap` `{builtin | chart, metric: ciede2000, keepDistinct: true, dryRun: true}`
   first and show the user the plan (design colour → thread, ΔE, objects, and `merged`), then
@@ -211,6 +224,10 @@ user's Ctrl+K palette, with each command's ribbon place and shortcut; run it wit
 After a crash, `ui.recoveryList` shows designs autosave kept; `ui.recoveryRestore {id}`
 opens one as an untitled design (tell the user to save it), and `ui.recoveryDiscard`
 deletes snapshots (ask first). Autosave is `ui.set autosave` / `autosaveInterval`.
+Several designs can be open as tabs: `ui.documents` lists them (index, name, unsaved, file),
+`{op: "activate", index}` switches (every command then acts on that tab), `{op: "new"}` adds an
+empty one, and `{op: "close", index}` closes a tab that has no unsaved changes (otherwise save
+it or ask the user). `ui.set openInTabs` makes File ▸ New and Open add a tab.
 Opening or importing a large file in the window runs in the background: `ui.state` shows
 `loading` (file, step, seconds), and `ui.loading {cancel: true}` stops it, leaving the design
 as it was.
@@ -236,6 +253,26 @@ picture above the design or between objects ("put the picture above the fills");
 Units: every command takes millimetres. The user may work in inches (`ui.settings` → `units`,
 also named in the editor note with each message); then answer in inches (1 in = 25.4 mm) and
 still send mm to commands. `design.print {units: "inch"}` adds a 2-inch scale bar.
+
+Job sheets (#513): "print an approval sheet for my customer" or "a worksheet for the machine
+operator": set the job with `design.setJob {customer, order, due, notes, fabric, stabiliser}`
+(an edit, undoable; saved with the project, never in machine files), then `design.print {path,
+mode: "client" | "operator", detail: "overview" | "detailed", shop}`. Use only what the user
+gives for the job fields; never invent a customer or order.
+
+### Web editor (browser)
+
+OpenStitch also runs in a web browser (#556, `crates/openstitch-web`). The page exposes
+`openstitch.run({command, params})`, which takes every engine command (`object.rotate`,
+`design.info`, `history.undo`, ...) and the web editor's own `ui.*` commands: `ui.state` (file,
+page, stitches, simulator, undo/redo, export formats, what is desktop-only), `ui.simulate
+{stitch}` or `{step: "block"}`, `ui.openFile {name, base64}` (File ▸ Open), `ui.saveFile`
+(File ▸ Save: the `.osd` comes back as `{name, base64}`) and `ui.exportFile {format}`
+(`{files: [{name, base64}]}`). The page's buttons run the same commands (their tooltips name
+them); "Whole design" Rotate 90°, Flip and Centre are `object.rotate`, `object.flip` and
+`object.center` on every object. Undo there is per editor step: File ▸ Open is one. The
+Assistant, the other `ui.*` commands, machine transfer, the Design Database and image
+digitizing are desktop-only; say so instead of trying them in the browser.
 
 ## Files
 
@@ -280,8 +317,16 @@ still send mm to commands. `design.print {units: "inch"}` adds a 2-inch scale ba
     row, `fabric.calibrate {fabric, name, fill, satin, pull}` (1–5 each) saves a custom
     fabric (`custom-…` in `fabric.list`) that `fabric.apply` gives to objects;
     `fabric.deleteCustom {fabric}` removes it. Both change the user's settings: say so first.
+- "What stabiliser / needle should I use on fleece?": `fabric.advise {fabric, weight}` (weight
+  12, 30, 40 or 60; default 40) gives backing, topping, needle point and size and the smallest
+  legible block-letter height, each from the makers' published guidance with `sources`; say so
+  when `disagree` is set, and say "estimate" when `minTextBasis` is not `published`.
+  `fabric.list` has 13 fabrics: PE-DESIGN's eight, then polyester, pique, organza, canvas and cap
+  (`beyondPeDesign: true`).
 - `file` commands (`project.save`, `design.export`, ...) may ask the user first. Never
   overwrite a user's file without being asked to.
+- To show the user these dialogs in the editor: `ui.run {action: "testSwatches"}` (Send ▸ Test
+  Swatches…) and `ui.run {action: "jobSheet"}` (Print ▸ Job Sheet…).
 
 ## Memory
 

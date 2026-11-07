@@ -16,9 +16,11 @@ mod envelopes;
 #[cfg(feature = "formats")]
 pub mod extra_exports;
 pub mod fabric;
+mod finish;
 #[cfg(feature = "digitize")]
 mod font_images;
 pub mod fonts;
+pub mod fsio;
 mod guides;
 #[cfg(feature = "formats")]
 pub mod imports;

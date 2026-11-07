@@ -680,7 +680,8 @@ fn open_stitch_rows(ui: &mut egui::Ui, w: &mut ImageWizard) {
             ui.label("");
             ui.checkbox(&mut w.vary_angles, "Vary angles of touching fills")
                 .on_hover_text(
-                    "Each fill turned in 30° steps until it is at least 20° from the fills it                      touches, so fitted panels read apart.",
+                    "A fill within 20° of a touching fill sewn before it (both at least 20 mm²) is \
+                     turned as far from it as it can be, so fitted panels read apart.",
                 );
             ui.end_row();
         }
