@@ -3835,7 +3835,11 @@ fn proper_crossings(runs: &[Run]) -> usize {
     let segs: Vec<(Vec2, Vec2, usize, usize)> = runs
         .iter()
         .enumerate()
-        .flat_map(|(r, run)| run.windows(2).enumerate().map(move |(i, w)| (w[0], w[1], r, i)))
+        .flat_map(|(r, run)| {
+            run.windows(2)
+                .enumerate()
+                .map(move |(i, w)| (w[0], w[1], r, i))
+        })
         .filter(|s| s.0.distance(s.1) > 1e-9)
         .collect();
     let cross = |o: Vec2, p: Vec2, q: Vec2| (p.x - o.x) * (q.y - o.y) - (p.y - o.y) * (q.x - o.x);
@@ -3873,7 +3877,13 @@ fn meander_tiles_are_own_drawings_that_chain_without_crossing() {
             r#"{{"format":"openstitch.pattern","version":1,"kind":"meander","id":"t","name":"T","rowShift":{shift},"paths":{paths}}}"#
         )
     };
-    assert!(patterns::parse(&doc("[[[0,0.5],[0.5,0.2],[0.5,0.8],[0.2,0.4],[1,0.5]]]", 0.0)).is_err());
+    assert!(
+        patterns::parse(&doc(
+            "[[[0,0.5],[0.5,0.2],[0.5,0.8],[0.2,0.4],[1,0.5]]]",
+            0.0
+        ))
+        .is_err()
+    );
     assert!(patterns::parse(&doc("[[[0,0.5],[0.5,0.0],[0.5,1.0],[1,0.5]]]", 0.0)).is_err());
     assert!(patterns::parse(&doc("[[[0,0.5],[1,0.4]]]", 0.0)).is_err());
     assert!(patterns::parse(&doc("[[[0,0.5],[0.5,0.8],[1,0.5]]]", 0.5)).is_ok());
@@ -3910,7 +3920,12 @@ fn meander_fill_sews_every_tile_inside_the_shape_without_crossing() {
         }
         assert_eq!(proper_crossings(top), 0, "{}: stitches cross", tile.id);
         // The same settings sew the same stitches.
-        assert_eq!(&crate::region::layers(&c, &r, &hole), &layers, "{}", tile.id);
+        assert_eq!(
+            &crate::region::layers(&c, &r, &hole),
+            &layers,
+            "{}",
+            tile.id
+        );
     }
     // Unset fields are not saved; the pattern size defaults to 8 mm.
     let r = region(RegionType::Meander);

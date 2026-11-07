@@ -548,7 +548,11 @@ fn meander_fill_controls_reach_the_engine() {
     let options = inspector::region_controls(&region(s.design()))
         .into_iter()
         .find_map(|c| match c {
-            Control::Choice { param: "pattern", options, .. } => Some(options),
+            Control::Choice {
+                param: "pattern",
+                options,
+                ..
+            } => Some(options),
             _ => None,
         })
         .expect("a pattern choice");

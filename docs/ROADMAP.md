@@ -208,6 +208,11 @@ straight, sewn as a plain fill and sheared back, so under sewing, stagger and tr
 and height 0 is the plain fill. The spacing across the rows stays within ±15 % (40° slope cap).
 The flow fill (rows following a picture's direction field) stays planned.
 
+Done 2026-11-07 (`batch:fills-2`, #533 meander part): meander fill, region type `meander`, with
+12 own-drawn tiles of the new pattern kind `meander`, chained into rows and joined along the
+outline. A tile that would cross itself or its neighbours is refused, so user tiles from the
+Stitch Creator sew cleanly too. With the maze, #533 is done.
+
 Done 2026-11-07 (`batch:fills-2`, #533 maze part): maze fill, region type `maze`. It is the
 stippling walk with its spanning tree biased to run straight on (`straightness`, default 70 %) and
 its own `mazeSeed`, sewn with square turns: one path that never crosses itself, its passes a

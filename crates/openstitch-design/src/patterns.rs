@@ -140,7 +140,10 @@ fn segment_gap((a, b): (Vec2, Vec2), (c, d): (Vec2, Vec2)) -> f64 {
         };
         p.distance(u + e * t)
     };
-    to(a, c, d).min(to(b, c, d)).min(to(c, a, b)).min(to(d, a, b))
+    to(a, c, d)
+        .min(to(b, c, d))
+        .min(to(c, a, b))
+        .min(to(d, a, b))
 }
 
 /// The JSON shape of an `openstitch.pattern` document.

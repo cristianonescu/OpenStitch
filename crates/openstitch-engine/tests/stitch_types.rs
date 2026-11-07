@@ -1184,7 +1184,11 @@ fn meander_fill_goes_through_the_command() {
         .map(|p| p["id"].as_str().expect("id").to_string())
         .collect();
     assert!(tiles.len() >= 12, "{tiles:?}");
-    run(&mut s, "object.setRegion", json!({"id": 1, "type": "meander"}));
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "meander"}),
+    );
     assert_eq!(
         s.design().objects[0].region.as_ref().expect("r").kind,
         RegionType::Meander
@@ -1207,7 +1211,13 @@ fn meander_fill_goes_through_the_command() {
     assert!(
         s.execute(
             "pattern.define",
-            Some(&tile(json!([[[0, 0.5], [0.5, 0.2], [0.5, 0.8], [0.2, 0.4], [1, 0.5]]])))
+            Some(&tile(json!([[
+                [0, 0.5],
+                [0.5, 0.2],
+                [0.5, 0.8],
+                [0.2, 0.4],
+                [1, 0.5]
+            ]])))
         )
         .is_err()
     );

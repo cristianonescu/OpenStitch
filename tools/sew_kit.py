@@ -310,6 +310,11 @@ MAZES = [
     ("rect", {"type": "maze", "mazeSeed": 7, "angle": 45}),
     ("rect", {"type": "maze", "spacing": 3, "runPitch": 3}),
 ]
+# Meander fill (#533, beyond PE-DESIGN): every own tile, 8 mm.
+MEANDERS_A = [("rect", {"type": "meander", "pattern": p}) for p in
+              ("vermicelli", "ribbon-candy", "ripple", "clamshell", "switchback", "serpentine")]
+MEANDERS_B = [("rect", {"type": "meander", "pattern": p}) for p in
+              ("skyline", "staircase", "sawtooth", "jigsaw", "hilbert", "hilbert-fine")]
 LINE_TYPES = [
     {"type": "running"},
     {"type": "triple"},
@@ -572,6 +577,11 @@ FEATURES = [
      "Fills whose rows ripple as a sine, height and length in mm: 2 and 16, 3 and 10, 5 and 24 (top row, "
      "rows across), 3 and 14 at 45°, 3 and 12 on a circle, and 8 and 8 at 90° (steeper than 40°, so sewn at "
      "40°).", region_grid(WAVES)),
+    ("fills/meander-tiles-1.pes", "Meander fill tiles (1 of 2, beyond PE-DESIGN)",
+     "OpenStitch's own meander tiles at 8 mm: vermicelli (the default), ribbon candy, ripple (top row), "
+     "clamshell, switchback, serpentine.", region_grid(MEANDERS_A)),
+    ("fills/meander-tiles-2.pes", "Meander fill tiles (2 of 2, beyond PE-DESIGN)",
+     "Skyline, staircase, sawtooth (top row), jigsaw, Hilbert and fine Hilbert.", region_grid(MEANDERS_B)),
     ("fills/maze-fill.pes", "Maze fill (beyond PE-DESIGN)",
      "One path of straight corridors and square turns that never crosses itself, 2 mm apart: straightness "
      "70 % (default), 0 % and 95 % (top row), on a circle, another seed at 45°, and 3 mm spacing.",
