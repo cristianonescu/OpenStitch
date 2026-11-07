@@ -411,6 +411,7 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
 - (+) **Tatami textures:** 13 named needle-hole patterns beside PE-DESIGN's smooth brick (ribs,
   diagonals, steps, blocks, waves, zigzag, chevron, scallops and more), or your own steps and
   wave, triangle or arc shifts ([#537]).
+- (+) **Wave fill:** a fill's rows ripple as a sine with a set height and length ([#538]).
 - **Curved sewing direction** (round fill) for fill, programmable fill, piping and motif fill
   ([#471]).
 - **Programmable fill and motif fill** from OpenStitch's own pattern library, (+) with long gaps
@@ -701,6 +702,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#535]: https://github.com/cristianonescu/OpenStitch/issues/535
 [#536]: https://github.com/cristianonescu/OpenStitch/issues/536
 [#537]: https://github.com/cristianonescu/OpenStitch/issues/537
+[#538]: https://github.com/cristianonescu/OpenStitch/issues/538
 [#540]: https://github.com/cristianonescu/OpenStitch/issues/540
 [#541]: https://github.com/cristianonescu/OpenStitch/issues/541
 [#542]: https://github.com/cristianonescu/OpenStitch/issues/542

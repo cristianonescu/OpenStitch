@@ -1419,6 +1419,16 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     "Seed of the random stagger (0 to 2^53; the same seed always sews the same rows)",
                 ),
                 opt(
+                    "waveHeight",
+                    "mm",
+                    "Fill: wave fill (beyond PE-DESIGN), the rows' ripple crest to trough, 0-20 (0 = straight rows); a wave steeper than 40° is sewn at 40°",
+                ),
+                opt(
+                    "waveLength",
+                    "mm",
+                    "Fill: the wave fill's length crest to crest, 2-100 (default 16)",
+                ),
+                opt(
                     "rowOffset",
                     "percent",
                     "Shift of every other pattern row, 0-100",
@@ -1806,6 +1816,13 @@ fn attribute_commands() -> Vec<CommandSpec> {
                             return Err(p.invalid("staggerSeed", "must be a whole number"));
                         }
                         r.stagger_seed = Some(seed as u64);
+                    }
+                    if p.has("waveHeight") {
+                        let h = p.req("waveHeight", 0.0, 20.0)?;
+                        r.wave_height = (h > 0.0).then_some(h);
+                    }
+                    if p.has("waveLength") {
+                        r.wave_length = Some(p.req("waveLength", 2.0, 100.0)?);
                     }
                     if p.has("rowOffset") {
                         r.row_offset = Some(p.req("rowOffset", 0.0, 100.0)?);

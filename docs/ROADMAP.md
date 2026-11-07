@@ -202,6 +202,12 @@ zigzag net regions (#463), line types (#464), small lettering (#465), satin cusp
 trims (#467), Photo Stitch density and stagger (#468), image tools' edge cells and thin features
 (#469), appliqué "add" order (#470), direction-curve fills (#471).
 
+Done 2026-11-07 (`batch:fills-2`, #538 wave part): wave fill. A fill's `waveHeight` and
+`waveLength` make its rows ripple as one sine across the row direction; the region is sheared
+straight, sewn as a plain fill and sheared back, so under sewing, stagger and travel carry over
+and height 0 is the plain fill. The spacing across the rows stays within ±15 % (40° slope cap).
+The flow fill (rows following a picture's direction field) stays planned.
+
 Done 2026-11-07 (#614): cross stitch as PE-DESIGN 11.50 offers it. Its Sewing Attributes show
 only Size and Times (Single | Double | Triple) and no Direction (round 8 references), so
 OpenStitch hides Direction for it and ignores `angle`. `times` covers each diagonal 2, 4 or 6
