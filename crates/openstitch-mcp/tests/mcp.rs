@@ -297,6 +297,14 @@ fn schemas_come_from_param_docs() {
             "satin",
             "backStitch",
             "scribble",
+            "chevron",
+            "cretan",
+            "feather",
+            "overlock",
+            "alternatingTriangles",
+            "doubleZigzag",
+            "lattice",
+            "stripes",
             "none"
         ])
     );

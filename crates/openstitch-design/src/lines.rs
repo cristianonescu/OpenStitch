@@ -447,6 +447,8 @@ pub struct StrokeLine {
     pub run_times: u32,
     pub stroke_times: u32,
     pub arrange: Arrange,
+    /// E stitch: prongs slanted this many degrees from square, forward along the line (#543).
+    pub angle: f64,
 }
 
 /// Baseline between `a` and `b`, sewn back and forth an odd number of times ≥ `times`.
@@ -476,7 +478,15 @@ pub fn e_stitch(path: &[Vec2], e: &StrokeLine) -> Run {
             baseline(&mut run, &w, s - e.interval, s, e.pitch, e.run_times);
         }
         let c = w.at(s);
-        let tip = c + side_at(&w, s) * (e.stroke * side(e.arrange, k));
+        let out = side_at(&w, s) * (e.stroke * side(e.arrange, k));
+        // Square to the line unless slanted (#543): turned forward along it by the angle.
+        let tip = if e.angle == 0.0 {
+            c + out
+        } else {
+            let (sn, cs) = e.angle.to_radians().dsin_cos();
+            let fwd = w.tangent(s) * (out.length() * sn);
+            c + out * cs + fwd
+        };
         for _ in 0..e.stroke_times.max(1) {
             run.push(tip);
             run.push(c);

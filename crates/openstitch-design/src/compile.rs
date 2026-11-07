@@ -1931,6 +1931,41 @@ fn line_elements(
                 LineType::Running => generate::running(c, pitch, line.run_times),
                 LineType::Triple => generate::triple(c, pitch),
                 LineType::BackStitch => crate::line_looks::back_stitch(&c.path(), pitch),
+                k @ (LineType::Chevron
+                | LineType::Cretan
+                | LineType::Feather
+                | LineType::Overlock
+                | LineType::AlternatingTriangles
+                | LineType::DoubleZigzag
+                | LineType::Lattice
+                | LineType::Stripes) => {
+                    use crate::decorative::Pattern;
+                    let pattern = match k {
+                        LineType::Chevron => Pattern::Chevron,
+                        LineType::Cretan => Pattern::Cretan,
+                        LineType::Feather => Pattern::Feather,
+                        LineType::Overlock => Pattern::Overlock,
+                        LineType::AlternatingTriangles => Pattern::AlternatingTriangles,
+                        LineType::DoubleZigzag => Pattern::DoubleZigzag,
+                        LineType::Lattice => Pattern::Lattice {
+                            strands: line.strands.unwrap_or(3),
+                        },
+                        _ => Pattern::Stripes {
+                            strands: line.strands.unwrap_or(3),
+                            gaps: line.gaps.clone(),
+                        },
+                    };
+                    crate::decorative::sew(
+                        &c.path(),
+                        &pattern,
+                        crate::decorative::Size {
+                            width,
+                            spacing,
+                            length: line.height.unwrap_or(1.5) * 10.0,
+                            pitch,
+                        },
+                    )
+                }
                 LineType::Scribble => crate::line_looks::scribble(
                     &c.path(),
                     width,
@@ -2007,6 +2042,7 @@ fn line_elements(
                         run_times: line.run_times,
                         stroke_times: line.stroke_times.unwrap_or(1),
                         arrange: line.arrange,
+                        angle: line.prong_angle.unwrap_or(0.0),
                     };
                     if line.kind == LineType::EStitch {
                         lines::e_stitch(&c.path(), &e)

@@ -38,6 +38,8 @@ mod coverage_pattern_points;
 mod coverage_shape_ops;
 #[path = "coverage_stitch_types.rs"]
 mod coverage_stitch_types;
+#[path = "decorative_lines.rs"]
+mod decorative_lines;
 #[path = "determinism.rs"]
 mod determinism;
 #[path = "digitize.rs"]

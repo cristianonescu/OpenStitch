@@ -9,6 +9,7 @@ pub mod capabilities;
 pub mod commands;
 mod continuing;
 mod convert;
+mod decorative_params;
 #[cfg(feature = "digitize")]
 mod digitize;
 mod drawing;

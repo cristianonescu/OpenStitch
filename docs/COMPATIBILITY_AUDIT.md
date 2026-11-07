@@ -2955,6 +2955,23 @@ auto, shortStitchDistance: 0.25`, read from the exported PES:
   region's second underlay (#677), lap corners. No sew-out yet: the owner's T-card scan of a
   tapered column with `pullPercent: 3` is still needed for #522's ±5 % width target.
 
+### Decorative hand-embroidery lines, 2026-11-07 (#543, `batch:lines`, part 2)
+
+Beyond PE-DESIGN and off unless chosen: no PE-compatible output changes (compat unchanged),
+and PES 0110 export refuses the new types and a slanted E stitch.
+
+- Eight line types laid out in the line's own frame (distance along, offset across), so they
+  follow curves and closed outlines: chevron, Cretan, feather, overlock, alternating
+  triangles, double zigzag, lattice, stripes. Every stitch is at most 7 mm (longer ones
+  split) and no needle point is sewn three times in place.
+- Double zigzag returns as the mirror of its first pass, each return point midway between
+  two first-pass points on its side, without a jump; stripes keep their row count, or sit at
+  the given gaps (±0.2 mm).
+- The E stitch's prong angle (default 0, PE-DESIGN's square prongs, unchanged) slants the
+  prongs forward at their full length.
+- PE-DESIGN 11.50 has E and V stitch and motif lines only; the defaults here are
+  OpenStitch's, to be checked on an NV880E sew-out.
+
 ### Hand-made lines, 2026-11-07 (#540, #542, `batch:lines`, part 1)
 
 All beyond PE-DESIGN and off unless chosen: a line or satin without them sews exactly as

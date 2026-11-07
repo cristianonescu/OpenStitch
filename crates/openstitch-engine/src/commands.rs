@@ -1821,8 +1821,8 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 IDS,
                 opt(
                     "type",
-                    "running|triple|zigzag|motif|stem|candlewick|eStitch|vStitch|chain|cutting|satin|backStitch|scribble|none",
-                    "Line sew type. satin (beyond PE-DESIGN) is a satin column along the line whose width can change along it: width (mm, all along), widthKeys, taperStart, taperEnd and slant shape it, and the satin options (cornerStyle, shortStitchDistance, pull*, satinStyle, jaggedEdge, raised) apply as on zigzag; object.setWidthKey and object.deleteWidthKey edit single keys. backStitch (two forward, one back) and scribble (a zigzag sewn runTimes times with smooth random side offsets, width wide) are beyond PE-DESIGN too",
+                    "running|triple|zigzag|motif|stem|candlewick|eStitch|vStitch|chain|cutting|satin|backStitch|scribble|chevron|cretan|feather|overlock|alternatingTriangles|doubleZigzag|lattice|stripes|none",
+                    "Line sew type. satin (beyond PE-DESIGN) is a satin column along the line whose width can change along it: width (mm, all along), widthKeys, taperStart, taperEnd and slant shape it, and the satin options (cornerStyle, shortStitchDistance, pull*, satinStyle, jaggedEdge, raised) apply as on zigzag; object.setWidthKey and object.deleteWidthKey edit single keys. backStitch (two forward, one back) and scribble (a zigzag sewn runTimes times with smooth random side offsets, width wide) are beyond PE-DESIGN too. Decorative hand-embroidery lines (beyond PE-DESIGN, #543), width the band: chevron (a bar along the line at each peak), cretan (a short stitch in from each peak, height long), feather (the side stitches turned forward), overlock (a serger-like edge), alternatingTriangles (triangles between two rails), doubleZigzag (a zigzag and its mirror: diamonds), lattice (strands crossing), stripes (rows along the band, strands or gaps); spacing is the zigzag period",
                 ),
                 opt("color", "color", "Thread"),
                 opt(
@@ -1850,7 +1850,11 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     "string",
                     "Motif id from patterns.list (motif lines)",
                 ),
-                opt("height", "mm", "Motif height, 0.5-20"),
+                opt(
+                    "height",
+                    "mm",
+                    "Motif height; chevron bar and Cretan and feather side-stitch length (default 1.5), 0.5-20",
+                ),
                 opt(
                     "spacing",
                     "mm",
@@ -1889,6 +1893,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
             .into_iter()
             .chain(crate::satin_shaping::SHAPING_PARAMS)
             .chain(crate::line_looks::LINE_PARAMS)
+            .chain(crate::decorative_params::PARAMS)
             .chain([opt(
                 "underlayStyle",
                 "edge|centreWalk|edgeZigzag|auto",
@@ -2048,6 +2053,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     crate::satin_shaping::apply_shaping(p, &mut l.satin_shaping)?;
                     crate::satin_shaping::apply_auto(p, &mut l.underlay_auto)?;
                     crate::line_looks::apply_line(p, &mut l)?;
+                    crate::decorative_params::apply(p, &mut l)?;
                     crate::satin_shaping::apply_satin_line(p, &mut l)?;
                     if matches!(l.kind, LineType::Zigzag | LineType::Satin)
                         && let Some(h) = crate::satin_shaping::raised_hint(&l.satin_shaping, l.width)
