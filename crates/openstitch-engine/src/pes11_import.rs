@@ -13,8 +13,8 @@ use openstitch_core::{Command, Stitch, Thread};
 use openstitch_design::patterns::{Pattern, PatternKind};
 use openstitch_design::text::{self, CharEdit, Spread, TextAlign, TextDirection, TextSpec, VAlign};
 use openstitch_design::{
-    Bezier, Contour, Design, DesignObject, LineSewing, LineType, RegionSewing, RegionType,
-    RunningStitchPath, StitchBlock, Transform, Vec2, v2,
+    Bezier, Contour, CrossTimes, Design, DesignObject, LineSewing, LineType, RegionSewing,
+    RegionType, RunningStitchPath, StitchBlock, Transform, Vec2, v2,
 };
 use openstitch_formats::pes::ObjectSection;
 use openstitch_formats::pes11::{
@@ -249,9 +249,10 @@ fn object(s: &Shape, table: &[Thread]) -> Result<DesignObject, String> {
         RegionSewType::ProgrammableFill => Some(RegionType::ProgrammableFill),
         RegionSewType::Decorative => Some(RegionType::DecorativeFill),
         RegionSewType::Motif => Some(RegionType::MotifFill),
+        // Size and Times are read below.
+        RegionSewType::Cross => Some(RegionType::CrossStitch),
         // The exporter writes these at PE-DESIGN's defaults (their own fields are not mapped),
         // so they are read as the type at OpenStitch's defaults.
-        RegionSewType::Cross => Some(RegionType::CrossStitch),
         RegionSewType::Concentric => Some(RegionType::ConcentricCircle),
         RegionSewType::Radial => Some(RegionType::Radial),
         RegionSewType::Spiral => Some(RegionType::Spiral),
@@ -272,6 +273,14 @@ fn object(s: &Shape, table: &[Thread]) -> Result<DesignObject, String> {
             r.density = f64::from(s.density);
             r.angle = f64::from(s.direction);
             r.underlay = s.under_sewing;
+        }
+        if kind == RegionType::CrossStitch {
+            // PE-DESIGN's default 2.5 mm stays OpenStitch's default (no spacing set).
+            let size = f64::from(s.cross_size);
+            if size > 0.0 && (size - r.spacing_mm()).abs() > 0.01 {
+                r.spacing = Some(size);
+            }
+            r.times = CrossTimes::from_count(usize::from(s.cross_passes / 2));
         }
         if kind == RegionType::Fill {
             r.frequency = Some(f64::from(s.frequency));

@@ -2022,13 +2022,72 @@ fn cross_stitch_sews_an_x_in_every_cell() {
             .count()
     };
     assert_eq!(diagonals(&runs), 16 * 2);
+    // The old triple switch sews what Times Double sews: each diagonal whole three times.
     r.triple = true;
     let triple = crate::region::layers(&c, &r, &[]).pop().expect("top");
     assert_eq!(diagonals(&triple), 16 * 2 * 3);
+    r.triple = false;
+    for (times, whole) in [
+        (crate::CrossTimes::Single, 1),
+        (crate::CrossTimes::Double, 3),
+        (crate::CrossTimes::Triple, 5),
+    ] {
+        r.times = times;
+        let runs = crate::region::layers(&c, &r, &[]).pop().expect("top");
+        assert_eq!(diagonals(&runs), 16 * 2 * whole, "{times:?}");
+    }
     // A cell crossing the outline is skipped.
     let small = vec![Contour::rectangle(0.0, 0.0, 90.0, 90.0)];
     let partial = crate::region::layers(&small, &region(RegionType::CrossStitch), &[]);
     assert_eq!(diagonals(partial.last().expect("top")), 9 * 2);
+}
+
+/// The cross kinds beyond PE-DESIGN (#614) sew only their own strokes in every cell: a half
+/// cross the "/" diagonal, an upright cross a "+" through the middle, a Smyrna cross both an X
+/// and a "+"; each stroke covered 2·times times.
+#[test]
+fn cross_kinds_sew_their_own_strokes_in_every_cell() {
+    use crate::{CrossKind, CrossTimes};
+    let diagonal = 25.0 * std::f64::consts::SQRT_2;
+    // Stitches of a square of side `side` as ("/" diagonals, "\" diagonals, cell-length strokes
+    // through cell middles).
+    let strokes = |side: f64, kind: CrossKind, times: CrossTimes| {
+        let c = vec![Contour::rectangle(0.0, 0.0, side, side)];
+        let mut r = region(RegionType::CrossStitch);
+        r.running_stitch_path = None;
+        r.cross_kind = kind;
+        r.times = times;
+        let runs = crate::region::layers(&c, &r, &[]).pop().expect("top");
+        let (mut slash, mut back, mut plus) = (0, 0, 0);
+        for w in runs.iter().flat_map(|r| r.windows(2)) {
+            let d = w[1] - w[0];
+            let mid = (w[0] + w[1]) * 0.5;
+            let middle = |v: f64| ((v / 25.0).fract() - 0.5).abs() < 1e-6;
+            if (d.length() - diagonal).abs() < 1e-6 {
+                if d.x * d.y < 0.0 {
+                    slash += 1;
+                } else {
+                    back += 1;
+                }
+            } else if (d.length() - 25.0).abs() < 1e-6
+                && ((d.y == 0.0 && middle(mid.y)) || (d.x == 0.0 && middle(mid.x)))
+            {
+                plus += 1;
+            }
+        }
+        (slash, back, plus)
+    };
+    use CrossKind::{Half, Smyrna, Upright};
+    use CrossTimes::{Double, Single, Triple};
+    assert_eq!(strokes(100.0, Half, Single), (32, 0, 0));
+    assert_eq!(strokes(100.0, Half, Triple), (96, 0, 0));
+    assert_eq!(strokes(100.0, Upright, Single), (0, 0, 64));
+    assert_eq!(strokes(100.0, Upright, Double), (0, 0, 128));
+    // Smyrna: the full cross (each diagonal whole once, plus its halves) and the "+".
+    assert_eq!(strokes(100.0, Smyrna, Single), (16, 16, 64));
+    // On a 90 mm square only the 3 × 3 whole cells are sewn.
+    assert_eq!(strokes(90.0, Half, Single), (18, 0, 0));
+    assert_eq!(strokes(90.0, Upright, Single), (0, 0, 36));
 }
 
 /// Cross stitch cells of `runs` on a `size` grid from the origin: per cell, how many of its

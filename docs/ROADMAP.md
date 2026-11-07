@@ -195,6 +195,14 @@ zigzag net regions (#463), line types (#464), small lettering (#465), satin cusp
 trims (#467), Photo Stitch density and stagger (#468), image tools' edge cells and thin features
 (#469), appliqué "add" order (#470), direction-curve fills (#471).
 
+Done 2026-11-07 (#614): cross stitch as PE-DESIGN 11.50 offers it. Its Sewing Attributes show
+only Size and Times (Single | Double | Triple) and no Direction (round 8 references), so
+OpenStitch hides Direction for it and ignores `angle`. `times` covers each diagonal 2, 4 or 6
+times and adds 256 stitches per step on a 20 mm square, as PE-DESIGN's files do (compat
+`cross-single`, `-double`, `-triple`). PES 0110 reads and writes Times and Size. The old
+`triple` switch is Times Double. Beyond PE-DESIGN: `crossKind` half (/), upright (+) and Smyrna
+(X with a + over it), each line of neighbouring cells sewn out and back.
+
 Done 2026-11-05 (#563-#565): the kit previews show their real thread colours (a 128-colour
 palette had turned Ultra Marine green and Red and Magenta alike; CI now checks every preview
 against its threads), every image under `docs/images` has a generator that

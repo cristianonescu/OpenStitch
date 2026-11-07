@@ -10,10 +10,10 @@ use openstitch_design::patterns::{self, Pattern, PatternKind};
 use openstitch_design::shapes::{self, ArcMode};
 use openstitch_design::text::{self, TextAlign, TextDirection, TextSpec};
 use openstitch_design::{
-    Arrange, Bezier, ChainShape, Compiler, Contour, Design, DesignObject, DesignPage, Feather,
-    FeatherSide, FillStitchType, Gradation, Layout, LineSewing, LineType, ObjectKind, Rect,
-    RegionSewing, RegionType, RunningStitchPath, StaggerKind, StartEnd, Transform, UnderlayDensity,
-    UnderlayParts, UnderlayStyle, Vec2, v2,
+    Arrange, Bezier, ChainShape, Compiler, Contour, CrossKind, CrossTimes, Design, DesignObject,
+    DesignPage, Feather, FeatherSide, FillStitchType, Gradation, Layout, LineSewing, LineType,
+    ObjectKind, Rect, RegionSewing, RegionType, RunningStitchPath, StaggerKind, StartEnd,
+    Transform, UnderlayDensity, UnderlayParts, UnderlayStyle, Vec2, v2,
 };
 use serde_json::{Value, json};
 
@@ -1253,7 +1253,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "angle",
                     "degrees",
-                    "Sewing direction, counter-clockwise on screen as in PE-DESIGN (0 = horizontal); a cross stitch grid stays on the page axes",
+                    "Sewing direction, counter-clockwise on screen as in PE-DESIGN (0 = horizontal); ignored by cross stitch, which PE-DESIGN 11.50 sews on the page axes with no Direction",
                 ),
                 opt(
                     "density",
@@ -1428,9 +1428,19 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     "Contour fill: rings outside the shape, 0-30",
                 ),
                 opt(
+                    "times",
+                    "single|double|triple",
+                    "Cross stitch: PE-DESIGN's Times, how many times every cross is sewn (each diagonal covered 2, 4 or 6 times)",
+                ),
+                opt(
+                    "crossKind",
+                    "full|half|upright|smyrna",
+                    "Cross stitch: the stitch in every cell, a full X (PE-DESIGN, default), or beyond PE-DESIGN a half cross (/), an upright cross (+) or a Smyrna cross (X with a + over it)",
+                ),
+                opt(
                     "triple",
                     "bool",
-                    "Cross stitch: sew every diagonal three times",
+                    "Cross stitch: the old switch, true is times double (each diagonal three times whole), false single",
                 ),
                 opt(
                     "randomShift",
@@ -1764,7 +1774,38 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     if p.has("echoLines") {
                         r.echo_lines = p.req("echoLines", 0.0, 30.0)?.round() as u32;
                     }
-                    r.triple = p.bool("triple", Some(r.triple))?;
+                    if p.has("triple") {
+                        r.times = if p.bool("triple", None)? {
+                            CrossTimes::Double
+                        } else {
+                            CrossTimes::Single
+                        };
+                        r.triple = false;
+                    }
+                    if let Some(t) = choice(
+                        p,
+                        "times",
+                        &[
+                            ("single", CrossTimes::Single),
+                            ("double", CrossTimes::Double),
+                            ("triple", CrossTimes::Triple),
+                        ],
+                    )? {
+                        r.times = t;
+                        r.triple = false;
+                    }
+                    if let Some(k) = choice(
+                        p,
+                        "crossKind",
+                        &[
+                            ("full", CrossKind::Full),
+                            ("half", CrossKind::Half),
+                            ("upright", CrossKind::Upright),
+                            ("smyrna", CrossKind::Smyrna),
+                        ],
+                    )? {
+                        r.cross_kind = k;
+                    }
                     if p.has("randomShift") {
                         r.random_shift = Some(p.req("randomShift", 0.0, 50.0)?);
                     }

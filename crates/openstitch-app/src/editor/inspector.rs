@@ -427,7 +427,8 @@ pub fn region_controls_with(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> 
             | RegionType::FlexibleSpiral
             | RegionType::Contour
     );
-    if !r.auto_direction && !centred {
+    // PE-DESIGN 11.50 has no Direction for cross stitch: its grid is on the page axes (#614).
+    if !r.auto_direction && !centred && r.kind != RegionType::CrossStitch {
         v.push(num(
             "Direction",
             "region.angle",
@@ -817,7 +818,27 @@ fn region_type_controls(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> {
         }
         RegionType::CrossStitch => {
             v.push(spacing("Size", 0.5));
-            v.push(toggle("Triple", "triple", r.triple));
+            v.push(choice(
+                "Times",
+                "times",
+                r.cross_times().id(),
+                &[
+                    ("single", "Single"),
+                    ("double", "Double"),
+                    ("triple", "Triple"),
+                ],
+            ));
+            v.push(choice(
+                "Cross",
+                "crossKind",
+                r.cross_kind.id(),
+                &[
+                    ("full", "Full X"),
+                    ("half", "Half / (+)"),
+                    ("upright", "Upright + (+)"),
+                    ("smyrna", "Smyrna X+ (+)"),
+                ],
+            ));
         }
         RegionType::ConcentricCircle | RegionType::Radial | RegionType::Spiral => {
             v.push(pitch);
