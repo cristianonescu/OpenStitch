@@ -9,6 +9,7 @@
 //! Options ▸ Open designs in tabs (`openInTabs`, off by default) makes File ▸ New and Open add
 //! a tab instead of replacing the design after the unsaved-changes prompt, as PE-DESIGN does.
 
+use openstitch_app::editor::ui_texts::t;
 use super::*;
 
 /// A tab that is not the active one.
@@ -352,8 +353,8 @@ pub fn strip(app: &mut EditorApp, ui: &mut egui::Ui) {
                 activate = Some(i);
             }
             if ui
-                .small_button("Close")
-                .on_hover_text("Close this design (asks first when it has unsaved changes)")
+                .small_button(t("ui-close"))
+                .on_hover_text(t("ui-close-this-design-asks-first-when-tip"))
                 .clicked()
             {
                 close = Some(i);
@@ -361,8 +362,8 @@ pub fn strip(app: &mut EditorApp, ui: &mut egui::Ui) {
             ui.separator();
         }
         add = ui
-            .button("New Tab")
-            .on_hover_text("An empty design in a new tab (Ctrl+T)")
+            .button(t("ui-new-tab"))
+            .on_hover_text(t("ui-an-empty-design-in-a-new-tip"))
             .clicked();
     });
     if let Some(i) = activate {

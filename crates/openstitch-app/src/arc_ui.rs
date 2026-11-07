@@ -2,6 +2,7 @@
 //! centre. The pane's row and the canvas's centre handle each send one `object.setText`, one
 //! undo step.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui::{self, Color32, Stroke};
 use openstitch_app::editor::{CommandRequest, Phase, Viewport};
@@ -25,7 +26,7 @@ pub fn arc_params(spec: &TextSpec, on: bool, radius: f64, up: bool) -> Option<Va
 
 /// The Text Attributes pane's Arc row (in its grid): on/off, radius and Up/Down.
 pub fn arc_row(app: &mut EditorApp, ui: &mut egui::Ui, spec: &TextSpec) {
-    ui.label("Arc").on_hover_text(
+    ui.label(t("ui-arc")).on_hover_text(
         "Beyond PE-DESIGN: every line on a ring round one centre, the first line's radius set here; further lines step one line spacing inward (Up) or outward (Down)",
     );
     let mut params = None;

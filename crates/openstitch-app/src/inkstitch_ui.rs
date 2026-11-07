@@ -2,6 +2,7 @@
 //! embroidery fonts (kept in the preferences), listed by `fonts.scanFolder` (Rescan), and
 //! loaded into the design by `fonts.importInkStitch` (the design keeps its copy).
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui;
 use openstitch_app::editor::CommandRequest;
@@ -70,11 +71,11 @@ fn rescan(app: &mut EditorApp) {
 
 /// Text tools menu entries.
 pub fn menu(app: &mut EditorApp, ui: &mut egui::Ui) {
-    if ui.button("Ink/Stitch Fonts…").clicked() {
+    if ui.button(t("ui-ink-stitch-fonts")).clicked() {
         app.ui.inkstitch.open = true;
         rescan(app);
     }
-    if ui.button("Import Ink/Stitch Font Folder…").clicked()
+    if ui.button(t("ui-import-ink-stitch-font-folder")).clicked()
         && let Some(dir) = crate::files::FileDialog::new().pick_folder()
     {
         import(app, &dir);
@@ -97,8 +98,8 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
             ui.weak("Embroidery fonts you installed in Ink/Stitch's folder format. None are bundled; check each font's licence.");
             ui.horizontal(|ui| {
                 ui.label(folder.as_ref().map_or("No folder chosen".into(), |p| p.display().to_string()));
-                choose = ui.button("Choose…").clicked();
-                scan = ui.add_enabled(folder.is_some(), egui::Button::new("Rescan")).clicked();
+                choose = ui.button(t("ui-choose")).clicked();
+                scan = ui.add_enabled(folder.is_some(), egui::Button::new(t("ui-rescan"))).clicked();
             });
             ui.separator();
             if rows.is_empty() {
@@ -118,7 +119,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                             ui.weak(l);
                         }
                         if ui
-                            .add_enabled(r["variant"] == true, egui::Button::new("Import"))
+                            .add_enabled(r["variant"] == true, egui::Button::new(t("ui-import")))
                             .clicked()
                             && let Some(dir) = &folder
                         {

@@ -1,6 +1,7 @@
 //! Sewing order list, sewing attribute sections and the stitch simulator, hosted by the panes
 //! in `panes.rs`.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use crate::pickers_ui::{self, Sample, Tile};
 use eframe::egui::{self, Color32, RichText, Sense};
@@ -48,15 +49,15 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
         app.status = format!("Optimise: {summary}");
     }
     if ui
-        .button("Review sewing order")
-        .on_hover_text("Step through every move between objects, with trims, jumps and warnings")
+        .button(t("ui-review-sewing-order"))
+        .on_hover_text(t("ui-step-through-every-move-between-objects-tip"))
         .clicked()
     {
         app.quality.open = true;
         app.quality.tab = crate::quality_ui::Tab::Route;
     }
-    ui.checkbox(&mut app.edit.by_colour, "Frames by thread colour")
-        .on_hover_text("One frame per run of objects in the same colour");
+    ui.checkbox(&mut app.edit.by_colour, t("ui-frames-by-thread-colour"))
+        .on_hover_text(t("ui-one-frame-per-run-of-objects-tip"));
     ui.separator();
     if app.edit.by_colour {
         crate::edit_ui::colour_frames(app, ui);
@@ -86,7 +87,7 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
                             let mut visible = row.visible;
                             if ui
                                 .checkbox(&mut visible, "")
-                                .on_hover_text("Visible (hidden objects are not sewn)")
+                                .on_hover_text(t("ui-visible-hidden-objects-are-not-sewn-tip"))
                                 .changed()
                             {
                                 pending = Some(objects::set_visible(row.id, visible));
@@ -101,7 +102,7 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
                             );
                             handle
                                 .response
-                                .on_hover_text("Drag to change the sewing order");
+                                .on_hover_text(t("ui-drag-to-change-the-sewing-order-tip"));
                             let d = app.session.design();
                             if let Some(i) = d.index_of(row.id) {
                                 crate::panes::thumbnail(ui, &d.objects[i], 30.0);
@@ -211,7 +212,7 @@ fn number(
 pub fn pec_grid(ui: &mut egui::Ui, id: &str, current: Option<&Thread>) -> Option<usize> {
     let mut chosen = None;
     let index = current.and_then(inspector::pec_index);
-    ui.label(RichText::new("Brother PEC thread chart").strong());
+    ui.label(RichText::new(t("ui-brother-pec-thread-chart")).strong());
     // Search by chart number, code or name (#486), matched as `threads.find` matches.
     let search_id = ui.make_persistent_id(("pec-search", id));
     let mut query: String = ui.data_mut(|d| d.get_temp(search_id)).unwrap_or_default();
@@ -223,7 +224,7 @@ pub fn pec_grid(ui: &mut egui::Ui, id: &str, current: Option<&Thread>) -> Option
     ui.data_mut(|d| d.insert_temp(search_id, query.clone()));
     let shown = pec_matches(&query);
     if shown.is_empty() {
-        ui.label(RichText::new("No thread in this chart matches.").weak());
+        ui.label(RichText::new(t("ui-no-thread-in-this-chart-matches")).weak());
     }
     egui::Grid::new(("pec", id))
         .spacing(egui::vec2(3.0, 3.0))
@@ -352,7 +353,7 @@ pub fn sewing_attributes(app: &mut EditorApp, ui: &mut egui::Ui) {
                 );
                 if crate::stitch_table_ui::target(app).is_some()
                     && ui
-                        .button("Stitch Table")
+                        .button(t("ui-stitch-table"))
                         .on_hover_text(
                             "Every needle point with its exact position, to edit, insert or delete",
                         )
@@ -366,7 +367,7 @@ pub fn sewing_attributes(app: &mut EditorApp, ui: &mut egui::Ui) {
             hand_edits_row(app, ui, &mut requests);
             region_section(app, ui, &m, &mut requests);
             line_section(app, ui, &m, &mut requests);
-            if !filter.trim().is_empty() && ui.button("Clear search").clicked() {
+            if !filter.trim().is_empty() && ui.button(t("ui-clear-search")).clicked() {
                 app.ui.property_search.clear();
             }
             for r in requests {
@@ -380,15 +381,15 @@ fn basic_advanced_and_defaults(app: &mut EditorApp, ui: &mut egui::Ui) {
     let adv = app.ui.prefs.advanced_attributes;
     let mut pick = None;
     if ui
-        .selectable_label(!adv, "Basic")
-        .on_hover_text("Only the settings most designs change")
+        .selectable_label(!adv, t("ui-basic"))
+        .on_hover_text(t("ui-only-the-settings-most-designs-change-tip"))
         .clicked()
     {
         pick = Some(false);
     }
     if ui
-        .selectable_label(adv, "Advanced")
-        .on_hover_text("Every sewing setting (as PE-DESIGN shows them)")
+        .selectable_label(adv, t("ui-advanced"))
+        .on_hover_text(t("ui-every-sewing-setting-as-pe-design-tip"))
         .clicked()
     {
         pick = Some(true);
@@ -406,8 +407,8 @@ fn basic_advanced_and_defaults(app: &mut EditorApp, ui: &mut egui::Ui) {
         })
         .filter(|o| o.region.is_some() || o.line.is_some());
     if ui
-        .add_enabled(single.is_some(), egui::Button::new("Save as Default"))
-        .on_hover_text("New shapes start with this shape's fill angle, density, stitch length, pull compensation, underlay and outline stitch length (Options ▸ New Objects)")
+        .add_enabled(single.is_some(), egui::Button::new(t("ui-save-as-default")))
+        .on_hover_text(t("ui-new-shapes-start-with-this-shape-tip"))
         .on_disabled_hover_text("Select one shape")
         .clicked()
         && let Some(o) = single
@@ -430,27 +431,27 @@ pub fn design_info(app: &mut EditorApp, ui: &mut egui::Ui) {
         d.objects.len(),
     );
     egui::Grid::new("design").num_columns(2).show(ui, |ui| {
-        ui.label("Design");
+        ui.label(t("ui-design"));
         ui.label(name);
         ui.end_row();
-        ui.label("Design Page");
+        ui.label(t("ui-design-page"));
         ui.label(openstitch_app::editor::units::size(
             app.ui.prefs.units,
             w,
             h,
         ));
         ui.end_row();
-        ui.label("Objects");
+        ui.label(t("ui-objects"));
         ui.label(n.to_string());
         ui.end_row();
         let m = &app.session.design().machine;
-        ui.label("Machine");
+        ui.label(t("ui-machine"));
         ui.label(match m.machine {
             openstitch_design::MachineType::SingleNeedle => "Single needle",
             openstitch_design::MachineType::MultiNeedle => "Multi-needle",
         });
         ui.end_row();
-        ui.label("Hoop");
+        ui.label(t("ui-hoop"));
         ui.label(m.hoop.as_deref().unwrap_or("custom"));
         ui.end_row();
         if let Some(e) = &app.workspace.estimate {
@@ -459,50 +460,50 @@ pub fn design_info(app: &mut EditorApp, ui: &mut egui::Ui) {
                 .iter()
                 .map(|mm| format!("{:.1}", mm / 1000.0))
                 .collect();
-            ui.label("Estimate");
+            ui.label(t("ui-estimate"));
             ui.label(crate::workspace_ui::estimate_text(e))
                 .on_hover_text(format!("Needle thread per colour (m): {}", per.join(", ")));
             ui.end_row();
         }
     });
-    if ui.button("Design Settings…").clicked() {
+    if ui.button(t("ui-design-settings")).clicked() {
         app.workspace.settings_open = true;
     }
     ui.add_space(8.0);
-    ui.label(RichText::new("Select an object to edit its sewing attributes.").weak());
+    ui.label(RichText::new(t("ui-select-an-object-to-edit-its")).weak());
 }
 
 pub fn transform_section(app: &mut EditorApp, ui: &mut egui::Ui) {
     ui.separator();
-    ui.label(RichText::new("Transform").strong());
+    ui.label(RichText::new(t("ui-transform")).strong());
     ui.horizontal_wrapped(|ui| {
-        if ui.button("Rotate −90°").clicked() {
+        if ui.button(t("ui-rotate-90")).clicked() {
             app.on_selection(|s| CommandRequest::rotate(s, -90.0));
         }
-        if ui.button("Rotate +90°").clicked() {
+        if ui.button(t("ui-rotate-90-2")).clicked() {
             app.on_selection(|s| CommandRequest::rotate(s, 90.0));
         }
-        if ui.button("Flip H").clicked() {
+        if ui.button(t("ui-flip-h")).clicked() {
             app.on_selection(|s| CommandRequest::flip(s, true));
         }
-        if ui.button("Flip V").clicked() {
+        if ui.button(t("ui-flip-v")).clicked() {
             app.on_selection(|s| CommandRequest::flip(s, false));
         }
-        if ui.button("Centre").clicked() {
+        if ui.button(t("ui-centre")).clicked() {
             app.on_selection(|s| {
                 CommandRequest::new("object.center", json!({ "ids": CommandRequest::ids(s) }))
             });
         }
     });
     ui.horizontal(|ui| {
-        ui.label("Scale");
+        ui.label(t("ui-scale"));
         ui.add(
             egui::DragValue::new(&mut app.scale_percent)
                 .range(1.0..=1000.0)
                 .speed(1.0)
                 .suffix(" %"),
         );
-        if ui.button("Apply").clicked() && (app.scale_percent - 100.0).abs() > 1e-9 {
+        if ui.button(t("menu-apply")).clicked() && (app.scale_percent - 100.0).abs() > 1e-9 {
             let f = app.scale_percent / 100.0;
             app.on_selection(|s| {
                 CommandRequest::new(
@@ -520,7 +521,7 @@ pub fn transform_section(app: &mut EditorApp, ui: &mut egui::Ui) {
         {
             app.on_selection(CommandRequest::duplicate);
         }
-        if ui.button("Delete").clicked() {
+        if ui.button(t("ui-delete")).clicked() {
             app.on_selection(CommandRequest::delete);
         }
     });
@@ -580,7 +581,7 @@ fn folded_header(
         egui::Align::Center,
     );
     if folded {
-        RichText::new("  (folded: click to show)").weak().append_to(
+        RichText::new(t("ui-folded-click-to-show")).weak().append_to(
             &mut text,
             ui.style(),
             egui::FontSelection::Default,
@@ -589,7 +590,7 @@ fn folded_header(
     }
     if ui
         .add(egui::Button::new(text).frame(false))
-        .on_hover_text("Fold or unfold this section")
+        .on_hover_text(t("ui-fold-or-unfold-this-section-tip"))
         .clicked()
     {
         let now = !app.ui.prefs.folded(key);
@@ -624,7 +625,7 @@ pub fn region_section(
         return;
     }
     if !m.closed {
-        ui.label(RichText::new("Needs a closed outline.").weak());
+        ui.label(RichText::new(t("ui-needs-a-closed-outline")).weak());
         return;
     }
     egui::Grid::new("region")
@@ -632,7 +633,7 @@ pub fn region_section(
         .spacing(egui::vec2(8.0, 6.0))
         .show(ui, |ui| {
             if show(&["Region sewing type", "regionType"]) {
-                ui.label("Type");
+                ui.label(t("ui-type"));
                 let picked = if app.ui.prefs.picture_pickers {
                     region_type_picker(app, ui, m)
                 } else {
@@ -651,7 +652,7 @@ pub fn region_section(
             }
             let Some(r) = m.region.clone() else { return };
             if show(&["Colour", "color thread"]) {
-                ui.label("Colour");
+                ui.label(t("ui-colour"));
                 let colour = if all_same_region_thread(app, m) {
                     Some(&r.thread)
                 } else {
@@ -693,7 +694,7 @@ pub fn region_section(
             if !show(&["Hole sewing", "holeSewing"]) {
                 return;
             }
-            ui.label("Hole sewing");
+            ui.label(t("ui-hole-sewing"));
             let mut hole = matches!(m.hole_sewing, Common::Same(true));
             let text = if m.hole_sewing == Common::Mixed {
                 "Mixed"
@@ -757,7 +758,7 @@ pub fn line_section(
         .spacing(egui::vec2(8.0, 6.0))
         .show(ui, |ui| {
             if show(&["Line sewing type", "lineType"]) {
-                ui.label("Type");
+                ui.label(t("ui-type"));
                 let picked = if app.ui.prefs.picture_pickers {
                     line_type_picker(app, ui, m)
                 } else {
@@ -776,7 +777,7 @@ pub fn line_section(
             }
             let Some(l) = m.line.clone() else { return };
             if show(&["Colour", "color thread"]) {
-                ui.label("Colour");
+                ui.label(t("ui-colour"));
                 let colour = if all_same_line_thread(app, m) {
                     Some(&l.thread)
                 } else {
@@ -823,8 +824,8 @@ fn hand_edits_row(app: &mut EditorApp, ui: &mut egui::Ui, out: &mut Vec<CommandR
     ui.horizontal_wrapped(|ui| {
         if table
             && ui
-                .button("Stitch Table")
-                .on_hover_text("Every needle point with its exact position: move, insert or delete points; the object stays editable")
+                .button(t("ui-stitch-table"))
+                .on_hover_text(t("ui-every-needle-point-with-its-exact-tip"))
                 .clicked()
         {
             app.stitch_table.open = true;
@@ -832,10 +833,10 @@ fn hand_edits_row(app: &mut EditorApp, ui: &mut egui::Ui, out: &mut Vec<CommandR
         if ids.is_empty() {
             return;
         }
-        ui.label(RichText::new("Stitches edited by hand").strong());
+        ui.label(RichText::new(t("ui-stitches-edited-by-hand")).strong());
         if ui
-            .button("Regenerate")
-            .on_hover_text("Drop the hand edits and sew the generated stitches again (a sewing setting change does it too)")
+            .button(t("ui-regenerate"))
+            .on_hover_text(t("ui-drop-the-hand-edits-and-sew-tip"))
             .clicked()
         {
             out.push(CommandRequest::new(
@@ -1043,7 +1044,7 @@ pub fn sim_controls(
                 total > 0,
                 egui::Button::new(crate::icons::ui_image(ui, "player_start")),
             )
-            .on_hover_text("Start")
+            .on_hover_text(t("ui-start-tip"))
             .clicked()
         {
             *pos = Some(0);
@@ -1053,7 +1054,7 @@ pub fn sim_controls(
                 total > 0,
                 egui::Button::new(crate::icons::ui_image(ui, "player_back")),
             )
-            .on_hover_text("Previous stitch")
+            .on_hover_text(t("ui-previous-stitch-tip"))
             .clicked()
         {
             *pos = Some(pos.unwrap_or(total).saturating_sub(1));
@@ -1063,7 +1064,7 @@ pub fn sim_controls(
                 total > 0,
                 egui::Button::new(crate::icons::ui_image(ui, "player_forward")),
             )
-            .on_hover_text("Next stitch")
+            .on_hover_text(t("ui-next-stitch-tip"))
             .clicked()
         {
             let n = pos.map_or(total, |n| n + 1);
@@ -1074,7 +1075,7 @@ pub fn sim_controls(
                 total > 0,
                 egui::Button::new(crate::icons::ui_image(ui, "player_end")),
             )
-            .on_hover_text("End")
+            .on_hover_text(t("ui-end-tip"))
             .clicked()
         {
             *pos = None;
@@ -1149,7 +1150,7 @@ pub fn simulator(app: &mut EditorApp, ui: &mut egui::Ui) {
             ui.label(format!("colour {} of {}", c + 1, blocks));
         }
         ui.separator();
-        ui.checkbox(&mut app.show_travel, "Show travel");
+        ui.checkbox(&mut app.show_travel, t("ui-show-travel"));
     });
     ui.add_space(4.0);
 }
@@ -1166,7 +1167,7 @@ fn player_strip(app: &mut EditorApp, ui: &mut egui::Ui) {
     // Wraps onto a second row when the window is narrow or the text large (#499).
     ui.horizontal_wrapped(|ui| {
         ui.monospace(player::counter(&app.timeline, app.simulate))
-            .on_hover_text("Stitches and machine time at the needle, out of the totals");
+            .on_hover_text(t("ui-stitches-and-machine-time-at-the-tip"));
         ui.separator();
         for (label, s, tip) in [
             ("Prev block", Step::BlockBack, "Shift+←"),
@@ -1190,13 +1191,13 @@ fn player_strip(app: &mut EditorApp, ui: &mut egui::Ui) {
         }
         ui.separator();
         ui.toggle_value(&mut app.stitch_player.auto, "Auto")
-            .on_hover_text("Play the whole design in about 12 seconds");
+            .on_hover_text(t("ui-play-the-whole-design-in-about-tip"));
         ui.toggle_value(&mut app.stitch_player.pause, "Pause at trims")
             .on_hover_text(
                 "Stop playing at each trim, stop and colour change, as the machine does",
             );
         ui.toggle_value(&mut app.stitch_player.follow, "Follow needle")
-            .on_hover_text("Keep the needle in view while zoomed in");
+            .on_hover_text(t("ui-keep-the-needle-in-view-while-tip"));
     });
     let t = &app.timeline;
     let n = player::at(t, app.simulate);
@@ -1261,7 +1262,7 @@ fn player_strip(app: &mut EditorApp, ui: &mut egui::Ui) {
         app.simulate = player::seek(&app.timeline, f);
         app.playing = false;
     }
-    resp.on_hover_text("Colour blocks in sewing order: ticks are trims, bars colour changes (red: a stop). Click or drag to go there");
+    resp.on_hover_text(openstitch_app::editor::ui_texts::t("ui-colour-blocks-in-sewing-order-ticks-tip"));
     let jumps: Vec<(String, Color32, usize)> = app
         .timeline
         .blocks
@@ -1282,7 +1283,7 @@ fn player_strip(app: &mut EditorApp, ui: &mut egui::Ui) {
             let r = ui.add(
                 egui::Button::new(RichText::new(label).small()).stroke(egui::Stroke::new(2.0, c)),
             );
-            if r.on_hover_text("Go to the first stitch of this colour block")
+            if r.on_hover_text(openstitch_app::editor::ui_texts::t("ui-go-to-the-first-stitch-of-tip"))
                 .clicked()
             {
                 app.simulate = player::position(&app.timeline, start);

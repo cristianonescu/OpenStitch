@@ -3,6 +3,7 @@
 //! [`openstitch_app::editor::close_prompt`]; [`EditorApp::answer_close_prompt`] acts on the
 //! answer.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui::{self, Key, Modifiers, RichText};
 use openstitch_app::editor::close_prompt::{self, Choice, Pending};
@@ -27,7 +28,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         ui.add_space(12.0);
         ui.horizontal(|ui| {
             if ui
-                .button(RichText::new("Save").strong())
+                .button(RichText::new(t("ui-save")).strong())
                 .on_hover_text(
                     "Saves the design (Save As when it has no file yet), then goes on · Enter",
                 )
@@ -36,15 +37,15 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 choice = Some(Choice::Save);
             }
             if ui
-                .button("Don't Save")
-                .on_hover_text("Goes on and discards the changes")
+                .button(t("ui-don-t-save"))
+                .on_hover_text(t("ui-goes-on-and-discards-the-changes-tip"))
                 .clicked()
             {
                 choice = Some(Choice::DontSave);
             }
             if ui
-                .button("Cancel")
-                .on_hover_text("Back to the editor · Esc")
+                .button(t("ui-cancel"))
+                .on_hover_text(t("ui-back-to-the-editor-esc-tip"))
                 .clicked()
             {
                 choice = Some(Choice::Cancel);

@@ -2,6 +2,7 @@
 //! text's Text Transform preset or a shape, then drag its six handles on the canvas. Each drag
 //! is one `text.bendEnvelope` (one Undo); Shift mirrors the move on the other side.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui::{self, Color32, Stroke};
 use openstitch_app::editor::{CommandRequest, Phase, Viewport};
@@ -35,13 +36,13 @@ fn target(app: &EditorApp) -> Option<(u64, TextSpec)> {
 
 /// The pane's controls, under the Text Transform palette.
 pub fn pane(app: &mut EditorApp, ui: &mut egui::Ui, spec: &TextSpec) {
-    ui.label(egui::RichText::new("Free envelope").strong())
-        .on_hover_text("Bend the text with handles (beyond PE-DESIGN; not written to PES 0110)");
+    ui.label(egui::RichText::new(t("ui-free-envelope")).strong())
+        .on_hover_text(t("ui-bend-the-text-with-handles-beyond-tip"));
     ui.horizontal_wrapped(|ui| {
         let preset = spec.envelope.is_some_and(|n| n > 2);
         if ui
-            .add_enabled(preset, egui::Button::new("From preset"))
-            .on_hover_text("The Text Transform preset as a free envelope: the same stitches until a handle moves")
+            .add_enabled(preset, egui::Button::new(t("ui-from-preset")))
+            .on_hover_text(t("ui-the-text-transform-preset-as-a-tip"))
             .clicked()
         {
             set(app, "preset");
@@ -56,13 +57,13 @@ pub fn pane(app: &mut EditorApp, ui: &mut egui::Ui, spec: &TextSpec) {
                 set(app, shape);
             }
         }
-        if spec.custom_envelope.is_some() && ui.button("Remove").clicked() {
+        if spec.custom_envelope.is_some() && ui.button(t("ui-remove")).clicked() {
             set(app, "none");
         }
     });
     if spec.custom_envelope.is_some() {
-        ui.checkbox(&mut app.ui.envelope_edit, "Edit handles")
-            .on_hover_text("Drag a handle on the canvas; Shift bends both sides alike");
+        ui.checkbox(&mut app.ui.envelope_edit, t("ui-edit-handles"))
+            .on_hover_text(t("ui-drag-a-handle-on-the-canvas-tip"));
     }
 }
 

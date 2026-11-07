@@ -4,6 +4,7 @@
 //! `openstitch_engine::quality`, the code `design.check`, `design.density` and `design.route`
 //! run for stitchtool, the MCP server and the Assistant, on the stitches the editor compiled.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui::{self, Color32, CornerRadius, Pos2, RichText, Shape, Stroke};
 use openstitch_app::editor::{CommandRequest, Viewport};
@@ -207,7 +208,7 @@ pub fn indicator(app: &mut EditorApp, ui: &mut egui::Ui) {
         c["warnings"].as_u64().unwrap_or(0),
     );
     let text = if errors + warnings == 0 {
-        RichText::new("Ready to sew").color(READY)
+        RichText::new(t("ui-ready-to-sew")).color(READY)
     } else {
         let n = errors + warnings;
         let reason = c["summary"].as_str().unwrap_or_default();
@@ -225,7 +226,7 @@ pub fn indicator(app: &mut EditorApp, ui: &mut egui::Ui) {
     };
     if ui
         .button(text)
-        .on_hover_text("Check Design: open the list of sewing problems")
+        .on_hover_text(t("ui-check-design-open-the-list-of-tip"))
         .clicked()
     {
         open(app, Tab::Check);
@@ -238,7 +239,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     }
     update(app);
     let mut open = true;
-    egui::Window::new("Check Design")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-check-design")).id(egui::Id::unique("window-check-design"))
         .open(&mut open)
         .default_size([380.0, 420.0])
         .show(ctx, |ui| {
@@ -252,7 +253,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 }
             });
             ui.horizontal(|ui| {
-                ui.label("Fabric");
+                ui.label(t("ui-fabric"));
                 let current = app
                     .quality
                     .fabric
@@ -282,7 +283,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
 fn check_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
     let list = findings(app);
     if list.is_empty() {
-        ui.label(RichText::new("Ready to sew: no problems found.").color(READY));
+        ui.label(RichText::new(t("ui-ready-to-sew-no-problems-found")).color(READY));
         return;
     }
     egui::ScrollArea::vertical().show(ui, |ui| {
@@ -303,14 +304,14 @@ fn check_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
                 );
                 if ui
                     .selectable_label(false, text)
-                    .on_hover_text("Select and show")
+                    .on_hover_text(t("ui-select-and-show-tip"))
                     .clicked()
                 {
                     show(app, ids(&f["ids"]));
                 }
                 if f["fix"].is_object()
                     && ui
-                        .button("Fix")
+                        .button(t("ui-fix"))
                         .on_hover_text(f["fix"]["command"].as_str().unwrap_or_default())
                         .clicked()
                 {
@@ -339,7 +340,7 @@ fn density_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
         d["limits"]["tooDense"].as_f64().unwrap_or(0.0),
     );
     ui.horizontal_wrapped(|ui| {
-        ui.label("Thread layers (1 = one fill):");
+        ui.label(t("ui-thread-layers-1-one-fill"));
         ui.label(RichText::new(format!("heavy above {heavy}")).color(WARNING));
         ui.label(RichText::new(format!("too dense above {dense}")).color(ERROR));
     });
@@ -353,7 +354,7 @@ fn density_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
     ));
     let hot = d["hotspots"].as_array().cloned().unwrap_or_default();
     if hot.is_empty() {
-        ui.label("No hotspots.");
+        ui.label(t("ui-no-hotspots"));
         return;
     }
     let k = app.quality.hotspot.min(hot.len() - 1);
@@ -367,10 +368,10 @@ fn density_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
         h["ids"]
     ));
     ui.horizontal(|ui| {
-        if ui.button("Show").clicked() {
+        if ui.button(t("ui-show")).clicked() {
             show(app, ids(&h["ids"]));
         }
-        if ui.button("Next").clicked() {
+        if ui.button(t("ui-next")).clicked() {
             app.quality.hotspot = (k + 1) % hot.len();
             show(app, ids(&hot[app.quality.hotspot]["ids"]));
         }
@@ -409,18 +410,18 @@ fn route_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
     let k = app.quality.step.min(all.len() - 1);
     ui.horizontal(|ui| {
         if ui
-            .add_enabled(k > 0, egui::Button::new("Previous"))
+            .add_enabled(k > 0, egui::Button::new(openstitch_app::editor::ui_texts::t("ui-previous")))
             .clicked()
         {
             go_to_step(app, k - 1);
         }
         if ui
-            .add_enabled(k + 1 < all.len(), egui::Button::new("Next"))
+            .add_enabled(k + 1 < all.len(), egui::Button::new(openstitch_app::editor::ui_texts::t("ui-next")))
             .clicked()
         {
             go_to_step(app, k + 1);
         }
-        if ui.button("Whole design").clicked() {
+        if ui.button(openstitch_app::editor::ui_texts::t("ui-whole-design")).clicked() {
             app.simulate = None;
         }
     });
@@ -454,7 +455,7 @@ fn route_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
                     {
                         show(app, ids(&json!([s["id"], s["move"]["to"]])));
                     }
-                    if w["fix"].is_object() && ui.button("Fix").clicked() {
+                    if w["fix"].is_object() && ui.button(openstitch_app::editor::ui_texts::t("ui-fix")).clicked() {
                         run_fix(app, &w["fix"]);
                     }
                 });

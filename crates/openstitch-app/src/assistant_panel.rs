@@ -14,6 +14,7 @@
 //!   its first message) and changes only through the gate (`notes_write`) or the user's own
 //!   edits in the settings.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui::{self, RichText};
 use openstitch_app::editor::assistant_attach::{self, Attachment, MAX_FILES};
@@ -819,8 +820,8 @@ fn close_hint_dialog(app: &mut EditorApp, ctx: &egui::Context) {
     let mut ok = false;
     egui::Modal::new(egui::Id::unique("assistant-close-hint")).show(ctx, |ui| {
         ui.set_max_width(360.0);
-        ui.heading("The Assistant is closed");
-        ui.label("To open it again:");
+        ui.heading(t("ui-the-assistant-is-closed"));
+        ui.label(t("ui-to-open-it-again"));
         for l in &lines {
             ui.label(format!("•  {l}"));
         }
@@ -830,7 +831,7 @@ fn close_hint_dialog(app: &mut EditorApp, ctx: &egui::Context) {
             "Don't show this again",
         );
         ui.add_space(4.0);
-        ok = ui.button("OK").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter));
+        ok = ui.button(t("ui-ok")).clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter));
     });
     if ok {
         close_hint_ok(app);
@@ -1342,7 +1343,7 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
             // A coding agent has no address of its own (#420): the Endpoint presets and the key
             // rows below are the hidden Claude API address's, so they are not shown.
             if prefs.protocol != Protocol::Agent {
-            ui.label("Endpoint");
+            ui.label(t("ui-endpoint"));
             let r = egui::ComboBox::from_id_salt("assistant-preset")
                 .selected_text(
                     PRESETS
@@ -1363,7 +1364,7 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
             crate::a11y::name(&r.response, "Endpoint");
             ui.end_row();
             }
-            ui.label("Protocol");
+            ui.label(t("ui-protocol"));
             let r = egui::ComboBox::from_id_salt("assistant-protocol")
                 .selected_text(prefs.protocol.label())
                 .show_ui(ui, |ui| {
@@ -1374,10 +1375,10 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
             crate::a11y::name(&r.response, "Protocol");
             ui.end_row();
             if prefs.protocol != Protocol::Agent {
-                ui.label("Address");
+                ui.label(t("ui-address"));
                 changed |= crate::a11y::named(ui.text_edit_singleline(&mut prefs.base_url), "Address").lost_focus();
                 ui.end_row();
-                ui.label("Model");
+                ui.label(t("ui-model"));
                 ui.horizontal(|ui| {
                     let r = ui.add(egui::TextEdit::singleline(&mut prefs.model).desired_width(170.0));
                     crate::a11y::name(&r, "Model");
@@ -1394,7 +1395,7 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                         // draws as a dot where the font lacks it).
                         let list = ui
                             .add(egui::Button::new(crate::icons::ui_image(ui, "menu_caret")))
-                            .on_hover_text("The models this address lists");
+                            .on_hover_text(t("ui-the-models-this-address-lists-tip"));
                         egui::Popup::menu(&list).show(|ui| {
                                 for m in models {
                                     let text = m.name.as_deref().map_or(m.id.clone(), |n| format!("{n} ({})", m.id));
@@ -1410,13 +1411,13 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                     drop(l);
                     if busy {
                         ui.spinner();
-                    } else if ui.small_button("List").on_hover_text("Ask the endpoint for its models").clicked() {
+                    } else if ui.small_button(t("ui-list")).on_hover_text(t("ui-ask-the-endpoint-for-its-models-tip")).clicked() {
                         want_models = true;
                     }
                 });
                 ui.end_row();
                 if prefs.protocol == Protocol::Anthropic {
-                    ui.label("Effort");
+                    ui.label(t("ui-effort"));
                     let r = egui::ComboBox::from_id_salt("assistant-effort")
                         .selected_text(prefs.effort.clone())
                         .show_ui(ui, |ui| {
@@ -1426,21 +1427,21 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                         });
                     crate::a11y::name(&r.response, "Effort");
                 } else {
-                    ui.label("Reasoning effort");
+                    ui.label(t("ui-reasoning-effort"));
                     changed |= ui
                         .add(egui::TextEdit::singleline(&mut prefs.reasoning_effort).hint_text("provider default").desired_width(120.0))
-                        .on_hover_text("Sent as reasoning_effort when set (for example low, medium, high); values differ per provider")
+                        .on_hover_text(t("ui-sent-as-reasoning-effort-when-set-tip"))
                         .lost_focus();
                 }
                 ui.end_row();
-                ui.label("Request timeout (s)");
+                ui.label(t("ui-request-timeout-s"));
                 changed |= ui
                     .add(egui::DragValue::new(&mut prefs.request_timeout_s).range(30..=3600))
-                    .on_hover_text("How long the server may go without sending any of the reply (text, thinking or a tool call) before the turn ends; a slow local model may need more")
+                    .on_hover_text(t("ui-how-long-the-server-may-go-tip"))
                     .changed();
                 ui.end_row();
             } else {
-                ui.label("Agent");
+                ui.label(t("ui-agent"));
                 let l = lookups.lock().unwrap_or_else(|e| e.into_inner());
                 let found = l.agents.clone();
                 drop(l);
@@ -1476,10 +1477,10 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                         f.iter().any(|d| d.agent.id == a.id && !matches!(d.state, claude::AgentState::Ready { .. }))
                     });
                     if missing {
-                        ui.label("Install");
+                        ui.label(t("ui-install"));
                         ui.horizontal(|ui| {
                             ui.monospace(a.install);
-                            if ui.small_button("Copy").clicked() {
+                            if ui.small_button(t("ui-copy")).clicked() {
                                 ui.ctx().copy_text(a.install.to_string());
                             }
                         });
@@ -1490,7 +1491,7 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                     want_agents = true;
                 }
             }
-            ui.label("Permissions");
+            ui.label(t("ui-permissions"));
             let r = egui::ComboBox::from_id_salt("assistant-mode")
                 .selected_text(prefs.mode.label())
                 .show_ui(ui, |ui| {
@@ -1500,10 +1501,10 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                 });
             crate::a11y::name(&r.response, "Permissions");
             ui.end_row();
-            ui.label("Changes per message");
+            ui.label(t("ui-changes-per-message"));
             changed |= ui
                 .add(egui::DragValue::new(&mut prefs.edit_limit).range(0..=10_000))
-                .on_hover_text("0 = no limit")
+                .on_hover_text(t("ui-0-no-limit-tip"))
                 .changed();
             ui.end_row();
         });
@@ -1515,7 +1516,7 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
             ui.colored_label(ui.visuals().warn_fg_color, format!("No model list: {e}"));
         }
         if l.busy.contains(&"pick") {
-            ui.label("Looking for a model that can use tools on this endpoint…");
+            ui.label(t("ui-looking-for-a-model-that-can"));
         } else if prefs.protocol != Protocol::Agent && prefs.model.trim().is_empty() {
             match &l.picked {
                 Some((base, Err(e))) if *base == prefs.base_url => {
@@ -1572,7 +1573,7 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
     if !prefs.always_allow.is_empty() {
         ui.horizontal_wrapped(|ui| {
             ui.label(format!("Always allowed: {}", prefs.always_allow.join(", ")));
-            if ui.small_button("Reset").clicked() {
+            if ui.small_button(t("ui-reset")).clicked() {
                 prefs.always_allow.clear();
                 changed = true;
             }
@@ -1643,10 +1644,10 @@ fn memory_settings(app: &mut EditorApp, ui: &mut egui::Ui, changed: &mut bool) {
     let (mut save, mut revert, mut forget) = (false, false, false);
     ui.horizontal(|ui| {
         save = ui
-            .add_enabled(dirty, egui::Button::new("Save notes"))
+            .add_enabled(dirty, egui::Button::new(t("ui-save-notes")))
             .clicked();
         revert = ui
-            .add_enabled(dirty, egui::Button::new("Undo edits"))
+            .add_enabled(dirty, egui::Button::new(t("ui-undo-edits")))
             .clicked();
         if panel.confirm_forget {
             ui.colored_label(
@@ -1654,11 +1655,11 @@ fn memory_settings(app: &mut EditorApp, ui: &mut egui::Ui, changed: &mut bool) {
                 "Forget everything it remembers?",
             );
             forget = danger_button(ui, "Forget", true).clicked();
-            if ui.button("Cancel").clicked() {
+            if ui.button(t("ui-cancel")).clicked() {
                 panel.confirm_forget = false;
             }
         } else if danger_button(ui, "Forget everything…", !current.is_empty())
-            .on_hover_text("Clear the notes the Assistant keeps between conversations")
+            .on_hover_text(t("ui-clear-the-notes-the-assistant-keeps-tip"))
             .clicked()
         {
             panel.confirm_forget = true;
@@ -1736,7 +1737,7 @@ fn endpoint_key(app: &mut EditorApp, ui: &mut egui::Ui) {
 /// The image generator's address, model and key, and Reset AI settings.
 fn image_and_reset(app: &mut EditorApp, ui: &mut egui::Ui, mut changed: bool) {
     ui.separator();
-    ui.label("Image generator (optional): an OpenAI-compatible /images/generations address ending in /v1. Without one, the assistant draws pictures as vector shapes.");
+    ui.label(t("ui-image-generator-optional-an-openai-compatible"));
     let prefs = &mut app.ui.prefs.ai;
     ui.horizontal(|ui| {
         changed |= ui
@@ -1785,7 +1786,7 @@ fn image_and_reset(app: &mut EditorApp, ui: &mut egui::Ui, mut changed: bool) {
             None => {}
         }
         if ui
-            .button("Clear image generator")
+            .button(t("ui-clear-image-generator"))
             .on_hover_text(
                 "Turn the image generator off: empty its address and model and delete its key",
             )
@@ -1816,12 +1817,12 @@ fn image_and_reset(app: &mut EditorApp, ui: &mut egui::Ui, mut changed: bool) {
             if danger_button(ui, "Reset", true).clicked() {
                 reset_ai(app);
             }
-            if ui.button("Cancel").clicked() {
+            if ui.button(t("ui-cancel")).clicked() {
                 app.assistant.panel.confirm_reset = false;
             }
         });
     } else if danger_button(ui, "Reset AI settings…", true)
-        .on_hover_text("Back to the defaults, and remove the saved API keys")
+        .on_hover_text(t("ui-back-to-the-defaults-and-remove-tip"))
         .clicked()
     {
         app.assistant.panel.confirm_reset = true;
@@ -1881,7 +1882,7 @@ fn key_row(ui: &mut egui::Ui, input: &mut String, stored: bool, what: &str) -> O
             // #581: a short fixed mask that fits the field (nothing cut off with "…").
             RichText::new(SAVED_KEY_MASK).color(ui.visuals().text_color())
         } else {
-            RichText::new("Paste a key")
+            RichText::new(t("ui-paste-a-key"))
         };
         ui.add(
             egui::TextEdit::singleline(input)
@@ -1895,7 +1896,7 @@ fn key_row(ui: &mut egui::Ui, input: &mut String, stored: bool, what: &str) -> O
             "No key is saved for this address."
         });
         if ui
-            .add_enabled(!input.trim().is_empty(), egui::Button::new("Save key"))
+            .add_enabled(!input.trim().is_empty(), egui::Button::new(t("ui-save-key")))
             .clicked()
         {
             action = Some(KeyAction::Save);
@@ -2140,7 +2141,7 @@ fn item(ui: &mut egui::Ui, salt: (&str, u64, usize), it: &Item) {
         // Each row has its own ID (conversation, position): a label-based ID clashes when the
         // same tool runs twice or there are two Thinking blocks (#415).
         Item::Thinking(t) => {
-            egui::CollapsingHeader::new(RichText::new("Thinking").weak())
+            egui::CollapsingHeader::new(RichText::new(openstitch_app::editor::ui_texts::t("ui-thinking")).weak())
                 .id_salt(salt)
                 .show(ui, |ui| {
                     ui.add(egui::Label::new(RichText::new(t).weak()).wrap());
@@ -2270,7 +2271,7 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
         .default_size(380.0)
         .show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.heading("Assistant");
+                ui.heading(t("ui-assistant"));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let tip = format!(
                         "Close the Assistant ({})",
@@ -2305,14 +2306,14 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                         app.assistant.panel.show_settings ^= true;
                     }
                     if ui
-                        .button("New chat")
-                        .on_hover_text("Start a new conversation; the design stays")
+                        .button(t("ui-new-chat"))
+                        .on_hover_text(t("ui-start-a-new-conversation-the-design-tip"))
                         .clicked()
                     {
                         new_chat(app);
                     }
                     if ui
-                        .button("Save as script")
+                        .button(t("ui-save-as-script"))
                         .on_hover_text(
                             "The design changes of this chat as a stitchtool command script",
                         )
@@ -2348,13 +2349,13 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                     ));
                     let left = APPROVAL_TIMEOUT_S.saturating_sub(a.since.elapsed().as_secs());
                     ui.horizontal(|ui| {
-                        if ui.button("Allow once").clicked() {
+                        if ui.button(t("ui-allow-once")).clicked() {
                             answered = Some((i, Answer::Once));
                         }
-                        if ui.button("Always allow").clicked() {
+                        if ui.button(t("ui-always-allow")).clicked() {
                             answered = Some((i, Answer::Always));
                         }
-                        if ui.button("Deny").clicked() {
+                        if ui.button(t("ui-deny")).clicked() {
                             answered = Some((i, Answer::Deny));
                         }
                         ui.label(RichText::new(format!("{left} s")).weak());
@@ -2378,7 +2379,7 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                     ui.horizontal_wrapped(|ui| {
                         for (i, a) in panel.attachments.iter().enumerate() {
                             if attachment_chip(ui, &a.name)
-                                .on_hover_text("Remove")
+                                .on_hover_text(t("ui-remove"))
                                 .clicked()
                             {
                                 remove = Some(i);
@@ -2422,8 +2423,8 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                     }
                     let panel = &mut app.assistant.panel;
                     if ui
-                        .add(egui::Button::new("View").selected(panel.attach_view))
-                        .on_hover_text("Send a picture of the design with the message")
+                        .add(egui::Button::new(t("ui-view")).selected(panel.attach_view))
+                        .on_hover_text(t("ui-send-a-picture-of-the-design-tip"))
                         .clicked()
                     {
                         panel.attach_view ^= true;
@@ -2432,7 +2433,7 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                     if ui
                         .add_enabled(
                             !app.selection.is_empty(),
-                            egui::Button::new("Selection").selected(on),
+                            egui::Button::new(t("ui-selection")).selected(on),
                         )
                         .on_hover_text(
                             "Send the selected objects' ids, kinds and sizes with the message",
@@ -2457,7 +2458,7 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                         let text = std::mem::take(&mut app.assistant.panel.input);
                         send(app, text, waker(&ctx));
                     }
-                    if busy && ui.button("Stop").clicked() {
+                    if busy && ui.button(t("ui-stop")).clicked() {
                         stop(app);
                     }
                     if busy {
@@ -2471,7 +2472,7 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                     transcript(ui, app.assistant.panel.chat, &app.assistant.panel.items);
                     if let Some(last) = app.assistant.panel.last_undo
                         && last + 1 == app.undo_groups.len()
-                        && ui.small_button("Undo these changes").clicked()
+                        && ui.small_button(t("ui-undo-these-changes")).clicked()
                     {
                         app.undo();
                         app.assistant.panel.last_undo = None;

@@ -2,6 +2,7 @@
 //! on the canvas, their settings in the Design Settings window (`sections.set`) and File ▸
 //! Export Sections (`sections.export`).
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui::{self, Color32, Pos2, Shape, Stroke};
 use openstitch_app::editor::sections::Axis;
@@ -149,20 +150,20 @@ pub fn settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<CommandRe
     ui.separator();
     match hoop {
         Some(h) if h.multi_position => {
-            ui.label(egui::RichText::new("Multi-position hoop").strong());
+            ui.label(egui::RichText::new(t("ui-multi-position-hoop")).strong());
             let mut optimize = m.optimize_hoop_change;
             if ui
-                .checkbox(&mut optimize, "Optimize hoop changes")
-                .on_hover_text("Group patterns by installation position (a, b, c)")
+                .checkbox(&mut optimize, t("ui-optimize-hoop-changes"))
+                .on_hover_text(t("ui-group-patterns-by-installation-position-a-tip"))
                 .changed()
             {
                 requests.push(set(json!({ "optimizeHoopChange": optimize })));
             }
         }
         Some(h) if h.id == sections::JUMBO => {
-            ui.label(egui::RichText::new("Jumbo frame").strong());
+            ui.label(egui::RichText::new(t("ui-jumbo-frame")).strong());
             ui.horizontal(|ui| {
-                ui.label("Side overlap");
+                ui.label(t("ui-side-overlap"));
                 let mut o = m.jumbo_overlap;
                 let r = ui.add(crate::units_ui::drag(&mut o, units).range(0.0..=50.0));
                 if r.drag_stopped() || r.lost_focus() {
@@ -172,7 +173,7 @@ pub fn settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<CommandRe
         }
         Some(_) => {
             ui.label(
-                egui::RichText::new("Split designs need Hoop: Custom size.")
+                egui::RichText::new(t("ui-split-designs-need-hoop-custom-size"))
                     .weak()
                     .small(),
             );
@@ -192,9 +193,9 @@ fn split_settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<Command
     let d = app.session.design();
     let s = d.machine.sections.clone();
     let set = |v: serde_json::Value| CommandRequest::new("sections.set", v);
-    ui.label(egui::RichText::new("Split design").strong());
+    ui.label(egui::RichText::new(t("ui-split-design")).strong());
     ui.horizontal(|ui| {
-        ui.label("Section size");
+        ui.label(t("ui-section-size"));
         let current = s.as_ref().map(|s| s.hoop.clone()).unwrap_or_default();
         let text = s
             .as_ref()
@@ -207,7 +208,7 @@ fn split_settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<Command
             .selected_text(text)
             .width(200.0)
             .show_ui(ui, |ui| {
-                if ui.selectable_label(s.is_none(), "Not split").clicked() && s.is_some() {
+                if ui.selectable_label(s.is_none(), t("ui-not-split")).clicked() && s.is_some() {
                     requests.push(set(json!({ "hoop": "none" })));
                 }
                 for h in BROTHER_HOOPS.iter().filter(|h| sectionable(h)) {
@@ -234,7 +235,7 @@ fn split_settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<Command
     }
     let mut smaller = s.smaller;
     if ui
-        .checkbox(&mut smaller, "Use smaller section sizes")
+        .checkbox(&mut smaller, t("ui-use-smaller-section-sizes"))
         .changed()
     {
         requests.push(set(json!({ "smaller": smaller })));
@@ -261,7 +262,7 @@ fn split_settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<Command
             }
         });
     }
-    if (!s.splits_x.is_empty() || !s.splits_y.is_empty()) && ui.small_button("Even split").clicked()
+    if (!s.splits_x.is_empty() || !s.splits_y.is_empty()) && ui.small_button(t("ui-even-split")).clicked()
     {
         requests.push(set(json!({ "splitsX": [], "splitsY": [] })));
     }
@@ -277,13 +278,13 @@ fn free_settings(
 ) {
     let set = |v: serde_json::Value| CommandRequest::new("sections.set", v);
     ui.horizontal(|ui| {
-        ui.label("Hoopings");
-        if ui.selectable_label(s.free.is_none(), "Grid").on_hover_text("PE-DESIGN's sections, cut at the borders").clicked() && s.free.is_some() {
+        ui.label(t("ui-hoopings"));
+        if ui.selectable_label(s.free.is_none(), t("ui-grid")).on_hover_text(t("ui-pe-design-s-sections-cut-at-tip")).clicked() && s.free.is_some() {
             requests.push(set(json!({ "mode": "grid" })));
         }
         if ui
-            .selectable_label(s.free.is_some(), "Free")
-            .on_hover_text("Hoopings placed anywhere, overlapping; each object sewn whole in the first hooping that holds it")
+            .selectable_label(s.free.is_some(), t("ui-free"))
+            .on_hover_text(t("ui-hoopings-placed-anywhere-overlapping-each-object-tip"))
             .clicked()
             && s.free.is_none()
         {
@@ -304,8 +305,8 @@ fn free_settings(
                 let r = ui.add(crate::units_ui::drag(v, units));
                 changed |= r.drag_stopped() || r.lost_focus();
             }
-            changed |= ui.checkbox(&mut h.rotated, "Turned 90°").changed();
-            if ui.small_button("Remove").clicked() {
+            changed |= ui.checkbox(&mut h.rotated, t("ui-turned-90")).changed();
+            if ui.small_button(t("ui-remove")).clicked() {
                 remove = Some(i);
             }
         });
@@ -334,8 +335,8 @@ fn free_settings(
             }
         }
         if ui
-            .small_button("Auto layout")
-            .on_hover_text("The fewest hoopings covering the design")
+            .small_button(t("ui-auto-layout"))
+            .on_hover_text(t("ui-the-fewest-hoopings-covering-the-design-tip"))
             .clicked()
         {
             requests.push(CommandRequest::new("sections.autoLayout", json!({})));
@@ -349,7 +350,7 @@ fn free_settings(
         requests.push(set(json!({ "hoopings": v })));
     }
     ui.horizontal(|ui| {
-        ui.label("Marks");
+        ui.label(t("ui-marks"));
         for m in [
             sections::MarkStyle::BoxX,
             sections::MarkStyle::Cross,
@@ -365,7 +366,7 @@ fn free_settings(
             }
         }
         let mut o = f.min_overlap;
-        ui.label("overlap");
+        ui.label(t("ui-overlap"));
         let r = ui.add(crate::units_ui::drag(&mut o, units).range(0.0..=100.0));
         if (r.drag_stopped() || r.lost_focus()) && o != f.min_overlap {
             requests.push(set(json!({ "minOverlap": o })));
@@ -373,7 +374,7 @@ fn free_settings(
     });
     let mut stop = f.stop_after_marks;
     if ui
-        .checkbox(&mut stop, "Stop after the marks to line the fabric up")
+        .checkbox(&mut stop, t("ui-stop-after-the-marks-to-line"))
         .changed()
     {
         requests.push(set(json!({ "stopAfterMarks": stop })));

@@ -2,6 +2,7 @@
 //! `transfer.send` writes the file to the volume root. A name that already exists asks before
 //! it is replaced, as PE-DESIGN does.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui;
 use openstitch_app::editor::CommandRequest;
@@ -59,7 +60,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = true;
     let mut action: Option<bool> = None; // Some(overwrite)
     let mut refresh = false;
-    egui::Window::new("Send to USB Media")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-send-to-usb-media")).id(egui::Id::unique("window-send-to-usb-media"))
         .open(&mut open)
         .resizable(false)
         .default_width(360.0)
@@ -67,19 +68,19 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
             let d = &mut app.workspace.usb;
             if d.volumes.is_empty() {
                 crate::art::header(ui, crate::art::Art::NoMedia, |ui| {
-                    ui.label("No USB stick or SD card is mounted.");
+                    ui.label(t("ui-no-usb-stick-or-sd-card"));
                 });
             } else {
                 for (i, (path, name)) in d.volumes.iter().enumerate() {
                     ui.radio_value(&mut d.selected, i, format!("{name}   {path}"));
                 }
             }
-            if ui.button("Refresh").clicked() {
+            if ui.button(t("ui-refresh")).clicked() {
                 refresh = true;
             }
             ui.separator();
             egui::Grid::new("usb").num_columns(2).show(ui, |ui| {
-                ui.label("Format");
+                ui.label(t("ui-format"));
                 let r = egui::ComboBox::from_id_salt("usb-format")
                     .selected_text(d.format.to_uppercase())
                     .show_ui(ui, |ui| {
@@ -93,7 +94,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                     });
                 crate::a11y::name(&r.response, "Format");
                 ui.end_row();
-                ui.label("File name");
+                ui.label(t("ui-file-name"));
                 crate::a11y::name(&ui.text_edit_singleline(&mut d.name), "File name");
                 ui.end_row();
             });
@@ -101,15 +102,15 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
             if let Some(path) = &d.exists {
                 ui.label(format!("{path} already exists."));
                 ui.horizontal(|ui| {
-                    if ui.button("Overwrite").clicked() {
+                    if ui.button(t("ui-overwrite")).clicked() {
                         action = Some(true);
                     }
-                    if ui.button("Cancel").clicked() {
+                    if ui.button(t("ui-cancel")).clicked() {
                         d.exists = None;
                     }
                 });
             } else if ui
-                .add_enabled(!d.volumes.is_empty(), egui::Button::new("Send"))
+                .add_enabled(!d.volumes.is_empty(), egui::Button::new(t("ui-send")))
                 .clicked()
             {
                 action = Some(false);

@@ -6,6 +6,7 @@
 //! the result is adopted as one undo step. Cancel (or an edit made meanwhile) drops the
 //! worker's result and leaves the current design untouched.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui;
 use openstitch_app::editor::CommandRequest;
@@ -334,8 +335,8 @@ fn progress_window(app: &mut EditorApp, ctx: &egui::Context) {
         ui.add(egui::ProgressBar::new((stage as f32 + 0.5) / STAGES.len() as f32).animate(true));
         ui.add_space(6.0);
         cancel = ui
-            .button("Cancel")
-            .on_hover_text("Stop opening; the current design stays as it is")
+            .button(t("ui-cancel"))
+            .on_hover_text(t("ui-stop-opening-the-current-design-stays-tip"))
             .clicked()
             || ui.input(|i| i.key_pressed(egui::Key::Escape));
     });
