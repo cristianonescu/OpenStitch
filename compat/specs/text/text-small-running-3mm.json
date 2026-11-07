@@ -1,0 +1,91 @@
+{
+  "schema": "openstitch-compat/1",
+  "id": "text-small-running-3mm",
+  "area": "text",
+  "title": "Small Text at 3 mm sews as a running line, as PE-DESIGN's SR fonts do",
+  "description": "Hello 0123 in OpenStitch Line at 3 mm, against the numbers recorded from PE-DESIGN 11.50's Small Text font 04 Utah SR at 3.0 mm (round 8, #530). PE-DESIGN's file is a Brother font's output, so it stays in the owner's notes and never in the repository: only its recorded numbers are used here, as expected values (internal-regression tier, not reference). Compared: the height (both fonts are 3 mm), that it is a running line (no satin), and no trim inside a letter. Not compared, and recorded only: PE-DESIGN's 22.5 mm width and 165 stitches belong to its own wider Utah font (OpenStitch Line is 16.0 mm, 63 stitches at its 1.5 mm pitch), and its about 8 trims between letters are a deliberate difference (OpenStitch joins letters on a line by running stitch up to 1.2 x the size).",
+  "covers": {
+    "audit": [],
+    "featureMatrix": [
+      {
+        "area": "Beyond PE-DESIGN",
+        "feature": "Small Text"
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "kind": "measured",
+      "note": "PE-DESIGN 11.50 Small Text, font 04 Utah SR, 3.0 mm, Hello 0123: 22.5 x 3.2 mm, 165 stitches, a running line, about 8 trims (coordinator's round-8 capture, numbers on #530; the file is not in the repository)"
+    }
+  ],
+  "script": [
+    {
+      "command": "design.new",
+      "params": {
+        "width": 100,
+        "height": 100
+      }
+    },
+    {
+      "command": "text.add",
+      "params": {
+        "text": "Hello 0123",
+        "font": "openstitch-line",
+        "size": 3,
+        "x": 20,
+        "y": 50,
+        "fill": "Red"
+      }
+    }
+  ],
+  "exports": [
+    {
+      "path": "small.pes"
+    }
+  ],
+  "measurements": [
+    {
+      "id": "height",
+      "measure": {
+        "kind": "bounds",
+        "property": "height"
+      },
+      "source": {
+        "export": "small.pes"
+      },
+      "expected": 3.2,
+      "tolerance": {
+        "mm": 0.3
+      },
+      "evidence": "PE-DESIGN's Utah SR at 3.0 mm is 3.2 mm high (round 8, #530)"
+    },
+    {
+      "id": "running-line",
+      "measure": {
+        "kind": "stitchLength",
+        "stat": "max"
+      },
+      "source": {
+        "export": "small.pes"
+      },
+      "expected": {
+        "min": 0.5,
+        "max": 2.0
+      },
+      "evidence": "PE-DESIGN's SR (running) Small Text fonts sew a running line, no satin: every stitch short (round 8, #530); OpenStitch Line's pitch is 1.5 mm"
+    },
+    {
+      "id": "no-trim-inside",
+      "measure": {
+        "kind": "interiorMoves",
+        "command": "trim"
+      },
+      "source": {
+        "export": "small.pes"
+      },
+      "expected": 0,
+      "evidence": "#530's acceptance: trims only between letters farther apart than 2 mm; this line's letters are joined by running stitch (PE-DESIGN trims about 8 times here, a deliberate difference)"
+    }
+  ]
+}
