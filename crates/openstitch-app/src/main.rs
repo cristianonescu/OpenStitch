@@ -43,6 +43,7 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod a11y;
 mod app;
 mod arc_ui;
 mod arrange_ui;
@@ -85,6 +86,7 @@ mod shape_effects_ui;
 mod shape_tools_ui;
 mod splash;
 mod start_ui;
+mod stitch_table_ui;
 mod suite_chrome;
 mod swatch_ui;
 mod theme;

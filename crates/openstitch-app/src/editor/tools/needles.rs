@@ -86,6 +86,21 @@ impl ToolContext<'_> {
 }
 
 impl ToolController {
+    /// The needle points of `owner` selected with the Point tool or the Stitch Table (#501).
+    pub fn needle_selection(&self, owner: u64) -> BTreeSet<usize> {
+        if self.needle_owner == Some(owner) {
+            self.needles.clone()
+        } else {
+            BTreeSet::new()
+        }
+    }
+
+    /// Selects needle points of `owner` (the Stitch Table's rows), as Point tool clicks would.
+    pub fn set_needle_selection(&mut self, owner: u64, selected: BTreeSet<usize>) {
+        self.needle_owner = Some(owner);
+        self.needles = selected;
+    }
+
     /// Selected needle points of the Point tool's stitch pattern.
     pub fn selected_needles(&self, ctx: &ToolContext) -> BTreeSet<usize> {
         match ctx.needle_target() {

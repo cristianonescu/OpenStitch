@@ -350,6 +350,16 @@ pub fn sewing_attributes(app: &mut EditorApp, ui: &mut egui::Ui) {
                     )
                     .weak(),
                 );
+                if crate::stitch_table_ui::target(app).is_some()
+                    && ui
+                        .button("Stitch Table")
+                        .on_hover_text(
+                            "Every needle point with its exact position, to edit, insert or delete",
+                        )
+                        .clicked()
+                {
+                    app.stitch_table.open = true;
+                }
                 return;
             }
             let mut requests: Vec<CommandRequest> = Vec::new();
@@ -529,7 +539,7 @@ fn kind_combo<K: Copy + PartialEq>(
     };
     let mut chosen = None;
     ui.add_enabled_ui(enabled, |ui| {
-        egui::ComboBox::from_id_salt(id)
+        let r = egui::ComboBox::from_id_salt(id)
             .selected_text(text)
             .show_ui(ui, |ui| {
                 for &(k, label) in options {
@@ -541,6 +551,12 @@ fn kind_combo<K: Copy + PartialEq>(
                     }
                 }
             });
+        let name = if id.starts_with("line") {
+            "Line sewing type"
+        } else {
+            "Region sewing type"
+        };
+        crate::a11y::name(&r.response, name);
     });
     chosen.filter(|k| current.same() != Some(k))
 }
@@ -936,7 +952,7 @@ fn control(app: &mut EditorApp, ui: &mut egui::Ui, c: &Control) -> Option<Value>
                 .iter()
                 .find(|o| o.0 == *value)
                 .map_or(value.as_str(), |o| o.1.as_str());
-            egui::ComboBox::from_id_salt(*param)
+            let r = egui::ComboBox::from_id_salt(*param)
                 .selected_text(text)
                 .show_ui(ui, |ui| {
                     for (v, l) in options {
@@ -945,6 +961,7 @@ fn control(app: &mut EditorApp, ui: &mut egui::Ui, c: &Control) -> Option<Value>
                         }
                     }
                 });
+            crate::a11y::name(&r.response, label);
         }
         Control::Toggle { label, value, .. } => {
             ui.label("");
@@ -1025,12 +1042,14 @@ pub fn sim_controls(
         let slider = egui::Slider::new(&mut n, 0..=total.max(1)).show_value(false);
         let width = (ui.available_width() - 260.0).max(120.0);
         ui.spacing_mut().slider_width = width;
-        if ui.add_enabled(total > 0, slider).changed() {
+        let r = ui.add_enabled(total > 0, slider);
+        crate::a11y::name(&r, "Stitch Simulator position");
+        if r.changed() {
             *pos = (n < total).then_some(n);
             *playing = false;
         }
         ui.label(format!("{} / {}", pos.unwrap_or(total), total));
-        egui::ComboBox::from_id_salt("speed")
+        let r = egui::ComboBox::from_id_salt("speed")
             .selected_text(format!("{:.0}/s", *speed))
             .width(70.0)
             .show_ui(ui, |ui| {
@@ -1038,6 +1057,7 @@ pub fn sim_controls(
                     ui.selectable_value(speed, s, format!("{s:.0}/s"));
                 }
             });
+        crate::a11y::name(&r.response, "Simulator speed, stitches per second");
     });
 }
 
@@ -1101,7 +1121,8 @@ fn player_strip(app: &mut EditorApp, ui: &mut egui::Ui) {
     if app.timeline.total == 0 {
         return;
     }
-    ui.horizontal(|ui| {
+    // Wraps onto a second row when the window is narrow or the text large (#499).
+    ui.horizontal_wrapped(|ui| {
         ui.monospace(player::counter(&app.timeline, app.simulate))
             .on_hover_text("Stitches and machine time at the needle, out of the totals");
         ui.separator();

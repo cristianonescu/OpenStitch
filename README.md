@@ -276,11 +276,16 @@ feature is done and the rest is under [Planned](#planned).
   freezes ([#558]).
 - (+) **Several designs as tabs** in one window, each with its own undo, selection and zoom
   ([#552]).
+- (+) **Stitch Table:** every needle point of a stitch pattern with its exact position; type
+  coordinates, insert and delete points, each one undo step ([#501]).
 - (+) **Keyboard-only drawing:** arrow keys move a drawing cursor, Space places points, Return
   finishes; `[` and `]` or the scroll wheel set a satin line's width while drawing ([#499],
   [#707]).
 - (+) **Picture pickers with a live preview:** sewing types, fill patterns and motifs shown as
   pictures of their stitches; hovering one shows it on the selection before you choose ([#656]).
+- (+) **Accessibility:** every control named for screen readers, WCAG AA contrast in both
+  themes, a visible keyboard focus and Options ▸ Text size up to 200 % ([#499],
+  [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md)).
 - (+) **Command palette** (Ctrl+K / Cmd+K) to find any command, a hints line for the current tool,
   and a search box over the sewing attributes ([#550]).
 - (+) **Your own keyboard shortcuts**, panes docked on either side and saved window layouts
@@ -400,6 +405,8 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
   split evenly if you choose ([#459]).
 - **Concentric circle, radial and spiral** as PE-DESIGN 11.50 sews them ([#138]).
 - **Stippling, net fill, zigzag net fill, piping and cross stitch regions.**
+- **Cross stitch Times** (Single, Double, Triple) as PE-DESIGN 11.50 sews it, with no Direction,
+  and (+) half, upright and Smyrna crosses ([#614]).
 - (+) **Contour fill:** rows that follow the outline as rings, a single or double spiral, or echo
   lines ([#461]).
 - (+) **No piled-up tiny stitches in fill slivers:** stitches under 0.5 mm in a thin sliver are
@@ -691,13 +698,16 @@ See also [New: the Assistant](#new-the-assistant).
 [#552]: https://github.com/cristianonescu/OpenStitch/issues/552
 [#707]: https://github.com/cristianonescu/OpenStitch/issues/707
 [#499]: https://github.com/cristianonescu/OpenStitch/issues/499
+[#501]: https://github.com/cristianonescu/OpenStitch/issues/501
 [#656]: https://github.com/cristianonescu/OpenStitch/issues/656
+[#499]: https://github.com/cristianonescu/OpenStitch/issues/499
 [#553]: https://github.com/cristianonescu/OpenStitch/issues/553
 [#554]: https://github.com/cristianonescu/OpenStitch/issues/554
 [#556]: https://github.com/cristianonescu/OpenStitch/issues/556
 [#557]: https://github.com/cristianonescu/OpenStitch/issues/557
 [#558]: https://github.com/cristianonescu/OpenStitch/issues/558
 [#559]: https://github.com/cristianonescu/OpenStitch/issues/559
+[#614]: https://github.com/cristianonescu/OpenStitch/issues/614
 [#627]: https://github.com/cristianonescu/OpenStitch/issues/627
 [#652]: https://github.com/cristianonescu/OpenStitch/issues/652
 

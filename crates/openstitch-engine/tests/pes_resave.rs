@@ -231,6 +231,64 @@ fn import_pes_reads_the_other_region_types_and_the_design_property() {
     assert!(!s.design().properties.is_empty());
 }
 
+/// PE-DESIGN 11.50's cross stitch Times (#614, round 8: a 20 mm square at Single, Double,
+/// Triple; 410, 666 and 922 stitches): the import reads Times, the region sewn again adds the
+/// same 256 stitches per step as PE-DESIGN's files, and a PES 0110 export writes Times and
+/// Size where PE-DESIGN does.
+#[test]
+fn cross_stitch_times_import_sew_and_export_as_pe_design() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let dir = TempDir::canonical("resave-cross-times");
+    let mut counts = Vec::new();
+    for (name, times, passes) in [("single", 1, 2), ("double", 2, 4), ("triple", 3, 6)] {
+        let reference = root.join(format!("compat/reference/stitches/cross-{name}.pes"));
+        let pe = pes::read(&std::fs::read(&reference).expect("reference"))
+            .expect("PES")
+            .count(openstitch_core::Command::Stitch);
+        std::fs::copy(&reference, dir.join("in.pes")).expect("copy");
+        let mut s = Session::new(dir.path());
+        run(
+            &mut s,
+            "design.new",
+            json!({"name": "t", "width": 100, "height": 100}),
+        );
+        run(&mut s, "import.pes", json!({"path": "in.pes"}));
+        let r = s
+            .design()
+            .objects
+            .iter()
+            .find_map(|o| o.region.clone())
+            .expect("region");
+        assert_eq!(r.cross_times().count(), times, "{name}");
+        assert_eq!(r.spacing_mm(), 2.5, "{name}");
+        let ours = openstitch_design::Compiler::default()
+            .compile(s.design())
+            .count(openstitch_core::Command::Stitch);
+        counts.push((pe as i64, ours as i64));
+        run(
+            &mut s,
+            "design.export",
+            json!({"path": "out.pes", "pesVersion": "11"}),
+        );
+        let section =
+            pes::read_objects(&std::fs::read(dir.join("out.pes")).expect("read")).expect("objects");
+        let shape = &section.shapes[0];
+        assert_eq!(
+            (shape.cross_passes, shape.cross_size),
+            (passes, 2.5),
+            "{name}"
+        );
+    }
+    for w in counts.windows(2) {
+        assert_eq!(w[1].0 - w[0].0, 256, "PE-DESIGN: {counts:?}");
+        assert_eq!(w[1].1 - w[0].1, 256, "OpenStitch: {counts:?}");
+    }
+    // OpenStitch's route between the rows differs from PE-DESIGN's (#463), by a few stitches.
+    for (pe, ours) in &counts {
+        assert!((ours - pe).abs() * 100 <= pe * 5, "{counts:?}");
+    }
+}
+
 #[test]
 fn import_pes_takes_the_objects_of_every_pe_design_file() {
     // #397: every PE-DESIGN `#PES0110` file imports as editable objects: shapes, texts and

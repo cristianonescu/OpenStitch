@@ -64,11 +64,11 @@ pub use machine::{
     SewingArea, UserHoop, estimate, find_hoop,
 };
 pub use model::{
-    Arrange, BackgroundImage, BackgroundLayer, ChainShape, ContourJoin, ContourStrategy, Design,
-    DesignObject, DesignPage, DesignProperties, Feather, FeatherSide, FillStitchType, Gradation,
-    Guides, ImageAdjust, JobInfo, LineGap, LineSewing, LineType, ObjectKind, OptimizeOrder,
-    RegionSewing, RegionType, RunningStitchPath, StaggerKind, StartEnd, StitchBlock,
-    UnderlayDensity, UnderlayParts, UnderlayStyle,
+    Arrange, BackgroundImage, BackgroundLayer, ChainShape, ContourJoin, ContourStrategy, CrossKind,
+    CrossTimes, Design, DesignObject, DesignPage, DesignProperties, Feather, FeatherSide,
+    FillStitchType, Gradation, Guides, ImageAdjust, JobInfo, LineGap, LineSewing, LineType,
+    ObjectKind, OptimizeOrder, RegionSewing, RegionType, RunningStitchPath, StaggerKind, StartEnd,
+    StitchBlock, UnderlayDensity, UnderlayParts, UnderlayStyle,
 };
 pub use text::{
     CharEdit, FONTS, FontInfo, FontKind, Layout, PathFit, PixelStyle, Spread, TextAlign,

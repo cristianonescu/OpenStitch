@@ -443,7 +443,7 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
                             .map(|u| format!("{} (user)", units::hoop_size(units, u.width, u.height)))
                     })
                     .unwrap_or_else(|| "Custom size".into());
-                egui::ComboBox::from_id_salt("hoop")
+                let r = egui::ComboBox::from_id_salt("hoop")
                     .selected_text(text)
                     .width(230.0)
                     .show_ui(ui, |ui| {
@@ -497,6 +497,7 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
                             requests.push(set(json!({ "hoop": "custom" })));
                         }
                     });
+                crate::a11y::name(&r.response, "Hoop");
                 ui.end_row();
 
                 let user = m.hoop.as_deref().is_some_and(|k| m.user_hoop(k).is_some());

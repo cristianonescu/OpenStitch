@@ -597,9 +597,11 @@ fn region(id: u64, r: &RegionSewing, s: &mut Shape, table: &mut Vec<Thread>) -> 
         RegionType::Fill => RegionSewType::Fill,
         RegionType::Satin => RegionSewType::Satin,
         RegionType::ProgrammableFill => RegionSewType::ProgrammableFill,
+        // Size and Times are mapped (below); the half, upright and Smyrna kinds are beyond
+        // PE-DESIGN, which sews a full cross there.
+        RegionType::CrossStitch => RegionSewType::Cross,
         // Written at PE-DESIGN's default attributes: each file of these types at its defaults
         // differs from a fill only in the code (o-region-*); their own fields are not mapped.
-        RegionType::CrossStitch => RegionSewType::Cross,
         RegionType::ConcentricCircle => RegionSewType::Concentric,
         RegionType::Radial => RegionSewType::Radial,
         RegionType::Spiral => RegionSewType::Spiral,
@@ -622,6 +624,10 @@ fn region(id: u64, r: &RegionSewing, s: &mut Shape, table: &mut Vec<Thread>) -> 
     s.frequency = r.frequency.unwrap_or(30.0).round().clamp(0.0, 100.0) as u16;
     s.under_sewing = r.underlay;
     s.gradation = r.gradation.is_some();
+    if r.kind == RegionType::CrossStitch {
+        s.cross_size = r.spacing_mm() as f32;
+        s.cross_passes = 2 * r.cross_times().count() as u16;
+    }
     s.running_path = match r.running_stitch_path {
         None | Some(RunningStitchPath::Inside) => 0,
         Some(RunningStitchPath::AlongOutline) => 1,
