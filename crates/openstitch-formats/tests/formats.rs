@@ -1028,15 +1028,15 @@ fn csd_round_trips_needle_points_colours_and_trims() {
     let bytes = csd::write(&p).expect("write");
     assert_eq!(bytes[..8], csd::IDENTIFIER);
     let back = csd::read(&bytes).expect("read");
-    // The 16 mm stitch is two stitch records: 12.7 mm along x, then the rest.
-    let mut expected = relative(&p);
-    expected.insert(3, [157.0, 50.0]);
-    assert_eq!(relative(&back), expected);
+    // The 16 mm stitch is a 12.7 mm move record along x, then a stitch for the rest, as
+    // PE-DESIGN writes it (machine/pe-long.CSD): the needle points come back as they were.
+    assert_eq!(relative(&back), relative(&p));
     assert_eq!(back.count(Command::ColorChange), 2);
     assert_eq!(hexes(&back.threads), ["#e3311f", "#0d217e", "#0d217e"]);
     // Only the moves over 12.7 mm have trim-move records (as PE-DESIGN writes them): the 20 mm
-    // one; the first move and the one after the colour change fold into their stitch.
-    assert_eq!(back.count(Command::Trim), 1);
+    // one; the first move and the one after the colour change fold into their stitch. The 16 mm
+    // stitch's move record reads back as one too (the record does not tell them apart).
+    assert_eq!(back.count(Command::Trim), 2);
 }
 
 #[test]
@@ -1681,6 +1681,94 @@ fn csd_writes_pe_design_layout_byte_for_byte() {
     let ours = csd::write(&csd::read(&pe).expect("read")).expect("write");
     assert_eq!(ours.len(), pe.len());
     assert_eq!(ours, pe);
+}
+
+/// The design PE-DESIGN exported in `captures-2026-11-07/machine` (#349), read from the PES it
+/// was exported from.
+fn machine_capture(name: &str) -> (StitchPattern, Vec<u8>) {
+    let dir = "pe11/captures-2026-11-07/machine";
+    let stem = name
+        .trim_start_matches("pe-")
+        .split(['_', '.'])
+        .next()
+        .expect("stem");
+    let pattern = pes::read(&data(&format!("{dir}/{stem}.pes"))).expect("pes");
+    (pattern, data(&format!("{dir}/{name}")))
+}
+
+/// PE-DESIGN 11.50's CSD exports of #349's designs come out byte for byte. `long`: a short
+/// trimmed move and 15 mm satin stitches, each written as a 12.7 mm move record and a stitch
+/// for the rest; the unused palette slots take PE's fill (`00 00 FF` in slot 1). `c17`, 17
+/// colour blocks: PE-DESIGN writes two files, 14 blocks then 3, each counting its colour
+/// changes `85 02`, `85 03`, … and the second starting from the design's origin.
+#[test]
+fn csd_matches_pe_design_long_stitches_and_17_colours() {
+    use openstitch_formats::{csd, split};
+    let (long, pe) = machine_capture("pe-long.CSD");
+    assert_eq!(csd::write(&long).expect("write"), pe, "pe-long.CSD");
+    let (c17, _) = machine_capture("pe-c17_A.Csd");
+    assert!(matches!(
+        csd::write(&c17),
+        Err(openstitch_formats::FormatError::ValueOutOfRange(_))
+    ));
+    let parts = split::split_for(FileType::Csd, &c17).expect("split");
+    assert_eq!(parts.len(), 2);
+    let a = csd::write(&parts[0]).expect("A");
+    assert_eq!(a, machine_capture("pe-c17_A.Csd").1, "pe-c17_A.Csd");
+    // The second file: OpenStitch starts it with the first block's landing point, as every
+    // block of the first file starts (`80 03 35` then `C0 03 00`); PE-DESIGN's second file goes
+    // straight to the stitch after it. And PE-DESIGN names the design's first three colours in
+    // its palette (red, Prussian Blue, yellow) though its blocks sew PEC 58, 5 and 13;
+    // OpenStitch names the blocks' own colours. The needle points and colour changes agree.
+    let b = csd::write(&parts[1]).expect("B");
+    let pe_b = machine_capture("pe-c17_B.Csd").1;
+    let needle = |p: &StitchPattern| -> Vec<(f64, f64)> {
+        p.stitches
+            .iter()
+            .filter(|s| s.command == Command::Stitch)
+            .map(|s| (s.x, s.y))
+            .collect()
+    };
+    let (ours, theirs) = (
+        csd::read(&b).expect("read B"),
+        csd::read(&pe_b).expect("read PE's B"),
+    );
+    assert_eq!(b.len(), pe_b.len() + 3, "one record more");
+    assert_eq!(needle(&ours)[1..], needle(&theirs)[..]);
+    assert_eq!(
+        ours.count(Command::ColorChange),
+        theirs.count(Command::ColorChange)
+    );
+    assert_eq!(ours.threads.len(), 3);
+}
+
+/// PE-DESIGN 11.50's SHV exports of #349's designs: OpenStitch writes the same file name, preview
+/// size, colour count, bounds and PE's chart entry for every block (800 RED is 41, not the
+/// nearest 3). The records still differ where PE-DESIGN starts a block on the stitch after the
+/// jump's landing, writes a stitch over 12.7 mm as one jump and adds `80 03` before long moves
+/// (#349, measured, not yet written).
+#[test]
+fn shv_matches_pe_design_name_and_chart_entries() {
+    for (name, stem) in [("pe-long.SHV", "pe-long"), ("pe-c17.SHV", "pe-c17")] {
+        let (mut pattern, pe) = machine_capture(name);
+        pattern.metadata.insert(pec::LABEL_KEY.into(), stem.into());
+        let ours = shv::write(&pattern).expect("write");
+        let at = 0x56 + 1 + stem.len();
+        assert_eq!(ours[..at + 6], pe[..at + 6], "{name}: name, preview size");
+        let (w, h) = (usize::from(pe[at]), usize::from(pe[at + 1]));
+        let table = at + 6 + w * h.div_ceil(2);
+        let colours = usize::from(pe[table]);
+        // Colour count, the six unknown bytes, the bounds.
+        assert_eq!(ours[table..table + 15], pe[table..table + 15], "{name}");
+        for k in 0..colours {
+            let e = table + 19 + 14 * k;
+            assert_eq!(
+                ours[e + 4..e + 14],
+                pe[e + 4..e + 14],
+                "{name}: block {k} code, start"
+            );
+        }
+    }
 }
 
 /// PE-DESIGN 11.50's SHV export of `sample-basic`, read and written again: the header text,

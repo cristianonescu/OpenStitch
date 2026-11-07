@@ -401,9 +401,10 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    [LEGAL_AND_LICENSING.md](LEGAL_AND_LICENSING.md) allows).
 7. **Editing details:** skeletons that branch (a derived skeleton follows a shape's longest
    stroke only) and an exact medial axis instead of the grid approximation.
-8. **Formats:** the SHV preview's pixels as PE-DESIGN draws them, and CSD and SHV references
-   with more colours, long stitches and short moves (#320 wrote both formats from one
-   PE-DESIGN export each, 2026-11-04; #349). The CSD and SHV readers match PE-DESIGN's own
+8. **Formats:** the SHV preview's pixels as PE-DESIGN draws them, and SHV records as PE-DESIGN
+   writes block starts, stitches over 12.7 mm and long moves (#349: measured on PE's exports of
+   2026-11-07; CSD matches them since 2026-11-07: 14 blocks a file, long stitches, palette).
+   #320 wrote both formats from one PE-DESIGN export each, 2026-11-04. The CSD and SHV readers match PE-DESIGN's own
    exports since 2026-10-29 (#135), PEC colour indexes are the plain nearest entry per
    block as in PE-DESIGN's own files (2026-10-30), and a DST import keeps its colour blocks apart. The eight
    machine-format writers (DST, EXP, PCS, HUS, VIP, JEF, SEW, XXX) match PE-DESIGN's exports of
