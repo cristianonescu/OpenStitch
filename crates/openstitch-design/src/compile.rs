@@ -1294,6 +1294,10 @@ const STROKE_TRAVEL: f64 = 20.0;
 /// A letter's next piece this close (0.1 mm), straight through the letter, is travelled to
 /// instead of trimmed to: the compiler's connect distance, which joined them before #465.
 const PIECE_JOIN: f64 = 40.0;
+/// A letter's next piece this close (0.1 mm), straight through the letter, is travelled to in
+/// running stitches instead of trimmed to (#446: N's left stem ends 8.6 mm below the corner
+/// where its diagonal starts, at 20 mm).
+const PIECE_TRAVEL: f64 = 120.0;
 
 /// A letter sewn stroke by stroke: each block a column along its rungs, joined by travel along
 /// the outline, a new run (a trim) where a piece is not joined to the one before. Satin text
@@ -1465,7 +1469,14 @@ fn stroke_columns(
             && let (Some(&from), Some(&to)) = (run.last(), column.first())
         {
             walk = false;
-            if from.distance(to) > PIECE_JOIN || !inside_letter(from, to, closed) {
+            // A piece of the same letter a short way off inside it (N's stem top to its
+            // diagonal's corner) is travelled to through the letter, under the satin about to
+            // be sewn there, as PE-DESIGN sews N, W, K and Z in one run (#446).
+            if from.distance(to) <= PIECE_TRAVEL && inside_letter(from, to, closed) {
+                let path = generate::subdivide(&[from, to], STROKE_TRAVEL);
+                run.extend(path.into_iter().skip(1));
+                run.pop();
+            } else if from.distance(to) > PIECE_JOIN || !inside_letter(from, to, closed) {
                 runs.push(std::mem::take(&mut run));
             }
         }
@@ -2725,6 +2736,40 @@ mod stroke_fill_tests {
                     .collect();
                 assert!(long.is_empty(), "{text} at {size} mm: {long:?}");
             }
+        }
+    }
+
+    #[test]
+    fn satin_n_w_and_z_sew_in_one_run_as_pe_design() {
+        // #446: PE-DESIGN 11.50 sews satin N, W and Z in Lato Bold in one run, with no trim
+        // inside the letter (stroke-satin-N/W/Z.pes, round 8, at 20 and 8 mm). Their pieces,
+        // cut apart at the acute corners, were each trimmed to: N 2 trims, W 3, Z 1 at 20 mm.
+        // Each piece is now sewn from the end that leads on to the next, which is travelled to
+        // through the letter. M keeps its one trim at 20 mm, as PE-DESIGN's.
+        for (text, size, inside) in [
+            ("N", 20.0, 0),
+            ("N", 8.0, 0),
+            ("W", 20.0, 0),
+            ("Z", 20.0, 0),
+            ("M", 20.0, 1),
+        ] {
+            let (obj, p) = satin_text(text, size);
+            let sewn = p
+                .stitches
+                .iter()
+                .position(|s| s.command == Command::Stitch)
+                .expect("stitches");
+            let last = p
+                .stitches
+                .iter()
+                .rposition(|s| s.command == Command::Stitch)
+                .expect("stitches");
+            let trims = p.stitches[sewn..last]
+                .iter()
+                .filter(|s| s.command == Command::Trim)
+                .count();
+            assert_eq!(trims, inside, "{text} at {size} mm");
+            assert!(exposed(&obj, &p).is_empty(), "{text} at {size} mm");
         }
     }
 
