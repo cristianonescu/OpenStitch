@@ -247,6 +247,7 @@ To show the user what a setting would look like before changing it, `ui.preview 
 (no undo step, the design unchanged; `ui.render` shows them too); `ui.preview {clear: true}`
 ends it, and running the command keeps the change. `ui.set picturePickers` shows the sewing
 types, fill patterns and motifs as pictures in the Sewing Attributes pane.
+`ui.set textSize` (100-200) enlarges the whole window for a user who asks for bigger text.
 Opening or importing a large file in the window runs in the background: `ui.state` shows
 `loading` (file, step, seconds), and `ui.loading {cancel: true}` stops it, leaving the design
 as it was.

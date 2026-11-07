@@ -98,8 +98,9 @@ impl Launch {
 }
 
 /// Values `--show` accepts.
-pub const SHOW: [&str; 34] = [
+pub const SHOW: [&str; 35] = [
     "update",
+    "large-text",
     "keyboard",
     "pickers",
     "tabs",
@@ -492,8 +493,10 @@ impl EditorApp {
                 // features are on in ui.json; for checking the panel's icons in screenshots.
                 "assistant" => {
                     self.assistant.panel.open = true;
+                    // Not in tests: the accessibility audit opens every scene, and tests leave
+                    // nothing in the temp folder (#499).
                     let note = std::env::temp_dir().join("openstitch-notes.txt");
-                    if std::fs::write(&note, "Stitch the logo in blue.").is_ok() {
+                    if !cfg!(test) && std::fs::write(&note, "Stitch the logo in blue.").is_ok() {
                         crate::assistant_panel::attach_files(self, vec![note]);
                     }
                 }
@@ -511,6 +514,7 @@ impl EditorApp {
                 "print" => self.ui.open_print = true,
                 "shortcuts" => self.ui.shortcuts_open = true,
                 "update" => self.update.show_sample(),
+                "large-text" => self.ui.prefs.text_size = 150,
                 "close-prompt" => {
                     self.close_prompt.request(Pending::Exit, true);
                 }
@@ -2024,6 +2028,11 @@ impl eframe::App for EditorApp {
         openstitch_app::editor::objects::track_click_order(&mut self.click_order, &self.selection);
         crate::ribbon::poll_clipboard(self, ctx.input(|i| i.time));
         self.ui.apply_theme(&ctx);
+        // Options ▸ Text size (#499), on top of the system's display scale.
+        let zoom = self.ui.prefs.text_size as f32 / 100.0;
+        if (ctx.zoom_factor() - zoom).abs() > f32::EPSILON {
+            ctx.set_zoom_factor(zoom);
+        }
         if let Some(s) = &mut self.splash
             && !s.show(&ctx)
         {
@@ -2653,3 +2662,7 @@ mod editor_tools_tests;
 #[cfg(test)]
 #[path = "open_bench_tests.rs"]
 mod open_bench_tests;
+
+#[cfg(test)]
+#[path = "a11y_tests.rs"]
+mod a11y_tests;
