@@ -1182,7 +1182,7 @@ fn save_script(app: &mut EditorApp) {
             .items
             .push(Item::Notice(format!("No script: {why}."))),
         Ok(script) => {
-            if let Some(path) = rfd::FileDialog::new()
+            if let Some(path) = crate::files::FileDialog::new()
                 .add_filter("Command script", &["json"])
                 .set_file_name("assistant-script.json")
                 .save_file()
@@ -2408,7 +2408,7 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                         |p, r, c| crate::icons::paint_ui(p, r, "attach", c),
                     );
                     if attach.clicked()
-                        && let Some(files) = rfd::FileDialog::new()
+                        && let Some(files) = crate::files::FileDialog::new()
                             .add_filter(
                                 "Pictures, SVG, text, stitch files",
                                 &[

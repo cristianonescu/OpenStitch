@@ -31,7 +31,7 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
             crate::art::header(ui, crate::art::Art::WizardImage, |ui| {
                 ui.add_space(4.0);
                 if ui.button("Choose image…").clicked()
-                    && let Some(p) = rfd::FileDialog::new()
+                    && let Some(p) = crate::files::FileDialog::new()
                         .add_filter("Images", &["png", "jpg", "jpeg", "bmp"])
                         .pick_file()
                 {

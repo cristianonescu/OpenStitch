@@ -296,7 +296,7 @@ pub fn rotate_image(app: &mut EditorApp, direction: &str) {
 pub fn save_image_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     if ui.button("to File…").clicked() {
         ui.close();
-        if let Some(p) = rfd::FileDialog::new()
+        if let Some(p) = crate::files::FileDialog::new()
             .add_filter("PNG", &["png"])
             .add_filter("Windows bitmap", &["bmp"])
             .add_filter("JPEG", &["jpg", "jpeg"])

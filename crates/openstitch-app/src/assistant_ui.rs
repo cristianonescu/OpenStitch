@@ -10,7 +10,11 @@ use openstitch_app::editor::assistant::{
 };
 use openstitch_app::editor::prefs::Theme;
 use openstitch_app::editor::ribbon::Action;
+#[cfg(not(target_arch = "wasm32"))]
 use openstitch_assistant::notes::{self, Notes, WriteMode};
+// The web build (#693) compiles the same notes file without the Assistant's network client.
+#[cfg(target_arch = "wasm32")]
+use crate::web_notes::{self as notes, Notes, WriteMode};
 use openstitch_engine::{Capabilities, Effect, Params};
 use serde_json::{Value, json};
 use std::path::PathBuf;

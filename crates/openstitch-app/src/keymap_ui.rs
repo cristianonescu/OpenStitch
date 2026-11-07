@@ -304,7 +304,7 @@ pub fn from_file_json(v: &serde_json::Value) -> Result<Keymap, String> {
 }
 
 fn export(app: &mut EditorApp) {
-    let Some(path) = rfd::FileDialog::new()
+    let Some(path) = crate::files::FileDialog::new()
         .add_filter("Shortcuts", &["json"])
         .set_file_name("openstitch-shortcuts.json")
         .save_file()
@@ -319,7 +319,7 @@ fn export(app: &mut EditorApp) {
 }
 
 fn import(app: &mut EditorApp) {
-    let Some(path) = rfd::FileDialog::new()
+    let Some(path) = crate::files::FileDialog::new()
         .add_filter("Shortcuts", &["json"])
         .pick_file()
     else {
