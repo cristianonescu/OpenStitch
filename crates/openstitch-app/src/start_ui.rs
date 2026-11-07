@@ -119,7 +119,7 @@ fn card(ui: &mut egui::Ui, c: &Card) -> egui::Response {
 pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.ui.start.samples_open;
     let mut chosen: Option<&str> = None;
-    egui::Window::new("Open Sample")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-open-sample")).id(egui::Id::unique("window-open-sample"))
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
@@ -142,7 +142,7 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
 
     let mut open = app.ui.start.page_open;
     let mut step: Option<Start> = None;
-    egui::Window::new("Getting Started")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-getting-started")).id(egui::Id::unique("window-getting-started"))
         .open(&mut open)
         .default_size([520.0, 560.0])
         .show(ctx, |ui| {

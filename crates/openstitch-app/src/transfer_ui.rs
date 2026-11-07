@@ -60,7 +60,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = true;
     let mut action: Option<bool> = None; // Some(overwrite)
     let mut refresh = false;
-    egui::Window::new("Send to USB Media")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-send-to-usb-media")).id(egui::Id::unique("window-send-to-usb-media"))
         .open(&mut open)
         .resizable(false)
         .default_width(360.0)

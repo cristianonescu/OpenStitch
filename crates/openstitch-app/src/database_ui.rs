@@ -894,7 +894,7 @@ fn name_dialog(
 
 fn confirm_delete(app: &mut EditorApp, ctx: &egui::Context, paths: &[PathBuf]) {
     let mut open = true;
-    egui::Window::new("Delete")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-delete")).id(egui::Id::unique("window-delete"))
         .collapsible(false)
         .resizable(false)
         .open(&mut open)
@@ -968,7 +968,7 @@ fn search_dialog(app: &mut EditorApp, ctx: &egui::Context) {
         Units::Mm => " mm",
         Units::Inch => " in",
     };
-    egui::Window::new("Search")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-search")).id(egui::Id::unique("window-search"))
         .collapsible(false)
         .resizable(false)
         .open(&mut open)
@@ -1077,7 +1077,7 @@ fn convert_dialog(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = true;
     let mut run = false;
     let n = app.database.selection.len();
-    egui::Window::new("Convert Format")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-convert-format")).id(egui::Id::unique("window-convert-format"))
         .collapsible(false)
         .resizable(false)
         .open(&mut open)
@@ -1150,7 +1150,7 @@ fn catalog_dialog(app: &mut EditorApp, ctx: &egui::Context) {
     let mut printing = false;
     let shown = app.database.items().len();
     let selected = app.database.selection.len();
-    egui::Window::new("Catalogue")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-catalogue")).id(egui::Id::unique("window-catalogue"))
         .collapsible(false)
         .resizable(false)
         .open(&mut open)

@@ -477,7 +477,7 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
             )
         })
         .collect();
-    egui::Window::new("Arrange Copies")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-arrange-copies")).id(egui::Id::unique("window-arrange-copies"))
         .open(&mut open)
         .resizable(false)
         .default_width(300.0)
@@ -653,7 +653,7 @@ fn offset_window(app: &mut EditorApp, ctx: &egui::Context) {
     let units = app.ui.prefs.units;
     let mut open = app.edit.offset_open;
     let mut apply = false;
-    egui::Window::new("Offset Lines")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-offset-lines")).id(egui::Id::unique("window-offset-lines"))
         .open(&mut open)
         .resizable(false)
         .default_width(260.0)
@@ -686,7 +686,7 @@ fn offset_window(app: &mut EditorApp, ctx: &egui::Context) {
 fn floral_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.edit.floral_open;
     let mut apply = false;
-    egui::Window::new("Floral Pattern")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-floral-pattern")).id(egui::Id::unique("window-floral-pattern"))
         .open(&mut open)
         .resizable(false)
         .default_width(260.0)

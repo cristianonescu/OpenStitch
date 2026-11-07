@@ -91,7 +91,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut print: Option<bool> = None;
     let mut apply = false;
     let mut open = true;
-    egui::Window::new("Job Sheet")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-job-sheet")).id(egui::Id::unique("window-job-sheet"))
         .open(&mut open)
         .resizable(false)
         .default_width(380.0)

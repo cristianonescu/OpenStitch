@@ -192,7 +192,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut calibrate = false;
     let mut open_saved = false;
     let mut open = true;
-    egui::Window::new("Test Swatches")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-test-swatches")).id(egui::Id::unique("window-test-swatches"))
         .open(&mut open)
         .resizable(false)
         .default_width(380.0)

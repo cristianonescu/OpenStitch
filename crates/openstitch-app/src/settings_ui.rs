@@ -37,7 +37,7 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
 fn sets_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.settings.sets_open;
     let mut request = None;
-    egui::Window::new("Sewing Attribute Sets")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-sewing-attribute-sets")).id(egui::Id::unique("window-sewing-attribute-sets"))
         .open(&mut open)
         .default_width(320.0)
         .show(ctx, |ui| {
@@ -106,7 +106,7 @@ fn sets_window(app: &mut EditorApp, ctx: &egui::Context) {
 fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.settings.charts_open;
     let mut request: Option<CommandRequest> = None;
-    egui::Window::new("User Thread Charts")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-user-thread-charts")).id(egui::Id::unique("window-user-thread-charts"))
         .open(&mut open)
         .default_width(380.0)
         .show(ctx, |ui| {

@@ -240,7 +240,7 @@ pub fn draw_measure(painter: &egui::Painter, vp: &Viewport, tool: &MeasureTool, 
 /// click or drag to move the canvas there.
 pub fn reference_window(app: &mut EditorApp, ctx: &egui::Context, canvas: Option<egui::Rect>) {
     let mut open = app.workspace.reference;
-    egui::Window::new("Reference")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-reference")).id(egui::Id::unique("window-reference"))
         .open(&mut open)
         .default_size([220.0, 220.0])
         .resizable(true)

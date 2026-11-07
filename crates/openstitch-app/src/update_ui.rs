@@ -397,7 +397,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         .current
         .as_ref()
         .map_or_else(version_line, |c| c.tag.clone());
-    egui::Window::new("OpenStitch Update")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-openstitch-update")).id(egui::Id::unique("window-openstitch-update"))
         .open(&mut open)
         .collapsible(false)
         .default_width(600.0)

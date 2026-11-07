@@ -88,7 +88,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     app.palette.selected = app.palette.selected.min(hits.len().saturating_sub(1));
     let mut chosen: Option<Action> = None;
     let mut open = true;
-    egui::Window::new("Command Palette")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-command-palette")).id(egui::Id::unique("window-command-palette"))
         .open(&mut open)
         .collapsible(false)
         .resizable(false)

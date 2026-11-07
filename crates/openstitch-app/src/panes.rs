@@ -712,7 +712,7 @@ fn zoom_controls(app: &mut EditorApp, ui: &mut egui::Ui) {
 /// Design Property, Keyboard Shortcuts and About windows.
 pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.ui.property_open;
-    egui::Window::new("Design Property")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-design-property")).id(egui::Id::unique("window-design-property"))
         .open(&mut open)
         .resizable(false)
         .show(ctx, |ui| {
@@ -818,7 +818,7 @@ pub fn apply_property_draft(app: &mut EditorApp) -> bool {
 /// Help ▸ About (every window).
 pub fn about_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.ui.about_open;
-    egui::Window::new("About OpenStitch")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-about-openstitch")).id(egui::Id::unique("window-about-openstitch"))
         .open(&mut open)
         .resizable(false)
         .show(ctx, |ui| {

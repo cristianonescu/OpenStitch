@@ -239,7 +239,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     }
     update(app);
     let mut open = true;
-    egui::Window::new("Check Design")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-check-design")).id(egui::Id::unique("window-check-design"))
         .open(&mut open)
         .default_size([380.0, 420.0])
         .show(ctx, |ui| {

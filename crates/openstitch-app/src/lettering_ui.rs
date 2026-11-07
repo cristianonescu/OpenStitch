@@ -94,7 +94,7 @@ fn fit_window(app: &mut EditorApp, ctx: &egui::Context) {
     };
     let mut open = true;
     let (mut ok, mut cancel) = (false, false);
-    egui::Window::new("Fit Text to Outline Attribute Setting")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-fit-text-to-outline-attribute-setting")).id(egui::Id::unique("window-fit-text-to-outline-attribute-setting"))
         .open(&mut open)
         .resizable(false)
         .collapsible(false)
@@ -860,7 +860,7 @@ fn text_window(app: &mut EditorApp, ctx: &egui::Context) {
     let choices = fonts(app);
     let mut open = true;
     let mut add = None;
-    egui::Window::new("Text")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-text")).id(egui::Id::unique("window-text"))
         .open(&mut open)
         .resizable(false)
         .show(ctx, |ui| {
@@ -1084,7 +1084,7 @@ fn name_drop_window(app: &mut EditorApp, ctx: &egui::Context) {
     app.lettering.name_drop.fit_columns(n);
     let mut open = true;
     let mut action = None;
-    egui::Window::new("Name Drop List")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-name-drop-list")).id(egui::Id::unique("window-name-drop-list"))
         .open(&mut open)
         .default_width(420.0)
         .show(ctx, |ui| {
@@ -1278,7 +1278,7 @@ fn template_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = true;
     let (mut next, mut back, mut folder, mut export, mut done, mut again) =
         (false, false, false, false, false, false);
-    egui::Window::new("Template Wizard")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-template-wizard")).id(egui::Id::unique("window-template-wizard"))
         .open(&mut open)
         .default_width(360.0)
         .show(ctx, |ui| {

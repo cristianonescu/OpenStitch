@@ -91,7 +91,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         .filter(|p| p.exists())
         .cloned()
         .collect();
-    egui::Window::new("How do you want to produce embroidery?")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-how-do-you-want-to-produce")).id(egui::Id::unique("window-how-do-you-want-to-produce"))
         .collapsible(false)
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)

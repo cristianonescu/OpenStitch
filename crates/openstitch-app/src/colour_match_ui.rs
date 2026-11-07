@@ -162,7 +162,7 @@ fn match_window(app: &mut EditorApp, ctx: &egui::Context) {
         .collect();
     let plan = match_plan(app);
     let (mut apply, mut undo) = (false, false);
-    egui::Window::new("Match to Thread Chart")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-match-to-thread-chart")).id(egui::Id::unique("window-match-to-thread-chart"))
         .open(&mut open)
         .default_width(460.0)
         .show(ctx, |ui| {
@@ -276,7 +276,7 @@ fn merge_window(app: &mut EditorApp, ctx: &egui::Context) {
     }
     let plan = merge_plan(app);
     let (mut apply, mut undo) = (false, false);
-    egui::Window::new("Merge Similar Colours")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-merge-similar-colours")).id(egui::Id::unique("window-merge-similar-colours"))
         .open(&mut open)
         .default_width(380.0)
         .show(ctx, |ui| {

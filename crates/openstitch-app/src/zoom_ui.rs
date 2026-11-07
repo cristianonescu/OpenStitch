@@ -196,7 +196,7 @@ pub fn draw(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
 pub fn calibration_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.calibration.open;
     let key = Some(app.monitor_key());
-    egui::Window::new("Calibrate Real Size")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-calibrate-real-size")).id(egui::Id::unique("window-calibrate-real-size"))
         .open(&mut open)
         .resizable(false)
         .show(ctx, |ui| {

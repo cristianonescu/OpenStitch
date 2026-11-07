@@ -199,7 +199,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         return;
     }
     let mut open = true;
-    egui::Window::new("Stitch Table")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-stitch-table")).id(egui::Id::unique("window-stitch-table"))
         .open(&mut open)
         .default_size([380.0, 460.0])
         .resizable(true)
