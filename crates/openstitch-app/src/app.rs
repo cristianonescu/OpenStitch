@@ -64,6 +64,8 @@ pub struct Launch {
     pub theme: Option<openstitch_app::editor::prefs::Theme>,
     /// Accent colour (`--accent`, #559); otherwise the saved preference.
     pub accent: Option<[u8; 3]>,
+    /// Interface language (`--language`, #555); otherwise the saved preference.
+    pub language: Option<String>,
     /// `--no-splash`: no startup splash (also set by `main` for `--listen`).
     pub no_splash: bool,
 }
@@ -425,6 +427,9 @@ impl EditorApp {
         }
         if let Some(t) = l.theme {
             self.ui.prefs.theme = t;
+        }
+        if let Some(code) = &l.language {
+            self.ui.prefs.language = code.clone();
         }
         // The Assistant opens as the user left it, open on first start (#422); screenshots
         // keep the default layout without it.
@@ -2046,6 +2051,8 @@ impl eframe::App for EditorApp {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        // Options ▸ Language (#555): the window's texts for this frame.
+        openstitch_app::editor::i18n::set_language(&self.ui.prefs.language);
         // A hover preview lasts while a picture picker's tile is hovered (#656).
         self.pickers_frame_end();
         self.pickers_frame_start();

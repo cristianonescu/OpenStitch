@@ -640,6 +640,7 @@ impl EditorApp {
                 "soloColor" => json!(prefs.show.solo),
                 "simulatorSpeed" => json!(self.play_speed),
                 "textSize" => json!(prefs.text_size),
+                "language" => json!(prefs.language),
                 "autosave" => json!(prefs.autosave),
                 "picturePickers" => json!(prefs.picture_pickers),
                 "openInTabs" => json!(prefs.open_in_tabs),
@@ -843,6 +844,18 @@ impl EditorApp {
             }
             "textSize" => {
                 self.ui.prefs.text_size = number_value(name, v, 100.0, 200.0)?.round() as u32
+            }
+            "language" => {
+                let code = v.as_str().unwrap_or_default();
+                if !openstitch_app::editor::i18n::is_language(code) {
+                    let codes: Vec<_> = openstitch_app::editor::i18n::languages()
+                        .into_iter()
+                        .map(|(c, _)| c)
+                        .collect();
+                    return Err(format!("language takes {}", codes.join(", ")));
+                }
+                self.ui.prefs.language = code.to_string();
+                openstitch_app::editor::i18n::set_language(code);
             }
             "autosave" => self.ui.prefs.autosave = bool_value(name, v)?,
             "picturePickers" => self.ui.prefs.picture_pickers = bool_value(name, v)?,
@@ -1195,6 +1208,41 @@ mod tests {
             app.ui_command("ui.run", Some(&json!({ "action": "nope" })))
                 .is_err()
         );
+    }
+
+    /// #555: Options ▸ Language through `ui.set`; the ribbon follows, the preference is kept and
+    /// reset with Display, and the setting's kind names every language.
+    #[test]
+    fn the_language_is_a_setting_the_ribbon_follows() {
+        use openstitch_app::editor::i18n;
+        let mut app = demo();
+        let set = |app: &mut EditorApp, value: Value| {
+            app.ui_command("ui.set", Some(&json!({ "name": "language", "value": value })))
+        };
+        let kind = assistant::setting("language").expect("listed").kind;
+        let codes: Vec<_> = i18n::languages().into_iter().map(|(c, _)| c).collect();
+        assert_eq!(kind, codes.join("|"), "the kind lists every language");
+        set(&mut app, json!("pseudo")).expect("pseudo");
+        assert_eq!(app.ui.prefs.language, "pseudo");
+        assert_eq!(Action::Open.info().label, "[Ópéñ]");
+        let state = app.ui_command("ui.settings", None).expect("settings");
+        assert_eq!(state["language"]["value"], json!("pseudo"));
+        let err = set(&mut app, json!("xx")).expect_err("unknown");
+        assert!(err.contains("en, "), "{err}");
+        assert_eq!(app.ui.prefs.language, "pseudo", "kept");
+        // Saved and read back; a language this build lacks reads as English.
+        let back = openstitch_app::editor::prefs::UiPrefs::from_json(&app.ui.prefs.to_json());
+        assert_eq!(back.language, "pseudo");
+        let mut j = app.ui.prefs.to_json();
+        j["language"] = json!("xx");
+        assert_eq!(
+            openstitch_app::editor::prefs::UiPrefs::from_json(&j).language,
+            "en"
+        );
+        app.ui.prefs.reset_area("display").expect("display");
+        assert_eq!(app.ui.prefs.language, "en");
+        set(&mut app, json!("en")).expect("english");
+        assert_eq!(Action::Open.info().label, "Open");
     }
 
     #[test]

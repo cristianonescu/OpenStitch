@@ -1450,6 +1450,21 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     })
     .response
     .on_hover_text("Beyond PE-DESIGN: everything in the window larger, for easier reading");
+    ui.menu_button("Language", |ui| {
+        // The interface language (#555); the ribbon follows at once.
+        for (code, name) in openstitch_app::editor::i18n::languages() {
+            if ui
+                .radio(app.ui.prefs.language == code, name)
+                .clicked()
+            {
+                app.ui.prefs.language = code.to_string();
+                openstitch_app::editor::i18n::set_language(code);
+                changed = true;
+            }
+        }
+    })
+    .response
+    .on_hover_text("The interface language; English is the source and fills in any text a translation lacks");
     changed |= ui
         .checkbox(&mut app.ui.prefs.start_cards, "Show start cards")
         .on_hover_text("An empty design offers cards to draw, letter, digitize a picture, import, use a template or open a sample")
@@ -1749,7 +1764,7 @@ pub fn group<A: Copy>(
         let w = ui.min_rect().width();
         ui.allocate_ui(vec2(w, 14.0), |ui| {
             ui.centered_and_justified(|ui| {
-                ui.label(RichText::new(g.name).size(11.0).weak());
+                ui.label(RichText::new(g.caption()).size(11.0).weak());
             });
         });
     });

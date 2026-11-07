@@ -14,7 +14,7 @@
 //!            [--listen PORT [--listen-read-only] [--listen-no-files] [--listen-root DIR]... [--listen-read-root DIR]...]
 //!            [--ribbon home|image|view|text|outline|rectangle|punch|shapes|stitches|hoop]
 //!            [--pane import|color|attributes|text] [--theme light|dark|system] [--accent COLOUR]
-//!            [--no-splash]
+//!            [--language en|pseudo] [--no-splash]
 //! ```
 //! A plain start (at most a FILE) shows the logo splash for about a second; any other option
 //! above, or `--no-splash`, starts without it (see `Launch::splash_allowed`).
@@ -138,6 +138,13 @@ fn parse(args: impl Iterator<Item = String>) -> Result<(Launch, [f32; 2]), Strin
                     openstitch_app::editor::prefs::Theme::from_key(&v)
                         .ok_or("--theme takes light, dark or system")?,
                 );
+            }
+            "--language" => {
+                let v = value("--language")?;
+                if !openstitch_app::editor::i18n::is_language(&v) {
+                    return Err("--language takes en or pseudo".into());
+                }
+                l.language = Some(v);
             }
             "--accent" => {
                 let v = value("--accent")?;
@@ -338,7 +345,7 @@ fn main() -> eframe::Result {
                 eprintln!("openstitch: {e}");
             }
             eprintln!(
-                "usage: openstitch [FILE] [--demo] [--select ID,ID] [--simulate F] [--tool NAME] [--size WxH] [--zoom F] [--show VIEWS] [--script STEPS] [--screenshot OUT.png] [--image IMAGE [--convert METHOD]] [--pattern PATTERN.json] [--wizard NAME [--apply]] [--database PATH [--db-view VIEW] [--db-dialog NAME]] [--listen PORT [--listen-read-only] [--listen-no-files] [--listen-root DIR] [--listen-read-root DIR]] [--ribbon TAB] [--pane TAB] [--theme THEME] [--accent COLOUR] [--no-splash]"
+                "usage: openstitch [FILE] [--demo] [--select ID,ID] [--simulate F] [--tool NAME] [--size WxH] [--zoom F] [--show VIEWS] [--script STEPS] [--screenshot OUT.png] [--image IMAGE [--convert METHOD]] [--pattern PATTERN.json] [--wizard NAME [--apply]] [--database PATH [--db-view VIEW] [--db-dialog NAME]] [--listen PORT [--listen-read-only] [--listen-no-files] [--listen-root DIR] [--listen-read-root DIR]] [--ribbon TAB] [--pane TAB] [--theme THEME] [--accent COLOUR] [--language CODE] [--no-splash]"
             );
             std::process::exit(2);
         }
@@ -447,9 +454,11 @@ mod tests {
         assert!(parse(args("--db-view huge")).is_err());
         assert!(parse(args("--db-dialog format")).is_err());
         let (l, _) = parse(args(
-            "--ribbon view --pane color --theme dark --accent orange --show appmenu",
+            "--ribbon view --pane color --theme dark --accent orange --language pseudo --show appmenu",
         ))
         .expect("ribbon");
+        assert_eq!(l.language.as_deref(), Some("pseudo"));
+        assert!(parse(args("--language xx")).is_err());
         assert_eq!(l.accent, Some([0xef, 0x6c, 0x00]));
         assert!(parse(args("--accent neon")).is_err());
         assert_eq!(l.ribbon, Some(openstitch_app::editor::ribbon::TabId::View));
