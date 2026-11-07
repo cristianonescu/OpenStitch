@@ -494,3 +494,37 @@ fn wave_fill_controls_reach_the_engine() {
     assert!(region(s.design()).wave().is_none());
     assert!(!keys(s.design()).contains(&"region.waveLength"));
 }
+
+/// Maze fill (#533, beyond PE-DESIGN): listed among the region sew types; its Spacing, Run
+/// pitch, Straightness and Seed reach the engine and read back.
+#[test]
+fn maze_fill_controls_reach_the_engine() {
+    let mut s = Session::new(std::env::temp_dir());
+    let id = exec(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 10, "y": 10, "width": 30, "height": 30}),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    let sel = BTreeSet::from([id]);
+    assert!(
+        inspector::region_types()
+            .iter()
+            .any(|(k, _)| *k == Some(RegionType::Maze))
+    );
+    let m = InspectorModel::new(s.design(), &sel);
+    run(&mut s, &m.set_region_type(Some(RegionType::Maze)));
+    let region = |d: &Design| d.objects[0].region.clone().expect("region");
+    assert_eq!(region(s.design()).kind, RegionType::Maze);
+    let n = round_trip(
+        &mut s,
+        id,
+        |d| inspector::region_controls(&region(d)),
+        |m, p| m.set_region(p),
+        "maze fill",
+    );
+    assert!(n >= 5, "{n} number controls");
+    let r = region(s.design());
+    assert!(r.straightness.is_some() && r.maze_seed.is_some(), "{r:?}");
+}

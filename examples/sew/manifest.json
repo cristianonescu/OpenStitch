@@ -887,6 +887,29 @@
   "preview": "previews/wave-fill.png",
   "sha256": "f6e3e9129dbe0bfd7e2e86c19f7ffae81d76e428ec774536647801b7207d444f"
  },
+ "fills/maze-fill.pes": {
+  "title": "Maze fill (beyond PE-DESIGN)",
+  "about": "One path of straight corridors and square turns that never crosses itself, 2 mm apart: straightness 70 % (default), 0 % and 95 % (top row), on a circle, another seed at 45°, and 3 mm spacing.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   83.4,
+   54.6
+  ],
+  "stitches": 1080,
+  "trims": 6,
+  "threads": [
+   "405 Blue",
+   "800 Red",
+   "509 Leaf Green",
+   "208 Orange",
+   "620 Magenta",
+   "406 Ultra Marine"
+  ],
+  "sewingMinutes": 1.7,
+  "image": null,
+  "preview": "previews/maze-fill.png",
+  "sha256": "574b908cabe3f7b7aee6bb40c6e59148822de7dec7603084a96a32eb4f5344a5"
+ },
  "lines/line-sew-types.pes": {
   "title": "Line sew types",
   "about": "Top to bottom: running, triple, zigzag, motif (wave), stem, candlewick, E stitch, V stitch, chain.",

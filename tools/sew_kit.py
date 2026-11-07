@@ -301,6 +301,14 @@ WAVES = [
     ("rect", {"type": "fill", "angle": 45, "waveHeight": 3, "waveLength": 14}),
     ("circle", {"type": "fill", "angle": 0, "waveHeight": 3, "waveLength": 12}),
     ("rect", {"type": "fill", "angle": 90, "waveHeight": 8, "waveLength": 8}),
+# Maze fill (#533, beyond PE-DESIGN).
+MAZES = [
+    ("rect", {"type": "maze"}),
+    ("rect", {"type": "maze", "straightness": 0}),
+    ("rect", {"type": "maze", "straightness": 95}),
+    ("circle", {"type": "maze"}),
+    ("rect", {"type": "maze", "mazeSeed": 7, "angle": 45}),
+    ("rect", {"type": "maze", "spacing": 3, "runPitch": 3}),
 ]
 LINE_TYPES = [
     {"type": "running"},
@@ -564,6 +572,10 @@ FEATURES = [
      "Fills whose rows ripple as a sine, height and length in mm: 2 and 16, 3 and 10, 5 and 24 (top row, "
      "rows across), 3 and 14 at 45°, 3 and 12 on a circle, and 8 and 8 at 90° (steeper than 40°, so sewn at "
      "40°).", region_grid(WAVES)),
+    ("fills/maze-fill.pes", "Maze fill (beyond PE-DESIGN)",
+     "One path of straight corridors and square turns that never crosses itself, 2 mm apart: straightness "
+     "70 % (default), 0 % and 95 % (top row), on a circle, another seed at 45°, and 3 mm spacing.",
+     region_grid(MAZES)),
     ("lines/line-sew-types.pes", "Line sew types",
      "Top to bottom: running, triple, zigzag, motif (wave), stem, candlewick, E stitch, V stitch, chain.",
      line_rows(LINE_TYPES)),

@@ -424,6 +424,8 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
   and (+) half, upright and Smyrna crosses ([#614]).
 - (+) **Contour fill:** rows that follow the outline as rings, a single or double spiral, or echo
   lines ([#461]).
+- (+) **Maze fill:** one path of straight corridors and square turns that never crosses itself
+  ([#533]).
 - (+) **No piled-up tiny stitches in fill slivers:** stitches under 0.5 mm in a thin sliver are
   joined ([#303]).
 - **Programmable Stitch Creator:** draw your own fill and stamp tiles, motifs and decorative-fill
@@ -711,6 +713,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#529]: https://github.com/cristianonescu/OpenStitch/issues/529
 [#530]: https://github.com/cristianonescu/OpenStitch/issues/530
 [#531]: https://github.com/cristianonescu/OpenStitch/issues/531
+[#533]: https://github.com/cristianonescu/OpenStitch/issues/533
 [#535]: https://github.com/cristianonescu/OpenStitch/issues/535
 [#536]: https://github.com/cristianonescu/OpenStitch/issues/536
 [#537]: https://github.com/cristianonescu/OpenStitch/issues/537
