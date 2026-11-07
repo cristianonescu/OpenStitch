@@ -1248,10 +1248,10 @@ separated by spaces or commas, in any case:
 
 | Word | Meaning |
 |---|---|
-| `fill`, `satin` | region sew type (`satin` on a shape with no fill: a satin line) |
+| `fill`, `satin` | region sew type (`satin` on a shape with no fill: a satin line, as `stroke.satin`) |
 | `run`, `triple`, `zigzag` | line sew type |
 | `skip` | the shape is not imported |
-| `stroke.satin` / `stroke.zigzag`, `stroke.run`, `stroke.triple`, `stroke.skip` | the outline's sew type; `stroke.skip` drops the outline |
+| `stroke.satin`, `stroke.zigzag`, `stroke.run`, `stroke.triple`, `stroke.skip` | the outline's sew type; `stroke.skip` drops the outline. `stroke.satin` is OpenStitch's satin line, as wide as the SVG stroke (its `stroke-width` with the element's transform, to 0.1 mm) unless `w=` gives a width (#701); `stroke.zigzag` is PE-DESIGN's zigzag line |
 | `a=` (`angle=`, `direction=`) | fill angle, degrees |
 | `s=` (`spacing=`, `rowSpacing=`) / `d=` (`density=`) | row spacing in mm / density in rows per mm |
 | `l=` (`length=`, `stitchLength=`, `pitch=`) | stitch length (region) or run pitch (line), mm |
