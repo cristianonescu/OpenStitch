@@ -46,6 +46,7 @@ mod quality_ui;
 mod recovery_ui;
 mod remote;
 mod ribbon;
+mod machine_setup_ui;
 mod ripple_ui;
 mod script;
 mod sections_ui;

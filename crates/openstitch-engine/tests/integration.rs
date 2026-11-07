@@ -94,6 +94,8 @@ mod library;
 mod line_looks;
 #[path = "machine.rs"]
 mod machine;
+#[path = "machine_profiles.rs"]
+mod machine_profiles;
 #[path = "mapped_text.rs"]
 mod mapped_text;
 #[path = "media_exports.rs"]

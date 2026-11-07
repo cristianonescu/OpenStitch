@@ -689,6 +689,7 @@ pub const HELP_ITEMS: &[(&str, &str)] = &[
     ("sewKit", "Ready-to-Sew Designs"),
     ("sewKitOnline", "Ready-to-Sew Designs Online"),
     ("gettingStarted", "Getting Started"),
+    ("machineSetup", "Machine Setup"),
     ("shortcuts", "Keyboard Shortcuts"),
     ("checkUpdates", "Check for Updates"),
     ("about", "About OpenStitch"),

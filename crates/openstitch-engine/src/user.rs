@@ -62,6 +62,9 @@ pub struct UserSettings {
     /// What new shapes and texts start from (`fabric.setDefault`, #508).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_fabric: Option<crate::fabric::DefaultFabric>,
+    /// The user's machine (`machine.setProfile`, #508 part 3).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub machine_profile: Option<crate::machine_profile::MachineProfile>,
 }
 
 /// File format marker of the settings file.

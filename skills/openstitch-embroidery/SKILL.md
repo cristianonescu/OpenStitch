@@ -395,6 +395,12 @@ are desktop-only; say so instead of trying them in the browser.
   closer (density × √(weight / 40)); No. 40 is the default and changes nothing. To make shapes and
   texts drawn from now on start from a fabric, `fabric.setDefault {fabric, weight}` (`fabric:
   "none"` clears it; it changes the user's settings, so say so first; `options.get` shows it).
+- The user's machine (#508): `machine.profile` gives brand, hoop, `cutter`, `maxStitchMm` and the
+  brand's own `format` (export that format when they ask for "the file for my machine").
+  `machine.setProfile {brand, hoop, cutter, maxStitchMm}` (`brand: "none"` clears it) changes the
+  user's settings: say so first, and set only what the user tells you (never guess a limit).
+  Exports then warn about stitches longer than `maxStitchMm` and trims a machine without a
+  cutter will not cut: pass those warnings on and offer `design.setStopAtJumps {on: true}`.
 - "What stabiliser / needle should I use on fleece?": `fabric.advise {fabric, weight}` (weight
   12, 30, 40 or 60; default 40) gives backing, topping, needle point and size and the smallest
   legible block-letter height, each from the makers' published guidance with `sources`; say so

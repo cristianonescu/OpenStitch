@@ -1645,6 +1645,13 @@ pub fn help_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     {
         app.ui.start.page_open = true;
     }
+    if ui
+        .button("Machine Setup")
+        .on_hover_text("Beyond PE-DESIGN: your machine's brand, hoop and thread cutter, for new designs and export checks")
+        .clicked()
+    {
+        app.machine_setup.open();
+    }
     if ui.button("Keyboard Shortcuts").clicked() {
         app.ui.shortcuts_open = true;
     }

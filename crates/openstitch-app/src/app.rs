@@ -100,7 +100,7 @@ impl Launch {
 }
 
 /// Values `--show` accepts.
-pub const SHOW: [&str; 36] = [
+pub const SHOW: [&str; 37] = [
     "update",
     "stitch-table",
     "large-text",
@@ -137,6 +137,7 @@ pub const SHOW: [&str; 36] = [
     "assistant-notices",
     "basic",
     "getting-started",
+    "machine-setup",
 ];
 
 pub struct EditorApp {
@@ -283,6 +284,8 @@ pub struct EditorApp {
     pub update: crate::update_ui::UpdateState,
     /// "Save changes to NAME?" when closing, File ▸ New or Open would lose unsaved changes.
     pub close_prompt: ClosePrompt,
+    /// Help ▸ Machine Setup, also on the first interactive start (#508).
+    pub machine_setup: crate::machine_setup_ui::MachineSetup,
     /// The next window close goes through: Don't Save, a Save that succeeded, a finished
     /// screenshot run or the updater's restart. Without it a close while the design has
     /// unsaved changes is cancelled and the prompt opens.
@@ -388,6 +391,7 @@ impl EditorApp {
             quality: Default::default(),
             update: Default::default(),
             close_prompt: ClosePrompt::default(),
+            machine_setup: Default::default(),
             exit_approved: false,
         };
         app.refresh();
@@ -438,6 +442,10 @@ impl EditorApp {
         if splash && self.ui.prefs.splash {
             self.splash = Some(crate::splash::Splash::default());
         }
+        // The first interactive start with the user's settings asks which machine (#508).
+        if crate::machine_setup_ui::asks_at_start(&l, &self.ui.prefs) {
+            self.machine_setup.open();
+        }
         if l.interactive()
             && self.ui.prefs.updates.check
             && self.update.current.is_some()
@@ -475,6 +483,7 @@ impl EditorApp {
                 "realistic" => self.workspace.realistic = true,
                 "solid" => self.workspace.solid = true,
                 "fabric" => self.workspace.view.fabric_open = true,
+                "machine-setup" => self.machine_setup.open(),
                 "reference" => self.workspace.reference = true,
                 "settings" => self.workspace.settings_open = true,
                 "attributes" => self.settings.sets_open = true,
@@ -2128,6 +2137,7 @@ impl eframe::App for EditorApp {
         self.poll_print(&ctx);
         crate::update_ui::poll(self, &ctx);
         crate::update_ui::window(self, &ctx);
+        crate::machine_setup_ui::window(self, &ctx);
         self.close_request(&ctx);
         if self.exit_approved() {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);

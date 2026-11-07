@@ -515,6 +515,10 @@ The image tools have two methods, both OpenStitch's own: OpenStitch's PE-DESIGN-
   ([#453]).
 - (+) **Parameter test swatches:** copies of one object with a setting stepped, each labelled
   ([#507]).
+- (+) **Fabric and thread presets and your machine:** 13 fabrics with the makers' backing, topping,
+  needle and smallest-text advice per thread weight; thinner thread sews denser rows; a default
+  fabric for new shapes; Machine Setup (brand, hoop, thread cutter) for new designs and export
+  warnings ([#508]).
 
 ### Files and formats
 
@@ -681,6 +685,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#505]: https://github.com/cristianonescu/OpenStitch/issues/505
 [#506]: https://github.com/cristianonescu/OpenStitch/issues/506
 [#507]: https://github.com/cristianonescu/OpenStitch/issues/507
+[#508]: https://github.com/cristianonescu/OpenStitch/issues/508
 [#509]: https://github.com/cristianonescu/OpenStitch/issues/509
 [#510]: https://github.com/cristianonescu/OpenStitch/issues/510
 [#511]: https://github.com/cristianonescu/OpenStitch/issues/511
