@@ -3381,6 +3381,15 @@ PE-DESIGN 11.50 exported OpenStitch's `c17.pes` (17 colour blocks) and `long.pes
   record, and writes `80 03` before its 74 mm moves (not before 31.7 mm). The six header bytes
   `C4 28 00 30 00 00` are the same in all three PE exports.
 
+### SVG stroke width as a satin line's width, 2026-11-07 (#701, rest of #524)
+
+Beyond PE-DESIGN and opt-in (`import.svg {settings: true}` with names); the default import is
+unchanged. `stroke.satin`, and `satin` on a shape with no fill, now make OpenStitch's satin line
+(#524) rather than PE-DESIGN's zigzag line, as wide as the SVG stroke: its `stroke-width` scaled
+by the element's transform, rounded to 0.1 mm, unless `w=` gives a width. `stroke.zigzag` asks
+for the zigzag line. A stroke outside the satin line's 0.5–10 mm is listed in `settings.invalid`
+and the line keeps its default width.
+
 ### Small Text against PE-DESIGN's recorded numbers, 2026-11-07 (#530)
 
 PE-DESIGN 11.50's Small Text fonts are Brother's, so the round-8 capture files stay in the
