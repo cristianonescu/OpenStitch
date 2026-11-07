@@ -303,7 +303,7 @@ ends it, and running the command keeps the change. `ui.set picturePickers` shows
 types, fill patterns and motifs as pictures in the Sewing Attributes pane.
 `ui.set textSize` (100-200) enlarges the whole window for a user who asks for bigger text.
 `ui.set language` (`en`, or `pseudo`, a test language that brackets every translated text) is
-Options ▸ Language (#555); only the ribbon is translated so far, and no real translation ships
+Options ▸ Language (#555); only the ribbon and the main menus are translated so far, and no real translation ships
 yet, so answer in the user's language yourself rather than switching the window.
 Opening or importing a large file in the window runs in the background: `ui.state` shows
 `loading` (file, step, seconds), and `ui.loading {cancel: true}` stops it, leaving the design

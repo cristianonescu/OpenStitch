@@ -1141,6 +1141,10 @@ mod tests {
                 out.push((format!("tab-{}-context", t.key()), c));
             }
         }
+        // The menus' texts (#555 part 2).
+        for (id, text) in crate::editor::ui_texts::UI_TEXTS {
+            out.push((id.to_string(), text));
+        }
         for t in TabId::ALL {
             for g in t.groups() {
                 let id = format!("group-{}", i18n::slug(g.name));

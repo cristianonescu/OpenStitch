@@ -41,6 +41,7 @@ pub mod shape_tools;
 pub mod snap;
 pub mod suite;
 pub mod tools;
+pub mod ui_texts;
 pub mod units;
 pub mod updates;
 pub mod viewport;
