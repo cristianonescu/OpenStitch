@@ -280,6 +280,14 @@ web editor's `ui.state`, `ui.simulate`, `ui.openFile {name, base64}`, `ui.saveFi
 
 ## Known limits
 
+- **MSI upgrades (#742).** Every build is version 0.1.0 with a new ProductCode, so the MSI's
+  `MajorUpgrade` sets `AllowSameVersionUpgrades`: installing any OpenStitch MSI removes an
+  installed OpenStitch of the same or an older version first (one entry in Settings ▸ Apps).
+  `build-executables.yml` reads the built MSI's Upgrade table through Windows Installer's COM
+  object and fails unless a row finds OpenStitch's UpgradeCode up to and including this version
+  (`msidbUpgradeAttributesVersionMaxInclusive`) and `RemoveExistingProducts` is scheduled. The
+  self-updater runs `msiexec /i` on the new MSI and relies on the same rows. Cleaning up a PC with
+  older duplicate entries: RELEASING.md.
 - **MSI validation.** `light` runs with `-sice:ICE50`: the advertised Start-menu shortcut's
   icon is `openstitch.ico` from the Icon table while its target is `openstitch.exe`, and ICE50
   wants the two extensions to match. Making the Icon entry from the exe would store the whole
