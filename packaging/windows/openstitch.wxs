@@ -11,7 +11,11 @@
            Manufacturer="OpenStitch contributors" UpgradeCode="0627e96f-d149-412d-b450-f64869cf1438">
     <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Platform="x64"
              Description="OpenStitch embroidery design editor" />
-    <MajorUpgrade DowngradeErrorMessage="A newer version of OpenStitch is already installed." />
+    <!-- Every build so far is version 0.1.0 with a new ProductCode: without
+         AllowSameVersionUpgrades a same-version MSI installs beside the last one instead of
+         replacing it (#742), and Apps & features lists one "OpenStitch 0.1.0" per install. -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes"
+                  DowngradeErrorMessage="A newer version of OpenStitch is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
     <!-- The Icon table name must end in .ico (or .exe): Windows Installer copies the icon to
