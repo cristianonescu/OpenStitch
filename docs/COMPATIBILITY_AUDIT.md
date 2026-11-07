@@ -3131,6 +3131,25 @@ and with each of the six presets: before, p01 with `lineArt` failed with 7 in pl
 454/454, and its 501 written files are byte-identical apart from two JEF time stamps.
 Tests `tie_off_tests::*`.
 
+### PE-compatible Photo Stitch 1: one path a colour, 2026-11-07 (#298)
+
+PE-DESIGN 11.50 sews Photo Stitch 1 nearly one path a colour. Round-8 capture of the sunset (p06)
+at 90 mm, defaults: 11 trims in 8,683 stitches (1.3 per 1,000), 0-3 trims a colour, a jump only
+at each colour's start, every stitch 2.5-4.5 mm (Run Pitch 3.0). Its travel is in sight.
+OpenStitch's PE-compatible mode jumped and trimmed wherever no hidden way led to the next run:
+108 trims (10.8 per 1,000) on the same picture.
+
+Now, where no hidden way leads on, the thread travels in sight to its nearest unsewn run in
+stitches of at most 3 mm, and trims only past 40 mm (at 20 mm: 18 trims). The sunset at 90 mm
+sews 14 trims in 9,744 stitches (1.4 per 1,000). OpenStitch mode is unchanged: its Trims setting
+is the user's (and the owner's call after a sew-out, see #298).
+
+Likeness of PE-compatible mode on the nine Photo Stitch 1 cases (`tools/image_similarity.py
+--mode pe --no-dists`, before → after): trims 1,667 → 120. dE00 is better on seven, for example
+p07 18.32 → 17.89 and p06 19.12 → 18.82, and worse on p05 (+0.17) and p11 (+0.22). MS-SSIM falls
+0.002-0.025 (p11 0.699 → 0.675), as the travel PE-DESIGN also sews now shows in the render.
+Test `digitize::compatible_photo_stitch_trims_about_as_rarely_as_pe_design`.
+
 ### Auto Punch line art: dots without knots, a colour's pieces joined, 2026-11-07 (#713)
 
 OpenStitch mode only, on line art; PE-compatible mode is unchanged. g11 (the mandala, 100 mm)

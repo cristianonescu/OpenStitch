@@ -24,3 +24,5 @@ extern crate self as openstitch_app;
 include!("bin_modules.rs");
 #[cfg(target_arch = "wasm32")]
 pub use app::{EditorApp, Launch};
+#[cfg(target_arch = "wasm32")]
+pub use files::{Pick, PickRequest, SAVE_DIR, take_pick_requests};

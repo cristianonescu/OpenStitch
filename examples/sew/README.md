@@ -569,7 +569,7 @@ Threads, in sewing order: 001 White, 209 Tangerine, 086 Deep Rose, 612 Lilac, 60
 
 #### Photo Stitch 1, PE-DESIGN-compatible mode
 
-[`image-tools/S-photo1-sunset-pe-compatible.pes`](image-tools/S-photo1-sunset-pe-compatible.pes) · 100 × 100 mm hoop · 90 × 50.2 mm · 10,027 stitches · 108 trims · about 18.1 min
+[`image-tools/S-photo1-sunset-pe-compatible.pes`](image-tools/S-photo1-sunset-pe-compatible.pes) · 100 × 100 mm hoop · 90 × 50.2 mm · 9,744 stitches · 14 trims · about 12.9 min
 
 `p06-sunset.jpg` through Photo Stitch 1 at its defaults in PE-DESIGN-compatible mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.
 
@@ -589,7 +589,7 @@ Threads, in sewing order: 001 White, 348 Khaki, 005 Silver, 817 Gray, 323 Light 
 
 #### Photo Stitch 1, PE-DESIGN-compatible mode
 
-[`image-tools/M-photo1-portrait-pe-compatible.pes`](image-tools/M-photo1-portrait-pe-compatible.pes) · 150 × 150 mm hoop · 94.1 × 139.8 mm · 26,968 stitches · 184 trims · about 43.1 min
+[`image-tools/M-photo1-portrait-pe-compatible.pes`](image-tools/M-photo1-portrait-pe-compatible.pes) · 150 × 150 mm hoop · 94.1 × 139.8 mm · 26,537 stitches · 13 trims · about 33.8 min
 
 `p01-portrait.jpg` through Photo Stitch 1 at its defaults in PE-DESIGN-compatible mode, fitted to the 150 × 150 mm hoop. Sew both modes of the same image to compare them on fabric.
 

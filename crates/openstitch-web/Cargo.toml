@@ -1,6 +1,6 @@
 [package]
 name = "openstitch-web"
-description = "OpenStitch editor in a web browser (WebAssembly): open, view, simulate, save and export designs (#556)"
+description = "OpenStitch in a web browser (WebAssembly): the desktop editor on a WebGL canvas (#556, #693)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -23,14 +23,15 @@ serde_json.workspace = true
 # Files passed through `openstitch.run` (the automation API) are base64, as in openstitch-mcp.
 base64 = "0.23.1"
 
-# The browser build: the egui editor on a WebGL canvas, the file picker, downloads.
+# The browser build: the desktop editor (#693) on a WebGL canvas, the file picker, downloads.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+openstitch-app = { path = "../openstitch-app" }
 eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow"] }
 rfd = "0.17"
 wasm-bindgen = "0.2.129"
 wasm-bindgen-futures = "0.4.79"
 js-sys = "0.3.106"
-web-sys = { version = "0.3.106", features = ["Window", "Document", "Element", "HtmlCanvasElement", "HtmlAnchorElement", "HtmlElement", "Blob", "BlobPropertyBag", "Url"] }
+web-sys = { version = "0.3.106", features = ["Window", "Document", "Element", "HtmlCanvasElement", "HtmlAnchorElement", "HtmlElement", "Blob", "BlobPropertyBag", "Url", "console"] }
 
 [dev-dependencies]
 openstitch-testutil.workspace = true

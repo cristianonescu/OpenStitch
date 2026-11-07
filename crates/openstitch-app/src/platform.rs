@@ -5,6 +5,44 @@
 //! desktop one cannot run in a browser. Phase A1 holds the release-tag check, phase A2 the
 //! system clipboard; the file dialogs, preferences and clock follow with their call sites.
 
+/// A clock for timing on the window's thread: `std::time::Instant` on the desktop; a browser's
+/// (`web_time`, the page's `performance.now()`), as std's panics there.
+#[cfg(not(target_arch = "wasm32"))]
+pub use std::time::Instant;
+#[cfg(target_arch = "wasm32")]
+pub use web_time::Instant;
+
+/// Runs `job` off the window's thread: a new thread on the desktop. A browser page has one
+/// thread, so there the job runs at once; its result waits in its channel for the next frame.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn run_job(job: impl FnOnce() + Send + 'static) {
+    std::thread::spawn(job);
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn run_job(job: impl FnOnce() + Send + 'static) {
+    job();
+}
+
+/// A file's bytes when it is at most `max` long (desktop: the file system; browser: the files
+/// the page put in memory, `openstitch_engine::fsio::memfs`).
+#[cfg(not(target_arch = "wasm32"))]
+pub fn read_small(path: &std::path::Path, max: u64) -> Option<Vec<u8>> {
+    if std::fs::metadata(path).ok()?.len() > max {
+        return None;
+    }
+    std::fs::read(path).ok()
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn read_small(path: &std::path::Path, max: u64) -> Option<Vec<u8>> {
+    use openstitch_engine::fsio::memfs;
+    if memfs::len(path).ok()? > max {
+        return None;
+    }
+    memfs::read(path).ok()
+}
+
 /// An RGBA picture on the system clipboard: `width × height` pixels, 4 bytes each, by rows.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ClipboardImage {
