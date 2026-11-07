@@ -3,6 +3,7 @@
 //! (`docs/research/updater.md`). All network and file work runs on its own thread; the UI only
 //! polls a channel once per frame.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui::{self, RichText};
 use openstitch_app::editor::updates::{NO_CHECK_ENV, UPDATED_FROM_ENV, restart_args};
@@ -432,7 +433,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                                 ui.strong(if r.name.is_empty() { &r.tag } else { &r.name });
                             }
                             if r.body.trim().is_empty() {
-                                ui.label(RichText::new("No release notes.").weak());
+                                ui.label(RichText::new(t("ui-no-release-notes")).weak());
                             } else {
                                 egui_commonmark::CommonMarkViewer::new().show(
                                     ui,
@@ -443,20 +444,20 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                         }
                     });
                 ui.separator();
-                ui.checkbox(&mut st.skip, "Don't remind me about this version")
-                    .on_hover_text("Stays quiet about this version; a newer one is offered again");
+                ui.checkbox(&mut st.skip, t("ui-don-t-remind-me-about-this"))
+                    .on_hover_text(t("ui-stays-quiet-about-this-version-a-tip"));
                 ui.horizontal(|ui| {
                     let can = update.applicable() && !dirty;
-                    let b = ui.add_enabled(can, egui::Button::new("Update"));
+                    let b = ui.add_enabled(can, egui::Button::new(t("ui-update")));
                     let b = if dirty {
                         b.on_disabled_hover_text("Save or close your design first: the editor restarts after the update")
                     } else {
-                        b.on_hover_text("Downloads the release, checks it, installs it and restarts OpenStitch")
+                        b.on_hover_text(t("ui-downloads-the-release-checks-it-installs-tip"))
                     };
                     if b.clicked() {
                         click = Click::Update(update.clone());
                     }
-                    if ui.button("Dismiss").clicked() {
+                    if ui.button(t("ui-dismiss")).clicked() {
                         click = Click::Dismiss;
                     }
                     if !update.release.html_url.is_empty() {
@@ -465,7 +466,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 });
                 if dirty {
                     ui.label(
-                        RichText::new("Save your design before updating.")
+                        RichText::new(t("ui-save-your-design-before-updating"))
                             .weak()
                             .small(),
                     );
@@ -490,17 +491,17 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 };
                 ui.add(bar);
                 ui.label(
-                    RichText::new("The download is checked against the release's SHA-256 sums before it is installed.")
+                    RichText::new(t("ui-the-download-is-checked-against-the"))
                         .weak()
                         .small(),
                 );
-                if ui.button("Cancel").clicked() {
+                if ui.button(t("ui-cancel")).clicked() {
                     click = Click::Cancel;
                 }
             }
             Phase::Restarting => {
                 crate::art::header(ui, crate::art::Art::UpdateRestarting, |ui| {
-                    ui.label("Update installed. Restarting OpenStitch…");
+                    ui.label(t("ui-update-installed-restarting-openstitch"));
                     ui.spinner();
                 });
             }
@@ -508,31 +509,31 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 crate::art::header(ui, crate::art::Art::UpdateCurrent, |ui| {
                     ui.label(format!("You have the latest version ({current})."));
                 });
-                if ui.button("Close").clicked() {
+                if ui.button(t("ui-close")).clicked() {
                     click = Click::Dismiss;
                 }
             }
             Phase::Unavailable(why) => {
                 crate::art::header(ui, crate::art::Art::UpdateUnavailable, |ui| {
-                    ui.label(RichText::new("Updates are not available for this build.").strong());
+                    ui.label(RichText::new(t("ui-updates-are-not-available-for-this")).strong());
                     ui.label(why);
                 });
-                if ui.button("Close").clicked() {
+                if ui.button(t("ui-close")).clicked() {
                     click = Click::Dismiss;
                 }
             }
             Phase::Failed { update, error } => {
                 crate::art::header(ui, crate::art::Art::UpdateFailed, |ui| {
-                    ui.label(RichText::new("The update did not go through.").strong());
+                    ui.label(RichText::new(t("ui-the-update-did-not-go-through")).strong());
                     ui.label(error);
                 });
                 ui.horizontal(|ui| {
                     if let Some(u) = update
-                        && ui.button("Try again").clicked()
+                        && ui.button(t("ui-try-again")).clicked()
                     {
                         click = Click::Retry(u.clone());
                     }
-                    if ui.button("Close").clicked() {
+                    if ui.button(t("ui-close")).clicked() {
                         click = Click::Dismiss;
                     }
                     if let Some(u) = update
@@ -543,7 +544,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 });
             }
             Phase::Idle | Phase::Checking(_) => {
-                ui.label("Checking for updates…");
+                ui.label(t("ui-checking-for-updates"));
                 ui.spinner();
             }
         });

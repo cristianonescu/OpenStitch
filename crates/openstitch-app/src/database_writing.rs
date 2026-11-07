@@ -3,6 +3,7 @@
 //! destination OpenStitch can write; the guide's other destinations are listed disabled with
 //! the reason. The queue and Write live in [`openstitch_app::editor::database`].
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use crate::database_ui::DragPaths;
 use eframe::egui::{self, RichText};
@@ -69,8 +70,8 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                 }
             });
         if ui
-            .button("Refresh")
-            .on_hover_text("Look for USB media again")
+            .button(t("ui-refresh"))
+            .on_hover_text(t("ui-look-for-usb-media-again-tip"))
             .clicked()
         {
             st.volumes = None;
@@ -83,16 +84,16 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
             let any = !db.selection.is_empty();
             if ui
-                .add_enabled(any, egui::Button::new("Add"))
-                .on_hover_text("Add the selected designs to the Writing List")
+                .add_enabled(any, egui::Button::new(t("ui-add")))
+                .on_hover_text(t("ui-add-the-selected-designs-to-the-tip"))
                 .clicked()
             {
                 let sel = db.selected();
                 db.add_to_writing(&sel);
             }
             if ui
-                .add_enabled(!st.picked.is_empty(), egui::Button::new("Remove"))
-                .on_hover_text("Remove the picked designs from the Writing List")
+                .add_enabled(!st.picked.is_empty(), egui::Button::new(t("ui-remove")))
+                .on_hover_text(t("ui-remove-the-picked-designs-from-the-tip"))
                 .clicked()
             {
                 db.remove_from_writing(&st.picked);
@@ -101,8 +102,8 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
             }
             let ready = !db.writing.is_empty() && !volumes.is_empty() && st.clash.is_none();
             if ui
-                .add_enabled(ready, egui::Button::new("Write"))
-                .on_hover_text("Copy the designs in the Writing List to the USB media")
+                .add_enabled(ready, egui::Button::new(t("ui-write")))
+                .on_hover_text(t("ui-copy-the-designs-in-the-writing-tip"))
                 .clicked()
             {
                 st.written = 0;
@@ -120,7 +121,7 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                     .show(ui, |ui| {
                         if db.writing.is_empty() {
                             ui.label(
-                                RichText::new("Add designs, or drag them here.")
+                                RichText::new(t("ui-add-designs-or-drag-them-here"))
                                     .weak()
                                     .small(),
                             );
@@ -137,7 +138,7 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
                                 }
                             }
                             r.context_menu(|ui| {
-                                if ui.button("Remove from Writing List").clicked() {
+                                if ui.button(t("ui-remove-from-writing-list")).clicked() {
                                     remove = Some(p.clone());
                                 }
                             });
@@ -157,13 +158,13 @@ pub fn panel(app: &mut EditorApp, ui: &mut egui::Ui) {
     if let Some((index, path)) = st.clash.clone() {
         ui.horizontal(|ui| {
             ui.label(format!("{} already exists.", path.display()));
-            if ui.button("Overwrite").clicked() {
+            if ui.button(t("ui-overwrite")).clicked() {
                 write = Some((index, OnExists::Overwrite));
             }
-            if ui.button("Copy with a different name").clicked() {
+            if ui.button(t("ui-copy-with-a-different-name")).clicked() {
                 write = Some((index, OnExists::NewName));
             }
-            if ui.button("Stop").clicked() {
+            if ui.button(t("ui-stop")).clicked() {
                 st.clash = None;
                 st.message = Some(format!("Stopped after {} design(s)", st.written));
             }

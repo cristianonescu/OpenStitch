@@ -3,6 +3,7 @@
 //! `threads.mergeSimilar` with `dryRun`) before anything changes; Apply is one undo step, and
 //! "Restore original colours" undoes it while the window is open.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui::{self, Color32, RichText};
 use openstitch_app::editor::CommandRequest;
@@ -185,21 +186,21 @@ fn match_window(app: &mut EditorApp, ctx: &egui::Context) {
                 });
             crate::a11y::name(&r.response, "Chart");
             ui.horizontal(|ui| {
-                ui.label("Metric");
+                ui.label(t("ui-metric"));
                 ui.selectable_value(&mut st.metric, "rgb", "PE-DESIGN (RGB)")
-                    .on_hover_text("PE-DESIGN's rule: the nearest colour by RGB distance");
+                    .on_hover_text(t("ui-pe-design-s-rule-the-nearest-tip"));
                 ui.selectable_value(&mut st.metric, "ciede2000", "Perceptual (CIEDE2000)")
-                    .on_hover_text("The thread that looks closest");
+                    .on_hover_text(t("ui-the-thread-that-looks-closest-tip"));
                 ui.selectable_value(&mut st.metric, "oklab", "Perceptual (Oklab)");
             });
-            ui.checkbox(&mut st.keep_distinct, "Keep distinct colours apart")
+            ui.checkbox(&mut st.keep_distinct, t("ui-keep-distinct-colours-apart"))
                 .on_hover_text(
                     "Two design colours more than ΔE 10 apart never share a thread unless the chart has none left",
                 );
             ui.separator();
             match &plan {
                 None => {
-                    ui.label(egui::RichText::new("No plan: the chart is empty or missing.").weak());
+                    ui.label(egui::RichText::new(t("ui-no-plan-the-chart-is-empty")).weak());
                 }
                 Some(v) => {
                     egui::ScrollArea::vertical().max_height(260.0).show(ui, |ui| {
@@ -214,7 +215,7 @@ fn match_window(app: &mut EditorApp, ctx: &egui::Context) {
                                     ui.label(row["from"]["color"].as_str().unwrap_or(""));
                                 });
                                 // #653: a word, not an arrow character.
-                                ui.label(RichText::new("becomes").weak());
+                                ui.label(RichText::new(t("ui-becomes")).weak());
                                 ui.horizontal(|ui| {
                                     swatch(ui, row["to"]["color"].as_str().unwrap_or(""));
                                     ui.label(thread_label(&row["to"]));
@@ -249,10 +250,10 @@ fn match_window(app: &mut EditorApp, ctx: &egui::Context) {
             }
             ui.horizontal(|ui| {
                 apply = ui
-                    .add_enabled(plan.is_some(), egui::Button::new("Apply"))
+                    .add_enabled(plan.is_some(), egui::Button::new(t("menu-apply")))
                     .clicked();
                 undo = ui
-                    .add_enabled(st.applied, egui::Button::new("Restore original colours"))
+                    .add_enabled(st.applied, egui::Button::new(t("ui-restore-original-colours")))
                     .clicked();
             });
         });
@@ -299,7 +300,7 @@ fn merge_window(app: &mut EditorApp, ctx: &egui::Context) {
                                 for m in g["merge"].as_array().into_iter().flatten() {
                                     swatch(ui, m["thread"]["color"].as_str().unwrap_or(""));
                                 }
-                                ui.label(RichText::new("merge into").weak());
+                                ui.label(RichText::new(t("ui-merge-into")).weak());
                                 swatch(ui, g["keep"]["color"].as_str().unwrap_or(""));
                                 ui.label(g["keep"]["color"].as_str().unwrap_or(""));
                             });
@@ -311,11 +312,11 @@ fn merge_window(app: &mut EditorApp, ctx: &egui::Context) {
                     .add_enabled(
                         plan.as_ref()
                             .is_some_and(|v| !v["groups"].as_array().is_none_or(Vec::is_empty)),
-                        egui::Button::new("Apply"),
+                        egui::Button::new(t("menu-apply")),
                     )
                     .clicked();
                 undo = ui
-                    .add_enabled(st.applied, egui::Button::new("Restore original colours"))
+                    .add_enabled(st.applied, egui::Button::new(t("ui-restore-original-colours")))
                     .clicked();
             });
         });

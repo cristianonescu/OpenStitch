@@ -1,6 +1,7 @@
 //! Lettering dialogs (Home ▸ Tools ▸ Text). The forms live in `openstitch_app::editor::lettering`; each
 //! action is one engine command, so one Undo.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui;
 use openstitch_app::editor::CommandRequest;
@@ -100,7 +101,7 @@ fn fit_window(app: &mut EditorApp, ctx: &egui::Context) {
         .show(ctx, |ui| {
             let f = &mut app.lettering.fit;
             egui::Grid::new("fit-text").num_columns(2).show(ui, |ui| {
-                ui.label("Horizontal Alignment");
+                ui.label(t("ui-horizontal-alignment"));
                 ui.horizontal(|ui| {
                     let mut h = (f.spread, f.align);
                     for (v, label, tip) in [
@@ -138,31 +139,31 @@ fn fit_window(app: &mut EditorApp, ctx: &egui::Context) {
                     (f.spread, f.align) = h;
                 });
                 ui.end_row();
-                ui.label("Vertical Alignment");
+                ui.label(t("ui-vertical-alignment"));
                 ui.horizontal(|ui| {
-                    ui.radio_value(&mut f.valign, VAlign::Bottom, "Above")
-                        .on_hover_text("The text stands on the outline");
-                    ui.radio_value(&mut f.valign, VAlign::Middle, "Centered")
-                        .on_hover_text("The text is centred on the outline");
-                    ui.radio_value(&mut f.valign, VAlign::Top, "Below")
-                        .on_hover_text("The text hangs below the outline");
+                    ui.radio_value(&mut f.valign, VAlign::Bottom, t("ui-above"))
+                        .on_hover_text(t("ui-the-text-stands-on-the-outline-tip"));
+                    ui.radio_value(&mut f.valign, VAlign::Middle, t("ui-centered"))
+                        .on_hover_text(t("ui-the-text-is-centred-on-the-tip"));
+                    ui.radio_value(&mut f.valign, VAlign::Top, t("ui-below"))
+                        .on_hover_text(t("ui-the-text-hangs-below-the-outline-tip"));
                 });
                 ui.end_row();
-                ui.label("Text Orientation");
+                ui.label(t("ui-text-orientation"));
                 ui.horizontal(|ui| {
-                    ui.radio_value(&mut f.upright, false, "Along the outline");
-                    ui.radio_value(&mut f.upright, true, "Upright");
+                    ui.radio_value(&mut f.upright, false, t("ui-along-the-outline"));
+                    ui.radio_value(&mut f.upright, true, t("ui-upright"));
                 });
                 ui.end_row();
                 ui.label("");
-                ui.checkbox(&mut f.other_side, "The other side")
-                    .on_hover_text("Run on the other side of the outline, reading the other way");
+                ui.checkbox(&mut f.other_side, t("ui-the-other-side"))
+                    .on_hover_text(t("ui-run-on-the-other-side-of-tip"));
                 ui.end_row();
             });
             ui.separator();
             ui.horizontal(|ui| {
-                ok = ui.button("OK").clicked();
-                cancel = ui.button("Cancel").clicked();
+                ok = ui.button(t("ui-ok")).clicked();
+                cancel = ui.button(t("ui-cancel")).clicked();
             });
         });
     if ok {
@@ -187,26 +188,26 @@ pub fn fonts(app: &mut EditorApp) -> Vec<FontChoice> {
 
 /// Home ▸ Tools ▸ Text: text, monogram, name drop, templates and fonts.
 pub fn text_tools_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
-    if ui.button("Text…").clicked() {
+    if ui.button(t("ui-text-2")).clicked() {
         app.lettering.text.open = true;
     }
-    if ui.button("Monogram…").clicked() {
+    if ui.button(t("ui-monogram")).clicked() {
         app.lettering.monogram.open = true;
     }
-    if ui.button("Name Drop List…").clicked() {
+    if ui.button(t("ui-name-drop-list")).clicked() {
         app.lettering.name_drop.open = true;
     }
-    if ui.button("Template Wizard…").clicked() {
+    if ui.button(t("menu-template-wizard")).clicked() {
         open_template_wizard(app);
     }
-    if ui.button("Save as Template…").clicked() {
+    if ui.button(t("ui-save-as-template")).clicked() {
         save_template(app);
     }
     ui.separator();
-    if ui.button("Fonts…").clicked() {
+    if ui.button(t("ui-fonts")).clicked() {
         app.lettering.fonts.open = true;
     }
-    if ui.button("Load TrueType Font…").clicked() {
+    if ui.button(t("ui-load-truetype-font")).clicked() {
         load_truetype(app);
     }
     crate::inkstitch_ui::menu(app, ui);
@@ -315,7 +316,7 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
         .default_width(380.0)
         .show(ctx, |ui| {
             let f = &mut app.lettering.fonts;
-            ui.label(egui::RichText::new("Fonts in this design").strong());
+            ui.label(egui::RichText::new(t("ui-fonts-in-this-design")).strong());
             if rows.is_empty() {
                 ui.weak("None yet. Load a TrueType font or create an embroidery font.");
             }
@@ -327,42 +328,42 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
                         ui.label(&r.id);
                     }
                     ui.weak(&r.label);
-                    if ui.small_button("Remove").clicked() {
+                    if ui.small_button(t("ui-remove")).clicked() {
                         action = Some(FontAction::Remove(r.id.clone()));
                     }
                 });
             }
-            if ui.button("Open OpenStitch font (.osfont)…").clicked() {
+            if ui.button(t("ui-open-openstitch-font-osfont")).clicked() {
                 action = Some(FontAction::Open);
             }
             ui.separator();
-            ui.label(egui::RichText::new("New embroidery font").strong());
+            ui.label(egui::RichText::new(t("ui-new-embroidery-font")).strong());
             ui.horizontal(|ui| {
-                ui.label("Id");
+                ui.label(t("ui-id"));
                 crate::a11y::name(&ui.text_edit_singleline(&mut f.new_id), "Id");
             });
             ui.horizontal(|ui| {
-                ui.label("Standard character height");
+                ui.label(t("ui-standard-character-height"));
                 ui.add(
                     crate::units_ui::drag(&mut f.new_height, units)
                         .range(1.0..=500.0)
                         ,
                 );
             });
-            if ui.button("Create").clicked() {
+            if ui.button(t("ui-create")).clicked() {
                 action = Some(FontAction::Create);
             }
             ui.separator();
             let editing = rows.iter().any(|r| r.embroidery && r.id == f.font);
             ui.add_enabled_ui(editing, |ui| {
-                ui.label(egui::RichText::new("User-mapped characters").strong());
+                ui.label(egui::RichText::new(t("ui-user-mapped-characters")).strong());
                 ui.horizontal(|ui| {
-                    ui.label("Character");
+                    ui.label(t("ui-character"));
                     let r = ui.add(egui::TextEdit::singleline(&mut f.character).desired_width(40.0));
                     crate::a11y::name(&r, "Character");
                     if ui
-                        .add_enabled(single.is_some(), egui::Button::new("Register selected object"))
-                        .on_hover_text("The selected object's stitches become this character")
+                        .add_enabled(single.is_some(), egui::Button::new(t("ui-register-selected-object")))
+                        .on_hover_text(t("ui-the-selected-object-s-stitches-become-tip"))
                         .clicked()
                         && let Some(id) = single
                     {
@@ -370,39 +371,39 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
                     }
                 });
                 if ui
-                    .button("Register stitch files…")
-                    .on_hover_text("File names give the characters: u_A, l_a, s_qm, a single character or U+XXXX")
+                    .button(t("ui-register-stitch-files"))
+                    .on_hover_text(t("ui-file-names-give-the-characters-u-tip"))
                     .clicked()
                 {
                     action = Some(FontAction::MapFiles);
                 }
                 ui.separator();
-                ui.label(egui::RichText::new("Font Creator").strong());
+                ui.label(egui::RichText::new(t("ui-font-creator")).strong());
                 ui.horizontal(|ui| {
-                    ui.label("From TrueType");
+                    ui.label(t("ui-from-truetype"));
                     font_combo(ui, "convert-from", "From TrueType", &mut f.convert_from, &truetype);
                 });
                 ui.add(egui::TextEdit::singleline(&mut f.convert_chars).hint_text("characters"));
-                if ui.button("Convert characters").clicked() {
+                if ui.button(t("ui-convert-characters")).clicked() {
                     action = Some(FontAction::Convert);
                 }
                 ui.horizontal(|ui| {
-                    ui.label("Draw at set line");
+                    ui.label(t("ui-draw-at-set-line"));
                     ui.add(crate::units_ui::drag(&mut f.glyph_x, units));
-                    ui.label("baseline");
+                    ui.label(t("ui-baseline"));
                     ui.add(crate::units_ui::drag(&mut f.glyph_y, units));
                 });
                 ui.horizontal(|ui| {
                     if ui
-                        .button("Edit character as shape")
-                        .on_hover_text("Puts the character's outline on the Design Page")
+                        .button(t("ui-edit-character-as-shape"))
+                        .on_hover_text(t("ui-puts-the-character-s-outline-on-tip"))
                         .clicked()
                     {
                         action = Some(FontAction::EditGlyph);
                     }
                     if ui
-                        .add_enabled(any_selected, egui::Button::new("Store selection as character"))
-                        .on_hover_text("The selected outlines, measured from the set line and baseline above, become the character")
+                        .add_enabled(any_selected, egui::Button::new(t("ui-store-selection-as-character")))
+                        .on_hover_text(t("ui-the-selected-outlines-measured-from-the-tip"))
                         .clicked()
                     {
                         action = Some(FontAction::SetGlyph);
@@ -411,7 +412,7 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
                 ui.separator();
                 image_characters(ui, f, has_background, &mut action);
                 ui.separator();
-                if ui.button("Save font as…").clicked() {
+                if ui.button(t("ui-save-font-as")).clicked() {
                     action = Some(FontAction::Save);
                 }
             });
@@ -537,7 +538,7 @@ fn image_characters(
     has_background: bool,
     action: &mut Option<FontAction>,
 ) {
-    ui.label(egui::RichText::new("Characters from image").strong());
+    ui.label(egui::RichText::new(t("ui-characters-from-image")).strong());
     let i = &mut f.image;
     ui.horizontal(|ui| {
         let name = i.path.as_ref().map_or_else(
@@ -554,14 +555,14 @@ fn image_characters(
             },
         );
         ui.label(name);
-        if ui.button("Choose image…").clicked() {
+        if ui.button(t("ui-choose-image")).clicked() {
             *action = Some(FontAction::ChooseImage);
         }
         if i.path.is_some()
             && has_background
             && ui
-                .button("Use background")
-                .on_hover_text("Read the background image as it is shown on the Design Page")
+                .button(t("ui-use-background"))
+                .on_hover_text(t("ui-read-the-background-image-as-it-tip"))
                 .clicked()
         {
             i.path = None;
@@ -570,16 +571,16 @@ fn image_characters(
     });
     ui.horizontal(|ui| {
         if ui
-            .radio_value(&mut i.whole, false, "Split into characters")
+            .radio_value(&mut i.whole, false, t("ui-split-into-characters"))
             .changed()
-            | ui.radio_value(&mut i.whole, true, "Whole image is the character")
+            | ui.radio_value(&mut i.whole, true, t("ui-whole-image-is-the-character"))
                 .changed()
         {
             i.found.clear();
         }
     });
     ui.horizontal(|ui| {
-        ui.label("Ink darker than");
+        ui.label(t("ui-ink-darker-than"));
         let r = ui.add(egui::DragValue::new(&mut i.threshold).range(1..=254));
         crate::a11y::name(&r, "Ink darker than");
         if i.whole {
@@ -587,18 +588,18 @@ fn image_characters(
                 i.path.is_none() && has_background,
                 egui::Checkbox::new(&mut i.as_placed, "As placed, from the set line and baseline"),
             )
-            .on_hover_text("Use the background image where it lies instead of fitting it to the standard height");
+            .on_hover_text(t("ui-use-the-background-image-where-it-tip"));
         }
     });
     if !i.whole {
         ui.horizontal(|ui| {
-            ui.label("Assign in order");
+            ui.label(t("ui-assign-in-order"));
             crate::a11y::name(&ui.text_edit_singleline(&mut i.order), "Assign in order");
         });
     }
     let ready = i.path.is_some() || has_background;
     if ui
-        .add_enabled(ready, egui::Button::new("Find characters"))
+        .add_enabled(ready, egui::Button::new(t("ui-find-characters")))
         .clicked()
     {
         *action = Some(FontAction::TraceImage);
@@ -622,7 +623,7 @@ fn image_characters(
                 }
             });
         });
-    if ui.button("Create characters").clicked() {
+    if ui.button(t("ui-create-characters")).clicked() {
         *action = Some(FontAction::FromImage);
     }
 }
@@ -866,36 +867,36 @@ fn text_window(app: &mut EditorApp, ctx: &egui::Context) {
             let f = &mut app.lettering.text;
             ui.add(egui::TextEdit::multiline(&mut f.text).desired_rows(2));
             egui::Grid::new("text-form").num_columns(2).show(ui, |ui| {
-                ui.label("Font");
+                ui.label(t("ui-font"));
                 font_combo(ui, "text-font", "Font", &mut f.font, &choices);
                 ui.end_row();
-                ui.label("Size");
+                ui.label(t("ui-size"));
                 ui.add(
                     crate::units_ui::drag(&mut f.size, units)
                         .range(1.0..=300.0)
                         ,
                 );
                 ui.end_row();
-                ui.label("Align");
+                ui.label(t("ui-align"));
                 ui.horizontal(|ui| {
                     for a in TextForm::ALIGNS {
                         ui.radio_value(&mut f.align, a, a);
                     }
                 });
                 ui.end_row();
-                ui.label("Options");
+                ui.label(t("menu-options"));
                 ui.horizontal(|ui| {
-                    ui.checkbox(&mut f.kerning, "Kerning")
-                        .on_hover_text("Use the TrueType font's kerning pairs");
-                    ui.checkbox(&mut f.vertical, "Vertical")
-                        .on_hover_text("Characters top to bottom, lines as columns right to left");
+                    ui.checkbox(&mut f.kerning, t("ui-kerning"))
+                        .on_hover_text(t("ui-use-the-truetype-font-s-kerning-tip"));
+                    ui.checkbox(&mut f.vertical, t("ui-vertical"))
+                        .on_hover_text(t("ui-characters-top-to-bottom-lines-as-tip"));
                 });
                 ui.end_row();
             });
             ui.weak(
                 "CJK, Arabic, Hebrew and other scripts need a TrueType font that has them (Load TrueType Font…); they are shaped and set right to left where needed.",
             );
-            if ui.button("Add").clicked() {
+            if ui.button(t("ui-add")).clicked() {
                 add = f.request();
             }
         });
@@ -944,11 +945,11 @@ fn monogram_window(app: &mut EditorApp, ctx: &egui::Context) {
             egui::Grid::new("monogram-form")
                 .num_columns(2)
                 .show(ui, |ui| {
-                    ui.label("Letters");
+                    ui.label(t("ui-letters"));
                     ui.add(egui::TextEdit::singleline(&mut f.letters).desired_width(60.0))
-                        .on_hover_text("1-3 letters or digits; upper-cased");
+                        .on_hover_text(t("ui-1-3-letters-or-digits-upper-tip"));
                     ui.end_row();
-                    ui.label("Style");
+                    ui.label(t("ui-style"));
                     ui.horizontal(|ui| {
                         for (id, name) in MonogramForm::STYLES {
                             if ui.radio_value(&mut f.style, id, name).changed() {
@@ -957,7 +958,7 @@ fn monogram_window(app: &mut EditorApp, ctx: &egui::Context) {
                         }
                     });
                     ui.end_row();
-                    ui.label("Font");
+                    ui.label(t("ui-font"));
                     let mut font = f.font.clone().unwrap_or_else(|| {
                         if f.style == "script" {
                             "pacifico"
@@ -969,10 +970,10 @@ fn monogram_window(app: &mut EditorApp, ctx: &egui::Context) {
                     font_combo(ui, "monogram-font", "Font", &mut font, &choices);
                     f.font = Some(font);
                     ui.end_row();
-                    ui.label("Height");
+                    ui.label(t("ui-height"));
                     ui.add(crate::units_ui::drag(&mut f.size, units).range(5.0..=300.0));
                     ui.end_row();
-                    ui.label("Frame");
+                    ui.label(t("ui-frame"));
                     let label = f
                         .frame
                         .and_then(|id| frames.iter().find(|(i, _)| i == id))
@@ -989,27 +990,27 @@ fn monogram_window(app: &mut EditorApp, ctx: &egui::Context) {
                         });
                     crate::a11y::name(&r.response, "Frame");
                     ui.end_row();
-                    ui.label("Margin");
+                    ui.label(t("ui-margin"));
                     ui.add(crate::units_ui::drag(&mut f.margin, units).range(0.0..=50.0));
                     ui.end_row();
                     ui.label("");
-                    ui.checkbox(&mut f.keep_aspect, "Maintain aspect ratio");
+                    ui.checkbox(&mut f.keep_aspect, t("ui-maintain-aspect-ratio"));
                     ui.end_row();
                 });
             ui.horizontal(|ui| {
-                add = ui.button("Add").clicked();
+                add = ui.button(t("ui-add")).clicked();
                 edit = ui
                     .add_enabled(
                         selected_monogram.is_some(),
-                        egui::Button::new("Apply to selected monogram"),
+                        egui::Button::new(t("ui-apply-to-selected-monogram")),
                     )
                     .clicked();
                 decorate = ui
                     .add_enabled(
                         !app.selection.is_empty() && f.frame.is_some(),
-                        egui::Button::new("Frame the selection"),
+                        egui::Button::new(t("ui-frame-the-selection")),
                     )
-                    .on_hover_text("Decorative frame around the selected objects")
+                    .on_hover_text(t("ui-decorative-frame-around-the-selected-objects-tip"))
                     .clicked();
             });
             ui.weak("Letter styles and frames are OpenStitch's own designs.");
@@ -1088,9 +1089,9 @@ fn name_drop_window(app: &mut EditorApp, ctx: &egui::Context) {
         .default_width(420.0)
         .show(ctx, |ui| {
             let f = &mut app.lettering.name_drop;
-            ui.label(egui::RichText::new("Name Drop attribute").strong());
+            ui.label(egui::RichText::new(t("ui-name-drop-attribute")).strong());
             ui.horizontal(|ui| {
-                ui.checkbox(&mut f.maintain_aspect, "Maintain aspect ratio");
+                ui.checkbox(&mut f.maintain_aspect, t("ui-maintain-aspect-ratio"));
                 for a in ["left", "center", "right"] {
                     ui.radio_value(&mut f.align, a, a);
                 }
@@ -1100,10 +1101,10 @@ fn name_drop_window(app: &mut EditorApp, ctx: &egui::Context) {
             });
             ui.horizontal(|ui| {
                 ui.add_enabled_ui(texts_selected, |ui| {
-                    if ui.button("Apply to selected text").clicked() {
+                    if ui.button(t("ui-apply-to-selected-text")).clicked() {
                         action = Some(DropAction::Attribute(true));
                     }
-                    if ui.button("Remove from selected text").clicked() {
+                    if ui.button(t("ui-remove-from-selected-text")).clicked() {
                         action = Some(DropAction::Attribute(false));
                     }
                 });
@@ -1153,22 +1154,22 @@ fn name_drop_window(app: &mut EditorApp, ctx: &egui::Context) {
             ui.horizontal(|ui| {
                 if ui
                     .button("+")
-                    .on_hover_text("Add a row (500 at most)")
+                    .on_hover_text(t("ui-add-a-row-500-at-most-tip"))
                     .clicked()
                 {
                     f.add_row(n);
                 }
-                if ui.button("Insert").clicked() {
+                if ui.button(t("ui-insert")).clicked() {
                     f.insert_row(n);
                 }
-                if ui.button("Delete").clicked() {
+                if ui.button(t("ui-delete")).clicked() {
                     f.delete_row();
                 }
-                if ui.button("Import CSV…").clicked() {
+                if ui.button(t("ui-import-csv")).clicked() {
                     action = Some(DropAction::ImportCsv);
                 }
                 if ui
-                    .add_enabled(!f.rows.is_empty(), egui::Button::new("Save as CSV…"))
+                    .add_enabled(!f.rows.is_empty(), egui::Button::new(t("ui-save-as-csv")))
                     .clicked()
                 {
                     action = Some(DropAction::SaveCsv);
@@ -1177,13 +1178,13 @@ fn name_drop_window(app: &mut EditorApp, ctx: &egui::Context) {
             ui.separator();
             ui.horizontal(|ui| {
                 if ui
-                    .add_enabled(f.selected.is_some(), egui::Button::new("Use selected row"))
-                    .on_hover_text("Put the row's text into the design")
+                    .add_enabled(f.selected.is_some(), egui::Button::new(t("ui-use-selected-row")))
+                    .on_hover_text(t("ui-put-the-row-s-text-into-tip"))
                     .clicked()
                 {
                     action = Some(DropAction::Apply);
                 }
-                ui.label("File name");
+                ui.label(t("ui-file-name"));
                 ui.add(egui::TextEdit::singleline(&mut f.name).desired_width(90.0));
                 egui::ComboBox::from_id_salt("name-drop-format")
                     .selected_text(f.format)
@@ -1193,8 +1194,8 @@ fn name_drop_window(app: &mut EditorApp, ctx: &egui::Context) {
                         }
                     });
                 if ui
-                    .add_enabled(!f.rows.is_empty(), egui::Button::new("To Folder…"))
-                    .on_hover_text("One file per row: name001, name002, …")
+                    .add_enabled(!f.rows.is_empty(), egui::Button::new(t("ui-to-folder")))
+                    .on_hover_text(t("ui-one-file-per-row-name001-name002-tip"))
                     .clicked()
                 {
                     action = Some(DropAction::ToFolder);
@@ -1284,7 +1285,7 @@ fn template_window(app: &mut EditorApp, ctx: &egui::Context) {
             let w = &mut app.lettering.templates;
             match w.step {
                 2 => {
-                    ui.label(egui::RichText::new("Step 2 · Edit the text").strong());
+                    ui.label(egui::RichText::new(t("ui-step-2-edit-the-text")).strong());
                     ui.weak("The Design Page shows the template; it updates when you apply.");
                     egui::Grid::new("template-slots")
                         .num_columns(2)
@@ -1299,20 +1300,20 @@ fn template_window(app: &mut EditorApp, ctx: &egui::Context) {
                             }
                         });
                     ui.horizontal(|ui| {
-                        back = ui.button("Back").clicked();
-                        next = ui.button("Apply and continue").clicked();
+                        back = ui.button(t("ui-back")).clicked();
+                        next = ui.button(t("ui-apply-and-continue")).clicked();
                     });
                 }
                 3 => {
-                    ui.label(egui::RichText::new("Step 3 · Output").strong());
-                    done = ui.button("Edit in Design Page").clicked();
-                    export = ui.button("Export PES…").clicked();
-                    again = ui.button("Create new embroidery design").clicked();
+                    ui.label(egui::RichText::new(t("ui-step-3-output")).strong());
+                    done = ui.button(t("ui-edit-in-design-page")).clicked();
+                    export = ui.button(t("ui-export-pes")).clicked();
+                    again = ui.button(t("ui-create-new-embroidery-design")).clicked();
                 }
                 _ => {
-                    ui.label(egui::RichText::new("Step 1 · Choose a template").strong());
+                    ui.label(egui::RichText::new(t("ui-step-1-choose-a-template")).strong());
                     ui.horizontal(|ui| {
-                        folder = ui.button("Template folder…").clicked();
+                        folder = ui.button(t("ui-template-folder")).clicked();
                         ui.weak(
                             w.dir
                                 .as_ref()
@@ -1343,7 +1344,7 @@ fn template_window(app: &mut EditorApp, ctx: &egui::Context) {
                         w.chosen = picked;
                     }
                     ui.add_enabled_ui(w.chosen.is_some(), |ui| {
-                        next = ui.button("Next").clicked();
+                        next = ui.button(t("ui-next")).clicked();
                     });
                 }
             }
@@ -1387,8 +1388,8 @@ pub fn character_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     let design = app.session.design().clone();
     let picked = app.tools.selected_character(&app.tool_context(&design));
     let Some((id, index)) = picked else {
-        ui.label("Pick Point Edit, then click a character of the selected text.");
-        if app.tools.tool() != Tool::Point && ui.button("Point Edit").clicked() {
+        ui.label(t("ui-pick-point-edit-then-click-a"));
+        if app.tools.tool() != Tool::Point && ui.button(t("ui-point-edit")).clicked() {
             app.tools.set_tool(Tool::Point);
             app.workspace.measure.active = false;
             app.ui.pan = false;
@@ -1436,7 +1437,7 @@ pub fn character_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         app.execute(&set_character(id, &e));
     }
     if ui
-        .add_enabled(!before.is_noop(), egui::Button::new("Reset character"))
+        .add_enabled(!before.is_noop(), egui::Button::new(t("ui-reset-character")))
         .clicked()
     {
         app.execute(&CommandRequest::new(

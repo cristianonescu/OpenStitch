@@ -3,6 +3,7 @@
 //! `openstitch_app::editor::palette`; the Assistant uses the same index with
 //! `ui.searchCommands`.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui::{self, RichText};
 use openstitch_app::editor::palette;
@@ -107,7 +108,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
             }
             ui.separator();
             if hits.is_empty() {
-                ui.label(RichText::new("No command matches").weak());
+                ui.label(RichText::new(t("ui-no-command-matches")).weak());
             }
             egui::ScrollArea::vertical()
                 .max_height(360.0)

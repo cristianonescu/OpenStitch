@@ -2,6 +2,7 @@
 //! [`openstitch_app::editor::wizard::ImageWizard`]; Convert runs its one `digitize.*` command,
 //! so the whole conversion is one Undo.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui;
 use openstitch_app::editor::CommandRequest;
@@ -30,7 +31,7 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
             let w = &mut app.wizard;
             crate::art::header(ui, crate::art::Art::WizardImage, |ui| {
                 ui.add_space(4.0);
-                if ui.button("Choose image…").clicked()
+                if ui.button(t("ui-choose-image")).clicked()
                     && let Some(p) = crate::files::FileDialog::new()
                         .add_filter("Images", &["png", "jpg", "jpeg", "bmp"])
                         .pick_file()
@@ -62,10 +63,10 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
             ui.weak(w.method.hint());
             ui.separator();
             egui::Grid::new("wizard").num_columns(2).show(ui, |ui| {
-                ui.label("Width");
+                ui.label(t("ui-width"));
                 ui.horizontal(|ui| {
                     let mut fit = w.width_mm.is_none();
-                    if ui.checkbox(&mut fit, "Fit page").changed() {
+                    if ui.checkbox(&mut fit, t("ui-fit-page")).changed() {
                         w.width_mm = if fit { None } else { Some(80.0) };
                     }
                     if let Some(v) = &mut w.width_mm {
@@ -79,17 +80,17 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                     _ => true,
                 };
                 if matches!(w.method, Method::PhotoFill | Method::PhotoLines) {
-                    ui.label("Mode");
+                    ui.label(t("ui-mode"));
                     ui.horizontal(|ui| {
                         let mut mono = w.mono;
-                        ui.radio_value(&mut mono, false, "Colour");
-                        ui.radio_value(&mut mono, true, "Mono");
+                        ui.radio_value(&mut mono, false, t("ui-colour"));
+                        ui.radio_value(&mut mono, true, t("ui-mono"));
                         w.change(|w| w.mono = mono);
                     });
                     ui.end_row();
                 }
                 if colours {
-                    ui.label("Colours");
+                    ui.label(t("ui-colours"));
                     // 0 is "Auto" (Auto Punch, Cross Stitch): the image's own colour count.
                     let low = if matches!(w.method, Method::PhotoFill | Method::PhotoLines) {
                         1
@@ -110,7 +111,7 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                 }
                 match w.method {
                     Method::AutoPunch => {
-                        ui.label("Smallest region");
+                        ui.label(t("ui-smallest-region"));
                         if ui
                             .add(egui::Slider::new(&mut w.min_area, 0.0..=50.0).suffix(" mm²"))
                             .changed()
@@ -118,7 +119,7 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                             w.min_area_set = true;
                         }
                         ui.end_row();
-                        ui.label("Satin up to");
+                        ui.label(t("ui-satin-up-to"));
                         if ui
                             .add(egui::Slider::new(&mut w.satin_max, 1.0..=12.0).suffix(" mm"))
                             .changed()
@@ -128,21 +129,21 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                         ui.end_row();
                     }
                     Method::CrossStitch => {
-                        ui.label("Cell size");
+                        ui.label(t("ui-cell-size"));
                         ui.add(egui::Slider::new(&mut w.cell, 1.0..=10.0).suffix(" mm"));
                         ui.end_row();
-                        ui.label("Stitch");
+                        ui.label(t("ui-stitch"));
                         ui.horizontal(|ui| {
-                            ui.radio_value(&mut w.half_cross, false, "Full cross");
-                            ui.radio_value(&mut w.half_cross, true, "Half cross");
+                            ui.radio_value(&mut w.half_cross, false, t("ui-full-cross"));
+                            ui.radio_value(&mut w.half_cross, true, t("ui-half-cross"));
                         });
                         ui.end_row();
                     }
                     Method::PhotoFill | Method::PhotoLines => {
-                        ui.label("Row spacing");
+                        ui.label(t("ui-row-spacing"));
                         ui.horizontal(|ui| {
                             let mut auto = w.row_spacing.is_none();
-                            if ui.checkbox(&mut auto, "Default").changed() {
+                            if ui.checkbox(&mut auto, t("ui-default")).changed() {
                                 w.row_spacing = if auto { None } else { Some(0.6) };
                             }
                             if let Some(v) = &mut w.row_spacing {
@@ -159,21 +160,21 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                     Method::DesignCenter => {
                         // OpenStitch mode may choose the threshold and line sewing itself.
                         if !(w.open_stitch && w.auto_lines) {
-                            ui.label("Line threshold");
+                            ui.label(t("ui-line-threshold"));
                             ui.add(egui::Slider::new(&mut w.threshold, 1..=254));
                             ui.end_row();
-                            ui.label("Lines");
+                            ui.label(t("ui-lines"));
                             combo(ui, "lineSew", &mut w.line_sew, &LINE_SEWS);
                             ui.end_row();
                         }
-                        ui.label("Regions");
+                        ui.label(t("ui-regions"));
                         combo(ui, "regionSew", &mut w.region_sew, &REGION_SEWS);
                         ui.end_row();
                     }
                 }
                 if w.method == Method::AutoPunch && w.open_stitch {
                     ui.label("");
-                    ui.checkbox(&mut w.isolate_subject, "Isolate the subject").on_hover_text(
+                    ui.checkbox(&mut w.isolate_subject, t("ui-isolate-the-subject")).on_hover_text(
                         "Finds the subject by a graph cut on its colours and leaves out \
                          everything around it, whatever its colour. The image border is the \
                          background it learns from.",
@@ -184,7 +185,7 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                         ui.horizontal(|ui| {
                             ui.add_enabled_ui(w.path.is_some(), |ui| {
                                 if ui
-                                    .button("Mark subject…")
+                                    .button(t("ui-mark-subject"))
                                     .on_hover_text(
                                         "Brush over parts that are subject or background for \
                                          certain, such as a bowl the colour of its table.",
@@ -202,7 +203,7 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                     }
                     ui.label("");
                     ui.add_enabled_ui(!w.isolate_subject, |ui| {
-                        ui.checkbox(&mut w.sew_background, "Sew the background")
+                        ui.checkbox(&mut w.sew_background, t("ui-sew-the-background"))
                             .on_hover_text(
                                 "Everything in the picture is sewn. Off leaves out the colour \
                                  covering most of the border; a background of the fabric's \
@@ -212,7 +213,7 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                     ui.end_row();
                 } else if matches!(w.method, Method::AutoPunch | Method::CrossStitch) {
                     ui.label("");
-                    ui.checkbox(&mut w.skip_background, "Leave out the background colour");
+                    ui.checkbox(&mut w.skip_background, t("ui-leave-out-the-background-colour"));
                     ui.end_row();
                 }
                 if w.improvable() {
@@ -233,13 +234,13 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                          truer colour; a few more trims."
                     };
                     // "Method", not "Mode": Photo Stitch's Colour / Mono row is its Mode.
-                    ui.label("Method");
+                    ui.label(t("ui-method"));
                     ui.horizontal(|ui| {
                         let before = w.open_stitch;
                         let mut open_stitch = w.open_stitch;
-                        ui.radio_value(&mut open_stitch, false, "PE-DESIGN-compatible")
-                            .on_hover_text("Converts as PE-DESIGN 11.50 does (RGB colour reduction and thread matching).");
-                        ui.radio_value(&mut open_stitch, true, "OpenStitch")
+                        ui.radio_value(&mut open_stitch, false, t("ui-pe-design-compatible"))
+                            .on_hover_text(t("ui-converts-as-pe-design-11-50-tip"));
+                        ui.radio_value(&mut open_stitch, true, t("ui-openstitch"))
                             .on_hover_text(improved);
                         w.change(|w| w.open_stitch = open_stitch);
                         // Auto Punch's small-region area shows the mode's default until it is set.
@@ -255,12 +256,12 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                         open_stitch_rows(ui, w);
                     }
                     if w.open_stitch && w.has_fidelity() {
-                        ui.label("Fidelity");
+                        ui.label(t("ui-fidelity"));
                         ui.horizontal(|ui| {
                             let mut high = w.high_fidelity;
-                            ui.radio_value(&mut high, false, "Standard")
-                                .on_hover_text("Today's colour counts and speed.");
-                            ui.radio_value(&mut high, true, "High").on_hover_text(
+                            ui.radio_value(&mut high, false, t("ui-standard"))
+                                .on_hover_text(t("ui-today-s-colour-counts-and-speed-tip"));
+                            ui.radio_value(&mut high, true, t("ui-high")).on_hover_text(
                                 "Closer to the image: up to 24 colours by default and slower \
                                  passes. The needle density stays the same.",
                             );
@@ -274,7 +275,7 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                 }
                 if matches!(w.method, Method::AutoPunch | Method::DesignCenter) {
                     ui.label("");
-                    ui.checkbox(&mut w.curves, "Fit curves");
+                    ui.checkbox(&mut w.curves, t("ui-fit-curves"));
                     ui.end_row();
                 }
             });
@@ -285,7 +286,7 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
             ui.separator();
             ui.weak("Approximations of PE-DESIGN's wizards; results are editable and one Undo.");
             ui.add_enabled_ui(w.path.is_some(), |ui| {
-                convert = ui.button("Convert").clicked();
+                convert = ui.button(t("ui-convert")).clicked();
             });
         });
     app.wizard.open = open;
@@ -354,8 +355,8 @@ fn regions_section(ui: &mut egui::Ui, w: &mut ImageWizard) -> bool {
         let can_fix = w.plan.as_ref().is_some_and(|p| p.map_size.0 > 0) && w.plan_current();
         ui.add_enabled_ui(can_fix, |ui| {
             if ui
-                .button("Fix on the picture…")
-                .on_hover_text("Click a part of the picture to leave it out or put it back.")
+                .button(t("ui-fix-on-the-picture"))
+                .on_hover_text(t("ui-click-a-part-of-the-picture-tip"))
                 .clicked()
             {
                 w.fixing = true;
@@ -437,13 +438,13 @@ fn regions_section(ui: &mut egui::Ui, w: &mut ImageWizard) -> bool {
                     ui.label(format!("{}.", i + 1));
                     ui.label(colour_text(c));
                     if ui
-                        .add_enabled(i > 0, egui::Button::new("Earlier"))
+                        .add_enabled(i > 0, egui::Button::new(t("ui-earlier")))
                         .clicked()
                     {
                         moved = Some((i, true));
                     }
                     if ui
-                        .add_enabled(i + 1 < colours.len(), egui::Button::new("Later"))
+                        .add_enabled(i + 1 < colours.len(), egui::Button::new(t("ui-later")))
                         .clicked()
                     {
                         moved = Some((i, false));
@@ -454,7 +455,7 @@ fn regions_section(ui: &mut egui::Ui, w: &mut ImageWizard) -> bool {
                 w.move_colour(i, earlier);
             }
             ui.weak("Region numbers follow the sewing order: preview again after a change.");
-            if !w.order.is_empty() && ui.button("PE-DESIGN's order").clicked() {
+            if !w.order.is_empty() && ui.button(t("ui-pe-design-s-order")).clicked() {
                 w.order.clear();
             }
         });
@@ -525,7 +526,7 @@ fn fixing_window(app: &mut EditorApp, ctx: &egui::Context) {
         .resizable(false)
         .show(ctx, |ui| {
             let Some((_, (iw, ih), texture)) = &app.wizard_preview else {
-                ui.label("The image could not be read.");
+                ui.label(t("ui-the-image-could-not-be-read"));
                 return;
             };
             let scale = 480.0 / (*iw).max(*ih).max(1) as f32;
@@ -584,21 +585,21 @@ fn marking_window(app: &mut EditorApp, ctx: &egui::Context) {
         .show(ctx, |ui| {
             let w = &mut app.wizard;
             ui.horizontal(|ui| {
-                ui.radio_value(&mut w.mark_subject, true, "Subject");
-                ui.radio_value(&mut w.mark_subject, false, "Background");
-                ui.label("Brush");
+                ui.radio_value(&mut w.mark_subject, true, t("ui-subject"));
+                ui.radio_value(&mut w.mark_subject, false, t("ui-background"));
+                ui.label(t("ui-brush"));
                 ui.add(egui::Slider::new(&mut w.mark_width, MARK_WIDTHS).show_value(false));
             });
             ui.horizontal(|ui| {
-                if ui.button("Undo stroke").clicked() {
+                if ui.button(t("ui-undo-stroke")).clicked() {
                     w.marks.pop();
                 }
-                if ui.button("Clear").clicked() {
+                if ui.button(t("menu-clear")).clicked() {
                     w.marks.clear();
                 }
             });
             let Some((_, (iw, ih), texture)) = &app.wizard_preview else {
-                ui.label("The image could not be read.");
+                ui.label(t("ui-the-image-could-not-be-read"));
                 return;
             };
             // Fit the image in 480 × 480 points.
@@ -656,7 +657,7 @@ fn marking_window(app: &mut EditorApp, ctx: &egui::Context) {
 fn open_stitch_rows(ui: &mut egui::Ui, w: &mut ImageWizard) {
     match w.method {
         Method::AutoPunch => {
-            ui.label("Preset");
+            ui.label(t("ui-preset"));
             let label = |p: Option<&str>| {
                 PRESETS
                     .iter()
@@ -678,7 +679,7 @@ fn open_stitch_rows(ui: &mut egui::Ui, w: &mut ImageWizard) {
                 );
             ui.end_row();
             ui.label("");
-            ui.checkbox(&mut w.vary_angles, "Vary angles of touching fills")
+            ui.checkbox(&mut w.vary_angles, t("ui-vary-angles-of-touching-fills"))
                 .on_hover_text(
                     "A fill within 20° of a touching fill sewn before it (both at least 20 mm²) is \
                      turned as far from it as it can be, so fitted panels read apart.",
@@ -687,11 +688,11 @@ fn open_stitch_rows(ui: &mut egui::Ui, w: &mut ImageWizard) {
         }
         Method::CrossStitch => {
             ui.label("");
-            ui.checkbox(&mut w.cross_fill, "Fill each cell")
-                .on_hover_text("Parallel diagonals about 0.3 mm apart instead of one cross.");
+            ui.checkbox(&mut w.cross_fill, t("ui-fill-each-cell"))
+                .on_hover_text(t("ui-parallel-diagonals-about-0-3-mm-tip"));
             ui.end_row();
             ui.label("");
-            ui.checkbox(&mut w.part_crosses, "Part crosses on edges")
+            ui.checkbox(&mut w.part_crosses, t("ui-part-crosses-on-edges"))
                 .on_hover_text(
                     "A cell split by an edge becomes a three-quarter and a quarter cross.",
                 );
@@ -699,21 +700,21 @@ fn open_stitch_rows(ui: &mut egui::Ui, w: &mut ImageWizard) {
         }
         Method::DesignCenter => {
             ui.label("");
-            ui.checkbox(&mut w.auto_lines, "Automatic threshold and lines")
+            ui.checkbox(&mut w.auto_lines, t("ui-automatic-threshold-and-lines"))
                 .on_hover_text(
                     "The threshold by Otsu's method; lines sewn as wide as the drawing's.",
                 );
             ui.end_row();
         }
         Method::PhotoFill if !w.mono => {
-            ui.label("Trims");
+            ui.label(t("ui-trims"));
             ui.horizontal(|ui| {
                 let mut all = w.all_trims();
-                ui.radio_value(&mut all, false, "Fewer").on_hover_text(
+                ui.radio_value(&mut all, false, t("ui-fewer")).on_hover_text(
                     "Short travel stitches up to 2 mm instead of about half the trims.",
                 );
-                ui.radio_value(&mut all, true, "All")
-                    .on_hover_text("Every jump trimmed: the best likeness.");
+                ui.radio_value(&mut all, true, t("ui-all"))
+                    .on_hover_text(t("ui-every-jump-trimmed-the-best-likeness-tip"));
                 if all != w.all_trims() {
                     w.all_trims = Some(all);
                 }
@@ -733,7 +734,7 @@ fn threads_rows(ui: &mut egui::Ui, w: &mut ImageWizard, charts: &[String]) {
         "all" => "All built-in charts".to_string(),
         other => other.to_string(),
     };
-    ui.label("Threads");
+    ui.label(t("ui-threads"));
     egui::ComboBox::from_id_salt("wizardThreads")
         .selected_text(label(&w.threads))
         .show_ui(ui, |ui| {
@@ -747,7 +748,7 @@ fn threads_rows(ui: &mut egui::Ui, w: &mut ImageWizard, charts: &[String]) {
             }
         });
     ui.end_row();
-    ui.label("I own");
+    ui.label(t("ui-i-own"));
     egui::ComboBox::from_id_salt("wizardOwned")
         .selected_text(w.owned.clone().unwrap_or_else(|| "(not set)".into()))
         .show_ui(ui, |ui| {
@@ -757,7 +758,7 @@ fn threads_rows(ui: &mut egui::Ui, w: &mut ImageWizard, charts: &[String]) {
             }
         })
         .response
-        .on_hover_text("One of your thread charts: threads chosen outside it are listed to buy.");
+        .on_hover_text(t("ui-one-of-your-thread-charts-threads-tip"));
     ui.end_row();
 }
 

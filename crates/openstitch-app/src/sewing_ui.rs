@@ -7,6 +7,7 @@
 //! `sewing.duplicate` do for one in the project); the template image, orientation, grid
 //! spacing and the Stitch Simulator are window state.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use crate::suite_chrome::{self, Host};
 use eframe::egui::{self, Color32, Pos2, Sense, Stroke};
@@ -315,10 +316,10 @@ impl Host<FactoryAction> for EditorApp {
                         .custom_formatter(|v, _| format!("{:.0} %", v * 100.0)),
                 );
                 ui.horizontal(|ui| {
-                    if ui.button("Lighter").clicked() {
+                    if ui.button(t("ui-lighter")).clicked() {
                         st.template_density = (st.template_density - 0.25).max(0.0);
                     }
-                    if ui.button("Darker").clicked() {
+                    if ui.button(t("ui-darker")).clicked() {
                         st.template_density = (st.template_density + 0.25).min(1.0);
                     }
                 });
@@ -601,11 +602,11 @@ pub fn factory(app: &mut EditorApp, ui: &mut egui::Ui) {
                 for q in &stored {
                     ui.label(format!("{} ({}, {})", q.name, q.kind.id(), q.id));
                     ui.horizontal(|ui| {
-                        if ui.button("Edit").clicked() {
+                        if ui.button(t("ui-edit")).clicked() {
                             app.sewing.editor = SewingEditor::from_stitch(q);
                             app.sewing.selected = None;
                         }
-                        if ui.button("Delete").clicked() {
+                        if ui.button(t("ui-delete")).clicked() {
                             requests
                                 .push(CommandRequest::new("sewing.delete", json!({ "id": q.id })));
                         }
@@ -768,7 +769,7 @@ fn preview(ui: &mut egui::Ui, e: &SewingEditor) {
 
 fn settings(ui: &mut egui::Ui, e: &mut SewingEditor) {
     ui.horizontal(|ui| {
-        ui.label("Kind");
+        ui.label(t("ui-kind"));
         let r = egui::ComboBox::from_id_salt("sdf-kind")
             .selected_text(e.doc.kind.label())
             .show_ui(ui, |ui| {
@@ -780,13 +781,13 @@ fn settings(ui: &mut egui::Ui, e: &mut SewingEditor) {
                 }
             });
         crate::a11y::name(&r.response, "Kind");
-        ui.label("Id");
+        ui.label(t("ui-id"));
         let r = ui.add(egui::TextEdit::singleline(&mut e.doc.id).desired_width(120.0));
         crate::a11y::name(&r, "Id");
-        ui.label("Name");
+        ui.label(t("ui-name"));
         let r = ui.add(egui::TextEdit::singleline(&mut e.doc.name).desired_width(140.0));
         crate::a11y::name(&r, "Name");
-        ui.label("Width");
+        ui.label(t("ui-width"));
         ui.add(
             egui::DragValue::new(&mut e.doc.width)
                 .range(1.0..=MAX_WIDTH)
@@ -795,7 +796,7 @@ fn settings(ui: &mut egui::Ui, e: &mut SewingEditor) {
         );
         match e.doc.kind {
             SewingKind::Satin | SewingKind::DecorativeSatin => {
-                ui.label("Density");
+                ui.label(t("ui-density"));
                 ui.add(
                     egui::DragValue::new(&mut e.doc.density)
                         .range(1.0..=10.0)
@@ -804,16 +805,16 @@ fn settings(ui: &mut egui::Ui, e: &mut SewingEditor) {
                 );
             }
             SewingKind::Cross => {
-                ui.label("Cell");
+                ui.label(t("ui-cell"));
                 ui.add(
                     egui::DragValue::new(&mut e.doc.cell_size)
                         .range(0.5..=5.0)
                         .speed(0.05)
                         .suffix(" mm"),
                 );
-                ui.label("Rows");
+                ui.label(t("ui-rows"));
                 ui.add(egui::DragValue::new(&mut e.doc.rows).range(1..=18));
-                ui.checkbox(&mut e.doc.triple, "Triple");
+                ui.checkbox(&mut e.doc.triple, t("ui-triple"));
             }
             SewingKind::Decorative => {}
         }

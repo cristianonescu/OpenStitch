@@ -6,6 +6,7 @@
 //! Only the visible rows are drawn, so a 20,000-point pattern scrolls without lag.
 //! Opened with the Sewing Attributes pane's Stitch Table button or `ui.stitchTable`.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui::{self, RichText};
 use openstitch_app::editor::{CommandRequest, Tool};
@@ -208,7 +209,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
 
 fn table(app: &mut EditorApp, ui: &mut egui::Ui) {
     let Some(id) = target(app) else {
-        ui.label(RichText::new("Select one stitch pattern to list its needle points.").weak());
+        ui.label(RichText::new(t("ui-select-one-stitch-pattern-to-list")).weak());
         return;
     };
     let all = rows_of(app, id);
@@ -218,10 +219,10 @@ fn table(app: &mut EditorApp, ui: &mut egui::Ui) {
         ui.label(format!("{} points, {} colour blocks", rows.len(), blocks));
         if all.edited {
             ui.separator();
-            ui.label("edited by hand");
+            ui.label(t("ui-edited-by-hand"));
             if ui
-                .button("Regenerate")
-                .on_hover_text("Drop the hand edits: the object sews its generated stitches again")
+                .button(t("ui-regenerate"))
+                .on_hover_text(t("ui-drop-the-hand-edits-the-object-tip"))
                 .clicked()
             {
                 app.execute(&CommandRequest::new(
@@ -232,15 +233,15 @@ fn table(app: &mut EditorApp, ui: &mut egui::Ui) {
         }
         ui.separator();
         if ui
-            .add_enabled(!selected.is_empty(), egui::Button::new("Insert"))
-            .on_hover_text("Add a needle point halfway along the line into the first selected row")
+            .add_enabled(!selected.is_empty(), egui::Button::new(t("ui-insert")))
+            .on_hover_text(t("ui-add-a-needle-point-halfway-along-tip"))
             .clicked()
         {
             app.table_insert(id);
         }
         if ui
-            .add_enabled(!selected.is_empty(), egui::Button::new("Delete"))
-            .on_hover_text("Delete the selected rows (a jump's end joins the stitches either side)")
+            .add_enabled(!selected.is_empty(), egui::Button::new(t("ui-delete")))
+            .on_hover_text(t("ui-delete-the-selected-rows-a-jump-tip"))
             .clicked()
         {
             app.table_delete(id);

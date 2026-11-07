@@ -3,6 +3,7 @@
 //! itself is `openstitch_app::editor::keymap`; the Assistant reads and sets it with
 //! `ui.settings` / `ui.set shortcuts`.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui::{self, KeyboardShortcut, Modifiers, RichText};
 use openstitch_app::editor::keymap::{self, Keymap};
@@ -146,33 +147,33 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         .default_size([480.0, 520.0])
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.label("Find");
+                ui.label(t("ui-find"));
                 ui.add(
                     egui::TextEdit::singleline(&mut app.ui.keys.filter)
                         .hint_text("command name")
                         .desired_width(200.0),
                 );
-                ui.checkbox(&mut app.ui.keys.all, "All commands")
-                    .on_hover_text("List commands without a shortcut too, to give them one");
+                ui.checkbox(&mut app.ui.keys.all, t("ui-all-commands"))
+                    .on_hover_text(t("ui-list-commands-without-a-shortcut-too-tip"));
             });
             ui.horizontal(|ui| {
                 if ui
-                    .button("Reset All")
-                    .on_hover_text("Back to the PE-style default shortcuts")
+                    .button(t("ui-reset-all"))
+                    .on_hover_text(t("ui-back-to-the-pe-style-default-tip"))
                     .clicked()
                 {
                     set_keymap(app, Keymap::default(), "Default shortcuts restored".into());
                 }
                 if ui
-                    .button("Export…")
-                    .on_hover_text("Save the shortcuts as a JSON file")
+                    .button(t("ui-export"))
+                    .on_hover_text(t("ui-save-the-shortcuts-as-a-json-tip"))
                     .clicked()
                 {
                     export(app);
                 }
                 if ui
-                    .button("Import…")
-                    .on_hover_text("Load shortcuts saved with Export (replaces the changed ones)")
+                    .button(t("ui-import-2"))
+                    .on_hover_text(t("ui-load-shortcuts-saved-with-export-replaces-tip"))
                     .clicked()
                 {
                     import(app);
@@ -219,7 +220,7 @@ fn rows(app: &mut EditorApp, ui: &mut egui::Ui) {
                 for c in &chords {
                     if ui
                         .small_button(RichText::new(shown(c)).monospace())
-                        .on_hover_text("Click to remove this shortcut")
+                        .on_hover_text(t("ui-click-to-remove-this-shortcut-tip"))
                         .clicked()
                     {
                         let mut k = app.ui.prefs.keymap.clone();
@@ -233,13 +234,13 @@ fn rows(app: &mut EditorApp, ui: &mut egui::Ui) {
                 let text = if recording { "Press a key…" } else { "Add" };
                 if ui
                     .selectable_label(recording, text)
-                    .on_hover_text("Press the new shortcut; Esc cancels")
+                    .on_hover_text(t("ui-press-the-new-shortcut-esc-cancels-tip"))
                     .clicked()
                 {
                     app.ui.keys.recording = (!recording).then_some(a);
                     app.ui.keys.message.clear();
                 }
-                if app.ui.prefs.keymap.is_custom(a) && ui.small_button("Reset").clicked() {
+                if app.ui.prefs.keymap.is_custom(a) && ui.small_button(t("ui-reset")).clicked() {
                     let mut k = app.ui.prefs.keymap.clone();
                     k.reset(a);
                     set_keymap(app, k, format!("{} back to its default", info.label));

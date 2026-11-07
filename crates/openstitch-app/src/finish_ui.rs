@@ -1,6 +1,7 @@
 //! Sewing Order pane ▸ Finish (#548, beyond PE-DESIGN): trim after, ties and a text's trims
 //! between letters. Every control sends one `object.setFinish`, one undo step.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui;
 use openstitch_app::editor::CommandRequest;
@@ -52,7 +53,7 @@ pub fn finish_controls(app: &EditorApp, ui: &mut egui::Ui) -> Option<CommandRequ
         .id_salt("object-finish")
         .show(ui, |ui| {
             ui.label(
-                egui::RichText::new("Beyond PE-DESIGN; When far is PE-DESIGN's rule").weak(),
+                egui::RichText::new(t("ui-beyond-pe-design-when-far-is")).weak(),
             );
             egui::Grid::new("finish-grid").num_columns(2).show(ui, |ui| {
                 if let Some(m) = mode_combo(ui, "Trim after", "finish-trim", f.trim, "When far: trim when the next object starts farther than the trim distance. Always: trim however short the move. Off: never trim (the frame jumps; colour changes still cut)")
@@ -60,12 +61,12 @@ pub fn finish_controls(app: &EditorApp, ui: &mut egui::Ui) -> Option<CommandRequ
                     out = Some(finish_request(ids, "trim", json!(m.as_str())));
                 }
                 ui.end_row();
-                ui.label("Trim distance");
+                ui.label(t("ui-trim-distance"));
                 ui.horizontal(|ui| {
                     let mut set = f.trim_distance.is_some();
                     if ui
                         .checkbox(&mut set, "")
-                        .on_hover_text("Off: the design's trim distance")
+                        .on_hover_text(t("ui-off-the-design-s-trim-distance-tip"))
                         .changed()
                     {
                         let v = if set { json!(2.0) } else { Value::Null };
@@ -91,14 +92,14 @@ pub fn finish_controls(app: &EditorApp, ui: &mut egui::Ui) -> Option<CommandRequ
                     out = Some(finish_request(ids, "tie", json!(m.as_str())));
                 }
                 ui.end_row();
-                ui.label("Tie stitches");
+                ui.label(t("ui-tie-stitches"));
                 ui.horizontal(|ui| {
                     let (count, len) = f.tie_steps();
                     let mut count = count as u8;
                     let mut len = len / 10.0;
                     let a = ui
                         .add(egui::DragValue::new(&mut count).range(1..=5).suffix(" ×"))
-                        .on_hover_text("Out-and-back steps of each tie-in and lock");
+                        .on_hover_text(t("ui-out-and-back-steps-of-each-tip"));
                     if (a.drag_stopped() || a.lost_focus()) && Some(count) != f.tie_count {
                         out = Some(finish_request(ids, "tieCount", json!(count)));
                     }
@@ -109,14 +110,14 @@ pub fn finish_controls(app: &EditorApp, ui: &mut egui::Ui) -> Option<CommandRequ
                                 .speed(0.05)
                                 .suffix(" mm"),
                         )
-                        .on_hover_text("Length of each tie stitch");
+                        .on_hover_text(t("ui-length-of-each-tie-stitch-tip"));
                     if (b.drag_stopped() || b.lost_focus())
                         && (len - f.tie_length.unwrap_or(0.3)).abs() > 1e-9
                     {
                         out = Some(finish_request(ids, "tieLength", json!(len)));
                     }
                     if (f.tie_count.is_some() || f.tie_length.is_some())
-                        && ui.small_button("PE").on_hover_text("PE-DESIGN's own tie").clicked()
+                        && ui.small_button(t("ui-pe")).on_hover_text(t("ui-pe-design-s-own-tie-tip")).clicked()
                     {
                         let mut p = json!({ "ids": CommandRequest::ids(ids) });
                         p["tieCount"] = Value::Null;
@@ -126,7 +127,7 @@ pub fn finish_controls(app: &EditorApp, ui: &mut egui::Ui) -> Option<CommandRequ
                 });
                 ui.end_row();
                 if !texts.is_empty() {
-                    ui.label("Between letters");
+                    ui.label(t("ui-between-letters"));
                     let label = BETWEEN
                         .iter()
                         .find(|b| b.0 == f.between)
@@ -147,11 +148,11 @@ pub fn finish_controls(app: &EditorApp, ui: &mut egui::Ui) -> Option<CommandRequ
                             }
                         })
                         .response
-                        .on_hover_text("Where a text trims between its letters; letters not trimmed apart are joined by a stitch or a jump");
+                        .on_hover_text(t("ui-where-a-text-trims-between-its-tip"));
                     ui.end_row();
                 }
             });
-            if f != Finish::default() && ui.button("PE-DESIGN's rules").clicked() {
+            if f != Finish::default() && ui.button(t("ui-pe-design-s-rules")).clicked() {
                 out = Some(finish_request(ids, "reset", json!(true)));
             }
         });

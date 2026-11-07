@@ -2,6 +2,7 @@
 //! Sample and Help ▸ Getting Started. The model (cards, samples, steps) is
 //! `openstitch_app::editor::getting_started`.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui::{self, RichText, vec2};
 use openstitch_app::editor::close_prompt::Pending;
@@ -56,7 +57,7 @@ pub fn cards(app: &mut EditorApp, ctx: &egui::Context) {
         .fixed_pos(canvas.center())
         .show(ctx, |ui| {
             egui::Frame::popup(ui.style()).show(ui, |ui| {
-                ui.label(RichText::new("Start your design").heading());
+                ui.label(RichText::new(t("ui-start-your-design")).heading());
                 ui.add_space(4.0);
                 egui::Grid::new("start-cards")
                     .spacing(vec2(8.0, 8.0))
@@ -72,7 +73,7 @@ pub fn cards(app: &mut EditorApp, ctx: &egui::Context) {
                     });
                 ui.add_space(2.0);
                 ui.label(
-                    RichText::new("Getting Started in the Help menu walks through a first design")
+                    RichText::new(t("ui-getting-started-in-the-help-menu"))
                         .weak()
                         .small(),
                 );
@@ -123,7 +124,7 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
         .collapsible(false)
         .resizable(false)
         .show(ctx, |ui| {
-            ui.label("Opens a copy as a new untitled design; the kit itself never changes.");
+            ui.label(t("ui-opens-a-copy-as-a-new"));
             ui.add_space(4.0);
             for (key, title, file) in SAMPLES {
                 if ui.button(*title).on_hover_text(*file).clicked() {

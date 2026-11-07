@@ -2,6 +2,7 @@
 //! trimming), rulers, grid, measure tool, Reference window and realistic thread drawing. Only
 //! the Design Settings window changes the design, through `machine.*` commands.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui::{self, Color32, Pos2, Sense, Shape, Stroke};
 use openstitch_app::editor::units::{self, Units, ruler_ticks};
@@ -305,12 +306,12 @@ fn production_settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<Co
     use openstitch_design::production::{AutoStart, BastingShape};
     let p = app.session.design().production.clone();
     ui.separator();
-    ui.label(egui::RichText::new("Production (beyond PE-DESIGN)").strong());
+    ui.label(egui::RichText::new(t("ui-production-beyond-pe-design")).strong());
     let basting = |v: serde_json::Value| CommandRequest::new("design.setBasting", v);
     let mut on = p.basting.is_some();
     if ui
-        .checkbox(&mut on, "Basting box")
-        .on_hover_text("Long running stitches sewn first round the design to tack floated fabric to the stabiliser; pull them out after sewing")
+        .checkbox(&mut on, t("ui-basting-box"))
+        .on_hover_text(t("ui-long-running-stitches-sewn-first-round-tip"))
         .changed()
     {
         requests.push(basting(json!({ "on": on })));
@@ -336,7 +337,7 @@ fn production_settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<Co
                         .speed(0.1)
                         .suffix(" mm margin"),
                 )
-                .on_hover_text("Distance from the design (shrunk to fit an oval or round hoop)");
+                .on_hover_text(t("ui-distance-from-the-design-shrunk-to-tip"));
             if r.drag_stopped() || r.lost_focus() {
                 requests.push(basting(json!({ "on": true, "margin": margin })));
             }
@@ -348,15 +349,15 @@ fn production_settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<Co
                         .speed(0.1)
                         .suffix(" mm stitch"),
                 )
-                .on_hover_text("Basting stitch length");
+                .on_hover_text(t("ui-basting-stitch-length-tip"));
             if r.drag_stopped() || r.lost_focus() {
                 requests.push(basting(json!({ "on": true, "stitch": stitch })));
             }
         });
         let mut own = b.thread.is_some();
         if ui
-            .checkbox(&mut own, "Own thread")
-            .on_hover_text("Sew the basting in its own colour (an extra colour change); off sews it in the first thread")
+            .checkbox(&mut own, t("ui-own-thread"))
+            .on_hover_text(t("ui-sew-the-basting-in-its-own-tip"))
             .changed()
         {
             let thread = if own { "own" } else { "first" };
@@ -365,16 +366,16 @@ fn production_settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<Co
     }
     let mut stops = p.stop_at_jumps;
     if ui
-        .checkbox(&mut stops, "Stop at jumps (machine without thread cutter)")
-        .on_hover_text("The machine stops before every jump so you can snip the thread; stops set with Stop after stay")
+        .checkbox(&mut stops, t("ui-stop-at-jumps-machine-without-thread"))
+        .on_hover_text(t("ui-the-machine-stops-before-every-jump-tip"))
         .changed()
     {
         requests.push(CommandRequest::new("design.setStopAtJumps", json!({ "on": stops })));
     }
     let mut nearest = p.auto_start == AutoStart::Nearest;
     if ui
-        .checkbox(&mut nearest, "Start each object nearest the last")
-        .on_hover_text("Shapes without their own entry point start where the needle stopped: regions and closed lines at the nearest point, open lines at the nearer end")
+        .checkbox(&mut nearest, t("ui-start-each-object-nearest-the-last"))
+        .on_hover_text(t("ui-shapes-without-their-own-entry-point-tip"))
         .changed()
     {
         let rule = if nearest { AutoStart::Nearest } else { AutoStart::Off };
@@ -385,16 +386,16 @@ fn production_settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<Co
     }
     let mut under = p.travel_under;
     if ui
-        .checkbox(&mut under, "Travel under later fills")
-        .on_hover_text("A move to an object of the same thread that a later fill will cover is sewn as short running stitches under it instead of a jump and trim")
+        .checkbox(&mut under, t("ui-travel-under-later-fills"))
+        .on_hover_text(t("ui-a-move-to-an-object-of-tip"))
         .changed()
     {
         requests.push(CommandRequest::new("design.setTravelUnder", json!({ "on": under })));
     }
     let mut hidden = p.remove_hidden.is_some();
     if ui
-        .checkbox(&mut hidden, "Leave out hidden stitching (1 mm overlap)")
-        .on_hover_text("Shapes skip the stitching later fills and satins cover, keeping 1 mm under their edges; the shapes are not cut")
+        .checkbox(&mut hidden, t("ui-leave-out-hidden-stitching-1-mm"))
+        .on_hover_text(t("ui-shapes-skip-the-stitching-later-fills-tip"))
         .changed()
     {
         requests.push(CommandRequest::new("design.setRemoveHidden", json!({ "on": hidden })));
@@ -418,7 +419,7 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
             let (pw, ph) = (d.page.width / 10.0, d.page.height / 10.0);
             let set = |v: serde_json::Value| CommandRequest::new("machine.set", v);
             egui::Grid::new("machine").num_columns(2).show(ui, |ui| {
-                ui.label("Machine type");
+                ui.label(t("ui-machine-type"));
                 ui.horizontal(|ui| {
                     for (t, label) in [
                         (MachineType::SingleNeedle, "Single needle"),
@@ -431,7 +432,7 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
                 });
                 ui.end_row();
 
-                ui.label("Hoop");
+                ui.label(t("ui-hoop"));
                 let current = m.hoop.clone().unwrap_or_else(|| "custom".into());
                 let text = openstitch_design::find_hoop(&current)
                     .map(|h| match h.brand {
@@ -515,7 +516,7 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
                 }
                 ui.end_row();
 
-                ui.label("Design Page");
+                ui.label(t("ui-design-page"));
                 ui.horizontal(|ui| {
                     let custom = m.hoop.is_none();
                     let (mut w, mut h) = (pw, ph);
@@ -535,7 +536,7 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
                 });
                 ui.end_row();
 
-                ui.label("Sewing area");
+                ui.label(t("ui-sewing-area"));
                 ui.vertical(|ui| {
                     for (a, label, tip) in [
                         (
@@ -561,7 +562,7 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
                 });
                 ui.end_row();
 
-                ui.label("Jump stitch trimming");
+                ui.label(t("ui-jump-stitch-trimming"));
                 let multi = m.machine == MachineType::MultiNeedle;
                 let mut trim = m.trim_distance(openstitch_design::Compiler::default().trim_distance)
                     / 10.0;
@@ -579,7 +580,7 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
                 }
                 ui.end_row();
 
-                ui.label("Speed (estimate)");
+                ui.label(t("ui-speed-estimate"));
                 let mut spm = m.speed();
                 let r = ui.add(
                     egui::DragValue::new(&mut spm)
@@ -596,7 +597,7 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
             production_settings(app, ui, &mut requests);
 
             ui.separator();
-            ui.label(egui::RichText::new("User hoops").strong());
+            ui.label(egui::RichText::new(t("ui-user-hoops")).strong());
             for (i, u) in m.user_hoops.iter().enumerate() {
                 let key = openstitch_design::machine::user_hoop_key(u.id);
                 ui.horizontal(|ui| {
@@ -605,7 +606,7 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
                         ui.label(egui::RichText::new(&u.comment).weak());
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.small_button("Delete").clicked() {
+                        if ui.small_button(t("ui-delete")).clicked() {
                             requests.push(CommandRequest::new(
                                 "machine.deleteUserHoop",
                                 json!({ "hoop": key }),
@@ -615,7 +616,7 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
                             egui::Button::new(crate::icons::ui_image(ui, "move_down")).small();
                         if ui
                             .add_enabled(i + 1 < m.user_hoops.len(), down)
-                            .on_hover_text("Move down")
+                            .on_hover_text(t("ui-move-down-tip"))
                             .clicked()
                         {
                             requests.push(CommandRequest::new(
@@ -624,7 +625,7 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
                             ));
                         }
                         let up = egui::Button::new(crate::icons::ui_image(ui, "move_up")).small();
-                        if ui.add_enabled(i > 0, up).on_hover_text("Move up").clicked() {
+                        if ui.add_enabled(i > 0, up).on_hover_text(t("ui-move-up-tip")).clicked() {
                             requests.push(CommandRequest::new(
                                 "machine.moveUserHoop",
                                 json!({ "hoop": key, "direction": "up" }),
@@ -639,7 +640,7 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
                 ui.label("×");
                 ui.add(crate::units_ui::drag(h, units).range(10.0..=2000.0));
                 ui.add(egui::TextEdit::singleline(c).hint_text("comment").desired_width(80.0));
-                if ui.button("Add Hoop").clicked() {
+                if ui.button(t("ui-add-hoop")).clicked() {
                     requests.push(CommandRequest::new(
                         "machine.addUserHoop",
                         json!({ "width": *w, "height": *h, "comment": c.clone() }),
