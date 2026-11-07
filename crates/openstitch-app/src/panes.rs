@@ -2,6 +2,7 @@
 //! Attributes (right), Stitch Simulator (under the work area) and the status bar. Each pane
 //! can be hidden from View ▸ Show/Hide and floated as a window or docked again.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use crate::ribbon::{self, PaneTab};
 use eframe::egui::{self, Color32, RichText, Sense, Stroke, vec2};
@@ -52,7 +53,7 @@ fn header(app: &mut EditorApp, ui: &mut egui::Ui, pane: Pane) {
             let close = egui::Button::new(crate::icons::ui_image(ui, "close")).small();
             if ui
                 .add(close)
-                .on_hover_text("Hide (View ▸ Show/Hide shows it again)")
+                .on_hover_text(t("ui-hide-view-show-hide-shows-it-tip"))
                 .clicked()
             {
                 pane.state(app).visible = false;
@@ -97,7 +98,7 @@ fn floating(
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
                 let dock =
                     egui::Button::new((crate::icons::ui_image(ui, "pane_dock"), "Dock")).small();
-                if ui.add(dock).on_hover_text("Dock to the window").clicked() {
+                if ui.add(dock).on_hover_text(t("ui-dock-to-the-window-tip")).clicked() {
                     pane.state(app).floating = false;
                     app.ui.save_prefs();
                 }
@@ -192,12 +193,12 @@ pub fn attributes(app: &mut EditorApp, ui: &mut egui::Ui) {
         if !app.ui.prefs.panes.attributes.floating {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let close = egui::Button::new(crate::icons::ui_image(ui, "close")).small();
-                if ui.add(close).on_hover_text("Hide").clicked() {
+                if ui.add(close).on_hover_text(t("ui-hide-tip")).clicked() {
                     app.ui.prefs.panes.attributes.visible = false;
                     app.ui.save_prefs();
                 }
                 let float = egui::Button::new(crate::icons::ui_image(ui, "pane_float")).small();
-                if ui.add(float).on_hover_text("Float as a window").clicked() {
+                if ui.add(float).on_hover_text(t("ui-float-as-a-window-tip")).clicked() {
                     app.ui.prefs.panes.attributes.floating = true;
                     app.ui.save_prefs();
                 }
@@ -224,7 +225,7 @@ fn pane_command(app: &mut EditorApp, ui: &mut egui::Ui, a: Action) {
 }
 
 fn import_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
-    ui.label("Add designs, artwork or a lettering template to the Design Page.");
+    ui.label(t("ui-add-designs-artwork-or-a-lettering"));
     ui.add_space(4.0);
     ui.vertical(|ui| {
         pane_command(app, ui, Action::ImportPatterns);
@@ -232,14 +233,14 @@ fn import_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
         pane_command(app, ui, Action::ImportPesObjects);
         pane_command(app, ui, Action::OpenImage);
         pane_command(app, ui, Action::DesignDatabase);
-        if ui.button("Template Wizard").clicked() {
+        if ui.button(t("ui-template-wizard")).clicked() {
             crate::lettering_ui::open_template_wizard(app);
         }
     });
     let recent = app.ui.prefs.recent.clone();
     if !recent.is_empty() {
         ui.separator();
-        ui.label(RichText::new("Import a recent file").strong());
+        ui.label(RichText::new(t("ui-import-a-recent-file")).strong());
         for p in recent
             .iter()
             .filter(|p| openstitch_formats::FileType::from_path(p).is_some() && p.exists())
@@ -259,14 +260,14 @@ fn import_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
 
 fn color_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
     if !app.selection.is_empty() {
-        ui.label(RichText::new("Selection").strong());
+        ui.label(RichText::new(t("ui-selection")).strong());
         ui.horizontal(|ui| {
             pane_menu(app, ui, Action::LineColor);
             pane_menu(app, ui, Action::RegionColor);
         });
         ui.separator();
     }
-    ui.label(RichText::new("Thread colours in sewing order").strong());
+    ui.label(RichText::new(t("ui-thread-colours-in-sewing-order")).strong());
     let colors = app.pattern.threads.clone();
     let blocks = app.stats.colors.clone();
     if blocks.is_empty() {
@@ -290,8 +291,8 @@ fn color_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
     ui.horizontal_wrapped(|ui| {
         pane_command(app, ui, Action::UserThreadCharts);
         if ui
-            .button("Sort by colour")
-            .on_hover_text("Same-colour objects sew together")
+            .button(t("ui-sort-by-colour"))
+            .on_hover_text(t("ui-same-colour-objects-sew-together-tip"))
             .clicked()
         {
             app.execute(&openstitch_app::editor::CommandRequest::new(
@@ -415,12 +416,12 @@ fn text_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
         .and_then(|&id| d.index_of(id))
         .and_then(|i| d.objects[i].text.clone());
     let Some(spec) = first else {
-        ui.label(RichText::new("Select a text object to change its attributes.").weak());
+        ui.label(RichText::new(t("ui-select-a-text-object-to-change")).weak());
         ui.add_space(6.0);
         crate::lettering_ui::text_tools_menu(app, ui);
         return;
     };
-    ui.label(RichText::new("Text").strong());
+    ui.label(RichText::new(t("ui-text")).strong());
     if app.ui.text_draft.is_empty() {
         app.ui.text_draft = spec.text.clone();
     }
@@ -428,7 +429,7 @@ fn text_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
     if ui
         .add_enabled(
             app.ui.text_draft != spec.text,
-            egui::Button::new("Apply text"),
+            egui::Button::new(t("ui-apply-text")),
         )
         .clicked()
     {
@@ -439,13 +440,13 @@ fn text_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
     egui::Grid::new("text-attributes")
         .num_columns(2)
         .show(ui, |ui| {
-            ui.label("Font");
+            ui.label(t("ui-font"));
             pane_menu(app, ui, Action::Font);
             ui.end_row();
             ui.label("");
             ui.label(RichText::new(&spec.font).weak());
             ui.end_row();
-            ui.label("Size");
+            ui.label(t("ui-size"));
             let mut size = spec.size;
             let warning = crate::lettering_ui::size_warning(app, &spec);
             let r = ui
@@ -466,7 +467,7 @@ fn text_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
                 ribbon::set_text(app, serde_json::json!({ "size": size }));
             }
             ui.end_row();
-            ui.label("Character Spacing");
+            ui.label(t("ui-character-spacing"));
             let mut letter = spec.letter_spacing;
             let r = ui.add(
                 crate::units_ui::drag(&mut letter, units)
@@ -477,7 +478,7 @@ fn text_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
                 ribbon::set_text(app, serde_json::json!({ "letterSpacing": letter }));
             }
             ui.end_row();
-            ui.label("Line Spacing");
+            ui.label(t("ui-line-spacing"));
             let mut line = spec.line_spacing_percent;
             let r = ui.add(
                 egui::DragValue::new(&mut line)
@@ -498,7 +499,7 @@ fn text_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
         });
     if spec.font == "openstitch-pixel" {
         ui.horizontal(|ui| {
-            ui.label("Pixels");
+            ui.label(t("ui-pixels"));
             for (v, label) in [("run", "Run"), ("cross", "Cross"), ("block", "Block")] {
                 if ui
                     .selectable_label(spec.pixel_style.as_str() == v, label)
@@ -601,7 +602,7 @@ pub fn status_bar(app: &mut EditorApp, ui: &mut egui::Ui) {
             s.width_mm,
             s.height_mm,
         ))
-        .on_hover_text("Design size");
+        .on_hover_text(t("ui-design-size-tip"));
         ui.separator();
         ui.label(format!("{} stitches", s.stitches));
         ui.separator();
@@ -688,7 +689,7 @@ fn zoom_controls(app: &mut EditorApp, ui: &mut egui::Ui) {
         ui.add(egui::Slider::new(&mut log, 1.0..=(2000f64).log10()).show_value(false)),
         "Zoom",
     )
-    .on_hover_text("Zoom")
+    .on_hover_text(t("ui-zoom-tip"))
     .changed()
     {
         ribbon::zoom_to_percent(app, 10f64.powf(log));
@@ -701,7 +702,7 @@ fn zoom_controls(app: &mut EditorApp, ui: &mut egui::Ui) {
                 .suffix(" %")
                 .speed(1.0),
         )
-        .on_hover_text("Magnification: type a value or drag")
+        .on_hover_text(t("ui-magnification-type-a-value-or-drag-tip"))
         .changed()
     {
         ribbon::zoom_to_percent(app, p);
@@ -779,13 +780,13 @@ fn property_fields(app: &mut EditorApp, ui: &mut egui::Ui) {
     let changed = *draft != current;
     ui.horizontal(|ui| {
         if ui
-            .add_enabled(changed, egui::Button::new("Apply"))
+            .add_enabled(changed, egui::Button::new(t("menu-apply")))
             .clicked()
         {
             apply_property_draft(app);
         }
         if ui
-            .add_enabled(changed, egui::Button::new("Revert"))
+            .add_enabled(changed, egui::Button::new(t("ui-revert")))
             .clicked()
         {
             app.ui.property_draft = None;
@@ -828,11 +829,11 @@ pub fn about_window(app: &mut EditorApp, ctx: &egui::Context) {
             };
             let (r, _) = ui.allocate_exact_size(egui::vec2(260.0, 58.0), egui::Sense::hover());
             if !crate::icons::paint_svg_logo(ui.painter(), r, name, src) {
-                ui.heading("OpenStitch");
+                ui.heading(t("ui-openstitch"));
             }
             ui.label(crate::update_ui::version_line());
-            ui.label("An open-source embroidery design suite for macOS, Windows and Linux.");
-            ui.label("Reads and writes PES, PEC, DST, EXP, JEF, VP3 and more.");
+            ui.label(t("ui-an-open-source-embroidery-design-suite"));
+            ui.label(t("ui-reads-and-writes-pes-pec-dst"));
             ui.hyperlink("https://github.com/cristianonescu/OpenStitch");
         });
     app.ui.about_open = open;

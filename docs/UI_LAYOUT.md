@@ -541,8 +541,11 @@ in the code, is the source and fills in any id a translation lacks. `assets/i18n
 every id with its English text and is generated from the code (a test fails when it is out of
 date). So far the ribbon is translated (command labels and ScreenTips, tab names and captions, and
 group captions) and, since part 2, the Application menu's lists, Options, Help and File ▸ Export
-(their entries and tooltips; message ids `menu-…` in `crates/openstitch-app/src/editor/ui_texts.rs`);
-dialogs, panes and messages follow. **Pseudo-locale (test)** shows every
+(their entries and tooltips; message ids `menu-…` in `crates/openstitch-app/src/editor/ui_texts.rs`),
+and, since part 3, the panes (Sewing Order, Color, Sewing and Text Attributes, Import), the
+Settings, Print, View (Fabric Selector, Realistic, Background Image, Font Filter, View ▸ Show),
+Machine Setup and Startup Wizard dialogs (`ui-…`); window titles stay English (egui keeps a
+window's place by its title), and the remaining dialogs, status messages and print follow. **Pseudo-locale (test)** shows every
 translated text accented and in brackets ("[Ópéñ]"), so text that is still hard-coded stands out.
 No real translation ships yet.
 
