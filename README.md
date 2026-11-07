@@ -480,6 +480,8 @@ The image tools have two methods, both OpenStitch's own: OpenStitch's PE-DESIGN-
 - (+) **Knockdown fill** sewn first to flatten towels and fleece ([#510]).
 - (+) **Leave out hidden stitching** under later fills, without cutting the shapes ([#511]).
 - (+) **Travel under later fills and running connectors** instead of jumps and trims ([#545]).
+- (+) **Auto-route and Redwork** for touching running lines, sewn in one walk, and **branching**
+  of touching shapes, sewn in one go without trims ([#546]).
 - (+) **Nearest start per object** and a before/after report from Optimize ([#547]).
 - (+) **Test swatch of the selection,** centred in the smallest hoop it fits ([#452]).
 - (+) **Fabric calibration card:** sew graded densities and compensation, save the best as a fabric
@@ -670,6 +672,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#535]: https://github.com/cristianonescu/OpenStitch/issues/535
 [#536]: https://github.com/cristianonescu/OpenStitch/issues/536
 [#545]: https://github.com/cristianonescu/OpenStitch/issues/545
+[#546]: https://github.com/cristianonescu/OpenStitch/issues/546
 [#547]: https://github.com/cristianonescu/OpenStitch/issues/547
 [#548]: https://github.com/cristianonescu/OpenStitch/issues/548
 [#549]: https://github.com/cristianonescu/OpenStitch/issues/549
