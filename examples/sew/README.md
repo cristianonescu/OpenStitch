@@ -387,6 +387,16 @@ Top left: hole sewing (the blue ring is sewn around the yellow centre, not under
 
 Threads, in sewing order: 405 Blue, 205 Yellow, 800 Red.
 
+#### Maze fill (beyond PE-DESIGN)
+
+[`fills/maze-fill.pes`](fills/maze-fill.pes) · 100 × 100 mm hoop · 83.4 × 54.6 mm · 1,080 stitches · 6 trims · about 1.7 min
+
+One path of straight corridors and square turns that never crosses itself, 2 mm apart: straightness 70 % (default), 0 % and 95 % (top row), on a circle, another seed at 45°, and 3 mm spacing.
+
+<img src="previews/maze-fill.png" height="180" alt="Realistic view of fills/maze-fill.pes">
+
+Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 208 Orange, 620 Magenta, 406 Ultra Marine.
+
 ### Lines
 
 Every line sew type.

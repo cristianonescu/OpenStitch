@@ -202,6 +202,11 @@ zigzag net regions (#463), line types (#464), small lettering (#465), satin cusp
 trims (#467), Photo Stitch density and stagger (#468), image tools' edge cells and thin features
 (#469), appliqué "add" order (#470), direction-curve fills (#471).
 
+Done 2026-11-07 (`batch:fills-2`, #533 maze part): maze fill, region type `maze`. It is the
+stippling walk with its spanning tree biased to run straight on (`straightness`, default 70 %) and
+its own `mazeSeed`, sewn with square turns: one path that never crosses itself, its passes a
+spacing apart. Stippling's output is unchanged. The tiled meander stays planned.
+
 Done 2026-11-07 (#614): cross stitch as PE-DESIGN 11.50 offers it. Its Sewing Attributes show
 only Size and Times (Single | Double | Triple) and no Direction (round 8 references), so
 OpenStitch hides Direction for it and ignores `angle`. `times` covers each diagonal 2, 4 or 6

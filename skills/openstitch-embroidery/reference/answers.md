@@ -21,7 +21,7 @@ stays the default.
   copies (mirror, circle, matrix), merge, remove overlap, boolean combine, split, offset lines.
 - **Region sew types:** fill (tatami), satin, programmable fill, motif fill, concentric
   circle, radial, spiral, stippling, net fills, decorative fill, cross stitch; beyond
-  PE-DESIGN: contour fill, seeded random stagger, tatami textures (`texture`: ribs, diagonal,
+  PE-DESIGN: contour fill, maze fill, seeded random stagger, tatami textures (`texture`: ribs, diagonal,
   waves, chevron and more), skeleton satin.
 - **Line sew types:** running, triple, zigzag (satin line), motif, stem, candlewick, E and V
   stitch, chain, cutting (cutwork needles).

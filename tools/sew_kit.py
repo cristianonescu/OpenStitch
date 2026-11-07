@@ -293,6 +293,15 @@ UNDERLAYS = [
     ("rect", {"type": "satin", "angle": 90, "splitLength": 7, "underlay": True, "underlayParts": ["center"]}),
     ("rect", {"type": "fill", "underlay": True, "underlayDensity": "light"}),
 ]
+# Maze fill (#533, beyond PE-DESIGN).
+MAZES = [
+    ("rect", {"type": "maze"}),
+    ("rect", {"type": "maze", "straightness": 0}),
+    ("rect", {"type": "maze", "straightness": 95}),
+    ("circle", {"type": "maze"}),
+    ("rect", {"type": "maze", "mazeSeed": 7, "angle": 45}),
+    ("rect", {"type": "maze", "spacing": 3, "runPitch": 3}),
+]
 LINE_TYPES = [
     {"type": "running"},
     {"type": "triple"},
@@ -551,6 +560,10 @@ FEATURES = [
     ("fills/holes-and-emboss.pes", "Hole sewing, engraving and embossing",
      "Top left: hole sewing (the blue ring is sewn around the yellow centre, not under it). Then a star as an "
      "engraved line, an engraved region and an embossed region in a red fill.", holes_and_emboss()),
+    ("fills/maze-fill.pes", "Maze fill (beyond PE-DESIGN)",
+     "One path of straight corridors and square turns that never crosses itself, 2 mm apart: straightness "
+     "70 % (default), 0 % and 95 % (top row), on a circle, another seed at 45°, and 3 mm spacing.",
+     region_grid(MAZES)),
     ("lines/line-sew-types.pes", "Line sew types",
      "Top to bottom: running, triple, zigzag, motif (wave), stem, candlewick, E stitch, V stitch, chain.",
      line_rows(LINE_TYPES)),

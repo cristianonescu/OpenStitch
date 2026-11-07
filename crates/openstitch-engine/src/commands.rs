@@ -1247,7 +1247,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 IDS,
                 opt(
                     "type",
-                    "fill|satin|programmableFill|motifFill|piping|crossStitch|concentricCircle|radial|spiral|flexibleSpiral|stippling|netFill|zigzagNetFill|decorativeFill|contour|none",
+                    "fill|satin|programmableFill|motifFill|piping|crossStitch|concentricCircle|radial|spiral|flexibleSpiral|stippling|netFill|zigzagNetFill|decorativeFill|contour|maze|none",
                     "Region sew type",
                 ),
                 opt("color", "color", "Thread"),
@@ -1412,6 +1412,16 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     "stitchType",
                     "1|2",
                     "Fill: PE-DESIGN's Stitch Type, 1 flat rows (default), 2 sloped rows joined edge to edge; a number or the string \"1\" / \"2\" (the inspector's choice)",
+                ),
+                opt(
+                    "straightness",
+                    "percent",
+                    "Maze fill (beyond PE-DESIGN): how often a corridor runs straight on where it can, 0-100 (default 70)",
+                ),
+                opt(
+                    "mazeSeed",
+                    "integer",
+                    "Maze fill: the seed of its layout, 0-999999 (default 533); another seed gives another maze",
                 ),
                 opt(
                     "staggerSeed",
@@ -1799,6 +1809,16 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         } else {
                             return Err(p.invalid("stitchType", "must be 1 or 2"));
                         };
+                    }
+                    if p.has("straightness") {
+                        r.straightness = Some(p.req("straightness", 0.0, 100.0)?);
+                    }
+                    if p.has("mazeSeed") {
+                        let seed = p.req("mazeSeed", 0.0, 999_999.0)?;
+                        if seed.fract() != 0.0 {
+                            return Err(p.invalid("mazeSeed", "must be a whole number"));
+                        }
+                        r.maze_seed = Some(seed as u64);
                     }
                     if p.has("staggerSeed") {
                         let seed = p.req("staggerSeed", 0.0, 9_007_199_254_740_992.0)?;

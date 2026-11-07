@@ -27,6 +27,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 - **Rotation** of objects (`object.rotate` `degrees`) and of preset shapes (`shape.preset`
   `rotation`) is **clockwise**.
 - Densities are rows (or lines) per mm; `pitch` and `stitchLength` are mm.
+- Maze fill (beyond PE-DESIGN): `object.setRegion` `type` `maze` with `spacing` (mm),
+  `straightness` (%, default 70) and `mazeSeed` (another seed, another maze). PES 0110 refuses it;
+  save PES version 6.
 - A plain fill's look changes with `object.setRegion` `texture` (`smooth`, PE-DESIGN's default,
   or OpenStitch's `ribs`, `diagonal`, `blocks`, `waves`, `zigzag`, `chevron`, `scallops`, ...):
   same shape, density and stitch count, different needle-hole pattern.

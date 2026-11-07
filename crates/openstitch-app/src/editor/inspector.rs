@@ -503,6 +503,7 @@ pub fn region_controls_with(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> 
             | RegionType::NetFill
             | RegionType::FlexibleSpiral
             | RegionType::Contour
+            | RegionType::Maze
     );
     if uses_density {
         let unit = if r.kind == RegionType::ZigzagNetFill {
@@ -981,6 +982,32 @@ fn region_type_controls(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> {
         RegionType::Stippling => {
             v.push(spacing("Spacing", 0.5));
             v.push(pitch);
+        }
+        // Beyond PE-DESIGN (#533).
+        RegionType::Maze => {
+            v.push(spacing("Spacing", 1.0));
+            v.push(pitch);
+            v.push(percent(
+                "Straightness",
+                "region.straightness",
+                "straightness",
+                r.straightness,
+                openstitch_design::RegionSewing::DEFAULT_MAZE_STRAIGHTNESS,
+                100.0,
+            ));
+            v.push(Control::Number {
+                label: "Seed",
+                key: "region.mazeSeed",
+                param: "mazeSeed",
+                value: r
+                    .maze_seed
+                    .unwrap_or(openstitch_design::RegionSewing::DEFAULT_MAZE_SEED)
+                    as f64,
+                range: (0.0, 999_999.0),
+                speed: 1.0,
+                suffix: "",
+                integer: true,
+            });
         }
         RegionType::NetFill | RegionType::ZigzagNetFill => {
             let zigzag = r.kind == RegionType::ZigzagNetFill;
