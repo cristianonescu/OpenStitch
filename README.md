@@ -389,6 +389,10 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
 - **Cutting lines** for cutwork needles, with uncut bridges.
 - (+) **Back stitch and brush-stroke running lines:** two forward, one back; or a running line
   sewn more times where a thickness profile swells ([#542]).
+- (+) **Ripple lines:** a line repeated smaller towards a target you drag, a closed shape
+  spiralling in as one unbroken run ([#541]).
+- (+) **Motif lines in groups:** motifs in groups with gaps, motif-free ends, motifs used in turn,
+  and five more bundled motifs (*partial*) ([#544]).
 - (+) **Decorative hand-embroidery lines:** chevron, Cretan, feather, overlock, alternating
   triangles, double zigzag, lattice and stripes along any line, and slanted E stitch prongs
   ([#543]).
@@ -402,6 +406,9 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
   Stitch Types (*Stitch Type 2: partially compatible*), under sewing, gradation, feathered edge
   and the Running Stitch Path choice.
 - (+) **Random stagger:** seeded and reproducible, beside PE-DESIGN's Frequency brick.
+- (+) **Tatami textures:** 13 named needle-hole patterns beside PE-DESIGN's smooth brick (ribs,
+  diagonals, steps, blocks, waves, zigzag, chevron, scallops and more), or your own steps and
+  wave, triangle or arc shifts ([#537]).
 - **Curved sewing direction** (round fill) for fill, programmable fill, piping and motif fill
   ([#471]).
 - **Programmable fill and motif fill** from OpenStitch's own pattern library, (+) with long gaps
@@ -688,9 +695,12 @@ See also [New: the Assistant](#new-the-assistant).
 [#531]: https://github.com/cristianonescu/OpenStitch/issues/531
 [#535]: https://github.com/cristianonescu/OpenStitch/issues/535
 [#536]: https://github.com/cristianonescu/OpenStitch/issues/536
+[#537]: https://github.com/cristianonescu/OpenStitch/issues/537
 [#540]: https://github.com/cristianonescu/OpenStitch/issues/540
+[#541]: https://github.com/cristianonescu/OpenStitch/issues/541
 [#542]: https://github.com/cristianonescu/OpenStitch/issues/542
 [#543]: https://github.com/cristianonescu/OpenStitch/issues/543
+[#544]: https://github.com/cristianonescu/OpenStitch/issues/544
 [#545]: https://github.com/cristianonescu/OpenStitch/issues/545
 [#546]: https://github.com/cristianonescu/OpenStitch/issues/546
 [#547]: https://github.com/cristianonescu/OpenStitch/issues/547

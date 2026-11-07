@@ -770,6 +770,54 @@
   "preview": "previews/fill-options.png",
   "sha256": "3d306de7843e7d056cb447434fdc7dcb13646b572428eb1073844b83ca1fe8c1"
  },
+ "fills/tatami-textures-1.pes": {
+  "title": "Tatami textures (1 of 2)",
+  "about": "OpenStitch's named needle-hole textures on a plain fill at 0°, beyond PE-DESIGN except the first: smooth (PE-DESIGN's Frequency brick), ribs, brick, diagonal, steep diagonal, steps, stairs, blocks, scattered.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   86.0,
+   86.0
+  ],
+  "stitches": 9460,
+  "trims": 9,
+  "threads": [
+   "405 Blue",
+   "800 Red",
+   "509 Leaf Green",
+   "208 Orange",
+   "620 Magenta",
+   "406 Ultra Marine",
+   "086 Deep Rose",
+   "019 Sky Blue",
+   "058 Dark Brown"
+  ],
+  "sewingMinutes": 12.3,
+  "image": null,
+  "preview": "previews/tatami-textures-1.png",
+  "sha256": "1752e583777f05309ef723fd03d07446f23b3aa4b2167031b86f1732ec35b86c"
+ },
+ "fills/tatami-textures-2.pes": {
+  "title": "Tatami textures (2 of 2)",
+  "about": "Curved needle-hole textures, beyond PE-DESIGN: waves, ripples, zigzag, chevron, scallops.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   86.0,
+   56.0
+  ],
+  "stitches": 5361,
+  "trims": 5,
+  "threads": [
+   "405 Blue",
+   "800 Red",
+   "509 Leaf Green",
+   "208 Orange",
+   "620 Magenta"
+  ],
+  "sewingMinutes": 7.0,
+  "image": null,
+  "preview": "previews/tatami-textures-2.png",
+  "sha256": "22c25c46e18015dcc37a82eb1468fabb030b10046d97929b53675eb78f61294e"
+ },
  "fills/underlay-styles.pes": {
   "title": "Underlay styles",
   "about": "No underlay, edge, zigzag, edge + zigzag, double (crossing layers), PE-DESIGN's first type (edge and rows), its second (edge and lattice), centre piping under a satin, and light underlay density.",

@@ -219,15 +219,67 @@ pub enum Stagger {
     /// a region line up by rule. PE-DESIGN offers nothing like it (its Fill pane has the
     /// Frequency field only).
     Random(u64),
+    /// OpenStitch's stepped texture (#537): the grid takes `n` evenly spaced offsets (the
+    /// middles of `n` equal steps of a stitch) in turn,
+    /// each held for `repeat` rows, so the needle holes draw diagonals, steps or blocks.
+    Steps { n: u32, repeat: u32 },
+    /// OpenStitch's curved texture (#537): row k's grid lies `amplitude` (fraction of a stitch)
+    /// times the curve at k / `period`, drawing waves, chevrons or scallops into the fill.
+    Curve {
+        kind: StaggerCurve,
+        amplitude: f64,
+        period: u32,
+    },
+}
+
+/// The curve of a [`Stagger::Curve`] texture, from 0 to 1 and back over one period.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StaggerCurve {
+    /// A smooth sine wave.
+    Wave,
+    /// Straight up and down (zigzag, herringbone, chevron).
+    Triangle,
+    /// A half sine that drops back at once (scallops).
+    Arc,
+}
+
+impl StaggerCurve {
+    /// The curve at `t` (fraction of a period), 0 to 1.
+    pub fn at(self, t: f64) -> f64 {
+        let t = t.rem_euclid(1.0);
+        match self {
+            StaggerCurve::Wave => (1.0 - crate::fmath::Det::dcos(std::f64::consts::TAU * t)) / 2.0,
+            StaggerCurve::Triangle => 1.0 - (1.0 - 2.0 * t).abs(),
+            StaggerCurve::Arc => crate::fmath::Det::dsin(std::f64::consts::PI * t),
+        }
+    }
 }
 
 impl Stagger {
+    /// Offset of row `row` for the textures, fraction of a stitch.
+    fn texture(self, row: usize) -> Option<f64> {
+        match self {
+            Stagger::Steps { n, repeat } => {
+                let n = n.max(1) as usize;
+                // Centred in each step, so no step's grid sits on the first row's start.
+                Some((((row / repeat.max(1) as usize) % n) as f64 + 0.5) / n as f64)
+            }
+            Stagger::Curve {
+                kind,
+                amplitude,
+                period,
+            } => Some((amplitude * kind.at(row as f64 / period.max(1) as f64)).rem_euclid(1.0)),
+            _ => None,
+        }
+    }
+
     /// Offset of row `row`'s needle grid, fraction of a stitch, from the page origin.
     pub fn phase(self, row: usize) -> f64 {
         match self {
             Stagger::Third => (row % 3) as f64 / 3.0,
             Stagger::Regular(s) => (row as f64 * s).fract(),
             Stagger::Random(seed) => random_fraction(seed, row),
+            t => t.texture(row).unwrap_or(0.0),
         }
     }
 
@@ -238,6 +290,7 @@ impl Stagger {
             Stagger::Third => None,
             Stagger::Regular(f) => Some(((k as f64 + 1.0) * f).fract()),
             Stagger::Random(seed) => Some(random_fraction(seed, k)),
+            t => t.texture(k),
         }
     }
 }

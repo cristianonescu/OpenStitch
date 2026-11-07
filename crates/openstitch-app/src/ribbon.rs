@@ -114,6 +114,8 @@ pub struct RibbonState {
     pub envelope_drag: Option<crate::envelope_ui::EnvelopeDrag>,
     /// An arched text's centre handle being dragged (#456): the text and where the pointer is.
     pub arc_drag: Option<(u64, openstitch_design::Vec2)>,
+    /// A ripple line's target being dragged (#541): the object and where the pointer is.
+    pub ripple_drag: Option<(u64, openstitch_design::Vec2)>,
     /// Text ▸ Ink/Stitch Fonts (#529).
     pub inkstitch: crate::inkstitch_ui::InkStitchFonts,
     /// ScreenTip of the command under the pointer (status bar).
@@ -151,6 +153,7 @@ impl Default for RibbonState {
             envelope_edit: false,
             envelope_drag: None,
             arc_drag: None,
+            ripple_drag: None,
             inkstitch: Default::default(),
             hover: None,
             property_search: String::new(),

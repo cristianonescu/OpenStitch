@@ -128,6 +128,8 @@ mod quality;
 mod random_designs;
 #[path = "region_compat.rs"]
 mod region_compat;
+#[path = "ripple_motif_lines.rs"]
+mod ripple_motif_lines;
 #[path = "routing.rs"]
 mod routing;
 #[path = "satin_compat.rs"]

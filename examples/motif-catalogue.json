@@ -1,0 +1,346 @@
+[
+ {
+  "command": "design.new",
+  "params": {
+   "name": "motif catalogue",
+   "width": 100,
+   "height": 130
+  }
+ },
+ {
+  "command": "shape.path",
+  "params": {
+   "points": [
+    [
+     8,
+     8
+    ],
+    [
+     92,
+     8
+    ]
+   ],
+   "closed": false,
+   "outline": "Black"
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 1,
+   "type": "motif",
+   "motif": "wave",
+   "width": 6,
+   "height": 5,
+   "spacing": 1
+  }
+ },
+ {
+  "command": "shape.path",
+  "params": {
+   "points": [
+    [
+     8,
+     18
+    ],
+    [
+     92,
+     18
+    ]
+   ],
+   "closed": false,
+   "outline": "Red"
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 2,
+   "type": "motif",
+   "motif": "scallop",
+   "width": 6,
+   "height": 5,
+   "spacing": 1
+  }
+ },
+ {
+  "command": "shape.path",
+  "params": {
+   "points": [
+    [
+     8,
+     28
+    ],
+    [
+     92,
+     28
+    ]
+   ],
+   "closed": false,
+   "outline": "Blue"
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 3,
+   "type": "motif",
+   "motif": "peak",
+   "width": 6,
+   "height": 5,
+   "spacing": 1
+  }
+ },
+ {
+  "command": "shape.path",
+  "params": {
+   "points": [
+    [
+     8,
+     38
+    ],
+    [
+     92,
+     38
+    ]
+   ],
+   "closed": false,
+   "outline": "Deep Rose"
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 4,
+   "type": "motif",
+   "motif": "diamond",
+   "width": 6,
+   "height": 5,
+   "spacing": 1
+  }
+ },
+ {
+  "command": "shape.path",
+  "params": {
+   "points": [
+    [
+     8,
+     48
+    ],
+    [
+     92,
+     48
+    ]
+   ],
+   "closed": false,
+   "outline": "Emerald Green"
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 5,
+   "type": "motif",
+   "motif": "heart",
+   "width": 6,
+   "height": 5,
+   "spacing": 1
+  }
+ },
+ {
+  "command": "shape.path",
+  "params": {
+   "points": [
+    [
+     8,
+     58
+    ],
+    [
+     92,
+     58
+    ]
+   ],
+   "closed": false,
+   "outline": "Purple"
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 6,
+   "type": "motif",
+   "motif": "leaf",
+   "width": 6,
+   "height": 5,
+   "spacing": 1
+  }
+ },
+ {
+  "command": "shape.path",
+  "params": {
+   "points": [
+    [
+     8,
+     68
+    ],
+    [
+     92,
+     68
+    ]
+   ],
+   "closed": false,
+   "outline": "Orange"
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 7,
+   "type": "motif",
+   "motif": "loop",
+   "width": 6,
+   "height": 5,
+   "spacing": 1
+  }
+ },
+ {
+  "command": "shape.path",
+  "params": {
+   "points": [
+    [
+     8,
+     78
+    ],
+    [
+     92,
+     78
+    ]
+   ],
+   "closed": false,
+   "outline": "Dark Brown"
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 8,
+   "type": "motif",
+   "motif": "square-spiral",
+   "width": 6,
+   "height": 5,
+   "spacing": 1
+  }
+ },
+ {
+  "command": "shape.path",
+  "params": {
+   "points": [
+    [
+     8,
+     88
+    ],
+    [
+     92,
+     88
+    ]
+   ],
+   "closed": false,
+   "outline": "Teal Green"
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 9,
+   "type": "motif",
+   "motif": "star",
+   "width": 6,
+   "height": 5,
+   "spacing": 1
+  }
+ },
+ {
+  "command": "shape.path",
+  "params": {
+   "points": [
+    [
+     8,
+     98
+    ],
+    [
+     92,
+     98
+    ]
+   ],
+   "closed": false,
+   "outline": "Gray"
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 10,
+   "type": "motif",
+   "motif": "cross-x",
+   "width": 6,
+   "height": 5,
+   "spacing": 1
+  }
+ },
+ {
+  "command": "shape.path",
+  "params": {
+   "points": [
+    [
+     8,
+     108
+    ],
+    [
+     92,
+     108
+    ]
+   ],
+   "closed": false,
+   "outline": "Black"
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 11,
+   "type": "motif",
+   "motif": "zigzag",
+   "width": 6,
+   "height": 5,
+   "spacing": 1
+  }
+ },
+ {
+  "command": "shape.path",
+  "params": {
+   "points": [
+    [
+     8,
+     118
+    ],
+    [
+     92,
+     118
+    ]
+   ],
+   "closed": false,
+   "outline": "Red"
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 12,
+   "type": "motif",
+   "motif": "arrow",
+   "width": 6,
+   "height": 5,
+   "spacing": 1
+  }
+ }
+]

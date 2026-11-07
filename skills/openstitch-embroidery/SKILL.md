@@ -27,6 +27,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 - **Rotation** of objects (`object.rotate` `degrees`) and of preset shapes (`shape.preset`
   `rotation`) is **clockwise**.
 - Densities are rows (or lines) per mm; `pitch` and `stitchLength` are mm.
+- A plain fill's look changes with `object.setRegion` `texture` (`smooth`, PE-DESIGN's default,
+  or OpenStitch's `ribs`, `diagonal`, `blocks`, `waves`, `zigzag`, `chevron`, `scallops`, ...):
+  same shape, density and stitch count, different needle-hole pattern.
 - Colours: `"#rrggbb"`, a Brother thread name (`"Black"`, `"White"`, `"Red"`, `"Blue"`,
   `"Prussian Blue"`, `"Deep Gold"`, `"Leaf Green"`, ...; case-insensitive), or a Brother chart
   number 1-64. A name that is not in the chart is refused; use `#rrggbb` when unsure.
@@ -97,6 +100,12 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    filled shape: `object.deriveSkeleton {id, branches: true, joinOverlap: 0.3}` makes a
    grouped satin column per arm (the shape stays hidden); check `warnings` for columns over
    10 mm and look at the junctions with `view_render`.
+   Ripples, echoes and spirals from one outline (beyond PE-DESIGN): `object.setLine {type:
+   ripple, strands, target: [x, y]}` (a closed line spirals in to the target as one run; an
+   open one repeats `spacing` apart towards the target's side). Motif lines (beyond
+   PE-DESIGN): `motifGroups: [[3, 6]]` (three motifs, then a 6 mm gap), `freeStart`/`freeEnd`
+   (clean corners), `motifs: ["arrow"]` (used in turn); bundled motifs now include
+   square-spiral, star, cross-x, zigzag and arrow (`patterns.list`).
    Borders, quilting and crazy-quilt seams (beyond PE-DESIGN): `object.setLine {type: chevron |
    cretan | feather | overlock | alternatingTriangles | doubleZigzag | lattice | stripes, width,
    spacing}` (`height` sets the chevron bar or Cretan/feather side stitch, `strands` a lattice's

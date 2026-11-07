@@ -2023,18 +2023,49 @@ fn line_elements(
                 LineType::Motif => {
                     let pattern =
                         patterns::resolve(user, PatternKind::Motif, line.motif.as_deref());
-                    lines::motif(
-                        &c.path(),
-                        c.closed,
-                        &lines::MotifLine {
-                            pattern,
-                            width,
-                            height: line.height.unwrap_or(3.0) * 10.0,
-                            gap: spacing,
-                            pitch,
-                            arrange: line.arrange,
-                        },
-                    )
+                    let m = lines::MotifLine {
+                        pattern,
+                        width,
+                        height: line.height.unwrap_or(3.0) * 10.0,
+                        gap: spacing,
+                        pitch,
+                        arrange: line.arrange,
+                    };
+                    // Groups, free ends and motifs in turn (#544, beyond PE-DESIGN); without
+                    // them PE-DESIGN's evenly stretched motif line.
+                    let groups: Vec<(u32, f64)> = line
+                        .motif_groups
+                        .iter()
+                        .map(|&(n, g)| (n, g * 10.0))
+                        .collect();
+                    let plan =
+                        lines::MotifPlan {
+                            groups: &groups,
+                            free_start: line.free_start.unwrap_or(0.0) * 10.0,
+                            free_end: line.free_end.unwrap_or(0.0) * 10.0,
+                            patterns: std::iter::once(pattern)
+                                .chain(line.motifs.iter().map(|id| {
+                                    patterns::resolve(user, PatternKind::Motif, Some(id))
+                                }))
+                                .collect(),
+                        };
+                    if plan.is_plain() {
+                        lines::motif(&c.path(), c.closed, &m)
+                    } else {
+                        lines::motif_planned(&c.path(), &m, &plan)
+                    }
+                }
+                LineType::Ripple => {
+                    let path = c.path();
+                    let count = line.strands.unwrap_or(5);
+                    if c.closed {
+                        let target = line
+                            .target
+                            .unwrap_or_else(|| crate::ripple::centre(&c.points));
+                        crate::ripple::closed(&path, target, count, pitch)
+                    } else {
+                        crate::ripple::open(&path, line.target, count, spacing, pitch)
+                    }
                 }
                 LineType::Stem => lines::stem(
                     &c.path(),
