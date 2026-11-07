@@ -5941,6 +5941,102 @@
       "settings": "On a 100 x 100 mm Design Page (grid 1 mm) draw a 20 x 20 mm square from (40, 40) to (60, 60) mm with Home > Shapes > Rectangle. Shapes tab > Sew: line Not Sewn (Line); region Cross Stitch, Size 2.5 mm (the default), Times Triple; PE-DESIGN 11.50 shows no Direction for cross stitch. Save As 'Layout & Editing Ver 11.0 File (*.PES)'. Status bar 20,00 x 20,00 mm, 922 st.",
       "sha256": "6c824c86ab659355c2dfca4e432de7ab098aa1721d13f5d601339929e85206d2",
       "notes": "Round 8 (#614): 922 st in the status bar. PE-DESIGN writes Times at body +284 as 2, 4, 6 (Single, Double, Triple) and Size at +282 (25)."
+    },
+    {
+      "file": "stitches/line-zigzag-miter-v-b1-m0.pes",
+      "spec": "line-zigzag-miter-v-b1-m0",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-07",
+      "os": "Windows 11 Pro",
+      "settings": "Line sew Zigzag Stitch on the 29.7° V (10,20), (50,20), (15,40) mm (Open Straight Line, Snap to Grid), colour 800 EMBROIDERY RED, Under sewing on, Zigzag width 2.0 mm, Density 4.5 line/mm, Half Stitch on, Sharp Corners button 1, Miter Limit 0 mm; Save As PES Ver.11.0. Status: 40.2 x 21.9 mm, Stitches = 446.",
+      "sha256": "26a33bada5c52923a3b4752b1dae225d816c9ef7e4240e452f3e374ceedb3757",
+      "notes": "Copy of crates/openstitch-formats/tests/fixtures/pe11/captures-2026-11-07/miter/miter-b-sc1-m0.pes (#373)."
+    },
+    {
+      "file": "stitches/line-zigzag-miter-v-b1-m1.pes",
+      "spec": "line-zigzag-miter-v-b1-m1",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-07",
+      "os": "Windows 11 Pro",
+      "settings": "Line sew Zigzag Stitch on the 29.7° V (10,20), (50,20), (15,40) mm (Open Straight Line, Snap to Grid), colour 800 EMBROIDERY RED, Under sewing on, Zigzag width 2.0 mm, Density 4.5 line/mm, Half Stitch on, Sharp Corners button 1, Miter Limit 1 mm; Save As PES Ver.11.0. Status: 41.2 x 21.9 mm, Stitches = 455.",
+      "sha256": "1ed35809f43a3f985b8c7660261db2c11e37da0328a59e0e15a2fe49bac76820",
+      "notes": "Copy of crates/openstitch-formats/tests/fixtures/pe11/captures-2026-11-07/miter/miter-b-sc1-m1.pes (#373)."
+    },
+    {
+      "file": "stitches/line-zigzag-miter-v-b1-m3.pes",
+      "spec": "line-zigzag-miter-v-b1-m3",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-07",
+      "os": "Windows 11 Pro",
+      "settings": "Line sew Zigzag Stitch on the 29.7° V (10,20), (50,20), (15,40) mm (Open Straight Line, Snap to Grid), colour 800 EMBROIDERY RED, Under sewing on, Zigzag width 2.0 mm, Density 4.5 line/mm, Half Stitch on, Sharp Corners button 1, Miter Limit 3 mm; Save As PES Ver.11.0. Status: 43.0 x 21.9 mm, Stitches = 465.",
+      "sha256": "177991f08aee83d21939efa1a457dac2bad04b62afd2558d3a6f3a024e282d28",
+      "notes": "Copy of crates/openstitch-formats/tests/fixtures/pe11/captures-2026-11-07/miter/miter-b-sc1-m3.pes (#373)."
+    },
+    {
+      "file": "stitches/line-zigzag-miter-v-b1-m50.pes",
+      "spec": "line-zigzag-miter-v-b1-m50",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-07",
+      "os": "Windows 11 Pro",
+      "settings": "Line sew Zigzag Stitch on the 29.7° V (10,20), (50,20), (15,40) mm (Open Straight Line, Snap to Grid), colour 800 EMBROIDERY RED, Under sewing on, Zigzag width 2.0 mm, Density 4.5 line/mm, Half Stitch on, Sharp Corners button 1, Miter Limit 50 mm (99 typed, PE-DESIGN clamped it to 50.0); Save As PES Ver.11.0. Status: 43.8 x 21.9 mm, Stitches = 467.",
+      "sha256": "26c2669a1559c08407928768fb8c225ce6b832d1a48d85e79f39c53aac052c40",
+      "notes": "Copy of crates/openstitch-formats/tests/fixtures/pe11/captures-2026-11-07/miter/miter-b-sc1-max50.pes (#373)."
+    },
+    {
+      "file": "stitches/line-zigzag-miter-v-b2-m0.pes",
+      "spec": "line-zigzag-miter-v-b2-m0",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-07",
+      "os": "Windows 11 Pro",
+      "settings": "Line sew Zigzag Stitch on the 29.7° V (10,20), (50,20), (15,40) mm (Open Straight Line, Snap to Grid), colour 800 EMBROIDERY RED, Under sewing on, Zigzag width 2.0 mm, Density 4.5 line/mm, Half Stitch on, Sharp Corners button 2, Miter Limit 0 mm; Save As PES Ver.11.0. Status: 40.3 x 21.9 mm, Stitches = 451.",
+      "sha256": "426c039d279a8db1f732e4fb6a0c7261ab9fb6a294781205317e6ac1d9f92543",
+      "notes": "Copy of crates/openstitch-formats/tests/fixtures/pe11/captures-2026-11-07/miter/miter-b-sc2-m0.pes (#373)."
+    },
+    {
+      "file": "stitches/line-zigzag-miter-v-b2-m3.pes",
+      "spec": "line-zigzag-miter-v-b2-m3",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-07",
+      "os": "Windows 11 Pro",
+      "settings": "Line sew Zigzag Stitch on the 29.7° V (10,20), (50,20), (15,40) mm (Open Straight Line, Snap to Grid), colour 800 EMBROIDERY RED, Under sewing on, Zigzag width 2.0 mm, Density 4.5 line/mm, Half Stitch on, Sharp Corners button 2, Miter Limit 3 mm; Save As PES Ver.11.0. Status: 43.0 x 21.9 mm, Stitches = 481.",
+      "sha256": "cccffad8e96657fd86fc64557396bd93e13fc7ebd16a30d69740d513654c7082",
+      "notes": "Copy of crates/openstitch-formats/tests/fixtures/pe11/captures-2026-11-07/miter/miter-b-sc2-m3.pes (#373)."
+    },
+    {
+      "file": "stitches/line-zigzag-miter-v-b2-m50.pes",
+      "spec": "line-zigzag-miter-v-b2-m50",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-07",
+      "os": "Windows 11 Pro",
+      "settings": "Line sew Zigzag Stitch on the 29.7° V (10,20), (50,20), (15,40) mm (Open Straight Line, Snap to Grid), colour 800 EMBROIDERY RED, Under sewing on, Zigzag width 2.0 mm, Density 4.5 line/mm, Half Stitch on, Sharp Corners button 2, Miter Limit 50 mm; Save As PES Ver.11.0. Status: 43.8 x 21.9 mm, Stitches = 481.",
+      "sha256": "62de0afa94d62a0cd1cb0210d199ae18548525649749e488f2007a9531533728",
+      "notes": "Copy of crates/openstitch-formats/tests/fixtures/pe11/captures-2026-11-07/miter/miter-b-sc2-m50.pes (#373)."
+    },
+    {
+      "file": "stitches/line-zigzag-miter-l-b2-m7.pes",
+      "spec": "line-zigzag-miter-l-b2-m7",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-07",
+      "os": "Windows 11 Pro",
+      "settings": "Line sew Zigzag Stitch on the 90° L of line-zigzag-default (10,20), (50,20), (50,40) mm (Open Straight Line, Snap to Grid), colour 800 EMBROIDERY RED, Under sewing on, Zigzag width 2.0 mm, Density 4.5 line/mm, Half Stitch on, Sharp Corners button 2, Miter Limit 7 mm (7.0 shown on the first switch to button 2); Save As PES Ver.11.0. Status: 41.0 x 21.0 mm, Stitches = 312.",
+      "sha256": "b226414dfed9400f2e1f7b871b219fcaf6e6e796d01636238be5d0133c932edd",
+      "notes": "Copy of crates/openstitch-formats/tests/fixtures/pe11/captures-2026-11-07/miter/miter-a-sc2-m7auto.pes (#373)."
     }
   ]
 }

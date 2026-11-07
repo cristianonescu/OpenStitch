@@ -2358,6 +2358,60 @@ pub struct LineSewing {
     /// Motif line: more motifs used in turn after `motif` (#544).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub motifs: Vec<String>,
+    /// Zigzag: PE-DESIGN's Sharp Corners button and Miter Limit (#373).
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub sharp_corners: SharpCorners,
+}
+
+/// PE-DESIGN 11's Sharp Corners and Miter Limit of a Zigzag Stitch line (#373, measured from
+/// crates/openstitch-formats/tests/fixtures/pe11/captures-2026-11-07/miter/). A corner sharper
+/// than 90 degrees is sewn with its point cut off `miter_limit` mm from the corner along the
+/// bisector (0: no point; the full point once the limit reaches it). Button 1 sews each leg up
+/// to where the two legs cross and fills the point in a separate wedge; button 2 splits the
+/// corner along its bisector, with short stitches into the point. Corners of 90 degrees and
+/// wider keep their full mitre with either button.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SharpCorners {
+    /// The Sharp Corners button, 1 or 2.
+    pub button: u8,
+    /// The Miter Limit each button keeps, mm (0-50): PE-DESIGN shows 0.0 for button 1 and
+    /// 7.0 for button 2 on a new line.
+    pub miter_limit: [f64; 2],
+}
+
+impl Default for SharpCorners {
+    fn default() -> Self {
+        SharpCorners {
+            button: 1,
+            miter_limit: [0.0, 7.0],
+        }
+    }
+}
+
+impl SharpCorners {
+    /// The largest Miter Limit, mm (PE-DESIGN clamps a larger value to it).
+    pub const MAX_LIMIT: f64 = 50.0;
+
+    /// Index 0 or 1 of the chosen button.
+    fn index(&self) -> usize {
+        usize::from(self.button == 2)
+    }
+
+    /// The chosen button's Miter Limit, mm.
+    pub fn limit(&self) -> f64 {
+        self.miter_limit[self.index()].clamp(0.0, Self::MAX_LIMIT)
+    }
+
+    /// Sets the chosen button's Miter Limit, mm, clamped to 0-50.
+    pub fn set_limit(&mut self, mm: f64) {
+        self.miter_limit[self.index()] = mm.clamp(0.0, Self::MAX_LIMIT);
+    }
+
+    /// Whether button 2 (the corner split along its bisector) is chosen.
+    pub fn split(&self) -> bool {
+        self.button == 2
+    }
 }
 
 /// An opening in a closed line: `length` mm left unsewn from `offset` mm along the outline
@@ -2477,6 +2531,7 @@ impl LineSewing {
             free_start: None,
             free_end: None,
             motifs: Vec::new(),
+            sharp_corners: SharpCorners::default(),
         }
     }
 

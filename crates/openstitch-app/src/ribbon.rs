@@ -762,6 +762,9 @@ fn export_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
             app.export_media(command, ext);
         }
     }
+    ui.menu_button("Garment Mockup", |ui| garment_mockup_menu(app, ui))
+        .response
+        .on_hover_text("Beyond PE-DESIGN: the design at true size on a T-shirt, cap or tote bag in a fabric colour, as a PNG to show a customer (design.mockup)");
     ui.menu_button("Thread List", |ui| {
         for (ext, label) in EditorApp::THREAD_LISTS {
             if ui.button(format!("{label}…")).clicked() {
@@ -778,6 +781,24 @@ fn export_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         }
     });
     menu_item(app, ui, Action::ExportSections);
+}
+
+/// File ▸ Export ▸ Garment Mockup (#454): the fabric colour, then a garment and placement.
+fn garment_mockup_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
+    let id = egui::Id::unique("garment-mockup-fabric");
+    let mut fabric = ui.data_mut(|d| *d.get_persisted_mut_or(id, [255u8, 255, 255]));
+    ui.horizontal(|ui| {
+        ui.label("Fabric colour");
+        if ui.color_edit_button_srgb(&mut fabric).changed() {
+            ui.data_mut(|d| d.insert_persisted(id, fabric));
+        }
+    });
+    ui.separator();
+    for (garment, placement, label) in EditorApp::MOCKUPS {
+        if ui.button(format!("{label}…")).clicked() {
+            app.export_mockup(garment, placement, fabric);
+        }
+    }
 }
 
 /// The list a menu command opens.

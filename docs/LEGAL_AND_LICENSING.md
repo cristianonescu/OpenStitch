@@ -61,6 +61,12 @@ the project keeps:
   `assets/brand/higgsfield-jobs.tsv`); `tools/gen_icons.py` writes the
   raster and package formats. Neither prompt names or describes Brother, PE-DESIGN or any
   other vendor's branding, and the mark does not resemble them.
+- **Garment mockups:** the T-shirt, cap and tote bag pictures in `assets/mockups` (#454, used by
+  `design.mockup`) were generated for OpenStitch with Higgsfield (GPT Image 2.6) under the
+  project owner's account on 2026-11-07 and cut out with Higgsfield's background remover.
+  Each prompt asks for a plain white garment with no print, logo or label and names no brand;
+  no reference images were used. The prompts and generation jobs are in
+  `assets/mockups/README.md`, the cut-out jobs in `assets/mockups/higgsfield-jobs.tsv`.
 - **Illustrations and textures:** the spot illustrations in `assets/illustrations` (empty
   states, thumbnail placeholders, wizard headers) and the Realistic view's cloth
   (`assets/textures/fabric_cotton.png`) were generated for OpenStitch with Higgsfield (Recraft
