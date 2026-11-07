@@ -247,10 +247,7 @@ fn rgba(bytes: &[u8]) -> (usize, usize, Vec<[u8; 4]>) {
         png::ColorType::Rgba,
         "a mockup keeps alpha"
     );
-    let px = buf[..info.buffer_size()]
-        .chunks_exact(4)
-        .map(|p| [p[0], p[1], p[2], p[3]])
-        .collect();
+    let px = buf[..info.buffer_size()].as_chunks::<4>().0.to_vec();
     (info.width as usize, info.height as usize, px)
 }
 
