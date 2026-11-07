@@ -487,12 +487,20 @@ Line references are relative to `crates/`.
   row across the stroke and a slanting row back, every crossing split on the Step pitch grid
   moved by the Frequency, rows fanned round L's corner. The 11 round-5 fill captures
   (`stroke-fill-*`) and `text-defaults-fill` are within 25 %, 8 % on average against 22 % by
-  region (H 504 against 483, was 595; L 274 against 276). Fill text under a Text Transform keeps its region rows
-  (#428): measured 2026-11-06, sewing it by stroke brings the needle points nearer PE-DESIGN's
-  (PE → ours 0.24 → 0.18 mm over the 182 transform captures) but sews them far denser (needle
-  count 11 % → 28 % off on average, 167 of 182 further) and moves four references 0.6 mm past
-  their bounds (text-transform-1-agjy, -1-openstitch-l25, -2, -18-openstitch-l100) and
-  text-transform-10's stem columns; next, the fill rows' spacing on warped strokes. Since 2026-11-05 (#444, the
+  region (H 504 against 483, was 595; L 274 against 276). Under a Text Transform the walk
+  between a letter's blocks no longer puts a needle point on every point of the warped outline
+  (2026-11-07, #428): it is simplified to within 0.1 mm of the outline and split into 2 mm
+  stitches as on the straight letter. Satin text under a Transform sewed nearly twice the needle
+  points it does straight (HHHHHHH, preset 3: 1831 against 1043), now about as many (1023).
+  Fill text under a Text Transform or a free envelope (#535; a free envelope was sewn by stroke
+  until 2026-11-07, unlike the preset it copies) keeps its region rows (#428): with the walk fixed, sewing it
+  by stroke is nearer PE-DESIGN on the 182 transform captures in every way (needle count 10.9 %
+  off on average against 11.2 % by region, was 28 % before the walk; PE → ours 0.24 → 0.19 mm;
+  coverage 0.761 → 0.772), but its rows reach the warped outline's corners and five references
+  go 0.1 mm past their 0.5 mm bounds (text-transform-1-agjy, -1-openstitch-l25, -2,
+  -18-openstitch-l100 and text-transform-10's stem columns). That is the Text Transform layout's
+  own error, which the region rows hid: on the arches the left letters sit up to 0.6 mm too far
+  along the arc, by region as well. Next, the arches' letter placement and envelopes 10 and 18. Since 2026-11-05 (#444, the
   README's arched title and 4 mm text sewn as broken pieces): a turned letter (fitted to an
   outline, on an arch, turned by Edit Character) is cut into strokes upright and its blocks
   turned back, as PE-DESIGN sews it (text-fit-satin-ahhhh: its H's at -18 to +32 degrees match

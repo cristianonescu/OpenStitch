@@ -1018,13 +1018,20 @@ fn elements(
             // PE-DESIGN 11.50 sews a TrueType letter in Satin and in Fill stroke by stroke, each
             // stroke a column, in its Convert to Blocks order (docs/research/stroke-lettering.md).
             // Fill text under a Text Transform keeps its region rows for now: PE-DESIGN sews it
-            // by stroke as well (text-transform-9: level rows on the slanted stems), but the
-            // stroke cut of warped letters drifts past the transform references' bounds and
-            // their stitch counts: measured 2026-11-06, five references 0.6 mm past their
-            // 0.5 mm bounds and 167 of 182 transform captures further from PE-DESIGN's count
-            // (11 % off on average by region, 28 % by stroke), though nearer its needle
-            // points (0.24 -> 0.18 mm) (#428).
-            let warped = object.text.as_ref().is_some_and(|t| t.envelope.is_some());
+            // by stroke as well (text-transform-9: level rows on the slanted stems). Measured
+            // 2026-11-07 with the warped walk ([`warped_walk`]), by stroke is nearer PE-DESIGN
+            // on the 182 transform captures in every way (needle count 10.9 % off on average
+            // against 11.2 % by region, was 28 % before the walk; PE -> ours 0.24 -> 0.19 mm;
+            // coverage 0.761 -> 0.772), but its rows reach the warped outline's corners, which
+            // the region rows stopped short of, and the Text Transform layout's own error
+            // shows: five references 0.1 mm past their 0.5 mm bounds (the arches 1 and 2 place
+            // the left letters up to 0.6 mm too far along the arc, region rows as well;
+            // text-transform-10's stems, 18-openstitch-l100's descender) (#428).
+            // A preset or a free envelope (#535): both warp the letters alike.
+            let warped = object
+                .text
+                .as_ref()
+                .is_some_and(|t| t.envelope.is_some() || t.custom_envelope.is_some());
             let by_stroke = (text
                 && (region.kind == RegionType::Satin
                     || (region.kind == RegionType::Fill && !warped))
@@ -1035,6 +1042,7 @@ fn elements(
                     region,
                     turns.get(index).copied().flatten(),
                     object.text.as_ref().is_some_and(|t| t.size < SMALL_TEXT),
+                    warped,
                 )
             })
             .flatten();
@@ -1311,6 +1319,7 @@ fn stroke_columns(
     region: &crate::model::RegionSewing,
     turn: Option<f64>,
     small: bool,
+    warped: bool,
 ) -> Option<Vec<Run>> {
     let (upright, back) = match turn.filter(|t| t.abs() > UPRIGHT_TURN) {
         Some(t) => {
@@ -1476,6 +1485,8 @@ fn stroke_columns(
             // running pieces between them).
             let travel = if small {
                 letter_travel(closed, from, to, &quads[quads_from[i]..])
+            } else if warped {
+                warped_walk(closed, from, to)
             } else {
                 route::travel(closed, from, to, STROKE_TRAVEL)
             };
@@ -1488,6 +1499,23 @@ fn stroke_columns(
         runs.push(run);
     }
     (!runs.is_empty()).then_some(runs)
+}
+
+/// How far (0.1 mm) the outline walk between a warped letter's blocks may stray from the
+/// letter's outline ([`warped_walk`]).
+const WARPED_WALK_TOLERANCE: f64 = 1.0;
+
+/// The walk along a warped letter's outline from `from` to `to` (#428), split into stitches of
+/// at most [`STROKE_TRAVEL`]. A Text Transform envelope samples the outline densely (an H's 12
+/// corners become 116 points), and the plain walk put a needle point on every one: more than
+/// half of a warped H's needle points (152 of 290 on preset 3) were this walk, 0.3 mm apart
+/// along its edges. The walk is simplified first, every point within
+/// [`WARPED_WALK_TOLERANCE`] of the outline, so a straight-ish edge is walked in 2 mm
+/// stitches as on the letter before the warp.
+fn warped_walk(closed: &[Contour], from: Vec2, to: Vec2) -> Run {
+    let path = route::travel(closed, from, to, f64::INFINITY);
+    let simple = crate::simplify::contour(&Contour::new(path, false), WARPED_WALK_TOLERANCE);
+    generate::subdivide(&simple.points, STROKE_TRAVEL)
 }
 
 /// How far (0.1 mm) a block's rung ends may lie off the chords between its 3 mm rungs
@@ -2472,7 +2500,7 @@ mod stroke_fill_tests {
             .zip(&turns)
         {
             let sewn = |closed: &[Contour], turn: Option<f64>| {
-                stroke_columns(closed, &text_satin(), turn, false)
+                stroke_columns(closed, &text_satin(), turn, false, false)
                     .map(|runs| runs.iter().map(Vec::len).collect::<Vec<_>>())
             };
             let want = sewn(up, None).expect("upright strokes");
@@ -2493,7 +2521,7 @@ mod stroke_fill_tests {
         spec.letter_spacing = 0.3;
         let (obj, _) = DesignObject::text(spec, Some(text_satin()), None).expect("text");
         for (k, closed) in obj.glyph_groups().into_iter().enumerate() {
-            let Some(runs) = stroke_columns(closed, &text_satin(), None, true) else {
+            let Some(runs) = stroke_columns(closed, &text_satin(), None, true, false) else {
                 panic!("letter {k} is not sewn by stroke");
             };
             let edges: Vec<(Vec2, Vec2)> = closed.iter().flat_map(Contour::edges).collect();
@@ -2541,6 +2569,49 @@ mod stroke_fill_tests {
             .count();
         assert!(steps > 20, "{steps}");
         assert!(p.count(Command::Stitch) > 100);
+    }
+
+    #[test]
+    fn a_warped_letters_walk_is_not_a_needle_point_per_outline_point() {
+        // #428: a Text Transform samples the outline densely (an H's 12 corners become 116
+        // points), and the walk between a letter's blocks put a needle point on every one:
+        // satin HHHHHHH under preset 3 sewed 1831 needle points, against 1043 straight. Walked
+        // as the straight letter is, the warped text sews about as many as the straight one.
+        let count = |envelope: Option<u8>| {
+            let mut spec = TextSpec::new("HHHHHHH", DEFAULT_FONT, 10.0);
+            spec.envelope = envelope;
+            let (obj, _) = DesignObject::text(spec, Some(text_satin()), None).expect("text");
+            let mut d = Design::default();
+            d.add(obj);
+            Compiler::default().compile(&d).count(Command::Stitch)
+        };
+        let straight = count(None);
+        for preset in [3, 9, 13, 18] {
+            let warped = count(Some(preset));
+            assert!(
+                (warped as f64) < 1.3 * straight as f64,
+                "preset {preset}: {warped} needle points, straight {straight}"
+            );
+        }
+        // The walk keeps to the outline: every point of it within 0.1 mm of the letter.
+        let mut spec = TextSpec::new("H", DEFAULT_FONT, 10.0);
+        spec.envelope = Some(3);
+        let (obj, _) = DesignObject::text(spec, None, None).expect("text");
+        let closed: Vec<Contour> = obj.contours.iter().filter(|c| c.closed).cloned().collect();
+        let walk = warped_walk(&closed, closed[0].points[0], closed[0].points[60]);
+        assert!(walk.len() < 30, "{} points", walk.len());
+        assert!(
+            walk.windows(2)
+                .all(|w| w[0].distance(w[1]) <= STROKE_TRAVEL + 1e-9)
+        );
+        for p in &walk {
+            let off = closed
+                .iter()
+                .flat_map(Contour::edges)
+                .map(|(a, b)| crate::skeleton::segment_distance(*p, a, b))
+                .fold(f64::INFINITY, f64::min);
+            assert!(off <= WARPED_WALK_TOLERANCE + 1e-6, "{p:?} {off}");
+        }
     }
 
     /// `text` in Lato Bold at `size` mm, Satin (PE-DESIGN's text default), compiled.
@@ -2602,7 +2673,7 @@ mod stroke_fill_tests {
                     dot.max_y < stem.min_y,
                     "{size} mm: the dot is the top piece"
                 );
-                let runs = stroke_columns(&closed, &text_satin(), None, size < SMALL_TEXT)
+                let runs = stroke_columns(&closed, &text_satin(), None, size < SMALL_TEXT, false)
                     .expect("by stroke");
                 assert_eq!(runs.len(), 2, "{size} mm: the dot and the stem apart");
                 // The dot's satin spans the dot (within 0.3 mm of each side) and stays in it.
