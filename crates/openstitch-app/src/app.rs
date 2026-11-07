@@ -98,8 +98,9 @@ impl Launch {
 }
 
 /// Values `--show` accepts.
-pub const SHOW: [&str; 33] = [
+pub const SHOW: [&str; 34] = [
     "update",
+    "keyboard",
     "pickers",
     "tabs",
     "close-prompt",
@@ -200,6 +201,8 @@ pub struct EditorApp {
     pub dialog_rect: Option<egui::Rect>,
     pub dialog_rect_next: Option<egui::Rect>,
     player: Option<crate::script::Player>,
+    /// The keyboard drawing cursor (#499).
+    pub keyboard: crate::keyboard_ui::KeyboardCursor,
     /// Picture pickers and their hover preview (#656).
     pub pickers: crate::pickers_ui::Pickers,
     /// The other designs open as tabs (#552).
@@ -342,6 +345,7 @@ impl EditorApp {
             dialog_rect: None,
             dialog_rect_next: None,
             player: None,
+            keyboard: Default::default(),
             pickers: Default::default(),
             tabs: Default::default(),
             open_job: None,
@@ -509,6 +513,18 @@ impl EditorApp {
                 "update" => self.update.show_sample(),
                 "close-prompt" => {
                     self.close_prompt.request(Pending::Exit, true);
+                }
+                "keyboard" => {
+                    // A Satin Skeleton column drawn from the keyboard (#499, #707): three
+                    // points of growing width, the cursor at the next one.
+                    self.tools.set_tool(Tool::Skeleton);
+                    for (x, y, w) in [(30.0, 70.0, 2.0), (50.0, 45.0, 4.0), (75.0, 60.0, 7.0)] {
+                        let _ = self.cursor_command(Some(&json!({
+                            "x": x, "y": y, "width": w, "action": "smooth",
+                        })));
+                    }
+                    let _ =
+                        self.cursor_command(Some(&json!({ "x": 85.0, "y": 35.0, "width": 9.0 })));
                 }
                 "pickers" => {
                     // The Region Type pictures open over a satin preview of the badge (#656).
@@ -728,6 +744,20 @@ impl EditorApp {
                         if drawn && !defaults.is_empty() {
                             let ids = CommandRequest::created_ids(&result);
                             app.apply_new_object_defaults(&ids, &defaults);
+                        }
+                        // A Pen line drawn with widths is a satin line (#707), same undo step.
+                        if requests[0].command == "shape.path"
+                            && let Some(keys) = app.tools.take_satin_keys()
+                        {
+                            let ids = CommandRequest::created_ids(&result);
+                            app.execute(&CommandRequest::new(
+                                "object.setLine",
+                                json!({
+                                    "ids": CommandRequest::ids(&ids),
+                                    "type": "satin",
+                                    "widthKeys": keys,
+                                }),
+                            ))?;
                         }
                         Some(result)
                     });
@@ -1686,7 +1716,10 @@ impl EditorApp {
         } else if hit(A::Group) {
             crate::edit_ui::group(self);
         }
-        if hit(A::Delete) {
+        if hit(A::Delete) && self.tools.is_busy() && crate::keyboard_ui::draws(self.tools.tool()) {
+            // While drawing, Backspace / Delete take back the last point (#499).
+            self.tools.remove_last_point();
+        } else if hit(A::Delete) {
             // The Point tool deletes the selected vertex; otherwise the selected objects.
             let mut point_deleted = false;
             self.with_tools(|t, c| {
@@ -1699,6 +1732,7 @@ impl EditorApp {
             }
         }
         if take(KeyboardShortcut::new(Modifiers::NONE, Key::Escape)) {
+            self.keyboard = Default::default();
             if self.zoom_box.active {
                 self.zoom_box = Default::default();
             } else if self.edit.cancel() {
@@ -1723,6 +1757,8 @@ impl EditorApp {
             self.apply_effects(effects);
         }
         let player_t = self.player_keys(&take);
+        // Keyboard drawing (#499): with a drawing tool the arrows move the drawing cursor.
+        crate::keyboard_ui::keys(self, ctx);
         for (key, dx, dy) in [
             (Key::ArrowLeft, -1.0, 0.0),
             (Key::ArrowRight, 1.0, 0.0),

@@ -13,6 +13,7 @@ use std::collections::BTreeSet;
 pub mod builder;
 pub mod characters;
 pub mod continuation;
+pub mod keyboard;
 pub mod knife;
 pub mod needles;
 pub mod skeleton;
@@ -391,6 +392,11 @@ pub struct ToolController {
     /// Satin Skeleton: widths (mm) of the anchors in `pen`, and the width of the next one.
     widths: Vec<f64>,
     skeleton_width: Option<f64>,
+    /// Pen: width (mm) of the next point once a width was set (#707): the line becomes a satin
+    /// line. `None`: a plain line.
+    pen_width: Option<f64>,
+    /// Pen: the width keys of the line just finished with widths (`keyboard.rs`).
+    satin_keys: Option<Vec<[f64; 3]>>,
     /// Point tool on a text: the selected character (text id, character index).
     character: Option<(u64, usize)>,
     /// Snap to Objects (#473) is on, and the lines collected when the current move began.
@@ -540,6 +546,7 @@ impl ToolController {
 
     pub fn set_tool(&mut self, t: Tool) {
         self.cancel();
+        self.pen_width = None;
         self.point = None;
         self.character = None;
         self.tool = Some(t);
@@ -907,6 +914,7 @@ impl ToolController {
                     return vec![];
                 }
                 self.pen.push(PenNode::corner(p));
+                self.pen_point_placed();
                 self.gesture = Some(Gesture::PenAnchor {
                     index: self.pen.len() - 1,
                 });
@@ -943,6 +951,12 @@ impl ToolController {
         if self.tool() != Tool::Pen || !is_valid(&nodes, closed) {
             return vec![];
         }
+        if closed {
+            self.satin_keys = None;
+        } else {
+            self.record_satin_keys(&nodes);
+        }
+        self.widths.clear();
         vec![ToolEffect::run(path_request(&nodes, closed), true)]
     }
 

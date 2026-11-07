@@ -399,6 +399,29 @@ pub const UI_COMMANDS: &[UiCommand] = &[
         )],
     },
     UiCommand {
+        id: "ui.cursor",
+        summary: "Keyboard drawing (#499) with the active drawing tool (pick one with ui.run, e.g. polygon, pen, punch): x, y (mm) or dx, dy move the drawing cursor; action place clicks there (Rectangle and Ellipse: first place starts, second ends), smooth places a smooth Pen or Satin Skeleton point, back removes the last point, finish ends the drawing (one undo step, the same command a mouse drawing makes), cancel drops it; width (mm) sets the next point's width for the Pen (making a satin line) and Satin Skeleton (#707)",
+        effect: Effect::Edit,
+        params: &[
+            p("x", "mm", false, "Cursor x on the Design Page"),
+            p("y", "mm", false, "Cursor y"),
+            p("dx", "mm", false, "Move the cursor by this much"),
+            p("dy", "mm", false, "Move the cursor by this much"),
+            p(
+                "action",
+                "place|smooth|back|finish|cancel",
+                false,
+                "What to do at the cursor, after moving it",
+            ),
+            p(
+                "width",
+                "mm 0.1-30",
+                false,
+                "Next point's width (Pen, Satin Skeleton)",
+            ),
+        ],
+    },
+    UiCommand {
         id: "ui.preview",
         summary: "Preview a design change on the canvas without making it (#656, as hovering a picture picker's tile does): command and params of an editing command (e.g. object.setRegion with a type or pattern) show its stitches instead of the design's, with no undo step; clear: true ends it, any edit drops it; without parameters, whether a preview is on. Run the command itself to keep the change",
         effect: Effect::Edit,
