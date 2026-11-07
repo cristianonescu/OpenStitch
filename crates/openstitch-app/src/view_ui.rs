@@ -3,6 +3,7 @@
 //! Image, Font Filter Settings and the Fabric Selector. Only the image, guideline and fabric
 //! commands change the design, through `background.*`, `guides.set` and `fabric.apply`.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use crate::workspace_ui::RULER;
 use eframe::egui::{self, Color32, Pos2, Stroke};
@@ -298,7 +299,7 @@ pub fn rotate_image(app: &mut EditorApp, direction: &str) {
 
 /// Image ▸ Save Image: to a file or to the clipboard, as shown on the Design Page.
 pub fn save_image_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
-    if ui.button("to File…").clicked() {
+    if ui.button(t("ui-to-file")).clicked() {
         ui.close();
         if let Some(p) = crate::files::FileDialog::new()
             .add_filter("PNG", &["png"])
@@ -316,7 +317,7 @@ pub fn save_image_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
             app.status = format!("Image saved to {}", p.display());
         }
     }
-    if ui.button("to Clipboard").clicked() {
+    if ui.button(t("ui-to-clipboard")).clicked() {
         ui.close();
         app.status = match copy_image(app) {
             Ok(()) => "Background image copied to the clipboard".into(),
@@ -430,7 +431,7 @@ fn modify_image_window(app: &mut EditorApp, ctx: &egui::Context) {
         .show(ctx, |ui| {
             let Some(b) = app.session.design().background.clone() else {
                 crate::art::header(ui, crate::art::Art::NoImage, |ui| {
-                    ui.label("No background image. Use Image ▸ Open Image first.");
+                    ui.label(t("ui-no-background-image-use-image-open"));
                 });
                 return;
             };
@@ -443,7 +444,7 @@ fn modify_image_window(app: &mut EditorApp, ctx: &egui::Context) {
             egui::Grid::new("modify-image")
                 .num_columns(2)
                 .show(ui, |ui| {
-                    ui.label("Position");
+                    ui.label(t("ui-position"));
                     ui.horizontal(|ui| {
                         finish(
                             &ui.add(
@@ -461,7 +462,7 @@ fn modify_image_window(app: &mut EditorApp, ctx: &egui::Context) {
                         );
                     });
                     ui.end_row();
-                    ui.label("Width");
+                    ui.label(t("ui-width"));
                     ui.horizontal(|ui| {
                         finish(
                             &ui.add(
@@ -515,8 +516,8 @@ fn modify_image_window(app: &mut EditorApp, ctx: &egui::Context) {
                     turn = Some("right");
                 }
                 if ui
-                    .button("Reset")
-                    .on_hover_text("No crop, original colours")
+                    .button(t("ui-reset"))
+                    .on_hover_text(t("ui-no-crop-original-colours-tip"))
                     .clicked()
                 {
                     d.crop = [0.0; 4];
@@ -577,7 +578,7 @@ fn realistic_window(app: &mut EditorApp, ctx: &egui::Context) {
         .show(ctx, |ui| {
             let r = &mut app.ui.prefs.realistic;
             egui::Grid::new("realistic").num_columns(2).show(ui, |ui| {
-                ui.label("Thread width");
+                ui.label(t("ui-thread-width"));
                 changed |= ui
                     .add(
                         egui::Slider::new(&mut r.thread_width_mm, RealisticSettings::WIDTH_RANGE)
@@ -586,23 +587,23 @@ fn realistic_window(app: &mut EditorApp, ctx: &egui::Context) {
                     )
                     .changed();
                 ui.end_row();
-                ui.label("Contrast");
+                ui.label(t("ui-contrast"));
                 changed |= ui
                     .add(egui::Slider::new(&mut r.contrast, -100.0..=100.0))
                     .changed();
                 ui.end_row();
-                ui.label("Brightness");
+                ui.label(t("ui-brightness"));
                 changed |= ui
                     .add(egui::Slider::new(&mut r.brightness, -100.0..=100.0))
                     .changed();
                 ui.end_row();
             });
             ui.horizontal(|ui| {
-                if ui.button("Default").clicked() {
+                if ui.button(t("ui-default")).clicked() {
                     *r = RealisticSettings::default();
                     changed = true;
                 }
-                if !app.workspace.realistic && ui.button("Show Realistic View").clicked() {
+                if !app.workspace.realistic && ui.button(t("ui-show-realistic-view")).clicked() {
                     app.workspace.realistic = true;
                     app.workspace.solid = false;
                 }
@@ -655,7 +656,7 @@ fn font_filter_window(app: &mut EditorApp, ctx: &egui::Context) {
         .open(&mut open)
         .default_width(300.0)
         .show(ctx, |ui| {
-            ui.label("Tick the fonts to show; clear the ones to hide.");
+            ui.label(t("ui-tick-the-fonts-to-show-clear"));
             egui::ScrollArea::vertical()
                 .max_height(320.0)
                 .show(ui, |ui| {
@@ -686,13 +687,13 @@ fn font_filter_window(app: &mut EditorApp, ctx: &egui::Context) {
             ui.separator();
             ui.horizontal(|ui| {
                 if ui
-                    .button("Default")
-                    .on_hover_text("Show every font")
+                    .button(t("ui-default"))
+                    .on_hover_text(t("ui-show-every-font-tip"))
                     .clicked()
                 {
                     draft.hidden.clear();
                 }
-                if ui.button("OK").clicked() {
+                if ui.button(t("ui-ok")).clicked() {
                     apply = true;
                 }
             });
@@ -803,7 +804,7 @@ fn fabric_window(app: &mut EditorApp, ctx: &egui::Context) {
                             }
                         })
                         .response
-                        .on_hover_text("Beyond PE-DESIGN: a thinner thread (higher number) sews rows closer, density times the square root of (weight / 40); No. 40 keeps the fabric's values");
+                        .on_hover_text(t("ui-beyond-pe-design-a-thinner-thread-tip"));
                     crate::a11y::name(&combo, "Thread weight");
                     ui.add_space(4.0);
                     egui::Grid::new("fabric-values").num_columns(2).show(ui, |ui| {
@@ -852,12 +853,12 @@ fn fabric_window(app: &mut EditorApp, ctx: &egui::Context) {
                 });
             });
             ui.separator();
-            ui.checkbox(&mut all, "Apply to all shape and text patterns on the Design Page");
+            ui.checkbox(&mut all, t("ui-apply-to-all-shape-and-text"));
             if !all {
                 ui.label(format!("Applies to the {} selected pattern(s).", selected.len()));
             }
-            ui.checkbox(&mut for_new, "New shapes and texts start from this fabric")
-                .on_hover_text("Beyond PE-DESIGN: shapes and texts drawn afterwards get these settings (fabric.setDefault); existing ones change only through OK above");
+            ui.checkbox(&mut for_new, t("ui-new-shapes-and-texts-start-from"))
+                .on_hover_text(t("ui-beyond-pe-design-shapes-and-texts-tip"));
             ui.label(
                 egui::RichText::new(
                     "OpenStitch's own approximate settings for fill and satin regions. Perform a trial sewing before embroidering your project.",
@@ -867,7 +868,7 @@ fn fabric_window(app: &mut EditorApp, ctx: &egui::Context) {
             );
             ui.horizontal(|ui| {
                 let can = chosen.is_some() && (all || !selected.is_empty());
-                if ui.add_enabled(can, egui::Button::new("OK")).clicked() {
+                if ui.add_enabled(can, egui::Button::new(t("ui-ok"))).clicked() {
                     ok = true;
                 }
             });
@@ -909,11 +910,11 @@ pub fn show_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     let s = &mut app.ui.prefs.show;
     let mut changed = false;
     changed |= ui
-        .checkbox(&mut s.needle_points, "Needle Points")
-        .on_hover_text("A dot at every needle drop")
+        .checkbox(&mut s.needle_points, t("ui-needle-points"))
+        .on_hover_text(t("ui-a-dot-at-every-needle-drop-tip"))
         .changed();
     ui.separator();
-    ui.label(egui::RichText::new("Underlay").weak());
+    ui.label(egui::RichText::new(t("menu-underlay")).weak());
     for (l, label) in [
         (Layers::Both, "Underlay and top stitching"),
         (Layers::UnderlayOnly, "Underlay only"),
@@ -923,17 +924,17 @@ pub fn show_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     }
     ui.separator();
     changed |= ui
-        .checkbox(&mut s.trim_marks, "Trim Marks")
+        .checkbox(&mut s.trim_marks, t("ui-trim-marks"))
         .on_hover_text(
             "A cut mark where the machine trims; trimmed moves drawn red, untrimmed jumps grey",
         )
         .changed();
     changed |= ui
-        .checkbox(&mut s.hide_unselected, "Hide Unselected")
-        .on_hover_text("Only the selected objects' stitches")
+        .checkbox(&mut s.hide_unselected, t("ui-hide-unselected"))
+        .on_hover_text(t("ui-only-the-selected-objects-stitches-tip"))
         .changed();
     ui.separator();
-    ui.label(egui::RichText::new("Colour by").weak());
+    ui.label(egui::RichText::new(t("ui-colour-by")).weak());
     for (c, label) in [
         (ColorBy::Thread, "Thread"),
         (ColorBy::SewingOrder, "Sewing order"),
@@ -942,7 +943,7 @@ pub fn show_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         changed |= ui.radio_value(&mut s.color_by, c, label).changed();
     }
     changed |= ui
-        .checkbox(&mut s.solo, "Solo Colour")
+        .checkbox(&mut s.solo, t("ui-solo-colour"))
         .on_hover_text(
             "Fade every colour but the current one (the simulator's, else the selection's)",
         )

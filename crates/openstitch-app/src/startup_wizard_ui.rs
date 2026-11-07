@@ -9,6 +9,7 @@
 //! replace the open design with an empty page: the action asks about unsaved changes itself
 //! where it replaces the design (Open, a sample).
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui::{self, RichText};
 use openstitch_app::editor::close_prompt::Pending;
@@ -128,12 +129,12 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 ui.add_space(16.0);
                 ui.vertical(|ui| {
                     ui.set_width(230.0);
-                    ui.label(RichText::new("Most Recently Used Files").strong());
+                    ui.label(RichText::new(t("ui-most-recently-used-files")).strong());
                     egui::ScrollArea::vertical()
                         .max_height(140.0)
                         .show(ui, |ui| {
                             if recent.is_empty() {
-                                ui.label(RichText::new("No recent files").weak());
+                                ui.label(RichText::new(t("ui-no-recent-files")).weak());
                             }
                             for p in &recent {
                                 let name = p
@@ -150,7 +151,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                             }
                         });
                     let can = app.startup_wizard.recent.is_some();
-                    if ui.add_enabled(can, egui::Button::new("Open")).clicked() {
+                    if ui.add_enabled(can, egui::Button::new(t("ui-open"))).clicked() {
                         open_recent = app.startup_wizard.recent.clone();
                     }
                     ui.add_space(6.0);
@@ -172,7 +173,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 {
                     app.ui.save_prefs();
                 }
-                if ui.button("Close This Wizard").clicked() {
+                if ui.button(t("ui-close-this-wizard")).clicked() {
                     close = true;
                 }
             });

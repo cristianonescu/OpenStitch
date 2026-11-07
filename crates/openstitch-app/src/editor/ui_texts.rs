@@ -1,5 +1,6 @@
-//! The window's texts outside the ribbon model, by message id (#555 part 2): the menus of the
-//! Application button, Options, Help and File ▸ Export so far. [`t`] gives a text in this
+//! The window's texts outside the ribbon model, by message id (#555): the menus of the
+//! Application button, Options, Help and File ▸ Export (`menu-…`, part 2), and the panes and
+//! dialogs (`ui-…`, part 3). [`t`] gives a text in this
 //! thread's language through [`super::i18n`], English (this table) when the language has none;
 //! `assets/i18n/en.ftl` lists them after the ribbon's messages. Ids never reach the screen: a
 //! test checks that every `t("…")` in the app's source is in [`UI_TEXTS`].
@@ -199,6 +200,198 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
     ("menu-options", "Options"),
     ("menu-exit", "Exit"),
     ("menu-no-files-opened-yet", "No files opened yet"),
+    (
+        "ui-hide-view-show-hide-shows-it-tip",
+        "Hide (View ▸ Show/Hide shows it again)",
+    ),
+    ("ui-dock-to-the-window-tip", "Dock to the window"),
+    ("ui-hide-tip", "Hide"),
+    ("ui-float-as-a-window-tip", "Float as a window"),
+    (
+        "ui-add-designs-artwork-or-a-lettering",
+        "Add designs, artwork or a lettering template to the Design Page.",
+    ),
+    ("ui-template-wizard", "Template Wizard"),
+    ("ui-import-a-recent-file", "Import a recent file"),
+    ("ui-selection", "Selection"),
+    (
+        "ui-thread-colours-in-sewing-order",
+        "Thread colours in sewing order",
+    ),
+    ("ui-sort-by-colour", "Sort by colour"),
+    (
+        "ui-same-colour-objects-sew-together-tip",
+        "Same-colour objects sew together",
+    ),
+    (
+        "ui-select-a-text-object-to-change",
+        "Select a text object to change its attributes.",
+    ),
+    ("ui-text", "Text"),
+    ("ui-apply-text", "Apply text"),
+    ("ui-font", "Font"),
+    ("ui-size", "Size"),
+    ("ui-character-spacing", "Character Spacing"),
+    ("ui-line-spacing", "Line Spacing"),
+    ("ui-pixels", "Pixels"),
+    ("ui-design-size-tip", "Design size"),
+    ("ui-zoom-tip", "Zoom"),
+    (
+        "ui-magnification-type-a-value-or-drag-tip",
+        "Magnification: type a value or drag",
+    ),
+    ("ui-revert", "Revert"),
+    ("ui-openstitch", "OpenStitch"),
+    (
+        "ui-an-open-source-embroidery-design-suite",
+        "An open-source embroidery design suite for macOS, Windows and Linux.",
+    ),
+    (
+        "ui-reads-and-writes-pes-pec-dst",
+        "Reads and writes PES, PEC, DST, EXP, JEF, VP3 and more.",
+    ),
+    (
+        "ui-which-machine-do-you-sew-on",
+        "Which machine do you sew on? OpenStitch starts new designs on its hoop and warns when an export has stitches it cannot sew or trims it cannot cut.",
+    ),
+    ("ui-brand", "Brand"),
+    ("ui-hoop", "Hoop"),
+    (
+        "ui-the-machine-cuts-threads-thread-cutter",
+        "The machine cuts threads (thread cutter)",
+    ),
+    ("ui-longest-stitch", "Longest stitch"),
+    ("ui-from-the-manual", "From the manual:"),
+    (
+        "ui-leave-it-off-when-the-manual-tip",
+        "Leave it off when the manual does not say; OpenStitch then checks only the file format's own limit",
+    ),
+    ("ui-save", "Save"),
+    ("ui-not-now", "Not now"),
+    (
+        "ui-help-machine-setup-asks-again-tip",
+        "Help ▸ Machine Setup asks again",
+    ),
+    ("ui-most-recently-used-files", "Most Recently Used Files"),
+    ("ui-no-recent-files", "No recent files"),
+    ("ui-open", "Open"),
+    ("ui-close-this-wizard", "Close This Wizard"),
+    ("ui-to-file", "to File…"),
+    ("ui-to-clipboard", "to Clipboard"),
+    (
+        "ui-no-background-image-use-image-open",
+        "No background image. Use Image ▸ Open Image first.",
+    ),
+    ("ui-position", "Position"),
+    ("ui-width", "Width"),
+    ("ui-reset", "Reset"),
+    (
+        "ui-no-crop-original-colours-tip",
+        "No crop, original colours",
+    ),
+    ("ui-thread-width", "Thread width"),
+    ("ui-contrast", "Contrast"),
+    ("ui-brightness", "Brightness"),
+    ("ui-default", "Default"),
+    ("ui-show-realistic-view", "Show Realistic View"),
+    (
+        "ui-tick-the-fonts-to-show-clear",
+        "Tick the fonts to show; clear the ones to hide.",
+    ),
+    ("ui-show-every-font-tip", "Show every font"),
+    ("ui-ok", "OK"),
+    (
+        "ui-beyond-pe-design-a-thinner-thread-tip",
+        "Beyond PE-DESIGN: a thinner thread (higher number) sews rows closer, density times the square root of (weight / 40); No. 40 keeps the fabric's values",
+    ),
+    (
+        "ui-apply-to-all-shape-and-text",
+        "Apply to all shape and text patterns on the Design Page",
+    ),
+    (
+        "ui-new-shapes-and-texts-start-from",
+        "New shapes and texts start from this fabric",
+    ),
+    (
+        "ui-beyond-pe-design-shapes-and-texts-tip",
+        "Beyond PE-DESIGN: shapes and texts drawn afterwards get these settings (fabric.setDefault); existing ones change only through OK above",
+    ),
+    ("ui-needle-points", "Needle Points"),
+    (
+        "ui-a-dot-at-every-needle-drop-tip",
+        "A dot at every needle drop",
+    ),
+    ("ui-trim-marks", "Trim Marks"),
+    ("ui-hide-unselected", "Hide Unselected"),
+    (
+        "ui-only-the-selected-objects-stitches-tip",
+        "Only the selected objects' stitches",
+    ),
+    ("ui-colour-by", "Colour by"),
+    ("ui-solo-colour", "Solo Colour"),
+    ("ui-paper", "Paper"),
+    (
+        "ui-sewing-area-box-and-centre-axes",
+        "Sewing area box and centre axes",
+    ),
+    (
+        "ui-embroidery-positioning-mark",
+        "Embroidery positioning mark",
+    ),
+    ("ui-template-grid-10-mm", "Template grid (10 mm)"),
+    (
+        "ui-mirror-the-image-iron-on-transfer",
+        "Mirror the image (iron-on transfer sheets)",
+    ),
+    (
+        "ui-open-the-system-print-dialog-or-tip",
+        "Open the system print dialog (or the PDF viewer)",
+    ),
+    ("ui-save-pdf", "Save PDF…"),
+    ("ui-no-saved-sets-yet", "No saved sets yet."),
+    (
+        "ui-apply-to-the-selected-objects-their-tip",
+        "Apply to the selected objects (their colours stay)",
+    ),
+    ("ui-delete", "Delete"),
+    ("ui-save-selected", "Save selected"),
+    (
+        "ui-save-the-selected-object-s-sewing-tip",
+        "Save the selected object's sewing attributes under this name",
+    ),
+    ("ui-match-to-thread-chart", "Match to thread chart…"),
+    ("ui-merge-similar-colours", "Merge similar colours…"),
+    (
+        "ui-join-near-identical-thread-colours-to-tip",
+        "Join near-identical thread colours to save thread changes",
+    ),
+    ("ui-new", "New"),
+    ("ui-import-palette", "Import palette…"),
+    (
+        "ui-a-gimp-or-inkscape-palette-gpl-tip",
+        "A GIMP or Inkscape palette (.gpl) as a new chart",
+    ),
+    ("ui-rename", "Rename"),
+    ("ui-move-up-tip", "Move up"),
+    ("ui-move-down-tip", "Move down"),
+    ("ui-remove", "Remove"),
+    ("ui-colour", "Colour"),
+    ("ui-code", "Code"),
+    ("ui-description", "Description"),
+    ("ui-add-colour", "Add colour"),
+    ("ui-import-csv", "Import CSV…"),
+    ("ui-export-palette", "Export palette…"),
+    ("ui-export-csv", "Export CSV…"),
+    ("ui-remap-design", "Remap design"),
+    (
+        "ui-change-every-thread-to-the-nearest-tip",
+        "Change every thread to the nearest colour of this chart",
+    ),
+    ("ui-match", "Match…"),
+    (
+        "ui-preview-the-match-to-this-chart-tip",
+        "Preview the match to this chart before it applies",
+    ),
 ];
 
 /// The English text of message `id`.
@@ -227,7 +420,10 @@ mod tests {
         ids.dedup();
         assert_eq!(ids.len(), n, "duplicate id");
         for (id, text) in UI_TEXTS {
-            assert!(id.starts_with("menu-") && !text.is_empty(), "{id}");
+            assert!(
+                (id.starts_with("menu-") || id.starts_with("ui-")) && !text.is_empty(),
+                "{id}"
+            );
             let line = format!("{id} = {}", super::super::i18n::escape(text));
             assert_eq!(super::super::i18n::parse(&line).expect(id)[0].1, *text);
         }
@@ -246,7 +442,12 @@ mod tests {
                     stack.push(p);
                 } else if p.extension().is_some_and(|x| x == "rs") {
                     let src = std::fs::read_to_string(&p).expect("read");
-                    for (i, _) in src.match_indices("t(\"menu-") {
+                    let calls_at = src
+                        .match_indices("t(\"menu-")
+                        .chain(src.match_indices("t(\"ui-"))
+                        .map(|(i, _)| i)
+                        .collect::<Vec<_>>();
+                    for i in calls_at {
                         // A call, not part of another name (`set_t(`, `split(`…).
                         let before = src[..i].chars().last();
                         if before.is_some_and(|c| c.is_alphanumeric() || c == '_') {

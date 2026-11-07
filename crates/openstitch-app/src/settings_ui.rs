@@ -2,6 +2,7 @@
 //! user thread colour lists). They live in the user settings file, not in the design; each
 //! change is one `attributes.*` / `threads.*` command.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui::{self, Color32};
 use openstitch_app::editor::CommandRequest;
@@ -48,15 +49,15 @@ fn sets_window(app: &mut EditorApp, ctx: &egui::Context) {
                 .map(|s| s.name.clone())
                 .collect();
             if sets.is_empty() {
-                ui.label(egui::RichText::new("No saved sets yet.").weak());
+                ui.label(egui::RichText::new(t("ui-no-saved-sets-yet")).weak());
             }
             let any = !app.selection.is_empty();
             for name in sets {
                 ui.horizontal(|ui| {
                     ui.label(&name);
                     if ui
-                        .add_enabled(any, egui::Button::new("Apply"))
-                        .on_hover_text("Apply to the selected objects (their colours stay)")
+                        .add_enabled(any, egui::Button::new(t("menu-apply")))
+                        .on_hover_text(t("ui-apply-to-the-selected-objects-their-tip"))
                         .clicked()
                     {
                         request = Some(CommandRequest::new(
@@ -64,7 +65,7 @@ fn sets_window(app: &mut EditorApp, ctx: &egui::Context) {
                             json!({ "name": name, "ids": CommandRequest::ids(&app.selection) }),
                         ));
                     }
-                    if ui.button("Delete").clicked() {
+                    if ui.button(t("ui-delete")).clicked() {
                         request = Some(CommandRequest::new(
                             "attributes.delete",
                             json!({ "name": name }),
@@ -82,9 +83,9 @@ fn sets_window(app: &mut EditorApp, ctx: &egui::Context) {
                 if ui
                     .add_enabled(
                         from.is_some() && !app.settings.set_name.trim().is_empty(),
-                        egui::Button::new("Save selected"),
+                        egui::Button::new(t("ui-save-selected")),
                     )
-                    .on_hover_text("Save the selected object's sewing attributes under this name")
+                    .on_hover_text(t("ui-save-the-selected-object-s-sewing-tip"))
                     .clicked()
                 {
                     request = Some(CommandRequest::new(
@@ -111,7 +112,7 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
                 if ui
-                    .button("Match to thread chart…")
+                    .button(t("ui-match-to-thread-chart"))
                     .on_hover_text(
                         "Change the design's colours to a chart's threads, with a preview",
                     )
@@ -120,8 +121,8 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                     app.colour_match.match_open = true;
                 }
                 if ui
-                    .button("Merge similar colours…")
-                    .on_hover_text("Join near-identical thread colours to save thread changes")
+                    .button(t("ui-merge-similar-colours"))
+                    .on_hover_text(t("ui-join-near-identical-thread-colours-to-tip"))
                     .clicked()
                 {
                     app.colour_match.merge_open = true;
@@ -157,7 +158,7 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                 );
                 let name = st.chart_name.trim().to_string();
                 if ui
-                    .add_enabled(!name.is_empty(), egui::Button::new("New"))
+                    .add_enabled(!name.is_empty(), egui::Button::new(t("ui-new")))
                     .clicked()
                 {
                     request = Some(CommandRequest::new(
@@ -167,8 +168,8 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                     st.chart = Some(name.clone());
                 }
                 if ui
-                    .button("Import palette…")
-                    .on_hover_text("A GIMP or Inkscape palette (.gpl) as a new chart")
+                    .button(t("ui-import-palette"))
+                    .on_hover_text(t("ui-a-gimp-or-inkscape-palette-gpl-tip"))
                     .clicked()
                     && let Some(path) = crate::files::FileDialog::new()
                         .add_filter("GIMP / Inkscape palette", &["gpl"])
@@ -182,7 +183,7 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                 }
                 if let Some(c) = st.chart.clone() {
                     if ui
-                        .add_enabled(!name.is_empty(), egui::Button::new("Rename"))
+                        .add_enabled(!name.is_empty(), egui::Button::new(t("ui-rename")))
                         .clicked()
                     {
                         request = Some(CommandRequest::new(
@@ -191,7 +192,7 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                         ));
                         st.chart = Some(name.clone());
                     }
-                    if ui.button("Delete").clicked() {
+                    if ui.button(t("ui-delete")).clicked() {
                         request = Some(CommandRequest::new(
                             "threads.deleteChart",
                             json!({ "chart": c }),
@@ -233,18 +234,18 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                                 )
                             };
                             let up = egui::Button::new(crate::icons::ui_image(ui, "move_up"));
-                            if ui.add_enabled(i > 0, up).on_hover_text("Move up").clicked() {
+                            if ui.add_enabled(i > 0, up).on_hover_text(openstitch_app::editor::ui_texts::t("ui-move-up-tip")).clicked() {
                                 request = Some(mv(i - 1));
                             }
                             let down = egui::Button::new(crate::icons::ui_image(ui, "move_down"));
                             if ui
                                 .add_enabled(i + 1 < n, down)
-                                .on_hover_text("Move down")
+                                .on_hover_text(openstitch_app::editor::ui_texts::t("ui-move-down-tip"))
                                 .clicked()
                             {
                                 request = Some(mv(i + 1));
                             }
-                            if ui.button("Remove").clicked() {
+                            if ui.button(openstitch_app::editor::ui_texts::t("ui-remove")).clicked() {
                                 request = Some(CommandRequest::new(
                                     "threads.removeColor",
                                     json!({ "chart": name, "index": i }),
@@ -255,21 +256,21 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                 });
             ui.separator();
             egui::Grid::new("new-thread").num_columns(2).show(ui, |ui| {
-                ui.label("Colour");
+                ui.label(t("ui-colour"));
                 ui.color_edit_button_srgb(&mut st.color);
                 ui.end_row();
-                ui.label("Code");
+                ui.label(t("ui-code"));
                 ui.text_edit_singleline(&mut st.code);
                 ui.end_row();
-                ui.label("Brand");
+                ui.label(t("ui-brand"));
                 ui.text_edit_singleline(&mut st.brand);
                 ui.end_row();
-                ui.label("Description");
+                ui.label(t("ui-description"));
                 ui.text_edit_singleline(&mut st.description);
                 ui.end_row();
             });
             ui.horizontal(|ui| {
-                if ui.button("Add colour").clicked() {
+                if ui.button(t("ui-add-colour")).clicked() {
                     let [r, g, b] = st.color;
                     let mut p =
                         json!({ "chart": name, "color": format!("#{r:02x}{g:02x}{b:02x}") });
@@ -284,7 +285,7 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                     }
                     request = Some(CommandRequest::new("threads.addColor", p));
                 }
-                if ui.button("Import CSV…").clicked()
+                if ui.button(t("ui-import-csv")).clicked()
                     && let Some(path) = crate::files::FileDialog::new()
                         .add_filter("CSV", &["csv"])
                         .pick_file()
@@ -294,7 +295,7 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                         json!({ "chart": name, "path": path.to_string_lossy() }),
                     ));
                 }
-                if ui.button("Export palette…").clicked()
+                if ui.button(t("ui-export-palette")).clicked()
                     && let Some(path) = crate::files::FileDialog::new()
                         .add_filter("GIMP / Inkscape palette", &["gpl"])
                         .set_file_name(format!("{name}.gpl"))
@@ -305,7 +306,7 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                         json!({ "chart": name, "path": path.to_string_lossy() }),
                     ));
                 }
-                if ui.button("Export CSV…").clicked()
+                if ui.button(t("ui-export-csv")).clicked()
                     && let Some(path) = crate::files::FileDialog::new()
                         .add_filter("CSV", &["csv"])
                         .set_file_name(format!("{name}.csv"))
@@ -317,8 +318,8 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                     ));
                 }
                 if ui
-                    .button("Remap design")
-                    .on_hover_text("Change every thread to the nearest colour of this chart")
+                    .button(t("ui-remap-design"))
+                    .on_hover_text(t("ui-change-every-thread-to-the-nearest-tip"))
                     .clicked()
                 {
                     request = Some(CommandRequest::new(
@@ -327,8 +328,8 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                     ));
                 }
                 if ui
-                    .button("Match…")
-                    .on_hover_text("Preview the match to this chart before it applies")
+                    .button(t("ui-match"))
+                    .on_hover_text(t("ui-preview-the-match-to-this-chart-tip"))
                     .clicked()
                 {
                     app.colour_match.target = crate::colour_match_ui::Target::User(name.clone());
