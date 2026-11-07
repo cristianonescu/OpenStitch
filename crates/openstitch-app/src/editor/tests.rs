@@ -1115,8 +1115,8 @@ fn click_counter_detects_double_clicks() {
 
 #[test]
 fn hand_made_line_controls_reach_the_engine() {
-    // #540, #542: the profile's pass counts and the hand-stitch look's settings, variant and
-    // Shuffle appear once they are on, and the engine takes each of them.
+    // #540, #542: the profile's pass counts and the hand-stitch look's settings and variant
+    // appear once they are on, and the engine takes each of them.
     use super::inspector::{Control, line_controls};
     use openstitch_design::line_looks::{HandStitch, RunProfile};
     use openstitch_design::{LineSewing, LineType};
@@ -1155,7 +1155,6 @@ fn hand_made_line_controls_reach_the_engine() {
                 "handExtra",
                 "handPasses",
                 "seed",
-                "shuffle",
             ]
         } {
             assert!(params.contains(&want), "{want} in {params:?}");
@@ -1164,7 +1163,6 @@ fn hand_made_line_controls_reach_the_engine() {
             let v = match c {
                 Control::Number { value, .. } => json!(value),
                 Control::Choice { value, .. } => json!(value),
-                Control::Toggle { param, value, .. } if *param == "shuffle" => json!(!value),
                 Control::Toggle { value, .. } => json!(value),
             };
             let mut p = c.params(v);

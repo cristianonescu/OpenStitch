@@ -1012,7 +1012,6 @@ pub fn line_controls_with(l: &LineSewing, user: &[Pattern]) -> Vec<Control> {
                 " mm",
             ),
             seed_control("line.seed", l.seed.unwrap_or(0)),
-            shuffle_control(),
         ],
         LineType::Zigzag => vec![
             width("Width"),
@@ -1250,11 +1249,12 @@ fn hand_controls(l: &LineSewing, passes: bool) -> Vec<Control> {
             ));
         }
         v.push(seed_control("line.seed", h.seed));
-        v.push(shuffle_control());
     }
     v
 }
 
+/// The variant (seed): changing it is the editor's Shuffle; the same number always sews the same
+/// stitches.
 fn seed_control(key: &'static str, seed: u32) -> Control {
     Control::Number {
         label: "Variant",
@@ -1265,15 +1265,6 @@ fn seed_control(key: &'static str, seed: u32) -> Control {
         speed: 1.0,
         suffix: "",
         integer: true,
-    }
-}
-
-/// Ticking it picks another variant (a new seed); it is never shown ticked.
-fn shuffle_control() -> Control {
-    Control::Toggle {
-        label: "Shuffle",
-        param: "shuffle",
-        value: false,
     }
 }
 
@@ -1311,7 +1302,6 @@ pub fn satin_hand_controls(r: &RegionSewing) -> Vec<Control> {
             " %",
         ));
         v.push(seed_control("region.seed", h.seed));
-        v.push(shuffle_control());
     }
     v
 }
