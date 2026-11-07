@@ -113,6 +113,9 @@ struct Writer {
     connectors: Vec<(u64, f64)>,
     /// The region area of the object being sewn with its hidden stitching left out (#511).
     region_area: Option<Vec<Contour>>,
+    /// Needle points the tie-off dropped (#703): where, and how many; the spans of the objects
+    /// already traced move back by them.
+    drains: Vec<(usize, usize)>,
 }
 
 /// Needle points closer than this (0.1 mm) are one penetration, wherever they lie on the
@@ -188,6 +191,7 @@ impl Writer {
         let end = s.len() - 3;
         let start = end - (run - MAX_IN_PLACE);
         self.out.stitches.drain(start..end);
+        self.drains.push((start, end - start));
     }
 
     fn stitch_line(&mut self, p: Vec2) {
@@ -382,8 +386,15 @@ impl Compiler {
     /// the pattern's stitches it wrote, travel into it included (the quality checks name the
     /// objects behind a problem from this).
     pub fn compile_traced(&self, design: &Design) -> (StitchPattern, Vec<(u64, Range<usize>)>) {
-        let (w, spans) = self.sew_design(design);
-        (w.finish(), spans)
+        let (mut w, mut spans) = self.sew_design(design);
+        let mark = w.drains.len();
+        w.close();
+        // The last object's own tie-off is sewn at the end.
+        let dropped: usize = w.drains[mark..].iter().map(|&(_, n)| n).sum();
+        if let Some((_, r)) = spans.last_mut() {
+            r.end -= dropped.min(r.end - r.start);
+        }
+        (w.out, spans)
     }
 
     /// The run connectors the design sews (#545): the id of the object each follows and its
@@ -409,7 +420,7 @@ impl Compiler {
                 None => w.basting = runs,
             }
         }
-        let mut spans = Vec::new();
+        let mut spans: Vec<(u64, Range<usize>)> = Vec::new();
         let unders = if production.travel_under {
             crate::hidden::later_cover(&design.objects)
         } else {
@@ -419,7 +430,8 @@ impl Compiler {
             if !object.visible {
                 continue;
             }
-            let start = w.out.stitches.len();
+            let mut start = w.out.stitches.len();
+            let mark = w.drains.len();
             w.under = unders.get(index).filter(|u| !u.inset.is_empty()).cloned();
             // Only where it saves stitches: routing round a cut-out can cost more than it
             // leaves out.
@@ -447,6 +459,16 @@ impl Compiler {
                 w.stop_after();
             }
             w.run_from = object.connector_run.then_some(object.id);
+            // The tie-off of the object before is sewn as this one starts: its points dropped
+            // there (#703) move that span's end and this one's start back.
+            for &(at, n) in &w.drains[mark..] {
+                if at < start {
+                    if let Some((_, r)) = spans.last_mut() {
+                        r.end -= n;
+                    }
+                    start -= n;
+                }
+            }
             spans.push((object.id, start..w.out.stitches.len()));
         }
         (w, spans)
@@ -512,6 +534,7 @@ impl Compiler {
             run_from: None,
             connectors: Vec::new(),
             region_area: None,
+            drains: Vec::new(),
         }
     }
 }
@@ -544,6 +567,12 @@ impl Writer {
     }
 
     fn finish(mut self) -> StitchPattern {
+        self.close();
+        self.out
+    }
+
+    /// The last tie-off, trim and end record.
+    fn close(&mut self) {
         if let Some(p) = self.position {
             if !self.cut {
                 self.end_lock();
@@ -551,7 +580,6 @@ impl Writer {
             }
             self.push(p, Command::End);
         }
-        self.out
     }
 }
 
