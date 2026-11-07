@@ -12,6 +12,38 @@ pub fn parts(len: f64, max: f64) -> usize {
     ((len / max.max(1e-6) - 1e-9).ceil() as usize).max(1)
 }
 
+/// The shortest needle step a motif keeps (0.1 mm): closer points stitch in place
+/// (`tools/sew_check.py`'s 0.3 mm rule, #617).
+pub const MOTIF_MIN_STITCH: f64 = 3.0;
+
+/// `run` without the points closer than `min` to the last point kept, where leaving one out
+/// makes no stitch longer than `max` (the pitch the run was split to). The first and last
+/// points stay (the end replaces the last kept point when they are too close), so the run still
+/// starts and ends where it did and joins its neighbours (#617).
+pub fn drop_close(run: &[Vec2], min: f64, max: f64) -> Vec<Vec2> {
+    let Some((&end, body)) = run.split_last() else {
+        return Vec::new();
+    };
+    let mut out: Vec<Vec2> = Vec::with_capacity(run.len());
+    for (i, &p) in body.iter().enumerate() {
+        let next = body.get(i + 1).copied().unwrap_or(end);
+        match out.last() {
+            Some(&k) if k.distance(p) < min && k.distance(next) <= max => {}
+            _ => out.push(p),
+        }
+    }
+    if out.len() > 1
+        && out.last().is_some_and(|k| k.distance(end) < min)
+        && out[out.len() - 2].distance(end) <= max
+    {
+        out.pop();
+    }
+    if out.last().is_none_or(|k| k.distance(end) > 1e-9) {
+        out.push(end);
+    }
+    out
+}
+
 /// Keeps every vertex and splits each edge into equal parts no longer than `max_len`.
 pub fn subdivide(path: &[Vec2], max_len: f64) -> Vec<Vec2> {
     let Some(&first) = path.first() else {

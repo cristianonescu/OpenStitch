@@ -295,6 +295,8 @@ fn schemas_come_from_param_docs() {
             "chain",
             "cutting",
             "satin",
+            "backStitch",
+            "scribble",
             "none"
         ])
     );

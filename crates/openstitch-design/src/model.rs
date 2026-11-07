@@ -1535,6 +1535,9 @@ pub struct RegionSewing {
     /// A second under sewing layer on a Manual Punch column (#523, beyond PE-DESIGN).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub underlay2: Option<crate::column::SecondUnderlay>,
+    /// Satin: the hand-stitch look on one side (#540, beyond PE-DESIGN).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hand: Option<crate::line_looks::SatinHand>,
 }
 
 impl RegionSewing {
@@ -1607,6 +1610,7 @@ impl RegionSewing {
             satin_shaping: Default::default(),
             underlay_auto: Default::default(),
             underlay2: None,
+            hand: None,
         }
     }
 
@@ -1806,10 +1810,14 @@ pub enum LineType {
     /// OpenStitch's satin line (#524, beyond PE-DESIGN): a satin column along the line whose
     /// width can change along it (width keys, tapered ends, per-side widths, a slant).
     Satin,
+    /// Two stitches forward, one back (#542, beyond PE-DESIGN).
+    BackStitch,
+    /// A zigzag sewn several times with smooth random side offsets (#540, beyond PE-DESIGN).
+    Scribble,
 }
 
 impl LineType {
-    pub const ALL: [LineType; 11] = [
+    pub const ALL: [LineType; 13] = [
         LineType::Running,
         LineType::Triple,
         LineType::Zigzag,
@@ -1821,6 +1829,8 @@ impl LineType {
         LineType::Chain,
         LineType::Cutting,
         LineType::Satin,
+        LineType::BackStitch,
+        LineType::Scribble,
     ];
 
     pub fn id(self) -> &'static str {
@@ -1836,6 +1846,8 @@ impl LineType {
             LineType::Chain => "chain",
             LineType::Cutting => "cutting",
             LineType::Satin => "satin",
+            LineType::BackStitch => "backStitch",
+            LineType::Scribble => "scribble",
         }
     }
 
@@ -1856,6 +1868,8 @@ impl LineType {
             LineType::Chain => "Chain",
             LineType::Cutting => "Cutting",
             LineType::Satin => "Satin line",
+            LineType::BackStitch => "Back stitch",
+            LineType::Scribble => "Scribble",
         }
     }
 }
@@ -1979,6 +1993,18 @@ pub struct LineSewing {
     /// Satin line: the crossings turned this many degrees from square to the line (−60…60).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub slant: Option<f64>,
+    /// Running: passes that follow a thickness profile (#542, beyond PE-DESIGN).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile: Option<crate::line_looks::RunProfile>,
+    /// Running, triple and back stitch: the hand-stitch look (#540, beyond PE-DESIGN).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hand: Option<crate::line_looks::HandStitch>,
+    /// Scribble: length of its smooth side waves, mm (default 5).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub noise_scale: Option<f64>,
+    /// Scribble: the variant (another seed sews other stitches).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seed: Option<u32>,
 }
 
 /// An opening in a closed line: `length` mm left unsewn from `offset` mm along the outline
@@ -2042,13 +2068,19 @@ impl LineSewing {
             thread,
             pitch: match kind {
                 LineType::Running | LineType::Triple | LineType::Zigzag | LineType::Satin => 2.0,
+                LineType::Scribble => 1.0,
                 _ if stroke => 2.0,
                 _ => 2.5,
             },
-            run_times: if kind == LineType::Chain { 5 } else { 1 },
+            run_times: match kind {
+                LineType::Chain => 5,
+                LineType::Scribble => 3,
+                _ => 1,
+            },
             width: match kind {
                 LineType::Candlewick => 5.0,
                 LineType::Chain => 4.0,
+                LineType::Scribble => 3.0,
                 _ if stroke => 2.5,
                 _ => 2.0,
             },
@@ -2079,6 +2111,10 @@ impl LineSewing {
             taper_start: None,
             taper_end: None,
             slant: None,
+            profile: None,
+            hand: None,
+            noise_scale: None,
+            seed: None,
         }
     }
 
