@@ -577,8 +577,11 @@ pub fn region_controls_with(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> 
                 ));
             }
         }
-        // OpenStitch's satin shaping (#520-#522) on a Manual Punch satin column.
-        if r.kind == RegionType::Satin && r.direction_lines.len() >= 2 {
+        // OpenStitch's satin shaping (#520-#522) on a Manual Punch satin column, a skeleton
+        // satin and an Auto satin region (#675).
+        if r.kind == RegionType::Satin
+            && (r.direction_lines.len() >= 2 || r.skeleton.is_some() || r.auto_direction)
+        {
             v.extend(shaping_controls(
                 &r.satin_shaping,
                 r.pull_compensation,
@@ -1767,6 +1770,31 @@ mod search_tests {
             &["Underlay density", "underlayDensity"]
         ));
         assert!(!matches_filter("under pull", &["Underlay density", "x"]));
+    }
+
+    #[test]
+    fn skeleton_and_auto_satin_show_the_satin_shaping() {
+        // #675: the corner, short stitch and compensation rows of a column.
+        let t = Thread::rgb(0);
+        let corners = |r: &RegionSewing| {
+            region_controls_with(r, &[])
+                .iter()
+                .any(|c| c.param() == "cornerStyle")
+        };
+        let plain = RegionSewing::new(RegionType::Satin, t.clone());
+        assert!(!corners(&plain), "a fixed-direction satin has none");
+        let mut auto = plain.clone();
+        auto.auto_direction = true;
+        assert!(corners(&auto));
+        let mut skeleton = plain.clone();
+        skeleton.skeleton = Some(openstitch_design::skeleton::Skeleton {
+            points: vec![
+                openstitch_design::v2(0.0, 0.0),
+                openstitch_design::v2(100.0, 0.0),
+            ],
+            widths: vec![3.0, 3.0],
+        });
+        assert!(corners(&skeleton));
     }
 
     #[test]

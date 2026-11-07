@@ -87,6 +87,8 @@ mod contour_tests;
 #[cfg(test)]
 mod finish_tests;
 #[cfg(test)]
+mod satin_shaping_tests;
+#[cfg(test)]
 mod stitch_type_tests;
 #[cfg(test)]
 mod tests;

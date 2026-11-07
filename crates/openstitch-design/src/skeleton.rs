@@ -176,6 +176,35 @@ impl Centre {
         (centre, tangent.unwrap_or(u), half)
     }
 
+    /// One rung per centre-line point [left, right]: square to the line at its ends and to
+    /// the bisector at a vertex, as long as the column's offset edges make it there (half
+    /// width over the cosine of half the turn, at most five half widths).
+    fn vertex_rungs(&self) -> Vec<[Vec2; 2]> {
+        let n = self.points.len();
+        (0..n)
+            .map(|i| {
+                let (t, stretch) = if i == 0 {
+                    (self.direction(0), 1.0)
+                } else if i == n - 1 {
+                    (self.direction(n - 2), 1.0)
+                } else {
+                    let (a, b) = (self.direction(i - 1), self.direction(i));
+                    let sum = a + b;
+                    if sum.length() < 1e-6 {
+                        (a, 1.0)
+                    } else {
+                        let t = sum * (1.0 / sum.length());
+                        (t, 1.0 / (t.x * b.x + t.y * b.y).max(0.2))
+                    }
+                };
+                let h = self.half[i] * stretch;
+                let left = v2(t.y, -t.x);
+                let c = self.points[i];
+                [c + left * h, c - left * h]
+            })
+            .collect()
+    }
+
     /// Stitch ends across the column every `spacing` (or a little less) along the centre
     /// line, first and last ends included: [left, right], each lengthened by `pull`.
     fn rungs(&self, spacing: f64, pull: f64) -> Vec<[Vec2; 2]> {
@@ -213,6 +242,79 @@ pub fn satin(s: &Skeleton, spacing: f64, pull: f64) -> Run {
     run.extend(crate::region::half_stitch(&rungs, &sides));
     run.dedup_by(|a, b| a.distance(*b) < 1e-9);
     run
+}
+
+/// [`satin`] with OpenStitch's satin shaping (#675): corner constructions, short stitches,
+/// compensation per side and per cent of width, the satin styles. With corner constructions
+/// the column is one rung per centre-line point (square to the bisector, reaching the mitre
+/// of the column's edges), so a corner of the centre line is a corner of the rung chain;
+/// otherwise rungs every 1 mm along the smoothly turning column. Without shaping it is
+/// [`satin`].
+pub fn satin_with(
+    s: &Skeleton,
+    spacing: f64,
+    pull: f64,
+    shaping: &crate::column::SatinShaping,
+) -> Run {
+    if shaping.is_plain() {
+        return satin(s, spacing, pull);
+    }
+    let Some(c) = Centre::new(s) else {
+        return Vec::new();
+    };
+    let rungs = if shaping.corners.style == crate::column::CornerStyle::Turn {
+        c.rungs(10.0, 0.0)
+    } else {
+        c.vertex_rungs()
+    };
+    let pull = if pull.is_finite() { pull } else { 0.0 };
+    crate::column::zigzag_shaped(&rungs, spacing, pull, shaping)
+}
+
+/// One rung per centre-line point of `s` [left, right]: what [`satin_with`] builds corners
+/// on (#675). Empty for a degenerate skeleton.
+pub fn vertex_rungs(s: &Skeleton) -> Vec<[Vec2; 2]> {
+    Centre::new(s).map_or_else(Vec::new, |c| c.vertex_rungs())
+}
+
+/// [`vertex_rungs`] reaching the outline of the closed region `contours` along each rung
+/// (at most 0.5 mm past the skeleton's width): an Auto satin region's corner constructions
+/// (#675) on its derived skeleton, whose widths are only approximate.
+pub fn vertex_rungs_within(s: &Skeleton, contours: &[Contour]) -> Vec<[Vec2; 2]> {
+    let edges: Vec<(Vec2, Vec2)> = contours
+        .iter()
+        .filter(|c| c.closed)
+        .flat_map(Contour::edges)
+        .collect();
+    vertex_rungs(s)
+        .into_iter()
+        .map(|[l, r]| {
+            let c = l.lerp(r, 0.5);
+            let half = c.distance(l);
+            if half < 1e-6 || !crate::geometry::contains(c, contours) {
+                return [l, r];
+            }
+            let reach = |end: Vec2| {
+                let dir = (end - c) * (1.0 / half);
+                c + dir * ray(c, dir, &edges).map_or(half, |d| d.min(half + 5.0))
+            };
+            [reach(l), reach(r)]
+        })
+        .collect()
+}
+
+/// OpenStitch's under sewing of a skeleton satin where its region asks for it (#675, see
+/// [`crate::column::rung_underlay`]): the width-following rows of `underlay: auto`, the
+/// centre walk, the second layer. From the column's start, where the satin begins.
+pub fn underlay(s: &Skeleton, r: &crate::model::RegionSewing) -> [Option<Run>; 2] {
+    let Some(c) = Centre::new(s) else {
+        return [None, None];
+    };
+    let rungs = c.rungs(10.0, 0.0);
+    let Some(first) = rungs.first() else {
+        return [None, None];
+    };
+    crate::column::rung_underlay(&rungs, r, r.entry.unwrap_or(first[0]))
 }
 
 /// The column of a skeleton as rungs [left, right] about `step` (0.1 mm) apart along its

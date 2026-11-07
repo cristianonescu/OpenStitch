@@ -2980,6 +2980,39 @@ auto, shortStitchDistance: 0.25`, read from the exported PES:
   region's second underlay (#677), lap corners. No sew-out yet: the owner's T-card scan of a
   tapered column with `pullPercent: 3` is still needed for #522's ±5 % width target.
 
+### Satin shaping on skeleton satin and Auto satin, 2026-11-07 (#675)
+
+The options of #520-#523 on the two satin kinds the batch above left out, beyond PE-DESIGN and
+off by default. Unset, a skeleton satin sews `skeleton::satin` and an Auto satin region its
+PE-DESIGN rungs with Half Stitch as before: compat 468/468, kit unchanged.
+
+- **Corners.** A skeleton satin builds its corners on one rung per centre-line point (square
+  to the bisector, reaching the mitre of the column's edges); an Auto satin region on its
+  derived centre line's points, each rung reaching the region's outline. Other shaping keeps
+  the smoothly turning rungs (every 1 mm on a skeleton; Auto satin's own lattice).
+- **Short stitches, compensation per side and per cent, satin looks** as on columns, on the
+  rungs without compensation (`pullCompensation` is then each side's default).
+- **Under sewing along the column.** `underlayStyle: auto` sews rows along the column that
+  follow its width: one where it is under 3 mm, about one per `underlaySpacing` where it is
+  wider (rounded down to an odd number so each stretch ends at its far end), 0.5 mm inside the
+  edges, then back along the middle. `centreWalk` and `underlay2` as on a column. Other styles
+  keep the region's PE-DESIGN under sewing.
+
+Measured with `stitches.points` (no under sewing; stitches, longest stitch, most needle drops
+in one 0.5 mm cell), turned → `cornerStyle: auto` → also `shortStitchDistance: 0.25`:
+
+| Object | Turned | Auto corners | + short stitches |
+|---|---|---|---|
+| Skeleton satin, 60° corner, 4 mm | 278, 4.2 mm, 4 | 316, 4.0 mm, 5 | 316, 4.0 mm, 4 |
+| Skeleton satin, 30° tip, 3 mm | 283, 3.1 mm, 4 | 298, 4.4 mm, 5 | 298, 4.4 mm, 5 |
+| Auto satin, 90° bend, 5 mm | 313, 7.3 mm, 7 | 280, 6.8 mm, 3 | 280, 6.8 mm, 2 |
+| Auto satin, 45° bend, 5 mm | 307, 5.4 mm, 7 | 293, 5.4 mm, 5 | 293, 5.4 mm, 5 |
+
+Skeleton satin already turns smoothly with Half Stitch (#466), so a mitre there adds the seam's
+needle points rather than removing a pile; on Auto satin's fanned bends the constructions
+halve the densest cell. Tests `satin_shaping_tests::*`, engine
+`skeleton_and_auto_satin_take_the_shaping_through_the_command`. No sew-out yet.
+
 ### Ripple lines and motif line placement, 2026-11-07 (#541, #544 part, `batch:lines`, part 3)
 
 Beyond PE-DESIGN and off unless chosen: a motif line without groups, free ends or motifs in

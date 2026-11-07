@@ -80,15 +80,16 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    short stitches) and `miterLimit` (0-50 mm from the corner along the bisector; 0, the
    default, cuts the point at the corner, about 4 mm on a 2 mm line at 30 degrees is the full
    point). Raise `miterLimit` for a pointed star or chevron border, keep 0 for a blunt one.
-   Satin quality beyond PE-DESIGN (off by default; Manual Punch columns via
-   `object.setRegion`, zigzag lines via `object.setLine`): `cornerStyle: auto` for stars,
-   chevrons and badge borders (mitre below `mitreBelow` 75°, cap below `capBelow` 45°,
+   Satin quality beyond PE-DESIGN (off by default; Manual Punch columns, skeleton satins and
+   Auto satin regions via `object.setRegion`, zigzag lines via `object.setLine`):
+   `cornerStyle: auto` for stars, chevrons and badge borders (mitre below `mitreBelow` 75°, cap below `capBelow` 45°,
    `cornerOverlap`, `capMaxLength`); `shortStitchDistance: 0.25` (with `shortStitchInset` %)
    thins the inside of tight curves; `pullLeft`/`pullRight` (mm, `null` resets) and
    `pullPercent` (3 for tapered columns; `pullMax` caps it) compensate per side and by width;
    `underlayStyle: auto` picks a centre walk, edge run or edge + zigzag by width (thresholds
-   `underlayAuto {centreBelow, edgeBelow}`, set by `fabric.apply`), `centreWalk` for thin
-   satins, and a column's `underlay2 {style, inset, spacing, stitchLength}` adds a second
+   `underlayAuto {centreBelow, edgeBelow}`, set by `fabric.apply`; on a skeleton or Auto
+   satin it sews rows along the column that follow its width instead), `centreWalk` for thin
+   satins, and `underlay2 {style, inset, spacing, stitchLength}` adds a second
    layer (`null` removes it). Satin looks: `satinStyle` sStitch (corded edge), open (light),
    double (raised X lattice); `jaggedEdge {mode: in|out|both, side, amount, seed}` (or just
    `"in"`; `"none"`/`null` removes it) for fur, grass and feathers; `spacingAt: 0.5` evens a
