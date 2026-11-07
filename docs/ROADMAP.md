@@ -322,7 +322,9 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    (`GlyphStrokes::blocks`, 2026-10-31) are done, and PE-DESIGN's Convert to Blocks files import
    as their blocks (`import.pes`, 2026-10-31), and satin text is sewn by stroke since 2026-10-31
    (`stroke-satin-*`, 9 % from PE-DESIGN's needle points on average), fill text since 2026-11-04
-   (#376, `stroke-fill-*`, 8 % on average, under a Text Transform still by region: #428),
+   (#376, `stroke-fill-*`, 8 % on average, under a Text Transform still by region: #428, waiting on
+   the arches' letter placement; the walk between a warped letter's blocks simplified since
+   2026-11-07),
    turned letters cut upright and satin crossings along the outer side since 2026-11-05 (#444,
    satin 5.6 % on average, no capture further than before, the README's arched and 4 mm text whole), small lettering's i dots, pieces and travel since
    2026-11-05 (#465); next, under sewing per
