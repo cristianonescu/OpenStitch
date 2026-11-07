@@ -196,6 +196,39 @@ fn candlewick_knots_sit_on_the_line() {
 }
 
 #[test]
+fn e_stitch_prongs_slant_by_their_angle() {
+    // #543: angle 0 sews today's square prongs; 45 degrees turns each prong 45 ± 1 degrees
+    // forward, at the same length.
+    let e = StrokeLine {
+        interval: 50.0,
+        stroke: 30.0,
+        pitch: 25.0,
+        run_times: 1,
+        stroke_times: 1,
+        arrange: Arrange::Normal,
+        angle: 0.0,
+    };
+    let square = lines::e_stitch(&hline(300.0), &e);
+    let slanted = lines::e_stitch(&hline(300.0), &StrokeLine { angle: 45.0, ..e });
+    let prongs = |run: &[Vec2]| -> Vec<(Vec2, Vec2)> {
+        run.windows(2)
+            .filter(|w| w[0].y.abs() < 1e-9 && w[1].y.abs() > 1.0)
+            .map(|w| (w[0], w[1]))
+            .collect()
+    };
+    let sq = prongs(&square);
+    assert!(!sq.is_empty());
+    assert!(sq.iter().all(|(a, b)| (b.x - a.x).abs() < 1e-9));
+    let sl = prongs(&slanted);
+    assert_eq!(sl.len(), sq.len());
+    for (a, b) in sl {
+        let deg = (b.x - a.x).atan2(b.y.abs()).to_degrees();
+        assert!((deg - 45.0).abs() <= 1.0, "{deg}");
+        assert!((a.distance(b) - 30.0).abs() < 1e-6);
+    }
+}
+
+#[test]
 fn e_and_v_strokes_reach_the_stroke_width() {
     let e = StrokeLine {
         interval: 30.0,
@@ -204,6 +237,7 @@ fn e_and_v_strokes_reach_the_stroke_width() {
         run_times: 1,
         stroke_times: 2,
         arrange: Arrange::Normal,
+        angle: 0.0,
     };
     let run = lines::e_stitch(&hline(300.0), &e);
     assert!(longest(&run) <= 25.0 + 1e-9);

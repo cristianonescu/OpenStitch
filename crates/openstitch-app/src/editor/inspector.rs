@@ -1141,6 +1141,16 @@ pub fn line_controls_with(l: &LineSewing, user: &[Pattern]) -> Vec<Control> {
                     l.stroke_times.unwrap_or(1),
                     3,
                 ));
+                // #543: prongs slanted from square (beyond PE-DESIGN; 0 is PE-DESIGN's).
+                v.push(num(
+                    "Prong angle",
+                    "line.prongAngle",
+                    "prongAngle",
+                    l.prong_angle.unwrap_or(0.0),
+                    (-60.0, 60.0),
+                    0.5,
+                    "°",
+                ));
             }
             v.push(arrange(l.arrange));
             v
@@ -1162,6 +1172,58 @@ pub fn line_controls_with(l: &LineSewing, user: &[Pattern]) -> Vec<Control> {
             times("Times", "line.runTimes", "runTimes", l.run_times, 6),
             arrange(l.arrange),
         ],
+        k @ (LineType::Chevron
+        | LineType::Cretan
+        | LineType::Feather
+        | LineType::Overlock
+        | LineType::AlternatingTriangles
+        | LineType::DoubleZigzag
+        | LineType::Lattice
+        | LineType::Stripes) => {
+            // Decorative hand-embroidery lines (#543, beyond PE-DESIGN).
+            let mut v = vec![width("Band width"), spacing("Period", 0.5)];
+            match k {
+                LineType::Chevron | LineType::Cretan | LineType::Feather => v.push(num(
+                    if k == LineType::Chevron {
+                        "Bar length"
+                    } else {
+                        "Side stitch"
+                    },
+                    "line.height",
+                    "height",
+                    l.height.unwrap_or(1.5),
+                    (0.5, 20.0),
+                    0.05,
+                    " mm",
+                )),
+                LineType::Lattice => v.push(Control::Number {
+                    label: "Strands",
+                    key: "line.strands",
+                    param: "strands",
+                    value: f64::from(l.strands.unwrap_or(3)),
+                    range: (3.0, 7.0),
+                    speed: 0.05,
+                    suffix: "",
+                    integer: true,
+                }),
+                LineType::Stripes => {
+                    v.push(Control::Number {
+                        label: "Stripes",
+                        key: "line.strands",
+                        param: "strands",
+                        value: f64::from(l.strands.unwrap_or(3)),
+                        range: (2.0, 12.0),
+                        speed: 0.05,
+                        suffix: "",
+                        integer: true,
+                    });
+                    v.push(pitch.clone());
+                }
+                LineType::AlternatingTriangles => v.push(pitch.clone()),
+                _ => {}
+            }
+            v
+        }
         LineType::Cutting => vec![Control::Toggle {
             label: "Leave uncut sections",
             param: "leaveUncut",

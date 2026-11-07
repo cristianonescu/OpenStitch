@@ -653,6 +653,12 @@ fn line(id: u64, l: &LineSewing, s: &mut Shape, table: &mut Vec<Thread>) -> Resu
             ));
         }
     };
+    if l.prong_angle.is_some() {
+        // PE-DESIGN's E stitch has square prongs only (#543).
+        return Err(format!(
+            "object {id}: a slanted E stitch is not mapped in PES 0110 (use version 6)"
+        ));
+    }
     if l.profile.is_some() || l.hand.is_some() {
         // PE-DESIGN would sew its plain running stitch (#540, #542).
         return Err(format!(

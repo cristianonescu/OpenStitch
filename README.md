@@ -386,6 +386,9 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
 - **Cutting lines** for cutwork needles, with uncut bridges.
 - (+) **Back stitch and brush-stroke running lines:** two forward, one back; or a running line
   sewn more times where a thickness profile swells ([#542]).
+- (+) **Decorative hand-embroidery lines:** chevron, Cretan, feather, overlock, alternating
+  triangles, double zigzag, lattice and stripes along any line, and slanted E stitch prongs
+  ([#543]).
 - (+) **Hand-stitch look and scribble lines:** seeded, uneven hand-sewn stitches on lines and on
   one side of a satin, and a sketchy scribble ([#540]).
 - **Start/End Feed or Run** and line entry and exit points, as PE-DESIGN sews them.
@@ -684,6 +687,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#536]: https://github.com/cristianonescu/OpenStitch/issues/536
 [#540]: https://github.com/cristianonescu/OpenStitch/issues/540
 [#542]: https://github.com/cristianonescu/OpenStitch/issues/542
+[#543]: https://github.com/cristianonescu/OpenStitch/issues/543
 [#545]: https://github.com/cristianonescu/OpenStitch/issues/545
 [#546]: https://github.com/cristianonescu/OpenStitch/issues/546
 [#547]: https://github.com/cristianonescu/OpenStitch/issues/547

@@ -9,6 +9,7 @@ pub mod column;
 pub mod compile;
 pub mod concentric;
 pub mod contour;
+pub mod decorative;
 pub mod direction;
 pub mod effects;
 mod envelope_presets;
