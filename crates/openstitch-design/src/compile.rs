@@ -464,9 +464,8 @@ impl Compiler {
         let mark = w.drains.len();
         w.close();
         // The last object's own tie-off is sewn at the end.
-        let dropped: usize = w.drains[mark..].iter().map(|&(_, n)| n).sum();
-        if let Some((_, r)) = spans.last_mut() {
-            r.end -= dropped.min(r.end - r.start);
+        for &(at, n) in &w.drains[mark..] {
+            shift_spans(&mut spans, at, n);
         }
         (w.out, spans)
     }
@@ -533,15 +532,11 @@ impl Compiler {
                 w.stop_after();
             }
             w.run_from = object.connector_run.then_some(object.id);
-            // The tie-off of the object before is sewn as this one starts: its points dropped
-            // there (#703) move that span's end and this one's start back.
+            // The tie-off of the object before is sewn as this one starts: points dropped there
+            // (#703) move the spans traced so far, and this one's start, back.
             for &(at, n) in &w.drains[mark..] {
-                if at < start {
-                    if let Some((_, r)) = spans.last_mut() {
-                        r.end -= n;
-                    }
-                    start -= n;
-                }
+                shift_spans(&mut spans, at, n);
+                start = shifted(start, at, n);
             }
             spans.push((object.id, start..w.out.stitches.len()));
         }
@@ -615,6 +610,26 @@ impl Compiler {
             region_area: None,
             drains: Vec::new(),
         }
+    }
+}
+
+/// Index `x` of the stitch list after records `at..at + n` were removed: unchanged before them,
+/// `at` inside them, `n` less after them.
+fn shifted(x: usize, at: usize, n: usize) -> usize {
+    if x <= at {
+        x
+    } else if x >= at + n {
+        x - n
+    } else {
+        at
+    }
+}
+
+/// The traced spans after records `at..at + n` were removed (#703): an object that sewed
+/// nothing, or whose last points went, keeps a valid (possibly empty) range.
+fn shift_spans(spans: &mut [(u64, Range<usize>)], at: usize, n: usize) {
+    for (_, r) in spans.iter_mut() {
+        *r = shifted(r.start, at, n)..shifted(r.end, at, n);
     }
 }
 
@@ -2132,6 +2147,14 @@ mod tie_off_tests {
         assert_eq!(v2(last.x, last.y), *run.last().expect("non-empty"));
         let n = p.count(Command::Stitch);
         assert!(n >= run.len() - 3, "{n} of {}", run.len());
+    }
+
+    #[test]
+    fn dropped_points_shift_every_span_and_keep_empty_ones_valid() {
+        // Records 10..13 removed: an empty span at 11, one ending inside, one after.
+        let mut spans = vec![(1, 0..11), (2, 11..11), (3, 11..20)];
+        shift_spans(&mut spans, 10, 3);
+        assert_eq!(spans, vec![(1, 0..10), (2, 10..10), (3, 10..17)]);
     }
 
     #[test]
