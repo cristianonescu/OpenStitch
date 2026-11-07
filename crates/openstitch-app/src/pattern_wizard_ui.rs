@@ -3,6 +3,7 @@
 //! [`openstitch_app::editor::pattern_wizards`]; OK sends the wizard's one `wizard.*` command, so
 //! the whole result is one Undo and stays editable.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use crate::art::Art;
 use eframe::egui;
@@ -49,8 +50,8 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
             ui.separator();
             ui.horizontal(|ui| {
                 let ready = app.pattern_wizards.request(kind, &app.selection).is_some();
-                apply = ui.add_enabled(ready, egui::Button::new("OK")).clicked();
-                if ui.button("Default").clicked() {
+                apply = ui.add_enabled(ready, egui::Button::new(t("ui-ok"))).clicked();
+                if ui.button(t("ui-default")).clicked() {
                     match kind {
                         WizardKind::Background => {
                             app.pattern_wizards.background = Default::default()
@@ -99,7 +100,7 @@ fn background(app: &mut EditorApp, ui: &mut egui::Ui) {
         f.area = None;
     }
     egui::Grid::new("background").num_columns(2).show(ui, |ui| {
-        ui.label("Area to fill");
+        ui.label(t("ui-area-to-fill"));
         let name = |a: Option<u64>| a.map_or("Hoop".to_string(), |id| format!("Shape {id}"));
         egui::ComboBox::from_id_salt("bgArea")
             .selected_text(name(f.area))
@@ -110,7 +111,7 @@ fn background(app: &mut EditorApp, ui: &mut egui::Ui) {
                 }
             });
         ui.end_row();
-        ui.label("Fill type");
+        ui.label(t("ui-fill-type"));
         let label = FILL_TYPES
             .iter()
             .find(|(k, _)| *k == f.fill_type)
@@ -136,15 +137,15 @@ fn background(app: &mut EditorApp, ui: &mut egui::Ui) {
         mm(ui, spacing_label, &mut f.spacing, lo, hi);
         match f.fill_type {
             "echo" => {
-                ui.label("Echo type");
+                ui.label(t("ui-echo-type"));
                 ui.horizontal(|ui| {
-                    ui.radio_value(&mut f.echo_clipped, true, "Echo clipped");
-                    ui.radio_value(&mut f.echo_clipped, false, "Echo");
+                    ui.radio_value(&mut f.echo_clipped, true, t("ui-echo-clipped"));
+                    ui.radio_value(&mut f.echo_clipped, false, t("ui-echo"));
                 });
                 ui.end_row();
                 if f.echo_clipped {
                     ui.label("");
-                    ui.checkbox(&mut f.link_ends, "Link echo ends");
+                    ui.checkbox(&mut f.link_ends, t("ui-link-echo-ends"));
                     ui.end_row();
                 }
             }
@@ -153,21 +154,21 @@ fn background(app: &mut EditorApp, ui: &mut egui::Ui) {
                 mm(ui, "Pattern width", &mut f.pattern_width, 2.0, 50.0);
                 mm(ui, "Pattern height", &mut f.pattern_height, 2.0, 50.0);
                 ui.label("");
-                ui.checkbox(&mut f.connect_edges, "Connect object edges");
+                ui.checkbox(&mut f.connect_edges, t("ui-connect-object-edges"));
                 ui.end_row();
             }
             _ => {
                 mm(ui, "Line spacing", &mut f.line_spacing, 7.0, 30.0);
-                ui.label("Angle");
+                ui.label(t("ui-angle"));
                 ui.add(egui::Slider::new(&mut f.angle, 45.0..=90.0).suffix("°"));
                 ui.end_row();
                 ui.label("");
-                ui.checkbox(&mut f.link_ends, "Link line ends");
+                ui.checkbox(&mut f.link_ends, t("ui-link-line-ends"));
                 ui.end_row();
             }
         }
         if f.uses_lines() {
-            ui.label("Sew type");
+            ui.label(t("ui-sew-type"));
             egui::ComboBox::from_id_salt("bgSew")
                 .selected_text(
                     LINE_SEWS
@@ -182,10 +183,10 @@ fn background(app: &mut EditorApp, ui: &mut egui::Ui) {
                 });
             ui.end_row();
             if f.sew == "chain" {
-                ui.label("Stitch type");
+                ui.label(t("ui-stitch-type"));
                 ui.horizontal(|ui| {
-                    ui.radio_value(&mut f.chain_diamond, false, "Triangle");
-                    ui.radio_value(&mut f.chain_diamond, true, "Diamond");
+                    ui.radio_value(&mut f.chain_diamond, false, t("ui-triangle"));
+                    ui.radio_value(&mut f.chain_diamond, true, t("ui-diamond"));
                 });
                 ui.end_row();
                 mm(ui, "Size", &mut f.chain_size, 1.0, 10.0);
@@ -193,14 +194,14 @@ fn background(app: &mut EditorApp, ui: &mut egui::Ui) {
                 mm(ui, "Run pitch", &mut f.pitch, 1.0, 10.0);
             }
             if f.sew != "triple" {
-                ui.label("Times");
+                ui.label(t("ui-times"));
                 ui.add(egui::Slider::new(&mut f.run_times, 1..=5));
                 ui.end_row();
             }
         }
         if f.fill_type != "echo" {
             ui.label("");
-            ui.checkbox(&mut f.skip_overlap, "Skip overlapped background");
+            ui.checkbox(&mut f.skip_overlap, t("ui-skip-overlapped-background"));
             ui.end_row();
         }
     });
@@ -227,7 +228,7 @@ fn applique(app: &mut EditorApp, ui: &mut egui::Ui) {
     egui::Grid::new("applique").num_columns(2).show(ui, |ui| {
         ui.strong("1 Appliqué material");
         ui.end_row();
-        ui.label("Material");
+        ui.label(t("ui-material"));
         choice(ui, "apMaterial", &mut f.material, &MATERIALS);
         ui.end_row();
         ui.strong("2 Appliqué position");
@@ -237,14 +238,14 @@ fn applique(app: &mut EditorApp, ui: &mut egui::Ui) {
         ui.end_row();
         ui.strong("3 Tack down");
         ui.end_row();
-        ui.label("Stitch");
+        ui.label(t("ui-stitch"));
         choice(ui, "apTack", &mut f.tack_down, &TACK_DOWNS);
         ui.end_row();
         match f.tack_down {
             "none" => {}
             "zigzag" => {
                 mm(ui, "Width", &mut f.tack_width, 0.5, 10.0);
-                ui.label("Density");
+                ui.label(t("ui-density"));
                 ui.add(egui::Slider::new(&mut f.tack_density, 0.2..=5.0).suffix(" lines/mm"));
                 ui.end_row();
             }
@@ -255,25 +256,25 @@ fn applique(app: &mut EditorApp, ui: &mut egui::Ui) {
         }
         ui.strong("4 Covering stitch");
         ui.end_row();
-        ui.label("Stitch");
+        ui.label(t("ui-stitch"));
         choice(ui, "apCover", &mut f.cover, &COVERS);
         ui.end_row();
         match f.cover {
             "zigzag" => {
                 mm(ui, "Width", &mut f.cover_width, 0.5, 10.0);
-                ui.label("Density");
+                ui.label(t("ui-density"));
                 ui.add(egui::Slider::new(&mut f.cover_density, 1.0..=10.0).suffix(" lines/mm"));
                 ui.end_row();
             }
             "chain" => {
-                ui.label("Stitch type");
+                ui.label(t("ui-stitch-type"));
                 ui.horizontal(|ui| {
-                    ui.radio_value(&mut f.chain_diamond, false, "Triangle");
-                    ui.radio_value(&mut f.chain_diamond, true, "Diamond");
+                    ui.radio_value(&mut f.chain_diamond, false, t("ui-triangle"));
+                    ui.radio_value(&mut f.chain_diamond, true, t("ui-diamond"));
                 });
                 ui.end_row();
                 mm(ui, "Size", &mut f.cover_width, 0.5, 10.0);
-                ui.label("Times");
+                ui.label(t("ui-times"));
                 ui.add(egui::Slider::new(&mut f.cover_times, 1..=5));
                 ui.end_row();
             }
@@ -287,13 +288,13 @@ fn applique(app: &mut EditorApp, ui: &mut egui::Ui) {
         ui.end_row();
         ui.label("");
         ui.horizontal(|ui| {
-            ui.radio_value(&mut f.replace, false, "Add");
-            ui.radio_value(&mut f.replace, true, "Replace");
+            ui.radio_value(&mut f.replace, false, t("ui-add"));
+            ui.radio_value(&mut f.replace, true, t("ui-replace"));
         });
         ui.end_row();
         if f.replace {
             ui.label("");
-            ui.checkbox(&mut f.holes, "Create an appliqué with hole sewing");
+            ui.checkbox(&mut f.holes, t("ui-create-an-appliqu-with-hole-sewing"));
             ui.end_row();
         } else {
             mm(ui, "Distance from pattern", &mut f.distance, 0.0, 50.0);
@@ -307,15 +308,15 @@ fn patch(app: &mut EditorApp, ui: &mut egui::Ui) {
     egui::Grid::new("patch").num_columns(2).show(ui, |ui| {
         ui.strong("Satin stitch");
         ui.end_row();
-        ui.label("Border");
+        ui.label(t("ui-border"));
         ui.horizontal(|ui| {
-            ui.radio_value(&mut f.border, true, "Yes");
-            ui.radio_value(&mut f.border, false, "No");
+            ui.radio_value(&mut f.border, true, t("ui-yes"));
+            ui.radio_value(&mut f.border, false, t("ui-no"));
         });
         ui.end_row();
         if f.border {
             mm(ui, "Width", &mut f.width, 1.0, 10.0);
-            ui.label("Density");
+            ui.label(t("ui-density"));
             ui.add(egui::Slider::new(&mut f.density, 1.0..=10.0).suffix(" lines/mm"));
             ui.end_row();
             mm(
@@ -328,7 +329,7 @@ fn patch(app: &mut EditorApp, ui: &mut egui::Ui) {
         }
         ui.strong("Cutting line");
         ui.end_row();
-        ui.label("Cut by");
+        ui.label(t("ui-cut-by"));
         choice(ui, "patchCut", &mut f.cutting, &PATCH_CUTS);
         ui.end_row();
         if f.cutting != "none" {
@@ -346,8 +347,8 @@ fn patch(app: &mut EditorApp, ui: &mut egui::Ui) {
 fn yes_no(ui: &mut egui::Ui, label: &str, v: &mut bool) {
     ui.label(label);
     ui.horizontal(|ui| {
-        ui.radio_value(v, true, "Yes");
-        ui.radio_value(v, false, "No");
+        ui.radio_value(v, true, t("ui-yes"));
+        ui.radio_value(v, false, t("ui-no"));
     });
     ui.end_row();
 }
@@ -356,16 +357,16 @@ fn cutwork(app: &mut EditorApp, ui: &mut egui::Ui) {
     let f = &mut app.pattern_wizards.cutwork;
     egui::Grid::new("cutwork").num_columns(2).show(ui, |ui| {
         yes_no(ui, "1 Stabilize cut edge", &mut f.stabilize);
-        ui.label("2 Cutting line");
+        ui.label(t("ui-2-cutting-line"));
         ui.horizontal(|ui| {
-            ui.radio_value(&mut f.needles, true, "Cutting");
-            ui.radio_value(&mut f.needles, false, "Running stitch");
+            ui.radio_value(&mut f.needles, true, t("ui-cutting"));
+            ui.radio_value(&mut f.needles, false, t("ui-running-stitch"));
         });
         ui.end_row();
         yes_no(ui, "3 Secure water-soluble stabilizer", &mut f.secure);
         yes_no(ui, "4 Net fill", &mut f.net);
         if f.net {
-            ui.label("Pattern");
+            ui.label(t("ui-pattern"));
             egui::ComboBox::from_id_salt("cwNet")
                 .selected_text(NET_PATTERNS[(f.net_pattern.clamp(1, 5) - 1) as usize])
                 .show_ui(ui, |ui| {
@@ -375,14 +376,14 @@ fn cutwork(app: &mut EditorApp, ui: &mut egui::Ui) {
                 });
             ui.end_row();
             mm(ui, "Spacing", &mut f.net_spacing, 2.0, 10.0);
-            ui.label("Direction");
+            ui.label(t("ui-direction"));
             ui.add(egui::Slider::new(&mut f.net_direction, 0.0..=90.0).suffix("°"));
             ui.end_row();
         }
         yes_no(ui, "5 Covering satin stitch", &mut f.cover);
         if f.cover {
             mm(ui, "Width", &mut f.cover_width, 3.0, 6.0);
-            ui.label("Density");
+            ui.label(t("ui-density"));
             ui.add(egui::Slider::new(&mut f.cover_density, 5.0..=7.0).suffix(" lines/mm"));
             ui.end_row();
         }

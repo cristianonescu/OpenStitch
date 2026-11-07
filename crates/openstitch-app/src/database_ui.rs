@@ -5,6 +5,7 @@
 //! catalogue, new folder, rename and delete dialogs. State and file actions live in
 //! [`openstitch_app::editor::database`]; this module only draws them.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use crate::art::Art;
 use crate::suite_chrome::{self, Host};
@@ -317,8 +318,8 @@ impl Host<DbAction> for EditorApp {
         if a == SystemUnit {
             // One setting for the Design Database and the editor (#519).
             let before = self.ui.prefs.units;
-            ui.radio_value(&mut self.ui.prefs.units, Units::Mm, "mm");
-            ui.radio_value(&mut self.ui.prefs.units, Units::Inch, "inch");
+            ui.radio_value(&mut self.ui.prefs.units, Units::Mm, t("ui-mm"));
+            ui.radio_value(&mut self.ui.prefs.units, Units::Inch, t("ui-inch"));
             self.database.units = self.ui.prefs.units;
             if self.ui.prefs.units != before {
                 self.ui.save_prefs();
@@ -330,7 +331,7 @@ impl Host<DbAction> for EditorApp {
             ApplicationColor => suite_chrome::theme_menu(self, ui),
             DstSettings => {
                 ui.horizontal(|ui| {
-                    ui.label("Jumps that make a trim");
+                    ui.label(t("ui-jumps-that-make-a-trim"));
                     ui.add(egui::DragValue::new(&mut db.convert.dst_trim_jumps).range(1..=8));
                 });
             }
@@ -365,7 +366,7 @@ fn folder_label(p: &Path) -> String {
 }
 
 fn folder_tree(app: &mut EditorApp, ui: &mut egui::Ui) {
-    ui.heading("Folders");
+    ui.heading(t("ui-folders"));
     if let Some(f) = &app.database.folder {
         ui.label(RichText::new(display_path(f)).weak().small());
     }
@@ -409,7 +410,7 @@ fn folder_node(app: &mut EditorApp, ui: &mut egui::Ui, dir: &Path, depth: usize)
         header.body(|ui| {
             let children = app.database.subfolders(dir).to_vec();
             if children.is_empty() {
-                ui.label(RichText::new("(no folders)").weak().small());
+                ui.label(RichText::new(t("ui-no-folders")).weak().small());
             }
             for c in children {
                 folder_node(app, ui, &c, depth + 1);
@@ -442,7 +443,7 @@ fn contents(app: &mut EditorApp, ui: &mut egui::Ui) {
         let label = label.clone();
         ui.horizontal(|ui| {
             ui.strong(label);
-            if ui.button("Back to folder").clicked() {
+            if ui.button(t("ui-back-to-folder")).clicked() {
                 app.database.clear_results();
             }
         });
@@ -493,31 +494,31 @@ fn item_interaction(app: &mut EditorApp, ui: &egui::Ui, r: &egui::Response, p: &
         if !app.database.selection.contains(p) {
             app.database.click(p, false, false);
         }
-        if ui.button("Open in Layout & Editing").clicked() {
+        if ui.button(t("ui-open-in-layout-editing")).clicked() {
             open_in_editor(app, p);
         }
-        if ui.button("Import Into Layout & Editing").clicked() {
+        if ui.button(t("ui-import-into-layout-editing")).clicked() {
             let sel = app.database.selected();
             import_into_editor(app, &sel);
         }
         ui.separator();
-        if ui.button("Cut").clicked() {
+        if ui.button(t("ui-cut")).clicked() {
             app.database.cut();
         }
-        if ui.button("Copy").clicked() {
+        if ui.button(t("ui-copy")).clicked() {
             app.database.copy();
         }
-        if ui.button("Rename…").clicked() {
+        if ui.button(t("ui-rename-2")).clicked() {
             start_rename(app);
         }
-        if ui.button("Delete…").clicked() {
+        if ui.button(t("ui-delete-2")).clicked() {
             app.database.request_delete();
         }
         ui.separator();
-        if ui.button("Convert Format…").clicked() {
+        if ui.button(t("ui-convert-format")).clicked() {
             app.database.dialog = Dialog::Convert;
         }
-        if ui.button("Add to Writing List").clicked() {
+        if ui.button(t("ui-add-to-writing-list")).clicked() {
             let sel = app.database.selected();
             app.database.add_to_writing(&sel);
         }
@@ -552,7 +553,7 @@ fn tiles(app: &mut EditorApp, ui: &mut egui::Ui, side: f32) {
             );
             label_under(ui, &painter, rect, side, &folder_label(f));
             drop_target(app, ui, &r, f);
-            let r = r.on_hover_text("Double-click to open");
+            let r = r.on_hover_text(t("ui-double-click-to-open-tip"));
             if r.double_clicked() {
                 app.database.navigate(f);
                 return;
@@ -702,10 +703,10 @@ fn details(app: &mut EditorApp, ui: &mut egui::Ui) {
 fn preview(app: &mut EditorApp, ui: &mut egui::Ui) {
     let show_image = app.database.show_preview;
     if show_image {
-        ui.heading("Preview");
+        ui.heading(t("ui-preview"));
     }
     let Some(p) = app.database.focused().cloned() else {
-        ui.label(RichText::new("Select a design to see it and its information.").weak());
+        ui.label(RichText::new(t("ui-select-a-design-to-see-it")).weak());
         return;
     };
     let Some(loaded) = app.database.loaded(&p).cloned() else {
@@ -733,7 +734,7 @@ fn preview(app: &mut EditorApp, ui: &mut egui::Ui) {
     if show_image {
         ui.separator();
     }
-    ui.heading("Property");
+    ui.heading(t("ui-property"));
     let info = &loaded.info;
     let units = app.database.units;
     egui::Grid::new("db-property")
@@ -811,10 +812,10 @@ fn preview(app: &mut EditorApp, ui: &mut egui::Ui) {
             });
     }
     ui.horizontal(|ui| {
-        if ui.button("Open").clicked() {
+        if ui.button(t("ui-open")).clicked() {
             open_in_editor(app, &p);
         }
-        if ui.button("Import").clicked() {
+        if ui.button(t("ui-import")).clicked() {
             import_into_editor(app, std::slice::from_ref(&p));
         }
     });
@@ -872,10 +873,10 @@ fn name_dialog(
             r.request_focus();
             ui.label(RichText::new(&app.database.status).weak().small());
             ui.horizontal(|ui| {
-                if ui.button("OK").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                if ui.button(t("ui-ok")).clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                     result = Some(name.clone());
                 }
-                if ui.button("Cancel").clicked() {
+                if ui.button(t("ui-cancel")).clicked() {
                     app.database.dialog = Dialog::None;
                 }
             });
@@ -893,7 +894,7 @@ fn name_dialog(
 
 fn confirm_delete(app: &mut EditorApp, ctx: &egui::Context, paths: &[PathBuf]) {
     let mut open = true;
-    egui::Window::new("Delete")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-delete")).id(egui::Id::unique("window-delete"))
         .collapsible(false)
         .resizable(false)
         .open(&mut open)
@@ -917,13 +918,13 @@ fn confirm_delete(app: &mut EditorApp, ctx: &egui::Context, paths: &[PathBuf]) {
             ui.horizontal(|ui| {
                 // A browser has no system trash (#693).
                 #[cfg(not(target_arch = "wasm32"))]
-                if ui.button("Move to Trash").clicked() {
+                if ui.button(t("ui-move-to-trash")).clicked() {
                     let trash = openstitch_library::ops::SystemTrash;
                     if let Err(e) = app.database.delete_confirmed(&trash) {
                         app.database.status = e;
                     }
                 }
-                if ui.button("Cancel").clicked() {
+                if ui.button(t("ui-cancel")).clicked() {
                     app.database.dialog = Dialog::None;
                 }
             });
@@ -949,7 +950,7 @@ fn range_row<T: egui::emath::Numeric>(
                     .range(T::from_f64(0.0)..=max)
                     .suffix(suffix),
             );
-            ui.label("to");
+            ui.label(t("ui-to"));
             ui.add(
                 egui::DragValue::new(&mut range.1)
                     .range(T::from_f64(0.0)..=max)
@@ -967,21 +968,21 @@ fn search_dialog(app: &mut EditorApp, ctx: &egui::Context) {
         Units::Mm => " mm",
         Units::Inch => " in",
     };
-    egui::Window::new("Search")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-search")).id(egui::Id::unique("window-search"))
         .collapsible(false)
         .resizable(false)
         .open(&mut open)
         .show(ctx, |ui| {
             let f = &mut app.database.search;
             ui.horizontal(|ui| {
-                ui.checkbox(&mut f.use_name, "File name");
+                ui.checkbox(&mut f.use_name, t("ui-file-name"));
                 ui.add_enabled(
                     f.use_name,
                     egui::TextEdit::singleline(&mut f.name)
                         .hint_text("rose*  (* any text, ? one character)"),
                 );
             });
-            ui.checkbox(&mut f.use_formats, "Format");
+            ui.checkbox(&mut f.use_formats, t("ui-format"));
             ui.add_enabled_ui(f.use_formats, |ui| {
                 ui.horizontal_wrapped(|ui| {
                     ui.set_max_width(380.0);
@@ -1036,11 +1037,11 @@ fn search_dialog(app: &mut EditorApp, ctx: &egui::Context) {
                         10_000.0,
                         unit,
                     );
-                    ui.checkbox(&mut f.use_date, "Date modified");
+                    ui.checkbox(&mut f.use_date, t("ui-date-modified"));
                     ui.add_enabled_ui(f.use_date, |ui| {
                         ui.horizontal(|ui| {
                             ui.add(egui::TextEdit::singleline(&mut f.date.0).desired_width(90.0));
-                            ui.label("to");
+                            ui.label(t("ui-to"));
                             ui.add(egui::TextEdit::singleline(&mut f.date.1).desired_width(90.0));
                         });
                     });
@@ -1051,12 +1052,12 @@ fn search_dialog(app: &mut EditorApp, ctx: &egui::Context) {
                         ui.end_row();
                     }
                 });
-            ui.checkbox(&mut f.subfolders, "Search subfolders");
+            ui.checkbox(&mut f.subfolders, t("ui-search-subfolders"));
             ui.horizontal(|ui| {
-                if ui.button("Search").clicked() {
+                if ui.button(t("ui-search")).clicked() {
                     run = true;
                 }
-                if ui.button("Reset").clicked() {
+                if ui.button(t("ui-reset")).clicked() {
                     app.database.search = Default::default();
                 }
             });
@@ -1076,7 +1077,7 @@ fn convert_dialog(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = true;
     let mut run = false;
     let n = app.database.selection.len();
-    egui::Window::new("Convert Format")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-convert-format")).id(egui::Id::unique("window-convert-format"))
         .collapsible(false)
         .resizable(false)
         .open(&mut open)
@@ -1089,7 +1090,7 @@ fn convert_dialog(app: &mut EditorApp, ctx: &egui::Context) {
                 .num_columns(2)
                 .spacing([10.0, 6.0])
                 .show(ui, |ui| {
-                    ui.label("Format type");
+                    ui.label(t("ui-format-type"));
                     egui::ComboBox::from_id_salt("db-convert-format")
                         .selected_text(f.target.extension().to_uppercase())
                         .show_ui(ui, |ui| {
@@ -1098,15 +1099,15 @@ fn convert_dialog(app: &mut EditorApp, ctx: &egui::Context) {
                             }
                         });
                     ui.end_row();
-                    ui.label("Output to");
+                    ui.label(t("ui-output-to"));
                     ui.vertical(|ui| {
                         let mut same = f.folder.is_none();
-                        if ui.radio_value(&mut same, true, "Same folder").clicked() {
+                        if ui.radio_value(&mut same, true, t("ui-same-folder")).clicked() {
                             f.folder = None;
                         }
                         ui.horizontal(|ui| {
-                            let browse = ui.radio(!same, "Following folder").clicked()
-                                | ui.button("Browse…").clicked();
+                            let browse = ui.radio(!same, t("ui-following-folder")).clicked()
+                                | ui.button(t("ui-browse")).clicked();
                             if browse && let Some(d) = crate::files::FileDialog::new().pick_folder() {
                                 f.folder = Some(d);
                             }
@@ -1117,18 +1118,18 @@ fn convert_dialog(app: &mut EditorApp, ctx: &egui::Context) {
                     });
                     ui.end_row();
                     if f.target == FileType::Dst {
-                        ui.label("DST jumps per trim");
+                        ui.label(t("ui-dst-jumps-per-trim"));
                         ui.add(egui::DragValue::new(&mut f.dst_trim_jumps).range(1..=8));
                         ui.end_row();
                     }
                 });
             ui.label(
-                RichText::new("Existing files are never replaced: the new file gets a number.")
+                RichText::new(t("ui-existing-files-are-never-replaced-the"))
                     .weak()
                     .small(),
             );
             if ui
-                .add_enabled(n > 0, egui::Button::new("Convert"))
+                .add_enabled(n > 0, egui::Button::new(t("ui-convert")))
                 .clicked()
             {
                 run = true;
@@ -1149,7 +1150,7 @@ fn catalog_dialog(app: &mut EditorApp, ctx: &egui::Context) {
     let mut printing = false;
     let shown = app.database.items().len();
     let selected = app.database.selection.len();
-    egui::Window::new("Catalogue")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-catalogue")).id(egui::Id::unique("window-catalogue"))
         .collapsible(false)
         .resizable(false)
         .open(&mut open)
@@ -1159,7 +1160,7 @@ fn catalog_dialog(app: &mut EditorApp, ctx: &egui::Context) {
                 .num_columns(2)
                 .spacing([10.0, 6.0])
                 .show(ui, |ui| {
-                    ui.label("Output");
+                    ui.label(t("ui-output"));
                     egui::ComboBox::from_id_salt("db-cat-format")
                         .selected_text(c.format.label())
                         .show_ui(ui, |ui| {
@@ -1168,7 +1169,7 @@ fn catalog_dialog(app: &mut EditorApp, ctx: &egui::Context) {
                             }
                         });
                     ui.end_row();
-                    ui.label("Designs");
+                    ui.label(t("ui-designs"));
                     ui.vertical(|ui| {
                         ui.radio_value(&mut c.selected_only, false, format!("All shown ({shown})"));
                         ui.add_enabled_ui(selected > 0, |ui| {
@@ -1180,11 +1181,11 @@ fn catalog_dialog(app: &mut EditorApp, ctx: &egui::Context) {
                         });
                     });
                     ui.end_row();
-                    ui.label("Title");
+                    ui.label(t("ui-title"));
                     ui.text_edit_singleline(&mut c.setup.title);
                     ui.end_row();
                     if c.format != CatalogFormat::Csv {
-                        ui.label("Layout");
+                        ui.label(t("ui-layout"));
                         egui::ComboBox::from_id_salt("db-cat-style")
                             .selected_text(c.setup.style.label())
                             .show_ui(ui, |ui| {
@@ -1195,36 +1196,36 @@ fn catalog_dialog(app: &mut EditorApp, ctx: &egui::Context) {
                         ui.end_row();
                     }
                     if matches!(c.format, CatalogFormat::Pdf | CatalogFormat::Png) {
-                        ui.label("Paper");
+                        ui.label(t("ui-paper"));
                         ui.horizontal(|ui| {
-                            ui.radio_value(&mut c.setup.paper, Paper::A4, "A4");
-                            ui.radio_value(&mut c.setup.paper, Paper::Letter, "Letter");
+                            ui.radio_value(&mut c.setup.paper, Paper::A4, t("ui-a4"));
+                            ui.radio_value(&mut c.setup.paper, Paper::Letter, t("ui-letter"));
                             ui.separator();
-                            ui.radio_value(&mut c.setup.landscape, false, "Portrait");
-                            ui.radio_value(&mut c.setup.landscape, true, "Landscape");
+                            ui.radio_value(&mut c.setup.landscape, false, t("ui-portrait"));
+                            ui.radio_value(&mut c.setup.landscape, true, t("ui-landscape"));
                         });
                         ui.end_row();
                     }
-                    ui.label("Color list");
+                    ui.label(t("ui-color-list"));
                     ui.horizontal(|ui| {
                         ui.radio_value(
                             &mut c.setup.color_list,
                             ColorList::Changes,
                             "Color changes",
                         );
-                        ui.radio_value(&mut c.setup.color_list, ColorList::Totals, "Total colors");
+                        ui.radio_value(&mut c.setup.color_list, ColorList::Totals, t("ui-total-colors"));
                     });
                     ui.end_row();
-                    ui.label("Color description");
+                    ui.label(t("ui-color-description"));
                     ui.horizontal(|ui| {
-                        ui.radio_value(&mut c.setup.brand_numbers, false, "Colour name");
-                        ui.radio_value(&mut c.setup.brand_numbers, true, "Brand and number");
+                        ui.radio_value(&mut c.setup.brand_numbers, false, t("ui-colour-name"));
+                        ui.radio_value(&mut c.setup.brand_numbers, true, t("ui-brand-and-number"));
                     });
                     ui.end_row();
                 });
             if c.format == CatalogFormat::Html {
                 ui.label(
-                    RichText::new("The images go to a folder named after the HTML file.")
+                    RichText::new(t("ui-the-images-go-to-a-folder"))
                         .weak()
                         .small(),
                 );
@@ -1232,13 +1233,13 @@ fn catalog_dialog(app: &mut EditorApp, ctx: &egui::Context) {
             ui.horizontal(|ui| {
                 if c.format == CatalogFormat::Pdf
                     && ui
-                        .button("Print…")
-                        .on_hover_text("Open the system print dialog (or the PDF viewer)")
+                        .button(t("menu-print"))
+                        .on_hover_text(t("ui-open-the-system-print-dialog-or-tip"))
                         .clicked()
                 {
                     printing = true;
                 }
-                if ui.button("Save…").clicked() {
+                if ui.button(t("ui-save-2")).clicked() {
                     save = true;
                 }
             });

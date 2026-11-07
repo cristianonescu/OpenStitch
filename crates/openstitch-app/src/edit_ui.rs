@@ -3,6 +3,7 @@
 //! markers. Requests come from `openstitch_app::editor::edit_ops`; each action is one command,
 //! so one Undo.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui::{self, Color32, Pos2, Stroke};
 use openstitch_app::editor::edit_ops::{
@@ -164,12 +165,12 @@ pub fn insert_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
 /// Modify Overlap: merge, remove overlap, combine.
 pub fn overlap_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     let many = app.selection.len() >= 2;
-    if ui.add_enabled(many, egui::Button::new("Merge")).clicked() {
+    if ui.add_enabled(many, egui::Button::new(t("ui-merge"))).clicked() {
         let r = edit_ops::merge(&app.selection);
         run_and_select(app, r);
     }
     if ui
-        .add_enabled(many, egui::Button::new("Remove Overlap"))
+        .add_enabled(many, egui::Button::new(t("ui-remove-overlap")))
         .clicked()
     {
         let r = edit_ops::remove_overlap(&app.selection);
@@ -200,7 +201,7 @@ pub fn split_outline(app: &mut EditorApp) {
 }
 
 pub fn decorative_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
-    ui.checkbox(&mut app.edit.frame_keep_aspect, "Maintain aspect ratio");
+    ui.checkbox(&mut app.edit.frame_keep_aspect, t("ui-maintain-aspect-ratio"));
     ui.separator();
     for (label, kind) in edit_ops::FRAMES {
         if ui.button(label).clicked() {
@@ -217,7 +218,7 @@ pub fn stamp_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     for (label, effect) in edit_ops::EMBOSS {
         if ui
             .add_enabled(two, egui::Button::new(label))
-            .on_hover_text("Select the shape and the shape on top that gives the outline")
+            .on_hover_text(t("ui-select-the-shape-and-the-shape-tip"))
             .clicked()
             && let Some(r) = edit_ops::emboss(app.session.design(), &app.selection, effect)
         {
@@ -240,7 +241,7 @@ pub fn stamp_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
                     ui.selectable_value(&mut app.edit.stamp_effect, k, *label);
                 }
             });
-        if ui.button("Place stamp (click in the shape)").clicked()
+        if ui.button(t("ui-place-stamp-click-in-the-shape")).clicked()
             && let Some(id) = shape
         {
             app.edit.stamp_pick = Some((
@@ -250,7 +251,7 @@ pub fn stamp_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
             ));
             app.status = "Click inside the shape to place the stamp; Esc cancels".into();
         }
-        if ui.button("Remove stamps").clicked()
+        if ui.button(t("ui-remove-stamps")).clicked()
             && let Some(id) = shape
         {
             app.execute(&edit_ops::clear_stamps(id));
@@ -260,7 +261,7 @@ pub fn stamp_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
 
 pub fn entry_exit_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     let Some(id) = single_shape(app) else {
-        ui.label("Select one shape");
+        ui.label(t("ui-select-one-shape"));
         return;
     };
     for (label, which) in [
@@ -276,7 +277,7 @@ pub fn entry_exit_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
             );
         }
     }
-    if ui.button("Reset to automatic").clicked() {
+    if ui.button(t("ui-reset-to-automatic")).clicked() {
         app.execute(&edit_ops::clear_entry_exit(id));
     }
 }
@@ -299,7 +300,7 @@ pub fn delete_direction(app: &mut EditorApp) {
 /// Centre point and reference point of the region's stitch pattern.
 pub fn sewing_points_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     let Some(id) = single_region(app) else {
-        ui.label("Select one shape with region sewing");
+        ui.label(t("ui-select-one-shape-with-region-sewing"));
         return;
     };
     for (label, which) in [
@@ -476,7 +477,7 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
             )
         })
         .collect();
-    egui::Window::new("Arrange Copies")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-arrange-copies")).id(egui::Id::unique("window-arrange-copies"))
         .open(&mut open)
         .resizable(false)
         .default_width(300.0)
@@ -494,10 +495,10 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
                 .num_columns(2)
                 .show(ui, |ui| match f.mode {
                     ArrangeMode::Circle => {
-                        ui.label("Patterns");
+                        ui.label(t("ui-patterns"));
                         ui.add(egui::DragValue::new(&mut f.count).range(2..=360));
                         ui.end_row();
-                        ui.label("Radius");
+                        ui.label(t("ui-radius"));
                         if ui
                             .add(
                                 crate::units_ui::drag(&mut f.radius, units)
@@ -511,11 +512,11 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
                         }
                         ui.end_row();
                         ui.label("");
-                        ui.checkbox(&mut f.rotate, "Turn copies");
+                        ui.checkbox(&mut f.rotate, t("ui-turn-copies"));
                         ui.end_row();
                         ui.label("");
-                        ui.checkbox(&mut f.mirror_alternate, "Mirror every other (kaleidoscope)")
-                            .on_hover_text("Beyond PE-DESIGN: every second copy mirrored about its radial axis");
+                        ui.checkbox(&mut f.mirror_alternate, t("ui-mirror-every-other-kaleidoscope"))
+                            .on_hover_text(t("ui-beyond-pe-design-every-second-copy-tip"));
                         ui.end_row();
                     }
                     ArrangeMode::Path | ArrangeMode::Scatter => {
@@ -537,7 +538,7 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
                         ui.add(egui::DragValue::new(&mut f.count).range(1..=200));
                         ui.end_row();
                         if path {
-                            ui.label("Side");
+                            ui.label(t("ui-side"));
                             egui::ComboBox::from_id_salt("arrange-side")
                                 .selected_text(
                                     PATH_SIDES
@@ -552,13 +553,13 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
                                 });
                             ui.end_row();
                             ui.label("");
-                            ui.checkbox(&mut f.follow, "Turn with the line");
+                            ui.checkbox(&mut f.follow, t("ui-turn-with-the-line"));
                             ui.end_row();
                             ui.label("");
-                            ui.checkbox(&mut f.mirror_alternate, "Mirror every other");
+                            ui.checkbox(&mut f.mirror_alternate, t("ui-mirror-every-other"));
                             ui.end_row();
                         } else {
-                            ui.label("Size");
+                            ui.label(t("ui-size"));
                             ui.horizontal(|ui| {
                                 ui.add(
                                     egui::DragValue::new(&mut f.size_min)
@@ -572,7 +573,7 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
                                 );
                             });
                             ui.end_row();
-                            ui.label("Gap");
+                            ui.label(t("ui-gap"));
                             ui.add(
                                 crate::units_ui::drag(&mut f.gap, units)
                                     .range(0.0..=100.0)
@@ -580,12 +581,12 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
                             );
                             ui.end_row();
                             ui.label("");
-                            ui.checkbox(&mut f.random_rotate, "Turn at random");
+                            ui.checkbox(&mut f.random_rotate, t("ui-turn-at-random"));
                             ui.end_row();
-                            ui.label("Seed");
+                            ui.label(t("ui-seed"));
                             ui.horizontal(|ui| {
                                 ui.add(egui::DragValue::new(&mut f.seed));
-                                if ui.button("Shuffle").clicked() {
+                                if ui.button(t("ui-shuffle")).clicked() {
                                     f.seed = f.seed.wrapping_mul(1_103_515_245).wrapping_add(12_345) % 1_000_000;
                                 }
                             });
@@ -593,13 +594,13 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
                         }
                     }
                     ArrangeMode::Matrix => {
-                        ui.label("Rows × columns");
+                        ui.label(t("ui-rows-columns"));
                         ui.horizontal(|ui| {
                             ui.add(egui::DragValue::new(&mut f.rows).range(1..=100));
                             ui.add(egui::DragValue::new(&mut f.columns).range(1..=100));
                         });
                         ui.end_row();
-                        ui.label("Spacing x / y");
+                        ui.label(t("ui-spacing-x-y"));
                         ui.horizontal(|ui| {
                             ui.add(
                                 crate::units_ui::drag(&mut f.spacing_x, units)
@@ -615,7 +616,7 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
                         ui.end_row();
                     }
                     _ => {
-                        ui.label("Spacing");
+                        ui.label(t("ui-spacing"));
                         ui.add(
                             crate::units_ui::drag(&mut f.spacing, units)
                                 .range(-100.0..=1000.0)
@@ -625,11 +626,11 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
                     }
                 });
             ui.weak("Drag the handle on the canvas to set the spacing or circle centre.");
-            ui.checkbox(&mut f.merge, "Merge overlapping shapes");
-            ui.checkbox(&mut f.optimize, "Optimize sewing order");
+            ui.checkbox(&mut f.merge, t("ui-merge-overlapping-shapes"));
+            ui.checkbox(&mut f.optimize, t("ui-optimize-sewing-order"));
             let ready = !app.selection.is_empty() && (!f.mode.needs_guide() || f.guide.is_some());
             apply = ui
-                .add_enabled(ready, egui::Button::new("Arrange"))
+                .add_enabled(ready, egui::Button::new(t("ui-arrange")))
                 .clicked();
         });
     if apply {
@@ -652,7 +653,7 @@ fn offset_window(app: &mut EditorApp, ctx: &egui::Context) {
     let units = app.ui.prefs.units;
     let mut open = app.edit.offset_open;
     let mut apply = false;
-    egui::Window::new("Offset Lines")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-offset-lines")).id(egui::Id::unique("window-offset-lines"))
         .open(&mut open)
         .resizable(false)
         .default_width(260.0)
@@ -663,16 +664,16 @@ fn offset_window(app: &mut EditorApp, ctx: &egui::Context) {
                 ui.selectable_value(&mut f.inward, true, "Inward");
             });
             egui::Grid::new("offset").num_columns(2).show(ui, |ui| {
-                ui.label("Spacing");
+                ui.label(t("ui-spacing"));
                 ui.add(crate::units_ui::drag(&mut f.spacing, units).range(0.1..=100.0));
                 ui.end_row();
-                ui.label("Lines");
+                ui.label(t("ui-lines"));
                 ui.add(egui::DragValue::new(&mut f.count).range(1..=20));
                 ui.end_row();
             });
-            ui.checkbox(&mut f.rounded, "Rounded corners");
+            ui.checkbox(&mut f.rounded, t("ui-rounded-corners"));
             apply = ui
-                .add_enabled(single(app).is_some(), egui::Button::new("Create"))
+                .add_enabled(single(app).is_some(), egui::Button::new(t("ui-create")))
                 .clicked();
         });
     if apply && let Some(id) = single(app) {
@@ -685,7 +686,7 @@ fn offset_window(app: &mut EditorApp, ctx: &egui::Context) {
 fn floral_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.edit.floral_open;
     let mut apply = false;
-    egui::Window::new("Floral Pattern")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-floral-pattern")).id(egui::Id::unique("window-floral-pattern"))
         .open(&mut open)
         .resizable(false)
         .default_width(260.0)
@@ -694,7 +695,7 @@ fn floral_window(app: &mut EditorApp, ctx: &egui::Context) {
             ui.add(egui::Slider::new(&mut f.density, 1..=10).text("Density"));
             ui.add(egui::Slider::new(&mut f.pattern, 0..=251).text("Pattern"));
             apply = ui
-                .add_enabled(single(app).is_some(), egui::Button::new("Create"))
+                .add_enabled(single(app).is_some(), egui::Button::new(t("ui-create")))
                 .clicked();
         });
     if apply && let Some(id) = single(app) {
@@ -729,8 +730,8 @@ pub fn order_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandR
             }
         }
         if ui
-            .button("Sort by colour")
-            .on_hover_text("Same-colour objects sew together")
+            .button(t("ui-sort-by-colour"))
+            .on_hover_text(t("ui-same-colour-objects-sew-together-tip"))
             .clicked()
         {
             out = Some(CommandRequest::new("order.byColor", serde_json::json!({})));
@@ -740,7 +741,7 @@ pub fn order_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandR
             OptimizeOrder::PeDesign => "As PE-DESIGN 11.50: group colours (drawing order within a colour) and link the entry and exit points of same-colour neighbours; overlapping objects keep their order",
             OptimizeOrder::MinJump => "Beyond PE-DESIGN: the same colour groups, each arranged for the shortest total jump (greedy nearest, then 2-opt), every neighbouring pair linked; overlapping objects keep their order",
         };
-        if ui.button("Optimise").on_hover_text(hint).clicked() {
+        if ui.button(t("ui-optimise")).on_hover_text(hint).clicked() {
             out = Some(CommandRequest::new("order.optimize", serde_json::json!({})));
         }
         let mut chosen = mode;
@@ -753,7 +754,7 @@ pub fn order_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandR
                 }
             })
             .response
-            .on_hover_text("How Optimise arranges the objects; saved with the design");
+            .on_hover_text(t("ui-how-optimise-arranges-the-objects-saved-tip"));
         if let Some(r) = optimize_mode_request(mode, chosen) {
             out = Some(r);
         }
@@ -798,9 +799,9 @@ fn list_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandReques
         if ui
             .add_enabled(
                 app.click_order.len() >= 2,
-                egui::Button::new("Sew in click order"),
+                egui::Button::new(t("ui-sew-in-click-order")),
             )
-            .on_hover_text("Sew the selected objects in the order you clicked them (Shift or Ctrl+click), starting where the first of them sews now")
+            .on_hover_text(t("ui-sew-the-selected-objects-in-the-tip"))
             .on_disabled_hover_text("Shift- or Ctrl+click two or more objects in the order they should sew")
             .clicked()
         {
@@ -809,7 +810,7 @@ fn list_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandReques
         let mut locked = all_locked;
         if ui
             .add_enabled(!app.selection.is_empty(), egui::Checkbox::new(&mut locked, "Lock"))
-            .on_hover_text("Locked objects cannot be picked, moved, resized, point-edited or deleted on the canvas; select them here")
+            .on_hover_text(t("ui-locked-objects-cannot-be-picked-moved-tip"))
             .changed()
         {
             out = Some(objects::set_locked(&app.selection, locked));
@@ -817,7 +818,7 @@ fn list_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandReques
         let mut first = line_first;
         if ui
             .add_enabled(!shapes.is_empty(), egui::Checkbox::new(&mut first, "Sew outline first"))
-            .on_hover_text("Beyond PE-DESIGN: sew the outline before the region (PE-DESIGN sews the region first)")
+            .on_hover_text(t("ui-beyond-pe-design-sew-the-outline-tip"))
             .on_disabled_hover_text("Select a shape with both a region and an outline")
             .changed()
         {
@@ -832,7 +833,7 @@ fn list_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandReques
         let mut stop = stops;
         if ui
             .add_enabled(!app.selection.is_empty(), egui::Checkbox::new(&mut stop, "Stop after"))
-            .on_hover_text("Beyond PE-DESIGN: the machine pauses after these objects (to place appliqué fabric or a patch) without a colour change")
+            .on_hover_text(t("ui-beyond-pe-design-the-machine-pauses-tip"))
             .changed()
         {
             out = Some(objects::set_stop_after(&app.selection, stop));
@@ -864,15 +865,15 @@ fn list_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandReques
             .any(|o| app.selection.contains(&o.id) && o.branch);
         if branched {
             if ui
-                .button("Unbranch")
-                .on_hover_text("Take the branch apart: the objects stay but are no longer linked")
+                .button(t("ui-unbranch"))
+                .on_hover_text(t("ui-take-the-branch-apart-the-objects-tip"))
                 .clicked()
             {
                 out = Some(CommandRequest::new("object.unbranch", serde_json::json!({ "ids": ids })));
             }
         } else if ui
-            .add_enabled(app.selection.len() >= 2, egui::Button::new("Branch"))
-            .on_hover_text("Beyond PE-DESIGN: sew the selected touching shapes in one go in the first one's thread, each starting where the one before touches it")
+            .add_enabled(app.selection.len() >= 2, egui::Button::new(t("ui-branch")))
+            .on_hover_text(t("ui-beyond-pe-design-sew-the-selected-tip"))
             .on_disabled_hover_text("Select two or more touching shapes")
             .clicked()
         {
@@ -909,7 +910,7 @@ fn list_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandReques
         let mut hide = any && chosen.iter().all(|o| o.hide_under.is_some());
         if ui
             .add_enabled(any, egui::Checkbox::new(&mut hide, "Leave out hidden stitching"))
-            .on_hover_text("Beyond PE-DESIGN: skip the stitching later fills and satins cover, keeping 1 mm under their edges; the shape is not cut")
+            .on_hover_text(t("ui-beyond-pe-design-skip-the-stitching-tip"))
             .changed()
         {
             out = Some(objects::set_flag(&app.selection, "object.setHideUnder", serde_json::json!({ "on": hide })));
@@ -917,7 +918,7 @@ fn list_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandReques
         let mut run = any && chosen.iter().all(|o| o.connector_run);
         if ui
             .add_enabled(any, egui::Checkbox::new(&mut run, "Then: run"))
-            .on_hover_text("Beyond PE-DESIGN: reach the next object of the same thread with a running-stitch connector instead of a jump and trim")
+            .on_hover_text(t("ui-beyond-pe-design-reach-the-next-tip"))
             .changed()
         {
             let connector = if run { "run" } else { "jump" };
@@ -931,7 +932,7 @@ fn list_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandReques
         let label = if update { "Update knockdown" } else { "Knockdown" };
         if ui
             .button(label)
-            .on_hover_text("Beyond PE-DESIGN: a light fill sewn first under the selection (or the whole design) that flattens towel and fleece pile; on a selected knockdown, rebuild it to cover what changed")
+            .on_hover_text(t("ui-beyond-pe-design-a-light-fill-tip"))
             .clicked()
         {
             out = Some(objects::knockdown(d, &app.selection));
@@ -1005,12 +1006,12 @@ pub fn colour_frames(app: &mut EditorApp, ui: &mut egui::Ui) {
                     }
                     if selected {
                         let up = egui::Button::new(crate::icons::ui_image(ui, "move_up")).small();
-                        if ui.add(up).on_hover_text("Sew earlier").clicked() {
+                        if ui.add(up).on_hover_text(t("ui-sew-earlier-tip")).clicked() {
                             pending = objects::shift_frame(&frames, k, -1);
                         }
                         let down =
                             egui::Button::new(crate::icons::ui_image(ui, "move_down")).small();
-                        if ui.add(down).on_hover_text("Sew later").clicked() {
+                        if ui.add(down).on_hover_text(t("ui-sew-later-tip")).clicked() {
                             pending = objects::shift_frame(&frames, k, 1);
                         }
                     }

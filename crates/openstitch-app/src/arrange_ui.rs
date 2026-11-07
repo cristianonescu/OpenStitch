@@ -3,6 +3,7 @@
 //! Assistant reaches the same edits with `object.align`, `object.distribute`, `object.list`
 //! (filters), `object.scale`, `object.rotate` and `object.skew`.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui;
 use openstitch_app::editor::hit::bounds_of;
@@ -66,7 +67,7 @@ pub fn select_same(app: &mut EditorApp, a: Action) {
 }
 
 pub fn align_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
-    ui.label(egui::RichText::new("Relative to").weak());
+    ui.label(egui::RichText::new(t("ui-relative-to")).weak());
     for (key, label) in ALIGN_TO {
         ui.radio_value(&mut app.align_to, key, label);
     }
@@ -117,7 +118,7 @@ pub fn precision_bar(app: &mut EditorApp, ui: &mut egui::Ui) {
                     ui.selectable_value(&mut opts.centre, true, "Centre");
                 })
                 .response
-                .on_hover_text("The point X and Y give, and that stays put when sizing or turning");
+                .on_hover_text(t("ui-the-point-x-and-y-give-tip"));
         });
         let Some(b) = bounds else {
             ui.weak("Select objects to type their position, size, rotation or skew");
@@ -128,7 +129,7 @@ pub fn precision_bar(app: &mut EditorApp, ui: &mut egui::Ui) {
             if f == Field::Height {
                 let opts = &mut app.precision.options;
                 ui.toggle_value(&mut opts.lock, "Lock")
-                    .on_hover_text("Lock aspect: width and height scale together");
+                    .on_hover_text(t("ui-lock-aspect-width-and-height-scale-tip"));
             }
             ui.label(f.label());
             let units = app.ui.prefs.units;

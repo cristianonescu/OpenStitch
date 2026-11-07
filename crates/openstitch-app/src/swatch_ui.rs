@@ -9,6 +9,7 @@
 //!
 //! The dialog keeps its state in egui's memory. After a swatch is saved it offers to open it.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui;
 use openstitch_app::editor::CommandRequest;
@@ -145,11 +146,11 @@ fn attribute_combo(ui: &mut egui::Ui, salt: &str, value: &mut String, valid: &[&
 
 fn steps_row(ui: &mut egui::Ui, start: &mut f64, step: &mut f64, count: &mut u32) {
     ui.horizontal(|ui| {
-        ui.label("Start");
+        ui.label(t("ui-start-tip"));
         ui.add(egui::DragValue::new(start).speed(0.05).max_decimals(3));
-        ui.label("Step");
+        ui.label(t("ui-step"));
         ui.add(egui::DragValue::new(step).speed(0.05).max_decimals(3));
-        ui.label("Copies");
+        ui.label(t("ui-copies"));
         ui.add(egui::DragValue::new(count).range(2..=25));
     });
 }
@@ -191,7 +192,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut calibrate = false;
     let mut open_saved = false;
     let mut open = true;
-    egui::Window::new("Test Swatches")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-test-swatches")).id(egui::Id::unique("window-test-swatches"))
         .open(&mut open)
         .resizable(false)
         .default_width(380.0)
@@ -206,34 +207,34 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 Kind::Steps,
                 "One object with a setting stepped",
             );
-            ui.radio_value(&mut d.kind, Kind::Card, "Fabric calibration card");
+            ui.radio_value(&mut d.kind, Kind::Card, t("ui-fabric-calibration-card"));
             ui.separator();
             match d.kind {
                 Kind::Selection => {
-                    ui.checkbox(&mut d.label, "Sew its settings as a label below it");
+                    ui.checkbox(&mut d.label, t("ui-sew-its-settings-as-a-label"));
                 }
                 Kind::Steps => {
                     if valid.is_empty() {
-                        ui.label("Select one shape or text object.");
+                        ui.label(t("ui-select-one-shape-or-text-object"));
                     } else {
                         if !valid.contains(&d.attribute.as_str()) {
                             d.attribute = valid[0].to_string();
                         }
                         ui.horizontal(|ui| {
-                            ui.label("Setting");
+                            ui.label(t("ui-setting"));
                             attribute_combo(ui, "swatch-attr", &mut d.attribute, &valid);
                         });
                         steps_row(ui, &mut d.start, &mut d.step, &mut d.count);
-                        ui.checkbox(&mut d.second, "And a second setting across the columns");
+                        ui.checkbox(&mut d.second, t("ui-and-a-second-setting-across-the"));
                         if d.second {
                             ui.horizontal(|ui| {
-                                ui.label("Setting");
+                                ui.label(t("ui-setting"));
                                 attribute_combo(ui, "swatch-attr2", &mut d.attribute2, &valid);
                             });
                             steps_row(ui, &mut d.start2, &mut d.step2, &mut d.count2);
                         }
                         ui.horizontal(|ui| {
-                            ui.label("Gap");
+                            ui.label(t("ui-gap"));
                             ui.add(
                                 egui::DragValue::new(&mut d.gap)
                                     .range(1.0..=50.0)
@@ -241,7 +242,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                                     .suffix(" mm"),
                             );
                         });
-                        ui.checkbox(&mut d.label, "Sew each value as a label");
+                        ui.checkbox(&mut d.label, t("ui-sew-each-value-as-a-label"));
                     }
                 }
                 Kind::Card => {
@@ -272,25 +273,25 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                     );
                 }
             }
-            if ui.button("Save Swatch…").clicked() {
+            if ui.button(t("ui-save-swatch")).clicked() {
                 save = true;
             }
             if d.kind == Kind::Card {
                 ui.separator();
-                ui.label("After sewing it: the best piece of each row");
+                ui.label(t("ui-after-sewing-it-the-best-piece"));
                 row_pick(ui, "Fill", 'F', &mut d.fill);
                 row_pick(ui, "Satin", 'S', &mut d.satin);
                 row_pick(ui, "Pull", 'P', &mut d.pull);
                 ui.horizontal(|ui| {
-                    ui.label("Name");
+                    ui.label(t("ui-name"));
                     ui.text_edit_singleline(&mut d.name);
                 });
                 if ui
                     .add_enabled(
                         !d.name.trim().is_empty(),
-                        egui::Button::new("Save as Fabric"),
+                        egui::Button::new(t("ui-save-as-fabric")),
                     )
-                    .on_hover_text("A custom fabric in the Fabric Selector, for Fabric ▸ Apply")
+                    .on_hover_text(t("ui-a-custom-fabric-in-the-fabric-tip"))
                     .clicked()
                 {
                     calibrate = true;
@@ -301,7 +302,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 ui.horizontal(|ui| {
                     ui.label(format!("Saved {}", p.display()));
                     if ui
-                        .button("Open It")
+                        .button(t("ui-open-it"))
                         .on_hover_text(
                             "Opens the swatch in place of this design (Undo brings it back)",
                         )

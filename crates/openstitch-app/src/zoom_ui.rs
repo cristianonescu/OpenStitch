@@ -2,6 +2,7 @@
 //! beyond PE-DESIGN). The logic without egui is in `openstitch_app::editor::viewport` and
 //! `openstitch_app::editor::background`.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui::{self, Color32, Pos2, Stroke};
 use openstitch_app::editor::background::{self as bg, Grab};
@@ -195,7 +196,7 @@ pub fn draw(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
 pub fn calibration_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.calibration.open;
     let key = Some(app.monitor_key());
-    egui::Window::new("Calibrate Real Size")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-calibrate-real-size")).id(egui::Id::unique("window-calibrate-real-size"))
         .open(&mut open)
         .resizable(false)
         .show(ctx, |ui| {
@@ -234,7 +235,7 @@ pub fn calibration_window(app: &mut EditorApp, ctx: &egui::Context) {
             ui.horizontal(|ui| {
                 let k = viewport::calibrated(f64::from(app.calibration.length), 100.0);
                 if ui
-                    .add_enabled(k.is_some() && key.is_some(), egui::Button::new("Save"))
+                    .add_enabled(k.is_some() && key.is_some(), egui::Button::new(t("ui-save")))
                     .clicked()
                 {
                     app.ui.prefs.calibrate(monitor, k);
@@ -242,8 +243,8 @@ pub fn calibration_window(app: &mut EditorApp, ctx: &egui::Context) {
                     app.status = format!("Real size calibrated for {monitor}");
                 }
                 if ui
-                    .button("Use 96 dpi")
-                    .on_hover_text("Forget this monitor's calibration")
+                    .button(t("ui-use-96-dpi"))
+                    .on_hover_text(t("ui-forget-this-monitor-s-calibration-tip"))
                     .clicked()
                 {
                     app.ui.prefs.calibrate(monitor, None);

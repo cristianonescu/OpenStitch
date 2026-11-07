@@ -4,6 +4,7 @@
 //! in [`openstitch_app::editor::creator`]; this draws them. Add to Design runs one
 //! `pattern.define` command (one Undo); the library folder holds patterns between sessions.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use crate::suite_chrome::{self, Host};
 use eframe::egui::{self, Color32, Pos2, Sense, Stroke};
@@ -295,7 +296,7 @@ impl Host<CreatorAction> for EditorApp {
                 }
             }
             GridInterval => {
-                ui.checkbox(&mut self.creator.doc.snap, "Snap to 1/16 of the tile");
+                ui.checkbox(&mut self.creator.doc.snap, t("ui-snap-to-1-16-of-the"));
             }
             ImageDensity => {
                 if let Some(t) = &mut self.creator.template {
@@ -509,7 +510,7 @@ pub fn creator(app: &mut EditorApp, ui: &mut egui::Ui) {
 
 fn header(ui: &mut egui::Ui, st: &mut CreatorState, user: &[patterns::Pattern]) {
     ui.horizontal(|ui| {
-        ui.label("Kind");
+        ui.label(t("ui-kind"));
         let current = KINDS
             .iter()
             .find(|k| k.0 == st.doc.kind)
@@ -524,14 +525,14 @@ fn header(ui: &mut egui::Ui, st: &mut CreatorState, user: &[patterns::Pattern]) 
                 }
             });
         crate::a11y::name(&r.response, "Kind");
-        ui.label("Id");
+        ui.label(t("ui-id"));
         let r = ui.add(egui::TextEdit::singleline(&mut st.doc.id).desired_width(120.0));
         crate::a11y::name(&r, "Id");
-        ui.label("Name");
+        ui.label(t("ui-name"));
         let r = ui.add(egui::TextEdit::singleline(&mut st.doc.name).desired_width(140.0));
         crate::a11y::name(&r, "Name");
         if st.doc.kind == PatternKind::Decorative {
-            ui.label("Row shift");
+            ui.label(t("ui-row-shift"));
             let r = ui.add(egui::Slider::new(&mut st.doc.row_shift, 0.0..=1.0));
             crate::a11y::name_slider(&r, "Row shift");
         }
@@ -1025,7 +1026,7 @@ fn library(ui: &mut egui::Ui, st: &mut CreatorState, requests: &mut Vec<CommandR
     ui.horizontal(|ui| {
         ui.strong("User library");
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.button("Refresh").clicked() {
+            if ui.button(t("ui-refresh")).clicked() {
                 st.refresh_library();
             }
         });
@@ -1062,10 +1063,10 @@ fn library(ui: &mut egui::Ui, st: &mut CreatorState, requests: &mut Vec<CommandR
                 Ok(p) => {
                     ui.label(format!("{} ({}, {})", p.name, kind_name(p.kind), p.id));
                     ui.horizontal(|ui| {
-                        if ui.button("Edit").clicked() {
+                        if ui.button(t("ui-edit")).clicked() {
                             edit = Some(i);
                         }
-                        if ui.button("Add to Design").clicked() {
+                        if ui.button(t("ui-add-to-design")).clicked() {
                             let doc: serde_json::Value =
                                 serde_json::from_str(&p.to_json()).unwrap_or_default();
                             requests.push(CommandRequest::new(
@@ -1073,7 +1074,7 @@ fn library(ui: &mut egui::Ui, st: &mut CreatorState, requests: &mut Vec<CommandR
                                 json!({ "pattern": doc }),
                             ));
                         }
-                        if ui.button("Delete file").clicked() {
+                        if ui.button(t("ui-delete-file")).clicked() {
                             remove = Some(i);
                         }
                     });

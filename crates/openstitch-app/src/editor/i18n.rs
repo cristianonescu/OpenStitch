@@ -174,35 +174,54 @@ fn is_id(id: &str) -> bool {
         && chars.all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
-/// Text with Fluent's brace literals resolved; any other placeable is refused.
+/// Text with Fluent's string literals (`{"{"}`, `{"  "}` for spaces at an end) resolved; any
+/// other placeable is refused.
 fn unescape(text: &str) -> Result<String, String> {
     let mut out = String::new();
     let mut rest = text;
     while let Some(i) = rest.find(['{', '}']) {
         out.push_str(&rest[..i]);
         rest = &rest[i..];
-        if let Some(r) = rest.strip_prefix("{\"{\"}") {
-            out.push('{');
-            rest = r;
-        } else if let Some(r) = rest.strip_prefix("{\"}\"}") {
-            out.push('}');
-            rest = r;
-        } else {
-            return Err(
-                "placeables are not supported yet; write braces as {\"{\"} and {\"}\"}".into(),
-            );
+        let literal = rest
+            .strip_prefix("{\"")
+            .and_then(|r| r.find("\"}").map(|j| (&r[..j], &r[j + 2..])));
+        match literal {
+            Some((text, after)) if !text.contains('"') => {
+                out.push_str(text);
+                rest = after;
+            }
+            _ => {
+                return Err(
+                    "placeables are not supported yet; write braces as {\"{\"} and {\"}\"}".into(),
+                );
+            }
         }
     }
     out.push_str(rest);
     Ok(out)
 }
 
-/// `text` written for a catalogue: braces as Fluent literals, line breaks as indented lines.
+/// `text` written for a catalogue: braces as Fluent literals, spaces at either end in a literal
+/// (a catalogue value is trimmed), line breaks as indented lines.
 pub fn escape(text: &str) -> String {
-    text.replace('{', "\u{0}")
+    let core = text.trim();
+    let (lead, trail) = (
+        &text[..text.len() - text.trim_start().len()],
+        &text[text.trim_end().len()..],
+    );
+    let core = core
+        .replace('{', "\u{0}")
         .replace('}', "{\"}\"}")
         .replace('\u{0}', "{\"{\"}")
-        .replace('\n', "\n    ")
+        .replace('\n', "\n    ");
+    let wrap = |w: &str| {
+        if w.is_empty() {
+            String::new()
+        } else {
+            format!("{{\"{w}\"}}")
+        }
+    };
+    format!("{}{core}{}", wrap(lead), wrap(trail))
 }
 
 /// A message id made from a name: lowercase, every run of other characters one `-`
@@ -264,6 +283,10 @@ mod tests {
         assert!(parse("  stray").is_err());
         assert!(parse("no equals").is_err());
         // escape() round-trips through parse().
+        assert_eq!(
+            parse(&format!("p = {}", escape("  (folded) "))).expect("spaces")[0].1,
+            "  (folded) "
+        );
         let tricky = "Keys {\"a\": 1}\nnext";
         let line = format!("t = {}", escape(tricky));
         assert_eq!(parse(&line).expect("round trip")[0].1, tricky);

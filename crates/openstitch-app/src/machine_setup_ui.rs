@@ -64,7 +64,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     };
     let (mut save, mut skip) = (false, false);
     let mut open = true;
-    egui::Window::new("Machine Setup")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-machine-setup")).id(egui::Id::unique("window-machine-setup"))
         .open(&mut open)
         .collapsible(false)
         .resizable(false)

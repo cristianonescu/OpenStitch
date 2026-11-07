@@ -1,6 +1,7 @@
 //! Shapes ▸ Edit Outline ▸ Shape Effects dropdown with a live preview, and the Rectangle tool's
 //! per-corner Edge radius (#497). Requests come from `openstitch_app::editor::shape_effects`.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui::{self, Color32, Pos2, Stroke};
 use openstitch_app::editor::shape_effects::{self, EffectForm};
@@ -59,7 +60,7 @@ pub fn effects_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         _ => 0.0..=50.0,
     };
     ui.horizontal(|ui| {
-        ui.label("Amount");
+        ui.label(t("ui-amount"));
         ui.add(
             egui::DragValue::new(&mut form.amount)
                 .range(range)
@@ -69,7 +70,7 @@ pub fn effects_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     });
     if matches!(form.effect, Effect::Roughen | Effect::Zigzag) {
         ui.horizontal(|ui| {
-            ui.label("Size");
+            ui.label(t("ui-size"));
             ui.add(
                 egui::DragValue::new(&mut form.size)
                     .range(0.2..=50.0)
@@ -81,7 +82,7 @@ pub fn effects_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     if form.effect == Effect::Roughen {
         ui.horizontal(|ui| {
             ui.label(format!("Seed {}", form.seed));
-            if ui.button("Shuffle").clicked() {
+            if ui.button(t("ui-shuffle")).clicked() {
                 form.seed = form.seed.wrapping_mul(6364136223846793005).wrapping_add(1) % 1_000_000;
             }
         });
@@ -98,7 +99,7 @@ pub fn effects_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         preview(ui, &before, &after);
     }
     if ui
-        .add_enabled(!ids.is_empty(), egui::Button::new("Apply"))
+        .add_enabled(!ids.is_empty(), egui::Button::new(t("menu-apply")))
         .clicked()
     {
         if app.execute(&form.request(&ids)).is_some() {
@@ -112,7 +113,7 @@ pub fn effects_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
 /// Shapes (Rectangle) ▸ Edge radius: one radius per corner instead of one for all.
 pub fn corner_radii_ui(app: &mut EditorApp, ui: &mut egui::Ui) {
     let mut per_corner = app.tools.corner_radii().is_some();
-    ui.checkbox(&mut per_corner, "Different radius per corner");
+    ui.checkbox(&mut per_corner, t("ui-different-radius-per-corner"));
     if !per_corner {
         app.tools.set_corner_radii(None);
         return;
