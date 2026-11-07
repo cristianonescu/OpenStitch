@@ -837,6 +837,49 @@ fn list_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandReques
         {
             out = Some(objects::set_stop_after(&app.selection, stop));
         }
+        // Beyond PE-DESIGN (#546).
+        let ids = CommandRequest::ids(&app.selection);
+        let branched = d
+            .objects
+            .iter()
+            .any(|o| app.selection.contains(&o.id) && o.branch);
+        if branched {
+            if ui
+                .button("Unbranch")
+                .on_hover_text("Take the branch apart: the objects stay but are no longer linked")
+                .clicked()
+            {
+                out = Some(CommandRequest::new("object.unbranch", serde_json::json!({ "ids": ids })));
+            }
+        } else if ui
+            .add_enabled(app.selection.len() >= 2, egui::Button::new("Branch"))
+            .on_hover_text("Beyond PE-DESIGN: sew the selected touching shapes in one go in the first one's thread, each starting where the one before touches it")
+            .on_disabled_hover_text("Select two or more touching shapes")
+            .clicked()
+        {
+            out = Some(CommandRequest::new("object.branch", serde_json::json!({ "ids": ids })));
+        }
+        let lines = !app.selection.is_empty()
+            && d.objects
+                .iter()
+                .filter(|o| app.selection.contains(&o.id))
+                .all(|o| o.region.is_none() && o.line.is_some());
+        for (label, redwork, tip) in [
+            ("Auto-route lines", false, "Beyond PE-DESIGN: join touching running lines into one walk each, doubling back only where needed"),
+            ("Redwork", true, "Beyond PE-DESIGN: sew the touching lines twice, out and back, in one walk"),
+        ] {
+            if ui
+                .add_enabled(lines, egui::Button::new(label))
+                .on_hover_text(tip)
+                .on_disabled_hover_text("Select line objects (no region)")
+                .clicked()
+            {
+                out = Some(CommandRequest::new(
+                    "shape.autoRoute",
+                    serde_json::json!({ "ids": ids, "redwork": redwork }),
+                ));
+            }
+        }
         // Beyond PE-DESIGN (#511, #545).
         let chosen: Vec<_> = d
             .objects

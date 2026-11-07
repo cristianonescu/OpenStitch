@@ -276,6 +276,9 @@ feature is done and the rest is under [Planned](#planned).
   freezes ([#558]).
 - (+) **Several designs as tabs** in one window, each with its own undo, selection and zoom
   ([#552]).
+- (+) **Keyboard-only drawing:** arrow keys move a drawing cursor, Space places points, Return
+  finishes; `[` and `]` or the scroll wheel set a satin line's width while drawing ([#499],
+  [#707]).
 - (+) **Picture pickers with a live preview:** sewing types, fill patterns and motifs shown as
   pictures of their stitches; hovering one shows it on the selection before you choose ([#656]).
 - (+) **Accessibility:** every control named for screen readers, WCAG AA contrast in both
@@ -480,6 +483,8 @@ The image tools have two methods, both OpenStitch's own: OpenStitch's PE-DESIGN-
 - (+) **Knockdown fill** sewn first to flatten towels and fleece ([#510]).
 - (+) **Leave out hidden stitching** under later fills, without cutting the shapes ([#511]).
 - (+) **Travel under later fills and running connectors** instead of jumps and trims ([#545]).
+- (+) **Auto-route and Redwork** for touching running lines, sewn in one walk, and **branching**
+  of touching shapes, sewn in one go without trims ([#546]).
 - (+) **Nearest start per object** and a before/after report from Optimize ([#547]).
 - (+) **Test swatch of the selection,** centred in the smallest hoop it fits ([#452]).
 - (+) **Fabric calibration card:** sew graded densities and compensation, save the best as a fabric
@@ -670,12 +675,15 @@ See also [New: the Assistant](#new-the-assistant).
 [#535]: https://github.com/cristianonescu/OpenStitch/issues/535
 [#536]: https://github.com/cristianonescu/OpenStitch/issues/536
 [#545]: https://github.com/cristianonescu/OpenStitch/issues/545
+[#546]: https://github.com/cristianonescu/OpenStitch/issues/546
 [#547]: https://github.com/cristianonescu/OpenStitch/issues/547
 [#548]: https://github.com/cristianonescu/OpenStitch/issues/548
 [#549]: https://github.com/cristianonescu/OpenStitch/issues/549
 [#550]: https://github.com/cristianonescu/OpenStitch/issues/550
 [#551]: https://github.com/cristianonescu/OpenStitch/issues/551
 [#552]: https://github.com/cristianonescu/OpenStitch/issues/552
+[#707]: https://github.com/cristianonescu/OpenStitch/issues/707
+[#499]: https://github.com/cristianonescu/OpenStitch/issues/499
 [#656]: https://github.com/cristianonescu/OpenStitch/issues/656
 [#499]: https://github.com/cristianonescu/OpenStitch/issues/499
 [#553]: https://github.com/cristianonescu/OpenStitch/issues/553

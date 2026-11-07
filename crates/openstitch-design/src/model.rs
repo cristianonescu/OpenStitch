@@ -619,6 +619,10 @@ pub struct DesignObject {
     /// or a patch without a colour change. A colour change right after it is the stop.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub stop_after: bool,
+    /// A member of a branch (#546, beyond PE-DESIGN): the members of its group are sewn in
+    /// one go, each entered where the one before it touches it; re-linked after every edit.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub branch: bool,
     /// Leave out this region's stitching hidden under later fills and satins, keeping this
     /// overlap (mm) under their edges (#511, beyond PE-DESIGN). The shape is not cut.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -666,6 +670,7 @@ impl DesignObject {
             line_first: false,
             finish: None,
             stop_after: false,
+            branch: false,
             hide_under: None,
             connector_run: false,
             knockdown: None,
@@ -692,6 +697,7 @@ impl DesignObject {
             line_first: false,
             finish: None,
             stop_after: false,
+            branch: false,
             hide_under: None,
             connector_run: false,
             knockdown: None,

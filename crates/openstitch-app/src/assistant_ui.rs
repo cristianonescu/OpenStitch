@@ -417,6 +417,7 @@ impl EditorApp {
                 }
                 Ok(state)
             }
+            "ui.cursor" => self.cursor_command(params),
             "ui.preview" => self.preview_command(params),
             "ui.recoveryList" => Ok(crate::recovery_ui::list(self)),
             "ui.recoveryRestore" => {

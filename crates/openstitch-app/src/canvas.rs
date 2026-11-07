@@ -75,7 +75,27 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
     }
     let mut vp = app.viewport.unwrap_or_default();
 
-    navigate(ui, &response, rect, &mut vp, app.ui.pan);
+    // While the Pen or Satin Skeleton draws, the wheel sets the width (#707).
+    // One step per wheel event, not per frame of smooth scrolling.
+    let scroll = ui.input(|i| {
+        let y: f32 = i
+            .events
+            .iter()
+            .filter_map(|e| match e {
+                egui::Event::MouseWheel { delta, .. } => Some(delta.y),
+                _ => None,
+            })
+            .sum();
+        (y, i.modifiers.command)
+    });
+    let wheel_width = !scroll.1
+        && response.hover_pos().is_some_and(|h| {
+            let at = vp.to_model(v2(f64::from(h.x), f64::from(h.y)));
+            crate::keyboard_ui::scroll_width(app, scroll.0, at)
+        });
+    if !wheel_width {
+        navigate(ui, &response, rect, &mut vp, app.ui.pan);
+    }
     app.viewport = Some(vp);
     if !app.ui.pan
         && !crate::view_ui::guide_pointer(app, ui, &response, rect, &vp)
@@ -119,7 +139,11 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
     }
     crate::quality_ui::draw_background(app, &painter, &vp, &page_rect);
     crate::workspace_ui::draw_grid(&painter, &vp, &page_rect, &app.workspace.grid);
-    if app.session.design().objects.is_empty() && app.session.design().background.is_none() {
+    // The empty-design hint gives way to a drawing in progress (#499).
+    if app.session.design().objects.is_empty()
+        && app.session.design().background.is_none()
+        && !app.tools.is_busy()
+    {
         draw_empty_hint(&painter, &vp, &page_rect);
     }
     match layer {
@@ -158,6 +182,7 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
     crate::arc_ui::arc_draw(app, &painter, &vp);
     draw_preview(app, &painter, &vp);
     draw_points(app, &painter, &vp);
+    crate::keyboard_ui::draw(app, &painter, &vp);
     crate::edit_ui::draw_arrange_preview(app, &painter, &vp);
     crate::edit_ui::draw_markers(app, &painter, &vp);
     crate::sections_ui::draw_sections(app, &painter, &vp);
