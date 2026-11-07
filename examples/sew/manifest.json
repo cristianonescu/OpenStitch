@@ -999,18 +999,18 @@
    71.0,
    89.7
   ],
-  "stitches": 3855,
-  "trims": 46,
+  "stitches": 3838,
+  "trims": 39,
   "threads": [
    "405 Blue",
    "800 Red",
    "509 Leaf Green",
    "620 Magenta"
   ],
-  "sewingMinutes": 7.2,
+  "sewingMinutes": 6.8,
   "image": null,
   "preview": "previews/fonts-and-text.png",
-  "sha256": "cd9fab2b25b369b3224d4b48695811ab56bda0b1e00ec19a1e169e9dddb80f76"
+  "sha256": "1811649abffe5263e71a0680b304f88cee1916d76cc73acafe4b896d5fb243c3"
  },
  "lettering/monograms.pes": {
   "title": "Monograms",
