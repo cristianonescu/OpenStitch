@@ -46,7 +46,7 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
         && let Some(summary) = result.get("summary").and_then(|v| v.as_str())
     {
         // Optimise reports what it changed (#547); Undo takes it back.
-        app.status = format!("Optimise: {summary}");
+        app.status = openstitch_app::tf!("ui-status-optimise", summary = summary);
     }
     if ui
         .button(t("ui-review-sewing-order"))
@@ -418,7 +418,7 @@ fn basic_advanced_and_defaults(app: &mut EditorApp, ui: &mut egui::Ui) {
             o.line.as_ref(),
         );
         app.ui.save_prefs();
-        app.status = "New shapes start with these settings".into();
+        app.status = openstitch_app::editor::ui_texts::t("ui-status-new-shapes-start-with-these-settings").into();
     }
 }
 

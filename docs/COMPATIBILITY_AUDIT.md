@@ -3404,3 +3404,13 @@ owner's notes; two compat specs use only the numbers recorded on #530, as expect
 Widths and the running line's stitch count follow each font. PE-DESIGN's trims between running
 letters and its refusal of a size outside a font's range are deliberate differences
 (OpenStitch joins letters by running stitch up to 1.2 × the size, and warns on size, #527).
+
+### Satin looks and raised satin on satin regions and skeleton satin, 2026-11-08 (#685)
+
+Beyond PE-DESIGN and off unless chosen: a satin with no look set sews as before (compat
+unchanged). A fixed-direction satin region now takes `satinStyle` (open: rows three times as far
+apart; S-stitch; double), `jaggedEdge`, short stitches and `raised` padding lanes under each
+section, as Manual Punch columns do; skeleton satin and Auto satin, which took the style and
+jagged edge with their shaping (#675), now also take the raised padding along their column.
+`spacingAt` stays a column option. PE-DESIGN's feathered edge keeps its own modes (#528's
+In/Out/one-side seeds on the feathered edge are not part of this).

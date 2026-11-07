@@ -174,7 +174,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     let path = if system {
         let dir = openstitch_app::os_print::print_dir();
         if let Err(e) = openstitch_app::os_print::prepare_dir(&dir) {
-            app.status = format!("{}: {e}", dir.display());
+            app.status = openstitch_app::tf!("ui-status-status", path = dir.display(), e = e);
             return;
         }
         openstitch_app::os_print::temp_pdf_in(&dir, &name)
@@ -194,7 +194,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         if system {
             app.print_pdf(&path);
         } else {
-            app.status = format!("Saved {} ({} pages)", path.display(), r["pages"]);
+            app.status = openstitch_app::tf!("ui-status-saved-pages", path = path.display(), pages = r["pages"]);
         }
     }
 }

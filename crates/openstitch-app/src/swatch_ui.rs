@@ -333,7 +333,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                         .execute(&CommandRequest::new(command, Value::Object(params)))
                         .is_some()
                     {
-                        app.status = format!("Saved the test swatch {}", path.display());
+                        app.status = openstitch_app::tf!("ui-status-saved-the-test-swatch", path = path.display());
                         d.saved = Some(path);
                     }
                 }

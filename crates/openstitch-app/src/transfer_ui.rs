@@ -137,7 +137,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
             Some(r) => {
                 d.exists = None;
                 d.message = Some(format!("Finished: {}", r["path"].as_str().unwrap_or("")));
-                app.status = "Sent to USB media".into();
+                app.status = openstitch_app::editor::ui_texts::t("ui-status-sent-to-usb-media").into();
             }
             None if app.status.contains("exists") => {
                 d.exists = Some(format!("{}.{}", d.name, d.format));

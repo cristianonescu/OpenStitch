@@ -151,6 +151,8 @@ fn layers_inner(
     {
         let mut plain = r.clone();
         plain.skeleton = None;
+        // The fixed-direction satin below gives the under sewing only: no looks there (#685).
+        plain.satin_shaping = Default::default();
         // OpenStitch's under sewing along the column where chosen (#675).
         let [first, second] = crate::skeleton::underlay(skeleton, r);
         if first.is_some() {
@@ -159,6 +161,13 @@ fn layers_inner(
         let mut out = layers_inner(closed, &plain, holes, user);
         out.pop();
         out.extend(first.into_iter().chain(second).map(|run| vec![run]));
+        // Raised satin's padding lanes under the column, following its width (#685).
+        if let Some(raised) = &r.satin_shaping.raised {
+            let pad = crate::column::padding(&crate::skeleton::rungs(skeleton, 10.0), raised);
+            if pad.len() > 1 {
+                out.push(vec![pad]);
+            }
+        }
         let spacing = 10.0 / r.density.max(0.1);
         out.push(vec![crate::skeleton::satin_with(
             skeleton,
@@ -285,6 +294,7 @@ fn layers_inner(
         let mut plain = r.clone();
         plain.auto_direction = false;
         plain.angle = 0.0;
+        plain.satin_shaping = Default::default();
         // OpenStitch's under sewing along the column where chosen (#675).
         let [first, second] = crate::column::rung_underlay(&rungs, r, start);
         if first.is_some() {
@@ -293,6 +303,13 @@ fn layers_inner(
         let mut out = layers_inner(closed, &plain, holes, user);
         out.pop();
         out.extend(first.into_iter().chain(second).map(|run| vec![run]));
+        // Raised satin's padding lanes under the column (#685).
+        if let Some(raised) = &r.satin_shaping.raised {
+            let pad = crate::column::padding(&rungs, raised);
+            if pad.len() > 1 {
+                out.push(vec![pad]);
+            }
+        }
         out.push(vec![top]);
         return out;
     }
@@ -448,7 +465,37 @@ fn layers_inner(
         RegionType::Satin
             if !shaped || (r.sewn_gradation().is_none() && r.split_length.is_none()) =>
         {
-            sawtooth_satin(closed, r, &params, holes)
+            if r.satin_shaping.is_plain() {
+                sawtooth_satin(closed, r, &params, holes)
+            } else {
+                // OpenStitch's satin looks on a fixed-direction satin (#685): the open look's
+                // rows three times as far apart, raised satin's padding lanes under each
+                // section, and the jagged edge, short stitches, S-stitch and double satin on
+                // its alternating rows (`column::finish`), as on a Manual Punch column.
+                let open = r.satin_shaping.style == crate::column::SatinStyle::Open;
+                let p = RegionParams {
+                    row_spacing: params.row_spacing * if open { 3.0 } else { 1.0 },
+                    ..params
+                };
+                let rows = sawtooth_satin(closed, r, &p, holes);
+                if let Some(raised) = &r.satin_shaping.raised {
+                    for run in &rows {
+                        let rungs: Vec<[Vec2; 2]> = run
+                            .as_chunks::<2>()
+                            .0
+                            .iter()
+                            .map(|w| [w[0], w[1]])
+                            .collect();
+                        let pad = crate::column::padding(&rungs, raised);
+                        if pad.len() > 1 {
+                            out.push(vec![pad]);
+                        }
+                    }
+                }
+                rows.into_iter()
+                    .map(|run| crate::column::finish(vec![(run, true)], &r.satin_shaping))
+                    .collect()
+            }
         }
         RegionType::Satin if r.split_length.is_none() && r.sewn_feather().is_none() => {
             let lattice = r

@@ -397,7 +397,7 @@ pub fn export_sections(app: &mut EditorApp) {
     let params = json!({ "path": path.display().to_string() });
     if let Some(r) = app.execute(&CommandRequest::new("sections.export", params)) {
         let n = r["files"].as_array().map_or(0, Vec::len);
-        app.status = format!("Exported {n} section files next to {}", path.display());
+        app.status = openstitch_app::tf!("ui-status-exported-section-files-next-to", n = n, path = path.display());
     }
 }
 

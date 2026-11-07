@@ -409,7 +409,7 @@ impl EditorApp {
         if let Some(path) = &l.user_settings
             && let Err(e) = self.session.with_user_settings(path)
         {
-            self.status = format!("Could not read the user settings ({e}); they are not saved");
+            self.status = openstitch_app::tf!("ui-status-could-not-read-the-user-settings", e = e);
         }
         // Screenshots use the default window layout, not the user's.
         if let Some(path) = &l.user_settings
@@ -603,7 +603,7 @@ impl EditorApp {
                     self.creator.doc =
                         openstitch_app::editor::creator::Creator::from_pattern(&pattern)
                 }
-                Err(e) => self.status = format!("{}: {e}", p.display()),
+                Err(e) => self.status = openstitch_app::tf!("ui-status-status", path = p.display(), e = e),
             }
         }
         if let Some(p) = l.image {
@@ -1037,7 +1037,7 @@ impl EditorApp {
         let locked =
             openstitch_app::editor::objects::any_locked(self.session.design(), &self.selection);
         if locked {
-            self.status = "Locked: unlock it in the Sewing Order list first".into();
+            self.status = openstitch_app::editor::ui_texts::t("ui-status-locked-unlock-it-in-the-sewing").into();
         }
         locked
     }
@@ -1285,7 +1285,7 @@ impl EditorApp {
         self.ui.add_recent(p);
         if is_project(p) {
             self.after_load(Some(p.to_path_buf()));
-            self.status = format!("Opened {}", p.display());
+            self.status = openstitch_app::tf!("ui-status-opened", path = p.display());
         } else {
             self.after_load(None);
             self.status = format!(
@@ -1363,7 +1363,7 @@ impl EditorApp {
         let request = CommandRequest::new(command, json!({ "path": p.display().to_string() }));
         if let Some(result) = self.grouped(|app| app.execute(&request)) {
             self.selection = CommandRequest::created_ids(&result);
-            self.status = format!("Imported {}{}", p.display(), import_report(&result));
+            self.status = openstitch_app::tf!("ui-status-imported", path = p.display(), result = import_report(&result));
         }
     }
 
@@ -1379,7 +1379,7 @@ impl EditorApp {
                 ))
                 .is_some()
         {
-            self.status = format!("Background {}", p.display());
+            self.status = openstitch_app::tf!("ui-status-background", path = p.display());
         }
     }
 
@@ -1387,7 +1387,7 @@ impl EditorApp {
     /// as a PNG in the app's data folder (named by content), since the project only references it.
     pub fn paste_background(&mut self) {
         if !self.ui.system_clipboard {
-            self.status = "Paste background: the system clipboard is not used here".into();
+            self.status = openstitch_app::editor::ui_texts::t("ui-status-paste-background-the-system-clipboard-is").into();
             return;
         }
         let image = crate::ribbon::os_clipboard()
@@ -1409,10 +1409,10 @@ impl EditorApp {
                     ))
                     .is_some()
                 {
-                    self.status = "Background pasted from the clipboard".into();
+                    self.status = openstitch_app::editor::ui_texts::t("ui-status-background-pasted-from-the-clipboard").into();
                 }
             }
-            Err(e) => self.status = format!("Paste background: {e}"),
+            Err(e) => self.status = openstitch_app::tf!("ui-status-paste-background", e = e),
         }
     }
 
@@ -1456,7 +1456,7 @@ impl EditorApp {
             ))
             .is_some()
         {
-            self.status = format!("Saved {}", path.display());
+            self.status = openstitch_app::tf!("ui-status-saved", path = path.display());
             self.ui.add_recent(&path);
             self.path = Some(path);
             self.saved_revision = self.revision;
@@ -1600,7 +1600,7 @@ impl EditorApp {
         };
         let params = json!({ "path": path.display().to_string(), "format": ext });
         if let Some(r) = self.execute(&CommandRequest::new("design.exportThreads", params)) {
-            self.status = format!("Wrote {} colours to {}", r["colors"], path.display());
+            self.status = openstitch_app::tf!("ui-status-wrote-colours-to", colors = r["colors"], path = path.display());
         }
     }
 
@@ -1614,7 +1614,7 @@ impl EditorApp {
         };
         let params = json!({ "path": path.display().to_string() });
         if let Some(r) = self.execute(&CommandRequest::new("design.applyThreads", params)) {
-            self.status = format!("Applied {} colours from {}", r["colors"], path.display());
+            self.status = openstitch_app::tf!("ui-status-applied-colours-from", colors = r["colors"], path = path.display());
         }
     }
 
@@ -1652,7 +1652,7 @@ impl EditorApp {
                 .and_then(|w| w.first())
                 .and_then(|w| w.as_str())
             {
-                self.status = format!("Exported {}. {w}", path.display());
+                self.status = openstitch_app::tf!("ui-status-exported", path = path.display(), w = w);
                 return;
             }
             self.status = if files > 1 {
@@ -1676,7 +1676,7 @@ impl EditorApp {
 
     /// Hands a PDF OpenStitch wrote to the system's print dialog (or its PDF viewer).
     pub fn print_pdf(&mut self, pdf: &Path) {
-        self.status = format!("Opening the print dialog for {}…", pdf.display());
+        self.status = openstitch_app::tf!("ui-status-opening-the-print-dialog-for", path = pdf.display());
         self.database.status = self.status.clone();
         self.printed = Some(pdf.to_path_buf());
         // Tests run every command; they must never open a real print dialog.
@@ -1840,7 +1840,7 @@ impl EditorApp {
                 self.zoom_box = Default::default();
             } else if self.edit.cancel() {
                 self.tools.cancel();
-                self.status = "Cancelled".into();
+                self.status = openstitch_app::editor::ui_texts::t("ui-status-cancelled").into();
             } else if self.workspace.measure.active {
                 self.workspace.measure.active = false;
                 self.workspace.measure.clear();
