@@ -194,7 +194,10 @@ large that runs within 20° of it, so fitted panels read as separate pieces, and
 (every 15°) that sews the least thread, so the least travel between its sections; parts under
 1 mm wide (ropes, whiskers) are sewn as running lines, a region whose stitches would all fall
 within 0.8 mm is left out as a speck (`reason: "speck"`; an override can still sew it), and a
-white, cream or off-white paper background is left out as the fabric showing.
+white, cream or off-white paper background is left out as the fabric showing. On line art the
+same small regions are drawn dots, so they are kept: `reason: "dot"`, sewn as a small fill
+tied only where a trim cuts it. Line art's small pieces in one thread that lie within 2 mm of
+each other are joined by a short running connector instead of a trim (fewer trims, no knots).
 
 `order: ["#rrggbb", ...]` sews those colours first (the plan's `color` values; the others
 follow brightest first). Region numbers follow the sewing order, so dry-run again after
