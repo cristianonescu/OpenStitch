@@ -165,7 +165,11 @@ impl EditorApp {
         let p = Params::new(id, params).map_err(|e| e.to_string())?;
         let err = |e: openstitch_engine::CommandError| e.to_string();
         match id {
-            "ui.state" => Ok(self.ui_state()),
+            "ui.state" => {
+                // The status bar's indicator, as of the last change (#599).
+                crate::quality_ui::update(self);
+                Ok(self.ui_state())
+            }
             "ui.actions" => {
                 let filter = opt_str(params, "filter").map(str::to_lowercase);
                 let list: Vec<Value> = Action::ALL
@@ -507,6 +511,7 @@ impl EditorApp {
         let system = std::mem::replace(&mut self.ui.system_clipboard, false);
         crate::ribbon::run(self, a, &eframe::egui::Context::default());
         self.ui.system_clipboard = system;
+        crate::quality_ui::update(self);
         Ok(json!({ "ran": info.key, "state": self.ui_state() }))
     }
 
@@ -551,6 +556,8 @@ impl EditorApp {
             "simulator": self.simulator_json(),
             "canUndo": self.session.can_undo(), "canRedo": self.session.can_redo(),
             "settings": self.ui_settings(),
+            // Check Design (#599): ready to sew, the problem counts and the open tab.
+            "check": crate::quality_ui::state_json(self),
             // The background image and its layer (#518): pictures never draw it.
             "background": self.session.design().background.as_ref().map(|b| {
                 let layer = match b.layer {
@@ -600,6 +607,16 @@ impl EditorApp {
                 "optimizeEntryExit" => json!(self.session.user_settings().optimize_entry_exit),
                 "view" => json!(view),
                 "showTravel" => json!(self.show_travel),
+                "checkDesign" => json!(if self.quality.open {
+                    self.quality.tab.key()
+                } else {
+                    "closed"
+                }),
+                "checkFabric" => json!(self.quality.fabric.as_deref().unwrap_or("standard")),
+                "densityOverlay" => json!(self.quality.density_overlay),
+                "darkBackground" => json!(self.quality.dark_background),
+                "routeMap" => json!(self.quality.route_map),
+                "reviewStep" => json!(self.quality.step + 1),
                 "realisticThreadWidth" => json!(prefs.realistic.thread_width_mm),
                 "realisticContrast" => json!(prefs.realistic.contrast),
                 "realisticBrightness" => json!(prefs.realistic.brightness),
@@ -729,6 +746,45 @@ impl EditorApp {
                 save = false;
             }
             "showTravel" => (self.show_travel, save) = (bool_value(name, v)?, false),
+            // The Check Design window is the session's, not a preference (#599).
+            "checkDesign" => {
+                match v.as_str() {
+                    Some("closed") => self.quality.open = false,
+                    Some(key) => {
+                        let tab = crate::quality_ui::Tab::from_key(key)
+                            .ok_or("checkDesign takes closed, problems, density or route")?;
+                        crate::quality_ui::open(self, tab);
+                    }
+                    None => return Err("checkDesign takes closed, problems, density or route".into()),
+                }
+                save = false;
+            }
+            "checkFabric" => {
+                let id = v
+                    .as_str()
+                    .filter(|id| openstitch_engine::fabric::FABRICS.iter().any(|f| f.id == *id))
+                    .ok_or("checkFabric takes a Fabric Selector id (fabric.list lists them)")?;
+                self.quality.fabric = (id != "standard").then(|| id.to_string());
+                crate::quality_ui::update(self);
+                save = false;
+            }
+            "densityOverlay" => {
+                self.quality.density_overlay = bool_value(name, v)?;
+                crate::quality_ui::update(self);
+                save = false;
+            }
+            "darkBackground" => {
+                (self.quality.dark_background, save) = (bool_value(name, v)?, false)
+            }
+            "routeMap" => (self.quality.route_map, save) = (bool_value(name, v)?, false),
+            "reviewStep" => {
+                let n = number_value(name, v, 1.0, 100_000.0)?;
+                if n.fract() != 0.0 {
+                    return Err("reviewStep takes a whole number".into());
+                }
+                crate::quality_ui::review_step(self, n as usize)?;
+                save = false;
+            }
             "realisticThreadWidth" => {
                 self.ui.prefs.realistic.thread_width_mm = number_value(name, v, 0.1, 1.5)?
             }
@@ -1174,6 +1230,64 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// #599: Check Design, its density map and Review Sewing Order open through `ui.run`, their
+    /// marks, fabric and step go through `ui.set`, and `ui.state` reports the indicator.
+    #[test]
+    fn check_design_density_and_review_through_the_assistant() {
+        let mut app = demo();
+        let set = |app: &mut EditorApp, name: &str, value: Value| {
+            app.ui_command("ui.set", Some(&json!({ "name": name, "value": value })))
+        };
+        let run = |app: &mut EditorApp, action: &str| {
+            app.ui_command("ui.run", Some(&json!({ "action": action })))
+                .unwrap_or_else(|e| panic!("{action}: {e}"))
+        };
+        let state = app.ui_command("ui.state", None).expect("state");
+        let check = &state["check"];
+        assert_eq!(check["window"], json!("closed"));
+        let (errors, warnings) = (check["errors"].as_u64(), check["warnings"].as_u64());
+        let (errors, warnings) = (errors.expect("errors"), warnings.expect("warnings"));
+        assert_eq!(check["ready"], json!(errors + warnings == 0), "{check}");
+
+        let r = run(&mut app, "checkDesign");
+        assert_eq!(r["state"]["check"]["window"], json!("problems"));
+        assert_eq!(r["state"]["settings"]["checkDesign"]["value"], json!("problems"));
+
+        run(&mut app, "densityMap");
+        assert!(app.quality.density["classes"].is_object(), "the map is computed");
+        set(&mut app, "densityOverlay", json!(true)).expect("overlay");
+        set(&mut app, "darkBackground", json!(true)).expect("dark");
+        assert!(app.quality.density_overlay && app.quality.dark_background);
+        set(&mut app, "checkFabric", json!("towel")).expect("fabric");
+        assert_eq!(app.quality.fabric.as_deref(), Some("towel"));
+        assert!(set(&mut app, "checkFabric", json!("silk")).is_err());
+        set(&mut app, "checkFabric", json!("standard")).expect("standard");
+        assert_eq!(app.quality.fabric, None);
+
+        let r = run(&mut app, "reviewSewingOrder");
+        let steps = r["state"]["check"]["reviewSteps"].as_u64().expect("steps");
+        assert!(steps >= 2, "the demo design has several objects: {steps}");
+        set(&mut app, "routeMap", json!(true)).expect("route map");
+        assert!(app.quality.route_map);
+        let r = set(&mut app, "reviewStep", json!(2)).expect("step 2");
+        assert_eq!(r["reviewStep"]["value"], json!(2));
+        assert_eq!(app.quality.step, 1);
+        assert!(app.simulate.is_some(), "the simulator moves with the review");
+        let e = set(&mut app, "reviewStep", json!(steps + 1)).expect_err("past the end");
+        assert!(e.contains(&steps.to_string()), "{e}");
+        assert!(set(&mut app, "reviewStep", json!(0)).is_err());
+
+        set(&mut app, "checkDesign", json!("closed")).expect("close");
+        assert!(!app.quality.open);
+        set(&mut app, "checkDesign", json!("density")).expect("density tab");
+        assert_eq!(app.quality.tab, crate::quality_ui::Tab::Density);
+        assert!(set(&mut app, "checkDesign", json!("map")).is_err());
+        // The fabric setting lists every Fabric Selector id.
+        let kind = assistant::setting("checkFabric").expect("listed").kind;
+        let ids: Vec<_> = openstitch_engine::fabric::FABRICS.iter().map(|f| f.id).collect();
+        assert_eq!(kind, ids.join("|"));
     }
 
     #[test]

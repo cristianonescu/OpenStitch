@@ -146,12 +146,22 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `design.check` (sewing problems, errors first; `ready` is false while there are errors).
    Run each finding's `fix` command or fix it yourself, and check again; never report a design
    done while `design.check` has errors. `design.route` names every move between objects
-   (untrimmed jumps, long moves), `design.density` shows where thread piles up.
+   (untrimmed jumps, long moves), `design.density` shows where thread piles up; it and
+   `design.check` take `fabric` (a `fabric.list` id: towel or fleece takes more layers).
+   `design.cleanup` deletes objects that sew nothing or are tinier than `minSize` (one undo
+   step; a `design.check` fix names it). In the editor, show the user where: `ui.run` with
+   action `checkDesign`, `densityMap` or `reviewSewingOrder` opens Check Design on that tab;
+   `ui.set` `densityOverlay` and `darkBackground` mark the design, `checkFabric` sets the
+   fabric, `routeMap` draws the route, and `reviewStep` (from 1) moves the review and the
+   simulator to that step. `ui.state` `check` has `ready`, the `errors` and `warnings`, the
+   open `window` and `reviewSteps`.
    `design.timeline` lists the colour blocks in sewing order with their stitch ranges, trims,
    object starts and machine time ("when does the red start?"); in the editor,
    `ui.simulate {stitch}` or `{step: "block" | "object" | "trim"}` moves the player there.
 6. Save only when asked: `project.save` `{path: "name.osd"}` (editable) and/or
-   `design.export` `{path: "name.pes"}` (machine file; the extension picks the format).
+   `design.export` `{path: "name.pes"}` (machine file; the extension picks the format). It
+   reads the file back (`verify`: warn by default; strict deletes a file that differs and
+   fails) and returns `problems`, Check Design's errors: tell the user about any.
    To show how it will look worn, `design.mockup {path: "name.png", garment: "tshirt" | "cap" |
    "tote", placement: "centre" | "leftChest" (T-shirt only), color: "#rrggbb"}` draws it at true
    size on the garment; when the result has `fits: false`, tell the user the design is larger
