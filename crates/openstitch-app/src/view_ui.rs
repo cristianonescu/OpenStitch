@@ -786,6 +786,14 @@ fn fabric_window(app: &mut EditorApp, ctx: &egui::Context) {
                                 "Underlay",
                                 f["underlay"].as_str().unwrap_or("none").to_string(),
                             ),
+                            // The makers' advice for No. 40 thread (#508; fabric.advise).
+                            ("Backing", f["backing"].as_str().unwrap_or("-").to_string()),
+                            ("Topping", f["topping"].as_str().unwrap_or("-").to_string()),
+                            ("Needle", f["needle"].as_str().unwrap_or("-").to_string()),
+                            (
+                                "Smallest text",
+                                format!("{} mm (No. 40 thread)", n("minTextMm")),
+                            ),
                         ] {
                             ui.label(label);
                             ui.label(value);

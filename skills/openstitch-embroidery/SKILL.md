@@ -317,6 +317,12 @@ digitizing are desktop-only; say so instead of trying them in the browser.
     row, `fabric.calibrate {fabric, name, fill, satin, pull}` (1–5 each) saves a custom
     fabric (`custom-…` in `fabric.list`) that `fabric.apply` gives to objects;
     `fabric.deleteCustom {fabric}` removes it. Both change the user's settings: say so first.
+- "What stabiliser / needle should I use on fleece?": `fabric.advise {fabric, weight}` (weight
+  12, 30, 40 or 60; default 40) gives backing, topping, needle point and size and the smallest
+  legible block-letter height, each from the makers' published guidance with `sources`; say so
+  when `disagree` is set, and say "estimate" when `minTextBasis` is not `published`.
+  `fabric.list` has 13 fabrics: PE-DESIGN's eight, then polyester, pique, organza, canvas and cap
+  (`beyondPeDesign: true`).
 - `file` commands (`project.save`, `design.export`, ...) may ask the user first. Never
   overwrite a user's file without being asked to.
 - To show the user these dialogs in the editor: `ui.run {action: "testSwatches"}` (Send ▸ Test
