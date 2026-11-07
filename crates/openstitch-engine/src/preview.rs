@@ -200,6 +200,29 @@ pub fn png_shown(
     show_travel: bool,
     show: &ShowArgs,
 ) -> Result<Vec<u8>, String> {
+    png_shown_marked(
+        design,
+        pattern,
+        spans,
+        max_pixels,
+        show_travel,
+        show,
+        &Marks::default(),
+    )
+}
+
+/// [`png_shown`] with the window's own marks drawn over the stitches as well (#769): the
+/// density overlay's cells and Check Design's rings and out-of-hoop stitches, so a picture
+/// shows what the user sees.
+pub fn png_shown_marked(
+    design: &Design,
+    pattern: &StitchPattern,
+    spans: &[(u64, std::ops::Range<usize>)],
+    max_pixels: u32,
+    show_travel: bool,
+    show: &ShowArgs,
+    marks: &Marks,
+) -> Result<Vec<u8>, String> {
     use openstitch_design::view;
     let flags = if show.filter.layers == view::Layers::Both {
         Vec::new()
@@ -218,7 +241,61 @@ pub fn png_shown(
             Vec::new()
         },
     };
-    png_with(design, &shown, max_pixels, show_travel, &overlays)
+    // The same view as without marks, so the pictures line up.
+    let view_ = View::fit(design, &shown, max_pixels);
+    let mut pixmap = draw(design, &shown, &view_, show_travel)?;
+    draw_overlays(&mut pixmap, &shown, &view_, &overlays);
+    draw_marks(&mut pixmap, &view_, marks);
+    encode(&pixmap)
+}
+
+/// Marks a window draws over the design (all in 0.1 mm design units).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Marks {
+    /// Filled rectangles `[x, y, w, h]` in RGBA.
+    pub cells: Vec<([f64; 4], [u8; 4])>,
+    /// Circles `[cx, cy, r]`, outlined in RGB.
+    pub rings: Vec<([f64; 3], [u8; 3])>,
+    /// Lines `[x1, y1, x2, y2]` in RGB.
+    pub lines: Vec<([f64; 4], [u8; 3])>,
+}
+
+impl Marks {
+    pub fn is_empty(&self) -> bool {
+        self.cells.is_empty() && self.rings.is_empty() && self.lines.is_empty()
+    }
+}
+
+/// Draws `marks` over the picture: cells first, then lines and rings 2 px wide.
+pub fn draw_marks(pixmap: &mut Pixmap, view: &View, marks: &Marks) {
+    let transform = transform(view);
+    let px = (1.0 / view.scale) as f32;
+    let mut paint = Paint::default();
+    for &([x, y, w, h], [r, g, b, a]) in &marks.cells {
+        if let Some(rect) = Rect::from_xywh(x as f32, y as f32, w as f32, h as f32) {
+            paint.set_color_rgba8(r, g, b, a);
+            pixmap.fill_rect(rect, &paint, transform, None);
+        }
+    }
+    let line = Stroke {
+        width: 2.0 * px,
+        ..Stroke::default()
+    };
+    for &([x1, y1, x2, y2], [r, g, b]) in &marks.lines {
+        let mut pb = PathBuilder::new();
+        pb.move_to(x1 as f32, y1 as f32);
+        pb.line_to(x2 as f32, y2 as f32);
+        if let Some(p) = pb.finish() {
+            paint.set_color_rgba8(r, g, b, 255);
+            pixmap.stroke_path(&p, &paint, &line, transform, None);
+        }
+    }
+    for &([cx, cy, radius], [r, g, b]) in &marks.rings {
+        if let Some(c) = PathBuilder::from_circle(cx as f32, cy as f32, radius as f32) {
+            paint.set_color_rgba8(r, g, b, 255);
+            pixmap.stroke_path(&c, &paint, &line, transform, None);
+        }
+    }
 }
 
 /// View ▸ Show overlays drawn over the stitches (#517).

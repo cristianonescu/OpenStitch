@@ -157,7 +157,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `ui.set` `densityOverlay` and `darkBackground` mark the design, `checkFabric` sets the
    fabric, `routeMap` draws the route, and `reviewStep` (from 1) moves the review and the
    simulator to that step. `ui.state` `check` has `ready`, the `errors` and `warnings`, the
-   open `window` and `reviewSteps`.
+   open `window` and `reviewSteps`. `ui.render` shows what you switched on: the density overlay's
+   orange and red cells, and Check Design's rings while its Check tab is open, so look at the
+   picture to see where.
    `design.timeline` lists the colour blocks in sewing order with their stitch ranges, trims,
    object starts and machine time ("when does the red start?"); in the editor,
    `ui.simulate {stitch}` or `{step: "block" | "object" | "trim"}` moves the player there.

@@ -272,13 +272,22 @@ impl EditorApp {
                     trim_marks: self.ui.prefs.show.trim_marks,
                 };
                 let show = preview::show_args(params.unwrap_or(&Value::Null), defaults)?;
+                // The density overlay and Check Design's marks, as the canvas shows them (#769).
+                let marks = crate::quality_ui::render_marks(self);
                 // A picture picker's or ui.preview's stitches while one is shown (#656).
                 let (pattern, spans) = match self.live_preview() {
                     Some(p) => (&p.compiled.pattern, &p.compiled.spans),
                     None => (&self.pattern, &self.quality.spans),
                 };
-                let png =
-                    preview::png_shown(self.session.design(), pattern, spans, size, travel, &show)?;
+                let png = preview::png_shown_marked(
+                    self.session.design(),
+                    pattern,
+                    spans,
+                    size,
+                    travel,
+                    &show,
+                    &marks,
+                )?;
                 let (width, height) = png_size(&png);
                 Ok(json!({
                     "png": base64::engine::general_purpose::STANDARD.encode(&png),
