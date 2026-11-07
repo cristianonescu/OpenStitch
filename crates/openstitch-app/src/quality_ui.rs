@@ -767,8 +767,8 @@ mod tests {
         assert_ne!(app.quality.density["classes"], standard, "{standard}");
     }
 
-    /// #769: `ui.render` shows the density overlay while it is on, and Check Design's rings while
-    /// its Check tab is open, as the canvas does; off, the picture is as before.
+    /// #769, #786: `ui.render` shows the density overlay while it is on, and Check Design's marks
+    /// while its Check tab is open, as the canvas does; off, the picture is as before.
     #[test]
     fn ui_render_shows_the_density_overlay_and_check_marks() {
         use base64::Engine as _;
@@ -797,14 +797,24 @@ mod tests {
         )
         .expect("overlay off");
         assert_eq!(render(&mut app), plain, "off: as before");
-        // Check Design open on its Check tab: its rings show too.
-        app.quality.open = true;
-        app.quality.tab = Tab::Check;
+
+        // Check Design (#786): a fill that runs off the 100 × 100 mm page is sure to give marks.
+        // Opened the way a model opens it, through ui.run.
+        let off_page = json!({"x": 85, "y": 40, "width": 30, "height": 20, "fill": "Blue"});
+        let mut app = app_with(&[off_page]);
+        let closed = render(&mut app);
+        assert!(render_marks(&mut app).is_empty(), "nothing marked while the window is closed");
+        app.ui_command("ui.run", Some(&json!({ "action": "checkDesign" })))
+            .expect("checkDesign");
+        assert!(app.quality.open && app.quality.tab == Tab::Check);
         let marks = render_marks(&mut app);
-        assert_eq!(marks.rings.len(), findings(&app).iter().filter(|f| f["bbox"].is_array()).count());
-        if !marks.is_empty() {
-            assert_ne!(render(&mut app), plain);
-        }
+        assert!(!marks.lines.is_empty(), "stitches past the page are drawn in red");
+        assert_eq!(
+            marks.rings.len(),
+            findings(&app).iter().filter(|f| f["bbox"].is_array()).count(),
+            "one ring per finding with a place"
+        );
+        assert_ne!(render(&mut app), closed, "the marks show in the picture");
     }
 
     #[test]
