@@ -1446,6 +1446,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
             .into_iter()
             .chain(crate::satin_shaping::SHAPING_PARAMS)
             .chain(crate::satin_shaping::REGION_PARAMS)
+            .chain(crate::line_looks::REGION_PARAMS)
             .collect(),
             |s, p| {
                 let idx = indexes(p, &s.design)?;
@@ -1622,6 +1623,11 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     crate::satin_shaping::apply_shaping(p, &mut r.satin_shaping)?;
                     crate::satin_shaping::apply_auto(p, &mut r.underlay_auto)?;
                     crate::satin_shaping::apply_underlay2(p, &mut r.underlay2)?;
+                    crate::line_looks::apply_region(
+                        p,
+                        r.kind == RegionType::Satin,
+                        &mut r.hand,
+                    )?;
                     if r.direction_lines.len() >= 2
                         && let Some(h) = crate::satin_shaping::raised_hint(
                             &r.satin_shaping,
@@ -1815,14 +1821,14 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 IDS,
                 opt(
                     "type",
-                    "running|triple|zigzag|motif|stem|candlewick|eStitch|vStitch|chain|cutting|satin|none",
-                    "Line sew type. satin (beyond PE-DESIGN) is a satin column along the line whose width can change along it: width (mm, all along), widthKeys, taperStart, taperEnd and slant shape it, and the satin options (cornerStyle, shortStitchDistance, pull*, satinStyle, jaggedEdge, raised) apply as on zigzag; object.setWidthKey and object.deleteWidthKey edit single keys",
+                    "running|triple|zigzag|motif|stem|candlewick|eStitch|vStitch|chain|cutting|satin|backStitch|scribble|none",
+                    "Line sew type. satin (beyond PE-DESIGN) is a satin column along the line whose width can change along it: width (mm, all along), widthKeys, taperStart, taperEnd and slant shape it, and the satin options (cornerStyle, shortStitchDistance, pull*, satinStyle, jaggedEdge, raised) apply as on zigzag; object.setWidthKey and object.deleteWidthKey edit single keys. backStitch (two forward, one back) and scribble (a zigzag sewn runTimes times with smooth random side offsets, width wide) are beyond PE-DESIGN too",
                 ),
                 opt("color", "color", "Thread"),
                 opt(
                     "pitch",
                     "mm",
-                    "Running/triple stitch length, run pitch, 1-10",
+                    "Running/triple stitch length, run pitch; back stitch: forward stitch; scribble: zigzag point spacing, 1-10",
                 ),
                 opt(
                     "runTimes",
@@ -1882,6 +1888,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
             ]
             .into_iter()
             .chain(crate::satin_shaping::SHAPING_PARAMS)
+            .chain(crate::line_looks::LINE_PARAMS)
             .chain([opt(
                 "underlayStyle",
                 "edge|centreWalk|edgeZigzag|auto",
@@ -2040,6 +2047,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     }
                     crate::satin_shaping::apply_shaping(p, &mut l.satin_shaping)?;
                     crate::satin_shaping::apply_auto(p, &mut l.underlay_auto)?;
+                    crate::line_looks::apply_line(p, &mut l)?;
                     crate::satin_shaping::apply_satin_line(p, &mut l)?;
                     if matches!(l.kind, LineType::Zigzag | LineType::Satin)
                         && let Some(h) = crate::satin_shaping::raised_hint(&l.satin_shaping, l.width)
