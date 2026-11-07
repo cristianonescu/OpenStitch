@@ -100,9 +100,6 @@ pub enum Stitch {
     Line,
     /// Left out.
     Skip,
-    /// OpenStitch mode, line art: a drawn dot sewn as a small star of stitches (#713). Not an
-    /// override choice.
-    Dot,
 }
 
 impl Stitch {
@@ -114,7 +111,6 @@ impl Stitch {
             Stitch::Satin => "satin",
             Stitch::Line => "line",
             Stitch::Skip => "skip",
-            Stitch::Dot => "dot",
         }
     }
 
@@ -148,7 +144,7 @@ pub enum Reason {
     /// rather than a shape; left out (#690).
     Speck,
     /// OpenStitch mode, line art: a drawn dot (every stitch within [`SPECK_MM`]) sewn as a
-    /// small star rather than a knot (#713).
+    /// fill without ties of its own, so it is not a knot (#713).
     Dot,
 }
 
@@ -212,7 +208,7 @@ impl Region {
                 format!("every stitch within {SPECK_MM} mm, a knot rather than a shape: left out")
             }
             Reason::Dot => format!(
-                "a drawn dot, every stitch within {SPECK_MM} mm: sewn as a small star, not a knot"
+                "a drawn dot, every stitch within {SPECK_MM} mm: fill, tied only where a trim cuts it"
             ),
         }
     }
@@ -925,8 +921,7 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                     plan.push(entry);
                     continue;
                 }
-                // A dot is decided below, from the region it would sew.
-                Stitch::Fill | Stitch::Satin | Stitch::Dot => {}
+                Stitch::Fill | Stitch::Satin => {}
             }
             let satin = entry.stitch == Stitch::Satin;
             let set_angle = ov.and_then(|o| o.angle);
@@ -1059,26 +1054,14 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                 // and the ties round them stack in one spot (p07: 8 stitches in 0.46 mm). Not
                 // on line art, whose dots are drawn on purpose: leaving out the mandala's (g11)
                 // lowered its MS-SSIM 0.653 → 0.611.
-                if p.mode == Mode::OpenStitch && set.is_none() && speck(&contours, &region) {
-                    if !line_art {
-                        entry.stitch = Stitch::Skip;
-                        entry.reason = Reason::Speck;
-                        continue;
-                    }
-                    // Line art draws its dots on purpose: the dot's own fill stitches, thinned to
-                    // 0.35 mm apart and without the tie-in and lock that stacked 7 in one spot
-                    // (#713). A star of stitches instead lowered g11's MS-SSIM 0.653 to 0.633.
-                    entry.stitch = Stitch::Dot;
-                    entry.reason = Reason::Dot;
-                    if let Some(mut o) = dot_points(&contours, &region, &thread) {
-                        o.name = Some(format!(
-                            "Auto Punch {} {} dot",
-                            objects.len() + 1,
-                            thread.name.as_deref().unwrap_or("thread")
-                        ));
-                        sew(o, &thread, &mut objects);
-                    }
+                let dot = p.mode == Mode::OpenStitch && set.is_none() && speck(&contours, &region);
+                if dot && !line_art {
+                    entry.stitch = Stitch::Skip;
+                    entry.reason = Reason::Speck;
                     continue;
+                }
+                if dot {
+                    entry.reason = Reason::Dot;
                 }
                 // Line art's hairlines: rows across one are 0.2-0.3 mm long and, with the tie-in,
                 // stand in one spot (g11 with the photo preset: 7 in a row, #713). The rows turn
@@ -1100,6 +1083,15 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                 }
                 entry.angle.get_or_insert(region.angle);
                 let mut o = DesignObject::shape(contours, Some(region), None);
+                if dot {
+                    // Line art's dots are drawn on purpose: kept, but the fill's own tie-in and
+                    // lock are left out, so a dot reached by a running connector is no knot.
+                    // The writer still ties it in after a trim and locks it before one (#713).
+                    o.finish = Some(openstitch_design::finish::Finish {
+                        tie_count: Some(1),
+                        ..Default::default()
+                    });
+                }
                 o.name = Some(format!(
                     "Auto Punch {} {}",
                     objects.len() + 1,
@@ -1439,39 +1431,6 @@ fn stands_in_place(contours: &[Contour], region: &RegionSewing) -> bool {
         })
 }
 
-/// A dot's needle points are at least this far apart, 0.1 mm: over 0.3 mm, so none sews in
-/// place (#713).
-const DOT_STEP: f64 = 3.5;
-
-/// A drawn dot sewn as its own fill's needle points, thinned to [`DOT_STEP`], as fixed
-/// stitches: no tie-in or lock round them, which stacked 7 stitches in one spot on g11.
-fn dot_points(contours: &[Contour], region: &RegionSewing, thread: &Thread) -> Option<DesignObject> {
-    let closed: Vec<Contour> = contours.iter().filter(|c| c.closed).cloned().collect();
-    let mut kept: Vec<openstitch_design::Vec2> = Vec::new();
-    for q in openstitch_design::region::layers(&closed, region, &[])
-        .iter()
-        .flatten()
-        .flatten()
-    {
-        if kept.last().is_none_or(|k| k.distance(*q) >= DOT_STEP) {
-            kept.push(*q);
-        }
-    }
-    if kept.len() < 2 {
-        // A dot too small for two points 0.35 mm apart: one stitch out and back across it.
-        let c = *kept.first()?;
-        kept = vec![c, c + openstitch_design::v2(DOT_STEP, 0.0), c];
-    }
-    let stitches = kept
-        .iter()
-        .map(|q| openstitch_core::Stitch::new(q.x, q.y, openstitch_core::Command::Stitch))
-        .collect();
-    Some(DesignObject::stitches(openstitch_design::StitchBlock {
-        stitches,
-        threads: vec![thread.clone()],
-    }))
-}
-
 /// Line art's small pieces of one thread joined (#713): each run of objects sewn in the same
 /// thread is put in nearest-next order (one thread, so the order changes nothing that shows),
 /// and two pieces this close (mm, between their bounds) are joined by a short running
@@ -1484,7 +1443,11 @@ fn join_small_pieces(objects: &mut [DesignObject]) {
             .as_ref()
             .map(|r| r.thread.clone())
             .or_else(|| o.line.as_ref().map(|l| l.thread.clone()))
-            .or_else(|| o.stitch_block.as_ref().and_then(|b| b.threads.first().cloned()))
+            .or_else(|| {
+                o.stitch_block
+                    .as_ref()
+                    .and_then(|b| b.threads.first().cloned())
+            })
     };
     let gap = |a: &DesignObject, b: &DesignObject| match (a.bounds(), b.bounds()) {
         (Some(p), Some(q)) => {
@@ -1511,7 +1474,21 @@ fn join_small_pieces(objects: &mut [DesignObject]) {
                 objects.swap(k, best);
             }
             for k in i..j.saturating_sub(1) {
-                objects[k].connector_run = gap(&objects[k], &objects[k + 1]) <= JOIN_MM * 10.0;
+                let joined = gap(&objects[k], &objects[k + 1]) <= JOIN_MM * 10.0;
+                objects[k].connector_run = joined;
+                if joined {
+                    // Pieces joined by a connector carry the thread in and out: their fills'
+                    // own tie-in and lock are left out (a small piece's tie, rows and lock
+                    // stood 7 in one spot), and the writer ties only where a trim cuts (#713).
+                    for o in [k, k + 1] {
+                        if objects[o].region.is_some() && objects[o].finish.is_none() {
+                            objects[o].finish = Some(openstitch_design::finish::Finish {
+                                tie_count: Some(1),
+                                ..Default::default()
+                            });
+                        }
+                    }
+                }
             }
         }
         i = j;
