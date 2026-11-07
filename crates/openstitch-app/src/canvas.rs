@@ -180,6 +180,7 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
     draw_selection(app, &painter, &vp);
     crate::envelope_ui::draw(app, &painter, &vp);
     crate::arc_ui::arc_draw(app, &painter, &vp);
+    crate::ripple_ui::draw(app, &painter, &vp);
     draw_preview(app, &painter, &vp);
     draw_points(app, &painter, &vp);
     crate::keyboard_ui::draw(app, &painter, &vp);
@@ -356,6 +357,9 @@ fn pointer(app: &mut EditorApp, ui: &egui::Ui, response: &egui::Response, vp: Vi
         return;
     }
     if crate::arc_ui::arc_pointer(app, phase, model, tolerance) {
+        return;
+    }
+    if crate::ripple_ui::pointer(app, phase, model, tolerance) {
         return;
     }
     if matches!(phase, Phase::Down) && crate::edit_ui::pick(app, model) {

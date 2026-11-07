@@ -653,6 +653,16 @@ fn line(id: u64, l: &LineSewing, s: &mut Shape, table: &mut Vec<Thread>) -> Resu
             ));
         }
     };
+    if !l.motif_groups.is_empty()
+        || l.free_start.is_some()
+        || l.free_end.is_some()
+        || !l.motifs.is_empty()
+    {
+        // PE-DESIGN's motif line is one motif evenly along the line (#544).
+        return Err(format!(
+            "object {id}: motif groups, free ends or motifs in turn are not mapped in PES 0110 (use version 6)"
+        ));
+    }
     if l.prong_angle.is_some() {
         // PE-DESIGN's E stitch has square prongs only (#543).
         return Err(format!(

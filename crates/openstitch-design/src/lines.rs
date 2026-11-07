@@ -219,6 +219,81 @@ pub fn motif(path: &[Vec2], closed: bool, m: &MotifLine) -> Run {
     crate::generate::drop_close(&run, crate::generate::MOTIF_MIN_STITCH, m.pitch)
 }
 
+/// What a motif line places beyond PE-DESIGN (#544): groups of motifs with longer gaps
+/// between groups, motif-free ends, and a list of motifs used in turn.
+pub struct MotifPlan<'a> {
+    /// (motifs in the group, gap after it, 0.1 mm), repeated along the line.
+    pub groups: &'a [(u32, f64)],
+    /// Running stitch only, no motif, for this long at the start and at the end (0.1 mm).
+    pub free_start: f64,
+    pub free_end: f64,
+    /// The motifs used in turn (the first is the line's motif).
+    pub patterns: Vec<&'a Pattern>,
+}
+
+impl MotifPlan<'_> {
+    /// Nothing beyond PE-DESIGN's one motif evenly along the line.
+    pub fn is_plain(&self) -> bool {
+        self.groups.is_empty()
+            && self.free_start <= 0.0
+            && self.free_end <= 0.0
+            && self.patterns.len() <= 1
+    }
+}
+
+/// [`motif`] with a [`MotifPlan`]: from `free_start` on, motifs of `m.width` with `m.gap`
+/// between them, in groups whose own gaps follow; plain running stitch over every gap and the
+/// free ends. Unlike PE-DESIGN's motif line, nothing is stretched: what does not fit before
+/// `free_end` stays running stitch.
+pub fn motif_planned(path: &[Vec2], m: &MotifLine, plan: &MotifPlan) -> Run {
+    if plan.is_plain() {
+        return motif(path, false, m);
+    }
+    let w = Walker::new(path);
+    let len = w.length();
+    let end = (len - plan.free_end.max(0.0)).max(0.0);
+    let mut s = plan.free_start.clamp(0.0, len);
+    let mut run = run_between(&w, 0.0, s, m.pitch);
+    let groups: Vec<(u32, f64)> = if plan.groups.is_empty() {
+        vec![(u32::MAX, m.gap)]
+    } else {
+        plan.groups.to_vec()
+    };
+    let mut k = 0usize;
+    'outer: for g in 0.. {
+        let (count, after) = groups[g % groups.len()];
+        for i in 0..count.max(1) {
+            if s + m.width > end + 1e-6 {
+                break 'outer;
+            }
+            let pattern = plan.patterns[k % plan.patterns.len()];
+            let sign = side(m.arrange, k);
+            let mapped: Vec<Vec2> = pattern.paths[0]
+                .iter()
+                .map(|q| {
+                    let at = s + q.x * m.width;
+                    w.at(at) + normal(w.tangent(at)) * (q.y * m.height * sign)
+                })
+                .collect();
+            extend(&mut run, subdivide(&mapped, m.pitch));
+            s += m.width;
+            k += 1;
+            let gap = if i + 1 < count.max(1) { m.gap } else { after };
+            let next = (s + gap).min(len);
+            extend(&mut run, run_between(&w, s, next, m.pitch));
+            s = next;
+            if s >= end {
+                break 'outer;
+            }
+        }
+        if g > 100_000 {
+            break;
+        }
+    }
+    extend(&mut run, run_between(&w, s, len, m.pitch));
+    crate::generate::drop_close(&run, crate::generate::MOTIF_MIN_STITCH, m.pitch)
+}
+
 /// Stem stitch, as PE-DESIGN 11.50 sews it (line-stem-default.pes): on every straight leg,
 /// stations `leg / round(leg / spacing)` apart, each a stitch of `width` across the line
 /// leaning `angle` degrees counter-clockwise from it on screen (45: from the top right to the

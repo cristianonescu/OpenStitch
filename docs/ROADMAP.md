@@ -189,6 +189,9 @@ short stitches (#617), and a Beyond-PE rope stitch (#618). Done 2026-11-07 (`bat
 within 0.1 mm of PE-DESIGN's), #617, and two stippling bugs found on the way: seed 993's runaway
 allocation (#638) and a narrow band that sewed nothing (#708). #614 continues: PE-DESIGN's cross
 stitch has no Direction and only Times (single, double, triple), captured 2026-11-07.
+Done 2026-11-07 (`batch:fills-2`, #537): tatami textures, 14 named needle-hole patterns on plain
+fills (smooth is PE-DESIGN's Frequency brick, the rest are OpenStitch's) built from stepped and
+wave, triangle or arc row shifts, off by default, with kit swatches.
 
 Done 2026-11-05 (#450): every kit, demo and screenshot design reviewed at full size (stitches alone
 at 15 px/mm and the Realistic view). Kit and demo designs fixed, built-in templates regenerated,
@@ -635,5 +638,5 @@ encrypted purchase format). See the Blocked rows in [FEATURE_MATRIX.md](FEATURE_
 - The decision on `unsafe` in one small, audited crate per OS (macOS file opening, Quick Look
   and Explorer thumbnails). Decided 2026-11-06: another tech stack is fine where an OS needs
   it. `batch:mac-platform` (2026-11-06) shipped #557's macOS half (a Swift Quick Look
-  extension over the Rust renderer, plus `stitchtool thumbnail`); the Explorer half is #669. #319's Ready-to-Sew Designs path is checked in the built macOS bundle, with the real
+  extension over the Rust renderer, plus `stitchtool thumbnail`); the Explorer half shipped on 2026-11-07 (#669, `platform`: a Rust COM thumbnail handler outside the workspace, installed by the MSI). #319's Ready-to-Sew Designs path is checked in the built macOS bundle, with the real
   click left to the owner.

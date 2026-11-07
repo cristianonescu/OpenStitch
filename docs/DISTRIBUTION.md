@@ -334,8 +334,8 @@ project or any machine file OpenStitch reads, cropped to the design on a transpa
 are the fuzzed `openstitch-formats` codecs. `stitchtool thumbnail FILE OUT.png [--size PX]
 [--json]` runs the same renderer (`openstitch_render::thumbnail`, platform-neutral: a path in,
 a PX × PX PNG out) for scripts and the Assistant; a malformed file is a one-line error with
-exit code 2 (#557). The macOS Quick Look extension calls this renderer too, and the Windows
-Explorer handler (#669) will.
+exit code 2 (#557). The macOS Quick Look extension and the Windows Explorer handler (#669)
+call this renderer too.
 
 ### Shared thumbnail interface
 
@@ -361,12 +361,40 @@ these two entry points. Keep them stable: add options, never rename or drop one.
 |---|---|
 | Linux | Done: `packaging/linux/openstitch.thumbnailer` (`Exec=openstitch-thumbnailer -s %s %i %o`) for `application/x-openstitch-design` and `application/x-pes-embroidery`; `build-executables.yml` builds it next to the editor, `package.sh` ships it, `install.sh` installs it into `share/thumbnailers`, and the Linux job renders a thumbnail from the installed copy. |
 | macOS | Done (#557): `OpenStitch.app/Contents/PlugIns/OpenStitchThumbnail.appex`, a Quick Look thumbnail extension (`QLThumbnailProvider`) for `.osd`, `.pes` and the machine formats the app's Info.plist declares (DST, JEF, VP3, PEC, XXX, HUS, VIP, SHV, PCS, PHC, U01, TBF, DSB, DSZ, KSM, ZXY). See *Quick Look extension* below. |
-| Windows | Blocked. Explorer thumbnails come from an in-process COM server DLL implementing `IThumbnailProvider` and `IInitializeWithStream`, registered under the file type. COM vtables from Rust need `unsafe`. |
+| Windows | Done (#669): `openstitch_explorer_thumbnails.dll`, an in-process COM server implementing `IInitializeWithStream` and `IThumbnailProvider` for `.osd` and every machine format OpenStitch reads (23 extensions). See *Explorer thumbnail handler* below. |
 | PEN | Blocked: the format is undocumented (see FILE_FORMATS.md). |
 
 The owner's decision (2026-11-06): the project is built in Rust, but a feature that needs
 another tech stack on one OS may use it. Quick Look is therefore a small Swift shim; Explorer
-can be a small native shim or a separately audited Rust crate the same way (#669).
+can be a small native shim or a separately audited Rust crate the same way (#669). It is the
+latter: a Rust COM server kept outside the workspace.
+
+### Explorer thumbnail handler
+
+`packaging/windows/thumbnails` is a separate Cargo project (excluded from the workspace, its own
+`Cargo.lock`): COM needs `unsafe` code, which the workspace forbids. It builds
+`openstitch_explorer_thumbnails.dll` with `windows-rs`:
+
+- Explorer creates the class registered for the file's extension and hands it the file's bytes
+  as a stream (`IInitializeWithStream`; the handler never opens the file itself, so Explorer can
+  run it isolated). A stream has no file name, so each extension has its own class id,
+  `{4F70656E-5374-6974-6368-54686D62xxxx}` + the extension's index in
+  `openstitch_explorer_thumbnails::extensions()` (`osd`, then `FileType::ALL`; append only).
+- `IThumbnailProvider::GetThumbnail(cx)` draws with `openstitch_render::thumbnail::load_bytes` and
+  `png` (the same pixels as Quick Look and `openstitch-thumbnailer`) and returns a premultiplied
+  32-bit bitmap with alpha. A file it cannot read, or one with no stitches, is an error, and
+  Explorer keeps the type's own icon. Files over 64 MiB are not read.
+- **Install**: `packaging/windows/openstitch.wxs` (component `ExplorerThumbnails`) installs the DLL
+  and writes, per extension, `HKLM\Software\Classes\CLSID\{…}\InprocServer32` (the DLL,
+  `ThreadingModel=Apartment`) and `HKLM\Software\Classes\.ext\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}`
+  (the class). **Uninstall** removes the DLL and every key. Nothing else registers it (no
+  `regsvr32`, no self-registration).
+- **Build and tests**: `build-executables.yml` builds it for the MSI; the Windows job in
+  `rust.yml` runs its clippy and tests: every design in the ready-to-sew kit renders, the pixels
+  equal `openstitch_render::thumbnail`'s, Explorer's call sequence (class factory, provider,
+  stream, bitmap) yields a 256 × 256 32-bit bitmap without any registration, an unknown class is
+  refused, and the installer registers every extension's class (the test reads `openstitch.wxs`).
+- Not yet checked in a real Explorer window (that needs the MSI installed): an owner check on #669.
 
 ### Quick Look extension
 

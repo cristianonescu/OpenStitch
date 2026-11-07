@@ -759,7 +759,7 @@ mod tests {
         let dir = temp_dir("lib");
         let a = Creator::new(PatternKind::Fill).pattern().expect("fill");
         let mut m = Creator::new(PatternKind::Motif);
-        m.id = "star".into();
+        m.id = "my-star".into();
         let b = m.pattern().expect("motif");
         let pa = save_to_library(&dir, &a).expect("save");
         save_to_library(&dir, &b).expect("save");
@@ -796,7 +796,7 @@ mod tests {
                 "fill-my-fill.json",
                 "folder.json",
                 "huge.json",
-                "motif-star.json",
+                "motif-my-star.json",
                 "reserved.json"
             ]
         );

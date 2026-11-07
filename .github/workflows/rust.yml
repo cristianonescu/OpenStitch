@@ -70,6 +70,13 @@ jobs:
       # runs the ~90 binaries one after another). It does not run doctests, so they follow.
       - run: cargo nextest run --workspace --locked
       - run: cargo test --doc --workspace --locked
+      # The Explorer thumbnail extension (#669): its own project outside the workspace (COM needs
+      # unsafe code), so the workspace's clippy and tests do not reach it.
+      - name: Explorer thumbnails (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          cargo clippy --locked --all-targets --manifest-path packaging/windows/thumbnails/Cargo.toml -- -D warnings
+          cargo test --locked --manifest-path packaging/windows/thumbnails/Cargo.toml
       # #705: the app's binary tests crashed on macOS now and then when they ran on several
       # threads of one process (nextest runs each test in its own process, so it cannot show
       # it). Three threaded runs here as evidence for the fix; drop once it has stayed green.
