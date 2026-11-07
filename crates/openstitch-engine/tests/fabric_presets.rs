@@ -165,3 +165,131 @@ fn a_custom_fabric_is_advised_as_its_base_and_new_fabrics_apply() {
     let reg = s.design().objects[0].region.clone().expect("region");
     assert_eq!((reg.density, reg.pull_compensation), (2.8, 0.3));
 }
+
+/// The fill or satin attributes of object `id`: density, stitch length, pull compensation.
+fn sewing(s: &Session, id: u64) -> (f64, f64, f64) {
+    let d = s.design();
+    let r = d.objects[d.index_of(id).expect("object")]
+        .region
+        .as_ref()
+        .expect("region");
+    (r.density, r.stitch_length, r.pull_compensation)
+}
+
+fn rect(s: &mut Session) -> u64 {
+    let r = run(
+        s,
+        "shape.rectangle",
+        json!({"x": 10, "y": 10, "width": 30, "height": 20, "fill": "#ff0000"}),
+    );
+    r["id"].as_u64().expect("id")
+}
+
+/// #508 part 2: thread No. 60 sews fill and satin rows closer by √(60/40), No. 40 is today's.
+#[test]
+fn thread_weight_scales_the_fabric_density() {
+    let mut s = Session::new(std::env::temp_dir());
+    let id = rect(&mut s);
+    let denim = FABRICS.iter().find(|f| f.id == "heavy").expect("heavy");
+    run(&mut s, "fabric.apply", json!({"fabric": "heavy"}));
+    let forty = sewing(&s, id);
+    assert_eq!(forty.0, denim.fill_density, "No. 40 is the table's value");
+    let r = run(
+        &mut s,
+        "fabric.apply",
+        json!({"fabric": "heavy", "weight": 60}),
+    );
+    assert_eq!(r["weight"], 60);
+    let sixty = sewing(&s, id);
+    assert!(
+        (sixty.0 - denim.fill_density * 1.5f64.sqrt()).abs() < 1e-9,
+        "{sixty:?}"
+    );
+    assert_eq!(
+        (sixty.1, sixty.2),
+        (forty.1, forty.2),
+        "only the density follows the weight"
+    );
+    run(
+        &mut s,
+        "fabric.apply",
+        json!({"fabric": "heavy", "weight": 30}),
+    );
+    assert!(
+        sewing(&s, id).0 < forty.0,
+        "No. 30 is thicker: rows further apart"
+    );
+    for bad in [
+        json!({"fabric": "heavy", "weight": 50}),
+        json!({"fabric": "heavy", "weight": 8}),
+    ] {
+        assert!(s.execute("fabric.apply", Some(&bad)).is_err(), "{bad}");
+    }
+    // The advised minimum text height follows the weight too.
+    let a60 = run(
+        &mut s,
+        "fabric.advise",
+        json!({"fabric": "heavy", "weight": 60}),
+    );
+    let a40 = run(
+        &mut s,
+        "fabric.advise",
+        json!({"fabric": "heavy", "weight": 40}),
+    );
+    assert!(a60["minTextMm"].as_f64() < a40["minTextMm"].as_f64());
+}
+
+/// #508 part 2: shapes drawn after fabric.setDefault start from it; existing ones, copies and
+/// a cleared default do not.
+#[test]
+fn new_shapes_start_from_the_default_fabric() {
+    let mut s = Session::new(std::env::temp_dir());
+    let before = rect(&mut s);
+    let untouched = sewing(&s, before);
+    let r = run(
+        &mut s,
+        "fabric.setDefault",
+        json!({"fabric": "knit", "weight": 60}),
+    );
+    assert_eq!(r["defaultFabric"], json!({"fabric": "knit", "weight": 60}));
+    assert_eq!(
+        run(&mut s, "options.get", json!({}))["defaultFabric"],
+        json!({"fabric": "knit", "weight": 60})
+    );
+    let after = rect(&mut s);
+    let knit = FABRICS.iter().find(|f| f.id == "knit").expect("knit");
+    let got = sewing(&s, after);
+    assert!(
+        (got.0 - knit.fill_density * 1.5f64.sqrt()).abs() < 1e-9,
+        "{got:?}"
+    );
+    assert_eq!((got.1, got.2), (knit.stitch_length, knit.pull_compensation));
+    assert_eq!(
+        sewing(&s, before),
+        untouched,
+        "existing objects never change"
+    );
+    // One undo step removes the shape with its fabric.
+    run(&mut s, "history.undo", json!({}));
+    assert!(s.design().index_of(after).is_none());
+    // A copy keeps its source's attributes.
+    let dup = run(&mut s, "object.duplicate", json!({"ids": [before]}));
+    if let Some(copy) = dup["ids"]
+        .as_array()
+        .and_then(|a| a.first())
+        .and_then(Value::as_u64)
+    {
+        assert_eq!(sewing(&s, copy), untouched);
+    }
+    run(&mut s, "fabric.setDefault", json!({"fabric": "none"}));
+    assert_eq!(
+        run(&mut s, "options.get", json!({}))["defaultFabric"],
+        Value::Null
+    );
+    let plain = rect(&mut s);
+    assert_eq!(sewing(&s, plain), untouched, "cleared: as before");
+    assert!(
+        s.execute("fabric.setDefault", Some(&json!({"fabric": "velvet"})))
+            .is_err()
+    );
+}

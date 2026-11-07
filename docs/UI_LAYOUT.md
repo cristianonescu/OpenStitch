@@ -111,6 +111,10 @@ Behaviour follows the guide's pages
 - **Fabric Selector** (Application menu): pick a fabric type to read a description and advice
   and see the recommended settings; OK applies them to every shape and text pattern on the
   Design Page, or, with the check box cleared, to the selected ones (`fabric.apply`, one Undo).
+  Beyond PE-DESIGN (#508): a **thread weight** choice (No. 60, 40, 30, 12) scales the fill and
+  satin density and shows that weight's needle and smallest text, and **New shapes and texts
+  start from this fabric** makes OK also set the default for objects drawn afterwards
+  (`fabric.setDefault`; cleared, OK removes it).
   It sets the density, stitch length, pull compensation and underlay of fill, programmable
   fill and satin regions; colours and sew types stay. The values are OpenStitch's own
   approximations (`openstitch_engine::fabric::FABRICS`), not PE-DESIGN's.

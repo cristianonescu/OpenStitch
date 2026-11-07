@@ -31,6 +31,10 @@ pub struct ViewState {
     fabric: Option<String>,
     /// Fabric Selector: every shape and text pattern (else the selection).
     fabric_all: Option<bool>,
+    /// Fabric Selector: thread weight No. (#508; default 40).
+    fabric_weight: Option<u32>,
+    /// Fabric Selector: new shapes and texts start from this fabric (`fabric.setDefault`).
+    fabric_new: Option<bool>,
     pub guide_drag: Option<GuideDrag>,
 }
 
@@ -731,14 +735,32 @@ fn fabric_window(app: &mut EditorApp, ctx: &egui::Context) {
         .unwrap_or(Value::Null);
     let fabrics: Vec<Value> = list.as_array().cloned().unwrap_or_default();
     let selected = outline_selection(app);
+    // The default for new shapes, when one is set (#508).
+    let current_default = app
+        .session
+        .execute("options.get", Some(&json!({})))
+        .map(|o| o["defaultFabric"].clone())
+        .unwrap_or(Value::Null);
     let v = &mut app.workspace.view;
     let mut chosen = v.fabric.clone().or_else(|| {
-        fabrics
-            .first()
-            .and_then(|f| f["id"].as_str())
+        current_default["fabric"]
+            .as_str()
+            .or_else(|| fabrics.first().and_then(|f| f["id"].as_str()))
             .map(str::to_string)
     });
     let mut all = v.fabric_all.unwrap_or(selected.is_empty());
+    let mut weight = v.fabric_weight.unwrap_or_else(|| {
+        current_default["weight"]
+            .as_u64()
+            .map_or(40, |w| w as u32)
+    });
+    let mut for_new = v.fabric_new.unwrap_or(!current_default.is_null());
+    let advice = chosen.as_ref().and_then(|id| {
+        app.session
+            .execute("fabric.advise", Some(&json!({ "fabric": id, "weight": weight })))
+            .ok()
+    });
+    let v = &mut app.workspace.view;
     let mut ok = false;
     egui::Window::new("Fabric Selector")
         .open(&mut open)
@@ -773,24 +795,53 @@ fn fabric_window(app: &mut EditorApp, ctx: &egui::Context) {
                     ui.add_space(4.0);
                     ui.label(egui::RichText::new(f["advice"].as_str().unwrap_or_default()).italics());
                     ui.add_space(6.0);
+                    let combo = egui::ComboBox::from_id_salt("fabric-weight")
+                        .selected_text(format!("No. {weight}"))
+                        .show_ui(ui, |ui| {
+                            for w in [60, 40, 30, 12] {
+                                ui.selectable_value(&mut weight, w, format!("No. {w}"));
+                            }
+                        })
+                        .response
+                        .on_hover_text("Beyond PE-DESIGN: a thinner thread (higher number) sews rows closer, density × √(weight / 40); No. 40 keeps the fabric's values");
+                    crate::a11y::name(&combo, "Thread weight");
+                    ui.add_space(4.0);
                     egui::Grid::new("fabric-values").num_columns(2).show(ui, |ui| {
                         let n = |k: &str| f[k].as_f64().unwrap_or_default();
+                        let a = |k: &str| advice.as_ref().map_or(Value::Null, |a| a[k].clone());
+                        // The density fabric.apply gives for this weight (#508).
+                        let scaled = |k: &str| {
+                            let d = n(k) * openstitch_engine::fabric::weight_factor(weight);
+                            format!("{:.2} rows/mm", d)
+                        };
                         for (label, value) in [
-                            ("Fill density", format!("{} rows/mm", n("fillDensity"))),
-                            ("Satin density", format!("{} rows/mm", n("satinDensity"))),
+                            ("Thread weight", format!("No. {weight}")),
+                            ("Fill density", scaled("fillDensity")),
+                            ("Satin density", scaled("satinDensity")),
                             ("Fill stitch length", format!("{} mm", n("stitchLength"))),
                             ("Pull compensation", format!("{} mm", n("pullCompensation"))),
                             (
                                 "Underlay",
                                 f["underlay"].as_str().unwrap_or("none").to_string(),
                             ),
-                            // The makers' advice for No. 40 thread (#508; fabric.advise).
+                            // The makers' advice for this thread weight (#508; fabric.advise).
                             ("Backing", f["backing"].as_str().unwrap_or("-").to_string()),
                             ("Topping", f["topping"].as_str().unwrap_or("-").to_string()),
-                            ("Needle", f["needle"].as_str().unwrap_or("-").to_string()),
+                            (
+                                "Needle",
+                                a("needle")["size"]
+                                    .as_str()
+                                    .map_or_else(
+                                        || f["needle"].as_str().unwrap_or("-").to_string(),
+                                        |s| format!("{s}, {}", a("needle")["point"].as_str().unwrap_or("")),
+                                    ),
+                            ),
                             (
                                 "Smallest text",
-                                format!("{} mm (No. 40 thread)", n("minTextMm")),
+                                format!(
+                                    "{} mm (No. {weight} thread)",
+                                    a("minTextMm").as_f64().unwrap_or(n("minTextMm"))
+                                ),
                             ),
                         ] {
                             ui.label(label);
@@ -805,6 +856,8 @@ fn fabric_window(app: &mut EditorApp, ctx: &egui::Context) {
             if !all {
                 ui.label(format!("Applies to the {} selected pattern(s).", selected.len()));
             }
+            ui.checkbox(&mut for_new, "New shapes and texts start from this fabric")
+                .on_hover_text("Beyond PE-DESIGN: shapes and texts drawn afterwards get these settings (fabric.setDefault); existing ones change only through OK above");
             ui.label(
                 egui::RichText::new(
                     "OpenStitch's own approximate settings for fill and satin regions. Perform a trial sewing before embroidering your project.",
@@ -821,14 +874,27 @@ fn fabric_window(app: &mut EditorApp, ctx: &egui::Context) {
         });
     v.fabric = chosen.clone();
     v.fabric_all = Some(all);
+    v.fabric_weight = Some(weight);
+    v.fabric_new = Some(for_new);
     if ok && let Some(id) = chosen {
-        let mut params = json!({ "fabric": id });
+        let mut params = json!({ "fabric": id, "weight": weight });
         if !all {
             params["ids"] = json!(selected);
         }
         if let Some(r) = app.execute(&CommandRequest::new("fabric.apply", params)) {
             let n = r["changed"].as_array().map_or(0, Vec::len);
             app.status = format!("Fabric settings applied to {n} pattern(s)");
+        }
+        // New shapes follow (or stop following) the fabric (#508); a user setting.
+        let default = if for_new {
+            Some(json!({ "fabric": id, "weight": weight }))
+        } else if !current_default.is_null() {
+            Some(json!({ "fabric": "none" }))
+        } else {
+            None
+        };
+        if let Some(p) = default {
+            app.execute(&CommandRequest::new("fabric.setDefault", p));
         }
         open = false;
     }
