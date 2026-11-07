@@ -135,7 +135,7 @@ pub fn commands() -> Vec<CommandSpec> {
         ),
         spec(
             "design.setTravelUnder",
-            "Travel under later fills (beyond PE-DESIGN): a move into an object of the same thread that lies inside fills sewn later (0.5 mm in from their edges, straight or round one bend) is sewn as 2 mm running stitches hidden under them instead of a jump and trim",
+            "Travel under later fills (beyond PE-DESIGN): a move into an object of the same thread that lies inside fills sewn later (0.5 mm in from their edges, straight or the shortest way round their corners) is sewn as 2 mm running stitches hidden under them instead of a jump and trim; else, where both ends lie on running or triple lines of that thread already sewn (lines that meet join), the needle runs along those lines (at most three times the straight way)",
             Effect::Edit,
             vec![req("on", "bool", "Sew hidden travel instead of trims")],
             |s, p| {

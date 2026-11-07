@@ -544,8 +544,11 @@ group captions) and, since part 2, the Application menu's lists, Options, Help a
 (their entries and tooltips; message ids `menu-…` in `crates/openstitch-app/src/editor/ui_texts.rs`),
 and, since part 3, the panes (Sewing Order, Color, Sewing and Text Attributes, Import), the
 Settings, Print, View (Fabric Selector, Realistic, Background Image, Font Filter, View ▸ Show),
-Machine Setup and Startup Wizard dialogs (`ui-…`); window titles stay English (egui keeps a
-window's place by its title), and the remaining dialogs, status messages and print follow. **Pseudo-locale (test)** shows every
+Machine Setup and Startup Wizard dialogs (`ui-…`), and since part 4 every other dialog and pane
+of the window (lettering, the image and pattern wizards, the Design Database, Stitch Creator,
+editing, sections, swatches, updates, keyboard shortcuts, job sheet, transfer and the rest; 726
+texts in all), and the window titles: each window has a fixed id, so a translated title keeps
+its place. Status messages and the printed worksheet follow. **Pseudo-locale (test)** shows every
 translated text accented and in brackets ("[Ópéñ]"), so text that is still hard-coded stands out.
 No real translation ships yet.
 

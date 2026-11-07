@@ -424,7 +424,7 @@ fn modify_image_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.workspace.view.image_open;
     let mut commit: Option<Value> = None;
     let mut turn: Option<&str> = None;
-    egui::Window::new("Modify Image")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-modify-image")).id(egui::Id::unique("window-modify-image"))
         .open(&mut open)
         .resizable(false)
         .default_width(300.0)
@@ -572,7 +572,7 @@ pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
 fn realistic_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.workspace.view.realistic_open;
     let mut changed = false;
-    egui::Window::new("Realistic View Settings")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-realistic-view-settings")).id(egui::Id::unique("window-realistic-view-settings"))
         .open(&mut open)
         .resizable(false)
         .show(ctx, |ui| {
@@ -652,7 +652,7 @@ fn font_filter_window(app: &mut EditorApp, ctx: &egui::Context) {
         .clone()
         .unwrap_or_else(|| app.ui.prefs.font_filter.clone());
     let mut apply = false;
-    egui::Window::new("Font Filter Settings")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-font-filter-settings")).id(egui::Id::unique("window-font-filter-settings"))
         .open(&mut open)
         .default_width(300.0)
         .show(ctx, |ui| {
@@ -763,7 +763,7 @@ fn fabric_window(app: &mut EditorApp, ctx: &egui::Context) {
     });
     let v = &mut app.workspace.view;
     let mut ok = false;
-    egui::Window::new("Fabric Selector")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-fabric-selector")).id(egui::Id::unique("window-fabric-selector"))
         .open(&mut open)
         .default_width(420.0)
         .resizable(false)

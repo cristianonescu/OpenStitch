@@ -3,6 +3,7 @@
 //! (`design.print` with mode `client` or `operator`), printed through the system or saved as a
 //! PDF. The dialog keeps its state in egui's memory; the job lives in the design.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui;
 use openstitch_app::editor::CommandRequest;
@@ -90,7 +91,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut print: Option<bool> = None;
     let mut apply = false;
     let mut open = true;
-    egui::Window::new("Job Sheet")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-job-sheet")).id(egui::Id::unique("window-job-sheet"))
         .open(&mut open)
         .resizable(false)
         .default_width(380.0)
@@ -107,12 +108,12 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                     ui.text_edit_singleline(value);
                     ui.end_row();
                 }
-                ui.label("Notes");
+                ui.label(t("ui-notes"));
                 ui.text_edit_multiline(&mut d.job.notes);
                 ui.end_row();
-                ui.label("Shop name");
+                ui.label(t("ui-shop-name"));
                 ui.text_edit_singleline(&mut d.shop)
-                    .on_hover_text("Printed at the top of the sheet; not saved with the design");
+                    .on_hover_text(t("ui-printed-at-the-top-of-the-tip"));
                 ui.end_row();
             });
             ui.label(
@@ -123,35 +124,35 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 .small(),
             );
             if ui
-                .add_enabled(d.job != saved, egui::Button::new("Save Job Fields"))
+                .add_enabled(d.job != saved, egui::Button::new(t("ui-save-job-fields")))
                 .clicked()
             {
                 apply = true;
             }
             ui.separator();
             ui.horizontal(|ui| {
-                ui.radio_value(&mut d.operator, false, "Client approval");
-                ui.radio_value(&mut d.operator, true, "Operator worksheet");
+                ui.radio_value(&mut d.operator, false, t("ui-client-approval"));
+                ui.radio_value(&mut d.operator, true, t("ui-operator-worksheet"));
             });
             ui.horizontal(|ui| {
-                ui.radio_value(&mut d.detailed, false, "Overview");
-                ui.radio_value(&mut d.detailed, true, "Detailed");
+                ui.radio_value(&mut d.detailed, false, t("ui-overview"));
+                ui.radio_value(&mut d.detailed, true, t("ui-detailed"));
             });
             ui.horizontal(|ui| {
-                ui.label("Paper");
+                ui.label(t("ui-paper"));
                 for (p, label) in PAPERS {
                     ui.selectable_value(&mut d.paper, p, label);
                 }
             });
             ui.horizontal(|ui| {
                 if ui
-                    .button("Print…")
-                    .on_hover_text("Saves the job fields, then opens the system print dialog")
+                    .button(t("menu-print"))
+                    .on_hover_text(t("ui-saves-the-job-fields-then-opens-tip"))
                     .clicked()
                 {
                     print = Some(true);
                 }
-                if ui.button("Save PDF…").clicked() {
+                if ui.button(t("ui-save-pdf")).clicked() {
                     print = Some(false);
                 }
             });

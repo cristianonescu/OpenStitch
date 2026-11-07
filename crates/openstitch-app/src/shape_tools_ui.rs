@@ -42,7 +42,7 @@ pub fn smooth_shape(app: &mut EditorApp) {
 pub fn smooth_tolerance_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     let mut t = smooth_tolerance(app);
     ui.horizontal(|ui| {
-        ui.label("Tolerance");
+        ui.label(openstitch_app::editor::ui_texts::t("ui-tolerance"));
         ui.add(
             egui::DragValue::new(&mut t)
                 .range(0.01..=10.0)

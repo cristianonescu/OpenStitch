@@ -145,6 +145,9 @@ struct Writer {
     run_from: Option<u64>,
     /// Run connectors sewn: object id and length (0.1 mm).
     connectors: Vec<(u64, f64)>,
+    /// Running lines sewn so far in the current thread, their needle points (#545): with
+    /// hidden travel on, the move into the next object may run along them.
+    lines: Vec<Vec<Vec2>>,
     /// The region area of the object being sewn with its hidden stitching left out (#511).
     region_area: Option<Vec<Contour>>,
     /// Needle points the tie-off dropped (#703): where, and how many; the spans of the objects
@@ -363,8 +366,10 @@ impl Writer {
             return false;
         }
         let step = crate::hidden::TRAVEL_STITCH;
-        if let Some(path) =
-            under.and_then(|c| crate::hidden::path_inside(from, p, &c.area, &c.inset))
+        // Hidden under fills sewn later, else along this thread's running lines already sewn.
+        if let Some(path) = under
+            .and_then(|c| crate::hidden::path_inside(from, p, &c.area, &c.inset))
+            .or_else(|| crate::hidden::path_along(from, p, &self.lines))
         {
             for &q in &path[1..] {
                 self.stitch_split(q, step);
@@ -404,6 +409,8 @@ impl Writer {
         }
         match &self.thread {
             Some(t) if *t != element.thread => {
+                // Another thread: the lines sewn so far are not this one's to travel on.
+                self.lines.clear();
                 let p = self.position.unwrap_or_default();
                 if !self.cut && self.position.is_some() {
                     self.end_lock();
@@ -595,6 +602,23 @@ impl Compiler {
                 w.stop_after();
             }
             w.run_from = object.connector_run.then_some(object.id);
+            // A running or triple line with nothing else sewn on it: later moves of its thread
+            // may travel along it (#545).
+            if production.travel_under && running_line(object) {
+                let mut line: Vec<Vec2> = Vec::new();
+                for s in &w.out.stitches[start.min(w.out.stitches.len())..] {
+                    if s.command == Command::Stitch {
+                        line.push(v2(s.x, s.y));
+                    } else if line.len() >= 2 {
+                        w.lines.push(std::mem::take(&mut line));
+                    } else {
+                        line.clear();
+                    }
+                }
+                if line.len() >= 2 {
+                    w.lines.push(line);
+                }
+            }
             // The tie-off of the object before is sewn as this one starts: points dropped there
             // (#703) move the spans traced so far, and this one's start, back.
             for &(at, n) in &w.drains[mark..] {
@@ -670,6 +694,7 @@ impl Compiler {
             under: None,
             run_from: None,
             connectors: Vec::new(),
+            lines: Vec::new(),
             region_area: None,
             drains: Vec::new(),
         }
@@ -698,6 +723,16 @@ fn shift_spans(spans: &mut [(u64, Range<usize>)], at: usize, n: usize) {
 
 /// The basting run as an element: loose running stitches, no locks (it is pulled out after
 /// sewing), separate loops trimmed apart.
+/// A shape sewn only as a running or triple line (no region): travel of its thread may run
+/// along what it sewed (#545).
+fn running_line(o: &DesignObject) -> bool {
+    o.kind == ObjectKind::Shape
+        && o.region.is_none()
+        && o.line
+            .as_ref()
+            .is_some_and(|l| matches!(l.kind, LineType::Running | LineType::Triple))
+}
+
 fn basting_element(runs: Vec<Run>, thread: Thread) -> Element {
     Element {
         thread,

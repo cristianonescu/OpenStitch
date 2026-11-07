@@ -1,6 +1,7 @@
 //! Shapes ▸ Edit Outline ▸ Turning Gap (#497, beyond PE-DESIGN): part of the selected closed
 //! line left unsewn, one `object.setLineGap` (one Undo).
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui;
 use openstitch_app::editor::CommandRequest;
@@ -42,13 +43,13 @@ fn values(app: &EditorApp, id: u64) -> (f64, f64, bool, f64) {
 
 pub fn gap_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     let Some(id) = target(app) else {
-        ui.label("Select one closed running, triple, zigzag, E or V line.");
+        ui.label(t("ui-select-one-closed-running-triple-zigzag"));
         return;
     };
     let (mut offset, mut length, has, total) = values(app, id);
     ui.label(format!("Outline {total:.1} mm"));
     ui.horizontal(|ui| {
-        ui.label("Starts at");
+        ui.label(t("ui-starts-at"));
         ui.add(
             egui::DragValue::new(&mut offset)
                 .range(0.0..=total.max(0.0))
@@ -57,7 +58,7 @@ pub fn gap_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         );
     });
     ui.horizontal(|ui| {
-        ui.label("Length");
+        ui.label(t("ui-length"));
         ui.add(
             egui::DragValue::new(&mut length)
                 .range(0.1..=(total - 1.0).max(0.1))
@@ -80,7 +81,7 @@ pub fn gap_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         }
         ui.close();
     }
-    if has && ui.button("Remove gap").clicked() {
+    if has && ui.button(t("ui-remove-gap")).clicked() {
         let r = CommandRequest::new("object.setLineGap", json!({ "ids": [id], "length": null }));
         app.execute(&r);
         ui.close();

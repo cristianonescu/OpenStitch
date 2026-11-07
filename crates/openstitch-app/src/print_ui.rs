@@ -71,7 +71,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
     // Some(true): print through the system; Some(false): save the PDF.
     let mut print: Option<bool> = None;
     let mut open = true;
-    egui::Window::new("Print")
+    egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-print")).id(egui::Id::unique("window-print"))
         .open(&mut open)
         .resizable(false)
         .default_width(360.0)
