@@ -8,7 +8,7 @@ job is recorded (docs/LEGAL_AND_LICENSING.md). Three checks keep it that way (is
    in the `higgsfield-jobs.tsv` beside it (first column = the file name without its
    extension) or a row in tools/check_assets_allow.tsv. Graphic files are those in GRAPHIC_EXT
    (svg, png, jpg, jpeg, webp, gif, bmp, tif, tiff, avif, ico, icns, rgba); text files
-   (TEXT_EXT: md, tsv, txt) are skipped; any other extension fails until it is added to one of
+   (TEXT_EXT: md, tsv, txt, ftl) are skipped; any other extension fails until it is added to one of
    the two sets, so a new kind of graphic cannot slip past. A new folder with a graphic and no
    jobs row fails. Every jobs row needs a valid job id and either its file beside it or an
    allow-listed file made from it. The logo's two jobs (mark, lettering) must be in
@@ -64,7 +64,7 @@ GRAPHIC_EXT = {
     ".svg", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".avif",
     ".ico", ".icns", ".rgba",
 }
-TEXT_EXT = {".md", ".tsv", ".txt"}
+TEXT_EXT = {".md", ".tsv", ".txt", ".ftl"}
 JOB = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
 # Text marks a label may use: ellipsis, middle dot, degrees, dashes, quotes, powers, minus,
