@@ -516,6 +516,13 @@ seconds so far and **Cancel** (Esc). Cancel, or an edit made meanwhile, leaves t
 design as it was; a finished open is one undo step, as before. The Assistant sees it as
 `ui.state` `loading` and can stop it with `ui.loading {cancel: true}`.
 
+### Text size and accessibility (beyond PE-DESIGN, #499)
+
+**Options ▸ Text size** (100 %, 125 %, 150 %, 175 %, 200 %) enlarges the whole window on top of
+the system's display scale; ribbon groups that no longer fit scroll under a solid scroll bar and
+the status bar's controls move to a row of their own. Contrast, focus and screen-reader support:
+[ACCESSIBILITY.md](ACCESSIBILITY.md).
+
 ### Getting started (beyond PE-DESIGN, #554)
 
 An empty design shows start cards over the Design Page; the Application menu has **Open Sample**

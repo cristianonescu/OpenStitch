@@ -227,18 +227,25 @@ pub fn load_truetype(app: &mut EditorApp) {
     }
 }
 
-fn font_combo(ui: &mut egui::Ui, salt: &str, value: &mut String, choices: &[FontChoice]) {
+fn font_combo(
+    ui: &mut egui::Ui,
+    salt: &str,
+    name: &str,
+    value: &mut String,
+    choices: &[FontChoice],
+) {
     let label = choices
         .iter()
         .find(|c| &c.id == value)
         .map_or(value.clone(), |c| c.label.clone());
-    egui::ComboBox::from_id_salt(salt)
+    let r = egui::ComboBox::from_id_salt(salt)
         .selected_text(label)
         .show_ui(ui, |ui| {
             for c in choices {
                 ui.selectable_value(value, c.id.clone(), &c.label);
             }
         });
+    crate::a11y::name(&r.response, name);
 }
 
 pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
@@ -332,7 +339,7 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
             ui.label(egui::RichText::new("New embroidery font").strong());
             ui.horizontal(|ui| {
                 ui.label("Id");
-                ui.text_edit_singleline(&mut f.new_id);
+                crate::a11y::name(&ui.text_edit_singleline(&mut f.new_id), "Id");
             });
             ui.horizontal(|ui| {
                 ui.label("Standard character height");
@@ -351,7 +358,8 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
                 ui.label(egui::RichText::new("User-mapped characters").strong());
                 ui.horizontal(|ui| {
                     ui.label("Character");
-                    ui.add(egui::TextEdit::singleline(&mut f.character).desired_width(40.0));
+                    let r = ui.add(egui::TextEdit::singleline(&mut f.character).desired_width(40.0));
+                    crate::a11y::name(&r, "Character");
                     if ui
                         .add_enabled(single.is_some(), egui::Button::new("Register selected object"))
                         .on_hover_text("The selected object's stitches become this character")
@@ -372,7 +380,7 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
                 ui.label(egui::RichText::new("Font Creator").strong());
                 ui.horizontal(|ui| {
                     ui.label("From TrueType");
-                    font_combo(ui, "convert-from", &mut f.convert_from, &truetype);
+                    font_combo(ui, "convert-from", "From TrueType", &mut f.convert_from, &truetype);
                 });
                 ui.add(egui::TextEdit::singleline(&mut f.convert_chars).hint_text("characters"));
                 if ui.button("Convert characters").clicked() {
@@ -572,7 +580,8 @@ fn image_characters(
     });
     ui.horizontal(|ui| {
         ui.label("Ink darker than");
-        ui.add(egui::DragValue::new(&mut i.threshold).range(1..=254));
+        let r = ui.add(egui::DragValue::new(&mut i.threshold).range(1..=254));
+        crate::a11y::name(&r, "Ink darker than");
         if i.whole {
             ui.add_enabled(
                 i.path.is_none() && has_background,
@@ -584,7 +593,7 @@ fn image_characters(
     if !i.whole {
         ui.horizontal(|ui| {
             ui.label("Assign in order");
-            ui.text_edit_singleline(&mut i.order);
+            crate::a11y::name(&ui.text_edit_singleline(&mut i.order), "Assign in order");
         });
     }
     let ready = i.path.is_some() || has_background;
@@ -858,7 +867,7 @@ fn text_window(app: &mut EditorApp, ctx: &egui::Context) {
             ui.add(egui::TextEdit::multiline(&mut f.text).desired_rows(2));
             egui::Grid::new("text-form").num_columns(2).show(ui, |ui| {
                 ui.label("Font");
-                font_combo(ui, "text-font", &mut f.font, &choices);
+                font_combo(ui, "text-font", "Font", &mut f.font, &choices);
                 ui.end_row();
                 ui.label("Size");
                 ui.add(
@@ -957,7 +966,7 @@ fn monogram_window(app: &mut EditorApp, ctx: &egui::Context) {
                         }
                         .into()
                     });
-                    font_combo(ui, "monogram-font", &mut font, &choices);
+                    font_combo(ui, "monogram-font", "Font", &mut font, &choices);
                     f.font = Some(font);
                     ui.end_row();
                     ui.label("Height");
@@ -968,7 +977,7 @@ fn monogram_window(app: &mut EditorApp, ctx: &egui::Context) {
                         .frame
                         .and_then(|id| frames.iter().find(|(i, _)| i == id))
                         .map_or("None".to_string(), |(_, n)| n.clone());
-                    egui::ComboBox::from_id_salt("monogram-frame")
+                    let r = egui::ComboBox::from_id_salt("monogram-frame")
                         .selected_text(label)
                         .show_ui(ui, |ui| {
                             ui.selectable_value(&mut f.frame, None, "None");
@@ -978,6 +987,7 @@ fn monogram_window(app: &mut EditorApp, ctx: &egui::Context) {
                                 ui.selectable_value(&mut f.frame, Some(id), name);
                             }
                         });
+                    crate::a11y::name(&r.response, "Frame");
                     ui.end_row();
                     ui.label("Margin");
                     ui.add(crate::units_ui::drag(&mut f.margin, units).range(0.0..=50.0));

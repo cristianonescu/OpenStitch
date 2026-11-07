@@ -1437,6 +1437,16 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     changed |= ui
         .checkbox(&mut app.ui.prefs.splash, "Show splash at startup")
         .changed();
+    ui.menu_button("Text size", |ui| {
+        // The whole window larger (#499), on top of the system's display scale.
+        for pct in [100, 125, 150, 175, 200] {
+            changed |= ui
+                .radio_value(&mut app.ui.prefs.text_size, pct, format!("{pct} %"))
+                .changed();
+        }
+    })
+    .response
+    .on_hover_text("Beyond PE-DESIGN: everything in the window larger, for easier reading");
     changed |= ui
         .checkbox(&mut app.ui.prefs.start_cards, "Show start cards")
         .on_hover_text("An empty design offers cards to draw, letter, digitize a picture, import, use a template or open a sample")
@@ -2037,20 +2047,30 @@ pub fn body<A: Copy>(
         .inner_margin(egui::Margin::symmetric(6, 4))
         .stroke(ui.visuals().widgets.noninteractive.bg_stroke)
         .show(ui, |ui| {
+            let row = |ui: &mut egui::Ui, draw: &mut dyn FnMut(&mut egui::Ui, A, bool)| {
+                ui.spacing_mut().item_spacing.x = 3.0;
+                for (k, g) in groups.iter().enumerate() {
+                    group(ui, g, &mut *draw);
+                    if k + 1 < groups.len() {
+                        ui.add(egui::Separator::default().spacing(4.0));
+                    }
+                }
+            };
+            // With a larger Text size (#499) the groups that do not fit scroll into view
+            // under a solid scroll bar, so none is out of reach unseen; at 100 % a narrow
+            // window scrolls them without a bar as before.
+            let large = ui.ctx().zoom_factor() > 1.0;
+            if large {
+                ui.spacing_mut().scroll = egui::style::ScrollStyle::solid();
+            }
             egui::ScrollArea::horizontal()
                 .id_salt("ribbon-body")
-                .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = 3.0;
-                        for (k, g) in groups.iter().enumerate() {
-                            group(ui, g, &mut draw);
-                            if k + 1 < groups.len() {
-                                ui.add(egui::Separator::default().spacing(4.0));
-                            }
-                        }
-                    });
-                });
+                .scroll_bar_visibility(if large {
+                    egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded
+                } else {
+                    egui::scroll_area::ScrollBarVisibility::AlwaysHidden
+                })
+                .show(ui, |ui| ui.horizontal(|ui| row(ui, &mut draw)));
         });
 }
 

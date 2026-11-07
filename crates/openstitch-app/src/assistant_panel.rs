@@ -1343,7 +1343,7 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
             // rows below are the hidden Claude API address's, so they are not shown.
             if prefs.protocol != Protocol::Agent {
             ui.label("Endpoint");
-            egui::ComboBox::from_id_salt("assistant-preset")
+            let r = egui::ComboBox::from_id_salt("assistant-preset")
                 .selected_text(
                     PRESETS
                         .iter()
@@ -1360,24 +1360,27 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                         }
                     }
                 });
+            crate::a11y::name(&r.response, "Endpoint");
             ui.end_row();
             }
             ui.label("Protocol");
-            egui::ComboBox::from_id_salt("assistant-protocol")
+            let r = egui::ComboBox::from_id_salt("assistant-protocol")
                 .selected_text(prefs.protocol.label())
                 .show_ui(ui, |ui| {
                     for p in Protocol::ALL {
                         changed |= ui.selectable_value(&mut prefs.protocol, p, p.label()).changed();
                     }
                 });
+            crate::a11y::name(&r.response, "Protocol");
             ui.end_row();
             if prefs.protocol != Protocol::Agent {
                 ui.label("Address");
-                changed |= ui.text_edit_singleline(&mut prefs.base_url).lost_focus();
+                changed |= crate::a11y::named(ui.text_edit_singleline(&mut prefs.base_url), "Address").lost_focus();
                 ui.end_row();
                 ui.label("Model");
                 ui.horizontal(|ui| {
                     let r = ui.add(egui::TextEdit::singleline(&mut prefs.model).desired_width(170.0));
+                    crate::a11y::name(&r, "Model");
                     if r.lost_focus() {
                         changed = true;
                         model_changed = true;
@@ -1414,13 +1417,14 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                 ui.end_row();
                 if prefs.protocol == Protocol::Anthropic {
                     ui.label("Effort");
-                    egui::ComboBox::from_id_salt("assistant-effort")
+                    let r = egui::ComboBox::from_id_salt("assistant-effort")
                         .selected_text(prefs.effort.clone())
                         .show_ui(ui, |ui| {
                             for e in openstitch_app::editor::assistant_chat::EFFORTS {
                                 changed |= ui.selectable_value(&mut prefs.effort, e.to_string(), e).changed();
                             }
                         });
+                    crate::a11y::name(&r.response, "Effort");
                 } else {
                     ui.label("Reasoning effort");
                     changed |= ui
@@ -1440,7 +1444,7 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                 let l = lookups.lock().unwrap_or_else(|e| e.into_inner());
                 let found = l.agents.clone();
                 drop(l);
-                egui::ComboBox::from_id_salt("assistant-agent")
+                let r = egui::ComboBox::from_id_salt("assistant-agent")
                     .selected_text(
                         claude::KNOWN_AGENTS
                             .iter()
@@ -1465,6 +1469,7 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                             }
                         }
                     });
+                crate::a11y::name(&r.response, "Agent");
                 ui.end_row();
                 if let Some(a) = claude::KNOWN_AGENTS.iter().find(|a| a.id == prefs.agent) {
                     let missing = found.as_ref().is_some_and(|f| {
@@ -1486,13 +1491,14 @@ fn settings(app: &mut EditorApp, ui: &mut egui::Ui) {
                 }
             }
             ui.label("Permissions");
-            egui::ComboBox::from_id_salt("assistant-mode")
+            let r = egui::ComboBox::from_id_salt("assistant-mode")
                 .selected_text(prefs.mode.label())
                 .show_ui(ui, |ui| {
                     for m in PermissionMode::ALL {
                         changed |= ui.selectable_value(&mut prefs.mode, m, m.label()).changed();
                     }
                 });
+            crate::a11y::name(&r.response, "Permissions");
             ui.end_row();
             ui.label("Changes per message");
             changed |= ui

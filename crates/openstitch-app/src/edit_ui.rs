@@ -482,13 +482,14 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
         .default_width(300.0)
         .show(ctx, |ui| {
             let f = &mut app.edit.arrange;
-            egui::ComboBox::from_label("Arrangement")
+            let r = egui::ComboBox::from_label("Arrangement")
                 .selected_text(f.mode.label())
                 .show_ui(ui, |ui| {
                     for m in ArrangeMode::ALL {
                         ui.selectable_value(&mut f.mode, m, m.label());
                     }
                 });
+            crate::a11y::name(&r.response, "Arrangement");
             egui::Grid::new("arrange")
                 .num_columns(2)
                 .show(ui, |ui| match f.mode {

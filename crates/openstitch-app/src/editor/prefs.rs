@@ -216,6 +216,9 @@ pub struct UiPrefs {
     pub font_filter: FontFilter,
     /// Startup splash on an interactive start.
     pub splash: bool,
+    /// Options ▸ Text size (#499): the whole window at this percentage, 100-200, on top of the
+    /// operating system's display scale.
+    pub text_size: u32,
     /// The folder of Ink/Stitch-format embroidery fonts (Text ▸ Ink/Stitch Fonts, #529).
     pub inkstitch_folder: Option<PathBuf>,
     pub updates: UpdatePrefs,
@@ -311,6 +314,7 @@ impl Default for UiPrefs {
             realistic: RealisticSettings::default(),
             font_filter: FontFilter::default(),
             splash: true,
+            text_size: 100,
             inkstitch_folder: None,
             updates: UpdatePrefs::default(),
             ai: Default::default(),
@@ -396,6 +400,7 @@ impl UiPrefs {
             },
             "fontFilter": { "on": self.font_filter.on, "hidden": self.font_filter.hidden },
             "showSplash": self.splash,
+            "textSize": self.text_size,
             "inkStitchFolder": self.inkstitch_folder.as_ref().map(|p| p.display().to_string()),
             "updates": self.updates.to_json(),
             "ai": self.ai.to_json(),
@@ -506,6 +511,9 @@ impl UiPrefs {
                     .unwrap_or_default(),
             },
             splash: v["showSplash"].as_bool().unwrap_or(d.splash),
+            text_size: v["textSize"]
+                .as_u64()
+                .map_or(d.text_size, |n| n.clamp(100, 200) as u32),
             inkstitch_folder: v["inkStitchFolder"]
                 .as_str()
                 .filter(|s| !s.is_empty() && s.len() < 4096)
@@ -705,6 +713,7 @@ impl UiPrefs {
                 self.qat = d.qat;
                 self.qat_below = d.qat_below;
                 self.splash = d.splash;
+                self.text_size = d.text_size;
                 self.realistic = d.realistic;
                 self.show = d.show;
             }
