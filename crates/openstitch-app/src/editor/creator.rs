@@ -122,6 +122,11 @@ impl Creator {
         self.kind != PatternKind::Fill && (index == 0 || index + 1 == n)
     }
 
+    /// Motifs and meander tiles are one path.
+    pub fn single_path(&self) -> bool {
+        matches!(self.kind, PatternKind::Motif | PatternKind::Meander)
+    }
+
     fn point_count(&self) -> usize {
         self.paths.iter().map(Vec::len).sum()
     }
@@ -182,7 +187,7 @@ impl Creator {
 
     /// Starts a new path (fill tiles and decorative rows; a motif is one path).
     pub fn new_path(&mut self) -> bool {
-        if self.kind == PatternKind::Motif || self.paths.len() >= patterns::MAX_PATHS {
+        if self.single_path() || self.paths.len() >= patterns::MAX_PATHS {
             return false;
         }
         let path = match self.kind {
@@ -206,7 +211,7 @@ impl Creator {
 
     /// Adds `path` as a new line and makes it current (Paste, Duplicate; not for a motif).
     pub fn paste_path(&mut self, path: &[Vec2]) -> bool {
-        if self.kind == PatternKind::Motif
+        if self.single_path()
             || path.len() < 2
             || self.paths.len() >= patterns::MAX_PATHS
             || self.point_count() + path.len() > MAX_POINTS
@@ -834,7 +839,11 @@ mod tests {
                 assert!(same, "{kind:?}: twice restores it");
             }
             let pasted = c.paste_path(&before);
-            assert_eq!(pasted, kind != PatternKind::Motif, "{kind:?}");
+            assert_eq!(
+                pasted,
+                !matches!(kind, PatternKind::Motif | PatternKind::Meander),
+                "{kind:?}"
+            );
             assert!(c.pattern().is_ok());
         }
         let mut c = Creator::new(PatternKind::Motif);

@@ -362,7 +362,15 @@ pub fn generate(
                     p.reverse();
                 }
             }
-            vec![region.sequence(nearest_next(pieces))]
+            // The tiles are drawn with points well under a stitch apart: split to the run
+            // pitch, without points under 0.3 mm apart (as the motif fill, #617).
+            let runs = nearest_next(pieces)
+                .into_iter()
+                .map(|p| {
+                    generate::drop_close(&subdivide(&p, pitch), generate::MOTIF_MIN_STITCH, pitch)
+                })
+                .collect();
+            vec![region.sequence_raw(runs)]
         }
         RegionType::Contour => {
             // Beyond PE-DESIGN (see crate::contour): rows that follow the outline.

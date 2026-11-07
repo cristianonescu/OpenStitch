@@ -3919,6 +3919,17 @@ fn meander_fill_sews_every_tile_inside_the_shape_without_crossing() {
             );
         }
         assert_eq!(proper_crossings(top), 0, "{}: stitches cross", tile.id);
+        // No runs of tiny stitches (sew_check's "in place"): never two under 0.3 mm in a row.
+        for run in top {
+            for w in run.windows(3) {
+                assert!(
+                    w[0].distance(w[1]) >= 3.0 - 1e-9 || w[1].distance(w[2]) >= 3.0 - 1e-9,
+                    "{}: tiny stitches at {:?}",
+                    tile.id,
+                    w[1]
+                );
+            }
+        }
         // The same settings sew the same stitches.
         assert_eq!(
             &crate::region::layers(&c, &r, &hole),

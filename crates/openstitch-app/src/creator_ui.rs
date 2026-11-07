@@ -160,7 +160,7 @@ impl Host<CreatorAction> for EditorApp {
         use CreatorAction::*;
         let st = &self.creator;
         let lines = st.doc.paths.len();
-        let many = st.doc.kind != PatternKind::Motif && lines < patterns::MAX_PATHS;
+        let many = !st.doc.single_path() && lines < patterns::MAX_PATHS;
         match a {
             Save => st.doc.pattern().is_ok() && st.dir.is_some(),
             SaveAs => st.doc.pattern().is_ok(),
