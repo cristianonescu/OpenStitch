@@ -3144,6 +3144,27 @@ and with each of the six presets: before, p01 with `lineArt` failed with 7 in pl
 454/454, and its 501 written files are byte-identical apart from two JEF time stamps.
 Tests `tie_off_tests::*`.
 
+### Tie-in at a pointed start, 2026-11-07 (#732)
+
+The start of the case above. A run that begins at a pointed tip (a fill's rows 0.3 mm long
+and 0.2 mm apart, a satin narrowing to a point) after the object's own one-step tie-in, out
+0.3 mm along the first stitch and back, sewed 7 stitches in one spot: Auto Punch in OpenStitch
+mode with the `photo` preset on g11 (long side 100 mm), where small fill pieces joined by a
+running connector carry their own tie (#713). Now, when the tie-in and the tip together would
+sew more than 6 stitches in place (0.35 mm counts as in place), the tie-in steps out to the
+tip's first needle point beyond a stitch in place (at most 1 mm away) and back, instead of
+0.3 mm along the first crossing. Every needle point of the tip is kept. Only the object's own
+ties (OpenStitch mode and `object.setFinish`) do this, and a tie set longer than 6 stitches by
+itself is sewn as set; PE-DESIGN's own tie-in is unchanged.
+
+Measured: g11 with no preset and the six presets, `tools/sew_check.py --hoop 130x180`, was 6 of
+7 (photo: 7 in place), now 7 of 7; the same stitch counts, one tie-in step moved in each file
+(two with photo). Likeness of g11 with the
+photo preset (`tools/image_similarity.py --only g11-ap --mode openstitch`) unchanged: ΔE00 7.39,
+MS-SSIM 0.6360. Nine other images with four presets each (36 files) are byte-identical. Compat
+468/468; the ready-to-sew kit is unchanged. Test
+`finish_tests::a_pointed_start_ties_in_along_the_tip` (the g11 piece itself).
+
 ### PE-compatible Photo Stitch 1: one path a colour, 2026-11-07 (#298)
 
 PE-DESIGN 11.50 sews Photo Stitch 1 nearly one path a colour. Round-8 capture of the sunset (p06)

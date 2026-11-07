@@ -246,7 +246,9 @@ batch:mac-digitize-3 (2026-11-06): OpenStitch-mode Auto Punch no longer sews sti
 along staircase outlines (#688) or as knots in specks (#690); touching fills turn apart without
 lowering the likeness, and every purpose preset passes sew_check on the gallery (#690). Left: a
 fill's or satin's short ends plus the tie-off on two photos (#703, stitch engine) and the
-mandala's drawn dots sewn as knots (#713).
+mandala's drawn dots sewn as knots (#713). Both done (#703, #738); the photo preset's pointed
+fill and satin tips on the mandala, whose tie-in plus first rows sewed 7 in place, tie in along
+the tip since #732.
 
 Done 2026-10-30: stitch generation is bit-identical on Windows, macOS and Linux (transcendental
 math through the `libm` crate instead of each platform's C library); the arched Text Transform
