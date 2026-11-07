@@ -3,6 +3,7 @@
 //! Help buttons. The layout is the model in [`openstitch_app::editor::ribbon`]; this module
 //! draws it, decides which commands are enabled and runs them.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use crate::{convert_ui, edit_ui, icons, panels};
 use eframe::egui::{self, Color32, CornerRadius, RichText, Sense, Stroke, StrokeKind, vec2};
@@ -707,7 +708,7 @@ pub fn menu_item(app: &mut EditorApp, ui: &mut egui::Ui, a: Action) {
 fn export_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     for ty in FileType::writable() {
         if ty == FileType::Pes {
-            ui.menu_button("PES", |ui| {
+            ui.menu_button(t("menu-pes"), |ui| {
                 for (v, label) in EditorApp::PES_VERSIONS {
                     if ui.button(format!("{label}…")).clicked() {
                         app.export_with(ty, Some(v));
@@ -718,11 +719,11 @@ fn export_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         }
         if ty == FileType::Exp {
             // Bernina machines read the colours from an INF beside the EXP (#482).
-            ui.menu_button("EXP", |ui| {
-                if ui.button("EXP…").clicked() {
+            ui.menu_button(t("menu-exp"), |ui| {
+                if ui.button(t("menu-exp-2")).clicked() {
                     app.export(ty);
                 }
-                if ui.button("EXP with .inf colour file…").clicked() {
+                if ui.button(t("menu-exp-with-inf-colour-file")).clicked() {
                     app.export_exp_with_inf();
                 }
             });
@@ -765,10 +766,10 @@ fn export_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
             app.export_media(command, ext);
         }
     }
-    ui.menu_button("Garment Mockup", |ui| garment_mockup_menu(app, ui))
+    ui.menu_button(t("menu-garment-mockup"), |ui| garment_mockup_menu(app, ui))
         .response
-        .on_hover_text("Beyond PE-DESIGN: the design at true size on a T-shirt, cap or tote bag in a fabric colour, as a PNG to show a customer (design.mockup)");
-    ui.menu_button("Thread List", |ui| {
+        .on_hover_text(t("menu-beyond-pe-design-the-design-at-tip"));
+    ui.menu_button(t("menu-thread-list"), |ui| {
         for (ext, label) in EditorApp::THREAD_LISTS {
             if ui.button(format!("{label}…")).clicked() {
                 app.export_thread_list(ext);
@@ -776,8 +777,8 @@ fn export_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         }
         ui.separator();
         if ui
-            .button("Apply Thread List to the Design…")
-            .on_hover_text("Give the colour blocks, in sewing order, the colours of a CSV, INF, EDR, COL or TXT list (one undo step)")
+            .button(t("menu-apply-thread-list-to-the-design"))
+            .on_hover_text(t("menu-give-the-colour-blocks-in-sewing-tip"))
             .clicked()
         {
             app.apply_thread_list();
@@ -791,7 +792,7 @@ fn garment_mockup_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     let id = egui::Id::unique("garment-mockup-fabric");
     let mut fabric = ui.data_mut(|d| *d.get_persisted_mut_or(id, [255u8, 255, 255]));
     ui.horizontal(|ui| {
-        ui.label("Fabric colour");
+        ui.label(t("menu-fabric-colour"));
         if ui.color_edit_button_srgb(&mut fabric).changed() {
             ui.data_mut(|d| d.insert_persisted(id, fabric));
         }
@@ -810,23 +811,23 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
     ui.set_min_width(180.0);
     match a {
         Print => {
-            if ui.button("Print…").clicked() {
+            if ui.button(t("menu-print")).clicked() {
                 crate::print_ui::open(ui.ctx());
             }
             menu_item(app, ui, JobSheet);
         }
         Wizard => {
             if ui
-                .button("Startup Wizard…")
-                .on_hover_text("PE-DESIGN's start-up dialog: templates, images, hoop and fabric, import, recent files")
+                .button(t("menu-startup-wizard"))
+                .on_hover_text(t("menu-pe-design-s-start-up-dialog-tip"))
                 .clicked()
             {
                 app.startup_wizard.open = true;
             }
-            if ui.button("Template Wizard…").clicked() {
+            if ui.button(t("menu-template-wizard")).clicked() {
                 crate::lettering_ui::open_template_wizard(app);
             }
-            if ui.button("Image to Embroidery…").clicked() {
+            if ui.button(t("menu-image-to-embroidery")).clicked() {
                 app.wizard.open = true;
             }
             ui.separator();
@@ -836,12 +837,12 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
         }
         Export => export_menu(app, ui),
         SendEmbroidery => {
-            if ui.button("Send to USB Media…").clicked() {
+            if ui.button(t("menu-send-to-usb-media")).clicked() {
                 crate::transfer_ui::open(app);
             }
             menu_item(app, ui, TestSwatches);
             menu_item(app, ui, ExportSections);
-            ui.menu_button("Export", |ui| export_menu(app, ui));
+            ui.menu_button(t("menu-export"), |ui| export_menu(app, ui));
         }
         Options => options_menu(app, ui),
         Help => help_menu(app, ui),
@@ -857,12 +858,12 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
                 menu_item(app, ui, t);
             }
             ui.separator();
-            ui.menu_button("Insert Preset Shape", |ui| edit_ui::insert_menu(app, ui));
+            ui.menu_button(t("menu-insert-preset-shape"), |ui| edit_ui::insert_menu(app, ui));
         }
         OtherZoom => {
             if ui
                 .add(
-                    egui::Button::new("Fit Design Page")
+                    egui::Button::new(t("menu-fit-design-page"))
                         .shortcut_text(format!("{}0", crate::app::CMD)),
                 )
                 .clicked()
@@ -872,15 +873,15 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
             if ui
                 .add_enabled(
                     !app.selection.is_empty(),
-                    egui::Button::new("Zoom to Selection"),
+                    egui::Button::new(t("menu-zoom-to-selection")),
                 )
                 .clicked()
             {
                 zoom_to_selection(app);
             }
             if ui
-                .add(egui::Button::new("Zoom Box").shortcut_text("Z"))
-                .on_hover_text("Drag a rectangle on the canvas to zoom to it; Esc cancels")
+                .add(egui::Button::new(t("menu-zoom-box")).shortcut_text("Z"))
+                .on_hover_text(t("menu-drag-a-rectangle-on-the-canvas-tip"))
                 .clicked()
             {
                 app.zoom_box.toggle();
@@ -893,8 +894,8 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
             }
             ui.separator();
             if ui
-                .button("Calibrate Real Size…")
-                .on_hover_text("Make 100 % real size on this screen with a ruler")
+                .button(t("menu-calibrate-real-size"))
+                .on_hover_text(t("menu-make-100-real-size-on-this-tip"))
                 .clicked()
             {
                 app.calibration.open = true;
@@ -903,8 +904,8 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
         FitTextToOutline => {
             let pair = fit_pair(app);
             if ui
-                .add_enabled(pair.is_some(), egui::Button::new("Fit Text to Outline…"))
-                .on_hover_text("Select one text and one shape")
+                .add_enabled(pair.is_some(), egui::Button::new(t("menu-fit-text-to-outline")))
+                .on_hover_text(t("menu-select-one-text-and-one-shape-tip"))
                 .clicked()
                 && let Some((text, shape)) = pair
             {
@@ -914,7 +915,7 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
             if ui
                 .add_enabled(
                     !fitted.is_empty(),
-                    egui::Button::new("Release Text from Outline"),
+                    egui::Button::new(t("menu-release-text-from-outline")),
                 )
                 .clicked()
             {
@@ -931,7 +932,7 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
         Align => crate::arrange_ui::align_menu(app, ui),
         SelectSame => crate::arrange_ui::select_same_menu(app, ui),
         Arrange => {
-            if ui.button("Center on Design Page").clicked() {
+            if ui.button(t("menu-center-on-design-page")).clicked() {
                 app.on_selection(|s| {
                     CommandRequest::new("object.center", json!({ "ids": CommandRequest::ids(s) }))
                 });
@@ -960,10 +961,10 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
                 }
             }
             ui.separator();
-            if ui.button("Flip Horizontal").clicked() {
+            if ui.button(t("menu-flip-horizontal")).clicked() {
                 app.on_selection(|s| CommandRequest::flip(s, true));
             }
-            if ui.button("Flip Vertical").clicked() {
+            if ui.button(t("menu-flip-vertical")).clicked() {
                 app.on_selection(|s| CommandRequest::flip(s, false));
             }
         }
@@ -974,7 +975,7 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
                         .range(1.0..=1000.0)
                         .suffix(" %"),
                 );
-                if ui.button("Apply").clicked() {
+                if ui.button(t("menu-apply")).clicked() {
                     scale(app, app.scale_percent / 100.0);
                     app.scale_percent = 100.0;
                 }
@@ -1026,7 +1027,7 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
                 app.ui.text_draft = t;
             }
             ui.text_edit_multiline(&mut app.ui.text_draft);
-            if ui.button("Apply").clicked() {
+            if ui.button(t("menu-apply")).clicked() {
                 let text = app.ui.text_draft.clone();
                 set_text(app, json!({ "text": text }));
                 app.ui.text_draft.clear();
@@ -1244,10 +1245,10 @@ pub fn image_density_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
 fn accent_menu(app: &mut EditorApp, ui: &mut egui::Ui) -> bool {
     use openstitch_app::editor::accent::PRESETS;
     let mut changed = false;
-    ui.menu_button("Accent colour", |ui| {
+    ui.menu_button(t("menu-accent-colour"), |ui| {
         let tip = "Selection outline, handles, selected buttons and links; text on it keeps a 4.5:1 contrast";
         let a = &mut app.ui.prefs.accent;
-        changed |= ui.radio_value(a, None, "Theme default").on_hover_text(tip).changed();
+        changed |= ui.radio_value(a, None, t("menu-theme-default")).on_hover_text(tip).changed();
         for (_, label, c) in PRESETS {
             changed |= ui.radio_value(a, Some(*c), *label).on_hover_text(tip).changed();
         }
@@ -1257,7 +1258,7 @@ fn accent_menu(app: &mut EditorApp, ui: &mut egui::Ui) -> bool {
                 *a = Some(rgb);
                 changed = true;
             }
-            ui.label("Custom");
+            ui.label(t("menu-custom"));
         });
     });
     changed
@@ -1270,7 +1271,7 @@ fn layouts_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             if ui
                 .button(name.as_str())
-                .on_hover_text("Put this layout in place")
+                .on_hover_text(t("menu-put-this-layout-in-place-tip"))
                 .clicked()
             {
                 let _ = app.ui.prefs.apply_layout(name);
@@ -1335,8 +1336,8 @@ fn layouts_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
                 .desired_width(110.0),
         );
         if ui
-            .button("Save Layout")
-            .on_hover_text("Keep where the panes are and the toolbar position under this name")
+            .button(t("menu-save-layout"))
+            .on_hover_text(t("menu-keep-where-the-panes-are-and-tip"))
             .clicked()
         {
             match app.ui.prefs.save_layout(&name) {
@@ -1374,7 +1375,7 @@ fn reset_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
 fn new_objects_menu(app: &mut EditorApp, ui: &mut egui::Ui) -> bool {
     use openstitch_app::editor::new_objects::FIELDS;
     let mut changed = false;
-    ui.label(RichText::new("New shapes start with").strong());
+    ui.label(RichText::new(t("menu-new-shapes-start-with")).strong());
     let n = &mut app.ui.prefs.new_objects;
     egui::Grid::new("new-objects")
         .num_columns(2)
@@ -1407,25 +1408,25 @@ fn new_objects_menu(app: &mut EditorApp, ui: &mut egui::Ui) -> bool {
                         changed = true;
                     }
                 } else {
-                    ui.label(RichText::new("tool's own").weak());
+                    ui.label(RichText::new(t("menu-tool-s-own")).weak());
                 }
                 ui.end_row();
             }
             let mut on = n.underlay.is_some();
-            if ui.checkbox(&mut on, "Underlay").changed() {
+            if ui.checkbox(&mut on, t("menu-underlay")).changed() {
                 n.underlay = on.then_some(true);
                 changed = true;
             }
             if let Some(u) = n.underlay.as_mut() {
-                changed |= ui.checkbox(u, "on").changed();
+                changed |= ui.checkbox(u, t("menu-on")).changed();
             } else {
-                ui.label(RichText::new("tool's own").weak());
+                ui.label(RichText::new(t("menu-tool-s-own")).weak());
             }
             ui.end_row();
         });
     if ui
-        .add_enabled(!n.is_empty(), egui::Button::new("Clear"))
-        .on_hover_text("New shapes start as the tools make them (PE-DESIGN's defaults)")
+        .add_enabled(!n.is_empty(), egui::Button::new(t("menu-clear")))
+        .on_hover_text(t("menu-new-shapes-start-as-the-tools-tip"))
         .clicked()
     {
         *n = Default::default();
@@ -1441,8 +1442,8 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     ui.separator();
     let mut optimize = app.session.user_settings().optimize_entry_exit;
     if ui
-        .checkbox(&mut optimize, "Optimize Entry/Exit Points")
-        .on_hover_text("New shapes are entered where they come closest to the shape sewn before")
+        .checkbox(&mut optimize, t("menu-optimize-entry-exit-points"))
+        .on_hover_text(t("menu-new-shapes-are-entered-where-they-tip"))
         .changed()
     {
         app.execute(&CommandRequest::new(
@@ -1451,7 +1452,7 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         ));
     }
     ui.separator();
-    ui.label(RichText::new("Theme").weak());
+    ui.label(RichText::new(t("menu-theme")).weak());
     let mut changed = false;
     for t in Theme::ALL {
         changed |= ui
@@ -1459,8 +1460,8 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
             .changed();
     }
     changed |= accent_menu(app, ui);
-    ui.menu_button("Layouts", |ui| layouts_menu(app, ui));
-    ui.menu_button("Reset Preferences", |ui| reset_menu(app, ui));
+    ui.menu_button(t("menu-layouts"), |ui| layouts_menu(app, ui));
+    ui.menu_button(t("menu-reset-preferences"), |ui| reset_menu(app, ui));
     ui.separator();
     changed |= ui
         .checkbox(
@@ -1469,9 +1470,9 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         )
         .changed();
     changed |= ui
-        .checkbox(&mut app.ui.prefs.splash, "Show splash at startup")
+        .checkbox(&mut app.ui.prefs.splash, t("menu-show-splash-at-startup"))
         .changed();
-    ui.menu_button("Text size", |ui| {
+    ui.menu_button(t("menu-text-size"), |ui| {
         // The whole window larger (#499), on top of the system's display scale.
         for pct in [100, 125, 150, 175, 200] {
             changed |= ui
@@ -1480,8 +1481,8 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         }
     })
     .response
-    .on_hover_text("Beyond PE-DESIGN: everything in the window larger, for easier reading");
-    ui.menu_button("Language", |ui| {
+    .on_hover_text(t("menu-beyond-pe-design-everything-in-the-tip"));
+    ui.menu_button(t("menu-language"), |ui| {
         // The interface language (#555); the ribbon follows at once.
         for (code, name) in openstitch_app::editor::i18n::languages() {
             if ui
@@ -1495,28 +1496,28 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         }
     })
     .response
-    .on_hover_text("The interface language; English is the source and fills in any text a translation lacks");
+    .on_hover_text(t("menu-the-interface-language-english-is-the-tip"));
     changed |= ui
-        .checkbox(&mut app.ui.prefs.start_cards, "Show start cards")
-        .on_hover_text("An empty design offers cards to draw, letter, digitize a picture, import, use a template or open a sample")
+        .checkbox(&mut app.ui.prefs.start_cards, t("menu-show-start-cards"))
+        .on_hover_text(t("menu-an-empty-design-offers-cards-to-tip"))
         .changed();
-    ui.menu_button("New Objects", |ui| changed |= new_objects_menu(app, ui));
+    ui.menu_button(t("menu-new-objects"), |ui| changed |= new_objects_menu(app, ui));
     changed |= ui
-        .checkbox(&mut app.ui.prefs.open_in_tabs, "Open designs in tabs")
-        .on_hover_text("Beyond PE-DESIGN: New and Open add a tab and keep the current design open (Ctrl+Tab switches); off, they replace it as PE-DESIGN does")
-        .changed();
-    changed |= ui
-        .checkbox(&mut app.ui.prefs.picture_pickers, "Picture pickers with live preview")
-        .on_hover_text("Beyond PE-DESIGN: sewing types, fill patterns and motifs as pictures of their stitches; hovering one shows it on the selection before you choose")
+        .checkbox(&mut app.ui.prefs.open_in_tabs, t("menu-open-designs-in-tabs"))
+        .on_hover_text(t("menu-beyond-pe-design-new-and-open-tip"))
         .changed();
     changed |= ui
-        .checkbox(&mut app.ui.prefs.autosave, "Autosave for crash recovery")
-        .on_hover_text("Beyond PE-DESIGN: keeps a copy of each open design in OpenStitch's settings folder (never the design's own file) and offers it at the next start after a crash or power cut")
+        .checkbox(&mut app.ui.prefs.picture_pickers, t("menu-picture-pickers-with-live-preview"))
+        .on_hover_text(t("menu-beyond-pe-design-sewing-types-fill-tip"))
+        .changed();
+    changed |= ui
+        .checkbox(&mut app.ui.prefs.autosave, t("menu-autosave-for-crash-recovery"))
+        .on_hover_text(t("menu-beyond-pe-design-keeps-a-copy-tip"))
         .changed();
     ui.add_enabled_ui(app.ui.prefs.autosave, |ui| {
         ui.horizontal(|ui| {
             use openstitch_app::editor::recovery::{MAX_INTERVAL, MIN_INTERVAL};
-            ui.label("Autosave at most every");
+            ui.label(t("menu-autosave-at-most-every"));
             changed |= ui
                 .add(
                     egui::DragValue::new(&mut app.ui.prefs.autosave_interval)
@@ -1530,8 +1531,8 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         });
     });
     if ui
-        .button("Clear Recovery Files")
-        .on_hover_text("Delete the copies left by windows that crashed")
+        .button(t("menu-clear-recovery-files"))
+        .on_hover_text(t("menu-delete-the-copies-left-by-windows-tip"))
         .clicked()
     {
         match crate::recovery_ui::discard(app, None) {
@@ -1543,7 +1544,7 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         }
     }
     let ai_changed = ui
-        .checkbox(&mut app.ui.prefs.ai.enabled, "Show AI features")
+        .checkbox(&mut app.ui.prefs.ai.enabled, t("menu-show-ai-features"))
         .on_hover_text(
             "The Assistant panel, its button and Ctrl+Shift+A; nothing is sent until you use it",
         )
@@ -1556,64 +1557,64 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         app.assistant.panel.open = true;
     }
     ui.separator();
-    ui.label(RichText::new("Units").weak());
+    ui.label(RichText::new(t("menu-units")).weak());
     ui.horizontal(|ui| {
         use openstitch_app::editor::units::Units;
         let tip =
             "Sizes, positions, rulers, grid and lettering heights; stitch settings stay in mm";
         let u = &mut app.ui.prefs.units;
         changed |= ui
-            .radio_value(u, Units::Mm, "Millimetres")
+            .radio_value(u, Units::Mm, t("menu-millimetres"))
             .on_hover_text(tip)
             .changed();
         changed |= ui
-            .radio_value(u, Units::Inch, "Inches")
+            .radio_value(u, Units::Inch, t("menu-inches"))
             .on_hover_text(tip)
             .changed();
     });
     let units = app.ui.prefs.units;
     app.database.units = units;
     ui.separator();
-    ui.label(RichText::new("Editing").weak());
+    ui.label(RichText::new(t("menu-editing")).weak());
     let e = &mut app.ui.prefs.editing;
     ui.horizontal(|ui| {
-        ui.label("Nudge step");
+        ui.label(t("menu-nudge-step"));
         changed |= ui
             .add(
                 crate::units_ui::drag(&mut e.nudge_mm, units)
                     .range(EditingPrefs::NUDGE_MIN..=EditingPrefs::NUDGE_MAX)
                     .speed(0.05),
             )
-            .on_hover_text("How far an arrow key moves the selection; Shift moves ten times as far")
+            .on_hover_text(t("menu-how-far-an-arrow-key-moves-tip"))
             .changed();
     });
     changed |= ui
-        .checkbox(&mut e.nudge_grid, "Nudge by the grid step while snapping")
-        .on_hover_text("With Snap to Grid on, an arrow key moves one grid step")
+        .checkbox(&mut e.nudge_grid, t("menu-nudge-by-the-grid-step-while"))
+        .on_hover_text(t("menu-with-snap-to-grid-on-an-tip"))
         .changed();
     changed |= ui
-        .checkbox(&mut e.click_inside, "Click inside outlines selects them")
+        .checkbox(&mut e.click_inside, t("menu-click-inside-outlines-selects-them"))
         .on_hover_text(
             "A click inside a shape that sews only its outline selects it; open lines are easier to hit",
         )
         .changed();
     ui.separator();
-    ui.label(RichText::new("Updates").weak());
+    ui.label(RichText::new(t("menu-updates")).weak());
     changed |= ui
         .checkbox(
             &mut app.ui.prefs.updates.check,
             "Check for updates at startup",
         )
-        .on_hover_text("Asks GitHub for a newer OpenStitch release each time the editor starts")
+        .on_hover_text(t("menu-asks-github-for-a-newer-openstitch-tip"))
         .changed();
     changed |= ui
         .checkbox(
             &mut app.ui.prefs.updates.include_prereleases,
             "Include pre-releases",
         )
-        .on_hover_text("Also offer alpha, beta and release-candidate versions")
+        .on_hover_text(t("menu-also-offer-alpha-beta-and-release-tip"))
         .changed();
-    if ui.button("Check for Updates Now").clicked() {
+    if ui.button(t("menu-check-for-updates-now")).clicked() {
         app.update.check(true);
         ui.close();
     }
@@ -1623,14 +1624,14 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
 }
 
 pub fn help_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
-    if ui.button("Instruction Manual").clicked() {
+    if ui.button(t("menu-instruction-manual")).clicked() {
         ui.ctx().open_url(egui::OpenUrl::new_tab(
             "https://github.com/cristianonescu/OpenStitch#readme",
         ));
     }
     if ui
-        .button("Ready-to-Sew Designs")
-        .on_hover_text("Calibration designs, machine checks and a design for each feature, ready for the machine")
+        .button(t("menu-ready-to-sew-designs"))
+        .on_hover_text(t("menu-calibration-designs-machine-checks-and-a-tip"))
         .clicked()
     {
         use openstitch_app::editor::sew_kit;
@@ -1640,33 +1641,33 @@ pub fn help_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
             ui.ctx().open_url(egui::OpenUrl::new_tab(sew_kit::ONLINE));
         }
     }
-    if ui.button("Ready-to-Sew Designs Online").clicked() {
+    if ui.button(t("menu-ready-to-sew-designs-online")).clicked() {
         ui.ctx().open_url(egui::OpenUrl::new_tab(
             openstitch_app::editor::sew_kit::ONLINE,
         ));
     }
     if ui
-        .button("Getting Started")
-        .on_hover_text("Your first design, step by step, with a button for each step")
+        .button(t("menu-getting-started"))
+        .on_hover_text(t("menu-your-first-design-step-by-step-tip"))
         .clicked()
     {
         app.ui.start.page_open = true;
     }
     if ui
-        .button("Machine Setup")
-        .on_hover_text("Beyond PE-DESIGN: your machine's brand, hoop and thread cutter, for new designs and export checks")
+        .button(t("menu-machine-setup"))
+        .on_hover_text(t("menu-beyond-pe-design-your-machine-s-tip"))
         .clicked()
     {
         app.machine_setup.open();
     }
-    if ui.button("Keyboard Shortcuts").clicked() {
+    if ui.button(t("menu-keyboard-shortcuts")).clicked() {
         app.ui.shortcuts_open = true;
     }
-    if ui.button("Check for Updates").clicked() {
+    if ui.button(t("menu-check-for-updates")).clicked() {
         app.update.check(true);
         ui.close();
     }
-    if ui.button("About OpenStitch").clicked() {
+    if ui.button(t("menu-about-openstitch")).clicked() {
         app.ui.about_open = true;
     }
 }
@@ -1929,10 +1930,10 @@ fn application_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         ui.add_space(10.0);
         ui.vertical(|ui| {
             ui.set_width(250.0);
-            ui.label(RichText::new("Recent Files").strong());
+            ui.label(RichText::new(t("menu-recent-files")).strong());
             let recent = app.ui.prefs.recent.clone();
             if recent.is_empty() {
-                crate::art::notice(ui, crate::art::Art::DbEmpty, 64.0, "No files opened yet");
+                crate::art::notice(ui, crate::art::Art::DbEmpty, 64.0, t("menu-no-files-opened-yet"));
             }
             for (k, p) in recent.iter().enumerate() {
                 let name = p.file_name().map_or_else(
@@ -1959,8 +1960,8 @@ fn application_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     ui.add_space(8.0);
     ui.horizontal(|ui| {
         ui.add_space(250.0);
-        ui.menu_button("Options", |ui| options_menu(app, ui));
-        if ui.button("Exit").clicked() {
+        ui.menu_button(t("menu-options"), |ui| options_menu(app, ui));
+        if ui.button(t("menu-exit")).clicked() {
             app.guarded(Pending::Exit);
         }
     });

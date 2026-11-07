@@ -1238,6 +1238,8 @@ mod tests {
                     }
                     let label =
                         &rest[q + 1..q + 1 + rest[q + 1..].find('"').expect("closing quote")];
+                    // A translated text (#555): its English.
+                    let label = openstitch_app::editor::ui_texts::english(label).unwrap_or(label);
                     assert!(
                         labels.contains(&label),
                         "{func}: '{label}' has no assistant setting or command"
@@ -1250,10 +1252,18 @@ mod tests {
         // EXPORT_MENU label is drawn there, and every command exists.
         let body = &src[src.find("fn export_menu").expect("export_menu")..];
         let body = &body[..body.find("\npub fn menu(").expect("end of the export menu")];
-        for call in [".button(\"", ".menu_button(\""] {
+        use openstitch_app::editor::ui_texts::{UI_TEXTS, english};
+        for call in [".button(", ".menu_button("] {
             for (i, _) in body.match_indices(call) {
                 let rest = &body[i + call.len()..];
-                let label = &rest[..rest.find('"').expect("closing quote")];
+                let Some(rest) = rest
+                    .strip_prefix("t(\"")
+                    .or_else(|| rest.strip_prefix('"'))
+                else {
+                    continue;
+                };
+                let raw = &rest[..rest.find('"').expect("closing quote")];
+                let label = english(raw).unwrap_or(raw);
                 assert!(
                     EXPORT_MENU.iter().any(|(l, _)| *l == label),
                     "File ▸ Export: '{label}' is not in EXPORT_MENU"
@@ -1261,8 +1271,12 @@ mod tests {
             }
         }
         for (label, command) in EXPORT_MENU {
+            let drawn = body.contains(&format!("\"{label}\""))
+                || UI_TEXTS
+                    .iter()
+                    .any(|(id, e)| e == label && body.contains(&format!("t(\"{id}\")")));
             assert!(
-                body.contains(&format!("\"{label}\"")),
+                drawn,
                 "EXPORT_MENU lists '{label}', which File ▸ Export does not draw"
             );
             assert!(ids.contains(*command), "'{label}' runs {command}, not a command");
