@@ -925,7 +925,8 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                     plan.push(entry);
                     continue;
                 }
-                Stitch::Fill | Stitch::Satin => {}
+                // A dot is decided below, from the region it would sew.
+                Stitch::Fill | Stitch::Satin | Stitch::Dot => {}
             }
             let satin = entry.stitch == Stitch::Satin;
             let set_angle = ov.and_then(|o| o.angle);
@@ -1064,11 +1065,12 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                         entry.reason = Reason::Speck;
                         continue;
                     }
-                    // Line art draws its dots on purpose: a small star of stitches 0.35 mm
-                    // or longer, with no tie-in or lock to pile up in one spot (#713).
+                    // Line art draws its dots on purpose: the dot's own fill stitches, thinned to
+                    // 0.35 mm apart and without the tie-in and lock that stacked 7 in one spot
+                    // (#713). A star of stitches instead lowered g11's MS-SSIM 0.653 to 0.633.
                     entry.stitch = Stitch::Dot;
                     entry.reason = Reason::Dot;
-                    if let Some(mut o) = dot_star(&contours, &thread) {
+                    if let Some(mut o) = dot_points(&contours, &region, &thread) {
                         o.name = Some(format!(
                             "Auto Punch {} {} dot",
                             objects.len() + 1,
@@ -1076,8 +1078,22 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                         ));
                         sew(o, &thread, &mut objects);
                     }
-                    plan.push(entry);
                     continue;
+                }
+                // Line art's hairlines: rows across one are 0.2-0.3 mm long and, with the tie-in,
+                // stand in one spot (g11 with the photo preset: 7 in a row, #713). The rows turn
+                // to run along it.
+                if p.mode == Mode::OpenStitch
+                    && line_art
+                    && region.kind == RegionType::Fill
+                    && set_angle.is_none()
+                    && stands_in_place(&contours, &region)
+                {
+                    let mut turned = region.clone();
+                    turned.angle = normalize(region.angle + 90.0) + 0.0;
+                    if !stands_in_place(&contours, &turned) {
+                        region = turned;
+                    }
                 }
                 if region.kind == RegionType::Fill {
                     fill_of[c] = Some(region.angle);
@@ -1401,30 +1417,55 @@ fn speck(contours: &[Contour], region: &RegionSewing) -> bool {
     x0 <= x1 && x1 - x0 < SPECK_MM * 10.0 && y1 - y0 < SPECK_MM * 10.0
 }
 
-/// A drawn dot's star (#713): arms this long, 0.1 mm: over 0.3 mm, so no stitch sews in place,
-/// and within the dot's own size up to 0.6 mm.
-const DOT_ARM: (f64, f64) = (3.5, 6.0);
+/// Most stitches of 0.3 mm or less in a row a region may sew (`tools/sew_check.py` allows 6).
+const MAX_IN_PLACE: usize = 6;
 
-/// A dot sewn as a small star: four arms out from its centre and back, fixed needle points
-/// (no tie-in or lock round them, which stacked 7 stitches in one spot on g11).
-fn dot_star(contours: &[Contour], thread: &Thread) -> Option<DesignObject> {
-    let pts: Vec<openstitch_design::Vec2> = contours
+/// The tie-in the compiler sews before a run: 0.3 mm out and back.
+const TIE_IN_STEPS: usize = 3;
+
+/// Whether the region's layers, with their tie-in, would sew more than [`MAX_IN_PLACE`]
+/// stitches of 0.3 mm or less in a row (#713).
+fn stands_in_place(contours: &[Contour], region: &RegionSewing) -> bool {
+    let closed: Vec<Contour> = contours.iter().filter(|c| c.closed).cloned().collect();
+    openstitch_design::region::layers(&closed, region, &[])
         .iter()
-        .filter(|c| c.closed)
-        .flat_map(|c| c.outline_points())
-        .collect();
-    let b = openstitch_design::Rect::enclosing(pts)?;
-    let c = b.center();
-    let r = (b.width().max(b.height()) / 2.0).clamp(DOT_ARM.0, DOT_ARM.1);
-    let mut stitches = vec![openstitch_core::Stitch::new(c.x, c.y, openstitch_core::Command::Stitch)];
-    for (dx, dy) in [(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)] {
-        stitches.push(openstitch_core::Stitch::new(
-            c.x + dx * r,
-            c.y + dy * r,
-            openstitch_core::Command::Stitch,
-        ));
-        stitches.push(openstitch_core::Stitch::new(c.x, c.y, openstitch_core::Command::Stitch));
+        .flatten()
+        .any(|run| {
+            let mut n = 0;
+            run.windows(2).any(|w| {
+                n = if w[0].distance(w[1]) <= 3.0 { n + 1 } else { 0 };
+                n + TIE_IN_STEPS > MAX_IN_PLACE
+            })
+        })
+}
+
+/// A dot's needle points are at least this far apart, 0.1 mm: over 0.3 mm, so none sews in
+/// place (#713).
+const DOT_STEP: f64 = 3.5;
+
+/// A drawn dot sewn as its own fill's needle points, thinned to [`DOT_STEP`], as fixed
+/// stitches: no tie-in or lock round them, which stacked 7 stitches in one spot on g11.
+fn dot_points(contours: &[Contour], region: &RegionSewing, thread: &Thread) -> Option<DesignObject> {
+    let closed: Vec<Contour> = contours.iter().filter(|c| c.closed).cloned().collect();
+    let mut kept: Vec<openstitch_design::Vec2> = Vec::new();
+    for q in openstitch_design::region::layers(&closed, region, &[])
+        .iter()
+        .flatten()
+        .flatten()
+    {
+        if kept.last().is_none_or(|k| k.distance(*q) >= DOT_STEP) {
+            kept.push(*q);
+        }
     }
+    if kept.len() < 2 {
+        // A dot too small for two points 0.35 mm apart: one stitch out and back across it.
+        let c = *kept.first()?;
+        kept = vec![c, c + openstitch_design::v2(DOT_STEP, 0.0), c];
+    }
+    let stitches = kept
+        .iter()
+        .map(|q| openstitch_core::Stitch::new(q.x, q.y, openstitch_core::Command::Stitch))
+        .collect();
     Some(DesignObject::stitches(openstitch_design::StitchBlock {
         stitches,
         threads: vec![thread.clone()],
