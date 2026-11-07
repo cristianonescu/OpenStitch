@@ -1332,7 +1332,7 @@
    199.3,
    151.1
   ],
-  "stitches": 108211,
+  "stitches": 108208,
   "trims": 1633,
   "threads": [
    "843 Beige",
@@ -1347,6 +1347,6 @@
   "sewingMinutes": 219.0,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-pe-compatible.png",
-  "sha256": "2278204adb7ecba99b4835f2096cb797a7be7040cad9166e730753fa1ed3e256"
+  "sha256": "c05b5b4265f87f74333bc606a355f332b672291c65d0933448c36901d8d91e4d"
  }
 }
