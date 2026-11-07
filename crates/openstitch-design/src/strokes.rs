@@ -1638,6 +1638,7 @@ impl GlyphStrokes {
             };
             // Each piece of the letter from the column end nearest where the sewing is.
             while let Some((c, end)) = order.nearest_end() {
+                let end = order.leading_end(c, end);
                 let first = order.out.len();
                 order.visit(c, Entry::End(end));
                 if first > 0
@@ -1751,6 +1752,52 @@ impl Order<'_> {
             .filter(|e| e.0 <= nearest + 10.0)
             .min_by(|a, b| a.1.total_cmp(&b.1).then(a.0.total_cmp(&b.0)))
             .map(|e| (e.2, e.3))
+    }
+
+    /// Which end to sew a stand-alone column `c` (a piece of one stroke, no junction: N's
+    /// stems and diagonal, cut apart at its acute corners) from: the one whose far end lands
+    /// nearest another piece still to sew, so the needle runs on into it instead of trimming
+    /// (PE-DESIGN sews satin N, W, K and Z in one run: stroke-satin-n, round 8, #446). The
+    /// travel to the start counts too, except for the letter's first piece, which is jumped
+    /// to anyway. Other columns keep `end`.
+    fn leading_end(&self, c: usize, end: usize) -> usize {
+        let s = &self.strokes[c];
+        let alone = self.cols[c].parts.len() == 1
+            && self.cols[c].through.is_empty()
+            && !s.closed
+            && s.centre.len() >= 2
+            && !s.ends.iter().any(|e| matches!(e, StrokeEnd::Junction(_)));
+        if !alone {
+            return end;
+        }
+        let tip = |e: usize| {
+            if e == 0 {
+                s.centre[0]
+            } else {
+                s.centre[s.centre.len() - 1]
+            }
+        };
+        let next = |p: Vec2| {
+            self.strokes
+                .iter()
+                .enumerate()
+                .filter(|&(k, o)| k != c && !self.done[k] && !o.centre.is_empty())
+                .flat_map(|(_, o)| [o.centre[0], o.centre[o.centre.len() - 1]])
+                .map(|q| q.distance(p))
+                .fold(f64::INFINITY, f64::min)
+        };
+        let first = self.out.is_empty();
+        let cost = |e: usize| {
+            let lead = if first { 0.0 } else { tip(e).distance(self.at) };
+            let after = next(tip(1 - e));
+            lead + if after.is_finite() { after } else { 0.0 }
+        };
+        // Only a clear gain moves away from the nearest end (1 mm).
+        if cost(1 - end) + 10.0 < cost(end) {
+            1 - end
+        } else {
+            end
+        }
     }
 
     /// Arc length along column `c` of each through junction.
