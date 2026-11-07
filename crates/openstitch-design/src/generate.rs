@@ -248,9 +248,9 @@ impl StaggerCurve {
     pub fn at(self, t: f64) -> f64 {
         let t = t.rem_euclid(1.0);
         match self {
-            StaggerCurve::Wave => (1.0 - (std::f64::consts::TAU * t).cos()) / 2.0,
+            StaggerCurve::Wave => (1.0 - crate::fmath::Det::dcos(std::f64::consts::TAU * t)) / 2.0,
             StaggerCurve::Triangle => 1.0 - (1.0 - 2.0 * t).abs(),
-            StaggerCurve::Arc => (std::f64::consts::PI * t).sin(),
+            StaggerCurve::Arc => crate::fmath::Det::dsin(std::f64::consts::PI * t),
         }
     }
 }
