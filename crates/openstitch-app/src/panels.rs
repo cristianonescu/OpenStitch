@@ -2,6 +2,7 @@
 //! in `panes.rs`.
 
 use crate::app::EditorApp;
+use crate::pickers_ui::{self, Sample, Tile};
 use eframe::egui::{self, Color32, RichText, Sense};
 use openstitch_app::editor::inspector::{self, Common, Control, InspectorModel};
 use openstitch_app::editor::render::color_at;
@@ -615,13 +616,18 @@ pub fn region_section(
         .show(ui, |ui| {
             if show(&["Region sewing type", "regionType"]) {
                 ui.label("Type");
-                if let Some(k) = kind_combo::<Option<RegionType>>(
-                    ui,
-                    "region-type",
-                    &m.region_kind,
-                    &inspector::region_types(),
-                    true,
-                ) {
+                let picked = if app.ui.prefs.picture_pickers {
+                    region_type_picker(app, ui, m)
+                } else {
+                    kind_combo::<Option<RegionType>>(
+                        ui,
+                        "region-type",
+                        &m.region_kind,
+                        &inspector::region_types(),
+                        true,
+                    )
+                };
+                if let Some(k) = picked {
                     out.push(m.set_region_type(k));
                 }
                 ui.end_row();
@@ -652,6 +658,15 @@ pub fn region_section(
                     || !c.shown(&filter)
                     || !(app.ui.prefs.advanced_attributes || c.basic())
                 {
+                    continue;
+                }
+                if app.ui.prefs.picture_pickers
+                    && let Some(v) = pattern_picker(app, ui, &c, r.kind, m)
+                {
+                    out.push(m.set_region(c.params(json!(v))));
+                    continue;
+                }
+                if app.ui.prefs.picture_pickers && c.param() == "pattern" {
                     continue;
                 }
                 if let Some(v) = control(app, ui, &c) {
@@ -726,13 +741,18 @@ pub fn line_section(
         .show(ui, |ui| {
             if show(&["Line sewing type", "lineType"]) {
                 ui.label("Type");
-                if let Some(k) = kind_combo::<Option<LineType>>(
-                    ui,
-                    "line-type",
-                    &m.line_kind,
-                    &inspector::line_types(),
-                    true,
-                ) {
+                let picked = if app.ui.prefs.picture_pickers {
+                    line_type_picker(app, ui, m)
+                } else {
+                    kind_combo::<Option<LineType>>(
+                        ui,
+                        "line-type",
+                        &m.line_kind,
+                        &inspector::line_types(),
+                        true,
+                    )
+                };
+                if let Some(k) = picked {
                     out.push(m.set_line_type(k));
                 }
                 ui.end_row();
@@ -755,11 +775,138 @@ pub fn line_section(
                 if !c.shown(&filter) || !(app.ui.prefs.advanced_attributes || c.basic()) {
                     continue;
                 }
+                if app.ui.prefs.picture_pickers && c.param() == "motif" {
+                    if let Some(v) = motif_picker(app, ui, &c, m) {
+                        out.push(m.set_line(c.params(json!(v))));
+                    }
+                    continue;
+                }
                 if let Some(v) = control(app, ui, &c) {
                     out.push(m.set_line(c.params(v)));
                 }
             }
         });
+}
+
+/// Region sewing type as pictures (#656): each type's stitches on a sample shape.
+fn region_type_picker(
+    app: &mut EditorApp,
+    ui: &mut egui::Ui,
+    m: &InspectorModel,
+) -> Option<Option<RegionType>> {
+    let types = inspector::region_types();
+    let current = match &m.region_kind {
+        Common::Same(k) => inspector::region_name(*k).to_string(),
+        _ => String::new(),
+    };
+    let tiles: Vec<Tile> = types
+        .iter()
+        .map(|&(k, label)| Tile {
+            value: inspector::region_name(k).to_string(),
+            label: label.to_string(),
+            sample: Sample::Region(json!({ "type": inspector::region_name(k) })),
+        })
+        .collect();
+    let v = pickers_ui::picker(app, ui, "region-type", &current, &tiles, &|v| {
+        m.set_region(json!({ "type": v }))
+    })?;
+    types
+        .into_iter()
+        .find(|&(k, _)| inspector::region_name(k) == v)
+        .map(|(k, _)| k)
+}
+
+/// Line sewing type as pictures (#656).
+fn line_type_picker(
+    app: &mut EditorApp,
+    ui: &mut egui::Ui,
+    m: &InspectorModel,
+) -> Option<Option<LineType>> {
+    let types = inspector::line_types();
+    let current = match &m.line_kind {
+        Common::Same(k) => inspector::line_name(*k).to_string(),
+        _ => String::new(),
+    };
+    let tiles: Vec<Tile> = types
+        .iter()
+        .map(|&(k, label)| Tile {
+            value: inspector::line_name(k).to_string(),
+            label: label.to_string(),
+            sample: Sample::Line(json!({ "type": inspector::line_name(k) })),
+        })
+        .collect();
+    let v = pickers_ui::picker(app, ui, "line-type", &current, &tiles, &|v| {
+        m.set_line(json!({ "type": v }))
+    })?;
+    types
+        .into_iter()
+        .find(|&(k, _)| inspector::line_name(k) == v)
+        .map(|(k, _)| k)
+}
+
+/// A programmable fill or net pattern as pictures (#656): one grid row, the new pattern id.
+fn pattern_picker(
+    app: &mut EditorApp,
+    ui: &mut egui::Ui,
+    c: &Control,
+    kind: RegionType,
+    m: &InspectorModel,
+) -> Option<String> {
+    let Control::Choice {
+        label,
+        param: "pattern",
+        value,
+        options,
+    } = c
+    else {
+        return None;
+    };
+    ui.label(*label);
+    let tiles: Vec<Tile> = options
+        .iter()
+        .map(|(v, l)| Tile {
+            value: v.clone(),
+            label: l.clone(),
+            sample: Sample::Region(json!({ "type": kind.id(), "pattern": v })),
+        })
+        .collect();
+    let picked = pickers_ui::picker(app, ui, "region-pattern", value, &tiles, &|v| {
+        m.set_region(json!({ "pattern": v }))
+    });
+    ui.end_row();
+    picked
+}
+
+/// A motif as pictures (#656).
+fn motif_picker(
+    app: &mut EditorApp,
+    ui: &mut egui::Ui,
+    c: &Control,
+    m: &InspectorModel,
+) -> Option<String> {
+    let Control::Choice {
+        label,
+        value,
+        options,
+        ..
+    } = c
+    else {
+        return None;
+    };
+    ui.label(*label);
+    let tiles: Vec<Tile> = options
+        .iter()
+        .map(|(v, l)| Tile {
+            value: v.clone(),
+            label: l.clone(),
+            sample: Sample::Line(json!({ "type": LineType::Motif.id(), "motif": v })),
+        })
+        .collect();
+    let picked = pickers_ui::picker(app, ui, "line-motif", value, &tiles, &|v| {
+        m.set_line(json!({ "motif": v }))
+    });
+    ui.end_row();
+    picked
 }
 
 /// Shows one attribute control (label and widget, one grid row); returns a new value.
