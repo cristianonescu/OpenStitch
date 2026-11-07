@@ -1,7 +1,7 @@
 # Example designs
 
 Complete, tested designs to start from. Open the one closest to the request with
-`skill_reference {"name": "<example>"}` (for example `"strawberry"`), then adapt it: its steps
+`skill_reference {"file": "<example>"}` (for example `"strawberry"`), then adapt it: its steps
 are a `run_batch` `steps` list (and a `stitchtool exec` script). Each starts with `design.new`,
 so ids count from 1 in creation order; when you change the parts, recount the ids or create the
 shapes in one batch and style them in the next. Each ends with `design.check`; add
