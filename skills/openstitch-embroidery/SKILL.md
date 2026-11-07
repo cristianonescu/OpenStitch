@@ -20,7 +20,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 - Lengths are **millimetres**. The Design Page's origin is its **top-left corner**; x grows to
   the right, y grows **down**. A 100 × 100 mm page has its centre at (50, 50).
 - **Sewing angles** (`object.setRegion` `angle`) are degrees **counter-clockwise on screen**,
-  0 = horizontal rows; 45 = rows rising to the right; 90 = vertical rows.
+  0 = horizontal rows; 45 = rows rising to the right; 90 = vertical rows. Cross stitch
+  (`type: crossStitch`) ignores `angle`: its grid stays on the page axes, as in PE-DESIGN. Set
+  its `spacing` (cell size) and `times` (`single`, `double`, `triple`); `crossKind` `half`,
+  `upright` or `smyrna` is beyond PE-DESIGN (default `full`).
 - **Rotation** of objects (`object.rotate` `degrees`) and of preset shapes (`shape.preset`
   `rotation`) is **clockwise**.
 - Densities are rows (or lines) per mm; `pitch` and `stitchLength` are mm.

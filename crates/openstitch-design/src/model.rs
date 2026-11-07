@@ -1042,6 +1042,85 @@ pub enum StaggerKind {
     Random,
 }
 
+/// Cross stitch Times, as PE-DESIGN 11.50 offers it (Single | Double | Triple, #614): how many
+/// times every cross is sewn. PE-DESIGN covers each diagonal 2, 4 or 6 times (the round8
+/// references 614-cross-single/-double/-triple: 410, 666 and 922 stitches on a 20 mm square,
+/// 256 more per step for its 64 cells).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CrossTimes {
+    #[default]
+    Single,
+    Double,
+    Triple,
+}
+
+impl CrossTimes {
+    pub const ALL: [CrossTimes; 3] = [CrossTimes::Single, CrossTimes::Double, CrossTimes::Triple];
+
+    /// The name in commands and files.
+    pub fn id(self) -> &'static str {
+        match self {
+            CrossTimes::Single => "single",
+            CrossTimes::Double => "double",
+            CrossTimes::Triple => "triple",
+        }
+    }
+
+    /// 1, 2 or 3.
+    pub fn count(self) -> usize {
+        match self {
+            CrossTimes::Single => 1,
+            CrossTimes::Double => 2,
+            CrossTimes::Triple => 3,
+        }
+    }
+
+    /// From 1, 2 or 3 (anything above 3 is Triple, below 2 Single).
+    pub fn from_count(n: usize) -> Self {
+        match n {
+            0 | 1 => CrossTimes::Single,
+            2 => CrossTimes::Double,
+            _ => CrossTimes::Triple,
+        }
+    }
+}
+
+/// The stitch drawn in every cell of a cross stitch region. PE-DESIGN 11.50 sews only the full
+/// cross (X); the others are OpenStitch's own (beyond PE-DESIGN, #614).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CrossKind {
+    /// An X: both diagonals (PE-DESIGN's cross stitch).
+    #[default]
+    Full,
+    /// Half cross: the "/" diagonal only.
+    Half,
+    /// Upright cross: a "+" through the cell's middle.
+    Upright,
+    /// Smyrna (double) cross: an X with a "+" over it.
+    Smyrna,
+}
+
+impl CrossKind {
+    pub const ALL: [CrossKind; 4] = [
+        CrossKind::Full,
+        CrossKind::Half,
+        CrossKind::Upright,
+        CrossKind::Smyrna,
+    ];
+
+    /// The name in commands and files.
+    pub fn id(self) -> &'static str {
+        match self {
+            CrossKind::Full => "full",
+            CrossKind::Half => "half",
+            CrossKind::Upright => "upright",
+            CrossKind::Smyrna => "smyrna",
+        }
+    }
+}
+
 impl UnderlayStyle {
     pub const ALL: [UnderlayStyle; 8] = [
         UnderlayStyle::Edge,
@@ -1474,9 +1553,16 @@ pub struct RegionSewing {
     /// Spirals turn counter-clockwise.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub counterclockwise: bool,
-    /// Cross stitch: each diagonal sewn three times.
+    /// Cross stitch: the old "triple" switch (each diagonal sewn three times whole), which is
+    /// Times Double's sewing; read from older files only (see [`RegionSewing::cross_times`]).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub triple: bool,
+    /// Cross stitch Times (PE-DESIGN's Single, Double, Triple).
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub times: CrossTimes,
+    /// Cross stitch kind: full (PE-DESIGN), half, upright or Smyrna (beyond PE-DESIGN).
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub cross_kind: CrossKind,
     /// Decorative fill: random shift of needle points, % of the run pitch.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub random_shift: Option<f64>,
@@ -1593,6 +1679,8 @@ impl RegionSewing {
             start_inside: false,
             counterclockwise: false,
             triple: false,
+            times: CrossTimes::Single,
+            cross_kind: CrossKind::Full,
             random_shift: None,
             base_sewing: false,
             contour_strategy: ContourStrategy::default(),
@@ -1763,6 +1851,16 @@ impl RegionSewing {
                 | UnderlayStyle::Auto
                 | UnderlayStyle::CentreWalk => false,
             }
+    }
+
+    /// Cross stitch Times: `times`, or Double for a region saved with the old `triple` switch
+    /// (which sewed what Double sews).
+    pub fn cross_times(&self) -> CrossTimes {
+        if self.triple && self.times == CrossTimes::Single {
+            CrossTimes::Double
+        } else {
+            self.times
+        }
     }
 
     /// The under sewing's components: `underlay_parts` when set, else those of
