@@ -5784,6 +5784,127 @@
       "os": "Windows 11 Pro",
       "sha256": "44d00eb942e2ca2d7ae671e0b95fe34720fb1f64d10f569ebe02ecd3d51748af",
       "settings": "Round 5 stroke captures (pe-refs-4). Font Lato Bold installed for the current Windows user as a TrueType font. App menu > New (100 x 100 mm page). Text tool, typed i, size 20.0 mm; region Fill Stitch at PE-DESIGN's text Fill defaults (density 5.0, under sewing off, Frequency 30 %, step 4.0), line Not Sewn. Save As PES (default type). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
+    },
+    {
+      "file": "text/stroke-satin-N.pes",
+      "spec": "stroke-satin-n",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-07",
+      "os": "Windows 11 Pro",
+      "sha256": "dd3b3e92d4989ec460ce8a3f2866e2c105a1937ec9e811f2f8ca95edfa50e66d",
+      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; owner notes folder PE-reference-notes\\round8, notes.md). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed N, size 20.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
+    },
+    {
+      "file": "text/stroke-blocks-satin-N.pes",
+      "spec": "stroke-blocks-satin-n",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-07",
+      "os": "Windows 11 Pro",
+      "sha256": "694a5f723a6b4460aa5396b8062b66cca65ca625fba274d6e15509ed7578dec2",
+      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; owner notes folder PE-reference-notes\\round8, notes.md). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed N, size 20.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. Then Text > Convert to Blocks (a shape with direction lines, the same stitches). App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
+    },
+    {
+      "file": "text/stroke-satin-N-8.pes",
+      "spec": "stroke-satin-n-8",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-07",
+      "os": "Windows 11 Pro",
+      "sha256": "8abd36974c4862c2d3d0cf272173cd79f01d3744a6ca1f99935694682425f74c",
+      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; owner notes folder PE-reference-notes\\round8, notes.md). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed N, size 8.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
+    },
+    {
+      "file": "text/stroke-satin-M.pes",
+      "spec": "stroke-satin-m",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-07",
+      "os": "Windows 11 Pro",
+      "sha256": "5b10b0b29dcf4f5584d4e9fd9140630c16004beaea538f1620ac1587c133ca83",
+      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; owner notes folder PE-reference-notes\\round8, notes.md). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed M, size 20.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
+    },
+    {
+      "file": "text/stroke-satin-M-8.pes",
+      "spec": "stroke-satin-m-8",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-07",
+      "os": "Windows 11 Pro",
+      "sha256": "28d7cc5540e0256d8675f41df80585477ec47b0c3f9a37b2ff59223586d6ef17",
+      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; owner notes folder PE-reference-notes\\round8, notes.md). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed M, size 8.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
+    },
+    {
+      "file": "text/stroke-satin-W.pes",
+      "spec": "stroke-satin-w",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-07",
+      "os": "Windows 11 Pro",
+      "sha256": "2d4eec2ef96a53669e99d263df1762246144b15d0e8a69182dbd9d5aa5f6655d",
+      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; owner notes folder PE-reference-notes\\round8, notes.md). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed W, size 20.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
+    },
+    {
+      "file": "text/stroke-satin-W-8.pes",
+      "spec": "stroke-satin-w-8",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-07",
+      "os": "Windows 11 Pro",
+      "sha256": "5651edc70e35ac6164b01ac46312293e0ba95cb35af2b91f117879aa64ea4871",
+      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; owner notes folder PE-reference-notes\\round8, notes.md). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed W, size 8.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
+    },
+    {
+      "file": "text/stroke-satin-K.pes",
+      "spec": "stroke-satin-k",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-07",
+      "os": "Windows 11 Pro",
+      "sha256": "f970ac3da34aa443544ce566d26b27d104ab97b488e417bee4b9c00d2107d138",
+      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; owner notes folder PE-reference-notes\\round8, notes.md). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed K, size 20.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
+    },
+    {
+      "file": "text/stroke-satin-K-8.pes",
+      "spec": "stroke-satin-k-8",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-07",
+      "os": "Windows 11 Pro",
+      "sha256": "08335af0a7f97f0f6a4823e02f1b4d0ffcec496c958784c36e8f34cdb8cda9b1",
+      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; owner notes folder PE-reference-notes\\round8, notes.md). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed K, size 8.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
+    },
+    {
+      "file": "text/stroke-satin-Z.pes",
+      "spec": "stroke-satin-z",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-07",
+      "os": "Windows 11 Pro",
+      "sha256": "859917e82713702b34854b4771997f7721de383fbd188b34439f6cd8147677ee",
+      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; owner notes folder PE-reference-notes\\round8, notes.md). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed Z, size 20.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
+    },
+    {
+      "file": "text/stroke-satin-Z-8.pes",
+      "spec": "stroke-satin-z-8",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-07",
+      "os": "Windows 11 Pro",
+      "sha256": "38126e3b980a46eec2eb5cf31c2a6d8c2ef542e76c8bbcc1805d7c2d78a15f59",
+      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; owner notes folder PE-reference-notes\\round8, notes.md). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed Z, size 8.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
     }
   ]
 }

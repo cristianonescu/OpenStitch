@@ -1,0 +1,105 @@
+{
+  "schema": "openstitch-compat/1",
+  "id": "stroke-satin-z",
+  "area": "text",
+  "title": "Satin text Z at 20 mm sews stroke by stroke as PE-DESIGN does",
+  "description": "Z in Lato Bold at 20 mm with PE-DESIGN's text defaults (Satin, density 5.0, under sewing off). First PE-DESIGN references for a letter with an acute crotch (#446): N's top-left and bottom-right corners, M's and W's notches, K's arms, Z's corners.",
+  "covers": {
+    "audit": [
+      6
+    ],
+    "featureMatrix": [
+      {
+        "area": "Lettering",
+        "feature": "Text entry and attributes"
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "kind": "measured",
+      "note": "compat/reference/text/stroke-satin-Z.pes, PE-DESIGN 11.50, round 8 (2026-11-07, #446)"
+    }
+  ],
+  "script": [
+    {
+      "command": "design.new",
+      "params": {
+        "width": 100,
+        "height": 100
+      }
+    },
+    {
+      "command": "text.add",
+      "params": {
+        "text": "Z",
+        "font": "lato-bold",
+        "size": 20,
+        "x": 20,
+        "y": 70,
+        "fill": "Red"
+      }
+    }
+  ],
+  "exports": [
+    {
+      "path": "text.pes"
+    }
+  ],
+  "references": [
+    {
+      "id": "pe-design",
+      "file": "text/stroke-satin-Z.pes",
+      "make": "On a 100 × 100 mm Design Page, with Lato Bold (crates/openstitch-design/fonts/Lato-Bold.ttf, OFL) installed as a TrueType font: Text tool, type Z, size 20.0 mm, everything else at PE-DESIGN's text defaults (Satin, density 5.0, under sewing off, line Not Sewn). Save As PES (default type)."
+    }
+  ],
+  "measurements": [
+    {
+      "id": "stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "text.pes"
+      },
+      "evidence": "PE-DESIGN 11.50 reference: needle points of the satin letter",
+      "reference": {
+        "tolerance": {
+          "percent": 25.0
+        }
+      }
+    },
+    {
+      "id": "bounds-width",
+      "measure": {
+        "kind": "bounds",
+        "property": "width"
+      },
+      "source": {
+        "export": "text.pes"
+      },
+      "evidence": "reference",
+      "reference": {
+        "tolerance": {
+          "mm": 0.3
+        }
+      }
+    },
+    {
+      "id": "bounds-height",
+      "measure": {
+        "kind": "bounds",
+        "property": "height"
+      },
+      "source": {
+        "export": "text.pes"
+      },
+      "evidence": "reference",
+      "reference": {
+        "tolerance": {
+          "mm": 0.3
+        }
+      }
+    }
+  ]
+}
