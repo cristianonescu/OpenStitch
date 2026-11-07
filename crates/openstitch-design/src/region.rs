@@ -480,8 +480,12 @@ fn layers_inner(
                 let rows = sawtooth_satin(closed, r, &p, holes);
                 if let Some(raised) = &r.satin_shaping.raised {
                     for run in &rows {
-                        let rungs: Vec<[Vec2; 2]> =
-                            run.chunks_exact(2).map(|w| [w[0], w[1]]).collect();
+                        let rungs: Vec<[Vec2; 2]> = run
+                            .as_chunks::<2>()
+                            .0
+                            .iter()
+                            .map(|w| [w[0], w[1]])
+                            .collect();
                         let pad = crate::column::padding(&rungs, raised);
                         if pad.len() > 1 {
                             out.push(vec![pad]);
