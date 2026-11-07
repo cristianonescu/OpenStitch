@@ -1,0 +1,13 @@
+{
+  "name": "openstitch-web-e2e",
+  "private": true,
+  "description": "Browser test of the web editor's page (#694): Chromium, Firefox and WebKit through Playwright",
+  "type": "module",
+  "license": "MIT OR Apache-2.0",
+  "scripts": {
+    "test": "node page.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.64.1"
+  }
+}

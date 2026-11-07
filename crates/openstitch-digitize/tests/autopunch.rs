@@ -1662,7 +1662,39 @@ fn plan_overrides_and_neighbour_angles() {
     let d = (vary[0] - vary[1]).rem_euclid(180.0);
     assert!(d.min(180.0 - d) >= autopunch::NEIGHBOUR_DEG, "{vary:?}");
     assert_eq!(autopunch::vary_angle(45.0, &[]), 45.0);
-    assert_eq!(autopunch::vary_angle(45.0, &[45.0]), 75.0);
+    assert_eq!(autopunch::vary_angle(45.0, &[80.0]), 45.0);
+    // Turned as far from its neighbours as it can be (#690): 90° from one; from 45° and -45°
+    // every turn keeps 30° from the nearer, and the first (75°) wins.
+    assert_eq!(autopunch::vary_angle(45.0, &[45.0]), -45.0);
+    assert_eq!(autopunch::vary_angle(45.0, &[45.0, -45.0]), 75.0);
+    // Pieces under VARY_MIN_MM2 keep PE's direction: two touching 4 × 4 mm squares.
+    let small = rects(
+        60,
+        40,
+        WHITE,
+        &[(10, 10, 14, 14, RED), (14, 10, 18, 14, BLUE)],
+    );
+    let out = autopunch::convert(
+        &small,
+        &frame,
+        &AutoPunch {
+            colors: 3,
+            mode: Mode::OpenStitch,
+            fabric: Some([255, 255, 255]),
+            angle_rule: AngleRule::VaryNeighbours,
+            min_area_mm2: 1.0,
+            ..Default::default()
+        },
+    )
+    .expect("converts");
+    let a: Vec<f64> = out
+        .objects
+        .iter()
+        .filter_map(|o| o.region.as_ref())
+        .map(|r| r.angle)
+        .collect();
+    assert_eq!(a.len(), 2, "{a:?}");
+    assert_eq!(a[0], a[1]);
 }
 
 /// #489 `leastTravel`: a U-shaped fill sews less thread at the direction it picks than at
@@ -1820,4 +1852,44 @@ fn underlap_reaches_under_the_next_colour_only() {
     // Blue, sewn last, keeps its outline.
     assert_eq!(under[1], plain[1]);
     assert_eq!(extents(Mode::PeDesign, 0.8), extents(Mode::PeDesign, 0.0));
+}
+
+/// #690: OpenStitch mode leaves out a region that would sew as a knot (every stitch within
+/// SPECK_MM), with the reason `speck`; PE-DESIGN-compatible mode sews it as before.
+#[test]
+fn openstitch_mode_leaves_out_specks() {
+    // A 60 × 40 mm red block and a 0.5 mm blue dot on white, 1 px = 0.1 mm.
+    let img = rects(
+        600,
+        400,
+        WHITE,
+        &[(50, 50, 350, 350, RED), (450, 200, 455, 205, BLUE)],
+    );
+    let frame = Frame::new(0.0, 0.0, 60.0, 600);
+    let run = |mode| {
+        autopunch::convert(
+            &img,
+            &frame,
+            &AutoPunch {
+                colors: 3,
+                mode,
+                fabric: Some([255, 255, 255]),
+                min_area_mm2: 0.0,
+                resolution: 600,
+                ..Default::default()
+            },
+        )
+        .expect("converts")
+    };
+    let open = run(Mode::OpenStitch);
+    let dot = open
+        .regions
+        .iter()
+        .find(|r| r.thread.rgb_value() != open.regions[0].thread.rgb_value() && r.area_mm2 < 1.0)
+        .expect("the dot is a region");
+    assert_eq!(dot.stitch, autopunch::Stitch::Skip, "{dot:?}");
+    assert_eq!(dot.reason.code(), "speck");
+    assert_eq!(open.objects.len(), 1);
+    let pe = run(Mode::PeDesign);
+    assert_eq!(pe.objects.len(), 2);
 }

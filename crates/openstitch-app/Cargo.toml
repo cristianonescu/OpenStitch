@@ -17,34 +17,42 @@ openstitch-core.workspace = true
 openstitch-design = { path = "../openstitch-design" }
 openstitch-engine = { path = "../openstitch-engine" }
 openstitch-formats = { path = "../openstitch-formats" }
-openstitch-library = { path = "../openstitch-library" }
-# Loopback automation socket (`--listen`).
-openstitch-remote = { path = "../openstitch-remote" }
+# The OS trash (`system-trash`) only on the desktop, below.
+openstitch-library = { path = "../openstitch-library", default-features = false }
 # The AI assistant's ui.render (the same preview as openstitch-mcp) and its base64 replies (B17).
 openstitch-render = { path = "../openstitch-render" }
 base64 = "0.23.1"
-# The Assistant panel (B17 A1): the Claude client and tool loop, the assistant MCP tools it
-# drives in-process, and the system keychain for the API key (pure-Rust backends, as SolidCraft).
-openstitch-assistant = { path = "../openstitch-assistant" }
-openstitch-mcp = { path = "../openstitch-mcp" }
-keyring = { version = "3.6", default-features = false, features = ["apple-native", "windows-native", "async-secret-service", "async-io", "crypto-rust"] }
 # Size-limited PNG/JPEG/BMP decoding for the background reference image.
 openstitch-digitize = { path = "../openstitch-digitize" }
 # Assistant attachments (B17 A4): pictures scaled to 2048 px and re-encoded; same image as
 # openstitch-digitize.
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "bmp"] }
-# Images on the clipboard (already used by eframe for text).
-arboard = "3.7"
 serde_json.workspace = true
 # Defaults: wgpu renderer, winit with X11 + Wayland (dlopen, so no system -dev packages), accesskit, clipboard, system font fallback.
 eframe = "0.37"
 rfd = "0.17"
 # Renders the command icons (assets/icons/commands); same usvg as openstitch-engine.
 resvg = { version = "0.48.1", default-features = false }
-# Self-update: release check, verified download, swap and restart (docs/research/updater.md).
-openstitch-update = { path = "../openstitch-update" }
 # Release notes (markdown) in the update dialog; no image loading or fetching.
 egui_commonmark = { version = "0.26", default-features = false, features = ["pulldown_cmark"] }
+
+# Desktop only (#693): the loopback socket, the system keychain, the system clipboard's images
+# and the self-updater have no browser equivalent; the web build gets src/platform.rs instead.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# The Assistant panel (B17 A1): the Claude client and tool loop (HTTPS through rustls) and the
+# assistant MCP tools it drives in-process.
+openstitch-assistant = { path = "../openstitch-assistant" }
+openstitch-mcp = { path = "../openstitch-mcp" }
+# Deleting designs to the system trash / Recycle Bin.
+openstitch-library = { path = "../openstitch-library", features = ["system-trash"] }
+# Loopback automation socket (`--listen`).
+openstitch-remote = { path = "../openstitch-remote" }
+# The system keychain for the Assistant's API key.
+keyring = { version = "3.6", default-features = false, features = ["apple-native", "windows-native", "async-secret-service", "async-io", "crypto-rust"] }
+# Images on the clipboard (already used by eframe for text).
+arboard = "3.7"
+# Self-update: release check, verified download, swap and restart (docs/research/updater.md).
+openstitch-update = { path = "../openstitch-update" }
 
 # macOS: the event-loop builder's `with_default_menu(false)` (see main.rs). Same winit as eframe.
 [target.'cfg(target_os = "macos")'.dependencies]

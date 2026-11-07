@@ -70,6 +70,12 @@ jobs:
       # runs the ~90 binaries one after another). It does not run doctests, so they follow.
       - run: cargo nextest run --workspace --locked
       - run: cargo test --doc --workspace --locked
+      # #705: the app's binary tests crashed on macOS now and then when they ran on several
+      # threads of one process (nextest runs each test in its own process, so it cannot show
+      # it). Three threaded runs here as evidence for the fix; drop once it has stayed green.
+      - name: App binary tests, threaded, three times (#705)
+        if: matrix.os == 'macos-latest'
+        run: for i in 1 2 3; do cargo test -p openstitch-app --bin openstitch --locked || exit 1; done
       # The Python package (#498): installed from python/, imported outside the repository, then
       # its tests against the debug stitchtool just built (same PES bytes as `stitchtool exec`).
       - name: Python package
@@ -170,6 +176,10 @@ jobs:
       # and warns when the matrix row count drops sharply (#406). Writes nothing.
       - name: readme_status --self-test
         run: python3 -I tools/readme_status.py --self-test
+      # Every implemented FEATURE_MATRIX row has a line in README's hand-written Features section
+      # (#709): an issue link the row names, or a phrase mapped in tools/readme_features.tsv.
+      - name: readme_status --check-features
+        run: python3 -I tools/readme_status.py --check-features
       # Feature PRs leave README's generated status blocks alone (#632): the coordinator refreshes
       # them on main in a docs-only PR from a `docs/readme-status-*` branch, which is skipped here.
       - name: readme_status --pr-guard
@@ -186,7 +196,7 @@ jobs:
     # uploaded as an artifact; nothing is hosted.
     name: web
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -203,6 +213,9 @@ jobs:
         with:
           tool: wasm-bindgen@0.2.129
       - run: cargo clippy -p openstitch-web --target wasm32-unknown-unknown --locked -- -D warnings
+      # The desktop editor's library (editor logic, no window) builds for the browser too (#693
+      # phase A1); --no-deps: only the app's own code is linted for wasm32.
+      - run: cargo clippy -p openstitch-app --lib --target wasm32-unknown-unknown --no-deps --locked -- -D warnings
       - run: cargo build -p openstitch-web --target wasm32-unknown-unknown --release --locked
       - name: wasm-bindgen (page and Node)
         run: |
@@ -220,6 +233,46 @@ jobs:
             cargo run -p openstitch-web --example web_export --locked -- "$f" target/web-native "${formats[@]}"
           done
           node web/smoke.mjs target/web-node target/web-native "${inputs[@]}" -- "${formats[@]}"
+      # The page itself in Chromium, Firefox and WebKit (Safari's engine), #694: it starts,
+      # "Open…" goes through the browser's file picker and "Export" through a real download,
+      # byte-identical to the native build. Playwright is pinned in web/e2e/package-lock.json.
+      # Browsers only, no `--with-deps`: that apt step took 57 minutes on a slow mirror.
+      # Chromium brings its own software GL. Firefox needs Mesa for WebGL on this GPU-less
+      # runner: a small install, given 8 minutes; if it does not finish, Firefox is only warned
+      # about. WebKit needs GTK 4 and GStreamer, which the runner lacks: warned about too, and
+      # checked on macOS by hand (docs/DISTRIBUTION.md "Web editor").
+      - name: Playwright and its browsers
+        working-directory: web/e2e
+        timeout-minutes: 10
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx playwright install chromium firefox webkit
+      - name: Mesa for Firefox's WebGL
+        id: mesa
+        continue-on-error: true
+        timeout-minutes: 8
+        run: sudo apt-get install -y --no-install-recommends -o Acquire::Retries=3 libegl1 libgles2 libgl1-mesa-dri xvfb xauth
+      - name: Page test (Chromium, Firefox, WebKit)
+        working-directory: web/e2e
+        timeout-minutes: 10
+        env:
+          MESA: ${{ steps.mesa.outcome }}
+        run: |
+          optional=(--optional webkit)
+          if [ "$MESA" != success ]; then
+            echo "::warning::Mesa did not install, so Firefox may have no WebGL here"
+            optional+=(--optional firefox)
+          fi
+          # Firefox has WebGL only with a display: it runs headed on a virtual one (Xvfb, Mesa's
+          # software GL); Chromium and WebKit stay headless.
+          HEADED_FIREFOX=1 xvfb-run -a node page.mjs "${optional[@]}" .. ../../target/web-native ../../compat/reference/pes/pes-default-v6.pes ../../target/web-shots
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: openstitch-web-screenshots
+          path: target/web-shots/
+          if-no-files-found: ignore
+          retention-days: 14
       - uses: actions/upload-artifact@v4
         with:
           name: openstitch-web

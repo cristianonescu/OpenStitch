@@ -77,6 +77,10 @@ pub struct RibbonState {
     pub open_app_menu: bool,
     /// Opens the Print dialog on the next frame (`--show print`).
     pub open_print: bool,
+    /// Opens the Test Swatches dialog on the next frame (`ui.run testSwatches`).
+    pub open_swatches: bool,
+    /// Opens the Job Sheet dialog on the next frame (`ui.run jobSheet`).
+    pub open_job_sheet: bool,
     last_tool: Tool,
     /// Objects Copy or Cut put on the clipboard (#500), kept here too: Paste falls back to
     /// them when the system clipboard holds no OpenStitch objects.
@@ -127,6 +131,8 @@ impl Default for RibbonState {
             prefs_path: None,
             open_app_menu: false,
             open_print: false,
+            open_swatches: false,
+            open_job_sheet: false,
             last_tool: Tool::Select,
             copied: None,
             system_clipboard: false,
@@ -238,6 +244,18 @@ pub fn fitted_texts(app: &EditorApp) -> Vec<u64> {
         .collect()
 }
 
+/// The gate before every use of the OS clipboard (#705), whose calls are in
+/// `openstitch_app::platform` (#693: arboard on the desktop, none in the browser). Tests never
+/// pass it: on macOS the clipboard is AppKit's pasteboard, which crashed the test binary when
+/// tests on several threads used it at once, and one test's Copy reached another's Paste. A test
+/// that gets here fails at once; `Launch` keeps `system_clipboard` off under `cfg(test)`.
+pub(crate) fn os_clipboard() -> Result<(), String> {
+    #[cfg(test)]
+    panic!("a test reached the OS clipboard (#705): keep ui.system_clipboard off in tests");
+    #[cfg(not(test))]
+    Ok(())
+}
+
 /// Checks, at most once a second, whether the system clipboard holds OpenStitch objects, so
 /// Paste is enabled after a Copy in another window.
 pub fn poll_clipboard(app: &mut EditorApp, now: f64) {
@@ -245,8 +263,8 @@ pub fn poll_clipboard(app: &mut EditorApp, now: f64) {
         return;
     }
     app.ui.clipboard_checked = now;
-    app.ui.clipboard_objects = arboard::Clipboard::new()
-        .and_then(|mut c| c.get_text())
+    app.ui.clipboard_objects = os_clipboard()
+        .and_then(|()| openstitch_app::platform::clipboard_text())
         .is_ok_and(|t| clipboard::looks_like(&t));
 }
 
@@ -254,7 +272,9 @@ pub fn poll_clipboard(app: &mut EditorApp, now: f64) {
 fn put_on_clipboard(app: &mut EditorApp, env: Envelope) {
     if app.ui.system_clipboard {
         let text = env.to_text();
-        if let Err(e) = arboard::Clipboard::new().and_then(|mut c| c.set_text(text)) {
+        if let Err(e) =
+            os_clipboard().and_then(|()| openstitch_app::platform::set_clipboard_text(text))
+        {
             app.status =
                 format!("Could not use the system clipboard ({e}); Paste works in this window");
         }
@@ -436,8 +456,8 @@ fn paste(app: &mut EditorApp) {
         .ui
         .system_clipboard
         .then(|| {
-            arboard::Clipboard::new()
-                .and_then(|mut c| c.get_text())
+            os_clipboard()
+                .and_then(|()| openstitch_app::platform::clipboard_text())
                 .ok()
         })
         .flatten()
@@ -498,6 +518,8 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
     match a {
         New => app.guarded(Pending::New),
         Open => app.guarded(Pending::Open(None)),
+        TestSwatches => app.ui.open_swatches = true,
+        JobSheet => app.ui.open_job_sheet = true,
         OpenSample => app.ui.start.samples_open = true,
         Save => app.save(false),
         SaveAs => app.save(true),
@@ -764,6 +786,7 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
             if ui.button("Print…").clicked() {
                 crate::print_ui::open(ui.ctx());
             }
+            menu_item(app, ui, JobSheet);
         }
         Wizard => {
             if ui.button("Template Wizard…").clicked() {
@@ -782,9 +805,7 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
             if ui.button("Send to USB Media…").clicked() {
                 crate::transfer_ui::open(app);
             }
-            if ui.button("Test Swatches…").clicked() {
-                crate::swatch_ui::open(ui.ctx());
-            }
+            menu_item(app, ui, TestSwatches);
             menu_item(app, ui, ExportSections);
             ui.menu_button("Export", |ui| export_menu(app, ui));
         }

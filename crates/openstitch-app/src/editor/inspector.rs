@@ -1120,6 +1120,54 @@ pub fn line_controls_with(l: &LineSewing, user: &[Pattern]) -> Vec<Control> {
             param: "leaveUncut",
             value: l.leave_uncut,
         }],
+        // OpenStitch's satin line (#524): width keys are edited with object.setWidthKey.
+        LineType::Satin => [
+            width("Width"),
+            num(
+                "Density",
+                "line.density",
+                "density",
+                l.density,
+                (0.1, 14.0),
+                0.05,
+                " /mm",
+            ),
+            Control::Toggle {
+                label: "Under sewing",
+                param: "underSewing",
+                value: l.underlay,
+            },
+            num(
+                "Taper start",
+                "line.taperStart",
+                "taperStart",
+                l.taper_start.unwrap_or(0.0),
+                (0.0, 50.0),
+                0.1,
+                " mm",
+            ),
+            num(
+                "Taper end",
+                "line.taperEnd",
+                "taperEnd",
+                l.taper_end.unwrap_or(0.0),
+                (0.0, 50.0),
+                0.1,
+                " mm",
+            ),
+            num(
+                "Slant",
+                "line.slant",
+                "slant",
+                l.slant.unwrap_or(0.0),
+                (-60.0, 60.0),
+                1.0,
+                "°",
+            ),
+        ]
+        .into_iter()
+        .chain(shaping_controls(&l.satin_shaping, 0.0, true))
+        .collect(),
     }
 }
 

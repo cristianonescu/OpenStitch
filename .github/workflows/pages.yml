@@ -1,0 +1,75 @@
+name: Web editor on GitHub Pages
+
+# Publishes the web editor (#556, #695; docs/DISTRIBUTION.md "Web editor") at
+# https://cristianonescu.github.io/OpenStitch/ from main only: the same release build as CI job
+# `web` in rust.yml, then GitHub's Pages actions. Its own workflow, because rust.yml is also
+# called by release.yml, which grants it no Pages permissions. Only the deploy job may write to
+# Pages, into the `github-pages` environment GitHub made when Pages was turned on.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "crates/**"
+      - "web/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deployment at a time; a newer push waits for the running one instead of cancelling it.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: wasm
+          save-if: false
+      # The CLI must be the wasm-bindgen version in Cargo.lock.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@0.2.129
+      - run: cargo build -p openstitch-web --target wasm32-unknown-unknown --release --locked
+      - name: Page
+        run: |
+          mkdir -p site
+          cp web/index.html site/
+          wasm-bindgen --target web --no-typescript --out-dir site/pkg \
+            target/wasm32-unknown-unknown/release/openstitch_web.wasm
+          echo "${GITHUB_SHA::7}" > site/version.txt
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    name: deploy
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

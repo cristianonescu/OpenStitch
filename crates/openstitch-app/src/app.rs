@@ -408,8 +408,9 @@ impl EditorApp {
             self.ui.prefs_path = Some(ui);
         }
         self.database.units = self.ui.prefs.units;
-        // Copy and Paste use the system clipboard (#500), except in screenshot runs.
-        self.ui.system_clipboard = l.screenshot.is_none();
+        // Copy and Paste use the system clipboard (#500), except in screenshot runs and tests
+        // (#705: see `ribbon::os_clipboard`).
+        self.ui.system_clipboard = l.screenshot.is_none() && !cfg!(test);
         if l.accent.is_some() {
             self.ui.prefs.accent = l.accent;
         }
@@ -1300,17 +1301,17 @@ impl EditorApp {
     /// File ▸ Background Image ▸ Paste: the clipboard image becomes the background. It is kept
     /// as a PNG in the app's data folder (named by content), since the project only references it.
     pub fn paste_background(&mut self) {
-        let image = arboard::Clipboard::new().and_then(|mut c| c.get_image());
+        if !self.ui.system_clipboard {
+            self.status = "Paste background: the system clipboard is not used here".into();
+            return;
+        }
+        let image = crate::ribbon::os_clipboard()
+            .and_then(|()| openstitch_app::platform::clipboard_image());
         let stored = match image {
             Ok(img) => pasted_images_dir()
                 .ok_or_else(|| "no folder to keep pasted images in".to_string())
                 .and_then(|dir| {
-                    store_pasted_image(
-                        &dir,
-                        img.width as u32,
-                        img.height as u32,
-                        img.bytes.into_owned(),
-                    )
+                    store_pasted_image(&dir, img.width as u32, img.height as u32, img.bytes)
                 }),
             Err(e) => Err(format!("no image on the clipboard ({e})")),
         };
@@ -2052,6 +2053,7 @@ impl eframe::App for EditorApp {
         crate::workspace_ui::design_settings_window(self, &ctx);
         crate::print_ui::window(self, &ctx);
         crate::swatch_ui::window(self, &ctx);
+        crate::jobsheet_ui::window(self, &ctx);
         crate::transfer_ui::window(self, &ctx);
         crate::edit_ui::windows(self, &ctx);
         crate::settings_ui::windows(self, &ctx);
