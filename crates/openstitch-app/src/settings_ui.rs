@@ -98,7 +98,7 @@ fn sets_window(app: &mut EditorApp, ctx: &egui::Context) {
     if let Some(r) = request
         && app.execute(&r).is_some()
     {
-        app.status = format!("{} done", r.command);
+        app.status = openstitch_app::tf!("ui-status-done", command = r.command);
     }
     app.settings.sets_open = open;
 }
@@ -340,7 +340,7 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
     if let Some(r) = request
         && app.execute(&r).is_some()
     {
-        app.status = format!("{} done", r.command);
+        app.status = openstitch_app::tf!("ui-status-done", command = r.command);
     }
     app.settings.charts_open = open;
 }

@@ -123,7 +123,7 @@ impl EditorApp {
     /// Insert: a point on the line into the first selected row (its midpoint), selected.
     pub fn table_insert(&mut self, id: u64) -> bool {
         let Some(&at) = self.tools.needle_selection(id).first() else {
-            self.status = "Stitch Table: select the row to insert before".into();
+            self.status = openstitch_app::editor::ui_texts::t("ui-status-stitch-table-select-the-row-to").into();
             return false;
         };
         let Some(r) = self.execute(&CommandRequest::new(
@@ -141,7 +141,7 @@ impl EditorApp {
     pub fn table_delete(&mut self, id: u64) -> bool {
         let rows = self.tools.needle_selection(id);
         if rows.is_empty() {
-            self.status = "Stitch Table: select the rows to delete".into();
+            self.status = openstitch_app::editor::ui_texts::t("ui-status-stitch-table-select-the-rows-to").into();
             return false;
         }
         let done = self

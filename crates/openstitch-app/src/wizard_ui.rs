@@ -309,7 +309,7 @@ pub fn run_preview(app: &mut EditorApp) {
     if let Some(result) = app.execute(&request) {
         app.wizard.set_plan(&result);
         let n = app.wizard.plan.as_ref().map_or(0, |p| p.regions.len());
-        app.status = format!("Auto Punch preview: {n} regions");
+        app.status = openstitch_app::tf!("ui-status-auto-punch-preview-regions", n = n);
     }
 }
 

@@ -189,7 +189,7 @@ fn import_into_editor(app: &mut EditorApp, paths: &[PathBuf]) {
         }
     }
     app.database.open = false;
-    app.status = format!("Imported {n} design(s) from the Design Database");
+    app.status = openstitch_app::tf!("ui-status-imported-design-n-other-designs-n", n = n);
 }
 
 /// Display ▸ Toolbar, Status Bar and Property, and the ScreenTip under the pointer.

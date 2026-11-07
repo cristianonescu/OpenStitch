@@ -223,7 +223,7 @@ impl EditorApp {
             old.cancel();
         }
         self.open_job = Some(OpenJob::start(&self.session, self.revision, p, kind, steps));
-        self.status = format!("Opening {}…", p.display());
+        self.status = openstitch_app::tf!("ui-status-opening", path = p.display());
         // A scripted run waits, so its next step sees the design.
         if self.scripted() {
             self.finish_job_blocking();
@@ -280,7 +280,7 @@ impl EditorApp {
             Ok(l) => l,
             Err(e) => {
                 self.close_tab_added_for(job);
-                self.status = format!("Could not open {}: {e}", job.path.display());
+                self.status = openstitch_app::tf!("ui-status-could-not-open", path = job.path.display(), e = e);
                 return;
             }
         };
@@ -301,7 +301,7 @@ impl EditorApp {
             JobKind::Open => self.after_open(p),
             JobKind::Import => {
                 self.selection = CommandRequest::created_ids(&loaded.result);
-                self.status = format!("Imported {}", p.display());
+                self.status = openstitch_app::tf!("ui-status-imported-2", path = p.display());
             }
         }
     }

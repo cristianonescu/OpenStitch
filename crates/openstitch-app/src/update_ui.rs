@@ -274,7 +274,7 @@ pub fn poll(app: &mut EditorApp, ctx: &egui::Context) {
             .current
             .as_ref()
             .map_or_else(|| "this version".to_string(), |c| c.tag.clone());
-        app.status = format!("Updated from {from} to {to}");
+        app.status = openstitch_app::tf!("ui-status-updated-from-to", from = from, to = to);
     }
     if st.check_at_start {
         st.check_at_start = false;

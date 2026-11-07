@@ -663,7 +663,7 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
     app.workspace.settings_open = open;
     for r in requests {
         if app.execute(&r).is_some() {
-            app.status = format!("{} done", r.command);
+            app.status = openstitch_app::tf!("ui-status-done", command = r.command);
             if r.command == "machine.set" {
                 app.fit_requested = true;
             }

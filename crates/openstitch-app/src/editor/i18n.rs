@@ -79,6 +79,175 @@ pub fn text(id: &str, english: &'static str) -> &'static str {
     }
 }
 
+/// Whether `text` is a message with variables (Fluent placeables `{ $name }`), not plain text.
+pub fn is_message(text: &str) -> bool {
+    text.contains("{ $")
+}
+
+/// Message `id` in this thread's language with its variables filled in: `english` is the
+/// message in a subset of Fluent's syntax, `{ $name }` for a variable and
+/// `{ $n -> [one] … *[other] … }` (one variant a line) for a choice by the number's plural
+/// category or an exact value. A variable `args` does not give shows as `{$name}`.
+pub fn message(id: &str, english: &'static str, args: &[(&str, &dyn std::fmt::Display)]) -> String {
+    let lang = language();
+    let pattern = match lang {
+        ENGLISH | PSEUDO => english,
+        code => catalogue(code)
+            .and_then(|c| c.get(id).copied())
+            .unwrap_or(english),
+    };
+    let values: Vec<(&str, String)> = args.iter().map(|(n, v)| (*n, v.to_string())).collect();
+    let chars: Vec<char> = pattern.chars().collect();
+    let mut i = 0;
+    let out = format_seq(&chars, &mut i, false, &values, lang);
+    if lang == PSEUDO {
+        format!("[{out}]")
+    } else {
+        out
+    }
+}
+
+/// The plural category of `n` in `lang` (CLDR's names). English's rule for now: "one" for
+/// exactly 1, else "other"; a shipped language adds its own rule here.
+pub fn plural_category(lang: &str, n: f64) -> &'static str {
+    match lang {
+        _ if n == 1.0 => "one",
+        _ => "other",
+    }
+}
+
+/// Formats a pattern from `i`; in a variant (`variant`), stops before the next variant or the
+/// select's closing brace.
+fn format_seq(
+    s: &[char],
+    i: &mut usize,
+    variant: bool,
+    args: &[(&str, String)],
+    lang: &str,
+) -> String {
+    let mut out = String::new();
+    while *i < s.len() {
+        let c = s[*i];
+        if c == '{' {
+            out.push_str(&placeable(s, i, args, lang));
+            continue;
+        }
+        if variant && c == '}' {
+            break;
+        }
+        if variant && c == '\n' {
+            let mut j = *i + 1;
+            while j < s.len() && s[j] == ' ' {
+                j += 1;
+            }
+            if j >= s.len() || matches!(s[j], '[' | '*' | '}') {
+                *i = j;
+                break;
+            }
+        }
+        out.push(if lang == PSEUDO { accent(c) } else { c });
+        *i += 1;
+    }
+    out
+}
+
+/// `{ $name }` or a select, from the `{` at `i`.
+fn placeable(s: &[char], i: &mut usize, args: &[(&str, String)], lang: &str) -> String {
+    let skip = |i: &mut usize| {
+        while *i < s.len() && s[*i].is_whitespace() {
+            *i += 1;
+        }
+    };
+    *i += 1;
+    skip(i);
+    if s.get(*i) != Some(&'$') {
+        // Not a variable: shown as it is.
+        return "{".into();
+    }
+    *i += 1;
+    let start = *i;
+    while *i < s.len() && (s[*i].is_ascii_alphanumeric() || s[*i] == '_' || s[*i] == '-') {
+        *i += 1;
+    }
+    let name: String = s[start..*i].iter().collect();
+    let value = args
+        .iter()
+        .find(|(n, _)| *n == name)
+        .map(|(_, v)| v.clone());
+    skip(i);
+    if s.get(*i) == Some(&'}') {
+        *i += 1;
+        return value.unwrap_or_else(|| format!("{{${name}}}"));
+    }
+    if s.get(*i) != Some(&'-') || s.get(*i + 1) != Some(&'>') {
+        return value.unwrap_or_default();
+    }
+    *i += 2;
+    let mut variants: Vec<(String, bool, String)> = Vec::new();
+    loop {
+        skip(i);
+        match s.get(*i) {
+            None => break,
+            Some('}') => {
+                *i += 1;
+                break;
+            }
+            _ => {}
+        }
+        let default = s.get(*i) == Some(&'*');
+        if default {
+            *i += 1;
+        }
+        if s.get(*i) != Some(&'[') {
+            break;
+        }
+        *i += 1;
+        let k = *i;
+        while *i < s.len() && s[*i] != ']' {
+            *i += 1;
+        }
+        let key: String = s[k..*i].iter().collect::<String>().trim().to_string();
+        *i += 1;
+        while *i < s.len() && s[*i] == ' ' {
+            *i += 1;
+        }
+        let text = format_seq(s, i, true, args, lang);
+        variants.push((key, default, text.trim_end().to_string()));
+    }
+    let v = value.unwrap_or_default();
+    let category = v
+        .trim()
+        .parse::<f64>()
+        .ok()
+        .map(|n| plural_category(lang, n));
+    variants
+        .iter()
+        .find(|(k, _, _)| *k == v.trim())
+        .or_else(|| {
+            variants
+                .iter()
+                .find(|(k, _, _)| Some(k.as_str()) == category)
+        })
+        .or_else(|| variants.iter().find(|(_, d, _)| *d))
+        .map(|(_, _, t)| t.clone())
+        .unwrap_or_default()
+}
+
+/// The variables a message uses (`$name`), in order of first use.
+pub fn variables(text: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for (i, _) in text.match_indices('$') {
+        let name: String = text[i + 1..]
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
+            .collect();
+        if !name.is_empty() && !out.contains(&name) {
+            out.push(name);
+        }
+    }
+    out
+}
+
 /// `english` accented and in brackets: "[Ópéñ]".
 fn pseudo(english: &'static str) -> &'static str {
     PSEUDO_TEXTS.with(|p| {
@@ -131,7 +300,9 @@ fn catalogue(code: &str) -> Option<&'static Texts> {
 
 /// Reads a catalogue: `(id, text)` in file order, or the first problem with its line number.
 pub fn parse(source: &str) -> Result<Vec<(&str, String)>, String> {
-    let mut out: Vec<(&str, String)> = Vec::new();
+    // Each message's lines are joined first, then read as one text (a plural choice spans
+    // lines); the line number in an error is the message's first.
+    let mut raw: Vec<(&str, String, usize)> = Vec::new();
     let mut open = false;
     for (n, line) in source.lines().enumerate() {
         let at = |e: &str| format!("line {}: {e}", n + 1);
@@ -144,11 +315,11 @@ pub fn parse(source: &str) -> Result<Vec<(&str, String)>, String> {
             continue;
         }
         if line.starts_with([' ', '\t']) {
-            let Some((_, text)) = out.last_mut().filter(|_| open) else {
+            let Some((_, text, _)) = raw.last_mut().filter(|_| open) else {
                 return Err(at("an indented line belongs under a message"));
             };
             text.push('\n');
-            text.push_str(&unescape(line.trim()).map_err(|e| at(&e))?);
+            text.push_str(line.trim());
             continue;
         }
         let (id, value) = line
@@ -158,13 +329,19 @@ pub fn parse(source: &str) -> Result<Vec<(&str, String)>, String> {
         if !is_id(id) {
             return Err(at(&format!("`{id}` is not a message id")));
         }
-        if out.iter().any(|(i, _)| *i == id) {
+        if raw.iter().any(|(i, _, _)| *i == id) {
             return Err(at(&format!("`{id}` appears twice")));
         }
-        out.push((id, unescape(value.trim()).map_err(|e| at(&e))?));
+        raw.push((id, value.trim().to_string(), n + 1));
         open = true;
     }
-    Ok(out)
+    raw.into_iter()
+        .map(|(id, text, line)| {
+            unescape(&text)
+                .map(|t| (id, t))
+                .map_err(|e| format!("line {line}: {e}"))
+        })
+        .collect()
 }
 
 /// Fluent's identifier: a letter, then letters, digits, `-` and `_`.
@@ -182,6 +359,28 @@ fn unescape(text: &str) -> Result<String, String> {
     while let Some(i) = rest.find(['{', '}']) {
         out.push_str(&rest[..i]);
         rest = &rest[i..];
+        // A message's placeable (`{ $n }`, a select): kept for `message` to fill in.
+        if rest.starts_with('{') && rest[1..].trim_start().starts_with('$') {
+            let mut depth = 0;
+            let mut end = None;
+            for (k, ch) in rest.char_indices() {
+                match ch {
+                    '{' => depth += 1,
+                    '}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            end = Some(k);
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let end = end.ok_or("a placeable is not closed")?;
+            out.push_str(&rest[..=end]);
+            rest = &rest[end + 1..];
+            continue;
+        }
         let literal = rest
             .strip_prefix("{\"")
             .and_then(|r| r.find("\"}").map(|j| (&r[..j], &r[j + 2..])));
@@ -202,8 +401,12 @@ fn unescape(text: &str) -> Result<String, String> {
 }
 
 /// `text` written for a catalogue: braces as Fluent literals, spaces at either end in a literal
-/// (a catalogue value is trimmed), line breaks as indented lines.
+/// (a catalogue value is trimmed), line breaks as indented lines. A message's placeables stay
+/// as they are.
 pub fn escape(text: &str) -> String {
+    if is_message(text) {
+        return text.replace('\n', "\n    ");
+    }
     let core = text.trim();
     let (lead, trail) = (
         &text[..text.len() - text.trim_start().len()],
@@ -299,6 +502,34 @@ mod tests {
             parse(source).unwrap_or_else(|e| panic!("assets/i18n/{code}.ftl: {e}"));
         }
         assert!(is_language(ENGLISH) && is_language(PSEUDO));
+    }
+
+    #[test]
+    fn messages_fill_in_variables_and_choose_plurals() {
+        let moved = "Moved { $n ->\n[one] one item\n*[other] { $n } items\n} to the trash";
+        let n = |v: usize| message("x", moved, &[("n", &v)]);
+        assert_eq!(n(1), "Moved one item to the trash");
+        assert_eq!(n(3), "Moved 3 items to the trash");
+        assert_eq!(n(0), "Moved 0 items to the trash");
+        let opened = "Opened { $path }";
+        assert_eq!(message("y", opened, &[("path", &"a.pes")]), "Opened a.pes");
+        assert_eq!(
+            message("y", opened, &[]),
+            "Opened {$path}",
+            "a missing value shows"
+        );
+        assert_eq!(variables(moved), vec!["n".to_string()]);
+        // Through the catalogue format and back.
+        let line = format!("m = {}", escape(moved));
+        let back = &parse(&line).expect("parses")[0].1;
+        assert_eq!(back, moved);
+        // The pseudo-locale accents the text, not the values.
+        assert!(set_language(PSEUDO));
+        assert_eq!(
+            message("y", opened, &[("path", &"a.pes")]),
+            "[Ópéñéd a.pes]"
+        );
+        assert!(set_language(ENGLISH));
     }
 
     #[test]
