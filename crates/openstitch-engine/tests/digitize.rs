@@ -659,6 +659,57 @@ fn compatible_photo_stitch_travels_instead_of_trimming() {
     assert!(trims <= 80, "{trims} trims in {stitches} stitches");
 }
 
+/// #713: line art's drawn dots stay, without knots, and a colour's small pieces are joined by
+/// short running connectors: the mandala sews at most 6 stitches in place and at most 55 trims
+/// per 1,000 stitches (77 before), with no preset and each preset but photo (whose satin tips
+/// are #732).
+#[test]
+fn auto_punch_line_art_keeps_its_dots_without_knots_or_trims() {
+    let dir = temp_dir();
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/images/g11-mandala.png");
+    std::fs::copy(src, dir.join("g11.png")).expect("copy");
+    for preset in [
+        None,
+        Some("logo"),
+        Some("lineArt"),
+        Some("illustration"),
+        Some("pixelArt"),
+    ] {
+        let mut s = Session::new(&dir);
+        run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+        let mut params =
+            json!({"path": "g11.png", "width": 100, "x": 0, "y": 0, "compatMode": "openStitch"});
+        if let Some(p) = preset {
+            params["preset"] = json!(p);
+        }
+        let r = run(&mut s, "digitize.autoPunch", params);
+        let plan = r["plan"].as_array().expect("plan");
+        assert!(
+            plan.iter().any(|e| e["reason"] == "dot"),
+            "{preset:?}: the drawn dots are kept"
+        );
+        let p = openstitch_design::Compiler::for_design(s.design()).compile(s.design());
+        let (mut run_len, mut most) = (0, 0);
+        for w in p.stitches.windows(2) {
+            let d = ((w[1].x - w[0].x).powi(2) + (w[1].y - w[0].y).powi(2)).sqrt();
+            run_len = if w[1].command == openstitch_core::Command::Stitch && d < 3.0 {
+                run_len + 1
+            } else {
+                0
+            };
+            most = most.max(run_len);
+        }
+        assert!(most <= 6, "{preset:?}: {most} stitches in place");
+        let trims = p.count(openstitch_core::Command::Trim) as f64;
+        let stitches = p.count(openstitch_core::Command::Stitch) as f64;
+        assert!(
+            trims * 1000.0 / stitches <= 55.0,
+            "{preset:?}: {trims} trims in {stitches} stitches"
+        );
+    }
+}
+
 /// The tie-off drops tiny last needle points (#703); the traced object spans must stay valid
 /// when an object before them sewed nothing: exporting the mandala's line art panicked in the
 /// export checks ("slice index starts at 2982 but ends at 2981").

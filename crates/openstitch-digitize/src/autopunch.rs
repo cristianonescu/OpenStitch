@@ -143,6 +143,9 @@ pub enum Reason {
     /// OpenStitch mode, not on line art: every stitch would fall within [`SPECK_MM`], a knot
     /// rather than a shape; left out (#690).
     Speck,
+    /// OpenStitch mode, line art: a drawn dot (every stitch within [`SPECK_MM`]) sewn as a
+    /// fill without ties of its own, so it is not a knot (#713).
+    Dot,
 }
 
 impl Reason {
@@ -157,6 +160,7 @@ impl Reason {
             Reason::ThinLine => "thin_line",
             Reason::Override => "override",
             Reason::Speck => "speck",
+            Reason::Dot => "dot",
         }
     }
 }
@@ -203,6 +207,9 @@ impl Region {
             Reason::Speck => {
                 format!("every stitch within {SPECK_MM} mm, a knot rather than a shape: left out")
             }
+            Reason::Dot => format!(
+                "a drawn dot, every stitch within {SPECK_MM} mm: fill, tied only where a trim cuts it"
+            ),
         }
     }
 }
@@ -1047,20 +1054,44 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                 // and the ties round them stack in one spot (p07: 8 stitches in 0.46 mm). Not
                 // on line art, whose dots are drawn on purpose: leaving out the mandala's (g11)
                 // lowered its MS-SSIM 0.653 → 0.611.
-                if p.mode == Mode::OpenStitch
-                    && !line_art
-                    && set.is_none()
-                    && speck(&contours, &region)
-                {
+                let dot = p.mode == Mode::OpenStitch && set.is_none() && speck(&contours, &region);
+                if dot && !line_art {
                     entry.stitch = Stitch::Skip;
                     entry.reason = Reason::Speck;
                     continue;
+                }
+                if dot {
+                    entry.reason = Reason::Dot;
+                }
+                // Line art's hairlines: rows across one are 0.2-0.3 mm long and, with the tie-in,
+                // stand in one spot (g11 with the photo preset: 7 in a row, #713). The rows turn
+                // to run along it.
+                if p.mode == Mode::OpenStitch
+                    && line_art
+                    && region.kind == RegionType::Fill
+                    && set_angle.is_none()
+                    && stands_in_place(&contours, &region)
+                {
+                    let mut turned = region.clone();
+                    turned.angle = normalize(region.angle + 90.0) + 0.0;
+                    if !stands_in_place(&contours, &turned) {
+                        region = turned;
+                    }
                 }
                 if region.kind == RegionType::Fill {
                     fill_of[c] = Some(region.angle);
                 }
                 entry.angle.get_or_insert(region.angle);
                 let mut o = DesignObject::shape(contours, Some(region), None);
+                if dot {
+                    // Line art's dots are drawn on purpose: kept, but the fill's own tie-in and
+                    // lock are left out, so a dot reached by a running connector is no knot.
+                    // The writer still ties it in after a trim and locks it before one (#713).
+                    o.finish = Some(openstitch_design::finish::Finish {
+                        tie_count: Some(1),
+                        ..Default::default()
+                    });
+                }
                 o.name = Some(format!(
                     "Auto Punch {} {}",
                     objects.len() + 1,
@@ -1134,6 +1165,9 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
         return Err(DigitizeError::Empty(
             "every region was too small to trace or left out".into(),
         ));
+    }
+    if p.mode == Mode::OpenStitch && line_art {
+        join_small_pieces(&mut objects);
     }
     Ok(Converted {
         objects,
@@ -1373,6 +1407,92 @@ fn speck(contours: &[Contour], region: &RegionSewing) -> bool {
         (x0, y0, x1, y1) = (x0.min(q.x), y0.min(q.y), x1.max(q.x), y1.max(q.y));
     }
     x0 <= x1 && x1 - x0 < SPECK_MM * 10.0 && y1 - y0 < SPECK_MM * 10.0
+}
+
+/// Most stitches of 0.3 mm or less in a row a region may sew (`tools/sew_check.py` allows 6).
+const MAX_IN_PLACE: usize = 6;
+
+/// The tie-in the compiler sews before a run: 0.3 mm out and back.
+const TIE_IN_STEPS: usize = 3;
+
+/// Whether the region's layers, with their tie-in, would sew more than [`MAX_IN_PLACE`]
+/// stitches of 0.3 mm or less in a row (#713).
+fn stands_in_place(contours: &[Contour], region: &RegionSewing) -> bool {
+    let closed: Vec<Contour> = contours.iter().filter(|c| c.closed).cloned().collect();
+    openstitch_design::region::layers(&closed, region, &[])
+        .iter()
+        .flatten()
+        .any(|run| {
+            let mut n = 0;
+            run.windows(2).any(|w| {
+                n = if w[0].distance(w[1]) <= 3.0 { n + 1 } else { 0 };
+                n + TIE_IN_STEPS > MAX_IN_PLACE
+            })
+        })
+}
+
+/// Line art's small pieces of one thread joined (#713): each run of objects sewn in the same
+/// thread is put in nearest-next order (one thread, so the order changes nothing that shows),
+/// and two pieces this close (mm, between their bounds) are joined by a short running
+/// connector instead of a trim.
+const JOIN_MM: f64 = 2.0;
+
+fn join_small_pieces(objects: &mut [DesignObject]) {
+    let thread_of = |o: &DesignObject| -> Option<Thread> {
+        o.region
+            .as_ref()
+            .map(|r| r.thread.clone())
+            .or_else(|| o.line.as_ref().map(|l| l.thread.clone()))
+            .or_else(|| {
+                o.stitch_block
+                    .as_ref()
+                    .and_then(|b| b.threads.first().cloned())
+            })
+    };
+    let gap = |a: &DesignObject, b: &DesignObject| match (a.bounds(), b.bounds()) {
+        (Some(p), Some(q)) => {
+            let dx = (p.min_x.max(q.min_x) - p.max_x.min(q.max_x)).max(0.0);
+            let dy = (p.min_y.max(q.min_y) - p.max_y.min(q.max_y)).max(0.0);
+            (dx * dx + dy * dy).sqrt()
+        }
+        _ => f64::INFINITY,
+    };
+    let mut i = 0;
+    while i < objects.len() {
+        let t = thread_of(&objects[i]);
+        let mut j = i + 1;
+        while j < objects.len() && thread_of(&objects[j]) == t && objects[j].line.is_none() {
+            j += 1;
+        }
+        if objects[i].line.is_none() {
+            // Nearest next from the run's first piece.
+            for k in i + 1..j {
+                let last = &objects[k - 1];
+                let best = (k..j)
+                    .min_by(|&a, &b| gap(last, &objects[a]).total_cmp(&gap(last, &objects[b])))
+                    .expect("non-empty");
+                objects.swap(k, best);
+            }
+            for k in i..j.saturating_sub(1) {
+                let joined = gap(&objects[k], &objects[k + 1]) <= JOIN_MM * 10.0;
+                objects[k].connector_run = joined;
+                if joined {
+                    // Pieces joined by a connector carry the thread in and out: their fills'
+                    // own tie-in and lock are left out (a small piece's tie, rows and lock
+                    // stood 7 in one spot), and the writer ties only where a trim cuts (#713).
+                    for o in [k, k + 1] {
+                        if objects[o].region.is_some() && objects[o].finish.is_none() {
+                            objects[o].finish = Some(openstitch_design::finish::Finish {
+                                tie_count: Some(1),
+                                ..Default::default()
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        i = j;
+    }
 }
 
 /// Longest stitch (0.1 mm) Auto Punch lets a satin region sew: PE-DESIGN 11.50's Auto Punch

@@ -3117,6 +3117,31 @@ and with each of the six presets: before, p01 with `lineArt` failed with 7 in pl
 454/454, and its 501 written files are byte-identical apart from two JEF time stamps.
 Tests `tie_off_tests::*`.
 
+### Auto Punch line art: dots without knots, a colour's pieces joined, 2026-11-07 (#713)
+
+OpenStitch mode only, on line art; PE-compatible mode is unchanged. g11 (the mandala, 100 mm)
+failed sew_check with every preset but patch: its drawn dots sewed as knots (tie-in, rows and
+lock: 7 in one spot) and its 1,015 pieces trimmed one by one in drawing order (77.5 trims per
+1,000 stitches).
+
+- A colour's pieces are put in nearest-next order (one thread, so nothing that shows changes)
+  and two whose bounds are 2 mm or less apart are joined by a running connector (#545).
+- The pieces a connector joins, and the drawn dots (every stitch within 0.8 mm, which the speck
+  rule leaves out elsewhere, #690), lose their fills' own tie-in and lock (`Finish.tie_count`,
+  #548); the writer still ties them in after a trim and locks them before one.
+- A fill whose rows would stand in place on a hairline turns its rows along it.
+
+Measured (debug build, `tools/image_similarity.py --no-dists`, `sew_check --hoop 130x180`):
+
+| | sew_check (none + 6 presets) | trims / 1,000 | MS-SSIM / dE00 |
+|---|---|---|---|
+| main | 1/7 | 77.5 | 0.6529 / 7.23 |
+| this change | 6/7 | 45.2 | 0.6529 / 7.23 |
+
+The photo preset still sews 7 in place at pointed satin tips after their tie-in (#732, stitch
+engine). Stars or thinned points for the dots were tried and lowered MS-SSIM to 0.633-0.652
+(table on #713).
+
 ## Order of work
 
 1. **Fix without a reference:** items 1, 3, 7, 14, 15 (ranges), 16 and 17, plus the
