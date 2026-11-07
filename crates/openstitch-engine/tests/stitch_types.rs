@@ -1044,6 +1044,7 @@ fn wave_fill_goes_through_the_command() {
     assert_eq!(Compiler::default().compile(s.design()), plain);
     let help = run(&mut s, "commands.list", json!({})).to_string();
     assert!(help.contains("waveHeight") && help.contains("waveLength"));
+}
 
 #[test]
 fn zigzag_sharp_corners_and_miter_limit_go_through_object_set_line() {
