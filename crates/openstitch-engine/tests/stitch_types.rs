@@ -513,6 +513,11 @@ fn bad_region_options_fail_cleanly() {
         json!({"id": 1, "staggerRepeat": 17}),
         json!({"id": 1, "staggerPeriod": 1}),
         json!({"id": 1, "staggerAmplitude": 101}),
+        json!({"id": 1, "waveHeight": -1}),
+        json!({"id": 1, "waveHeight": 21}),
+        json!({"id": 1, "waveLength": 1}),
+        json!({"id": 1, "waveLength": 101}),
+        json!({"id": 1, "waveLength": "long"}),
     ] {
         assert!(
             s.execute("object.setRegion", Some(&params)).is_err(),
@@ -988,6 +993,57 @@ fn tatami_textures_go_through_the_command() {
     for t in &FILL_TEXTURES {
         assert!(text.contains(t.id), "help names {}", t.id);
     }
+}
+
+/// Wave fill (#538, beyond PE-DESIGN): set by `object.setRegion`, sewn as rippling rows, saved,
+/// undone in one step, turned off by height 0, and listed in the command's help.
+#[test]
+fn wave_fill_goes_through_the_command() {
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 0, "y": 0, "width": 40, "height": 30}),
+    );
+    run(&mut s, "object.setRegion", json!({"id": 1, "type": "fill"}));
+    let plain = Compiler::default().compile(s.design());
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "waveHeight": 4, "waveLength": 24}),
+    );
+    let r = s.design().objects[0].region.clone().expect("region");
+    assert_eq!((r.wave_height, r.wave_length), (Some(4.0), Some(24.0)));
+    assert_eq!(r.wave(), Some((2.0, 24.0)));
+    let wavy = Compiler::default().compile(s.design());
+    assert_ne!(plain, wavy, "the rows ripple");
+    let bytes = project::encode(s.design()).expect("encode");
+    assert_eq!(&project::decode(&bytes).expect("decode"), s.design());
+    run(&mut s, "history.undo", json!({}));
+    let r = s.design().objects[0].region.clone().expect("region");
+    assert_eq!((r.wave_height, r.wave_length), (None, None));
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "waveHeight": 4}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "waveHeight": 0}),
+    );
+    assert!(
+        s.design().objects[0]
+            .region
+            .as_ref()
+            .expect("r")
+            .wave()
+            .is_none()
+    );
+    assert_eq!(Compiler::default().compile(s.design()), plain);
+    let help = run(&mut s, "commands.list", json!({})).to_string();
+    assert!(help.contains("waveHeight") && help.contains("waveLength"));
 }
 
 #[test]

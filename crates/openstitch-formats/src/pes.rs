@@ -25,9 +25,9 @@ use std::collections::BTreeMap;
 /// Metadata keys read from and written to the v4+ header, in file order.
 pub const METADATA_KEYS: [&str; 5] = ["name", "category", "author", "keywords", "comments"];
 
-const EMB_ONE: &str = "CEmbOne";
-const SEW_SEG: &str = "CSewSeg";
-const SECTION_END: u16 = 0x8003;
+pub(crate) const EMB_ONE: &str = "CEmbOne";
+pub(crate) const SEW_SEG: &str = "CSewSeg";
+pub(crate) const SECTION_END: u16 = 0x8003;
 
 // MARK: Object section model
 
@@ -437,7 +437,11 @@ fn read_blocks(r: &mut ByteReader, end: usize, section: &mut ObjectSection) -> R
             }
             let flag = r.u16le()? as u16;
             let color = r.u16le()? as u16;
-            let n = r.u16le()? as usize;
+            // From version 10 the length is FFFF and a u32 (PE-DESIGN's Save As, props-v10).
+            let mut n = r.u16le()? as usize;
+            if n == 0xFFFF && section.version.as_str() >= "0100" {
+                n = r.u32le()? as usize;
+            }
             let raw = r.read(n * 4)?;
             let points = raw
                 .as_chunks::<4>()
@@ -480,8 +484,16 @@ fn read_blocks(r: &mut ByteReader, end: usize, section: &mut ObjectSection) -> R
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Version {
     V1,
+    /// PE-DESIGN's Save As versions 4, 5 and 7–10: stitch data only, written by
+    /// [`crate::pes_versions`] in the layouts of PE-DESIGN 11.50's own files (#374).
+    V4,
+    V5,
     #[default]
     V6,
+    V7,
+    V8,
+    V9,
+    V10,
     /// PE-DESIGN 11's `#PES0110` with editable objects: written by [`crate::pes11::write`]
     /// from a design's objects, not from a stitch pattern ([`write_with`] refuses it).
     V11,
@@ -531,7 +543,7 @@ impl WriteOptions {
     pub const DEFAULT_NAME: &str = "6";
 
     /// The version strings [`parse`](Self::parse) accepts, for messages.
-    pub const NAMES: &str = "1t, 1, 6, 6t or 11";
+    pub const NAMES: &str = "1t, 1, 4, 5, 6, 6t, 7, 8, 9, 10 or 11";
 
     /// Parses pyembroidery's version strings `1`, `1t`, `6`, `6t`, and `11` for PE-DESIGN 11's
     /// editable `#PES0110` (no `t` form: its point is the objects).
@@ -548,9 +560,19 @@ impl WriteOptions {
         };
         let version = match v {
             "1" => Version::V1,
+            "4" => Version::V4,
+            "5" => Version::V5,
             "6" => Version::V6,
+            "7" => Version::V7,
+            "8" => Version::V8,
+            "9" => Version::V9,
+            "10" => Version::V10,
             _ => return None,
         };
+        // PE-DESIGN writes versions 4, 5 and 7-10 with their stitch group only (no `t` form).
+        if truncated && crate::pes_versions::writes(version) {
+            return None;
+        }
         Some(Self {
             version,
             truncated,
@@ -570,6 +592,9 @@ pub fn write_with(input: &StitchPattern, options: &WriteOptions) -> Result<Vec<u
                 .into(),
         ));
     }
+    if crate::pes_versions::writes(options.version) {
+        return crate::pes_versions::write(input, options);
+    }
     let mut w = ByteWriter::default();
     if options.version == Version::V1 && options.truncated {
         w.ascii("#PES0001");
@@ -581,7 +606,7 @@ pub fn write_with(input: &StitchPattern, options: &WriteOptions) -> Result<Vec<u
     let pattern = pec::prepare(input);
     w.ascii(match options.version {
         Version::V1 => "#PES0001",
-        Version::V6 | Version::V11 => "#PES0060",
+        _ => "#PES0060",
     });
     let pec_placeholder = w.len();
     w.u32le(0);
@@ -591,7 +616,7 @@ pub fn write_with(input: &StitchPattern, options: &WriteOptions) -> Result<Vec<u
             w.u16le(1); // scale to fit
             w.u16le(1); // hoop
         }
-        Version::V6 | Version::V11 => write_header_v6(&mut w, &pattern, options)?,
+        _ => write_header_v6(&mut w, &pattern, options)?,
     }
     if options.truncated {
         w.u16le(0);
@@ -648,7 +673,7 @@ pub(crate) fn write_string8(w: &mut ByteWriter, s: Option<&str>) {
     w.append(&bytes);
 }
 
-fn write_string16(w: &mut ByteWriter, s: &str) {
+pub(crate) fn write_string16(w: &mut ByteWriter, s: &str) {
     w.u16le(s.len() as i64);
     w.ascii(s);
 }
@@ -791,9 +816,22 @@ pub(crate) fn segments(
     min_x: f64,
     max_y: f64,
 ) -> Vec<SewSegment> {
+    segments_with(pattern, version, min_x, max_y, false)
+}
+
+/// [`segments`]; `keep_landing`: a run after a jump starts at the jump's landing point even
+/// when its first stitch is there too, as PE-DESIGN's Save As files of versions 4–10 do (rot-v7:
+/// the first run's first point twice, its PEC section a zero-length first stitch).
+pub(crate) fn segments_with(
+    pattern: &StitchPattern,
+    version: Version,
+    min_x: f64,
+    max_y: f64,
+    keep_landing: bool,
+) -> Vec<SewSegment> {
     let chart: Vec<Option<Thread>> = match version {
         Version::V1 => pec_basic_chart().to_vec(),
-        Version::V6 | Version::V11 => pattern.threads.iter().cloned().map(Some).collect(),
+        _ => pattern.threads.iter().cloned().map(Some).collect(),
     };
     let code = |i: usize| {
         pattern
@@ -847,7 +885,7 @@ pub(crate) fn segments(
                 (sx, sy) = (last.x, last.y);
                 let mut points: Vec<_> = run.iter().map(|s| point(s.x, s.y)).collect();
                 if let Some(p) = landing.take()
-                    && points.first() != Some(&p)
+                    && (keep_landing || points.first() != Some(&p))
                 {
                     points.insert(0, p);
                 }

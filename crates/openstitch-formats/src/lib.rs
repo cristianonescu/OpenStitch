@@ -29,6 +29,7 @@ pub mod pcs;
 pub mod pec;
 pub mod pes;
 pub mod pes11;
+mod pes_versions;
 pub mod phc;
 pub mod sew;
 pub mod shv;

@@ -411,6 +411,7 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
 - (+) **Tatami textures:** 13 named needle-hole patterns beside PE-DESIGN's smooth brick (ribs,
   diagonals, steps, blocks, waves, zigzag, chevron, scallops and more), or your own steps and
   wave, triangle or arc shifts ([#537]).
+- (+) **Wave fill:** a fill's rows ripple as a sine with a set height and length ([#538]).
 - **Curved sewing direction** (round fill) for fill, programmable fill, piping and motif fill
   ([#471]).
 - **Programmable fill and motif fill** from OpenStitch's own pattern library, (+) with long gaps
@@ -514,6 +515,10 @@ The image tools have two methods, both OpenStitch's own: OpenStitch's PE-DESIGN-
   ([#453]).
 - (+) **Parameter test swatches:** copies of one object with a setting stepped, each labelled
   ([#507]).
+- (+) **Fabric and thread presets and your machine:** 13 fabrics with the makers' backing, topping,
+  needle and smallest-text advice per thread weight; thinner thread sews denser rows; a default
+  fabric for new shapes; Machine Setup (brand, hoop, thread cutter) for new designs and export
+  warnings ([#508]).
 
 ### Files and formats
 
@@ -521,6 +526,8 @@ The image tools have two methods, both OpenStitch's own: OpenStitch's PE-DESIGN-
   comments).
 - **PES written as version 1, 6 or 11.** Saved as "PE-DESIGN 11", shapes, Manual Punch blocks
   and Lato Bold text open editable in PE-DESIGN 11.50 ([#136]).
+- **PES written as versions 4, 5 and 7 to 10** for older software and machines, as PE-DESIGN's
+  own Save As writes them: stitch data with the thread table ([#374]).
 - **An opened PES written back byte for byte** while it is unchanged, objects and all ([#375]).
 - **Import PE-DESIGN objects** from a PES 11 file as editable shapes, blocks and texts
   (*partially compatible*) ([#397]).
@@ -631,6 +638,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#298]: https://github.com/cristianonescu/OpenStitch/issues/298
 [#303]: https://github.com/cristianonescu/OpenStitch/issues/303
 [#321]: https://github.com/cristianonescu/OpenStitch/issues/321
+[#374]: https://github.com/cristianonescu/OpenStitch/issues/374
 [#375]: https://github.com/cristianonescu/OpenStitch/issues/375
 [#397]: https://github.com/cristianonescu/OpenStitch/issues/397
 [#445]: https://github.com/cristianonescu/OpenStitch/issues/445
@@ -677,6 +685,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#505]: https://github.com/cristianonescu/OpenStitch/issues/505
 [#506]: https://github.com/cristianonescu/OpenStitch/issues/506
 [#507]: https://github.com/cristianonescu/OpenStitch/issues/507
+[#508]: https://github.com/cristianonescu/OpenStitch/issues/508
 [#509]: https://github.com/cristianonescu/OpenStitch/issues/509
 [#510]: https://github.com/cristianonescu/OpenStitch/issues/510
 [#511]: https://github.com/cristianonescu/OpenStitch/issues/511
@@ -701,6 +710,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#535]: https://github.com/cristianonescu/OpenStitch/issues/535
 [#536]: https://github.com/cristianonescu/OpenStitch/issues/536
 [#537]: https://github.com/cristianonescu/OpenStitch/issues/537
+[#538]: https://github.com/cristianonescu/OpenStitch/issues/538
 [#540]: https://github.com/cristianonescu/OpenStitch/issues/540
 [#541]: https://github.com/cristianonescu/OpenStitch/issues/541
 [#542]: https://github.com/cristianonescu/OpenStitch/issues/542
@@ -750,7 +760,7 @@ Also missing, from the [roadmap](docs/ROADMAP.md#still-to-do):
   gradation per-step editing and Blend.
 - **PES:** opening PE-DESIGN's texts and stitch groups as editable OpenStitch objects; motif
   fill, motif lines, several groups, right-aligned and vertical text in the editable PES 11
-  writer; writing PES versions 4, 5 and 7–10 (waiting for PE-DESIGN's own files of them).
+  writer.
 
 **Not planned, by design:**
 

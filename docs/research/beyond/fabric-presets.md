@@ -41,6 +41,14 @@ and thread weight it also gives what to sew with, through `fabric.advise {fabric
 The needle `fabric.advise` gives is the thread weight's, or the fabric's own minimum when a maker
 gives a larger one (towel, denim and felt 90/14, canvas 100/16, fleece 80/12).
 
+**Density by weight (part 2):** `fabric.apply {fabric, weight}` and `fabric.setDefault` scale the
+fabric's fill and satin rows per mm by √(weight / 40): spacing goes with the thread's diameter,
+which goes with √tex, and the thread number is inversely proportional to tex. The makers'
+spacings above give similar ratios (0.35 / 0.40 = 0.88 for No. 60 against the rule's
+0.82; 1.25 for No. 30 against 1.15; 2.0 for No. 12 against 1.83: the rule is a little denser
+for thick thread), so the rule stays the simpler one and No. 40
+leaves every fabric's values exactly as they are.
+
 ## Sources (checked 2026-11-07)
 
 S1 Madeira UK, "Are you new to embroidery?"; S2 Madeira USA, Needle Guide; S3 Madeira USA, Quick

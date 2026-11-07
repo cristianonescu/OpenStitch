@@ -30,6 +30,8 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 - A plain fill's look changes with `object.setRegion` `texture` (`smooth`, PE-DESIGN's default,
   or OpenStitch's `ribs`, `diagonal`, `blocks`, `waves`, `zigzag`, `chevron`, `scallops`, ...):
   same shape, density and stitch count, different needle-hole pattern.
+- Wave fill (beyond PE-DESIGN): `object.setRegion` on a fill with `waveHeight` (crest to trough,
+  mm, 0 = off) and `waveLength` (mm, default 16). PES 0110 refuses it; save PES version 6.
 - Colours: `"#rrggbb"`, a Brother thread name (`"Black"`, `"White"`, `"Red"`, `"Blue"`,
   `"Prussian Blue"`, `"Deep Gold"`, `"Leaf Green"`, ...; case-insensitive), or a Brother chart
   number 1-64. A name that is not in the chart is refused; use `#rrggbb` when unsure.
@@ -379,6 +381,10 @@ are desktop-only; say so instead of trying them in the browser.
     row, `fabric.calibrate {fabric, name, fill, satin, pull}` (1–5 each) saves a custom
     fabric (`custom-…` in `fabric.list`) that `fabric.apply` gives to objects;
     `fabric.deleteCustom {fabric}` removes it. Both change the user's settings: say so first.
+- Thread weight (#508): `fabric.apply {fabric, weight}` with No. 60 for small text sews rows
+  closer (density × √(weight / 40)); No. 40 is the default and changes nothing. To make shapes and
+  texts drawn from now on start from a fabric, `fabric.setDefault {fabric, weight}` (`fabric:
+  "none"` clears it; it changes the user's settings, so say so first; `options.get` shows it).
 - The user's machine (#508): `machine.profile` gives brand, hoop, `cutter`, `maxStitchMm` and the
   brand's own `format` (export that format when they ask for "the file for my machine").
   `machine.setProfile {brand, hoop, cutter, maxStitchMm}` (`brand: "none"` clears it) changes the

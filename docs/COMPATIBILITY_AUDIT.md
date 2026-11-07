@@ -3316,3 +3316,21 @@ crate `crates/openstitch-compat`, and is described in
 The audit items' reference checks are written and wait for the owner's files: the specs report
 them as "pending reference". Step 2 starts when the owner adds the first file, following
 [compat/reference/README.md](../compat/reference/README.md).
+
+### PES versions 4, 5 and 7–10 written as PE-DESIGN saves them, 2026-11-07 (#374, `batch:formats-pes`)
+
+From PE-DESIGN 11.50's own Save As files (24, fixtures/pe11/captures-2026-11-07/pes-versions; owner notes
+`pes-versions`), black-box only.
+
+- PE-DESIGN saves every version below Ver.11.0 as stitch data. A design with editable objects
+  is offered Ver.6.0 and up only, so versions 4 and 5 exist only for stitch-data designs.
+- `design.export` `pesVersion` 4, 5, 7, 8, 9 and 10 write PE-DESIGN's layouts. The props design
+  (compat pes-design-properties) comes out byte for byte in all six versions, except PE-DESIGN's
+  pictures (PEC thumbnails, the 144-byte thread-number pictures) and the source's metadata
+  encoding. The turned 130 × 180 hoop matches from the thread table on; the header's hoop
+  fields match too, in each version's own way of writing a turned hoop.
+- Two reader and writer fixes came with it: v10's long run lengths (`FFFF` + u32) are read; a
+  thread of colour type 0 gets the `FE FF FF` code after the PEC section, as PE-DESIGN writes it
+  (also in `#PES0110`).
+- Not written: the thread-number pictures (blank, as in `#PES0110`), a custom page's extra picture
+  after the addendum, and the hoop id and name in v9/v10.
