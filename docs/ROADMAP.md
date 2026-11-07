@@ -246,7 +246,9 @@ batch:mac-digitize-3 (2026-11-06): OpenStitch-mode Auto Punch no longer sews sti
 along staircase outlines (#688) or as knots in specks (#690); touching fills turn apart without
 lowering the likeness, and every purpose preset passes sew_check on the gallery (#690). Left: a
 fill's or satin's short ends plus the tie-off on two photos (#703, stitch engine) and the
-mandala's drawn dots sewn as knots (#713).
+mandala's drawn dots sewn as knots (#713). Both done (#703, #738); the photo preset's pointed
+fill and satin tips on the mandala, whose tie-in plus first rows sewed 7 in place, tie in along
+the tip since #732.
 
 Done 2026-10-30: stitch generation is bit-identical on Windows, macOS and Linux (transcendental
 math through the `libm` crate instead of each platform's C library); the arched Text Transform
@@ -288,8 +290,10 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    Density floor: 0.1 lines/mm for fill and satin, as PE-DESIGN 11.50's field and the
    `sweep-*-density-min` references (#139's 0.2 floor was checked against them on 2026-10-29
    and not adopted; `attribute-ranges` covers the boundaries).
-2. **Satin:** Miter limit for zigzag lines (#373: PE-DESIGN's guide gives no range or
-   geometry and every reference has 0.0, so it waits for captures). Half Stitch for Auto satin
+2. **Satin:** Miter limit for zigzag lines is done since 2026-11-07 (#373: PE-DESIGN's Sharp
+   Corners buttons and Miter Limit from the owner's captures, eight specs at the reference
+   tier); left: the angle where PE-DESIGN starts cutting (captured at 29.7° and 90°), button
+   2's exact fan, the attribute in PES objects, and satin lines. Half Stitch for Auto satin
    is done since 2026-11-04 (#372): every other crowded inner needle point at a bend pulled
    back along its crossing, measured on satin-auto-bend-90/-120 against their -nohalf twins.
    Jagged Auto Punch regions sew within sew_check's limits since 2026-11-04 (#304: doubled-back
@@ -322,7 +326,9 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    (`GlyphStrokes::blocks`, 2026-10-31) are done, and PE-DESIGN's Convert to Blocks files import
    as their blocks (`import.pes`, 2026-10-31), and satin text is sewn by stroke since 2026-10-31
    (`stroke-satin-*`, 9 % from PE-DESIGN's needle points on average), fill text since 2026-11-04
-   (#376, `stroke-fill-*`, 8 % on average, under a Text Transform still by region: #428),
+   (#376, `stroke-fill-*`, 8 % on average, under a Text Transform still by region: #428, waiting on
+   the arches' letter placement; the walk between a warped letter's blocks simplified since
+   2026-11-07),
    turned letters cut upright and satin crossings along the outer side since 2026-11-05 (#444,
    satin 5.6 % on average, no capture further than before, the README's arched and 4 mm text whole), small lettering's i dots, pieces and travel since
    2026-11-05 (#465); next, under sewing per
@@ -532,7 +538,8 @@ and effort: 1. export read-back check (#457, done in `batch:quality-checks`); 2.
 selection (#452, **done** 2026-11-06 in `batch:mac-sewout`: `design.testSwatch`); 3. fabric calibration swatch (#453, **done** in `batch:mac-sewout`: `fabric.calibrationSwatch` and `fabric.calibrate`; B5's
 fabric table still to come); 4. arched text with several lines as concentric rings (#456, **done** 2026-11-06 in `batch:lettering-text`: `arc` on `text.add`/`object.setText`, the Text Attributes pane's Arc row and a centre handle on the canvas);
 5. SVG import reading stitch settings from layer names (#455 **done**: name tokens with short or long key names, dashes and paint-order as `import.svg {settings: true}`; Ink/Stitch attributes moved to #661); 6. garment mockups (#454,
-idea). Not taken: staggered satin splits, sharp satin corners as fans and converting a filled
+**done** 2026-11-07, `platform`: `design.mockup` on a T-shirt, cap or tote bag at true size, File ▸
+Export ▸ Garment Mockup). Not taken: staggered satin splits, sharp satin corners as fans and converting a filled
 shape to a centre-line satin (OpenStitch has them: `splitLength` staggered, Auto satin's corner
 fan, Shapes ▸ Satin Skeleton from Shape), a prompt-to-spec LLM design agent (B17 already drives
 the engine's commands), and stitch_generator's effect catalogue (a checklist for B9, not a

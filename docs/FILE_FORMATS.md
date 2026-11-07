@@ -157,7 +157,7 @@ the owner's machine (docs/COMPATIBILITY_AUDIT.md item 2).
 
 Editor: File ▸ Export ▸ PES offers all eleven. Engine: `design.export` `pesVersion`.
 **Versions 4, 5 and 7–10 (#374, 2026-11-07)** are written as PE-DESIGN 11.50's Save As writes
-them (tests/fixtures/pe11/versions: 24 files of five designs). PE-DESIGN offers these versions
+them (tests/fixtures/pe11/captures-2026-11-07/pes-versions: 24 files of five designs). PE-DESIGN offers these versions
 for stitch data only: a design with editable objects is offered Ver.11.0 down to Ver.6.0, and
 every save below Ver.11.0 asks "OK to save the data as stitch data?". So each holds one
 `CEmbOne` stitch group, its needle points in page coordinates (point + 50 mm) with a zero

@@ -3,7 +3,7 @@
 //! data?" and writes the design as one `CEmbOne` stitch group, with no editable objects; a
 //! design with editable objects is offered Ver.6.0 and up only. So OpenStitch writes them from
 //! the stitches, as the version 6 writer does, in the layouts of PE-DESIGN's own files
-//! (tests/fixtures/pe11/versions, 24 Save As files of five designs; docs/FILE_FORMATS.md).
+//! (tests/fixtures/pe11/captures-2026-11-07/pes-versions, 24 Save As files of five designs; docs/FILE_FORMATS.md).
 //!
 //! What a version holds, in the order of the file:
 //! - v4: the hoop and display fields, no thread table; the runs name PEC chart colours.

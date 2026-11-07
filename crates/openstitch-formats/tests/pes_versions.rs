@@ -1,5 +1,5 @@
 //! PES versions 4, 5 and 7–10 (#374). The last tests read and write PE-DESIGN 11.50's own Save
-//! As files (fixtures/pe11/versions). The first ones read pyembroidery's version 6 file
+//! As files (fixtures/pe11/captures-2026-11-07/pes-versions). The first ones read pyembroidery's version 6 file
 //! (`oracle_v6_chart.pes`, with metadata, a chart thread table and a stitch group) with its
 //! header re-laid in the version's layout as pyembroidery 1.5.1's reader documents it: the
 //! fixed bytes after the metadata (v5 24, v6/v7 36, v8 38, v9/v10 14 + hoop name + 30/38),
@@ -110,9 +110,9 @@ fn version_4_reads_its_metadata_and_stitches() {
     }
 }
 
-/// The PE-DESIGN Save As file `name` (fixtures/pe11/versions).
+/// The PE-DESIGN Save As file `name` (fixtures/pe11/captures-2026-11-07/pes-versions).
 fn save_as(name: &str) -> Vec<u8> {
-    data(&format!("pe11/versions/{name}.pes"))
+    data(&format!("pe11/captures-2026-11-07/pes-versions/{name}.pes"))
 }
 
 /// Where the PEC section's thumbnails end: the addendum starts there.

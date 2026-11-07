@@ -86,7 +86,7 @@ dearest:
 | 12 | No minimum font sizes or small-text fonts | Fonts | 4 | Documented difference | No |
 | 13 | No per-character colour or multi-character selection | Fonts | 4 | Documented difference | Colour grouping |
 | 14 | Programmable fill and fill default to 0° instead of 45° (**fixed**: programmable fill internal regression, fill 2026-10-30 from pes-objects r01; type change rule pending) | Stitches | 3 | Documented difference | No |
-| 15 | Missing fill, satin and zigzag attributes; wrong ranges (**partly fixed**: Frequency and ranges; Stitch Type 1 and 2 (2 partly: exact at 0°, 30°/45° rows offset); Half Stitch for Auto satin since 2026-11-04; Miter limit pending captures, #373) | Stitches | 3 | Documented difference | Geometry |
+| 15 | Missing fill, satin and zigzag attributes; wrong ranges (**partly fixed**: Frequency and ranges; Stitch Type 1 and 2 (2 partly: exact at 0°, 30°/45° rows offset); Half Stitch for Auto satin since 2026-11-04; zigzag Sharp Corners and Miter Limit since 2026-11-07, #373) | Stitches | 3 | Documented difference | Geometry |
 | 16 | Optimize Sewing Order does not move entry and exit points (**fixed**, reference) | Stitches | 3 | Documented difference | No |
 | 17 | Hole sewing not validated or paired (**fixed**, internal regression) | Stitches | 3 | Documented difference | No |
 | 18 | PES thread table drops chart names and colour type (**fixed**: round trip; PEC chart colours written as PE-DESIGN writes them since 2026-11-04) | PES | 3 | Documented difference | Chart strings |
@@ -487,12 +487,20 @@ Line references are relative to `crates/`.
   row across the stroke and a slanting row back, every crossing split on the Step pitch grid
   moved by the Frequency, rows fanned round L's corner. The 11 round-5 fill captures
   (`stroke-fill-*`) and `text-defaults-fill` are within 25 %, 8 % on average against 22 % by
-  region (H 504 against 483, was 595; L 274 against 276). Fill text under a Text Transform keeps its region rows
-  (#428): measured 2026-11-06, sewing it by stroke brings the needle points nearer PE-DESIGN's
-  (PE → ours 0.24 → 0.18 mm over the 182 transform captures) but sews them far denser (needle
-  count 11 % → 28 % off on average, 167 of 182 further) and moves four references 0.6 mm past
-  their bounds (text-transform-1-agjy, -1-openstitch-l25, -2, -18-openstitch-l100) and
-  text-transform-10's stem columns; next, the fill rows' spacing on warped strokes. Since 2026-11-05 (#444, the
+  region (H 504 against 483, was 595; L 274 against 276). Under a Text Transform the walk
+  between a letter's blocks no longer puts a needle point on every point of the warped outline
+  (2026-11-07, #428): it is simplified to within 0.1 mm of the outline and split into 2 mm
+  stitches as on the straight letter. Satin text under a Transform sewed nearly twice the needle
+  points it does straight (HHHHHHH, preset 3: 1831 against 1043), now about as many (1023).
+  Fill text under a Text Transform or a free envelope (#535; a free envelope was sewn by stroke
+  until 2026-11-07, unlike the preset it copies) keeps its region rows (#428): with the walk fixed, sewing it
+  by stroke is nearer PE-DESIGN on the 182 transform captures in every way (needle count 10.9 %
+  off on average against 11.2 % by region, was 28 % before the walk; PE → ours 0.24 → 0.19 mm;
+  coverage 0.761 → 0.772), but its rows reach the warped outline's corners and five references
+  go 0.1 mm past their 0.5 mm bounds (text-transform-1-agjy, -1-openstitch-l25, -2,
+  -18-openstitch-l100 and text-transform-10's stem columns). That is the Text Transform layout's
+  own error, which the region rows hid: on the arches the left letters sit up to 0.6 mm too far
+  along the arc, by region as well. Next, the arches' letter placement and envelopes 10 and 18. Since 2026-11-05 (#444, the
   README's arched title and 4 mm text sewn as broken pieces): a turned letter (fitted to an
   outline, on an arch, turned by Edit Character) is cut into strokes upright and its blocks
   turned back, as PE-DESIGN sews it (text-fit-satin-ahhhh: its H's at -18 to +32 degrees match
@@ -1020,7 +1028,7 @@ Line references are relative to `crates/`.
     offers the Frequency field only (every round-2 sweep's MANIFEST settings list its fields);
   - Stitch Type (turning ends);
   - Half Stitch;
-  - zigzag Sharp Corners / Miter limit.
+  - zigzag Sharp Corners / Miter limit — fixed 2026-11-07 (#373, reference).
   Two ranges are also too wide: Frequency accepts 0–100 % and E/V run times accept up to 6.
 - **Module:**
   - `openstitch-design/src/generate.rs:143` and `region.rs:279`: `phase = (row % 3)/3`.
@@ -1064,8 +1072,20 @@ Line references are relative to `crates/`.
     the older nearest-row order with PE's row ends and grid.
   - Tests: `frequency_and_run_times_follow_the_guide_ranges`,
     `fill_frequency_sets_the_row_to_row_needle_shift` (0, 25 and 50 %, ±2 % of the stitch).
-  - Half Stitch for Auto satin: done 2026-11-04 (#372, item 7's bend sweep). Not implemented,
-    needs captures (#373; list in the stitch-engine notes): zigzag Sharp Corners / Miter limit.
+  - Half Stitch for Auto satin: done 2026-11-04 (#372, item 7's bend sweep).
+  - Zigzag Sharp Corners and Miter Limit: done 2026-11-07 (#373) from PE-DESIGN 11.50's
+    captures (crates/openstitch-formats/tests/fixtures/pe11/captures-2026-11-07/miter/, copied
+    to compat/reference/stitches/line-zigzag-miter-*.pes). The field runs 0–50 mm and each of
+    the two buttons keeps its own value (0.0 and 7.0). A corner sharper than 90° has its point
+    cut square to the bisector the Miter Limit from the corner; 90° corners are unchanged.
+    Button 1 ends each leg where the legs' rails cross and fills the point as a wedge after a
+    run out to the cut (stitches of at most 2 mm); button 2 sews the first leg square into the
+    cut and the second from it along the bisector. Specs `line-zigzag-miter-v-b1-m0/m1/m3/m50`,
+    `-v-b2-m0/m3/m50` and `-l-b2-m7` reach the reference tier: widths exact (40.3/40.2,
+    41.2, 43.0, 43.8 mm), stitch counts within 1 % (447/446, 453/455, 462/465, 466/467,
+    450/451, 478/481, 485/481, 305/311). Not known: the angle between 30° and 90° where
+    PE-DESIGN starts cutting (OpenStitch: below 90°), button 2's exact fan, and where PE
+    stores the attribute in a PES object (written at the defaults).
   - **Stitch Type (measured 2026-10-30, round-5 captures `tatami-40-st{1,2}-dir{0,30,90}.pes`,
     `tatami-40-st2-dir45-freq0.pes`, with round 4's 45° pair; a 40 × 40 mm Fill square, density
     4.5, step 4.0, Frequency 30 %, under sewing off):**
@@ -1135,7 +1155,8 @@ Line references are relative to `crates/`.
 - **Fix:**
   - Add `frequency` to Fill, fed into `tatami_points`.
   - Clamp the ranges.
-  - Add `stitch_type`, `half_stitch` and `miter_limit`, with geometry from method 1.
+  - Add `stitch_type`, `half_stitch` and `miter_limit`, with geometry from method 1 (`miter_limit`
+    done as `sharpCorners`, #373).
 
 ## 16. Optimize Sewing Order does not move entry and exit points
 
@@ -2897,7 +2918,8 @@ averaged 50/50, on the calibrated render; every result is OpenStitch's output.
   limit and spiked out at the cusp; it is bevelled past 120°. Skeleton satin takes Half
   Stitch, so the apex of `[[8,82],[20,70],[32,82]]` no longer piles its inner needle points (7
   needle points within 0.2 mm of the one two before → 0). Straight-leg zigzag mitres (a star's
-  inner corners) wait for the Miter limit attribute (#373, PE captures listed).
+  inner corners) are cut by the Miter Limit since 2026-11-07 (#373: the random-design test's
+  33 zigzag spike seeds pass).
 - **Design Center line art (#627):** the skeleton splits line art at every junction and each
   piece was sewn alone with a trim. Pieces whose ends meet within 0.8 mm are now sewn as one path
   per figure, walking back over sewn lines (at most 50 mm) to the nearest junction with an
@@ -3144,6 +3166,27 @@ and with each of the six presets: before, p01 with `lineArt` failed with 7 in pl
 454/454, and its 501 written files are byte-identical apart from two JEF time stamps.
 Tests `tie_off_tests::*`.
 
+### Tie-in at a pointed start, 2026-11-07 (#732)
+
+The start of the case above. A run that begins at a pointed tip (a fill's rows 0.3 mm long
+and 0.2 mm apart, a satin narrowing to a point) after the object's own one-step tie-in, out
+0.3 mm along the first stitch and back, sewed 7 stitches in one spot: Auto Punch in OpenStitch
+mode with the `photo` preset on g11 (long side 100 mm), where small fill pieces joined by a
+running connector carry their own tie (#713). Now, when the tie-in and the tip together would
+sew more than 6 stitches in place (0.35 mm counts as in place), the tie-in steps out to the
+tip's first needle point beyond a stitch in place (at most 1 mm away) and back, instead of
+0.3 mm along the first crossing. Every needle point of the tip is kept. Only the object's own
+ties (OpenStitch mode and `object.setFinish`) do this, and a tie set longer than 6 stitches by
+itself is sewn as set; PE-DESIGN's own tie-in is unchanged.
+
+Measured: g11 with no preset and the six presets, `tools/sew_check.py --hoop 130x180`, was 6 of
+7 (photo: 7 in place), now 7 of 7; the same stitch counts, one tie-in step moved in each file
+(two with photo). Likeness of g11 with the
+photo preset (`tools/image_similarity.py --only g11-ap --mode openstitch`) unchanged: ΔE00 7.39,
+MS-SSIM 0.6360. Nine other images with four presets each (36 files) are byte-identical. Compat
+468/468; the ready-to-sew kit is unchanged. Test
+`finish_tests::a_pointed_start_ties_in_along_the_tip` (the g11 piece itself).
+
 ### PE-compatible Photo Stitch 1: one path a colour, 2026-11-07 (#298)
 
 PE-DESIGN 11.50 sews Photo Stitch 1 nearly one path a colour. Round-8 capture of the sunset (p06)
@@ -3224,7 +3267,7 @@ them as "pending reference". Step 2 starts when the owner adds the first file, f
 
 ### PES versions 4, 5 and 7–10 written as PE-DESIGN saves them, 2026-11-07 (#374, `batch:formats-pes`)
 
-From PE-DESIGN 11.50's own Save As files (24, fixtures/pe11/versions; owner notes
+From PE-DESIGN 11.50's own Save As files (24, fixtures/pe11/captures-2026-11-07/pes-versions; owner notes
 `pes-versions`), black-box only.
 
 - PE-DESIGN saves every version below Ver.11.0 as stitch data. A design with editable objects

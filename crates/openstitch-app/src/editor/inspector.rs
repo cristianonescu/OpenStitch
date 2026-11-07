@@ -1167,6 +1167,22 @@ pub fn line_controls_with(l: &LineSewing, user: &[Pattern]) -> Vec<Control> {
                 param: "halfStitch",
                 value: l.half_stitch,
             },
+            // PE-DESIGN's two Sharp Corners buttons and the Miter Limit each keeps (#373).
+            choice(
+                "Sharp corners",
+                "sharpCorners",
+                &l.sharp_corners.button.to_string(),
+                &[("1", "1: wedge"), ("2", "2: split")],
+            ),
+            num(
+                "Miter limit",
+                "line.miterLimit",
+                "miterLimit",
+                l.sharp_corners.limit(),
+                (0.0, 50.0),
+                0.05,
+                " mm",
+            ),
             choice(
                 "Under sewing style",
                 "underlayStyle",

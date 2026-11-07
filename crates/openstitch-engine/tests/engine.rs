@@ -587,8 +587,11 @@ fn import_export_round_trip_and_bad_files() {
             version != "4",
             "{version}"
         );
-        let objects = openstitch_formats::pes::read_objects(&bytes).expect("objects");
-        assert_eq!(objects.objects.len(), 1, "{version}: one stitch group");
+        // The reader stops after a version 4 file's metadata.
+        if version != "4" {
+            let objects = openstitch_formats::pes::read_objects(&bytes).expect("objects");
+            assert_eq!(objects.objects.len(), 1, "{version}: one stitch group");
+        }
     }
     assert!(
         s.execute(

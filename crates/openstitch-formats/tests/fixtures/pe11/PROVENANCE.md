@@ -236,33 +236,64 @@ Custom Size pages ("Use smaller section sizes" off) the greyed hoop is the last 
 | `hoops/s-custom-300x200.pes` | `15d73c6aaa7eec8529cfd264658d979c15904efc9708341e3b8d622a90ae49c3` | single-needle, Custom Size 300 x 200 mm, Section Size 90 x 90 (100 x 100); preview 4 x 3 sections |
 | `hoops/m-custom-300x200.pes` | `d480cb1290bf8b10824c9a53e9bacb4b611cf270e6067cfca46ae271e56a27c6` | multi-needle, Custom Size 300 x 200 mm, Section Size 290 x 190 (300 x 200); preview 2 x 2 sections; greyed hoop ø100 Round |
 
-## PES Save As versions (2026-11-07, #374)
 
-Made by the coordinator session on PE-DESIGN 11.50 (Layout & Editing), black-box GUI only (owner notes `pes-versions`, notes.md). Each source design was opened and saved with App menu > Save As, the "Layout & Editing Ver.N.0 File (*.PES)" type picked from the list, name `<source>-v<N>.pes`. Below Ver.11.0 PE-DESIGN asks "This embroidery data will be saved in the old file format. OK to save the data as stitch data?"; OK was pressed, so every file holds stitch data only. Sources: props = compat/reference/pes/pes-design-properties.pes and rot = hoops/s-130x180-rot90.pes, which open as stitch data (offered Ver.11.0 down to Ver.1.0); text = r14-text-ab.pes, two = r16-two-rects.pes, page = o-page-200x200.pes, which open with editable objects (offered Ver.11.0 down to Ver.6.0 only, so no v4 or v5).
+## Captures of 2026-11-07 (`captures-2026-11-07/`, coordinator, black-box GUI use only)
 
-| File | SHA-256 | Version |
+Made by the owner's PE-DESIGN 11.50 (Layout & Editing) on Windows 11 Pro on 2026-11-07, at the owner's request, for issues #374, #349 and #373. The full steps and findings are on those issues. Inputs are OpenStitch's own test designs; the outputs are PE-DESIGN's saves and exports of them, kept here so writers can be checked byte for byte. No Brother built-in font output is included.
+
+**`pes-versions/` (#374):** the sources (`props` = compat/reference/pes/pes-design-properties.pes, `text` = r14-text-ab.pes, `two` = r16-two-rects.pes, `rot` = hoops/s-130x180-rot90.pes, `page` = o-page-200x200.pes) opened in PE-DESIGN, then App menu > Save As with each "Layout & Editing Ver.N.0 File (*.PES)" type. Every save below Ver.11.0 warns "This embroidery data will be saved in the old file format. OK to save the data as stitch data?" (OK). Designs with editable objects (text, two, page) offer only Ver.11.0 to Ver.6.0, so they have no v5 or v4. Stitch-data designs (props, rot) offer down to Ver.1.0.
+
+**`machine/` (#349):** `c17.pes` and `long.pes` are OpenStitch's inputs (see #349). They were opened in PE-DESIGN, then App menu > Export… with "Husqvarna/Viking (*.SHV)" and "Singer (*.CSD)". No warnings. With 17 colour blocks PE-DESIGN writes **two** CSD files, `pe-c17_A.Csd` and `pe-c17_B.Csd`.
+
+**`miter/` (#373):** a Zigzag Stitch line (Under sewing on, width 2.0 mm, density 4.5, Half Stitch on, colour red), saved as Ver.11.0. `miter-a-*` is the 90-degree L of compat/reference/stitches/line-zigzag-default.pes; `miter-b-*` is a V drawn with snap at (10,20), (50,20), (15,40) mm (29.7 degrees). The file names give Sharp Corners (sc1 or sc2) and Miter Limit in mm. The field ranges from 0 to 50 mm, and each Sharp Corners button keeps its own value. Stitch counts and sizes are on #373.
+
+
+| `pes-versions/` file | bytes | SHA-256 |
 |---|---|---|
-| `versions/page-v10.pes` | `68a0f7d6b453588a6480f91270ef55c6b3f27878d2be3dc5c44d8141333dc82f` | `#PES0100` |
-| `versions/page-v7.pes` | `403688b88ac2376217c679cb30d6b5cf035e7101925e499ee035ef6bb8ffbfe6` | `#PES0070` |
-| `versions/page-v8.pes` | `6dfe894ad45cd3505990a23aca70d92179394fb69fd7ed66710c2a93dcdcc2c4` | `#PES0080` |
-| `versions/page-v9.pes` | `3de7282e921d77caf4193977daa12fe8a576da39f92ececb62dd8b21079e21ac` | `#PES0090` |
-| `versions/props-v10.pes` | `2989d03ae9982b7167cbf89adcfd6a3e79ef2c2875eeeab9e88682f62b091e63` | `#PES0100` |
-| `versions/props-v4.pes` | `fc1b73178ce795d928ab9b58bab2bc36e5b9cd8755900d9620d1636abf798768` | `#PES0040` |
-| `versions/props-v5.pes` | `aa71515bd9d4fdbbb5149c4514209e7c98c41cc314288fd6d86a6bf0ed44c49a` | `#PES0050` |
-| `versions/props-v7.pes` | `1a6f2a3d6c0d98e2669e3994692836622e040cdf26754160924308533b931696` | `#PES0070` |
-| `versions/props-v8.pes` | `98cf2a4da4162521ae4963a8da73b36c22b38d3f617e90f06939c3319a159dad` | `#PES0080` |
-| `versions/props-v9.pes` | `6dd77cfb87f2ff157f9792147c822705511706c82fdd2f4b7a418a13f7ebb20e` | `#PES0090` |
-| `versions/rot-v10.pes` | `4ef6a2995b703867f9a5df87fc5ec75ddbf843e520fd5a6247e1b578de1c1635` | `#PES0100` |
-| `versions/rot-v4.pes` | `88c7390b83f3660aea5fe57c84371f7d61d28d8a1c8117cccb0d4637cc0211ee` | `#PES0040` |
-| `versions/rot-v5.pes` | `4dc5bb05674242e2457bf6961860fd096a2d0339c32ee7f2783961b0a4c14e52` | `#PES0050` |
-| `versions/rot-v7.pes` | `89e8f9b2639a29cc688939b82004e975cf6075fcee2395c16b0e1cf7fbf03d58` | `#PES0070` |
-| `versions/rot-v8.pes` | `5d653b13a80767f7569671080cf873cca9c59bc6ff989c1d13625d4c0cd6c412` | `#PES0080` |
-| `versions/rot-v9.pes` | `4dfe56479db0bb0c8a3b83549b9df6e3352a6c8b090e111077d1d424d48368b7` | `#PES0090` |
-| `versions/text-v10.pes` | `c984f8190ed692027a7b225e1f8a0dcd79bfab0ea1bf8f822740a2a84f78d191` | `#PES0100` |
-| `versions/text-v7.pes` | `b5fffdc8ac23787479b7de36a7d0b8146fb7d868791531084b5e25faaa8f9e33` | `#PES0070` |
-| `versions/text-v8.pes` | `622cf7db0add15da23e3da14b035f75a415c2fcd9152fa497b6fba4a4b2730d3` | `#PES0080` |
-| `versions/text-v9.pes` | `0c2b079840d479d471756d24579cebe9c14ba0f6852b456989b6ba37372c9178` | `#PES0090` |
-| `versions/two-v10.pes` | `7281d1461569d40f27e1201e636398ac85b3b6e2e50157ffe0b571686a5a0504` | `#PES0100` |
-| `versions/two-v7.pes` | `11e27739aebd8228114fd3bea8aefa3764a6c9f9a7f655bfd364642c0d1b8def` | `#PES0070` |
-| `versions/two-v8.pes` | `f19454ccff1bd591e94a23d0f20fcc99da4ffcee203ab90cecb52741d8d451df` | `#PES0080` |
-| `versions/two-v9.pes` | `e2036977d316939875772334bd95584a4c1ae963c2808f17925be17e4f6f2c73` | `#PES0090` |
+| `page-v10.pes` | 21403 | `68a0f7d6b453588a6480f91270ef55c6b3f27878d2be3dc5c44d8141333dc82f` |
+| `page-v7.pes` | 21348 | `403688b88ac2376217c679cb30d6b5cf035e7101925e499ee035ef6bb8ffbfe6` |
+| `page-v8.pes` | 21358 | `6dfe894ad45cd3505990a23aca70d92179394fb69fd7ed66710c2a93dcdcc2c4` |
+| `page-v9.pes` | 21387 | `3de7282e921d77caf4193977daa12fe8a576da39f92ececb62dd8b21079e21ac` |
+| `props-v10.pes` | 6867 | `2989d03ae9982b7167cbf89adcfd6a3e79ef2c2875eeeab9e88682f62b091e63` |
+| `props-v4.pes` | 6577 | `fc1b73178ce795d928ab9b58bab2bc36e5b9cd8755900d9620d1636abf798768` |
+| `props-v5.pes` | 6807 | `aa71515bd9d4fdbbb5149c4514209e7c98c41cc314288fd6d86a6bf0ed44c49a` |
+| `props-v7.pes` | 6824 | `1a6f2a3d6c0d98e2669e3994692836622e040cdf26754160924308533b931696` |
+| `props-v8.pes` | 6834 | `98cf2a4da4162521ae4963a8da73b36c22b38d3f617e90f06939c3319a159dad` |
+| `props-v9.pes` | 6855 | `6dd77cfb87f2ff157f9792147c822705511706c82fdd2f4b7a418a13f7ebb20e` |
+| `rot-v10.pes` | 5824 | `4ef6a2995b703867f9a5df87fc5ec75ddbf843e520fd5a6247e1b578de1c1635` |
+| `rot-v4.pes` | 5520 | `88c7390b83f3660aea5fe57c84371f7d61d28d8a1c8117cccb0d4637cc0211ee` |
+| `rot-v5.pes` | 5756 | `4dc5bb05674242e2457bf6961860fd096a2d0339c32ee7f2783961b0a4c14e52` |
+| `rot-v7.pes` | 5773 | `89e8f9b2639a29cc688939b82004e975cf6075fcee2395c16b0e1cf7fbf03d58` |
+| `rot-v8.pes` | 5783 | `5d653b13a80767f7569671080cf873cca9c59bc6ff989c1d13625d4c0cd6c412` |
+| `rot-v9.pes` | 5812 | `4dfe56479db0bb0c8a3b83549b9df6e3352a6c8b090e111077d1d424d48368b7` |
+| `text-v10.pes` | 19055 | `c984f8190ed692027a7b225e1f8a0dcd79bfab0ea1bf8f822740a2a84f78d191` |
+| `text-v7.pes` | 18996 | `b5fffdc8ac23787479b7de36a7d0b8146fb7d868791531084b5e25faaa8f9e33` |
+| `text-v8.pes` | 19006 | `622cf7db0add15da23e3da14b035f75a415c2fcd9152fa497b6fba4a4b2730d3` |
+| `text-v9.pes` | 19035 | `0c2b079840d479d471756d24579cebe9c14ba0f6852b456989b6ba37372c9178` |
+| `two-v10.pes` | 26090 | `7281d1461569d40f27e1201e636398ac85b3b6e2e50157ffe0b571686a5a0504` |
+| `two-v7.pes` | 26003 | `11e27739aebd8228114fd3bea8aefa3764a6c9f9a7f655bfd364642c0d1b8def` |
+| `two-v8.pes` | 26013 | `f19454ccff1bd591e94a23d0f20fcc99da4ffcee203ab90cecb52741d8d451df` |
+| `two-v9.pes` | 26054 | `e2036977d316939875772334bd95584a4c1ae963c2808f17925be17e4f6f2c73` |
+
+| `machine/` file | bytes | SHA-256 |
+|---|---|---|
+| `c17.pes` | 19273 | `9004d5b1af9431ed310be0cc3aa1af55a6463ac98e6abe9abef3637352205823` |
+| `long.pes` | 2891 | `55ac558f4bf5893e4f6764b57ca76778c75fecb4872a588fc2c64eddebb6aa2b` |
+| `pe-c17.SHV` | 6472 | `48f6c6a2574209db442d327d1c981bb4e19206fa6f1578df549901f17fb74422` |
+| `pe-c17_A.Csd` | 4545 | `75df858ca16b042ebb61674e73fcee06436d4cfb25f1a958c8b40bf49c58be91` |
+| `pe-c17_B.Csd` | 1038 | `ecc16c86dbaa9598ea5cec2a7eb4c053a2099027dca1f4b8548e5e3f9ecdc8e2` |
+| `pe-long.SHV` | 1091 | `22fd9e90b5ca7a9ab78f9ddb34eea9f80f33d9d3134a108417bb37c6434335fd` |
+| `pe-long.CSD` | 807 | `5035316851b094de574881c09121af7fead0daa4d2b3e9fe92739c06880d3ea3` |
+
+| `miter/` file | bytes | SHA-256 |
+|---|---|---|
+| `miter-a-sc1-m0.pes` | 22007 | `659b52c0c85210d903200c8f7570e57d1e52110386c1c9c028ad070a3be347fb` |
+| `miter-a-sc2-m0.pes` | 22007 | `beafd6bc5cfc628863488b08f691da7db057a8ec39ff2b3eb48d80ce21ab6020` |
+| `miter-a-sc2-m7auto.pes` | 22007 | `b226414dfed9400f2e1f7b871b219fcaf6e6e796d01636238be5d0133c932edd` |
+| `miter-b-sc1-m0.pes` | 7048 | `26a33bada5c52923a3b4752b1dae225d816c9ef7e4240e452f3e374ceedb3757` |
+| `miter-b-sc1-m1.pes` | 7066 | `1ed35809f43a3f985b8c7660261db2c11e37da0328a59e0e15a2fe49bac76820` |
+| `miter-b-sc1-m3.pes` | 7086 | `177991f08aee83d21939efa1a457dac2bad04b62afd2558d3a6f3a024e282d28` |
+| `miter-b-sc1-max50.pes` | 7090 | `26c2669a1559c08407928768fb8c225ce6b832d1a48d85e79f39c53aac052c40` |
+| `miter-b-sc2-m0.pes` | 7058 | `426c039d279a8db1f732e4fb6a0c7261ab9fb6a294781205317e6ac1d9f92543` |
+| `miter-b-sc2-m3.pes` | 7118 | `cccffad8e96657fd86fc64557396bd93e13fc7ebd16a30d69740d513654c7082` |
+| `miter-b-sc2-m50.pes` | 7118 | `62de0afa94d62a0cd1cb0210d199ae18548525649749e488f2007a9531533728` |

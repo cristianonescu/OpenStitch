@@ -81,7 +81,9 @@ are a sound start; change them only for a reason.
 - **No thread cutter, or a thread that slips:** `object.setFinish` sets per object whether
   it trims after itself (`trim: off` jumps instead), its ties (`tie`, `tieCount`,
   `tieLength`) and, for text, where it trims between letters (`between: word` keeps a word
-  joined). Defaults are PE-DESIGN's rules; untrimmed jumps must be cut by hand.
+  joined). Defaults are PE-DESIGN's rules; untrimmed jumps must be cut by hand. An object's
+  own tie at a pointed start (rows or crossings under 0.3 mm) steps along the tip instead of
+  back and forth on it, so the start is no knot of stitches in place (#732).
 - Watch `design.info`: stitch count, `colorChanges`, `trims`, `jumps` and the sewing-time
   estimate. A small badge with thousands of trims or a 100 × 100 mm design with well over
   30,000 stitches deserves another look.

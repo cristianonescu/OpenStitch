@@ -1046,6 +1046,169 @@ pub fn zigzag_rails(path: &[Vec2], width: f64, spacing: f64) -> Run {
 /// [`zigzag_rails`] with the left and right rail `half[0]` and `half[1]` from the line
 /// (compensation per side, #522).
 pub fn zigzag_rails_sided(path: &[Vec2], half: [f64; 2], spacing: f64) -> Run {
+    zigzag_rails_cornered(path, half, spacing, None)
+}
+
+/// The longest stitch of the run PE-DESIGN sews out to a cut corner's point (#373,
+/// miter-b-sc1-m1/m3/max50.pes: 2.1, 3.2 and 4.0 mm runs in 2, 2 and 3 stitches).
+const CORNER_RUN: f64 = 20.0;
+
+/// One piece of a zigzag column: rung `[left, right]` at its start and at its end, `len` along
+/// `d`, the direction the stitches advance in. With `first`, the piece starts by sewing its
+/// first rung across from that side, after a run out to it when `first.1` (the zigzag
+/// otherwise carries on from the last piece).
+#[derive(Clone, Copy)]
+struct Quad {
+    from: [Vec2; 2],
+    to: [Vec2; 2],
+    len: f64,
+    d: Vec2,
+    first: Option<(f64, bool)>,
+}
+
+/// How a zigzag column turns a vertex: the rung that ends the leg before it, the rung that
+/// starts the leg after it (each with the point the leg's length is measured to), and the
+/// pieces sewn between them.
+struct Turn {
+    end: [Vec2; 2],
+    end_at: Vec2,
+    start: [Vec2; 2],
+    start_at: Vec2,
+    pieces: Vec<Quad>,
+}
+
+/// Where the line through `p` along `d` meets the one through `q` along `e`.
+fn meet(p: Vec2, d: Vec2, q: Vec2, e: Vec2) -> Option<Vec2> {
+    let den = d.x * e.y - d.y * e.x;
+    if den.abs() < 1e-9 {
+        return None;
+    }
+    let w = q - p;
+    Some(p + d * ((w.x * e.y - w.y * e.x) / den))
+}
+
+fn dot(a: Vec2, b: Vec2) -> f64 {
+    a.x * b.x + a.y * b.y
+}
+
+/// A piece between two rungs whose length is measured between their midpoints.
+fn piece(from: [Vec2; 2], to: [Vec2; 2], first: Option<(f64, bool)>) -> Option<Quad> {
+    let (m0, m1) = (from[0].lerp(from[1], 0.5), to[0].lerp(to[1], 0.5));
+    let len = m0.distance(m1);
+    (len > 1e-6).then(|| Quad {
+        from,
+        to,
+        len,
+        d: (m1 - m0) * (1.0 / len),
+        first,
+    })
+}
+
+/// A rung with the point on outer side `sigma` (+1 right, −1 left) and the inner point.
+fn rung(sigma: f64, outer: Vec2, inner: Vec2) -> [Vec2; 2] {
+    if sigma > 0.0 {
+        [inner, outer]
+    } else {
+        [outer, inner]
+    }
+}
+
+/// PE-DESIGN's sharp corner (#373) at `v` between legs along `dp` and `dn`, sharper than 90
+/// degrees, with rails `half` [left, right] from the line, the Miter Limit `limit` (0.1 mm)
+/// and button 2 when `split`; `None` keeps the mitre. The point's tip is cut at `limit` from
+/// `v` along the bisector, square to it. Button 1 (miter-b-sc1-*.pes) ends the first leg on
+/// the rung where its rails cross the second leg's, runs out to the cut and fills the point
+/// as a wedge back to that rung, where the second leg starts. Button 2 (miter-b-sc2-*.pes)
+/// sews the first leg square to it out to the cut, its inner side reaching the second leg's
+/// centre line where the rails meet, and the second leg from the cut with its inner side
+/// along the bisector to where the rails meet.
+fn sharp_turn(
+    v: Vec2,
+    dp: Vec2,
+    dn: Vec2,
+    half: [f64; 2],
+    limit: f64,
+    split: bool,
+    legs: [f64; 2],
+) -> Option<Turn> {
+    if dot(dp, dn) > -1e-4 {
+        return None;
+    }
+    let bis = dp - dn;
+    let u = bis * (1.0 / bis.length());
+    let (np, nn) = (normal(dp), normal(dn));
+    let sigma = if dot(np, u) > 0.0 { 1.0 } else { -1.0 };
+    let h = |s: f64| if s < 0.0 { half[0] } else { half[1] };
+    let rail_p = |s: f64| v + np * (s * h(s));
+    let rail_n = |s: f64| v + nn * (s * h(s));
+    // The rung where the legs' rails cross (on the cut through the corner when the sides are
+    // even); legs reversing onto themselves end square.
+    let xo = meet(rail_p(sigma), dp, rail_n(-sigma), dn).unwrap_or(rail_p(sigma));
+    let xi = meet(rail_p(-sigma), dp, rail_n(sigma), dn).unwrap_or(rail_p(-sigma));
+    let tip = meet(rail_p(sigma), dp, rail_n(sigma), dn);
+    let reach = tip.map_or(f64::INFINITY, |t| dot(t - v, u));
+    let c = limit.clamp(0.0, reach);
+    let cut = v + u * c;
+    let across = v2(-u.y, u.x);
+    let bp = meet(rail_p(sigma), dp, cut, across)?;
+    let bn = meet(rail_n(sigma), dn, cut, across)?;
+    if split && let Some(q) = meet(rail_p(-sigma), dp, rail_n(-sigma), dn) {
+        // Where the inner rails meet, measured back along each leg.
+        let (ap, an) = (dot(q - v, dp), dot(q - v, dn));
+        if -ap < legs[0] / 2.0 && -an < legs[1] / 2.0 {
+            let foot = |p: Vec2, d: Vec2| p + d * dot(q - p, d);
+            let po = foot(rail_p(sigma), dp);
+            let no = foot(rail_n(sigma), dn);
+            // The second leg's centre line across from `q`, no further from the corner than
+            // the full point.
+            let reach_c = tip.map_or(f64::INFINITY, |t| t.distance(v));
+            let centre = meet(v, dn, q, np)
+                .filter(|c| c.distance(v) <= reach_c)
+                .unwrap_or_else(|| v + dn * reach_c.min(v.distance(q)));
+            let pieces = [
+                piece(rung(sigma, po, centre), rung(sigma, bp, cut), None),
+                piece(
+                    rung(sigma, bn, cut),
+                    rung(sigma, no, q),
+                    Some((-sigma, false)),
+                ),
+            ];
+            return Some(Turn {
+                end: rung(sigma, po, q),
+                end_at: v + dp * ap,
+                start: rung(sigma, no, q),
+                start_at: v + dn * an,
+                pieces: pieces.into_iter().flatten().collect(),
+            });
+        }
+    }
+    let wedge = if c > 1e-6 {
+        piece(
+            rung(sigma, bn, bp),
+            rung(sigma, xi, xo),
+            Some((-sigma, true)),
+        )
+    } else {
+        None
+    };
+    Some(Turn {
+        end: rung(sigma, xo, xi),
+        end_at: v,
+        start: rung(sigma, xi, xo),
+        start_at: v,
+        pieces: wedge.into_iter().collect(),
+    })
+}
+
+/// [`zigzag_rails_sided`] with PE-DESIGN's Sharp Corners and Miter Limit (#373): `corners`
+/// cuts the point of every corner sharper than 90 degrees (see [`sharp_turn`]); `None` mitres
+/// every corner in full.
+pub fn zigzag_rails_cornered(
+    path: &[Vec2],
+    half: [f64; 2],
+    spacing: f64,
+    corners: Option<&crate::model::SharpCorners>,
+) -> Run {
     let pts: Vec<Vec2> = {
         let mut v: Vec<Vec2> = Vec::new();
         for &p in path {
@@ -1080,38 +1243,106 @@ pub fn zigzag_rails_sided(path: &[Vec2], half: [f64; 2], spacing: f64) -> Run {
         };
         pts[i] + n * (sign * h)
     };
-    let mut run = Vec::new();
+    let legs = pts.len() - 1;
+    let turns: Vec<Option<Turn>> = (0..pts.len())
+        .map(|i| {
+            let c = corners?;
+            if i == 0 || i == legs {
+                return None;
+            }
+            sharp_turn(
+                pts[i],
+                dir(i - 1),
+                dir(i),
+                half,
+                c.limit() * 10.0,
+                c.split(),
+                [pts[i - 1].distance(pts[i]), pts[i].distance(pts[i + 1])],
+            )
+        })
+        .collect();
+    let mut quads: Vec<Quad> = Vec::new();
+    for i in 0..legs {
+        let mitre = |j: usize| [rail(j, -1.0), rail(j, 1.0)];
+        let (from, from_at) = match &turns[i] {
+            Some(t) => {
+                quads.extend(t.pieces.iter().copied());
+                (t.start, Some(t.start_at))
+            }
+            None => (mitre(i), None),
+        };
+        let (to, to_at) = match &turns[i + 1] {
+            Some(t) => (t.end, Some(t.end_at)),
+            None => (mitre(i + 1), None),
+        };
+        let d = dir(i);
+        // A leg between two mitres keeps its full length; a cut corner measures to its rung.
+        let len = if from_at.is_none() && to_at.is_none() {
+            pts[i].distance(pts[i + 1])
+        } else {
+            dot(to_at.unwrap_or(pts[i + 1]) - from_at.unwrap_or(pts[i]), d)
+        };
+        if len > 1e-6 {
+            quads.push(Quad {
+                from,
+                to,
+                len,
+                d,
+                first: None,
+            });
+        }
+    }
+    sew_quads(&quads, spacing)
+}
+
+/// Sews zigzag pieces one after another: along each piece a stitch joins its two rails at the
+/// same fraction of the piece, consecutive stitches `spacing` apart across the piece (divided
+/// by the stitch's lean), carried on from piece to piece; the last piece ends with a stitch
+/// exactly across its end.
+fn sew_quads(quads: &[Quad], spacing: f64) -> Run {
+    let mut run: Run = Vec::new();
     let mut side = -1.0;
     let mut carry = 0.0;
-    let legs = pts.len() - 1;
-    for i in 0..legs {
-        let len = pts[i].distance(pts[i + 1]);
-        let d = dir(i);
-        let (l0, l1, r0, r1) = (
-            rail(i, -1.0),
-            rail(i + 1, -1.0),
-            rail(i, 1.0),
-            rail(i + 1, 1.0),
-        );
+    for (k, q) in quads.iter().enumerate() {
         let at = |f: f64, s: f64| {
             if s < 0.0 {
-                l0.lerp(l1, f)
+                q.from[0].lerp(q.to[0], f)
             } else {
-                r0.lerp(r1, f)
+                q.from[1].lerp(q.to[1], f)
             }
         };
-        let mut f = carry / len;
+        // The stitch across at `f` leans by the rails' offset along the piece.
+        let step = |f: f64| {
+            let r = at(f, 1.0) - at(f, -1.0);
+            let span = r.length();
+            let lean = if span < 1e-6 {
+                1.0
+            } else {
+                span / (r.x * q.d.y - r.y * q.d.x).abs().max(1e-9)
+            };
+            spacing * lean / q.len
+        };
+        let mut f = carry / q.len;
+        if let Some((s, travel)) = q.first {
+            // The piece's first rung sewn across first, after a run out to it.
+            let target = at(0.0, s);
+            if let Some(&last) = run.last().filter(|_| travel) {
+                run.extend(subdivide(&[last, target], CORNER_RUN).into_iter().skip(1));
+            }
+            if run.last().is_none_or(|l| l.distance(target) > 1e-9) {
+                run.push(target);
+            }
+            run.push(at(0.0, -s));
+            side = s;
+            f = step(0.0);
+        }
         while f <= 1.0 + 1e-9 {
             run.push(at(f.min(1.0), side));
             side = -side;
-            // The stitch across here leans by the rails' offset along the leg.
-            let rung = at(f.min(1.0), 1.0) - at(f.min(1.0), -1.0);
-            let across = (rung.x * d.y - rung.y * d.x).abs().max(1e-9);
-            let lean = rung.distance(Vec2::default()) / across;
-            f += spacing * lean / len;
+            f += step(f.min(1.0));
         }
-        carry = (f - 1.0) * len;
-        if i + 1 == legs && carry > 1e-6 {
+        carry = (f - 1.0) * q.len;
+        if k + 1 == quads.len() && carry > 1e-6 {
             // A last stitch across exactly at the line's end, after the last regular one.
             let last = run.last().copied();
             let end = at(1.0, side);
@@ -1515,5 +1746,104 @@ mod shaping_tests {
         assert!(wide.iter().any(|q| q.y > 0.0) && wide.iter().any(|q| q.y < 0.0));
         let last = *wide.last().expect("end");
         assert!(last.x < 20.0, "back at the start: {last:?}");
+    }
+
+    fn sharp(button: u8, limit: f64) -> crate::model::SharpCorners {
+        let mut c = crate::model::SharpCorners {
+            button,
+            ..Default::default()
+        };
+        c.set_limit(limit);
+        c
+    }
+
+    /// How far `run` reaches past the corner of [`vee`] along its outward bisector, 0.1 mm.
+    fn reach(deg: f64, run: &Run) -> f64 {
+        let p = vee(deg, 400.0);
+        let dp = (p[1] - p[0]) * (1.0 / p[0].distance(p[1]));
+        let dn = (p[2] - p[1]) * (1.0 / p[1].distance(p[2]));
+        let u = dp - dn;
+        let u = u * (1.0 / u.length());
+        run.iter()
+            .map(|q| q.x * u.x + q.y * u.y)
+            .fold(f64::MIN, f64::max)
+    }
+
+    #[test]
+    fn the_miter_limit_cuts_a_sharp_zigzag_corner_as_pe_design() {
+        // A 2 mm zigzag round a 30-degree corner: the full point is 3.9 mm out.
+        let path = vee(30.0, 400.0);
+        let tip = 10.0 / (15.0f64).to_radians().dsin();
+        let spacing = 10.0 / 4.5;
+        for button in [1, 2] {
+            for (limit, want) in [(0.0, 0.0), (1.0, 10.0), (3.0, 30.0), (50.0, tip)] {
+                let c = sharp(button, limit);
+                let run = zigzag_rails_cornered(&path, [10.0; 2], spacing, Some(&c));
+                let r = reach(30.0, &run);
+                assert!(
+                    (r - want).abs() < 0.5,
+                    "button {button}, limit {limit} mm: reaches {r}, want {want}"
+                );
+                assert!(run.iter().all(|q| q.x.is_finite() && q.y.is_finite()));
+            }
+        }
+        // Without the attribute the point reaches out in full, as before.
+        let full = zigzag_rails_cornered(&path, [10.0; 2], spacing, None);
+        assert_eq!(full, zigzag_rails(&path, 20.0, spacing));
+        // (its needle points step past the tip, so they need not land on it).
+        assert!(reach(30.0, &full) > 30.0);
+    }
+
+    #[test]
+    fn button_2_sews_the_corner_with_more_stitches() {
+        // miter-b-sc1-m3 / sc2-m3: 465 against 481 stitches.
+        let path = vee(30.0, 400.0);
+        let n = |b| zigzag_rails_cornered(&path, [10.0; 2], 10.0 / 4.5, Some(&sharp(b, 3.0))).len();
+        assert!(n(2) > n(1), "{} vs {}", n(2), n(1));
+    }
+
+    #[test]
+    fn corners_of_90_degrees_and_wider_keep_their_mitre() {
+        // miter-a-*: the L of line-zigzag-default sews the same 312 stitches either way.
+        for deg in [90.0, 120.0, 170.0] {
+            let path = vee(deg, 400.0);
+            let plain = zigzag_rails(&path, 20.0, 10.0 / 4.5);
+            for c in [sharp(1, 0.0), sharp(2, 7.0)] {
+                assert_eq!(
+                    zigzag_rails_cornered(&path, [10.0; 2], 10.0 / 4.5, Some(&c)),
+                    plain,
+                    "{deg} degrees"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_reversing_or_short_legged_corner_stays_bounded() {
+        for deg in [0.0, 0.5, 5.0, 60.0] {
+            for leg in [3.0, 400.0] {
+                let mut path = vee(deg, 400.0);
+                path[2] = path[1] + (path[2] - path[1]) * (leg / 400.0);
+                for c in [sharp(1, 2.0), sharp(2, 2.0), sharp(1, 50.0)] {
+                    let run = zigzag_rails_cornered(&path, [10.0; 2], 10.0 / 4.5, Some(&c));
+                    assert!(run.len() > 2, "{deg} degrees, leg {leg}");
+                    let r = reach(deg, &run);
+                    assert!(r.is_finite() && r <= c.limit() * 10.0 + 0.5, "{deg}: {r}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn each_sharp_corners_button_keeps_its_own_miter_limit() {
+        let mut c = crate::model::SharpCorners::default();
+        assert_eq!((c.button, c.limit()), (1, 0.0));
+        c.set_limit(3.0);
+        c.button = 2;
+        assert_eq!(c.limit(), 7.0);
+        c.set_limit(99.0);
+        assert_eq!(c.limit(), 50.0, "PE-DESIGN clamps to 50 mm");
+        c.button = 1;
+        assert_eq!(c.limit(), 3.0);
     }
 }

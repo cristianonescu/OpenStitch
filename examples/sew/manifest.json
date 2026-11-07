@@ -953,7 +953,7 @@
    71.0,
    89.7
   ],
-  "stitches": 3856,
+  "stitches": 3855,
   "trims": 46,
   "threads": [
    "405 Blue",
@@ -964,7 +964,7 @@
   "sewingMinutes": 7.2,
   "image": null,
   "preview": "previews/fonts-and-text.png",
-  "sha256": "6b3b4662cf71cfdd353b8b1351a9b240e151d08d74db817e486d448acc5b8976"
+  "sha256": "cd9fab2b25b369b3224d4b48695811ab56bda0b1e00ec19a1e169e9dddb80f76"
  },
  "lettering/monograms.pes": {
   "title": "Monograms",
