@@ -3138,6 +3138,25 @@ message it gives other unmapped line types; the machine formats sew it.
   - Not met: on K and R the main stroke bends through the junction and fans, leaving a gap in
     the stem. #526's IoU ≥ 0.95 and "no gap over 0.3 mm" are therefore not reached on letters,
     and #526 stays open.
+- **Straight stems, 2026-11-07 (#526).** When the main stroke turns more than 40° within
+  1.5 column widths (its ends, which hook into corners, not counted), straight strokes between
+  the columns' free ends are tried as the main stroke instead. A stroke qualifies when a line fits
+  60 % of the middle of its ridge within a third of its half width. Its column keeps that line
+  and the nearer side of each chord as its half width, so it does not widen into the junction.
+  The split whose satin covers the most of the region is kept, counting the quadrilaterals
+  between 1 mm crossings, so a fan's gaps count. Share of the letter's inner cells sewn
+  (Lato Bold):
+
+  | Letter | 10 mm before → after | 25 mm before → after |
+  |---|---|---|
+  | K | 0.902 → 0.985 | 0.926 → 0.984 |
+  | R | 0.800 → 0.943 | 0.836 → 0.945 |
+  | X, Y, N | unchanged | unchanged |
+
+  K and R now sew their stems from top to bottom as one straight column, with no gap. The legs
+  still turn into the stem along their ridge and fan a little where they join. The R's bowl
+  leaves a strip by the top of the stem, which is why R stays under 0.95. All ten letters pass
+  `tools/sew_check.py`. Tests `letter_tests::*`; the Y, plus and star tests are unchanged.
 
 ### Hidden stitching and hidden travel, 2026-11-06 (#511, #545, `batch:routing`)
 
