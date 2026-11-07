@@ -306,6 +306,15 @@ fn band_controls(
     v
 }
 
+/// The satin shaping rows a fixed-direction satin region takes (#685).
+const FIXED_SATIN_LOOKS: [&str; 5] = [
+    "shortStitchDistance",
+    "shortStitchInset",
+    "satinStyle",
+    "jaggedEdge",
+    "raised",
+];
+
 /// The satin shaping rows (#520-#522, beyond PE-DESIGN) of a Manual Punch column (`line`
 /// false, `pull` its single compensation) or a zigzag line.
 fn shaping_controls(s: &SatinShaping, pull: f64, line: bool) -> Vec<Control> {
@@ -588,6 +597,15 @@ pub fn region_controls_with(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> 
                 r.pull_compensation,
                 false,
             ));
+        } else if r.kind == RegionType::Satin {
+            // A fixed-direction satin (and satin text) takes the satin looks: short stitches,
+            // the style, a jagged edge and raised padding (#685, #781); corners, density across
+            // the column and compensation per side belong to columns.
+            v.extend(
+                shaping_controls(&r.satin_shaping, r.pull_compensation, false)
+                    .into_iter()
+                    .filter(|c| FIXED_SATIN_LOOKS.contains(&c.param())),
+            );
         }
         // The motif band (#544, beyond PE-DESIGN) on a skeleton or Manual Punch satin.
         if r.kind == RegionType::Satin && (r.skeleton.is_some() || r.direction_lines.len() >= 2) {
