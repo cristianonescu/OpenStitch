@@ -3335,6 +3335,33 @@ From PE-DESIGN 11.50's own Save As files (24, fixtures/pe11/captures-2026-11-07/
 - Not written: the thread-number pictures (blank, as in `#PES0110`), a custom page's extra picture
   after the addendum, and the hoop id and name in v9/v10.
 
+### Satin N, W, Z and M in one run, 2026-11-07 (#446)
+
+PE-DESIGN 11.50 sews satin N, W, K and Z in Lato Bold in one run and M with one trim
+(stroke-satin-N/M/W/K/Z.pes at 20 and 8 mm, round 8, #719). OpenStitch cut the letters apart at
+their acute corners and trimmed to each piece: N three trims at 20 mm (with its last), W four,
+Z two, M three.
+
+- A piece cut out of one stroke with no junction (N's stems and diagonal) is sewn from the end
+  whose far end lands nearest a piece still to sew, so the needle runs on into it.
+- A letter's next piece up to 12 mm away, straight through the letter, is travelled to in
+  running stitches instead of trimmed to (N's left stem ends at the notch, 8.6 mm below the
+  corner where the diagonal starts; the diagonal's satin covers that way).
+
+Trims including the last, PE / before / after (stitchtool info on the spec's script):
+
+| | N 20 | N 8 | M 20 | M 8 | W 20 | W 8 | K 20 | K 8 | Z 20 | Z 8 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| PE-DESIGN | 1 | 1 | 2 | 1 | 1 | 1 | 1 | 1 | 1 | 1 |
+| before | 3 | 3 | 3 | 2 | 4 | 1 | 1 | 1 | 2 | 1 |
+| after | 1 | 1 | 2 | 2 | 1 | 1 | 1 | 1 | 1 | 1 |
+
+Needle points stay within the specs' 25 % (N 20 mm 283 → 274 against 294). Words: NNN at 6 mm
+9 → 3 trims, KNOX at 8 mm 7 → 3, ROUND AND ROUND at 8 mm 19 → 12, MAZE WORK at 10 mm 10 → 9.
+No travel is sewn outside the letters (`small_lettering_shows_no_travel_outside_its_letters`);
+compat 476/476. Still open on #446: N's corner spike (the diagonal's rungs fan into the corner,
+where PE-DESIGN sews a small corner block), M at 8 mm, A's and V's slanted feet.
+
 ### CSD and SHV against PE-DESIGN's exports of #349's designs, 2026-11-07 (#349, `batch:machine-formats`)
 
 PE-DESIGN 11.50 exported OpenStitch's `c17.pes` (17 colour blocks) and `long.pes` (a short move,

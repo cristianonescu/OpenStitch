@@ -695,6 +695,28 @@ pub const HELP_ITEMS: &[(&str, &str)] = &[
     ("about", "About OpenStitch"),
 ];
 
+/// File ▸ Export entries other than the machine formats (which are `design.export` by their
+/// extension), with the engine command each runs (#597, #598): the menu guard test checks
+/// that every entry is listed here and that every command exists.
+pub const EXPORT_MENU: &[(&str, &str)] = &[
+    ("PES", "design.export"),
+    ("EXP", "design.export"),
+    ("EXP…", "design.export"),
+    ("EXP with .inf colour file…", "design.export"),
+    ("Stitch List (CSV)…", "design.export"),
+    ("Stitch List (TXT)…", "design.export"),
+    ("G-code…", "design.export"),
+    ("Picture (PNG)…", "design.exportPicture"),
+    ("Stitch-out Video (animated PNG)…", "design.exportVideo"),
+    (
+        "Bundle (ZIP: PES, DST, JEF, threads, picture)…",
+        "design.exportBundle",
+    ),
+    ("Garment Mockup", "design.mockup"),
+    ("Thread List", "design.exportThreads"),
+    ("Apply Thread List to the Design…", "design.applyThreads"),
+];
+
 /// Options menu buttons that are commands rather than settings, with the `ui.*` command.
 pub const OPTION_BUTTONS: &[(&str, &str)] = &[
     ("Check for Updates Now", "ui.update"),

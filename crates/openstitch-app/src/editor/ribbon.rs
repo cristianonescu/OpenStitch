@@ -120,7 +120,7 @@ actions! {
     Paste => "paste", "Paste", "Add the objects on the clipboard where they were copied from.", Some("Ctrl+V"), Some("object.paste"), true;
     Duplicate => "duplicate", "Duplicate", "Add a copy of the selection, slightly offset.", Some("Ctrl+D"), Some("object.duplicate"), true;
     Delete => "delete", "Delete", "Delete the selection.", Some("Delete"), Some("object.delete"), true;
-    ArrangeCopy => "arrangeCopy", "Arrange Copy", "Copies in a row, a grid or around a circle.", None, Some("object.arrangeCopies"), true;
+    ArrangeCopy => "arrangeCopy", "Arrange Copy", "Copies in a row or a grid, around a circle, mirrored, along a line or a path, or scattered inside a shape (object.arrangeCopies).", None, Some("object.arrangeCopies"), true;
     CopyAttributes => "copyAttributes", "Copy Attributes", "Remember the sewing attributes of the selected object.", None, None, true;
     PasteAttributes => "pasteAttributes", "Paste Attributes", "Give the selection the copied sewing attributes.", None, Some("object.pasteAttributes"), true;
     // Home ▸ Tools.
