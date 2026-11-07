@@ -269,6 +269,8 @@ feature is done and the rest is under [Planned](#planned).
   own file is never overwritten ([#549]).
 - (+) **Large files open in the background** with progress and Cancel, so the window never
   freezes ([#558]).
+- (+) **Several designs as tabs** in one window, each with its own undo, selection and zoom
+  ([#552]).
 - (+) **Command palette** (Ctrl+K / Cmd+K) to find any command, a hints line for the current tool,
   and a search box over the sewing attributes ([#550]).
 - (+) **Your own keyboard shortcuts**, panes docked on either side and saved window layouts
@@ -398,6 +400,8 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
 - **Your own TrueType and OpenType fonts,** embedded in the design. Complex scripts (Arabic,
   Indic, right-to-left) are shaped; vertical text, kerning and CJK characters work.
 - **Fit Text to Outline** and all 26 **Text Transform** presets, checked against PE-DESIGN.
+- (+) **Per-object finish:** trim after, ties and trims between letters, words or lines, set per
+  object ([#548]).
 - (+) **Free envelopes** (bridge, pennant, perspective, diamond) shaped with handles on the canvas
   ([#535]).
 - (+) **Arched text over several lines** as rings around one centre ([#456]).
@@ -445,6 +449,8 @@ The image tools have two methods, both OpenStitch's own: OpenStitch's PE-DESIGN-
 - **Appliqué wizard:** material, position and tack-down lines and the covering stitch, in
   PE-DESIGN's appliqué colours.
 - **Embroidered patch wizard:** satin border and cutting line.
+- (+) **Job sheets:** a client approval sheet and an operator worksheet with the colour sequence,
+  sewing time and job fields ([#513]).
 - **Cutwork wizard:** cutting lines for cutwork needles, stabilising runs, net fill and covering
   satin.
 - **Background fill:** echo, stippling, decorative fill, crosshatch or stripes around the
@@ -633,6 +639,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#510]: https://github.com/cristianonescu/OpenStitch/issues/510
 [#511]: https://github.com/cristianonescu/OpenStitch/issues/511
 [#512]: https://github.com/cristianonescu/OpenStitch/issues/512
+[#513]: https://github.com/cristianonescu/OpenStitch/issues/513
 [#514]: https://github.com/cristianonescu/OpenStitch/issues/514
 [#515]: https://github.com/cristianonescu/OpenStitch/issues/515
 [#516]: https://github.com/cristianonescu/OpenStitch/issues/516
@@ -653,9 +660,11 @@ See also [New: the Assistant](#new-the-assistant).
 [#536]: https://github.com/cristianonescu/OpenStitch/issues/536
 [#545]: https://github.com/cristianonescu/OpenStitch/issues/545
 [#547]: https://github.com/cristianonescu/OpenStitch/issues/547
+[#548]: https://github.com/cristianonescu/OpenStitch/issues/548
 [#549]: https://github.com/cristianonescu/OpenStitch/issues/549
 [#550]: https://github.com/cristianonescu/OpenStitch/issues/550
 [#551]: https://github.com/cristianonescu/OpenStitch/issues/551
+[#552]: https://github.com/cristianonescu/OpenStitch/issues/552
 [#553]: https://github.com/cristianonescu/OpenStitch/issues/553
 [#554]: https://github.com/cristianonescu/OpenStitch/issues/554
 [#556]: https://github.com/cristianonescu/OpenStitch/issues/556
