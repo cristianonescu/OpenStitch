@@ -290,8 +290,10 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    Density floor: 0.1 lines/mm for fill and satin, as PE-DESIGN 11.50's field and the
    `sweep-*-density-min` references (#139's 0.2 floor was checked against them on 2026-10-29
    and not adopted; `attribute-ranges` covers the boundaries).
-2. **Satin:** Miter limit for zigzag lines (#373: PE-DESIGN's guide gives no range or
-   geometry and every reference has 0.0, so it waits for captures). Half Stitch for Auto satin
+2. **Satin:** Miter limit for zigzag lines is done since 2026-11-07 (#373: PE-DESIGN's Sharp
+   Corners buttons and Miter Limit from the owner's captures, eight specs at the reference
+   tier); left: the angle where PE-DESIGN starts cutting (captured at 29.7° and 90°), button
+   2's exact fan, the attribute in PES objects, and satin lines. Half Stitch for Auto satin
    is done since 2026-11-04 (#372): every other crowded inner needle point at a bend pulled
    back along its crossing, measured on satin-auto-bend-90/-120 against their -nohalf twins.
    Jagged Auto Punch regions sew within sew_check's limits since 2026-11-04 (#304: doubled-back

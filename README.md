@@ -385,6 +385,7 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
   ([#531]).
 - **Running and triple lines** with run times, curves followed closely at any size.
 - **Zigzag lines** with width, density, under sewing and half stitch.
+- **Zigzag Sharp Corners and Miter Limit**: PE-DESIGN's two corner buttons and how far a sharp corner's point may reach ([#373](https://github.com/cristianonescu/OpenStitch/issues/373)).
 - **Motif, stem, candlewicking, E and V, and chain lines,** evenly spaced along curves.
 - **Cutting lines** for cutwork needles, with uncut bridges.
 - (+) **Back stitch and brush-stroke running lines:** two forward, one back; or a running line
@@ -745,8 +746,8 @@ Also missing, from the [roadmap](docs/ROADMAP.md#still-to-do):
   letter by region (#428), and no lettering has under sewing per stroke yet.
 - **Text details:** per-character colour, multi-character selection, Connection Points, minimum
   font sizes and small-text fonts, kerning that reflows the line.
-- **Satin and fill details:** Miter limit (needs PE-DESIGN captures, #373), gradation per-step
-  editing and Blend.
+- **Satin and fill details:** Miter limit on satin lines (#373; zigzag lines have it),
+  gradation per-step editing and Blend.
 - **PES:** opening PE-DESIGN's texts and stitch groups as editable OpenStitch objects; motif
   fill, motif lines, several groups, right-aligned and vertical text in the editable PES 11
   writer; writing PES versions 4, 5 and 7–10 (waiting for PE-DESIGN's own files of them).

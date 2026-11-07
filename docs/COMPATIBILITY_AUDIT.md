@@ -86,7 +86,7 @@ dearest:
 | 12 | No minimum font sizes or small-text fonts | Fonts | 4 | Documented difference | No |
 | 13 | No per-character colour or multi-character selection | Fonts | 4 | Documented difference | Colour grouping |
 | 14 | Programmable fill and fill default to 0° instead of 45° (**fixed**: programmable fill internal regression, fill 2026-10-30 from pes-objects r01; type change rule pending) | Stitches | 3 | Documented difference | No |
-| 15 | Missing fill, satin and zigzag attributes; wrong ranges (**partly fixed**: Frequency and ranges; Stitch Type 1 and 2 (2 partly: exact at 0°, 30°/45° rows offset); Half Stitch for Auto satin since 2026-11-04; Miter limit pending captures, #373) | Stitches | 3 | Documented difference | Geometry |
+| 15 | Missing fill, satin and zigzag attributes; wrong ranges (**partly fixed**: Frequency and ranges; Stitch Type 1 and 2 (2 partly: exact at 0°, 30°/45° rows offset); Half Stitch for Auto satin since 2026-11-04; zigzag Sharp Corners and Miter Limit since 2026-11-07, #373) | Stitches | 3 | Documented difference | Geometry |
 | 16 | Optimize Sewing Order does not move entry and exit points (**fixed**, reference) | Stitches | 3 | Documented difference | No |
 | 17 | Hole sewing not validated or paired (**fixed**, internal regression) | Stitches | 3 | Documented difference | No |
 | 18 | PES thread table drops chart names and colour type (**fixed**: round trip; PEC chart colours written as PE-DESIGN writes them since 2026-11-04) | PES | 3 | Documented difference | Chart strings |
@@ -1020,7 +1020,7 @@ Line references are relative to `crates/`.
     offers the Frequency field only (every round-2 sweep's MANIFEST settings list its fields);
   - Stitch Type (turning ends);
   - Half Stitch;
-  - zigzag Sharp Corners / Miter limit.
+  - zigzag Sharp Corners / Miter limit — fixed 2026-11-07 (#373, reference).
   Two ranges are also too wide: Frequency accepts 0–100 % and E/V run times accept up to 6.
 - **Module:**
   - `openstitch-design/src/generate.rs:143` and `region.rs:279`: `phase = (row % 3)/3`.
@@ -1064,8 +1064,20 @@ Line references are relative to `crates/`.
     the older nearest-row order with PE's row ends and grid.
   - Tests: `frequency_and_run_times_follow_the_guide_ranges`,
     `fill_frequency_sets_the_row_to_row_needle_shift` (0, 25 and 50 %, ±2 % of the stitch).
-  - Half Stitch for Auto satin: done 2026-11-04 (#372, item 7's bend sweep). Not implemented,
-    needs captures (#373; list in the stitch-engine notes): zigzag Sharp Corners / Miter limit.
+  - Half Stitch for Auto satin: done 2026-11-04 (#372, item 7's bend sweep).
+  - Zigzag Sharp Corners and Miter Limit: done 2026-11-07 (#373) from PE-DESIGN 11.50's
+    captures (crates/openstitch-formats/tests/fixtures/pe11/captures-2026-11-07/miter/, copied
+    to compat/reference/stitches/line-zigzag-miter-*.pes). The field runs 0–50 mm and each of
+    the two buttons keeps its own value (0.0 and 7.0). A corner sharper than 90° has its point
+    cut square to the bisector the Miter Limit from the corner; 90° corners are unchanged.
+    Button 1 ends each leg where the legs' rails cross and fills the point as a wedge after a
+    run out to the cut (stitches of at most 2 mm); button 2 sews the first leg square into the
+    cut and the second from it along the bisector. Specs `line-zigzag-miter-v-b1-m0/m1/m3/m50`,
+    `-v-b2-m0/m3/m50` and `-l-b2-m7` reach the reference tier: widths exact (40.3/40.2,
+    41.2, 43.0, 43.8 mm), stitch counts within 1 % (447/446, 453/455, 462/465, 466/467,
+    450/451, 478/481, 485/481, 305/311). Not known: the angle between 30° and 90° where
+    PE-DESIGN starts cutting (OpenStitch: below 90°), button 2's exact fan, and where PE
+    stores the attribute in a PES object (written at the defaults).
   - **Stitch Type (measured 2026-10-30, round-5 captures `tatami-40-st{1,2}-dir{0,30,90}.pes`,
     `tatami-40-st2-dir45-freq0.pes`, with round 4's 45° pair; a 40 × 40 mm Fill square, density
     4.5, step 4.0, Frequency 30 %, under sewing off):**
@@ -1135,7 +1147,8 @@ Line references are relative to `crates/`.
 - **Fix:**
   - Add `frequency` to Fill, fed into `tatami_points`.
   - Clamp the ranges.
-  - Add `stitch_type`, `half_stitch` and `miter_limit`, with geometry from method 1.
+  - Add `stitch_type`, `half_stitch` and `miter_limit`, with geometry from method 1 (`miter_limit`
+    done as `sharpCorners`, #373).
 
 ## 16. Optimize Sewing Order does not move entry and exit points
 
@@ -2897,7 +2910,8 @@ averaged 50/50, on the calibrated render; every result is OpenStitch's output.
   limit and spiked out at the cusp; it is bevelled past 120°. Skeleton satin takes Half
   Stitch, so the apex of `[[8,82],[20,70],[32,82]]` no longer piles its inner needle points (7
   needle points within 0.2 mm of the one two before → 0). Straight-leg zigzag mitres (a star's
-  inner corners) wait for the Miter limit attribute (#373, PE captures listed).
+  inner corners) are cut by the Miter Limit since 2026-11-07 (#373: the random-design test's
+  33 zigzag spike seeds pass).
 - **Design Center line art (#627):** the skeleton splits line art at every junction and each
   piece was sewn alone with a trim. Pieces whose ends meet within 0.8 mm are now sewn as one path
   per figure, walking back over sewn lines (at most 50 mm) to the nearest junction with an

@@ -1979,6 +1979,16 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt("leaveUncut", "bool", "Cutting: leave short uncut bridges"),
                 opt("halfStitch", "bool", "Zigzag: thin the inner side of bends"),
                 opt(
+                    "sharpCorners",
+                    "1|2",
+                    "Zigzag: PE-DESIGN's Sharp Corners button for corners sharper than 90 degrees: 1 sews each leg to where the legs cross and fills the point as a wedge, 2 splits the corner along its bisector with short stitches into the point (default 1)",
+                ),
+                opt(
+                    "miterLimit",
+                    "mm",
+                    "Zigzag: Miter Limit of the chosen Sharp Corners button, 0-50: how far from the corner, along its bisector, the point of a corner sharper than 90 degrees may reach (0: cut at the corner; each button keeps its own value, PE-DESIGN's 0 for button 1 and 7 for button 2)",
+                ),
+                opt(
                     "underSewing",
                     "bool",
                     "Zigzag: running stitch a quarter of the width to each side first",
@@ -2155,6 +2165,18 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     }
                     l.leave_uncut = p.bool("leaveUncut", Some(l.leave_uncut))?;
                     l.half_stitch = p.bool("halfStitch", Some(l.half_stitch))?;
+                    if let Some(v) = p.get("sharpCorners") {
+                        l.sharp_corners.button = match v.as_u64().or_else(|| {
+                            v.as_str().and_then(|t| t.parse().ok())
+                        }) {
+                            Some(b @ (1 | 2)) => b as u8,
+                            _ => return Err(p.invalid("sharpCorners", "must be 1 or 2")),
+                        };
+                    }
+                    if p.has("miterLimit") {
+                        let max = openstitch_design::model::SharpCorners::MAX_LIMIT;
+                        l.sharp_corners.set_limit(p.req("miterLimit", 0.0, max)?);
+                    }
                     l.underlay = p.bool("underSewing", Some(l.underlay))?;
                     if let Some(u) = choice(
                         p,
