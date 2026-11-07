@@ -322,7 +322,7 @@ impl Host<CreatorAction> for EditorApp {
 }
 
 fn open_file(st: &mut CreatorState) {
-    let Some(path) = rfd::FileDialog::new()
+    let Some(path) = crate::files::FileDialog::new()
         .add_filter("OpenStitch pattern", &["json"])
         .set_directory(st.dir.clone().unwrap_or_default())
         .pick_file()
@@ -344,7 +344,7 @@ fn open_file(st: &mut CreatorState) {
 /// Open Template: a PNG, JPEG or BMP of the user's own behind the Design Page (it replaces
 /// the one shown; it is not part of the pattern).
 fn open_template(st: &mut CreatorState, ctx: &egui::Context) {
-    let Some(path) = rfd::FileDialog::new()
+    let Some(path) = crate::files::FileDialog::new()
         .add_filter("Image", &["png", "jpg", "jpeg", "bmp"])
         .pick_file()
     else {
@@ -389,7 +389,7 @@ fn save_as(st: &mut CreatorState) {
     let Ok(p) = st.doc.pattern() else {
         return;
     };
-    if let Some(path) = rfd::FileDialog::new()
+    if let Some(path) = crate::files::FileDialog::new()
         .add_filter("OpenStitch pattern", &["json"])
         .set_file_name(creator::library_file_name(&p))
         .save_file()

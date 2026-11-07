@@ -131,3 +131,21 @@ with current screenshots. Refresh it in a pull request before every release:
      `docs/releases/<tag>.md` when it exists, followed by the generated list of changes.
 
    Review the draft and publish it.
+
+## Duplicate "OpenStitch 0.1.0" entries on Windows (#742)
+
+Before #742 every MSI (each `main` build and each self-update, all version 0.1.0 with a new
+ProductCode) installed beside the last instead of replacing it, so **Settings ▸ Apps** (or
+*Programs and Features*) lists one "OpenStitch 0.1.0" per install, all in
+`%ProgramFiles%\OpenStitch`. MSIs built since replace any installed OpenStitch of the same or
+an older version (`AllowSameVersionUpgrades`; CI checks the built MSI's Upgrade table), and the
+self-updater's `msiexec /i` relies on that.
+
+To clean up a PC that already has several entries:
+
+1. Install the newest MSI once (or let the editor update itself): it removes every older
+   OpenStitch entry and leaves one.
+2. If entries remain, uninstall them in **Settings ▸ Apps**, keeping the newest; Windows
+   Installer counts shared files, so removing one entry leaves the files the others still use.
+3. Open OpenStitch once from the Start menu to check it starts; **Repair** in Settings ▸ Apps
+   restores anything missing.

@@ -385,3 +385,66 @@ fn shift_locks_a_select_move_to_one_axis() {
     assert!((free.min_x - after.min_x - 12.0).abs() < 1e-6);
     assert!((free.min_y - after.min_y - 50.0).abs() < 1e-6);
 }
+
+/// The Fill's Texture and Stagger choices (#537) all reach the engine and read back; the
+/// steps and curve settings appear with their stagger.
+#[test]
+fn fill_texture_choices_reach_the_engine() {
+    let mut s = Session::new(std::env::temp_dir());
+    let id = exec(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 10, "y": 10, "width": 20, "height": 20, "fill": "Red"}),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    let sel = BTreeSet::from([id]);
+    let region = |d: &Design| d.objects[0].region.clone().expect("region");
+    let controls = |d: &Design| inspector::region_controls(&region(d));
+    let choice = |d: &Design, param: &str| {
+        controls(d).into_iter().find_map(|c| match c {
+            Control::Choice {
+                param: p, value, ..
+            } if p == param => Some(value),
+            _ => None,
+        })
+    };
+    assert_eq!(choice(s.design(), "texture").as_deref(), Some("smooth"));
+    for t in &openstitch_design::FILL_TEXTURES {
+        let m = InspectorModel::new(s.design(), &sel);
+        let c = controls(s.design())
+            .into_iter()
+            .find(|c| c.param() == "texture")
+            .expect("texture");
+        run(&mut s, &m.set_region(c.params(json!(t.id))));
+        assert_eq!(choice(s.design(), "texture").as_deref(), Some(t.id));
+    }
+    for (stagger, extra) in [
+        ("steps", ["staggerSteps", "staggerRepeat"]),
+        ("wave", ["staggerAmplitude", "staggerPeriod"]),
+        ("arc", ["staggerAmplitude", "staggerPeriod"]),
+    ] {
+        let m = InspectorModel::new(s.design(), &sel);
+        let c = controls(s.design())
+            .into_iter()
+            .find(|c| c.param() == "stagger")
+            .expect("stagger");
+        run(&mut s, &m.set_region(c.params(json!(stagger))));
+        assert_eq!(choice(s.design(), "stagger").as_deref(), Some(stagger));
+        let params: Vec<String> = controls(s.design())
+            .iter()
+            .map(|c| c.param().to_string())
+            .collect();
+        for p in extra {
+            assert!(params.iter().any(|x| x == p), "{stagger}: {params:?}");
+        }
+        // A setting matching no texture reads as custom, and choosing custom keeps it.
+        let m = InspectorModel::new(s.design(), &sel);
+        run(&mut s, &m.set_region(json!({ extra[0]: 7 })));
+        assert_eq!(choice(s.design(), "texture").as_deref(), Some("custom"));
+        let before = region(s.design());
+        let m = InspectorModel::new(s.design(), &sel);
+        run(&mut s, &m.set_region(json!({"texture": "custom"})));
+        assert_eq!(region(s.design()), before);
+    }
+}

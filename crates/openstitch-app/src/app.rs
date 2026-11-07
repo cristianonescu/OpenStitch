@@ -56,7 +56,7 @@ pub struct Launch {
     /// Design Database dialog to open: search, convert, catalog, delete, newfolder.
     pub database_dialog: Option<String>,
     /// Automation socket (`--listen`); started by `main` before the window opens.
-    pub listen: Option<openstitch_remote::ServerConfig>,
+    pub listen: Option<crate::remote::ServerConfig>,
     /// Ribbon tab and right-hand pane tab to show (`--ribbon`, `--pane`).
     pub ribbon: Option<openstitch_app::editor::ribbon::TabId>,
     pub pane: Option<crate::ribbon::PaneTab>,
@@ -264,7 +264,7 @@ pub struct EditorApp {
     /// tests read this instead.
     pub printed: Option<PathBuf>,
     /// Loopback automation socket; its requests run in [`EditorApp::serve_remote`].
-    pub remote: Option<openstitch_remote::Server>,
+    pub remote: Option<crate::remote::Server>,
     /// The AI assistant's scratch folder and pending Help link (`assistant_ui.rs`).
     pub assistant: crate::assistant_ui::AssistantState,
     /// Autosave snapshots and the Recover Designs window (#549).
@@ -1095,7 +1095,7 @@ impl EditorApp {
             Pending::Open(None) => {
                 let mut exts = vec![openstitch_engine::project::EXTENSION];
                 exts.extend(FileType::ALL.iter().map(|t| t.extension()));
-                match rfd::FileDialog::new()
+                match crate::files::FileDialog::new()
                     .add_filter("Designs and embroidery files", &exts)
                     .pick_file()
                 {
@@ -1198,7 +1198,7 @@ impl EditorApp {
     pub fn open_dialog(&mut self) {
         let mut exts = vec![openstitch_engine::project::EXTENSION];
         exts.extend(FileType::ALL.iter().map(|t| t.extension()));
-        let file = rfd::FileDialog::new()
+        let file = crate::files::FileDialog::new()
             .add_filter("Designs and embroidery files", &exts)
             .add_filter(
                 "OpenStitch design",
@@ -1266,7 +1266,7 @@ impl EditorApp {
 
     pub fn import_dialog(&mut self) {
         let exts: Vec<_> = FileType::ALL.iter().map(|t| t.extension()).collect();
-        if let Some(p) = rfd::FileDialog::new()
+        if let Some(p) = crate::files::FileDialog::new()
             .add_filter("Embroidery files", &exts)
             .pick_file()
         {
@@ -1277,7 +1277,7 @@ impl EditorApp {
     /// Home ▸ Import ▸ Import PE-DESIGN Objects: a PE-DESIGN 11 (`#PES0110`) file's shapes,
     /// texts and stitch groups as editable objects at their places, its groups kept (#397).
     pub fn import_pes_objects_dialog(&mut self) {
-        let Some(p) = rfd::FileDialog::new()
+        let Some(p) = crate::files::FileDialog::new()
             .add_filter("PE-DESIGN 11 file", &["pes"])
             .pick_file()
         else {
@@ -1309,7 +1309,7 @@ impl EditorApp {
     /// File ▸ Import SVG: the artwork's paths (or a WMF/EMF drawing's shapes) become a group of
     /// editable shapes, centred.
     pub fn import_svg_dialog(&mut self) {
-        let Some(p) = rfd::FileDialog::new()
+        let Some(p) = crate::files::FileDialog::new()
             .add_filter("Vector images", &["svg", "wmf", "emf"])
             .add_filter("SVG vector image", &["svg"])
             .add_filter("Windows metafile", &["wmf", "emf"])
@@ -1335,7 +1335,7 @@ impl EditorApp {
 
     /// File ▸ Background Image: a PNG, JPEG or BMP shown behind the design, fitted to the page.
     pub fn background_dialog(&mut self) {
-        if let Some(p) = rfd::FileDialog::new()
+        if let Some(p) = crate::files::FileDialog::new()
             .add_filter("Images", &["png", "jpg", "jpeg", "bmp"])
             .pick_file()
             && self
@@ -1402,7 +1402,7 @@ impl EditorApp {
     pub fn save(&mut self, save_as: bool) {
         let path = match (&self.path, save_as) {
             (Some(p), false) => Some(p.clone()),
-            _ => rfd::FileDialog::new()
+            _ => crate::files::FileDialog::new()
                 .add_filter(
                     "OpenStitch design",
                     &[openstitch_engine::project::EXTENSION],
@@ -1465,7 +1465,7 @@ impl EditorApp {
     /// Writes a stitch list (`csv`, `txt`) or G-code (`gcode`) through `design.export` (#488).
     pub fn export_extra(&mut self, ext: &str) {
         let name = format!("{}.{ext}", self.session.design().name);
-        let Some(path) = rfd::FileDialog::new()
+        let Some(path) = crate::files::FileDialog::new()
             .add_filter(ext.to_uppercase(), &[ext])
             .set_file_name(name)
             .save_file()
@@ -1490,7 +1490,7 @@ impl EditorApp {
             ""
         };
         let name = format!("{}{suffix}.{ext}", self.session.design().name);
-        let Some(path) = rfd::FileDialog::new()
+        let Some(path) = crate::files::FileDialog::new()
             .add_filter(ext.to_uppercase(), &[ext])
             .set_file_name(name)
             .save_file()
@@ -1509,7 +1509,7 @@ impl EditorApp {
     /// Writes the design's colours in sewing order (`design.exportThreads`).
     pub fn export_thread_list(&mut self, ext: &str) {
         let name = format!("{} threads.{ext}", self.session.design().name);
-        let Some(path) = rfd::FileDialog::new()
+        let Some(path) = crate::files::FileDialog::new()
             .add_filter(ext.to_uppercase(), &[ext])
             .set_file_name(name)
             .save_file()
@@ -1524,7 +1524,7 @@ impl EditorApp {
 
     /// Applies a thread list file to the colour blocks (`design.applyThreads`).
     pub fn apply_thread_list(&mut self) {
-        let Some(path) = rfd::FileDialog::new()
+        let Some(path) = crate::files::FileDialog::new()
             .add_filter("Thread lists", &["csv", "inf", "edr", "col", "txt"])
             .pick_file()
         else {
@@ -1543,7 +1543,7 @@ impl EditorApp {
 
     fn export_with_params(&mut self, ty: FileType, pes_version: Option<&str>, companion_inf: bool) {
         let name = format!("{}.{}", self.session.design().name, ty.extension());
-        let Some(path) = rfd::FileDialog::new()
+        let Some(path) = crate::files::FileDialog::new()
             .add_filter(ty.extension().to_uppercase(), &[ty.extension()])
             .set_file_name(name)
             .save_file()

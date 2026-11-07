@@ -236,8 +236,20 @@ by CI job `web`. Its desktop-only dependencies (keychain, clipboard images, the 
 the updater, the Assistant's HTTPS client, the system trash) are target-gated in
 `crates/openstitch-app/Cargo.toml`, and `crates/openstitch-app/src/platform.rs` holds what differs:
 on the desktop each function is a pass-through to the call the editor made before (the system
-clipboard, the release-tag check); in the browser the clipboard stays inside the editor. The
-window itself (`main.rs` and the `*_ui.rs` dialogs) follows in later phases.
+clipboard, the release-tag check); in the browser the clipboard stays inside the editor.
+
+Phase B, part 1 (2026-11-07): the editor window builds for `wasm32` as well. Its modules are
+listed once in `crates/openstitch-app/src/bin_modules.rs`: the desktop binary (`main.rs`) includes
+the list, and on `wasm32` the library includes it too (`extern crate self as openstitch_app`),
+so `openstitch_app::EditorApp` exists for the web crate without moving any file. What a browser
+cannot do is behind small stand-ins, each identical to the desktop code on the desktop:
+`files.rs` (file dialogs: `rfd::FileDialog` on the desktop; in the browser the pickers return
+nothing yet), `web/assistant_panel.rs` (no Assistant panel: it needs a model connection, the
+keychain and a local socket), `web/update_ui.rs` (no updater), `remote.rs` (no automation
+socket), the Assistant's notes compiled from `openstitch-assistant/src/notes.rs` without its
+network client, and no system trash. CI job `web` builds the whole package for `wasm32`. Still to
+come (part 2): the page running `EditorApp`, with the browser's file picker and downloads for
+Open, Import and Save, and the background open and preview work moved off threads.
 
 **Build** (the CLI version must match `wasm-bindgen` in Cargo.lock):
 
@@ -268,6 +280,14 @@ web editor's `ui.state`, `ui.simulate`, `ui.openFile {name, base64}`, `ui.saveFi
 
 ## Known limits
 
+- **MSI upgrades (#742).** Every build is version 0.1.0 with a new ProductCode, so the MSI's
+  `MajorUpgrade` sets `AllowSameVersionUpgrades`: installing any OpenStitch MSI removes an
+  installed OpenStitch of the same or an older version first (one entry in Settings ▸ Apps).
+  `build-executables.yml` reads the built MSI's Upgrade table through Windows Installer's COM
+  object and fails unless a row finds OpenStitch's UpgradeCode up to and including this version
+  (`msidbUpgradeAttributesVersionMaxInclusive`) and `RemoveExistingProducts` is scheduled. The
+  self-updater runs `msiexec /i` on the new MSI and relies on the same rows. Cleaning up a PC with
+  older duplicate entries: RELEASING.md.
 - **MSI validation.** `light` runs with `-sice:ICE50`: the advertised Start-menu shortcut's
   icon is `openstitch.ico` from the Icon table while its target is `openstitch.exe`, and ICE50
   wants the two extensions to match. Making the Icon entry from the exe would store the whole
