@@ -808,6 +808,53 @@ fn draw_points(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
         }
         return;
     }
+    if let Some(satin) = app.tools.width_overlay(&ctx) {
+        // Satin line (#700): each width key as a line across the column with a handle at each
+        // edge; the selected key bold.
+        for h in &satin.handles {
+            let (a, b) = (pos(vp.to_screen(h.ends[0])), pos(vp.to_screen(h.ends[1])));
+            let selected = satin.selected == Some(h.index);
+            painter.line_segment(
+                [a, b],
+                Stroke::new(if selected { 2.5 } else { 1.0 }, crate::theme::accent()),
+            );
+            for at in [a, b] {
+                painter.circle(
+                    at,
+                    4.0,
+                    if selected {
+                        crate::theme::accent()
+                    } else {
+                        Color32::WHITE
+                    },
+                    Stroke::new(1.0, crate::theme::accent()),
+                );
+            }
+        }
+        return;
+    }
+    if let Some(column) = app.tools.rung_overlay(&ctx) {
+        // Manual Punch column (#525): its rungs, each end a handle; the selected rung bold.
+        for (i, r) in column.rungs.iter().enumerate() {
+            let (a, b) = (pos(vp.to_screen(r[0])), pos(vp.to_screen(r[1])));
+            let width = if column.selected == Some(i) { 2.5 } else { 1.0 };
+            painter.line_segment([a, b], Stroke::new(width, crate::theme::accent()));
+            for at in [a, b] {
+                painter.rect(
+                    egui::Rect::from_center_size(at, egui::vec2(6.0, 6.0)),
+                    CornerRadius::ZERO,
+                    if column.selected == Some(i) {
+                        crate::theme::accent()
+                    } else {
+                        Color32::WHITE
+                    },
+                    Stroke::new(1.0, crate::theme::accent()),
+                    StrokeKind::Middle,
+                );
+            }
+        }
+        return;
+    }
     let Some(overlay) = app.tools.point_overlay(&ctx) else {
         return;
     };
