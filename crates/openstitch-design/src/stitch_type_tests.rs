@@ -140,7 +140,7 @@ fn motif_groups_free_ends_and_motifs_in_turn() {
         .iter()
         .filter(|p| (p.y.abs() - 27.0).abs() < 1e-6)
         .count();
-    assert!(peaks >= 4 && peaks <= 6, "{peaks}");
+    assert!((4..=6).contains(&peaks), "{peaks}");
     assert!(both.iter().any(|p| p.y < -29.0), "a heart's top");
     // Nothing beyond PE-DESIGN asked for: PE-DESIGN's motif line, unchanged.
     let plain = lines::MotifPlan {
