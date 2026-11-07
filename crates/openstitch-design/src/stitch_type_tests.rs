@@ -3665,7 +3665,12 @@ fn wave_fill_keeps_the_spacing_across_steep_rows_and_height_zero_is_a_plain_fill
     // No stitch under 0.3 mm, travel along the edges included (sew_check's tiny runs).
     for run in layers.iter().flatten() {
         for w in run.windows(2) {
-            assert!(w[0].distance(w[1]) >= 3.0 - 1e-9, "{:?} to {:?}", w[0], w[1]);
+            assert!(
+                w[0].distance(w[1]) >= 3.0 - 1e-9,
+                "{:?} to {:?}",
+                w[0],
+                w[1]
+            );
         }
     }
     // No height: the plain fill, stitch for stitch; and only a fill waves.
