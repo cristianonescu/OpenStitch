@@ -1426,6 +1426,10 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         .on_hover_text("Beyond PE-DESIGN: New and Open add a tab and keep the current design open (Ctrl+Tab switches); off, they replace it as PE-DESIGN does")
         .changed();
     changed |= ui
+        .checkbox(&mut app.ui.prefs.picture_pickers, "Picture pickers with live preview")
+        .on_hover_text("Beyond PE-DESIGN: sewing types, fill patterns and motifs as pictures of their stitches; hovering one shows it on the selection before you choose")
+        .changed();
+    changed |= ui
         .checkbox(&mut app.ui.prefs.autosave, "Autosave for crash recovery")
         .on_hover_text("Beyond PE-DESIGN: keeps a copy of each open design in OpenStitch's settings folder (never the design's own file) and offers it at the next start after a crash or power cut")
         .changed();
