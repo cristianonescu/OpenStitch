@@ -32,8 +32,8 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   save PES version 6.
 - Meander fill (beyond PE-DESIGN): `object.setRegion` `type` `meander` with `pattern` (a meander
   tile from `patterns.list`, default `vermicelli`), `patternWidth`/`patternHeight` (mm) and `runPitch`.
-  PES 0110 refuses it; save PES version 6. Your own tile: `pattern.define` with an
-  `openstitch.pattern` document of `kind` `meander`, one path from `[0, y]` to `[1, y]` inside the
+  PES 0110 refuses it; save PES version 6. Your own tile: `pattern.define` with a pattern
+  document (format "openstitch.pattern") of `kind` `meander`, one path from `[0, y]` to `[1, y]` inside the
   unit tile (at most 500 points); a tile that would cross itself, its neighbours or the rows above
   and below is refused.
 - A plain fill's look changes with `object.setRegion` `texture` (`smooth`, PE-DESIGN's default,
