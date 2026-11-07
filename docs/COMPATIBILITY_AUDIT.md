@@ -534,7 +534,15 @@ Line references are relative to `crates/`.
   1445, its x alone 345 → 305 against 324 and closer both ways (0.228 → 0.211 and 0.215 →
   0.206 mm: main's total matched only because H's +21 and g's −42 cancelled). Letter sweep
   (588 samples): 24 changed (X, x, KNOX), none worse. N's corner and A's and V's slanted feet
-  stay open (#446): no N, M, W, K, Z capture exists yet.
+  stay open (#446). Round 8 (2026-11-07) added PE-DESIGN references for satin N, M, W, K and Z
+  in Lato Bold at 20 and 8 mm and N converted to blocks (`stroke-satin-{n,m,w,k,z}[-8]`,
+  `stroke-blocks-satin-n`, all within today's 25 % and 0.3 mm). Measured against them
+  (needle points ours / PE-DESIGN, mean distance PE → ours, trims ours / PE): N 283/293,
+  0.39 mm, 2/0; N-8 121/123, 0.21 mm, 2/0; M 342/374, 0.38 mm, 2/1; M-8 138/165, 0.27 mm,
+  1/0; W 384/363, 0.32 mm, 3/0; W-8 154/155, 0.19 mm; K 314/293, 0.26 mm; K-8 136/128,
+  0.14 mm; Z 246/237, 0.24 mm, 1/0; Z-8 95/99, 0.16 mm. PE-DESIGN sews N, W, K and Z in one run
+  without a trim (M with one): its strokes meet at the crotches instead of being cut apart, and
+  N's and M's PE → ours distances (the spike at the acute corner) are the largest.
 - **Test:**
   - Inputs: `text.add {"text":"AVOW","size":30,"x":50,"y":50}` →
     `object.setRegion {"id":1,"type":"satin"}` → `design.generate`.

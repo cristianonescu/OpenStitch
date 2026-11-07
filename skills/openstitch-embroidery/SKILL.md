@@ -233,6 +233,11 @@ and step `ui.cursor`: `{x, y, action: "place"}` per point (`"smooth"` for a curv
 then `{action: "finish"}`; `{width}` sets the next Pen or Satin Skeleton point's width (a Pen
 line with widths becomes a satin line). The shape commands (`shape.polygon`, `shape.path`)
 remain the direct way to draw.
+To show the user what a setting would look like before changing it, `ui.preview {command:
+"object.setRegion", params: {ids, type}}` swaps in the stitches of that change on the canvas
+(no undo step, the design unchanged; `ui.render` shows them too); `ui.preview {clear: true}`
+ends it, and running the command keeps the change. `ui.set picturePickers` shows the sewing
+types, fill patterns and motifs as pictures in the Sewing Attributes pane.
 Opening or importing a large file in the window runs in the background: `ui.state` shows
 `loading` (file, step, seconds), and `ui.loading {cancel: true}` stops it, leaving the design
 as it was.

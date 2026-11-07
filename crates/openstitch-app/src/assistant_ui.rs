@@ -264,14 +264,13 @@ impl EditorApp {
                     trim_marks: self.ui.prefs.show.trim_marks,
                 };
                 let show = preview::show_args(params.unwrap_or(&Value::Null), defaults)?;
-                let png = preview::png_shown(
-                    self.session.design(),
-                    &self.pattern,
-                    &self.quality.spans,
-                    size,
-                    travel,
-                    &show,
-                )?;
+                // A picture picker's or ui.preview's stitches while one is shown (#656).
+                let (pattern, spans) = match self.live_preview() {
+                    Some(p) => (&p.compiled.pattern, &p.compiled.spans),
+                    None => (&self.pattern, &self.quality.spans),
+                };
+                let png =
+                    preview::png_shown(self.session.design(), pattern, spans, size, travel, &show)?;
                 let (width, height) = png_size(&png);
                 Ok(json!({
                     "png": base64::engine::general_purpose::STANDARD.encode(&png),
@@ -419,6 +418,7 @@ impl EditorApp {
                 Ok(state)
             }
             "ui.cursor" => self.cursor_command(params),
+            "ui.preview" => self.preview_command(params),
             "ui.recoveryList" => Ok(crate::recovery_ui::list(self)),
             "ui.recoveryRestore" => {
                 let id = p.string("id", None).map_err(err)?;
@@ -635,6 +635,7 @@ impl EditorApp {
                 "soloColor" => json!(prefs.show.solo),
                 "simulatorSpeed" => json!(self.play_speed),
                 "autosave" => json!(prefs.autosave),
+                "picturePickers" => json!(prefs.picture_pickers),
                 "openInTabs" => json!(prefs.open_in_tabs),
                 "autosaveInterval" => json!(prefs.autosave_interval),
                 "propertySearch" => json!(self.ui.property_search),
@@ -835,6 +836,7 @@ impl EditorApp {
                 (self.play_speed, save) = (number_value(name, v, 1.0, 5000.0)?, false)
             }
             "autosave" => self.ui.prefs.autosave = bool_value(name, v)?,
+            "picturePickers" => self.ui.prefs.picture_pickers = bool_value(name, v)?,
             "openInTabs" => self.ui.prefs.open_in_tabs = bool_value(name, v)?,
             "autosaveInterval" => {
                 use openstitch_app::editor::recovery::{MAX_INTERVAL, MIN_INTERVAL};

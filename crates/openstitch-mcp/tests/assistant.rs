@@ -772,6 +772,7 @@ fn every_command_the_skill_names_exists() {
         "ui.resetPrefs",
         "ui.gettingStarted",
         "ui.cursor",
+        "ui.preview",
         "ui.documents",
         "ui.loading",
     ];

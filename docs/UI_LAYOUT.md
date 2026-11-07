@@ -514,6 +514,16 @@ and Paste Attributes, and its Region and Line titles fold their sections (#553).
 
 ![Start cards](images/rust-editor-start-cards.png)
 
+**Picture pickers (beyond PE-DESIGN, #656).** With **Options ▸ Picture pickers with live
+preview** on (off by default, PE-DESIGN's lists), the Sewing Attributes pane's Region and Line
+Type, programmable fill and net patterns and motifs open as a grid of pictures: each is the
+program's own stitches of that choice on a sample shape. Hovering a picture re-stitches the
+selection on the canvas without changing the design or adding an undo step; moving off the
+pictures brings the design back, and a click makes the change as one undo step. The Assistant
+previews the same way with `ui.preview`.
+
+![Picture picker with a hover preview](images/rust-editor-pickers.png)
+
 ### Option button
 
 Beyond PE-DESIGN (#551, #559), after the theme: **Accent colour ▸** (Theme default, six presets,

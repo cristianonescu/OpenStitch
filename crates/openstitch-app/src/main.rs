@@ -71,6 +71,7 @@ mod palette_ui;
 mod panels;
 mod panes;
 mod pattern_wizard_ui;
+mod pickers_ui;
 mod print_ui;
 mod quality_ui;
 mod recovery_ui;

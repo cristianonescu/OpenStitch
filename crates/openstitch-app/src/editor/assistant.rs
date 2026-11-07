@@ -422,6 +422,21 @@ pub const UI_COMMANDS: &[UiCommand] = &[
         ],
     },
     UiCommand {
+        id: "ui.preview",
+        summary: "Preview a design change on the canvas without making it (#656, as hovering a picture picker's tile does): command and params of an editing command (e.g. object.setRegion with a type or pattern) show its stitches instead of the design's, with no undo step; clear: true ends it, any edit drops it; without parameters, whether a preview is on. Run the command itself to keep the change",
+        effect: Effect::Edit,
+        params: &[
+            p(
+                "command",
+                "string",
+                false,
+                "An editing command id, e.g. object.setRegion",
+            ),
+            p("params", "object", false, "Its parameters"),
+            p("clear", "bool", false, "true: end the preview"),
+        ],
+    },
+    UiCommand {
         id: "ui.notesClear",
         summary: "Forget everything: clear the Assistant's notes (Assistant settings, Memory, Forget everything). Always asks the user first",
         effect: Effect::Settings,
@@ -598,6 +613,11 @@ pub const SETTINGS: &[Setting] = &[
         "number 1..5000",
     ),
     s("autosave", "Autosave for crash recovery", "bool"),
+    s(
+        "picturePickers",
+        "Picture pickers with live preview",
+        "bool",
+    ),
     s("openInTabs", "Open designs in tabs", "bool"),
     s(
         "autosaveInterval",
