@@ -99,7 +99,7 @@ fn stripes_lattice_and_slanted_e_stitch_take_their_settings() {
     );
     let before = s.design().clone();
     for params in [
-        json!({"id": 1, "type": "lattice", "strands": 4}),
+        json!({"id": 1, "type": "lattice", "strands": 8}),
         json!({"id": 1, "type": "stripes", "strands": 13}),
         json!({"id": 1, "type": "stripes", "gaps": [0.1]}),
         json!({"id": 1, "type": "stripes", "gaps": []}),

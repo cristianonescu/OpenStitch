@@ -12,7 +12,7 @@ pub(crate) const PARAMS: [ParamDoc; 3] = [
     opt(
         "strands",
         "int",
-        "Lattice: strands crossing the band, 3-7 (odd, default 3); stripes: rows across the band, 2-12 (default 3)",
+        "Lattice: strands crossing the band, 3-7 (an even count sews the next odd one, so the line ends at its far end; default 3); stripes: rows across the band, 2-12 (default 3)",
     ),
     opt(
         "gaps",
@@ -30,16 +30,7 @@ pub(crate) const PARAMS: [ParamDoc; 3] = [
 pub(crate) fn apply(p: &Params, l: &mut LineSewing) -> Result<(), CommandError> {
     if p.has("strands") {
         match l.kind {
-            LineType::Lattice => {
-                let n = p.int("strands", None, 3, 7)? as u32;
-                if n.is_multiple_of(2) {
-                    return Err(p.invalid(
-                        "strands",
-                        "must be odd for a lattice, so it ends at the far end",
-                    ));
-                }
-                l.strands = Some(n);
-            }
+            LineType::Lattice => l.strands = Some(p.int("strands", None, 3, 7)? as u32),
             LineType::Stripes => l.strands = Some(p.int("strands", None, 2, 12)? as u32),
             _ => return Err(p.invalid("strands", "needs a lattice or stripes line")),
         }

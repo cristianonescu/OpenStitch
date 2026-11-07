@@ -1175,21 +1175,27 @@ pub fn line_controls_with(l: &LineSewing, user: &[Pattern]) -> Vec<Control> {
                     0.05,
                     " mm",
                 )),
-                LineType::Lattice => v.push(times(
-                    "Strands (odd)",
-                    "line.strands",
-                    "strands",
-                    l.strands.unwrap_or(3),
-                    7,
-                )),
+                LineType::Lattice => v.push(Control::Number {
+                    label: "Strands",
+                    key: "line.strands",
+                    param: "strands",
+                    value: f64::from(l.strands.unwrap_or(3)),
+                    range: (3.0, 7.0),
+                    speed: 0.05,
+                    suffix: "",
+                    integer: true,
+                }),
                 LineType::Stripes => {
-                    v.push(times(
-                        "Stripes",
-                        "line.strands",
-                        "strands",
-                        l.strands.unwrap_or(3),
-                        12,
-                    ));
+                    v.push(Control::Number {
+                        label: "Stripes",
+                        key: "line.strands",
+                        param: "strands",
+                        value: f64::from(l.strands.unwrap_or(3)),
+                        range: (2.0, 12.0),
+                        speed: 0.05,
+                        suffix: "",
+                        integer: true,
+                    });
                     v.push(pitch.clone());
                 }
                 LineType::AlternatingTriangles => v.push(pitch.clone()),
