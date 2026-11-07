@@ -801,13 +801,70 @@ fn every_command_the_skill_names_exists() {
                 && !candidate.ends_with(".md")
                 && !candidate.contains("..")
                 && candidate.split('.').count() == 2
-                && !["osd", "pes", "dst", "jef", "svg", "png"]
-                    .contains(&candidate.split('.').nth(1).unwrap_or(""));
+                // File names in the examples, not commands.
+                && ![
+                    "osd", "pes", "dst", "jef", "exp", "svg", "png", "zip", "gcode", "csv", "txt",
+                    "inf", "edr", "col",
+                ]
+                .contains(&candidate.split('.').nth(1).unwrap_or(""));
             if is_id {
                 assert!(
                     ids.contains(&candidate),
                     "{name} names unknown command {candidate}"
                 );
+            }
+        }
+    }
+}
+
+/// #595, #596: every machine format OpenStitch reads (`formats.list`) is named in the skill's
+/// formats table, so the Assistant never tells a user a readable file can't be opened.
+#[test]
+fn the_skill_names_every_file_format() {
+    let mut session = Session::new(".");
+    let list = session.execute("formats.list", None).expect("formats.list");
+    let answers = openstitch_mcp::skills::FILES
+        .iter()
+        .find(|(n, _)| *n == "reference/answers.md")
+        .expect("answers.md")
+        .1;
+    let table = &answers[answers.find("## File formats").expect("formats section")..];
+    let machine = list["machine"].as_array().expect("machine formats");
+    assert!(machine.len() >= 22, "{list}");
+    for f in machine {
+        let ext = f["extension"].as_str().expect("extension").to_uppercase();
+        assert!(table.contains(&ext), "answers.md File formats lacks {ext}");
+    }
+    for extra in [
+        "G-code",
+        "design.exportPicture",
+        "design.exportVideo",
+        "design.exportBundle",
+    ] {
+        assert!(
+            table.contains(extra),
+            "answers.md File formats lacks {extra}"
+        );
+    }
+}
+
+/// #600: the skill teaches the meta tools' `file` key; a `name` key is dropped by Ollama's
+/// generic tool parser (#425), so no example may use it.
+#[test]
+fn skill_examples_of_scratch_write_and_skill_reference_use_the_file_key() {
+    for (name, body) in openstitch_mcp::skills::FILES {
+        for tool in ["scratch_write", "skill_reference"] {
+            for (i, _) in body.match_indices(tool) {
+                let after = &body[i + tool.len()..];
+                let near = &after[..after.len().min(40)];
+                if let Some(brace) = near.find('{') {
+                    assert!(
+                        !near[brace..]
+                            .trim_start_matches(['{', ' '])
+                            .starts_with("\"name\""),
+                        "{name}: {tool} example uses the old \"name\" key"
+                    );
+                }
             }
         }
     }

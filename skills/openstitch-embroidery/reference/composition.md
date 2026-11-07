@@ -2,7 +2,7 @@
 
 How to turn "a strawberry with leaves and seeds, about 60 mm" into a design that reads well
 and sews cleanly. Before you start, open the example closest to the subject
-(`skill_reference {"name": "examples"}` lists them; `skill_reference {"name": "strawberry"}`
+(`skill_reference {"file": "examples"}` lists them; `skill_reference {"file": "strawberry"}`
 returns one) and adapt it: change sizes, colours and parts rather than inventing every step.
 
 ## Plan in stitched regions

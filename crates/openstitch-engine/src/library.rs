@@ -132,7 +132,7 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
                 req(
                     "format",
                     "string",
-                    "Target extension: pes, pec, dst, exp, jef, pcs, sew, xxx, hus, vip",
+                    "Target extension: pes, pec, dst, exp, jef, pcs, sew, xxx, hus, vip, shv, csd, vp3, tap, tbf, u01 (formats.list)",
                 ),
                 opt(
                     "output",
