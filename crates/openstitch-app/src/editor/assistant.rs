@@ -544,7 +544,7 @@ pub const SETTINGS: &[Setting] = &[
     ),
     s(
         "language",
-        "Options ▸ Language: the interface language (ribbon so far; pseudo = a test language that brackets every translated text)",
+        "Options ▸ Language: the interface language (ribbon and menus so far; pseudo = a test language that brackets every translated text)",
         "en|pseudo",
     ),
     s("showStartCards", "Show start cards", "bool"),

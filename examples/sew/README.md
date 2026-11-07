@@ -395,6 +395,8 @@ Fills whose rows ripple as a sine, height and length in mm: 2 and 16, 3 and 10, 
 
 <img src="previews/wave-fill.png" height="180" alt="Realistic view of fills/wave-fill.pes">
 
+Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 208 Orange, 620 Magenta, 406 Ultra Marine.
+
 #### Maze fill (beyond PE-DESIGN)
 
 [`fills/maze-fill.pes`](fills/maze-fill.pes) · 100 × 100 mm hoop · 83.4 × 54.6 mm · 1,080 stitches · 6 trims · about 1.7 min
@@ -449,7 +451,7 @@ The fonts, Text Transform, text on a path and monograms.
 
 #### Lettering
 
-[`lettering/fonts-and-text.pes`](lettering/fonts-and-text.pes) · 100 × 100 mm hoop · 71 × 89.7 mm · 3,855 stitches · 46 trims · about 7.2 min
+[`lettering/fonts-and-text.pes`](lettering/fonts-and-text.pes) · 100 × 100 mm hoop · 71 × 89.7 mm · 3,838 stitches · 39 trims · about 6.8 min
 
 Lato Bold and Pacifico, a Text Transform arch, and text spaced around a circle (text on a path).
 

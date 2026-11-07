@@ -301,6 +301,7 @@ WAVES = [
     ("rect", {"type": "fill", "angle": 45, "waveHeight": 3, "waveLength": 14}),
     ("circle", {"type": "fill", "angle": 0, "waveHeight": 3, "waveLength": 12}),
     ("rect", {"type": "fill", "angle": 90, "waveHeight": 8, "waveLength": 8}),
+]
 # Maze fill (#533, beyond PE-DESIGN).
 MAZES = [
     ("rect", {"type": "maze"}),
