@@ -39,6 +39,7 @@ const fn opt(name: &'static str, kind: &'static str, summary: &'static str) -> P
     }
 }
 
+#[cfg(feature = "formats")]
 const fn req(name: &'static str, kind: &'static str, summary: &'static str) -> ParamDoc {
     ParamDoc {
         name,
@@ -49,6 +50,7 @@ const fn req(name: &'static str, kind: &'static str, summary: &'static str) -> P
 }
 
 pub fn commands() -> Vec<CommandSpec> {
+    #[cfg_attr(not(feature = "formats"), allow(unused_mut))]
     let mut v = vec![
         spec(
             "sections.set",

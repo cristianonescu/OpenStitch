@@ -369,6 +369,7 @@ fn validate_property(p: &Params, key: &str, value: &str) -> Result<(), CommandEr
 }
 
 /// Moves `block` so the box around its needle points is centred on `page`.
+#[cfg(feature = "formats")]
 fn centre_on_page(block: &mut openstitch_design::StitchBlock, page: &DesignPage) {
     let needles = || {
         block
@@ -3154,6 +3155,7 @@ fn text_commands() -> Vec<CommandSpec> {
 // MARK: files
 
 /// `dir/name.ext` → `dir/name-N.ext` (split exports).
+#[cfg(feature = "formats")]
 fn numbered(path: &str, n: usize) -> String {
     let p = std::path::Path::new(path);
     let stem = p
