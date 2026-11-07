@@ -2970,7 +2970,20 @@ ripple type and the motif plan.
 - Motif lines: groups with a longer gap after each, motif-free ends, motifs used in turn; the
   motifs are not stretched to fit (PE-DESIGN's line stretches them), so what does not fit
   before the free end stays running stitch. Five more bundled motifs.
-- Not done: the motif band on skeleton satins and columns (#544).
+- Not done: the motif band on skeleton satins and columns (#544); done in part 4 below.
+
+### Motif bands along satin columns, 2026-11-07 (#544 part, `batch:lines`, part 4)
+
+Beyond PE-DESIGN and off unless chosen: a satin without `motifBand` sews as before (compat
+unchanged); PES 0110 export refuses a motif band.
+
+- A skeleton satin, a Manual Punch satin column or a satin line can sew a motif along its
+  column instead of the satin: a whole number of copies, each `bandTile` long (default the
+  column's mean width), stretched to fill the column end to end. Each copy is mapped from the
+  column's left edge to its right edge at every point along it, so on a 2 to 8 mm taper every
+  copy touches both edges within 0.2 mm. `bandMirror` flips every other copy across.
+- The under sewing and raised padding of the column stay; only the top satin is replaced.
+- Still to do in #544: an image per line-type option.
 
 ### Decorative hand-embroidery lines, 2026-11-07 (#543, `batch:lines`, part 2)
 

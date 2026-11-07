@@ -1,0 +1,113 @@
+[
+ {
+  "command": "design.new",
+  "params": {
+   "name": "motif bands",
+   "width": 100,
+   "height": 70
+  }
+ },
+ {
+  "command": "shape.skeletonSatin",
+  "params": {
+   "points": [
+    [
+     8,
+     14
+    ],
+    [
+     50,
+     10
+    ],
+    [
+     92,
+     14
+    ]
+   ],
+   "widths": [
+    3,
+    9,
+    3
+   ],
+   "fill": "#2A7AD8"
+  }
+ },
+ {
+  "command": "object.setRegion",
+  "params": {
+   "id": 1,
+   "motifBand": "zigzag",
+   "bandTile": 5,
+   "underlay": false
+  }
+ },
+ {
+  "command": "shape.skeletonSatin",
+  "params": {
+   "points": [
+    [
+     8,
+     36
+    ],
+    [
+     92,
+     36
+    ]
+   ],
+   "widths": [
+    2,
+    8
+   ],
+   "fill": "#D23C3C"
+  }
+ },
+ {
+  "command": "object.setRegion",
+  "params": {
+   "id": 2,
+   "motifBand": "star",
+   "bandMirror": true,
+   "underlay": false
+  }
+ },
+ {
+  "command": "shape.path",
+  "params": {
+   "points": [
+    [
+     8,
+     58
+    ],
+    [
+     50,
+     52
+    ],
+    [
+     92,
+     58
+    ]
+   ],
+   "closed": false,
+   "outline": "#2E9D58"
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 3,
+   "type": "satin",
+   "width": 7,
+   "taperStart": 15,
+   "taperEnd": 15
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 3,
+   "motifBand": "diamond",
+   "bandTile": 6,
+   "underSewing": false
+  }
+ }
+]

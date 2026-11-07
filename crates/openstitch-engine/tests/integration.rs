@@ -100,6 +100,8 @@ mod mapped_text;
 mod media_exports;
 #[path = "monogram.rs"]
 mod monogram;
+#[path = "motif_band.rs"]
+mod motif_band;
 #[path = "name_drop.rs"]
 mod name_drop;
 #[path = "order.rs"]

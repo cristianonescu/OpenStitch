@@ -1631,6 +1631,10 @@ pub struct RegionSewing {
     /// Satin: the hand-stitch look on one side (#540, beyond PE-DESIGN).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hand: Option<crate::line_looks::SatinHand>,
+    /// Satin: a motif repeated along the column instead of the satin, stretched across its
+    /// local width (#544, beyond PE-DESIGN).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub motif_band: Option<crate::motif_band::MotifBand>,
 }
 
 impl RegionSewing {
@@ -1706,6 +1710,7 @@ impl RegionSewing {
             underlay_auto: Default::default(),
             underlay2: None,
             hand: None,
+            motif_band: None,
         }
     }
 
@@ -2165,6 +2170,10 @@ pub struct LineSewing {
     /// Running, triple and back stitch: the hand-stitch look (#540, beyond PE-DESIGN).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hand: Option<crate::line_looks::HandStitch>,
+    /// Satin line: a motif repeated along the column instead of the satin, stretched across its
+    /// local width (#544, beyond PE-DESIGN).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub motif_band: Option<crate::motif_band::MotifBand>,
     /// Scribble: length of its smooth side waves, mm (default 5).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub noise_scale: Option<f64>,
@@ -2302,6 +2311,7 @@ impl LineSewing {
             slant: None,
             profile: None,
             hand: None,
+            motif_band: None,
             noise_scale: None,
             seed: None,
             strands: None,
