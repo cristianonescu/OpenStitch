@@ -85,8 +85,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    short stitches) and `miterLimit` (0-50 mm from the corner along the bisector; 0, the
    default, cuts the point at the corner, about 4 mm on a 2 mm line at 30 degrees is the full
    point). Raise `miterLimit` for a pointed star or chevron border, keep 0 for a blunt one.
-   Satin quality beyond PE-DESIGN (off by default; Manual Punch columns, skeleton satins and
-   Auto satin regions via `object.setRegion`, zigzag lines via `object.setLine`):
+   Satin quality beyond PE-DESIGN (off by default; Manual Punch columns, skeleton satins,
+   Auto satin regions and satin text via `object.setRegion`, zigzag lines via
+   `object.setLine`; text is cut at its sharp corners, so corner styles do not apply there):
    `cornerStyle: auto` for stars, chevrons and badge borders (mitre below `mitreBelow` 75°, cap below `capBelow` 45°,
    `cornerOverlap`, `capMaxLength`); `shortStitchDistance: 0.25` (with `shortStitchInset` %)
    thins the inside of tight curves; `pullLeft`/`pullRight` (mm, `null` resets) and
@@ -157,7 +158,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `ui.set` `densityOverlay` and `darkBackground` mark the design, `checkFabric` sets the
    fabric, `routeMap` draws the route, and `reviewStep` (from 1) moves the review and the
    simulator to that step. `ui.state` `check` has `ready`, the `errors` and `warnings`, the
-   open `window` and `reviewSteps`.
+   open `window` and `reviewSteps`. `ui.render` shows what you switched on: the density overlay's
+   orange and red cells, and Check Design's rings while its Check tab is open, so look at the
+   picture to see where.
    `design.timeline` lists the colour blocks in sewing order with their stitch ranges, trims,
    object starts and machine time ("when does the red start?"); in the editor,
    `ui.simulate {stitch}` or `{step: "block" | "object" | "trim"}` moves the player there.
@@ -373,6 +376,8 @@ image pickers are desktop-only too; say so instead of trying them in the browser
   `settings: true`: give the element an `id` and a `data-name` such as `"fill a=45 s=0.4"`,
   `"satin"`, `"run r=3"` or `"stroke.satin w=3"`; the long key names work too
   (`"fill angle=45 density=4.5"`, `"run length=2.5 repeats=3"`, `"stroke.satin stroke.width=3"`).
+  `"stroke.satin"` with no width makes a satin line as wide as the SVG stroke (`stroke-width`);
+  `"stroke.zigzag"` asks for PE-DESIGN's zigzag line instead.
   The result lists unknown words and refused values (FILE_FORMATS.md has the words).
 - A user who wants to script designs in Python can use the `openstitch` package (repository
   `python/README.md`: `Session().exec("shape.ellipse", ...)` with these same commands).

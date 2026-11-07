@@ -9,8 +9,9 @@
 //! **Syntax** (words separated by spaces or commas, any case):
 //! - a sew type: `fill`, `satin` (a satin region; on a shape with no fill, a satin line),
 //!   `run`, `triple`, `zigzag` (lines), `skip` (the shape is not imported); with `stroke.` in
-//!   front it is the outline's: `stroke.satin` (a satin line, PE-DESIGN's zigzag), `stroke.run`,
-//!   `stroke.triple`, `stroke.zigzag`, `stroke.skip` (no outline);
+//!   front it is the outline's: `stroke.satin` (a satin line, OpenStitch's `satin` line type,
+//!   as wide as the SVG stroke unless `w=` says otherwise, #701), `stroke.zigzag` (PE-DESIGN's
+//!   zigzag line), `stroke.run`, `stroke.triple`, `stroke.skip` (no outline);
 //! - `key=value` settings: `a=` angle (degrees), `s=` row spacing (mm) or `d=` density (rows
 //!   per mm), `l=` stitch length (mm), `pc=` pull compensation (mm), `u=` underlay (`0`/`1`),
 //!   `c=` colour (`#rrggbb` or a Brother thread name) for the region; `w=` width (mm), `r=`
@@ -185,7 +186,8 @@ fn parse_word(w: &str) -> Option<Word> {
         (true, "skip") => Word::StrokeSkip,
         (false, "fill") => Word::Region("fill"),
         (false, "satin") => Word::Satin,
-        (true, "satin" | "zigzag") | (false, "zigzag") => Word::Line("zigzag"),
+        (true, "satin") => Word::Line("satin"),
+        (true, "zigzag") | (false, "zigzag") => Word::Line("zigzag"),
         (_, "run" | "running") => Word::Line("running"),
         (_, "triple") => Word::Line("triple"),
         _ => return None,
@@ -240,10 +242,24 @@ pub fn settings_for(names: &[(String, bool)], has_fill: bool) -> (Settings, Vec<
         if has_fill {
             s.region_type = Some("satin");
         } else {
-            s.line_type = Some("zigzag");
+            s.line_type = Some("satin");
         }
     }
     (s, unknown)
+}
+
+/// A satin line with no `w=` takes the SVG stroke's own width (`stroke_width`, 0.1 mm; #701),
+/// rounded to 0.1 mm.
+fn stroke_width_for_satin(settings: &mut Settings, stroke_width: Option<f64>) {
+    if settings.line_type == Some("satin")
+        && !settings.line.iter().any(|(k, _, _)| *k == "width")
+        && let Some(w) = stroke_width.filter(|w| w.is_finite() && *w > 0.0)
+    {
+        let mm = (w).round() / 10.0;
+        settings
+            .line
+            .insert(0, ("width", json!(mm), format!("stroke-width={mm}mm")));
+    }
 }
 
 /// The pieces of `c` that a dash pattern draws, as open contours (curves flattened). `None`
@@ -338,7 +354,8 @@ pub fn prepare(
         let id = shape.names.last().cloned().unwrap_or_default();
         let closed = shape.contours.iter().all(|c| c.closed);
         let has_fill = shape.fill.is_some() && closed;
-        let (settings, unknown) = settings_for(&chain, has_fill);
+        let (mut settings, unknown) = settings_for(&chain, has_fill);
+        stroke_width_for_satin(&mut settings, shape.stroke_width);
         for w in unknown {
             report.unknown.push(json!({ "id": id, "token": w }));
         }
@@ -496,14 +513,26 @@ mod tests {
         let (s, _) = settings_for(&named(&["satin"]), true);
         assert_eq!((s.region_type, s.line_type), (Some("satin"), None));
         let (s, _) = settings_for(&named(&["satin"]), false);
-        assert_eq!((s.region_type, s.line_type), (None, Some("zigzag")));
+        assert_eq!((s.region_type, s.line_type), (None, Some("satin")));
         let (s, _) = settings_for(&named(&["run r=3 l=2"]), false);
         assert_eq!(s.line_type, Some("running"));
         assert_eq!(s.line[0].0, "runTimes");
         assert_eq!(s.line[1].0, "pitch");
         let (s, _) = settings_for(&named(&["fill stroke.satin stroke.w=3"]), true);
-        assert_eq!((s.region_type, s.line_type), (Some("fill"), Some("zigzag")));
+        assert_eq!((s.region_type, s.line_type), (Some("fill"), Some("satin")));
         assert_eq!(s.line[0].0, "width");
+        // #701: PE-DESIGN's zigzag line stays `stroke.zigzag`.
+        let (s, _) = settings_for(&named(&["stroke.zigzag"]), true);
+        assert_eq!(s.line_type, Some("zigzag"));
+        // A satin line with no `w=` takes the stroke's width (0.1 mm), rounded to 0.1 mm.
+        let (mut s, _) = settings_for(&named(&["stroke.satin"]), false);
+        stroke_width_for_satin(&mut s, Some(42.37));
+        assert_eq!(s.line[0].0, "width");
+        assert_eq!(s.line[0].1, json!(4.2));
+        let (mut s, _) = settings_for(&named(&["stroke.satin w=3"]), false);
+        stroke_width_for_satin(&mut s, Some(42.0));
+        assert_eq!(s.line.len(), 1, "w= wins");
+        assert_eq!(s.line[0].1, json!(3.0));
     }
 
     /// #455: the long key names mean what the short ones do.
