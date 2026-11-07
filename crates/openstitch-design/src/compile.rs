@@ -1453,11 +1453,26 @@ fn stroke_columns(
                             || turns_corner(&b.rungs)
                             || (alone[i] && chords_cut(&b.rungs, &f[i].rungs))) =>
                 {
-                    satin_rungs(&f[i].rungs, turns_corner(&b.rungs), 2.0 * spacing)
+                    // The open look's rows are three times as far apart (#686).
+                    let open = region.satin_shaping.style == crate::column::SatinStyle::Open;
+                    let rows = 2.0 * spacing * if open { 3.0 } else { 1.0 };
+                    satin_rungs(&f[i].rungs, turns_corner(&b.rungs), rows)
                 }
                 _ => b.rungs.clone(),
             };
-            crate::column::satin(&rungs, spacing, pull)
+            // OpenStitch's satin shaping (#676, #686): short stitches, compensation per side and
+            // per cent, the satin looks and raised satin's padding lanes under each block, as
+            // on a Manual Punch column. Unset, PE-DESIGN's satin. (A letter is cut into pieces
+            // at its sharp corners, so corner styles find no corner inside a block.)
+            let satin = crate::column::satin_with(&rungs, spacing, pull, &region.satin_shaping);
+            match &region.satin_shaping.raised {
+                Some(raised) => {
+                    let mut padded = crate::column::padding(&rungs, raised);
+                    padded.extend(satin);
+                    padded
+                }
+                None => satin,
+            }
         };
         // A piece not joined to the one before starts a new run, which the writer trims to,
         // unless the needle can reach it without leaving the letter (V's arms at its foot,
