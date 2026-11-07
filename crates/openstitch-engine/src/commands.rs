@@ -291,6 +291,7 @@ pub fn all() -> Vec<CommandSpec> {
     v.extend(crate::threadlists::commands());
     #[cfg(feature = "formats")]
     v.extend(crate::media_exports::commands());
+    v.extend(crate::machine_profile::commands());
     v.extend(crate::mockup::commands());
     #[cfg(feature = "formats")]
     v.extend(crate::pes11_import::commands());
@@ -416,6 +417,19 @@ fn design_commands() -> Vec<CommandSpec> {
                         height: h * MM,
                     },
                 );
+                // Without a size, the user's machine's hoop (#508 part 3).
+                if !p.has("width")
+                    && !p.has("height")
+                    && let Some(hoop) = crate::machine_profile::new_design_hoop(s)
+                {
+                    s.design.machine.hoop = Some(hoop.to_string());
+                    if let Some((hw, hh)) = s.design.machine.hoop_size() {
+                        s.design.page = DesignPage {
+                            width: hw * MM,
+                            height: hh * MM,
+                        };
+                    }
+                }
                 Ok(json!({ "name": s.design.name }))
             },
         ),
@@ -3413,7 +3427,7 @@ fn codec_commands() -> Vec<CommandSpec> {
                     let bytes = crate::extra_exports::encode(&extra, &pattern, p)?
                         .expect("an extra format");
                     crate::fsio::write(&path, bytes).map_err(|e| p.failed(e.to_string()))?;
-                    let check = crate::machine::export_check(&s.design, &pattern);
+                    let check = crate::machine::export_check_for(s, &pattern);
                     return Ok(json!({
                         "path": path.display().to_string(),
                         "paths": [path.display().to_string()],
@@ -3491,7 +3505,7 @@ fn codec_commands() -> Vec<CommandSpec> {
                         }
                         return Err(p.failed("the written file did not read back as written"));
                     }
-                    let check = crate::machine::export_check(&s.design, &pattern);
+                    let check = crate::machine::export_check_for(s, &pattern);
                     return Ok(json!({
                         "path": path.display().to_string(),
                         "paths": [path.display().to_string()],
@@ -3622,7 +3636,7 @@ fn codec_commands() -> Vec<CommandSpec> {
                         mismatches.join("; ")
                     )));
                 }
-                let mut check = crate::machine::export_check(&s.design, &pattern);
+                let mut check = crate::machine::export_check_for(s, &pattern);
                 if let Some(w) = check["warnings"].as_array_mut() {
                     w.extend(mismatches.iter().map(|m| json!(format!("read-back: {m}"))));
                 }

@@ -379,6 +379,12 @@ are desktop-only; say so instead of trying them in the browser.
     row, `fabric.calibrate {fabric, name, fill, satin, pull}` (1–5 each) saves a custom
     fabric (`custom-…` in `fabric.list`) that `fabric.apply` gives to objects;
     `fabric.deleteCustom {fabric}` removes it. Both change the user's settings: say so first.
+- The user's machine (#508): `machine.profile` gives brand, hoop, `cutter`, `maxStitchMm` and the
+  brand's own `format` (export that format when they ask for "the file for my machine").
+  `machine.setProfile {brand, hoop, cutter, maxStitchMm}` (`brand: "none"` clears it) changes the
+  user's settings: say so first, and set only what the user tells you (never guess a limit).
+  Exports then warn about stitches longer than `maxStitchMm` and trims a machine without a
+  cutter will not cut: pass those warnings on and offer `design.setStopAtJumps {on: true}`.
 - "What stabiliser / needle should I use on fleece?": `fabric.advise {fabric, weight}` (weight
   12, 30, 40 or 60; default 40) gives backing, topping, needle point and size and the smallest
   legible block-letter height, each from the makers' published guidance with `sources`; say so

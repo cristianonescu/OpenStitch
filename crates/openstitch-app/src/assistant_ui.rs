@@ -355,6 +355,7 @@ impl EditorApp {
                     "sewKitOnline" => self.assistant.open_url = Some(sew_kit::ONLINE.into()),
                     "shortcuts" => self.ui.shortcuts_open = true,
                     "gettingStarted" => self.ui.start.page_open = true,
+                    "machineSetup" => self.machine_setup.open(),
                     "checkUpdates" => self.update.check(true),
                     "about" => self.ui.about_open = true,
                     _ => return Err(format!("unknown Help item '{item}'")),

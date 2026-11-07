@@ -34,6 +34,7 @@ mod lettering;
 mod library;
 mod line_looks;
 pub mod machine;
+pub mod machine_profile;
 #[cfg(feature = "formats")]
 pub mod media_exports;
 #[cfg(feature = "formats")]

@@ -540,6 +540,17 @@ group captions; menus, dialogs, panes and messages follow. **Pseudo-locale (test
 translated text accented and in brackets ("[Ópéñ]"), so text that is still hard-coded stands out.
 No real translation ships yet.
 
+### Machine Setup (beyond PE-DESIGN, #508)
+
+**Help ▸ Machine Setup**, also shown once on the first interactive start with the user's own
+settings: the brand (Brother first, then the other brands of the hoop list), a hoop of that brand,
+whether the machine cuts threads, and, when its manual says, the longest stitch it sews. **Save**
+stores it (`machine.setProfile`, user settings): New starts on that hoop, and every export warns
+about stitches longer than the machine sews and about trims a machine without a cutter will not
+cut (unless Stop at Jumps is on). The window names the brand's own file format. **Not now**
+closes it; either way it is not asked again at start (`machineSetupDone` in `ui.json`), and Help
+asks again any time. Without a profile everything is as before.
+
 ### Getting started (beyond PE-DESIGN, #554)
 
 An empty design shows start cards over the Design Page; the Application menu has **Open Sample**
