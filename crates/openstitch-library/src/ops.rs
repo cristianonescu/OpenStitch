@@ -293,6 +293,8 @@ fn copy_entry(from: &Path, to: &Path, limits: &Limits, count: &mut usize) -> Res
                 }
             })?;
         if let Err(e) = std::io::copy(&mut src, &mut dst) {
+            // Closed before it is removed (a browser build's File has no Drop, #693).
+            #[cfg_attr(target_arch = "wasm32", allow(clippy::drop_non_drop))]
             drop(dst);
             let _ = std::fs::remove_file(to);
             return Err(LibraryError::Io {

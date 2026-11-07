@@ -1198,15 +1198,23 @@ impl EditorApp {
     pub fn open_dialog(&mut self) {
         let mut exts = vec![openstitch_engine::project::EXTENSION];
         exts.extend(FileType::ALL.iter().map(|t| t.extension()));
-        let file = crate::files::FileDialog::new()
+        // A browser picks asynchronously: the page opens the file when it arrives (#693).
+        #[cfg(target_arch = "wasm32")]
+        crate::files::request_pick(
+            crate::files::Pick::Open,
+            "Designs and embroidery files",
+            &exts,
+        );
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(p) = crate::files::FileDialog::new()
             .add_filter("Designs and embroidery files", &exts)
             .add_filter(
                 "OpenStitch design",
                 &[openstitch_engine::project::EXTENSION],
             )
             .add_filter("Embroidery files", &exts[1..])
-            .pick_file();
-        if let Some(p) = file {
+            .pick_file()
+        {
             self.open_in_background(&p);
         }
     }
@@ -1266,6 +1274,9 @@ impl EditorApp {
 
     pub fn import_dialog(&mut self) {
         let exts: Vec<_> = FileType::ALL.iter().map(|t| t.extension()).collect();
+        #[cfg(target_arch = "wasm32")]
+        crate::files::request_pick(crate::files::Pick::Import, "Embroidery files", &exts);
+        #[cfg(not(target_arch = "wasm32"))]
         if let Some(p) = crate::files::FileDialog::new()
             .add_filter("Embroidery files", &exts)
             .pick_file()
@@ -2143,21 +2154,19 @@ fn is_project(p: &Path) -> bool {
 /// Width and height (mm) of a machine file, used only to size the page before importing.
 /// The Design Page size in mm a PE-DESIGN 11 `#PES0110` file was saved with.
 fn pes_page_mm(p: &Path) -> Option<(f64, f64)> {
-    if FileType::from_path(p)? != FileType::Pes || std::fs::metadata(p).ok()?.len() > 64 << 20 {
+    if FileType::from_path(p)? != FileType::Pes {
         return None;
     }
-    let section = openstitch_formats::pes::read_objects(&std::fs::read(p).ok()?).ok()?;
+    let bytes = openstitch_app::platform::read_small(p, 64 << 20)?;
+    let section = openstitch_formats::pes::read_objects(&bytes).ok()?;
     let (w, h) = section.page_mm.filter(|_| section.version == "0110")?;
     Some((f64::from(w), f64::from(h)))
 }
 
 fn machine_file_size_mm(p: &Path) -> Option<(f64, f64)> {
     let ty = FileType::from_path(p)?;
-    let meta = std::fs::metadata(p).ok()?;
-    if meta.len() > 64 << 20 {
-        return None;
-    }
-    let pattern = ty.read(&std::fs::read(p).ok()?).ok()?;
+    let bytes = openstitch_app::platform::read_small(p, 64 << 20)?;
+    let pattern = ty.read(&bytes).ok()?;
     let b = pattern.bounds();
     Some((b.width() / 10.0, b.height() / 10.0))
 }

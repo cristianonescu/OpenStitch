@@ -18,7 +18,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
-use std::time::{Duration, Instant};
+use openstitch_app::platform::Instant;
+use std::time::Duration;
 
 /// The progress window waits this long, so quick opens never flash it.
 const SHOW_AFTER: Duration = Duration::from_millis(300);
@@ -95,7 +96,7 @@ impl OpenJob {
         let stage = Arc::new(AtomicU8::new(0));
         let (tx, rx) = channel();
         let (c, st) = (cancel.clone(), stage.clone());
-        std::thread::spawn(move || {
+        openstitch_app::platform::run_job(move || {
             let out = run(&mut fork, kind, &steps, &c, &st);
             // The receiver is gone when the job was cancelled: nothing to tell.
             let _ = tx.send(out);
@@ -192,6 +193,15 @@ fn run(
 }
 
 impl EditorApp {
+    /// A file the web page picked for File ▸ Open or Import, its bytes already in memory (#693).
+    #[cfg(target_arch = "wasm32")]
+    pub fn web_picked(&mut self, kind: crate::files::Pick, p: &Path) {
+        match kind {
+            crate::files::Pick::Open => self.open_in_background(p),
+            crate::files::Pick::Import => self.import_in_background(p),
+        }
+    }
+
     /// File ▸ Open in the background; see [`EditorApp::open_path`] for what it opens.
     pub fn open_in_background(&mut self, p: &Path) {
         let steps = self.open_steps(p);
