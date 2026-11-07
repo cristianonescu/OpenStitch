@@ -1367,17 +1367,17 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "pattern",
                     "string",
-                    "Pattern id from patterns.list: fill (programmable fill), motif (motif fill), decorative, net (net / zigzag net fill)",
+                    "Pattern id from patterns.list: fill (programmable fill), motif (motif fill), decorative, meander (meander fill, default vermicelli), net (net / zigzag net fill)",
                 ),
                 opt(
                     "patternWidth",
                     "mm",
-                    "Pattern width; zigzag net: zigzag width, 0.5-50 (decorative fill 0.5-100)",
+                    "Pattern width; zigzag net: zigzag width; meander fill: tile width (default 8), 0.5-50 (decorative fill 0.5-100)",
                 ),
                 opt(
                     "patternHeight",
                     "mm",
-                    "Pattern height, 0.5-50 (decorative fill 0.5-100)",
+                    "Pattern height; meander fill: tile height, the distance between its rows (default 8), 0.5-50 (decorative fill 0.5-100)",
                 ),
                 opt(
                     "spacing",
