@@ -803,7 +803,7 @@ fn fabric_window(app: &mut EditorApp, ctx: &egui::Context) {
                             }
                         })
                         .response
-                        .on_hover_text("Beyond PE-DESIGN: a thinner thread (higher number) sews rows closer, density × √(weight / 40); No. 40 keeps the fabric's values");
+                        .on_hover_text("Beyond PE-DESIGN: a thinner thread (higher number) sews rows closer, density times the square root of (weight / 40); No. 40 keeps the fabric's values");
                     crate::a11y::name(&combo, "Thread weight");
                     ui.add_space(4.0);
                     egui::Grid::new("fabric-values").num_columns(2).show(ui, |ui| {
