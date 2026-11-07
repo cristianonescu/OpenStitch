@@ -533,7 +533,8 @@ and effort: 1. export read-back check (#457, done in `batch:quality-checks`); 2.
 selection (#452, **done** 2026-11-06 in `batch:mac-sewout`: `design.testSwatch`); 3. fabric calibration swatch (#453, **done** in `batch:mac-sewout`: `fabric.calibrationSwatch` and `fabric.calibrate`; B5's
 fabric table still to come); 4. arched text with several lines as concentric rings (#456, **done** 2026-11-06 in `batch:lettering-text`: `arc` on `text.add`/`object.setText`, the Text Attributes pane's Arc row and a centre handle on the canvas);
 5. SVG import reading stitch settings from layer names (#455 **done**: name tokens with short or long key names, dashes and paint-order as `import.svg {settings: true}`; Ink/Stitch attributes moved to #661); 6. garment mockups (#454,
-idea). Not taken: staggered satin splits, sharp satin corners as fans and converting a filled
+**done** 2026-11-07, `platform`: `design.mockup` on a T-shirt, cap or tote bag at true size, File ▸
+Export ▸ Garment Mockup). Not taken: staggered satin splits, sharp satin corners as fans and converting a filled
 shape to a centre-line satin (OpenStitch has them: `splitLength` staggered, Auto satin's corner
 fan, Shapes ▸ Satin Skeleton from Shape), a prompt-to-spec LLM design agent (B17 already drives
 the engine's commands), and stitch_generator's effect catalogue (a checklist for B9, not a

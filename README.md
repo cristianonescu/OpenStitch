@@ -542,6 +542,8 @@ The image tools have two methods, both OpenStitch's own: OpenStitch's PE-DESIGN-
 - (+) **More exports:** stitch list CSV/TXT, G-code for DIY machines, repeats and a park position
   at stops; a PNG picture, a stitch-out animation and a ZIP bundle ([#488]).
 - (+) **Export read-back check:** every exported file is read back and compared ([#457]).
+- (+) **Garment mockups:** the design at true size on a T-shirt, cap or tote bag in a fabric
+  colour, as a PNG to show a customer ([#454]).
 - **Design Database:** browse folders as thumbnails, see each file's properties, search, copy,
   move and rename, convert formats in batch, print catalogues (PDF, PNG, HTML, CSV). Damaged or
   hostile files are handled safely.
@@ -632,6 +634,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#445]: https://github.com/cristianonescu/OpenStitch/issues/445
 [#452]: https://github.com/cristianonescu/OpenStitch/issues/452
 [#453]: https://github.com/cristianonescu/OpenStitch/issues/453
+[#454]: https://github.com/cristianonescu/OpenStitch/issues/454
 [#455]: https://github.com/cristianonescu/OpenStitch/issues/455
 [#456]: https://github.com/cristianonescu/OpenStitch/issues/456
 [#457]: https://github.com/cristianonescu/OpenStitch/issues/457

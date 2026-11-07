@@ -123,6 +123,7 @@ Behaviour follows the guide's pages
 | File ▸ Import into design, Import SVG (also WMF/EMF) | Home ▸ Import |
 | File ▸ Background Image (choose, paste, show/hide, opacity, remove) | Image ▸ Open Image, Paste Image, Background Image Density, Delete Image |
 | File ▸ Export Sections, Send to USB Media | Home ▸ Sew ▸ Sew Embroidery; Hoop Settings tab; Application menu ▸ Export ▸ |
+| (beyond PE-DESIGN) Garment mockup (#454) | Application menu ▸ Export ▸ Garment Mockup ▸ fabric colour, then T-shirt (centre chest, left chest), Cap or Tote bag: a PNG of the design at true size on the garment (`design.mockup`) |
 | File ▸ Design Database | Options ▸ Design Database |
 | Edit ▸ Undo, Redo | Quick Access Toolbar (⌘/Ctrl+Z, ⌘/Ctrl+Y) |
 | Edit ▸ Select All, Duplicate, Delete, Arrange Copies | Home ▸ Select, Clipboard |

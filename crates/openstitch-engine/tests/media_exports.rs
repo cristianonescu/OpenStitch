@@ -234,3 +234,138 @@ fn a_bundle_takes_other_formats_and_can_leave_out_the_list_and_picture() {
     assert!(err.to_string().contains("phc"), "{err}");
     assert!(!dir.join("c.zip").exists());
 }
+
+/// RGBA pixels of a PNG (any colour type expanded).
+fn rgba(bytes: &[u8]) -> (usize, usize, Vec<[u8; 4]>) {
+    let mut decoder = png::Decoder::new(std::io::Cursor::new(bytes));
+    decoder.set_transformations(png::Transformations::EXPAND);
+    let mut reader = decoder.read_info().expect("png");
+    let mut buf = vec![0; reader.output_buffer_size().expect("size")];
+    let info = reader.next_frame(&mut buf).expect("frame");
+    assert_eq!(
+        info.color_type,
+        png::ColorType::Rgba,
+        "a mockup keeps alpha"
+    );
+    let px = buf[..info.buffer_size()]
+        .chunks_exact(4)
+        .map(|p| [p[0], p[1], p[2], p[3]])
+        .collect();
+    (info.width as usize, info.height as usize, px)
+}
+
+/// #454: the design at true size on the garment, in the fabric colour, at the placement.
+#[test]
+fn a_mockup_puts_the_design_at_true_size_on_the_garment() {
+    let dir = TempDir::new("mockup-tshirt");
+    let mut s = Session::new(&dir);
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 10, "y": 10, "width": 30, "height": 20, "fill": "#ff0000"}),
+    );
+    let out = run(
+        &mut s,
+        "design.mockup",
+        json!({"path": "m.png", "garment": "tshirt", "color": "#1f3a68"}),
+    );
+    assert_eq!(out["garment"], "tshirt");
+    assert_eq!(out["placement"], "centre");
+    assert_eq!(out["fits"], true, "{out}");
+    let (w, h, px) = rgba(&std::fs::read(dir.join("m.png")).expect("png"));
+    assert_eq!((w, h), (1024, 1024));
+    let at = |x: usize, y: usize| px[y * w + x];
+    assert_eq!(at(2, 2), [0xf2, 0xf2, 0xf2, 255], "the background");
+    // The shirt's hem area is the fabric colour (shaded by the folds).
+    let hem = at(512, 880);
+    assert!(
+        (i32::from(hem[0]) - 0x1f).abs() < 40 && (i32::from(hem[2]) - 0x68).abs() < 50,
+        "{hem:?}"
+    );
+    // The red stitches, centred on the placement and 30 mm wide at the shirt's scale.
+    let g = openstitch_engine::mockup::garment("tshirt").expect("tshirt");
+    let k = 1024.0 / 768.0;
+    let (px_mm, place) = (g.px_per_mm * k, g.placements[0]);
+    let red: Vec<(usize, usize)> = (0..h)
+        .flat_map(|y| (0..w).map(move |x| (x, y)))
+        .filter(|&(x, y)| {
+            let p = at(x, y);
+            p[0] > 180 && p[1] < 80 && p[2] < 80
+        })
+        .collect();
+    assert!(!red.is_empty());
+    let (x0, x1) = (
+        red.iter().map(|p| p.0).min().expect("x"),
+        red.iter().map(|p| p.0).max().expect("x"),
+    );
+    let (y0, y1) = (
+        red.iter().map(|p| p.1).min().expect("y"),
+        red.iter().map(|p| p.1).max().expect("y"),
+    );
+    let width_mm = (x1 - x0) as f64 / px_mm;
+    assert!((width_mm - 30.0).abs() < 3.0, "{width_mm} mm");
+    let (cx, cy) = ((x0 + x1) as f64 / 2.0, (y0 + y1) as f64 / 2.0);
+    assert!(
+        (cx - place.x * k).abs() < 4.0 && (cy - place.y * k).abs() < 4.0,
+        "{cx},{cy}"
+    );
+}
+
+#[test]
+fn mockups_offer_placements_transparency_and_say_when_a_design_is_too_big() {
+    let dir = TempDir::new("mockup-options");
+    let mut s = Session::new(&dir);
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 10, "y": 10, "width": 150, "height": 40, "fill": "#00aa00"}),
+    );
+    let cap = run(
+        &mut s,
+        "design.mockup",
+        json!({"path": "cap.png", "garment": "cap", "background": "transparent", "size": 512}),
+    );
+    assert_eq!(
+        cap["fits"], false,
+        "150 mm is wider than a cap front: {cap}"
+    );
+    assert_eq!(cap["suitsMm"], json!([110.0, 55.0]));
+    let (w, _, px) = rgba(&std::fs::read(dir.join("cap.png")).expect("png"));
+    assert_eq!(w, 512);
+    assert_eq!(px[0][3], 0, "transparent around the cap");
+    let left = run(
+        &mut s,
+        "design.mockup",
+        json!({"path": "chest.png", "garment": "tshirt", "placement": "leftChest"}),
+    );
+    assert_eq!(
+        (left["placement"].as_str(), left["fits"].as_bool()),
+        (Some("leftChest"), Some(false))
+    );
+    run(
+        &mut s,
+        "design.mockup",
+        json!({"path": "tote.png", "garment": "tote"}),
+    );
+    for bad in [
+        json!({"path": "x.png", "garment": "sock"}),
+        json!({"path": "x.png", "garment": "cap", "placement": "leftChest"}),
+        json!({"path": "x.png", "color": "red"}),
+        json!({"path": "x.png", "background": "#12"}),
+        json!({"path": "x.png", "size": 100}),
+    ] {
+        assert!(s.execute("design.mockup", Some(&bad)).is_err(), "{bad}");
+    }
+    assert!(!dir.join("x.png").exists());
+    // Every placement is on the garment picture.
+    for g in openstitch_engine::mockup::GARMENTS {
+        let place = g.placements[0];
+        assert!(place.x > 0.0 && place.x < 768.0 && place.y > 0.0 && place.y < 768.0);
+    }
+    let mut empty = Session::new(&dir);
+    assert!(
+        empty
+            .execute("design.mockup", Some(&json!({"path": "e.png"})))
+            .is_err()
+    );
+}
