@@ -1,0 +1,81 @@
+[
+ {
+  "command": "design.new",
+  "params": {
+   "name": "ripple lines",
+   "width": 100,
+   "height": 70
+  }
+ },
+ {
+  "command": "shape.ellipse",
+  "params": {
+   "cx": 25,
+   "cy": 35,
+   "rx": 20,
+   "ry": 25
+  }
+ },
+ {
+  "command": "object.setRegion",
+  "params": {
+   "id": 1,
+   "type": "none"
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 1,
+   "type": "ripple",
+   "strands": 6,
+   "target": [
+    22,
+    30
+   ],
+   "color": "Blue"
+  }
+ },
+ {
+  "command": "shape.path",
+  "params": {
+   "points": [
+    [
+     55,
+     15
+    ],
+    [
+     95,
+     15
+    ]
+   ],
+   "closed": false,
+   "curves": [
+    [
+     [
+      70,
+      5
+     ],
+     [
+      80,
+      25
+     ]
+    ]
+   ],
+   "outline": "Red"
+  }
+ },
+ {
+  "command": "object.setLine",
+  "params": {
+   "id": 2,
+   "type": "ripple",
+   "strands": 5,
+   "spacing": 2,
+   "target": [
+    75,
+    50
+   ]
+  }
+ }
+]

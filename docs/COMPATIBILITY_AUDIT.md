@@ -2958,6 +2958,20 @@ auto, shortStitchDistance: 0.25`, read from the exported PES:
   region's second underlay (#677), lap corners. No sew-out yet: the owner's T-card scan of a
   tapered column with `pullPercent: 3` is still needed for #522's ±5 % width target.
 
+### Ripple lines and motif line placement, 2026-11-07 (#541, #544 part, `batch:lines`, part 3)
+
+Beyond PE-DESIGN and off unless chosen: a motif line without groups, free ends or motifs in
+turn is PE-DESIGN's, unchanged (compat `line-motif-zigzag-3pt`); PES 0110 export refuses the
+ripple type and the motif plan.
+
+- Ripple: a closed line spirals in to its target as one run (no jump, no trim), the scale
+  falling evenly along each turn; an open line is sewn back and forth beside itself, the
+  copies `spacing` apart towards the target. The target is dragged on the canvas.
+- Motif lines: groups with a longer gap after each, motif-free ends, motifs used in turn; the
+  motifs are not stretched to fit (PE-DESIGN's line stretches them), so what does not fit
+  before the free end stays running stitch. Five more bundled motifs.
+- Not done: the motif band on skeleton satins and columns (#544).
+
 ### Decorative hand-embroidery lines, 2026-11-07 (#543, `batch:lines`, part 2)
 
 Beyond PE-DESIGN and off unless chosen: no PE-compatible output changes (compat unchanged),

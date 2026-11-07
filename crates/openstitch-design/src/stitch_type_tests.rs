@@ -84,6 +84,78 @@ fn pattern_format_rejects_bad_documents() {
 // ---------------------------------------------------------------- line types
 
 #[test]
+fn motif_groups_free_ends_and_motifs_in_turn() {
+    // #544: groups of 3 peaks, 1 mm apart, 8 mm after each group, 6 mm free at both ends;
+    // then peak and heart in turn.
+    let peak = patterns::find(PatternKind::Motif, "peak").expect("peak");
+    let heart = patterns::find(PatternKind::Motif, "heart").expect("heart");
+    let m = MotifLine {
+        pattern: peak,
+        width: 40.0,
+        height: 30.0,
+        gap: 10.0,
+        pitch: 20.0,
+        arrange: Arrange::Normal,
+    };
+    let groups = [(3, 80.0)];
+    let plan = lines::MotifPlan {
+        groups: &groups,
+        free_start: 60.0,
+        free_end: 60.0,
+        patterns: vec![peak],
+    };
+    let run = lines::motif_planned(&hline(800.0), &m, &plan);
+    assert!(longest(&run) <= 20.0 + 1e-9);
+    assert_eq!(run.first().copied(), Some(v2(0.0, 0.0)));
+    assert_eq!(run.last().copied(), Some(v2(800.0, 0.0)));
+    let tips: Vec<f64> = run
+        .iter()
+        .filter(|p| (p.y.abs() - 27.0).abs() < 1e-6)
+        .map(|p| p.x)
+        .collect();
+    // Free ends: no motif within 6 mm of either end.
+    assert!(
+        tips.iter().all(|&x| (60.0..=740.0).contains(&x)),
+        "{tips:?}"
+    );
+    // Groups of three: tips 5 mm apart inside a group, 12 mm (4 + 8) between groups.
+    let steps: Vec<i64> = tips
+        .windows(2)
+        .map(|w| (w[1] - w[0]).round() as i64)
+        .collect();
+    assert!(steps.len() >= 5, "{steps:?}");
+    for (i, d) in steps.iter().enumerate() {
+        let want = if i % 3 == 2 { 120 } else { 50 };
+        assert_eq!(*d, want, "{steps:?}");
+    }
+    // Motifs in turn: peak, heart, peak, heart.
+    let turn = lines::MotifPlan {
+        groups: &[],
+        free_start: 0.0,
+        free_end: 0.0,
+        patterns: vec![peak, heart],
+    };
+    let both = lines::motif_planned(&hline(500.0), &m, &turn);
+    let peaks = both
+        .iter()
+        .filter(|p| (p.y.abs() - 27.0).abs() < 1e-6)
+        .count();
+    assert!(peaks >= 4 && peaks <= 6, "{peaks}");
+    assert!(both.iter().any(|p| p.y < -29.0), "a heart's top");
+    // Nothing beyond PE-DESIGN asked for: PE-DESIGN's motif line, unchanged.
+    let plain = lines::MotifPlan {
+        groups: &[],
+        free_start: 0.0,
+        free_end: 0.0,
+        patterns: vec![peak],
+    };
+    assert_eq!(
+        lines::motif_planned(&hline(500.0), &m, &plain),
+        lines::motif(&hline(500.0), false, &m)
+    );
+}
+
+#[test]
 fn motif_line_repeats_inside_its_band_with_short_stitches() {
     let pattern = patterns::find(PatternKind::Motif, "peak").expect("peak");
     let m = MotifLine {

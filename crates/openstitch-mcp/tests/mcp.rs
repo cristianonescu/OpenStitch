@@ -305,6 +305,7 @@ fn schemas_come_from_param_docs() {
             "doubleZigzag",
             "lattice",
             "stripes",
+            "ripple",
             "none"
         ])
     );
