@@ -1114,6 +1114,66 @@ fn click_counter_detects_double_clicks() {
 }
 
 #[test]
+fn hand_made_line_controls_reach_the_engine() {
+    // #540, #542: the profile's pass counts and the hand-stitch look's settings and variant
+    // appear once they are on, and the engine takes each of them.
+    use super::inspector::{Control, line_controls};
+    use openstitch_design::line_looks::{HandStitch, RunProfile};
+    use openstitch_design::{LineSewing, LineType};
+    let mut s = Session::new(std::env::temp_dir());
+    s.execute(
+        "shape.path",
+        Some(&json!({"points": [[10, 10], [60, 10]], "closed": false})),
+    )
+    .expect("line");
+    for (setup, line) in [
+        (
+            json!({"id": 1, "type": "running", "profile": "arc"}),
+            LineSewing {
+                profile: Some(RunProfile::default()),
+                ..LineSewing::new(LineType::Running, Thread::rgb(0))
+            },
+        ),
+        (
+            json!({"id": 1, "type": "running", "hand": true}),
+            LineSewing {
+                hand: Some(HandStitch::default()),
+                ..LineSewing::new(LineType::Running, Thread::rgb(0))
+            },
+        ),
+    ] {
+        s.execute("object.setLine", Some(&setup)).expect("setup");
+        let controls = line_controls(&line);
+        let params: Vec<&str> = controls.iter().map(|c| c.param()).collect();
+        for want in if line.profile.is_some() {
+            vec!["profile", "minPasses", "maxPasses", "passSpacing"]
+        } else {
+            vec![
+                "hand",
+                "handLength",
+                "handAngle",
+                "handExtra",
+                "handPasses",
+                "seed",
+            ]
+        } {
+            assert!(params.contains(&want), "{want} in {params:?}");
+        }
+        for c in &controls {
+            let v = match c {
+                Control::Number { value, .. } => json!(value),
+                Control::Choice { value, .. } => json!(value),
+                Control::Toggle { value, .. } => json!(value),
+            };
+            let mut p = c.params(v);
+            p["id"] = json!(1);
+            s.execute("object.setLine", Some(&p))
+                .unwrap_or_else(|e| panic!("{p}: {e}"));
+        }
+    }
+}
+
+#[test]
 fn every_line_type_has_inspector_controls_the_engine_accepts() {
     use super::inspector::{Control, line_controls, line_types};
     use openstitch_design::{LineSewing, LineType};

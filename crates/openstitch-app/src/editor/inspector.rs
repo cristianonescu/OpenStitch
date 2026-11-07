@@ -761,7 +761,7 @@ fn region_type_controls(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> {
                 &[("1", "1: flat rows"), ("2", "2: sloped rows")],
             ));
         }
-        RegionType::Satin => {}
+        RegionType::Satin => v.extend(satin_hand_controls(r)),
         RegionType::ProgrammableFill => {
             v.push(pattern(PatternKind::Fill));
             v.extend(size());
@@ -986,10 +986,35 @@ pub fn line_controls_with(l: &LineSewing, user: &[Pattern]) -> Vec<Control> {
             " mm",
         )
     };
+    let length = num(
+        "Stitch length",
+        "line.pitch",
+        "pitch",
+        l.pitch,
+        (1.0, 10.0),
+        0.05,
+        " mm",
+    );
     match l.kind {
-        LineType::Running => vec![
+        LineType::Running => {
+            let mut v = vec![
+                length,
+                times("Run times", "line.runTimes", "runTimes", l.run_times, 5),
+            ];
+            v.extend(profile_controls(l));
+            v.extend(hand_controls(l, true));
+            v
+        }
+        LineType::Triple => {
+            let mut v = vec![length];
+            v.extend(hand_controls(l, false));
+            v
+        }
+        LineType::BackStitch => vec![length],
+        LineType::Scribble => vec![
+            width("Width"),
             num(
-                "Stitch length",
+                "Point spacing",
                 "line.pitch",
                 "pitch",
                 l.pitch,
@@ -997,17 +1022,18 @@ pub fn line_controls_with(l: &LineSewing, user: &[Pattern]) -> Vec<Control> {
                 0.05,
                 " mm",
             ),
-            times("Run times", "line.runTimes", "runTimes", l.run_times, 5),
+            times("Repetitions", "line.runTimes", "runTimes", l.run_times, 5),
+            num(
+                "Wave length",
+                "line.noiseScale",
+                "noiseScale",
+                l.noise_scale.unwrap_or(5.0),
+                (1.0, 50.0),
+                0.1,
+                " mm",
+            ),
+            seed_control("line.seed", l.seed.unwrap_or(0)),
         ],
-        LineType::Triple => vec![num(
-            "Stitch length",
-            "line.pitch",
-            "pitch",
-            l.pitch,
-            (1.0, 10.0),
-            0.05,
-            " mm",
-        )],
         LineType::Zigzag => vec![
             width("Width"),
             num(
@@ -1190,6 +1216,163 @@ pub fn line_controls_with(l: &LineSewing, user: &[Pattern]) -> Vec<Control> {
         .chain(shaping_controls(&l.satin_shaping, 0.0, true))
         .collect(),
     }
+}
+
+/// Running lines: passes along a thickness profile (#542, beyond PE-DESIGN).
+fn profile_controls(l: &LineSewing) -> Vec<Control> {
+    let mut v = vec![Control::Choice {
+        label: "Thickness profile",
+        param: "profile",
+        value: l
+            .profile
+            .as_ref()
+            .map_or("none", |p| p.profile.preset.id())
+            .into(),
+        options: [
+            ("none", "None (even)"),
+            ("arc", "Arc"),
+            ("sine", "Sine"),
+            ("linear", "Thin to thick"),
+            ("smoothstep", "Smooth thin to thick"),
+            ("stairs", "Stairs"),
+            ("constant", "Constant (max passes)"),
+        ]
+        .iter()
+        .map(|(a, b)| ((*a).into(), (*b).into()))
+        .collect(),
+    }];
+    if let Some(p) = &l.profile {
+        v.extend([
+            times(
+                "Fewest passes (odd)",
+                "line.minPasses",
+                "minPasses",
+                p.min_passes,
+                9,
+            ),
+            times(
+                "Most passes (odd)",
+                "line.maxPasses",
+                "maxPasses",
+                p.max_passes,
+                9,
+            ),
+            num(
+                "Pass spacing",
+                "line.passSpacing",
+                "passSpacing",
+                p.pass_spacing,
+                (0.1, 1.0),
+                0.01,
+                " mm",
+            ),
+        ]);
+    }
+    v
+}
+
+/// Running and triple lines: the hand-stitch look (#540, beyond PE-DESIGN).
+fn hand_controls(l: &LineSewing, passes: bool) -> Vec<Control> {
+    let mut v = vec![Control::Toggle {
+        label: "Hand-stitch look",
+        param: "hand",
+        value: l.hand.is_some(),
+    }];
+    if let Some(h) = &l.hand {
+        v.extend([
+            num(
+                "Length variation",
+                "line.handLength",
+                "handLength",
+                h.length_jitter,
+                (0.0, 50.0),
+                0.5,
+                " %",
+            ),
+            num(
+                "Tilt",
+                "line.handAngle",
+                "handAngle",
+                h.angle_jitter,
+                (0.0, 20.0),
+                0.2,
+                "°",
+            ),
+            num(
+                "Extra stitches",
+                "line.handExtra",
+                "handExtra",
+                h.extra_passes,
+                (0.0, 50.0),
+                0.5,
+                " %",
+            ),
+        ]);
+        if passes {
+            v.push(times(
+                "Hand passes",
+                "line.handPasses",
+                "handPasses",
+                h.passes,
+                3,
+            ));
+        }
+        v.push(seed_control("line.seed", h.seed));
+    }
+    v
+}
+
+/// The variant (seed): changing it is the editor's Shuffle; the same number always sews the same
+/// stitches.
+fn seed_control(key: &'static str, seed: u32) -> Control {
+    Control::Number {
+        label: "Variant",
+        key,
+        param: "seed",
+        value: f64::from(seed),
+        range: (0.0, 1_000_000.0),
+        speed: 1.0,
+        suffix: "",
+        integer: true,
+    }
+}
+
+/// Satin regions: the hand-stitch look on one side (#540, beyond PE-DESIGN).
+pub fn satin_hand_controls(r: &RegionSewing) -> Vec<Control> {
+    let side = r.hand.as_ref().map(|h| h.side);
+    let mut v = vec![Control::Choice {
+        label: "Hand-stitch side",
+        param: "handSide",
+        value: match side {
+            None => "none",
+            Some(openstitch_design::line_looks::SatinSide::A) => "a",
+            Some(openstitch_design::line_looks::SatinSide::B) => "b",
+            Some(openstitch_design::line_looks::SatinSide::Both) => "both",
+        }
+        .into(),
+        options: [
+            ("none", "Off (crisp)"),
+            ("a", "First side"),
+            ("b", "Second side"),
+            ("both", "Both sides"),
+        ]
+        .iter()
+        .map(|(a, b)| ((*a).into(), (*b).into()))
+        .collect(),
+    }];
+    if let Some(h) = &r.hand {
+        v.push(num(
+            "Hand-stitch amount",
+            "region.handAmount",
+            "handAmount",
+            h.amount,
+            (0.0, 50.0),
+            0.5,
+            " %",
+        ));
+        v.push(seed_control("region.seed", h.seed));
+    }
+    v
 }
 
 /// What the inspector shows for the selection.

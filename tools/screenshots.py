@@ -41,6 +41,7 @@ SCENES = {
     "update": (["--demo", "--show", "update"], [("docs/images/rust-editor-update.png", 1600),
                                                 ("docs/images/readme/update.png", 1280)]),
     "close-prompt": (["--demo", "--show", "close-prompt"], [("docs/images/rust-editor-close-prompt.png", 1600)]),
+    "large-text": (["--demo", "--select", "2", "--show", "large-text"], [("docs/images/rust-editor-large-text.png", 1600)]),
     "pickers": (["--demo", "--select", "1", "--pane", "attributes", "--show", "pickers"],
                 [("docs/images/rust-editor-pickers.png", 1600)]),
     "tabs": (["--demo", "--show", "tabs"], [("docs/images/rust-editor-tabs.png", 1600)]),

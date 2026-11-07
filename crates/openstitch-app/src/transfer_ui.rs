@@ -80,7 +80,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
             ui.separator();
             egui::Grid::new("usb").num_columns(2).show(ui, |ui| {
                 ui.label("Format");
-                egui::ComboBox::from_id_salt("usb-format")
+                let r = egui::ComboBox::from_id_salt("usb-format")
                     .selected_text(d.format.to_uppercase())
                     .show_ui(ui, |ui| {
                         for t in FileType::writable() {
@@ -91,9 +91,10 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                             );
                         }
                     });
+                crate::a11y::name(&r.response, "Format");
                 ui.end_row();
                 ui.label("File name");
-                ui.text_edit_singleline(&mut d.name);
+                crate::a11y::name(&ui.text_edit_singleline(&mut d.name), "File name");
                 ui.end_row();
             });
             ui.separator();

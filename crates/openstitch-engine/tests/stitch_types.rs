@@ -856,3 +856,64 @@ fn a_moved_node_leaves_no_needle_drop_at_the_old_start_point() {
         .collect();
     assert!(out.is_empty(), "{out:?}");
 }
+
+/// #616: PE-DESIGN 11.50's zigzag net (`o-region-zigzag-net.pes`: a 20 mm square drawn with the
+/// Rectangle tool, whose region Direction is 45°) sews its square net on the page axes, the
+/// lines 8 mm apart from half a band (1.5 mm) inside the left and top edges. OpenStitch's
+/// needle points lie on PE-DESIGN's: on average within 0.2 mm both ways, with the shapes'
+/// corners aligned (PES stores stitches around the design's centre).
+#[cfg(feature = "formats")]
+#[test]
+fn zigzag_net_sews_on_the_page_axes_as_pe_design_does() {
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 10, "y": 10, "width": 20, "height": 20}),
+    );
+    run(&mut s, "object.setLine", json!({"id": 1, "type": "none"}));
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "zigzagNetFill"}),
+    );
+    let angle = s.design().objects[0].region.as_ref().expect("region").angle;
+    assert!(
+        (angle - 45.0).abs() < 1e-9,
+        "the Direction stays 45°: {angle}"
+    );
+    let points = |stitches: &[openstitch_core::Stitch]| -> Vec<(f64, f64)> {
+        let pts: Vec<(f64, f64)> = stitches
+            .iter()
+            .filter(|st| st.command == Command::Stitch)
+            .map(|st| (st.x, st.y))
+            .collect();
+        let (mx, my) = pts
+            .iter()
+            .fold((f64::MAX, f64::MAX), |(a, b), p| (a.min(p.0), b.min(p.1)));
+        pts.into_iter().map(|(x, y)| (x - mx, y - my)).collect()
+    };
+    let ours = points(&Compiler::default().compile(s.design()).stitches);
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../openstitch-formats/tests/fixtures/pe11/o-region-zigzag-net.pes");
+    let pe = points(
+        &openstitch_formats::pes::read(&std::fs::read(path).expect("reference"))
+            .expect("pes")
+            .stitches,
+    );
+    let mean_nearest = |a: &[(f64, f64)], b: &[(f64, f64)]| {
+        a.iter()
+            .map(|p| {
+                b.iter()
+                    .map(|q| (p.0 - q.0).hypot(p.1 - q.1))
+                    .fold(f64::MAX, f64::min)
+            })
+            .sum::<f64>()
+            / a.len() as f64
+    };
+    let (to_pe, from_pe) = (mean_nearest(&ours, &pe), mean_nearest(&pe, &ours));
+    assert!(
+        to_pe < 2.0 && from_pe < 2.0,
+        "mean nearest distance (0.1 mm): ours to PE {to_pe:.2}, PE to ours {from_pe:.2}"
+    );
+}

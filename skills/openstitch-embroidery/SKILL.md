@@ -97,6 +97,15 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    filled shape: `object.deriveSkeleton {id, branches: true, joinOverlap: 0.3}` makes a
    grouped satin column per arm (the shape stays hidden); check `warnings` for columns over
    10 mm and look at the junctions with `view_render`.
+   Hand-made lines (beyond PE-DESIGN): `object.setLine {type: backStitch}` for redwork and
+   quilt outlines (two stitches forward, one back); `{type: scribble, width, runTimes,
+   noiseScale, seed}` for sketchy doodles; on a running line `profile: arc` (or `linear`,
+   `sine`, `smoothstep`, `stairs`, `profilePoints`) with `minPasses`/`maxPasses` (odd) and
+   `passSpacing` swells it like a brush stroke ("calligraphic", "brush" lines); `hand: true`
+   (`handLength`, `handAngle`, `handPasses`, `handExtra`) on running or triple lines, or
+   `object.setRegion {handSide: a|b|both, handAmount}` on a satin, gives the uneven
+   hand-sewn look for "folk", "naive" or "hand-drawn" requests. The same `seed` always sews
+   the same stitches; `shuffle: true` tries another variant (one undo step).
 4. Order: `order.optimize` (PE-DESIGN-compatible order) or `order.byColor`; check with
    `object.list` (sewing order). To sew objects in a set order, `order.byClickOrder`
    `{ids: [in sewing order]}` (they start where the earliest of them sews now); to sew a
@@ -241,6 +250,7 @@ To show the user what a setting would look like before changing it, `ui.preview 
 (no undo step, the design unchanged; `ui.render` shows them too); `ui.preview {clear: true}`
 ends it, and running the command keeps the change. `ui.set picturePickers` shows the sewing
 types, fill patterns and motifs as pictures in the Sewing Attributes pane.
+`ui.set textSize` (100-200) enlarges the whole window for a user who asks for bigger text.
 Opening or importing a large file in the window runs in the background: `ui.state` shows
 `loading` (file, step, seconds), and `ui.loading {cancel: true}` stops it, leaving the design
 as it was.

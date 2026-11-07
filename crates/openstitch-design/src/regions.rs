@@ -129,7 +129,14 @@ pub fn generate(
                 join_pitch: MOTIF_FILL_TRAVEL_PITCH,
                 ..region
             };
-            vec![region.sequence(rows)]
+            // Each row split to the pitch, without points under 0.3 mm apart (#617).
+            let runs = rows
+                .into_iter()
+                .map(|row| {
+                    generate::drop_close(&subdivide(&row, pitch), generate::MOTIF_MIN_STITCH, pitch)
+                })
+                .collect();
+            vec![region.sequence_raw(runs)]
         }
         RegionType::DecorativeFill => {
             let pattern = patterns::resolve(user, PatternKind::Decorative, r.pattern.as_deref());
@@ -279,7 +286,7 @@ pub fn generate(
             // at most half the spacing so its turns stay round (never at its 0.2 mm vertices).
             // At most 2 mm on wide spacings too (#462).
             let step = pitch.min(spacing / 2.0).clamp(5.0, 20.0);
-            let mut loops: Vec<Vec<Vec2>> = stipple(closed, holes, angle, spacing)
+            let mut loops: Vec<Vec<Vec2>> = stipple_fitted(closed, holes, angle, spacing)
                 .iter()
                 .map(|l| crate::ornament::resample_closed(l, step))
                 .collect();
@@ -328,10 +335,18 @@ pub fn generate(
             // rung straight across then a diagonal back, 0.44 mm apart, inside the outline.
             let width = pw.min(spacing * 0.8);
             let step = 10.0 / r.density.max(0.1);
-            let lines: Vec<Vec<Vec2>> = net_families(closed, holes, angle, spacing, id)
-                .into_iter()
-                .flatten()
-                .collect();
+            // PE-DESIGN 11.50 (o-region-zigzag-net, Direction 45°) sews the net on the page axes,
+            // its first lines half a band in from the shape's left and top edges: the Direction
+            // does not turn it (as with cross stitch, #463), and the lines start from the shape,
+            // not from the page origin (#616).
+            // With a reference point, `region::layers` put it at (0, 0): the net starts there.
+            let lines: Vec<Vec<Vec2>> = match r.reference {
+                Some(_) => net_families(closed, holes, 0.0, spacing, id)
+                    .into_iter()
+                    .flatten()
+                    .collect(),
+                None => net_from_shape(closed, holes, spacing, width / 2.0, id),
+            };
             // A net edge two lines share (the honeycomb's rows meet along theirs) is sewn once:
             // a second band over it piled thread into knots on the machine (#293).
             let pieces = once_each(lines.clone());
@@ -1630,6 +1645,33 @@ fn centroid(c: &Contour) -> Vec2 {
 
 // ------------------------------------------------------------------ stippling
 
+/// [`stipple`] at `spacing`, or, where the region is too narrow for the meander's cells at that
+/// spacing (a 7.5 mm ring band at 3 mm), at the largest tighter spacing that fits, in 10 % steps
+/// down to half the setting (#708). A region too small even then stays empty.
+fn stipple_fitted(
+    closed: &[Contour],
+    holes: &[Contour],
+    angle: f64,
+    spacing: f64,
+) -> Vec<Vec<Vec2>> {
+    let mut s = spacing;
+    loop {
+        let loops = stipple(closed, holes, angle, s);
+        if !loops.is_empty() || s * 0.9 < spacing * 0.5 {
+            return loops;
+        }
+        s *= 0.9;
+    }
+}
+
+/// A spanning-tree edge of the stippling grid: `Right(i)` joins cell i to i + 1, `Down(i)`
+/// joins cell i to i + cols.
+#[derive(Clone, Copy)]
+enum Edge {
+    Right(usize),
+    Down(usize),
+}
+
 /// Stippling: a meandering closed path that never crosses itself, its neighbouring passes
 /// `spacing` apart and reaching to about half a spacing from the outline and the holes (#462).
 /// 1. A lattice of points about `spacing` apart, fitted to the region's (rotated) bounds so a
@@ -1713,38 +1755,39 @@ fn stipple(closed: &[Contour], holes: &[Contour], angle: f64, spacing: f64) -> V
         while let Some(&cur) = stack.last() {
             let (cx, cy) = (cur % cols, cur / cols);
             let (x, y) = (2 * cx, 2 * cy);
-            let mut options: Vec<usize> = Vec::with_capacity(4);
+            // Each option with the tree edge it adds: `(cell, Some(edge))` sets `right[edge]`,
+            // `(cell, None)` is resolved below. The move's kind is recorded when it is offered,
+            // not read back from the index: with one column `cur + cols` is `cur + 1` (#638).
+            let mut options: Vec<(usize, Edge)> = Vec::with_capacity(4);
             if cx + 1 < cols
                 && step_ok((x + 1, y), (x + 2, y))
                 && step_ok((x + 1, y + 1), (x + 2, y + 1))
             {
-                options.push(cur + 1);
+                options.push((cur + 1, Edge::Right(cur)));
             }
             if cx > 0 && step_ok((x - 1, y), (x, y)) && step_ok((x - 1, y + 1), (x, y + 1)) {
-                options.push(cur - 1);
+                options.push((cur - 1, Edge::Right(cur - 1)));
             }
             if cy + 1 < rows
                 && step_ok((x, y + 1), (x, y + 2))
                 && step_ok((x + 1, y + 1), (x + 1, y + 2))
             {
-                options.push(cur + cols);
+                options.push((cur + cols, Edge::Down(cur)));
             }
             if cy > 0 && step_ok((x, y - 1), (x, y)) && step_ok((x + 1, y - 1), (x + 1, y)) {
-                options.push(cur - cols);
+                options.push((cur - cols, Edge::Down(cur - cols)));
             }
-            options.retain(|&n| on[n] && !visited[n]);
+            options.retain(|&(n, _)| on[n] && !visited[n]);
             if options.is_empty() {
                 stack.pop();
                 continue;
             }
-            let next = options[(rng.next_u64() % options.len() as u64) as usize];
+            let (next, edge) = options[(rng.next_u64() % options.len() as u64) as usize];
             visited[next] = true;
             members.push(next);
-            match next {
-                n if n == cur + 1 => right[cur] = true,
-                n if n + 1 == cur => right[n] = true,
-                n if n == cur + cols => down[cur] = true,
-                n => down[n] = true,
+            match edge {
+                Edge::Right(i) => right[i] = true,
+                Edge::Down(i) => down[i] = true,
             }
             stack.push(next);
         }
@@ -1776,7 +1819,14 @@ fn stipple(closed: &[Contour], holes: &[Contour], angle: f64, spacing: f64) -> V
         };
         let start = y0 * w + x0;
         let mut u = start;
+        // Each pass either inserts a detour (two free points used up) or moves on, so a closed
+        // loop ends within 3 × the lattice's points; the bound stops links that do not close.
+        let mut steps = 0;
         loop {
+            steps += 1;
+            if steps > 3 * w * h || next[u] >= next.len() {
+                break;
+            }
             let v = next[u];
             let detour = [1, -1].into_iter().find_map(|side| {
                 aside(u, v, side).filter(|&(a, b)| {
@@ -1801,10 +1851,12 @@ fn stipple(closed: &[Contour], holes: &[Contour], angle: f64, spacing: f64) -> V
     }
     // Neighbouring loops (parts joined only corner to corner) become one where two of their
     // steps face each other: u → v and y → x one point aside become u → x and y → v.
+    // A loop of the `next` links from `start`; it never holds more than the lattice's points,
+    // so links that do not close (a bug) end the walk instead of growing it without end (#638).
     let walk = |start: usize, next: &[usize]| {
         let mut l = vec![start];
         let mut u = next[start];
-        while u != start {
+        while u != start && u < next.len() && l.len() <= next.len() {
             l.push(u);
             u = next[u];
         }
@@ -2144,6 +2196,29 @@ fn chaikin(l: &[Vec2]) -> Vec<Vec2> {
 // ------------------------------------------------------------------ nets
 
 /// The line families of net pattern `id`: per family, clipped pieces in row order.
+/// The net lines of pattern `id` on the page axes, lined up so that a line runs `inset` in from
+/// the left and the top of the shape's bounds (PE-DESIGN's zigzag net, #616).
+fn net_from_shape(
+    closed: &[Contour],
+    holes: &[Contour],
+    spacing: f64,
+    inset: f64,
+    id: &str,
+) -> Vec<Vec<Vec2>> {
+    let Some(b) = Rect::enclosing(closed.iter().flat_map(|c| c.outline_points())) else {
+        return Vec::new();
+    };
+    let o = v2(b.min_x + inset, b.min_y + inset);
+    let to_origin = crate::geometry::Transform::translation(-o.x, -o.y);
+    let shift =
+        |cs: &[Contour]| -> Vec<Contour> { cs.iter().map(|c| c.transformed(&to_origin)).collect() };
+    net_families(&shift(closed), &shift(holes), 0.0, spacing, id)
+        .into_iter()
+        .flatten()
+        .map(|line| line.into_iter().map(|p| p + o).collect())
+        .collect()
+}
+
 fn net_families(
     closed: &[Contour],
     holes: &[Contour],

@@ -2195,6 +2195,15 @@ fn zigzag_net_stays_inside_and_its_rungs_do_not_cross() {
                 r.angle = angle;
                 let runs = crate::region::layers(&c, &r, &[]).pop().expect("top");
                 assert_eq!(runs.len(), 1, "{name} {id} {angle}°");
+                // #616: the Direction does not turn the net (PE-DESIGN 11.50 sews it on the page
+                // axes at Direction 45°).
+                let mut at_zero = r.clone();
+                at_zero.angle = 0.0;
+                assert_eq!(
+                    runs,
+                    crate::region::layers(&c, &at_zero, &[]).pop().expect("top"),
+                    "{name} {id} {angle}°: the same net as at 0°"
+                );
                 let run = &runs[0];
                 for p in run {
                     assert!(
@@ -2212,9 +2221,10 @@ fn zigzag_net_stays_inside_and_its_rungs_do_not_cross() {
                 let along_line = |j: usize| {
                     let d = run[j + 1] - run[j];
                     let a = d.y.atan2(d.x).to_degrees();
-                    // The net turns the other way round on the page (y down).
+                    // The net lies on the page axes whatever the Direction (#616), and turns the
+                    // other way round on the page (y down).
                     lines.iter().any(|l| {
-                        let off = (a + l + angle).rem_euclid(180.0);
+                        let off = (a + l).rem_euclid(180.0);
                         off.min(180.0 - off) < 2.0
                     })
                 };
@@ -2556,6 +2566,102 @@ fn stippling_sews_at_the_run_pitch_not_at_its_curve_vertices() {
     );
 }
 
+/// #638: a region one grid cell wide (or high) gave a lattice of one column, where a step down
+/// (`cell + cols`) was taken for a step right (`cell + 1`). The loop left the lattice, the loop
+/// merge walked links that never closed and grew until a 32 GiB allocation aborted the process
+/// (random design seed 993: stippling on a 24 mm "!"). Thin bars stipple into closed loops
+/// that stay inside, quickly.
+#[test]
+fn stippling_one_cell_wide_or_high_closes_its_loops() {
+    let started = std::time::Instant::now();
+    // At 0° the lattice lies on the page axes; at the default spacing, bars 3.6-6.6 mm wide are
+    // one column (or, lying down, one row) of cells. Before the fix they sewed two broken
+    // loops of about 25 points over a 40 mm bar.
+    for width in [36.0, 42.0, 48.0, 54.0, 60.0, 66.0] {
+        for vertical in [true, false] {
+            let (w, h) = if vertical {
+                (width, 400.0)
+            } else {
+                (400.0, width)
+            };
+            let bar = vec![Contour::rectangle(100.0, 100.0, w, h)];
+            let mut r = region(RegionType::Stippling);
+            r.running_stitch_path = None;
+            r.angle = 0.0;
+            let runs = crate::region::layers(&bar, &r, &[]).pop().expect("top");
+            assert_eq!(runs.len(), 1, "{w} x {h}: one loop");
+            let pts = &runs[0];
+            assert!(pts.len() < 5_000, "{w} x {h}: {} points", pts.len());
+            for p in pts {
+                assert!(
+                    p.x > 99.0 && p.x < 101.0 + w && p.y > 99.0 && p.y < 101.0 + h,
+                    "{w} x {h}: {p:?} outside the bar"
+                );
+            }
+            let along = |p: &Vec2| if vertical { p.y } else { p.x };
+            let lo = pts.iter().map(along).fold(f64::MAX, f64::min);
+            let hi = pts.iter().map(along).fold(f64::MIN, f64::max);
+            assert!(
+                hi - lo > 0.9 * 400.0,
+                "{w} x {h}: covers {lo:.0}-{hi:.0} of 100-500"
+            );
+        }
+    }
+    assert!(started.elapsed().as_secs() < 20, "{:?}", started.elapsed());
+}
+
+/// #615: a ring whose hole is a contour of the region itself (as `shape.combine` difference
+/// leaves it) or a separate hole. Stippling in several pieces and the net, motif and decorative
+/// fills join their pieces inside the band: no stitch of any layer crosses the hole. #708: at
+/// 3 mm the 7.5 mm band is too narrow for the meander's cells, and it still gets one.
+#[test]
+fn fills_on_a_ring_never_cross_its_hole_and_a_narrow_band_still_stipples() {
+    let c = v2(250.0, 250.0);
+    let outer = Contour::ellipse(c, 125.0, 125.0, 96);
+    let inner = Contour::ellipse(c, 50.0, 50.0, 48);
+    let shapes = [
+        ("inner contour", vec![outer.clone(), inner.clone()], vec![]),
+        ("separate hole", vec![outer.clone()], vec![inner.clone()]),
+    ];
+    let mut cases: Vec<(RegionType, f64)> = [1.5, 2.0, 2.5, 3.0]
+        .into_iter()
+        .map(|s| (RegionType::Stippling, s))
+        .collect();
+    cases.extend(
+        [
+            RegionType::NetFill,
+            RegionType::MotifFill,
+            RegionType::DecorativeFill,
+        ]
+        .into_iter()
+        .map(|k| (k, 3.0)),
+    );
+    for (name, closed, holes) in &shapes {
+        for &(kind, spacing) in &cases {
+            let mut r = region(kind);
+            r.spacing = Some(spacing);
+            let layers = crate::region::layers(closed, &r, holes);
+            let stitches: Vec<&[Vec2]> = layers
+                .iter()
+                .flatten()
+                .flat_map(|run| run.windows(2))
+                .collect();
+            assert!(
+                !stitches.is_empty(),
+                "{name} {kind:?} {spacing}: no stitches"
+            );
+            let across = stitches
+                .iter()
+                .filter(|w| seg_distance(c, w[0], w[1]) < 45.0)
+                .count();
+            assert_eq!(
+                across, 0,
+                "{name} {kind:?} {spacing}: stitches across the hole"
+            );
+        }
+    }
+}
+
 /// Stippling of `closed` minus `holes` at `spacing` mm (no travel): the sewn runs.
 fn stippled(closed: &[Contour], holes: &[Contour], spacing: Option<f64>) -> Vec<Vec<Vec2>> {
     let mut r = region(RegionType::Stippling);
@@ -2744,6 +2850,62 @@ fn square_net_lines_are_straight_and_axis_aligned() {
         .filter(|x| x % 40 == 0)
         .collect();
     assert_eq!(xs.into_iter().collect::<Vec<_>>(), vec![40, 80, 120, 160]);
+}
+
+/// #617: motif lines and motif fill sewed every vertex of the motif, many closer than 0.3 mm
+/// (170 such stitches in the kit's wave row, 56 in line-types.json's heart row, a run of 10 in
+/// region-types.json's heart fill). No motif stitch is shorter now, and the lines still start
+/// and end at the path's ends.
+#[test]
+fn motifs_never_stitch_under_0_3_mm() {
+    let short = |run: &[Vec2]| {
+        run.windows(2)
+            .filter(|w| w[0].distance(w[1]) < crate::generate::MOTIF_MIN_STITCH - 1e-9)
+            .count()
+    };
+    let curve: Vec<Vec2> = (0..=60)
+        .map(|k| {
+            let t = k as f64 / 60.0;
+            v2(t * 600.0, (t * std::f64::consts::TAU).sin() * 120.0)
+        })
+        .collect();
+    for (id, width, height, gap) in [
+        ("wave", 60.0, 50.0, 10.0),
+        ("heart", 60.0, 50.0, 10.0),
+        ("heart", 30.0, 25.0, 5.0),
+    ] {
+        let pattern = patterns::find(PatternKind::Motif, id).expect(id);
+        for path in [hline(500.0), curve.clone()] {
+            let m = MotifLine {
+                pattern,
+                width,
+                height,
+                gap,
+                pitch: 25.0,
+                arrange: Arrange::Normal,
+            };
+            let run = lines::motif(&path, false, &m);
+            assert_eq!(short(&run), 0, "{id} {width}: motif line");
+            let at = |a: Option<&Vec2>, b: Option<&Vec2>| {
+                a.zip(b).is_some_and(|(a, b)| a.distance(*b) < 1e-6)
+            };
+            assert!(
+                at(run.first(), path.first()),
+                "{id}: starts at the path's start"
+            );
+            assert!(at(run.last(), path.last()), "{id}: ends at the path's end");
+        }
+    }
+    let c = vec![Contour::rectangle(0.0, 0.0, 300.0, 200.0)];
+    let mut r = region(RegionType::MotifFill);
+    r.pattern = Some("heart".into());
+    r.pattern_width = Some(3.0);
+    r.pattern_height = Some(2.5);
+    r.spacing = Some(0.5);
+    r.running_stitch_path = None;
+    for run in crate::region::layers(&c, &r, &[]).pop().expect("top") {
+        assert_eq!(short(&run), 0, "heart motif fill");
+    }
 }
 
 #[test]

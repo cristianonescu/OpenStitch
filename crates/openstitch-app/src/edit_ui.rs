@@ -482,13 +482,14 @@ fn arrange_window(app: &mut EditorApp, ctx: &egui::Context) {
         .default_width(300.0)
         .show(ctx, |ui| {
             let f = &mut app.edit.arrange;
-            egui::ComboBox::from_label("Arrangement")
+            let r = egui::ComboBox::from_label("Arrangement")
                 .selected_text(f.mode.label())
                 .show_ui(ui, |ui| {
                     for m in ArrangeMode::ALL {
                         ui.selectable_value(&mut f.mode, m, m.label());
                     }
                 });
+            crate::a11y::name(&r.response, "Arrangement");
             egui::Grid::new("arrange")
                 .num_columns(2)
                 .show(ui, |ui| match f.mode {
@@ -835,6 +836,25 @@ fn list_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandReques
             .changed()
         {
             out = Some(objects::set_stop_after(&app.selection, stop));
+        }
+        // Beyond PE-DESIGN (#525): a selected Manual Punch column.
+        let column = match app.selection.iter().collect::<Vec<_>>()[..] {
+            [&id] => d
+                .objects
+                .iter()
+                .find(|o| o.id == id && openstitch_app::editor::tools::punch_rungs::rungs(o).is_some())
+                .map(|o| o.id),
+            _ => None,
+        };
+        if let Some(id) = column {
+            for (label, command, tip) in [
+                ("Swap sides", "object.swapSides", "Beyond PE-DESIGN: every crossing starts from the other side of the column"),
+                ("Untangle", "object.untangle", "Beyond PE-DESIGN: turn back rungs whose ends were clicked the other way round"),
+            ] {
+                if ui.button(label).on_hover_text(tip).clicked() {
+                    out = Some(CommandRequest::new(command, serde_json::json!({ "id": id })));
+                }
+            }
         }
         // Beyond PE-DESIGN (#546).
         let ids = CommandRequest::ids(&app.selection);

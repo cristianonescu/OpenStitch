@@ -2958,6 +2958,24 @@ auto, shortStitchDistance: 0.25`, read from the exported PES:
   region's second underlay (#677), lap corners. No sew-out yet: the owner's T-card scan of a
   tapered column with `pullPercent: 3` is still needed for #522's ±5 % width target.
 
+### Hand-made lines, 2026-11-07 (#540, #542, `batch:lines`, part 1)
+
+All beyond PE-DESIGN and off unless chosen: a line or satin without them sews exactly as
+before, and PES 0110 export refuses them (PE-DESIGN would sew its own plain stitches).
+
+- **Back stitch** (`type: backStitch`): two forward, one back, each back stitch half the
+  forward one; the line ends at its far end.
+- **Thickness profile** on running lines: each stitch is sewn back and forth an odd number
+  of times between `minPasses` and `maxPasses` as the profile (arc, sine, linear,
+  smoothstep, stairs, constant or custom points) goes from 0 to 1, passes side by side.
+- **Hand-stitch look** on running and triple lines: seeded smooth variation of stitch
+  length (within ±`handLength` %, always 0.5-7 mm) and tilt, passes and the odd extra
+  stitch; on satins, one side's needle points move in along their crossings.
+- **Scribble** (`type: scribble`): a zigzag sewn back and forth `runTimes` times as one run,
+  its side offsets moved by smooth seeded noise and never past the band.
+- The same seed sews the same stitches on every platform (value noise over the crate's own
+  RNG, no platform maths).
+
 ### Satin looks, raised satin and column rung edits, 2026-11-06 (#528, #531, #525 part, `batch:satin-2a`)
 
 All beyond PE-DESIGN and off by default on Manual Punch columns and zigzag lines. With the
@@ -3066,6 +3084,21 @@ Beyond PE-DESIGN; nothing changes until `shape.autoRoute` or `object.branch` is 
   touching rectangles in two colours sews with no colour change and no trim, and stays so after
   a member is moved; moved apart, that member trims as usual. Satin branching with the
   centre-run underlay of the B4 sketch (§5) is not done.
+
+### Tie-off after tiny last stitches, 2026-11-07 (#703)
+
+A run that ends in stitches of 0.3 mm or less (a fill's last clipped row pieces, a satin
+narrowing to a point) followed by its lock sewed up to 7 stitches in one spot, which
+`tools/sew_check.py` refuses (limit 6). The writer's tie-off now drops the run's own needle
+points just before the lock that make the run longer than 6 (0.35 mm counts as in place, for
+the machine file's 0.1 mm grid); the last needle point and the lock stay. Stitch files and other
+fixed needle points never lock, so they are not touched.
+
+Measured with Auto Punch in OpenStitch mode on p01 and p09 (long side 100 mm), with no preset
+and with each of the six presets: before, p01 with `lineArt` failed with 7 in place (the other
+13 runs passed on main by then); after, all 14 pass, the longest run in place 4-6. Compat
+454/454, and its 501 written files are byte-identical apart from two JEF time stamps.
+Tests `tie_off_tests::*`.
 
 ## Order of work
 
