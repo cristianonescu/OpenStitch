@@ -1742,6 +1742,35 @@ fn csd_matches_pe_design_long_stitches_and_17_colours() {
     assert_eq!(ours.threads.len(), 3);
 }
 
+/// PE-DESIGN 11.50's SHV exports of #349's designs: OpenStitch writes the same file name, preview
+/// size, colour count, bounds and PE's chart entry for every block (800 RED is 41, not the
+/// nearest 3). The records still differ where PE-DESIGN starts a block on the stitch after the
+/// jump's landing, writes a stitch over 12.7 mm as one jump and adds `80 03` before long moves
+/// (#349, measured, not yet written).
+#[test]
+fn shv_matches_pe_design_name_and_chart_entries() {
+    for (name, stem) in [("pe-long.SHV", "pe-long"), ("pe-c17.SHV", "pe-c17")] {
+        let (mut pattern, pe) = machine_capture(name);
+        pattern.metadata.insert(pec::LABEL_KEY.into(), stem.into());
+        let ours = shv::write(&pattern).expect("write");
+        let at = 0x56 + 1 + stem.len();
+        assert_eq!(ours[..at + 6], pe[..at + 6], "{name}: name, preview size");
+        let (w, h) = (usize::from(pe[at]), usize::from(pe[at + 1]));
+        let table = at + 6 + w * h.div_ceil(2);
+        let colours = usize::from(pe[table]);
+        // Colour count, the six unknown bytes, the bounds.
+        assert_eq!(ours[table..table + 15], pe[table..table + 15], "{name}");
+        for k in 0..colours {
+            let e = table + 19 + 14 * k;
+            assert_eq!(
+                ours[e + 4..e + 14],
+                pe[e + 4..e + 14],
+                "{name}: block {k} code, start"
+            );
+        }
+    }
+}
+
 /// PE-DESIGN 11.50's SHV export of `sample-basic`, read and written again: the header text,
 /// name, preview size, colour count, bounds, word counts, chart entries, block start points
 /// and records equal PE's; only the preview's pixels are drawn by OpenStitch's own rule.

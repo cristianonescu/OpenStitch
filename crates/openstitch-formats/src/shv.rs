@@ -12,7 +12,8 @@
 //! Follows pyembroidery 1.5.1's `ShvReader` (MIT), the oracle.
 //!
 //! The writer ([`write`], issue #320) lays the file out as PE-DESIGN 11.50's export of
-//! `sample-basic` does: the header text, the design name, the preview size `w`, `h` and
+//! `sample-basic` does: the header text, the design name (the file's name when the exporter
+//! gives it, as PE-DESIGN names it: pe-long.SHV), the preview size `w`, `h` and
 //! `w / 2, h / 2` twice, the preview, the colour count, the six bytes `C4 28 00 30 00 00` (not
 //! described anywhere; copied), the needle points' bounds as i16 right, bottom, left, top, the
 //! total word count (u32), then per colour block its word count, its nearest SHV chart entry,
@@ -23,7 +24,8 @@
 //! millimetre with a one-pixel margin (`w` = width in whole millimetres + 2): PE's size fields
 //! are matched, its pixels only approximately (PE's own drawing rule is not known). A pixel
 //! holds the block's chart entry modulo 15 (15 for 0), which gives PE's 11 and 3 for its
-//! 800 RED (entry 41) and Prussian Blue (entry 33); other entries are not yet checked.
+//! 800 RED (entry 41) and Prussian Blue (entry 33); other entries are not yet checked. A Brother
+//! chart colour takes the chart entry PE-DESIGN gives it ([`PE_SHV_CODES`], #349).
 //! Neither pyembroidery nor libembroidery has a working SHV writer.
 
 use crate::io::{ByteReader, signed8};
@@ -129,9 +131,43 @@ pub fn read(data: &[u8]) -> Result<StitchPattern> {
     Ok(pattern)
 }
 
-/// The SHV chart entry for a thread.
+/// The SHV chart entry PE-DESIGN 11.50 writes for a Brother chart colour, by PEC chart index
+/// (machine/pe-c17.SHV: 15 colours; sample-basic.shv). It is not always the nearest entry
+/// (800 RED is 41, not 3). Other colours take the nearest entry.
+pub const PE_SHV_CODES: [(usize, u8); 15] = [
+    (1, 33),
+    (3, 38),
+    (5, 41),
+    (8, 10),
+    (10, 37),
+    (13, 5),
+    (20, 0),
+    (25, 42),
+    (30, 36),
+    (33, 25),
+    (37, 6),
+    (41, 38),
+    (45, 22),
+    (52, 25),
+    (58, 5),
+];
+
+/// The SHV chart entry for a thread: PE-DESIGN's for a Brother chart colour it was seen to map
+/// ([`PE_SHV_CODES`]), else the nearest.
 fn chart_code(t: &Thread) -> u8 {
-    nearest_index(t, &SHV_CHART).unwrap_or(0) as u8
+    let rgb = t.rgb_value();
+    PE_SHV_CODES
+        .iter()
+        .find(|(i, _)| {
+            openstitch_core::PEC_CHART
+                .get(*i)
+                .and_then(Option::as_ref)
+                .is_some_and(|c| c.rgb_value() == rgb)
+        })
+        .map_or_else(
+            || nearest_index(t, &SHV_CHART).unwrap_or(0) as u8,
+            |&(_, c)| c,
+        )
 }
 
 /// Draws a line of `value` pixels from `a` to `b` (Bresenham) into a column-major preview of
@@ -260,7 +296,15 @@ pub fn write(input: &StitchPattern) -> Result<Vec<u8>> {
         }
     }
 
-    let name = input.name().unwrap_or("").as_bytes();
+    // PE-DESIGN names the design after the file it exports to (pe-long.SHV: `pe-long`); the
+    // exporter records the file stem as the PEC label.
+    let name = input
+        .metadata
+        .get(crate::pec::LABEL_KEY)
+        .map(String::as_str)
+        .or_else(|| input.name())
+        .unwrap_or("")
+        .as_bytes();
     let name = &name[..name.len().min(255)];
     let mut out = HEADER_TEXT.to_vec();
     out.push(name.len() as u8);

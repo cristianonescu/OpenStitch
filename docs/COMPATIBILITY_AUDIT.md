@@ -3334,3 +3334,22 @@ From PE-DESIGN 11.50's own Save As files (24, fixtures/pe11/captures-2026-11-07/
   (also in `#PES0110`).
 - Not written: the thread-number pictures (blank, as in `#PES0110`), a custom page's extra picture
   after the addendum, and the hoop id and name in v9/v10.
+
+### CSD and SHV against PE-DESIGN's exports of #349's designs, 2026-11-07 (#349, `batch:machine-formats`)
+
+PE-DESIGN 11.50 exported OpenStitch's `c17.pes` (17 colour blocks) and `long.pes` (a short move,
+15 mm satin stitches) to CSD and SHV (fixtures/pe11/captures-2026-11-07/machine).
+
+- **CSD:** a design of more than 14 colour blocks is two files, `_A` with 14 blocks and `_B`
+  with the rest, each from the design's origin; `design.export` now splits it the same way
+  without being asked (the parts of any split design keep the whole design's origin). A colour
+  change counts the file's blocks (`85 02`, `85 03`, …). A stitch over 12.7 mm is a `90` move
+  record for each 12.7 mm piece and a stitch for the rest. The palette names PE's own colour for
+  14 Brother colours (800 RED is `E3 31 1F`) and fills unused slots with PE's fill (slot 1
+  `00 00 FF`). pe-long.CSD and pe-c17_A.Csd come out byte for byte. PE's `_B` names the design's
+  first three colours in its palette, not its blocks'; OpenStitch names the blocks' own colours.
+- **SHV:** the file's name and PE's chart entries (800 RED is 41, not the nearest 3) match. The
+  records are measured but not yet written: PE starts each block on the stitch after the
+  jump's landing, writes a stitch over 12.7 mm as one `80 01` jump and an 8 mm move as a plain
+  record, and writes `80 03` before its 74 mm moves (not before 31.7 mm). The six header bytes
+  `C4 28 00 30 00 00` are the same in all three PE exports.
