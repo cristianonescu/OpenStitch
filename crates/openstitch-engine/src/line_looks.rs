@@ -121,7 +121,7 @@ fn seed(p: &Params, old: u32) -> Result<u32, CommandError> {
 
 fn odd(p: &Params, key: &str, old: u32) -> Result<u32, CommandError> {
     let n = p.int(key, Some(i64::from(old)), 1, 9)? as u32;
-    if n % 2 == 0 {
+    if n.is_multiple_of(2) {
         return Err(p.invalid(key, "must be odd, so the line ends at its far end"));
     }
     Ok(n)

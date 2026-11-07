@@ -307,7 +307,7 @@ pub fn variable_running(path: &[Vec2], pitch: f64, profile: &RunProfile) -> Vec<
         let lane = |j: u32| side * (gap * (j as f64 - (n - 1) as f64 / 2.0));
         for j in 0..n {
             let off = lane(j);
-            let (from, to) = if j % 2 == 0 { (a, b) } else { (b, a) };
+            let (from, to) = if j.is_multiple_of(2) { (a, b) } else { (b, a) };
             if j > 0 || n > 1 {
                 out.push(from + off);
             }
@@ -369,7 +369,7 @@ pub fn hand_running(path: &[Vec2], pitch: f64, hand: &HandStitch) -> Vec<Vec2> {
             let local = (at[k + 1] - at[k - 1]) / 2.0;
             w.at(s) + normal(w.tangent(s)) * (side.at(s / (2.0 * pitch)) * tilt * local / 2.0)
         };
-        let order: Vec<usize> = if pass % 2 == 0 {
+        let order: Vec<usize> = if pass.is_multiple_of(2) {
             (0..at.len()).collect()
         } else {
             (0..at.len()).rev().collect()
@@ -410,7 +410,7 @@ pub fn scribble(
     for pass in 0..repetitions.clamp(1, 6) {
         let reach = Noise::new(u64::from(seed) * 7 + u64::from(pass) * 2 + 1);
         let drift = Noise::new(u64::from(seed) * 7 + u64::from(pass) * 2 + 2);
-        let order: Vec<usize> = if pass % 2 == 0 {
+        let order: Vec<usize> = if pass.is_multiple_of(2) {
             (0..pts.len()).collect()
         } else {
             (0..pts.len()).rev().collect()
@@ -420,7 +420,7 @@ pub fn scribble(
                 continue;
             }
             let (s, p) = pts[k];
-            let sign = if (k + pass as usize) % 2 == 0 {
+            let sign = if (k + pass as usize).is_multiple_of(2) {
                 1.0
             } else {
                 -1.0
@@ -448,7 +448,7 @@ pub fn satin_hand(run: &mut [Vec2], hand: &SatinHand, keep: usize) {
     let noise = Noise::new(u64::from(hand.seed).wrapping_mul(97).wrapping_add(5));
     let original = run.to_vec();
     for k in keep..n - keep {
-        let a_side = k % 2 == 0;
+        let a_side = k.is_multiple_of(2);
         let moves = match hand.side {
             SatinSide::A => a_side,
             SatinSide::B => !a_side,
@@ -601,8 +601,8 @@ mod tests {
 
     #[test]
     fn satin_hand_moves_one_side_only_inside_its_crossings() {
-        let mut run: Vec<Vec2> = (0..40)
-            .map(|k| v2(k as f64 * 4.0, if k % 2 == 0 { 0.0 } else { 40.0 }))
+        let mut run: Vec<Vec2> = (0..40usize)
+            .map(|k| v2(k as f64 * 4.0, if k.is_multiple_of(2) { 0.0 } else { 40.0 }))
             .collect();
         let before = run.clone();
         let hand = SatinHand {
@@ -612,7 +612,7 @@ mod tests {
         };
         satin_hand(&mut run, &hand, 4);
         for k in 0..run.len() {
-            if k % 2 == 0 {
+            if k.is_multiple_of(2) {
                 assert_eq!(run[k], before[k], "side A unchanged");
             } else {
                 assert!(run[k].y <= 40.0 && run[k].y >= 40.0 - 16.0 - 1e-9);
