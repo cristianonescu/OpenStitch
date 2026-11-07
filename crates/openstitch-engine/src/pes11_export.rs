@@ -587,6 +587,12 @@ fn curve_side(pts: &[(f64, f64)]) -> Vec<Vertex> {
 }
 
 fn region(id: u64, r: &RegionSewing, s: &mut Shape, table: &mut Vec<Thread>) -> Result<(), String> {
+    if r.hand.is_some() {
+        // PE-DESIGN would sew both sides crisp (#540).
+        return Err(format!(
+            "object {id}: a satin's hand-stitch look is not mapped in PES 0110 (use version 6)"
+        ));
+    }
     s.region = match r.kind {
         RegionType::Fill => RegionSewType::Fill,
         RegionType::Satin => RegionSewType::Satin,
@@ -641,6 +647,12 @@ fn line(id: u64, l: &LineSewing, s: &mut Shape, table: &mut Vec<Thread>) -> Resu
             ));
         }
     };
+    if l.profile.is_some() || l.hand.is_some() {
+        // PE-DESIGN would sew its plain running stitch (#540, #542).
+        return Err(format!(
+            "object {id}: a hand-made running look (thickness profile or hand-stitch) is not mapped in PES 0110 (use version 6)"
+        ));
+    }
     s.line_sewn = true;
     // +86: V rather than E (line-v-default); a chain at its defaults carries 1
     // (line-chain-default). The start and end options of stem, candlewick and chain lines are

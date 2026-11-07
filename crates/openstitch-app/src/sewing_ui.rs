@@ -769,7 +769,7 @@ fn preview(ui: &mut egui::Ui, e: &SewingEditor) {
 fn settings(ui: &mut egui::Ui, e: &mut SewingEditor) {
     ui.horizontal(|ui| {
         ui.label("Kind");
-        egui::ComboBox::from_id_salt("sdf-kind")
+        let r = egui::ComboBox::from_id_salt("sdf-kind")
             .selected_text(e.doc.kind.label())
             .show_ui(ui, |ui| {
                 for k in SewingKind::ALL {
@@ -779,10 +779,13 @@ fn settings(ui: &mut egui::Ui, e: &mut SewingEditor) {
                     }
                 }
             });
+        crate::a11y::name(&r.response, "Kind");
         ui.label("Id");
-        ui.add(egui::TextEdit::singleline(&mut e.doc.id).desired_width(120.0));
+        let r = ui.add(egui::TextEdit::singleline(&mut e.doc.id).desired_width(120.0));
+        crate::a11y::name(&r, "Id");
         ui.label("Name");
-        ui.add(egui::TextEdit::singleline(&mut e.doc.name).desired_width(140.0));
+        let r = ui.add(egui::TextEdit::singleline(&mut e.doc.name).desired_width(140.0));
+        crate::a11y::name(&r, "Name");
         ui.label("Width");
         ui.add(
             egui::DragValue::new(&mut e.doc.width)

@@ -18,7 +18,7 @@ Icons, colours and visual style are OpenStitch's own (see
 | 3 Quick Access Toolbar | Above the ribbon (or below it, Options ▸ or ▾ ▸ Show below the Ribbon): New, Open, Save, Undo, Redo, Zoom, Help by default; ▾ adds or removes commands. Saved in `ui.json` next to the user settings file |
 | 4 Option button | **Options ▾** at the top right: Design Database, Programmable Stitch Creator, Stitch Design Factory, Font Creator, Sewing Attribute Sets, User Thread Charts, colour theme (Light, Dark, System); beyond PE-DESIGN: Accent colour (#559), Layouts (save and apply where the panes are, #551) Reset Preferences (one area at a time, #551), Show start cards and New Objects (#553, #554) |
 | 5 Help button | **Help ▾**: instruction manual (this repository), Ready-to-Sew Designs (the kit packaged with the app, `examples/sew`; GitHub when none is packaged), Ready-to-Sew Designs Online, keyboard shortcuts, About |
-| 6 Sewing Order pane | Docked left: buttons at the top (sew first / earlier / later / last, sort by colour, optimise, frames by thread colour), then Sew in click order, Lock and Sew outline first (#502), Stop after (#512), Leave out hidden stitching (#511) and Then: run (#545), beyond PE-DESIGN; Branch / Unbranch, Auto-route lines and Redwork (#546, beyond PE-DESIGN); Optimise reports its before/after colour changes, jumps, trims and travel in the status bar (#547); one frame per object with a thumbnail and its thread colours; drag to reorder; double-click a name to rename it (Return keeps, Esc cancels); locked objects show "(locked)" |
+| 6 Sewing Order pane | Docked left: buttons at the top (sew first / earlier / later / last, sort by colour, optimise, frames by thread colour), then Sew in click order, Lock and Sew outline first (#502), Stop after (#512), Leave out hidden stitching (#511) and Then: run (#545), beyond PE-DESIGN; Branch / Unbranch, Auto-route lines and Redwork (#546, beyond PE-DESIGN); Swap sides and Untangle for a selected Manual Punch column (#525, beyond PE-DESIGN); Optimise reports its before/after colour changes, jumps, trims and travel in the status bar (#547); one frame per object with a thumbnail and its thread colours; drag to reorder; double-click a name to rename it (Return keeps, Esc cancels); locked objects show "(locked)" |
 | 7 Import / Color / Sewing Attributes / Text Attributes | Docked right as four tabs |
 | 8 Stitch Simulator pane | Docked under the work area. Under PE-DESIGN's controls, the stitch-out player (#516, beyond PE-DESIGN): counters (stitch and machine time at the needle), Prev/Next block, Prev/Next object and Next trim, the Auto, Pause at trims and Follow needle toggles; a lane per colour block with trim ticks and colour-change / stop markers (click or drag to seek); one button per block named by its thread. Keys while part of the design is shown: ←/→ stitch, Shift block, Ctrl object, T next trim, Home/End |
 | 9–10 Design Page, work area | White page on a grey work area (light theme) |
@@ -315,6 +315,8 @@ Behaviour follows the guide's pages
 | Edit Outline | Delete Direction Line |  | `Action::DeleteDirectionLine` | `object.setDirectionLines` | yes |
 | Edit Outline | Reverse Direction Line |  | `Action::ReverseDirectionLine` | `object.reverseDirection` | yes |
 | Edit Outline | Edit Point | `A` | `Action::EditPoint` | `object.setPoint` | yes |
+| Edit Outline | Edit Point on a satin line (beyond PE-DESIGN, #700): each width key shows a handle at both edges; drag one to set that side, double-click the line to add a key, click a handle and press Delete to remove the key |  | `Action::EditPoint` | `object.setWidthKey`, `object.deleteWidthKey` | yes |
+| Edit Outline | Edit Point on a Manual Punch column (beyond PE-DESIGN, #525): the rungs are shown instead of the outline; drag an end, double-click a side to add a rung, click an end and press Delete to remove it |  | `Action::EditPoint` | `object.moveRung`, `object.insertRung`, `object.deleteRung` | yes |
 | Edit Outline | Delete Point | `Delete` | `Action::DeletePoint` | `object.deletePoint` | yes |
 | Edit Outline | Split at Point |  | `Action::SplitAtPoint` | `stitches.splitAt` | yes |
 | Edit Outline | Satin Skeleton from Shape |  | `Action::DeriveSkeleton` | `object.deriveSkeleton` | yes |
@@ -504,6 +506,13 @@ window shows the file, the step (reading the file, building the stitches, finish
 seconds so far and **Cancel** (Esc). Cancel, or an edit made meanwhile, leaves the current
 design as it was; a finished open is one undo step, as before. The Assistant sees it as
 `ui.state` `loading` and can stop it with `ui.loading {cancel: true}`.
+
+### Text size and accessibility (beyond PE-DESIGN, #499)
+
+**Options ▸ Text size** (100 %, 125 %, 150 %, 175 %, 200 %) enlarges the whole window on top of
+the system's display scale; ribbon groups that no longer fit scroll under a solid scroll bar and
+the status bar's controls move to a row of their own. Contrast, focus and screen-reader support:
+[ACCESSIBILITY.md](ACCESSIBILITY.md).
 
 ### Getting started (beyond PE-DESIGN, #554)
 

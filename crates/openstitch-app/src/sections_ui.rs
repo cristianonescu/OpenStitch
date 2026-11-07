@@ -203,7 +203,7 @@ fn split_settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<Command
                     .map(|(w, h)| format!("{w} × {h} mm ({})", s.hoop))
             })
             .unwrap_or_else(|| "Not split".into());
-        egui::ComboBox::from_id_salt("section-hoop")
+        let r = egui::ComboBox::from_id_salt("section-hoop")
             .selected_text(text)
             .width(200.0)
             .show_ui(ui, |ui| {
@@ -225,6 +225,7 @@ fn split_settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<Command
                     }
                 }
             });
+        crate::a11y::name(&r.response, "Section size");
     });
     let Some(s) = s else { return };
     free_settings(&s, units, ui, requests);

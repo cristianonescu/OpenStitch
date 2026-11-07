@@ -86,6 +86,8 @@ mod lettering_envelopes;
 mod lettering_library;
 #[path = "library.rs"]
 mod library;
+#[path = "line_looks.rs"]
+mod line_looks;
 #[path = "machine.rs"]
 mod machine;
 #[path = "mapped_text.rs"]

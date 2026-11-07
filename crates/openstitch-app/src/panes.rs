@@ -591,6 +591,9 @@ pub fn thumbnail(ui: &mut egui::Ui, o: &DesignObject, size: f32) -> egui::Respon
 /// Design size and stitch count (or the command under the pointer) on the left; view mode,
 /// grid, Design Property and zoom on the right.
 pub fn status_bar(app: &mut EditorApp, ui: &mut egui::Ui) {
+    // A narrow window or a large Text size (#499): the controls take a row of their own
+    // instead of covering the size, count and hints.
+    let narrow = ui.available_width() < STATUS_CONTROLS_WIDTH * 1.6;
     ui.horizontal(|ui| {
         let s = &app.stats;
         ui.label(openstitch_app::editor::units::size(
@@ -615,37 +618,12 @@ pub fn status_bar(app: &mut EditorApp, ui: &mut egui::Ui) {
             None if any_held || app.status == "Ready" => hint.to_string(),
             None => format!("{}  ·  {hint}", app.status),
         };
+        if narrow {
+            ui.add(egui::Label::new(RichText::new(text).weak()).truncate());
+            return;
+        }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            zoom_controls(app, ui);
-            ui.separator();
-            crate::quality_ui::indicator(app, ui);
-            ui.separator();
-            for a in [Action::DesignProperty, Action::ShowGrid] {
-                let info = a.info();
-                let on = ribbon::active(app, a);
-                if ui
-                    .add(egui::Button::new(info.label).selected(on))
-                    .on_hover_text(info.tip)
-                    .clicked()
-                {
-                    ribbon::run(app, a, ui.ctx());
-                }
-            }
-            ui.separator();
-            for a in [Action::RealisticView, Action::StitchView, Action::SolidView] {
-                let info = a.info();
-                let label = info.label.trim_end_matches(" View");
-                let r = ui
-                    .add_enabled(
-                        ribbon::enabled(app, a),
-                        egui::Button::new(label).selected(ribbon::active(app, a)),
-                    )
-                    .on_hover_text(info.screen_tip(cfg!(target_os = "macos")))
-                    .on_disabled_hover_text(info.screen_tip(cfg!(target_os = "macos")));
-                if r.clicked() {
-                    ribbon::run(app, a, ui.ctx());
-                }
-            }
+            status_controls(app, ui);
             ui.separator();
             // The message and hints take what is left, cut short rather than under the buttons.
             ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
@@ -653,6 +631,50 @@ pub fn status_bar(app: &mut EditorApp, ui: &mut egui::Ui) {
             });
         });
     });
+    if narrow {
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            status_controls(app, ui);
+        });
+    }
+}
+
+/// About how wide the status bar's controls are (points); below 1.6 times that they get a row
+/// of their own.
+const STATUS_CONTROLS_WIDTH: f32 = 640.0;
+
+/// The status bar's right-hand controls (drawn right to left): zoom, problems, Design
+/// Property, Show Grid and the views.
+fn status_controls(app: &mut EditorApp, ui: &mut egui::Ui) {
+    zoom_controls(app, ui);
+    ui.separator();
+    crate::quality_ui::indicator(app, ui);
+    ui.separator();
+    for a in [Action::DesignProperty, Action::ShowGrid] {
+        let info = a.info();
+        let on = ribbon::active(app, a);
+        if ui
+            .add(egui::Button::new(info.label).selected(on))
+            .on_hover_text(info.tip)
+            .clicked()
+        {
+            ribbon::run(app, a, ui.ctx());
+        }
+    }
+    ui.separator();
+    for a in [Action::RealisticView, Action::StitchView, Action::SolidView] {
+        let info = a.info();
+        let label = info.label.trim_end_matches(" View");
+        let r = ui
+            .add_enabled(
+                ribbon::enabled(app, a),
+                egui::Button::new(label).selected(ribbon::active(app, a)),
+            )
+            .on_hover_text(info.screen_tip(cfg!(target_os = "macos")))
+            .on_disabled_hover_text(info.screen_tip(cfg!(target_os = "macos")));
+        if r.clicked() {
+            ribbon::run(app, a, ui.ctx());
+        }
+    }
 }
 
 fn zoom_controls(app: &mut EditorApp, ui: &mut egui::Ui) {
@@ -662,10 +684,12 @@ fn zoom_controls(app: &mut EditorApp, ui: &mut egui::Ui) {
     // Slider on a log scale, 10 %–2000 %.
     let mut log = now.clamp(10.0, 2000.0).log10();
     ui.spacing_mut().slider_width = 110.0;
-    if ui
-        .add(egui::Slider::new(&mut log, 1.0..=(2000f64).log10()).show_value(false))
-        .on_hover_text("Zoom")
-        .changed()
+    if crate::a11y::named(
+        ui.add(egui::Slider::new(&mut log, 1.0..=(2000f64).log10()).show_value(false)),
+        "Zoom",
+    )
+    .on_hover_text("Zoom")
+    .changed()
     {
         ribbon::zoom_to_percent(app, 10f64.powf(log));
     }
@@ -746,7 +770,8 @@ fn property_fields(app: &mut EditorApp, ui: &mut egui::Ui) {
                     } else {
                         egui::TextEdit::singleline(field)
                     };
-                    ui.add(edit.char_limit(openstitch_design::DesignProperties::MAX_BYTES));
+                    let r = ui.add(edit.char_limit(openstitch_design::DesignProperties::MAX_BYTES));
+                    crate::a11y::name(&r, label);
                 }
                 ui.end_row();
             }

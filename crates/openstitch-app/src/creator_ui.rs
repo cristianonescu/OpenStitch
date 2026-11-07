@@ -514,7 +514,7 @@ fn header(ui: &mut egui::Ui, st: &mut CreatorState, user: &[patterns::Pattern]) 
             .iter()
             .find(|k| k.0 == st.doc.kind)
             .map_or("?", |k| k.1);
-        egui::ComboBox::from_id_salt("creator-kind")
+        let r = egui::ComboBox::from_id_salt("creator-kind")
             .selected_text(current)
             .show_ui(ui, |ui| {
                 for (k, label) in KINDS {
@@ -523,16 +523,20 @@ fn header(ui: &mut egui::Ui, st: &mut CreatorState, user: &[patterns::Pattern]) 
                     }
                 }
             });
+        crate::a11y::name(&r.response, "Kind");
         ui.label("Id");
-        ui.add(egui::TextEdit::singleline(&mut st.doc.id).desired_width(120.0));
+        let r = ui.add(egui::TextEdit::singleline(&mut st.doc.id).desired_width(120.0));
+        crate::a11y::name(&r, "Id");
         ui.label("Name");
-        ui.add(egui::TextEdit::singleline(&mut st.doc.name).desired_width(140.0));
+        let r = ui.add(egui::TextEdit::singleline(&mut st.doc.name).desired_width(140.0));
+        crate::a11y::name(&r, "Name");
         if st.doc.kind == PatternKind::Decorative {
             ui.label("Row shift");
-            ui.add(egui::Slider::new(&mut st.doc.row_shift, 0.0..=1.0));
+            let r = ui.add(egui::Slider::new(&mut st.doc.row_shift, 0.0..=1.0));
+            crate::a11y::name_slider(&r, "Row shift");
         }
         let kind = st.doc.kind;
-        egui::ComboBox::from_id_salt("creator-template")
+        let r = egui::ComboBox::from_id_salt("creator-template")
             .selected_text("Start from…")
             .show_ui(ui, |ui| {
                 for p in patterns::library()
@@ -550,6 +554,7 @@ fn header(ui: &mut egui::Ui, st: &mut CreatorState, user: &[patterns::Pattern]) 
                     }
                 }
             });
+        crate::a11y::name(&r.response, "Start from pattern");
     });
 }
 

@@ -16,10 +16,14 @@ pub mod continuation;
 pub mod keyboard;
 pub mod knife;
 pub mod needles;
+pub mod punch_rungs;
+pub mod satin_width;
 pub mod skeleton;
 pub use characters::{CharacterDrag, CharacterFrame, CharacterOverlay};
 pub use continuation::Continuation;
 pub use needles::NeedleOverlay;
+pub use punch_rungs::RungOverlay;
+pub use satin_width::WidthOverlay;
 pub use skeleton::SkeletonOverlay;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -350,6 +354,22 @@ enum Gesture {
         delta: Option<Vec2>,
         marquee: bool,
     },
+    /// Point tool on a satin line: one edge (`side`) of width key `index` being dragged.
+    Width {
+        id: u64,
+        index: usize,
+        side: usize,
+        start: Vec2,
+        to: Option<Vec2>,
+    },
+    /// Point tool on a Manual Punch column: one end (`side`) of rung `index` being dragged.
+    Rung {
+        id: u64,
+        index: usize,
+        side: usize,
+        start: Vec2,
+        to: Option<Vec2>,
+    },
 }
 
 /// What the Point tool shows over the selected shape: its contours (as edited while a drag is
@@ -387,6 +407,10 @@ pub struct ToolController {
     /// Point tool on a stitch pattern: selected needle point indexes, and whose they are.
     needles: BTreeSet<usize>,
     needle_owner: Option<u64>,
+    /// Point tool on a Manual Punch column: the selected rung (column id, rung index).
+    rung: Option<(u64, usize)>,
+    /// Point tool on a satin line: the selected width key (line id, key index).
+    width_key: Option<(u64, usize)>,
     /// Snap to grid: the grid step in model units.
     snap: Option<f64>,
     /// Satin Skeleton: widths (mm) of the anchors in `pen`, and the width of the next one.
@@ -612,7 +636,8 @@ impl ToolController {
 
     /// The vertices and handles to draw while the Point tool is active.
     pub fn point_overlay(&self, ctx: &ToolContext) -> Option<PointOverlay> {
-        if self.tool() != Tool::Point {
+        if self.tool() != Tool::Point || ctx.rung_target().is_some() || ctx.satin_target().is_some()
+        {
             return None;
         }
         let o = ctx.point_target()?;
@@ -641,6 +666,12 @@ impl ToolController {
     fn point_tool(&mut self, e: PointerEvent, ctx: &ToolContext) -> Vec<ToolEffect> {
         if let Some(o) = ctx.needle_target() {
             return self.needle_tool(e, ctx, o);
+        }
+        if let Some(o) = ctx.rung_target() {
+            return self.rung_tool(e, ctx, o);
+        }
+        if let Some(o) = ctx.satin_target() {
+            return self.width_tool(e, ctx, o);
         }
         if let Some(o) = ctx.text_target() {
             return self.character_tool(e, ctx, o);
@@ -815,6 +846,12 @@ impl ToolController {
             return None;
         }
         if let Some(effects) = self.delete_needles(ctx) {
+            return Some(effects);
+        }
+        if let Some(effects) = self.delete_rung(ctx) {
+            return Some(effects);
+        }
+        if let Some(effects) = self.delete_width_key(ctx) {
             return Some(effects);
         }
         let p = self.selected_point(ctx)?;
@@ -1469,7 +1506,9 @@ fn finish_select(
         | Gesture::SkeletonWidth { .. }
         | Gesture::SkeletonPoint { .. }
         | Gesture::Character { .. }
-        | Gesture::Needles { .. } => vec![],
+        | Gesture::Needles { .. }
+        | Gesture::Rung { .. }
+        | Gesture::Width { .. } => vec![],
     }
 }
 
