@@ -163,6 +163,12 @@ pub fn split_for(ty: FileType, pattern: &StitchPattern) -> Result<Vec<StitchPatt
             offset = 0;
         }
     }
+    // Every part is laid out from the whole design's centre, so the parts line up.
+    let (cx, cy) = crate::layout::centre(pattern);
+    for p in &mut parts {
+        p.metadata
+            .insert(crate::layout::ORIGIN_KEY.into(), format!("{cx},{cy}"));
+    }
     Ok(parts)
 }
 

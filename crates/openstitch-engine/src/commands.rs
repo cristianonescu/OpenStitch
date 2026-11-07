@@ -3168,6 +3168,22 @@ fn text_commands() -> Vec<CommandSpec> {
 
 // MARK: files
 
+/// `dir/name.ext` → `dir/name_A.ext`, `_B`, … for part `n` (1, 2, …): PE-DESIGN's names for a
+/// CSD of more than 14 colour blocks (pe-c17_A.Csd, pe-c17_B.Csd; #349).
+#[cfg(feature = "formats")]
+fn lettered(path: &str, n: usize) -> String {
+    let p = std::path::Path::new(path);
+    let stem = p
+        .file_stem()
+        .map_or_else(String::new, |s| s.to_string_lossy().into_owned());
+    let letter = char::from(b'A' + ((n - 1) % 26) as u8);
+    let name = match p.extension() {
+        Some(ext) => format!("{stem}_{letter}.{}", ext.to_string_lossy()),
+        None => format!("{stem}_{letter}"),
+    };
+    p.with_file_name(name).display().to_string()
+}
+
 /// `dir/name.ext` → `dir/name-N.ext` (split exports).
 #[cfg(feature = "formats")]
 fn numbered(path: &str, n: usize) -> String {
@@ -3398,7 +3414,7 @@ fn codec_commands() -> Vec<CommandSpec> {
                 opt(
                     "split",
                     "bool",
-                    "When the design exceeds the format's limits, write NAME-1.ext, NAME-2.ext… (default false: fail)",
+                    "When the design exceeds the format's limits, write NAME-1.ext, NAME-2.ext… (default false: fail). CSD always splits past 14 colour blocks, as PE-DESIGN does: NAME_A.csd, NAME_B.csd…",
                 ),
                 opt(
                     "repeat",
@@ -3591,6 +3607,9 @@ fn codec_commands() -> Vec<CommandSpec> {
                     }
                     _ => ty.write(part),
                 };
+                // PE-DESIGN writes a CSD of more than 14 colour blocks as several files without
+                // being asked (#349).
+                let split = split || ty == FileType::Csd;
                 let parts = if split && !editable {
                     openstitch_formats::split::split_for(ty, &pattern)
                         .map_err(|e| p.failed(e.to_string()))?
@@ -3609,7 +3628,12 @@ fn codec_commands() -> Vec<CommandSpec> {
                     let target = if parts.len() == 1 {
                         path.clone()
                     } else {
-                        s.resolve(&numbered(&raw_path, i + 1), Access::Write, &p.command)?
+                        let name = if ty == FileType::Csd {
+                            lettered(&raw_path, i + 1)
+                        } else {
+                            numbered(&raw_path, i + 1)
+                        };
+                        s.resolve(&name, Access::Write, &p.command)?
                     };
                     if companion_inf {
                         let list = openstitch_formats::threadlist::sewing_order(part);
