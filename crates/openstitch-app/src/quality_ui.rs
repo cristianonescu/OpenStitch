@@ -27,6 +27,68 @@ pub enum Tab {
     Route,
 }
 
+impl Tab {
+    pub const ALL: [Tab; 3] = [Tab::Check, Tab::Density, Tab::Route];
+
+    /// The tab's name in the Assistant's `checkDesign` setting (#599).
+    pub fn key(self) -> &'static str {
+        match self {
+            Tab::Check => "problems",
+            Tab::Density => "density",
+            Tab::Route => "route",
+        }
+    }
+
+    pub fn from_key(key: &str) -> Option<Tab> {
+        Tab::ALL.into_iter().find(|t| t.key() == key)
+    }
+}
+
+/// Opens the window on `tab`, its results brought up to date: the indicator, the Sewing Order
+/// pane's Review button, and the ribbon actions the Assistant runs (#599).
+pub fn open(app: &mut EditorApp, tab: Tab) {
+    app.quality.open = true;
+    app.quality.tab = tab;
+    update(app);
+}
+
+/// What the status bar's indicator and the window show, for `ui.state` (#599): whether the
+/// design is ready to sew, its error and warning counts and first reason, which tab is open
+/// (`closed` when none) and the Review Sewing Order step the window is on.
+pub fn state_json(app: &EditorApp) -> Value {
+    let c = &app.quality.check;
+    let (errors, warnings) = (
+        c["errors"].as_u64().unwrap_or(0),
+        c["warnings"].as_u64().unwrap_or(0),
+    );
+    let route = app.quality.open && app.quality.tab == Tab::Route;
+    json!({
+        "ready": errors + warnings == 0,
+        "errors": errors,
+        "warnings": warnings,
+        "summary": c["summary"],
+        "window": if app.quality.open { app.quality.tab.key() } else { "closed" },
+        "reviewSteps": if route { json!(steps(app).len()) } else { Value::Null },
+    })
+}
+
+/// Moves Review Sewing Order to step `n` (from 1), on the window's Sewing order tab, and the
+/// Stitch Simulator with it (the `reviewStep` setting, #599). A design with no steps takes 1.
+pub fn review_step(app: &mut EditorApp, n: usize) -> Result<(), String> {
+    open(app, Tab::Route);
+    let len = steps(app).len();
+    if n == 0 || n > len.max(1) {
+        return Err(format!(
+            "reviewStep takes 1 to {} (the design's steps)",
+            len.max(1)
+        ));
+    }
+    if len > 0 {
+        go_to_step(app, n - 1);
+    }
+    Ok(())
+}
+
 #[derive(Default)]
 pub struct QualityState {
     pub open: bool,
@@ -166,8 +228,7 @@ pub fn indicator(app: &mut EditorApp, ui: &mut egui::Ui) {
         .on_hover_text("Check Design: open the list of sewing problems")
         .clicked()
     {
-        app.quality.open = true;
-        app.quality.tab = Tab::Check;
+        open(app, Tab::Check);
     }
 }
 
