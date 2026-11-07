@@ -173,7 +173,7 @@ fn match_window(app: &mut EditorApp, ctx: &egui::Context) {
                     .map_or(id.clone(), |b| b.1.clone()),
                 Target::User(n) => n.clone(),
             };
-            egui::ComboBox::from_label("Chart")
+            let r = egui::ComboBox::from_label("Chart")
                 .selected_text(shown)
                 .show_ui(ui, |ui| {
                     for (id, name) in &builtins {
@@ -183,6 +183,7 @@ fn match_window(app: &mut EditorApp, ctx: &egui::Context) {
                         ui.selectable_value(&mut st.target, Target::User(n.clone()), n);
                     }
                 });
+            crate::a11y::name(&r.response, "Chart");
             ui.horizontal(|ui| {
                 ui.label("Metric");
                 ui.selectable_value(&mut st.metric, "rgb", "PE-DESIGN (RGB)")
@@ -279,7 +280,8 @@ fn merge_window(app: &mut EditorApp, ctx: &egui::Context) {
         .default_width(380.0)
         .show(ctx, |ui| {
             let st = &mut app.colour_match;
-            ui.add(egui::Slider::new(&mut st.max_delta_e, 0.5..=20.0).text("Max ΔE"));
+            let r = ui.add(egui::Slider::new(&mut st.max_delta_e, 0.5..=20.0).text("Max ΔE"));
+            crate::a11y::name_slider(&r, "Max ΔE");
             if let Some(v) = &plan {
                 ui.label(format!(
                     "{} colours → {}; colour changes {} → {} ({} after Sort by Colour)",

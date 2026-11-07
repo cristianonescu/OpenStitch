@@ -278,6 +278,9 @@ feature is done and the rest is under [Planned](#planned).
   ([#552]).
 - (+) **Picture pickers with a live preview:** sewing types, fill patterns and motifs shown as
   pictures of their stitches; hovering one shows it on the selection before you choose ([#656]).
+- (+) **Accessibility:** every control named for screen readers, WCAG AA contrast in both
+  themes, a visible keyboard focus and Options ▸ Text size up to 200 % ([#499],
+  [docs/ACCESSIBILITY.md](docs/ACCESSIBILITY.md)).
 - (+) **Command palette** (Ctrl+K / Cmd+K) to find any command, a hints line for the current tool,
   and a search box over the sewing attributes ([#550]).
 - (+) **Your own keyboard shortcuts**, panes docked on either side and saved window layouts
@@ -674,6 +677,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#551]: https://github.com/cristianonescu/OpenStitch/issues/551
 [#552]: https://github.com/cristianonescu/OpenStitch/issues/552
 [#656]: https://github.com/cristianonescu/OpenStitch/issues/656
+[#499]: https://github.com/cristianonescu/OpenStitch/issues/499
 [#553]: https://github.com/cristianonescu/OpenStitch/issues/553
 [#554]: https://github.com/cristianonescu/OpenStitch/issues/554
 [#556]: https://github.com/cristianonescu/OpenStitch/issues/556

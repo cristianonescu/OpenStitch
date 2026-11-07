@@ -633,6 +633,7 @@ impl EditorApp {
                 "colorBy" => json!(prefs.show.color_by.as_str()),
                 "soloColor" => json!(prefs.show.solo),
                 "simulatorSpeed" => json!(self.play_speed),
+                "textSize" => json!(prefs.text_size),
                 "autosave" => json!(prefs.autosave),
                 "picturePickers" => json!(prefs.picture_pickers),
                 "openInTabs" => json!(prefs.open_in_tabs),
@@ -833,6 +834,9 @@ impl EditorApp {
             "soloColor" => self.ui.prefs.show.solo = bool_value(name, v)?,
             "simulatorSpeed" => {
                 (self.play_speed, save) = (number_value(name, v, 1.0, 5000.0)?, false)
+            }
+            "textSize" => {
+                self.ui.prefs.text_size = number_value(name, v, 100.0, 200.0)?.round() as u32
             }
             "autosave" => self.ui.prefs.autosave = bool_value(name, v)?,
             "picturePickers" => self.ui.prefs.picture_pickers = bool_value(name, v)?,

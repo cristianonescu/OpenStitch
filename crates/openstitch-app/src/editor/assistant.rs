@@ -486,6 +486,11 @@ pub const SETTINGS: &[Setting] = &[
     ),
     s("qatBelow", "Quick Access Toolbar below the Ribbon", "bool"),
     s("splash", "Show splash at startup", "bool"),
+    s(
+        "textSize",
+        "Options ▸ Text size: the whole window at this percentage (on top of the system display scale)",
+        "number 100..200",
+    ),
     s("showStartCards", "Show start cards", "bool"),
     s(
         "newObjectDefaults",
