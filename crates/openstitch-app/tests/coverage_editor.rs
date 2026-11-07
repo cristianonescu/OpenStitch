@@ -385,3 +385,49 @@ fn shift_locks_a_select_move_to_one_axis() {
     assert!((free.min_x - after.min_x - 12.0).abs() < 1e-6);
     assert!((free.min_y - after.min_y - 50.0).abs() < 1e-6);
 }
+
+/// Wave fill (#538, beyond PE-DESIGN): Wave height is offered on a fill; with a height the Wave
+/// length appears, and both reach the engine and read back. Height 0 turns the wave off.
+#[test]
+fn wave_fill_controls_reach_the_engine() {
+    let mut s = Session::new(std::env::temp_dir());
+    let id = exec(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 10, "y": 10, "width": 40, "height": 20}),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    let sel = BTreeSet::from([id]);
+    let m = InspectorModel::new(s.design(), &sel);
+    run(&mut s, &m.set_region_type(Some(RegionType::Fill)));
+    let region = |d: &Design| d.objects[0].region.clone().expect("region");
+    let keys = |d: &Design| -> Vec<&'static str> {
+        inspector::region_controls(&region(d))
+            .into_iter()
+            .filter_map(|c| match c {
+                Control::Number { key, .. } => Some(key),
+                _ => None,
+            })
+            .collect()
+    };
+    assert!(keys(s.design()).contains(&"region.waveHeight"));
+    assert!(!keys(s.design()).contains(&"region.waveLength"));
+    let m = InspectorModel::new(s.design(), &sel);
+    run(&mut s, &m.set_region(json!({"waveHeight": 3.0})));
+    assert!(keys(s.design()).contains(&"region.waveLength"));
+    let n = round_trip(
+        &mut s,
+        id,
+        |d| inspector::region_controls(&region(d)),
+        |m, p| m.set_region(p),
+        "wave fill",
+    );
+    assert!(n >= 3, "{n} number controls");
+    let r = region(s.design());
+    assert!(r.wave().is_some(), "{r:?}");
+    let m = InspectorModel::new(s.design(), &sel);
+    run(&mut s, &m.set_region(json!({"waveHeight": 0.0})));
+    assert!(region(s.design()).wave().is_none());
+    assert!(!keys(s.design()).contains(&"region.waveLength"));
+}

@@ -3377,3 +3377,154 @@ fn a_skeleton_satin_apex_does_not_pile_its_inner_needle_points() {
     let piled = |run: &[Vec2]| run.windows(3).filter(|w| w[0].distance(w[2]) < 2.0).count();
     assert!(piled(&run) <= 2, "{} piled: {run:?}", piled(&run));
 }
+
+/// Wave fill (#538): rows on `layer` in the row frame of stored angle `angle`, as (x, the row's
+/// offset from the sine `a·sin(kx)`), away from the shape's left and right ends.
+fn wave_rows(layer: &[Run], angle: f64, a: f64, k: f64, x: (f64, f64)) -> Vec<(f64, f64)> {
+    let rad = angle.to_radians();
+    layer
+        .iter()
+        .flatten()
+        .map(|p| p.rotated(rad))
+        .filter(|q| q.x > x.0 && q.x < x.1)
+        .map(|q| (q.x, q.y - a * (k * q.x).sin()))
+        .collect()
+}
+
+#[test]
+fn wave_fill_rows_are_one_sine_a_row_spacing_apart() {
+    let c = vec![Contour::rectangle(100.0, 100.0, 700.0, 500.0)];
+    for angle in [0.0, 30.0] {
+        let mut r = region(RegionType::Fill);
+        r.angle = angle;
+        r.underlay = false;
+        r.wave_height = Some(4.0);
+        r.wave_length = Some(20.0);
+        let (a, l) = r.wave().expect("a wave");
+        assert_eq!((a, l), (2.0, 20.0));
+        let (a, k) = (a * 10.0, std::f64::consts::TAU / (l * 10.0));
+        let layers = crate::region::layers(&c, &r, &[]);
+        let top = layers.last().expect("top stitching");
+        // Inside the shape, well away from where the rows end and turn.
+        let pts: Vec<(f64, f64)> = if angle == 0.0 {
+            wave_rows(top, angle, a, k, (140.0, 660.0))
+                .into_iter()
+                .collect()
+        } else {
+            // The rotated square's middle: the frame's middle third.
+            let rad = angle.to_radians();
+            let mid = v2(400.0, 300.0).rotated(rad);
+            wave_rows(top, angle, a, k, (mid.x - 100.0, mid.x + 100.0))
+                .into_iter()
+                .filter(|&(_, y)| (y - mid.y).abs() < 80.0)
+                .collect()
+        };
+        assert!(pts.len() > 100, "{angle}°: {} points", pts.len());
+        // The needle points lie on copies of the set sine: their offsets from it gather in
+        // tight rows (under 0.06 mm across) a step apart (within 3 %: the fill spreads its rows
+        // evenly over the shape); the travel between rows and across the shape may not. A wrong
+        // height or length would smear the offsets over millimetres.
+        let slope = a * k;
+        let step = 10.0 / r.density * 2.0 / (1.0 + 1.0 / (1.0 + slope * slope).sqrt());
+        let mut ys: Vec<f64> = pts.iter().map(|p| p.1).collect();
+        ys.sort_by(f64::total_cmp);
+        let mut rows: Vec<Vec<f64>> = vec![vec![ys[0]]];
+        for &y in &ys[1..] {
+            let row = rows.last_mut().expect("row");
+            if y - row[row.len() - 1] < 0.3 {
+                row.push(y);
+            } else {
+                rows.push(vec![y]);
+            }
+        }
+        let tight: Vec<&Vec<f64>> = rows
+            .iter()
+            .filter(|r| r.len() >= 8 && r[r.len() - 1] - r[0] < 0.6)
+            .collect();
+        let on: usize = tight.iter().map(|r| r.len()).sum();
+        assert!(
+            on * 10 >= pts.len() * 9,
+            "{angle}°: {on} of {} points on tight rows",
+            pts.len()
+        );
+        let mean = |r: &Vec<f64>| r.iter().sum::<f64>() / r.len() as f64;
+        let gaps = (mean(tight[tight.len() - 1]) - mean(tight[0])) / (tight.len() - 1) as f64;
+        assert!(
+            (gaps / step - 1.0).abs() < 0.03,
+            "{angle}°: rows {gaps:.3} apart, a step is {step:.3}"
+        );
+        let y0 = mean(tight[tight.len() / 2]);
+        // The wave's height measured on the stitches: crest to trough within 0.2 mm.
+        let row: Vec<f64> = top
+            .iter()
+            .flatten()
+            .map(|p| p.rotated(angle.to_radians()))
+            .filter(|q| ((q.y - a * (k * q.x).sin()) - y0).abs() < 1.0)
+            .map(|q| q.y)
+            .collect();
+        let height = row.iter().copied().fold(f64::MIN, f64::max)
+            - row.iter().copied().fold(f64::MAX, f64::min);
+        assert!((height - 2.0 * a).abs() <= 2.0, "{angle}°: height {height}");
+    }
+}
+
+#[test]
+fn wave_fill_keeps_the_spacing_across_steep_rows_and_height_zero_is_a_plain_fill() {
+    let c = vec![Contour::rectangle(100.0, 100.0, 500.0, 400.0)];
+    let mut r = region(RegionType::Fill);
+    r.angle = 0.0;
+    r.underlay = false;
+    // Far too steep: sewn at the 40° limit.
+    r.wave_height = Some(20.0);
+    r.wave_length = Some(10.0);
+    let (a, l) = r.wave().expect("a wave");
+    assert!((a * std::f64::consts::TAU / l - RegionSewing::MAX_WAVE_SLOPE).abs() < 1e-9);
+    let (a, k) = (a * 10.0, std::f64::consts::TAU / (l * 10.0));
+    let spacing = 10.0 / r.density;
+    let step = spacing * 2.0 / (1.0 + 1.0 / (1.0 + (a * k).powi(2)).sqrt());
+    let layers = crate::region::layers(&c, &r, &[]);
+    let pts = wave_rows(layers.last().expect("top"), 0.0, a, k, (150.0, 450.0));
+    assert!(pts.len() > 100);
+    // Distance from each needle point to the next row's sine, across the rows.
+    let (mut lo, mut hi) = (f64::MAX, f64::MIN);
+    for &(x, y) in pts.iter().filter(|p| p.1 < 350.0) {
+        let next = y + step;
+        let d = (-400..=400)
+            .map(|i| {
+                let u = x + i as f64 * 0.05;
+                (u - x).hypot(next + a * (k * u).sin() - (y + a * (k * x).sin()))
+            })
+            .fold(f64::MAX, f64::min);
+        lo = lo.min(d / spacing);
+        hi = hi.max(d / spacing);
+    }
+    assert!(
+        lo >= 0.85 && hi <= 1.15,
+        "spacing across the rows {lo:.3}–{hi:.3}"
+    );
+    // No stitch under 0.3 mm, travel along the edges included (sew_check's tiny runs).
+    for run in layers.iter().flatten() {
+        for w in run.windows(2) {
+            assert!(w[0].distance(w[1]) >= 3.0 - 1e-9, "{:?} to {:?}", w[0], w[1]);
+        }
+    }
+    // No height: the plain fill, stitch for stitch; and only a fill waves.
+    let mut flat = region(RegionType::Fill);
+    flat.angle = 0.0;
+    let plain = crate::region::layers(&c, &flat, &[]);
+    flat.wave_height = Some(0.0);
+    flat.wave_length = Some(30.0);
+    assert_eq!(crate::region::layers(&c, &flat, &[]), plain);
+    let mut satin = region(RegionType::Satin);
+    satin.wave_height = Some(3.0);
+    assert!(satin.wave().is_none());
+    // Saved only when set.
+    let json = serde_json::to_string(&region(RegionType::Fill)).expect("json");
+    assert!(!json.contains("wave"));
+    let mut wavy = region(RegionType::Fill);
+    wavy.wave_height = Some(3.0);
+    wavy.wave_length = Some(12.0);
+    let back: RegionSewing =
+        serde_json::from_str(&serde_json::to_string(&wavy).expect("json")).expect("load");
+    assert_eq!(back, wavy);
+}

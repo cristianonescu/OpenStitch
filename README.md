@@ -402,6 +402,7 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
   Stitch Types (*Stitch Type 2: partially compatible*), under sewing, gradation, feathered edge
   and the Running Stitch Path choice.
 - (+) **Random stagger:** seeded and reproducible, beside PE-DESIGN's Frequency brick.
+- (+) **Wave fill:** a fill's rows ripple as a sine with a set height and length ([#538]).
 - **Curved sewing direction** (round fill) for fill, programmable fill, piping and motif fill
   ([#471]).
 - **Programmable fill and motif fill** from OpenStitch's own pattern library, (+) with long gaps
@@ -688,6 +689,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#531]: https://github.com/cristianonescu/OpenStitch/issues/531
 [#535]: https://github.com/cristianonescu/OpenStitch/issues/535
 [#536]: https://github.com/cristianonescu/OpenStitch/issues/536
+[#538]: https://github.com/cristianonescu/OpenStitch/issues/538
 [#540]: https://github.com/cristianonescu/OpenStitch/issues/540
 [#542]: https://github.com/cristianonescu/OpenStitch/issues/542
 [#543]: https://github.com/cristianonescu/OpenStitch/issues/543

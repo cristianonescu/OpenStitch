@@ -367,6 +367,16 @@ Top left: hole sewing (the blue ring is sewn around the yellow centre, not under
 
 Threads, in sewing order: 405 Blue, 205 Yellow, 800 Red.
 
+#### Wave fill (beyond PE-DESIGN)
+
+[`fills/wave-fill.pes`](fills/wave-fill.pes) · 100 × 100 mm hoop · 86 × 56 mm · 13,909 stitches · 6 trims · about 17.7 min
+
+Fills whose rows ripple as a sine, height and length in mm: 2 and 16, 3 and 10, 5 and 24 (top row, rows across), 3 and 14 at 45°, 3 and 12 on a circle, and 8 and 8 at 90° (steeper than 40°, so sewn at 40°).
+
+<img src="previews/wave-fill.png" height="180" alt="Realistic view of fills/wave-fill.pes">
+
+Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 208 Orange, 620 Magenta, 406 Ultra Marine.
+
 ### Lines
 
 Every line sew type.
