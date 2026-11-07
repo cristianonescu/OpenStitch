@@ -102,6 +102,11 @@ jobs:
           for b in openstitch stitchtool openstitch-mcp; do
             cp "target/${{ matrix.target }}/release/$b$ext" bin/
           done
+          # Windows: the Explorer thumbnail extension (#669), its own project outside the workspace.
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cargo build --release --locked --target "${{ matrix.target }}" --manifest-path packaging/windows/thumbnails/Cargo.toml
+            cp "packaging/windows/thumbnails/target/${{ matrix.target }}/release/openstitch_explorer_thumbnails.dll" bin/
+          fi
           # Linux: the freedesktop thumbnailer ships next to the editor (packaging/linux).
           if [ "$RUNNER_OS" = "Linux" ]; then
             cargo build --release --locked --target "${{ matrix.target }}" -p openstitch-render
@@ -259,7 +264,7 @@ jobs:
         run: |
           heat.exe dir examples\sew -nologo -cg SewKit -dr SewKitFolder -ag -srd -sfrag -sreg -var var.SewKit -out sewkit.wxs
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          candle.exe -nologo -arch x64 "-dVersion=$env:CARGO_VERSION" "-dBinary=bin\openstitch.exe" "-dIcon=assets\icons\openstitch.ico" "-dNotices=THIRD_PARTY_NOTICES.md" "-dSewKit=examples\sew" -out wixobj\ packaging\windows\openstitch.wxs sewkit.wxs
+          candle.exe -nologo -arch x64 "-dVersion=$env:CARGO_VERSION" "-dBinary=bin\openstitch.exe" "-dIcon=assets\icons\openstitch.ico" "-dNotices=THIRD_PARTY_NOTICES.md" "-dSewKit=examples\sew" "-dThumbnails=bin\openstitch_explorer_thumbnails.dll" -out wixobj\ packaging\windows\openstitch.wxs sewkit.wxs
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           light.exe -nologo -sice:ICE50 -out "dist\OpenStitch-$env:LABEL-windows-x86_64.msi" wixobj\openstitch.wixobj wixobj\sewkit.wixobj
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
