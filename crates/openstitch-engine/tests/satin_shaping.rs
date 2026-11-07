@@ -713,6 +713,54 @@ fn sewn(s: &Session) -> Vec<openstitch_core::Stitch> {
 }
 
 #[test]
+fn satin_lettering_takes_the_shaping_and_looks_through_the_command() {
+    // #676, #686: satin text sews its strokes with the same shaping as a column: short
+    // stitches, compensation, the satin looks and raised satin's padding, set with
+    // object.setRegion on the text object. Unset, the letters sew as before.
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "text.add",
+        json!({"text": "Sous", "font": "lato-bold", "size": 20, "x": 10, "y": 70, "fill": "Red"}),
+    );
+    let before = sewn(&s);
+    let n = stitches(&s);
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "shortStitchDistance": 0.25, "pullPercent": 3}),
+    );
+    assert_ne!(sewn(&s), before, "short stitches and compensation");
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "shortStitchDistance": 0, "pullPercent": 0, "satinStyle": "open"}),
+    );
+    let open = stitches(&s);
+    assert!(
+        open * 2 < n,
+        "open: rows three times as far apart ({open} of {n})"
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "satinStyle": "double"}),
+    );
+    assert!(stitches(&s) > n * 3 / 2, "double: sewn twice");
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "satinStyle": "normal", "raised": true}),
+    );
+    assert!(
+        stitches(&s) > n * 3 / 2,
+        "raised: padding lanes under each stroke"
+    );
+    run(&mut s, "object.setRegion", json!({"id": 1, "raised": null}));
+    assert_eq!(sewn(&s), before, "back to the defaults");
+}
+
+#[test]
 fn skeleton_and_auto_satin_take_the_shaping_through_the_command() {
     // #675: a skeleton satin with a 60 degree corner, and a 90 degree bent band sewn as Auto
     // satin; the same parameters as on a column.

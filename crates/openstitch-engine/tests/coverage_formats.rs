@@ -280,3 +280,48 @@ fn library_convert_help_names_every_writable_format() {
         );
     }
 }
+
+/// A CSD export of more than 14 colour blocks is two files, `NAME_A.csd` and `NAME_B.csd`, as
+/// PE-DESIGN 11.50 writes them without being asked (#349: 14 blocks, then the rest).
+#[test]
+fn a_csd_of_17_colours_is_written_as_two_files() {
+    let dir = temp_dir("csd-split");
+    let mut s = Session::new(dir.path());
+    for k in 0..17_u32 {
+        let x = 5 + (k % 5) * 18;
+        let y = 5 + (k / 5) * 18;
+        run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": x, "y": y, "width": 6, "height": 6}),
+        );
+        run(
+            &mut s,
+            "object.setRegion",
+            json!({"ids": [k + 1], "type": "fill", "color": 1 + k % 15}),
+        );
+        run(
+            &mut s,
+            "object.setLine",
+            json!({"ids": [k + 1], "type": "none"}),
+        );
+    }
+    let r = run(&mut s, "design.export", json!({"path": "c17.csd"}));
+    let paths: Vec<String> = r["paths"]
+        .as_array()
+        .expect("paths")
+        .iter()
+        .map(|p| p.as_str().expect("path").to_string())
+        .collect();
+    assert_eq!(paths.len(), 2, "{r}");
+    assert!(
+        paths[0].ends_with("c17_A.csd") && paths[1].ends_with("c17_B.csd"),
+        "{paths:?}"
+    );
+    let blocks = |p: &str| {
+        let pattern = openstitch_formats::csd::read(&std::fs::read(p).expect("csd")).expect("read");
+        pattern.count(openstitch_core::Command::ColorChange) + 1
+    };
+    assert_eq!((blocks(&paths[0]), blocks(&paths[1])), (14, 3));
+    assert!(!dir.path().join("c17.csd").exists());
+}

@@ -4,6 +4,7 @@
 //! stitches longer than the machine sews and trims it cannot cut, and the brand's own format is
 //! named. Nothing is asked again once answered or skipped (`machineSetupDone` in `ui.json`).
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui::{self, RichText};
 use openstitch_app::editor::CommandRequest;
@@ -69,10 +70,10 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         .resizable(false)
         .default_width(380.0)
         .show(ctx, |ui| {
-            ui.label("Which machine do you sew on? OpenStitch starts new designs on its hoop and warns when an export has stitches it cannot sew or trims it cannot cut.");
+            ui.label(t("ui-which-machine-do-you-sew-on"));
             ui.add_space(6.0);
             egui::Grid::new("machine-setup").num_columns(2).show(ui, |ui| {
-                ui.label("Brand");
+                ui.label(t("ui-brand"));
                 let brand = egui::ComboBox::from_id_salt("machine-brand")
                     .selected_text(d.brand.as_str())
                     .show_ui(ui, |ui| {
@@ -87,7 +88,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 crate::a11y::name(&brand, "Brand");
                 ui.end_row();
 
-                ui.label("Hoop");
+                ui.label(t("ui-hoop"));
                 let hoops: Vec<_> =
                     openstitch_design::machine::brand_hoops(&d.brand).collect();
                 let shown = d
@@ -113,15 +114,15 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 ui.end_row();
 
                 ui.label("");
-                ui.checkbox(&mut d.cutter, "The machine cuts threads (thread cutter)");
+                ui.checkbox(&mut d.cutter, t("ui-the-machine-cuts-threads-thread-cutter"));
                 ui.end_row();
 
-                ui.label("Longest stitch");
+                ui.label(t("ui-longest-stitch"));
                 ui.horizontal(|ui| {
                     let mut known = d.max_stitch.is_some();
                     if ui
-                        .checkbox(&mut known, "From the manual:")
-                        .on_hover_text("Leave it off when the manual does not say; OpenStitch then checks only the file format's own limit")
+                        .checkbox(&mut known, t("ui-from-the-manual"))
+                        .on_hover_text(t("ui-leave-it-off-when-the-manual-tip"))
                         .changed()
                     {
                         d.max_stitch = known.then_some(12.0);
@@ -144,10 +145,10 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
             );
             ui.add_space(6.0);
             ui.horizontal(|ui| {
-                save = ui.button("Save").clicked();
+                save = ui.button(t("ui-save")).clicked();
                 skip = ui
-                    .button("Not now")
-                    .on_hover_text("Help ▸ Machine Setup asks again")
+                    .button(t("ui-not-now"))
+                    .on_hover_text(t("ui-help-machine-setup-asks-again-tip"))
                     .clicked();
             });
         });

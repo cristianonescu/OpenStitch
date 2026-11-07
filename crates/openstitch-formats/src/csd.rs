@@ -22,14 +22,20 @@
 //! table is copied from its `csd_decryptArray`. Type 1 is still checked only by synthetic
 //! files.
 //!
-//! The writer ([`write`]) lays the file out as PE-DESIGN 11.50's export does (issue #320): the
-//! identifier `7C 4B C3 74 E1 C8 53 A4` (type 0), the block colours in palette slots 0, 1, …
-//! with PE's fill colours in the slots it does not use, the two bytes `7F 7F`, colour order
-//! 0, 1, …, 13, then `8A 00 00` (the leading stop), the records and `87 00 00`. A frame move
-//! is written as JEF's is ([`crate::layout::split_overflow`] at 127): `90` trim-move records
-//! for the axes over 12.7 mm, the remainder folded into the stitch at the move's end; a colour
-//! change or stop is `85 02 00`. libembroidery has no writer; what the unknown bytes mean is
-//! not published, so the writer copies PE's.
+//! The writer ([`write`]) lays the file out as PE-DESIGN 11.50's export does (issues #320,
+//! #349): the identifier `7C 4B C3 74 E1 C8 53 A4` (type 0), the block colours in palette slots
+//! 0, 1, … (a Brother chart colour as PE-DESIGN's CSD palette gives it, [`PE_CSD_COLOURS`]) with
+//! PE's fill colours in the slots it does not use, the two bytes `7F 7F`, colour order 0, 1, …,
+//! 13, then `8A 00 00` (the leading stop), the records and `87 00 00`. A frame move is written
+//! as JEF's is ([`crate::layout::split_overflow`] at 127): `90` trim-move records for the axes
+//! over 12.7 mm, the remainder folded into the stitch at the move's end. A stitch over 12.7 mm
+//! is a `90` move record for each 12.7 mm piece and a stitch for the rest (machine/pe-long.CSD).
+//! A colour change or stop is `85 N 00`, N the number of the colour block it starts in the file
+//! (2, 3, …). A file holds at most 14 colour blocks: PE-DESIGN writes a design with more as
+//! several files, `_A`, `_B`, … (machine/pe-c17_A.Csd and _B: 14 blocks, then 3), each starting
+//! from the design's origin; [`write`] refuses it and `design.export` splits it the same way.
+//! libembroidery has no writer; what `7F 7F` and `8A` mean is not published, so the writer copies
+//! PE's.
 
 use crate::layout::{self, Event};
 use crate::{FormatError, Result};
@@ -143,12 +149,51 @@ pub fn read(data: &[u8]) -> Result<StitchPattern> {
 
 /// The identifier PE-DESIGN 11.50 writes (type 0: seed 12).
 pub const IDENTIFIER: [u8; 8] = [0x7C, 0x4B, 0xC3, 0x74, 0xE1, 0xC8, 0x53, 0xA4];
-/// Palette slots 2–15 of PE-DESIGN's export of a two-colour design: the slots the design does
-/// not use (`tests/fixtures/pe11/sample-basic.csd`).
+/// PE-DESIGN's fill for the palette slots a file does not use (slots 1–15: pe-long.CSD, one
+/// colour; slots 3–15: pe-c17_B.Csd; 14–15: pe-c17_A.Csd).
 const PE_PALETTE: [u32; 16] = [
-    0xE3_311F, 0x0D_217E, 0x00_FF00, 0xFF_0000, 0xFF_00FF, 0xFF_FF00, 0x84_8284, 0x00_82FF,
+    0xE3_311F, 0x00_00FF, 0x00_FF00, 0xFF_0000, 0xFF_00FF, 0xFF_FF00, 0x84_8284, 0x00_82FF,
     0x00_FF84, 0xFF_8200, 0xFF_A2B5, 0xC6_4100, 0xFF_FFFF, 0x00_0084, 0x00_0000, 0xFF_FFFF,
 ];
+/// The colour PE-DESIGN 11.50 writes in a CSD palette for a Brother chart colour, by PEC chart
+/// index: its own Singer colours, not the chart's RGB (two oranges both become `FFAE42`).
+/// Observed for these entries only (machine/pe-c17_A.Csd, sample-basic.csd); any other colour is
+/// written as it is.
+pub const PE_CSD_COLOURS: [(usize, u32); 14] = [
+    (1, 0x0D_217E),
+    (3, 0x00_8080),
+    (5, 0xE3_311F),
+    (8, 0xDE_86CE),
+    (10, 0xB2_DD53),
+    (13, 0xFF_FF00),
+    (20, 0x00_0000),
+    (25, 0xF3_3689),
+    (30, 0x80_0080),
+    (33, 0xFF_AE42),
+    (37, 0x89_9856),
+    (41, 0x4C_5612),
+    (45, 0xA0_B8CC),
+    (52, 0xFF_AE42),
+];
+
+/// A thread's colour in a CSD palette: PE-DESIGN's for a Brother chart colour it was seen to map
+/// ([`PE_CSD_COLOURS`]), else its own RGB.
+fn palette_colour(t: &Thread) -> u32 {
+    let rgb = t.rgb_value();
+    PE_CSD_COLOURS
+        .iter()
+        .find(|(i, _)| {
+            openstitch_core::PEC_CHART
+                .get(*i)
+                .and_then(Option::as_ref)
+                .is_some_and(|c| c.rgb_value() == rgb)
+        })
+        .map_or(rgb, |&(_, pe)| pe)
+}
+
+/// The most colour blocks a CSD file holds.
+pub const MAX_BLOCKS: usize = 14;
+
 /// The largest record step PE-DESIGN writes (12.7 mm), though a record holds magnitudes to 255.
 pub const MAX_DELTA: i64 = 127;
 const STITCH: u8 = 0x80;
@@ -167,14 +212,20 @@ fn record(out: &mut Vec<u8>, base: u8, dx: i64, dy: i64) {
     out.extend_from_slice(&[b0, dy.unsigned_abs() as u8, dx.unsigned_abs() as u8]);
 }
 
-/// Writes a Singer CSD as PE-DESIGN 11.50 exports it (see the module notes). The file has 14
-/// colour-order slots: from the 15th colour block on, the blocks show the colours of blocks
-/// 1, 2, … again, though every block still starts with its stop.
+/// Writes a Singer CSD as PE-DESIGN 11.50 exports it (see the module notes). A design of more
+/// than 14 colour blocks is refused (`ValueOutOfRange`): it takes several files
+/// ([`crate::split::split_for`]), as PE-DESIGN writes it.
 pub fn write(input: &StitchPattern) -> Result<Vec<u8>> {
     let palette = crate::repeating_stops_palette(input);
+    if palette.len() > MAX_BLOCKS {
+        return Err(FormatError::ValueOutOfRange(format!(
+            "CSD: {} colour blocks ({MAX_BLOCKS} per file)",
+            palette.len()
+        )));
+    }
     let mut plain = Vec::new();
     for (slot, &fill) in PE_PALETTE.iter().enumerate() {
-        let rgb = palette.get(slot).map_or(fill, Thread::rgb_value);
+        let rgb = palette.get(slot).map_or(fill, palette_colour);
         plain.extend_from_slice(&[(rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8]);
     }
     plain.extend_from_slice(&[0x7F, 0x7F]);
@@ -183,6 +234,7 @@ pub fn write(input: &StitchPattern) -> Result<Vec<u8>> {
 
     let events = layout::events(input);
     let (mut x, mut y) = (0_i64, 0_i64);
+    let mut block = 0_usize;
     let mut i = 0;
     while i < events.len() {
         match events[i] {
@@ -205,12 +257,19 @@ pub fn write(input: &StitchPattern) -> Result<Vec<u8>> {
                 (x, y) = target;
             }
             Event::Stitch { x: tx, y: ty } => {
-                for (dx, dy) in layout::split_overflow(tx - x, ty - y, MAX_DELTA) {
-                    record(&mut plain, STITCH, dx, dy);
+                // A stitch over 12.7 mm: move records, then the stitch (pe-long.CSD).
+                let pieces = layout::split_overflow(tx - x, ty - y, MAX_DELTA);
+                let (last, head) = pieces.split_last().expect("at least one piece");
+                for &(dx, dy) in head {
+                    record(&mut plain, TRIM_MOVE, dx, dy);
                 }
+                record(&mut plain, STITCH, last.0, last.1);
                 (x, y) = (tx, ty);
             }
-            Event::ColorChange | Event::Stop => plain.extend_from_slice(&[0x85, 2, 0]),
+            Event::ColorChange | Event::Stop => {
+                block += 1;
+                plain.extend_from_slice(&[0x85, (block + 1) as u8, 0]);
+            }
             Event::End => break,
         }
         i += 1;

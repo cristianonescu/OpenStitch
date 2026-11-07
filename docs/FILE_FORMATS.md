@@ -1119,20 +1119,28 @@ this is, is unknown.
 **Writer (#320).** libembroidery has no CSD writer; `csd::write` applies the published masks
 the other way (`(b + sub) ^ xor`) and lays the plain bytes out as PE-DESIGN 11.50's export of
 `sample-basic` (`tests/fixtures/pe11/sample-basic.csd`, also `compat/reference/machine`):
-identifier `7C 4B C3 74 E1 C8 53 A4` (type 0); palette slot `i` = colour block `i`, and the
-slots the design does not use hold PE's own fill (`00FF00 FF0000 FF00FF FFFF00 848284 0082FF
-00FF84 FF8200 FFA2B5 C64100 FFFFFF 000084 000000 FFFFFF` from slot 2 in a two-colour file;
-the slot-for-slot rule is assumed); `7F 7F`; colour order 0, 1, …, 13; a leading stop
+identifier `7C 4B C3 74 E1 C8 53 A4` (type 0); palette slot `i` = colour block `i` (a Brother
+chart colour as PE's own CSD colour, `csd::PE_CSD_COLOURS`: 14 colours seen, 800 RED is
+`E3311F`), and the slots the design does not use hold PE's own fill (`0000FF 00FF00 FF0000
+FF00FF FFFF00 848284 0082FF 00FF84 FF8200 FFA2B5 C64100 FFFFFF 000084 000000 FFFFFF` from
+slot 1, slot for slot: pe-long.CSD, pe-c17_A.Csd, pe-c17_B.Csd, #349); `7F 7F`; colour order 0, 1, …, 13; a leading stop
 `8A 00 00`; records; the end `87 00 00`. Records as PE writes them:
 
 - a frame move (trimmed or after a colour change) is split as JEF's: `90` trim-move records
   of 127 for the axes over 12.7 mm (`layout::split_overflow`), the remainder folded into the
   stitch at the move's end;
-- a colour change, and a stop, is `85 02 00`;
-- a stitch over 12.7 mm is split the same way into stitch records (no PE reference has one).
+- a colour change, and a stop, is `85 N 00`, N the number of the block it starts in the file
+  (`85 02`, `85 03`, …; pe-c17_A.Csd);
+- a stitch over 12.7 mm is a `90` move record for each 12.7 mm piece and a stitch for the rest
+  (pe-long.CSD).
 
-A file holds 14 colour-order slots: from the 15th colour block on, the blocks show the colours
-of blocks 1, 2, … again, though each still starts with its stop. PE's CSD read and written again
+A file holds 14 colour blocks. PE-DESIGN writes a design with more as several files, `NAME_A`,
+`NAME_B`, … (pe-c17: 14 blocks, then 3), each laid out from the whole design's origin;
+`csd::write` refuses such a design and `design.export` splits it the same way without being
+asked. PE's second file names the design's first colours in its palette, not its own blocks'
+(OpenStitch names the blocks' own), and starts on the stitch after its first landing (OpenStitch
+keeps the landing). pe-long.CSD and pe-c17_A.Csd come out byte for byte
+(`csd_matches_pe_design_long_stitches_and_17_colours`). PE's CSD read and written again
 comes out byte for byte (`csd_writes_pe_design_layout_byte_for_byte`); compat
 `machine-sample-basic` writes PE's own design as CSD and compares it needle for needle with
 PE's CSD.
@@ -1240,10 +1248,10 @@ separated by spaces or commas, in any case:
 
 | Word | Meaning |
 |---|---|
-| `fill`, `satin` | region sew type (`satin` on a shape with no fill: a satin line) |
+| `fill`, `satin` | region sew type (`satin` on a shape with no fill: a satin line, as `stroke.satin`) |
 | `run`, `triple`, `zigzag` | line sew type |
 | `skip` | the shape is not imported |
-| `stroke.satin` / `stroke.zigzag`, `stroke.run`, `stroke.triple`, `stroke.skip` | the outline's sew type; `stroke.skip` drops the outline |
+| `stroke.satin`, `stroke.zigzag`, `stroke.run`, `stroke.triple`, `stroke.skip` | the outline's sew type; `stroke.skip` drops the outline. `stroke.satin` is OpenStitch's satin line, as wide as the SVG stroke (its `stroke-width` with the element's transform, to 0.1 mm) unless `w=` gives a width (#701); `stroke.zigzag` is PE-DESIGN's zigzag line |
 | `a=` (`angle=`, `direction=`) | fill angle, degrees |
 | `s=` (`spacing=`, `rowSpacing=`) / `d=` (`density=`) | row spacing in mm / density in rows per mm |
 | `l=` (`length=`, `stitchLength=`, `pitch=`) | stitch length (region) or run pitch (line), mm |

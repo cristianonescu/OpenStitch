@@ -41,12 +41,19 @@ pub(crate) enum Event {
 /// An odd extent puts the origin half a unit towards the minimum, as PE-DESIGN 11.50 does
 /// (`floor((min + max) / 2)`): its DST of `machine/sample-basic` spans x −134..135 and
 /// y −194..195 for 269 × 389 units; the even-sized references are unaffected (#135).
-pub(crate) fn events(pattern: &StitchPattern) -> Vec<Event> {
+/// A part of a split design ([`crate::split::split_for`]) carries the whole design's centre
+/// under this metadata key (`"x,y"`, 0.1 mm), so every part is laid out from the same origin and
+/// the parts line up, as PE-DESIGN's two CSD files of one design do (machine/pe-c17_A.Csd and
+/// _B, #349).
+pub const ORIGIN_KEY: &str = "layout.origin";
+
+/// The middle of `pattern`'s needle points' bounds, as [`events`] centres it.
+pub(crate) fn centre(pattern: &StitchPattern) -> (i64, i64) {
     let mut needle = pattern
         .stitches
         .iter()
         .filter(|s| s.command == Command::Stitch);
-    let (cx, cy) = match needle.next() {
+    match needle.next() {
         Some(first) => {
             let b = needle.fold((first.x, first.y, first.x, first.y), |b, s| {
                 (b.0.min(s.x), b.1.min(s.y), b.2.max(s.x), b.3.max(s.y))
@@ -57,7 +64,16 @@ pub(crate) fn events(pattern: &StitchPattern) -> Vec<Event> {
             )
         }
         None => (0, 0),
-    };
+    }
+}
+
+pub(crate) fn events(pattern: &StitchPattern) -> Vec<Event> {
+    let (cx, cy) = pattern
+        .metadata
+        .get(ORIGIN_KEY)
+        .and_then(|v| v.split_once(','))
+        .and_then(|(x, y)| Some((x.trim().parse().ok()?, y.trim().parse().ok()?)))
+        .unwrap_or_else(|| centre(pattern));
     let mut out: Vec<Event> = Vec::with_capacity(pattern.stitches.len());
     let mut first_move = true;
     let mut trim_pending = false;

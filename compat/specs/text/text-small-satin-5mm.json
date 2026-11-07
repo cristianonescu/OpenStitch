@@ -1,0 +1,78 @@
+{
+  "schema": "openstitch-compat/1",
+  "id": "text-small-satin-5mm",
+  "area": "text",
+  "title": "Small satin text at 5 mm sews about as many stitches as PE-DESIGN's S fonts",
+  "description": "abc ijt in Lato Bold satin at 5 mm, against the numbers recorded from PE-DESIGN 11.50's Small Text font 01 Utah Bold S at 5.0 mm (round 8, #530; its smallest size, 4 mm being refused). PE-DESIGN's file is a Brother font's output, so it stays in the owner's notes and never in the repository: only its recorded numbers are used here, as expected values (internal-regression tier, not reference). Compared: the stitch count within 25 % (as the stroke-satin specs against PE-DESIGN's own Lato Bold references) and the height. Not compared, and recorded only: the 23.4 mm width belongs to PE-DESIGN's wider Utah Bold (Lato Bold is 18.9 mm), and its trims (about 6) depend on the font's letter shapes.",
+  "covers": {
+    "audit": [],
+    "featureMatrix": [
+      {
+        "area": "Beyond PE-DESIGN",
+        "feature": "Small Text"
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "kind": "measured",
+      "note": "PE-DESIGN 11.50 Small Text, font 01 Utah Bold S, 5.0 mm, abc ijt: 23.4 x 6.4 mm, 336 stitches, satin at density 4.5, about 6 trims (coordinator's round-8 capture, numbers on #530; the file is not in the repository)"
+    }
+  ],
+  "script": [
+    {
+      "command": "design.new",
+      "params": {
+        "width": 100,
+        "height": 100
+      }
+    },
+    {
+      "command": "text.add",
+      "params": {
+        "text": "abc ijt",
+        "font": "lato-bold",
+        "size": 5,
+        "x": 20,
+        "y": 50,
+        "fill": "Red"
+      }
+    }
+  ],
+  "exports": [
+    {
+      "path": "small.pes"
+    }
+  ],
+  "measurements": [
+    {
+      "id": "stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "small.pes"
+      },
+      "expected": 336,
+      "tolerance": {
+        "percent": 25.0
+      },
+      "evidence": "PE-DESIGN's Utah Bold S at 5.0 mm sews abc ijt in 336 stitches (round 8, #530)"
+    },
+    {
+      "id": "height",
+      "measure": {
+        "kind": "bounds",
+        "property": "height"
+      },
+      "source": {
+        "export": "small.pes"
+      },
+      "expected": 6.4,
+      "tolerance": {
+        "mm": 0.3
+      },
+      "evidence": "PE-DESIGN's abc ijt at 5.0 mm is 6.4 mm high, ascenders and descenders included (round 8, #530)"
+    }
+  ]
+}

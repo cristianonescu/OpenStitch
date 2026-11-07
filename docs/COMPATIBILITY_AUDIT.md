@@ -3361,3 +3361,46 @@ Needle points stay within the specs' 25 % (N 20 mm 283 → 274 against 294). Wor
 No travel is sewn outside the letters (`small_lettering_shows_no_travel_outside_its_letters`);
 compat 476/476. Still open on #446: N's corner spike (the diagonal's rungs fan into the corner,
 where PE-DESIGN sews a small corner block), M at 8 mm, A's and V's slanted feet.
+
+### CSD and SHV against PE-DESIGN's exports of #349's designs, 2026-11-07 (#349, `batch:machine-formats`)
+
+PE-DESIGN 11.50 exported OpenStitch's `c17.pes` (17 colour blocks) and `long.pes` (a short move,
+15 mm satin stitches) to CSD and SHV (fixtures/pe11/captures-2026-11-07/machine).
+
+- **CSD:** a design of more than 14 colour blocks is two files, `_A` with 14 blocks and `_B`
+  with the rest, each from the design's origin; `design.export` now splits it the same way
+  without being asked (the parts of any split design keep the whole design's origin). A colour
+  change counts the file's blocks (`85 02`, `85 03`, …). A stitch over 12.7 mm is a `90` move
+  record for each 12.7 mm piece and a stitch for the rest. The palette names PE's own colour for
+  14 Brother colours (800 RED is `E3 31 1F`) and fills unused slots with PE's fill (slot 1
+  `00 00 FF`). pe-long.CSD and pe-c17_A.Csd come out byte for byte. PE's `_B` names the design's
+  first three colours in its palette, not its blocks'; OpenStitch names the blocks' own colours.
+- **SHV:** the file's name and PE's chart entries (800 RED is 41, not the nearest 3) match. The
+  records are measured but not yet written: PE starts each block on the stitch after the
+  jump's landing, writes a stitch over 12.7 mm as one `80 01` jump and an 8 mm move as a plain
+  record, and writes `80 03` before its 74 mm moves (not before 31.7 mm). The six header bytes
+  `C4 28 00 30 00 00` are the same in all three PE exports.
+
+### SVG stroke width as a satin line's width, 2026-11-07 (#701, rest of #524)
+
+Beyond PE-DESIGN and opt-in (`import.svg {settings: true}` with names); the default import is
+unchanged. `stroke.satin`, and `satin` on a shape with no fill, now make OpenStitch's satin line
+(#524) rather than PE-DESIGN's zigzag line, as wide as the SVG stroke: its `stroke-width` scaled
+by the element's transform, rounded to 0.1 mm, unless `w=` gives a width. `stroke.zigzag` asks
+for the zigzag line. A stroke outside the satin line's 0.5–10 mm is listed in `settings.invalid`
+and the line keeps its default width.
+
+### Small Text against PE-DESIGN's recorded numbers, 2026-11-07 (#530)
+
+PE-DESIGN 11.50's Small Text fonts are Brother's, so the round-8 capture files stay in the
+owner's notes; two compat specs use only the numbers recorded on #530, as expected values
+(internal-regression tier):
+
+| | PE-DESIGN (recorded) | OpenStitch | checked |
+|---|---|---|---|
+| Hello 0123, 3 mm, Utah SR / OpenStitch Line | 22.5 × 3.2 mm, 165 stitches, running, ~8 trims | 16.0 × 3.0 mm, 63 stitches, running, no trim inside | height ±0.3 mm, longest stitch ≤ 2 mm, no interior trim |
+| abc ijt, 5 mm, Utah Bold S / Lato Bold satin | 23.4 × 6.4 mm, 336 stitches, satin | 18.9 × 6.5 mm, 316 stitches | stitches ±25 %, height ±0.3 mm |
+
+Widths and the running line's stitch count follow each font. PE-DESIGN's trims between running
+letters and its refusal of a size outside a font's range are deliberate differences
+(OpenStitch joins letters by running stitch up to 1.2 × the size, and warns on size, #527).

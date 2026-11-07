@@ -122,7 +122,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     },
     UiCommand {
         id: "ui.render",
-        summary: "A PNG of the design as the editor holds it (Design Page and stitches in thread colours), base64, with the stitch statistics",
+        summary: "A PNG of the design as the editor holds it (Design Page and stitches in thread colours), base64, with the stitch statistics; it also shows the density overlay while it is on (ui.set densityOverlay) and Check Design's rings and out-of-hoop stitches while its Check tab is open, as the canvas does",
         effect: Effect::Read,
         params: &[
             p(
@@ -544,7 +544,7 @@ pub const SETTINGS: &[Setting] = &[
     ),
     s(
         "language",
-        "Options ▸ Language: the interface language (ribbon so far; pseudo = a test language that brackets every translated text)",
+        "Options ▸ Language: the interface language (ribbon and menus so far; pseudo = a test language that brackets every translated text)",
         "en|pseudo",
     ),
     s("showStartCards", "Show start cards", "bool"),

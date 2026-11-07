@@ -63,7 +63,8 @@ stays the default.
 a file can't be opened. PES is written as version 6 by default; version 1, PE-DESIGN 11 (`#PES0110`, whose shapes
 and text open editable in PE-DESIGN 11) and, for older software and machines, versions 4, 5 and
 7 to 10 (stitch data, as PE-DESIGN's own Save As writes them) are options. Designs larger than a format allows can
-be split into several files.
+be split into several files; a Singer CSD of more than 14 colours always is (NAME_A.csd,
+NAME_B.csd, as PE-DESIGN writes it).
 
 ## Where things are in the editor
 

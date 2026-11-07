@@ -3,6 +3,7 @@
 //! dialog ([`openstitch_app::os_print`]); Save PDF keeps it for any viewer to print at 100 %.
 //! The dialog keeps its state in egui's memory.
 
+use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
 use eframe::egui;
 use openstitch_app::editor::CommandRequest;
@@ -84,16 +85,16 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
             }
             ui.separator();
             ui.horizontal(|ui| {
-                ui.label("Paper");
+                ui.label(t("ui-paper"));
                 for (p, label) in PAPERS {
                     ui.selectable_value(&mut d.paper, p, label);
                 }
             });
-            ui.checkbox(&mut d.box_axes, "Sewing area box and centre axes");
-            ui.checkbox(&mut d.mark, "Embroidery positioning mark");
-            ui.checkbox(&mut d.grid, "Template grid (10 mm)");
+            ui.checkbox(&mut d.box_axes, t("ui-sewing-area-box-and-centre-axes"));
+            ui.checkbox(&mut d.mark, t("ui-embroidery-positioning-mark"));
+            ui.checkbox(&mut d.grid, t("ui-template-grid-10-mm"));
             if d.mode == "image" {
-                ui.checkbox(&mut d.mirror, "Mirror the image (iron-on transfer sheets)");
+                ui.checkbox(&mut d.mirror, t("ui-mirror-the-image-iron-on-transfer"));
             }
             ui.label(
                 egui::RichText::new(
@@ -104,13 +105,13 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
             );
             ui.horizontal(|ui| {
                 if ui
-                    .button("Print…")
-                    .on_hover_text("Open the system print dialog (or the PDF viewer)")
+                    .button(t("menu-print"))
+                    .on_hover_text(t("ui-open-the-system-print-dialog-or-tip"))
                     .clicked()
                 {
                     print = Some(true);
                 }
-                if ui.button("Save PDF…").clicked() {
+                if ui.button(t("ui-save-pdf")).clicked() {
                     print = Some(false);
                 }
             });

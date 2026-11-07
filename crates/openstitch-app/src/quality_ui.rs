@@ -471,6 +471,56 @@ fn pos(vp: &Viewport, mm: &Value) -> Pos2 {
     Pos2::new(p.x as f32, p.y as f32)
 }
 
+/// The marks [`draw`] puts on the canvas, for a rendered picture (`ui.render`, #769): the
+/// density overlay's cells while it is on, and Check Design's rings and out-of-hoop stitches
+/// while its window shows the Check tab. Brings the results up to date first.
+pub fn render_marks(app: &mut EditorApp) -> openstitch_engine::preview::Marks {
+    update(app);
+    let mut marks = openstitch_engine::preview::Marks::default();
+    let q = &app.quality;
+    if q.density_overlay
+        && let Some(map) = &q.map
+    {
+        let s = map.cell * 10.0;
+        for k in 0..map.layers.len() {
+            let rgba = match map.class(k, limits(app)) {
+                Some(3) => [0xd3, 0x2f, 0x2f, 120],
+                Some(2) => [0xe0, 0x8a, 0x00, 90],
+                _ => continue,
+            };
+            let x = (k % map.width) as f64 * s + map.origin.x;
+            let y = (k / map.width) as f64 * s + map.origin.y;
+            marks.cells.push(([x, y, s, s], rgba));
+        }
+    }
+    if q.open && q.tab == Tab::Check {
+        let rgb = |c: Color32| [c.r(), c.g(), c.b()];
+        let page = app.session.design().page;
+        let out =
+            |x: f64, y: f64| x < -0.5 || y < -0.5 || x > page.width + 0.5 || y > page.height + 0.5;
+        for w in app.pattern.stitches.windows(2) {
+            if w[1].command == openstitch_core::Command::Stitch
+                && (out(w[0].x, w[0].y) || out(w[1].x, w[1].y))
+            {
+                marks.lines.push(([w[0].x, w[0].y, w[1].x, w[1].y], rgb(ERROR)));
+            }
+        }
+        for f in findings(app) {
+            let b = &f["bbox"];
+            let Some(v) = b.as_array().filter(|v| v.len() == 4) else {
+                continue;
+            };
+            let n: Vec<f64> = v.iter().map(|x| x.as_f64().unwrap_or(0.0) * 10.0).collect();
+            let (cx, cy) = ((n[0] + n[2]) / 2.0, (n[1] + n[3]) / 2.0);
+            // Half the box's diagonal and 1.5 mm, as the canvas ring sits round the problem.
+            let r = ((n[2] - n[0]).hypot(n[3] - n[1]) / 2.0).max(8.0) + 15.0;
+            let colour = if f["severity"] == "error" { ERROR } else { WARNING };
+            marks.rings.push(([cx, cy, r], rgb(colour)));
+        }
+    }
+    marks
+}
+
 /// Under the stitches: the dark background for light threads.
 pub fn draw_background(app: &EditorApp, painter: &egui::Painter, vp: &Viewport, page: &Rect) {
     if app.quality.dark_background {
@@ -715,6 +765,56 @@ mod tests {
         app.quality.dark_background = true;
         assert_eq!(app.revision, revision, "only the view changes");
         assert_ne!(app.quality.density["classes"], standard, "{standard}");
+    }
+
+    /// #769, #786: `ui.render` shows the density overlay while it is on, and Check Design's marks
+    /// while its Check tab is open, as the canvas does; off, the picture is as before.
+    #[test]
+    fn ui_render_shows_the_density_overlay_and_check_marks() {
+        use base64::Engine as _;
+        let shape = json!({"x": 10, "y": 10, "width": 20, "height": 20, "fill": "Red"});
+        let mut app = app_with(&[shape.clone(), shape.clone(), shape]);
+        let render = |app: &mut EditorApp| {
+            let r = app
+                .ui_command("ui.render", Some(&json!({ "size": 400 })))
+                .expect("render");
+            base64::engine::general_purpose::STANDARD
+                .decode(r["png"].as_str().expect("png"))
+                .expect("base64")
+        };
+        let plain = render(&mut app);
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "densityOverlay", "value": true })),
+        )
+        .expect("overlay");
+        assert!(!render_marks(&mut app).cells.is_empty(), "three fills: dense cells");
+        let overlay = render(&mut app);
+        assert_ne!(plain, overlay, "the overlay shows in the picture");
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "densityOverlay", "value": false })),
+        )
+        .expect("overlay off");
+        assert_eq!(render(&mut app), plain, "off: as before");
+
+        // Check Design (#786): a fill that runs off the 100 × 100 mm page is sure to give marks.
+        // Opened the way a model opens it, through ui.run.
+        let off_page = json!({"x": 85, "y": 40, "width": 30, "height": 20, "fill": "Blue"});
+        let mut app = app_with(&[off_page]);
+        let closed = render(&mut app);
+        assert!(render_marks(&mut app).is_empty(), "nothing marked while the window is closed");
+        app.ui_command("ui.run", Some(&json!({ "action": "checkDesign" })))
+            .expect("checkDesign");
+        assert!(app.quality.open && app.quality.tab == Tab::Check);
+        let marks = render_marks(&mut app);
+        assert!(!marks.lines.is_empty(), "stitches past the page are drawn in red");
+        assert_eq!(
+            marks.rings.len(),
+            findings(&app).iter().filter(|f| f["bbox"].is_array()).count(),
+            "one ring per finding with a place"
+        );
+        assert_ne!(render(&mut app), closed, "the marks show in the picture");
     }
 
     #[test]

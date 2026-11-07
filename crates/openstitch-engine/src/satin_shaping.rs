@@ -18,7 +18,7 @@ pub(crate) const SHAPING_PARAMS: [ParamDoc; 16] = [
     opt(
         "cornerStyle",
         "turn|auto|mitre|cap",
-        "Satin corners (beyond PE-DESIGN; Manual Punch columns, skeleton satin, Auto satin regions and zigzag lines; on skeleton and Auto satin at the centre line's points): turn (default, PE-DESIGN's fan), auto (cap below capBelow, mitre below mitreBelow), mitre (a seam from the inner corner to the tip, each leg's stitches square to it) or cap (both legs end on a square line through the inner corner, the tip sewn as its own piece over a hidden run)",
+        "Satin corners (beyond PE-DESIGN; Manual Punch columns, skeleton satin, Auto satin regions and zigzag lines; satin text is cut at its sharp corners, so they do not apply there; on skeleton and Auto satin at the centre line's points): turn (default, PE-DESIGN's fan), auto (cap below capBelow, mitre below mitreBelow), mitre (a seam from the inner corner to the tip, each leg's stitches square to it) or cap (both legs end on a square line through the inner corner, the tip sewn as its own piece over a hidden run)",
     ),
     opt(
         "mitreBelow",
@@ -43,7 +43,7 @@ pub(crate) const SHAPING_PARAMS: [ParamDoc; 16] = [
     opt(
         "shortStitchDistance",
         "mm",
-        "Short stitches on the inside of curves (beyond PE-DESIGN): a needle point closer than this to the last full one on its edge stops short, 0-1 (0 = off, the default; 0.25 suits most satins)",
+        "Short stitches on the inside of curves (beyond PE-DESIGN; also satin text): a needle point closer than this to the last full one on its edge stops short, 0-1 (0 = off, the default; 0.25 suits most satins)",
     ),
     opt(
         "shortStitchInset",
@@ -73,7 +73,7 @@ pub(crate) const SHAPING_PARAMS: [ParamDoc; 16] = [
     opt(
         "satinStyle",
         "normal|sStitch|open|double",
-        "Satin look (beyond PE-DESIGN; Manual Punch columns, skeleton satin, Auto satin regions and zigzag lines): normal (default), sStitch (each crossing three short stitches bent into an S, a corded edge), open (rows three times as far apart) or double (sewn twice, the second pass back from the end midway between the first's needle points: an X lattice)",
+        "Satin look (beyond PE-DESIGN; Manual Punch columns, skeleton satin, Auto satin regions, satin text and zigzag lines): normal (default), sStitch (each crossing three short stitches bent into an S, a corded edge), open (rows three times as far apart) or double (sewn twice, the second pass back from the end midway between the first's needle points: an X lattice)",
     ),
     opt(
         "jaggedEdge",
@@ -88,7 +88,7 @@ pub(crate) const SHAPING_PARAMS: [ParamDoc; 16] = [
     opt(
         "raised",
         "{laneSpacing, inset, stitchLength} | true | null",
-        "Raised (padded) satin (beyond PE-DESIGN): running-stitch lanes along the column under the satin, about one per laneSpacing mm of width (0.5-5, default 1.5; an even number, at least two), inset mm from the edges (0-3, default 0.5), stitchLength mm (1-10, default 2.5); true turns it on (with its earlier settings, else the defaults), null removes it. Meant for columns of 3 mm and wider (the result gives a hint below that)",
+        "Raised (padded) satin (beyond PE-DESIGN; also satin text, lanes under each stroke): running-stitch lanes along the column under the satin, about one per laneSpacing mm of width (0.5-5, default 1.5; an even number, at least two), inset mm from the edges (0-3, default 0.5), stitchLength mm (1-10, default 2.5); true turns it on (with its earlier settings, else the defaults), null removes it. Meant for columns of 3 mm and wider (the result gives a hint below that)",
     ),
     opt(
         "underlayAuto",
