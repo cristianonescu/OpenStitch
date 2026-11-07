@@ -383,7 +383,7 @@ fn free_settings(
 /// File ▸ Export Sections: one machine file per hooping, named from the chosen base name.
 pub fn export_sections(app: &mut EditorApp) {
     let name = format!("{}.pes", app.session.design().name);
-    let Some(path) = rfd::FileDialog::new()
+    let Some(path) = crate::files::FileDialog::new()
         .add_filter("PES", &["pes"])
         .add_filter("DST", &["dst"])
         .add_filter("JEF", &["jef"])

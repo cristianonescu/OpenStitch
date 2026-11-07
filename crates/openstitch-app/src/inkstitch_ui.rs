@@ -75,7 +75,7 @@ pub fn menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         rescan(app);
     }
     if ui.button("Import Ink/Stitch Font Folder…").clicked()
-        && let Some(dir) = rfd::FileDialog::new().pick_folder()
+        && let Some(dir) = crate::files::FileDialog::new().pick_folder()
     {
         import(app, &dir);
     }
@@ -128,7 +128,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                 }
             });
         });
-    if choose && let Some(dir) = rfd::FileDialog::new().pick_folder() {
+    if choose && let Some(dir) = crate::files::FileDialog::new().pick_folder() {
         app.ui.prefs.inkstitch_folder = Some(dir);
         app.ui.save_prefs();
         scan = true;

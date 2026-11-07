@@ -216,6 +216,9 @@ jobs:
       # The desktop editor's library (editor logic, no window) builds for the browser too (#693
       # phase A1); --no-deps: only the app's own code is linted for wasm32.
       - run: cargo clippy -p openstitch-app --lib --target wasm32-unknown-unknown --no-deps --locked -- -D warnings
+      # #693 phase B: the editor window's modules (the binary's, bin_modules.rs) build for
+      # wasm32 too, inside the library; the whole package builds there (desktop unchanged).
+      - run: cargo build -p openstitch-app --target wasm32-unknown-unknown --locked
       - run: cargo build -p openstitch-web --target wasm32-unknown-unknown --release --locked
       - name: wasm-bindgen (page and Node)
         run: |

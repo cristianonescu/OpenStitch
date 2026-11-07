@@ -304,7 +304,7 @@ impl Host<DbAction> for EditorApp {
             Support => ctx.open_url(egui::OpenUrl::new_tab(SUPPORT)),
             ParentFolder => go_up(self),
             ChooseFolder => {
-                if let Some(f) = rfd::FileDialog::new().pick_folder() {
+                if let Some(f) = crate::files::FileDialog::new().pick_folder() {
                     self.database.navigate(&f);
                 }
             }
@@ -915,6 +915,8 @@ fn confirm_delete(app: &mut EditorApp, ctx: &egui::Context, paths: &[PathBuf]) {
                 ui.label(RichText::new(format!("and {} more", paths.len() - 8)).weak());
             }
             ui.horizontal(|ui| {
+                // A browser has no system trash (#693).
+                #[cfg(not(target_arch = "wasm32"))]
                 if ui.button("Move to Trash").clicked() {
                     let trash = openstitch_library::ops::SystemTrash;
                     if let Err(e) = app.database.delete_confirmed(&trash) {
@@ -1105,7 +1107,7 @@ fn convert_dialog(app: &mut EditorApp, ctx: &egui::Context) {
                         ui.horizontal(|ui| {
                             let browse = ui.radio(!same, "Following folder").clicked()
                                 | ui.button("Browse…").clicked();
-                            if browse && let Some(d) = rfd::FileDialog::new().pick_folder() {
+                            if browse && let Some(d) = crate::files::FileDialog::new().pick_folder() {
                                 f.folder = Some(d);
                             }
                         });
@@ -1248,7 +1250,7 @@ fn catalog_dialog(app: &mut EditorApp, ctx: &egui::Context) {
     if save {
         let f = app.database.catalog.format;
         let name = format!("catalogue.{}", f.extension());
-        let mut dialog = rfd::FileDialog::new()
+        let mut dialog = crate::files::FileDialog::new()
             .add_filter(f.label(), &[f.extension()])
             .set_file_name(name);
         if let Some(dir) = &app.database.folder {

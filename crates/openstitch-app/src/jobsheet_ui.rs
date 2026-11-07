@@ -178,7 +178,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         }
         openstitch_app::os_print::temp_pdf_in(&dir, &name)
     } else {
-        let Some(path) = rfd::FileDialog::new()
+        let Some(path) = crate::files::FileDialog::new()
             .add_filter("PDF", &["pdf"])
             .set_file_name(format!("{name} job sheet.pdf"))
             .save_file()
