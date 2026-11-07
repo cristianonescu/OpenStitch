@@ -3380,3 +3380,18 @@ PE-DESIGN 11.50 exported OpenStitch's `c17.pes` (17 colour blocks) and `long.pes
   jump's landing, writes a stitch over 12.7 mm as one `80 01` jump and an 8 mm move as a plain
   record, and writes `80 03` before its 74 mm moves (not before 31.7 mm). The six header bytes
   `C4 28 00 30 00 00` are the same in all three PE exports.
+
+### Small Text against PE-DESIGN's recorded numbers, 2026-11-07 (#530)
+
+PE-DESIGN 11.50's Small Text fonts are Brother's, so the round-8 capture files stay in the
+owner's notes; two compat specs use only the numbers recorded on #530, as expected values
+(internal-regression tier):
+
+| | PE-DESIGN (recorded) | OpenStitch | checked |
+|---|---|---|---|
+| Hello 0123, 3 mm, Utah SR / OpenStitch Line | 22.5 × 3.2 mm, 165 stitches, running, ~8 trims | 16.0 × 3.0 mm, 63 stitches, running, no trim inside | height ±0.3 mm, longest stitch ≤ 2 mm, no interior trim |
+| abc ijt, 5 mm, Utah Bold S / Lato Bold satin | 23.4 × 6.4 mm, 336 stitches, satin | 18.9 × 6.5 mm, 316 stitches | stitches ±25 %, height ±0.3 mm |
+
+Widths and the running line's stitch count follow each font. PE-DESIGN's trims between running
+letters and its refusal of a size outside a font's range are deliberate differences
+(OpenStitch joins letters by running stitch up to 1.2 × the size, and warns on size, #527).
