@@ -350,6 +350,16 @@ pub fn sewing_attributes(app: &mut EditorApp, ui: &mut egui::Ui) {
                     )
                     .weak(),
                 );
+                if crate::stitch_table_ui::target(app).is_some()
+                    && ui
+                        .button("Stitch Table")
+                        .on_hover_text(
+                            "Every needle point with its exact position, to edit, insert or delete",
+                        )
+                        .clicked()
+                {
+                    app.stitch_table.open = true;
+                }
                 return;
             }
             let mut requests: Vec<CommandRequest> = Vec::new();

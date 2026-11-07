@@ -336,6 +336,15 @@ Behaviour follows the guide's pages
 
 ### Stitches (contextual: stitch pattern selected)
 
+**Stitch Table** (beyond PE-DESIGN, #501): the Sewing Attributes pane's **Stitch Table** button
+opens a window listing every needle point of the selected stitch pattern (index, X and Y in mm,
+command, colour block). Type or drag X and Y to move a point exactly; **Insert** adds a point
+halfway along the line into the first selected row, **Delete** removes the selected rows; each
+is one Undo. Click, Ctrl+click and Shift+click select rows, which the Point tool shows on the
+canvas.
+
+![Stitch Table](images/rust-editor-stitch-table.png)
+
 | Group | Command | Shortcut | OpenStitch action | Engine command | Available |
 |---|---|---|---|---|---|
 | Select | Select | `V` | `Action::SelectTool` | view/UI only | yes |
