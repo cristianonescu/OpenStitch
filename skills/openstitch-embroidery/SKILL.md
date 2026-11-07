@@ -105,7 +105,11 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    open one repeats `spacing` apart towards the target's side). Motif lines (beyond
    PE-DESIGN): `motifGroups: [[3, 6]]` (three motifs, then a 6 mm gap), `freeStart`/`freeEnd`
    (clean corners), `motifs: ["arrow"]` (used in turn); bundled motifs now include
-   square-spiral, star, cross-x, zigzag and arrow (`patterns.list`).
+   square-spiral, star, cross-x, zigzag and arrow (`patterns.list`). A motif band (beyond
+   PE-DESIGN): `motifBand: "star"` on a skeleton satin or Manual Punch satin
+   (`object.setRegion`) or a satin line (`object.setLine`) sews the motif along the column
+   instead of the satin, each copy stretched to the local width, so it follows a taper;
+   `bandTile` (mm per copy), `bandMirror`; `motifBand: "none"` back to satin.
    Borders, quilting and crazy-quilt seams (beyond PE-DESIGN): `object.setLine {type: chevron |
    cretan | feather | overlock | alternatingTriangles | doubleZigzag | lattice | stripes, width,
    spacing}` (`height` sets the chevron bar or Cretan/feather side stitch, `strands` a lattice's
@@ -276,6 +280,9 @@ To show the user what a setting would look like before changing it, `ui.preview 
 ends it, and running the command keeps the change. `ui.set picturePickers` shows the sewing
 types, fill patterns and motifs as pictures in the Sewing Attributes pane.
 `ui.set textSize` (100-200) enlarges the whole window for a user who asks for bigger text.
+`ui.set language` (`en`, or `pseudo`, a test language that brackets every translated text) is
+Options ▸ Language (#555); only the ribbon is translated so far, and no real translation ships
+yet, so answer in the user's language yourself rather than switching the window.
 Opening or importing a large file in the window runs in the background: `ui.state` shows
 `loading` (file, step, seconds), and `ui.loading {cancel: true}` stops it, leaving the design
 as it was.

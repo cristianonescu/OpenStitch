@@ -272,6 +272,40 @@ fn choice(
     }
 }
 
+/// The motif band rows (#544, beyond PE-DESIGN) of a satin region (`line` false) or a satin
+/// line: the motif, and once one is chosen each copy's length and mirroring.
+fn band_controls(
+    band: Option<&openstitch_design::motif_band::MotifBand>,
+    user: &[Pattern],
+    line: bool,
+) -> Vec<Control> {
+    let mut v = vec![Control::Choice {
+        label: "Motif band",
+        param: "motifBand",
+        value: band.map_or_else(|| "none".into(), |b| b.motif.clone()),
+        options: std::iter::once(("none".to_string(), "None (satin)".to_string()))
+            .chain(pattern_options_with(PatternKind::Motif, user))
+            .collect(),
+    }];
+    if let Some(b) = band {
+        v.push(num(
+            "Band copy length",
+            if line {
+                "line.bandTile"
+            } else {
+                "region.bandTile"
+            },
+            "bandTile",
+            b.tile.unwrap_or(0.0),
+            (0.0, 50.0),
+            0.1,
+            " mm",
+        ));
+        v.push(toggle("Mirror every other copy", "bandMirror", b.mirror));
+    }
+    v
+}
+
 /// The satin shaping rows (#520-#522, beyond PE-DESIGN) of a Manual Punch column (`line`
 /// false, `pull` its single compensation) or a zigzag line.
 fn shaping_controls(s: &SatinShaping, pull: f64, line: bool) -> Vec<Control> {
@@ -550,6 +584,10 @@ pub fn region_controls_with(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> 
                 r.pull_compensation,
                 false,
             ));
+        }
+        // The motif band (#544, beyond PE-DESIGN) on a skeleton or Manual Punch satin.
+        if r.kind == RegionType::Satin && (r.skeleton.is_some() || r.direction_lines.len() >= 2) {
+            v.extend(band_controls(r.motif_band.as_ref(), user, false));
         }
         // The guide's exclusions: Gradation and Feathered edge exclude each other and Auto
         // direction.
@@ -1416,6 +1454,7 @@ pub fn line_controls_with(l: &LineSewing, user: &[Pattern]) -> Vec<Control> {
         ]
         .into_iter()
         .chain(shaping_controls(&l.satin_shaping, 0.0, true))
+        .chain(band_controls(l.motif_band.as_ref(), user, true))
         .collect(),
     }
 }

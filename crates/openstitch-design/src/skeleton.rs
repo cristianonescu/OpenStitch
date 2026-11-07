@@ -215,6 +215,12 @@ pub fn satin(s: &Skeleton, spacing: f64, pull: f64) -> Run {
     run
 }
 
+/// The column of a skeleton as rungs [left, right] about `step` (0.1 mm) apart along its
+/// centre line, at its own widths: what the motif band (#544) is stretched across.
+pub fn rungs(s: &Skeleton, step: f64) -> Vec<[Vec2; 2]> {
+    Centre::new(s).map_or_else(Vec::new, |c| c.rungs(step, 0.0))
+}
+
 /// The rungs of [`satin`] filling the closed region `contours`, [left, right] in sewing
 /// order: each rung reaches from the centre line to the region's outline along the rung (at
 /// most 0.5 mm beyond the skeleton's half width), so the column covers the region where a

@@ -114,6 +114,31 @@ fn satin_inset(closed: &[Contour], holes: &[Contour]) -> Option<Vec<Contour>> {
         .find(|c| !c.is_empty())
 }
 
+/// A satin column's layers with the top one sewn as its motif band (#544), when one is set.
+fn motif_band(
+    mut layers: Vec<Vec<Run>>,
+    rungs: &[[Vec2; 2]],
+    r: &RegionSewing,
+    user: &[Pattern],
+) -> Vec<Vec<Run>> {
+    if let (RegionType::Satin, Some(b)) = (r.kind, &r.motif_band) {
+        let unit =
+            &crate::patterns::resolve(user, crate::patterns::PatternKind::Motif, Some(&b.motif))
+                .paths;
+        let run =
+            crate::motif_band::sew(rungs, unit, b.tile.map(|t| t * 10.0), b.mirror, BAND_PITCH);
+        if run.len() > 1
+            && let Some(top) = layers.last_mut()
+        {
+            *top = vec![run];
+        }
+    }
+    layers
+}
+
+/// The longest stitch of a satin region's motif band, 0.1 mm.
+const BAND_PITCH: f64 = 25.0;
+
 fn layers_inner(
     closed: &[Contour],
     r: &RegionSewing,
@@ -134,7 +159,7 @@ fn layers_inner(
             spacing,
             r.pull_compensation * 10.0,
         )]);
-        return out;
+        return motif_band(out, &crate::skeleton::rungs(skeleton, 10.0), r, user);
     }
     // Curved direction: sew the straightened region with horizontal rows, then bend back.
     if let Some(curve) = &r.direction_curve
@@ -229,7 +254,7 @@ fn layers_inner(
         };
         // PE-DESIGN's under sewing of a Manual Punch column and its top stitching, with
         // OpenStitch's satin shaping (see `column::layers`).
-        return crate::column::layers(&lines, r);
+        return motif_band(crate::column::layers(&lines, r), &lines, r, user);
     }
     // Auto direction, satin: the rows follow a skeleton derived from the region, so they stay
     // across the local axis on curved and bent regions. Travel (Running Stitch Path) does not

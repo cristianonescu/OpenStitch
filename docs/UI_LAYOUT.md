@@ -528,6 +528,18 @@ the system's display scale; ribbon groups that no longer fit scroll under a soli
 the status bar's controls move to a row of their own. Contrast, focus and screen-reader support:
 [ACCESSIBILITY.md](ACCESSIBILITY.md).
 
+### Language (#555)
+
+**Options ▸ Language** chooses the interface language (`ui.set language`; `--language CODE` at
+launch). The texts are looked up
+by message id in `assets/i18n/<code>.ftl` (a subset of Project Fluent's syntax); English, the text
+in the code, is the source and fills in any id a translation lacks. `assets/i18n/en.ftl` lists
+every id with its English text and is generated from the code (a test fails when it is out of
+date). So far the ribbon is translated: command labels and ScreenTips, tab names and captions, and
+group captions; menus, dialogs, panes and messages follow. **Pseudo-locale (test)** shows every
+translated text accented and in brackets ("[Ópéñ]"), so text that is still hard-coded stands out.
+No real translation ships yet.
+
 ### Getting started (beyond PE-DESIGN, #554)
 
 An empty design shows start cards over the Design Page; the Application menu has **Open Sample**

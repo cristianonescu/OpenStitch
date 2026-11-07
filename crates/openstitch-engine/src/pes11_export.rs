@@ -593,6 +593,12 @@ fn region(id: u64, r: &RegionSewing, s: &mut Shape, table: &mut Vec<Thread>) -> 
             "object {id}: a satin's hand-stitch look is not mapped in PES 0110 (use version 6)"
         ));
     }
+    if r.motif_band.is_some() {
+        // PE-DESIGN would sew the satin (#544).
+        return Err(format!(
+            "object {id}: a satin's motif band is not mapped in PES 0110 (use version 6)"
+        ));
+    }
     s.region = match r.kind {
         RegionType::Fill => RegionSewType::Fill,
         RegionType::Satin => RegionSewType::Satin,

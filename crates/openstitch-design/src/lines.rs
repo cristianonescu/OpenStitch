@@ -1228,15 +1228,7 @@ pub fn zigzag_shaped(
 /// width ([`crate::skeleton::satin`]).
 pub fn satin_line(path: &[Vec2], line: &crate::model::LineSewing) -> Run {
     let spacing = 10.0 / line.density.max(0.1);
-    let sl = crate::skeleton::SatinLine {
-        width: line.width,
-        keys: line.width_keys.clone(),
-        taper: [
-            line.taper_start.unwrap_or(0.0),
-            line.taper_end.unwrap_or(0.0),
-        ],
-        slant: line.slant.unwrap_or(0.0),
-    };
+    let sl = satin_line_shape(line);
     let shaping = &line.satin_shaping;
     if sl.is_uniform() && shaping.is_plain() {
         let skeleton = crate::skeleton::Skeleton {
@@ -1259,6 +1251,19 @@ pub fn satin_line(path: &[Vec2], line: &crate::model::LineSewing) -> Run {
         }
     }
     run
+}
+
+/// A satin line's widths, tapers and slant.
+pub fn satin_line_shape(line: &crate::model::LineSewing) -> crate::skeleton::SatinLine {
+    crate::skeleton::SatinLine {
+        width: line.width,
+        keys: line.width_keys.clone(),
+        taper: [
+            line.taper_start.unwrap_or(0.0),
+            line.taper_end.unwrap_or(0.0),
+        ],
+        slant: line.slant.unwrap_or(0.0),
+    }
 }
 
 /// The widest a satin line gets, mm: its width or its widest key.
