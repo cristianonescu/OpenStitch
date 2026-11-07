@@ -1070,30 +1070,81 @@ pub fn line_controls_with(l: &LineSewing, user: &[Pattern]) -> Vec<Control> {
         .into_iter()
         .chain(shaping_controls(&l.satin_shaping, 0.0, true))
         .collect(),
-        LineType::Motif => vec![
-            Control::Choice {
-                label: "Motif",
-                param: "motif",
-                value: l
-                    .motif
-                    .clone()
-                    .unwrap_or_else(|| patterns::default_for(PatternKind::Motif).id.clone()),
-                options: pattern_options_with(PatternKind::Motif, user),
-            },
-            width("Width"),
-            num(
-                "Height",
-                "line.height",
-                "height",
-                l.height.unwrap_or(3.0),
-                (0.5, 20.0),
-                0.05,
-                " mm",
-            ),
-            spacing("Spacing", 0.0),
-            pitch,
-            arrange(l.arrange),
-        ],
+        LineType::Motif => {
+            let mut v = vec![
+                Control::Choice {
+                    label: "Motif",
+                    param: "motif",
+                    value: l
+                        .motif
+                        .clone()
+                        .unwrap_or_else(|| patterns::default_for(PatternKind::Motif).id.clone()),
+                    options: pattern_options_with(PatternKind::Motif, user),
+                },
+                width("Width"),
+                num(
+                    "Height",
+                    "line.height",
+                    "height",
+                    l.height.unwrap_or(3.0),
+                    (0.5, 20.0),
+                    0.05,
+                    " mm",
+                ),
+                spacing("Spacing", 0.0),
+                pitch,
+                arrange(l.arrange),
+                // #544, beyond PE-DESIGN: a second motif in turn, one repeating group, free ends.
+                Control::Choice {
+                    label: "Motif in turn",
+                    param: "motifs",
+                    value: l.motifs.first().cloned().unwrap_or_else(|| "none".into()),
+                    options: std::iter::once(("none".to_string(), "None".to_string()))
+                        .chain(pattern_options_with(PatternKind::Motif, user))
+                        .collect(),
+                },
+                Control::Number {
+                    label: "Group size",
+                    key: "line.groupSize",
+                    param: "groupSize",
+                    value: f64::from(l.motif_groups.first().map_or(0, |g| g.0)),
+                    range: (0.0, 20.0),
+                    speed: 0.05,
+                    suffix: "",
+                    integer: true,
+                },
+                num(
+                    "Free start",
+                    "line.freeStart",
+                    "freeStart",
+                    l.free_start.unwrap_or(0.0),
+                    (0.0, 100.0),
+                    0.05,
+                    " mm",
+                ),
+                num(
+                    "Free end",
+                    "line.freeEnd",
+                    "freeEnd",
+                    l.free_end.unwrap_or(0.0),
+                    (0.0, 100.0),
+                    0.05,
+                    " mm",
+                ),
+            ];
+            if let Some(&(_, g)) = l.motif_groups.first() {
+                v.push(num(
+                    "Group gap",
+                    "line.groupGap",
+                    "groupGap",
+                    g,
+                    (0.0, 50.0),
+                    0.05,
+                    " mm",
+                ));
+            }
+            v
+        }
         LineType::Stem => vec![
             width("Width"),
             spacing("Spacing", 0.5),
@@ -1224,6 +1275,21 @@ pub fn line_controls_with(l: &LineSewing, user: &[Pattern]) -> Vec<Control> {
             }
             v
         }
+        LineType::Ripple => vec![
+            // #541, beyond PE-DESIGN: the target is dragged on the canvas.
+            Control::Number {
+                label: "Copies",
+                key: "line.strands",
+                param: "strands",
+                value: f64::from(l.strands.unwrap_or(5)),
+                range: (2.0, 30.0),
+                speed: 0.05,
+                suffix: "",
+                integer: true,
+            },
+            spacing("Spacing (open lines)", 0.5),
+            pitch,
+        ],
         LineType::Cutting => vec![Control::Toggle {
             label: "Leave uncut sections",
             param: "leaveUncut",

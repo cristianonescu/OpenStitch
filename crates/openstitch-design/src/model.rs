@@ -818,6 +818,7 @@ impl DesignObject {
         if let Some(l) = &mut self.line {
             l.entry = l.entry.map(|p| t.apply(p));
             l.exit = l.exit.map(|p| t.apply(p));
+            l.target = l.target.map(|p| t.apply(p));
         }
         if let Some(block) = &mut self.stitch_block {
             for s in &mut block.stitches {
@@ -1934,10 +1935,13 @@ pub enum LineType {
     Lattice,
     /// Decorative hand-embroidery line (#543, beyond PE-DESIGN): stripes stitch.
     Stripes,
+    /// Copies shrinking towards a target point, a closed line spiralling in (#541, beyond
+    /// PE-DESIGN).
+    Ripple,
 }
 
 impl LineType {
-    pub const ALL: [LineType; 21] = [
+    pub const ALL: [LineType; 22] = [
         LineType::Running,
         LineType::Triple,
         LineType::Zigzag,
@@ -1959,6 +1963,7 @@ impl LineType {
         LineType::DoubleZigzag,
         LineType::Lattice,
         LineType::Stripes,
+        LineType::Ripple,
     ];
 
     pub fn id(self) -> &'static str {
@@ -1984,6 +1989,7 @@ impl LineType {
             LineType::DoubleZigzag => "doubleZigzag",
             LineType::Lattice => "lattice",
             LineType::Stripes => "stripes",
+            LineType::Ripple => "ripple",
         }
     }
 
@@ -2029,6 +2035,7 @@ impl LineType {
             LineType::DoubleZigzag => "Double zigzag",
             LineType::Lattice => "Lattice",
             LineType::Stripes => "Stripes",
+            LineType::Ripple => "Ripple",
         }
     }
 }
@@ -2173,6 +2180,20 @@ pub struct LineSewing {
     /// E stitch: its prongs slanted this many degrees from square to the line (#543).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prong_angle: Option<f64>,
+    /// Ripple: the point the copies shrink towards, 0.1 mm (`None`: the line's centre) (#541).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<Vec2>,
+    /// Motif line: groups of motifs, `[count, gap after the group in mm]`, repeated (#544).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub motif_groups: Vec<(u32, f64)>,
+    /// Motif line: running stitch only for this long at the start and at the end, mm (#544).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub free_start: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub free_end: Option<f64>,
+    /// Motif line: more motifs used in turn after `motif` (#544).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub motifs: Vec<String>,
 }
 
 /// An opening in a closed line: `length` mm left unsewn from `offset` mm along the outline
@@ -2286,6 +2307,11 @@ impl LineSewing {
             strands: None,
             gaps: Vec::new(),
             prong_angle: None,
+            target: None,
+            motif_groups: Vec::new(),
+            free_start: None,
+            free_end: None,
+            motifs: Vec::new(),
         }
     }
 
@@ -2297,6 +2323,7 @@ impl LineSewing {
             LineType::Candlewick => 1.0,
             LineType::EStitch | LineType::VStitch => 5.0,
             k if k.is_decorative() => 3.0,
+            LineType::Ripple => 1.5,
             _ => 1.0,
         })
     }

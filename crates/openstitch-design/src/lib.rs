@@ -40,6 +40,7 @@ pub mod project;
 mod provenance;
 pub mod region;
 pub mod regions;
+pub mod ripple;
 pub mod route;
 pub mod sections;
 pub mod sewing;

@@ -1862,8 +1862,8 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 IDS,
                 opt(
                     "type",
-                    "running|triple|zigzag|motif|stem|candlewick|eStitch|vStitch|chain|cutting|satin|backStitch|scribble|chevron|cretan|feather|overlock|alternatingTriangles|doubleZigzag|lattice|stripes|none",
-                    "Line sew type. satin (beyond PE-DESIGN) is a satin column along the line whose width can change along it: width (mm, all along), widthKeys, taperStart, taperEnd and slant shape it, and the satin options (cornerStyle, shortStitchDistance, pull*, satinStyle, jaggedEdge, raised) apply as on zigzag; object.setWidthKey and object.deleteWidthKey edit single keys. backStitch (two forward, one back) and scribble (a zigzag sewn runTimes times with smooth random side offsets, width wide) are beyond PE-DESIGN too. Decorative hand-embroidery lines (beyond PE-DESIGN, #543), width the band: chevron (a bar along the line at each peak), cretan (a short stitch in from each peak, height long), feather (the side stitches turned forward), overlock (a serger-like edge), alternatingTriangles (triangles between two rails), doubleZigzag (a zigzag and its mirror: diamonds), lattice (strands crossing), stripes (rows along the band, strands or gaps); spacing is the zigzag period",
+                    "running|triple|zigzag|motif|stem|candlewick|eStitch|vStitch|chain|cutting|satin|backStitch|scribble|chevron|cretan|feather|overlock|alternatingTriangles|doubleZigzag|lattice|stripes|ripple|none",
+                    "Line sew type. satin (beyond PE-DESIGN) is a satin column along the line whose width can change along it: width (mm, all along), widthKeys, taperStart, taperEnd and slant shape it, and the satin options (cornerStyle, shortStitchDistance, pull*, satinStyle, jaggedEdge, raised) apply as on zigzag; object.setWidthKey and object.deleteWidthKey edit single keys. backStitch (two forward, one back) and scribble (a zigzag sewn runTimes times with smooth random side offsets, width wide) are beyond PE-DESIGN too. Decorative hand-embroidery lines (beyond PE-DESIGN, #543), width the band: chevron (a bar along the line at each peak), cretan (a short stitch in from each peak, height long), feather (the side stitches turned forward), overlock (a serger-like edge), alternatingTriangles (triangles between two rails), doubleZigzag (a zigzag and its mirror: diamonds), lattice (strands crossing), stripes (rows along the band, strands or gaps); spacing is the zigzag period. ripple (beyond PE-DESIGN, #541): the line repeated strands times, shrinking towards target (a closed line spirals in as one run; an open one is sewn back and forth spacing apart)",
                 ),
                 opt("color", "color", "Thread"),
                 opt(
@@ -2009,6 +2009,23 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     Some("diamond") => Some(ChainShape::Diamond),
                     Some(_) => return Err(p.invalid("chainShape", "must be triangle or diamond")),
                 };
+                // Motifs in turn (#544) must be motifs of the library or the design.
+                let in_turn: Vec<String> = match p.get("motifs") {
+                    Some(Value::String(id)) if id != "none" => vec![id.clone()],
+                    Some(Value::Array(a)) => a
+                        .iter()
+                        .filter_map(|v| v.as_str().map(str::to_string))
+                        .collect(),
+                    _ => Vec::new(),
+                };
+                for id in &in_turn {
+                    if s.design.find_pattern(PatternKind::Motif, id).is_none() {
+                        return Err(p.invalid(
+                            "motifs",
+                            format!("'{id}' is not a motif; see patterns.list"),
+                        ));
+                    }
+                }
                 for i in idx {
                     let o = &mut s.design.objects[i];
                     if !o.is_outline() {
