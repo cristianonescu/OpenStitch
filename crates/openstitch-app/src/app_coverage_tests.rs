@@ -564,4 +564,14 @@ fn hand_edits_on_a_live_fill_are_kept_until_a_setting_changes_and_the_user_is_to
     ))
     .expect("regenerate");
     assert!(!sewn(&app));
+    let steps = app.undo_groups.len();
+    app.undo();
+    assert!(sewn(&app), "Undo after Regenerate brings the edits back");
+    assert_eq!(
+        app.undo_groups.len(),
+        steps - 1,
+        "Regenerate was one undo step"
+    );
+    app.redo();
+    assert!(!sewn(&app), "Redo regenerates again");
 }
