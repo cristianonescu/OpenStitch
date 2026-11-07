@@ -3284,3 +3284,91 @@ fn a_skeleton_satin_apex_does_not_pile_its_inner_needle_points() {
     let piled = |run: &[Vec2]| run.windows(3).filter(|w| w[0].distance(w[2]) < 2.0).count();
     assert!(piled(&run) <= 2, "{} piled: {run:?}", piled(&run));
 }
+
+#[test]
+fn tatami_textures_shift_the_needle_grid_by_steps_and_curves() {
+    use crate::generate::{Stagger, StaggerCurve};
+    // Steps: the shift sequence repeats with period n × repeat, each offset held repeat rows.
+    let steps = Stagger::Steps { n: 3, repeat: 2 };
+    let seq: Vec<f64> = (0..12).map(|k| steps.phase(k)).collect();
+    let (a, b, c) = (1.0 / 6.0, 0.5, 5.0 / 6.0);
+    let want = [a, a, b, b, c, c];
+    for (k, s) in seq.iter().enumerate() {
+        assert!((s - want[k % 6]).abs() < 1e-9, "row {k}: {seq:?}");
+        assert_eq!(steps.anchored(k), Some(*s));
+    }
+    // Curves: the shift follows the curve within 0.05 mm on a 4 mm stitch.
+    for (kind, mid) in [
+        (StaggerCurve::Wave, 1.0),
+        (StaggerCurve::Triangle, 1.0),
+        (StaggerCurve::Arc, 1.0),
+    ] {
+        let c = Stagger::Curve {
+            kind,
+            amplitude: 0.5,
+            period: 8,
+        };
+        assert!(c.phase(0).abs() * 4.0 < 0.05, "{kind:?} starts at 0");
+        assert!(
+            ((c.phase(4) - 0.5 * mid) * 4.0).abs() < 0.05,
+            "{kind:?} peaks"
+        );
+        for k in 0..32 {
+            let want = 0.5 * kind.at(k as f64 / 8.0);
+            assert!(((c.phase(k) - want) * 4.0).abs() < 0.05, "{kind:?} row {k}");
+        }
+    }
+    assert!((StaggerCurve::Triangle.at(0.25) - 0.5).abs() < 1e-9);
+    assert!((StaggerCurve::Wave.at(0.25) - 0.5).abs() < 1e-9);
+    assert!((StaggerCurve::Arc.at(0.999)).abs() < 0.01);
+}
+
+#[test]
+fn named_tatami_textures_keep_the_stitch_count_and_stay_off_by_default() {
+    let c = vec![Contour::rectangle(100.0, 100.0, 600.0, 600.0)];
+    let mut r = region(RegionType::Fill);
+    r.angle = 0.0;
+    r.underlay = false;
+    assert_eq!(
+        r.texture().map(|t| t.id),
+        Some("smooth"),
+        "PE's brick by default"
+    );
+    let plain = crate::region::layers(&c, &r, &[]);
+    let count = |l: &[Vec<Run>]| l.iter().flatten().map(Vec::len).sum::<usize>() as f64;
+    let base = count(&plain);
+    assert!(crate::FILL_TEXTURES.len() >= 12);
+    let mut looks = std::collections::HashSet::new();
+    for t in &crate::FILL_TEXTURES {
+        let mut r = r.clone();
+        r.set_texture(t);
+        assert_eq!(r.texture().map(|x| x.id), Some(t.id), "{} round trip", t.id);
+        let layers = crate::region::layers(&c, &r, &[]);
+        let n = count(&layers);
+        assert!(
+            (n - base).abs() / base <= 0.03,
+            "{}: {n} stitches against plain {base}",
+            t.id
+        );
+        for l in &layers {
+            assert_inside(l, &c, t.id);
+        }
+        looks.insert(format!("{layers:?}"));
+        // Saved and loaded, the texture stays.
+        let json = serde_json::to_string(&r).expect("save");
+        let back: RegionSewing = serde_json::from_str(&json).expect("load");
+        assert_eq!(back.texture().map(|x| x.id), Some(t.id));
+    }
+    assert_eq!(
+        looks.len(),
+        crate::FILL_TEXTURES.len(),
+        "every texture differs"
+    );
+    // Smooth is the untouched Frequency brick: nothing new is saved.
+    let mut smooth = r.clone();
+    smooth.set_texture(&crate::FILL_TEXTURES[0]);
+    assert_eq!(
+        serde_json::to_value(&smooth).expect("save"),
+        serde_json::to_value(&r).expect("save")
+    );
+}

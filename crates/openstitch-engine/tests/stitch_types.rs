@@ -506,6 +506,13 @@ fn bad_region_options_fail_cleanly() {
         json!({"id": 1, "stitchType": "two"}),
         json!({"id": 1, "stitchType": "3"}),
         json!({"id": 1, "stitchType": "two"}),
+        json!({"id": 1, "texture": "plaid"}),
+        json!({"id": 1, "stagger": "spiral"}),
+        json!({"id": 1, "staggerSteps": 0}),
+        json!({"id": 1, "staggerSteps": 2.5}),
+        json!({"id": 1, "staggerRepeat": 17}),
+        json!({"id": 1, "staggerPeriod": 1}),
+        json!({"id": 1, "staggerAmplitude": 101}),
     ] {
         assert!(
             s.execute("object.setRegion", Some(&params)).is_err(),
@@ -843,4 +850,69 @@ fn zigzag_net_sews_on_the_page_axes_as_pe_design_does() {
         to_pe < 2.0 && from_pe < 2.0,
         "mean nearest distance (0.1 mm): ours to PE {to_pe:.2}, PE to ours {from_pe:.2}"
     );
+}
+
+#[test]
+fn tatami_textures_go_through_the_command() {
+    use openstitch_design::{FILL_TEXTURES, StaggerKind};
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 10, "y": 10, "width": 50, "height": 50, "fill": "Red"}),
+    );
+    let plain = Compiler::default().compile(s.design());
+    let count = plain.count(Command::Stitch) as f64;
+    for t in &FILL_TEXTURES {
+        run(
+            &mut s,
+            "object.setRegion",
+            json!({"id": 1, "texture": t.id}),
+        );
+        let r = s.design().objects[0].region.clone().expect("region");
+        assert_eq!(r.texture().map(|x| x.id), Some(t.id));
+        let n = Compiler::default()
+            .compile(s.design())
+            .count(Command::Stitch) as f64;
+        assert!(
+            (n - count).abs() / count <= 0.03,
+            "{}: {n} vs {count}",
+            t.id
+        );
+    }
+    // A texture, then its settings changed in the same call: a custom texture.
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "texture": "waves", "staggerPeriod": 20, "staggerAmplitude": 40}),
+    );
+    let r = s.design().objects[0].region.clone().expect("region");
+    assert_eq!(
+        (r.stagger, r.stagger_period, r.stagger_amplitude),
+        (StaggerKind::Wave, Some(20), Some(40.0))
+    );
+    assert!(r.texture().is_none());
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "stagger": "steps", "staggerSteps": 5, "staggerRepeat": 2}),
+    );
+    let r = s.design().objects[0].region.clone().expect("region");
+    assert_eq!(
+        (r.stagger, r.stagger_steps, r.stagger_repeat),
+        (StaggerKind::Steps, Some(5), Some(2))
+    );
+    // Saved and opened again, and one undo step back.
+    let bytes = project::encode(s.design()).expect("encode");
+    assert_eq!(&project::decode(&bytes).expect("decode"), s.design());
+    run(&mut s, "history.undo", json!({}));
+    let r = s.design().objects[0].region.clone().expect("region");
+    assert_eq!(r.stagger, StaggerKind::Wave);
+    // The help lists the textures.
+    let list = run(&mut s, "commands.list", json!({}));
+    let text = list.to_string();
+    for t in &FILL_TEXTURES {
+        assert!(text.contains(t.id), "help names {}", t.id);
+    }
 }

@@ -10,10 +10,10 @@ use openstitch_design::patterns::{self, Pattern, PatternKind};
 use openstitch_design::shapes::{self, ArcMode};
 use openstitch_design::text::{self, TextAlign, TextDirection, TextSpec};
 use openstitch_design::{
-    Arrange, Bezier, ChainShape, Compiler, Contour, Design, DesignObject, DesignPage, Feather,
-    FeatherSide, FillStitchType, Gradation, Layout, LineSewing, LineType, ObjectKind, Rect,
-    RegionSewing, RegionType, RunningStitchPath, StaggerKind, StartEnd, Transform, UnderlayDensity,
-    UnderlayParts, UnderlayStyle, Vec2, v2,
+    Arrange, Bezier, ChainShape, Compiler, Contour, Design, DesignObject, DesignPage,
+    FILL_TEXTURES, Feather, FeatherSide, FillStitchType, Gradation, Layout, LineSewing, LineType,
+    ObjectKind, Rect, RegionSewing, RegionType, RunningStitchPath, StaggerKind, StartEnd,
+    Transform, UnderlayDensity, UnderlayParts, UnderlayStyle, Vec2, v2,
 };
 use serde_json::{Value, json};
 
@@ -1379,8 +1379,33 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 ),
                 opt(
                     "stagger",
-                    "regular|random",
-                    "Fill: the row-to-row needle stagger, the regular Frequency brick (PE-DESIGN) or OpenStitch's seeded random stagger",
+                    "regular|random|steps|wave|triangle|arc",
+                    "Fill: the row-to-row needle stagger, the regular Frequency brick (PE-DESIGN), or OpenStitch's seeded random stagger and textures: steps (staggerSteps offsets held staggerRepeat rows each), wave, triangle or arc (staggerAmplitude over staggerPeriod rows)",
+                ),
+                opt(
+                    "texture",
+                    "smooth|scattered|ribs|brick|diagonal|steepDiagonal|steps|stairs|blocks|waves|ripples|zigzag|chevron|scallops|custom",
+                    "Fill: a named needle-hole texture (beyond PE-DESIGN except smooth, the Frequency brick); sets stagger and its settings, which the stagger options in the same call can then change; custom keeps the current settings",
+                ),
+                opt(
+                    "staggerSteps",
+                    "integer",
+                    "Fill, steps texture: how many offsets the needle grid takes in turn, 1-16 (default 3)",
+                ),
+                opt(
+                    "staggerRepeat",
+                    "integer",
+                    "Fill, steps texture: rows held at each offset, 1-16 (default 1)",
+                ),
+                opt(
+                    "staggerAmplitude",
+                    "percent",
+                    "Fill, wave/triangle/arc texture: height of the needle shift, % of a stitch, 0-100 (default 50)",
+                ),
+                opt(
+                    "staggerPeriod",
+                    "integer",
+                    "Fill, wave/triangle/arc texture: rows per period, 2-64 (default 8)",
                 ),
                 opt(
                     "stitchType",
@@ -1708,15 +1733,38 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     if p.has("frequency") {
                         r.frequency = Some(p.req("frequency", 0.0, 50.0)?);
                     }
-                    if let Some(k) = choice(
-                        p,
-                        "stagger",
-                        &[
-                            ("regular", StaggerKind::Regular),
-                            ("random", StaggerKind::Random),
-                        ],
-                    )? {
+                    // "custom" (the inspector's name for settings matching no texture) keeps them.
+                    let mut textures: Vec<_> =
+                        FILL_TEXTURES.iter().map(|t| (t.id, Some(t))).collect();
+                    textures.push(("custom", None));
+                    if let Some(Some(t)) = choice(p, "texture", &textures)? {
+                        r.set_texture(t);
+                    }
+                    let kinds = StaggerKind::ALL.map(|k| (k.id(), k));
+                    if let Some(k) = choice(p, "stagger", &kinds)? {
                         r.stagger = k;
+                    }
+                    let whole = |name: &str, lo: f64, hi: f64| -> Result<Option<u32>, _> {
+                        if !p.has(name) {
+                            return Ok(None);
+                        }
+                        let v = p.req(name, lo, hi)?;
+                        if v.fract() != 0.0 {
+                            return Err(p.invalid(name, "must be a whole number"));
+                        }
+                        Ok(Some(v as u32))
+                    };
+                    if let Some(v) = whole("staggerSteps", 1.0, 16.0)? {
+                        r.stagger_steps = Some(v);
+                    }
+                    if let Some(v) = whole("staggerRepeat", 1.0, 16.0)? {
+                        r.stagger_repeat = Some(v);
+                    }
+                    if let Some(v) = whole("staggerPeriod", 2.0, 64.0)? {
+                        r.stagger_period = Some(v);
+                    }
+                    if p.has("staggerAmplitude") {
+                        r.stagger_amplitude = Some(p.req("staggerAmplitude", 0.0, 100.0)?);
                     }
                     if p.has("stitchType") {
                         // The inspector's choice sends the button as a string.
