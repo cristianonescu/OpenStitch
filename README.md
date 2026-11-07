@@ -300,7 +300,7 @@ feature is done and the rest is under [Planned](#planned).
 - **Manual Punch:** columns built from direction lines, Curved Block, Running and Feed tools, and
   Reverse Direction Line.
 - (+) **Manual Punch rung editing:** insert, delete and drag rungs, swap sides, untangle crossed
-  pairs (*partial*: in the engine) ([#525]).
+  pairs, on the canvas with the Point tool ([#525]).
 - (+) **Continue digitizing** from either end of a line, path or column ([#479]).
 - **Shape operations:** merge, remove overlap, combine (union, subtract, intersect, exclude),
   split along an outline, offset lines. Curves stay curves, and cut pieces keep their sewing
