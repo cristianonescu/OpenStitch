@@ -376,6 +376,8 @@ image pickers are desktop-only too; say so instead of trying them in the browser
   `settings: true`: give the element an `id` and a `data-name` such as `"fill a=45 s=0.4"`,
   `"satin"`, `"run r=3"` or `"stroke.satin w=3"`; the long key names work too
   (`"fill angle=45 density=4.5"`, `"run length=2.5 repeats=3"`, `"stroke.satin stroke.width=3"`).
+  `"stroke.satin"` with no width makes a satin line as wide as the SVG stroke (`stroke-width`);
+  `"stroke.zigzag"` asks for PE-DESIGN's zigzag line instead.
   The result lists unknown words and refused values (FILE_FORMATS.md has the words).
 - A user who wants to script designs in Python can use the `openstitch` package (repository
   `python/README.md`: `Session().exec("shape.ellipse", ...)` with these same commands).

@@ -65,9 +65,9 @@ fn layer_and_object_names_set_the_sewing() {
         Some(RegionType::Fill)
     );
     assert!(d.objects[9].line.is_none());
-    // stroke.satin w=3: a satin (zigzag) line 3 mm wide.
+    // stroke.satin w=3: a satin line 3 mm wide (#701: OpenStitch's satin line type).
     let band = d.objects[10].line.as_ref().expect("satin line");
-    assert_eq!(band.kind, LineType::Zigzag);
+    assert_eq!(band.kind, LineType::Satin);
     let mut reference = Session::new(_dir.path());
     run(
         &mut reference,
@@ -77,7 +77,7 @@ fn layer_and_object_names_set_the_sewing() {
     run(
         &mut reference,
         "object.setLine",
-        json!({"ids": [1], "type": "zigzag", "width": 3}),
+        json!({"ids": [1], "type": "satin", "width": 3}),
     );
     let want = reference.design().objects[0]
         .line
@@ -192,10 +192,50 @@ fn long_key_names_import_like_the_short_ones() {
         fill.angle,
         fill.density
     );
-    assert_eq!(
-        long[1].line.as_ref().map(|l| l.kind),
-        Some(LineType::Zigzag)
-    );
+    assert_eq!(long[1].line.as_ref().map(|l| l.kind), Some(LineType::Satin));
     let line = long[2].line.as_ref().expect("run");
     assert_eq!((line.kind, line.run_times), (LineType::Running, 3));
+}
+
+/// #701: with the settings in names, `stroke.satin` (and `satin` on a shape with no fill) is a
+/// satin line as wide as the SVG stroke, its transform included, unless `w=` gives a width;
+/// `stroke.zigzag` stays PE-DESIGN's zigzag line. The SVG is test input written here.
+#[test]
+fn a_satin_line_takes_the_stroke_width() {
+    let dir = TempDir::new("svg-stroke-satin");
+    // 100 mm wide for a 50-unit viewBox: one unit is 2 mm.
+    std::fs::write(
+        dir.join("w.svg"),
+        r##"<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="100mm" height="100mm" viewBox="0 0 50 50">
+          <path id="a" inkscape:label="stroke.satin" d="M 5 5 L 45 5" stroke="#c02020" stroke-width="2" fill="none"/>
+          <path id="b" inkscape:label="satin" d="M 5 20 L 45 20" stroke="#c02020" stroke-width="1.5" fill="none"/>
+          <path id="c" inkscape:label="stroke.satin w=1" d="M 5 30 L 45 30" stroke="#c02020" stroke-width="2" fill="none"/>
+          <path id="d" inkscape:label="stroke.zigzag" d="M 5 40 L 45 40" stroke="#c02020" stroke-width="2" fill="none"/>
+        </svg>"##,
+    )
+    .expect("write");
+    let mut s = Session::new(&dir);
+    let r = run(
+        &mut s,
+        "import.svg",
+        json!({"path": "w.svg", "settings": true}),
+    );
+    assert_eq!(r["settings"]["invalid"], json!([]), "{r}");
+    let lines: Vec<(LineType, f64)> = s
+        .design()
+        .objects
+        .iter()
+        .map(|o| {
+            let l = o.line.as_ref().expect("line");
+            (l.kind, l.width)
+        })
+        .collect();
+    assert_eq!(lines.len(), 4);
+    assert_eq!(lines[0], (LineType::Satin, 4.0), "2 units of 2 mm");
+    assert_eq!(lines[1], (LineType::Satin, 3.0));
+    assert_eq!(lines[2], (LineType::Satin, 1.0), "w= wins");
+    assert_eq!(lines[3].0, LineType::Zigzag);
+    // A satin line is sewn: stitches across its width.
+    let p = openstitch_design::Compiler::for_design(s.design()).compile(s.design());
+    assert!(p.stitches.len() > 100, "{}", p.stitches.len());
 }
