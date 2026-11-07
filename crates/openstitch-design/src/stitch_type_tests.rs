@@ -3694,6 +3694,142 @@ fn wave_fill_keeps_the_spacing_across_steep_rows_and_height_zero_is_a_plain_fill
     assert_eq!(back, wavy);
 }
 
+/// Maze fill (#533): the top stitching of a maze on `c` with `holes`.
+fn maze(c: &[Contour], holes: &[Contour], straightness: f64, seed: u64) -> Vec<Run> {
+    let mut r = region(RegionType::Maze);
+    r.angle = 0.0;
+    r.straightness = Some(straightness);
+    r.maze_seed = Some(seed);
+    crate::region::layers(c, &r, holes)
+        .pop()
+        .expect("top stitching")
+}
+
+/// Distance between segments ab and cd (0 where they cross).
+fn segment_gap(a: Vec2, b: Vec2, c: Vec2, d: Vec2) -> f64 {
+    let cross = |o: Vec2, p: Vec2, q: Vec2| (p.x - o.x) * (q.y - o.y) - (p.y - o.y) * (q.x - o.x);
+    let (d1, d2) = (cross(a, b, c), cross(a, b, d));
+    let (d3, d4) = (cross(c, d, a), cross(c, d, b));
+    if d1 * d2 < 0.0 && d3 * d4 < 0.0 {
+        return 0.0;
+    }
+    let to = |p: Vec2, u: Vec2, v: Vec2| {
+        let e = v - u;
+        let l2 = e.x * e.x + e.y * e.y;
+        let t = if l2 > 0.0 {
+            (((p.x - u.x) * e.x + (p.y - u.y) * e.y) / l2).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        p.distance(u + e * t)
+    };
+    to(a, c, d)
+        .min(to(b, c, d))
+        .min(to(c, a, b))
+        .min(to(d, a, b))
+}
+
+/// Mean length of the straight stretches of a path, between its turns.
+fn mean_corridor(path: &[Vec2]) -> f64 {
+    let mut stretches = Vec::new();
+    let mut len = 0.0;
+    for w in path.windows(3) {
+        len += w[0].distance(w[1]);
+        let (u, v) = (w[1] - w[0], w[2] - w[1]);
+        if (u.x * v.y - u.y * v.x).abs() > 1e-6 * u.length() * v.length() {
+            stretches.push(len);
+            len = 0.0;
+        }
+    }
+    stretches.iter().sum::<f64>() / stretches.len().max(1) as f64
+}
+
+#[test]
+fn maze_fill_is_one_path_that_never_crosses_or_crowds_itself_and_reaches_the_edge() {
+    // A 40 mm square at the default 2 mm spacing.
+    let c = vec![Contour::rectangle(100.0, 100.0, 500.0, 500.0)];
+    let spacing = 20.0;
+    let runs = maze(&c, &[], 70.0, 533);
+    let sewn: Vec<&Run> = runs.iter().filter(|r| r.len() >= 2).collect();
+    assert_eq!(sewn.len(), 1, "one continuous run");
+    let path = sewn[0];
+    assert!(path.iter().all(|&p| crate::geometry::contains(p, &c)));
+    // Passes at least 0.85 spacing apart wherever they are not neighbours along the path.
+    let mut at = vec![0.0];
+    for w in path.windows(2) {
+        at.push(at[at.len() - 1] + w[0].distance(w[1]));
+    }
+    let total = at[at.len() - 1];
+    let mut nearest = f64::MAX;
+    for i in 0..path.len() - 1 {
+        for j in i + 2..path.len() - 1 {
+            let along = (at[j] - at[i + 1]).min(total - at[j + 1] + at[i]);
+            if along < 2.0 * spacing {
+                continue;
+            }
+            nearest = nearest.min(segment_gap(path[i], path[i + 1], path[j], path[j + 1]));
+        }
+    }
+    assert!(nearest >= 0.85 * spacing, "passes {nearest:.1} apart");
+    // The whole square is within a spacing of the path, edges included (≤ half a cell).
+    let mut far: f64 = 0.0;
+    for x in (100..=500).step_by(10) {
+        for y in (100..=500).step_by(10) {
+            let p = v2(x as f64, y as f64);
+            let d = path
+                .windows(2)
+                .map(|w| segment_gap(p, p, w[0], w[1]))
+                .fold(f64::MAX, f64::min);
+            far = far.max(d);
+        }
+    }
+    assert!(far <= spacing + 1.0, "a point {far:.1} from the path");
+    // Corridors: the bias makes the straight stretches longer than the uniform tree's.
+    let twisty = maze(&c, &[], 0.0, 533);
+    let (long, short) = (mean_corridor(path), mean_corridor(&twisty[0]));
+    assert!(long > 1.4 * short, "corridors {long:.1} vs {short:.1}");
+    assert!(long >= 3.0 * spacing, "corridors {long:.1}");
+}
+
+#[test]
+fn maze_fill_is_seeded_keeps_out_of_holes_and_leaves_stippling_as_it_was() {
+    let c = vec![Contour::rectangle(100.0, 100.0, 500.0, 500.0)];
+    let hole = vec![Contour::rectangle(250.0, 250.0, 350.0, 350.0)];
+    let a = maze(&c, &hole, 70.0, 7);
+    assert_eq!(
+        a,
+        maze(&c, &hole, 70.0, 7),
+        "the same seed sews the same maze"
+    );
+    let b = maze(&c, &hole, 70.0, 8);
+    assert_ne!(a, b, "another seed, another maze");
+    for run in [&a, &b] {
+        let n: usize = run.iter().map(Vec::len).sum();
+        let m: usize = b.iter().map(Vec::len).sum();
+        assert!((n as f64 / m as f64 - 1.0).abs() < 0.1, "{n} vs {m} points");
+        for p in run.iter().flatten() {
+            assert!(!crate::geometry::contains(*p, &hole), "{p:?} in the hole");
+        }
+    }
+    // Defaults, and saved only when set.
+    let r = region(RegionType::Maze);
+    assert_eq!((r.spacing_mm(), r.maze_straightness()), (2.0, 0.7));
+    let json = serde_json::to_string(&r).expect("json");
+    assert!(!json.contains("straightness") && !json.contains("mazeSeed"));
+    let mut s = r.clone();
+    s.straightness = Some(40.0);
+    s.maze_seed = Some(12);
+    let back: RegionSewing =
+        serde_json::from_str(&serde_json::to_string(&s).expect("json")).expect("load");
+    assert_eq!(back, s);
+    // Stippling ignores both: its walk is the uniform tree it always was.
+    let mut st = region(RegionType::Stippling);
+    let plain = crate::region::layers(&c, &st, &[]);
+    st.straightness = Some(90.0);
+    st.maze_seed = Some(3);
+    assert_eq!(crate::region::layers(&c, &st, &[]), plain);
+}
+
 /// Proper crossings between non-adjacent stitches of `runs` (touching ends do not count).
 fn proper_crossings(runs: &[Run]) -> usize {
     let segs: Vec<(Vec2, Vec2, usize, usize)> = runs

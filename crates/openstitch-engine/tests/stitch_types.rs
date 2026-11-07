@@ -515,6 +515,11 @@ fn bad_region_options_fail_cleanly() {
         json!({"id": 1, "staggerAmplitude": 101}),
         json!({"id": 1, "type": "meander", "pattern": "waves"}),
         json!({"id": 1, "type": "meander", "pattern": "no-such-tile"}),
+        json!({"id": 1, "straightness": -1}),
+        json!({"id": 1, "straightness": 101}),
+        json!({"id": 1, "mazeSeed": -1}),
+        json!({"id": 1, "mazeSeed": 2.5}),
+        json!({"id": 1, "mazeSeed": 1000000}),
         json!({"id": 1, "waveHeight": -1}),
         json!({"id": 1, "waveHeight": 21}),
         json!({"id": 1, "waveLength": 1}),
@@ -1117,6 +1122,44 @@ fn zigzag_sharp_corners_and_miter_limit_go_through_object_set_line() {
         assert!(s.execute("object.setLine", Some(&bad)).is_err(), "{bad}");
         assert_eq!(s.design(), &before, "{bad} changed the design");
     }
+}
+
+/// Maze fill (#533, beyond PE-DESIGN): set by `object.setRegion`, sewn as one path, reseeded,
+/// saved, undone in one step, and listed in the command's help.
+#[test]
+fn maze_fill_goes_through_the_command() {
+    use openstitch_design::RegionType;
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 0, "y": 0, "width": 30, "height": 30}),
+    );
+    run(&mut s, "object.setRegion", json!({"id": 1, "type": "maze"}));
+    let r = s.design().objects[0].region.clone().expect("region");
+    assert_eq!(r.kind, RegionType::Maze);
+    let first = Compiler::default().compile(s.design());
+    assert!(first.count(Command::Stitch) > 100);
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "straightness": 40, "mazeSeed": 9, "spacing": 2.5}),
+    );
+    let r = s.design().objects[0].region.clone().expect("region");
+    assert_eq!(
+        (r.straightness, r.maze_seed, r.spacing),
+        (Some(40.0), Some(9), Some(2.5))
+    );
+    assert_ne!(Compiler::default().compile(s.design()), first);
+    let bytes = project::encode(s.design()).expect("encode");
+    assert_eq!(&project::decode(&bytes).expect("decode"), s.design());
+    run(&mut s, "history.undo", json!({}));
+    let r = s.design().objects[0].region.clone().expect("region");
+    assert_eq!((r.straightness, r.maze_seed), (None, None));
+    assert_eq!(Compiler::default().compile(s.design()), first);
+    let help = run(&mut s, "commands.list", json!({})).to_string();
+    assert!(help.contains("mazeSeed") && help.contains("straightness") && help.contains("maze|"));
 }
 
 /// Meander fill (#533, beyond PE-DESIGN): its 12 own tiles are listed, each can be set and

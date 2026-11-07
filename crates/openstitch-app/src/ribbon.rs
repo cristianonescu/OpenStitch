@@ -816,6 +816,13 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
             menu_item(app, ui, JobSheet);
         }
         Wizard => {
+            if ui
+                .button("Startup Wizard…")
+                .on_hover_text("PE-DESIGN's start-up dialog: templates, images, hoop and fabric, import, recent files")
+                .clicked()
+            {
+                app.startup_wizard.open = true;
+            }
             if ui.button("Template Wizard…").clicked() {
                 crate::lettering_ui::open_template_wizard(app);
             }

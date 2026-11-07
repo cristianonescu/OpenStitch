@@ -876,6 +876,9 @@ pub enum RegionType {
     /// Beyond PE-DESIGN: rows that follow the outline at a constant distance (rings, single or
     /// double spiral, echo lines; see [`crate::contour`]).
     Contour,
+    /// Beyond PE-DESIGN (#533): one closed path that never crosses itself, long straight
+    /// corridors with square turns, its passes a spacing apart (see `regions::stipple`).
+    Maze,
     /// Beyond PE-DESIGN (#533): a meander tile (`PatternKind::Meander`) chained into rows,
     /// clipped to the region and joined along the outline.
     Meander,
@@ -894,7 +897,7 @@ impl RegionType {
         }
     }
 
-    pub const ALL: [RegionType; 16] = [
+    pub const ALL: [RegionType; 17] = [
         RegionType::Fill,
         RegionType::Satin,
         RegionType::ProgrammableFill,
@@ -910,6 +913,7 @@ impl RegionType {
         RegionType::ZigzagNetFill,
         RegionType::DecorativeFill,
         RegionType::Contour,
+        RegionType::Maze,
         RegionType::Meander,
     ];
 
@@ -931,6 +935,7 @@ impl RegionType {
             RegionType::ZigzagNetFill => "zigzagNetFill",
             RegionType::DecorativeFill => "decorativeFill",
             RegionType::Contour => "contour",
+            RegionType::Maze => "maze",
             RegionType::Meander => "meander",
         }
     }
@@ -957,6 +962,7 @@ impl RegionType {
             RegionType::ZigzagNetFill => "Zigzag net fill",
             RegionType::DecorativeFill => "Decorative fill",
             RegionType::Contour => "Contour fill",
+            RegionType::Maze => "Maze fill",
             RegionType::Meander => "Meander fill",
         }
     }
@@ -1703,6 +1709,14 @@ pub struct RegionSewing {
     /// Contour fill: rings outside the shape (0–30).
     #[serde(default, skip_serializing_if = "is_default")]
     pub echo_lines: u32,
+    /// Maze fill (#533): how often a corridor runs straight on where it can, % (default
+    /// [`RegionSewing::DEFAULT_MAZE_STRAIGHTNESS`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub straightness: Option<f64>,
+    /// Maze fill: the seed of its layout (default [`RegionSewing::DEFAULT_MAZE_SEED`]); another
+    /// seed gives another maze with the same spacing and look.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub maze_seed: Option<u64>,
     /// Region entry point (PE-DESIGN R1), 0.1 mm; snapped to the outline when sewn.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub entry: Option<Vec2>,
@@ -1763,6 +1777,19 @@ pub struct RegionSewing {
 }
 
 impl RegionSewing {
+    /// Maze fill: default straightness, %.
+    pub const DEFAULT_MAZE_STRAIGHTNESS: f64 = 70.0;
+    /// Maze fill: default seed.
+    pub const DEFAULT_MAZE_SEED: u64 = 533;
+
+    /// Maze fill: the chance (0–1) that a corridor runs straight on where it can.
+    pub fn maze_straightness(&self) -> f64 {
+        self.straightness
+            .unwrap_or(Self::DEFAULT_MAZE_STRAIGHTNESS)
+            .clamp(0.0, 100.0)
+            / 100.0
+    }
+
     /// Wave fill: default wave length, mm.
     pub const DEFAULT_WAVE_LENGTH: f64 = 16.0;
     /// Wave fill: the steepest the rows may slope, tan 40°. The rows are copies of one sine a
@@ -1850,6 +1877,8 @@ impl RegionSewing {
             contour_strategy: ContourStrategy::default(),
             contour_join: ContourJoin::default(),
             echo_lines: 0,
+            straightness: None,
+            maze_seed: None,
             entry: None,
             exit: None,
             center: None,
@@ -2027,6 +2056,7 @@ impl RegionSewing {
             RegionType::FlexibleSpiral => 1.0,
             // The contour fill sketch's default row spacing (echo-quilting look).
             RegionType::Contour => 2.0,
+            RegionType::Maze => 2.0,
             _ => 1.0,
         })
     }

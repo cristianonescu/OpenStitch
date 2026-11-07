@@ -100,7 +100,7 @@ impl Launch {
 }
 
 /// Values `--show` accepts.
-pub const SHOW: [&str; 37] = [
+pub const SHOW: [&str; 38] = [
     "update",
     "stitch-table",
     "large-text",
@@ -138,6 +138,7 @@ pub const SHOW: [&str; 37] = [
     "basic",
     "getting-started",
     "machine-setup",
+    "startup-wizard",
 ];
 
 pub struct EditorApp {
@@ -286,6 +287,8 @@ pub struct EditorApp {
     pub close_prompt: ClosePrompt,
     /// Help ▸ Machine Setup, also on the first interactive start (#508).
     pub machine_setup: crate::machine_setup_ui::MachineSetup,
+    /// Application menu ▸ Wizard ▸ Startup Wizard, PE-DESIGN's start-up dialog (#657).
+    pub startup_wizard: crate::startup_wizard_ui::StartupWizard,
     /// The next window close goes through: Don't Save, a Save that succeeded, a finished
     /// screenshot run or the updater's restart. Without it a close while the design has
     /// unsaved changes is cancelled and the prompt opens.
@@ -392,6 +395,7 @@ impl EditorApp {
             update: Default::default(),
             close_prompt: ClosePrompt::default(),
             machine_setup: Default::default(),
+            startup_wizard: Default::default(),
             exit_approved: false,
         };
         app.refresh();
@@ -446,6 +450,10 @@ impl EditorApp {
         if crate::machine_setup_ui::asks_at_start(&l, &self.ui.prefs) {
             self.machine_setup.open();
         }
+        // The PE-compatible start-up (#657): the Startup Wizard instead of the start cards.
+        if crate::startup_wizard_ui::opens_at_start(&l, &self.ui.prefs) {
+            self.startup_wizard.open = true;
+        }
         if l.interactive()
             && self.ui.prefs.updates.check
             && self.update.current.is_some()
@@ -484,6 +492,7 @@ impl EditorApp {
                 "solid" => self.workspace.solid = true,
                 "fabric" => self.workspace.view.fabric_open = true,
                 "machine-setup" => self.machine_setup.open(),
+                "startup-wizard" => self.startup_wizard.open = true,
                 "reference" => self.workspace.reference = true,
                 "settings" => self.workspace.settings_open = true,
                 "attributes" => self.settings.sets_open = true,
@@ -2138,6 +2147,7 @@ impl eframe::App for EditorApp {
         crate::update_ui::poll(self, &ctx);
         crate::update_ui::window(self, &ctx);
         crate::machine_setup_ui::window(self, &ctx);
+        crate::startup_wizard_ui::window(self, &ctx);
         self.close_request(&ctx);
         if self.exit_approved() {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
