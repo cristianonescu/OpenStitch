@@ -700,7 +700,7 @@
    86.0,
    86.0
   ],
-  "stitches": 7375,
+  "stitches": 7119,
   "trims": 11,
   "threads": [
    "405 Blue",
@@ -713,10 +713,10 @@
    "019 Sky Blue",
    "058 Dark Brown"
   ],
-  "sewingMinutes": 9.8,
+  "sewingMinutes": 9.5,
   "image": null,
   "preview": "previews/region-sew-types-1.png",
-  "sha256": "9f4060236e7d41e8f403604feb5a77e219a8a26b850020fc00df3308bdb1e57c"
+  "sha256": "73f75cfcd7a869e2abfb02288d09fc919bab835e7f03b30e2e1f0622491adb8f"
  },
  "fills/region-sew-types-2.pes": {
   "title": "Region sew types (2 of 2)",
@@ -726,7 +726,7 @@
    86.0,
    86.0
   ],
-  "stitches": 4634,
+  "stitches": 4545,
   "trims": 9,
   "threads": [
    "405 Blue",
@@ -739,10 +739,10 @@
    "019 Sky Blue",
    "058 Dark Brown"
   ],
-  "sewingMinutes": 6.3,
+  "sewingMinutes": 6.1,
   "image": null,
   "preview": "previews/region-sew-types-2.png",
-  "sha256": "46fdba75ada9d2ac2dc9b50836ac3bb6d08411938568cb1be3e0a49b81967186"
+  "sha256": "8c417eab8c0897b0276a3e0a18166ced7a2077d2636707abc0a97eaefe0063dd"
  },
  "fills/fill-options.pes": {
   "title": "Fill and satin options",
@@ -824,7 +824,7 @@
    86.0,
    87.5
   ],
-  "stitches": 3618,
+  "stitches": 3452,
   "trims": 9,
   "threads": [
    "405 Blue",
@@ -837,10 +837,10 @@
    "019 Sky Blue",
    "058 Dark Brown"
   ],
-  "sewingMinutes": 5.0,
+  "sewingMinutes": 4.8,
   "image": null,
   "preview": "previews/line-sew-types.png",
-  "sha256": "b10a9867a0c5f4f2eb019d8fe5c1e93901d3b9bb6b122825d13e68d4df656ec3"
+  "sha256": "36e229fdafa58dd76cc17f8f41e1ead9f623c24d91af2c6995e985745416e57d"
  },
  "shapes/shape-tools.pes": {
   "title": "Shape tools",

@@ -181,7 +181,11 @@ on one page-axis grid and zigzag nets stay inside the outline; stem, candlewick 
 spaced along curves. Left for later: what Direction should do on a cross stitch region (needs a
 PE-DESIGN reference) and cross kinds (#614), travel that crosses a hole between separate pieces
 of a fill (#615), the zigzag net's turned grid against PE-DESIGN's (#616), motif lines' runs of
-short stitches (#617), and a Beyond-PE rope stitch (#618).
+short stitches (#617), and a Beyond-PE rope stitch (#618). Done 2026-11-07 (`batch:fills-1`):
+#615 (a regression test; joins already stay inside the band), #616 (the net on the page axes,
+within 0.1 mm of PE-DESIGN's), #617, and two stippling bugs found on the way: seed 993's runaway
+allocation (#638) and a narrow band that sewed nothing (#708). #614 continues: PE-DESIGN's cross
+stitch has no Direction and only Times (single, double, triple), captured 2026-11-07.
 
 Done 2026-11-05 (#450): every kit, demo and screenshot design reviewed at full size (stitches alone
 at 15 px/mm and the Realistic view). Kit and demo designs fixed, built-in templates regenerated,
