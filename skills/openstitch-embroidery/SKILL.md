@@ -75,6 +75,11 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    a running line. Text is satin by default. A satin border or outline is a line:
    `object.setLine` with `type: zigzag`, about 2-4 mm wide (the badge recipe in
    `reference/recipes.md`).
+   A zigzag line's corners sharper than 90 degrees follow PE-DESIGN's `sharpCorners` (1:
+   legs to where they cross, the point filled as a wedge; 2: split along the bisector, more
+   short stitches) and `miterLimit` (0-50 mm from the corner along the bisector; 0, the
+   default, cuts the point at the corner, about 4 mm on a 2 mm line at 30 degrees is the full
+   point). Raise `miterLimit` for a pointed star or chevron border, keep 0 for a blunt one.
    Satin quality beyond PE-DESIGN (off by default; Manual Punch columns via
    `object.setRegion`, zigzag lines via `object.setLine`): `cornerStyle: auto` for stars,
    chevrons and badge borders (mitre below `mitreBelow` 75°, cap below `capBelow` 45°,

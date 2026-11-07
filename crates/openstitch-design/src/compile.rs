@@ -2019,9 +2019,13 @@ fn line_elements(
                     &line.satin_shaping,
                     c.has_curves().then_some(line.half_stitch),
                 ),
-                LineType::Zigzag if !c.has_curves() => {
-                    lines::zigzag_rails(&c.path(), width, 10.0 / line.density.max(0.1))
-                }
+                // PE-DESIGN's Sharp Corners and Miter Limit cut sharp corners (#373).
+                LineType::Zigzag if !c.has_curves() => lines::zigzag_rails_cornered(
+                    &c.path(),
+                    [width / 2.0; 2],
+                    10.0 / line.density.max(0.1),
+                    Some(&line.sharp_corners),
+                ),
                 LineType::Zigzag => {
                     let path = c.path();
                     let spacing = 10.0 / line.density.max(0.1);
