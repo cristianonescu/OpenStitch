@@ -269,6 +269,34 @@ jobs:
           light.exe -nologo -sice:ICE50 -out "dist\OpenStitch-$env:LABEL-windows-x86_64.msi" wixobj\openstitch.wixobj wixobj\sewkit.wixobj
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
+      - name: MSI replaces an installed OpenStitch of the same version (#742)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        # Reads the built MSI's Upgrade table through Windows Installer's own COM object (no
+        # install): the major upgrade must find any product with OpenStitch's UpgradeCode up to
+        # and including this version (msidbUpgradeAttributesVersionMaxInclusive, 0x200) and
+        # remove it, or same-version builds install side by side. The self-updater runs this
+        # MSI with `msiexec /i`, so it relies on the same rows.
+        run: |
+          $msi = (Resolve-Path "dist\OpenStitch-$env:LABEL-windows-x86_64.msi").Path
+          $installer = New-Object -ComObject WindowsInstaller.Installer
+          $db = $installer.GetType().InvokeMember("OpenDatabase", "InvokeMethod", $null, $installer, @($msi, 0))
+          $view = $db.GetType().InvokeMember("OpenView", "InvokeMethod", $null, $db, @("SELECT ``UpgradeCode``, ``VersionMin``, ``VersionMax``, ``Attributes``, ``ActionProperty`` FROM ``Upgrade``"))
+          $view.GetType().InvokeMember("Execute", "InvokeMethod", $null, $view, $null) | Out-Null
+          $rows = @()
+          while ($r = $view.GetType().InvokeMember("Fetch", "InvokeMethod", $null, $view, $null)) {
+            $get = { param($i) $r.GetType().InvokeMember("StringData", "GetProperty", $null, $r, @($i)) }
+            $rows += [pscustomobject]@{ Code = & $get 1; Min = & $get 2; Max = & $get 3; Attr = [int](& $get 4); Prop = & $get 5 }
+          }
+          $rows | Format-Table | Out-String | Write-Host
+          $code = "{0627E96F-D149-412D-B450-F64869CF1438}"
+          $remove = $rows | Where-Object { $_.Code -eq $code -and $_.Prop -eq "WIX_UPGRADE_DETECTED" -and $_.Max -eq $env:CARGO_VERSION -and ($_.Attr -band 0x200) }
+          if (-not $remove) { Write-Error "No Upgrade row removes an installed OpenStitch $env:CARGO_VERSION (#742)"; exit 1 }
+          $actions = $db.GetType().InvokeMember("OpenView", "InvokeMethod", $null, $db, @("SELECT ``Action`` FROM ``InstallExecuteSequence`` WHERE ``Action`` = 'RemoveExistingProducts'"))
+          $actions.GetType().InvokeMember("Execute", "InvokeMethod", $null, $actions, $null) | Out-Null
+          if (-not $actions.GetType().InvokeMember("Fetch", "InvokeMethod", $null, $actions, $null)) { Write-Error "RemoveExistingProducts is not scheduled"; exit 1 }
+          Write-Host "The MSI removes any installed OpenStitch up to $env:CARGO_VERSION before installing."
+
       - name: Windows icons
         if: runner.os == 'Windows'
         shell: pwsh
