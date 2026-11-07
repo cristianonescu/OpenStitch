@@ -1997,7 +1997,21 @@ fn line_elements(
                 // PE-DESIGN's zigzag (rails matched along each leg) on straight-line paths;
                 // curves keep the evenly spaced zigzag, with half stitch where asked.
                 // OpenStitch's satin shaping (#520-#522) replaces both when set.
-                LineType::Satin => lines::satin_line(&c.path(), line),
+                LineType::Satin => match &line.motif_band {
+                    // A motif along the satin, stretched across its width (#544).
+                    Some(b) => crate::motif_band::sew(
+                        &crate::skeleton::satin_line_rungs(
+                            &c.path(),
+                            &lines::satin_line_shape(line),
+                            10.0,
+                        ),
+                        &patterns::resolve(user, PatternKind::Motif, Some(&b.motif)).paths,
+                        b.tile.map(|t| t * 10.0),
+                        b.mirror,
+                        pitch,
+                    ),
+                    None => lines::satin_line(&c.path(), line),
+                },
                 LineType::Zigzag if !line.satin_shaping.is_plain() => lines::zigzag_shaped(
                     &c.path(),
                     width,

@@ -31,6 +31,7 @@ pub mod lines;
 pub mod machine;
 pub mod model;
 pub mod monogram;
+pub mod motif_band;
 pub mod ornament;
 pub mod paths;
 pub mod pattern_text;

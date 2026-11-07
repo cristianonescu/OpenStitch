@@ -1482,9 +1482,11 @@ fn attribute_commands() -> Vec<CommandSpec> {
             .chain(crate::satin_shaping::SHAPING_PARAMS)
             .chain(crate::satin_shaping::REGION_PARAMS)
             .chain(crate::line_looks::REGION_PARAMS)
+            .chain(crate::motif_band_params::PARAMS)
             .collect(),
             |s, p| {
                 let idx = indexes(p, &s.design)?;
+                crate::motif_band_params::check(p, &s.design)?;
                 let kind = match p
                     .get("type")
                     .map(|_| p.string("type", None))
@@ -1662,6 +1664,13 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         p,
                         r.kind == RegionType::Satin,
                         &mut r.hand,
+                    )?;
+                    crate::motif_band_params::apply(
+                        p,
+                        r.kind == RegionType::Satin
+                            && (r.skeleton.is_some() || r.direction_lines.len() >= 2),
+                        "a satin region sewn along a skeleton or as a Manual Punch column",
+                        &mut r.motif_band,
                     )?;
                     if r.direction_lines.len() >= 2
                         && let Some(h) = crate::satin_shaping::raised_hint(
@@ -1989,6 +1998,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 "Zigzag: the under sewing when underSewing is on: edge (PE-DESIGN's two runs a quarter of the width to each side, the default), centreWalk (along the line and back), edgeZigzag (one edge run out, a zigzag back) or auto (by width: underlayAuto)",
             )])
             .chain(crate::satin_shaping::SATIN_LINE_PARAMS)
+            .chain(crate::motif_band_params::PARAMS)
             .collect(),
             |s, p| {
                 let idx = indexes(p, &s.design)?;
@@ -2057,6 +2067,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     Some("diamond") => Some(ChainShape::Diamond),
                     Some(_) => return Err(p.invalid("chainShape", "must be triangle or diamond")),
                 };
+                crate::motif_band_params::check(p, &s.design)?;
                 // Motifs in turn (#544) must be motifs of the library or the design.
                 let in_turn: Vec<String> = match p.get("motifs") {
                     Some(Value::String(id)) if id != "none" => vec![id.clone()],
@@ -2161,6 +2172,12 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     crate::line_looks::apply_line(p, &mut l)?;
                     crate::decorative_params::apply(p, &mut l)?;
                     crate::satin_shaping::apply_satin_line(p, &mut l)?;
+                    crate::motif_band_params::apply(
+                        p,
+                        l.kind == LineType::Satin,
+                        "a satin line",
+                        &mut l.motif_band,
+                    )?;
                     if matches!(l.kind, LineType::Zigzag | LineType::Satin)
                         && let Some(h) = crate::satin_shaping::raised_hint(&l.satin_shaping, l.width)
                     {

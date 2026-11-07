@@ -391,8 +391,9 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
   sewn more times where a thickness profile swells ([#542]).
 - (+) **Ripple lines:** a line repeated smaller towards a target you drag, a closed shape
   spiralling in as one unbroken run ([#541]).
-- (+) **Motif lines in groups:** motifs in groups with gaps, motif-free ends, motifs used in turn,
-  and five more bundled motifs (*partial*) ([#544]).
+- (+) **Motif lines in groups and motif bands:** motifs in groups with gaps, motif-free ends,
+  motifs used in turn, five more bundled motifs, and a motif repeated along a satin column,
+  stretched to its width as it tapers (*partial*) ([#544]).
 - (+) **Decorative hand-embroidery lines:** chevron, Cretan, feather, overlock, alternating
   triangles, double zigzag, lattice and stripes along any line, and slanted E stitch prongs
   ([#543]).
