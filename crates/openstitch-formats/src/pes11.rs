@@ -1678,7 +1678,7 @@ pub fn write(objects: &Objects, pattern: &StitchPattern) -> Result<Vec<u8>> {
 /// pages. PE-DESIGN writes its Section Size there on a Custom Size page (2900 × 1900 multi-needle,
 /// 900 × 900 single-needle), but a Brother machine reads the frame as the design's size: the
 /// NV880E refused a 290 × 190 mm frame as too large for its largest hoop.
-fn patch_pec_header(pec: &mut [u8], hoop_page: bool) {
+pub(crate) fn patch_pec_header(pec: &mut [u8], hoop_page: bool) {
     pec[0x1F] = 0xFF;
     pec[0x24..0x30].copy_from_slice(if hoop_page {
         &[
@@ -1957,7 +1957,7 @@ pub fn as_pe_writes(t: &Thread) -> Thread {
 /// The thread table: catalogue number, RGB and a pad byte, colour type, the thread's name (the
 /// PEC chart index of the nearest chart colour when it has none, as PE-DESIGN writes its own
 /// colours), brand and chart name.
-fn write_threads(w: &mut ByteWriter, threads: &[Thread]) {
+pub(crate) fn write_threads(w: &mut ByteWriter, threads: &[Thread]) {
     w.u16le(threads.len() as i64);
     for t in threads {
         let index = nearest_index(t, pec_basic_chart()).unwrap_or(0);
@@ -2436,7 +2436,7 @@ fn write_trailer(
 /// RGB as R, G, B (zero on a Custom Size page, as in all of PE-DESIGN's own files), then a u16
 /// count of preview images (0: PE-DESIGN's own Hoop-Size files have none) and a three-byte
 /// code per block ([`addendum_code`]).
-fn write_addendum(w: &mut ByteWriter, list: &[u8], threads: &[Thread], hoop_page: bool) {
+pub(crate) fn write_addendum(w: &mut ByteWriter, list: &[u8], threads: &[Thread], hoop_page: bool) {
     w.append(list);
     w.fill(0x20, 128_usize.saturating_sub(list.len()));
     for _ in threads {
@@ -2564,8 +2564,13 @@ pub fn with_chart_name(t: &Thread) -> Thread {
 /// A colour block's code in the list after the PEC section, as PE-DESIGN 11.50 writes it:
 /// `0D` and the catalogue number as u16 (BROTHER EMBROIDERY's for a Brother chart colour,
 /// `0D 20 03` 800 RED), `FA`, `FB`, `FC` + `FF FF` for the Applique Wizard's material, position
-/// and appliqué colours (PEC 62–64), `FE FF FF` for a thread with no number.
+/// and appliqué colours (PEC 62–64), `FE FF FF` for a thread with no number and for one of
+/// colour type 0 (pyembroidery's; compat pes-design-properties and its Save As files keep its
+/// `5` Brother Red as `FE FF FF`).
 fn addendum_code(t: &Thread) -> [u8; 3] {
+    if t.kind == Some(0) {
+        return [0xFE, 0xFF, 0xFF];
+    }
     let applique = match (t.kind, t.catalog_number.as_deref()) {
         (Some(APPLIQUE_KIND), Some(c)) => ["100", "101", "102"].iter().position(|&a| a == c),
         (_, Some(c)) if t.brand.as_deref() == Some("Brother") => ["62", "63", "64"]

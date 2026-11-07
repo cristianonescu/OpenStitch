@@ -152,18 +152,32 @@ the owner's machine (docs/COMPATIBILITY_AUDIT.md item 2).
 | `6t` | ✅ | ✅ | ✅ | ❌ | ❌ |
 | `6` (default) | ✅ | ✅ | ✅ | ✅ | ❌ |
 | `11` (PE-DESIGN 11, `#PES0110`) | ✅ | ✅ (thread table in sewing order; each thread named with its PEC chart index, as PE-DESIGN names its own colours) | ✅ | ✅ (a stitch pattern is a `CEmbOne`) | ✅ shapes: fill, satin, programmable and decorative fill and the region types Cross Stitch to Flexible Spiral at PE-DESIGN's defaults; running, zigzag, triple, E, V, stem, candlewick, chain and cutting lines; one group; one hole sewing pair; Lato Bold text, with a Text Transform or fitted to an outline; stitch patterns. A design opened from a `#PES0110` file is exported as one by default (#120). ❌ refused with the object named: motif fill and line, contour fill; fonts other than Lato Bold, text not sewn as a region, right-aligned or vertical text, per-character edits; several groups, two hole pairs, a hole pair with groups, a second programmable fill pattern; non-square pattern tiles; shapes with more than one outline (follow-up #608). PE-DESIGN 11.50 opens shapes and text editable (specs `pes-0110-editable-shapes`, `-text`, `-text-transform`, `-text-fit`); stitch patterns: spec `pes-0110-stitches` |
-| 4, 5 (5.5, 5.6), 7–10 | **Blocked** (read, not written) | | | | |
+| `4` | ✅ | ❌ (no thread table: PEC chart colours) | ✅ | ✅ (colours as PEC indexes) | ❌ |
+| `5`, `7`, `8`, `9`, `10` | ✅ | ✅ (0110's thread table) | ✅ | ✅ | ❌ (PE-DESIGN itself saves these versions as stitch data) |
 
-Editor: File ▸ Export ▸ PES offers the five. Engine: `design.export` `pesVersion`.
-**Why v4, v5 and v7–v10 are not written:** no public writer exists. pyembroidery's reader only
-gives each version's field *lengths* (v5 has 24 fixed bytes where v6 has 36; v8 has 38; v9/v10
-add a hoop name). It does not say which fields were added or removed, so a v5 header written
-by analogy with v6 would be a guess that PE-DESIGN might misread. They are read, not written:
-v4 gives the metadata and the PEC colours; v5–v10 also the thread table, the hoop name (v9,
-v10) and the `CEmbOne` stitch group, in pyembroidery 1.5.1's layout (`tests/pes_versions.rs`
-re-lays pyembroidery's v6 file in each layout; no PE-DESIGN file of these versions is in the
-repo). PE-DESIGN 11.50's Save As type list offers Ver.11.0 down to Ver.1.0; its files of each
-version were requested on 2026-11-04 (#374) and unblock the writers.
+Editor: File ▸ Export ▸ PES offers all eleven. Engine: `design.export` `pesVersion`.
+**Versions 4, 5 and 7–10 (#374, 2026-11-07)** are written as PE-DESIGN 11.50's Save As writes
+them (tests/fixtures/pe11/versions: 24 files of five designs). PE-DESIGN offers these versions
+for stitch data only: a design with editable objects is offered Ver.11.0 down to Ver.6.0, and
+every save below Ver.11.0 asks "OK to save the data as stitch data?". So each holds one
+`CEmbOne` stitch group, its needle points in page coordinates (point + 50 mm) with a zero
+translation, after a header of its own (`crates/openstitch-formats/src/pes_versions.rs`):
+
+| Version | After the metadata strings |
+|---|---|
+| 4 | hoop width, height, Rotate, display fields, 4 zero bytes; no thread table; runs and colour log name PEC chart colours |
+| 5 | the same 12 words, image name, transform, three pattern counts, the thread table (0110's UTF-16 strings) |
+| 7 | version 6's fields (custom page, hoop, page size), then as 5 |
+| 8 | Rotate 90 Degrees as its own field (7 writes a turned hoop with its sides swapped), `04 00` before the counts |
+| 9, 10 | 0110's header without the hoop sections: page mode, hoop id, hoop in mm and 0.1 inch, hoop name, then the page and display fields; 10 four more words and every run length as `FFFF` + u32 |
+
+After the colour log each version writes its own trailer (8, 14 or 16 zero bytes and 8 or 12
+bytes per colour change); the PEC header keeps `20` at 0x1F (v4) and 0x2D (v4, v5); the list
+after the PEC section is the padded colour list (v4), plus 144 bytes and RGB per thread (v5),
+plus 0110's codes (v7+). PE-DESIGN draws each thread's number into those 144 bytes; OpenStitch
+writes them blank, as in its `#PES0110` files. A design whose run starts after a jump begins
+that run at the jump's landing point even when its first stitch is there too, as PE-DESIGN's
+group does.
 
 **Re-saving an opened PES (#375).** File ▸ Open keeps the file with the design
 (`stitches.import` `keepSource`, `Design.source`, base64 in `.osd`) with a fingerprint of the

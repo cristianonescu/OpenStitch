@@ -238,7 +238,7 @@ fn bad_parameters_fail_cleanly() {
         ("object.setLine", json!({"id": 1, "angle": 200})),
         ("object.flip", json!({"id": 1, "axis": "diagonal"})),
         ("object.reorder", json!({"id": 1, "index": 7})),
-        ("design.export", json!({"path": "x.pes", "pesVersion": "7"})),
+        ("design.export", json!({"path": "x.pes", "pesVersion": "3"})),
         ("design.export", json!({"path": "x.phc"})),
         ("design.export", json!({"path": "x.pes", "split": "yes"})),
         ("import.svg", json!({})),
@@ -564,10 +564,36 @@ fn import_export_round_trip_and_bad_files() {
         let back = openstitch_formats::pes::read(&bytes).expect("read");
         assert_eq!(back.threads[0].hex() == "#123456", exact, "{version}");
     }
+    // PE-DESIGN's Save As versions 4, 5 and 7-10 (#374): stitch data in each version's layout;
+    // from version 5 the thread table keeps the exact colour.
+    for (version, magic) in [
+        ("4", "0040"),
+        ("5", "0050"),
+        ("7", "0070"),
+        ("8", "0080"),
+        ("9", "0090"),
+        ("10", "0100"),
+    ] {
+        run(
+            &mut c,
+            "design.export",
+            json!({ "path": format!("v{version}.pes"), "pesVersion": version }),
+        );
+        let bytes = std::fs::read(dir.join(format!("v{version}.pes"))).expect("pes");
+        assert_eq!(&bytes[..8], format!("#PES{magic}").as_bytes(), "{version}");
+        let back = openstitch_formats::pes::read(&bytes).expect("read");
+        assert_eq!(
+            back.threads[0].hex() == "#123456",
+            version != "4",
+            "{version}"
+        );
+        let objects = openstitch_formats::pes::read_objects(&bytes).expect("objects");
+        assert_eq!(objects.objects.len(), 1, "{version}: one stitch group");
+    }
     assert!(
         s.execute(
             "design.export",
-            Some(&json!({"path": "x.pes", "pesVersion": "7"}))
+            Some(&json!({"path": "x.pes", "pesVersion": "7t"}))
         )
         .is_err()
     );

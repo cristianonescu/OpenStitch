@@ -235,3 +235,34 @@ Custom Size pages ("Use smaller section sizes" off) the greyed hoop is the last 
 | `hoops/m-round-100.pes` | `097e33aabbb08bbf1906205373cdefce5a14375692a1ce9bd104f370b3137c13` | multi-needle, Hoop Size ø100 mm (Round Frame) |
 | `hoops/s-custom-300x200.pes` | `15d73c6aaa7eec8529cfd264658d979c15904efc9708341e3b8d622a90ae49c3` | single-needle, Custom Size 300 x 200 mm, Section Size 90 x 90 (100 x 100); preview 4 x 3 sections |
 | `hoops/m-custom-300x200.pes` | `d480cb1290bf8b10824c9a53e9bacb4b611cf270e6067cfca46ae271e56a27c6` | multi-needle, Custom Size 300 x 200 mm, Section Size 290 x 190 (300 x 200); preview 2 x 2 sections; greyed hoop ø100 Round |
+
+## PES Save As versions (2026-11-07, #374)
+
+Made by the coordinator session on PE-DESIGN 11.50 (Layout & Editing), black-box GUI only (owner notes `pes-versions`, notes.md). Each source design was opened and saved with App menu > Save As, the "Layout & Editing Ver.N.0 File (*.PES)" type picked from the list, name `<source>-v<N>.pes`. Below Ver.11.0 PE-DESIGN asks "This embroidery data will be saved in the old file format. OK to save the data as stitch data?"; OK was pressed, so every file holds stitch data only. Sources: props = compat/reference/pes/pes-design-properties.pes and rot = hoops/s-130x180-rot90.pes, which open as stitch data (offered Ver.11.0 down to Ver.1.0); text = r14-text-ab.pes, two = r16-two-rects.pes, page = o-page-200x200.pes, which open with editable objects (offered Ver.11.0 down to Ver.6.0 only, so no v4 or v5).
+
+| File | SHA-256 | Version |
+|---|---|---|
+| `versions/page-v10.pes` | `68a0f7d6b453588a6480f91270ef55c6b3f27878d2be3dc5c44d8141333dc82f` | `#PES0100` |
+| `versions/page-v7.pes` | `403688b88ac2376217c679cb30d6b5cf035e7101925e499ee035ef6bb8ffbfe6` | `#PES0070` |
+| `versions/page-v8.pes` | `6dfe894ad45cd3505990a23aca70d92179394fb69fd7ed66710c2a93dcdcc2c4` | `#PES0080` |
+| `versions/page-v9.pes` | `3de7282e921d77caf4193977daa12fe8a576da39f92ececb62dd8b21079e21ac` | `#PES0090` |
+| `versions/props-v10.pes` | `2989d03ae9982b7167cbf89adcfd6a3e79ef2c2875eeeab9e88682f62b091e63` | `#PES0100` |
+| `versions/props-v4.pes` | `fc1b73178ce795d928ab9b58bab2bc36e5b9cd8755900d9620d1636abf798768` | `#PES0040` |
+| `versions/props-v5.pes` | `aa71515bd9d4fdbbb5149c4514209e7c98c41cc314288fd6d86a6bf0ed44c49a` | `#PES0050` |
+| `versions/props-v7.pes` | `1a6f2a3d6c0d98e2669e3994692836622e040cdf26754160924308533b931696` | `#PES0070` |
+| `versions/props-v8.pes` | `98cf2a4da4162521ae4963a8da73b36c22b38d3f617e90f06939c3319a159dad` | `#PES0080` |
+| `versions/props-v9.pes` | `6dd77cfb87f2ff157f9792147c822705511706c82fdd2f4b7a418a13f7ebb20e` | `#PES0090` |
+| `versions/rot-v10.pes` | `4ef6a2995b703867f9a5df87fc5ec75ddbf843e520fd5a6247e1b578de1c1635` | `#PES0100` |
+| `versions/rot-v4.pes` | `88c7390b83f3660aea5fe57c84371f7d61d28d8a1c8117cccb0d4637cc0211ee` | `#PES0040` |
+| `versions/rot-v5.pes` | `4dc5bb05674242e2457bf6961860fd096a2d0339c32ee7f2783961b0a4c14e52` | `#PES0050` |
+| `versions/rot-v7.pes` | `89e8f9b2639a29cc688939b82004e975cf6075fcee2395c16b0e1cf7fbf03d58` | `#PES0070` |
+| `versions/rot-v8.pes` | `5d653b13a80767f7569671080cf873cca9c59bc6ff989c1d13625d4c0cd6c412` | `#PES0080` |
+| `versions/rot-v9.pes` | `4dfe56479db0bb0c8a3b83549b9df6e3352a6c8b090e111077d1d424d48368b7` | `#PES0090` |
+| `versions/text-v10.pes` | `c984f8190ed692027a7b225e1f8a0dcd79bfab0ea1bf8f822740a2a84f78d191` | `#PES0100` |
+| `versions/text-v7.pes` | `b5fffdc8ac23787479b7de36a7d0b8146fb7d868791531084b5e25faaa8f9e33` | `#PES0070` |
+| `versions/text-v8.pes` | `622cf7db0add15da23e3da14b035f75a415c2fcd9152fa497b6fba4a4b2730d3` | `#PES0080` |
+| `versions/text-v9.pes` | `0c2b079840d479d471756d24579cebe9c14ba0f6852b456989b6ba37372c9178` | `#PES0090` |
+| `versions/two-v10.pes` | `7281d1461569d40f27e1201e636398ac85b3b6e2e50157ffe0b571686a5a0504` | `#PES0100` |
+| `versions/two-v7.pes` | `11e27739aebd8228114fd3bea8aefa3764a6c9f9a7f655bfd364642c0d1b8def` | `#PES0070` |
+| `versions/two-v8.pes` | `f19454ccff1bd591e94a23d0f20fcc99da4ffcee203ab90cecb52741d8d451df` | `#PES0080` |
+| `versions/two-v9.pes` | `e2036977d316939875772334bd95584a4c1ae963c2808f17925be17e4f6f2c73` | `#PES0090` |
