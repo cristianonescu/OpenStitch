@@ -599,6 +599,7 @@ pub fn check(d: &Design, t: &Traced, opts: &CheckOptions) -> Vec<Finding> {
                     | RegionType::DecorativeFill
                     | RegionType::Stippling
                     | RegionType::Maze
+                    | RegionType::Meander
             )
         });
         if fill

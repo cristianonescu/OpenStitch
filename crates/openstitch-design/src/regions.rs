@@ -337,6 +337,41 @@ pub fn generate(
             }
             vec![region.loops(loops)]
         }
+        RegionType::Meander => {
+            // Beyond PE-DESIGN (#533): the tile chained into rows a tile height apart (shifted
+            // by its row shift), clipped to the region, the pieces sewn nearest next and
+            // joined along the outline.
+            let pattern = patterns::resolve(user, PatternKind::Meander, r.pattern.as_deref());
+            let unit: Vec<Vec2> = pattern.paths[0]
+                .iter()
+                .map(|q| v2(q.x * pw, q.y * ph))
+                .collect();
+            let mut pieces = tile_rows(closed, holes, angle, &unit, pw, ph, pattern.row_shift);
+            if let Some(e) = r.entry
+                && let Some(i) = (0..pieces.len()).min_by(|&a, &b| {
+                    let d = |k: usize| {
+                        let p = &pieces[k];
+                        p[0].distance(e).min(p[p.len() - 1].distance(e))
+                    };
+                    d(a).total_cmp(&d(b))
+                })
+            {
+                pieces.swap(0, i);
+                let p = &mut pieces[0];
+                if p[p.len() - 1].distance(e) < p[0].distance(e) {
+                    p.reverse();
+                }
+            }
+            // The tiles are drawn with points well under a stitch apart: split to the run
+            // pitch, without points under 0.3 mm apart (as the motif fill, #617).
+            let runs = nearest_next(pieces)
+                .into_iter()
+                .map(|p| {
+                    generate::drop_close(&subdivide(&p, pitch), generate::MOTIF_MIN_STITCH, pitch)
+                })
+                .collect();
+            vec![region.sequence_raw(runs)]
+        }
         RegionType::Contour => {
             // Beyond PE-DESIGN (see crate::contour): rows that follow the outline.
             let p = crate::contour::ContourParams {

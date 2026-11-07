@@ -6,7 +6,8 @@ straight lines). None is derived from Brother's .pmf/.pas/.plf files.
 
 Format (`openstitch.pattern`, version 1), one JSON file per pattern:
 
-    {"format": "openstitch.pattern", "version": 1, "kind": "motif" | "fill" | "decorative",
+    {"format": "openstitch.pattern", "version": 1,
+     "kind": "motif" | "fill" | "decorative" | "meander",
      "id": "wave", "name": "Wave", "rowShift": 0.5 (optional), "paths": [[[x, y], ...], ...]}
 
 - motif: one path from (0, 0) to (1, 0); x runs along the line (-0.5...1.5, so loops may
@@ -15,6 +16,9 @@ Format (`openstitch.pattern`, version 1), one JSON file per pattern:
 - decorative: one path per tile from (0, y0) to (1, y0) (x may reach -0.5...1.5, y stays in
   0...1) so tiles chain into rows; rows repeat
   every tile height, shifted by rowShift tile widths.
+- meander: one path from (0, y0) to (1, y0) inside the unit tile (0...1) that never crosses
+  itself, its neighbours in the row, or the rows above and below; chained into rows like
+  decorative paths, then joined along the outline (#533).
 
 Run: python3 -I tools/gen_patterns.py
 """
@@ -91,6 +95,109 @@ def decoratives():
         + sample(lambda t: (0.6 + 0.4 * t, 0.8 - 0.35 * math.sin(math.pi * t)), 8)[1:]]
 
 
+def hilbert(order):
+    """Cells (x, y) of a Hilbert curve of `order` on a 2^order grid, from (0, 0) to (n-1, 0)."""
+    n = 2 ** order
+    cells = []
+    for d in range(n * n):
+        x = y = 0
+        t = d
+        s = 1
+        while s < n:
+            rx = 1 & (t // 2)
+            ry = 1 & (t ^ rx)
+            if ry == 0:
+                if rx == 1:
+                    x, y = s - 1 - x, s - 1 - y
+                x, y = y, x
+            x += s * rx
+            y += s * ry
+            t //= 4
+            s *= 2
+        cells.append((x, y))
+    return n, cells
+
+
+def meanders():
+    """Meander tiles (#533): one path from (0, y0) to (1, y0) inside the unit tile that never
+    crosses itself, its neighbours in the row, or the rows above and below (rows repeat every
+    tile height). Own drawings from simple maths."""
+    for pid, name, order in (("hilbert", "Hilbert", 2), ("hilbert-fine", "Hilbert, fine", 3)):
+        n, cells = hilbert(order)
+        c = lambda i: (i + 0.5) / n
+        pts = [(c(x), 1 - c(y)) for x, y in cells]
+        yield pid, name, 0.0, [[(0, pts[0][1])] + pts + [(1, pts[-1][1])]]
+    # Square serpentine: four strokes a quarter tile apart.
+    pts = [(0, 0.125)]
+    for k in range(4):
+        x = 0.125 + 0.25 * k
+        lo, hi = (0.125, 0.875) if k % 2 == 0 else (0.875, 0.125)
+        pts += [(x, lo), (x, hi)]
+    yield "serpentine", "Serpentine", 0.0, [pts + [(1, 0.125)]]
+    # The same strokes joined by half circles.
+    pts = [(0, 0.125), (0.125, 0.125)]
+    for k in range(4):
+        x = 0.125 + 0.25 * k
+        up = k % 2 == 0
+        pts.append((x, 0.75 if up else 0.25))
+        if k < 3:
+            cy = 0.75 if up else 0.25
+            for i in range(1, 12):
+                a = math.pi * i / 12
+                pts.append((x + 0.125 - 0.125 * math.cos(a), cy + (0.125 if up else -0.125) * math.sin(a)))
+            pts.append((x + 0.25, cy))
+    pts += [(0.875, 0.125), (1, 0.125)]
+    yield "switchback", "Switchback", 0.0, [pts]
+    # Curtate trochoids: x keeps growing, so the S-turns never cross.
+    yield "vermicelli", "Vermicelli", 0.5, [sample(
+        lambda t: (t - 0.85 * math.sin(4 * math.pi * t) / (4 * math.pi),
+                   0.5 + 0.34 * math.sin(4 * math.pi * t + 0.6 * math.sin(2 * math.pi * t))), 64)]
+    yield "ribbon-candy", "Ribbon candy", 0.0, [sample(
+        lambda t: (t - 0.5 * math.sin(6 * math.pi * t) / (6 * math.pi),
+                   0.5 - 0.34 * math.cos(6 * math.pi * t)), 72)]
+    # Three half-ellipse arches on short flat feet (no cusps: neighbouring strands stay apart).
+    pts = [(0, 0.15)]
+    w = 1 / 3 - 0.08
+    for k in range(3):
+        c = (k + 0.5) / 3
+        pts.append((c - w / 2, 0.15))
+        for i in range(1, 24):
+            a = math.pi * i / 24
+            pts.append((c - (w / 2) * math.cos(a), 0.15 + 0.7 * math.sin(a)))
+        pts.append((c + w / 2, 0.15))
+    yield "clamshell", "Clamshell", 0.5, [pts + [(1, 0.15)]]
+    yield "sawtooth", "Sawtooth", 0.0, [
+        [(0, 0.15)] + [(0.125 + 0.25 * k, 0.85 if k % 2 == 0 else 0.15) for k in range(4)] + [(1, 0.15)]]
+    steps = [0.15, 0.38, 0.62, 0.85, 0.62, 0.38]
+    pts = [(0, 0.15)]
+    for k, y in enumerate(steps + [0.15]):
+        x = (k + 0.5) / 7
+        for p in ((x, pts[-1][1]), (x, y)):
+            if p != pts[-1]:
+                pts.append(p)
+    yield "staircase", "Staircase", 0.0, [pts + [(1, 0.15)]]
+    # A line with puzzle knobs, one up and one down per tile.
+    pts = [(0, 0.5)]
+    for cx, up in ((0.25, True), (0.75, False)):
+        sgn = 1 if up else -1
+        pts += [(cx - 0.07, 0.5), (cx - 0.05, 0.5 + sgn * 0.12)]
+        a0 = math.atan2(-0.11, -0.05)
+        for i in range(1, 24):
+            a = a0 - 2 * math.pi * i / 24 * (1 - 2 * math.atan2(0.05, 0.11) / (2 * math.pi))
+            pts.append((cx + 0.11 * math.cos(a), 0.5 + sgn * (0.23 + 0.11 * math.sin(a))))
+        pts += [(cx + 0.05, 0.5 + sgn * 0.12), (cx + 0.07, 0.5)]
+    yield "jigsaw", "Jigsaw", 0.0, [pts + [(1, 0.5)]]
+    tops = [0.85, 0.6, 0.75, 0.5, 0.8, 0.65]
+    pts = [(0, 0.15)]
+    for k, top in enumerate(tops):
+        x = (k + 0.5) / 6
+        lo, hi = (0.15, top) if k % 2 == 0 else (top, 0.15)
+        pts += [(x, lo), (x, hi)]
+    yield "skyline", "Skyline", 0.0, [pts + [(1, 0.15)]]
+    yield "ripple", "Ripple", 0.0, [sample(
+        lambda t: (t, 0.5 + 0.35 * math.sin(8 * math.pi * t) * math.sin(math.pi * t)), 96)]
+
+
 def write(kind, pid, name, paths, row_shift=None):
     doc = {"format": "openstitch.pattern", "version": 1, "kind": kind, "id": pid, "name": name}
     if row_shift:
@@ -110,6 +217,8 @@ def main():
         write("fill", pid, name, paths)
     for pid, name, shift, paths in decoratives():
         write("decorative", pid, name, paths, shift)
+    for pid, name, shift, paths in meanders():
+        write("meander", pid, name, paths, shift)
 
 
 if __name__ == "__main__":

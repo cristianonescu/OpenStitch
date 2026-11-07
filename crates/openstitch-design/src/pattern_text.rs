@@ -338,6 +338,7 @@ pub fn parse(text: &str, id: &str, name: &str) -> Result<TextPattern, String> {
         PatternKind::Motif => "motif",
         PatternKind::Fill => "fill",
         PatternKind::Decorative => "decorative",
+        PatternKind::Meander => "meander",
     };
     let mut doc = serde_json::json!({
         "format": "openstitch.pattern", "version": 1,

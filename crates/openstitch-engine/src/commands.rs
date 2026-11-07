@@ -1224,6 +1224,7 @@ fn region_pattern_exists(kind: RegionType, id: &str, user: &[Pattern]) -> bool {
         RegionType::ProgrammableFill => found(PatternKind::Fill),
         RegionType::MotifFill => found(PatternKind::Motif),
         RegionType::DecorativeFill => found(PatternKind::Decorative),
+        RegionType::Meander => found(PatternKind::Meander),
         RegionType::NetFill => patterns::NET_PATTERNS.iter().any(|n| n.id == id),
         RegionType::ZigzagNetFill => patterns::NET_PATTERNS[..patterns::ZIGZAG_NET_PATTERNS]
             .iter()
@@ -1262,7 +1263,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 IDS,
                 opt(
                     "type",
-                    "fill|satin|programmableFill|motifFill|piping|crossStitch|concentricCircle|radial|spiral|flexibleSpiral|stippling|netFill|zigzagNetFill|decorativeFill|contour|maze|none",
+                    "fill|satin|programmableFill|motifFill|piping|crossStitch|concentricCircle|radial|spiral|flexibleSpiral|stippling|netFill|zigzagNetFill|decorativeFill|contour|maze|meander|none",
                     "Region sew type",
                 ),
                 opt("color", "color", "Thread"),
@@ -1366,17 +1367,17 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "pattern",
                     "string",
-                    "Pattern id from patterns.list: fill (programmable fill), motif (motif fill), decorative, net (net / zigzag net fill)",
+                    "Pattern id from patterns.list: fill (programmable fill), motif (motif fill), decorative, meander (meander fill, default vermicelli), net (net / zigzag net fill)",
                 ),
                 opt(
                     "patternWidth",
                     "mm",
-                    "Pattern width; zigzag net: zigzag width, 0.5-50 (decorative fill 0.5-100)",
+                    "Pattern width; zigzag net: zigzag width; meander fill: tile width (default 8), 0.5-50 (decorative fill 0.5-100)",
                 ),
                 opt(
                     "patternHeight",
                     "mm",
-                    "Pattern height, 0.5-50 (decorative fill 0.5-100)",
+                    "Pattern height; meander fill: tile height, the distance between its rows (default 8), 0.5-50 (decorative fill 0.5-100)",
                 ),
                 opt(
                     "spacing",
@@ -2900,7 +2901,7 @@ fn text_commands() -> Vec<CommandSpec> {
     vec![
         spec(
             "patterns.list",
-            "Stitch patterns: motifs (motif line, motif fill), programmable fill tiles, decorative fill rows and net patterns",
+            "Stitch patterns: motifs (motif line, motif fill), programmable fill tiles, decorative fill rows, meander fill tiles and net patterns",
             Effect::Read,
             vec![],
             |s, _| {
@@ -2908,6 +2909,7 @@ fn text_commands() -> Vec<CommandSpec> {
                     PatternKind::Motif => "motif",
                     PatternKind::Fill => "fill",
                     PatternKind::Decorative => "decorative",
+                    PatternKind::Meander => "meander",
                 };
                 let mut out: Vec<Value> = patterns::library()
                     .iter()

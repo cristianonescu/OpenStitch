@@ -426,6 +426,9 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
   lines ([#461]).
 - (+) **Maze fill:** one path of straight corridors and square turns that never crosses itself
   ([#533]).
+- (+) **Meander fill:** 12 own quilting tiles (vermicelli, ribbon candy, clamshell, switchback,
+  Hilbert and more) chained into rows that never cross, or your own from the Stitch Creator
+  ([#533]).
 - (+) **No piled-up tiny stitches in fill slivers:** stitches under 0.5 mm in a thin sliver are
   joined ([#303]).
 - **Programmable Stitch Creator:** draw your own fill and stamp tiles, motifs and decorative-fill

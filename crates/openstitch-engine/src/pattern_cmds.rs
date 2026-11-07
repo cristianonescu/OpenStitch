@@ -18,6 +18,7 @@ pub(crate) fn kind_id(k: PatternKind) -> &'static str {
         PatternKind::Motif => "motif",
         PatternKind::Fill => "fill",
         PatternKind::Decorative => "decorative",
+        PatternKind::Meander => "meander",
     }
 }
 
@@ -26,7 +27,8 @@ fn kind_param(p: &Params) -> Result<PatternKind, CommandError> {
         "motif" => Ok(PatternKind::Motif),
         "fill" => Ok(PatternKind::Fill),
         "decorative" => Ok(PatternKind::Decorative),
-        _ => Err(p.invalid("kind", "must be motif, fill or decorative")),
+        "meander" => Ok(PatternKind::Meander),
+        _ => Err(p.invalid("kind", "must be motif, fill, decorative or meander")),
     }
 }
 
@@ -106,7 +108,7 @@ pub fn commands() -> Vec<CommandSpec> {
             "Remove a user pattern from the design (refused while objects use it)",
             Effect::Edit,
             vec![
-                req("kind", "motif|fill|decorative", "Pattern kind"),
+                req("kind", "motif|fill|decorative|meander", "Pattern kind"),
                 req("id", "string", "Pattern id"),
             ],
             |s, p| {
@@ -133,7 +135,7 @@ pub fn commands() -> Vec<CommandSpec> {
             "A pattern (user or bundled) as an openstitch.pattern document",
             Effect::Read,
             vec![
-                req("kind", "motif|fill|decorative", "Pattern kind"),
+                req("kind", "motif|fill|decorative|meander", "Pattern kind"),
                 req("id", "string", "Pattern id"),
             ],
             |s, p| {
@@ -200,7 +202,7 @@ pub fn commands() -> Vec<CommandSpec> {
             "Write a pattern (user or bundled) to an openstitch.pattern file",
             Effect::File,
             vec![
-                req("kind", "motif|fill|decorative", "Pattern kind"),
+                req("kind", "motif|fill|decorative|meander", "Pattern kind"),
                 req("id", "string", "Pattern id"),
                 req("path", "string", "Output file (.json)"),
             ],

@@ -26,10 +26,11 @@ pub const SNAP: f64 = 1.0 / 16.0;
 /// Most files read from the library folder.
 pub const MAX_LIBRARY_FILES: usize = 500;
 
-pub const KINDS: [(PatternKind, &str); 3] = [
+pub const KINDS: [(PatternKind, &str); 4] = [
     (PatternKind::Fill, "Fill / stamp tile"),
     (PatternKind::Motif, "Motif"),
     (PatternKind::Decorative, "Decorative fill"),
+    (PatternKind::Meander, "Meander fill (+)"),
 ];
 
 pub fn kind_name(k: PatternKind) -> &'static str {
@@ -37,6 +38,7 @@ pub fn kind_name(k: PatternKind) -> &'static str {
         PatternKind::Motif => "motif",
         PatternKind::Fill => "fill",
         PatternKind::Decorative => "decorative",
+        PatternKind::Meander => "meander",
     }
 }
 
@@ -69,6 +71,8 @@ impl Creator {
             PatternKind::Motif => vec![vec![v2(0.0, 0.0), v2(0.5, -0.8), v2(1.0, 0.0)]],
             PatternKind::Fill => vec![vec![v2(0.0, 0.5), v2(0.5, 0.0), v2(1.0, 0.5)]],
             PatternKind::Decorative => vec![vec![v2(0.0, 0.7), v2(0.5, 0.2), v2(1.0, 0.7)]],
+            // A meander tile must not touch the rows above and below: kept within 0.15-0.85.
+            PatternKind::Meander => vec![vec![v2(0.0, 0.15), v2(0.5, 0.85), v2(1.0, 0.15)]],
         };
         Creator {
             kind,
@@ -118,6 +122,11 @@ impl Creator {
         self.kind != PatternKind::Fill && (index == 0 || index + 1 == n)
     }
 
+    /// Motifs and meander tiles are one path.
+    pub fn single_path(&self) -> bool {
+        matches!(self.kind, PatternKind::Motif | PatternKind::Meander)
+    }
+
     fn point_count(&self) -> usize {
         self.paths.iter().map(Vec::len).sum()
     }
@@ -153,7 +162,7 @@ impl Creator {
         }
         match (anchor, kind) {
             (false, _) => pts[index] = q,
-            (true, PatternKind::Decorative) => {
+            (true, PatternKind::Decorative | PatternKind::Meander) => {
                 let last = pts.len() - 1;
                 pts[0].y = q.y;
                 pts[last].y = q.y;
@@ -178,7 +187,7 @@ impl Creator {
 
     /// Starts a new path (fill tiles and decorative rows; a motif is one path).
     pub fn new_path(&mut self) -> bool {
-        if self.kind == PatternKind::Motif || self.paths.len() >= patterns::MAX_PATHS {
+        if self.single_path() || self.paths.len() >= patterns::MAX_PATHS {
             return false;
         }
         let path = match self.kind {
@@ -202,7 +211,7 @@ impl Creator {
 
     /// Adds `path` as a new line and makes it current (Paste, Duplicate; not for a motif).
     pub fn paste_path(&mut self, path: &[Vec2]) -> bool {
-        if self.kind == PatternKind::Motif
+        if self.single_path()
             || path.len() < 2
             || self.paths.len() >= patterns::MAX_PATHS
             || self.point_count() + path.len() > MAX_POINTS
@@ -304,7 +313,9 @@ impl Creator {
                 .map(|p| p.iter().map(|q| json!([q.x, q.y])).collect::<Vec<_>>())
                 .collect::<Vec<_>>(),
         });
-        if self.kind == PatternKind::Decorative && self.row_shift != 0.0 {
+        if matches!(self.kind, PatternKind::Decorative | PatternKind::Meander)
+            && self.row_shift != 0.0
+        {
             doc["rowShift"] = json!(self.row_shift);
         }
         if self.kind == PatternKind::Fill && !self.regions.is_empty() {
@@ -401,6 +412,12 @@ impl Creator {
                 fill.pattern = Some(pattern.id.clone());
                 fill.pattern_width = Some(10.0);
                 fill.pattern_height = Some(8.0);
+                fill.run_pitch = Some(1.5);
+                d.add(DesignObject::shape(vec![rect], Some(fill), None));
+            }
+            PatternKind::Meander => {
+                let mut fill = RegionSewing::new(RegionType::Meander, thread);
+                fill.pattern = Some(pattern.id.clone());
                 fill.run_pitch = Some(1.5);
                 d.add(DesignObject::shape(vec![rect], Some(fill), None));
             }
@@ -822,7 +839,11 @@ mod tests {
                 assert!(same, "{kind:?}: twice restores it");
             }
             let pasted = c.paste_path(&before);
-            assert_eq!(pasted, kind != PatternKind::Motif, "{kind:?}");
+            assert_eq!(
+                pasted,
+                !matches!(kind, PatternKind::Motif | PatternKind::Meander),
+                "{kind:?}"
+            );
             assert!(c.pattern().is_ok());
         }
         let mut c = Creator::new(PatternKind::Motif);

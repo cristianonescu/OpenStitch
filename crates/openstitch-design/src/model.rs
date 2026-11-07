@@ -342,6 +342,7 @@ impl Design {
                             PatternKind::Fill => r.kind == RegionType::ProgrammableFill,
                             PatternKind::Motif => r.kind == RegionType::MotifFill,
                             PatternKind::Decorative => r.kind == RegionType::DecorativeFill,
+                            PatternKind::Meander => r.kind == RegionType::Meander,
                         }
                 });
                 let line = o.line.as_ref().is_some_and(|l| {
@@ -878,6 +879,9 @@ pub enum RegionType {
     /// Beyond PE-DESIGN (#533): one closed path that never crosses itself, long straight
     /// corridors with square turns, its passes a spacing apart (see `regions::stipple`).
     Maze,
+    /// Beyond PE-DESIGN (#533): a meander tile (`PatternKind::Meander`) chained into rows,
+    /// clipped to the region and joined along the outline.
+    Meander,
 }
 
 impl RegionType {
@@ -893,7 +897,7 @@ impl RegionType {
         }
     }
 
-    pub const ALL: [RegionType; 16] = [
+    pub const ALL: [RegionType; 17] = [
         RegionType::Fill,
         RegionType::Satin,
         RegionType::ProgrammableFill,
@@ -910,6 +914,7 @@ impl RegionType {
         RegionType::DecorativeFill,
         RegionType::Contour,
         RegionType::Maze,
+        RegionType::Meander,
     ];
 
     /// The JSON / command name (`"programmableFill"`).
@@ -931,6 +936,7 @@ impl RegionType {
             RegionType::DecorativeFill => "decorativeFill",
             RegionType::Contour => "contour",
             RegionType::Maze => "maze",
+            RegionType::Meander => "meander",
         }
     }
 
@@ -957,6 +963,7 @@ impl RegionType {
             RegionType::DecorativeFill => "Decorative fill",
             RegionType::Contour => "Contour fill",
             RegionType::Maze => "Maze fill",
+            RegionType::Meander => "Meander fill",
         }
     }
 }

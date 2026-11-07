@@ -386,6 +386,8 @@ fn add_pattern(
         PatternKind::Fill => ("pes-fill", "PES programmable fill"),
         PatternKind::Motif => ("pes-motif", "PES motif"),
         PatternKind::Decorative => ("pes-decorative", "PES decorative fill"),
+        // PES has no meander fill; no pattern of this kind is read from one.
+        PatternKind::Meander => ("pes-meander", "PES meander fill"),
     };
     let make = |id: String| -> Result<Pattern, String> {
         serde_json::from_value(json!({

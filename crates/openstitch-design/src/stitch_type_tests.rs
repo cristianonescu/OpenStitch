@@ -3829,3 +3829,117 @@ fn maze_fill_is_seeded_keeps_out_of_holes_and_leaves_stippling_as_it_was() {
     st.maze_seed = Some(3);
     assert_eq!(crate::region::layers(&c, &st, &[]), plain);
 }
+
+/// Proper crossings between non-adjacent stitches of `runs` (touching ends do not count).
+fn proper_crossings(runs: &[Run]) -> usize {
+    let segs: Vec<(Vec2, Vec2, usize, usize)> = runs
+        .iter()
+        .enumerate()
+        .flat_map(|(r, run)| {
+            run.windows(2)
+                .enumerate()
+                .map(move |(i, w)| (w[0], w[1], r, i))
+        })
+        .filter(|s| s.0.distance(s.1) > 1e-9)
+        .collect();
+    let cross = |o: Vec2, p: Vec2, q: Vec2| (p.x - o.x) * (q.y - o.y) - (p.y - o.y) * (q.x - o.x);
+    let mut n = 0;
+    for (k, &(a, b, ra, ia)) in segs.iter().enumerate() {
+        for &(c, d, rb, ib) in &segs[k + 1..] {
+            if ra == rb && ib <= ia + 1 {
+                continue;
+            }
+            let (d1, d2) = (cross(a, b, c), cross(a, b, d));
+            let (d3, d4) = (cross(c, d, a), cross(c, d, b));
+            if d1 * d2 < -1e-6 && d3 * d4 < -1e-6 {
+                n += 1;
+            }
+        }
+    }
+    n
+}
+
+#[test]
+fn meander_tiles_are_own_drawings_that_chain_without_crossing() {
+    use crate::patterns::{self, PatternKind};
+    let tiles: Vec<_> = patterns::library()
+        .iter()
+        .filter(|p| p.kind == PatternKind::Meander)
+        .collect();
+    assert!(tiles.len() >= 12, "{} meander tiles", tiles.len());
+    let mut ids: Vec<&str> = tiles.iter().map(|p| p.id.as_str()).collect();
+    ids.dedup();
+    assert_eq!(ids.len(), tiles.len());
+    assert_eq!(patterns::default_for(PatternKind::Meander).id, "vermicelli");
+    // A tile that crosses itself, touches the row above, or leaves the tile is refused.
+    let doc = |paths: &str, shift: f64| {
+        format!(
+            r#"{{"format":"openstitch.pattern","version":1,"kind":"meander","id":"t","name":"T","rowShift":{shift},"paths":{paths}}}"#
+        )
+    };
+    assert!(
+        patterns::parse(&doc(
+            "[[[0,0.5],[0.5,0.2],[0.5,0.8],[0.2,0.4],[1,0.5]]]",
+            0.0
+        ))
+        .is_err()
+    );
+    assert!(patterns::parse(&doc("[[[0,0.5],[0.5,0.0],[0.5,1.0],[1,0.5]]]", 0.0)).is_err());
+    assert!(patterns::parse(&doc("[[[0,0.5],[1,0.4]]]", 0.0)).is_err());
+    assert!(patterns::parse(&doc("[[[0,0.5],[0.5,0.8],[1,0.5]]]", 0.5)).is_ok());
+}
+
+#[test]
+fn meander_fill_sews_every_tile_inside_the_shape_without_crossing() {
+    use crate::patterns::{self, PatternKind};
+    // A 30 mm square with a 6 mm square hole (rectangle: x, y, width, height).
+    let c = vec![Contour::rectangle(100.0, 100.0, 300.0, 300.0)];
+    let hole = vec![Contour::rectangle(220.0, 220.0, 60.0, 60.0)];
+    for tile in patterns::library()
+        .iter()
+        .filter(|p| p.kind == PatternKind::Meander)
+    {
+        let mut r = region(RegionType::Meander);
+        r.pattern = Some(tile.id.clone());
+        r.angle = 0.0;
+        let layers = crate::region::layers(&c, &r, &hole);
+        let top = layers.last().expect("top");
+        let n: usize = top.iter().map(Vec::len).sum();
+        assert!(n > 50, "{}: {n} points", tile.id);
+        for p in top.iter().flatten() {
+            assert!(
+                crate::geometry::contains(*p, &[Contour::rectangle(99.0, 99.0, 302.0, 302.0)]),
+                "{}: {p:?} outside",
+                tile.id
+            );
+            assert!(
+                !crate::geometry::contains(*p, &[Contour::rectangle(222.0, 222.0, 56.0, 56.0)]),
+                "{}: {p:?} in the hole",
+                tile.id
+            );
+        }
+        assert_eq!(proper_crossings(top), 0, "{}: stitches cross", tile.id);
+        // No runs of tiny stitches (sew_check's "in place"): never two under 0.3 mm in a row.
+        for run in top {
+            for w in run.windows(3) {
+                assert!(
+                    w[0].distance(w[1]) >= 3.0 - 1e-9 || w[1].distance(w[2]) >= 3.0 - 1e-9,
+                    "{}: tiny stitches at {:?}",
+                    tile.id,
+                    w[1]
+                );
+            }
+        }
+        // The same settings sew the same stitches.
+        assert_eq!(
+            &crate::region::layers(&c, &r, &hole),
+            &layers,
+            "{}",
+            tile.id
+        );
+    }
+    // Unset fields are not saved; the pattern size defaults to 8 mm.
+    let r = region(RegionType::Meander);
+    assert_eq!(r.pattern_size_mm(), (8.0, 8.0));
+    assert_eq!(RegionType::from_id("meander"), Some(RegionType::Meander));
+}

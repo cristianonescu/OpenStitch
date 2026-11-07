@@ -397,6 +397,26 @@ Fills whose rows ripple as a sine, height and length in mm: 2 and 16, 3 and 10, 
 
 Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 208 Orange, 620 Magenta, 406 Ultra Marine.
 
+#### Meander fill tiles (1 of 2, beyond PE-DESIGN)
+
+[`fills/meander-tiles-1.pes`](fills/meander-tiles-1.pes) · 100 × 100 mm hoop · 86 × 56 mm · 3,511 stitches · 6 trims · about 4.7 min
+
+OpenStitch's own meander tiles at 8 mm: vermicelli (the default), ribbon candy, ripple (top row), clamshell, switchback, serpentine.
+
+<img src="previews/meander-tiles-1.png" height="180" alt="Realistic view of fills/meander-tiles-1.pes">
+
+Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 208 Orange, 620 Magenta, 406 Ultra Marine.
+
+#### Meander fill tiles (2 of 2, beyond PE-DESIGN)
+
+[`fills/meander-tiles-2.pes`](fills/meander-tiles-2.pes) · 100 × 100 mm hoop · 86 × 56 mm · 2,176 stitches · 6 trims · about 3 min
+
+Skyline, staircase, sawtooth (top row), jigsaw, Hilbert and fine Hilbert.
+
+<img src="previews/meander-tiles-2.png" height="180" alt="Realistic view of fills/meander-tiles-2.pes">
+
+Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 208 Orange, 620 Magenta, 406 Ultra Marine.
+
 #### Maze fill (beyond PE-DESIGN)
 
 [`fills/maze-fill.pes`](fills/maze-fill.pes) · 100 × 100 mm hoop · 83.4 × 54.6 mm · 1,080 stitches · 6 trims · about 1.7 min

@@ -887,6 +887,52 @@
   "preview": "previews/wave-fill.png",
   "sha256": "f6e3e9129dbe0bfd7e2e86c19f7ffae81d76e428ec774536647801b7207d444f"
  },
+ "fills/meander-tiles-1.pes": {
+  "title": "Meander fill tiles (1 of 2, beyond PE-DESIGN)",
+  "about": "OpenStitch's own meander tiles at 8 mm: vermicelli (the default), ribbon candy, ripple (top row), clamshell, switchback, serpentine.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   86.0,
+   56.0
+  ],
+  "stitches": 3511,
+  "trims": 6,
+  "threads": [
+   "405 Blue",
+   "800 Red",
+   "509 Leaf Green",
+   "208 Orange",
+   "620 Magenta",
+   "406 Ultra Marine"
+  ],
+  "sewingMinutes": 4.7,
+  "image": null,
+  "preview": "previews/meander-tiles-1.png",
+  "sha256": "04f4b4135be709872600083f4e5458028592720c8c7076984fd97f93e59ba599"
+ },
+ "fills/meander-tiles-2.pes": {
+  "title": "Meander fill tiles (2 of 2, beyond PE-DESIGN)",
+  "about": "Skyline, staircase, sawtooth (top row), jigsaw, Hilbert and fine Hilbert.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   86.0,
+   56.0
+  ],
+  "stitches": 2176,
+  "trims": 6,
+  "threads": [
+   "405 Blue",
+   "800 Red",
+   "509 Leaf Green",
+   "208 Orange",
+   "620 Magenta",
+   "406 Ultra Marine"
+  ],
+  "sewingMinutes": 3.0,
+  "image": null,
+  "preview": "previews/meander-tiles-2.png",
+  "sha256": "aeb1b045ca365b89a20c63e9a1075c7c63fb81e852a898bc3bfe5ba2eaf8571a"
+ },
  "fills/maze-fill.pes": {
   "title": "Maze fill (beyond PE-DESIGN)",
   "about": "One path of straight corridors and square turns that never crosses itself, 2 mm apart: straightness 70 % (default), 0 % and 95 % (top row), on a circle, another seed at 45°, and 3 mm spacing.",
