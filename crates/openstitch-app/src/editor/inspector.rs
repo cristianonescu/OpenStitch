@@ -167,6 +167,27 @@ fn num(
     }
 }
 
+/// A whole-number field (sent as an integer).
+fn whole(
+    label: &'static str,
+    key: &'static str,
+    param: &'static str,
+    value: u32,
+    range: (u32, u32),
+    suffix: &'static str,
+) -> Control {
+    Control::Number {
+        label,
+        key,
+        param,
+        value: f64::from(value),
+        range: (f64::from(range.0), f64::from(range.1)),
+        speed: 0.05,
+        suffix,
+        integer: true,
+    }
+}
+
 fn times(
     label: &'static str,
     key: &'static str,
@@ -742,15 +763,68 @@ fn region_type_controls(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> {
             v.push(choice(
                 "Stagger",
                 "stagger",
-                match r.stagger {
-                    openstitch_design::StaggerKind::Regular => "regular",
-                    openstitch_design::StaggerKind::Random => "random",
-                },
+                r.stagger.id(),
                 &[
                     ("regular", "Regular (Frequency)"),
-                    ("random", "Random (seeded)"),
+                    ("random", "Random (seeded) (+)"),
+                    ("steps", "Steps (+)"),
+                    ("wave", "Wave (+)"),
+                    ("triangle", "Triangle (+)"),
+                    ("arc", "Arc (+)"),
                 ],
             ));
+            // OpenStitch's named needle-hole textures (#537); "custom" when the settings
+            // match none of them.
+            let mut textures: Vec<(&str, &str)> = openstitch_design::FILL_TEXTURES
+                .iter()
+                .map(|t| (t.id, t.label))
+                .collect();
+            let texture = r.texture().map_or("custom", |t| t.id);
+            if texture == "custom" {
+                textures.push(("custom", "Custom"));
+            }
+            v.push(choice("Texture", "texture", texture, &textures));
+            match r.stagger {
+                openstitch_design::StaggerKind::Steps => {
+                    v.push(whole(
+                        "Steps",
+                        "region.staggerSteps",
+                        "staggerSteps",
+                        r.stagger_steps.unwrap_or(3),
+                        (1, 16),
+                        "",
+                    ));
+                    v.push(whole(
+                        "Rows each",
+                        "region.staggerRepeat",
+                        "staggerRepeat",
+                        r.stagger_repeat.unwrap_or(1),
+                        (1, 16),
+                        "",
+                    ));
+                }
+                openstitch_design::StaggerKind::Wave
+                | openstitch_design::StaggerKind::Triangle
+                | openstitch_design::StaggerKind::Arc => {
+                    v.push(percent(
+                        "Shift height",
+                        "region.staggerAmplitude",
+                        "staggerAmplitude",
+                        r.stagger_amplitude,
+                        50.0,
+                        100.0,
+                    ));
+                    v.push(whole(
+                        "Period",
+                        "region.staggerPeriod",
+                        "staggerPeriod",
+                        r.stagger_period.unwrap_or(8),
+                        (2, 64),
+                        " rows",
+                    ));
+                }
+                _ => {}
+            }
             v.push(choice(
                 "Stitch type",
                 "stitchType",

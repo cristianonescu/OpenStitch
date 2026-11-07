@@ -347,6 +347,26 @@ Fill at 45°, continuous gradation to 20 %, gradation pattern, feathered edges, 
 
 Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 208 Orange, 620 Magenta, 406 Ultra Marine, 086 Deep Rose, 019 Sky Blue, 058 Dark Brown.
 
+#### Tatami textures (1 of 2)
+
+[`fills/tatami-textures-1.pes`](fills/tatami-textures-1.pes) · 100 × 100 mm hoop · 86 × 86 mm · 9,460 stitches · 9 trims · about 12.3 min
+
+OpenStitch's named needle-hole textures on a plain fill at 0°, beyond PE-DESIGN except the first: smooth (PE-DESIGN's Frequency brick), ribs, brick, diagonal, steep diagonal, steps, stairs, blocks, scattered.
+
+<img src="previews/tatami-textures-1.png" height="180" alt="Realistic view of fills/tatami-textures-1.pes">
+
+Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 208 Orange, 620 Magenta, 406 Ultra Marine, 086 Deep Rose, 019 Sky Blue, 058 Dark Brown.
+
+#### Tatami textures (2 of 2)
+
+[`fills/tatami-textures-2.pes`](fills/tatami-textures-2.pes) · 100 × 100 mm hoop · 86 × 56 mm · 5,361 stitches · 5 trims · about 7 min
+
+Curved needle-hole textures, beyond PE-DESIGN: waves, ripples, zigzag, chevron, scallops.
+
+<img src="previews/tatami-textures-2.png" height="180" alt="Realistic view of fills/tatami-textures-2.pes">
+
+Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 208 Orange, 620 Magenta.
+
 #### Underlay styles
 
 [`fills/underlay-styles.pes`](fills/underlay-styles.pes) · 100 × 100 mm hoop · 86 × 86 mm · 8,855 stitches · 15 trims · about 11.8 min
