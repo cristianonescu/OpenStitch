@@ -91,7 +91,9 @@ shape would only be hidden).
 Beyond PE-DESIGN and off unless asked; each is one undo step.
 
 - Many trims between objects of one thread: `design.setTravelUnder {on: true}` sews a move that
-  a later fill will cover as hidden running stitches (it reports trims before and after).
+  a later fill will cover as hidden running stitches, round its corners where needed, or runs
+  along running lines of that thread already sewn (a line drawing whose strokes meet); it
+  reports trims before and after.
   `object.setConnector {ids, connector: run}` joins an object to the next of its thread with a
   visible running connector; tell the user about any in `longConnectors` (15 mm or more).
 - Stiff or bulky overlaps: `object.setHideUnder {ids, on: true, overlap: 1}` (or
