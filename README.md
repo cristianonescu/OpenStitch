@@ -276,6 +276,8 @@ feature is done and the rest is under [Planned](#planned).
   freezes ([#558]).
 - (+) **Several designs as tabs** in one window, each with its own undo, selection and zoom
   ([#552]).
+- (+) **Stitch Table:** every needle point of a stitch pattern with its exact position; type
+  coordinates, insert and delete points, each one undo step ([#501]).
 - (+) **Keyboard-only drawing:** arrow keys move a drawing cursor, Space places points, Return
   finishes; `[` and `]` or the scroll wheel set a satin line's width while drawing ([#499],
   [#707]).
@@ -690,6 +692,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#552]: https://github.com/cristianonescu/OpenStitch/issues/552
 [#707]: https://github.com/cristianonescu/OpenStitch/issues/707
 [#499]: https://github.com/cristianonescu/OpenStitch/issues/499
+[#501]: https://github.com/cristianonescu/OpenStitch/issues/501
 [#656]: https://github.com/cristianonescu/OpenStitch/issues/656
 [#499]: https://github.com/cristianonescu/OpenStitch/issues/499
 [#553]: https://github.com/cristianonescu/OpenStitch/issues/553
