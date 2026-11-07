@@ -208,6 +208,11 @@ straight, sewn as a plain fill and sheared back, so under sewing, stagger and tr
 and height 0 is the plain fill. The spacing across the rows stays within ±15 % (40° slope cap).
 The flow fill (rows following a picture's direction field) stays planned.
 
+Done 2026-11-07 (`batch:fills-2`, #533 maze part): maze fill, region type `maze`. It is the
+stippling walk with its spanning tree biased to run straight on (`straightness`, default 70 %) and
+its own `mazeSeed`, sewn with square turns: one path that never crosses itself, its passes a
+spacing apart. Stippling's output is unchanged. The tiled meander stays planned.
+
 Done 2026-11-07 (#614): cross stitch as PE-DESIGN 11.50 offers it. Its Sewing Attributes show
 only Size and Times (Single | Double | Triple) and no Direction (round 8 references), so
 OpenStitch hides Direction for it and ignores `angle`. `times` covers each diagonal 2, 4 or 6

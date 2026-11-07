@@ -1505,8 +1505,8 @@ mod tests {
             assert_eq!(o.shapes[0].region, code, "{kind:?}");
             assert!(o.shapes[0].decorative.is_none());
         }
-        // Motif fill and contour fill are refused with the reason.
-        for kind in [RegionType::MotifFill, RegionType::Contour] {
+        // Motif fill, contour fill and maze fill are refused with the reason.
+        for kind in [RegionType::MotifFill, RegionType::Contour, RegionType::Maze] {
             let mut design = Design::new("t", openstitch_design::DesignPage::default());
             design.add(DesignObject::shape(
                 vec![Contour::rectangle(200.0, 200.0, 300.0, 300.0)],
