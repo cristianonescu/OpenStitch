@@ -100,7 +100,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    double (raised X lattice); `jaggedEdge {mode: in|out|both, side, amount, seed}` (or just
    `"in"`; `"none"`/`null` removes it) for fur, grass and feathers; `spacingAt: 0.5` evens a
    curved column's density; `raised: true` (or `{laneSpacing, inset, stitchLength}`) pads
-   monograms and rims of 3 mm and wider (narrower ones return a `hints` entry). Read them back
+   monograms and rims of 3 mm and wider (narrower ones return a `hints` entry). The looks work
+   on every satin: Manual Punch columns, skeleton and Auto satin, fixed-direction satin
+   regions, satin text and zigzag lines (`spacingAt` on columns only). Read them back
    with `object.get`. Fix a Manual Punch column instead of redrawing it:
    `object.insertRung {id, at}`, `object.deleteRung {id, index}`, `object.moveRung {id, index,
    side: left|right, point}`, `object.swapSides {id}` and `object.untangle {id}`; a line pair

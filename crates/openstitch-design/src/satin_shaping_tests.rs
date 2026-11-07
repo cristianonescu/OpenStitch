@@ -329,3 +329,79 @@ fn auto_satin_sews_the_under_sewing_along_its_column() {
     ys.dedup_by(|a, b| (*a - *b).abs() < 2.0);
     assert!(ys.len() >= 3, "{ys:?}");
 }
+
+/// A fixed-direction satin region 30 × 8 mm, rows across its 8 mm (#685).
+fn fixed_satin(f: impl FnOnce(&mut RegionSewing)) -> Vec<Vec<Run>> {
+    let bar = Contour::new(
+        vec![v2(0.0, 0.0), v2(300.0, 0.0), v2(300.0, 80.0), v2(0.0, 80.0)],
+        true,
+    );
+    let mut r = RegionSewing::new(RegionType::Satin, RED);
+    r.angle = 90.0;
+    r.underlay = false;
+    f(&mut r);
+    crate::region::layers(std::slice::from_ref(&bar), &r, &[])
+}
+
+fn points(layers: &[Vec<Run>]) -> usize {
+    layers.iter().flatten().map(Vec::len).sum()
+}
+
+/// #685: the satin looks on a fixed-direction satin region: open rows three times as far
+/// apart, double sewn twice, S-stitch's three stitches a crossing, a jagged edge, raised
+/// padding under it. Unset, the region sews as before.
+#[test]
+fn fixed_satin_takes_the_satin_looks() {
+    use crate::column::{Jagged, JaggedMode, Raised, SatinStyle};
+    let plain = fixed_satin(|_| {});
+    assert_eq!(plain.len(), 1);
+    let n = points(&plain);
+    let with = |style: SatinStyle| fixed_satin(|r| r.satin_shaping.style = style);
+    let open = points(&with(SatinStyle::Open));
+    // Rows three times as far apart; the ties and the travel stay.
+    assert!(open * 2 < n && open * 4 > n, "open {open} of {n}");
+    let double = points(&with(SatinStyle::Double));
+    assert!(double > 17 * n / 10, "double {double} of {n}");
+    let s = points(&with(SatinStyle::SStitch));
+    assert!(s > 2 * n, "S-stitch {s} of {n}");
+    // A jagged edge pulled in stays inside the bar and moves its edge points.
+    let jagged = fixed_satin(|r| {
+        r.satin_shaping.jagged = Some(Jagged {
+            mode: JaggedMode::In,
+            ..Jagged::default()
+        });
+    });
+    assert_ne!(jagged, plain);
+    let inside = jagged
+        .iter()
+        .flatten()
+        .flatten()
+        .all(|p| (-1e-6..=300.0 + 1e-6).contains(&p.x) && (-1e-6..=80.0 + 1e-6).contains(&p.y));
+    assert!(inside, "jagged in stays inside");
+    // Raised: padding lanes under the satin, which is unchanged.
+    let raised = fixed_satin(|r| r.satin_shaping.raised = Some(Raised::default()));
+    assert_eq!(raised.len(), 2, "padding, then the satin");
+    assert!(raised[0].iter().map(Vec::len).sum::<usize>() > 20);
+    assert_eq!(raised[1], plain[0]);
+}
+
+/// #685: raised padding under a skeleton satin and an Auto satin region, the satin itself as
+/// before.
+#[test]
+fn skeleton_and_auto_satin_take_raised_padding() {
+    use crate::column::Raised;
+    let mut r = RegionSewing::new(RegionType::Satin, RED);
+    r.underlay = false;
+    r.skeleton = Some(taper());
+    let outline = crate::skeleton::outline(&taper()).expect("outline");
+    let closed = std::slice::from_ref(&outline);
+    let plain = crate::region::layers(closed, &r, &[]);
+    r.satin_shaping.raised = Some(Raised::default());
+    let raised = crate::region::layers(closed, &r, &[]);
+    assert_eq!(raised.len(), plain.len() + 1);
+    let pad = &raised[raised.len() - 2];
+    assert!(pad.iter().map(Vec::len).sum::<usize>() > 20);
+    let auto_plain = auto_satin(|_| {});
+    let auto_raised = auto_satin(|r| r.satin_shaping.raised = Some(Raised::default()));
+    assert_eq!(auto_raised.len(), auto_plain.len() + 1);
+}
