@@ -242,7 +242,7 @@ Helpers that need no model and send nothing anywhere:
 Write the SVG, then import it as editable shapes (fills become fill regions, strokes running
 lines, colours snapped to the Brother chart unless `exactColors: true`):
 
-1. `scratch_write` `{"name": "star.svg", "text": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40mm\" height=\"40mm\" viewBox=\"0 0 40 40\"><path d=\"M20 2 L38 38 L2 38 Z\" fill=\"#d81e05\"/></svg>"}` returns `{"path": ...}`.
+1. `scratch_write` `{"file": "star.svg", "text": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40mm\" height=\"40mm\" viewBox=\"0 0 40 40\"><path d=\"M20 2 L38 38 L2 38 Z\" fill=\"#d81e05\"/></svg>"}` returns `{"path": ...}`.
 2. Then:
 
 ```json
@@ -293,10 +293,48 @@ lines (it names them; `partial: true` imports the rest). `threads.exportPalette`
 ]}
 ```
 
-The extension picks the format (pes, pec, dst, exp, jef, pcs, sew, xxx, hus, vip). PES is
+The extension picks the format: pes, pec, dst, exp, jef, pcs, sew, xxx, hus, vip, shv, csd, vp3,
+tap, tbf, u01 (writing VP3, TAP, TBF and U01 is experimental; `formats.list` has them all). PES is
 version 6 by default (`pesVersion`: `1`, `1t`, `4`, `5`, `6`, `6t`, `7`, `8`, `9`, `10`, `11`;
 4, 5 and 7-10 are stitch data as PE-DESIGN saves them for older software, 4 without the RGB
 thread table), except for a design opened from a
 PE-DESIGN 11 (`#PES0110`) file, which is written back as `11` unless another version is asked
 for (what version 11 cannot hold yet is then written as 6, with a warning). The result reports
 `fitsPage` and the `smallestHoop`. `.osd` keeps everything editable in OpenStitch.
+
+More ways out of the design, each only when the user asks:
+
+```json
+{"steps": [
+  {"command": "design.exportPicture", "params": {"path": "badge.png", "size": 1024}},
+  {"command": "design.exportVideo", "params": {"path": "badge sewing.png", "fps": 10, "speed": 300}},
+  {"command": "design.exportBundle", "params": {"path": "badge.zip", "formats": ["pes", "dst", "jef"], "threadList": "csv", "picture": true}},
+  {"command": "design.export", "params": {"path": "badge x6.pes", "repeat": {"columns": 3, "rows": 2, "gapMm": 5}}},
+  {"command": "design.export", "params": {"path": "badge stitches.csv"}},
+  {"command": "design.export", "params": {"path": "badge.gcode", "gcode": {"feed": 6000}}}
+]}
+```
+
+- "Send me a picture": `design.exportPicture`. "A video of it sewing": `design.exportVideo` (an
+  animated PNG, no codec needed). "Zip it for my customer": `design.exportBundle`. "Show it on a
+  T-shirt": `design.mockup` (Files and formats in answers.md).
+- "Put 6 copies in the hoop": `repeat {columns, rows, gapMm}` on `design.export`; it is refused,
+  with the size it needs, when the copies don't fit, and the design itself is unchanged.
+  `framePark {xMm, yMm}` moves the frame there at every stop.
+- The stitch list (`.csv`, `.txt`) has every stitch record. G-code (`.gcode`) is **experimental**,
+  for DIY machines (`gcode {needle, trim, feed, profile}`): say so.
+
+Thread lists (when the user asks for the colours as a list, or has one to apply):
+
+```json
+{"steps": [
+  {"command": "design.exportThreads", "params": {"path": "badge threads.csv"}},
+  {"command": "design.applyThreads", "params": {"path": "colours.inf"}},
+  {"command": "design.export", "params": {"path": "badge.exp", "companionInf": true}}
+]}
+```
+
+`design.exportThreads` writes CSV, INF, EDR, COL or TXT by the extension. `design.applyThreads`
+gives the colour blocks, in sewing order, the list's colours (one undo step) and is refused when
+the counts differ: tell the user both counts. Bernina machines read an EXP's colours from the INF
+beside it: `companionInf: true`.

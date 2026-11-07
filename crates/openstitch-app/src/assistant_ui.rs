@@ -6,7 +6,7 @@
 use crate::app::EditorApp;
 use base64::Engine as _;
 use openstitch_app::editor::assistant::{
-    self, HELP_ITEMS, MAX_SCRATCH_BYTES, Route, SETTINGS, UI_COMMANDS,
+    self, EXPORT_MENU, HELP_ITEMS, MAX_SCRATCH_BYTES, Route, SETTINGS, UI_COMMANDS,
 };
 use openstitch_app::editor::prefs::Theme;
 use openstitch_app::editor::ribbon::Action;
@@ -1230,6 +1230,27 @@ mod tests {
                     );
                 }
             }
+        }
+        // File ▸ Export (#597, #598): every entry it draws is in EXPORT_MENU, every
+        // EXPORT_MENU label is drawn there, and every command exists.
+        let body = &src[src.find("fn export_menu").expect("export_menu")..];
+        let body = &body[..body.find("\npub fn menu(").expect("end of the export menu")];
+        for call in [".button(\"", ".menu_button(\""] {
+            for (i, _) in body.match_indices(call) {
+                let rest = &body[i + call.len()..];
+                let label = &rest[..rest.find('"').expect("closing quote")];
+                assert!(
+                    EXPORT_MENU.iter().any(|(l, _)| *l == label),
+                    "File ▸ Export: '{label}' is not in EXPORT_MENU"
+                );
+            }
+        }
+        for (label, command) in EXPORT_MENU {
+            assert!(
+                body.contains(&format!("\"{label}\"")),
+                "EXPORT_MENU lists '{label}', which File ▸ Export does not draw"
+            );
+            assert!(ids.contains(*command), "'{label}' runs {command}, not a command");
         }
     }
 

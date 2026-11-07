@@ -217,3 +217,66 @@ fn more_machine_formats_export_and_import_through_the_engine() {
         assert!(err.to_string().contains("read only"), "{err}");
     }
 }
+
+/// #595: the read-only ZXY and STX files open through `stitches.import` (the command the
+/// Assistant uses), every needle drop of the independent reader's oracle kept.
+#[test]
+fn zxy_and_stx_open_through_stitches_import() {
+    let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../openstitch-formats/tests/fixtures");
+    for ext in ["zxy", "stx"] {
+        let dir = temp_dir(&format!("import-{ext}"));
+        let name = format!("oracle.{ext}");
+        std::fs::copy(fixtures.join(&name), dir.join(&name)).expect("fixture");
+        let oracle: Value = serde_json::from_str(
+            &std::fs::read_to_string(fixtures.join(format!("oracle_{ext}_read.json")))
+                .expect("oracle"),
+        )
+        .expect("oracle json");
+        let want = oracle["stitches"]
+            .as_array()
+            .expect("stitches")
+            .iter()
+            .filter(|s| s[2] == "stitch")
+            .count();
+        let mut s = Session::new(&dir);
+        let r = run(&mut s, "stitches.import", json!({"path": name}));
+        let id = r["id"].as_u64().expect("id");
+        let d = s.design();
+        let block = d.objects[d.index_of(id).expect("object")]
+            .stitch_block
+            .as_ref()
+            .expect("a stitch block");
+        let got = block
+            .stitches
+            .iter()
+            .filter(|st| st.command == openstitch_core::Command::Stitch)
+            .count();
+        assert_eq!(got, want, "{ext}");
+    }
+}
+
+/// #596: `library.convert`'s format help names every format OpenStitch writes.
+#[cfg(feature = "library")]
+#[test]
+fn library_convert_help_names_every_writable_format() {
+    let s = Session::new(std::env::temp_dir());
+    let spec = s
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "library.convert")
+        .expect("library.convert");
+    let help = spec
+        .params
+        .iter()
+        .find(|p| p.name == "format")
+        .expect("format")
+        .summary;
+    for t in openstitch_formats::FileType::writable() {
+        assert!(
+            help.contains(t.extension()),
+            "{} missing from: {help}",
+            t.extension()
+        );
+    }
+}
