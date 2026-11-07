@@ -86,6 +86,19 @@ stitch, as one group. `output: "add"` keeps the shape and puts the appliqué aro
 `patterns: "last"` after the covering stitch, on top of the fabric (use `replace` when the
 shape would only be hidden).
 
+## Fewer trims and less bulk
+
+Beyond PE-DESIGN and off unless asked; each is one undo step.
+
+- Many trims between objects of one thread: `design.setTravelUnder {on: true}` sews a move that
+  a later fill will cover as hidden running stitches (it reports trims before and after).
+  `object.setConnector {ids, connector: run}` joins an object to the next of its thread with a
+  visible running connector; tell the user about any in `longConnectors` (15 mm or more).
+- Stiff or bulky overlaps: `object.setHideUnder {ids, on: true, overlap: 1}` (or
+  `design.setRemoveHidden {on: true}` for every shape) leaves out the stitching later fills and
+  satins hide, keeping 1 mm under their edges; the shapes stay whole. It reports
+  `stitchesSaved`.
+
 ## Floated fabric, appliqué stops and machines without a cutter
 
 All beyond PE-DESIGN and off unless asked; each is one undo step.
@@ -165,9 +178,50 @@ Auto Punch also returns a `plan`: every traced region with its `region` number, 
 
 Regions are numbered by the run's own options, so keep every other option the same between the
 dry run and the conversion. Thin lines and outlines can only be skipped. In OpenStitch mode
-`angleRule: "varyNeighbours"` turns touching fills at least 20° apart so fitted panels read as
-separate pieces; parts under 1 mm wide (ropes, whiskers) are sewn as running lines, and a
+`angleRule: "varyNeighbours"` turns a fill of 20 mm² or more away from a touching fill as
+large that runs within 20° of it, so fitted panels read as separate pieces, and `angleRule: "leastTravel"` lays each fill of 10 mm² or more the way
+(every 15°) that sews the least thread, so the least travel between its sections; parts under
+1 mm wide (ropes, whiskers) are sewn as running lines, a region whose stitches would all fall
+within 0.8 mm is left out as a speck (`reason: "speck"`; an override can still sew it), and a
 white, cream or off-white paper background is left out as the fabric showing.
+
+`order: ["#rrggbb", ...]` sews those colours first (the plan's `color` values; the others
+follow brightest first). Region numbers follow the sewing order, so dry-run again after
+changing it before you send `overrides`; colours a run does not sew come back in
+`orderIgnored`. `regionMap: true` adds the region under each cell of a small grid
+(`{width, height, runs: [[region, count], ...]}`, -1 for none), to name the region under a
+point the user means ("the hat" at the top left).
+
+The image dialog (Design ▸ Image to Embroidery, Auto Punch) does the same with buttons:
+Preview regions (a dry run), a Regions table where each row's Stitch can be changed, Fix on
+the picture (click a part to leave it out or put it back), a Colour order list and a Preset
+row; Convert then sends the choices as `overrides`, `order` and `preset`.
+
+A purpose `preset` sets several Auto Punch options at once, only those the call leaves unset,
+and implies OpenStitch mode: `logo`, `patch` (background sewn too), `lineArt`, `illustration`,
+`photo`, `pixelArt`. `digitize.presets` lists each one's options. Name the preset from what the
+user says the picture is for ("a patch for my jacket" → `patch`).
+
+`digitize.exportOutlines` takes the same parameters plus `out` (an `.svg` file) and saves the
+traced regions as SVG paths in their thread colours, in mm, without changing the design; give it
+to another program, or bring it back with `import.svg` (one object per region). It writes a file,
+so the editor asks the user first.
+
+`underlap` (OpenStitch mode, mm, 0.8 is typical) makes each fill reach under the touching
+colour sewn after it, so no fabric shows along seams; it adds stitches, so leave it off for
+thin lettering.
+
+Helpers that need no model and send nothing anywhere:
+- **Cut out the subject with one click.** `digitize.segment` `{path, point: [x, y]}` (fractions
+  of the picture: `[0.5, 0.5]` is its centre) returns the subject's `box` and `share`, and with
+  `out` writes the mask as a PNG. Convert with Auto Punch's `isolateSubject: true,
+  subjectPoint: [x, y]`: the background is learnt from the border and only the part holding
+  the click is sewn. Add `subjectStrokes` / `backgroundStrokes` when it takes too much or too
+  little.
+- **Line drawing from a photo.** `lines: "edges"` on `digitize.lineImage`, `digitize.figure`
+  or `digitize.designCenter` traces the photo's edges instead of its dark pixels
+  (`edgeStrength` 1-100, default 20: lower keeps fainter edges). Sew it with
+  `digitize.designCenter` `{lines: "edges", regionSew: "none"}` for redwork.
 
 ## SVG artwork
 

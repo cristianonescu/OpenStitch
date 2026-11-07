@@ -2,6 +2,7 @@
 //! in `panes.rs`.
 
 use crate::app::EditorApp;
+use crate::pickers_ui::{self, Sample, Tile};
 use eframe::egui::{self, Color32, RichText, Sense};
 use openstitch_app::editor::inspector::{self, Common, Control, InspectorModel};
 use openstitch_app::editor::render::color_at;
@@ -211,10 +212,23 @@ pub fn pec_grid(ui: &mut egui::Ui, id: &str, current: Option<&Thread>) -> Option
     let mut chosen = None;
     let index = current.and_then(inspector::pec_index);
     ui.label(RichText::new("Brother PEC thread chart").strong());
+    // Search by chart number, code or name (#486), matched as `threads.find` matches.
+    let search_id = ui.make_persistent_id(("pec-search", id));
+    let mut query: String = ui.data_mut(|d| d.get_temp(search_id)).unwrap_or_default();
+    ui.add(
+        egui::TextEdit::singleline(&mut query)
+            .hint_text("Search number or name")
+            .desired_width(8.0 * 23.0),
+    );
+    ui.data_mut(|d| d.insert_temp(search_id, query.clone()));
+    let shown = pec_matches(&query);
+    if shown.is_empty() {
+        ui.label(RichText::new("No thread in this chart matches.").weak());
+    }
     egui::Grid::new(("pec", id))
         .spacing(egui::vec2(3.0, 3.0))
         .show(ui, |ui| {
-            for (n, (i, t)) in inspector::pec_palette().into_iter().enumerate() {
+            for (n, (i, t)) in shown.into_iter().enumerate() {
                 let tip = format!("{i} {} ({})", t.name.as_deref().unwrap_or(""), t.hex());
                 let r = swatch(ui, [t.red, t.green, t.blue], 20.0).on_hover_text(tip);
                 if Some(i) == index && current.is_some_and(|c| c.name.is_some()) {
@@ -235,6 +249,27 @@ pub fn pec_grid(ui: &mut egui::Ui, id: &str, current: Option<&Thread>) -> Option
             }
         });
     chosen
+}
+
+/// The PEC chart's threads matching a search: all of them for an empty query, otherwise those
+/// whose chart number starts with it and those `threads.find {charts: ["brother"]}` finds (by
+/// Brother Embroidery code or name, the engine's own entries for the chart).
+pub fn pec_matches(query: &str) -> Vec<(usize, &'static Thread)> {
+    let q = query.trim();
+    if q.is_empty() {
+        return inspector::pec_palette();
+    }
+    let found: Vec<usize> = openstitch_engine::thread_match::builtins()
+        .into_iter()
+        .filter(|b| b.id == "brother")
+        .flat_map(|b| b.entries)
+        .filter(|(_, t)| openstitch_engine::thread_match::find_rank(t, q).is_some())
+        .map(|(i, _)| i)
+        .collect();
+    inspector::pec_palette()
+        .into_iter()
+        .filter(|(i, _)| i.to_string().starts_with(q) || found.contains(i))
+        .collect()
 }
 
 /// PEC chart picker: returns the chart number chosen.
@@ -581,13 +616,18 @@ pub fn region_section(
         .show(ui, |ui| {
             if show(&["Region sewing type", "regionType"]) {
                 ui.label("Type");
-                if let Some(k) = kind_combo::<Option<RegionType>>(
-                    ui,
-                    "region-type",
-                    &m.region_kind,
-                    &inspector::region_types(),
-                    true,
-                ) {
+                let picked = if app.ui.prefs.picture_pickers {
+                    region_type_picker(app, ui, m)
+                } else {
+                    kind_combo::<Option<RegionType>>(
+                        ui,
+                        "region-type",
+                        &m.region_kind,
+                        &inspector::region_types(),
+                        true,
+                    )
+                };
+                if let Some(k) = picked {
                     out.push(m.set_region_type(k));
                 }
                 ui.end_row();
@@ -618,6 +658,15 @@ pub fn region_section(
                     || !c.shown(&filter)
                     || !(app.ui.prefs.advanced_attributes || c.basic())
                 {
+                    continue;
+                }
+                if app.ui.prefs.picture_pickers
+                    && let Some(v) = pattern_picker(app, ui, &c, r.kind, m)
+                {
+                    out.push(m.set_region(c.params(json!(v))));
+                    continue;
+                }
+                if app.ui.prefs.picture_pickers && c.param() == "pattern" {
                     continue;
                 }
                 if let Some(v) = control(app, ui, &c) {
@@ -692,13 +741,18 @@ pub fn line_section(
         .show(ui, |ui| {
             if show(&["Line sewing type", "lineType"]) {
                 ui.label("Type");
-                if let Some(k) = kind_combo::<Option<LineType>>(
-                    ui,
-                    "line-type",
-                    &m.line_kind,
-                    &inspector::line_types(),
-                    true,
-                ) {
+                let picked = if app.ui.prefs.picture_pickers {
+                    line_type_picker(app, ui, m)
+                } else {
+                    kind_combo::<Option<LineType>>(
+                        ui,
+                        "line-type",
+                        &m.line_kind,
+                        &inspector::line_types(),
+                        true,
+                    )
+                };
+                if let Some(k) = picked {
                     out.push(m.set_line_type(k));
                 }
                 ui.end_row();
@@ -721,11 +775,138 @@ pub fn line_section(
                 if !c.shown(&filter) || !(app.ui.prefs.advanced_attributes || c.basic()) {
                     continue;
                 }
+                if app.ui.prefs.picture_pickers && c.param() == "motif" {
+                    if let Some(v) = motif_picker(app, ui, &c, m) {
+                        out.push(m.set_line(c.params(json!(v))));
+                    }
+                    continue;
+                }
                 if let Some(v) = control(app, ui, &c) {
                     out.push(m.set_line(c.params(v)));
                 }
             }
         });
+}
+
+/// Region sewing type as pictures (#656): each type's stitches on a sample shape.
+fn region_type_picker(
+    app: &mut EditorApp,
+    ui: &mut egui::Ui,
+    m: &InspectorModel,
+) -> Option<Option<RegionType>> {
+    let types = inspector::region_types();
+    let current = match &m.region_kind {
+        Common::Same(k) => inspector::region_name(*k).to_string(),
+        _ => String::new(),
+    };
+    let tiles: Vec<Tile> = types
+        .iter()
+        .map(|&(k, label)| Tile {
+            value: inspector::region_name(k).to_string(),
+            label: label.to_string(),
+            sample: Sample::Region(json!({ "type": inspector::region_name(k) })),
+        })
+        .collect();
+    let v = pickers_ui::picker(app, ui, "region-type", &current, &tiles, &|v| {
+        m.set_region(json!({ "type": v }))
+    })?;
+    types
+        .into_iter()
+        .find(|&(k, _)| inspector::region_name(k) == v)
+        .map(|(k, _)| k)
+}
+
+/// Line sewing type as pictures (#656).
+fn line_type_picker(
+    app: &mut EditorApp,
+    ui: &mut egui::Ui,
+    m: &InspectorModel,
+) -> Option<Option<LineType>> {
+    let types = inspector::line_types();
+    let current = match &m.line_kind {
+        Common::Same(k) => inspector::line_name(*k).to_string(),
+        _ => String::new(),
+    };
+    let tiles: Vec<Tile> = types
+        .iter()
+        .map(|&(k, label)| Tile {
+            value: inspector::line_name(k).to_string(),
+            label: label.to_string(),
+            sample: Sample::Line(json!({ "type": inspector::line_name(k) })),
+        })
+        .collect();
+    let v = pickers_ui::picker(app, ui, "line-type", &current, &tiles, &|v| {
+        m.set_line(json!({ "type": v }))
+    })?;
+    types
+        .into_iter()
+        .find(|&(k, _)| inspector::line_name(k) == v)
+        .map(|(k, _)| k)
+}
+
+/// A programmable fill or net pattern as pictures (#656): one grid row, the new pattern id.
+fn pattern_picker(
+    app: &mut EditorApp,
+    ui: &mut egui::Ui,
+    c: &Control,
+    kind: RegionType,
+    m: &InspectorModel,
+) -> Option<String> {
+    let Control::Choice {
+        label,
+        param: "pattern",
+        value,
+        options,
+    } = c
+    else {
+        return None;
+    };
+    ui.label(*label);
+    let tiles: Vec<Tile> = options
+        .iter()
+        .map(|(v, l)| Tile {
+            value: v.clone(),
+            label: l.clone(),
+            sample: Sample::Region(json!({ "type": kind.id(), "pattern": v })),
+        })
+        .collect();
+    let picked = pickers_ui::picker(app, ui, "region-pattern", value, &tiles, &|v| {
+        m.set_region(json!({ "pattern": v }))
+    });
+    ui.end_row();
+    picked
+}
+
+/// A motif as pictures (#656).
+fn motif_picker(
+    app: &mut EditorApp,
+    ui: &mut egui::Ui,
+    c: &Control,
+    m: &InspectorModel,
+) -> Option<String> {
+    let Control::Choice {
+        label,
+        value,
+        options,
+        ..
+    } = c
+    else {
+        return None;
+    };
+    ui.label(*label);
+    let tiles: Vec<Tile> = options
+        .iter()
+        .map(|(v, l)| Tile {
+            value: v.clone(),
+            label: l.clone(),
+            sample: Sample::Line(json!({ "type": LineType::Motif.id(), "motif": v })),
+        })
+        .collect();
+    let picked = pickers_ui::picker(app, ui, "line-motif", value, &tiles, &|v| {
+        m.set_line(json!({ "motif": v }))
+    });
+    ui.end_row();
+    picked
 }
 
 /// Shows one attribute control (label and widget, one grid row); returns a new value.
@@ -1046,4 +1227,39 @@ fn player_strip(app: &mut EditorApp, ui: &mut egui::Ui) {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod pec_search_tests {
+    use super::*;
+
+    #[test]
+    fn pec_picker_search_finds_threads_by_number_or_name() {
+        assert_eq!(pec_matches("").len(), inspector::pec_palette().len());
+        let rose = pec_matches("deep rose");
+        assert!(!rose.is_empty());
+        assert!(rose.iter().all(|(_, t)| {
+            t.name
+                .as_deref()
+                .unwrap_or("")
+                .to_lowercase()
+                .contains("deep rose")
+        }));
+        // A chart number finds its own thread, and so does its Brother Embroidery code, as
+        // `threads.find {charts: ["brother"]}` does.
+        let (i, _) = rose[0];
+        assert!(pec_matches(&i.to_string()).iter().any(|(j, _)| *j == i));
+        let brother = openstitch_engine::thread_match::builtins()
+            .into_iter()
+            .find(|b| b.id == "brother")
+            .expect("the Brother chart");
+        let (_, entry) = brother
+            .entries
+            .iter()
+            .find(|(j, _)| *j == i)
+            .expect("entry");
+        let code = entry.catalog_number.as_deref().expect("a code");
+        assert!(pec_matches(code).iter().any(|(j, _)| *j == i));
+        assert!(pec_matches("no such thread").is_empty());
+    }
 }

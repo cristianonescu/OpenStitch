@@ -118,6 +118,30 @@ impl Session {
         Ok(())
     }
 
+    /// A session with this one's design, folders, sandbox, capabilities and user settings but
+    /// no history, for a worker thread (#558): it runs a slow open or import while this one
+    /// stays usable. It never saves user settings.
+    pub fn fork(&self) -> Session {
+        let mut s = Session::new(self.state.base_dir.clone());
+        s.state = self.state.clone();
+        s
+    }
+
+    /// Makes `design` (from a [`Session::fork`]) the current design as one undo step; `false`
+    /// when it equals the current one and nothing was recorded.
+    pub fn adopt_design(&mut self, design: Design) -> bool {
+        if design == self.state.design {
+            return false;
+        }
+        self.undo
+            .push(std::mem::replace(&mut self.state.design, design));
+        if self.undo.len() > HISTORY_LIMIT {
+            self.undo.remove(0);
+        }
+        self.redo.clear();
+        true
+    }
+
     pub fn user_settings(&self) -> &crate::user::UserSettings {
         &self.state.user
     }
@@ -129,6 +153,24 @@ impl Session {
 
     pub fn capabilities(&self) -> Capabilities {
         self.state.capabilities
+    }
+
+    /// Another document beside this one (#552, a tab): an empty design and its own history,
+    /// with this session's folders, sandbox, capabilities and user settings (saved to the same
+    /// file).
+    pub fn sibling(&self) -> Session {
+        let mut s = Session::new(self.state.base_dir.clone());
+        s.state.sandbox = self.state.sandbox.clone();
+        s.state.capabilities = self.state.capabilities;
+        s.state.user = self.state.user.clone();
+        s.user_path = self.user_path.clone();
+        s
+    }
+
+    /// Takes `other`'s user settings (attribute sets, thread charts), so a document switched
+    /// to sees changes made while another was active.
+    pub fn copy_user_settings(&mut self, other: &Session) {
+        self.state.user = other.state.user.clone();
     }
 
     /// The commands this session's client may run.

@@ -6,13 +6,14 @@ use crate::app::EditorApp;
 use eframe::egui;
 use openstitch_app::editor::CommandRequest;
 use openstitch_app::editor::wizard::{
-    ImageWizard, LINE_SEWS, MARK_WIDTHS, Mark, Method, REGION_SEWS, image_fraction,
-    min_area_default, satin_default,
+    ImageWizard, LINE_SEWS, MARK_WIDTHS, Mark, Method, PRESETS, REGION_SEWS, REGION_TYPES,
+    image_fraction, min_area_default, satin_default,
 };
 
 pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
     let mut open = app.wizard.open;
     let mut convert = false;
+    let mut preview = false;
     // The user's thread charts, for the Threads and "I own" choices.
     let charts: Vec<String> = app
         .session
@@ -277,6 +278,10 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
                     ui.end_row();
                 }
             });
+            if w.method == Method::AutoPunch {
+                ui.separator();
+                preview = regions_section(ui, w);
+            }
             ui.separator();
             ui.weak("Approximations of PE-DESIGN's wizards; results are editable and one Undo.");
             ui.add_enabled_ui(w.path.is_some(), |ui| {
@@ -285,9 +290,274 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
         });
     app.wizard.open = open;
     marking_window(app, ctx);
+    fixing_window(app, ctx);
+    if preview {
+        run_preview(app);
+    }
     if convert {
         run(app);
     }
+}
+
+/// Auto Punch's preview (#489): the conversion as a dry run; its regions fill the table and
+/// the click-to-fix picture. Nothing is added to the design.
+pub fn run_preview(app: &mut EditorApp) {
+    let Some(request) = app.wizard.preview_request() else {
+        return;
+    };
+    if let Some(result) = app.execute(&request) {
+        app.wizard.set_plan(&result);
+        let n = app.wizard.plan.as_ref().map_or(0, |p| p.regions.len());
+        app.status = format!("Auto Punch preview: {n} regions");
+    }
+}
+
+/// An egui colour from `#rrggbb`.
+fn hex_colour(hex: &str) -> egui::Color32 {
+    let v = u32::from_str_radix(hex.trim_start_matches('#'), 16).unwrap_or(0);
+    egui::Color32::from_rgb((v >> 16) as u8, (v >> 8) as u8, v as u8)
+}
+
+/// A colour sample: the hex value on its own colour.
+fn colour_text(hex: &str) -> egui::RichText {
+    let c = hex_colour(hex);
+    let light = u32::from(c.r()) + u32::from(c.g()) + u32::from(c.b()) > 380;
+    egui::RichText::new(hex)
+        .monospace()
+        .background_color(c)
+        .color(if light {
+            egui::Color32::BLACK
+        } else {
+            egui::Color32::WHITE
+        })
+}
+
+/// Auto Punch's regions (#489): Preview, the table of regions with the stitch each got and
+/// why, where any row can be changed, the "review" note, click-to-fix and the colour order.
+/// Returns whether Preview was pressed.
+fn regions_section(ui: &mut egui::Ui, w: &mut ImageWizard) -> bool {
+    let mut preview = false;
+    ui.horizontal(|ui| {
+        ui.add_enabled_ui(w.path.is_some(), |ui| {
+            preview = ui
+                .button(if w.plan.is_some() {
+                    "Preview again"
+                } else {
+                    "Preview regions"
+                })
+                .on_hover_text(
+                    "Traces the picture without adding anything: every region with the stitch \
+                     it gets and why, to change before Convert.",
+                )
+                .clicked();
+        });
+        let can_fix = w.plan.as_ref().is_some_and(|p| p.map_size.0 > 0) && w.plan_current();
+        ui.add_enabled_ui(can_fix, |ui| {
+            if ui
+                .button("Fix on the picture…")
+                .on_hover_text("Click a part of the picture to leave it out or put it back.")
+                .clicked()
+            {
+                w.fixing = true;
+            }
+        });
+    });
+    if w.plan.is_none() {
+        return preview;
+    }
+    if !w.plan_current() {
+        ui.weak("The settings changed: preview again to use the table.");
+        return preview;
+    }
+    if let Some(note) = w.review_note() {
+        ui.colored_label(ui.visuals().warn_fg_color, note);
+    }
+    let regions = w
+        .plan
+        .as_ref()
+        .map(|p| p.regions.clone())
+        .unwrap_or_default();
+    egui::CollapsingHeader::new(format!("Regions ({})", regions.len()))
+        .default_open(true)
+        .show(ui, |ui| {
+            egui::ScrollArea::vertical()
+                .max_height(220.0)
+                .show(ui, |ui| {
+                    egui::Grid::new("wizardRegions")
+                        .num_columns(5)
+                        .striped(true)
+                        .show(ui, |ui| {
+                            for h in ["Region", "Colour", "Size", "Stitch", "Why"] {
+                                ui.strong(h);
+                            }
+                            ui.end_row();
+                            for r in &regions {
+                                ui.label(format!("{}", r.id));
+                                ui.label(colour_text(&r.color)).on_hover_text(&r.thread);
+                                // Lines (thin lines, outlines) have no width or area of their own.
+                                let line = r.width_mm <= 0.0;
+                                ui.label(if !line {
+                                    format!("{:.1} mm, {:.0} mm²", r.width_mm, r.area_mm2)
+                                } else {
+                                    "line".to_string()
+                                });
+                                let mut kind: &'static str =
+                                    w.overrides.get(&r.id).copied().unwrap_or("auto");
+                                let shown = if kind == "auto" {
+                                    format!("auto ({})", r.kind)
+                                } else {
+                                    kind.to_string()
+                                };
+                                // Lines (thin lines, outlines) can only be left out.
+                                let choices: &[&'static str] = if !line {
+                                    &REGION_TYPES
+                                } else {
+                                    &["auto", "skip"]
+                                };
+                                egui::ComboBox::from_id_salt(("wizardRegion", r.id))
+                                    .selected_text(shown)
+                                    .show_ui(ui, |ui| {
+                                        for c in choices {
+                                            ui.selectable_value(&mut kind, c, *c);
+                                        }
+                                    });
+                                w.set_region(r.id, kind);
+                                ui.weak(&r.why);
+                                ui.end_row();
+                            }
+                        });
+                });
+        });
+    let colours = w.colour_order();
+    if colours.len() > 1 {
+        egui::CollapsingHeader::new("Colour order").show(ui, |ui| {
+            let mut moved = None;
+            for (i, c) in colours.iter().enumerate() {
+                ui.horizontal(|ui| {
+                    ui.label(format!("{}.", i + 1));
+                    ui.label(colour_text(c));
+                    if ui
+                        .add_enabled(i > 0, egui::Button::new("Earlier"))
+                        .clicked()
+                    {
+                        moved = Some((i, true));
+                    }
+                    if ui
+                        .add_enabled(i + 1 < colours.len(), egui::Button::new("Later"))
+                        .clicked()
+                    {
+                        moved = Some((i, false));
+                    }
+                });
+            }
+            if let Some((i, earlier)) = moved {
+                w.move_colour(i, earlier);
+            }
+            ui.weak("Region numbers follow the sewing order: preview again after a change.");
+            if !w.order.is_empty() && ui.button("PE-DESIGN's order").clicked() {
+                w.order.clear();
+            }
+        });
+    }
+    preview
+}
+
+/// Click-to-fix (#489): the picture tinted by each region's stitch (fill blue, satin orange,
+/// line green, left out dimmed); a click flips the region under it between sewn and left out.
+fn fixing_window(app: &mut EditorApp, ctx: &egui::Context) {
+    let w = &mut app.wizard;
+    if !(w.open && w.fixing && w.method == Method::AutoPunch && w.plan_current()) {
+        w.fixing = false;
+        return;
+    }
+    let Some(path) = w.path.clone() else {
+        w.fixing = false;
+        return;
+    };
+    if app.wizard_preview.as_ref().is_none_or(|p| p.0 != path) {
+        app.wizard_preview = crate::creator_ui::load_image(&path, ctx, "wizard-marking")
+            .ok()
+            .map(|(size, t)| (path.clone(), size, t));
+    }
+    // The tint, rebuilt when the plan or the choices change.
+    let w = &app.wizard;
+    let Some(plan) = &w.plan else {
+        return;
+    };
+    let (mw, mh) = plan.map_size;
+    let key = {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        plan.map.hash(&mut h);
+        format!("{:?}", w.overrides).hash(&mut h);
+        h.finish()
+    };
+    let id = egui::Id::unique("wizardFixTint");
+    let cached: Option<(u64, egui::TextureHandle)> = ctx.data(|d| d.get_temp(id));
+    let tint = match cached {
+        Some((k, t)) if k == key => t,
+        _ => {
+            let pixels: Vec<egui::Color32> = plan
+                .map
+                .iter()
+                .map(|&r| match usize::try_from(r).map(|r| w.region_kind(r)) {
+                    Ok("fill") => egui::Color32::from_rgba_unmultiplied(40, 110, 230, 90),
+                    Ok("satin") => egui::Color32::from_rgba_unmultiplied(240, 140, 30, 110),
+                    Ok("line") => egui::Color32::from_rgba_unmultiplied(40, 180, 70, 110),
+                    Ok("skip") => egui::Color32::from_rgba_unmultiplied(255, 255, 255, 200),
+                    _ => egui::Color32::TRANSPARENT,
+                })
+                .collect();
+            let image = egui::ColorImage {
+                size: [mw.max(1), mh.max(1)],
+                pixels,
+                source_size: egui::vec2(mw as f32, mh as f32),
+            };
+            let t = ctx.load_texture("wizard-fix-tint", image, egui::TextureOptions::NEAREST);
+            ctx.data_mut(|d| d.insert_temp(id, (key, t.clone())));
+            t
+        }
+    };
+    let mut open = true;
+    let mut clicked = None;
+    egui::Window::new("Fix on the picture")
+        .open(&mut open)
+        .resizable(false)
+        .show(ctx, |ui| {
+            let Some((_, (iw, ih), texture)) = &app.wizard_preview else {
+                ui.label("The image could not be read.");
+                return;
+            };
+            let scale = 480.0 / (*iw).max(*ih).max(1) as f32;
+            let size = egui::vec2(*iw as f32 * scale, *ih as f32 * scale);
+            let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
+            let painter = ui.painter_at(rect);
+            let uv = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
+            painter.image(texture.id(), rect, uv, egui::Color32::WHITE);
+            painter.image(tint.id(), rect, uv, egui::Color32::WHITE);
+            if response.clicked()
+                && let Some(f) = response
+                    .interact_pointer_pos()
+                    .and_then(|p| image_fraction([p.x, p.y], rect.min.into(), size.into()))
+            {
+                clicked = Some(f);
+            }
+            if let Some(f) = response
+                .hover_pos()
+                .and_then(|p| image_fraction([p.x, p.y], rect.min.into(), size.into()))
+                && let Some(r) = app.wizard.region_at(f)
+            {
+                response.on_hover_text(format!("Region {r}: {}", app.wizard.region_kind(r)));
+            }
+            ui.weak(
+                "Blue fill, orange satin, green line, pale: left out. Click a part to leave it \
+                 out or put it back; the Regions table changes with it.",
+            );
+        });
+    if let Some(f) = clicked {
+        app.wizard.toggle_at(f);
+    }
+    app.wizard.fixing = open;
 }
 
 /// Auto Punch's subject marking (#350): the chosen image, on which the user brushes parts that
@@ -386,10 +656,32 @@ fn marking_window(app: &mut EditorApp, ctx: &egui::Context) {
 fn open_stitch_rows(ui: &mut egui::Ui, w: &mut ImageWizard) {
     match w.method {
         Method::AutoPunch => {
+            ui.label("Preset");
+            let label = |p: Option<&str>| {
+                PRESETS
+                    .iter()
+                    .find(|k| Some(k.0) == p)
+                    .map_or("None", |k| k.1)
+            };
+            egui::ComboBox::from_id_salt("wizardPreset")
+                .selected_text(label(w.preset))
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut w.preset, None, "None");
+                    for (key, name) in PRESETS {
+                        ui.selectable_value(&mut w.preset, Some(key), name);
+                    }
+                })
+                .response
+                .on_hover_text(
+                    "Sets several options at once for what the picture is for; options you set \
+                     yourself here still win.",
+                );
+            ui.end_row();
             ui.label("");
             ui.checkbox(&mut w.vary_angles, "Vary angles of touching fills")
                 .on_hover_text(
-                    "Each fill turned in 30° steps until it is at least 20° from the fills it                      touches, so fitted panels read apart.",
+                    "A fill within 20° of a touching fill sewn before it (both at least 20 mm²) is \
+                     turned as far from it as it can be, so fitted panels read apart.",
                 );
             ui.end_row();
         }

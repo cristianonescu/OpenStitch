@@ -1230,14 +1230,18 @@ separated by spaces or commas, in any case:
 | `run`, `triple`, `zigzag` | line sew type |
 | `skip` | the shape is not imported |
 | `stroke.satin` / `stroke.zigzag`, `stroke.run`, `stroke.triple`, `stroke.skip` | the outline's sew type; `stroke.skip` drops the outline |
-| `a=` | fill angle, degrees |
-| `s=` / `d=` | row spacing in mm / density in rows per mm |
-| `l=` | stitch length (region) or run pitch (line), mm |
-| `pc=` | pull compensation, mm |
-| `u=0` / `u=1` | underlay off / on |
-| `c=` | colour, `#rrggbb` or a Brother thread name |
-| `w=` | line width (satin line, zigzag), mm |
-| `r=` | running passes, 1–5 (`run r=3`: triple run) |
+| `a=` (`angle=`, `direction=`) | fill angle, degrees |
+| `s=` (`spacing=`, `rowSpacing=`) / `d=` (`density=`) | row spacing in mm / density in rows per mm |
+| `l=` (`length=`, `stitchLength=`, `pitch=`) | stitch length (region) or run pitch (line), mm |
+| `pc=` (`pull=`, `pullCompensation=`) | pull compensation, mm |
+| `u=0` / `u=1` (`underlay=off` / `underlay=on`) | underlay off / on |
+| `c=` (`color=`, `colour=`) | colour, `#rrggbb` or a Brother thread name |
+| `w=` (`width=`) | line width (satin line, zigzag), mm |
+| `r=` (`repeats=`, `runs=`, `runTimes=`, `passes=`) | running passes, 1–5 (`run r=3`: triple run) |
+
+The long key names in brackets mean the same as the short ones (#455), in any case:
+`fill angle=45 density=4.5`, `stroke.satin stroke.width=3` and `run length=2.5 repeats=3` are
+`fill a=45 d=4.5`, `stroke.satin stroke.w=3` and `run l=2.5 r=3`.
 
 `l=`, `d=` and `c=` belong to the region when the shape has a fill and to the line otherwise;
 the `stroke.` prefix (`stroke.w=3`) always means the line. A name with no recognised word (an
@@ -1247,7 +1251,7 @@ result (`settings.unknown`), and values the sewing commands refuse (`object.setR
 (`settings.invalid`); the other settings still apply. With `settings: true` a dashed stroke
 (`stroke-dasharray`, `stroke-dashoffset`) becomes one running line per dash, and
 `paint-order: stroke` makes the outline its own object, sewn before the fill. Ink/Stitch's own
-`inkstitch:` attributes are not read.
+`inkstitch:` attributes are not read (an idea for later, #661).
 
 **WMF / EMF** (`import.metafile`, engine module `metafile`, #321): OpenStitch's own record
 player, in safe Rust with no platform APIs and no new dependency (`wmf-core`/`emf-core` were
@@ -1284,6 +1288,11 @@ BMP through `openstitch-digitize`'s decoder (32 MB file, 8192 px side, 16 Mpx). 
 stores the absolute path, pixel size, placement (0.1 mm), opacity and visibility
 (`Design.background`, omitted from `.osd` when absent); the image itself is not embedded and
 is never sewn. The editor draws it behind the stitches.
+
+**Job fields** (`design.setJob`, #513): customer, order, due date, notes, fabric and stabiliser
+are stored in the project as `Design.job` (camelCase keys, each omitted while empty, the whole
+field omitted when there is no job) for the job sheets `design.print` writes. No machine format
+carries them: every export ignores the field.
 
 **Clipboard** (editor File ▸ Background Image ▸ Paste from Clipboard): the image is read with
 `arboard` 3.7 (MIT OR Apache-2.0, the clipboard crate eframe already uses), checked against the

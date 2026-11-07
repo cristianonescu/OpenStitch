@@ -212,7 +212,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     },
     UiCommand {
         id: "ui.help",
-        summary: "Help menu: with no item, lists the items; with one, opens it (manual, ready-to-sew designs, keyboard shortcuts, About)",
+        summary: "Help menu: with no item, lists the items; with one, opens it (manual, ready-to-sew designs, keyboard shortcuts, About). sewKit replies with the packaged kit's folder it showed in the file manager, or the GitHub url it opened instead",
         effect: Effect::Read,
         params: &[p(
             "item",
@@ -366,6 +366,51 @@ pub const UI_COMMANDS: &[UiCommand] = &[
                 false,
                 "Show or hide the Getting Started page",
             ),
+        ],
+    },
+    UiCommand {
+        id: "ui.documents",
+        summary: "Designs open as tabs (#552): list them (index, name, unsaved, file, active), activate one, open an empty one, or close one. Commands act on the active tab. Closing a tab with unsaved changes is refused: save it first or ask the user",
+        effect: Effect::Edit,
+        params: &[
+            p(
+                "op",
+                "list|activate|new|close",
+                false,
+                "list (default), activate, new or close",
+            ),
+            p(
+                "index",
+                "int",
+                false,
+                "Tab index from the list (activate; close: default the active tab)",
+            ),
+        ],
+    },
+    UiCommand {
+        id: "ui.loading",
+        summary: "A File ▸ Open or Import running in the background (#558): file, open or import, stage and seconds, or running: false. cancel: true stops it; the design stays as it was and no undo step is recorded",
+        effect: Effect::Edit,
+        params: &[p(
+            "cancel",
+            "bool",
+            false,
+            "true: stop the running open or import",
+        )],
+    },
+    UiCommand {
+        id: "ui.preview",
+        summary: "Preview a design change on the canvas without making it (#656, as hovering a picture picker's tile does): command and params of an editing command (e.g. object.setRegion with a type or pattern) show its stitches instead of the design's, with no undo step; clear: true ends it, any edit drops it; without parameters, whether a preview is on. Run the command itself to keep the change",
+        effect: Effect::Edit,
+        params: &[
+            p(
+                "command",
+                "string",
+                false,
+                "An editing command id, e.g. object.setRegion",
+            ),
+            p("params", "object", false, "Its parameters"),
+            p("clear", "bool", false, "true: end the preview"),
         ],
     },
     UiCommand {
@@ -545,6 +590,12 @@ pub const SETTINGS: &[Setting] = &[
         "number 1..5000",
     ),
     s("autosave", "Autosave for crash recovery", "bool"),
+    s(
+        "picturePickers",
+        "Picture pickers with live preview",
+        "bool",
+    ),
+    s("openInTabs", "Open designs in tabs", "bool"),
     s(
         "autosaveInterval",
         "Autosave: at most this many seconds between snapshots while editing",

@@ -142,8 +142,18 @@ fn number_value(name: &str, v: &Value, lo: f64, hi: f64) -> Result<f64, String> 
 }
 
 impl EditorApp {
-    /// Runs one `ui.*` command; `Err` is the message for the client.
+    /// Runs one `ui.*` command; `Err` is the message for the client. An open it starts (a
+    /// sample, a recent file) is waited for, so the client sees the opened design (#558).
     pub(crate) fn ui_command(&mut self, id: &str, params: Option<&Value>) -> Result<Value, String> {
+        let running = self.open_job.is_some();
+        let out = self.ui_command_now(id, params);
+        if !running && self.open_job.is_some() {
+            self.finish_job_blocking();
+        }
+        out
+    }
+
+    fn ui_command_now(&mut self, id: &str, params: Option<&Value>) -> Result<Value, String> {
         let spec = assistant::ui_command(id).ok_or_else(|| format!("unknown command '{id}'"))?;
         if !permitted(spec.effect, self.session.capabilities()) {
             return Err(format!("'{id}' is not permitted for this client"));
@@ -254,14 +264,13 @@ impl EditorApp {
                     trim_marks: self.ui.prefs.show.trim_marks,
                 };
                 let show = preview::show_args(params.unwrap_or(&Value::Null), defaults)?;
-                let png = preview::png_shown(
-                    self.session.design(),
-                    &self.pattern,
-                    &self.quality.spans,
-                    size,
-                    travel,
-                    &show,
-                )?;
+                // A picture picker's or ui.preview's stitches while one is shown (#656).
+                let (pattern, spans) = match self.live_preview() {
+                    Some(p) => (&p.compiled.pattern, &p.compiled.spans),
+                    None => (&self.pattern, &self.quality.spans),
+                };
+                let png =
+                    preview::png_shown(self.session.design(), pattern, spans, size, travel, &show)?;
                 let (width, height) = png_size(&png);
                 Ok(json!({
                     "png": base64::engine::general_purpose::STANDARD.encode(&png),
@@ -327,12 +336,17 @@ impl EditorApp {
                             Some("https://github.com/cristianonescu/OpenStitch#readme".into())
                     }
                     "sewKit" => {
-                        let kit = std::env::current_exe()
-                            .ok()
-                            .and_then(|e| sew_kit::bundled(&e));
-                        if kit.is_none_or(|k| sew_kit::open_folder(&k).is_err()) {
-                            self.assistant.open_url = Some(sew_kit::ONLINE.into());
-                        }
+                        // The same as the menu item: the packaged kit's folder, else GitHub.
+                        let exe = std::env::current_exe().ok();
+                        return Ok(match sew_kit::open_kit(exe.as_deref()) {
+                            sew_kit::Opened::Folder(kit) => {
+                                json!({ "opened": item, "folder": kit.to_string_lossy() })
+                            }
+                            sew_kit::Opened::Online => {
+                                self.assistant.open_url = Some(sew_kit::ONLINE.into());
+                                json!({ "opened": item, "url": sew_kit::ONLINE })
+                            }
+                        });
                     }
                     "sewKitOnline" => self.assistant.open_url = Some(sew_kit::ONLINE.into()),
                     "shortcuts" => self.ui.shortcuts_open = true,
@@ -381,6 +395,29 @@ impl EditorApp {
                         .collect(),
                 ))
             }
+            "ui.documents" => {
+                let index = match params.and_then(|v| v.get("index")) {
+                    None | Some(Value::Null) => None,
+                    Some(v) => Some(
+                        v.as_u64()
+                            .and_then(|n| usize::try_from(n).ok())
+                            .ok_or("index takes a tab number from ui.documents")?,
+                    ),
+                };
+                self.documents_command(opt_str(params, "op").unwrap_or("list"), index)
+            }
+            "ui.loading" => {
+                let state = self
+                    .open_job
+                    .as_ref()
+                    .map_or_else(|| json!({ "running": false }), |j| j.describe());
+                if p.bool("cancel", Some(false)).map_err(err)? {
+                    let cancelled = self.cancel_job();
+                    return Ok(json!({ "cancelled": cancelled, "was": state }));
+                }
+                Ok(state)
+            }
+            "ui.preview" => self.preview_command(params),
             "ui.recoveryList" => Ok(crate::recovery_ui::list(self)),
             "ui.recoveryRestore" => {
                 let id = p.string("id", None).map_err(err)?;
@@ -499,6 +536,8 @@ impl EditorApp {
         json!({
             "file": self.path.as_ref().map(|p| p.display().to_string()),
             "unsaved": self.is_dirty(),
+            "documents": self.tab_count(),
+            "loading": self.open_job.as_ref().map(crate::open_job::OpenJob::describe),
             "selection": self.selection,
             "tool": format!("{:?}", self.tools.tool()),
             "zoomPercent": self.zoom_percent(),
@@ -595,6 +634,8 @@ impl EditorApp {
                 "soloColor" => json!(prefs.show.solo),
                 "simulatorSpeed" => json!(self.play_speed),
                 "autosave" => json!(prefs.autosave),
+                "picturePickers" => json!(prefs.picture_pickers),
+                "openInTabs" => json!(prefs.open_in_tabs),
                 "autosaveInterval" => json!(prefs.autosave_interval),
                 "propertySearch" => json!(self.ui.property_search),
                 other => unreachable!("setting {other} has no value"),
@@ -794,6 +835,8 @@ impl EditorApp {
                 (self.play_speed, save) = (number_value(name, v, 1.0, 5000.0)?, false)
             }
             "autosave" => self.ui.prefs.autosave = bool_value(name, v)?,
+            "picturePickers" => self.ui.prefs.picture_pickers = bool_value(name, v)?,
+            "openInTabs" => self.ui.prefs.open_in_tabs = bool_value(name, v)?,
             "autosaveInterval" => {
                 use openstitch_app::editor::recovery::{MAX_INTERVAL, MIN_INTERVAL};
                 self.ui.prefs.autosave_interval = number_value(name, v, MIN_INTERVAL, MAX_INTERVAL)?
@@ -1517,6 +1560,20 @@ mod tests {
         app.ui_command("ui.help", Some(&json!({ "item": "manual" })))
             .expect("manual");
         assert!(app.assistant.open_url.is_some());
+        // The test binary has no packaged kit beside it: the reply names the GitHub page the
+        // editor opens instead (#319).
+        app.assistant.open_url = None;
+        let reply = app
+            .ui_command("ui.help", Some(&json!({ "item": "sewKit" })))
+            .expect("sewKit");
+        assert_eq!(
+            reply,
+            json!({ "opened": "sewKit", "url": openstitch_app::editor::sew_kit::ONLINE })
+        );
+        assert_eq!(
+            app.assistant.open_url.as_deref(),
+            Some(openstitch_app::editor::sew_kit::ONLINE)
+        );
 
         assert!(
             app.ui_command(

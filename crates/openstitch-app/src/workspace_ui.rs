@@ -383,6 +383,22 @@ fn production_settings(app: &EditorApp, ui: &mut egui::Ui, requests: &mut Vec<Co
             json!({ "autoStart": rule.id() }),
         ));
     }
+    let mut under = p.travel_under;
+    if ui
+        .checkbox(&mut under, "Travel under later fills")
+        .on_hover_text("A move to an object of the same thread that a later fill will cover is sewn as short running stitches under it instead of a jump and trim")
+        .changed()
+    {
+        requests.push(CommandRequest::new("design.setTravelUnder", json!({ "on": under })));
+    }
+    let mut hidden = p.remove_hidden.is_some();
+    if ui
+        .checkbox(&mut hidden, "Leave out hidden stitching (1 mm overlap)")
+        .on_hover_text("Shapes skip the stitching later fills and satins cover, keeping 1 mm under their edges; the shapes are not cut")
+        .changed()
+    {
+        requests.push(CommandRequest::new("design.setRemoveHidden", json!({ "on": hidden })));
+    }
 }
 
 /// PE-DESIGN's Design Settings: machine type, hoop, rotation, custom size, user hoops, sewing

@@ -528,37 +528,44 @@ pub fn v_stitch(path: &[Vec2], e: &StrokeLine) -> Run {
 /// `offset` in from the line's ends), then across and back the same way on the left side;
 /// stitches split evenly at no more than `pitch`. Empty when the line is too short.
 pub fn zigzag_underlay(path: &[Vec2], offset: f64, pitch: f64) -> Run {
-    let w = Walker::new(path);
-    let len = w.length();
-    if path.len() < 2 || len <= 2.0 * offset {
+    let (Some(mut run), Some(mut back)) = (
+        underlay_side(path, offset, offset, pitch),
+        underlay_side(path, offset, -offset, pitch),
+    ) else {
         return Vec::new();
-    }
-    let side = |d: f64| -> Vec<Vec2> {
-        let mut pts = vec![w.at(offset) + normal(w.tangent(offset)) * d];
-        let mut s = 0.0;
-        for i in 1..path.len() - 1 {
-            s += path[i - 1].distance(path[i]);
-            if s <= offset || s >= len - offset {
-                continue;
-            }
-            let (n1, n2) = (normal(w.tangent(s - 1e-3)), normal(w.tangent(s + 1e-3)));
-            let k = 1.0 + (n1.x * n2.x + n1.y * n2.y);
-            // A mitre longer than twice the offset (a turn over 120 degrees: a heart's cusp,
-            // a star's point) would spike far out of the column (#466): bevelled instead.
-            if k >= 0.5 {
-                pts.push(path[i] + (n1 + n2) * (d / k));
-            } else {
-                pts.extend([path[i] + n1 * d, path[i] + n2 * d]);
-            }
-        }
-        pts.push(w.at(len - offset) + normal(w.tangent(len - offset)) * d);
-        subdivide(&pts, pitch)
     };
-    let mut run = side(offset);
-    let mut back = side(-offset);
     back.reverse();
     extend(&mut run, back);
     run
+}
+
+/// One run of [`zigzag_underlay`], `d` to the right of the line, from `offset` in from its
+/// start to `offset` in from its end; `None` when the line is too short.
+fn underlay_side(path: &[Vec2], offset: f64, d: f64, pitch: f64) -> Option<Vec<Vec2>> {
+    let w = Walker::new(path);
+    let len = w.length();
+    if path.len() < 2 || len <= 2.0 * offset {
+        return None;
+    }
+    let mut pts = vec![w.at(offset) + normal(w.tangent(offset)) * d];
+    let mut s = 0.0;
+    for i in 1..path.len() - 1 {
+        s += path[i - 1].distance(path[i]);
+        if s <= offset || s >= len - offset {
+            continue;
+        }
+        let (n1, n2) = (normal(w.tangent(s - 1e-3)), normal(w.tangent(s + 1e-3)));
+        let k = 1.0 + (n1.x * n2.x + n1.y * n2.y);
+        // A mitre longer than twice the offset (a turn over 120 degrees: a heart's cusp,
+        // a star's point) would spike far out of the column (#466): bevelled instead.
+        if k >= 0.5 {
+            pts.push(path[i] + (n1 + n2) * (d / k));
+        } else {
+            pts.extend([path[i] + n1 * d, path[i] + n2 * d]);
+        }
+    }
+    pts.push(w.at(len - offset) + normal(w.tangent(len - offset)) * d);
+    Some(subdivide(&pts, pitch))
 }
 
 /// Chain stitch. Triangles, as PE-DESIGN 11.50 sews them (line-chain-default.pes): on every
@@ -948,6 +955,12 @@ pub fn zigzag_half(path: &[Vec2], width: f64, spacing: f64) -> Run {
 /// the same. It starts on the left rail at the line's start and ends with a stitch exactly at
 /// the line's end.
 pub fn zigzag_rails(path: &[Vec2], width: f64, spacing: f64) -> Run {
+    zigzag_rails_sided(path, [width / 2.0; 2], spacing)
+}
+
+/// [`zigzag_rails`] with the left and right rail `half[0]` and `half[1]` from the line
+/// (compensation per side, #522).
+pub fn zigzag_rails_sided(path: &[Vec2], half: [f64; 2], spacing: f64) -> Run {
     let pts: Vec<Vec2> = {
         let mut v: Vec<Vec2> = Vec::new();
         for &p in path {
@@ -960,13 +973,14 @@ pub fn zigzag_rails(path: &[Vec2], width: f64, spacing: f64) -> Run {
     if pts.len() < 2 || spacing.is_nan() || spacing <= 0.0 {
         return pts;
     }
-    let h = width / 2.0;
+    let side_h = |sign: f64| if sign < 0.0 { half[0] } else { half[1] };
     let dir = |i: usize| {
         let d = pts[i + 1] - pts[i];
         d * (1.0 / pts[i].distance(pts[i + 1]))
     };
     // Rail point at vertex `i` on side `sign` (+1 right, −1 left).
     let rail = |i: usize, sign: f64| -> Vec2 {
+        let h = side_h(sign);
         let n = if i == 0 {
             normal(dir(0))
         } else if i == pts.len() - 1 {
@@ -1023,6 +1037,195 @@ pub fn zigzag_rails(path: &[Vec2], width: f64, spacing: f64) -> Run {
         }
     }
     run
+}
+
+/// The rungs [left, right] of a zigzag line `width` wide at the vertices of `path`, its rails
+/// mitred at the corners as in [`zigzag_rails`].
+fn vertex_rungs(path: &[Vec2], width: f64) -> Vec<[Vec2; 2]> {
+    let mut pts: Vec<Vec2> = Vec::new();
+    for &p in path {
+        if pts.last().is_none_or(|l| l.distance(p) > 1e-9) {
+            pts.push(p);
+        }
+    }
+    let h = width / 2.0;
+    let dir = |i: usize| (pts[i + 1] - pts[i]) * (1.0 / pts[i].distance(pts[i + 1]));
+    (0..pts.len())
+        .map(|i| {
+            let n = if pts.len() < 2 {
+                v2(0.0, 0.0)
+            } else if i == 0 {
+                normal(dir(0))
+            } else if i == pts.len() - 1 {
+                normal(dir(i - 1))
+            } else {
+                let (a, b) = (normal(dir(i - 1)), normal(dir(i)));
+                let k = 1.0 + (a.x * b.x + a.y * b.y);
+                if k < 1e-6 { a } else { (a + b) * (1.0 / k) }
+            };
+            [pts[i] - n * h, pts[i] + n * h]
+        })
+        .collect()
+}
+
+/// A zigzag line with OpenStitch's satin shaping (#520-#522, see
+/// [`crate::column::SatinShaping`]): with turned corners PE-DESIGN's [`zigzag_rails`] with each
+/// rail moved out by its side's compensation; with corner styles, the line's mitred rungs sewn
+/// through [`crate::column::zigzag_with`]; then short stitches. A curved line (`half_stitch`
+/// is `Some`) keeps PE-DESIGN's curve zigzag ([`zigzag_half`] with Half Stitch) unless it is
+/// compensated, and is folded back where it crosses itself ([`unfold_zigzag`]).
+pub fn zigzag_shaped(
+    path: &[Vec2],
+    width: f64,
+    spacing: f64,
+    shaping: &crate::column::SatinShaping,
+    half_stitch: Option<bool>,
+) -> Run {
+    let curved = half_stitch.is_some();
+    if path.len() < 2 || spacing.is_nan() || spacing <= 0.0 {
+        return path.to_vec();
+    }
+    // A closed line with corner styles starts halfway along its first side, so its first
+    // vertex can be a corner too.
+    // A line with no corner sharp enough for a mitre or cap keeps PE-DESIGN's zigzag.
+    let rotated: Vec<Vec2>;
+    let turned = shaping.corners.style == crate::column::CornerStyle::Turn
+        || !crate::column::has_corners(&vertex_rungs(path, width), spacing, &shaping.corners);
+    let path = if !turned && path.len() > 3 && path[0].distance(path[path.len() - 1]) < 1e-9 {
+        let m = path[0].lerp(path[1], 0.5);
+        rotated = std::iter::once(m)
+            .chain(path[1..].iter().copied())
+            .chain(std::iter::once(m))
+            .collect();
+        &rotated[..]
+    } else {
+        path
+    };
+    let mut run = if turned {
+        let [l, r] = shaping.compensation.sides(0.0, width);
+        let plain = l == 0.0 && r == 0.0;
+        let open = if shaping.style == crate::column::SatinStyle::Open {
+            3.0
+        } else {
+            1.0
+        };
+        let mut run = if half_stitch == Some(true) && plain {
+            zigzag_half(path, width, spacing * open)
+        } else {
+            zigzag_rails_sided(path, [width / 2.0 + l, width / 2.0 + r], spacing * open)
+        };
+        // Folds undone before the styles add points off the edges.
+        if curved {
+            unfold_zigzag(path, &mut run, width);
+        }
+        crate::column::finish(vec![(run, true)], shaping)
+    } else {
+        let rungs = vertex_rungs(path, width);
+        if rungs.len() < 2 {
+            return path.to_vec();
+        }
+        crate::column::zigzag_with(&rungs, spacing, shaping)
+    };
+    // Raised satin (#531): the padding lanes first, ending where the zigzag starts.
+    if let Some(raised) = &shaping.raised {
+        let mut pad = crate::column::padding(&vertex_rungs(path, width), raised);
+        if pad.len() > 1 {
+            pad.extend(run);
+            run = pad;
+        }
+    }
+    run
+}
+
+/// A satin line (#524): a satin column along `path` (0.1 mm) whose width follows the line's
+/// width keys, tapers and slant ([`crate::skeleton::SatinLine`]), with its satin shaping. With
+/// one width all along, square to the line and no shaping, it is the skeleton satin of that
+/// width ([`crate::skeleton::satin`]).
+pub fn satin_line(path: &[Vec2], line: &crate::model::LineSewing) -> Run {
+    let spacing = 10.0 / line.density.max(0.1);
+    let sl = crate::skeleton::SatinLine {
+        width: line.width,
+        keys: line.width_keys.clone(),
+        taper: [
+            line.taper_start.unwrap_or(0.0),
+            line.taper_end.unwrap_or(0.0),
+        ],
+        slant: line.slant.unwrap_or(0.0),
+    };
+    let shaping = &line.satin_shaping;
+    if sl.is_uniform() && shaping.is_plain() {
+        let skeleton = crate::skeleton::Skeleton {
+            points: path.to_vec(),
+            widths: vec![sl.uniform_width(); path.len()],
+        };
+        return crate::skeleton::satin(&skeleton, spacing, 0.0);
+    }
+    // Rungs every 1 mm carry the width; the stitches are placed between them.
+    let rungs = crate::skeleton::satin_line_rungs(path, &sl, 10.0);
+    if rungs.len() < 2 {
+        return Vec::new();
+    }
+    let mut run = crate::column::zigzag_with(&rungs, spacing, shaping);
+    if let Some(raised) = &shaping.raised {
+        let mut pad = crate::column::padding(&rungs, raised);
+        if pad.len() > 1 {
+            pad.extend(run);
+            run = pad;
+        }
+    }
+    run
+}
+
+/// The widest a satin line gets, mm: its width or its widest key.
+pub fn satin_line_width(line: &crate::model::LineSewing) -> f64 {
+    line.width_keys
+        .iter()
+        .map(|k| k.left + k.right)
+        .fold(line.width, f64::max)
+}
+
+/// The under sewing of a zigzag line `width` wide (#523): `edge` is PE-DESIGN's
+/// [`zigzag_underlay`]; `centreWalk` a running stitch along the line and back; `edgeZigzag`
+/// the right-hand edge run out and a zigzag between the edge runs back; `auto` one of them by
+/// the width (see [`crate::column::AutoUnderlay`]). Other styles sew as `edge`.
+pub fn line_underlay(
+    path: &[Vec2],
+    width: f64,
+    pitch: f64,
+    style: crate::model::UnderlayStyle,
+    auto: &crate::column::AutoUnderlay,
+) -> Run {
+    use crate::model::UnderlayStyle as U;
+    let offset = width / 4.0;
+    let style = if style == U::Auto {
+        auto.style(width / 10.0)
+    } else {
+        style
+    };
+    match style {
+        U::CentreWalk => {
+            let mut run = subdivide(path, pitch);
+            let mut back = run.clone();
+            back.reverse();
+            extend(&mut run, back);
+            run
+        }
+        U::EdgeZigzag => {
+            // The right-hand run out, then back in a zigzag 2 mm apart between the two runs.
+            let Some(mut run) = underlay_side(path, offset, offset, pitch) else {
+                return Vec::new();
+            };
+            let w = Walker::new(path);
+            let mut rev = w.slice(offset, w.length() - offset);
+            rev.reverse();
+            extend(
+                &mut run,
+                subdivide(&zigzag_rails(&rev, 2.0 * offset, 20.0), pitch),
+            );
+            run
+        }
+        _ => zigzag_underlay(path, offset, pitch),
+    }
 }
 
 /// A zigzag needle point closer to the line than this share of its half width has folded over
@@ -1091,4 +1294,136 @@ pub fn unfold_zigzag(path: &[Vec2], run: &mut Run, width: f64) {
         }
     }
     run.dedup_by(|a, b| a.distance(*b) < 1e-9);
+}
+
+#[cfg(test)]
+mod shaping_tests {
+    use super::*;
+    use crate::column::{
+        AutoUnderlay, Compensation, CornerStyle, Corners, SatinShaping, ShortStitches,
+    };
+    use crate::model::UnderlayStyle;
+
+    /// A line with one corner of `deg` degrees (interior) at (0, 0), legs `leg` long.
+    fn vee(deg: f64, leg: f64) -> Vec<Vec2> {
+        let a = (180.0 - deg).to_radians();
+        vec![
+            v2(-leg, 0.0),
+            v2(0.0, 0.0),
+            v2(a.dcos() * leg, a.dsin() * leg),
+        ]
+    }
+
+    fn corners(style: CornerStyle) -> SatinShaping {
+        SatinShaping {
+            corners: Corners {
+                style,
+                ..Corners::default()
+            },
+            ..SatinShaping::default()
+        }
+    }
+
+    #[test]
+    fn a_4mm_zigzag_line_with_a_30_degree_corner_is_mitred_without_spikes() {
+        let path = vee(30.0, 200.0);
+        let plain = zigzag_rails(&path, 40.0, 2.0);
+        let shaped = zigzag_shaped(&path, 40.0, 2.0, &corners(CornerStyle::Auto), None);
+        let longest = |r: &Run| {
+            r.windows(2)
+                .map(|w| w[0].distance(w[1]))
+                .fold(0.0, f64::max)
+        };
+        // Turned, the stitches at the tip run out along the mitre (about 15.5 mm here).
+        assert!(longest(&plain) > 100.0, "{}", longest(&plain));
+        // Shaped: no stitch longer than 8 mm, the tip still covered.
+        assert!(longest(&shaped) <= 80.0, "{}", longest(&shaped));
+        let tip = vertex_rungs(&path, 40.0)[1]
+            .into_iter()
+            .max_by(|a, b| a.x.total_cmp(&b.x))
+            .expect("tip");
+        let reach = shaped
+            .iter()
+            .map(|q| q.distance(tip))
+            .fold(f64::INFINITY, f64::min);
+        assert!(reach < 10.0, "the outer tip is reached: {reach}");
+        // Default: PE-DESIGN's zigzag, unchanged.
+        let same = zigzag_shaped(&path, 40.0, 2.0, &SatinShaping::default(), None);
+        assert_eq!(
+            same,
+            zigzag_rails_sided(&path, [20.0, 20.0], 2.0),
+            "plain shaping with turned corners is zigzag_rails"
+        );
+        assert_eq!(same, plain);
+    }
+
+    #[test]
+    fn zigzag_compensation_moves_each_rail_out_by_its_side() {
+        let path = vec![v2(0.0, 0.0), v2(200.0, 0.0)];
+        let s = SatinShaping {
+            compensation: Compensation {
+                left: Some(0.5),
+                percent: 5.0,
+                ..Compensation::default()
+            },
+            ..SatinShaping::default()
+        };
+        let run = zigzag_shaped(&path, 40.0, 2.0, &s, None);
+        let (lo, hi) = run
+            .iter()
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), q| {
+                (a.min(q.y), b.max(q.y))
+            });
+        // Left rail (−y) at 2 + 0.5 + 0.2 mm, right at 2 + 0.2 mm.
+        assert!((lo + 27.0).abs() < 1e-9, "{lo}");
+        assert!((hi - 22.0).abs() < 1e-9, "{hi}");
+    }
+
+    #[test]
+    fn short_stitches_on_a_tight_zigzag_curve() {
+        // A half circle of 3 mm radius, 4 mm wide.
+        let path: Vec<Vec2> = (0..=48)
+            .map(|i| {
+                let a = std::f64::consts::PI * i as f64 / 48.0;
+                v2(a.dcos() * 30.0, a.dsin() * 30.0)
+            })
+            .collect();
+        let s = SatinShaping {
+            short_stitches: ShortStitches {
+                distance: 0.25,
+                inset: 15.0,
+            },
+            ..SatinShaping::default()
+        };
+        let plain = zigzag_rails(&path, 40.0, 10.0 / 4.5);
+        let short = zigzag_shaped(&path, 40.0, 10.0 / 4.5, &s, None);
+        let inner = |r: &Run| r.iter().filter(|q| q.length() < 11.0).count();
+        assert!(
+            inner(&short) * 10 <= inner(&plain) * 7,
+            "{} vs {}",
+            inner(&short),
+            inner(&plain)
+        );
+    }
+
+    #[test]
+    fn line_underlay_styles() {
+        let path = vec![v2(0.0, 0.0), v2(300.0, 0.0)];
+        let auto = AutoUnderlay::default();
+        let pe = line_underlay(&path, 30.0, 20.0, UnderlayStyle::Edge, &auto);
+        assert_eq!(pe, zigzag_underlay(&path, 7.5, 20.0));
+        // Narrow: a centre walk along the line and back, ending where it began.
+        let walk = line_underlay(&path, 15.0, 20.0, UnderlayStyle::Auto, &auto);
+        assert!(walk.iter().all(|q| q.y == 0.0));
+        assert_eq!(walk.first(), walk.last());
+        // Medium: PE-DESIGN's edge runs; wide: an edge run out and a zigzag back.
+        assert_eq!(
+            line_underlay(&path, 30.0, 20.0, UnderlayStyle::Auto, &auto),
+            pe
+        );
+        let wide = line_underlay(&path, 50.0, 20.0, UnderlayStyle::Auto, &auto);
+        assert!(wide.iter().any(|q| q.y > 0.0) && wide.iter().any(|q| q.y < 0.0));
+        let last = *wide.last().expect("end");
+        assert!(last.x < 20.0, "back at the start: {last:?}");
+    }
 }

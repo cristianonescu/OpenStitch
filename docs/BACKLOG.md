@@ -92,9 +92,9 @@ round" and "ideas" issues have batches of their own.
 | #377 Connection Points | The owner's captures in a built-in PE-DESIGN font (Connection Points is greyed out for TrueType fonts); only measurements are committed |
 | #130 PMV reader | Owner-made PMV files and screen access to PE-DESIGN |
 | #134 Font Creator fonts | Screen access to PE-DESIGN's Font Creator and owner-drawn `.pef` files (built-in `.pf1` fonts are out of scope) |
-| #557 Finder / Explorer thumbnails | Unblocked 2026-11-06: the owner allows native stacks for OS integrations (Rust-first rule). The Mac builds the Swift Quick Look extension on the shared Rust renderer; Windows adds the Explorer shell extension later, on the same renderer |
+| #557 Finder / Explorer thumbnails | Unblocked 2026-11-06: the owner allows native stacks for OS integrations (Rust-first rule). The macOS Quick Look extension is a small Swift shim over the shared Rust renderer (`batch:mac-platform`); the Windows Explorer half is #669, on the same renderer |
 | #292 Sew-outs on other machines | Sew-out reports from users of other machines (help wanted); the owner decides whether alpha.13 waits for them |
-| #319 macOS Ready-to-Sew click | Assigned 2026-11-06 to the Mac (mac-platform): a scripted test of `open_folder`, plus an owner check by hand if a real click is still needed (no screen control) |
+| #319 macOS Ready-to-Sew click | Assigned 2026-11-06 to the Mac (mac-platform): scripted in the built bundle (`packaging/macos/check_sew_kit.sh`, a recording `open` must get `Contents/Resources/sew`); only the real click, once, by the owner (docs/DISTRIBUTION.md "Ready-to-Sew Designs on macOS"; no screen control) |
 
 Not issues, still waiting: the T1/T8 image-similarity steps wait for the calibration sew-outs and
 the counsel record (`research/beyond/image-similarity-plan.md`).

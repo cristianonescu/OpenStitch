@@ -2921,8 +2921,8 @@ mod tests {
     #[test]
     fn files_dropped_on_the_window_attach_only_while_the_panel_is_open() {
         let (mut app, _) = app_with(Vec::new());
-        let src =
-            std::env::temp_dir().join(format!("openstitch-drop-disc-{}.png", std::process::id()));
+        let tmp = openstitch_testutil::TempDir::new("drop-disc");
+        let src = tmp.join("disc.png");
         disc_png(&src);
         let ctx = egui::Context::default();
         let drop = |app: &mut EditorApp| {
@@ -3104,9 +3104,7 @@ mod tests {
         }
         app.ui.prefs.ai.enabled = false;
         // A throwaway ui.json, never the user's: the reset is read back from it.
-        let dir =
-            std::env::temp_dir().join(format!("openstitch-reset-test-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("dir");
+        let dir = openstitch_testutil::TempDir::new("reset-test");
         let file = dir.join("ui.json");
         app.ui.prefs_path = Some(file.clone());
         reset_ai(&mut app);
@@ -3298,9 +3296,7 @@ mod tests {
     /// again"), and the open state survives a restart; an old ui.json reads as open (#422).
     #[test]
     fn the_panel_opens_by_default_and_remembers_being_closed() {
-        let dir = std::env::temp_dir().join(format!("openstitch-422-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("dir");
+        let dir = openstitch_testutil::TempDir::new("assistant-422");
         let launch = Launch {
             demo: true,
             user_settings: Some(dir.join("user.json")),
@@ -3801,6 +3797,59 @@ mod tests {
         answer(&mut app, 0, Answer::Once);
         run(&mut app, idle);
         assert!(app.ui.prefs.keymap.is_default(), "allowed: reset");
+    }
+
+    /// #453: saving or deleting a custom fabric asks first, naming the fabric; Deny changes
+    /// nothing, Allow saves it.
+    #[test]
+    fn custom_fabric_changes_ask_and_deny_changes_nothing() {
+        let calibrate = json!({ "fabric": "knit", "name": "My jersey", "fill": 2 });
+        let (mut app, transport) = app_with(vec![
+            reply(&[("fabric.calibrate", calibrate.clone())], "", "tool_use"),
+            reply(&[], "Not saved.", "end_turn"),
+            reply(&[("fabric.calibrate", calibrate)], "", "tool_use"),
+            reply(&[], "Saved.", "end_turn"),
+            reply(
+                &[(
+                    "fabric.deleteCustom",
+                    json!({ "fabric": "custom-my-jersey" }),
+                )],
+                "",
+                "tool_use",
+            ),
+            reply(&[], "Kept it.", "end_turn"),
+        ]);
+        let customs = |app: &mut EditorApp| {
+            app.session
+                .execute("fabric.list", None)
+                .expect("list")
+                .as_array()
+                .expect("array")
+                .iter()
+                .filter(|f| f["custom"] == json!(true))
+                .count()
+        };
+        send(&mut app, "save my jersey settings".into(), no_wake());
+        run(&mut app, |a| !a.assistant.panel.approvals.is_empty());
+        let what = &app.assistant.panel.approvals[0].what;
+        assert!(what.contains("My jersey") && what.contains("F2"), "{what}");
+        answer(&mut app, 0, Answer::Deny);
+        run(&mut app, idle);
+        assert_eq!(customs(&mut app), 0, "denied: nothing saved");
+        send(&mut app, "save my jersey settings".into(), no_wake());
+        run(&mut app, |a| !a.assistant.panel.approvals.is_empty());
+        answer(&mut app, 0, Answer::Once);
+        run(&mut app, idle);
+        assert_eq!(customs(&mut app), 1, "allowed: saved");
+        send(&mut app, "delete it".into(), no_wake());
+        run(&mut app, |a| !a.assistant.panel.approvals.is_empty());
+        let what = &app.assistant.panel.approvals[0].what;
+        assert!(what.contains("custom-my-jersey"), "{what}");
+        answer(&mut app, 0, Answer::Deny);
+        run(&mut app, idle);
+        assert_eq!(customs(&mut app), 1, "denied: kept");
+        let requests = transport.requests.lock().expect("lock");
+        assert!(requests[1].to_string().contains("declined"));
     }
 
     #[test]

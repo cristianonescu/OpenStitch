@@ -501,8 +501,8 @@ fn merge_takes_the_last_sewn_attributes() {
     assert_eq!(s.design().objects.len(), 1);
     assert!((area(&s, 2) - 700.0).abs() < 0.1, "{}", area(&s, 2));
     let region = s.design().objects[0].region.clone().expect("region");
-    // The direction returns to the type's default (fill: 45 degrees, as PE-DESIGN's tools).
-    assert_eq!(region.angle, 45.0, "direction resets");
+    // The last-sewn shape's direction is kept (#652; it used to return to the default).
+    assert_eq!(region.angle, 30.0, "direction kept");
     assert_eq!(region.thread.hex().to_lowercase(), blue_hex(&mut session()));
     run(&mut s, "history.undo", json!({}));
     assert_eq!(s.design().objects.len(), 2);

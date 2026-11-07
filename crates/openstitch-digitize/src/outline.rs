@@ -220,6 +220,45 @@ pub fn extract(
     })
 }
 
+/// Least distance between two vertices of a line along a skeleton, mm (#688). On a pixel
+/// staircase Douglas-Peucker keeps corners one working pixel apart (0.13 mm at 800 px over
+/// 100 mm), and a running line sews a stitch to every vertex: g04's outline sewed 11 stitches
+/// under 0.3 mm in a row.
+pub const MIN_VERTEX_MM: f64 = 0.4;
+
+/// `kept` (indices into `pts`, in order) without the vertices nearer than `gap` pixels to the
+/// vertex kept before them; an open path keeps both ends, moving its last inner vertex out
+/// instead when it is too near the end.
+fn spaced(pts: &[Vec2], kept: Vec<usize>, gap: f64, closed: bool) -> Vec<usize> {
+    let Some((&last, inner)) = kept.split_last() else {
+        return kept;
+    };
+    let mut out: Vec<usize> = Vec::with_capacity(kept.len());
+    for &i in inner {
+        match out.last() {
+            Some(&p) if pts[p].distance(pts[i]) < gap => {}
+            _ => out.push(i),
+        }
+    }
+    if closed {
+        // The loop closes on the first vertex: the last must not crowd it either.
+        let clear = |p: usize| pts[last].distance(pts[p]) >= gap;
+        if out.len() < 2 || (clear(out[0]) && out.last().is_some_and(|&p| clear(p))) {
+            out.push(last);
+        }
+    } else {
+        while out.len() > 1
+            && out
+                .last()
+                .is_some_and(|&p| pts[p].distance(pts[last]) < gap)
+        {
+            out.pop();
+        }
+        out.push(last);
+    }
+    out
+}
+
 /// Skeleton paths of a component mask at `(x0, y0)` as simplified contours in design units.
 fn path_contours(
     paths: &[&(Vec<Vec2>, bool)],
@@ -239,6 +278,12 @@ fn path_contours(
         } else {
             trace::simplify_open(pts, trace_options.simplify)
         };
+        let kept = spaced(
+            pts,
+            kept,
+            MIN_VERTEX_MM / frame.mm_per_px().max(1e-9),
+            *closed,
+        );
         if kept.len() < 2 {
             continue;
         }
@@ -417,4 +462,38 @@ fn neighbours(i: usize, w: usize, h: usize) -> impl Iterator<Item = usize> {
 
 fn length(pts: &[Vec2]) -> f64 {
     pts.windows(2).map(|w| w[0].distance(w[1])).sum()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// #688: a pixel staircase keeps no two vertices closer than the gap; the ends stay, and a
+    /// closed loop does not crowd its first vertex.
+    #[test]
+    fn spaced_vertices_keep_their_distance() {
+        // A staircase one pixel per step, every corner kept.
+        let pts: Vec<Vec2> = (0..20)
+            .map(|i| v2(f64::from((i + 1) / 2), f64::from(i / 2)))
+            .collect();
+        let all: Vec<usize> = (0..pts.len()).collect();
+        let kept = spaced(&pts, all.clone(), 3.0, false);
+        assert_eq!(kept.first(), Some(&0));
+        assert_eq!(kept.last(), Some(&19));
+        for w in kept.windows(2) {
+            assert!(pts[w[0]].distance(pts[w[1]]) >= 3.0, "{w:?}");
+        }
+        let closed = spaced(&pts, all, 3.0, true);
+        for w in closed.windows(2) {
+            assert!(pts[w[0]].distance(pts[w[1]]) >= 3.0);
+        }
+        let (first, last) = (closed[0], closed[closed.len() - 1]);
+        assert!(pts[first].distance(pts[last]) >= 3.0);
+        // Nothing to drop: unchanged.
+        let far: Vec<Vec2> = (0..5).map(|i| v2(f64::from(i) * 10.0, 0.0)).collect();
+        assert_eq!(
+            spaced(&far, vec![0, 1, 2, 3, 4], 3.0, false),
+            [0, 1, 2, 3, 4]
+        );
+    }
 }

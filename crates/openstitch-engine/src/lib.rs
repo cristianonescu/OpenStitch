@@ -15,9 +15,11 @@ mod envelopes;
 #[cfg(feature = "formats")]
 pub mod extra_exports;
 pub mod fabric;
+mod finish;
 #[cfg(feature = "digitize")]
 mod font_images;
 pub mod fonts;
+pub mod fsio;
 mod guides;
 #[cfg(feature = "formats")]
 pub mod imports;
@@ -49,6 +51,7 @@ pub mod project;
 mod punch;
 pub mod quality;
 pub mod sandbox;
+mod satin_shaping;
 pub mod sections;
 pub mod session;
 mod sewing;
@@ -60,6 +63,7 @@ mod stamps;
 mod stitch_edit;
 #[cfg(feature = "formats")]
 mod svg_settings;
+pub mod swatch;
 pub mod templates;
 pub mod thread_match;
 #[cfg(feature = "formats")]

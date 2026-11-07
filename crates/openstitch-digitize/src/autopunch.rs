@@ -67,12 +67,28 @@ pub struct AutoPunch {
     pub isolate: Option<grabcut::Seed>,
     /// With `isolate`: the user's subject and background strokes (#350).
     pub marks: grabcut::Marks,
+    /// With `isolate`: a click on the subject (`[x, y]`, fractions of the image), which keeps
+    /// only the part of the subject holding it ([`grabcut::isolate_at`], #490); the border is
+    /// then the background the cut learns from.
+    pub subject_point: Option<[f64; 2]>,
     /// Per-region choices that replace Auto Punch's own (#489), by region number in sewing
     /// order ([`Region::id`], as a run with the same options numbers them).
     pub overrides: Vec<Override>,
     /// How fills choose their direction (#489).
     pub angle_rule: AngleRule,
+    /// OpenStitch mode: each fill reaches this far, mm, under the touching regions sewn after
+    /// it, so no fabric shows along the seam where two colours meet (#469; 0 = off, the
+    /// default; at most [`MAX_UNDERLAP_MM`]). PE-DESIGN mode ignores it.
+    pub underlap_mm: f64,
+    /// The colours to sew first, in this order, by thread colour (`0xRRGGBB`, #489); the
+    /// others follow in PE-DESIGN's order. Empty (the default) is PE-DESIGN's order. A colour
+    /// the conversion does not sew is passed over and listed in [`Converted::order_ignored`]
+    /// (the threads change with the mode and colour count); one listed twice is an error.
+    pub order: Vec<u32>,
 }
+
+/// Longest [`AutoPunch::underlap_mm`], mm.
+pub const MAX_UNDERLAP_MM: f64 = 1.5;
 
 /// How a traced region is sewn (#489).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -124,6 +140,9 @@ pub enum Reason {
     ThinLine,
     /// Set by an override.
     Override,
+    /// OpenStitch mode, not on line art: every stitch would fall within [`SPECK_MM`], a knot
+    /// rather than a shape; left out (#690).
+    Speck,
 }
 
 impl Reason {
@@ -137,6 +156,7 @@ impl Reason {
             Reason::Outline => "outline",
             Reason::ThinLine => "thin_line",
             Reason::Override => "override",
+            Reason::Speck => "speck",
         }
     }
 }
@@ -180,6 +200,9 @@ impl Region {
             Reason::Outline => "a dark contour line: satin outline sewn on top".to_string(),
             Reason::ThinLine => format!("under {} mm wide: running line", outline::THIN_MM),
             Reason::Override => format!("set to {} by an override", self.stitch.name()),
+            Reason::Speck => {
+                format!("every stitch within {SPECK_MM} mm, a knot rather than a shape: left out")
+            }
         }
     }
 }
@@ -200,10 +223,30 @@ pub enum AngleRule {
     /// PE-DESIGN's rule, [`fill_angle`] (the default).
     #[default]
     Pe,
-    /// [`fill_angle`], turned in steps of 30° until it is at least [`NEIGHBOUR_DEG`] from
-    /// every touching fill sewn before it, so fitted panels read apart.
+    /// [`fill_angle`], turned (by up to 90°, [`vary_angle`]) away from the touching fills sewn
+    /// before it when it lies within [`NEIGHBOUR_DEG`] of one, so fitted panels read apart;
+    /// fills under [`VARY_MIN_MM2`] keep [`fill_angle`].
     VaryNeighbours,
+    /// Of [`TRAVEL_ANGLES`], the direction whose sewn path is shortest (#489): the rows cover
+    /// the same area whichever way they run, so the difference is the travel between a
+    /// concave region's sections. [`fill_angle`] keeps the region unless another direction
+    /// saves at least [`TRAVEL_SAVING`].
+    LeastTravel,
 }
+
+/// [`AngleRule::LeastTravel`] leaves fills smaller than this, mm², at [`fill_angle`]: they
+/// have little travel to save, and comparing every direction on the many small regions of a
+/// photo took six times as long as the conversion (p03).
+pub const TRAVEL_MIN_MM2: f64 = 10.0;
+
+/// The directions [`AngleRule::LeastTravel`] compares, degrees: every 15°.
+pub const TRAVEL_ANGLES: [f64; 12] = [
+    0.0, 15.0, 30.0, 45.0, 60.0, 75.0, 90.0, 105.0, 120.0, 135.0, 150.0, 165.0,
+];
+
+/// [`AngleRule::LeastTravel`] turns a fill away from [`fill_angle`] only to save at least this
+/// much thread, 0.1 mm (1 mm).
+pub const TRAVEL_SAVING: f64 = 10.0;
 
 /// With [`AngleRule::VaryNeighbours`]: least angle between touching fills, degrees.
 pub const NEIGHBOUR_DEG: f64 = 20.0;
@@ -226,8 +269,11 @@ impl Default for AutoPunch {
             fidelity: Fidelity::Standard,
             isolate: None,
             marks: grabcut::Marks::default(),
+            subject_point: None,
             overrides: Vec::new(),
             angle_rule: AngleRule::Pe,
+            underlap_mm: 0.0,
+            order: Vec::new(),
         }
     }
 }
@@ -298,6 +344,14 @@ pub struct Converted {
     pub background: Option<Thread>,
     /// Every traced region and how it is sewn, in sewing order (#489).
     pub regions: Vec<Region>,
+    /// The region ([`Region::id`]) of every working pixel, `u32::MAX` where none is (the
+    /// background, thin lines and outlines), row by row, [`Converted::map_size`] pixels: what
+    /// the image dialog's click-to-fix looks up (#489).
+    pub region_map: Vec<u32>,
+    /// Width and height of [`Converted::region_map`], working pixels.
+    pub map_size: (usize, usize),
+    /// The colours of [`AutoPunch::order`] this conversion does not sew.
+    pub order_ignored: Vec<u32>,
 }
 
 /// Labels per working pixel from the census's modal colours with their shades kept
@@ -562,7 +616,10 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
     // OpenStitch mode with `isolate`: the graph cut decides the subject; everything outside it
     // is left out, and the background thread is the one most common there.
     let subject = match (p.isolate, p.mode) {
-        (Some(seed), Mode::OpenStitch) => grabcut::isolate(&census.modal, w, h, seed, &p.marks),
+        (Some(seed), Mode::OpenStitch) => match p.subject_point {
+            Some(at) => grabcut::isolate_at(&census.modal, w, h, at, &p.marks),
+            None => grabcut::isolate(&census.modal, w, h, seed, &p.marks),
+        },
         _ => None,
     };
     if subject.as_ref().is_some_and(|s| !s.contains(&true)) {
@@ -633,6 +690,11 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
             bg.map(|m| palette.thread_of[m as usize] as u16)
         }
     };
+    // Line art: the background colour covers at least [`LINE_ART_SHARE`] of the picture.
+    let line_art = {
+        let opaque = census.modal.iter().filter(|m| m.is_some()).count().max(1);
+        border_pixels as f64 >= LINE_ART_SHARE * opaque as f64
+    };
     let unsmoothed = labels.clone();
     regions::majority(&mut labels, w, h, p.smooth.min(5));
     // The frame scales x and y alike, so the working pixel's mm/px is both ratios.
@@ -644,8 +706,6 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
             // image) only compact specks merge: a small region whose mean width (area over its
             // longest side) is at most [`LINE_WIDTH_MM`] is a piece of a line, and stays. On
             // photos and paintings such slivers are edge shades, and merge.
-            let opaque = census.modal.iter().filter(|m| m.is_some()).count().max(1);
-            let line_art = border_pixels as f64 >= LINE_ART_SHARE * opaque as f64;
             let mm = frame.mm_per_px();
             regions::merge_small_except(&mut labels, w, h, floor + 1, |k| {
                 let long = (k.x1 - k.x0).max(k.y1 - k.y0) as f64 * mm;
@@ -675,8 +735,6 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
     // keeps its thin strokes whole, so has none.
     let mut thin = Vec::new();
     if p.mode == Mode::OpenStitch {
-        let opaque = census.modal.iter().filter(|m| m.is_some()).count().max(1);
-        let line_art = border_pixels as f64 >= LINE_ART_SHARE * opaque as f64;
         let before = labels.clone();
         open_slivers(
             &mut labels,
@@ -718,19 +776,64 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
     for c in &comps {
         area[c.label as usize] += c.area;
     }
-    let order = palette::brightness_order(
+    let mut order = palette::brightness_order(
         &palette,
         (0..palette.threads.len()).filter(|&t| area[t] > 0),
     );
+    // The user's colours first (#489).
+    let mut order_ignored = Vec::new();
+    let mut k = 0;
+    for (n, &rgb) in p.order.iter().enumerate() {
+        if p.order[..n].contains(&rgb) {
+            return Err(DigitizeError::Invalid(format!(
+                "order: #{rgb:06x} is listed twice"
+            )));
+        }
+        let Some(at) = order
+            .iter()
+            .position(|&t| palette.threads[t].rgb_value() == rgb)
+        else {
+            order_ignored.push(rgb);
+            continue;
+        };
+        let t = order.remove(at);
+        order.insert(k, t);
+        k += 1;
+    }
     let mm = frame.mm_per_px();
     // Touching regions, for the neighbour angle rule.
     let adjacent = match p.angle_rule {
         AngleRule::VaryNeighbours => adjacency(&id, w, h, comps.len()),
-        AngleRule::Pe => Vec::new(),
+        AngleRule::Pe | AngleRule::LeastTravel => Vec::new(),
     };
+    // Each region's place in the sewing order, for the underlap (#469).
+    let underlap_px = match p.mode {
+        Mode::OpenStitch if p.underlap_mm > 0.0 => {
+            (p.underlap_mm.min(MAX_UNDERLAP_MM) / mm).round() as usize
+        }
+        _ => 0,
+    };
+    let mut rank = vec![usize::MAX; comps.len()];
+    if underlap_px > 0 {
+        let mut n = 0;
+        for (colour, &t) in order.iter().enumerate() {
+            let mut mine: Vec<usize> = (0..comps.len())
+                .filter(|&c| comps[c].label as usize == t)
+                .collect();
+            if colour.is_multiple_of(2) {
+                mine.reverse();
+            }
+            for c in mine {
+                rank[c] = n;
+                n += 1;
+            }
+        }
+    }
     let mut fill_of: Vec<Option<f64>> = vec![None; comps.len()];
     let mut objects = Vec::new();
     let mut plan: Vec<Region> = Vec::new();
+    // The plan region of each component, for the region map.
+    let mut region_of: Vec<u32> = vec![u32::MAX; comps.len()];
     let mut threads: Vec<Thread> = Vec::new();
     let mut sew = |o: DesignObject, thread: &Thread, objects: &mut Vec<DesignObject>| {
         if threads.last() != Some(thread) {
@@ -778,6 +881,7 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
             } else {
                 (Stitch::Satin, Reason::SatinWidth)
             };
+            region_of[c] = plan.len() as u32;
             let ov = override_of(plan.len());
             let set = ov.and_then(|o| o.stitch);
             let mut entry = Region {
@@ -821,10 +925,20 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                 match p.angle_rule {
                     AngleRule::Pe => base,
                     AngleRule::VaryNeighbours => {
-                        let near: Vec<f64> =
-                            adjacent[c].iter().filter_map(|&n| fill_of[n]).collect();
+                        let big = |n: usize| comps[n].area as f64 * mm * mm >= VARY_MIN_MM2;
+                        let near: Vec<f64> = if big(c) {
+                            adjacent[c]
+                                .iter()
+                                .filter(|&&n| big(n))
+                                .filter_map(|&n| fill_of[n])
+                                .collect()
+                        } else {
+                            Vec::new()
+                        };
                         vary_angle(base, &near)
                     }
+                    // Chosen on the region's own outline below, once it is built.
+                    AngleRule::LeastTravel => base,
                 }
             });
             // Flat graphics, PE-DESIGN mode (OpenStitch mode sews wide strokes as fill and its
@@ -851,7 +965,17 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                     Some(rungs) => vec![(contours, Sewn::Column(rungs))],
                     None => vec![(contours, Sewn::Auto)],
                 },
-                columns::Strokes::Single => vec![(contours, Sewn::Auto)],
+                columns::Strokes::Single => {
+                    // A fill reaches under its later neighbours (#469).
+                    let contours = if !satin && underlap_px > 0 {
+                        let (u, uw, uh, ux, uy) = underlap(&id, w, h, c, k, underlap_px, &rank);
+                        let grown = regions::trace_mask(&u, uw, uh, ux, uy, &p.trace, &frame);
+                        if grown.is_empty() { contours } else { grown }
+                    } else {
+                        contours
+                    };
+                    vec![(contours, Sewn::Auto)]
+                }
             };
             for (contours, sewn) in parts {
                 let build = |satin: bool| -> RegionSewing {
@@ -911,6 +1035,26 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                     region = build(false);
                     entry.stitch = Stitch::Fill;
                     entry.reason = Reason::LongSatin;
+                }
+                if region.kind == RegionType::Fill
+                    && p.angle_rule == AngleRule::LeastTravel
+                    && set_angle.is_none()
+                    && entry.area_mm2 >= TRAVEL_MIN_MM2
+                {
+                    region.angle = least_travel(&contours, &region);
+                }
+                // OpenStitch mode leaves out a region that would sew as a knot: its stitches
+                // and the ties round them stack in one spot (p07: 8 stitches in 0.46 mm). Not
+                // on line art, whose dots are drawn on purpose: leaving out the mandala's (g11)
+                // lowered its MS-SSIM 0.653 → 0.611.
+                if p.mode == Mode::OpenStitch
+                    && !line_art
+                    && set.is_none()
+                    && speck(&contours, &region)
+                {
+                    entry.stitch = Stitch::Skip;
+                    entry.reason = Reason::Speck;
+                    continue;
                 }
                 if region.kind == RegionType::Fill {
                     fill_of[c] = Some(region.angle);
@@ -996,6 +1140,12 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
         threads,
         background: background.map(|b| palette.threads[b as usize].clone()),
         regions: plan,
+        region_map: id
+            .iter()
+            .map(|&c| region_of.get(c as usize).copied().unwrap_or(u32::MAX))
+            .collect(),
+        map_size: (w, h),
+        order_ignored,
     })
 }
 
@@ -1058,6 +1208,69 @@ fn place_line(
     Ok(Some(line))
 }
 
+/// Component `c`'s mask grown by up to `r` pixels (a disc) into the components sewn after it
+/// (`rank`), never into the background or regions sewn before; cropped to its box, with the
+/// box's top-left pixel.
+fn underlap(
+    id: &[u32],
+    w: usize,
+    h: usize,
+    c: usize,
+    k: &regions::Component,
+    r: usize,
+    rank: &[usize],
+) -> (Vec<bool>, usize, usize, usize, usize) {
+    let (x0, y0) = (k.x0.saturating_sub(r), k.y0.saturating_sub(r));
+    let (x1, y1) = ((k.x1 + r).min(w), (k.y1 + r).min(h));
+    let (mw, mh) = (x1 - x0, y1 - y0);
+    let mut m = vec![false; mw * mh];
+    let later = |i: usize| {
+        let o = id[i];
+        o != u32::MAX && o as usize != c && rank[o as usize] > rank[c]
+    };
+    let rr = (r * r) as i64;
+    for y in k.y0..k.y1 {
+        for x in k.x0..k.x1 {
+            if id[y * w + x] as usize != c {
+                continue;
+            }
+            m[(y - y0) * mw + x - x0] = true;
+            // Only edge pixels grow.
+            let edge = [(0i64, 1i64), (1, 0), (0, -1), (-1, 0)]
+                .iter()
+                .any(|&(dx, dy)| {
+                    let (nx, ny) = (x as i64 + dx, y as i64 + dy);
+                    nx >= 0
+                        && ny >= 0
+                        && (nx as usize) < w
+                        && (ny as usize) < h
+                        && id[ny as usize * w + nx as usize] as usize != c
+                });
+            if !edge {
+                continue;
+            }
+            for dy in -(r as i64)..=r as i64 {
+                for dx in -(r as i64)..=r as i64 {
+                    let (nx, ny) = (x as i64 + dx, y as i64 + dy);
+                    if dx * dx + dy * dy > rr
+                        || nx < x0 as i64
+                        || ny < y0 as i64
+                        || nx >= x1 as i64
+                        || ny >= y1 as i64
+                    {
+                        continue;
+                    }
+                    let i = ny as usize * w + nx as usize;
+                    if later(i) {
+                        m[(ny as usize - y0) * mw + nx as usize - x0] = true;
+                    }
+                }
+            }
+        }
+    }
+    (m, mw, mh, x0, y0)
+}
+
 /// For each of `n` components, the others it touches (4-neighbours).
 fn adjacency(id: &[u32], w: usize, h: usize, n: usize) -> Vec<Vec<usize>> {
     let mut adj: Vec<Vec<usize>> = vec![Vec::new(); n];
@@ -1084,19 +1297,82 @@ fn adjacency(id: &[u32], w: usize, h: usize, n: usize) -> Vec<Vec<usize>> {
     adj
 }
 
-/// [`AngleRule::VaryNeighbours`]: `base`, or the first of it turned by 30°, -30°, 60°, -60°
-/// and 90° that is at least [`NEIGHBOUR_DEG`] from every angle of `near` (directions, so
-/// modulo 180°); `base` when none is.
+/// [`AngleRule::VaryNeighbours`]: `base` when it is at least [`NEIGHBOUR_DEG`] from every
+/// angle of `near` (directions, so modulo 180°); otherwise, of `base` turned by 30°, -30°, 60°,
+/// -60° and 90°, the one furthest from the nearest of them (ties to the earlier). Taking the
+/// first turn that cleared 20° instead lowered the likeness on g01, g05 and g08 (#690).
 pub fn vary_angle(base: f64, near: &[f64]) -> f64 {
     let apart = |a: f64, b: f64| {
         let d = (a - b).rem_euclid(180.0);
         d.min(180.0 - d)
     };
-    [0.0, 30.0, -30.0, 60.0, -60.0, 90.0]
-        .into_iter()
-        .map(|t| normalize(base + t) + 0.0)
-        .find(|&a| near.iter().all(|&n| apart(a, n) >= NEIGHBOUR_DEG))
-        .unwrap_or(base)
+    let nearest = |a: f64| near.iter().map(|&n| apart(a, n)).fold(f64::MAX, f64::min);
+    if nearest(base) >= NEIGHBOUR_DEG {
+        return base;
+    }
+    let mut best = base;
+    for t in [30.0, -30.0, 60.0, -60.0, 90.0] {
+        let a = normalize(base + t) + 0.0;
+        if nearest(a) > nearest(best) + 1e-9 {
+            best = a;
+        }
+    }
+    best
+}
+
+/// [`AngleRule::VaryNeighbours`] turns only fills of at least this area, mm², and only away from
+/// touching fills as large: smaller pieces read as detail, not as panels, and turning them
+/// lowered the likeness (g05, g15; #690).
+pub const VARY_MIN_MM2: f64 = 20.0;
+
+/// [`AngleRule::LeastTravel`]: the direction of [`TRAVEL_ANGLES`] whose layers sew the least
+/// thread for the fill `region` over `contours`, or the region's own direction unless another
+/// saves at least [`TRAVEL_SAVING`] (ties to the earlier angle).
+pub fn least_travel(contours: &[Contour], region: &RegionSewing) -> f64 {
+    // On the outlines flattened once: the travel router tests visibility against them for
+    // every row end, and flattened their curves again on each test.
+    let closed: Vec<Contour> = contours
+        .iter()
+        .filter(|c| c.closed)
+        .map(|c| Contour::new(c.path(), true))
+        .collect();
+    let thread = |deg: f64| -> f64 {
+        let mut r = region.clone();
+        r.angle = deg;
+        openstitch_design::region::layers(&closed, &r, &[])
+            .iter()
+            .flatten()
+            .flat_map(|run| run.windows(2).map(|w| w[0].distance(w[1])))
+            .sum()
+    };
+    let own = thread(region.angle);
+    let mut best = (own - TRAVEL_SAVING, region.angle);
+    for deg in TRAVEL_ANGLES {
+        let a = normalize(deg) + 0.0;
+        let t = thread(a);
+        if t < best.0 {
+            best = (t, a);
+        }
+    }
+    best.1
+}
+
+/// OpenStitch mode: a region whose stitches all fall within a box this size, mm, is a speck
+/// ([`Reason::Speck`], #690).
+pub const SPECK_MM: f64 = 0.8;
+
+/// Whether the region's layers sew within a [`SPECK_MM`] box.
+fn speck(contours: &[Contour], region: &RegionSewing) -> bool {
+    let closed: Vec<Contour> = contours.iter().filter(|c| c.closed).cloned().collect();
+    let (mut x0, mut y0, mut x1, mut y1) = (f64::MAX, f64::MAX, f64::MIN, f64::MIN);
+    for q in openstitch_design::region::layers(&closed, region, &[])
+        .iter()
+        .flatten()
+        .flatten()
+    {
+        (x0, y0, x1, y1) = (x0.min(q.x), y0.min(q.y), x1.max(q.x), y1.max(q.y));
+    }
+    x0 <= x1 && x1 - x0 < SPECK_MM * 10.0 && y1 - y0 < SPECK_MM * 10.0
 }
 
 /// Longest stitch (0.1 mm) Auto Punch lets a satin region sew: PE-DESIGN 11.50's Auto Punch

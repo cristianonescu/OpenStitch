@@ -197,6 +197,12 @@ fn describe(o: &DesignObject) -> Value {
     if o.stop_after {
         r["stopAfter"] = json!(true);
     }
+    if let Some(mm) = o.hide_under {
+        r["hideUnderMM"] = json!(mm);
+    }
+    if o.connector_run {
+        r["connector"] = json!("run");
+    }
     if o.knockdown.is_some() {
         r["knockdown"] = json!(true);
     }
@@ -265,6 +271,7 @@ pub fn all() -> Vec<CommandSpec> {
     v.extend(crate::thread_match::commands());
     v.extend(crate::palette::commands());
     v.extend(crate::punch::commands());
+    v.extend(crate::satin_shaping::commands());
     v.extend(crate::order::commands());
     v.extend(crate::production::commands());
     v.extend(crate::convert::commands());
@@ -291,6 +298,7 @@ pub fn all() -> Vec<CommandSpec> {
     v.extend(crate::guides::commands());
     v.extend(crate::timeline::commands());
     v.extend(crate::fabric::commands());
+    v.extend(crate::swatch::commands());
     v.extend(crate::print::commands());
     v.extend(crate::pattern_cmds::commands());
     v.extend(crate::sewing_cmds::commands());
@@ -1257,8 +1265,8 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt("underlay", "bool", "Underlay (style in underlayStyle)"),
                 opt(
                     "underlayStyle",
-                    "edge|zigzag|edgeZigzag|double|edgeFill|cross",
-                    "Underlay: edge run, inset rows, both, two crossing layers, PE-DESIGN's first type (edge and rows) or its second (edge and lattice); shorthand for underlayParts",
+                    "edge|zigzag|edgeZigzag|double|edgeFill|cross|auto|centreWalk",
+                    "Underlay: edge run, inset rows, both, two crossing layers, PE-DESIGN's first type (edge and rows) or its second (edge and lattice); shorthand for underlayParts. Beyond PE-DESIGN: auto (Manual Punch column: a centre walk, the edge run, or edge run and zigzag by the column's average width, see underlayAuto) and centreWalk (a running stitch down the middle)",
                 ),
                 opt(
                     "underlayParts",
@@ -1430,7 +1438,11 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     "bool",
                     "Programmable fill: sew a plain fill underneath",
                 ),
-            ],
+            ]
+            .into_iter()
+            .chain(crate::satin_shaping::SHAPING_PARAMS)
+            .chain(crate::satin_shaping::REGION_PARAMS)
+            .collect(),
             |s, p| {
                 let idx = indexes(p, &s.design)?;
                 let kind = match p
@@ -1446,6 +1458,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     })?)),
                 };
                 let color = thread(p, "color")?;
+                let mut hints: Vec<String> = Vec::new();
                 let user_patterns = s.design.patterns.clone();
                 let hole_inners: Vec<u64> = s
                     .design
@@ -1502,6 +1515,8 @@ fn attribute_commands() -> Vec<CommandSpec> {
                             ("double", UnderlayStyle::Double),
                             ("edgeFill", UnderlayStyle::EdgeFill),
                             ("cross", UnderlayStyle::Cross),
+                            ("auto", UnderlayStyle::Auto),
+                            ("centreWalk", UnderlayStyle::CentreWalk),
                         ],
                     )? {
                         r.underlay_style = u;
@@ -1600,6 +1615,17 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         r.split_length = (l > 0.0).then_some(l);
                     }
                     r.half_stitch = p.bool("halfStitch", Some(r.half_stitch))?;
+                    crate::satin_shaping::apply_shaping(p, &mut r.satin_shaping)?;
+                    crate::satin_shaping::apply_auto(p, &mut r.underlay_auto)?;
+                    crate::satin_shaping::apply_underlay2(p, &mut r.underlay2)?;
+                    if r.direction_lines.len() >= 2
+                        && let Some(h) = crate::satin_shaping::raised_hint(
+                            &r.satin_shaping,
+                            openstitch_design::column::mean_width(&r.direction_lines),
+                        )
+                    {
+                        hints.push(format!("object {}: {h}", o.id));
+                    }
                     if p.has("travel") {
                         r.running_stitch_path = if p.bool("travel", None)? {
                             r.running_stitch_path.or(Some(RunningStitchPath::Inside))
@@ -1770,7 +1796,11 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     }
                     o.region = Some(r);
                 }
-                Ok(Value::Null)
+                Ok(if hints.is_empty() {
+                    Value::Null
+                } else {
+                    json!({ "hints": hints })
+                })
             },
         ),
         spec(
@@ -1781,8 +1811,8 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 IDS,
                 opt(
                     "type",
-                    "running|triple|zigzag|motif|stem|candlewick|eStitch|vStitch|chain|cutting|none",
-                    "Line sew type",
+                    "running|triple|zigzag|motif|stem|candlewick|eStitch|vStitch|chain|cutting|satin|none",
+                    "Line sew type. satin (beyond PE-DESIGN) is a satin column along the line whose width can change along it: width (mm, all along), widthKeys, taperStart, taperEnd and slant shape it, and the satin options (cornerStyle, shortStitchDistance, pull*, satinStyle, jaggedEdge, raised) apply as on zigzag; object.setWidthKey and object.deleteWidthKey edit single keys",
                 ),
                 opt("color", "color", "Thread"),
                 opt(
@@ -1845,7 +1875,16 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     "feed|run",
                     "Closed stem, candlewick and chain lines with moved points: the pattern begins and ends at the exit point L2; start with it (feed) or run there from the entry point L1 (run)",
                 ),
-            ],
+            ]
+            .into_iter()
+            .chain(crate::satin_shaping::SHAPING_PARAMS)
+            .chain([opt(
+                "underlayStyle",
+                "edge|centreWalk|edgeZigzag|auto",
+                "Zigzag: the under sewing when underSewing is on: edge (PE-DESIGN's two runs a quarter of the width to each side, the default), centreWalk (along the line and back), edgeZigzag (one edge run out, a zigzag back) or auto (by width: underlayAuto)",
+            )])
+            .chain(crate::satin_shaping::SATIN_LINE_PARAMS)
+            .collect(),
             |s, p| {
                 let idx = indexes(p, &s.design)?;
                 let kind = match p
@@ -1861,6 +1900,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     })?)),
                 };
                 let color = thread(p, "color")?;
+                let mut hints: Vec<String> = Vec::new();
                 let motif = match p.get("motif") {
                     None => None,
                     Some(_) => {
@@ -1982,9 +2022,33 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     l.leave_uncut = p.bool("leaveUncut", Some(l.leave_uncut))?;
                     l.half_stitch = p.bool("halfStitch", Some(l.half_stitch))?;
                     l.underlay = p.bool("underSewing", Some(l.underlay))?;
+                    if let Some(u) = choice(
+                        p,
+                        "underlayStyle",
+                        &[
+                            ("edge", UnderlayStyle::Edge),
+                            ("centreWalk", UnderlayStyle::CentreWalk),
+                            ("edgeZigzag", UnderlayStyle::EdgeZigzag),
+                            ("auto", UnderlayStyle::Auto),
+                        ],
+                    )? {
+                        l.underlay_style = u;
+                    }
+                    crate::satin_shaping::apply_shaping(p, &mut l.satin_shaping)?;
+                    crate::satin_shaping::apply_auto(p, &mut l.underlay_auto)?;
+                    crate::satin_shaping::apply_satin_line(p, &mut l)?;
+                    if matches!(l.kind, LineType::Zigzag | LineType::Satin)
+                        && let Some(h) = crate::satin_shaping::raised_hint(&l.satin_shaping, l.width)
+                    {
+                        hints.push(format!("object {}: {h}", o.id));
+                    }
                     o.line = Some(l);
                 }
-                Ok(Value::Null)
+                Ok(if hints.is_empty() {
+                    Value::Null
+                } else {
+                    json!({ "hints": hints })
+                })
             },
         ),
         spec(
@@ -2927,13 +2991,13 @@ pub(crate) fn read_file(
     max: usize,
 ) -> Result<(std::path::PathBuf, Vec<u8>), CommandError> {
     let path = s.resolve(&p.string("path", None)?, Access::Read, &p.command)?;
-    let meta = std::fs::metadata(&path)
-        .map_err(|_| p.failed(format!("cannot read {}", path.display())))?;
-    if meta.len() > max as u64 {
+    let len =
+        crate::fsio::len(&path).map_err(|_| p.failed(format!("cannot read {}", path.display())))?;
+    if len > max as u64 {
         return Err(p.failed("file too large"));
     }
-    let data =
-        std::fs::read(&path).map_err(|_| p.failed(format!("cannot read {}", path.display())))?;
+    let data = crate::fsio::read(&path)
+        .map_err(|_| p.failed(format!("cannot read {}", path.display())))?;
     Ok((path, data))
 }
 
@@ -2946,7 +3010,7 @@ fn file_commands() -> Vec<CommandSpec> {
             vec![PATH],
             |s, p| {
                 let path = s.resolve(&p.string("path", None)?, Access::Write, &p.command)?;
-                std::fs::write(&path, project::encode(&s.design)?)
+                crate::fsio::write(&path, project::encode(&s.design)?)
                     .map_err(|e| p.failed(e.to_string()))?;
                 Ok(json!({ "path": path.display().to_string() }))
             },
@@ -3184,7 +3248,7 @@ fn codec_commands() -> Vec<CommandSpec> {
                     let pattern = crate::extra_exports::arrange(&s.design, p, pattern)?;
                     let bytes = crate::extra_exports::encode(&extra, &pattern, p)?
                         .expect("an extra format");
-                    std::fs::write(&path, bytes).map_err(|e| p.failed(e.to_string()))?;
+                    crate::fsio::write(&path, bytes).map_err(|e| p.failed(e.to_string()))?;
                     let check = crate::machine::export_check(&s.design, &pattern);
                     return Ok(json!({
                         "path": path.display().to_string(),
@@ -3254,11 +3318,12 @@ fn codec_commands() -> Vec<CommandSpec> {
                 // itself: PE-DESIGN's objects, page, hoop and thread table stay as they were
                 // (#375). Only when no other version is asked for, or the file's own one.
                 if !arranged && let Some(bytes) = unchanged_source(s, p, ty)? {
-                    std::fs::write(&path, &*bytes).map_err(|e| p.failed(e.to_string()))?;
+                    crate::fsio::write(&path, &*bytes).map_err(|e| p.failed(e.to_string()))?;
                     // The original file's bytes: read back, they must be the same bytes.
-                    if verify != "off" && std::fs::read(&path).ok().as_deref() != Some(&*bytes) {
+                    if verify != "off" && crate::fsio::read(&path).ok().as_deref() != Some(&*bytes)
+                    {
                         if verify == "strict" {
-                            let _ = std::fs::remove_file(&path);
+                            let _ = crate::fsio::remove_file(&path);
                         }
                         return Err(p.failed("the written file did not read back as written"));
                     }
@@ -3353,7 +3418,7 @@ fn codec_commands() -> Vec<CommandSpec> {
                     files.push((target, bytes));
                 }
                 for (target, bytes) in &files {
-                    std::fs::write(target, bytes).map_err(|e| p.failed(e.to_string()))?;
+                    crate::fsio::write(target, bytes).map_err(|e| p.failed(e.to_string()))?;
                 }
                 // The machine files first, then any companion lists.
                 files.sort_by_key(|(t, _)| t.extension().is_some_and(|e| e == "inf"));
@@ -3386,7 +3451,7 @@ fn codec_commands() -> Vec<CommandSpec> {
                     .collect();
                 if verify == "strict" && !mismatches.is_empty() {
                     for (target, _) in &files {
-                        let _ = std::fs::remove_file(target);
+                        let _ = crate::fsio::remove_file(target);
                     }
                     return Err(p.failed(format!(
                         "the written file did not read back as written, so it was removed: {}",

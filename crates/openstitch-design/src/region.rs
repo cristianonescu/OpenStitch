@@ -222,33 +222,14 @@ fn layers_inner(
     }
     // Several direction lines: the top stitching follows the column they make.
     if r.direction_lines.len() >= 2 && matches!(r.kind, RegionType::Satin | RegionType::Fill) {
-        let spacing = 10.0 / r.density.max(0.1);
-        let pull = r.pull_compensation * 10.0;
         let lines = if r.curved_lines {
             crate::column::curved_rungs(&r.direction_lines)
         } else {
             r.direction_lines.clone()
         };
-        let mut out = Vec::new();
-        if r.underlay {
-            // PE-DESIGN's under sewing of a Manual Punch column (see `column::underlay`).
-            let start = r.entry.unwrap_or(lines[0][0]);
-            let run = crate::column::underlay(
-                &lines,
-                r.underlay_parts(),
-                r.underlay_spacing_mm() * 10.0,
-                r.stitch_length * 10.0,
-                start,
-            );
-            if run.len() > 1 {
-                out.push(vec![run]);
-            }
-        }
-        out.push(vec![match r.kind {
-            RegionType::Satin => crate::column::satin(&lines, spacing, pull),
-            _ => crate::column::fill(&lines, spacing, r.stitch_length * 10.0, pull),
-        }]);
-        return out;
+        // PE-DESIGN's under sewing of a Manual Punch column and its top stitching, with
+        // OpenStitch's satin shaping (see `column::layers`).
+        return crate::column::layers(&lines, r);
     }
     // Auto direction, satin: the rows follow a skeleton derived from the region, so they stay
     // across the local axis on curved and bent regions. Travel (Running Stitch Path) does not
@@ -1023,6 +1004,21 @@ fn travel_graph(
     graph
 }
 
+/// `contours` with curved ones replaced by their flattened polygon (the same points
+/// `Contour::path` gives), for repeated inside tests (#679).
+pub(crate) fn flatten_once(contours: &[Contour]) -> Vec<Contour> {
+    contours
+        .iter()
+        .map(|c| {
+            if c.has_curves() {
+                Contour::new(c.outline_points(), c.closed)
+            } else {
+                c.clone()
+            }
+        })
+        .collect()
+}
+
 /// Splits `run` wherever a stitch leaves the region (its midpoint is outside and more than
 /// 0.05 mm from the outline).
 fn split_outside(run: Run, closed: &[Contour], holes: &[Contour]) -> Vec<Run> {
@@ -1043,7 +1039,9 @@ fn split_outside(run: Run, closed: &[Contour], holes: &[Contour]) -> Vec<Run> {
             p.distance(a + d * t) <= 0.5
         })
     };
-    let inside = |p: Vec2| contains(p, closed) && !contains(p, holes);
+    // Flattened once (#679): `contains` reads each curved outline through `Contour::path`.
+    let (closed, holes) = (flatten_once(closed), flatten_once(holes));
+    let inside = |p: Vec2| contains(p, &closed) && !contains(p, &holes);
     let mut out = Vec::new();
     let mut current: Run = Vec::new();
     for p in run {

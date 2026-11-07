@@ -771,12 +771,18 @@ fn every_command_the_skill_names_exists() {
         "ui.layout",
         "ui.resetPrefs",
         "ui.gettingStarted",
+        "ui.preview",
+        "ui.documents",
+        "ui.loading",
     ];
+    // The web editor's own (crates/openstitch-web, #556; SKILL.md "Web editor").
+    let web_ui = openstitch_web::session::UI_COMMANDS;
     assert!(
         ui.iter()
             .all(|e| all_ui.contains(&e["id"].as_str().expect("id")))
     );
     ids.extend(all_ui);
+    ids.extend(web_ui);
     for (name, body) in openstitch_mcp::skills::FILES {
         // `word.word` in backticks or as a "command" value: a command id.
         for quoted in body.split('`').skip(1).step_by(2).chain(

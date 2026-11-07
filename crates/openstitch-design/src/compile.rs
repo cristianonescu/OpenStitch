@@ -1,3 +1,4 @@
+use crate::finish::{FinishMode, LetterBreak, LetterTrim};
 use crate::fmath::Det;
 use crate::generate::{self, Run};
 use crate::geometry::{Contour, Rect, Transform, Vec2, v2};
@@ -70,6 +71,24 @@ struct Element {
     /// `None` for the compiler's `sew_across_distance`. A letter of a text takes
     /// [`LETTER_ACROSS`].
     across: Option<f64>,
+    /// How the move into this element is trimmed: PE-DESIGN's rule unless a text's
+    /// [`crate::finish::Finish::between`] says otherwise (#548).
+    rule: Rule,
+}
+
+/// How the move into an element is trimmed (#548).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+enum Rule {
+    /// PE-DESIGN's rule: sewn across up to the element's across distance, trimmed beyond the
+    /// compiler's trim distance.
+    #[default]
+    Pe,
+    /// As [`Rule::Pe`] with this trim distance (0.1 mm).
+    Far(f64),
+    /// Trimmed however short the move.
+    Always,
+    /// Never trimmed: sewn across up to the across distance, a jump beyond.
+    Never,
 }
 
 /// The longest move from one letter of a text to the next sewn across as a stitch (0.1 mm):
@@ -90,6 +109,18 @@ struct Writer {
     trim_jumps: bool,
     /// The stitches since the last trim belong to an element that locks ([`Element::lock`]).
     lock_open: bool,
+    /// How the move into the next object is trimmed: the finish of the object sewn last
+    /// (#548).
+    leaving: Rule,
+    /// The object being sewn has not travelled to its first run yet.
+    entering: bool,
+    /// The object's own ties (#548); `None` = PE-DESIGN's.
+    ties: Option<Ties>,
+    /// Tie in the next run even when no trim or jump comes before it (tie: always).
+    force_tie: bool,
+    /// The ties of the object whose run is open: its lock may be written after the next
+    /// object has started (with the move into it).
+    open_ties: Option<Ties>,
     /// A stop before every trimmed move between parts (`stopAtJumps`, #512).
     stop_at_jumps: bool,
     /// An object asked for a stop after it (#512): written before the next move unless a
@@ -97,6 +128,25 @@ struct Writer {
     stop_pending: bool,
     /// The basting run (#509) waiting to be sewn in the first element's thread.
     basting: Vec<Run>,
+    /// Fills sewn from the object being entered on, inset: the move into it may run hidden
+    /// under them (#545). Taken by the object's first element.
+    under: Option<crate::hidden::Cover>,
+    /// The object just sewn asks for a run connector to the next (#545): its id.
+    run_from: Option<u64>,
+    /// Run connectors sewn: object id and length (0.1 mm).
+    connectors: Vec<(u64, f64)>,
+    /// The region area of the object being sewn with its hidden stitching left out (#511).
+    region_area: Option<Vec<Contour>>,
+}
+
+/// An object's own ties (#548).
+#[derive(Clone, Copy, Debug)]
+struct Ties {
+    off: bool,
+    always: bool,
+    steps: usize,
+    /// Tie stitch length, 0.1 mm.
+    len: f64,
 }
 
 /// Needle points closer than this (0.1 mm) are one penetration, wherever they lie on the
@@ -138,10 +188,15 @@ impl Writer {
             .take(5)
             .map(|s| v2(s.x, s.y))
             .collect();
-        if tail.len() < 2 || crate::region::ends_locked(&tail) {
+        // The object's own ties lock every run (its generators' locks were left out, #548).
+        if tail.len() < 2 || (self.open_ties.is_none() && crate::region::ends_locked(&tail)) {
             return;
         }
-        for p in crate::region::lock_after(&tail) {
+        let lock = match self.open_ties {
+            Some(t) => crate::finish::lock_points(tail[1], tail[0], t.steps, t.len),
+            None => crate::region::lock_after(&tail),
+        };
+        for p in lock {
             self.push(p, Command::Stitch);
         }
     }
@@ -161,7 +216,7 @@ impl Writer {
         self.cut = false;
     }
 
-    fn travel(&mut self, p: Vec2, within_element: bool, across: f64) {
+    fn travel(&mut self, p: Vec2, within_element: bool, across: f64, rule: Rule) {
         let Some(from) = self.position else {
             self.push(p, Command::Jump);
             self.position = Some(p);
@@ -171,16 +226,23 @@ impl Writer {
         if d == 0.0 {
             return;
         }
-        if within_element && d <= self.cfg.connect_distance && !self.cut {
+        let sew_across = rule != Rule::Always && !self.cut;
+        if within_element && d <= self.cfg.connect_distance && sew_across {
             self.stitch_line(p);
             return;
         }
         // PE-DESIGN sews a short move between objects across as a stitch rather than jumping.
-        if !within_element && d <= across && !self.cut {
+        if !within_element && d <= across && sew_across {
             self.stitch_line(p);
             return;
         }
-        if d > self.cfg.trim_distance && !self.cut && self.trim_jumps {
+        let trim = match rule {
+            Rule::Pe => d > self.cfg.trim_distance && self.trim_jumps,
+            Rule::Far(t) => d > t,
+            Rule::Always => true,
+            Rule::Never => false,
+        };
+        if trim && !self.cut {
             self.end_lock();
             self.push(from, Command::Trim);
             self.cut = true;
@@ -191,6 +253,40 @@ impl Writer {
         }
         self.push(p, Command::Jump);
         self.position = Some(p);
+    }
+
+    /// The move into an object of the same thread, beyond PE-DESIGN (#545): running stitches
+    /// along a path inside `under` (fills sewn later hide them), else a run connector when the
+    /// object before asked for one. False when neither applies (a jump as usual).
+    fn connect(
+        &mut self,
+        p: Vec2,
+        across: f64,
+        under: Option<&crate::hidden::Cover>,
+        run: Option<u64>,
+    ) -> bool {
+        let Some(from) = self.position else {
+            return false;
+        };
+        let d = from.distance(p);
+        if self.cut || d <= across {
+            return false;
+        }
+        let step = crate::hidden::TRAVEL_STITCH;
+        if let Some(path) =
+            under.and_then(|c| crate::hidden::path_inside(from, p, &c.area, &c.inset))
+        {
+            for &q in &path[1..] {
+                self.stitch_split(q, step);
+            }
+            return true;
+        }
+        if let Some(id) = run {
+            self.connectors.push((id, d));
+            self.stitch_split(p, step);
+            return true;
+        }
+        false
     }
 
     /// Feed (Manual Punch): the frame moves to `p` with a jump stitch; the thread is not cut.
@@ -238,12 +334,25 @@ impl Writer {
         {
             self.push(p, Command::Stop);
         }
+        let (under, run_from) = (self.under.take(), self.run_from.take());
         let across = element.across.unwrap_or(self.cfg.sew_across_distance);
         for (i, run) in runs.iter().enumerate() {
             // A letter's separate pieces are trimmed apart (pieces close enough to join inside
             // the letter are one run already: `stroke_columns`).
             let across = if i > 0 { 0.0 } else { across };
-            self.travel(run[0], i > 0 && !element.pieces, across);
+            // The move into an object follows the finish of the one before it (#548); a finish
+            // that always trims is not joined by a run connector (#545).
+            let rule = match i {
+                0 if std::mem::take(&mut self.entering) => self.leaving,
+                0 => element.rule,
+                _ => Rule::Pe,
+            };
+            let connected = i == 0
+                && rule != Rule::Always
+                && self.connect(run[0], across, under.as_ref(), run_from);
+            if !connected {
+                self.travel(run[0], i > 0 && !element.pieces, across, rule);
+            }
             // A run the writer starts after a trim ties in (unless its generator already did).
             let fresh = self.position.is_none()
                 || self.cut
@@ -252,16 +361,27 @@ impl Writer {
                     .stitches
                     .last()
                     .is_some_and(|s| s.command == Command::Jump);
+            // Only a run that locks takes the object's forced tie-in (not a basting run).
+            let force = element.lock && std::mem::take(&mut self.force_tie);
             let tied;
-            let run = if element.lock && fresh && !crate::region::starts_tied(run) {
-                let mut r = run.clone();
-                crate::region::tie_in(&mut r);
-                tied = r;
-                &tied
-            } else {
-                run
+            let run = match self.ties {
+                // The object's own ties: its generators' ties were left out (#548).
+                Some(t) if !t.off && element.lock && (fresh || force) => {
+                    let mut r = run.clone();
+                    crate::finish::tie_in(&mut r, t.steps, t.len);
+                    tied = r;
+                    &tied
+                }
+                None if element.lock && fresh && !crate::region::starts_tied(run) => {
+                    let mut r = run.clone();
+                    crate::region::tie_in(&mut r);
+                    tied = r;
+                    &tied
+                }
+                _ => run,
             };
-            self.lock_open = element.lock;
+            self.lock_open = element.lock && !self.ties.is_some_and(|t| t.off);
+            self.open_ties = self.ties;
             // A jump already ends on the run's first needle point: PE-DESIGN 11 never writes a
             // zero-length stitch there and drops one when it opens a file (compat pes-default-v6).
             let landed = self
@@ -301,6 +421,17 @@ impl Compiler {
     /// the pattern's stitches it wrote, travel into it included (the quality checks name the
     /// objects behind a problem from this).
     pub fn compile_traced(&self, design: &Design) -> (StitchPattern, Vec<(u64, Range<usize>)>) {
+        let (w, spans) = self.sew_design(design);
+        (w.finish(), spans)
+    }
+
+    /// The run connectors the design sews (#545): the id of the object each follows and its
+    /// length (0.1 mm).
+    pub fn connectors(&self, design: &Design) -> Vec<(u64, f64)> {
+        self.sew_design(design).0.connectors
+    }
+
+    fn sew_design(&self, design: &Design) -> (Writer, Vec<(u64, Range<usize>)>) {
         let mut w = self.writer();
         w.out.set_name(design.name.clone());
         for (key, value) in design.properties.fields() {
@@ -318,8 +449,23 @@ impl Compiler {
             }
         }
         let mut spans = Vec::new();
-        for object in design.objects.iter().filter(|o| o.visible) {
+        let unders = if production.travel_under {
+            crate::hidden::later_cover(&design.objects)
+        } else {
+            Vec::new()
+        };
+        for (index, object) in design.objects.iter().enumerate() {
+            if !object.visible {
+                continue;
+            }
             let start = w.out.stitches.len();
+            w.under = unders.get(index).filter(|u| !u.inset.is_empty()).cloned();
+            // Only where it saves stitches: routing round a cut-out can cost more than it
+            // leaves out.
+            w.region_area = crate::hidden::visible_area(design, index).filter(|area| {
+                self.stitches_of(object, design, Some(area.clone()))
+                    < self.stitches_of(object, design, None)
+            });
             let started = match (production.auto_start, w.position) {
                 (crate::production::AutoStart::Nearest, Some(from)) => {
                     crate::production::nearest_start(object, from).filter(|c| {
@@ -334,12 +480,15 @@ impl Compiler {
                 _ => None,
             };
             sew_object(&mut w, started.as_ref().unwrap_or(object), design);
+            w.under = None;
+            w.region_area = None;
             if object.stop_after && w.position.is_some() {
                 w.stop_after();
             }
+            w.run_from = object.connector_run.then_some(object.id);
             spans.push((object.id, start..w.out.stitches.len()));
         }
-        (w.finish(), spans)
+        (w, spans)
     }
 
     /// The stitches `design.objects[index]` alone generates, as it would be sewn inside the
@@ -373,6 +522,19 @@ impl Compiler {
         (w.out.count(Command::Trim), travel)
     }
 
+    /// Needle points `object` sews alone, its region over `area` when given (#511).
+    fn stitches_of(
+        &self,
+        object: &DesignObject,
+        design: &Design,
+        area: Option<Vec<Contour>>,
+    ) -> usize {
+        let mut w = self.writer();
+        w.region_area = area;
+        sew_object(&mut w, object, design);
+        w.out.count(Command::Stitch)
+    }
+
     fn writer(&self) -> Writer {
         Writer {
             cfg: *self,
@@ -382,9 +544,18 @@ impl Compiler {
             cut: true,
             trim_jumps: true,
             lock_open: false,
+            leaving: Rule::Pe,
+            entering: false,
+            ties: None,
+            force_tie: false,
+            open_ties: None,
             stop_at_jumps: false,
             stop_pending: false,
             basting: Vec::new(),
+            under: None,
+            run_from: None,
+            connectors: Vec::new(),
+            region_area: None,
         }
     }
 }
@@ -399,6 +570,7 @@ fn basting_element(runs: Vec<Run>, thread: Thread) -> Element {
         lock: false,
         pieces: true,
         across: Some(0.0),
+        rule: Rule::Pe,
     }
 }
 
@@ -431,30 +603,57 @@ impl Writer {
 fn sew_object(w: &mut Writer, object: &DesignObject, design: &Design) {
     let multi = design.machine.machine == crate::machine::MachineType::MultiNeedle;
     w.trim_jumps = !(multi && object.trim_jumps == Some(false));
+    let finish = object.finish.as_ref().filter(|f| !f.is_default());
+    w.entering = true;
+    w.ties = finish.filter(|f| f.custom_ties()).map(|f| {
+        let (steps, len) = f.tie_steps();
+        Ties {
+            off: f.tie == FinishMode::Off,
+            always: f.tie == FinishMode::Always,
+            steps,
+            len,
+        }
+    });
+    w.force_tie = w.ties.is_some_and(|t| t.always);
     match object.kind {
         ObjectKind::Shape | ObjectKind::Text => {
             let holes = holes_above(object, design);
-            let turns = design
-                .objects
-                .iter()
-                .position(|o| std::ptr::eq(o, object))
-                .map(|i| design.text_turns(i))
-                .unwrap_or_default();
+            let index = design.objects.iter().position(|o| std::ptr::eq(o, object));
+            let turns = index.map(|i| design.text_turns(i)).unwrap_or_default();
+            let between = finish.map_or(LetterTrim::Auto, |f| f.between);
+            let breaks = match (between, index) {
+                (LetterTrim::Auto, _) | (_, None) => Vec::new(),
+                (_, Some(i)) => design.text_breaks(i),
+            };
+            let sewing = Sewing {
+                custom_ties: w.ties.is_some(),
+                between,
+                breaks: &breaks,
+            };
             // Generated where the object's bounds start, then moved back (#567): row and needle
             // grids follow the object, so moving it moves its stitches and nothing else.
             let anchor = object
                 .bounds()
                 .map_or(v2(0.0, 0.0), |b| v2(b.min_x, b.min_y));
-            let (local, holes) = if anchor == v2(0.0, 0.0) {
-                (std::borrow::Cow::Borrowed(object), holes)
+            let area = w.region_area.take();
+            let (local, holes, area) = if anchor == v2(0.0, 0.0) {
+                (std::borrow::Cow::Borrowed(object), holes, area)
             } else {
                 let to = Transform::translation(-anchor.x, -anchor.y);
                 let mut o = object.clone();
                 o.apply(&to);
                 let h = holes.iter().map(|c| c.transformed(&to)).collect();
-                (std::borrow::Cow::Owned(o), h)
+                let a = area.map(|a| a.iter().map(|c| c.transformed(&to)).collect());
+                (std::borrow::Cow::Owned(o), h, a)
             };
-            for mut e in elements(&local, &holes, &design.patterns, &turns) {
+            for mut e in elements(
+                &local,
+                &holes,
+                &design.patterns,
+                &turns,
+                &sewing,
+                area.as_deref(),
+            ) {
                 if anchor != v2(0.0, 0.0) {
                     for p in e.runs.iter_mut().flatten() {
                         *p = *p + anchor;
@@ -473,6 +672,51 @@ fn sew_object(w: &mut Writer, object: &DesignObject, design: &Design) {
             if let Some(block) = &object.stitch_block {
                 sew_block(w, block);
             }
+        }
+    }
+    // Tie: always locks the object's end even when no trim follows it.
+    if w.ties.is_some_and(|t| t.always) && !w.cut {
+        w.lock_open = true;
+        w.end_lock();
+    }
+    w.entering = false;
+    w.force_tie = false;
+    w.ties = None;
+    w.leaving = match finish {
+        None => Rule::Pe,
+        Some(f) => match f.trim {
+            FinishMode::Always => Rule::Always,
+            FinishMode::Off => Rule::Never,
+            FinishMode::Auto => f.trim_distance.map_or(Rule::Pe, |d| Rule::Far(d * 10.0)),
+        },
+    };
+}
+
+/// What an object's finish asks of its elements (#548).
+struct Sewing<'a> {
+    /// The writer ties the object's runs: its generators' PE-DESIGN ties are left out.
+    custom_ties: bool,
+    /// Where a text trims between letters.
+    between: LetterTrim,
+    /// What lies before each letter after the first ([`Design::text_breaks`]).
+    breaks: &'a [LetterBreak],
+}
+
+impl Sewing<'_> {
+    /// The rule for the move into letter `index` (> 0) of a text.
+    fn letter_rule(&self, index: usize) -> Rule {
+        let at = index
+            .checked_sub(1)
+            .and_then(|i| self.breaks.get(i))
+            .copied()
+            .unwrap_or(LetterBreak::Letter);
+        match self.between {
+            LetterTrim::Auto => Rule::Pe,
+            LetterTrim::Never => Rule::Never,
+            LetterTrim::Letter => Rule::Always,
+            LetterTrim::Word if at >= LetterBreak::Word => Rule::Always,
+            LetterTrim::Line if at == LetterBreak::Line => Rule::Always,
+            LetterTrim::Word | LetterTrim::Line => Rule::Never,
         }
     }
 }
@@ -535,6 +779,7 @@ fn sew_block(w: &mut Writer, block: &StitchBlock) {
                     lock: false,
                     pieces: false,
                     across: across.take(),
+                    rule: Rule::Pe,
                 });
                 across = Some(0.0);
             }
@@ -555,6 +800,7 @@ fn sew_block(w: &mut Writer, block: &StitchBlock) {
                     lock: false,
                     pieces: false,
                     across: across.take(),
+                    rule: Rule::Pe,
                 });
                 block_index += 1;
             }
@@ -568,6 +814,7 @@ fn sew_block(w: &mut Writer, block: &StitchBlock) {
         lock: false,
         pieces: false,
         across,
+        rule: Rule::Pe,
     });
 }
 
@@ -583,13 +830,20 @@ fn holes_above(object: &DesignObject, design: &Design) -> Vec<Contour> {
 }
 
 /// `turns`: how far each letter of a text is turned ([`Design::text_turns`]).
+/// `area`: the region's area with its hidden stitching left out (#511), sewn instead of the
+/// shape's own closed outlines; the outline is sewn as drawn.
 fn elements(
     object: &DesignObject,
     holes: &[Contour],
     user: &[Pattern],
     turns: &[Option<f64>],
+    sewing: &Sewing,
+    area: Option<&[Contour]>,
 ) -> Vec<Element> {
-    if let Some(letters) = letter_line_elements(object, user) {
+    if let Some(mut letters) = letter_line_elements(object, user) {
+        for (index, e) in letters.iter_mut().enumerate().skip(1) {
+            e.rule = sewing.letter_rule(index);
+        }
         return letters;
     }
     let mut out = Vec::new();
@@ -607,7 +861,10 @@ fn elements(
         let region = &sewn;
         // A shape is one region; text is one region per glyph, sewn letter by letter.
         for (index, group) in object.glyph_groups().into_iter().enumerate() {
-            let closed: Vec<Contour> = group.iter().filter(|c| c.closed).cloned().collect();
+            let closed: Vec<Contour> = match area {
+                Some(a) => a.to_vec(),
+                None => group.iter().filter(|c| c.closed).cloned().collect(),
+            };
             if closed.is_empty() {
                 continue;
             }
@@ -690,7 +947,9 @@ fn elements(
             // Satin, fill, motif and decorative fill tie in and lock as PE-DESIGN 11 sews them
             // (motif-fill-2pt, deco-fill-1line-100mm: one 0.3 mm step out and back at the
             // start and at the end).
-            if matches!(
+            if sewing.custom_ties {
+                // The writer ties the runs with the object's own ties (#548).
+            } else if matches!(
                 region.kind,
                 RegionType::Satin
                     | RegionType::Fill
@@ -722,12 +981,17 @@ fn elements(
                     pieces: stroked && k + 1 == n,
                     // The move into a letter from the one before (#465).
                     across: (text && k == 0).then_some(LETTER_ACROSS),
+                    rule: if text && k == 0 && index > 0 {
+                        sewing.letter_rule(index)
+                    } else {
+                        Rule::Pe
+                    },
                 });
             }
         }
     }
     if let Some(line) = &object.line {
-        let lines = line_elements(object, line, user);
+        let lines = line_elements(object, line, user, sewing.custom_ties);
         if object.line_first {
             // Sew outline first (#502): the outline's elements go before the region's.
             out.splice(0..0, lines);
@@ -777,6 +1041,7 @@ fn letter_line_elements(object: &DesignObject, _user: &[Pattern]) -> Option<Vec<
                 lock: true,
                 pieces: true,
                 across: Some(LINE_LETTER_ACROSS),
+                rule: Rule::Pe,
             });
         }
         return Some(out);
@@ -850,6 +1115,7 @@ fn letter_line_elements(object: &DesignObject, _user: &[Pattern]) -> Option<Vec<
             lock: true,
             pieces: true,
             across: Some(LINE_LETTER_ACROSS),
+            rule: Rule::Pe,
         });
     }
     Some(out)
@@ -1446,7 +1712,14 @@ fn stroke_fill(sawtooth: &[Vec2], stitch: f64, stagger: generate::Stagger) -> Ru
     run
 }
 
-fn line_elements(object: &DesignObject, line: &LineSewing, user: &[Pattern]) -> Vec<Element> {
+/// `custom_ties`: the writer ties the line with its object's own ties (#548), so the line's
+/// PE-DESIGN tie is left out.
+fn line_elements(
+    object: &DesignObject,
+    line: &LineSewing,
+    user: &[Pattern],
+    custom_ties: bool,
+) -> Vec<Element> {
     let pitch = line.pitch * 10.0;
     // Closed stem, candlewick and triangle chain lines keep their elements in place and start
     // at the entry point as PE-DESIGN's Start/End Type says (see `start_loop` below).
@@ -1500,6 +1773,7 @@ fn line_elements(object: &DesignObject, line: &LineSewing, user: &[Pattern]) -> 
                 lock: false,
                 pieces: false,
                 across: None,
+                rule: Rule::Pe,
             })
             .collect();
     }
@@ -1509,11 +1783,23 @@ fn line_elements(object: &DesignObject, line: &LineSewing, user: &[Pattern]) -> 
         .map(|c| {
             let width = line.width * 10.0;
             let spacing = line.spacing_mm() * 10.0;
-            let mut run = if line.kind == LineType::Zigzag && line.underlay {
-                lines::zigzag_underlay(&c.path(), width / 4.0, pitch)
-            } else {
-                Vec::new()
-            };
+            let mut run =
+                if matches!(line.kind, LineType::Zigzag | LineType::Satin) && line.underlay {
+                    let width = if line.kind == LineType::Satin {
+                        lines::satin_line_width(line) * 10.0
+                    } else {
+                        width
+                    };
+                    lines::line_underlay(
+                        &c.path(),
+                        width,
+                        pitch,
+                        line.underlay_style,
+                        &line.underlay_auto,
+                    )
+                } else {
+                    Vec::new()
+                };
             let loop_line = match line.kind {
                 LineType::Stem => Some(lines::LoopLine::Stem {
                     width,
@@ -1560,6 +1846,15 @@ fn line_elements(object: &DesignObject, line: &LineSewing, user: &[Pattern]) -> 
                 LineType::Triple => generate::triple(c, pitch),
                 // PE-DESIGN's zigzag (rails matched along each leg) on straight-line paths;
                 // curves keep the evenly spaced zigzag, with half stitch where asked.
+                // OpenStitch's satin shaping (#520-#522) replaces both when set.
+                LineType::Satin => lines::satin_line(&c.path(), line),
+                LineType::Zigzag if !line.satin_shaping.is_plain() => lines::zigzag_shaped(
+                    &c.path(),
+                    width,
+                    10.0 / line.density.max(0.1),
+                    &line.satin_shaping,
+                    c.has_curves().then_some(line.half_stitch),
+                ),
                 LineType::Zigzag if !c.has_curves() => {
                     lines::zigzag_rails(&c.path(), width, 10.0 / line.density.max(0.1))
                 }
@@ -1644,7 +1939,7 @@ fn line_elements(object: &DesignObject, line: &LineSewing, user: &[Pattern]) -> 
     // candlewicking and chain tie in with three steps out instead of one, but not where a
     // moved entry point starts a stem or candlewick with running stitch
     // (line-*-startend-*.pes; a chain's lead keeps the long one).
-    if line.kind != LineType::Cutting {
+    if line.kind != LineType::Cutting && !custom_ties {
         region::tie_and_lock(std::slice::from_mut(&mut runs));
         if matches!(
             line.kind,
@@ -1662,6 +1957,7 @@ fn line_elements(object: &DesignObject, line: &LineSewing, user: &[Pattern]) -> 
         lock: true,
         pieces: false,
         across: None,
+        rule: Rule::Pe,
     }]
 }
 

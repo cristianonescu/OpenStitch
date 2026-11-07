@@ -9,7 +9,6 @@ use openstitch_app::editor::{
     CommandRequest, Tool, ToolContext, ToolController, ToolEffect, Viewport,
 };
 use openstitch_core::StitchPattern;
-use openstitch_design::Compiler;
 use openstitch_engine::{Effect, Session};
 use openstitch_formats::FileType;
 use serde_json::{Value, json};
@@ -99,8 +98,10 @@ impl Launch {
 }
 
 /// Values `--show` accepts.
-pub const SHOW: [&str; 31] = [
+pub const SHOW: [&str; 33] = [
     "update",
+    "pickers",
+    "tabs",
     "close-prompt",
     "realistic",
     "solid",
@@ -199,6 +200,12 @@ pub struct EditorApp {
     pub dialog_rect: Option<egui::Rect>,
     pub dialog_rect_next: Option<egui::Rect>,
     player: Option<crate::script::Player>,
+    /// Picture pickers and their hover preview (#656).
+    pub pickers: crate::pickers_ui::Pickers,
+    /// The other designs open as tabs (#552).
+    pub tabs: documents::Tabs,
+    /// A File ▸ Open or Import running on a worker thread (#558).
+    pub open_job: Option<crate::open_job::OpenJob>,
     /// The object selected last (Align ▸ relative to Last Selected keeps it in place).
     pub key_object: Option<u64>,
     /// Align ▸ relative to: `"selection"`, `"key"` or `"page"` (#472).
@@ -335,6 +342,9 @@ impl EditorApp {
             dialog_rect: None,
             dialog_rect_next: None,
             player: None,
+            pickers: Default::default(),
+            tabs: Default::default(),
+            open_job: None,
             key_object: None,
             align_to: "selection",
             precision: Default::default(),
@@ -398,8 +408,9 @@ impl EditorApp {
             self.ui.prefs_path = Some(ui);
         }
         self.database.units = self.ui.prefs.units;
-        // Copy and Paste use the system clipboard (#500), except in screenshot runs.
-        self.ui.system_clipboard = l.screenshot.is_none();
+        // Copy and Paste use the system clipboard (#500), except in screenshot runs and tests
+        // (#705: see `ribbon::os_clipboard`).
+        self.ui.system_clipboard = l.screenshot.is_none() && !cfg!(test);
         if l.accent.is_some() {
             self.ui.prefs.accent = l.accent;
         }
@@ -498,6 +509,29 @@ impl EditorApp {
                 "update" => self.update.show_sample(),
                 "close-prompt" => {
                     self.close_prompt.request(Pending::Exit, true);
+                }
+                "pickers" => {
+                    // The Region Type pictures open over a satin preview of the badge (#656).
+                    self.ui.prefs.picture_pickers = true;
+                    self.pickers.force_open = Some("region-type");
+                    let _ = self.preview_command(Some(&json!({
+                        "command": "object.setRegion",
+                        "params": { "ids": [1], "type": "satin" },
+                    })));
+                }
+                "tabs" => {
+                    // Two designs as tabs (#552): the sample and an unsaved name tag.
+                    self.ui.prefs.open_in_tabs = true;
+                    self.new_tab();
+                    let steps = [
+                        CommandRequest::new("design.new", json!({ "name": "Name tag" })),
+                        CommandRequest::new(
+                            "shape.ellipse",
+                            json!({ "cx": 50, "cy": 50, "rx": 35, "ry": 18 }),
+                        ),
+                    ];
+                    self.execute_all(&steps);
+                    self.activate_tab(0);
                 }
                 "floating" => {
                     let p = &mut self.ui.prefs.panes;
@@ -746,12 +780,25 @@ impl EditorApp {
         self.revision += 1;
         let d = self.session.design();
         self.selection.retain(|id| d.index_of(*id).is_some());
-        let (pattern, spans) = Compiler::for_design(d).compile_traced(d);
-        self.timeline = openstitch_design::timeline::Timeline::build(&pattern, &spans, &d.machine);
-        self.pattern = pattern;
-        self.quality.spans = spans;
-        self.stats = PatternStats::of(&self.pattern);
-        self.workspace.estimate = Some(openstitch_design::estimate(&self.pattern, &d.machine));
+        let compiled = crate::open_job::Compiled::of(d);
+        self.install_compiled(compiled);
+    }
+
+    /// Makes `c` the window's stitches: [`EditorApp::refresh`] without the compile, for a
+    /// design compiled on a worker (#558).
+    pub(crate) fn install(&mut self, c: crate::open_job::Compiled) {
+        self.revision += 1;
+        let d = self.session.design();
+        self.selection.retain(|id| d.index_of(*id).is_some());
+        self.install_compiled(c);
+    }
+
+    fn install_compiled(&mut self, c: crate::open_job::Compiled) {
+        self.timeline = c.timeline;
+        self.pattern = c.pattern;
+        self.quality.spans = c.spans;
+        self.stats = c.stats;
+        self.workspace.estimate = Some(c.estimate);
         if self.simulate.is_some_and(|n| n >= self.stats.stitches) {
             self.simulate = None;
         }
@@ -760,6 +807,20 @@ impl EditorApp {
 
     pub fn ensure_render_model(&mut self) {
         let limit = self.simulate.unwrap_or(usize::MAX);
+        // A picture picker's hover preview (#656): its own stitches, never the design's cache.
+        if let Some(p) = self.live_preview() {
+            let key = (
+                u64::MAX - p.generation,
+                limit,
+                openstitch_design::view::ViewFilter::default(),
+                self.page_rgb,
+            );
+            if self.render_key.as_ref() != Some(&key) {
+                self.render = RenderModel::build(&p.compiled.pattern, limit);
+                self.render_key = Some(key);
+            }
+            return;
+        }
         let filter = self.view_filter();
         let key = (self.revision, limit, filter.clone(), self.page_rgb);
         if self.render_key.as_ref() != Some(&key) {
@@ -836,6 +897,12 @@ impl EditorApp {
                 .filter(|s| s.command == openstitch_core::Command::ColorChange)
                 .count(),
         )
+    }
+
+    /// A `--script` or `--screenshot` run: background work is waited for, so each step sees
+    /// its result.
+    pub(crate) fn scripted(&self) -> bool {
+        self.player.is_some() || self.screenshot.is_some()
     }
 
     pub fn is_dirty(&self) -> bool {
@@ -936,6 +1003,11 @@ impl EditorApp {
     /// Runs `what` now, or opens the unsaved-changes prompt for it when the design has
     /// unsaved changes (File ▸ New, Open, Exit and the Recent Files go through here).
     pub fn guarded(&mut self, what: Pending) {
+        // Open designs in tabs (#552): New and Open keep this design in its tab.
+        if self.ui.prefs.open_in_tabs && matches!(what, Pending::New | Pending::Open(_)) {
+            self.perform_in_tab(what);
+            return;
+        }
         if self.close_prompt.request(what.clone(), self.is_dirty()) {
             self.perform(what);
         }
@@ -944,10 +1016,67 @@ impl EditorApp {
     fn perform(&mut self, what: Pending) {
         match what {
             // The frame loop sends the close.
-            Pending::Exit => self.approve_exit(),
+            Pending::Exit => match self.dirty_parked() {
+                // Closing the window asks for each tab with unsaved changes (#552).
+                Some(_) => {
+                    self.close_active_tab();
+                    if let Some(i) = self.dirty_parked() {
+                        self.activate_tab(i);
+                    }
+                    self.close_prompt.request(Pending::Exit, self.is_dirty());
+                    if !self.close_prompt.is_open() {
+                        self.perform(Pending::Exit);
+                    }
+                }
+                None => self.approve_exit(),
+            },
+            Pending::CloseTab => self.close_active_tab(),
             Pending::New => self.new_design(),
             Pending::Open(None) => self.open_dialog(),
-            Pending::Open(Some(p)) => self.open_path(&p),
+            Pending::Open(Some(p)) => self.open_in_background(&p),
+        }
+    }
+
+    /// New or Open with Open designs in tabs on (#552): an empty, untouched design is reused,
+    /// otherwise a new tab is added; a cancelled or failed open closes the tab it added.
+    fn perform_in_tab(&mut self, what: Pending) {
+        let path = match what {
+            Pending::Open(None) => {
+                let mut exts = vec![openstitch_engine::project::EXTENSION];
+                exts.extend(FileType::ALL.iter().map(|t| t.extension()));
+                match rfd::FileDialog::new()
+                    .add_filter("Designs and embroidery files", &exts)
+                    .pick_file()
+                {
+                    Some(p) => Some(p),
+                    None => return,
+                }
+            }
+            Pending::Open(Some(p)) => Some(p),
+            _ => None,
+        };
+        let reuse = !self.is_dirty()
+            && self.path.is_none()
+            && self.session.design().objects.is_empty()
+            && path.is_some();
+        if !reuse {
+            self.new_tab();
+        }
+        if let Some(p) = path {
+            self.open_in_background(&p);
+            match &mut self.open_job {
+                Some(job) => job.added_tab = !reuse,
+                // A scripted run applied it already; close the tab when nothing opened.
+                None if !reuse
+                    && self.session.design().objects.is_empty()
+                    && self.path.is_none() =>
+                {
+                    let status = std::mem::take(&mut self.status);
+                    self.close_active_tab();
+                    self.status = status;
+                }
+                None => {}
+            }
         }
     }
 
@@ -980,11 +1109,16 @@ impl EditorApp {
     /// The window was asked to close (X button, Alt+F4, the OS): with unsaved changes and no
     /// approval the close is cancelled and the prompt opens.
     fn close_request(&mut self, ctx: &egui::Context) {
-        if !ctx.input(|i| i.viewport().close_requested()) || self.exit_approved || !self.is_dirty()
+        if !ctx.input(|i| i.viewport().close_requested()) || self.exit_approved || !self.any_dirty()
         {
             return;
         }
         ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+        if !self.is_dirty()
+            && let Some(i) = self.dirty_parked()
+        {
+            self.activate_tab(i);
+        }
         self.close_prompt.request(Pending::Exit, true);
     }
 
@@ -1022,27 +1156,26 @@ impl EditorApp {
             .add_filter("Embroidery files", &exts[1..])
             .pick_file();
         if let Some(p) = file {
-            self.open_path(&p);
+            self.open_in_background(&p);
         }
     }
 
     /// `.osd` opens as the design; a machine file opens as a new design holding it as an
-    /// imported stitch pattern on a page large enough for it.
+    /// imported stitch pattern on a page large enough for it. Runs on the UI thread (launch
+    /// `--open`, tests); the menus use [`EditorApp::open_in_background`].
     pub fn open_path(&mut self, p: &Path) {
+        let steps = self.open_steps(p);
+        if self.grouped(|app| app.execute_all(&steps)).is_some() {
+            self.after_open(p);
+        }
+    }
+
+    /// The commands that open `p`: `project.open`, or a new design sized for a machine file
+    /// and its import.
+    pub(crate) fn open_steps(&self, p: &Path) -> Vec<CommandRequest> {
         let path = p.display().to_string();
         if is_project(p) {
-            if self
-                .execute(&CommandRequest::new(
-                    "project.open",
-                    json!({ "path": path }),
-                ))
-                .is_some()
-            {
-                self.after_load(Some(p.to_path_buf()));
-                self.status = format!("Opened {}", p.display());
-                self.ui.add_recent(p);
-            }
-            return;
+            return vec![CommandRequest::new("project.open", json!({ "path": path }))];
         }
         let (w, h) = machine_file_size_mm(p).unwrap_or((100.0, 100.0));
         let name = p
@@ -1051,7 +1184,7 @@ impl EditorApp {
         let page = |v: f64| ((v + 10.0) / 10.0).ceil().max(10.0) * 10.0;
         // A PE-DESIGN 11 file keeps its own Design Page size.
         let (page_w, page_h) = pes_page_mm(p).unwrap_or((page(w), page(h)));
-        let steps = [
+        vec![
             CommandRequest::new(
                 "design.new",
                 json!({ "name": name, "width": page_w, "height": page_h }),
@@ -1062,10 +1195,17 @@ impl EditorApp {
                 "stitches.import",
                 json!({ "path": path, "keepSource": true }),
             ),
-        ];
-        if self.grouped(|app| app.execute_all(&steps)).is_some() {
+        ]
+    }
+
+    /// After `p` opened: file name, recent files and status.
+    pub(crate) fn after_open(&mut self, p: &Path) {
+        self.ui.add_recent(p);
+        if is_project(p) {
+            self.after_load(Some(p.to_path_buf()));
+            self.status = format!("Opened {}", p.display());
+        } else {
             self.after_load(None);
-            self.ui.add_recent(p);
             self.status = format!(
                 "Opened {} as a new design (Save to keep it as .osd)",
                 p.display()
@@ -1078,9 +1218,8 @@ impl EditorApp {
         if let Some(p) = rfd::FileDialog::new()
             .add_filter("Embroidery files", &exts)
             .pick_file()
-            && self.grouped(|app| app.import(&p))
         {
-            self.status = format!("Imported {}", p.display());
+            self.import_in_background(&p);
         }
     }
 
@@ -1162,17 +1301,17 @@ impl EditorApp {
     /// File ▸ Background Image ▸ Paste: the clipboard image becomes the background. It is kept
     /// as a PNG in the app's data folder (named by content), since the project only references it.
     pub fn paste_background(&mut self) {
-        let image = arboard::Clipboard::new().and_then(|mut c| c.get_image());
+        if !self.ui.system_clipboard {
+            self.status = "Paste background: the system clipboard is not used here".into();
+            return;
+        }
+        let image = crate::ribbon::os_clipboard()
+            .and_then(|()| openstitch_app::platform::clipboard_image());
         let stored = match image {
             Ok(img) => pasted_images_dir()
                 .ok_or_else(|| "no folder to keep pasted images in".to_string())
                 .and_then(|dir| {
-                    store_pasted_image(
-                        &dir,
-                        img.width as u32,
-                        img.height as u32,
-                        img.bytes.into_owned(),
-                    )
+                    store_pasted_image(&dir, img.width as u32, img.height as u32, img.bytes)
                 }),
             Err(e) => Err(format!("no image on the clipboard ({e})")),
         };
@@ -1473,13 +1612,20 @@ impl EditorApp {
             self.save(false);
         }
         if hit(A::Open) {
-            self.open_dialog();
+            self.guarded(Pending::Open(None));
         }
         if hit(A::ImportPatterns) {
             self.import_dialog();
         }
         if hit(A::New) {
-            self.new_design();
+            self.guarded(Pending::New);
+        }
+        // Tabs (#552): Ctrl+Tab and Ctrl+Shift+Tab go to the next and previous design.
+        let tab = |m: Modifiers| KeyboardShortcut::new(m, Key::Tab);
+        if take(tab(Modifiers::COMMAND | Modifiers::SHIFT)) {
+            self.cycle_tab(true);
+        } else if take(tab(Modifiers::COMMAND)) {
+            self.cycle_tab(false);
         }
         if hit(A::OtherZoom) {
             self.fit_requested = true;
@@ -1832,6 +1978,12 @@ impl eframe::App for EditorApp {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        // A hover preview lasts while a picture picker's tile is hovered (#656).
+        self.pickers_frame_end();
+        self.pickers_frame_start();
+        if self.preview_pending() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(50));
+        }
         self.dialog_rect = self.dialog_rect_next.take();
         openstitch_app::editor::objects::track_click_order(&mut self.click_order, &self.selection);
         crate::ribbon::poll_clipboard(self, ctx.input(|i| i.time));
@@ -1869,13 +2021,20 @@ impl eframe::App for EditorApp {
             self.screenshot_step(&ctx);
             return;
         }
-        self.shortcuts(&ctx);
+        self.poll_job(&ctx);
+        // The progress window is modal: no shortcut edits the design under a running open.
+        if self.open_job.is_none() {
+            self.shortcuts(&ctx);
+        }
         self.tick(&ctx);
         if crate::recovery_ui::tick(self, ctx.input(|i| i.time)) {
             ctx.request_repaint_after(std::time::Duration::from_millis(500));
         }
         self.update_title(&ctx);
         egui::Panel::top("ribbon").show(ui, |ui| crate::ribbon::ribbon(self, ui));
+        if self.tab_count() > 1 || self.ui.prefs.open_in_tabs {
+            egui::Panel::top("documents").show(ui, |ui| documents::strip(self, ui));
+        }
         if self.ui.prefs.editing.precision_bar {
             egui::Panel::top("precision").show(ui, |ui| crate::arrange_ui::precision_bar(self, ui));
         }
@@ -1893,6 +2052,8 @@ impl eframe::App for EditorApp {
         crate::palette_ui::window(self, &ctx);
         crate::workspace_ui::design_settings_window(self, &ctx);
         crate::print_ui::window(self, &ctx);
+        crate::swatch_ui::window(self, &ctx);
+        crate::jobsheet_ui::window(self, &ctx);
         crate::transfer_ui::window(self, &ctx);
         crate::edit_ui::windows(self, &ctx);
         crate::settings_ui::windows(self, &ctx);
@@ -2062,6 +2223,7 @@ pub fn store_pasted_image(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use openstitch_design::Compiler;
 
     #[test]
     fn every_offered_pes_version_is_one_the_writer_knows() {
@@ -2433,11 +2595,16 @@ mod tests {
         app.guarded(Pending::Open(Some(file.clone())));
         assert!(app.close_prompt.is_open());
         app.answer_close_prompt(Choice::DontSave);
+        assert!(app.open_job.is_some(), "opens in the background (#558)");
+        app.finish_job_blocking();
         assert_eq!(app.path.as_deref(), Some(file.as_path()));
         assert!(!app.is_dirty());
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
+
+#[path = "documents.rs"]
+pub(crate) mod documents;
 
 #[cfg(test)]
 #[path = "app_coverage_tests.rs"]
@@ -2446,3 +2613,7 @@ mod coverage_tests;
 #[cfg(test)]
 #[path = "editor_tools_tests.rs"]
 mod editor_tools_tests;
+
+#[cfg(test)]
+#[path = "open_bench_tests.rs"]
+mod open_bench_tests;

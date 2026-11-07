@@ -534,7 +534,15 @@ Line references are relative to `crates/`.
   1445, its x alone 345 → 305 against 324 and closer both ways (0.228 → 0.211 and 0.215 →
   0.206 mm: main's total matched only because H's +21 and g's −42 cancelled). Letter sweep
   (588 samples): 24 changed (X, x, KNOX), none worse. N's corner and A's and V's slanted feet
-  stay open (#446): no N, M, W, K, Z capture exists yet.
+  stay open (#446). Round 8 (2026-11-07) added PE-DESIGN references for satin N, M, W, K and Z
+  in Lato Bold at 20 and 8 mm and N converted to blocks (`stroke-satin-{n,m,w,k,z}[-8]`,
+  `stroke-blocks-satin-n`, all within today's 25 % and 0.3 mm). Measured against them
+  (needle points ours / PE-DESIGN, mean distance PE → ours, trims ours / PE): N 283/293,
+  0.39 mm, 2/0; N-8 121/123, 0.21 mm, 2/0; M 342/374, 0.38 mm, 2/1; M-8 138/165, 0.27 mm,
+  1/0; W 384/363, 0.32 mm, 3/0; W-8 154/155, 0.19 mm; K 314/293, 0.26 mm; K-8 136/128,
+  0.14 mm; Z 246/237, 0.24 mm, 1/0; Z-8 95/99, 0.16 mm. PE-DESIGN sews N, W, K and Z in one run
+  without a trim (M with one): its strokes meet at the crotches instead of being cut apart, and
+  N's and M's PE → ours distances (the spike at the acute corner) are the largest.
 - **Test:**
   - Inputs: `text.add {"text":"AVOW","size":30,"x":50,"y":50}` →
     `object.setRegion {"id":1,"type":"satin"}` → `design.generate`.
@@ -1614,6 +1622,12 @@ Line references are relative to `crates/`.
     top just right of the middle); no single walking rule fits those and the rectangle's 75.4°.
     The new specs `concentric-circle30` and `concentric-ellipse40x30` compare counts, bounds and
     stitch lengths, not the seam.
+- **Web editor, batch:mac-wasm (2026-11-06; #556):** the browser build is beyond PE-DESIGN
+  (PE-DESIGN 11 runs on Windows only) and changes no output: it runs the engine's own
+  `project.open`, `stitches.import`, `design.export` and `project.save`, whose file access now
+  goes through `openstitch_engine::fsio` (the same `std::fs` calls on the desktop, memory in the
+  browser). CI job `web` checks the browser build's PES, DST, EXP, VP3, XXX, CSV and G-code
+  exports are byte-identical to the native build's for reference PES and DST files.
 - **Editor, batch:editor-core part 2 (2026-11-06; #549, #550):** autosave and recovery, the
   command palette, the hints line and the property search are beyond PE-DESIGN and change no
   design, file or default PE-DESIGN behaviour: snapshots are written only to OpenStitch's own
@@ -1627,6 +1641,38 @@ Line references are relative to `crates/`.
   region-then-outline order unchanged): PE-DESIGN has no per-shape part order, so a PES 11
   export writes such a shape as two shapes, its outline then its region, and the stitch data
   sews them in that order.
+- **Image digitizing, batch:mac-digitize-3 (2026-11-06; #688, #690):** PE-DESIGN-compatible
+  output unchanged (scorer identical). OpenStitch mode: outline paths keep vertices at least
+  0.4 mm apart and, except on line art, specks (every stitch within 0.8 mm) are left out, so sew_check passes 27 of
+  the 30 example images (25 on main; p01 and p09 are #703, g11 is #713; with presets 197 of
+  210 runs, every preset clean on g01-g08). Likeness: g05 MS-SSIM 0.8770 → 0.8750 (its
+  outlines no longer follow pixel steps; 879 fewer stitches under 1 mm), the other Auto Punch
+  cases within 0.0003 or better. Leaving out g11's dots as specks cost MS-SSIM 0.653 → 0.611, so
+  line art keeps them. Two golden hashes change (specks left out): emblem Auto Punch
+  0xcfe047434a377450 → 0x6f8c38e54e037ddb and gradient Auto Punch 0x9fb965f4afbd6472 →
+  0xb90ef983b645fd84; the other 7 are unchanged.
+- **Image wizard, batch:mac-wizard (2026-11-06; #489):** the dialog's region table, click-to-fix,
+  colour order and Preset row drive `digitize.autoPunch`'s `dryRun`, `regionMap`, `overrides`,
+  `order` and `preset`; PE-DESIGN-compatible output with none of them set is unchanged.
+  PE-DESIGN has no per-region reasons, overrides, presets or click-to-toggle (toc:143-150), so
+  all of it is beyond PE-DESIGN.
+- **Image digitizing, batch:mac-digitize-2 (2026-11-06; #447, #469, #489, #490):** PE-DESIGN-compatible
+  mode's output is unchanged (scorer identical on g01, g02, g05, g13, p03; every new option is
+  OpenStitch mode only, off unless set). New in OpenStitch mode: `angleRule: leastTravel`,
+  presets, `digitize.exportOutlines`, `underlap`, `subjectPoint`, `digitize.segment` and
+  `lines: edges`. `leastTravel` against `pe` (`--no-dists`, 100 mm): ΔE00 / MS-SSIM g01
+  9.44/0.8628 → 8.71/0.8732, g02 10.68/0.7821 → 11.02/0.8130, g05 8.06/0.8770 → 8.04/0.8813, g06
+  8.47/0.8245 → 8.27/0.8274, g08 8.61/0.9668 → 7.84/0.9789, g11 unchanged, g13 24.57/0.5749 →
+  21.17/0.5714, g15 14.50/0.8700 → 13.54/0.8849, p03 16.01/0.5335 → 15.54/0.5516, d01
+  23.80/0.3709 → 20.42/0.3917; thread (sewn plus connections) never higher. `underlap: 0.8`
+  is mixed (g01, g02, g08, g13, d01 better; g06, g11, g15, p03 slightly worse; p03 density
+  3.98 → 4.66 points/mm², g08 trims 12 → 32), so it stays off by default. Measured and not
+  shipped: #447's PE-compatible thread set (p03: main matches 2 of PE-DESIGN's 10 threads;
+  CIELAB median cut 3, p03 ΔE00 15.99 → 18.21; CIELAB until 10 distinct 3, 17.54; popularity 2;
+  boxes by their commonest colour 1) and #469's Cross Stitch edge cells (g07: own-colour rule
+  at 2.5 mm ΔE00 14.19 → 14.53, MS-SSIM 0.7573 → 0.7364; a grid snapped to the art's pixels
+  helps at the art's own 4.4 mm cell, 0.5978 → 0.6905, but g07's art pixels are not square,
+  34.5 × 33 px, so square cells drift by up to 4 mm).
 - **Image digitizing, batch:auto-punch (2026-11-06; #445, #447, #469, #489):** PE-DESIGN-compatible
   mode's output is unchanged on every gallery case (scorer identical, 17 cases). OpenStitch mode:
   a paper background is the fabric showing (#445), thin parts cut by the sliver opening are
@@ -2356,6 +2402,46 @@ Line references are relative to `crates/`.
   both cards; the Realistic view and the similarity scorer now draw thread that wide
   (`openstitch_design::calibration`, #291).
 
+### Fabric presets and advice, 2026-11-07 (`batch:mac-fabric`, #508 part 1)
+
+Beyond PE-DESIGN. PE-DESIGN's eight Fabric Selector types and their values are unchanged and
+listed first.
+
+- **Five more fabrics:** polyester woven, piqué knit, organza and sheers, canvas, and structured
+  caps. Their density, stitch length, pull compensation and underlay are OpenStitch's
+  approximations, like the eight: no stabiliser, needle or thread maker publishes these per fabric.
+- **`fabric.advise {fabric, weight}`:** backing, topping, needle point and size, and the smallest
+  legible block-letter height for No. 12, 30, 40 or 60 thread. The values come from the makers'
+  published guidance (`data/fabric_advice.json`, 21 sources checked 2026-11-07), and makers'
+  disagreements are named (leather needle points, caps, towel and denim backings). Minimum text is
+  published for No. 60 (3 mm) and No. 40 (6–7 mm, 6 used); No. 30 and No. 12 are estimates scaled
+  by Madeira's stitch spacing, and say so. The Fabric Selector shows backing, topping, needle and
+  smallest text.
+- **Not done (parts 2 and 3):** thread weight driving density, a default fabric for new objects,
+  machine profiles, and the first-run setup.
+
+### Job sheets, 2026-11-06 (`batch:mac-sewout`, #513)
+
+Beyond PE-DESIGN, off unless chosen: `design.print`'s existing modes and the PE-compatible
+output are unchanged.
+
+- **Commands:** `design.setJob` (an undoable edit) stores customer, order, due date, notes, fabric
+  and stabiliser in `Design.job`. `design.print {mode: client | operator, detail, shop}` writes the
+  client approval sheet or the operator worksheet, as an overview (one page) or detailed. The
+  editor has File ▸ Print ▸ Job Sheet….
+- **The job stays out of machine files:** it is in the project only. PES, PEC, DST, EXP, JEF,
+  VP3 and XXX exports are byte for byte the same with and without a job, and none holds a job
+  field (`the_job_never_reaches_a_machine_file`). A project without a job is written exactly as
+  before (the field is left out while empty).
+- **What the operator sheet reports:**
+  - its colour sequence is the compiled pattern's colour blocks, stops counted per block;
+  - its sewing time is `design.info`'s `sewingMinutes`.
+- **Checked by eye:** both sheets rendered from a two-colour design with text, on A4 and Letter.
+- **Not done:**
+  - a shop logo image (name only);
+  - scripts outside WinAnsi (the PDF uses the standard Helvetica);
+  - a print preview in the dialog.
+
 ### Knockdown fill, 2026-11-06 (#510, `batch:production`)
 
 Beyond PE-DESIGN (PE-DESIGN 11 has no fill under the design; its background fill sews around
@@ -2366,6 +2452,16 @@ moves it back before the first object it covers. Measured in `tests/knockdown.rs
 squares 2 mm apart give one 1,100 mm² piece (46 × 24 mm with 2 mm rounded corners, the gap
 closed); a ring with a 30 mm hole keeps the hole (no needle point within 12.5 mm of the
 centre). Sew-out on terry towel is left for the owner.
+
+### macOS platform, 2026-11-06 (#319, #557, `batch:mac-platform`)
+
+No PE-DESIGN-compatible output changed (no compat spec, golden or writer touched). Help ▸
+Ready-to-Sew Designs is now checked in the built macOS bundle (#319): CI runs the bundle's own
+`openstitch --sew-kit`, and a recording `open` receives exactly `Contents/Resources/sew`; with
+the kit moved away the editor falls back to GitHub. The real click stays the owner's manual
+check. Finder shows design thumbnails through a Quick Look extension, a Swift shim over the
+Rust renderer (#557; `stitchtool thumbnail` exposes the same renderer); the Explorer half is
+#669. PE-DESIGN 11 installs Explorer thumbnails for its own files on Windows only.
 
 ### Assistant fixes, 2026-11-06 (#580, #384, #494, #495)
 
@@ -2528,6 +2624,66 @@ Assistant's stream timeout (#580) and thread-chart rules (#495) are in
   DST files are byte-identical to main's; `tools/image_similarity.py --no-dists` gives the
   same numbers on all 16 Photo Stitch cases in both modes and the nine Photo Stitch 1 photos at
   High; `sew_check` passes; compat 454/454.
+
+### Test swatches and the fabric calibration card, 2026-11-06 (`batch:mac-sewout`, #452, #453, #507)
+
+Beyond PE-DESIGN, off unless chosen: PE-DESIGN-compatible output is unchanged.
+
+- **What landed:** `design.testSwatch` (#452), `design.testSwatches` (#507),
+  `fabric.calibrationSwatch` and `fabric.calibrate` (#453), and `fabric.deleteCustom`.
+  `fabric.list` and `fabric.apply` take the custom fabrics. The editor has Send ▸ Test
+  Swatches….
+- **How they work:** each swatch is built from the engine's own commands (`object.paste`,
+  `object.setRegion`/`setLine`, `text.add` in the single-line font, `machine.set`) on the File
+  effect's scratch state. It is written through `design.export` or `project.save`, so the open
+  design never changes.
+- **Labels:** 3.5 mm running stitch in the piece's own thread, sewn after every piece (one colour
+  block per thread). A parameter swatch's columns are as wide as the widest label.
+- **Sewability:** `tools/sew_check.py` passes on a selection swatch (fill and satin, labelled), a
+  fill density swatch (2 × 2, then 4 × 2 with pull compensation), a satin swatch (4 × 2), a
+  running-line pitch swatch and the knit calibration card, all in the 100 × 100 mm hoop.
+- **Not done:**
+  - no owner sew-out yet;
+  - filum-style calibration from measured sizes;
+  - the editable fabric table (B5);
+  - a live layout preview in the dialog;
+  - job sheets (#513), which follow in their own PR.
+
+### Shape cuts keep the sewing angle, 2026-11-06 (`batch:mac-shapes`, #652)
+
+- **Fixed:** Remove Overlap, Combine, Merge, Split and the shape builder's merge (all through
+  `shape_ops::set_region`) set the cut shape's sewing angle back to the region type's default
+  (45° for fill). Nothing in PE-DESIGN's references backed that. Now every cut keeps the
+  shape's angle and its other region and line sewing attributes and colour. Its entry and exit
+  points stay where they are still within 0.5 mm of the new outline and go back to the default
+  where the cut took that part away. Before, the knife, Divide, the shape builder and the shape
+  effects always reset them; Combine, Merge, Remove Overlap and Split always kept them.
+- **Merges** (`shape.merge`, a `shape.build` drag across two shapes) take the topmost parent's
+  attributes, the shape sewn last, as `shape.merge` always has.
+- **Open:** whether PE-DESIGN 11 keeps a region's Direction after Remove Overlap. The owner's
+  capture request is on #652; OpenStitch now keeps it.
+- Tests through the commands, one per operation, on a 135° fill (45° is the fill default and
+  could not show a reset): `every_cut_keeps_the_sewing_angle_and_attributes`,
+  `a_cut_away_exit_point_returns_to_the_default`, `merges_take_the_topmost_parents_angle`.
+
+### Photo Stitch 2 Mono on the coverage curve, and thread search, 2026-11-06 (`batch:mac-photo-2`, #468, #486, #682)
+
+- **Measured and not taken: an OpenStitch-mode Mono on the T1 coverage curve (#468).** The grey
+  after Mono's contrast stretch was turned into a target coverage and then into a zigzag share
+  by the T1 curve (the run alone is tanh(0.4 · 10/interval); rows = atanh(c / 0.9) / 0.4).
+  Variants: darkness in linear light, darkness in sRGB, and PE's ramp with its no-zigzag
+  threshold lowered from 17 % to 10 % or 5 %. On the six Photo Stitch 2 images in Mono plus the
+  eight-step grey ramp, every variant lowers mean likeness (PE ramp 34.4; variants 33.2–33.9),
+  the grey ramp included (35.2 → 34.2–35.1). Both modes keep PE's ramp; the 219 step stays lost.
+  Table on #468.
+- **#433 check:** `fidelity_high_raises_the_colour_counts` passes in 9.1 s on the Mac (`-j 2`).
+- **Thread search in the editor (#682, part of #486):** the PEC chart popup filters its swatches
+  by chart number, Brother Embroidery code or name, with `threads.find`'s matching
+  (`find_rank`, now public). Tests: `find_in_the_brother_chart_is_the_pickers_search`,
+  `pec_picker_search_finds_threads_by_number_or_name`.
+- **More thread charts (#486): none added.** No maker's terms allow reuse of its published values
+  (Gunold Poly and Cotty: silent; Coats Sylko, Hemingworth, Fil-Tec Glide: forbidden; the rest
+  publish none). The table and sources are in research/beyond/thread-charts.md; the owner decides.
 
 ### Photo Stitch travel, the sewn sunset and the layered screen, 2026-11-06 (`batch:mac-photo`, #298, #291, #129, #468)
 
@@ -2771,6 +2927,123 @@ output is byte-identical (tests `basting_box_sews_first_in_the_first_thread`,
   open for part-way satin starts and draggable markers.
 - sew_check passes on the heart example with a basting box, an outline basting in its own
   thread, stops after an object plus Stop at Jumps, and nearest start, as on the plain design.
+
+### Satin shaping, 2026-11-06 (#520-#523, `batch:satin-1`)
+
+All beyond PE-DESIGN and off by default on Manual Punch columns and zigzag lines; with the
+options unset, every one of the 476 files the compat run writes is byte-identical to main and
+compat stays 454/454. The shared code is in `column.rs`: `pieces` (corners), `short_stitches`,
+`Compensation::sides`, `AutoUnderlay`, `centre_walk`, `underlay_at`.
+
+Coupon (a 3 mm star border, a 4 mm zigzag line with a 30° corner, a 6 mm Manual Punch column
+with a 60° corner and a 4 mm curved zigzag line), turned (PE-DESIGN) against `cornerStyle:
+auto, shortStitchDistance: 0.25`, read from the exported PES:
+
+| Object | Longest stitch, turned → shaped | Stitches | Note |
+|---|---|---|---|
+| Star border 3 mm | 9.9 → 6.9 mm | 557 → 975 | tips capped; mitred legs sew square stitches at the same spacing across the stitch, where PE-DESIGN's leaning ones are about 1.8× longer |
+| Zigzag line, 30° corner, 4 mm | 11.8 → 7.9 mm | 254 → 383 | `design.check` "satin stitches up to 12.3 mm" gone |
+| Column, 60° corner, 6 mm | 12.3 → 6.1 mm | 490 → 500 | mitred |
+| Curved zigzag line 4 mm | 4.1 → 4.1 mm | 221 → 221 | 0.5 mm cells with 2+ needle drops 43 → 25; one cell rises from 2 to 3 |
+
+- Corners classify on the rung chain's interior angle (≥ 75° turned, < 75° mitre, < 45° cap
+  with `auto`); a cap longer than `capMaxLength` is mitred, a leg shorter than the overlap or
+  a stitch spacing stays turned. A closed line with corners starts halfway along its first side.
+- A line with no corner sharp enough keeps PE-DESIGN's zigzag (and Half Stitch on curves);
+  short stitches then thin it further.
+- Not done here: skeleton and Auto satin (#675), satin lettering (#676), fill push and a
+  region's second underlay (#677), lap corners. No sew-out yet: the owner's T-card scan of a
+  tapered column with `pullPercent: 3` is still needed for #522's ±5 % width target.
+
+### Satin looks, raised satin and column rung edits, 2026-11-06 (#528, #531, #525 part, `batch:satin-2a`)
+
+All beyond PE-DESIGN and off by default on Manual Punch columns and zigzag lines. With the
+options unset, compat stays 454/454 and every compat output is byte-identical.
+
+Test design: a 6 mm Manual Punch column bent at 45° and a 4 mm zigzag line, read back from
+the exported PES with `tools/sew_check.py`. All six variants pass, and `design.check` reports
+no problems:
+
+| Variant | Density (sew_check) | Most drops in one spot |
+|---|---|---|
+| normal | 19.7 | 5 |
+| sStitch | 10.0 | 5 |
+| open | 8.3 | 5 |
+| double | 37.2 | 9 |
+| jagged (out, right side, 1 mm) | 17.5 | 5 |
+| raised | 20.9 | 6 |
+
+- Double satin's second pass starts where the first ends, and each of its needle points sits
+  midway between two of the first pass's on the same edge (unit test).
+- S-stitch bends each crossing into three short stitches. Its first and last crossings bulge
+  up to 0.3 mm past the column's end lines.
+- The jagged edge is the same for the same seed. Moving inwards, it never crosses more than
+  80 % of the column.
+- `spacingAt` 1 (unset) is PE-DESIGN's spacing on the longer side.
+- Raised satin sews an even number of lanes, so the last ends at the start, next to the
+  satin's first needle point. It is fully covered in the render.
+- `shape.column` and `object.setDirectionLines` now turn round a pair clicked
+  right-then-left instead of refusing it (`column::untangle`). A real overlap is still
+  refused.
+- Not done: satin regions and skeleton satin (#685), lettering (#686), the canvas rung-edit
+  mode (#525, satin-2b), and the NV880E sew-outs #528 and #531 ask for before the styles are
+  advertised.
+
+### Satin lines with variable width and branch split, 2026-11-06 (#524, #526 part, `batch:satin-2b`)
+
+Both are beyond PE-DESIGN. They are new line types and commands, so no existing design changes
+and every compat output stays byte-identical. PES 0110 export refuses a satin line with the
+message it gives other unmapped line types; the machine formats sew it.
+
+- **Satin line (#524):**
+  - A satin line with one width all along, square to the line, sews the same needle points as
+    skeleton satin of that width (engine test).
+  - Width keys interpolate smoothly. Left 0 / right 3 mm puts the whole column on one side.
+  - Tapers reach a point at the ends.
+  - A 30° slant keeps the edges at their widths (unit test).
+- **Branch split (#526), `object.deriveSkeleton {branches: true}` on Lato Bold letters at 10
+  and 25 mm:**
+
+  | Letter | Columns |
+  |---|---|
+  | K | 3 |
+  | X | 3 |
+  | Y | 2 |
+  | R | 4 |
+  | N | 1 (an unbranched path) |
+
+  - All ten files pass sew_check.
+  - The synthetic Y, plus and star are over 90 % covered, and each arm ends `joinOverlap`
+    inside the column it leaves.
+  - Not met: on K and R the main stroke bends through the junction and fans, leaving a gap in
+    the stem. #526's IoU ≥ 0.95 and "no gap over 0.3 mm" are therefore not reached on letters,
+    and #526 stays open.
+
+### Hidden stitching and hidden travel, 2026-11-06 (#511, #545, `batch:routing`)
+
+Beyond PE-DESIGN and off by default: with no object or design setting on, compiled output is
+byte-identical (tests `hidden_stitching_is_left_out_with_an_overlap`,
+`travel_under_a_later_fill_replaces_the_trim`, `run_connectors_join_objects_of_one_thread`).
+PE-DESIGN's destructive `shape.removeOverlap` is unchanged.
+
+- **Leave out hidden stitching (#511).** The region is generated over its outline minus the later
+  fills and satins shrunk by the overlap; the generators are not changed, only the area they are
+  given, and the outline is sewn as drawn. Two overlapping 30 mm squares with a 1 mm overlap: the
+  stitches saved are within 15 % of the hidden 14 × 14 mm share of the lower fill; no lower-fill
+  needle point lies deeper than 1.2 mm under the upper square, and some lie in the 1 mm band.
+- **Travel under later fills and run connectors (#545).** A move into an object of the same
+  thread (no colour change or stop before it) is sewn as ≤ 2 mm running stitches when a path,
+  straight or round one corner, lies 0.5 mm inside the fills sewn from that object on. A small
+  square under a larger one of the same thread: 1 trim between them with it off, 0 with it on.
+  On the editable example scripts few objects of one thread lie under later fills (401 → 400
+  trims), and the kit's stitch files keep their own moves, so the jumps-to-running pass and
+  per-design kit reductions remain open in #545.
+- **Fill travel on curved outlines (#679).** The travel graph and the row splitting tested every
+  point against `Contour::path`, which flattened the Béziers again on each call; both now flatten
+  each outline once (the same points). Fill layers of a 60 mm ring with a 30 mm hole on Bézier
+  curves (debug build, 5 builds): 2.7-5.1 s before, 0.48-0.65 s after, within 1.1-1.4× of the
+  same ring flattened first (`paths::tests::curved_layers_timing`). PES output byte-identical on
+  the 24 exportable example scripts; compat 454/454.
 
 ## Order of work
 

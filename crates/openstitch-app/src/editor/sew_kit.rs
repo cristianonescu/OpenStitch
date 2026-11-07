@@ -29,18 +29,40 @@ pub fn bundled(exe: &Path) -> Option<PathBuf> {
     )
 }
 
+/// The system's file-manager opener: `explorer`, `open` (Finder) or `xdg-open`. It is looked
+/// up on `PATH`, which lets the packaging checks put a recording stand-in first (#319).
+pub const OPENER: &str = if cfg!(windows) {
+    "explorer"
+} else if cfg!(target_os = "macos") {
+    "open"
+} else {
+    "xdg-open"
+};
+
 /// Opens `folder` in the system's file manager (Explorer, Finder, the desktop's Files): a
 /// browser would show a `file://` URL as a directory listing instead (egui's `open_url` always
 /// starts the browser). The opener is not waited for; Explorer exits with 1 even when it opens.
 pub fn open_folder(folder: &Path) -> std::io::Result<()> {
-    let opener = if cfg!(windows) {
-        "explorer"
-    } else if cfg!(target_os = "macos") {
-        "open"
-    } else {
-        "xdg-open"
-    };
-    Command::new(opener).arg(folder).spawn().map(drop)
+    Command::new(OPENER).arg(folder).spawn().map(drop)
+}
+
+/// What Help ▸ Ready-to-Sew Designs did.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Opened {
+    /// The packaged kit, shown in the file manager.
+    Folder(PathBuf),
+    /// No packaged kit, or the file manager would not start: the caller opens [`ONLINE`] in
+    /// the browser.
+    Online,
+}
+
+/// Help ▸ Ready-to-Sew Designs (and `ui.help {"item": "sewKit"}`) for the editor at `exe`
+/// (`std::env::current_exe()`): the packaged kit in the file manager, else [`Opened::Online`].
+pub fn open_kit(exe: Option<&Path>) -> Opened {
+    match exe.and_then(bundled) {
+        Some(kit) if open_folder(&kit).is_ok() => Opened::Folder(kit),
+        _ => Opened::Online,
+    }
 }
 
 #[cfg(test)]
@@ -59,5 +81,23 @@ mod tests {
         assert!(kit.ends_with("Contents/Resources/sew"), "{kit:?}");
         assert!(!kit.to_string_lossy().contains(".."), "{kit:?}");
         std::fs::remove_dir_all(&dir).expect("temp dir");
+    }
+
+    #[test]
+    fn without_a_kit_the_menu_goes_online() {
+        let dir = openstitch_testutil::TempDir::new("sew-kit-online");
+        // No packaged kit: nothing is started, the caller opens GitHub.
+        assert_eq!(open_kit(Some(&dir.join("openstitch"))), Opened::Online);
+        assert_eq!(open_kit(None), Opened::Online);
+        assert_eq!(
+            OPENER,
+            if cfg!(windows) {
+                "explorer"
+            } else if cfg!(target_os = "macos") {
+                "open"
+            } else {
+                "xdg-open"
+            }
+        );
     }
 }

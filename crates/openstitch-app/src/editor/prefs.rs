@@ -233,6 +233,13 @@ pub struct UiPrefs {
     pub show: ShowPrefs,
     /// Autosave for crash recovery (#549): on by default, writes only to the recovery folder.
     pub autosave: bool,
+    /// Options ▸ Picture pickers with live preview (#656): sewing types, fill patterns and
+    /// motifs as pictures, hovering one previews it on the design. Off by default (PE-DESIGN's
+    /// lists).
+    pub picture_pickers: bool,
+    /// Options ▸ Open designs in tabs (#552): New and Open add a tab instead of replacing the
+    /// design. Off by default (PE-DESIGN's behaviour).
+    pub open_in_tabs: bool,
     /// Longest time between snapshots while changes keep coming, seconds.
     pub autosave_interval: f64,
     /// Command palette (#550): the keys of the commands run from it, newest first.
@@ -312,6 +319,8 @@ impl Default for UiPrefs {
             screen_calibration: Vec::new(),
             show: ShowPrefs::default(),
             autosave: true,
+            picture_pickers: false,
+            open_in_tabs: false,
             autosave_interval: super::recovery::DEFAULT_INTERVAL,
             recent_commands: Vec::new(),
             start_cards: true,
@@ -410,6 +419,8 @@ impl UiPrefs {
                 "soloColor": self.show.solo,
             },
             "autosave": self.autosave,
+            "picturePickers": self.picture_pickers,
+            "openInTabs": self.open_in_tabs,
             "autosaveInterval": self.autosave_interval,
             "recentCommands": self.recent_commands,
             "showStartCards": self.start_cards,
@@ -556,6 +567,8 @@ impl UiPrefs {
                 }
             },
             autosave: v["autosave"].as_bool().unwrap_or(d.autosave),
+            picture_pickers: v["picturePickers"].as_bool().unwrap_or(d.picture_pickers),
+            open_in_tabs: v["openInTabs"].as_bool().unwrap_or(d.open_in_tabs),
             autosave_interval: v["autosaveInterval"]
                 .as_f64()
                 .filter(|n| n.is_finite())
@@ -698,6 +711,7 @@ impl UiPrefs {
             "editing" => {
                 self.editing = d.editing;
                 self.units = d.units;
+                self.open_in_tabs = d.open_in_tabs;
             }
             "panes" => self.panes = d.panes,
             "shortcuts" => self.keymap = d.keymap,
@@ -705,6 +719,7 @@ impl UiPrefs {
             "newObjects" => {
                 self.new_objects = d.new_objects;
                 self.advanced_attributes = d.advanced_attributes;
+                self.picture_pickers = d.picture_pickers;
                 self.folded_sections = d.folded_sections;
                 self.start_cards = d.start_cards;
             }

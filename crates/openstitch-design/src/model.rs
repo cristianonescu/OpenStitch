@@ -54,6 +54,11 @@ pub struct Design {
         skip_serializing_if = "crate::production::Production::is_default"
     )]
     pub production: crate::production::Production,
+    /// The job the design is sewn for (customer, order, due date, notes), printed on the job
+    /// sheets (#513, beyond PE-DESIGN). Saved in the project only, never written to machine
+    /// files. Omitted when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub job: Option<JobInfo>,
     /// The machine file the design was opened from, written back unchanged when the design is
     /// exported to it again without a change (File ▸ Open of a PE-DESIGN PES, #375). Omitted
     /// when absent.
@@ -180,6 +185,48 @@ impl Guides {
     }
 }
 
+/// The job a design is sewn for (#513): what the client approval sheet and the operator sheet
+/// print. Kept in the project (`.osd`) only; no machine format carries it. Each field is
+/// omitted while empty.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct JobInfo {
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub customer: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub order: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub due: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub notes: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub fabric: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub stabiliser: String,
+}
+
+impl JobInfo {
+    /// Field names, as `design.setJob` parameters.
+    pub const KEYS: [&str; 6] = ["customer", "order", "due", "notes", "fabric", "stabiliser"];
+
+    pub fn is_empty(&self) -> bool {
+        *self == JobInfo::default()
+    }
+
+    /// The field named `key` (one of [`JobInfo::KEYS`]).
+    pub fn field_mut(&mut self, key: &str) -> Option<&mut String> {
+        Some(match key {
+            "customer" => &mut self.customer,
+            "order" => &mut self.order,
+            "due" => &mut self.due,
+            "notes" => &mut self.notes,
+            "fabric" => &mut self.fabric,
+            "stabiliser" => &mut self.stabiliser,
+            _ => return None,
+        })
+    }
+}
+
 /// Design Property text fields, written to the PES v4+ header next to the design name and
 /// read back from it. Each field is omitted while empty.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -259,6 +306,7 @@ impl Design {
             properties: DesignProperties::default(),
             optimize_order: OptimizeOrder::default(),
             production: Default::default(),
+            job: None,
             source: None,
         }
     }
@@ -413,6 +461,44 @@ impl Design {
         layout.outlined().map(text::Glyph::turn).collect()
     }
 
+    /// For each outlined letter of text object `index` after the first, what lies between it
+    /// and the letter before: a space (a new word), a line break or nothing. Empty when the
+    /// object's outlines no longer match its layout (as [`Self::text_turns`]).
+    pub fn text_breaks(&self, index: usize) -> Vec<crate::finish::LetterBreak> {
+        use crate::finish::LetterBreak;
+        let Some(o) = self.objects.get(index) else {
+            return Vec::new();
+        };
+        let Some(spec) = o.text.as_ref().filter(|_| o.kind == ObjectKind::Text) else {
+            return Vec::new();
+        };
+        let path = spec.path.and_then(|id| self.path_contour(id));
+        let Ok(layout) = text::layout_in(spec, path.as_ref(), &self.fonts) else {
+            return Vec::new();
+        };
+        if layout.glyph_counts() != spec.glyphs {
+            return Vec::new();
+        }
+        let chars: Vec<char> = spec.text.chars().collect();
+        let mut out = Vec::new();
+        let mut before: Option<usize> = None;
+        for g in layout.outlined() {
+            if let Some(b) = before {
+                let (lo, hi) = (b.min(g.index), b.max(g.index));
+                let gap = chars.get(lo + 1..hi).unwrap_or(&[]);
+                out.push(if gap.contains(&'\n') {
+                    LetterBreak::Line
+                } else if gap.iter().any(|c| c.is_whitespace()) {
+                    LetterBreak::Word
+                } else {
+                    LetterBreak::Letter
+                });
+            }
+            before = Some(g.index);
+        }
+        out
+    }
+
     /// Takes the text of object `index` off its path; it continues as straight text whose
     /// baseline starts (or, centred / right-aligned, centres or ends) where it stood.
     pub fn detach_text(&mut self, index: usize) {
@@ -525,10 +611,22 @@ pub struct DesignObject {
     /// region-then-outline order).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub line_first: bool,
+    /// How the object finishes and connects (#548, beyond PE-DESIGN): trim after it, its
+    /// ties, and a text's trims between letters. `None` = PE-DESIGN's rules.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub finish: Option<crate::finish::Finish>,
     /// The machine stops after this object (#512, beyond PE-DESIGN): to place appliqué fabric
     /// or a patch without a colour change. A colour change right after it is the stop.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub stop_after: bool,
+    /// Leave out this region's stitching hidden under later fills and satins, keeping this
+    /// overlap (mm) under their edges (#511, beyond PE-DESIGN). The shape is not cut.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hide_under: Option<f64>,
+    /// The move to the next object of the same thread is sewn as a running-stitch connector
+    /// instead of a jump and trim (#545, beyond PE-DESIGN).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub connector_run: bool,
     /// A knockdown fill made by `wizard.knockdown` (#510, beyond PE-DESIGN): the parameters it
     /// was made with, so it can be rebuilt and kept before what it covers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -566,7 +664,10 @@ impl DesignObject {
             monogram: None,
             locked: false,
             line_first: false,
+            finish: None,
             stop_after: false,
+            hide_under: None,
+            connector_run: false,
             knockdown: None,
         }
     }
@@ -589,7 +690,10 @@ impl DesignObject {
             monogram: None,
             locked: false,
             line_first: false,
+            finish: None,
             stop_after: false,
+            hide_under: None,
+            connector_run: false,
             knockdown: None,
         }
     }
@@ -910,6 +1014,14 @@ pub enum UnderlayStyle {
     /// plus 45°, each sewn in two halves from the region's far corners towards the start point
     /// (see [`crate::region`]).
     Cross,
+    /// OpenStitch's automatic under sewing (#523, beyond PE-DESIGN): on a Manual Punch column
+    /// and a zigzag line, a centre walk, the inset edge run, or the edge run and the zigzag,
+    /// chosen from the average width each time it sews (see [`crate::column::AutoUnderlay`]);
+    /// on other regions the edge run and rows, as `edgeZigzag`.
+    Auto,
+    /// A running stitch down the middle and back (#523, beyond PE-DESIGN): for thin columns
+    /// and zigzag lines; a column's piping alone.
+    CentreWalk,
 }
 
 /// How a fill's needle grid moves from row to row (see [`crate::generate::Stagger`]).
@@ -925,6 +1037,35 @@ pub enum StaggerKind {
 }
 
 impl UnderlayStyle {
+    pub const ALL: [UnderlayStyle; 8] = [
+        UnderlayStyle::Edge,
+        UnderlayStyle::Zigzag,
+        UnderlayStyle::EdgeZigzag,
+        UnderlayStyle::Double,
+        UnderlayStyle::EdgeFill,
+        UnderlayStyle::Cross,
+        UnderlayStyle::Auto,
+        UnderlayStyle::CentreWalk,
+    ];
+
+    /// The style's name in commands and files.
+    pub fn id(self) -> &'static str {
+        match self {
+            UnderlayStyle::Edge => "edge",
+            UnderlayStyle::Zigzag => "zigzag",
+            UnderlayStyle::EdgeZigzag => "edgeZigzag",
+            UnderlayStyle::Double => "double",
+            UnderlayStyle::EdgeFill => "edgeFill",
+            UnderlayStyle::Cross => "cross",
+            UnderlayStyle::Auto => "auto",
+            UnderlayStyle::CentreWalk => "centreWalk",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|s| s.id() == id)
+    }
+
     /// The components this style sews on a Manual Punch column (several direction lines), as
     /// PE-DESIGN 11.50's five exclusive under sewing buttons do on its own column (round-4
     /// captures satin-col-us-type-1..5): its first-row buttons (type 1, the default, and
@@ -940,6 +1081,10 @@ impl UnderlayStyle {
             },
             UnderlayStyle::Zigzag => UnderlayParts {
                 zigzag: true,
+                center: true,
+                ..UnderlayParts::default()
+            },
+            UnderlayStyle::CentreWalk => UnderlayParts {
                 center: true,
                 ..UnderlayParts::default()
             },
@@ -963,7 +1108,13 @@ impl UnderlayStyle {
         match self {
             UnderlayStyle::Edge => p(true, false, false),
             UnderlayStyle::Zigzag => p(false, true, false),
-            UnderlayStyle::EdgeZigzag | UnderlayStyle::EdgeFill => p(true, true, false),
+            UnderlayStyle::EdgeZigzag | UnderlayStyle::EdgeFill | UnderlayStyle::Auto => {
+                p(true, true, false)
+            }
+            UnderlayStyle::CentreWalk => UnderlayParts {
+                center: true,
+                ..UnderlayParts::default()
+            },
             UnderlayStyle::Double => p(false, false, true),
             UnderlayStyle::Cross => p(true, false, true),
         }
@@ -1368,6 +1519,16 @@ pub struct RegionSewing {
     /// the line (variable-direction satin). Takes precedence over the other direction options.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skeleton: Option<crate::skeleton::Skeleton>,
+    /// Satin corner styles, short stitches and compensation per side (#520-#522, beyond
+    /// PE-DESIGN): Manual Punch satin columns. Off by default.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub satin_shaping: crate::column::SatinShaping,
+    /// Thresholds of `UnderlayStyle::Auto` (#523).
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub underlay_auto: crate::column::AutoUnderlay,
+    /// A second under sewing layer on a Manual Punch column (#523, beyond PE-DESIGN).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub underlay2: Option<crate::column::SecondUnderlay>,
 }
 
 impl RegionSewing {
@@ -1437,6 +1598,9 @@ impl RegionSewing {
             direction_lines: Vec::new(),
             curved_lines: false,
             skeleton: None,
+            satin_shaping: Default::default(),
+            underlay_auto: Default::default(),
+            underlay2: None,
         }
     }
 
@@ -1584,7 +1748,10 @@ impl RegionSewing {
             && match self.underlay_style {
                 UnderlayStyle::Edge | UnderlayStyle::Double => true,
                 UnderlayStyle::Zigzag | UnderlayStyle::EdgeZigzag => self.kind != RegionType::Satin,
-                UnderlayStyle::EdgeFill | UnderlayStyle::Cross => false,
+                UnderlayStyle::EdgeFill
+                | UnderlayStyle::Cross
+                | UnderlayStyle::Auto
+                | UnderlayStyle::CentreWalk => false,
             }
     }
 
@@ -1630,10 +1797,13 @@ pub enum LineType {
     VStitch,
     Chain,
     Cutting,
+    /// OpenStitch's satin line (#524, beyond PE-DESIGN): a satin column along the line whose
+    /// width can change along it (width keys, tapered ends, per-side widths, a slant).
+    Satin,
 }
 
 impl LineType {
-    pub const ALL: [LineType; 10] = [
+    pub const ALL: [LineType; 11] = [
         LineType::Running,
         LineType::Triple,
         LineType::Zigzag,
@@ -1644,6 +1814,7 @@ impl LineType {
         LineType::VStitch,
         LineType::Chain,
         LineType::Cutting,
+        LineType::Satin,
     ];
 
     pub fn id(self) -> &'static str {
@@ -1658,6 +1829,7 @@ impl LineType {
             LineType::VStitch => "vStitch",
             LineType::Chain => "chain",
             LineType::Cutting => "cutting",
+            LineType::Satin => "satin",
         }
     }
 
@@ -1677,6 +1849,7 @@ impl LineType {
             LineType::VStitch => "V stitch",
             LineType::Chain => "Chain",
             LineType::Cutting => "Cutting",
+            LineType::Satin => "Satin line",
         }
     }
 }
@@ -1777,6 +1950,29 @@ pub struct LineSewing {
     /// gap of in-the-hoop pieces. Running, triple, zigzag, E and V lines only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gap: Option<LineGap>,
+    /// Zigzag: corner styles, short stitches and compensation per side (#520-#522, beyond
+    /// PE-DESIGN). Off by default.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub satin_shaping: crate::column::SatinShaping,
+    /// Zigzag: the under sewing when `underlay` is on: `edge` (PE-DESIGN's two runs a quarter
+    /// of the width to each side, the default), `centreWalk`, `edgeZigzag` or `auto` (#523).
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub underlay_style: UnderlayStyle,
+    /// Zigzag: thresholds of `auto` under sewing (#523).
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub underlay_auto: crate::column::AutoUnderlay,
+    /// Satin line (#524): the width along the line, by keys (empty: `width` all along).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub width_keys: Vec<crate::skeleton::WidthKey>,
+    /// Satin line: the start tapers to a point over this length, mm.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub taper_start: Option<f64>,
+    /// Satin line: the end tapers to a point over this length, mm.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub taper_end: Option<f64>,
+    /// Satin line: the crossings turned this many degrees from square to the line (−60…60).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub slant: Option<f64>,
 }
 
 /// An opening in a closed line: `length` mm left unsewn from `offset` mm along the outline
@@ -1833,12 +2029,13 @@ impl LineSewing {
     /// 5.0 mm (Medium: 24 points) 1.0 mm apart; chain triangles of 4.0 mm sewn 5 times.
     pub fn new(kind: LineType, thread: Thread) -> Self {
         let zigzag = kind == LineType::Zigzag;
+        let satin = kind == LineType::Satin;
         let stroke = matches!(kind, LineType::EStitch | LineType::VStitch);
         LineSewing {
             kind,
             thread,
             pitch: match kind {
-                LineType::Running | LineType::Triple | LineType::Zigzag => 2.0,
+                LineType::Running | LineType::Triple | LineType::Zigzag | LineType::Satin => 2.0,
                 _ if stroke => 2.0,
                 _ => 2.5,
             },
@@ -1850,7 +2047,7 @@ impl LineSewing {
                 _ => 2.0,
             },
             density: match kind {
-                LineType::Zigzag => 4.5,
+                LineType::Zigzag | LineType::Satin => 4.5,
                 LineType::Candlewick => 12.0,
                 _ => 3.0,
             },
@@ -1864,11 +2061,18 @@ impl LineSewing {
             chain_shape: ChainShape::Triangle,
             leave_uncut: false,
             half_stitch: zigzag,
-            underlay: zigzag,
+            underlay: zigzag || satin,
             entry: None,
             exit: None,
             start_end: StartEnd::Feed,
             gap: None,
+            satin_shaping: Default::default(),
+            underlay_style: UnderlayStyle::Edge,
+            underlay_auto: Default::default(),
+            width_keys: Vec::new(),
+            taper_start: None,
+            taper_end: None,
+            slant: None,
         }
     }
 

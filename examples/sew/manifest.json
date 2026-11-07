@@ -1305,8 +1305,8 @@
    199.0,
    150.1
   ],
-  "stitches": 93877,
-  "trims": 1116,
+  "stitches": 93576,
+  "trims": 1081,
   "threads": [
    "017 Light Blue",
    "843 Beige",
@@ -1319,10 +1319,10 @@
    "704 Pewter",
    "058 Dark Brown"
   ],
-  "sewingMinutes": 174.5,
+  "sewingMinutes": 172.4,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-openstitch.png",
-  "sha256": "dcf3b9c5da79d971ec7c94e989beec059319e7a5fdc17a4fd94f18efc15ee31b"
+  "sha256": "0adee4f1fed26bf0594d77eb4e37b1f1369c57d1781bdf94263283a3ed270b4d"
  },
  "image-tools/L-autopunch-storybook-pe-compatible.pes": {
   "title": "Auto Punch, PE-DESIGN-compatible mode",

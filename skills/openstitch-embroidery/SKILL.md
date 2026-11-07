@@ -69,6 +69,31 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    a running line. Text is satin by default. A satin border or outline is a line:
    `object.setLine` with `type: zigzag`, about 2-4 mm wide (the badge recipe in
    `reference/recipes.md`).
+   Satin quality beyond PE-DESIGN (off by default; Manual Punch columns via
+   `object.setRegion`, zigzag lines via `object.setLine`): `cornerStyle: auto` for stars,
+   chevrons and badge borders (mitre below `mitreBelow` 75°, cap below `capBelow` 45°,
+   `cornerOverlap`, `capMaxLength`); `shortStitchDistance: 0.25` (with `shortStitchInset` %)
+   thins the inside of tight curves; `pullLeft`/`pullRight` (mm, `null` resets) and
+   `pullPercent` (3 for tapered columns; `pullMax` caps it) compensate per side and by width;
+   `underlayStyle: auto` picks a centre walk, edge run or edge + zigzag by width (thresholds
+   `underlayAuto {centreBelow, edgeBelow}`, set by `fabric.apply`), `centreWalk` for thin
+   satins, and a column's `underlay2 {style, inset, spacing, stitchLength}` adds a second
+   layer (`null` removes it). Satin looks: `satinStyle` sStitch (corded edge), open (light),
+   double (raised X lattice); `jaggedEdge {mode: in|out|both, side, amount, seed}` (or just
+   `"in"`; `"none"`/`null` removes it) for fur, grass and feathers; `spacingAt: 0.5` evens a
+   curved column's density; `raised: true` (or `{laneSpacing, inset, stitchLength}`) pads
+   monograms and rims of 3 mm and wider (narrower ones return a `hints` entry). Read them back
+   with `object.get`. Fix a Manual Punch column instead of redrawing it:
+   `object.insertRung {id, at}`, `object.deleteRung {id, index}`, `object.moveRung {id, index,
+   side: left|right, point}`, `object.swapSides {id}` and `object.untangle {id}`; a line pair
+   clicked right-then-left is untangled when the column is made.
+   Brush strokes, leaves and calligraphic lines: `object.setLine {type: satin, width}` on any
+   path, then `widthKeys: [[at 0-1, left mm, right mm], ...]` (or `object.setWidthKey {id, at,
+   width | left, right}`, `object.deleteWidthKey {id, index}`), `taperStart`/`taperEnd` (mm,
+   pointed ends) and `slant` (-60 to 60 degrees). A Y, star or stick figure drawn as one
+   filled shape: `object.deriveSkeleton {id, branches: true, joinOverlap: 0.3}` makes a
+   grouped satin column per arm (the shape stays hidden); check `warnings` for columns over
+   10 mm and look at the junctions with `view_render`.
 4. Order: `order.optimize` (PE-DESIGN-compatible order) or `order.byColor`; check with
    `object.list` (sewing order). To sew objects in a set order, `order.byClickOrder`
    `{ids: [in sewing order]}` (they start where the earliest of them sews now); to sew a
@@ -149,18 +174,25 @@ then style them in the next.
   says where the handles are). PES 0110 export refuses free envelopes: `text.toShapes` first.
 - Badges and patches with text round a circle: `text.add` or `object.setText` with `arc`
   (mm, the first line's baseline radius; positive arches up over the top, negative arches
-  down under the bottom, read upright). Each `
-` line becomes a ring round the same centre,
+  down under the bottom, read upright). Each line (a `\n` in the text) becomes a ring round the same centre,
   one line spacing inward (up) or outward (down); a ring too tight for its line is refused
   with the radius needed, so retry with that. `arc: null` straightens it. Beyond PE-DESIGN:
   PES 0110 export refuses it (`text.toShapes` first).
+- Trims and ties per object (beyond PE-DESIGN; defaults are PE-DESIGN's rules):
+  `object.setFinish {ids, trim: auto|always|off, trimDistance, tie: auto|always|off,
+  tieCount, tieLength, between}`. For a machine without an automatic cutter: `trim: off`
+  (jumps instead of trims; the user cuts them by hand), and on text `between: word` or
+  `never` so letters of a word are not trimmed apart. Slippery or thick threads: `tie:
+  always` with `tieCount: 2`. `reset: true` goes back to PE-DESIGN's rules; check the result
+  with `design.info` (trims, jumps).
 - Threads: to change the design to a thread chart ("use my Madeira threads"), run
   `threads.remap` `{builtin | chart, metric: ciede2000, keepDistinct: true, dryRun: true}`
   first and show the user the plan (design colour → thread, ΔE, objects, and `merged`), then
   run it without `dryRun` if they agree (`metric: rgb` is PE-DESIGN's rule). The thread
   makers' charts (Madeira, Isacord, Sulky, Robison-Anton) are `builtin` ids: `threads.builtinCharts`
   lists them with `kind: "brand"`. `threads.find`
-  `{query}` finds a thread by code or name. After `import.svg` or a `digitize.*` wizard gives
+  `{query}` finds a thread by code or name (`charts: ["brother"]` searches the PEC chart as the
+  editor's colour picker search does). After `import.svg` or a `digitize.*` wizard gives
   many near-identical colours, offer `threads.mergeSimilar` (`dryRun` first; it reports the
   colour changes saved, and `order.byColor` when `suggestSortByColor`).
 - The user's own threads: when they say "use my threads", have a thread chart (`threads.charts`
@@ -192,6 +224,18 @@ user's Ctrl+K palette, with each command's ribbon place and shortcut; run it wit
 After a crash, `ui.recoveryList` shows designs autosave kept; `ui.recoveryRestore {id}`
 opens one as an untitled design (tell the user to save it), and `ui.recoveryDiscard`
 deletes snapshots (ask first). Autosave is `ui.set autosave` / `autosaveInterval`.
+Several designs can be open as tabs: `ui.documents` lists them (index, name, unsaved, file),
+`{op: "activate", index}` switches (every command then acts on that tab), `{op: "new"}` adds an
+empty one, and `{op: "close", index}` closes a tab that has no unsaved changes (otherwise save
+it or ask the user). `ui.set openInTabs` makes File ▸ New and Open add a tab.
+To show the user what a setting would look like before changing it, `ui.preview {command:
+"object.setRegion", params: {ids, type}}` swaps in the stitches of that change on the canvas
+(no undo step, the design unchanged; `ui.render` shows them too); `ui.preview {clear: true}`
+ends it, and running the command keeps the change. `ui.set picturePickers` shows the sewing
+types, fill patterns and motifs as pictures in the Sewing Attributes pane.
+Opening or importing a large file in the window runs in the background: `ui.state` shows
+`loading` (file, step, seconds), and `ui.loading {cancel: true}` stops it, leaving the design
+as it was.
 The window's look and keys (#551, #559): `ui.set accent` (`default`, a preset such as `orange`,
 or `#rrggbb`); `ui.set shortcuts` takes the changed commands as `{ commandKey: ["Ctrl+Alt+R"] }`
 (keys from `ui.actions`; `{}` restores every default; a key another command uses is refused,
@@ -215,6 +259,26 @@ Units: every command takes millimetres. The user may work in inches (`ui.setting
 also named in the editor note with each message); then answer in inches (1 in = 25.4 mm) and
 still send mm to commands. `design.print {units: "inch"}` adds a 2-inch scale bar.
 
+Job sheets (#513): "print an approval sheet for my customer" or "a worksheet for the machine
+operator": set the job with `design.setJob {customer, order, due, notes, fabric, stabiliser}`
+(an edit, undoable; saved with the project, never in machine files), then `design.print {path,
+mode: "client" | "operator", detail: "overview" | "detailed", shop}`. Use only what the user
+gives for the job fields; never invent a customer or order.
+
+### Web editor (browser)
+
+OpenStitch also runs in a web browser (#556, `crates/openstitch-web`). The page exposes
+`openstitch.run({command, params})`, which takes every engine command (`object.rotate`,
+`design.info`, `history.undo`, ...) and the web editor's own `ui.*` commands: `ui.state` (file,
+page, stitches, simulator, undo/redo, export formats, what is desktop-only), `ui.simulate
+{stitch}` or `{step: "block"}`, `ui.openFile {name, base64}` (File ▸ Open), `ui.saveFile`
+(File ▸ Save: the `.osd` comes back as `{name, base64}`) and `ui.exportFile {format}`
+(`{files: [{name, base64}]}`). The page's buttons run the same commands (their tooltips name
+them); "Whole design" Rotate 90°, Flip and Centre are `object.rotate`, `object.flip` and
+`object.center` on every object. Undo there is per editor step: File ▸ Open is one. The
+Assistant, the other `ui.*` commands, machine transfer, the Design Database and image
+digitizing are desktop-only; say so instead of trying them in the browser.
+
 ## Files
 
 - File commands only reach the folders the editor allows (the conversation's scratch folder,
@@ -229,12 +293,45 @@ still send mm to commands. `design.print {units: "inch"}` adds a 2-inch scale ba
   `minOpacity` (default 0.1) sets how faint a fill or stroke may be before it is left out.
 - When you write an SVG for `import.svg`, you can name each element's sewing and import with
   `settings: true`: give the element an `id` and a `data-name` such as `"fill a=45 s=0.4"`,
-  `"satin"`, `"run r=3"` or `"stroke.satin w=3"`; the result lists unknown words and refused
-  values (FILE_FORMATS.md has the words).
+  `"satin"`, `"run r=3"` or `"stroke.satin w=3"`; the long key names work too
+  (`"fill angle=45 density=4.5"`, `"run length=2.5 repeats=3"`, `"stroke.satin stroke.width=3"`).
+  The result lists unknown words and refused values (FILE_FORMATS.md has the words).
 - A user who wants to script designs in Python can use the `openstitch` package (repository
   `python/README.md`: `Session().exec("shape.ellipse", ...)` with these same commands).
+- "Make a thumbnail / preview picture of this file" at a terminal: `stitchtool thumbnail
+  design.pes out.png [--size 256]` writes the stitches on a transparent square (16 to 1024
+  px), the same picture Finder (Quick Look, with OpenStitch.app installed) and Linux file
+  managers show; Explorer thumbnails are not available yet. In the editor, `view_render`
+  shows the design instead.
+- "Open the ready-to-sew designs": `ui.help {item: "sewKit"}` shows the packaged kit in the
+  file manager and replies with its `folder`, or with the GitHub `url` it opened instead.
+- **Test swatches** (sew a test before the real thing; each writes a new design file to
+  `path`, `.pes` or `.osd`, and leaves the open design unchanged; editor: Send ▸ Test
+  Swatches…):
+  - "Sew a test of this part": `design.testSwatch {ids, path, label?}`, the objects alone,
+    centred in the smallest hoop they fit (`label: true` sews their main settings below).
+  - "Which density / pull compensation should I use on this?": `design.testSwatches {id, path,
+    attribute, start, step, count}` copies one object with one setting stepped (`density`,
+    `stitchLength`, `pullCompensation`, `angle`, `underlaySpacing` for regions; `linePitch`,
+    `lineWidth`, `lineDensity` for lines), each copy named and labelled with its value;
+    `attribute2/start2/step2/count2` makes a rows × columns grid (25 copies at most). A grid
+    larger than the page is refused with the size it needs.
+  - "Calibrate for my fabric": `fabric.calibrationSwatch {fabric, path}` writes a 100 mm card
+    (fill F1–F5, satin S1–S5 at 0.8–1.2 × the fabric's density, satin P1–P5 at 0–0.6 mm pull
+    compensation, a 10 mm square). After the user sews it and names the best piece of each
+    row, `fabric.calibrate {fabric, name, fill, satin, pull}` (1–5 each) saves a custom
+    fabric (`custom-…` in `fabric.list`) that `fabric.apply` gives to objects;
+    `fabric.deleteCustom {fabric}` removes it. Both change the user's settings: say so first.
+- "What stabiliser / needle should I use on fleece?": `fabric.advise {fabric, weight}` (weight
+  12, 30, 40 or 60; default 40) gives backing, topping, needle point and size and the smallest
+  legible block-letter height, each from the makers' published guidance with `sources`; say so
+  when `disagree` is set, and say "estimate" when `minTextBasis` is not `published`.
+  `fabric.list` has 13 fabrics: PE-DESIGN's eight, then polyester, pique, organza, canvas and cap
+  (`beyondPeDesign: true`).
 - `file` commands (`project.save`, `design.export`, ...) may ask the user first. Never
   overwrite a user's file without being asked to.
+- To show the user these dialogs in the editor: `ui.run {action: "testSwatches"}` (Send ▸ Test
+  Swatches…) and `ui.run {action: "jobSheet"}` (Print ▸ Job Sheet…).
 
 ## Memory
 

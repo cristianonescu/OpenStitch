@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenStitch</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #1b1b1b; color: #ddd;
+      font: 14px system-ui, sans-serif; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; outline: none; }
+    #message { position: absolute; inset: 0; display: flex; align-items: center;
+      justify-content: center; padding: 16px; text-align: center; }
+  </style>
+</head>
+<body>
+  <canvas id="openstitch"></canvas>
+  <div id="message">Loading OpenStitch…</div>
+  <script type="module">
+    // The web editor (#556): crates/openstitch-web built with wasm-bindgen into ./pkg
+    // (docs/DISTRIBUTION.md, "Web editor"). Nothing leaves the browser: files are read from
+    // the file picker and saved as downloads.
+    const message = document.getElementById("message");
+    try {
+      const wasm = await import("./pkg/openstitch_web.js");
+      await wasm.default();
+      // Automation: openstitch.run({command, params}) runs an engine command or one of the
+      // web editor's ui.* commands (skills/openstitch-embroidery/SKILL.md, "Web editor").
+      window.openstitch = { run: (request) => JSON.parse(wasm.run(JSON.stringify(request))) };
+      await wasm.start("openstitch");
+      message.remove();
+    } catch (e) {
+      message.textContent = "OpenStitch could not start in this browser: " + e +
+        ". It needs WebAssembly and WebGL 2 (current Chrome, Edge, Firefox or Safari).";
+    }
+  </script>
+</body>
+</html>
