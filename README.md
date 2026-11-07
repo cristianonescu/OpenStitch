@@ -276,6 +276,8 @@ feature is done and the rest is under [Planned](#planned).
   freezes ([#558]).
 - (+) **Several designs as tabs** in one window, each with its own undo, selection and zoom
   ([#552]).
+- (+) **Thumbnails in Windows Explorer:** designs and machine files show their stitches in
+  Explorer, as they do in the macOS Finder ([#669]).
 - (+) **Stitch Table:** every needle point of a stitch pattern with its exact position; type
   coordinates, insert and delete points, each one undo step ([#501]).
 - (+) **Keyboard-only drawing:** arrow keys move a drawing cursor, Space places points, Return
@@ -694,9 +696,11 @@ See also [New: the Assistant](#new-the-assistant).
 [#552]: https://github.com/cristianonescu/OpenStitch/issues/552
 [#707]: https://github.com/cristianonescu/OpenStitch/issues/707
 [#499]: https://github.com/cristianonescu/OpenStitch/issues/499
+[#669]: https://github.com/cristianonescu/OpenStitch/issues/669
 [#501]: https://github.com/cristianonescu/OpenStitch/issues/501
 [#656]: https://github.com/cristianonescu/OpenStitch/issues/656
 [#499]: https://github.com/cristianonescu/OpenStitch/issues/499
+[#669]: https://github.com/cristianonescu/OpenStitch/issues/669
 [#553]: https://github.com/cristianonescu/OpenStitch/issues/553
 [#554]: https://github.com/cristianonescu/OpenStitch/issues/554
 [#556]: https://github.com/cristianonescu/OpenStitch/issues/556

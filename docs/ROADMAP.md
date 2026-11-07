@@ -635,5 +635,5 @@ encrypted purchase format). See the Blocked rows in [FEATURE_MATRIX.md](FEATURE_
 - The decision on `unsafe` in one small, audited crate per OS (macOS file opening, Quick Look
   and Explorer thumbnails). Decided 2026-11-06: another tech stack is fine where an OS needs
   it. `batch:mac-platform` (2026-11-06) shipped #557's macOS half (a Swift Quick Look
-  extension over the Rust renderer, plus `stitchtool thumbnail`); the Explorer half is #669. #319's Ready-to-Sew Designs path is checked in the built macOS bundle, with the real
+  extension over the Rust renderer, plus `stitchtool thumbnail`); the Explorer half shipped on 2026-11-07 (#669, `platform`: a Rust COM thumbnail handler outside the workspace, installed by the MSI). #319's Ready-to-Sew Designs path is checked in the built macOS bundle, with the real
   click left to the owner.

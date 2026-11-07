@@ -20,7 +20,7 @@ members = [
     "crates/openstitch-testutil",
     "crates/openstitch-web",
 ]
-exclude = ["crates/openstitch-formats/fuzz"]
+exclude = ["crates/openstitch-formats/fuzz", "packaging/windows/thumbnails"]
 
 [workspace.package]
 version = "0.1.0"
