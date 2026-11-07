@@ -1797,10 +1797,13 @@ pub enum LineType {
     VStitch,
     Chain,
     Cutting,
+    /// OpenStitch's satin line (#524, beyond PE-DESIGN): a satin column along the line whose
+    /// width can change along it (width keys, tapered ends, per-side widths, a slant).
+    Satin,
 }
 
 impl LineType {
-    pub const ALL: [LineType; 10] = [
+    pub const ALL: [LineType; 11] = [
         LineType::Running,
         LineType::Triple,
         LineType::Zigzag,
@@ -1811,6 +1814,7 @@ impl LineType {
         LineType::VStitch,
         LineType::Chain,
         LineType::Cutting,
+        LineType::Satin,
     ];
 
     pub fn id(self) -> &'static str {
@@ -1825,6 +1829,7 @@ impl LineType {
             LineType::VStitch => "vStitch",
             LineType::Chain => "chain",
             LineType::Cutting => "cutting",
+            LineType::Satin => "satin",
         }
     }
 
@@ -1844,6 +1849,7 @@ impl LineType {
             LineType::VStitch => "V stitch",
             LineType::Chain => "Chain",
             LineType::Cutting => "Cutting",
+            LineType::Satin => "Satin line",
         }
     }
 }
@@ -1955,6 +1961,18 @@ pub struct LineSewing {
     /// Zigzag: thresholds of `auto` under sewing (#523).
     #[serde(default, skip_serializing_if = "is_default")]
     pub underlay_auto: crate::column::AutoUnderlay,
+    /// Satin line (#524): the width along the line, by keys (empty: `width` all along).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub width_keys: Vec<crate::skeleton::WidthKey>,
+    /// Satin line: the start tapers to a point over this length, mm.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub taper_start: Option<f64>,
+    /// Satin line: the end tapers to a point over this length, mm.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub taper_end: Option<f64>,
+    /// Satin line: the crossings turned this many degrees from square to the line (−60…60).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub slant: Option<f64>,
 }
 
 /// An opening in a closed line: `length` mm left unsewn from `offset` mm along the outline
@@ -2011,12 +2029,13 @@ impl LineSewing {
     /// 5.0 mm (Medium: 24 points) 1.0 mm apart; chain triangles of 4.0 mm sewn 5 times.
     pub fn new(kind: LineType, thread: Thread) -> Self {
         let zigzag = kind == LineType::Zigzag;
+        let satin = kind == LineType::Satin;
         let stroke = matches!(kind, LineType::EStitch | LineType::VStitch);
         LineSewing {
             kind,
             thread,
             pitch: match kind {
-                LineType::Running | LineType::Triple | LineType::Zigzag => 2.0,
+                LineType::Running | LineType::Triple | LineType::Zigzag | LineType::Satin => 2.0,
                 _ if stroke => 2.0,
                 _ => 2.5,
             },
@@ -2028,7 +2047,7 @@ impl LineSewing {
                 _ => 2.0,
             },
             density: match kind {
-                LineType::Zigzag => 4.5,
+                LineType::Zigzag | LineType::Satin => 4.5,
                 LineType::Candlewick => 12.0,
                 _ => 3.0,
             },
@@ -2042,7 +2061,7 @@ impl LineSewing {
             chain_shape: ChainShape::Triangle,
             leave_uncut: false,
             half_stitch: zigzag,
-            underlay: zigzag,
+            underlay: zigzag || satin,
             entry: None,
             exit: None,
             start_end: StartEnd::Feed,
@@ -2050,6 +2069,10 @@ impl LineSewing {
             satin_shaping: Default::default(),
             underlay_style: UnderlayStyle::Edge,
             underlay_auto: Default::default(),
+            width_keys: Vec::new(),
+            taper_start: None,
+            taper_end: None,
+            slant: None,
         }
     }
 

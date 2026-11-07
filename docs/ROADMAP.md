@@ -97,6 +97,9 @@ harness. The details per item are in [COMPATIBILITY_AUDIT.md](COMPATIBILITY_AUDI
   run (optimised dependencies and stitch pipeline in debug builds, one stitch compile for the
   demo design); the repository renamed to `cristianonescu/OpenStitch`;
   releases v0.1.0-alpha.1 and v0.1.0-alpha.2 ([docs/releases](releases/)).
+  2026-11-07 (#705, `batch:editor-2`): the app's binary tests no longer touch the OS clipboard
+  (their parallel use of macOS's pasteboard crashed the test binary now and then), and their
+  temporary folders are per test.
 
 ## Still to do
 
@@ -223,6 +226,12 @@ and Cross Stitch's edge cells on pixel art (#469: every rule tried lowers the li
 batch:mac-wizard (2026-11-06): the image dialog previews Auto Punch's regions, lists them with
 the stitch each got and why, lets any row or a click on the picture change it, warns when
 more than a quarter is left out, and takes a colour order and a purpose preset (#489, done).
+
+batch:mac-digitize-3 (2026-11-06): OpenStitch-mode Auto Punch no longer sews stitches in place
+along staircase outlines (#688) or as knots in specks (#690); touching fills turn apart without
+lowering the likeness, and every purpose preset passes sew_check on the gallery (#690). Left: a
+fill's or satin's short ends plus the tie-off on two photos (#703, stitch engine) and the
+mandala's drawn dots sewn as knots (#713).
 
 Done 2026-10-30: stitch generation is bit-identical on Windows, macOS and Linux (transcendental
 math through the `libm` crate instead of each platform's C library); the arched Text Transform
@@ -481,13 +490,13 @@ before any code; the ranking and the proposed tracks are in
 | B1 | Contour (offset) fill | A | [research/beyond/contour-fill.md](research/beyond/contour-fill.md) | Done 2026-10-30: region type `contour` with rings, single and double spiral, echo lines (0–30) and round or mitred corners, on the ring tree of PE-DESIGN's Spiral Stitch (`crate::spiral`); open: repeats, bevel join, compat specs |
 | B2 | Two-guide fills and stitch-angle maps | D | [research/beyond/guided-fill-and-angle-maps.md](research/beyond/guided-fill-and-angle-maps.md) | Sketched; not started |
 | B3 | Satin corners and short stitches | B | [research/beyond/satin-corners-and-short-stitches.md](research/beyond/satin-corners-and-short-stitches.md) | Done 2026-11-06 for Manual Punch columns and zigzag lines (#520, #521): `cornerStyle` turn/auto/mitre/cap with `mitreBelow` 75°, `capBelow` 45°, `cornerOverlap` 0.5 mm, `capMaxLength` 8 mm; `shortStitchDistance`/`shortStitchInset`; off by default. Satin looks (#528) on columns and zigzag lines 2026-11-06: S-stitch, open, double, jagged edge, `spacingAt`. Open: skeleton and Auto satin (#675, #685), lettering (#676, #686), lap corners |
-| B4 | Auto-routed running stitches, Redwork, satin branching | C | [research/beyond/auto-route-and-branching.md](research/beyond/auto-route-and-branching.md) | Sketched; not started |
+| B4 | Auto-routed running stitches, Redwork, satin branching | C | [research/beyond/auto-route-and-branching.md](research/beyond/auto-route-and-branching.md) | Branch split started 2026-11-06 (#526): `object.deriveSkeleton {branches}` makes a column per arm (Y, plus, star); letters with bent junctions (K, R) still open; routing and Redwork not started |
 | B5 | Compensation model, automatic underlay by width, fabric table | B | [research/beyond/compensation-and-underlay.md](research/beyond/compensation-and-underlay.md) | Done 2026-11-06 for Manual Punch columns and zigzag lines (#522, #523): `pullLeft`/`pullRight`/`pullPercent`/`pullMax`; `underlayStyle` auto (by average width, fabric thresholds from `fabric.apply`) and centreWalk; a column's `underlay2`. Open: skeleton and Auto satin (#675), fill push and region second underlay (#677) |
 | B6 | Density profiles, two-colour blend, hidden travel | A | [research/beyond/density-profiles-and-blend.md](research/beyond/density-profiles-and-blend.md) | Hidden travel between objects shipped 2026-11-06 (#545, `batch:routing`: `design.setTravelUnder`, run connectors); density profiles and blend not started |
 | B7 | 3D puff mode | A | [research/beyond/puff-mode.md](research/beyond/puff-mode.md) | First step done 2026-11-06 (#531): raised satin (padding lanes) on Manual Punch columns and zigzag lines; foam mode not started |
 | B8 | Crosshatch, curved crosshatch, lace | A | [research/beyond/crosshatch-and-lace.md](research/beyond/crosshatch-and-lace.md) | Sketched; not started |
 | B9 | Maze and meander fills, fur, randomisation | D | [research/beyond/meander-maze-and-randomisation.md](research/beyond/meander-maze-and-randomisation.md) | Sketched; not started |
-| B10 | Variable-width satin line | B | [research/beyond/variable-width-satin-line.md](research/beyond/variable-width-satin-line.md) | Sketched; not started |
+| B10 | Variable-width satin line | B | [research/beyond/variable-width-satin-line.md](research/beyond/variable-width-satin-line.md) | Engine done 2026-11-06 (#524): line type `satin` with width keys, tapers, per-side widths and slant; canvas gestures #700, SVG stroke width #701 |
 | B11 | Closest join, auto start/end, continue digitizing, overlap removal | C | [research/beyond/closest-join-and-overlap.md](research/beyond/closest-join-and-overlap.md) | Sketched. Continue digitizing shipped (#479: `object.extendPath`, `object.extendColumn`, the drawing tools continue a selected line from either end); nearest start per object (`autoStart: nearest`) and the Optimize before/after report shipped 2026-11-06 (#547, `batch:production`); part-way satin starts, draggable markers and overlap removal not started. Related, shipped 2026-10-29 (#137): `order.optimize` mode `minJump`, a 2-opt shortest-jump order per colour block with every neighbouring pair linked, as a design setting (`optimizeOrder`); PE-DESIGN's order stays the default |
 | B12 | Carving lines, knockdown fill | A | [research/beyond/carving-and-knockdown.md](research/beyond/carving-and-knockdown.md) | Knockdown shipped 2026-11-06 (#510, `batch:production`): `wizard.knockdown` (selection or whole design, reach, gap closing, one or two crossed layers, holes kept, rectangle option, `update`), kept first by `order.optimize`. Carving lines not started |
 | B13 | Density map, troubleshoot, thread conversion, auto hoop | E | [research/beyond/quality-tools.md](research/beyond/quality-tools.md) | Density map and troubleshoot rules done (Check Design, #503/#504); thread conversion and auto hoop not started |

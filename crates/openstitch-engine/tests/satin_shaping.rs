@@ -211,7 +211,15 @@ fn designs_without_shaping_save_byte_identically() {
     );
     let saved = project::encode(s.design()).expect("encode");
     let text = String::from_utf8(saved.clone()).expect("utf8");
-    for key in ["satinShaping", "underlayAuto", "underlay2"] {
+    for key in [
+        "satinShaping",
+        "underlayAuto",
+        "underlay2",
+        "widthKeys",
+        "taperStart",
+        "taperEnd",
+        "slant",
+    ] {
         assert!(!text.contains(key), "{key} written at its default");
     }
     // Lines keep PE-DESIGN's under sewing, so they write no underlayStyle.
@@ -422,4 +430,279 @@ fn rungs_are_added_moved_deleted_swapped_and_untangled() {
         s.execute("object.swapSides", Some(&json!({"id": 2})))
             .is_err()
     );
+}
+
+#[test]
+fn satin_lines_with_width_keys_tapers_and_slant() {
+    use openstitch_design::skeleton::{self, Skeleton, WidthKey};
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "shape.path",
+        json!({"points": [[10, 10], [50, 10], [70, 30]], "closed": false, "outline": "Black"}),
+    );
+    run(
+        &mut s,
+        "object.setLine",
+        json!({"id": 1, "type": "satin", "width": 3, "underSewing": false}),
+    );
+    // The command's own list offers satin, and its help names the satin line's parameters.
+    let commands = s.commands();
+    let spec = commands
+        .iter()
+        .find(|c| c.id == "object.setLine")
+        .expect("setLine");
+    let ty = spec.params.iter().find(|d| d.name == "type").expect("type");
+    assert!(ty.kind.split('|').any(|k| k == "satin"), "{}", ty.kind);
+    for name in ["widthKeys", "taperStart", "taperEnd", "slant"] {
+        assert!(ty.summary.contains(name), "{name}");
+        assert!(
+            spec.params.iter().any(|d| d.name == name),
+            "{name} documented"
+        );
+    }
+    // One width all along: the skeleton satin of that width.
+    let path = s.design().objects[0].contours[0].path();
+    let plain = Compiler::default().compile(s.design());
+    let pts: Vec<_> = plain
+        .stitches
+        .iter()
+        .filter(|x| x.command == Command::Stitch)
+        .map(|x| openstitch_design::v2(x.x, x.y))
+        .collect();
+    let sk = skeleton::satin(
+        &Skeleton {
+            points: path.clone(),
+            widths: vec![3.0; path.len()],
+        },
+        10.0 / 4.5,
+        0.0,
+    );
+    // The same needle points (rounded to the 0.1 mm grid), plus the tie-in and tie-off.
+    assert!(
+        pts.len() >= sk.len() && pts.len() <= sk.len() + 8,
+        "{} {}",
+        pts.len(),
+        sk.len()
+    );
+    for b in &sk {
+        assert!(pts.iter().any(|a| a.distance(*b) <= 0.71), "{b:?}");
+    }
+    // Keys, tapers and a slant.
+    run(
+        &mut s,
+        "object.setLine",
+        json!({"id": 1, "widthKeys": [[0, 0.5, 0.5], {"at": 0.6, "left": 0, "right": 3}],
+               "taperStart": 4, "taperEnd": 6, "slant": 20}),
+    );
+    let l = s.design().objects[0].line.clone().expect("line");
+    assert_eq!(
+        l.width_keys[1],
+        WidthKey {
+            at: 0.6,
+            left: 0.0,
+            right: 3.0
+        }
+    );
+    assert_eq!(
+        (l.taper_start, l.taper_end, l.slant),
+        (Some(4.0), Some(6.0), Some(20.0))
+    );
+    assert_ne!(stitches(&s), plain.count(Command::Stitch));
+    let got = run(&mut s, "object.get", json!({"id": 1}));
+    assert_eq!(got["line"]["widthKeys"][1]["right"], 3.0, "{got}");
+    // Width keys one at a time: a key near an existing one replaces it.
+    let r = run(
+        &mut s,
+        "object.setWidthKey",
+        json!({"id": 1, "at": 0.3, "width": 4}),
+    );
+    assert_eq!(r["index"], 1);
+    run(
+        &mut s,
+        "object.setWidthKey",
+        json!({"id": 1, "at": 0.302, "left": 1}),
+    );
+    let keys = &s.design().objects[0].line.as_ref().expect("l").width_keys;
+    assert_eq!(keys.len(), 3);
+    assert_eq!((keys[1].left, keys[1].right), (1.0, 2.0));
+    run(
+        &mut s,
+        "object.deleteWidthKey",
+        json!({"id": 1, "index": 1}),
+    );
+    assert_eq!(
+        s.design().objects[0]
+            .line
+            .as_ref()
+            .expect("l")
+            .width_keys
+            .len(),
+        2
+    );
+    run(&mut s, "history.undo", json!({}));
+    assert_eq!(
+        s.design().objects[0]
+            .line
+            .as_ref()
+            .expect("l")
+            .width_keys
+            .len(),
+        3
+    );
+    // null clears; 0 removes a taper or slant.
+    run(
+        &mut s,
+        "object.setLine",
+        json!({"id": 1, "widthKeys": null, "taperStart": 0, "slant": 0}),
+    );
+    let l = s.design().objects[0].line.clone().expect("line");
+    assert!(l.width_keys.is_empty() && l.taper_start.is_none() && l.slant.is_none());
+    let back = project::decode(&project::encode(s.design()).expect("encode")).expect("decode");
+    assert_eq!(&back, s.design());
+    for (cmd, bad) in [
+        ("object.setLine", json!({"id": 1, "widthKeys": [[2, 1, 1]]})),
+        (
+            "object.setLine",
+            json!({"id": 1, "widthKeys": [[0, 20, 1]]}),
+        ),
+        ("object.setLine", json!({"id": 1, "slant": 80})),
+        ("object.setWidthKey", json!({"id": 1, "at": 0.5})),
+        (
+            "object.setWidthKey",
+            json!({"id": 1, "at": 0.5, "width": 3, "left": 1}),
+        ),
+        ("object.deleteWidthKey", json!({"id": 1, "index": 0})),
+    ] {
+        assert!(s.execute(cmd, Some(&bad)).is_err(), "{cmd} {bad}");
+    }
+}
+
+#[test]
+fn a_branching_shape_becomes_one_satin_column_per_arm() {
+    let mut s = Session::new(std::env::temp_dir());
+    let star: Vec<[f64; 2]> = (0..10)
+        .map(|i| {
+            let a = std::f64::consts::PI * i as f64 / 5.0 - std::f64::consts::FRAC_PI_2;
+            let r = if i % 2 == 0 { 25.0 } else { 4.0 };
+            [50.0 + r * a.cos(), 50.0 + r * a.sin()]
+        })
+        .collect();
+    run(
+        &mut s,
+        "shape.polygon",
+        json!({"points": star, "fill": "#e0a000", "name": "star"}),
+    );
+    let before = s.design().clone();
+    let r = run(
+        &mut s,
+        "object.deriveSkeleton",
+        json!({"id": 1, "branches": true, "joinOverlap": 0.4}),
+    );
+    let ids = r["ids"].as_array().expect("ids");
+    assert_eq!(ids.len(), 4, "{r}");
+    let d = s.design();
+    assert_eq!(d.objects.len(), 5);
+    assert!(!d.objects[0].visible, "the shape is kept, hidden");
+    let group = r["group"].as_u64().expect("group");
+    for o in &d.objects[1..] {
+        assert_eq!(o.group, Some(group));
+        let region = o.region.as_ref().expect("region");
+        assert!(region.skeleton.is_some());
+        assert_eq!(
+            region.thread,
+            before.objects[0].region.as_ref().expect("r").thread
+        );
+    }
+    assert!(stitches(&s) > 200);
+    assert_eq!(r["warnings"], json!([]));
+    run(&mut s, "history.undo", json!({}));
+    assert_eq!(s.design(), &before);
+    // A star with a broad body warns about the wide column through its middle.
+    run(&mut s, "object.scale", json!({"id": 1, "sx": 3, "sy": 3}));
+    let r = run(
+        &mut s,
+        "object.deriveSkeleton",
+        json!({"id": 1, "branches": true}),
+    );
+    assert!(
+        r["warnings"][0].as_str().expect("w").contains("10 mm"),
+        "{r}"
+    );
+    run(&mut s, "history.undo", json!({}));
+    run(&mut s, "history.undo", json!({}));
+    // Not kept: the shape goes.
+    run(
+        &mut s,
+        "object.deriveSkeleton",
+        json!({"id": 1, "branches": true, "keepOriginal": false}),
+    );
+    assert_eq!(s.design().objects.len(), 4);
+    run(&mut s, "history.undo", json!({}));
+    // A bar has no branches: one skeleton on the shape itself, as without branches.
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 10, "y": 80, "width": 40, "height": 4, "fill": "Red"}),
+    );
+    let r = run(
+        &mut s,
+        "object.deriveSkeleton",
+        json!({"id": 2, "branches": true}),
+    );
+    assert!(r.get("points").is_some(), "{r}");
+    assert!(
+        s.design().objects[1]
+            .region
+            .as_ref()
+            .expect("r")
+            .skeleton
+            .is_some()
+    );
+    assert!(
+        s.execute(
+            "object.deriveSkeleton",
+            Some(&json!({"id": 1, "branches": true, "joinOverlap": 5}))
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn pes_0110_refuses_a_satin_line_and_the_machine_formats_sew_it() {
+    let dir = openstitch_testutil::TempDir::new("satin-line-pes");
+    let mut s = Session::new(dir.path());
+    run(
+        &mut s,
+        "design.new",
+        json!({"name": "satin", "width": 100, "height": 100}),
+    );
+    run(
+        &mut s,
+        "shape.path",
+        json!({"points": [[10, 10], [60, 10]], "closed": false, "outline": "Black"}),
+    );
+    run(
+        &mut s,
+        "object.setLine",
+        json!({"id": 1, "type": "satin", "widthKeys": [[0, 0.5, 0.5], [1, 2, 2]]}),
+    );
+    // PES 0110 cannot hold an OpenStitch satin line: refused with the object and the type named.
+    let err = s
+        .execute(
+            "design.export",
+            Some(&json!({"path": "a.pes", "pesVersion": "11"})),
+        )
+        .expect_err("PES 0110 refuses a satin line")
+        .to_string();
+    assert!(
+        err.contains("Satin line") && err.contains("not mapped"),
+        "{err}"
+    );
+    assert!(!dir.path().join("a.pes").exists());
+    // The default PES (stitches) and a DST sew it.
+    for path in ["b.pes", "b.dst"] {
+        run(&mut s, "design.export", json!({ "path": path }));
+        assert!(std::fs::metadata(dir.path().join(path)).expect(path).len() > 100);
+    }
 }
