@@ -330,9 +330,9 @@ digitizing are desktop-only; say so instead of trying them in the browser.
   `python/README.md`: `Session().exec("shape.ellipse", ...)` with these same commands).
 - "Make a thumbnail / preview picture of this file" at a terminal: `stitchtool thumbnail
   design.pes out.png [--size 256]` writes the stitches on a transparent square (16 to 1024
-  px), the same picture Finder (Quick Look, with OpenStitch.app installed) and Linux file
-  managers show; Explorer thumbnails are not available yet. In the editor, `view_render`
-  shows the design instead.
+  px), the same picture Finder (Quick Look, with OpenStitch.app installed), Windows Explorer
+  (with OpenStitch installed from its MSI) and Linux file managers show. In the editor,
+  `view_render` shows the design instead.
 - "Open the ready-to-sew designs": `ui.help {item: "sewKit"}` shows the packaged kit in the
   file manager and replies with its `folder`, or with the GitHub `url` it opened instead.
 - **Test swatches** (sew a test before the real thing; each writes a new design file to
