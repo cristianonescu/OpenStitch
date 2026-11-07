@@ -372,6 +372,8 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
 - **Satin:** PE-DESIGN's satin with manual or Auto direction, Half Stitch on bends, density,
   pull compensation and the six under sewing types.
 - (+) **Skeleton satin:** a satin column sewn along a derived centre line.
+- (+) **Satin line with variable width** on any path: width keys, width set while drawing,
+  handles anywhere along the line, tapered ends and per-side widths ([#524]).
 - (+) **Satin corners:** turn, mitre or cap at sharp corners (*partial*: Manual Punch columns and
   zigzag lines) ([#520]).
 - (+) **Short stitches on inner curves** so the inside of a bend does not pile up (*partial*)
@@ -702,6 +704,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#521]: https://github.com/cristianonescu/OpenStitch/issues/521
 [#522]: https://github.com/cristianonescu/OpenStitch/issues/522
 [#523]: https://github.com/cristianonescu/OpenStitch/issues/523
+[#524]: https://github.com/cristianonescu/OpenStitch/issues/524
 [#525]: https://github.com/cristianonescu/OpenStitch/issues/525
 [#527]: https://github.com/cristianonescu/OpenStitch/issues/527
 [#528]: https://github.com/cristianonescu/OpenStitch/issues/528
