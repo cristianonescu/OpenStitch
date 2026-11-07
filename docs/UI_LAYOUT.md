@@ -564,6 +564,34 @@ and Paste Attributes, and its Region and Line titles fold their sections (#553).
 
 ![Start cards](images/rust-editor-start-cards.png)
 
+**Startup Wizard (PE-compatible start-up, #657).** Application menu ▸ Wizard ▸ **Startup Wizard**
+opens PE-DESIGN 11's "How do you want to produce embroidery?" in its layout (from the
+coordinator's black-box capture of PE-DESIGN 11.50, text only). Left column: Open Instruction
+Manual; **Create With Ease** (Use Template Design, Create Embroidery Patterns Using Images);
+**Set and Create New Page** (Set Hoop Size and Fabric); **Import Embroidery Patterns** (Text,
+Outline Shapes, Design Library). Right column: **Most Recently Used Files** with Open, Open
+Embroidery Design, Start Design Database to Manage Embroidery Files. Bottom: **Always show Wizard
+at Startup** (`ui.set startupWizard`; ticked, it opens on every start and the start cards stay
+hidden while it is open) and **Close This Wizard**. Every choice closes the wizard and runs the
+matching OpenStitch action (`ui.startupWizard {choice}`):
+
+| PE-DESIGN choice | OpenStitch action |
+|---|---|
+| Open Instruction Manual | Help ▸ Getting Started |
+| Use Template Design | the Template Wizard |
+| Create Embroidery Patterns Using Images | Image to Embroidery |
+| Set Hoop Size and Fabric | Design Settings, then the Fabric Selector |
+| Import: Text | the Text dialog (PE's Import pane category Text) |
+| Import: Outline Shapes | the Import pane (OpenStitch's Import pane has no categories) |
+| Import: Design Library | File ▸ Open Sample (the ready-to-sew kit) |
+| Recent file, Open | opens it (asks about unsaved changes first) |
+| Open Embroidery Design | File ▸ Open |
+| Start Design Database | Options ▸ Design Database (OpenStitch's, in the editor) |
+
+Unlike PE-DESIGN, a choice does not first replace the open design with an empty page; Open and
+the samples ask about unsaved changes as usual. Recent files are listed by name, without PE's
+stitch thumbnails.
+
 **Picture pickers (beyond PE-DESIGN, #656).** With **Options ▸ Picture pickers with live
 preview** on (off by default, PE-DESIGN's lists), the Sewing Attributes pane's Region and Line
 Type, programmable fill and net patterns and motifs open as a grid of pictures: each is the

@@ -369,6 +369,20 @@ pub const UI_COMMANDS: &[UiCommand] = &[
         ],
     },
     UiCommand {
+        id: "ui.startupWizard",
+        summary: "The Startup Wizard (#657, PE-DESIGN's \"How do you want to produce embroidery?\"): without parameters it opens; choice closes it and runs that choice's action (manual = Getting Started, template, images = Image to Embroidery, hoopAndFabric = Design Settings and the Fabric Selector, importText, importShapes = the Import pane, importLibrary = Open Sample, open = File ▸ Open, database); close closes it",
+        effect: Effect::Edit,
+        params: &[
+            p(
+                "choice",
+                "manual|template|images|hoopAndFabric|importText|importShapes|importLibrary|open|database",
+                false,
+                "Run this choice",
+            ),
+            p("close", "bool", false, "Close the wizard"),
+        ],
+    },
+    UiCommand {
         id: "ui.documents",
         summary: "Designs open as tabs (#552): list them (index, name, unsaved, file, active), activate one, open an empty one, or close one. Commands act on the active tab. Closing a tab with unsaved changes is refused: save it first or ask the user",
         effect: Effect::Edit,
@@ -534,6 +548,11 @@ pub const SETTINGS: &[Setting] = &[
         "en|pseudo",
     ),
     s("showStartCards", "Show start cards", "bool"),
+    s(
+        "startupWizard",
+        "Always show Wizard at Startup: the PE-compatible start-up, PE-DESIGN's Startup Wizard instead of the start cards",
+        "bool",
+    ),
     s(
         "newObjectDefaults",
         "New Objects: what new shapes start with, { angle 0-359, density 0.5-10, stitchLength 1-10, pullCompensation 0-2, pitch 1-10 (outline), underlay bool }; {} = the tools' own",

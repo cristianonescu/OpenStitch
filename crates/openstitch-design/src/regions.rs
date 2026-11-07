@@ -286,13 +286,44 @@ pub fn generate(
             // at most half the spacing so its turns stay round (never at its 0.2 mm vertices).
             // At most 2 mm on wide spacings too (#462).
             let step = pitch.min(spacing / 2.0).clamp(5.0, 20.0);
-            let mut loops: Vec<Vec<Vec2>> = stipple_fitted(closed, holes, angle, spacing)
+            let mut loops: Vec<Vec<Vec2>> = stipple_fitted(closed, holes, angle, spacing, None)
                 .iter()
                 .map(|l| crate::ornament::resample_closed(l, step))
                 .collect();
             // Start (and so end) at the meander's point nearest the start point: the travel
             // there and back is one short stitch in from the outline, not a walk along it
             // (the exposed L of #462).
+            if let Some(e) = r.entry.or(r.exit)
+                && let Some((li, pi)) = loops
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(li, l)| l.iter().enumerate().map(move |(pi, p)| (li, pi, *p)))
+                    .min_by(|a, b| e.distance(a.2).total_cmp(&e.distance(b.2)))
+                    .map(|(li, pi, _)| (li, pi))
+            {
+                let first = loops.remove(li);
+                loops.insert(0, first[pi..].iter().chain(&first[..pi]).copied().collect());
+            }
+            vec![region.loops(loops)]
+        }
+        RegionType::Maze => {
+            // Beyond PE-DESIGN (#533): the stippling walk with straight corridors and square
+            // turns, each closed loop sewn at the run pitch from its point nearest the start.
+            let maze = Corridors {
+                straightness: r.maze_straightness(),
+                seed: r.maze_seed.unwrap_or(RegionSewing::DEFAULT_MAZE_SEED),
+            };
+            let mut loops: Vec<Vec<Vec2>> =
+                stipple_fitted(closed, holes, angle, spacing, Some(maze))
+                    .iter()
+                    .map(|l| {
+                        let mut closed_l = l.clone();
+                        closed_l.push(l[0]);
+                        let mut out = subdivide(&closed_l, pitch);
+                        out.pop();
+                        out
+                    })
+                    .collect();
             if let Some(e) = r.entry.or(r.exit)
                 && let Some((li, pi)) = loops
                     .iter()
@@ -1653,15 +1684,25 @@ fn stipple_fitted(
     holes: &[Contour],
     angle: f64,
     spacing: f64,
+    maze: Option<Corridors>,
 ) -> Vec<Vec<Vec2>> {
     let mut s = spacing;
     loop {
-        let loops = stipple(closed, holes, angle, s);
+        let loops = stipple(closed, holes, angle, s, maze);
         if !loops.is_empty() || s * 0.9 < spacing * 0.5 {
             return loops;
         }
         s *= 0.9;
     }
+}
+
+/// Maze fill (#533, beyond PE-DESIGN): the spanning tree of [`stipple`] grown towards long
+/// straight corridors, and its walk sewn with square turns.
+#[derive(Clone, Copy, Debug)]
+struct Corridors {
+    /// Chance that a branch runs straight on where it can, 0–1.
+    straightness: f64,
+    seed: u64,
 }
 
 /// A spanning-tree edge of the stippling grid: `Right(i)` joins cell i to i + 1, `Down(i)`
@@ -1686,7 +1727,17 @@ enum Edge {
 /// 4. Rounded by corner cutting, then relaxed: each point moves square to the path towards
 ///    the middle between the passes (or the outline, counted at half a spacing) on its two
 ///    sides, never so that it crosses or comes near another pass.
-fn stipple(closed: &[Contour], holes: &[Contour], angle: f64, spacing: f64) -> Vec<Vec<Vec2>> {
+///
+/// With `maze` (#533) the tree runs straight on with the given chance and its own seed, and
+/// the loops keep the lattice's square turns (step 4 is left out), each straight stretch one
+/// segment.
+fn stipple(
+    closed: &[Contour],
+    holes: &[Contour],
+    angle: f64,
+    spacing: f64,
+    maze: Option<Corridors>,
+) -> Vec<Vec<Vec2>> {
     let Some(b) = rotated_bounds(closed, angle) else {
         return Vec::new();
     };
@@ -1739,8 +1790,11 @@ fn stipple(closed: &[Contour], holes: &[Contour], angle: f64, spacing: f64) -> V
                 && step_ok((x + 1, y), (x + 1, y + 1))
         })
         .collect();
-    let mut rng = Rng::new(0x57_1991E);
+    let mut rng = Rng::new(maze.map_or(0x57_1991E, |m| m.seed));
     let mut visited = vec![false; rows * cols];
+    // Maze: the direction each cell was entered from its parent (0 right, 1 left, 2 down,
+    // 3 up; 4 for a root).
+    let mut came = vec![4u8; rows * cols];
     // Tree edges: right[i] links cell i to i + 1, down[i] links i to i + cols.
     let mut right = vec![false; rows * cols];
     let mut down = vec![false; rows * cols];
@@ -1758,31 +1812,38 @@ fn stipple(closed: &[Contour], holes: &[Contour], angle: f64, spacing: f64) -> V
             // Each option with the tree edge it adds: `(cell, Some(edge))` sets `right[edge]`,
             // `(cell, None)` is resolved below. The move's kind is recorded when it is offered,
             // not read back from the index: with one column `cur + cols` is `cur + 1` (#638).
-            let mut options: Vec<(usize, Edge)> = Vec::with_capacity(4);
+            let mut options: Vec<(usize, Edge, u8)> = Vec::with_capacity(4);
             if cx + 1 < cols
                 && step_ok((x + 1, y), (x + 2, y))
                 && step_ok((x + 1, y + 1), (x + 2, y + 1))
             {
-                options.push((cur + 1, Edge::Right(cur)));
+                options.push((cur + 1, Edge::Right(cur), 0));
             }
             if cx > 0 && step_ok((x - 1, y), (x, y)) && step_ok((x - 1, y + 1), (x, y + 1)) {
-                options.push((cur - 1, Edge::Right(cur - 1)));
+                options.push((cur - 1, Edge::Right(cur - 1), 1));
             }
             if cy + 1 < rows
                 && step_ok((x, y + 1), (x, y + 2))
                 && step_ok((x + 1, y + 1), (x + 1, y + 2))
             {
-                options.push((cur + cols, Edge::Down(cur)));
+                options.push((cur + cols, Edge::Down(cur), 2));
             }
             if cy > 0 && step_ok((x, y - 1), (x, y)) && step_ok((x + 1, y - 1), (x + 1, y)) {
-                options.push((cur - cols, Edge::Down(cur - cols)));
+                options.push((cur - cols, Edge::Down(cur - cols), 3));
             }
-            options.retain(|&(n, _)| on[n] && !visited[n]);
+            options.retain(|&(n, _, _)| on[n] && !visited[n]);
             if options.is_empty() {
                 stack.pop();
                 continue;
             }
-            let (next, edge) = options[(rng.next_u64() % options.len() as u64) as usize];
+            // Stippling draws once per step, uniformly; the maze first tries to run straight on.
+            let straight = maze.and_then(|m| {
+                let i = options.iter().position(|o| o.2 == came[cur])?;
+                (rng.next_f64() < m.straightness).then_some(i)
+            });
+            let pick = straight.unwrap_or_else(|| (rng.next_u64() % options.len() as u64) as usize);
+            let (next, edge, dir) = options[pick];
+            came[next] = dir;
             visited[next] = true;
             members.push(next);
             match edge {
@@ -1914,6 +1975,9 @@ fn stipple(closed: &[Contour], holes: &[Contour], angle: f64, spacing: f64) -> V
             loops.push(l.into_iter().map(|i| pos(i % w, i / w)).collect::<Vec<_>>());
         }
     }
+    if maze.is_some() {
+        return loops.into_iter().map(|l| corners(&l)).collect();
+    }
     let pitch = spacing / 4.0;
     let mut loops: Vec<Vec<Vec2>> = loops
         .into_iter()
@@ -1921,6 +1985,24 @@ fn stipple(closed: &[Contour], holes: &[Contour], angle: f64, spacing: f64) -> V
         .collect();
     relax(&mut loops, &edges, spacing);
     loops
+}
+
+/// The corners of a closed lattice loop: the points where it turns (straight stretches become
+/// one segment each). A loop that never turns keeps its points.
+fn corners(l: &[Vec2]) -> Vec<Vec2> {
+    let n = l.len();
+    if n < 3 {
+        return l.to_vec();
+    }
+    let out: Vec<Vec2> = (0..n)
+        .filter(|&i| {
+            let (a, b, c) = (l[(i + n - 1) % n], l[i], l[(i + 1) % n]);
+            let (u, v) = (b - a, c - b);
+            (u.x * v.y - u.y * v.x).abs() > 1e-6 * u.length() * v.length()
+        })
+        .map(|i| l[i])
+        .collect();
+    if out.len() < 3 { l.to_vec() } else { out }
 }
 
 /// The edges of some contours, bucketed for nearest-edge queries.
