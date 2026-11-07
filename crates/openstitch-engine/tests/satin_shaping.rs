@@ -706,3 +706,71 @@ fn pes_0110_refuses_a_satin_line_and_the_machine_formats_sew_it() {
         assert!(std::fs::metadata(dir.path().join(path)).expect(path).len() > 100);
     }
 }
+
+/// The stitches of the design's first object.
+fn sewn(s: &Session) -> Vec<openstitch_core::Stitch> {
+    Compiler::default().compile(s.design()).stitches
+}
+
+#[test]
+fn skeleton_and_auto_satin_take_the_shaping_through_the_command() {
+    // #675: a skeleton satin with a 60 degree corner, and a 90 degree bent band sewn as Auto
+    // satin; the same parameters as on a column.
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "shape.skeletonSatin",
+        json!({"points": [[0, 0], [30, 0], [15, 25.98]], "widths": [4, 4, 4], "fill": "Red"}),
+    );
+    let mut band = Session::new(std::env::temp_dir());
+    run(
+        &mut band,
+        "shape.path",
+        json!({"points": [[0, 0], [30, 0], [30, 30], [25, 30], [25, 5], [0, 5]],
+               "closed": true, "fill": "Red"}),
+    );
+    run(
+        &mut band,
+        "object.setRegion",
+        json!({"id": 1, "type": "satin", "autoDirection": true, "underlay": false}),
+    );
+    for s in [&mut s, &mut band] {
+        run(s, "object.setRegion", json!({"id": 1, "underlay": false}));
+        let before = sewn(s);
+        run(
+            s,
+            "object.setRegion",
+            json!({"id": 1, "cornerStyle": "mitre"}),
+        );
+        let mitred = sewn(s);
+        assert_ne!(mitred, before, "mitred");
+        run(
+            s,
+            "object.setRegion",
+            json!({"id": 1, "shortStitchDistance": 0.3, "pullLeft": 0.3, "pullPercent": 5}),
+        );
+        assert_ne!(sewn(s), mitred, "short stitches and compensation");
+        // Width-following under sewing along the column, then a second layer.
+        run(
+            s,
+            "object.setRegion",
+            json!({"id": 1, "underlay": true, "underlayStyle": "auto", "underlaySpacing": 1.5}),
+        );
+        let rows = stitches(s);
+        run(
+            s,
+            "object.setRegion",
+            json!({"id": 1, "underlay2": {"style": "centreWalk"}}),
+        );
+        assert!(stitches(s) > rows, "the second layer adds stitches");
+        // Back to PE-DESIGN's: the same stitches as before any shaping.
+        run(
+            s,
+            "object.setRegion",
+            json!({"id": 1, "cornerStyle": "turn", "shortStitchDistance": 0, "pullLeft": null,
+                   "pullPercent": 0, "underlay": false, "underlayStyle": "edgeZigzag",
+                   "underlay2": null}),
+        );
+        assert_eq!(sewn(s), before, "back to the defaults");
+    }
+}

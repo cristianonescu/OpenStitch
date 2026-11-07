@@ -151,13 +151,20 @@ fn layers_inner(
     {
         let mut plain = r.clone();
         plain.skeleton = None;
+        // OpenStitch's under sewing along the column where chosen (#675).
+        let [first, second] = crate::skeleton::underlay(skeleton, r);
+        if first.is_some() {
+            plain.underlay = false;
+        }
         let mut out = layers_inner(closed, &plain, holes, user);
         out.pop();
+        out.extend(first.into_iter().chain(second).map(|run| vec![run]));
         let spacing = 10.0 / r.density.max(0.1);
-        out.push(vec![crate::skeleton::satin(
+        out.push(vec![crate::skeleton::satin_with(
             skeleton,
             spacing,
             r.pull_compensation * 10.0,
+            &r.satin_shaping,
         )]);
         return motif_band(out, &crate::skeleton::rungs(skeleton, 10.0), r, user);
     }
@@ -263,15 +270,21 @@ fn layers_inner(
     // and where the skeleton column does not cover the region (a branch, a blob).
     if r.auto_direction
         && r.kind == RegionType::Satin
-        && let Some(top) = auto_satin(closed, r, holes)
+        && let Some((top, rungs, start)) = auto_satin(closed, r, holes)
     {
         // PE-DESIGN 11 sews the under sewing rows of Auto satin at 90° (across a bent band's
         // horizontal leg, along its vertical one): the rows of a 0° satin.
         let mut plain = r.clone();
         plain.auto_direction = false;
         plain.angle = 0.0;
+        // OpenStitch's under sewing along the column where chosen (#675).
+        let [first, second] = crate::column::rung_underlay(&rungs, r, start);
+        if first.is_some() {
+            plain.underlay = false;
+        }
         let mut out = layers_inner(closed, &plain, holes, user);
         out.pop();
+        out.extend(first.into_iter().chain(second).map(|run| vec![run]));
         out.push(vec![top]);
         return out;
     }
@@ -1945,8 +1958,13 @@ pub fn ends_locked(tail: &[Vec2]) -> bool {
 const AUTO_COVERAGE: f64 = 0.85;
 
 /// Auto-direction satin along a skeleton derived from the single closed contour `closed`;
-/// `None` where it does not apply (see [`layers_with`]).
-fn auto_satin(closed: &[Contour], r: &RegionSewing, holes: &[Contour]) -> Option<Run> {
+/// `None` where it does not apply (see [`layers_with`]). With it, the column's rungs from the
+/// start end and the start point, for OpenStitch's under sewing along the column (#675).
+fn auto_satin(
+    closed: &[Contour],
+    r: &RegionSewing,
+    holes: &[Contour],
+) -> Option<(Run, Vec<[Vec2; 2]>, Vec2)> {
     let shaped =
         r.sewn_gradation().is_some() || r.sewn_feather().is_some() || r.split_length.is_some();
     if closed.len() != 1 || !holes.is_empty() || shaped {
@@ -1982,7 +2000,15 @@ fn auto_satin(closed: &[Contour], r: &RegionSewing, holes: &[Contour]) -> Option
         }
         _ => None,
     };
-    let rungs = crate::skeleton::rungs_within_from(&s, closed, spacing, pull, beyond);
+    // With OpenStitch's satin shaping the compensation is applied per crossing (#675).
+    let shaped = !r.satin_shaping.is_plain();
+    let rungs = crate::skeleton::rungs_within_from(
+        &s,
+        closed,
+        spacing,
+        if shaped { 0.0 } else { pull },
+        beyond,
+    );
     if rungs.len() < 2 {
         return None;
     }
@@ -2007,6 +2033,21 @@ fn auto_satin(closed: &[Contour], r: &RegionSewing, holes: &[Contour]) -> Option
     // fixed-direction satin across its principal axis instead.
     if crossed_rungs(&rungs) * AUTO_CROSSED_SHARE_INV > rungs.len() {
         return None;
+    }
+    let column = rungs.clone();
+    let from = start.unwrap_or(mid_of(column[0]));
+    if shaped {
+        // OpenStitch's satin shaping (#675): sewn from the far end back to the start end, the
+        // corner constructions on the derived centre line's points.
+        let corners = r.satin_shaping.corners.style != crate::column::CornerStyle::Turn;
+        let mut base = if corners {
+            crate::skeleton::vertex_rungs_within(&s, closed)
+        } else {
+            column.clone()
+        };
+        base.reverse();
+        let run = crate::column::zigzag_shaped(&base, spacing, pull, &r.satin_shaping);
+        return Some((auto_lead(closed, holes, start, run), column, from));
     }
     // Sewn from the far end back to the start point: one needle point per rung, on the start
     // point's side for every other rung counted from the start, so the last needle point is
@@ -2039,20 +2080,29 @@ fn auto_satin(closed: &[Contour], r: &RegionSewing, holes: &[Contour]) -> Option
         rungs.iter().zip(&sides).map(|(g, &k)| g[k]).collect()
     };
     run.dedup_by(|a, b| a.distance(*b) < 1e-9);
-    if let (Some(s), Some(&first)) = (start, run.first()) {
-        let mut graph = TravelGraph::new(closed, holes);
-        graph.outline = Some(OutlineTravel::Inset(AUTO_TRAVEL_INSET));
-        graph.outline_tolerance = AUTO_TRAVEL_INSET + 1.0;
-        // PE-DESIGN travels forward along the outline from the start point (over a bent
-        // band's outer edge), not the shorter way round.
-        graph.outline_forward = true;
-        let path = graph.path(s, first).unwrap_or(vec![s, first]);
-        let mut lead = skip_short(subdivide(&path, SATIN_TRAVEL_PITCH), closed, holes);
-        lead.pop();
-        lead.extend(run);
-        run = lead;
-    }
-    Some(run)
+    Some((auto_lead(closed, holes, start, run), column, from))
+}
+
+/// Auto satin's `run` led in from the start point: PE-DESIGN travels forward along the outline
+/// from the start point (over a bent band's outer edge), not the shorter way round.
+fn auto_lead(closed: &[Contour], holes: &[Contour], start: Option<Vec2>, run: Run) -> Run {
+    let (Some(s), Some(&first)) = (start, run.first()) else {
+        return run;
+    };
+    let mut graph = TravelGraph::new(closed, holes);
+    graph.outline = Some(OutlineTravel::Inset(AUTO_TRAVEL_INSET));
+    graph.outline_tolerance = AUTO_TRAVEL_INSET + 1.0;
+    graph.outline_forward = true;
+    let path = graph.path(s, first).unwrap_or(vec![s, first]);
+    let mut lead = skip_short(subdivide(&path, SATIN_TRAVEL_PITCH), closed, holes);
+    lead.pop();
+    lead.extend(run);
+    lead
+}
+
+/// The middle of a rung.
+fn mid_of(r: [Vec2; 2]) -> Vec2 {
+    r[0].lerp(r[1], 0.5)
 }
 
 /// Auto satin falls back to fixed-direction satin when more than one crossing in this many

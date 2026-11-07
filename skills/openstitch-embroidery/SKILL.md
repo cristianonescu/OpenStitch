@@ -80,15 +80,16 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    short stitches) and `miterLimit` (0-50 mm from the corner along the bisector; 0, the
    default, cuts the point at the corner, about 4 mm on a 2 mm line at 30 degrees is the full
    point). Raise `miterLimit` for a pointed star or chevron border, keep 0 for a blunt one.
-   Satin quality beyond PE-DESIGN (off by default; Manual Punch columns via
-   `object.setRegion`, zigzag lines via `object.setLine`): `cornerStyle: auto` for stars,
-   chevrons and badge borders (mitre below `mitreBelow` 75°, cap below `capBelow` 45°,
+   Satin quality beyond PE-DESIGN (off by default; Manual Punch columns, skeleton satins and
+   Auto satin regions via `object.setRegion`, zigzag lines via `object.setLine`):
+   `cornerStyle: auto` for stars, chevrons and badge borders (mitre below `mitreBelow` 75°, cap below `capBelow` 45°,
    `cornerOverlap`, `capMaxLength`); `shortStitchDistance: 0.25` (with `shortStitchInset` %)
    thins the inside of tight curves; `pullLeft`/`pullRight` (mm, `null` resets) and
    `pullPercent` (3 for tapered columns; `pullMax` caps it) compensate per side and by width;
    `underlayStyle: auto` picks a centre walk, edge run or edge + zigzag by width (thresholds
-   `underlayAuto {centreBelow, edgeBelow}`, set by `fabric.apply`), `centreWalk` for thin
-   satins, and a column's `underlay2 {style, inset, spacing, stitchLength}` adds a second
+   `underlayAuto {centreBelow, edgeBelow}`, set by `fabric.apply`; on a skeleton or Auto
+   satin it sews rows along the column that follow its width instead), `centreWalk` for thin
+   satins, and `underlay2 {style, inset, spacing, stitchLength}` adds a second
    layer (`null` removes it). Satin looks: `satinStyle` sStitch (corded edge), open (light),
    double (raised X lattice); `jaggedEdge {mode: in|out|both, side, amount, seed}` (or just
    `"in"`; `"none"`/`null` removes it) for fur, grass and feathers; `spacingAt: 0.5` evens a
@@ -103,8 +104,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    width | left, right}`, `object.deleteWidthKey {id, index}`), `taperStart`/`taperEnd` (mm,
    pointed ends) and `slant` (-60 to 60 degrees). A Y, star or stick figure drawn as one
    filled shape: `object.deriveSkeleton {id, branches: true, joinOverlap: 0.3}` makes a
-   grouped satin column per arm (the shape stays hidden); check `warnings` for columns over
-   10 mm and look at the junctions with `view_render`.
+   grouped satin column per arm (the shape stays hidden); a letter's straight stem (K, R)
+   stays one straight column through its junction. Check `warnings` for columns over 10 mm
+   and look at the junctions with `view_render`.
    Ripples, echoes and spirals from one outline (beyond PE-DESIGN): `object.setLine {type:
    ripple, strands, target: [x, y]}` (a closed line spirals in to the target as one run; an
    open one repeats `spacing` apart towards the target's side). Motif lines (beyond

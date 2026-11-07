@@ -1,7 +1,7 @@
 //! The satin shaping and under sewing attributes beyond PE-DESIGN (#520 corner styles, #521
 //! short stitches, #522 compensation per side and per cent, #523 automatic and second under
-//! sewing), read by `object.setRegion` (Manual Punch columns) and `object.setLine` (zigzag
-//! lines). All are off by default; a column or line without them sews as PE-DESIGN's.
+//! sewing), read by `object.setRegion` (Manual Punch columns, skeleton satin and Auto satin
+//! regions, #675) and `object.setLine` (zigzag lines). All are off by default; a column or line without them sews as PE-DESIGN's.
 
 use crate::commands::{CommandSpec, Effect, ParamDoc, opt, req, spec};
 use crate::params::{CommandError, Params};
@@ -18,7 +18,7 @@ pub(crate) const SHAPING_PARAMS: [ParamDoc; 16] = [
     opt(
         "cornerStyle",
         "turn|auto|mitre|cap",
-        "Satin corners (beyond PE-DESIGN; Manual Punch columns and zigzag lines): turn (default, PE-DESIGN's fan), auto (cap below capBelow, mitre below mitreBelow), mitre (a seam from the inner corner to the tip, each leg's stitches square to it) or cap (both legs end on a square line through the inner corner, the tip sewn as its own piece over a hidden run)",
+        "Satin corners (beyond PE-DESIGN; Manual Punch columns, skeleton satin, Auto satin regions and zigzag lines; on skeleton and Auto satin at the centre line's points): turn (default, PE-DESIGN's fan), auto (cap below capBelow, mitre below mitreBelow), mitre (a seam from the inner corner to the tip, each leg's stitches square to it) or cap (both legs end on a square line through the inner corner, the tip sewn as its own piece over a hidden run)",
     ),
     opt(
         "mitreBelow",
@@ -53,7 +53,7 @@ pub(crate) const SHAPING_PARAMS: [ParamDoc; 16] = [
     opt(
         "pullLeft",
         "mm",
-        "Compensation of the left side (the first stitch's start rail), 0-2; null returns it to pullCompensation (columns) or 0 (zigzag lines)",
+        "Compensation of the left side (the first stitch's start rail), 0-2; null returns it to pullCompensation (columns, skeleton and Auto satin) or 0 (zigzag lines)",
     ),
     opt(
         "pullRight",
@@ -73,7 +73,7 @@ pub(crate) const SHAPING_PARAMS: [ParamDoc; 16] = [
     opt(
         "satinStyle",
         "normal|sStitch|open|double",
-        "Satin look (beyond PE-DESIGN; Manual Punch columns and zigzag lines): normal (default), sStitch (each crossing three short stitches bent into an S, a corded edge), open (rows three times as far apart) or double (sewn twice, the second pass back from the end midway between the first's needle points: an X lattice)",
+        "Satin look (beyond PE-DESIGN; Manual Punch columns, skeleton satin, Auto satin regions and zigzag lines): normal (default), sStitch (each crossing three short stitches bent into an S, a corded edge), open (rows three times as far apart) or double (sewn twice, the second pass back from the end midway between the first's needle points: an X lattice)",
     ),
     opt(
         "jaggedEdge",
@@ -101,7 +101,7 @@ pub(crate) const SHAPING_PARAMS: [ParamDoc; 16] = [
 pub(crate) const REGION_PARAMS: [ParamDoc; 1] = [opt(
     "underlay2",
     "{style, inset, spacing, stitchLength} | null",
-    "Manual Punch column: a second under sewing layer after the first (beyond PE-DESIGN): style edge|zigzag|edgeZigzag|centreWalk|auto (default zigzag), inset mm 0-3 (0.5), spacing mm 0.5-10 (2), stitchLength mm 1-10 (2.5); null removes it",
+    "Manual Punch column, skeleton satin or Auto satin region: a second under sewing layer after the first (beyond PE-DESIGN): style edge|zigzag|edgeZigzag|centreWalk|auto (default zigzag; auto on skeleton and Auto satin: rows that follow the width), inset mm 0-3 (0.5), spacing mm 0.5-10 (2), stitchLength mm 1-10 (2.5); null removes it",
 )];
 
 /// Applies the shaping parameters present in `p` to `s`.
