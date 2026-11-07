@@ -139,6 +139,40 @@ fn travel_under_a_later_fill_replaces_the_trim() {
 }
 
 #[test]
+fn travel_runs_along_a_running_line_of_its_thread() {
+    // #545: a T drawn as two running lines of one thread, the stem starting on the bar 20 mm
+    // from where the bar ends. Off: a trim between them. On: the needle runs back along the
+    // bar to the stem, on the line already sewn, and nothing shows outside the two lines.
+    let tmp = TempDir::new("routing");
+    let mut s = Session::new(tmp.path());
+    let line = |s: &mut Session, points: Value| {
+        run(
+            s,
+            "shape.path",
+            json!({"points": points, "closed": false, "outline": "#ff0000"}),
+        );
+    };
+    line(&mut s, json!([[10, 10], [50, 10]]));
+    line(&mut s, json!([[30, 10], [30, 40]]));
+    let off = compile(s.design());
+    assert_eq!(inner_trims(&off), 1);
+    run(&mut s, "design.setTravelUnder", json!({"on": true}));
+    let on = compile(s.design());
+    assert_eq!(inner_trims(&on), 0);
+    for st in on
+        .stitches
+        .iter()
+        .filter(|st| st.command == Command::Stitch)
+    {
+        let on_bar = (st.y - 100.0).abs() < 6.0 && (95.0..=505.0).contains(&st.x);
+        let on_stem = (st.x - 300.0).abs() < 6.0 && (95.0..=405.0).contains(&st.y);
+        assert!(on_bar || on_stem, "off the lines: {st:?}");
+    }
+    run(&mut s, "design.setTravelUnder", json!({"on": false}));
+    assert_eq!(compile(s.design()), off);
+}
+
+#[test]
 fn run_connectors_join_objects_of_one_thread() {
     let tmp = TempDir::new("routing");
     let mut s = Session::new(tmp.path());

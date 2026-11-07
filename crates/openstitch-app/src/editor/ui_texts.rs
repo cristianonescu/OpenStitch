@@ -1020,7 +1020,7 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
     ("ui-travel-under-later-fills", "Travel under later fills"),
     (
         "ui-a-move-to-an-object-of-tip",
-        "A move to an object of the same thread that a later fill will cover is sewn as short running stitches under it instead of a jump and trim",
+        "A move to an object of the same thread that a later fill will cover is sewn as short running stitches under it, or along running lines of that thread already sewn, instead of a jump and trim",
     ),
     (
         "ui-leave-out-hidden-stitching-1-mm",
