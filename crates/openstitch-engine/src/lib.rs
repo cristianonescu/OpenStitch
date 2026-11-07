@@ -38,6 +38,7 @@ pub mod machine;
 pub mod media_exports;
 #[cfg(feature = "formats")]
 pub mod metafile;
+pub mod mockup;
 mod motif_band_params;
 pub mod order;
 mod ornament;

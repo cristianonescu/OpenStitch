@@ -143,6 +143,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `ui.simulate {stitch}` or `{step: "block" | "object" | "trim"}` moves the player there.
 6. Save only when asked: `project.save` `{path: "name.osd"}` (editable) and/or
    `design.export` `{path: "name.pes"}` (machine file; the extension picks the format).
+   To show how it will look worn, `design.mockup {path: "name.png", garment: "tshirt" | "cap" |
+   "tote", placement: "centre" | "leftChest" (T-shirt only), color: "#rrggbb"}` draws it at true
+   size on the garment; when the result has `fits: false`, tell the user the design is larger
+   than that place suits (`suitsMm`) and offer to resize.
 
 Object ids: after `design.new` the first object is id 1 and ids count up in creation order, but
 read the ids from each step's result (or `object.list`) instead of guessing. A `run_batch`
