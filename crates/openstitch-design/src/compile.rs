@@ -724,20 +724,25 @@ fn sew_object(w: &mut Writer, object: &DesignObject, design: &Design) {
                 let a = area.map(|a| a.iter().map(|c| c.transformed(&to)).collect());
                 (std::borrow::Cow::Owned(o), h, a)
             };
-            for mut e in elements(
-                &local,
-                &holes,
-                &design.patterns,
-                &turns,
-                &sewing,
-                area.as_deref(),
-            ) {
-                if anchor != v2(0.0, 0.0) {
-                    for p in e.runs.iter_mut().flatten() {
-                        *p = *p + anchor;
+            // Hand edits (#501): the edited stitches while they still apply.
+            if let Some(block) = crate::hand_edits::current(object) {
+                sew_block(w, &block);
+            } else {
+                for mut e in elements(
+                    &local,
+                    &holes,
+                    &design.patterns,
+                    &turns,
+                    &sewing,
+                    area.as_deref(),
+                ) {
+                    if anchor != v2(0.0, 0.0) {
+                        for p in e.runs.iter_mut().flatten() {
+                            *p = *p + anchor;
+                        }
                     }
+                    w.sew(e);
                 }
-                w.sew(e);
             }
             // Stitch glyphs of user-mapped text sew after the outlined glyphs.
             if let Some(block) = &object.stitch_block

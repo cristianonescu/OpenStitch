@@ -21,6 +21,7 @@ pub mod freehand;
 pub mod generate;
 pub mod geometry;
 pub mod graph;
+pub mod hand_edits;
 pub mod hidden;
 pub mod holes;
 pub mod knife;

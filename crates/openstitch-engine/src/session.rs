@@ -67,6 +67,8 @@ pub struct Session {
     undo: Vec<Design>,
     redo: Vec<Design>,
     registry: HashMap<&'static str, CommandSpec>,
+    /// Objects whose hand edits the last edit dropped (#501: a setting or the shape changed).
+    hand_edits_dropped: Vec<u64>,
 }
 
 pub const HISTORY_LIMIT: usize = 200;
@@ -85,7 +87,14 @@ impl Session {
             undo: Vec::new(),
             redo: Vec::new(),
             registry: commands::all().into_iter().map(|c| (c.id, c)).collect(),
+            hand_edits_dropped: Vec::new(),
         }
+    }
+
+    /// The objects whose hand edits (#501) the last edit dropped, because something that
+    /// generates their stitches changed; taken once, for telling the user.
+    pub fn take_hand_edits_dropped(&mut self) -> Vec<u64> {
+        std::mem::take(&mut self.hand_edits_dropped)
     }
 
     /// Session whose file commands may read and write only under `root`. Fails closed: if
@@ -251,7 +260,7 @@ impl Session {
             Effect::History => self.history(id),
             Effect::Edit => {
                 let mut scratch = self.state.clone();
-                let result = run(&mut scratch, &p)?;
+                let mut result = run(&mut scratch, &p)?;
                 if scratch.user.optimize_entry_exit {
                     link_new_shapes(&self.state.design, &mut scratch.design);
                 }
@@ -260,6 +269,13 @@ impl Session {
                 // A branch follows its members (#546).
                 crate::branching::relink(&mut scratch.design);
                 scratch.design.dissolve_single_groups();
+                // Hand edits (#501) last only while what generates the stitches is unchanged.
+                self.hand_edits_dropped = scratch.design.drop_stale_hand_edits();
+                if !self.hand_edits_dropped.is_empty()
+                    && let Value::Object(m) = &mut result
+                {
+                    m.insert("handEditsDropped".into(), json!(self.hand_edits_dropped));
+                }
                 if scratch.design != self.state.design {
                     self.undo
                         .push(std::mem::replace(&mut self.state.design, scratch.design));

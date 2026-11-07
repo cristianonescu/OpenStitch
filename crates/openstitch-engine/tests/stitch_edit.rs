@@ -206,8 +206,9 @@ fn bad_stitch_edit_parameters_fail_cleanly() {
     let trim = points(&mut s, 1)
         .iter()
         .position(|p| p["command"] == "trim");
+    // Object 3, a live rectangle, takes needle point edits since #501 (hand edits); objects
+    // with no sewing are refused (hand_edits.rs).
     let mut bad: Vec<(&str, Value)> = vec![
-        ("stitches.points", json!({"id": 3})),
         ("stitches.points", json!({"id": 99})),
         (
             "stitches.movePoints",
@@ -223,7 +224,6 @@ fn bad_stitch_edit_parameters_fail_cleanly() {
             "stitches.movePoints",
             json!({"id": 1, "indexes": [1], "dx": 1e9}),
         ),
-        ("stitches.movePoints", json!({"id": 3, "indexes": [0]})),
         ("stitches.setPoint", json!({"id": 1, "index": 1, "x": 1})),
         (
             "stitches.setPoint",

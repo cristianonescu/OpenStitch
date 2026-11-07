@@ -60,6 +60,103 @@
         <RegistryValue Root="HKLM" Key="Software\Classes\Applications\openstitch.exe\SupportedTypes"
                        Name=".pes" Value="" Type="string" />
       </Component>
+      <!-- Explorer thumbnails (#669): packaging/windows/thumbnails, one class per extension (a
+           stream has no file name). Uninstall removes the DLL and every key below. -->
+      <Component Id="ExplorerThumbnails" Guid="d78d4f16-f8ab-4e9b-b12b-69a5b6c053db" Win64="yes">
+        <File Id="ThumbnailsDll" Source="$(var.Thumbnails)" Name="openstitch_explorer_thumbnails.dll" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620000}" Value="OpenStitch thumbnail (.osd)" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620000}\InprocServer32" Value="[#ThumbnailsDll]" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620000}\InprocServer32" Name="ThreadingModel" Value="Apartment" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.osd\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" Value="{4F70656E-5374-6974-6368-54686D620000}" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620001}" Value="OpenStitch thumbnail (.pes)" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620001}\InprocServer32" Value="[#ThumbnailsDll]" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620001}\InprocServer32" Name="ThreadingModel" Value="Apartment" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.pes\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" Value="{4F70656E-5374-6974-6368-54686D620001}" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620002}" Value="OpenStitch thumbnail (.pec)" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620002}\InprocServer32" Value="[#ThumbnailsDll]" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620002}\InprocServer32" Name="ThreadingModel" Value="Apartment" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.pec\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" Value="{4F70656E-5374-6974-6368-54686D620002}" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620003}" Value="OpenStitch thumbnail (.dst)" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620003}\InprocServer32" Value="[#ThumbnailsDll]" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620003}\InprocServer32" Name="ThreadingModel" Value="Apartment" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.dst\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" Value="{4F70656E-5374-6974-6368-54686D620003}" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620004}" Value="OpenStitch thumbnail (.exp)" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620004}\InprocServer32" Value="[#ThumbnailsDll]" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620004}\InprocServer32" Name="ThreadingModel" Value="Apartment" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.exp\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" Value="{4F70656E-5374-6974-6368-54686D620004}" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620005}" Value="OpenStitch thumbnail (.jef)" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620005}\InprocServer32" Value="[#ThumbnailsDll]" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620005}\InprocServer32" Name="ThreadingModel" Value="Apartment" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.jef\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" Value="{4F70656E-5374-6974-6368-54686D620005}" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620006}" Value="OpenStitch thumbnail (.pcs)" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620006}\InprocServer32" Value="[#ThumbnailsDll]" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620006}\InprocServer32" Name="ThreadingModel" Value="Apartment" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.pcs\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" Value="{4F70656E-5374-6974-6368-54686D620006}" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620007}" Value="OpenStitch thumbnail (.sew)" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620007}\InprocServer32" Value="[#ThumbnailsDll]" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620007}\InprocServer32" Name="ThreadingModel" Value="Apartment" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.sew\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" Value="{4F70656E-5374-6974-6368-54686D620007}" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620008}" Value="OpenStitch thumbnail (.xxx)" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620008}\InprocServer32" Value="[#ThumbnailsDll]" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620008}\InprocServer32" Name="ThreadingModel" Value="Apartment" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.xxx\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" Value="{4F70656E-5374-6974-6368-54686D620008}" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620009}" Value="OpenStitch thumbnail (.hus)" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620009}\InprocServer32" Value="[#ThumbnailsDll]" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620009}\InprocServer32" Name="ThreadingModel" Value="Apartment" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.hus\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" Value="{4F70656E-5374-6974-6368-54686D620009}" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D62000A}" Value="OpenStitch thumbnail (.vip)" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D62000A}\InprocServer32" Value="[#ThumbnailsDll]" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D62000A}\InprocServer32" Name="ThreadingModel" Value="Apartment" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.vip\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" Value="{4F70656E-5374-6974-6368-54686D62000A}" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D62000B}" Value="OpenStitch thumbnail (.shv)" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D62000B}\InprocServer32" Value="[#ThumbnailsDll]" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D62000B}\InprocServer32" Name="ThreadingModel" Value="Apartment" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.shv\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" Value="{4F70656E-5374-6974-6368-54686D62000B}" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D62000C}" Value="OpenStitch thumbnail (.phc)" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D62000C}\InprocServer32" Value="[#ThumbnailsDll]" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D62000C}\InprocServer32" Name="ThreadingModel" Value="Apartment" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.phc\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" Value="{4F70656E-5374-6974-6368-54686D62000C}" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D62000D}" Value="OpenStitch thumbnail (.csd)" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D62000D}\InprocServer32" Value="[#ThumbnailsDll]" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D62000D}\InprocServer32" Name="ThreadingModel" Value="Apartment" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.csd\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" Value="{4F70656E-5374-6974-6368-54686D62000D}" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D62000E}" Value="OpenStitch thumbnail (.vp3)" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D62000E}\InprocServer32" Value="[#ThumbnailsDll]" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D62000E}\InprocServer32" Name="ThreadingModel" Value="Apartment" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.vp3\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" Value="{4F70656E-5374-6974-6368-54686D62000E}" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D62000F}" Value="OpenStitch thumbnail (.tap)" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D62000F}\InprocServer32" Value="[#ThumbnailsDll]" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D62000F}\InprocServer32" Name="ThreadingModel" Value="Apartment" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.tap\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" Value="{4F70656E-5374-6974-6368-54686D62000F}" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620010}" Value="OpenStitch thumbnail (.tbf)" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620010}\InprocServer32" Value="[#ThumbnailsDll]" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620010}\InprocServer32" Name="ThreadingModel" Value="Apartment" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.tbf\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" Value="{4F70656E-5374-6974-6368-54686D620010}" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620011}" Value="OpenStitch thumbnail (.u01)" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620011}\InprocServer32" Value="[#ThumbnailsDll]" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620011}\InprocServer32" Name="ThreadingModel" Value="Apartment" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.u01\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" Value="{4F70656E-5374-6974-6368-54686D620011}" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620012}" Value="OpenStitch thumbnail (.dsb)" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620012}\InprocServer32" Value="[#ThumbnailsDll]" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620012}\InprocServer32" Name="ThreadingModel" Value="Apartment" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.dsb\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" Value="{4F70656E-5374-6974-6368-54686D620012}" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620013}" Value="OpenStitch thumbnail (.dsz)" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620013}\InprocServer32" Value="[#ThumbnailsDll]" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620013}\InprocServer32" Name="ThreadingModel" Value="Apartment" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.dsz\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" Value="{4F70656E-5374-6974-6368-54686D620013}" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620014}" Value="OpenStitch thumbnail (.ksm)" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620014}\InprocServer32" Value="[#ThumbnailsDll]" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620014}\InprocServer32" Name="ThreadingModel" Value="Apartment" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.ksm\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" Value="{4F70656E-5374-6974-6368-54686D620014}" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620015}" Value="OpenStitch thumbnail (.zxy)" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620015}\InprocServer32" Value="[#ThumbnailsDll]" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620015}\InprocServer32" Name="ThreadingModel" Value="Apartment" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.zxy\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" Value="{4F70656E-5374-6974-6368-54686D620015}" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620016}" Value="OpenStitch thumbnail (.stx)" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620016}\InprocServer32" Value="[#ThumbnailsDll]" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{4F70656E-5374-6974-6368-54686D620016}\InprocServer32" Name="ThreadingModel" Value="Apartment" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.stx\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" Value="{4F70656E-5374-6974-6368-54686D620016}" Type="string" />
+      </Component>
       <Component Id="Notices" Guid="99db175f-5b51-42ff-a4cc-4a9eb2d9f0ba" Win64="yes">
         <File Id="ThirdPartyNotices" Source="$(var.Notices)" Name="THIRD_PARTY_NOTICES.md" KeyPath="yes" />
         <File Id="LicenseMit" Source="LICENSE-MIT" Name="LICENSE-MIT.txt" />
@@ -70,6 +167,7 @@
     <Feature Id="Main" Title="OpenStitch" Level="1">
       <ComponentRef Id="MainExecutable" />
       <ComponentRef Id="PesAssociation" />
+      <ComponentRef Id="ExplorerThumbnails" />
       <ComponentRef Id="Notices" />
       <ComponentGroupRef Id="SewKit" />
     </Feature>

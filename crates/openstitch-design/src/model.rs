@@ -635,6 +635,10 @@ pub struct DesignObject {
     /// was made with, so it can be rebuilt and kept before what it covers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub knockdown: Option<serde_json::Value>,
+    /// Needle points edited by hand on this live object (#501, beyond PE-DESIGN), sewn instead
+    /// of the generated ones while they still apply ([`crate::hand_edits`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hand_edits: Option<Box<crate::hand_edits::HandEdits>>,
 }
 
 fn yes() -> bool {
@@ -674,6 +678,7 @@ impl DesignObject {
             hide_under: None,
             connector_run: false,
             knockdown: None,
+            hand_edits: None,
         }
     }
 
@@ -701,6 +706,7 @@ impl DesignObject {
             hide_under: None,
             connector_run: false,
             knockdown: None,
+            hand_edits: None,
         }
     }
 

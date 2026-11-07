@@ -259,7 +259,10 @@ line with widths becomes a satin line). The shape commands (`shape.polygon`, `sh
 remain the direct way to draw.
 To fix single needle points of a stitch pattern, `stitches.points {id}` lists them and
 `stitches.setPoint` / `insertPoint` / `deletePoints` edit them; `ui.stitchTable {open: true,
-select: [indexes]}` shows the user the same rows and highlights them on the canvas.
+select: [indexes]}` shows the user the same rows and highlights them on the canvas. The same
+commands take a live shape or text: its generated stitches become hand edits and it stays
+editable; a sewing setting change drops them (the edit's reply lists `handEditsDropped`), and
+`object.regenerate {ids}` drops them on purpose.
 To show the user what a setting would look like before changing it, `ui.preview {command:
 "object.setRegion", params: {ids, type}}` swaps in the stitches of that change on the canvas
 (no undo step, the design unchanged; `ui.render` shows them too); `ui.preview {clear: true}`
@@ -333,9 +336,9 @@ digitizing are desktop-only; say so instead of trying them in the browser.
   `python/README.md`: `Session().exec("shape.ellipse", ...)` with these same commands).
 - "Make a thumbnail / preview picture of this file" at a terminal: `stitchtool thumbnail
   design.pes out.png [--size 256]` writes the stitches on a transparent square (16 to 1024
-  px), the same picture Finder (Quick Look, with OpenStitch.app installed) and Linux file
-  managers show; Explorer thumbnails are not available yet. In the editor, `view_render`
-  shows the design instead.
+  px), the same picture Finder (Quick Look, with OpenStitch.app installed), Windows Explorer
+  (with OpenStitch installed from its MSI) and Linux file managers show. In the editor,
+  `view_render` shows the design instead.
 - "Open the ready-to-sew designs": `ui.help {item: "sewKit"}` shows the packaged kit in the
   file manager and replies with its `folder`, or with the GitHub `url` it opened instead.
 - **Test swatches** (sew a test before the real thing; each writes a new design file to

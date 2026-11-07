@@ -25,6 +25,8 @@ pub struct StitchTable {
     anchor: Option<usize>,
     /// Rows selected from outside the table (`ui.stitchTable`): scroll to this one once.
     scroll_to: Option<usize>,
+    /// The rows of the last revision and object shown.
+    cache: Option<(u64, u64, std::rc::Rc<Rows>)>,
 }
 
 /// The stitch pattern the table shows: the selection when it is exactly one stitch pattern.
@@ -35,7 +37,65 @@ pub fn target(app: &EditorApp) -> Option<u64> {
     let id = *app.selection.first()?;
     let d = app.session.design();
     let o = &d.objects[d.index_of(id)?];
-    (o.kind == openstitch_design::ObjectKind::Stitches && o.stitch_block.is_some()).then_some(id)
+    let pattern = o.kind == openstitch_design::ObjectKind::Stitches && o.stitch_block.is_some();
+    // A live shape or text (#501 part 2): its stitches, edited by hand on the first change.
+    let live = matches!(
+        o.kind,
+        openstitch_design::ObjectKind::Shape | openstitch_design::ObjectKind::Text
+    ) && (o.region.is_some() || o.line.is_some());
+    (pattern || live).then_some(id)
+}
+
+/// The rows of `id`: a stitch pattern's needle points, or a live object's hand edits (where it
+/// is now) or generated stitches; with their colour blocks, thread count and whether they were
+/// edited by hand. Cached per design revision.
+fn rows_of(app: &mut EditorApp, id: u64) -> std::rc::Rc<Rows> {
+    if let Some((rev, cid, rows)) = &app.stitch_table.cache
+        && *rev == app.revision
+        && *cid == id
+    {
+        return rows.clone();
+    }
+    let d = app.session.design();
+    let i = d.index_of(id).expect("target");
+    let o = &d.objects[i];
+    let (block, edited) = match (&o.stitch_block, o.kind) {
+        (Some(b), openstitch_design::ObjectKind::Stitches) => (b.clone(), false),
+        _ => match openstitch_design::hand_edits::current(o) {
+            Some(b) => (b, true),
+            None => {
+                let p = openstitch_design::Compiler::for_design(d).compile_object(d, i);
+                let stitches = p
+                    .stitches
+                    .into_iter()
+                    .filter(|s| s.command != Command::End)
+                    .collect();
+                (
+                    openstitch_design::StitchBlock {
+                        stitches,
+                        threads: p.threads,
+                    },
+                    false,
+                )
+            }
+        },
+    };
+    let rows = std::rc::Rc::new(Rows {
+        colours: openstitch_design::stitch_edit::colors(&block),
+        blocks: block.threads.len(),
+        stitches: block.stitches,
+        edited,
+    });
+    app.stitch_table.cache = Some((app.revision, id, rows.clone()));
+    rows
+}
+
+/// What the table lists.
+pub struct Rows {
+    stitches: Vec<openstitch_core::Stitch>,
+    colours: Vec<usize>,
+    blocks: usize,
+    edited: bool,
 }
 
 fn command_name(c: Command) -> &'static str {
@@ -112,13 +172,7 @@ impl EditorApp {
             return Ok(json!({ "open": self.stitch_table.open, "id": null,
                 "note": "select one stitch pattern (ui.select) to fill the table" }));
         };
-        let n = {
-            let d = self.session.design();
-            d.objects[d.index_of(id).expect("target")]
-                .stitch_block
-                .as_ref()
-                .map_or(0, |b| b.stitches.len())
-        };
+        let n = rows_of(self, id).stitches.len();
         if let Some(sel) = params.and_then(|v| v.get("select")) {
             let rows: BTreeSet<usize> = serde_json::from_value(sel.clone())
                 .map_err(|_| "select is a list of row indexes".to_string())?;
@@ -157,21 +211,25 @@ fn table(app: &mut EditorApp, ui: &mut egui::Ui) {
         ui.label(RichText::new("Select one stitch pattern to list its needle points.").weak());
         return;
     };
-    let (rows, colours, blocks): (Vec<_>, Vec<usize>, usize) = {
-        let d = app.session.design();
-        let b = d.objects[d.index_of(id).expect("target")]
-            .stitch_block
-            .as_ref()
-            .expect("stitch pattern");
-        (
-            b.stitches.clone(),
-            openstitch_design::stitch_edit::colors(b),
-            b.threads.len(),
-        )
-    };
+    let all = rows_of(app, id);
+    let (rows, colours, blocks) = (&all.stitches, &all.colours, all.blocks);
     let selected = app.tools.needle_selection(id);
     ui.horizontal_wrapped(|ui| {
         ui.label(format!("{} points, {} colour blocks", rows.len(), blocks));
+        if all.edited {
+            ui.separator();
+            ui.label("edited by hand");
+            if ui
+                .button("Regenerate")
+                .on_hover_text("Drop the hand edits: the object sews its generated stitches again")
+                .clicked()
+            {
+                app.execute(&CommandRequest::new(
+                    "object.regenerate",
+                    json!({ "ids": [id] }),
+                ));
+            }
+        }
         ui.separator();
         if ui
             .add_enabled(!selected.is_empty(), egui::Button::new("Insert"))
@@ -226,6 +284,8 @@ fn table(app: &mut EditorApp, ui: &mut egui::Ui) {
                         [widths[k], row_h - 2.0],
                         egui::DragValue::new(v).speed(0.01).max_decimals(2),
                     );
+                    let axis = if k == 1 { "X" } else { "Y" };
+                    crate::a11y::name(&r, &format!("Point {i} {axis} (mm)"));
                     edited |= r.changed();
                     ended |= r.drag_stopped() || r.lost_focus();
                 }
@@ -370,6 +430,35 @@ mod tests {
             "three frames took {:?}",
             t.elapsed()
         );
+    }
+
+    #[test]
+    fn a_live_fill_lists_its_stitches_and_keeps_a_hand_edit() {
+        // #501 part 2: the table on a live fill edits it by hand; it stays a fill.
+        let mut app = EditorApp::new(Launch::default());
+        let id = app
+            .execute(&CommandRequest::new(
+                "shape.rectangle",
+                json!({ "x": 10, "y": 10, "width": 30, "height": 20 }),
+            ))
+            .expect("rectangle")["id"]
+            .as_u64()
+            .expect("id");
+        app.selection = BTreeSet::from([id]);
+        assert_eq!(target(&app), Some(id), "a live fill has a table");
+        let r = app
+            .ui_command("ui.stitchTable", Some(&json!({ "open": true })))
+            .expect("open");
+        let n = r["points"].as_u64().expect("points");
+        assert!(n > 50, "its generated stitches: {n}");
+        assert!(!rows_of(&mut app, id).edited);
+        assert!(app.table_set_point(id, 7, 12.3, 15.0));
+        let rows = rows_of(&mut app, id);
+        assert!(rows.edited, "now edited by hand");
+        assert_eq!(rows.stitches[7].x, 123.0);
+        let d = app.session.design();
+        let o = &d.objects[d.index_of(id).expect("id")];
+        assert!(o.region.is_some() && o.hand_edits.is_some(), "still a fill");
     }
 
     #[test]
