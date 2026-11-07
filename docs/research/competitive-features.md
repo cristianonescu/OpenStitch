@@ -1246,3 +1246,63 @@ a source for OpenStitch's data either.
   colour-block timeline (#516), gradients and blends with dithering (#532), perceptual thread
   fitting and merging similar colours (#484, #485), auto-digitize presets (#489), command
   palette (#550), job sheets (#513), extra exports including video and G-code (#488).
+
+### 2026-11-07 scan
+
+Period checked: 2026-11-05 to 2026-11-07.
+
+**Commercial products.** No material release or feature announcement in the period.
+Checked: Wilcom blog (newest post still 2026-10-08) and Hatch blog (newest still 2026-10-25);
+BERNINA (V9 still current); mySewnet and Embrilliance (no dated release found); Janome Artistic
+Digitizer (2.0 still current); Floriani Total Control U and SewWhat-Pro (nothing new found);
+Embird (the "what is new" page still headlines Embird 2026 without a date); Ink/Stitch (newest
+post still v3.3.0 of 2026-07-31); PE-DESIGN 11 one-click update history (11.50 of September 2026,
+already covered). Tajima DG by Pulse: the download page now lists DG17.5 (17.5.1.8445), whose
+release notes are dated 2026-10-02, before the 2026-11-05 scan, so not counted as new; the
+Appliqué Font Sewing Order it adds is already cited in section 3.2. Its other changes for a later
+full re-survey: the Create Offsets dialog can make the offset directly as a run, satin (steil),
+cross-stitch or original-type object, a right-to-left order for multi-line vertical text, and
+smoother curve-to-straight transitions in the Enhanced Column tool.
+Sources: https://wilcom.com/resources/blog, https://hatchembroidery.com/resources/blog,
+https://inkstitch.org/news, https://www.embird.net/what-is-new/,
+https://support.brother.com/g/s/hf/ped_info/ped11/one_click_update/en/ped11update_info.html,
+https://cloud.pulsemicro.com/Download,
+https://cloud.pulsemicro.com/Download/DownloadReleaseNotes?name=DG17.
+
+#### Open-source projects
+
+Ideas only, read from release lists and commit titles; no code may be copied, ported or
+paraphrased (openhoop and filum are GPL-3.0).
+
+- **vomitselfie/Morale**, **alexandra03/threadspool**, **lork-fork/Roidery**,
+  **bastanja/stitch_generator**: no commits or releases since 2026-11-05.
+- **EvenDog/openhoop** (GPL-3.0; releases 0.9.4, 0.10.0, 0.10.1, 0.11.0 and 0.12.0 between
+  2026-11-06 and 2026-11-07). New since the full survey:
+  - Join Lines (open lines or satin columns joined end to end into one object) and Break Apart
+    (lettering, monograms, copies along a line and fills with holes split into parts). OpenStitch
+    has text to shapes, ungroup, split along a cut outline, the knife, continue drawing (#479) and
+    compile-time `joinLines`, but no edit command for either: new issue #744 (new row).
+  - Colour blends that are radial, contour-shaped, follow a fill's guide line or run on wave rows,
+    sewn as dense as plain tatami: F6 / B6, comment on #532.
+  - Six hand-embroidery line styles (chain, feather, cross stitch, herringbone, ladder,
+    candlewick); herringbone and ladder are the ones OpenStitch lacks: O-row family, comment on
+    #543.
+  - Picture tatami patterns whose needle holes draw diamonds, hearts and similar shapes, plus 18
+    more tatami textures: already #537. Recognize Objects (imported stitches turned into resizable
+    fills and satins): OpenStitch has it (rebuild shapes from stitches). Only-underlay view: done
+    (#517). A Design Library window of folder thumbnails: OpenStitch has the Design Database.
+    Content additions (11 fonts, 13 line-art drawings, motifs, basic shapes, monogram ornaments):
+    not features; OpenStitch's own content is tracked elsewhere.
+  https://github.com/EvenDog/openhoop/releases (single source)
+- **benkl/filum** (GPL-3.0; 0.2.0 on 2026-11-05, commits to 2026-11-06). New since the full
+  survey: a find and filter box for the layers list (new issue #745, Sewing Order list); a
+  cut preview with a thread-cutter setting, uncut jumps drawn as thread and trim marks (OpenStitch
+  has trim marks #517 and Stop at Jumps #512: no issue); a finished-piece view (OpenStitch's
+  Realistic view); gradient colours sharing one set of rows and rows along the gradient flagged
+  (comment on #532); vector editing additions (curvature tool, segment bending, join, average
+  and compound paths; join folded into #744). https://github.com/benkl/filum/commits/main
+  (single source)
+
+No comparison-matrix row changes (the open-source projects are tracked here, not in the matrix).
+New "Planned (beyond PE-DESIGN)" rows in FEATURE_MATRIX.md and a note in ROADMAP.md (Beyond
+PE-DESIGN): Join Lines and Break Apart (#744), find and filter in the Sewing Order list (#745).
