@@ -379,6 +379,10 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
 - **Zigzag lines** with width, density, under sewing and half stitch.
 - **Motif, stem, candlewicking, E and V, and chain lines,** evenly spaced along curves.
 - **Cutting lines** for cutwork needles, with uncut bridges.
+- (+) **Back stitch and brush-stroke running lines:** two forward, one back; or a running line
+  sewn more times where a thickness profile swells ([#542]).
+- (+) **Hand-stitch look and scribble lines:** seeded, uneven hand-sewn stitches on lines and on
+  one side of a satin, and a sketchy scribble ([#540]).
 - **Start/End Feed or Run** and line entry and exit points, as PE-DESIGN sews them.
 
 ### Fills
@@ -671,6 +675,8 @@ See also [New: the Assistant](#new-the-assistant).
 [#531]: https://github.com/cristianonescu/OpenStitch/issues/531
 [#535]: https://github.com/cristianonescu/OpenStitch/issues/535
 [#536]: https://github.com/cristianonescu/OpenStitch/issues/536
+[#540]: https://github.com/cristianonescu/OpenStitch/issues/540
+[#542]: https://github.com/cristianonescu/OpenStitch/issues/542
 [#545]: https://github.com/cristianonescu/OpenStitch/issues/545
 [#546]: https://github.com/cristianonescu/OpenStitch/issues/546
 [#547]: https://github.com/cristianonescu/OpenStitch/issues/547
