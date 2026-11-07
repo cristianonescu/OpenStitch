@@ -44,7 +44,7 @@ impl UpdatePrefs {
                 .unwrap_or(d.include_prereleases),
             skip_version: v["skipVersion"]
                 .as_str()
-                .filter(|t| openstitch_update::is_release_tag(t))
+                .filter(|t| crate::platform::is_release_tag(t))
                 .map(str::to_string),
         }
     }

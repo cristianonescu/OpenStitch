@@ -1278,17 +1278,13 @@ impl EditorApp {
             self.status = "Paste background: the system clipboard is not used here".into();
             return;
         }
-        let image = crate::ribbon::os_clipboard().and_then(|mut c| c.get_image());
+        let image = crate::ribbon::os_clipboard()
+            .and_then(|()| openstitch_app::platform::clipboard_image());
         let stored = match image {
             Ok(img) => pasted_images_dir()
                 .ok_or_else(|| "no folder to keep pasted images in".to_string())
                 .and_then(|dir| {
-                    store_pasted_image(
-                        &dir,
-                        img.width as u32,
-                        img.height as u32,
-                        img.bytes.into_owned(),
-                    )
+                    store_pasted_image(&dir, img.width as u32, img.height as u32, img.bytes)
                 }),
             Err(e) => Err(format!("no image on the clipboard ({e})")),
         };

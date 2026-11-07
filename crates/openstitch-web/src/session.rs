@@ -15,6 +15,17 @@ use openstitch_formats::FileType;
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 
+/// The web editor's own `ui.*` commands, answered by [`WebSession::handle`]; every other request
+/// goes to the engine. SKILL.md ("Web editor") names them; openstitch-mcp's skill check reads
+/// this list.
+pub const UI_COMMANDS: [&str; 5] = [
+    "ui.state",
+    "ui.simulate",
+    "ui.openFile",
+    "ui.saveFile",
+    "ui.exportFile",
+];
+
 /// The largest file the editor opens: the engine's own limit for embroidery files.
 pub const MAX_FILE_BYTES: usize = 64 << 20;
 
@@ -458,8 +469,8 @@ impl WebSession {
                 Ok(json!({ "files": files.iter().map(file).collect::<Vec<_>>() }))
             }
             _ => Err(format!(
-                "{command} is not in the web editor: use ui.state, ui.simulate, ui.openFile, \
-                 ui.saveFile, ui.exportFile or an engine command"
+                "{command} is not in the web editor: use {} or an engine command",
+                UI_COMMANDS.join(", ")
             )),
         }
     }
@@ -813,6 +824,12 @@ mod tests {
         assert_eq!(r["result"]["name"], "rect.osd");
         let r = web.handle(&json!({ "command": "design.info" }));
         assert_eq!(r["ok"], true, "{r}");
+        // Every listed ui command is answered (not refused as unknown).
+        for id in UI_COMMANDS {
+            let r = web.handle(&json!({ "command": id }));
+            let e = r["error"].as_str().unwrap_or_default();
+            assert!(!e.contains("is not in the web editor"), "{id}: {r}");
+        }
         for bad in [
             json!({ "command": "ui.run", "params": { "action": "open" } }),
             json!({ "command": "ui.simulate", "params": {} }),
