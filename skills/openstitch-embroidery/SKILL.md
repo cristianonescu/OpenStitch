@@ -345,7 +345,7 @@ editor's own undo history. The page adds its file commands, files as base64: `ui
 is null), `ui.saveFile` (the `.osd` as `{name, base64}`) and `ui.exportFile {format}` (`{files:
 [{name, base64}]}`). A command that writes under `/web/save/` (for example `design.export
 {path: "/web/save/rose.pes"}`) hands the file to the user as a download. The browser editor has
-no Assistant panel and no MCP or automation-socket control (#766): `openstitch.run` is callable
+no Assistant panel and no MCP or automation-socket control (#766): `openstitch.run(...)` is callable
 only by code in the page, so an MCP client such as this one cannot reach it. If a user asks you
 to work on their browser editor, say so and offer the desktop editor or a design file they can
 open there. The system clipboard, printing, machine transfer, the Design Database's folders and
