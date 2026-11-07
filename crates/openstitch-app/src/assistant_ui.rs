@@ -396,6 +396,17 @@ impl EditorApp {
                         .collect(),
                 ))
             }
+            "ui.documents" => {
+                let index = match params.and_then(|v| v.get("index")) {
+                    None | Some(Value::Null) => None,
+                    Some(v) => Some(
+                        v.as_u64()
+                            .and_then(|n| usize::try_from(n).ok())
+                            .ok_or("index takes a tab number from ui.documents")?,
+                    ),
+                };
+                self.documents_command(opt_str(params, "op").unwrap_or("list"), index)
+            }
             "ui.loading" => {
                 let state = self
                     .open_job
@@ -525,6 +536,7 @@ impl EditorApp {
         json!({
             "file": self.path.as_ref().map(|p| p.display().to_string()),
             "unsaved": self.is_dirty(),
+            "documents": self.tab_count(),
             "loading": self.open_job.as_ref().map(crate::open_job::OpenJob::describe),
             "selection": self.selection,
             "tool": format!("{:?}", self.tools.tool()),
@@ -622,6 +634,7 @@ impl EditorApp {
                 "soloColor" => json!(prefs.show.solo),
                 "simulatorSpeed" => json!(self.play_speed),
                 "autosave" => json!(prefs.autosave),
+                "openInTabs" => json!(prefs.open_in_tabs),
                 "autosaveInterval" => json!(prefs.autosave_interval),
                 "propertySearch" => json!(self.ui.property_search),
                 other => unreachable!("setting {other} has no value"),
@@ -821,6 +834,7 @@ impl EditorApp {
                 (self.play_speed, save) = (number_value(name, v, 1.0, 5000.0)?, false)
             }
             "autosave" => self.ui.prefs.autosave = bool_value(name, v)?,
+            "openInTabs" => self.ui.prefs.open_in_tabs = bool_value(name, v)?,
             "autosaveInterval" => {
                 use openstitch_app::editor::recovery::{MAX_INTERVAL, MIN_INTERVAL};
                 self.ui.prefs.autosave_interval = number_value(name, v, MIN_INTERVAL, MAX_INTERVAL)?

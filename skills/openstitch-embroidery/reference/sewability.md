@@ -78,6 +78,10 @@ are a sound start; change them only for a reason.
   colour close together and use `order.optimize` (or `order.byColor`) to cut colour changes
   and jumps.
 - Fewer colour changes means a faster sew-out: reuse threads where the look allows.
+- **No thread cutter, or a thread that slips:** `object.setFinish` sets per object whether
+  it trims after itself (`trim: off` jumps instead), its ties (`tie`, `tieCount`,
+  `tieLength`) and, for text, where it trims between letters (`between: word` keeps a word
+  joined). Defaults are PE-DESIGN's rules; untrimmed jumps must be cut by hand.
 - Watch `design.info`: stitch count, `colorChanges`, `trims`, `jumps` and the sewing-time
   estimate. A small badge with thousands of trims or a 100 × 100 mm design with well over
   30,000 stitches deserves another look.

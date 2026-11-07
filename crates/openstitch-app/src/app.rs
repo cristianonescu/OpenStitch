@@ -98,8 +98,9 @@ impl Launch {
 }
 
 /// Values `--show` accepts.
-pub const SHOW: [&str; 31] = [
+pub const SHOW: [&str; 32] = [
     "update",
+    "tabs",
     "close-prompt",
     "realistic",
     "solid",
@@ -198,6 +199,8 @@ pub struct EditorApp {
     pub dialog_rect: Option<egui::Rect>,
     pub dialog_rect_next: Option<egui::Rect>,
     player: Option<crate::script::Player>,
+    /// The other designs open as tabs (#552).
+    pub tabs: documents::Tabs,
     /// A File ▸ Open or Import running on a worker thread (#558).
     pub open_job: Option<crate::open_job::OpenJob>,
     /// The object selected last (Align ▸ relative to Last Selected keeps it in place).
@@ -336,6 +339,7 @@ impl EditorApp {
             dialog_rect: None,
             dialog_rect_next: None,
             player: None,
+            tabs: Default::default(),
             open_job: None,
             key_object: None,
             align_to: "selection",
@@ -400,8 +404,9 @@ impl EditorApp {
             self.ui.prefs_path = Some(ui);
         }
         self.database.units = self.ui.prefs.units;
-        // Copy and Paste use the system clipboard (#500), except in screenshot runs.
-        self.ui.system_clipboard = l.screenshot.is_none();
+        // Copy and Paste use the system clipboard (#500), except in screenshot runs and tests
+        // (#705: see `ribbon::os_clipboard`).
+        self.ui.system_clipboard = l.screenshot.is_none() && !cfg!(test);
         if l.accent.is_some() {
             self.ui.prefs.accent = l.accent;
         }
@@ -500,6 +505,20 @@ impl EditorApp {
                 "update" => self.update.show_sample(),
                 "close-prompt" => {
                     self.close_prompt.request(Pending::Exit, true);
+                }
+                "tabs" => {
+                    // Two designs as tabs (#552): the sample and an unsaved name tag.
+                    self.ui.prefs.open_in_tabs = true;
+                    self.new_tab();
+                    let steps = [
+                        CommandRequest::new("design.new", json!({ "name": "Name tag" })),
+                        CommandRequest::new(
+                            "shape.ellipse",
+                            json!({ "cx": 50, "cy": 50, "rx": 35, "ry": 18 }),
+                        ),
+                    ];
+                    self.execute_all(&steps);
+                    self.activate_tab(0);
                 }
                 "floating" => {
                     let p = &mut self.ui.prefs.panes;
@@ -957,6 +976,11 @@ impl EditorApp {
     /// Runs `what` now, or opens the unsaved-changes prompt for it when the design has
     /// unsaved changes (File ▸ New, Open, Exit and the Recent Files go through here).
     pub fn guarded(&mut self, what: Pending) {
+        // Open designs in tabs (#552): New and Open keep this design in its tab.
+        if self.ui.prefs.open_in_tabs && matches!(what, Pending::New | Pending::Open(_)) {
+            self.perform_in_tab(what);
+            return;
+        }
         if self.close_prompt.request(what.clone(), self.is_dirty()) {
             self.perform(what);
         }
@@ -965,10 +989,67 @@ impl EditorApp {
     fn perform(&mut self, what: Pending) {
         match what {
             // The frame loop sends the close.
-            Pending::Exit => self.approve_exit(),
+            Pending::Exit => match self.dirty_parked() {
+                // Closing the window asks for each tab with unsaved changes (#552).
+                Some(_) => {
+                    self.close_active_tab();
+                    if let Some(i) = self.dirty_parked() {
+                        self.activate_tab(i);
+                    }
+                    self.close_prompt.request(Pending::Exit, self.is_dirty());
+                    if !self.close_prompt.is_open() {
+                        self.perform(Pending::Exit);
+                    }
+                }
+                None => self.approve_exit(),
+            },
+            Pending::CloseTab => self.close_active_tab(),
             Pending::New => self.new_design(),
             Pending::Open(None) => self.open_dialog(),
             Pending::Open(Some(p)) => self.open_in_background(&p),
+        }
+    }
+
+    /// New or Open with Open designs in tabs on (#552): an empty, untouched design is reused,
+    /// otherwise a new tab is added; a cancelled or failed open closes the tab it added.
+    fn perform_in_tab(&mut self, what: Pending) {
+        let path = match what {
+            Pending::Open(None) => {
+                let mut exts = vec![openstitch_engine::project::EXTENSION];
+                exts.extend(FileType::ALL.iter().map(|t| t.extension()));
+                match rfd::FileDialog::new()
+                    .add_filter("Designs and embroidery files", &exts)
+                    .pick_file()
+                {
+                    Some(p) => Some(p),
+                    None => return,
+                }
+            }
+            Pending::Open(Some(p)) => Some(p),
+            _ => None,
+        };
+        let reuse = !self.is_dirty()
+            && self.path.is_none()
+            && self.session.design().objects.is_empty()
+            && path.is_some();
+        if !reuse {
+            self.new_tab();
+        }
+        if let Some(p) = path {
+            self.open_in_background(&p);
+            match &mut self.open_job {
+                Some(job) => job.added_tab = !reuse,
+                // A scripted run applied it already; close the tab when nothing opened.
+                None if !reuse
+                    && self.session.design().objects.is_empty()
+                    && self.path.is_none() =>
+                {
+                    let status = std::mem::take(&mut self.status);
+                    self.close_active_tab();
+                    self.status = status;
+                }
+                None => {}
+            }
         }
     }
 
@@ -1001,11 +1082,16 @@ impl EditorApp {
     /// The window was asked to close (X button, Alt+F4, the OS): with unsaved changes and no
     /// approval the close is cancelled and the prompt opens.
     fn close_request(&mut self, ctx: &egui::Context) {
-        if !ctx.input(|i| i.viewport().close_requested()) || self.exit_approved || !self.is_dirty()
+        if !ctx.input(|i| i.viewport().close_requested()) || self.exit_approved || !self.any_dirty()
         {
             return;
         }
         ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+        if !self.is_dirty()
+            && let Some(i) = self.dirty_parked()
+        {
+            self.activate_tab(i);
+        }
         self.close_prompt.request(Pending::Exit, true);
     }
 
@@ -1188,7 +1274,11 @@ impl EditorApp {
     /// File ▸ Background Image ▸ Paste: the clipboard image becomes the background. It is kept
     /// as a PNG in the app's data folder (named by content), since the project only references it.
     pub fn paste_background(&mut self) {
-        let image = arboard::Clipboard::new().and_then(|mut c| c.get_image());
+        if !self.ui.system_clipboard {
+            self.status = "Paste background: the system clipboard is not used here".into();
+            return;
+        }
+        let image = crate::ribbon::os_clipboard().and_then(|mut c| c.get_image());
         let stored = match image {
             Ok(img) => pasted_images_dir()
                 .ok_or_else(|| "no folder to keep pasted images in".to_string())
@@ -1499,13 +1589,20 @@ impl EditorApp {
             self.save(false);
         }
         if hit(A::Open) {
-            self.open_dialog();
+            self.guarded(Pending::Open(None));
         }
         if hit(A::ImportPatterns) {
             self.import_dialog();
         }
         if hit(A::New) {
-            self.new_design();
+            self.guarded(Pending::New);
+        }
+        // Tabs (#552): Ctrl+Tab and Ctrl+Shift+Tab go to the next and previous design.
+        let tab = |m: Modifiers| KeyboardShortcut::new(m, Key::Tab);
+        if take(tab(Modifiers::COMMAND | Modifiers::SHIFT)) {
+            self.cycle_tab(true);
+        } else if take(tab(Modifiers::COMMAND)) {
+            self.cycle_tab(false);
         }
         if hit(A::OtherZoom) {
             self.fit_requested = true;
@@ -1906,6 +2003,9 @@ impl eframe::App for EditorApp {
         }
         self.update_title(&ctx);
         egui::Panel::top("ribbon").show(ui, |ui| crate::ribbon::ribbon(self, ui));
+        if self.tab_count() > 1 || self.ui.prefs.open_in_tabs {
+            egui::Panel::top("documents").show(ui, |ui| documents::strip(self, ui));
+        }
         if self.ui.prefs.editing.precision_bar {
             egui::Panel::top("precision").show(ui, |ui| crate::arrange_ui::precision_bar(self, ui));
         }
@@ -1924,6 +2024,7 @@ impl eframe::App for EditorApp {
         crate::workspace_ui::design_settings_window(self, &ctx);
         crate::print_ui::window(self, &ctx);
         crate::swatch_ui::window(self, &ctx);
+        crate::jobsheet_ui::window(self, &ctx);
         crate::transfer_ui::window(self, &ctx);
         crate::edit_ui::windows(self, &ctx);
         crate::settings_ui::windows(self, &ctx);
@@ -2472,6 +2573,9 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
+
+#[path = "documents.rs"]
+pub(crate) mod documents;
 
 #[cfg(test)]
 #[path = "app_coverage_tests.rs"]

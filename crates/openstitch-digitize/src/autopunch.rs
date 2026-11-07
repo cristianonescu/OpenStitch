@@ -140,6 +140,9 @@ pub enum Reason {
     ThinLine,
     /// Set by an override.
     Override,
+    /// OpenStitch mode, not on line art: every stitch would fall within [`SPECK_MM`], a knot
+    /// rather than a shape; left out (#690).
+    Speck,
 }
 
 impl Reason {
@@ -153,6 +156,7 @@ impl Reason {
             Reason::Outline => "outline",
             Reason::ThinLine => "thin_line",
             Reason::Override => "override",
+            Reason::Speck => "speck",
         }
     }
 }
@@ -196,6 +200,9 @@ impl Region {
             Reason::Outline => "a dark contour line: satin outline sewn on top".to_string(),
             Reason::ThinLine => format!("under {} mm wide: running line", outline::THIN_MM),
             Reason::Override => format!("set to {} by an override", self.stitch.name()),
+            Reason::Speck => {
+                format!("every stitch within {SPECK_MM} mm, a knot rather than a shape: left out")
+            }
         }
     }
 }
@@ -216,8 +223,9 @@ pub enum AngleRule {
     /// PE-DESIGN's rule, [`fill_angle`] (the default).
     #[default]
     Pe,
-    /// [`fill_angle`], turned in steps of 30° until it is at least [`NEIGHBOUR_DEG`] from
-    /// every touching fill sewn before it, so fitted panels read apart.
+    /// [`fill_angle`], turned (by up to 90°, [`vary_angle`]) away from the touching fills sewn
+    /// before it when it lies within [`NEIGHBOUR_DEG`] of one, so fitted panels read apart;
+    /// fills under [`VARY_MIN_MM2`] keep [`fill_angle`].
     VaryNeighbours,
     /// Of [`TRAVEL_ANGLES`], the direction whose sewn path is shortest (#489): the rows cover
     /// the same area whichever way they run, so the difference is the travel between a
@@ -682,6 +690,11 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
             bg.map(|m| palette.thread_of[m as usize] as u16)
         }
     };
+    // Line art: the background colour covers at least [`LINE_ART_SHARE`] of the picture.
+    let line_art = {
+        let opaque = census.modal.iter().filter(|m| m.is_some()).count().max(1);
+        border_pixels as f64 >= LINE_ART_SHARE * opaque as f64
+    };
     let unsmoothed = labels.clone();
     regions::majority(&mut labels, w, h, p.smooth.min(5));
     // The frame scales x and y alike, so the working pixel's mm/px is both ratios.
@@ -693,8 +706,6 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
             // image) only compact specks merge: a small region whose mean width (area over its
             // longest side) is at most [`LINE_WIDTH_MM`] is a piece of a line, and stays. On
             // photos and paintings such slivers are edge shades, and merge.
-            let opaque = census.modal.iter().filter(|m| m.is_some()).count().max(1);
-            let line_art = border_pixels as f64 >= LINE_ART_SHARE * opaque as f64;
             let mm = frame.mm_per_px();
             regions::merge_small_except(&mut labels, w, h, floor + 1, |k| {
                 let long = (k.x1 - k.x0).max(k.y1 - k.y0) as f64 * mm;
@@ -724,8 +735,6 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
     // keeps its thin strokes whole, so has none.
     let mut thin = Vec::new();
     if p.mode == Mode::OpenStitch {
-        let opaque = census.modal.iter().filter(|m| m.is_some()).count().max(1);
-        let line_art = border_pixels as f64 >= LINE_ART_SHARE * opaque as f64;
         let before = labels.clone();
         open_slivers(
             &mut labels,
@@ -916,8 +925,16 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                 match p.angle_rule {
                     AngleRule::Pe => base,
                     AngleRule::VaryNeighbours => {
-                        let near: Vec<f64> =
-                            adjacent[c].iter().filter_map(|&n| fill_of[n]).collect();
+                        let big = |n: usize| comps[n].area as f64 * mm * mm >= VARY_MIN_MM2;
+                        let near: Vec<f64> = if big(c) {
+                            adjacent[c]
+                                .iter()
+                                .filter(|&&n| big(n))
+                                .filter_map(|&n| fill_of[n])
+                                .collect()
+                        } else {
+                            Vec::new()
+                        };
                         vary_angle(base, &near)
                     }
                     // Chosen on the region's own outline below, once it is built.
@@ -1025,6 +1042,19 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                     && entry.area_mm2 >= TRAVEL_MIN_MM2
                 {
                     region.angle = least_travel(&contours, &region);
+                }
+                // OpenStitch mode leaves out a region that would sew as a knot: its stitches
+                // and the ties round them stack in one spot (p07: 8 stitches in 0.46 mm). Not
+                // on line art, whose dots are drawn on purpose: leaving out the mandala's (g11)
+                // lowered its MS-SSIM 0.653 → 0.611.
+                if p.mode == Mode::OpenStitch
+                    && !line_art
+                    && set.is_none()
+                    && speck(&contours, &region)
+                {
+                    entry.stitch = Stitch::Skip;
+                    entry.reason = Reason::Speck;
+                    continue;
                 }
                 if region.kind == RegionType::Fill {
                     fill_of[c] = Some(region.angle);
@@ -1267,20 +1297,33 @@ fn adjacency(id: &[u32], w: usize, h: usize, n: usize) -> Vec<Vec<usize>> {
     adj
 }
 
-/// [`AngleRule::VaryNeighbours`]: `base`, or the first of it turned by 30°, -30°, 60°, -60°
-/// and 90° that is at least [`NEIGHBOUR_DEG`] from every angle of `near` (directions, so
-/// modulo 180°); `base` when none is.
+/// [`AngleRule::VaryNeighbours`]: `base` when it is at least [`NEIGHBOUR_DEG`] from every
+/// angle of `near` (directions, so modulo 180°); otherwise, of `base` turned by 30°, -30°, 60°,
+/// -60° and 90°, the one furthest from the nearest of them (ties to the earlier). Taking the
+/// first turn that cleared 20° instead lowered the likeness on g01, g05 and g08 (#690).
 pub fn vary_angle(base: f64, near: &[f64]) -> f64 {
     let apart = |a: f64, b: f64| {
         let d = (a - b).rem_euclid(180.0);
         d.min(180.0 - d)
     };
-    [0.0, 30.0, -30.0, 60.0, -60.0, 90.0]
-        .into_iter()
-        .map(|t| normalize(base + t) + 0.0)
-        .find(|&a| near.iter().all(|&n| apart(a, n) >= NEIGHBOUR_DEG))
-        .unwrap_or(base)
+    let nearest = |a: f64| near.iter().map(|&n| apart(a, n)).fold(f64::MAX, f64::min);
+    if nearest(base) >= NEIGHBOUR_DEG {
+        return base;
+    }
+    let mut best = base;
+    for t in [30.0, -30.0, 60.0, -60.0, 90.0] {
+        let a = normalize(base + t) + 0.0;
+        if nearest(a) > nearest(best) + 1e-9 {
+            best = a;
+        }
+    }
+    best
 }
+
+/// [`AngleRule::VaryNeighbours`] turns only fills of at least this area, mm², and only away from
+/// touching fills as large: smaller pieces read as detail, not as panels, and turning them
+/// lowered the likeness (g05, g15; #690).
+pub const VARY_MIN_MM2: f64 = 20.0;
 
 /// [`AngleRule::LeastTravel`]: the direction of [`TRAVEL_ANGLES`] whose layers sew the least
 /// thread for the fill `region` over `contours`, or the region's own direction unless another
@@ -1312,6 +1355,24 @@ pub fn least_travel(contours: &[Contour], region: &RegionSewing) -> f64 {
         }
     }
     best.1
+}
+
+/// OpenStitch mode: a region whose stitches all fall within a box this size, mm, is a speck
+/// ([`Reason::Speck`], #690).
+pub const SPECK_MM: f64 = 0.8;
+
+/// Whether the region's layers sew within a [`SPECK_MM`] box.
+fn speck(contours: &[Contour], region: &RegionSewing) -> bool {
+    let closed: Vec<Contour> = contours.iter().filter(|c| c.closed).cloned().collect();
+    let (mut x0, mut y0, mut x1, mut y1) = (f64::MAX, f64::MAX, f64::MIN, f64::MIN);
+    for q in openstitch_design::region::layers(&closed, region, &[])
+        .iter()
+        .flatten()
+        .flatten()
+    {
+        (x0, y0, x1, y1) = (x0.min(q.x), y0.min(q.y), x1.max(q.x), y1.max(q.y));
+    }
+    x0 <= x1 && x1 - x0 < SPECK_MM * 10.0 && y1 - y0 < SPECK_MM * 10.0
 }
 
 /// Longest stitch (0.1 mm) Auto Punch lets a satin region sew: PE-DESIGN 11.50's Auto Punch

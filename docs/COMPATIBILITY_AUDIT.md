@@ -1633,6 +1633,16 @@ Line references are relative to `crates/`.
   region-then-outline order unchanged): PE-DESIGN has no per-shape part order, so a PES 11
   export writes such a shape as two shapes, its outline then its region, and the stitch data
   sews them in that order.
+- **Image digitizing, batch:mac-digitize-3 (2026-11-06; #688, #690):** PE-DESIGN-compatible
+  output unchanged (scorer identical). OpenStitch mode: outline paths keep vertices at least
+  0.4 mm apart and, except on line art, specks (every stitch within 0.8 mm) are left out, so sew_check passes 27 of
+  the 30 example images (25 on main; p01 and p09 are #703, g11 is #713; with presets 197 of
+  210 runs, every preset clean on g01-g08). Likeness: g05 MS-SSIM 0.8770 → 0.8750 (its
+  outlines no longer follow pixel steps; 879 fewer stitches under 1 mm), the other Auto Punch
+  cases within 0.0003 or better. Leaving out g11's dots as specks cost MS-SSIM 0.653 → 0.611, so
+  line art keeps them. Two golden hashes change (specks left out): emblem Auto Punch
+  0xcfe047434a377450 → 0x6f8c38e54e037ddb and gradient Auto Punch 0x9fb965f4afbd6472 →
+  0xb90ef983b645fd84; the other 7 are unchanged.
 - **Image wizard, batch:mac-wizard (2026-11-06; #489):** the dialog's region table, click-to-fix,
   colour order and Preset row drive `digitize.autoPunch`'s `dryRun`, `regionMap`, `overrides`,
   `order` and `preset`; PE-DESIGN-compatible output with none of them set is unchanged.
@@ -2384,6 +2394,28 @@ Line references are relative to `crates/`.
   both cards; the Realistic view and the similarity scorer now draw thread that wide
   (`openstitch_design::calibration`, #291).
 
+### Job sheets, 2026-11-06 (`batch:mac-sewout`, #513)
+
+Beyond PE-DESIGN, off unless chosen: `design.print`'s existing modes and the PE-compatible
+output are unchanged.
+
+- **Commands:** `design.setJob` (an undoable edit) stores customer, order, due date, notes, fabric
+  and stabiliser in `Design.job`. `design.print {mode: client | operator, detail, shop}` writes the
+  client approval sheet or the operator worksheet, as an overview (one page) or detailed. The
+  editor has File ▸ Print ▸ Job Sheet….
+- **The job stays out of machine files:** it is in the project only. PES, PEC, DST, EXP, JEF,
+  VP3 and XXX exports are byte for byte the same with and without a job, and none holds a job
+  field (`the_job_never_reaches_a_machine_file`). A project without a job is written exactly as
+  before (the field is left out while empty).
+- **What the operator sheet reports:**
+  - its colour sequence is the compiled pattern's colour blocks, stops counted per block;
+  - its sewing time is `design.info`'s `sewingMinutes`.
+- **Checked by eye:** both sheets rendered from a two-colour design with text, on A4 and Letter.
+- **Not done:**
+  - a shop logo image (name only);
+  - scripts outside WinAnsi (the PDF uses the standard Helvetica);
+  - a print preview in the dialog.
+
 ### Knockdown fill, 2026-11-06 (#510, `batch:production`)
 
 Beyond PE-DESIGN (PE-DESIGN 11 has no fill under the design; its background fill sews around
@@ -2930,6 +2962,36 @@ no problems:
 - Not done: satin regions and skeleton satin (#685), lettering (#686), the canvas rung-edit
   mode (#525, satin-2b), and the NV880E sew-outs #528 and #531 ask for before the styles are
   advertised.
+
+### Satin lines with variable width and branch split, 2026-11-06 (#524, #526 part, `batch:satin-2b`)
+
+Both are beyond PE-DESIGN. They are new line types and commands, so no existing design changes
+and every compat output stays byte-identical. PES 0110 export refuses a satin line with the
+message it gives other unmapped line types; the machine formats sew it.
+
+- **Satin line (#524):**
+  - A satin line with one width all along, square to the line, sews the same needle points as
+    skeleton satin of that width (engine test).
+  - Width keys interpolate smoothly. Left 0 / right 3 mm puts the whole column on one side.
+  - Tapers reach a point at the ends.
+  - A 30° slant keeps the edges at their widths (unit test).
+- **Branch split (#526), `object.deriveSkeleton {branches: true}` on Lato Bold letters at 10
+  and 25 mm:**
+
+  | Letter | Columns |
+  |---|---|
+  | K | 3 |
+  | X | 3 |
+  | Y | 2 |
+  | R | 4 |
+  | N | 1 (an unbranched path) |
+
+  - All ten files pass sew_check.
+  - The synthetic Y, plus and star are over 90 % covered, and each arm ends `joinOverlap`
+    inside the column it leaves.
+  - Not met: on K and R the main stroke bends through the junction and fans, leaving a gap in
+    the stem. #526's IoU ≥ 0.95 and "no gap over 0.3 mm" are therefore not reached on letters,
+    and #526 stays open.
 
 ### Hidden stitching and hidden travel, 2026-11-06 (#511, #545, `batch:routing`)
 
