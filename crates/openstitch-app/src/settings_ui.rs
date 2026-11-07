@@ -74,7 +74,10 @@ fn sets_window(app: &mut EditorApp, ctx: &egui::Context) {
             }
             ui.separator();
             ui.horizontal(|ui| {
-                ui.text_edit_singleline(&mut app.settings.set_name);
+                crate::a11y::name(
+                    &ui.text_edit_singleline(&mut app.settings.set_name),
+                    "Attribute set name",
+                );
                 let from = single(app);
                 if ui
                     .add_enabled(
@@ -138,16 +141,20 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                 st.chart = charts.first().map(|c| c.name.clone());
             }
             ui.horizontal(|ui| {
-                egui::ComboBox::from_label("Chart")
+                let r = egui::ComboBox::from_label("Chart")
                     .selected_text(st.chart.clone().unwrap_or_else(|| "—".into()))
                     .show_ui(ui, |ui| {
                         for c in &charts {
                             ui.selectable_value(&mut st.chart, Some(c.name.clone()), &c.name);
                         }
                     });
+                crate::a11y::name(&r.response, "Chart");
             });
             ui.horizontal(|ui| {
-                ui.text_edit_singleline(&mut st.chart_name);
+                crate::a11y::name(
+                    &ui.text_edit_singleline(&mut st.chart_name),
+                    "New chart name",
+                );
                 let name = st.chart_name.trim().to_string();
                 if ui
                     .add_enabled(!name.is_empty(), egui::Button::new("New"))

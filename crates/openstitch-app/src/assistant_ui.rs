@@ -419,6 +419,7 @@ impl EditorApp {
             }
             "ui.cursor" => self.cursor_command(params),
             "ui.preview" => self.preview_command(params),
+            "ui.stitchTable" => self.stitch_table_command(params),
             "ui.recoveryList" => Ok(crate::recovery_ui::list(self)),
             "ui.recoveryRestore" => {
                 let id = p.string("id", None).map_err(err)?;
@@ -634,6 +635,7 @@ impl EditorApp {
                 "colorBy" => json!(prefs.show.color_by.as_str()),
                 "soloColor" => json!(prefs.show.solo),
                 "simulatorSpeed" => json!(self.play_speed),
+                "textSize" => json!(prefs.text_size),
                 "autosave" => json!(prefs.autosave),
                 "picturePickers" => json!(prefs.picture_pickers),
                 "openInTabs" => json!(prefs.open_in_tabs),
@@ -834,6 +836,9 @@ impl EditorApp {
             "soloColor" => self.ui.prefs.show.solo = bool_value(name, v)?,
             "simulatorSpeed" => {
                 (self.play_speed, save) = (number_value(name, v, 1.0, 5000.0)?, false)
+            }
+            "textSize" => {
+                self.ui.prefs.text_size = number_value(name, v, 100.0, 200.0)?.round() as u32
             }
             "autosave" => self.ui.prefs.autosave = bool_value(name, v)?,
             "picturePickers" => self.ui.prefs.picture_pickers = bool_value(name, v)?,

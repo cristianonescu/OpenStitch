@@ -437,6 +437,20 @@ pub const UI_COMMANDS: &[UiCommand] = &[
         ],
     },
     UiCommand {
+        id: "ui.stitchTable",
+        summary: "Stitch Table (#501): open or close the table of the selected stitch pattern's needle points (index, X and Y mm, command, colour block) and select rows (shown on the canvas with the Point tool). Edit the points with stitches.setPoint, stitches.insertPoint and stitches.deletePoints (stitches.points lists them); each is one undo step",
+        effect: Effect::Edit,
+        params: &[
+            p("open", "bool", false, "Show or hide the table"),
+            p(
+                "select",
+                "[int]",
+                false,
+                "Rows (needle point indexes) to select",
+            ),
+        ],
+    },
+    UiCommand {
         id: "ui.notesClear",
         summary: "Forget everything: clear the Assistant's notes (Assistant settings, Memory, Forget everything). Always asks the user first",
         effect: Effect::Settings,
@@ -509,6 +523,11 @@ pub const SETTINGS: &[Setting] = &[
     ),
     s("qatBelow", "Quick Access Toolbar below the Ribbon", "bool"),
     s("splash", "Show splash at startup", "bool"),
+    s(
+        "textSize",
+        "Options ▸ Text size: the whole window at this percentage (on top of the system display scale)",
+        "number 100..200",
+    ),
     s("showStartCards", "Show start cards", "bool"),
     s(
         "newObjectDefaults",
