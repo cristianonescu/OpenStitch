@@ -198,10 +198,10 @@ code: `crates/openstitch-update`, `crates/openstitch-app/src/update_ui.rs`).
 
 The design editor also runs in a web browser (#556), with nothing to install: `crates/openstitch-web`
 built for `wasm32-unknown-unknown`, drawn by egui on a WebGL 2 canvas, hosted by the static page
-`web/index.html`. It opens a design (`.osd`) or any embroidery file the engine reads through the
-browser's file picker, shows it on the Design Page, plays the stitch simulator, edits the whole
-design (rotate 90°, flip, centre, undo/redo), saves the `.osd` and exports every machine format,
-the stitch lists and G-code as downloads. Nothing leaves the browser.
+`web/index.html`. Since #693 phase B part 2 (2026-11-07) the page runs the desktop editor itself
+(`openstitch_app::EditorApp`: ribbon, panes, tools, dialogs). File ▸ Open (Ctrl+O) and Import go
+through the browser's file picker; Save, Save As and every export are handed to the browser as
+downloads. Nothing leaves the browser.
 
 It runs the same engine commands as the desktop editor (`project.open`, `stitches.import
 {keepSource}`, `design.export`, `project.save`). In the browser those commands read and write
@@ -214,16 +214,18 @@ compares PES, DST, EXP, VP3, XXX, CSV and G-code with `cargo run -p openstitch-w
 web_export`, the same steps run natively; `openstitch-web`'s own tests compare those with the
 desktop editor's File ▸ Open and File ▸ Export.
 
-Desktop-only for now, and named on the page under "What the web version leaves out": the
-Assistant (its key lives in the system keychain), Quick Look, sending to a machine or USB stick,
-updates, the Design Database, image digitizing, and the editor's drawing, lettering and
-object tools (#693). The `.wasm` is about 17 MB (#696).
+Desktop-only for now: the Assistant (its key lives in the system keychain), Quick Look, sending to
+a machine or USB stick, printing, updates, the automation socket, the Design Database's folders,
+the system clipboard (copy and paste stay inside the editor), and every file picker other than
+Open and Import (background and digitizing images, thread charts, fonts: they return nothing
+yet). The `.wasm` is about 17 MB (#696).
 
 **Browsers:** `web/e2e/page.mjs` (Playwright, version pinned in `web/e2e/package-lock.json`)
-loads the page in Chromium, Firefox and WebKit (Safari's engine): the page must start, "Open…"
-goes through the browser's real file picker, "Export" through a real download that must be
-byte-identical to the native build, and a DST export through `openstitch.run` too. On macOS all
-three pass (2026-11-07, `node web/e2e/page.mjs WEB_DIR NATIVE_DIR INPUT`). CI job `web` runs it on
+loads the page in Chromium, Firefox and WebKit (Safari's engine): the editor must start, File ▸
+Open (Ctrl+O) goes through the browser's real file picker, and PES and DST exports written to the
+editor's save folder arrive as real downloads that must be byte-identical to the native build.
+Before part 2 all three passed on macOS (2026-11-07, `node web/e2e/page.mjs WEB_DIR NATIVE_DIR
+INPUT`). CI job `web` runs it on
 Linux: Chromium always counts; Firefox counts when Mesa (for WebGL on the GPU-less runner)
 installs within 8 minutes, else it is a CI warning; WebKit needs GTK 4 and GStreamer, which the
 runner lacks, so there it is a warning too. The screenshots are kept as the
@@ -236,8 +238,30 @@ by CI job `web`. Its desktop-only dependencies (keychain, clipboard images, the 
 the updater, the Assistant's HTTPS client, the system trash) are target-gated in
 `crates/openstitch-app/Cargo.toml`, and `crates/openstitch-app/src/platform.rs` holds what differs:
 on the desktop each function is a pass-through to the call the editor made before (the system
-clipboard, the release-tag check); in the browser the clipboard stays inside the editor. The
-window itself (`main.rs` and the `*_ui.rs` dialogs) follows in later phases.
+clipboard, the release-tag check); in the browser the clipboard stays inside the editor.
+
+Phase B, part 1 (2026-11-07): the editor window builds for `wasm32` as well. Its modules are
+listed once in `crates/openstitch-app/src/bin_modules.rs`: the desktop binary (`main.rs`) includes
+the list, and on `wasm32` the library includes it too (`extern crate self as openstitch_app`),
+so `openstitch_app::EditorApp` exists for the web crate without moving any file. What a browser
+cannot do is behind small stand-ins, each identical to the desktop code on the desktop:
+`files.rs` (file dialogs: `rfd::FileDialog` on the desktop; in the browser the pickers return
+nothing yet), `web/assistant_panel.rs` (no Assistant panel: it needs a model connection, the
+keychain and a local socket), `web/update_ui.rs` (no updater), `remote.rs` (no automation
+socket), the Assistant's notes compiled from `openstitch-assistant/src/notes.rs` without its
+network client, and no system trash. CI job `web` builds the whole package for `wasm32`.
+
+Phase B, part 2 (2026-11-07): `crates/openstitch-web/src/web.rs` starts `EditorApp` on the canvas
+(glow renderer, no splash) inside a small wrapper frame. What differs stays in
+`openstitch-app`'s stand-ins, identical on the desktop: `platform::run_job` (a thread on the
+desktop; a browser page has one thread, so the background open, a picker tile's preview and the
+print hand-off run at once and their result waits in the channel for the next frame),
+`platform::Instant` (`web_time` in the browser, where std's clock panics), `platform::read_small`
+(the in-memory files), and `files.rs`: File ▸ Open and Import ask the page for its picker
+(`request_pick`); the page puts the picked bytes under `/web/open/` in memory and hands the path
+back (`EditorApp::web_picked`). The Save dialog answers `/web/save/<name>` at once; after every
+frame the page downloads each file written there and drops it from memory. Still to come: the
+other pickers, files dropped on the page, and the Assistant.
 
 **Build** (the CLI version must match `wasm-bindgen` in Cargo.lock):
 
@@ -262,12 +286,24 @@ GitHub's Pages actions. Only its deploy job has `pages: write` and `id-token: wr
 `github-pages` environment, which accepts `main` only. It is its own workflow because
 `release.yml` calls `rust.yml` without Pages permissions.
 
-**Automation:** the page's `openstitch.run({command, params})` takes every engine command and the
-web editor's `ui.state`, `ui.simulate`, `ui.openFile {name, base64}`, `ui.saveFile` and
-`ui.exportFile {format}` (skills/openstitch-embroidery/SKILL.md, "Web editor").
+**Automation:** the page's `openstitch.run({command, params})` takes what the desktop editor's
+automation socket takes (every engine command and the editor's `ui.*` commands, on the editor's
+own undo history) plus the page's file commands `ui.openFile {name, base64}`, `ui.saveFile` and
+`ui.exportFile {format}` (files as base64), and an engine command writing under `/web/save/`
+becomes a download (skills/openstitch-embroidery/SKILL.md, "Web editor"). Before the editor has
+started (the Node smoke test loads the module without a page) it is the window-less
+`WebSession`.
 
 ## Known limits
 
+- **MSI upgrades (#742).** Every build is version 0.1.0 with a new ProductCode, so the MSI's
+  `MajorUpgrade` sets `AllowSameVersionUpgrades`: installing any OpenStitch MSI removes an
+  installed OpenStitch of the same or an older version first (one entry in Settings ▸ Apps).
+  `build-executables.yml` reads the built MSI's Upgrade table through Windows Installer's COM
+  object and fails unless a row finds OpenStitch's UpgradeCode up to and including this version
+  (`msidbUpgradeAttributesVersionMaxInclusive`) and `RemoveExistingProducts` is scheduled. The
+  self-updater runs `msiexec /i` on the new MSI and relies on the same rows. Cleaning up a PC with
+  older duplicate entries: RELEASING.md.
 - **MSI validation.** `light` runs with `-sice:ICE50`: the advertised Start-menu shortcut's
   icon is `openstitch.ico` from the Icon table while its target is `openstitch.exe`, and ICE50
   wants the two extensions to match. Making the Icon entry from the exe would store the whole

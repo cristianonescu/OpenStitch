@@ -277,6 +277,11 @@ FILL_OPTIONS = [
     ("circle", {"type": "fill", "autoDirection": True}),
     ("rect", {"type": "satin", "angle": 90, "pullCompensation": 0.4, "splitLength": 7}),
 ]
+# OpenStitch's named tatami textures (#537), on fills at 0° so the needle-hole patterns read across.
+TEXTURES_A = [("rect", {"type": "fill", "angle": 0, "texture": t}) for t in
+              ["smooth", "ribs", "brick", "diagonal", "steepDiagonal", "steps", "stairs", "blocks", "scattered"]]
+TEXTURES_B = [("rect", {"type": "fill", "angle": 0, "texture": t}) for t in
+              ["waves", "ripples", "zigzag", "chevron", "scallops"]]
 UNDERLAYS = [
     ("rect", {"type": "fill", "underlay": False}),
     ("rect", {"type": "fill", "underlay": True, "underlayStyle": "edge"}),
@@ -541,6 +546,13 @@ FEATURES = [
      "Fill at 45°, continuous gradation to 20 %, gradation pattern, feathered edges, Stitch Type 2 (sloped "
      "rows), OpenStitch's random stagger, frequency 0 (no stagger), Auto direction on a circle, and satin with "
      "pull compensation and split stitches.", region_grid(FILL_OPTIONS)),
+    ("fills/tatami-textures-1.pes", "Tatami textures (1 of 2)",
+     "OpenStitch's named needle-hole textures on a plain fill at 0°, beyond PE-DESIGN except the first: smooth "
+     "(PE-DESIGN's Frequency brick), ribs, brick, diagonal, steep diagonal, steps, stairs, blocks, scattered.",
+     region_grid(TEXTURES_A)),
+    ("fills/tatami-textures-2.pes", "Tatami textures (2 of 2)",
+     "Curved needle-hole textures, beyond PE-DESIGN: waves, ripples, zigzag, chevron, scallops.",
+     region_grid(TEXTURES_B)),
     ("fills/underlay-styles.pes", "Underlay styles",
      "No underlay, edge, zigzag, edge + zigzag, double (crossing layers), PE-DESIGN's first type (edge and "
      "rows), its second (edge and lattice), centre piping under a satin, and light underlay density.",

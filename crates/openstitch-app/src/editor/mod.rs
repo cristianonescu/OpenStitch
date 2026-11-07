@@ -16,6 +16,7 @@ pub mod getting_started;
 pub mod handles;
 pub mod hints;
 pub mod hit;
+pub mod i18n;
 pub mod inspector;
 pub mod keymap;
 pub mod lettering;

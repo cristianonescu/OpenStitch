@@ -27,6 +27,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 - **Rotation** of objects (`object.rotate` `degrees`) and of preset shapes (`shape.preset`
   `rotation`) is **clockwise**.
 - Densities are rows (or lines) per mm; `pitch` and `stitchLength` are mm.
+- A plain fill's look changes with `object.setRegion` `texture` (`smooth`, PE-DESIGN's default,
+  or OpenStitch's `ribs`, `diagonal`, `blocks`, `waves`, `zigzag`, `chevron`, `scallops`, ...):
+  same shape, density and stitch count, different needle-hole pattern.
 - Wave fill (beyond PE-DESIGN): `object.setRegion` on a fill with `waveHeight` (crest to trough,
   mm, 0 = off) and `waveLength` (mm, default 16). PES 0110 refuses it; save PES version 6.
 - Colours: `"#rrggbb"`, a Brother thread name (`"Black"`, `"White"`, `"Red"`, `"Blue"`,
@@ -99,6 +102,16 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    filled shape: `object.deriveSkeleton {id, branches: true, joinOverlap: 0.3}` makes a
    grouped satin column per arm (the shape stays hidden); check `warnings` for columns over
    10 mm and look at the junctions with `view_render`.
+   Ripples, echoes and spirals from one outline (beyond PE-DESIGN): `object.setLine {type:
+   ripple, strands, target: [x, y]}` (a closed line spirals in to the target as one run; an
+   open one repeats `spacing` apart towards the target's side). Motif lines (beyond
+   PE-DESIGN): `motifGroups: [[3, 6]]` (three motifs, then a 6 mm gap), `freeStart`/`freeEnd`
+   (clean corners), `motifs: ["arrow"]` (used in turn); bundled motifs now include
+   square-spiral, star, cross-x, zigzag and arrow (`patterns.list`). A motif band (beyond
+   PE-DESIGN): `motifBand: "star"` on a skeleton satin or Manual Punch satin
+   (`object.setRegion`) or a satin line (`object.setLine`) sews the motif along the column
+   instead of the satin, each copy stretched to the local width, so it follows a taper;
+   `bandTile` (mm per copy), `bandMirror`; `motifBand: "none"` back to satin.
    Borders, quilting and crazy-quilt seams (beyond PE-DESIGN): `object.setLine {type: chevron |
    cretan | feather | overlock | alternatingTriangles | doubleZigzag | lattice | stripes, width,
    spacing}` (`height` sets the chevron bar or Cretan/feather side stitch, `strands` a lattice's
@@ -265,6 +278,9 @@ To show the user what a setting would look like before changing it, `ui.preview 
 ends it, and running the command keeps the change. `ui.set picturePickers` shows the sewing
 types, fill patterns and motifs as pictures in the Sewing Attributes pane.
 `ui.set textSize` (100-200) enlarges the whole window for a user who asks for bigger text.
+`ui.set language` (`en`, or `pseudo`, a test language that brackets every translated text) is
+Options ▸ Language (#555); only the ribbon is translated so far, and no real translation ships
+yet, so answer in the user's language yourself rather than switching the window.
 Opening or importing a large file in the window runs in the background: `ui.state` shows
 `loading` (file, step, seconds), and `ui.loading {cancel: true}` stops it, leaving the design
 as it was.
@@ -299,17 +315,17 @@ gives for the job fields; never invent a customer or order.
 
 ### Web editor (browser)
 
-OpenStitch also runs in a web browser (#556, `crates/openstitch-web`). The page exposes
-`openstitch.run({command, params})`, which takes every engine command (`object.rotate`,
-`design.info`, `history.undo`, ...) and the web editor's own `ui.*` commands: `ui.state` (file,
-page, stitches, simulator, undo/redo, export formats, what is desktop-only), `ui.simulate
-{stitch}` or `{step: "block"}`, `ui.openFile {name, base64}` (File ▸ Open), `ui.saveFile`
-(File ▸ Save: the `.osd` comes back as `{name, base64}`) and `ui.exportFile {format}`
-(`{files: [{name, base64}]}`). The page's buttons run the same commands (their tooltips name
-them); "Whole design" Rotate 90°, Flip and Centre are `object.rotate`, `object.flip` and
-`object.center` on every object. Undo there is per editor step: File ▸ Open is one. The
-Assistant, the other `ui.*` commands, machine transfer, the Design Database and image
-digitizing are desktop-only; say so instead of trying them in the browser.
+OpenStitch also runs in a web browser (#556, `crates/openstitch-web`): the page runs the desktop
+editor itself (#693). The page exposes `openstitch.run({command, params})`, which takes what the
+desktop editor's automation socket takes: every engine command (`object.rotate`, `design.info`,
+`history.undo`, ...) and the editor's `ui.*` commands (`ui.state`, `ui.simulate`, ...), on the
+editor's own undo history. The page adds its file commands, files as base64: `ui.openFile
+{name, base64}` (File ▸ Open; it opens on the next frames, so wait until `ui.state`'s `loading`
+is null), `ui.saveFile` (the `.osd` as `{name, base64}`) and `ui.exportFile {format}` (`{files:
+[{name, base64}]}`). A command that writes under `/web/save/` (for example `design.export
+{path: "/web/save/rose.pes"}`) hands the file to the user as a download. The Assistant, the
+system clipboard, printing, machine transfer, the Design Database's folders and image pickers
+are desktop-only; say so instead of trying them in the browser.
 
 ## Files
 

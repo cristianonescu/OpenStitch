@@ -142,7 +142,7 @@ pub const RESET_AREAS: &[(&str, &str, &str)] = &[
     (
         "display",
         "Display",
-        "theme, accent colour, Quick Access Toolbar, splash, realistic view, View ▸ Show",
+        "theme, accent colour, language, Quick Access Toolbar, splash, realistic view, View ▸ Show",
     ),
     (
         "editing",
@@ -219,6 +219,8 @@ pub struct UiPrefs {
     /// Options ▸ Text size (#499): the whole window at this percentage, 100-200, on top of the
     /// operating system's display scale.
     pub text_size: u32,
+    /// Options ▸ Language (#555): an [`super::i18n::languages`] code; English by default.
+    pub language: String,
     /// The folder of Ink/Stitch-format embroidery fonts (Text ▸ Ink/Stitch Fonts, #529).
     pub inkstitch_folder: Option<PathBuf>,
     pub updates: UpdatePrefs,
@@ -315,6 +317,7 @@ impl Default for UiPrefs {
             font_filter: FontFilter::default(),
             splash: true,
             text_size: 100,
+            language: super::i18n::ENGLISH.to_string(),
             inkstitch_folder: None,
             updates: UpdatePrefs::default(),
             ai: Default::default(),
@@ -401,6 +404,7 @@ impl UiPrefs {
             "fontFilter": { "on": self.font_filter.on, "hidden": self.font_filter.hidden },
             "showSplash": self.splash,
             "textSize": self.text_size,
+            "language": self.language,
             "inkStitchFolder": self.inkstitch_folder.as_ref().map(|p| p.display().to_string()),
             "updates": self.updates.to_json(),
             "ai": self.ai.to_json(),
@@ -514,6 +518,11 @@ impl UiPrefs {
             text_size: v["textSize"]
                 .as_u64()
                 .map_or(d.text_size, |n| n.clamp(100, 200) as u32),
+            // A language this build does not ship falls back to English.
+            language: v["language"]
+                .as_str()
+                .filter(|c| super::i18n::is_language(c))
+                .map_or(d.language.clone(), str::to_string),
             inkstitch_folder: v["inkStitchFolder"]
                 .as_str()
                 .filter(|s| !s.is_empty() && s.len() < 4096)
@@ -714,6 +723,7 @@ impl UiPrefs {
                 self.qat_below = d.qat_below;
                 self.splash = d.splash;
                 self.text_size = d.text_size;
+                self.language = d.language;
                 self.realistic = d.realistic;
                 self.show = d.show;
             }

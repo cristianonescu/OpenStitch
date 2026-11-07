@@ -818,6 +818,7 @@ impl DesignObject {
         if let Some(l) = &mut self.line {
             l.entry = l.entry.map(|p| t.apply(p));
             l.exit = l.exit.map(|p| t.apply(p));
+            l.target = l.target.map(|p| t.apply(p));
         }
         if let Some(block) = &mut self.stitch_block {
             for s in &mut block.stitches {
@@ -1046,7 +1047,107 @@ pub enum StaggerKind {
     /// OpenStitch's own: a seeded pseudo-random fraction per row, reproducible from
     /// `stagger_seed`. PE-DESIGN has no such option.
     Random,
+    /// OpenStitch's stepped texture (#537): `stagger_steps` offsets, each held for
+    /// `stagger_repeat` rows.
+    Steps,
+    /// OpenStitch's curved textures (#537): the shift follows a wave, a triangle or an arc of
+    /// `stagger_amplitude` over `stagger_period` rows.
+    Wave,
+    Triangle,
+    Arc,
 }
+
+impl StaggerKind {
+    pub const ALL: [StaggerKind; 6] = [
+        StaggerKind::Regular,
+        StaggerKind::Random,
+        StaggerKind::Steps,
+        StaggerKind::Wave,
+        StaggerKind::Triangle,
+        StaggerKind::Arc,
+    ];
+
+    /// The name the engine's `stagger` option takes.
+    pub fn id(self) -> &'static str {
+        match self {
+            StaggerKind::Regular => "regular",
+            StaggerKind::Random => "random",
+            StaggerKind::Steps => "steps",
+            StaggerKind::Wave => "wave",
+            StaggerKind::Triangle => "triangle",
+            StaggerKind::Arc => "arc",
+        }
+    }
+}
+
+/// A named tatami texture (#537, beyond PE-DESIGN): a preset of the fill's stagger settings.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FillTexture {
+    /// The name the engine's `texture` option takes.
+    pub id: &'static str,
+    /// What the inspector shows.
+    pub label: &'static str,
+    pub stagger: StaggerKind,
+    /// Steps: offsets and rows each; curves: amplitude (% of a stitch) and period (rows).
+    pub steps: u32,
+    pub repeat: u32,
+    pub amplitude: f64,
+    pub period: u32,
+}
+
+const fn texture(
+    id: &'static str,
+    label: &'static str,
+    stagger: StaggerKind,
+    steps: u32,
+    repeat: u32,
+    amplitude: f64,
+    period: u32,
+) -> FillTexture {
+    FillTexture {
+        id,
+        label,
+        stagger,
+        steps,
+        repeat,
+        amplitude,
+        period,
+    }
+}
+
+/// OpenStitch's named tatami textures. `smooth` is PE-DESIGN's own Frequency brick.
+pub const FILL_TEXTURES: [FillTexture; 14] = [
+    texture(
+        "smooth",
+        "Smooth (Frequency)",
+        StaggerKind::Regular,
+        3,
+        1,
+        50.0,
+        8,
+    ),
+    texture("scattered", "Scattered", StaggerKind::Random, 3, 1, 50.0, 8),
+    texture("ribs", "Ribs", StaggerKind::Steps, 1, 1, 50.0, 8),
+    texture("brick", "Brick", StaggerKind::Steps, 2, 1, 50.0, 8),
+    texture("diagonal", "Diagonal", StaggerKind::Steps, 4, 1, 50.0, 8),
+    texture(
+        "steepDiagonal",
+        "Steep diagonal",
+        StaggerKind::Steps,
+        8,
+        1,
+        50.0,
+        8,
+    ),
+    texture("steps", "Steps", StaggerKind::Steps, 3, 3, 50.0, 8),
+    texture("stairs", "Stairs", StaggerKind::Steps, 4, 2, 50.0, 8),
+    texture("blocks", "Blocks", StaggerKind::Steps, 2, 4, 50.0, 8),
+    texture("waves", "Waves", StaggerKind::Wave, 3, 1, 50.0, 12),
+    texture("ripples", "Ripples", StaggerKind::Wave, 3, 1, 30.0, 6),
+    texture("zigzag", "Zigzag", StaggerKind::Triangle, 3, 1, 50.0, 6),
+    texture("chevron", "Chevron", StaggerKind::Triangle, 3, 1, 80.0, 16),
+    texture("scallops", "Scallops", StaggerKind::Arc, 3, 1, 50.0, 8),
+];
 
 /// Cross stitch Times, as PE-DESIGN 11.50 offers it (Single | Double | Triple, #614): how many
 /// times every cross is sewn. PE-DESIGN covers each diagonal 2, 4 or 6 times (the round8
@@ -1545,6 +1646,17 @@ pub struct RegionSewing {
     /// Seed of the random stagger (default [`RegionSewing::DEFAULT_STAGGER_SEED`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stagger_seed: Option<u64>,
+    /// Steps texture: how many offsets (default 3) and rows held at each (default 1).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stagger_steps: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stagger_repeat: Option<u32>,
+    /// Curve textures: the shift's height, % of a stitch (default 50), and its period in rows
+    /// (default 8).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stagger_amplitude: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stagger_period: Option<u32>,
     /// Fill: PE-DESIGN's Stitch Type (flat or sloped rows).
     #[serde(default, skip_serializing_if = "is_default")]
     pub stitch_type: FillStitchType,
@@ -1637,6 +1749,10 @@ pub struct RegionSewing {
     /// Fill: the wave's length, crest to crest, mm (default [`RegionSewing::DEFAULT_WAVE_LENGTH`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wave_length: Option<f64>,
+    /// Satin: a motif repeated along the column instead of the satin, stretched across its
+    /// local width (#544, beyond PE-DESIGN).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub motif_band: Option<crate::motif_band::MotifBand>,
 }
 
 impl RegionSewing {
@@ -1711,6 +1827,10 @@ impl RegionSewing {
             stagger: StaggerKind::Regular,
             stitch_type: FillStitchType::One,
             stagger_seed: None,
+            stagger_steps: None,
+            stagger_repeat: None,
+            stagger_amplitude: None,
+            stagger_period: None,
             row_offset: None,
             column_offset: None,
             start_inside: false,
@@ -1738,6 +1858,7 @@ impl RegionSewing {
             hand: None,
             wave_height: None,
             wave_length: None,
+            motif_band: None,
         }
     }
 
@@ -1845,7 +1966,47 @@ impl RegionSewing {
                 Stagger::Random(self.stagger_seed.unwrap_or(Self::DEFAULT_STAGGER_SEED))
             }
             StaggerKind::Regular => self.fill_shift().map_or(Stagger::Third, Stagger::Regular),
+            StaggerKind::Steps => Stagger::Steps {
+                n: self.stagger_steps.unwrap_or(3).clamp(1, 16),
+                repeat: self.stagger_repeat.unwrap_or(1).clamp(1, 16),
+            },
+            StaggerKind::Wave | StaggerKind::Triangle | StaggerKind::Arc => Stagger::Curve {
+                kind: match self.stagger {
+                    StaggerKind::Wave => crate::generate::StaggerCurve::Wave,
+                    StaggerKind::Triangle => crate::generate::StaggerCurve::Triangle,
+                    _ => crate::generate::StaggerCurve::Arc,
+                },
+                amplitude: self.stagger_amplitude.unwrap_or(50.0).clamp(0.0, 100.0) / 100.0,
+                period: self.stagger_period.unwrap_or(8).clamp(2, 64),
+            },
         }
+    }
+
+    /// Sets the fill's stagger settings to a named texture (see [`FILL_TEXTURES`]).
+    pub fn set_texture(&mut self, t: &FillTexture) {
+        self.stagger = t.stagger;
+        let (steps, curve) = match t.stagger {
+            StaggerKind::Steps => (true, false),
+            StaggerKind::Wave | StaggerKind::Triangle | StaggerKind::Arc => (false, true),
+            _ => (false, false),
+        };
+        self.stagger_steps = steps.then_some(t.steps);
+        self.stagger_repeat = steps.then_some(t.repeat);
+        self.stagger_amplitude = curve.then_some(t.amplitude);
+        self.stagger_period = curve.then_some(t.period);
+    }
+
+    /// The named texture the fill's stagger settings match, if any.
+    pub fn texture(&self) -> Option<&'static FillTexture> {
+        FILL_TEXTURES.iter().find(|t| {
+            let mut r = self.clone();
+            r.set_texture(t);
+            r.stagger == self.stagger
+                && r.stagger_steps == self.stagger_steps
+                && r.stagger_repeat == self.stagger_repeat
+                && r.stagger_amplitude == self.stagger_amplitude
+                && r.stagger_period == self.stagger_period
+        })
     }
 
     /// Spacing in mm, or the type's default.
@@ -1967,10 +2128,13 @@ pub enum LineType {
     Lattice,
     /// Decorative hand-embroidery line (#543, beyond PE-DESIGN): stripes stitch.
     Stripes,
+    /// Copies shrinking towards a target point, a closed line spiralling in (#541, beyond
+    /// PE-DESIGN).
+    Ripple,
 }
 
 impl LineType {
-    pub const ALL: [LineType; 21] = [
+    pub const ALL: [LineType; 22] = [
         LineType::Running,
         LineType::Triple,
         LineType::Zigzag,
@@ -1992,6 +2156,7 @@ impl LineType {
         LineType::DoubleZigzag,
         LineType::Lattice,
         LineType::Stripes,
+        LineType::Ripple,
     ];
 
     pub fn id(self) -> &'static str {
@@ -2017,6 +2182,7 @@ impl LineType {
             LineType::DoubleZigzag => "doubleZigzag",
             LineType::Lattice => "lattice",
             LineType::Stripes => "stripes",
+            LineType::Ripple => "ripple",
         }
     }
 
@@ -2062,6 +2228,7 @@ impl LineType {
             LineType::DoubleZigzag => "Double zigzag",
             LineType::Lattice => "Lattice",
             LineType::Stripes => "Stripes",
+            LineType::Ripple => "Ripple",
         }
     }
 }
@@ -2191,6 +2358,10 @@ pub struct LineSewing {
     /// Running, triple and back stitch: the hand-stitch look (#540, beyond PE-DESIGN).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hand: Option<crate::line_looks::HandStitch>,
+    /// Satin line: a motif repeated along the column instead of the satin, stretched across its
+    /// local width (#544, beyond PE-DESIGN).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub motif_band: Option<crate::motif_band::MotifBand>,
     /// Scribble: length of its smooth side waves, mm (default 5).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub noise_scale: Option<f64>,
@@ -2206,6 +2377,20 @@ pub struct LineSewing {
     /// E stitch: its prongs slanted this many degrees from square to the line (#543).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prong_angle: Option<f64>,
+    /// Ripple: the point the copies shrink towards, 0.1 mm (`None`: the line's centre) (#541).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<Vec2>,
+    /// Motif line: groups of motifs, `[count, gap after the group in mm]`, repeated (#544).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub motif_groups: Vec<(u32, f64)>,
+    /// Motif line: running stitch only for this long at the start and at the end, mm (#544).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub free_start: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub free_end: Option<f64>,
+    /// Motif line: more motifs used in turn after `motif` (#544).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub motifs: Vec<String>,
 }
 
 /// An opening in a closed line: `length` mm left unsewn from `offset` mm along the outline
@@ -2314,11 +2499,17 @@ impl LineSewing {
             slant: None,
             profile: None,
             hand: None,
+            motif_band: None,
             noise_scale: None,
             seed: None,
             strands: None,
             gaps: Vec::new(),
             prong_angle: None,
+            target: None,
+            motif_groups: Vec::new(),
+            free_start: None,
+            free_end: None,
+            motifs: Vec::new(),
         }
     }
 
@@ -2330,6 +2521,7 @@ impl LineSewing {
             LineType::Candlewick => 1.0,
             LineType::EStitch | LineType::VStitch => 5.0,
             k if k.is_decorative() => 3.0,
+            LineType::Ripple => 1.5,
             _ => 1.0,
         })
     }

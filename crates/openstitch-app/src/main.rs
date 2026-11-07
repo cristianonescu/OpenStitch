@@ -14,7 +14,7 @@
 //!            [--listen PORT [--listen-read-only] [--listen-no-files] [--listen-root DIR]... [--listen-read-root DIR]...]
 //!            [--ribbon home|image|view|text|outline|rectangle|punch|shapes|stitches|hoop]
 //!            [--pane import|color|attributes|text] [--theme light|dark|system] [--accent COLOUR]
-//!            [--no-splash]
+//!            [--language en|pseudo] [--no-splash]
 //! ```
 //! A plain start (at most a FILE) shows the logo splash for about a second; any other option
 //! above, or `--no-splash`, starts without it (see `Launch::splash_allowed`).
@@ -41,68 +41,26 @@
 //! `openstitch --sew-kit` (alone) opens no window: it does what Help ▸ Ready-to-Sew Designs
 //! does and prints `folder PATH` or `online URL` (the packaging check for #319).
 
+// The web build runs from the library (`lib.rs` includes the same modules, #693); this binary is
+// empty there, so its copy of the modules is unused.
+#![cfg_attr(
+    target_arch = "wasm32",
+    allow(dead_code, unused_imports, clippy::drop_non_drop)
+)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod a11y;
-mod app;
-mod arc_ui;
-mod arrange_ui;
-mod art;
-mod assistant_panel;
-mod assistant_ui;
-mod canvas;
-mod close_ui;
-mod colour_match_ui;
-mod convert_ui;
-mod creator_ui;
-mod database_ui;
-mod database_writing;
-mod edit_ui;
-mod envelope_ui;
-mod finish_ui;
-mod icons;
-mod inkstitch_ui;
-mod jobsheet_ui;
-mod keyboard_ui;
-mod keymap_ui;
-mod lettering_ui;
-mod line_gap_ui;
-mod open_job;
-mod palette_ui;
-mod panels;
-mod panes;
-mod pattern_wizard_ui;
-mod pickers_ui;
-mod print_ui;
-mod quality_ui;
-mod recovery_ui;
-mod remote;
-mod ribbon;
-mod script;
-mod sections_ui;
-mod settings_ui;
-mod sewing_ui;
-mod shape_effects_ui;
-mod shape_tools_ui;
-mod splash;
-mod start_ui;
-mod stitch_table_ui;
-mod suite_chrome;
-mod swatch_ui;
-mod theme;
-mod transfer_ui;
-mod units_ui;
-mod update_ui;
-mod view_ui;
-mod wizard_ui;
-mod workspace_ui;
-mod zoom_ui;
+include!("bin_modules.rs");
 
+#[cfg(not(target_arch = "wasm32"))]
 use app::{EditorApp, Launch};
+#[cfg(not(target_arch = "wasm32"))]
 use eframe::egui;
+#[cfg(not(target_arch = "wasm32"))]
 use openstitch_app::editor::Tool;
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::PathBuf;
 
+#[cfg(not(target_arch = "wasm32"))]
 fn parse(args: impl Iterator<Item = String>) -> Result<(Launch, [f32; 2]), String> {
     let mut l = Launch::default();
     let mut size = [1440.0, 900.0];
@@ -181,6 +139,13 @@ fn parse(args: impl Iterator<Item = String>) -> Result<(Launch, [f32; 2]), Strin
                         .ok_or("--theme takes light, dark or system")?,
                 );
             }
+            "--language" => {
+                let v = value("--language")?;
+                if !openstitch_app::editor::i18n::is_language(&v) {
+                    return Err("--language takes en or pseudo".into());
+                }
+                l.language = Some(v);
+            }
             "--accent" => {
                 let v = value("--accent")?;
                 l.accent = Some(
@@ -251,12 +216,14 @@ fn parse(args: impl Iterator<Item = String>) -> Result<(Launch, [f32; 2]), Strin
     Ok((l, size))
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Whether any `--listen-*` option changed the default socket settings.
 fn listen_options_given(c: &openstitch_remote::ServerConfig) -> bool {
     let d = openstitch_remote::ServerConfig::default();
     c.capabilities != d.capabilities || !c.read_roots.is_empty() || !c.write_roots.is_empty()
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Starts the automation socket and prints how clients reach it.
 fn listen(
     mut config: openstitch_remote::ServerConfig,
@@ -295,7 +262,7 @@ fn listen(
 /// close request, skipping the unsaved-changes prompt (#115); the editor handles Cmd+Q and
 /// Cmd+W (close through the prompt) and Cmd+M (minimise) itself. Cmd+H and the menu's About,
 /// Services and Hide are not available (see docs/DISTRIBUTION.md "macOS application menu").
-#[cfg(target_os = "macos")]
+#[cfg(all(target_os = "macos", not(target_arch = "wasm32")))]
 fn macos_event_loop() -> Option<eframe::EventLoopBuilderHook> {
     Some(Box::new(|builder| {
         use winit::platform::macos::EventLoopBuilderExtMacOS;
@@ -303,11 +270,12 @@ fn macos_event_loop() -> Option<eframe::EventLoopBuilderHook> {
     }))
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_arch = "wasm32")))]
 fn macos_event_loop() -> Option<eframe::EventLoopBuilderHook> {
     None
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// The app icon (assets/icons, written by tools/gen_icons.py from the logo) as 64×64 RGBA.
 fn window_icon() -> egui::IconData {
     egui::IconData {
@@ -317,6 +285,7 @@ fn window_icon() -> egui::IconData {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// `openstitch --assistant-mcp ENDPOINT_FILE`: no window; serves the assistant's MCP tools
 /// (`openstitch-mcp --assistant`) on stdio against the editor that wrote ENDPOINT_FILE. The
 /// Assistant panel starts this for a coding agent (B17 A3), so the packages need no separate
@@ -341,6 +310,7 @@ fn assistant_mcp(endpoint: &str) -> ! {
     std::process::exit(code)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// `openstitch --sew-kit`: no window; does what Help ▸ Ready-to-Sew Designs does for this
 /// executable (the packaged kit in Finder, Explorer or the desktop's file manager) and prints
 /// `folder PATH`, or `online URL` when there is no kit (the menu opens that page in the
@@ -356,6 +326,7 @@ fn sew_kit_check() -> ! {
     std::process::exit(0)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result {
     let mut args = std::env::args().skip(1);
     let first = args.next();
@@ -374,7 +345,7 @@ fn main() -> eframe::Result {
                 eprintln!("openstitch: {e}");
             }
             eprintln!(
-                "usage: openstitch [FILE] [--demo] [--select ID,ID] [--simulate F] [--tool NAME] [--size WxH] [--zoom F] [--show VIEWS] [--script STEPS] [--screenshot OUT.png] [--image IMAGE [--convert METHOD]] [--pattern PATTERN.json] [--wizard NAME [--apply]] [--database PATH [--db-view VIEW] [--db-dialog NAME]] [--listen PORT [--listen-read-only] [--listen-no-files] [--listen-root DIR] [--listen-read-root DIR]] [--ribbon TAB] [--pane TAB] [--theme THEME] [--accent COLOUR] [--no-splash]"
+                "usage: openstitch [FILE] [--demo] [--select ID,ID] [--simulate F] [--tool NAME] [--size WxH] [--zoom F] [--show VIEWS] [--script STEPS] [--screenshot OUT.png] [--image IMAGE [--convert METHOD]] [--pattern PATTERN.json] [--wizard NAME [--apply]] [--database PATH [--db-view VIEW] [--db-dialog NAME]] [--listen PORT [--listen-read-only] [--listen-no-files] [--listen-root DIR] [--listen-read-root DIR]] [--ribbon TAB] [--pane TAB] [--theme THEME] [--accent COLOUR] [--language CODE] [--no-splash]"
             );
             std::process::exit(2);
         }
@@ -421,6 +392,7 @@ fn main() -> eframe::Result {
     result
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// wgpu's default backends, except on Windows: DirectX 12, then OpenGL. Some Windows Vulkan
 /// drivers crash while wgpu starts (seen on Windows 11 with every launch), and DirectX 12 is
 /// the system's own API. `WGPU_BACKEND` (e.g. `vulkan`) still chooses any backend.
@@ -437,7 +409,12 @@ fn wgpu_options() -> eframe::egui_wgpu::WgpuConfiguration {
     config
 }
 
-#[cfg(test)]
+/// The web build starts from the page (`openstitch-web`'s `start`, which runs
+/// [`openstitch_app::EditorApp`]); this binary has nothing to do there.
+#[cfg(target_arch = "wasm32")]
+fn main() {}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::parse;
 
@@ -477,9 +454,11 @@ mod tests {
         assert!(parse(args("--db-view huge")).is_err());
         assert!(parse(args("--db-dialog format")).is_err());
         let (l, _) = parse(args(
-            "--ribbon view --pane color --theme dark --accent orange --show appmenu",
+            "--ribbon view --pane color --theme dark --accent orange --language pseudo --show appmenu",
         ))
         .expect("ribbon");
+        assert_eq!(l.language.as_deref(), Some("pseudo"));
+        assert!(parse(args("--language xx")).is_err());
         assert_eq!(l.accent, Some([0xef, 0x6c, 0x00]));
         assert!(parse(args("--accent neon")).is_err());
         assert_eq!(l.ribbon, Some(openstitch_app::editor::ribbon::TabId::View));

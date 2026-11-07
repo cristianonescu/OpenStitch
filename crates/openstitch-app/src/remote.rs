@@ -3,11 +3,36 @@
 
 use crate::app::EditorApp;
 use openstitch_engine::Effect;
+#[cfg(not(target_arch = "wasm32"))]
 use openstitch_remote::Policy;
 use serde_json::{Map, Value, json};
 
+/// The socket's settings and server: `openstitch-remote` on the desktop; a web page cannot
+/// listen on a socket, so the web build has empty stand-ins and never serves (#693).
+#[cfg(not(target_arch = "wasm32"))]
+pub use openstitch_remote::{Server, ServerConfig};
+
+#[cfg(target_arch = "wasm32")]
+#[derive(Clone, Debug, Default)]
+pub struct ServerConfig;
+
+#[cfg(target_arch = "wasm32")]
+pub struct Server;
+
 impl EditorApp {
+    /// The web build has no socket to serve (#693).
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn serve_remote(&mut self) {}
+
+    /// The web page's automation API (`openstitch.run`, #693): one request, run as the socket's
+    /// are, between frames on the editor's own history.
+    #[cfg(target_arch = "wasm32")]
+    pub fn web_request(&mut self, request: &Value) -> Value {
+        self.remote_request(request)
+    }
+
     /// Runs every request socket clients have queued, with their capabilities and file roots.
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn serve_remote(&mut self) {
         let Some(server) = self.remote.take() else {
             return;

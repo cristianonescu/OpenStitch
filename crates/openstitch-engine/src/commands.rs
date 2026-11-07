@@ -11,8 +11,8 @@ use openstitch_design::shapes::{self, ArcMode};
 use openstitch_design::text::{self, TextAlign, TextDirection, TextSpec};
 use openstitch_design::{
     Arrange, Bezier, ChainShape, Compiler, Contour, CrossKind, CrossTimes, Design, DesignObject,
-    DesignPage, Feather, FeatherSide, FillStitchType, Gradation, Layout, LineSewing, LineType,
-    ObjectKind, Rect, RegionSewing, RegionType, RunningStitchPath, StaggerKind, StartEnd,
+    DesignPage, FILL_TEXTURES, Feather, FeatherSide, FillStitchType, Gradation, Layout, LineSewing,
+    LineType, ObjectKind, Rect, RegionSewing, RegionType, RunningStitchPath, StaggerKind, StartEnd,
     Transform, UnderlayDensity, UnderlayParts, UnderlayStyle, Vec2, v2,
 };
 use serde_json::{Value, json};
@@ -1379,8 +1379,33 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 ),
                 opt(
                     "stagger",
-                    "regular|random",
-                    "Fill: the row-to-row needle stagger, the regular Frequency brick (PE-DESIGN) or OpenStitch's seeded random stagger",
+                    "regular|random|steps|wave|triangle|arc",
+                    "Fill: the row-to-row needle stagger, the regular Frequency brick (PE-DESIGN), or OpenStitch's seeded random stagger and textures: steps (staggerSteps offsets held staggerRepeat rows each), wave, triangle or arc (staggerAmplitude over staggerPeriod rows)",
+                ),
+                opt(
+                    "texture",
+                    "smooth|scattered|ribs|brick|diagonal|steepDiagonal|steps|stairs|blocks|waves|ripples|zigzag|chevron|scallops|custom",
+                    "Fill: a named needle-hole texture (beyond PE-DESIGN except smooth, the Frequency brick); sets stagger and its settings, which the stagger options in the same call can then change; custom keeps the current settings",
+                ),
+                opt(
+                    "staggerSteps",
+                    "integer",
+                    "Fill, steps texture: how many offsets the needle grid takes in turn, 1-16 (default 3)",
+                ),
+                opt(
+                    "staggerRepeat",
+                    "integer",
+                    "Fill, steps texture: rows held at each offset, 1-16 (default 1)",
+                ),
+                opt(
+                    "staggerAmplitude",
+                    "percent",
+                    "Fill, wave/triangle/arc texture: height of the needle shift, % of a stitch, 0-100 (default 50)",
+                ),
+                opt(
+                    "staggerPeriod",
+                    "integer",
+                    "Fill, wave/triangle/arc texture: rows per period, 2-64 (default 8)",
                 ),
                 opt(
                     "stitchType",
@@ -1467,9 +1492,11 @@ fn attribute_commands() -> Vec<CommandSpec> {
             .chain(crate::satin_shaping::SHAPING_PARAMS)
             .chain(crate::satin_shaping::REGION_PARAMS)
             .chain(crate::line_looks::REGION_PARAMS)
+            .chain(crate::motif_band_params::PARAMS)
             .collect(),
             |s, p| {
                 let idx = indexes(p, &s.design)?;
+                crate::motif_band_params::check(p, &s.design)?;
                 let kind = match p
                     .get("type")
                     .map(|_| p.string("type", None))
@@ -1648,6 +1675,13 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         r.kind == RegionType::Satin,
                         &mut r.hand,
                     )?;
+                    crate::motif_band_params::apply(
+                        p,
+                        r.kind == RegionType::Satin
+                            && (r.skeleton.is_some() || r.direction_lines.len() >= 2),
+                        "a satin region sewn along a skeleton or as a Manual Punch column",
+                        &mut r.motif_band,
+                    )?;
                     if r.direction_lines.len() >= 2
                         && let Some(h) = crate::satin_shaping::raised_hint(
                             &r.satin_shaping,
@@ -1728,15 +1762,38 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     if p.has("frequency") {
                         r.frequency = Some(p.req("frequency", 0.0, 50.0)?);
                     }
-                    if let Some(k) = choice(
-                        p,
-                        "stagger",
-                        &[
-                            ("regular", StaggerKind::Regular),
-                            ("random", StaggerKind::Random),
-                        ],
-                    )? {
+                    // "custom" (the inspector's name for settings matching no texture) keeps them.
+                    let mut textures: Vec<_> =
+                        FILL_TEXTURES.iter().map(|t| (t.id, Some(t))).collect();
+                    textures.push(("custom", None));
+                    if let Some(Some(t)) = choice(p, "texture", &textures)? {
+                        r.set_texture(t);
+                    }
+                    let kinds = StaggerKind::ALL.map(|k| (k.id(), k));
+                    if let Some(k) = choice(p, "stagger", &kinds)? {
                         r.stagger = k;
+                    }
+                    let whole = |name: &str, lo: f64, hi: f64| -> Result<Option<u32>, _> {
+                        if !p.has(name) {
+                            return Ok(None);
+                        }
+                        let v = p.req(name, lo, hi)?;
+                        if v.fract() != 0.0 {
+                            return Err(p.invalid(name, "must be a whole number"));
+                        }
+                        Ok(Some(v as u32))
+                    };
+                    if let Some(v) = whole("staggerSteps", 1.0, 16.0)? {
+                        r.stagger_steps = Some(v);
+                    }
+                    if let Some(v) = whole("staggerRepeat", 1.0, 16.0)? {
+                        r.stagger_repeat = Some(v);
+                    }
+                    if let Some(v) = whole("staggerPeriod", 2.0, 64.0)? {
+                        r.stagger_period = Some(v);
+                    }
+                    if p.has("staggerAmplitude") {
+                        r.stagger_amplitude = Some(p.req("staggerAmplitude", 0.0, 100.0)?);
                     }
                     if p.has("stitchType") {
                         // The inspector's choice sends the button as a string.
@@ -1879,8 +1936,8 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 IDS,
                 opt(
                     "type",
-                    "running|triple|zigzag|motif|stem|candlewick|eStitch|vStitch|chain|cutting|satin|backStitch|scribble|chevron|cretan|feather|overlock|alternatingTriangles|doubleZigzag|lattice|stripes|none",
-                    "Line sew type. satin (beyond PE-DESIGN) is a satin column along the line whose width can change along it: width (mm, all along), widthKeys, taperStart, taperEnd and slant shape it, and the satin options (cornerStyle, shortStitchDistance, pull*, satinStyle, jaggedEdge, raised) apply as on zigzag; object.setWidthKey and object.deleteWidthKey edit single keys. backStitch (two forward, one back) and scribble (a zigzag sewn runTimes times with smooth random side offsets, width wide) are beyond PE-DESIGN too. Decorative hand-embroidery lines (beyond PE-DESIGN, #543), width the band: chevron (a bar along the line at each peak), cretan (a short stitch in from each peak, height long), feather (the side stitches turned forward), overlock (a serger-like edge), alternatingTriangles (triangles between two rails), doubleZigzag (a zigzag and its mirror: diamonds), lattice (strands crossing), stripes (rows along the band, strands or gaps); spacing is the zigzag period",
+                    "running|triple|zigzag|motif|stem|candlewick|eStitch|vStitch|chain|cutting|satin|backStitch|scribble|chevron|cretan|feather|overlock|alternatingTriangles|doubleZigzag|lattice|stripes|ripple|none",
+                    "Line sew type. satin (beyond PE-DESIGN) is a satin column along the line whose width can change along it: width (mm, all along), widthKeys, taperStart, taperEnd and slant shape it, and the satin options (cornerStyle, shortStitchDistance, pull*, satinStyle, jaggedEdge, raised) apply as on zigzag; object.setWidthKey and object.deleteWidthKey edit single keys. backStitch (two forward, one back) and scribble (a zigzag sewn runTimes times with smooth random side offsets, width wide) are beyond PE-DESIGN too. Decorative hand-embroidery lines (beyond PE-DESIGN, #543), width the band: chevron (a bar along the line at each peak), cretan (a short stitch in from each peak, height long), feather (the side stitches turned forward), overlock (a serger-like edge), alternatingTriangles (triangles between two rails), doubleZigzag (a zigzag and its mirror: diamonds), lattice (strands crossing), stripes (rows along the band, strands or gaps); spacing is the zigzag period. ripple (beyond PE-DESIGN, #541): the line repeated strands times, shrinking towards target (a closed line spirals in as one run; an open one is sewn back and forth spacing apart)",
                 ),
                 opt("color", "color", "Thread"),
                 opt(
@@ -1958,6 +2015,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 "Zigzag: the under sewing when underSewing is on: edge (PE-DESIGN's two runs a quarter of the width to each side, the default), centreWalk (along the line and back), edgeZigzag (one edge run out, a zigzag back) or auto (by width: underlayAuto)",
             )])
             .chain(crate::satin_shaping::SATIN_LINE_PARAMS)
+            .chain(crate::motif_band_params::PARAMS)
             .collect(),
             |s, p| {
                 let idx = indexes(p, &s.design)?;
@@ -2026,6 +2084,24 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     Some("diamond") => Some(ChainShape::Diamond),
                     Some(_) => return Err(p.invalid("chainShape", "must be triangle or diamond")),
                 };
+                crate::motif_band_params::check(p, &s.design)?;
+                // Motifs in turn (#544) must be motifs of the library or the design.
+                let in_turn: Vec<String> = match p.get("motifs") {
+                    Some(Value::String(id)) if id != "none" => vec![id.clone()],
+                    Some(Value::Array(a)) => a
+                        .iter()
+                        .filter_map(|v| v.as_str().map(str::to_string))
+                        .collect(),
+                    _ => Vec::new(),
+                };
+                for id in &in_turn {
+                    if s.design.find_pattern(PatternKind::Motif, id).is_none() {
+                        return Err(p.invalid(
+                            "motifs",
+                            format!("'{id}' is not a motif; see patterns.list"),
+                        ));
+                    }
+                }
                 for i in idx {
                     let o = &mut s.design.objects[i];
                     if !o.is_outline() {
@@ -2113,6 +2189,12 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     crate::line_looks::apply_line(p, &mut l)?;
                     crate::decorative_params::apply(p, &mut l)?;
                     crate::satin_shaping::apply_satin_line(p, &mut l)?;
+                    crate::motif_band_params::apply(
+                        p,
+                        l.kind == LineType::Satin,
+                        "a satin line",
+                        &mut l.motif_band,
+                    )?;
                     if matches!(l.kind, LineType::Zigzag | LineType::Satin)
                         && let Some(h) = crate::satin_shaping::raised_hint(&l.satin_shaping, l.width)
                     {

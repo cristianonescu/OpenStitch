@@ -2,10 +2,11 @@
 // engine) through Playwright. CI job `web` runs it after the browser build:
 //   node web/e2e/page.mjs [--optional BROWSER]... WEB_DIR NATIVE_DIR INPUT [OUT_DIR]
 // WEB_DIR holds index.html and pkg/ (wasm-bindgen --target web). In each browser the page
-// must start; then "Open…" is clicked and INPUT given to the browser's file picker, and
-// "Export" (PES, the default format) is clicked; the download must be byte-identical to
-// NATIVE_DIR/<input name>.pes (`cargo run -p openstitch-web --example web_export`). DST goes
-// through openstitch.run and must match NATIVE_DIR/<input name>.dst. A screenshot per browser
+// must start the desktop editor (#693); then File ▸ Open (Ctrl+O) gives INPUT to the browser's
+// file picker, and the design is exported as PES and DST through openstitch.run into the
+// editor's save folder (/web/save), which the page hands to the browser as downloads; each
+// must be byte-identical to NATIVE_DIR/<input name>.pes and .dst (`cargo run -p openstitch-web
+// --example web_export`). A screenshot per browser
 // goes to OUT_DIR when given. A browser named with --optional (chromium, firefox, webkit) that
 // cannot be launched (a missing system library) or has no WebGL on the machine is reported as a
 // CI warning, not a failure; once the editor has started in it, every check counts. Firefox may
@@ -46,10 +47,8 @@ const server = createServer((req, res) => {
 await new Promise((ok) => server.listen(0, "127.0.0.1", ok));
 const url = `http://127.0.0.1:${server.address().port}/`;
 
-// The file bar's buttons on the egui canvas at 1100 × 750 and scale 1 (egui's own fonts,
-// so the same in every browser): "Open…" and "Export".
-const OPEN = { x: 37, y: 12 };
-const EXPORT = { x: 277, y: 12 };
+const stem = name.replace(/\.[^.]*$/, "");
+const run = (page, request) => page.evaluate((r) => window.openstitch.run(r), request);
 
 let failures = 0;
 for (const [label, type] of [["Chromium", chromium], ["Firefox", firefox], ["WebKit", webkit]]) {
@@ -91,36 +90,44 @@ for (const [label, type] of [["Chromium", chromium], ["Firefox", firefox], ["Web
     if (message) throw new Error(message);
     await page.waitForTimeout(500);
 
-    console.log(`${label}: started; opening ${name} through the file picker`);
-    // File ▸ Open through the real picker.
-    const [chooser] = await Promise.all([page.waitForEvent("filechooser", { timeout: 15_000 }), page.mouse.click(OPEN.x, OPEN.y)]);
+    console.log(`${label}: started; opening ${name} through the file picker (Ctrl+O)`);
+    // File ▸ Open's shortcut on the focused canvas; the editor asks the page for the picker.
+    await page.evaluate(() => document.getElementById("openstitch").focus());
+    const [chooser] = await Promise.all([
+      page.waitForEvent("filechooser", { timeout: 15_000 }),
+      page.keyboard.press("Control+O"),
+    ]);
     await chooser.setFiles(input);
     await page.waitForFunction(
-      (n) => window.openstitch.run({ command: "ui.state" }).result.file === n,
-      name,
+      () => {
+        const s = window.openstitch.run({ command: "ui.state" }).result;
+        return s && s.loading == null && s.stats.stitches > 0;
+      },
+      null,
       { timeout: 30_000 },
     );
 
-    console.log(`${label}: opened; exporting PES through a download`);
-    // File ▸ Export through the real download.
-    const [download] = await Promise.all([page.waitForEvent("download", { timeout: 15_000 }), page.mouse.click(EXPORT.x, EXPORT.y)]);
-    const got = readFileSync(await download.path());
-    const want = readFileSync(join(nativeDir, `${name}.pes`));
-    if (!got.equals(want) || !download.suggestedFilename().endsWith(".pes")) {
-      throw new Error(`downloaded ${download.suggestedFilename()} (${got.length} bytes), native ${want.length} bytes`);
-    }
-
-    // The automation API in the same page.
-    const dst = await page.evaluate(() => window.openstitch.run({ command: "ui.exportFile", params: { format: "dst" } }));
-    if (!dst.ok || !Buffer.from(dst.result.files[0].base64, "base64").equals(readFileSync(join(nativeDir, `${name}.dst`)))) {
-      throw new Error(`ui.exportFile dst: ${JSON.stringify(dst).slice(0, 200)}`);
+    // Exports into the save folder become downloads.
+    for (const format of ["pes", "dst"]) {
+      console.log(`${label}: opened; exporting ${format.toUpperCase()} through a download`);
+      const file = `${stem}.${format}`;
+      const [download, reply] = await Promise.all([
+        page.waitForEvent("download", { timeout: 15_000 }),
+        run(page, { command: "design.export", params: { path: `/web/save/${file}`, format } }),
+      ]);
+      if (!reply.ok) throw new Error(`design.export ${format}: ${JSON.stringify(reply).slice(0, 200)}`);
+      const got = readFileSync(await download.path());
+      const want = readFileSync(join(nativeDir, `${name}.${format}`));
+      if (!got.equals(want) || download.suggestedFilename() !== file) {
+        throw new Error(`downloaded ${download.suggestedFilename()} (${got.length} bytes), native ${want.length} bytes`);
+      }
     }
     if (outDir) {
       mkdirSync(outDir, { recursive: true });
       await page.screenshot({ path: join(outDir, `web-${label.toLowerCase()}.png`) });
     }
     if (errors.length) throw new Error(`page errors: ${errors.join("; ")}`);
-    console.log(`ok ${label}: started, opened ${name} with the file picker, the PES download and the DST export are identical to the desktop build`);
+    console.log(`ok ${label}: started, opened ${name} with the file picker, the PES and DST downloads are identical to the desktop build`);
   } catch (e) {
     console.error(`FAIL ${label}: ${e.message}`);
     failures += 1;

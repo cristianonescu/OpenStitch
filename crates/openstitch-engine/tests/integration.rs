@@ -100,6 +100,8 @@ mod mapped_text;
 mod media_exports;
 #[path = "monogram.rs"]
 mod monogram;
+#[path = "motif_band.rs"]
+mod motif_band;
 #[path = "name_drop.rs"]
 mod name_drop;
 #[path = "order.rs"]
@@ -128,6 +130,8 @@ mod quality;
 mod random_designs;
 #[path = "region_compat.rs"]
 mod region_compat;
+#[path = "ripple_motif_lines.rs"]
+mod ripple_motif_lines;
 #[path = "routing.rs"]
 mod routing;
 #[path = "satin_compat.rs"]

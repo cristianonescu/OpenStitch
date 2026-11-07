@@ -260,7 +260,7 @@ impl Host<FactoryAction> for EditorApp {
                 }
             }
             OpenTemplate => {
-                if let Some(path) = rfd::FileDialog::new()
+                if let Some(path) = crate::files::FileDialog::new()
                     .add_filter(
                         "Image",
                         &["png", "jpg", "jpeg", "bmp", "gif", "tif", "tiff"],
@@ -454,7 +454,7 @@ fn step_density(st: &mut SewingState) {
 }
 
 fn open_file(st: &mut SewingState) {
-    let Some(path) = rfd::FileDialog::new()
+    let Some(path) = crate::files::FileDialog::new()
         .add_filter("OpenStitch sewing stitch", &["json"])
         .pick_file()
     else {
@@ -474,7 +474,7 @@ fn open_file(st: &mut SewingState) {
 }
 
 fn save_as(st: &mut SewingState) {
-    if let Some(path) = rfd::FileDialog::new()
+    if let Some(path) = crate::files::FileDialog::new()
         .set_file_name(format!("{}.json", st.editor.doc.id))
         .add_filter("OpenStitch sewing stitch", &["json"])
         .save_file()
@@ -495,7 +495,7 @@ fn save_in_project(app: &mut EditorApp, r: &CommandRequest) {
 }
 
 fn export(app: &mut EditorApp) {
-    if let Some(path) = rfd::FileDialog::new()
+    if let Some(path) = crate::files::FileDialog::new()
         .set_file_name(format!("{}.json", app.sewing.editor.doc.id))
         .add_filter("OpenStitch sewing stitch", &["json"])
         .add_filter("SVG drawing", &["svg"])

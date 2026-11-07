@@ -2958,6 +2958,33 @@ auto, shortStitchDistance: 0.25`, read from the exported PES:
   region's second underlay (#677), lap corners. No sew-out yet: the owner's T-card scan of a
   tapered column with `pullPercent: 3` is still needed for #522's ±5 % width target.
 
+### Ripple lines and motif line placement, 2026-11-07 (#541, #544 part, `batch:lines`, part 3)
+
+Beyond PE-DESIGN and off unless chosen: a motif line without groups, free ends or motifs in
+turn is PE-DESIGN's, unchanged (compat `line-motif-zigzag-3pt`); PES 0110 export refuses the
+ripple type and the motif plan.
+
+- Ripple: a closed line spirals in to its target as one run (no jump, no trim), the scale
+  falling evenly along each turn; an open line is sewn back and forth beside itself, the
+  copies `spacing` apart towards the target. The target is dragged on the canvas.
+- Motif lines: groups with a longer gap after each, motif-free ends, motifs used in turn; the
+  motifs are not stretched to fit (PE-DESIGN's line stretches them), so what does not fit
+  before the free end stays running stitch. Five more bundled motifs.
+- Not done: the motif band on skeleton satins and columns (#544); done in part 4 below.
+
+### Motif bands along satin columns, 2026-11-07 (#544 part, `batch:lines`, part 4)
+
+Beyond PE-DESIGN and off unless chosen: a satin without `motifBand` sews as before (compat
+unchanged); PES 0110 export refuses a motif band.
+
+- A skeleton satin, a Manual Punch satin column or a satin line can sew a motif along its
+  column instead of the satin: a whole number of copies, each `bandTile` long (default the
+  column's mean width), stretched to fill the column end to end. Each copy is mapped from the
+  column's left edge to its right edge at every point along it, so on a 2 to 8 mm taper every
+  copy touches both edges within 0.2 mm. `bandMirror` flips every other copy across.
+- The under sewing and raised padding of the column stay; only the top satin is replaced.
+- Still to do in #544: an image per line-type option.
+
 ### Decorative hand-embroidery lines, 2026-11-07 (#543, `batch:lines`, part 2)
 
 Beyond PE-DESIGN and off unless chosen: no PE-compatible output changes (compat unchanged),
@@ -3116,6 +3143,25 @@ and with each of the six presets: before, p01 with `lineArt` failed with 7 in pl
 13 runs passed on main by then); after, all 14 pass, the longest run in place 4-6. Compat
 454/454, and its 501 written files are byte-identical apart from two JEF time stamps.
 Tests `tie_off_tests::*`.
+
+### PE-compatible Photo Stitch 1: one path a colour, 2026-11-07 (#298)
+
+PE-DESIGN 11.50 sews Photo Stitch 1 nearly one path a colour. Round-8 capture of the sunset (p06)
+at 90 mm, defaults: 11 trims in 8,683 stitches (1.3 per 1,000), 0-3 trims a colour, a jump only
+at each colour's start, every stitch 2.5-4.5 mm (Run Pitch 3.0). Its travel is in sight.
+OpenStitch's PE-compatible mode jumped and trimmed wherever no hidden way led to the next run:
+108 trims (10.8 per 1,000) on the same picture.
+
+Now, where no hidden way leads on, the thread travels in sight to its nearest unsewn run in
+stitches of at most 3 mm, and trims only past 40 mm (at 20 mm: 18 trims). The sunset at 90 mm
+sews 14 trims in 9,744 stitches (1.4 per 1,000). OpenStitch mode is unchanged: its Trims setting
+is the user's (and the owner's call after a sew-out, see #298).
+
+Likeness of PE-compatible mode on the nine Photo Stitch 1 cases (`tools/image_similarity.py
+--mode pe --no-dists`, before → after): trims 1,667 → 120. dE00 is better on seven, for example
+p07 18.32 → 17.89 and p06 19.12 → 18.82, and worse on p05 (+0.17) and p11 (+0.22). MS-SSIM falls
+0.002-0.025 (p11 0.699 → 0.675), as the travel PE-DESIGN also sews now shows in the render.
+Test `digitize::compatible_photo_stitch_trims_about_as_rarely_as_pe_design`.
 
 ### Auto Punch line art: dots without knots, a colour's pieces joined, 2026-11-07 (#713)
 

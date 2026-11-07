@@ -214,7 +214,7 @@ pub fn text_tools_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
 
 /// Loads a TrueType / OpenType font into the design.
 pub fn load_truetype(app: &mut EditorApp) {
-    if let Some(p) = rfd::FileDialog::new()
+    if let Some(p) = crate::files::FileDialog::new()
         .add_filter("TrueType / OpenType", &["ttf", "otf", "ttc", "otc"])
         .pick_file()
         && let Some(r) = app.execute(&lettering::load_font_request(&p))
@@ -457,7 +457,7 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
             }
         }
         Some(FontAction::ChooseImage) => {
-            if let Some(p) = rfd::FileDialog::new()
+            if let Some(p) = crate::files::FileDialog::new()
                 .add_filter("Images", &["png", "jpg", "jpeg", "bmp"])
                 .pick_file()
             {
@@ -495,7 +495,7 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
                 .iter()
                 .map(|t| t.extension())
                 .collect();
-            if let Some(paths) = rfd::FileDialog::new()
+            if let Some(paths) = crate::files::FileDialog::new()
                 .add_filter("Embroidery files", &exts)
                 .pick_files()
                 && let Some(r) = app.execute(&f.map_files(&paths))
@@ -504,7 +504,7 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
             }
         }
         Some(FontAction::Save) => {
-            if let Some(p) = rfd::FileDialog::new()
+            if let Some(p) = crate::files::FileDialog::new()
                 .add_filter("OpenStitch font", &[ext])
                 .set_file_name(format!("{}.{ext}", f.font))
                 .save_file()
@@ -514,7 +514,7 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
             }
         }
         Some(FontAction::Open) => {
-            if let Some(p) = rfd::FileDialog::new()
+            if let Some(p) = crate::files::FileDialog::new()
                 .add_filter("OpenStitch font", &[ext])
                 .pick_file()
                 && let Some(r) = app.execute(&FontsForm::open_file(&p))
@@ -1214,7 +1214,7 @@ fn name_drop_window(app: &mut EditorApp, ctx: &egui::Context) {
             }
         }
         Some(DropAction::ImportCsv) => {
-            if let Some(p) = rfd::FileDialog::new()
+            if let Some(p) = crate::files::FileDialog::new()
                 .add_filter("CSV", &["csv"])
                 .pick_file()
                 && let Some(r) = app.execute(&NameDropForm::read_csv(&p))
@@ -1223,7 +1223,7 @@ fn name_drop_window(app: &mut EditorApp, ctx: &egui::Context) {
             }
         }
         Some(DropAction::SaveCsv) => {
-            if let Some(p) = rfd::FileDialog::new()
+            if let Some(p) = crate::files::FileDialog::new()
                 .add_filter("CSV", &["csv"])
                 .set_file_name("name-drop.csv")
                 .save_file()
@@ -1232,7 +1232,7 @@ fn name_drop_window(app: &mut EditorApp, ctx: &egui::Context) {
             }
         }
         Some(DropAction::ToFolder) => {
-            if let Some(dir) = rfd::FileDialog::new().pick_folder()
+            if let Some(dir) = crate::files::FileDialog::new().pick_folder()
                 && let Some(r) = app.execute(&f.export(&dir))
             {
                 app.status = format!("Wrote {} file(s) to {}", r["count"], dir.display());
@@ -1254,7 +1254,7 @@ pub fn open_template_wizard(app: &mut EditorApp) {
 
 pub fn save_template(app: &mut EditorApp) {
     let ext = openstitch_engine::templates::EXTENSION;
-    if let Some(p) = rfd::FileDialog::new()
+    if let Some(p) = crate::files::FileDialog::new()
         .add_filter("OpenStitch template", &[ext])
         .set_file_name(format!("{}.{ext}", app.session.design().name))
         .save_file()
@@ -1350,7 +1350,7 @@ fn template_window(app: &mut EditorApp, ctx: &egui::Context) {
         });
     app.lettering.templates.open = open;
     let step = app.lettering.templates.step.max(1);
-    if folder && let Some(d) = rfd::FileDialog::new().pick_folder() {
+    if folder && let Some(d) = crate::files::FileDialog::new().pick_folder() {
         app.lettering.templates.dir = Some(d);
         open_template_wizard(app);
     } else if back {

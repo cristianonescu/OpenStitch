@@ -56,7 +56,7 @@ pub struct Launch {
     /// Design Database dialog to open: search, convert, catalog, delete, newfolder.
     pub database_dialog: Option<String>,
     /// Automation socket (`--listen`); started by `main` before the window opens.
-    pub listen: Option<openstitch_remote::ServerConfig>,
+    pub listen: Option<crate::remote::ServerConfig>,
     /// Ribbon tab and right-hand pane tab to show (`--ribbon`, `--pane`).
     pub ribbon: Option<openstitch_app::editor::ribbon::TabId>,
     pub pane: Option<crate::ribbon::PaneTab>,
@@ -64,6 +64,8 @@ pub struct Launch {
     pub theme: Option<openstitch_app::editor::prefs::Theme>,
     /// Accent colour (`--accent`, #559); otherwise the saved preference.
     pub accent: Option<[u8; 3]>,
+    /// Interface language (`--language`, #555); otherwise the saved preference.
+    pub language: Option<String>,
     /// `--no-splash`: no startup splash (also set by `main` for `--listen`).
     pub no_splash: bool,
 }
@@ -264,7 +266,7 @@ pub struct EditorApp {
     /// tests read this instead.
     pub printed: Option<PathBuf>,
     /// Loopback automation socket; its requests run in [`EditorApp::serve_remote`].
-    pub remote: Option<openstitch_remote::Server>,
+    pub remote: Option<crate::remote::Server>,
     /// The AI assistant's scratch folder and pending Help link (`assistant_ui.rs`).
     pub assistant: crate::assistant_ui::AssistantState,
     /// Autosave snapshots and the Recover Designs window (#549).
@@ -425,6 +427,9 @@ impl EditorApp {
         }
         if let Some(t) = l.theme {
             self.ui.prefs.theme = t;
+        }
+        if let Some(code) = &l.language {
+            self.ui.prefs.language = code.clone();
         }
         // The Assistant opens as the user left it, open on first start (#422); screenshots
         // keep the default layout without it.
@@ -1095,7 +1100,7 @@ impl EditorApp {
             Pending::Open(None) => {
                 let mut exts = vec![openstitch_engine::project::EXTENSION];
                 exts.extend(FileType::ALL.iter().map(|t| t.extension()));
-                match rfd::FileDialog::new()
+                match crate::files::FileDialog::new()
                     .add_filter("Designs and embroidery files", &exts)
                     .pick_file()
                 {
@@ -1198,15 +1203,23 @@ impl EditorApp {
     pub fn open_dialog(&mut self) {
         let mut exts = vec![openstitch_engine::project::EXTENSION];
         exts.extend(FileType::ALL.iter().map(|t| t.extension()));
-        let file = rfd::FileDialog::new()
+        // A browser picks asynchronously: the page opens the file when it arrives (#693).
+        #[cfg(target_arch = "wasm32")]
+        crate::files::request_pick(
+            crate::files::Pick::Open,
+            "Designs and embroidery files",
+            &exts,
+        );
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(p) = crate::files::FileDialog::new()
             .add_filter("Designs and embroidery files", &exts)
             .add_filter(
                 "OpenStitch design",
                 &[openstitch_engine::project::EXTENSION],
             )
             .add_filter("Embroidery files", &exts[1..])
-            .pick_file();
-        if let Some(p) = file {
+            .pick_file()
+        {
             self.open_in_background(&p);
         }
     }
@@ -1266,7 +1279,10 @@ impl EditorApp {
 
     pub fn import_dialog(&mut self) {
         let exts: Vec<_> = FileType::ALL.iter().map(|t| t.extension()).collect();
-        if let Some(p) = rfd::FileDialog::new()
+        #[cfg(target_arch = "wasm32")]
+        crate::files::request_pick(crate::files::Pick::Import, "Embroidery files", &exts);
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(p) = crate::files::FileDialog::new()
             .add_filter("Embroidery files", &exts)
             .pick_file()
         {
@@ -1277,7 +1293,7 @@ impl EditorApp {
     /// Home ▸ Import ▸ Import PE-DESIGN Objects: a PE-DESIGN 11 (`#PES0110`) file's shapes,
     /// texts and stitch groups as editable objects at their places, its groups kept (#397).
     pub fn import_pes_objects_dialog(&mut self) {
-        let Some(p) = rfd::FileDialog::new()
+        let Some(p) = crate::files::FileDialog::new()
             .add_filter("PE-DESIGN 11 file", &["pes"])
             .pick_file()
         else {
@@ -1309,7 +1325,7 @@ impl EditorApp {
     /// File ▸ Import SVG: the artwork's paths (or a WMF/EMF drawing's shapes) become a group of
     /// editable shapes, centred.
     pub fn import_svg_dialog(&mut self) {
-        let Some(p) = rfd::FileDialog::new()
+        let Some(p) = crate::files::FileDialog::new()
             .add_filter("Vector images", &["svg", "wmf", "emf"])
             .add_filter("SVG vector image", &["svg"])
             .add_filter("Windows metafile", &["wmf", "emf"])
@@ -1335,7 +1351,7 @@ impl EditorApp {
 
     /// File ▸ Background Image: a PNG, JPEG or BMP shown behind the design, fitted to the page.
     pub fn background_dialog(&mut self) {
-        if let Some(p) = rfd::FileDialog::new()
+        if let Some(p) = crate::files::FileDialog::new()
             .add_filter("Images", &["png", "jpg", "jpeg", "bmp"])
             .pick_file()
             && self
@@ -1402,7 +1418,7 @@ impl EditorApp {
     pub fn save(&mut self, save_as: bool) {
         let path = match (&self.path, save_as) {
             (Some(p), false) => Some(p.clone()),
-            _ => rfd::FileDialog::new()
+            _ => crate::files::FileDialog::new()
                 .add_filter(
                     "OpenStitch design",
                     &[openstitch_engine::project::EXTENSION],
@@ -1465,7 +1481,7 @@ impl EditorApp {
     /// Writes a stitch list (`csv`, `txt`) or G-code (`gcode`) through `design.export` (#488).
     pub fn export_extra(&mut self, ext: &str) {
         let name = format!("{}.{ext}", self.session.design().name);
-        let Some(path) = rfd::FileDialog::new()
+        let Some(path) = crate::files::FileDialog::new()
             .add_filter(ext.to_uppercase(), &[ext])
             .set_file_name(name)
             .save_file()
@@ -1490,7 +1506,7 @@ impl EditorApp {
             ""
         };
         let name = format!("{}{suffix}.{ext}", self.session.design().name);
-        let Some(path) = rfd::FileDialog::new()
+        let Some(path) = crate::files::FileDialog::new()
             .add_filter(ext.to_uppercase(), &[ext])
             .set_file_name(name)
             .save_file()
@@ -1509,7 +1525,7 @@ impl EditorApp {
     /// Writes the design's colours in sewing order (`design.exportThreads`).
     pub fn export_thread_list(&mut self, ext: &str) {
         let name = format!("{} threads.{ext}", self.session.design().name);
-        let Some(path) = rfd::FileDialog::new()
+        let Some(path) = crate::files::FileDialog::new()
             .add_filter(ext.to_uppercase(), &[ext])
             .set_file_name(name)
             .save_file()
@@ -1524,7 +1540,7 @@ impl EditorApp {
 
     /// Applies a thread list file to the colour blocks (`design.applyThreads`).
     pub fn apply_thread_list(&mut self) {
-        let Some(path) = rfd::FileDialog::new()
+        let Some(path) = crate::files::FileDialog::new()
             .add_filter("Thread lists", &["csv", "inf", "edr", "col", "txt"])
             .pick_file()
         else {
@@ -1543,7 +1559,7 @@ impl EditorApp {
 
     fn export_with_params(&mut self, ty: FileType, pes_version: Option<&str>, companion_inf: bool) {
         let name = format!("{}.{}", self.session.design().name, ty.extension());
-        let Some(path) = rfd::FileDialog::new()
+        let Some(path) = crate::files::FileDialog::new()
             .add_filter(ty.extension().to_uppercase(), &[ty.extension()])
             .set_file_name(name)
             .save_file()
@@ -2035,6 +2051,8 @@ impl eframe::App for EditorApp {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        // Options ▸ Language (#555): the window's texts for this frame.
+        openstitch_app::editor::i18n::set_language(&self.ui.prefs.language);
         // A hover preview lasts while a picture picker's tile is hovered (#656).
         self.pickers_frame_end();
         self.pickers_frame_start();
@@ -2143,21 +2161,19 @@ fn is_project(p: &Path) -> bool {
 /// Width and height (mm) of a machine file, used only to size the page before importing.
 /// The Design Page size in mm a PE-DESIGN 11 `#PES0110` file was saved with.
 fn pes_page_mm(p: &Path) -> Option<(f64, f64)> {
-    if FileType::from_path(p)? != FileType::Pes || std::fs::metadata(p).ok()?.len() > 64 << 20 {
+    if FileType::from_path(p)? != FileType::Pes {
         return None;
     }
-    let section = openstitch_formats::pes::read_objects(&std::fs::read(p).ok()?).ok()?;
+    let bytes = openstitch_app::platform::read_small(p, 64 << 20)?;
+    let section = openstitch_formats::pes::read_objects(&bytes).ok()?;
     let (w, h) = section.page_mm.filter(|_| section.version == "0110")?;
     Some((f64::from(w), f64::from(h)))
 }
 
 fn machine_file_size_mm(p: &Path) -> Option<(f64, f64)> {
     let ty = FileType::from_path(p)?;
-    let meta = std::fs::metadata(p).ok()?;
-    if meta.len() > 64 << 20 {
-        return None;
-    }
-    let pattern = ty.read(&std::fs::read(p).ok()?).ok()?;
+    let bytes = openstitch_app::platform::read_small(p, 64 << 20)?;
+    let pattern = ty.read(&bytes).ok()?;
     let b = pattern.bounds();
     Some((b.width() / 10.0, b.height() / 10.0))
 }

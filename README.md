@@ -389,6 +389,11 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
 - **Cutting lines** for cutwork needles, with uncut bridges.
 - (+) **Back stitch and brush-stroke running lines:** two forward, one back; or a running line
   sewn more times where a thickness profile swells ([#542]).
+- (+) **Ripple lines:** a line repeated smaller towards a target you drag, a closed shape
+  spiralling in as one unbroken run ([#541]).
+- (+) **Motif lines in groups and motif bands:** motifs in groups with gaps, motif-free ends,
+  motifs used in turn, five more bundled motifs, and a motif repeated along a satin column,
+  stretched to its width as it tapers (*partial*) ([#544]).
 - (+) **Decorative hand-embroidery lines:** chevron, Cretan, feather, overlock, alternating
   triangles, double zigzag, lattice and stripes along any line, and slanted E stitch prongs
   ([#543]).
@@ -402,6 +407,9 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
   Stitch Types (*Stitch Type 2: partially compatible*), under sewing, gradation, feathered edge
   and the Running Stitch Path choice.
 - (+) **Random stagger:** seeded and reproducible, beside PE-DESIGN's Frequency brick.
+- (+) **Tatami textures:** 13 named needle-hole patterns beside PE-DESIGN's smooth brick (ribs,
+  diagonals, steps, blocks, waves, zigzag, chevron, scallops and more), or your own steps and
+  wave, triangle or arc shifts ([#537]).
 - (+) **Wave fill:** a fill's rows ripple as a sine with a set height and length ([#538]).
 - **Curved sewing direction** (round fill) for fill, programmable fill, piping and motif fill
   ([#471]).
@@ -596,9 +604,9 @@ See also [New: the Assistant](#new-the-assistant).
 ### Platforms (desktop, browser, Quick Look)
 
 - **Desktop editor** for macOS, Windows and Linux, with its own icons generated for OpenStitch.
-- (+) **[Editor in a web browser](https://cristianonescu.github.io/OpenStitch/)** (*partial*: first
-  slice): open, simulate, rotate, flip, save `.osd` and export every machine format as downloads
-  ([#556]).
+- (+) **[Editor in a web browser](https://cristianonescu.github.io/OpenStitch/)** (*partial*): the
+  desktop editor in the page, opening files through the browser's picker and saving and exporting
+  every machine format as downloads ([#556], [#693]).
 - (+) **macOS Finder thumbnails** through a Quick Look extension, for `.osd`, `.pes` and 16 more
   formats ([#557]).
 - (+) **Linux file-manager thumbnails** for `.osd` and `.pes`.
@@ -689,10 +697,13 @@ See also [New: the Assistant](#new-the-assistant).
 [#531]: https://github.com/cristianonescu/OpenStitch/issues/531
 [#535]: https://github.com/cristianonescu/OpenStitch/issues/535
 [#536]: https://github.com/cristianonescu/OpenStitch/issues/536
+[#537]: https://github.com/cristianonescu/OpenStitch/issues/537
 [#538]: https://github.com/cristianonescu/OpenStitch/issues/538
 [#540]: https://github.com/cristianonescu/OpenStitch/issues/540
+[#541]: https://github.com/cristianonescu/OpenStitch/issues/541
 [#542]: https://github.com/cristianonescu/OpenStitch/issues/542
 [#543]: https://github.com/cristianonescu/OpenStitch/issues/543
+[#544]: https://github.com/cristianonescu/OpenStitch/issues/544
 [#545]: https://github.com/cristianonescu/OpenStitch/issues/545
 [#546]: https://github.com/cristianonescu/OpenStitch/issues/546
 [#547]: https://github.com/cristianonescu/OpenStitch/issues/547
@@ -711,6 +722,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#553]: https://github.com/cristianonescu/OpenStitch/issues/553
 [#554]: https://github.com/cristianonescu/OpenStitch/issues/554
 [#556]: https://github.com/cristianonescu/OpenStitch/issues/556
+[#693]: https://github.com/cristianonescu/OpenStitch/issues/693
 [#557]: https://github.com/cristianonescu/OpenStitch/issues/557
 [#558]: https://github.com/cristianonescu/OpenStitch/issues/558
 [#559]: https://github.com/cristianonescu/OpenStitch/issues/559
@@ -1067,9 +1079,9 @@ The latest pre-release is on the
 sew-out on scrap fabric first.
 
 **Try it in a browser, with nothing to install:** <https://cristianonescu.github.io/OpenStitch/>
-opens designs and embroidery files from your disk, shows and simulates them, and saves and exports
-them as downloads; nothing leaves the browser. It is built from `main` and does less than the
-desktop app (no Assistant, drawing or lettering tools yet; see
+runs the desktop editor: it opens designs and embroidery files from your disk and saves and
+exports them as downloads; nothing leaves the browser. It is built from `main` and does less than
+the desktop app (no Assistant, system clipboard, printing or image pickers yet; see
 [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md#web-editor)).
 
 Every merge to `main` also builds the executables for all three operating systems. Open the

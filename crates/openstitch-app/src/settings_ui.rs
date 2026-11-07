@@ -170,7 +170,7 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                     .button("Import palette…")
                     .on_hover_text("A GIMP or Inkscape palette (.gpl) as a new chart")
                     .clicked()
-                    && let Some(path) = rfd::FileDialog::new()
+                    && let Some(path) = crate::files::FileDialog::new()
                         .add_filter("GIMP / Inkscape palette", &["gpl"])
                         .pick_file()
                 {
@@ -285,7 +285,7 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                     request = Some(CommandRequest::new("threads.addColor", p));
                 }
                 if ui.button("Import CSV…").clicked()
-                    && let Some(path) = rfd::FileDialog::new()
+                    && let Some(path) = crate::files::FileDialog::new()
                         .add_filter("CSV", &["csv"])
                         .pick_file()
                 {
@@ -295,7 +295,7 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                     ));
                 }
                 if ui.button("Export palette…").clicked()
-                    && let Some(path) = rfd::FileDialog::new()
+                    && let Some(path) = crate::files::FileDialog::new()
                         .add_filter("GIMP / Inkscape palette", &["gpl"])
                         .set_file_name(format!("{name}.gpl"))
                         .save_file()
@@ -306,7 +306,7 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                     ));
                 }
                 if ui.button("Export CSV…").clicked()
-                    && let Some(path) = rfd::FileDialog::new()
+                    && let Some(path) = crate::files::FileDialog::new()
                         .add_filter("CSV", &["csv"])
                         .set_file_name(format!("{name}.csv"))
                         .save_file()

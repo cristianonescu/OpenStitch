@@ -590,7 +590,22 @@ fn fill_layer(d: &[Option<usize>], g: &Grid, rank: &[usize], t: usize) -> Vec<St
         &sewing,
         |_, _, _, _| true,
         Some(&route as Route),
+        Some(pe_travel()),
     )
+}
+
+/// PE-DESIGN-compatible Photo Stitch 1: where no hidden way leads on, the thread travels in
+/// sight to its nearest unsewn run in stitches of at most [`PE_TRAVEL_PITCH_MM`], as PE-DESIGN
+/// 11.50 sews each colour in one path (round-8 capture of p06 at 90 mm: 11 trims in 8,683
+/// stitches, 0-3 a colour, its stitches 2.5-4.5 mm), and trims only past
+/// [`PE_TRAVEL_MM`] (#298). At 40 mm OpenStitch sews the same picture with 14 trims in 9,744
+/// stitches (1.4 per 1,000; 108 before); at 20 mm, 18.
+pub const PE_TRAVEL_MM: f64 = 40.0;
+/// Stitch length of that travel, mm: PE-DESIGN's Run Pitch default.
+pub const PE_TRAVEL_PITCH_MM: f64 = 3.0;
+
+fn pe_travel() -> (f64, f64) {
+    (PE_TRAVEL_MM * 10.0, PE_TRAVEL_PITCH_MM * 10.0)
 }
 
 /// Thread `t`'s runs in grid order: each run of neighbouring cells in a row has a needle point
@@ -675,6 +690,7 @@ fn sew_runs(
     s: &Sewing,
     hidden: impl Fn(f64, f64, f64, f64) -> bool,
     route: Option<Route>,
+    visible: Option<(f64, f64)>,
 ) -> Vec<Stitch> {
     let Sewing {
         reach_x,
@@ -728,10 +744,36 @@ fn sew_runs(
                 }
             }
         }
-        let routed = match (best, pen, route) {
+        let mut routed = match (best, pen, route) {
             (None, Some((px, _)), Some(route)) => route(px, runs[prow_run].y, &done),
             _ => None,
         };
+        // PE-compatible: no hidden way, so travel in sight to the nearest unsewn run end when
+        // it is near enough (#298): (limit, stitch length).
+        if let (None, None, Some((px, _)), Some((limit, step))) = (best, &routed, pen, visible) {
+            let py = runs[prow_run].y;
+            let nearest = runs
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| !done[*i])
+                .flat_map(|(i, r)| {
+                    [(i, false, r.xs[0]), (i, true, r.xs[r.xs.len() - 1])]
+                        .map(|(i, right, x)| ((x - px).dhypot(r.y - py), i, right, x, r.y))
+                })
+                .min_by(|a, b| a.0.total_cmp(&b.0));
+            if let Some((d, r, right, x, y)) = nearest
+                && d <= limit
+            {
+                let n = (d / step).ceil().max(1.0) as usize;
+                let way = (1..n)
+                    .map(|k| {
+                        let f = k as f64 / n as f64;
+                        [px + (x - px) * f, py + (y - py) * f]
+                    })
+                    .collect();
+                routed = Some((r, right, way));
+            }
+        }
         let (r, from_right, travel) = match (best, routed) {
             (Some((_, r, from_right)), _) => (r, from_right, true),
             (None, Some((r, from_right, way))) => {
@@ -1144,6 +1186,7 @@ fn fine_layer(
         &sewing,
         hidden,
         routed.then_some(&route as Route),
+        None,
     ))
 }
 

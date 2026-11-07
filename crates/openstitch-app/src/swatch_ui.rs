@@ -318,7 +318,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
             Err(why) => app.status = why,
             Ok((command, mut params)) => {
                 let name = app.session.design().name.clone();
-                if let Some(path) = rfd::FileDialog::new()
+                if let Some(path) = crate::files::FileDialog::new()
                     .add_filter("Brother PES", &["pes"])
                     .add_filter(
                         "OpenStitch design",
