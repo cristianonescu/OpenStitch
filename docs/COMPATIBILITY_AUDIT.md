@@ -534,7 +534,15 @@ Line references are relative to `crates/`.
   1445, its x alone 345 → 305 against 324 and closer both ways (0.228 → 0.211 and 0.215 →
   0.206 mm: main's total matched only because H's +21 and g's −42 cancelled). Letter sweep
   (588 samples): 24 changed (X, x, KNOX), none worse. N's corner and A's and V's slanted feet
-  stay open (#446): no N, M, W, K, Z capture exists yet.
+  stay open (#446). Round 8 (2026-11-07) added PE-DESIGN references for satin N, M, W, K and Z
+  in Lato Bold at 20 and 8 mm and N converted to blocks (`stroke-satin-{n,m,w,k,z}[-8]`,
+  `stroke-blocks-satin-n`, all within today's 25 % and 0.3 mm). Measured against them
+  (needle points ours / PE-DESIGN, mean distance PE → ours, trims ours / PE): N 283/293,
+  0.39 mm, 2/0; N-8 121/123, 0.21 mm, 2/0; M 342/374, 0.38 mm, 2/1; M-8 138/165, 0.27 mm,
+  1/0; W 384/363, 0.32 mm, 3/0; W-8 154/155, 0.19 mm; K 314/293, 0.26 mm; K-8 136/128,
+  0.14 mm; Z 246/237, 0.24 mm, 1/0; Z-8 95/99, 0.16 mm. PE-DESIGN sews N, W, K and Z in one run
+  without a trim (M with one): its strokes meet at the crotches instead of being cut apart, and
+  N's and M's PE → ours distances (the spike at the acute corner) are the largest.
 - **Test:**
   - Inputs: `text.add {"text":"AVOW","size":30,"x":50,"y":50}` →
     `object.setRegion {"id":1,"type":"satin"}` → `design.generate`.
@@ -3036,6 +3044,25 @@ PE-DESIGN's destructive `shape.removeOverlap` is unchanged.
   curves (debug build, 5 builds): 2.7-5.1 s before, 0.48-0.65 s after, within 1.1-1.4× of the
   same ring flattened first (`paths::tests::curved_layers_timing`). PES output byte-identical on
   the 24 exportable example scripts; compat 454/454.
+
+### Auto-route, Redwork and branching, 2026-11-06 (#546, `batch:routing`)
+
+Beyond PE-DESIGN; nothing changes until `shape.autoRoute` or `object.branch` is run.
+
+- **Auto-route.** The lines are split at crossings and where an end comes within `join`
+  (0.5 mm) of another line; each connected piece is one walk. With more than two odd vertices,
+  the shortest paths between them are sewn twice, paired by a minimum matching (exact by
+  bitmask up to 16, greedy above), leaving the two whose pairing costs most as the walk's
+  ends; Hierholzer's walk takes the straightest unused line at each vertex. A "Y" of three
+  lines: one line, no trims, the shortest leg sewn twice (test
+  `a_tree_of_lines_sews_with_no_trims`); a 2 × 2 window grid doubles exactly 20 mm.
+- **Redwork.** Every line twice, the walk closed: a branch of three lines is 2 × 60 mm and ends
+  where it started.
+- **Branching.** Touching shapes in one thread, ordered nearest-next, each entered at the
+  closest point to the one before (the `minJump` link of `order.optimize`): a chain of three
+  touching rectangles in two colours sews with no colour change and no trim, and stays so after
+  a member is moved; moved apart, that member trims as usual. Satin branching with the
+  centre-run underlay of the B4 sketch (§5) is not done.
 
 ### Tie-off after tiny last stitches, 2026-11-07 (#703)
 

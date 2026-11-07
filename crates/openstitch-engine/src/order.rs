@@ -379,7 +379,7 @@ pub fn min_jump(d: &Design, two_opt: bool) -> Vec<usize> {
 /// Travel between two objects: the shortest distance between their outlines (0 when they
 /// touch or overlap); between bounding-box centres when one has no outline to link, or
 /// when `coarse`.
-fn travel_cost(a: &DesignObject, b: &DesignObject, coarse: bool) -> f64 {
+pub(crate) fn travel_cost(a: &DesignObject, b: &DesignObject, coarse: bool) -> f64 {
     if !coarse && let (Some(ea), Some(eb)) = (ends(a), ends(b)) {
         return closest_pair(&ea.edges, &eb.edges).map_or(0.0, |(p, q)| p.distance(q));
     }
