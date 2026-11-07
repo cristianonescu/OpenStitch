@@ -12,7 +12,7 @@ use crate::commands::{CommandSpec, Effect, indexes, opt, req, spec};
 use crate::params::Params;
 use crate::session::EngineState;
 use openstitch_design::column::AutoUnderlay;
-use openstitch_design::{ObjectKind, RegionType, UnderlayStyle};
+use openstitch_design::{Design, ObjectKind, RegionSewing, RegionType, UnderlayStyle};
 use serde_json::{Value, json};
 
 /// One fabric of the selector and the attributes it recommends.
@@ -417,7 +417,7 @@ pub fn commands() -> Vec<CommandSpec> {
         ),
         spec(
             "fabric.apply",
-            "Give shape and text patterns the sewing attributes recommended for a fabric: fill and satin density, stitch length, pull compensation and underlay (colours and sew types stay)",
+            "Give shape and text patterns the sewing attributes recommended for a fabric: fill and satin density, stitch length, pull compensation and underlay (colours and sew types stay); a thread weight other than No. 40 scales the density",
             Effect::Edit,
             vec![
                 req("fabric", "string", "Fabric id from fabric.list"),
@@ -426,10 +426,16 @@ pub fn commands() -> Vec<CommandSpec> {
                     "[int]",
                     "Objects to change (default: every shape and text pattern)",
                 ),
+                opt(
+                    "weight",
+                    "int",
+                    "Thread weight No. 12, 30, 40 or 60 (default 40): fill and satin rows per mm × √(weight / 40), so No. 60 sews rows about 0.82× as far apart and No. 30 about 1.15×",
+                ),
             ],
             |s, p| {
                 let id = p.string("fabric", None)?;
                 let f = resolve(s, &id).ok_or_else(|| p.not_found(format!("fabric '{id}'")))?;
+                let weight = weight_param(p)?;
                 let targets: Vec<usize> = if p.has("ids") || p.has("id") {
                     indexes(p, &s.design)?
                 } else {
@@ -445,27 +451,132 @@ pub fn commands() -> Vec<CommandSpec> {
                         return Err(p.failed(format!("object {} is a stitch pattern", o.id)));
                     }
                     let Some(r) = o.region.as_mut() else { continue };
-                    let density = match r.kind {
-                        RegionType::Fill | RegionType::ProgrammableFill => f.fill_density,
-                        RegionType::Satin => f.satin_density,
-                        _ => continue,
-                    };
-                    r.density = density;
-                    r.stitch_length = f.stitch_length;
-                    r.pull_compensation = f.pull_compensation;
-                    r.underlay = f.underlay.is_some();
-                    // Automatic under sewing stays automatic, with the fabric's thresholds.
-                    if r.underlay_style == UnderlayStyle::Auto {
-                        r.underlay_auto = f.auto_underlay;
-                    } else if let Some(u) = f.underlay {
-                        r.underlay_style = u;
+                    if give(r, &f, weight) {
+                        changed.push(o.id);
                     }
-                    changed.push(o.id);
                 }
-                Ok(json!({ "fabric": f.id, "changed": changed }))
+                Ok(json!({ "fabric": f.id, "weight": weight, "changed": changed }))
+            },
+        ),
+        spec(
+            "fabric.setDefault",
+            "The fabric and thread weight new shapes and texts start from (user settings): every shape or text drawn afterwards (shape.rectangle, shape.ellipse, shape.polygon, shape.path, shape.freehand, shape.arc, shape.preset, shape.column, text.add, monogram.add) gets what fabric.apply would give it; existing objects never change. fabric \"none\" clears it",
+            Effect::Settings,
+            vec![
+                req("fabric", "string", "Fabric id from fabric.list, or none"),
+                opt(
+                    "weight",
+                    "int",
+                    "Thread weight No. 12, 30, 40 or 60 (default 40)",
+                ),
+            ],
+            |s, p| {
+                let id = p.string("fabric", None)?;
+                if id == "none" {
+                    s.user.default_fabric = None;
+                } else {
+                    let f = resolve(s, &id).ok_or_else(|| p.not_found(format!("fabric '{id}'")))?;
+                    s.user.default_fabric = Some(DefaultFabric {
+                        fabric: f.id,
+                        weight: weight_param(p)?,
+                    });
+                }
+                Ok(json!({ "defaultFabric": default_json(&s.user) }))
             },
         ),
     ]
+}
+
+fn weight_param(p: &Params) -> Result<u32, crate::params::CommandError> {
+    let w = p.int("weight", Some(40), 12, 60)? as u32;
+    if !WEIGHTS.contains(&w) {
+        return Err(p.invalid("weight", "takes 12, 30, 40 or 60"));
+    }
+    Ok(w)
+}
+
+/// Rows per mm for thread No. `weight`: a higher number is a thinner thread, so its rows sit
+/// closer; spacing × √(40 / weight), so density × √(weight / 40). No. 40 is exactly 1.
+pub fn weight_factor(weight: u32) -> f64 {
+    (f64::from(weight) / 40.0).sqrt()
+}
+
+/// Gives a region fabric `f`'s attributes for thread No. `weight`; `false` for a region the
+/// fabric does not set (running stitch, cross stitch, ...).
+fn give(r: &mut RegionSewing, f: &Resolved, weight: u32) -> bool {
+    let density = match r.kind {
+        RegionType::Fill | RegionType::ProgrammableFill => f.fill_density,
+        RegionType::Satin => f.satin_density,
+        _ => return false,
+    };
+    let (lo, hi) = r.kind.density_range();
+    r.density = if weight == 40 {
+        density
+    } else {
+        (density * weight_factor(weight)).clamp(lo, hi)
+    };
+    r.stitch_length = f.stitch_length;
+    r.pull_compensation = f.pull_compensation;
+    r.underlay = f.underlay.is_some();
+    // Automatic under sewing stays automatic, with the fabric's thresholds.
+    if r.underlay_style == UnderlayStyle::Auto {
+        r.underlay_auto = f.auto_underlay;
+    } else if let Some(u) = f.underlay {
+        r.underlay_style = u;
+    }
+    true
+}
+
+/// `fabric.setDefault`: what new shapes and texts start from (user settings).
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct DefaultFabric {
+    pub fabric: String,
+    pub weight: u32,
+}
+
+pub fn default_json(u: &crate::user::UserSettings) -> Value {
+    match &u.default_fabric {
+        Some(d) => json!({ "fabric": d.fabric, "weight": d.weight }),
+        None => Value::Null,
+    }
+}
+
+/// The commands that draw a new shape or text from nothing: objects they add take the default
+/// fabric. Commands that make objects from others (split, merge, convert, paste) keep theirs.
+pub const DRAWN: &[&str] = &[
+    "shape.rectangle",
+    "shape.ellipse",
+    "shape.polygon",
+    "shape.path",
+    "shape.freehand",
+    "shape.arc",
+    "shape.preset",
+    "shape.column",
+    "text.add",
+    "monogram.add",
+];
+
+/// After `command` changed `before` into `s.design`: the shapes and texts it added take the
+/// default fabric, when one is set and the command draws (see [`DRAWN`]).
+pub fn apply_default(s: &mut EngineState, before: &Design, command: &str) {
+    if !DRAWN.contains(&command) {
+        return;
+    }
+    let Some(d) = s.user.default_fabric.clone() else {
+        return;
+    };
+    // A custom fabric deleted since falls through: nothing is given.
+    let Some(f) = resolve(s, &d.fabric) else {
+        return;
+    };
+    for o in &mut s.design.objects {
+        if matches!(o.kind, ObjectKind::Shape | ObjectKind::Text)
+            && before.index_of(o.id).is_none()
+            && let Some(r) = o.region.as_mut()
+        {
+            give(r, &f, d.weight);
+        }
+    }
 }
 
 fn all_objects(p: &Params) -> bool {

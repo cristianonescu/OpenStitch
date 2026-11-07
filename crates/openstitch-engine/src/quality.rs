@@ -1218,6 +1218,7 @@ pub fn commands() -> Vec<CommandSpec> {
 }
 
 /// Check Design's errors, for the export's `problems`.
+#[cfg(feature = "formats")]
 pub(crate) fn errors(d: &Design) -> Vec<String> {
     let t = Traced::new(d);
     check(d, &t, &CheckOptions { fabric: (1.5, 2.5) })

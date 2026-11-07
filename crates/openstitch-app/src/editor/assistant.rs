@@ -559,6 +559,30 @@ pub const SETTINGS: &[Setting] = &[
         "stitch|realistic|solid",
     ),
     s("showTravel", "View Thread Trimming", "bool"),
+    // The Check Design window (#503-#505, #599): which tab is open, the fabric it judges
+    // density by, its marks on the design and the Review Sewing Order step.
+    s(
+        "checkDesign",
+        "Check Design window",
+        "closed|problems|density|route",
+    ),
+    s(
+        "checkFabric",
+        "Check Design: fabric",
+        "standard|thin|heavy|knit|fleece|towel|felt|leather|polyester|pique|organza|canvas|cap",
+    ),
+    s(
+        "densityOverlay",
+        "Check Design: show the density map on the design",
+        "bool",
+    ),
+    s(
+        "darkBackground",
+        "Check Design: dark background (review light threads)",
+        "bool",
+    ),
+    s("routeMap", "Review Sewing Order: route map", "bool"),
+    s("reviewStep", "Review Sewing Order: step", "int 1-100000"),
     s(
         "realisticThreadWidth",
         "Realistic View Settings: thread width",
@@ -665,6 +689,7 @@ pub const HELP_ITEMS: &[(&str, &str)] = &[
     ("sewKit", "Ready-to-Sew Designs"),
     ("sewKitOnline", "Ready-to-Sew Designs Online"),
     ("gettingStarted", "Getting Started"),
+    ("machineSetup", "Machine Setup"),
     ("shortcuts", "Keyboard Shortcuts"),
     ("checkUpdates", "Check for Updates"),
     ("about", "About OpenStitch"),

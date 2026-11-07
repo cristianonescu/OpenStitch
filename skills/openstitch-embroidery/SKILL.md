@@ -33,6 +33,8 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 - A plain fill's look changes with `object.setRegion` `texture` (`smooth`, PE-DESIGN's default,
   or OpenStitch's `ribs`, `diagonal`, `blocks`, `waves`, `zigzag`, `chevron`, `scallops`, ...):
   same shape, density and stitch count, different needle-hole pattern.
+- Wave fill (beyond PE-DESIGN): `object.setRegion` on a fill with `waveHeight` (crest to trough,
+  mm, 0 = off) and `waveLength` (mm, default 16). PES 0110 refuses it; save PES version 6.
 - Colours: `"#rrggbb"`, a Brother thread name (`"Black"`, `"White"`, `"Red"`, `"Blue"`,
   `"Prussian Blue"`, `"Deep Gold"`, `"Leaf Green"`, ...; case-insensitive), or a Brother chart
   number 1-64. A name that is not in the chart is refused; use `#rrggbb` when unsure.
@@ -147,12 +149,22 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `design.check` (sewing problems, errors first; `ready` is false while there are errors).
    Run each finding's `fix` command or fix it yourself, and check again; never report a design
    done while `design.check` has errors. `design.route` names every move between objects
-   (untrimmed jumps, long moves), `design.density` shows where thread piles up.
+   (untrimmed jumps, long moves), `design.density` shows where thread piles up; it and
+   `design.check` take `fabric` (a `fabric.list` id: towel or fleece takes more layers).
+   `design.cleanup` deletes objects that sew nothing or are tinier than `minSize` (one undo
+   step; a `design.check` fix names it). In the editor, show the user where: `ui.run` with
+   action `checkDesign`, `densityMap` or `reviewSewingOrder` opens Check Design on that tab;
+   `ui.set` `densityOverlay` and `darkBackground` mark the design, `checkFabric` sets the
+   fabric, `routeMap` draws the route, and `reviewStep` (from 1) moves the review and the
+   simulator to that step. `ui.state` `check` has `ready`, the `errors` and `warnings`, the
+   open `window` and `reviewSteps`.
    `design.timeline` lists the colour blocks in sewing order with their stitch ranges, trims,
    object starts and machine time ("when does the red start?"); in the editor,
    `ui.simulate {stitch}` or `{step: "block" | "object" | "trim"}` moves the player there.
 6. Save only when asked: `project.save` `{path: "name.osd"}` (editable) and/or
-   `design.export` `{path: "name.pes"}` (machine file; the extension picks the format).
+   `design.export` `{path: "name.pes"}` (machine file; the extension picks the format). It
+   reads the file back (`verify`: warn by default; strict deletes a file that differs and
+   fails) and returns `problems`, Check Design's errors: tell the user about any.
    To show how it will look worn, `design.mockup {path: "name.png", garment: "tshirt" | "cap" |
    "tote", placement: "centre" | "leftChest" (T-shirt only), color: "#rrggbb"}` draws it at true
    size on the garment; when the result has `fits: false`, tell the user the design is larger
@@ -335,9 +347,12 @@ editor's own undo history. The page adds its file commands, files as base64: `ui
 {name, base64}` (File ▸ Open; it opens on the next frames, so wait until `ui.state`'s `loading`
 is null), `ui.saveFile` (the `.osd` as `{name, base64}`) and `ui.exportFile {format}` (`{files:
 [{name, base64}]}`). A command that writes under `/web/save/` (for example `design.export
-{path: "/web/save/rose.pes"}`) hands the file to the user as a download. The Assistant, the
-system clipboard, printing, machine transfer, the Design Database's folders and image pickers
-are desktop-only; say so instead of trying them in the browser.
+{path: "/web/save/rose.pes"}`) hands the file to the user as a download. The browser editor has
+no Assistant panel and no MCP or automation-socket control (#766): `openstitch.run(...)` is callable
+only by code in the page, so an MCP client such as this one cannot reach it. If a user asks you
+to work on their browser editor, say so and offer the desktop editor or a design file they can
+open there. The system clipboard, printing, machine transfer, the Design Database's folders and
+image pickers are desktop-only too; say so instead of trying them in the browser.
 
 ## Files
 
@@ -382,6 +397,16 @@ are desktop-only; say so instead of trying them in the browser.
     row, `fabric.calibrate {fabric, name, fill, satin, pull}` (1–5 each) saves a custom
     fabric (`custom-…` in `fabric.list`) that `fabric.apply` gives to objects;
     `fabric.deleteCustom {fabric}` removes it. Both change the user's settings: say so first.
+- Thread weight (#508): `fabric.apply {fabric, weight}` with No. 60 for small text sews rows
+  closer (density × √(weight / 40)); No. 40 is the default and changes nothing. To make shapes and
+  texts drawn from now on start from a fabric, `fabric.setDefault {fabric, weight}` (`fabric:
+  "none"` clears it; it changes the user's settings, so say so first; `options.get` shows it).
+- The user's machine (#508): `machine.profile` gives brand, hoop, `cutter`, `maxStitchMm` and the
+  brand's own `format` (export that format when they ask for "the file for my machine").
+  `machine.setProfile {brand, hoop, cutter, maxStitchMm}` (`brand: "none"` clears it) changes the
+  user's settings: say so first, and set only what the user tells you (never guess a limit).
+  Exports then warn about stitches longer than `maxStitchMm` and trims a machine without a
+  cutter will not cut: pass those warnings on and offer `design.setStopAtJumps {on: true}`.
 - "What stabiliser / needle should I use on fleece?": `fabric.advise {fabric, weight}` (weight
   12, 30, 40 or 60; default 40) gives backing, topping, needle point and size and the smallest
   legible block-letter height, each from the makers' published guidance with `sources`; say so

@@ -170,6 +170,11 @@ actions! {
     // Home ▸ Sew.
     SendEmbroidery => "send", "Sew Embroidery", "Write the design to USB media, or each hooping as its own file.", None, Some("transfer.send"), true;
     TestSwatches => "testSwatches", "Test Swatches", "Write a test to sew first: the selection alone, one object with a setting stepped, or a fabric calibration card (beyond PE-DESIGN).", None, Some("design.testSwatches"), true;
+    // The Check Design window: the status bar's Ready to sew indicator and the Sewing Order
+    // pane's Review button (beyond PE-DESIGN, #503-#505, #599).
+    CheckDesign => "checkDesign", "Check Design", "List the design's sewing problems, each with a way to show it and, where there is one, a fix (the status bar's Ready to sew indicator).", None, Some("design.check"), true;
+    DensityMap => "densityMap", "Density Map", "Show where thread layers pile up and step through the hotspots (Check Design, Density map).", None, Some("design.density"), true;
+    ReviewSewingOrder => "reviewSewingOrder", "Review Sewing Order", "Step through every move between objects, with trims, jumps and warnings (Check Design, Sewing order).", None, Some("design.route"), true;
     // Image tab.
     OpenImage => "openImage", "Open Image", "Show an image behind the design (PNG, JPEG, BMP).", None, Some("background.set"), true;
     PasteImage => "pasteImage", "Paste Image", "Use the image on the clipboard as the background.", None, Some("background.set"), true;
@@ -996,6 +1001,10 @@ mod tests {
             A::Exit,
             A::CopyAttributes,
             A::PasteAttributes,
+            // The status bar's indicator and the Sewing Order pane open Check Design (#599).
+            A::CheckDesign,
+            A::DensityMap,
+            A::ReviewSewingOrder,
         ];
         for &a in Action::ALL {
             let placed = ribbon.contains(&a)

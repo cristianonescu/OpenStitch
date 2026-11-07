@@ -215,6 +215,14 @@ fn layers_inner(
         }
         return out;
     }
+    // Wave fill (#538, beyond PE-DESIGN): the rows ripple as a sine (see `wave_layers`).
+    if let Some((amplitude, length)) = r.wave()
+        && r.direction_curve.is_none()
+        && r.direction_lines.len() < 2
+        && let Some(out) = wave_layers(closed, r, holes, user, amplitude * 10.0, length * 10.0)
+    {
+        return out;
+    }
     // Reference point: the pattern grid starts there. A programmable or motif fill without one
     // starts its grid at the region's top-left corner, as PE-DESIGN 11.50 does
     // (compat/reference/stitches/prog-fill-*.pes, motif-fill-2pt.pes).
@@ -2812,4 +2820,95 @@ pub fn spans_at(contours: &[Contour], holes: &[Contour], angle: f64, y: f64) -> 
 /// Maps a rotated-space point back to design space.
 pub fn unrotate(x: f64, y: f64, angle: f64) -> Vec2 {
     v2(x, y).rotated(angle.to_radians())
+}
+
+/// Wave fill (#538, beyond PE-DESIGN): the region is sheared along its row direction so that
+/// the sine `amplitude · sin(2π x / length)` (0.1 mm, x along the rows from the page origin)
+/// becomes straight, sewn as a plain fill there (under sewing, stagger and travel included),
+/// and sheared back. Every row is then the same sine, so the wave keeps its height and length
+/// across the whole shape (offsets of a sine would sharpen into cusps a few millimetres out).
+/// The rows are copies of the sine a step apart along its height: the step lies between the
+/// spacing and the spacing / cos θ of the steepest slope θ, so the spacing across the rows stays
+/// within ±15 % (θ is at most 40°, [`RegionSewing::MAX_WAVE_SLOPE`]). Stitches are split
+/// where a straight one would stray more than 0.15 mm from the curve.
+fn wave_layers(
+    closed: &[Contour],
+    r: &RegionSewing,
+    holes: &[Contour],
+    user: &[Pattern],
+    amplitude: f64,
+    length: f64,
+) -> Option<Vec<Vec<Run>>> {
+    let angle = if r.auto_direction {
+        auto_angle(closed)
+    } else {
+        geometry_angle(r.angle)
+    };
+    let b = rotated_bounds(closed, angle)?;
+    let k = std::f64::consts::TAU / length;
+    // Whole waves past both ends, so the curve's chord runs along the row direction.
+    let x0 = (b.min_x / length).floor() * length - length;
+    let x1 = (b.max_x / length).ceil() * length + length;
+    // Samples 1/32 wave apart, at least 0.5 mm (they become outline vertices, see below).
+    let n = (((x1 - x0) / (length / 32.0).max(5.0)).ceil() as usize).clamp(2, 100_000);
+    let rad = angle.to_radians();
+    let curve = Contour::new(
+        (0..=n)
+            .map(|i| {
+                let x = x0 + (x1 - x0) * i as f64 / n as f64;
+                v2(x, b.min_y + amplitude * (k * x).dsin()).rotated(rad)
+            })
+            .collect(),
+        false,
+    );
+    let w = direction::Warp::new(&curve).ok()?;
+    let slope = amplitude * k;
+    let cos = 1.0 / (1.0 + slope * slope).sqrt();
+    let mut flat = r.clone();
+    flat.wave_height = None;
+    flat.angle = 0.0;
+    flat.auto_direction = false;
+    flat.density = r.density * (1.0 + cos) / 2.0;
+    flat.entry = r.entry.map(|p| w.forward(p));
+    flat.exit = r.exit.map(|p| w.forward(p));
+    flat.reference = r.reference.map(|p| w.forward(p));
+    // Longest chord within 0.15 mm of the curve at its tightest bend (sagitta c²κ/8).
+    let chord = (12.0 / (amplitude * k * k).max(1e-9)).sqrt().max(5.0);
+    let (c, h) = (w.forward_contours(closed), w.forward_contours(holes));
+    Some(
+        layers_with(&c, &flat, &h, user)
+            .into_iter()
+            .map(|layer| {
+                w.back_runs(layer.iter().map(|run| subdivide(run, chord)).collect())
+                    .into_iter()
+                    .map(|run| without_tiny_stitches(run, WAVE_MIN_STITCH))
+                    .collect()
+            })
+            .collect(),
+    )
+}
+
+/// Shortest stitch of a wave fill, 0.1 mm: the outline in the sheared region has a vertex at
+/// every sample of the sine, and travel along an edge that runs with the rows would stitch at
+/// each of them.
+const WAVE_MIN_STITCH: f64 = 3.0;
+
+/// `run` without needle points nearer than `min` to the last one kept; its ends stay.
+fn without_tiny_stitches(run: Run, min: f64) -> Run {
+    let Some(&last) = run.last() else {
+        return run;
+    };
+    let mut out: Run = Vec::with_capacity(run.len());
+    for p in run {
+        if out.last().is_none_or(|q: &Vec2| q.distance(p) >= min) {
+            out.push(p);
+        }
+    }
+    if out.last() != Some(&last) {
+        if out.len() > 1 && out[out.len() - 1].distance(last) < min {
+            out.pop();
+        }
+        out.push(last);
+    }
+    out
 }

@@ -530,6 +530,21 @@ pub fn export_check(d: &Design, pattern: &StitchPattern) -> Value {
     })
 }
 
+/// [`export_check`] plus the warnings for the user's machine (`machine.setProfile`, #508);
+/// without a profile it is [`export_check`].
+pub fn export_check_for(s: &crate::session::EngineState, pattern: &StitchPattern) -> Value {
+    let mut check = export_check(&s.design, pattern);
+    let extra = crate::machine_profile::export_warnings(
+        &s.design,
+        pattern,
+        s.user.machine_profile.as_ref(),
+    );
+    if let Some(w) = check["warnings"].as_array_mut() {
+        w.extend(extra.into_iter().map(Value::String));
+    }
+    check
+}
+
 /// Whether a `dw` × `dh` mm design fits hoop `h` in either orientation (its bounding box in
 /// the field: inside the inscribed ellipse for oval and round hoops).
 fn fits_hoop(h: &Hoop, dw: f64, dh: f64) -> bool {

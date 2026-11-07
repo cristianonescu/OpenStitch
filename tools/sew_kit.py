@@ -293,6 +293,14 @@ UNDERLAYS = [
     ("rect", {"type": "satin", "angle": 90, "splitLength": 7, "underlay": True, "underlayParts": ["center"]}),
     ("rect", {"type": "fill", "underlay": True, "underlayDensity": "light"}),
 ]
+# Wave fill (#538, beyond PE-DESIGN): height and length in mm.
+WAVES = [
+    ("rect", {"type": "fill", "angle": 0, "waveHeight": 2, "waveLength": 16}),
+    ("rect", {"type": "fill", "angle": 0, "waveHeight": 3, "waveLength": 10}),
+    ("rect", {"type": "fill", "angle": 0, "waveHeight": 5, "waveLength": 24}),
+    ("rect", {"type": "fill", "angle": 45, "waveHeight": 3, "waveLength": 14}),
+    ("circle", {"type": "fill", "angle": 0, "waveHeight": 3, "waveLength": 12}),
+    ("rect", {"type": "fill", "angle": 90, "waveHeight": 8, "waveLength": 8}),
 # Maze fill (#533, beyond PE-DESIGN).
 MAZES = [
     ("rect", {"type": "maze"}),
@@ -560,6 +568,10 @@ FEATURES = [
     ("fills/holes-and-emboss.pes", "Hole sewing, engraving and embossing",
      "Top left: hole sewing (the blue ring is sewn around the yellow centre, not under it). Then a star as an "
      "engraved line, an engraved region and an embossed region in a red fill.", holes_and_emboss()),
+    ("fills/wave-fill.pes", "Wave fill (beyond PE-DESIGN)",
+     "Fills whose rows ripple as a sine, height and length in mm: 2 and 16, 3 and 10, 5 and 24 (top row, "
+     "rows across), 3 and 14 at 45°, 3 and 12 on a circle, and 8 and 8 at 90° (steeper than 40°, so sewn at "
+     "40°).", region_grid(WAVES)),
     ("fills/maze-fill.pes", "Maze fill (beyond PE-DESIGN)",
      "One path of straight corridors and square turns that never crosses itself, 2 mm apart: straightness "
      "70 % (default), 0 % and 95 % (top row), on a circle, another seed at 45°, and 3 mm spacing.",

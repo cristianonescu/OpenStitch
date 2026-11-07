@@ -876,6 +876,28 @@ fn region_type_controls(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> {
                 },
                 &[("1", "1: flat rows"), ("2", "2: sloped rows")],
             ));
+            // Wave fill (#538, beyond PE-DESIGN): the length only with a height.
+            v.push(num(
+                "Wave height (+)",
+                "region.waveHeight",
+                "waveHeight",
+                r.wave_height.unwrap_or(0.0),
+                (0.0, 20.0),
+                0.05,
+                " mm",
+            ));
+            if r.wave().is_some() {
+                v.push(num(
+                    "Wave length",
+                    "region.waveLength",
+                    "waveLength",
+                    r.wave_length
+                        .unwrap_or(openstitch_design::RegionSewing::DEFAULT_WAVE_LENGTH),
+                    (2.0, 100.0),
+                    0.05,
+                    " mm",
+                ));
+            }
         }
         RegionType::Satin => v.extend(satin_hand_controls(r)),
         RegionType::ProgrammableFill => {

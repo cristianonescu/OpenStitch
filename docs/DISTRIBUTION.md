@@ -261,7 +261,9 @@ print hand-off run at once and their result waits in the channel for the next fr
 (`request_pick`); the page puts the picked bytes under `/web/open/` in memory and hands the path
 back (`EditorApp::web_picked`). The Save dialog answers `/web/save/<name>` at once; after every
 frame the page downloads each file written there and drops it from memory. Still to come: the
-other pickers, files dropped on the page, and the Assistant.
+other pickers, files dropped on the page, and an AI path (#766): the browser editor has no
+Assistant panel and no MCP or automation-socket control, only `openstitch.run` from code in the
+page.
 
 **Build** (the CLI version must match `wasm-bindgen` in Cargo.lock):
 

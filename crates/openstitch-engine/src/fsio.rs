@@ -24,7 +24,7 @@ pub(crate) fn len(path: &Path) -> io::Result<u64> {
     std::fs::metadata(path).map(|m| m.len())
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "formats"))]
 pub(crate) fn remove_file(path: &Path) -> io::Result<()> {
     std::fs::remove_file(path)
 }

@@ -251,6 +251,8 @@ pub struct UiPrefs {
     pub recent_commands: Vec<String>,
     /// Start cards over an empty design (#554); on by default.
     pub start_cards: bool,
+    /// Help ▸ Machine Setup was answered or skipped (#508): not asked again at start.
+    pub machine_setup_done: bool,
     /// What new shapes start with (#553); none set by default (the tools' own values).
     pub new_objects: super::new_objects::NewObjects,
     /// Sewing Attributes: every row (Advanced, the default, as PE-DESIGN) or the common ones
@@ -331,6 +333,7 @@ impl Default for UiPrefs {
             autosave_interval: super::recovery::DEFAULT_INTERVAL,
             recent_commands: Vec::new(),
             start_cards: true,
+            machine_setup_done: false,
             new_objects: Default::default(),
             advanced_attributes: true,
             folded_sections: Vec::new(),
@@ -433,6 +436,7 @@ impl UiPrefs {
             "autosaveInterval": self.autosave_interval,
             "recentCommands": self.recent_commands,
             "showStartCards": self.start_cards,
+            "machineSetupDone": self.machine_setup_done,
             "newObjectDefaults": self.new_objects.to_json(),
             "advancedAttributes": self.advanced_attributes,
             "foldedSections": self.folded_sections,
@@ -604,6 +608,9 @@ impl UiPrefs {
                 })
                 .unwrap_or_default(),
             start_cards: v["showStartCards"].as_bool().unwrap_or(d.start_cards),
+            machine_setup_done: v["machineSetupDone"]
+                .as_bool()
+                .unwrap_or(d.machine_setup_done),
             new_objects: super::new_objects::NewObjects::load(&v["newObjectDefaults"]),
             advanced_attributes: v["advancedAttributes"]
                 .as_bool()

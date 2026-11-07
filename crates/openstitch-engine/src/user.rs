@@ -59,6 +59,12 @@ pub struct UserSettings {
     /// Fabrics saved from a calibration card (`fabric.calibrate`, #453).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub custom_fabrics: Vec<crate::fabric::CustomFabric>,
+    /// What new shapes and texts start from (`fabric.setDefault`, #508).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_fabric: Option<crate::fabric::DefaultFabric>,
+    /// The user's machine (`machine.setProfile`, #508 part 3).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub machine_profile: Option<crate::machine_profile::MachineProfile>,
 }
 
 /// File format marker of the settings file.
@@ -378,7 +384,10 @@ pub fn commands() -> Vec<CommandSpec> {
 }
 
 fn options_json(u: &UserSettings) -> Value {
-    json!({ "optimizeEntryExit": u.optimize_entry_exit })
+    json!({
+        "optimizeEntryExit": u.optimize_entry_exit,
+        "defaultFabric": crate::fabric::default_json(u),
+    })
 }
 
 /// Persistent options (PE-DESIGN's Options dialog) kept in the user settings.

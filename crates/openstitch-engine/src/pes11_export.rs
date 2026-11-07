@@ -587,6 +587,12 @@ fn curve_side(pts: &[(f64, f64)]) -> Vec<Vertex> {
 }
 
 fn region(id: u64, r: &RegionSewing, s: &mut Shape, table: &mut Vec<Thread>) -> Result<(), String> {
+    if r.wave().is_some() {
+        // PE-DESIGN would sew straight rows (#538).
+        return Err(format!(
+            "object {id}: a wave fill is not mapped in PES 0110 (use version 6)"
+        ));
+    }
     if r.hand.is_some() {
         // PE-DESIGN would sew both sides crisp (#540).
         return Err(format!(
@@ -1540,6 +1546,18 @@ mod tests {
         ));
         let err = objects(&motif).expect_err("motif lines are not mapped");
         assert!(err.contains("Motif"), "{err}");
+
+        // A wave fill (#538, beyond PE-DESIGN) is refused rather than written as straight rows.
+        let mut wave = Design::new("t", openstitch_design::DesignPage::default());
+        let mut fill = RegionSewing::new(RegionType::Fill, red());
+        fill.wave_height = Some(3.0);
+        wave.add(DesignObject::shape(
+            vec![Contour::rectangle(0.0, 0.0, 200.0, 200.0)],
+            Some(fill),
+            None,
+        ));
+        let err = objects(&wave).expect_err("wave fills are not mapped");
+        assert!(err.contains("wave fill"), "{err}");
 
         let mut two = design.clone();
         two.add(DesignObject::shape(

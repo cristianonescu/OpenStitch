@@ -4,7 +4,6 @@ PES write v1 and v6, truncated or with a CEmbOne/CSewSeg stitch group	PES writte
 Design Property	Design Property (category, author, keywords
 Import stitch files into the design	Import a stitch file into the design
 PEC read/write	Read and write PEC
-PES save as version 1, 6 or 11	PES written as version 1, 6 or 11
 PES versions 4, 5 and 7–10 read	every version read (1 to 11)
 DST read/write, configurable jumps-for-trim	Read and write PEC, DST
 EXP read/write	DST, EXP

@@ -523,6 +523,9 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
         Open => app.guarded(Pending::Open(None)),
         TestSwatches => app.ui.open_swatches = true,
         JobSheet => app.ui.open_job_sheet = true,
+        CheckDesign => crate::quality_ui::open(app, crate::quality_ui::Tab::Check),
+        DensityMap => crate::quality_ui::open(app, crate::quality_ui::Tab::Density),
+        ReviewSewingOrder => crate::quality_ui::open(app, crate::quality_ui::Tab::Route),
         OpenSample => app.ui.start.samples_open = true,
         Save => app.save(false),
         SaveAs => app.save(true),
@@ -1641,6 +1644,13 @@ pub fn help_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         .clicked()
     {
         app.ui.start.page_open = true;
+    }
+    if ui
+        .button("Machine Setup")
+        .on_hover_text("Beyond PE-DESIGN: your machine's brand, hoop and thread cutter, for new designs and export checks")
+        .clicked()
+    {
+        app.machine_setup.open();
     }
     if ui.button("Keyboard Shortcuts").clicked() {
         app.ui.shortcuts_open = true;

@@ -116,6 +116,12 @@ jobs:
             exit 1
           fi
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      # The workspace run unifies features; openstitch-render and the thumbnailers build the
+      # engine library without its default features, so check that build on its own too (#672;
+      # the integration tests use the file formats and digitizing, so they need the defaults).
+      - name: Clippy, engine without default features
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo clippy -p openstitch-engine --no-default-features --lib --locked -- -D warnings
       # Compatibility harness (docs/COMPATIBILITY_TESTS.md): runs compat/specs, fails on a failing
       # or invalid spec or a stale docs/COMPATIBILITY_STATUS.md; specs waiting for a PE-DESIGN
       # reference file are reported as pending, not failed.

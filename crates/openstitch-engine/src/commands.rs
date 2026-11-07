@@ -291,6 +291,7 @@ pub fn all() -> Vec<CommandSpec> {
     v.extend(crate::threadlists::commands());
     #[cfg(feature = "formats")]
     v.extend(crate::media_exports::commands());
+    v.extend(crate::machine_profile::commands());
     v.extend(crate::mockup::commands());
     #[cfg(feature = "formats")]
     v.extend(crate::pes11_import::commands());
@@ -369,6 +370,7 @@ fn validate_property(p: &Params, key: &str, value: &str) -> Result<(), CommandEr
 }
 
 /// Moves `block` so the box around its needle points is centred on `page`.
+#[cfg(feature = "formats")]
 fn centre_on_page(block: &mut openstitch_design::StitchBlock, page: &DesignPage) {
     let needles = || {
         block
@@ -416,6 +418,19 @@ fn design_commands() -> Vec<CommandSpec> {
                         height: h * MM,
                     },
                 );
+                // Without a size, the user's machine's hoop (#508 part 3).
+                if !p.has("width")
+                    && !p.has("height")
+                    && let Some(hoop) = crate::machine_profile::new_design_hoop(s)
+                {
+                    s.design.machine.hoop = Some(hoop.to_string());
+                    if let Some((hw, hh)) = s.design.machine.hoop_size() {
+                        s.design.page = DesignPage {
+                            width: hw * MM,
+                            height: hh * MM,
+                        };
+                    }
+                }
                 Ok(json!({ "name": s.design.name }))
             },
         ),
@@ -1429,6 +1444,16 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     "Seed of the random stagger (0 to 2^53; the same seed always sews the same rows)",
                 ),
                 opt(
+                    "waveHeight",
+                    "mm",
+                    "Fill: wave fill (beyond PE-DESIGN), the rows' ripple crest to trough, 0-20 (0 = straight rows); a wave steeper than 40° is sewn at 40°",
+                ),
+                opt(
+                    "waveLength",
+                    "mm",
+                    "Fill: the wave fill's length crest to crest, 2-100 (default 16)",
+                ),
+                opt(
                     "rowOffset",
                     "percent",
                     "Shift of every other pattern row, 0-100",
@@ -1826,6 +1851,13 @@ fn attribute_commands() -> Vec<CommandSpec> {
                             return Err(p.invalid("staggerSeed", "must be a whole number"));
                         }
                         r.stagger_seed = Some(seed as u64);
+                    }
+                    if p.has("waveHeight") {
+                        let h = p.req("waveHeight", 0.0, 20.0)?;
+                        r.wave_height = (h > 0.0).then_some(h);
+                    }
+                    if p.has("waveLength") {
+                        r.wave_length = Some(p.req("waveLength", 2.0, 100.0)?);
                     }
                     if p.has("rowOffset") {
                         r.row_offset = Some(p.req("rowOffset", 0.0, 100.0)?);
@@ -3157,6 +3189,7 @@ fn text_commands() -> Vec<CommandSpec> {
 // MARK: files
 
 /// `dir/name.ext` → `dir/name-N.ext` (split exports).
+#[cfg(feature = "formats")]
 fn numbered(path: &str, n: usize) -> String {
     let p = std::path::Path::new(path);
     let stem = p
@@ -3260,7 +3293,13 @@ fn codec_commands() -> Vec<CommandSpec> {
                 let v = p.string("pesVersion", None)?;
                 let own = match src.version.as_deref() {
                     Some("0110") => "11",
+                    Some("0100") => "10",
+                    Some("0090") => "9",
+                    Some("0080") => "8",
+                    Some("0070") => "7",
                     Some("0060") => "6",
+                    Some("0050") => "5",
+                    Some("0040") => "4",
                     Some("0001") => "1",
                     _ => "",
                 };
@@ -3373,8 +3412,8 @@ fn codec_commands() -> Vec<CommandSpec> {
                 ),
                 opt(
                     "pesVersion",
-                    "1t|1|6|6t|11",
-                    "PES only: version 1 or 6, `t` = no objects (default 6, or 11 for a design opened from a PE-DESIGN 11 file: RGB threads, names, stitch group; 1t = machine only, smallest); 11 = PE-DESIGN 11 `#PES0110` with shapes (fill and satin regions, running, zigzag, triple, E and V lines), Lato Bold texts and stitch patterns as editable objects; what it cannot hold is refused with the object named",
+                    "1t|1|4|5|6|6t|7|8|9|10|11",
+                    "PES only: version 1 or 6, `t` = no objects (default 6, or 11 for a design opened from a PE-DESIGN 11 file: RGB threads, names, stitch group; 1t = machine only, smallest); 4, 5, 7, 8, 9, 10 = PE-DESIGN's Save As versions for older software and machines (#374), stitch data as PE-DESIGN writes it below Ver.11.0 (one stitch group; from 5 the RGB thread table; 4 PEC chart colours only); 11 = PE-DESIGN 11 `#PES0110` with shapes (fill and satin regions, running, zigzag, triple, E and V lines), Lato Bold texts and stitch patterns as editable objects; what it cannot hold is refused with the object named",
                 ),
                 opt(
                     "split",
@@ -3433,7 +3472,7 @@ fn codec_commands() -> Vec<CommandSpec> {
                     let bytes = crate::extra_exports::encode(&extra, &pattern, p)?
                         .expect("an extra format");
                     crate::fsio::write(&path, bytes).map_err(|e| p.failed(e.to_string()))?;
-                    let check = crate::machine::export_check(&s.design, &pattern);
+                    let check = crate::machine::export_check_for(s, &pattern);
                     return Ok(json!({
                         "path": path.display().to_string(),
                         "paths": [path.display().to_string()],
@@ -3511,7 +3550,7 @@ fn codec_commands() -> Vec<CommandSpec> {
                         }
                         return Err(p.failed("the written file did not read back as written"));
                     }
-                    let check = crate::machine::export_check(&s.design, &pattern);
+                    let check = crate::machine::export_check_for(s, &pattern);
                     return Ok(json!({
                         "path": path.display().to_string(),
                         "paths": [path.display().to_string()],
@@ -3642,7 +3681,7 @@ fn codec_commands() -> Vec<CommandSpec> {
                         mismatches.join("; ")
                     )));
                 }
-                let mut check = crate::machine::export_check(&s.design, &pattern);
+                let mut check = crate::machine::export_check_for(s, &pattern);
                 if let Some(w) = check["warnings"].as_array_mut() {
                     w.extend(mismatches.iter().map(|m| json!(format!("read-back: {m}"))));
                 }

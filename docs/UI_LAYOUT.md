@@ -111,6 +111,10 @@ Behaviour follows the guide's pages
 - **Fabric Selector** (Application menu): pick a fabric type to read a description and advice
   and see the recommended settings; OK applies them to every shape and text pattern on the
   Design Page, or, with the check box cleared, to the selected ones (`fabric.apply`, one Undo).
+  Beyond PE-DESIGN (#508): a **thread weight** choice (No. 60, 40, 30, 12) scales the fill and
+  satin density and shows that weight's needle and smallest text, and **New shapes and texts
+  start from this fabric** makes OK also set the default for objects drawn afterwards
+  (`fabric.setDefault`; cleared, OK removes it).
   It sets the density, stitch length, pull compensation and underlay of fill, programmable
   fill and satin regions; colours and sew types stay. The values are OpenStitch's own
   approximations (`openstitch_engine::fabric::FABRICS`), not PE-DESIGN's.
@@ -539,6 +543,17 @@ date). So far the ribbon is translated: command labels and ScreenTips, tab names
 group captions; menus, dialogs, panes and messages follow. **Pseudo-locale (test)** shows every
 translated text accented and in brackets ("[Ópéñ]"), so text that is still hard-coded stands out.
 No real translation ships yet.
+
+### Machine Setup (beyond PE-DESIGN, #508)
+
+**Help ▸ Machine Setup**, also shown once on the first interactive start with the user's own
+settings: the brand (Brother first, then the other brands of the hoop list), a hoop of that brand,
+whether the machine cuts threads, and, when its manual says, the longest stitch it sews. **Save**
+stores it (`machine.setProfile`, user settings): New starts on that hoop, and every export warns
+about stitches longer than the machine sews and about trims a machine without a cutter will not
+cut (unless Stop at Jumps is on). The window names the brand's own file format. **Not now**
+closes it; either way it is not asked again at start (`machineSetupDone` in `ui.json`), and Help
+asks again any time. Without a profile everything is as before.
 
 ### Getting started (beyond PE-DESIGN, #554)
 
