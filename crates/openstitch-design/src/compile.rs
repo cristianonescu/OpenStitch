@@ -944,6 +944,15 @@ fn elements(
             {
                 layers = vec![region::join_layers(layers, &closed, holes, path)];
             }
+            // The hand-stitch look on one side of a satin shape (#540, beyond PE-DESIGN): its
+            // top layer's crossings, before the tie-in and lock are added.
+            if let (RegionType::Satin, Some(hand), false) = (region.kind, &region.hand, text)
+                && let Some(top) = layers.last_mut()
+            {
+                for run in top.iter_mut() {
+                    crate::line_looks::satin_hand(run, hand, 2);
+                }
+            }
             // Satin, fill, motif and decorative fill tie in and lock as PE-DESIGN 11 sews them
             // (motif-fill-2pt, deco-fill-1line-100mm: one 0.3 mm step out and back at the
             // start and at the end).
@@ -1836,8 +1845,31 @@ fn line_elements(
             }
             runs_so_far += 1;
             let top = match line.kind {
+                // Beyond PE-DESIGN (#540, #542): passes along a thickness profile, or the
+                // hand-stitch look; without them PE-DESIGN's running and triple stitch.
+                LineType::Running if line.profile.is_some() => crate::line_looks::variable_running(
+                    &c.path(),
+                    pitch,
+                    line.profile.as_ref().expect("profile"),
+                ),
+                LineType::Running | LineType::Triple if line.hand.is_some() => {
+                    let mut hand = line.hand.clone().expect("hand");
+                    if line.kind == LineType::Triple {
+                        hand.passes = 3;
+                    }
+                    crate::line_looks::hand_running(&c.path(), pitch, &hand)
+                }
                 LineType::Running => generate::running(c, pitch, line.run_times),
                 LineType::Triple => generate::triple(c, pitch),
+                LineType::BackStitch => crate::line_looks::back_stitch(&c.path(), pitch),
+                LineType::Scribble => crate::line_looks::scribble(
+                    &c.path(),
+                    width,
+                    pitch,
+                    line.run_times,
+                    line.noise_scale.unwrap_or(5.0) * 10.0,
+                    line.seed.unwrap_or(0),
+                ),
                 // PE-DESIGN's zigzag (rails matched along each leg) on straight-line paths;
                 // curves keep the evenly spaced zigzag, with half stitch where asked.
                 // OpenStitch's satin shaping (#520-#522) replaces both when set.

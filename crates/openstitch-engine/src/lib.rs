@@ -30,6 +30,7 @@ pub mod layout;
 mod lettering;
 #[cfg(feature = "library")]
 mod library;
+mod line_looks;
 pub mod machine;
 #[cfg(feature = "formats")]
 pub mod media_exports;

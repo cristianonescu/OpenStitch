@@ -23,6 +23,7 @@ pub mod hidden;
 pub mod holes;
 pub mod knife;
 pub mod letter_lines;
+pub mod line_looks;
 pub mod lines;
 pub mod machine;
 pub mod model;

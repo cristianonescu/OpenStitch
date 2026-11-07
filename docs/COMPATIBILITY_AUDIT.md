@@ -2919,6 +2919,24 @@ auto, shortStitchDistance: 0.25`, read from the exported PES:
   region's second underlay (#677), lap corners. No sew-out yet: the owner's T-card scan of a
   tapered column with `pullPercent: 3` is still needed for #522's ±5 % width target.
 
+### Hand-made lines, 2026-11-07 (#540, #542, `batch:lines`, part 1)
+
+All beyond PE-DESIGN and off unless chosen: a line or satin without them sews exactly as
+before, and PES 0110 export refuses them (PE-DESIGN would sew its own plain stitches).
+
+- **Back stitch** (`type: backStitch`): two forward, one back, each back stitch half the
+  forward one; the line ends at its far end.
+- **Thickness profile** on running lines: each stitch is sewn back and forth an odd number
+  of times between `minPasses` and `maxPasses` as the profile (arc, sine, linear,
+  smoothstep, stairs, constant or custom points) goes from 0 to 1, passes side by side.
+- **Hand-stitch look** on running and triple lines: seeded smooth variation of stitch
+  length (within ±`handLength` %, always 0.5-7 mm) and tilt, passes and the odd extra
+  stitch; on satins, one side's needle points move in along their crossings.
+- **Scribble** (`type: scribble`): a zigzag sewn back and forth `runTimes` times as one run,
+  its side offsets moved by smooth seeded noise and never past the band.
+- The same seed sews the same stitches on every platform (value noise over the crate's own
+  RNG, no platform maths).
+
 ### Satin looks, raised satin and column rung edits, 2026-11-06 (#528, #531, #525 part, `batch:satin-2a`)
 
 All beyond PE-DESIGN and off by default on Manual Punch columns and zigzag lines. With the

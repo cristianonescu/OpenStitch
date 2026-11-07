@@ -87,6 +87,15 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `object.insertRung {id, at}`, `object.deleteRung {id, index}`, `object.moveRung {id, index,
    side: left|right, point}`, `object.swapSides {id}` and `object.untangle {id}`; a line pair
    clicked right-then-left is untangled when the column is made.
+   Hand-made lines (beyond PE-DESIGN): `object.setLine {type: backStitch}` for redwork and
+   quilt outlines (two stitches forward, one back); `{type: scribble, width, runTimes,
+   noiseScale, seed}` for sketchy doodles; on a running line `profile: arc` (or `linear`,
+   `sine`, `smoothstep`, `stairs`, `profilePoints`) with `minPasses`/`maxPasses` (odd) and
+   `passSpacing` swells it like a brush stroke ("calligraphic", "brush" lines); `hand: true`
+   (`handLength`, `handAngle`, `handPasses`, `handExtra`) on running or triple lines, or
+   `object.setRegion {handSide: a|b|both, handAmount}` on a satin, gives the uneven
+   hand-sewn look for "folk", "naive" or "hand-drawn" requests. The same `seed` always sews
+   the same stitches; `shuffle: true` tries another variant (one undo step).
 4. Order: `order.optimize` (PE-DESIGN-compatible order) or `order.byColor`; check with
    `object.list` (sewing order). To sew objects in a set order, `order.byClickOrder`
    `{ids: [in sewing order]}` (they start where the earliest of them sews now); to sew a
