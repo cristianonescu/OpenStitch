@@ -1,5 +1,6 @@
 //! Coverage for the Fabric Selector claims `fabric_selector_sets_recommended_attributes` leaves
-//! out (#332): eight fabrics, and programmable fill and stitch length set as well.
+//! out (#332): PE-DESIGN's eight fabrics (then #508's five more), and programmable fill and
+//! stitch length set as well.
 
 use openstitch_engine::Session;
 use openstitch_engine::fabric::FABRICS;
@@ -15,12 +16,21 @@ fn eight_fabrics_are_offered_with_their_values() {
     let mut s = Session::new(std::env::temp_dir());
     let list = run(&mut s, "fabric.list", json!({}));
     let fabrics = list.as_array().expect("list");
-    assert_eq!(fabrics.len(), 8, "the eight types FEATURE_MATRIX states");
+    // PE-DESIGN's eight types FEATURE_MATRIX states, first, then the five beyond PE-DESIGN
+    // (#508).
     assert_eq!(fabrics.len(), FABRICS.len());
+    assert_eq!(openstitch_engine::fabric::PE_FABRICS, 8);
+    assert_eq!(
+        fabrics
+            .iter()
+            .filter(|f| f["beyondPeDesign"] == json!(false))
+            .count(),
+        8
+    );
     let mut ids: Vec<&str> = fabrics.iter().filter_map(|f| f["id"].as_str()).collect();
     ids.sort_unstable();
     ids.dedup();
-    assert_eq!(ids.len(), 8, "distinct ids");
+    assert_eq!(ids.len(), FABRICS.len(), "distinct ids");
     for (f, def) in fabrics.iter().zip(FABRICS) {
         assert_eq!(f["stitchLength"], json!(def.stitch_length), "{}", def.id);
         assert!(
