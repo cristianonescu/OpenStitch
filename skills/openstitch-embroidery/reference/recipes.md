@@ -294,7 +294,9 @@ lines (it names them; `partial: true` imports the rest). `threads.exportPalette`
 ```
 
 The extension picks the format (pes, pec, dst, exp, jef, pcs, sew, xxx, hus, vip). PES is
-version 6 by default (`pesVersion`: `1`, `1t`, `6`, `6t`, `11`), except for a design opened from a
+version 6 by default (`pesVersion`: `1`, `1t`, `4`, `5`, `6`, `6t`, `7`, `8`, `9`, `10`, `11`;
+4, 5 and 7-10 are stitch data as PE-DESIGN saves them for older software, 4 without the RGB
+thread table), except for a design opened from a
 PE-DESIGN 11 (`#PES0110`) file, which is written back as `11` unless another version is asked
 for (what version 11 cannot hold yet is then written as 6, with a warning). The result reports
 `fitsPage` and the `smallestHoop`. `.osd` keeps everything editable in OpenStitch.

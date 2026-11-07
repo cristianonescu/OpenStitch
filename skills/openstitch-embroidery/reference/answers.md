@@ -57,8 +57,9 @@ stays the default.
 | Import | SVG (as editable shapes), PE-DESIGN 11 PES objects (`import.pes`: shapes, Manual Punch blocks, texts with Text Transform or fitted to an outline, stitch groups, hole pairs, programmable, decorative and motif patterns; the result lists `skipped` objects and `notes`), images PNG, JPEG, BMP |
 | Thread charts | CSV in the layout PE-DESIGN's Import Chart reads (`threads.importCsv`, `threads.exportCsv`); GIMP / Inkscape `.gpl` palettes (`threads.importPalette`, `threads.exportPalette`) |
 
-PES is written as version 6 by default; version 1 and PE-DESIGN 11 (`#PES0110`, whose shapes
-and text open editable in PE-DESIGN 11) are options. Designs larger than a format allows can
+PES is written as version 6 by default; version 1, PE-DESIGN 11 (`#PES0110`, whose shapes
+and text open editable in PE-DESIGN 11) and, for older software and machines, versions 4, 5 and
+7 to 10 (stitch data, as PE-DESIGN's own Save As writes them) are options. Designs larger than a format allows can
 be split into several files.
 
 ## Where things are in the editor

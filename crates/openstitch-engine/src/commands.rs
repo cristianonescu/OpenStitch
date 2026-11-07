@@ -3259,7 +3259,13 @@ fn codec_commands() -> Vec<CommandSpec> {
                 let v = p.string("pesVersion", None)?;
                 let own = match src.version.as_deref() {
                     Some("0110") => "11",
+                    Some("0100") => "10",
+                    Some("0090") => "9",
+                    Some("0080") => "8",
+                    Some("0070") => "7",
                     Some("0060") => "6",
+                    Some("0050") => "5",
+                    Some("0040") => "4",
                     Some("0001") => "1",
                     _ => "",
                 };
@@ -3372,8 +3378,8 @@ fn codec_commands() -> Vec<CommandSpec> {
                 ),
                 opt(
                     "pesVersion",
-                    "1t|1|6|6t|11",
-                    "PES only: version 1 or 6, `t` = no objects (default 6, or 11 for a design opened from a PE-DESIGN 11 file: RGB threads, names, stitch group; 1t = machine only, smallest); 11 = PE-DESIGN 11 `#PES0110` with shapes (fill and satin regions, running, zigzag, triple, E and V lines), Lato Bold texts and stitch patterns as editable objects; what it cannot hold is refused with the object named",
+                    "1t|1|4|5|6|6t|7|8|9|10|11",
+                    "PES only: version 1 or 6, `t` = no objects (default 6, or 11 for a design opened from a PE-DESIGN 11 file: RGB threads, names, stitch group; 1t = machine only, smallest); 4, 5, 7, 8, 9, 10 = PE-DESIGN's Save As versions for older software and machines (#374), stitch data as PE-DESIGN writes it below Ver.11.0 (one stitch group; from 5 the RGB thread table; 4 PEC chart colours only); 11 = PE-DESIGN 11 `#PES0110` with shapes (fill and satin regions, running, zigzag, triple, E and V lines), Lato Bold texts and stitch patterns as editable objects; what it cannot hold is refused with the object named",
                 ),
                 opt(
                     "split",

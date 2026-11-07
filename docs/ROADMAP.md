@@ -391,9 +391,8 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    re-saves byte for byte while unchanged since 2026-11-04, #375); right-aligned and vertical text; several programmable fill patterns in one design (one is written since 2026-10-31), motif fill and the attribute fields of the other region types (written by their codes at PE-DESIGN's defaults since 2026-10-31), motif lines and the Start/End options and sewing end of stem, candlewick and chain lines (written by their codes since 2026-10-31),
    several hole sewing pairs in one file or with groups (one pair without groups is written since
    2026-10-31) and several outlines per object; the hoop in v1 (the public
-   description contradicts itself); writing PES v4, v5 and v7–v10 (read since 2026-11-04 in
-   pyembroidery's layout; the writers wait for PE-DESIGN's Save As files of each version, requested
-   2026-11-04, #374, from the owner's own files only, as
+   description contradicts itself); the hoop name and id in PES v9/v10 (PES v4, v5 and
+   v7–v10 are written since 2026-11-07 from PE-DESIGN's own Save As files, #374, as
    [LEGAL_AND_LICENSING.md](LEGAL_AND_LICENSING.md) allows).
 7. **Editing details:** skeletons that branch (a derived skeleton follows a shape's longest
    stroke only) and an exact medial axis instead of the grid approximation.

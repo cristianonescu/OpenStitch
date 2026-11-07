@@ -522,6 +522,8 @@ The image tools have two methods, both OpenStitch's own: OpenStitch's PE-DESIGN-
   comments).
 - **PES written as version 1, 6 or 11.** Saved as "PE-DESIGN 11", shapes, Manual Punch blocks
   and Lato Bold text open editable in PE-DESIGN 11.50 ([#136]).
+- **PES written as versions 4, 5 and 7 to 10** for older software and machines, as PE-DESIGN's
+  own Save As writes them: stitch data with the thread table ([#374]).
 - **An opened PES written back byte for byte** while it is unchanged, objects and all ([#375]).
 - **Import PE-DESIGN objects** from a PES 11 file as editable shapes, blocks and texts
   (*partially compatible*) ([#397]).
@@ -632,6 +634,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#298]: https://github.com/cristianonescu/OpenStitch/issues/298
 [#303]: https://github.com/cristianonescu/OpenStitch/issues/303
 [#321]: https://github.com/cristianonescu/OpenStitch/issues/321
+[#374]: https://github.com/cristianonescu/OpenStitch/issues/374
 [#375]: https://github.com/cristianonescu/OpenStitch/issues/375
 [#397]: https://github.com/cristianonescu/OpenStitch/issues/397
 [#445]: https://github.com/cristianonescu/OpenStitch/issues/445
@@ -752,7 +755,7 @@ Also missing, from the [roadmap](docs/ROADMAP.md#still-to-do):
   gradation per-step editing and Blend.
 - **PES:** opening PE-DESIGN's texts and stitch groups as editable OpenStitch objects; motif
   fill, motif lines, several groups, right-aligned and vertical text in the editable PES 11
-  writer; writing PES versions 4, 5 and 7–10 (waiting for PE-DESIGN's own files of them).
+  writer.
 
 **Not planned, by design:**
 
