@@ -372,6 +372,14 @@ Behaviour follows the guide pages
 [Specifying the straight sewing direction](https://support.brother.com/g/s/hf/htmldoc/ped/im/ped11/en/PED11_EN/pages/04_1869360.html)
 and [Adjusting the split positions](https://support.brother.com/g/s/hf/htmldoc/ped/im/ped11/en/PED11_EN/pages/07_1925948.html).
 
+- **Keyboard drawing** (beyond PE-DESIGN, #499): with a drawing tool, an arrow key shows a
+  cross-hair cursor and moves it (the nudge step, Shift ten times it); **Space** clicks there,
+  **Shift+Space** places a smooth Pen or Satin Skeleton point, **Return** finishes, **Esc**
+  cancels and **Backspace** takes back the last point. Rectangle and Ellipse: the first Space
+  starts the shape, the second ends it. While the Pen or Satin Skeleton draws, **[** and **]**
+  (or the scroll wheel; Ctrl+scroll still zooms) narrow and widen the next point by 0.5 mm, or
+  the point under the pointer; a Pen line drawn with widths becomes a satin line (#707).
+  ![Keyboard drawing](images/rust-editor-keyboard-draw.png)
 - **Cut** removes the selection (one Undo) and keeps it; **Paste** adds it back where it was
   (`object.paste`). After Copy, Paste duplicates the copied objects as before.
 - **Open Straight Line** (`L`): click the points; double-click or Return ends the line (it never

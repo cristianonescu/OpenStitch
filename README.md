@@ -276,6 +276,9 @@ feature is done and the rest is under [Planned](#planned).
   freezes ([#558]).
 - (+) **Several designs as tabs** in one window, each with its own undo, selection and zoom
   ([#552]).
+- (+) **Keyboard-only drawing:** arrow keys move a drawing cursor, Space places points, Return
+  finishes; `[` and `]` or the scroll wheel set a satin line's width while drawing ([#499],
+  [#707]).
 - (+) **Command palette** (Ctrl+K / Cmd+K) to find any command, a hints line for the current tool,
   and a search box over the sewing attributes ([#550]).
 - (+) **Your own keyboard shortcuts**, panes docked on either side and saved window layouts
@@ -671,6 +674,8 @@ See also [New: the Assistant](#new-the-assistant).
 [#550]: https://github.com/cristianonescu/OpenStitch/issues/550
 [#551]: https://github.com/cristianonescu/OpenStitch/issues/551
 [#552]: https://github.com/cristianonescu/OpenStitch/issues/552
+[#707]: https://github.com/cristianonescu/OpenStitch/issues/707
+[#499]: https://github.com/cristianonescu/OpenStitch/issues/499
 [#553]: https://github.com/cristianonescu/OpenStitch/issues/553
 [#554]: https://github.com/cristianonescu/OpenStitch/issues/554
 [#556]: https://github.com/cristianonescu/OpenStitch/issues/556

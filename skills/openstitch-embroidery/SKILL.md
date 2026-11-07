@@ -228,6 +228,11 @@ Several designs can be open as tabs: `ui.documents` lists them (index, name, uns
 `{op: "activate", index}` switches (every command then acts on that tab), `{op: "new"}` adds an
 empty one, and `{op: "close", index}` closes a tab that has no unsaved changes (otherwise save
 it or ask the user). `ui.set openInTabs` makes File ▸ New and Open add a tab.
+To draw point by point as the user would from the keyboard, pick a drawing tool with `ui.run`
+and step `ui.cursor`: `{x, y, action: "place"}` per point (`"smooth"` for a curved Pen point),
+then `{action: "finish"}`; `{width}` sets the next Pen or Satin Skeleton point's width (a Pen
+line with widths becomes a satin line). The shape commands (`shape.polygon`, `shape.path`)
+remain the direct way to draw.
 Opening or importing a large file in the window runs in the background: `ui.state` shows
 `loading` (file, step, seconds), and `ui.loading {cancel: true}` stops it, leaving the design
 as it was.

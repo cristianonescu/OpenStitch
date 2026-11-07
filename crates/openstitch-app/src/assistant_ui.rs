@@ -418,6 +418,7 @@ impl EditorApp {
                 }
                 Ok(state)
             }
+            "ui.cursor" => self.cursor_command(params),
             "ui.recoveryList" => Ok(crate::recovery_ui::list(self)),
             "ui.recoveryRestore" => {
                 let id = p.string("id", None).map_err(err)?;
