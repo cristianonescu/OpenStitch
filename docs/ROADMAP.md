@@ -575,6 +575,12 @@ updates; desktop installers; the automation socket, `stitchtool` and the MCP ser
 Assistant's prompt-to-design. Where those projects do one of these better, the improvement is
 an issue or a comment above (#460, #462, #463, #464, #446, #447, #471, #291).
 
+From the competitor scan of 2026-11-07 ([research/competitive-features.md](research/competitive-features.md),
+Updates; openhoop and filum, concepts only): Join Lines and Break Apart (#744, editing, rank 7
+theme) and find and filter in the Sewing Order list (#745, workflow, rank 12 theme), both ideas
+for Future; radial, contour and guide-following colour blends added to #532, herringbone and
+ladder lines noted on #543.
+
 Deferred: linear colour-gradient and tartan fills, shape and vine fills, photo
 thread-painting, sequin/chenille/bead types (machine-specific), the TrueType turning-satin
 rework and an intelligent multi-hoop split with editable lines (VP3, TAP, TBF, U01, DSB, DSZ,
