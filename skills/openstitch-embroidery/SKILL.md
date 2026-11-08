@@ -154,7 +154,8 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    (colour changes, jumps, trims, travel mm) and a `summary` line: tell the user, and offer
    `history.undo` when a number got worse. `design.setProperties {autoStart: nearest}` (beyond
    PE-DESIGN) starts each shape without its own entry point nearest to where the last ended,
-   and ends a region without its own exit nearest the next object. Set a point by hand with
+   ends a region without its own exit nearest the next object, and enters a satin part way
+   along, where it passes nearest (a skeleton satin or satin line by a lead run under it). Set a point by hand with
    `object.setEntryExit` (`regionEntry`, `regionExit`, `lineEntry`, `lineExit`; null clears).
 5. Check: `view_render` (look at it), `design.info` (size, stitches, colours, trims, time) and
    `design.check` (sewing problems, errors first; `ready` is false while there are errors).

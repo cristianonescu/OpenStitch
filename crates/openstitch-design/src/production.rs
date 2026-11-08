@@ -434,6 +434,57 @@ pub fn nearest_start(
     Some(o)
 }
 
+/// The centre line of a satin that always starts at one of its ends (#547): a skeleton satin
+/// (its skeleton) or a satin line (its path). Manual Punch columns and Auto satin regions
+/// already start at their entry point, part way along.
+pub fn lead_centre(object: &DesignObject) -> Option<Vec<Vec2>> {
+    if object.kind != ObjectKind::Shape {
+        return None;
+    }
+    if let Some(r) = &object.region {
+        return (r.kind == crate::model::RegionType::Satin && r.motif_band.is_none())
+            .then(|| r.skeleton.as_ref().map(|s| s.points.clone()))
+            .flatten()
+            .filter(|p| p.len() >= 2);
+    }
+    let l = object.line.as_ref()?;
+    let c = object.contours.first()?;
+    (l.kind == crate::model::LineType::Satin && l.motif_band.is_none() && !c.closed)
+        .then(|| c.path())
+        .filter(|p| p.len() >= 2)
+}
+
+/// A satin entered part way along (#547, #545's mid-join) when it would otherwise start at an
+/// end: the needle comes in at the point of its centre line (`centre`, [`lead_centre`])
+/// nearest `from` and runs along the centre to `start`, where the satin's own stitching
+/// begins, under the satin about to be sewn there, instead of jumping to `start`. The lead
+/// run, in 2 mm stitches; `None` when `start` is already about as near (5 mm).
+pub fn satin_lead(centre: &[Vec2], from: Vec2, start: Vec2) -> Option<Vec<Vec2>> {
+    let (k, at) = centre
+        .windows(2)
+        .enumerate()
+        .map(|(k, w)| (k, crate::knife::nearest(from, &[w[0], w[1]]).1))
+        .min_by(|a, b| a.1.distance(from).total_cmp(&b.1.distance(from)))?;
+    if from.distance(start) - from.distance(at) < LEAD_GAIN {
+        return None;
+    }
+    // Along the centre towards the end the satin starts at.
+    let mut path = vec![at];
+    if centre[0].distance(start) <= centre[centre.len() - 1].distance(start) {
+        path.extend(centre[..=k].iter().rev());
+    } else {
+        path.extend(centre[k + 1..].iter());
+    }
+    path.push(start);
+    path.dedup_by(|a, b| a.distance(*b) < 1e-6);
+    Some(crate::generate::subdivide(&path, LEAD_STITCH))
+}
+
+/// A part-way satin start is taken only when it saves at least this much travel (0.1 mm).
+const LEAD_GAIN: f64 = 50.0;
+/// Stitch length of the lead run under a satin (0.1 mm).
+const LEAD_STITCH: f64 = 20.0;
+
 /// Where the needle heads after `object`: the point of `next` (the next object sewn) nearest
 /// to `object`'s middle (#547).
 pub fn heading(object: &DesignObject, next: &DesignObject) -> Option<Vec2> {

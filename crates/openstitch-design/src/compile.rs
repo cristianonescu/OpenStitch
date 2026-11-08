@@ -609,7 +609,33 @@ impl Compiler {
                 }
                 _ => None,
             };
-            sew_object(&mut w, started.as_ref().unwrap_or(object), design);
+            let sewn = started.as_ref().unwrap_or(object);
+            // A skeleton satin or satin line entered part way along (#547): the lead run
+            // under it first, to where its own stitching starts.
+            if production.auto_start == crate::production::AutoStart::Nearest
+                && let Some(from) = w.position
+                && let Some(centre) = crate::production::lead_centre(sewn)
+                && let Some(start) = self.first_needle(sewn, design)
+                && let Some(lead) = crate::production::satin_lead(&centre, from, start)
+            {
+                let thread = sewn
+                    .region
+                    .as_ref()
+                    .map(|r| r.thread.clone())
+                    .or_else(|| sewn.line.as_ref().map(|l| l.thread.clone()));
+                if let Some(thread) = thread {
+                    w.sew(Element {
+                        thread,
+                        runs: vec![lead],
+                        whole: false,
+                        lock: true,
+                        pieces: false,
+                        across: None,
+                        rule: Rule::Pe,
+                    });
+                }
+            }
+            sew_object(&mut w, sewn, design);
             w.under = None;
             w.region_area = None;
             if object.stop_after && w.position.is_some() {
@@ -681,6 +707,17 @@ impl Compiler {
         }
         let out = toward.map_or(0.0, |t| last.distance(t));
         (w.out.count(Command::Trim), travel + out)
+    }
+
+    /// Where `object`, sewn alone, puts its first needle point.
+    fn first_needle(&self, object: &DesignObject, design: &Design) -> Option<Vec2> {
+        let mut w = self.writer();
+        sew_object(&mut w, object, design);
+        w.out
+            .stitches
+            .iter()
+            .find(|s| s.command == Command::Stitch)
+            .map(|s| v2(s.x, s.y))
     }
 
     /// Needle points `object` sews alone, its region over `area` when given (#511).

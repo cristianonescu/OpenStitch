@@ -301,6 +301,92 @@ fn nearest_start_also_ends_a_fill_toward_the_next_object() {
 }
 
 #[test]
+fn satins_are_entered_part_way_along() {
+    // #547 part-way satin start (#545's mid-join): a square ending at (45, 20), then a 60 mm
+    // satin along y 25-31 whose ends are 30 mm away. With autoStart nearest each satin kind is
+    // entered near (45, 28): a Manual Punch column and a skeleton satin or satin line (a lead
+    // run along the centre, under the satin, to where its own stitching starts). Travel falls,
+    // no trim is added, every needle point stays on the satin, and off sews as before.
+    let kinds: [(&str, Vec<(&str, Value)>); 3] = [
+        (
+            "column",
+            vec![
+                (
+                    "shape.column",
+                    json!({"lines": (0..=6).map(|k| json!([[15 + 10 * k, 25], [15 + 10 * k, 31]]))
+                        .collect::<Vec<_>>(), "fill": "#ff0000"}),
+                ),
+                ("object.setRegion", json!({"ids": [2], "underlay": false})),
+            ],
+        ),
+        (
+            "skeleton satin",
+            vec![(
+                "shape.skeletonSatin",
+                json!({"points": [[15, 28], [75, 28]], "widths": [6, 6], "fill": "#ff0000"}),
+            )],
+        ),
+        (
+            "satin line",
+            vec![
+                (
+                    "shape.path",
+                    json!({"points": [[15, 28], [75, 28]], "closed": false, "outline": "#ff0000"}),
+                ),
+                (
+                    "object.setLine",
+                    json!({"id": 2, "type": "satin", "width": 6}),
+                ),
+            ],
+        ),
+    ];
+    for (name, steps) in kinds {
+        let tmp = TempDir::new("production");
+        let mut s = Session::new(tmp.path());
+        rect(&mut s, 40.0, 10.0, 10.0, 10.0, "#ff0000");
+        for (id, params) in steps {
+            run(&mut s, id, params);
+        }
+        let stats = |s: &mut Session| run(s, "design.info", json!({}))["stitchStats"].clone();
+        let off = stats(&mut s);
+        run(
+            &mut s,
+            "design.setProperties",
+            json!({"autoStart": "nearest"}),
+        );
+        let on = stats(&mut s);
+        let travel = |v: &Value| v["travelMM"].as_f64().expect("travel");
+        assert!(travel(&on) + 20.0 < travel(&off), "{name}: {off} -> {on}");
+        assert!(
+            on["trims"].as_u64() <= off["trims"].as_u64(),
+            "{name}: {off} -> {on}"
+        );
+        let p = compile(s.design());
+        let entered = p
+            .stitches
+            .iter()
+            .find(|st| st.command == Command::Stitch && st.y > 225.0)
+            .expect("the satin");
+        assert!(
+            (entered.x - 450.0).abs() < 25.0,
+            "{name}: enters at {entered:?}"
+        );
+        for st in p
+            .stitches
+            .iter()
+            .filter(|st| st.command == Command::Stitch && st.y > 225.0)
+        {
+            assert!(
+                (145.0..=755.0).contains(&st.x) && st.y <= 315.0,
+                "{name}: {st:?}"
+            );
+        }
+        run(&mut s, "design.setProperties", json!({"autoStart": "off"}));
+        assert_eq!(stats(&mut s), off, "{name}");
+    }
+}
+
+#[test]
 fn nearest_start_shortens_travel() {
     let tmp = TempDir::new("production");
     let mut s = Session::new(tmp.path());
