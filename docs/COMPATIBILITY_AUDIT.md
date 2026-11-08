@@ -3465,3 +3465,22 @@ arches pass; three references remain 0.1-0.2 mm past their 0.5 mm bounds: text-t
 slanted stem foot (48.4 mm against 49.0) and the descenders of 17-openstitch-l75 and
 18-openstitch-l100 (50.8 against 51.4 and 51.5), where the warped bottom edge's lower corner
 lies past the stroke's last crossing.
+
+### Auto Punch colours: a small saturated colour keeps its thread, 2026-11-08 (#447)
+
+PE-DESIGN-compatible mode, flat graphics only. PE-DESIGN 11.50's Auto Punch of the calibration
+image `447-patches.png` (17 patches on white, round 9, BROTHER EMBROIDERY, automatic 10, then 6
+and 4 colours) keeps the 0.17 % red patch's own thread (Red) at every count, while median cut
+gave it no box of its own. Now a colour smaller than 0.5 % of the pixels, saturated (CIELAB
+chroma >= 50) and at least 30 from every colour with a real share keeps its own box (at most 3),
+in a census of at most 40 colours (a photo's small saturated colours are highlights PE-DESIGN
+merges).
+
+Patches matching PE-DESIGN's thread (of 17): automatic 11 -> 12, 6 colours 9 -> 8, 4 colours
+10 -> 16 (threads exactly PE-DESIGN's: Khaki, Pewter, Red); 30 -> 36 of 51. The loss at 6:
+the box red takes costs the Warm Gray PE-DESIGN keeps there, as PE-DESIGN merges blue, teal and
+purple into one Pewter cluster that median cut keeps apart. Still different: PE-DESIGN's
+grey80 + olive + green -> Dark Olive and teal -> Emerald Green at 10 (CIELAB nearest is Teal
+Green, so PE-DESIGN's thread choice is not a plain nearest colour), grey200 joining the
+background at 4. The storybook p03's orange (this issue's headline) is a photo gradient, not
+a small distinct colour, and stays merged.

@@ -6,6 +6,7 @@
 use crate::perceptual::{self, Lab};
 use crate::raster::Raster;
 use openstitch_core::{PEC_CHART, Thread, color_distance, nearest_index, pec_basic_chart};
+use openstitch_design::fmath::Det;
 use std::collections::HashMap;
 
 pub type Rgb = [u8; 3];
@@ -100,6 +101,51 @@ impl Census {
             .count()
             .clamp(1, max.max(1))
     }
+}
+
+/// A colour this saturated (CIELAB chroma) may keep its own box in PE-compatible mode however
+/// small it is ([`protected`], #447).
+const PROTECT_CHROMA: f64 = 50.0;
+/// ...when every colour with at least [`AUTO_SHARE`] of the pixels is at least this far from
+/// it (CIE76).
+const PROTECT_DE: f64 = 30.0;
+/// At most this many colours are kept that way.
+const PROTECT_MAX: usize = 3;
+/// ...and only in a census of at most this many colours (flat graphics, #447).
+const PROTECT_FLAT: usize = 40;
+
+/// The census colours PE-compatible mode keeps a box for however small they are (#447): at
+/// most [`PROTECT_MAX`], smaller than [`AUTO_SHARE`], saturated, and far from every colour that
+/// has a real share. Largest first.
+fn protected(hist: &[(Rgb, u64)]) -> Vec<Rgb> {
+    let total: u64 = hist.iter().map(|c| c.1).sum();
+    // Flat graphics only: a photo's census is full of shades, and its small saturated ones
+    // are highlights PE-DESIGN merges (p07's pinks).
+    if total == 0 || hist.len() > PROTECT_FLAT {
+        return Vec::new();
+    }
+    let share = |c: &(Rgb, u64)| c.1 as f64 / total as f64;
+    let big: Vec<Lab> = hist
+        .iter()
+        .filter(|c| share(c) >= AUTO_SHARE)
+        .map(|c| crate::perceptual::lab(c.0))
+        .collect();
+    let mut kept: Vec<(Rgb, u64)> = hist
+        .iter()
+        .filter(|c| share(c) < AUTO_SHARE && share(c) >= AUTO_SHARE / 10.0)
+        .filter(|c| {
+            let l = crate::perceptual::lab(c.0);
+            l[1].dhypot(l[2]) >= PROTECT_CHROMA
+                && big.iter().all(|b| {
+                    ((b[0] - l[0]).powi(2) + (b[1] - l[1]).powi(2) + (b[2] - l[2]).powi(2)).sqrt()
+                        >= PROTECT_DE
+                })
+        })
+        .copied()
+        .collect();
+    kept.sort_by_key(|c| std::cmp::Reverse(c.1));
+    kept.truncate(PROTECT_MAX);
+    kept.into_iter().map(|c| c.0).collect()
 }
 
 /// Smallest share of the opaque pixels a colour needs to count in [`Census::auto_colors`].
@@ -274,7 +320,30 @@ impl Palette {
     pub fn from_census(census: &Census, n: usize) -> Palette {
         let mut hist = census.colors.clone();
         hist.sort_by_key(|c| pack(c.0));
-        Self::from_histogram(&hist, n)
+        // A small saturated colour unlike every colour with a real share keeps its own box, as
+        // PE-DESIGN keeps it at every count (#447: a 0.17 % red patch has its own thread at
+        // 10, 6 and 4 colours, round 9); median cut alone gives it no box of its own.
+        let kept = protected(&hist);
+        if kept.is_empty() || n <= kept.len() {
+            return Self::from_histogram(&hist, n);
+        }
+        let rest: Vec<(Rgb, u64)> = hist
+            .iter()
+            .filter(|c| !kept.contains(&c.0))
+            .copied()
+            .collect();
+        let mut p = Self::from_histogram(&rest, n - kept.len());
+        for c in kept {
+            let (i, t) = nearest_pec(c);
+            let k = p.chart.iter().position(|&x| x == i).unwrap_or_else(|| {
+                p.chart.push(i);
+                p.threads.push(t);
+                p.chart.len() - 1
+            });
+            p.means.push(c);
+            p.thread_of.push(k);
+        }
+        p
     }
 
     /// Median cut of a sorted colour histogram, then PEC matching.
@@ -863,6 +932,62 @@ fn weighted(a: [f64; 3], b: [f64; 3]) -> f64 {
 
 pub fn rgb_f(t: &Thread) -> [f64; 3] {
     [f64::from(t.red), f64::from(t.green), f64::from(t.blue)]
+}
+
+#[cfg(test)]
+mod protect_tests {
+    use super::*;
+
+    /// The colours of #447's calibration image (447-patches.png, 600 x 400 px) with their pixel
+    /// counts, the white background left out as Auto Punch leaves it out.
+    fn patches() -> Vec<(Rgb, u64)> {
+        vec![
+            ([40, 40, 40], 8000),
+            ([80, 80, 80], 8000),
+            ([120, 120, 120], 8000),
+            ([160, 160, 160], 8000),
+            ([200, 200, 200], 8000),
+            ([230, 230, 230], 8000),
+            ([110, 95, 45], 16000),
+            ([60, 90, 170], 10000),
+            ([70, 140, 60], 10000),
+            ([230, 140, 40], 2500),
+            ([210, 40, 30], 400),
+            ([140, 80, 150], 8000),
+            ([200, 150, 90], 14400),
+            ([206, 156, 96], 14400),
+            ([40, 120, 120], 10800),
+            ([46, 126, 116], 10800),
+            ([225, 190, 160], 12000),
+        ]
+    }
+
+    #[test]
+    fn a_small_saturated_colour_keeps_its_own_thread_as_in_pe_design() {
+        // #447, round 9: PE-DESIGN keeps the 0.17 % red patch's own thread (Red) at 10, 6 and 4
+        // colours; median cut alone merged it into a neighbour at every count.
+        let census = Census {
+            colors: patches(),
+            modal: Vec::new(),
+            labels: Vec::new(),
+        };
+        let red = nearest_pec([210, 40, 30]).0;
+        for n in [10, 6, 4] {
+            let p = Palette::from_census(&census, n);
+            assert!(p.chart.contains(&red), "{n} colours: {:?}", p.threads);
+            assert!(p.means.len() <= n, "{n} colours: {} boxes", p.means.len());
+        }
+        // A photo's census (more than PROTECT_FLAT colours) keeps median cut as it was.
+        let mut many = patches();
+        many.extend((0..60u8).map(|k| ([k * 4, 200 - k, 100], 2000)));
+        assert!(protected(&many).is_empty());
+        // Nothing small and saturated: as before.
+        let plain: Vec<(Rgb, u64)> = patches()
+            .into_iter()
+            .filter(|c| c.0 != [210, 40, 30])
+            .collect();
+        assert!(protected(&plain).is_empty());
+    }
 }
 
 #[cfg(test)]
