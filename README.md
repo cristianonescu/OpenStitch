@@ -1219,6 +1219,7 @@ stitchtool convert in.dst out.pes                     # one file to another form
 stitchtool convert dsts/ pes/ --format pes            # every design in a folder (existing targets skipped)
 stitchtool info design.pes                            # size, stitches, colours, trims, jumps, thread, time
 stitchtool optimize in.pes out.pes --by-color         # sewing order / fewer colour changes
+stitchtool optimize in.osd out.osd --auto-start nearest  # each object starts nearest where the last ended
 stitchtool digitize logo.png out.pes --size 80mm      # Auto Punch an image
 stitchtool formats                                    # what OpenStitch reads and writes
 ```
