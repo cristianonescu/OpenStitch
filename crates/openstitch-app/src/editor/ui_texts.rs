@@ -67,6 +67,11 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
     ("menu-millimetres", "Millimetres"),
     ("menu-inches", "Inches"),
     ("menu-ruler-origin", "Ruler origin"),
+    ("menu-snap-to-guides", "Snap to guides"),
+    (
+        "menu-snap-to-guides-tip",
+        "A dragged selection snaps to the guidelines while they show; hold Ctrl (Cmd on macOS) to drag freely",
+    ),
     ("menu-ruler-origin-centre", "Page centre"),
     ("menu-ruler-origin-top-left", "Top-left corner"),
     (
@@ -1674,7 +1679,7 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
         "ui-status-turning-gap-of-mm",
         "Turning gap of { $length } mm",
     ),
-    ("ui-status-guideline-mm", "Guideline { $position } mm"),
+    ("ui-status-guideline-mm", "Guideline { $position }"),
     ("ui-status-created", "Created { $path }"),
     ("ui-status-renamed-to", "Renamed to { $path }"),
     (

@@ -46,7 +46,8 @@ impl Default for Workspace {
             reference: false,
             realistic: false,
             solid: false,
-            guides: false,
+            // The owner's default (#799): guidelines shown.
+            guides: true,
             view: Default::default(),
             measure: MeasureTool::default(),
             sections: Default::default(),

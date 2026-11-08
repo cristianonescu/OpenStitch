@@ -649,6 +649,7 @@ impl EditorApp {
                 "gridMajorEvery" => json!(w.grid.major_every),
                 "snapToGrid" => json!(w.grid.snap),
                 "snapToObjects" => json!(prefs.editing.snap_objects),
+                "snapToGuides" => json!(prefs.editing.snap_guides),
                 "precisionBar" => json!(prefs.editing.precision_bar),
                 "clickInsideOutlines" => json!(prefs.editing.click_inside),
                 "units" => json!(openstitch_app::editor::units::key(prefs.units)),
@@ -838,6 +839,7 @@ impl EditorApp {
                 save = false;
             }
             "snapToObjects" => self.ui.prefs.editing.snap_objects = bool_value(name, v)?,
+            "snapToGuides" => self.ui.prefs.editing.snap_guides = bool_value(name, v)?,
             "precisionBar" => self.ui.prefs.editing.precision_bar = bool_value(name, v)?,
             "clickInsideOutlines" => self.ui.prefs.editing.click_inside = bool_value(name, v)?,
             "units" => {
@@ -883,7 +885,8 @@ impl EditorApp {
             "guides" => {
                 self.workspace.guides = bool_value(name, v)?;
                 self.workspace.rulers |= self.workspace.guides;
-                save = false;
+                // Remembered (#799).
+                self.ui.prefs.editing.show_guides = self.workspace.guides;
             }
             "referenceWindow" => (self.workspace.reference, save) = (bool_value(name, v)?, false),
             "paneSewingOrder" => self.ui.prefs.panes.sewing_order.visible = bool_value(name, v)?,

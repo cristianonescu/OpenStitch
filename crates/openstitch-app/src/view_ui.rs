@@ -9,7 +9,8 @@ use crate::workspace_ui::RULER;
 use eframe::egui::{self, Color32, Pos2, Stroke};
 use openstitch_app::editor::prefs::FontFilter;
 use openstitch_app::editor::workspace::{
-    GuideDrag, RealisticSettings, SOLID_WIDTH_MM, guide_near, remove_guide, snap_guide,
+    GuideDrag, RealisticSettings, SOLID_WIDTH_MM, guide_label, guide_near, remove_guide,
+    snap_guide,
 };
 use openstitch_app::editor::{CommandRequest, Viewport};
 use openstitch_design::{Guides, ImageAdjust, Vec2, v2};
@@ -106,6 +107,51 @@ pub fn draw_guides(app: &EditorApp, painter: &egui::Painter, rect: egui::Rect, v
             stroke,
         );
     }
+    // Its position beside the guideline being dragged, or the one under the pointer (#799).
+    let label = app.workspace.view.guide_drag.map(|d| (d.vertical, d.at)).or_else(|| {
+        let h = painter.ctx().input(|i| i.pointer.hover_pos())?;
+        if !rect.contains(h) {
+            return None;
+        }
+        let near = |list: &[f64], vertical: bool| {
+            list.iter().copied().find(|&v| {
+                let s = if vertical {
+                    vp.to_screen(v2(v, 0.0)).x as f32 - h.x
+                } else {
+                    vp.to_screen(v2(0.0, v)).y as f32 - h.y
+                };
+                s.abs() <= PICK
+            })
+        };
+        near(&g.vertical, true)
+            .map(|x| (true, x))
+            .or_else(|| near(&g.horizontal, false).map(|y| (false, y)))
+    });
+    if let Some((vertical, at)) = label {
+        let zero = app.ruler_zero();
+        let text = guide_label(
+            at - if vertical { zero.x } else { zero.y },
+            app.ui.prefs.units,
+        );
+        let (p, align) = if vertical {
+            let sx = vp.to_screen(v2(at, 0.0)).x as f32;
+            (
+                Pos2::new(sx + 4.0, rect.min.y + RULER + 4.0),
+                egui::Align2::LEFT_TOP,
+            )
+        } else {
+            let sy = vp.to_screen(v2(0.0, at)).y as f32;
+            (
+                Pos2::new(rect.min.x + RULER + 4.0, sy - 4.0),
+                egui::Align2::LEFT_BOTTOM,
+            )
+        };
+        let font = egui::FontId::monospace(11.0);
+        let galley = painter.layout_no_wrap(text, font, Color32::WHITE);
+        let r = align.anchor_size(p, galley.size()).expand(2.0);
+        painter.rect_filled(r, 2.0, GUIDE);
+        painter.galley(r.min + egui::vec2(2.0, 2.0), galley, Color32::WHITE);
+    }
 }
 
 /// Where a guideline's marker and its delete × sit in the ruler.
@@ -186,10 +232,13 @@ pub fn guide_pointer(
     rect: egui::Rect,
     vp: &Viewport,
 ) -> bool {
-    if !guides_shown(app) {
+    // A guideline can be dragged out of a ruler even while they are hidden; that shows them
+    // (#799).
+    if !app.workspace.rulers {
         app.workspace.view.guide_drag = None;
         return false;
     }
+    let shown = guides_shown(app);
     let (pressed, released, at) = ui.input(|i| {
         (
             i.pointer.primary_pressed(),
@@ -204,11 +253,22 @@ pub fn guide_pointer(
             if d.vertical { model.x } else { model.y },
             &app.workspace.grid,
         );
-        app.status = openstitch_app::tf!("ui-status-guideline-mm", position = format!("{:.1}", d.at / 10.0));
+        let zero = app.ruler_zero();
+        app.status = openstitch_app::tf!(
+            "ui-status-guideline-mm",
+            position = guide_label(
+                d.at - if d.vertical { zero.x } else { zero.y },
+                app.ui.prefs.units
+            )
+        );
         if released {
             app.workspace.view.guide_drag = None;
             let g = &app.session.design().guides;
-            let next = match (rect.contains(at), d.index) {
+            // Dropped on either ruler or off the canvas, a guideline goes (#799).
+            let on_canvas = rect.contains(at)
+                && at.x > rect.min.x + RULER
+                && at.y > rect.min.y + RULER;
+            let next = match (on_canvas, d.index) {
                 (true, _) => d.placed(g),
                 (false, Some(i)) => remove_guide(g, d.vertical, i),
                 (false, None) => g.clone(),
@@ -231,8 +291,18 @@ pub fn guide_pointer(
     } else {
         return false;
     };
+    if !shown {
+        app.workspace.guides = true;
+        app.ui.prefs.editing.show_guides = true;
+        app.ui.save_prefs();
+    }
     let g = app.session.design().guides.clone();
-    let list = if vertical { &g.vertical } else { &g.horizontal };
+    // Hidden guidelines cannot be picked: a press starts a new one.
+    let list: &[f64] = match (shown, vertical) {
+        (false, _) => &[],
+        (true, true) => &g.vertical,
+        (true, false) => &g.horizontal,
+    };
     let screen = |v: f64| {
         if vertical {
             vp.to_screen(v2(v, 0.0)).x as f32
@@ -996,5 +1066,69 @@ pub fn draw_show(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
                 Stroke::new(1.5, cut),
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod guide_tests {
+    use super::*;
+    use crate::app::Launch;
+
+    /// One frame of the canvas (400 × 300 points, 1 point per 0.1 mm, model origin at (50, 50))
+    /// with `events`, through [`guide_pointer`].
+    fn frame(ctx: &egui::Context, app: &mut EditorApp, events: Vec<egui::Event>) {
+        let rect = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(400.0, 300.0));
+        let raw = egui::RawInput {
+            screen_rect: Some(rect),
+            events,
+            ..Default::default()
+        };
+        let vp = Viewport {
+            scale: 1.0,
+            offset: v2(50.0, 50.0),
+        };
+        let mut out = ctx.run_ui(raw, |ui| {
+            let response = ui.allocate_rect(rect, egui::Sense::click_and_drag());
+            guide_pointer(app, ui, &response, rect, &vp);
+        });
+        out.textures_delta.clear();
+    }
+
+    fn button(at: Pos2, pressed: bool) -> egui::Event {
+        egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        }
+    }
+
+    /// Presses at `from`, drags to `to` and releases there.
+    fn drag(ctx: &egui::Context, app: &mut EditorApp, from: Pos2, to: Pos2) {
+        frame(ctx, app, vec![egui::Event::PointerMoved(from)]);
+        frame(ctx, app, vec![button(from, true)]);
+        frame(ctx, app, vec![egui::Event::PointerMoved(to)]);
+        frame(ctx, app, vec![button(to, false)]);
+    }
+
+    /// #799: a guideline is dragged out of the top ruler even with guidelines hidden, which
+    /// shows them; dragged back onto either ruler it goes; each is one undo step.
+    #[test]
+    fn a_guideline_comes_out_of_a_ruler_and_goes_back_onto_one() {
+        let ctx = egui::Context::default();
+        let mut app = EditorApp::new(Launch::default());
+        app.workspace.guides = false;
+        app.ui.prefs.editing.show_guides = false;
+        drag(&ctx, &mut app, Pos2::new(200.0, 10.0), Pos2::new(200.0, 150.0));
+        assert_eq!(app.session.design().guides.vertical, vec![150.0]);
+        assert!(app.workspace.guides && app.ui.prefs.editing.show_guides);
+        // Its marker dragged onto the left ruler removes it.
+        drag(&ctx, &mut app, Pos2::new(200.0, 10.0), Pos2::new(8.0, 150.0));
+        assert!(app.session.design().guides.vertical.is_empty());
+        app.undo();
+        assert_eq!(app.session.design().guides.vertical, vec![150.0]);
+        // A new one dropped on a ruler is not added.
+        drag(&ctx, &mut app, Pos2::new(10.0, 120.0), Pos2::new(10.0, 160.0));
+        assert!(app.session.design().guides.horizontal.is_empty());
     }
 }
