@@ -82,11 +82,13 @@ pub fn parse(f: Field, text: &str, u: Units) -> Option<f64> {
 }
 
 /// How the bar measures: the reference point (top-left corner or centre, as PE-DESIGN's move
-/// dialog) and whether width and height scale together.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// dialog), whether width and height scale together, and the point X and Y count from (0.1 mm,
+/// page coordinates: the ruler origin, #799; the page's corner by default).
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Options {
     pub centre: bool,
     pub lock: bool,
+    pub zero: Vec2,
 }
 
 impl Default for Options {
@@ -94,6 +96,7 @@ impl Default for Options {
         Options {
             centre: false,
             lock: true,
+            zero: v2(0.0, 0.0),
         }
     }
 }
@@ -111,8 +114,8 @@ pub fn reference(b: Rect, o: Options) -> Vec2 {
 pub fn value(f: Field, b: Rect, o: Options) -> f64 {
     let r = reference(b, o);
     match f {
-        Field::X => mm(r.x),
-        Field::Y => mm(r.y),
+        Field::X => mm(r.x - o.zero.x),
+        Field::Y => mm(r.y - o.zero.y),
         Field::Width => mm(b.width()),
         Field::Height => mm(b.height()),
         Field::Rotate | Field::Skew => 0.0,
@@ -135,7 +138,11 @@ pub fn requests(f: Field, v: f64, ids: &BTreeSet<u64>, b: Rect, o: Options) -> V
     };
     match f {
         Field::X | Field::Y => {
-            let d = v * 10.0 - if f == Field::X { r.x } else { r.y };
+            let d = if f == Field::X {
+                v * 10.0 + o.zero.x - r.x
+            } else {
+                v * 10.0 + o.zero.y - r.y
+            };
             if mm(d) == 0.0 {
                 return Vec::new();
             }
@@ -196,6 +203,29 @@ mod tests {
         s.design().objects[0].bounds().expect("bounds")
     }
 
+    /// #799: X and Y count from the ruler origin: with the page centre at (50, 50) mm the
+    /// rectangle's corner at (10, 20) mm reads -40, -30, and typing 0 puts it on the centre.
+    #[test]
+    fn x_and_y_count_from_the_ruler_origin() {
+        let (mut s, ids) = session();
+        let o = Options {
+            zero: v2(500.0, 500.0),
+            ..Options::default()
+        };
+        let b = bounds(&s);
+        assert_eq!(shown(Field::X, b, o, Units::Mm), "-40.00");
+        assert_eq!(shown(Field::Y, b, o, Units::Mm), "-30.00");
+        apply(&mut s, Field::X, 0.0, &ids, o);
+        apply(&mut s, Field::Y, 0.0, &ids, o);
+        let b = bounds(&s);
+        assert!(
+            (b.min_x - 500.0).abs() < 1e-6 && (b.min_y - 500.0).abs() < 1e-6,
+            "{b:?}"
+        );
+        // From the page's corner, as before.
+        assert_eq!(shown(Field::X, b, Options::default(), Units::Mm), "50.00");
+    }
+
     #[test]
     fn width_with_lock_keeps_proportions_and_without_changes_only_width() {
         let (mut s, ids) = session();
@@ -217,6 +247,7 @@ mod tests {
         let centre = Options {
             centre: true,
             lock: true,
+            ..Options::default()
         };
         apply(&mut s, Field::X, 50.0, &ids, centre);
         apply(&mut s, Field::Y, 50.0, &ids, centre);
@@ -263,6 +294,7 @@ mod tests {
             Options {
                 centre: true,
                 lock: true,
+                ..Options::default()
             },
         );
         assert_eq!(s.design().objects[0].contours, direct.objects[0].contours);

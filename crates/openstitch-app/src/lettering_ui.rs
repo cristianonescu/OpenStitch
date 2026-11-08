@@ -214,12 +214,17 @@ pub fn text_tools_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
 }
 
 /// Loads a TrueType / OpenType font into the design.
-pub fn load_truetype(app: &mut EditorApp) {
-    if let Some(p) = crate::files::FileDialog::new()
-        .add_filter("TrueType / OpenType", &["ttf", "otf", "ttc", "otc"])
-        .pick_file()
-        && let Some(r) = app.execute(&lettering::load_font_request(&p))
-    {
+pub fn load_truetype(_app: &mut EditorApp) {
+    crate::files::pick_then(
+        crate::files::FileDialog::new()
+            .add_filter("TrueType / OpenType", &["ttf", "otf", "ttc", "otc"]),
+        |app, p| load_truetype_from(app, &p),
+    );
+}
+
+/// Loads the TrueType / OpenType font at `p` into the design.
+fn load_truetype_from(app: &mut EditorApp, p: &std::path::Path) {
+    if let Some(r) = app.execute(&lettering::load_font_request(p)) {
         app.status = openstitch_app::tf!("ui-status-loaded-font-glyphs-it-is-saved", id = r["id"].as_str().unwrap_or_default(), glyphs = r["glyphs"]);
     }
 }
@@ -446,15 +451,13 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
                 app.status = openstitch_app::tf!("ui-status-stored-mm-wide", character = f.character, advancemm = r["advanceMM"]);
             }
         }
-        Some(FontAction::ChooseImage) => {
-            if let Some(p) = crate::files::FileDialog::new()
-                .add_filter("Images", &["png", "jpg", "jpeg", "bmp"])
-                .pick_file()
-            {
+        Some(FontAction::ChooseImage) => crate::files::pick_then(
+            crate::files::FileDialog::new().add_filter("Images", &["png", "jpg", "jpeg", "bmp"]),
+            |app, p| {
                 app.lettering.fonts.image.path = Some(p);
                 app.lettering.fonts.image.found.clear();
-            }
-        }
+            },
+        ),
         Some(FontAction::TraceImage) => {
             if let Some(r) = app.execute(&f.trace_image()) {
                 app.lettering.fonts.set_found(&r);
@@ -477,13 +480,14 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
                 .iter()
                 .map(|t| t.extension())
                 .collect();
-            if let Some(paths) = crate::files::FileDialog::new()
-                .add_filter("Embroidery files", &exts)
-                .pick_files()
-                && let Some(r) = app.execute(&f.map_files(&paths))
-            {
-                app.status = lettering::map_summary(&r);
-            }
+            crate::files::pick_many_then(
+                crate::files::FileDialog::new().add_filter("Embroidery files", &exts),
+                move |app, paths| {
+                    if let Some(r) = app.execute(&f.map_files(&paths)) {
+                        app.status = lettering::map_summary(&r);
+                    }
+                },
+            );
         }
         Some(FontAction::Save) => {
             if let Some(p) = crate::files::FileDialog::new()
@@ -495,15 +499,14 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
                 app.status = openstitch_app::tf!("ui-status-saved", path = p.display());
             }
         }
-        Some(FontAction::Open) => {
-            if let Some(p) = crate::files::FileDialog::new()
-                .add_filter("OpenStitch font", &[ext])
-                .pick_file()
-                && let Some(r) = app.execute(&FontsForm::open_file(&p))
-            {
-                app.lettering.fonts.font = r["id"].as_str().unwrap_or_default().into();
-            }
-        }
+        Some(FontAction::Open) => crate::files::pick_then(
+            crate::files::FileDialog::new().add_filter("OpenStitch font", &[ext]),
+            |app, p| {
+                if let Some(r) = app.execute(&FontsForm::open_file(&p)) {
+                    app.lettering.fonts.font = r["id"].as_str().unwrap_or_default().into();
+                }
+            },
+        ),
         Some(FontAction::Remove(id)) => {
             app.execute(&FontsForm::remove(&id));
         }
@@ -1195,15 +1198,14 @@ fn name_drop_window(app: &mut EditorApp, ctx: &egui::Context) {
                 app.execute(&r);
             }
         }
-        Some(DropAction::ImportCsv) => {
-            if let Some(p) = crate::files::FileDialog::new()
-                .add_filter("CSV", &["csv"])
-                .pick_file()
-                && let Some(r) = app.execute(&NameDropForm::read_csv(&p))
-            {
-                app.lettering.name_drop.set_rows(&r, n);
-            }
-        }
+        Some(DropAction::ImportCsv) => crate::files::pick_then(
+            crate::files::FileDialog::new().add_filter("CSV", &["csv"]),
+            move |app, p| {
+                if let Some(r) = app.execute(&NameDropForm::read_csv(&p)) {
+                    app.lettering.name_drop.set_rows(&r, n);
+                }
+            },
+        ),
         Some(DropAction::SaveCsv) => {
             if let Some(p) = crate::files::FileDialog::new()
                 .add_filter("CSV", &["csv"])

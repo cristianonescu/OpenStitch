@@ -866,11 +866,11 @@ fn chart_commands() -> Vec<CommandSpec> {
             vec![req("chart", "string", "Chart"), crate::commands::PATH],
             |s, p| {
                 let path = s.resolve(&p.string("path", None)?, Access::Read, &p.command)?;
-                let meta = std::fs::metadata(&path).map_err(|e| p.failed(e.to_string()))?;
+                let meta = crate::fsio::metadata(&path).map_err(|e| p.failed(e.to_string()))?;
                 if meta.len() > MAX_FILE {
                     return Err(p.failed("the file is too large"));
                 }
-                let bytes = std::fs::read(&path).map_err(|e| p.failed(e.to_string()))?;
+                let bytes = crate::fsio::read(&path).map_err(|e| p.failed(e.to_string()))?;
                 let text = String::from_utf8_lossy(&bytes);
                 let mut threads = Vec::new();
                 for (k, line) in text.lines().enumerate() {

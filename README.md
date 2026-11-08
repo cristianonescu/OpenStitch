@@ -263,8 +263,9 @@ feature is done and the rest is under [Planned](#planned).
   single- or multi-needle machine; the sewing area shown against the page.
 - (+) **Hoops of other brands:** Baby Lock, Bernina, Elna, Husqvarna Viking, Janome, Pfaff and
   Singer, plus round commercial hoops, each from the maker's published sizes ([#514]).
-- **Rulers, grid and guides:** snap to grid, guidelines dragged out of the rulers, the measure
-  tool (distance and angle) and the Reference window to jump around a large design.
+- **Rulers, grid and guides:** rulers that count from the page's centre or its top-left corner
+  ([#799]), snap to grid, guidelines dragged out of the rulers, the measure tool (distance and
+  angle) and the Reference window to jump around a large design.
 - (+) **Millimetres or inches** everywhere in the editor, from one setting ([#519]).
 - (+) **Zoom box and true real size:** drag a box to zoom, and calibrate 100 % to your monitor
   with a ruler ([#518]).
@@ -756,6 +757,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#614]: https://github.com/cristianonescu/OpenStitch/issues/614
 [#627]: https://github.com/cristianonescu/OpenStitch/issues/627
 [#652]: https://github.com/cristianonescu/OpenStitch/issues/652
+[#799]: https://github.com/cristianonescu/OpenStitch/issues/799
 
 ## Not yet implemented
 
@@ -1108,7 +1110,7 @@ sew-out on scrap fabric first.
 **Try it in a browser, with nothing to install:** <https://cristianonescu.github.io/OpenStitch/>
 runs the desktop editor: it opens designs and embroidery files from your disk and saves and
 exports them as downloads; nothing leaves the browser. It is built from `main` and does less than
-the desktop app (no Assistant or MCP control, system clipboard, printing or image pickers yet;
+the desktop app (no Assistant or MCP control, system clipboard, printing or folder choosing yet;
 see
 [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md#web-editor)).
 

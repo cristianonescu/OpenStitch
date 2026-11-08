@@ -151,11 +151,11 @@ pub fn commands() -> Vec<CommandSpec> {
             vec![crate::commands::PATH],
             |s, p| {
                 let path = s.resolve(&p.string("path", None)?, Access::Read, &p.command)?;
-                let meta = std::fs::metadata(&path).map_err(|e| p.failed(e.to_string()))?;
+                let meta = crate::fsio::metadata(&path).map_err(|e| p.failed(e.to_string()))?;
                 if meta.len() > MAX_HOOP_TABLE {
                     return Err(p.failed("the file is too large"));
                 }
-                let bytes = std::fs::read(&path).map_err(|e| p.failed(e.to_string()))?;
+                let bytes = crate::fsio::read(&path).map_err(|e| p.failed(e.to_string()))?;
                 let hoops =
                     parse_user_hoops(&String::from_utf8_lossy(&bytes)).map_err(|e| p.failed(e))?;
                 let m = &mut s.design.machine;

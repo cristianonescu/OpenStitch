@@ -652,6 +652,7 @@ impl EditorApp {
                 "precisionBar" => json!(prefs.editing.precision_bar),
                 "clickInsideOutlines" => json!(prefs.editing.click_inside),
                 "units" => json!(openstitch_app::editor::units::key(prefs.units)),
+                "rulerOrigin" => json!(prefs.ruler_origin.key()),
                 "nudgeStep" => json!(prefs.editing.nudge_mm),
                 "nudgeByGrid" => json!(prefs.editing.nudge_grid),
                 "alignTo" => json!(self.align_to),
@@ -845,6 +846,12 @@ impl EditorApp {
                     .and_then(openstitch_app::editor::units::from_key)
                     .ok_or("units takes mm or inch")?;
                 self.database.units = self.ui.prefs.units;
+            }
+            "rulerOrigin" => {
+                self.ui.prefs.ruler_origin = v
+                    .as_str()
+                    .and_then(openstitch_app::editor::units::RulerOrigin::from_key)
+                    .ok_or("rulerOrigin takes centre or topLeft")?;
             }
             "nudgeStep" => self.ui.prefs.editing.nudge_mm = number_value(name, v, 0.1, 50.0)?,
             "nudgeByGrid" => self.ui.prefs.editing.nudge_grid = bool_value(name, v)?,
@@ -1599,6 +1606,27 @@ mod tests {
         assert!(
             app.ui_command("ui.set", Some(&json!({ "name": "units", "value": "cm" })))
                 .is_err()
+        );
+        // #799: the ruler origin, read and set; the precision bar follows it.
+        use openstitch_app::editor::units::RulerOrigin;
+        assert_eq!(app.ui.prefs.ruler_origin, RulerOrigin::Centre);
+        let page = app.session.design().page;
+        let zero = app.ruler_zero();
+        assert_eq!((zero.x, zero.y), (page.width / 2.0, page.height / 2.0));
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "rulerOrigin", "value": "topLeft" })),
+        )
+        .expect("rulerOrigin");
+        assert_eq!(app.ui.prefs.ruler_origin, RulerOrigin::TopLeft);
+        let zero = app.ruler_zero();
+        assert_eq!((zero.x, zero.y), (0.0, 0.0));
+        assert!(
+            app.ui_command(
+                "ui.set",
+                Some(&json!({ "name": "rulerOrigin", "value": "middle" }))
+            )
+            .is_err()
         );
         assert!(
             app.ui_command(

@@ -74,6 +74,13 @@ impl EditorApp {
     pub fn points_per_mm(&self) -> f64 {
         self.ui.prefs.points_per_mm(Some(&self.monitor_key()))
     }
+
+    /// The point (0.1 mm, page coordinates) the rulers, the cursor position and the precision
+    /// bar measure from (#799): the Design Page's centre or its top-left corner.
+    pub fn ruler_zero(&self) -> openstitch_design::Vec2 {
+        let page = self.session.design().page;
+        self.ui.prefs.ruler_origin.point(page.width, page.height)
+    }
 }
 
 /// Canvas pointer handling for the Zoom Box and the image handles; true when it took the

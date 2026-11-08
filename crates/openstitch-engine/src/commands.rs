@@ -517,7 +517,7 @@ fn design_commands() -> Vec<CommandSpec> {
                 opt(
                     "autoStart",
                     "off|nearest",
-                    "Where objects start when the design is compiled: off = each at its own entry point (PE-DESIGN, default); nearest (beyond PE-DESIGN) = a shape without an entry point of its own starts nearest to where the needle stopped (regions and closed lines at the nearest point of the outline, open lines at the nearer end; a region without an exit point of its own, motif bands aside, also ends nearest the next object; text and stitch patterns keep their own start; each only where it shortens travel and adds no trim)",
+                    "Where objects start when the design is compiled: off = each at its own entry point (PE-DESIGN, default); nearest (beyond PE-DESIGN) = a shape without an entry point of its own starts nearest to where the needle stopped (regions and closed lines at the nearest point of the outline, open lines at the nearer end; a region without an exit point of its own, motif bands aside, also ends nearest the next object; a satin is entered part way along, at the point nearest the needle (Manual Punch columns and Auto satin start there; a skeleton satin or satin line gets a lead run along its centre, under the satin, to where it starts); text and stitch patterns keep their own start; each only where it shortens travel and adds no trim)",
                 ),
             ],
             |s, p| {

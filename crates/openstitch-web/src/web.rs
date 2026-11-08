@@ -32,7 +32,7 @@ thread_local! {
     /// The editor's egui context, so a picked file or an automation call can ask for a frame.
     static CTX: RefCell<Option<eframe::egui::Context>> = const { RefCell::new(None) };
     /// Files the picker has delivered, opened at the start of the next frame.
-    static PICKED: RefCell<Vec<(Pick, PathBuf)>> = const { RefCell::new(Vec::new()) };
+    static PICKED: RefCell<Vec<(Pick, Vec<PathBuf>)>> = const { RefCell::new(Vec::new()) };
 }
 
 fn repaint() {
@@ -54,14 +54,18 @@ struct Page {
 
 impl eframe::App for Page {
     fn raw_input_hook(&mut self, ctx: &eframe::egui::Context, raw: &mut eframe::egui::RawInput) {
+        // Files dropped on the page (#693): read, put in memory, then opened.
+        for f in std::mem::take(&mut raw.dropped_files) {
+            dropped(f);
+        }
         self.editor.borrow_mut().raw_input_hook(ctx, raw);
     }
 
     fn ui(&mut self, ui: &mut eframe::egui::Ui, frame: &mut eframe::Frame) {
         let picked = PICKED.with(|p| std::mem::take(&mut *p.borrow_mut()));
         let mut editor = self.editor.borrow_mut();
-        for (kind, path) in picked {
-            editor.web_picked(kind, &path);
+        for (kind, paths) in picked {
+            editor.web_picked(kind, paths);
         }
         editor.ui(ui, frame);
         drop(editor);
@@ -162,7 +166,7 @@ fn page_command(
                 .map_err(|e| format!("base64: {e}"))?;
             let path = Path::new(OPEN_DIR).join(&name);
             memfs::put(path.clone(), bytes);
-            editor.web_picked(Pick::Open, &path);
+            editor.web_picked(Pick::Open, vec![path]);
             Ok(json!({ "opening": name }))
         })(),
         "ui.saveFile" => {
@@ -217,21 +221,63 @@ fn written(
         .collect()
 }
 
-/// The browser's file picker for File ▸ Open or Import; the file opens when its bytes arrive.
+/// The browser's file picker for an editor dialog (File ▸ Open, Import, a picture, a thread
+/// chart, a font…); the dialog's action runs when the bytes have arrived.
 fn pick(request: PickRequest) {
-    let (name, extensions) = request.filter;
+    let mut dialog = rfd::AsyncFileDialog::new();
+    for (name, extensions) in &request.filters {
+        dialog = dialog.add_filter(name.as_str(), extensions);
+    }
     wasm_bindgen_futures::spawn_local(async move {
-        let Some(file) = rfd::AsyncFileDialog::new()
-            .add_filter(name, &extensions)
-            .pick_file()
-            .await
-        else {
-            return;
+        let files = if request.many {
+            dialog.pick_files().await.unwrap_or_default()
+        } else {
+            dialog.pick_file().await.into_iter().collect()
         };
-        let path = Path::new(OPEN_DIR).join(plain_name(&file.file_name()));
-        memfs::put(path.clone(), file.read().await);
-        PICKED.with(|p| p.borrow_mut().push((request.kind, path)));
+        if files.is_empty() {
+            return;
+        }
+        let mut paths = Vec::new();
+        for file in files {
+            let path = Path::new(OPEN_DIR).join(plain_name(&file.file_name()));
+            memfs::put(path.clone(), file.read().await);
+            paths.push(path);
+        }
+        PICKED.with(|p| p.borrow_mut().push((request.kind, paths)));
         repaint();
+    });
+}
+
+/// A file dropped on the page: a design or embroidery file opens (as File ▸ Open), a picture
+/// becomes the background image; anything else is left alone.
+fn dropped(file: eframe::egui::DroppedFileHandle) {
+    let name = plain_name(&file.path().to_string_lossy());
+    let ext = Path::new(&name)
+        .extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    let kind = if ext == openstitch_engine::project::EXTENSION
+        || openstitch_formats::FileType::from_extension(&ext).is_some()
+    {
+        Pick::Open
+    } else if ["png", "jpg", "jpeg", "bmp"].contains(&ext.as_str()) {
+        Pick::Background
+    } else {
+        web_sys::console::warn_1(&JsValue::from_str(&format!(
+            "{name}: not a design, embroidery file or picture"
+        )));
+        return;
+    };
+    wasm_bindgen_futures::spawn_local(async move {
+        match file.bytes_async().await {
+            Ok(bytes) => {
+                let path = Path::new(OPEN_DIR).join(&name);
+                memfs::put(path.clone(), bytes);
+                PICKED.with(|p| p.borrow_mut().push((kind, vec![path])));
+                repaint();
+            }
+            Err(e) => web_sys::console::error_1(&JsValue::from_str(&format!("{name}: {e}"))),
+        }
     });
 }
 
