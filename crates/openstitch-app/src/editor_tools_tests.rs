@@ -224,8 +224,9 @@ fn precision_bar_commits_one_undo_step_per_value() {
     crate::arrange_ui::commit(&mut app, Field::Width, 80.0);
     let b = bounds(&app, a);
     assert!((b.width() - 800.0).abs() < 0.05 && (b.height() - 400.0).abs() < 0.05);
+    // X counts from the ruler origin: the page's centre by default (#799).
     crate::arrange_ui::commit(&mut app, Field::X, 5.0);
-    assert_eq!(bounds(&app, a).min_x, 50.0);
+    assert_eq!(bounds(&app, a).min_x, app.ruler_zero().x + 50.0);
     crate::arrange_ui::commit(&mut app, Field::Skew, 15.0);
     app.undo();
     app.undo();

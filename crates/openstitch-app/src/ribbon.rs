@@ -1582,7 +1582,7 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         let o = &mut app.ui.prefs.ruler_origin;
         changed |= ui
             .radio_value(o, RulerOrigin::Centre, t("menu-ruler-origin-centre"))
-            .on_hover_text(tip.clone())
+            .on_hover_text(tip)
             .changed();
         changed |= ui
             .radio_value(o, RulerOrigin::TopLeft, t("menu-ruler-origin-top-left"))
