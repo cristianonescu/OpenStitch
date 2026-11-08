@@ -193,6 +193,9 @@ Done 2026-11-08 (`batch:fills-2`, #534 part 1): the Fill Angle tool (Color / Sew
 the selected regions to turn their rows, PE-DESIGN's sewing-direction gesture. The stitch angle
 lines of #534 follow.
 
+Done 2026-11-08 (`batch:fills-2`, #534 part 3): the Angle Lines tool (Shapes ▸ Edit Outline) draws
+stitch angle lines on the canvas, one per drag. With it, #534 is done.
+
 Done 2026-11-08 (`batch:fills-2`, #534 part 2): stitch angle lines. `object.setAngleLines` puts
 lines across a fill; its rows turn from one line to the next by matching positions along the
 two outline sides, thinned in pairs on the inside of a bend, wrapping round a ring. A canvas tool

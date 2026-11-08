@@ -1876,7 +1876,7 @@ impl EditorApp {
                 self.workspace.sections.toggle();
             } else if self.tools.is_busy() {
                 self.tools.cancel();
-            } else if matches!(self.tools.tool(), Tool::Knife | Tool::Gradient | Tool::FillAngle) {
+            } else if matches!(self.tools.tool(), Tool::Knife | Tool::Gradient | Tool::FillAngle | Tool::AngleLine) {
                 // The Knife, Gradient and Fill Angle tools stay active between uses; Esc leaves them.
                 self.tools.set_tool(Tool::Select);
             } else {

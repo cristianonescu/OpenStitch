@@ -616,6 +616,7 @@ the assistant's own tools and scores each on the design it leaves (`object.list`
 | question | (two shapes) how many objects? change nothing | still two objects; the answer says 2 |
 | sky-blend | (a 30 mm rectangle) a blend from blue at the bottom to white at the top (#532, #807) | at least two gradient fills, a white colour, over 300 stitches |
 | gradation-shape | (a 30 mm rectangle) a gradation dense in the middle, open at both sides (#807) | a gradation of shape `centre` |
+| angle-lines | (an L-shaped fill) rows that turn round its corner (#534) | two or more stitch angle lines, over 300 stitches |
 
 - Each task starts from a fresh headless editor: an engine `Session` behind
   `openstitch-mcp --assistant`, with `ui.render` and `ui.scratchWrite` answered by the bench.
