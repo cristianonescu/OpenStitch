@@ -1508,6 +1508,16 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     "Gradient fill: how its colours share the stitches where they meet; set it on every object of the gradient (select its group)",
                 ),
                 opt(
+                    "gradientFrom",
+                    "[x, y] mm",
+                    "Gradient fill: where it starts (radial: its centre), with gradientTo; set it on every object of the gradient (the editor's Gradient tool does)",
+                ),
+                opt(
+                    "gradientTo",
+                    "[x, y] mm",
+                    "Gradient fill: where it ends (radial: a point on its outer circle)",
+                ),
+                opt(
                     "gradientCurve",
                     "linear|easeIn|easeOut|sCurve",
                     "Gradient fill: the transition between colour stops; set it on every object of the gradient",

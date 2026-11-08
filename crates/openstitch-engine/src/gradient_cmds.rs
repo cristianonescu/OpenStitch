@@ -301,7 +301,16 @@ pub(crate) fn set_region(p: &Params, r: &mut RegionSewing) -> Result<(), Command
         &GradientDither::ALL.map(|d| (d.id(), d)),
     )?;
     let curve = choice(p, "gradientCurve", &GradientCurve::ALL.map(|c| (c.id(), c)))?;
-    if dither.is_none() && curve.is_none() {
+    let (from, to) = (point(p, "gradientFrom")?, point(p, "gradientTo")?);
+    if from.is_some() != to.is_some() {
+        return Err(p.invalid("gradientTo", "gradientFrom and gradientTo come together"));
+    }
+    if let (Some(a), Some(b)) = (from, to)
+        && a.distance(b) < 1.0
+    {
+        return Err(p.invalid("gradientTo", "must be at least 0.1 mm from gradientFrom"));
+    }
+    if dither.is_none() && curve.is_none() && from.is_none() {
         return Ok(());
     }
     let Some(g) = r.gradient.as_mut() else {
@@ -312,6 +321,10 @@ pub(crate) fn set_region(p: &Params, r: &mut RegionSewing) -> Result<(), Command
     }
     if let Some(c) = curve {
         g.curve = c;
+    }
+    if let (Some(a), Some(b)) = (from, to) {
+        g.from = a;
+        g.to = b;
     }
     Ok(())
 }
