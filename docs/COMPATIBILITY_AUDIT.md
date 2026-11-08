@@ -3420,8 +3420,10 @@ In/Out/one-side seeds on the feathered edge are not part of this).
 At the owner's request the rulers count from the Design Page's centre by default (negative left
 and up), for every user, with Options ▸ Ruler origin (`ui.set rulerOrigin`) switching back to
 the top-left corner. The cursor position and the precision bar's X and Y follow the same origin;
-the design and every command keep page coordinates from the top-left. PE-DESIGN 11's own ruler
-origin is to be captured black-box and recorded on #799 for the PE-compatible layout.
+the design and every command keep page coordinates from the top-left. PE-DESIGN 11.50's own
+rulers (captured black-box, recorded on #799) also put 0 at the page centre and count up both
+ways without a sign (… 20 10 0 10 20 …): OpenStitch's ruler labels are unsigned the same way,
+while the cursor position, the precision bar and the guide labels keep their sign.
 
 ### Guidelines on by default, dragged from the rulers, snapped to, 2026-11-08 (#799 part 2a)
 

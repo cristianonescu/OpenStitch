@@ -338,3 +338,84 @@ fn brand_charts_are_whole_and_additive() {
     }
     assert_eq!(crate::PEC_CHART.len(), 65);
 }
+
+/// #796: New Brothread, the owner's 63-spool kit, as its cards print it: card order, codes and
+/// names as the checked-in CSV (transcribed from the cards), the Brother/PEC colour for the 61
+/// codes Brother's chart shares, the scan values for 901 Flesh and 902 Ivory, and Madeira
+/// cross-references that the Madeira Polyneon chart knows.
+#[test]
+fn new_brothread_is_the_kit_as_printed() {
+    let threads = &crate::brands::NEW_BROTHREAD;
+    assert_eq!(threads.len(), 63);
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/brands");
+    let csv = std::fs::read_to_string(dir.join("new-brothread.csv")).expect("the chart's CSV");
+    let rows: Vec<Vec<&str>> = csv
+        .lines()
+        .skip(1)
+        .map(|l| l.split(',').collect())
+        .collect();
+    assert_eq!(rows.len(), 63);
+    for (t, r) in threads.iter().zip(&rows) {
+        assert_eq!(t.catalog_number.as_deref(), Some(r[0]));
+        assert_eq!(t.brand.as_deref(), Some("New Brothread"));
+        assert_eq!(t.name.as_deref(), Some(r[2]));
+    }
+    let first: Vec<&str> = threads
+        .iter()
+        .take(3)
+        .map(|t| t.catalog_number.as_deref().unwrap_or(""))
+        .collect();
+    assert_eq!(first, ["001", "005", "007"]);
+    assert_eq!(
+        threads[7].name.as_deref(),
+        Some("Vermilion"),
+        "the card's spelling"
+    );
+    let polyneon =
+        std::fs::read_to_string(dir.join("madeira-polyneon.csv")).expect("Madeira Polyneon");
+    let mut missing = Vec::new();
+    for (t, r) in threads.iter().zip(&rows) {
+        let code = r[0];
+        match crate::pec_index_of_brother_code(code) {
+            Some(i) => {
+                let pec = crate::PEC_CHART[i].as_ref().expect("a PEC entry");
+                assert_eq!(
+                    t.rgb_value(),
+                    pec.rgb_value(),
+                    "{code}: the Brother/PEC colour"
+                );
+                assert_eq!(r[8], "pec", "{code}");
+            }
+            None => {
+                let want = match code {
+                    "901" => 0xE2BFBA,
+                    "902" => 0xE3D5BF,
+                    other => panic!("{other} is neither a Brother code nor a scanned one"),
+                };
+                assert_eq!(t.rgb_value(), want, "{code}: the scan value");
+                assert_eq!(r[8], "scan", "{code}");
+            }
+        }
+        let refs = crate::brands::cross_references("New Brothread", code);
+        assert_eq!(
+            refs,
+            [("Madeira Polyneon", r[6]), ("Madeira Rayon", r[7])],
+            "{code}"
+        );
+        if !polyneon
+            .lines()
+            .any(|l| l.starts_with(&format!("{},", r[6])))
+        {
+            missing.push(r[6]);
+        }
+    }
+    // A data check, not a rule: the card's codes stay as printed. Polyneon 1986 (807 Carmine)
+    // is not on the No. 86 shade card the Madeira chart was compiled from.
+    if !missing.is_empty() {
+        println!("Madeira Polyneon codes not in madeira-polyneon.csv: {missing:?}");
+    }
+    assert_eq!(missing, ["1986"], "the gaps changed; update this note");
+    // Polyneon 1861 is printed for both 812 Cream Yellow and 902 Ivory: kept as printed.
+    let twice = rows.iter().filter(|r| r[6] == "1861").count();
+    assert_eq!(twice, 2);
+}

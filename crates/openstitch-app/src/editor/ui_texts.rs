@@ -372,6 +372,15 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
         "Save the selected object's sewing attributes under this name",
     ),
     ("ui-match-to-thread-chart", "Match to thread chart…"),
+    ("ui-default-thread-chart", "Default chart"),
+    (
+        "ui-default-thread-chart-tip",
+        "The chart the colour picker and the image wizards start from (threads.setDefault). Brother PEC keeps PE-DESIGN's chart; PES files are written the same either way.",
+    ),
+    (
+        "ui-search-code-name-or-madeira",
+        "Search code, name or Madeira code",
+    ),
     ("ui-merge-similar-colours", "Merge similar colours…"),
     (
         "ui-join-near-identical-thread-colours-to-tip",

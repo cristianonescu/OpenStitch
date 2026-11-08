@@ -194,6 +194,11 @@ fn ciede2000_matching_lowers_mean_delta_e_over_the_brother_colours() {
                 .expect("mean")
         };
         let (rgb, de) = (mean("rgb"), mean("ciede2000"));
+        if id == "newBrothread" {
+            // The kit holds the Brother colours themselves (#796): both find exact matches.
+            assert_eq!((rgb, de), (0.0, 0.0), "{id}");
+            continue;
+        }
         assert!(de < rgb, "{id}: ΔE00 {de} vs RGB {rgb}");
     }
 }
@@ -359,4 +364,165 @@ fn find_in_the_brother_chart_is_the_pickers_search() {
         json!({"query": code, "charts": ["brother"]}),
     );
     assert_eq!(r["threads"][0]["index"], threads[0]["index"], "{r}");
+}
+
+/// #796: New Brothread is a built-in chart, listed first among the makers' charts, its Madeira
+/// cross-references are returned and searchable, and `threads.find` finds its threads by code,
+/// name or Madeira code.
+#[test]
+fn new_brothread_is_built_in_and_searchable_by_madeira_code() {
+    let dir = TempDir::new("new-brothread-find");
+    let mut s = Session::new(&dir);
+    let charts = run(&mut s, "threads.builtinCharts", json!({}));
+    let brands: Vec<&Value> = charts
+        .as_array()
+        .expect("charts")
+        .iter()
+        .filter(|c| c["kind"] == "brand")
+        .collect();
+    let nb = brands[0];
+    assert_eq!(nb["id"], "newBrothread");
+    let threads = nb["threads"].as_array().expect("threads");
+    assert_eq!(threads.len(), 63);
+    assert_eq!(threads[0]["code"], "001");
+    assert_eq!(threads[0]["description"], "White");
+    assert_eq!(
+        threads[0]["crossReferences"],
+        json!([{"brand": "Madeira Polyneon", "code": "1801"}, {"brand": "Madeira Rayon", "code": "1002"}])
+    );
+    let find = |s: &mut Session, q: &str| {
+        run(
+            s,
+            "threads.find",
+            json!({"query": q, "charts": ["newBrothread"]}),
+        )["threads"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+    };
+    let by_madeira = find(&mut s, "1801");
+    assert_eq!(by_madeira[0]["code"], "001", "{by_madeira:?}");
+    assert_eq!(find(&mut s, "1002")[0]["code"], "001", "Madeira Rayon");
+    assert_eq!(find(&mut s, "901")[0]["description"], "Flesh");
+    assert_eq!(find(&mut s, "ivory")[0]["code"], "902");
+    // 1861 is printed for both 812 Cream Yellow and 902 Ivory.
+    let both: Vec<Value> = find(&mut s, "1861")
+        .iter()
+        .map(|t| t["code"].clone())
+        .collect();
+    assert!(
+        both.contains(&json!("812")) && both.contains(&json!("902")),
+        "{both:?}"
+    );
+}
+
+/// #796: the default chart is New Brothread for a new profile, with "My Threads" holding the
+/// kit; a choice round-trips through the settings file and a saved choice is kept.
+#[test]
+fn default_chart_is_new_brothread_and_a_saved_choice_stays() {
+    let dir = TempDir::new("default-chart");
+    let file = dir.join("user.json");
+    let mut s = Session::new(&dir);
+    s.with_user_settings(&file).expect("first run");
+    let d = run(&mut s, "threads.defaultChart", json!({}));
+    assert_eq!(d["builtin"], "newBrothread");
+    assert_eq!(d["chosen"], false);
+    let mine = run(&mut s, "threads.charts", json!({}));
+    assert_eq!(mine[0]["name"], "My Threads");
+    assert_eq!(mine[0]["threads"].as_array().map(Vec::len), Some(63));
+    let r = run(&mut s, "threads.setDefault", json!({"builtin": "brother"}));
+    assert_eq!(r["defaultChart"]["builtin"], "brother");
+    let mut t = Session::new(&dir);
+    t.with_user_settings(&file).expect("saved");
+    let d = run(&mut t, "threads.defaultChart", json!({}));
+    assert_eq!(
+        (d["builtin"].clone(), d["chosen"].clone()),
+        (json!("brother"), json!(true))
+    );
+    run(&mut t, "threads.setDefault", json!({"chart": "My Threads"}));
+    run(
+        &mut t,
+        "threads.renameChart",
+        json!({"chart": "My Threads", "name": "Shelf"}),
+    );
+    assert_eq!(
+        run(&mut t, "threads.defaultChart", json!({}))["chart"],
+        "Shelf",
+        "follows a rename"
+    );
+    run(&mut t, "threads.deleteChart", json!({"chart": "Shelf"}));
+    assert_eq!(
+        run(&mut t, "threads.defaultChart", json!({}))["builtin"],
+        "newBrothread",
+        "a deleted chart falls back"
+    );
+    for bad in [
+        json!({"builtin": "nope"}),
+        json!({"chart": "nope"}),
+        json!({}),
+    ] {
+        assert!(
+            t.execute("threads.setDefault", Some(&bad)).is_err(),
+            "{bad}"
+        );
+    }
+}
+
+/// #796: a New Brothread thread is applied by chart and code, keeps its code and brand, and is
+/// written to PES as the Brother/PEC thread of the same code (901 and 902 as the nearest PEC
+/// colour); the file reads back with those threads.
+#[test]
+fn new_brothread_threads_apply_and_write_pes_as_brother_codes() {
+    let dir = TempDir::new("new-brothread-pes");
+    let mut s = Session::new(&dir);
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    for (x, code) in [(0.0, "800"), (20.0, "901")] {
+        run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": x, "y": 0, "width": 10, "height": 10,
+                   "fill": {"builtin": "newBrothread", "code": code}}),
+        );
+    }
+    let region =
+        |s: &Session, i: usize| s.design().objects[i].region.clone().expect("region").thread;
+    let red = region(&s, 0);
+    assert_eq!(
+        (
+            red.catalog_number.as_deref(),
+            red.brand.as_deref(),
+            red.name.as_deref()
+        ),
+        (Some("800"), Some("New Brothread"), Some("Red"))
+    );
+    assert_eq!(red.hex(), "#ed171f", "Brother 800's PEC colour");
+    assert_eq!(region(&s, 1).hex(), "#e2bfba");
+    let e = s
+        .execute(
+            "shape.rectangle",
+            Some(&json!({"x": 40, "y": 0, "width": 5, "height": 5,
+                         "fill": {"builtin": "newBrothread", "code": "999"}})),
+        )
+        .expect_err("no such code");
+    assert!(e.to_string().contains("999"), "{e}");
+    run(&mut s, "design.export", json!({"path": "nb.pes"}));
+    let bytes = std::fs::read(dir.join("nb.pes")).expect("pes");
+    let pattern = openstitch_formats::FileType::Pes
+        .read(&bytes)
+        .expect("reads back");
+    // The PEC colour section: Brother 800's own entry for 800, the nearest PEC colour for 901
+    // (as for any other brand's thread), as the PES writer picks them.
+    let threads: Vec<openstitch_core::Thread> = pattern.threads.clone();
+    let pec = openstitch_formats::pec::pec_color_indexes(&threads);
+    assert_eq!(
+        pec[0],
+        openstitch_core::pec_index_of_brother_code("800").expect("800")
+    );
+    let flesh = openstitch_core::Thread::rgb(0xE2BFBA);
+    let nearest = openstitch_formats::pec::pec_color_indexes(std::slice::from_ref(&flesh))[0];
+    assert_eq!(pec[1], nearest);
+    assert!((1..=64).contains(&nearest));
+    // Re-opening keeps the threads: the PES thread table holds each thread's own colour.
+    let got: Vec<u32> = pattern.threads.iter().map(|t| t.rgb_value()).collect();
+    assert_eq!(got, [0xED171F, 0xE2BFBA]);
 }

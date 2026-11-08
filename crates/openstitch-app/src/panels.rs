@@ -208,6 +208,160 @@ fn number(
     None
 }
 
+/// The colour picker (#796): the user's default thread chart (`threads.defaultChart`, New
+/// Brothread until they choose another) as a grid of swatches, with Brother's PEC chart one
+/// click away. Returns the `color` parameter of the thread clicked: a PEC chart number, a
+/// built-in chart's `{builtin, code}` or a user chart's whole thread.
+pub fn thread_grid(
+    ui: &mut egui::Ui,
+    id: &str,
+    current: Option<&Thread>,
+    user: &openstitch_engine::user::UserSettings,
+) -> Option<Value> {
+    use openstitch_engine::user::ChartRef;
+    let default = user.default_chart();
+    let pec_key = egui::Id::unique("thread-picker-pec");
+    let mut pec = default == ChartRef::Builtin("brother".into())
+        || ui.data(|d| d.get_temp::<bool>(pec_key)).unwrap_or(false);
+    if default != ChartRef::Builtin("brother".into()) {
+        let (name, _) = picker_chart(&default, user);
+        ui.horizontal(|ui| {
+            if ui.selectable_label(!pec, name).clicked() {
+                pec = false;
+            }
+            if ui
+                .selectable_label(pec, t("ui-brother-pec-thread-chart"))
+                .clicked()
+            {
+                pec = true;
+            }
+        });
+        ui.data_mut(|d| d.insert_temp(pec_key, pec));
+    }
+    if pec {
+        return pec_grid(ui, id, current).map(|i| json!(i));
+    }
+    let (name, threads) = picker_chart(&default, user);
+    ui.label(RichText::new(name).strong());
+    let search_id = ui.make_persistent_id(("chart-search", id));
+    let mut query: String = ui.data_mut(|d| d.get_temp(search_id)).unwrap_or_default();
+    ui.add(
+        egui::TextEdit::singleline(&mut query)
+            .hint_text(t("ui-search-code-name-or-madeira"))
+            .desired_width(8.0 * 23.0),
+    );
+    ui.data_mut(|d| d.insert_temp(search_id, query.clone()));
+    let shown = chart_matches(&threads, &query);
+    if shown.is_empty() {
+        ui.label(RichText::new(t("ui-no-thread-in-this-chart-matches")).weak());
+    }
+    let mut chosen = None;
+    egui::Grid::new(("chart", id))
+        .spacing(egui::vec2(3.0, 3.0))
+        .show(ui, |ui| {
+            for (n, i) in shown.into_iter().enumerate() {
+                let th = &threads[i];
+                let r = swatch(ui, [th.red, th.green, th.blue], 20.0).on_hover_text(thread_tip(th));
+                if current.is_some_and(|c| same_thread(c, th)) {
+                    ui.painter().rect_stroke(
+                        r.rect.expand(1.5),
+                        egui::CornerRadius::same(3),
+                        egui::Stroke::new(2.0, ui.visuals().strong_text_color()),
+                        egui::StrokeKind::Outside,
+                    );
+                }
+                if r.clicked() {
+                    chosen = Some(colour_param(&default, i, th));
+                    ui.close();
+                }
+                if n % 8 == 7 {
+                    ui.end_row();
+                }
+            }
+        });
+    chosen
+}
+
+/// The picker's chart: its name and threads (a missing chart gives none).
+pub fn picker_chart(
+    c: &openstitch_engine::user::ChartRef,
+    user: &openstitch_engine::user::UserSettings,
+) -> (String, Vec<Thread>) {
+    use openstitch_engine::user::ChartRef;
+    match c {
+        ChartRef::Builtin(id) => openstitch_engine::thread_match::builtins()
+            .into_iter()
+            .find(|b| b.id == id)
+            .map(|b| {
+                (
+                    b.name.to_string(),
+                    b.entries.into_iter().map(|(_, t)| t).collect(),
+                )
+            })
+            .unwrap_or_default(),
+        ChartRef::Chart(n) => user
+            .thread_charts
+            .iter()
+            .find(|ch| ch.name == *n)
+            .map(|ch| (ch.name.clone(), ch.threads.clone()))
+            .unwrap_or_default(),
+    }
+}
+
+/// The positions of a chart's threads matching a search (all for an empty one), as
+/// `threads.find` ranks them: code, name, brand or another maker's code (#796: "1801" finds
+/// New Brothread 001 White).
+pub fn chart_matches(threads: &[Thread], query: &str) -> Vec<usize> {
+    let q = query.trim();
+    if q.is_empty() {
+        return (0..threads.len()).collect();
+    }
+    let mut v: Vec<(u8, usize)> = threads
+        .iter()
+        .enumerate()
+        .filter_map(|(i, th)| openstitch_engine::thread_match::find_rank(th, q).map(|r| (r, i)))
+        .collect();
+    v.sort();
+    v.into_iter().map(|(_, i)| i).collect()
+}
+
+/// A thread's hover text: code, name, other makers' codes and colour.
+pub fn thread_tip(th: &Thread) -> String {
+    let mut s = [th.catalog_number.as_deref(), th.name.as_deref()]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>()
+        .join(" ");
+    for (brand, code) in openstitch_engine::user::cross_references(th) {
+        s.push_str(&format!(" · {brand} {code}"));
+    }
+    format!("{s} ({})", th.hex())
+}
+
+/// Whether `a` is chart thread `b`: the same code and brand, or (no code) the same colour and
+/// name.
+fn same_thread(a: &Thread, b: &Thread) -> bool {
+    match (&b.catalog_number, &a.catalog_number) {
+        (Some(x), Some(y)) => x == y && a.brand == b.brand,
+        _ => a.rgb_value() == b.rgb_value() && a.name == b.name,
+    }
+}
+
+/// The `color` parameter for thread `i` of the picker's chart.
+fn colour_param(c: &openstitch_engine::user::ChartRef, i: usize, th: &Thread) -> Value {
+    use openstitch_engine::user::ChartRef;
+    match (c, &th.catalog_number) {
+        (ChartRef::Builtin(id), Some(code)) => json!({ "builtin": id, "code": code }),
+        (ChartRef::Builtin(id), None) => json!({ "builtin": id, "index": i }),
+        (ChartRef::Chart(_), _) => json!({
+            "color": th.hex(),
+            "code": th.catalog_number,
+            "brand": th.brand,
+            "description": th.name,
+        }),
+    }
+}
+
 /// The PEC thread chart as a grid of swatches; returns the chart number clicked.
 pub fn pec_grid(ui: &mut egui::Ui, id: &str, current: Option<&Thread>) -> Option<usize> {
     let mut chosen = None;
@@ -273,13 +427,23 @@ pub fn pec_matches(query: &str) -> Vec<(usize, &'static Thread)> {
         .collect()
 }
 
-/// PEC chart picker: returns the chart number chosen.
-fn thread_picker(ui: &mut egui::Ui, id: &str, current: Option<&Thread>) -> Option<usize> {
+/// Colour picker button ([`thread_grid`]): returns the `color` parameter chosen.
+fn thread_picker(
+    ui: &mut egui::Ui,
+    id: &str,
+    current: Option<&Thread>,
+    user: &openstitch_engine::user::UserSettings,
+) -> Option<Value> {
     let mut chosen = None;
     let c = current.map_or([128, 128, 128], |t| [t.red, t.green, t.blue]);
     let index = current.and_then(inspector::pec_index);
     let name = current.and_then(|t| t.name.as_deref()).unwrap_or("Custom");
+    let code = current.and_then(|t| t.catalog_number.as_deref());
     let label = match (current, index) {
+        // A chart thread by its own code (New Brothread 001 White), #796.
+        (Some(t), _) if t.name.is_some() && code.is_some() => {
+            format!("{} {name}", code.unwrap_or_default())
+        }
         (Some(t), Some(i)) if t.name.is_some() => format!("{i} {name}"),
         (Some(t), _) => t.hex(),
         (None, _) => "Mixed".into(),
@@ -294,7 +458,7 @@ fn thread_picker(ui: &mut egui::Ui, id: &str, current: Option<&Thread>) -> Optio
             .open_memory(open.then_some(egui::SetOpenCommand::Toggle))
             .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
             .show(|ui| {
-                chosen = pec_grid(ui, id, current);
+                chosen = thread_grid(ui, id, current, user);
             });
     });
     chosen
@@ -658,7 +822,9 @@ pub fn region_section(
                 } else {
                     None
                 };
-                if let Some(i) = thread_picker(ui, "region-colour", colour) {
+                if let Some(i) =
+                    thread_picker(ui, "region-colour", colour, app.session.user_settings())
+                {
                     out.push(m.set_region(json!({ "color": i })));
                 }
                 ui.end_row();
@@ -783,7 +949,9 @@ pub fn line_section(
                 } else {
                     None
                 };
-                if let Some(i) = thread_picker(ui, "line-colour", colour) {
+                if let Some(i) =
+                    thread_picker(ui, "line-colour", colour, app.session.user_settings())
+                {
                     out.push(m.set_line(json!({ "color": i })));
                 }
                 ui.end_row();
@@ -1325,5 +1493,39 @@ mod pec_search_tests {
         let code = entry.catalog_number.as_deref().expect("a code");
         assert!(pec_matches(code).iter().any(|(j, _)| *j == i));
         assert!(pec_matches("no such thread").is_empty());
+    }
+
+    /// #796: the colour picker starts from New Brothread on a first run, and its search finds a
+    /// thread by its code, its name or a Madeira code; a chosen thread is given as
+    /// `{builtin, code}`.
+    #[test]
+    fn chart_picker_search_finds_new_brothread_by_code_name_or_madeira() {
+        let user = openstitch_engine::user::UserSettings::first_run();
+        let default = user.default_chart();
+        let (name, threads) = picker_chart(&default, &user);
+        assert!(name.starts_with("New Brothread"), "{name}");
+        assert_eq!(threads.len(), 63);
+        let code = |i: usize| threads[i].catalog_number.as_deref().unwrap_or_default();
+        assert_eq!(chart_matches(&threads, "").len(), 63);
+        assert_eq!(code(chart_matches(&threads, "001")[0]), "001");
+        assert_eq!(code(chart_matches(&threads, "901")[0]), "901");
+        // A name finds every thread with it, in card order: 124 Flesh Pink, then 901 Flesh.
+        let flesh: Vec<&str> = chart_matches(&threads, "flesh")
+            .into_iter()
+            .map(code)
+            .collect();
+        assert_eq!(flesh, ["124", "901"]);
+        assert_eq!(code(chart_matches(&threads, "1801")[0]), "001", "Madeira Polyneon");
+        assert_eq!(code(chart_matches(&threads, "1002")[0]), "001", "Madeira Rayon");
+        assert!(chart_matches(&threads, "no such thread").is_empty());
+        let white = &threads[0];
+        assert!(thread_tip(white).contains("Madeira Polyneon 1801"), "{}", thread_tip(white));
+        assert_eq!(
+            colour_param(&default, 0, white),
+            json!({ "builtin": "newBrothread", "code": "001" })
+        );
+        let mine = openstitch_engine::user::ChartRef::Chart("My Threads".into());
+        assert_eq!(colour_param(&mine, 0, white)["code"], "001");
+        assert_eq!(colour_param(&mine, 0, white)["color"], "#f0f0f0");
     }
 }

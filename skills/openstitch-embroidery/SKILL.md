@@ -266,8 +266,15 @@ then style them in the next.
   `threads.remap` `{builtin | chart, metric: ciede2000, keepDistinct: true, dryRun: true}`
   first and show the user the plan (design colour → thread, ΔE, objects, and `merged`), then
   run it without `dryRun` if they agree (`metric: rgb` is PE-DESIGN's rule). The thread
-  makers' charts (Madeira, Isacord, Sulky, Robison-Anton) are `builtin` ids: `threads.builtinCharts`
-  lists them with `kind: "brand"`. `threads.find`
+  makers' charts (New Brothread, Madeira, Isacord, Sulky, Robison-Anton) are `builtin` ids:
+  `threads.builtinCharts` lists them with `kind: "brand"`. New Brothread (`newBrothread`, the
+  owner's 63-spool kit, numbered with Brother codes) is the default chart: the colour picker
+  and the image wizards' OpenStitch mode start from it, and a first run's "My Threads" holds
+  it. `threads.defaultChart` reads the default; `threads.setDefault {builtin | chart}` changes
+  it (a settings change: say what changes and ask first; `builtin: brother` is Brother's PEC
+  chart). Give a chart's thread as `color: {builtin: "newBrothread", code: "001"}` (or any
+  colour parameter: `fill`, `stroke`); its Madeira codes are `crossReferences`, and
+  `threads.find` finds a thread by them ("1801" is 001 White). `threads.find`
   `{query}` finds a thread by code or name (`charts: ["brother"]` searches the PEC chart as the
   editor's colour picker search does). After `import.svg` or a `digitize.*` wizard gives
   many near-identical colours, offer `threads.mergeSimilar` (`dryRun` first; it reports the
@@ -330,7 +337,8 @@ Guidelines (`guides.set`, `guides.list`, page coordinates) show and snap by defa
 `ui.set guides` shows or hides them and `ui.set snapToGuides` turns snapping a dragged selection
 to them on or off; both are remembered.
 `ui.set language` (`en`, or `pseudo`, a test language that brackets every translated text) is
-Options ▸ Language (#555); the ribbon, menus, panes and dialogs are translated so far, and no real translation ships
+Options ▸ Language (#555); the ribbon, menus, panes, dialogs, status messages and the printed
+worksheet are translated, and no real translation ships
 yet, so answer in the user's language yourself rather than switching the window.
 Opening or importing a large file in the window runs in the background: `ui.state` shows
 `loading` (file, step, seconds), and `ui.loading {cancel: true}` stops it, leaving the design

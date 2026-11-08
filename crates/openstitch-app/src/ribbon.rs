@@ -1048,7 +1048,7 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
             } else {
                 m.line.as_ref().map(|l| l.thread.clone())
             };
-            if let Some(i) = panels::pec_grid(
+            if let Some(i) = panels::thread_grid(
                 ui,
                 if region {
                     "ribbon-region"
@@ -1056,6 +1056,7 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
                     "ribbon-line"
                 },
                 current.as_ref(),
+                app.session.user_settings(),
             ) {
                 let r = if region {
                     m.set_region(json!({ "color": i }))
@@ -1177,7 +1178,8 @@ fn change_color_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         .tint(Color32::from_rgb(r, g, b))
         .corner_radius(2.0);
         ui.menu_button((swatch, format!("{}. {name}", k + 1)), |ui| {
-            if let Some(i) = panels::pec_grid(ui, &format!("change-color-{k}"), Some(t)) {
+            let user = app.session.user_settings();
+            if let Some(i) = panels::thread_grid(ui, &format!("change-color-{k}"), Some(t), user) {
                 app.execute(&CommandRequest::new(
                     "stitches.setThread",
                     json!({ "id": id, "index": k, "color": i }),
