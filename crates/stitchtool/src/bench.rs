@@ -845,6 +845,41 @@ pub const TASKS: &[Task] = &[
             Ok(())
         },
     },
+    // Colour blends and gradation shapes (#532, #807).
+    Task {
+        id: "sky-blend",
+        setup: &[("shape.rectangle", RECT)],
+        prompt: "Make the rectangle a sky: a blend from blue at the bottom to white at the top.",
+        check: |d| {
+            let layers: Vec<&Value> = d
+                .full
+                .iter()
+                .filter(|f| !f["region"]["gradient"].is_null())
+                .collect();
+            need(
+                layers.len() >= 2,
+                "one fill per colour of a blend or gradient",
+            )?;
+            need(
+                d.colors().iter().any(|c| whitish(c)),
+                "a white (or near-white) colour",
+            )?;
+            need(d.stitches() > 300, "stitches")
+        },
+    },
+    Task {
+        id: "gradation-shape",
+        setup: &[("shape.rectangle", RECT)],
+        prompt: "Shade the rectangle with a gradation that is dense in the middle and open at both sides.",
+        check: |d| {
+            need(
+                d.full
+                    .iter()
+                    .any(|f| f["region"]["gradation"]["shape"] == "centre"),
+                "a gradation shaped dense in the middle (centre)",
+            )
+        },
+    },
 ];
 
 /// One part of the small-name task (#493): about 5 mm, in a font whose `sizeRange` holds the
@@ -1515,7 +1550,7 @@ mod tests {
         let (json, md) = reports("scripted", &out);
         assert_eq!(json["passed"], 2);
         assert!(md.contains("| star | fail: only talked |"));
-        assert_eq!(TASKS.len(), 23);
+        assert_eq!(TASKS.len(), 25);
     }
 
     #[test]

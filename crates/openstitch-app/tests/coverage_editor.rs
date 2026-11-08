@@ -616,3 +616,44 @@ fn gradient_controls_reach_the_engine() {
         }
     }
 }
+
+/// Named gradation shapes (#532, beyond PE-DESIGN): with a gradation pattern the inspector
+/// offers Gradation shape; every shape reaches the engine and reads back.
+#[test]
+fn gradation_shape_choices_reach_the_engine() {
+    let mut s = Session::new(std::env::temp_dir());
+    let id = exec(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 10, "y": 10, "width": 30, "height": 30, "fill": "Red"}),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    exec(
+        &mut s,
+        "object.setRegion",
+        json!({"id": id, "gradationPattern": true}),
+    );
+    let region = |d: &Design| d.objects[0].region.clone().expect("region");
+    let shape = |d: &Design| {
+        inspector::region_controls(&region(d))
+            .into_iter()
+            .find_map(|c| match c {
+                Control::Choice {
+                    param: "gradationShape",
+                    value,
+                    options,
+                    ..
+                } => Some((value, options)),
+                _ => None,
+            })
+    };
+    let (_, options) = shape(s.design()).expect("Gradation shape shown");
+    assert_eq!(options.len(), 6);
+    let sel = BTreeSet::from([id]);
+    for (value, _) in &options {
+        let m = InspectorModel::new(s.design(), &sel);
+        run(&mut s, &m.set_region(json!({ "gradationShape": value })));
+        assert_eq!(&shape(s.design()).expect("shown").0, value);
+    }
+}

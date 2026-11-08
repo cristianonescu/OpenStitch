@@ -614,6 +614,8 @@ the assistant's own tools and scores each on the design it leaves (`object.list`
 | picture | the BMP of a red disc into embroidery, 50 mm | objects 35-65 mm wide in red |
 | vector | a house as SVG, imported as shapes | at least two objects |
 | question | (two shapes) how many objects? change nothing | still two objects; the answer says 2 |
+| sky-blend | (a 30 mm rectangle) a blend from blue at the bottom to white at the top (#532, #807) | at least two gradient fills, a white colour, over 300 stitches |
+| gradation-shape | (a 30 mm rectangle) a gradation dense in the middle, open at both sides (#807) | a gradation of shape `centre` |
 
 - Each task starts from a fresh headless editor: an engine `Session` behind
   `openstitch-mcp --assistant`, with `ui.render` and `ui.scratchWrite` answered by the bench.
