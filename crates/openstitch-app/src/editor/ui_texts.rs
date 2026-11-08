@@ -367,6 +367,10 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
         "Save the selected object's sewing attributes under this name",
     ),
     ("ui-match-to-thread-chart", "Match to thread chart…"),
+    (
+        "ui-search-code-name-or-pec-number",
+        "Search code, name or PEC number",
+    ),
     ("ui-default-thread-chart", "Default chart"),
     (
         "ui-default-thread-chart-tip",

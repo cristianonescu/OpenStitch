@@ -129,6 +129,7 @@ Behaviour follows the guide's pages
 | File ▸ Export Sections, Send to USB Media | Home ▸ Sew ▸ Sew Embroidery; Hoop Settings tab; Application menu ▸ Export ▸ |
 | (beyond PE-DESIGN) Garment mockup (#454) | Application menu ▸ Export ▸ Garment Mockup ▸ fabric colour, then T-shirt (centre chest, left chest), Cap or Tote bag: a PNG of the design at true size on the garment (`design.mockup`) |
 | (beyond PE-DESIGN) Default thread chart (#796) | Colour picker (Sewing Attributes ▸ Colour, Home ▸ Line/Region Color, Change Color): the default chart's swatches (New Brothread until changed) with a search by code, name or Madeira code and a Brother PEC tab beside it; Options ▸ User Thread Charts ▸ Default chart changes it (`threads.setDefault`) |
+| (beyond PE-DESIGN) Thread codes on swatches (#798) | Every colour list (picker grid or List, picker button, Sewing Order, simulator bar, Thread Colours pane, Change Color, colour matching, user charts, Design Database, image wizards): the thread's code under or beside its swatch, full detail on hover |
 | File ▸ Design Database | Options ▸ Design Database |
 | Edit ▸ Undo, Redo | Quick Access Toolbar (⌘/Ctrl+Z, ⌘/Ctrl+Y) |
 | Edit ▸ Select All, Duplicate, Delete, Arrange Copies | Home ▸ Select, Clipboard |

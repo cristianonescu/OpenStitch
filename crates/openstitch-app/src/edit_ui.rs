@@ -992,8 +992,8 @@ pub fn colour_frames(app: &mut EditorApp, ui: &mut egui::Ui) {
                 let first = rows.iter().find(|r| r.id == frame[0]);
                 let selected = frame.iter().all(|id| app.selection.contains(id));
                 ui.horizontal(|ui| {
-                    if let Some(c) = first.and_then(|r| r.swatches.first()) {
-                        crate::panels::swatch(ui, *c, 12.0);
+                    if let Some(th) = first.and_then(|r| r.swatches.first()) {
+                        crate::panels::thread_swatch(ui, th, 12.0, crate::panels::Caption::Beside);
                     }
                     let text = match frame.len() {
                         1 => format!("{}. {}", k + 1, first.map_or("", |r| r.label.as_str())),

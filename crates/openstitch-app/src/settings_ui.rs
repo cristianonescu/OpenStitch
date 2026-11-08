@@ -4,7 +4,7 @@
 
 use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
-use eframe::egui::{self, Color32};
+use eframe::egui;
 use openstitch_app::editor::CommandRequest;
 use serde_json::json;
 
@@ -245,16 +245,10 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                     let n = chart.threads.len();
                     for (i, t) in chart.threads.iter().enumerate() {
                         ui.horizontal(|ui| {
-                            let (r, _) = ui
-                                .allocate_exact_size(egui::vec2(14.0, 14.0), egui::Sense::hover());
-                            ui.painter().rect_filled(
-                                r,
-                                2.0,
-                                Color32::from_rgb(t.red, t.green, t.blue),
-                            );
+                            // The thread's code beside its colour (#798).
+                            crate::panels::thread_swatch(ui, t, 14.0, crate::panels::Caption::Beside);
                             ui.label(format!(
-                                "{}  {}  {}  {}",
-                                t.catalog_number.as_deref().unwrap_or(""),
+                                "{}  {}  {}",
                                 t.brand.as_deref().unwrap_or(""),
                                 t.name.as_deref().unwrap_or(""),
                                 t.hex()

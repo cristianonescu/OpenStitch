@@ -17,8 +17,16 @@ fn rgb(c: [u8; 3]) -> Color32 {
     Color32::from_rgb(c[0], c[1], c[2])
 }
 
+/// A plain colour square with no label: only for colours that are not threads (fabric,
+/// accent) or for "Mixed". A thread colour goes through [`thread_swatch`] (#798; the guard
+/// `no_thread_swatch_without_its_code` checks every call).
 pub fn swatch(ui: &mut egui::Ui, c: [u8; 3], size: f32) -> egui::Response {
     let (r, resp) = ui.allocate_exact_size(egui::vec2(size, size), Sense::click());
+    paint_swatch(ui, r, c);
+    resp
+}
+
+fn paint_swatch(ui: &egui::Ui, r: egui::Rect, c: [u8; 3]) {
     ui.painter().rect(
         r,
         egui::CornerRadius::same(2),
@@ -26,7 +34,185 @@ pub fn swatch(ui: &mut egui::Ui, c: [u8; 3], size: f32) -> egui::Response {
         egui::Stroke::new(1.0, Color32::from_gray(90)),
         egui::StrokeKind::Inside,
     );
-    resp
+}
+
+/// Where a thread swatch's code goes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Caption {
+    /// Under the swatch, centred (grids).
+    Under,
+    /// To the right of the swatch (lists and rows).
+    Beside,
+}
+
+/// A thread colour with its code always shown (#798): the colour, and under or beside it the
+/// code of the thread's own chart ([`openstitch_core::thread_label`]: Brother 007, a maker's or
+/// the user's code, `#rrggbb` for a custom colour). The code is in the text colour beside the
+/// swatch, so it reads on any thread colour, at the small text size. The tooltip has the full
+/// detail ([`thread_tip`]). Clicking it is the response's click.
+pub fn thread_swatch(ui: &mut egui::Ui, t: &Thread, size: f32, caption: Caption) -> egui::Response {
+    let label = openstitch_core::thread_label(t);
+    let font = egui::TextStyle::Small.resolve(ui.style());
+    let colour = ui.visuals().text_color();
+    let galley = ui.painter().layout_no_wrap(label, font, colour);
+    let g = galley.size();
+    let size_v = match caption {
+        Caption::Under => egui::vec2(size.max(g.x + 2.0), size + 1.0 + g.y),
+        Caption::Beside => egui::vec2(size + 3.0 + g.x, size.max(g.y)),
+    };
+    let (rect, resp) = ui.allocate_exact_size(size_v, Sense::click());
+    let (sw, text) = match caption {
+        Caption::Under => (
+            egui::Rect::from_min_size(
+                egui::pos2(rect.center().x - size / 2.0, rect.top()),
+                egui::vec2(size, size),
+            ),
+            egui::pos2(rect.center().x - g.x / 2.0, rect.top() + size + 1.0),
+        ),
+        Caption::Beside => (
+            egui::Rect::from_min_size(
+                egui::pos2(rect.left(), rect.center().y - size / 2.0),
+                egui::vec2(size, size),
+            ),
+            egui::pos2(rect.left() + size + 3.0, rect.center().y - g.y / 2.0),
+        ),
+    };
+    paint_swatch(ui, sw, [t.red, t.green, t.blue]);
+    ui.painter().galley(text, galley, colour);
+    resp.on_hover_text(thread_tip(t))
+}
+
+/// What a swatch of a colour list shows, as `ui.threadLabels` reports it (#798).
+pub fn label_json(t: &Thread) -> Value {
+    json!({
+        "code": openstitch_core::thread_label(t),
+        "name": t.name,
+        "brand": openstitch_core::thread_brand(t),
+        "color": t.hex(),
+    })
+}
+
+/// The threads of one of the editor's colour lists, as its swatches show them (`ui.threadLabels`,
+/// #798).
+pub fn thread_labels(app: &EditorApp, list: &str) -> Result<Vec<Value>, String> {
+    let threads: Vec<Thread> = match list {
+        "picker" => {
+            let user = app.session.user_settings();
+            picker_chart(&user.default_chart(), user).1
+        }
+        "pecPicker" => pec_matches("").into_iter().map(|(_, t)| t.clone()).collect(),
+        "sewingOrder" => objects::rows(app.session.design(), &app.selection)
+            .into_iter()
+            .flat_map(|r| r.swatches)
+            .collect(),
+        "colourPane" => app.pattern.threads.clone(),
+        "changeColor" => {
+            let id = crate::convert_ui::stitch_selection(app)
+                .1
+                .ok_or("select a stitch pattern first")?;
+            let d = app.session.design();
+            d.index_of(id)
+                .and_then(|i| d.objects[i].stitch_block.as_ref())
+                .map(|b| b.threads.clone())
+                .unwrap_or_default()
+        }
+        other => {
+            return Err(format!(
+                "list '{other}': use picker, pecPicker, sewingOrder, colourPane or changeColor"
+            ));
+        }
+    };
+    Ok(threads.iter().map(label_json).collect())
+}
+
+/// A thread as a JSON object of the engine's (`color`, `code`, `brand`, `description`).
+pub fn json_thread(v: &Value) -> Thread {
+    let mut t = v["color"]
+        .as_str()
+        .and_then(Thread::from_hex)
+        .unwrap_or(Thread::rgb(0));
+    let text = |k: &str| {
+        v[k].as_str()
+            .filter(|s| !s.is_empty())
+            .map(|s| std::borrow::Cow::Owned(s.to_string()))
+    };
+    t.catalog_number = text("code");
+    t.brand = text("brand");
+    t.name = text("description").or_else(|| text("name"));
+    t
+}
+
+/// How a colour picker lays its threads out: a grid of swatches with their codes, or a list
+/// (swatch, code, name) for when codes and names need the room.
+fn list_view(ui: &egui::Ui) -> bool {
+    ui.data(|d| d.get_temp::<bool>(egui::Id::unique("thread-picker-list")))
+        .unwrap_or(false)
+}
+
+/// The Grid / List switch over a colour picker's threads.
+fn layout_switch(ui: &mut egui::Ui) {
+    let key = egui::Id::unique("thread-picker-list");
+    let mut list = list_view(ui);
+    ui.horizontal(|ui| {
+        ui.selectable_value(&mut list, false, t("ui-grid"));
+        ui.selectable_value(&mut list, true, t("ui-list"));
+    });
+    ui.data_mut(|d| d.insert_temp(key, list));
+}
+
+/// A picker's threads as a grid (8 to a row, code under each) or a list; returns the position
+/// clicked. `marked` is the position of the current thread.
+fn thread_cells(
+    ui: &mut egui::Ui,
+    id: (&str, &str),
+    threads: &[&Thread],
+    marked: Option<usize>,
+    extra_tip: impl Fn(usize) -> Option<String>,
+) -> Option<usize> {
+    let mut chosen = None;
+    let mut cell = |ui: &mut egui::Ui, n: usize, th: &Thread, caption: Caption| {
+        let mut r = thread_swatch(ui, th, 20.0, caption);
+        if let Some(more) = extra_tip(n) {
+            r = r.on_hover_text(more);
+        }
+        if caption == Caption::Beside {
+            r = r.union(ui.label(th.name.as_deref().unwrap_or_default()));
+        }
+        if marked == Some(n) {
+            ui.painter().rect_stroke(
+                r.rect.expand(1.5),
+                egui::CornerRadius::same(3),
+                egui::Stroke::new(2.0, ui.visuals().strong_text_color()),
+                egui::StrokeKind::Outside,
+            );
+        }
+        if r.clicked() {
+            chosen = Some(n);
+            ui.close();
+        }
+    };
+    if list_view(ui) {
+        egui::ScrollArea::vertical()
+            .id_salt(("thread-list", id))
+            .max_height(320.0)
+            .show(ui, |ui| {
+                for (n, th) in threads.iter().enumerate() {
+                    ui.horizontal(|ui| cell(ui, n, th, Caption::Beside));
+                }
+            });
+    } else {
+        egui::Grid::new(id)
+            .spacing(egui::vec2(3.0, 3.0))
+            .show(ui, |ui| {
+                for (n, th) in threads.iter().enumerate() {
+                    cell(ui, n, th, Caption::Under);
+                    if n % 8 == 7 {
+                        ui.end_row();
+                    }
+                }
+            });
+    }
+    chosen
 }
 
 pub fn zoom_center(app: &mut EditorApp, factor: f64) {
@@ -109,8 +295,8 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
                             }
                             ui.vertical(|ui| {
                                 ui.spacing_mut().item_spacing.y = 1.0;
-                                for &c in row.swatches.iter().take(3) {
-                                    swatch(ui, c, 9.0);
+                                for th in row.swatches.iter().take(3) {
+                                    thread_swatch(ui, th, 9.0, Caption::Beside);
                                 }
                             });
                             if let Some((id, name)) = &mut app.edit.renaming
@@ -255,31 +441,13 @@ pub fn thread_grid(
     if shown.is_empty() {
         ui.label(RichText::new(t("ui-no-thread-in-this-chart-matches")).weak());
     }
-    let mut chosen = None;
-    egui::Grid::new(("chart", id))
-        .spacing(egui::vec2(3.0, 3.0))
-        .show(ui, |ui| {
-            for (n, i) in shown.into_iter().enumerate() {
-                let th = &threads[i];
-                let r = swatch(ui, [th.red, th.green, th.blue], 20.0).on_hover_text(thread_tip(th));
-                if current.is_some_and(|c| same_thread(c, th)) {
-                    ui.painter().rect_stroke(
-                        r.rect.expand(1.5),
-                        egui::CornerRadius::same(3),
-                        egui::Stroke::new(2.0, ui.visuals().strong_text_color()),
-                        egui::StrokeKind::Outside,
-                    );
-                }
-                if r.clicked() {
-                    chosen = Some(colour_param(&default, i, th));
-                    ui.close();
-                }
-                if n % 8 == 7 {
-                    ui.end_row();
-                }
-            }
-        });
-    chosen
+    layout_switch(ui);
+    let cells: Vec<&Thread> = shown.iter().map(|&i| &threads[i]).collect();
+    let marked = cells
+        .iter()
+        .position(|th| current.is_some_and(|c| same_thread(c, th)));
+    thread_cells(ui, ("chart", id), &cells, marked, |_| None)
+        .map(|n| colour_param(&default, shown[n], cells[n]))
 }
 
 /// The picker's chart: its name and threads (a missing chart gives none).
@@ -325,13 +493,18 @@ pub fn chart_matches(threads: &[Thread], query: &str) -> Vec<usize> {
     v.into_iter().map(|(_, i)| i).collect()
 }
 
-/// A thread's hover text: code, name, other makers' codes and colour.
+/// A thread's hover text: brand, code, name, other makers' codes and colour (#798).
 pub fn thread_tip(th: &Thread) -> String {
-    let mut s = [th.catalog_number.as_deref(), th.name.as_deref()]
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>()
-        .join(" ");
+    let code = openstitch_core::thread_code(th);
+    let mut s = [
+        openstitch_core::thread_brand(th),
+        code.as_deref(),
+        th.name.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>()
+    .join(" ");
     for (brand, code) in openstitch_engine::user::cross_references(th) {
         s.push_str(&format!(" · {brand} {code}"));
     }
@@ -364,7 +537,6 @@ fn colour_param(c: &openstitch_engine::user::ChartRef, i: usize, th: &Thread) ->
 
 /// The PEC thread chart as a grid of swatches; returns the chart number clicked.
 pub fn pec_grid(ui: &mut egui::Ui, id: &str, current: Option<&Thread>) -> Option<usize> {
-    let mut chosen = None;
     let index = current.and_then(inspector::pec_index);
     ui.label(RichText::new(t("ui-brother-pec-thread-chart")).strong());
     // Search by chart number, code or name (#486), matched as `threads.find` matches.
@@ -372,7 +544,7 @@ pub fn pec_grid(ui: &mut egui::Ui, id: &str, current: Option<&Thread>) -> Option
     let mut query: String = ui.data_mut(|d| d.get_temp(search_id)).unwrap_or_default();
     ui.add(
         egui::TextEdit::singleline(&mut query)
-            .hint_text("Search number or name")
+            .hint_text(t("ui-search-code-name-or-pec-number"))
             .desired_width(8.0 * 23.0),
     );
     ui.data_mut(|d| d.insert_temp(search_id, query.clone()));
@@ -380,30 +552,18 @@ pub fn pec_grid(ui: &mut egui::Ui, id: &str, current: Option<&Thread>) -> Option
     if shown.is_empty() {
         ui.label(RichText::new(t("ui-no-thread-in-this-chart-matches")).weak());
     }
-    egui::Grid::new(("pec", id))
-        .spacing(egui::vec2(3.0, 3.0))
-        .show(ui, |ui| {
-            for (n, (i, t)) in shown.into_iter().enumerate() {
-                let tip = format!("{i} {} ({})", t.name.as_deref().unwrap_or(""), t.hex());
-                let r = swatch(ui, [t.red, t.green, t.blue], 20.0).on_hover_text(tip);
-                if Some(i) == index && current.is_some_and(|c| c.name.is_some()) {
-                    ui.painter().rect_stroke(
-                        r.rect.expand(1.5),
-                        egui::CornerRadius::same(3),
-                        egui::Stroke::new(2.0, ui.visuals().strong_text_color()),
-                        egui::StrokeKind::Outside,
-                    );
-                }
-                if r.clicked() {
-                    chosen = Some(i);
-                    ui.close();
-                }
-                if n % 8 == 7 {
-                    ui.end_row();
-                }
-            }
-        });
-    chosen
+    layout_switch(ui);
+    // Brother's code under each swatch; the PEC number, which PE-DESIGN's own chart counts by,
+    // in the tooltip, labelled.
+    let cells: Vec<&Thread> = shown.iter().map(|(_, t)| *t).collect();
+    let marked = shown
+        .iter()
+        .position(|(i, _)| Some(*i) == index && current.is_some_and(|c| c.name.is_some()));
+    let numbers: Vec<usize> = shown.iter().map(|(i, _)| *i).collect();
+    thread_cells(ui, ("pec", id), &cells, marked, |n| {
+        Some(format!("PEC # {}", numbers[n]))
+    })
+    .map(|n| numbers[n])
 }
 
 /// The PEC chart's threads matching a search: all of them for an empty query, otherwise those
@@ -435,21 +595,17 @@ fn thread_picker(
     user: &openstitch_engine::user::UserSettings,
 ) -> Option<Value> {
     let mut chosen = None;
-    let c = current.map_or([128, 128, 128], |t| [t.red, t.green, t.blue]);
-    let index = current.and_then(inspector::pec_index);
-    let name = current.and_then(|t| t.name.as_deref()).unwrap_or("Custom");
-    let code = current.and_then(|t| t.catalog_number.as_deref());
-    let label = match (current, index) {
-        // A chart thread by its own code (New Brothread 001 White), #796.
-        (Some(t), _) if t.name.is_some() && code.is_some() => {
-            format!("{} {name}", code.unwrap_or_default())
-        }
-        (Some(t), Some(i)) if t.name.is_some() => format!("{i} {name}"),
-        (Some(t), _) => t.hex(),
-        (None, _) => "Mixed".into(),
+    // The swatch carries the thread's code (#798: Brother 007, not PEC 1); the button its name.
+    let label = match current {
+        Some(t) => t.name.as_deref().unwrap_or("Custom").to_string(),
+        None => "Mixed".into(),
     };
     ui.horizontal(|ui| {
-        let resp = swatch(ui, c, 18.0);
+        let resp = match current {
+            Some(t) => thread_swatch(ui, t, 18.0, Caption::Beside),
+            // bare-swatch: "Mixed" is several threads, named on the button.
+            None => swatch(ui, [128, 128, 128], 18.0),
+        };
         let button = ui.button(label);
         let popup_id = ui.make_persistent_id(id);
         let open = resp.clicked() || button.clicked();
@@ -1303,7 +1459,13 @@ pub fn simulator(app: &mut EditorApp, ui: &mut egui::Ui) {
         ui.separator();
         let current = app.simulate.map(|n| color_at(&app.pattern, n.max(1)).0);
         for (i, &c) in s.colors.iter().enumerate() {
-            let r = swatch(ui, c, 14.0);
+            let th = app
+                .pattern
+                .threads
+                .get(i)
+                .cloned()
+                .unwrap_or_else(|| Thread::rgb(u32::from_be_bytes([0, c[0], c[1], c[2]])));
+            let r = thread_swatch(ui, &th, 14.0, Caption::Under);
             if current == Some(i) {
                 ui.painter().rect_stroke(
                     r.rect.expand(2.0),
@@ -1493,6 +1655,82 @@ mod pec_search_tests {
         let code = entry.catalog_number.as_deref().expect("a code");
         assert!(pec_matches(code).iter().any(|(j, _)| *j == i));
         assert!(pec_matches("no such thread").is_empty());
+    }
+
+    /// #798's guard: no thread colour is drawn as a bare swatch outside [`thread_swatch`]. Each
+    /// bare swatch (`swatch(`, a thread's own `from_rgb(t.red…`, a tinted swatch image) needs a
+    /// `bare-swatch:` reason on its line or the two lines above: a colour that is not a thread,
+    /// stitches drawn in their colour, or a label beside it that carries the code.
+    #[test]
+    fn no_thread_swatch_without_its_code() {
+        // Built from parts so this test's own lines do not match.
+        let bare_call = concat!("sw", "atch(");
+        let rgb = [concat!("from_rgb(t", ".red"), concat!("from_rgb(th", ".red"), concat!("from_rgb(thread", ".red")];
+        let tint = concat!("tint(Color32::", "from_rgb(");
+        let matches = |code: &str| {
+            let call = code.match_indices(bare_call).any(|(i, _)| {
+                !code[..i]
+                    .chars()
+                    .next_back()
+                    .is_some_and(|c| c == '_' || c.is_ascii_alphanumeric())
+            });
+            (call && !code.contains(concat!("fn sw", "atch(")))
+                || rgb.iter().any(|r| code.contains(r))
+                || code.contains(tint)
+        };
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let mut files = Vec::new();
+        let mut dirs = vec![root.join("src"), root.join("../openstitch-web/src")];
+        while let Some(d) = dirs.pop() {
+            for e in std::fs::read_dir(&d).into_iter().flatten().flatten() {
+                let p = e.path();
+                if p.is_dir() {
+                    dirs.push(p);
+                } else if p.extension().is_some_and(|x| x == "rs") {
+                    files.push(p);
+                }
+            }
+        }
+        assert!(files.len() > 50, "the sources were found");
+        let mut bare = Vec::new();
+        for f in files {
+            let text = std::fs::read_to_string(&f).expect("source");
+            let lines: Vec<&str> = text.lines().collect();
+            for (n, l) in lines.iter().enumerate() {
+                let code = l.split("//").next().unwrap_or("");
+                let reason = (n.saturating_sub(2)..=n).any(|k| lines[k].contains("bare-swatch:"));
+                if matches(code) && !reason {
+                    bare.push(format!("{}:{}: {}", f.display(), n + 1, l.trim()));
+                }
+            }
+        }
+        assert!(
+            bare.is_empty(),
+            "thread swatches without their code (use thread_swatch, or give a bare-swatch: reason):\n{}",
+            bare.join("\n")
+        );
+    }
+
+    /// The shared widget's label (#798): Brother 007 for PEC 1, a maker's and a user chart's own
+    /// code, the hex for a custom colour.
+    #[test]
+    fn thread_swatch_labels_are_the_threads_own_codes() {
+        let prussian = openstitch_core::PEC_CHART[1].clone().expect("entry 1");
+        assert_eq!(label_json(&prussian)["code"], "007");
+        assert_eq!(label_json(&prussian)["brand"], "Brother");
+        let isacord = openstitch_core::brands::brand_charts()
+            .into_iter()
+            .find(|c| c.0 == "isacord40")
+            .expect("Isacord")
+            .2[3]
+            .clone();
+        assert_eq!(label_json(&isacord)["code"], json!(isacord.catalog_number.as_deref()));
+        let mine = json_thread(&json!({"color": "#123456", "code": "A7", "brand": "Mine"}));
+        assert_eq!(label_json(&mine)["code"], "A7");
+        assert_eq!(label_json(&Thread::rgb(0x123456))["code"], "#123456");
+        assert!(thread_tip(&prussian).starts_with("Brother 007 Prussian Blue"), "{}", thread_tip(&prussian));
+        // Searching the PEC tab by the code it shows finds the thread.
+        assert!(pec_matches("007").iter().any(|(i, _)| *i == 1));
     }
 
     /// #796: the colour picker starts from New Brothread on a first run, and its search finds a

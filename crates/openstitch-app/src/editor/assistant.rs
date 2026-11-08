@@ -101,6 +101,17 @@ pub const UI_COMMANDS: &[UiCommand] = &[
         ],
     },
     UiCommand {
+        id: "ui.threadLabels",
+        summary: "What a colour list shows (#798): for each swatch the code drawn beside it (the thread's own chart code: Brother 007, a maker's or the user's code, #rrggbb for a custom colour), name, brand and colour. list: picker (the colour picker's default chart), pecPicker (its Brother PEC tab), sewingOrder (the Sewing Order pane's object rows), colourPane (thread colours in sewing order), changeColor (Change Color for the selected stitch pattern)",
+        effect: Effect::Read,
+        params: &[p(
+            "list",
+            "string",
+            false,
+            "picker (default), pecPicker, sewingOrder, colourPane or changeColor",
+        )],
+    },
+    UiCommand {
         id: "ui.settings",
         summary: "Every editor setting the user can change outside the design (view, grid, rulers, panes, theme, updates, realistic view, font filter, simulator speed), with its value and allowed values",
         effect: Effect::Read,

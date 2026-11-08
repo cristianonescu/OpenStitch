@@ -171,13 +171,27 @@ fn apply(d: &mut Design, idx: &[usize], map: &[(Thread, Thread)]) {
     }
 }
 
+/// A thread as every command reports it (#798): colour, the code on its spool (`code`:
+/// Brother's 007 for a PEC chart thread, else its own catalogue number; null for a custom
+/// colour), `brand`, `description`, the PEC chart number a PES/PEC file gives it (`pecIndex`)
+/// and other makers' codes printed for it (`crossReferences`, #796).
 pub(crate) fn describe(t: &Thread) -> Value {
-    json!({
+    let mut v = json!({
         "color": t.hex(),
-        "code": t.catalog_number,
+        "code": openstitch_core::thread_code(t),
         "brand": t.brand,
         "description": t.name,
-    })
+        "pecIndex": openstitch_core::pec_index(t),
+    });
+    let refs = crate::user::cross_references(t);
+    if !refs.is_empty() {
+        v["crossReferences"] = Value::Array(
+            refs.iter()
+                .map(|(brand, code)| json!({ "brand": brand, "code": code }))
+                .collect(),
+        );
+    }
+    v
 }
 
 fn round2(v: f64) -> f64 {
@@ -544,7 +558,7 @@ pub fn commands() -> Vec<CommandSpec> {
         ),
         spec(
             "threads.find",
-            "Find threads by code or name across the built-in charts and the user's charts (exact code first, then codes starting with the query, then names, brands or codes containing it)",
+            "Find threads by code or name across the built-in charts and the user's charts (exact code first, then codes starting with the query, then names, brands or codes containing it); each with code, brand, description and pecIndex as separate fields",
             Effect::Read,
             vec![
                 req("query", "string", "Code (\"1800\") or name (\"ruby\")"),
