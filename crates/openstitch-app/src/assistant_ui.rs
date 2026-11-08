@@ -1434,6 +1434,10 @@ mod tests {
         assert_eq!(pec[0]["code"], "007", "PEC 1 shows Brother's code");
         let order = codes(&labels(&mut app, "sewingOrder"));
         assert_eq!(order, ["007", "900", "1800", "#123456"]);
+        // The Thread Colours pane: one labelled swatch per colour block of the compiled design.
+        let mut pane = codes(&labels(&mut app, "colourPane"));
+        pane.sort();
+        assert_eq!(pane, ["#123456", "007", "1800", "900"]);
         // Change Color, for a stitch pattern made from the first rectangle.
         let first = app.session.design().objects[0].id;
         app.execute(&openstitch_app::editor::CommandRequest::new("object.toStitches", json!({ "ids": [first] })));
