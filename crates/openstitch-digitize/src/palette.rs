@@ -148,6 +148,11 @@ fn protected(hist: &[(Rgb, u64)]) -> Vec<Rgb> {
     kept.into_iter().map(|c| c.0).collect()
 }
 
+/// A median-cut box whose nearest PEC thread is taken takes the nearest unused one when that
+/// is at most this many times as far (squared RGB): 2 keeps p03's and d01's 10 colours apart
+/// (PE-DESIGN 10) and leaves g11 as it was; 4 also gave g11 a Flesh Pink for a grey (#447).
+const UNUSED_RATIO: i64 = 2;
+
 /// Smallest share of the opaque pixels a colour needs to count in [`Census::auto_colors`].
 pub const AUTO_SHARE: f64 = 0.005;
 /// Most colours [`Census::auto_colors`] picks: PE-DESIGN fills in at most 10 (round 5: 10 for
@@ -312,7 +317,7 @@ impl Palette {
     /// Median cut of `colors` (a pixel list; order does not matter) into at most `n` boxes,
     /// then PEC matching. Deterministic: ties go to the lowest box / smallest packed colour.
     pub fn build(colors: &[Rgb], n: usize) -> Palette {
-        Self::from_histogram(&histogram(colors), n)
+        Self::from_histogram(&histogram(colors), n, false)
     }
 
     /// The palette of a colour census: its tracked colours, weighted by their counts, median
@@ -325,14 +330,14 @@ impl Palette {
         // 10, 6 and 4 colours, round 9); median cut alone gives it no box of its own.
         let kept = protected(&hist);
         if kept.is_empty() || n <= kept.len() {
-            return Self::from_histogram(&hist, n);
+            return Self::from_histogram(&hist, n, true);
         }
         let rest: Vec<(Rgb, u64)> = hist
             .iter()
             .filter(|c| !kept.contains(&c.0))
             .copied()
             .collect();
-        let mut p = Self::from_histogram(&rest, n - kept.len());
+        let mut p = Self::from_histogram(&rest, n - kept.len(), true);
         for c in kept {
             let (i, t) = nearest_pec(c);
             let k = p.chart.iter().position(|&x| x == i).unwrap_or_else(|| {
@@ -347,13 +352,36 @@ impl Palette {
     }
 
     /// Median cut of a sorted colour histogram, then PEC matching.
-    fn from_histogram(hist: &[(Rgb, u64)], n: usize) -> Palette {
+    fn from_histogram(hist: &[(Rgb, u64)], n: usize, distinct: bool) -> Palette {
         let means = median_cut_histogram(hist, n.max(1));
         let mut threads: Vec<Thread> = Vec::new();
         let mut chart: Vec<usize> = Vec::new();
         let mut thread_of = Vec::with_capacity(means.len());
         for &m in &means {
-            let (i, t) = nearest_pec(m);
+            let (mut i, mut t) = nearest_pec(m);
+            // PE-compatible Auto Punch and Cross Stitch (`distinct`, the census palettes):
+            // a box whose nearest thread another box took already takes its nearest unused
+            // thread, when that is at most UNUSED_RATIO times as far (squared RGB): PE-DESIGN
+            // keeps as many threads as it proposes colours (#447: p03 10, where two boxes
+            // matching one thread left 8 and lost the fox's orange).
+            if distinct && chart.contains(&i) {
+                let r = UNUSED_RATIO;
+                let me = thread(m);
+                let best = PEC_CHART[i]
+                    .as_ref()
+                    .map_or(i64::MAX, |c| color_distance(&me, c));
+                if let Some((j, c)) = pec_basic_chart()
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(j, c)| c.as_ref().map(|c| (j, c)))
+                    .filter(|(j, _)| !chart.contains(j))
+                    .min_by_key(|(_, c)| color_distance(&me, c))
+                    && color_distance(&me, c) <= best.saturating_mul(r).max(best + 1)
+                {
+                    i = j;
+                    t = c.clone();
+                }
+            }
             let k = chart.iter().position(|&c| c == i).unwrap_or_else(|| {
                 chart.push(i);
                 threads.push(t);
@@ -987,6 +1015,41 @@ mod protect_tests {
             .filter(|c| c.0 != [210, 40, 30])
             .collect();
         assert!(protected(&plain).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod unused_thread_tests {
+    use super::*;
+
+    #[test]
+    fn two_boxes_near_one_thread_keep_two_threads() {
+        // #447: two colours whose nearest PEC thread is the same each keep a thread when the
+        // second's nearest unused one is not much further (PE-DESIGN keeps as many threads as
+        // it proposes colours); a colour far from every other thread still shares.
+        let red = rgb_of(PEC_CHART[5].as_ref().expect("Red"));
+        // Red's nearest neighbour on the chart, and a colour 45 % of the way to it: still
+        // nearest Red, its neighbour (1.5 times as far, squared) the nearest unused thread.
+        let other = pec_basic_chart()
+            .iter()
+            .enumerate()
+            .filter(|(j, c)| *j != 5 && c.is_some())
+            .map(|(_, c)| rgb_of(c.as_ref().expect("thread")))
+            .min_by_key(|c| color_distance(&thread(*c), &thread(red)))
+            .expect("a neighbour");
+        let near: Rgb = std::array::from_fn(|k| {
+            (f64::from(red[k]) * 0.55 + f64::from(other[k]) * 0.45).round() as u8
+        });
+        assert_eq!(nearest_pec(near).0, nearest_pec(red).0, "both nearest Red");
+        let hist = vec![(red, 1000), (near, 900)];
+        let p = Palette::from_histogram(&hist, 2, true);
+        assert_eq!(p.means.len(), 2);
+        assert_eq!(p.threads.len(), 2, "{:?}", p.threads);
+        // One colour: one thread, as before.
+        let one = Palette::from_histogram(&[(red, 1000)], 1, true);
+        // Photo Stitch's palette (`build`) shares a thread as before.
+        assert_eq!(Palette::from_histogram(&hist, 2, false).threads.len(), 1);
+        assert_eq!(one.threads.len(), 1);
     }
 }
 
