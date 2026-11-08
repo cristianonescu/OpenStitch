@@ -3877,9 +3877,16 @@ pub fn brand_charts() -> [(&'static str, &'static str, &'static [Thread]); 6] {
     ]
 }
 
-/// Other makers' codes printed for a thread (#796): its brand and code, then (maker, code)
-/// pairs, as the thread's own card gives them.
-pub static CROSS_REFERENCES: [(&str, &str, &[(&str, &str)]); 63] = [
+/// A thread's brand and code, then the (maker, code) pairs its card prints for it (#796).
+pub type CrossReference = (
+    &'static str,
+    &'static str,
+    &'static [(&'static str, &'static str)],
+);
+
+/// Other makers' codes printed for the threads that have them, as each thread's own card gives
+/// them.
+pub static CROSS_REFERENCES: [CrossReference; 63] = [
     (
         "New Brothread",
         "001",
