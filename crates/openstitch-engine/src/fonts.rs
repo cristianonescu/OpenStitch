@@ -496,11 +496,11 @@ fn read_stitch_file(s: &EngineState, p: &Params, path: &str) -> Result<StitchPat
     let resolved = s
         .resolve(path, Access::Read, &p.command)
         .map_err(|e| e.to_string())?;
-    let meta = std::fs::metadata(&resolved).map_err(|_| "cannot read the file".to_string())?;
+    let meta = crate::fsio::metadata(&resolved).map_err(|_| "cannot read the file".to_string())?;
     if meta.len() > MAX_STITCH_FILE as u64 {
         return Err("file too large".into());
     }
-    let data = std::fs::read(&resolved).map_err(|_| "cannot read the file".to_string())?;
+    let data = crate::fsio::read(&resolved).map_err(|_| "cannot read the file".to_string())?;
     decode_stitches(&resolved, &data)
 }
 

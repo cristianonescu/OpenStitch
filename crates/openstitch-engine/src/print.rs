@@ -232,13 +232,13 @@ fn background_image(
         .as_ref()
         .ok_or_else(|| p.failed("the design has no background image (background.set)"))?;
     let path = s.resolve(&bg.path, Access::Read, &p.command)?;
-    let meta = std::fs::metadata(&path)
+    let meta = crate::fsio::metadata(&path)
         .map_err(|_| p.failed(format!("cannot read {}", path.display())))?;
     if meta.len() > 64 << 20 {
         return Err(p.failed("background image too large"));
     }
-    let data =
-        std::fs::read(&path).map_err(|_| p.failed(format!("cannot read {}", path.display())))?;
+    let data = crate::fsio::read(&path)
+        .map_err(|_| p.failed(format!("cannot read {}", path.display())))?;
     let r = openstitch_digitize::Raster::decode(&data)
         .map_err(|e| p.failed(e.to_string()))?
         .with_adjust(&bg.adjust);

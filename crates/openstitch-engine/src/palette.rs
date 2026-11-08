@@ -128,11 +128,11 @@ pub fn write_gpl<'a>(name: &str, threads: impl IntoIterator<Item = &'a Thread>) 
 
 fn import_palette(s: &mut EngineState, p: &Params) -> crate::CommandResult {
     let path = s.resolve(&p.string("path", None)?, Access::Read, &p.command)?;
-    let meta = std::fs::metadata(&path).map_err(|e| p.failed(e.to_string()))?;
+    let meta = crate::fsio::metadata(&path).map_err(|e| p.failed(e.to_string()))?;
     if meta.len() > MAX_FILE {
         return Err(p.failed("the file is too large"));
     }
-    let bytes = std::fs::read(&path).map_err(|e| p.failed(e.to_string()))?;
+    let bytes = crate::fsio::read(&path).map_err(|e| p.failed(e.to_string()))?;
     let palette = parse_gpl(&String::from_utf8_lossy(&bytes)).map_err(|e| p.failed(e))?;
     let partial = p.bool("partial", Some(false))?;
     if !palette.errors.is_empty() && !partial {

@@ -32,6 +32,20 @@ pub(crate) fn remove_file(path: &Path) -> io::Result<()> {
 #[cfg(target_arch = "wasm32")]
 pub(crate) use memfs::{len, read, remove_file, write};
 
+/// A file's size, as `std::fs::metadata(path)?.len()` (#693: the files the user picks or drops
+/// in a browser are in memory, so readers of picked files ask here).
+pub(crate) struct Meta(u64);
+
+impl Meta {
+    pub(crate) fn len(&self) -> u64 {
+        self.0
+    }
+}
+
+pub(crate) fn metadata(path: &std::path::Path) -> std::io::Result<Meta> {
+    len(path).map(Meta)
+}
+
 /// On the desktop the file commands still write real files at the path they resolved (the same
 /// `Access` checks and sandbox), and never touch the in-memory files.
 #[cfg(all(test, not(target_arch = "wasm32"), feature = "formats"))]
