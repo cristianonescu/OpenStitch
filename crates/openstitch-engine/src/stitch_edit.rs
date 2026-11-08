@@ -177,7 +177,7 @@ pub fn commands() -> Vec<CommandSpec> {
                 req(
                     "color",
                     "color",
-                    "#rrggbb, a Brother thread name or chart number 1-64",
+                    "#rrggbb, a Brother thread name, chart number 1-64 or {builtin, code}",
                 ),
             ],
             |s, p| {

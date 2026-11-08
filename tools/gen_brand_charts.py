@@ -8,6 +8,11 @@ columns `code,brand,description,R,G,B`, and a `charts.txt` listing `file|id|disp
 (the CSV's name without `.csv`, the chart id, its name) in the order the charts are offered. A
 colour without a description is named by its code. The colour values are the manufacturers' own published values; where
 each came from is recorded in docs/research/beyond/thread-charts.md.
+
+A CSV may add other makers' codes for its threads as extra columns named after the maker in
+camelCase (`madeiraPolyneon`, `madeiraRayon`: New Brothread's conversion card, #796) and a
+`source` column saying where the colour value came from; the cross-references become
+`CROSS_REFERENCES`, searchable by `threads.find` and the colour picker.
 """
 import csv
 import sys
@@ -19,6 +24,18 @@ OUT = ROOT / "crates" / "openstitch-core" / "src" / "brands.rs"
 
 def lit(s):
     return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def maker(column):
+    """`madeiraPolyneon` -> `Madeira Polyneon`."""
+    words, w = [], ""
+    for ch in column:
+        if ch.isupper() and w:
+            words.append(w)
+            w = ""
+        w += ch
+    words.append(w)
+    return " ".join(x[:1].upper() + x[1:] for x in words)
 
 
 def main():
@@ -35,6 +52,7 @@ def main():
         "",
     ]
     statics = []
+    xrefs = []
     for file, cid, name in charts:
         rows = list(csv.DictReader((src / f"{file}.csv").open(encoding="utf-8")))
         ident = file.upper().replace("-", "_")
@@ -48,12 +66,36 @@ def main():
         out.append("];")
         out.append("")
         statics.append((cid, name, ident))
+        extra = [c for c in rows[0].keys() if c not in ("code", "brand", "description", "R", "G", "B", "source")] if rows else []
+        for r in rows:
+            refs = [(maker(c), r[c]) for c in extra if r[c]]
+            if refs:
+                xrefs.append((r["brand"], r["code"], refs))
     out.append("/// Every brand chart here: id, display name, threads, in the order they are offered.")
     out.append(f"pub fn brand_charts() -> [(&'static str, &'static str, &'static [Thread]); {len(statics)}] {{")
     out.append("    [")
     for cid, name, ident in statics:
         out.append(f"        ({lit(cid)}, {lit(name)}, &{ident}),")
     out.append("    ]")
+    out.append("}")
+    out.append("")
+    out.append("/// A thread's brand and code, then the (maker, code) pairs its card prints for it (#796).")
+    out.append("pub type CrossReference = (&'static str, &'static str, &'static [(&'static str, &'static str)]);")
+    out.append("")
+    out.append("/// Other makers' codes printed for the threads that have them, as each thread's own card gives")
+    out.append("/// them.")
+    out.append(f"pub static CROSS_REFERENCES: [CrossReference; {len(xrefs)}] = [")
+    for brand, code, refs in xrefs:
+        pairs = ", ".join(f"({lit(m)}, {lit(c)})" for m, c in refs)
+        out.append(f"    ({lit(brand)}, {lit(code)}, &[{pairs}]),")
+    out.append("];")
+    out.append("")
+    out.append("/// The other makers' codes for the thread of `brand` and `code` (none for most threads).")
+    out.append("pub fn cross_references(brand: &str, code: &str) -> &'static [(&'static str, &'static str)] {")
+    out.append("    CROSS_REFERENCES")
+    out.append("        .iter()")
+    out.append("        .find(|(b, c, _)| *b == brand && *c == code)")
+    out.append("        .map_or(&[], |(_, _, r)| r)")
     out.append("}")
     OUT.write_text("\n".join(out) + "\n", encoding="utf-8", newline="\n")
     print(f"wrote {OUT.relative_to(ROOT)}: {len(statics)} charts")

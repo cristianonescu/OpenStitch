@@ -275,7 +275,7 @@ fn schemas_come_from_param_docs() {
     assert_eq!(rect["properties"]["width"]["type"], "number");
     assert_eq!(
         rect["properties"]["fill"]["type"],
-        json!(["string", "integer"])
+        json!(["string", "integer", "object"])
     );
     assert_eq!(rect["required"], json!(["x", "y", "width", "height"]));
     assert_eq!(rect["additionalProperties"], false);

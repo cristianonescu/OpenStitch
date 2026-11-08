@@ -3806,6 +3806,38 @@ mod tests {
         assert!(app.ui.prefs.keymap.is_default(), "allowed: reset");
     }
 
+    /// #796: changing the default thread chart asks first, naming the chart; Deny keeps New
+    /// Brothread, Allow makes Brother's PEC chart the default.
+    #[test]
+    fn default_chart_change_asks_and_deny_changes_nothing() {
+        let set = json!({ "builtin": "brother" });
+        let (mut app, _transport) = app_with(vec![
+            reply(&[("threads.setDefault", set.clone())], "", "tool_use"),
+            reply(&[], "Kept.", "end_turn"),
+            reply(&[("threads.setDefault", set)], "", "tool_use"),
+            reply(&[], "Changed.", "end_turn"),
+        ]);
+        let default = |app: &mut EditorApp| {
+            app.session
+                .execute("threads.defaultChart", None)
+                .expect("read")["builtin"]
+                .clone()
+        };
+        assert_eq!(default(&mut app), json!("newBrothread"));
+        send(&mut app, "use the Brother chart".into(), no_wake());
+        run(&mut app, |a| !a.assistant.panel.approvals.is_empty());
+        let what = &app.assistant.panel.approvals[0].what;
+        assert!(what.contains("Brother (PEC / PES chart)"), "{what}");
+        answer(&mut app, 0, Answer::Deny);
+        run(&mut app, idle);
+        assert_eq!(default(&mut app), json!("newBrothread"), "denied: unchanged");
+        send(&mut app, "use the Brother chart".into(), no_wake());
+        run(&mut app, |a| !a.assistant.panel.approvals.is_empty());
+        answer(&mut app, 0, Answer::Once);
+        run(&mut app, idle);
+        assert_eq!(default(&mut app), json!("brother"), "allowed: changed");
+    }
+
     /// #453: saving or deleting a custom fabric asks first, naming the fabric; Deny changes
     /// nothing, Allow saves it.
     #[test]

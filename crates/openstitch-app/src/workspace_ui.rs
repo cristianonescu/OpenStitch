@@ -104,7 +104,7 @@ pub fn draw_rulers(
             [Pos2::new(x, top.max.y - len), Pos2::new(x, top.max.y)],
             Stroke::new(1.0, fg),
         );
-        if let Some(l) = t.label {
+        if let Some(l) = t.label.as_deref().map(ruler_label) {
             painter.text(
                 Pos2::new(x + 2.0, top.min.y + 1.0),
                 egui::Align2::LEFT_TOP,
@@ -124,7 +124,7 @@ pub fn draw_rulers(
             [Pos2::new(left.max.x - len, y), Pos2::new(left.max.x, y)],
             Stroke::new(1.0, fg),
         );
-        if let Some(l) = t.label {
+        if let Some(l) = t.label.as_deref().map(ruler_label) {
             painter.text(
                 Pos2::new(left.min.x + 1.0, y + 2.0),
                 egui::Align2::LEFT_TOP,
@@ -147,6 +147,12 @@ pub fn draw_rulers(
             mark,
         );
     }
+}
+
+/// A ruler label without its sign: PE-DESIGN 11's rulers count up both ways from 0 at the page
+/// centre (… 20 10 0 10 20 …; #799). The cursor position and the guide labels keep theirs.
+fn ruler_label(l: &str) -> &str {
+    l.trim_start_matches(['-', '\u{2212}'])
 }
 
 /// Grid lines on the Design Page from the grid settings: solid with axes, else dotted.
@@ -686,4 +692,14 @@ pub fn estimate_text(e: &Estimate) -> String {
         e.needle_total() / 1000.0,
         e.bobbin_thread / 1000.0
     )
+}
+
+#[cfg(test)]
+mod ruler_tests {
+    #[test]
+    fn ruler_labels_count_up_both_ways_from_the_origin() {
+        assert_eq!(super::ruler_label("-20"), "20");
+        assert_eq!(super::ruler_label("\u{2212}1.5"), "1.5");
+        assert_eq!(super::ruler_label("10"), "10");
+    }
 }
