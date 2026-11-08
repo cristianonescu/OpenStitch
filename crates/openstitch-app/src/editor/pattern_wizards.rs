@@ -191,9 +191,8 @@ impl BackgroundForm {
                     "echoType".into(),
                     json!(if self.echo_clipped { "clipped" } else { "echo" }),
                 );
-                if self.echo_clipped {
-                    p.insert("linkEchoEnds".into(), json!(self.link_ends));
-                }
+                // Clipped: PE-DESIGN's link echo ends; rings: joined ring to ring (#794).
+                p.insert("linkEchoEnds".into(), json!(self.link_ends));
             }
             "stippling" => {
                 p.insert("stippleSpacing".into(), json!(self.stipple_spacing));
