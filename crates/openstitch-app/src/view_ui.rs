@@ -766,11 +766,7 @@ pub fn shown_image(app: &EditorApp) -> Result<openstitch_digitize::Raster, Strin
         .background
         .as_ref()
         .ok_or("no background image")?;
-    let meta = std::fs::metadata(&b.path).map_err(|e| e.to_string())?;
-    if meta.len() > openstitch_digitize::raster::MAX_FILE_BYTES as u64 {
-        return Err("the image file is too large".into());
-    }
-    let data = std::fs::read(&b.path).map_err(|e| e.to_string())?;
+    let data = openstitch_app::platform::read_limited(std::path::Path::new(&b.path), openstitch_digitize::raster::MAX_FILE_BYTES as u64)?;
     let r = openstitch_digitize::Raster::decode(&data).map_err(|e| e.to_string())?;
     Ok(r.with_adjust(&b.adjust))
 }

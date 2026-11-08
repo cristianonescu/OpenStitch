@@ -600,6 +600,12 @@ impl EditorApp {
                     "visible": b.visible, "opacity": b.opacity, "layer": layer,
                     "xMM": b.x / 10.0, "yMM": b.y / 10.0,
                     "widthMM": b.width / 10.0, "heightMM": b.height / 10.0,
+                    // The picture's file, and its size in pixels once the editor could read
+                    // and decode it for the canvas (null when it cannot: #797).
+                    "path": b.path,
+                    "pixels": crate::view_ui::shown_image(self)
+                        .ok()
+                        .map(|r| [r.width(), r.height()]),
                 })
             }),
         })
@@ -1808,6 +1814,34 @@ mod tests {
             app.ui_command("ui.simulate", Some(&json!({ "stitch": t.total + 1 })))
                 .is_err()
         );
+    }
+
+    /// #797: `ui.state` names the background picture's file and, once the editor has read and
+    /// decoded it for the canvas (through `platform::read_limited`, the page's memory in the
+    /// browser), its size in pixels; a file it cannot decode gives null.
+    #[test]
+    fn the_background_picture_is_read_for_the_canvas() {
+        let dir = openstitch_testutil::TempDir::new("app-background");
+        let png = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/sew/previews/applique.png");
+        std::fs::copy(&png, dir.join("photo.png")).expect("photo");
+        let want = openstitch_digitize::Raster::decode(&std::fs::read(&png).expect("read"))
+            .expect("decodes");
+        let mut app = EditorApp::new(Launch::default());
+        let path = dir.join("photo.png");
+        let r = openstitch_app::editor::CommandRequest::new(
+            "background.set",
+            json!({ "path": path.display().to_string() }),
+        );
+        app.execute(&r);
+        let state = app.ui_command("ui.state", None).expect("state");
+        let shown = state["background"]["path"].as_str().expect("path");
+        assert!(shown.ends_with("photo.png"), "{shown}");
+        assert_eq!(state["background"]["pixels"], json!([want.width(), want.height()]));
+        // The file replaced by something that is not a picture: no pixels, no panic.
+        std::fs::write(&path, b"not a picture").expect("write");
+        let state = app.ui_command("ui.state", None).expect("state");
+        assert!(state["background"]["pixels"].is_null(), "{}", state["background"]);
     }
 
     #[test]

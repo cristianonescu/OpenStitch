@@ -43,6 +43,47 @@ pub fn read_small(path: &std::path::Path, max: u64) -> Option<Vec<u8>> {
     memfs::read(path).ok()
 }
 
+/// A file's bytes, refused when longer than `max` (#797: the editor's own image reads, the
+/// background picture, the image wizards' preview and the templates, go through here so the
+/// browser reads the file the page's picker put in memory, as the engine does).
+#[cfg(not(target_arch = "wasm32"))]
+pub fn read_limited(path: &std::path::Path, max: u64) -> Result<Vec<u8>, String> {
+    let len = std::fs::metadata(path).map_err(|e| e.to_string())?.len();
+    if len > max {
+        return Err("the file is too large".into());
+    }
+    std::fs::read(path).map_err(|e| e.to_string())
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn read_limited(path: &std::path::Path, max: u64) -> Result<Vec<u8>, String> {
+    use openstitch_engine::fsio::memfs;
+    let len = memfs::len(path).map_err(|e| e.to_string())?;
+    if len > max {
+        return Err("the file is too large".into());
+    }
+    memfs::read(path).map_err(|e| e.to_string())
+}
+
+/// A text file the user picked (#797): the file system on the desktop, the page's memory in
+/// the browser.
+pub fn read_text(path: &std::path::Path) -> Result<String, String> {
+    let bytes = read_limited(path, 16 << 20)?;
+    String::from_utf8(bytes).map_err(|e| e.to_string())
+}
+
+/// Writes a file the user chose to save (#797): the file system on the desktop; in the browser
+/// the page's memory, where a file in the save folder becomes a download.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn write_file(path: &std::path::Path, bytes: impl AsRef<[u8]>) -> Result<(), String> {
+    std::fs::write(path, bytes).map_err(|e| e.to_string())
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn write_file(path: &std::path::Path, bytes: impl AsRef<[u8]>) -> Result<(), String> {
+    openstitch_engine::fsio::memfs::write(path, bytes).map_err(|e| e.to_string())
+}
+
 /// An RGBA picture on the system clipboard: `width × height` pixels, 4 bytes each, by rows.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ClipboardImage {
