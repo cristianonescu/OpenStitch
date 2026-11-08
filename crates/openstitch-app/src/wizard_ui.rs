@@ -23,6 +23,12 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
         .iter()
         .map(|c| c.name.clone())
         .collect();
+    // OpenStitch mode starts from the user's default chart (#796) until a Threads choice.
+    if !app.wizard.threads_chosen {
+        app.wizard.threads = openstitch_app::editor::wizard::threads_value(
+            &app.session.user_settings().default_chart(),
+        );
+    }
     egui::Window::new(openstitch_app::editor::ui_texts::t("ui-window-image-to-embroidery")).id(egui::Id::unique("window-image-to-embroidery"))
         .open(&mut open)
         .default_width(360.0)
@@ -729,10 +735,18 @@ fn open_stitch_rows(ui: &mut egui::Ui, w: &mut ImageWizard) {
 /// Brother chart, every built-in chart, or one of the user's charts), and which of the user's
 /// charts holds the threads they own, so the result can list the rest to buy.
 fn threads_rows(ui: &mut egui::Ui, w: &mut ImageWizard, charts: &[String]) {
+    // The thread makers' charts (New Brothread first, #796) by name.
+    let brands: Vec<(&'static str, &'static str)> = openstitch_core::brands::brand_charts()
+        .iter()
+        .map(|(id, name, _)| (*id, *name))
+        .collect();
     let label = |v: &str| match v {
         "brother" => "Brother".to_string(),
         "all" => "All built-in charts".to_string(),
-        other => other.to_string(),
+        other => brands
+            .iter()
+            .find(|(id, _)| *id == other)
+            .map_or(other.to_string(), |(_, n)| n.to_string()),
     };
     ui.label(t("ui-threads"));
     egui::ComboBox::from_id_salt("wizardThreads")
@@ -740,11 +754,14 @@ fn threads_rows(ui: &mut egui::Ui, w: &mut ImageWizard, charts: &[String]) {
         .show_ui(ui, |ui| {
             for v in ["brother", "all"]
                 .into_iter()
+                .chain(brands.iter().map(|(id, _)| *id))
                 .map(str::to_string)
                 .chain(charts.iter().cloned())
             {
                 let text = label(&v);
-                ui.selectable_value(&mut w.threads, v, text);
+                if ui.selectable_value(&mut w.threads, v, text).clicked() {
+                    w.threads_chosen = true;
+                }
             }
         });
     ui.end_row();

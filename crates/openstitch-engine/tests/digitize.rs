@@ -1272,3 +1272,30 @@ fn auto_punch_specks_are_planned_and_can_be_sewn() {
     assert_eq!(region["reason"], "override");
     assert_eq!(s.design().objects.len() as u64, sewn_before + 1);
 }
+
+/// #796: OpenStitch mode with `threads: newBrothread` chooses only New Brothread threads.
+#[test]
+fn new_brothread_as_the_thread_source_uses_only_its_threads() {
+    let dir = temp_dir();
+    write_sample(&dir);
+    let mut s = Session::new(&dir);
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    let r = run(
+        &mut s,
+        "digitize.autoPunch",
+        json!({"path": "sample.png", "width": 60, "compatMode": "openStitch",
+               "threads": "newBrothread"}),
+    );
+    let kit: Vec<String> = openstitch_core::brands::NEW_BROTHREAD
+        .iter()
+        .map(openstitch_core::Thread::hex)
+        .collect();
+    let colors = r["colors"].as_array().expect("colors");
+    assert!(!colors.is_empty());
+    for c in colors {
+        assert!(
+            kit.contains(&c.as_str().expect("hex").to_string()),
+            "{c} is not New Brothread"
+        );
+    }
+}

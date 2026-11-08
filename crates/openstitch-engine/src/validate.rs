@@ -160,7 +160,12 @@ fn check_value(kind: &str, value: &Value) -> Option<String> {
         "color" => match value {
             Value::String(_) => None,
             v if integer(v).is_some_and(|n| (1.0..=64.0).contains(&n)) => None,
-            _ => Some("must be #rrggbb, a Brother thread name or chart number 1-64".into()),
+            // A chart's thread (#796): {builtin, code | index} or {color, code, brand, description}.
+            Value::Object(o) if o.contains_key("builtin") || o.contains_key("color") => None,
+            _ => Some(
+                "must be #rrggbb, a Brother thread name, chart number 1-64 or {builtin, code}"
+                    .into(),
+            ),
         },
         "[int]" => match value.as_array() {
             Some(a) if a.iter().all(|v| v.as_u64().is_some()) => None,

@@ -6,6 +6,73 @@
 
 use crate::Thread;
 
+/// New Brothread 100 % polyester (63-spool kit): 63 colours.
+pub static NEW_BROTHREAD: [Thread; 63] = [
+    Thread::chart(240, 240, 240, "White", "001", "New Brothread"),
+    Thread::chart(168, 168, 168, "Silver", "005", "New Brothread"),
+    Thread::chart(14, 31, 124, "Prussian Blue", "007", "New Brothread"),
+    Thread::chart(255, 255, 179, "Cream Brown", "010", "New Brothread"),
+    Thread::chart(168, 222, 235, "Light Blue", "017", "New Brothread"),
+    Thread::chart(37, 132, 187, "Sky Blue", "019", "New Brothread"),
+    Thread::chart(227, 243, 91, "Fresh Green", "027", "New Brothread"),
+    Thread::chart(254, 55, 15, "Vermilion", "030", "New Brothread"),
+    Thread::chart(42, 19, 1, "Dark Brown", "058", "New Brothread"),
+    Thread::chart(75, 107, 175, "Cornflower Blue", "070", "New Brothread"),
+    Thread::chart(252, 187, 197, "Salmon Pink", "079", "New Brothread"),
+    Thread::chart(249, 147, 188, "Pink", "085", "New Brothread"),
+    Thread::chart(246, 74, 138, "Deep Rose", "086", "New Brothread"),
+    Thread::chart(199, 1, 86, "Dark Fuchsia", "107", "New Brothread"),
+    Thread::chart(253, 217, 222, "Flesh Pink", "124", "New Brothread"),
+    Thread::chart(254, 179, 67, "Pumpkin", "126", "New Brothread"),
+    Thread::chart(240, 249, 112, "Lemon Yellow", "202", "New Brothread"),
+    Thread::chart(255, 255, 0, "Yellow", "205", "New Brothread"),
+    Thread::chart(255, 217, 17, "Harvest Gold", "206", "New Brothread"),
+    Thread::chart(254, 186, 53, "Orange", "208", "New Brothread"),
+    Thread::chart(254, 158, 50, "Tangerine", "209", "New Brothread"),
+    Thread::chart(232, 169, 0, "Deep Gold", "214", "New Brothread"),
+    Thread::chart(254, 227, 197, "Linen", "307", "New Brothread"),
+    Thread::chart(178, 118, 36, "Light Brown", "323", "New Brothread"),
+    Thread::chart(186, 152, 0, "Brass", "328", "New Brothread"),
+    Thread::chart(125, 111, 0, "Russet Brown", "330", "New Brothread"),
+    Thread::chart(181, 75, 100, "Amber Red", "333", "New Brothread"),
+    Thread::chart(209, 92, 0, "Reddish Brown", "337", "New Brothread"),
+    Thread::chart(209, 84, 0, "Clay Brown", "339", "New Brothread"),
+    Thread::chart(208, 166, 96, "Khaki", "348", "New Brothread"),
+    Thread::chart(216, 204, 198, "Warm Gray", "399", "New Brothread"),
+    Thread::chart(10, 85, 163, "Blue", "405", "New Brothread"),
+    Thread::chart(11, 61, 145, "Ultra Marine", "406", "New Brothread"),
+    Thread::chart(19, 74, 70, "Peacock Blue", "415", "New Brothread"),
+    Thread::chart(9, 91, 166, "Electric Blue", "420", "New Brothread"),
+    Thread::chart(158, 214, 125, "Mint Green", "502", "New Brothread"),
+    Thread::chart(0, 103, 62, "Emerald Green", "507", "New Brothread"),
+    Thread::chart(102, 186, 73, "Leaf Green", "509", "New Brothread"),
+    Thread::chart(112, 188, 31, "Lime Green", "513", "New Brothread"),
+    Thread::chart(47, 126, 32, "Moss Green", "515", "New Brothread"),
+    Thread::chart(67, 86, 7, "Dark Olive", "517", "New Brothread"),
+    Thread::chart(19, 43, 26, "Olive Green", "519", "New Brothread"),
+    Thread::chart(0, 135, 119, "Teal Green", "534", "New Brothread"),
+    Thread::chart(168, 221, 196, "Seacrest", "542", "New Brothread"),
+    Thread::chart(104, 106, 176, "Wisteria Violet", "607", "New Brothread"),
+    Thread::chart(145, 95, 172, "Lilac", "612", "New Brothread"),
+    Thread::chart(106, 28, 138, "Violet", "613", "New Brothread"),
+    Thread::chart(78, 41, 144, "Purple", "614", "New Brothread"),
+    Thread::chart(145, 54, 151, "Magenta", "620", "New Brothread"),
+    Thread::chart(79, 85, 86, "Pewter", "704", "New Brothread"),
+    Thread::chart(41, 49, 51, "Dark Gray", "707", "New Brothread"),
+    Thread::chart(237, 23, 31, "Red", "800", "New Brothread"),
+    Thread::chart(178, 175, 212, "Lavender", "804", "New Brothread"),
+    Thread::chart(247, 56, 102, "Carmine", "807", "New Brothread"),
+    Thread::chart(0, 56, 34, "Deep Green", "808", "New Brothread"),
+    Thread::chart(228, 154, 203, "Light Lilac", "810", "New Brothread"),
+    Thread::chart(255, 243, 107, "Cream Yellow", "812", "New Brothread"),
+    Thread::chart(135, 135, 135, "Gray", "817", "New Brothread"),
+    Thread::chart(239, 227, 185, "Beige", "843", "New Brothread"),
+    Thread::chart(119, 1, 118, "Royal Purple", "869", "New Brothread"),
+    Thread::chart(0, 0, 0, "Black", "900", "New Brothread"),
+    Thread::chart(226, 191, 186, "Flesh", "901", "New Brothread"),
+    Thread::chart(227, 213, 191, "Ivory", "902", "New Brothread"),
+];
+
 /// Madeira Polyneon (polyester, No. 86 digital shade card): 425 colours.
 pub static MADEIRA_POLYNEON: [Thread; 425] = [
     Thread::chart(46, 42, 47, "1500", "1500", "Madeira Polyneon"),
@@ -3775,8 +3842,13 @@ pub static ROBISON_ANTON_POLYESTER40: [Thread; 452] = [
 ];
 
 /// Every brand chart here: id, display name, threads, in the order they are offered.
-pub fn brand_charts() -> [(&'static str, &'static str, &'static [Thread]); 5] {
+pub fn brand_charts() -> [(&'static str, &'static str, &'static [Thread]); 6] {
     [
+        (
+            "newBrothread",
+            "New Brothread 100 % polyester (63-spool kit)",
+            &NEW_BROTHREAD,
+        ),
         (
             "madeiraPolyneon",
             "Madeira Polyneon (polyester, No. 86 digital shade card)",
@@ -3803,4 +3875,332 @@ pub fn brand_charts() -> [(&'static str, &'static str, &'static [Thread]); 5] {
             &ROBISON_ANTON_POLYESTER40,
         ),
     ]
+}
+
+/// Other makers' codes printed for a thread (#796): its brand and code, then (maker, code)
+/// pairs, as the thread's own card gives them.
+pub static CROSS_REFERENCES: [(&str, &str, &[(&str, &str)]); 63] = [
+    (
+        "New Brothread",
+        "001",
+        &[("Madeira Polyneon", "1801"), ("Madeira Rayon", "1002")],
+    ),
+    (
+        "New Brothread",
+        "005",
+        &[("Madeira Polyneon", "1812"), ("Madeira Rayon", "1087")],
+    ),
+    (
+        "New Brothread",
+        "007",
+        &[("Madeira Polyneon", "1767"), ("Madeira Rayon", "1166")],
+    ),
+    (
+        "New Brothread",
+        "010",
+        &[("Madeira Polyneon", "1866"), ("Madeira Rayon", "1022")],
+    ),
+    (
+        "New Brothread",
+        "017",
+        &[("Madeira Polyneon", "1932"), ("Madeira Rayon", "1132")],
+    ),
+    (
+        "New Brothread",
+        "019",
+        &[("Madeira Polyneon", "1828"), ("Madeira Rayon", "1029")],
+    ),
+    (
+        "New Brothread",
+        "027",
+        &[("Madeira Polyneon", "1706"), ("Madeira Rayon", "1102")],
+    ),
+    (
+        "New Brothread",
+        "030",
+        &[("Madeira Polyneon", "1779"), ("Madeira Rayon", "1179")],
+    ),
+    (
+        "New Brothread",
+        "058",
+        &[("Madeira Polyneon", "1859"), ("Madeira Rayon", "1130")],
+    ),
+    (
+        "New Brothread",
+        "070",
+        &[("Madeira Polyneon", "1830"), ("Madeira Rayon", "1335")],
+    ),
+    (
+        "New Brothread",
+        "079",
+        &[("Madeira Polyneon", "1816"), ("Madeira Rayon", "1317")],
+    ),
+    (
+        "New Brothread",
+        "085",
+        &[("Madeira Polyneon", "1921"), ("Madeira Rayon", "1108")],
+    ),
+    (
+        "New Brothread",
+        "086",
+        &[("Madeira Polyneon", "1721"), ("Madeira Rayon", "1117")],
+    ),
+    (
+        "New Brothread",
+        "107",
+        &[("Madeira Polyneon", "1984"), ("Madeira Rayon", "1383")],
+    ),
+    (
+        "New Brothread",
+        "124",
+        &[("Madeira Polyneon", "1915"), ("Madeira Rayon", "1015")],
+    ),
+    (
+        "New Brothread",
+        "126",
+        &[("Madeira Polyneon", "1952"), ("Madeira Rayon", "1155")],
+    ),
+    (
+        "New Brothread",
+        "202",
+        &[("Madeira Polyneon", "1623"), ("Madeira Rayon", "1023")],
+    ),
+    (
+        "New Brothread",
+        "205",
+        &[("Madeira Polyneon", "1980"), ("Madeira Rayon", "1068")],
+    ),
+    (
+        "New Brothread",
+        "206",
+        &[("Madeira Polyneon", "1971"), ("Madeira Rayon", "1024")],
+    ),
+    (
+        "New Brothread",
+        "208",
+        &[("Madeira Polyneon", "1951"), ("Madeira Rayon", "1137")],
+    ),
+    (
+        "New Brothread",
+        "209",
+        &[("Madeira Polyneon", "1965"), ("Madeira Rayon", "1078")],
+    ),
+    (
+        "New Brothread",
+        "214",
+        &[("Madeira Polyneon", "1772"), ("Madeira Rayon", "1172")],
+    ),
+    (
+        "New Brothread",
+        "307",
+        &[("Madeira Polyneon", "1682"), ("Madeira Rayon", "1149")],
+    ),
+    (
+        "New Brothread",
+        "323",
+        &[("Madeira Polyneon", "1729"), ("Madeira Rayon", "1056")],
+    ),
+    (
+        "New Brothread",
+        "328",
+        &[("Madeira Polyneon", "1791"), ("Madeira Rayon", "1192")],
+    ),
+    (
+        "New Brothread",
+        "330",
+        &[("Madeira Polyneon", "1726"), ("Madeira Rayon", "1194")],
+    ),
+    (
+        "New Brothread",
+        "333",
+        &[("Madeira Polyneon", "1942"), ("Madeira Rayon", "1341")],
+    ),
+    (
+        "New Brothread",
+        "337",
+        &[("Madeira Polyneon", "1753"), ("Madeira Rayon", "1253")],
+    ),
+    (
+        "New Brothread",
+        "339",
+        &[("Madeira Polyneon", "1621"), ("Madeira Rayon", "1021")],
+    ),
+    (
+        "New Brothread",
+        "348",
+        &[("Madeira Polyneon", "1939"), ("Madeira Rayon", "1255")],
+    ),
+    (
+        "New Brothread",
+        "399",
+        &[("Madeira Polyneon", "1860"), ("Madeira Rayon", "1085")],
+    ),
+    (
+        "New Brothread",
+        "405",
+        &[("Madeira Polyneon", "1829"), ("Madeira Rayon", "1177")],
+    ),
+    (
+        "New Brothread",
+        "406",
+        &[("Madeira Polyneon", "1842"), ("Madeira Rayon", "1076")],
+    ),
+    (
+        "New Brothread",
+        "415",
+        &[("Madeira Polyneon", "1652"), ("Madeira Rayon", "1252")],
+    ),
+    (
+        "New Brothread",
+        "420",
+        &[("Madeira Polyneon", "1797"), ("Madeira Rayon", "1297")],
+    ),
+    (
+        "New Brothread",
+        "502",
+        &[("Madeira Polyneon", "1702"), ("Madeira Rayon", "1302")],
+    ),
+    (
+        "New Brothread",
+        "507",
+        &[("Madeira Polyneon", "1750"), ("Madeira Rayon", "1250")],
+    ),
+    (
+        "New Brothread",
+        "509",
+        &[("Madeira Polyneon", "1749"), ("Madeira Rayon", "1050")],
+    ),
+    (
+        "New Brothread",
+        "513",
+        &[("Madeira Polyneon", "1848"), ("Madeira Rayon", "1049")],
+    ),
+    (
+        "New Brothread",
+        "515",
+        &[("Madeira Polyneon", "1770"), ("Madeira Rayon", "1369")],
+    ),
+    (
+        "New Brothread",
+        "517",
+        &[("Madeira Polyneon", "1769"), ("Madeira Rayon", "1156")],
+    ),
+    (
+        "New Brothread",
+        "519",
+        &[("Madeira Polyneon", "1904"), ("Madeira Rayon", "1396")],
+    ),
+    (
+        "New Brothread",
+        "534",
+        &[("Madeira Polyneon", "1879"), ("Madeira Rayon", "1298")],
+    ),
+    (
+        "New Brothread",
+        "542",
+        &[("Madeira Polyneon", "1647"), ("Madeira Rayon", "1219")],
+    ),
+    (
+        "New Brothread",
+        "607",
+        &[("Madeira Polyneon", "1943"), ("Madeira Rayon", "1311")],
+    ),
+    (
+        "New Brothread",
+        "612",
+        &[("Madeira Polyneon", "1831"), ("Madeira Rayon", "1080")],
+    ),
+    (
+        "New Brothread",
+        "613",
+        &[("Madeira Polyneon", "1631"), ("Madeira Rayon", "1033")],
+    ),
+    (
+        "New Brothread",
+        "614",
+        &[("Madeira Polyneon", "1880"), ("Madeira Rayon", "1122")],
+    ),
+    (
+        "New Brothread",
+        "620",
+        &[("Madeira Polyneon", "1710"), ("Madeira Rayon", "1319")],
+    ),
+    (
+        "New Brothread",
+        "704",
+        &[("Madeira Polyneon", "1840"), ("Madeira Rayon", "1041")],
+    ),
+    (
+        "New Brothread",
+        "707",
+        &[("Madeira Polyneon", "1841"), ("Madeira Rayon", "1241")],
+    ),
+    (
+        "New Brothread",
+        "800",
+        &[("Madeira Polyneon", "1637"), ("Madeira Rayon", "1037")],
+    ),
+    (
+        "New Brothread",
+        "804",
+        &[("Madeira Polyneon", "1630"), ("Madeira Rayon", "1261")],
+    ),
+    (
+        "New Brothread",
+        "807",
+        &[("Madeira Polyneon", "1986"), ("Madeira Rayon", "1081")],
+    ),
+    (
+        "New Brothread",
+        "808",
+        &[("Madeira Polyneon", "1703"), ("Madeira Rayon", "1370")],
+    ),
+    (
+        "New Brothread",
+        "810",
+        &[("Madeira Polyneon", "1911"), ("Madeira Rayon", "1031")],
+    ),
+    (
+        "New Brothread",
+        "812",
+        &[("Madeira Polyneon", "1861"), ("Madeira Rayon", "1349")],
+    ),
+    (
+        "New Brothread",
+        "817",
+        &[("Madeira Polyneon", "1640"), ("Madeira Rayon", "1118")],
+    ),
+    (
+        "New Brothread",
+        "843",
+        &[("Madeira Polyneon", "1738"), ("Madeira Rayon", "1138")],
+    ),
+    (
+        "New Brothread",
+        "869",
+        &[("Madeira Polyneon", "1788"), ("Madeira Rayon", "1188")],
+    ),
+    (
+        "New Brothread",
+        "900",
+        &[("Madeira Polyneon", "1800"), ("Madeira Rayon", "1000")],
+    ),
+    (
+        "New Brothread",
+        "901",
+        &[("Madeira Polyneon", "1626"), ("Madeira Rayon", "1066")],
+    ),
+    (
+        "New Brothread",
+        "902",
+        &[("Madeira Polyneon", "1861"), ("Madeira Rayon", "1061")],
+    ),
+];
+
+/// The other makers' codes for the thread of `brand` and `code` (none for most threads).
+pub fn cross_references(brand: &str, code: &str) -> &'static [(&'static str, &'static str)] {
+    CROSS_REFERENCES
+        .iter()
+        .find(|(b, c, _)| *b == brand && *c == code)
+        .map_or(&[], |(_, _, r)| r)
 }

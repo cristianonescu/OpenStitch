@@ -234,8 +234,10 @@ fn kind_schema(t: &str, summary: &str) -> Value {
             s.insert("items".into(), json!({ "type": "integer", "minimum": 0 }));
         }
         "color" => {
-            s.insert("type".into(), json!(["string", "integer"]));
-            unit = Some("#rrggbb, a Brother thread name, or chart number 1-64");
+            s.insert("type".into(), json!(["string", "integer", "object"]));
+            unit = Some(
+                "#rrggbb, a Brother thread name, chart number 1-64, or a chart's thread {builtin: \"newBrothread\", code: \"001\"}",
+            );
         }
         "mm" | "degrees" | "factor" | "percent" => {
             s.insert("type".into(), json!("number"));

@@ -128,6 +128,34 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                     app.colour_match.merge_open = true;
                 }
             });
+            // #796: the chart the colour picker and the image wizards start from.
+            ui.horizontal(|ui| {
+                use openstitch_engine::user::ChartRef;
+                let user = app.session.user_settings();
+                let current = user.default_chart();
+                let (name, _) = crate::panels::picker_chart(&current, user);
+                let mut choices: Vec<(ChartRef, String)> = openstitch_engine::thread_match::builtins()
+                    .into_iter()
+                    .map(|b| (ChartRef::Builtin(b.id.into()), b.name.to_string()))
+                    .collect();
+                choices.extend(
+                    user.thread_charts
+                        .iter()
+                        .map(|c| (ChartRef::Chart(c.name.clone()), c.name.clone())),
+                );
+                let mut chosen = current.clone();
+                let r = egui::ComboBox::from_label(t("ui-default-thread-chart"))
+                    .selected_text(name)
+                    .show_ui(ui, |ui| {
+                        for (c, label) in choices {
+                            ui.selectable_value(&mut chosen, c, label);
+                        }
+                    });
+                r.response.on_hover_text(t("ui-default-thread-chart-tip"));
+                if chosen != current {
+                    request = Some(CommandRequest::new("threads.setDefault", chosen.to_json()));
+                }
+            });
             ui.separator();
             let charts = app.session.user_settings().thread_charts.clone();
             let st = &mut app.settings;
@@ -368,7 +396,15 @@ mod tests {
             user_settings: Some(file.clone()),
             ..Default::default()
         });
-        assert_eq!(again.session.user_settings().thread_charts.len(), 1);
+        // A first run starts with "My Threads" (the New Brothread kit, #796), then "Mine".
+        let names: Vec<&str> = again
+            .session
+            .user_settings()
+            .thread_charts
+            .iter()
+            .map(|c| c.name.as_str())
+            .collect();
+        assert_eq!(names, ["My Threads", "Mine"]);
         // A broken file is reported, not fatal.
         std::fs::write(&file, "nonsense").expect("write");
         let broken = EditorApp::new(Launch {
