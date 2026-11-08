@@ -139,8 +139,12 @@ pub struct ImageWizard {
     /// costlier passes; the dialog starts on Standard (the owner's choice, 2026-10-31).
     pub high_fidelity: bool,
     /// OpenStitch mode: the threads to choose from (B16.1 T5, the engine's `threads`):
-    /// `brother` (the PEC chart), `all` (every built-in chart) or one of the user's charts.
+    /// `brother` (the PEC chart), `all` (every built-in chart), a built-in chart's id or one of
+    /// the user's charts. Follows the user's default chart (`threads.defaultChart`, #796) until
+    /// they choose here ([`ImageWizard::threads_chosen`]).
     pub threads: String,
+    /// The Threads choice was made in the wizard, so it no longer follows the default chart.
+    pub threads_chosen: bool,
     /// OpenStitch mode: the user's chart of threads they own (`owned`); the result then lists
     /// the chosen threads not in it.
     pub owned: Option<String>,
@@ -209,6 +213,15 @@ pub struct ImageWizard {
     pub region_sew: &'static str,
 }
 
+/// The wizard's `threads` value for a default chart (#796): a built-in chart's id or the
+/// user chart's name.
+pub fn threads_value(c: &openstitch_engine::user::ChartRef) -> String {
+    match c {
+        openstitch_engine::user::ChartRef::Builtin(id) => id.clone(),
+        openstitch_engine::user::ChartRef::Chart(n) => n.clone(),
+    }
+}
+
 impl Default for ImageWizard {
     fn default() -> Self {
         ImageWizard {
@@ -221,6 +234,7 @@ impl Default for ImageWizard {
             open_stitch: false,
             high_fidelity: false,
             threads: "brother".into(),
+            threads_chosen: false,
             owned: None,
             sew_background: true,
             isolate_subject: false,

@@ -572,6 +572,21 @@ pub fn chart_question(command: &str, effect: Effect, params: &Value) -> Option<S
     };
     Some(match command {
         "threads.createChart" => format!("create the thread chart \"{chart}\""),
+        // #796: the colour picker and the image wizards start from this chart afterwards.
+        "threads.setDefault" => {
+            let what = if params["builtin"].is_string() {
+                let id = text("builtin");
+                openstitch_engine::thread_match::builtins()
+                    .iter()
+                    .find(|b| b.id == id)
+                    .map_or(id.clone(), |b| b.name.to_string())
+            } else {
+                format!("your thread chart \"{chart}\"")
+            };
+            format!(
+                "make {what} the default thread chart (the colour picker and the image wizards start from it)"
+            )
+        }
         "threads.addColor" => {
             let what = [text("code"), text("description"), text("color")]
                 .into_iter()
@@ -965,6 +980,31 @@ mod tests {
                 "fabric.calibrate",
                 Effect::Settings,
                 json!({ "name": "x" })
+            ),
+            Verdict::Run
+        );
+    }
+
+    /// #796: changing the default thread chart asks first and names the chart.
+    #[test]
+    fn default_chart_changes_ask_first() {
+        use PermissionMode::*;
+        for mode in [Ask, Edits] {
+            assert!(matches!(
+                gate(mode, "threads.setDefault", Effect::Settings, json!({ "builtin": "brother" })),
+                Verdict::Ask(w) if w.contains("Brother (PEC / PES chart)") && w.contains("default thread chart")
+            ));
+            assert!(matches!(
+                gate(mode, "threads.setDefault", Effect::Settings, json!({ "chart": "My Threads" })),
+                Verdict::Ask(w) if w.contains("\"My Threads\"")
+            ));
+        }
+        assert_eq!(
+            gate(
+                All,
+                "threads.setDefault",
+                Effect::Settings,
+                json!({ "builtin": "brother" })
             ),
             Verdict::Run
         );

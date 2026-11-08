@@ -65,7 +65,37 @@ pub struct UserSettings {
     /// The user's machine (`machine.setProfile`, #508 part 3).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub machine_profile: Option<crate::machine_profile::MachineProfile>,
+    /// The chart the colour picker and the image wizards' OpenStitch mode start from
+    /// (`threads.setDefault`, #796); unset means [`DEFAULT_THREADS`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_threads: Option<ChartRef>,
 }
+
+/// A thread chart by kind: a built-in one by id (`threads.builtinCharts`) or one of the user's
+/// by name.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ChartRef {
+    Builtin(String),
+    Chart(String),
+}
+
+impl ChartRef {
+    /// `{"builtin": id}` or `{"chart": name}`, as commands take a chart.
+    pub fn to_json(&self) -> Value {
+        match self {
+            ChartRef::Builtin(id) => json!({ "builtin": id }),
+            ChartRef::Chart(n) => json!({ "chart": n }),
+        }
+    }
+}
+
+/// The default chart when the user has chosen none (#796): New Brothread, the 63-spool kit.
+/// Brother's PEC chart stays one choice away (`threads.setDefault {builtin: "brother"}`).
+pub const DEFAULT_THREADS: &str = "newBrothread";
+
+/// The chart a first run's "My Threads" starts with (#796).
+pub const MY_THREADS: &str = "My Threads";
 
 /// File format marker of the settings file.
 pub const FORMAT: &str = "openstitch.user";
@@ -76,7 +106,7 @@ impl UserSettings {
         let meta = match std::fs::metadata(path) {
             Ok(m) => m,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                return Ok(UserSettings::default());
+                return Ok(UserSettings::first_run());
             }
             Err(e) => return Err(e.to_string()),
         };
@@ -85,6 +115,32 @@ impl UserSettings {
         }
         let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
         Self::decode(&bytes)
+    }
+
+    /// What a first run starts with (#796): "My Threads" holding the New Brothread kit, the
+    /// threads the image wizards' "I own" can point at. Saved with the first settings change.
+    pub fn first_run() -> UserSettings {
+        UserSettings {
+            thread_charts: vec![ThreadChart {
+                name: MY_THREADS.into(),
+                threads: openstitch_core::brands::NEW_BROTHREAD.to_vec(),
+            }],
+            ..UserSettings::default()
+        }
+    }
+
+    /// The chart the colour picker and the image wizards start from: the user's choice while
+    /// it still exists, else [`DEFAULT_THREADS`].
+    pub fn default_chart(&self) -> ChartRef {
+        match &self.default_threads {
+            Some(ChartRef::Builtin(id))
+                if crate::thread_match::builtins().iter().any(|b| b.id == id) =>
+            {
+                ChartRef::Builtin(id.clone())
+            }
+            Some(ChartRef::Chart(n)) if self.chart_index(n).is_some() => ChartRef::Chart(n.clone()),
+            _ => ChartRef::Builtin(DEFAULT_THREADS.into()),
+        }
     }
 
     pub fn decode(bytes: &[u8]) -> Result<UserSettings, String> {
@@ -368,12 +424,44 @@ pub(crate) fn csv_thread(line: &str) -> Result<Thread, String> {
 }
 
 fn describe_thread(t: &Thread) -> Value {
-    json!({
+    let mut v = json!({
         "color": t.hex(),
         "code": t.catalog_number,
         "brand": t.brand,
         "description": t.name,
-    })
+    });
+    let refs = cross_references(t);
+    if !refs.is_empty() {
+        v["crossReferences"] = Value::Array(
+            refs.iter()
+                .map(|(brand, code)| json!({ "brand": brand, "code": code }))
+                .collect(),
+        );
+    }
+    v
+}
+
+/// Other makers' codes printed for `t` (New Brothread's conversion card, #796).
+pub fn cross_references(t: &Thread) -> &'static [(&'static str, &'static str)] {
+    match (t.brand.as_deref(), t.catalog_number.as_deref()) {
+        (Some(b), Some(c)) => openstitch_core::brands::cross_references(b, c),
+        _ => &[],
+    }
+}
+
+/// The default chart as commands report it: `{builtin, name}` or `{chart}`.
+fn default_chart_json(u: &UserSettings) -> Value {
+    let c = u.default_chart();
+    let mut v = c.to_json();
+    if let ChartRef::Builtin(id) = &c
+        && let Some(b) = crate::thread_match::builtins()
+            .iter()
+            .find(|b| b.id == id.as_str())
+    {
+        v["name"] = json!(b.name);
+    }
+    v["chosen"] = json!(u.default_threads.is_some());
+    v
 }
 
 pub fn commands() -> Vec<CommandSpec> {
@@ -585,6 +673,53 @@ fn chart_commands() -> Vec<CommandSpec> {
             },
         ),
         spec(
+            "threads.defaultChart",
+            "The chart the colour picker and the image wizards' OpenStitch mode start from (#796): {builtin, name} or {chart}; New Brothread (newBrothread) until the user chooses another; chosen says whether they did",
+            Effect::Read,
+            vec![],
+            |s, _| Ok(default_chart_json(&s.user)),
+        ),
+        spec(
+            "threads.setDefault",
+            "Choose the chart the colour picker and the image wizards' OpenStitch mode start from (user settings, #796): a built-in chart (builtin, e.g. newBrothread or brother for Brother's PEC chart) or one of the user's charts (chart). PE-compatible mode and the PES/PEC writers are not affected",
+            Effect::Settings,
+            vec![
+                opt(
+                    "builtin",
+                    "string",
+                    "Built-in chart id (see threads.builtinCharts)",
+                ),
+                opt("chart", "string", "User chart name"),
+            ],
+            |s, p| {
+                let c = match (p.has("builtin"), p.has("chart")) {
+                    (true, false) => {
+                        let id = p.string("builtin", None)?;
+                        let ids: Vec<&str> = crate::thread_match::builtins()
+                            .iter()
+                            .map(|b| b.id)
+                            .collect();
+                        if !ids.contains(&id.as_str()) {
+                            return Err(
+                                p.invalid("builtin", format!("use one of {}", ids.join(", ")))
+                            );
+                        }
+                        ChartRef::Builtin(id)
+                    }
+                    (false, true) => {
+                        let n = p.string("chart", None)?;
+                        if s.user.chart_index(&n).is_none() {
+                            return Err(p.not_found(format!("thread chart '{n}'")));
+                        }
+                        ChartRef::Chart(n)
+                    }
+                    _ => return Err(p.invalid("builtin", "give either builtin or chart")),
+                };
+                s.user.default_threads = Some(c);
+                Ok(json!({ "defaultChart": default_chart_json(&s.user) }))
+            },
+        ),
+        spec(
             "threads.createChart",
             "Create an empty user thread chart",
             Effect::Settings,
@@ -617,7 +752,12 @@ fn chart_commands() -> Vec<CommandSpec> {
                 if s.user.chart_index(&n).is_some() {
                     return Err(p.failed(format!("a chart named '{n}' exists")));
                 }
-                chart(s, p)?.name = n;
+                let c = chart(s, p)?;
+                let old = std::mem::replace(&mut c.name, n.clone());
+                // The default chart follows its rename (#796).
+                if s.user.default_threads == Some(ChartRef::Chart(old)) {
+                    s.user.default_threads = Some(ChartRef::Chart(n));
+                }
                 Ok(json!(null))
             },
         ),

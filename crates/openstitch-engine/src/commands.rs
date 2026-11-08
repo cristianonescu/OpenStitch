@@ -130,9 +130,15 @@ pub(crate) fn default_line() -> Thread {
     PEC_CHART[20].clone().unwrap_or(Thread::rgb(0))
 }
 
-/// `"#rrggbb"`, a Brother PEC chart name (`"Red"`) or chart number 1–64.
+/// `"#rrggbb"`, a Brother PEC chart name (`"Red"`), chart number 1–64, or a thread of a
+/// built-in chart (#796): `{"builtin": "newBrothread", "code": "001"}` (`index`, from 0,
+/// instead of `code` picks by position), or a whole thread: `{"color": "#rrggbb", "code",
+/// "brand", "description"}` (a thread of one of the user's charts, as the colour picker gives it).
 pub(crate) fn thread(p: &Params, key: &str) -> Result<Option<Thread>, CommandError> {
     let Some(v) = p.get(key) else { return Ok(None) };
+    if v.is_object() {
+        return chart_thread(p, key, v).map(Some);
+    }
     if v.is_number() {
         let i = p.int(key, None, 1, 64)? as usize;
         return Ok(PEC_CHART[i].clone());
@@ -151,9 +157,55 @@ pub(crate) fn thread(p: &Params, key: &str) -> Result<Option<Thread>, CommandErr
     named.cloned().map(Some).ok_or_else(|| {
         p.invalid(
             key,
-            "must be #rrggbb, a Brother thread name or chart number 1-64",
+            "must be #rrggbb, a Brother thread name, chart number 1-64 or {builtin, code}",
         )
     })
+}
+
+/// A `{builtin, code|index}` or `{color, code, brand, description}` colour parameter: the
+/// chart's own thread, code and brand included.
+fn chart_thread(p: &Params, key: &str, v: &Value) -> Result<Thread, CommandError> {
+    let bad = |why: String| p.invalid(key, why);
+    let threads: Vec<Thread> = if let Some(id) = v.get("builtin").and_then(Value::as_str) {
+        crate::thread_match::builtins()
+            .into_iter()
+            .find(|b| b.id == id)
+            .map(|b| b.entries.into_iter().map(|(_, t)| t).collect())
+            .ok_or_else(|| {
+                bad(format!(
+                    "no built-in chart '{id}' (see threads.builtinCharts)"
+                ))
+            })?
+    } else if let Some(hex) = v.get("color").and_then(Value::as_str) {
+        let mut t =
+            Thread::from_hex(hex.trim()).ok_or_else(|| bad("color must be #rrggbb".into()))?;
+        let text = |k: &str| {
+            v.get(k)
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|s| !s.is_empty() && s.chars().count() <= 100)
+                .map(|s| std::borrow::Cow::Owned(s.to_string()))
+        };
+        t.catalog_number = text("code");
+        t.brand = text("brand");
+        t.name = text("description");
+        return Ok(t);
+    } else {
+        return Err(bad("give builtin with code or index, or color".into()));
+    };
+    if let Some(code) = v.get("code").and_then(Value::as_str) {
+        return threads
+            .into_iter()
+            .find(|t| t.catalog_number.as_deref() == Some(code.trim()))
+            .ok_or_else(|| bad(format!("no thread with code '{code}' in that chart")));
+    }
+    if let Some(i) = v.get("index").and_then(Value::as_u64) {
+        return threads
+            .into_iter()
+            .nth(i as usize)
+            .ok_or_else(|| bad(format!("no thread {i} in that chart")));
+    }
+    Err(bad("give code or index".into()))
 }
 
 pub(crate) fn indexes(p: &Params, d: &Design) -> Result<Vec<usize>, CommandError> {

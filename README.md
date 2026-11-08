@@ -477,7 +477,7 @@ The image tools have two methods, both OpenStitch's own: OpenStitch's PE-DESIGN-
 - (+) **OpenStitch mode:** colours reduced and matched to threads by how they look (CIELAB,
   CIEDE2000), specks merged, line art kept ([#263]).
 - (+) **Fidelity Standard or High:** more colours for a closer likeness.
-- (+) **Thread sources:** Brother, Madeira Polyneon, Isacord, Sulky, Robison-Anton or only the
+- (+) **Thread sources:** New Brothread, Brother, Madeira Polyneon, Isacord, Sulky, Robison-Anton or only the
   threads you own, with a list of threads to buy.
 - (+) **Auto Punch background:** the background is sewn unless it is the fabric's colour or paper
   ([#445]).
@@ -555,6 +555,9 @@ The image tools have two methods, both OpenStitch's own: OpenStitch's PE-DESIGN-
 - **Editable `.osd` projects.**
 - **Thread charts:** Brother's 64-colour PEC chart and PE-DESIGN's colour matching ([#119]),
   your own charts as CSV in the layout PE-DESIGN's Import Chart reads.
+- (+) **New Brothread built in as the default threads:** the 63-spool kit with its Madeira
+  codes, searchable in the colour picker ("1801" finds 001 White); Brother's PEC chart one click
+  away ([#796]).
 - (+) **GIMP / Inkscape `.gpl` palettes** as thread charts ([#483]).
 - (+) **Match to any chart by perceived colour** (CIEDE2000 or Oklab), with a preview ([#484]).
 - (+) **Merge similar colours** to save thread changes ([#485]).
@@ -676,6 +679,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#481]: https://github.com/cristianonescu/OpenStitch/issues/481
 [#482]: https://github.com/cristianonescu/OpenStitch/issues/482
 [#483]: https://github.com/cristianonescu/OpenStitch/issues/483
+[#796]: https://github.com/cristianonescu/OpenStitch/issues/796
 [#484]: https://github.com/cristianonescu/OpenStitch/issues/484
 [#485]: https://github.com/cristianonescu/OpenStitch/issues/485
 [#487]: https://github.com/cristianonescu/OpenStitch/issues/487

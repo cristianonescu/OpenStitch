@@ -405,7 +405,15 @@ pub fn find_rank(t: &Thread, query: &str) -> Option<u8> {
     if has(t.name.as_deref()) {
         return Some(2);
     }
+    // Another maker's code printed for the thread (#796: "1801" finds New Brothread 001).
+    let refs = crate::user::cross_references(t);
+    if refs.iter().any(|(_, c)| c.eq_ignore_ascii_case(query)) {
+        return Some(1);
+    }
     if has(Some(code)) || has(t.brand.as_deref()) {
+        return Some(3);
+    }
+    if refs.iter().any(|(_, c)| c.to_lowercase().starts_with(&q)) {
         return Some(3);
     }
     None

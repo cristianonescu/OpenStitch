@@ -14,9 +14,44 @@ The data lives in `crates/openstitch-core/data/brands/` (OpenStitch's thread-cha
 PE-DESIGN-compatible paths and the PES/PEC writers, are not changed: a thread from another chart
 is written to a PES/PEC file as its nearest PEC colour, as any custom colour is.
 
-All sources were fetched on 2026-10-31.
+All sources were fetched on 2026-10-31, except New Brothread's (the owner's kit cards,
+2026-11-08).
 
 ## Compiled
+
+### New Brothread (`newBrothread`), 63 threads: the default chart (#796)
+
+- **Source:** the owner's own New Brothread 100 % polyester 63-spool kit: its printed "63 Spools
+  Color Chart" (swatch, code and name per spool) and "Color Thread Conversion Chart" (each spool's
+  Brother Embroidery, Madeira Polyneon and Madeira Rayon codes), scanned by the owner on
+  2026-11-08 and transcribed on #796, every row checked twice against a full-resolution crop.
+  Codes and names are facts printed on the owner's cards; the maker publishes no data
+  (brothread.com is a parked domain).
+- **Colour values** (the owner's rule, 2026-11-08: OpenStitch's existing value wherever it has
+  one, the scan otherwise; the `source` column of `new-brothread.csv` says which):
+  - **61 threads (`pec`):** New Brothread numbers its spools with Brother Embroidery codes, so
+    each takes the RGB of the PEC chart entry that `BROTHER_EMBROIDERY` maps the code to: what
+    PE-DESIGN, the machine and the PES writer already show. A test checks every one.
+  - **901 Flesh and 902 Ivory (`scan`):** not in Brother's chart. Each is the mean of a
+    200 × 80 px patch at the centre of the swatch on the owner's 600 dpi scan, normalised so the
+    card's paper-white and black (raw `#E9EBE2` and `#212720`, sampled on 001 and 900) land on
+    the PEC chart's `#F0F0F0` and `#000000`: Flesh `#E2BFBA` (raw `#DDC3B6`), Ivory `#E3D5BF`
+    (raw `#DED5BA`). The card says "color card is for reference only". The Madeira
+    cross-references were not used for them: Polyneon 1626 is a peach-yellow that does not match
+    the pink Flesh swatch, and 1861 is printed for 812 Cream Yellow too.
+- **Cross-references:** the conversion card's Madeira Polyneon and Madeira Rayon codes are kept
+  with each thread (`madeiraPolyneon`, `madeiraRayon` columns; `CROSS_REFERENCES` in
+  `brands.rs`), shown in the colour picker's tooltip, returned by `threads.builtinCharts` and
+  `threads.find` (`crossReferences`) and searchable: "1801" finds 001 White. They are search
+  terms, not colours. Polyneon 1861 is printed for both 812 and 902 and kept as printed;
+  Polyneon 1986 (807 Carmine) is not on the No. 86 card the Madeira chart was compiled from.
+- **Names:** as the card prints them, "Vermilion" (030) included (Brother's chart spells it
+  VERMILLION).
+- **Default:** New Brothread is the chart the colour picker and the image wizards' OpenStitch
+  mode start from, and a first run's "My Threads" holds the kit (`threads.setDefault`,
+  `threads.defaultChart`). PE-compatible mode, the Brother/PEC chart and the PES/PEC writers are
+  unchanged: a New Brothread thread is written with the PEC entry of its colour, which for the 61
+  shared codes is the same code's.
 
 ### Madeira Polyneon (`madeiraPolyneon`), 425 colours
 
@@ -98,7 +133,6 @@ All sources were fetched on 2026-10-31.
 | Brand / line | Searched | Why not |
 |---|---|---|
 | Madeira Classic 40 (rayon) | madeira.com's shade card (thread photographs) and downloads; the web archive's madeira.de, madeira.co.uk, madeira.com and madeirausa.com, including the colour-card pages, the 2002–2007 UK colour search and the 2007 `Classic_list_of_colours.pdf` | No numeric colour anywhere official; Madeira's "Color Definition Package" is a commercial CD-ROM; the RGB tables found (EZ Stitch, EduTechWiki) are third-party compilations |
-| Brothread | brothread.com (a parked domain, also in its only archived capture); marketplace listings | No maker data; the kits use Brother's colour numbers, which the Brother/PEC chart already covers |
 
 Possible follow-ups (the owner's call): ask Madeira for Classic's digital values and for the right
 swatch of Polyneon 1822, 1886 and 1990; ask Amann which Isacord RGB table is current. Users can also
