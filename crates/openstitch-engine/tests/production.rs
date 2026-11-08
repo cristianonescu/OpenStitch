@@ -387,6 +387,53 @@ fn satins_are_entered_part_way_along() {
 }
 
 #[test]
+fn nearest_start_enters_a_closed_outline_at_its_nearest_point() {
+    // #547's closed-outline rule: a closed running outline without an entry point of its own
+    // starts at the point of its outline nearest to where the needle stopped, not at its first
+    // vertex. The outline is drawn from its far corner (80, 30) mm.
+    let tmp = TempDir::new("production");
+    let mut s = Session::new(tmp.path());
+    rect(&mut s, 10.0, 10.0, 20.0, 20.0, "#ff0000");
+    run(
+        &mut s,
+        "shape.path",
+        json!({"points": [[80, 30], [80, 10], [60, 10], [60, 30]], "closed": true,
+               "outline": "#ff0000"}),
+    );
+    let travel = |s: &mut Session| {
+        run(s, "design.info", json!({}))["stitchStats"]["travelMM"]
+            .as_f64()
+            .expect("present")
+    };
+    // The outline's first needle point: the first stitch right of the square.
+    let outline_start = |s: &Session| {
+        let p = compile(s.design());
+        let st = p
+            .stitches
+            .iter()
+            .find(|st| st.x >= 550.0 && st.command == Command::Stitch)
+            .copied()
+            .expect("present");
+        v2(st.x, st.y)
+    };
+    let off = travel(&mut s);
+    let far = outline_start(&s);
+    assert!(far.x > 750.0, "drawn start {far:?}");
+    run(
+        &mut s,
+        "design.setProperties",
+        json!({"autoStart": "nearest"}),
+    );
+    let on = travel(&mut s);
+    let near = outline_start(&s);
+    assert!(on < off, "travel {off} -> {on}");
+    // On the outline's left side (x 60 mm), the side facing the square.
+    assert!(near.x < 650.0, "nearest start {near:?}");
+    run(&mut s, "design.setProperties", json!({"autoStart": "off"}));
+    assert_eq!(travel(&mut s), off);
+}
+
+#[test]
 fn nearest_start_shortens_travel() {
     let tmp = TempDir::new("production");
     let mut s = Session::new(tmp.path());

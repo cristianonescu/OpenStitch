@@ -174,7 +174,8 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `history.undo` when a number got worse. `design.setProperties {autoStart: nearest}` (beyond
    PE-DESIGN) starts each shape without its own entry point nearest to where the last ended,
    ends a region without its own exit nearest the next object, and enters a satin part way
-   along, where it passes nearest (a skeleton satin or satin line by a lead run under it). Set a point by hand with
+   along, where it passes nearest (a skeleton satin or satin line by a lead run under it); from a
+   shell, `stitchtool optimize in.osd out.pes --auto-start nearest` sets it before reordering. Set a point by hand with
    `object.setEntryExit` (`regionEntry`, `regionExit`, `lineEntry`, `lineExit`; null clears).
 5. Check: `view_render` (look at it), `design.info` (size, stitches, colours, trims, time) and
    `design.check` (sewing problems, errors first; `ready` is false while there are errors).

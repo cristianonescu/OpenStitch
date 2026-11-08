@@ -2952,6 +2952,10 @@ output is byte-identical (tests `basting_box_sews_first_in_the_first_thread`,
   open for part-way satin starts and draggable markers.
 - sew_check passes on the heart example with a basting box, an outline basting in its own
   thread, stops after an object plus Stop at Jumps, and nearest start, as on the plain design.
+- 2026-11-08: the closed-outline rule has its own fixture (a closed outline drawn from its far
+  corner starts on the side facing the previous object: `nearest_start_enters_a_closed_outline_at_its_nearest_point`), and `stitchtool optimize
+  --auto-start off|nearest` sets the rule from a shell (by colour on a square and a line drawn
+  away from it: travel 70.7 → 22.4 mm, trims 2 → 2). Output with the rule off is unchanged.
 
 ### Satin shaping, 2026-11-06 (#520-#523, `batch:satin-1`)
 
