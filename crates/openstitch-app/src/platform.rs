@@ -301,7 +301,9 @@ pub fn in_browser() -> bool {
 /// thread.
 pub fn pretend_browser(on: bool) {
     PRETEND_BROWSER.with(|p| p.set(on));
+}
 
+thread_local! {
     static USER_STORE: std::cell::Cell<Option<openstitch_engine::session::UserStore>> =
         const { std::cell::Cell::new(None) };
 }
