@@ -381,9 +381,9 @@ impl ImageWizard {
             p.insert("compatMode".into(), json!("openStitch"));
             // Photo Stitch 2 keeps its own Auto Select.
             if matches!(self.method, Method::AutoPunch | Method::PhotoFill) {
-                if self.threads != "brother" {
-                    p.insert("threads".into(), json!(self.threads));
-                }
+                // Always named: the engine's default is the user's default chart (#810), so
+                // "brother" is passed too.
+                p.insert("threads".into(), json!(self.threads));
                 if let Some(o) = &self.owned {
                     p.insert("owned".into(), json!(o));
                 }

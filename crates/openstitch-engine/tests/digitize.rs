@@ -1299,3 +1299,62 @@ fn new_brothread_as_the_thread_source_uses_only_its_threads() {
         );
     }
 }
+
+/// #810: OpenStitch mode without `threads` chooses from the user's default chart, as the
+/// editor's wizard does: New Brothread at first, Madeira Polyneon once that is the default.
+#[test]
+fn without_threads_openstitch_mode_uses_the_default_chart() {
+    let dir = temp_dir();
+    write_sample(&dir);
+    let mut s = Session::new(&dir);
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    let auto = json!({"path": "sample.png", "width": 60, "compatMode": "openStitch"});
+    let chart = |id: &str| -> Vec<String> {
+        openstitch_core::brands::brand_charts()
+            .into_iter()
+            .find(|c| c.0 == id)
+            .expect("chart")
+            .2
+            .iter()
+            .map(openstitch_core::Thread::hex)
+            .collect()
+    };
+    let colours = |r: &Value| -> Vec<String> {
+        r["colors"]
+            .as_array()
+            .expect("colors")
+            .iter()
+            .map(|c| c.as_str().expect("hex").to_string())
+            .collect()
+    };
+    let nb = colours(&run(&mut s, "digitize.autoPunch", auto.clone()));
+    assert!(!nb.is_empty());
+    let kit = chart("newBrothread");
+    assert!(
+        nb.iter().all(|c| kit.contains(c)),
+        "{nb:?} not all New Brothread"
+    );
+    run(
+        &mut s,
+        "threads.setDefault",
+        json!({"builtin": "madeiraPolyneon"}),
+    );
+    let madeira = colours(&run(&mut s, "digitize.autoPunch", auto));
+    let polyneon = chart("madeiraPolyneon");
+    assert!(
+        madeira.iter().all(|c| polyneon.contains(c)),
+        "{madeira:?} not all Madeira Polyneon"
+    );
+    // PE-DESIGN mode keeps the PEC chart whatever the default.
+    let pe = colours(&run(
+        &mut s,
+        "digitize.autoPunch",
+        json!({"path": "sample.png", "width": 60}),
+    ));
+    let pec: Vec<String> = openstitch_core::PEC_CHART
+        .iter()
+        .flatten()
+        .map(openstitch_core::Thread::hex)
+        .collect();
+    assert!(pe.iter().all(|c| pec.contains(c)), "{pe:?}");
+}
