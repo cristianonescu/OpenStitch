@@ -427,6 +427,13 @@ impl EditorApp {
                 );
             }
             self.ui.prefs_path = Some(ui);
+        } else if l.screenshot.is_none()
+            && let Some(v) = openstitch_app::platform::stored_prefs()
+                .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+        {
+            // No ui.json: the browser page's storage, when it registered one (#797).
+            self.ui.prefs = openstitch_app::editor::prefs::UiPrefs::from_json(&v);
+            self.workspace.guides = self.ui.prefs.editing.show_guides;
         }
         self.database.units = self.ui.prefs.units;
         // Copy and Paste use the system clipboard (#500), except in screenshot runs and tests
@@ -1856,8 +1863,8 @@ impl EditorApp {
                 self.workspace.sections.toggle();
             } else if self.tools.is_busy() {
                 self.tools.cancel();
-            } else if matches!(self.tools.tool(), Tool::Knife | Tool::Gradient) {
-                // The Knife and the Gradient tool stay active between uses; Esc leaves them.
+            } else if matches!(self.tools.tool(), Tool::Knife | Tool::Gradient | Tool::FillAngle) {
+                // The Knife, Gradient and Fill Angle tools stay active between uses; Esc leaves them.
                 self.tools.set_tool(Tool::Select);
             } else {
                 self.selection.clear();

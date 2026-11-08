@@ -421,6 +421,8 @@ to work on their browser editor, say so and offer the desktop editor or a design
 open there. The system clipboard, printing, machine transfer and choosing folders (the Design
 Database, Ink/Stitch font folders) are desktop-only too; say so instead of trying them in the
 browser. Pictures, thread charts, fonts and other files can be picked or dropped on the page.
+Editor settings (`ui.set`) last across visits there; thread charts and other user settings
+do not yet.
 
 ## Files
 

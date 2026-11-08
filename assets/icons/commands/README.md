@@ -57,6 +57,8 @@ their pairs, and a skip-to-start that pointed right). `player_start` is `player_
 job with 0 credits.
 `gradient` (the Gradient tool, Shapes ▸ Edit Outline, #532) was added on 2026-11-08 the same way
 (2.5 credits); it needed no hand fixes after `clean_icons.py`.
+`fill_angle` (the Fill Angle tool, Color / Sew Type, #534) was added on 2026-11-08 the same way
+(2.5 credits); it needed no hand fixes after `clean_icons.py`.
 The job ids of the first set (2026-10-27) were recovered from the Higgsfield history on 2026-11-04:
 each job's output, cleaned with `clean_icons.py`, is byte-identical to its SVG. The `credits`
 column is empty where the cost was not recorded at the time.

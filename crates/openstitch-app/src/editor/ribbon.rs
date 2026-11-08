@@ -239,6 +239,7 @@ actions! {
     Knife => "knife", "Knife", "Click the points of an open cut line; double-click or Return cuts every object it crosses (fills and outlines into both sides, satin columns across, lines where crossed). Shift: 45° steps. A single click then Return splits the line under the pointer. Stays active; Esc leaves.", None, Some("shape.knife"), true;
     ShapeEffects => "shapeEffects", "Shape Effects", "Warp, twist, roughen, pucker & bloat or zigzag the selected outlines, with a preview; the result is ordinary editable geometry (shape.effect).", None, Some("shape.effect"), true;
     GradientTool => "gradientTool", "Gradient", "Drag across the selected gradient fill (made with shape.gradient or shape.blend) from where its first colour should be to where its last should be; every colour of the gradient follows. Click twice instead of dragging, or use the arrow keys and Space. Shift: 15° steps. Stays active; Esc leaves.", None, Some("object.setRegion"), true;
+    FillAngleTool => "fillAngleTool", "Fill Angle", "Drag across the selected fills, satins and other regions in the direction their rows should run (PE-DESIGN's straight sewing direction, set on the canvas); they turn when you release. Click twice instead of dragging, or use the arrow keys and Space. Shift: 15° steps. Stays active; Esc leaves.", None, Some("object.setRegion"), true;
     ShapeBuilder => "shapeBuilder", "Shape Builder", "Select two or more overlapping shapes, then drag across the pieces of their overlaps: the pieces you touch become one shape (sewn like the topmost of them). Hold Alt to remove the pieces instead.", None, Some("shape.build"), true;
     LineGap => "lineGap", "Turning Gap", "Leave part of the selected closed line unsewn, the opening for turning in-the-hoop pieces: where it starts along the outline and how long it is. Running, triple, zigzag, E and V lines.", None, Some("object.setLineGap"), true;
     SplitOutline => "splitOutline", "Split Outline", "Draw a cut line that splits the selected shape.", None, Some("shape.split"), true;
@@ -365,6 +366,7 @@ impl Action {
             Knife => Tool::Knife,
             ShapeBuilder => Tool::ShapeBuilder,
             GradientTool => Tool::Gradient,
+            FillAngleTool => Tool::FillAngle,
             _ => return None,
         })
     }
@@ -525,7 +527,7 @@ const COLORS: Group = Group {
     name: "Color / Sew Type",
     items: &[
         Small(&[A::LineColor, A::LineSewType]),
-        Small(&[A::RegionColor, A::RegionSewType]),
+        Small(&[A::RegionColor, A::RegionSewType, A::FillAngleTool]),
     ],
 };
 
@@ -923,7 +925,7 @@ pub fn contextual_tabs(f: &Facts) -> Vec<TabId> {
         Tool::Ellipse | Tool::Point | Tool::Knife | Tool::ShapeBuilder | Tool::Gradient => {
             add(TabId::Shapes)
         }
-        Tool::Select => {}
+        Tool::Select | Tool::FillAngle => {}
     }
     if f.text {
         add(TabId::Text);

@@ -425,6 +425,8 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
   profiles beside PE-DESIGN's straight gradation, and SVG gradients imported as gradient fills
   ([#532]).
 - (+) **Gradient tool:** drag across a gradient fill to set where its colours start and end ([#532]).
+- **Fill Angle tool:** drag across fills and satins to turn their rows to the drag's direction, as
+  PE-DESIGN sets the sewing direction on the canvas ([#534]).
 - **Curved sewing direction** (round fill) for fill, programmable fill, piping and motif fill
   ([#471]).
 - **Programmable fill and motif fill** from OpenStitch's own pattern library, (+) with long gaps
@@ -736,6 +738,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#531]: https://github.com/cristianonescu/OpenStitch/issues/531
 [#532]: https://github.com/cristianonescu/OpenStitch/issues/532
 [#533]: https://github.com/cristianonescu/OpenStitch/issues/533
+[#534]: https://github.com/cristianonescu/OpenStitch/issues/534
 [#535]: https://github.com/cristianonescu/OpenStitch/issues/535
 [#536]: https://github.com/cristianonescu/OpenStitch/issues/536
 [#537]: https://github.com/cristianonescu/OpenStitch/issues/537

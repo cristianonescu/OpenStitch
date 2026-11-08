@@ -165,10 +165,18 @@ impl Default for RibbonState {
 
 impl RibbonState {
     pub fn save_prefs(&self) {
-        if let Some(p) = &self.prefs_path
-            && let Err(e) = self.prefs.save(p)
-        {
-            eprintln!("cannot save {}: {e}", p.display());
+        match &self.prefs_path {
+            Some(p) => {
+                if let Err(e) = self.prefs.save(p) {
+                    eprintln!("cannot save {}: {e}", p.display());
+                }
+            }
+            // The browser's storage (#797), when the page registered it.
+            None => {
+                if let Ok(text) = serde_json::to_string(&self.prefs.to_json()) {
+                    openstitch_app::platform::store_prefs(&text);
+                }
+            }
         }
     }
 
@@ -680,7 +688,7 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
         // Tools are handled above; menus open their list; the rest are not available yet.
         SelectTool | PointTool | Rectangle | Ellipse | ClosedStraight | ClosedCurve | OpenCurve
         | StraightBlock | EditPoint | PencilClosed | OpenStraight | PencilOpen | CurvedBlock
-        | Running | Feed | SatinSkeleton | Knife | ShapeBuilder | GradientTool => {}
+        | Running | Feed | SatinSkeleton | Knife | ShapeBuilder | GradientTool | FillAngleTool => {}
         Print | Wizard | Export | Options | Help | TextTools | ShapesTools | OtherZoom
         | Arrange | Align | SelectSame | RotateFlip | Size | StampEmboss | ModifyOverlap
         | DecorativeFrame | FitTextToOutline | SendEmbroidery | SaveImage | ImageDensity
