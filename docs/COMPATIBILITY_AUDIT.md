@@ -3533,3 +3533,20 @@ d01 sews 10. Likeness (`tools/image_similarity.py --mode pe --no-dists`): p03 dE
 17.05, MS-SSIM 0.623 -> 0.649; d01 23.97 -> 22.37, 0.391 -> 0.430; every other Auto Punch case
 unchanged. A ratio of 4 also matched g11's 9 but gave it a Flesh Pink for a grey and doubled
 its stitches. Photo Stitch's palette is unchanged.
+
+### Trims inside one object: letters, cutwork lines and a trim report, 2026-11-08 (#794)
+
+Beyond PE-DESIGN's own routing; no stitch output changes.
+
+- **Report:** `tools/trim_report.py` runs every editable `examples/*.json` design and counts its
+  trims and its same-thread trims (followed by a stitch in the same thread, the ones routing
+  could remove). Main: 458 trims, 260 same-thread over 29 designs (background-fill 59 / 47,
+  cutwork 72 / 56, lettering 33 / 30, as #794 measured). `--set autoStart='"nearest"'`: 443 / 245
+  (cutwork 61 / 45, monograms 25 / 12, applique 39 / 16), and `--compare` shows no design
+  gaining a trim.
+- **Letters:** over the 239 text specs with a PE-DESIGN reference, OpenStitch sews 1,782 trims
+  and PE-DESIGN 2,126. Only `stroke-satin-m-8` has more (2 against 1, M at 8 mm, open on #446).
+  The trims between letters are PE-DESIGN's own, so letters are left as they are.
+- **Cutwork lines:** as #800 measured, 49 of cutwork's 56 same-thread trims are between the
+  cutting lines' segments, which the cutting needle can't travel between. They stay;
+  `autoStart: nearest` already removes 11 of the others.
