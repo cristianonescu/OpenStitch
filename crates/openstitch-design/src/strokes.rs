@@ -43,6 +43,10 @@ pub enum StrokeEnd {
     Junction(usize),
     /// At a sharp turn, where the next stroke starts.
     Corner,
+    /// At a sharp turn where the other stroke, a stem, runs on to the outline past this end
+    /// (N's and M's stem-to-diagonal corners, as PE-DESIGN sews them, #446): this stroke's
+    /// satin stops against the stem, with no tip into the corner.
+    Against,
 }
 
 /// One stroke: its centre line (start to end), the region's width across it at each centre-line
@@ -690,7 +694,9 @@ impl Graph {
                     }
                 }
             }
-            for piece in cut_sharp(&centre, closed, ends) {
+            let mut pieces = cut_sharp(&centre, closed, ends);
+            run_on_stems(&mut pieces, edges, grid.step);
+            for piece in pieces {
                 let centre = densify(&piece.0, piece.1);
                 let widths = centre.iter().map(|&p| 2.0 * clearance(p)).collect();
                 strokes.push(Stroke {
@@ -946,6 +952,127 @@ fn cut_sharp(
     }
     out.push((centre[start..].to_vec(), false, [start_end, ends[1]]));
     out
+}
+
+/// Most a stem leans from upright (degrees) for [`run_on_stems`].
+const STEM_LEAN: f64 = 12.0;
+/// How far from the corner (0.1 mm) [`run_on_stems`] measures a stroke's direction.
+const STEM_REACH: f64 = 40.0;
+
+/// How far along `line` [`run_on_stems`] looks: half of it, at most [`STEM_REACH`].
+fn reach_of(line: &[Vec2]) -> f64 {
+    (0.5 * length(line)).min(STEM_REACH)
+}
+
+/// At a cut where an upright stem meets a slanted stroke (N's top-left and bottom-right, M's
+/// apexes), PE-DESIGN sews the stem the whole way to the outline and stops the slanted
+/// stroke's satin against it (stroke-satin-N, -M, #446): the stem's centre line runs on past
+/// the cut to the outline (its end becomes [`StrokeEnd::Free`]) and the slanted piece's end
+/// becomes [`StrokeEnd::Against`]. Otherwise the slanted piece's crossings fan into the corner
+/// and the stem stops at the notch's depth (the spike of #446).
+fn run_on_stems(
+    pieces: &mut [(Vec<Vec2>, bool, [StrokeEnd; 2])],
+    edges: &[(Vec2, Vec2)],
+    step: f64,
+) {
+    let unit = |d: Vec2| {
+        let l = d.length();
+        (l > 1e-9).then(|| d * (1.0 / l))
+    };
+    let upright = |d: Vec2| d.x.abs() <= STEM_LEAN.to_radians().dsin();
+    for k in 0..pieces.len().saturating_sub(1) {
+        let (a, b) = (&pieces[k].0, &pieces[k + 1].0);
+        if pieces[k].1 || a.len() < 2 || b.len() < 2 {
+            continue;
+        }
+        let c = a[a.len() - 1];
+        let back: Vec<Vec2> = a.iter().rev().copied().collect();
+        // Past the thinning's bend into the corner (up to 3 mm), over the next 4 mm.
+        let span = |line: &[Vec2]| {
+            let near = (0.2 * length(line)).min(30.0);
+            point_at(line, near) - point_at(line, (near + STEM_REACH).min(0.7 * length(line)))
+        };
+        let (Some(into), Some(out)) = (unit(span(&back)), unit(span(b) * -1.0)) else {
+            continue;
+        };
+        // The stem runs on: on along `into` (piece k) or back along `out` (piece k + 1).
+        let (stem, dir) = match (upright(into), upright(out)) {
+            (true, false) => (k, into),
+            (false, true) => (k + 1, out * -1.0),
+            _ => continue,
+        };
+        let Some(t) = ray_to(c, dir, edges) else {
+            continue;
+        };
+        let reach = t - step * 0.5;
+        if reach <= step {
+            continue;
+        }
+        let tip = c + dir * reach;
+        // The slanted piece stops at the stem's edge: the stem's half width (its clearance a
+        // little way along it) from the stem's centre line.
+        let stem_line: Vec<Vec2> = if stem == k {
+            pieces[k].0.iter().rev().copied().collect()
+        } else {
+            pieces[k + 1].0.clone()
+        };
+        let half = edges
+            .iter()
+            .map(|&(p, q)| segment_distance(point_at(&stem_line, reach_of(&stem_line)), p, q))
+            .fold(f64::INFINITY, f64::min);
+        let slanted: Vec<Vec2> = if stem == k {
+            pieces[k + 1].0.clone()
+        } else {
+            pieces[k].0.iter().rev().copied().collect()
+        };
+        // Distance from the stem's centre line (through c along dir).
+        let off = |p: Vec2| ((p.x - c.x) * dir.y - (p.y - c.y) * dir.x).abs();
+        let total = length(&slanted);
+        let mut cut = None;
+        let mut at = 0.0;
+        for w in slanted.windows(2) {
+            let (p, q) = (w[0], w[1]);
+            let seg = p.distance(q);
+            if off(q) >= half && seg > 1e-9 {
+                let (fp, fq) = (off(p), off(q));
+                let t = if fq > fp {
+                    ((half - fp) / (fq - fp)).clamp(0.0, 1.0)
+                } else {
+                    1.0
+                };
+                cut = Some(at + seg * t);
+                break;
+            }
+            at += seg;
+        }
+        let trimmed: Option<Vec<Vec2>> = cut.filter(|&d| d > 0.0 && d < 0.5 * total).map(|d| {
+            let mut v = vec![point_at(&slanted, d)];
+            let mut run = 0.0;
+            for w in slanted.windows(2) {
+                run += w[0].distance(w[1]);
+                if run > d + 1e-6 {
+                    v.push(w[1]);
+                }
+            }
+            v
+        });
+        if stem == k {
+            pieces[k].0.push(tip);
+            pieces[k].2[1] = StrokeEnd::Free;
+            pieces[k + 1].2[0] = StrokeEnd::Against;
+            if let Some(v) = trimmed {
+                pieces[k + 1].0 = v;
+            }
+        } else {
+            pieces[k + 1].0.insert(0, tip);
+            pieces[k + 1].2[0] = StrokeEnd::Free;
+            pieces[k].2[1] = StrokeEnd::Against;
+            if let Some(mut v) = trimmed {
+                v.reverse();
+                pieces[k].0 = v;
+            }
+        }
+    }
 }
 
 /// Distance from `p` along `dir` (unit) to the nearest edge, if one is hit.
@@ -1273,7 +1400,12 @@ impl GlyphStrokes {
                             .max_by(|a, b| a.1.total_cmp(&b.1))
                             .copied()
                     };
-                    let (first, last) = (corner(true), corner(false));
+                    // An end against a stem (#446) keeps no corner: the satin starts where
+                    // both sides run, not in a fan towards the stem's far corner.
+                    let (first, last) = (
+                        corner(true).filter(|_| st.ends[0] != StrokeEnd::Against),
+                        corner(false).filter(|_| st.ends[1] != StrokeEnd::Against),
+                    );
                     let mut out: Vec<(f64, f64, Vec2)> = first.into_iter().collect();
                     out.extend(v.iter().copied().filter(|q| !at_end(q.0)));
                     out.extend(last);
@@ -2125,6 +2257,43 @@ mod tests {
     use crate::text::{DEFAULT_FONT, TextSpec, layout};
 
     /// Lato Bold `ch` at 20 mm, as PE-DESIGN's round-5 captures set it.
+    /// #446: N's stems run the whole height to the outline, as PE-DESIGN sews them
+    /// (stroke-satin-N), and the diagonal stops against them at both corners: no stroke ends
+    /// in a corner fan.
+    #[test]
+    fn n_stems_run_on_and_the_diagonal_stops_against_them() {
+        for size in [20.0, 8.0] {
+            let spec = TextSpec::new("N", DEFAULT_FONT, size);
+            let l = layout(&spec, None).expect("layout");
+            let contours = l.contours();
+            let b =
+                Rect::enclosing(contours.iter().flat_map(Contour::outline_points)).expect("box");
+            let g = strokes(&contours).expect("strokes");
+            let stems: Vec<&Stroke> = g
+                .strokes
+                .iter()
+                .filter(|s| s.bounds().is_some_and(|r| r.height() > 0.95 * b.height()))
+                .collect();
+            assert_eq!(stems.len(), 2, "{size} mm: two full-height stems");
+            assert!(stems.iter().all(|s| s.ends == [StrokeEnd::Free; 2]));
+            let against = g
+                .strokes
+                .iter()
+                .flat_map(|s| s.ends)
+                .filter(|&e| e == StrokeEnd::Against)
+                .count();
+            assert_eq!(
+                against, 2,
+                "{size} mm: the diagonal stops against both stems"
+            );
+            assert!(
+                g.strokes
+                    .iter()
+                    .all(|s| !s.ends.contains(&StrokeEnd::Corner))
+            );
+        }
+    }
+
     fn glyph(ch: &str) -> (GlyphStrokes, Rect) {
         let spec = TextSpec::new(ch, DEFAULT_FONT, 20.0);
         let l = layout(&spec, None).expect("layout");
