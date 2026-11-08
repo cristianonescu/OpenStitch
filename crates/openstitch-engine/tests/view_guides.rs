@@ -166,3 +166,54 @@ fn new_guides_from_the_selection_line_its_edges_and_centre() {
     run(&mut s, "history.undo", json!({}));
     assert_eq!(list(&mut s)["vertical"], json!([]));
 }
+
+/// #799: New Guide Layout… lines the margins and each column's and row's edges (shared where
+/// there is no gutter), in one undo step; clear drops the old ones first; a layout that does
+/// not fit is refused.
+#[test]
+fn a_guide_layout_lines_margins_columns_and_rows() {
+    let dir = TempDir::new("view-guides-layout");
+    let mut s = Session::new(dir.path());
+    let (w, h) = (s.design().page.width / 10.0, s.design().page.height / 10.0);
+    run(
+        &mut s,
+        "view.newGuide",
+        json!({"orientation": "vertical", "position": 1}),
+    );
+    let out = run(
+        &mut s,
+        "view.guideLayout",
+        json!({"columns": 2, "gutter": 10, "margin": 10, "clear": true}),
+    );
+    let cell = (w - 20.0 - 10.0) / 2.0;
+    let close = |got: &Value, want: &[f64]| {
+        let got: Vec<f64> = serde_json::from_value(got.clone()).expect("numbers");
+        assert_eq!(got.len(), want.len(), "{got:?} {want:?}");
+        for (g, w) in got.iter().zip(want) {
+            assert!((g - w).abs() < 1e-9, "{got:?} {want:?}");
+        }
+    };
+    close(
+        &out["vertical"],
+        &[10.0, 10.0 + cell, 20.0 + cell, w - 10.0],
+    );
+    close(&out["horizontal"], &[10.0, h - 10.0]);
+    run(&mut s, "history.undo", json!({}));
+    close(&list(&mut s)["vertical"], &[1.0]);
+    // Rows without a gutter share their edges.
+    let out = run(
+        &mut s,
+        "view.guideLayout",
+        json!({"rows": 3, "clear": true}),
+    );
+    close(&out["horizontal"], &[0.0, h / 3.0, h * 2.0 / 3.0, h]);
+    assert!(out["vertical"].as_array().expect("list").is_empty());
+    for bad in [
+        json!({"columns": 2, "margin": 1000}),
+        json!({"columns": 50, "gutter": 100}),
+        json!({"columns": 51}),
+        json!({"gutter": -1}),
+    ] {
+        assert!(s.execute("view.guideLayout", Some(&bad)).is_err(), "{bad}");
+    }
+}

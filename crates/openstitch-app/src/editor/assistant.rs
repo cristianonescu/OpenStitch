@@ -431,7 +431,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     },
     UiCommand {
         id: "ui.guides",
-        summary: "The guidelines as the canvas shows them (#799): each one's index, position (mm from the ruler origin, as its label reads) and label, whether they show, are locked and snap, the selected one and an open Set Position… dialog. orientation + index select one as a click does; then position (a length as typed in Set Position…: 12.5, \"12.5 mm\", \"1/2\\\"\"; from the ruler origin), turn (Alt-click) or delete (the Delete key) act on it, one undo step each. Engine commands view.* do the same in page coordinates",
+        summary: "The guidelines as the canvas shows them (#799): each one's index, position (mm from the ruler origin, as its label reads) and label, whether they show, are locked and snap, the selected one and an open Set Position… dialog. orientation + index select one as a click does; then position (a length as typed in Set Position…: 12.5, \"12.5 mm\", \"1/2\\\"\"; from the ruler origin), turn (Alt-click) or delete (the Delete key) act on it, one undo step each; newGuide {orientation, position} is New Guide… (from the ruler origin). It also gives the guideline colour and an open right-click menu. Engine commands view.* do the same in page coordinates",
         effect: Effect::Edit,
         params: &[
             p(
@@ -454,6 +454,12 @@ pub const UI_COMMANDS: &[UiCommand] = &[
                 "Turn the selected one vertical <-> horizontal",
             ),
             p("delete", "bool", false, "Delete the selected one"),
+            p(
+                "newGuide",
+                "{orientation, position}",
+                false,
+                "New Guide…: a guideline at a length from the ruler origin",
+            ),
         ],
     },
     UiCommand {
@@ -683,6 +689,11 @@ pub const SETTINGS: &[Setting] = &[
         "rulerOrigin",
         "Ruler origin: the Design Page's centre (0, 0 in the middle, negative left and up) or its top-left corner; the rulers, the cursor position and the precision bar's X and Y follow it",
         "centre|topLeft",
+    ),
+    s(
+        "guideColor",
+        "Guide colour: the guidelines' colour",
+        "#rrggbb",
     ),
     s("nudgeStep", "Nudge step (mm; Shift ×10)", "number 0.1..50"),
     s(

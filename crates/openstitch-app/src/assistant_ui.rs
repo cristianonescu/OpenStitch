@@ -661,6 +661,7 @@ impl EditorApp {
                 "clickInsideOutlines" => json!(prefs.editing.click_inside),
                 "units" => json!(openstitch_app::editor::units::key(prefs.units)),
                 "rulerOrigin" => json!(prefs.ruler_origin.key()),
+                "guideColor" => json!(openstitch_app::editor::prefs::hex_color(prefs.guide_color)),
                 "nudgeStep" => json!(prefs.editing.nudge_mm),
                 "nudgeByGrid" => json!(prefs.editing.nudge_grid),
                 "alignTo" => json!(self.align_to),
@@ -861,6 +862,12 @@ impl EditorApp {
                     .as_str()
                     .and_then(openstitch_app::editor::units::RulerOrigin::from_key)
                     .ok_or("rulerOrigin takes centre or topLeft")?;
+            }
+            "guideColor" => {
+                self.ui.prefs.guide_color = v
+                    .as_str()
+                    .and_then(openstitch_app::editor::prefs::parse_hex_color)
+                    .ok_or("guideColor takes #rrggbb")?;
             }
             "nudgeStep" => self.ui.prefs.editing.nudge_mm = number_value(name, v, 0.1, 50.0)?,
             "nudgeByGrid" => self.ui.prefs.editing.nudge_grid = bool_value(name, v)?,
