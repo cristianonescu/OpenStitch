@@ -1106,7 +1106,7 @@ sew-out on scrap fabric first.
 **Try it in a browser, with nothing to install:** <https://cristianonescu.github.io/OpenStitch/>
 runs the desktop editor: it opens designs and embroidery files from your disk and saves and
 exports them as downloads; nothing leaves the browser. It is built from `main` and does less than
-the desktop app (no Assistant or MCP control, system clipboard, printing or image pickers yet;
+the desktop app (no Assistant or MCP control, system clipboard, printing or folder choosing yet;
 see
 [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md#web-editor)).
 

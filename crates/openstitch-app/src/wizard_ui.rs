@@ -31,14 +31,16 @@ pub fn image_wizard_window(app: &mut EditorApp, ctx: &egui::Context) {
             let w = &mut app.wizard;
             crate::art::header(ui, crate::art::Art::WizardImage, |ui| {
                 ui.add_space(4.0);
-                if ui.button(t("ui-choose-image")).clicked()
-                    && let Some(p) = crate::files::FileDialog::new()
-                        .add_filter("Images", &["png", "jpg", "jpeg", "bmp"])
-                        .pick_file()
-                {
-                    w.path = Some(p);
-                    // Strokes belong to the image they were drawn on.
-                    w.marks.clear();
+                if ui.button(t("ui-choose-image")).clicked() {
+                    crate::files::pick_then(
+                        crate::files::FileDialog::new()
+                            .add_filter("Images", &["png", "jpg", "jpeg", "bmp"]),
+                        |app, p| {
+                            app.wizard.path = Some(p);
+                            // Strokes belong to the image they were drawn on.
+                            app.wizard.marks.clear();
+                        },
+                    );
                 }
                 let name = w
                     .path
