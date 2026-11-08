@@ -422,6 +422,7 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
 - (+) **Gradation shapes and SVG gradients as blends:** convex, concave, centre, edge and wave density
   profiles beside PE-DESIGN's straight gradation, and SVG gradients imported as gradient fills
   ([#532]).
+- (+) **Gradient tool:** drag across a gradient fill to set where its colours start and end ([#532]).
 - **Curved sewing direction** (round fill) for fill, programmable fill, piping and motif fill
   ([#471]).
 - **Programmable fill and motif fill** from OpenStitch's own pattern library, (+) with long gaps
