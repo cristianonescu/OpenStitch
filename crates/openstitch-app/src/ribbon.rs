@@ -165,10 +165,18 @@ impl Default for RibbonState {
 
 impl RibbonState {
     pub fn save_prefs(&self) {
-        if let Some(p) = &self.prefs_path
-            && let Err(e) = self.prefs.save(p)
-        {
-            eprintln!("cannot save {}: {e}", p.display());
+        match &self.prefs_path {
+            Some(p) => {
+                if let Err(e) = self.prefs.save(p) {
+                    eprintln!("cannot save {}: {e}", p.display());
+                }
+            }
+            // The browser's storage (#797), when the page registered it.
+            None => {
+                if let Ok(text) = serde_json::to_string(&self.prefs.to_json()) {
+                    openstitch_app::platform::store_prefs(&text);
+                }
+            }
         }
     }
 
