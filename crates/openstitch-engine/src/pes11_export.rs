@@ -601,6 +601,12 @@ fn region(id: u64, r: &RegionSewing, s: &mut Shape, table: &mut Vec<Thread>) -> 
             "object {id}: stitch angle lines are not mapped in PES 0110 (use version 6)"
         ));
     }
+    if r.tartan.is_some() {
+        // PE-DESIGN would sew every colour as a whole fill (#539).
+        return Err(format!(
+            "object {id}: a tartan fill is not mapped in PES 0110 (use version 6)"
+        ));
+    }
     if r.gradient.is_some() {
         // PE-DESIGN would sew every colour as a whole fill (#532).
         return Err(format!(
@@ -1622,6 +1628,30 @@ mod tests {
         ));
         let err = objects(&grad).expect_err("gradient fills are not mapped");
         assert!(err.contains("gradient fill"), "{err}");
+        // A tartan fill (#539) too.
+        let mut tartan = Design::new("t", openstitch_design::DesignPage::default());
+        let mut fill = RegionSewing::new(RegionType::Fill, red());
+        fill.tartan = Some(openstitch_design::Tartan {
+            sett: vec![
+                openstitch_design::TartanStripe {
+                    color: 0,
+                    width: 5.0,
+                },
+                openstitch_design::TartanStripe {
+                    color: 1,
+                    width: 5.0,
+                },
+            ],
+            symmetric: false,
+            layer: 0,
+        });
+        tartan.add(DesignObject::shape(
+            vec![Contour::rectangle(0.0, 0.0, 200.0, 200.0)],
+            Some(fill),
+            None,
+        ));
+        let err = objects(&tartan).expect_err("tartan fills are not mapped");
+        assert!(err.contains("tartan fill"), "{err}");
         // Push compensation and a second under sewing layer (#677) too.
         for push in [true, false] {
             let mut d = Design::new("t", openstitch_design::DesignPage::default());

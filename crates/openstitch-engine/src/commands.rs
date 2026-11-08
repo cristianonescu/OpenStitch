@@ -325,6 +325,7 @@ pub fn all() -> Vec<CommandSpec> {
     v.extend(crate::drawing::commands());
     v.extend(crate::gradient_cmds::commands());
     v.extend(crate::angle_cmds::commands());
+    v.extend(crate::tartan_cmds::commands());
     v.extend(crate::ornament::commands());
     v.extend(crate::user::commands());
     v.extend(crate::thread_match::commands());
@@ -1521,6 +1522,11 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     "Gradient fill: how its colours share the stitches where they meet; set it on every object of the gradient (select its group)",
                 ),
                 opt(
+                    "tartan",
+                    "false",
+                    "Tartan fill (beyond PE-DESIGN): false makes a tartan's object a plain fill again (make one with shape.tartan)",
+                ),
+                opt(
                     "angleLines",
                     "false",
                     "Stitch angle lines (beyond PE-DESIGN): false removes them (set them with object.setAngleLines)",
@@ -1964,6 +1970,15 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         r.stagger_seed = Some(seed as u64);
                     }
                     crate::gradient_cmds::set_region(p, &mut r)?;
+                    if p.has("tartan") {
+                        if p.get("tartan").and_then(Value::as_bool) != Some(false) {
+                            return Err(p.invalid(
+                                "tartan",
+                                "only false (back to a plain fill); make one with shape.tartan",
+                            ));
+                        }
+                        r.tartan = None;
+                    }
                     if p.has("angleLines") {
                         if p.get("angleLines").and_then(Value::as_bool) != Some(false) {
                             return Err(p.invalid(

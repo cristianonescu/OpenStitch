@@ -4556,3 +4556,143 @@ fn a_second_under_sewing_layer_on_a_fill_runs_at_its_own_angle() {
     let none = crate::region::layers(&c, &r, &[]);
     assert_eq!(none.len(), 1);
 }
+
+#[test]
+fn tartan_rows_lie_in_their_colours_stripes_and_share_out_every_row() {
+    use crate::{Tartan, TartanStripe};
+    // A 60 mm square (x, y, width, height); a sett of 10 mm colour 0 and 20 mm colour 1.
+    let c = vec![Contour::rectangle(100.0, 100.0, 600.0, 600.0)];
+    let sett = vec![
+        TartanStripe {
+            color: 0,
+            width: 10.0,
+        },
+        TartanStripe {
+            color: 1,
+            width: 20.0,
+        },
+    ];
+    let mut r = region(RegionType::Fill);
+    r.angle = 0.0;
+    r.underlay = false;
+    let spacing = 10.0 / r.density;
+    let step = spacing * 2.0;
+    let sewn: Vec<Vec<Vec<Run>>> = (0..2)
+        .map(|k| {
+            let mut l = r.clone();
+            l.tartan = Some(Tartan {
+                sett: sett.clone(),
+                symmetric: false,
+                layer: k,
+            });
+            crate::region::layers(&c, &l, &[])
+        })
+        .collect();
+    for (k, layers) in sewn.iter().enumerate() {
+        assert_eq!(layers.len(), 2, "colour {k}: warp and weft");
+        // No stitch over 7 mm, travel included.
+        for run in layers.iter().flatten() {
+            for w in run.windows(2) {
+                assert!(
+                    w[0].distance(w[1]) <= 70.0 + 1e-6,
+                    "colour {k}: a stitch over 7 mm"
+                );
+            }
+        }
+    }
+    // Each family's rows, by colour: the row positions across (warp: x, weft: y).
+    let t = |k: usize| Tartan {
+        sett: sett.clone(),
+        symmetric: false,
+        layer: k,
+    };
+    let rows =
+        |k: usize| crate::tartan::layers(&c, &[], &t(k), 0.0, spacing, 40.0, r.fill_stagger());
+    let (r0, r1) = (rows(0), rows(1));
+    for family in [0usize, 1] {
+        let p = crate::generate::RegionParams {
+            angle: if family == 0 { 90.0 } else { 0.0 },
+            row_spacing: step,
+            stitch_length: 40.0,
+            pull_compensation: 0.0,
+        };
+        let all = segments(&crate::generate::fill_shifted(
+            &c,
+            &p,
+            &[],
+            r.fill_stagger(),
+        ));
+        let (a, b) = (segments(&r0[family]), segments(&r1[family]));
+        // Together every stitch of the family once.
+        let mut both: Vec<_> = a.iter().chain(&b).copied().collect();
+        both.sort_unstable();
+        assert_eq!(both, all, "family {family}: every stitch once");
+        // Stitches along the rows lie in their own colour's stripes; across (warp: x, weft: y).
+        let across = |runs: &Vec<Run>| -> Vec<f64> {
+            runs.iter()
+                .flat_map(|run| run.windows(2))
+                .filter(|w| w[0].distance(w[1]) > 10.0)
+                .map(|w| {
+                    let m = w[0].lerp(w[1], 0.5);
+                    if family == 0 {
+                        m.x - 100.0
+                    } else {
+                        m.y - 100.0
+                    }
+                })
+                .collect()
+        };
+        let (pa, pb) = (across(&r0[family]), across(&r1[family]));
+        assert!(!pa.is_empty() && !pb.is_empty());
+        assert!(
+            pa.iter().all(|&q| q.rem_euclid(300.0) < 100.0),
+            "family {family}: colour 0 off its stripes"
+        );
+        assert!(
+            pb.iter().all(|&q| q.rem_euclid(300.0) >= 100.0),
+            "family {family}: colour 1 off its stripes"
+        );
+        // Stripe width: the first colour-0 stripe holds 10 mm of rows, within a row step.
+        let mut first: Vec<i64> = pa
+            .iter()
+            .filter(|&&q| q < 100.0)
+            .map(|q| (q * 10.0).round() as i64)
+            .collect();
+        first.sort_unstable();
+        first.dedup();
+        let width = first.len() as f64 * step;
+        assert!(
+            (width - 100.0).abs() <= step + 1e-6,
+            "family {family}: stripe {width:.2} (step {step:.2})"
+        );
+    }
+    // A symmetric sett mirrors about its first and last stripes.
+    let sym = Tartan {
+        sett: vec![
+            TartanStripe {
+                color: 0,
+                width: 8.0,
+            },
+            TartanStripe {
+                color: 1,
+                width: 24.0,
+            },
+            TartanStripe {
+                color: 2,
+                width: 4.0,
+            },
+        ],
+        symmetric: true,
+        layer: 0,
+    };
+    let rep = crate::tartan::repeat(&sym);
+    assert_eq!(rep, vec![(0, 80.0), (1, 240.0), (2, 40.0), (1, 240.0)]);
+    assert_eq!(crate::tartan::colour_at(&rep, 590.0), 1);
+    assert_eq!(crate::tartan::colour_at(&rep, 610.0), 0);
+    // Off by default: nothing saved.
+    assert!(
+        !serde_json::to_string(&region(RegionType::Fill))
+            .expect("json")
+            .contains("tartan")
+    );
+}

@@ -72,6 +72,7 @@ mod stitch_edit;
 #[cfg(feature = "formats")]
 mod svg_settings;
 pub mod swatch;
+mod tartan_cmds;
 pub mod templates;
 pub mod thread_match;
 #[cfg(feature = "formats")]
