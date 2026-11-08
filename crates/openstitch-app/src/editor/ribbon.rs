@@ -238,6 +238,7 @@ actions! {
     SmoothTolerance => "smoothTolerance", "Smooth tolerance", "How far Smooth Shape may move an outline (default 0.2 mm).", None, Some("shape.simplify"), true;
     Knife => "knife", "Knife", "Click the points of an open cut line; double-click or Return cuts every object it crosses (fills and outlines into both sides, satin columns across, lines where crossed). Shift: 45° steps. A single click then Return splits the line under the pointer. Stays active; Esc leaves.", None, Some("shape.knife"), true;
     ShapeEffects => "shapeEffects", "Shape Effects", "Warp, twist, roughen, pucker & bloat or zigzag the selected outlines, with a preview; the result is ordinary editable geometry (shape.effect).", None, Some("shape.effect"), true;
+    GradientTool => "gradientTool", "Gradient", "Drag across the selected gradient fill (made with shape.gradient or shape.blend) from where its first colour should be to where its last should be; every colour of the gradient follows. Click twice instead of dragging, or use the arrow keys and Space. Shift: 15° steps. Stays active; Esc leaves.", None, Some("object.setRegion"), true;
     ShapeBuilder => "shapeBuilder", "Shape Builder", "Select two or more overlapping shapes, then drag across the pieces of their overlaps: the pieces you touch become one shape (sewn like the topmost of them). Hold Alt to remove the pieces instead.", None, Some("shape.build"), true;
     LineGap => "lineGap", "Turning Gap", "Leave part of the selected closed line unsewn, the opening for turning in-the-hoop pieces: where it starts along the outline and how long it is. Running, triple, zigzag, E and V lines.", None, Some("object.setLineGap"), true;
     SplitOutline => "splitOutline", "Split Outline", "Draw a cut line that splits the selected shape.", None, Some("shape.split"), true;
@@ -363,6 +364,7 @@ impl Action {
             SatinSkeleton => Tool::Skeleton,
             Knife => Tool::Knife,
             ShapeBuilder => Tool::ShapeBuilder,
+            GradientTool => Tool::Gradient,
             _ => return None,
         })
     }
@@ -705,6 +707,7 @@ const SHAPES: &[Group] = &[
         items: &[
             Large(A::SplitOutline),
             Large(A::Knife),
+            Large(A::GradientTool),
             Small(&[
                 A::AddDirectionLine,
                 A::DeleteDirectionLine,
@@ -917,7 +920,9 @@ pub fn contextual_tabs(f: &Facts) -> Vec<TabId> {
         Tool::Punch | Tool::CurvedBlock | Tool::Running | Tool::Feed | Tool::Skeleton => {
             add(TabId::ManualPunch)
         }
-        Tool::Ellipse | Tool::Point | Tool::Knife | Tool::ShapeBuilder => add(TabId::Shapes),
+        Tool::Ellipse | Tool::Point | Tool::Knife | Tool::ShapeBuilder | Tool::Gradient => {
+            add(TabId::Shapes)
+        }
         Tool::Select => {}
     }
     if f.text {

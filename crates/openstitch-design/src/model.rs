@@ -1619,6 +1619,76 @@ pub struct Gradation {
     /// Number of step values (2–20); `None`: a gradation saved before patterns.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub steps: Option<u32>,
+    /// How the density goes from `max` to `min` across the region (#532, beyond PE-DESIGN):
+    /// PE-DESIGN's straight line by default.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub shape: GradationShape,
+}
+
+/// A named density profile of [`Gradation`] (#532, beyond PE-DESIGN): `g(t)` from 1 (`max`)
+/// to 0 (`min`) at position `t` across the region (0 the start side, 1 the far side).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum GradationShape {
+    /// PE-DESIGN's: straight from `max` to `min`, `1 − t`.
+    #[default]
+    Linear,
+    /// Opens quickly, then slowly: `(1 − t)²`.
+    Convex,
+    /// Stays dense, then opens: `1 − t²`.
+    Concave,
+    /// Dense in the middle, open at both sides: `1 − |2t − 1|`.
+    Centre,
+    /// Dense at both sides, open in the middle: `|2t − 1|`.
+    Edges,
+    /// Two dense bands: `½ + ½ cos 2πt`.
+    Wave,
+}
+
+impl GradationShape {
+    pub const ALL: [GradationShape; 6] = [
+        GradationShape::Linear,
+        GradationShape::Convex,
+        GradationShape::Concave,
+        GradationShape::Centre,
+        GradationShape::Edges,
+        GradationShape::Wave,
+    ];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            GradationShape::Linear => "linear",
+            GradationShape::Convex => "convex",
+            GradationShape::Concave => "concave",
+            GradationShape::Centre => "centre",
+            GradationShape::Edges => "edges",
+            GradationShape::Wave => "wave",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            GradationShape::Linear => "Linear (PE-DESIGN)",
+            GradationShape::Convex => "Convex (+)",
+            GradationShape::Concave => "Concave (+)",
+            GradationShape::Centre => "Centre dense (+)",
+            GradationShape::Edges => "Centre open (+)",
+            GradationShape::Wave => "Wave (+)",
+        }
+    }
+
+    /// `g(t)`, 1 at `max` and 0 at `min`.
+    pub fn at(self, t: f64) -> f64 {
+        let t = t.clamp(0.0, 1.0);
+        match self {
+            GradationShape::Linear => 1.0 - t,
+            GradationShape::Convex => (1.0 - t) * (1.0 - t),
+            GradationShape::Concave => 1.0 - t * t,
+            GradationShape::Centre => 1.0 - (2.0 * t - 1.0).abs(),
+            GradationShape::Edges => (2.0 * t - 1.0).abs(),
+            GradationShape::Wave => 0.5 + 0.5 * crate::fmath::Det::dcos(std::f64::consts::TAU * t),
+        }
+    }
 }
 
 impl Gradation {
@@ -1628,6 +1698,7 @@ impl Gradation {
         max: 53.0,
         min: 5.0,
         steps: Some(9),
+        shape: GradationShape::Linear,
     };
 
     /// The gradation of designs saved before patterns: 100 % falling continuously to `far` %.
@@ -1636,14 +1707,20 @@ impl Gradation {
             max: 100.0,
             min: far,
             steps: None,
+            shape: GradationShape::Linear,
         }
     }
 
     /// Density at `f` (0 = start side, 1 = far side) as a fraction of the region's density:
-    /// linear between the evenly spaced step values, so linear from `max` to `min`.
+    /// linear between the evenly spaced step values, so linear from `max` to `min`; with
+    /// another [`GradationShape`], `min + (max − min)·g(f)`.
     pub fn fraction(&self, f: f64) -> f64 {
         let t = f.clamp(0.0, 1.0);
-        ((self.max + (self.min - self.max) * t) / 100.0).clamp(0.05, 1.0)
+        let v = match self.shape {
+            GradationShape::Linear => self.max + (self.min - self.max) * t,
+            s => self.min + (self.max - self.min) * s.at(t),
+        };
+        (v / 100.0).clamp(0.05, 1.0)
     }
 }
 
@@ -1656,6 +1733,8 @@ impl<'de> Deserialize<'de> for Gradation {
             min: f64,
             #[serde(default)]
             steps: Option<u32>,
+            #[serde(default)]
+            shape: GradationShape,
         }
         #[derive(Deserialize)]
         #[serde(untagged)]
@@ -1669,6 +1748,7 @@ impl<'de> Deserialize<'de> for Gradation {
                 max: p.max,
                 min: p.min,
                 steps: p.steps,
+                shape: p.shape,
             },
         })
     }

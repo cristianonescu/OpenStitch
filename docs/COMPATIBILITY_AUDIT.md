@@ -3449,3 +3449,19 @@ Clear Selected Guide, Clear Guides and New Guides From Selection (the box's edge
 lines). Each is one undo step through the new `view.*` commands; `ui.guides` reads the guidelines
 as shown and acts as the pointer does. The right-click menus, New Guide… and Guide Layout…, the
 guide colour, the ruler cursor marker and zoom-aware steps are part 3.
+
+### Arched text spacing, 2026-11-08 (#428)
+
+PE-DESIGN's arches (Text Transform presets 1 and 2) place the letters slightly closer along the
+arc than OpenStitch did. The arch now sets its letters 0.05 mm closer (`ARCH_LETTER_SPACING`)
+and its centre shift is -0.004 of the width (`ARCH_SHIFT`, was -0.0055), chosen from a sweep of
+shifts -0.0085..0 and spacings 0..-0.1 mm over every arch spec (batch-lettering-text). Every
+PE-DESIGN reference still passes (478/478). The PES 0110 editable-text snapshot's arch width
+moves 79.9 -> 79.6 mm, nearer PE-DESIGN's own re-save of 79.20 mm; its height 25.8 -> 25.7 mm
+(PE-DESIGN 26.50).
+
+Fill text under a Text Transform still sews by region rows. By stroke, with this spacing, the
+arches pass; three references remain 0.1-0.2 mm past their 0.5 mm bounds: text-transform-10's
+slanted stem foot (48.4 mm against 49.0) and the descenders of 17-openstitch-l75 and
+18-openstitch-l100 (50.8 against 51.4 and 51.5), where the warped bottom edge's lower corner
+lies past the stroke's last crossing.

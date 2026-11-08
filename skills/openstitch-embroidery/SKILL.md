@@ -41,7 +41,13 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   [...] (2-8), stops, kind: linear|radial, angle or from/to (mm), dither: rows|ordered|noise|bands,
   curve}` goes through several. They return the new objects' `ids` (one per colour, grouped).
   Change `gradientDither` / `gradientCurve` with `object.setRegion` on all of those ids together.
+  Move where it starts and ends with `gradientFrom` / `gradientTo` ([x, y] mm) on all the ids
+  (the editor's Gradient tool does this by dragging).
   PES 0110 refuses them; save PES version 6.
+- Gradation shapes (beyond PE-DESIGN): with `gradationPattern` on, `object.setRegion`
+  `gradationShape` `convex` | `concave` | `centre` | `edges` | `wave` (`linear` is PE-DESIGN's).
+  PES 0110 refuses the others. `import.svg` with `gradients: "blend"` brings SVG gradients in as
+  gradient fills (one fill per stop, grouped).
 - A plain fill's look changes with `object.setRegion` `texture` (`smooth`, PE-DESIGN's default,
   or OpenStitch's `ribs`, `diagonal`, `blocks`, `waves`, `zigzag`, `chevron`, `scallops`, ...):
   same shape, density and stitch count, different needle-hole pattern.
