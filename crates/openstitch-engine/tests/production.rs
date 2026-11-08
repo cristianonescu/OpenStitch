@@ -266,6 +266,41 @@ fn optimize_reports_before_and_after() {
 }
 
 #[test]
+fn nearest_start_also_ends_a_fill_toward_the_next_object() {
+    // #547: three squares of one thread. A fill without an exit of its own also ends nearest
+    // the next object (the guard keeps it only where travel falls and no trim is added); an
+    // exit the user set is kept.
+    let tmp = TempDir::new("production");
+    let mut s = Session::new(tmp.path());
+    rect(&mut s, 10.0, 60.0, 20.0, 20.0, "#ff0000");
+    let middle = rect(&mut s, 40.0, 60.0, 20.0, 20.0, "#ff0000");
+    rect(&mut s, 40.0, 5.0, 20.0, 20.0, "#ff0000");
+    let stats = |s: &mut Session| run(s, "design.info", json!({}))["stitchStats"].clone();
+    let off = stats(&mut s);
+    run(
+        &mut s,
+        "design.setProperties",
+        json!({"autoStart": "nearest"}),
+    );
+    let on = stats(&mut s);
+    assert!(
+        on["travelMM"].as_f64() <= off["travelMM"].as_f64(),
+        "{off} -> {on}"
+    );
+    assert!(
+        on["trims"].as_u64() <= off["trims"].as_u64(),
+        "{off} -> {on}"
+    );
+    let p = compile(s.design());
+    run(
+        &mut s,
+        "object.setEntryExit",
+        json!({"id": middle, "regionExit": [60, 80]}),
+    );
+    assert_ne!(compile(s.design()), p, "the user's exit wins");
+}
+
+#[test]
 fn nearest_start_shortens_travel() {
     let tmp = TempDir::new("production");
     let mut s = Session::new(tmp.path());
