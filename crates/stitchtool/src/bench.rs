@@ -880,6 +880,26 @@ pub const TASKS: &[Task] = &[
             )
         },
     },
+    // Stitch angle lines (#534; the #807 pattern).
+    Task {
+        id: "angle-lines",
+        setup: &[(
+            "shape.polygon",
+            r##"{"points": [[20, 20], [80, 20], [80, 40], [40, 40], [40, 90], [20, 90]], "closed": true, "fill": "#1f3a93"}"##,
+        )],
+        prompt: "Make the L-shaped fill's rows turn around its corner instead of all running one way.",
+        check: |d| {
+            need(
+                d.full.iter().any(|f| {
+                    f["region"]["angleLines"]
+                        .as_array()
+                        .is_some_and(|l| l.len() >= 2)
+                }),
+                "two or more stitch angle lines on the L",
+            )?;
+            need(d.stitches() > 300, "stitches")
+        },
+    },
 ];
 
 /// One part of the small-name task (#493): about 5 mm, in a font whose `sizeRange` holds the
@@ -1550,7 +1570,7 @@ mod tests {
         let (json, md) = reports("scripted", &out);
         assert_eq!(json["passed"], 2);
         assert!(md.contains("| star | fail: only talked |"));
-        assert_eq!(TASKS.len(), 25);
+        assert_eq!(TASKS.len(), 26);
     }
 
     #[test]

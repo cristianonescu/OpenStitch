@@ -430,8 +430,8 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
 - (+) **Push compensation and a second underlay on fills:** a fill's sides along its rows move in by a
   set amount, and a second under sewing layer at its own angle (crossed tatami by default)
   ([#522], [#523]).
-- (+) **Stitch angle lines:** lines across one fill turn its rows round a U, Z or ring bend with no
-  seam ([#534]).
+- (+) **Stitch angle lines:** lines across one fill, drawn with the Angle Lines tool, turn its rows
+  round a U, Z or ring bend with no seam ([#534]).
 - **Curved sewing direction** (round fill) for fill, programmable fill, piping and motif fill
   ([#471]).
 - **Programmable fill and motif fill** from OpenStitch's own pattern library, (+) with long gaps
