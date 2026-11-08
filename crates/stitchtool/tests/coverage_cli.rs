@@ -247,3 +247,63 @@ fn unknown_arguments_print_the_usage_and_fail() {
         );
     }
 }
+
+/// #544: every line type and the motif line's own options (groups with free ends, motifs in
+/// turn, mirror-alternate) reach the engine through `stitchtool exec`: each
+/// examples/line-type-*.json script sews, and the motif options are kept on the object.
+#[test]
+fn exec_reaches_every_line_type_and_the_motif_options() {
+    let examples = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
+    let mut scripts: Vec<_> = std::fs::read_dir(&examples)
+        .expect("examples")
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with("line-type-") && n.ends_with(".json"))
+        })
+        .collect();
+    scripts.sort();
+    assert!(scripts.len() >= 25, "{} scripts", scripts.len());
+    for script in &scripts {
+        let name = script
+            .file_stem()
+            .and_then(|n| n.to_str())
+            .expect("name")
+            .to_string();
+        let dir = temp_dir(&name);
+        let mut steps: Vec<Value> =
+            serde_json::from_str(&std::fs::read_to_string(script).expect("read")).expect("array");
+        steps.push(json!({"command": "object.get", "params": {"id": 1}}));
+        steps.push(json!({"command": "design.info"}));
+        let copy = dir.join("s.json");
+        std::fs::write(&copy, serde_json::to_string(&steps).expect("json")).expect("write");
+        let out = stitchtool(&dir, &["exec", copy.to_str().expect("utf-8")]);
+        assert!(
+            out.status.success(),
+            "{name}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let r = replies(&out);
+        assert!(r.iter().all(|v| v["ok"] == json!(true)), "{name}: {r:?}");
+        let n = r.last().expect("info")["result"]["stitchStats"]["stitches"]
+            .as_u64()
+            .unwrap_or(0);
+        assert!(n > 0, "{name} sews");
+        let line = r[r.len() - 2]["result"]["line"].clone();
+        match name.as_str() {
+            "line-type-motif-groups" => {
+                assert_eq!(line["motifGroups"], json!([[3, 6.0]]), "{line}");
+                assert_eq!(line["freeStart"], json!(6.0), "{line}");
+                assert_eq!(line["freeEnd"], json!(6.0), "{line}");
+            }
+            "line-type-motif-in-turn" => assert_eq!(line["motifs"], json!(["star"]), "{line}"),
+            "line-type-motif-mirror-alternate" => {
+                assert_eq!(line["motifs"], json!(["star"]), "{line}");
+                assert_eq!(line["arrange"], json!("alternate"), "{line}");
+            }
+            _ => {}
+        }
+    }
+}
