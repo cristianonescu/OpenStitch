@@ -498,6 +498,11 @@ pub fn prefs_question(command: &str, params: &Value, existing_layout: bool) -> O
         {
             Some("reset every keyboard shortcut you changed to its default".into())
         }
+        // #797: turning the start cards off is "Don't show this again" (they come back from
+        // Options ▸ Show start cards).
+        "ui.set" if params["name"] == json!("showStartCards") && params["value"] == json!(false) => {
+            Some("stop showing the start cards on an empty design (Options ▸ Show start cards turns them back on)".into())
+        }
         _ => None,
     }
 }
@@ -774,6 +779,13 @@ mod tests {
             assert!(w.contains("delete") && w.contains("Lettering"), "{w}");
             let w = ask(mode, "ui.set", json!({ "name": "shortcuts", "value": {} }));
             assert!(w.contains("every keyboard shortcut"), "{w}");
+            // #797: turning the start cards off asks and says how to get them back.
+            let w = ask(
+                mode,
+                "ui.set",
+                json!({ "name": "showStartCards", "value": false }),
+            );
+            assert!(w.contains("start cards") && w.contains("Options"), "{w}");
         }
         // A save over an existing name asks; a new name, list and apply run.
         let scratch = scratch();

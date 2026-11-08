@@ -580,7 +580,9 @@ asks again any time. Without a profile everything is as before.
 
 ### Getting started (beyond PE-DESIGN, #554)
 
-An empty design shows start cards over the Design Page; the Application menu has **Open Sample**
+An empty design shows start cards over the Design Page (× at the top right, Escape or a click on
+the canvas closes them for the session; **Don't show this again** at the bottom turns them off
+until Options ▸ Show start cards, #797); the Application menu has **Open Sample**
 under Open, and Help has **Getting Started** (the steps of docs/GETTING_STARTED.md, each with a
 button). The Sewing Attributes pane has **Basic / Advanced** and **Save as Default** beside Copy
 and Paste Attributes, and its Region and Line titles fold their sections (#553).
