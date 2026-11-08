@@ -11,9 +11,9 @@ use openstitch_design::shapes::{self, ArcMode};
 use openstitch_design::text::{self, TextAlign, TextDirection, TextSpec};
 use openstitch_design::{
     Arrange, Bezier, ChainShape, Compiler, Contour, CrossKind, CrossTimes, Design, DesignObject,
-    DesignPage, FILL_TEXTURES, Feather, FeatherSide, FillStitchType, Gradation, Layout, LineSewing,
-    LineType, ObjectKind, Rect, RegionSewing, RegionType, RunningStitchPath, StaggerKind, StartEnd,
-    Transform, UnderlayDensity, UnderlayParts, UnderlayStyle, Vec2, v2,
+    DesignPage, FILL_TEXTURES, Feather, FeatherMode, FeatherSide, FillStitchType, Gradation,
+    Layout, LineSewing, LineType, ObjectKind, Rect, RegionSewing, RegionType, RunningStitchPath,
+    StaggerKind, StartEnd, Transform, UnderlayDensity, UnderlayParts, UnderlayStyle, Vec2, v2,
 };
 use serde_json::{Value, json};
 
@@ -1411,6 +1411,16 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     "Feathered edge depth, 0-10 (0 turns it off)",
                 ),
                 opt(
+                    "featherMode",
+                    "in|out|both",
+                    "Feathered edge, beyond PE-DESIGN (#685): in shortens the row ends as PE-DESIGN does (default); out lengthens them past the edge (fur, grass); both moves each end in or out by up to half the depth",
+                ),
+                opt(
+                    "featherSeed",
+                    "int|null",
+                    "Feathered edge, beyond PE-DESIGN (#685): a seed for pseudo-random row-end moves, each end its own; null keeps PE-DESIGN's fixed pattern (default)",
+                ),
+                opt(
                     "splitLength",
                     "mm",
                     "Satin: split stitches longer than this, 2-12 (0 turns splitting off; off by default, as PE-DESIGN sends wide crossings whole: set it on satin wider than about 7 mm). Programmable fill: split the stitches between pattern crossings longer than this (off by default: PE-DESIGN sews crossing to crossing, up to 12 mm on a large or sparse pattern)",
@@ -1778,22 +1788,42 @@ fn attribute_commands() -> Vec<CommandSpec> {
                             ("both", FeatherSide::Both),
                         ],
                     )?;
-                    if p.has("featherWidth") || side.is_some() {
+                    let mode = choice(
+                        p,
+                        "featherMode",
+                        &[
+                            ("in", FeatherMode::In),
+                            ("out", FeatherMode::Out),
+                            ("both", FeatherMode::Both),
+                        ],
+                    )?;
+                    let seeded = p.has("featherSeed");
+                    if p.has("featherWidth") || side.is_some() || mode.is_some() || seeded {
                         if o.hole_sewing || hole_inners.contains(&o.id) {
                             return Err(p.failed(format!(
                                 "object {} uses hole sewing: feathered edges are unavailable",
                                 o.id
                             )));
                         }
-                        // PE-DESIGN 11.50's default width is 3.0 mm.
-                        let current = r.feather.unwrap_or(Feather {
-                            side: FeatherSide::Start,
-                            width: 3.0,
-                        });
+                        // PE-DESIGN 11.50's default: the start side, 3.0 mm, its own pattern.
+                        let current = r.feather.unwrap_or_default();
                         let width = p.opt("featherWidth", current.width, 0.0, 10.0)?;
+                        // featherSeed: a whole number, or null for PE-DESIGN's pattern (#685).
+                        let seed = if seeded {
+                            match p.get("featherSeed") {
+                                Some(Value::Null) | None => None,
+                                Some(v) => Some(v.as_u64().ok_or_else(|| {
+                                    p.invalid("featherSeed", "must be a whole number 0 or more, or null")
+                                })?),
+                            }
+                        } else {
+                            current.seed
+                        };
                         r.feather = (width > 0.0).then_some(Feather {
                             side: side.unwrap_or(current.side),
                             width,
+                            mode: mode.unwrap_or(current.mode),
+                            seed,
                         });
                     }
                     if p.has("splitLength") {

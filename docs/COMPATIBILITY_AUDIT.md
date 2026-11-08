@@ -3449,6 +3449,19 @@ jagged edge with their shaping (#675), now also take the raised padding along th
 `spacingAt` stays a column option. PE-DESIGN's feathered edge keeps its own modes (#528's
 In/Out/one-side seeds on the feathered edge are not part of this).
 
+The rest of #685, the same day, again off unless chosen (compat unchanged):
+- `spacingAt` on skeleton satin and Auto satin: the rungs are spaced evenly on a line that far
+  across the column from its shorter side (0 the inner edge of a bend), from rungs sampled every
+  1 mm (skeleton) or 0.1 mm (Auto satin). Unset keeps each kind's own spacing: Auto satin on the
+  outer edge (PE-DESIGN's, = 1), skeleton satin along its centre line (= 0.5). On a half-circle
+  skeleton satin 8 mm wide (inner radius 26 mm, centre 30 mm) at 4.5 lines/mm, spacingAt 0 sews
+  373 crossings against 425 (26/30), 0.5 the same 425; a straight column is unchanged.
+- The feathered edge (`object.setRegion featherMode in|out|both`, `featherSeed`): out lengthens
+  the chosen row ends past the edge by PE-DESIGN's shares of the depth, both moves each end in
+  or out by up to half of it, and a seed draws each row end's share from a pseudo-random
+  sequence instead of PE-DESIGN's 12-row pattern; the side (start, end, both) is PE-DESIGN's.
+  In with no seed is PE-DESIGN's feathered edge, number for number.
+
 ### Ruler origin, 2026-11-08 (#799 part 1)
 
 At the owner's request the rulers count from the Design Page's centre by default (negative left
