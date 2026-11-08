@@ -176,18 +176,14 @@ fn gradient(
     // Stops: given, or evenly spaced; with `mix` (blend) the two handles.
     let stops: Vec<f64> = if let Some(v) = p.get("stops").or_else(|| p.get("mix")) {
         let key = if p.has("stops") { "stops" } else { "mix" };
-        let list: Option<Vec<f64>> = v
-            .as_array()
-            .map(|a| a.iter().map(Value::as_f64).collect::<Option<Vec<f64>>>())
-            .flatten();
-        let list = list
+        v.as_array()
+            .and_then(|a| a.iter().map(Value::as_f64).collect::<Option<Vec<f64>>>())
             .filter(|l| l.len() == n)
             .filter(|l| l.iter().all(|x| (0.0..=1.0).contains(x)))
             .filter(|l| l.windows(2).all(|w| w[0] <= w[1]))
             .ok_or_else(|| {
                 p.invalid(key, format!("must be {n} positions 0-1 in ascending order"))
-            })?;
-        list
+            })?
     } else {
         (0..n).map(|k| k as f64 / (n - 1) as f64).collect()
     };
