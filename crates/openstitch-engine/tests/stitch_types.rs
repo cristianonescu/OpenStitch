@@ -513,6 +513,8 @@ fn bad_region_options_fail_cleanly() {
         json!({"id": 1, "staggerRepeat": 17}),
         json!({"id": 1, "staggerPeriod": 1}),
         json!({"id": 1, "staggerAmplitude": 101}),
+        json!({"id": 1, "gradient": true}),
+        json!({"id": 1, "gradientDither": "rows"}),
         json!({"id": 1, "type": "meander", "pattern": "waves"}),
         json!({"id": 1, "type": "meander", "pattern": "no-such-tile"}),
         json!({"id": 1, "straightness": -1}),
@@ -1233,4 +1235,137 @@ fn meander_fill_goes_through_the_command() {
     );
     let help = run(&mut s, "commands.list", json!({})).to_string();
     assert!(help.contains("meander|"));
+}
+
+/// Gradient fill and colour blend (#532, beyond PE-DESIGN): one fill object per colour,
+/// grouped and next to each other, without under sewing; undone in one step; the dither set
+/// on the group; bad input refused.
+#[test]
+fn gradient_and_blend_go_through_the_commands() {
+    use openstitch_design::{GradientCurve, GradientDither, GradientKind};
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 0, "y": 0, "width": 40, "height": 30, "fill": "Red"}),
+    );
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 50, "y": 0, "width": 20, "height": 20, "fill": "Blue"}),
+    );
+    let before = s.design().clone();
+    let out = run(
+        &mut s,
+        "shape.gradient",
+        json!({"id": 1, "threads": ["Red", "#ffcc00", 5], "angle": 90, "dither": "ordered"}),
+    );
+    let ids: Vec<u64> = out["ids"]
+        .as_array()
+        .expect("ids")
+        .iter()
+        .map(|v| v.as_u64().expect("id"))
+        .collect();
+    assert_eq!(ids.len(), 3);
+    assert_eq!(ids[0], 1);
+    // Next to each other in the sewing order, before the second rectangle, one group.
+    let order: Vec<u64> = s.design().objects.iter().map(|o| o.id).collect();
+    assert_eq!(&order[..3], &ids[..]);
+    let group = s.design().objects[0].group;
+    assert!(group.is_some());
+    for (k, o) in s.design().objects[..3].iter().enumerate() {
+        let r = o.region.as_ref().expect("region");
+        assert_eq!(o.group, group);
+        assert!(!r.underlay);
+        let g = r.gradient.as_ref().expect("gradient");
+        assert_eq!((g.layer, g.stops.clone()), (k, vec![0.0, 0.5, 1.0]));
+        assert_eq!(g.dither, GradientDither::Ordered);
+    }
+    let p = Compiler::default().compile(s.design());
+    assert!(p.count(Command::Stitch) > 300);
+    let bytes = project::encode(s.design()).expect("encode");
+    assert_eq!(&project::decode(&bytes).expect("decode"), s.design());
+    // The dither and curve are set on the gradient's objects together.
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"ids": ids, "gradientDither": "noise", "gradientCurve": "sCurve"}),
+    );
+    assert!(s.design().objects[..3].iter().all(|o| {
+        let g = o
+            .region
+            .as_ref()
+            .and_then(|r| r.gradient.as_ref())
+            .expect("g");
+        g.dither == GradientDither::Noise && g.curve == GradientCurve::SCurve
+    }));
+    run(&mut s, "history.undo", json!({}));
+    run(&mut s, "history.undo", json!({}));
+    assert_eq!(s.design(), &before, "one undo step each");
+    // A blend: the shape's thread into thread2, with the mix handles.
+    let out = run(
+        &mut s,
+        "shape.blend",
+        json!({"id": 2, "thread2": "White", "mix": [0.2, 0.8], "kind": "radial"}),
+    );
+    assert_eq!(out["ids"].as_array().map(Vec::len), Some(2));
+    let blend = |s: &Session| {
+        s.design()
+            .objects
+            .iter()
+            .find(|o| o.id == 2)
+            .and_then(|o| o.region.clone())
+            .expect("region")
+    };
+    let g = blend(&s).gradient.expect("g");
+    assert_eq!(
+        (g.stops.clone(), g.kind),
+        (vec![0.2, 0.8], GradientKind::Radial)
+    );
+    // Back to a plain fill.
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 2, "gradient": false}),
+    );
+    assert!(blend(&s).gradient.is_none());
+    let mid = s.design().clone();
+    for (cmd, bad) in [
+        ("shape.gradient", json!({"id": 1, "threads": ["Red"]})),
+        (
+            "shape.gradient",
+            json!({"id": 1, "threads": ["Red", "nope"]}),
+        ),
+        (
+            "shape.gradient",
+            json!({"id": 1, "threads": ["Red", "Blue"], "stops": [0.6, 0.2]}),
+        ),
+        (
+            "shape.gradient",
+            json!({"id": 1, "threads": ["Red", "Blue"], "dither": "fuzzy"}),
+        ),
+        (
+            "shape.gradient",
+            json!({"id": 1, "threads": ["Red", "Blue"], "from": [0, 0]}),
+        ),
+        (
+            "shape.gradient",
+            json!({"id": 99, "threads": ["Red", "Blue"]}),
+        ),
+        ("shape.blend", json!({"id": 1})),
+        (
+            "shape.blend",
+            json!({"id": 1, "thread2": "Blue", "mix": [0.5]}),
+        ),
+    ] {
+        assert!(
+            s.execute(cmd, Some(&bad)).is_err(),
+            "{cmd} {bad} should fail"
+        );
+        assert_eq!(s.design(), &mid, "{cmd} {bad} changed the design");
+    }
+    let help = run(&mut s, "commands.list", json!({})).to_string();
+    assert!(help.contains("shape.gradient") && help.contains("shape.blend"));
+    assert!(help.contains("gradientDither"));
 }

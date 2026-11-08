@@ -224,6 +224,28 @@ fn layers_inner(
         }
         return out;
     }
+    // Gradient fill (#532, beyond PE-DESIGN): this colour's share of the shared rows, no
+    // under sewing (it would show through the other colours), joined by travel inside.
+    if r.kind == RegionType::Fill
+        && let Some(g) = &r.gradient
+    {
+        let angle = if r.auto_direction {
+            auto_angle(closed)
+        } else {
+            geometry_angle(r.angle)
+        };
+        let p = RegionParams {
+            angle,
+            row_spacing: 10.0 / r.density.max(0.1),
+            stitch_length: r.stitch_length * 10.0,
+            pull_compensation: r.pull_compensation * 10.0,
+        };
+        let rows = generate::fill_shifted(closed, &p, holes, r.fill_stagger());
+        let pieces = crate::gradient::layer_pieces(&rows, g, angle, p.row_spacing, p.stitch_length);
+        let pieces = crate::paths::order(pieces, r.entry);
+        let mut graph = TravelGraph::new(closed, holes);
+        return vec![join(pieces, Some(&mut graph), SATIN_TRAVEL_PITCH)];
+    }
     // Wave fill (#538, beyond PE-DESIGN): the rows ripple as a sine (see `wave_layers`).
     if let Some((amplitude, length)) = r.wave()
         && r.direction_curve.is_none()

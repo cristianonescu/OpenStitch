@@ -20,6 +20,7 @@ pub mod fonts;
 pub mod freehand;
 pub mod generate;
 pub mod geometry;
+pub mod gradient;
 pub mod graph;
 pub mod hand_edits;
 pub mod hidden;
@@ -69,9 +70,10 @@ pub use machine::{
 pub use model::{
     Arrange, BackgroundImage, BackgroundLayer, ChainShape, ContourJoin, ContourStrategy, CrossKind,
     CrossTimes, Design, DesignObject, DesignPage, DesignProperties, FILL_TEXTURES, Feather,
-    FeatherSide, FillStitchType, FillTexture, Gradation, Guides, ImageAdjust, JobInfo, LineGap,
-    LineSewing, LineType, ObjectKind, OptimizeOrder, RegionSewing, RegionType, RunningStitchPath,
-    StaggerKind, StartEnd, StitchBlock, UnderlayDensity, UnderlayParts, UnderlayStyle,
+    FeatherSide, FillStitchType, FillTexture, Gradation, Gradient, GradientCurve, GradientDither,
+    GradientKind, Guides, ImageAdjust, JobInfo, LineGap, LineSewing, LineType, ObjectKind,
+    OptimizeOrder, RegionSewing, RegionType, RunningStitchPath, StaggerKind, StartEnd, StitchBlock,
+    UnderlayDensity, UnderlayParts, UnderlayStyle,
 };
 pub use text::{
     CharEdit, FONTS, FontInfo, FontKind, Layout, PathFit, PixelStyle, Spread, TextAlign,

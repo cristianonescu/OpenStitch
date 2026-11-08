@@ -917,6 +917,33 @@ fn region_type_controls(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> {
                     " mm",
                 ));
             }
+            // One colour of a gradient fill (#532, beyond PE-DESIGN): select the gradient's
+            // group so the whole gradient changes together.
+            if let Some(g) = &r.gradient {
+                use openstitch_design::{GradientCurve, GradientDither};
+                v.push(choice(
+                    "Gradient dither (+)",
+                    "gradientDither",
+                    g.dither.id(),
+                    &[
+                        (GradientDither::Rows.id(), "Rows"),
+                        (GradientDither::Ordered.id(), "Ordered"),
+                        (GradientDither::Noise.id(), "Noise"),
+                        (GradientDither::Bands.id(), "Bands"),
+                    ],
+                ));
+                v.push(choice(
+                    "Gradient curve (+)",
+                    "gradientCurve",
+                    g.curve.id(),
+                    &[
+                        (GradientCurve::Linear.id(), "Linear"),
+                        (GradientCurve::EaseIn.id(), "Ease in"),
+                        (GradientCurve::EaseOut.id(), "Ease out"),
+                        (GradientCurve::SCurve.id(), "S-curve"),
+                    ],
+                ));
+            }
         }
         RegionType::Satin => v.extend(satin_hand_controls(r)),
         RegionType::ProgrammableFill => {

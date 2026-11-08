@@ -968,6 +968,106 @@ impl RegionType {
     }
 }
 
+/// One colour of a colour blend or gradient fill (#532, beyond PE-DESIGN): the gradient's
+/// objects share the shape and its fill settings and differ in `layer` and thread.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Gradient {
+    #[serde(default)]
+    pub kind: GradientKind,
+    /// Where the gradient starts (position 0) and ends (position 1), 0.1 mm; for a radial one
+    /// the centre and a point on the outer circle.
+    pub from: Vec2,
+    pub to: Vec2,
+    /// Positions of the colour stops, 0…1, ascending: one per object of the gradient.
+    pub stops: Vec<f64>,
+    /// The stop this object sews.
+    pub layer: usize,
+    #[serde(default)]
+    pub dither: GradientDither,
+    #[serde(default)]
+    pub curve: GradientCurve,
+    /// Seed of the noise dither.
+    #[serde(default)]
+    pub seed: u64,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum GradientKind {
+    #[default]
+    Linear,
+    Radial,
+}
+
+/// How the stitches between two stops are shared out (see `crate::gradient`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum GradientDither {
+    /// Whole rows: complementary row spacing, the fewest extra stitches.
+    #[default]
+    Rows,
+    /// A 4 × 4 ordered (Bayer) pattern of stitches.
+    Ordered,
+    /// Seeded random stitches.
+    Noise,
+    /// Hard edges halfway between the stops.
+    Bands,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum GradientCurve {
+    #[default]
+    Linear,
+    EaseIn,
+    EaseOut,
+    SCurve,
+}
+
+impl GradientDither {
+    pub const ALL: [GradientDither; 4] = [
+        GradientDither::Rows,
+        GradientDither::Ordered,
+        GradientDither::Noise,
+        GradientDither::Bands,
+    ];
+    pub fn id(self) -> &'static str {
+        match self {
+            GradientDither::Rows => "rows",
+            GradientDither::Ordered => "ordered",
+            GradientDither::Noise => "noise",
+            GradientDither::Bands => "bands",
+        }
+    }
+}
+
+impl GradientCurve {
+    pub const ALL: [GradientCurve; 4] = [
+        GradientCurve::Linear,
+        GradientCurve::EaseIn,
+        GradientCurve::EaseOut,
+        GradientCurve::SCurve,
+    ];
+    pub fn id(self) -> &'static str {
+        match self {
+            GradientCurve::Linear => "linear",
+            GradientCurve::EaseIn => "easeIn",
+            GradientCurve::EaseOut => "easeOut",
+            GradientCurve::SCurve => "sCurve",
+        }
+    }
+}
+
+impl GradientKind {
+    pub fn id(self) -> &'static str {
+        match self {
+            GradientKind::Linear => "linear",
+            GradientKind::Radial => "radial",
+        }
+    }
+}
+
 /// Contour fill (beyond PE-DESIGN): how the rings that follow the outline are sewn.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1770,6 +1870,10 @@ pub struct RegionSewing {
     /// Fill: the wave's length, crest to crest, mm (default [`RegionSewing::DEFAULT_WAVE_LENGTH`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wave_length: Option<f64>,
+    /// Fill: one colour of a colour blend or gradient (#532, beyond PE-DESIGN); the object
+    /// sews only its share of the rows the gradient's objects share (see `crate::gradient`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gradient: Option<Gradient>,
     /// Satin: a motif repeated along the column instead of the satin, stretched across its
     /// local width (#544, beyond PE-DESIGN).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1894,6 +1998,7 @@ impl RegionSewing {
             hand: None,
             wave_height: None,
             wave_length: None,
+            gradient: None,
             motif_band: None,
         }
     }

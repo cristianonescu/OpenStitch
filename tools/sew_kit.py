@@ -316,6 +316,26 @@ MEANDERS_A = [("rect", {"type": "meander", "pattern": p}) for p in
               ("vermicelli", "ribbon-candy", "ripple", "clamshell", "switchback", "serpentine")]
 MEANDERS_B = [("rect", {"type": "meander", "pattern": p}) for p in
               ("skyline", "staircase", "sawtooth", "jigsaw", "hilbert", "hilbert-fine")]
+def gradients():
+    """Colour blends and gradient fills (#532, beyond PE-DESIGN)."""
+    steps = [
+        {"command": "shape.rectangle", "params": {"x": 7, "y": 7, "width": 40, "height": 26, "fill": "Blue"}},
+        {"command": "shape.rectangle", "params": {"x": 53, "y": 7, "width": 40, "height": 26, "fill": "Red"}},
+        {"command": "shape.ellipse", "params": {"cx": 27, "cy": 60, "rx": 20, "fill": "Yellow"}},
+        {"command": "shape.rectangle", "params": {"x": 53, "y": 40, "width": 40, "height": 40, "fill": "Leaf Green"}},
+    ]
+    steps += [
+        {"command": "shape.blend", "params": {"id": 1, "thread2": "White", "angle": 90}},
+        {"command": "shape.gradient", "params": {"id": 2, "threads": ["Red", "Orange", "Yellow"],
+                                                 "dither": "ordered"}},
+        {"command": "shape.gradient", "params": {"id": 3, "threads": ["Yellow", "Orange", "Magenta"],
+                                                 "kind": "radial", "dither": "noise", "seed": 7}},
+        {"command": "shape.gradient", "params": {"id": 4, "threads": ["Leaf Green", "Blue"], "angle": 45,
+                                                 "dither": "bands", "stops": [0.3, 0.7]}},
+    ]
+    return steps
+
+
 LINE_TYPES = [
     {"type": "running"},
     {"type": "triple"},
@@ -583,6 +603,10 @@ FEATURES = [
      "clamshell, switchback, serpentine.", region_grid(MEANDERS_A)),
     ("fills/meander-tiles-2.pes", "Meander fill tiles (2 of 2, beyond PE-DESIGN)",
      "Skyline, staircase, sawtooth (top row), jigsaw, Hilbert and fine Hilbert.", region_grid(MEANDERS_B)),
+    ("fills/gradients.pes", "Colour blends and gradient fills (beyond PE-DESIGN)",
+     "Top left: a blue-to-white blend, bottom to top (rows dither). Top right: red, orange and yellow, left "
+     "to right (ordered dither). Bottom left: a radial yellow, orange and magenta gradient (noise dither). "
+     "Bottom right: green into blue at 45° with hard bands.", gradients()),
     ("fills/maze-fill.pes", "Maze fill (beyond PE-DESIGN)",
      "One path of straight corridors and square turns that never crosses itself, 2 mm apart: straightness "
      "70 % (default), 0 % and 95 % (top row), on a circle, another seed at 45°, and 3 mm spacing.",

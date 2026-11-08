@@ -22,6 +22,7 @@ mod finish;
 mod font_images;
 pub mod fonts;
 pub mod fsio;
+mod gradient_cmds;
 mod guides;
 #[cfg(feature = "formats")]
 pub mod imports;

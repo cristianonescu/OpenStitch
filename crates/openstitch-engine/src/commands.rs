@@ -269,6 +269,7 @@ pub fn all() -> Vec<CommandSpec> {
     v.extend(crate::lettering::commands());
     v.extend(crate::templates::commands());
     v.extend(crate::drawing::commands());
+    v.extend(crate::gradient_cmds::commands());
     v.extend(crate::ornament::commands());
     v.extend(crate::user::commands());
     v.extend(crate::thread_match::commands());
@@ -1234,7 +1235,7 @@ fn region_pattern_exists(kind: RegionType, id: &str, user: &[Pattern]) -> bool {
 }
 
 /// An optional string parameter that must be one of `options` (value, result).
-fn choice<T: Copy>(
+pub(crate) fn choice<T: Copy>(
     p: &Params,
     key: &str,
     options: &[(&str, T)],
@@ -1443,6 +1444,21 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     "staggerSeed",
                     "integer",
                     "Seed of the random stagger (0 to 2^53; the same seed always sews the same rows)",
+                ),
+                opt(
+                    "gradient",
+                    "false",
+                    "Gradient fill (beyond PE-DESIGN): false makes a gradient's object a plain fill again (make one with shape.gradient or shape.blend)",
+                ),
+                opt(
+                    "gradientDither",
+                    "rows|ordered|noise|bands",
+                    "Gradient fill: how its colours share the stitches where they meet; set it on every object of the gradient (select its group)",
+                ),
+                opt(
+                    "gradientCurve",
+                    "linear|easeIn|easeOut|sCurve",
+                    "Gradient fill: the transition between colour stops; set it on every object of the gradient",
                 ),
                 opt(
                     "waveHeight",
@@ -1853,6 +1869,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         }
                         r.stagger_seed = Some(seed as u64);
                     }
+                    crate::gradient_cmds::set_region(p, &mut r)?;
                     if p.has("waveHeight") {
                         let h = p.req("waveHeight", 0.0, 20.0)?;
                         r.wave_height = (h > 0.0).then_some(h);
