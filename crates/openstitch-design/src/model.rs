@@ -37,8 +37,8 @@ pub struct Design {
     /// project (never sewn by the embroidery compiler). Omitted when empty.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sewing: Vec<SewingStitch>,
-    /// Guidelines (view aid, never sewn). Omitted while empty.
-    #[serde(default, skip_serializing_if = "Guides::is_empty")]
+    /// Guidelines (view aid, never sewn). Omitted while empty and unlocked.
+    #[serde(default, skip_serializing_if = "Guides::is_default")]
     pub guides: Guides,
     /// Design Property: category, author, keywords, comments. Omitted while empty.
     #[serde(default, skip_serializing_if = "DesignProperties::is_empty")]
@@ -174,14 +174,24 @@ pub struct Guides {
     pub vertical: Vec<f64>,
     /// y of the horizontal guidelines (dragged from the left ruler).
     pub horizontal: Vec<f64>,
+    /// View ▸ Guides ▸ Lock Guides (#799): they stay shown and snapped to, but are not moved,
+    /// edited or deleted one by one. Omitted while unlocked.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub locked: bool,
 }
 
 impl Guides {
     /// At most this many guidelines in each direction.
     pub const MAX: usize = 100;
 
+    /// No guidelines.
     pub fn is_empty(&self) -> bool {
         self.vertical.is_empty() && self.horizontal.is_empty()
+    }
+
+    /// No guidelines and unlocked: nothing to save.
+    pub fn is_default(&self) -> bool {
+        self.is_empty() && !self.locked
     }
 }
 
