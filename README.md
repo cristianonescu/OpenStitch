@@ -265,8 +265,9 @@ feature is done and the rest is under [Planned](#planned).
   Singer, plus round commercial hoops, each from the maker's published sizes ([#514]).
 - **Rulers, grid and guides:** rulers that count from the page's centre or its top-left corner
   ([#799]), snap to grid, guidelines dragged out of the rulers (shown and snapped to by default,
-  with their distance from 0 while you drag them; select, delete, turn, lock, type a position or
-  line up a selection), the measure tool (distance and angle) and the
+  with their distance from 0 while you drag them; select, delete, turn, lock, type a position,
+  line up a selection, lay out columns and rows, right-click menus, your own colour), the
+  measure tool (distance and angle) and the
   Reference window to jump around a large design.
 - (+) **Millimetres or inches** everywhere in the editor, from one setting ([#519]).
 - (+) **Zoom box and true real size:** drag a box to zoom, and calibrate 100 % to your monitor
