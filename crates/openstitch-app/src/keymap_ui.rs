@@ -313,21 +313,22 @@ fn export(app: &mut EditorApp) {
         return;
     };
     let text = serde_json::to_string_pretty(&file_json(&app.ui.prefs.keymap)).unwrap_or_default();
-    app.ui.keys.message = match std::fs::write(&path, text) {
+    app.ui.keys.message = match openstitch_app::platform::write_file(&path, text) {
         Ok(()) => format!("Saved {}", path.display()),
         Err(e) => format!("Cannot save {}: {e}", path.display()),
     };
 }
 
-fn import(app: &mut EditorApp) {
-    let Some(path) = crate::files::FileDialog::new()
-        .add_filter("Shortcuts", &["json"])
-        .pick_file()
-    else {
-        return;
-    };
-    let read = std::fs::read_to_string(&path)
-        .map_err(|e| e.to_string())
+fn import(_app: &mut EditorApp) {
+    crate::files::pick_then(
+        crate::files::FileDialog::new().add_filter("Shortcuts", &["json"]),
+        |app, path| import_from(app, &path),
+    );
+}
+
+/// Reads the shortcuts file at `path` (#797: through the page's memory in the browser).
+fn import_from(app: &mut EditorApp, path: &std::path::Path) {
+    let read = openstitch_app::platform::read_text(path)
         .and_then(|t| serde_json::from_str(&t).map_err(|e| e.to_string()))
         .and_then(|v| from_file_json(&v));
     match read {

@@ -261,18 +261,20 @@ impl Host<FactoryAction> for EditorApp {
                 }
             }
             OpenTemplate => {
-                if let Some(path) = crate::files::FileDialog::new()
-                    .add_filter(
+                let ctx = ctx.clone();
+                crate::files::pick_then(
+                    crate::files::FileDialog::new().add_filter(
                         "Image",
                         &["png", "jpg", "jpeg", "bmp", "gif", "tif", "tiff"],
-                    )
-                    .pick_file()
-                {
-                    st.message = match open_template(st, &path, ctx) {
-                        Ok(()) => format!("Template {}", path.display()),
-                        Err(e) => format!("Cannot open the template: {e}"),
-                    };
-                }
+                    ),
+                    move |app, path| {
+                        let st = &mut app.sewing;
+                        st.message = match open_template(st, &path, &ctx) {
+                            Ok(()) => format!("Template {}", path.display()),
+                            Err(e) => format!("Cannot open the template: {e}"),
+                        };
+                    },
+                );
             }
             ModifyTemplate => {
                 st.modify_template ^= true;
@@ -373,11 +375,7 @@ pub fn open_template(
     path: &std::path::Path,
     ctx: &egui::Context,
 ) -> Result<(), String> {
-    let meta = std::fs::metadata(path).map_err(|e| e.to_string())?;
-    if meta.len() > openstitch_digitize::raster::MAX_FILE_BYTES as u64 {
-        return Err("the image file is too large".into());
-    }
-    let data = std::fs::read(path).map_err(|e| e.to_string())?;
+    let data = openstitch_app::platform::read_limited(path, openstitch_digitize::raster::MAX_FILE_BYTES as u64)?;
     let r = openstitch_digitize::Raster::decode(&data).map_err(|e| e.to_string())?;
     let size = [r.width() as usize, r.height() as usize];
     let mut rgba = Vec::with_capacity(size[0] * size[1] * 4);
@@ -454,17 +452,16 @@ fn step_density(st: &mut SewingState) {
     st.template_density = next;
 }
 
-fn open_file(st: &mut SewingState) {
-    let Some(path) = crate::files::FileDialog::new()
-        .add_filter("OpenStitch sewing stitch", &["json"])
-        .pick_file()
-    else {
-        return;
-    };
-    match std::fs::read_to_string(&path)
-        .map_err(|e| e.to_string())
-        .and_then(|t| sewing::parse(&t))
-    {
+fn open_file(_st: &mut SewingState) {
+    crate::files::pick_then(
+        crate::files::FileDialog::new().add_filter("OpenStitch sewing stitch", &["json"]),
+        |app, path| open_file_from(&mut app.sewing, &path),
+    );
+}
+
+/// Opens the sewing stitch at `path` (#797: through the page's memory in the browser).
+fn open_file_from(st: &mut SewingState, path: &std::path::Path) {
+    match openstitch_app::platform::read_text(path).and_then(|t| sewing::parse(&t)) {
         Ok(q) => {
             st.editor = SewingEditor::from_stitch(&q);
             st.selected = None;
@@ -480,7 +477,7 @@ fn save_as(st: &mut SewingState) {
         .add_filter("OpenStitch sewing stitch", &["json"])
         .save_file()
     {
-        st.message = match std::fs::write(&path, st.editor.doc.to_json(false)) {
+        st.message = match openstitch_app::platform::write_file(&path, st.editor.doc.to_json(false)) {
             Ok(()) => format!("Saved {}", path.display()),
             Err(e) => format!("Cannot save: {e}"),
         };

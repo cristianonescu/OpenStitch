@@ -13,7 +13,8 @@
 // use software GL (Mesa's llvmpipe), which it otherwise blocks.
 import { createServer } from "node:http";
 import { mkdirSync, readFileSync } from "node:fs";
-import { basename, extname, join, normalize, resolve } from "node:path";
+import { basename, dirname, extname, join, normalize, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { chromium, firefox, webkit } from "playwright";
 
 const args = process.argv.slice(2);
@@ -48,6 +49,9 @@ await new Promise((ok) => server.listen(0, "127.0.0.1", ok));
 const url = `http://127.0.0.1:${server.address().port}/`;
 
 const stem = name.replace(/\.[^.]*$/, "");
+// A photo for the image tools (#797): a kit preview PNG from the repository.
+const photo = resolve(dirname(fileURLToPath(import.meta.url)), "../../examples/sew/previews/applique.png");
+const photoB64 = readFileSync(photo).toString("base64");
 const run = (page, request) => page.evaluate((r) => window.openstitch.run(r), request);
 // Waits until the editor has started (or says it could not); returns the page's message.
 const started = async (page) => {
@@ -126,6 +130,31 @@ for (const [label, type] of [["Chromium", chromium], ["Firefox", firefox], ["Web
         throw new Error(`downloaded ${download.suggestedFilename()} (${got.length} bytes), native ${want.length} bytes`);
       }
     }
+    // #797: a photo dropped on the page becomes the background, the editor reads and decodes it
+    // for the canvas, and Auto Punch converts it, all from the bytes the page holds in memory.
+    console.log(`${label}: dropping a photo on the page`);
+    await page.evaluate(({ b64, file }) => {
+      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      const dt = new DataTransfer();
+      dt.items.add(new File([bytes], file, { type: "image/png" }));
+      const canvas = document.getElementById("openstitch");
+      for (const type of ["dragenter", "dragover", "drop"]) {
+        canvas.dispatchEvent(new DragEvent(type, { dataTransfer: dt, bubbles: true, cancelable: true }));
+      }
+    }, { b64: photoB64, file: "photo.png" });
+    await page.waitForFunction(
+      () => window.openstitch.run({ command: "ui.state" }).result?.background?.pixels != null,
+      null,
+      { timeout: 30_000 },
+    );
+    const background = (await run(page, { command: "ui.state" })).result.background;
+    const punched = await run(page, {
+      command: "digitize.autoPunch",
+      params: { path: background.path, width: 60, colors: 4 },
+    });
+    if (!punched.ok || !(punched.result?.ids?.length > 0)) {
+      throw new Error(`Auto Punch of the dropped photo: ${JSON.stringify(punched).slice(0, 200)}`);
+    }
     // #797: preferences last in the page's storage. "Don't show this again" (showStartCards
     // off) survives a reload, and so does turning the cards back on.
     for (const value of [false, true]) {
@@ -145,7 +174,7 @@ for (const [label, type] of [["Chromium", chromium], ["Firefox", firefox], ["Web
       await page.screenshot({ path: join(outDir, `web-${label.toLowerCase()}.png`) });
     }
     if (errors.length) throw new Error(`page errors: ${errors.join("; ")}`);
-    console.log(`ok ${label}: started, opened ${name} with the file picker, the PES and DST downloads are identical to the desktop build, preferences last across reloads`);
+    console.log(`ok ${label}: started, opened ${name} with the file picker, the PES and DST downloads are identical to the desktop build, a dropped photo shows and converts, preferences last across reloads`);
   } catch (e) {
     console.error(`FAIL ${label}: ${e.message}`);
     failures += 1;
