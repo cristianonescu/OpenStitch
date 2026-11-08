@@ -180,10 +180,11 @@ pub fn grid_label(mm: f64) -> String {
         .iter()
         .position(|f| (inches - f).abs() < 1e-9)
     {
-        Some(0) => "1/8 inch".into(),
-        Some(1) => "1/4 inch".into(),
-        Some(2) => "1/2 inch".into(),
-        Some(_) => "1 inch".into(),
+        // Translated where shown (#555).
+        Some(0) => super::ui_texts::tr("1/8 inch").into(),
+        Some(1) => super::ui_texts::tr("1/4 inch").into(),
+        Some(2) => super::ui_texts::tr("1/2 inch").into(),
+        Some(_) => super::ui_texts::tr("1 inch").into(),
         None => format!("{mm} mm"),
     }
 }

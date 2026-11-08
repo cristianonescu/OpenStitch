@@ -105,8 +105,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    a running line. Text is satin by default. A satin border or outline is a line:
    `object.setLine` with `type: zigzag`, about 2-4 mm wide (the badge recipe in
    `reference/recipes.md`).
-   A zigzag line's corners sharper than 90 degrees follow PE-DESIGN's `sharpCorners` (1:
-   legs to where they cross, the point filled as a wedge; 2: split along the bisector, more
+   A zigzag line's corners sharper than 67.5 degrees (PE-DESIGN sews 75 degrees and wider as
+   plain corners) follow PE-DESIGN's `sharpCorners` (1: legs to where they cross, the point
+   filled as a wedge; 2: split along the bisector, more
    short stitches) and `miterLimit` (0-50 mm from the corner along the bisector; 0, the
    default, cuts the point at the corner, about 4 mm on a 2 mm line at 30 degrees is the full
    point). Raise `miterLimit` for a pointed star or chevron border, keep 0 for a blunt one.
@@ -174,7 +175,8 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `history.undo` when a number got worse. `design.setProperties {autoStart: nearest}` (beyond
    PE-DESIGN) starts each shape without its own entry point nearest to where the last ended,
    ends a region without its own exit nearest the next object, and enters a satin part way
-   along, where it passes nearest (a skeleton satin or satin line by a lead run under it). Set a point by hand with
+   along, where it passes nearest (a skeleton satin or satin line by a lead run under it); from a
+   shell, `stitchtool optimize in.osd out.pes --auto-start nearest` sets it before reordering. Set a point by hand with
    `object.setEntryExit` (`regionEntry`, `regionExit`, `lineEntry`, `lineExit`; null clears).
 5. Check: `view_render` (look at it), `design.info` (size, stitches, colours, trims, time) and
    `design.check` (sewing problems, errors first; `ready` is false while there are errors).

@@ -192,6 +192,49 @@ fn optimize_raises_neither_trims_nor_colour_changes() {
 }
 
 #[test]
+fn optimize_sets_the_start_rule_with_auto_start() {
+    // #547: `--auto-start nearest` sets the design's start rule before the reorder, so an open
+    // line drawn away from the square starts at its nearer end: less travel in the export.
+    let dir = temp_dir("autostart");
+    exec(
+        &dir,
+        json!([
+            {"command": "design.new", "params": {"width": 100, "height": 100}},
+            {"command": "shape.rectangle",
+             "params": {"x": 10, "y": 10, "width": 20, "height": 20, "fill": "#ff0000"}},
+            {"command": "shape.path",
+             "params": {"points": [[90, 20], [40, 20]], "closed": false, "outline": "#ff0000"}},
+            {"command": "project.save", "params": {"path": "in.osd"}}
+        ]),
+    );
+    // By colour, which keeps the objects' own entry points (order.optimize moves them too).
+    ok(&stitchtool(
+        &dir,
+        &["optimize", "in.osd", "off.pes", "--by-color"],
+    ));
+    ok(&stitchtool(
+        &dir,
+        &[
+            "optimize",
+            "in.osd",
+            "near.pes",
+            "--by-color",
+            "--auto-start",
+            "nearest",
+        ],
+    ));
+    let travel = |file: &str| stats(&dir, file)["travelMM"].as_f64().expect("present");
+    let (off, near) = (travel("off.pes"), travel("near.pes"));
+    assert!(near < off, "{off} -> {near}");
+    let bad = stitchtool(
+        &dir,
+        &["optimize", "in.osd", "o.pes", "--auto-start", "far"],
+    );
+    assert!(!bad.status.success());
+    assert!(!dir.join("o.pes").exists());
+}
+
+#[test]
 fn digitize_auto_punches_an_image_at_the_given_width() {
     let dir = temp_dir("digitize");
     let image =

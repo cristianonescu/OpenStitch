@@ -21,9 +21,10 @@ pub const USAGE: &str = "one-line commands (formats follow the file extensions):
       when out-folder is the same folder; existing targets are skipped
   stitchtool info <file> [--json]
       size, stitches, colours, trims, jumps, thread and sewing time (design.info)
-  stitchtool optimize <in> <out> [--mode peDesign|minJump] [--by-color] [--json]
+  stitchtool optimize <in> <out> [--mode peDesign|minJump] [--by-color] [--auto-start off|nearest] [--json]
       the sewing order (order.optimize; --by-color: order.byColor), then export; a machine
-      file is first divided into one object per colour
+      file is first divided into one object per colour; --auto-start sets the design's start
+      rule first (design.setProperties autoStart: each object starts nearest where the last ended)
   stitchtool digitize <image> <out> [--size MM] [--method pe|openstitch] [--colors N] [--json]
       Auto Punch a PNG, JPEG or BMP (digitize.autoPunch; --size is the width in mm)
   stitchtool formats [--json]
@@ -167,12 +168,21 @@ pub fn requests(verb: &str, args: &[&str]) -> Option<Vec<Value>> {
             Some(vec![open_request(input), json!({"command": "design.info"})])
         }
         ("optimize", [input, output]) => {
-            let f = Flags::parse(&rest, &["json", "by-color"], &["mode"])?;
+            let f = Flags::parse(&rest, &["json", "by-color"], &["mode", "auto-start"])?;
             let mut steps = vec![open_request(input)];
             if steps[0]["command"] == "stitches.import" {
                 // One object per colour, so the order can change. `run` fills in the id the
                 // import reported.
                 steps.push(json!({"command": "stitches.divideByColor", "params": {}}));
+            }
+            // The design's start rule (#547): each object starts nearest where the last ended.
+            if let Some(rule) = f.get("auto-start") {
+                if !matches!(rule, "off" | "nearest") {
+                    return None;
+                }
+                steps.push(
+                    json!({"command": "design.setProperties", "params": {"autoStart": rule}}),
+                );
             }
             if f.has("by-color") {
                 steps.push(json!({"command": "order.byColor"}));

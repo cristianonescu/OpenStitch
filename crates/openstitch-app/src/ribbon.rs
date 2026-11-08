@@ -724,7 +724,7 @@ fn export_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         if ty == FileType::Pes {
             ui.menu_button(t("menu-pes"), |ui| {
                 for (v, label) in EditorApp::PES_VERSIONS {
-                    if ui.button(format!("{label}…")).clicked() {
+                    if ui.button(format!("{}…", openstitch_app::editor::ui_texts::tr(label))).clicked() {
                         app.export_with(ty, Some(v));
                     }
                 }
@@ -757,7 +757,7 @@ fn export_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         ("txt", "Stitch List (TXT)…"),
         ("gcode", "G-code…"),
     ] {
-        if ui.button(label).clicked() {
+        if ui.button(openstitch_app::editor::ui_texts::tr(label)).clicked() {
             app.export_extra(ext);
         }
     }
@@ -776,7 +776,7 @@ fn export_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
             "Bundle (ZIP: PES, DST, JEF, threads, picture)…",
         ),
     ] {
-        if ui.button(label).clicked() {
+        if ui.button(openstitch_app::editor::ui_texts::tr(label)).clicked() {
             app.export_media(command, ext);
         }
     }
@@ -785,7 +785,7 @@ fn export_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         .on_hover_text(t("menu-beyond-pe-design-the-design-at-tip"));
     ui.menu_button(t("menu-thread-list"), |ui| {
         for (ext, label) in EditorApp::THREAD_LISTS {
-            if ui.button(format!("{label}…")).clicked() {
+            if ui.button(format!("{}…", openstitch_app::editor::ui_texts::tr(label))).clicked() {
                 app.export_thread_list(ext);
             }
         }
@@ -813,7 +813,7 @@ fn garment_mockup_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     });
     ui.separator();
     for (garment, placement, label) in EditorApp::MOCKUPS {
-        if ui.button(format!("{label}…")).clicked() {
+        if ui.button(format!("{}…", openstitch_app::editor::ui_texts::tr(label))).clicked() {
             app.export_mockup(garment, placement, fabric);
         }
     }
@@ -971,7 +971,7 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
                 ("Sew Later", "later"),
                 ("Sew Last", "last"),
             ] {
-                if ui.button(label).clicked() {
+                if ui.button(openstitch_app::editor::ui_texts::tr(label)).clicked() {
                     let r = objects::move_to(&app.selection, to);
                     app.execute(&r);
                 }
@@ -983,7 +983,7 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
                 ("Rotate Left 90°", -90.0),
                 ("Rotate 180°", 180.0),
             ] {
-                if ui.button(label).clicked() {
+                if ui.button(openstitch_app::editor::ui_texts::tr(label)).clicked() {
                     app.on_selection(|s| CommandRequest::rotate(s, deg));
                 }
             }
@@ -1098,7 +1098,7 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
             );
             for (k, label) in openstitch_app::editor::inspector::line_types() {
                 if ui
-                    .selectable_label(m.line_kind.same() == Some(&k), label)
+                    .selectable_label(m.line_kind.same() == Some(&k), openstitch_app::editor::ui_texts::tr(label))
                     .clicked()
                 {
                     let r = m.set_line_type(k);
@@ -1113,7 +1113,7 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
             );
             for (k, label) in openstitch_app::editor::inspector::region_types() {
                 if ui
-                    .selectable_label(m.region_kind.same() == Some(&k), label)
+                    .selectable_label(m.region_kind.same() == Some(&k), openstitch_app::editor::ui_texts::tr(label))
                     .clicked()
                 {
                     let r = m.set_region_type(k);
@@ -1253,7 +1253,7 @@ pub fn image_density_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         return;
     };
     let label = if b.visible { "Hide" } else { "Show" };
-    if ui.button(label).clicked() {
+    if ui.button(openstitch_app::editor::ui_texts::tr(label)).clicked() {
         app.execute(&CommandRequest::new(
             "background.show",
             json!({ "visible": !b.visible }),
@@ -1265,7 +1265,7 @@ pub fn image_density_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         ("Opacity 75 %", 0.75),
         ("Opacity 100 %", 1.0),
     ] {
-        if ui.radio(b.opacity == o, name).clicked() {
+        if ui.radio(b.opacity == o, openstitch_app::editor::ui_texts::tr(name)).clicked() {
             app.execute(&CommandRequest::new(
                 "background.show",
                 json!({ "opacity": o }),
@@ -1391,7 +1391,7 @@ fn reset_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     use openstitch_app::editor::prefs::RESET_AREAS;
     for (key, label, what) in RESET_AREAS {
         if ui
-            .button(*label)
+            .button(openstitch_app::editor::ui_texts::tr(label))
             .on_hover_text(format!("Reset {what}"))
             .clicked()
         {
@@ -1415,7 +1415,7 @@ fn new_objects_menu(app: &mut EditorApp, ui: &mut egui::Ui) -> bool {
         .show(ui, |ui| {
             for f in FIELDS {
                 let mut on = n.get(f.key).is_some();
-                if ui.checkbox(&mut on, f.label).changed() {
+                if ui.checkbox(&mut on, openstitch_app::editor::ui_texts::tr(f.label)).changed() {
                     let v = on.then(|| (f.range.0 + f.range.1) / 2.0);
                     let start = match f.key {
                         "angle" => 45.0,
@@ -1489,7 +1489,7 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     let mut changed = false;
     for t in Theme::ALL {
         changed |= ui
-            .radio_value(&mut app.ui.prefs.theme, t, t.label())
+            .radio_value(&mut app.ui.prefs.theme, t, openstitch_app::editor::ui_texts::tr(t.label()))
             .changed();
     }
     changed |= accent_menu(app, ui);
@@ -1499,7 +1499,7 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     changed |= ui
         .checkbox(
             &mut app.ui.prefs.qat_below,
-            "Quick Access Toolbar below the Ribbon",
+            openstitch_app::editor::ui_texts::tr("Quick Access Toolbar below the Ribbon"),
         )
         .changed();
     changed |= ui
@@ -1666,14 +1666,14 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     changed |= ui
         .checkbox(
             &mut app.ui.prefs.updates.check,
-            "Check for updates at startup",
+            openstitch_app::editor::ui_texts::tr("Check for updates at startup"),
         )
         .on_hover_text(t("menu-asks-github-for-a-newer-openstitch-tip"))
         .changed();
     changed |= ui
         .checkbox(
             &mut app.ui.prefs.updates.include_prereleases,
-            "Include pre-releases",
+            openstitch_app::editor::ui_texts::tr("Include pre-releases"),
         )
         .on_hover_text(t("menu-also-offer-alpha-beta-and-release-tip"))
         .changed();
@@ -2125,12 +2125,12 @@ pub fn quick_access(app: &mut EditorApp, ui: &mut egui::Ui) {
                 }
             }
             ui.separator();
-            if ui.button("Reset to default").clicked() {
+            if ui.button(openstitch_app::editor::ui_texts::tr("Reset to default")).clicked() {
                 app.ui.prefs.qat = ribbon::QAT_DEFAULT.to_vec();
                 app.ui.save_prefs();
             }
             if ui
-                .checkbox(&mut app.ui.prefs.qat_below, "Show below the Ribbon")
+                .checkbox(&mut app.ui.prefs.qat_below, openstitch_app::editor::ui_texts::tr("Show below the Ribbon"))
                 .changed()
             {
                 app.ui.save_prefs();
