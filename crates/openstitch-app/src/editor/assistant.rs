@@ -112,6 +112,12 @@ pub const UI_COMMANDS: &[UiCommand] = &[
         )],
     },
     UiCommand {
+        id: "ui.browserLimits",
+        summary: "What the browser version cannot do (#830): inBrowser, the notice shown now (shown) and each limit (assistant, print, transfer, updates, folders, clipboardImages) with what it is, what to do instead, the issue that tracks it and the message the browser shows when it is used",
+        effect: Effect::Read,
+        params: &[],
+    },
+    UiCommand {
         id: "ui.settings",
         summary: "Every editor setting the user can change outside the design (view, grid, rulers, panes, theme, updates, realistic view, font filter, simulator speed), with its value and allowed values",
         effect: Effect::Read,

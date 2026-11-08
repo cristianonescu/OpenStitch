@@ -1215,6 +1215,12 @@ pub fn save_image_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     }
     if ui.button(t("ui-to-clipboard")).clicked() {
         ui.close();
+        if crate::limits_ui::browser_limit(
+            app,
+            openstitch_app::editor::browser_limits::Limit::ClipboardImages,
+        ) {
+            return;
+        }
         app.status = match copy_image(app) {
             Ok(()) => "Background image copied to the clipboard".into(),
             Err(e) => format!("Copy image: {e}"),

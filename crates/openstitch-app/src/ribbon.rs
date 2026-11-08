@@ -70,6 +70,8 @@ impl PaneTab {
 
 /// Chrome state: active tab, preferences, the internal clipboard and the small windows.
 pub struct RibbonState {
+    /// The browser version's notice for a desktop-only feature (#830).
+    pub limit_notice: Option<openstitch_app::editor::browser_limits::Limit>,
     pub tab: TabId,
     pub prefs: UiPrefs,
     /// Where the preferences are saved (`None` = not saved, e.g. tests and screenshots).
@@ -129,6 +131,7 @@ pub struct RibbonState {
 impl Default for RibbonState {
     fn default() -> Self {
         RibbonState {
+            limit_notice: None,
             tab: TabId::Home,
             prefs: UiPrefs::default(),
             prefs_path: None,
@@ -817,12 +820,25 @@ fn garment_mockup_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
 }
 
 /// The list a menu command opens.
+/// Help ▸ Check for Updates: the browser version says it is always the latest (#830).
+fn check_updates(app: &mut EditorApp) {
+    if !crate::limits_ui::browser_limit(app, openstitch_app::editor::browser_limits::Limit::Updates)
+    {
+        app.update.check(true);
+    }
+}
+
 pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
     use Action::*;
     ui.set_min_width(180.0);
     match a {
         Print => {
-            if ui.button(t("menu-print")).clicked() {
+            if ui.button(t("menu-print")).clicked()
+                && !crate::limits_ui::browser_limit(
+                    app,
+                    openstitch_app::editor::browser_limits::Limit::Print,
+                )
+            {
                 crate::print_ui::open(ui.ctx());
             }
             menu_item(app, ui, JobSheet);
@@ -1662,7 +1678,7 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         .on_hover_text(t("menu-also-offer-alpha-beta-and-release-tip"))
         .changed();
     if ui.button(t("menu-check-for-updates-now")).clicked() {
-        app.update.check(true);
+        check_updates(app);
         ui.close();
     }
     if changed {
@@ -1711,7 +1727,7 @@ pub fn help_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         app.ui.shortcuts_open = true;
     }
     if ui.button(t("menu-check-for-updates")).clicked() {
-        app.update.check(true);
+        check_updates(app);
         ui.close();
     }
     if ui.button(t("menu-about-openstitch")).clicked() {

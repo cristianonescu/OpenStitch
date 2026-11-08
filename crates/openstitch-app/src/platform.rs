@@ -286,3 +286,19 @@ pub fn store_prefs(text: &str) -> bool {
         None => false,
     }
 }
+
+thread_local! {
+    static PRETEND_BROWSER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Whether this is the browser version (#830): the wasm32 build, or a native test pretending
+/// to be it ([`pretend_browser`]).
+pub fn in_browser() -> bool {
+    cfg!(target_arch = "wasm32") || PRETEND_BROWSER.with(std::cell::Cell::get)
+}
+
+/// For native tests of the browser version's behaviour: [`in_browser`] answers `on` on this
+/// thread.
+pub fn pretend_browser(on: bool) {
+    PRETEND_BROWSER.with(|p| p.set(on));
+}

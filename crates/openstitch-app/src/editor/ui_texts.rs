@@ -418,6 +418,10 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
         "Save the selected object's sewing attributes under this name",
     ),
     ("ui-match-to-thread-chart", "Match to thread chart…"),
+    (
+        "ui-window-not-in-the-browser-version",
+        "Not in the browser version",
+    ),
     ("ui-dont-show-this-again", "Don't show this again"),
     (
         "ui-start-cards-back-on-tip",
