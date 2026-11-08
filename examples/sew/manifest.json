@@ -957,6 +957,24 @@
   "preview": "previews/gradients.png",
   "sha256": "bdd82f43ec5582c20bc31872ae6f5c239a11f0ef3e88fa6214deb339a2c23dbc"
  },
+ "fills/angle-lines.pes": {
+  "title": "Stitch angle lines (beyond PE-DESIGN)",
+  "about": "An L whose rows turn round its corner between three angle lines, as one object with no seam.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   49.9,
+   72.9
+  ],
+  "stitches": 4669,
+  "trims": 1,
+  "threads": [
+   "405 Blue"
+  ],
+  "sewingMinutes": 5.9,
+  "image": null,
+  "preview": "previews/angle-lines.png",
+  "sha256": "39ada2123601ee203a5100736872930912d218fc31c8c98d49cf70e1932c431b"
+ },
  "fills/maze-fill.pes": {
   "title": "Maze fill (beyond PE-DESIGN)",
   "about": "One path of straight corridors and square turns that never crosses itself, 2 mm apart: straightness 70 % (default), 0 % and 95 % (top row), on a circle, another seed at 45°, and 3 mm spacing.",

@@ -337,7 +337,7 @@ fn kept(k: usize, n: usize, g0: f64, g1: f64, spacing: f64) -> impl Fn(f64) -> b
         while gap * f64::from(1u32 << m) < CROWDED * spacing && m < 30 {
             m += 1;
         }
-        k % (1usize << m) == 0
+        k.is_multiple_of(1usize << m)
     }
 }
 

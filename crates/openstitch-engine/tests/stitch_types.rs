@@ -1573,13 +1573,21 @@ fn setting_the_angle_turns_auto_direction_off() {
         json!({"x": 0, "y": 0, "width": 40, "height": 20, "fill": "Red"}),
     );
     let region = |s: &Session| s.design().objects[0].region.clone().expect("r");
-    run(&mut s, "object.setRegion", json!({"id": 1, "autoDirection": true}));
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "autoDirection": true}),
+    );
     assert!(region(&s).auto_direction);
     let auto = Compiler::default().compile(s.design());
     run(&mut s, "object.setRegion", json!({"id": 1, "angle": 30}));
     let r = region(&s);
     assert!(!r.auto_direction && r.angle == 30.0, "{r:?}");
-    assert_ne!(Compiler::default().compile(s.design()), auto, "the rows turn to 30°");
+    assert_ne!(
+        Compiler::default().compile(s.design()),
+        auto,
+        "the rows turn to 30°"
+    );
     // Both in one call: as given.
     run(
         &mut s,
