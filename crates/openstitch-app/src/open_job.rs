@@ -240,10 +240,7 @@ impl EditorApp {
         };
         job.cancel();
         self.close_tab_added_for(&job);
-        self.status = format!(
-            "Cancelled opening {}; the design is unchanged",
-            job.path.display()
-        );
+        self.status = openstitch_app::tf!("ui-status-cancelled-opening-the-design-is-unchanged", path = job.path.display());
         true
     }
 
@@ -288,10 +285,7 @@ impl EditorApp {
             }
         };
         if self.revision != job.revision {
-            self.status = format!(
-                "The design changed while {} was opening; nothing was replaced. Open it again",
-                job.path.display()
-            );
+            self.status = openstitch_app::tf!("ui-status-the-design-changed-while-was-opening", path = job.path.display());
             return;
         }
         if self.session.adopt_design(loaded.design) {

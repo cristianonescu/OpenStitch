@@ -228,7 +228,7 @@ impl EditorApp {
             p.revision = revision;
         }
         if let Err(e) = self.finish_preview(false) {
-            self.status = format!("Preview: {e}");
+            self.status = openstitch_app::tf!("ui-status-preview", e = e);
         }
         if !self.pickers.hovered {
             // Hover previews not shown yet are not wanted any more.
@@ -452,7 +452,7 @@ pub fn picker(
     {
         app.pickers.hovered = true;
         if let Err(e) = app.preview_request(&request(v), false, false) {
-            app.status = format!("Preview: {e}");
+            app.status = openstitch_app::tf!("ui-status-preview", e = e);
         }
     }
     if chosen.is_some() {

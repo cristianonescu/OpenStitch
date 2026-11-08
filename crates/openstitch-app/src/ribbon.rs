@@ -439,7 +439,7 @@ fn cut(app: &mut EditorApp) {
     let request = CommandRequest::delete(&app.selection);
     if app.execute(&request).is_some() {
         app.selection.clear();
-        app.status = format!("{n} objects cut");
+        app.status = openstitch_app::tf!("ui-status-objects-cut", n = n);
         put_on_clipboard(app, env);
     }
 }
@@ -448,7 +448,7 @@ fn cut(app: &mut EditorApp) {
 /// another window or after the originals are deleted.
 fn copy(app: &mut EditorApp) {
     if let Some(env) = Envelope::copy(app.session.design(), &app.selection) {
-        app.status = format!("{} objects copied", env.objects.len());
+        app.status = openstitch_app::tf!("ui-status-objects-copied", count = env.objects.len());
         put_on_clipboard(app, env);
     }
 }
@@ -472,7 +472,7 @@ fn paste(app: &mut EditorApp) {
     let r = env.paste_request(app.session.design());
     if let Some(result) = app.execute(&r) {
         app.selection = CommandRequest::created_ids(&result);
-        app.status = "Pasted".into();
+        app.status = openstitch_app::editor::ui_texts::t("ui-status-pasted").into();
     }
 }
 
@@ -1342,7 +1342,7 @@ fn layouts_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         {
             match app.ui.prefs.save_layout(&name) {
                 Ok(n) => {
-                    app.status = format!("Layout '{n}' saved");
+                    app.status = openstitch_app::tf!("ui-status-layout-saved", n = n);
                     app.ui.save_prefs();
                     name.clear();
                 }
@@ -1364,7 +1364,7 @@ fn reset_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         {
             if app.ui.prefs.reset_area(key).is_ok() {
                 app.ui.save_prefs();
-                app.status = format!("{label} preferences reset");
+                app.status = openstitch_app::tf!("ui-status-preferences-reset", label = label);
             }
             ui.close();
         }
@@ -1538,7 +1538,7 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         match crate::recovery_ui::discard(app, None) {
             Ok(v) => {
                 let n = v["discarded"].as_array().map_or(0, Vec::len);
-                app.status = format!("{n} recovery files deleted");
+                app.status = openstitch_app::tf!("ui-status-recovery-files-deleted", n = n);
             }
             Err(e) => app.status = e,
         }
@@ -1948,7 +1948,7 @@ fn application_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
                     if p.exists() {
                         app.guarded(Pending::Open(Some(p.clone())));
                     } else {
-                        app.status = format!("{} no longer exists", p.display());
+                        app.status = openstitch_app::tf!("ui-status-no-longer-exists", path = p.display());
                     }
                     ui.close();
                 }
