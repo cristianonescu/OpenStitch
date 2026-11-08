@@ -356,7 +356,11 @@ snap but refuse move, edit and delete; saved with the design) and `view.newGuide
 {ids}` (the box's edges and centre lines). Each is one undo step and answers the list.
 `ui.guides` reads them as the user sees them, each position from the ruler origin with its label
 ("+12.5 mm"), and acts as the pointer does: `{orientation, index}` selects, then `position` (typed
-as in Set Position…: `12.5`, `"12.5 mm"`, `"1/2\""`), `turn` or `delete`.
+as in Set Position…: `12.5`, `"12.5 mm"`, `"1/2\""`), `turn` or `delete`; `newGuide:
+{orientation, position}` is New Guide… from the ruler origin. `view.guideLayout {columns, rows,
+gutter, margin, clear}` (or `columnGutter`, `rowGutter`, `marginTop` … `marginRight`, all mm)
+is New Guide Layout…: a line per margin and the edges of each column and row. `ui.set
+guideColor "#rrggbb"` sets their colour.
 `ui.set language` (`en`, or `pseudo`, a test language that brackets every translated text) is
 Options ▸ Language (#555); the ribbon, menus, panes, dialogs, status messages and the printed
 worksheet are translated, and no real translation ships

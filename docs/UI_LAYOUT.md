@@ -83,9 +83,14 @@ Behaviour follows the guide's pages
   change) and hidden when Ruler or Guideline is off. A click selects a guideline (its marker,
   or the line with the Select tool, which also drags it); Delete removes it, Alt-click turns
   it, a double-click opens Set Position… (#799).
-- **Guides ▾** (#799): Lock Guides, Set Position…, Clear Selected Guide, Clear Guides, New
-  Guides From Selection (`view.lockGuides`, `view.editGuide`, `view.deleteGuide`,
-  `view.clearGuides`, `view.newGuidesFromSelection`).
+- **Guides ▾** (#799): New Guide…, New Guide Layout… (columns, rows, gutters, margins, with a
+  dashed preview), Set Position…, Clear Selected Guide, Lock Guides, Clear Guides, New Guides
+  From Selection (`view.newGuide`, `view.guideLayout`, `view.editGuide`, `view.deleteGuide`,
+  `view.lockGuides`, `view.clearGuides`, `view.newGuidesFromSelection`).
+- **Right-click** (#799): on a guideline or its ruler marker, Set Position…, Clear Selected
+  Guide, Lock Guides, Clear Guides; elsewhere on a ruler, units, ruler origin, Show guides, Snap
+  to guides, New Guide…, New Guide Layout…, Lock Guides, Clear Guides.
+- **Options ▾ ▸ Guide colour** (#799): the guidelines' colour (`ui.set guideColor`).
 - **Options ▾ ▸ Editing** (beyond PE-DESIGN, #474, #475): Nudge step (0.1 mm by default as in
   PE-DESIGN; Shift moves ten times as far), Nudge by the grid step while snapping (with Snap to
   Grid on, an arrow moves one grid step) and Click inside outlines selects them (off: the inside

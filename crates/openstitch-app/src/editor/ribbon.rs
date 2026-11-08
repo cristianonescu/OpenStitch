@@ -210,7 +210,7 @@ actions! {
     GridSpacing => "gridSpacing", "Grid Spacing", "Distance between grid lines.", None, None, true;
     Ruler => "ruler", "Ruler", "Show rulers along the work area.", None, None, true;
     Guideline => "guideline", "Guideline", "Click a ruler to add a guideline; drag its marker to move it, click × to delete. Saved with the design.", None, Some("guides.set"), true;
-    GuideOptions => "guideOptions", "Guides", "Lock Guides, Set Position…, Clear Selected Guide, Clear Guides and New Guides From Selection. Click a guideline to select it (Delete removes it), double-click it for Set Position…, Alt-click it to turn it.", None, Some("view.lockGuides"), true;
+    GuideOptions => "guideOptions", "Guides", "New Guide…, New Guide Layout…, Lock Guides, Set Position…, Clear Selected Guide, Clear Guides and New Guides From Selection; right-click a guideline or a ruler for its menu. Click a guideline to select it (Delete removes it), double-click it for Set Position…, Alt-click it to turn it.", None, Some("view.lockGuides"), true;
     // Contextual tabs.
     Font => "font", "Font", "Font of the selected text.", None, Some("object.setText"), true;
     TextSize => "textSize", "Text Size", "Size of the selected text.", None, Some("object.setText"), true;

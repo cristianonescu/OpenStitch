@@ -16,7 +16,6 @@ use openstitch_app::editor::{CommandRequest, Viewport};
 use openstitch_design::{Guides, ImageAdjust, Vec2, v2};
 use serde_json::{Value, json};
 
-const GUIDE: Color32 = Color32::from_rgb(0x00, 0x9e, 0xc8);
 const IMAGE_FRAME: Color32 = Color32::from_rgb(0xe5, 0x39, 0x35);
 /// Pointer distance (points) that picks a guideline marker or its ×.
 const PICK: f32 = 5.0;
@@ -44,6 +43,18 @@ pub struct ViewState {
     pub selected_guide: Option<(bool, usize)>,
     /// Set Position… (#799).
     pub guide_dialog: Option<GuideDialog>,
+    /// The right-click menu of a guideline or a ruler (#799).
+    pub guide_menu: Option<GuideMenu>,
+    /// New Guide… (#799).
+    pub new_guide: Option<NewGuideDialog>,
+    /// New Guide Layout… (#799).
+    pub guide_layout: Option<LayoutDialog>,
+}
+
+/// The guidelines' colour (Options ▸ Guide colour, #799).
+fn guide_colour(app: &EditorApp) -> Color32 {
+    let [r, g, b] = app.ui.prefs.guide_color;
+    Color32::from_rgb(r, g, b)
 }
 
 fn pos(p: Vec2) -> Pos2 {
@@ -99,9 +110,35 @@ pub fn draw_guides(app: &EditorApp, painter: &egui::Painter, rect: egui::Rect, v
     }
     let g = current_guides(app);
     let selected = selected_guide(app);
+    let colour = guide_colour(app);
+    // New Guide Layout…'s guidelines, dashed, while it is open (#799).
+    if let Some(Ok(l)) = app.workspace.view.guide_layout.as_ref().map(|d| d.layout(app)) {
+        let page = app.session.design().page;
+        if let Ok((xs, ys)) = l.lines(page.width, page.height) {
+            let s = Stroke::new(1.0, colour);
+            for x in xs {
+                let sx = vp.to_screen(v2(x, 0.0)).x as f32;
+                painter.extend(egui::Shape::dashed_line(
+                    &[Pos2::new(sx, rect.min.y), Pos2::new(sx, rect.max.y)],
+                    s,
+                    6.0,
+                    4.0,
+                ));
+            }
+            for y in ys {
+                let sy = vp.to_screen(v2(0.0, y)).y as f32;
+                painter.extend(egui::Shape::dashed_line(
+                    &[Pos2::new(rect.min.x, sy), Pos2::new(rect.max.x, sy)],
+                    s,
+                    6.0,
+                    4.0,
+                ));
+            }
+        }
+    }
     // The selected guideline drawn thicker (#799).
     let stroke = |vertical: bool, i: usize| {
-        Stroke::new(if selected == Some((vertical, i)) { 2.5 } else { 1.0 }, GUIDE)
+        Stroke::new(if selected == Some((vertical, i)) { 2.5 } else { 1.0 }, colour)
     };
     for (i, &x) in g.vertical.iter().enumerate() {
         let sx = vp.to_screen(v2(x, 0.0)).x as f32;
@@ -159,7 +196,7 @@ pub fn draw_guides(app: &EditorApp, painter: &egui::Painter, rect: egui::Rect, v
         let font = egui::FontId::monospace(11.0);
         let galley = painter.layout_no_wrap(text, font, Color32::WHITE);
         let r = align.anchor_size(p, galley.size()).expand(2.0);
-        painter.rect_filled(r, 2.0, GUIDE);
+        painter.rect_filled(r, 2.0, colour);
         painter.galley(r.min + egui::vec2(2.0, 2.0), galley, Color32::WHITE);
     }
 }
@@ -191,6 +228,7 @@ pub fn draw_guide_markers(
         return;
     }
     let g = current_guides(app);
+    let colour = guide_colour(app);
     let ruler = crate::theme::canvas(painter.ctx()).ruler_fg;
     let draw = |vertical: bool, at: f32| {
         let (m, x) = marker_points(rect, vertical, at);
@@ -207,7 +245,7 @@ pub fn draw_guide_markers(
                 m + egui::vec2(4.0, 0.0),
             ]
         };
-        painter.add(egui::Shape::convex_polygon(tri, GUIDE, Stroke::NONE));
+        painter.add(egui::Shape::convex_polygon(tri, colour, Stroke::NONE));
         if g.locked {
             return;
         }
@@ -268,6 +306,21 @@ pub fn guide_pointer(
     });
     let Some(at) = at else { return false };
     let model = vp.to_model(v2(f64::from(at.x), f64::from(at.y)));
+    if response.secondary_clicked()
+        && let Some(target) = menu_target(app, at, model, rect, vp)
+    {
+        if let MenuTarget::Guide(v, i) = target
+            && !app.session.design().guides.locked
+        {
+            app.workspace.view.selected_guide = Some((v, i));
+        }
+        app.workspace.view.guide_menu = Some(GuideMenu {
+            at,
+            target,
+            fresh: true,
+        });
+        return true;
+    }
     if let Some(mut d) = app.workspace.view.guide_drag {
         // A click without a move leaves the guideline where it is.
         let still = d.index.is_some()
@@ -385,26 +438,8 @@ fn canvas_press(app: &mut EditorApp, at: Pos2, model: Vec2, alt: bool, vp: &View
     use openstitch_app::editor::tools::Tool;
     let g = app.session.design().guides.clone();
     let pickable = guides_shown(app) && !g.locked && app.tools.tool() == Tool::Select;
-    let near = |list: &[f64], vertical: bool| {
-        list.iter()
-            .enumerate()
-            .map(|(i, &v)| {
-                let s = if vertical {
-                    vp.to_screen(v2(v, 0.0)).x as f32 - at.x
-                } else {
-                    vp.to_screen(v2(0.0, v)).y as f32 - at.y
-                };
-                (s.abs(), vertical, i)
-            })
-            .filter(|&(d, ..)| d <= PICK)
-            .min_by(|a, b| a.0.total_cmp(&b.0))
-    };
-    let hit = [near(&g.vertical, true), near(&g.horizontal, false)]
-        .into_iter()
-        .flatten()
-        .min_by(|a, b| a.0.total_cmp(&b.0))
-        .filter(|_| pickable);
-    let Some((_, vertical, i)) = hit else {
+    let hit = line_at(&g, at, vp).filter(|_| pickable);
+    let Some((vertical, i)) = hit else {
         app.workspace.view.selected_guide = None;
         return false;
     };
@@ -420,6 +455,424 @@ fn canvas_press(app: &mut EditorApp, at: Pos2, model: Vec2, alt: bool, vp: &View
         at: if vertical { g.vertical[i] } else { g.horizontal[i] },
     });
     true
+}
+
+/// The guideline whose line passes within [`PICK`] of `at` on the canvas, the nearest first.
+fn line_at(g: &Guides, at: Pos2, vp: &Viewport) -> Option<(bool, usize)> {
+    let near = |list: &[f64], vertical: bool| {
+        list.iter()
+            .enumerate()
+            .map(|(i, &v)| {
+                let s = if vertical {
+                    vp.to_screen(v2(v, 0.0)).x as f32 - at.x
+                } else {
+                    vp.to_screen(v2(0.0, v)).y as f32 - at.y
+                };
+                (s.abs(), vertical, i)
+            })
+            .filter(|&(d, ..)| d <= PICK)
+            .min_by(|a, b| a.0.total_cmp(&b.0))
+    };
+    [near(&g.vertical, true), near(&g.horizontal, false)]
+        .into_iter()
+        .flatten()
+        .min_by(|a, b| a.0.total_cmp(&b.0))
+        .map(|(_, v, i)| (v, i))
+}
+
+/// What a right-click at `at` opens (#799): a guideline's menu on its line or its ruler
+/// marker, the ruler menu elsewhere on a ruler (or its corner), nothing elsewhere.
+fn menu_target(
+    app: &EditorApp,
+    at: Pos2,
+    model: Vec2,
+    rect: egui::Rect,
+    vp: &Viewport,
+) -> Option<MenuTarget> {
+    let g = &app.session.design().guides;
+    let shown = guides_shown(app);
+    let in_top = at.y < rect.min.y + RULER;
+    let in_left = at.x < rect.min.x + RULER;
+    if in_top || in_left {
+        if shown && in_top != in_left {
+            let (list, here) = if in_top {
+                (&g.vertical, model.x)
+            } else {
+                (&g.horizontal, model.y)
+            };
+            let tolerance = f64::from(PICK) * vp.units_per_point();
+            if let Some(i) = guide_near(list, here, tolerance) {
+                return Some(MenuTarget::Guide(in_top, i));
+            }
+        }
+        return Some(MenuTarget::Ruler);
+    }
+    if !shown {
+        return None;
+    }
+    line_at(g, at, vp).map(|(v, i)| MenuTarget::Guide(v, i))
+}
+
+/// What a guideline right-click menu is for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MenuTarget {
+    /// A ruler or the corner between them.
+    Ruler,
+    /// Guideline (vertical?, index).
+    Guide(bool, usize),
+}
+
+/// An open guideline or ruler right-click menu (#799).
+pub struct GuideMenu {
+    at: Pos2,
+    pub target: MenuTarget,
+    /// Opened this frame: the click that opened it does not close it.
+    fresh: bool,
+}
+
+/// The right-click menu, until an entry is chosen, Esc or a click elsewhere.
+fn guide_menu_window(app: &mut EditorApp, ctx: &egui::Context) {
+    let Some(mut m) = app.workspace.view.guide_menu.take() else {
+        return;
+    };
+    let mut chosen = false;
+    let r = egui::Area::new(egui::Id::unique("guide-context-menu"))
+        .fixed_pos(m.at)
+        .order(egui::Order::Foreground)
+        .show(ctx, |ui| {
+            egui::Frame::menu(ui.style()).show(ui, |ui| {
+                ui.set_min_width(180.0);
+                chosen = match m.target {
+                    MenuTarget::Ruler => ruler_menu(app, ui),
+                    MenuTarget::Guide(v, i) => guide_entries(app, ui, Some((v, i))),
+                };
+            });
+        });
+    let (pressed, esc) = ctx.input(|i| (i.pointer.any_pressed(), i.key_pressed(egui::Key::Escape)));
+    let outside = pressed && !r.response.contains_pointer();
+    if !chosen && !esc && (m.fresh || !outside) {
+        m.fresh = false;
+        app.workspace.view.guide_menu = Some(m);
+    }
+}
+
+/// The ruler right-click menu (#799): units, ruler origin, show and snap to guidelines, New
+/// Guide…, New Guide Layout…, Lock Guides, Clear Guides. True when an entry was chosen.
+fn ruler_menu(app: &mut EditorApp, ui: &mut egui::Ui) -> bool {
+    use openstitch_app::editor::units::{RulerOrigin, Units};
+    let mut changed = false;
+    ui.label(egui::RichText::new(t("menu-units")).weak());
+    let u = &mut app.ui.prefs.units;
+    changed |= ui.radio_value(u, Units::Mm, t("menu-millimetres")).changed();
+    changed |= ui.radio_value(u, Units::Inch, t("menu-inches")).changed();
+    ui.label(egui::RichText::new(t("menu-ruler-origin")).weak());
+    let o = &mut app.ui.prefs.ruler_origin;
+    changed |= ui
+        .radio_value(o, RulerOrigin::Centre, t("menu-ruler-origin-centre"))
+        .changed();
+    changed |= ui
+        .radio_value(o, RulerOrigin::TopLeft, t("menu-ruler-origin-top-left"))
+        .changed();
+    ui.separator();
+    let mut shown = app.workspace.guides;
+    if ui.checkbox(&mut shown, t("ui-guide-show")).changed() {
+        app.workspace.guides = shown;
+        app.ui.prefs.editing.show_guides = shown;
+        changed = true;
+    }
+    changed |= ui
+        .checkbox(&mut app.ui.prefs.editing.snap_guides, t("menu-snap-to-guides"))
+        .changed();
+    if changed {
+        app.database.units = app.ui.prefs.units;
+        app.ui.save_prefs();
+    }
+    ui.separator();
+    let mut chosen = changed;
+    if ui.button(t("ui-guide-new")).clicked() {
+        open_new_guide(app);
+        chosen = true;
+    }
+    if ui.button(t("ui-guide-layout")).clicked() {
+        open_guide_layout(app);
+        chosen = true;
+    }
+    chosen | guide_entries(app, ui, None)
+}
+
+/// A guideline's right-click menu entries (`Some`), or the lock and clear entries alone
+/// (`None`): Set Position…, Clear Selected Guide, Lock Guides, Clear Guides. True when one was
+/// chosen.
+fn guide_entries(app: &mut EditorApp, ui: &mut egui::Ui, guide: Option<(bool, usize)>) -> bool {
+    let g = app.session.design().guides.clone();
+    let mut chosen = false;
+    if let Some((v, i)) = guide {
+        if ui
+            .add_enabled(!g.locked, egui::Button::new(t("ui-guide-set-position")))
+            .clicked()
+        {
+            open_guide_dialog(app, v, i);
+            chosen = true;
+        }
+        if ui
+            .add_enabled(!g.locked, egui::Button::new(t("ui-clear-selected-guide")))
+            .clicked()
+        {
+            app.workspace.view.selected_guide = Some((v, i));
+            delete_selected_guide(app);
+            chosen = true;
+        }
+        ui.separator();
+    }
+    let mut locked = g.locked;
+    if ui
+        .checkbox(&mut locked, t("ui-lock-guides"))
+        .on_hover_text(t("ui-lock-guides-tip"))
+        .changed()
+    {
+        app.execute(&CommandRequest::new("view.lockGuides", json!({ "locked": locked })));
+        chosen = true;
+    }
+    if ui
+        .add_enabled(!g.is_empty(), egui::Button::new(t("ui-clear-guides")))
+        .on_hover_text(t("ui-clear-guides-tip"))
+        .clicked()
+    {
+        app.workspace.view.selected_guide = None;
+        app.execute(&CommandRequest::new("view.clearGuides", json!({})));
+        chosen = true;
+    }
+    chosen
+}
+
+/// Guidelines shown, with the rulers they come out of.
+fn show_guides(app: &mut EditorApp) {
+    if !(app.workspace.guides && app.workspace.rulers) {
+        app.workspace.rulers = true;
+        app.workspace.guides = true;
+        app.ui.prefs.editing.show_guides = true;
+        app.ui.save_prefs();
+    }
+}
+
+/// The New Guide… dialog (#799).
+pub struct NewGuideDialog {
+    vertical: bool,
+    text: String,
+    error: Option<String>,
+}
+
+fn open_new_guide(app: &mut EditorApp) {
+    app.workspace.view.new_guide = Some(NewGuideDialog {
+        vertical: true,
+        text: "0".into(),
+        error: None,
+    });
+}
+
+/// New Guide…: a guideline at `text`, a length from the ruler origin in the chosen units (a
+/// unit typed with it wins), one undo step (`view.newGuide`); the guidelines are shown.
+pub fn new_guide_at(app: &mut EditorApp, vertical: bool, text: &str) -> Result<(), String> {
+    let mm = openstitch_app::editor::units::parse(text, app.ui.prefs.units)
+        .ok_or_else(|| t("ui-guide-position-invalid").to_string())?;
+    let zero = app.ruler_zero();
+    let at = mm + if vertical { zero.x } else { zero.y } / 10.0;
+    app.execute(&CommandRequest::new(
+        "view.newGuide",
+        json!({ "orientation": orientation(vertical), "position": at }),
+    ))
+    .ok_or_else(|| app.status.clone())?;
+    show_guides(app);
+    Ok(())
+}
+
+fn new_guide_window(app: &mut EditorApp, ctx: &egui::Context) {
+    let Some(mut d) = app.workspace.view.new_guide.take() else {
+        return;
+    };
+    let mut open = true;
+    let mut done = false;
+    egui::Window::new(t("ui-guide-new-title"))
+        .id(egui::Id::unique("window-new-guide"))
+        .collapsible(false)
+        .resizable(false)
+        .open(&mut open)
+        .show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.radio_value(&mut d.vertical, true, t("ui-guide-vertical"));
+                ui.radio_value(&mut d.vertical, false, t("ui-guide-horizontal"));
+            });
+            ui.label(t("ui-guide-position"));
+            let r = ui.horizontal(|ui| {
+                let r = ui.text_edit_singleline(&mut d.text);
+                ui.label(openstitch_app::editor::units::suffix(app.ui.prefs.units));
+                r
+            });
+            let enter = r.inner.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+            if let Some(e) = &d.error {
+                ui.colored_label(ui.visuals().error_fg_color, e);
+            }
+            ui.horizontal(|ui| {
+                if ui.button(t("ui-ok")).clicked() || enter {
+                    match new_guide_at(app, d.vertical, &d.text) {
+                        Ok(()) => done = true,
+                        Err(e) => d.error = Some(e),
+                    }
+                }
+                if ui.button(t("ui-cancel")).clicked() {
+                    done = true;
+                }
+            });
+        });
+    if open && !done {
+        app.workspace.view.new_guide = Some(d);
+    }
+}
+
+/// The New Guide Layout… dialog (#799): lengths as typed, in the chosen units.
+pub struct LayoutDialog {
+    pub columns: u32,
+    pub rows: u32,
+    pub column_gutter: String,
+    pub row_gutter: String,
+    /// Top, left, bottom, right.
+    pub margins: [String; 4],
+    pub clear: bool,
+    error: Option<String>,
+}
+
+impl LayoutDialog {
+    /// The layout it describes (0.1 mm), or the message for a length that is not one.
+    pub fn layout(&self, app: &EditorApp) -> Result<openstitch_design::GuideLayout, String> {
+        let u = app.ui.prefs.units;
+        let len = |s: &str| {
+            openstitch_app::editor::units::parse(s, u)
+                .filter(|v| *v >= 0.0)
+                .map(|v| v * 10.0)
+                .ok_or_else(|| t("ui-guide-position-invalid").to_string())
+        };
+        let [top, left, bottom, right] = &self.margins;
+        Ok(openstitch_design::GuideLayout {
+            columns: self.columns,
+            rows: self.rows,
+            column_gutter: len(&self.column_gutter)?,
+            row_gutter: len(&self.row_gutter)?,
+            margin_top: len(top)?,
+            margin_left: len(left)?,
+            margin_bottom: len(bottom)?,
+            margin_right: len(right)?,
+        })
+    }
+}
+
+fn open_guide_layout(app: &mut EditorApp) {
+    let zero = || "0".to_string();
+    app.workspace.view.guide_layout = Some(LayoutDialog {
+        columns: 2,
+        rows: 2,
+        column_gutter: zero(),
+        row_gutter: zero(),
+        margins: [zero(), zero(), zero(), zero()],
+        clear: false,
+        error: None,
+    });
+    show_guides(app);
+}
+
+/// New Guide Layout… applied: `view.guideLayout`, one undo step.
+pub fn apply_guide_layout(app: &mut EditorApp, d: &LayoutDialog) -> Result<(), String> {
+    let l = d.layout(app)?;
+    let page = app.session.design().page;
+    l.lines(page.width, page.height).map_err(str::to_string)?;
+    let mm = |v: f64| v / 10.0;
+    app.execute(&CommandRequest::new(
+        "view.guideLayout",
+        json!({
+            "columns": l.columns,
+            "rows": l.rows,
+            "columnGutter": mm(l.column_gutter),
+            "rowGutter": mm(l.row_gutter),
+            "marginTop": mm(l.margin_top),
+            "marginLeft": mm(l.margin_left),
+            "marginBottom": mm(l.margin_bottom),
+            "marginRight": mm(l.margin_right),
+            "clear": d.clear,
+        }),
+    ))
+    .map(|_| ())
+    .ok_or_else(|| app.status.clone())
+}
+
+fn guide_layout_window(app: &mut EditorApp, ctx: &egui::Context) {
+    let Some(mut d) = app.workspace.view.guide_layout.take() else {
+        return;
+    };
+    let mut open = true;
+    let mut done = false;
+    let unit = openstitch_app::editor::units::suffix(app.ui.prefs.units);
+    egui::Window::new(t("ui-guide-layout-title"))
+        .id(egui::Id::unique("window-guide-layout"))
+        .collapsible(false)
+        .resizable(false)
+        .open(&mut open)
+        .show(ctx, |ui| {
+            egui::Grid::new("guide-layout-grid").num_columns(3).show(ui, |ui| {
+                ui.label(t("ui-guide-columns"));
+                ui.add(egui::DragValue::new(&mut d.columns).range(0..=50));
+                ui.label("");
+                ui.end_row();
+                ui.label(t("ui-guide-column-gutter"));
+                ui.text_edit_singleline(&mut d.column_gutter);
+                ui.label(unit);
+                ui.end_row();
+                ui.label(t("ui-guide-rows"));
+                ui.add(egui::DragValue::new(&mut d.rows).range(0..=50));
+                ui.label("");
+                ui.end_row();
+                ui.label(t("ui-guide-row-gutter"));
+                ui.text_edit_singleline(&mut d.row_gutter);
+                ui.label(unit);
+                ui.end_row();
+                for (key, m) in [
+                    "ui-guide-margin-top",
+                    "ui-guide-margin-left",
+                    "ui-guide-margin-bottom",
+                    "ui-guide-margin-right",
+                ]
+                .into_iter()
+                .zip(d.margins.iter_mut())
+                {
+                    ui.label(t(key));
+                    ui.text_edit_singleline(m);
+                    ui.label(unit);
+                    ui.end_row();
+                }
+            });
+            ui.checkbox(&mut d.clear, t("ui-guide-clear-existing"));
+            // The preview is drawn on the canvas; a layout that does not fit says why.
+            let page = app.session.design().page;
+            let problem = match d.layout(app) {
+                Ok(l) => l.lines(page.width, page.height).err().map(str::to_string),
+                Err(e) => Some(e),
+            };
+            if let Some(e) = d.error.as_ref().or(problem.as_ref()) {
+                ui.colored_label(ui.visuals().error_fg_color, e);
+            }
+            ui.horizontal(|ui| {
+                if ui.button(t("ui-ok")).clicked() {
+                    match apply_guide_layout(app, &d) {
+                        Ok(()) => done = true,
+                        Err(e) => d.error = Some(e),
+                    }
+                }
+                if ui.button(t("ui-cancel")).clicked() {
+                    done = true;
+                }
+            });
+        });
+    if open && !done {
+        app.workspace.view.guide_layout = Some(d);
+    }
 }
 
 fn orientation(vertical: bool) -> &'static str {
@@ -550,17 +1003,16 @@ fn guide_window(app: &mut EditorApp, ctx: &egui::Context) {
     }
 }
 
-/// View ▸ Guides (#799): Lock Guides, Set Position…, Clear Selected Guide, Clear Guides,
-/// New Guides From Selection.
+/// View ▸ Guides (#799): New Guide…, New Guide Layout…, Set Position…, Clear Selected Guide,
+/// Lock Guides, Clear Guides, New Guides From Selection.
 pub fn guides_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
-    let g = app.session.design().guides.clone();
-    let mut locked = g.locked;
-    if ui
-        .checkbox(&mut locked, t("ui-lock-guides"))
-        .on_hover_text(t("ui-lock-guides-tip"))
-        .changed()
-    {
-        app.execute(&CommandRequest::new("view.lockGuides", json!({ "locked": locked })));
+    if ui.button(t("ui-guide-new")).clicked() {
+        open_new_guide(app);
+        ui.close();
+    }
+    if ui.button(t("ui-guide-layout")).clicked() {
+        open_guide_layout(app);
+        ui.close();
     }
     ui.separator();
     let selected = selected_guide(app);
@@ -579,13 +1031,7 @@ pub fn guides_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         delete_selected_guide(app);
         ui.close();
     }
-    if ui
-        .add_enabled(!g.is_empty(), egui::Button::new(t("ui-clear-guides")))
-        .on_hover_text(t("ui-clear-guides-tip"))
-        .clicked()
-    {
-        app.workspace.view.selected_guide = None;
-        app.execute(&CommandRequest::new("view.clearGuides", json!({})));
+    if guide_entries(app, ui, None) {
         ui.close();
     }
     if ui
@@ -647,6 +1093,19 @@ pub fn guides_command(app: &mut EditorApp, params: Option<&Value>) -> Result<Val
         app.workspace.guides = true;
         app.workspace.view.selected_guide = Some((vertical, index));
     }
+    if let Some(n) = get("newGuide") {
+        let vertical = match n.get("orientation").and_then(Value::as_str) {
+            Some("vertical") => true,
+            Some("horizontal") => false,
+            _ => return Err("newGuide.orientation must be vertical or horizontal".into()),
+        };
+        let text = match n.get("position") {
+            Some(Value::String(s)) => s.clone(),
+            Some(Value::Number(x)) => x.to_string(),
+            _ => return Err("newGuide.position is a length from the ruler origin".into()),
+        };
+        new_guide_at(app, vertical, &text)?;
+    }
     let acts = ["position", "turn", "delete"].iter().any(|k| get(k).is_some());
     if acts {
         let (v, i) = selected_guide(app).ok_or("select a guideline first (orientation, index)")?;
@@ -689,6 +1148,11 @@ fn guides_state(app: &EditorApp) -> Value {
         "snapping": app.ui.prefs.editing.snap_guides && guides_shown(app),
         "origin": app.ui.prefs.ruler_origin.key(),
         "selected": selected_guide(app).map(|(v, i)| json!({ "orientation": orientation(v), "index": i })),
+        "colour": openstitch_app::editor::prefs::hex_color(app.ui.prefs.guide_color),
+        "menu": app.workspace.view.guide_menu.as_ref().map(|m| match m.target {
+            MenuTarget::Ruler => json!({ "for": "ruler" }),
+            MenuTarget::Guide(v, i) => json!({ "for": "guide", "orientation": orientation(v), "index": i }),
+        }),
         "dialog": app.workspace.view.guide_dialog.as_ref().map(|d| json!({ "orientation": orientation(d.vertical), "index": d.index, "text": d.text, "error": d.error })),
         "vertical": list(&g.vertical, zero.x),
         "horizontal": list(&g.horizontal, zero.y),
@@ -993,6 +1457,9 @@ fn modify_image_window(app: &mut EditorApp, ctx: &egui::Context) {
 // MARK: windows
 
 pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
+    guide_menu_window(app, ctx);
+    new_guide_window(app, ctx);
+    guide_layout_window(app, ctx);
     guide_window(app, ctx);
     realistic_window(app, ctx);
     modify_image_window(app, ctx);
@@ -1694,5 +2161,99 @@ mod guide_tests {
         assert_eq!(guides(&app).0.len(), 3);
         assert_eq!(guides(&app).1.len(), 3);
         assert!(app.workspace.guides && app.workspace.rulers);
+    }
+
+    fn right_click(ctx: &egui::Context, app: &mut EditorApp, at: Pos2) {
+        let b = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Secondary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        frame(ctx, app, vec![egui::Event::PointerMoved(at)]);
+        frame(ctx, app, vec![b(true)]);
+        frame(ctx, app, vec![b(false)]);
+    }
+
+    /// #799: a right-click on a guideline (its line or its ruler marker) opens its menu and
+    /// selects it; on a ruler elsewhere, the ruler menu; on the empty canvas, nothing.
+    #[test]
+    fn right_clicks_open_the_guide_and_ruler_menus() {
+        let ctx = egui::Context::default();
+        let mut app = with_guides(&[150.0], &[100.0]);
+        right_click(&ctx, &mut app, Pos2::new(201.0, 220.0));
+        let target = app.workspace.view.guide_menu.as_ref().map(|m| m.target);
+        assert_eq!(target, Some(MenuTarget::Guide(true, 0)));
+        assert_eq!(selected_guide(&app), Some((true, 0)));
+        right_click(&ctx, &mut app, Pos2::new(8.0, 151.0));
+        let target = app.workspace.view.guide_menu.as_ref().map(|m| m.target);
+        assert_eq!(target, Some(MenuTarget::Guide(false, 0)), "its marker");
+        right_click(&ctx, &mut app, Pos2::new(320.0, 8.0));
+        let target = app.workspace.view.guide_menu.as_ref().map(|m| m.target);
+        assert_eq!(target, Some(MenuTarget::Ruler));
+        app.workspace.view.guide_menu = None;
+        right_click(&ctx, &mut app, Pos2::new(320.0, 250.0));
+        assert!(app.workspace.view.guide_menu.is_none());
+        let s = guides_command(&mut app, None).expect("ui.guides");
+        assert!(s["menu"].is_null());
+    }
+
+    /// #799: New Guide… places a guideline at a length from the ruler origin (a unit typed
+    /// with it wins), shows the guidelines, and refuses what is not a length.
+    #[test]
+    fn new_guide_types_a_position_from_the_ruler_origin() {
+        let mut app = EditorApp::new(Launch::default());
+        app.workspace.guides = false;
+        let zero = app.ruler_zero();
+        new_guide_at(&mut app, false, "-1 cm").expect("new guide");
+        assert_eq!(guides(&app).1, vec![zero.y - 100.0]);
+        assert!(app.workspace.guides);
+        assert!(new_guide_at(&mut app, true, "left").is_err());
+        let s = guides_command(
+            &mut app,
+            Some(&json!({ "newGuide": { "orientation": "vertical", "position": "5" } })),
+        )
+        .expect("ui.guides newGuide");
+        assert_eq!(s["vertical"][0]["position"], json!(5.0));
+        app.undo();
+        assert!(guides(&app).0.is_empty(), "one undo step");
+    }
+
+    /// #799: New Guide Layout…'s fields (in the chosen units) make the same guidelines as
+    /// `view.guideLayout`, one undo step; a layout that does not fit says why.
+    #[test]
+    fn the_guide_layout_dialog_applies_its_layout() {
+        let mut app = with_guides(&[10.0], &[]);
+        open_guide_layout(&mut app);
+        let mut d = app.workspace.view.guide_layout.take().expect("open");
+        d.columns = 3;
+        d.rows = 0;
+        d.margins = ["5".into(), "5".into(), "5".into(), "5".into()];
+        d.clear = true;
+        let page = app.session.design().page;
+        let (xs, ys) = d.layout(&app).expect("layout").lines(page.width, page.height).expect("fits");
+        apply_guide_layout(&mut app, &d).expect("apply");
+        assert_eq!(guides(&app), (xs.clone(), ys));
+        assert_eq!(xs.len(), 4, "three columns without gutters share their edges: {xs:?}");
+        app.undo();
+        assert_eq!(guides(&app).0, vec![10.0]);
+        d.margins[1] = "five".into();
+        assert!(apply_guide_layout(&mut app, &d).is_err());
+        d.margins[1] = "5000".into();
+        assert!(apply_guide_layout(&mut app, &d).is_err(), "no room");
+    }
+
+    /// #799: the guide colour is an Options setting through `ui.set guideColor`.
+    #[test]
+    fn the_guide_colour_is_set_through_ui_set() {
+        let mut app = EditorApp::new(Launch::default());
+        app.ui_command("ui.set", Some(&json!({ "name": "guideColor", "value": "#ff0000" })))
+            .expect("set");
+        assert_eq!(guide_colour(&app), Color32::from_rgb(255, 0, 0));
+        assert!(
+            app.ui_command("ui.set", Some(&json!({ "name": "guideColor", "value": "red" })))
+                .is_err()
+        );
+        assert_eq!(guides_command(&mut app, None).expect("ui.guides")["colour"], "#ff0000");
     }
 }

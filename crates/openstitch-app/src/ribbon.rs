@@ -1591,6 +1591,13 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         )
         .on_hover_text(t("menu-snap-to-guides-tip"))
         .changed();
+    ui.horizontal(|ui| {
+        ui.label(t("menu-guide-colour"));
+        changed |= ui
+            .color_edit_button_srgb(&mut app.ui.prefs.guide_color)
+            .on_hover_text(t("menu-guide-colour-tip"))
+            .changed();
+    });
     // Where the rulers and positions measure from (#799).
     ui.label(RichText::new(t("menu-ruler-origin")).weak());
     ui.horizontal(|ui| {
