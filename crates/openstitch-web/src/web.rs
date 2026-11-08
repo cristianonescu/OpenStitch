@@ -100,6 +100,11 @@ pub async fn start(canvas_id: String) -> Result<(), JsValue> {
                     read: read_prefs,
                     write: write_prefs,
                 });
+                // And the user settings (thread charts, My Threads, the default chart…), #829.
+                openstitch_app::platform::set_user_store(openstitch_engine::session::UserStore {
+                    read: read_user,
+                    write: write_user,
+                });
                 let launch = Launch {
                     no_splash: true,
                     ..Launch::default()
@@ -131,6 +136,30 @@ fn write_prefs(text: &str) {
     {
         web_sys::console::warn_1(&JsValue::from_str(
             "preferences not saved: storage is full or refused",
+        ));
+    }
+}
+
+/// The key the user settings (the desktop's `user.json`) have in localStorage (#829).
+const USER_KEY: &str = "openstitch.user";
+
+fn read_user() -> Option<Vec<u8>> {
+    storage()?
+        .get_item(USER_KEY)
+        .ok()
+        .flatten()
+        .map(String::into_bytes)
+}
+
+fn write_user(bytes: &[u8]) {
+    let Ok(text) = std::str::from_utf8(bytes) else {
+        return;
+    };
+    if let Some(s) = storage()
+        && s.set_item(USER_KEY, text).is_err()
+    {
+        web_sys::console::warn_1(&JsValue::from_str(
+            "thread charts and settings not saved: storage is full or refused",
         ));
     }
 }
