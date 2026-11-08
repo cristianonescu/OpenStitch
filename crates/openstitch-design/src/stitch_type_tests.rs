@@ -155,6 +155,71 @@ fn motif_groups_free_ends_and_motifs_in_turn() {
     );
 }
 
+/// #544: motifs in turn come in order (peak, heart, peak, heart…, each copy where the plan puts
+/// it), and with mirror-alternate every other copy is on the other side of the line.
+#[test]
+fn motifs_in_turn_alternate_in_order_and_mirror_alternate_flips_every_other() {
+    let peak = patterns::find(PatternKind::Motif, "peak").expect("peak");
+    let heart = patterns::find(PatternKind::Motif, "heart").expect("heart");
+    let m = MotifLine {
+        pattern: peak,
+        width: 40.0,
+        height: 30.0,
+        gap: 10.0,
+        pitch: 20.0,
+        arrange: Arrange::Normal,
+    };
+    let plan = lines::MotifPlan {
+        groups: &[],
+        free_start: 0.0,
+        free_end: 0.0,
+        patterns: vec![peak, heart],
+    };
+    // Each copy k sits on x in [50k, 50k + 40]: which motif it is (a heart reaches past
+    // 2.9 mm, a peak tops at 2.7 mm) and on which side its farthest point lies.
+    let copies = |run: &[Vec2]| -> Vec<(&'static str, f64)> {
+        (0..10)
+            .map(|k| {
+                let (a, b) = (50.0 * k as f64 + 1.0, 50.0 * k as f64 + 39.0);
+                let far = run
+                    .iter()
+                    .filter(|p| p.x > a && p.x < b)
+                    .max_by(|p, q| p.y.abs().total_cmp(&q.y.abs()))
+                    .expect("a copy");
+                let kind = if far.y.abs() > 29.0 { "heart" } else { "peak" };
+                (kind, far.y.signum())
+            })
+            .collect()
+    };
+    let turn = copies(&lines::motif_planned(&hline(500.0), &m, &plan));
+    let kinds: Vec<&str> = turn.iter().map(|c| c.0).collect();
+    assert_eq!(
+        kinds,
+        [
+            "peak", "heart", "peak", "heart", "peak", "heart", "peak", "heart", "peak", "heart"
+        ]
+    );
+    assert!(
+        turn.iter().all(|c| c.1 == turn[0].1),
+        "all on one side: {turn:?}"
+    );
+    // Mirror-alternate: the same order, every other copy on the other side.
+    let alternate = MotifLine {
+        arrange: Arrange::Alternate,
+        ..m
+    };
+    let flipped = copies(&lines::motif_planned(&hline(500.0), &alternate, &plan));
+    assert_eq!(flipped.iter().map(|c| c.0).collect::<Vec<_>>(), kinds);
+    for (k, c) in flipped.iter().enumerate() {
+        let want = if k % 2 == 0 {
+            flipped[0].1
+        } else {
+            -flipped[0].1
+        };
+        assert_eq!(c.1, want, "copy {k}: {flipped:?}");
+    }
+}
+
 #[test]
 fn motif_line_repeats_inside_its_band_with_short_stitches() {
     let pattern = patterns::find(PatternKind::Motif, "peak").expect("peak");
