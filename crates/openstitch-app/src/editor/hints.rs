@@ -76,6 +76,10 @@ pub fn table(tool: Tool) -> (&'static str, [Option<&'static str>; 3]) {
             "Click the points of a cut line across the objects · double-click or Return cuts · Esc leaves the Knife",
             [None, FREE, None],
         ),
+        Tool::Gradient => (
+            "Drag (or click twice) from where the selected gradient starts to where it ends · Shift: 15° steps · Esc leaves the Gradient tool",
+            [None, FREE, None],
+        ),
         Tool::ShapeBuilder => (
             "Drag across the pieces of overlapping shapes to merge them · Esc cancels",
             [

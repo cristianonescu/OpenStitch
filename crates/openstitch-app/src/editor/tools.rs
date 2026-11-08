@@ -13,6 +13,7 @@ use std::collections::BTreeSet;
 pub mod builder;
 pub mod characters;
 pub mod continuation;
+pub mod gradient;
 pub mod keyboard;
 pub mod knife;
 pub mod needles;
@@ -56,10 +57,12 @@ pub enum Tool {
     Knife,
     /// Shape Builder: drag across overlapping shapes' pieces to merge (Alt: remove) them (#497).
     ShapeBuilder,
+    /// Gradient: drag (or click twice) where the selected gradient fills start and end (#532).
+    Gradient,
 }
 
 impl Tool {
-    pub const ALL: [Tool; 16] = [
+    pub const ALL: [Tool; 17] = [
         Tool::Select,
         Tool::Point,
         Tool::Rectangle,
@@ -76,6 +79,7 @@ impl Tool {
         Tool::Skeleton,
         Tool::Knife,
         Tool::ShapeBuilder,
+        Tool::Gradient,
     ];
 
     pub fn label(self) -> &'static str {
@@ -96,6 +100,7 @@ impl Tool {
             Tool::Skeleton => "Skeleton",
             Tool::Knife => "Knife",
             Tool::ShapeBuilder => "ShapeBuilder",
+            Tool::Gradient => "Gradient",
         }
     }
 
@@ -616,6 +621,7 @@ impl ToolController {
             Tool::Skeleton => self.skeleton_tool(e, ctx),
             Tool::Knife => self.knife_tool(e, ctx),
             Tool::ShapeBuilder => self.builder_tool(e, ctx),
+            Tool::Gradient => self.gradient_tool(e, ctx),
         }
     }
 

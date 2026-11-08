@@ -1419,3 +1419,56 @@ fn gradation_shapes_go_through_the_command() {
     let help = run(&mut s, "commands.list", json!({})).to_string();
     assert!(help.contains("gradationShape"));
 }
+
+/// The Gradient tool's command (#532): `gradientFrom` / `gradientTo` move a gradient's start
+/// and end on every object given, in one undo step; one without the other is refused.
+#[test]
+fn gradient_start_and_end_move_with_the_command() {
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 0, "y": 0, "width": 40, "height": 20, "fill": "Blue"}),
+    );
+    let out = run(
+        &mut s,
+        "shape.gradient",
+        json!({"id": 1, "threads": ["Blue", "White"]}),
+    );
+    let ids = out["ids"].clone();
+    let before = s.design().clone();
+    let first = Compiler::default().compile(s.design());
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"ids": ids, "gradientFrom": [20, 0], "gradientTo": [20, 20]}),
+    );
+    for o in &s.design().objects {
+        let g = o
+            .region
+            .as_ref()
+            .and_then(|r| r.gradient.as_ref())
+            .expect("g");
+        assert_eq!(
+            (g.from.x, g.from.y, g.to.x, g.to.y),
+            (200.0, 0.0, 200.0, 200.0)
+        );
+    }
+    assert_ne!(
+        Compiler::default().compile(s.design()),
+        first,
+        "the colours turn"
+    );
+    run(&mut s, "history.undo", json!({}));
+    assert_eq!(s.design(), &before);
+    let mid = s.design().clone();
+    for bad in [
+        json!({"ids": ids, "gradientFrom": [20, 0]}),
+        json!({"ids": ids, "gradientFrom": [20, 0], "gradientTo": [20, 0]}),
+        json!({"ids": ids, "gradientFrom": "top", "gradientTo": [20, 20]}),
+    ] {
+        assert!(s.execute("object.setRegion", Some(&bad)).is_err(), "{bad}");
+        assert_eq!(s.design(), &mid);
+    }
+}
