@@ -264,8 +264,9 @@ feature is done and the rest is under [Planned](#planned).
 - (+) **Hoops of other brands:** Baby Lock, Bernina, Elna, Husqvarna Viking, Janome, Pfaff and
   Singer, plus round commercial hoops, each from the maker's published sizes ([#514]).
 - **Rulers, grid and guides:** rulers that count from the page's centre or its top-left corner
-  ([#799]), snap to grid, guidelines dragged out of the rulers, the measure tool (distance and
-  angle) and the Reference window to jump around a large design.
+  ([#799]), snap to grid, guidelines dragged out of the rulers (shown and snapped to by default,
+  with their distance from 0 while you drag them), the measure tool (distance and angle) and the
+  Reference window to jump around a large design.
 - (+) **Millimetres or inches** everywhere in the editor, from one setting ([#519]).
 - (+) **Zoom box and true real size:** drag a box to zoom, and calibrate 100 % to your monitor
   with a ruler ([#518]).
@@ -418,6 +419,9 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
 - (+) **Colour blends and gradient fills:** a fill fades from one thread into another, or through up
   to 8 colours, linear or radial, sewn as one even layer with rows, ordered, noise or band
   dithering ([#532]).
+- (+) **Gradation shapes and SVG gradients as blends:** convex, concave, centre, edge and wave density
+  profiles beside PE-DESIGN's straight gradation, and SVG gradients imported as gradient fills
+  ([#532]).
 - **Curved sewing direction** (round fill) for fill, programmable fill, piping and motif fill
   ([#471]).
 - **Programmable fill and motif fill** from OpenStitch's own pattern library, (+) with long gaps

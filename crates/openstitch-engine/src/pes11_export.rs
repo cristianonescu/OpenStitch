@@ -587,6 +587,14 @@ fn curve_side(pts: &[(f64, f64)]) -> Vec<Vertex> {
 }
 
 fn region(id: u64, r: &RegionSewing, s: &mut Shape, table: &mut Vec<Thread>) -> Result<(), String> {
+    if r.gradation
+        .is_some_and(|g| g.shape != openstitch_design::GradationShape::Linear)
+    {
+        // PE-DESIGN's gradation is the straight line (#532).
+        return Err(format!(
+            "object {id}: a gradation shape other than linear is not mapped in PES 0110 (use version 6)"
+        ));
+    }
     if r.gradient.is_some() {
         // PE-DESIGN would sew every colour as a whole fill (#532).
         return Err(format!(
@@ -1589,6 +1597,23 @@ mod tests {
         ));
         let err = objects(&grad).expect_err("gradient fills are not mapped");
         assert!(err.contains("gradient fill"), "{err}");
+        // A gradation shape other than linear (#532) too; linear writes as before.
+        let mut shaped = Design::new("t", openstitch_design::DesignPage::default());
+        let mut fill = RegionSewing::new(RegionType::Fill, red());
+        fill.gradation = Some(openstitch_design::Gradation {
+            shape: openstitch_design::GradationShape::Centre,
+            ..openstitch_design::Gradation::PE_DEFAULT
+        });
+        shaped.add(DesignObject::shape(
+            vec![Contour::rectangle(0.0, 0.0, 200.0, 200.0)],
+            Some(fill.clone()),
+            None,
+        ));
+        let err = objects(&shaped).expect_err("gradation shapes are not mapped");
+        assert!(err.contains("gradation shape"), "{err}");
+        fill.gradation = Some(openstitch_design::Gradation::PE_DEFAULT);
+        shaped.objects[0].region = Some(fill);
+        assert!(objects(&shaped).is_ok());
 
         let mut two = design.clone();
         two.add(DesignObject::shape(

@@ -659,6 +659,17 @@ pub fn region_controls_with(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> 
                         1.0,
                         "",
                     ));
+                    // Named density profiles (#532, beyond PE-DESIGN).
+                    let shapes: Vec<(&str, &str)> = openstitch_design::GradationShape::ALL
+                        .iter()
+                        .map(|s| (s.id(), s.label()))
+                        .collect();
+                    v.push(choice(
+                        "Gradation shape",
+                        "gradationShape",
+                        g.shape.id(),
+                        &shapes,
+                    ));
                 }
                 None => {}
             }

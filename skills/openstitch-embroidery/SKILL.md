@@ -42,6 +42,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   curve}` goes through several. They return the new objects' `ids` (one per colour, grouped).
   Change `gradientDither` / `gradientCurve` with `object.setRegion` on all of those ids together.
   PES 0110 refuses them; save PES version 6.
+- Gradation shapes (beyond PE-DESIGN): with `gradationPattern` on, `object.setRegion`
+  `gradationShape` `convex` | `concave` | `centre` | `edges` | `wave` (`linear` is PE-DESIGN's).
+  PES 0110 refuses the others. `import.svg` with `gradients: "blend"` brings SVG gradients in as
+  gradient fills (one fill per stop, grouped).
 - A plain fill's look changes with `object.setRegion` `texture` (`smooth`, PE-DESIGN's default,
   or OpenStitch's `ribs`, `diagonal`, `blocks`, `waves`, `zigzag`, `chevron`, `scallops`, ...):
   same shape, density and stitch count, different needle-hole pattern.
@@ -338,6 +342,9 @@ types, fill patterns and motifs as pictures in the Sewing Attributes pane.
 position and the precision bar's X and Y count from: the Design Page's centre (negative left and
 up) or its top-left corner. Commands always take page coordinates from the top-left, whatever
 the rulers show.
+Guidelines (`guides.set`, `guides.list`, page coordinates) show and snap by default:
+`ui.set guides` shows or hides them and `ui.set snapToGuides` turns snapping a dragged selection
+to them on or off; both are remembered.
 `ui.set language` (`en`, or `pseudo`, a test language that brackets every translated text) is
 Options ▸ Language (#555); the ribbon, menus, panes, dialogs, status messages and the printed
 worksheet are translated, and no real translation ships

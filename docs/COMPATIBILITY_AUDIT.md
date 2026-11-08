@@ -3424,3 +3424,13 @@ the design and every command keep page coordinates from the top-left. PE-DESIGN 
 rulers (captured black-box, recorded on #799) also put 0 at the page centre and count up both
 ways without a sign (… 20 10 0 10 20 …): OpenStitch's ruler labels are unsigned the same way,
 while the cursor position, the precision bar and the guide labels keep their sign.
+
+### Guidelines on by default, dragged from the rulers, snapped to, 2026-11-08 (#799 part 2a)
+
+At the owner's request guidelines are shown by default and a dragged selection snaps to them
+(Options ▸ Snap to guides), both remembered; existing users get them on (neither was saved
+before). A guideline is dragged out of a ruler even while they are hidden, which shows them, and
+dropped onto either ruler or off the canvas it is removed. While dragged or hovered it shows its
+signed distance from the ruler origin in the chosen units (one decimal in mm, three in inches).
+Selecting, Delete, the guide menu, Lock and Clear Guides, Set Position… and the ruler menu follow
+in part 2b and part 3.

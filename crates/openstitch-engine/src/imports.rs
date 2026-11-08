@@ -52,6 +52,18 @@ pub struct SvgShape {
     /// The stroke's width in 0.1 mm (its `stroke-width` scaled by its transform), if stroked:
     /// a satin line's width with the stitch settings in names (#701).
     pub stroke_width: Option<f64>,
+    /// With `gradients: "blend"`: the fill's gradient, sewn as a colour blend (#532).
+    pub blend: Option<SvgBlend>,
+}
+
+/// An SVG gradient fill as a colour blend or gradient fill (#532): its axis (radial: the
+/// centre and a point on the outer circle) in 0.1 mm, and its stops (at most 8).
+#[derive(Clone, Debug, PartialEq)]
+pub struct SvgBlend {
+    pub radial: bool,
+    pub from: Vec2,
+    pub to: Vec2,
+    pub stops: Vec<(f64, Thread)>,
 }
 
 /// Why an SVG could not be imported.
@@ -132,6 +144,9 @@ pub enum Gradients {
     /// That many fills (2–8), bands along a linear gradient or rings of a radial one, each in
     /// the gradient's colour at its middle.
     Bands(usize),
+    /// A colour blend or gradient fill (#532, beyond PE-DESIGN): one fill per stop (at most
+    /// 8) on one shared set of rows, along the gradient's own axis.
+    Blend,
 }
 
 /// Options of an SVG import.
@@ -469,6 +484,50 @@ impl Affine {
     }
 }
 
+/// A gradient paint as a blend (#532): its axis in 0.1 mm and up to 8 stops, picked evenly
+/// when it has more; `None` for a solid paint or a gradient without length.
+fn gradient_blend(paint: &usvg::Paint, path_ts: &usvg::Transform) -> Option<SvgBlend> {
+    let (stops, gts, radial, a, b) = match paint {
+        usvg::Paint::LinearGradient(g) => (
+            g.stops(),
+            g.transform(),
+            false,
+            (f64::from(g.x1()), f64::from(g.y1())),
+            (f64::from(g.x2()), f64::from(g.y2())),
+        ),
+        usvg::Paint::RadialGradient(g) => (
+            g.stops(),
+            g.transform(),
+            true,
+            (f64::from(g.cx()), f64::from(g.cy())),
+            (
+                f64::from(g.cx()) + f64::from(g.r().get()),
+                f64::from(g.cy()),
+            ),
+        ),
+        _ => return None,
+    };
+    if stops.len() < 2 {
+        return None;
+    }
+    let t = Affine::of(&path_ts.pre_concat(gts));
+    let (from, to) = (t.apply(a.0, a.1), t.apply(b.0, b.1));
+    if from.distance(to) < 1.0 {
+        return None;
+    }
+    let n = stops.len().min(crate::gradient_cmds::MAX_STOPS);
+    let picked: Vec<(f64, Thread)> = (0..n)
+        .map(|k| &stops[k * (stops.len() - 1) / (n - 1)])
+        .map(|s| (f64::from(s.offset().get()), rgb_thread(s.color())))
+        .collect();
+    Some(SvgBlend {
+        radial,
+        from,
+        to,
+        stops: picked,
+    })
+}
+
 /// A gradient fill as `n` bands: along a linear gradient's axis, or rings around a radial
 /// gradient's centre (its focal point is not used). Each band is the shape cut to the part
 /// where the gradient runs through that band, in the gradient's colour at the band's middle;
@@ -761,6 +820,12 @@ impl Walk<'_> {
             };
             fills = bands.unwrap_or_else(|| vec![(contours.clone(), paint_thread(f.paint()))]);
         }
+        let blend = match (self.opts.gradients, fill) {
+            (Gradients::Blend, Some(f)) if closed && ctx.clip.is_none() => {
+                gradient_blend(f.paint(), &ts)
+            }
+            _ => None,
+        };
         let stroke_thread = stroke.map(|s| paint_thread(s.paint()));
         let Some(clip) = ctx.clip.clone() else {
             // Not clipped: one shape as before, or the bands and then the stroke.
@@ -769,6 +834,7 @@ impl Walk<'_> {
                     contours,
                     fill: fills.pop().map(|f| f.1),
                     stroke: stroke_thread,
+                    blend,
                     ..SvgShape::default()
                 });
             }
@@ -975,8 +1041,8 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
                 ),
                 opt(
                     "gradients",
-                    "\"one\" | \"bands\"",
-                    "A gradient fill as one colour (its colour half way along; default) or as bands of its colours",
+                    "\"one\" | \"bands\" | \"blend\"",
+                    "A gradient fill as one colour (its colour half way along; default), as bands of its colours, or (beyond PE-DESIGN, #532) as a colour blend: one fill per stop (up to 8) on one shared set of rows along the gradient's own axis, grouped (see shape.gradient). Clipped shapes keep one colour",
                 ),
                 opt(
                     "bands",
@@ -999,7 +1065,12 @@ pub(crate) fn commands() -> Vec<CommandSpec> {
                 let gradients = match p.string("gradients", Some("one"))?.as_str() {
                     "one" => Gradients::OneColour,
                     "bands" => Gradients::Bands(p.int("bands", Some(3), 2, 8)? as usize),
-                    _ => return Err(p.invalid("gradients", "must be \"one\" or \"bands\"")),
+                    "blend" => Gradients::Blend,
+                    _ => {
+                        return Err(
+                            p.invalid("gradients", "must be \"one\", \"bands\" or \"blend\"")
+                        );
+                    }
                 };
                 let opts = SvgOptions {
                     gradients,
@@ -1089,6 +1160,9 @@ fn import_shapes(
             for t in [&mut shape.fill, &mut shape.stroke].into_iter().flatten() {
                 *t = openstitch_core::nearest_brother_thread(t);
             }
+            for (_, t) in shape.blend.iter_mut().flat_map(|b| b.stops.iter_mut()) {
+                *t = openstitch_core::nearest_brother_thread(t);
+            }
         }
     }
     let Some(b) = bounds(&shapes) else {
@@ -1127,6 +1201,35 @@ fn place(s: &mut EngineState, p: &Params, shapes: Vec<SvgShape>, b: Rect) -> cra
         let contours = shape.contours.iter().map(|c| c.transformed(&t)).collect();
         let mut object = DesignObject::shape(contours, region, line);
         object.group = group;
+        // A gradient imported as a blend (#532): one fill per stop, the stroke on the last.
+        if let Some(b) = shape.blend.filter(|b| closed && b.stops.len() >= 2) {
+            let blend_group = group.or_else(|| Some(s.design.new_group_id()));
+            let stroke = object.line.take();
+            let threads: Vec<Thread> = b.stops.iter().map(|(_, t)| t.clone()).collect();
+            let template = openstitch_design::Gradient {
+                kind: if b.radial {
+                    openstitch_design::GradientKind::Radial
+                } else {
+                    openstitch_design::GradientKind::Linear
+                },
+                from: t.apply(b.from),
+                to: t.apply(b.to),
+                stops: b.stops.iter().map(|(o, _)| o.clamp(0.0, 1.0)).collect(),
+                layer: 0,
+                dither: Default::default(),
+                curve: Default::default(),
+                seed: 1,
+            };
+            let mut layers =
+                crate::gradient_cmds::layer_objects(&object, &threads, &template, blend_group);
+            if let Some(last) = layers.last_mut() {
+                last.line = stroke;
+            }
+            for o in layers {
+                ids.push(s.design.add(o));
+            }
+            continue;
+        }
         ids.push(s.design.add(object));
     }
     Ok(json!({ "ids": ids, "group": group }))

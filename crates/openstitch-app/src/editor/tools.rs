@@ -425,6 +425,8 @@ pub struct ToolController {
     character: Option<(u64, usize)>,
     /// Snap to Objects (#473) is on, and the lines collected when the current move began.
     snap_objects: bool,
+    /// Snap to guides (#799): the guidelines alone when Snap to Objects is off.
+    snap_guides: bool,
     snap_lines: Option<SnapLines>,
     /// Guides the moving selection lines up with, drawn dashed.
     guides: Vec<SnapGuide>,
@@ -513,6 +515,11 @@ impl ToolController {
         self.click_inside = click_inside;
     }
 
+    /// Snap to the guidelines on or off (#799).
+    pub fn set_guide_snapping(&mut self, on: bool) {
+        self.snap_guides = on;
+    }
+
     /// The lines the moving selection snapped to (empty unless a move is snapping).
     pub fn guides(&self) -> &[SnapGuide] {
         &self.guides
@@ -536,7 +543,7 @@ impl ToolController {
         };
         let locked = |v: f64| v == 0.0 && axis_lock;
         let (mut ox, mut oy, mut guides) = (None, None, Vec::new());
-        if let Some(lines) = self.snap_lines.as_ref().filter(|_| self.snap_objects) {
+        if let Some(lines) = self.snap_lines.as_ref() {
             let tol = TOLERANCE_POINTS * ctx.units_per_point;
             (ox, oy, guides) = snap_move(b, d, lines, tol);
             if locked(d.x) {
@@ -1063,9 +1070,13 @@ impl ToolController {
                 }
                 let movable = !ctx.selection.is_empty() && !ctx.locked();
                 self.gesture = Some(if hit.is_some() && !shift && movable {
-                    self.snap_lines = self
-                        .snap_objects
-                        .then(|| SnapLines::collect(ctx.design, ctx.selection));
+                    self.snap_lines = if self.snap_objects {
+                        Some(SnapLines::collect(ctx.design, ctx.selection))
+                    } else {
+                        self.snap_guides
+                            .then(|| SnapLines::guides(ctx.design))
+                            .filter(|l| !l.xs.is_empty() || !l.ys.is_empty())
+                    };
                     Gesture::Moving { start }
                 } else {
                     Gesture::Marquee {

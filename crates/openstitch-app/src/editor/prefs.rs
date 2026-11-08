@@ -290,6 +290,11 @@ pub struct EditingPrefs {
     pub nudge_mm: f64,
     /// While Snap to Grid is on, arrows move one grid step.
     pub nudge_grid: bool,
+    /// View ▸ Guideline: the guidelines shown (#799, the owner's default: on).
+    pub show_guides: bool,
+    /// Snap to guides: a dragged selection snaps to the guidelines while they are shown (#799,
+    /// on by default).
+    pub snap_guides: bool,
 }
 
 impl EditingPrefs {
@@ -305,6 +310,8 @@ impl Default for EditingPrefs {
             click_inside: false,
             nudge_mm: 0.1,
             nudge_grid: false,
+            show_guides: true,
+            snap_guides: true,
         }
     }
 }
@@ -424,6 +431,8 @@ impl UiPrefs {
                 "clickInsideOutlines": self.editing.click_inside,
                 "nudgeMM": self.editing.nudge_mm,
                 "nudgeByGrid": self.editing.nudge_grid,
+                "showGuides": self.editing.show_guides,
+                "snapToGuides": self.editing.snap_guides,
             },
             "units": super::units::key(self.units),
             "rulerOrigin": self.ruler_origin.key(),
@@ -557,6 +566,8 @@ impl UiPrefs {
                             n.clamp(EditingPrefs::NUDGE_MIN, EditingPrefs::NUDGE_MAX)
                         }),
                     nudge_grid: b("nudgeByGrid", d.nudge_grid),
+                    show_guides: b("showGuides", d.show_guides),
+                    snap_guides: b("snapToGuides", d.snap_guides),
                 }
             },
             units: v["units"]
@@ -825,6 +836,8 @@ mod tests {
             click_inside: true,
             nudge_mm: 0.5,
             nudge_grid: true,
+            show_guides: false,
+            snap_guides: false,
         };
         p.calibrate("1512x982", Some(4.25));
         p.calibrate("1920x1080", Some(3.5));
@@ -976,6 +989,24 @@ mod tests {
         };
         p.save(&path).expect("save");
         assert_eq!(UiPrefs::load(&path).ruler_origin, RulerOrigin::TopLeft);
+    }
+
+    /// #799: guidelines shown and snap to guides are on by default, also for a settings file
+    /// written before they existed; turned off, they stay off after a restart.
+    #[test]
+    fn guides_and_snap_to_guides_default_on_and_are_saved() {
+        let d = UiPrefs::default().editing;
+        assert!(d.show_guides && d.snap_guides);
+        let old = UiPrefs::from_json(&json!({ "editing": { "snapToObjects": true } }));
+        assert!(old.editing.show_guides && old.editing.snap_guides);
+        let dir = openstitch_testutil::TempDir::new("guide-prefs");
+        let path = dir.join("ui.json");
+        let mut p = UiPrefs::default();
+        p.editing.show_guides = false;
+        p.editing.snap_guides = false;
+        p.save(&path).expect("save");
+        let back = UiPrefs::load(&path).editing;
+        assert!(!back.show_guides && !back.snap_guides);
     }
 
     #[test]

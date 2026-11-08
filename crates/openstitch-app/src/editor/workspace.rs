@@ -322,6 +322,26 @@ impl RealisticSettings {
     }
 }
 
+/// A guideline's position as the rulers show it (#799): its signed distance from the ruler
+/// origin, `from_zero` in 0.1 mm, in the chosen units with one decimal in mm and three in
+/// inches: "+1.5 mm", "−1.5 mm", "0.0 mm", "+0.500 in".
+pub fn guide_label(from_zero: f64, u: super::units::Units) -> String {
+    let (v, decimals, unit) = match u {
+        super::units::Units::Mm => (from_zero / 10.0, 1, "mm"),
+        super::units::Units::Inch => (from_zero / 10.0 / super::units::MM_PER_INCH, 3, "in"),
+    };
+    let text = format!("{:.*}", decimals, v.abs());
+    let zero = text.chars().all(|c| c == '0' || c == '.');
+    let sign = if zero {
+        ""
+    } else if v < 0.0 {
+        "\u{2212}"
+    } else {
+        "+"
+    };
+    format!("{sign}{text} {unit}")
+}
+
 /// Snaps a guideline position to the grid when the grid is shown and snapping is on (as the
 /// guide describes); otherwise rounds to 0.1 mm.
 pub fn snap_guide(at: f64, grid: &GridSettings) -> f64 {
@@ -550,6 +570,15 @@ mod tests {
         .clamped();
         assert_eq!(wild.thread_width_mm, THREAD_WIDTH_MM);
         assert_eq!((wild.contrast, wild.brightness), (100.0, -100.0));
+    }
+
+    #[test]
+    fn guide_labels_are_signed_from_the_origin_in_the_units() {
+        use super::super::units::Units;
+        assert_eq!(guide_label(15.0, Units::Mm), "+1.5 mm");
+        assert_eq!(guide_label(-15.0, Units::Mm), "\u{2212}1.5 mm");
+        assert_eq!(guide_label(0.2, Units::Mm), "0.0 mm");
+        assert_eq!(guide_label(127.0, Units::Inch), "+0.500 in");
     }
 
     #[test]

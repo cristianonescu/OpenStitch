@@ -56,6 +56,21 @@ impl SnapLines {
     }
 }
 
+impl SnapLines {
+    /// The guidelines alone (Snap to guides without Snap to Objects, #799).
+    pub fn guides(d: &Design) -> Self {
+        let mut l = SnapLines {
+            xs: d.guides.vertical.clone(),
+            ys: d.guides.horizontal.clone(),
+        };
+        for v in [&mut l.xs, &mut l.ys] {
+            v.sort_by(f64::total_cmp);
+            v.dedup();
+        }
+        l
+    }
+}
+
 /// The nearest candidate to any of `own` within `tol`: (shift to apply, line).
 fn nearest(own: [f64; 3], lines: &[f64], tol: f64) -> Option<(f64, f64)> {
     let mut best: Option<(f64, f64)> = None;
