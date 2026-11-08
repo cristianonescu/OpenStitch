@@ -200,21 +200,36 @@ fn satin_and_fill_options_are_set_and_undone() {
         "object.setRegion",
         json!({"id": 1, "featherMode": "out", "featherSeed": 5}),
     );
-    run(&mut s, "object.setRegion", json!({"id": 1, "featherWidth": 2}));
-    let f = s.design().objects[0].region.clone().expect("r").feather.expect("f");
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "featherWidth": 2}),
+    );
+    let f = s.design().objects[0]
+        .region
+        .clone()
+        .expect("r")
+        .feather
+        .expect("f");
     assert_eq!(
         (f.side, f.width, f.mode, f.seed),
-        (FeatherSide::Both, 2.0, openstitch_design::FeatherMode::Out, Some(5))
+        (
+            FeatherSide::Both,
+            2.0,
+            openstitch_design::FeatherMode::Out,
+            Some(5)
+        )
     );
-    assert!(project::encode(s.design())
-        .map(|b| String::from_utf8_lossy(&b).contains("\"mode\":\"out\""))
-        .unwrap_or(false));
-    assert!(s
-        .execute(
+    // Saved and read back with the project.
+    let bytes = project::encode(s.design()).expect("encode");
+    assert_eq!(&project::decode(&bytes).expect("decode"), s.design());
+    assert!(
+        s.execute(
             "object.setRegion",
             Some(&json!({"id": 1, "featherMode": "sideways"}))
         )
-        .is_err());
+        .is_err()
+    );
     run(
         &mut s,
         "object.setRegion",
@@ -243,7 +258,8 @@ fn satin_and_fill_options_are_set_and_undone() {
     assert_eq!((r.gradation, r.feather, r.split_length), (None, None, None));
     let bytes = project::encode(s.design()).expect("encode");
     assert_eq!(&project::decode(&bytes).expect("decode"), s.design());
-    for _ in 0..4 {
+    // The four edits above and the three feather-mode ones (#685), one undo step each.
+    for _ in 0..7 {
         run(&mut s, "history.undo", json!({}));
     }
     assert_eq!(Compiler::default().compile(s.design()), plain);

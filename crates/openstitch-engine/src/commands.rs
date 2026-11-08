@@ -11,9 +11,9 @@ use openstitch_design::shapes::{self, ArcMode};
 use openstitch_design::text::{self, TextAlign, TextDirection, TextSpec};
 use openstitch_design::{
     Arrange, Bezier, ChainShape, Compiler, Contour, CrossKind, CrossTimes, Design, DesignObject,
-    DesignPage, FILL_TEXTURES, Feather, FeatherMode, FeatherSide, FillStitchType, Gradation, Layout, LineSewing,
-    LineType, ObjectKind, Rect, RegionSewing, RegionType, RunningStitchPath, StaggerKind, StartEnd,
-    Transform, UnderlayDensity, UnderlayParts, UnderlayStyle, Vec2, v2,
+    DesignPage, FILL_TEXTURES, Feather, FeatherMode, FeatherSide, FillStitchType, Gradation,
+    Layout, LineSewing, LineType, ObjectKind, Rect, RegionSewing, RegionType, RunningStitchPath,
+    StaggerKind, StartEnd, Transform, UnderlayDensity, UnderlayParts, UnderlayStyle, Vec2, v2,
 };
 use serde_json::{Value, json};
 

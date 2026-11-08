@@ -8,8 +8,8 @@ use crate::fmath::Det;
 use crate::generate::{self, RegionParams, RowSpan, Run, Stagger, subdivide};
 use crate::geometry::{Contour, Rect, Span, Vec2, contains, subtract, v2};
 use crate::model::{
-    Feather, FeatherMode, FeatherSide, FillStitchType, Gradation, GradationShape, RegionSewing, RegionType,
-    RunningStitchPath, UnderlayParts, UnderlayStyle,
+    Feather, FeatherMode, FeatherSide, FillStitchType, Gradation, GradationShape, RegionSewing,
+    RegionType, RunningStitchPath, UnderlayParts, UnderlayStyle,
 };
 use crate::paths::{OutlineTravel, Rng, TravelGraph, join};
 use crate::patterns::Pattern;

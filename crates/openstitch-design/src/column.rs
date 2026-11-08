@@ -240,7 +240,9 @@ fn rungs_even_at(rungs: &[[Vec2; 2]], pitch: f64, at: f64) -> Vec<[Vec2; 2]> {
     (0..=n)
         .map(|k| {
             let target = total * k as f64 / n as f64;
-            let j = measure.partition_point(|&m| m < target).clamp(1, rungs.len() - 1);
+            let j = measure
+                .partition_point(|&m| m < target)
+                .clamp(1, rungs.len() - 1);
             let span = measure[j] - measure[j - 1];
             let t = if span > 1e-9 {
                 ((target - measure[j - 1]) / span).clamp(0.0, 1.0)

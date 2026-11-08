@@ -130,7 +130,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    curved column's density; `raised: true` (or `{laneSpacing, inset, stitchLength}`) pads
    monograms and rims of 3 mm and wider (narrower ones return a `hints` entry). The looks work
    on every satin: Manual Punch columns, skeleton and Auto satin, fixed-direction satin
-   regions, satin text and zigzag lines (`spacingAt` on columns only). Read them back
+   regions, satin text and zigzag lines (`spacingAt` on columns, skeleton and Auto satin).
+   PE-DESIGN's feathered edge (`featherSide`, `featherWidth`) also takes `featherMode: out`
+   (row ends past the edge) or `both`, and `featherSeed` for a pattern of its own. Read them back
    with `object.get`. Fix a Manual Punch column instead of redrawing it:
    `object.insertRung {id, at}`, `object.deleteRung {id, index}`, `object.moveRung {id, index,
    side: left|right, point}`, `object.swapSides {id}` and `object.untangle {id}`; a line pair

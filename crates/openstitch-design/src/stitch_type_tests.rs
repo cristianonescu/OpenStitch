@@ -1794,7 +1794,10 @@ fn feathered_edges_go_out_both_ways_and_take_a_seed() {
     assert!(out.iter().copied().fold(0.0, f64::min) < -20.0);
     r.feather = feather(FeatherMode::Both, None);
     let both = starts(&r);
-    assert!(both.iter().all(|&x| (-15.0..=15.0).contains(&x)), "{both:?}");
+    assert!(
+        both.iter().all(|&x| (-15.0..=15.0).contains(&x)),
+        "{both:?}"
+    );
     assert!(both.iter().any(|&x| x < -1.0) && both.iter().any(|&x| x > 1.0));
     r.feather = feather(FeatherMode::In, Some(7));
     let seeded = starts(&r);
@@ -4476,9 +4479,9 @@ fn angle_lines_on_a_ring_wrap_round_and_bad_lines_are_refused() {
 
 #[test]
 fn spacing_at_measures_skeleton_satin_density_across_the_column() {
-    // #685: on a bent skeleton satin the density is measured on the outer edge by default;
-    // spacingAt 0 measures it on the inner edge, so the outer edge opens up and fewer
-    // crossings are sewn, 0.5 in between. A straight column is the same either way.
+    // #685: a skeleton satin spaces its crossings along its centre line; spacingAt measures the
+    // spacing that far across the column from the inner edge of a bend instead, so 0 sews fewer
+    // crossings and 0.5 (the centre) as many. A straight column is the same either way.
     use crate::column::SatinShaping;
     use crate::skeleton::{Skeleton, satin_with};
     let arc: Vec<Vec2> = (0..=12)
@@ -4499,19 +4502,29 @@ fn spacing_at_measures_skeleton_satin_density_across_the_column() {
         };
         satin_with(s, spacing, 0.0, &shaping).len() as f64
     };
-    // Unset and 1 are PE-DESIGN's: the outer edge.
+    // 1 is the unset value.
     assert_eq!(count(&bent, None), count(&bent, Some(1.0)));
-    let (outer, middle, inner) = (count(&bent, None), count(&bent, Some(0.5)), count(&bent, Some(0.0)));
-    assert!(inner < middle && middle < outer, "{inner} {middle} {outer}");
-    // Inner radius 26 mm, outer 34 mm: about 26/34 of the crossings.
-    let ratio = inner / outer;
-    assert!((0.7..0.85).contains(&ratio), "{ratio}");
+    let (centre, middle, inner) = (
+        count(&bent, None),
+        count(&bent, Some(0.5)),
+        count(&bent, Some(0.0)),
+    );
+    assert!(inner < middle, "{inner} {middle}");
+    assert!(
+        (middle - centre).abs() <= centre * 0.02,
+        "{middle} {centre}"
+    );
+    // Inner radius 26 mm, centre 30 mm: about 26/30 of the crossings.
+    let ratio = inner / centre;
+    assert!((0.8..0.92).contains(&ratio), "{ratio}");
     let straight = Skeleton {
         points: vec![v2(0.0, 0.0), v2(500.0, 0.0)],
         widths: vec![6.0, 6.0],
     };
     let (a, b) = (count(&straight, None), count(&straight, Some(0.0)));
     assert!((a - b).abs() <= 2.0, "{a} {b}");
+}
+
 /// The extent (min, max) along x and y of the needle points of `runs`.
 fn extent(runs: &[Run]) -> ((f64, f64), (f64, f64)) {
     let pts = runs.iter().flatten();
