@@ -499,17 +499,37 @@ fn layers_inner(
             }
         }
     }
+    // A second under sewing layer on a fill or satin region (#677, beyond PE-DESIGN), after
+    // the first. Auto satin and Manual Punch columns sew theirs along the column.
+    if r.underlay
+        && matches!(r.kind, RegionType::Fill | RegionType::Satin)
+        && !(r.kind == RegionType::Satin && r.auto_direction)
+        && let Some(u) = r.underlay2
+    {
+        out.extend(second_underlay(closed, holes, angle, &u));
+    }
     let shaped =
         r.sewn_gradation().is_some() || r.sewn_feather().is_some() || r.split_length.is_some();
     if !row_based {
         out.extend(regions::generate(closed, r, angle, holes, user));
         return out;
     }
+    // Push compensation (#677, beyond PE-DESIGN): a straight-row fill's top stitching is cut
+    // from the shape moved in along the row normal, so only its sides along the rows move.
+    let pushed = (r.kind == RegionType::Fill && !shaped)
+        .then_some(r.push_compensation)
+        .flatten()
+        .filter(|&p| p > 0.0)
+        .map(|p| pushed_in(closed, holes, angle, p.min(2.0) * 10.0));
+    let (top_closed, top_holes): (&[Contour], &[Contour]) = match &pushed {
+        Some(c) => (c, &[]),
+        None => (closed, holes),
+    };
     let mut runs = match r.kind {
         RegionType::Fill if !shaped => generate::fill_edge_to_edge_travel(
-            closed,
+            top_closed,
             &params,
-            holes,
+            top_holes,
             r.fill_stagger(),
             r.entry,
             r.stitch_type == FillStitchType::Two,
@@ -3093,4 +3113,64 @@ fn without_tiny_stitches(run: Run, min: f64) -> Run {
         out.push(last);
     }
     out
+}
+
+/// The region `closed` minus `holes` moved in by `push` (0.1 mm) on both sides along the
+/// normal of rows at geometry angle `angle`: the shape intersected with itself shifted that
+/// far either way, so edges along the rows move in and edges across them stay.
+fn pushed_in(closed: &[Contour], holes: &[Contour], angle: f64, push: f64) -> Vec<Contour> {
+    use crate::boolean::{self, BoolOp};
+    let rad = angle.to_radians();
+    let n = v2(-rad.dsin(), rad.dcos()) * push;
+    let area = boolean::contours(&boolean::combine(closed, holes, BoolOp::Difference));
+    let shift = |d: Vec2| -> Vec<Contour> {
+        area.iter()
+            .map(|c| c.transformed(&crate::geometry::Transform::translation(d.x, d.y)))
+            .collect()
+    };
+    let once = boolean::contours(&boolean::combine(&area, &shift(n), BoolOp::Intersection));
+    boolean::contours(&boolean::combine(
+        &once,
+        &shift(n * -1.0),
+        BoolOp::Intersection,
+    ))
+}
+
+/// A second under sewing layer on a fill or satin region (#677): with an edge style the
+/// outline run `u.inset` in, with a row style rows at `u.angle` degrees from the fill angle,
+/// `u.spacing` apart and `u.inset` in, stitches at most `u.stitch_length`.
+fn second_underlay(
+    closed: &[Contour],
+    holes: &[Contour],
+    angle: f64,
+    u: &crate::column::SecondUnderlay,
+) -> Vec<Vec<Run>> {
+    let pitch = (u.stitch_length * 10.0).max(10.0);
+    let inset = u.inset * 10.0;
+    let edge = || -> Vec<Run> {
+        let all: Vec<Contour> = closed.iter().chain(holes).cloned().collect();
+        let inner = if inset > 0.0 {
+            crate::boolean::contours(&crate::boolean::offset(&all, -inset, false))
+        } else {
+            all
+        };
+        inner
+            .iter()
+            .map(|c| generate::running(c, pitch, 1))
+            .collect()
+    };
+    let rows = || -> Vec<Run> {
+        let p = RegionParams {
+            angle: angle + geometry_angle(u.angle),
+            row_spacing: (u.spacing * 10.0).max(5.0),
+            stitch_length: pitch,
+            pull_compensation: -inset,
+        };
+        generate::satin(closed, &p, holes)
+    };
+    match u.style {
+        UnderlayStyle::Edge => vec![edge()],
+        UnderlayStyle::EdgeZigzag => vec![edge(), rows()],
+        _ => vec![rows()],
+    }
 }

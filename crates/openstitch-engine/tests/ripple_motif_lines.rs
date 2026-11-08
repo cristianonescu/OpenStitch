@@ -142,3 +142,51 @@ fn motif_groups_free_ends_and_motifs_in_turn_through_the_command() {
         assert_eq!(s.design(), &before, "{params}");
     }
 }
+
+/// #544: the motif line's options (groups, free ends, motifs in turn, mirror-alternate) set in
+/// one command are one undo step: undo brings back the plain motif line, redo the options.
+#[test]
+fn motif_options_are_one_undo_step() {
+    let dir = openstitch_testutil::TempDir::new("motif-undo");
+    let mut s = Session::new(&dir);
+    s.execute("design.new", Some(&json!({"width": 100, "height": 50})))
+        .expect("new");
+    let id = s
+        .execute(
+            "shape.path",
+            Some(&json!({"points": [[5, 20], [95, 20]], "closed": false, "outline": "Black"})),
+        )
+        .expect("path")["id"]
+        .as_u64()
+        .expect("id");
+    s.execute(
+        "object.setLine",
+        Some(&json!({"id": id, "type": "motif", "motif": "heart", "width": 5, "height": 4})),
+    )
+    .expect("motif");
+    let line = |s: &mut Session| {
+        s.execute("object.get", Some(&json!({"id": id})))
+            .expect("get")["line"]
+            .clone()
+    };
+    let plain = line(&mut s);
+    s.execute(
+        "object.setLine",
+        Some(
+            &json!({"id": id, "groupSize": 3, "groupGap": 6, "freeStart": 6, "freeEnd": 6,
+                     "motifs": ["star"], "arrange": "alternate"}),
+        ),
+    )
+    .expect("options");
+    let with = line(&mut s);
+    assert_eq!(with["motifs"], json!(["star"]), "{with}");
+    assert_eq!(with["arrange"], json!("alternate"), "{with}");
+    s.execute("history.undo", None).expect("undo");
+    assert_eq!(
+        line(&mut s),
+        plain,
+        "one undo step back to the plain motif line"
+    );
+    s.execute("history.redo", None).expect("redo");
+    assert_eq!(line(&mut s), with);
+}

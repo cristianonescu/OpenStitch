@@ -3379,6 +3379,23 @@ No travel is sewn outside the letters (`small_lettering_shows_no_travel_outside_
 compat 476/476. Still open on #446: N's corner spike (the diagonal's rungs fan into the corner,
 where PE-DESIGN sews a small corner block), M at 8 mm, A's and V's slanted feet.
 
+### Satin N's stems run on past its corners, 2026-11-08 (#446)
+
+PE-DESIGN 11.50 sews satin N's stems the whole height of the letter and stops the diagonal
+against them (stroke-satin-N, -N-8, stroke-blocks-satin-N, round 8). OpenStitch cut N's centre
+line at its two acute corners, so each stem stopped at the notch's depth (7.9 mm below the top at
+20 mm) and the diagonal's crossings fanned into the corner beyond it: the spike of #446. Now,
+where an upright stem (within 12° of vertical) meets a slanted piece at such a cut, the stem's
+centre line runs on to the outline and the slanted piece stops at the stem's edge, its satin
+starting where both its sides run (`strokes::run_on_stems`, `StrokeEnd::Against`). N's stems
+are full height at both corners; needle points 274 → 282 at 20 mm (PE-DESIGN 293) and 116 → 118
+at 8 mm (123). No other text spec changes; compat stays at 478/478.
+
+Still open on #446: the diagonal's first crossings still pivot near the notch over the small
+triangle above it, where PE-DESIGN sews a separate corner block (stopping the diagonal 1.5 stem
+half-widths out instead lost needle points and left a gap: 272); M, whose corners come from
+thinning junctions rather than cuts, is unchanged, as are M at 8 mm and A's and V's feet.
+
 ### CSD and SHV against PE-DESIGN's exports of #349's designs, 2026-11-07 (#349, `batch:machine-formats`)
 
 PE-DESIGN 11.50 exported OpenStitch's `c17.pes` (17 colour blocks) and `long.pes` (a short move,
