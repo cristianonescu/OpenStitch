@@ -928,6 +928,10 @@ fn region_type_controls(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> {
                     " mm",
                 ));
             }
+            // Stitch angle lines (#534, beyond PE-DESIGN): shown while set; off removes them.
+            if r.angle_lines.len() >= 2 {
+                v.push(toggle("Angle lines (+)", "angleLines", true));
+            }
             // One colour of a gradient fill (#532, beyond PE-DESIGN): select the gradient's
             // group so the whole gradient changes together.
             if let Some(g) = &r.gradient {

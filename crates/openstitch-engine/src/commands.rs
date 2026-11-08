@@ -324,6 +324,7 @@ pub fn all() -> Vec<CommandSpec> {
     v.extend(crate::templates::commands());
     v.extend(crate::drawing::commands());
     v.extend(crate::gradient_cmds::commands());
+    v.extend(crate::angle_cmds::commands());
     v.extend(crate::ornament::commands());
     v.extend(crate::user::commands());
     v.extend(crate::thread_match::commands());
@@ -1515,6 +1516,11 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     "Gradient fill: how its colours share the stitches where they meet; set it on every object of the gradient (select its group)",
                 ),
                 opt(
+                    "angleLines",
+                    "false",
+                    "Stitch angle lines (beyond PE-DESIGN): false removes them (set them with object.setAngleLines)",
+                ),
+                opt(
                     "gradientFrom",
                     "[x, y] mm",
                     "Gradient fill: where it starts (radial: its centre), with gradientTo; set it on every object of the gradient (the editor's Gradient tool does)",
@@ -1946,6 +1952,15 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         r.stagger_seed = Some(seed as u64);
                     }
                     crate::gradient_cmds::set_region(p, &mut r)?;
+                    if p.has("angleLines") {
+                        if p.get("angleLines").and_then(Value::as_bool) != Some(false) {
+                            return Err(p.invalid(
+                                "angleLines",
+                                "only false (removes them); set them with object.setAngleLines",
+                            ));
+                        }
+                        r.angle_lines.clear();
+                    }
                     if p.has("waveHeight") {
                         let h = p.req("waveHeight", 0.0, 20.0)?;
                         r.wave_height = (h > 0.0).then_some(h);

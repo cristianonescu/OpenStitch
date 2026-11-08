@@ -1472,3 +1472,91 @@ fn gradient_start_and_end_move_with_the_command() {
         assert_eq!(s.design(), &mid);
     }
 }
+
+/// Stitch angle lines (#534, beyond PE-DESIGN): set by `object.setAngleLines`, sewn, saved,
+/// undone; crossing lines refused; `[]` and `object.setRegion angleLines: false` clear them.
+#[test]
+fn angle_lines_go_through_the_command() {
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
+    // An L: a horizontal bar and a vertical bar (x, y in mm).
+    run(
+        &mut s,
+        "shape.polygon",
+        json!({"points": [[0, 0], [60, 0], [60, 20], [20, 20], [20, 60], [0, 60]], "closed": true, "fill": "Red"}),
+    );
+    let plain = Compiler::default().compile(s.design());
+    let lines = json!([
+        [[40, -2], [40, 22]],
+        [[22, 22], [-2, -2]],
+        [[-2, 40], [22, 40]]
+    ]);
+    let out = run(
+        &mut s,
+        "object.setAngleLines",
+        json!({"id": 1, "lines": lines}),
+    );
+    assert_eq!(out["lines"], 3);
+    let r = s.design().objects[0].region.clone().expect("r");
+    assert_eq!(r.angle_lines.len(), 3);
+    assert_eq!(r.angle_lines[0][0], openstitch_design::v2(400.0, -20.0));
+    let turned = Compiler::default().compile(s.design());
+    assert_ne!(turned, plain);
+    assert!(turned.count(Command::Stitch) > 200);
+    let bytes = project::encode(s.design()).expect("encode");
+    assert_eq!(&project::decode(&bytes).expect("decode"), s.design());
+    run(&mut s, "history.undo", json!({}));
+    assert!(
+        s.design().objects[0]
+            .region
+            .as_ref()
+            .expect("r")
+            .angle_lines
+            .is_empty()
+    );
+    let mid = s.design().clone();
+    for bad in [
+        json!({"id": 1, "lines": [[[40, -2], [40, 22]]]}),
+        json!({"id": 1, "lines": [[[40, -2], [40, 22]], [[30, -2], [50, 22]]]}),
+        json!({"id": 1, "lines": [[[40, 30], [50, 50]], [[40, -2], [40, 22]]]}),
+        json!({"id": 1, "lines": [[[40, -2]]]}),
+        json!({"id": 99, "lines": []}),
+    ] {
+        assert!(
+            s.execute("object.setAngleLines", Some(&bad)).is_err(),
+            "{bad}"
+        );
+        assert_eq!(s.design(), &mid, "{bad}");
+    }
+    run(
+        &mut s,
+        "object.setAngleLines",
+        json!({"id": 1, "lines": lines}),
+    );
+    run(
+        &mut s,
+        "object.setAngleLines",
+        json!({"id": 1, "lines": []}),
+    );
+    assert!(
+        s.design().objects[0]
+            .region
+            .as_ref()
+            .expect("r")
+            .angle_lines
+            .is_empty()
+    );
+    run(
+        &mut s,
+        "object.setAngleLines",
+        json!({"id": 1, "lines": lines}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "angleLines": false}),
+    );
+    assert_eq!(Compiler::default().compile(s.design()), plain);
+    let help = run(&mut s, "commands.list", json!({})).to_string();
+    assert!(help.contains("object.setAngleLines") && help.contains("angleLines"));
+}
