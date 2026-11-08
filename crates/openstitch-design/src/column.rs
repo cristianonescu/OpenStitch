@@ -887,6 +887,16 @@ pub struct SecondUnderlay {
     pub spacing: f64,
     /// Longest stitch, mm (default 2.5).
     pub stitch_length: f64,
+    /// On a fill or satin region sewn by rows (#677): the direction of its rows, degrees from
+    /// the fill (or satin) angle. The default 0 is square to PE-DESIGN's first fill under
+    /// sewing layer, whose rows run at 90° to the fill rows (crossed tatami). Columns ignore
+    /// it. Saved only when not 0.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub angle: f64,
+}
+
+fn is_zero(x: &f64) -> bool {
+    *x == 0.0
 }
 
 impl Default for SecondUnderlay {
@@ -896,6 +906,7 @@ impl Default for SecondUnderlay {
             inset: 0.5,
             spacing: 2.0,
             stitch_length: 2.5,
+            angle: 0.0,
         }
     }
 }

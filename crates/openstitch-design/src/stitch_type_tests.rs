@@ -4365,3 +4365,129 @@ fn angle_lines_on_a_ring_wrap_round_and_bad_lines_are_refused() {
     r.angle_lines = crossing.to_vec();
     assert_eq!(crate::region::layers(&c, &r, &[]), plain);
 }
+
+/// The extent (min, max) along x and y of the needle points of `runs`.
+fn extent(runs: &[Run]) -> ((f64, f64), (f64, f64)) {
+    let pts = runs.iter().flatten();
+    let fold = |f: fn(&Vec2) -> f64| {
+        pts.clone()
+            .map(f)
+            .fold((f64::MAX, f64::MIN), |(lo, hi), v| (lo.min(v), hi.max(v)))
+    };
+    (fold(|p| p.x), fold(|p| p.y))
+}
+
+#[test]
+fn push_compensation_moves_only_the_sides_along_the_rows_in() {
+    // A 40 x 20 mm rectangle (x, y, width, height).
+    let c = vec![Contour::rectangle(100.0, 100.0, 400.0, 200.0)];
+    for angle in [0.0, 90.0] {
+        let mut r = region(RegionType::Fill);
+        r.angle = angle;
+        r.underlay = false;
+        let plain = crate::region::layers(&c, &r, &[]);
+        r.push_compensation = Some(1.0);
+        let pushed = crate::region::layers(&c, &r, &[]);
+        let (px, py) = extent(plain.last().expect("top"));
+        let (qx, qy) = extent(pushed.last().expect("top"));
+        // Rows along x (0°): the top and bottom move in 1 mm, the row ends stay; at 90° the
+        // other way round.
+        let (along, across, along_p, across_p) = if angle == 0.0 {
+            (px, py, qx, qy)
+        } else {
+            (py, px, qy, qx)
+        };
+        assert!(
+            (along_p.0 - along.0).abs() < 2.0 && (along_p.1 - along.1).abs() < 2.0,
+            "{angle}°: row ends {along:?} → {along_p:?}"
+        );
+        assert!(
+            across_p.0 >= across.0 + 8.0 && across_p.1 <= across.1 - 8.0,
+            "{angle}°: sides {across:?} → {across_p:?}"
+        );
+    }
+    // With under sewing the first layers are the plain fill's.
+    let mut r = region(RegionType::Fill);
+    r.angle = 0.0;
+    let plain = crate::region::layers(&c, &r, &[]);
+    r.push_compensation = Some(1.0);
+    let pushed = crate::region::layers(&c, &r, &[]);
+    assert_eq!(&pushed[..pushed.len() - 1], &plain[..plain.len() - 1]);
+    // Off: unchanged; saved only when set.
+    r.push_compensation = None;
+    assert_eq!(crate::region::layers(&c, &r, &[]), plain);
+    assert!(
+        !serde_json::to_string(&r)
+            .expect("json")
+            .contains("pushCompensation")
+    );
+}
+
+#[test]
+fn a_second_under_sewing_layer_on_a_fill_runs_at_its_own_angle() {
+    use crate::column::SecondUnderlay;
+    let c = vec![Contour::rectangle(100.0, 100.0, 400.0, 300.0)];
+    let mut r = region(RegionType::Fill);
+    r.angle = 0.0;
+    let plain = crate::region::layers(&c, &r, &[]);
+    // Crossed tatami by default: rows along the fill rows (0°), square to the first layer.
+    r.underlay2 = Some(SecondUnderlay::default());
+    let crossed = crate::region::layers(&c, &r, &[]);
+    assert_eq!(crossed.len(), plain.len() + 1, "one more layer");
+    assert_eq!(&crossed[..plain.len() - 1], &plain[..plain.len() - 1]);
+    assert_eq!(
+        crossed.last(),
+        plain.last(),
+        "the top stitching is unchanged"
+    );
+    let second = &crossed[plain.len() - 1];
+    // Its long stitches run along x; inset 0.5 mm.
+    let long: Vec<(Vec2, Vec2)> = second
+        .iter()
+        .flat_map(|r| r.windows(2).map(|w| (w[0], w[1])))
+        .filter(|(a, b)| a.distance(*b) > 15.0)
+        .collect();
+    assert!(!long.is_empty());
+    assert!(
+        long.iter()
+            .all(|(a, b)| (a.y - b.y).abs() < 0.1 * (a.x - b.x).abs()),
+        "rows along the fill rows"
+    );
+    let ((x0, x1), (y0, y1)) = extent(second);
+    assert!(
+        x0 >= 104.0 && x1 <= 496.0 && y0 >= 104.0 && y1 <= 396.0,
+        "inset"
+    );
+    // At 90° the rows turn square to the fill rows; an edge style runs round the outline.
+    r.underlay2 = Some(SecondUnderlay {
+        angle: 90.0,
+        ..SecondUnderlay::default()
+    });
+    let turned = crate::region::layers(&c, &r, &[]);
+    let long: Vec<(Vec2, Vec2)> = turned[plain.len() - 1]
+        .iter()
+        .flat_map(|r| r.windows(2).map(|w| (w[0], w[1])))
+        .filter(|(a, b)| a.distance(*b) > 15.0)
+        .collect();
+    assert!(
+        long.iter()
+            .all(|(a, b)| (a.x - b.x).abs() < 0.1 * (a.y - b.y).abs()),
+        "rows across"
+    );
+    r.underlay2 = Some(SecondUnderlay {
+        style: crate::UnderlayStyle::Edge,
+        ..SecondUnderlay::default()
+    });
+    let edged = crate::region::layers(&c, &r, &[]);
+    let ((x0, x1), (y0, y1)) = extent(&edged[plain.len() - 1]);
+    assert!(
+        (x0 - 105.0).abs() < 1.0
+            && (x1 - 495.0).abs() < 1.0
+            && (y0 - 105.0).abs() < 1.0
+            && (y1 - 395.0).abs() < 1.0
+    );
+    // Without under sewing there is no second layer either.
+    r.underlay = false;
+    let none = crate::region::layers(&c, &r, &[]);
+    assert_eq!(none.len(), 1);
+}

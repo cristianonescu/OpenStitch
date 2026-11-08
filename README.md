@@ -427,6 +427,9 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
 - (+) **Gradient tool:** drag across a gradient fill to set where its colours start and end ([#532]).
 - **Fill Angle tool:** drag across fills and satins to turn their rows to the drag's direction, as
   PE-DESIGN sets the sewing direction on the canvas ([#534]).
+- (+) **Push compensation and a second underlay on fills:** a fill's sides along its rows move in by a
+  set amount, and a second under sewing layer at its own angle (crossed tatami by default)
+  ([#522], [#523]).
 - (+) **Stitch angle lines:** lines across one fill turn its rows round a U, Z or ring bend with no
   seam ([#534]).
 - **Curved sewing direction** (round fill) for fill, programmable fill, piping and motif fill

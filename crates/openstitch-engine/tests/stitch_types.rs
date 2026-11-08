@@ -1600,3 +1600,60 @@ fn setting_the_angle_turns_auto_direction_off() {
     run(&mut s, "object.setRegion", json!({"id": 1, "density": 4.0}));
     assert!(region(&s).auto_direction);
 }
+
+/// #677: push compensation and a second under sewing layer on a fill go through
+/// `object.setRegion`, are saved and undone; bad values are refused.
+#[test]
+fn push_compensation_and_a_second_underlay_go_through_the_command() {
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 0, "y": 0, "width": 40, "height": 20, "fill": "Red"}),
+    );
+    let plain = Compiler::default().compile(s.design());
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "pushCompensation": 0.8, "underlay2": {"style": "zigzag", "angle": 30, "spacing": 3}}),
+    );
+    let r = s.design().objects[0].region.clone().expect("r");
+    assert_eq!(r.push_compensation, Some(0.8));
+    let u = r.underlay2.expect("u2");
+    assert_eq!((u.angle, u.spacing), (30.0, 3.0));
+    assert_ne!(Compiler::default().compile(s.design()), plain);
+    let bytes = project::encode(s.design()).expect("encode");
+    assert_eq!(&project::decode(&bytes).expect("decode"), s.design());
+    run(&mut s, "history.undo", json!({}));
+    assert_eq!(Compiler::default().compile(s.design()), plain);
+    let mid = s.design().clone();
+    for bad in [
+        json!({"id": 1, "pushCompensation": 3}),
+        json!({"id": 1, "pushCompensation": -1}),
+        json!({"id": 1, "underlay2": {"angle": 200}}),
+    ] {
+        assert!(s.execute("object.setRegion", Some(&bad)).is_err(), "{bad}");
+        assert_eq!(s.design(), &mid);
+    }
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "pushCompensation": 0.5}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "pushCompensation": 0}),
+    );
+    assert_eq!(
+        s.design().objects[0]
+            .region
+            .as_ref()
+            .expect("r")
+            .push_compensation,
+        None
+    );
+    let help = run(&mut s, "commands.list", json!({})).to_string();
+    assert!(help.contains("pushCompensation") && help.contains("crossed tatami"));
+}
