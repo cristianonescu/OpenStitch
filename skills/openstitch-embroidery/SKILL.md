@@ -126,8 +126,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `underlayStyle: auto` picks a centre walk, edge run or edge + zigzag by width (thresholds
    `underlayAuto {centreBelow, edgeBelow}`, set by `fabric.apply`; on a skeleton or Auto
    satin it sews rows along the column that follow its width instead), `centreWalk` for thin
-   satins, and `underlay2 {style, inset, spacing, stitchLength}` adds a second
-   layer (`null` removes it). Satin looks: `satinStyle` sStitch (corded edge), open (light),
+   satins, and `underlay2 {style, inset, spacing, stitchLength, angle}` adds a second
+   layer (`null` removes it; on a fill or fixed-direction satin its rows run at `angle` degrees from
+   the fill angle, default 0 = crossed tatami). A fill's `pushCompensation` (0-2 mm) pulls in its
+   sides along the rows. Satin looks: `satinStyle` sStitch (corded edge), open (light),
    double (raised X lattice); `jaggedEdge {mode: in|out|both, side, amount, seed}` (or just
    `"in"`; `"none"`/`null` removes it) for fur, grass and feathers; `spacingAt: 0.5` evens a
    curved column's density; `raised: true` (or `{laneSpacing, inset, stitchLength}`) pads

@@ -552,6 +552,18 @@ pub fn region_controls_with(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> 
             0.01,
             " mm",
         ));
+        // Push compensation (#677, beyond PE-DESIGN): sides along the rows move in.
+        if r.kind == RegionType::Fill {
+            v.push(num(
+                "Push compensation (+)",
+                "region.pushCompensation",
+                "pushCompensation",
+                r.push_compensation.unwrap_or(0.0),
+                (0.0, 2.0),
+                0.01,
+                " mm",
+            ));
+        }
         v.push(toggle("Underlay", "underlay", r.underlay));
         if r.underlay {
             let style = r.underlay_style.id();

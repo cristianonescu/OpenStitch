@@ -1339,6 +1339,11 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     "Fill stitch length (programmable fill places its needle points on the pattern's lines, as PE-DESIGN does, and ignores it: use splitLength to shorten its stitches)",
                 ),
                 opt("pullCompensation", "mm", "Row end extension"),
+                opt(
+                    "pushCompensation",
+                    "mm",
+                    "Fill (beyond PE-DESIGN): the top stitching's sides parallel to its rows move in by this much, 0-2 (0 = off); the row ends keep pullCompensation",
+                ),
                 opt("underlay", "bool", "Underlay (style in underlayStyle)"),
                 opt(
                     "underlayStyle",
@@ -1683,6 +1688,10 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     r.stitch_length = p.opt("stitchLength", r.stitch_length, 1.0, 10.0)?;
                     r.pull_compensation =
                         p.opt("pullCompensation", r.pull_compensation, 0.0, 2.0)?;
+                    if p.has("pushCompensation") {
+                        let push = p.req("pushCompensation", 0.0, 2.0)?;
+                        r.push_compensation = (push > 0.0).then_some(push);
+                    }
                     r.underlay = p.bool("underlay", Some(r.underlay))?;
                     if let Some(u) = choice(
                         p,
