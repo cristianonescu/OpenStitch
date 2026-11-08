@@ -657,3 +657,41 @@ fn gradation_shape_choices_reach_the_engine() {
         assert_eq!(&shape(s.design()).expect("shown").0, value);
     }
 }
+
+/// Stitch angle lines (#534, beyond PE-DESIGN): a fill with angle lines shows Angle lines (+);
+/// turning it off reaches the engine and removes them.
+#[test]
+fn angle_lines_toggle_reaches_the_engine() {
+    let mut s = Session::new(std::env::temp_dir());
+    let id = exec(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 0, "y": 0, "width": 40, "height": 20, "fill": "Red"}),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    let region = |d: &Design| d.objects[0].region.clone().expect("region");
+    let shown = |d: &Design| {
+        inspector::region_controls(&region(d)).iter().any(|c| {
+            matches!(
+                c,
+                Control::Toggle {
+                    param: "angleLines",
+                    ..
+                }
+            )
+        })
+    };
+    assert!(!shown(s.design()));
+    exec(
+        &mut s,
+        "object.setAngleLines",
+        json!({"id": id, "lines": [[[10, -2], [10, 22]], [[30, -2], [30, 22]]]}),
+    );
+    assert!(shown(s.design()));
+    let sel = BTreeSet::from([id]);
+    let m = InspectorModel::new(s.design(), &sel);
+    run(&mut s, &m.set_region(json!({"angleLines": false})));
+    assert!(region(s.design()).angle_lines.is_empty());
+    assert!(!shown(s.design()));
+}

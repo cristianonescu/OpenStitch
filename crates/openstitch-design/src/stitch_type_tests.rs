@@ -4224,3 +4224,144 @@ fn named_gradation_shapes_space_the_rows_by_their_profile() {
         serde_json::from_str(&serde_json::to_string(&centre).expect("json")).expect("load");
     assert_eq!(back, centre);
 }
+
+/// Stitch angle lines (#534): a horseshoe (U) from (c, 300 outer, 150 inner radius), its arms
+/// the lower half of a ring.
+fn horseshoe() -> Vec<Contour> {
+    let c = v2(400.0, 200.0);
+    let n = 48;
+    let mut pts = Vec::new();
+    for i in 0..=n {
+        let a = std::f64::consts::PI * i as f64 / n as f64;
+        pts.push(c + v2(-300.0 * a.cos(), 300.0 * a.sin()));
+    }
+    for i in (0..=n).rev() {
+        let a = std::f64::consts::PI * i as f64 / n as f64;
+        pts.push(c + v2(-150.0 * a.cos(), 150.0 * a.sin()));
+    }
+    vec![Contour::new(pts, true)]
+}
+
+/// Checks angle-line rows on a shape: no row crosses another, every sample point of the shape
+/// lies within a spacing of a row, and rows stay at least 0.8 of a spacing apart away from
+/// their ends.
+fn check_angle_rows(c: &[Contour], holes: &[Contour], lines: &[[Vec2; 2]], spacing: f64) {
+    let rows: Vec<Run> = crate::angle_lines::rows(lines, c, holes, spacing)
+        .iter()
+        .flat_map(|r| crate::paths::clip(r, c, holes))
+        .filter(|r| r.len() >= 2)
+        .collect();
+    assert!(rows.len() > 20, "{} rows", rows.len());
+    // Rows are separate runs here: a proper crossing between any two is a seam.
+    assert_eq!(proper_crossings(&rows), 0, "rows cross");
+    let near = |p: Vec2, skip: usize| {
+        rows.iter()
+            .enumerate()
+            .filter(|(i, _)| *i != skip)
+            .flat_map(|(_, r)| r.windows(2))
+            .map(|w| segment_gap(p, p, w[0], w[1]))
+            .fold(f64::MAX, f64::min)
+    };
+    let inside = |p: Vec2| crate::geometry::contains(p, c) && !crate::geometry::contains(p, holes);
+    let b =
+        crate::geometry::Rect::enclosing(c.iter().flat_map(Contour::outline_points)).expect("b");
+    let mut far: f64 = 0.0;
+    let mut y = b.min_y + 5.0;
+    while y < b.max_y {
+        let mut x = b.min_x + 5.0;
+        while x < b.max_x {
+            let p = v2(x, y);
+            if inside(p) {
+                far = far.max(near(p, usize::MAX));
+            }
+            x += 10.0;
+        }
+        y += 10.0;
+    }
+    assert!(
+        far <= spacing * 1.05,
+        "a point {far:.1} from the rows (spacing {spacing:.1})"
+    );
+    // Crowding: the middle of each row piece is at least 0.8 spacing from every other piece.
+    for (i, r) in rows.iter().enumerate() {
+        let mid = r[0].lerp(r[r.len() - 1], 0.5);
+        let d = near(mid, i);
+        assert!(d >= 0.8 * spacing - 1e-6, "row {i} {d:.2} from the next");
+    }
+}
+
+#[test]
+fn angle_lines_turn_the_rows_around_a_bend_without_crossing_or_crowding() {
+    let c = horseshoe();
+    // Across the left arm's end, across the bottom, across the right arm's end.
+    let lines = [
+        [v2(80.0, 220.0), v2(270.0, 220.0)],
+        [v2(400.0, 330.0), v2(400.0, 520.0)],
+        [v2(530.0, 220.0), v2(720.0, 220.0)],
+    ];
+    assert!(crate::angle_lines::check(&lines, &c, &[]).is_ok());
+    check_angle_rows(&c, &[], &lines, 10.0 / 4.5 * 3.0);
+    // Sewn as a fill: under sewing kept, the top stitching from the rows, reproducible; without
+    // lines the plain fill.
+    let mut r = region(RegionType::Fill);
+    r.angle = 0.0;
+    let plain = crate::region::layers(&c, &r, &[]);
+    r.angle_lines = lines.to_vec();
+    let turned = crate::region::layers(&c, &r, &[]);
+    assert_eq!(turned.len(), plain.len());
+    assert_ne!(turned.last(), plain.last());
+    assert_eq!(&turned[..turned.len() - 1], &plain[..plain.len() - 1]);
+    assert_eq!(crate::region::layers(&c, &r, &[]), turned);
+    let json = serde_json::to_string(&region(RegionType::Fill)).expect("json");
+    assert!(!json.contains("angleLines"));
+    let back: RegionSewing =
+        serde_json::from_str(&serde_json::to_string(&r).expect("json")).expect("load");
+    assert_eq!(back, r);
+}
+
+#[test]
+fn angle_lines_on_a_ring_wrap_round_and_bad_lines_are_refused() {
+    // A ring as one object: outer circle and a hole.
+    let circle = |r: f64| {
+        Contour::new(
+            (0..72)
+                .map(|i| {
+                    let a = std::f64::consts::TAU * i as f64 / 72.0;
+                    v2(400.0 + r * a.cos(), 400.0 + r * a.sin())
+                })
+                .collect(),
+            true,
+        )
+    };
+    let ring = vec![circle(300.0), circle(150.0)];
+    // Four lines pointing at the centre, across the band.
+    let spoke = |deg: f64| {
+        let a = deg.to_radians();
+        [
+            v2(400.0 + 120.0 * a.cos(), 400.0 + 120.0 * a.sin()),
+            v2(400.0 + 330.0 * a.cos(), 400.0 + 330.0 * a.sin()),
+        ]
+    };
+    let lines = [spoke(0.0), spoke(90.0), spoke(180.0), spoke(270.0)];
+    assert!(crate::angle_lines::check(&lines, &ring, &[]).is_ok());
+    check_angle_rows(&ring, &[], &lines, 10.0 / 4.5 * 3.0);
+    // Refused: one line, crossing lines, a line outside the shape.
+    let c = horseshoe();
+    assert!(crate::angle_lines::check(&lines[..1], &ring, &[]).is_err());
+    let crossing = [
+        [v2(80.0, 220.0), v2(270.0, 220.0)],
+        [v2(100.0, 200.0), v2(260.0, 260.0)],
+    ];
+    let err = crate::angle_lines::check(&crossing, &c, &[]).expect_err("crossing");
+    assert!(err.contains("cross"), "{err}");
+    let outside = [
+        [v2(80.0, 220.0), v2(270.0, 220.0)],
+        [v2(380.0, 100.0), v2(420.0, 100.0)],
+    ];
+    assert!(crate::angle_lines::check(&outside, &c, &[]).is_err());
+    // A fill whose lines are refused sews as without them.
+    let mut r = region(RegionType::Fill);
+    let plain = crate::region::layers(&c, &r, &[]);
+    r.angle_lines = crossing.to_vec();
+    assert_eq!(crate::region::layers(&c, &r, &[]), plain);
+}

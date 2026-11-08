@@ -193,6 +193,11 @@ Done 2026-11-08 (`batch:fills-2`, #534 part 1): the Fill Angle tool (Color / Sew
 the selected regions to turn their rows, PE-DESIGN's sewing-direction gesture. The stitch angle
 lines of #534 follow.
 
+Done 2026-11-08 (`batch:fills-2`, #534 part 2): stitch angle lines. `object.setAngleLines` puts
+lines across a fill; its rows turn from one line to the next by matching positions along the
+two outline sides, thinned in pairs on the inside of a bend, wrapping round a ring. A canvas tool
+to draw them follows.
+
 Done 2026-11-08 (`batch:fills-2`, #532 part 2b): the Gradient tool (Shapes ▸ Edit Outline): drag
 across a gradient fill to set where it starts and ends; every colour follows in one undo step.
 With it, #532 is done.
