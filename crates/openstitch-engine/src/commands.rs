@@ -301,6 +301,8 @@ pub fn stats(p: &StitchPattern) -> Value {
         "widthMM": (b.width() / MM * 10.0).round() / 10.0,
         "heightMM": (b.height() / MM * 10.0).round() / 10.0,
         "colors": p.threads.iter().map(Thread::hex).collect::<Vec<_>>(),
+        // Each colour block's thread: code, brand, name and PEC number (#798).
+        "threads": p.threads.iter().map(crate::thread_match::describe).collect::<Vec<_>>(),
     })
 }
 

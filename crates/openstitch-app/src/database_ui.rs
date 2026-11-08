@@ -795,15 +795,9 @@ fn preview(app: &mut EditorApp, ui: &mut egui::Ui) {
             .show(ui, |ui| {
                 for (i, t) in list.iter().enumerate() {
                     ui.horizontal(|ui| {
-                        let (r, _) = ui.allocate_exact_size(egui::vec2(14.0, 14.0), Sense::hover());
-                        ui.painter().rect(
-                            r,
-                            2.0,
-                            Color32::from_rgb(t.red, t.green, t.blue),
-                            egui::Stroke::new(1.0, Color32::from_gray(90)),
-                            egui::StrokeKind::Inside,
-                        );
-                        ui.label(format!("{}. {}", i + 1, thread_label(t, false)));
+                        ui.label(format!("{}.", i + 1));
+                        crate::panels::thread_swatch(ui, t, 14.0, crate::panels::Caption::Beside);
+                        ui.label(thread_label(t, false));
                         if let Some(n) = t.catalog_number.as_deref() {
                             ui.label(RichText::new(n).weak());
                         }

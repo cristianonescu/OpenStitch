@@ -280,7 +280,12 @@ then style them in the next.
   it (a settings change: say what changes and ask first; `builtin: brother` is Brother's PEC
   chart). Give a chart's thread as `color: {builtin: "newBrothread", code: "001"}` (or any
   colour parameter: `fill`, `stroke`); its Madeira codes are `crossReferences`, and
-  `threads.find` finds a thread by them ("1801" is 001 White). `threads.find`
+  `threads.find` finds a thread by them ("1801" is 001 White). Every thread the commands
+  report has `code` (the code on its spool: Brother 007 for a PEC chart thread, never its PEC
+  number), `brand` and `pecIndex` (the PEC chart number a PES file gives it) as separate fields
+  (`design.info` `threads`, the `digitize.*` results, `stitches.points` `threadDetails`). Name a
+  thread to the user by that code, as every colour list in the window shows it beside the
+  swatch; `ui.threadLabels {list}` returns what a list shows. `threads.find`
   `{query}` finds a thread by code or name (`charts: ["brother"]` searches the PEC chart as the
   editor's colour picker search does). After `import.svg` or a `digitize.*` wizard gives
   many near-identical colours, offer `threads.mergeSimilar` (`dryRun` first; it reports the

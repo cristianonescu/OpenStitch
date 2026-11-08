@@ -208,6 +208,8 @@ pub fn commands() -> Vec<CommandSpec> {
                 let r = |v: f64| (v / MM * 100.0).round() / 100.0;
                 Ok(json!({
                     "threads": b.threads.iter().map(|t| t.hex()).collect::<Vec<_>>(),
+                    // Each thread's code, brand and PEC number (#798).
+                    "threadDetails": b.threads.iter().map(crate::thread_match::describe).collect::<Vec<_>>(),
                     "points": b.stitches.iter().enumerate().map(|(k, st)| json!({
                         "index": k, "x": r(st.x), "y": r(st.y),
                         "command": command_name(st.command), "color": colors[k],

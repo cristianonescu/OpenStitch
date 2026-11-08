@@ -755,6 +755,7 @@ fn every_command_the_skill_names_exists() {
         "ui.select",
         "ui.zoom",
         "ui.settings",
+        "ui.threadLabels",
         "ui.set",
         "ui.render",
         "ui.simulate",

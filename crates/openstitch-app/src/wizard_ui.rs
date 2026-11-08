@@ -327,11 +327,11 @@ fn hex_colour(hex: &str) -> egui::Color32 {
     egui::Color32::from_rgb((v >> 16) as u8, (v >> 8) as u8, v as u8)
 }
 
-/// A colour sample: the hex value on its own colour.
-fn colour_text(hex: &str) -> egui::RichText {
+/// A colour sample: `label` (the thread's code, #798, or the hex value) on its own colour.
+fn colour_text(hex: &str, label: &str) -> egui::RichText {
     let c = hex_colour(hex);
     let light = u32::from(c.r()) + u32::from(c.g()) + u32::from(c.b()) > 380;
-    egui::RichText::new(hex)
+    egui::RichText::new(label)
         .monospace()
         .background_color(c)
         .color(if light {
@@ -402,7 +402,9 @@ fn regions_section(ui: &mut egui::Ui, w: &mut ImageWizard) -> bool {
                             ui.end_row();
                             for r in &regions {
                                 ui.label(format!("{}", r.id));
-                                ui.label(colour_text(&r.color)).on_hover_text(&r.thread);
+                                let label = if r.code.is_empty() { &r.color } else { &r.code };
+                                ui.label(colour_text(&r.color, label))
+                                    .on_hover_text(format!("{} ({})", r.thread, r.color));
                                 // Lines (thin lines, outlines) have no width or area of their own.
                                 let line = r.width_mm <= 0.0;
                                 ui.label(if !line {
@@ -444,7 +446,7 @@ fn regions_section(ui: &mut egui::Ui, w: &mut ImageWizard) -> bool {
             for (i, c) in colours.iter().enumerate() {
                 ui.horizontal(|ui| {
                     ui.label(format!("{}.", i + 1));
-                    ui.label(colour_text(c));
+                    ui.label(colour_text(c, &w.colour_label(c))).on_hover_text(c);
                     if ui
                         .add_enabled(i > 0, egui::Button::new(t("ui-earlier")))
                         .clicked()

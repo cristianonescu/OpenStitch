@@ -996,6 +996,7 @@ fn stitch_lines(p: &openstitch_core::StitchPattern) -> Vec<StitchLine> {
     let mut current: Vec<Vec2> = Vec::new();
     let colour = |b: usize| {
         p.threads.get(b).map_or(Color32::BLACK, |t| {
+            // bare-swatch: the stitches drawn in their thread colour, not a colour list.
             Color32::from_rgb(t.red, t.green, t.blue)
         })
     };

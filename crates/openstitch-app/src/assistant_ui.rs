@@ -251,6 +251,12 @@ impl EditorApp {
                 }
                 Ok(json!({ "zoomPercent": self.zoom_percent() }))
             }
+            "ui.threadLabels" => {
+                let list = p.string("list", Some("picker")).map_err(err)?;
+                crate::panels::thread_labels(self, &list).map(|labels| {
+                    json!({ "list": list, "labels": labels })
+                })
+            }
             "ui.settings" => Ok(self.ui_settings()),
             "ui.set" => {
                 let name = p.string("name", None).map_err(err)?;
@@ -1392,6 +1398,56 @@ mod tests {
             app.ui_command("ui.run", Some(&json!({ "action": "nope" })))
                 .is_err()
         );
+    }
+
+    /// #798: through `ui.threadLabels`, the colour picker, the Sewing Order list and Change
+    /// Color show a code beside every swatch (none unlabelled), each the thread's own chart code.
+    #[test]
+    fn every_colour_list_shows_a_code_on_each_swatch() {
+        let mut app = EditorApp::new(Launch::default());
+        for (command, params) in [
+            ("design.new", json!({ "width": 100, "height": 100 })),
+            ("shape.rectangle", json!({ "x": 0, "y": 0, "width": 20, "height": 20, "fill": 1, "outline": "Black" })),
+            ("shape.rectangle", json!({ "x": 30, "y": 0, "width": 20, "height": 20, "fill": {"builtin": "madeiraPolyneon", "code": "1800"} })),
+            ("shape.ellipse", json!({ "cx": 70, "cy": 50, "rx": 10, "fill": "#123456" })),
+        ] {
+            app.execute(&openstitch_app::editor::CommandRequest::new(command, params));
+        }
+        let labels = |app: &mut EditorApp, list: &str| {
+            app.ui_command("ui.threadLabels", Some(&json!({ "list": list })))
+                .unwrap_or_else(|e| panic!("{list}: {e}"))["labels"]
+                .as_array()
+                .cloned()
+                .expect("labels")
+        };
+        let codes = |v: &[Value]| -> Vec<String> {
+            v.iter().map(|l| l["code"].as_str().unwrap_or("").to_string()).collect()
+        };
+        for list in ["picker", "pecPicker", "sewingOrder"] {
+            let v = labels(&mut app, list);
+            assert!(!v.is_empty(), "{list}");
+            assert!(codes(&v).iter().all(|c| !c.is_empty()), "{list}: an unlabelled swatch");
+        }
+        assert_eq!(codes(&labels(&mut app, "picker"))[0], "001", "New Brothread, the default");
+        let pec = labels(&mut app, "pecPicker");
+        assert_eq!(pec[0]["code"], "007", "PEC 1 shows Brother's code");
+        let order = codes(&labels(&mut app, "sewingOrder"));
+        assert_eq!(order, ["007", "900", "1800", "#123456"]);
+        // Change Color, for a stitch pattern made from the first rectangle.
+        let first = app.session.design().objects[0].id;
+        app.execute(&openstitch_app::editor::CommandRequest::new("object.toStitches", json!({ "ids": [first] })));
+        let id = app
+            .session
+            .design()
+            .objects
+            .iter()
+            .find(|o| o.stitch_block.is_some())
+            .expect("a stitch pattern")
+            .id;
+        app.selection = [id].into_iter().collect();
+        let change = codes(&labels(&mut app, "changeColor"));
+        assert_eq!(change, ["007", "900"]);
+        assert!(app.ui_command("ui.threadLabels", Some(&json!({ "list": "nope" }))).is_err());
     }
 
     /// #555: Options ▸ Language through `ui.set`; the ribbon follows, the preference is kept and

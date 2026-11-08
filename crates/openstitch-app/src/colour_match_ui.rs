@@ -5,7 +5,7 @@
 
 use openstitch_app::editor::ui_texts::t;
 use crate::app::EditorApp;
-use eframe::egui::{self, Color32, RichText};
+use eframe::egui::{self, RichText};
 use openstitch_app::editor::CommandRequest;
 use serde_json::{Value, json};
 
@@ -47,14 +47,10 @@ impl Default for MatchState {
     }
 }
 
-fn swatch(ui: &mut egui::Ui, hex: &str) {
-    let c = u32::from_str_radix(hex.trim_start_matches('#'), 16).unwrap_or(0);
-    let (r, _) = ui.allocate_exact_size(egui::vec2(14.0, 14.0), egui::Sense::hover());
-    ui.painter().rect_filled(
-        r,
-        2.0,
-        Color32::from_rgb((c >> 16) as u8, (c >> 8) as u8, c as u8),
-    );
+/// A thread of a plan (the engine's `{color, code, brand, description}`) with its code (#798).
+fn plan_swatch(ui: &mut egui::Ui, thread: &Value) {
+    let t = crate::panels::json_thread(thread);
+    crate::panels::thread_swatch(ui, &t, 14.0, crate::panels::Caption::Beside);
 }
 
 fn thread_label(t: &Value) -> String {
@@ -211,13 +207,12 @@ fn match_window(app: &mut EditorApp, ctx: &egui::Context) {
                             ui.end_row();
                             for row in v["plan"].as_array().into_iter().flatten() {
                                 ui.horizontal(|ui| {
-                                    swatch(ui, row["from"]["color"].as_str().unwrap_or(""));
-                                    ui.label(row["from"]["color"].as_str().unwrap_or(""));
+                                    plan_swatch(ui, &row["from"]);
                                 });
                                 // #653: a word, not an arrow character.
                                 ui.label(RichText::new(t("ui-becomes")).weak());
                                 ui.horizontal(|ui| {
-                                    swatch(ui, row["to"]["color"].as_str().unwrap_or(""));
+                                    plan_swatch(ui, &row["to"]);
                                     ui.label(thread_label(&row["to"]));
                                 });
                                 ui.label(format!("{:.1}", row["deltaE"].as_f64().unwrap_or(0.0)));
@@ -298,11 +293,10 @@ fn merge_window(app: &mut EditorApp, ctx: &egui::Context) {
                         for g in v["groups"].as_array().into_iter().flatten() {
                             ui.horizontal_wrapped(|ui| {
                                 for m in g["merge"].as_array().into_iter().flatten() {
-                                    swatch(ui, m["thread"]["color"].as_str().unwrap_or(""));
+                                    plan_swatch(ui, &m["thread"]);
                                 }
                                 ui.label(RichText::new(t("ui-merge-into")).weak());
-                                swatch(ui, g["keep"]["color"].as_str().unwrap_or(""));
-                                ui.label(g["keep"]["color"].as_str().unwrap_or(""));
+                                plan_swatch(ui, &g["keep"]);
                             });
                         }
                     });
