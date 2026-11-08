@@ -1536,6 +1536,11 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     "Gradient fill: the transition between colour stops; set it on every object of the gradient",
                 ),
                 opt(
+                    "flowField",
+                    "{kind, center} | {kind, origin, cell, cols, angles} | null",
+                    crate::flow_param::DOC,
+                ),
+                opt(
                     "waveHeight",
                     "mm",
                     "Fill: wave fill (beyond PE-DESIGN), the rows' ripple crest to trough, 0-20 (0 = straight rows); a wave steeper than 40° is sewn at 40°",
@@ -1646,6 +1651,10 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         o.region = None;
                         continue;
                     }
+                    // The object's own centre, for a radial or swirl flow fill (#538).
+                    let centre = o.bounds().map(|b| {
+                        openstitch_design::v2((b.min_x + b.max_x) / 2.0, (b.min_y + b.max_y) / 2.0)
+                    });
                     // A new region starts with the requested type's defaults.
                     let mut r = o.region.clone().unwrap_or_else(|| {
                         RegionSewing::new(
@@ -1964,6 +1973,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         }
                         r.angle_lines.clear();
                     }
+                    crate::flow_param::set_region(p, &mut r, centre)?;
                     if p.has("waveHeight") {
                         let h = p.req("waveHeight", 0.0, 20.0)?;
                         r.wave_height = (h > 0.0).then_some(h);

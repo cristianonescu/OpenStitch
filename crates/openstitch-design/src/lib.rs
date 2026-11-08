@@ -16,6 +16,7 @@ pub mod effects;
 mod envelope_presets;
 pub mod extend;
 pub mod finish;
+pub mod flow;
 pub mod fmath;
 pub mod fonts;
 pub mod freehand;

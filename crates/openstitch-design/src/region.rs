@@ -279,6 +279,39 @@ fn layers_inner(
         out.push(join(pieces, Some(&mut graph), SATIN_TRAVEL_PITCH));
         return out;
     }
+    // Flow fill (#538, beyond PE-DESIGN): the plain fill's under sewing, then rows that follow
+    // the region's direction field (see `crate::flow`), each sewn as a tatami row in turn,
+    // joined by travel inside.
+    if r.kind == RegionType::Fill
+        && let Some(field) = &r.flow_field
+        && r.gradient.is_none()
+        && r.angle_lines.len() < 2
+        && field.check().is_ok()
+    {
+        let mut plain = r.clone();
+        plain.flow_field = None;
+        let mut out = layers_inner(closed, &plain, holes, user);
+        out.pop();
+        let spacing = 10.0 / r.density.max(0.1);
+        let stitch = r.stitch_length * 10.0;
+        let shift = r.fill_shift().unwrap_or(0.3);
+        let mut pieces: Vec<Run> = Vec::new();
+        for (k, row) in crate::flow::rows(field, closed, holes, spacing)
+            .iter()
+            .enumerate()
+        {
+            let sewn = crate::angle_lines::needles(row, stitch, (k as f64 * shift).fract());
+            if sewn.len() >= 2 {
+                pieces.push(sewn);
+            }
+        }
+        if !pieces.is_empty() {
+            let pieces = crate::paths::order(pieces, r.entry);
+            let mut graph = TravelGraph::new(closed, holes);
+            out.push(join(pieces, Some(&mut graph), SATIN_TRAVEL_PITCH));
+            return out;
+        }
+    }
     // Wave fill (#538, beyond PE-DESIGN): the rows ripple as a sine (see `wave_layers`).
     if let Some((amplitude, length)) = r.wave()
         && r.direction_curve.is_none()

@@ -928,6 +928,26 @@ fn region_type_controls(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> {
                     " mm",
                 ));
             }
+            // Flow fill (#538, beyond PE-DESIGN): rows radiating from or circling the shape's
+            // centre; a grid field (set through object.setRegion) shows as such.
+            {
+                use openstitch_design::flow::FlowField;
+                let current = match &r.flow_field {
+                    None => "straight",
+                    Some(FlowField::Radial { .. }) => "radial",
+                    Some(FlowField::Swirl { .. }) => "swirl",
+                    Some(FlowField::Grid { .. }) => "grid",
+                };
+                let mut options = vec![
+                    ("straight", "Straight"),
+                    ("radial", "Radial (+)"),
+                    ("swirl", "Swirl (+)"),
+                ];
+                if current == "grid" {
+                    options.push(("grid", "Field grid (+)"));
+                }
+                v.push(choice("Rows (+)", "flowField", current, &options));
+            }
             // Stitch angle lines (#534, beyond PE-DESIGN): shown while set; off removes them.
             if r.angle_lines.len() >= 2 {
                 v.push(toggle("Angle lines (+)", "angleLines", true));

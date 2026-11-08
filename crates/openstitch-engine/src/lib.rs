@@ -19,6 +19,7 @@ mod envelopes;
 pub mod extra_exports;
 pub mod fabric;
 mod finish;
+mod flow_param;
 #[cfg(feature = "digitize")]
 mod font_images;
 pub mod fonts;

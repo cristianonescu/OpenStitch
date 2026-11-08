@@ -613,6 +613,12 @@ fn region(id: u64, r: &RegionSewing, s: &mut Shape, table: &mut Vec<Thread>) -> 
             "object {id}: a wave fill is not mapped in PES 0110 (use version 6)"
         ));
     }
+    if r.flow_field.is_some() && r.kind == openstitch_design::RegionType::Fill {
+        // PE-DESIGN would sew straight rows (#538).
+        return Err(format!(
+            "object {id}: a flow fill is not mapped in PES 0110 (use version 6)"
+        ));
+    }
     if r.hand.is_some() {
         // PE-DESIGN would sew both sides crisp (#540).
         return Err(format!(
