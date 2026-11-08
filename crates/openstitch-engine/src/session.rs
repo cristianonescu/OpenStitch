@@ -60,10 +60,22 @@ impl EngineState {
 
 /// Owns the open design, its history and command dispatch. Every front end — app, CLI,
 /// JSON control channel, MCP, tests — goes through [`Session::execute`].
+/// A store for the user settings when there is no settings file (#829): the browser page
+/// registers its localStorage. `read` gives the stored bytes (the settings file's JSON), if
+/// any; `write` replaces them. Both are the store's own, so a refused store reads as empty.
+#[derive(Clone, Copy)]
+pub struct UserStore {
+    pub read: fn() -> Option<Vec<u8>>,
+    pub write: fn(&[u8]),
+}
+
 pub struct Session {
     state: EngineState,
     /// Where settings commands save the user settings (`None`: kept in memory only).
     user_path: Option<PathBuf>,
+    /// Where the user settings live when there is no settings file (#829: the browser page's
+    /// storage).
+    user_store: Option<UserStore>,
     undo: Vec<Design>,
     redo: Vec<Design>,
     registry: HashMap<&'static str, CommandSpec>,
@@ -84,6 +96,7 @@ impl Session {
                 user: Default::default(),
             },
             user_path: None,
+            user_store: None,
             undo: Vec::new(),
             redo: Vec::new(),
             registry: commands::all().into_iter().map(|c| (c.id, c)).collect(),
@@ -125,6 +138,17 @@ impl Session {
         self.state.user = crate::user::UserSettings::load(&path)?;
         self.user_path = Some(path);
         Ok(())
+    }
+
+    /// Loads the user settings from `store` and writes every settings change back to it, as
+    /// [`Session::with_user_settings`] does with a file (#829: the browser page's localStorage).
+    /// Nothing stored is a first run ("My Threads" holding New Brothread); stored bytes that
+    /// are not settings give the same, so a damaged store never stops the editor.
+    pub fn with_user_store(&mut self, store: UserStore) {
+        self.state.user = (store.read)()
+            .and_then(|b| crate::user::UserSettings::decode(&b).ok())
+            .unwrap_or_else(crate::user::UserSettings::first_run);
+        self.user_store = Some(store);
     }
 
     /// A session with this one's design, folders, sandbox, capabilities and user settings but
@@ -173,6 +197,7 @@ impl Session {
         s.state.capabilities = self.state.capabilities;
         s.state.user = self.state.user.clone();
         s.user_path = self.user_path.clone();
+        s.user_store = self.user_store;
         s
     }
 
@@ -297,6 +322,8 @@ impl Session {
                             command: id.into(),
                             reason: format!("could not save the user settings: {e}"),
                         })?;
+                    } else if let Some(store) = &self.user_store {
+                        (store.write)(&scratch.user.encode());
                     }
                     self.state.user = scratch.user;
                 }

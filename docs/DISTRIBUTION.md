@@ -229,8 +229,12 @@ desktop, the page's memory in the browser, where a save in the save folder becom
 start cards, theme, units, panes, shortcuts…) are kept in the origin's `localStorage` under
 `openstitch.ui` (#797): the page registers it through `openstitch_app::platform::set_prefs_store`
 and every change is written back. Where the browser refuses storage (a private window, cleared or
-blocked site data) the defaults apply and nothing is kept. The user settings (thread charts, My
-Threads, the default chart, fabrics) are not kept between visits yet. The `.wasm` is about 17 MB
+blocked site data) the defaults apply and nothing is kept. The user settings (the desktop's
+`user.json`: thread charts, My Threads, the default chart, attribute sets, custom fabrics, the
+machine profile) are kept the same way under `openstitch.user` (#829): the page registers the store
+through `openstitch_app::platform::set_user_store`, the engine's `Session::with_user_store` reads it
+at start and writes every settings change back, and stored bytes that are not settings give a
+first run. The `.wasm` is about 17 MB
 (#696).
 
 **Browsers:** `web/e2e/page.mjs` (Playwright, version pinned in `web/e2e/package-lock.json`;

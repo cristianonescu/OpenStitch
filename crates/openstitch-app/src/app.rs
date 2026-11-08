@@ -428,6 +428,13 @@ impl EditorApp {
             }
             self.ui.prefs_path = Some(ui);
         } else if l.screenshot.is_none()
+            && let Some(store) = openstitch_app::platform::user_store()
+        {
+            // No user.json: the browser page's storage (#829), then its preferences below.
+            self.session.with_user_store(store);
+        }
+        if l.user_settings.is_none()
+            && l.screenshot.is_none()
             && let Some(v) = openstitch_app::platform::stored_prefs()
                 .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
         {
