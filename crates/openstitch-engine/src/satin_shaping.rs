@@ -18,7 +18,7 @@ pub(crate) const SHAPING_PARAMS: [ParamDoc; 16] = [
     opt(
         "cornerStyle",
         "turn|auto|mitre|cap",
-        "Satin corners (beyond PE-DESIGN; Manual Punch columns, skeleton satin, Auto satin regions and zigzag lines; satin text is cut at its sharp corners, so they do not apply there; on skeleton and Auto satin at the centre line's points): turn (default, PE-DESIGN's fan), auto (cap below capBelow, mitre below mitreBelow), mitre (a seam from the inner corner to the tip, each leg's stitches square to it) or cap (both legs end on a square line through the inner corner, the tip sewn as its own piece over a hidden run)",
+        "Satin corners (beyond PE-DESIGN; Manual Punch columns, skeleton satin, Auto satin regions and zigzag lines; on satin text at the corners where two strokes are sewn one after the other (Z, V, W; not at stems or junctions); on skeleton and Auto satin at the centre line's points): turn (default, PE-DESIGN's fan), auto (cap below capBelow, mitre below mitreBelow), mitre (a seam from the inner corner to the tip, each leg's stitches square to it) or cap (both legs end on a square line through the inner corner, the tip sewn as its own piece over a hidden run)",
     ),
     opt(
         "mitreBelow",

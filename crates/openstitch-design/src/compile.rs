@@ -1500,6 +1500,17 @@ fn stroke_columns(
             .then(|| cut(std::slice::from_ref(&upright)))
             .flatten()
     })?;
+    // Corner styles (#782): a letter is cut at its sharp corners, so a satin's corner style
+    // had no corner to shape. With a style set, two blocks sewn one after the other that meet
+    // at a cut corner are sewn as one column through it. Unset, nothing changes.
+    let styled = region.kind != RegionType::Fill
+        && region.satin_shaping.corners.style != crate::column::CornerStyle::Turn;
+    let (blocks, fine_blocks, fine_match, alone, joined) = if styled && fine_match {
+        join_corners(blocks, fine_blocks, alone, &upright)
+    } else {
+        let n = blocks.len();
+        (blocks, fine_blocks, fine_match, alone, vec![false; n])
+    };
     let blocks = turned(blocks);
     let fine = fine_match.then(|| turned(fine_blocks));
     let spacing = 10.0 / region.density.max(0.1);
@@ -1545,6 +1556,11 @@ fn stroke_columns(
             // own, is a short column across a round outline, and its chords sewed it as a
             // hexagon 3.9 mm wide where the dot is 4.5 mm (stroke-satin-lower-i, #465).
             let rungs = match fine.as_ref() {
+                // A column joined through a corner (#782) keeps its 3 mm crossings, the corner
+                // crossing among them: `satin_with` spaces its stitches between them and finds
+                // the corner (re-spaced fine crossings would lose it, and every fine crossing
+                // would be a stitch).
+                Some(_) if joined[i] => b.rungs.clone(),
                 Some(f)
                     if !b.junction
                         && (b.rungs.len() <= 3
@@ -1562,7 +1578,8 @@ fn stroke_columns(
             // OpenStitch's satin shaping (#676, #686): short stitches, compensation per side and
             // per cent, the satin looks and raised satin's padding lanes under each block, as
             // on a Manual Punch column. Unset, PE-DESIGN's satin. (A letter is cut into pieces
-            // at its sharp corners, so corner styles find no corner inside a block.)
+            // at its sharp corners; with a corner style, the pieces sewn one after the other
+            // through a corner were joined above, #782.)
             let satin = crate::column::satin_with(&rungs, spacing, pull, &region.satin_shaping);
             match &region.satin_shaping.raised {
                 Some(raised) => {
@@ -1624,6 +1641,140 @@ fn stroke_columns(
         runs.push(run);
     }
     (!runs.is_empty()).then_some(runs)
+}
+
+/// Two text blocks meet at a cut corner when the ends of their crossings there are this close
+/// (0.1 mm): they share the corner's inner point (#782).
+const CORNER_INNER: f64 = 15.0;
+/// ... and their directions there turn by more than this (degrees).
+const JOIN_TURN: f64 = 60.0;
+
+/// Corner styles on satin text (#782): blocks `i` and `i + 1` sewn one after the other that
+/// meet at a cut corner (the first ends where the next starts, their crossings sharing the
+/// corner's inner point) become one block, joined by a crossing from the inner point to the
+/// outline's outer tip, which replaces any tip crossing. The coarse and fine blocks are joined
+/// alike; the last vector tells which blocks were joined.
+#[allow(clippy::type_complexity)]
+fn join_corners(
+    blocks: Vec<crate::strokes::Block>,
+    fine: Vec<crate::strokes::Block>,
+    alone: Vec<bool>,
+    closed: &[Contour],
+) -> (
+    Vec<crate::strokes::Block>,
+    Vec<crate::strokes::Block>,
+    bool,
+    Vec<bool>,
+    Vec<bool>,
+) {
+    let outline: Vec<Vec2> = closed.iter().flat_map(Contour::outline_points).collect();
+    let mut out: Vec<crate::strokes::Block> = Vec::new();
+    let mut out_fine: Vec<crate::strokes::Block> = Vec::new();
+    let mut out_alone = Vec::new();
+    let mut joined = Vec::new();
+    for (i, (b, f)) in blocks.into_iter().zip(fine).enumerate() {
+        if let (Some(prev), Some(prev_f)) = (out.last(), out_fine.last())
+            && !prev.junction
+            && !b.junction
+            && b.lead.is_none()
+            && let Some(rungs) = corner_join(&prev.rungs, &b.rungs, &outline)
+            && let Some(rungs_f) = corner_join(&prev_f.rungs, &f.rungs, &outline)
+        {
+            let k = out.len() - 1;
+            out[k].rungs = rungs;
+            out_fine[k].rungs = rungs_f;
+            out_alone[k] = false;
+            joined[k] = true;
+            continue;
+        }
+        out.push(b);
+        out_fine.push(f);
+        out_alone.push(alone[i]);
+        joined.push(false);
+    }
+    (out, out_fine, true, out_alone, joined)
+}
+
+/// `a` then `b` joined through the corner where `a` ends and `b` starts (see
+/// [`join_corners`]), or `None` when they do not meet at a corner.
+fn corner_join(a: &[[Vec2; 2]], b: &[[Vec2; 2]], outline: &[Vec2]) -> Option<Vec<[Vec2; 2]>> {
+    let flat = |r: &[Vec2; 2]| r[0].distance(r[1]) < 1e-6;
+    // A tip crossing at the corner end (strokes.rs puts one on the block sewn last there).
+    let mut tip = None;
+    let mut a: Vec<[Vec2; 2]> = a.to_vec();
+    let mut b: Vec<[Vec2; 2]> = b.to_vec();
+    if a.last().is_some_and(flat) {
+        tip = a.pop().map(|r| r[0]);
+    }
+    if b.first().is_some_and(flat) {
+        tip = Some(b.remove(0)[0]);
+    }
+    if a.len() < 2 || b.len() < 2 {
+        return None;
+    }
+    let (ra, rb) = (a[a.len() - 1], b[0]);
+    // The ends that share the corner's inner point.
+    let (ia, ib) = [(0, 0), (0, 1), (1, 0), (1, 1)]
+        .into_iter()
+        .min_by(|x, y| {
+            ra[x.0]
+                .distance(rb[x.1])
+                .total_cmp(&ra[y.0].distance(rb[y.1]))
+        })?;
+    if ra[ia].distance(rb[ib]) > CORNER_INNER {
+        return None;
+    }
+    let inner = ra[ia].lerp(rb[ib], 0.5);
+    if ia != ib {
+        for r in &mut b {
+            r.swap(0, 1);
+        }
+    }
+    let mid = |r: [Vec2; 2]| r[0].lerp(r[1], 0.5);
+    let unit = |d: Vec2| {
+        let l = d.length();
+        (l > 1e-9).then(|| d * (1.0 / l))
+    };
+    let ua = unit(mid(ra) - mid(a[a.len() - 2]))?;
+    let ub = unit(mid(b[1]) - mid(b[0]))?;
+    let turn = (ua.x * ub.x + ua.y * ub.y)
+        .clamp(-1.0, 1.0)
+        .dacos()
+        .to_degrees();
+    if turn < JOIN_TURN {
+        return None;
+    }
+    // The outer tip: the outline point furthest out past the inner point.
+    let outward = unit(ua - ub)?;
+    let reach = 2.0 * ra[0].distance(ra[1]).max(rb[0].distance(rb[1]));
+    let along = |o: Vec2| (o.x - inner.x) * outward.x + (o.y - inner.y) * outward.y;
+    let tip = tip.or_else(|| {
+        outline
+            .iter()
+            .copied()
+            .filter(|o| o.distance(inner) <= reach)
+            .max_by(|x, y| along(*x).total_cmp(&along(*y)))
+    })?;
+    if along(tip) <= 0.0 {
+        return None;
+    }
+    let mut corner = [inner, inner];
+    corner[1 - ia] = tip;
+    // Each leg ends a way short of the corner crossing, so the column's centre line has a
+    // corner there that the style can mitre or cap (`column::joins` wants room on both legs);
+    // the construction covers the gap.
+    let centre = inner.lerp(tip, 0.5);
+    let clear = (0.5 * inner.distance(tip)).max(10.0);
+    while a.len() > 2 && mid(a[a.len() - 1]).distance(centre) < clear {
+        a.pop();
+    }
+    while b.len() > 2 && mid(b[0]).distance(centre) < clear {
+        b.remove(0);
+    }
+    let mut rungs = a;
+    rungs.push(corner);
+    rungs.extend(b);
+    Some(rungs)
 }
 
 /// How far (0.1 mm) the outline walk between a warped letter's blocks may stray from the

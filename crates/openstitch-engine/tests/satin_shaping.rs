@@ -888,3 +888,53 @@ fn satin_regions_and_skeleton_satin_take_the_looks_through_the_command() {
     assert_eq!(layers(&k), before_layers + 1);
     assert!(stitches(&k) > before);
 }
+
+#[test]
+fn satin_text_corners_take_the_corner_style() {
+    // #782: satin text is cut at its sharp corners; with a corner style, two strokes sewn one
+    // after the other through a corner (Z's) are one column there, mitred or capped. Unset or
+    // turn, the letters sew as before.
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "text.add",
+        json!({"text": "Z", "font": "lato-bold", "size": 20, "x": 10, "y": 70, "fill": "Red"}),
+    );
+    let before = sewn(&s);
+    let bounds = |st: &[openstitch_core::Stitch]| {
+        let xs = st.iter().map(|p| p.x);
+        let ys = st.iter().map(|p| p.y);
+        (
+            xs.clone().fold(f64::INFINITY, f64::min),
+            xs.fold(f64::NEG_INFINITY, f64::max),
+            ys.clone().fold(f64::INFINITY, f64::min),
+            ys.fold(f64::NEG_INFINITY, f64::max),
+        )
+    };
+    let (x0, x1, y0, y1) = bounds(&before);
+    let mut seen = vec![before.clone()];
+    for style in ["mitre", "cap"] {
+        run(
+            &mut s,
+            "object.setRegion",
+            json!({"id": 1, "cornerStyle": style}),
+        );
+        let now = sewn(&s);
+        assert!(!seen.contains(&now), "{style} sews its own corners");
+        // The corners stay within the letter (0.5 mm for compensation at the tips).
+        let (a0, a1, b0, b1) = bounds(&now);
+        assert!(
+            a0 >= x0 - 5.0 && a1 <= x1 + 5.0 && b0 >= y0 - 5.0 && b1 <= y1 + 5.0,
+            "{style}: {:?} within {:?}",
+            (a0, a1, b0, b1),
+            (x0, x1, y0, y1)
+        );
+        seen.push(now);
+    }
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "cornerStyle": "turn"}),
+    );
+    assert_eq!(sewn(&s), before, "turn: as before");
+}
