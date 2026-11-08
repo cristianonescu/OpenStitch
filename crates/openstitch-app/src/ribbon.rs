@@ -2279,6 +2279,8 @@ mod tests {
         run(&mut app, Action::GridAxes, &ctx);
         assert!(!app.workspace.grid.axes);
         app.workspace.rulers = false;
+        // Guidelines show by default (#799): off first, the toggle shows them and the rulers.
+        app.workspace.guides = false;
         run(&mut app, Action::Guideline, &ctx);
         assert!(active(&app, Action::Guideline) && app.workspace.rulers);
         run(&mut app, Action::FontFilter, &ctx);

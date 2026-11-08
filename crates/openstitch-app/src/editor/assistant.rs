@@ -627,11 +627,7 @@ pub const SETTINGS: &[Setting] = &[
     ),
     s("snapToGrid", "Snap to Grid", "bool"),
     s("snapToObjects", "Snap to Objects", "bool"),
-    s(
-        "snapToGuides",
-        "Snap to guides: a dragged selection snaps to the guidelines while they show (on by default)",
-        "bool",
-    ),
+    s("snapToGuides", "Snap to guides", "bool"),
     s("precisionBar", "Precision Bar", "bool"),
     s(
         "clickInsideOutlines",
