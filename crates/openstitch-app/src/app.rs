@@ -417,6 +417,8 @@ impl EditorApp {
         {
             let ui = openstitch_app::editor::prefs::path_beside(path);
             self.ui.prefs = openstitch_app::editor::prefs::UiPrefs::load(&ui);
+            // The guidelines shown as the user left them (#799).
+            self.workspace.guides = self.ui.prefs.editing.show_guides;
             // Autosave snapshots live beside ui.json (#549); screenshot runs have none.
             if let Some(dir) = ui.parent() {
                 self.recovery.start(
@@ -756,6 +758,10 @@ impl EditorApp {
         let editing = self.ui.prefs.editing;
         self.tools
             .set_object_snapping(editing.snap_objects, editing.click_inside);
+        // Snap to guides while they show (#799).
+        self.tools.set_guide_snapping(
+            editing.snap_guides && self.workspace.guides && self.workspace.rulers,
+        );
         let effects = f(&mut self.tools, &ctx);
         self.apply_effects(effects);
     }

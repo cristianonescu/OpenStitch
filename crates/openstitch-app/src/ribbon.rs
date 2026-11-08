@@ -591,6 +591,9 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
             app.workspace.guides ^= true;
             // Guidelines come out of the rulers.
             app.workspace.rulers |= app.workspace.guides;
+            // Remembered (#799).
+            app.ui.prefs.editing.show_guides = app.workspace.guides;
+            app.ui.save_prefs();
         }
         ModifyImage => app.workspace.view.image_open = true,
         ImageRotateRight => crate::view_ui::rotate_image(app, "right"),
@@ -1576,6 +1579,14 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     });
     let units = app.ui.prefs.units;
     app.database.units = units;
+    // A dragged selection snaps to the guidelines (#799).
+    changed |= ui
+        .checkbox(
+            &mut app.ui.prefs.editing.snap_guides,
+            t("menu-snap-to-guides"),
+        )
+        .on_hover_text(t("menu-snap-to-guides-tip"))
+        .changed();
     // Where the rulers and positions measure from (#799).
     ui.label(RichText::new(t("menu-ruler-origin")).weak());
     ui.horizontal(|ui| {
@@ -2270,6 +2281,8 @@ mod tests {
         run(&mut app, Action::GridAxes, &ctx);
         assert!(!app.workspace.grid.axes);
         app.workspace.rulers = false;
+        // Guidelines show by default (#799): off first, the toggle shows them and the rulers.
+        app.workspace.guides = false;
         run(&mut app, Action::Guideline, &ctx);
         assert!(active(&app, Action::Guideline) && app.workspace.rulers);
         run(&mut app, Action::FontFilter, &ctx);

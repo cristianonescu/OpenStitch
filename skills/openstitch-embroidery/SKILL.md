@@ -333,6 +333,9 @@ types, fill patterns and motifs as pictures in the Sewing Attributes pane.
 position and the precision bar's X and Y count from: the Design Page's centre (negative left and
 up) or its top-left corner. Commands always take page coordinates from the top-left, whatever
 the rulers show.
+Guidelines (`guides.set`, `guides.list`, page coordinates) show and snap by default:
+`ui.set guides` shows or hides them and `ui.set snapToGuides` turns snapping a dragged selection
+to them on or off; both are remembered.
 `ui.set language` (`en`, or `pseudo`, a test language that brackets every translated text) is
 Options ▸ Language (#555); the ribbon, menus, panes, dialogs, status messages and the printed
 worksheet are translated, and no real translation ships

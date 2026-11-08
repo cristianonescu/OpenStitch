@@ -151,6 +151,31 @@ fn snap_to_objects_snaps_a_scripted_drag_exactly_and_ctrl_drags_freely() {
     }
 }
 
+/// #799: with Snap to Objects off, a dragged selection still snaps to a guideline while they
+/// show and snap to guides is on (the default); off, or with guidelines hidden, it does not.
+#[test]
+fn a_drag_snaps_to_a_guideline_with_snap_to_guides() {
+    for (snap, shown, expect) in [(true, true, true), (false, true, false), (true, false, false)] {
+        let mut app = EditorApp::new(Launch::default());
+        let b = rect(&mut app, 50.0, 30.0, 10.0, 20.0, "Blue");
+        app.execute(&openstitch_app::editor::CommandRequest::new(
+            "guides.set",
+            serde_json::json!({ "vertical": [30] }),
+        ))
+        .expect("guide");
+        app.ui.prefs.editing.snap_objects = false;
+        app.ui.prefs.editing.snap_guides = snap;
+        app.workspace.guides = shown;
+        play(&mut app, "drag:55,40,35.1,40");
+        let left = bounds(&app, b).min_x;
+        if expect {
+            assert_eq!(left, 300.0, "on the guideline");
+        } else {
+            assert!((left - 301.0).abs() < 1.0 && left != 300.0, "{snap} {shown}: {left}");
+        }
+    }
+}
+
 #[test]
 fn snap_guides_show_while_dragging_and_object_snap_beats_the_grid() {
     let mut app = EditorApp::new(Launch::default());
