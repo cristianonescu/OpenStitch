@@ -1358,3 +1358,36 @@ fn without_threads_openstitch_mode_uses_the_default_chart() {
         .collect();
     assert!(pe.iter().all(|c| pec.contains(c)), "{pe:?}");
 }
+
+/// #810 review: the default chart may be one of the user's own; OpenStitch mode without
+/// `threads` then chooses only from it.
+#[test]
+fn a_users_chart_as_the_default_is_the_thread_source() {
+    let dir = temp_dir();
+    write_sample(&dir);
+    let mut s = Session::new(&dir);
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    run(&mut s, "threads.createChart", json!({"name": "My Threads"}));
+    let own = ["#c80a1e", "#1428c8", "#000000", "#ffffff"];
+    for (i, c) in own.iter().enumerate() {
+        run(
+            &mut s,
+            "threads.addColor",
+            json!({"chart": "My Threads", "color": c, "code": (i + 1).to_string(), "brand": "Mine"}),
+        );
+    }
+    run(&mut s, "threads.setDefault", json!({"chart": "My Threads"}));
+    let r = run(
+        &mut s,
+        "digitize.autoPunch",
+        json!({"path": "sample.png", "width": 60, "compatMode": "openStitch"}),
+    );
+    let colours = r["colors"].as_array().expect("colors");
+    assert!(!colours.is_empty());
+    for c in colours {
+        assert!(
+            own.contains(&c.as_str().expect("hex")),
+            "{c} is not in My Threads"
+        );
+    }
+}

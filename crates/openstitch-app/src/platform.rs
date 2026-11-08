@@ -210,3 +210,38 @@ mod tests {
         assert!(!super::release_tag_grammar("main-abc1234"));
     }
 }
+
+/// Where an editor with no preferences file keeps its preferences (#797): the browser page
+/// registers its `localStorage` here; the desktop has `ui.json` and registers nothing. Both
+/// functions are the store's own, so a failing store (a private window, storage turned off)
+/// reads as empty and writes as nothing.
+#[derive(Clone, Copy)]
+pub struct PrefsStore {
+    pub read: fn() -> Option<String>,
+    pub write: fn(&str),
+}
+
+thread_local! {
+    static PREFS_STORE: std::cell::Cell<Option<PrefsStore>> = const { std::cell::Cell::new(None) };
+}
+
+/// Registers the preferences store (the web page does, before the editor starts).
+pub fn set_prefs_store(store: PrefsStore) {
+    PREFS_STORE.with(|s| s.set(Some(store)));
+}
+
+/// The stored preferences' JSON, if a store is registered and holds any.
+pub fn stored_prefs() -> Option<String> {
+    PREFS_STORE.with(|s| s.get()).and_then(|s| (s.read)())
+}
+
+/// Writes the preferences' JSON to the registered store; false when there is none.
+pub fn store_prefs(text: &str) -> bool {
+    match PREFS_STORE.with(|s| s.get()) {
+        Some(s) => {
+            (s.write)(text);
+            true
+        }
+        None => false,
+    }
+}

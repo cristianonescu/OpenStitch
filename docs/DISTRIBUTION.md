@@ -220,9 +220,16 @@ the system clipboard (copy and paste stay inside the editor), and choosing a fol
 Database, Ink/Stitch font folders, Save Template To: a page cannot browse folders). Every file
 picker works (#693): open and import, background and digitizing pictures, thread charts and
 lists, fonts, font pictures and name-drop lists. A design, embroidery file or picture dropped on
-the page opens or becomes the background. The `.wasm` is about 17 MB (#696).
+the page opens or becomes the background. The editor's preferences (the desktop's `ui.json`:
+start cards, theme, units, panes, shortcuts…) are kept in the origin's `localStorage` under
+`openstitch.ui` (#797): the page registers it through `openstitch_app::platform::set_prefs_store`
+and every change is written back. Where the browser refuses storage (a private window, cleared or
+blocked site data) the defaults apply and nothing is kept. The user settings (thread charts, My
+Threads, the default chart, fabrics) are not kept between visits yet. The `.wasm` is about 17 MB
+(#696).
 
-**Browsers:** `web/e2e/page.mjs` (Playwright, version pinned in `web/e2e/package-lock.json`)
+**Browsers:** `web/e2e/page.mjs` (Playwright, version pinned in `web/e2e/package-lock.json`;
+it also turns the start cards off and on with a reload after each, #797)
 loads the page in Chromium, Firefox and WebKit (Safari's engine): the editor must start, File ▸
 Open (Ctrl+O) goes through the browser's real file picker, and PES and DST exports written to the
 editor's save folder arrive as real downloads that must be byte-identical to the native build.
