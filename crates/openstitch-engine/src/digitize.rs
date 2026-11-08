@@ -70,6 +70,11 @@ fn hexes(threads: &[Thread]) -> Vec<String> {
     threads.iter().map(Thread::hex).collect()
 }
 
+/// The threads chosen, with code, brand and PEC number (#798).
+fn described(threads: &[Thread]) -> Vec<Value> {
+    threads.iter().map(crate::thread_match::describe).collect()
+}
+
 /// The `compatMode` parameter, shared with the region attribute of the same name: PE-DESIGN's
 /// method (`peDesign`, the default) or OpenStitch's improved one (`openStitch`).
 /// Auto Punch's `isolateSubject` and `subjectRect`: the graph cut's seed, or `None` when off.
@@ -312,6 +317,10 @@ fn plan_json(out: &autopunch::Converted, options: &AutoPunch) -> Value {
                     "region": r.id,
                     "color": r.thread.hex(),
                     "thread": r.thread.name,
+                    // The code on the region's spool, its brand and PEC number (#798).
+                    "code": openstitch_core::thread_code(&r.thread),
+                    "brand": r.thread.brand,
+                    "pecIndex": openstitch_core::pec_index(&r.thread),
                     "areaMm2": round(r.area_mm2),
                     "widthMm": round(r.width_mm),
                     "type": r.stitch.name(),
@@ -849,6 +858,7 @@ pub fn commands() -> Vec<CommandSpec> {
                 let dry = p.bool("dryRun", Some(false))?;
                 let mut r = json!({
                     "colors": hexes(&out.threads),
+                    "threads": described(&out.threads),
                     "regions": regions,
                     "background": out.background.as_ref().map(Thread::hex),
                     "plan": plan,
@@ -908,6 +918,7 @@ pub fn commands() -> Vec<CommandSpec> {
                     "fills": fills,
                     "lines": lines,
                     "colors": hexes(&out.threads),
+                    "threads": described(&out.threads),
                 }))
             },
         ),
@@ -1047,6 +1058,7 @@ pub fn commands() -> Vec<CommandSpec> {
                 let out = cross::convert(&image, &frame, &options).map_err(|e| failed(p, e))?;
                 Ok(json!({
                     "colors": hexes(&out.threads),
+                    "threads": described(&out.threads),
                     "cells": out.cells,
                     "columns": out.columns,
                     "rows": out.rows,
@@ -1200,6 +1212,7 @@ pub fn commands() -> Vec<CommandSpec> {
                 let buy = to_buy(s, p, &out.threads)?;
                 let mut r = json!({
                     "colors": hexes(&out.threads),
+                    "threads": described(&out.threads),
                     "stitches": out.stitches,
                     "ids": add_all(s, out.objects),
                 });

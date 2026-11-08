@@ -281,7 +281,12 @@ then style them in the next.
   it (a settings change: say what changes and ask first; `builtin: brother` is Brother's PEC
   chart). Give a chart's thread as `color: {builtin: "newBrothread", code: "001"}` (or any
   colour parameter: `fill`, `stroke`); its Madeira codes are `crossReferences`, and
-  `threads.find` finds a thread by them ("1801" is 001 White). `threads.find`
+  `threads.find` finds a thread by them ("1801" is 001 White). Every thread the commands
+  report has `code` (the code on its spool: Brother 007 for a PEC chart thread, never its PEC
+  number), `brand` and `pecIndex` (the PEC chart number a PES file gives it) as separate fields
+  (`design.info` `threads`, the `digitize.*` results, `stitches.points` `threadDetails`). Name a
+  thread to the user by that code, as every colour list in the window shows it beside the
+  swatch; `ui.threadLabels {list}` returns what a list shows. `threads.find`
   `{query}` finds a thread by code or name (`charts: ["brother"]` searches the PEC chart as the
   editor's colour picker search does). After `import.svg` or a `digitize.*` wizard gives
   many near-identical colours, offer `threads.mergeSimilar` (`dryRun` first; it reports the
@@ -342,7 +347,17 @@ up) or its top-left corner. Commands always take page coordinates from the top-l
 the rulers show.
 Guidelines (`guides.set`, `guides.list`, page coordinates) show and snap by default:
 `ui.set guides` shows or hides them and `ui.set snapToGuides` turns snapping a dragged selection
-to them on or off; both are remembered.
+to them on or off; both are remembered. Snapping to guides also needs the rulers shown
+(`ui.set rulers true`): hidden rulers hide the guidelines and stop the snapping. One guideline at
+a time, in page mm: `view.newGuide {orientation: "vertical"|"horizontal", position}`,
+`view.moveGuide {orientation, index, position}`, `view.deleteGuide {orientation, index}`,
+`view.editGuide {orientation, index, position?, turn?}` (Set Position…, or turned vertical <->
+horizontal); `view.clearGuides`, `view.lockGuides {locked}` (locked guidelines still show and
+snap but refuse move, edit and delete; saved with the design) and `view.newGuidesFromSelection
+{ids}` (the box's edges and centre lines). Each is one undo step and answers the list.
+`ui.guides` reads them as the user sees them, each position from the ruler origin with its label
+("+12.5 mm"), and acts as the pointer does: `{orientation, index}` selects, then `position` (typed
+as in Set Position…: `12.5`, `"12.5 mm"`, `"1/2\""`), `turn` or `delete`.
 `ui.set language` (`en`, or `pseudo`, a test language that brackets every translated text) is
 Options ▸ Language (#555); the ribbon, menus, panes, dialogs, status messages and the printed
 worksheet are translated, and no real translation ships

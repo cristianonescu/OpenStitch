@@ -265,7 +265,8 @@ feature is done and the rest is under [Planned](#planned).
   Singer, plus round commercial hoops, each from the maker's published sizes ([#514]).
 - **Rulers, grid and guides:** rulers that count from the page's centre or its top-left corner
   ([#799]), snap to grid, guidelines dragged out of the rulers (shown and snapped to by default,
-  with their distance from 0 while you drag them), the measure tool (distance and angle) and the
+  with their distance from 0 while you drag them; select, delete, turn, lock, type a position or
+  line up a selection), the measure tool (distance and angle) and the
   Reference window to jump around a large design.
 - (+) **Millimetres or inches** everywhere in the editor, from one setting ([#519]).
 - (+) **Zoom box and true real size:** drag a box to zoom, and calibrate 100 % to your monitor
@@ -563,6 +564,8 @@ The image tools have two methods, both OpenStitch's own: OpenStitch's PE-DESIGN-
 - (+) **New Brothread built in as the default threads:** the 63-spool kit with its Madeira
   codes, searchable in the colour picker ("1801" finds 001 White); Brother's PEC chart one click
   away ([#796]).
+- (+) **Thread codes on every swatch:** each colour list shows the code printed on the spool
+  (Brother 007, a maker's or your own code) beside the colour, not only on hover ([#798]).
 - (+) **GIMP / Inkscape `.gpl` palettes** as thread charts ([#483]).
 - (+) **Match to any chart by perceived colour** (CIEDE2000 or Oklab), with a preview ([#484]).
 - (+) **Merge similar colours** to save thread changes ([#485]).
@@ -685,6 +688,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#482]: https://github.com/cristianonescu/OpenStitch/issues/482
 [#483]: https://github.com/cristianonescu/OpenStitch/issues/483
 [#796]: https://github.com/cristianonescu/OpenStitch/issues/796
+[#798]: https://github.com/cristianonescu/OpenStitch/issues/798
 [#484]: https://github.com/cristianonescu/OpenStitch/issues/484
 [#485]: https://github.com/cristianonescu/OpenStitch/issues/485
 [#487]: https://github.com/cristianonescu/OpenStitch/issues/487

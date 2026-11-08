@@ -424,21 +424,7 @@ pub(crate) fn csv_thread(line: &str) -> Result<Thread, String> {
 }
 
 fn describe_thread(t: &Thread) -> Value {
-    let mut v = json!({
-        "color": t.hex(),
-        "code": t.catalog_number,
-        "brand": t.brand,
-        "description": t.name,
-    });
-    let refs = cross_references(t);
-    if !refs.is_empty() {
-        v["crossReferences"] = Value::Array(
-            refs.iter()
-                .map(|(brand, code)| json!({ "brand": brand, "code": code }))
-                .collect(),
-        );
-    }
-    v
+    crate::thread_match::describe(t)
 }
 
 /// Other makers' codes printed for `t` (New Brothread's conversion card, #796).
@@ -898,7 +884,7 @@ fn chart_commands() -> Vec<CommandSpec> {
         ),
         spec(
             "threads.builtinCharts",
-            "The thread charts built into OpenStitch: the machine charts (Brother, Janome JEF and SEW, Husqvarna Viking HUS and SHV; kind machine) and the thread makers' charts (kind brand), with each entry's number, colour, code, brand and name",
+            "The thread charts built into OpenStitch: the machine charts (Brother, Janome JEF and SEW, Husqvarna Viking HUS and SHV; kind machine) and the thread makers' charts (kind brand), with each entry's number, colour, code (the code on its spool: Brother's 007 for PEC 1), brand, name and pecIndex (the PEC number a PES file gives it)",
             Effect::Read,
             vec![],
             |_, _| {

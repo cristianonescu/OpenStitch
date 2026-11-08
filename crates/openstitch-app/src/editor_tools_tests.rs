@@ -176,6 +176,30 @@ fn a_drag_snaps_to_a_guideline_with_snap_to_guides() {
     }
 }
 
+/// #799: `ui.set snapToGuides false` (the Assistant's path) stops a drag snapping to a
+/// guideline; true again, it snaps.
+#[test]
+fn ui_set_snap_to_guides_false_stops_snapping_to_guidelines() {
+    for (value, expect) in [(false, false), (true, true)] {
+        let mut app = EditorApp::new(Launch::default());
+        let b = rect(&mut app, 50.0, 30.0, 10.0, 20.0, "Blue");
+        app.execute(&openstitch_app::editor::CommandRequest::new(
+            "guides.set",
+            serde_json::json!({ "vertical": [30] }),
+        ))
+        .expect("guide");
+        app.ui.prefs.editing.snap_objects = false;
+        app.ui_command(
+            "ui.set",
+            Some(&serde_json::json!({ "name": "snapToGuides", "value": value })),
+        )
+        .expect("ui.set");
+        play(&mut app, "drag:55,40,35.1,40");
+        let left = bounds(&app, b).min_x;
+        assert_eq!(left == 300.0, expect, "snapToGuides {value}: {left}");
+    }
+}
+
 #[test]
 fn snap_guides_show_while_dragging_and_object_snap_beats_the_grid() {
     let mut app = EditorApp::new(Launch::default());

@@ -1,6 +1,7 @@
 //! Object list (sewing order) model.
 
 use super::request::CommandRequest;
+use openstitch_core::Thread;
 use openstitch_design::{Design, DesignObject, ObjectKind};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
@@ -12,7 +13,8 @@ pub struct ObjectRow {
     pub label: String,
     pub detail: String,
     /// Thread colours in sewing order (region, line or the pattern's threads).
-    pub swatches: Vec<[u8; 3]>,
+    /// The object's threads, each once (by colour), in the order it sews them.
+    pub swatches: Vec<Thread>,
     pub visible: bool,
     pub selected: bool,
     /// Locked (#502): the canvas does not pick it.
@@ -60,8 +62,8 @@ fn detail(o: &DesignObject) -> String {
     }
 }
 
-fn swatches(o: &DesignObject) -> Vec<[u8; 3]> {
-    let mut v: Vec<[u8; 3]> = Vec::new();
+fn swatches(o: &DesignObject) -> Vec<Thread> {
+    let mut v: Vec<Thread> = Vec::new();
     let threads = o
         .region
         .iter()
@@ -71,9 +73,8 @@ fn swatches(o: &DesignObject) -> Vec<[u8; 3]> {
         .chain(o.stitch_block.iter().flat_map(|b| b.threads.iter()))
         .collect();
     for t in threads {
-        let rgb = [t.red, t.green, t.blue];
-        if !v.contains(&rgb) {
-            v.push(rgb);
+        if !v.iter().any(|x| x.rgb_value() == t.rgb_value()) {
+            v.push(t.clone());
         }
     }
     v
@@ -230,7 +231,7 @@ pub fn move_next_to(ids: &[u64], target: u64, after: bool) -> CommandRequest {
 pub fn colour_frames(design: &Design) -> Vec<Vec<u64>> {
     let mut frames: Vec<(Option<[u8; 3]>, Vec<u64>)> = Vec::new();
     for o in &design.objects {
-        let c = swatches(o).first().copied();
+        let c = swatches(o).first().map(|t| [t.red, t.green, t.blue]);
         match frames.last_mut() {
             Some((last, ids)) if *last == c => ids.push(o.id),
             _ => frames.push((c, vec![o.id])),

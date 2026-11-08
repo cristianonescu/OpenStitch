@@ -755,6 +755,7 @@ fn every_command_the_skill_names_exists() {
         "ui.select",
         "ui.zoom",
         "ui.settings",
+        "ui.threadLabels",
         "ui.set",
         "ui.render",
         "ui.simulate",
@@ -777,6 +778,7 @@ fn every_command_the_skill_names_exists() {
         "ui.preview",
         "ui.documents",
         "ui.loading",
+        "ui.guides",
     ];
     // The web editor's own (crates/openstitch-web, #556; SKILL.md "Web editor").
     let web_ui = openstitch_web::session::UI_COMMANDS;

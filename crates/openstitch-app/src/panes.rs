@@ -278,12 +278,14 @@ fn color_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
         .show(ui, |ui| {
             for (k, c) in blocks.iter().enumerate() {
                 ui.horizontal(|ui| {
-                    crate::panels::swatch(ui, *c, 16.0);
-                    let name = colors
-                        .get(k)
-                        .and_then(|t| t.name.as_deref().map(str::to_string))
-                        .unwrap_or_else(|| format!("#{:02x}{:02x}{:02x}", c[0], c[1], c[2]));
-                    ui.label(format!("{}. {name}", k + 1));
+                    let th = colors.get(k).cloned().unwrap_or_else(|| {
+                        openstitch_core::Thread::rgb(u32::from_be_bytes([0, c[0], c[1], c[2]]))
+                    });
+                    ui.label(format!("{}.", k + 1));
+                    crate::panels::thread_swatch(ui, &th, 16.0, crate::panels::Caption::Beside);
+                    if let Some(name) = th.name.as_deref() {
+                        ui.label(name);
+                    }
                 });
             }
         });
@@ -551,6 +553,7 @@ pub fn thumbnail(ui: &mut egui::Ui, o: &DesignObject, size: f32) -> egui::Respon
     let ox = f64::from(inner.center().x) - (b.min_x + b.width() / 2.0) * k;
     let oy = f64::from(inner.center().y) - (b.min_y + b.height() / 2.0) * k;
     let at = |x: f64, y: f64| egui::pos2((x * k + ox) as f32, (y * k + oy) as f32);
+    // bare-swatch: the object's thumbnail drawn in its thread colours, not a colour list.
     let rgb = |t: &openstitch_core::Thread| Color32::from_rgb(t.red, t.green, t.blue);
     if o.kind == ObjectKind::Stitches {
         if let Some(block) = &o.stitch_block {

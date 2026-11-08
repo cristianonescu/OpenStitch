@@ -620,7 +620,7 @@ mod tests {
         assert_eq!(remove_guide(&g, true, 7), g);
         let full = Guides {
             vertical: vec![0.0; Guides::MAX],
-            horizontal: Vec::new(),
+            ..Guides::default()
         };
         let more = GuideDrag {
             vertical: true,

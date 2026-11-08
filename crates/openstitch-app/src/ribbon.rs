@@ -684,7 +684,7 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
         Print | Wizard | Export | Options | Help | TextTools | ShapesTools | OtherZoom
         | Arrange | Align | SelectSame | RotateFlip | Size | StampEmboss | ModifyOverlap
         | DecorativeFrame | FitTextToOutline | SendEmbroidery | SaveImage | ImageDensity
-        | GridSpacing | ViewShow | Font | TextSize | EditText | LineColor | LineSewType
+        | GridSpacing | ViewShow | GuideOptions | Font | TextSize | EditText | LineColor | LineSewType
         | RegionColor | RegionSewType | EntryExit | SewingPoints | EdgeRadius | ChangeColor
         | SkeletonWidth | SmoothTolerance | ShapeEffects | LineGap | EditCharacter => {}
     }
@@ -996,6 +996,7 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
         ImageDensity => image_density_menu(app, ui),
         SaveImage => crate::view_ui::save_image_menu(app, ui),
         ViewShow => crate::view_ui::show_menu(app, ui),
+        GuideOptions => crate::view_ui::guides_menu(app, ui),
         GridSpacing => {
             use openstitch_app::editor::units;
             for &s in units::grid_spacings(app.ui.prefs.units) {
@@ -1175,9 +1176,12 @@ fn change_color_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
             egui::epaint::WHITE_UV,
             egui::epaint::WHITE_UV,
         ))
+        // bare-swatch: the menu entry's text beside it carries the code (#798).
         .tint(Color32::from_rgb(r, g, b))
         .corner_radius(2.0);
-        ui.menu_button((swatch, format!("{}. {name}", k + 1)), |ui| {
+        // The thread's code beside its colour (#798).
+        let code = openstitch_core::thread_label(t);
+        ui.menu_button((swatch, format!("{}. {code} {name}", k + 1)), |ui| {
             let user = app.session.user_settings();
             if let Some(i) = panels::thread_grid(ui, &format!("change-color-{k}"), Some(t), user) {
                 app.execute(&CommandRequest::new(

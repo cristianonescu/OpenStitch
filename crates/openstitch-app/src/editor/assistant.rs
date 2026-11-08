@@ -101,6 +101,17 @@ pub const UI_COMMANDS: &[UiCommand] = &[
         ],
     },
     UiCommand {
+        id: "ui.threadLabels",
+        summary: "What a colour list shows (#798): for each swatch the code drawn beside it (the thread's own chart code: Brother 007, a maker's or the user's code, #rrggbb for a custom colour), name, brand and colour. list: picker (the colour picker's default chart), pecPicker (its Brother PEC tab), sewingOrder (the Sewing Order pane's object rows), colourPane (thread colours in sewing order), changeColor (Change Color for the selected stitch pattern)",
+        effect: Effect::Read,
+        params: &[p(
+            "list",
+            "string",
+            false,
+            "picker (default), pecPicker, sewingOrder, colourPane or changeColor",
+        )],
+    },
+    UiCommand {
         id: "ui.settings",
         summary: "Every editor setting the user can change outside the design (view, grid, rulers, panes, theme, updates, realistic view, font filter, simulator speed), with its value and allowed values",
         effect: Effect::Read,
@@ -411,6 +422,33 @@ pub const UI_COMMANDS: &[UiCommand] = &[
             false,
             "true: stop the running open or import",
         )],
+    },
+    UiCommand {
+        id: "ui.guides",
+        summary: "The guidelines as the canvas shows them (#799): each one's index, position (mm from the ruler origin, as its label reads) and label, whether they show, are locked and snap, the selected one and an open Set Position… dialog. orientation + index select one as a click does; then position (a length as typed in Set Position…: 12.5, \"12.5 mm\", \"1/2\\\"\"; from the ruler origin), turn (Alt-click) or delete (the Delete key) act on it, one undo step each. Engine commands view.* do the same in page coordinates",
+        effect: Effect::Edit,
+        params: &[
+            p(
+                "orientation",
+                "vertical|horizontal",
+                false,
+                "Select this guideline (with index)",
+            ),
+            p("index", "int", false, "Which one, from 0"),
+            p(
+                "position",
+                "length",
+                false,
+                "Set Position… for the selected one, from the ruler origin",
+            ),
+            p(
+                "turn",
+                "bool",
+                false,
+                "Turn the selected one vertical <-> horizontal",
+            ),
+            p("delete", "bool", false, "Delete the selected one"),
+        ],
     },
     UiCommand {
         id: "ui.cursor",

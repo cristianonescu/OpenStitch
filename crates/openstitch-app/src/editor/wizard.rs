@@ -100,6 +100,8 @@ pub struct PlanRegion {
     pub id: usize,
     pub color: String,
     pub thread: String,
+    /// The code on the region's spool (#798: Brother 007, a maker's or the user's code).
+    pub code: String,
     pub area_mm2: f64,
     pub width_mm: f64,
     /// fill, satin, line or skip.
@@ -539,6 +541,7 @@ impl ImageWizard {
                         id: r["region"].as_u64().unwrap_or(0) as usize,
                         color: s(r, "color"),
                         thread: s(r, "thread"),
+                        code: s(r, "code"),
                         area_mm2: f(r, "areaMm2"),
                         width_mm: f(r, "widthMm"),
                         kind: s(r, "type"),
@@ -653,6 +656,19 @@ impl ImageWizard {
 
     /// The colours in sewing order: the user's order, else the preview's. With a preview, only
     /// its colours (the threads change with the mode and the colour count).
+    /// What a colour of the preview shows (#798): the code of the thread a region of that
+    /// colour got, or the colour's `#rrggbb` when no region names one.
+    pub fn colour_label(&self, hex: &str) -> String {
+        self.plan
+            .as_ref()
+            .and_then(|p| {
+                p.regions
+                    .iter()
+                    .find(|r| r.color == hex && !r.code.is_empty())
+            })
+            .map_or_else(|| hex.to_string(), |r| r.code.clone())
+    }
+
     pub fn colour_order(&self) -> Vec<String> {
         let mut out = self.order.clone();
         if let Some(plan) = &self.plan {
