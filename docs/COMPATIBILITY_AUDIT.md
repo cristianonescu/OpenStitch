@@ -3434,3 +3434,18 @@ dropped onto either ruler or off the canvas it is removed. While dragged or hove
 signed distance from the ruler origin in the chosen units (one decimal in mm, three in inches).
 Selecting, Delete, the guide menu, Lock and Clear Guides, Set Position… and the ruler menu follow
 in part 2b and part 3.
+
+### Guide editing, Lock Guides and Set Position…, 2026-11-08 (#799 part 2b)
+
+A click on a guideline's marker, or on the line with the Select tool, selects it without moving
+it (drawn thicker); Delete or Backspace removes the selected one before any selected objects.
+With the Select tool a guideline is also dragged on the canvas. Alt-click turns it vertical ↔
+horizontal: on the canvas where it was clicked, on its marker across the page centre. A
+double-click, or View ▸ Guides ▸ Set Position…, types its offset from the ruler origin in the
+chosen units through the units parser (a unit typed with it wins); invalid text keeps the dialog
+open with an error. View ▸ Guides also has Lock Guides (locked guidelines show and snap but are
+not moved, selected or deleted and lose their ×; a ruler still adds new ones; saved in `.osd`),
+Clear Selected Guide, Clear Guides and New Guides From Selection (the box's edges and centre
+lines). Each is one undo step through the new `view.*` commands; `ui.guides` reads the guidelines
+as shown and acts as the pointer does. The right-click menus, New Guide… and Guide Layout…, the
+guide colour, the ruler cursor marker and zoom-aware steps are part 3.

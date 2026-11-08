@@ -436,6 +436,7 @@ impl EditorApp {
                 Ok(state)
             }
             "ui.cursor" => self.cursor_command(params),
+            "ui.guides" => crate::view_ui::guides_command(self, params),
             "ui.preview" => self.preview_command(params),
             "ui.stitchTable" => self.stitch_table_command(params),
             "ui.recoveryList" => Ok(crate::recovery_ui::list(self)),

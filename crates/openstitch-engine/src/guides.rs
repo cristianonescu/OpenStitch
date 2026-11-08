@@ -286,11 +286,7 @@ pub fn commands() -> Vec<CommandSpec> {
                     horizontal,
                     locked: s.design.guides.locked,
                 };
-                let mm = |v: &[f64]| v.iter().map(|x| x / MM).collect::<Vec<_>>();
-                Ok(json!({
-                    "vertical": mm(&s.design.guides.vertical),
-                    "horizontal": mm(&s.design.guides.horizontal),
-                }))
+                Ok(listing(&s.design.guides))
             },
         ),
         spec(

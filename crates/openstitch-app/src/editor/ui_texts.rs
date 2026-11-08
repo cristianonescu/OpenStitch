@@ -68,6 +68,30 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
     ("menu-inches", "Inches"),
     ("menu-ruler-origin", "Ruler origin"),
     ("menu-snap-to-guides", "Snap to guides"),
+    ("ui-lock-guides", "Lock Guides"),
+    (
+        "ui-lock-guides-tip",
+        "Locked guidelines stay shown and snapped to but cannot be moved, selected or deleted; a ruler still adds new ones. Saved with the design",
+    ),
+    ("ui-guide-set-position", "Set Position…"),
+    ("ui-guide-set-position-title", "Guideline Position"),
+    ("ui-guide-position-x", "X from the ruler origin"),
+    ("ui-guide-position-y", "Y from the ruler origin"),
+    (
+        "ui-guide-position-invalid",
+        "Type a length, for example 12.5, 12.5 mm or 1/2\"",
+    ),
+    ("ui-clear-selected-guide", "Clear Selected Guide"),
+    ("ui-clear-guides", "Clear Guides"),
+    (
+        "ui-clear-guides-tip",
+        "Delete every guideline (one undo step)",
+    ),
+    ("ui-new-guides-from-selection", "New Guides From Selection"),
+    (
+        "ui-new-guides-from-selection-tip",
+        "Guidelines on the selection's edges and centre lines",
+    ),
     (
         "menu-snap-to-guides-tip",
         "A dragged selection snaps to the guidelines while they show; hold Ctrl (Cmd on macOS) to drag freely",

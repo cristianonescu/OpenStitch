@@ -413,6 +413,33 @@ pub const UI_COMMANDS: &[UiCommand] = &[
         )],
     },
     UiCommand {
+        id: "ui.guides",
+        summary: "The guidelines as the canvas shows them (#799): each one's index, position (mm from the ruler origin, as its label reads) and label, whether they show, are locked and snap, the selected one and an open Set Position… dialog. orientation + index select one as a click does; then position (a length as typed in Set Position…: 12.5, \"12.5 mm\", \"1/2\\\"\"; from the ruler origin), turn (Alt-click) or delete (the Delete key) act on it, one undo step each. Engine commands view.* do the same in page coordinates",
+        effect: Effect::Edit,
+        params: &[
+            p(
+                "orientation",
+                "vertical|horizontal",
+                false,
+                "Select this guideline (with index)",
+            ),
+            p("index", "int", false, "Which one, from 0"),
+            p(
+                "position",
+                "length",
+                false,
+                "Set Position… for the selected one, from the ruler origin",
+            ),
+            p(
+                "turn",
+                "bool",
+                false,
+                "Turn the selected one vertical <-> horizontal",
+            ),
+            p("delete", "bool", false, "Delete the selected one"),
+        ],
+    },
+    UiCommand {
         id: "ui.cursor",
         summary: "Keyboard drawing (#499) with the active drawing tool (pick one with ui.run, e.g. polygon, pen, punch): x, y (mm) or dx, dy move the drawing cursor; action place clicks there (Rectangle and Ellipse: first place starts, second ends), smooth places a smooth Pen or Satin Skeleton point, back removes the last point, finish ends the drawing (one undo step, the same command a mouse drawing makes), cancel drops it; width (mm) sets the next point's width for the Pen (making a satin line) and Satin Skeleton (#707)",
         effect: Effect::Edit,

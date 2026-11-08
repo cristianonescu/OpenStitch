@@ -335,7 +335,17 @@ up) or its top-left corner. Commands always take page coordinates from the top-l
 the rulers show.
 Guidelines (`guides.set`, `guides.list`, page coordinates) show and snap by default:
 `ui.set guides` shows or hides them and `ui.set snapToGuides` turns snapping a dragged selection
-to them on or off; both are remembered.
+to them on or off; both are remembered. Snapping to guides also needs the rulers shown
+(`ui.set rulers true`): hidden rulers hide the guidelines and stop the snapping. One guideline at
+a time, in page mm: `view.newGuide {orientation: "vertical"|"horizontal", position}`,
+`view.moveGuide {orientation, index, position}`, `view.deleteGuide {orientation, index}`,
+`view.editGuide {orientation, index, position?, turn?}` (Set Position…, or turned vertical <->
+horizontal); `view.clearGuides`, `view.lockGuides {locked}` (locked guidelines still show and
+snap but refuse move, edit and delete; saved with the design) and `view.newGuidesFromSelection
+{ids}` (the box's edges and centre lines). Each is one undo step and answers the list.
+`ui.guides` reads them as the user sees them, each position from the ruler origin with its label
+("+12.5 mm"), and acts as the pointer does: `{orientation, index}` selects, then `position` (typed
+as in Set Position…: `12.5`, `"12.5 mm"`, `"1/2\""`), `turn` or `delete`.
 `ui.set language` (`en`, or `pseudo`, a test language that brackets every translated text) is
 Options ▸ Language (#555); the ribbon, menus, panes, dialogs, status messages and the printed
 worksheet are translated, and no real translation ships
