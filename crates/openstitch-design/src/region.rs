@@ -8,8 +8,8 @@ use crate::fmath::Det;
 use crate::generate::{self, RegionParams, RowSpan, Run, Stagger, subdivide};
 use crate::geometry::{Contour, Rect, Span, Vec2, contains, subtract, v2};
 use crate::model::{
-    Feather, FeatherSide, FillStitchType, Gradation, RegionSewing, RegionType, RunningStitchPath,
-    UnderlayParts, UnderlayStyle,
+    Feather, FeatherSide, FillStitchType, Gradation, GradationShape, RegionSewing, RegionType,
+    RunningStitchPath, UnderlayParts, UnderlayStyle,
 };
 use crate::paths::{OutlineTravel, Rng, TravelGraph, join};
 use crate::patterns::Pattern;
@@ -2827,6 +2827,38 @@ pub fn row_positions(
     let h = b.height();
     let gap = |y: f64| spacing / gradation.map_or(1.0, |g| g.fraction((y - b.min_y) / h));
     let mut ys = Vec::new();
+    // A named profile other than PE-DESIGN's straight line (#532): the same placement (first
+    // row on the start edge, last on the far edge, equal steps of the line count), the line
+    // count integrated numerically.
+    if let Some(g) = gradation.filter(|g| g.steps.is_some() && g.shape != GradationShape::Linear) {
+        let inside = 1e-3_f64.min(h / 4.0);
+        const SAMPLES: usize = 4096;
+        let mut count = vec![0.0; SAMPLES + 1];
+        for i in 1..=SAMPLES {
+            let (t0, t1) = ((i - 1) as f64 / SAMPLES as f64, i as f64 / SAMPLES as f64);
+            count[i] = count[i - 1]
+                + (g.fraction(t0) + g.fraction(t1)) / 2.0 * (h / SAMPLES as f64) / spacing;
+        }
+        let total = count[SAMPLES];
+        let n = (total + 1e-9).floor().clamp(1.0, 100_000.0);
+        for k in 0..=n as usize {
+            let target = total * k as f64 / n;
+            let i = count.partition_point(|&c| c < target).clamp(1, SAMPLES);
+            let (c0, c1) = (count[i - 1], count[i]);
+            let u = if c1 > c0 {
+                (target - c0) / (c1 - c0)
+            } else {
+                0.0
+            };
+            let y = if k == n as usize {
+                h
+            } else {
+                ((i - 1) as f64 + u.clamp(0.0, 1.0)) / SAMPLES as f64 * h
+            };
+            ys.push((b.min_y + y).clamp(b.min_y + inside, b.max_y - inside));
+        }
+        return ys;
+    }
     if let Some(g) = gradation.filter(|g| g.steps.is_some()) {
         // Rows on an edge are sampled just inside it.
         let inside = 1e-3_f64.min(h / 4.0);

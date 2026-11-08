@@ -4157,3 +4157,70 @@ fn a_two_colour_blend_has_complementary_rows_and_bands_have_a_hard_edge() {
     let json = serde_json::to_string(&region(RegionType::Fill)).expect("json");
     assert!(!json.contains("gradient"));
 }
+
+#[test]
+fn named_gradation_shapes_space_the_rows_by_their_profile() {
+    use crate::{Gradation, GradationShape as S};
+    // A 40 mm square (x, y, width, height), 2.2 rows/mm at full density.
+    let c = vec![Contour::rectangle(100.0, 100.0, 400.0, 400.0)];
+    let spacing = 10.0 / 4.5;
+    for shape in S::ALL {
+        let g = Gradation {
+            max: 100.0,
+            min: 10.0,
+            steps: Some(9),
+            shape,
+        };
+        // The profile: max at its dense points, min at its open ones.
+        let f = |t: f64| g.fraction(t);
+        match shape {
+            S::Linear | S::Convex | S::Concave => assert_eq!((f(0.0), f(1.0)), (1.0, 0.1)),
+            S::Centre => assert_eq!((f(0.0), f(0.5), f(1.0)), (0.1, 1.0, 0.1)),
+            S::Edges => assert_eq!((f(0.0), f(0.5), f(1.0)), (1.0, 0.1, 1.0)),
+            S::Wave => assert!((f(0.5) - 0.1).abs() < 1e-9 && f(0.0) == 1.0 && f(1.0) == 1.0),
+        }
+        let ys = crate::region::row_positions(&c, 0.0, spacing, Some(&g));
+        assert!(ys.len() > 10, "{shape:?}");
+        // First row on the start edge, last on the far edge.
+        assert!((ys[0] - 100.0).abs() < 0.01 && (ys[ys.len() - 1] - 500.0).abs() < 0.01);
+        // Equal steps of the line count: the profile's density integrated across every gap
+        // is the same (within 2 %), so each gap is the spacing at the density there.
+        let count = |y0: f64, y1: f64| {
+            (0..200)
+                .map(|i| {
+                    let y = y0 + (y1 - y0) * (i as f64 + 0.5) / 200.0;
+                    f((y - 100.0) / 400.0) * (y1 - y0) / 200.0 / spacing
+                })
+                .sum::<f64>()
+        };
+        let counts: Vec<f64> = ys.windows(2).map(|w| count(w[0], w[1])).collect();
+        let mean = counts.iter().sum::<f64>() / counts.len() as f64;
+        for (k, c) in counts.iter().enumerate() {
+            assert!(
+                (c / mean - 1.0).abs() < 0.02,
+                "{shape:?}: gap {k} holds {c:.3} lines, mean {mean:.3}"
+            );
+        }
+        assert!((mean - 1.0).abs() < 0.1, "{shape:?}: {mean:.3} lines a gap");
+    }
+    // Linear is PE-DESIGN's: the same rows as without a shape.
+    let pe = Gradation::PE_DEFAULT;
+    let linear = Gradation {
+        shape: S::Linear,
+        ..pe
+    };
+    assert_eq!(
+        crate::region::row_positions(&c, 0.0, spacing, Some(&linear)),
+        crate::region::row_positions(&c, 0.0, spacing, Some(&pe))
+    );
+    // Saved only when not linear, and read back.
+    let json = serde_json::to_string(&pe).expect("json");
+    assert!(!json.contains("shape"), "{json}");
+    let centre = Gradation {
+        shape: S::Centre,
+        ..pe
+    };
+    let back: Gradation =
+        serde_json::from_str(&serde_json::to_string(&centre).expect("json")).expect("load");
+    assert_eq!(back, centre);
+}

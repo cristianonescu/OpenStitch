@@ -247,7 +247,8 @@ fn gradation_pattern_options() {
         Some(Gradation {
             max: 80.0,
             min: 5.0,
-            steps: Some(4)
+            steps: Some(4),
+            shape: Default::default(),
         })
     );
     // Turning the pattern on again keeps it; off clears it.
@@ -279,7 +280,8 @@ fn gradation_pattern_options() {
         Some(Gradation {
             max: 53.0,
             min: 10.0,
-            steps: Some(9)
+            steps: Some(9),
+            shape: Default::default(),
         })
     );
     for params in [
@@ -514,6 +516,7 @@ fn bad_region_options_fail_cleanly() {
         json!({"id": 1, "staggerPeriod": 1}),
         json!({"id": 1, "staggerAmplitude": 101}),
         json!({"id": 1, "gradient": true}),
+        json!({"id": 1, "gradationShape": "spiky"}),
         json!({"id": 1, "gradientDither": "rows"}),
         json!({"id": 1, "type": "meander", "pattern": "waves"}),
         json!({"id": 1, "type": "meander", "pattern": "no-such-tile"}),
@@ -1368,4 +1371,51 @@ fn gradient_and_blend_go_through_the_commands() {
     let help = run(&mut s, "commands.list", json!({})).to_string();
     assert!(help.contains("shape.gradient") && help.contains("shape.blend"));
     assert!(help.contains("gradientDither"));
+}
+
+/// Named gradation shapes (#532, beyond PE-DESIGN): set by `object.setRegion`, sewn, saved,
+/// undone; PES 0110 refuses a shape other than PE-DESIGN's linear one.
+#[test]
+fn gradation_shapes_go_through_the_command() {
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 0, "y": 0, "width": 40, "height": 30, "fill": "Red"}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "gradationPattern": true}),
+    );
+    let linear = Compiler::default().compile(s.design());
+    let shape = |s: &Session| {
+        s.design().objects[0]
+            .region
+            .as_ref()
+            .and_then(|r| r.gradation)
+            .map(|g| g.shape)
+    };
+    for id in ["convex", "concave", "centre", "edges", "wave"] {
+        run(
+            &mut s,
+            "object.setRegion",
+            json!({"id": 1, "gradationShape": id}),
+        );
+        assert_eq!(shape(&s).map(|g| g.id()), Some(id));
+        assert_ne!(Compiler::default().compile(s.design()), linear, "{id}");
+    }
+    let bytes = project::encode(s.design()).expect("encode");
+    assert_eq!(&project::decode(&bytes).expect("decode"), s.design());
+    run(&mut s, "history.undo", json!({}));
+    assert_eq!(shape(&s).map(|g| g.id()), Some("edges"));
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "gradationShape": "linear"}),
+    );
+    assert_eq!(Compiler::default().compile(s.design()), linear);
+    let help = run(&mut s, "commands.list", json!({})).to_string();
+    assert!(help.contains("gradationShape"));
 }

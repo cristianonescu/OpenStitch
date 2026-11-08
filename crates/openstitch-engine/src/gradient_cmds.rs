@@ -8,7 +8,8 @@ use crate::params::{CommandError, Params};
 use crate::session::EngineState;
 use openstitch_core::Thread;
 use openstitch_design::{
-    Gradient, GradientCurve, GradientDither, GradientKind, RegionSewing, RegionType, Vec2, v2,
+    DesignObject, Gradient, GradientCurve, GradientDither, GradientKind, RegionSewing, RegionType,
+    Vec2, v2,
 };
 use serde_json::{Value, json};
 
@@ -239,37 +240,26 @@ fn gradient(
         _ => return Err(p.invalid("to", "from and to come together")),
     };
     // The object becomes layer 0; copies for the other colours follow it in the sewing order.
-    let mut base = s.design.objects[i].clone();
-    let mut region = base
-        .region
-        .clone()
-        .unwrap_or_else(|| RegionSewing::new(RegionType::Fill, threads[0].clone()));
-    if region.kind != RegionType::Fill {
-        region = RegionSewing::new(RegionType::Fill, region.thread.clone());
-    }
-    region.underlay = false;
-    region.wave_height = None;
+    let base = s.design.objects[i].clone();
     let group = match base.group {
         Some(g) => g,
         None => s.design.new_group_id(),
     };
-    base.group = Some(group);
+    let template = Gradient {
+        kind,
+        from,
+        to,
+        stops,
+        layer: 0,
+        dither,
+        curve,
+        seed: seed as u64,
+    };
     let mut ids = Vec::with_capacity(n);
-    for (k, t) in threads.into_iter().enumerate() {
-        let mut r = region.clone();
-        r.thread = t;
-        r.gradient = Some(Gradient {
-            kind,
-            from,
-            to,
-            stops: stops.clone(),
-            layer: k,
-            dither,
-            curve,
-            seed: seed as u64,
-        });
-        let mut obj = base.clone();
-        obj.region = Some(r);
+    for (k, obj) in layer_objects(&base, &threads, &template, Some(group))
+        .into_iter()
+        .enumerate()
+    {
         if k == 0 {
             s.design.objects[i] = obj;
             ids.push(id);
@@ -282,6 +272,41 @@ fn gradient(
         }
     }
     Ok(json!({ "ids": ids, "group": group }))
+}
+
+/// The objects of a gradient made from `base`: one per thread, each a fill (its fill settings
+/// kept, no under sewing) sewing stop `k` of `template` in thread `k`, in `group`.
+pub(crate) fn layer_objects(
+    base: &DesignObject,
+    threads: &[Thread],
+    template: &Gradient,
+    group: Option<u64>,
+) -> Vec<DesignObject> {
+    let mut region = base
+        .region
+        .clone()
+        .unwrap_or_else(|| RegionSewing::new(RegionType::Fill, threads[0].clone()));
+    if region.kind != RegionType::Fill {
+        region = RegionSewing::new(RegionType::Fill, region.thread.clone());
+    }
+    region.underlay = false;
+    region.wave_height = None;
+    threads
+        .iter()
+        .enumerate()
+        .map(|(k, t)| {
+            let mut r = region.clone();
+            r.thread = t.clone();
+            r.gradient = Some(Gradient {
+                layer: k,
+                ..template.clone()
+            });
+            let mut o = base.clone();
+            o.region = Some(r);
+            o.group = group;
+            o
+        })
+        .collect()
 }
 
 /// `object.setRegion`'s gradient options: dither and curve on the gradient's objects, or

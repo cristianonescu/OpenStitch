@@ -1388,6 +1388,11 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     "Gradation pattern: number of step values (2-20)",
                 ),
                 opt(
+                    "gradationShape",
+                    "linear|convex|concave|centre|edges|wave",
+                    "Gradation pattern: how the density goes from max to min across the region. linear is PE-DESIGN's; beyond PE-DESIGN (#532): convex (opens quickly), concave (stays dense, then opens), centre (dense in the middle), edges (open in the middle), wave (two dense bands)",
+                ),
+                opt(
                     "featherSide",
                     "start|end|both",
                     "Feathered edge: which row ends",
@@ -1713,7 +1718,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                                 .unwrap_or(Gradation::PE_DEFAULT)
                         });
                     }
-                    if ["gradationMax", "gradationMin", "gradationSteps"]
+                    if ["gradationMax", "gradationMin", "gradationSteps", "gradationShape"]
                         .iter()
                         .any(|k| p.has(k))
                     {
@@ -1725,6 +1730,13 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         g.min = p.opt("gradationMin", g.min, 5.0, 100.0)?;
                         let steps = g.steps.unwrap_or(9) as f64;
                         g.steps = Some(p.opt("gradationSteps", steps, 2.0, 20.0)?.round() as u32);
+                        if let Some(shape) = choice(
+                            p,
+                            "gradationShape",
+                            &openstitch_design::GradationShape::ALL.map(|s| (s.id(), s)),
+                        )? {
+                            g.shape = shape;
+                        }
                         r.gradation = Some(g);
                     }
                     let side = choice(
@@ -2004,6 +2016,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         "gradationMax",
                         "gradationMin",
                         "gradationSteps",
+                        "gradationShape",
                     ];
                     if r.gradation.is_some() && gradation_keys.iter().any(|k| p.has(k)) {
                         let why = if text {
