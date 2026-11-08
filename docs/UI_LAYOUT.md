@@ -136,7 +136,7 @@ Behaviour follows the guide's pages
 | Edit ▸ Sewing Attribute Sets, User Thread Charts | Options ▸; Application menu ▸ Select Color Palette |
 | Shapes ▸ Insert presets | Home ▸ Tools ▸ Shapes ▸ Insert Preset Shape |
 | Shapes ▸ Merge, Remove Overlap, Combine | Home ▸ Edit ▸ Modify Overlap |
-| Shapes ▸ Split with Outline, Sewing Direction, Entry/Exit Points | Shapes tab ▸ Split Outline, Add/Delete Direction Line, Center/Reference Point, Entry/Exit Points |
+| Shapes ▸ Split with Outline, Sewing Direction, Entry/Exit Points | Shapes tab ▸ Split Outline, Add/Delete Direction Line, Center/Reference Point, Entry/Exit Points (R1 region entry, R2 region exit, L1 line entry, L2 line exit since #547: picked on the outline, their markers dragged on the canvas) |
 | Shapes ▸ Offset Lines, Floral Pattern | Shapes tab ▸ Create |
 | Shapes ▸ Decorative Frame, Stamp/Emboss | Home ▸ Edit |
 | Lettering ▸ Text, Monogram, Name Drop List, Template Wizard, Save as Template, Fonts, Load TrueType Font | Home ▸ Tools ▸ Text ▾ (and Text tab, Text Attributes pane) |

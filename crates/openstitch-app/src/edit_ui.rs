@@ -268,6 +268,7 @@ pub fn entry_exit_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         ("Set region entry (R1)", EntryExit::RegionEntry),
         ("Set region exit (R2)", EntryExit::RegionExit),
         ("Set line entry (L1)", EntryExit::LineEntry),
+        ("Set line exit (L2)", EntryExit::LineExit),
     ] {
         if ui.button(label).clicked() {
             app.edit.pick = Some((id, Pick::Point(which)));
@@ -1086,7 +1087,7 @@ pub fn draw_markers(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
         let c = Pos2::new(s.x as f32, s.y as f32);
         let colour = match which {
             EntryExit::RegionEntry | EntryExit::LineEntry => Color32::from_rgb(0x2e, 0x7d, 0x32),
-            EntryExit::RegionExit => Color32::from_rgb(0xc6, 0x28, 0x28),
+            EntryExit::RegionExit | EntryExit::LineExit => Color32::from_rgb(0xc6, 0x28, 0x28),
         };
         painter.circle_filled(c, 4.5, colour);
         painter.circle_stroke(c, 4.5, Stroke::new(1.0, Color32::WHITE));
@@ -1346,6 +1347,38 @@ mod tests {
         assert_eq!(moved.y, 300.0, "on the outline: {moved:?}");
         app.undo();
         assert_eq!(entry(&app), Some(v2(100.0, 200.0)));
+    }
+
+    #[test]
+    fn the_line_exit_marker_is_set_dragged_and_cleared() {
+        // #547: L2, the line exit point, has its marker as R1, R2 and L1 do: picked on the
+        // outline, dragged in one undo step, cleared with the others (object.setEntryExit
+        // lineExit, the path the Assistant takes).
+        let mut app = EditorApp::new(Launch::default());
+        app.execute(&CommandRequest::new(
+            "shape.rectangle",
+            json!({ "x": 10, "y": 10, "width": 20, "height": 20, "outline": "Black" }),
+        ));
+        app.selection = BTreeSet::from([1]);
+        let exit = |app: &EditorApp| {
+            app.session.design().objects[0]
+                .line
+                .as_ref()
+                .and_then(|l| l.exit)
+        };
+        app.edit.pick = Some((1, Pick::Point(EntryExit::LineExit)));
+        assert!(pick(&mut app, v2(310.0, 200.0)));
+        assert_eq!(exit(&app), Some(v2(300.0, 200.0)));
+        let markers = edit_ops::entry_exit_markers(app.session.design(), 1);
+        assert!(markers.contains(&(EntryExit::LineExit, v2(300.0, 200.0))), "{markers:?}");
+        assert!(drag(&mut app, Phase::Down, v2(298.0, 202.0)));
+        assert!(drag(&mut app, Phase::Dragged, v2(200.0, 320.0)));
+        assert!(drag(&mut app, Phase::Up, v2(200.0, 320.0)));
+        assert_eq!(exit(&app).map(|p| p.y), Some(300.0), "on the outline");
+        app.undo();
+        assert_eq!(exit(&app), Some(v2(300.0, 200.0)));
+        app.execute(&edit_ops::clear_entry_exit(1));
+        assert_eq!(exit(&app), None);
     }
 
     fn preview_bounds(app: &EditorApp) -> Vec<[i64; 4]> {

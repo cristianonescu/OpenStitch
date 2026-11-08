@@ -584,12 +584,26 @@ impl Compiler {
             });
             let started = match (production.auto_start, w.position) {
                 (crate::production::AutoStart::Nearest, Some(from)) => {
-                    crate::production::nearest_start(object, from).filter(|c| {
+                    // Where the next object sewn lies: a region also ends nearest it (#547).
+                    let toward = design.objects[index + 1..]
+                        .iter()
+                        .find(|o| o.visible)
+                        .and_then(|next| crate::production::heading(object, next));
+                    crate::production::nearest_start(object, from, toward).filter(|c| {
                         // Only where it helps: the start rule must not add a trim inside the
                         // object (an echo or stippling route can split up from another start)
-                        // and must shorten the travel, the move into the object included.
-                        let (t0, d0) = self.object_cost(object, design, from);
-                        let (t1, d1) = self.object_cost(c, design, from);
+                        // and must shorten the travel, the moves into the object and on
+                        // towards the next included.
+                        // Only a region's end moves; a line's is judged as before (counting
+                        // the way on turned down starts that shortened the whole route).
+                        let ahead = toward.filter(|_| {
+                            object
+                                .region
+                                .as_ref()
+                                .is_some_and(|r| r.motif_band.is_none())
+                        });
+                        let (t0, d0) = self.object_cost(object, design, from, ahead);
+                        let (t1, d1) = self.object_cost(c, design, from, ahead);
                         t1 <= t0 && d1 < d0
                     })
                 }
@@ -641,8 +655,15 @@ impl Compiler {
         w.finish()
     }
 
-    /// Trims and total travel (0.1 mm) of `object` sewn alone from needle position `from`.
-    fn object_cost(&self, object: &DesignObject, design: &Design, from: Vec2) -> (usize, f64) {
+    /// Trims and total travel (0.1 mm) of `object` sewn alone from needle position `from`, the
+    /// move from where it ends to `toward` (the next object, #547) included.
+    fn object_cost(
+        &self,
+        object: &DesignObject,
+        design: &Design,
+        from: Vec2,
+        toward: Option<Vec2>,
+    ) -> (usize, f64) {
         let mut w = self.writer();
         w.position = Some(from);
         w.cut = false;
@@ -658,7 +679,8 @@ impl Compiler {
                 last = p;
             }
         }
-        (w.out.count(Command::Trim), travel)
+        let out = toward.map_or(0.0, |t| last.distance(t));
+        (w.out.count(Command::Trim), travel + out)
     }
 
     /// Needle points `object` sews alone, its region over `area` when given (#511).
