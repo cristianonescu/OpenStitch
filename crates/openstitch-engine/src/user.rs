@@ -454,7 +454,9 @@ fn default_chart_json(u: &UserSettings) -> Value {
     let c = u.default_chart();
     let mut v = c.to_json();
     if let ChartRef::Builtin(id) = &c
-        && let Some(b) = crate::thread_match::builtins().iter().find(|b| &b.id == id)
+        && let Some(b) = crate::thread_match::builtins()
+            .iter()
+            .find(|b| b.id == id.as_str())
     {
         v["name"] = json!(b.name);
     }

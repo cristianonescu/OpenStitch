@@ -302,7 +302,7 @@ pub fn picker_chart(
         ChartRef::Chart(n) => user
             .thread_charts
             .iter()
-            .find(|ch| &ch.name == n)
+            .find(|ch| ch.name == *n)
             .map(|ch| (ch.name.clone(), ch.threads.clone()))
             .unwrap_or_default(),
     }
