@@ -189,6 +189,10 @@ short stitches (#617), and a Beyond-PE rope stitch (#618). Done 2026-11-07 (`bat
 within 0.1 mm of PE-DESIGN's), #617, and two stippling bugs found on the way: seed 993's runaway
 allocation (#638) and a narrow band that sewed nothing (#708). #614 continues: PE-DESIGN's cross
 stitch has no Direction and only Times (single, double, triple), captured 2026-11-07.
+Done 2026-11-08 (`batch:fills-2`, #534 part 1): the Fill Angle tool (Color / Sew Type): drag across
+the selected regions to turn their rows, PE-DESIGN's sewing-direction gesture. The stitch angle
+lines of #534 follow.
+
 Done 2026-11-08 (`batch:fills-2`, #532 part 2b): the Gradient tool (Shapes ▸ Edit Outline): drag
 across a gradient fill to set where it starts and ends; every colour follows in one undo step.
 With it, #532 is done.

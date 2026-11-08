@@ -13,6 +13,7 @@ use std::collections::BTreeSet;
 pub mod builder;
 pub mod characters;
 pub mod continuation;
+pub mod fill_angle;
 pub mod gradient;
 pub mod keyboard;
 pub mod knife;
@@ -59,10 +60,12 @@ pub enum Tool {
     ShapeBuilder,
     /// Gradient: drag (or click twice) where the selected gradient fills start and end (#532).
     Gradient,
+    /// Fill Angle: drag across the selected regions in the direction their rows run (#534).
+    FillAngle,
 }
 
 impl Tool {
-    pub const ALL: [Tool; 17] = [
+    pub const ALL: [Tool; 18] = [
         Tool::Select,
         Tool::Point,
         Tool::Rectangle,
@@ -80,6 +83,7 @@ impl Tool {
         Tool::Knife,
         Tool::ShapeBuilder,
         Tool::Gradient,
+        Tool::FillAngle,
     ];
 
     pub fn label(self) -> &'static str {
@@ -101,6 +105,7 @@ impl Tool {
             Tool::Knife => "Knife",
             Tool::ShapeBuilder => "ShapeBuilder",
             Tool::Gradient => "Gradient",
+            Tool::FillAngle => "FillAngle",
         }
     }
 
@@ -622,6 +627,7 @@ impl ToolController {
             Tool::Knife => self.knife_tool(e, ctx),
             Tool::ShapeBuilder => self.builder_tool(e, ctx),
             Tool::Gradient => self.gradient_tool(e, ctx),
+            Tool::FillAngle => self.fill_angle_tool(e, ctx),
         }
     }
 
