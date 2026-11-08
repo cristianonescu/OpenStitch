@@ -25,7 +25,17 @@ pub const PSEUDO: &str = "pseudo";
 
 /// The translated catalogues shipped with OpenStitch: code, name (in that language), file.
 /// Adding a language is a file in `assets/i18n/` and a line here.
+#[cfg(not(test))]
 const CATALOGUES: &[(&str, &str, &str)] = &[];
+/// Tests have one more: a partial catalogue, to show that what it lacks falls back to English.
+#[cfg(test)]
+const CATALOGUES: &[(&str, &str, &str)] = &[("x-test", "Test language", TEST_CATALOGUE)];
+
+/// The tests' partial catalogue (#555): two entries, everything else missing.
+#[cfg(test)]
+const TEST_CATALOGUE: &str = "action-open-label = Öffnen
+ui-m-satin = Plattstich
+";
 
 thread_local! {
     static CURRENT: Cell<&'static str> = const { Cell::new(ENGLISH) };
@@ -582,6 +592,29 @@ mod tests {
         );
         assert!(set_language(ENGLISH));
         assert_eq!(openstitch_print::texts::text("print-customer"), "Customer");
+    }
+
+    /// #555: a language's catalogue need not be whole. What it translates shows translated;
+    /// every key it lacks shows the English text, in the ribbon, the menus and the printed
+    /// sheets alike, never the id or nothing.
+    #[test]
+    fn missing_keys_fall_back_to_english() {
+        use super::super::ribbon::Action;
+        use super::super::ui_texts::{t, tr};
+        assert!(set_language("x-test"));
+        assert_eq!(Action::Open.info().label, "Öffnen");
+        assert_eq!(tr("Satin"), "Plattstich");
+        // Not in the catalogue: English.
+        assert_eq!(Action::Save.info().label, "Save", "a ribbon label");
+        assert_eq!(t("ui-save"), "Save");
+        assert_eq!(tr("Zigzag"), "Zigzag", "a menu entry");
+        assert_eq!(
+            pattern("print-page", "Page {page}"),
+            "Page {page}",
+            "a printed sheet"
+        );
+        assert!(set_language(ENGLISH));
+        assert_eq!(Action::Open.info().label, "Open");
     }
 
     #[test]

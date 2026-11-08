@@ -2800,3 +2800,6 @@ mod open_bench_tests;
 #[cfg(test)]
 #[path = "a11y_tests.rs"]
 mod a11y_tests;
+#[cfg(test)]
+#[path = "menu_i18n_tests.rs"]
+mod menu_i18n_tests;

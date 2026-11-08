@@ -44,10 +44,10 @@ pub fn effects_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     let ids = shape_effects::targets(app.session.design(), &app.selection);
     let mut form: EffectForm = app.edit.effect.clone();
     egui::ComboBox::from_label("Effect")
-        .selected_text(form.effect.label())
+        .selected_text(openstitch_app::editor::ui_texts::tr(form.effect.label()))
         .show_ui(ui, |ui| {
             for e in Effect::ALL {
-                if ui.selectable_label(form.effect == e, e.label()).clicked() {
+                if ui.selectable_label(form.effect == e, openstitch_app::editor::ui_texts::tr(e.label())).clicked() {
                     form.set_effect(e);
                 }
             }
