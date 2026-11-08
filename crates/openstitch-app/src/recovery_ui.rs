@@ -94,7 +94,7 @@ pub fn tick(app: &mut EditorApp, now: f64) -> bool {
         return true;
     }
     if let Err(e) = write_now(app, false) {
-        app.status = format!("Autosave failed: {e}");
+        app.status = openstitch_app::tf!("ui-status-autosave-failed", e = e);
     }
     false
 }
@@ -174,7 +174,7 @@ pub fn restore(app: &mut EditorApp, id: &str) -> Result<Value, String> {
     recovery::discard(&dir, id).map_err(|e| e.to_string())?;
     app.recovery.refresh();
     app.recovery.open &= !app.recovery.offer.is_empty();
-    app.status = format!("Recovered {}: untitled until you save it", orphan.name);
+    app.status = openstitch_app::tf!("ui-status-recovered-untitled-until-you-save-it", name = orphan.name);
     Ok(json!({ "restored": id, "name": orphan.name }))
 }
 

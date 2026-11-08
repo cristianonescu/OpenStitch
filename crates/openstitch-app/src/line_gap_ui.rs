@@ -77,7 +77,7 @@ pub fn gap_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
             json!({ "ids": [id], "offset": round(offset), "length": round(length) }),
         );
         if app.execute(&r).is_some() {
-            app.status = format!("Turning gap of {length:.1} mm");
+            app.status = openstitch_app::tf!("ui-status-turning-gap-of-mm", length = format!("{length:.1}"));
         }
         ui.close();
     }

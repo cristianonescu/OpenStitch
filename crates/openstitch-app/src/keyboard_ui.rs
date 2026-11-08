@@ -138,7 +138,7 @@ impl EditorApp {
     pub fn width_step(&mut self, delta: f64, at: Option<Vec2>) -> Option<f64> {
         let radius = 8.0 * self.viewport.unwrap_or_default().units_per_point();
         let w = self.tools.step_width(delta, at, radius)?;
-        self.status = format!("Satin width {w:.1} mm");
+        self.status = openstitch_app::tf!("ui-status-satin-width-mm", width = format!("{w:.1}"));
         Some(w)
     }
 

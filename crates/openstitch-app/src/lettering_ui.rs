@@ -220,11 +220,7 @@ pub fn load_truetype(app: &mut EditorApp) {
         .pick_file()
         && let Some(r) = app.execute(&lettering::load_font_request(&p))
     {
-        app.status = format!(
-            "Loaded font {} ({} glyphs); it is saved with the design",
-            r["id"].as_str().unwrap_or_default(),
-            r["glyphs"]
-        );
+        app.status = openstitch_app::tf!("ui-status-loaded-font-glyphs-it-is-saved", id = r["id"].as_str().unwrap_or_default(), glyphs = r["glyphs"]);
     }
 }
 
@@ -432,23 +428,16 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
         }
         Some(FontAction::Convert) => {
             if let Some(r) = app.execute(&f.convert()) {
-                app.status = format!(
-                    "Converted {} character(s){}",
-                    r["converted"].as_str().map_or(0, |c| c.chars().count()),
-                    match r["missing"].as_str() {
+                app.status = openstitch_app::tf!("ui-status-converted-character-n-other-characters-n", converted = r["converted"].as_str().map_or(0, |c| c.chars().count()), missing = match r["missing"].as_str() {
                         Some(m) if !m.is_empty() => format!("; the font has none of {m}"),
                         _ => String::new(),
-                    }
-                );
+                    });
             }
         }
         Some(FontAction::EditGlyph) => {
             if let Some(r) = app.execute(&f.edit_glyph()) {
                 app.selection = CommandRequest::created_ids(&r);
-                app.status = format!(
-                    "Editing '{}': baseline {} mm, capital line {} mm, set lines {}–{} mm",
-                    f.character, r["baseline"], r["capLine"], r["left"], r["right"]
-                );
+                app.status = openstitch_app::tf!("ui-status-editing-baseline-mm-capital-line-mm", character = f.character, baseline = r["baseline"], capline = r["capLine"], left = r["left"], right = r["right"]);
             }
         }
         Some(FontAction::SetGlyph) => {
@@ -469,20 +458,12 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
         Some(FontAction::TraceImage) => {
             if let Some(r) = app.execute(&f.trace_image()) {
                 app.lettering.fonts.set_found(&r);
-                app.status = format!(
-                    "Found {} character(s) in {} row(s); check the characters, then Create characters",
-                    app.lettering.fonts.image.found.len(),
-                    r["rows"]
-                );
+                app.status = openstitch_app::tf!("ui-status-found-character-n-other-characters-n", count = app.lettering.fonts.image.found.len(), rows = r["rows"]);
             }
         }
         Some(FontAction::FromImage) => {
             if let Some(r) = f.from_image().and_then(|req| app.execute(&req)) {
-                app.status = format!(
-                    "Created {} from the image ({} skipped)",
-                    r["created"].as_str().unwrap_or_default(),
-                    r["skipped"]
-                );
+                app.status = openstitch_app::tf!("ui-status-created-from-the-image-skipped", created = r["created"].as_str().unwrap_or_default(), skipped = r["skipped"]);
                 app.lettering.fonts.image.found.clear();
             }
         }
@@ -1264,10 +1245,7 @@ pub fn save_template(app: &mut EditorApp) {
             json!({ "path": p.display().to_string() }),
         ))
     {
-        app.status = format!(
-            "Saved template with {} editable text(s)",
-            r["slots"].as_array().map_or(0, Vec::len)
-        );
+        app.status = openstitch_app::tf!("ui-status-saved-template-with-editable-text-s", slots = r["slots"].as_array().map_or(0, Vec::len));
     }
 }
 

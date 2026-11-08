@@ -17,6 +17,8 @@ openstitch-core.workspace = true
 openstitch-design = { path = "../openstitch-design" }
 openstitch-engine = { path = "../openstitch-engine" }
 openstitch-formats = { path = "../openstitch-formats" }
+# The printed sheets' words follow the window's language (#555).
+openstitch-print = { path = "../openstitch-print" }
 # The OS trash (`system-trash`) only on the desktop, below.
 openstitch-library = { path = "../openstitch-library", default-features = false }
 # The AI assistant's ui.render (the same preview as openstitch-mcp) and its base64 replies (B17).

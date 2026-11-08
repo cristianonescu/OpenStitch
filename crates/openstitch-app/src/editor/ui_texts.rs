@@ -1605,6 +1605,106 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
         "ui-status-real-size-calibrated-for",
         "Real size calibrated for { $monitor }",
     ),
+    (
+        "ui-status-hand-edited-stitches-discarded-on-object",
+        "Hand-edited stitches discarded on { $count ->\n[one] { $count } object\n*[other] { $count } objects\n}: a sewing setting or the shape changed",
+    ),
+    (
+        "ui-status-opened-as-a-new-design-save",
+        "Opened { $path } as a new design (Save to keep it as .osd)",
+    ),
+    (
+        "ui-status-exported-stitches",
+        "Exported { $path } ({ $stats } stitches)",
+    ),
+    (
+        "ui-status-click-the-outline-where-should-be",
+        "Click the outline where { $name } should be; Esc cancels",
+    ),
+    (
+        "ui-status-loaded-font-glyphs-it-is-saved",
+        "Loaded font { $id } ({ $glyphs } glyphs); it is saved with the design",
+    ),
+    (
+        "ui-status-converted-character-n-other-characters-n",
+        "Converted { $converted ->\n[one] { $converted } character\n*[other] { $converted } characters\n}{ $missing }",
+    ),
+    (
+        "ui-status-editing-baseline-mm-capital-line-mm",
+        "Editing '{ $character }': baseline { $baseline } mm, capital line { $capline } mm, set lines { $left }–{ $right } mm",
+    ),
+    (
+        "ui-status-found-character-n-other-characters-n",
+        "Found { $count ->\n[one] { $count } character\n*[other] { $count } characters\n} in { $rows ->\n[one] { $rows } row\n*[other] { $rows } rows\n}; check the characters, then Create characters",
+    ),
+    (
+        "ui-status-created-from-the-image-skipped",
+        "Created { $created } from the image ({ $skipped } skipped)",
+    ),
+    (
+        "ui-status-saved-template-with-editable-text-s",
+        "Saved template with { $slots } editable text(s)",
+    ),
+    (
+        "ui-status-machine-set-new-designs-start-on",
+        "Machine set: { $brand }; new designs start on its hoop",
+    ),
+    (
+        "ui-status-cancelled-opening-the-design-is-unchanged",
+        "Cancelled opening { $path }; the design is unchanged",
+    ),
+    (
+        "ui-status-the-design-changed-while-was-opening",
+        "The design changed while { $path } was opening; nothing was replaced. Open it again",
+    ),
+    (
+        "ui-status-is-a-list-choose-on-the",
+        "{ $label } is a list: choose on the ribbon, { $a }",
+    ),
+    ("ui-status-saved-the-fabric", "Saved the fabric { $fabric }"),
+    ("ui-status-satin-width-mm", "Satin width { $width } mm"),
+    (
+        "ui-status-turning-gap-of-mm",
+        "Turning gap of { $length } mm",
+    ),
+    ("ui-status-guideline-mm", "Guideline { $position } mm"),
+    ("ui-status-created", "Created { $path }"),
+    ("ui-status-renamed-to", "Renamed to { $path }"),
+    (
+        "ui-status-moved-item-n-other-items-n",
+        "Moved { $n ->\n[one] { $n } item\n*[other] { $n } items\n} to the trash",
+    ),
+    ("ui-status-preview", "Preview: { $e }"),
+    ("ui-status-autosave-failed", "Autosave failed: { $e }"),
+    (
+        "ui-status-recovered-untitled-until-you-save-it",
+        "Recovered { $name }: untitled until you save it",
+    ),
+    ("ui-status-objects-cut", "{ $n } objects cut"),
+    ("ui-status-objects-copied", "{ $count } objects copied"),
+    ("ui-status-layout-saved", "Layout '{ $n }' saved"),
+    (
+        "ui-status-preferences-reset",
+        "{ $label } preferences reset",
+    ),
+    (
+        "ui-status-recovery-files-deleted",
+        "{ $n } recovery files deleted",
+    ),
+    ("ui-status-no-longer-exists", "{ $path } no longer exists"),
+    ("ui-status-pasted", "Pasted"),
+    (
+        "ui-status-designs-folders",
+        "{ $count } designs, { $count2 } folders{ $else }",
+    ),
+    (
+        "ui-status-design-n-other-designs-n-choose",
+        "{ $opied } { $count ->\n[one] { $count } design\n*[other] { $count } designs\n}: choose a folder and Paste",
+    ),
+    (
+        "ui-status-wrote-catalogue-of-designs",
+        "Wrote catalogue of { $count } designs: { $to_string }",
+    ),
 ];
 
 /// The English text of message `id`.

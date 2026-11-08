@@ -272,10 +272,7 @@ pub fn entry_exit_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     ] {
         if ui.button(label).clicked() {
             app.edit.pick = Some((id, Pick::Point(which)));
-            app.status = format!(
-                "Click the outline where {} should be; Esc cancels",
-                which.label()
-            );
+            app.status = openstitch_app::tf!("ui-status-click-the-outline-where-should-be", name = which.label());
         }
     }
     if ui.button(t("ui-reset-to-automatic")).clicked() {
