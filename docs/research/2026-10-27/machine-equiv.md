@@ -58,7 +58,7 @@ page origin.
 
 ## Other machine formats (DST, EXP, JEF, PCS, SEW, XXX, HUS, VIP)
 
-pe-gui delivered PE's exports in all 10 formats on 2026-10-27 23:23 (see handover-machine-equiv.md for the first read-only pass: PE appears to split 15 mm stitches as jump + stitch; HUS magic 0x00C8FC5D; DST/EXP colour change not read). Request was: PE exports of OpenStitch's
+pe-gui delivered PE's exports in all 10 formats on 2026-10-27 23:23 (a first read-only pass found: PE appears to split 15 mm stitches as jump + stitch; HUS magic 0x00C8FC5D; DST/EXP colour change not read). Request was: PE exports of OpenStitch's
 `<reference-notes>\machine-formats\a.pes` (two Red running lines with a trim, a Black satin 40 x 15 mm, so
 15 mm stitches must be split in DST/EXP/JEF/SEW/XXX). Spec `compat/specs/machine/machine-formats.json` exports every
 format and compares each with its reference once the files arrive. Open questions the files answer: DST jumps-for-trim
