@@ -374,7 +374,10 @@ so tell the user which); `ui.set paneSewingOrderSide` / `paneAttributesSide` (le
 shortcuts, layouts or newObjects (new-shape defaults, Basic/Advanced, start cards) alone (ask first).
 For a new user, `ui.gettingStarted` lists the start cards and the kit's samples; `{sample:
 "sampler"}` opens one as an untitled design, `{card: "draw"}` runs a card, `{page: true}` opens
-Help ▸ Getting Started. A user who knows PE-DESIGN may prefer its start-up dialog:
+Help ▸ Getting Started. "Close these cards" is `{cards: "dismiss"}` (for this session only, as
+their ×, Escape or a click on the canvas; `{cards: "show"}` brings them back); "don't show them
+again" is `ui.set showStartCards false` (it asks first; Options ▸ Show start cards turns them
+back on). A user who knows PE-DESIGN may prefer its start-up dialog:
 `ui.startupWizard` opens the Startup Wizard, `{choice}` runs one of its choices (template, images,
 hoopAndFabric, importText, importShapes, importLibrary, open, database, manual), and `ui.set
 startupWizard true` shows it at every start instead of the start cards. "Make new shapes start at 30° and 4.5 rows/mm" is `ui.set

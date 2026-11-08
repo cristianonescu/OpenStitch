@@ -593,3 +593,68 @@ fn delete_removes_a_selected_guideline_first() {
     press(&ctx, &mut app, Key::Delete, Modifiers::NONE);
     assert!(app.session.design().objects.is_empty(), "then Delete deletes objects");
 }
+
+/// #797: the start cards close for the session with Escape or a click on the canvas beside them,
+/// stay closed over a new empty design, and the preference is untouched; "Don't show this again"
+/// turns the preference off; `ui.gettingStarted {cards}` closes and shows them.
+#[test]
+fn start_cards_close_for_the_session_and_dont_show_again_turns_them_off() {
+    let ctx = egui::Context::default();
+    let canvas = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(900.0, 700.0));
+    let fresh = || {
+        let mut app = EditorApp::new(Launch::default());
+        app.workspace.canvas = Some(canvas);
+        app
+    };
+    let cards = |app: &mut EditorApp, events: Vec<egui::Event>| {
+        frame(&ctx, app, events, Modifiers::NONE, 1.0 / 60.0, |app, ctx| {
+            crate::start_ui::cards(app, ctx)
+        });
+    };
+    // Escape.
+    let mut app = fresh();
+    assert!(crate::start_ui::cards_visible(&app));
+    cards(&mut app, vec![]);
+    cards(&mut app, vec![key(Key::Escape, Modifiers::NONE)]);
+    assert!(!crate::start_ui::cards_visible(&app), "Escape closes them");
+    assert!(app.ui.prefs.start_cards, "only for the session");
+    app.execute(&CommandRequest::new("design.new", json!({})));
+    assert!(!crate::start_ui::cards_visible(&app), "a new empty design keeps them closed");
+    // A click on the canvas beside the cards (its corner).
+    let mut app = fresh();
+    cards(&mut app, vec![]);
+    let at = egui::pos2(10.0, 10.0);
+    let button = |pressed| egui::Event::PointerButton {
+        pos: at,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: Modifiers::NONE,
+    };
+    cards(&mut app, vec![egui::Event::PointerMoved(at), button(true)]);
+    cards(&mut app, vec![button(false)]);
+    assert!(!crate::start_ui::cards_visible(&app), "a click beside them closes them");
+    assert!(app.ui.prefs.start_cards);
+    // Through the Assistant: show them again, close them, read the state.
+    let r = app
+        .ui_command("ui.gettingStarted", Some(&json!({ "cards": "show" })))
+        .expect("show");
+    assert_eq!(r["cardsShown"], json!(true));
+    app.ui_command("ui.gettingStarted", Some(&json!({ "cards": "dismiss" })))
+        .expect("dismiss");
+    let state = app.ui_command("ui.gettingStarted", None).expect("state");
+    assert_eq!(
+        (&state["cardsShown"], &state["dismissed"], &state["enabled"]),
+        (&json!(false), &json!(true), &json!(true))
+    );
+    assert!(app
+        .ui_command("ui.gettingStarted", Some(&json!({ "cards": "nope" })))
+        .is_err());
+    // "Don't show this again": the preference is off, as Options ▸ Show start cards sets it.
+    let mut app = fresh();
+    crate::start_ui::never_show_cards(&mut app);
+    assert!(!app.ui.prefs.start_cards);
+    assert!(!crate::start_ui::cards_visible(&app));
+    app.ui_command("ui.set", Some(&json!({ "name": "showStartCards", "value": true })))
+        .expect("back on");
+    assert!(crate::start_ui::cards_visible(&app));
+}
