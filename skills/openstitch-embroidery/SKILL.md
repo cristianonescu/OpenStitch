@@ -36,6 +36,12 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   document (format "openstitch.pattern") of `kind` `meander`, one path from `[0, y]` to `[1, y]` inside the
   unit tile (at most 500 points); a tile that would cross itself, its neighbours or the rows above
   and below is refused.
+- Colour blends and gradients (beyond PE-DESIGN), for skies, sunsets and petals: `shape.blend`
+  `{id, thread2, mix: [a, b]}` fades a fill into a second thread; `shape.gradient` `{id, threads:
+  [...] (2-8), stops, kind: linear|radial, angle or from/to (mm), dither: rows|ordered|noise|bands,
+  curve}` goes through several. They return the new objects' `ids` (one per colour, grouped).
+  Change `gradientDither` / `gradientCurve` with `object.setRegion` on all of those ids together.
+  PES 0110 refuses them; save PES version 6.
 - A plain fill's look changes with `object.setRegion` `texture` (`smooth`, PE-DESIGN's default,
   or OpenStitch's `ribs`, `diagonal`, `blocks`, `waves`, `zigzag`, `chevron`, `scallops`, ...):
   same shape, density and stitch count, different needle-hole pattern.

@@ -571,3 +571,48 @@ fn meander_fill_controls_reach_the_engine() {
     );
     assert!(n >= 3, "{n} number controls");
 }
+
+/// Gradient fill (#532, beyond PE-DESIGN): a gradient's objects show Gradient dither and
+/// Gradient curve; every choice reaches the engine and reads back.
+#[test]
+fn gradient_controls_reach_the_engine() {
+    let mut s = Session::new(std::env::temp_dir());
+    let id = exec(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 10, "y": 10, "width": 30, "height": 30, "fill": "Red"}),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    let region = |d: &Design| d.objects[0].region.clone().expect("region");
+    let choice = |d: &Design, param: &str| {
+        inspector::region_controls(&region(d))
+            .into_iter()
+            .find_map(|c| match c {
+                Control::Choice {
+                    param: p,
+                    value,
+                    options,
+                    ..
+                } if p == param => Some((value, options)),
+                _ => None,
+            })
+    };
+    assert!(choice(s.design(), "gradientDither").is_none());
+    exec(
+        &mut s,
+        "shape.gradient",
+        json!({"id": id, "threads": ["Red", "Blue"]}),
+    );
+    let sel = BTreeSet::from([id]);
+    for param in ["gradientDither", "gradientCurve"] {
+        let (_, options) = choice(s.design(), param).unwrap_or_else(|| panic!("{param} shown"));
+        assert_eq!(options.len(), 4);
+        for (value, _) in &options {
+            let m = InspectorModel::new(s.design(), &sel);
+            run(&mut s, &m.set_region(json!({ param: value })));
+            let (shown, _) = choice(s.design(), param).expect("shown");
+            assert_eq!(&shown, value, "{param}");
+        }
+    }
+}

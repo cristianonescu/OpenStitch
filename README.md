@@ -415,6 +415,9 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
   diagonals, steps, blocks, waves, zigzag, chevron, scallops and more), or your own steps and
   wave, triangle or arc shifts ([#537]).
 - (+) **Wave fill:** a fill's rows ripple as a sine with a set height and length ([#538]).
+- (+) **Colour blends and gradient fills:** a fill fades from one thread into another, or through up
+  to 8 colours, linear or radial, sewn as one even layer with rows, ordered, noise or band
+  dithering ([#532]).
 - **Curved sewing direction** (round fill) for fill, programmable fill, piping and motif fill
   ([#471]).
 - **Programmable fill and motif fill** from OpenStitch's own pattern library, (+) with long gaps
@@ -721,6 +724,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#529]: https://github.com/cristianonescu/OpenStitch/issues/529
 [#530]: https://github.com/cristianonescu/OpenStitch/issues/530
 [#531]: https://github.com/cristianonescu/OpenStitch/issues/531
+[#532]: https://github.com/cristianonescu/OpenStitch/issues/532
 [#533]: https://github.com/cristianonescu/OpenStitch/issues/533
 [#535]: https://github.com/cristianonescu/OpenStitch/issues/535
 [#536]: https://github.com/cristianonescu/OpenStitch/issues/536

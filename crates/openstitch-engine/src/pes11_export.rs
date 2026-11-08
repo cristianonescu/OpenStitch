@@ -587,6 +587,12 @@ fn curve_side(pts: &[(f64, f64)]) -> Vec<Vertex> {
 }
 
 fn region(id: u64, r: &RegionSewing, s: &mut Shape, table: &mut Vec<Thread>) -> Result<(), String> {
+    if r.gradient.is_some() {
+        // PE-DESIGN would sew every colour as a whole fill (#532).
+        return Err(format!(
+            "object {id}: a gradient fill is not mapped in PES 0110 (use version 6)"
+        ));
+    }
     if r.wave().is_some() {
         // PE-DESIGN would sew straight rows (#538).
         return Err(format!(
@@ -1563,6 +1569,26 @@ mod tests {
         ));
         let err = objects(&wave).expect_err("wave fills are not mapped");
         assert!(err.contains("wave fill"), "{err}");
+        // So is a gradient fill (#532).
+        let mut grad = Design::new("t", openstitch_design::DesignPage::default());
+        let mut fill = RegionSewing::new(RegionType::Fill, red());
+        fill.gradient = Some(openstitch_design::Gradient {
+            kind: openstitch_design::GradientKind::Linear,
+            from: openstitch_design::v2(0.0, 0.0),
+            to: openstitch_design::v2(200.0, 0.0),
+            stops: vec![0.0, 1.0],
+            layer: 0,
+            dither: Default::default(),
+            curve: Default::default(),
+            seed: 1,
+        });
+        grad.add(DesignObject::shape(
+            vec![Contour::rectangle(0.0, 0.0, 200.0, 200.0)],
+            Some(fill),
+            None,
+        ));
+        let err = objects(&grad).expect_err("gradient fills are not mapped");
+        assert!(err.contains("gradient fill"), "{err}");
 
         let mut two = design.clone();
         two.add(DesignObject::shape(

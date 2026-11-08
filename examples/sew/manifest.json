@@ -933,6 +933,30 @@
   "preview": "previews/meander-tiles-2.png",
   "sha256": "aeb1b045ca365b89a20c63e9a1075c7c63fb81e852a898bc3bfe5ba2eaf8571a"
  },
+ "fills/gradients.pes": {
+  "title": "Colour blends and gradient fills (beyond PE-DESIGN)",
+  "about": "Top left: a blue-to-white blend, bottom to top (rows dither). Top right: red, orange and yellow, left to right (ordered dither). Bottom left: a radial yellow, orange and magenta gradient (noise dither). Bottom right: green into blue at 45° with hard bands.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   86.0,
+   73.0
+  ],
+  "stitches": 7540,
+  "trims": 7,
+  "threads": [
+   "405 Blue",
+   "001 White",
+   "800 Red",
+   "208 Orange",
+   "620 Magenta",
+   "509 Leaf Green",
+   "405 Blue"
+  ],
+  "sewingMinutes": 9.8,
+  "image": null,
+  "preview": "previews/gradients.png",
+  "sha256": "bdd82f43ec5582c20bc31872ae6f5c239a11f0ef3e88fa6214deb339a2c23dbc"
+ },
  "fills/maze-fill.pes": {
   "title": "Maze fill (beyond PE-DESIGN)",
   "about": "One path of straight corridors and square turns that never crosses itself, 2 mm apart: straightness 70 % (default), 0 % and 95 % (top row), on a circle, another seed at 45°, and 3 mm spacing.",

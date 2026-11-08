@@ -3943,3 +3943,217 @@ fn meander_fill_sews_every_tile_inside_the_shape_without_crossing() {
     assert_eq!(r.pattern_size_mm(), (8.0, 8.0));
     assert_eq!(RegionType::from_id("meander"), Some(RegionType::Meander));
 }
+
+/// Gradient fill (#532): the objects of a gradient on `c`, one per colour of `stops`.
+fn gradient_layers(
+    c: &[Contour],
+    stops: &[f64],
+    from: Vec2,
+    to: Vec2,
+    kind: crate::GradientKind,
+    dither: crate::GradientDither,
+) -> (RegionSewing, Vec<Vec<Run>>) {
+    let mut r = region(RegionType::Fill);
+    r.angle = 0.0;
+    r.underlay = false;
+    let layers = (0..stops.len())
+        .map(|k| {
+            let mut l = r.clone();
+            l.gradient = Some(crate::Gradient {
+                kind,
+                from,
+                to,
+                stops: stops.to_vec(),
+                layer: k,
+                dither,
+                curve: crate::GradientCurve::Linear,
+                seed: 1,
+            });
+            crate::region::layers(c, &l, &[]).pop().expect("top")
+        })
+        .collect();
+    (r, layers)
+}
+
+/// The stitches of `runs` as rounded segments (either direction).
+fn segments(runs: &[Run]) -> Vec<((i64, i64), (i64, i64))> {
+    let key = |p: Vec2| ((p.x * 100.0).round() as i64, (p.y * 100.0).round() as i64);
+    let mut out: Vec<_> = runs
+        .iter()
+        .flat_map(|r| r.windows(2).map(|w| (key(w[0]), key(w[1]))))
+        .filter(|(a, b)| a != b)
+        .map(|(a, b)| if a < b { (a, b) } else { (b, a) })
+        .collect();
+    out.sort_unstable();
+    out
+}
+
+#[test]
+fn gradient_colours_share_one_set_of_rows_each_stitch_sewn_once() {
+    use crate::{GradientDither as D, GradientKind as K};
+    // A 40 x 30 mm rectangle (x, y, width, height).
+    let c = vec![Contour::rectangle(100.0, 100.0, 400.0, 300.0)];
+    for (kind, dither, stops, from, to) in [
+        (
+            K::Linear,
+            D::Rows,
+            vec![0.0, 1.0],
+            v2(300.0, 100.0),
+            v2(300.0, 400.0),
+        ),
+        (
+            K::Linear,
+            D::Ordered,
+            vec![0.0, 0.5, 1.0],
+            v2(100.0, 250.0),
+            v2(500.0, 250.0),
+        ),
+        (
+            K::Radial,
+            D::Noise,
+            vec![0.0, 0.4, 1.0],
+            v2(300.0, 250.0),
+            v2(500.0, 400.0),
+        ),
+        (
+            K::Linear,
+            D::Bands,
+            vec![0.0, 1.0],
+            v2(100.0, 100.0),
+            v2(500.0, 400.0),
+        ),
+    ] {
+        let (r, layers) = gradient_layers(&c, &stops, from, to, kind, dither);
+        let p = crate::generate::RegionParams {
+            angle: 0.0,
+            row_spacing: 10.0 / r.density,
+            stitch_length: r.stitch_length * 10.0,
+            pull_compensation: 0.0,
+        };
+        let rows = crate::generate::fill_shifted(&c, &p, &[], r.fill_stagger());
+        let shared = segments(&rows);
+        // Each stitch of the shared rows has exactly one owner, and its colour sews it (the
+        // travel between a colour's pieces may run along another colour's stitches).
+        let owned: Vec<Vec<_>> = (0..stops.len())
+            .map(|k| {
+                let g = crate::Gradient {
+                    kind,
+                    from,
+                    to,
+                    stops: stops.clone(),
+                    layer: k,
+                    dither,
+                    curve: crate::GradientCurve::Linear,
+                    seed: 1,
+                };
+                segments(&crate::gradient::layer_pieces(
+                    &rows,
+                    &g,
+                    0.0,
+                    p.row_spacing,
+                    p.stitch_length,
+                ))
+            })
+            .collect();
+        for s in &shared {
+            let owners = owned.iter().filter(|l| l.binary_search(s).is_ok()).count();
+            assert_eq!(
+                owners, 1,
+                "{kind:?} {dither:?}: stitch {s:?} owned {owners} times"
+            );
+        }
+        for (k, l) in owned.iter().enumerate() {
+            let sewn = segments(&layers[k]);
+            assert!(
+                l.iter().all(|s| sewn.binary_search(s).is_ok()),
+                "{kind:?} {dither:?}: colour {k} leaves out a stitch it owns"
+            );
+        }
+        assert!(
+            layers
+                .iter()
+                .all(|l| l.iter().map(Vec::len).sum::<usize>() > 20),
+            "{kind:?} {dither:?}: every colour sews"
+        );
+        // Reproducible.
+        let (_, again) = gradient_layers(&c, &stops, from, to, kind, dither);
+        assert_eq!(again, layers);
+    }
+}
+
+#[test]
+fn a_two_colour_blend_has_complementary_rows_and_bands_have_a_hard_edge() {
+    use crate::{GradientDither as D, GradientKind as K};
+    let c = vec![Contour::rectangle(100.0, 100.0, 400.0, 400.0)];
+    // Across the rows, top to bottom: every row is one colour.
+    let (r, layers) = gradient_layers(
+        &c,
+        &[0.0, 1.0],
+        v2(300.0, 100.0),
+        v2(300.0, 500.0),
+        K::Linear,
+        D::Rows,
+    );
+    let spacing = 10.0 / r.density;
+    let rows_in = |l: &Vec<Run>, y0: f64, y1: f64| {
+        let mut ys: Vec<i64> = l
+            .iter()
+            .flat_map(|run| run.windows(2))
+            .filter(|w| (w[0].y - w[1].y).abs() < 1e-6 && w[0].y >= y0 && w[0].y < y1)
+            .map(|w| (w[0].y / spacing).round() as i64)
+            .collect();
+        ys.sort_unstable();
+        ys.dedup();
+        ys.len() as f64
+    };
+    for (y0, y1, want) in [
+        (100.0, 180.0, 0.1),
+        (260.0, 340.0, 0.5),
+        (420.0, 500.0, 0.9),
+    ] {
+        let (a, b) = (rows_in(&layers[0], y0, y1), rows_in(&layers[1], y0, y1));
+        let all = 80.0 / spacing;
+        assert!(((a + b) / all - 1.0).abs() < 0.1, "rows {a} + {b} of {all}");
+        let share = b / (a + b);
+        assert!(
+            (share - want).abs() < 0.12,
+            "{y0}-{y1}: second colour {share:.2}, want {want}"
+        );
+    }
+    // Bands: the first colour alone before the middle, the second after it.
+    let (_, bands) = gradient_layers(
+        &c,
+        &[0.0, 1.0],
+        v2(300.0, 100.0),
+        v2(300.0, 500.0),
+        K::Linear,
+        D::Bands,
+    );
+    let sewn_rows = |l: &Vec<Run>| -> Vec<f64> {
+        l.iter()
+            .flat_map(|run| run.windows(2))
+            .filter(|w| (w[0].y - w[1].y).abs() < 1e-6 && (w[0].x - w[1].x).abs() > 1.0)
+            .map(|w| w[0].y)
+            .collect()
+    };
+    assert!(sewn_rows(&bands[0]).iter().all(|&y| y < 302.0));
+    assert!(sewn_rows(&bands[1]).iter().all(|&y| y > 298.0));
+    // Weights add up to 1; a colour too sparse to show gives its rows away; curves.
+    use crate::gradient::{curve, weights};
+    for t in [0.0, 0.1, 0.33, 0.5, 0.9, 1.0] {
+        let w = weights(&[0.0, 0.4, 1.0], t, 2.2);
+        assert!((w.iter().sum::<f64>() - 1.0).abs() < 1e-12, "{t}: {w:?}");
+    }
+    assert_eq!(weights(&[0.0, 1.0], 0.02, 2.2), vec![1.0, 0.0]);
+    use crate::GradientCurve as C;
+    for c in C::ALL {
+        assert_eq!((curve(c, 0.0), curve(c, 1.0)), (0.0, 1.0), "{c:?}");
+    }
+    assert_eq!(curve(C::Linear, 0.5), 0.5);
+    assert_eq!(curve(C::EaseIn, 0.5), 0.25);
+    assert_eq!(curve(C::EaseOut, 0.5), 0.75);
+    assert_eq!(curve(C::SCurve, 0.5), 0.5);
+    // Saved only when set.
+    let json = serde_json::to_string(&region(RegionType::Fill)).expect("json");
+    assert!(!json.contains("gradient"));
+}
