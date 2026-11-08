@@ -367,8 +367,9 @@ is null), `ui.saveFile` (the `.osd` as `{name, base64}`) and `ui.exportFile {for
 no Assistant panel and no MCP or automation-socket control (#766): `openstitch.run(...)` is callable
 only by code in the page, so an MCP client such as this one cannot reach it. If a user asks you
 to work on their browser editor, say so and offer the desktop editor or a design file they can
-open there. The system clipboard, printing, machine transfer, the Design Database's folders and
-image pickers are desktop-only too; say so instead of trying them in the browser.
+open there. The system clipboard, printing, machine transfer and choosing folders (the Design
+Database, Ink/Stitch font folders) are desktop-only too; say so instead of trying them in the
+browser. Pictures, thread charts, fonts and other files can be picked or dropped on the page.
 
 ## Files
 

@@ -171,15 +171,19 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                     .button(t("ui-import-palette"))
                     .on_hover_text(t("ui-a-gimp-or-inkscape-palette-gpl-tip"))
                     .clicked()
-                    && let Some(path) = crate::files::FileDialog::new()
-                        .add_filter("GIMP / Inkscape palette", &["gpl"])
-                        .pick_file()
                 {
-                    let mut p = json!({ "path": path.to_string_lossy() });
-                    if !name.is_empty() {
-                        p["name"] = json!(name);
-                    }
-                    request = Some(CommandRequest::new("threads.importPalette", p));
+                    let name = name.clone();
+                    crate::files::pick_then(
+                        crate::files::FileDialog::new()
+                            .add_filter("GIMP / Inkscape palette", &["gpl"]),
+                        move |app, path| {
+                            let mut p = json!({ "path": path.to_string_lossy() });
+                            if !name.is_empty() {
+                                p["name"] = json!(name);
+                            }
+                            app.execute(&CommandRequest::new("threads.importPalette", p));
+                        },
+                    );
                 }
                 if let Some(c) = st.chart.clone() {
                     if ui
@@ -285,15 +289,17 @@ fn charts_window(app: &mut EditorApp, ctx: &egui::Context) {
                     }
                     request = Some(CommandRequest::new("threads.addColor", p));
                 }
-                if ui.button(t("ui-import-csv")).clicked()
-                    && let Some(path) = crate::files::FileDialog::new()
-                        .add_filter("CSV", &["csv"])
-                        .pick_file()
-                {
-                    request = Some(CommandRequest::new(
-                        "threads.importCsv",
-                        json!({ "chart": name, "path": path.to_string_lossy() }),
-                    ));
+                if ui.button(t("ui-import-csv")).clicked() {
+                    let name = name.clone();
+                    crate::files::pick_then(
+                        crate::files::FileDialog::new().add_filter("CSV", &["csv"]),
+                        move |app, path| {
+                            app.execute(&CommandRequest::new(
+                                "threads.importCsv",
+                                json!({ "chart": name, "path": path.to_string_lossy() }),
+                            ));
+                        },
+                    );
                 }
                 if ui.button(t("ui-export-palette")).clicked()
                     && let Some(path) = crate::files::FileDialog::new()

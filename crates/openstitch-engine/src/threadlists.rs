@@ -110,11 +110,11 @@ fn read_csv(text: &str) -> Result<Vec<Thread>, String> {
 fn read_list(s: &mut EngineState, p: &Params) -> Result<Vec<Thread>, CommandError> {
     let path = s.resolve(&p.string("path", None)?, Access::Read, &p.command)?;
     let kind = kind(p, &path)?;
-    let meta = std::fs::metadata(&path).map_err(|e| p.failed(e.to_string()))?;
+    let meta = crate::fsio::metadata(&path).map_err(|e| p.failed(e.to_string()))?;
     if meta.len() > MAX_FILE {
         return Err(p.failed("the file is too large"));
     }
-    let bytes = std::fs::read(&path).map_err(|e| p.failed(e.to_string()))?;
+    let bytes = crate::fsio::read(&path).map_err(|e| p.failed(e.to_string()))?;
     let threads = match kind {
         Kind::List(t) => t.read(&bytes).map_err(|e| p.failed(e.to_string()))?,
         Kind::Csv => read_csv(&String::from_utf8_lossy(&bytes)).map_err(|e| p.failed(e))?,

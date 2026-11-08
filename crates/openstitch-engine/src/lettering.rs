@@ -455,11 +455,11 @@ fn rows_param(s: &EngineState, p: &Params) -> Result<Vec<Vec<String>>, CommandEr
 }
 
 fn read_csv(path: &std::path::Path) -> Result<Vec<Vec<String>>, String> {
-    let meta = std::fs::metadata(path).map_err(|_| "cannot read the CSV file".to_string())?;
+    let meta = crate::fsio::metadata(path).map_err(|_| "cannot read the CSV file".to_string())?;
     if meta.len() > MAX_CSV_BYTES as u64 {
         return Err("CSV file larger than 1 MiB".into());
     }
-    let bytes = std::fs::read(path).map_err(|_| "cannot read the CSV file".to_string())?;
+    let bytes = crate::fsio::read(path).map_err(|_| "cannot read the CSV file".to_string())?;
     let text = String::from_utf8(bytes).map_err(|_| "the CSV file is not UTF-8".to_string())?;
     parse_csv(text.trim_start_matches('\u{feff}'))
 }
