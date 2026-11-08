@@ -2027,6 +2027,10 @@ pub struct RegionSewing {
     /// Fill: the wave's length, crest to crest, mm (default [`RegionSewing::DEFAULT_WAVE_LENGTH`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wave_length: Option<f64>,
+    /// Fill: push compensation (#677, beyond PE-DESIGN), mm (0-2): the top stitching's sides
+    /// parallel to its rows move in by this much; the row ends keep `pull_compensation`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub push_compensation: Option<f64>,
     /// Fill: stitch angle lines (#534, beyond PE-DESIGN), 0.1 mm: the rows turn smoothly from
     /// one line's direction to the next (see `crate::angle_lines`). Fewer than two: none.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -2159,6 +2163,7 @@ impl RegionSewing {
             hand: None,
             wave_height: None,
             wave_length: None,
+            push_compensation: None,
             angle_lines: Vec::new(),
             gradient: None,
             motif_band: None,

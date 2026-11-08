@@ -100,8 +100,8 @@ pub(crate) const SHAPING_PARAMS: [ParamDoc; 16] = [
 /// The parameters of `object.setRegion` only.
 pub(crate) const REGION_PARAMS: [ParamDoc; 1] = [opt(
     "underlay2",
-    "{style, inset, spacing, stitchLength} | null",
-    "Manual Punch column, skeleton satin or Auto satin region: a second under sewing layer after the first (beyond PE-DESIGN): style edge|zigzag|edgeZigzag|centreWalk|auto (default zigzag; auto on skeleton and Auto satin: rows that follow the width), inset mm 0-3 (0.5), spacing mm 0.5-10 (2), stitchLength mm 1-10 (2.5); null removes it",
+    "{style, inset, spacing, stitchLength, angle} | null",
+    "A second under sewing layer after the first (beyond PE-DESIGN), on a Manual Punch column, skeleton satin or Auto satin region (along the column), or on a fill or fixed-direction satin region (rows at angle degrees from the fill angle, -180-180, default 0: square to the first fill under sewing layer, whose rows run at 90°, i.e. crossed tatami; edge: the outline run inset in): style edge|zigzag|edgeZigzag|centreWalk|auto (default zigzag; auto on skeleton and Auto satin: rows that follow the width), inset mm 0-3 (0.5), spacing mm 0.5-10 (2), stitchLength mm 1-10 (2.5); null removes it",
 )];
 
 /// Applies the shaping parameters present in `p` to `s`.
@@ -304,7 +304,7 @@ pub(crate) fn apply_underlay2(
     if !v.is_object() {
         return Err(p.invalid(
             "underlay2",
-            "must be {style, inset, spacing, stitchLength} or null",
+            "must be {style, inset, spacing, stitchLength, angle} or null",
         ));
     }
     let mut l = u.unwrap_or_default();
@@ -333,12 +333,13 @@ pub(crate) fn apply_underlay2(
         ("inset", &mut l.inset, 0.0, 3.0),
         ("spacing", &mut l.spacing, 0.5, 10.0),
         ("stitchLength", &mut l.stitch_length, 1.0, 10.0),
+        ("angle", &mut l.angle, -180.0, 180.0),
     ] {
         if let Some(x) = v.get(key) {
             *field = x
                 .as_f64()
                 .filter(|x| (lo..=hi).contains(x))
-                .ok_or_else(|| p.invalid("underlay2", format!("{key} must be {lo}-{hi} mm")))?;
+                .ok_or_else(|| p.invalid("underlay2", format!("{key} must be {lo}-{hi}")))?;
         }
     }
     *u = Some(l);

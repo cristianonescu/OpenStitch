@@ -613,6 +613,19 @@ fn region(id: u64, r: &RegionSewing, s: &mut Shape, table: &mut Vec<Thread>) -> 
             "object {id}: a wave fill is not mapped in PES 0110 (use version 6)"
         ));
     }
+    // A second layer on a region sewn by rows (columns, skeleton and Auto satin had theirs).
+    let rows_underlay2 = r.underlay2.is_some()
+        && (r.kind == RegionType::Fill
+            || (r.kind == RegionType::Satin
+                && r.direction_lines.len() < 2
+                && r.skeleton.is_none()
+                && !r.auto_direction));
+    if r.push_compensation.is_some() || rows_underlay2 {
+        // PE-DESIGN has neither (#677): it would sew without them.
+        return Err(format!(
+            "object {id}: push compensation and a second under sewing layer are not mapped in PES 0110 (use version 6)"
+        ));
+    }
     if r.hand.is_some() {
         // PE-DESIGN would sew both sides crisp (#540).
         return Err(format!(
@@ -1609,6 +1622,23 @@ mod tests {
         ));
         let err = objects(&grad).expect_err("gradient fills are not mapped");
         assert!(err.contains("gradient fill"), "{err}");
+        // Push compensation and a second under sewing layer (#677) too.
+        for push in [true, false] {
+            let mut d = Design::new("t", openstitch_design::DesignPage::default());
+            let mut fill = RegionSewing::new(RegionType::Fill, red());
+            if push {
+                fill.push_compensation = Some(0.5);
+            } else {
+                fill.underlay2 = Some(Default::default());
+            }
+            d.add(DesignObject::shape(
+                vec![Contour::rectangle(0.0, 0.0, 200.0, 200.0)],
+                Some(fill),
+                None,
+            ));
+            let err = objects(&d).expect_err("not mapped");
+            assert!(err.contains("push compensation"), "{err}");
+        }
         // Stitch angle lines (#534) too.
         let mut lines = Design::new("t", openstitch_design::DesignPage::default());
         let mut fill = RegionSewing::new(RegionType::Fill, red());
