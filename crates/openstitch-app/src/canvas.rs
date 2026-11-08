@@ -208,7 +208,8 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
         );
     }
     if let Some(h) = response.hover_pos() {
-        let m = vp.to_model(v2(f64::from(h.x), f64::from(h.y)));
+        // From the ruler origin (#799).
+        let m = vp.to_model(v2(f64::from(h.x), f64::from(h.y))) - app.ruler_zero();
         let u = app.ui.prefs.units;
         let text = format!(
             "{}, {}{}   {:.0}%",
@@ -232,6 +233,7 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
             &vp,
             response.hover_pos(),
             app.ui.prefs.units,
+            app.ruler_zero(),
         );
         crate::view_ui::draw_guide_markers(app, &painter, rect, &vp);
     }

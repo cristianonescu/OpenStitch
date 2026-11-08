@@ -231,6 +231,9 @@ pub struct UiPrefs {
     /// Millimetres or inches for every length shown and typed (#519); the Design Database's
     /// System Unit is the same setting. Millimetres by default, as PE-DESIGN.
     pub units: super::units::Units,
+    /// Where the rulers and positions measure from (#799): the Design Page's centre by
+    /// default, for every user (a settings file without it reads Centre), or its top-left.
+    pub ruler_origin: super::units::RulerOrigin,
     /// Real size (#518): points per mm measured with Options ▸ Calibrate Real Size, per monitor
     /// (keyed by its size in points). Without one, 100 % assumes a 96 dpi screen.
     pub screen_calibration: Vec<(String, f64)>,
@@ -327,6 +330,7 @@ impl Default for UiPrefs {
             ai: Default::default(),
             editing: EditingPrefs::default(),
             units: super::units::Units::Mm,
+            ruler_origin: super::units::RulerOrigin::Centre,
             screen_calibration: Vec::new(),
             show: ShowPrefs::default(),
             autosave: true,
@@ -422,6 +426,7 @@ impl UiPrefs {
                 "nudgeByGrid": self.editing.nudge_grid,
             },
             "units": super::units::key(self.units),
+            "rulerOrigin": self.ruler_origin.key(),
             "screenCalibration": self.screen_calibration.iter()
                 .map(|(k, v)| (k.clone(), json!(v)))
                 .collect::<serde_json::Map<_, _>>(),
@@ -558,6 +563,10 @@ impl UiPrefs {
                 .as_str()
                 .and_then(super::units::from_key)
                 .unwrap_or(d.units),
+            ruler_origin: v["rulerOrigin"]
+                .as_str()
+                .and_then(super::units::RulerOrigin::from_key)
+                .unwrap_or(d.ruler_origin),
             screen_calibration: v["screenCalibration"]
                 .as_object()
                 .map(|m| {
@@ -949,6 +958,24 @@ mod tests {
         f.set_shown("a", true);
         f.set_shown("a", true);
         assert_eq!(f.hidden, ["b"]);
+    }
+
+    /// #799: the ruler origin is the page centre by default, also for a settings file written
+    /// before it existed, and a chosen top-left survives a restart.
+    #[test]
+    fn the_ruler_origin_defaults_to_centre_and_is_saved() {
+        use super::super::units::RulerOrigin;
+        assert_eq!(UiPrefs::default().ruler_origin, RulerOrigin::Centre);
+        let old = json!({ "units": "mm" });
+        assert_eq!(UiPrefs::from_json(&old).ruler_origin, RulerOrigin::Centre);
+        let dir = openstitch_testutil::TempDir::new("ruler-origin");
+        let path = dir.join("ui.json");
+        let p = UiPrefs {
+            ruler_origin: RulerOrigin::TopLeft,
+            ..UiPrefs::default()
+        };
+        p.save(&path).expect("save");
+        assert_eq!(UiPrefs::load(&path).ruler_origin, RulerOrigin::TopLeft);
     }
 
     #[test]

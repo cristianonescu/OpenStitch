@@ -1574,6 +1574,21 @@ pub fn options_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     });
     let units = app.ui.prefs.units;
     app.database.units = units;
+    // Where the rulers and positions measure from (#799).
+    ui.label(RichText::new(t("menu-ruler-origin")).weak());
+    ui.horizontal(|ui| {
+        use openstitch_app::editor::units::RulerOrigin;
+        let tip = t("menu-ruler-origin-tip");
+        let o = &mut app.ui.prefs.ruler_origin;
+        changed |= ui
+            .radio_value(o, RulerOrigin::Centre, t("menu-ruler-origin-centre"))
+            .on_hover_text(tip.clone())
+            .changed();
+        changed |= ui
+            .radio_value(o, RulerOrigin::TopLeft, t("menu-ruler-origin-top-left"))
+            .on_hover_text(tip)
+            .changed();
+    });
     ui.separator();
     ui.label(RichText::new(t("menu-editing")).weak());
     let e = &mut app.ui.prefs.editing;
