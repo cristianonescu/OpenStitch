@@ -49,6 +49,15 @@ const url = `http://127.0.0.1:${server.address().port}/`;
 
 const stem = name.replace(/\.[^.]*$/, "");
 const run = (page, request) => page.evaluate((r) => window.openstitch.run(r), request);
+// Waits until the editor has started (or says it could not); returns the page's message.
+const started = async (page) => {
+  await page.waitForFunction(
+    () => !document.getElementById("message") || /could not start/.test(document.getElementById("message").textContent),
+    null,
+    { timeout: 90_000 },
+  );
+  return page.evaluate(() => document.getElementById("message")?.textContent ?? "");
+};
 
 let failures = 0;
 for (const [label, type] of [["Chromium", chromium], ["Firefox", firefox], ["WebKit", webkit]]) {
@@ -77,12 +86,7 @@ for (const [label, type] of [["Chromium", chromium], ["Firefox", firefox], ["Web
     page.on("pageerror", (e) => errors.push(String(e)));
     await page.goto(url, { timeout: 60_000 });
     console.log(`${label}: page loaded, waiting for the editor to start`);
-    await page.waitForFunction(
-      () => !document.getElementById("message") || /could not start/.test(document.getElementById("message").textContent),
-      null,
-      { timeout: 90_000 },
-    );
-    const message = await page.evaluate(() => document.getElementById("message")?.textContent ?? "");
+    const message = await started(page);
     if (message && /WebGL/i.test(message) && optional.has(label.toLowerCase())) {
       console.log(`::warning::${label} has no WebGL on this runner, not tested: ${message}`);
       continue;
@@ -122,12 +126,26 @@ for (const [label, type] of [["Chromium", chromium], ["Firefox", firefox], ["Web
         throw new Error(`downloaded ${download.suggestedFilename()} (${got.length} bytes), native ${want.length} bytes`);
       }
     }
+    // #797: preferences last in the page's storage. "Don't show this again" (showStartCards
+    // off) survives a reload, and so does turning the cards back on.
+    for (const value of [false, true]) {
+      console.log(`${label}: start cards ${value ? "on" : "off"}, then a reload`);
+      const set = await run(page, { command: "ui.set", params: { name: "showStartCards", value } });
+      if (!set.ok) throw new Error(`ui.set showStartCards: ${JSON.stringify(set).slice(0, 200)}`);
+      await page.reload({ timeout: 60_000 });
+      const again = await started(page);
+      if (again) throw new Error(`after a reload: ${again}`);
+      const prefs = await run(page, { command: "ui.settings" });
+      if (prefs.result?.showStartCards?.value !== value) {
+        throw new Error(`showStartCards is ${JSON.stringify(prefs.result?.showStartCards)} after a reload, want ${value}`);
+      }
+    }
     if (outDir) {
       mkdirSync(outDir, { recursive: true });
       await page.screenshot({ path: join(outDir, `web-${label.toLowerCase()}.png`) });
     }
     if (errors.length) throw new Error(`page errors: ${errors.join("; ")}`);
-    console.log(`ok ${label}: started, opened ${name} with the file picker, the PES and DST downloads are identical to the desktop build`);
+    console.log(`ok ${label}: started, opened ${name} with the file picker, the PES and DST downloads are identical to the desktop build, preferences last across reloads`);
   } catch (e) {
     console.error(`FAIL ${label}: ${e.message}`);
     failures += 1;

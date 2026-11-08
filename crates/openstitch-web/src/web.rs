@@ -95,6 +95,11 @@ pub async fn start(canvas_id: String) -> Result<(), JsValue> {
             options,
             Box::new(|cc| {
                 CTX.with(|c| *c.borrow_mut() = Some(cc.egui_ctx.clone()));
+                // The editor's preferences last in this origin's localStorage (#797).
+                openstitch_app::platform::set_prefs_store(openstitch_app::platform::PrefsStore {
+                    read: read_prefs,
+                    write: write_prefs,
+                });
                 let launch = Launch {
                     no_splash: true,
                     ..Launch::default()
@@ -105,6 +110,29 @@ pub async fn start(canvas_id: String) -> Result<(), JsValue> {
             }),
         )
         .await
+}
+
+/// The key the editor's preferences (the desktop's `ui.json`) have in localStorage (#797).
+const PREFS_KEY: &str = "openstitch.ui";
+
+/// This origin's localStorage, or `None` where the browser refuses it (a private window,
+/// storage turned off): then the defaults apply and nothing is kept.
+fn storage() -> Option<web_sys::Storage> {
+    web_sys::window()?.local_storage().ok().flatten()
+}
+
+fn read_prefs() -> Option<String> {
+    storage()?.get_item(PREFS_KEY).ok().flatten()
+}
+
+fn write_prefs(text: &str) {
+    if let Some(s) = storage()
+        && s.set_item(PREFS_KEY, text).is_err()
+    {
+        web_sys::console::warn_1(&JsValue::from_str(
+            "preferences not saved: storage is full or refused",
+        ));
+    }
 }
 
 /// The automation API: one JSON request in, one JSON reply out. Once the editor has started

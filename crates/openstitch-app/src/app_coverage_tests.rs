@@ -658,3 +658,39 @@ fn start_cards_close_for_the_session_and_dont_show_again_turns_them_off() {
         .expect("back on");
     assert!(crate::start_ui::cards_visible(&app));
 }
+
+thread_local! {
+    static FAKE_STORAGE: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
+
+/// #797: an editor with no ui.json (the browser page) reads its preferences from the store the
+/// page registers and writes every change back; a store that holds nothing or garbage gives the
+/// defaults.
+#[test]
+fn preferences_last_in_the_pages_storage() {
+    use openstitch_app::platform::{PrefsStore, set_prefs_store};
+    set_prefs_store(PrefsStore {
+        read: || FAKE_STORAGE.with(|s| s.borrow().clone()),
+        write: |t| FAKE_STORAGE.with(|s| *s.borrow_mut() = Some(t.to_string())),
+    });
+    // Nothing stored: the defaults.
+    let app = EditorApp::new(Launch::default());
+    assert!(app.ui.prefs.start_cards);
+    // Garbage stored (cleared or damaged site data): the defaults, no panic.
+    FAKE_STORAGE.with(|s| *s.borrow_mut() = Some("{not json".into()));
+    let mut app = EditorApp::new(Launch::default());
+    assert!(app.ui.prefs.start_cards);
+    // "Don't show this again" is written to the store and read back by the next page load.
+    crate::start_ui::never_show_cards(&mut app);
+    let stored = FAKE_STORAGE.with(|s| s.borrow().clone()).expect("written");
+    assert!(stored.contains("\"showStartCards\":false"), "{stored}");
+    let again = EditorApp::new(Launch::default());
+    assert!(!again.ui.prefs.start_cards, "kept across a reload");
+    assert!(!crate::start_ui::cards_visible(&again));
+    // Options ▸ Show start cards turns them back on, and that lasts too.
+    let mut again = again;
+    again
+        .ui_command("ui.set", Some(&json!({ "name": "showStartCards", "value": true })))
+        .expect("on");
+    assert!(EditorApp::new(Launch::default()).ui.prefs.start_cards);
+}
