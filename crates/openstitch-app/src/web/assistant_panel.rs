@@ -16,7 +16,8 @@ pub fn attach_files(_app: &mut EditorApp, _paths: Vec<std::path::PathBuf>) {}
 
 pub fn set_open(app: &mut EditorApp, _open: bool) {
     app.assistant.panel.open = false;
-    app.status = "The Assistant is not available in the web editor".into();
+    // The shared notice, with the issue that tracks it (#766, #830).
+    crate::limits_ui::browser_limit(app, openstitch_app::editor::browser_limits::Limit::Assistant);
 }
 
 pub fn ai_switched_off(_app: &mut EditorApp) {}

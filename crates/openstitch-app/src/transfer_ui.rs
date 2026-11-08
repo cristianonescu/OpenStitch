@@ -40,6 +40,11 @@ impl UsbDialog {
 
 /// Opens the dialog with the current volumes and the design name.
 pub fn open(app: &mut EditorApp) {
+    // A page cannot write to a USB stick or machine (#830).
+    if crate::limits_ui::browser_limit(app, openstitch_app::editor::browser_limits::Limit::Transfer)
+    {
+        return;
+    }
     let volumes = app.execute(&CommandRequest::new("transfer.volumes", json!({})));
     let name = app.session.design().name.clone();
     let d = &mut app.workspace.usb;
