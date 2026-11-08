@@ -189,6 +189,11 @@ short stitches (#617), and a Beyond-PE rope stitch (#618). Done 2026-11-07 (`bat
 within 0.1 mm of PE-DESIGN's), #617, and two stippling bugs found on the way: seed 993's runaway
 allocation (#638) and a narrow band that sewed nothing (#708). #614 continues: PE-DESIGN's cross
 stitch has no Direction and only Times (single, double, triple), captured 2026-11-07.
+Done 2026-11-08 (`batch:fills-2`, #532 part 1): colour blends and gradient fills. `shape.gradient`
+and `shape.blend` make one fill object per colour; each sews its share of one shared set of rows
+(rows, ordered, noise or band dithering), so the colours together are one even layer. Named
+density profiles, the canvas Gradient tool and SVG gradient import follow in part 2.
+
 Done 2026-11-07 (`batch:fills-2`, #537): tatami textures, 14 named needle-hole patterns on plain
 fills (smooth is PE-DESIGN's Frequency brick, the rest are OpenStitch's) built from stepped and
 wave, triangle or arc row shifts, off by default, with kit swatches.
