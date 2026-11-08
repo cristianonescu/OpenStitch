@@ -717,6 +717,12 @@ fn line(id: u64, l: &LineSewing, s: &mut Shape, table: &mut Vec<Thread>) -> Resu
         s.zigzag_width = l.width as f32;
     }
     s.zigzag_density = l.density as f32;
+    // Sharp Corners and both buttons' Miter Limits (body +62, +64, +66, #373).
+    s.sharp_corners = u16::from(l.sharp_corners.split());
+    s.miter_limits = l
+        .sharp_corners
+        .miter_limit
+        .map(|mm| mm.clamp(0.0, openstitch_design::model::SharpCorners::MAX_LIMIT) as f32);
     s.run_pitch = l.pitch as f32;
     s.line_under_sewing = l.underlay;
     Ok(())

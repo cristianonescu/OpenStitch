@@ -628,6 +628,18 @@ const FULLY_PARSED: &[&str] = &[
     "line-v-rect-default",
     "line-zigzag-default",
     "line-zigzag-density-max",
+    "line-zigzag-miter-l-b2-m7",
+    "line-zigzag-miter-v-b1-m0",
+    "line-zigzag-miter-v-b1-m1",
+    "line-zigzag-miter-v-b1-m3",
+    "line-zigzag-miter-v-b1-m50",
+    "line-zigzag-miter-v-b2-m0",
+    "line-zigzag-miter-v-b2-m3",
+    "line-zigzag-miter-v-b2-m50",
+    "line-zigzag-miter-v45-b1-m0",
+    "line-zigzag-miter-v45-b2-m0",
+    "line-zigzag-miter-v75-b1-m0",
+    "line-zigzag-miter-v75-b2-m0",
     "a01-rect-applique",
     "a02-applique-cutting",
     "a03-applique-no-tackdown",
@@ -2124,4 +2136,32 @@ fn pec_chart_colours_are_written_in_version_6_as_pe_design_writes_them() {
         .collect();
     assert_eq!(names, ["SILVER", "RED"]);
     assert_eq!(pe.threads[0].name.as_deref(), Some("16"));
+}
+
+/// #373: a zigzag line's Sharp Corners button (body +62: 0 button 1, 1 button 2) and the Miter
+/// Limit each button keeps (body +64 and +66, 0.1 mm), on PE-DESIGN 11.50's captures.
+#[test]
+fn zigzag_sharp_corners_and_both_miter_limits_are_read() {
+    for (name, button, limits) in [
+        ("line-zigzag-miter-v-b1-m0", 0, [0.0, 0.0]),
+        ("line-zigzag-miter-v-b1-m1", 0, [1.0, 0.0]),
+        // Button 2 kept the 50.0 typed while that button was shown.
+        ("line-zigzag-miter-v-b1-m3", 0, [3.0, 50.0]),
+        ("line-zigzag-miter-v-b2-m3", 1, [3.0, 3.0]),
+        ("line-zigzag-miter-v-b1-m50", 0, [50.0, 0.0]),
+        ("line-zigzag-miter-v75-b1-m0", 0, [0.0, 0.0]),
+        ("line-zigzag-miter-v75-b2-m0", 1, [0.0, 0.0]),
+        ("line-zigzag-miter-l-b2-m7", 1, [0.0, 7.0]),
+    ] {
+        let o = objects_of(&owner_file(name));
+        let s = &o.shapes[0];
+        assert_eq!(
+            (s.sharp_corners, s.miter_limits),
+            (button, limits),
+            "{name}"
+        );
+    }
+    // A shape made by the tool's defaults: button 1, 0.0 and 7.0 (#373 part 1).
+    let d = Shape::with_defaults();
+    assert_eq!((d.sharp_corners, d.miter_limits), (0, [0.0, 7.0]));
 }
