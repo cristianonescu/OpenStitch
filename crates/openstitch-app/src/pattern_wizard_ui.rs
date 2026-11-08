@@ -143,11 +143,10 @@ fn background(app: &mut EditorApp, ui: &mut egui::Ui) {
                     ui.radio_value(&mut f.echo_clipped, false, t("ui-echo"));
                 });
                 ui.end_row();
-                if f.echo_clipped {
-                    ui.label("");
-                    ui.checkbox(&mut f.link_ends, t("ui-link-echo-ends"));
-                    ui.end_row();
-                }
+                // Echo rings join ring to ring with it too (beyond PE-DESIGN, #794).
+                ui.label("");
+                ui.checkbox(&mut f.link_ends, t("ui-link-echo-ends"));
+                ui.end_row();
             }
             "stippling" => mm(ui, "Stippling spacing", &mut f.stipple_spacing, 0.5, 10.0),
             "decorative" => {
