@@ -8,7 +8,7 @@ use crate::fmath::Det;
 use crate::generate::{self, RegionParams, RowSpan, Run, Stagger, subdivide};
 use crate::geometry::{Contour, Rect, Span, Vec2, contains, subtract, v2};
 use crate::model::{
-    Feather, FeatherSide, FillStitchType, Gradation, GradationShape, RegionSewing, RegionType,
+    Feather, FeatherMode, FeatherSide, FillStitchType, Gradation, GradationShape, RegionSewing, RegionType,
     RunningStitchPath, UnderlayParts, UnderlayStyle,
 };
 use crate::paths::{OutlineTravel, Rng, TravelGraph, join};
@@ -1638,19 +1638,63 @@ const FEATHER_PATTERN: [f64; 12] = [0.9, 0.2, 0.5, 1.0, 0.5, 0.1, 0.6, 0.3, 0.8,
 /// A satin row sewn from `from` to `to` (rotated space), its ends feathered: `Start` moves the
 /// end the row starts from, `End` the one it ends at, by [`FEATHER_PATTERN`]'s share for row
 /// `k` of the feather width, at most 90 % of the row.
+///
+/// Beyond PE-DESIGN (#685, off unless chosen): `mode` Out moves the ends out past the edge by
+/// the same shares, Both moves each end in or out by up to half the width, and a `seed`
+/// replaces the pattern with a pseudo-random share per row end. A row never shrinks below a
+/// tenth of its length.
 fn feathered(from: f64, to: f64, k: usize, last: bool, feather: Option<Feather>) -> (f64, f64) {
     let Some(f) = feather.filter(|_| k > 0 && !last) else {
         return (from, to);
     };
     let len = to - from;
-    let d = (FEATHER_PATTERN[(k - 1) % FEATHER_PATTERN.len()] * f.width * 10.0)
-        .min(len.abs() * 0.9)
-        * len.signum();
-    match f.side {
-        FeatherSide::Start => (from + d, to),
-        FeatherSide::End => (from, to - d),
-        FeatherSide::Both => (from + d, to - d),
+    if f.is_pe_design() {
+        let d = (FEATHER_PATTERN[(k - 1) % FEATHER_PATTERN.len()] * f.width * 10.0)
+            .min(len.abs() * 0.9)
+            * len.signum();
+        return match f.side {
+            FeatherSide::Start => (from + d, to),
+            FeatherSide::End => (from, to - d),
+            FeatherSide::Both => (from + d, to - d),
+        };
     }
+    let sign = len.signum();
+    // The share for this row's end `e` (0 the start, 1 the end): PE-DESIGN's pattern, the
+    // same for both ends, or one drawn from the seed.
+    let share = |e: u64| match f.seed {
+        None => FEATHER_PATTERN[(k - 1) % FEATHER_PATTERN.len()],
+        Some(seed) => {
+            (feather_mix(seed ^ feather_mix(2 * k as u64 + e)) >> 11) as f64 / (1u64 << 53) as f64
+        }
+    };
+    let width = f.width * 10.0;
+    // How far end `e` moves in (negative: out).
+    let move_in = |e: u64| match f.mode {
+        FeatherMode::In => share(e) * width,
+        FeatherMode::Out => -share(e) * width,
+        FeatherMode::Both => (share(e) - 0.5) * width,
+    };
+    let (mut a, mut b) = match f.side {
+        FeatherSide::Start => (move_in(0), 0.0),
+        FeatherSide::End => (0.0, move_in(1)),
+        FeatherSide::Both => (move_in(0), move_in(1)),
+    };
+    // Moving in keeps at least a tenth of the row, as PE-DESIGN's 90 % cap.
+    let room = len.abs() * 0.9;
+    if a.max(0.0) + b.max(0.0) > room {
+        let scale = room / (a.max(0.0) + b.max(0.0));
+        a = if a > 0.0 { a * scale } else { a };
+        b = if b > 0.0 { b * scale } else { b };
+    }
+    (from + a * sign, to - b * sign)
+}
+
+/// A 64-bit mix (splitmix64's finaliser) for the seeded feathered edge.
+fn feather_mix(mut x: u64) -> u64 {
+    x = x.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    x = (x ^ (x >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    x = (x ^ (x >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    x ^ (x >> 31)
 }
 
 /// The lattice of a sawtooth satin (rotated space): `height / line` rounded half down equal gaps
@@ -2152,6 +2196,10 @@ fn auto_satin(
         let corners = r.satin_shaping.corners.style != crate::column::CornerStyle::Turn;
         let mut base = if corners {
             crate::skeleton::vertex_rungs_within(&s, closed)
+        } else if r.satin_shaping.spacing_at.is_some_and(|a| a < 1.0) {
+            // `spacingAt` (#685): rungs every 0.1 mm along the longer side, which
+            // `column::zigzag_shaped` thins to the spacing measured across the column.
+            crate::skeleton::rungs_within(&s, closed, 1.0, 0.0)
         } else {
             column.clone()
         };

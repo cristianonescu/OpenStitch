@@ -220,6 +220,39 @@ fn rungs_within_pitch_at(rungs: &[[Vec2; 2]], pitch: f64, at: f64) -> Vec<[Vec2;
     out
 }
 
+/// Rungs evenly `pitch` apart along a finely sampled column (skeleton satin, Auto satin),
+/// measured `at` across it (#685, see [`SatinShaping::spacing_at`]): the column's length on
+/// that line divided into a whole number of steps, each rung interpolated between the two
+/// samples around it. First and last rungs kept.
+fn rungs_even_at(rungs: &[[Vec2; 2]], pitch: f64, at: f64) -> Vec<[Vec2; 2]> {
+    if rungs.len() < 2 {
+        return rungs.to_vec();
+    }
+    let at = at.clamp(0.0, 1.0);
+    let mut measure = vec![0.0];
+    for w in rungs.windows(2) {
+        let (l, r) = (w[0][0].distance(w[1][0]), w[0][1].distance(w[1][1]));
+        let len = l.min(r) + at * (l.max(r) - l.min(r));
+        measure.push(measure[measure.len() - 1] + len);
+    }
+    let total = measure[measure.len() - 1];
+    let n = ((total / pitch.max(0.1)).round() as usize).clamp(1, 100_000);
+    (0..=n)
+        .map(|k| {
+            let target = total * k as f64 / n as f64;
+            let j = measure.partition_point(|&m| m < target).clamp(1, rungs.len() - 1);
+            let span = measure[j] - measure[j - 1];
+            let t = if span > 1e-9 {
+                ((target - measure[j - 1]) / span).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            let ([a, b], [c, d]) = (rungs[j - 1], rungs[j]);
+            [a.lerp(c, t), b.lerp(d, t)]
+        })
+        .collect()
+}
+
 /// Satin across the column as PE-DESIGN 11 sews Manual Punch satin: a sawtooth (see
 /// [`sawtooth`]) of rungs two crossings apart (`spacing` is the distance between crossings),
 /// each rung lengthened by `pull` at both ends.
@@ -1049,12 +1082,17 @@ pub fn zigzag_with(rungs: &[[Vec2; 2]], spacing: f64, shaping: &SatinShaping) ->
 /// shaping's compensation per side and per cent of width: skeleton satin and Auto satin with
 /// satin shaping (#675). `rungs` are the column's edges without compensation.
 pub fn zigzag_shaped(rungs: &[[Vec2; 2]], spacing: f64, pull: f64, shaping: &SatinShaping) -> Run {
-    stitch_pieces(
-        pieces(rungs, shaping.pitch(spacing), false, &shaping.corners),
-        pull,
-        shaping,
-        zigzag,
-    )
+    // `spacingAt` below 1 (#685): the spacing measured that far across the column, from the
+    // shorter side, as on a Manual Punch column; `rungs` must then be finer than the spacing.
+    let pitch = shaping.pitch(spacing);
+    let pieces = match shaping.spacing_at.filter(|&a| a < 1.0) {
+        Some(at) if !has_corners(rungs, pitch, &shaping.corners) => {
+            vec![Piece::Rungs(rungs_even_at(rungs, pitch, at))]
+        }
+        Some(at) => pieces_at(rungs, pitch, true, &shaping.corners, at),
+        None => pieces(rungs, pitch, false, &shaping.corners),
+    };
+    stitch_pieces(pieces, pull, shaping, zigzag)
 }
 
 /// Below this satin width (mm) the width-following under sewing sews one row (#523, #675).

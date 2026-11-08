@@ -71,7 +71,7 @@ pub use machine::{
 pub use model::{
     Arrange, BackgroundImage, BackgroundLayer, ChainShape, ContourJoin, ContourStrategy, CrossKind,
     CrossTimes, Design, DesignObject, DesignPage, DesignProperties, FILL_TEXTURES, Feather,
-    FeatherSide, FillStitchType, FillTexture, Gradation, GradationShape, Gradient, GradientCurve,
+    FeatherMode, FeatherSide, FillStitchType, FillTexture, Gradation, GradationShape, Gradient, GradientCurve,
     GradientDither, GradientKind, GuideLayout, Guides, ImageAdjust, JobInfo, LineGap, LineSewing,
     LineType, ObjectKind, OptimizeOrder, RegionSewing, RegionType, RunningStitchPath, StaggerKind,
     StartEnd, StitchBlock, UnderlayDensity, UnderlayParts, UnderlayStyle,
