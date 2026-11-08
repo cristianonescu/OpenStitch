@@ -216,9 +216,11 @@ desktop editor's File ▸ Open and File ▸ Export.
 
 Desktop-only for now: the Assistant (its key lives in the system keychain), Quick Look, sending to
 a machine or USB stick, printing, updates, the automation socket, the Design Database's folders,
-the system clipboard (copy and paste stay inside the editor), and every file picker other than
-Open and Import (background and digitizing images, thread charts, fonts: they return nothing
-yet). The `.wasm` is about 17 MB (#696).
+the system clipboard (copy and paste stay inside the editor), and choosing a folder (the Design
+Database, Ink/Stitch font folders, Save Template To: a page cannot browse folders). Every file
+picker works (#693): open and import, background and digitizing pictures, thread charts and
+lists, fonts, font pictures and name-drop lists. A design, embroidery file or picture dropped on
+the page opens or becomes the background. The `.wasm` is about 17 MB (#696).
 
 **Browsers:** `web/e2e/page.mjs` (Playwright, version pinned in `web/e2e/package-lock.json`)
 loads the page in Chromium, Firefox and WebKit (Safari's engine): the editor must start, File ▸
@@ -260,8 +262,13 @@ print hand-off run at once and their result waits in the channel for the next fr
 (the in-memory files), and `files.rs`: File ▸ Open and Import ask the page for its picker
 (`request_pick`); the page puts the picked bytes under `/web/open/` in memory and hands the path
 back (`EditorApp::web_picked`). The Save dialog answers `/web/save/<name>` at once; after every
-frame the page downloads each file written there and drops it from memory. Still to come: the
-other pickers, files dropped on the page, and an AI path (#766): the browser editor has no
+frame the page downloads each file written there and drops it from memory. The other pickers go
+through `files::pick_then(dialog, |app, path| …)`: on the desktop the dialog runs as before and the
+action runs at the start of the next frame; in the browser the page shows its picker (with every
+filter, one file or several) and the action runs when the bytes are in memory. The engine reads
+those files through `fsio` (`fsio::metadata` and `fsio::read`, `std::fs` on the desktop).
+Dropped files arrive as egui's `dropped_files`, read with `bytes_async`. Still to come: an AI
+path (#766): the browser editor has no
 Assistant panel and no MCP or automation-socket control, only `openstitch.run` from code in the
 page.
 

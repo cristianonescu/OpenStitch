@@ -137,7 +137,8 @@ Beyond PE-DESIGN and off unless asked; one undo step each.
 ```
 
 A satin border `distance` mm round the patterns, then a cutting line `cutDistance` mm outside
-it. `wizard.backgroundFill` fills behind the patterns for a fully stitched patch.
+it. `wizard.backgroundFill` fills behind the patterns for a fully stitched patch; with echo fills,
+`linkEchoEnds: true` joins the lines (on echo rings it crosses ring to ring) for far fewer trims.
 
 ## Towels and fleece: knockdown
 

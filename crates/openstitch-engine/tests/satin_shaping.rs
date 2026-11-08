@@ -822,3 +822,69 @@ fn skeleton_and_auto_satin_take_the_shaping_through_the_command() {
         assert_eq!(sewn(s), before, "back to the defaults");
     }
 }
+
+/// #685, #793: the satin looks and raised satin on a fixed-direction satin region and raised
+/// satin on a skeleton satin, through `object.setRegion`: the stitches change, raised adds a
+/// padding layer under the satin, one undo step each.
+#[test]
+fn satin_regions_and_skeleton_satin_take_the_looks_through_the_command() {
+    let layers = |s: &Session| {
+        let d = s.design();
+        let o = &d.objects[0];
+        openstitch_design::region::layers(&o.contours, o.region.as_ref().expect("region"), &[])
+            .len()
+    };
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 10, "y": 10, "width": 30, "height": 8, "fill": "Red"}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "satin", "angle": 90, "underlay": false}),
+    );
+    let plain = stitches(&s);
+    let plain_layers = layers(&s);
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "satinStyle": "open"}),
+    );
+    let open = stitches(&s);
+    assert!(open * 2 < plain, "open {open} of {plain}");
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "satinStyle": "normal", "jaggedEdge": "in"}),
+    );
+    assert_ne!(stitches(&s), open);
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "jaggedEdge": null, "raised": true}),
+    );
+    assert_eq!(layers(&s), plain_layers + 1, "padding under the satin");
+    assert!(stitches(&s) > plain);
+    for _ in 0..3 {
+        run(&mut s, "history.undo", json!({}));
+    }
+    assert_eq!(stitches(&s), plain);
+
+    let mut k = Session::new(std::env::temp_dir());
+    run(
+        &mut k,
+        "shape.skeletonSatin",
+        json!({"points": [[10, 30], [70, 30]], "widths": [4, 8]}),
+    );
+    run(
+        &mut k,
+        "object.setRegion",
+        json!({"id": 1, "underlay": false}),
+    );
+    let (before, before_layers) = (stitches(&k), layers(&k));
+    run(&mut k, "object.setRegion", json!({"id": 1, "raised": true}));
+    assert_eq!(layers(&k), before_layers + 1);
+    assert!(stitches(&k) > before);
+}

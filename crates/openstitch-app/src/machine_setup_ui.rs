@@ -165,10 +165,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
             .execute(&CommandRequest::new("machine.setProfile", params))
             .is_some()
         {
-            app.status = format!(
-                "Machine set: {}; new designs start on its hoop",
-                d.brand
-            );
+            app.status = openstitch_app::tf!("ui-status-machine-set-new-designs-start-on", brand = d.brand);
             open = false;
         }
     }

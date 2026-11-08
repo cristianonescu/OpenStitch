@@ -681,10 +681,7 @@ impl EditorApp {
                 // Hand edits on live objects (#501) last only while their settings do.
                 let dropped = self.session.take_hand_edits_dropped();
                 if !dropped.is_empty() {
-                    self.status = format!(
-                        "Hand-edited stitches discarded on {} object(s): a sewing setting or the shape changed",
-                        dropped.len()
-                    );
+                    self.status = openstitch_app::tf!("ui-status-hand-edited-stitches-discarded-on-object", count = dropped.len());
                 }
                 if matches!(effect, Some(Effect::Edit | Effect::History)) {
                     match &mut self.refresh_deferred {
@@ -1288,10 +1285,7 @@ impl EditorApp {
             self.status = openstitch_app::tf!("ui-status-opened", path = p.display());
         } else {
             self.after_load(None);
-            self.status = format!(
-                "Opened {} as a new design (Save to keep it as .osd)",
-                p.display()
-            );
+            self.status = openstitch_app::tf!("ui-status-opened-as-a-new-design-save", path = p.display());
         }
     }
 
@@ -1311,13 +1305,12 @@ impl EditorApp {
     /// Home ▸ Import ▸ Import PE-DESIGN Objects: a PE-DESIGN 11 (`#PES0110`) file's shapes,
     /// texts and stitch groups as editable objects at their places, its groups kept (#397).
     pub fn import_pes_objects_dialog(&mut self) {
-        let Some(p) = crate::files::FileDialog::new()
-            .add_filter("PE-DESIGN 11 file", &["pes"])
-            .pick_file()
-        else {
-            return;
-        };
-        self.import_pes_objects(&p);
+        crate::files::pick_then(
+            crate::files::FileDialog::new().add_filter("PE-DESIGN 11 file", &["pes"]),
+            |app, p| {
+                app.import_pes_objects(&p);
+            },
+        );
     }
 
     /// Imports `p`'s PE-DESIGN objects in one undo step; the status says what was skipped.
@@ -1343,14 +1336,17 @@ impl EditorApp {
     /// File ▸ Import SVG: the artwork's paths (or a WMF/EMF drawing's shapes) become a group of
     /// editable shapes, centred.
     pub fn import_svg_dialog(&mut self) {
-        let Some(p) = crate::files::FileDialog::new()
-            .add_filter("Vector images", &["svg", "wmf", "emf"])
-            .add_filter("SVG vector image", &["svg"])
-            .add_filter("Windows metafile", &["wmf", "emf"])
-            .pick_file()
-        else {
-            return;
-        };
+        crate::files::pick_then(
+            crate::files::FileDialog::new()
+                .add_filter("Vector images", &["svg", "wmf", "emf"])
+                .add_filter("SVG vector image", &["svg"])
+                .add_filter("Windows metafile", &["wmf", "emf"]),
+            |app, p| app.import_svg_from(&p),
+        );
+    }
+
+    /// Imports the SVG or WMF/EMF drawing at `p` as editable shapes, centred.
+    pub fn import_svg_from(&mut self, p: &Path) {
         let metafile = p
             .extension()
             .and_then(|e| e.to_str())
@@ -1369,10 +1365,15 @@ impl EditorApp {
 
     /// File ▸ Background Image: a PNG, JPEG or BMP shown behind the design, fitted to the page.
     pub fn background_dialog(&mut self) {
-        if let Some(p) = crate::files::FileDialog::new()
-            .add_filter("Images", &["png", "jpg", "jpeg", "bmp"])
-            .pick_file()
-            && self
+        crate::files::pick_then(
+            crate::files::FileDialog::new().add_filter("Images", &["png", "jpg", "jpeg", "bmp"]),
+            |app, p| app.background_from(&p),
+        );
+    }
+
+    /// Shows the image at `p` behind the design, fitted to the page.
+    pub fn background_from(&mut self, p: &Path) {
+        if self
                 .execute(&CommandRequest::new(
                     "background.set",
                     json!({ "path": p.display().to_string() }),
@@ -1514,11 +1515,7 @@ impl EditorApp {
         };
         let params = json!({ "path": path.display().to_string(), "format": ext });
         if let Some(r) = self.execute(&CommandRequest::new("design.export", params)) {
-            self.status = format!(
-                "Exported {} ({} stitches)",
-                path.display(),
-                r["stats"]["stitches"]
-            );
+            self.status = openstitch_app::tf!("ui-status-exported-stitches", path = path.display(), stats = r["stats"]["stitches"]);
         }
     }
 
@@ -1606,12 +1603,15 @@ impl EditorApp {
 
     /// Applies a thread list file to the colour blocks (`design.applyThreads`).
     pub fn apply_thread_list(&mut self) {
-        let Some(path) = crate::files::FileDialog::new()
-            .add_filter("Thread lists", &["csv", "inf", "edr", "col", "txt"])
-            .pick_file()
-        else {
-            return;
-        };
+        crate::files::pick_then(
+            crate::files::FileDialog::new()
+                .add_filter("Thread lists", &["csv", "inf", "edr", "col", "txt"]),
+            |app, path| app.apply_thread_list_from(&path),
+        );
+    }
+
+    /// Gives the colour blocks the colours of the thread list at `path` (`design.applyThreads`).
+    pub fn apply_thread_list_from(&mut self, path: &Path) {
         let params = json!({ "path": path.display().to_string() });
         if let Some(r) = self.execute(&CommandRequest::new("design.applyThreads", params)) {
             self.status = openstitch_app::tf!("ui-status-applied-colours-from", colors = r["colors"], path = path.display());
@@ -2117,6 +2117,8 @@ impl eframe::App for EditorApp {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        // Files chosen in a dialog (or picked by the page) since the last frame (#693).
+        crate::files::run_ready(self);
         // Options ▸ Language (#555): the window's texts for this frame.
         openstitch_app::editor::i18n::set_language(&self.ui.prefs.language);
         // A hover preview lasts while a picture picker's tile is hovered (#656).

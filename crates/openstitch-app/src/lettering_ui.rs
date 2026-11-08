@@ -214,17 +214,18 @@ pub fn text_tools_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
 }
 
 /// Loads a TrueType / OpenType font into the design.
-pub fn load_truetype(app: &mut EditorApp) {
-    if let Some(p) = crate::files::FileDialog::new()
-        .add_filter("TrueType / OpenType", &["ttf", "otf", "ttc", "otc"])
-        .pick_file()
-        && let Some(r) = app.execute(&lettering::load_font_request(&p))
-    {
-        app.status = format!(
-            "Loaded font {} ({} glyphs); it is saved with the design",
-            r["id"].as_str().unwrap_or_default(),
-            r["glyphs"]
-        );
+pub fn load_truetype(_app: &mut EditorApp) {
+    crate::files::pick_then(
+        crate::files::FileDialog::new()
+            .add_filter("TrueType / OpenType", &["ttf", "otf", "ttc", "otc"]),
+        |app, p| load_truetype_from(app, &p),
+    );
+}
+
+/// Loads the TrueType / OpenType font at `p` into the design.
+fn load_truetype_from(app: &mut EditorApp, p: &std::path::Path) {
+    if let Some(r) = app.execute(&lettering::load_font_request(p)) {
+        app.status = openstitch_app::tf!("ui-status-loaded-font-glyphs-it-is-saved", id = r["id"].as_str().unwrap_or_default(), glyphs = r["glyphs"]);
     }
 }
 
@@ -432,23 +433,16 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
         }
         Some(FontAction::Convert) => {
             if let Some(r) = app.execute(&f.convert()) {
-                app.status = format!(
-                    "Converted {} character(s){}",
-                    r["converted"].as_str().map_or(0, |c| c.chars().count()),
-                    match r["missing"].as_str() {
+                app.status = openstitch_app::tf!("ui-status-converted-character-n-other-characters-n", converted = r["converted"].as_str().map_or(0, |c| c.chars().count()), missing = match r["missing"].as_str() {
                         Some(m) if !m.is_empty() => format!("; the font has none of {m}"),
                         _ => String::new(),
-                    }
-                );
+                    });
             }
         }
         Some(FontAction::EditGlyph) => {
             if let Some(r) = app.execute(&f.edit_glyph()) {
                 app.selection = CommandRequest::created_ids(&r);
-                app.status = format!(
-                    "Editing '{}': baseline {} mm, capital line {} mm, set lines {}–{} mm",
-                    f.character, r["baseline"], r["capLine"], r["left"], r["right"]
-                );
+                app.status = openstitch_app::tf!("ui-status-editing-baseline-mm-capital-line-mm", character = f.character, baseline = r["baseline"], capline = r["capLine"], left = r["left"], right = r["right"]);
             }
         }
         Some(FontAction::SetGlyph) => {
@@ -457,32 +451,22 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
                 app.status = openstitch_app::tf!("ui-status-stored-mm-wide", character = f.character, advancemm = r["advanceMM"]);
             }
         }
-        Some(FontAction::ChooseImage) => {
-            if let Some(p) = crate::files::FileDialog::new()
-                .add_filter("Images", &["png", "jpg", "jpeg", "bmp"])
-                .pick_file()
-            {
+        Some(FontAction::ChooseImage) => crate::files::pick_then(
+            crate::files::FileDialog::new().add_filter("Images", &["png", "jpg", "jpeg", "bmp"]),
+            |app, p| {
                 app.lettering.fonts.image.path = Some(p);
                 app.lettering.fonts.image.found.clear();
-            }
-        }
+            },
+        ),
         Some(FontAction::TraceImage) => {
             if let Some(r) = app.execute(&f.trace_image()) {
                 app.lettering.fonts.set_found(&r);
-                app.status = format!(
-                    "Found {} character(s) in {} row(s); check the characters, then Create characters",
-                    app.lettering.fonts.image.found.len(),
-                    r["rows"]
-                );
+                app.status = openstitch_app::tf!("ui-status-found-character-n-other-characters-n", count = app.lettering.fonts.image.found.len(), rows = r["rows"]);
             }
         }
         Some(FontAction::FromImage) => {
             if let Some(r) = f.from_image().and_then(|req| app.execute(&req)) {
-                app.status = format!(
-                    "Created {} from the image ({} skipped)",
-                    r["created"].as_str().unwrap_or_default(),
-                    r["skipped"]
-                );
+                app.status = openstitch_app::tf!("ui-status-created-from-the-image-skipped", created = r["created"].as_str().unwrap_or_default(), skipped = r["skipped"]);
                 app.lettering.fonts.image.found.clear();
             }
         }
@@ -496,13 +480,14 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
                 .iter()
                 .map(|t| t.extension())
                 .collect();
-            if let Some(paths) = crate::files::FileDialog::new()
-                .add_filter("Embroidery files", &exts)
-                .pick_files()
-                && let Some(r) = app.execute(&f.map_files(&paths))
-            {
-                app.status = lettering::map_summary(&r);
-            }
+            crate::files::pick_many_then(
+                crate::files::FileDialog::new().add_filter("Embroidery files", &exts),
+                move |app, paths| {
+                    if let Some(r) = app.execute(&f.map_files(&paths)) {
+                        app.status = lettering::map_summary(&r);
+                    }
+                },
+            );
         }
         Some(FontAction::Save) => {
             if let Some(p) = crate::files::FileDialog::new()
@@ -514,15 +499,14 @@ fn fonts_window(app: &mut EditorApp, ctx: &egui::Context) {
                 app.status = openstitch_app::tf!("ui-status-saved", path = p.display());
             }
         }
-        Some(FontAction::Open) => {
-            if let Some(p) = crate::files::FileDialog::new()
-                .add_filter("OpenStitch font", &[ext])
-                .pick_file()
-                && let Some(r) = app.execute(&FontsForm::open_file(&p))
-            {
-                app.lettering.fonts.font = r["id"].as_str().unwrap_or_default().into();
-            }
-        }
+        Some(FontAction::Open) => crate::files::pick_then(
+            crate::files::FileDialog::new().add_filter("OpenStitch font", &[ext]),
+            |app, p| {
+                if let Some(r) = app.execute(&FontsForm::open_file(&p)) {
+                    app.lettering.fonts.font = r["id"].as_str().unwrap_or_default().into();
+                }
+            },
+        ),
         Some(FontAction::Remove(id)) => {
             app.execute(&FontsForm::remove(&id));
         }
@@ -1214,15 +1198,14 @@ fn name_drop_window(app: &mut EditorApp, ctx: &egui::Context) {
                 app.execute(&r);
             }
         }
-        Some(DropAction::ImportCsv) => {
-            if let Some(p) = crate::files::FileDialog::new()
-                .add_filter("CSV", &["csv"])
-                .pick_file()
-                && let Some(r) = app.execute(&NameDropForm::read_csv(&p))
-            {
-                app.lettering.name_drop.set_rows(&r, n);
-            }
-        }
+        Some(DropAction::ImportCsv) => crate::files::pick_then(
+            crate::files::FileDialog::new().add_filter("CSV", &["csv"]),
+            move |app, p| {
+                if let Some(r) = app.execute(&NameDropForm::read_csv(&p)) {
+                    app.lettering.name_drop.set_rows(&r, n);
+                }
+            },
+        ),
         Some(DropAction::SaveCsv) => {
             if let Some(p) = crate::files::FileDialog::new()
                 .add_filter("CSV", &["csv"])
@@ -1264,10 +1247,7 @@ pub fn save_template(app: &mut EditorApp) {
             json!({ "path": p.display().to_string() }),
         ))
     {
-        app.status = format!(
-            "Saved template with {} editable text(s)",
-            r["slots"].as_array().map_or(0, Vec::len)
-        );
+        app.status = openstitch_app::tf!("ui-status-saved-template-with-editable-text-s", slots = r["slots"].as_array().map_or(0, Vec::len));
     }
 }
 

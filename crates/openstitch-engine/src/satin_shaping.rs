@@ -73,22 +73,22 @@ pub(crate) const SHAPING_PARAMS: [ParamDoc; 16] = [
     opt(
         "satinStyle",
         "normal|sStitch|open|double",
-        "Satin look (beyond PE-DESIGN; Manual Punch columns, skeleton satin, Auto satin regions, satin text and zigzag lines): normal (default), sStitch (each crossing three short stitches bent into an S, a corded edge), open (rows three times as far apart) or double (sewn twice, the second pass back from the end midway between the first's needle points: an X lattice)",
+        "Satin look (beyond PE-DESIGN; every satin: fixed-direction satin regions, Manual Punch columns, skeleton satin, Auto satin regions, satin text and zigzag lines): normal (default), sStitch (each crossing three short stitches bent into an S, a corded edge), open (rows three times as far apart) or double (sewn twice, the second pass back from the end midway between the first's needle points: an X lattice)",
     ),
     opt(
         "jaggedEdge",
         "{mode: in|out|both, side: both|left|right, amount, seed} | in|out|both|none | null",
-        "Jagged edge for fur, grass and feathers (beyond PE-DESIGN): needle points on the chosen edges move up to amount mm (0.1-5, default 1) into the column, out, or both, the same for the same seed (default 1); side left is the first stitch's start rail; null removes it",
+        "Jagged edge for fur, grass and feathers (beyond PE-DESIGN; every satin: fixed-direction satin regions, Manual Punch columns, skeleton and Auto satin, satin text and zigzag lines): needle points on the chosen edges move up to amount mm (0.1-5, default 1) into the column, out, or both, the same for the same seed (default 1); side left is the first stitch's start rail; null removes it",
     ),
     opt(
         "spacingAt",
         "0-1",
-        "Manual Punch column: where across a curved column the density is measured, 0 (shorter side) to 1 (longer side, PE-DESIGN's, the default); 0.5 evens it at the centre",
+        "Manual Punch columns only (not satin regions, skeleton or Auto satin): where across a curved column the density is measured, 0 (shorter side) to 1 (longer side, PE-DESIGN's, the default); 0.5 evens it at the centre",
     ),
     opt(
         "raised",
         "{laneSpacing, inset, stitchLength} | true | null",
-        "Raised (padded) satin (beyond PE-DESIGN; also satin text, lanes under each stroke): running-stitch lanes along the column under the satin, about one per laneSpacing mm of width (0.5-5, default 1.5; an even number, at least two), inset mm from the edges (0-3, default 0.5), stitchLength mm (1-10, default 2.5); true turns it on (with its earlier settings, else the defaults), null removes it. Meant for columns of 3 mm and wider (the result gives a hint below that)",
+        "Raised (padded) satin (beyond PE-DESIGN; Manual Punch columns, skeleton satin and Auto satin along their column, fixed-direction satin regions under each section, satin text under each stroke, zigzag lines): running-stitch lanes along the column under the satin, about one per laneSpacing mm of width (0.5-5, default 1.5; an even number, at least two), inset mm from the edges (0-3, default 0.5), stitchLength mm (1-10, default 2.5); true turns it on (with its earlier settings, else the defaults), null removes it. Meant for columns of 3 mm and wider (the result gives a hint below that)",
     ),
     opt(
         "underlayAuto",

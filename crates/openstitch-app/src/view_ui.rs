@@ -204,7 +204,7 @@ pub fn guide_pointer(
             if d.vertical { model.x } else { model.y },
             &app.workspace.grid,
         );
-        app.status = format!("Guideline {:.1} mm", d.at / 10.0);
+        app.status = openstitch_app::tf!("ui-status-guideline-mm", position = format!("{:.1}", d.at / 10.0));
         if released {
             app.workspace.view.guide_drag = None;
             let g = &app.session.design().guides;

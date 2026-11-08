@@ -61,10 +61,43 @@ pub fn language() -> &'static str {
 pub fn set_language(code: &str) -> bool {
     match languages().into_iter().find(|(c, _)| *c == code) {
         Some((c, _)) => {
-            CURRENT.with(|l| l.set(c));
+            if CURRENT.with(|l| l.replace(c)) != c {
+                // The printed sheets follow (#555).
+                if c == ENGLISH {
+                    openstitch_print::texts::english();
+                } else {
+                    openstitch_print::texts::set_texts(pattern);
+                }
+            }
             true
         }
         None => false,
+    }
+}
+
+/// Message `id`'s pattern in this thread's language with its placeholders kept: for a text
+/// filled in elsewhere (the printed sheets).
+pub fn pattern(id: &str, english: &str) -> String {
+    match language() {
+        ENGLISH => english.to_string(),
+        PSEUDO => {
+            let mut out = String::from("[");
+            let mut depth = 0;
+            for c in english.chars() {
+                match c {
+                    '{' => depth += 1,
+                    '}' => depth -= 1,
+                    _ => {}
+                }
+                out.push(if depth == 0 { accent(c) } else { c });
+            }
+            out.push(']');
+            out
+        }
+        code => catalogue(code)
+            .and_then(|c| c.get(id).copied())
+            .unwrap_or(english)
+            .to_string(),
     }
 }
 
@@ -530,6 +563,25 @@ mod tests {
             "[Ópéñéd a.pes]"
         );
         assert!(set_language(ENGLISH));
+    }
+
+    /// The printed sheets follow the language (#555).
+    #[test]
+    fn printed_sheets_follow_the_language() {
+        assert!(set_language(ENGLISH));
+        assert_eq!(openstitch_print::texts::text("print-customer"), "Customer");
+        assert!(set_language(PSEUDO));
+        assert_eq!(
+            openstitch_print::texts::text("print-customer"),
+            "[Cústómér]"
+        );
+        assert_eq!(
+            openstitch_print::texts::fill("print-reduced", &[("percent", "50".into())]),
+            "[Rédúcéd tó 50 %]",
+            "values filled in, not accented"
+        );
+        assert!(set_language(ENGLISH));
+        assert_eq!(openstitch_print::texts::text("print-customer"), "Customer");
     }
 
     #[test]

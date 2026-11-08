@@ -609,6 +609,8 @@ pub enum EntryExit {
     RegionEntry,
     RegionExit,
     LineEntry,
+    /// L2: where a closed stem, candlewick or chain line's pattern begins and ends (#547).
+    LineExit,
 }
 
 impl EntryExit {
@@ -617,6 +619,7 @@ impl EntryExit {
             EntryExit::RegionEntry => "regionEntry",
             EntryExit::RegionExit => "regionExit",
             EntryExit::LineEntry => "lineEntry",
+            EntryExit::LineExit => "lineExit",
         }
     }
 
@@ -626,6 +629,7 @@ impl EntryExit {
             EntryExit::RegionEntry => "R1",
             EntryExit::RegionExit => "R2",
             EntryExit::LineEntry => "L1",
+            EntryExit::LineExit => "L2",
         }
     }
 
@@ -709,7 +713,8 @@ pub fn direction_markers(
 pub fn clear_entry_exit(id: u64) -> CommandRequest {
     CommandRequest::new(
         "object.setEntryExit",
-        json!({ "id": id, "regionEntry": null, "regionExit": null, "lineEntry": null }),
+        json!({ "id": id, "regionEntry": null, "regionExit": null, "lineEntry": null,
+                "lineExit": null }),
     )
 }
 
@@ -733,6 +738,7 @@ pub fn entry_exit_markers(design: &Design, id: u64) -> Vec<(EntryExit, Vec2)> {
     }
     if let Some(l) = &o.line {
         out.extend(l.entry.map(|p| (EntryExit::LineEntry, p)));
+        out.extend(l.exit.map(|p| (EntryExit::LineExit, p)));
     }
     out
 }

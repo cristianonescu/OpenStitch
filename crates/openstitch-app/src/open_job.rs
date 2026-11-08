@@ -196,10 +196,13 @@ fn run(
 impl EditorApp {
     /// A file the web page picked for File ▸ Open or Import, its bytes already in memory (#693).
     #[cfg(target_arch = "wasm32")]
-    pub fn web_picked(&mut self, kind: crate::files::Pick, p: &Path) {
-        match kind {
-            crate::files::Pick::Open => self.open_in_background(p),
-            crate::files::Pick::Import => self.import_in_background(p),
+    pub fn web_picked(&mut self, kind: crate::files::Pick, files: Vec<std::path::PathBuf>) {
+        match (kind, files.first()) {
+            (crate::files::Pick::Open, Some(p)) => self.open_in_background(p),
+            (crate::files::Pick::Import, Some(p)) => self.import_in_background(p),
+            (crate::files::Pick::Background, Some(p)) => self.background_from(p),
+            (crate::files::Pick::Then(id), _) => crate::files::deliver(id, files),
+            _ => {}
         }
     }
 
@@ -237,10 +240,7 @@ impl EditorApp {
         };
         job.cancel();
         self.close_tab_added_for(&job);
-        self.status = format!(
-            "Cancelled opening {}; the design is unchanged",
-            job.path.display()
-        );
+        self.status = openstitch_app::tf!("ui-status-cancelled-opening-the-design-is-unchanged", path = job.path.display());
         true
     }
 
@@ -285,10 +285,7 @@ impl EditorApp {
             }
         };
         if self.revision != job.revision {
-            self.status = format!(
-                "The design changed while {} was opening; nothing was replaced. Open it again",
-                job.path.display()
-            );
+            self.status = openstitch_app::tf!("ui-status-the-design-changed-while-was-opening", path = job.path.display());
             return;
         }
         if self.session.adopt_design(loaded.design) {

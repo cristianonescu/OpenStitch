@@ -159,7 +159,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    PE-DESIGN; `regionFirst` is PE-DESIGN's order). `order.optimize` returns `before`/`after`
    (colour changes, jumps, trims, travel mm) and a `summary` line: tell the user, and offer
    `history.undo` when a number got worse. `design.setProperties {autoStart: nearest}` (beyond
-   PE-DESIGN) starts each shape without its own entry point nearest to where the last ended.
+   PE-DESIGN) starts each shape without its own entry point nearest to where the last ended,
+   ends a region without its own exit nearest the next object, and enters a satin part way
+   along, where it passes nearest (a skeleton satin or satin line by a lead run under it). Set a point by hand with
+   `object.setEntryExit` (`regionEntry`, `regionExit`, `lineEntry`, `lineExit`; null clears).
 5. Check: `view_render` (look at it), `design.info` (size, stitches, colours, trims, time) and
    `design.check` (sewing problems, errors first; `ready` is false while there are errors).
    Run each finding's `fix` command or fix it yourself, and check again; never report a design
@@ -319,6 +322,10 @@ To show the user what a setting would look like before changing it, `ui.preview 
 ends it, and running the command keeps the change. `ui.set picturePickers` shows the sewing
 types, fill patterns and motifs as pictures in the Sewing Attributes pane.
 `ui.set textSize` (100-200) enlarges the whole window for a user who asks for bigger text.
+`ui.set rulerOrigin` (`centre`, the default, or `topLeft`) sets where the rulers, the cursor
+position and the precision bar's X and Y count from: the Design Page's centre (negative left and
+up) or its top-left corner. Commands always take page coordinates from the top-left, whatever
+the rulers show.
 `ui.set language` (`en`, or `pseudo`, a test language that brackets every translated text) is
 Options ▸ Language (#555); the ribbon, menus, panes and dialogs are translated so far, and no real translation ships
 yet, so answer in the user's language yourself rather than switching the window.
@@ -371,8 +378,9 @@ is null), `ui.saveFile` (the `.osd` as `{name, base64}`) and `ui.exportFile {for
 no Assistant panel and no MCP or automation-socket control (#766): `openstitch.run(...)` is callable
 only by code in the page, so an MCP client such as this one cannot reach it. If a user asks you
 to work on their browser editor, say so and offer the desktop editor or a design file they can
-open there. The system clipboard, printing, machine transfer, the Design Database's folders and
-image pickers are desktop-only too; say so instead of trying them in the browser.
+open there. The system clipboard, printing, machine transfer and choosing folders (the Design
+Database, Ink/Stitch font folders) are desktop-only too; say so instead of trying them in the
+browser. Pictures, thread charts, fonts and other files can be picked or dropped on the page.
 
 ## Files
 

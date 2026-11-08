@@ -13,6 +13,7 @@
 
 use crate::pdf::Page;
 use crate::sheets::{self, Align, Drawing, Item, MARGIN, Options};
+use crate::texts;
 use openstitch_core::{Command, StitchPattern, Thread};
 use openstitch_design::{Compiler, Design, estimate};
 
@@ -160,17 +161,22 @@ fn picture(
 /// Job fields as `label: value` lines, empty ones left out.
 fn job_lines(job: &Job, operator: bool) -> Vec<String> {
     let mut v = vec![
-        ("Customer", &job.customer),
-        ("Order", &job.order),
-        ("Due", &job.due),
+        ("print-customer", &job.customer),
+        ("print-order", &job.order),
+        ("print-due", &job.due),
     ];
     if operator {
-        v.push(("Fabric", &job.fabric));
-        v.push(("Stabiliser", &job.stabiliser));
+        v.push(("print-fabric", &job.fabric));
+        v.push(("print-stabiliser", &job.stabiliser));
     }
     v.into_iter()
         .filter(|(_, s)| !s.trim().is_empty())
-        .map(|(k, s)| format!("{k}: {}", s.trim()))
+        .map(|(k, s)| {
+            texts::fill(
+                "print-field",
+                &[("label", texts::text(k)), ("value", s.trim().to_string())],
+            )
+        })
         .collect()
 }
 
@@ -196,10 +202,14 @@ fn wrap(text: &str, chars: usize) -> Vec<String> {
 fn size_line(pattern: &StitchPattern) -> String {
     let b = pattern.bounds();
     let (w, h) = (b.width() / 10.0, b.height() / 10.0);
-    format!(
-        "Size {w:.1} x {h:.1} mm ({:.2} x {:.2} in)",
-        w / 25.4,
-        h / 25.4
+    texts::fill(
+        "print-size",
+        &[
+            ("width", format!("{w:.1}")),
+            ("height", format!("{h:.1}")),
+            ("width-in", format!("{:.2}", w / 25.4)),
+            ("height-in", format!("{:.2}", h / 25.4)),
+        ],
     )
 }
 
@@ -255,9 +265,12 @@ fn client(
     items.extend(pic);
     y += box_h + 6.0;
     let scale = if (s - 1.0).abs() < 1e-9 {
-        "Shown at actual size".to_string()
+        texts::text("print-shown-actual-size")
     } else {
-        format!("Shown at {:.0} % of actual size", s * 100.0)
+        texts::fill(
+            "print-shown-at",
+            &[("percent", format!("{:.0}", s * 100.0))],
+        )
     };
     items.push(text(
         (0.0, y),
@@ -265,7 +278,7 @@ fn client(
         format!("{}   {scale}", size_line(pattern)),
     ));
     y += 7.0;
-    items.push(text((0.0, y), 11.0, "Thread colours"));
+    items.push(text((0.0, y), 11.0, texts::text("print-thread-colours")));
     y += 6.0;
     // Distinct threads in sewing order, two columns.
     let mut seen: Vec<Option<Thread>> = Vec::new();
@@ -299,9 +312,9 @@ fn client(
     // The approval line.
     let line_y = (y + 12.0).min(ah - 2.0);
     for (x, w, label) in [
-        (0.0, 80.0, "Approved by"),
-        (90.0, 40.0, "Date"),
-        (140.0, aw - 140.0, "Signature"),
+        (0.0, 80.0, texts::text("print-approved-by")),
+        (90.0, 40.0, texts::text("print-date")),
+        (140.0, aw - 140.0, texts::text("print-signature")),
     ] {
         items.push(Item::Line {
             a: (x, line_y),
@@ -336,20 +349,31 @@ fn operator(
     let mut y = heading(job, true, &mut items);
     let all = steps(pattern);
     let e = estimate(pattern, &design.machine);
-    let hoop = design.machine.hoop.as_deref().unwrap_or("custom");
+    let hoop = design
+        .machine
+        .hoop
+        .clone()
+        .unwrap_or_else(|| texts::text("print-custom-hoop"));
     let facts = [
-        format!("Hoop {hoop}   {}", size_line(pattern)),
-        format!(
-            "Stitches {}   Colour changes {}   Stops {}   Trims {}",
-            pattern.count(Command::Stitch),
-            pattern.count(Command::ColorChange),
-            pattern.count(Command::Stop),
-            pattern.count(Command::Trim)
+        texts::fill(
+            "print-hoop-size",
+            &[("hoop", hoop), ("size", size_line(pattern))],
         ),
-        format!(
-            "Sewing time about {} min   Thread about {:.1} m",
-            sewing_minutes(design, pattern),
-            e.needle_total() / 1000.0
+        texts::fill(
+            "print-counts",
+            &[
+                ("stitches", pattern.count(Command::Stitch).to_string()),
+                ("colours", pattern.count(Command::ColorChange).to_string()),
+                ("stops", pattern.count(Command::Stop).to_string()),
+                ("trims", pattern.count(Command::Trim).to_string()),
+            ],
+        ),
+        texts::fill(
+            "print-time-thread",
+            &[
+                ("minutes", sewing_minutes(design, pattern).to_string()),
+                ("metres", format!("{:.1}", e.needle_total() / 1000.0)),
+            ],
         ),
     ];
     // A small picture at the top right.
@@ -366,7 +390,8 @@ fn operator(
     }
     if !job.notes.trim().is_empty() {
         y += 1.0;
-        for l in wrap(&format!("Notes: {}", job.notes.trim()), 70) {
+        let notes = texts::fill("print-notes", &[("notes", job.notes.trim().to_string())]);
+        for l in wrap(&notes, 70) {
             items.push(text((0.0, y), 9.0, l));
             y += 4.5;
         }
@@ -375,10 +400,15 @@ fn operator(
     // The colour sequence table, continued on further pages when long.
     let cols = [0.0, 10.0, 18.0, 80.0, 115.0, 140.0, 165.0];
     let header = |y: f64, items: &mut Vec<Item>| {
-        for (x, h) in cols
-            .iter()
-            .zip(["Step", "", "Thread", "Brand", "Code", "Stitches", "Stops"])
-        {
+        for (x, h) in cols.iter().zip([
+            texts::text("print-step"),
+            String::new(),
+            texts::text("print-thread"),
+            texts::text("print-brand"),
+            texts::text("print-code"),
+            texts::text("print-stitches"),
+            texts::text("print-stops"),
+        ]) {
             items.push(text((*x, y), 9.0, h));
         }
         items.push(Item::Line {

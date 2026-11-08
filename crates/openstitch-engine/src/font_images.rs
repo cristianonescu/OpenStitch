@@ -173,13 +173,13 @@ fn load(s: &EngineState, p: &Params) -> Result<(Raster, Option<Frame>), CommandE
         p.failed("give path, or place a background image first (View ▸ Template ▸ Open / background.set)")
     })?;
     let path = s.resolve(&bg.path, Access::Read, &p.command)?;
-    let meta = std::fs::metadata(&path)
+    let meta = crate::fsio::metadata(&path)
         .map_err(|_| p.failed(format!("cannot read {}", path.display())))?;
     if meta.len() > MAX_FILE_BYTES as u64 {
         return Err(p.failed("background image too large"));
     }
-    let data =
-        std::fs::read(&path).map_err(|_| p.failed(format!("cannot read {}", path.display())))?;
+    let data = crate::fsio::read(&path)
+        .map_err(|_| p.failed(format!("cannot read {}", path.display())))?;
     let image = Raster::decode(&data)
         .map_err(|e| p.failed(e.to_string()))?
         .with_adjust(&bg.adjust);

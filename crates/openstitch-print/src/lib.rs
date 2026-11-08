@@ -6,6 +6,7 @@
 pub mod jobsheet;
 pub mod pdf;
 pub mod sheets;
+pub mod texts;
 
 pub use jobsheet::{Job, Sheet, job_sheet};
 pub use pdf::{Image, Page, write};

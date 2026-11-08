@@ -98,7 +98,11 @@ pub fn commit(app: &mut EditorApp, f: Field, v: f64) {
     let Some(b) = bounds_of(app.session.design(), &app.selection) else {
         return;
     };
-    let rs = precision::requests(f, v, &app.selection, b, app.precision.options);
+    let o = precision::Options {
+        zero: app.ruler_zero(),
+        ..app.precision.options
+    };
+    let rs = precision::requests(f, v, &app.selection, b, o);
     if !rs.is_empty() {
         app.execute_all(&rs);
     }
@@ -133,7 +137,11 @@ pub fn precision_bar(app: &mut EditorApp, ui: &mut egui::Ui) {
             }
             ui.label(f.label());
             let units = app.ui.prefs.units;
-            let shown = precision::shown(f, b, app.precision.options, units);
+            let o = precision::Options {
+                zero: app.ruler_zero(),
+                ..app.precision.options
+            };
+            let shown = precision::shown(f, b, o, units);
             let mut text = match &app.precision.editing {
                 Some((k, t)) if *k == i => t.clone(),
                 _ => shown,

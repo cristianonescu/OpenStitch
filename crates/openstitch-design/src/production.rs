@@ -388,7 +388,13 @@ fn divide(piece: &[Vec2], stitch: f64) -> Vec<Vec2> {
 
 /// `object` with its entry point set by the nearest-start rule from needle position `from`,
 /// or `None` when the rule leaves it alone (text, stitch patterns, an entry point already set).
-pub fn nearest_start(object: &DesignObject, from: Vec2) -> Option<DesignObject> {
+/// A region without its own exit point also ends nearest `toward`, where the next object is
+/// (#547): the move out of it shrinks as the move into it does.
+pub fn nearest_start(
+    object: &DesignObject,
+    from: Vec2,
+    toward: Option<Vec2>,
+) -> Option<DesignObject> {
     if object.kind != ObjectKind::Shape {
         return None;
     }
@@ -397,10 +403,16 @@ pub fn nearest_start(object: &DesignObject, from: Vec2) -> Option<DesignObject> 
         if r.entry.is_some() {
             return None;
         }
-        r.entry = Some(nearest_on(
-            object.contours.iter().filter(|c| c.closed),
-            from,
-        )?);
+        let closed = || object.contours.iter().filter(|c| c.closed);
+        r.entry = Some(nearest_on(closed(), from)?);
+        // Not a motif band: its tiles follow the column, and an exit moved there turned the
+        // band round (motif-band: travel 37 -> 62 mm).
+        if r.exit.is_none()
+            && r.motif_band.is_none()
+            && let Some(t) = toward
+        {
+            r.exit = nearest_on(closed(), t);
+        }
         return Some(o);
     }
     let l = o.line.as_mut()?;
@@ -422,6 +434,67 @@ pub fn nearest_start(object: &DesignObject, from: Vec2) -> Option<DesignObject> 
     Some(o)
 }
 
+/// The centre line of a satin that always starts at one of its ends (#547): a skeleton satin
+/// (its skeleton) or a satin line (its path). Manual Punch columns and Auto satin regions
+/// already start at their entry point, part way along.
+pub fn lead_centre(object: &DesignObject) -> Option<Vec<Vec2>> {
+    if object.kind != ObjectKind::Shape {
+        return None;
+    }
+    if let Some(r) = &object.region {
+        return (r.kind == crate::model::RegionType::Satin && r.motif_band.is_none())
+            .then(|| r.skeleton.as_ref().map(|s| s.points.clone()))
+            .flatten()
+            .filter(|p| p.len() >= 2);
+    }
+    let l = object.line.as_ref()?;
+    let c = object.contours.first()?;
+    (l.kind == crate::model::LineType::Satin && l.motif_band.is_none() && !c.closed)
+        .then(|| c.path())
+        .filter(|p| p.len() >= 2)
+}
+
+/// A satin entered part way along (#547, #545's mid-join) when it would otherwise start at an
+/// end: the needle comes in at the point of its centre line (`centre`, [`lead_centre`])
+/// nearest `from` and runs along the centre to `start`, where the satin's own stitching
+/// begins, under the satin about to be sewn there, instead of jumping to `start`. The lead
+/// run, in 2 mm stitches; `None` when `start` is already about as near (5 mm).
+pub fn satin_lead(centre: &[Vec2], from: Vec2, start: Vec2) -> Option<Vec<Vec2>> {
+    let (k, at) = centre
+        .windows(2)
+        .enumerate()
+        .map(|(k, w)| (k, crate::knife::nearest(from, &[w[0], w[1]]).1))
+        .min_by(|a, b| a.1.distance(from).total_cmp(&b.1.distance(from)))?;
+    if from.distance(start) - from.distance(at) < LEAD_GAIN {
+        return None;
+    }
+    // Along the centre towards the end the satin starts at.
+    let mut path = vec![at];
+    if centre[0].distance(start) <= centre[centre.len() - 1].distance(start) {
+        path.extend(centre[..=k].iter().rev());
+    } else {
+        path.extend(centre[k + 1..].iter());
+    }
+    path.push(start);
+    path.dedup_by(|a, b| a.distance(*b) < 1e-6);
+    Some(crate::generate::subdivide(&path, LEAD_STITCH))
+}
+
+/// A part-way satin start is taken only when it saves at least this much travel (0.1 mm).
+const LEAD_GAIN: f64 = 50.0;
+/// Stitch length of the lead run under a satin (0.1 mm).
+const LEAD_STITCH: f64 = 20.0;
+
+/// Where the needle heads after `object`: the point of `next` (the next object sewn) nearest
+/// to `object`'s middle (#547).
+pub fn heading(object: &DesignObject, next: &DesignObject) -> Option<Vec2> {
+    let b = crate::geometry::Rect::enclosing(object.contours.iter().flat_map(|c| c.path()))?;
+    nearest_on(
+        next.contours.iter(),
+        v2((b.min_x + b.max_x) / 2.0, (b.min_y + b.max_y) / 2.0),
+    )
+}
+
 /// The point of `contours` nearest to `p`.
 fn nearest_on<'a>(contours: impl Iterator<Item = &'a Contour>, p: Vec2) -> Option<Vec2> {
     contours
@@ -433,6 +506,35 @@ fn nearest_on<'a>(contours: impl Iterator<Item = &'a Contour>, p: Vec2) -> Optio
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nearest_start_ends_a_region_toward_the_next_object() {
+        // #547: a 20 mm square entered from the left ends nearest the point above it; a
+        // region with its own exit keeps it, and with no next object none is set.
+        let sq = Contour::new(
+            vec![
+                v2(0.0, 0.0),
+                v2(200.0, 0.0),
+                v2(200.0, 200.0),
+                v2(0.0, 200.0),
+            ],
+            true,
+        );
+        let fill = crate::model::RegionSewing::new(
+            crate::model::RegionType::Fill,
+            openstitch_core::Thread::rgb(0xff0000),
+        );
+        let mut o = DesignObject::shape(vec![sq], Some(fill), None);
+        let started = nearest_start(&o, v2(-50.0, 100.0), Some(v2(100.0, -80.0))).expect("set");
+        let r = started.region.expect("region");
+        assert_eq!(r.entry, Some(v2(0.0, 100.0)));
+        assert_eq!(r.exit, Some(v2(100.0, 0.0)));
+        let none = nearest_start(&o, v2(-50.0, 100.0), None).expect("set");
+        assert_eq!(none.region.and_then(|r| r.exit), None, "no next object");
+        o.region.as_mut().expect("region").exit = Some(v2(200.0, 200.0));
+        let own = nearest_start(&o, v2(-50.0, 100.0), Some(v2(100.0, -80.0))).expect("set");
+        assert_eq!(own.region.and_then(|r| r.exit), Some(v2(200.0, 200.0)));
+    }
 
     #[test]
     fn running_keeps_corners_and_length() {

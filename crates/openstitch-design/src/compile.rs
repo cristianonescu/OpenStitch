@@ -584,18 +584,58 @@ impl Compiler {
             });
             let started = match (production.auto_start, w.position) {
                 (crate::production::AutoStart::Nearest, Some(from)) => {
-                    crate::production::nearest_start(object, from).filter(|c| {
+                    // Where the next object sewn lies: a region also ends nearest it (#547).
+                    let toward = design.objects[index + 1..]
+                        .iter()
+                        .find(|o| o.visible)
+                        .and_then(|next| crate::production::heading(object, next));
+                    crate::production::nearest_start(object, from, toward).filter(|c| {
                         // Only where it helps: the start rule must not add a trim inside the
                         // object (an echo or stippling route can split up from another start)
-                        // and must shorten the travel, the move into the object included.
-                        let (t0, d0) = self.object_cost(object, design, from);
-                        let (t1, d1) = self.object_cost(c, design, from);
+                        // and must shorten the travel, the moves into the object and on
+                        // towards the next included.
+                        // Only a region's end moves; a line's is judged as before (counting
+                        // the way on turned down starts that shortened the whole route).
+                        let ahead = toward.filter(|_| {
+                            object
+                                .region
+                                .as_ref()
+                                .is_some_and(|r| r.motif_band.is_none())
+                        });
+                        let (t0, d0) = self.object_cost(object, design, from, ahead);
+                        let (t1, d1) = self.object_cost(c, design, from, ahead);
                         t1 <= t0 && d1 < d0
                     })
                 }
                 _ => None,
             };
-            sew_object(&mut w, started.as_ref().unwrap_or(object), design);
+            let sewn = started.as_ref().unwrap_or(object);
+            // A skeleton satin or satin line entered part way along (#547): the lead run
+            // under it first, to where its own stitching starts.
+            if production.auto_start == crate::production::AutoStart::Nearest
+                && let Some(from) = w.position
+                && let Some(centre) = crate::production::lead_centre(sewn)
+                && let Some(start) = self.first_needle(sewn, design)
+                && let Some(lead) = crate::production::satin_lead(&centre, from, start)
+            {
+                let thread = sewn
+                    .region
+                    .as_ref()
+                    .map(|r| r.thread.clone())
+                    .or_else(|| sewn.line.as_ref().map(|l| l.thread.clone()));
+                if let Some(thread) = thread {
+                    w.sew(Element {
+                        thread,
+                        runs: vec![lead],
+                        whole: false,
+                        lock: true,
+                        pieces: false,
+                        across: None,
+                        rule: Rule::Pe,
+                    });
+                }
+            }
+            sew_object(&mut w, sewn, design);
             w.under = None;
             w.region_area = None;
             if object.stop_after && w.position.is_some() {
@@ -641,8 +681,15 @@ impl Compiler {
         w.finish()
     }
 
-    /// Trims and total travel (0.1 mm) of `object` sewn alone from needle position `from`.
-    fn object_cost(&self, object: &DesignObject, design: &Design, from: Vec2) -> (usize, f64) {
+    /// Trims and total travel (0.1 mm) of `object` sewn alone from needle position `from`, the
+    /// move from where it ends to `toward` (the next object, #547) included.
+    fn object_cost(
+        &self,
+        object: &DesignObject,
+        design: &Design,
+        from: Vec2,
+        toward: Option<Vec2>,
+    ) -> (usize, f64) {
         let mut w = self.writer();
         w.position = Some(from);
         w.cut = false;
@@ -658,7 +705,19 @@ impl Compiler {
                 last = p;
             }
         }
-        (w.out.count(Command::Trim), travel)
+        let out = toward.map_or(0.0, |t| last.distance(t));
+        (w.out.count(Command::Trim), travel + out)
+    }
+
+    /// Where `object`, sewn alone, puts its first needle point.
+    fn first_needle(&self, object: &DesignObject, design: &Design) -> Option<Vec2> {
+        let mut w = self.writer();
+        sew_object(&mut w, object, design);
+        w.out
+            .stitches
+            .iter()
+            .find(|s| s.command == Command::Stitch)
+            .map(|s| v2(s.x, s.y))
     }
 
     /// Needle points `object` sews alone, its region over `area` when given (#511).

@@ -244,9 +244,56 @@ pub fn ruler_ticks(
         .collect()
 }
 
+/// Where the rulers, the cursor position and the precision bar's X and Y measure from (#799):
+/// the Design Page's centre (the default: negative left and up, as PE-DESIGN's rulers) or its
+/// top-left corner. The design itself keeps its page coordinates.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum RulerOrigin {
+    #[default]
+    Centre,
+    TopLeft,
+}
+
+impl RulerOrigin {
+    pub const ALL: [RulerOrigin; 2] = [RulerOrigin::Centre, RulerOrigin::TopLeft];
+
+    pub fn key(self) -> &'static str {
+        match self {
+            RulerOrigin::Centre => "centre",
+            RulerOrigin::TopLeft => "topLeft",
+        }
+    }
+
+    pub fn from_key(s: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|o| o.key() == s)
+    }
+
+    /// The point (0.1 mm, page coordinates) that reads 0, 0 on a Design Page `width` × `height`
+    /// (0.1 mm).
+    pub fn point(self, width: f64, height: f64) -> openstitch_design::Vec2 {
+        match self {
+            RulerOrigin::Centre => openstitch_design::v2(width / 2.0, height / 2.0),
+            RulerOrigin::TopLeft => openstitch_design::v2(0.0, 0.0),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_ruler_origin_is_the_page_centre_or_its_corner() {
+        assert_eq!(RulerOrigin::default(), RulerOrigin::Centre);
+        let c = RulerOrigin::Centre.point(1000.0, 600.0);
+        assert_eq!((c.x, c.y), (500.0, 300.0));
+        let t = RulerOrigin::TopLeft.point(1000.0, 600.0);
+        assert_eq!((t.x, t.y), (0.0, 0.0));
+        for o in RulerOrigin::ALL {
+            assert_eq!(RulerOrigin::from_key(o.key()), Some(o));
+        }
+        assert_eq!(RulerOrigin::from_key("middle"), None);
+    }
 
     #[test]
     fn formats_in_both_units() {

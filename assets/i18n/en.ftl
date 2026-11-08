@@ -376,6 +376,10 @@ menu-show-ai-features = Show AI features
 menu-units = Units
 menu-millimetres = Millimetres
 menu-inches = Inches
+menu-ruler-origin = Ruler origin
+menu-ruler-origin-centre = Page centre
+menu-ruler-origin-top-left = Top-left corner
+menu-ruler-origin-tip = Where the rulers, the cursor position and the precision bar's X and Y count from
 menu-editing = Editing
 menu-nudge-step = Nudge step
 menu-how-far-an-arrow-key-moves-tip = How far an arrow key moves the selection; Shift moves ten times as far
@@ -1183,6 +1187,94 @@ ui-status-background-image-changed = Background image changed
 ui-status-font-filter-on = Font filter on
 ui-status-auto-punch-preview-regions = Auto Punch preview: { $n } regions
 ui-status-real-size-calibrated-for = Real size calibrated for { $monitor }
+ui-status-hand-edited-stitches-discarded-on-object = Hand-edited stitches discarded on { $count ->
+    [one] { $count } object
+    *[other] { $count } objects
+    }: a sewing setting or the shape changed
+ui-status-opened-as-a-new-design-save = Opened { $path } as a new design (Save to keep it as .osd)
+ui-status-exported-stitches = Exported { $path } ({ $stats } stitches)
+ui-status-click-the-outline-where-should-be = Click the outline where { $name } should be; Esc cancels
+ui-status-loaded-font-glyphs-it-is-saved = Loaded font { $id } ({ $glyphs } glyphs); it is saved with the design
+ui-status-converted-character-n-other-characters-n = Converted { $converted ->
+    [one] { $converted } character
+    *[other] { $converted } characters
+    }{ $missing }
+ui-status-editing-baseline-mm-capital-line-mm = Editing '{ $character }': baseline { $baseline } mm, capital line { $capline } mm, set lines { $left }–{ $right } mm
+ui-status-found-character-n-other-characters-n = Found { $count ->
+    [one] { $count } character
+    *[other] { $count } characters
+    } in { $rows ->
+    [one] { $rows } row
+    *[other] { $rows } rows
+    }; check the characters, then Create characters
+ui-status-created-from-the-image-skipped = Created { $created } from the image ({ $skipped } skipped)
+ui-status-saved-template-with-editable-text-s = Saved template with { $slots } editable text(s)
+ui-status-machine-set-new-designs-start-on = Machine set: { $brand }; new designs start on its hoop
+ui-status-cancelled-opening-the-design-is-unchanged = Cancelled opening { $path }; the design is unchanged
+ui-status-the-design-changed-while-was-opening = The design changed while { $path } was opening; nothing was replaced. Open it again
+ui-status-is-a-list-choose-on-the = { $label } is a list: choose on the ribbon, { $a }
+ui-status-saved-the-fabric = Saved the fabric { $fabric }
+ui-status-satin-width-mm = Satin width { $width } mm
+ui-status-turning-gap-of-mm = Turning gap of { $length } mm
+ui-status-guideline-mm = Guideline { $position } mm
+ui-status-created = Created { $path }
+ui-status-renamed-to = Renamed to { $path }
+ui-status-moved-item-n-other-items-n = Moved { $n ->
+    [one] { $n } item
+    *[other] { $n } items
+    } to the trash
+ui-status-preview = Preview: { $e }
+ui-status-autosave-failed = Autosave failed: { $e }
+ui-status-recovered-untitled-until-you-save-it = Recovered { $name }: untitled until you save it
+ui-status-objects-cut = { $n } objects cut
+ui-status-objects-copied = { $count } objects copied
+ui-status-layout-saved = Layout '{ $n }' saved
+ui-status-preferences-reset = { $label } preferences reset
+ui-status-recovery-files-deleted = { $n } recovery files deleted
+ui-status-no-longer-exists = { $path } no longer exists
+ui-status-pasted = Pasted
+ui-status-designs-folders = { $count } designs, { $count2 } folders{ $else }
+ui-status-design-n-other-designs-n-choose = { $opied } { $count ->
+    [one] { $count } design
+    *[other] { $count } designs
+    }: choose a folder and Paste
+ui-status-wrote-catalogue-of-designs = Wrote catalogue of { $count } designs: { $to_string }
+print-customer = Customer
+print-order = Order
+print-due = Due
+print-fabric = Fabric
+print-stabiliser = Stabiliser
+print-field = { $label }: { $value }
+print-size = Size { $width } x { $height } mm ({ $width-in } x { $height-in } in)
+print-shown-actual-size = Shown at actual size
+print-shown-at = Shown at { $percent } % of actual size
+print-thread-colours = Thread colours
+print-approved-by = Approved by
+print-date = Date
+print-signature = Signature
+print-hoop-size = Hoop { $hoop }   { $size }
+print-counts = Stitches { $stitches }   Colour changes { $colours }   Stops { $stops }   Trims { $trims }
+print-time-thread = Sewing time about { $minutes } min   Thread about { $metres } m
+print-notes = Notes: { $notes }
+print-step = Step
+print-thread = Thread
+print-brand = Brand
+print-code = Code
+print-stitches = Stitches
+print-stops = Stops
+print-custom-hoop = custom
+print-design-page = Design Page { $width } x { $height } mm   Hoop { $hoop }
+print-design-size = Design size { $width } x { $height } mm   Stitches { $stitches }   Colour changes { $colours }
+print-thread-time = Thread about { $metres } m, sewing time about { $minutes } min
+print-sheet-of = Sheet { $sheet } of { $sheets } (row { $row }, column { $column })
+print-actual-size = Actual size (100 %): print without page scaling
+print-reduced = Reduced to { $percent } %
+print-colour-order = Colour order
+print-section = Section
+print-hoop-position = Hoop position
+print-jumbo-frame = Jumbo frame
+print-hooping = Hooping
+print-frame-turned = {" "}(frame turned 180°)
 group-select = Select
 group-clipboard = Clipboard
 group-tools = Tools
