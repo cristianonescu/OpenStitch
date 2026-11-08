@@ -579,13 +579,13 @@ Threads, in sewing order: 206 Harvest Gold, 079 Salmon Pink, 509 Leaf Green, 800
 
 #### Cross Stitch, PE-DESIGN-compatible mode
 
-[`image-tools/S-cross-stitch-strawberry-pe-compatible.pes`](image-tools/S-cross-stitch-strawberry-pe-compatible.pes) · 100 × 100 mm hoop · 60 × 77.5 mm · 3,809 stitches · 157 trims · about 12.8 min
+[`image-tools/S-cross-stitch-strawberry-pe-compatible.pes`](image-tools/S-cross-stitch-strawberry-pe-compatible.pes) · 100 × 100 mm hoop · 60 × 77.5 mm · 3,637 stitches · 121 trims · about 10.7 min
 
 `g07-pixel-strawberry.png` through Cross Stitch at its defaults in PE-DESIGN-compatible mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.
 
 <img src="../images/g07-pixel-strawberry.png" height="180" alt="Source image"> <img src="previews/S-cross-stitch-strawberry-pe-compatible.png" height="180" alt="Realistic view of image-tools/S-cross-stitch-strawberry-pe-compatible.pes">
 
-Threads, in sewing order: 208 Orange, 515 Moss Green, 800 Red, 107 Dark Fuchsia, 808 Deep Green.
+Threads, in sewing order: 208 Orange, 323 Light Brown, 800 Red, 515 Moss Green, 107 Dark Fuchsia.
 
 #### Design Center, OpenStitch mode
 
