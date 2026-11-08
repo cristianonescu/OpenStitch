@@ -634,6 +634,11 @@ pub const SETTINGS: &[Setting] = &[
         "bool",
     ),
     s("units", "Units: Millimetres / Inches", "mm|inch"),
+    s(
+        "rulerOrigin",
+        "Ruler origin: the Design Page's centre (0, 0 in the middle, negative left and up) or its top-left corner; the rulers, the cursor position and the precision bar's X and Y follow it",
+        "centre|topLeft",
+    ),
     s("nudgeStep", "Nudge step (mm; Shift ×10)", "number 0.1..50"),
     s(
         "nudgeByGrid",

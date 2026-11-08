@@ -74,14 +74,16 @@ pub fn screen_rect(r: egui::Rect) -> ScreenRect {
 
 // MARK: canvas overlays
 
-/// Rulers along the top and left edge of the canvas, in mm from the Design Page origin, with
-/// the pointer position marked.
+/// Rulers along the top and left edge of the canvas, in the chosen units from `zero` (0.1 mm,
+/// page coordinates: the Design Page's centre or its top-left corner, #799), with the pointer
+/// position marked.
 pub fn draw_rulers(
     painter: &egui::Painter,
     rect: egui::Rect,
     vp: &Viewport,
     hover: Option<Pos2>,
     units: Units,
+    zero: openstitch_design::Vec2,
 ) {
     let colors = crate::theme::canvas(painter.ctx());
     let (bg, fg) = (colors.ruler_bg, colors.ruler_fg);
@@ -92,8 +94,8 @@ pub fn draw_rulers(
     let font = egui::FontId::monospace(9.0);
     let a = vp.to_model(v2(f64::from(rect.min.x), f64::from(rect.min.y)));
     let b = vp.to_model(v2(f64::from(rect.max.x), f64::from(rect.max.y)));
-    for t in ruler_ticks(units, a.x, b.x, vp.scale, 6.0) {
-        let x = vp.to_screen(v2(t.at, 0.0)).x as f32;
+    for t in ruler_ticks(units, a.x - zero.x, b.x - zero.x, vp.scale, 6.0) {
+        let x = vp.to_screen(v2(t.at + zero.x, 0.0)).x as f32;
         if x < left.max.x {
             continue;
         }
@@ -112,8 +114,8 @@ pub fn draw_rulers(
             );
         }
     }
-    for t in ruler_ticks(units, a.y, b.y, vp.scale, 6.0) {
-        let y = vp.to_screen(v2(0.0, t.at)).y as f32;
+    for t in ruler_ticks(units, a.y - zero.y, b.y - zero.y, vp.scale, 6.0) {
+        let y = vp.to_screen(v2(0.0, t.at + zero.y)).y as f32;
         if y < top.max.y {
             continue;
         }

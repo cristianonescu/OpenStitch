@@ -66,6 +66,13 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
     ("menu-units", "Units"),
     ("menu-millimetres", "Millimetres"),
     ("menu-inches", "Inches"),
+    ("menu-ruler-origin", "Ruler origin"),
+    ("menu-ruler-origin-centre", "Page centre"),
+    ("menu-ruler-origin-top-left", "Top-left corner"),
+    (
+        "menu-ruler-origin-tip",
+        "Where the rulers, the cursor position and the precision bar's X and Y count from",
+    ),
     ("menu-editing", "Editing"),
     ("menu-nudge-step", "Nudge step"),
     (

@@ -3414,3 +3414,11 @@ section, as Manual Punch columns do; skeleton satin and Auto satin, which took t
 jagged edge with their shaping (#675), now also take the raised padding along their column.
 `spacingAt` stays a column option. PE-DESIGN's feathered edge keeps its own modes (#528's
 In/Out/one-side seeds on the feathered edge are not part of this).
+
+### Ruler origin, 2026-11-08 (#799 part 1)
+
+At the owner's request the rulers count from the Design Page's centre by default (negative left
+and up), for every user, with Options ▸ Ruler origin (`ui.set rulerOrigin`) switching back to
+the top-left corner. The cursor position and the precision bar's X and Y follow the same origin;
+the design and every command keep page coordinates from the top-left. PE-DESIGN 11's own ruler
+origin is to be captured black-box and recorded on #799 for the PE-compatible layout.

@@ -316,6 +316,10 @@ To show the user what a setting would look like before changing it, `ui.preview 
 ends it, and running the command keeps the change. `ui.set picturePickers` shows the sewing
 types, fill patterns and motifs as pictures in the Sewing Attributes pane.
 `ui.set textSize` (100-200) enlarges the whole window for a user who asks for bigger text.
+`ui.set rulerOrigin` (`centre`, the default, or `topLeft`) sets where the rulers, the cursor
+position and the precision bar's X and Y count from: the Design Page's centre (negative left and
+up) or its top-left corner. Commands always take page coordinates from the top-left, whatever
+the rulers show.
 `ui.set language` (`en`, or `pseudo`, a test language that brackets every translated text) is
 Options ▸ Language (#555); the ribbon, menus, panes and dialogs are translated so far, and no real translation ships
 yet, so answer in the user's language yourself rather than switching the window.
