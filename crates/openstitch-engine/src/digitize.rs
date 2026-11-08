@@ -343,13 +343,23 @@ fn compat_mode(p: &Params) -> Result<Mode, CommandError> {
 }
 
 /// The threads OpenStitch mode chooses from (B16.1 T5), from the `threads` parameter: `brother`
-/// (the default, the PEC chart), `all` (every chart built into OpenStitch, other brands'
-/// included), a built-in chart's id (`thread.chartList`, or `madeiraPolyneon` and the other
+/// (the PEC chart), `all` (every chart built into OpenStitch, other brands' included), a
+/// built-in chart's id (`thread.chartList`, or `newBrothread`, `madeiraPolyneon` and the other
 /// [`openstitch_core::brands::brand_charts`]), or the name of one of the user's thread charts
-/// ("My Threads").
+/// ("My Threads"). Without `threads`, OpenStitch mode takes the user's default chart
+/// (`threads.defaultChart`: New Brothread unless they chose another, #810), as the editor's
+/// wizard does; PE-DESIGN mode keeps the PEC chart.
 /// Empty means the PEC chart. Anything but `brother` needs `compatMode: openStitch`.
 fn thread_source(s: &EngineState, p: &Params, mode: Mode) -> Result<Vec<Thread>, CommandError> {
-    let name = p.string("threads", Some("brother"))?;
+    let name = if p.has("threads") {
+        p.string("threads", None)?
+    } else if mode == Mode::PeDesign {
+        "brother".to_string()
+    } else {
+        match s.user.default_chart() {
+            crate::user::ChartRef::Builtin(id) | crate::user::ChartRef::Chart(id) => id,
+        }
+    };
     if name == "brother" {
         return Ok(Vec::new());
     }
@@ -432,7 +442,7 @@ fn thread_source_docs() -> [ParamDoc; 2] {
         opt(
             "threads",
             "brother|all|chart",
-            "OpenStitch mode: the threads to choose from: brother (default, the PEC chart), all (every built-in chart, Madeira Polyneon included), a built-in chart id (madeiraPolyneon among them), or one of the user's thread charts by name",
+            "OpenStitch mode: the threads to choose from: the user's default chart when left out (threads.defaultChart, New Brothread unless changed), brother (the PEC chart), all (every built-in chart, Madeira Polyneon included), a built-in chart id (newBrothread and madeiraPolyneon among them), or one of the user's thread charts by name. PE-DESIGN mode always uses the PEC chart",
         ),
         opt(
             "owned",

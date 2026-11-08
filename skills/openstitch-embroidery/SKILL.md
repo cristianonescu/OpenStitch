@@ -275,8 +275,9 @@ then style them in the next.
   makers' charts (New Brothread, Madeira, Isacord, Sulky, Robison-Anton) are `builtin` ids:
   `threads.builtinCharts` lists them with `kind: "brand"`. New Brothread (`newBrothread`, the
   owner's 63-spool kit, numbered with Brother codes) is the default chart: the colour picker
-  and the image wizards' OpenStitch mode start from it, and a first run's "My Threads" holds
-  it. `threads.defaultChart` reads the default; `threads.setDefault {builtin | chart}` changes
+  and the image wizards' OpenStitch mode start from it (a `digitize.*` call in OpenStitch mode
+  without `threads` takes the default chart; PE-DESIGN mode always the PEC chart), and a first
+  run's "My Threads" holds it. `threads.defaultChart` reads the default; `threads.setDefault {builtin | chart}` changes
   it (a settings change: say what changes and ask first; `builtin: brother` is Brother's PEC
   chart). Give a chart's thread as `color: {builtin: "newBrothread", code: "001"}` (or any
   colour parameter: `fill`, `stroke`); its Madeira codes are `crossReferences`, and
