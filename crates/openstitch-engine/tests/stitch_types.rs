@@ -1560,3 +1560,35 @@ fn angle_lines_go_through_the_command() {
     let help = run(&mut s, "commands.list", json!({})).to_string();
     assert!(help.contains("object.setAngleLines") && help.contains("angleLines"));
 }
+
+/// #826: `object.setRegion {angle}` is a straight direction, so it turns Auto direction off,
+/// unless `autoDirection` is given in the same call.
+#[test]
+fn setting_the_angle_turns_auto_direction_off() {
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 0, "y": 0, "width": 40, "height": 20, "fill": "Red"}),
+    );
+    let region = |s: &Session| s.design().objects[0].region.clone().expect("r");
+    run(&mut s, "object.setRegion", json!({"id": 1, "autoDirection": true}));
+    assert!(region(&s).auto_direction);
+    let auto = Compiler::default().compile(s.design());
+    run(&mut s, "object.setRegion", json!({"id": 1, "angle": 30}));
+    let r = region(&s);
+    assert!(!r.auto_direction && r.angle == 30.0, "{r:?}");
+    assert_ne!(Compiler::default().compile(s.design()), auto, "the rows turn to 30°");
+    // Both in one call: as given.
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "angle": 60, "autoDirection": true}),
+    );
+    let r = region(&s);
+    assert!(r.auto_direction && r.angle == 60.0);
+    // Other options leave Auto direction as it is.
+    run(&mut s, "object.setRegion", json!({"id": 1, "density": 4.0}));
+    assert!(region(&s).auto_direction);
+}

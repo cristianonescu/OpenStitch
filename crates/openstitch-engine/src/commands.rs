@@ -1326,7 +1326,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "angle",
                     "degrees",
-                    "Sewing direction, counter-clockwise on screen as in PE-DESIGN (0 = horizontal); ignored by cross stitch, which PE-DESIGN 11.50 sews on the page axes with no Direction",
+                    "Sewing direction, counter-clockwise on screen as in PE-DESIGN (0 = horizontal); setting it turns Auto direction off (PE-DESIGN's straight direction, as the Fill Angle tool does) unless autoDirection is given in the same call; ignored by cross stitch, which PE-DESIGN 11.50 sews on the page axes with no Direction",
                 ),
                 opt(
                     "density",
@@ -1724,7 +1724,10 @@ fn attribute_commands() -> Vec<CommandSpec> {
                     if p.has("underlaySpacing") {
                         r.underlay_spacing = Some(p.req("underlaySpacing", 1.0, 10.0)?);
                     }
-                    r.auto_direction = p.bool("autoDirection", Some(r.auto_direction))?;
+                    // A direction given is a straight direction: Auto direction goes off unless
+                    // this call says otherwise (#826; the Fill Angle tool sends both).
+                    let auto = if p.has("angle") { false } else { r.auto_direction };
+                    r.auto_direction = p.bool("autoDirection", Some(auto))?;
                     if p.has("gradation") {
                         let g = p.req("gradation", 5.0, 100.0)?;
                         r.gradation = (g < 100.0).then(|| Gradation::continuous(g));
