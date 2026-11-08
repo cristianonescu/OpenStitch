@@ -28,9 +28,12 @@ impl ToolController {
     /// pencil). `false` when there was none.
     pub fn remove_last_point(&mut self) -> bool {
         let removed = match self.tool() {
-            Tool::Polygon | Tool::Line | Tool::Knife | Tool::Gradient | Tool::FillAngle => {
-                self.polygon.pop().is_some()
-            }
+            Tool::Polygon
+            | Tool::Line
+            | Tool::Knife
+            | Tool::Gradient
+            | Tool::FillAngle
+            | Tool::AngleLine => self.polygon.pop().is_some(),
             Tool::Pen | Tool::Skeleton => {
                 let removed = self.pen.pop().is_some();
                 self.widths.truncate(self.pen.len());

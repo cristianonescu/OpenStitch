@@ -80,6 +80,10 @@ pub fn table(tool: Tool) -> (&'static str, [Option<&'static str>; 3]) {
             "Drag (or click twice) from where the selected gradient starts to where it ends · Shift: 15° steps · Esc leaves the Gradient tool",
             [None, FREE, None],
         ),
+        Tool::AngleLine => (
+            "Drag a line across the selected fill, then the next one along it: its rows turn from line to line · Shift: 15° steps · Esc leaves the Angle Line tool",
+            [None, FREE, None],
+        ),
         Tool::FillAngle => (
             "Drag (or click twice) across the selected regions in the direction their rows should run · Shift: 15° steps · Esc leaves the Fill Angle tool",
             [None, FREE, None],

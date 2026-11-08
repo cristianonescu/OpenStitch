@@ -59,6 +59,9 @@ job with 0 credits.
 (2.5 credits); it needed no hand fixes after `clean_icons.py`.
 `fill_angle` (the Fill Angle tool, Color / Sew Type, #534) was added on 2026-11-08 the same way
 (2.5 credits); it needed no hand fixes after `clean_icons.py`.
+`angle_line` (the Angle Lines tool, Shapes ▸ Edit Outline, #534) was added on 2026-11-08 the same way
+(2.5 credits); after `clean_icons.py` its two lines, generated a bright mint, were set to the palette
+green by hand.
 The job ids of the first set (2026-10-27) were recovered from the Higgsfield history on 2026-11-04:
 each job's output, cleaned with `clean_icons.py`, is byte-identical to its SVG. The `credits`
 column is empty where the cost was not recorded at the time.

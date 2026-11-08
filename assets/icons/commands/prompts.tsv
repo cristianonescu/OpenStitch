@@ -202,3 +202,4 @@ test_swatches	2B2F36 2A7AD8	a small square fabric swatch with a pinked zigzag ed
 job_sheet	2B2F36 2E9D58	a clipboard holding a sheet of paper with two short lines and a bold green check mark
 gradient	2B2F36 2A7AD8 A0A6AE 2E9D58	a square made of four vertical stripes stepping from bold blue on the left through lighter grey to white on the right, with a bold green arrow pointing right across the stripes
 fill_angle	2B2F36 2A7AD8 A0A6AE 2E9D58	a blue square filled with parallel diagonal stitch lines, and a bold green curved arrow around its corner showing rotation
+angle_line	2B2F36 2A7AD8 A0A6AE 2E9D58	a blue curved banner shape bending around a corner, filled with stitch lines that fan around the bend, with two short bold green lines drawn across it
