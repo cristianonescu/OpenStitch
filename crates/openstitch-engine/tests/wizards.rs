@@ -154,6 +154,52 @@ fn echo_rings_stay_between_both_outlines() {
 }
 
 #[test]
+fn linked_echo_rings_sew_as_one_line_with_short_crossings() {
+    // #794: echo rings (echoType echo) with linkEchoEnds are joined: each ring is sewn whole,
+    // the needle runs on along it to the next ring and crosses in one stitch, so the rings
+    // trim far less, every crossing is at most twice the spacing, and the needle stays
+    // between both outlines.
+    let rings = |link: bool| {
+        let mut s = circle_session();
+        run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": 10, "y": 10, "width": 80, "height": 80, "outline": "Black"}),
+        );
+        let r = run(
+            &mut s,
+            "wizard.backgroundFill",
+            json!({"ids": [1], "area": 2, "echoType": "echo", "spacing": 4,
+                   "linkEchoEnds": link}),
+        );
+        (s, r["id"].as_u64().expect("id"))
+    };
+    let (loose, _) = rings(false);
+    let (linked, id) = rings(true);
+    let trims = |s: &Session| compile(s.design()).count(Command::Trim);
+    assert!(
+        trims(&linked) * 2 <= trims(&loose),
+        "{} -> {}",
+        trims(&loose),
+        trims(&linked)
+    );
+    let d = linked.design();
+    let o = &d.objects[d.index_of(id).expect("o")];
+    assert!(
+        o.contours.iter().any(|c| !c.closed),
+        "joined into open lines"
+    );
+    // The crossings lie between the rings too: every needle point stays between the outlines.
+    for p in points_mm(d, id) {
+        assert!(p.distance(v2(50.0, 50.0)) > 10.0 + 4.0 - 0.3, "{p:?}");
+        assert!(
+            (14.0 - 0.3..=86.0 + 0.3).contains(&p.x) && (14.0 - 0.3..=86.0 + 0.3).contains(&p.y),
+            "{p:?}"
+        );
+    }
+}
+
+#[test]
 fn stippling_skips_the_pattern_and_its_gap() {
     let mut s = circle_session();
     let r = run(

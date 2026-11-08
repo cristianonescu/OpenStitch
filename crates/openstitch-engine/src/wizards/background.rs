@@ -52,7 +52,7 @@ pub fn commands() -> Vec<CommandSpec> {
             opt(
                 "linkEchoEnds",
                 "bool",
-                "Echo clipped, crosshatch, stripes: join line ends inside the area (default false)",
+                "Echo clipped, crosshatch, stripes: join line ends inside the area; echo rings (beyond PE-DESIGN, #794): sew each ring whole, run on along it to the next ring and cross in one stitch (at most twice the spacing), so the rings trim far less (default false)",
             ),
             opt(
                 "sew",
@@ -158,6 +158,9 @@ fn background_fill(s: &mut EngineState, p: &Params) -> crate::params::CommandRes
             let line = line_sewing(p, color.unwrap_or_else(default_line))?;
             let contours = match p.string("echoType", Some("clipped"))?.as_str() {
                 "clipped" => echo_clipped(p, &area, &around, spacing)?,
+                "echo" if p.bool("linkEchoEnds", Some(false))? => {
+                    link_rings(echo_rings(&area, &around, spacing), 2.0 * spacing)
+                }
                 "echo" => echo_rings(&area, &around, spacing),
                 _ => return Err(p.invalid("echoType", "must be clipped or echo")),
             };
@@ -338,6 +341,74 @@ fn echo_rings(area: &[Contour], around: &[Contour], spacing: f64) -> Vec<Contour
         }
         out.extend(ring);
     }
+    out
+}
+
+/// Echo rings joined into as few lines as possible (`linkEchoEnds` on the echo type, #794):
+/// each closed ring is sewn whole from the point nearest where the needle is, then the needle
+/// runs on along it (on the ring just sewn) to its point nearest the next ring and crosses to
+/// it in one stitch. The next ring is the nearest one left; a crossing longer than `max_hop`
+/// starts a new line instead (a trim). Open pieces are left as they are.
+fn link_rings(rings: Vec<Contour>, max_hop: f64) -> Vec<Contour> {
+    let (mut todo, open): (Vec<Contour>, Vec<Contour>) = rings.into_iter().partition(|c| c.closed);
+    let loop_from = |ring: &[Vec2], k: usize| -> Vec<Vec2> {
+        let n = ring.len();
+        (0..=n).map(|i| ring[(k + i) % n]).collect()
+    };
+    let nearest = |ring: &[Vec2], p: Vec2| -> (usize, f64) {
+        ring.iter()
+            .enumerate()
+            .map(|(k, q)| (k, q.distance(p)))
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .unwrap_or((0, f64::INFINITY))
+    };
+    let mut out: Vec<Contour> = Vec::new();
+    let mut line: Vec<Vec2> = Vec::new();
+    while !todo.is_empty() {
+        let next = match line.last() {
+            None => 0,
+            Some(&p) => (0..todo.len())
+                .min_by(|&a, &b| {
+                    nearest(&todo[a].outline_points(), p)
+                        .1
+                        .total_cmp(&nearest(&todo[b].outline_points(), p).1)
+                })
+                .unwrap_or(0),
+        };
+        let ring = todo.remove(next).outline_points();
+        if ring.len() < 3 {
+            continue;
+        }
+        let start = line.last().map_or(0, |&p| nearest(&ring, p).0);
+        if let Some(&p) = line.last()
+            && ring[start].distance(p) > max_hop
+        {
+            out.push(Contour::new(std::mem::take(&mut line), false));
+        }
+        line.extend(loop_from(&ring, start));
+        // Run on along this ring to its point nearest the next ring left, the shorter way.
+        let target = todo
+            .iter()
+            .flat_map(|c| c.outline_points())
+            .min_by(|a, b| nearest(&ring, *a).1.total_cmp(&nearest(&ring, *b).1));
+        if let Some(t) = target {
+            let (k, d) = nearest(&ring, t);
+            if d <= max_hop {
+                let n = ring.len();
+                let fwd = (k + n - start) % n;
+                let steps: Vec<Vec2> = if fwd <= n - fwd {
+                    (1..=fwd).map(|i| ring[(start + i) % n]).collect()
+                } else {
+                    (1..=n - fwd).map(|i| ring[(start + n - i) % n]).collect()
+                };
+                line.extend(steps);
+            }
+        }
+    }
+    if line.len() >= 2 {
+        out.push(Contour::new(line, false));
+    }
+    out.extend(open);
     out
 }
 
