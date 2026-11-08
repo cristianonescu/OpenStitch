@@ -244,3 +244,77 @@ fn plain_artwork_imports_as_before() {
     assert!(i.report.skipped.is_empty() && i.report.approximated.is_empty());
     assert_eq!(i.shapes, shapes);
 }
+
+/// `gradients: "blend"` (#532, beyond PE-DESIGN): a gradient fill becomes a colour blend, one
+/// fill per stop along the gradient's own axis, grouped; a radial gradient stays radial.
+#[test]
+fn gradients_import_as_blends() {
+    let tmp = TempDir::new("svg-blend");
+    std::fs::write(
+        tmp.path().join("g.svg"),
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="50mm" viewBox="0 0 100 50">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1040c0"/>
+      <stop offset="0.5" stop-color="#f0a020"/>
+      <stop offset="1" stop-color="#ffffff"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="80" cy="25" r="15" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffff00"/>
+      <stop offset="1" stop-color="#ff0000"/>
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="60" height="40" fill="url(#sky)"/>
+  <circle cx="80" cy="25" r="15" fill="url(#sun)"/>
+</svg>"##,
+    )
+    .expect("write");
+    let mut s = Session::new(tmp.path());
+    let out = s
+        .execute(
+            "import.svg",
+            Some(&json!({"path": "g.svg", "gradients": "blend", "x": 0, "y": 0, "width": 95})),
+        )
+        .expect("import");
+    let ids = out["ids"].as_array().expect("ids").len();
+    assert_eq!(ids, 5, "three stops of the sky, two of the sun: {out}");
+    let d = s.design();
+    let grads: Vec<&openstitch_design::Gradient> = d
+        .objects
+        .iter()
+        .filter_map(|o| o.region.as_ref().and_then(|r| r.gradient.as_ref()))
+        .collect();
+    assert_eq!(grads.len(), 5);
+    assert!(
+        d.objects
+            .iter()
+            .all(|o| o.group == d.objects[0].group && o.group.is_some())
+    );
+    let sky = grads[0];
+    assert_eq!(sky.kind, openstitch_design::GradientKind::Linear);
+    assert_eq!(sky.stops, vec![0.0, 0.5, 1.0]);
+    // Top to bottom of the sky, in 0.1 mm at 1 mm per SVG unit (the artwork, 95 mm wide, is
+    // placed at its own size).
+    assert!(
+        sky.from.distance(openstitch_design::v2(0.0, 0.0)) < 1.0,
+        "{:?}",
+        sky.from
+    );
+    assert!(
+        sky.to.distance(openstitch_design::v2(0.0, 400.0)) < 1.0,
+        "{:?}",
+        sky.to
+    );
+    assert_eq!(grads[3].kind, openstitch_design::GradientKind::Radial);
+    assert!(grads[3].from.distance(openstitch_design::v2(800.0, 250.0)) < 1.0);
+    let p = openstitch_design::Compiler::default().compile(s.design());
+    assert!(p.count(openstitch_core::Command::Stitch) > 500);
+    // Anything else is refused.
+    assert!(
+        s.execute(
+            "import.svg",
+            Some(&json!({"path": "g.svg", "gradients": "smooth"}))
+        )
+        .is_err()
+    );
+}
