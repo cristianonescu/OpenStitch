@@ -1083,9 +1083,22 @@ Line references are relative to `crates/`.
     cut and the second from it along the bisector. Specs `line-zigzag-miter-v-b1-m0/m1/m3/m50`,
     `-v-b2-m0/m3/m50` and `-l-b2-m7` reach the reference tier: widths exact (40.3/40.2,
     41.2, 43.0, 43.8 mm), stitch counts within 1 % (447/446, 453/455, 462/465, 466/467,
-    450/451, 478/481, 485/481, 305/311). Not known: the angle between 30° and 90° where
-    PE-DESIGN starts cutting (OpenStitch: below 90°), button 2's exact fan, and where PE
-    stores the attribute in a PES object (written at the defaults).
+    450/451, 478/481, 485/481, 305/311).
+  - Zigzag corner angle and the PES 0110 attribute: done 2026-11-08 (#373 part 2) from the
+    coordinator's black-box captures of V lines at 45.0°, 59.9°, 75.3° (both buttons) and
+    120.1° (button 1), Miter Limit 0, copied to compat/reference/stitches/
+    line-zigzag-miter-v45/v60/v75/v120-*.pes. PE-DESIGN's two buttons sew 45° and 59.9°
+    differently and 75.3° identically, with the full mitre (41.3 mm, 299 stitches), so the
+    cut starts between 60° and 75°; OpenStitch now cuts below 67.5° (was 90°, which cut the
+    75° V to 40.8 mm). Seven specs reach the reference tier: widths exact except 45° button 1
+    (40.4 against 40.2), stitch counts within 3 % (377/381, 384/388, 337/342, 349/353,
+    291/299, 291/299, 335/340). Left out of the specs and recorded in them: 45° button 1's
+    width, 45° button 2's longest stitch (2.60 against 2.92 mm, the fan) and 75.3°'s longest
+    stitch (3.55 against 3.86 mm, 0.01 over the tolerance). PES 0110 CEmbLine body +62 holds
+    the button (0 or 1), +64 and +66 each button's limit in 0.1 mm (the 75.3° pair differs
+    only at +62); OpenStitch now reads, imports, exports and writes them instead of PE's
+    defaults (docs/FILE_FORMATS.md). Not known: the exact angle (a 67° capture would narrow
+    it), button 2's exact fan, satin lines.
   - **Stitch Type (measured 2026-10-30, round-5 captures `tatami-40-st{1,2}-dir{0,30,90}.pes`,
     `tatami-40-st2-dir45-freq0.pes`, with round 4's 45° pair; a 40 × 40 mm Fill square, density
     4.5, step 4.0, Frequency 30 %, under sewing off):**

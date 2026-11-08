@@ -2146,12 +2146,12 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "sharpCorners",
                     "1|2",
-                    "Zigzag: PE-DESIGN's Sharp Corners button for corners sharper than 90 degrees: 1 sews each leg to where the legs cross and fills the point as a wedge, 2 splits the corner along its bisector with short stitches into the point (default 1)",
+                    "Zigzag: PE-DESIGN's Sharp Corners button for corners sharper than 67.5 degrees: 1 sews each leg to where the legs cross and fills the point as a wedge, 2 splits the corner along its bisector with short stitches into the point (default 1)",
                 ),
                 opt(
                     "miterLimit",
                     "mm",
-                    "Zigzag: Miter Limit of the chosen Sharp Corners button, 0-50: how far from the corner, along its bisector, the point of a corner sharper than 90 degrees may reach (0: cut at the corner; each button keeps its own value, PE-DESIGN's 0 for button 1 and 7 for button 2)",
+                    "Zigzag: Miter Limit of the chosen Sharp Corners button, 0-50: how far from the corner, along its bisector, the point of a corner sharper than 67.5 degrees may reach (0: cut at the corner; each button keeps its own value, PE-DESIGN's 0 for button 1 and 7 for button 2)",
                 ),
                 opt(
                     "underSewing",

@@ -2701,12 +2701,14 @@ pub struct LineSewing {
 }
 
 /// PE-DESIGN 11's Sharp Corners and Miter Limit of a Zigzag Stitch line (#373, measured from
-/// crates/openstitch-formats/tests/fixtures/pe11/captures-2026-11-07/miter/). A corner sharper
-/// than 90 degrees is sewn with its point cut off `miter_limit` mm from the corner along the
-/// bisector (0: no point; the full point once the limit reaches it). Button 1 sews each leg up
-/// to where the two legs cross and fills the point in a separate wedge; button 2 splits the
-/// corner along its bisector, with short stitches into the point. Corners of 90 degrees and
-/// wider keep their full mitre with either button.
+/// crates/openstitch-formats/tests/fixtures/pe11/captures-2026-11-07/miter/ and the 2026-11-08
+/// angle captures `line-zigzag-miter-v45/v60/v75/v120-*`). A corner sharper than 67.5 degrees
+/// is sewn with its point cut off `miter_limit` mm from the corner along the bisector (0: no
+/// point; the full point once the limit reaches it). Button 1 sews each leg up to where the two
+/// legs cross and fills the point in a separate wedge; button 2 splits the corner along its
+/// bisector, with short stitches into the point. Corners of 67.5 degrees and wider keep their
+/// full mitre with either button (PE-DESIGN's buttons differ at 59.9° and agree at 75.3°).
+/// PES 0110 stores the button and both limits (CEmbLine body +62, +64, +66).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SharpCorners {

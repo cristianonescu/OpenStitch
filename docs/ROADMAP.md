@@ -334,8 +334,9 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    and not adopted; `attribute-ranges` covers the boundaries).
 2. **Satin:** Miter limit for zigzag lines is done since 2026-11-07 (#373: PE-DESIGN's Sharp
    Corners buttons and Miter Limit from the owner's captures, eight specs at the reference
-   tier); left: the angle where PE-DESIGN starts cutting (captured at 29.7° and 90°), button
-   2's exact fan, the attribute in PES objects, and satin lines. Half Stitch for Auto satin
+   tier); since 2026-11-08 corners are cut below 67.5° (PE-DESIGN's buttons differ at 59.9°
+   and agree at 75.3°) and PES 0110 carries the button and both limits; left: the exact
+   angle, button 2's exact fan, and satin lines. Half Stitch for Auto satin
    is done since 2026-11-04 (#372): every other crowded inner needle point at a bend pulled
    back along its crossing, measured on satin-auto-bend-90/-120 against their -nohalf twins.
    Jagged Auto Punch regions sew within sew_check's limits since 2026-11-04 (#304: doubled-back

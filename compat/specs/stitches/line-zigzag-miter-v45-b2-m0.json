@@ -1,0 +1,141 @@
+{
+  "schema": "openstitch-compat/1",
+  "id": "line-zigzag-miter-v45-b2-m0",
+  "area": "stitches",
+  "title": "Zigzag line, 45.0° V, Sharp Corners button 2, Miter Limit 0 mm",
+  "description": "An open Zigzag Stitch line on the 45.0° V (10,20), (50,20), (30,40) mm at PE-DESIGN's zigzag defaults, Sharp Corners button 2 and Miter Limit 0 mm (#373 part 2: the corner angle below which the two buttons sew differently): stitch count, typical and longest stitch, and the size. The longest stitch is left out: button 2's fan into the point has 2.60 mm against PE-DESIGN's 2.92 at 45° (the exact fan is not mapped, #373).",
+  "covers": {
+    "featureMatrix": [
+      {
+        "area": "Line sew types",
+        "feature": "Zigzag: Sharp Corners and Miter Limit"
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "kind": "measured",
+      "note": "PE-DESIGN 11.50 capture 373-v45-b2-m0.pes (2026-11-08, #373 comment 6718101741): 40.4 x 21.7 mm, 388 stitches."
+    }
+  ],
+  "script": [
+    {
+      "command": "design.new",
+      "params": {
+        "width": 100,
+        "height": 100
+      }
+    },
+    {
+      "command": "shape.polygon",
+      "params": {
+        "points": [
+          [
+            10,
+            20
+          ],
+          [
+            50,
+            20
+          ],
+          [
+            30,
+            40
+          ]
+        ],
+        "closed": false,
+        "outline": "Red"
+      }
+    },
+    {
+      "command": "object.setLine",
+      "params": {
+        "ids": [
+          1
+        ],
+        "type": "zigzag",
+        "color": "Red",
+        "sharpCorners": 2,
+        "miterLimit": 0.0
+      }
+    }
+  ],
+  "exports": [
+    {
+      "path": "line.pes"
+    }
+  ],
+  "references": [
+    {
+      "id": "pe-design",
+      "file": "stitches/line-zigzag-miter-v45-b2-m0.pes",
+      "make": "On a 100 x 100 mm Design Page (grid 1 mm, Snap to Grid) draw an open straight line by clicking (10, 20), (50, 20) and double-clicking (30, 40) mm. Line sew type Zigzag Stitch, colour 800 RED, Under sewing on, Zigzag width 2.0 mm, Density 4.5, Half Stitch on, Sharp Corners button 2, Miter Limit 0 mm. Save As PES (Ver.11.0)."
+    }
+  ],
+  "measurements": [
+    {
+      "id": "stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "line.pes"
+      },
+      "evidence": "PE-DESIGN reference: needle points on the same line",
+      "reference": {
+        "tolerance": {
+          "percent": 10
+        }
+      }
+    },
+    {
+      "id": "stitch-length-median",
+      "measure": {
+        "kind": "stitchLength",
+        "stat": "median",
+        "minLength": 0.3
+      },
+      "source": {
+        "export": "line.pes"
+      },
+      "evidence": "PE-DESIGN reference: typical stitch length",
+      "reference": {
+        "tolerance": {
+          "mm": 0.15
+        }
+      }
+    },
+    {
+      "id": "width",
+      "measure": {
+        "kind": "bounds",
+        "property": "width"
+      },
+      "source": {
+        "export": "line.pes"
+      },
+      "evidence": "PE-DESIGN reference: the status-bar width: how far the corner's point reaches",
+      "reference": {
+        "tolerance": {
+          "mm": 0.15
+        }
+      }
+    },
+    {
+      "id": "height",
+      "measure": {
+        "kind": "bounds",
+        "property": "height"
+      },
+      "source": {
+        "export": "line.pes"
+      },
+      "evidence": "PE-DESIGN reference: the status-bar height",
+      "reference": {
+        "tolerance": {
+          "mm": 0.15
+        }
+      }
+    }
+  ]
+}

@@ -339,6 +339,8 @@ below is pinned by a test in `tests/pes11.rs`.
 | 50 | zigzag density, 0.1 line/mm | r01 (4.5) |
 | 52 | running stitch pitch, 0.1 mm; kept while another line type is chosen | r20 (2.0 → 3.0 mm) |
 | 60 | line under sewing 1 on, 0 off | r22 |
+| 62 | zigzag Sharp Corners button: 0 button 1, 1 button 2 (absolute byte 293 in a one-object file; read, written and imported since #373 part 2, 2026-11-08) | line-zigzag-miter-v75-b1-m0 / -b2-m0 (the pair differs only here) |
+| 64, 66 | zigzag Miter Limit each Sharp Corners button keeps, u16 0.1 mm: button 1 at +64, button 2 at +66 (PE-DESIGN's 0 and 70 on a new line; both always stored, as each button recalls its own value) | the `line-zigzag-miter-*` references (0, 10, 30, 500; 70 once button 2 was shown) |
 | 90 | E or V stitch width, 0.1 mm (2.5 by default, 2.0 on the Applique Wizard's tack-down); an E or V line's sewn extent is the bounds ± this width | line-e-default, line-v-default (25, extent ± 25), a01-rect-applique (20, ± 20) |
 | 122 | 1 on the cutting line, 5 on every other object (meaning not mapped) | a02-applique-cutting |
 | 8 (cont.) | the extent of a running, triple or unsewn line equals the bounds; a zigzag or stem line adds half the zigzag width (+48), a chain the whole of it, and a candlewick or motif line the E/V width (+90) (line-*-default: ± 10, ± 20, ± 25 with the default 2.0 and 2.5 mm; every owner line file has those widths, so which field drives the stem, chain, candlewick and motif growth is inferred from the amounts); the circle's is one unit wider still (589..711) and an open zigzag line's grows only across the line (r11: y ± 10, x unchanged) | r19, r07, r21, r10, r11 |

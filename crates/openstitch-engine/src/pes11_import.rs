@@ -319,6 +319,11 @@ fn object(s: &Shape, table: &[Thread]) -> Result<DesignObject, String> {
             s.zigzag_width
         });
         l.density = f64::from(s.zigzag_density);
+        // Sharp Corners and both buttons' Miter Limits (body +62, +64, +66, #373).
+        l.sharp_corners.button = if s.sharp_corners == 1 { 2 } else { 1 };
+        l.sharp_corners.miter_limit = s
+            .miter_limits
+            .map(|mm| f64::from(mm).clamp(0.0, openstitch_design::model::SharpCorners::MAX_LIMIT));
         l.pitch = f64::from(s.run_pitch);
         l.underlay = s.line_under_sewing;
         Some(l)
@@ -979,5 +984,31 @@ mod tests {
             stitches.iter().map(|s| (s.x, s.y)).collect::<Vec<_>>()
         );
         assert_eq!(block.threads[0].rgb_value(), 0xff00ff);
+    }
+
+    #[test]
+    fn zigzag_sharp_corners_and_miter_limits_import_and_export_back() {
+        // #373: PE-DESIGN 11.50's button 2 capture with 3.0 mm for each button.
+        let i = objects(&reference("stitches/line-zigzag-miter-v-b2-m3"));
+        let l = i.objects[0].line.as_ref().expect("line");
+        assert_eq!(
+            (l.sharp_corners.button, l.sharp_corners.miter_limit),
+            (2, [3.0, 3.0])
+        );
+        let mut d = Design::default();
+        d.add(i.objects[0].clone());
+        let s = &crate::pes11_export::objects(&d).expect("objects").shapes[0];
+        assert_eq!((s.sharp_corners, s.miter_limits), (1, [3.0, 3.0]));
+        // A new line writes PE-DESIGN's defaults: button 1, 0.0 and 7.0.
+        let mut d = Design::default();
+        let mut l = l.clone();
+        l.sharp_corners = Default::default();
+        d.add(DesignObject::shape(
+            i.objects[0].contours.clone(),
+            None,
+            Some(l),
+        ));
+        let s = &crate::pes11_export::objects(&d).expect("objects").shapes[0];
+        assert_eq!((s.sharp_corners, s.miter_limits), (0, [0.0, 7.0]));
     }
 }

@@ -6037,6 +6037,90 @@
       "settings": "Line sew Zigzag Stitch on the 90° L of line-zigzag-default (10,20), (50,20), (50,40) mm (Open Straight Line, Snap to Grid), colour 800 EMBROIDERY RED, Under sewing on, Zigzag width 2.0 mm, Density 4.5 line/mm, Half Stitch on, Sharp Corners button 2, Miter Limit 7 mm (7.0 shown on the first switch to button 2); Save As PES Ver.11.0. Status: 41.0 x 21.0 mm, Stitches = 312.",
       "sha256": "b226414dfed9400f2e1f7b871b219fcaf6e6e796d01636238be5d0133c932edd",
       "notes": "Copy of crates/openstitch-formats/tests/fixtures/pe11/captures-2026-11-07/miter/miter-a-sc2-m7auto.pes (#373)."
+    },
+    {
+      "file": "stitches/line-zigzag-miter-v45-b1-m0.pes",
+      "spec": "line-zigzag-miter-v45-b1-m0",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-08",
+      "os": "Windows 11 Pro",
+      "settings": "Line sew Zigzag Stitch on the 45.0° V (10,20), (50,20), (30,40) mm (Open Straight Line, Snap to Grid), colour 800 EMBROIDERY RED, Under sewing on, Zigzag width 2.0 mm, Density 4.5 line/mm, Half Stitch on, Sharp Corners button 1, Miter Limit 0 mm; Save As PES Ver.11.0. Status: 40.2 x 21.7 mm, Stitches = 381.",
+      "sha256": "19f384be44399b8606b3d608a99e5247527670971399d1199702adacb57e535c",
+      "notes": "Black-box capture 373-v45-b1-m0.pes from the coordinator's round-9 notes (#373 comment 6718101741)."
+    },
+    {
+      "file": "stitches/line-zigzag-miter-v45-b2-m0.pes",
+      "spec": "line-zigzag-miter-v45-b2-m0",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-08",
+      "os": "Windows 11 Pro",
+      "settings": "Line sew Zigzag Stitch on the 45.0° V (10,20), (50,20), (30,40) mm (Open Straight Line, Snap to Grid), colour 800 EMBROIDERY RED, Under sewing on, Zigzag width 2.0 mm, Density 4.5 line/mm, Half Stitch on, Sharp Corners button 2, Miter Limit 0 mm; Save As PES Ver.11.0. Status: 40.4 x 21.7 mm, Stitches = 388.",
+      "sha256": "a76235282f9f6b38fc75394526bd2945e420c9e4e9b035a7f983544ba10c9754",
+      "notes": "Black-box capture 373-v45-b2-m0.pes from the coordinator's round-9 notes (#373 comment 6718101741)."
+    },
+    {
+      "file": "stitches/line-zigzag-miter-v60-b1-m0.pes",
+      "spec": "line-zigzag-miter-v60-b1-m0",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-08",
+      "os": "Windows 11 Pro",
+      "settings": "Line sew Zigzag Stitch on the 59.9° V (10,20), (50,20), (39,39) mm (Open Straight Line, Snap to Grid), colour 800 EMBROIDERY RED, Under sewing on, Zigzag width 2.0 mm, Density 4.5 line/mm, Half Stitch on, Sharp Corners button 1, Miter Limit 0 mm; Save As PES Ver.11.0. Status: 40.5 x 20.5 mm, Stitches = 342.",
+      "sha256": "7776d2936b7631fd7cdcf05e9e76d6f570572f5519fa0a951f0554318c56c58d",
+      "notes": "Black-box capture 373-v60-b1-m0.pes from the coordinator's round-9 notes (#373 comment 6718101741)."
+    },
+    {
+      "file": "stitches/line-zigzag-miter-v60-b2-m0.pes",
+      "spec": "line-zigzag-miter-v60-b2-m0",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-08",
+      "os": "Windows 11 Pro",
+      "settings": "Line sew Zigzag Stitch on the 59.9° V (10,20), (50,20), (39,39) mm (Open Straight Line, Snap to Grid), colour 800 EMBROIDERY RED, Under sewing on, Zigzag width 2.0 mm, Density 4.5 line/mm, Half Stitch on, Sharp Corners button 2, Miter Limit 0 mm; Save As PES Ver.11.0. Status: 40.6 x 20.5 mm, Stitches = 353.",
+      "sha256": "f0bcbb89b76352d0cdecd744fb4a2d7f25cb4158c34c3085c5e1a89213392ae4",
+      "notes": "Black-box capture 373-v60-b2-m0.pes from the coordinator's round-9 notes (#373 comment 6718101741)."
+    },
+    {
+      "file": "stitches/line-zigzag-miter-v75-b1-m0.pes",
+      "spec": "line-zigzag-miter-v75-b1-m0",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-08",
+      "os": "Windows 11 Pro",
+      "settings": "Line sew Zigzag Stitch on the 75.3° V (10,20), (50,20), (45,39) mm (Open Straight Line, Snap to Grid), colour 800 EMBROIDERY RED, Under sewing on, Zigzag width 2.0 mm, Density 4.5 line/mm, Half Stitch on, Sharp Corners button 1, Miter Limit 0 mm; Save As PES Ver.11.0. Status: 41.3 x 20.3 mm, Stitches = 299.",
+      "sha256": "d96b466fd2a9e78296ff5136f7eca2af9c8d022dbc57a4690a6713ea5d4b88a7",
+      "notes": "Black-box capture 373-v75-b1-m0.pes from the coordinator's round-9 notes (#373 comment 6718101741)."
+    },
+    {
+      "file": "stitches/line-zigzag-miter-v75-b2-m0.pes",
+      "spec": "line-zigzag-miter-v75-b2-m0",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-08",
+      "os": "Windows 11 Pro",
+      "settings": "Line sew Zigzag Stitch on the 75.3° V (10,20), (50,20), (45,39) mm (Open Straight Line, Snap to Grid), colour 800 EMBROIDERY RED, Under sewing on, Zigzag width 2.0 mm, Density 4.5 line/mm, Half Stitch on, Sharp Corners button 2, Miter Limit 0 mm; Save As PES Ver.11.0. Status: 41.3 x 20.3 mm, Stitches = 299.",
+      "sha256": "51947235c2fe15939aed7cc2a03a3d1e9307977a2c82a2baade430441a78e1cd",
+      "notes": "Black-box capture 373-v75-b2-m0.pes from the coordinator's round-9 notes (#373 comment 6718101741)."
+    },
+    {
+      "file": "stitches/line-zigzag-miter-v120-b1-m0.pes",
+      "spec": "line-zigzag-miter-v120-b1-m0",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-08",
+      "os": "Windows 11 Pro",
+      "settings": "Line sew Zigzag Stitch on the 120.1° V (10,20), (50,20), (61,39) mm (Open Straight Line, Snap to Grid), colour 800 EMBROIDERY RED, Under sewing on, Zigzag width 2.0 mm, Density 4.5 line/mm, Half Stitch on, Sharp Corners button 1, Miter Limit 0 mm; Save As PES Ver.11.0. Status: 51.9 x 20.5 mm, Stitches = 340.",
+      "sha256": "0bdd3c49972837d2770942a83148f23ce3c6ee69935b76d50f5a3aae93a4715b",
+      "notes": "Black-box capture 373-v120-b1-m0.pes from the coordinator's round-9 notes (#373 comment 6718101741)."
     }
   ]
 }
