@@ -246,6 +246,39 @@ fn layers_inner(
         let mut graph = TravelGraph::new(closed, holes);
         return vec![join(pieces, Some(&mut graph), SATIN_TRAVEL_PITCH)];
     }
+    // Stitch angle lines (#534, beyond PE-DESIGN): the plain fill's under sewing, then rows
+    // turning from line to line (see `crate::angle_lines`), joined by travel inside.
+    if r.kind == RegionType::Fill
+        && r.angle_lines.len() >= 2
+        && r.gradient.is_none()
+        && crate::angle_lines::check(&r.angle_lines, closed, holes).is_ok()
+    {
+        let mut plain = r.clone();
+        plain.angle_lines.clear();
+        let mut out = layers_inner(closed, &plain, holes, user);
+        out.pop();
+        let spacing = 10.0 / r.density.max(0.1);
+        let stitch = r.stitch_length * 10.0;
+        let shift = r.fill_shift().unwrap_or(0.3);
+        let mut pieces: Vec<Run> = Vec::new();
+        for (k, row) in crate::angle_lines::rows(&r.angle_lines, closed, holes, spacing)
+            .iter()
+            .enumerate()
+        {
+            for piece in crate::paths::clip(row, closed, holes) {
+                let mut sewn = crate::angle_lines::needles(&piece, stitch, k as f64 * shift);
+                if k % 2 == 1 {
+                    sewn.reverse();
+                }
+                if sewn.len() >= 2 {
+                    pieces.push(sewn);
+                }
+            }
+        }
+        let mut graph = TravelGraph::new(closed, holes);
+        out.push(join(pieces, Some(&mut graph), SATIN_TRAVEL_PITCH));
+        return out;
+    }
     // Wave fill (#538, beyond PE-DESIGN): the rows ripple as a sine (see `wave_layers`).
     if let Some((amplitude, length)) = r.wave()
         && r.direction_curve.is_none()

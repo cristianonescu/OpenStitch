@@ -27,6 +27,8 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 - **Rotation** of objects (`object.rotate` `degrees`) and of preset shapes (`shape.preset`
   `rotation`) is **clockwise**.
 - Densities are rows (or lines) per mm; `pitch` and `stitchLength` are mm.
+- `object.setRegion` `angle` (degrees, counter-clockwise) is a straight sewing direction: it turns
+  `autoDirection` off unless you pass `autoDirection` in the same call.
 - Maze fill (beyond PE-DESIGN): `object.setRegion` `type` `maze` with `spacing` (mm),
   `straightness` (%, default 70) and `mazeSeed` (another seed, another maze). PES 0110 refuses it;
   save PES version 6.
@@ -48,6 +50,11 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   `gradationShape` `convex` | `concave` | `centre` | `edges` | `wave` (`linear` is PE-DESIGN's).
   PES 0110 refuses the others. `import.svg` with `gradients: "blend"` brings SVG gradients in as
   gradient fills (one fill per stop, grouped).
+- Stitch angle lines (beyond PE-DESIGN), for leaves, ribbons, U and Z shapes and rings:
+  `object.setAngleLines {id, lines: [[[x, y], [x, y]], ...]}` (mm, 2 or more lines across the fill
+  in order along it; each line is extended to the outline). The rows turn from one line's
+  direction to the next. Lines must not cross inside the shape. `lines: []` removes them. PES 0110
+  refuses them; save PES version 6.
 - A plain fill's look changes with `object.setRegion` `texture` (`smooth`, PE-DESIGN's default,
   or OpenStitch's `ribs`, `diagonal`, `blocks`, `waves`, `zigzag`, `chevron`, `scallops`, ...):
   same shape, density and stitch count, different needle-hole pattern.
@@ -423,8 +430,9 @@ Database, Ink/Stitch font folders) are desktop-only too; say so instead of tryin
 browser. Pictures, thread charts, fonts and other files can be picked or dropped on the page.
 `ui.browserLimits` lists what the browser version cannot do (the Assistant, printing, USB
 transfer, updates, folders, clipboard pictures), each with what to do instead; tell the user that
-rather than trying it. Editor settings (`ui.set`) last across visits there; thread charts and other user settings
-do not yet.
+rather than trying it. Editor settings (`ui.set`), thread charts, My Threads and the other user
+settings last across visits there, as on the desktop (the page's storage; cleared site data starts
+afresh).
 
 ## Files
 

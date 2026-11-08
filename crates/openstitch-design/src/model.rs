@@ -2027,6 +2027,10 @@ pub struct RegionSewing {
     /// Fill: the wave's length, crest to crest, mm (default [`RegionSewing::DEFAULT_WAVE_LENGTH`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wave_length: Option<f64>,
+    /// Fill: stitch angle lines (#534, beyond PE-DESIGN), 0.1 mm: the rows turn smoothly from
+    /// one line's direction to the next (see `crate::angle_lines`). Fewer than two: none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub angle_lines: Vec<[Vec2; 2]>,
     /// Fill: one colour of a colour blend or gradient (#532, beyond PE-DESIGN); the object
     /// sews only its share of the rows the gradient's objects share (see `crate::gradient`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2155,6 +2159,7 @@ impl RegionSewing {
             hand: None,
             wave_height: None,
             wave_length: None,
+            angle_lines: Vec::new(),
             gradient: None,
             motif_band: None,
         }

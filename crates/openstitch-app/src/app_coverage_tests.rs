@@ -694,3 +694,29 @@ fn preferences_last_in_the_pages_storage() {
         .expect("on");
     assert!(EditorApp::new(Launch::default()).ui.prefs.start_cards);
 }
+
+thread_local! {
+    static FAKE_USER_STORE: std::cell::RefCell<Option<Vec<u8>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// #829: an editor with no user.json (the browser page) takes its user settings from the store
+/// the page registers, and a thread chart added in the window is there at the next start.
+#[test]
+fn thread_charts_last_in_the_pages_storage() {
+    openstitch_app::platform::set_user_store(openstitch_engine::session::UserStore {
+        read: || FAKE_USER_STORE.with(|s| s.borrow().clone()),
+        write: |b| FAKE_USER_STORE.with(|s| *s.borrow_mut() = Some(b.to_vec())),
+    });
+    let mut app = EditorApp::new(Launch::default());
+    assert_eq!(app.session.user_settings().thread_charts[0].name, "My Threads");
+    app.execute(&CommandRequest::new("threads.createChart", json!({ "name": "Shelf" })));
+    let again = EditorApp::new(Launch::default());
+    let names: Vec<&str> = again
+        .session
+        .user_settings()
+        .thread_charts
+        .iter()
+        .map(|c| c.name.as_str())
+        .collect();
+    assert_eq!(names, ["My Threads", "Shelf"], "kept across a reload");
+}

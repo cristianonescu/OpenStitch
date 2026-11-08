@@ -341,6 +341,16 @@ def gradients():
     return steps
 
 
+def angle_lines():
+    """Stitch angle lines (#534, beyond PE-DESIGN): an L whose rows turn round its corner."""
+    return [
+        {"command": "shape.polygon", "params": {"points": [[7, 7], [57, 7], [57, 25], [25, 25], [25, 80],
+                                                           [7, 80]], "closed": True, "fill": "Blue"}},
+        {"command": "object.setAngleLines", "params": {"id": 1, "lines": [
+            [[45, 5], [45, 27]], [[27, 27], [5, 5]], [[5, 60], [27, 60]]]}},
+    ]
+
+
 LINE_TYPES = [
     {"type": "running"},
     {"type": "triple"},
@@ -612,6 +622,9 @@ FEATURES = [
      "Top left: a blue-to-white blend, bottom to top (rows dither). Top right: red, orange and yellow, left "
      "to right (ordered dither). Bottom left: a radial yellow, orange and magenta gradient (noise dither). "
      "Bottom right: green into blue at 45° with hard bands.", gradients()),
+    ("fills/angle-lines.pes", "Stitch angle lines (beyond PE-DESIGN)",
+     "An L whose rows turn round its corner between three angle lines, as one object with no seam.",
+     angle_lines()),
     ("fills/maze-fill.pes", "Maze fill (beyond PE-DESIGN)",
      "One path of straight corridors and square turns that never crosses itself, 2 mm apart: straightness "
      "70 % (default), 0 % and 95 % (top row), on a circle, another seed at 45°, and 3 mm spacing.",

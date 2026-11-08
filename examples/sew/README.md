@@ -427,6 +427,16 @@ Top left: a blue-to-white blend, bottom to top (rows dither). Top right: red, or
 
 Threads, in sewing order: 405 Blue, 001 White, 800 Red, 208 Orange, 620 Magenta, 509 Leaf Green, 405 Blue.
 
+#### Stitch angle lines (beyond PE-DESIGN)
+
+[`fills/angle-lines.pes`](fills/angle-lines.pes) · 100 × 100 mm hoop · 49.9 × 72.9 mm · 4,669 stitches · 1 trim · about 5.9 min
+
+An L whose rows turn round its corner between three angle lines, as one object with no seam.
+
+<img src="previews/angle-lines.png" height="180" alt="Realistic view of fills/angle-lines.pes">
+
+Threads, in sewing order: 405 Blue.
+
 #### Maze fill (beyond PE-DESIGN)
 
 [`fills/maze-fill.pes`](fills/maze-fill.pes) · 100 × 100 mm hoop · 83.4 × 54.6 mm · 1,080 stitches · 6 trims · about 1.7 min
