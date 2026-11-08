@@ -63,6 +63,23 @@ fn pick(dialog: FileDialog, many: bool, then: Then) {
     web::request_then(dialog, many, then);
 }
 
+thread_local! {
+    /// A folder chooser the browser could not answer (#830), shown as a notice next frame.
+    static FOLDER_REFUSED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Notes that a folder was asked for where none can be chosen (the browser's dialog stub; the
+/// desktop's dialog always answers, so only the browser build and tests call it).
+#[cfg_attr(not(any(test, target_arch = "wasm32")), allow(dead_code))]
+pub fn note_folder_refused() {
+    FOLDER_REFUSED.with(|f| f.set(true));
+}
+
+/// Whether a folder chooser was refused since the last call.
+pub fn take_folder_refused() -> bool {
+    FOLDER_REFUSED.with(|f| f.replace(false))
+}
+
 /// Runs the actions of the files chosen since the last frame (`EditorApp::ui` calls it first).
 pub fn run_ready(app: &mut crate::app::EditorApp) {
     let ready = READY.with(|r| std::mem::take(&mut *r.borrow_mut()));
@@ -202,6 +219,8 @@ mod web {
         }
 
         pub fn pick_folder(self) -> Option<PathBuf> {
+            // A page cannot browse folders: the editor says so (#830).
+            super::note_folder_refused();
             None
         }
 

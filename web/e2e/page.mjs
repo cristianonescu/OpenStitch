@@ -169,12 +169,23 @@ for (const [label, type] of [["Chromium", chromium], ["Firefox", firefox], ["Web
         throw new Error(`showStartCards is ${JSON.stringify(prefs.result?.showStartCards)} after a reload, want ${value}`);
       }
     }
+    // #829: a thread chart the user adds is still there after a reload.
+    console.log(`${label}: adding a thread chart, then a reload`);
+    const made = await run(page, { command: "threads.createChart", params: { name: "Page test shelf" } });
+    if (!made.ok) throw new Error(`threads.createChart: ${JSON.stringify(made).slice(0, 200)}`);
+    await page.reload({ timeout: 60_000 });
+    const back = await started(page);
+    if (back) throw new Error(`after a reload: ${back}`);
+    const charts = await run(page, { command: "threads.charts" });
+    if (!(charts.result ?? []).some((c) => c.name === "Page test shelf")) {
+      throw new Error(`the thread chart is gone after a reload: ${JSON.stringify(charts).slice(0, 200)}`);
+    }
     if (outDir) {
       mkdirSync(outDir, { recursive: true });
       await page.screenshot({ path: join(outDir, `web-${label.toLowerCase()}.png`) });
     }
     if (errors.length) throw new Error(`page errors: ${errors.join("; ")}`);
-    console.log(`ok ${label}: started, opened ${name} with the file picker, the PES and DST downloads are identical to the desktop build, a dropped photo shows and converts, preferences last across reloads`);
+    console.log(`ok ${label}: started, opened ${name} with the file picker, the PES and DST downloads are identical to the desktop build, a dropped photo shows and converts, preferences and thread charts last across reloads`);
   } catch (e) {
     console.error(`FAIL ${label}: ${e.message}`);
     failures += 1;

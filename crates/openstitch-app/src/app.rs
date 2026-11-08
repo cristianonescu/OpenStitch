@@ -428,6 +428,13 @@ impl EditorApp {
             }
             self.ui.prefs_path = Some(ui);
         } else if l.screenshot.is_none()
+            && let Some(store) = openstitch_app::platform::user_store()
+        {
+            // No user.json: the browser page's storage (#829), then its preferences below.
+            self.session.with_user_store(store);
+        }
+        if l.user_settings.is_none()
+            && l.screenshot.is_none()
             && let Some(v) = openstitch_app::platform::stored_prefs()
                 .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
         {
@@ -1400,6 +1407,12 @@ impl EditorApp {
     /// File ▸ Background Image ▸ Paste: the clipboard image becomes the background. It is kept
     /// as a PNG in the app's data folder (named by content), since the project only references it.
     pub fn paste_background(&mut self) {
+        if crate::limits_ui::browser_limit(
+            self,
+            openstitch_app::editor::browser_limits::Limit::ClipboardImages,
+        ) {
+            return;
+        }
         if !self.ui.system_clipboard {
             self.status = openstitch_app::editor::ui_texts::t("ui-status-paste-background-the-system-clipboard-is").into();
             return;
@@ -1863,7 +1876,7 @@ impl EditorApp {
                 self.workspace.sections.toggle();
             } else if self.tools.is_busy() {
                 self.tools.cancel();
-            } else if matches!(self.tools.tool(), Tool::Knife | Tool::Gradient | Tool::FillAngle) {
+            } else if matches!(self.tools.tool(), Tool::Knife | Tool::Gradient | Tool::FillAngle | Tool::AngleLine) {
                 // The Knife, Gradient and Fill Angle tools stay active between uses; Esc leaves them.
                 self.tools.set_tool(Tool::Select);
             } else {
@@ -2211,6 +2224,8 @@ impl eframe::App for EditorApp {
             .show(ui, |ui| crate::canvas::canvas(self, ui));
         crate::start_ui::cards(self, &ctx);
         crate::start_ui::windows(self, &ctx);
+        crate::limits_ui::poll(self);
+        crate::limits_ui::window(self, &ctx);
         crate::panes::floating_panes(self, &ctx);
         crate::panes::windows(self, &ctx);
         crate::recovery_ui::window(self, &ctx);
@@ -2785,3 +2800,6 @@ mod open_bench_tests;
 #[cfg(test)]
 #[path = "a11y_tests.rs"]
 mod a11y_tests;
+#[cfg(test)]
+#[path = "menu_i18n_tests.rs"]
+mod menu_i18n_tests;

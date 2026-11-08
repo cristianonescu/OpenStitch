@@ -2,6 +2,7 @@
 //! stitch generators and the compiler from [`Design`] to a machine `StitchPattern`.
 //! Pure computation: no I/O, deterministic output.
 
+pub mod angle_lines;
 pub mod boolean;
 pub mod builder;
 pub mod calibration;

@@ -27,6 +27,8 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 - **Rotation** of objects (`object.rotate` `degrees`) and of preset shapes (`shape.preset`
   `rotation`) is **clockwise**.
 - Densities are rows (or lines) per mm; `pitch` and `stitchLength` are mm.
+- `object.setRegion` `angle` (degrees, counter-clockwise) is a straight sewing direction: it turns
+  `autoDirection` off unless you pass `autoDirection` in the same call.
 - Maze fill (beyond PE-DESIGN): `object.setRegion` `type` `maze` with `spacing` (mm),
   `straightness` (%, default 70) and `mazeSeed` (another seed, another maze). PES 0110 refuses it;
   save PES version 6.
@@ -48,6 +50,11 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   `gradationShape` `convex` | `concave` | `centre` | `edges` | `wave` (`linear` is PE-DESIGN's).
   PES 0110 refuses the others. `import.svg` with `gradients: "blend"` brings SVG gradients in as
   gradient fills (one fill per stop, grouped).
+- Stitch angle lines (beyond PE-DESIGN), for leaves, ribbons, U and Z shapes and rings:
+  `object.setAngleLines {id, lines: [[[x, y], [x, y]], ...]}` (mm, 2 or more lines across the fill
+  in order along it; each line is extended to the outline). The rows turn from one line's
+  direction to the next. Lines must not cross inside the shape. `lines: []` removes them. PES 0110
+  refuses them; save PES version 6.
 - A plain fill's look changes with `object.setRegion` `texture` (`smooth`, PE-DESIGN's default,
   or OpenStitch's `ribs`, `diagonal`, `blocks`, `waves`, `zigzag`, `chevron`, `scallops`, ...):
   same shape, density and stitch count, different needle-hole pattern.
@@ -98,8 +105,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    a running line. Text is satin by default. A satin border or outline is a line:
    `object.setLine` with `type: zigzag`, about 2-4 mm wide (the badge recipe in
    `reference/recipes.md`).
-   A zigzag line's corners sharper than 90 degrees follow PE-DESIGN's `sharpCorners` (1:
-   legs to where they cross, the point filled as a wedge; 2: split along the bisector, more
+   A zigzag line's corners sharper than 67.5 degrees (PE-DESIGN sews 75 degrees and wider as
+   plain corners) follow PE-DESIGN's `sharpCorners` (1: legs to where they cross, the point
+   filled as a wedge; 2: split along the bisector, more
    short stitches) and `miterLimit` (0-50 mm from the corner along the bisector; 0, the
    default, cuts the point at the corner, about 4 mm on a 2 mm line at 30 degrees is the full
    point). Raise `miterLimit` for a pointed star or chevron border, keep 0 for a blunt one.
@@ -167,7 +175,8 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `history.undo` when a number got worse. `design.setProperties {autoStart: nearest}` (beyond
    PE-DESIGN) starts each shape without its own entry point nearest to where the last ended,
    ends a region without its own exit nearest the next object, and enters a satin part way
-   along, where it passes nearest (a skeleton satin or satin line by a lead run under it). Set a point by hand with
+   along, where it passes nearest (a skeleton satin or satin line by a lead run under it); from a
+   shell, `stitchtool optimize in.osd out.pes --auto-start nearest` sets it before reordering. Set a point by hand with
    `object.setEntryExit` (`regionEntry`, `regionExit`, `lineEntry`, `lineExit`; null clears).
 5. Check: `view_render` (look at it), `design.info` (size, stitches, colours, trims, time) and
    `design.check` (sewing problems, errors first; `ready` is false while there are errors).
@@ -421,8 +430,11 @@ to work on their browser editor, say so and offer the desktop editor or a design
 open there. The system clipboard, printing, machine transfer and choosing folders (the Design
 Database, Ink/Stitch font folders) are desktop-only too; say so instead of trying them in the
 browser. Pictures, thread charts, fonts and other files can be picked or dropped on the page.
-Editor settings (`ui.set`) last across visits there; thread charts and other user settings
-do not yet.
+`ui.browserLimits` lists what the browser version cannot do (the Assistant, printing, USB
+transfer, updates, folders, clipboard pictures), each with what to do instead; tell the user that
+rather than trying it. Editor settings (`ui.set`), thread charts, My Threads and the other user
+settings last across visits there, as on the desktop (the page's storage; cleared site data starts
+afresh).
 
 ## Files
 

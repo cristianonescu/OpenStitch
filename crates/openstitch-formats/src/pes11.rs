@@ -471,6 +471,12 @@ pub struct Shape {
     pub zigzag_width: f32,
     /// Zigzag density, line/mm.
     pub zigzag_density: f32,
+    /// Zigzag Sharp Corners button (body +62): 0 for button 1, 1 for button 2 (#373, the
+    /// line-zigzag-miter-v75-b1/b2-m0 pair differs only here).
+    pub sharp_corners: u16,
+    /// Zigzag Miter Limit each Sharp Corners button keeps, mm (body +64 and +66, 0.1 mm):
+    /// PE-DESIGN's 0.0 for button 1 and 7.0 for button 2 (line-zigzag-miter-*).
+    pub miter_limits: [f32; 2],
     /// E or V stitch width, mm (body +90; PE-DESIGN's default 2.5, the Applique Wizard's
     /// tack-down 2.0: line-e-default, line-v-default, a01-rect-applique). An E or V line's sewn
     /// extent is the bounds plus this width.
@@ -569,6 +575,8 @@ impl Shape {
             line_flag_84: 0,
             zigzag_width: 2.0,
             zigzag_density: 4.5,
+            sharp_corners: 0,
+            miter_limits: [0.0, 7.0],
             ev_width: 2.5,
             run_pitch: 2.0,
             line_under_sewing: true,
@@ -1374,6 +1382,11 @@ fn read_line(r: &mut ByteReader<'_>) -> Result<Option<Shape>> {
         line_flag_84: u16_at(body, 84),
         zigzag_width: f32::from(u16_at(body, 48)) / 10.0,
         zigzag_density: f32::from(u16_at(body, 50)) / 10.0,
+        sharp_corners: u16_at(body, 62),
+        miter_limits: [
+            f32::from(u16_at(body, 64)) / 10.0,
+            f32::from(u16_at(body, 66)) / 10.0,
+        ],
         ev_width: f32::from(u16_at(body, 90)) / 10.0,
         run_pitch: f32::from(u16_at(body, 52)) / 10.0,
         line_under_sewing: u16_at(body, 60) != 0,
@@ -2055,6 +2068,9 @@ fn write_line(w: &mut ByteWriter, s: &Shape) {
     put16(&mut head, 50, tenths(s.zigzag_density));
     put16(&mut head, 52, tenths(s.run_pitch));
     put16(&mut head, 60, u16::from(s.line_under_sewing));
+    put16(&mut head, 62, s.sharp_corners);
+    put16(&mut head, 64, tenths(s.miter_limits[0]));
+    put16(&mut head, 66, tenths(s.miter_limits[1]));
     put16(&mut head, 90, tenths(s.ev_width));
     // +122: 1 on PE-DESIGN's cutting line where every other object has 5 (a02-applique-
     // cutting; the field's meaning is not mapped).

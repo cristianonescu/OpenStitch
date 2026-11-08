@@ -392,3 +392,53 @@ fn thread_chart_csv_exports_and_imports_back() {
         assert!(s.execute("threads.exportCsv", Some(&bad)).is_err(), "{bad}");
     }
 }
+
+thread_local! {
+    static STORED: std::cell::RefCell<Option<Vec<u8>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// #829: with no settings file, the user settings live in a store the embedder registers (the
+/// browser page's localStorage): a first run has "My Threads", every change is written back and
+/// read by the next session, sibling tabs write to it too, and damaged bytes give a first run.
+#[test]
+fn user_settings_last_in_a_registered_store() {
+    use openstitch_engine::session::UserStore;
+    let store = UserStore {
+        read: || STORED.with(|s| s.borrow().clone()),
+        write: |b| STORED.with(|s| *s.borrow_mut() = Some(b.to_vec())),
+    };
+    let dir = temp_dir();
+    let mut s = Session::new(&dir);
+    s.with_user_store(store);
+    assert_eq!(
+        run(&mut s, "threads.charts", json!({}))[0]["name"],
+        "My Threads"
+    );
+    run(&mut s, "threads.createChart", json!({"name": "Shelf"}));
+    run(&mut s, "threads.setDefault", json!({"chart": "Shelf"}));
+    assert!(STORED.with(|b| b.borrow().is_some()), "written back");
+    // The next visit reads them.
+    let mut t = Session::new(&dir);
+    t.with_user_store(store);
+    let charts = run(&mut t, "threads.charts", json!({}));
+    assert_eq!(charts.as_array().map(Vec::len), Some(2));
+    assert_eq!(
+        run(&mut t, "threads.defaultChart", json!({}))["chart"],
+        "Shelf"
+    );
+    // A tab beside it writes to the same store.
+    let mut tab = t.sibling();
+    run(&mut tab, "threads.deleteChart", json!({"chart": "Shelf"}));
+    let mut u = Session::new(&dir);
+    u.with_user_store(store);
+    let left = run(&mut u, "threads.charts", json!({}));
+    assert_eq!(left.as_array().map(Vec::len), Some(1));
+    // Damaged bytes: a first run, no error.
+    STORED.with(|b| *b.borrow_mut() = Some(b"not settings".to_vec()));
+    let mut v = Session::new(&dir);
+    v.with_user_store(store);
+    assert_eq!(
+        run(&mut v, "threads.charts", json!({}))[0]["name"],
+        "My Threads"
+    );
+}

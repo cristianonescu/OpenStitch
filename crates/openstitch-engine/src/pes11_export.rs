@@ -595,6 +595,12 @@ fn region(id: u64, r: &RegionSewing, s: &mut Shape, table: &mut Vec<Thread>) -> 
             "object {id}: a gradation shape other than linear is not mapped in PES 0110 (use version 6)"
         ));
     }
+    if r.angle_lines.len() >= 2 {
+        // PE-DESIGN would sew straight rows (#534).
+        return Err(format!(
+            "object {id}: stitch angle lines are not mapped in PES 0110 (use version 6)"
+        ));
+    }
     if r.gradient.is_some() {
         // PE-DESIGN would sew every colour as a whole fill (#532).
         return Err(format!(
@@ -717,6 +723,12 @@ fn line(id: u64, l: &LineSewing, s: &mut Shape, table: &mut Vec<Thread>) -> Resu
         s.zigzag_width = l.width as f32;
     }
     s.zigzag_density = l.density as f32;
+    // Sharp Corners and both buttons' Miter Limits (body +62, +64, +66, #373).
+    s.sharp_corners = u16::from(l.sharp_corners.split());
+    s.miter_limits = l
+        .sharp_corners
+        .miter_limit
+        .map(|mm| mm.clamp(0.0, openstitch_design::model::SharpCorners::MAX_LIMIT) as f32);
     s.run_pitch = l.pitch as f32;
     s.line_under_sewing = l.underlay;
     Ok(())
@@ -1597,6 +1609,26 @@ mod tests {
         ));
         let err = objects(&grad).expect_err("gradient fills are not mapped");
         assert!(err.contains("gradient fill"), "{err}");
+        // Stitch angle lines (#534) too.
+        let mut lines = Design::new("t", openstitch_design::DesignPage::default());
+        let mut fill = RegionSewing::new(RegionType::Fill, red());
+        fill.angle_lines = vec![
+            [
+                openstitch_design::v2(50.0, -10.0),
+                openstitch_design::v2(50.0, 210.0),
+            ],
+            [
+                openstitch_design::v2(150.0, -10.0),
+                openstitch_design::v2(150.0, 210.0),
+            ],
+        ];
+        lines.add(DesignObject::shape(
+            vec![Contour::rectangle(0.0, 0.0, 200.0, 200.0)],
+            Some(fill),
+            None,
+        ));
+        let err = objects(&lines).expect_err("angle lines are not mapped");
+        assert!(err.contains("angle lines"), "{err}");
         // A gradation shape other than linear (#532) too; linear writes as before.
         let mut shaped = Design::new("t", openstitch_design::DesignPage::default());
         let mut fill = RegionSewing::new(RegionType::Fill, red());

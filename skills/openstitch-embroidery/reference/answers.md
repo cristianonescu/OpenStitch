@@ -21,7 +21,7 @@ stays the default.
   copies (mirror, circle, matrix), merge, remove overlap, boolean combine, split, offset lines.
 - **Region sew types:** fill (tatami), satin, programmable fill, motif fill, concentric
   circle, radial, spiral, stippling, net fills, decorative fill, cross stitch; beyond
-  PE-DESIGN: contour fill, wave fill, maze and meander fills, colour blends and gradient fills, gradation shapes, SVG gradients as blends, seeded random stagger, tatami textures (`texture`: ribs, diagonal,
+  PE-DESIGN: contour fill, wave fill, maze and meander fills, colour blends and gradient fills, gradation shapes, SVG gradients as blends, stitch angle lines, seeded random stagger, tatami textures (`texture`: ribs, diagonal,
   waves, chevron and more), skeleton satin.
 - **Line sew types:** running, triple, zigzag (satin line), motif, stem, candlewick, E and V
   stitch, chain, cutting (cutwork needles).
@@ -80,7 +80,10 @@ The window is laid out like PE-DESIGN 11's Layout & Editing window.
   Stitch: Auto Punch, Cross Stitch, Photo Stitch 1 and 2, Design Center. While Modify Image is
   open the image has handles on the canvas (drag to move, a corner to scale). Where it is drawn:
   `background.setLayer` behind the design (default), on top, or above one object; `ui.state`
-  reports it under `background`. It never sews.
+  reports it under `background`, with its file (`path`) and its size in pixels once the editor
+could read and decode it (`pixels`; null when it cannot, #797). Before digitizing a photo the
+user just opened or dropped, check `pixels` is not null: null means the picture did not load, so
+say so rather than converting nothing. It never sews.
 - **View tab:** Solid, Stitch and Realistic views (`ui.set view`; the Realistic view shows only
   what is sewn: trimmed travel and shapes that sew nothing, such as a text path's guide, are
   not drawn unless selected), thread trimming, show/hide panes, grid,

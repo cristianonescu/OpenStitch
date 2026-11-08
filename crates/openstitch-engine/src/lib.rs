@@ -2,6 +2,7 @@
 //! operation is a registered command taking JSON parameters. The desktop app, CLI, JSON
 //! control channel, MCP server and tests all go through [`Session::execute`].
 
+mod angle_cmds;
 mod arrange_modes;
 mod branching;
 mod builder;

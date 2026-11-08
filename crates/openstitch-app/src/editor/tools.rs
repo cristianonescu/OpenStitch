@@ -10,6 +10,7 @@ use openstitch_design::{Contour, Design, DesignObject, ObjectKind, Rect, Transfo
 use serde_json::json;
 use std::collections::BTreeSet;
 
+pub mod angle_line;
 pub mod builder;
 pub mod characters;
 pub mod continuation;
@@ -62,10 +63,12 @@ pub enum Tool {
     Gradient,
     /// Fill Angle: drag across the selected regions in the direction their rows run (#534).
     FillAngle,
+    /// Angle Line: drag lines across the selected fill that its rows turn between (#534).
+    AngleLine,
 }
 
 impl Tool {
-    pub const ALL: [Tool; 18] = [
+    pub const ALL: [Tool; 19] = [
         Tool::Select,
         Tool::Point,
         Tool::Rectangle,
@@ -84,6 +87,7 @@ impl Tool {
         Tool::ShapeBuilder,
         Tool::Gradient,
         Tool::FillAngle,
+        Tool::AngleLine,
     ];
 
     pub fn label(self) -> &'static str {
@@ -106,6 +110,7 @@ impl Tool {
             Tool::ShapeBuilder => "ShapeBuilder",
             Tool::Gradient => "Gradient",
             Tool::FillAngle => "FillAngle",
+            Tool::AngleLine => "AngleLine",
         }
     }
 
@@ -400,6 +405,8 @@ pub struct ToolController {
     preview: Option<ToolPreview>,
     gesture: Option<Gesture>,
     polygon: Vec<Vec2>,
+    /// Angle Line tool: the first line drawn, until the second (the engine needs two).
+    angle_lines_pending: Vec<[Vec2; 2]>,
     pen: Vec<PenNode>,
     /// Manual Punch: direction-line ends clicked so far (left, right, left, right, …), or
     /// the points of a running line or feed.
@@ -599,6 +606,7 @@ impl ToolController {
         self.snap_lines = None;
         self.guides.clear();
         self.polygon.clear();
+        self.angle_lines_pending.clear();
         self.pen.clear();
         self.widths.clear();
         self.punch.clear();
@@ -628,6 +636,7 @@ impl ToolController {
             Tool::ShapeBuilder => self.builder_tool(e, ctx),
             Tool::Gradient => self.gradient_tool(e, ctx),
             Tool::FillAngle => self.fill_angle_tool(e, ctx),
+            Tool::AngleLine => self.angle_line_tool(e, ctx),
         }
     }
 

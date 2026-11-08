@@ -1083,9 +1083,22 @@ Line references are relative to `crates/`.
     cut and the second from it along the bisector. Specs `line-zigzag-miter-v-b1-m0/m1/m3/m50`,
     `-v-b2-m0/m3/m50` and `-l-b2-m7` reach the reference tier: widths exact (40.3/40.2,
     41.2, 43.0, 43.8 mm), stitch counts within 1 % (447/446, 453/455, 462/465, 466/467,
-    450/451, 478/481, 485/481, 305/311). Not known: the angle between 30° and 90° where
-    PE-DESIGN starts cutting (OpenStitch: below 90°), button 2's exact fan, and where PE
-    stores the attribute in a PES object (written at the defaults).
+    450/451, 478/481, 485/481, 305/311).
+  - Zigzag corner angle and the PES 0110 attribute: done 2026-11-08 (#373 part 2) from the
+    coordinator's black-box captures of V lines at 45.0°, 59.9°, 75.3° (both buttons) and
+    120.1° (button 1), Miter Limit 0, copied to compat/reference/stitches/
+    line-zigzag-miter-v45/v60/v75/v120-*.pes. PE-DESIGN's two buttons sew 45° and 59.9°
+    differently and 75.3° identically, with the full mitre (41.3 mm, 299 stitches), so the
+    cut starts between 60° and 75°; OpenStitch now cuts below 67.5° (was 90°, which cut the
+    75° V to 40.8 mm). Seven specs reach the reference tier: widths exact except 45° button 1
+    (40.4 against 40.2), stitch counts within 3 % (377/381, 384/388, 337/342, 349/353,
+    291/299, 291/299, 335/340). Left out of the specs and recorded in them: 45° button 1's
+    width, 45° button 2's longest stitch (2.60 against 2.92 mm, the fan) and 75.3°'s longest
+    stitch (3.55 against 3.86 mm, 0.01 over the tolerance). PES 0110 CEmbLine body +62 holds
+    the button (0 or 1), +64 and +66 each button's limit in 0.1 mm (the 75.3° pair differs
+    only at +62); OpenStitch now reads, imports, exports and writes them instead of PE's
+    defaults (docs/FILE_FORMATS.md). Not known: the exact angle (a 67° capture would narrow
+    it), button 2's exact fan, satin lines.
   - **Stitch Type (measured 2026-10-30, round-5 captures `tatami-40-st{1,2}-dir{0,30,90}.pes`,
     `tatami-40-st2-dir45-freq0.pes`, with round 4's 45° pair; a 40 × 40 mm Fill square, density
     4.5, step 4.0, Frequency 30 %, under sewing off):**
@@ -2952,6 +2965,10 @@ output is byte-identical (tests `basting_box_sews_first_in_the_first_thread`,
   open for part-way satin starts and draggable markers.
 - sew_check passes on the heart example with a basting box, an outline basting in its own
   thread, stops after an object plus Stop at Jumps, and nearest start, as on the plain design.
+- 2026-11-08: the closed-outline rule has its own fixture (a closed outline drawn from its far
+  corner starts on the side facing the previous object: `nearest_start_enters_a_closed_outline_at_its_nearest_point`), and `stitchtool optimize
+  --auto-start off|nearest` sets the rule from a shell (by colour on a square and a line drawn
+  away from it: travel 70.7 → 22.4 mm, trims 2 → 2). Output with the rule off is unchanged.
 
 ### Satin shaping, 2026-11-06 (#520-#523, `batch:satin-1`)
 
@@ -3533,3 +3550,20 @@ d01 sews 10. Likeness (`tools/image_similarity.py --mode pe --no-dists`): p03 dE
 17.05, MS-SSIM 0.623 -> 0.649; d01 23.97 -> 22.37, 0.391 -> 0.430; every other Auto Punch case
 unchanged. A ratio of 4 also matched g11's 9 but gave it a Flesh Pink for a grey and doubled
 its stitches. Photo Stitch's palette is unchanged.
+
+### Trims inside one object: letters, cutwork lines and a trim report, 2026-11-08 (#794)
+
+Beyond PE-DESIGN's own routing; no stitch output changes.
+
+- **Report:** `tools/trim_report.py` runs every editable `examples/*.json` design and counts its
+  trims and its same-thread trims (followed by a stitch in the same thread, the ones routing
+  could remove). Main: 458 trims, 260 same-thread over 29 designs (background-fill 59 / 47,
+  cutwork 72 / 56, lettering 33 / 30, as #794 measured). `--set autoStart='"nearest"'`: 443 / 245
+  (cutwork 61 / 45, monograms 25 / 12, applique 39 / 16), and `--compare` shows no design
+  gaining a trim.
+- **Letters:** over the 239 text specs with a PE-DESIGN reference, OpenStitch sews 1,782 trims
+  and PE-DESIGN 2,126. Only `stroke-satin-m-8` has more (2 against 1, M at 8 mm, open on #446).
+  The trims between letters are PE-DESIGN's own, so letters are left as they are.
+- **Cutwork lines:** as #800 measured, 49 of cutwork's 56 same-thread trims are between the
+  cutting lines' segments, which the cutting needle can't travel between. They stay;
+  `autoStart: nearest` already removes 11 of the others.

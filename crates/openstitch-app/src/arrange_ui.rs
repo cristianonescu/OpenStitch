@@ -69,7 +69,7 @@ pub fn select_same(app: &mut EditorApp, a: Action) {
 pub fn align_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     ui.label(egui::RichText::new(t("ui-relative-to")).weak());
     for (key, label) in ALIGN_TO {
-        ui.radio_value(&mut app.align_to, key, label);
+        ui.radio_value(&mut app.align_to, key, openstitch_app::editor::ui_texts::tr(label));
     }
     ui.separator();
     for (i, a) in ALIGN_MENU.into_iter().enumerate() {

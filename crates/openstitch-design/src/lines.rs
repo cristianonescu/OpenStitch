@@ -1113,8 +1113,13 @@ fn rung(sigma: f64, outer: Vec2, inner: Vec2) -> [Vec2; 2] {
     }
 }
 
-/// PE-DESIGN's sharp corner (#373) at `v` between legs along `dp` and `dn`, sharper than 90
-/// degrees, with rails `half` [left, right] from the line, the Miter Limit `limit` (0.1 mm)
+/// Cosine of the corner angle below which PE-DESIGN cuts a zigzag corner's point (#373): its
+/// two Sharp Corners buttons sew differently at 45° and 59.9° and identically, with the full
+/// mitre, at 75.3° and 90° (line-zigzag-miter-v45/v60/v75-*). cos 67.5°, between the two.
+const SHARP_CORNER_COS: f64 = 0.382_683_432_365_089_8;
+
+/// PE-DESIGN's sharp corner (#373) at `v` between legs along `dp` and `dn`, sharper than
+/// 67.5 degrees ([`SHARP_CORNER_COS`]), with rails `half` [left, right] from the line, the Miter Limit `limit` (0.1 mm)
 /// and button 2 when `split`; `None` keeps the mitre. The point's tip is cut at `limit` from
 /// `v` along the bisector, square to it. Button 1 (miter-b-sc1-*.pes) ends the first leg on
 /// the rung where its rails cross the second leg's, runs out to the cut and fills the point
@@ -1131,7 +1136,8 @@ fn sharp_turn(
     split: bool,
     legs: [f64; 2],
 ) -> Option<Turn> {
-    if dot(dp, dn) > -1e-4 {
+    // The legs' directions: the corner angle θ has cos θ = −dp·dn.
+    if dot(dp, dn) > -SHARP_CORNER_COS {
         return None;
     }
     let bis = dp - dn;
@@ -1201,7 +1207,7 @@ fn sharp_turn(
 }
 
 /// [`zigzag_rails_sided`] with PE-DESIGN's Sharp Corners and Miter Limit (#373): `corners`
-/// cuts the point of every corner sharper than 90 degrees (see [`sharp_turn`]); `None` mitres
+/// cuts the point of every corner sharper than 67.5 degrees (see [`sharp_turn`]); `None` mitres
 /// every corner in full.
 pub fn zigzag_rails_cornered(
     path: &[Vec2],
@@ -1803,9 +1809,10 @@ mod shaping_tests {
     }
 
     #[test]
-    fn corners_of_90_degrees_and_wider_keep_their_mitre() {
-        // miter-a-*: the L of line-zigzag-default sews the same 312 stitches either way.
-        for deg in [90.0, 120.0, 170.0] {
+    fn corners_of_75_degrees_and_wider_keep_their_mitre() {
+        // miter-a-*: the L of line-zigzag-default sews the same 312 stitches either way;
+        // line-zigzag-miter-v75-b1/b2-m0: PE-DESIGN's two buttons sew the 75.3° V alike.
+        for deg in [70.0, 75.3, 90.0, 120.0, 170.0] {
             let path = vee(deg, 400.0);
             let plain = zigzag_rails(&path, 20.0, 10.0 / 4.5);
             for c in [sharp(1, 0.0), sharp(2, 7.0)] {
@@ -1815,6 +1822,18 @@ mod shaping_tests {
                     "{deg} degrees"
                 );
             }
+        }
+    }
+
+    #[test]
+    fn corners_sharper_than_67_5_degrees_are_cut() {
+        // line-zigzag-miter-v45/v60-b1/b2-m0: PE-DESIGN's two buttons sew 45° and 59.9° apart.
+        for deg in [45.0, 59.9, 65.0] {
+            let path = vee(deg, 400.0);
+            let plain = zigzag_rails(&path, 20.0, 10.0 / 4.5);
+            let cut = |b| zigzag_rails_cornered(&path, [10.0; 2], 10.0 / 4.5, Some(&sharp(b, 0.0)));
+            assert_ne!(cut(1), plain, "{deg} degrees");
+            assert_ne!(cut(1), cut(2), "{deg} degrees");
         }
     }
 

@@ -427,6 +427,8 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
 - (+) **Gradient tool:** drag across a gradient fill to set where its colours start and end ([#532]).
 - **Fill Angle tool:** drag across fills and satins to turn their rows to the drag's direction, as
   PE-DESIGN sets the sewing direction on the canvas ([#534]).
+- (+) **Stitch angle lines:** lines across one fill, drawn with the Angle Lines tool, turn its rows
+  round a U, Z or ring bend with no seam ([#534]).
 - **Curved sewing direction** (round fill) for fill, programmable fill, piping and motif fill
   ([#471]).
 - **Programmable fill and motif fill** from OpenStitch's own pattern library, (+) with long gaps
@@ -1217,6 +1219,7 @@ stitchtool convert in.dst out.pes                     # one file to another form
 stitchtool convert dsts/ pes/ --format pes            # every design in a folder (existing targets skipped)
 stitchtool info design.pes                            # size, stitches, colours, trims, jumps, thread, time
 stitchtool optimize in.pes out.pes --by-color         # sewing order / fewer colour changes
+stitchtool optimize in.osd out.osd --auto-start nearest  # each object starts nearest where the last ended
 stitchtool digitize logo.png out.pes --size 80mm      # Auto Punch an image
 stitchtool formats                                    # what OpenStitch reads and writes
 ```
