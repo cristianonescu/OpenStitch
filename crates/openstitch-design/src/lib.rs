@@ -72,9 +72,9 @@ pub use model::{
     Arrange, BackgroundImage, BackgroundLayer, ChainShape, ContourJoin, ContourStrategy, CrossKind,
     CrossTimes, Design, DesignObject, DesignPage, DesignProperties, FILL_TEXTURES, Feather,
     FeatherSide, FillStitchType, FillTexture, Gradation, GradationShape, Gradient, GradientCurve,
-    GradientDither, GradientKind, Guides, ImageAdjust, JobInfo, LineGap, LineSewing, LineType,
-    ObjectKind, OptimizeOrder, RegionSewing, RegionType, RunningStitchPath, StaggerKind, StartEnd,
-    StitchBlock, UnderlayDensity, UnderlayParts, UnderlayStyle,
+    GradientDither, GradientKind, GuideLayout, Guides, ImageAdjust, JobInfo, LineGap, LineSewing,
+    LineType, ObjectKind, OptimizeOrder, RegionSewing, RegionType, RunningStitchPath, StaggerKind,
+    StartEnd, StitchBlock, UnderlayDensity, UnderlayParts, UnderlayStyle,
 };
 pub use text::{
     CharEdit, FONTS, FontInfo, FontKind, Layout, PathFit, PixelStyle, Spread, TextAlign,

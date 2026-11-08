@@ -1126,15 +1126,15 @@ impl EditorApp {
     fn perform_in_tab(&mut self, what: Pending) {
         let path = match what {
             Pending::Open(None) => {
+                // The browser's picker answers later (#797): the open runs when it does.
                 let mut exts = vec![openstitch_engine::project::EXTENSION];
                 exts.extend(FileType::ALL.iter().map(|t| t.extension()));
-                match crate::files::FileDialog::new()
-                    .add_filter("Designs and embroidery files", &exts)
-                    .pick_file()
-                {
-                    Some(p) => Some(p),
-                    None => return,
-                }
+                crate::files::pick_then(
+                    crate::files::FileDialog::new()
+                        .add_filter("Designs and embroidery files", &exts),
+                    |app, p| app.perform_in_tab(Pending::Open(Some(p))),
+                );
+                return;
             }
             Pending::Open(Some(p)) => Some(p),
             _ => None,

@@ -195,6 +195,73 @@ impl Guides {
     }
 }
 
+/// New Guide Layout… (#799): columns and rows with gutters, inside margins, on the Design
+/// Page. Lengths in 0.1 mm.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct GuideLayout {
+    pub columns: u32,
+    pub rows: u32,
+    pub column_gutter: f64,
+    pub row_gutter: f64,
+    pub margin_top: f64,
+    pub margin_left: f64,
+    pub margin_bottom: f64,
+    pub margin_right: f64,
+}
+
+impl GuideLayout {
+    /// The guidelines on a `width` × `height` page: (x of the vertical, y of the horizontal).
+    /// Each margin gives a line; each column (row) its two edges, shared where there is no
+    /// gutter. Err when the margins or gutters leave no room.
+    pub fn lines(&self, width: f64, height: f64) -> Result<(Vec<f64>, Vec<f64>), &'static str> {
+        let axis = |n: u32, gutter: f64, a: f64, b: f64, size: f64| {
+            let (start, end) = (a, size - b);
+            let mut v = Vec::new();
+            if n == 0 && a <= 0.0 && b <= 0.0 {
+                return Ok(v);
+            }
+            if end <= start {
+                return Err("the margins leave no room");
+            }
+            if a > 0.0 {
+                v.push(start);
+            }
+            if n > 0 {
+                let cell = (end - start - gutter * f64::from(n - 1)) / f64::from(n);
+                if cell <= 0.0 {
+                    return Err("the gutters leave no room");
+                }
+                for i in 0..n {
+                    let l = start + f64::from(i) * (cell + gutter);
+                    v.push(l);
+                    v.push(l + cell);
+                }
+            }
+            if b > 0.0 {
+                v.push(end);
+            }
+            v.dedup_by(|x, y| (*x - *y).abs() < 0.5);
+            Ok(v)
+        };
+        Ok((
+            axis(
+                self.columns,
+                self.column_gutter,
+                self.margin_left,
+                self.margin_right,
+                width,
+            )?,
+            axis(
+                self.rows,
+                self.row_gutter,
+                self.margin_top,
+                self.margin_bottom,
+                height,
+            )?,
+        ))
+    }
+}
+
 /// The job a design is sewn for (#513): what the client approval sheet and the operator sheet
 /// print. Kept in the project (`.osd`) only; no machine format carries it. Each field is
 /// omitted while empty.

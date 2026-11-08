@@ -3,7 +3,7 @@
 
 use crate::commands::{CommandSpec, Effect, IDS, MM, indexes, opt, req, spec};
 use crate::params::{CommandError, Params};
-use openstitch_design::{Guides, Rect};
+use openstitch_design::{GuideLayout, Guides, Rect};
 use serde_json::{Value, json};
 
 fn positions(p: &Params, key: &str, now: &[f64]) -> Result<Vec<f64>, CommandError> {
@@ -222,6 +222,72 @@ pub fn commands() -> Vec<CommandSpec> {
             |s, p| {
                 s.design.guides.locked = p.bool("locked", None)?;
                 Ok(listing(&s.design.guides))
+            },
+        ),
+        spec(
+            "view.guideLayout",
+            "New Guide Layout…: guidelines for columns and rows with gutters, inside margins, on the Design Page (each margin a line, each column or row its two edges); clear first drops the existing ones; one undo step. Lengths in mm",
+            Effect::Edit,
+            vec![
+                opt(
+                    "columns",
+                    "int",
+                    "0...50 columns (default 0: margin lines only)",
+                ),
+                opt("rows", "int", "0...50 rows (default 0)"),
+                opt(
+                    "gutter",
+                    "mm",
+                    "Space between columns and between rows, 0...1000",
+                ),
+                opt(
+                    "columnGutter",
+                    "mm",
+                    "Space between columns (default gutter)",
+                ),
+                opt("rowGutter", "mm", "Space between rows (default gutter)"),
+                opt("margin", "mm", "Every margin, 0...1000"),
+                opt("marginTop", "mm", "Top margin (default margin)"),
+                opt("marginLeft", "mm", "Left margin (default margin)"),
+                opt("marginBottom", "mm", "Bottom margin (default margin)"),
+                opt("marginRight", "mm", "Right margin (default margin)"),
+                opt(
+                    "clear",
+                    "bool",
+                    "Clear the existing guidelines first (default false)",
+                ),
+            ],
+            |s, p| {
+                let mm = |key: &str, default: f64| -> Result<f64, CommandError> {
+                    Ok(p.opt(key, default, 0.0, 1000.0)? * MM)
+                };
+                let gutter = p.opt("gutter", 0.0, 0.0, 1000.0)?;
+                let margin = p.opt("margin", 0.0, 0.0, 1000.0)?;
+                let layout = GuideLayout {
+                    columns: p.int("columns", Some(0), 0, 50)? as u32,
+                    rows: p.int("rows", Some(0), 0, 50)? as u32,
+                    column_gutter: mm("columnGutter", gutter)?,
+                    row_gutter: mm("rowGutter", gutter)?,
+                    margin_top: mm("marginTop", margin)?,
+                    margin_left: mm("marginLeft", margin)?,
+                    margin_bottom: mm("marginBottom", margin)?,
+                    margin_right: mm("marginRight", margin)?,
+                };
+                let page = s.design.page;
+                let (xs, ys) = layout
+                    .lines(page.width, page.height)
+                    .map_err(|e| p.failed(e))?;
+                let g = &mut s.design.guides;
+                if p.bool("clear", Some(false))? {
+                    g.vertical.clear();
+                    g.horizontal.clear();
+                }
+                let fits = xs.into_iter().all(|x| add(&mut g.vertical, x))
+                    & ys.into_iter().all(|y| add(&mut g.horizontal, y));
+                if !fits {
+                    return Err(p.failed(format!("at most {} guidelines a ruler", Guides::MAX)));
+                }
+                Ok(listing(g))
             },
         ),
         spec(

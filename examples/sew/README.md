@@ -689,12 +689,12 @@ Threads, in sewing order: 017 Light Blue, 843 Beige, 005 Silver, 348 Khaki, 339 
 
 #### Auto Punch, PE-DESIGN-compatible mode
 
-[`image-tools/L-autopunch-storybook-pe-compatible.pes`](image-tools/L-autopunch-storybook-pe-compatible.pes) · 260 × 160 mm hoop · 199.3 × 151.1 mm · 108,208 stitches · 1633 trims · about 219 min
+[`image-tools/L-autopunch-storybook-pe-compatible.pes`](image-tools/L-autopunch-storybook-pe-compatible.pes) · 260 × 160 mm hoop · 199.3 × 150.9 mm · 112,074 stitches · 2047 trims · about 245 min
 
 `p03-storybook.jpg` through Auto Punch at its defaults in PE-DESIGN-compatible mode, fitted to the 260 × 160 mm hoop. Sew both modes of the same image to compare them on fabric.
 
 <img src="../images/p03-storybook.jpg" height="180" alt="Source image"> <img src="previews/L-autopunch-storybook-pe-compatible.png" height="180" alt="Realistic view of image-tools/L-autopunch-storybook-pe-compatible.pes">
 
-Threads, in sewing order: 843 Beige, 804 Lavender, 348 Khaki, 817 Gray, 323 Light Brown, 337 Reddish Brown, 330 Russet Brown, 517 Dark Olive.
+Threads, in sewing order: 307 Linen, 804 Lavender, 843 Beige, 126 Pumpkin, 817 Gray, 348 Khaki, 323 Light Brown, 337 Reddish Brown, 330 Russet Brown, 517 Dark Olive.
 
 <!-- kit:end -->

@@ -323,17 +323,17 @@ impl Host<CreatorAction> for EditorApp {
 }
 
 fn open_file(st: &mut CreatorState) {
-    let Some(path) = crate::files::FileDialog::new()
-        .add_filter("OpenStitch pattern", &["json"])
-        .set_directory(st.dir.clone().unwrap_or_default())
-        .pick_file()
-    else {
-        return;
-    };
-    match std::fs::read_to_string(&path)
-        .map_err(|e| e.to_string())
-        .and_then(|t| patterns::parse(&t))
-    {
+    crate::files::pick_then(
+        crate::files::FileDialog::new()
+            .add_filter("OpenStitch pattern", &["json"])
+            .set_directory(st.dir.clone().unwrap_or_default()),
+        |app, path| open_file_from(&mut app.creator, &path),
+    );
+}
+
+/// Opens the pattern at `path` (#797: through the page's memory in the browser).
+fn open_file_from(st: &mut CreatorState, path: &std::path::Path) {
+    match openstitch_app::platform::read_text(path).and_then(|t| patterns::parse(&t)) {
         Ok(p) => {
             st.set_doc(Creator::from_pattern(&p));
             st.message = format!("Opened {}", p.name);
@@ -344,13 +344,17 @@ fn open_file(st: &mut CreatorState) {
 
 /// Open Template: a PNG, JPEG or BMP of the user's own behind the Design Page (it replaces
 /// the one shown; it is not part of the pattern).
-fn open_template(st: &mut CreatorState, ctx: &egui::Context) {
-    let Some(path) = crate::files::FileDialog::new()
-        .add_filter("Image", &["png", "jpg", "jpeg", "bmp"])
-        .pick_file()
-    else {
-        return;
-    };
+fn open_template(_st: &mut CreatorState, ctx: &egui::Context) {
+    let ctx = ctx.clone();
+    crate::files::pick_then(
+        crate::files::FileDialog::new().add_filter("Image", &["png", "jpg", "jpeg", "bmp"]),
+        move |app, path| open_template_from(&mut app.creator, &path, &ctx),
+    );
+}
+
+/// Shows the image at `path` as the template.
+fn open_template_from(st: &mut CreatorState, path: &std::path::Path, ctx: &egui::Context) {
+    let path = path.to_path_buf();
     match load_image(&path, ctx, "creator-template") {
         Ok((size, texture)) => {
             st.template = Some(Template::fitted(path.clone(), size, &st.doc));
@@ -368,11 +372,7 @@ pub(crate) fn load_image(
     ctx: &egui::Context,
     name: &str,
 ) -> Result<((u32, u32), egui::TextureHandle), String> {
-    let meta = std::fs::metadata(path).map_err(|e| e.to_string())?;
-    if meta.len() > openstitch_digitize::raster::MAX_FILE_BYTES as u64 {
-        return Err("the image file is too large".into());
-    }
-    let data = std::fs::read(path).map_err(|e| e.to_string())?;
+    let data = openstitch_app::platform::read_limited(path, openstitch_digitize::raster::MAX_FILE_BYTES as u64)?;
     let r = openstitch_digitize::Raster::decode(&data).map_err(|e| e.to_string())?;
     let size = [r.width() as usize, r.height() as usize];
     let mut rgba = Vec::with_capacity(size[0] * size[1] * 4);
@@ -395,7 +395,7 @@ fn save_as(st: &mut CreatorState) {
         .set_file_name(creator::library_file_name(&p))
         .save_file()
     {
-        st.message = match std::fs::write(&path, p.to_json()) {
+        st.message = match openstitch_app::platform::write_file(&path, p.to_json()) {
             Ok(()) => format!("Saved {}", path.display()),
             Err(e) => format!("Cannot save: {e}"),
         };

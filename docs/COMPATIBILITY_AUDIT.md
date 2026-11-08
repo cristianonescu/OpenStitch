@@ -3450,6 +3450,22 @@ lines). Each is one undo step through the new `view.*` commands; `ui.guides` rea
 as shown and acts as the pointer does. The right-click menus, New Guide… and Guide Layout…, the
 guide colour, the ruler cursor marker and zoom-aware steps are part 3.
 
+### Guide and ruler menus, New Guide…, New Guide Layout…, guide colour, 2026-11-08 (#799 part 3)
+
+A right-click on a guideline (its line, with any tool, or its ruler marker) opens its menu: Set
+Position…, Clear Selected Guide, Lock Guides, Clear Guides. A right-click elsewhere on a ruler or
+its corner opens the ruler menu: Millimetres or Inches, the ruler origin, Show guides, Snap to
+guides, New Guide…, New Guide Layout…, Lock Guides, Clear Guides. New Guide… takes an orientation
+and a position from the ruler origin (the units parser, a unit typed with it wins). New Guide
+Layout… (as photo editors' guide layouts) takes columns and rows with their gutters and four
+margins in the chosen units, previews the guidelines dashed on the canvas while open, and adds
+them in one undo step, optionally clearing the old ones (`view.guideLayout`). Each margin gives a
+line and each column or row its two edges, shared where there is no gutter. Options ▸ Guide
+colour sets the guidelines' colour (`ui.set guideColor`, `#rrggbb`). The cursor marker on both
+rulers and the 1-2-5 ruler steps that follow the zoom were already there. Not done: setting the
+ruler origin by dragging from the rulers' corner box (optional in #799; the origin stays the
+page's centre or top-left corner). No photocraft code was copied, so no notice is added.
+
 ### Arched text spacing, 2026-11-08 (#428)
 
 PE-DESIGN's arches (Text Transform presets 1 and 2) place the letters slightly closer along the
@@ -3484,3 +3500,19 @@ grey80 + olive + green -> Dark Olive and teal -> Emerald Green at 10 (CIELAB nea
 Green, so PE-DESIGN's thread choice is not a plain nearest colour), grey200 joining the
 background at 4. The storybook p03's orange (this issue's headline) is a photo gradient, not
 a small distinct colour, and stays merged.
+
+### Auto Punch keeps as many threads as colours, 2026-11-08 (#447)
+
+PE-DESIGN-compatible mode (Auto Punch and Cross Stitch, the census palettes). PE-DESIGN keeps as
+many threads as it proposes colours; OpenStitch matched each median-cut box to its nearest PEC
+thread, and two boxes that matched one thread left one thread fewer (p03, the storybook: 10
+colours proposed, 8 threads sewn, the fox's orange merged into a brown). Now a box whose nearest
+thread another box took takes its nearest unused thread when that is at most twice as far
+(squared RGB).
+
+Automatic colour counts matching PE-DESIGN's proposals (g01, g02, g05, g08, g11, g12, g13, g14,
+g15, p03, p07): 6 -> 7 of 11. p03 sews 10 threads (PE-DESIGN 10) with Pumpkin for the fox;
+d01 sews 10. Likeness (`tools/image_similarity.py --mode pe --no-dists`): p03 dE00 16.02 ->
+17.05, MS-SSIM 0.623 -> 0.649; d01 23.97 -> 22.37, 0.391 -> 0.430; every other Auto Punch case
+unchanged. A ratio of 4 also matched g11's 9 but gave it a Flesh Pink for a grey and doubled
+its stitches. Photo Stitch's palette is unchanged.

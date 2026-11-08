@@ -1512,23 +1512,25 @@
   "hoop": "260 × 160 mm",
   "sizeMM": [
    199.3,
-   151.1
+   150.9
   ],
-  "stitches": 108208,
-  "trims": 1633,
+  "stitches": 112074,
+  "trims": 2047,
   "threads": [
-   "843 Beige",
+   "307 Linen",
    "804 Lavender",
-   "348 Khaki",
+   "843 Beige",
+   "126 Pumpkin",
    "817 Gray",
+   "348 Khaki",
    "323 Light Brown",
    "337 Reddish Brown",
    "330 Russet Brown",
    "517 Dark Olive"
   ],
-  "sewingMinutes": 219.0,
+  "sewingMinutes": 245.0,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-pe-compatible.png",
-  "sha256": "c05b5b4265f87f74333bc606a355f332b672291c65d0933448c36901d8d91e4d"
+  "sha256": "4b680191968fe649ab5a7372dc6953a791abe1fa7f866c9aca5777c3ea1faf63"
  }
 }

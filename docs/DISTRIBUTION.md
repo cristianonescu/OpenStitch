@@ -219,8 +219,13 @@ a machine or USB stick, printing, updates, the automation socket, the Design Dat
 the system clipboard (copy and paste stay inside the editor), and choosing a folder (the Design
 Database, Ink/Stitch font folders, Save Template To: a page cannot browse folders). Every file
 picker works (#693): open and import, background and digitizing pictures, thread charts and
-lists, fonts, font pictures and name-drop lists. A design, embroidery file or picture dropped on
-the page opens or becomes the background. The editor's preferences (the desktop's `ui.json`:
+lists, fonts, font pictures and name-drop lists, and since #797 also Open with "Open designs in
+tabs", the Programmable Stitch Creator's and Stitch Design Factory's Open and Open Template, and
+Import Shortcuts. A design, embroidery file or picture dropped on the page opens or becomes the
+background. The editor's own reads and saves of user files (the background picture on the canvas,
+the image wizards' preview, templates, patterns, shortcuts) go through
+`openstitch_app::platform::{read_limited, read_text, write_file}`: the file system on the
+desktop, the page's memory in the browser, where a save in the save folder becomes a download. The editor's preferences (the desktop's `ui.json`:
 start cards, theme, units, panes, shortcuts…) are kept in the origin's `localStorage` under
 `openstitch.ui` (#797): the page registers it through `openstitch_app::platform::set_prefs_store`
 and every change is written back. Where the browser refuses storage (a private window, cleared or

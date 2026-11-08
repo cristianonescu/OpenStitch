@@ -234,6 +234,8 @@ pub struct UiPrefs {
     /// Where the rulers and positions measure from (#799): the Design Page's centre by
     /// default, for every user (a settings file without it reads Centre), or its top-left.
     pub ruler_origin: super::units::RulerOrigin,
+    /// The guidelines' colour (#799), sRGB.
+    pub guide_color: [u8; 3],
     /// Real size (#518): points per mm measured with Options ▸ Calibrate Real Size, per monitor
     /// (keyed by its size in points). Without one, 100 % assumes a 96 dpi screen.
     pub screen_calibration: Vec<(String, f64)>,
@@ -338,6 +340,7 @@ impl Default for UiPrefs {
             editing: EditingPrefs::default(),
             units: super::units::Units::Mm,
             ruler_origin: super::units::RulerOrigin::Centre,
+            guide_color: GUIDE_COLOR,
             screen_calibration: Vec::new(),
             show: ShowPrefs::default(),
             autosave: true,
@@ -436,6 +439,7 @@ impl UiPrefs {
             },
             "units": super::units::key(self.units),
             "rulerOrigin": self.ruler_origin.key(),
+            "guideColor": hex_color(self.guide_color),
             "screenCalibration": self.screen_calibration.iter()
                 .map(|(k, v)| (k.clone(), json!(v)))
                 .collect::<serde_json::Map<_, _>>(),
@@ -578,6 +582,10 @@ impl UiPrefs {
                 .as_str()
                 .and_then(super::units::RulerOrigin::from_key)
                 .unwrap_or(d.ruler_origin),
+            guide_color: v["guideColor"]
+                .as_str()
+                .and_then(parse_hex_color)
+                .unwrap_or(d.guide_color),
             screen_calibration: v["screenCalibration"]
                 .as_object()
                 .map(|m| {
@@ -807,6 +815,24 @@ pub fn path_beside(user_settings: &Path) -> PathBuf {
     user_settings.with_file_name("ui.json")
 }
 
+/// The guidelines' default colour (#799).
+pub const GUIDE_COLOR: [u8; 3] = [0x00, 0x9e, 0xc8];
+
+/// `#rrggbb`.
+pub fn hex_color([r, g, b]: [u8; 3]) -> String {
+    format!("#{r:02x}{g:02x}{b:02x}")
+}
+
+/// `#rrggbb` or `rrggbb` (either case) to sRGB.
+pub fn parse_hex_color(s: &str) -> Option<[u8; 3]> {
+    let h = s.trim().trim_start_matches('#');
+    if h.len() != 6 || !h.is_ascii() {
+        return None;
+    }
+    let c = |i: usize| u8::from_str_radix(&h[i..i + 2], 16).ok();
+    Some([c(0)?, c(2)?, c(4)?])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -975,6 +1001,21 @@ mod tests {
 
     /// #799: the ruler origin is the page centre by default, also for a settings file written
     /// before it existed, and a chosen top-left survives a restart.
+    #[test]
+    fn the_guide_colour_is_saved_as_hex() {
+        assert_eq!(UiPrefs::default().guide_color, GUIDE_COLOR);
+        assert_eq!(parse_hex_color("#FF8000"), Some([255, 128, 0]));
+        assert_eq!(parse_hex_color("ff8000"), Some([255, 128, 0]));
+        assert_eq!(parse_hex_color("#ff80"), None);
+        assert_eq!(parse_hex_color("#gg8000"), None);
+        let p = UiPrefs {
+            guide_color: [1, 2, 3],
+            ..UiPrefs::default()
+        };
+        assert_eq!(p.to_json()["guideColor"], "#010203");
+        assert_eq!(UiPrefs::from_json(&p.to_json()).guide_color, [1, 2, 3]);
+    }
+
     #[test]
     fn the_ruler_origin_defaults_to_centre_and_is_saved() {
         use super::super::units::RulerOrigin;
