@@ -155,7 +155,7 @@ pub fn single_region(app: &EditorApp) -> Option<u64> {
 /// Shapes ▸ Insert: preset shapes placed in the middle of the Design Page.
 pub fn insert_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     for (label, kind) in edit_ops::PRESETS {
-        if ui.button(label).clicked() {
+        if ui.button(openstitch_app::editor::ui_texts::tr(label)).clicked() {
             let center = app.session.design().page.center();
             run_and_select(app, edit_ops::insert_preset(kind, center, 30.0));
         }
@@ -184,7 +184,10 @@ pub fn overlap_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         ("Exclude overlap", "xor"),
         ("Divide", "divide"),
     ] {
-        if ui.add_enabled(many, egui::Button::new(label)).clicked() {
+        if ui
+            .add_enabled(many, egui::Button::new(openstitch_app::editor::ui_texts::tr(label)))
+            .clicked()
+        {
             let r = edit_ops::combine(app.session.design(), &app.selection, op);
             run_and_select(app, r);
         }
@@ -204,7 +207,7 @@ pub fn decorative_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     ui.checkbox(&mut app.edit.frame_keep_aspect, t("ui-maintain-aspect-ratio"));
     ui.separator();
     for (label, kind) in edit_ops::FRAMES {
-        if ui.button(label).clicked() {
+        if ui.button(openstitch_app::editor::ui_texts::tr(label)).clicked() {
             let r = edit_ops::decorative(kind, &app.selection, app.edit.frame_keep_aspect);
             run_and_select(app, r);
         }
@@ -217,7 +220,7 @@ pub fn stamp_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     let two = app.selection.len() == 2;
     for (label, effect) in edit_ops::EMBOSS {
         if ui
-            .add_enabled(two, egui::Button::new(label))
+            .add_enabled(two, egui::Button::new(openstitch_app::editor::ui_texts::tr(label)))
             .on_hover_text(t("ui-select-the-shape-and-the-shape-tip"))
             .clicked()
             && let Some(r) = edit_ops::emboss(app.session.design(), &app.selection, effect)
@@ -228,17 +231,17 @@ pub fn stamp_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     ui.separator();
     ui.add_enabled_ui(shape.is_some(), |ui| {
         egui::ComboBox::from_label("Stamp")
-            .selected_text(openstitch_design::stamp::PATTERNS[app.edit.stamp_pattern])
+            .selected_text(openstitch_app::editor::ui_texts::tr(openstitch_design::stamp::PATTERNS[app.edit.stamp_pattern]))
             .show_ui(ui, |ui| {
                 for (k, p) in openstitch_design::stamp::PATTERNS.iter().enumerate() {
-                    ui.selectable_value(&mut app.edit.stamp_pattern, k, *p);
+                    ui.selectable_value(&mut app.edit.stamp_pattern, k, openstitch_app::editor::ui_texts::tr(p));
                 }
             });
         egui::ComboBox::from_label("Effect")
-            .selected_text(edit_ops::EMBOSS[app.edit.stamp_effect].0)
+            .selected_text(openstitch_app::editor::ui_texts::tr(edit_ops::EMBOSS[app.edit.stamp_effect].0))
             .show_ui(ui, |ui| {
                 for (k, (label, _)) in edit_ops::EMBOSS.iter().enumerate() {
-                    ui.selectable_value(&mut app.edit.stamp_effect, k, *label);
+                    ui.selectable_value(&mut app.edit.stamp_effect, k, openstitch_app::editor::ui_texts::tr(label));
                 }
             });
         if ui.button(t("ui-place-stamp-click-in-the-shape")).clicked()
@@ -270,7 +273,7 @@ pub fn entry_exit_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         ("Set line entry (L1)", EntryExit::LineEntry),
         ("Set line exit (L2)", EntryExit::LineExit),
     ] {
-        if ui.button(label).clicked() {
+        if ui.button(openstitch_app::editor::ui_texts::tr(label)).clicked() {
             app.edit.pick = Some((id, Pick::Point(which)));
             app.status = openstitch_app::tf!("ui-status-click-the-outline-where-should-be", name = which.label());
         }
@@ -305,7 +308,7 @@ pub fn sewing_points_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         ("Set centre point", Pick::Center),
         ("Set reference point", Pick::Reference),
     ] {
-        if ui.button(label).clicked() {
+        if ui.button(openstitch_app::editor::ui_texts::tr(label)).clicked() {
             app.edit.pick = Some((id, which));
             app.status = openstitch_app::tf!("ui-status-click-where-should-be-esc-cancels", name = which.label());
         }
@@ -850,7 +853,7 @@ fn list_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandReques
                 ("Swap sides", "object.swapSides", "Beyond PE-DESIGN: every crossing starts from the other side of the column"),
                 ("Untangle", "object.untangle", "Beyond PE-DESIGN: turn back rungs whose ends were clicked the other way round"),
             ] {
-                if ui.button(label).on_hover_text(tip).clicked() {
+                if ui.button(openstitch_app::editor::ui_texts::tr(label)).on_hover_text(tip).clicked() {
                     out = Some(CommandRequest::new(command, serde_json::json!({ "id": id })));
                 }
             }
@@ -929,7 +932,7 @@ fn list_controls(app: &mut EditorApp, ui: &mut egui::Ui) -> Option<CommandReques
             .any(|o| app.selection.contains(&o.id) && o.knockdown.is_some());
         let label = if update { "Update knockdown" } else { "Knockdown" };
         if ui
-            .button(label)
+            .button(openstitch_app::editor::ui_texts::tr(label))
             .on_hover_text(t("ui-beyond-pe-design-a-light-fill-tip"))
             .clicked()
         {

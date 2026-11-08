@@ -1401,14 +1401,14 @@ fn modify_image_window(app: &mut EditorApp, ctx: &egui::Context) {
             ui.horizontal(|ui| {
                 let left = (
                     crate::icons::ui_image(ui, "image_rotate_left"),
-                    "Rotate Left",
+                    openstitch_app::editor::ui_texts::tr("Rotate Left"),
                 );
                 if ui.button(left).clicked() {
                     turn = Some("left");
                 }
                 let right = (
                     crate::icons::ui_image(ui, "image_rotate_right"),
-                    "Rotate Right",
+                    openstitch_app::editor::ui_texts::tr("Rotate Right"),
                 );
                 if ui.button(right).clicked() {
                     turn = Some("right");
@@ -1822,7 +1822,7 @@ pub fn show_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         (Layers::UnderlayOnly, "Underlay only"),
         (Layers::TopOnly, "Top stitching only"),
     ] {
-        changed |= ui.radio_value(&mut s.layers, l, label).changed();
+        changed |= ui.radio_value(&mut s.layers, l, openstitch_app::editor::ui_texts::tr(label)).changed();
     }
     ui.separator();
     changed |= ui
@@ -1842,7 +1842,7 @@ pub fn show_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
         (ColorBy::SewingOrder, "Sewing order"),
         (ColorBy::Monochrome, "Monochrome"),
     ] {
-        changed |= ui.radio_value(&mut s.color_by, c, label).changed();
+        changed |= ui.radio_value(&mut s.color_by, c, openstitch_app::editor::ui_texts::tr(label)).changed();
     }
     changed |= ui
         .checkbox(&mut s.solo, t("ui-solo-colour"))
