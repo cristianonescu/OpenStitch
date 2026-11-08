@@ -1306,3 +1306,49 @@ paraphrased (openhoop and filum are GPL-3.0).
 No comparison-matrix row changes (the open-source projects are tracked here, not in the matrix).
 New "Planned (beyond PE-DESIGN)" rows in FEATURE_MATRIX.md and a note in ROADMAP.md (Beyond
 PE-DESIGN): Join Lines and Break Apart (#744), find and filter in the Sewing Order list (#745).
+
+### 2026-11-08 scan
+
+Period checked: 2026-11-07 to 2026-11-08.
+
+**Commercial products.** No material release or feature announcement in the period.
+Checked: Wilcom blog (newest post still 2026-10-08) and Hatch blog (newest still 2026-10-25);
+BERNINA (V9 still current, no V10 found); mySewnet and Embrilliance (no dated release found);
+Tajima DG by Pulse (DG17.5, 17.5.1.8445, already noted on 2026-11-07); Ink/Stitch (newest post
+still v3.3.0 of 2026-07-31); PE-DESIGN 11 one-click update history (11.50 of September 2026,
+already covered).
+Sources: https://wilcom.com/resources/blog, https://hatchembroidery.com/resources/blog,
+https://inkstitch.org/news, https://cloud.pulsemicro.com/Download,
+https://support.brother.com/g/s/hf/ped_info/ped11/one_click_update/en/ped11update_info.html.
+
+#### Open-source projects
+
+Ideas only, read from release lists and commit titles; no code may be copied, ported or
+paraphrased (openhoop and filum are GPL-3.0).
+
+- **vomitselfie/Morale**, **alexandra03/threadspool**, **lork-fork/Roidery**,
+  **bastanja/stitch_generator**: no commits or releases since 2026-11-07.
+- **EvenDog/openhoop** (GPL-3.0; no new release after 0.12.0, commits on 2026-11-08):
+  - Hand stitch for fills: fill rows that look sewn by hand. OpenStitch has the hand-stitch look
+    on running and triple lines and on one side of satins (#540), not on fills: new issue #817
+    (new row).
+  - Recognize Objects (turning imported stitches back into objects) now measures each satin's
+    spacing, reads a fill's tatami pattern from its needle holes and closes satin rings.
+    OpenStitch's `object.toShapes` blocks recover the region type and direction but not the
+    spacing or pattern: new issue #818 (new row).
+  - Contour fill spiralling corner to corner on stars and pointy shapes (F1, already in the
+    2026-11-05 baseline); interface tidying (press-and-hold tool choices, "mm" on every setting,
+    a hoop-fit warning for line art): not material.
+  https://github.com/EvenDog/openhoop/commits/main (single source)
+- **benkl/filum** (GPL-3.0; no new release after 0.2.0, commits on 2026-11-07): its Issues panel
+  now finds lines sewn on top of each other (OpenStitch's Check Design reports `stacked` needle
+  drops, #503: no issue); editing several objects at once (OpenStitch's Inspector edits a
+  multi-selection); per-object lock stitches (OpenStitch has per-object ties, #548); pull
+  compensation off until a fabric is calibrated (a default choice, noted on the fabric
+  calibration idea #453 only if that work picks it up); Ink/Stitch default settings adopted
+  and a third bug scan: not material. https://github.com/benkl/filum/commits/main (single source)
+
+No comparison-matrix row changes (the open-source projects are tracked here, not in the matrix).
+New "Planned (beyond PE-DESIGN)" rows in FEATURE_MATRIX.md and a note in ROADMAP.md (Beyond
+PE-DESIGN): hand-stitch look for fills (#817), rebuilt objects keeping the original's sewing
+(#818).
