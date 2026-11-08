@@ -56,11 +56,7 @@ pub fn run(app: &mut EditorApp, a: Action, ctx: &egui::Context) {
         {
             app.ui.tab = tab;
         }
-        app.status = format!(
-            "{} is a list: choose on the ribbon, {}",
-            a.info().label,
-            palette::path(a)
-        );
+        app.status = openstitch_app::tf!("ui-status-is-a-list-choose-on-the", label = a.info().label, a = palette::path(a));
         return;
     }
     crate::ribbon::run(app, a, ctx);

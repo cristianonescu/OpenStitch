@@ -1145,6 +1145,10 @@ mod tests {
         for (id, text) in crate::editor::ui_texts::UI_TEXTS {
             out.push((id.to_string(), text));
         }
+        // The printed sheets' words (#555).
+        for (id, text) in openstitch_print::texts::TEXTS {
+            out.push((id.to_string(), text));
+        }
         for t in TabId::ALL {
             for g in t.groups() {
                 let id = format!("group-{}", i18n::slug(g.name));

@@ -2808,6 +2808,7 @@ dependencies = [
  "openstitch-formats",
  "openstitch-library",
  "openstitch-mcp",
+ "openstitch-print",
  "openstitch-remote",
  "openstitch-render",
  "openstitch-testutil",

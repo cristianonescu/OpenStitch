@@ -228,24 +228,35 @@ fn area_guides(r: (f64, f64, f64, f64), opts: &Options, items: &mut Vec<Item>) {
 pub fn info_lines(design: &Design, pattern: &StitchPattern) -> Vec<String> {
     let b = pattern.bounds();
     let e = estimate(pattern, &design.machine);
-    let hoop = design.machine.hoop.as_deref().unwrap_or("custom");
+    let hoop = design
+        .machine
+        .hoop
+        .clone()
+        .unwrap_or_else(|| crate::texts::text("print-custom-hoop"));
     vec![
-        format!(
-            "Design Page {:.1} x {:.1} mm   Hoop {hoop}",
-            mm(design.page.width),
-            mm(design.page.height)
+        crate::texts::fill(
+            "print-design-page",
+            &[
+                ("width", format!("{:.1}", mm(design.page.width))),
+                ("height", format!("{:.1}", mm(design.page.height))),
+                ("hoop", hoop),
+            ],
         ),
-        format!(
-            "Design size {:.1} x {:.1} mm   Stitches {}   Colour changes {}",
-            mm(b.width()),
-            mm(b.height()),
-            pattern.count(Command::Stitch),
-            pattern.count(Command::ColorChange)
+        crate::texts::fill(
+            "print-design-size",
+            &[
+                ("width", format!("{:.1}", mm(b.width()))),
+                ("height", format!("{:.1}", mm(b.height()))),
+                ("stitches", pattern.count(Command::Stitch).to_string()),
+                ("colours", pattern.count(Command::ColorChange).to_string()),
+            ],
         ),
-        format!(
-            "Thread about {:.1} m, sewing time about {:.0} min",
-            e.needle_total() / 1000.0,
-            (e.seconds / 60.0).ceil()
+        crate::texts::fill(
+            "print-thread-time",
+            &[
+                ("metres", format!("{:.1}", e.needle_total() / 1000.0)),
+                ("minutes", format!("{:.0}", (e.seconds / 60.0).ceil())),
+            ],
         ),
     ]
 }
@@ -324,12 +335,14 @@ pub fn place(d: &Drawing, title: &str, scale: Option<f64>, paper: (f64, f64)) ->
                     let tx0 = x0 + c as f64 * aw / s;
                     let ty0 = y0 + r as f64 * ah / s;
                     let label = if tiled {
-                        format!(
-                            "Sheet {} of {} (row {}, column {})",
-                            r * cols + c + 1,
-                            cols * rows,
-                            r + 1,
-                            c + 1
+                        crate::texts::fill(
+                            "print-sheet-of",
+                            &[
+                                ("sheet", (r * cols + c + 1).to_string()),
+                                ("sheets", (cols * rows).to_string()),
+                                ("row", (r + 1).to_string()),
+                                ("column", (c + 1).to_string()),
+                            ],
                         )
                     } else {
                         String::new()
@@ -597,9 +610,12 @@ fn page(
         pdf::literal(title)
     );
     let scale_text = if (scale - 1.0).abs() < 1e-9 {
-        "Actual size (100 %): print without page scaling".to_string()
+        crate::texts::text("print-actual-size")
     } else {
-        format!("Reduced to {:.0} %", scale * 100.0)
+        crate::texts::fill(
+            "print-reduced",
+            &[("percent", format!("{:.0}", scale * 100.0))],
+        )
     };
     let sub = if subtitle.is_empty() {
         scale_text.clone()
@@ -698,7 +714,12 @@ fn info_page(design: &Design, pattern: &StitchPattern, paper: (f64, f64)) -> Pag
         y += 6.0;
     }
     y += 4.0;
-    items.push(text((0.0, y), 11.0, "Colour order", BLACK));
+    items.push(text(
+        (0.0, y),
+        11.0,
+        crate::texts::text("print-colour-order"),
+        BLACK,
+    ));
     let end = color_list(pattern, (0.0, y + 7.0), &mut items);
     let d = Drawing {
         items,
@@ -882,15 +903,15 @@ fn section_sheet(design: &Design, full: &StitchPattern, s: &Section, opts: &Opti
         items.push(text((x + dx, y + dy), 11.0, label, RED));
     }
     let kind = match s.kind {
-        SectionKind::Split => "Section",
-        SectionKind::Position => "Hoop position",
-        SectionKind::JumboSide => "Jumbo frame",
-        SectionKind::Hooping => "Hooping",
+        SectionKind::Split => crate::texts::text("print-section"),
+        SectionKind::Position => crate::texts::text("print-hoop-position"),
+        SectionKind::JumboSide => crate::texts::text("print-jumbo-frame"),
+        SectionKind::Hooping => crate::texts::text("print-hooping"),
     };
     let turned = if s.rotate180 {
-        " (frame turned 180°)"
+        crate::texts::text("print-frame-turned")
     } else {
-        ""
+        String::new()
     };
     let d = Drawing {
         items,

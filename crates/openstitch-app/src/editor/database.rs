@@ -496,16 +496,11 @@ impl Database {
         };
         match scan::list(&folder, &self.limits) {
             Ok(l) => {
-                self.status = format!(
-                    "{} designs, {} folders{}",
-                    l.designs.len(),
-                    l.folders.len(),
-                    if l.truncated {
-                        " (folder too large: list cut short)"
-                    } else {
-                        ""
-                    }
-                );
+                self.status = crate::tf!("ui-status-designs-folders", count = l.designs.len(), count2 = l.folders.len(), else = if l.truncated {
+                    " (folder too large: list cut short)"
+                } else {
+                    ""
+                });
                 self.listing = l;
             }
             Err(e) => {
@@ -650,7 +645,7 @@ impl Database {
         let p = ops::create_folder(&parent, name.trim()).map_err(|e| e.to_string())?;
         self.expanded.insert(parent);
         self.changed();
-        self.status = format!("Created {}", p.display());
+        self.status = crate::tf!("ui-status-created", path = p.display());
         Ok(p)
     }
 
@@ -668,7 +663,7 @@ impl Database {
             self.selection.insert(to.clone());
             self.anchor = Some(to.clone());
         }
-        self.status = format!("Renamed to {}", to.display());
+        self.status = crate::tf!("ui-status-renamed-to", path = to.display());
         Ok(to)
     }
 
@@ -685,14 +680,14 @@ impl Database {
         if paths.is_empty() {
             return;
         }
-        self.status = format!(
-            "{} {} design(s): choose a folder and Paste",
-            if mode == Transfer::Move {
+        self.status = crate::tf!(
+            "ui-status-design-n-other-designs-n-choose",
+            opied = if mode == Transfer::Move {
                 "Cut"
             } else {
                 "Copied"
             },
-            paths.len()
+            count = paths.len()
         );
         self.clipboard = Some(Clipboard { paths, mode });
     }
@@ -783,7 +778,7 @@ impl Database {
             r.retain(|p| !paths.contains(p));
         }
         self.changed();
-        self.status = format!("Moved {n} item(s) to the trash");
+        self.status = crate::tf!("ui-status-moved-item-n-other-items-n", n = n);
         Ok(n)
     }
 
@@ -913,10 +908,10 @@ impl Database {
                 out
             }
         };
-        self.status = format!(
-            "Wrote catalogue of {} designs: {}",
-            items.len(),
-            written
+        self.status = crate::tf!(
+            "ui-status-wrote-catalogue-of-designs",
+            count = items.len(),
+            to_string = written
                 .last()
                 .map_or_else(String::new, |p| p.display().to_string())
         );

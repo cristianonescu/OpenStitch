@@ -346,10 +346,7 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
             calibrate_params(&d),
         ))
     {
-        app.status = format!(
-            "Saved the fabric {}",
-            r["fabric"]["name"].as_str().unwrap_or("")
-        );
+        app.status = openstitch_app::tf!("ui-status-saved-the-fabric", fabric = r["fabric"]["name"].as_str().unwrap_or(""));
     }
     if open_saved && let Some(p) = d.saved.take() {
         app.open_path(&p);

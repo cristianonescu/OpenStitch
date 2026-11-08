@@ -681,10 +681,7 @@ impl EditorApp {
                 // Hand edits on live objects (#501) last only while their settings do.
                 let dropped = self.session.take_hand_edits_dropped();
                 if !dropped.is_empty() {
-                    self.status = format!(
-                        "Hand-edited stitches discarded on {} object(s): a sewing setting or the shape changed",
-                        dropped.len()
-                    );
+                    self.status = openstitch_app::tf!("ui-status-hand-edited-stitches-discarded-on-object", count = dropped.len());
                 }
                 if matches!(effect, Some(Effect::Edit | Effect::History)) {
                     match &mut self.refresh_deferred {
@@ -1288,10 +1285,7 @@ impl EditorApp {
             self.status = openstitch_app::tf!("ui-status-opened", path = p.display());
         } else {
             self.after_load(None);
-            self.status = format!(
-                "Opened {} as a new design (Save to keep it as .osd)",
-                p.display()
-            );
+            self.status = openstitch_app::tf!("ui-status-opened-as-a-new-design-save", path = p.display());
         }
     }
 
@@ -1514,11 +1508,7 @@ impl EditorApp {
         };
         let params = json!({ "path": path.display().to_string(), "format": ext });
         if let Some(r) = self.execute(&CommandRequest::new("design.export", params)) {
-            self.status = format!(
-                "Exported {} ({} stitches)",
-                path.display(),
-                r["stats"]["stitches"]
-            );
+            self.status = openstitch_app::tf!("ui-status-exported-stitches", path = path.display(), stats = r["stats"]["stitches"]);
         }
     }
 

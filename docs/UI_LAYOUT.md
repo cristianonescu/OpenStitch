@@ -551,9 +551,11 @@ texts in all), and the window titles: each window has a fixed id, so a translate
 its place. Since part 5, status messages are messages with variables in Fluent's syntax
 (`{ $path }`, and plural choices such as `{ $n -> [one] { $n } design *[other] { $n } designs }`,
 each language with its plural rule), filled in by `tf!("id", name = value)`; a test checks that
-every call passes exactly its message's variables and that a translation uses only those. A few
-messages with number formats and multi-line ones are still English, and the printed worksheet
-follows. **Pseudo-locale (test)** shows every
+every call passes exactly its message's variables and that a translation uses only those. Since
+part 6 every status message goes through them, and the printed sheets (job sheets, actual-size
+and reduced prints, positioning sheets, Print and Stitch) print their words in the window's
+language too (`openstitch_print::texts`, ids `print-…`, set whenever the language changes). Only
+the first real translation is left: the owner chooses the language. **Pseudo-locale (test)** shows every
 translated text accented and in brackets ("[Ópéñ]"), so text that is still hard-coded stands out.
 No real translation ships yet.
 
