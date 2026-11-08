@@ -80,7 +80,12 @@ Behaviour follows the guide's pages
   click the × beside the marker (or drop it outside the canvas) to delete it. With Show Grid and
   Snap to Grid on, guidelines move in grid steps. The status bar shows the position while
   dragging. Up to 100 per ruler; they are saved in the `.osd` (`guides.set`, one Undo per
-  change) and hidden when Ruler or Guideline is off.
+  change) and hidden when Ruler or Guideline is off. A click selects a guideline (its marker,
+  or the line with the Select tool, which also drags it); Delete removes it, Alt-click turns
+  it, a double-click opens Set Position… (#799).
+- **Guides ▾** (#799): Lock Guides, Set Position…, Clear Selected Guide, Clear Guides, New
+  Guides From Selection (`view.lockGuides`, `view.editGuide`, `view.deleteGuide`,
+  `view.clearGuides`, `view.newGuidesFromSelection`).
 - **Options ▾ ▸ Editing** (beyond PE-DESIGN, #474, #475): Nudge step (0.1 mm by default as in
   PE-DESIGN; Shift moves ten times as far), Nudge by the grid step while snapping (with Snap to
   Grid on, an arrow moves one grid step) and Click inside outlines selects them (off: the inside
@@ -236,6 +241,7 @@ Behaviour follows the guide's pages
 | Grid | Grid Spacing |  | `Action::GridSpacing` | view/UI only | yes |
 | Ruler | Ruler |  | `Action::Ruler` | view/UI only | yes |
 | Guideline | Guideline |  | `Action::Guideline` | `guides.set` | yes |
+| Guideline | Guides ▾: Lock Guides, Set Position…, Clear Selected Guide, Clear Guides, New Guides From Selection (#799) |  | `Action::GuideOptions` | `view.lockGuides`, `view.editGuide`, `view.deleteGuide`, `view.clearGuides`, `view.newGuidesFromSelection` | yes |
 
 ### Text (contextual: text selected)
 

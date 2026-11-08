@@ -451,6 +451,7 @@ fn glyph(a: Action) -> Glyph {
         GridAxes => G::Own("grid_axes"),
         SnapToGrid => G::Magnet,
         Guideline => G::Guide,
+        GuideOptions => G::Guide,
         Font => G::Font,
         TextSize => G::Own("text_size"),
         FontFilter => G::Own("font_filter"),

@@ -684,7 +684,7 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
         Print | Wizard | Export | Options | Help | TextTools | ShapesTools | OtherZoom
         | Arrange | Align | SelectSame | RotateFlip | Size | StampEmboss | ModifyOverlap
         | DecorativeFrame | FitTextToOutline | SendEmbroidery | SaveImage | ImageDensity
-        | GridSpacing | ViewShow | Font | TextSize | EditText | LineColor | LineSewType
+        | GridSpacing | ViewShow | GuideOptions | Font | TextSize | EditText | LineColor | LineSewType
         | RegionColor | RegionSewType | EntryExit | SewingPoints | EdgeRadius | ChangeColor
         | SkeletonWidth | SmoothTolerance | ShapeEffects | LineGap | EditCharacter => {}
     }
@@ -996,6 +996,7 @@ pub fn menu(app: &mut EditorApp, a: Action, ui: &mut egui::Ui) {
         ImageDensity => image_density_menu(app, ui),
         SaveImage => crate::view_ui::save_image_menu(app, ui),
         ViewShow => crate::view_ui::show_menu(app, ui),
+        GuideOptions => crate::view_ui::guides_menu(app, ui),
         GridSpacing => {
             use openstitch_app::editor::units;
             for &s in units::grid_spacings(app.ui.prefs.units) {

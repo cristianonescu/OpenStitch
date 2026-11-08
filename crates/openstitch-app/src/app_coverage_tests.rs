@@ -575,3 +575,21 @@ fn hand_edits_on_a_live_fill_are_kept_until_a_setting_changes_and_the_user_is_to
     app.redo();
     assert!(!sewn(&app), "Redo regenerates again");
 }
+
+/// #799: Delete removes the selected guideline and leaves the selected objects.
+#[test]
+fn delete_removes_a_selected_guideline_first() {
+    let ctx = egui::Context::default();
+    let mut app = EditorApp::new(Launch::default());
+    app.execute(&rectangle(5.0)).expect("rectangle");
+    app.select_all();
+    app.execute(&CommandRequest::new("view.newGuide", json!({ "orientation": "horizontal", "position": 20 })))
+        .expect("guide");
+    app.ui_command("ui.guides", Some(&json!({ "orientation": "horizontal", "index": 0 })))
+        .expect("select");
+    press(&ctx, &mut app, Key::Delete, Modifiers::NONE);
+    assert!(app.session.design().guides.horizontal.is_empty());
+    assert_eq!(app.session.design().objects.len(), 1, "the rectangle stays");
+    press(&ctx, &mut app, Key::Delete, Modifiers::NONE);
+    assert!(app.session.design().objects.is_empty(), "then Delete deletes objects");
+}

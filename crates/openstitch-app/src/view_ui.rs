@@ -38,6 +38,12 @@ pub struct ViewState {
     /// Fabric Selector: new shapes and texts start from this fabric (`fabric.setDefault`).
     fabric_new: Option<bool>,
     pub guide_drag: Option<GuideDrag>,
+    /// Where the guideline press began (a click without a move selects, #799).
+    guide_press: Option<Pos2>,
+    /// The selected guideline (vertical?, index; #799).
+    pub selected_guide: Option<(bool, usize)>,
+    /// Set Position… (#799).
+    pub guide_dialog: Option<GuideDialog>,
 }
 
 fn pos(p: Vec2) -> Pos2 {
@@ -92,19 +98,23 @@ pub fn draw_guides(app: &EditorApp, painter: &egui::Painter, rect: egui::Rect, v
         return;
     }
     let g = current_guides(app);
-    let stroke = Stroke::new(1.0, GUIDE);
-    for &x in &g.vertical {
+    let selected = selected_guide(app);
+    // The selected guideline drawn thicker (#799).
+    let stroke = |vertical: bool, i: usize| {
+        Stroke::new(if selected == Some((vertical, i)) { 2.5 } else { 1.0 }, GUIDE)
+    };
+    for (i, &x) in g.vertical.iter().enumerate() {
         let sx = vp.to_screen(v2(x, 0.0)).x as f32;
         painter.line_segment(
             [Pos2::new(sx, rect.min.y), Pos2::new(sx, rect.max.y)],
-            stroke,
+            stroke(true, i),
         );
     }
-    for &y in &g.horizontal {
+    for (i, &y) in g.horizontal.iter().enumerate() {
         let sy = vp.to_screen(v2(0.0, y)).y as f32;
         painter.line_segment(
             [Pos2::new(rect.min.x, sy), Pos2::new(rect.max.x, sy)],
-            stroke,
+            stroke(false, i),
         );
     }
     // Its position beside the guideline being dragged, or the one under the pointer (#799).
@@ -169,7 +179,8 @@ fn marker_points(rect: egui::Rect, vertical: bool, at: f32) -> (Pos2, Pos2) {
     }
 }
 
-/// Guideline markers (drag to move) and × (click to delete) in the rulers.
+/// Guideline markers (drag to move) and × (click to delete; none while locked, #799) in the
+/// rulers.
 pub fn draw_guide_markers(
     app: &EditorApp,
     painter: &egui::Painter,
@@ -197,6 +208,9 @@ pub fn draw_guide_markers(
             ]
         };
         painter.add(egui::Shape::convex_polygon(tri, GUIDE, Stroke::NONE));
+        if g.locked {
+            return;
+        }
         let s = Stroke::new(1.2, ruler);
         painter.line_segment([x + egui::vec2(-2.5, -2.5), x + egui::vec2(2.5, 2.5)], s);
         painter.line_segment([x + egui::vec2(-2.5, 2.5), x + egui::vec2(2.5, -2.5)], s);
@@ -224,7 +238,11 @@ fn set_guides(app: &mut EditorApp, g: &Guides) {
 
 /// Pointer handling for guidelines: a press on a ruler adds one (or picks a marker, or
 /// deletes with ×), dragging moves it, release saves it (`guides.set`, one Undo); released
-/// outside the canvas, it is removed. Returns whether the pointer was used.
+/// on a ruler or outside the canvas, it is removed. With the Select tool a press on a
+/// guideline on the canvas picks it too (#799). A click without a move selects it (Delete
+/// removes it), a double-click opens Set Position…, Alt-click turns it vertical ↔
+/// horizontal. Locked guidelines are not picked; a ruler press still adds one. Returns
+/// whether the pointer was used.
 pub fn guide_pointer(
     app: &mut EditorApp,
     ui: &egui::Ui,
@@ -239,20 +257,32 @@ pub fn guide_pointer(
         return false;
     }
     let shown = guides_shown(app);
-    let (pressed, released, at) = ui.input(|i| {
+    let (pressed, released, double, alt, at) = ui.input(|i| {
         (
             i.pointer.primary_pressed(),
             i.pointer.primary_released(),
+            i.pointer.button_double_clicked(egui::PointerButton::Primary),
+            i.modifiers.alt,
             i.pointer.interact_pos().or(i.pointer.hover_pos()),
         )
     });
     let Some(at) = at else { return false };
     let model = vp.to_model(v2(f64::from(at.x), f64::from(at.y)));
     if let Some(mut d) = app.workspace.view.guide_drag {
-        d.at = snap_guide(
-            if d.vertical { model.x } else { model.y },
-            &app.workspace.grid,
-        );
+        // A click without a move leaves the guideline where it is.
+        let still = d.index.is_some()
+            && app
+                .workspace
+                .view
+                .guide_press
+                .is_some_and(|p| p.distance(at) < 3.0);
+        if !still {
+            app.workspace.view.guide_press = None;
+            d.at = snap_guide(
+                if d.vertical { model.x } else { model.y },
+                &app.workspace.grid,
+            );
+        }
         let zero = app.ruler_zero();
         app.status = openstitch_app::tf!(
             "ui-status-guideline-mm",
@@ -263,18 +293,26 @@ pub fn guide_pointer(
         );
         if released {
             app.workspace.view.guide_drag = None;
+            app.workspace.view.guide_press = None;
             let g = &app.session.design().guides;
             // Dropped on either ruler or off the canvas, a guideline goes (#799).
             let on_canvas = rect.contains(at)
                 && at.x > rect.min.x + RULER
                 && at.y > rect.min.y + RULER;
-            let next = match (on_canvas, d.index) {
+            // A click without a move (on its marker or its line) leaves it where it is.
+            let next = match (on_canvas || still, d.index) {
                 (true, _) => d.placed(g),
                 (false, Some(i)) => remove_guide(g, d.vertical, i),
                 (false, None) => g.clone(),
             };
+            app.workspace.view.selected_guide = d
+                .index
+                .filter(|_| on_canvas || still)
+                .map(|i| (d.vertical, i));
             if next != *g {
                 set_guides(app, &next);
+            } else if let (Some(i), true) = (d.index, double) {
+                open_guide_dialog(app, d.vertical, i);
             }
         } else {
             app.workspace.view.guide_drag = Some(d);
@@ -284,12 +322,13 @@ pub fn guide_pointer(
     if !(pressed && response.hovered()) {
         return false;
     }
+    let locked = app.session.design().guides.locked;
     let vertical = if at.y < rect.min.y + RULER && at.x > rect.min.x + RULER {
         true
     } else if at.x < rect.min.x + RULER && at.y > rect.min.y + RULER {
         false
     } else {
-        return false;
+        return canvas_press(app, at, model, alt, vp);
     };
     if !shown {
         app.workspace.guides = true;
@@ -297,8 +336,8 @@ pub fn guide_pointer(
         app.ui.save_prefs();
     }
     let g = app.session.design().guides.clone();
-    // Hidden guidelines cannot be picked: a press starts a new one.
-    let list: &[f64] = match (shown, vertical) {
+    // Hidden or locked guidelines cannot be picked: a press starts a new one.
+    let list: &[f64] = match (shown && !locked, vertical) {
         (false, _) => &[],
         (true, true) => &g.vertical,
         (true, false) => &g.horizontal,
@@ -315,22 +354,345 @@ pub fn guide_pointer(
         let (_, x) = marker_points(rect, vertical, screen(v));
         x.distance(at) <= PICK
     }) {
+        app.workspace.view.selected_guide = None;
         set_guides(app, &remove_guide(&g, vertical, i));
         return true;
     }
     let here = if vertical { model.x } else { model.y };
     let tolerance = f64::from(PICK) * vp.units_per_point();
     let index = guide_near(list, here, tolerance);
+    if let (Some(i), true) = (index, alt) {
+        // Alt-click on its marker: turned, crossing the page centre.
+        turn_guide(app, vertical, i, None);
+        return true;
+    }
     if index.is_none() && list.len() >= Guides::MAX {
         app.status = openstitch_app::tf!("ui-status-at-most-guidelines-per-ruler", uides = Guides::MAX);
         return true;
     }
+    app.workspace.view.guide_press = Some(at);
     app.workspace.view.guide_drag = Some(GuideDrag {
         vertical,
         index,
         at: index.map_or_else(|| snap_guide(here, &app.workspace.grid), |i| list[i]),
     });
     true
+}
+
+/// A press on the canvas: picks the guideline under the pointer with the Select tool (#799);
+/// anywhere else it drops the guideline selection and lets the canvas have the press.
+fn canvas_press(app: &mut EditorApp, at: Pos2, model: Vec2, alt: bool, vp: &Viewport) -> bool {
+    use openstitch_app::editor::tools::Tool;
+    let g = app.session.design().guides.clone();
+    let pickable = guides_shown(app) && !g.locked && app.tools.tool() == Tool::Select;
+    let near = |list: &[f64], vertical: bool| {
+        list.iter()
+            .enumerate()
+            .map(|(i, &v)| {
+                let s = if vertical {
+                    vp.to_screen(v2(v, 0.0)).x as f32 - at.x
+                } else {
+                    vp.to_screen(v2(0.0, v)).y as f32 - at.y
+                };
+                (s.abs(), vertical, i)
+            })
+            .filter(|&(d, ..)| d <= PICK)
+            .min_by(|a, b| a.0.total_cmp(&b.0))
+    };
+    let hit = [near(&g.vertical, true), near(&g.horizontal, false)]
+        .into_iter()
+        .flatten()
+        .min_by(|a, b| a.0.total_cmp(&b.0))
+        .filter(|_| pickable);
+    let Some((_, vertical, i)) = hit else {
+        app.workspace.view.selected_guide = None;
+        return false;
+    };
+    if alt {
+        // Alt-click: turned where it was clicked.
+        turn_guide(app, vertical, i, Some(if vertical { model.y } else { model.x }));
+        return true;
+    }
+    app.workspace.view.guide_press = Some(at);
+    app.workspace.view.guide_drag = Some(GuideDrag {
+        vertical,
+        index: Some(i),
+        at: if vertical { g.vertical[i] } else { g.horizontal[i] },
+    });
+    true
+}
+
+fn orientation(vertical: bool) -> &'static str {
+    if vertical { "vertical" } else { "horizontal" }
+}
+
+/// The selected guideline (vertical?, index), while it exists, shows and is not locked.
+pub fn selected_guide(app: &EditorApp) -> Option<(bool, usize)> {
+    let g = &app.session.design().guides;
+    app.workspace.view.selected_guide.filter(|&(v, i)| {
+        guides_shown(app) && !g.locked && i < if v { g.vertical.len() } else { g.horizontal.len() }
+    })
+}
+
+/// Clear Selected Guide (Delete or Backspace while a guideline is selected, #799); false when
+/// none is.
+pub fn delete_selected_guide(app: &mut EditorApp) -> bool {
+    let Some((v, i)) = selected_guide(app) else {
+        return false;
+    };
+    app.workspace.view.selected_guide = None;
+    app.execute(&CommandRequest::new(
+        "view.deleteGuide",
+        json!({ "orientation": orientation(v), "index": i }),
+    ));
+    true
+}
+
+/// Alt-click: guideline `index` turned vertical ↔ horizontal at `position` (0.1 mm; default
+/// the page centre), one undo step (`view.editGuide`).
+fn turn_guide(app: &mut EditorApp, vertical: bool, index: usize, position: Option<f64>) {
+    let mut p = json!({ "orientation": orientation(vertical), "index": index, "turn": true });
+    if let Some(at) = position {
+        p["position"] = json!(at / 10.0);
+    }
+    app.workspace.view.selected_guide = None;
+    app.execute(&CommandRequest::new("view.editGuide", p));
+}
+
+/// Set Position…: guideline `index` moved to `text`, a length from the ruler origin in the
+/// chosen units (a unit typed with it wins: `12.5`, `12.5 mm`, `1/2"`), one undo step
+/// (`view.editGuide`). Err with the message to show when the text is not a length or the
+/// command refuses it.
+pub fn set_guide_position(
+    app: &mut EditorApp,
+    vertical: bool,
+    index: usize,
+    text: &str,
+) -> Result<(), String> {
+    let mm = openstitch_app::editor::units::parse(text, app.ui.prefs.units)
+        .ok_or_else(|| t("ui-guide-position-invalid").to_string())?;
+    let zero = app.ruler_zero();
+    let at = mm + if vertical { zero.x } else { zero.y } / 10.0;
+    app.execute(&CommandRequest::new(
+        "view.editGuide",
+        json!({ "orientation": orientation(vertical), "index": index, "position": at }),
+    ))
+    .map(|_| ())
+    .ok_or_else(|| app.status.clone())
+}
+
+/// The Set Position… dialog of one guideline (#799).
+pub struct GuideDialog {
+    vertical: bool,
+    index: usize,
+    text: String,
+    error: Option<String>,
+}
+
+/// Opens Set Position… for guideline `index`, filled with its offset from the ruler origin.
+pub fn open_guide_dialog(app: &mut EditorApp, vertical: bool, index: usize) {
+    let g = &app.session.design().guides;
+    let list = if vertical { &g.vertical } else { &g.horizontal };
+    let Some(&at) = list.get(index) else { return };
+    let zero = app.ruler_zero();
+    let from_zero = (at - if vertical { zero.x } else { zero.y }) / 10.0;
+    let text = openstitch_app::editor::units::number(app.ui.prefs.units, from_zero);
+    app.workspace.view.selected_guide = Some((vertical, index));
+    app.workspace.view.guide_dialog = Some(GuideDialog {
+        vertical,
+        index,
+        text,
+        error: None,
+    });
+}
+
+fn guide_window(app: &mut EditorApp, ctx: &egui::Context) {
+    let Some(mut d) = app.workspace.view.guide_dialog.take() else {
+        return;
+    };
+    let mut open = true;
+    let mut done = false;
+    egui::Window::new(t("ui-guide-set-position-title"))
+        .id(egui::Id::unique("window-guide-set-position"))
+        .collapsible(false)
+        .resizable(false)
+        .open(&mut open)
+        .show(ctx, |ui| {
+            let unit = openstitch_app::editor::units::suffix(app.ui.prefs.units);
+            ui.label(if d.vertical {
+                t("ui-guide-position-x")
+            } else {
+                t("ui-guide-position-y")
+            });
+            let r = ui.horizontal(|ui| {
+                let r = ui.text_edit_singleline(&mut d.text);
+                ui.label(unit);
+                r
+            });
+            let enter = r.inner.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+            if let Some(e) = &d.error {
+                ui.colored_label(ui.visuals().error_fg_color, e);
+            }
+            ui.horizontal(|ui| {
+                if ui.button(t("ui-ok")).clicked() || enter {
+                    match set_guide_position(app, d.vertical, d.index, &d.text) {
+                        Ok(()) => done = true,
+                        Err(e) => d.error = Some(e),
+                    }
+                }
+                if ui.button(t("ui-cancel")).clicked() {
+                    done = true;
+                }
+            });
+        });
+    if open && !done {
+        app.workspace.view.guide_dialog = Some(d);
+    }
+}
+
+/// View ▸ Guides (#799): Lock Guides, Set Position…, Clear Selected Guide, Clear Guides,
+/// New Guides From Selection.
+pub fn guides_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
+    let g = app.session.design().guides.clone();
+    let mut locked = g.locked;
+    if ui
+        .checkbox(&mut locked, t("ui-lock-guides"))
+        .on_hover_text(t("ui-lock-guides-tip"))
+        .changed()
+    {
+        app.execute(&CommandRequest::new("view.lockGuides", json!({ "locked": locked })));
+    }
+    ui.separator();
+    let selected = selected_guide(app);
+    if ui
+        .add_enabled(selected.is_some(), egui::Button::new(t("ui-guide-set-position")))
+        .clicked()
+        && let Some((v, i)) = selected
+    {
+        open_guide_dialog(app, v, i);
+        ui.close();
+    }
+    if ui
+        .add_enabled(selected.is_some(), egui::Button::new(t("ui-clear-selected-guide")))
+        .clicked()
+    {
+        delete_selected_guide(app);
+        ui.close();
+    }
+    if ui
+        .add_enabled(!g.is_empty(), egui::Button::new(t("ui-clear-guides")))
+        .on_hover_text(t("ui-clear-guides-tip"))
+        .clicked()
+    {
+        app.workspace.view.selected_guide = None;
+        app.execute(&CommandRequest::new("view.clearGuides", json!({})));
+        ui.close();
+    }
+    if ui
+        .add_enabled(
+            !app.selection.is_empty(),
+            egui::Button::new(t("ui-new-guides-from-selection")),
+        )
+        .on_hover_text(t("ui-new-guides-from-selection-tip"))
+        .clicked()
+    {
+        new_guides_from_selection(app);
+        ui.close();
+    }
+}
+
+/// New Guides From Selection (#799): guidelines on the selection's edges and centre lines,
+/// shown (with the rulers) so they can be seen.
+pub fn new_guides_from_selection(app: &mut EditorApp) -> bool {
+    let ids: Vec<u64> = app.selection.iter().copied().collect();
+    let ok = app
+        .execute(&CommandRequest::new(
+            "view.newGuidesFromSelection",
+            json!({ "ids": ids }),
+        ))
+        .is_some();
+    if ok {
+        app.workspace.rulers = true;
+        app.workspace.guides = true;
+        app.ui.prefs.editing.show_guides = true;
+        app.ui.save_prefs();
+    }
+    ok
+}
+
+/// `ui.guides` (#799): the guidelines as shown (each one's position from the ruler origin,
+/// as its label reads), and the selection, lock and snapping; `orientation` + `index` select
+/// one as a click does, then `position` (a length typed as in Set Position…), `turn`
+/// (Alt-click) or `delete` (the Delete key) act on the selected one.
+pub fn guides_command(app: &mut EditorApp, params: Option<&Value>) -> Result<Value, String> {
+    let get = |k: &str| params.and_then(|p| p.get(k));
+    if let Some(o) = get("orientation") {
+        let vertical = match o.as_str() {
+            Some("vertical") => true,
+            Some("horizontal") => false,
+            _ => return Err("orientation must be vertical or horizontal".into()),
+        };
+        let index = get("index")
+            .and_then(Value::as_u64)
+            .ok_or("give index with orientation")? as usize;
+        let g = &app.session.design().guides;
+        let n = if vertical { g.vertical.len() } else { g.horizontal.len() };
+        if index >= n {
+            return Err(format!("no {} guideline {index}", orientation(vertical)));
+        }
+        if g.locked {
+            return Err("the guidelines are locked (view.lockGuides false to unlock)".into());
+        }
+        app.workspace.rulers = true;
+        app.workspace.guides = true;
+        app.workspace.view.selected_guide = Some((vertical, index));
+    }
+    let acts = ["position", "turn", "delete"].iter().any(|k| get(k).is_some());
+    if acts {
+        let (v, i) = selected_guide(app).ok_or("select a guideline first (orientation, index)")?;
+        if let Some(text) = get("position") {
+            let text = match text {
+                Value::String(s) => s.clone(),
+                Value::Number(n) => n.to_string(),
+                _ => return Err("position is a length, e.g. 12.5, \"12.5 mm\" or \"1/2\\\"\"".into()),
+            };
+            set_guide_position(app, v, i, &text)?;
+        }
+        if get("turn").and_then(Value::as_bool) == Some(true) {
+            turn_guide(app, v, i, None);
+        } else if get("delete").and_then(Value::as_bool) == Some(true) {
+            delete_selected_guide(app);
+        }
+    }
+    Ok(guides_state(app))
+}
+
+fn guides_state(app: &EditorApp) -> Value {
+    let g = &app.session.design().guides;
+    let zero = app.ruler_zero();
+    let units = app.ui.prefs.units;
+    let list = |l: &[f64], z: f64| {
+        l.iter()
+            .enumerate()
+            .map(|(i, &v)| {
+                json!({
+                    "index": i,
+                    "position": ((v - z) / 10.0 * 100.0).round() / 100.0,
+                    "label": guide_label(v - z, units),
+                })
+            })
+            .collect::<Vec<_>>()
+    };
+    json!({
+        "shown": guides_shown(app),
+        "locked": g.locked,
+        "snapping": app.ui.prefs.editing.snap_guides && guides_shown(app),
+        "origin": app.ui.prefs.ruler_origin.key(),
+        "selected": selected_guide(app).map(|(v, i)| json!({ "orientation": orientation(v), "index": i })),
+        "dialog": app.workspace.view.guide_dialog.as_ref().map(|d| json!({ "orientation": orientation(d.vertical), "index": d.index, "text": d.text, "error": d.error })),
+        "vertical": list(&g.vertical, zero.x),
+        "horizontal": list(&g.horizontal, zero.y),
+    })
 }
 
 /// Modify Image: the image's outline in red while the window is open.
@@ -631,6 +993,7 @@ fn modify_image_window(app: &mut EditorApp, ctx: &egui::Context) {
 // MARK: windows
 
 pub fn windows(app: &mut EditorApp, ctx: &egui::Context) {
+    guide_window(app, ctx);
     realistic_window(app, ctx);
     modify_image_window(app, ctx);
     font_filter_window(app, ctx);
@@ -1130,5 +1493,206 @@ mod guide_tests {
         // A new one dropped on a ruler is not added.
         drag(&ctx, &mut app, Pos2::new(10.0, 120.0), Pos2::new(10.0, 160.0));
         assert!(app.session.design().guides.horizontal.is_empty());
+    }
+
+    fn frame_with(
+        ctx: &egui::Context,
+        app: &mut EditorApp,
+        events: Vec<egui::Event>,
+        modifiers: egui::Modifiers,
+    ) {
+        let rect = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(400.0, 300.0));
+        let raw = egui::RawInput {
+            screen_rect: Some(rect),
+            events: std::iter::once(egui::Event::ModifiersChanged(modifiers))
+                .chain(events)
+                .collect(),
+            ..Default::default()
+        };
+        let vp = Viewport {
+            scale: 1.0,
+            offset: v2(50.0, 50.0),
+        };
+        let mut out = ctx.run_ui(raw, |ui| {
+            let response = ui.allocate_rect(rect, egui::Sense::click_and_drag());
+            guide_pointer(app, ui, &response, rect, &vp);
+        });
+        out.textures_delta.clear();
+    }
+
+    /// A press and release at `at` without a move.
+    fn click(ctx: &egui::Context, app: &mut EditorApp, at: Pos2, modifiers: egui::Modifiers) {
+        frame_with(ctx, app, vec![egui::Event::PointerMoved(at)], modifiers);
+        frame_with(ctx, app, vec![button(at, true)], modifiers);
+        frame_with(ctx, app, vec![button(at, false)], modifiers);
+    }
+
+    fn guides(app: &EditorApp) -> (Vec<f64>, Vec<f64>) {
+        let g = &app.session.design().guides;
+        (g.vertical.clone(), g.horizontal.clone())
+    }
+
+    fn with_guides(vertical: &[f64], horizontal: &[f64]) -> EditorApp {
+        let mut app = EditorApp::new(Launch::default());
+        app.execute(&CommandRequest::new(
+            "guides.set",
+            json!({ "vertical": mm(vertical), "horizontal": mm(horizontal) }),
+        ))
+        .expect("guides");
+        app
+    }
+
+    /// #799: a click on a guideline (its marker, or the line itself with the Select tool)
+    /// selects it without moving it; Delete removes the selected one in one undo step; a click
+    /// elsewhere on the canvas drops the selection.
+    #[test]
+    fn a_clicked_guideline_is_selected_and_delete_removes_it() {
+        let ctx = egui::Context::default();
+        let mut app = with_guides(&[150.0], &[100.0]);
+        click(&ctx, &mut app, Pos2::new(201.0, 10.0), egui::Modifiers::NONE);
+        assert_eq!(selected_guide(&app), Some((true, 0)));
+        assert_eq!(guides(&app).0, vec![150.0], "not moved by the click");
+        // The horizontal line on the canvas.
+        click(&ctx, &mut app, Pos2::new(300.0, 151.0), egui::Modifiers::NONE);
+        assert_eq!(selected_guide(&app), Some((false, 0)));
+        assert!(delete_selected_guide(&mut app));
+        assert!(guides(&app).1.is_empty());
+        assert!(!delete_selected_guide(&mut app), "nothing selected now");
+        app.undo();
+        assert_eq!(guides(&app).1, vec![100.0]);
+        click(&ctx, &mut app, Pos2::new(300.0, 151.0), egui::Modifiers::NONE);
+        click(&ctx, &mut app, Pos2::new(300.0, 250.0), egui::Modifiers::NONE);
+        assert_eq!(selected_guide(&app), None, "a click away drops it");
+    }
+
+    /// #799: a guideline on the canvas is dragged with the Select tool, one undo step; with
+    /// another tool the canvas keeps the press.
+    #[test]
+    fn a_guideline_is_dragged_on_the_canvas_with_the_select_tool() {
+        let ctx = egui::Context::default();
+        let mut app = with_guides(&[150.0], &[]);
+        drag(&ctx, &mut app, Pos2::new(200.0, 150.0), Pos2::new(240.0, 150.0));
+        assert_eq!(guides(&app).0, vec![190.0]);
+        app.tools.set_tool(openstitch_app::editor::tools::Tool::Rectangle);
+        drag(&ctx, &mut app, Pos2::new(240.0, 150.0), Pos2::new(280.0, 150.0));
+        assert_eq!(guides(&app).0, vec![190.0], "the drawing tool keeps the press");
+    }
+
+    /// #799: Alt-click turns a guideline: on the canvas where it was clicked, on its marker
+    /// across the page centre; one undo step each.
+    #[test]
+    fn alt_click_turns_a_guideline() {
+        let ctx = egui::Context::default();
+        let mut app = with_guides(&[150.0], &[]);
+        click(&ctx, &mut app, Pos2::new(200.0, 130.0), egui::Modifiers::ALT);
+        assert_eq!(guides(&app), (vec![], vec![80.0]));
+        click(&ctx, &mut app, Pos2::new(10.0, 130.0), egui::Modifiers::ALT);
+        let centre = app.session.design().page.width / 2.0;
+        assert_eq!(guides(&app), (vec![centre], vec![]));
+        app.undo();
+        assert_eq!(guides(&app), (vec![], vec![80.0]));
+    }
+
+    /// #799: locked guidelines are not moved, selected or deleted from the canvas or the
+    /// rulers (no ×), but a ruler still adds a new one; the lock is one undo step.
+    #[test]
+    fn locked_guidelines_stay_put_and_a_ruler_still_adds_one() {
+        let ctx = egui::Context::default();
+        let mut app = with_guides(&[150.0], &[]);
+        app.execute(&CommandRequest::new("view.lockGuides", json!({ "locked": true })))
+            .expect("lock");
+        drag(&ctx, &mut app, Pos2::new(200.0, 150.0), Pos2::new(240.0, 150.0));
+        assert_eq!(guides(&app).0, vec![150.0], "not moved on the canvas");
+        click(&ctx, &mut app, Pos2::new(200.0, 150.0), egui::Modifiers::NONE);
+        assert_eq!(selected_guide(&app), None, "not selected");
+        // Where its × would be: a new guideline instead of a deletion.
+        let (_, x) = marker_points(
+            egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(400.0, 300.0)),
+            true,
+            200.0,
+        );
+        click(&ctx, &mut app, x, egui::Modifiers::NONE);
+        assert_eq!(guides(&app).0, vec![150.0], "no × while locked");
+        drag(&ctx, &mut app, Pos2::new(300.0, 10.0), Pos2::new(300.0, 200.0));
+        assert_eq!(guides(&app).0.len(), 2, "{:?}", guides(&app));
+        assert!(app.session.design().guides.locked);
+    }
+
+    /// #799: Set Position… takes a length from the ruler origin in the chosen units (a unit
+    /// typed with it wins) in one undo step; anything else keeps the dialog open with an
+    /// error. A double-click on a guideline opens it.
+    #[test]
+    fn set_position_types_an_offset_from_the_ruler_origin() {
+        let ctx = egui::Context::default();
+        let mut app = with_guides(&[150.0], &[]);
+        let zero = app.ruler_zero();
+        set_guide_position(&mut app, true, 0, "12.5").expect("12.5 mm");
+        assert_eq!(guides(&app).0, vec![zero.x + 125.0]);
+        set_guide_position(&mut app, true, 0, "-1/2\"").expect("inches");
+        assert!((guides(&app).0[0] - (zero.x - 127.0)).abs() < 1e-6);
+        app.undo();
+        assert_eq!(guides(&app).0, vec![zero.x + 125.0]);
+        assert!(set_guide_position(&mut app, true, 0, "twelve").is_err());
+        assert!(set_guide_position(&mut app, true, 0, "9000").is_err(), "off the range");
+        // The dialog: a double-click opens it with the offset; bad text keeps it open.
+        // Back at x 150 (screen 200), inside the test canvas.
+        let offset = openstitch_app::editor::units::number(app.ui.prefs.units, (150.0 - zero.x) / 10.0);
+        set_guide_position(&mut app, true, 0, &offset).expect("back");
+        let at = Pos2::new(200.0, 10.0);
+        frame(&ctx, &mut app, vec![egui::Event::PointerMoved(at)]);
+        for _ in 0..2 {
+            frame(&ctx, &mut app, vec![button(at, true)]);
+            frame(&ctx, &mut app, vec![button(at, false)]);
+        }
+        let d = app.workspace.view.guide_dialog.as_ref().expect("Set Position… open");
+        assert_eq!(d.text, offset);
+        app.workspace.view.guide_dialog.as_mut().expect("open").text = "abc".into();
+        let s = guides_command(&mut app, None).expect("ui.guides");
+        assert_eq!(s["dialog"]["text"], "abc");
+    }
+
+    /// #799: `ui.guides` reads the guidelines as shown (from the ruler origin, with their
+    /// labels) and selects, sets the position of, turns and deletes one as the pointer does.
+    #[test]
+    fn ui_guides_reads_and_edits_the_guidelines_as_shown() {
+        let mut app = with_guides(&[150.0], &[100.0]);
+        let zero = app.ruler_zero();
+        let s = guides_command(&mut app, None).expect("read");
+        assert_eq!(s["shown"], true);
+        assert_eq!(s["vertical"][0]["position"], json!((150.0 - zero.x) / 10.0));
+        assert_eq!(s["vertical"][0]["label"], json!(guide_label(150.0 - zero.x, app.ui.prefs.units)));
+        let s = guides_command(
+            &mut app,
+            Some(&json!({ "orientation": "vertical", "index": 0, "position": "10 mm" })),
+        )
+        .expect("set");
+        assert_eq!(s["vertical"][0]["position"], json!(10.0));
+        assert_eq!(s["selected"]["orientation"], "vertical");
+        guides_command(&mut app, Some(&json!({ "turn": true }))).expect("turn");
+        assert_eq!(guides(&app).1.len(), 2);
+        guides_command(&mut app, Some(&json!({ "orientation": "horizontal", "index": 0, "delete": true })))
+            .expect("delete");
+        assert_eq!(guides(&app).1.len(), 1);
+        assert!(guides_command(&mut app, Some(&json!({ "delete": true }))).is_err(), "none selected");
+        assert!(guides_command(&mut app, Some(&json!({ "orientation": "vertical", "index": 5 }))).is_err());
+    }
+
+    /// #799: View ▸ Guides ▸ New Guides From Selection lines the selection's box and shows them.
+    #[test]
+    fn new_guides_from_selection_shows_them() {
+        let mut app = EditorApp::new(Launch::default());
+        app.workspace.guides = false;
+        assert!(!new_guides_from_selection(&mut app), "nothing selected");
+        let r = app
+            .execute(&CommandRequest::new(
+                "shape.rectangle",
+                json!({ "x": 10, "y": 20, "width": 30, "height": 40 }),
+            ))
+            .expect("rect");
+        app.select_all();
+        assert!(new_guides_from_selection(&mut app), "{r}");
+        assert_eq!(guides(&app).0.len(), 3);
+        assert_eq!(guides(&app).1.len(), 3);
+        assert!(app.workspace.guides && app.workspace.rulers);
     }
 }

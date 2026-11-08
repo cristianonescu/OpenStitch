@@ -188,6 +188,8 @@ mod user_patterns;
 mod validate;
 #[path = "view.rs"]
 mod view;
+#[path = "view_guides.rs"]
+mod view_guides;
 #[path = "wizards.rs"]
 mod wizards;
 

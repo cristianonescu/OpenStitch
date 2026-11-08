@@ -1828,6 +1828,8 @@ impl EditorApp {
         if hit(A::Delete) && self.tools.is_busy() && crate::keyboard_ui::draws(self.tools.tool()) {
             // While drawing, Backspace / Delete take back the last point (#499).
             self.tools.remove_last_point();
+        } else if hit(A::Delete) && crate::view_ui::delete_selected_guide(self) {
+            // A selected guideline goes first (#799).
         } else if hit(A::Delete) {
             // The Point tool deletes the selected vertex; otherwise the selected objects.
             let mut point_deleted = false;

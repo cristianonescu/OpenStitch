@@ -19,11 +19,14 @@ fn guidelines_are_set_saved_and_undone() {
     let mut s = Session::new(&dir);
     assert_eq!(
         run(&mut s, "guides.list", json!({})),
-        json!({"vertical": [], "horizontal": []})
+        json!({"vertical": [], "horizontal": [], "locked": false})
     );
     run(&mut s, "guides.set", json!({"vertical": [10, 25.5]}));
     let out = run(&mut s, "guides.set", json!({"horizontal": [-3]}));
-    assert_eq!(out, json!({"vertical": [10.0, 25.5], "horizontal": [-3.0]}));
+    assert_eq!(
+        out,
+        json!({"vertical": [10.0, 25.5], "horizontal": [-3.0], "locked": false})
+    );
     assert_eq!(s.design().guides.vertical, [100.0, 255.0]);
     run(&mut s, "project.save", json!({"path": "g.osd"}));
     let mut t = Session::new(&dir);
