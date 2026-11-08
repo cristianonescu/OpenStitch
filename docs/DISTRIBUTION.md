@@ -217,7 +217,10 @@ desktop editor's File ▸ Open and File ▸ Export.
 Desktop-only for now: the Assistant (its key lives in the system keychain), Quick Look, sending to
 a machine or USB stick, printing, updates, the automation socket, the Design Database's folders,
 the system clipboard (copy and paste stay inside the editor), and choosing a folder (the Design
-Database, Ink/Stitch font folders, Save Template To: a page cannot browse folders). Every file
+Database, Ink/Stitch font folders, Save Template To: a page cannot browse folders). Each of these
+says so when used in the browser (#830): one notice, in the status line and a small window, with
+what to do instead and the issue that tracks it (`openstitch_app::editor::browser_limits`,
+`ui.browserLimits`); the desktop never shows it. Every file
 picker works (#693): open and import, background and digitizing pictures, thread charts and
 lists, fonts, font pictures and name-drop lists, and since #797 also Open with "Open designs in
 tabs", the Programmable Stitch Creator's and Stitch Design Factory's Open and Open Template, and

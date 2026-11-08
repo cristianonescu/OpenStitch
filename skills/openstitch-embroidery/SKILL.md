@@ -428,8 +428,11 @@ to work on their browser editor, say so and offer the desktop editor or a design
 open there. The system clipboard, printing, machine transfer and choosing folders (the Design
 Database, Ink/Stitch font folders) are desktop-only too; say so instead of trying them in the
 browser. Pictures, thread charts, fonts and other files can be picked or dropped on the page.
-Editor settings (`ui.set`), thread charts, My Threads and the other user settings last across
-visits there, as on the desktop (the page's storage; cleared site data starts afresh).
+`ui.browserLimits` lists what the browser version cannot do (the Assistant, printing, USB
+transfer, updates, folders, clipboard pictures), each with what to do instead; tell the user that
+rather than trying it. Editor settings (`ui.set`), thread charts, My Threads and the other user
+settings last across visits there, as on the desktop (the page's storage; cleared site data starts
+afresh).
 
 ## Files
 

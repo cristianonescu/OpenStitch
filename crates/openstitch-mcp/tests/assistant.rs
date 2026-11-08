@@ -756,6 +756,7 @@ fn every_command_the_skill_names_exists() {
         "ui.zoom",
         "ui.settings",
         "ui.threadLabels",
+        "ui.browserLimits",
         "ui.set",
         "ui.render",
         "ui.simulate",

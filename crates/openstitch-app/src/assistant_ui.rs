@@ -257,6 +257,7 @@ impl EditorApp {
                     json!({ "list": list, "labels": labels })
                 })
             }
+            "ui.browserLimits" => Ok(crate::limits_ui::command(self)),
             "ui.settings" => Ok(self.ui_settings()),
             "ui.set" => {
                 let name = p.string("name", None).map_err(err)?;

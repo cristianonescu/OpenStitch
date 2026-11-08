@@ -1407,6 +1407,12 @@ impl EditorApp {
     /// File ▸ Background Image ▸ Paste: the clipboard image becomes the background. It is kept
     /// as a PNG in the app's data folder (named by content), since the project only references it.
     pub fn paste_background(&mut self) {
+        if crate::limits_ui::browser_limit(
+            self,
+            openstitch_app::editor::browser_limits::Limit::ClipboardImages,
+        ) {
+            return;
+        }
         if !self.ui.system_clipboard {
             self.status = openstitch_app::editor::ui_texts::t("ui-status-paste-background-the-system-clipboard-is").into();
             return;
@@ -2218,6 +2224,8 @@ impl eframe::App for EditorApp {
             .show(ui, |ui| crate::canvas::canvas(self, ui));
         crate::start_ui::cards(self, &ctx);
         crate::start_ui::windows(self, &ctx);
+        crate::limits_ui::poll(self);
+        crate::limits_ui::window(self, &ctx);
         crate::panes::floating_panes(self, &ctx);
         crate::panes::windows(self, &ctx);
         crate::recovery_ui::window(self, &ctx);

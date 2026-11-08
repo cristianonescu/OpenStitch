@@ -56,6 +56,7 @@ mod sewing_ui;
 mod shape_effects_ui;
 mod shape_tools_ui;
 mod splash;
+mod limits_ui;
 mod start_ui;
 mod stitch_table_ui;
 mod suite_chrome;
