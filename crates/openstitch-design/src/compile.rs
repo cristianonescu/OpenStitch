@@ -1120,7 +1120,12 @@ fn elements(
             // the region rows stopped short of, and the Text Transform layout's own error
             // shows: five references 0.1 mm past their 0.5 mm bounds (the arches 1 and 2 place
             // the left letters up to 0.6 mm too far along the arc, region rows as well;
-            // text-transform-10's stems, 18-openstitch-l100's descender) (#428).
+            // text-transform-10's stems, 18-openstitch-l100's descender) (#428). Since
+            // 2026-11-08 the arch spacing (`ARCH_LETTER_SPACING`, `ARCH_SHIFT` in text.rs)
+            // fixes the arches; by stroke still fails three: text-transform-10's slanted stem
+            // foot (48.4 mm against 49.0) and the descenders of 17-l75 and 18-l100 (50.8
+            // against 51.4/51.5), where the warped bottom edge's lower corner lies past the
+            // stroke's last crossing.
             // A preset or a free envelope (#535): both warp the letters alike.
             let warped = object
                 .text

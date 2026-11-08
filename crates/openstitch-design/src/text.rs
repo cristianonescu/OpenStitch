@@ -514,8 +514,14 @@ fn envelope_scale(n: u8, level: f64) -> f64 {
 const ARCH_ANGLE: f64 = 1.887;
 
 /// PE-DESIGN sets arched text a little left of the straight text's centre, by this share of
-/// its width (0.3-0.45 mm of 74.6 mm in both arches).
-const ARCH_SHIFT: f64 = -0.0055;
+/// its width (0.3-0.45 mm of 74.6 mm in both arches). -0.004 with [`ARCH_LETTER_SPACING`]: the
+/// sweep of shifts -0.0085..0 and spacings 0..-0.1 mm over every arch spec, with Fill text by
+/// stroke (#428, 2026-11-08), passes them all from -0.007 to 0 at -0.05 mm.
+const ARCH_SHIFT: f64 = -0.004;
+/// Letters along an arch sit this much closer (mm) than straight text: PE-DESIGN's arches 1 and
+/// 2 place the left letters up to 0.6 mm less far along the arc than the plain spacing would
+/// (#428).
+const ARCH_LETTER_SPACING: f64 = -0.05;
 
 /// What a text's size and line spacing measure.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1905,6 +1911,7 @@ fn envelope_layout(spec: &TextSpec, preset: u8, fonts: &[DesignFont]) -> Result<
         let arched = TextSpec {
             align: TextAlign::Center,
             fit,
+            letter_spacing: plain.letter_spacing + ARCH_LETTER_SPACING,
             ..plain
         };
         l = layout_in(&arched, Some(&Contour::new(points, false)), fonts)?;
