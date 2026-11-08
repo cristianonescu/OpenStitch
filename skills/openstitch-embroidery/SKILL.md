@@ -275,8 +275,9 @@ then style them in the next.
   makers' charts (New Brothread, Madeira, Isacord, Sulky, Robison-Anton) are `builtin` ids:
   `threads.builtinCharts` lists them with `kind: "brand"`. New Brothread (`newBrothread`, the
   owner's 63-spool kit, numbered with Brother codes) is the default chart: the colour picker
-  and the image wizards' OpenStitch mode start from it, and a first run's "My Threads" holds
-  it. `threads.defaultChart` reads the default; `threads.setDefault {builtin | chart}` changes
+  and the image wizards' OpenStitch mode start from it (a `digitize.*` call in OpenStitch mode
+  without `threads` takes the default chart; PE-DESIGN mode always the PEC chart), and a first
+  run's "My Threads" holds it. `threads.defaultChart` reads the default; `threads.setDefault {builtin | chart}` changes
   it (a settings change: say what changes and ask first; `builtin: brother` is Brother's PEC
   chart). Give a chart's thread as `color: {builtin: "newBrothread", code: "001"}` (or any
   colour parameter: `fill`, `stroke`); its Madeira codes are `crossReferences`, and
@@ -377,7 +378,10 @@ so tell the user which); `ui.set paneSewingOrderSide` / `paneAttributesSide` (le
 shortcuts, layouts or newObjects (new-shape defaults, Basic/Advanced, start cards) alone (ask first).
 For a new user, `ui.gettingStarted` lists the start cards and the kit's samples; `{sample:
 "sampler"}` opens one as an untitled design, `{card: "draw"}` runs a card, `{page: true}` opens
-Help ▸ Getting Started. A user who knows PE-DESIGN may prefer its start-up dialog:
+Help ▸ Getting Started. "Close these cards" is `{cards: "dismiss"}` (for this session only, as
+their ×, Escape or a click on the canvas; `{cards: "show"}` brings them back); "don't show them
+again" is `ui.set showStartCards false` (it asks first; Options ▸ Show start cards turns them
+back on). A user who knows PE-DESIGN may prefer its start-up dialog:
 `ui.startupWizard` opens the Startup Wizard, `{choice}` runs one of its choices (template, images,
 hoopAndFabric, importText, importShapes, importLibrary, open, database, manual), and `ui.set
 startupWizard true` shows it at every start instead of the start cards. "Make new shapes start at 30° and 4.5 rows/mm" is `ui.set

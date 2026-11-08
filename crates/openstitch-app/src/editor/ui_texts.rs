@@ -418,6 +418,15 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
         "Save the selected object's sewing attributes under this name",
     ),
     ("ui-match-to-thread-chart", "Match to thread chart…"),
+    ("ui-dont-show-this-again", "Don't show this again"),
+    (
+        "ui-start-cards-back-on-tip",
+        "The cards stay off until Options ▸ Show start cards turns them back on",
+    ),
+    (
+        "ui-close-the-start-cards-tip",
+        "Close the start cards until the next start (Escape or a click on the canvas does too)",
+    ),
     (
         "ui-search-code-name-or-pec-number",
         "Search code, name or PEC number",

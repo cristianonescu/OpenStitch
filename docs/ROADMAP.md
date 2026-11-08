@@ -621,6 +621,11 @@ theme) and find and filter in the Sewing Order list (#745, workflow, rank 12 the
 for Future; radial, contour and guide-following colour blends added to #532, herringbone and
 ladder lines noted on #543.
 
+From the competitor scan of 2026-11-08 (same document, Updates; openhoop, concepts only): a
+hand-stitch look for fills (#817, rank 13 theme with #540) and rebuilt objects that keep the
+original's spacing, tatami pattern and closed satin rings (#818, `object.toShapes`), both ideas
+for Future.
+
 Deferred: linear colour-gradient and tartan fills, shape and vine fills, photo
 thread-painting, sequin/chenille/bead types (machine-specific), the TrueType turning-satin
 rework and an intelligent multi-hoop split with editable lines (VP3, TAP, TBF, U01, DSB, DSZ,

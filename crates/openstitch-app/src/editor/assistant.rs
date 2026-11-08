@@ -356,7 +356,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     },
     UiCommand {
         id: "ui.gettingStarted",
-        summary: "Getting started (#554): without parameters, the start cards (shown while the design is empty), the kit's samples and whether the cards show; card runs one card's action; sample opens a kit design as a new untitled design (asks about unsaved changes first, as Open does); page opens or closes Help ▸ Getting Started",
+        summary: "Getting started (#554): without parameters, the start cards (shown while the design is empty), the kit's samples, whether the cards show (cardsShown), were closed this session (dismissed) and are turned on (enabled, ui.set showStartCards); card runs one card's action; sample opens a kit design as a new untitled design (asks about unsaved changes first, as Open does); page opens or closes Help ▸ Getting Started; cards dismiss closes the cards for this session (as their ×, Escape or a click on the canvas) and show brings them back, neither changing the preference (#797)",
         effect: Effect::Edit,
         params: &[
             p(
@@ -376,6 +376,12 @@ pub const UI_COMMANDS: &[UiCommand] = &[
                 "bool",
                 false,
                 "Show or hide the Getting Started page",
+            ),
+            p(
+                "cards",
+                "dismiss|show",
+                false,
+                "Close the start cards for this session, or show them again",
             ),
         ],
     },

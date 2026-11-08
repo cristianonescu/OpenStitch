@@ -1262,19 +1262,19 @@
    60.0,
    77.5
   ],
-  "stitches": 3809,
-  "trims": 157,
+  "stitches": 3637,
+  "trims": 121,
   "threads": [
    "208 Orange",
-   "515 Moss Green",
+   "323 Light Brown",
    "800 Red",
-   "107 Dark Fuchsia",
-   "808 Deep Green"
+   "515 Moss Green",
+   "107 Dark Fuchsia"
   ],
-  "sewingMinutes": 12.8,
+  "sewingMinutes": 10.7,
   "image": "../images/g07-pixel-strawberry.png",
   "preview": "previews/S-cross-stitch-strawberry-pe-compatible.png",
-  "sha256": "ed96a0a93e2f2726c8cc295f8568c3c4f9fcbd0ee2be9b34f6ec7eccb5aa0568"
+  "sha256": "d7745dd16659484ffdeb3e820b7aa7db3c003db64e3bdb0ee5de89cc6506e0be"
  },
  "image-tools/S-design-center-butterfly-openstitch.pes": {
   "title": "Design Center, OpenStitch mode",

@@ -12,6 +12,12 @@ use serde_json::{Value, json};
 /// The windows' state.
 #[derive(Default)]
 pub struct StartState {
+    /// The start cards were closed for this session (×, Escape or a click on the canvas,
+    /// #797): they stay away, even over a new empty design, until `ui.gettingStarted {cards:
+    /// "show"}` or the next start. The preference (`prefs.start_cards`) is not changed.
+    pub cards_dismissed: bool,
+    /// The cards' "Don't show this again" tick box.
+    dont_show: bool,
     pub samples_open: bool,
     pub page_open: bool,
     page_cache: egui_commonmark::CommonMarkCache,
@@ -38,26 +44,56 @@ pub fn open_sample(app: &mut EditorApp, key: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// The cards over the canvas while the design is empty (Options ▸ Show start cards).
+/// Whether the start cards show now: the preference is on, the design is empty and they were
+/// not closed this session (#797).
+pub fn cards_visible(app: &EditorApp) -> bool {
+    gs::cards_shown(app.ui.prefs.start_cards, app.session.design().objects.len())
+        && !app.ui.start.cards_dismissed
+}
+
+/// Closes the start cards for this session (#797); the preference stays as it is.
+pub fn dismiss_cards(app: &mut EditorApp) {
+    app.ui.start.cards_dismissed = true;
+}
+
+/// "Don't show this again" (#797): the start cards are turned off, as Options ▸ Show start
+/// cards does, and saved; that menu entry turns them back on.
+pub fn never_show_cards(app: &mut EditorApp) {
+    app.ui.prefs.start_cards = false;
+    app.ui.save_prefs();
+}
+
+/// The cards over the canvas while the design is empty (Options ▸ Show start cards). The ×,
+/// Escape or a click on the canvas beside them closes them for the session; "Don't show this
+/// again" turns them off (#797).
 pub fn cards(app: &mut EditorApp, ctx: &egui::Context) {
     let Some(canvas) = app.workspace.canvas else {
         return;
     };
     // The Startup Wizard replaces the cards while it is open (#657).
-    if !gs::cards_shown(app.ui.prefs.start_cards, app.session.design().objects.len())
-        || app.tools.is_busy()
-        || app.startup_wizard.open
-    {
+    if !cards_visible(app) || app.tools.is_busy() || app.startup_wizard.open {
         return;
     }
     let mut picked: Option<Start> = None;
-    egui::Area::new(egui::Id::unique("start-cards"))
+    let mut close = false;
+    let mut dont_show = app.ui.start.dont_show;
+    let area = egui::Area::new(egui::Id::unique("start-cards"))
         .order(egui::Order::Middle)
         .pivot(egui::Align2::CENTER_CENTER)
         .fixed_pos(canvas.center())
         .show(ctx, |ui| {
             egui::Frame::popup(ui.style()).show(ui, |ui| {
-                ui.label(RichText::new(t("ui-start-your-design")).heading());
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(t("ui-start-your-design")).heading());
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let b = egui::Button::new(crate::icons::ui_image(ui, "close")).frame(false);
+                        let r = ui.add(b).on_hover_text(t("ui-close-the-start-cards-tip"));
+                        crate::a11y::name(&r, "Close the start cards");
+                        if r.clicked() {
+                            close = true;
+                        }
+                    });
+                });
                 ui.add_space(4.0);
                 egui::Grid::new("start-cards")
                     .spacing(vec2(8.0, 8.0))
@@ -72,13 +108,33 @@ pub fn cards(app: &mut EditorApp, ctx: &egui::Context) {
                         }
                     });
                 ui.add_space(2.0);
-                ui.label(
-                    RichText::new(t("ui-getting-started-in-the-help-menu"))
-                        .weak()
-                        .small(),
-                );
+                ui.horizontal(|ui| {
+                    ui.checkbox(&mut dont_show, t("ui-dont-show-this-again"))
+                        .on_hover_text(t("ui-start-cards-back-on-tip"));
+                    ui.label(
+                        RichText::new(t("ui-getting-started-in-the-help-menu"))
+                            .weak()
+                            .small(),
+                    );
+                });
             });
         });
+    // Escape, or a click on the canvas beside the cards, closes them for the session.
+    let outside_click = ctx.input(|i| {
+        i.pointer.primary_clicked()
+            && i
+                .pointer
+                .interact_pos()
+                .is_some_and(|p| canvas.contains(p) && !area.response.rect.contains(p))
+    });
+    if close || outside_click || ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+        dismiss_cards(app);
+    }
+    app.ui.start.dont_show = dont_show;
+    if dont_show {
+        never_show_cards(app);
+        app.ui.start.dont_show = false;
+    }
     if let Some(s) = picked {
         start(app, s, ctx);
     }
@@ -188,8 +244,24 @@ pub fn command(
         app.ui.start.page_open = open;
         return Ok(json!({ "page": open }));
     }
+    // #797: close the cards for this session, or show them again; the preference (ui.set
+    // showStartCards) is not changed.
+    match get("cards") {
+        Some("dismiss") => {
+            dismiss_cards(app);
+            return Ok(json!({ "cardsShown": cards_visible(app), "dismissed": true }));
+        }
+        Some("show") => {
+            app.ui.start.cards_dismissed = false;
+            return Ok(json!({ "cardsShown": cards_visible(app), "dismissed": false }));
+        }
+        Some(other) => return Err(format!("cards '{other}': use dismiss or show")),
+        None => {}
+    }
     Ok(json!({
-        "cardsShown": gs::cards_shown(app.ui.prefs.start_cards, app.session.design().objects.len()),
+        "cardsShown": cards_visible(app),
+        "dismissed": app.ui.start.cards_dismissed,
+        "enabled": app.ui.prefs.start_cards,
         "cards": CARDS.iter().map(|c| json!({ "card": c.key, "title": c.title, "text": c.text })).collect::<Vec<_>>(),
         "samples": SAMPLES.iter().map(|s| json!({ "sample": s.0, "title": s.1 })).collect::<Vec<_>>(),
     }))

@@ -202,6 +202,11 @@ def digitize(command, image, hoop, mode="openStitch", **params):
     w, h = RAMP if image == "grey-ramp.png" else Image.open(IMAGES / image).size
     bw, bh = HOOPS[hoop]["box"]
     width = round(min(bw, bh * w / h), 1)
+    if mode == "openStitch" and command in ("digitize.autoPunch", "digitize.photoStitch"):
+        # The kit stays on Brother's PEC chart: since #810 OpenStitch mode without `threads`
+        # takes the user's default chart (New Brothread), and the round-2 sew-outs and the
+        # calibration scans (#291) are pinned to these files.
+        params.setdefault("threads", "brother")
     return [{"command": command, "params": {"path": image, "width": width, "compatMode": mode, **params}}]
 
 
