@@ -4,6 +4,14 @@ Backlog item B15 of [competitive-features.md](../competitive-features.md) (featu
 D13). Research date: 2026-10-28. A design note for `openstitch-design` (`text.rs`,
 `fonts.rs`) and `openstitch-engine` (`lettering.rs`). No other product's code was read.
 
+**Status (2026-11-09):** the `Baseline` model, saved kerning and kerning classes, team names
+and closest-point connections are not built. Nearby work that landed: all 26 Transform presets
+(§1 and §10's "24 of 26" and "presets 13 and 14 still open" are out of date); arched text with
+several lines as concentric rings (`arc` on `text.add` / `object.setText`, #456); Small Text
+single-line fonts for 3–6 mm labels (#530); Ink/Stitch font folders with their kerning pairs
+(#529); trimming between letters, words or lines (`object.setFinish` `between`, #548). PE-DESIGN's
+Connection Points remain a documented difference (COMPATIBILITY_AUDIT item 11).
+
 ## 1. What the feature is
 
 Lettering is most of hobby embroidery, and the professional products go deeper than

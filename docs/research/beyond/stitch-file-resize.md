@@ -5,6 +5,11 @@ Research date: 2026-10-28. A design note for `openstitch-design` (`stitch_edit.r
 `segment.rs`) and `openstitch-engine` (`convert.rs`, `stitch_edit.rs`). No other product's
 code was read.
 
+**Status (2026-11-09):** not built: no `segment.rs` and none of the `stitches.resize` /
+`tuneDensity` / `targetCount` / `declump` / `limitDensity` / `removeHidden` commands. Related
+work that landed: `stitches.smooth` (Smooth Stitches, #478), and leaving out hidden stitching
+on *objects* (`object.setHideUnder`, `design.setRemoveHidden`, #511), not on stitch blocks.
+
 ## 1. What the feature is
 
 Purchased and machine-made designs arrive as stitches, not objects. Scaling stitches scales

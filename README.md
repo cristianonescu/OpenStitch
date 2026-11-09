@@ -15,8 +15,8 @@ OpenStitch is an **alpha**: good for trying out and testing, not for production 
 sew-out on scrap fabric first.
 
 **Try it in your browser, nothing to install:** https://cristianonescu.github.io/OpenStitch/
-It opens, simulates, rotates, flips, saves and exports designs from your own disk (nothing is
-uploaded); drawing, lettering and the Assistant are still desktop-only.
+It runs the desktop editor on designs from your own disk and saves and exports them as downloads
+(nothing is uploaded); the Assistant, printing and sending to a machine are still desktop-only.
 
 Not affiliated with Brother Industries. No Brother code or assets are included; see
 [docs/LEGAL_AND_LICENSING.md](docs/LEGAL_AND_LICENSING.md).
@@ -73,7 +73,7 @@ beyond PE-DESIGN 11.
   to the running editor.
 - **Everywhere:** macOS, Windows and Linux with self-update,
   (+) [a first browser version](https://cristianonescu.github.io/OpenStitch/), and file-manager
-  thumbnails in Finder (Quick Look) and on Linux.
+  thumbnails in Finder (Quick Look), Windows Explorer and on Linux.
 - **Ready-to-sew kit:** designs for every feature and calibration cards, ready to copy to a
   machine.
 
@@ -110,8 +110,8 @@ circle, and the whole message is one undo step.*
   computer, you can read, edit or clear them in its settings, or turn memory off.
 
 Benchmark on 12 embroidery tasks: Claude Code 12/12, Ollama gpt-oss:20b 8/12. It has been tested
-on macOS so far; Windows and Linux testing is
-[#401](https://github.com/cristianonescu/OpenStitch/issues/401). Details in the
+on macOS and Windows (12/12 there too); on Linux, CI runs its tests and the keychain round trip
+([#401](https://github.com/cristianonescu/OpenStitch/issues/401)). Details in the
 [alpha 12 notes](docs/releases/v0.1.0-alpha.12.md).
 
 ## Status at a glance
@@ -133,8 +133,8 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- /status:glance -->
 
 Tiers, weakest first: *internal regression* (our own earlier output), *oracle* (an independent
-implementation), *reference* (PE-DESIGN 11.50's own output), *machine* (a recorded sew-out; none
-yet). Every feature and its evidence is in [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md).
+implementation), *reference* (PE-DESIGN 11.50's own output), *machine* (a recorded sew-out; no
+spec has reached it yet). Every feature and its evidence is in [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md).
 
 ## Screenshots
 
@@ -378,13 +378,13 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
 - (+) **Skeleton satin:** a satin column sewn along a derived centre line.
 - (+) **Satin line with variable width** on any path: width keys, width set while drawing,
   handles anywhere along the line, tapered ends and per-side widths ([#524]).
-- (+) **Satin corners:** turn, mitre or cap at sharp corners (*partial*: Manual Punch columns and
-  zigzag lines) ([#520]).
+- (+) **Satin corners:** turn, mitre or cap at sharp corners (*partial*: Manual Punch columns,
+  zigzag lines, skeleton and Auto satin) ([#520]).
 - (+) **Short stitches on inner curves** so the inside of a bend does not pile up (*partial*)
   ([#521]).
-- (+) **Pull compensation per side or as a percentage of width** (*partial*) ([#522]).
+- (+) **Pull compensation per side or as a percentage of width** ([#522]).
 - (+) **Automatic underlay by column width,** centre-walk underlay and a second underlay layer
-  (*partial*) ([#523]).
+  ([#523]).
 - (+) **Satin styles:** S-stitch, open zigzag, double satin and a jagged edge (*partial*)
   ([#528]).
 - (+) **Raised satin:** padding lanes under the satin for a 3D look without foam (*partial*)
@@ -766,8 +766,6 @@ See also [New: the Assistant](#new-the-assistant).
 [#669]: https://github.com/cristianonescu/OpenStitch/issues/669
 [#501]: https://github.com/cristianonescu/OpenStitch/issues/501
 [#656]: https://github.com/cristianonescu/OpenStitch/issues/656
-[#499]: https://github.com/cristianonescu/OpenStitch/issues/499
-[#669]: https://github.com/cristianonescu/OpenStitch/issues/669
 [#553]: https://github.com/cristianonescu/OpenStitch/issues/553
 [#554]: https://github.com/cristianonescu/OpenStitch/issues/554
 [#556]: https://github.com/cristianonescu/OpenStitch/issues/556
@@ -793,8 +791,8 @@ Also missing, from the [roadmap](docs/ROADMAP.md#still-to-do):
 
 - **Stroke-wise lettering under a Text Transform:** transformed Fill text still sews each
   letter by region (#428), and no lettering has under sewing per stroke yet.
-- **Text details:** per-character colour, multi-character selection, Connection Points, minimum
-  font sizes and small-text fonts, kerning that reflows the line.
+- **Text details:** per-character colour, multi-character selection, Connection Points, kerning
+  that reflows the line.
 - **Satin and fill details:** Miter limit on satin lines (#373; zigzag lines have it),
   gradation per-step editing and Blend.
 - **PES:** opening PE-DESIGN's texts and stitch groups as editable OpenStitch objects; motif
@@ -826,8 +824,8 @@ Wireless transfer, Link, card reading and PHX use undocumented protocols or form
 project will not reverse-engineer. PEN is an encrypted purchase format: reading it would
 circumvent its protection. ScanNCut FCM has no Brother specification and malformed files can
 reboot the machine. Scanners need native code (`unsafe`), which the workspace forbids for now.
-macOS Quick Look thumbnails are implemented (see [Features](#platforms-desktop-browser-quick-look));
-Windows Explorer thumbnails are planned.
+macOS Quick Look and Windows Explorer thumbnails are implemented (see
+[Features](#platforms-desktop-browser-quick-look)).
 
 ## Known issues
 
@@ -849,7 +847,9 @@ Open differences from PE-DESIGN 11 that you may notice, from the
 
 Other things to know:
 
-- **No sew-out yet:** no OpenStitch-written file has a recorded sew-out on a Brother machine.
+- **Sewn on one machine so far:** the kit has been sewn on a Brother NV880E (see the
+  [calibration results](examples/sew/README.md#calibration-results)), but no compatibility spec
+  has a recorded sew-out in `compat/machine/` yet.
 - **Image digitizing is approximate:** Auto Punch, Cross Stitch and Photo Stitch are compared with
   PE-DESIGN but do not sew the same stitches.
 - **Builds are not code-signed:** macOS and Windows warn on first launch (see
@@ -899,7 +899,7 @@ Next, from [docs/ROADMAP.md](docs/ROADMAP.md):
 - **PES:** PE-DESIGN's text opened as editable objects; motif fill and lines, several groups and
   the remaining hoops in the PES 11 writer.
 - **Stitches:** the remaining fill, satin and line details listed above, and branching skeletons.
-- **Machine tier:** a first recorded sew-out on a Brother machine.
+- **Machine tier:** a first sew-out recorded as a compatibility spec in `compat/machine/`.
 - **Image digitizing:** run-to-run travel in Cross Stitch, still fewer trims in Photo Stitch 1
   (hidden routed travel took OpenStitch mode from 68 to 25 trims per 1,000 stitches; PE-DESIGN
   sews a colour in one to five paths), and closer Photo Stitch output.
@@ -1294,9 +1294,9 @@ claude mcp add openstitch -- "$PWD/target/release/openstitch-mcp" --root ~/Embro
 ```
 
 To let an MCP client control the whole editor (the base of the B17 AI assistant), start the
-editor with `--listen 0` and register `openstitch-mcp --assistant`. It offers seven tools
+editor with `--listen 0` and register `openstitch-mcp --assistant`. It offers nine tools
 instead of one per command: `commands_list`, `command_describe`, `execute`, `run_batch`,
-`view_render`, `scratch_write` and `skill_reference`. They reach every engine command and the
+`view_render`, `scratch_write`, `skill_reference`, `notes_read` and `notes_write`. They reach every engine command and the
 editor's `ui.*` commands: ribbon and menu commands, selection, zoom, settings, the simulator,
 Help and updates. A bundled embroidery skill (`skills/openstitch-embroidery`) tells the model
 how to build designs that sew well.
@@ -1309,8 +1309,10 @@ Desktop, IDEs) take the same command and arguments in their MCP server configura
 ## Contributing
 
 - Work on a branch and open a pull request to `main`; nobody pushes to `main` directly.
-- A PR is merged once CI is green on all three operating systems. Merge scripts must treat a
-  cancelled (superseded) run as pending; see
+- A PR is merged once it is mergeable, its light local checks pass and the private-details
+  scan is clean, without waiting for its CI run; CI runs on every PR and on `main`, and must
+  be green on all three operating systems before a release. Scripts that wait for CI must
+  treat a cancelled (superseded) run as pending; see
   [docs/RELEASING.md](docs/RELEASING.md#merging-pull-requests).
 - Every merge to `main` builds the executables (see [Download a build](#download-a-build)).
 - Every PR that changes a feature updates [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md); the

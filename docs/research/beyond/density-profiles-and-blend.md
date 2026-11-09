@@ -4,6 +4,17 @@ Backlog item B6 of [competitive-features.md](../competitive-features.md) (featur
 F17). Research date: 2026-10-28. A design note for `openstitch-design` (`model.rs`,
 `region.rs`, `column.rs`) and one engine command. No other product's code was read.
 
+**Status (2026-11-09, #532, closed):** density profiles on fills landed as
+`object.setRegion` `gradationShape` (linear, convex, concave, centre, edges, wave; `GradationShape`
+in `model.rs`), keeping PE-DESIGN's row placement (#812). The blend landed in a different form
+from §3: `shape.gradient` and `shape.blend` (#806) split one shared set of tatami rows between
+2–8 colours, each stitch sewn by one colour (dithers rows, ordered, noise, bands), instead of two
+complete layers with complementary profiles; a Gradient tool drags its start and end (#814), and
+`import.svg` `gradients: "blend"` turns SVG gradients into blends (#812). Hidden travel *between
+objects* shipped separately (#545: `design.setTravelUnder`, run connectors). Not built: custom
+profile points, profiles on satin columns, `underlayUnderOpen`, and the open-fill hidden travel
+of §3.2 (`openSpacing`, `travelInOpen`).
+
 ## 1. What the feature is
 
 - **Density profile.** The row spacing of a fill, or the stitch spacing of a satin column,

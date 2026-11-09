@@ -77,6 +77,15 @@ OpenStitch at `main` on 2026-10-28; "PE" is PE-DESIGN 11.50. A ● in the OS col
 feature exists; a ○ with a backlog number (B1–B15) means it is in the ranked backlog of
 section 4. Product levels are given in the notes, not here.
 
+Since 2026-10-28 (status as of 2026-11-09; the current state is in
+[FEATURE_MATRIX.md](../FEATURE_MATRIX.md), not in this table): OpenStitch has gained contour
+fill (F1, B1), density profiles and colour blends (F5, F6, #532), maze and meander fills (F8,
+#533), knockdown fill (F12, #510), travel under later fills (F17, #545), auto-route, Redwork and
+partial branching (D1, D2, O10, #546), satin lines with variable width (O2, #524), satin corner
+handling and short stitches in part (O3, O4, #520, #521, #373), automatic underlay by width,
+pull compensation per side and in %, and push compensation (D4, D5, #522, #523, #677), and a
+density map (D15, `design.density`, #504); D9 now has all 26 Text Transform presets.
+
 | # | Feature | PE | OS | ES / Hatch | Bernina V9 | mySewnet | Janome AD | Tajima DG | Embird | Ink/Stitch | Embrilliance | FTCU / SWP |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | **Fills** | | | | | | | | | | | | |

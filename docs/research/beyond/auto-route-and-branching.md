@@ -6,6 +6,14 @@ O10). Research date: 2026-10-28. A design note for `openstitch-design` (`route.r
 parameters, model change and tests. No other product's code was read; the graph algorithms
 are textbook (Euler paths, route inspection, Hierholzer).
 
+**Status (2026-11-09):** auto-route and Redwork landed in #546 (closed) as one command,
+`shape.autoRoute {ids, redwork, join, keep}` (not `order.autoRoute` / `order.redwork`), on a
+new `openstitch-design/src/graph.rs`; the matching is exact up to 16 odd vertices. `object.branch`
+/ `object.unbranch` (#546) group touching shapes and enter each where the one before touches it,
+but sew each shape whole: the centre-run-down, satin-up walk of §5 is not built. Separately,
+`object.deriveSkeleton {branches}` splits a branching shape into one satin column per arm
+(#526, still open).
+
 ## 1. What the feature is
 
 Three related outputs from one idea, "treat the drawing as a graph and walk it":

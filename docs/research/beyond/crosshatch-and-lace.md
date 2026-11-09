@@ -4,6 +4,11 @@ Backlog item B8 of [competitive-features.md](../competitive-features.md) (featur
 Research date: 2026-10-28. A design note for `openstitch-design` (`regions.rs`, `model.rs`).
 No other product's code was read.
 
+**Status (2026-11-09):** the crosshatch region type is not built (no `RegionType::Crosshatch`;
+crosshatch is still only the Background Fill wizard's option). A double zigzag exists as a
+decorative *line* type (`LineType::DoubleZigzag`, `decorative.rs`, #543), the answer to §7's
+first question, but not as a line type of a fill.
+
 ## 1. What the feature is
 
 An open fill made of one or more families of parallel lines at chosen angles and spacing,
