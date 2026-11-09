@@ -1703,3 +1703,97 @@ fn push_compensation_and_a_second_underlay_go_through_the_command() {
     let help = run(&mut s, "commands.list", json!({})).to_string();
     assert!(help.contains("pushCompensation") && help.contains("crossed tatami"));
 }
+
+/// #859: stitch angle lines and a gradient's axis turn and place the rows wherever the shape is
+/// on the page: the kit's L moved by (60, 100) mm sews the same rows moved, and so does an L
+/// moved after its lines were set; a gradient keeps its colours on the same part of the shape.
+#[test]
+fn angle_lines_and_gradients_follow_the_shape_anywhere_on_the_page() {
+    let l_shape = |dx: f64, dy: f64| {
+        json!({"points": [[7.0 + dx, 7.0 + dy], [57.0 + dx, 7.0 + dy], [57.0 + dx, 25.0 + dy],
+            [25.0 + dx, 25.0 + dy], [25.0 + dx, 80.0 + dy], [7.0 + dx, 80.0 + dy]],
+            "closed": true, "fill": "Blue"})
+    };
+    let lines = |dx: f64, dy: f64| {
+        json!([
+            [[45.0 + dx, 5.0 + dy], [45.0 + dx, 27.0 + dy]],
+            [[27.0 + dx, 27.0 + dy], [5.0 + dx, 5.0 + dy]],
+            [[5.0 + dx, 60.0 + dy], [27.0 + dx, 60.0 + dy]]
+        ])
+    };
+    // The stitches of one object's design, moved back by (dx, dy) mm.
+    let sewn = |dx: f64, dy: f64, after: bool| -> Vec<(i64, i64)> {
+        let tmp = temp_dir();
+        let mut s = Session::new(tmp.path());
+        run(&mut s, "design.new", json!({"width": 200, "height": 200}));
+        if after {
+            run(&mut s, "shape.polygon", l_shape(0.0, 0.0));
+            run(
+                &mut s,
+                "object.setAngleLines",
+                json!({"id": 1, "lines": lines(0.0, 0.0)}),
+            );
+            run(
+                &mut s,
+                "object.move",
+                json!({"ids": [1], "dx": dx, "dy": dy}),
+            );
+        } else {
+            run(&mut s, "shape.polygon", l_shape(dx, dy));
+            run(
+                &mut s,
+                "object.setAngleLines",
+                json!({"id": 1, "lines": lines(dx, dy)}),
+            );
+        }
+        Compiler::default()
+            .compile(s.design())
+            .stitches
+            .iter()
+            .map(|p| {
+                (
+                    (p.x - dx * 10.0).round() as i64,
+                    (p.y - dy * 10.0).round() as i64,
+                )
+            })
+            .collect()
+    };
+    let home = sewn(0.0, 0.0, false);
+    assert_eq!(sewn(60.0, 100.0, false), home, "drawn at (60, 100)");
+    assert_eq!(sewn(60.0, 100.0, true), home, "moved by (60, 100)");
+    // The lines turn the rows there: not the plain fill's stitches.
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
+    run(&mut s, "design.new", json!({"width": 200, "height": 200}));
+    run(&mut s, "shape.polygon", l_shape(60.0, 100.0));
+    let plain = Compiler::default().compile(s.design());
+    run(
+        &mut s,
+        "object.setAngleLines",
+        json!({"id": 1, "lines": lines(60.0, 100.0)}),
+    );
+    assert_ne!(Compiler::default().compile(s.design()), plain);
+    // A gradient on a moved rectangle: the same stitches, moved.
+    let gradient = |dx: f64| -> Vec<(i64, i64)> {
+        let tmp = temp_dir();
+        let mut s = Session::new(tmp.path());
+        run(&mut s, "design.new", json!({"width": 200, "height": 200}));
+        run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": 10.0 + dx, "y": 10, "width": 40, "height": 30, "fill": "Blue"}),
+        );
+        run(
+            &mut s,
+            "shape.gradient",
+            json!({"id": 1, "threads": ["Blue", "White"], "angle": 90}),
+        );
+        Compiler::default()
+            .compile(s.design())
+            .stitches
+            .iter()
+            .map(|p| ((p.x - dx * 10.0).round() as i64, p.y.round() as i64))
+            .collect()
+    };
+    assert_eq!(gradient(70.0), gradient(0.0), "a gradient moved");
+}
