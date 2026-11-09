@@ -299,8 +299,8 @@ not before, so every reference in the repository has a spec that reads it.
    its region rows (#428). PE-DESIGN sews it by stroke too (`text-transform-9`: level rows on the
    slanted stems), but the stroke cut of warped letters drifts 0.1–0.3 mm past seven transform
    references' bounds. Also open: PE-DESIGN packs the bowls of O and 8 closer than their middle
-   (−14 %, −23 %), and S has more rows than PE-DESIGN (+19 %). Satin text's crossings still end on
-   chords between its 3 mm rungs, up to 0.2 mm inside O's counter (#430).
+   (−14 %, −23 %), and S has more rows than PE-DESIGN (+19 %). Satin text's crossings ended on
+   chords between its 3 mm rungs, up to 0.2 mm inside O's counter (#430, since closed).
 4. **Order, travel and trims inside a letter.** Order the strokes, travel along stroke edges at
    2 mm, and trim between a letter's separate runs (x, g, i). Specs: trim counts on
    `text-size-hg` (4) and the "OpenStitch" transforms (11).
@@ -321,8 +321,9 @@ not before, so every reference in the repository has a spec that reads it.
    stem. A's right leg started 3.4 mm below the apex, where PE-DESIGN's takes the apex in: since
    2026-10-31 a sharp corner belongs to the column sewn last there (step 2's switch). Lato's A is 20.2 mm wide here, against
    16.7 mm between PE-DESIGN's foot lines. X gave two diagonals through a square where
-   PE-DESIGN sews two chevrons with a trim; since 2026-10-31 a four-arm crossing is two chevrons. Travel between the blocks and trims are not
-   generated yet: blocks are not sewn (step 2's switch).
+   PE-DESIGN sews two chevrons with a trim; since 2026-10-31 a four-arm crossing is two chevrons. Since
+   step 2's switch (2026-10-31) the blocks are sewn, joined by travel along the outline, with a
+   new run where a piece is not joined to the one before.
 5. **Under sewing per stroke:** the outline type, a run round each stroke before its satin
    (`stroke-us-*`: +68 to +69 needle points on H and A). **Convert to Blocks** emits one Manual
    Punch block per stroke (`stroke-blocks-*`), **Convert to Outline** keeps today's single region

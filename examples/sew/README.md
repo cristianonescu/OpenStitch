@@ -28,7 +28,7 @@ large. `manifest.json` lists every file with its size, stitch count, threads and
   stabiliser. Use cut-away stabiliser for the photo designs (Photo Stitch 1 and 2) and for Auto
   Punch's storybook picture. Use water-soluble stabiliser for the cutwork design.
 - **Loading:** copy the `.pes` file to a USB stick and choose it on the machine, or send it with
-  OpenStitch's **Send Embroidery ▸ Send to USB Media**.
+  OpenStitch's **Home ▸ Sew ▸ Sew Embroidery** (Send to USB Media).
 - **Colour changes:** the machine stops for each thread; "Threads, in sewing order" under each
   design lists them.
 - **Wizards:** the appliqué design stops twice for the fabric (lay it on at the first stop, trim it
@@ -203,7 +203,7 @@ Notes:
   sewed as fill ([#297](https://github.com/cristianonescu/OpenStitch/issues/297)).
 - The same session sewed the sunset photo patch, the machine checks, *Region sew types 2* and
   *Background fill*: all sewed whole, and stippling and the flexible spiral no longer stitch in
-  place (fixed in alpha.11). The zigzag net fill sews lumpy ([#293](https://github.com/cristianonescu/OpenStitch/issues/293)).
+  place (fixed in alpha.11). The zigzag net fill sewed lumpy ([#293](https://github.com/cristianonescu/OpenStitch/issues/293), since fixed).
 
 <img src="calibration/results/2026-11-04-round2-all.jpg" width="480" alt="Scan of the second sew-out session">
 

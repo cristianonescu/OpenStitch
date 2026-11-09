@@ -18,7 +18,7 @@ pub(crate) const SHAPING_PARAMS: [ParamDoc; 16] = [
     opt(
         "cornerStyle",
         "turn|auto|mitre|cap",
-        "Satin corners (beyond PE-DESIGN; Manual Punch columns, skeleton satin, Auto satin regions and zigzag lines; satin text is cut at its sharp corners, so they do not apply there; on skeleton and Auto satin at the centre line's points): turn (default, PE-DESIGN's fan), auto (cap below capBelow, mitre below mitreBelow), mitre (a seam from the inner corner to the tip, each leg's stitches square to it) or cap (both legs end on a square line through the inner corner, the tip sewn as its own piece over a hidden run)",
+        "Satin corners (beyond PE-DESIGN; Manual Punch columns, skeleton satin, Auto satin regions and zigzag lines; on satin text at the corners where two strokes are sewn one after the other (Z, V, W; not at stems or junctions); on skeleton and Auto satin at the centre line's points): turn (default, PE-DESIGN's fan), auto (cap below capBelow, mitre below mitreBelow), mitre (a seam from the inner corner to the tip, each leg's stitches square to it) or cap (both legs end on a square line through the inner corner, the tip sewn as its own piece over a hidden run)",
     ),
     opt(
         "mitreBelow",
@@ -83,7 +83,7 @@ pub(crate) const SHAPING_PARAMS: [ParamDoc; 16] = [
     opt(
         "spacingAt",
         "0-1",
-        "Manual Punch columns only (not satin regions, skeleton or Auto satin): where across a curved column the density is measured, 0 (shorter side) to 1 (longer side, PE-DESIGN's, the default); 0.5 evens it at the centre",
+        "Manual Punch columns, skeleton satin and Auto satin regions (not fixed-direction satin): where across a curved column the density is measured, 0 (shorter side) to 1 (longer side); 0.5 evens it at the centre. Unset keeps each kind's own: the longer side on columns and Auto satin (PE-DESIGN's, = 1), the centre line on skeleton satin (= 0.5)",
     ),
     opt(
         "raised",

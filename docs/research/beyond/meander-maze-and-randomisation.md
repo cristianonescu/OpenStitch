@@ -4,6 +4,14 @@ Backlog item B9 of [competitive-features.md](../competitive-features.md) (featur
 Research date: 2026-10-28. A design note for `openstitch-design` (`regions.rs`,
 `compile.rs`, `model.rs`, `patterns.rs`). No other product's code was read.
 
+**Status (2026-11-09):** the maze fill (§2, region type `maze`, `straightness` default 70 %,
+own `mazeSeed`) and the tiled meander fill (§3, region type `meander`, pattern kind `meander`,
+12 own tiles from `tools/gen_patterns.py`, `vermicelli` the default) landed in #533 (closed).
+Randomisation landed as a hand-stitch look on running and triple lines and on satins, plus a
+`scribble` line type (#540, closed), rather than §5's single `randomise` post-pass; fills got a
+random row stagger (`stagger: random`). Not built: the fur (zigzag) variant, the angle jitter
+on fills, and a hand-stitch look for fills (#817, open).
+
 ## 1. What the feature is
 
 - **Maze fill.** One continuous running path that never crosses itself fills the region at a

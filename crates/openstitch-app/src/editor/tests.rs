@@ -1263,6 +1263,7 @@ fn region_option_controls_are_accepted_by_the_engine() {
         r.feather = Some(openstitch_design::Feather {
             side: openstitch_design::FeatherSide::Start,
             width: 1.0,
+            ..Default::default()
         });
         for c in region_controls(&r) {
             let v = match &c {

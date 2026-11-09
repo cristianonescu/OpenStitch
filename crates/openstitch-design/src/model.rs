@@ -1638,6 +1638,18 @@ pub enum FeatherSide {
     Both,
 }
 
+/// Which way a feathered edge moves its row ends (#685, beyond PE-DESIGN): `In` shortens the
+/// rows as PE-DESIGN does; `Out` lengthens them past the edge (fur and grass); `Both` moves
+/// each row end in or out, up to half the width either way.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FeatherMode {
+    #[default]
+    In,
+    Out,
+    Both,
+}
+
 /// How fill and satin move between separate parts of one region (PE-DESIGN Running Stitch
 /// Path). Every value travels with running stitches; none jumps.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1849,6 +1861,36 @@ pub struct Feather {
     pub side: FeatherSide,
     /// mm.
     pub width: f64,
+    /// In (PE-DESIGN's), out or both ways (#685); saved only when not in.
+    #[serde(default, skip_serializing_if = "is_feather_in")]
+    pub mode: FeatherMode,
+    /// A seed for a pseudo-random sequence of moves instead of PE-DESIGN's fixed 12-row
+    /// pattern (#685); none keeps PE-DESIGN's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seed: Option<u64>,
+}
+
+fn is_feather_in(m: &FeatherMode) -> bool {
+    *m == FeatherMode::In
+}
+
+impl Default for Feather {
+    /// PE-DESIGN 11.50's feathered edge: the start side, 3.0 mm, its own pattern.
+    fn default() -> Self {
+        Feather {
+            side: FeatherSide::Start,
+            width: 3.0,
+            mode: FeatherMode::In,
+            seed: None,
+        }
+    }
+}
+
+impl Feather {
+    /// Whether it sews as PE-DESIGN's feathered edge (in, PE-DESIGN's pattern).
+    pub fn is_pe_design(&self) -> bool {
+        self.mode == FeatherMode::In && self.seed.is_none()
+    }
 }
 
 /// Region sewing of a closed shape. mm and degrees; defaults are placeholders until calibrated
