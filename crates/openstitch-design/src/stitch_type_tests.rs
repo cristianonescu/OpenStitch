@@ -4650,3 +4650,53 @@ fn a_second_under_sewing_layer_on_a_fill_runs_at_its_own_angle() {
     let none = crate::region::layers(&c, &r, &[]);
     assert_eq!(none.len(), 1);
 }
+
+#[test]
+fn piping_travel_keeps_off_the_rows_at_a_lobe_tip() {
+    // #471: region-types' piping (1.2 lines/mm at 30 degrees) on its lobe. Where the outline
+    // runs nearly along the rows, a short row's end saw the next row only round the lobe's tip,
+    // and the travel ran out to the tip and back over the row just sewn: 1 mm cells with three
+    // times the median thread. The travel now walks the outline there.
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/region-types.json");
+    let steps: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(path).expect("reads")).expect("json");
+    let lobe: Vec<Vec2> = steps[5]["params"]["points"]
+        .as_array()
+        .expect("points")
+        .iter()
+        .map(|p| {
+            v2(
+                p[0].as_f64().unwrap_or(0.0) * 10.0,
+                p[1].as_f64().unwrap_or(0.0) * 10.0,
+            )
+        })
+        .collect();
+    let c = vec![Contour::new(lobe, true)];
+    let mut r = region(RegionType::Piping);
+    r.density = 1.2;
+    r.angle = 30.0;
+    let runs = crate::region::layers(&c, &r, &[]);
+    // Thread per 1 mm cell, the stitches sampled every 0.1 mm.
+    let mut cells: std::collections::HashMap<(i64, i64), f64> = Default::default();
+    for run in runs.iter().flatten() {
+        for w in run.windows(2) {
+            let l = w[0].distance(w[1]);
+            let n = ((l / 1.0).ceil() as usize).max(1);
+            for k in 0..n {
+                let q = w[0].lerp(w[1], (k as f64 + 0.5) / n as f64);
+                *cells
+                    .entry(((q.x / 10.0).floor() as i64, (q.y / 10.0).floor() as i64))
+                    .or_default() += l / n as f64;
+            }
+        }
+    }
+    let mut v: Vec<f64> = cells.into_values().collect();
+    v.sort_by(f64::total_cmp);
+    let median = v[v.len() / 2];
+    let max = v[v.len() - 1];
+    assert!(
+        max < 2.6 * median,
+        "densest cell {max} against the median {median}"
+    );
+}

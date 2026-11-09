@@ -1152,7 +1152,38 @@ pub fn reroute_with(
         .flat_map(|run| split_outside(run, closed, holes))
         .collect();
     let mut graph = travel_graph(closed, holes, path, pull);
-    join(pieces, Some(&mut graph), 25.0)
+    // As `paths::join`, but where both ends of a gap lie on the outline and the walk along it
+    // is shorter than the inside path, the walk is taken (#471): a row end where the outline
+    // runs nearly along the rows (piping at 30° on region-types' lobe) saw the next row only
+    // round the lobe's tip, so the travel ran 13 mm out to the tip and back over the row just
+    // sewn, a dense bar, where the outline between the two ends is 4 mm.
+    let mut out: Vec<Run> = Vec::new();
+    for piece in pieces {
+        let Some(last) = out.last_mut() else {
+            out.push(piece);
+            continue;
+        };
+        let end = *last.last().expect("non-empty run");
+        let start = piece[0];
+        if end.distance(start) < 1e-6 {
+            last.extend(piece.into_iter().skip(1));
+            continue;
+        }
+        let inside = graph.path(end, start);
+        let walk = graph.edge_path(end, start).filter(|w| {
+            inside
+                .as_ref()
+                .is_some_and(|p| crate::paths::length(w) < crate::paths::length(p) * 0.75)
+        });
+        match walk.or(inside) {
+            Some(way) => {
+                last.extend(crate::paths::stitches(&way, 25.0).into_iter().skip(1));
+                last.extend(piece.into_iter().skip(1));
+            }
+            None => out.push(piece),
+        }
+    }
+    out
 }
 
 /// The travel graph of `path`; row ends `pull` (0.1 mm) beyond the outline count as on it.
