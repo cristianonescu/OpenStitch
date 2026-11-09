@@ -8,7 +8,7 @@ use openstitch_design::{RegionSewing, RegionType, v2};
 use serde_json::Value;
 
 /// The `flowField` parameter's documentation.
-pub(crate) const DOC: &str = "Fill: flow fill (beyond PE-DESIGN), rows that follow a direction field instead of one angle: radial or swirl (round the object's own centre), {kind: radial, center: [x, y] mm} (rows radiate from the centre), {kind: swirl, center: [x, y] mm} (rows circle it), or {kind: grid, origin: [x, y] mm, cell: mm, cols: n, angles: [degrees, row by row]} (the direction blends between cells); null or false: straight rows again. Not mapped in PES 0110";
+pub(crate) const DOC: &str = "Fill: flow fill (beyond PE-DESIGN), rows that follow a direction field instead of one angle: radial or swirl (round the object's own centre), {kind: radial, center: [x, y] mm} (rows radiate from the centre), {kind: swirl, center: [x, y] mm} (rows circle it), or {kind: grid, origin: [x, y] mm, cell: mm, cols: n, angles: [degrees, row by row]} (the direction blends between cells), or grid (keeps a grid field already set); null or false: straight rows again. Not mapped in PES 0110";
 
 /// Reads `flowField` into the region, if given; `centre` is the object's own centre (0.1 mm),
 /// for `"radial"` and `"swirl"` given without one.
@@ -26,6 +26,18 @@ pub(crate) fn set_region(
     }
     if r.kind != RegionType::Fill {
         return Err(p.invalid("flowField", "is for fill regions"));
+    }
+    // `"grid"` keeps the region's own grid field: the inspector shows Field grid only then, and
+    // choosing it again changes nothing.
+    if v.as_str() == Some("grid") {
+        return if matches!(r.flow_field, Some(FlowField::Grid { .. })) {
+            Ok(())
+        } else {
+            Err(p.invalid(
+                "flowField",
+                "grid keeps a grid field already set; give {kind: grid, origin, cell, cols, angles}",
+            ))
+        };
     }
     if let Some(kind) = v.as_str() {
         let center = centre.ok_or_else(|| p.invalid("flowField", "the object has no outline"))?;

@@ -900,6 +900,24 @@ pub const TASKS: &[Task] = &[
             need(d.stitches() > 300, "stitches")
         },
     },
+    // #538: the flow fill, rows radiating from the circle's centre.
+    Task {
+        id: "sunburst",
+        setup: &[(
+            "shape.ellipse",
+            r##"{"cx": 50, "cy": 50, "rx": 25, "fill": "#f2a900"}"##,
+        )],
+        prompt: "Make the circle's fill rows radiate out from its centre like a sunburst.",
+        check: |d| {
+            need(
+                d.full
+                    .iter()
+                    .any(|f| f["region"]["flowField"]["kind"] == "radial"),
+                "the circle's fill rows radiating (flowField radial)",
+            )?;
+            need(d.stitches() > 300, "stitches")
+        },
+    },
 ];
 
 /// One part of the small-name task (#493): about 5 mm, in a font whose `sizeRange` holds the
@@ -1730,6 +1748,20 @@ mod tests {
             "{}",
             requests[2]["system"]
         );
+    }
+
+    #[test]
+    fn the_sunburst_task_needs_radial_rows() {
+        let task = TASKS.iter().find(|t| t.id == "sunburst").expect("task");
+        let design = |kind: Value| Design {
+            objects: vec![json!({})],
+            full: vec![json!({"region": {"flowField": {"kind": kind}}})],
+            info: json!({"stitchStats": {"stitches": 800}}),
+            ..Design::default()
+        };
+        let swirl = (task.check)(&design(json!("swirl"))).expect_err("swirl");
+        assert!(swirl.contains("radial"), "{swirl}");
+        assert!((task.check)(&design(json!("radial"))).is_ok());
     }
 
     #[test]
