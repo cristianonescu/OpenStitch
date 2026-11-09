@@ -6,6 +6,16 @@ grouping into development tracks that do not touch the same files. Each item has
 algorithm sketch in this folder (B1–B10) or a note in the main document (B11–B15). Line
 numbers are at `main` on 2026-10-28 and will drift; the function names are the anchor.
 
+**Status (2026-11-09):** this ranking is a 2026-10-28 plan; the work was later done in issue
+batches rather than these tracks. Done or mostly done: B1 contour fill, B3 corners and short
+stitches (no lap), B5 compensation and auto underlay, B6 named density profiles and colour
+blends (#532), B9 maze and meander (#533), B10 satin line (#524), B13 density map, Check Design
+and thread remap (#503, #504), and parts of B2 (angle lines, #534), B4 (auto-route, Redwork,
+`object.branch`, #546), B7 (raised satin, no foam, #531), B11 (continue drawing, nearest start,
+leave out hidden stitching; #479, #547, #511) and B12 (knockdown, #510). Not started: B8
+crosshatch, B14 stitch-file resize, B15's baselines, saved kerning, team names and connections.
+Each sketch in this folder has its own status line.
+
 ## 1. Which crate does the work
 
 The coordinator asked about `openstitch-digitize`. That crate converts images (Auto Punch,

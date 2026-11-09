@@ -4,6 +4,15 @@ Backlog item B13 of [competitive-features.md](../competitive-features.md) (featu
 W2, W3). Research date: 2026-10-28. A design note for `openstitch-engine`, `openstitch-core`
 and the editor. No other product's code was read.
 
+**Status (2026-11-09):** all four exist, under other names. The density map is
+`design.density` (thread layers or needle holes per mm², judged for the fabric, with hotspots;
+#504) and troubleshoot is `design.check` (the Check Design pane, rules with located objects and
+fix commands; #503), both in `openstitch-engine/src/quality.rs`. Thread-brand conversion is
+`threads.remap` (user or built-in chart, metric RGB, `ciede2000` or `oklab`, `dryRun` plan with
+ΔE00), with ΔE2000 in `openstitch-core/src/colour.rs`. Auto hoop is not a command of its own:
+export results report `smallestHoop`, and `design.testSwatch` puts a selection in the smallest
+hoop it fits (#452).
+
 ## 1. What the feature is
 
 Four small tools that show the user what will go wrong before the machine does:

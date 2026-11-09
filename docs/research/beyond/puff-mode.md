@@ -5,6 +5,12 @@ Research date: 2026-10-28. A design note for `openstitch-design` (`model.rs`, `c
 `skeleton.rs`, `lines.rs`, `compile.rs`) and `openstitch-engine` (`order.rs`). No other
 product's code was read; the rules come from published digitizing guides.
 
+**Status (2026-11-09):** the foam mode of this note (`puff`, caps, the "Lay foam" stop, puff
+sewn last) is not built. What landed is raised (padded) satin, padding lanes sewn under the
+satin without foam (`raised`, #531 on Manual Punch columns and zigzag lines, #685 on satin
+regions and skeleton satin, #686 on satin lettering), and a per-object machine stop
+(`stopAfter`, #512) that a foam step could reuse.
+
 ## 1. What the feature is
 
 3D puff embroidery lays a sheet of foam (3 mm standard, 4 mm maximum, never doubled) on the

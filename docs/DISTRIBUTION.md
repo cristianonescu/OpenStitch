@@ -4,7 +4,8 @@
 mode on each OS and uploads one **workflow artifact** per OS (private to the repository, kept 30
 days). It runs after the tests on every push to `main` (called from `rust.yml`), and on pull
 requests that change `packaging/`, `assets/icons/` or the workflow. Releases are separate:
-`release.yml` runs only for a tag the owner pushes (`vX.Y.Z` for a stable version, or
+`release.yml` runs only for a tag the owner (or the coordinating agent the owner authorised)
+pushes (`vX.Y.Z` for a stable version, or
 `vX.Y.Z-alpha.N`, `-beta.N`, `-rc.N` for a pre-release, marked as such) and creates a draft
 GitHub release with the same packages and a `SHA256SUMS` file (sha256sum format, one line per
 asset) that the editor's self-updater checks downloads against; `release-smoke.yml` then installs
@@ -266,8 +267,8 @@ listed once in `crates/openstitch-app/src/bin_modules.rs`: the desktop binary (`
 the list, and on `wasm32` the library includes it too (`extern crate self as openstitch_app`),
 so `openstitch_app::EditorApp` exists for the web crate without moving any file. What a browser
 cannot do is behind small stand-ins, each identical to the desktop code on the desktop:
-`files.rs` (file dialogs: `rfd::FileDialog` on the desktop; in the browser the pickers return
-nothing yet), `web/assistant_panel.rs` (no Assistant panel: it needs a model connection, the
+`files.rs` (file dialogs: `rfd::FileDialog` on the desktop; in the browser the pickers returned
+nothing until part 2), `web/assistant_panel.rs` (no Assistant panel: it needs a model connection, the
 keychain and a local socket), `web/update_ui.rs` (no updater), `remote.rs` (no automation
 socket), the Assistant's notes compiled from `openstitch-assistant/src/notes.rs` without its
 network client, and no system trash. CI job `web` builds the whole package for `wasm32`.

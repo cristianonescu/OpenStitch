@@ -25,8 +25,8 @@ Photo Stitch 2 Color ran at its defaults:
 | Color Set | Auto Select (the list also offers CMYK, RGBK, CRVK, BMYK) |
 
 Brightness and Contrast were centred. The result has four threads and 14 133 stitches, 4 jumps
-and no trims, 84 × 84 mm. The capture is not in the repository yet; pe-refs-4's reference PR
-adds it.
+and no trims, 84 × 84 mm. The capture is not in the repository; the test below rebuilds the
+owner's image procedurally.
 
 ## What PE-DESIGN sews
 
@@ -307,13 +307,11 @@ and 6. Floyd–Steinberg dithering onto the 29 colours, keeping the four most us
 51. OpenStitch's Auto Select stays as it is. The captures and their notes are in the owner's
 folder (`round6/autoselect`).
 
-## Captures still needed (owner-made, at defaults unless named)
+## Captures still needed
 
-- **Colour sets:** the same image with each Color Set (CMYK, RGBK, CRVK, BMYK), to pin the
-  angle per colour and whether Auto Select is always four threads.
-- **Direction:** Direction 30°, to confirm the whole screen turns.
-- **Interval:** Line interval 3.0 mm and Max. Density 2.0 lines/mm, to confirm what each controls.
-- **Mono:** Photo Stitch 2 Mono on `grey-tonal.bmp`, for the coverage law on a continuous tone.
+None from the first list: the colour sets, Direction 30°, the interval and density, and Mono
+were captured in the second round (above). What stays open is listed under "Still open" and
+in the round-6 notes.
 
 ## Patent facts
 

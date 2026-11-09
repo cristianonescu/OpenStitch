@@ -85,8 +85,8 @@ quality 15. d02 is g01 scaled to 128 × 128 with Lanczos.
 `tools/gallery.py` converts 14 of the images, chosen to cover each wizard and image type, at
 the settings it names. It opens each result in the editor's Realistic view and rewrites the
 README's "From image to embroidery" table. It is part of the release checklist
-(docs/RELEASING.md). Once the improved "OpenStitch" mode exists, the gallery shows it next to
-the PE-compatible result.
+(docs/RELEASING.md). Ten of the images are also converted in both modes (`compatMode`), the
+improved "OpenStitch" mode next to the PE-compatible result, for the README's modes table.
 
 ## Findings
 
@@ -99,7 +99,8 @@ the PE-compatible result.
   seeds in Cross Stitch). **PE-DESIGN differs** (round-5 capture, defaults, 100 mm): it
   fills in 4 colours and keeps orange and yellow (Brother 001 White, 206, 209 Tangerine, 007
   Prussian Blue; 11 342 stitches, the white background left out, the white rays sewn). So
-  PE's census does not fill up with edge shades. The fix is its own PR.
+  PE's census does not fill up with edge shades. Fixed the same day (#220): the census now takes
+  colours by frequency, not in scan order (`palette.rs`).
 - **Small input (d02, round 5).** On the 128 px emblem, scaled up, PE fills in 10 colours,
   and the anti-aliased edge shades become regions of their own (9 Brother threads). PE
   behaves like OpenStitch there: edge shades count once they are large enough after

@@ -5,6 +5,16 @@ Research date: 2026-10-28. A design note for `openstitch-design` (`column.rs`,
 `skeleton.rs`, `lines.rs`): geometry, parameters, model change and tests. No other
 product's code was read.
 
+**Status (2026-11-09):** implemented, with these differences from the sketch:
+`cornerStyle` is `turn` (the default, today's fan) / `auto` / `mitre` / `cap`, with `mitreBelow`
+75°, `capBelow` 45° (not 20°, see §9), `cornerOverlap` 0.5 mm and `capMaxLength` 8 mm;
+short stitches are `shortStitchDistance` with one `shortStitchInset` (default 15 %); all off by
+default. #446 (open) tracks the satin-text N, slanted arm ends and X.
+Landed on Manual Punch columns and zigzag lines (#520, #521), skeleton satin and Auto satin
+regions (#675), and satin lettering for short stitches only (#676: letters are cut at their
+sharp corners, so corner styles do not apply). Not built: the lap corner, `mitreMinWidth`,
+several inset levels and per-corner overrides.
+
 ## 1. What the feature is
 
 A satin column that turns a corner bunches its stitches on the inside and fans them on the

@@ -393,6 +393,10 @@ adaptations in SolidCraft's own `NOTICE`.
 
 ## 8. What is not established yet
 
+Written with the plan (2026-11-04). Since then, section 9 records model quality and token use
+from the benchmark runs (A5 and later, Claude Code and Ollama) and the ACP agents' behaviour
+(A3); the Flatpak and portable-zip keychain and an image-generation provider remain untested.
+
 - **Model quality.** How well each model builds embroidery through these tools has not been
   measured. A5's benchmark measures it. Until then, no claim is made.
 - **Token cost per design.** No turn has been run. It will be measured in A1 with the real
@@ -450,7 +454,7 @@ dialog sets its values.
 - `skills/openstitch-embroidery` holds `SKILL.md` and three references. A test checks that
   every command id they name exists.
 
-**Not done in A0.**
+**Not done in A0** (the first two landed in A1).
 - One undo step per message. It needs the turn boundary that the A1 panel owns. Until then
   each socket edit is its own undo step, as before.
 - The permission gate (Ask, Edits, All) is A1. A socket client keeps the
@@ -481,10 +485,10 @@ Options ▸ **Show AI features** is on by default. While it is off, the panel, i
 - The undo step has no name: the editor's undo history has no labels yet. The chat shows "N changes, one undo step" with **Undo these changes**.
 
 **Not done in A1.**
-- No turn has run against the real API. The first real run (A5, 2026-11-04) had no key on this Mac; its token use goes into the A5 section once the owner's key is in the keychain.
+- No turn has run against the real API. The first real run (A5, 2026-11-04) had no key on this Mac; its token use goes into the A5 section once the owner's key is in the keychain. (Since: the panel polish below followed the first real Claude API chats.)
 - Pictures and attachments: done in A4.
-- Other endpoints and local models are A2. The address field already takes an Anthropic-compatible URL.
-- The Assistant command's own icon is #313.
+- Other endpoints and local models are A2 (landed, #317). The address field already takes an Anthropic-compatible URL.
+- The Assistant command's own icon is #313 (closed).
 
 ### A2, other endpoints and local models (landed 2026-11-04, #317)
 
@@ -596,7 +600,7 @@ image" reference and the tests use a scripted endpoint. Whether a given local se
 
 ### A5, the benchmark and the first real run (2026-11-04, #365)
 
-**`stitchtool bench-assistant`** sends twelve fixed tasks to a model or a coding agent through
+**`stitchtool bench-assistant`** sends twelve fixed tasks (26 by 2026-11-09: the memory and illustrated tasks below, and the three blend and angle-line tasks in this table) to a model or a coding agent through
 the assistant's own tools and scores each on the design it leaves (`object.list` and
 `design.info`), never on the reply. The one exception, `question`, also checks the answer.
 
@@ -785,7 +789,7 @@ Done after the first real Claude API chats, in #395:
 - **Tool rows (#415):** every tool and Thinking row has its own widget ID (repeated tool calls used to clash), and says what it did ("Ran object.list", "Looked at the design"), with the raw name, the arguments and the result inside.
 - **Open by default (#422):** the panel opens on first start and then as the user left it (`panelOpen` in ui.json; an older file reads as open). Closing it with ✕, View ▸ Show/Hide ▸ Assistant or the shortcut shows where to reopen it: the menu, the shortcut as the platform shows it, and Options ▸ Show AI features when AI is off. "Don't show this again" (`closeHint`) stops the dialog. `--screenshot` runs keep the panel closed, so the documentation screenshots don't change.
 
-Checked in the running app on macOS, with throwaway profiles and no Keychain prompts. Not checked: Windows and Linux (#401); the Higgsfield icons (#399).
+Checked in the running app on macOS, with throwaway profiles and no Keychain prompts. Not checked: Windows and Linux (#401); the Higgsfield icons (#399). Both since closed: Windows and Linux below, the icons in #399.
 
 
 ### Windows and Linux (2026-11-05, #401, #420, #425, #429)
@@ -860,8 +864,8 @@ typed was a dummy one.
 | Clear image generator, Reset AI settings | Works: ui.json gets the address and model, Clear empties them; Reset asks first, then restores the defaults. |
 | Dropping a PNG on the panel | Works: a chip with the file name. |
 | Coding agent, Claude Code | **Broken, fixed here:** "%1 is not a valid Win32 application". The panel looked for the agent's bare name before `.cmd`, and npm puts a `#!/bin/sh` script with the bare name beside `claude-agent-acp.cmd`. The panel now uses the same lookup as the agent list (`.exe`, `.cmd`, `.bat` only on Windows; test `npm_shell_script_is_skipped_on_windows`). After the fix it starts and answers with its own sign-in error ("Authentication required"), as it should when not signed in. No agent process was left after closing the editor. The agent list showed "Claude Code ·" with no version when `--version` took over 3 s on the loaded machine; the dot is now left out. |
-| Ollama turn, permission prompt, Stop and the queue | Endpoint ▸ Ollama and List worked (qwen3:4b listed). Two turns on the CPU ran 8.5 and 21 minutes without a reply and were not ended by the 300 s timeout (#580). Then **not run on this PC (too weak), owner's decision 2026-11-05**: local models were stopped and Ollama removed. The busy state (Send becomes Queue, Stop and a spinner) was seen. |
-| Look | Framed header buttons, bubbles and the Send and red buttons read well in both themes. The status lines are tiny grey italics, hard to read in the dark theme (#581). |
+| Ollama turn, permission prompt, Stop and the queue | Endpoint ▸ Ollama and List worked (qwen3:4b listed). Two turns on the CPU ran 8.5 and 21 minutes without a reply and were not ended by the 300 s timeout (#580, fixed 2026-11-06 below). Then **not run on this PC (too weak), owner's decision 2026-11-05**: local models were stopped and Ollama removed. The busy state (Send becomes Queue, Stop and a spinner) was seen. |
+| Look | Framed header buttons, bubbles and the Send and red buttons read well in both themes. The status lines are tiny grey italics, hard to read in the dark theme (#581, since closed). |
 
 **Local models on Windows: not run on this PC (too weak), owner's decision 2026-11-05.** No
 local-model bench was run. Ollama 0.40.14 (installed per-user for this batch) was uninstalled,
@@ -925,7 +929,7 @@ editor; a denied write and memory off change nothing; the OpenAI-compatible syst
 the coding agent's system prompt carry the notes; the `ui.*` commands and the settings text),
 the MCP tools against a fake editor, and the bench pair against a scripted model.
 
-Not done here: a real-model run of the bench pair (Claude Code over claude-agent-acp, signed in
+Not done here (the bench pair has since run for real, in "Assistant fixes" below): a real-model run of the bench pair (Claude Code over claude-agent-acp, signed in
 by the owner, can run it with `stitchtool bench-assistant --agent claude --tasks
 remember,remembered-heart`), and automatic summarising of old Lessons (the model is asked to
 summarise when the cap is reached).
@@ -1059,8 +1063,8 @@ script. Not published to PyPI: that waits for the owner.
 | **Full, final build** | **22 of 23** | 1,218 s, 265 calls (7 errors), 10.4 M input / 55.6 k output tokens; new tasks 7 of 8 |
 
 What the runs found:
-- **#652:** `shape.removeOverlap` (and every cut through `set_region`) resets a fill's angle to 45°. The strawberry failed twice: the model set the leaves to 135° and then cut an overlap that `design.check` had warned about. The fix in the skill: the examples cut before setting angles and check clean, and the guide says to set angles after the last cut. The engine question waits on a PE-DESIGN capture.
-- **#548:** `openstitch-line` labels sew visible travel between letters. In all three runs Claude chose the font correctly and then dropped live text (shapes, per-letter texts, or hand-drawn paths). The check accepts per-letter texts and converted text, but not hand-drawn letters.
+- **#652:** `shape.removeOverlap` (and every cut through `set_region`) resets a fill's angle to 45°. The strawberry failed twice: the model set the leaves to 135° and then cut an overlap that `design.check` had warned about. The fix in the skill: the examples cut before setting angles and check clean, and the guide says to set angles after the last cut. The engine question waits on a PE-DESIGN capture. (Since closed: every cut keeps the shape's sewing angle and attributes, `batch:mac-shapes`.)
+- **#548:** `openstitch-line` labels sew visible travel between letters. In all three runs Claude chose the font correctly and then dropped live text (shapes, per-letter texts, or hand-drawn paths). The check accepts per-letter texts and converted text, but not hand-drawn letters. (Since closed: `object.setFinish` `between` trims between letters, words or lines.)
 - **#446:** Lato Bold's slanted strokes sew with gaps (A, M, N, V, W, X). The owner spotted it in the first monogram example, and Claude worked around it in arc-text.
 - The models open examples by name: `skill_reference {"file": "strawberry"}` in every illustrated task.
 
