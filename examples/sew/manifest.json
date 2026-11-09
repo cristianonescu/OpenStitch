@@ -975,6 +975,26 @@
   "preview": "previews/angle-lines.png",
   "sha256": "39ada2123601ee203a5100736872930912d218fc31c8c98d49cf70e1932c431b"
  },
+ "fills/tartan.pes": {
+  "title": "Tartan fill (beyond PE-DESIGN)",
+  "about": "A 50 mm square in the symmetric sett R8 G12 W2 (red, green, white): one colour block per thread, warp and weft stripes crossing.",
+  "hoop": "100 × 100 mm",
+  "sizeMM": [
+   50.0,
+   50.0
+  ],
+  "stitches": 3567,
+  "trims": 6,
+  "threads": [
+   "800 Red",
+   "507 Emerald Green",
+   "001 White"
+  ],
+  "sewingMinutes": 4.8,
+  "image": null,
+  "preview": "previews/tartan.png",
+  "sha256": "5a409ac646e6403a2db29e6092c6e025cda55ecfd5749f494d19f302176f5edf"
+ },
  "fills/maze-fill.pes": {
   "title": "Maze fill (beyond PE-DESIGN)",
   "about": "One path of straight corridors and square turns that never crosses itself, 2 mm apart: straightness 70 % (default), 0 % and 95 % (top row), on a circle, another seed at 45°, and 3 mm spacing.",

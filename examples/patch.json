@@ -14,7 +14,7 @@
    "cx": 50,
    "cy": 42,
    "width": 40,
-   "fill": "Yellow"
+   "fill": {"builtin": "newBrothread", "code": "205"}
   }
  },
  {
@@ -24,7 +24,7 @@
    "x": 50,
    "y": 78,
    "size": 12,
-   "fill": "Blue"
+   "fill": {"builtin": "newBrothread", "code": "405"}
   }
  },
  {
@@ -38,7 +38,7 @@
    "density": 4.5,
    "distance": 5,
    "cutDistance": 3,
-   "color": "Red"
+   "color": {"builtin": "newBrothread", "code": "800"}
   }
  },
  {
@@ -48,7 +48,7 @@
    "cx": 150,
    "cy": 50,
    "width": 45,
-   "fill": "Deep Rose"
+   "fill": {"builtin": "newBrothread", "code": "086"}
   }
  },
  {
@@ -62,7 +62,7 @@
    "distance": 3,
    "cutting": "cutting",
    "cutDistance": 2,
-   "color": "Black"
+   "color": {"builtin": "newBrothread", "code": "900"}
   }
  }
 ]

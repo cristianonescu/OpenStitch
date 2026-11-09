@@ -1588,7 +1588,7 @@ mod tests {
         let (json, md) = reports("scripted", &out);
         assert_eq!(json["passed"], 2);
         assert!(md.contains("| star | fail: only talked |"));
-        assert_eq!(TASKS.len(), 26);
+        assert_eq!(TASKS.len(), 27);
     }
 
     #[test]

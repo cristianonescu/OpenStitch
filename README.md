@@ -432,6 +432,8 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
 - (+) **Push compensation and a second underlay on fills:** a fill's sides along its rows move in by a
   set amount, and a second under sewing layer at its own angle (crossed tatami by default)
   ([#522], [#523]).
+- (+) **Tartan fill:** a plaid from a sett such as "R8 G24 W4", one colour block per thread, its warp
+  and weft stripes woven in one shape ([#539]).
 - (+) **Stitch angle lines:** lines across one fill, drawn with the Angle Lines tool, turn its rows
   round a U, Z or ring bend with no seam ([#534]).
 - **Curved sewing direction** (round fill) for fill, programmable fill, piping and motif fill
@@ -750,6 +752,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#536]: https://github.com/cristianonescu/OpenStitch/issues/536
 [#537]: https://github.com/cristianonescu/OpenStitch/issues/537
 [#538]: https://github.com/cristianonescu/OpenStitch/issues/538
+[#539]: https://github.com/cristianonescu/OpenStitch/issues/539
 [#540]: https://github.com/cristianonescu/OpenStitch/issues/540
 [#541]: https://github.com/cristianonescu/OpenStitch/issues/541
 [#542]: https://github.com/cristianonescu/OpenStitch/issues/542

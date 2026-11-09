@@ -50,6 +50,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   `gradationShape` `convex` | `concave` | `centre` | `edges` | `wave` (`linear` is PE-DESIGN's).
   PES 0110 refuses the others. `import.svg` with `gradients: "blend"` brings SVG gradients in as
   gradient fills (one fill per stop, grouped).
+- Tartan (plaid) fill (beyond PE-DESIGN): `shape.tartan {id, sett: "R8 G24 W4"}` (letter codes R red,
+  G green, B blue, K black, W white, Y yellow, N grey, O orange, P purple, A sky blue, T brown, DB dark
+  blue; widths in mm) or `sett: [{color, width}, ...]`; `symmetric` (default true). It returns one object
+  id per colour (grouped). `object.setRegion tartan: false` makes one plain again. PES 0110 refuses it.
 - Stitch angle lines (beyond PE-DESIGN), for leaves, ribbons, U and Z shapes and rings:
   `object.setAngleLines {id, lines: [[[x, y], [x, y]], ...]}` (mm, 2 or more lines across the fill
   in order along it; each line is extended to the outline). The rows turn from one line's

@@ -58,6 +58,7 @@ pub mod stamp;
 pub mod stitch_edit;
 pub mod stroke_fonts;
 pub mod strokes;
+pub mod tartan;
 pub mod text;
 pub mod timeline;
 pub mod view;
@@ -75,8 +76,8 @@ pub use model::{
     FeatherMode, FeatherSide, FillStitchType, FillTexture, Gradation, GradationShape, Gradient,
     GradientCurve, GradientDither, GradientKind, GuideLayout, Guides, ImageAdjust, JobInfo,
     LineGap, LineSewing, LineType, ObjectKind, OptimizeOrder, RegionSewing, RegionType,
-    RunningStitchPath, StaggerKind, StartEnd, StitchBlock, UnderlayDensity, UnderlayParts,
-    UnderlayStyle,
+    RunningStitchPath, StaggerKind, StartEnd, StitchBlock, Tartan, TartanStripe, UnderlayDensity,
+    UnderlayParts, UnderlayStyle,
 };
 pub use text::{
     CharEdit, FONTS, FontInfo, FontKind, Layout, PathFit, PixelStyle, Spread, TextAlign,

@@ -961,6 +961,10 @@ fn region_type_controls(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> {
                 }
                 v.push(choice("Rows (+)", "flowField", current, &options));
             }
+            // One colour of a tartan (#539, beyond PE-DESIGN): off makes it a plain fill.
+            if r.tartan.is_some() {
+                v.push(toggle("Tartan (+)", "tartan", true));
+            }
             // Stitch angle lines (#534, beyond PE-DESIGN): shown while set; off removes them.
             if r.angle_lines.len() >= 2 {
                 v.push(toggle("Angle lines (+)", "angleLines", true));

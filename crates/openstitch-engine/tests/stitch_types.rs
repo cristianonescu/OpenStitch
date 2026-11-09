@@ -1704,6 +1704,97 @@ fn push_compensation_and_a_second_underlay_go_through_the_command() {
     assert!(help.contains("pushCompensation") && help.contains("crossed tatami"));
 }
 
+/// Tartan fill (#539, beyond PE-DESIGN): `shape.tartan` with the usual notation or a list
+/// makes one grouped fill per colour, one colour block each; saved, undone, refused cleanly.
+#[test]
+fn tartan_goes_through_the_command() {
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 0, "y": 0, "width": 60, "height": 60, "fill": "Red"}),
+    );
+    let before = s.design().clone();
+    let out = run(
+        &mut s,
+        "shape.tartan",
+        json!({"id": 1, "sett": "R8 G24 W4"}),
+    );
+    assert_eq!(out["colors"], 3);
+    let ids: Vec<u64> = out["ids"]
+        .as_array()
+        .expect("ids")
+        .iter()
+        .map(|v| v.as_u64().expect("id"))
+        .collect();
+    assert_eq!(ids.len(), 3);
+    let d = s.design();
+    assert!(
+        d.objects[..3]
+            .iter()
+            .all(|o| o.group == d.objects[0].group && o.group.is_some())
+    );
+    for (k, o) in d.objects[..3].iter().enumerate() {
+        let r = o.region.as_ref().expect("r");
+        let t = r.tartan.as_ref().expect("tartan");
+        assert_eq!(
+            (t.layer, t.sett.len(), t.symmetric, r.underlay),
+            (k, 3, true, false)
+        );
+    }
+    let p = Compiler::default().compile(s.design());
+    assert!(p.count(Command::Stitch) > 1000);
+    assert_eq!(
+        p.count(Command::ColorChange),
+        2,
+        "one colour block per thread"
+    );
+    let bytes = project::encode(s.design()).expect("encode");
+    assert_eq!(&project::decode(&bytes).expect("decode"), s.design());
+    run(&mut s, "history.undo", json!({}));
+    assert_eq!(s.design(), &before);
+    // The list form; a colour used twice is one colour.
+    let out = run(
+        &mut s,
+        "shape.tartan",
+        json!({"id": 1, "symmetric": false, "sett": [
+            {"color": "Black", "width": 6}, {"color": "#ffcc00", "width": 2},
+            {"color": "Black", "width": 6}, {"color": 5, "width": 10}]}),
+    );
+    assert_eq!(out["colors"], 3);
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "tartan": false}),
+    );
+    assert!(
+        s.design().objects[0]
+            .region
+            .as_ref()
+            .expect("r")
+            .tartan
+            .is_none()
+    );
+    run(&mut s, "history.undo", json!({}));
+    run(&mut s, "history.undo", json!({}));
+    let mid = s.design().clone();
+    for bad in [
+        json!({"id": 1, "sett": "R8"}),
+        json!({"id": 1, "sett": "R8 Q4"}),
+        json!({"id": 1, "sett": "R8 G0.1"}),
+        json!({"id": 1, "sett": "R8 R4"}),
+        json!({"id": 1, "sett": [{"color": "Red"}]}),
+        json!({"id": 1, "sett": 7}),
+        json!({"id": 99, "sett": "R8 G4"}),
+    ] {
+        assert!(s.execute("shape.tartan", Some(&bad)).is_err(), "{bad}");
+        assert_eq!(s.design(), &mid, "{bad}");
+    }
+    let help = run(&mut s, "commands.list", json!({})).to_string();
+    assert!(help.contains("shape.tartan"));
+}
+
 /// #538: a flow fill through `object.setRegion {flowField}`: radial or swirl round the object's
 /// own centre, or a given field; it is kept in the project, undone in one step, cleared back to
 /// the plain fill, refused on non-fill regions and by PES 0110, and never taken from a picture.

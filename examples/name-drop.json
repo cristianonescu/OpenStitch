@@ -1,10 +1,10 @@
 [
   {"command": "design.new", "params": {"name": "name drop", "width": 70, "height": 80}},
   {"command": "decoration.add", "params": {"frame": "shield", "x": 10, "y": 17, "width": 50, "height": 40,
-    "maintainAspect": false, "color": "Blue"}},
+    "maintainAspect": false, "color": {"builtin": "newBrothread", "code": "405"}}},
   {"command": "text.add", "params": {"text": "Fernand", "font": "pacifico", "size": 9, "x": 35, "y": 38,
-    "fill": "Red", "name": "name"}},
-  {"command": "text.add", "params": {"text": "TEAM", "size": 5, "x": 35, "y": 50, "fill": "Black",
+    "fill": {"builtin": "newBrothread", "code": "800"}, "name": "name"}},
+  {"command": "text.add", "params": {"text": "TEAM", "size": 5, "x": 35, "y": 50, "fill": {"builtin": "newBrothread", "code": "900"},
     "name": "team"}},
   {"command": "text.setNameDrop", "params": {"ids": [2, 3], "label": "Name"}},
   {"command": "text.setNameDrop", "params": {"id": 3, "label": "Team"}},

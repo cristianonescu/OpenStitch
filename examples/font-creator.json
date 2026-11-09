@@ -12,7 +12,7 @@
   {"command": "fonts.list"},
   {"command": "fonts.save", "params": {"font": "my-block", "path": "my-block.osfont"}},
   {"command": "text.add", "params": {"text": "OPEN ♥\nSTITCH", "font": "my-block", "size": 12,
-    "x": 50, "y": 25, "fill": "Red"}},
+    "x": 50, "y": 25, "fill": {"builtin": "newBrothread", "code": "800"}}},
   {"command": "object.setRegion", "params": {"id": 3, "type": "satin", "angle": 90}},
   {"command": "design.info"}
 ]
