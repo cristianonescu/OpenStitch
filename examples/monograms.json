@@ -15,7 +15,7 @@
       "size": 10,
       "x": 200,
       "y": 124,
-      "fill": "Red"
+      "fill": {"builtin": "newBrothread", "code": "800"}
     }
   },
   {
@@ -30,8 +30,8 @@
       "x": 40,
       "y": 40,
       "frame": "ring",
-      "fill": "Red",
-      "frameColor": "Blue"
+      "fill": {"builtin": "newBrothread", "code": "800"},
+      "frameColor": {"builtin": "newBrothread", "code": "405"}
     }
   },
   {
@@ -43,8 +43,8 @@
       "x": 120,
       "y": 40,
       "frame": "laurel",
-      "fill": "Blue",
-      "frameColor": "#3c8d2f"
+      "fill": {"builtin": "newBrothread", "code": "405"},
+      "frameColor": {"builtin": "newBrothread", "code": "515"}
     }
   },
   {
@@ -56,8 +56,8 @@
       "x": 200,
       "y": 40,
       "frame": "diamond",
-      "fill": "Black",
-      "frameColor": "Red"
+      "fill": {"builtin": "newBrothread", "code": "900"},
+      "frameColor": {"builtin": "newBrothread", "code": "800"}
     }
   },
   {
@@ -69,8 +69,8 @@
       "x": 40,
       "y": 120,
       "frame": "scallop",
-      "fill": "#7b2d8e",
-      "frameColor": "#d4a017"
+      "fill": {"builtin": "newBrothread", "code": "613"},
+      "frameColor": {"builtin": "newBrothread", "code": "214"}
     }
   },
   {
@@ -82,8 +82,8 @@
       "x": 120,
       "y": 120,
       "frame": "shield",
-      "fill": "Black",
-      "frameColor": "Blue",
+      "fill": {"builtin": "newBrothread", "code": "900"},
+      "frameColor": {"builtin": "newBrothread", "code": "405"},
       "margin": 3
     }
   },
@@ -94,7 +94,7 @@
       "ids": [
         1
       ],
-      "color": "#d4a017",
+      "color": {"builtin": "newBrothread", "code": "214"},
       "margin": 9
     }
   },
