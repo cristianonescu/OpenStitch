@@ -437,6 +437,16 @@ An L whose rows turn round its corner between three angle lines, as one object w
 
 Threads, in sewing order: 405 Blue.
 
+#### Tartan fill (beyond PE-DESIGN)
+
+[`fills/tartan.pes`](fills/tartan.pes) · 100 × 100 mm hoop · 50 × 50 mm · 3,567 stitches · 6 trims · about 4.8 min
+
+A 50 mm square in the symmetric sett R8 G12 W2 (red, green, white): one colour block per thread, warp and weft stripes crossing.
+
+<img src="previews/tartan.png" height="180" alt="Realistic view of fills/tartan.pes">
+
+Threads, in sewing order: 800 Red, 507 Emerald Green, 001 White.
+
 #### Maze fill (beyond PE-DESIGN)
 
 [`fills/maze-fill.pes`](fills/maze-fill.pes) · 100 × 100 mm hoop · 83.4 × 54.6 mm · 1,080 stitches · 6 trims · about 1.7 min
