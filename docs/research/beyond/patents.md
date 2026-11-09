@@ -228,7 +228,9 @@ Everything else on the list is shown as expired or ceased.
 - B14's sketch already prefers geometric segmentation; its fill case should take row spans
   from the stitches, not from a traced outline, and the note's test `segment-generated-fill`
   checks that no raster is involved. B12's knockdown on stitch blocks should use the convex
-  hull or the segmentation outline.
+  hull or the segmentation outline. Since #510 (2026-11-06) the shipped `wizard.knockdown`
+  takes a stitch block's bounding box (`wizards/knockdown.rs`), with no bitmap trace. B14 is
+  not built.
 - D12 (TrueType to satin) and today's skeleton satin have no live patent on this list.
 - Nothing here is a conclusion; it is the list for the owner's lawyer, with the claim
   elements to read in each case.

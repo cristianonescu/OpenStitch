@@ -29,14 +29,11 @@ when the claim breaks; Windows and Linux runs (CI covers them).
 At `6386761` on macOS arm64 (debug): 1160 tests run, 1160 passed, 0 skipped, 490 s; the slowest
 was `openstitch-engine::digitize fidelity_high_raises_the_colour_counts` (over 7 min unoptimised,
 see #307). Doctests are not run by nextest. Every test the matrix names therefore passes; the gaps
-below are claims no test checks.
+below were claims no test checked.
 
 ## Open gaps
 
-| Area | Feature (matrix row) | Gap | Plan | Issue |
-|---|---|---|---|---|
-| Files | Import SVG: `<line>` | **fixed** (2026-11-04): every `<line>` element was dropped on import (SVG's default fill closed its two-point subpath, which was then discarded) | `svg_line_elements_import_as_running_lines` runs; `imports::tests::line_elements_import_as_open_strokes` | #341 |
-| Editing | Centre point for spiral (`object.setCenterPoint`) | fixed: PE-DESIGN's spiral has no centre point, so the command refuses it on spiral | `a_spiral_refuses_a_centre_point` (`coverage_pattern_points.rs`) | #354 (closed) |
+None open. Both gaps found on 2026-11-04 are fixed (see [Closed](#closed)).
 
 The smaller weak points recorded in #356 are closed (see [Closed](#closed)). Solid View's drawing
 and Snap to Grid for handles turned out reachable without a seam (#378, #379).
@@ -54,6 +51,8 @@ not listed.
 
 | Area | Feature | Gap | Fixed by |
 |---|---|---|---|
+| Files | Import SVG: `<line>` | every `<line>` element was dropped on import (SVG's default fill closed its two-point subpath, which was then discarded) | #341: `svg_line_elements_import_as_running_lines` (`coverage_formats.rs`), `imports::tests::line_elements_import_as_open_strokes` |
+| Editing | Centre point for spiral (`object.setCenterPoint`) | PE-DESIGN's spiral has no centre point | #354: the command refuses it on spiral; `a_spiral_refuses_a_centre_point` (`coverage_pattern_points.rs`) |
 | Editing | Sewing Order pane: the Optimise mode box and the mixed jump-trimming checkbox | weak: inline egui code | #356: `optimize_mode_request`, `jump_trimming_state` and `jump_trimming_request` factored out of `edit_ui.rs`; tests `optimise_mode_box_sets_the_design_mode`, `jump_trimming_checkbox_shows_mixed_and_sets_the_selection` |
 | OS integration | File associations: the MSI's `.osd`/`.pes` ProgIds and extensions, the macOS `.pes` alternate document type | none in CI | #356: `tools/check_file_associations.py` (with `--self-test`) in the CI `icons` job |
 | Automation | `tools/sew_kit.py --check` in CI | none | #561: CI job `kit` |

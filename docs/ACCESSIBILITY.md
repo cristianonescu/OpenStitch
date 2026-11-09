@@ -8,7 +8,7 @@ which documents none of this.
 
 - **Every command** has a keyboard path: the ribbon and menus are reachable with Tab and the
   arrow keys, the command palette (Ctrl+K, Cmd+K on macOS) runs any command by name, and the
-  shortcuts are editable (Options ▸ Shortcuts).
+  shortcuts are editable (Help ▸ Keyboard Shortcuts).
 - **Drawing without a mouse** (beyond PE-DESIGN): with a drawing tool, an arrow key shows a
   cross-hair cursor on the Design Page and moves it by the nudge step (Shift: ten times it, or a
   grid step with Nudge by Grid). **Space** clicks there, **Shift+Space** places a smooth Pen or

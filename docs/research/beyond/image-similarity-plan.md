@@ -8,7 +8,10 @@ similarity. This note:
 - ranks the causes;
 - sets out a phased backlog with acceptance criteria per tool and image class.
 
-It is research only. Nothing here is implemented. It builds on [image-digitizing.md](image-digitizing.md) (B16).
+It was research only when written; most of Phases 0–5 has since landed (section 10). It builds on [image-digitizing.md](image-digitizing.md) (B16).
+Still open on 2026-11-09: T8 (waits for counsel's opinion to be recorded in patents.md), fitting
+the Realistic view and the scorer to the T1 measurements (#291), Photo Stitch 1's trims (#298) and
+Photo Stitch 1/2 colour and layering (#468).
 
 ## 1. Summary
 
@@ -230,7 +233,7 @@ Every result is the flat render at viewing scale, with its composite score. The 
 **Photo Stitch 2, poppies** (no prototype; its four-thread ceiling is 74–80)
 ![p08 poppies](../../images/research/image-similarity/p08-ps2.jpg)
 
-**Cross Stitch, pixel strawberry** (no OpenStitch mode yet; the ceiling at 2.5 mm is 87.4)
+**Cross Stitch, pixel strawberry** (no OpenStitch mode on 2026-10-31, added later by #263; the ceiling at 2.5 mm is 87.4)
 ![g07 strawberry](../../images/research/image-similarity/g07-cs.jpg)
 
 ## 5. Root causes, ranked by measured impact
@@ -460,7 +463,7 @@ bit-identical, compat 443/443):
 | 4 | T12 skeleton satin outlines | Auto Punch mean 82.1 → 83.6, every case above PE-DESIGN-compatible mode (78.9) |
 | — | alpha.9 test pass (macOS) and dialog check (Windows) | Cross Stitch 70.9, Design Center 95.8, Photo Stitch 2 43.8 (42.8); two fixes: Sew Page Color from the chosen source, #281 |
 
-**2026-11-01, T1 card designed:** `examples/sew/calibration` holds the swatch card (six threads at three densities and a black coverage ramp, no underlay), the Photo Stitch 2 grey ramp (#129) and satin widths with and without underlay; the photo patch is `examples/sew/image-tools/S-photo1-sunset-openstitch.pes`. `examples/sew/README.md` gives the sewing and photo protocol. Waits for the owner's sew-out and photos (Brother NV880E, Schmetz 75/11, Brothread).
+**2026-11-01, T1 card designed:** `examples/sew/calibration` holds the swatch card (six threads at three densities and a black coverage ramp, no underlay), the Photo Stitch 2 grey ramp (#129) and satin widths with and without underlay; the photo patch is `examples/sew/image-tools/S-photo1-sunset-openstitch.pes`. `examples/sew/README.md` gives the sewing and photo protocol. Waits for the owner's sew-out and photos (Brother NV880E, Schmetz 75/11, Brothread). Since sewn: rounds of 2026-11-03 and 2026-11-04 (`examples/sew/calibration/results/`); the scorer's calibrated render came from them (#299), and fitting the Realistic view to them is #291 (open).
 
 **2026-11-04, sewability (#290):** Auto Punch's OpenStitch mode opens each region by about
 1.25 mm after the outlines are taken out, so no fill row or satin ends on a spike or neck

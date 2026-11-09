@@ -4,6 +4,14 @@ Backlog item B2 of [competitive-features.md](../competitive-features.md) (featur
 Research date: 2026-10-28. A design note for `openstitch-design`: geometry, parameters,
 model change and tests. No other product's code was read.
 
+**Status (2026-11-09):** stitch-angle maps landed in another form (#534, closed):
+`object.setAngleLines {id, lines}` (2–64 lines; `object.setRegion angleLines: false` removes
+them) and the Angle Lines tool on the canvas. Each line is taken as the shape's chord through
+it and rows join points at the same fraction along the two outline sides, rather than §3's
+strips clipped by boolean intersection; rows are left out in pairs where the inner side crowds.
+The same issue added the Fill Angle drag tool. The two-guide fill (§2: `directionCurve2`, the
+`Sweep` warp) is not built.
+
 ## 1. What the feature is
 
 Today a fill or satin region has one direction: a fixed angle, Auto, or a single direction

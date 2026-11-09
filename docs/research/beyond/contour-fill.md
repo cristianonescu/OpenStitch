@@ -51,7 +51,11 @@ inner-to-outer, so the fill starts at R1 like PE-DESIGN's own Spiral), the clock
 existing `counterclockwise`, and the double spiral follows every other ring of each branch
 rather than a dedicated interleaving. Not yet done: repeats, the bevel join and the
 `contour-*` compat specs of §5 (the unit tests in `contour_tests.rs` cover the same
-measurements at the internal tier).
+measurements at the internal tier). The FEATURE_MATRIX row already reads "Implemented (beyond
+PE-DESIGN, internal tier)" on those unit tests, not on the §5 specs as §6 planned. Since #461
+ring starts are staggered and the double spiral leaves the first ring at the start
+point; since #800 (2026-11-08) the Background Fill wizard's echo rings can be joined ring to
+ring (`linkEchoEnds`).
 
 ## 2. Geometry
 

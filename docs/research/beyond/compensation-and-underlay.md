@@ -5,6 +5,19 @@ Research date: 2026-10-28. A design note for `openstitch-design` (`model.rs`, `r
 `column.rs`, `skeleton.rs`, `generate.rs`) and `openstitch-engine` (`fabric.rs`). No other
 product's code was read; the numbers come from published digitizing practice.
 
+**Status (2026-11-09):** implemented with different names than §2's structure. Satin
+compensation per side and in % (`pullLeft`, `pullRight`, `pullPercent`, `pullMax`) and
+`underlayStyle: auto` (by average width, thresholds from the fabric) with `centreWalk` and a
+second underlay (`underlay2`) landed on Manual Punch columns and zigzag lines (#522, #523),
+then on skeleton satin and Auto satin regions (#675) and satin lettering (#676). Fill push
+compensation (`pushCompensation`: the sides parallel to the rows move in) and a second under
+sewing layer on fill and satin regions landed in #677 (#849). The fabric table grew five
+fabrics, thread-weight scaling, a default fabric for new objects (`fabric.setDefault`) and
+custom fabrics saved from a calibration card (`fabric.calibrate`, `fabric.deleteCustom`; #508,
+#453). Not built: push at column ends (§2.2), `object.applyFabric` and a user-editable fabric
+table with Auto thresholds. Single-line small text now exists (#530), so §2.3's "does not yet
+have" no longer holds.
+
 ## 1. What the feature is
 
 Three linked pieces of "sew-out quality" control that the professional products expose and

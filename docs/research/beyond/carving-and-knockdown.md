@@ -5,6 +5,11 @@ F12). Research date: 2026-10-28. A design note for `openstitch-design` (`stamp.r
 `region.rs`) and `openstitch-engine` (`wizards/background.rs`). No other product's code was
 read.
 
+**Status (2026-11-09):** the knockdown fill shipped 2026-11-06 (#510, closed): `wizard.knockdown`
+on the selection or the whole design, with reach, gap closing, one or two crossed layers, holes
+kept, a rectangle option and `update`, kept first by `order.optimize`. Carving lines and the
+region carve (§2) are not built.
+
 ## 1. What the feature is
 
 - **Carving lines.** The user draws open or closed lines over a fill (or a satin) and the
