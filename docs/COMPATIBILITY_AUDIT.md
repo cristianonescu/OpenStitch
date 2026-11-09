@@ -3393,6 +3393,22 @@ triangle above it, where PE-DESIGN sews a separate corner block (stopping the di
 half-widths out instead lost needle points and left a gap: 272); M, whose corners come from
 thinning junctions rather than cuts, is unchanged, as are M at 8 mm and A's and V's feet.
 
+### Corner styles on satin text, 2026-11-08 (#782)
+
+A letter is cut into strokes at its sharp corners (strokes.rs), so a satin's corner style
+(#520) had no corner to shape on text. Two earlier attempts kept letters whole through their
+corners and re-paired the outline sides there; that looped at stem-to-diagonal corners and the
+crossings fanned rather than meeting a mitre line. Now the cut stays, and with a style set
+`compile::join_corners` sews two blocks sewn one after the other through a corner (they share
+the corner's inner point, turning by more than 60°) as one column: each leg keeps its own 3 mm
+crossings, ending short of the corner, and a crossing from the inner point to the outline's
+outer tip joins them, so `column::satin_with` mitres or caps it as on skeleton satin. Lato Bold
+at 20 mm, needle points turn / mitre / cap: Z 249 / 297 / 262, V 209 / 230 / 215, W 385 / 462 /
+444; at 8 mm Z 97 / 124 / 116, W 157 / 194 / 180, M 140 / 155 / 151. `auto` mitres these corners
+(all wider than its 45° cap angle). Stems (N's run-on corners, #446), junctions (A's apex, K,
+M's notches) and right angles (L, not cut) stay turned. Unset, text is unchanged: compat
+485/485.
+
 ### CSD and SHV against PE-DESIGN's exports of #349's designs, 2026-11-07 (#349, `batch:machine-formats`)
 
 PE-DESIGN 11.50 exported OpenStitch's `c17.pes` (17 colour blocks) and `long.pes` (a short move,

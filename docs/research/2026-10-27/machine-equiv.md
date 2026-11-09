@@ -3,12 +3,12 @@
 Goal 3: an OpenStitch export sews on a Brother machine as PE-DESIGN's export of the same design. The machine reads the
 PEC section (and the other machine formats), not the editable objects, so this compares those streams.
 
-Tool: `tools/peccmp.py`. Decodes the PEC section from documented fields only (label, colour count,
+Tool: `pes-compare/peccmp.py` (this folder). Decodes the PEC section from documented fields only (label, colour count,
 chart codes, stitch block width/height, every stitch record with its jump/trim flag, colour-change records and their
 bytes, icon presence) and diffs two files: counts, first/last records, longest stitch and jump, what surrounds each
 colour change, the first divergent record. `peccmp.py --batch target/compat/work compat/reference --json out.json`
-runs every spec pair; `--dump file.pes N` prints one file. Results of the run on main 031b963
-are summarised below (the JSON was not kept in the repository).
+runs every spec pair; `--dump file.pes N` prints one file. Results of the run on main 031b963:
+`pes-compare/peccmp-results.json`.
 
 Sample: 40 OpenStitch exports vs their 31 PE references, plus the 177 PE-DESIGN 11.50 PES files available (compat/reference
 and <reference-notes> round2: lines, text, sweeps, satin) for PE's own rules.
@@ -58,7 +58,7 @@ page origin.
 
 ## Other machine formats (DST, EXP, JEF, PCS, SEW, XXX, HUS, VIP)
 
-pe-gui delivered PE's exports in all 10 formats on 2026-10-27 23:23 (first read-only pass: PE appears to split 15 mm stitches as jump + stitch; HUS magic 0x00C8FC5D; DST/EXP colour change not read). Request was: PE exports of OpenStitch's
+pe-gui delivered PE's exports in all 10 formats on 2026-10-27 23:23 (a first read-only pass found: PE appears to split 15 mm stitches as jump + stitch; HUS magic 0x00C8FC5D; DST/EXP colour change not read). Request was: PE exports of OpenStitch's
 `<reference-notes>\machine-formats\a.pes` (two Red running lines with a trim, a Black satin 40 x 15 mm, so
 15 mm stitches must be split in DST/EXP/JEF/SEW/XXX). Spec `compat/specs/machine/machine-formats.json` exports every
 format and compares each with its reference once the files arrive. Open questions the files answer: DST jumps-for-trim

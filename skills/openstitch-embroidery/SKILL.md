@@ -113,7 +113,8 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    point). Raise `miterLimit` for a pointed star or chevron border, keep 0 for a blunt one.
    Satin quality beyond PE-DESIGN (off by default; Manual Punch columns, skeleton satins,
    Auto satin regions and satin text via `object.setRegion`, zigzag lines via
-   `object.setLine`; text is cut at its sharp corners, so corner styles do not apply there):
+   `object.setLine`; on text a corner style shapes the corners where two strokes are sewn one
+   after the other, as Z's, V's and W's, while stems and junctions stay as they are):
    `cornerStyle: auto` for stars, chevrons and badge borders (mitre below `mitreBelow` 75°, cap below `capBelow` 45°,
    `cornerOverlap`, `capMaxLength`); `shortStitchDistance: 0.25` (with `shortStitchInset` %)
    thins the inside of tight curves; `pullLeft`/`pullRight` (mm, `null` resets) and

@@ -1319,6 +1319,9 @@ Desktop, IDEs) take the same command and arguments in their MCP server configura
   README's status lists are generated from it by `python -I tools/readme_status.py --write`,
   run on `main` after merging, not in feature PRs: CI fails a PR that edits the generated
   blocks (#632). The GitHub issue lists are refreshed only at each release (`--issues`).
+- A PR that adds, renames or deletes a doc or image keeps every relative link working: CI's
+  `icons` job runs `python -I tools/check_doc_links.py`, which matches each link against
+  `git ls-files` case-sensitively, as GitHub does.
 - Rules for the code (clean-room boundaries, command registry, golden tests) are in
   [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/LEGAL_AND_LICENSING.md](docs/LEGAL_AND_LICENSING.md).
 
@@ -1351,9 +1354,6 @@ including the README refresh done at every release, is in [docs/RELEASING.md](do
 - [Distribution and packaging](docs/DISTRIBUTION.md)
 - [Releasing](docs/RELEASING.md) and the [release notes](docs/releases/)
 - [Test images for the image wizards](docs/research/test-images.md)
-- Handoffs (history): [2026-10-30](docs/HANDOFF-2026-10-30.md), [2026-10-29](docs/HANDOFF-2026-10-29.md),
-  [2026-10-28](docs/HANDOFF-2026-10-28.md), [2026-10-27](docs/HANDOFF-2026-10-27.md),
-  [2026-10-19](docs/HANDOFF-2026-10-19.md), [2026-10-18](docs/HANDOFF-2026-10-18.md)
 
 `tools/` holds the Python scripts that generate fixtures, data tables, screenshots and the
 README's status lists (`pip install pyembroidery pillow`, run with `python -I`).
