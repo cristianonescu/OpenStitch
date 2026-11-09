@@ -4,7 +4,7 @@
   "params": {
    "name": "satin and fill options",
    "width": 130,
-   "height": 100
+   "height": 185
   }
  },
  {
@@ -156,6 +156,84 @@
    "type": "fill",
    "angle": 0,
    "travel": true
+  }
+ },
+ {
+  "command": "shape.rectangle",
+  "params": {
+   "x": 8,
+   "y": 98,
+   "width": 34,
+   "height": 12,
+   "fill": "Blue"
+  }
+ },
+ {
+  "command": "object.setRegion",
+  "params": {
+   "id": 8,
+   "type": "satin",
+   "angle": 90,
+   "raised": true
+  }
+ },
+ {
+  "command": "shape.preset",
+  "params": {
+   "kind": "star",
+   "cx": 65,
+   "cy": 110,
+   "width": 30,
+   "fill": "Purple"
+  }
+ },
+ {
+  "command": "object.setRegion",
+  "params": {
+   "id": 9,
+   "type": "satin",
+   "autoDirection": true,
+   "cornerStyle": "mitre"
+  }
+ },
+ {
+  "command": "shape.ellipse",
+  "params": {
+   "cx": 106,
+   "cy": 110,
+   "rx": 16,
+   "ry": 14,
+   "fill": "Orange"
+  }
+ },
+ {
+  "command": "object.setRegion",
+  "params": {
+   "id": 10,
+   "type": "fill",
+   "angle": 0,
+   "texture": "waves"
+  }
+ },
+ {
+  "command": "shape.rectangle",
+  "params": {
+   "x": 8,
+   "y": 140,
+   "width": 114,
+   "height": 36
+  }
+ },
+ {
+  "command": "shape.gradient",
+  "params": {
+   "id": 11,
+   "threads": [
+    "Yellow",
+    "Orange",
+    "Red"
+   ],
+   "angle": 0
   }
  }
 ]
