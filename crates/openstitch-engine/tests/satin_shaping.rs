@@ -888,3 +888,108 @@ fn satin_regions_and_skeleton_satin_take_the_looks_through_the_command() {
     assert_eq!(layers(&k), before_layers + 1);
     assert!(stitches(&k) > before);
 }
+
+#[test]
+fn satin_text_corners_take_the_corner_style() {
+    // #782: satin text is cut at its sharp corners; with a corner style, two strokes sewn one
+    // after the other through a corner (Z's) are one column there, mitred or capped. Unset or
+    // turn, the letters sew as before.
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "text.add",
+        json!({"text": "Z", "font": "lato-bold", "size": 20, "x": 10, "y": 70, "fill": "Red"}),
+    );
+    let before = sewn(&s);
+    let bounds = |st: &[openstitch_core::Stitch]| {
+        let xs = st.iter().map(|p| p.x);
+        let ys = st.iter().map(|p| p.y);
+        (
+            xs.clone().fold(f64::INFINITY, f64::min),
+            xs.fold(f64::NEG_INFINITY, f64::max),
+            ys.clone().fold(f64::INFINITY, f64::min),
+            ys.fold(f64::NEG_INFINITY, f64::max),
+        )
+    };
+    let (x0, x1, y0, y1) = bounds(&before);
+    let mut seen = vec![before.clone()];
+    for style in ["mitre", "cap"] {
+        run(
+            &mut s,
+            "object.setRegion",
+            json!({"id": 1, "cornerStyle": style}),
+        );
+        let now = sewn(&s);
+        assert!(!seen.contains(&now), "{style} sews its own corners");
+        // The corners stay within the letter (0.5 mm for compensation at the tips).
+        let (a0, a1, b0, b1) = bounds(&now);
+        assert!(
+            a0 >= x0 - 5.0 && a1 <= x1 + 5.0 && b0 >= y0 - 5.0 && b1 <= y1 + 5.0,
+            "{style}: {:?} within {:?}",
+            (a0, a1, b0, b1),
+            (x0, x1, y0, y1)
+        );
+        seen.push(now);
+    }
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "cornerStyle": "turn"}),
+    );
+    assert_eq!(sewn(&s), before, "turn: as before");
+}
+
+#[test]
+fn spacing_at_reaches_skeleton_and_auto_satin_through_the_command() {
+    // #685, #854: `spacingAt` through `object.setRegion` on a half-circle skeleton satin and a
+    // bent Auto satin region. 0 measures the spacing on the inner edge, so fewer
+    // crossings are sewn; 1 is each kind's own default again.
+    let arc = |r: f64| -> Vec<[f64; 2]> {
+        (0..=24)
+            .map(|k| {
+                let a = std::f64::consts::PI * k as f64 / 24.0;
+                [50.0 + r * a.cos(), 50.0 - r * a.sin()]
+            })
+            .collect()
+    };
+    let mut skeleton = Session::new(std::env::temp_dir());
+    let centre = arc(30.0);
+    let widths = vec![8.0; centre.len()];
+    run(
+        &mut skeleton,
+        "shape.skeletonSatin",
+        json!({"points": centre, "widths": widths, "fill": "Red"}),
+    );
+    // The 90 degree bent band of `skeleton_and_auto_satin_take_the_shaping_through_the_command`,
+    // which Auto satin sews along its derived centre line.
+    let mut auto = Session::new(std::env::temp_dir());
+    run(
+        &mut auto,
+        "shape.path",
+        json!({"points": [[0, 0], [30, 0], [30, 30], [25, 30], [25, 5], [0, 5]],
+               "closed": true, "fill": "Red"}),
+    );
+    run(
+        &mut auto,
+        "object.setRegion",
+        json!({"id": 1, "type": "satin", "autoDirection": true}),
+    );
+    for (kind, s) in [("skeleton", &mut skeleton), ("auto", &mut auto)] {
+        run(s, "object.setRegion", json!({"id": 1, "underlay": false}));
+        let plain = stitches(s);
+        run(s, "object.setRegion", json!({"id": 1, "spacingAt": 0}));
+        let inner = stitches(s);
+        assert!(
+            inner * 100 < plain * 95,
+            "{kind}: spacingAt 0 sews fewer crossings: {inner} against {plain}"
+        );
+        let saved = project::encode(s.design()).expect("encode");
+        assert_eq!(
+            &project::decode(&saved).expect("decode"),
+            s.design(),
+            "{kind}"
+        );
+        run(s, "object.setRegion", json!({"id": 1, "spacingAt": 1}));
+        assert_eq!(stitches(s), plain, "{kind}: 1 is the default again");
+    }
+}

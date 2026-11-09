@@ -192,6 +192,50 @@ fn satin_and_fill_options_are_set_and_undone() {
         Some((FeatherSide::Both, 1.5))
     );
     assert_ne!(Compiler::default().compile(s.design()), graded);
+    // Beyond PE-DESIGN (#685): the mode and a seed, kept when the width changes; null restores
+    // PE-DESIGN's pattern, and the default mode is not saved.
+    let pe_feather = Compiler::default().compile(s.design());
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "featherMode": "out", "featherSeed": 5}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "featherWidth": 2}),
+    );
+    let f = s.design().objects[0]
+        .region
+        .clone()
+        .expect("r")
+        .feather
+        .expect("f");
+    assert_eq!(
+        (f.side, f.width, f.mode, f.seed),
+        (
+            FeatherSide::Both,
+            2.0,
+            openstitch_design::FeatherMode::Out,
+            Some(5)
+        )
+    );
+    // Saved and read back with the project.
+    let bytes = project::encode(s.design()).expect("encode");
+    assert_eq!(&project::decode(&bytes).expect("decode"), s.design());
+    assert!(
+        s.execute(
+            "object.setRegion",
+            Some(&json!({"id": 1, "featherMode": "sideways"}))
+        )
+        .is_err()
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "featherMode": "in", "featherSeed": null, "featherWidth": 1.5}),
+    );
+    assert_eq!(Compiler::default().compile(s.design()), pe_feather);
     run(
         &mut s,
         "object.setRegion",
@@ -214,7 +258,8 @@ fn satin_and_fill_options_are_set_and_undone() {
     assert_eq!((r.gradation, r.feather, r.split_length), (None, None, None));
     let bytes = project::encode(s.design()).expect("encode");
     assert_eq!(&project::decode(&bytes).expect("decode"), s.design());
-    for _ in 0..4 {
+    // The four edits above and the three feather-mode ones (#685), one undo step each.
+    for _ in 0..7 {
         run(&mut s, "history.undo", json!({}));
     }
     assert_eq!(Compiler::default().compile(s.design()), plain);
@@ -413,6 +458,7 @@ fn unavailable_gradation_and_feather_are_kept_but_not_sewn() {
     r.feather = Some(Feather {
         side: FeatherSide::Both,
         width: 3.0,
+        ..Default::default()
     });
     // Gradation wins over a feathered edge stored with it.
     let mut graded = s.design().clone();

@@ -162,5 +162,5 @@ current Robison-Anton (A&E), Madeira Classic, DMC (static pages only; its script
 not inspected). Janome: not established (janome.com refused the requests). Janome's and Husqvarna
 Viking's machine charts (JEF, SEW, HUS, SHV) are already built in.
 
-The five compiled charts above score B on the same scale (Isacord's and Robison-Anton's archived
+The five charts compiled above from makers' values (all but New Brothread) score B on the same scale (Isacord's and Robison-Anton's archived
 pages are silent; the current amann.com and A&E terms are C).

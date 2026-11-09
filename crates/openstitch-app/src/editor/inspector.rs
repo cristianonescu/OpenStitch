@@ -690,6 +690,7 @@ pub fn region_controls_with(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> 
             let feather = r.feather.unwrap_or(Feather {
                 side: FeatherSide::Start,
                 width: 0.0,
+                ..Default::default()
             });
             v.push(num(
                 "Feathered edge",

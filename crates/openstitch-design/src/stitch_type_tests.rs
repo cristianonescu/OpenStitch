@@ -1745,6 +1745,7 @@ fn feathered_edges_shorten_row_ends_deterministically() {
     r.feather = Some(Feather {
         side: FeatherSide::Start,
         width: 3.0,
+        ..Default::default()
     });
     let a = crate::region::layers(&c, &r, &[]);
     assert_eq!(a, crate::region::layers(&c, &r, &[]));
@@ -1759,9 +1760,54 @@ fn feathered_edges_shorten_row_ends_deterministically() {
     r.feather = Some(Feather {
         side: FeatherSide::Both,
         width: 3.0,
+        ..Default::default()
     });
     let both = crate::region::layers(&c, &r, &[]).pop().expect("top");
     assert!(both.iter().flatten().any(|p| p.x < 199.0 && p.x > 170.0));
+}
+
+#[test]
+fn feathered_edges_go_out_both_ways_and_take_a_seed() {
+    // #685, beyond PE-DESIGN: out lengthens the start ends past the edge, both moves them either
+    // way, and a seed gives a pattern of its own that the same seed repeats.
+    let c = vec![Contour::rectangle(0.0, 0.0, 200.0, 100.0)];
+    let mut r = region(RegionType::Satin);
+    let starts = |r: &RegionSewing| -> Vec<f64> {
+        let top = crate::region::layers(&c, r, &[]).pop().expect("top");
+        top.iter()
+            .flatten()
+            .map(|p| p.x)
+            .filter(|&x| x < 100.0)
+            .collect()
+    };
+    let feather = |mode, seed| {
+        Some(Feather {
+            side: FeatherSide::Start,
+            width: 3.0,
+            mode,
+            seed,
+        })
+    };
+    r.feather = feather(FeatherMode::Out, None);
+    let out = starts(&r);
+    assert!(out.iter().all(|&x| (-30.0..=0.0).contains(&x)), "{out:?}");
+    assert!(out.iter().copied().fold(0.0, f64::min) < -20.0);
+    r.feather = feather(FeatherMode::Both, None);
+    let both = starts(&r);
+    assert!(
+        both.iter().all(|&x| (-15.0..=15.0).contains(&x)),
+        "{both:?}"
+    );
+    assert!(both.iter().any(|&x| x < -1.0) && both.iter().any(|&x| x > 1.0));
+    r.feather = feather(FeatherMode::In, Some(7));
+    let seeded = starts(&r);
+    assert_eq!(seeded, starts(&r), "same seed");
+    assert!(seeded.iter().all(|&x| (0.0..=30.0).contains(&x)));
+    r.feather = feather(FeatherMode::In, None);
+    let pe = starts(&r);
+    assert_ne!(seeded, pe, "a seed is not PE-DESIGN's pattern");
+    r.feather = feather(FeatherMode::In, Some(8));
+    assert_ne!(starts(&r), seeded, "another seed");
 }
 
 #[test]
@@ -4429,6 +4475,54 @@ fn angle_lines_on_a_ring_wrap_round_and_bad_lines_are_refused() {
     let plain = crate::region::layers(&c, &r, &[]);
     r.angle_lines = crossing.to_vec();
     assert_eq!(crate::region::layers(&c, &r, &[]), plain);
+}
+
+#[test]
+fn spacing_at_measures_skeleton_satin_density_across_the_column() {
+    // #685: a skeleton satin spaces its crossings along its centre line; spacingAt measures the
+    // spacing that far across the column from the inner edge of a bend instead, so 0 sews fewer
+    // crossings and 0.5 (the centre) as many. A straight column is the same either way.
+    use crate::column::SatinShaping;
+    use crate::skeleton::{Skeleton, satin_with};
+    let arc: Vec<Vec2> = (0..=12)
+        .map(|k| {
+            let a = std::f64::consts::PI * k as f64 / 12.0;
+            v2(300.0 * a.cos(), 300.0 * a.sin())
+        })
+        .collect();
+    let bent = Skeleton {
+        widths: vec![8.0; arc.len()],
+        points: arc,
+    };
+    let spacing = 10.0 / 4.5;
+    let count = |s: &Skeleton, at: Option<f64>| {
+        let shaping = SatinShaping {
+            spacing_at: at,
+            ..Default::default()
+        };
+        satin_with(s, spacing, 0.0, &shaping).len() as f64
+    };
+    // 1 is the unset value.
+    assert_eq!(count(&bent, None), count(&bent, Some(1.0)));
+    let (centre, middle, inner) = (
+        count(&bent, None),
+        count(&bent, Some(0.5)),
+        count(&bent, Some(0.0)),
+    );
+    assert!(inner < middle, "{inner} {middle}");
+    assert!(
+        (middle - centre).abs() <= centre * 0.02,
+        "{middle} {centre}"
+    );
+    // Inner radius 26 mm, centre 30 mm: about 26/30 of the crossings.
+    let ratio = inner / centre;
+    assert!((0.8..0.92).contains(&ratio), "{ratio}");
+    let straight = Skeleton {
+        points: vec![v2(0.0, 0.0), v2(500.0, 0.0)],
+        widths: vec![6.0, 6.0],
+    };
+    let (a, b) = (count(&straight, None), count(&straight, Some(0.0)));
+    assert!((a - b).abs() <= 2.0, "{a} {b}");
 }
 
 /// The extent (min, max) along x and y of the needle points of `runs`.

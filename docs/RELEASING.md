@@ -1,6 +1,6 @@
 # Releasing
 
-Only the maintainer creates release tags:
+Only the maintainer, or the coordinating agent the maintainer authorised, creates release tags:
 
 - `vX.Y.Z` is a stable release.
 - `vX.Y.Z-alpha.N`, `-beta.N` and `-rc.N` are pre-releases, marked as such on GitHub.
@@ -15,8 +15,13 @@ Before a release:
 
 ## Merging pull requests
 
-A pull request merges (squash) once its CI run for the current head commit is green on all
-three operating systems. Scripts and agents that merge on green have to handle these cases:
+Since 2026-11-07 an ordinary pull request merges (squash) without waiting for its CI run, once
+it is mergeable, the light local checks passed on its last commit (fmt, clippy `-D warnings`,
+the touched crates' tests, the README guards) and the private-details scan is clean. A PR whose
+CI has already gone red on something real is not merged. CI still runs on every PR and on
+`main`, and a red `main` is fixed forward at once. Fully green CI on all three operating
+systems is required at the release gate, and for any check that has to wait for a green run,
+scripts and agents have to handle these cases:
 
 - **Cancelled is not failed.** A new push to a pull request cancels that PR's run still in
   progress (the `concurrency` group in `rust.yml`). Until the new run finishes, `gh pr checks`
@@ -112,7 +117,9 @@ with current screenshots. Refresh it in a pull request before every release:
    tools/smoke-macos.sh artifact
    ```
 
-   Launch the Windows and Linux packages once by hand; there is no script for them yet.
+   Launch the Windows and Linux packages once by hand. After publishing, run the **Release
+   smoke test** workflow (`release-smoke.yml`) from the Actions tab with the tag: it installs
+   the MSI and runs the portable zip, AppImage, tarball and CLI on clean runners.
 4. After the pull requests are merged, tag that commit on `main` and push the tag:
 
    ```bash
@@ -127,7 +134,8 @@ with current screenshots. Refresh it in a pull request before every release:
    - checks the tag's form, that `X.Y.Z` matches the workspace version, and that the tag is on
      `main`;
    - runs the full test suite and builds all three platforms;
-   - creates a **draft** GitHub release with the packages. The notes start with
+   - creates a **draft** GitHub release with the packages and a `SHA256SUMS` file, which the
+     editor's updater checks every download against. The notes start with
      `docs/releases/<tag>.md` when it exists, followed by the generated list of changes.
 
    Review the draft and publish it.

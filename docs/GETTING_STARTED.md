@@ -1,6 +1,6 @@
 # Getting started with OpenStitch
 
-Your first design takes a few minutes. Each step has a button at the top of this page that starts it.
+Your first design takes a few minutes. Each step but the export has a button at the top of this page that starts it.
 Help ▸ Getting Started opens this page again at any time.
 
 ## Draw a shape

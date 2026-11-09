@@ -13,11 +13,11 @@ Icons, colours and visual style are OpenStitch's own (see
 
 | Guide element | OpenStitch |
 |---|---|
-| 1 Application button | **File** button at the top left: New, Open, Save, Save As, Print ▸, Design Property, Design Settings, Fabric Selector, Select Color Palette, Wizard ▸, Export ▸, Recent Files, Options, Exit ([screenshot](images/rust-editor-appmenu.png)) |
+| 1 Application button | **File** button at the top left: New, Open, Open Sample, Save, Save As, Print ▸, Design Property, Design Settings, Fabric Selector, Select Color Palette, Wizard ▸, Export ▸, Recent Files, Options, Exit ([screenshot](images/rust-editor-appmenu.png)) |
 | 2 Ribbon | Tabs Home, Image, View plus contextual tabs (orange) for the active tool or selection; large and small buttons, dropdown arrows, group captions, ScreenTips with shortcuts |
 | 3 Quick Access Toolbar | Above the ribbon (or below it, Options ▸ or ▾ ▸ Show below the Ribbon): New, Open, Save, Undo, Redo, Zoom, Help by default; ▾ adds or removes commands. Saved in `ui.json` next to the user settings file |
-| 4 Option button | **Options ▾** at the top right: Design Database, Programmable Stitch Creator, Stitch Design Factory, Font Creator, Sewing Attribute Sets, User Thread Charts, colour theme (Light, Dark, System); beyond PE-DESIGN: Accent colour (#559), Layouts (save and apply where the panes are, #551) Reset Preferences (one area at a time, #551), Show start cards and New Objects (#553, #554) |
-| 5 Help button | **Help ▾**: instruction manual (this repository), Ready-to-Sew Designs (the kit packaged with the app, `examples/sew`; GitHub when none is packaged), Ready-to-Sew Designs Online, keyboard shortcuts, About |
+| 4 Option button | **Options ▾** at the top right: Design Database, Programmable Stitch Creator, Stitch Design Factory, Font Creator, Sewing Attribute Sets, User Thread Charts, colour theme (Light, Dark, System); beyond PE-DESIGN: Accent colour (#559), Layouts (save and apply where the panes are, #551) Reset Preferences (one area at a time, #551), Show start cards and New Objects (#553, #554); also Text size, Language, Open designs in tabs, Picture pickers with live preview, Autosave, Show AI features, Units, guides, Editing and Updates (sections below) |
+| 5 Help button | **Help ▾**: instruction manual (this repository), Ready-to-Sew Designs (the kit packaged with the app, `examples/sew`; GitHub when none is packaged), Ready-to-Sew Designs Online, Getting Started, Machine Setup, Keyboard Shortcuts (view and change them, #551), Check for Updates, About |
 | 6 Sewing Order pane | Docked left: buttons at the top (sew first / earlier / later / last, sort by colour, optimise, frames by thread colour), then Sew in click order, Lock and Sew outline first (#502), Stop after (#512), Leave out hidden stitching (#511) and Then: run (#545), beyond PE-DESIGN; Branch / Unbranch, Auto-route lines and Redwork (#546, beyond PE-DESIGN); Swap sides and Untangle for a selected Manual Punch column (#525, beyond PE-DESIGN); Optimise reports its before/after colour changes, jumps, trims and travel in the status bar (#547); one frame per object with a thumbnail and its thread colours; drag to reorder; double-click a name to rename it (Return keeps, Esc cancels); locked objects show "(locked)" |
 | 7 Import / Color / Sewing Attributes / Text Attributes | Docked right as four tabs |
 | 8 Stitch Simulator pane | Docked under the work area. Under PE-DESIGN's controls, the stitch-out player (#516, beyond PE-DESIGN): counters (stitch and machine time at the needle), Prev/Next block, Prev/Next object and Next trim, the Auto, Pause at trims and Follow needle toggles; a lane per colour block with trim ticks and colour-change / stop markers (click or drag to seek); one button per block named by its thread. Keys while part of the design is shown: ←/→ stitch, Shift block, Ctrl object, T next trim, Home/End |
@@ -54,7 +54,8 @@ Panes 6, 7 and 8 are shown or hidden from View ▸ Show/Hide or their × button,
 window (⧉) or dock again (⊟ Dock) ([screenshot](images/rust-editor-floating-panes.png)).
 
 Commands OpenStitch does not implement yet are shown disabled, with a ScreenTip that says
-"Not yet available in OpenStitch", rather than left out. The tables below are the model in
+"Not yet available in OpenStitch", rather than left out; every Layout & Editing command is
+available now (the Design Database still has disabled ones). The tables below are the model in
 `crates/openstitch-app/src/editor/ribbon.rs`; `ribbon::tests` and the binary's
 `ribbon::tests` check that every button runs an existing action or is marked unavailable, that
 each engine command named exists, and that the contextual tabs follow the tool and selection.
@@ -173,9 +174,9 @@ Behaviour follows the guide's pages
 | Select | Point Edit | `A` | `Action::PointTool` | `object.setPoint` | yes |
 | Select | Select All | `Ctrl+A` | `Action::SelectAll` | view/UI only | yes |
 | Select | Select Same ▾ (Same Thread Colour, Same Stitch Type, Same Colour and Type; beyond PE-DESIGN, #475) |  | `Action::SelectSame`, `SelectSameColor`, `SelectSameType`, `SelectSameBoth` | `object.list` (`sameAs`, `match`) | yes |
-| Clipboard | Paste | `Ctrl+V` | `Action::Paste` | `object.duplicate` | yes |
+| Clipboard | Paste | `Ctrl+V` | `Action::Paste` | `object.paste` | yes |
 | Clipboard | Cut | `Ctrl+X` | `Action::Cut` | `object.delete`, then `object.paste` on Paste | yes |
-| Clipboard | Copy | `Ctrl+C` | `Action::Copy` | view/UI only | yes |
+| Clipboard | Copy | `Ctrl+C` | `Action::Copy` | `object.get` | yes |
 | Clipboard | Duplicate | `Ctrl+D` | `Action::Duplicate` | `object.duplicate` | yes |
 | Clipboard | Delete | `Delete` | `Action::Delete` | `object.delete` | yes |
 | Clipboard | Arrange Copy (mirror, circle, matrix; beyond PE-DESIGN, #476: Along a line, Scatter in shape with Shuffle, Mirror every other on the circle) |  | `Action::ArrangeCopy` | `object.arrangeCopies` | yes |
@@ -188,6 +189,7 @@ Behaviour follows the guide's pages
 | Tools | Measure | `M` | `Action::Measure` | `design.measure` | yes |
 | Import | Import Patterns | `Ctrl+Shift+I` | `Action::ImportPatterns` | `stitches.import` | yes |
 | Import | Import SVG |  | `Action::ImportSvg` | `import.svg`, `import.metafile` for `.wmf`/`.emf` | yes |
+| Import | Import PE-DESIGN Objects (a PE-DESIGN 11 file's shapes, texts and stitch groups as editable objects) |  | `Action::ImportPesObjects` | `import.pes` | yes |
 | Edit | Arrange |  | `Action::Arrange` | `order.move` | yes |
 | Edit | Align ▾ (Relative to Selection / Last Selected / Design Page; Align Left, Centre, Right, Top, Middle, Bottom; Distribute Horizontally, Vertically; beyond PE-DESIGN, #472) |  | `Action::Align`, `AlignLeft` … `AlignBottom`, `DistributeHorizontal`, `DistributeVertical` | `object.align`, `object.distribute` | yes |
 | Edit | Rotate/Flip |  | `Action::RotateFlip` | `object.rotate` | yes |
@@ -256,6 +258,7 @@ Behaviour follows the guide's pages
 | Select | Select | `V` | `Action::SelectTool` | view/UI only | yes |
 | Select | Point Edit | `A` | `Action::PointTool` | `object.setPoint` | yes |
 | Select | Select All | `Ctrl+A` | `Action::SelectAll` | view/UI only | yes |
+| Select | Select Same ▾ (Same Thread Colour, Same Stitch Type, Same Colour and Type) |  | `Action::SelectSame` | `object.list` (`sameAs`, `match`) | yes |
 | Text | Text |  | `Action::TextTools` | `text.add` | yes |
 | Text | Font |  | `Action::Font` | `object.setText` | yes |
 | Text | Text Size |  | `Action::TextSize` | `object.setText` | yes |
@@ -266,6 +269,7 @@ Behaviour follows the guide's pages
 | Color / Sew Type | Line sew type |  | `Action::LineSewType` | `object.setLine` | yes |
 | Color / Sew Type | Region color |  | `Action::RegionColor` | `object.setRegion` | yes |
 | Color / Sew Type | Region sew type |  | `Action::RegionSewType` | `object.setRegion` | yes |
+| Color / Sew Type | Fill Angle (drag across the selected regions in the direction their rows should run) |  | `Action::FillAngleTool` | `object.setRegion` | yes |
 | Edit | Edit Text |  | `Action::EditText` | `object.setText` | yes |
 | Edit | Fit Text ▾ (Fit Text to Outline…, Release Text from Outline) |  | `Action::FitTextToOutline` | `text.setPath` | yes |
 | Edit | Edit Character |  | `Action::EditCharacter` | `text.setCharacter` | yes |
@@ -280,6 +284,7 @@ Behaviour follows the guide's pages
 | Select | Select | `V` | `Action::SelectTool` | view/UI only | yes |
 | Select | Point Edit | `A` | `Action::PointTool` | `object.setPoint` | yes |
 | Select | Select All | `Ctrl+A` | `Action::SelectAll` | view/UI only | yes |
+| Select | Select Same ▾ (Same Thread Colour, Same Stitch Type, Same Colour and Type) |  | `Action::SelectSame` | `object.list` (`sameAs`, `match`) | yes |
 | Shapes | Closed Straight Line | `P` | `Action::ClosedStraight` | `shape.polygon` | yes |
 | Shapes | Closed Curve | `B` | `Action::ClosedCurve` | `shape.path` | yes |
 | Shapes | Pencil (Closed Curve) |  | `Action::PencilClosed` | `shape.freehand` | yes |
@@ -290,6 +295,7 @@ Behaviour follows the guide's pages
 | Color / Sew Type | Line sew type |  | `Action::LineSewType` | `object.setLine` | yes |
 | Color / Sew Type | Region color |  | `Action::RegionColor` | `object.setRegion` | yes |
 | Color / Sew Type | Region sew type |  | `Action::RegionSewType` | `object.setRegion` | yes |
+| Color / Sew Type | Fill Angle (drag across the selected regions in the direction their rows should run) |  | `Action::FillAngleTool` | `object.setRegion` | yes |
 
 ### Outline — Shapes (Rectangle) (contextual: Rectangle tool)
 
@@ -298,12 +304,14 @@ Behaviour follows the guide's pages
 | Select | Select | `V` | `Action::SelectTool` | view/UI only | yes |
 | Select | Point Edit | `A` | `Action::PointTool` | `object.setPoint` | yes |
 | Select | Select All | `Ctrl+A` | `Action::SelectAll` | view/UI only | yes |
+| Select | Select Same ▾ (Same Thread Colour, Same Stitch Type, Same Colour and Type) |  | `Action::SelectSame` | `object.list` (`sameAs`, `match`) | yes |
 | Shapes | Rectangle | `R` | `Action::Rectangle` | `shape.rectangle` | yes |
 | Shapes | Edge radius |  | `Action::EdgeRadius` | `shape.rectangle` (`cornerRadius`) | yes |
 | Color / Sew Type | Line color |  | `Action::LineColor` | `object.setLine` | yes |
 | Color / Sew Type | Line sew type |  | `Action::LineSewType` | `object.setLine` | yes |
 | Color / Sew Type | Region color |  | `Action::RegionColor` | `object.setRegion` | yes |
 | Color / Sew Type | Region sew type |  | `Action::RegionSewType` | `object.setRegion` | yes |
+| Color / Sew Type | Fill Angle (drag across the selected regions in the direction their rows should run) |  | `Action::FillAngleTool` | `object.setRegion` | yes |
 
 ### Manual Punch (contextual: a Manual Punch tool)
 
@@ -312,6 +320,7 @@ Behaviour follows the guide's pages
 | Select | Select | `V` | `Action::SelectTool` | view/UI only | yes |
 | Select | Point Edit | `A` | `Action::PointTool` | `object.setPoint` | yes |
 | Select | Select All | `Ctrl+A` | `Action::SelectAll` | view/UI only | yes |
+| Select | Select Same ▾ (Same Thread Colour, Same Stitch Type, Same Colour and Type) |  | `Action::SelectSame` | `object.list` (`sameAs`, `match`) | yes |
 | Manual Punch | Straight Block | `U` | `Action::StraightBlock` | `shape.column` | yes |
 | Manual Punch | Curved Block |  | `Action::CurvedBlock` | `shape.column` (`curved: true`) | yes |
 | Manual Punch | Running |  | `Action::Running` | `shape.polygon` (`closed: false`) | yes |
@@ -328,8 +337,11 @@ Behaviour follows the guide's pages
 | Select | Select | `V` | `Action::SelectTool` | view/UI only | yes |
 | Select | Point Edit | `A` | `Action::PointTool` | `object.setPoint` | yes |
 | Select | Select All | `Ctrl+A` | `Action::SelectAll` | view/UI only | yes |
+| Select | Select Same ▾ (Same Thread Colour, Same Stitch Type, Same Colour and Type) |  | `Action::SelectSame` | `object.list` (`sameAs`, `match`) | yes |
 | Edit Outline | Split Outline |  | `Action::SplitOutline` | `shape.split` | yes |
 | Edit Outline | Knife (beyond PE-DESIGN, #477) |  | `Action::Knife` | `shape.knife` | yes |
+| Edit Outline | Gradient (drag across a selected gradient fill to place its colours) |  | `Action::GradientTool` | `object.setRegion` | yes |
+| Edit Outline | Angle Lines (rows turn from one dragged line to the next) |  | `Action::AngleLineTool` | `object.setAngleLines` | yes |
 | Edit Outline | Add Direction Line |  | `Action::AddDirectionLine` | `object.setDirectionCurve` | yes |
 | Edit Outline | Delete Direction Line |  | `Action::DeleteDirectionLine` | `object.setDirectionLines` | yes |
 | Edit Outline | Reverse Direction Line |  | `Action::ReverseDirectionLine` | `object.reverseDirection` | yes |
@@ -348,6 +360,7 @@ Behaviour follows the guide's pages
 | Color / Sew Type | Line sew type |  | `Action::LineSewType` | `object.setLine` | yes |
 | Color / Sew Type | Region color |  | `Action::RegionColor` | `object.setRegion` | yes |
 | Color / Sew Type | Region sew type |  | `Action::RegionSewType` | `object.setRegion` | yes |
+| Color / Sew Type | Fill Angle (drag across the selected regions in the direction their rows should run) |  | `Action::FillAngleTool` | `object.setRegion` | yes |
 | Convert | Convert Region to Line |  | `Action::ConvertRegionToLine` | `object.regionToLine` | yes |
 | Convert | Convert to Stitches |  | `Action::ConvertToStitches` | `object.toStitches` | yes |
 | Create | Create Offset Lines |  | `Action::OffsetLines` | `shape.offsetLines` | yes |
@@ -375,6 +388,7 @@ Attributes) drops them on purpose.
 | Select | Select | `V` | `Action::SelectTool` | view/UI only | yes |
 | Select | Point Edit | `A` | `Action::PointTool` | `object.setPoint` | yes |
 | Select | Select All | `Ctrl+A` | `Action::SelectAll` | view/UI only | yes |
+| Select | Select Same ▾ (Same Thread Colour, Same Stitch Type, Same Colour and Type) |  | `Action::SelectSame` | `object.list` (`sameAs`, `match`) | yes |
 | Edit | Split Stitch Data |  | `Action::SplitStitchData` | `stitches.splitArea` | yes |
 | Edit | Change Color |  | `Action::ChangeColor` | `stitches.setThread` | yes |
 | Edit | Divide by Color |  | `Action::DivideByColor` | `stitches.divideByColor` | yes |
@@ -392,6 +406,7 @@ Attributes) drops them on purpose.
 | Select | Select | `V` | `Action::SelectTool` | view/UI only | yes |
 | Select | Point Edit | `A` | `Action::PointTool` | `object.setPoint` | yes |
 | Select | Select All | `Ctrl+A` | `Action::SelectAll` | view/UI only | yes |
+| Select | Select Same ▾ (Same Thread Colour, Same Stitch Type, Same Colour and Type) |  | `Action::SelectSame` | `object.list` (`sameAs`, `match`) | yes |
 | Hoop Settings | Move Sections |  | `Action::MoveSections` | `sections.set` (`splitsX` / `splitsY`) | yes |
 | Hoop Settings | Design Settings (hoop list grouped by brand, Brother first, with a filter; other brands and round hoops beyond PE-DESIGN, #514; an oval or round hoop's field is drawn on the canvas) |  | `Action::DesignSettings` | `machine.set`, `machine.hoops` | yes |
 | Hoop Settings | Export Sections (free hoopings: "Name - hooping k of n") |  | `Action::ExportSections` | `sections.export` | yes |
@@ -494,6 +509,7 @@ and [Adjusting the split positions](https://support.brother.com/g/s/hf/htmldoc/p
 |---|---|---|---|---|
 | New | `Ctrl+N` | `Action::New` | `design.new` | yes |
 | Open | `Ctrl+O` | `Action::Open` | `project.open` | yes |
+| Open Sample (a design from the ready-to-sew kit as a new untitled design; beyond PE-DESIGN) |  | `Action::OpenSample` | view/UI only | yes |
 | Save | `Ctrl+S` | `Action::Save` | `project.save` | yes |
 | Save As | `Ctrl+Shift+S` | `Action::SaveAs` | `project.save` | yes |
 | Print |  | `Action::Print` | `design.print` | yes |
@@ -827,10 +843,10 @@ snap to.
 | Zoom | Pan |  | `FactoryAction::Pan` | view/UI only | yes |
 | Stitch | Single Stitch |  | `FactoryAction::SingleStitch` | view/UI only | yes |
 | Stitch | Triple Stitch |  | `FactoryAction::TripleStitch` | view/UI only | yes |
-| Stitch | Swap |  | `FactoryAction::Swap` | `sewing.swap` | yes |
+| Stitch | Swap |  | `FactoryAction::Swap` | view/UI only (`sewing.swap` for a pattern in the project) | yes |
 | Edit | Flip Vertical |  | `FactoryAction::FlipVertical` | view/UI only | yes |
 | Edit | Flip Horizontal |  | `FactoryAction::FlipHorizontal` | view/UI only | yes |
-| Edit | Duplicate | `Ctrl+D` | `FactoryAction::Duplicate` | `sewing.duplicate` | yes |
+| Edit | Duplicate | `Ctrl+D` | `FactoryAction::Duplicate` | view/UI only (`sewing.duplicate` for a pattern in the project) | yes |
 | Edit | Delete | `Delete` | `FactoryAction::Delete` | view/UI only | yes |
 
 #### View

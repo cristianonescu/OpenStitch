@@ -29,6 +29,20 @@ Some specs say to open OpenStitch's own export, for example `pes-default-v6`. Th
 - Do not use Brother's built-in designs, fonts, motifs or programmable-fill patterns unless
   `make` asks for them.
 
+Things in PE-DESIGN 11.50 that have spoiled reference files before:
+- Tools remember the last attributes you used (type, colour, values) until PE-DESIGN restarts.
+  Reset them to the defaults before each file, and check the attribute panes.
+- **Save As** remembers the last file type. Pick the PES version again every time.
+- Keep the whole design on the Design Page. If anything is off the page, Save As warns
+  "Please change the object size or position"; a file saved anyway has no PEC block and no
+  stitches. Answer No and move the object.
+- Text is placed with its baseline-left at the point you click.
+- Entry and exit points move only along the outline, and stop at corners. The labels shown can
+  be the other way round from what PE-DESIGN sews: check the stitches, not the labels.
+- Design Property can't be confirmed on an empty design: draw one shape first.
+- Formats other than PES come only from the App menu's **Export**. It opens in PE-DESIGN's own
+  program folder: never save there.
+
 ## 3. Name it and put it in place
 
 - Save it under the path in `references[].file`, inside this folder. For example, spec

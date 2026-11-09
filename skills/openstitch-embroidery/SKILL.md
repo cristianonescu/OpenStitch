@@ -118,7 +118,8 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    point). Raise `miterLimit` for a pointed star or chevron border, keep 0 for a blunt one.
    Satin quality beyond PE-DESIGN (off by default; Manual Punch columns, skeleton satins,
    Auto satin regions and satin text via `object.setRegion`, zigzag lines via
-   `object.setLine`; text is cut at its sharp corners, so corner styles do not apply there):
+   `object.setLine`; on text a corner style shapes the corners where two strokes are sewn one
+   after the other, as Z's, V's and W's, while stems and junctions stay as they are):
    `cornerStyle: auto` for stars, chevrons and badge borders (mitre below `mitreBelow` 75°, cap below `capBelow` 45°,
    `cornerOverlap`, `capMaxLength`); `shortStitchDistance: 0.25` (with `shortStitchInset` %)
    thins the inside of tight curves; `pullLeft`/`pullRight` (mm, `null` resets) and
@@ -135,7 +136,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    curved column's density; `raised: true` (or `{laneSpacing, inset, stitchLength}`) pads
    monograms and rims of 3 mm and wider (narrower ones return a `hints` entry). The looks work
    on every satin: Manual Punch columns, skeleton and Auto satin, fixed-direction satin
-   regions, satin text and zigzag lines (`spacingAt` on columns only). Read them back
+   regions, satin text and zigzag lines (`spacingAt` on columns, skeleton and Auto satin).
+   PE-DESIGN's feathered edge (`featherSide`, `featherWidth`) also takes `featherMode: out`
+   (row ends past the edge) or `both`, and `featherSeed` for a pattern of its own. Read them back
    with `object.get`. Fix a Manual Punch column instead of redrawing it:
    `object.insertRung {id, at}`, `object.deleteRung {id, index}`, `object.moveRung {id, index,
    side: left|right, point}`, `object.swapSides {id}` and `object.untangle {id}`; a line pair

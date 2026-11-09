@@ -5,6 +5,18 @@ Research date: 2026-10-28. A design note for `openstitch-engine` (`order.rs`, `d
 `shape_ops.rs`) and `openstitch-design` (`route.rs`, `boolean.rs`). No other product's code
 was read.
 
+**Status (2026-11-09):** built in other forms than this sketch's commands:
+- continue digitizing (§4): `object.extendPath` and `object.extendColumn` (#479), the drawing
+  tools continue a selected line from either end;
+- closest join (§2): a design setting `autoStart: nearest` (#547, `design.setProperties`) starts
+  each shape without an entry point of its own nearest to where the needle stopped, satins
+  part way along; `order.optimize` reports what it changed. `order.closestJoin`, fixed points
+  and the `auto` re-apply on move are not built; #547 is still open;
+- overlap removal at shape level (§5.1): `object.setHideUnder` and `design.setRemoveHidden`
+  (#511), with a 1 mm default overlap and satin regions and text not clipped;
+- not built: auto start and end (§3) and stitch-level clipping (`stitches.clip`, §5.2).
+Related: `order.optimize` mode `minJump` (#137), a 2-opt shortest-jump order.
+
 ## 1. What the feature is
 
 Four small conveniences that together remove most manual sequencing work:
