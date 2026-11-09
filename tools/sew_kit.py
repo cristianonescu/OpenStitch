@@ -351,6 +351,14 @@ def angle_lines():
     ]
 
 
+def tartan():
+    """Tartan fill (#539, beyond PE-DESIGN): a 50 mm square in a red, green and white sett."""
+    return [
+        {"command": "shape.rectangle", "params": {"x": 10, "y": 10, "width": 50, "height": 50, "fill": "Red"}},
+        {"command": "shape.tartan", "params": {"id": 1, "sett": "R8 G12 W2"}},
+    ]
+
+
 LINE_TYPES = [
     {"type": "running"},
     {"type": "triple"},
@@ -625,6 +633,9 @@ FEATURES = [
     ("fills/angle-lines.pes", "Stitch angle lines (beyond PE-DESIGN)",
      "An L whose rows turn round its corner between three angle lines, as one object with no seam.",
      angle_lines()),
+    ("fills/tartan.pes", "Tartan fill (beyond PE-DESIGN)",
+     "A 50 mm square in the symmetric sett R8 G12 W2 (red, green, white): one colour block per thread, warp "
+     "and weft stripes crossing.", tartan()),
     ("fills/maze-fill.pes", "Maze fill (beyond PE-DESIGN)",
      "One path of straight corridors and square turns that never crosses itself, 2 mm apart: straightness "
      "70 % (default), 0 % and 95 % (top row), on a circle, another seed at 45°, and 3 mm spacing.",
