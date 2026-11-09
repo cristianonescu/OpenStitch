@@ -1317,6 +1317,9 @@ Desktop, IDEs) take the same command and arguments in their MCP server configura
   README's status lists are generated from it by `python -I tools/readme_status.py --write`,
   run on `main` after merging, not in feature PRs: CI fails a PR that edits the generated
   blocks (#632). The GitHub issue lists are refreshed only at each release (`--issues`).
+- A PR that adds, renames or deletes a doc or image keeps every relative link working: CI's
+  `icons` job runs `python -I tools/check_doc_links.py`, which matches each link against
+  `git ls-files` case-sensitively, as GitHub does.
 - Rules for the code (clean-room boundaries, command registry, golden tests) are in
   [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/LEGAL_AND_LICENSING.md](docs/LEGAL_AND_LICENSING.md).
 
