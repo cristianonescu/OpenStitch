@@ -16,7 +16,7 @@
    "width": 24,
    "height": 36,
    "rotation": 180,
-   "fill": "Blue"
+   "fill": {"builtin": "newBrothread", "code": "405"}
   }
  },
  {
@@ -28,7 +28,7 @@
    "width": 24,
    "height": 36,
    "rotation": 270,
-   "fill": "Blue"
+   "fill": {"builtin": "newBrothread", "code": "405"}
   }
  },
  {
@@ -40,7 +40,7 @@
    "width": 24,
    "height": 36,
    "rotation": 360,
-   "fill": "Blue"
+   "fill": {"builtin": "newBrothread", "code": "405"}
   }
  },
  {
@@ -52,7 +52,7 @@
    "width": 24,
    "height": 36,
    "rotation": 450,
-   "fill": "Blue"
+   "fill": {"builtin": "newBrothread", "code": "405"}
   }
  },
  {
@@ -69,7 +69,7 @@
    "netDirection": 0,
    "coverWidth": 4,
    "coverDensity": 6.5,
-   "color": "Blue"
+   "color": {"builtin": "newBrothread", "code": "405"}
   }
  },
  {
@@ -78,7 +78,7 @@
    "cx": 145,
    "cy": 60,
    "rx": 28,
-   "fill": "Deep Rose"
+   "fill": {"builtin": "newBrothread", "code": "086"}
   }
  },
  {
@@ -101,7 +101,7 @@
    "cx": 215,
    "cy": 60,
    "width": 50,
-   "fill": "Black"
+   "fill": {"builtin": "newBrothread", "code": "900"}
   }
  },
  {

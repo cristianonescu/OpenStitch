@@ -14,7 +14,7 @@
    "y": 5,
    "width": 90,
    "height": 90,
-   "outline": "#b0b0b0"
+   "outline": {"builtin": "newBrothread", "code": "005"}
   }
  },
  {
@@ -24,7 +24,7 @@
    "cx": 50,
    "cy": 52,
    "width": 40,
-   "fill": "Red"
+   "fill": {"builtin": "newBrothread", "code": "800"}
   }
  },
  {
@@ -34,7 +34,7 @@
    "y": 5,
    "width": 90,
    "height": 90,
-   "outline": "#b0b0b0"
+   "outline": {"builtin": "newBrothread", "code": "005"}
   }
  },
  {
@@ -44,7 +44,7 @@
    "cx": 150,
    "cy": 52,
    "width": 44,
-   "fill": "Yellow"
+   "fill": {"builtin": "newBrothread", "code": "205"}
   }
  },
  {
@@ -54,7 +54,7 @@
    "y": 105,
    "width": 90,
    "height": 90,
-   "outline": "#b0b0b0"
+   "outline": {"builtin": "newBrothread", "code": "005"}
   }
  },
  {
@@ -63,7 +63,7 @@
    "cx": 50,
    "cy": 150,
    "rx": 18,
-   "fill": "Deep Rose"
+   "fill": {"builtin": "newBrothread", "code": "086"}
   }
  },
  {
@@ -73,7 +73,7 @@
    "y": 105,
    "width": 90,
    "height": 90,
-   "outline": "#b0b0b0"
+   "outline": {"builtin": "newBrothread", "code": "005"}
   }
  },
  {
@@ -84,7 +84,7 @@
    "cy": 150,
    "width": 36,
    "height": 46,
-   "fill": "Blue"
+   "fill": {"builtin": "newBrothread", "code": "405"}
   }
  },
  {
@@ -121,7 +121,7 @@
    "fillType": "stippling",
    "spacing": 3,
    "stippleSpacing": 2.5,
-   "color": "#2e8b57"
+   "color": {"builtin": "newBrothread", "code": "534"}
   }
  },
  {

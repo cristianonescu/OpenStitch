@@ -148,7 +148,7 @@
    "y": 5,
    "width": 55,
    "height": 45,
-   "fill": "Emerald Green"
+   "fill": {"builtin": "newBrothread", "code": "507"}
   }
  },
  {
@@ -169,7 +169,7 @@
    "cy": 28,
    "rx": 24,
    "ry": 17,
-   "outline": "Purple"
+   "outline": {"builtin": "newBrothread", "code": "614"}
   }
  },
  {
@@ -189,7 +189,7 @@
    "y": 52,
    "width": 50,
    "height": 14,
-   "fill": "Red"
+   "fill": {"builtin": "newBrothread", "code": "800"}
   }
  },
  {
