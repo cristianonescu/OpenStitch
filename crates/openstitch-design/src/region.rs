@@ -224,6 +224,38 @@ fn layers_inner(
         }
         return out;
     }
+    // Tartan fill (#539, beyond PE-DESIGN): this colour's warp rows, then its weft rows, each
+    // joined by travel inside; no under sewing (it would show through the open rows).
+    if r.kind == RegionType::Fill
+        && let Some(t) = &r.tartan
+    {
+        let angle = if r.auto_direction {
+            auto_angle(closed)
+        } else {
+            geometry_angle(r.angle)
+        };
+        let families = crate::tartan::layers(
+            closed,
+            holes,
+            t,
+            angle,
+            10.0 / r.density.max(0.1),
+            r.stitch_length * 10.0,
+            r.fill_stagger(),
+        );
+        return families
+            .into_iter()
+            .filter(|f| !f.is_empty())
+            .map(|f| {
+                let mut graph = TravelGraph::new(closed, holes);
+                join(
+                    crate::paths::order(f, r.entry),
+                    Some(&mut graph),
+                    SATIN_TRAVEL_PITCH,
+                )
+            })
+            .collect();
+    }
     // Gradient fill (#532, beyond PE-DESIGN): this colour's share of the shared rows, no
     // under sewing (it would show through the other colours), joined by travel inside.
     if r.kind == RegionType::Fill
