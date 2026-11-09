@@ -83,7 +83,7 @@ pub(crate) const SHAPING_PARAMS: [ParamDoc; 16] = [
     opt(
         "spacingAt",
         "0-1",
-        "Manual Punch columns only (not satin regions, skeleton or Auto satin): where across a curved column the density is measured, 0 (shorter side) to 1 (longer side, PE-DESIGN's, the default); 0.5 evens it at the centre",
+        "Manual Punch columns, skeleton satin and Auto satin regions (not fixed-direction satin): where across a curved column the density is measured, 0 (shorter side) to 1 (longer side); 0.5 evens it at the centre. Unset keeps each kind's own: the longer side on columns and Auto satin (PE-DESIGN's, = 1), the centre line on skeleton satin (= 0.5)",
     ),
     opt(
         "raised",
