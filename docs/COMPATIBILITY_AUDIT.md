@@ -3605,3 +3605,17 @@ Beyond PE-DESIGN's own routing; no stitch output changes.
 - **Cutwork lines:** as #800 measured, 49 of cutwork's 56 same-thread trims are between the
   cutting lines' segments, which the cutting needle can't travel between. They stay;
   `autoStart: nearest` already removes 11 of the others.
+
+### Travel walks the outline where the way inside runs round a tip, 2026-11-09 (#471)
+
+Region travel between separate parts (`region::reroute_with`, Running Stitch Path Inside) takes
+the shortest way inside the region. Where a row ends on an outline that runs nearly along the
+rows, that way could lead out to a tip and back over the row just sewn: region-types' piping
+(1.2 lines/mm at 30 degrees) ran 13 mm to its lobe's tip and back where the outline between the
+two row ends is 4 mm, three passes over 5 mm, the "dark bar" #471 reported. Now, where both ends
+lie on the outline and the walk along it is under three quarters of the inside way, the walk is
+taken. Piping's densest 1 mm cell: 3.78 → 2.23 mm of thread per mm² (median 1.16), cells over
+twice the median 0.9 % → 0 % (`piping_travel_keeps_off_the_rows_at_a_lobe_tip`). The same rule
+touches 8 kit designs by a few stitches (fills, Auto Punch's storybook and balloon, monograms,
+background fill; trims unchanged, each within ±2 % of its stitches and sew_check ok); compat
+unchanged.
