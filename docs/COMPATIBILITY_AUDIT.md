@@ -3466,6 +3466,24 @@ Still open on #446:
 - A's feet and V's top ends fan.
 - N's corner block.
 
+### Blend and gradient travel stays short, 2026-11-11 (#891)
+
+Beyond PE-DESIGN, so there is no reference. Each colour of a blend or gradient sews only its own
+share of the shared rows, so nothing covers its travel. In the kit's blends, long straight travel
+crossed the other colours in each colour's own thread: a purple line ran across the radial blend's
+gold centre (`examples/sew/previews/gradients.png`). It came from two places:
+- the travel between a colour's pieces, which took the shortest path inside the shape however far
+  it was;
+- the travel from each colour object's start point and to its end point.
+
+Now a colour travels at most 2 mm between its pieces (`paths::join_within`, `GRADIENT_TRAVEL`) and
+trims longer gaps. It has no start- or end-point travel, as Concentric Circle and Spiral already
+do; its colour change trims there anyway.
+
+The kit's gradients design (4 swatches, 9 colours) goes from 1 trim to 71 and 9,133 needle points
+to 8,859; its longest straight stretch across the rows is now 3.0 mm, against 22 mm before. Test:
+`blend_travel_never_runs_far_across_the_rows`.
+
 ### Sharp Corners and Miter Limit on satin lines, 2026-11-09 (#373)
 
 PE-DESIGN has no satin line type, so there's no reference; this keeps OpenStitch's satin line
