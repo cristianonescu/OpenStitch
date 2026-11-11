@@ -627,7 +627,7 @@ fn auto_punch_docs() -> Vec<ParamDoc> {
     v.push(opt(
         "flowFill",
         "bool",
-        "OpenStitch mode: each fill's rows follow the direction of the picture's own strokes (fur, petals, hair) on a 1 mm grid, as evenly spaced curved rows that never cross, instead of one straight angle; where the picture has no clear direction, and on a fill whose angle is set, the fill's own angle is kept (default false; the region's flowField can be changed afterwards with object.setRegion) (#538; needs compatMode openStitch)",
+        "OpenStitch mode: each fill's rows follow the direction of the picture's own strokes (fur, petals, hair) on a 1 mm grid, as evenly spaced curved rows that never cross, instead of one straight angle; a region whose picture has no clear strokes inside it (a flat shape, noise) keeps straight rows, as does a fill whose angle is set (default false; the region's flowField can be changed afterwards with object.setRegion) (#538; needs compatMode openStitch)",
     ));
     v.push(opt(
         "preset",

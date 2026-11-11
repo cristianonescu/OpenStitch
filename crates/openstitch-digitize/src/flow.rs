@@ -2,12 +2,22 @@
 //! fill region's rows follow the direction of the picture's own strokes, fur or petals.
 //!
 //! - The direction comes from the picture's **structure tensor**: the products of the
-//!   luminance gradient, smoothed over [`SMOOTH_MM`]. Its major axis is the gradient's (across
-//!   an edge or stroke); the rows run along the minor one, along the strokes.
+//!   luminance gradient, smoothed over [`SMOOTH_MM`] inside each region. Its major axis is the
+//!   gradient's (across an edge or stroke); the rows run along the minor one, along the strokes.
 //! - Per region the tensor is summed over the region's own pixels on a coarse grid of
 //!   [`CELL_MM`] cells: the field the rows follow is one angle per cell
-//!   ([`openstitch_design::flow::FlowField::Grid`]), not per pixel. A cell whose direction is
-//!   weak or mixed (coherence under [`MIN_COHERENCE`]) keeps the region's own fill angle.
+//!   ([`openstitch_design::flow::FlowField::Grid`]), not per pixel.
+//! - Only the picture's strokes inside a region count, not its outline (#894): pixels within
+//!   [`RIM_MM`] of the region's edge are left out, since there the gradient is the colour
+//!   change to the next region and would bend the rows along the outline, and the smoothing is
+//!   done over the region's own cells, so a strong outline does not bleed inwards. A cell is
+//!   **textured** when at least [`MIN_CELL_SHARE`] of it is counted, its mean gradient is at
+//!   least [`MIN_STROKE`] luminance per mm (JPEG noise and gentle shading are weaker) and its
+//!   coherence is at least [`MIN_COHERENCE`]; any other cell keeps the region's fill angle.
+//! - A region with fewer than [`MIN_TEXTURED`] of its cells textured has no strokes to follow
+//!   (a flat logo shape, a noisy photo area): it keeps straight rows, no field at all.
+//! - Measured on the ten Auto Punch gallery cases (#894): with these rules no case scores below
+//!   its straight-row result in dE00 or MS-SSIM; flat logos keep straight rows.
 //! - The rows themselves are `openstitch_design::flow`'s evenly spaced streamlines, sewn back and
 //!   forth inside the region; nothing here decides a move between rows or regions.
 //!
@@ -21,17 +31,28 @@ use openstitch_design::fmath::Det;
 
 /// The field's cells, mm.
 pub const CELL_MM: f64 = 1.0;
-/// The tensor's smoothing (the Gaussian's sigma), mm.
+/// The tensor's smoothing inside a region (the Gaussian's sigma over its cells), mm.
 pub const SMOOTH_MM: f64 = 1.5;
-/// A cell whose direction is weaker or more mixed than this keeps the region's fill angle:
+/// A cell whose direction is more mixed than this keeps the region's fill angle:
 /// `(λ1 - λ2) / (λ1 + λ2)` of the cell's summed tensor.
-pub const MIN_COHERENCE: f64 = 0.25;
+pub const MIN_COHERENCE: f64 = 0.4;
+/// Pixels this close to a region's edge are left out of its field, mm.
+pub const RIM_MM: f64 = 0.5;
+/// The share of a cell that must be counted (inside the region, past the rim) for it to steer.
+pub const MIN_CELL_SHARE: f64 = 0.25;
+/// The weakest mean gradient a textured cell has, luminance (0-255) per mm.
+pub const MIN_STROKE: f64 = 50.0;
+/// The share of a region's counted cells that must be textured for it to get a field.
+pub const MIN_TEXTURED: f64 = 0.3;
 
-/// The picture's smoothed structure tensor, per pixel: `(Jxx, Jxy, Jyy)`.
+/// The picture's structure tensor, per pixel: `(Jxx, Jxy, Jyy)`, unsmoothed (each region
+/// smooths its own part).
 pub struct Tensor {
     w: usize,
     h: usize,
+    /// In (luminance per mm)².
     j: Vec<[f64; 3]>,
+    mm_per_px: f64,
 }
 
 impl Tensor {
@@ -50,28 +71,25 @@ impl Tensor {
             .collect();
         let at = |x: usize, y: usize| lum[y * w + x];
         let mut j = vec![[0.0; 3]; w * h];
-        for y in 0..h {
-            for x in 0..w {
-                let gx = (at((x + 1).min(w - 1), y) - at(x.saturating_sub(1), y)) / 2.0;
-                let gy = (at(x, (y + 1).min(h - 1)) - at(x, y.saturating_sub(1))) / 2.0;
-                j[y * w + x] = [gx * gx, gx * gy, gy * gy];
-            }
-        }
-        let sigma = if mm_per_px > 0.0 {
-            (SMOOTH_MM / mm_per_px).max(0.5)
+        let per_mm = if mm_per_px > 0.0 {
+            1.0 / mm_per_px
         } else {
             1.0
         };
-        Tensor {
-            w,
-            h,
-            j: blur(&j, w, h, sigma),
+        for y in 0..h {
+            for x in 0..w {
+                let gx = (at((x + 1).min(w - 1), y) - at(x.saturating_sub(1), y)) / 2.0 * per_mm;
+                let gy = (at(x, (y + 1).min(h - 1)) - at(x, y.saturating_sub(1))) / 2.0 * per_mm;
+                j[y * w + x] = [gx * gx, gx * gy, gy * gy];
+            }
         }
+        Tensor { w, h, j, mm_per_px }
     }
 
     /// The field of a region: `mask` is the region's pixels in the `mw` × `mh` box at `offset`
     /// of the picture; `fill_deg` (a stored region angle) is kept where the picture has no clear
-    /// direction. The grid's cells are [`CELL_MM`] square, placed by `frame`.
+    /// direction. The grid's cells are [`CELL_MM`] square, placed by `frame`. `None` where the
+    /// region has too few textured cells: it keeps straight rows.
     pub fn region_field(
         &self,
         mask: &[bool],
@@ -80,7 +98,7 @@ impl Tensor {
         offset: (usize, usize),
         frame: &Frame,
         fill_deg: f64,
-    ) -> FlowField {
+    ) -> Option<FlowField> {
         let mm = frame.mm_per_px();
         let cell_px = if mm > 0.0 {
             (CELL_MM / mm).max(1.0)
@@ -89,10 +107,18 @@ impl Tensor {
         };
         let cols = ((mw as f64 / cell_px).ceil() as usize).max(1);
         let rows = ((mh as f64 / cell_px).ceil() as usize).max(1);
+        // Pixels at least `rim` from the region's edge (chessboard distance).
+        let rim = if self.mm_per_px > 0.0 {
+            (RIM_MM / self.mm_per_px).round() as usize
+        } else {
+            0
+        };
+        let depth = depth(mask, mw, mh, rim);
         let mut sums = vec![[0.0; 3]; cols * rows];
+        let mut counts = vec![0usize; cols * rows];
         for y in 0..mh {
             for x in 0..mw {
-                if !mask[y * mw + x] {
+                if !mask[y * mw + x] || depth[y * mw + x] < rim {
                     continue;
                 }
                 let (px, py) = (x + offset.0, y + offset.1);
@@ -105,19 +131,83 @@ impl Tensor {
                 for k in 0..3 {
                     sums[c][k] += t[k];
                 }
+                counts[c] += 1;
             }
         }
-        let angles = sums
+        let (sums, pixels) = smooth_cells(&sums, &counts, cols, rows, SMOOTH_MM / CELL_MM);
+        let full = (cell_px * cell_px * MIN_CELL_SHARE).max(1.0) as usize;
+        let min_energy = MIN_STROKE * MIN_STROKE;
+        let (mut counted, mut textured) = (0usize, 0usize);
+        let angles: Vec<f64> = sums
             .iter()
-            .map(|&[xx, xy, yy]| row_angle(xx, xy, yy).unwrap_or(fill_deg))
+            .zip(&counts)
+            .zip(&pixels)
+            .map(|((&[xx, xy, yy], &n), &weight)| {
+                if n < full || weight <= 0.0 {
+                    return fill_deg;
+                }
+                counted += 1;
+                let energy = (xx + yy) / weight;
+                match row_angle(xx, xy, yy) {
+                    Some(a) if energy >= min_energy => {
+                        textured += 1;
+                        a
+                    }
+                    _ => fill_deg,
+                }
+            })
             .collect();
-        FlowField::Grid {
+        if textured == 0 || (textured as f64) < MIN_TEXTURED * counted as f64 {
+            return None;
+        }
+        Some(FlowField::Grid {
             origin: frame.point(offset.0 as f64, offset.1 as f64),
             cell: cell_px * frame.scale,
             cols,
             angles,
+        })
+    }
+}
+
+/// Each pixel's chessboard distance to the nearest pixel outside `mask` (or the box's edge),
+/// counted up to `cap` (more is reported as `cap`).
+fn depth(mask: &[bool], w: usize, h: usize, cap: usize) -> Vec<usize> {
+    let mut d: Vec<usize> = mask.iter().map(|&m| if m { cap } else { 0 }).collect();
+    if cap == 0 {
+        return d;
+    }
+    for y in 0..h {
+        for x in 0..w {
+            let i = y * w + x;
+            if d[i] == 0 {
+                continue;
+            }
+            let edge = x == 0 || y == 0 || x == w - 1 || y == h - 1;
+            let mut v = if edge { 1 } else { d[i] };
+            if !edge {
+                for (dx, dy) in [(-1i64, 0i64), (-1, -1), (0, -1), (1, -1)] {
+                    let n = (y as i64 + dy) as usize * w + (x as i64 + dx) as usize;
+                    v = v.min(d[n] + 1);
+                }
+            }
+            d[i] = v;
         }
     }
+    for y in (0..h).rev() {
+        for x in (0..w).rev() {
+            let i = y * w + x;
+            if d[i] == 0 || x == 0 || y == 0 || x == w - 1 || y == h - 1 {
+                continue;
+            }
+            let mut v = d[i];
+            for (dx, dy) in [(1i64, 0i64), (1, 1), (0, 1), (-1, 1)] {
+                let n = (y as i64 + dy) as usize * w + (x as i64 + dx) as usize;
+                v = v.min(d[n] + 1);
+            }
+            d[i] = v;
+        }
+    }
+    d
 }
 
 /// The stored row angle (degrees counter-clockwise on screen, 0 ≤ a < 180) of a summed tensor:
@@ -138,37 +228,55 @@ pub fn row_angle(xx: f64, xy: f64, yy: f64) -> Option<f64> {
     Some((-along).rem_euclid(180.0))
 }
 
-/// Each of the tensor's three planes blurred by a Gaussian of `sigma` pixels (two passes).
-fn blur(j: &[[f64; 3]], w: usize, h: usize, sigma: f64) -> Vec<[f64; 3]> {
+/// The cells' tensor sums and pixel counts blurred by a Gaussian of `sigma` cells (two passes),
+/// over the region's own cells only: a cell outside it adds nothing.
+fn smooth_cells(
+    sums: &[[f64; 3]],
+    counts: &[usize],
+    cols: usize,
+    rows: usize,
+    sigma: f64,
+) -> (Vec<[f64; 3]>, Vec<f64>) {
     let r = (3.0 * sigma).ceil() as isize;
     let kernel: Vec<f64> = (-r..=r)
         .map(|i| (-((i * i) as f64) / (2.0 * sigma * sigma)).dexp())
         .collect();
-    let total: f64 = kernel.iter().sum();
-    let kernel: Vec<f64> = kernel.iter().map(|k| k / total).collect();
-    let pass = |src: &[[f64; 3]], horizontal: bool| -> Vec<[f64; 3]> {
-        let mut out = vec![[0.0; 3]; w * h];
-        for y in 0..h {
-            for x in 0..w {
-                let mut acc = [0.0; 3];
+    // Four planes: the three products and the pixel count.
+    let planes: Vec<[f64; 4]> = sums
+        .iter()
+        .zip(counts)
+        .map(|(t, &n)| [t[0], t[1], t[2], n as f64])
+        .collect();
+    let pass = |src: &[[f64; 4]], horizontal: bool| -> Vec<[f64; 4]> {
+        let mut out = vec![[0.0; 4]; cols * rows];
+        for y in 0..rows {
+            for x in 0..cols {
+                let mut acc = [0.0; 4];
                 for (k, wt) in kernel.iter().enumerate() {
                     let d = k as isize - r;
                     let (sx, sy) = if horizontal {
-                        ((x as isize + d).clamp(0, w as isize - 1) as usize, y)
+                        (x as isize + d, y as isize)
                     } else {
-                        (x, (y as isize + d).clamp(0, h as isize - 1) as usize)
+                        (x as isize, y as isize + d)
                     };
-                    let v = src[sy * w + sx];
-                    for c in 0..3 {
+                    if sx < 0 || sy < 0 || sx >= cols as isize || sy >= rows as isize {
+                        continue;
+                    }
+                    let v = src[sy as usize * cols + sx as usize];
+                    for c in 0..4 {
                         acc[c] += v[c] * wt;
                     }
                 }
-                out[y * w + x] = acc;
+                out[y * cols + x] = acc;
             }
         }
         out
     };
-    pass(&pass(j, true), false)
+    let blurred = pass(&pass(&planes, true), false);
+    (
+        blurred.iter().map(|v| [v[0], v[1], v[2]]).collect(),
+        blurred.iter().map(|v| v[3]).collect(),
+    )
 }
 
 #[cfg(test)]
@@ -197,7 +305,9 @@ mod tests {
             (60.0..=180.0).contains(&r)
         };
         let mask: Vec<bool> = (0..400 * 400).map(|i| ring(i % 400, i / 400)).collect();
-        let field = t.region_field(&mask, 400, 400, (0, 0), &frame, 0.0);
+        let field = t
+            .region_field(&mask, 400, 400, (0, 0), &frame, 0.0)
+            .expect("a field");
         let FlowField::Grid {
             cols, ref angles, ..
         } = field
@@ -239,14 +349,29 @@ mod tests {
     }
 
     #[test]
-    fn a_flat_picture_keeps_the_fill_angle() {
+    fn a_flat_shape_keeps_straight_rows_though_its_outline_has_an_edge() {
+        // A solid dark disc 30 mm across on white: only its outline has a gradient.
+        let disc = picture(|x, y| if x.dhypot(y) < 150.0 { 0.0 } else { 1.0 });
+        let frame = Frame::new(0.0, 0.0, 40.0, 400);
+        let t = Tensor::of(&disc, frame.mm_per_px());
+        let mask: Vec<bool> = (0..400 * 400)
+            .map(|i| ((i % 400) as f64 - 200.0).dhypot((i / 400) as f64 - 200.0) < 150.0)
+            .collect();
+        assert!(
+            t.region_field(&mask, 400, 400, (0, 0), &frame, 30.0)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn a_flat_picture_keeps_straight_rows() {
         let flat = picture(|_, _| 0.5);
         let frame = Frame::new(0.0, 0.0, 40.0, 400);
         let t = Tensor::of(&flat, frame.mm_per_px());
-        let field = t.region_field(&vec![true; 400 * 400], 400, 400, (0, 0), &frame, 30.0);
-        let FlowField::Grid { angles, .. } = field else {
-            panic!("a grid")
-        };
-        assert!(angles.iter().all(|a| *a == 30.0));
+        let mask = vec![true; 400 * 400];
+        assert!(
+            t.region_field(&mask, 400, 400, (0, 0), &frame, 30.0)
+                .is_none()
+        );
     }
 }
