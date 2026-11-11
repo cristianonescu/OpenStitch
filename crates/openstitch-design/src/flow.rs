@@ -2,8 +2,9 @@
 //! instead of one straight angle, as evenly spaced streamlines of the field.
 //!
 //! - The field is the region's own: rows radiating from a centre, rows circling one, or a grid
-//!   of row angles. It is never taken from a picture here (that waits for the owner's answer
-//!   on #538, see docs/research/beyond/patents.md).
+//!   of row angles. Nothing here reads a picture: Auto Punch's `flowFill` (the digitize
+//!   crate's `flow`, OpenStitch mode) builds a grid from one, after the owner's decision of
+//!   2026-11-08 (docs/research/beyond/patents.md).
 //! - The rows are streamlines of the field, traced in short steps and placed a row spacing
 //!   apart by the evenly-spaced-streamline method (Jobard and Lefer, 1997): each new row starts
 //!   a spacing beside one already placed, and a row stops where it comes closer than

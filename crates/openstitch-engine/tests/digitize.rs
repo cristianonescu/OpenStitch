@@ -1391,3 +1391,93 @@ fn a_users_chart_as_the_default_is_the_thread_source() {
         );
     }
 }
+
+/// #538: `flowFill` gives each fill a field from the picture's strokes on a 1 mm grid, only in
+/// OpenStitch mode; off, the run is the same as without it.
+#[test]
+fn auto_punch_flow_fill_follows_the_picture() {
+    use openstitch_design::flow::FlowField;
+    let dir = temp_dir();
+    // A red disc with darker rings in it (its grain circles the centre) on white.
+    let img = Raster::from_fn(120, 120, |x, y| {
+        let (dx, dy) = (f64::from(x) - 60.0, f64::from(y) - 60.0);
+        let r = (dx * dx + dy * dy).sqrt();
+        if r < 52.0 {
+            let grain = if ((r / 3.0) as u32).is_multiple_of(2) {
+                0
+            } else {
+                25
+            };
+            [210 - grain, 40, 50, 255]
+        } else {
+            [255, 255, 255, 255]
+        }
+    })
+    .expect("size");
+    std::fs::write(dir.join("disc.png"), img.encode_png().expect("png")).expect("write");
+    let convert = |extra: Value| {
+        let mut s = Session::new(&dir);
+        run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+        let mut p = json!({"path": "disc.png", "width": 60, "x": 0, "y": 0, "colors": 2});
+        for (k, v) in extra.as_object().expect("object") {
+            p[k] = v.clone();
+        }
+        run(&mut s, "digitize.autoPunch", p);
+        s
+    };
+    let open = json!({"compatMode": "openStitch"});
+    let plain = convert(open.clone());
+    let off = convert(json!({"compatMode": "openStitch", "flowFill": false}));
+    assert_eq!(plain.design(), off.design(), "off is the default");
+    assert!(
+        plain
+            .design()
+            .objects
+            .iter()
+            .all(|o| o.region.as_ref().is_none_or(|r| r.flow_field.is_none()))
+    );
+
+    let flow = convert(json!({"compatMode": "openStitch", "flowFill": true}));
+    let mut fields = 0;
+    for o in &flow.design().objects {
+        let Some(r) = &o.region else { continue };
+        match &r.flow_field {
+            Some(FlowField::Grid {
+                cell, cols, angles, ..
+            }) => {
+                fields += 1;
+                // 1 mm cells (10 design units) over a fill about 52 mm across.
+                assert!((cell - 10.0).abs() < 0.5, "cell {cell}");
+                assert!((40..=70).contains(cols), "{cols} columns");
+                assert!(angles.iter().all(|a| (0.0..180.0).contains(a)));
+                // The grain turns the rows: the angles are not all one.
+                let first = angles[0];
+                assert!(
+                    angles.iter().any(|a| (a - first).abs() > 30.0),
+                    "{angles:?}"
+                );
+            }
+            Some(other) => panic!("{other:?}"),
+            None => {}
+        }
+    }
+    assert!(fields >= 1, "the disc's fill has a field");
+    let a = openstitch_design::Compiler::for_design(plain.design()).compile(plain.design());
+    let b = openstitch_design::Compiler::for_design(flow.design()).compile(flow.design());
+    assert_ne!(a, b, "the rows follow the grain");
+
+    // PE-DESIGN mode refuses it; PE mode without it is untouched.
+    let mut s = Session::new(&dir);
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    let e = s
+        .execute(
+            "digitize.autoPunch",
+            Some(&json!({"path": "disc.png", "width": 60, "flowFill": true})),
+        )
+        .expect_err("PE mode");
+    assert!(e.to_string().contains("openStitch"), "{e}");
+    assert_eq!(
+        convert(json!({})).design(),
+        convert(json!({"flowFill": false})).design()
+    );
+}

@@ -1849,7 +1849,7 @@ fn tartan_goes_through_the_command() {
 
 /// #538: a flow fill through `object.setRegion {flowField}`: radial or swirl round the object's
 /// own centre, or a given field; it is kept in the project, undone in one step, cleared back to
-/// the plain fill, refused on non-fill regions and by PES 0110, and never taken from a picture.
+/// the plain fill, refused on non-fill regions and by PES 0110.
 #[test]
 fn flow_fill_goes_through_the_command() {
     let tmp = temp_dir();
