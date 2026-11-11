@@ -229,7 +229,8 @@ colour sewn after it, so no fabric shows along seams; it adds stitches, so leave
 thin lettering.
 
 `flowFill: true` (OpenStitch mode) curves each fill's rows along the picture's own strokes,
-for fur, feathers, petals or hair; flat logos gain nothing from it. A fill whose angle is set
+for fur, feathers, petals or hair; flat shapes keep straight rows (only strokes inside a
+region steer it, not its outline). A fill whose angle is set
 in `overrides` keeps its straight rows.
 
 Helpers that need no model and send nothing anywhere:
