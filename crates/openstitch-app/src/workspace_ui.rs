@@ -194,12 +194,35 @@ pub fn draw_realistic(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
         let [edge, body, light] = settings
             .shades(layer.rgb)
             .map(|c| Color32::from_rgb(c[0], c[1], c[2]));
+        // Thread drawn wider or narrower than the default reaches as much further off its line.
+        let scale = settings.thread_width_mm / openstitch_design::calibration::THREAD_MM;
         for (n, s) in layer.strokes.iter().enumerate() {
             let cover = layer.cover.get(n);
+            let shift = layer.shift.get(n);
+            let bare = layer.bare.get(n);
             for (k, pair) in s.windows(2).enumerate() {
-                let (a, b) = (pos(vp.to_screen(pair[0])), pos(vp.to_screen(pair[1])));
+                // Off centre towards the wider gap beside it (#893), so rows on the machine's
+                // 0.1 mm grid leave no bare stripe.
+                let off = f64::from(shift.and_then(|c| c.get(k)).copied().unwrap_or(0.0)) * scale;
+                let d = pair[1] - pair[0];
+                let len = d.length();
+                let o = if len > 1e-9 && off != 0.0 {
+                    v2(-d.y, d.x) * (off / len)
+                } else {
+                    v2(0.0, 0.0)
+                };
+                let (a, b) = (
+                    pos(vp.to_screen(pair[0] + o)),
+                    pos(vp.to_screen(pair[1] + o)),
+                );
                 // As wide as sewn thread covers at this stitch's row density (#291).
                 let w = (w * cover.and_then(|c| c.get(k)).copied().unwrap_or(1.0)).max(0.8);
+                // Fabric narrower than a pixel beside the rows cannot be drawn, and the
+                // anti-aliased edges of rows a pixel or so apart left light seams where they met,
+                // beating with the pixel grid into stripes (#893): there the stroke is widened
+                // until the rows close.
+                let bare_px = bare.and_then(|c| c.get(k)).map_or(f32::MAX, |&b| b * 10.0 * vp.scale as f32);
+                let w = w + (1.0 - bare_px).clamp(0.0, 1.0);
                 painter.line_segment([a, b], Stroke::new(w, edge));
                 painter.line_segment([a, b], Stroke::new(w * 0.7, body));
                 if w >= 2.5 {

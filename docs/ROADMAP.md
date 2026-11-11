@@ -124,6 +124,12 @@ similarity scorer draw thread as wide as it covers at its row density. Next: Pho
 trims (#298), Auto Punch's stacked satin points on the storybook picture (#290, done: `open_slivers`),
 then a sew-out of the regenerated kit.
 
+Done 2026-11-11 (#893): the Realistic view sizes each side of a thread from the gap to the row
+beside it. Rows stored on the 0.1 mm grid (0.222 mm rows land 0.2/0.2/0.2/0.3 mm apart) used to show a bare
+stripe in every 0.3 mm gap; now the uncovered fabric spreads over every gap, as on the
+sew-out. The coverage of the T1 Black ramp stays within 4 % of both cards at every density. No
+stitch output changes.
+
 Done 2026-11-06 (#295, #441, #311, #312): the kit has a T2 card (two threads in alternating rows,
 to measure how far a later row covers its neighbour for Photo Stitch 1), the build checks every
 calibration swatch's density in the exported file, and `sew_check` checks trims per 1,000
