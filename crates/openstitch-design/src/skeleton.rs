@@ -916,11 +916,23 @@ pub fn branches(contours: &[Contour], join_overlap: f64) -> Vec<Skeleton> {
     // into its bowl) fans there and leaves a gap in the stroke it turns off (#526). Strokes
     // between the columns' free ends that run straight are tried as the main stroke instead,
     // and the split that covers the region best is kept.
-    if sharpest_bend(&arms[0]) <= STRAIGHT_TURN {
+    // A main column that narrows to nothing at a junction (the V through a Y's arms) leaves
+    // the crotch unsewn: strokes along the ridges between the free ends (a Y's stem and one
+    // arm) are tried too.
+    let bends = sharpest_bend(&arms[0]) > STRAIGHT_TURN;
+    let narrows = collapses(&arms[0]);
+    if !bends && !narrows {
         return arms;
     }
+    let mut candidates = Vec::new();
+    if bends {
+        candidates.extend(straight_mains(&arms, &grid, &edges));
+    }
+    if narrows {
+        candidates.extend(ridge_mains(&arms, &grid, &edges));
+    }
     let mut best = (covered(&grid, &arms), arms);
-    for main in straight_mains(&best.1, &grid, &edges) {
+    for main in candidates {
         let arms = arms_from(main, &grid, &edges, overlap, true);
         let share = covered(&grid, &arms);
         if share > best.0 + 1e-9 {
@@ -1319,12 +1331,35 @@ fn arms_from(
                 }
                 i += 1;
             }
-            let (tip, reach) = part
+            let (corner, reach) = part
                 .iter()
                 .map(|&k| (k, -depth[k]))
                 .max_by(|a, b| a.1.total_cmp(&b.1))
                 .expect("not empty");
             let wide = part.iter().map(|&k| grid.clearance[k]).fold(0.0, f64::max);
+            // A flat end square to the arm (a y's tail, a Y's stem foot) has a row of cells at
+            // its furthest reach, and the furthest of them is a corner: an arm from there runs
+            // slanted across the stroke. There the tip is the one of those cells most in the
+            // middle. A pointed or slanted end (an R's leg) keeps its furthest cell (#526).
+            let front: Vec<usize> = part
+                .iter()
+                .copied()
+                .filter(|&k| -depth[k] >= reach - 1.5 * grid.step)
+                .collect();
+            let flat = front.len() as f64 * grid.step >= wide;
+            let tip = if flat {
+                front
+                    .iter()
+                    .copied()
+                    .max_by(|&a, &b| {
+                        grid.clearance[a]
+                            .total_cmp(&grid.clearance[b])
+                            .then((-depth[a]).total_cmp(&-depth[b]))
+                    })
+                    .unwrap_or(corner)
+            } else {
+                corner
+            };
             // An arm reaches out further than twice its half width.
             if reach >= (2.0 * wide).max(3.0 * grid.step)
                 && best.as_ref().is_none_or(|b| reach > b.0)
@@ -1873,6 +1908,32 @@ mod letter_tests {
             assert!(share >= least, "{ch} {size}: {share:.3}");
             for sk in &arms {
                 assert_eq!(sk.validate(), Ok(()));
+            }
+        }
+    }
+
+    /// The share of each letter the columns sew (Lato Bold at 10 and 25 mm, #526): K and Y over
+    /// the 0.95 bar (Y's main column is its stem and one arm, not the V through both arms, which
+    /// narrows to nothing at the crotch); the others no lower than measured on 2026-11-12. y and
+    /// the letters without a junction (N, M, W) are still under the bar (#526).
+    #[test]
+    fn letters_split_into_columns_that_sew_them() {
+        let floors = [
+            ("K", 0.98, 0.98),
+            ("Y", 0.95, 0.96),
+            ("X", 0.94, 0.94),
+            ("R", 0.94, 0.94),
+            ("A", 0.88, 0.90),
+            ("y", 0.85, 0.88),
+        ];
+        for (ch, small, large) in floors {
+            for (size, floor) in [(10.0, small), (25.0, large)] {
+                let c = letter(ch, size);
+                let share = sewn(&c, &branches(&c, 0.3));
+                assert!(
+                    share >= floor,
+                    "{ch} at {size} mm sews {share:.3}, under {floor}"
+                );
             }
         }
     }
