@@ -941,39 +941,41 @@
    86.0,
    73.0
   ],
-  "stitches": 7540,
-  "trims": 7,
+  "stitches": 9133,
+  "trims": 10,
   "threads": [
    "405 Blue",
    "001 White",
    "800 Red",
    "208 Orange",
+   "205 Yellow",
+   "208 Orange",
    "620 Magenta",
    "509 Leaf Green",
    "405 Blue"
   ],
-  "sewingMinutes": 9.8,
+  "sewingMinutes": 11.9,
   "image": null,
   "preview": "previews/gradients.png",
-  "sha256": "bdd82f43ec5582c20bc31872ae6f5c239a11f0ef3e88fa6214deb339a2c23dbc"
+  "sha256": "73f19a48d229dc2f12ac1baf84bae4ba753bad4bbbe3ee616ae0baa9419d4c26"
  },
  "fills/angle-lines.pes": {
   "title": "Stitch angle lines (beyond PE-DESIGN)",
   "about": "An L whose rows turn round its corner between three angle lines, as one object with no seam.",
   "hoop": "100 × 100 mm",
   "sizeMM": [
-   49.9,
-   72.9
+   49.8,
+   72.8
   ],
-  "stitches": 4669,
+  "stitches": 4583,
   "trims": 1,
   "threads": [
    "405 Blue"
   ],
-  "sewingMinutes": 5.9,
+  "sewingMinutes": 5.8,
   "image": null,
   "preview": "previews/angle-lines.png",
-  "sha256": "39ada2123601ee203a5100736872930912d218fc31c8c98d49cf70e1932c431b"
+  "sha256": "81a0d7728d42469b93bcf2cfec552604bd42eee0d7b224fb4d1049ab35e8ef05"
  },
  "fills/tartan.pes": {
   "title": "Tartan fill (beyond PE-DESIGN)",
