@@ -2466,8 +2466,11 @@ mod tests {
                 .flat_map(|s| s.ends)
                 .filter(|&e| e == StrokeEnd::Against)
                 .count();
+            // M's middle V too: one diagonal runs on to the baseline, the other stops
+            // against it (`slanted_run_on`).
+            let want_against = if ch == "M" { 3 } else { 2 };
             assert_eq!(
-                against, 2,
+                against, want_against,
                 "{ch} {size} mm: the diagonals stop against both stems"
             );
             let corners = g
@@ -2476,9 +2479,8 @@ mod tests {
                 .flat_map(|s| s.ends)
                 .filter(|&e| e == StrokeEnd::Corner)
                 .count();
-            // M's two diagonals meet at the foot of its middle V.
-            let want = if ch == "M" { 2 } else { 0 };
-            assert_eq!(corners, want, "{ch} {size} mm");
+            // No cut is left as two corner ends: M's middle V is a run-on too.
+            assert_eq!(corners, 0, "{ch} {size} mm");
         }
     }
 
