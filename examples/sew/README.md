@@ -222,6 +222,10 @@ python3 -I tools/sew_kit.py
 `python3 -I tools/sew_kit.py --check` says whether the committed files still match what OpenStitch
 writes; the stitch engine's changes make them stale.
 
+Build both binaries after every source change. The previews come from the `openstitch` app, which
+sews each design again, so an app older than the change would show the old stitches. `sew_kit.py`
+refuses to run with a binary older than any source file it was built from (#896).
+
 ## The designs
 
 <!-- kit:start -->
@@ -419,7 +423,7 @@ Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 208 Orange, 620 Mag
 
 #### Colour blends and gradient fills (beyond PE-DESIGN)
 
-[`fills/gradients.pes`](fills/gradients.pes) · 100 × 100 mm hoop · 86 × 73 mm · 9,133 stitches · 10 trims · about 11.9 min
+[`fills/gradients.pes`](fills/gradients.pes) · 100 × 100 mm hoop · 86 × 73 mm · 8,859 stitches · 80 trims · about 15.2 min
 
 Top left: a blue-to-white blend, bottom to top (rows dither). Top right: red, orange and yellow, left to right (ordered dither). Bottom left: a radial yellow, orange and magenta gradient (noise dither). Bottom right: green into blue at 45° with hard bands.
 

@@ -699,8 +699,8 @@ fn open_stitch_rows(ui: &mut egui::Ui, w: &mut ImageWizard) {
             ui.checkbox(&mut w.flow_fill, t("ui-rows-follow-the-picture"))
                 .on_hover_text(
                     "Each fill's rows curve along the picture's own strokes (fur, petals, hair) \
-                     instead of one straight angle; where the picture has no clear direction the \
-                     fill keeps its angle.",
+                     instead of one straight angle; a flat shape, or a fill without clear strokes \
+                     inside it, keeps straight rows.",
                 );
             ui.end_row();
         }

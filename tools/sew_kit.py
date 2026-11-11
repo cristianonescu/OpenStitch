@@ -3,7 +3,7 @@
 demo designs for a single-needle Brother machine (written for the NV880E and its 100 × 100,
 150 × 150 and 260 × 160 mm hoops), all made by OpenStitch itself.
 
-    cargo build --release -p stitchtool -p openstitch-app
+    cargo build --release -p stitchtool -p openstitch-app   # both, after any source change (#896)
     python3 -I tools/sew_kit.py            # rewrite the .pes files, previews, manifest, README
     python3 -I tools/sew_kit.py --check    # fail if a committed .pes differs from a fresh build
     python3 -I tools/sew_kit.py --check-previews   # fail if a preview lacks a thread's colour
@@ -42,6 +42,49 @@ ROOT = Path(__file__).resolve().parent.parent
 BIN = ROOT / "target" / "release"
 IMAGES = ROOT / "examples" / "images"
 KIT = ROOT / "examples" / "sew"
+
+
+def binary_sources(dep_info):
+    """The files cargo's dep-info `dep_info` (`target/release/<bin>.d`) lists as the binary's
+    sources: every source file and embedded asset it was built from."""
+    line = dep_info.read_text(encoding="utf-8").splitlines()[0]
+    deps = line[line.index(": ") + 2:]
+    return [Path(d.replace("\\ ", " ")) for d in re.findall(r"(?:\\ |\S)+", deps)]
+
+
+def stale_binary(names):
+    """The first of the release binaries `names` that is not built from this checkout's current
+    sources, as (binary, reason), or None (#896). The previews come from `openstitch`, which
+    builds the stitches again from each design: an app built before a stitch change shows the
+    old stitches in a preview of the new .pes. Cargo's dep-info beside each binary names the
+    files it was built from; one of them newer than the binary (edited, checked out or merged
+    since), or from another checkout, means rebuild."""
+    def shown(f):
+        return f.relative_to(ROOT).as_posix() if ROOT in f.parents else f.as_posix()
+
+    for name in names:
+        exe = next((b for b in (BIN / name, BIN / f"{name}.exe") if b.is_file()), None)
+        dep_info = BIN / f"{name}.d"
+        if exe is None or not dep_info.is_file():
+            return BIN / name, "missing"
+        built = exe.stat().st_mtime
+        for src in binary_sources(dep_info):
+            if "crates" in src.parts and ROOT not in src.resolve().parents:
+                return exe, f"built from another checkout ({shown(src)})"
+            if not src.is_file():
+                return exe, f"built from a file that is gone ({shown(src)})"
+            if src.stat().st_mtime > built:
+                return exe, f"older than {shown(src)}"
+    return None
+
+
+def require_fresh(names):
+    hit = stale_binary(names)
+    if hit:
+        exe, why = hit
+        sys.exit(f"{exe.name} is {why}: run "
+                 "`cargo build --release -p stitchtool -p openstitch-app` first (#896)")
+
 
 def retry(write, attempts=20):
     """Runs `write`, retrying while Windows briefly locks a file just written (a virus scan or
@@ -960,6 +1003,7 @@ def main():
     if a.check_previews:
         return check_previews()
     if a.check:
+        require_fresh(["stitchtool"])
         with tempfile.TemporaryDirectory() as tmp:
             manifest = build(Path(tmp), previews=False)
         old = json.loads((KIT / "manifest.json").read_text(encoding="utf-8"))
@@ -969,6 +1013,7 @@ def main():
             sys.exit("examples/sew is stale; run tools/sew_kit.py: " + ", ".join(stale))
         print(f"examples/sew is current ({len(manifest)} files)")
         return
+    require_fresh(["stitchtool", "openstitch"])
     manifest = build(KIT, previews=True)
     (KIT / "manifest.json").write_text(json.dumps(manifest, indent=1, ensure_ascii=False) + "\n",
                                        encoding="utf-8", newline="\n")

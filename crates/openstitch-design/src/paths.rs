@@ -626,6 +626,37 @@ pub fn join(
     runs
 }
 
+/// [`join`], but a gap whose inside path is longer than `reach` starts a new run (a trim)
+/// instead: in a sparse layer (a colour's share of a blend) nothing covers long travel (#891).
+pub fn join_within(
+    pieces: Vec<Vec<Vec2>>,
+    travel: &mut TravelGraph,
+    pitch: f64,
+    reach: f64,
+) -> Vec<Vec<Vec2>> {
+    let mut runs: Vec<Vec<Vec2>> = Vec::new();
+    for piece in pieces {
+        let Some(last) = runs.last_mut() else {
+            runs.push(piece);
+            continue;
+        };
+        let end = *last.last().expect("non-empty run");
+        let start = piece[0];
+        if end.distance(start) < 1e-6 {
+            last.extend(piece.into_iter().skip(1));
+            continue;
+        }
+        match travel.path(end, start).filter(|p| length(p) <= reach) {
+            Some(path) => {
+                last.extend(stitches(&path, pitch).into_iter().skip(1));
+                last.extend(piece.into_iter().skip(1));
+            }
+            None => runs.push(piece),
+        }
+    }
+    runs
+}
+
 /// Deterministic pseudo-random numbers in [0, 1) (SplitMix64), so generated designs are
 /// reproducible.
 pub struct Rng(u64);

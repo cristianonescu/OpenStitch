@@ -57,6 +57,7 @@ not listed.
 | OS integration | File associations: the MSI's `.osd`/`.pes` ProgIds and extensions, the macOS `.pes` alternate document type | none in CI | #356: `tools/check_file_associations.py` (with `--self-test`) in the CI `icons` job |
 | Automation | `tools/sew_kit.py --check` in CI | none | #561: CI job `kit` |
 | Automation | Kit preview colours | none: an image could lose a thread unnoticed | #564: `tools/sew_kit.py --check-previews` in CI job `kit` |
+| Automation | Kit previews from a stale app | none: a preview rendered by an `openstitch` built before a stitch change showed the old stitches (#890) | #896: `sew_kit.py` refuses a binary older than a source file its cargo dep-info lists, or built from another checkout |
 | Docs | Every image under `docs/images` regenerable | none: engine-templates.png had no generator | #565: `tools/docs_images.py --check` in CI job `kit`; app tests `page_is_fitted_left_of_a_dialog_reaching_in_from_the_right`, `dialogs_outside_or_over_most_of_the_canvas_leave_it_whole` |
 | Docs | PES 0110 write, entry/exit points, Photo Stitch, PEC chart | stale test names in the evidence column | #326 (this file's PR) |
 | Docs | PEC preview icons, app icon and logo, image similarity Phase 1, VIP colour table | tests existed but were not cited | #326 |

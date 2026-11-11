@@ -1393,22 +1393,23 @@ fn a_users_chart_as_the_default_is_the_thread_source() {
 }
 
 /// #538: `flowFill` gives each fill a field from the picture's strokes on a 1 mm grid, only in
-/// OpenStitch mode; off, the run is the same as without it.
+/// OpenStitch mode; off, the run is the same as without it. A flat shape keeps straight rows
+/// (#894).
 #[test]
 fn auto_punch_flow_fill_follows_the_picture() {
     use openstitch_design::flow::FlowField;
     let dir = temp_dir();
-    // A red disc with darker rings in it (its grain circles the centre) on white.
+    // A red disc with dark red rings in it (strokes circling the centre, about 58 luminance
+    // apart: a stroke, not shading) on white.
     let img = Raster::from_fn(120, 120, |x, y| {
         let (dx, dy) = (f64::from(x) - 60.0, f64::from(y) - 60.0);
         let r = (dx * dx + dy * dy).sqrt();
         if r < 52.0 {
-            let grain = if ((r / 3.0) as u32).is_multiple_of(2) {
-                0
+            if ((r / 3.0) as u32).is_multiple_of(2) {
+                [210, 60, 70, 255]
             } else {
-                25
-            };
-            [210 - grain, 40, 50, 255]
+                [110, 20, 30, 255]
+            }
         } else {
             [255, 255, 255, 255]
         }
@@ -1465,6 +1466,33 @@ fn auto_punch_flow_fill_follows_the_picture() {
     let a = openstitch_design::Compiler::for_design(plain.design()).compile(plain.design());
     let b = openstitch_design::Compiler::for_design(flow.design()).compile(flow.design());
     assert_ne!(a, b, "the rows follow the grain");
+
+    // A flat disc has no strokes, only its outline: it keeps straight rows (#894).
+    let flat = Raster::from_fn(120, 120, |x, y| {
+        let (dx, dy) = (f64::from(x) - 60.0, f64::from(y) - 60.0);
+        if (dx * dx + dy * dy).sqrt() < 52.0 {
+            [210, 60, 70, 255]
+        } else {
+            [255, 255, 255, 255]
+        }
+    })
+    .expect("size");
+    std::fs::write(dir.join("flat.png"), flat.encode_png().expect("png")).expect("write");
+    let mut f = Session::new(&dir);
+    run(&mut f, "design.new", json!({"width": 100, "height": 100}));
+    run(
+        &mut f,
+        "digitize.autoPunch",
+        json!({"path": "flat.png", "width": 60, "x": 0, "y": 0, "colors": 2,
+               "compatMode": "openStitch", "flowFill": true}),
+    );
+    assert!(
+        f.design()
+            .objects
+            .iter()
+            .all(|o| o.region.as_ref().is_none_or(|r| r.flow_field.is_none())),
+        "a flat shape keeps straight rows"
+    );
 
     // PE-DESIGN mode refuses it; PE mode without it is untouched.
     let mut s = Session::new(&dir);
