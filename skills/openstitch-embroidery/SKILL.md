@@ -115,6 +115,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    short stitches) and `miterLimit` (0-50 mm from the corner along the bisector; 0, the
    default, cuts the point at the corner, about 4 mm on a 2 mm line at 30 degrees is the full
    point). Raise `miterLimit` for a pointed star or chevron border, keep 0 for a blunt one.
+   A satin line (`type: satin`) with one width, no satin shaping and straight segments takes
+   the same `sharpCorners` and `miterLimit` (#373); a `cornerStyle` takes precedence, and a
+   satin line with width keys, tapers or slant keeps its own corners.
    Satin quality beyond PE-DESIGN (off by default; Manual Punch columns, skeleton satins,
    Auto satin regions and satin text via `object.setRegion`, zigzag lines via
    `object.setLine`; on text a corner style shapes the corners where two strokes are sewn one
