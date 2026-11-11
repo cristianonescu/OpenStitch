@@ -307,3 +307,37 @@ fn exec_reaches_every_line_type_and_the_motif_options() {
         }
     }
 }
+
+/// #538: a flow fill reaches the engine through `stitchtool exec`: a swirl and a given radial
+/// field are kept on the object and sew.
+#[test]
+fn exec_reaches_the_flow_fill() {
+    let dir = temp_dir("flow");
+    let script = dir.join("flow.json");
+    let steps = json!([
+        {"command": "design.new", "params": {"width": 80, "height": 80}},
+        {"command": "shape.ellipse", "params": {"cx": 40, "cy": 40, "rx": 25, "ry": 25}},
+        {"command": "object.setRegion", "params": {"id": 1, "type": "fill", "flowField": "swirl"}},
+        {"command": "object.get", "params": {"id": 1}},
+        {"command": "object.setRegion", "params": {"id": 1, "flowField": {"kind": "radial", "center": [40, 40]}}},
+        {"command": "object.get", "params": {"id": 1}},
+        {"command": "design.info"}
+    ]);
+    std::fs::write(&script, steps.to_string()).expect("write");
+    let out = stitchtool(&dir, &["exec", script.to_str().expect("utf-8")]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let r = replies(&out);
+    assert!(r.iter().all(|v| v["ok"] == json!(true)), "{r:?}");
+    assert_eq!(r[3]["result"]["region"]["flowField"]["kind"], "swirl");
+    assert_eq!(r[5]["result"]["region"]["flowField"]["kind"], "radial");
+    assert!(
+        r[6]["result"]["stitchStats"]["stitches"]
+            .as_u64()
+            .unwrap_or(0)
+            > 500
+    );
+}

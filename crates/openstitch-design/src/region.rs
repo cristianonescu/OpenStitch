@@ -311,6 +311,39 @@ fn layers_inner(
         out.push(join(pieces, Some(&mut graph), SATIN_TRAVEL_PITCH));
         return out;
     }
+    // Flow fill (#538, beyond PE-DESIGN): the plain fill's under sewing, then rows that follow
+    // the region's direction field (see `crate::flow`), each sewn as a tatami row in turn,
+    // joined by travel inside.
+    if r.kind == RegionType::Fill
+        && let Some(field) = &r.flow_field
+        && r.gradient.is_none()
+        && r.angle_lines.len() < 2
+        && field.check().is_ok()
+    {
+        let mut plain = r.clone();
+        plain.flow_field = None;
+        let mut out = layers_inner(closed, &plain, holes, user);
+        out.pop();
+        let spacing = 10.0 / r.density.max(0.1);
+        let stitch = r.stitch_length * 10.0;
+        let shift = r.fill_shift().unwrap_or(0.3);
+        let mut pieces: Vec<Run> = Vec::new();
+        for (k, row) in crate::flow::rows(field, closed, holes, spacing)
+            .iter()
+            .enumerate()
+        {
+            let sewn = crate::angle_lines::needles(row, stitch, (k as f64 * shift).fract());
+            if sewn.len() >= 2 {
+                pieces.push(sewn);
+            }
+        }
+        if !pieces.is_empty() {
+            let pieces = crate::paths::order(pieces, r.entry);
+            let mut graph = TravelGraph::new(closed, holes);
+            out.push(join(pieces, Some(&mut graph), SATIN_TRAVEL_PITCH));
+            return out;
+        }
+    }
     // Wave fill (#538, beyond PE-DESIGN): the rows ripple as a sine (see `wave_layers`).
     if let Some((amplitude, length)) = r.wave()
         && r.direction_curve.is_none()
@@ -1184,7 +1217,38 @@ pub fn reroute_with(
         .flat_map(|run| split_outside(run, closed, holes))
         .collect();
     let mut graph = travel_graph(closed, holes, path, pull);
-    join(pieces, Some(&mut graph), 25.0)
+    // As `paths::join`, but where both ends of a gap lie on the outline and the walk along it
+    // is shorter than the inside path, the walk is taken (#471): a row end where the outline
+    // runs nearly along the rows (piping at 30° on region-types' lobe) saw the next row only
+    // round the lobe's tip, so the travel ran 13 mm out to the tip and back over the row just
+    // sewn, a dense bar, where the outline between the two ends is 4 mm.
+    let mut out: Vec<Run> = Vec::new();
+    for piece in pieces {
+        let Some(last) = out.last_mut() else {
+            out.push(piece);
+            continue;
+        };
+        let end = *last.last().expect("non-empty run");
+        let start = piece[0];
+        if end.distance(start) < 1e-6 {
+            last.extend(piece.into_iter().skip(1));
+            continue;
+        }
+        let inside = graph.path(end, start);
+        let walk = graph.edge_path(end, start).filter(|w| {
+            inside
+                .as_ref()
+                .is_some_and(|p| crate::paths::length(w) < crate::paths::length(p) * 0.75)
+        });
+        match walk.or(inside) {
+            Some(way) => {
+                last.extend(crate::paths::stitches(&way, 25.0).into_iter().skip(1));
+                last.extend(piece.into_iter().skip(1));
+            }
+            None => out.push(piece),
+        }
+    }
+    out
 }
 
 /// The travel graph of `path`; row ends `pull` (0.1 mm) beyond the outline count as on it.

@@ -941,6 +941,26 @@ fn region_type_controls(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> {
                     " mm",
                 ));
             }
+            // Flow fill (#538, beyond PE-DESIGN): rows radiating from or circling the shape's
+            // centre; a grid field (set through object.setRegion) shows as such.
+            {
+                use openstitch_design::flow::FlowField;
+                let current = match &r.flow_field {
+                    None => "straight",
+                    Some(FlowField::Radial { .. }) => "radial",
+                    Some(FlowField::Swirl { .. }) => "swirl",
+                    Some(FlowField::Grid { .. }) => "grid",
+                };
+                let mut options = vec![
+                    ("straight", "Straight"),
+                    ("radial", "Radial (+)"),
+                    ("swirl", "Swirl (+)"),
+                ];
+                if current == "grid" {
+                    options.push(("grid", "Field grid (+)"));
+                }
+                v.push(choice("Rows (+)", "flowField", current, &options));
+            }
             // One colour of a tartan (#539, beyond PE-DESIGN): off makes it a plain fill.
             if r.tartan.is_some() {
                 v.push(toggle("Tartan (+)", "tartan", true));

@@ -619,6 +619,12 @@ fn region(id: u64, r: &RegionSewing, s: &mut Shape, table: &mut Vec<Thread>) -> 
             "object {id}: a wave fill is not mapped in PES 0110 (use version 6)"
         ));
     }
+    if r.flow_field.is_some() && r.kind == openstitch_design::RegionType::Fill {
+        // PE-DESIGN would sew straight rows (#538).
+        return Err(format!(
+            "object {id}: a flow fill is not mapped in PES 0110 (use version 6)"
+        ));
+    }
     // A second layer on a region sewn by rows (columns, skeleton and Auto satin had theirs).
     let rows_underlay2 = r.underlay2.is_some()
         && (r.kind == RegionType::Fill
