@@ -245,7 +245,10 @@ Done 2026-11-07 (`batch:fills-2`, #538 wave part): wave fill. A fill's `waveHeig
 `waveLength` make its rows ripple as one sine across the row direction; the region is sheared
 straight, sewn as a plain fill and sheared back, so under sewing, stagger and travel carry over
 and height 0 is the plain fill. The spacing across the rows stays within ±15 % (40° slope cap).
-The flow fill (rows following a picture's direction field) stays planned.
+The flow fill followed (2026-11-08/09, #538): rows as evenly spaced streamlines of a stored
+field (radial, swirl or a grid of angles, `object.setRegion flowField`), then Auto Punch's
+`flowFill` in OpenStitch mode, which takes the grid from the picture's structure tensor on a
+1 mm grid, after the owner's patent decision (research/beyond/patents.md, US 7,996,103).
 
 Done 2026-11-07 (`batch:fills-2`, #533 meander part): meander fill, region type `meander`, with
 12 own-drawn tiles of the new pattern kind `meander`, chained into rows and joined along the

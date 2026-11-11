@@ -2,8 +2,9 @@
 //! instead of one straight angle, as evenly spaced streamlines of the field.
 //!
 //! - The field is the region's own: rows radiating from a centre, rows circling one, or a grid
-//!   of row angles. It is never taken from a picture here (that waits for the owner's answer
-//!   on #538, see docs/research/beyond/patents.md).
+//!   of row angles. Nothing here reads a picture: Auto Punch's `flowFill` (the digitize
+//!   crate's `flow`, OpenStitch mode) builds a grid from one, after the owner's decision of
+//!   2026-11-08 (docs/research/beyond/patents.md).
 //! - The rows are streamlines of the field, traced in short steps and placed a row spacing
 //!   apart by the evenly-spaced-streamline method (Jobard and Lefer, 1997): each new row starts
 //!   a spacing beside one already placed, and a row stops where it comes closer than
@@ -15,7 +16,7 @@
 
 use crate::fmath::Det;
 use crate::generate::Run;
-use crate::geometry::{Contour, Rect, Vec2, contains, v2};
+use crate::geometry::{Contour, Rect, Vec2, v2};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -159,6 +160,65 @@ impl Placed {
     }
 }
 
+/// The closed contours' edges in horizontal bands, for an even-odd point test that looks only at
+/// the edges spanning the point's height: the same crossings as `geometry::contains`, without
+/// walking every edge of a traced region at every step (#538: a photo's regions have thousands).
+struct Edges {
+    y0: f64,
+    band: f64,
+    bands: Vec<Vec<(Vec2, Vec2)>>,
+}
+
+impl Edges {
+    fn new(contours: &[Contour], band: f64) -> Edges {
+        let edges: Vec<(Vec2, Vec2)> = contours
+            .iter()
+            .filter(|c| c.closed)
+            .flat_map(|c| c.edges())
+            .collect();
+        let y0 = edges
+            .iter()
+            .map(|(a, b)| a.y.min(b.y))
+            .fold(f64::INFINITY, f64::min);
+        let y1 = edges
+            .iter()
+            .map(|(a, b)| a.y.max(b.y))
+            .fold(f64::NEG_INFINITY, f64::max);
+        if edges.is_empty() || band <= 0.0 {
+            return Edges {
+                y0: 0.0,
+                band: 1.0,
+                bands: Vec::new(),
+            };
+        }
+        let count = ((y1 - y0) / band).floor() as usize + 1;
+        let mut bands = vec![Vec::new(); count];
+        for (a, b) in edges {
+            let lo = ((a.y.min(b.y) - y0) / band).floor() as usize;
+            let hi = (((a.y.max(b.y) - y0) / band).floor() as usize).min(count - 1);
+            for list in &mut bands[lo..=hi] {
+                list.push((a, b));
+            }
+        }
+        Edges { y0, band, bands }
+    }
+
+    /// Even-odd point-in-region test, as `geometry::contains`.
+    fn contains(&self, p: Vec2) -> bool {
+        let k = (p.y - self.y0) / self.band;
+        if k.is_nan() || k < 0.0 || k as usize >= self.bands.len() {
+            return false;
+        }
+        let mut inside = false;
+        for &(a, b) in &self.bands[k as usize] {
+            if (a.y > p.y) != (b.y > p.y) && p.x < a.x + (p.y - a.y) * (b.x - a.x) / (b.y - a.y) {
+                inside = !inside;
+            }
+        }
+        inside
+    }
+}
+
 /// The flow fill's rows over the region (`closed` minus `holes`): evenly spaced streamlines of
 /// `field`, `spacing` apart, each a polyline in steps of under half the separation.
 pub fn rows(field: &FlowField, closed: &[Contour], holes: &[Contour], spacing: f64) -> Vec<Run> {
@@ -168,7 +228,11 @@ pub fn rows(field: &FlowField, closed: &[Contour], holes: &[Contour], spacing: f
     let Some(bounds) = Rect::enclosing(closed.iter().flat_map(|c| c.outline_points())) else {
         return Vec::new();
     };
-    let inside = |p: Vec2| contains(p, closed) && !contains(p, holes);
+    let (outer, inner) = (
+        Edges::new(closed, spacing * 4.0),
+        Edges::new(holes, spacing * 4.0),
+    );
+    let inside = |p: Vec2| outer.contains(p) && !inner.contains(p);
     let test = SEPARATION * spacing;
     let step = test * 0.45;
     // A row may come back near its own points only after this many steps (a closing circle).
@@ -184,8 +248,19 @@ pub fn rows(field: &FlowField, closed: &[Contour], holes: &[Contour], spacing: f
     let trace = |seed: Vec2, placed: &Placed, row: usize| -> Option<Run> {
         let first = field.direction(seed)?;
         let mut halves: Vec<Vec<Vec2>> = Vec::new();
+        // The first half's points (row 1), for the second half's test against it.
+        let mut first_half = Placed {
+            cell: spacing,
+            cells: HashMap::new(),
+        };
         for sign in [1.0, -1.0] {
             let mut pts = vec![seed];
+            // This half's own points (row 0) by their index along it.
+            let mut own = Placed {
+                cell: spacing,
+                cells: HashMap::new(),
+            };
+            own.add(seed, 0, 0);
             let mut heading = first * sign;
             for n in 1..max_steps {
                 let p = *pts.last().expect("a point");
@@ -217,19 +292,22 @@ pub fn rows(field: &FlowField, closed: &[Contour], holes: &[Contour], spacing: f
                 if placed.near(next, test, row, index, usize::MAX) {
                     break;
                 }
-                // Closing on itself (a circle round a swirl): stop before the start.
-                let own = &pts[..pts.len().saturating_sub(skip)];
-                if own.iter().any(|q| q.distance(next) < test) {
+                // Closing on itself (a circle round a swirl): stop before the start. A point
+                // of this half counts unless it is one of the last `skip` placed.
+                if own.near(next, test, 0, pts.len(), skip) {
                     break;
                 }
-                if let Some(other) = halves.first()
-                    && other.iter().any(|q| q.distance(next) < test)
-                    && n > skip
-                {
+                if n > skip && !halves.is_empty() && first_half.near(next, test, 0, 0, 0) {
                     break;
                 }
                 heading = d2;
+                own.add(next, 0, pts.len());
                 pts.push(next);
+            }
+            if halves.is_empty() {
+                for (i, q) in pts.iter().enumerate() {
+                    first_half.add(*q, 1, i);
+                }
             }
             halves.push(pts);
         }
@@ -300,7 +378,34 @@ pub fn rows(field: &FlowField, closed: &[Contour], holes: &[Contour], spacing: f
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::geometry::Contour;
+    use crate::geometry::{Contour, contains};
+
+    /// The banded edge test answers as `geometry::contains`, on and off a ring's edges.
+    #[test]
+    fn the_banded_edge_test_matches_contains() {
+        let c = v2(100.0, 100.0);
+        let (outer, hole) = ([circle(c, 80.0)], [circle(c, 30.0)]);
+        for band in [0.5, 7.0, 400.0] {
+            let (o, h) = (Edges::new(&outer, band), Edges::new(&hole, band));
+            let mut y = -5.0;
+            while y < 205.0 {
+                let mut x = -5.0;
+                while x < 205.0 {
+                    let q = v2(x, y);
+                    assert_eq!(o.contains(q), contains(q, &outer), "{q:?} {band}");
+                    assert_eq!(h.contains(q), contains(q, &hole), "{q:?} {band}");
+                    x += 1.3;
+                }
+                y += 0.7;
+            }
+            // Exactly on a vertex's height.
+            for v in outer[0].points.iter().chain(&hole[0].points) {
+                let q = v2(v.x - 0.01, v.y);
+                assert_eq!(o.contains(q), contains(q, &outer), "{q:?}");
+            }
+        }
+        assert!(!Edges::new(&[], 1.0).contains(c));
+    }
 
     fn circle(c: Vec2, r: f64) -> Contour {
         let pts: Vec<Vec2> = (0..96)
