@@ -1074,18 +1074,22 @@ const STEM_BEND: f64 = 0.5;
 const STEM_REACH: f64 = 40.0;
 
 /// Where a slanted run-on ([`slanted_run_on`]) stops the other arm: this much of the
-/// run-on arm's half width from its centre line. The arms meet at a sharp angle (A's apex),
-/// so stopping at the full half width left the stopped arm's outer side short of the apex.
+/// run-on arm's half width from its centre line. The arms meet at a sharp angle, so stopping
+/// at the full half width left the stopped arm's outer side short of the corner.
 const SLANTED_AGAINST: f64 = 0.5;
 
-/// At a cut between two slanted arms leaning opposite ways (V's foot, A's apex, #446), the arm
-/// that runs on, as [`run_on_stems`] takes it: (its piece, the direction it runs on in).
-/// PE-DESIGN runs on the arm that falls to the right (`\`, the thick stroke of a classic V
-/// or A) and stops the other against it: stroke-satin-V runs the left arm down to the
-/// baseline, stroke-satin-A the right leg up to the apex. `into` arrives at the cut along
-/// piece `k`, `out` leaves it along piece `k + 1` (y down).
+/// At a foot where two slanted arms leaning opposite ways meet at the bottom (V's foot, M's
+/// middle V, W's feet, #446), the arm that runs on, as [`run_on_stems`] takes it: (its piece,
+/// the direction it runs on in). PE-DESIGN runs on the arm that falls to the right (`\`, the
+/// thick stroke of a classic V) and stops the other against it (stroke-satin-V: the left arm
+/// down to the baseline). A top apex (A's, W's middle) is left as it was: run on there, the
+/// leg's crossings fanned into the tip (up to 144 degrees against PE-DESIGN's level
+/// 161-180), still open on #446. `into` arrives at the cut along piece `k`, `out` leaves it
+/// along piece `k + 1` (y down).
 fn slanted_run_on(k: usize, into: Vec2, out: Vec2) -> Option<(usize, Vec2)> {
-    if into.x * into.y * out.x * out.y >= 0.0 {
+    // Leaning opposite ways, and meeting at the bottom: down into the cut, up out of it.
+    let foot = into.y > 0.0 && out.y < 0.0;
+    if into.x * into.y * out.x * out.y >= 0.0 || !foot {
         return None;
     }
     Some(if into.x * into.y > 0.0 {
@@ -1156,7 +1160,7 @@ fn run_on_stems(
         // Where the thinning bends the stem's end off its line into the corner (M's top
         // corners, whose notch knots are pruned, #446), the bend is dropped: the stem runs on
         // from its own line.
-        // (Not for a slanted run-on, V's and A's straight arms: #446.)
+        // (Not for a slanted run-on, V's straight arms: #446.)
         let bent = if upright(dir) {
             stem_line
                 .iter()
@@ -2485,10 +2489,10 @@ mod tests {
     }
 
     /// #446: at V's foot the left arm (falling to the right) runs on to the baseline and the
-    /// right arm stops against it; at A's apex the right leg runs on to the top and the left
-    /// leg stops against it, as PE-DESIGN sews them (stroke-satin-V, -A).
+    /// right arm stops against it, as PE-DESIGN sews it (stroke-satin-V). A's apex, a top
+    /// apex, is still cut into two corner ends (open on #446).
     #[test]
-    fn a_slanted_arm_runs_on_at_v_and_a_and_the_other_stops_against_it() {
+    fn a_slanted_arm_runs_on_at_v_and_the_other_stops_against_it() {
         let (v, vb) = glyph("V");
         let foot = v
             .strokes
@@ -2506,36 +2510,13 @@ mod tests {
                 .iter()
                 .any(|s| s.ends.contains(&StrokeEnd::Against))
         );
-        let (a, ab) = glyph("A");
-        let apex = a
-            .strokes
-            .iter()
-            .filter(|s| s.bounds().is_some_and(|r| r.min_y < ab.min_y + 5.0))
-            .collect::<Vec<_>>();
-        assert_eq!(apex.len(), 1, "one leg reaches the apex");
-        let leg = apex[0].bounds().expect("bounds");
-        assert!(
-            leg.max_x > (ab.min_x + ab.max_x) / 2.0,
-            "the right leg: {leg:?}"
-        );
+        let (a, _) = glyph("A");
         assert!(
             a.strokes
                 .iter()
-                .any(|s| s.ends.contains(&StrokeEnd::Against))
+                .all(|s| !s.ends.contains(&StrokeEnd::Against)),
+            "A's apex is not a run-on"
         );
-    }
-
-    fn glyph(ch: &str) -> (GlyphStrokes, Rect) {
-        let spec = TextSpec::new(ch, DEFAULT_FONT, 20.0);
-        let l = layout(&spec, None).expect("layout");
-        let contours = l.contours();
-        let b = Rect::enclosing(contours.iter().flat_map(Contour::outline_points)).expect("box");
-        (strokes(&contours).expect("strokes"), b)
-    }
-
-    fn count(g: &GlyphStrokes) -> (usize, usize, usize) {
-        let closed = g.strokes.iter().filter(|s| s.closed).count();
-        (g.strokes.len(), g.junctions.len(), closed)
     }
 
     /// Cuts at sharp corners: a pair of [`StrokeEnd::Corner`] ends, or one arm run on and the
@@ -2618,12 +2599,12 @@ mod tests {
             "the cut is at the foot: {foot} vs {}",
             b.max_y
         );
-        // A: the apex at the top (the left leg stops against the right one there, #446).
+        // A: the apex at the top.
         let (g, b) = glyph("A");
         let apex = g
             .strokes
             .iter()
-            .filter(|s| s.ends.contains(&StrokeEnd::Corner) || s.ends.contains(&StrokeEnd::Against))
+            .filter(|s| s.ends.contains(&StrokeEnd::Corner))
             .flat_map(|s| s.centre.iter().map(|p| p.y))
             .fold(f64::INFINITY, f64::min);
         assert!(
@@ -2757,15 +2738,11 @@ mod tests {
             .strokes
             .iter()
             .position(|s| {
-                // The right leg above the bar: it runs on to the apex (#446).
-                s.bounds().is_some_and(|r| r.min_y < -150.0)
+                s.ends.contains(&StrokeEnd::Corner)
                     && s.centre.iter().map(|p| p.x).sum::<f64>() / s.centre.len() as f64 > 100.0
             })
             .expect("right leg");
-        // Not the top 3 mm: since the leg runs on to the apex (#446), its crossings there fan
-        // into the tip (144 degrees at the top), still open on #446.
-        let below_apex = |r: &&[Vec2; 2]| r[0].y.min(r[1].y) > -180.0;
-        for r in rungs[right_upper].iter().filter(below_apex) {
+        for r in &rungs[right_upper] {
             assert!(off(angle(r), 170.0) < 15.0, "{r:?} {}", angle(r));
         }
     }
@@ -2981,9 +2958,8 @@ mod tests {
             let (top, bottom) = ys.fold((f64::INFINITY, f64::NEG_INFINITY), |(t, m), y| {
                 (t.min(y), m.max(y))
             });
-            // Within 0.5 mm: a run-on arm stops half a grid step inside the outline (#446).
             assert!(
-                top - b.min_y < 5.0 && b.max_y - bottom < 5.0,
+                top - b.min_y < 3.0 && b.max_y - bottom < 3.0,
                 "{ch}: {top} {bottom} {b:?}"
             );
         }
@@ -2992,7 +2968,7 @@ mod tests {
         let b = Rect::enclosing(contours.iter().flat_map(Contour::outline_points)).expect("box");
         let blocks = strokes(&contours).expect("strokes").blocks(&contours, 30.0);
         let first = |bl: &Block| bl.rungs[0][0].y - b.min_y;
-        assert!(first(&blocks[4]) < 5.0, "the right leg starts at the apex");
+        assert!(first(&blocks[4]) < 3.0, "the right leg starts at the apex");
         assert!(first(&blocks[0]) > 10.0, "the left leg starts below it");
     }
 
