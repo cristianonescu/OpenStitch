@@ -81,10 +81,11 @@ Everything else on the list is shown as expired or ceased.
       jumped otherwise.
   - Any later change that adds an image-derived direction or such a connector test needs the
     same question put to the owner again. Not legal advice.
-- Owner's decision, 2026-11-08, for the flow fill from a picture (#538): asked, on #538,
-  whether Auto Punch's OpenStitch mode may derive each fill's row direction from the picture
-  (a structure-tensor field on a coarse grid) despite this patent, the owner answered "Yes, go
-  ahead". The question is recorded with the answer on #538.
+- Owner's decision, 2026-11-08, for the flow fill from a picture (#538): asked by the
+  coordinator, in the coordinator's chat, whether Auto Punch's OpenStitch mode may derive each
+  fill's row direction from the picture (a structure-tensor field on a coarse grid) despite
+  this patent, the owner answered "Yes, go ahead". The question and the answer are recorded
+  on #538.
   - What was built (`crates/openstitch-digitize/src/flow.rs`, `digitize.autoPunch {compatMode:
     openStitch, flowFill: true}`): the picture's structure tensor (products of the luminance
     gradient, smoothed over 1.5 mm) summed per 1 mm cell over each fill region, giving one row
