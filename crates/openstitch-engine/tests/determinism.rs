@@ -80,8 +80,10 @@ fn rotated_shapes_and_curves_sew_the_same_bits_on_every_platform() {
 // top-left corner and points 0.05 mm apart are one needle point, so a moved object sews the
 // same stitches moved (1731 stitches before; the arch lost a travel stitch out to a corner).
 // Re-recorded on Windows on 2026-11-08 (#428): the arch's letters sit 0.05 mm closer and its
-// shift is -0.004 (same stitch count, the letters placed anew).
-const EXPECTED_ARCH: (usize, u64) = (1726, 2642546876237421064);
+// shift is -0.004 (same stitch count, the letters placed anew). Re-recorded on Windows on
+// 2026-11-11 (#428): fill text under a Text Transform sews stroke by stroke, as PE-DESIGN does
+// (1726 needle points by region rows before).
+const EXPECTED_ARCH: (usize, u64) = (1422, 15868615622623472244);
 // 353 stitches until every run the writer trims after got PE-DESIGN's tie-in and lock (#289),
 // 357 until #567 (above).
 const EXPECTED_ROTATED: (usize, u64) = (353, 4314453351267217905);

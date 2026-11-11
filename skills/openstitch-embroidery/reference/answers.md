@@ -44,8 +44,8 @@ stays the default.
 - Wireless transfer, Link, transfer to machine memory or cards, PHX and PEN files, scanners,
   ScanNCut FCM. Send designs to the machine on a **USB stick or SD card**.
 - PE-DESIGN's own bundled fonts, motifs and stamps (Brother's content); OpenStitch ships its own.
-- Fill text sews each letter in one direction (satin text is sewn stroke by stroke);
-  per-character colour is not available yet.
+- Per-character colour in text is not available yet. (Text itself is sewn stroke by stroke,
+  satin and fill, straight or under a Text Transform, as PE-DESIGN does.)
 
 ## File formats
 

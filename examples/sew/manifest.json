@@ -1109,7 +1109,7 @@
    71.0,
    89.7
   ],
-  "stitches": 3865,
+  "stitches": 3903,
   "trims": 39,
   "threads": [
    "405 Blue",
@@ -1117,10 +1117,10 @@
    "509 Leaf Green",
    "620 Magenta"
   ],
-  "sewingMinutes": 6.8,
+  "sewingMinutes": 6.9,
   "image": null,
   "preview": "previews/fonts-and-text.png",
-  "sha256": "0199741c26c8053af408e0584cf723473f3168852a2740a469f62162cfc71d7c"
+  "sha256": "c9f0f7ab5b99dc4d637aa01b4d58ae143f52aeecab29419c108e9efbd2382a15"
  },
  "lettering/monograms.pes": {
   "title": "Monograms",
@@ -1145,7 +1145,7 @@
   "sewingMinutes": 10.3,
   "image": null,
   "preview": "previews/monograms.png",
-  "sha256": "c01cde1ffabece6d051aafd173b7948bb2604e39f3bc269720bc8e54cff43cba"
+  "sha256": "cb5e86183312fa108028b1d53763d68a249477dc0228ffd70ce957e32612497b"
  },
  "wizards/applique.pes": {
   "title": "Appliqué wizard",

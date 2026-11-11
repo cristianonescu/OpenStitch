@@ -3,7 +3,7 @@
 //!
 //! PE-DESIGN sews a TrueType letter stroke by stroke, each stroke a column whose crossings stay
 //! across it (owner references `stroke-satin-*`, `stroke-fill-*`, round 5). This module finds
-//! the strokes: the region is sampled on a grid, thinned to a one-cell skeleton (Zhang–Suen,
+//! the strokes: the region is sampled on a grid, thinned to a one-cell skeleton (Zhangâ€“Suen,
 //! so the skeleton keeps the region's topology), and the skeleton is read as a graph whose
 //! nodes are its free ends and junctions. Short spurs that thinning leaves at corners are pruned,
 //! every branch between two nodes becomes a stroke, a branch is cut again where it turns sharply
@@ -30,8 +30,16 @@ const SPUR: f64 = 1.6;
 /// Two junctions joined by a branch shorter than this many times their clearance are one
 /// junction (thinning splits an X's crossing in two).
 const CONTRACT: f64 = 1.5;
+/// A branch looping back to its own junction round no counter, shorter than this many times
+/// the junction's clearance round, is a thinning knot in an acute notch (M's top corners, #446).
+const NOTCH_LOOP: f64 = 4.0;
+/// Most outside cells a thinning knot goes round: the tip of an acute notch narrower than a
+/// cell, sealed off from the rest of the notch in the grid. A counter is larger.
+const KNOT_CELLS: usize = 3;
+/// How far from a knot's junction, in its clearances, [`Graph::straight_pair_at`] looks.
+const KNOT_ARM: f64 = 6.0;
 /// A branch turning by more than this (degrees) over about its width is cut there: an acute
-/// V or A apex turns by 140° and more, an L's corner by 90°.
+/// V or A apex turns by 140Â° and more, an L's corner by 90Â°.
 pub const SHARP_TURN: f64 = 115.0;
 
 /// Where a stroke ends.
@@ -174,7 +182,60 @@ impl Grid {
         )
     }
 
-    /// The 8 neighbours of cell `k`, clockwise from the one above (P2…P9 of Zhang–Suen);
+    /// Cells outside the outline that no path of outside cells joins to the grid's border:
+    /// the counters.
+    fn counters(&self) -> Vec<bool> {
+        let mut reached = vec![false; self.clearance.len()];
+        let mut todo: Vec<usize> = (0..self.clearance.len())
+            .filter(|&k| {
+                let (i, j) = (k % self.nx, k / self.nx);
+                i == 0 || j == 0 || i + 1 == self.nx || j + 1 == self.ny
+            })
+            .collect();
+        while let Some(k) = todo.pop() {
+            if reached[k] || self.clearance[k] >= 0.0 {
+                continue;
+            }
+            reached[k] = true;
+            todo.extend(self.ring(k).into_iter().flatten().filter(|&m| !reached[m]));
+        }
+        (0..self.clearance.len())
+            .map(|k| self.clearance[k] < 0.0 && !reached[k])
+            .collect()
+    }
+
+    /// Whether the loop through `cells` (in order) goes round a counter (see
+    /// [`Self::counters`]), rather than being a knot of the thinning's own in solid ink.
+    fn encloses_counter(&self, cells: &[usize], counters: &[bool]) -> bool {
+        let poly: Vec<Vec2> = cells.iter().map(|&k| self.centre(k)).collect();
+        let n = poly.len();
+        if n < 3 {
+            return false;
+        }
+        let (mut i0, mut i1, mut j0, mut j1) = (usize::MAX, 0, usize::MAX, 0);
+        for &k in cells {
+            let (i, j) = (k % self.nx, k / self.nx);
+            (i0, i1, j0, j1) = (i0.min(i), i1.max(i), j0.min(j), j1.max(j));
+        }
+        let inside = |p: Vec2| {
+            let mut odd = false;
+            for e in 0..n {
+                let (a, c) = (poly[e], poly[(e + 1) % n]);
+                if (a.y > p.y) != (c.y > p.y) && p.x < a.x + (p.y - a.y) * (c.x - a.x) / (c.y - a.y)
+                {
+                    odd = !odd;
+                }
+            }
+            odd
+        };
+        let enclosed = (j0..=j1)
+            .flat_map(|j| (i0..=i1).map(move |i| j * self.nx + i))
+            .filter(|&k| counters[k] && inside(self.centre(k)))
+            .count();
+        enclosed > KNOT_CELLS
+    }
+
+    /// The 8 neighbours of cell `k`, clockwise from the one above (P2â€¦P9 of Zhangâ€“Suen);
     /// `None` outside the grid.
     fn ring(&self, k: usize) -> [Option<usize>; 8] {
         let (i, j) = ((k % self.nx) as i64, (k / self.nx) as i64);
@@ -196,7 +257,7 @@ impl Grid {
     }
 }
 
-/// Zhang–Suen thinning of the inside cells: a one-cell-wide skeleton with the region's topology.
+/// Zhangâ€“Suen thinning of the inside cells: a one-cell-wide skeleton with the region's topology.
 fn thin(grid: &Grid) -> Vec<bool> {
     let mut on: Vec<bool> = grid.clearance.iter().map(|&c| c >= 0.0).collect();
     let mut changed = true;
@@ -218,7 +279,7 @@ fn thin(grid: &Grid) -> Vec<bool> {
                 if transitions != 1 {
                     continue;
                 }
-                // P2·P4·P6 and P4·P6·P8 (first pass); P2·P4·P8 and P2·P6·P8 (second pass).
+                // P2Â·P4Â·P6 and P4Â·P6Â·P8 (first pass); P2Â·P4Â·P8 and P2Â·P6Â·P8 (second pass).
                 let (a, b) = if pass == 0 {
                     (p[0] && p[2] && p[4], p[2] && p[4] && p[6])
                 } else {
@@ -433,6 +494,44 @@ impl Graph {
                 })
     }
 
+    /// Whether junction `id` joins, besides loops back to itself, exactly two branches that both
+    /// leave it straight: over their first [`KNOT_ARM`] clearances from the junction, no cell
+    /// further than the junction's clearance from the chord of that stretch (M's stem and
+    /// diagonal at its top corners). Only that stretch counts: further on, a branch may run on
+    /// through a junction that pruning dissolves (M's diagonals join through the foot of its
+    /// middle V). A script letter's curved strokes (Pacifico's a and m) are not straight there,
+    /// and keep their knots (#446).
+    fn straight_pair_at(&self, grid: &Grid, id: usize) -> bool {
+        let r = self.radius(grid, id);
+        let others: Vec<&Branch> = self
+            .branches
+            .iter()
+            .filter(|b| b.ends.contains(&Some(id)) && b.ends[0] != b.ends[1])
+            .collect();
+        others.len() == 2
+            && others.iter().all(|b| {
+                let mut cells: Vec<Vec2> = b.cells.iter().map(|&k| grid.centre(k)).collect();
+                if b.ends[0] != Some(id) {
+                    cells.reverse();
+                }
+                let mut run = 0.0;
+                let mut arm = Vec::new();
+                for (i, &p) in cells.iter().enumerate() {
+                    if i > 0 {
+                        run += cells[i - 1].distance(p);
+                    }
+                    if run > KNOT_ARM * r {
+                        break;
+                    }
+                    arm.push(p);
+                }
+                let (Some(&p), Some(&q)) = (arm.first(), arm.last()) else {
+                    return false;
+                };
+                arm.iter().all(|&c| segment_distance(c, p, q) <= r)
+            })
+    }
+
     fn radius(&self, grid: &Grid, id: usize) -> f64 {
         self.nodes[id]
             .cells
@@ -444,12 +543,24 @@ impl Graph {
     /// Spurs pruned (free branches shorter than [`SPUR`] times their junction's clearance) and
     /// the junctions they leave with two branches merged through.
     fn pruned(mut self, grid: &Grid) -> Graph {
+        let counters = grid.counters();
         loop {
             let mut changed = false;
+            let straight_pair: Vec<bool> = (0..self.nodes.len())
+                .map(|id| self.straight_pair_at(grid, id))
+                .collect();
             let mut keep = Vec::with_capacity(self.branches.len());
             for b in std::mem::take(&mut self.branches) {
                 let len = b.cells.len() as f64 * grid.step;
                 let spur = match b.ends {
+                    // A small loop back to its own junction round no counter: the thinning's
+                    // knot in an acute notch (M's top corners, #446).
+                    [Some(a), Some(c)] if a == c => {
+                        !self.nodes[a].free
+                            && len < NOTCH_LOOP * self.radius(grid, a)
+                            && straight_pair[a]
+                            && !grid.encloses_counter(&b.cells, &counters)
+                    }
                     [Some(a), Some(c)] => {
                         let (free, junction) = if self.nodes[a].free { (a, c) } else { (c, a) };
                         self.nodes[free].free
@@ -613,7 +724,7 @@ impl Graph {
                         continue;
                     }
                     // The thinned centre line hooks towards a corner where the end edge meets
-                    // the stroke at a slant (an italic stem's foot): drop the last stretch, ¾ of the
+                    // the stroke at a slant (an italic stem's foot): drop the last stretch, Â¾ of the
                     // stroke's width long, and reach out along the line before it.
                     if end == 0 {
                         centre.reverse();
@@ -645,15 +756,15 @@ impl Graph {
                         let straight = d.length() > 1e-9
                             && ray_to(tip, d * (1.0 / d.length()), edges)
                                 .is_some_and(|t| t >= 0.8 * width);
-                        // A curved stroke turns steadily over its last stretch (S's ends: 17-22°)
-                        // a straight stem's does not (the italic H: at most 6°).
+                        // A curved stroke turns steadily over its last stretch (S's ends: 17-22Â°)
+                        // a straight stem's does not (the italic H: at most 6Â°).
                         let chord = centre[centre.len() - 1] - tip;
                         let cos = (chord.x * d.x + chord.y * d.y)
                             / (chord.length() * d.length()).max(1e-12);
                         let hook = cos.clamp(-1.0, 1.0).dacos().to_degrees();
                         // An arm of a four-arm crossing (X) dead straight before its last
                         // stretch is straight however far the thinning hooks it into a corner
-                        // of its level cut foot (X's feet hook by 30°, #446). Kept to X: the
+                        // of its level cut foot (X's feet hook by 30Â°, #446). Kept to X: the
                         // same rule on every letter cut t's tail off in fill (#446 notes).
                         let before = point_at(&centre, total - 3.0 * width);
                         let e = back - before;
@@ -754,7 +865,7 @@ impl Graph {
     }
 }
 
-/// A free end whose last ¾ stroke width turns less than this (degrees) from the line before it is
+/// A free end whose last Â¾ stroke width turns less than this (degrees) from the line before it is
 /// a straight stroke, which the thinning bent towards a corner: its end is straightened.
 const END_TURN: f64 = 12.0;
 /// A free end whose line before its last stretch turns less than this (degrees) is straight
@@ -799,7 +910,7 @@ fn smooth(pts: &[Vec2], closed: bool) -> Vec<Vec2> {
         .collect()
 }
 
-/// Douglas–Peucker; a closed line is split at its point farthest from the first.
+/// Douglasâ€“Peucker; a closed line is split at its point farthest from the first.
 fn simplify(pts: &[Vec2], tolerance: f64, closed: bool) -> Vec<Vec2> {
     fn walk(pts: &[Vec2], lo: usize, hi: usize, tolerance: f64, keep: &mut Vec<usize>) {
         let (far, d) = (lo + 1..hi)
@@ -956,6 +1067,9 @@ fn cut_sharp(
 
 /// Most a stem leans from upright (degrees) for [`run_on_stems`].
 const STEM_LEAN: f64 = 12.0;
+/// A stem point further than this many half widths off the stem's line is the thinning's
+/// bend into the corner; [`run_on_stems`] drops it.
+const STEM_BEND: f64 = 0.5;
 /// How far from the corner (0.1 mm) [`run_on_stems`] measures a stroke's direction.
 const STEM_REACH: f64 = 40.0;
 
@@ -1007,7 +1121,6 @@ fn run_on_stems(
         if pieces[k].1 || a.len() < 2 || b.len() < 2 {
             continue;
         }
-        let c = a[a.len() - 1];
         let back: Vec<Vec2> = a.iter().rev().copied().collect();
         // Past the thinning's bend into the corner (up to 3 mm), over the next 4 mm.
         let span = |line: &[Vec2]| {
@@ -1026,43 +1139,64 @@ fn run_on_stems(
                 None => continue,
             },
         };
-        let Some(t) = ray_to(c, dir, edges) else {
+        // The stem from the corner out to its far end.
+        let stem_line: Vec<Vec2> = if stem == k {
+            pieces[k].0.iter().rev().copied().collect()
+        } else {
+            pieces[k + 1].0.clone()
+        };
+        // A point on the stem's straight stretch, its half width there (its clearance), and
+        // the distance of a point from the stem's centre line (through `anchor` along `dir`).
+        let anchor = point_at(&stem_line, reach_of(&stem_line));
+        let half = edges
+            .iter()
+            .map(|&(p, q)| segment_distance(anchor, p, q))
+            .fold(f64::INFINITY, f64::min);
+        let off = |p: Vec2| ((p.x - anchor.x) * dir.y - (p.y - anchor.y) * dir.x).abs();
+        // Where the thinning bends the stem's end off its line into the corner (M's top
+        // corners, whose notch knots are pruned, #446), the bend is dropped: the stem runs on
+        // from its own line.
+        // (Not for a slanted run-on, V's and A's straight arms: #446.)
+        let bent = if upright(dir) {
+            stem_line
+                .iter()
+                .take_while(|&&p| off(p) > STEM_BEND * half)
+                .count()
+        } else {
+            0
+        };
+        if bent + 1 >= stem_line.len() {
+            continue;
+        }
+        let foot = stem_line[bent];
+        let base = anchor + dir * ((foot.x - anchor.x) * dir.x + (foot.y - anchor.y) * dir.y);
+        let Some(t) = ray_to(base, dir, edges) else {
             continue;
         };
         let reach = t - step * 0.5;
         if reach <= step {
             continue;
         }
-        let tip = c + dir * reach;
-        // The slanted piece stops at the stem's edge: the stem's half width (its clearance a
-        // little way along it) from the stem's centre line.
-        let stem_line: Vec<Vec2> = if stem == k {
-            pieces[k].0.iter().rev().copied().collect()
-        } else {
-            pieces[k + 1].0.clone()
-        };
-        let half = edges
-            .iter()
-            .map(|&(p, q)| segment_distance(point_at(&stem_line, reach_of(&stem_line)), p, q))
-            .fold(f64::INFINITY, f64::min)
-            * if upright(dir) { 1.0 } else { SLANTED_AGAINST };
+        let tip = base + dir * reach;
+        let mut run_on = vec![tip, base];
+        run_on.extend(stem_line[bent + 1..].iter().copied());
         let slanted: Vec<Vec2> = if stem == k {
             pieces[k + 1].0.clone()
         } else {
             pieces[k].0.iter().rev().copied().collect()
         };
-        // Distance from the stem's centre line (through c along dir).
-        let off = |p: Vec2| ((p.x - c.x) * dir.y - (p.y - c.y) * dir.x).abs();
         let total = length(&slanted);
+        // A slanted run-on stops the other arm nearer its centre line ([`SLANTED_AGAINST`]).
+        let stop = half * if upright(dir) { 1.0 } else { SLANTED_AGAINST };
         let mut cut = None;
         let mut at = 0.0;
         for w in slanted.windows(2) {
             let (p, q) = (w[0], w[1]);
             let seg = p.distance(q);
-            if off(q) >= half && seg > 1e-9 {
+            if off(q) >= stop && seg > 1e-9 {
                 let (fp, fq) = (off(p), off(q));
                 let t = if fq > fp {
-                    ((half - fp) / (fq - fp)).clamp(0.0, 1.0)
+                    ((stop - fp) / (fq - fp)).clamp(0.0, 1.0)
                 } else {
                     1.0
                 };
@@ -1083,14 +1217,15 @@ fn run_on_stems(
             v
         });
         if stem == k {
-            pieces[k].0.push(tip);
+            run_on.reverse();
+            pieces[k].0 = run_on;
             pieces[k].2[1] = StrokeEnd::Free;
             pieces[k + 1].2[0] = StrokeEnd::Against;
             if let Some(v) = trimmed {
                 pieces[k + 1].0 = v;
             }
         } else {
-            pieces[k + 1].0.insert(0, tip);
+            pieces[k + 1].0 = run_on;
             pieces[k + 1].2[0] = StrokeEnd::Free;
             pieces[k].2[1] = StrokeEnd::Against;
             if let Some(mut v) = trimmed {
@@ -1443,10 +1578,19 @@ impl GlyphStrokes {
                     (Some(a), Some(b), Some(c), Some(d)) => (a.0.max(c.0), b.0.min(d.0)),
                     _ => return [Vec::new(), Vec::new()],
                 };
+                // A free end's corner stays even past the stretch both sides cover: on an end
+                // edge the warp tilts (#428), the leading corner projects past the other side's
+                // last point, and dropping it left the foot's lower corner unsewn.
                 let keep = |v: Vec<(f64, f64, Vec2)>| -> Vec<(f64, Vec2)> {
+                    let n = v.len();
                     v.into_iter()
-                        .filter(|&(at, _, _)| at >= lo - SIDE_STEP && at <= hi + SIDE_STEP)
-                        .map(|(at, _, p)| (at, p))
+                        .enumerate()
+                        .filter(|&(i, (at, _, _))| {
+                            (at >= lo - SIDE_STEP && at <= hi + SIDE_STEP)
+                                || (i == 0 && st.ends[0] == StrokeEnd::Free)
+                                || (i + 1 == n && st.ends[1] == StrokeEnd::Free)
+                        })
+                        .map(|(_, (at, _, p))| (at, p))
                         .collect()
                 };
                 [keep(l), keep(r)]
@@ -2282,14 +2426,14 @@ mod tests {
     use super::*;
     use crate::text::{DEFAULT_FONT, TextSpec, layout};
 
-    /// Lato Bold `ch` at 20 mm, as PE-DESIGN's round-5 captures set it.
-    /// #446: N's stems run the whole height to the outline, as PE-DESIGN sews them
-    /// (stroke-satin-N), and the diagonal stops against them at both corners: no stroke ends
-    /// in a corner fan.
+    /// #446: N's and M's stems run the whole height to the outline, straight, as PE-DESIGN
+    /// sews them (stroke-satin-N, -M, and the 8 mm captures), and the diagonals stop against
+    /// them: no stroke ends in a corner fan at a stem. M's notch knots are pruned, so its top
+    /// corners are cuts, not junctions.
     #[test]
-    fn n_stems_run_on_and_the_diagonal_stops_against_them() {
-        for size in [20.0, 8.0] {
-            let spec = TextSpec::new("N", DEFAULT_FONT, size);
+    fn n_and_m_stems_run_on_and_the_diagonals_stop_against_them() {
+        for (ch, size) in [("N", 20.0), ("N", 8.0), ("M", 20.0), ("M", 8.0)] {
+            let spec = TextSpec::new(ch, DEFAULT_FONT, size);
             let l = layout(&spec, None).expect("layout");
             let contours = l.contours();
             let b =
@@ -2300,8 +2444,22 @@ mod tests {
                 .iter()
                 .filter(|s| s.bounds().is_some_and(|r| r.height() > 0.95 * b.height()))
                 .collect();
-            assert_eq!(stems.len(), 2, "{size} mm: two full-height stems");
-            assert!(stems.iter().all(|s| s.ends == [StrokeEnd::Free; 2]));
+            assert_eq!(stems.len(), 2, "{ch} {size} mm: two full-height stems");
+            for s in &stems {
+                assert_eq!(s.ends, [StrokeEnd::Free; 2], "{ch} {size} mm");
+                // Straight up: the thinning's bend into the corner is dropped.
+                let x0 = s.centre[0].x;
+                let stray = s
+                    .centre
+                    .iter()
+                    .map(|p| (p.x - x0).abs())
+                    .fold(0.0, f64::max);
+                assert!(
+                    stray < 0.5 * median(&s.widths),
+                    "{ch} {size} mm: stem strays {stray}"
+                );
+            }
+            assert!(g.junctions.is_empty(), "{ch} {size} mm: {:?}", g.junctions);
             let against = g
                 .strokes
                 .iter()
@@ -2310,13 +2468,17 @@ mod tests {
                 .count();
             assert_eq!(
                 against, 2,
-                "{size} mm: the diagonal stops against both stems"
+                "{ch} {size} mm: the diagonals stop against both stems"
             );
-            assert!(
-                g.strokes
-                    .iter()
-                    .all(|s| !s.ends.contains(&StrokeEnd::Corner))
-            );
+            let corners = g
+                .strokes
+                .iter()
+                .flat_map(|s| s.ends)
+                .filter(|&e| e == StrokeEnd::Corner)
+                .count();
+            // M's two diagonals meet at the foot of its middle V.
+            let want = if ch == "M" { 2 } else { 0 };
+            assert_eq!(corners, want, "{ch} {size} mm");
         }
     }
 

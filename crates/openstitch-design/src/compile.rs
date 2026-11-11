@@ -1111,29 +1111,18 @@ fn elements(
             let mut layers = region::layers_with(&closed, region, holes, user);
             // PE-DESIGN 11.50 sews a TrueType letter in Satin and in Fill stroke by stroke, each
             // stroke a column, in its Convert to Blocks order (docs/research/stroke-lettering.md).
-            // Fill text under a Text Transform keeps its region rows for now: PE-DESIGN sews it
-            // by stroke as well (text-transform-9: level rows on the slanted stems). Measured
-            // 2026-11-07 with the warped walk ([`warped_walk`]), by stroke is nearer PE-DESIGN
-            // on the 182 transform captures in every way (needle count 10.9 % off on average
-            // against 11.2 % by region, was 28 % before the walk; PE -> ours 0.24 -> 0.19 mm;
-            // coverage 0.761 -> 0.772), but its rows reach the warped outline's corners, which
-            // the region rows stopped short of, and the Text Transform layout's own error
-            // shows: five references 0.1 mm past their 0.5 mm bounds (the arches 1 and 2 place
-            // the left letters up to 0.6 mm too far along the arc, region rows as well;
-            // text-transform-10's stems, 18-openstitch-l100's descender) (#428). Since
-            // 2026-11-08 the arch spacing (`ARCH_LETTER_SPACING`, `ARCH_SHIFT` in text.rs)
-            // fixes the arches; by stroke still fails three: text-transform-10's slanted stem
-            // foot (48.4 mm against 49.0) and the descenders of 17-l75 and 18-l100 (50.8
-            // against 51.4/51.5), where the warped bottom edge's lower corner lies past the
-            // stroke's last crossing.
+            // Fill text under a Text Transform too (#428): PE-DESIGN sews it by stroke as well
+            // (text-transform-9: level rows on the slanted stems). Since 2026-11-11, with the
+            // warped walk ([`warped_walk`]), the arch spacing (text.rs), a tilted free end's
+            // corners kept (`strokes::sides_along`) and envelope 10 fitted as a parallelogram
+            // (`tools/fit_envelopes.py`), every PE-DESIGN reference passes by stroke.
             // A preset or a free envelope (#535): both warp the letters alike.
             let warped = object
                 .text
                 .as_ref()
                 .is_some_and(|t| t.envelope.is_some() || t.custom_envelope.is_some());
             let by_stroke = (text
-                && (region.kind == RegionType::Satin
-                    || (region.kind == RegionType::Fill && !warped))
+                && (region.kind == RegionType::Satin || region.kind == RegionType::Fill)
                 && region.stamps.is_empty())
             .then(|| {
                 stroke_columns(
@@ -2829,9 +2818,10 @@ mod stroke_fill_tests {
     }
 
     #[test]
-    fn warped_fill_text_keeps_its_region_rows() {
-        // Under a Text Transform fill text is sewn by region for now (#428): the region rows
-        // step along the letter's edge between rows, which a stroke's sawtooth never does.
+    fn warped_fill_text_sews_by_stroke() {
+        // Under a Text Transform fill text is sewn stroke by stroke, as PE-DESIGN does (#428):
+        // a stroke's sawtooth hardly steps along the letter's edge (region rows did, more than
+        // 20 times on this H), and the warped H sews about as many points as the straight one.
         let p = compiled("H", 10.0, Some(9));
         let steps = p
             .stitches
@@ -2843,8 +2833,13 @@ mod stroke_fill_tests {
                 }
             })
             .count();
-        assert!(steps > 20, "{steps}");
-        assert!(p.count(Command::Stitch) > 100);
+        assert!(steps < 5, "{steps}");
+        let straight = compiled("H", 10.0, None).count(Command::Stitch) as f64;
+        let warped = p.count(Command::Stitch) as f64;
+        assert!(
+            (warped / straight - 1.0).abs() < 0.1,
+            "{warped} against {straight}"
+        );
     }
 
     #[test]
@@ -3010,13 +3005,15 @@ mod stroke_fill_tests {
         // inside the letter (stroke-satin-N/W/Z.pes, round 8, at 20 and 8 mm). Their pieces,
         // cut apart at the acute corners, were each trimmed to: N 2 trims, W 3, Z 1 at 20 mm.
         // Each piece is now sewn from the end that leads on to the next, which is travelled to
-        // through the letter. M keeps its one trim at 20 mm, as PE-DESIGN's.
+        // through the letter. M, whose stems now run on past its top corners (#446), sews in one
+        // run too: as PE-DESIGN at 8 mm; PE-DESIGN trims once inside M at 20 mm.
         for (text, size, inside) in [
             ("N", 20.0, 0),
             ("N", 8.0, 0),
             ("W", 20.0, 0),
             ("Z", 20.0, 0),
-            ("M", 20.0, 1),
+            ("M", 20.0, 0),
+            ("M", 8.0, 0),
         ] {
             let (obj, p) = satin_text(text, size);
             let sewn = p
