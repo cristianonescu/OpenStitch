@@ -1151,13 +1151,17 @@ fn elements(
                 // concentric-*, spiral-*): no travel from R1 or to R2, no reversal. So does
                 // the flexible spiral, which starts at R1 and ends in the middle: travel to R2
                 // ran straight back out across its turns (#461).
+                // A colour of a blend or gradient (#891) sews only its share of the rows, so
+                // nothing covers travel to and from the start and end points, which crossed the
+                // other colours in this one's thread; its colour change trims anyway.
                 *top = if matches!(
                     region.kind,
                     RegionType::ConcentricCircle
                         | RegionType::Spiral
                         | RegionType::Contour
                         | RegionType::FlexibleSpiral
-                ) {
+                ) || region.gradient.is_some()
+                {
                     runs
                 } else {
                     // Travel from the start point and to the end point: PE-DESIGN's motif and

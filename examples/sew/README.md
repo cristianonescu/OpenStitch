@@ -419,7 +419,7 @@ Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 208 Orange, 620 Mag
 
 #### Colour blends and gradient fills (beyond PE-DESIGN)
 
-[`fills/gradients.pes`](fills/gradients.pes) · 100 × 100 mm hoop · 86 × 73 mm · 9,133 stitches · 10 trims · about 11.9 min
+[`fills/gradients.pes`](fills/gradients.pes) · 100 × 100 mm hoop · 86 × 73 mm · 8,859 stitches · 80 trims · about 15.2 min
 
 Top left: a blue-to-white blend, bottom to top (rows dither). Top right: red, orange and yellow, left to right (ordered dither). Bottom left: a radial yellow, orange and magenta gradient (noise dither). Bottom right: green into blue at 45° with hard bands.
 
@@ -429,7 +429,7 @@ Threads, in sewing order: 405 Blue, 001 White, 800 Red, 208 Orange, 205 Yellow, 
 
 #### Stitch angle lines (beyond PE-DESIGN)
 
-[`fills/angle-lines.pes`](fills/angle-lines.pes) · 100 × 100 mm hoop · 49.8 × 72.8 mm · 4,583 stitches · 1 trim · about 5.8 min
+[`fills/angle-lines.pes`](fills/angle-lines.pes) · 100 × 100 mm hoop · 49.8 × 72.8 mm · 4,631 stitches · 1 trim · about 5.8 min
 
 An L whose rows turn round its corner between three angle lines, as one object with no seam.
 
