@@ -170,20 +170,48 @@ def knot(samples, k, smooth, u):
     return min(near) if k == 1 else max(near)
 
 
+def true_min_x(n):
+    """The reference's left edge as the compat runner reads it (mm): `stitches.import` centres
+    a file's box on the page, which moves a slant whose box is off the straight text's centre
+    (preset 10: 0.15 mm), so the slants are fitted in the reference's own frame (#428)."""
+    with tempfile.TemporaryDirectory() as d:
+        report = Path(d) / "r.json"
+        subprocess.run([str(TOOL), "compat", "--only", f"text/text-transform-{n}",
+                        "--work", str(Path(d) / "w"), "--report", str(report),
+                        "--summary", str(Path(d) / "s.md")],
+                       cwd=ROOT, capture_output=True, text=True, check=False)
+        specs = json.loads(report.read_text(encoding="utf-8"))["specs"]
+        spec = next(x for x in specs if x["id"] == f"text-transform-{n}")
+    return next(c["expected"] for c in spec["checks"] if c["measurement"] == "bounds-min-x")
+
+
 def slant_preset(n):
-    """A parallelogram: the top edge shifted by d of the width against the bottom edge."""
+    """A parallelogram fitted to the letters' corners (#428): each edge x = a + b u (fractions
+    of the straight box, u along the straight text), one slope b for both edges and an offset
+    each, least squares over every letter's left and right corner on the top and bottom edge
+    (left and right together, so the needle points' reach past the outline cancels). The
+    letters are put in the reference's own frame first ([`true_min_x`])."""
     letters = needle_points(REF / f"text-transform-{n}.pes")
-    first = letters[0]
-    left, right = min(x for x, _ in first), max(x for x, _ in first)
-    # The straight letter is 8.7 mm wide; slanted it spans 8.7 (1 - d) + d W.
-    d = round(((right - left) - 8.7) / (W - 8.7), 4)
+    shift = true_min_x(n) - min(x for l in letters for x, _ in l)
+    pitch = (W - LETTER) / (len(letters) - 1)
+    rows = []  # (u, frac, edge 0 top / 1 bottom)
+    for i, l in enumerate(letters):
+        ys = [y for _, y in l]
+        top, bot = min(ys), max(ys)
+        at_top = [x + shift for x, y in l if y < top + 0.5]
+        at_bot = [x + shift for x, y in l if y > bot - 0.5]
+        u_l, u_r = i * pitch / W, (i * pitch + LETTER) / W
+        rows += [(u_l, (min(at_top) - X0) / W, 0), (u_r, (max(at_top) - X0) / W, 0),
+                 (u_l, (min(at_bot) - X0) / W, 1), (u_r, (max(at_bot) - X0) / W, 1)]
+    # Unknowns: a_top, a_bottom, b.
+    basis_row = lambda u, e: [1.0 - e, float(e), u]
+    a = [[sum(basis_row(u, e)[r] * basis_row(u, e)[c] for u, _, e in rows) for c in range(3)]
+         for r in range(3)]
+    b = [sum(basis_row(u, e)[r] * v for u, v, e in rows) for r in range(3)]
+    a_top, a_bot, slope = solve(a, b)
     us = [k / (KNOTS - 1) for k in range(KNOTS)]
-    if n == 9:  # forward: the tops lean right
-        top = [(d + (1 - d) * u, 0.0) for u in us]
-        bottom = [((1 - d) * u, 1.0) for u in us]
-    else:  # back: the tops lean left
-        top = [((1 - d) * u, 0.0) for u in us]
-        bottom = [(d + (1 - d) * u, 1.0) for u in us]
+    top = [(round(a_top + slope * u, 6), 0.0) for u in us]
+    bottom = [(round(a_bot + slope * u, 6), 1.0) for u in us]
     return top, bottom
 
 

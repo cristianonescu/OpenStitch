@@ -1417,10 +1417,19 @@ impl GlyphStrokes {
                     (Some(a), Some(b), Some(c), Some(d)) => (a.0.max(c.0), b.0.min(d.0)),
                     _ => return [Vec::new(), Vec::new()],
                 };
+                // A free end's corner stays even past the stretch both sides cover: on an end
+                // edge the warp tilts (#428), the leading corner projects past the other side's
+                // last point, and dropping it left the foot's lower corner unsewn.
                 let keep = |v: Vec<(f64, f64, Vec2)>| -> Vec<(f64, Vec2)> {
+                    let n = v.len();
                     v.into_iter()
-                        .filter(|&(at, _, _)| at >= lo - SIDE_STEP && at <= hi + SIDE_STEP)
-                        .map(|(at, _, p)| (at, p))
+                        .enumerate()
+                        .filter(|&(i, (at, _, _))| {
+                            (at >= lo - SIDE_STEP && at <= hi + SIDE_STEP)
+                                || (i == 0 && st.ends[0] == StrokeEnd::Free)
+                                || (i + 1 == n && st.ends[1] == StrokeEnd::Free)
+                        })
+                        .map(|(_, (at, _, p))| (at, p))
                         .collect()
                 };
                 [keep(l), keep(r)]

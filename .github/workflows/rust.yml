@@ -39,6 +39,16 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
+      # The Linux keychain test's packages (#401), installed first: late in this job the runner
+      # could not resolve any package server (#887), while it can here. The list is refreshed
+      # because the image's own goes stale.
+      - name: Keychain test packages (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          apt="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30"
+          sudo apt-get update $apt >/dev/null
+          sudo apt-get install -y --no-install-recommends $apt gnome-keyring dbus-daemon >/dev/null
       # Only main saves the cache; pull requests restore main's. The repository's 10 GB of
       # Actions cache held ~1 GB per OS per PR, which evicted main's own entries (#357). A main
       # run whose tests fail still saves its compiled dependencies.
@@ -101,7 +111,9 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
-          sudo apt-get install -y --no-install-recommends gnome-keyring dbus-daemon >/dev/null
+          # The packages are installed at the start of the job (#887). This line only records
+          # whether names still resolve here, 40 minutes in: on 2026-11-11 they did not.
+          getent hosts github.com >/dev/null && echo "DNS resolves" || echo "::warning::DNS does not resolve at this step"
           dbus-run-session -- bash -c 'echo -n ci-only | gnome-keyring-daemon --unlock --components=secrets >/dev/null && cargo test -p openstitch-app --test integration --locked -- --ignored keychain::'
       # The editor's assistant scratch folders (the next launch removes them, #314) are the
       # product's, not test leftovers. Print PDFs go to each test's own folder (#384).
