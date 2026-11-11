@@ -18,7 +18,7 @@ Notes that do not change the fixture bytes:
 
 | Format | Read | Write | Evidence level | Notes |
 |---|---|---|---|---|
-| PES | ✅ all versions, via the PEC section; v4+ metadata, v5+ RGB thread table, `CEmbOne`/`CSewSeg` objects | ✅ v1 and v6, truncated or with one `CEmbOne`/`CSewSeg` pair | Oracle-verified (pyembroidery), byte-identical for 1t, 1, 6, 6t | Shape, text and other PE-DESIGN object classes: no public description (Blocked). |
+| PES | ✅ all versions, via the PEC section; v4+ metadata, v5+ RGB thread table, `CEmbOne`/`CSewSeg` objects; `#PES0110` shapes, texts and groups (see "PES 0110 object list") | ✅ 1t, 1, 4, 5, 6t, 6 (default), 7–10; 11 (`#PES0110`) with editable shapes and text | Oracle-verified (pyembroidery), byte-identical for 1t, 1, 6, 6t; 4, 5, 7–10 laid out as PE-DESIGN 11.50's own saves (#374); 11 opened editable in PE-DESIGN 11.50 | No public description of PE-DESIGN's object classes: mapped from the owner's own files. Object kinds version 11 still refuses: #608. |
 | PEC | ✅ | ✅ | Oracle-verified | Byte-identical round trip of the oracle file. |
 | DST | ✅ | ✅ | Oracle-verified read; PE-DESIGN 11.50 reference write (records and header identical) | See "PE-DESIGN's record layout" below. |
 | EXP | ✅ | ✅ | Oracle-verified read; PE-DESIGN 11.50 reference write (byte-identical) | |
@@ -40,7 +40,7 @@ Notes that do not change the fixture bytes:
 | ZXY (ZSK) | ✅ | — (read only, #481) | Oracle tested only: pyembroidery's read of an assembled file and of 2,500 random files, all identical; no public description, no ZSK file | See "ZXY and STX" below. |
 | STX (Data Stitch) | ✅ stitches; no colours | — (read only, #481) | Oracle tested only (as ZXY); pyembroidery reads no STX colours, so none are read | See "ZXY and STX" below. |
 | PHC | ✅ | — (read only, as in PE-DESIGN) | Oracle-verified read (pyembroidery) | PEC stitch data in a Brother wrapper. |
-| PHX | ❌ | — | **Blocked** | No public description or open-source reader; studying PE-DESIGN output would be reverse engineering (LEGAL_AND_LICENSING.md). |
+| PHX | ❌ | — | **Blocked** | No public description or open-source reader; PE-DESIGN 11 cannot produce one for the owner to study (LEGAL_AND_LICENSING.md). |
 | PEN | ❌ | — | **Blocked** | Brother's encrypted format for designs bought from iBroidery; decrypting it would circumvent a protection measure. Out of scope. |
 | FCM / VCM (ScanNCut) | ❌ | ❌ | **Blocked** (owner decision) | No Brother specification; see "FCM" below. |
 | PE-DESIGN project (.pes as project, .pem?) | ❌ | ❌ | Not investigated | Needs reference files saved by PE-DESIGN. |
@@ -113,9 +113,9 @@ still-unused entry, which PE-DESIGN does not do). Entries 62–64 are read but n
 rgb(255, 128, 0) to 11 Deep Gold rather than 62 Orange (`thread-match-swatches.pes`). They are
 the Applique Wizard's colours, with PE-DESIGN's RGB since 2026-10-31 (its colour list after the
 PEC section, below): 62 material (255, 200, 100), 63 position (255, 200, 150), 64 appliqué
-(255, 200, 200); pyembroidery had (255, 153, 0) and (255, 240, 141) for 62 and 63. PE writes
-(255, 200, 200); OpenStitch's Appliqué wizard uses them, and a thread that is a Brother chart
-entry (brand `Brother`, the entry's number, its RGB) keeps that entry in the PEC; pyembroidery had (255, 153, 0) and (255, 240, 141) for 62 and 63. PE writes
+(255, 200, 200); pyembroidery had (255, 153, 0) and (255, 240, 141) for 62 and 63.
+OpenStitch's Appliqué wizard uses them, and a thread that is a Brother chart
+entry (brand `Brother`, the entry's number, its RGB) keeps that entry in the PEC. PE writes
 65 for an appliqué cutting line, (220, 220, 220), outside the 65-slot chart. The same
 matcher picks the chart entry for JEF, SEW, HUS and PCS. `approximate_index` is the "approximate" palette matcher
 (city-block winner, squared-Euclidean fallback) for the built-in sew palette.
@@ -136,7 +136,7 @@ column (1 BLACK, 2 WHITE, 3 RED, …) is not the PEC index.
 section. Default output (`pes::WriteOptions::default`, `FileType::Pes.write`, and so
 `design.export` without `pesVersion`, Name Drop, USB transfer and Design Database convert) is
 `#PES0060` with one `CEmbOne`/`CSewSeg` stitch group and the RGB thread table, byte-identical to
-pyembroidery's `6`. `pesVersion` = `1t`, `1`, `6t` selects the others, and `11` writes PE-DESIGN
+pyembroidery's `6`. `pesVersion` = `1t`, `1`, `6t` (and `4`, `5`, `7`–`10`, below) selects the others, and `11` writes PE-DESIGN
 11's `#PES0110` with the design's shapes as editable objects ("PES 0110 object list", "Writer"
 below); `1t` (`#PES0001`, offset 0x16, 10 zero bytes, no objects) stays as the smallest,
 machine-only file. **Unverified:**
@@ -758,8 +758,9 @@ the arched text box). **Stitch group, Manual Punch and Curve Block (2026-10-31, 
 stitch group as one stitch object (its re-save's PES section is byte-identical to the export) and
 the two blocks as editable Manual Punch blocks (Edit Points moves the punch points, the satin
 follows; the Curve Block's sides stay curves), with m01's and m09's sizes and stitch counts; their
-re-saves change only the pattern block. **The appliqué export (`pes-0110-applique`) is refused**
-("Unexpected file format"): see the addendum above. Version 6 stays the default export until the coordinator decides
+re-saves change only the pattern block. **The appliqué export (`pes-0110-applique`)** was refused
+("Unexpected file format") until the group's archive number was fixed on 2026-10-31 (see the
+addendum above); the spec now passes at the reference tier. Version 6 stays the default export until the coordinator decides
 otherwise.
 
 ## PE-DESIGN's record layout (DST, EXP, JEF, SEW, XXX, PCS, HUS, VIP)
@@ -1082,8 +1083,8 @@ cannot convert to PHC and no public writer exists, so OpenStitch does not write 
 
 - **PHX:** only its `#PHX0` signature is mentioned publicly (file-database sites). Neither
   pyembroidery (1.5.1 or master), libembroidery nor any other open project reads it. Blocked:
-  the only route is studying PE-DESIGN output, which needs the legal opinion and reference
-  files.
+  the only route is studying PHX files, and project policy allows that only for files the owner
+  made (LEGAL_AND_LICENSING.md), which PE-DESIGN 11 cannot produce.
 - **PEN:** Brother's PED-BASIC documentation describes PEN files as encrypted designs bought
   from iBroidery.com. No public description exists and decrypting them would circumvent a
   technical protection measure (EU 2001/29 Art. 6, US 17 USC 1201). Out of scope.
@@ -1238,7 +1239,7 @@ effect, `cssVariable`: one with no value), with the SVG ids of the elements or o
 named group (at most 50 per kind; #487).
 
 Limits: 16 MB file, 5,000 paths, 500,000 vertices. Not imported: `<text>`, `<image>`, filter
-effects, stroke widths (all listed in the result, stroke widths excepted). SVG's `nonzero` fill rule is approximated by
+effects, stroke widths other than a `stroke.satin` line's (#701) (all listed in the result, stroke widths excepted). SVG's `nonzero` fill rule is approximated by
 OpenStitch's even-odd rule (overlapping same-direction subpaths read as holes).
 
 **Stitch settings in SVG names** (`import.svg` with `settings: true`, #455; off by default, so
@@ -1330,7 +1331,9 @@ project only references files:
 | Linux | ✅ on X11 and XWayland; native Wayland clipboard not enabled (`arboard`'s `wayland-data-control` feature is off, as in eframe) | `$XDG_DATA_HOME/openstitch/backgrounds` (default `~/.local/share/...`) |
 
 **Scanner (PE-DESIGN's TWAIN import): Blocked per OS.** Every route is a native API. The
-workspace forbids `unsafe` code, and no vetted safe Rust binding exists:
+workspace forbids `unsafe` code, and no vetted safe Rust binding exists. The owner's decision of
+2026-11-06 allows a small native shim outside the workspace for an OS integration (as the
+Explorer thumbnails, DISTRIBUTION.md); none is written for scanning:
 
 | OS | API | Status | Meanwhile |
 |---|---|---|---|
@@ -1702,9 +1705,10 @@ The built-in templates are in `crates/openstitch-engine/templates/`, generated b
 
 ## Known limitations
 
-- PES editable shapes and text (PE-DESIGN object classes) are not read or written: an
-  OpenStitch PES opens in PE-DESIGN as a stitch group (v1/v6 with objects) or stitch-only
-  design (truncated). Version 6 keeps RGB threads, names and metadata.
+- PES editable shapes and text are read and written only as `#PES0110` (`pesVersion` 11),
+  with the object kinds it still refuses listed in "Writer" above (#608). Every other version
+  opens in PE-DESIGN as a stitch group (v1, v4–v10) or stitch-only design (truncated). Version 6
+  keeps RGB threads, names and metadata.
 - SHV and CSD are written as PE-DESIGN 11.50 exports them (see above); PHC is read only.
 
 ## VP3 (Husqvarna Viking / Pfaff, #480)

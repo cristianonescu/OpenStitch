@@ -5,10 +5,10 @@
 | 1 Tooling | Rust workspace, CI on three OSes, fixture generators | Done. |
 | 2 Reference research | Guide-based feature inventory; reference files from a licensed PE-DESIGN 11 | Done: inventory from the public guide; reference files made in a licensed PE-DESIGN 11.50 since 2026-10-27 (`compat/reference/`, provenance in `MANIFEST.json`). |
 | 3 Core engine | Stitch model, threads, document operations, stitch generation | Done: design model, all guide sew types, compiler, command registry, undo, `.osd` projects, CLI and JSON control, MCP. |
-| 4 File interoperability | Every format PE-DESIGN 11 reads or writes; round-trip tests | DST, EXP, JEF, PCS, SEW, XXX, HUS and VIP written record for record as PE-DESIGN 11.50 exports them (reference tier, 2026-10-28), CSD and SHV too since 2026-11-04 (#320); PES, PEC and the readers at oracle tier with fuzzing; PHC read-only, as in PE-DESIGN; PES v1/v6 object section; PE-DESIGN 11 (`#PES0110`) metadata, thread table and editable shapes read, and shapes written as editable objects (`pesVersion` 11, 2026-10-29, unverified in PE-DESIGN); SVG and image import; split exports. |
+| 4 File interoperability | Every format PE-DESIGN 11 reads or writes; round-trip tests | DST, EXP, JEF, PCS, SEW, XXX, HUS and VIP written record for record as PE-DESIGN 11.50 exports them (reference tier, 2026-10-28), CSD and SHV too since 2026-11-04 (#320); PES, PEC and the readers at oracle tier with fuzzing; PHC read-only, as in PE-DESIGN; PES v1 and v4–v10 (#374) with the v6 object section; PE-DESIGN 11 (`#PES0110`) metadata, thread table and editable shapes read, and shapes and text written as editable objects (`pesVersion` 11, 2026-10-29; PE-DESIGN 11.50 opens them editable, reference tier); SVG and image import; split exports. |
 | 5 Desktop interface | Cross-platform editor (egui) | Done: drawing, Bézier pen and point editing, selection, inspector, object list, undo, simulator, wizards, Design Database mode, Stitch Creator, Stitch Design Factory, printing, USB transfer, self-update, unsaved-changes prompt on close/new/open (macOS: Cmd+Q and Cmd+W too, no system menu). |
 | 6 Advanced | Digitizing, lettering, complex fills, suite programs | Done as independent approximations: Auto Punch, Cross Stitch, Photo Stitch, Design Center; full lettering suite and Font Creator. |
-| 7 Validation | Reference suite, gap closing | In progress: the compatibility harness (`stitchtool compat`) compares OpenStitch's output with PE-DESIGN 11.50's files spec by spec; [COMPATIBILITY_STATUS.md](COMPATIBILITY_STATUS.md) shows the tier each row has reached. No sew-out on a machine yet. |
+| 7 Validation | Reference suite, gap closing | In progress: the compatibility harness (`stitchtool compat`) compares OpenStitch's output with PE-DESIGN 11.50's files spec by spec; [COMPATIBILITY_STATUS.md](COMPATIBILITY_STATUS.md) shows the tier each row has reached. Sew-outs on the owner's NV880E since 2026-11-02; none recorded at the machine tier (`compat/machine/`) yet. |
 
 ## Platform decision (2026-10-18)
 
@@ -121,14 +121,14 @@ frame of the design's size holding its stitches (2026-11-03), stippling and the 
 (2026-11-04) added tie-ins and end locks to every trimmed run, a zigzag net as PE-DESIGN sews it,
 the T1 card's corrected swatches and mark, and the first calibration: the Realistic view and the
 similarity scorer draw thread as wide as it covers at its row density. Next: Photo Stitch 1's
-trims (#298), Auto Punch's stacked satin points on the storybook picture (#290, the Mac's track),
+trims (#298), Auto Punch's stacked satin points on the storybook picture (#290, done: `open_slivers`),
 then a sew-out of the regenerated kit.
 
 Done 2026-11-06 (#295, #441, #311, #312): the kit has a T2 card (two threads in alternating rows,
 to measure how far a later row covers its neighbour for Photo Stitch 1), the build checks every
 calibration swatch's density in the exported file, and `sew_check` checks trims per 1,000
 stitches and hairline satins with limits from PE-DESIGN's own files. Next: sew the T2
-card and set `strip` from it; engine follow-ups #627 (Design Center line-art trims) and #628
+card and set `strip` from it; engine follow-ups #627 (Design Center line-art trims, done below) and #628
 (entry travel across a region).
 
 Done 2026-11-06 (`batch:engine-bugs-3`, #570, #571, #466, #627, #633; #628 in part): start and end
@@ -189,6 +189,11 @@ short stitches (#617), and a Beyond-PE rope stitch (#618). Done 2026-11-07 (`bat
 within 0.1 mm of PE-DESIGN's), #617, and two stippling bugs found on the way: seed 993's runaway
 allocation (#638) and a narrow band that sewed nothing (#708). #614 continues: PE-DESIGN's cross
 stitch has no Direction and only Times (single, double, triple), captured 2026-11-07.
+Done 2026-11-09 (`batch:fills-2`, #539): tartan (plaid) fill, moved out of Deferred for alpha.13.
+`shape.tartan` makes one fill per colour of a sett ("R8 G24 W4" or a list), each sewing the warp and
+weft rows of its own stripes at half density, so the colours mix where stripes cross. Linear colour
+gradients were done in #806.
+
 Done 2026-11-08 (`batch:fills-2`, #677): push compensation on straight-row fills
 (`pushCompensation`, the sides along the rows move in) and a second under sewing layer on fill and
 satin regions (`underlay2` with an `angle` from the fill angle, crossed tatami by default).
@@ -246,7 +251,7 @@ Stitch Creator sew cleanly too. With the maze, #533 is done.
 Done 2026-11-07 (`batch:fills-2`, #533 maze part): maze fill, region type `maze`. It is the
 stippling walk with its spanning tree biased to run straight on (`straightness`, default 70 %) and
 its own `mazeSeed`, sewn with square turns: one path that never crosses itself, its passes a
-spacing apart. Stippling's output is unchanged. The tiled meander stays planned.
+spacing apart. Stippling's output is unchanged. The tiled meander followed (above).
 
 Done 2026-11-07 (#614): cross stitch as PE-DESIGN 11.50 offers it. Its Sewing Attributes show
 only Size and Times (Single | Double | Triple) and no Direction (round 8 references), so
@@ -365,10 +370,7 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
 4. **Lettering:** stroke-wise sewing of TrueType text as PE-DESIGN does it (every letter is
    split into strokes, each sewn as a column with its rows across the stroke, for Fill and Satin
    text alike; the 'H' references match only because an H's stems are vertical; measured and
-   planned in [research/stroke-lettering.md](research/stroke-lettering.md), 2026-10-30; the
-   captures are in, the stroke cut (step 1, `strokes::strokes`) and the rungs are done, and
-   PE-DESIGN's Convert to Blocks files import as their blocks (`import.pes`, 2026-10-31); next, the
-   stroke ownership and order, travel and trims, then sewing text by stroke) — the structural
+   planned in [research/stroke-lettering.md](research/stroke-lettering.md), 2026-10-30) — the structural
    captures are in, the stroke cut (step 1, `strokes::strokes`), the rungs and the block order
    (`GlyphStrokes::blocks`, 2026-10-31) are done, and PE-DESIGN's Convert to Blocks files import
    as their blocks (`import.pes`, 2026-10-31), and satin text is sewn by stroke since 2026-10-31
@@ -382,17 +384,14 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    stroke, N's corner and A's and V's slanted feet (#446; X sewn as PE-DESIGN's, one diagonal through, since 2026-11-06), and a satin capture of small text) — the structural
    gap behind text-fit-*, text-transform-* and text-sewing-order; the fitted circle's running
    stitch follows PE-DESIGN's Bézier halving since 2026-10-28 (text-fit-default mean needle
-   distance 0.27 → 0.20 mm); Text Transform presets 13 and 14 (fan out / in) done 2026-10-28; round 4 (2026-10-29)
+   distance 0.27 → 0.20 mm; #121 kept it and lifted the 256-chord ceiling, 2026-10-29); Text Transform presets 13 and 14 (fan out / in) done 2026-10-28; round 4 (2026-10-29)
    showed PE-DESIGN's transform level is a dragged handle whose value is stored per file
    (percent of the font size, degrees for slants, fans and arches): the level parameter and the
    cap-height box are in since 2026-10-30 (`envelopeLevel`; 105 of 108 level captures and 51 of
    52 default-level captures at the reference tier); left: arch 2 on "Agjy 123" and at level 25,
    taper 4 and slant 9 at level 100 (0.6-1.1 mm).
-   distance 0.27 → 0.20 mm; #121 kept it and lifted the 256-chord ceiling, 2026-10-29); Text
-   Transform presets 13 and 14 (fan out / in) done 2026-10-28.
    Left: per-character colour and
-   multi-character selection; Connection Points; minimum font sizes and small-text fonts;
-   kerning that reflows the line; editing several characters at once on the canvas; shaping for
+   multi-character selection; Connection Points (#377); kerning that reflows the line; editing several characters at once on the canvas; shaping for
    embroidery fonts.
 5. **Machine stream:** the per-format compares of DST, EXP, JEF, PCS, SEW, XXX, HUS and VIP
    against PE-DESIGN's exports pass since 2026-10-28 (the writers follow PE-DESIGN's record
@@ -422,21 +421,20 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    Rotation" flags and a custom page's size since 2026-10-30 (opened in PE-DESIGN 11.50 as the
    hoop and page they describe). Round 4 added owner-drawn Programmable Stitch
    Creator sources (`.pas`, `.pmf`, `.plf`), imported since 2026-10-29 (#131); Font Creator fonts
-   wait for the owner (#134). Left: PE-DESIGN opening a written appliqué
-   (`pes-0110-applique`: refused on 2026-10-31, "Unexpected file format"; the colour addendum is
-   being corrected) — the stitch group, Straight and Curve Block exports open in PE-DESIGN since
-   2026-10-31 (references); the fitted text's box as PE-DESIGN computes it (PE-DESIGN recomputes it
-   on opening); PE-DESIGN's confirmation of the Hoop Size page (probe p3); the design's machine
-   type and hoop in the header; turn the `#PES0110` texts and stitch groups the reader parses
-   into editable OpenStitch objects (#397; shapes import since 2026-10-30, and an opened file
-   re-saves byte for byte while unchanged since 2026-11-04, #375); right-aligned and vertical text; several programmable fill patterns in one design (one is written since 2026-10-31), motif fill and the attribute fields of the other region types (written by their codes at PE-DESIGN's defaults since 2026-10-31), motif lines and the Start/End options and sewing end of stem, candlewick and chain lines (written by their codes since 2026-10-31),
+   wait for the owner (#134). The written appliqué (`pes-0110-applique`), stitch group, Straight and Curve Block exports
+   open in PE-DESIGN (references); the Hoop Size page is confirmed (probe p3, 2026-10-29), the
+   machine type and hoop are in the header (#125, #322), the `#PES0110` texts and stitch groups
+   import as editable OpenStitch objects (#397), and an opened file re-saves byte for byte while
+   unchanged since 2026-11-04 (#375). Left: the fitted text's box as PE-DESIGN computes it
+   (PE-DESIGN recomputes it on opening); right-aligned and vertical text; several programmable fill patterns in one design (one is written since 2026-10-31), motif fill and the attribute fields of the other region types (written by their codes at PE-DESIGN's defaults since 2026-10-31), motif lines and the Start/End options and sewing end of stem, candlewick and chain lines (written by their codes since 2026-10-31),
    several hole sewing pairs in one file or with groups (one pair without groups is written since
    2026-10-31) and several outlines per object; the hoop in v1 (the public
    description contradicts itself); the hoop name and id in PES v9/v10 (PES v4, v5 and
    v7–v10 are written since 2026-11-07 from PE-DESIGN's own Save As files, #374, as
    [LEGAL_AND_LICENSING.md](LEGAL_AND_LICENSING.md) allows).
-7. **Editing details:** skeletons that branch (a derived skeleton follows a shape's longest
-   stroke only) and an exact medial axis instead of the grid approximation.
+7. **Editing details:** skeletons that branch (`object.deriveSkeleton {branches}` gives a
+   column per arm since #526, still open; Auto Punch is #702) and an exact medial axis instead
+   of the grid approximation.
 8. **Formats:** the SHV preview's pixels as PE-DESIGN draws them, and SHV records as PE-DESIGN
    writes block starts, stitches over 12.7 mm and long moves (#349: measured on PE's exports of
    2026-11-07; CSD matches them since 2026-11-07: 14 blocks a file, long stitches, palette).
@@ -474,8 +472,9 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
 10. **Distribution:** code signing (owner's certificates); Flathub submission (offline cargo
     sources, owner's account). Blocked on `unsafe` FFI, which the workspace forbids: macOS
     Apple-Event file opening (winit 0.30/eframe 0.37 deliver no file-open event; a delegate
-    needs objc2 `define_class!` with `unsafe` blocks, see DISTRIBUTION.md "macOS double-click")
-    and PES thumbnails on macOS and Windows.
+    needs objc2 `define_class!` with `unsafe` blocks, see DISTRIBUTION.md "macOS double-click").
+    The thumbnails shipped outside the workspace in each OS's own stack (#557 Quick Look, #669
+    Explorer).
 11. **Image digitizing (Phase 6, #127 #128 #132, #129 optional):** Photo Stitch mono tone
     pipeline done 2026-10-29 (#128: integer 30/59/11 luminance, full-range min/max stretch
     with the (1, 255) guard); Auto Punch's 3×3 modal colour census capped at 100 colours, the
@@ -510,7 +509,8 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
     transparency, noise and sizes, with PE captures requested and a README gallery
     (`tools/gallery.py`, part of the release checklist in docs/RELEASING.md). They found that
     Auto Punch's 100-colour census fills with edge shades on anti-aliased images, so orange
-    and yellow become grey, where PE-DESIGN keeps them (round-5 capture); the fix is next.
+    and yellow become grey, where PE-DESIGN keeps them (round-5 capture); fixed 2026-10-30 (the
+    census above keeps large colours behind the edge shades).
 
 ## Beyond PE-DESIGN
 
@@ -521,8 +521,8 @@ DG by Pulse, Embird, Ink/Stitch (concepts only), Embrilliance and Floriani is in
 [research/competitive-features.md](research/competitive-features.md): a comparison matrix,
 per-feature notes with the stitch-generation idea, effort and licensing, and a ranked
 backlog. Every item lands as a new attribute or command that is off unless chosen, so the
-PE-DESIGN reference specs stay green. The rows are listed as "Planned (beyond PE-DESIGN)" in
-[FEATURE_MATRIX.md](FEATURE_MATRIX.md).
+PE-DESIGN reference specs stay green. The rows are in [FEATURE_MATRIX.md](FEATURE_MATRIX.md),
+area Beyond PE-DESIGN, each with its status.
 
 Done beyond PE-DESIGN so far: the seeded random tatami stagger (#123, 2026-10-29: `stagger:
 random` with `staggerSeed`, reproducible; PE-DESIGN's Fill pane offers the regular Frequency
@@ -532,7 +532,7 @@ run with more than 6 stitches under 0.5 mm in a row is sewn as a zigzag of stitc
 has 11 stitches under 0.3 mm in a row), while its 74 drawn-fill references never exceed 6, so
 they are unchanged.
 
-In progress for alpha.9: **image similarity (B16.1)**, a measured plan to make the image
+Since alpha.9: **image similarity (B16.1)**, a measured plan to make the image
 wizards' results look like their images, in [research/beyond/image-similarity-plan.md]
 (research/beyond/image-similarity-plan.md). One agreed score (structure, colour and a
 perceptual term on a thread render seen at actual size) judges every change; the targets
@@ -556,22 +556,22 @@ before any code; the ranking and the proposed tracks are in
 | Item | Feature | Phase | Sketch | Status |
 |---|---|---|---|---|
 | B1 | Contour (offset) fill | A | [research/beyond/contour-fill.md](research/beyond/contour-fill.md) | Done 2026-10-30: region type `contour` with rings, single and double spiral, echo lines (0–30) and round or mitred corners, on the ring tree of PE-DESIGN's Spiral Stitch (`crate::spiral`); open: repeats, bevel join, compat specs |
-| B2 | Two-guide fills and stitch-angle maps | D | [research/beyond/guided-fill-and-angle-maps.md](research/beyond/guided-fill-and-angle-maps.md) | Sketched; not started |
+| B2 | Two-guide fills and stitch-angle maps | D | [research/beyond/guided-fill-and-angle-maps.md](research/beyond/guided-fill-and-angle-maps.md) | Stitch-angle maps done 2026-11-08 in another form (#534: `object.setAngleLines`, the Angle Lines and Fill Angle tools); two-guide fills not started |
 | B3 | Satin corners and short stitches | B | [research/beyond/satin-corners-and-short-stitches.md](research/beyond/satin-corners-and-short-stitches.md) | Done 2026-11-06 for Manual Punch columns and zigzag lines (#520, #521): `cornerStyle` turn/auto/mitre/cap with `mitreBelow` 75°, `capBelow` 45°, `cornerOverlap` 0.5 mm, `capMaxLength` 8 mm; `shortStitchDistance`/`shortStitchInset`; off by default. Satin looks (#528) on columns and zigzag lines 2026-11-06: S-stitch, open, double, jagged edge, `spacingAt`. Skeleton satin and Auto satin regions 2026-11-07 (#675); satin lettering 2026-11-07 (#676, #686: short stitches, compensation, looks and raised; letters are cut at their sharp corners, so corner styles do not apply). Open: lap corners |
 | B4 | Auto-routed running stitches, Redwork, satin branching | C | [research/beyond/auto-route-and-branching.md](research/beyond/auto-route-and-branching.md) | Branch split started 2026-11-06 (#526): `object.deriveSkeleton {branches}` makes a column per arm (Y, plus, star); letters with bent junctions (K, R) keep a straight stem since 2026-11-07 (#526; R's bowl still leaves a strip by the stem); auto-route, Redwork and branching of touching shapes shipped 2026-11-06 (#546, `batch:routing`: `shape.autoRoute`, `object.branch`); satin branching with a centre-run underlay not started |
-| B5 | Compensation model, automatic underlay by width, fabric table | B | [research/beyond/compensation-and-underlay.md](research/beyond/compensation-and-underlay.md) | Done 2026-11-06 for Manual Punch columns and zigzag lines (#522, #523): `pullLeft`/`pullRight`/`pullPercent`/`pullMax`; `underlayStyle` auto (by average width, fabric thresholds from `fabric.apply`) and centreWalk; a column's `underlay2`. Skeleton satin and Auto satin regions 2026-11-07 (#675), with rows that follow the column's width. Open: fill push and region second underlay (#677) |
-| B6 | Density profiles, two-colour blend, hidden travel | A | [research/beyond/density-profiles-and-blend.md](research/beyond/density-profiles-and-blend.md) | Hidden travel between objects shipped 2026-11-06 (#545, `batch:routing`: `design.setTravelUnder`, run connectors); round several corners and along running lines already sewn 2026-11-07 (#545); density profiles and blend not started |
-| B7 | 3D puff mode | A | [research/beyond/puff-mode.md](research/beyond/puff-mode.md) | First step done 2026-11-06 (#531): raised satin (padding lanes) on Manual Punch columns and zigzag lines; foam mode not started |
-| B8 | Crosshatch, curved crosshatch, lace | A | [research/beyond/crosshatch-and-lace.md](research/beyond/crosshatch-and-lace.md) | Sketched; not started |
-| B9 | Maze and meander fills, fur, randomisation | D | [research/beyond/meander-maze-and-randomisation.md](research/beyond/meander-maze-and-randomisation.md) | Sketched; not started |
+| B5 | Compensation model, automatic underlay by width, fabric table | B | [research/beyond/compensation-and-underlay.md](research/beyond/compensation-and-underlay.md) | Done 2026-11-06 for Manual Punch columns and zigzag lines (#522, #523): `pullLeft`/`pullRight`/`pullPercent`/`pullMax`; `underlayStyle` auto (by average width, fabric thresholds from `fabric.apply`) and centreWalk; a column's `underlay2`. Skeleton satin and Auto satin regions 2026-11-07 (#675), with rows that follow the column's width. Fill push and a second under sewing layer on fill and satin regions 2026-11-08 (#677). Open: push at column ends, a user-editable fabric table |
+| B6 | Density profiles, two-colour blend, hidden travel | A | [research/beyond/density-profiles-and-blend.md](research/beyond/density-profiles-and-blend.md) | Hidden travel between objects shipped 2026-11-06 (#545, `batch:routing`: `design.setTravelUnder`, run connectors); round several corners and along running lines already sewn 2026-11-07 (#545); density profiles on fills (`gradationShape`) and colour blends (`shape.gradient`, `shape.blend`) 2026-11-08 (#532); profiles on satin columns and hidden travel inside open fills not started |
+| B7 | 3D puff mode | A | [research/beyond/puff-mode.md](research/beyond/puff-mode.md) | First step done 2026-11-06 (#531): raised satin (padding lanes) on Manual Punch columns and zigzag lines, on satin regions and skeleton satin (#685) and satin lettering (#686); foam mode not started |
+| B8 | Crosshatch, curved crosshatch, lace | A | [research/beyond/crosshatch-and-lace.md](research/beyond/crosshatch-and-lace.md) | Sketched; not started (crosshatch is only the Background Fill wizard's option; a double zigzag exists as a decorative line, #543) |
+| B9 | Maze and meander fills, fur, randomisation | D | [research/beyond/meander-maze-and-randomisation.md](research/beyond/meander-maze-and-randomisation.md) | Maze and tiled meander fills done 2026-11-07 (#533); hand-stitch randomisation on lines and satins (#540); fur variant and fills' hand-stitch look (#817) not started |
 | B10 | Variable-width satin line | B | [research/beyond/variable-width-satin-line.md](research/beyond/variable-width-satin-line.md) | Engine done 2026-11-06 (#524): line type `satin` with width keys, tapers, per-side widths and slant; canvas gestures #700, SVG stroke width #701 |
-| B11 | Closest join, auto start/end, continue digitizing, overlap removal | C | [research/beyond/closest-join-and-overlap.md](research/beyond/closest-join-and-overlap.md) | Sketched. Continue digitizing shipped (#479: `object.extendPath`, `object.extendColumn`, the drawing tools continue a selected line from either end); nearest start per object (`autoStart: nearest`) and the Optimize before/after report shipped 2026-11-06 (#547, `batch:production`); part-way satin starts, draggable markers and overlap removal not started. Related, shipped 2026-10-29 (#137): `order.optimize` mode `minJump`, a 2-opt shortest-jump order per colour block with every neighbouring pair linked, as a design setting (`optimizeOrder`); PE-DESIGN's order stays the default |
+| B11 | Closest join, auto start/end, continue digitizing, overlap removal | C | [research/beyond/closest-join-and-overlap.md](research/beyond/closest-join-and-overlap.md) | Sketched. Continue digitizing shipped (#479: `object.extendPath`, `object.extendColumn`, the drawing tools continue a selected line from either end); nearest start per object (`autoStart: nearest`) and the Optimize before/after report shipped 2026-11-06 (#547, `batch:production`); overlap removal at shape level shipped 2026-11-06 (#511: `object.setHideUnder`, `design.setRemoveHidden`); auto start and end and stitch-level clipping not started. Related, shipped 2026-10-29 (#137): `order.optimize` mode `minJump`, a 2-opt shortest-jump order per colour block with every neighbouring pair linked, as a design setting (`optimizeOrder`); PE-DESIGN's order stays the default |
 | B12 | Carving lines, knockdown fill | A | [research/beyond/carving-and-knockdown.md](research/beyond/carving-and-knockdown.md) | Knockdown shipped 2026-11-06 (#510, `batch:production`): `wizard.knockdown` (selection or whole design, reach, gap closing, one or two crossed layers, holes kept, rectangle option, `update`), kept first by `order.optimize`. Carving lines not started |
-| B13 | Density map, troubleshoot, thread conversion, auto hoop | E | [research/beyond/quality-tools.md](research/beyond/quality-tools.md) | Density map and troubleshoot rules done (Check Design, #503/#504); thread conversion and auto hoop not started |
+| B13 | Density map, troubleshoot, thread conversion, auto hoop | E | [research/beyond/quality-tools.md](research/beyond/quality-tools.md) | Density map and troubleshoot rules done (Check Design, #503/#504); thread conversion is `threads.remap` to a user or built-in chart (#484); no automatic hoop command: exports report `smallestHoop` and `design.testSwatch` uses the smallest hoop that fits (#452) |
 | B14 | Stitch-file resize with density | E | [research/beyond/stitch-file-resize.md](research/beyond/stitch-file-resize.md) | Sketched; not started |
 | B15 | Lettering: baselines, kerning, team names, connections | E | [research/beyond/lettering-depth.md](research/beyond/lettering-depth.md) | Sketched; not started |
-| B16 | Image wizards' "OpenStitch" mode beside the PE-DESIGN default: perceptual colour reduction (CIELAB k-means, CIEDE2000 thread matching) and region cleanup for Auto Punch first | — | [research/beyond/image-digitizing.md](research/beyond/image-digitizing.md) | Auto Punch's OpenStitch mode done 2026-10-31 (`compatMode: openStitch`, image dialog Mode): measured on the test images (`tools/image_eval.py`), mean ΔE00 9.1 → 8.6, stitches −14 %, trims −48 %, specks 220 → 10; line art keeps its lines since 2026-10-31 (mandala 2,195 stitches, PE mode 2,590); Photo Stitch 1 in colour since 2026-10-31 (perceptual palette, CIELAB dithering: mean ΔE00 10.0 → 8.2 on nine photos, trims +13 %); Photo Stitch 2 in colour since 2026-10-31 (perceptual Auto Select, linear-light mix: mean ΔE00 19.8 → 16.2 on seven images); Cross Stitch measured, no gain at B16 (B16.1 added its OpenStitch mode, #263); next: Photo Stitch 1's trims, the Photo Stitch 2 portrait, SLIC |
-| B16.1 | Image similarity towards 95 %: an agreed score (0.4 MS-SSIM structure, 0.4 CIEDE2000 colour, 0.2 DISTS, on a thread render seen at actual size from 40 cm), then a shared colour engine, Photo Stitch 2, Photo Stitch 1 (High fidelity), Auto Punch, Cross Stitch and Design Center, all in OpenStitch mode | — | [research/beyond/image-similarity-plan.md](research/beyond/image-similarity-plan.md) | 2026-10-31 (#270): Phase 0 landed except the calibration card (deterministic maths, golden hashes, the scorer `tools/image_similarity.py`); Phase 1's thread selection, tonal dithering and Fidelity landed; Phase 5 landed (Cross Stitch mean 51.3 → 70.2, Design Center g03 96.4, g04 95.2). Landed for alpha.9 (2026-11-01, batches #270, #278, #282): Auto Punch 83.6, Photo Stitch 1 72.3, Cross Stitch 70.9, Design Center 95.8, Photo Stitch 2 43.8, each against PE-DESIGN-compatible mode's 78.9, 58.5, 51.3, 82.7, 42.8. Next: Photo Stitch 2 phase 2 (#129, waits for the calibration card's sew-out: the card is designed in `examples/sew/calibration`), T8 (waits for the counsel record). 2026-11-04: #127's graph-cut step landed as Auto Punch's opt-in `isolateSubject` (OpenStitch mode), with hand-marked subject and background strokes (#350); a cut that finds no subject is an error (#355) |
+| B16 | Image wizards' "OpenStitch" mode beside the PE-DESIGN default: perceptual colour reduction (CIELAB k-means, CIEDE2000 thread matching) and region cleanup for Auto Punch first | — | [research/beyond/image-digitizing.md](research/beyond/image-digitizing.md) | Auto Punch's OpenStitch mode done 2026-10-31 (`compatMode: openStitch`, image dialog Mode): measured on the test images (`tools/image_eval.py`), mean ΔE00 9.1 → 8.6, stitches −14 %, trims −48 %, specks 220 → 10; line art keeps its lines since 2026-10-31 (mandala 2,195 stitches, PE mode 2,590); Photo Stitch 1 in colour since 2026-10-31 (perceptual palette, CIELAB dithering: mean ΔE00 10.0 → 8.2 on nine photos, trims +13 %); Photo Stitch 2 in colour since 2026-10-31 (perceptual Auto Select, linear-light mix: mean ΔE00 19.8 → 16.2 on seven images); Cross Stitch measured, no gain at B16 (B16.1 added its OpenStitch mode, #263); next: Photo Stitch 1's trims (#298), the Photo Stitch 2 portrait; SLIC measured and not used (B16.1 C) |
+| B16.1 | Image similarity towards 95 %: an agreed score (0.4 MS-SSIM structure, 0.4 CIEDE2000 colour, 0.2 DISTS, on a thread render seen at actual size from 40 cm), then a shared colour engine, Photo Stitch 2, Photo Stitch 1 (High fidelity), Auto Punch, Cross Stitch and Design Center, all in OpenStitch mode | — | [research/beyond/image-similarity-plan.md](research/beyond/image-similarity-plan.md) | 2026-10-31 (#270): Phase 0 landed except the calibration card (deterministic maths, golden hashes, the scorer `tools/image_similarity.py`); Phase 1's thread selection, tonal dithering and Fidelity landed; Phase 5 landed (Cross Stitch mean 51.3 → 70.2, Design Center g03 96.4, g04 95.2). Landed for alpha.9 (2026-11-01, batches #270, #278, #282): Auto Punch 83.6, Photo Stitch 1 72.3, Cross Stitch 70.9, Design Center 95.8, Photo Stitch 2 43.8, each against PE-DESIGN-compatible mode's 78.9, 58.5, 51.3, 82.7, 42.8. Photo Stitch 2's phase (T13) landed 2026-10-31 within the owner's needle limits (#129 closed; the coverage model still waits for the calibration card's sew-out, `examples/sew/calibration`, #291); next: T8 (waits for the counsel record). 2026-11-04: #127's graph-cut step landed as Auto Punch's opt-in `isolateSubject` (OpenStitch mode), with hand-marked subject and background strokes (#350); a cut that finds no subject is an error (#355) |
 | B16.1 C | Image similarity, Auto Punch (Phase 4): sew a coloured background (T7), SLIC regions at 800 px (T11), skeleton satin outlines (T12), per-region fill angle (T8) | — | [research/beyond/image-similarity-plan.md](research/beyond/image-similarity-plan.md) | T7 done 2026-10-31 (OpenStitch mode sews any background but the fabric's colour, in one covering layer without under sewing; balloon 78.8 → 87.6); T11 done 2026-10-31 (800 px, 2 mm² floor: mean 79.0 → 81.7, specks 0 but the mandala's dots and dashes; SLIC measured lower and not used); T12 done 2026-10-31 (dark outlines as skeleton satin sewn on top, satin only for strokes up to 2.5 mm: mean 82.1 → 83.6, every case above PE-DESIGN-compatible mode); next: T8's fill angle once patents.md records counsel's opinion, re-measure with T4/T5 |
 | B17 | AI assistant: a chat panel that generates, edits and explains embroidery through the engine commands, with Claude (default `claude-opus-5-5`), other endpoints, local models or ACP coding agents, on the user's own account and key | — | [research/beyond/ai-integration.md](research/beyond/ai-integration.md) | Plan approved 2026-11-04 (owner: everything the user can do must be possible from the chat). A0 landed 2026-11-04: `ui.*` editor commands on the socket, `openstitch-mcp --assistant`, the embroidery skill, and coverage tests that fail when a feature has no assistant route; A1 landed 2026-11-04 (#306): the Assistant panel with Claude, keychain key, permission gate, one undo per message, Save as script; A2 landed 2026-11-04 (#317): OpenAI-compatible endpoints, Ollama/LM Studio/OpenRouter presets, model lists, local models without a key; A3 landed 2026-11-04 (#338): coding agents (Claude Code, Codex, OpenCode) over ACP on the user's own account, reaching the editor only through the gated private socket; A4 (#364): attachments, attach view and selection, pictures digitized in OpenStitch mode, the vector route, an optional image generator; A5 (#365): `stitchtool bench-assistant` (12 tasks scored on the design); the first real run (2026-11-04): Claude Code over ACP passed 12 of 12 tasks; round 2 (2026-11-04, #390, #392, #393): Claude Code without the user's own setup (−37 % input tokens), Ollama gpt-oss:20b 8 of 12 and the badge with the network off, the composer clicked through in the running editor, fixes #407, #415, #416, #418, #419, #423, #424, #427; Windows and Linux (2026-11-05, #401): the keychain round trip in CI on all three systems, Claude Code starting on Windows, #420, and the Ollama causes of #425 and #429 found and worked around, and Claude Code passed the bench 12 of 12 on Windows (#582); settings and memory (2026-11-06, `batch:assistant-settings`): a bare scratch file name no longer asks (#431), the Ollama and LM Studio presets pick a model with tools instead of keeping the Claude model (#432, tested against a mock server), and the Assistant remembers the user between conversations behind the permission gate (#491); assistant fixes (2026-11-06, `batch:assistant-fixes`): a stream that sends no reply for the request timeout ends the turn, keep-alives or not, and Stop ends a silent turn at once (#580, proved with fake providers), reasoning from OpenAI-compatible models shows as Thinking, batches report every parameter error before running (#494), the Assistant keeps to the user's own threads and the gate asks before a thread chart changes (#495), print PDFs older than a day are removed (#384); Claude Code passed the full bench 15 of 15 on Windows, memory pair included, and a real editor turn on Windows checked the permission prompt, queue, Stop and undo (#582, #401); the skill and bench (2026-11-06, `batch:assistant-skill`): ten example designs and a composition guide (#492), illustrated, Auto Punch and small-lettering bench tasks with an optional render judge (#493); next: the Claude API and an image generator (no key or generator here) |
 
@@ -597,25 +597,25 @@ The full survey of the same six projects (2026-11-05, second pass: 544 features 
 docs, release notes and wikis, each checked against OpenStitch's docs and code; per-repo notes in
 [research/competitive-features.md](research/competitive-features.md), Updates) opened 88 issues
 (#472–#559) and added details to 16 existing ones. Better results where
-OpenStitch already has the feature count too ("improve"). Ranked by user benefit and effort, none
-started:
+OpenStitch already has the feature count too ("improve"). Ranked by user benefit and effort; the
+status is in each theme:
 
 | Rank | Theme | Issues | Ties to |
 |---|---|---|---|
 | 1 | Sewing quality checks before the needle: Check Design pane, density map, Review Sewing Order, export read-back, random-design invariant test (**done**, `batch:quality-checks`; engine `quality.rs`); the Assistant opens and drives the window through `ui.run` / `ui.set` and reads the indicator in `ui.state` (#599, 2026-11-07) | #503, #504, #505, #457, #506, #599 | B13, D15 |
-| 2 | Satin quality: corner styles, short stitches on every satin, compensation per side and in %, automatic underlay by width, branching shapes to satin, variable-width satin line | #520, #521, #522, #523, #526, #524 (and the bug #460) | B3, B5, B10 |
+| 2 | Satin quality: corner styles, short stitches on every satin, compensation per side and in %, automatic underlay by width, branching shapes to satin, variable-width satin line (**done** but branching: #526's engine part done, Auto Punch #702; on skeleton, Auto satin and lettering #675, #676) | #520, #521, #522, #523, #526, #524 (and the bug #460) | B3, B5, B10 |
 | 3 | Fewer trims: travel under later fills, branching and auto-routing, nearest start per object, leave out hidden stitching. Done in `batch:routing` (2026-11-06): travel under later fills and run connectors (#545), leaving out hidden stitching (#511); nearest start in `batch:production` (#547, partly); trims inside one object (#794): echo rings linked (#800), letters and cutwork lines measured as PE-DESIGN's or required, and `tools/trim_report.py` per design (2026-11-08) | #545, #546, #547, #511, #794 | B4, B6, B11 |
 | 4 | Assistant: memory between conversations (**done** 2026-11-06, `batch:assistant-settings`: notes beside ui.json, read in every conversation, written only behind the permission gate), every batch error at once and only the user's threads (both **done** 2026-11-06, `batch:assistant-fixes`), example designs and a composition guide, illustrated benchmark tasks (both **done** 2026-11-06, `batch:assistant-skill`: ten tested example designs and `reference/composition.md` served by `skill_reference`; eight new bench tasks scored on structure, `design.check` and, with `--judge`, a vision model's score of the render) | #491, #492, #493, #494, #495 | B17 |
 | 5 | Production: parameter test swatches, fabric and thread-weight presets, basting box, knockdown, Stop at Jumps, job sheets. Done in `batch:production` (2026-11-06): basting box (#509), Stop after and Stop at Jumps (#512), with nearest start and the Optimize report (#547) from item 3. `batch:mac-sewout` (2026-11-06): parameter test swatches (#507), with the selection swatch (#452) and the fabric calibration card (#453), and job sheets for the client and the operator (#513: `design.setJob`, `design.print` modes `client` and `operator`). `batch:mac-fabric` (2026-11-07), #508 part 1: five more fabrics and the makers' backing, topping, needle and smallest-text advice per fabric and thread weight (`fabric.advise`); `fabric-2` (2026-11-07) part 2: thread weight scales density (`fabric.apply {weight}`) and a default fabric for new shapes and texts (`fabric.setDefault`); part 3: the user's machine (`machine.setProfile`), its hoop for new designs, export warnings for long stitches and missing thread cutters, Help ▸ Machine Setup on the first start | #507, #508, #509, #510, #512, #513 (with #452, #453) | B5, B12, D6, W7 |
-| 6 | Fills: colour blends and gradients, Fill Angle tool and angle lines, maze and tiled meander, tatami textures, wave and flow fills | #532, #534, #533, #537, #538 | B2, B6, B9 |
+| 6 | Fills: colour blends and gradients, Fill Angle tool and angle lines, maze and tiled meander, tatami textures, wave and flow fills (**done** 2026-11-07/08, `batch:fills-2`, but the flow fill: #538 open) | #532, #534, #533, #537, #538 | B2, B6, B9 |
 | 7 | Editing: align and distribute, precision bar, copies along a line and scatter, snapping, select same, knife, smoothing, continue drawing, shape tools, stitch table, sewing-order list. Done in `batch:editor-tools` (2026-11-05): align and distribute (#472), snapping (#473), precision bar, skew and nudge step (#474), select same and click inside (#475); copies along a line, scatter and kaleidoscope (#476) in a second PR. `batch:editor-shapes`: continuing a line, skeleton or column from either end (#479); Smooth Shape and Smooth Stitches (#478); the Knife (#477; every cut keeps the shape's sewing angle and attributes since `batch:mac-shapes`, #652); frames, per-corner radii, spiral lines, Divide and shape effects (#497, part 1); turning gaps and the shape builder (#497, part 2). `batch:editor-core` (2026-11-06): copy and paste through the system clipboard between windows (#500); Sewing Order list rename, lock, sew in click order and sew outline first (#502; linked clones moved to #644) | #472, #474, #476, #473, #475, #477, #478, #479, #497, #501 (done 2026-11-07, `batch:editor-2`: Stitch Table and hand edits kept on live objects), #502, #500 | B11 |
 | 8 | Lettering: font library with size ranges, single-line text, Ink/Stitch-format font folders, envelopes with handles. `batch:lettering-library` (2026-11-06): size ranges, the font list with the user's text and the size warning (#527), OpenStitch Line for Small Text (#530; the PE-DESIGN capture is pending), OpenStitch Pixel (#536); second PR: free envelopes with handles (#535), Ink/Stitch font folders (#529) | #527, #530, #529, #535 | B15 |
 | 9 | Formats and threads: VP3 (read and write landed for v0.1.0-alpha.13, writing experimental until a sew-out, #480), TAP/TBF/U01 read and write and DSB/DSZ/KSM/ZXY/STX read (#481), thread list files (#482), stitch lists, G-code, export repeats, pictures, stitch-out videos and ZIP bundles (#488), perceptual thread matching and merge similar colours (#484, #485, `threads.remap` metrics and `threads.mergeSimilar`), thread search across charts (`threads.find`, part of #486) and in the editor's colour picker (#682), New Brothread as the built-in default threads with Madeira cross-references (#796, alpha.13), the thread code beside every colour swatch (#798, alpha.13), richer SVG import (#487: clip paths, masks, opacity, gradient bands and a report of what was left out), more formats, thread list files, `.gpl` palettes (#483, `threads.importPalette` / `threads.exportPalette`), more charts, extra exports | #480, #484, #487, #481, #482, #483, #485, #486, #488 | W3, W6 |
 | 10 | Views and hoops: stitch-out player, millimetres or inches, free multi-hooping, view toggles, zoom box and real size, hoop lists for other brands. `batch:views-hoops` (2026-11-05): millimetres or inches (#519); hoop lists for other brands and round hoops (#514); stitch-out player (#516); zoom box, real size, reference image layer (#518); free multi-hooping (#515); view toggles (#517) | #516, #519, #515, #517, #518, #514 | W1, W4 |
 | 11 | Image wizard: purpose presets, region table with reasons and overrides. batch:auto-punch (2026-11-06): the engine's plan, reasons, overrides, dry run and neighbour angle rule (#489 part); thin features as lines (#469 part); paper background as fabric (#445). batch:mac-digitize-2 (2026-11-06): least-travel angles, presets, outline SVG (#489 part); underlap (#469 part); no-model picture helpers (#490, **done**). batch:mac-wizard (2026-11-06): the dialog's region table, click-to-fix, colour order and Preset row (#489, **done**) | #489 (and the bug #469) | B16 |
 | 12 | Workflow and platform: autosave and recovery, command palette, custom UI, tabs, new-object defaults, getting started, translations, Finder/Explorer thumbnails, accessibility, `stitchtool` one-line verbs. `batch:ci-tooling` (2026-11-06): `stitchtool convert`, `info`, `optimize`, `digitize` and `formats` with the `formats.list` command (#496). `batch:editor-core` (2026-11-06): autosave and recovery (#549); command palette, hints line and property search (#550). `batch:editor-ux` (2026-11-06): editable keyboard shortcuts, panes on either side, saved layouts and per-area preference reset (#551); part 2: new-object defaults and Basic/Advanced sewing attributes (#553; picture pickers split to #656), start cards, Open Sample and Getting Started (#554; PE Startup Wizard split to #657). `batch:editor-2` (2026-11-06): several designs as tabs with their own undo, selection, zoom and simulator; Options ▸ Open designs in tabs (off by default), Ctrl+Tab, per-tab unsaved prompts, `ui.documents` (#552); picture pickers for sewing types, fill patterns and motifs with a live hover preview and `ui.preview` (#656, the rest of #553); keyboard-only drawing with `ui.cursor` (#499 part 1) and widths while drawing with `[` `]` and the wheel (#707); accessibility: screen-reader names audited in every dialog, WCAG AA theme contrast, focus outline, Options ▸ Text size (#499 part 2, docs/ACCESSIBILITY.md). `platform` (2026-11-07): translations part 1, Options ▸ Language with Fluent-style catalogues, English fallback, a generated `assets/i18n/en.ftl` and a pseudo-locale, the ribbon translated (#555; menus, dialogs, messages, print and a first real language follow) | #549, #550, #551, #552, #553, #554, #555, #557, #499, #496 | W9 |
-| 13 | Satin, line and fill looks: satin variants, raised satin, rail and rung editing, hand-stitch and scribble, back stitch and variable running stitch, decorative hand-embroidery lines, motif lines, per-object trim and tie. Satin looks on every satin kind (#685, 2026-11-08: spacingAt on skeleton and Auto satin, the feathered edge in/out/both with a seed) | #528, #531, #685, #525, #540, #542, #543, #544, #548 | B7, B9 |
-| Ideas | Tartan fill, ripple line, pixel text (**done**, #536, `batch:lettering-library`), on-device digitizing helpers (**done** without models, #490, `batch:mac-digitize-2`; models #678), browser build (first slice **done** 2026-11-06, #556, `batch:mac-wasm`: open, view, simulate, whole-design edits, save and export in the browser; checked in Chromium, Firefox and WebKit (#694, `batch:mac-wasm-2`); the full editor window builds for wasm32 (#693 phase B part 1, 2026-11-07, `platform`) and the page runs it (part 2, 2026-11-07: picker, downloads, one-thread jobs); hosting #695; the full editor #693, its phase A done: the editor library builds for wasm32), background open (**done**, #558, `batch:editor-2`: measured 0.84-1.12 s for a 500k-stitch DST, so built), accent colour (**done**, #559, `batch:editor-ux`), Python package (**done** 2026-11-06, `batch:assistant-skill`: pure-Python `openstitch` over `stitchtool serve`; PyPI waits for the owner) | #539, #541, #536, #490, #556, #558, #559, #498 | — |
+| 13 | Satin, line and fill looks: satin variants, raised satin, rail and rung editing, hand-stitch and scribble, back stitch and variable running stitch, decorative hand-embroidery lines, motif lines, per-object trim and tie. Satin looks on every satin kind (#685, 2026-11-08: spacingAt on skeleton and Auto satin, the feathered edge in/out/both with a seed); all **done** | #528, #531, #685, #525, #540, #542, #543, #544, #548 | B7, B9 |
+| Ideas | Tartan fill (#539, open), ripple line (**done**, #541), pixel text (**done**, #536, `batch:lettering-library`), on-device digitizing helpers (**done** without models, #490, `batch:mac-digitize-2`; models #678), browser build (first slice **done** 2026-11-06, #556, `batch:mac-wasm`: open, view, simulate, whole-design edits, save and export in the browser; checked in Chromium, Firefox and WebKit (#694, `batch:mac-wasm-2`); the full editor window builds for wasm32 (#693 phase B part 1, 2026-11-07, `platform`) and the page runs it (part 2, 2026-11-07: picker, downloads, one-thread jobs); hosted on GitHub Pages from main, #695; the full editor #693 **done**), background open (**done**, #558, `batch:editor-2`: measured 0.84-1.12 s for a 500k-stitch DST, so built), accent colour (**done**, #559, `batch:editor-ux`), Python package (**done** 2026-11-06, `batch:assistant-skill`: pure-Python `openstitch` over `stitchtool serve`; PyPI waits for the owner) | #539, #541, #536, #490, #556, #558, #559, #498 | — |
 
 Skipped as already in OpenStitch (the survey's "have" rows, 261 of 544): tatami, gradient,
 contour, spiral, radial, motif, cross-stitch, guided and stippling fills; running, triple,
@@ -643,7 +643,7 @@ hand-stitch look for fills (#817, rank 13 theme with #540) and rebuilt objects t
 original's spacing, tatami pattern and closed satin rings (#818, `object.toShapes`), both ideas
 for Future.
 
-Deferred: linear colour-gradient and tartan fills, shape and vine fills, photo
+Deferred: shape and vine fills, photo
 thread-painting, sequin/chenille/bead types (machine-specific), the TrueType turning-satin
 rework and an intelligent multi-hoop split with editable lines (VP3, TAP, TBF, U01, DSB, DSZ,
 KSM, ZXY and STX landed with #480 and #481).
@@ -660,12 +660,7 @@ ceased). Not legal advice: the list for the owner's lawyer.
 Only files the owner makes in PE-DESIGN's own tools (Programmable Stitch Creator, Stitch
 Design Factory, Font Creator) and saves through the normal interface are studied; Brother's
 bundled patterns, motifs and fonts are never read. Done: PMV read (2026-10-29, the documented
-layout, every byte checked). Waiting for the owner-made samples: PE-DESIGN's own PMV files (a
-2- and a 4-point decorative stitch), Programmable Stitch Creator saves (a 2-point line, a
-4-point square, two separate lines; a motif; a decorative-fill row) with a programmable fill
-and a motif fill sewn from them, and a Font Creator font of one and two owner-drawn glyphs
-with text set in it. Each lands as its own PR with the fixtures' provenance in a MANIFEST.
-bundled patterns, motifs and fonts are never read. Done: import of `.pas`/`.pmf`/`.plf` text
+layout, every byte checked). Done: import of `.pas`/`.pmf`/`.plf` text
 sources in the documented `@DIRECTIVE` layout, checked against six owner-made Programmable
 Stitch Creator files, and programmable fill, motif fill and motif line tiled as PE-DESIGN 11.50
 sews them (2026-10-29: four reference specs); the motif fill's travel and ties and the motif
@@ -695,8 +690,8 @@ encrypted purchase format). See the Blocked rows in [FEATURE_MATRIX.md](FEATURE_
   Patch wizards, non-ASCII Design Property text; frame moves between 2.2 and 2.4 mm for the exact trim bound (0.5–2.0 mm gaps and four-colour
   ordering are recorded), satin columns over 30 mm wide (16–30 mm are sent whole), and the
   other-format exports once their writers match.
-- A test sew-out of an OpenStitch-written file on the owner's Brother machine (the machine
-  tier).
+- A sew-out recorded in `compat/machine/` (the machine tier); the owner's NV880E sew-outs since
+  2026-11-02 are not recorded there yet.
 - A lawyer's review of the policy on studying PE-DESIGN output files (allowed as project policy
   since 2026-10-27; [LEGAL_AND_LICENSING.md](LEGAL_AND_LICENSING.md)).
 - Code-signing certificates (macOS, Windows) and a Flathub account.

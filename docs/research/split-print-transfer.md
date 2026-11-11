@@ -29,7 +29,9 @@ unknown; OpenStitch's choice for each is stated.
   stitched; after it, its edges towards later neighbours (right, bottom).
 - Saved/exported as **one** PES (section data in PE-DESIGN's own header); the original card
   writes sections separately. OpenStitch cannot write PE-DESIGN's section header (undocumented),
-  so it exports **one machine file per section**, each centred on its section.
+  so it exports **one machine file per section**, each centred on its section. Since 2026-11-04
+  (#322) the `#PES0110` export writes a Custom Size page with its section size as PE-DESIGN
+  does; `sections.export` still writes one file per section.
 - Positioning sheets: PDFs per hoop, printed at 100 %; punch the arrow ends, mark the fabric,
   join marks into centre lines; points A–D on the sheet align with a–d on the fabric for the
   next section.

@@ -64,10 +64,41 @@ observations in [COMPATIBILITY_TESTS.md](COMPATIBILITY_TESTS.md) ("Reference tie
 
 ## Next research steps
 
-1. Reference files for the open items in COMPATIBILITY_AUDIT.md ("Next 11"): the fill row
-   structure, Half Stitch, Start/End Type for lines, Text Transform presets 13 and 14.
-2. PE-DESIGN's exports of one design to DST, EXP, JEF, PCS, SEW, XXX, HUS and VIP, to compare
-   the machine formats record for record (spec `machine-formats`).
-3. Editable PES: write shapes and text that PE-DESIGN opens as objects; the hoop and Design
-   Page fields; PES v7–v11.
-4. A first sew-out on a Brother machine, recorded in `compat/machine/`.
+The 2026-10-27 list is done: the fill row structure, Half Stitch, line Start/End Type and Text
+Transform presets 13 and 14 are calibrated from reference files; PE-DESIGN's exports to the
+other machine formats are in `compat/reference/machine/`; shapes and text are written as
+objects PE-DESIGN 11.50 opens editable, with its hoop and Design Page fields; the ready-to-sew
+kit was sewn on the owner's NV880E (COMPATIBILITY_AUDIT.md, "Sew-out findings"). What is still
+open:
+
+- The reference-bound items and "Next 11" in [COMPATIBILITY_AUDIT.md](COMPATIBILITY_AUDIT.md),
+  and the "pending reference" specs in [COMPATIBILITY_STATUS.md](COMPATIBILITY_STATUS.md).
+- PES object kinds the `#PES0110` writer still refuses (#608), and the fields an edited
+  PE-DESIGN file still loses on re-save (audit item 9), from the owner's files only.
+- Sew-out records in `compat/machine/` (none yet, so no spec is at the machine tier), and
+  reports from other machines and for the non-PES formats (#292).
+- Research beyond PE-DESIGN: [ROADMAP.md](ROADMAP.md) ("Beyond PE-DESIGN") and
+  `research/beyond/`.
+
+## Research notes in `research/`
+
+- [asset-audit.md](research/asset-audit.md): icons and illustrations the editor lacked
+  (2026-10-30) and the Higgsfield rounds that filled them.
+- [competitive-features.md](research/competitive-features.md): what other digitizing products
+  offer beyond PE-DESIGN 11, the comparison matrix and the B1–B15 backlog (2026-10-28, with
+  later scans).
+- [hoops.md](research/hoops.md): hoop sizes per brand and their public sources.
+- [pedesign11-manual-toc.md](research/pedesign11-manual-toc.md): the headings of PE-DESIGN 11's
+  online guide, with links.
+- [photo-stitch-2-halftone.md](research/photo-stitch-2-halftone.md): Photo Stitch 2 as a line
+  screen, measured and rebuilt (#129).
+- [split-print-transfer.md](research/split-print-transfer.md): split designs, multi-position
+  hoops, jumbo frame, printing and USB transfer from the guide.
+- [stroke-lettering.md](research/stroke-lettering.md): how PE-DESIGN cuts TrueType letters
+  into strokes, and OpenStitch's stroke-wise lettering.
+- [test-images.md](research/test-images.md): the test image library for the image wizards and
+  the PE-DESIGN captures of it.
+- [updater.md](research/updater.md): the self-update survey, decision and verification.
+- [2026-10-27/](research/2026-10-27/): the first reference sessions' analyses (fill, satin,
+  lines, text, machine streams, PES objects, Optimize Sewing Order).
+- [beyond/](research/beyond/): one note per feature beyond PE-DESIGN, and the patent facts.

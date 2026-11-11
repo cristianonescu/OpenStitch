@@ -2278,7 +2278,9 @@ fn machine_file_size_mm(p: &Path) -> Option<(f64, f64)> {
     Some((b.width() / 10.0, b.height() / 10.0))
 }
 
-/// Sample design for `--demo` (documentation screenshots), built with ordinary commands.
+/// Sample design for `--demo` (documentation screenshots), built with ordinary commands. Its
+/// threads are New Brothread's (#796, the default chart), so the colour pane and the Sewing
+/// Order swatches in the screenshots show their codes (#828).
 pub fn demo_design() -> Vec<CommandRequest> {
     let c = |id: &'static str, p: Value| CommandRequest::new(id, p);
     vec![
@@ -2288,7 +2290,7 @@ pub fn demo_design() -> Vec<CommandRequest> {
         ),
         c(
             "shape.ellipse",
-            json!({ "cx": 50, "cy": 50, "rx": 40, "ry": 34, "fill": "#1f4fa0", "outline": "#101010", "name": "Badge" }),
+            json!({ "cx": 50, "cy": 50, "rx": 40, "ry": 34, "fill": { "builtin": "newBrothread", "code": "405" }, "outline": { "builtin": "newBrothread", "code": "900" }, "name": "Badge" }),
         ),
         c(
             "object.setRegion",
@@ -2296,7 +2298,7 @@ pub fn demo_design() -> Vec<CommandRequest> {
         ),
         c(
             "shape.polygon",
-            json!({ "name": "Star", "fill": "#f0c419", "points": star(50.0, 47.0, 22.0, 9.5) }),
+            json!({ "name": "Star", "fill": { "builtin": "newBrothread", "code": "206" }, "points": star(50.0, 47.0, 22.0, 9.5) }),
         ),
         c(
             "object.setHoleSewing",
@@ -2310,11 +2312,11 @@ pub fn demo_design() -> Vec<CommandRequest> {
         ),
         c(
             "shape.rectangle",
-            json!({ "x": 24, "y": 74, "width": 52, "height": 8, "fill": "#c8102e", "name": "Ribbon" }),
+            json!({ "x": 24, "y": 74, "width": 52, "height": 8, "fill": { "builtin": "newBrothread", "code": "800" }, "name": "Ribbon" }),
         ),
         c(
             "object.setLine",
-            json!({ "id": 3, "type": "zigzag", "color": "#ffffff", "width": 1.2 }),
+            json!({ "id": 3, "type": "zigzag", "color": { "builtin": "newBrothread", "code": "001" }, "width": 1.2 }),
         ),
     ]
 }

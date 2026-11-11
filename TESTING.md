@@ -49,7 +49,7 @@ are unsure, try one, and say so in the report.
 ## 2. Exporting to your machine's format
 
 1. Open the kit file in OpenStitch (**File ▸ Open**).
-2. **Export** (in the File group) writes the design as a machine embroidery file; give the file
+2. **File ▸ Export** writes the design as a machine embroidery file; give the file
    name the format's extension (`.jef`, `.dst`, `.hus`,
    `.vip`, `.sew`, `.xxx`, `.pcs`, `.exp`, `.vp3`, `.tbf`, `.tap`, `.u01`).
 3. Copy the file to the machine's USB stick or card the way your manual describes. Some machines

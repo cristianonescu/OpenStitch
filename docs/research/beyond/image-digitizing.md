@@ -300,10 +300,16 @@ one.
 
 ## 5. Next steps
 
-1. **Auto Punch's OpenStitch mode**, as measured here. Then the gallery shows both modes side
+Status 2026-11-09: the work continued as B16.1, [image-similarity-plan.md](image-similarity-plan.md),
+which supersedes this list. Cross Stitch and Design Center got an OpenStitch mode there (#263,
+#268), so §2.4's and §4's "Cross Stitch stays PE-only" no longer holds.
+
+1. **Auto Punch's OpenStitch mode**, as measured here: done 2026-10-31. Then the gallery shows both modes side
    by side (`tools/gallery.py`).
 2. **Keep line art's lines:** done 2026-10-31 (2.2).
 3. **Photo Stitch 1's perceptual palette and error diffusion (3.6):** done 2026-10-31 (2.3).
-   Next for it: fewer trims, by joining runs of one thread through the dither.
-4. **SLIC before Auto Punch on photos (3.3)**, if 1 and 3 leave the painted images ragged.
-5. **Other brands' thread charts** for the colour floor (with B13).
+   Next for it: fewer trims, by joining runs of one thread through the dither (#298, open).
+4. **SLIC before Auto Punch on photos (3.3)**, if 1 and 3 leave the painted images ragged:
+   measured in B16.1 T11 and not used (it scored lower than 800 px regions with a 2 mm² floor).
+5. **Other brands' thread charts** for the colour floor (with B13): done in B16.1 T5 (#273;
+   [thread-charts.md](thread-charts.md)).

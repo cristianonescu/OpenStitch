@@ -4,17 +4,17 @@
   {"command": "shape.path", "params": {
     "points": [[14, 52], [86, 52]], "closed": false,
     "curves": [[[22, 8], [78, 8]]],
-    "outline": "Black", "name": "arc"}},
+    "outline": {"builtin": "newBrothread", "code": "900"}, "name": "arc"}},
   {"command": "object.setVisible", "params": {"id": 1, "visible": false}},
   {"command": "text.add", "params": {
-    "text": "OPENSTITCH", "size": 8, "path": 1, "fill": "Red", "name": "arched title"}},
+    "text": "OPENSTITCH", "size": 8, "path": 1, "fill": {"builtin": "newBrothread", "code": "800"}, "name": "arched title"}},
   {"command": "object.setRegion", "params": {"id": 2, "type": "satin", "angle": 90}},
   {"command": "text.add", "params": {
-    "text": "Hello", "font": "pacifico", "size": 14, "x": 50, "y": 72, "fill": "Blue"}},
+    "text": "Hello", "font": "pacifico", "size": 14, "x": 50, "y": 72, "fill": {"builtin": "newBrothread", "code": "405"}}},
   {"command": "object.setRegion", "params": {"id": 3, "angle": 45, "underlay": true}},
   {"command": "text.add", "params": {
     "text": "made with\nopen fonts", "size": 6, "lineSpacing": 1, "x": 50, "y": 82,
-    "fill": "Black", "letterSpacing": 0.3}},
+    "fill": {"builtin": "newBrothread", "code": "900"}, "letterSpacing": 0.3}},
   {"command": "design.info"},
   {"command": "design.export", "params": {"path": "lettering.pes"}},
   {"command": "project.save", "params": {"path": "lettering.osd"}}

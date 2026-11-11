@@ -4,6 +4,12 @@ Backlog item B10 of [competitive-features.md](../competitive-features.md) (featu
 Research date: 2026-10-28. A design note for `openstitch-design` (`model.rs`, `lines.rs`,
 `skeleton.rs`, `column.rs`) and the editor. No other product's code was read.
 
+**Status (2026-11-09):** implemented (#524, closed): line type `satin` with `widthKeys`
+(`at` 0–1, left and right mm, smooth between keys), `taperStart` / `taperEnd` and a `slant`;
+width handles anywhere along the line on the canvas (#700, `object.setWidthKey`) and an SVG
+stroke's width carried to the satin line (#701). Not built: pen-pressure keys, the
+line-to-column and column-to-line conversions, and the `satinline-*` compat specs of §5.
+
 ## 1. What the feature is
 
 A satin outline whose width changes along the path: wide in the middle of a brush stroke,
