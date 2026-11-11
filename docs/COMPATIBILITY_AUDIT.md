@@ -3421,6 +3421,51 @@ columns 0.2–0.4 mm further. No other envelope changes. By stroke every PE-DESI
 passes; the internal pes-0110 transform snapshot is re-taken (arch 79.6 → 79.8 mm wide, 25.7 →
 26.1 mm high, PE-DESIGN's re-sew 79.20 × 26.50).
 
+### Satin M's stems run on past its top corners, 2026-11-11 (#446)
+
+PE-DESIGN 11.50 sews satin M's stems the whole height of the letter, as it does N's, and stops
+each diagonal against its stem (stroke-satin-M, -M-8, round 8). In OpenStitch, the thinning left a
+small loop in each of M's acute top corners. The notch's tip is narrower than a grid cell, so a
+few outside cells there are sealed off, and the thinning goes round them. Each corner then became
+a junction instead of a corner cut, so `run_on_stems` never saw it:
+- at 20 mm, the left corner fanned;
+- at 20 mm, the right diagonal's top was a single travel line beside a gap;
+- at 8 mm, the letter sewed in two runs, 0.3 mm short.
+
+Now such a loop is pruned as a thinning knot (`Graph::pruned`) when all of these hold:
+- it loops back to its own junction;
+- it is under 4 times the junction's clearance (`NOTCH_LOOP`);
+- it goes round at most 3 sealed outside cells (`KNOT_CELLS`; counters are larger, and are found
+  by flooding the outside from the grid's border);
+- the junction's two other branches leave it straight over 6 clearances (`KNOT_ARM`).
+
+The last condition keeps the knots in Pacifico's curved a and m: pruning those piled 22 needle
+drops into a 0.5 mm cell at 7 mm, above sew_check's 20. M's corners then become cuts. The stem
+runs on from its own line, dropping the thinning's bend into the corner (`STEM_BEND`). Against
+PE-DESIGN:
+
+| | needle points | trims | mean needle distance, ours / PE's | coverage IoU |
+|---|---|---|---|---|
+| M 20 mm | 343 → 347 (PE 374) | 1 → 0 (PE 1) | 0.267 / 0.317 → 0.224 / 0.235 mm | 0.709 → 0.783 |
+| M 8 mm | 138 → 145 (PE 165) | 1 → 0 (PE 0) | 0.171 / 0.270 → 0.136 / 0.160 mm | 0.714 → 0.820 |
+
+M at 8 mm is now 8.3 mm tall, as PE-DESIGN's (8.0 before). A sweep of A–Z, a–z and 0–9
+in Lato Bold at 8 and 20 mm changes 9 of 124 glyphs:
+- M;
+- N, by one needle point;
+- 4: its stem runs straight to the top instead of fanning;
+- 6: it sews its bowl as stroke satin, not fixed-direction rows with travel across the counter;
+- 9 at 8 mm: its tail becomes satin along the stroke.
+
+There are no PE-DESIGN references for the digits.
+
+Still open on #446:
+- M at 20 mm now has no trim where PE-DESIGN trims once.
+- V's foot and the foot of M's middle V: PE-DESIGN runs one arm on to the baseline and stops the
+  other against it.
+- A's feet and V's top ends fan.
+- N's corner block.
+
 ### Sharp Corners and Miter Limit on satin lines, 2026-11-09 (#373)
 
 PE-DESIGN has no satin line type, so there's no reference; this keeps OpenStitch's satin line
