@@ -4099,6 +4099,99 @@ fn segments(runs: &[Run]) -> Vec<((i64, i64), (i64, i64))> {
     out
 }
 
+/// #891: a colour of a blend sews only its share of the rows, so travel across them shows. In
+/// the kit's blends, long straight travel crossed the other colours (a purple line across the
+/// radial blend's gold centre), both between a colour's pieces and to and from its start and
+/// end points (22 mm in the radial case below). No straight stretch running across the rows
+/// (more than 10° off them) may now be longer than the 2 mm travel limit and the stitch it runs
+/// on into (3.5 mm); longer gaps are trimmed.
+#[test]
+fn blend_travel_never_runs_far_across_the_rows() {
+    use crate::{GradientDither as D, GradientKind as K};
+    let rect = Contour::rectangle(100.0, 100.0, 400.0, 300.0);
+    for (c, kind, dither, stops, from, to) in [
+        (
+            circle(),
+            K::Radial,
+            D::Noise,
+            vec![0.0, 0.4, 1.0],
+            v2(200.0, 200.0),
+            v2(350.0, 200.0),
+        ),
+        (
+            rect.clone(),
+            K::Linear,
+            D::Ordered,
+            vec![0.0, 0.5, 1.0],
+            v2(100.0, 250.0),
+            v2(500.0, 250.0),
+        ),
+        (
+            rect,
+            K::Linear,
+            D::Rows,
+            vec![0.0, 1.0],
+            v2(300.0, 100.0),
+            v2(300.0, 400.0),
+        ),
+    ] {
+        let mut r = region(RegionType::Fill);
+        r.angle = 0.0;
+        r.underlay = false;
+        let mut d = Design::new("t", DesignPage::default());
+        for k in 0..stops.len() {
+            let mut l = r.clone();
+            l.gradient = Some(crate::Gradient {
+                kind,
+                from,
+                to,
+                stops: stops.clone(),
+                layer: k,
+                dither,
+                curve: crate::GradientCurve::Linear,
+                seed: 7,
+            });
+            d.add(DesignObject::shape(vec![c.clone()], Some(l), None));
+        }
+        let across = sewn_stretches(&d)
+            .iter()
+            .map(|s| longest_across_rows(s, 2.0))
+            .fold(0.0, f64::max);
+        assert!(
+            across <= 35.0,
+            "{kind:?} {dither:?}: a straight run of {:.1} mm across the rows",
+            across / 10.0
+        );
+    }
+}
+
+/// [`longest_straight`] counting only stretches more than 10° off horizontal rows.
+fn longest_across_rows(points: &[Vec2], tol: f64) -> f64 {
+    let mut best: f64 = 0.0;
+    for i in 0..points.len().saturating_sub(1) {
+        let mut j = i + 1;
+        while j + 1 < points.len() {
+            let (a, b) = (points[i], points[j + 1]);
+            let len = a.distance(b);
+            let straight = len > 1e-9
+                && points[i + 1..=j].iter().all(|p| {
+                    ((b.x - a.x) * (a.y - p.y) - (a.x - p.x) * (b.y - a.y)).abs() / len <= tol
+                });
+            if !straight {
+                break;
+            }
+            j += 1;
+        }
+        let d = points[j] - points[i];
+        // sin 10°.
+        let off_rows = d.y.abs() > d.length() * 0.173_648;
+        if j - i >= 2 && off_rows {
+            best = best.max(points[i].distance(points[j]));
+        }
+    }
+    best
+}
+
 #[test]
 fn gradient_colours_share_one_set_of_rows_each_stitch_sewn_once() {
     use crate::{GradientDither as D, GradientKind as K};
