@@ -1104,6 +1104,58 @@ fn wave_fill_goes_through_the_command() {
     assert!(help.contains("waveHeight") && help.contains("waveLength"));
 }
 
+/// #373: a satin line round the same V is cut as the zigzag line of its width, through the
+/// same `sharpCorners` and `miterLimit`; with a corner style the style decides.
+#[test]
+fn satin_line_sharp_corners_and_miter_limit_go_through_object_set_line() {
+    let sewn = |kind: &str, extra: serde_json::Value| {
+        let mut s = Session::new(std::env::temp_dir());
+        run(
+            &mut s,
+            "shape.polygon",
+            json!({"points": [[10, 20], [50, 20], [15, 40]], "closed": false}),
+        );
+        run(
+            &mut s,
+            "object.setLine",
+            json!({"id": 1, "type": kind, "width": 2}),
+        );
+        let mut p = extra;
+        p["id"] = json!(1);
+        run(&mut s, "object.setLine", p);
+        Compiler::for_design(s.design())
+            .compile(s.design())
+            .stitches
+            .iter()
+            .filter(|q| q.command == Command::Stitch)
+            .map(|q| (q.x, q.y))
+            .collect::<Vec<_>>()
+    };
+    for extra in [
+        json!({}),
+        json!({"miterLimit": 3.0}),
+        json!({"sharpCorners": 2, "miterLimit": 1.0}),
+    ] {
+        let z = sewn("zigzag", {
+            let mut e = extra.clone();
+            e["underSewing"] = json!(false);
+            e
+        });
+        let satin = sewn("satin", {
+            let mut e = extra.clone();
+            e["underSewing"] = json!(false);
+            e
+        });
+        assert_eq!(satin, z, "{extra}");
+    }
+    let mitre = sewn(
+        "satin",
+        json!({"underSewing": false, "cornerStyle": "mitre"}),
+    );
+    let cut = sewn("satin", json!({"underSewing": false}));
+    assert_ne!(mitre, cut, "a corner style decides");
+}
+
 #[test]
 fn zigzag_sharp_corners_and_miter_limit_go_through_object_set_line() {
     // compat line-zigzag-miter-v-*: the 29.7-degree V of PE-DESIGN's #373 captures (#373).

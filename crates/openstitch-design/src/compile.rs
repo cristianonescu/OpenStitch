@@ -2377,7 +2377,7 @@ fn line_elements(
                         b.mirror,
                         pitch,
                     ),
-                    None => lines::satin_line(&c.path(), line),
+                    None => lines::satin_line(&c.path(), line, c.has_curves()),
                 },
                 LineType::Zigzag if !line.satin_shaping.is_plain() => lines::zigzag_shaped(
                     &c.path(),

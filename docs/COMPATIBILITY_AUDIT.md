@@ -3393,6 +3393,18 @@ triangle above it, where PE-DESIGN sews a separate corner block (stopping the di
 half-widths out instead lost needle points and left a gap: 272); M, whose corners come from
 thinning junctions rather than cuts, is unchanged, as are M at 8 mm and A's and V's feet.
 
+### Sharp Corners and Miter Limit on satin lines, 2026-11-09 (#373)
+
+PE-DESIGN has no satin line type, so there's no reference; this keeps OpenStitch's satin line
+(#524) consistent with zigzag lines (#759, #841). A satin line with one width all along (no width
+keys, tapers or slant), no satin shaping and straight segments sewed as plain skeleton satin, so
+a corner sharper than 67.5° fanned out to its full point. Such a line with such a corner is now
+sewn as the zigzag line of its width (`lines::zigzag_rails_cornered`), so its Sharp Corners button
+and Miter Limit (`object.setLine sharpCorners/miterLimit`, stored for every line type) cut the
+point as on a zigzag line; with no corner under 67.5°, curved, or with a corner style or other
+satin shaping, it sews as before (a corner style takes precedence, as on zigzag lines). A satin
+line whose width varies keeps its own corners: the zigzag corner assumes one half-width per side.
+
 ### Corner styles on satin text, 2026-11-08 (#782)
 
 A letter is cut into strokes at its sharp corners (strokes.rs), so a satin's corner style
