@@ -222,6 +222,10 @@ python3 -I tools/sew_kit.py
 `python3 -I tools/sew_kit.py --check` says whether the committed files still match what OpenStitch
 writes; the stitch engine's changes make them stale.
 
+Build both binaries after every source change. The previews come from the `openstitch` app, which
+sews each design again, so an app older than the change would show the old stitches. `sew_kit.py`
+refuses to run with a binary older than any source file it was built from (#896).
+
 ## The designs
 
 <!-- kit:start -->

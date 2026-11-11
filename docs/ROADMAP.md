@@ -131,6 +131,11 @@ stitches and hairline satins with limits from PE-DESIGN's own files. Next: sew t
 card and set `strip` from it; engine follow-ups #627 (Design Center line-art trims, done below) and #628
 (entry travel across a region).
 
+Done 2026-11-11 (#896): `sew_kit.py` refuses to run with a `stitchtool` or `openstitch` binary
+older than any source file its cargo dep-info lists, or built from another checkout. A preview
+rendered by an app built before a stitch change had shown the old stitches beside the new .pes
+(#890). The previews were then regenerated once with fresh binaries.
+
 Done 2026-11-06 (`batch:engine-bugs-3`, #570, #571, #466, #627, #633; #628 in part): start and end
 points left off a reshaped outline snap to it (the four random-design seeds pass); zigzag lines
 no longer fold at cusps and their under sewing bevels sharp corners; skeleton satin takes Half
