@@ -379,7 +379,7 @@ Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 208 Orange, 620 Mag
 
 #### Hole sewing, engraving and embossing
 
-[`fills/holes-and-emboss.pes`](fills/holes-and-emboss.pes) · 100 × 100 mm hoop · 86 × 86 mm · 10,740 stitches · 5 trims · about 13.7 min
+[`fills/holes-and-emboss.pes`](fills/holes-and-emboss.pes) · 100 × 100 mm hoop · 86 × 86 mm · 10,733 stitches · 5 trims · about 13.7 min
 
 Top left: hole sewing (the blue ring is sewn around the yellow centre, not under it). Then a star as an engraved line, an engraved region and an embossed region in a red fill.
 
@@ -389,7 +389,7 @@ Threads, in sewing order: 405 Blue, 205 Yellow, 800 Red.
 
 #### Wave fill (beyond PE-DESIGN)
 
-[`fills/wave-fill.pes`](fills/wave-fill.pes) · 100 × 100 mm hoop · 86 × 56 mm · 13,909 stitches · 6 trims · about 17.7 min
+[`fills/wave-fill.pes`](fills/wave-fill.pes) · 100 × 100 mm hoop · 86 × 56 mm · 13,606 stitches · 6 trims · about 17.3 min
 
 Fills whose rows ripple as a sine, height and length in mm: 2 and 16, 3 and 10, 5 and 24 (top row, rows across), 3 and 14 at 45°, 3 and 12 on a circle, and 8 and 8 at 90° (steeper than 40°, so sewn at 40°).
 
@@ -511,7 +511,7 @@ Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 620 Magenta.
 
 #### Monograms
 
-[`lettering/monograms.pes`](lettering/monograms.pes) · 150 × 150 mm hoop · 123.9 × 117.5 mm · 7,587 stitches · 15 trims · about 10.3 min
+[`lettering/monograms.pes`](lettering/monograms.pes) · 150 × 150 mm hoop · 123.9 × 117.5 mm · 7,598 stitches · 15 trims · about 10.3 min
 
 The four monogram styles (block, script, diamond, circle), each in a decorative frame, for the 150 × 150 mm hoop.
 
@@ -555,7 +555,7 @@ Threads, in sewing order: 405 Blue, 405 Blue, 405 Blue.
 
 #### Background fill wizard
 
-[`wizards/background-fill.pes`](wizards/background-fill.pes) · 100 × 100 mm hoop · 88 × 88 mm · 4,128 stitches · 3 trims · about 5.3 min
+[`wizards/background-fill.pes`](wizards/background-fill.pes) · 100 × 100 mm hoop · 88 × 88 mm · 4,119 stitches · 3 trims · about 5.3 min
 
 Stippling inside a circle around a heart, keeping a 3 mm gap.
 
@@ -569,7 +569,7 @@ Each image tool on a test image, in both of its modes: PE-DESIGN-compatible mode
 
 #### Auto Punch, OpenStitch mode
 
-[`image-tools/S-autopunch-balloon-openstitch.pes`](image-tools/S-autopunch-balloon-openstitch.pes) · 100 × 100 mm hoop · 90 × 67.9 mm · 7,811 stitches · 15 trims · about 10.5 min
+[`image-tools/S-autopunch-balloon-openstitch.pes`](image-tools/S-autopunch-balloon-openstitch.pes) · 100 × 100 mm hoop · 90 × 67.9 mm · 7,752 stitches · 15 trims · about 10.5 min
 
 `g02-balloon.png` through Auto Punch at its defaults in OpenStitch mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.
 
@@ -579,7 +579,7 @@ Threads, in sewing order: 001 White, 206 Harvest Gold, 017 Light Blue, 509 Leaf 
 
 #### Auto Punch, PE-DESIGN-compatible mode
 
-[`image-tools/S-autopunch-balloon-pe-compatible.pes`](image-tools/S-autopunch-balloon-pe-compatible.pes) · 100 × 100 mm hoop · 89.6 × 62.1 mm · 5,794 stitches · 13 trims · about 7.9 min
+[`image-tools/S-autopunch-balloon-pe-compatible.pes`](image-tools/S-autopunch-balloon-pe-compatible.pes) · 100 × 100 mm hoop · 89.6 × 62.1 mm · 5,792 stitches · 13 trims · about 7.9 min
 
 `g02-balloon.png` through Auto Punch at its defaults in PE-DESIGN-compatible mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.
 
@@ -689,7 +689,7 @@ Threads, in sewing order: 517 Dark Olive, 800 Red, 704 Pewter, 339 Clay Brown.
 
 #### Auto Punch, OpenStitch mode
 
-[`image-tools/L-autopunch-storybook-openstitch.pes`](image-tools/L-autopunch-storybook-openstitch.pes) · 260 × 160 mm hoop · 199 × 150.1 mm · 93,576 stitches · 1081 trims · about 172.4 min
+[`image-tools/L-autopunch-storybook-openstitch.pes`](image-tools/L-autopunch-storybook-openstitch.pes) · 260 × 160 mm hoop · 199 × 150.1 mm · 93,724 stitches · 1081 trims · about 172.6 min
 
 `p03-storybook.jpg` through Auto Punch at its defaults in OpenStitch mode, fitted to the 260 × 160 mm hoop. Sew both modes of the same image to compare them on fabric.
 
@@ -699,7 +699,7 @@ Threads, in sewing order: 017 Light Blue, 843 Beige, 005 Silver, 348 Khaki, 339 
 
 #### Auto Punch, PE-DESIGN-compatible mode
 
-[`image-tools/L-autopunch-storybook-pe-compatible.pes`](image-tools/L-autopunch-storybook-pe-compatible.pes) · 260 × 160 mm hoop · 199.3 × 150.9 mm · 112,074 stitches · 2047 trims · about 245 min
+[`image-tools/L-autopunch-storybook-pe-compatible.pes`](image-tools/L-autopunch-storybook-pe-compatible.pes) · 260 × 160 mm hoop · 199.3 × 150.9 mm · 112,137 stitches · 2047 trims · about 245.1 min
 
 `p03-storybook.jpg` through Auto Punch at its defaults in PE-DESIGN-compatible mode, fitted to the 260 × 160 mm hoop. Sew both modes of the same image to compare them on fabric.
 
