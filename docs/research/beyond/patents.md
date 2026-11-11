@@ -81,6 +81,25 @@ Everything else on the list is shown as expired or ceased.
       jumped otherwise.
   - Any later change that adds an image-derived direction or such a connector test needs the
     same question put to the owner again. Not legal advice.
+- Owner's decision, 2026-11-08, for the flow fill from a picture (#538): asked by the
+  coordinator, in the coordinator's chat, whether Auto Punch's OpenStitch mode may derive each
+  fill's row direction from the picture (a structure-tensor field on a coarse grid) despite
+  this patent, the owner answered "Yes, go ahead". The question and the answer are recorded
+  on #538.
+  - What was built (`crates/openstitch-digitize/src/flow.rs`, `digitize.autoPunch {compatMode:
+    openStitch, flowFill: true}`): the picture's structure tensor (products of the luminance
+    gradient, smoothed over 1.5 mm) summed per 1 mm cell over each fill region, giving one row
+    angle per cell; a weak or mixed cell keeps the region's fill angle. The rows are the
+    design's evenly spaced streamlines of that field (`openstitch_design::flow`), sewn back
+    and forth inside the region. This is close to the claim's elements (1) and (2): an angle
+    feature from the image, and lines from it.
+  - What it deliberately leaves out: element (3). No move between rows or regions is decided
+    by coverage by later segments, colour difference with what lies under it, or crossing
+    angles; rows are joined by the fill's ordinary travel inside the shape, and regions as
+    every other Auto Punch region is.
+  - Off by default, OpenStitch mode only (PE-DESIGN mode refuses `flowFill`, so its output is
+    unchanged). Any later connector test of that kind needs the question put to the owner
+    again. Not legal advice.
 - B16, the image wizards' OpenStitch mode ([image-digitizing.md](image-digitizing.md),
   2026-10-31), changes colour reduction and region cleanup only. It computes no direction
   from the image, so it does not come near the claim. Its section 3.5 leaves out stitch
