@@ -1462,12 +1462,20 @@ pub fn zigzag_shaped(
 /// A satin line (#524): a satin column along `path` (0.1 mm) whose width follows the line's
 /// width keys, tapers and slant ([`crate::skeleton::SatinLine`]), with its satin shaping. With
 /// one width all along, square to the line and no shaping, it is the skeleton satin of that
-/// width ([`crate::skeleton::satin`]).
-pub fn satin_line(path: &[Vec2], line: &crate::model::LineSewing) -> Run {
+/// width ([`crate::skeleton::satin`]); if such a line is straight segments (`curved` false)
+/// with a corner sharper than 67.5 degrees, it is sewn as a zigzag line of that width, so the
+/// line's Sharp Corners button and Miter Limit cut the point as on a zigzag line (#373; a
+/// corner style takes precedence, as there).
+pub fn satin_line(path: &[Vec2], line: &crate::model::LineSewing, curved: bool) -> Run {
     let spacing = 10.0 / line.density.max(0.1);
     let sl = satin_line_shape(line);
     let shaping = &line.satin_shaping;
     if sl.is_uniform() && shaping.is_plain() {
+        if !curved && has_sharp_corner(path) {
+            // Its width (mm) as rails 0.1 mm from the line.
+            let half = sl.uniform_width() * 5.0;
+            return zigzag_rails_cornered(path, [half; 2], spacing, Some(&line.sharp_corners));
+        }
         let skeleton = crate::skeleton::Skeleton {
             points: path.to_vec(),
             widths: vec![sl.uniform_width(); path.len()],
@@ -1488,6 +1496,25 @@ pub fn satin_line(path: &[Vec2], line: &crate::model::LineSewing) -> Run {
         }
     }
     run
+}
+
+/// Whether `path` turns at a vertex by more than a corner of 67.5 degrees allows (see
+/// [`SHARP_CORNER_COS`]): where PE-DESIGN's Sharp Corners cut a zigzag line's point (#373).
+fn has_sharp_corner(path: &[Vec2]) -> bool {
+    let pts: Vec<Vec2> = {
+        let mut v: Vec<Vec2> = Vec::new();
+        for &p in path {
+            if v.last().is_none_or(|l| l.distance(p) > 1e-9) {
+                v.push(p);
+            }
+        }
+        v
+    };
+    pts.windows(3).any(|w| {
+        let (a, b) = (w[1] - w[0], w[2] - w[1]);
+        let (la, lb) = (a.length(), b.length());
+        la > 1e-9 && lb > 1e-9 && dot(a * (1.0 / la), b * (1.0 / lb)) < -SHARP_CORNER_COS
+    })
 }
 
 /// A satin line's widths, tapers and slant.
@@ -1773,6 +1800,57 @@ mod shaping_tests {
         run.iter()
             .map(|q| q.x * u.x + q.y * u.y)
             .fold(f64::MIN, f64::max)
+    }
+
+    /// #373: a plain satin line round a corner sharper than 67.5 degrees is cut as a zigzag
+    /// line of its width with the same Sharp Corners and Miter Limit; a wider corner, a curved
+    /// line and a corner style keep the satin line as before.
+    #[test]
+    fn a_satin_lines_sharp_corner_is_cut_as_a_zigzag_lines() {
+        let spacing = 10.0 / 4.5;
+        let mut line = crate::model::LineSewing::new(
+            crate::model::LineType::Satin,
+            openstitch_core::Thread::rgb(0),
+        );
+        line.width = 2.0;
+        line.density = 4.5;
+        for button in [1, 2] {
+            line.sharp_corners = sharp(button, 1.0);
+            let path = vee(30.0, 400.0);
+            let satin = satin_line(&path, &line, false);
+            let zigzag =
+                zigzag_rails_cornered(&path, [10.0; 2], spacing, Some(&line.sharp_corners));
+            assert_eq!(satin, zigzag, "button {button}");
+            assert!((reach(30.0, &satin) - 10.0).abs() < 0.5);
+        }
+        let skeleton = |path: &[Vec2]| {
+            crate::skeleton::satin(
+                &crate::skeleton::Skeleton {
+                    points: path.to_vec(),
+                    widths: vec![2.0; path.len()],
+                },
+                spacing,
+                0.0,
+            )
+        };
+        let wide = vee(90.0, 400.0);
+        assert_eq!(
+            satin_line(&wide, &line, false),
+            skeleton(&wide),
+            "90 degrees"
+        );
+        let sharp_path = vee(30.0, 400.0);
+        assert_eq!(
+            satin_line(&sharp_path, &line, true),
+            skeleton(&sharp_path),
+            "curved"
+        );
+        line.satin_shaping.corners.style = crate::column::CornerStyle::Mitre;
+        assert_ne!(
+            satin_line(&sharp_path, &line, false),
+            zigzag_rails_cornered(&sharp_path, [10.0; 2], spacing, Some(&line.sharp_corners)),
+            "a corner style wins"
+        );
     }
 
     #[test]

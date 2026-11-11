@@ -3393,6 +3393,18 @@ triangle above it, where PE-DESIGN sews a separate corner block (stopping the di
 half-widths out instead lost needle points and left a gap: 272); M, whose corners come from
 thinning junctions rather than cuts, is unchanged, as are M at 8 mm and A's and V's feet.
 
+### Sharp Corners and Miter Limit on satin lines, 2026-11-09 (#373)
+
+PE-DESIGN has no satin line type, so there's no reference; this keeps OpenStitch's satin line
+(#524) consistent with zigzag lines (#759, #841). A satin line with one width all along (no width
+keys, tapers or slant), no satin shaping and straight segments sewed as plain skeleton satin, so
+a corner sharper than 67.5° fanned out to its full point. Such a line with such a corner is now
+sewn as the zigzag line of its width (`lines::zigzag_rails_cornered`), so its Sharp Corners button
+and Miter Limit (`object.setLine sharpCorners/miterLimit`, stored for every line type) cut the
+point as on a zigzag line; with no corner under 67.5°, curved, or with a corner style or other
+satin shaping, it sews as before (a corner style takes precedence, as on zigzag lines). A satin
+line whose width varies keeps its own corners: the zigzag corner assumes one half-width per side.
+
 ### Corner styles on satin text, 2026-11-08 (#782)
 
 A letter is cut into strokes at its sharp corners (strokes.rs), so a satin's corner style
@@ -3593,3 +3605,17 @@ Beyond PE-DESIGN's own routing; no stitch output changes.
 - **Cutwork lines:** as #800 measured, 49 of cutwork's 56 same-thread trims are between the
   cutting lines' segments, which the cutting needle can't travel between. They stay;
   `autoStart: nearest` already removes 11 of the others.
+
+### Travel walks the outline where the way inside runs round a tip, 2026-11-09 (#471)
+
+Region travel between separate parts (`region::reroute_with`, Running Stitch Path Inside) takes
+the shortest way inside the region. Where a row ends on an outline that runs nearly along the
+rows, that way could lead out to a tip and back over the row just sewn: region-types' piping
+(1.2 lines/mm at 30 degrees) ran 13 mm to its lobe's tip and back where the outline between the
+two row ends is 4 mm, three passes over 5 mm, the "dark bar" #471 reported. Now, where both ends
+lie on the outline and the walk along it is under three quarters of the inside way, the walk is
+taken. Piping's densest 1 mm cell: 3.78 → 2.23 mm of thread per mm² (median 1.16), cells over
+twice the median 0.9 % → 0 % (`piping_travel_keeps_off_the_rows_at_a_lobe_tip`). The same rule
+touches 8 kit designs by a few stitches (fills, Auto Punch's storybook and balloon, monograms,
+background fill; trims unchanged, each within ±2 % of its stitches and sew_check ok); compat
+unchanged.

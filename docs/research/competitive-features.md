@@ -1361,3 +1361,130 @@ No comparison-matrix row changes (the open-source projects are tracked here, not
 New "Planned (beyond PE-DESIGN)" rows in FEATURE_MATRIX.md and a note in ROADMAP.md (Beyond
 PE-DESIGN): hand-stitch look for fills (#817), rebuilt objects keeping the original's sewing
 (#818).
+
+### 2026-11-11 survey: lb2002/openstitch and linker2k/myembro
+
+The owner asked for a full feature survey of two new open-source projects, by the method of the
+2026-11-05 second pass: every user-facing feature listed from the README, docs, user guide, every
+release note and changelog, the issue tracker (both trackers are empty) and the example files;
+code read only to learn what a feature does (menu and message texts), never how. Each feature
+was checked against FEATURE_MATRIX.md, ROADMAP.md, the open and closed issues and a search of
+`crates/` and `tools/`, and classed as have, partial, missing or "improve" (we have it, theirs is
+measurably better). Ideas only: none of their code, data, fonts, thread charts, machine tables,
+sample designs or artwork may be copied, ported or paraphrased. Result: 20 new issues
+(#865–#884, all milestone Future) and notes on three existing ones (#453, #486, #555).
+
+#### lb2002/openstitch ("OpenStitch Studio")
+
+- **What it is.** A desktop digitizing program in Python (PySide6) for Windows, macOS and Linux.
+  It shares OpenStitch's name and is a different, unrelated project: never mix the two up in
+  issues, links or release notes. Picture-to-embroidery, manual fill, satin and running tools
+  with a node editor, lettering, a "virtual stitch-out" check, and export for home and
+  commercial machines.
+- **Licence as found.** GitHub detects no standard licence ("Other"). The LICENSE file and the
+  README state AGPL-3.0-or-later, with the author keeping the right to sell commercial licences.
+  A repository with no licence at all would be all rights reserved; this one is copyleft, so
+  either way it is concept-only for OpenStitch, exactly as Ink/Stitch is (section 5).
+- **State.** Created 2026-10-27, last push 2026-11-05, one star, no issues or forks. Releases
+  v0.1.0 (2026-10-27), v0.3.0 (2026-10-28) and v0.4.0 (2026-10-31). Its own README says nothing
+  has been sewn on a real machine yet.
+- **Counts.** 87 features: have 60, partial 19 (3 of them "improve"), missing 8.
+- **Main gaps (missing or partial), with their issues.**
+  - A fabric pull preview in the design check: how the fabric will draw in, where an outline and
+    its fill will drift apart, a puckering warning, every finding tagged as a fixed rule or an
+    estimate, and a calibration from one sewn and measured test bar (#865, new row).
+  - More check rules and one verdict: thread ends without ties, sections under three stitches,
+    very short stitches, more colours than the machine has needles, fabric showing through a
+    fill, small text judged per font, and a score out of 100 (#866).
+  - Send to machine with a short name for older machines, the format chosen from the machine,
+    the thread order shown and no silent overwrite (part of #867).
+  - Machine profiles that carry a needle count and a format (part of #868).
+  - Hoop "strategies": on caps, sewing centre-out and bottom-up; on jacket backs, a stronger
+    underlay and more compensation (#874, new row).
+  - 3D puff over foam with perforating end caps (#875; OpenStitch's planned B7, which had no
+    issue; raised satin #531 is the first step).
+  - Photos as wavy lines in one thread, two (sepia) or four (cyan, magenta, yellow, black)
+    (#873, with myembro's thread sketch).
+  - Floppy-disk images for USB floppy emulators and a small network bridge for old commercial
+    machines, with a choice of trim style in EXP (#876, low priority).
+  - A guided tour that lights up the real controls (#877); a crash report with "your work was
+    saved" and Help ▸ Report a problem (#878).
+  - Auto-Fit to the hoop and "pick the smallest hoop that fits" (#879; the open part of B13).
+  - Tests: every setting must change the stitches (this found a density setting of theirs that
+    did nothing), and random clicks and keys on the real window (#880).
+- **Improvements (we have it, theirs is better).** Nine interface languages, starting in the
+  system language, with numbers in each language's format (OpenStitch: #555, partly done; noted
+  there). Calibration by a measured width instead of choosing a row by eye (#865; noted on
+  #453). The send-to-machine window's checks (#867). A Gunold Poly thread chart (noted on #486,
+  only from the maker's own values).
+- **Already in OpenStitch.** Picture digitizing with perceptual colour reduction and thread
+  matching, stitch type by stroke width, satin with turning angles, short stitches, split satin
+  and underlay chosen by width, tatami and contour fills with travel inside the shape, pull
+  compensation, hidden stitching left out with an overlap (#511), fabric presets with backing
+  and needle advice (#508, with more fabrics than theirs), appliqué, small single-line text
+  (#530), SVG import, lettering on arcs, the design check with Show and Fix (#503), the density
+  map (#504), export read-back (#457), thread charts and CSV import, hoops including round ones
+  (#514), production sheets (#513), DST/PES/PEC/EXP/JEF/VP3/U01, start cards and samples (#554),
+  light and dark themes, autosave and recovery (#549), realistic view and PNG export, the
+  simulator, undo, colour-order optimising that respects overlaps, drag and drop of files.
+
+#### linker2k/myembro
+
+- **What it is.** An Android app in Kotlin (Jetpack Compose) that views, combines, letters and
+  digitizes designs for Brother machines on a phone and sends them to the machine. Its stitch
+  engine is, by its own README, a port of Ink/Stitch and other GPL and open tools, so it is
+  GPL-derived twice over.
+- **Licence as found.** GPL-3.0-or-later (LICENSE file, README and the repository description;
+  GitHub detects GPL-3.0). Concept-only. Its 72 embroidery fonts come from Ink/Stitch and its
+  136 sample designs and emoji art are its own or third-party content: none is a source for
+  OpenStitch.
+- **State.** Created 2026-10-22, last push 2026-11-08, one star, no issues. Eleven releases,
+  v0.4.0-beta.1 (2026-10-27) to v0.4.0-beta.11 (2026-11-07), after earlier alpha builds. Sewn on
+  one real machine (a Brother SE400), including sending over a USB cable.
+- **Counts.** 82 features: have 52, partial 17 (4 of them "improve"), missing 13.
+- **Main gaps (missing or partial), with their issues.**
+  - Sending rules taken from Brother's manuals: FAT32, top folder, about 200 items, plain file
+    names, free space; a machine connected by USB cable seen as a small disk, with a list to
+    choose from when it is full; a transfer history and copyable diagnostics (#867, new row).
+    This matters for the "Transfer directly to machine memory" row, which is Blocked as
+    undocumented: for models with a USB-to-computer port no protocol is needed.
+  - A machine list by model name (58 Brother models with area, hoops and connection, each
+    marked tested or "from the manual") (#868, new row).
+  - One backup ZIP of designs, projects, fonts and settings, restored on another device (#869).
+  - "Ask AI" without any key: the app writes the request for any chatbot, the reply is pasted
+    back, checked, shown as before and after with the check result, then applied as one undo
+    step (#870, new row).
+  - An emoji picker with search that turns a drawing into a design at a chosen size (#871).
+  - A list of free-design sites with each site's terms as plain tags (#872).
+  - A "thread texture" photo mode: the picture as layered thread lines, like a sketch (#873).
+  - Korean and Japanese kana lettering sewn as satin along each stroke's centre line, in writing
+    order, with trims only between separate groups (#881).
+  - Font list with favourites, filters by kind and script, fonts lacking a typed character
+    greyed out with the reason, the licence shown and fonts fetched on demand (#882).
+  - Design list with favourites, a "fits my hoop" filter, sorting, and import of ZIP archives
+    and folders with duplicate detection (#883).
+  - Phone-only features (touch gestures, share-sheet intake, the photo picker, phone-to-machine
+    over USB-OTG, voice input, a chatbot relay, drafts kept by the system) are one list: #884.
+- **Improvements (we have it, theirs is better).** 136 ready samples against OpenStitch's small
+  kit (content, tracked with the kit; the browser's samples are #833). USB sending rules and
+  the cable route (#867). The machine model list (#868). Its sew-out check blocks saving and
+  sending on an error where OpenStitch warns unless `verify: strict` is set (part of #866).
+- **Already in OpenStitch.** PES (all versions), PEC, DST, JEF, EXP and VP3 read and written;
+  realistic view, simulator and stitch-out player; statistics and sewing time per colour;
+  placing, scaling, rotating, mirroring, aligning, distributing and snapping objects (#472,
+  #473); the sewing-order list; thread and fabric colours; custom hoops and multi-position
+  hoops; picture digitizing as silhouette, outline or colours with noise and detail controls,
+  distinct colours kept on distinct threads (#447, #484), My Threads with a list of threads to
+  buy; per-region stitch type, texture, angle (#534) and order; lettering with size ranges
+  (#527), single-line fonts and user TrueType fonts including CJK glyphs; ties, trims only where
+  needed (#548), travel under later stitching (#545); the design check with locations (#503);
+  autosave (#549); themes; an MCP server and the Assistant.
+
+No comparison-matrix row changes (the open-source projects are tracked here, not in the matrix).
+New "Planned (beyond PE-DESIGN)" rows in FEATURE_MATRIX.md and a note in ROADMAP.md (Beyond
+PE-DESIGN) for #865–#884. Not verified here: neither program was run (no screen control; the
+Android app needs a phone), so their features are as their own documents describe them, and
+neither project shows a sew-out of most of what it lists. Sources:
+https://github.com/lb2002/openstitch (README, CHANGELOG, release notes; single source),
+https://github.com/linker2k/myembro (README, docs/manual/user-guide.md, docs/faq.md, release
+notes; single source).

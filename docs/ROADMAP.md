@@ -561,7 +561,7 @@ before any code; the ranking and the proposed tracks are in
 | B4 | Auto-routed running stitches, Redwork, satin branching | C | [research/beyond/auto-route-and-branching.md](research/beyond/auto-route-and-branching.md) | Branch split started 2026-11-06 (#526): `object.deriveSkeleton {branches}` makes a column per arm (Y, plus, star); letters with bent junctions (K, R) keep a straight stem since 2026-11-07 (#526; R's bowl still leaves a strip by the stem); auto-route, Redwork and branching of touching shapes shipped 2026-11-06 (#546, `batch:routing`: `shape.autoRoute`, `object.branch`); satin branching with a centre-run underlay not started |
 | B5 | Compensation model, automatic underlay by width, fabric table | B | [research/beyond/compensation-and-underlay.md](research/beyond/compensation-and-underlay.md) | Done 2026-11-06 for Manual Punch columns and zigzag lines (#522, #523): `pullLeft`/`pullRight`/`pullPercent`/`pullMax`; `underlayStyle` auto (by average width, fabric thresholds from `fabric.apply`) and centreWalk; a column's `underlay2`. Skeleton satin and Auto satin regions 2026-11-07 (#675), with rows that follow the column's width. Fill push and a second under sewing layer on fill and satin regions 2026-11-08 (#677). Open: push at column ends, a user-editable fabric table |
 | B6 | Density profiles, two-colour blend, hidden travel | A | [research/beyond/density-profiles-and-blend.md](research/beyond/density-profiles-and-blend.md) | Hidden travel between objects shipped 2026-11-06 (#545, `batch:routing`: `design.setTravelUnder`, run connectors); round several corners and along running lines already sewn 2026-11-07 (#545); density profiles on fills (`gradationShape`) and colour blends (`shape.gradient`, `shape.blend`) 2026-11-08 (#532); profiles on satin columns and hidden travel inside open fills not started |
-| B7 | 3D puff mode | A | [research/beyond/puff-mode.md](research/beyond/puff-mode.md) | First step done 2026-11-06 (#531): raised satin (padding lanes) on Manual Punch columns and zigzag lines, on satin regions and skeleton satin (#685) and satin lettering (#686); foam mode not started |
+| B7 | 3D puff mode (#875) | A | [research/beyond/puff-mode.md](research/beyond/puff-mode.md) | First step done 2026-11-06 (#531): raised satin (padding lanes) on Manual Punch columns and zigzag lines, on satin regions and skeleton satin (#685) and satin lettering (#686); foam mode not started |
 | B8 | Crosshatch, curved crosshatch, lace | A | [research/beyond/crosshatch-and-lace.md](research/beyond/crosshatch-and-lace.md) | Sketched; not started (crosshatch is only the Background Fill wizard's option; a double zigzag exists as a decorative line, #543) |
 | B9 | Maze and meander fills, fur, randomisation | D | [research/beyond/meander-maze-and-randomisation.md](research/beyond/meander-maze-and-randomisation.md) | Maze and tiled meander fills done 2026-11-07 (#533); hand-stitch randomisation on lines and satins (#540); fur variant and fills' hand-stitch look (#817) not started |
 | B10 | Variable-width satin line | B | [research/beyond/variable-width-satin-line.md](research/beyond/variable-width-satin-line.md) | Engine done 2026-11-06 (#524): line type `satin` with width keys, tapers, per-side widths and slant; canvas gestures #700, SVG stroke width #701 |
@@ -642,6 +642,21 @@ From the competitor scan of 2026-11-08 (same document, Updates; openhoop, concep
 hand-stitch look for fills (#817, rank 13 theme with #540) and rebuilt objects that keep the
 original's spacing, tatami pattern and closed satin rings (#818, `object.toShapes`), both ideas
 for Future.
+
+From the full survey of 2026-11-11 (same document, Updates; lb2002/openstitch, a different project
+that shares OpenStitch's name, AGPL-3.0-or-later with a commercial dual licence, and
+linker2k/myembro, an Android app, GPL-3.0-or-later; concepts only): 169 features read, 20 ideas
+for Future. Ranked by user benefit: 1. USB transfer pre-flight and a machine connected by cable
+(#867); 2. a fabric pull preview in Check Design with a measured one-bar calibration (#865);
+3. more Check Design rules and a readiness score (#866); 4. the machine list by model name
+(#868); 5. the Assistant with any chatbot by copy and paste (#870). Then: back up and restore
+(#869), smallest hoop and Fit to hoop (#879, the open part of B13), 3D puff over foam (#875,
+B7), cap mode (#874), crash report and Report a Problem (#878), the guided tour (#877), font
+chooser extras (#882), Design Database favourites, hoop filter and ZIP archives (#883), photos
+as wave lines or a thread sketch (#873), a ready drawings picker (#871), stroke-centre-line
+Hangul and kana (#881), a free-design sites page (#872), the setting-effect and monkey tests
+(#880), floppy images for old commercial machines (#876), and one list of mobile app ideas
+(#884). Notes on #453, #486 and #555.
 
 Deferred: shape and vine fills, photo
 thread-painting, sequin/chenille/bead types (machine-specific), the TrueType turning-satin
