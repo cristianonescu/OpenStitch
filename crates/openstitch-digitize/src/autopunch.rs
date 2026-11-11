@@ -1065,7 +1065,7 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                     && set_angle.is_none()
                 {
                     region.flow_field =
-                        Some(t.region_field(&m, mw, mh, (k.x0, k.y0), &frame, region.angle));
+                        t.region_field(&m, mw, mh, (k.x0, k.y0), &frame, region.angle);
                 }
                 // OpenStitch mode leaves out a region that would sew as a knot: its stitches
                 // and the ties round them stack in one spot (p07: 8 stitches in 0.46 mm). Not
