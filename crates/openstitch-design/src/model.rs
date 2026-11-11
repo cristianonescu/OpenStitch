@@ -891,6 +891,15 @@ impl DesignObject {
             for l in &mut r.direction_lines {
                 *l = [t.apply(l[0]), t.apply(l[1])];
             }
+            // Stitch angle lines and a gradient's axis move with the shape (#859): the compiler
+            // sews every object moved to its bounds' corner, and moving a shape moves them.
+            for l in &mut r.angle_lines {
+                *l = [t.apply(l[0]), t.apply(l[1])];
+            }
+            if let Some(g) = &mut r.gradient {
+                g.from = t.apply(g.from);
+                g.to = t.apply(g.to);
+            }
             r.skeleton = r.skeleton.as_ref().map(|s| s.transformed(t));
         }
         if let Some(l) = &mut self.line {
