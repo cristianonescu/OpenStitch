@@ -852,7 +852,7 @@
    86.0,
    86.0
   ],
-  "stitches": 10740,
+  "stitches": 10733,
   "trims": 5,
   "threads": [
    "405 Blue",
@@ -862,7 +862,7 @@
   "sewingMinutes": 13.7,
   "image": null,
   "preview": "previews/holes-and-emboss.png",
-  "sha256": "0518ed894d8f8b6acc860ad4d7b69668b8bd0028f5d3c24b8ada87a6cd2ff921"
+  "sha256": "29750cdc01762113456d9fdc6e59a7975a7b8425a6008617b77252793aefe2dc"
  },
  "fills/wave-fill.pes": {
   "title": "Wave fill (beyond PE-DESIGN)",
@@ -872,7 +872,7 @@
    86.0,
    56.0
   ],
-  "stitches": 13909,
+  "stitches": 13606,
   "trims": 6,
   "threads": [
    "405 Blue",
@@ -882,10 +882,10 @@
    "620 Magenta",
    "406 Ultra Marine"
   ],
-  "sewingMinutes": 17.7,
+  "sewingMinutes": 17.3,
   "image": null,
   "preview": "previews/wave-fill.png",
-  "sha256": "f6e3e9129dbe0bfd7e2e86c19f7ffae81d76e428ec774536647801b7207d444f"
+  "sha256": "4fe9dd173ecfacb4ae3fc449788349cbd5e05759c80b3c9f719e6bb010a1c7ae"
  },
  "fills/meander-tiles-1.pes": {
   "title": "Meander fill tiles (1 of 2, beyond PE-DESIGN)",
@@ -1108,7 +1108,7 @@
    123.9,
    117.5
   ],
-  "stitches": 7587,
+  "stitches": 7598,
   "trims": 15,
   "threads": [
    "900 Black",
@@ -1123,7 +1123,7 @@
   "sewingMinutes": 10.3,
   "image": null,
   "preview": "previews/monograms.png",
-  "sha256": "35c41bb1a94829024a92ed7aed3fbefc2f63e6188c7e63a1a8e51a15ed254f31"
+  "sha256": "c01cde1ffabece6d051aafd173b7948bb2604e39f3bc269720bc8e54cff43cba"
  },
  "wizards/applique.pes": {
   "title": "Appliqué wizard",
@@ -1193,7 +1193,7 @@
    88.0,
    88.0
   ],
-  "stitches": 4128,
+  "stitches": 4119,
   "trims": 3,
   "threads": [
    "019 Sky Blue",
@@ -1203,7 +1203,7 @@
   "sewingMinutes": 5.3,
   "image": null,
   "preview": "previews/background-fill.png",
-  "sha256": "1fe323d535bfdc0a4c950bc001c4e6e9849a064a8ef53b2b31be5b275474c576"
+  "sha256": "6a6fb6facc86971475d3d56094f2b3ebed1a20a2e151e503953ff5ff55252cf6"
  },
  "image-tools/S-autopunch-balloon-openstitch.pes": {
   "title": "Auto Punch, OpenStitch mode",
@@ -1213,7 +1213,7 @@
    90.0,
    67.9
   ],
-  "stitches": 7811,
+  "stitches": 7752,
   "trims": 15,
   "threads": [
    "001 White",
@@ -1226,7 +1226,7 @@
   "sewingMinutes": 10.5,
   "image": "../images/g02-balloon.png",
   "preview": "previews/S-autopunch-balloon-openstitch.png",
-  "sha256": "ba9297e7a64a3eb5cbdbd656f5493fbc8cbc8786369598688320e033e399b530"
+  "sha256": "a3df10116232bccfb6f00b09644a38fe029f324ed54706ab4b6951109f4b7dd1"
  },
  "image-tools/S-autopunch-balloon-pe-compatible.pes": {
   "title": "Auto Punch, PE-DESIGN-compatible mode",
@@ -1236,7 +1236,7 @@
    89.6,
    62.1
   ],
-  "stitches": 5794,
+  "stitches": 5792,
   "trims": 13,
   "threads": [
    "001 White",
@@ -1248,7 +1248,7 @@
   "sewingMinutes": 7.9,
   "image": "../images/g02-balloon.png",
   "preview": "previews/S-autopunch-balloon-pe-compatible.png",
-  "sha256": "d216a3d1d9c8210e5fc81c22a55e5b5d519accce9d4a2a7dd426fe591fc6771a"
+  "sha256": "708a356e137babc835a56a909d670df6cc5b4cd2f4bf2b73377485697f20674a"
  },
  "image-tools/S-cross-stitch-strawberry-openstitch.pes": {
   "title": "Cross Stitch, OpenStitch mode",
@@ -1487,7 +1487,7 @@
    199.0,
    150.1
   ],
-  "stitches": 93576,
+  "stitches": 93724,
   "trims": 1081,
   "threads": [
    "017 Light Blue",
@@ -1501,10 +1501,10 @@
    "704 Pewter",
    "058 Dark Brown"
   ],
-  "sewingMinutes": 172.4,
+  "sewingMinutes": 172.6,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-openstitch.png",
-  "sha256": "0adee4f1fed26bf0594d77eb4e37b1f1369c57d1781bdf94263283a3ed270b4d"
+  "sha256": "4b36c88d946a079cb566b962a10f92fe465d80d05eaf0cd883723a2293115309"
  },
  "image-tools/L-autopunch-storybook-pe-compatible.pes": {
   "title": "Auto Punch, PE-DESIGN-compatible mode",
@@ -1514,7 +1514,7 @@
    199.3,
    150.9
   ],
-  "stitches": 112074,
+  "stitches": 112137,
   "trims": 2047,
   "threads": [
    "307 Linen",
@@ -1528,9 +1528,9 @@
    "330 Russet Brown",
    "517 Dark Olive"
   ],
-  "sewingMinutes": 245.0,
+  "sewingMinutes": 245.1,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-pe-compatible.png",
-  "sha256": "4b680191968fe649ab5a7372dc6953a791abe1fa7f866c9aca5777c3ea1faf63"
+  "sha256": "b290276be044159c228284e343d21b7a00319a3ad9c67b51aeb22f954723baad"
  }
 }
