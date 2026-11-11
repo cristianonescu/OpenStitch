@@ -695,3 +695,88 @@ fn angle_lines_toggle_reaches_the_engine() {
     assert!(region(s.design()).angle_lines.is_empty());
     assert!(!shown(s.design()));
 }
+
+/// Flow fill (#538, beyond PE-DESIGN): every option of the inspector's Rows (+) choice is
+/// accepted by the engine and reads back; Field grid shows only for a grid field, and choosing
+/// it again keeps that field.
+#[test]
+fn flow_fill_rows_choice_reaches_the_engine() {
+    use openstitch_design::flow::FlowField;
+    let mut s = Session::new(std::env::temp_dir());
+    let id = exec(
+        &mut s,
+        "shape.ellipse",
+        json!({"cx": 30, "cy": 30, "rx": 20, "ry": 20}),
+    )["id"]
+        .as_u64()
+        .expect("id");
+    let sel = BTreeSet::from([id]);
+    let m = InspectorModel::new(s.design(), &sel);
+    run(&mut s, &m.set_region_type(Some(RegionType::Fill)));
+    let region = |d: &Design| d.objects[0].region.clone().expect("region");
+    let rows = |d: &Design| -> (String, Vec<String>) {
+        inspector::region_controls(&region(d))
+            .into_iter()
+            .find_map(|c| match c {
+                Control::Choice {
+                    param: "flowField",
+                    value,
+                    options,
+                    ..
+                } => Some((value, options.into_iter().map(|(v, _)| v).collect())),
+                _ => None,
+            })
+            .expect("Rows (+)")
+    };
+    let (value, options) = rows(s.design());
+    assert_eq!(value, "straight");
+    assert_eq!(options, ["straight", "radial", "swirl"]);
+    for option in ["radial", "swirl", "straight"] {
+        let m = InspectorModel::new(s.design(), &sel);
+        run(&mut s, &m.set_region(json!({"flowField": option})));
+        assert_eq!(rows(s.design()).0, option);
+    }
+    // A grid field (from Auto Punch or object.setRegion) shows as Field grid; choosing it again
+    // keeps the field, and every option offered then is accepted too.
+    exec(
+        &mut s,
+        "object.setRegion",
+        json!({"id": id, "flowField": {"kind": "grid", "origin": [10, 10], "cell": 10, "cols": 2,
+                                        "angles": [0, 45, 90, 135]}}),
+    );
+    let grid = region(s.design()).flow_field;
+    assert!(matches!(grid, Some(FlowField::Grid { cols: 2, .. })));
+    let (value, options) = rows(s.design());
+    assert_eq!(value, "grid");
+    assert_eq!(options, ["straight", "radial", "swirl", "grid"]);
+    let m = InspectorModel::new(s.design(), &sel);
+    run(&mut s, &m.set_region(json!({"flowField": "grid"})));
+    assert_eq!(region(s.design()).flow_field, grid, "kept");
+    let set_grid = |s: &mut Session| {
+        exec(
+            s,
+            "object.setRegion",
+            json!({"id": id, "flowField": {"kind": "grid", "origin": [10, 10], "cell": 10,
+                                            "cols": 2, "angles": [0, 45, 90, 135]}}),
+        );
+    };
+    for option in options {
+        set_grid(&mut s);
+        let m = InspectorModel::new(s.design(), &sel);
+        run(&mut s, &m.set_region(json!({"flowField": option})));
+        assert_eq!(rows(s.design()).0, option);
+    }
+    // Without a grid field, grid is refused rather than read as a new field.
+    exec(
+        &mut s,
+        "object.setRegion",
+        json!({"id": id, "flowField": "straight"}),
+    );
+    assert!(
+        s.execute(
+            "object.setRegion",
+            Some(&json!({"id": id, "flowField": "grid"}))
+        )
+        .is_err()
+    );
+}

@@ -1846,3 +1846,112 @@ fn tartan_goes_through_the_command() {
     let help = run(&mut s, "commands.list", json!({})).to_string();
     assert!(help.contains("shape.tartan"));
 }
+
+/// #538: a flow fill through `object.setRegion {flowField}`: radial or swirl round the object's
+/// own centre, or a given field; it is kept in the project, undone in one step, cleared back to
+/// the plain fill, refused on non-fill regions and by PES 0110, and never taken from a picture.
+#[test]
+fn flow_fill_goes_through_the_command() {
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
+    run(
+        &mut s,
+        "shape.ellipse",
+        json!({"cx": 30, "cy": 30, "rx": 20, "ry": 20}),
+    );
+    run(&mut s, "object.setRegion", json!({"id": 1, "type": "fill"}));
+    let plain = Compiler::default().compile(s.design());
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "flowField": "swirl"}),
+    );
+    let r = s.design().objects[0].region.clone().expect("region");
+    match r.flow_field {
+        Some(openstitch_design::flow::FlowField::Swirl { center }) => {
+            assert!(
+                (center.x - 300.0).abs() < 1.0 && (center.y - 300.0).abs() < 1.0,
+                "{center:?}"
+            );
+        }
+        other => panic!("{other:?}"),
+    }
+    let swirl = Compiler::default().compile(s.design());
+    assert_ne!(plain, swirl, "the rows circle");
+    assert!(swirl.count(Command::Stitch) > 500);
+    let got = run(&mut s, "object.get", json!({"id": 1}));
+    assert_eq!(
+        got["region"]["flowField"]["kind"], "swirl",
+        "{}",
+        got["region"]
+    );
+    let bytes = project::encode(s.design()).expect("encode");
+    assert_eq!(&project::decode(&bytes).expect("decode"), s.design());
+    // PES 0110 keeps editable objects: PE-DESIGN would sew straight rows, so it is refused.
+    let e = s
+        .execute(
+            "design.export",
+            Some(&json!({"path": "flow.pes", "pesVersion": "11"})),
+        )
+        .expect_err("not mapped");
+    assert!(e.to_string().contains("flow fill"), "{e}");
+    // One undo step back to the plain fill; straight clears it.
+    run(&mut s, "history.undo", json!({}));
+    assert!(
+        s.design().objects[0]
+            .region
+            .as_ref()
+            .expect("r")
+            .flow_field
+            .is_none()
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "flowField": {"kind": "radial", "center": [30, 30]}}),
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "flowField": "straight"}),
+    );
+    assert_eq!(Compiler::default().compile(s.design()), plain);
+    // A grid field, and what is refused.
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "flowField": {"kind": "grid", "origin": [10, 10], "cell": 10, "cols": 4,
+                                     "angles": [0, 30, 60, 90, 0, 30, 60, 90, 0, 30, 60, 90, 0, 30, 60, 90]}}),
+    );
+    assert!(matches!(
+        s.design().objects[0].region.as_ref().expect("r").flow_field,
+        Some(openstitch_design::flow::FlowField::Grid { cols: 4, .. })
+    ));
+    for bad in [
+        json!("spiral"),
+        json!({"kind": "radial"}),
+        json!({"kind": "grid", "origin": [0, 0], "cell": 10, "cols": 3, "angles": [0, 1]}),
+    ] {
+        assert!(
+            s.execute(
+                "object.setRegion",
+                Some(&json!({"id": 1, "flowField": bad.clone()}))
+            )
+            .is_err(),
+            "{bad}"
+        );
+    }
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "satin"}),
+    );
+    assert!(
+        s.execute(
+            "object.setRegion",
+            Some(&json!({"id": 1, "flowField": "radial"}))
+        )
+        .is_err(),
+        "only fills"
+    );
+}

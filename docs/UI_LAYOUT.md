@@ -141,6 +141,7 @@ Behaviour follows the guide's pages
 | (beyond PE-DESIGN) Garment mockup (#454) | Application menu ▸ Export ▸ Garment Mockup ▸ fabric colour, then T-shirt (centre chest, left chest), Cap or Tote bag: a PNG of the design at true size on the garment (`design.mockup`) |
 | (beyond PE-DESIGN) Default thread chart (#796) | Colour picker (Sewing Attributes ▸ Colour, Home ▸ Line/Region Color, Change Color): the default chart's swatches (New Brothread until changed) with a search by code, name or Madeira code and a Brother PEC tab beside it; Options ▸ User Thread Charts ▸ Default chart changes it (`threads.setDefault`) |
 | (beyond PE-DESIGN) Thread codes on swatches (#798) | Every colour list (picker grid or List, picker button, Sewing Order, simulator bar, Thread Colours pane, Change Color, colour matching, user charts, Design Database, image wizards): the thread's code under or beside its swatch, full detail on hover |
+| (beyond PE-DESIGN) Flow fill (#538) | Sewing Attributes pane, Region on a fill: **Rows (+)** Straight, Radial (rows radiate from the shape's centre) or Swirl (rows circle it); a grid field set by command shows as Field grid |
 | File ▸ Design Database | Options ▸ Design Database |
 | Edit ▸ Undo, Redo | Quick Access Toolbar (⌘/Ctrl+Z, ⌘/Ctrl+Y) |
 | Edit ▸ Select All, Duplicate, Delete, Arrange Copies | Home ▸ Select, Clipboard |

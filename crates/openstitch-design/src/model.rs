@@ -2102,6 +2102,10 @@ pub struct RegionSewing {
     /// one line's direction to the next (see `crate::angle_lines`). Fewer than two: none.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub angle_lines: Vec<[Vec2; 2]>,
+    /// Fill: rows that follow this direction field (#538, beyond PE-DESIGN), as evenly spaced
+    /// streamlines (see `crate::flow`). Unset: straight rows (PE-DESIGN's fill).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub flow_field: Option<crate::flow::FlowField>,
     /// Fill: one colour of a colour blend or gradient (#532, beyond PE-DESIGN); the object
     /// sews only its share of the rows the gradient's objects share (see `crate::gradient`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2233,6 +2237,7 @@ impl RegionSewing {
             tartan: None,
             push_compensation: None,
             angle_lines: Vec::new(),
+            flow_field: None,
             gradient: None,
             motif_band: None,
         }
