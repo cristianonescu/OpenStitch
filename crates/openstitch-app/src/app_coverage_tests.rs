@@ -334,14 +334,12 @@ fn solid_view_draws_each_colour_block_as_flat_thread_0_7_mm_wide() {
                 strokes: vec![vec![v2(0.0, 0.0), v2(10.0, 0.0), v2(10.0, 10.0)]],
                 cover: Vec::new(),
                 shift: Vec::new(),
-                bare: Vec::new(),
             },
             ColorLayer {
                 rgb: blue,
                 strokes: vec![vec![v2(20.0, 0.0), v2(30.0, 0.0)]],
                 cover: Vec::new(),
                 shift: Vec::new(),
-                bare: Vec::new(),
             },
         ],
         ..Default::default()

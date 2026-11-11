@@ -21,9 +21,6 @@ pub struct ColorLayer {
     /// where the row beside it on one side is further than on the other (rows on the machine's
     /// 0.1 mm grid, #893). Empty: centred.
     pub shift: Vec<Vec<f32>>,
-    /// Per stroke, the width (mm) of bare fabric each stitch's rows leave beside it, both sides
-    /// together. Where it comes to less than a pixel, the view draws the rows closed (#893).
-    pub bare: Vec<Vec<f32>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -65,7 +62,6 @@ impl RenderModel {
             strokes: Vec::new(),
             cover: Vec::new(),
             shift: Vec::new(),
-            bare: Vec::new(),
         };
         let mut stroke: Vec<Vec2> = Vec::new();
         let mut pos: Option<Vec2> = None;
@@ -115,7 +111,6 @@ impl RenderModel {
                         strokes: Vec::new(),
                         cover: Vec::new(),
                         shift: Vec::new(),
-                        bare: Vec::new(),
                     };
                     let done = std::mem::replace(&mut layer, next);
                     if !done.strokes.is_empty() {
@@ -138,7 +133,7 @@ impl RenderModel {
     /// thread colour (all layers of that colour together): the local rows per mm, and the gaps to
     /// the rows beside each stitch.
     fn calibrate(&mut self) {
-        use openstitch_design::calibration::{RowDensity, THREAD_MM, coverage, thread_sides};
+        use openstitch_design::calibration::{RowDensity, THREAD_MM, thread_sides};
         let mut colours: Vec<[u8; 3]> = self.layers.iter().map(|l| l.rgb).collect();
         colours.sort_unstable();
         colours.dedup();
@@ -164,21 +159,6 @@ impl RenderModel {
                 l.shift = mine
                     .iter()
                     .map(|s| s.iter().map(|&(a, b)| ((a - b) * 5.0) as f32).collect())
-                    .collect();
-                // Each side covers `coverage` of its half gap and leaves the rest bare.
-                l.bare = l
-                    .strokes
-                    .iter()
-                    .zip(&mine)
-                    .map(|(st, sides)| {
-                        st.windows(2)
-                            .zip(sides)
-                            .map(|(w, &(a, b))| {
-                                let c = coverage(density.at(w[0].lerp(w[1], 0.5))).max(1e-6);
-                                ((a + b) * (1.0 - c) / c) as f32
-                            })
-                            .collect()
-                    })
                     .collect();
             }
         }

@@ -199,7 +199,6 @@ pub fn draw_realistic(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
         for (n, s) in layer.strokes.iter().enumerate() {
             let cover = layer.cover.get(n);
             let shift = layer.shift.get(n);
-            let bare = layer.bare.get(n);
             for (k, pair) in s.windows(2).enumerate() {
                 // Off centre towards the wider gap beside it (#893), so rows on the machine's
                 // 0.1 mm grid leave no bare stripe.
@@ -217,12 +216,6 @@ pub fn draw_realistic(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
                 );
                 // As wide as sewn thread covers at this stitch's row density (#291).
                 let w = (w * cover.and_then(|c| c.get(k)).copied().unwrap_or(1.0)).max(0.8);
-                // Fabric narrower than a pixel beside the rows cannot be drawn, and the
-                // anti-aliased edges of rows a pixel or so apart left light seams where they met,
-                // beating with the pixel grid into stripes (#893): there the stroke is widened
-                // until the rows close.
-                let bare_px = bare.and_then(|c| c.get(k)).map_or(f32::MAX, |&b| b * 10.0 * vp.scale as f32);
-                let w = w + (1.0 - bare_px).clamp(0.0, 1.0);
                 painter.line_segment([a, b], Stroke::new(w, edge));
                 painter.line_segment([a, b], Stroke::new(w * 0.7, body));
                 if w >= 2.5 {
