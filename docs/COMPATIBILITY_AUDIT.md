@@ -3393,6 +3393,34 @@ triangle above it, where PE-DESIGN sews a separate corner block (stopping the di
 half-widths out instead lost needle points and left a gap: 272); M, whose corners come from
 thinning junctions rather than cuts, is unchanged, as are M at 8 mm and A's and V's feet.
 
+### Fill text under a Text Transform sewn by stroke; envelope 10 refitted, 2026-11-11 (#428)
+
+PE-DESIGN sews fill text under a Text Transform stroke by stroke, as straight text
+(text-transform-9: level rows on the slanted stems). OpenStitch kept region rows there because
+three references failed by stroke. Two causes, both fixed:
+
+- A free end whose end edge the warp tilts (descenders, stem feet) lost its lower corner: a
+  side is trimmed to the stretch both sides cover, and the leading corner projects past the
+  other side's last point. A free end now keeps each side's corner
+  (`strokes::sides_along`); on straight text only O's two specs change their files, every check
+  the same. text-transform-18-openstitch-l100 passes.
+- Envelope 10 (a back slant) was a parallelogram held inside the straight box, the top edge from
+  0 to 1 − d and the bottom from d to 1. PE-DESIGN's reaches 0.4 mm left of the box and its
+  letters are 0.6 % further apart. `tools/fit_envelopes.py` now fits the slants as a
+  parallelogram with one slope and an offset per edge, least squares over every letter's corners
+  in the reference's own frame (`stitches.import` centres a file, which moved this one 0.15 mm).
+  Only preset 10 is replaced in `envelope_presets.rs`: the generator no longer reproduces the
+  other presets' committed values, so they are left as they are.
+
+Envelope 10, by region, before → after (PE-DESIGN): text-transform-10 min-x 12.6 → 12.4
+(12.3), stem column 3 bottom 48.6 → 49.2 (49.0), column 1 42.3 → 42.7 (42.5), column 5 40.5 →
+40.7 (40.9), column 8 bottom 47.8 → 48.2 (47.8), column 14 top 47.4 → 47.2 (47.4); -openstitch
+16.7 → 16.4 (16.4), -l0 17.1 → 16.6 (16.6), -l25 17.1 → 16.7 (16.7), -l75 15.3 → 15.2 (15.2),
+-agjy 25.1 → 24.9 (25.2), -l100 12.6 → 12.8 (12.7): all within tolerance, the boxes nearer, two
+columns 0.2–0.4 mm further. No other envelope changes. By stroke every PE-DESIGN reference
+passes; the internal pes-0110 transform snapshot is re-taken (arch 79.6 → 79.8 mm wide, 25.7 →
+26.1 mm high, PE-DESIGN's re-sew 79.20 × 26.50).
+
 ### Sharp Corners and Miter Limit on satin lines, 2026-11-09 (#373)
 
 PE-DESIGN has no satin line type, so there's no reference; this keeps OpenStitch's satin line
