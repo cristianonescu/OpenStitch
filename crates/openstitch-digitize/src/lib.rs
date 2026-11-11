@@ -11,6 +11,7 @@ pub mod center;
 pub mod columns;
 pub mod coverage;
 pub mod cross;
+pub mod flow;
 pub mod grabcut;
 pub mod optimise;
 pub mod outline;

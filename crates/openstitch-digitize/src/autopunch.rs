@@ -85,6 +85,10 @@ pub struct AutoPunch {
     /// the conversion does not sew is passed over and listed in [`Converted::order_ignored`]
     /// (the threads change with the mode and colour count); one listed twice is an error.
     pub order: Vec<u32>,
+    /// OpenStitch mode: each fill's rows follow the direction of the picture's own strokes
+    /// ([`crate::flow`], #538) instead of one angle; a fill whose angle is set keeps it. Off
+    /// (the default) and PE-DESIGN mode sew straight rows.
+    pub flow_fill: bool,
 }
 
 /// Longest [`AutoPunch::underlap_mm`], mm.
@@ -281,6 +285,7 @@ impl Default for AutoPunch {
             angle_rule: AngleRule::Pe,
             underlap_mm: 0.0,
             order: Vec::new(),
+            flow_fill: false,
         }
     }
 }
@@ -808,6 +813,9 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
         k += 1;
     }
     let mm = frame.mm_per_px();
+    // The picture's stroke directions, for the flow fill (#538, OpenStitch mode only).
+    let tensor =
+        (p.mode == Mode::OpenStitch && p.flow_fill).then(|| crate::flow::Tensor::of(&work, mm));
     // Touching regions, for the neighbour angle rule.
     let adjacent = match p.angle_rule {
         AngleRule::VaryNeighbours => adjacency(&id, w, h, comps.len()),
@@ -1049,6 +1057,15 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                     && entry.area_mm2 >= TRAVEL_MIN_MM2
                 {
                     region.angle = least_travel(&contours, &region);
+                }
+                // Flow fill (#538): the rows follow the picture's strokes in this region, on a
+                // 1 mm grid; where it has no clear direction they keep the fill's own angle.
+                if let Some(t) = &tensor
+                    && region.kind == RegionType::Fill
+                    && set_angle.is_none()
+                {
+                    region.flow_field =
+                        t.region_field(&m, mw, mh, (k.x0, k.y0), &frame, region.angle);
                 }
                 // OpenStitch mode leaves out a region that would sew as a knot: its stitches
                 // and the ties round them stack in one spot (p07: 8 stitches in 0.46 mm). Not

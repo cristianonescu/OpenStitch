@@ -1,5 +1,6 @@
 //! `object.setRegion {flowField}` (#538, beyond PE-DESIGN): a fill's rows follow a direction
-//! field (see `openstitch_design::flow`). The field is given, never taken from a picture.
+//! field (see `openstitch_design::flow`). The field is given here; Auto Punch's `flowFill`
+//! takes a grid from a picture.
 
 use crate::commands::MM;
 use crate::params::{CommandError, Params};

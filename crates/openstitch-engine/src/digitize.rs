@@ -625,6 +625,11 @@ fn auto_punch_docs() -> Vec<ParamDoc> {
         "OpenStitch mode: each fill reaches this far under the touching regions sewn after it, so no fabric shows along the seams between colours (default 0, off; 0.8 is typical) (#469; needs compatMode openStitch)",
     ));
     v.push(opt(
+        "flowFill",
+        "bool",
+        "OpenStitch mode: each fill's rows follow the direction of the picture's own strokes (fur, petals, hair) on a 1 mm grid, as evenly spaced curved rows that never cross, instead of one straight angle; a region whose picture has no clear strokes inside it (a flat shape, noise) keeps straight rows, as does a fill whose angle is set (default false; the region's flowField can be changed afterwards with object.setRegion) (#538; needs compatMode openStitch)",
+    ));
+    v.push(opt(
         "preset",
         "logo|patch|lineArt|illustration|photo|pixelArt",
         "OpenStitch mode: a purpose preset that sets several options at once, each only where the call does not set it (digitize.presets lists them); implies compatMode openStitch (#489)",
@@ -689,6 +694,15 @@ fn region_map_json(out: &autopunch::Converted) -> Value {
         }
     }
     json!({"width": mw, "height": mh, "runs": runs})
+}
+
+/// Auto Punch's `flowFill` (#538): OpenStitch mode only.
+fn flow_fill(p: &Params, mode: Mode) -> Result<bool, CommandError> {
+    let on = p.bool("flowFill", Some(false))?;
+    if on && mode == Mode::PeDesign {
+        return Err(p.invalid("flowFill", "needs compatMode openStitch"));
+    }
+    Ok(on)
 }
 
 /// Auto Punch's `underlap` (#469): mm, OpenStitch mode only.
@@ -825,6 +839,7 @@ fn auto_punch_options(
         overrides: overrides(p)?,
         angle_rule,
         underlap_mm: underlap(p, mode)?,
+        flow_fill: flow_fill(p, mode)?,
         order: colour_order(p)?,
         ..AutoPunch::default()
     };

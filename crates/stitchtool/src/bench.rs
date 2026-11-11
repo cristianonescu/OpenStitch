@@ -900,6 +900,29 @@ pub const TASKS: &[Task] = &[
             need(d.stitches() > 300, "stitches")
         },
     },
+    // #538: the flow fill from a picture, Auto Punch's OpenStitch mode with flowFill.
+    Task {
+        id: "flow-picture",
+        setup: &[],
+        prompt: "Digitize the emblem picture at {EMBLEM} with Auto Punch, about 60 mm wide, with the fill rows following the picture's own strokes instead of straight rows.",
+        check: |d| {
+            need(
+                called_steps(d).iter().any(|c| {
+                    c["command"] == "digitize.autoPunch"
+                        && c["params"]["flowFill"] == true
+                        && c["params"]["compatMode"] == "openStitch"
+                }),
+                "Auto Punch with flowFill in OpenStitch mode",
+            )?;
+            need(
+                d.full
+                    .iter()
+                    .any(|f| f["region"]["flowField"]["kind"] == "grid"),
+                "a fill whose rows follow the picture (flowField grid)",
+            )?;
+            need((45.0..=75.0).contains(&widest(d)), "about 60 mm")
+        },
+    },
     // #538: the flow fill, rows radiating from the circle's centre.
     Task {
         id: "sunburst",
@@ -1588,7 +1611,7 @@ mod tests {
         let (json, md) = reports("scripted", &out);
         assert_eq!(json["passed"], 2);
         assert!(md.contains("| star | fail: only talked |"));
-        assert_eq!(TASKS.len(), 27);
+        assert_eq!(TASKS.len(), 28);
     }
 
     #[test]
@@ -1748,6 +1771,27 @@ mod tests {
             "{}",
             requests[2]["system"]
         );
+    }
+
+    #[test]
+    fn the_flow_picture_task_needs_flow_fill_in_open_stitch_mode() {
+        let task = TASKS.iter().find(|t| t.id == "flow-picture").expect("task");
+        let design = |params: Value, kind: &str| Design {
+            objects: vec![json!({"bounds": {"x": 0, "y": 0, "width": 60, "height": 55}})],
+            full: vec![json!({"region": {"flowField": {"kind": kind}}})],
+            calls: vec![format!(
+                "execute {}",
+                json!({"command": "digitize.autoPunch", "params": params})
+            )],
+            ..Design::default()
+        };
+        let on = json!({"path": "e.png", "compatMode": "openStitch", "flowFill": true});
+        assert!((task.check)(&design(on.clone(), "grid")).is_ok());
+        let pe = (task.check)(&design(json!({"path": "e.png", "flowFill": true}), "grid"))
+            .expect_err("PE mode");
+        assert!(pe.contains("flowFill"), "{pe}");
+        let straight = (task.check)(&design(on, "radial")).expect_err("no grid");
+        assert!(straight.contains("grid"), "{straight}");
     }
 
     #[test]

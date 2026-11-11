@@ -25,6 +25,10 @@ const SATIN_UNDERLAY_INSETS: [f64; 2] = [10.0, 9.0];
 /// Running stitch of the travel from satin under sewing to the top stitching (0.1 mm).
 const SATIN_TRAVEL_PITCH: f64 = 20.0;
 
+/// Longest travel (0.1 mm) between two pieces of one colour of a blend or gradient; a longer
+/// gap is trimmed, since the colour's sparse rows leave nothing to cover it (#891).
+const GRADIENT_TRAVEL: f64 = 20.0;
+
 /// The layers of a region in sewing order (underlay first, then the top stitching); each layer
 /// is a list of runs.
 pub fn layers(closed: &[Contour], r: &RegionSewing, holes: &[Contour]) -> Vec<Vec<Run>> {
@@ -276,7 +280,12 @@ fn layers_inner(
         let pieces = crate::gradient::layer_pieces(&rows, g, angle, p.row_spacing, p.stitch_length);
         let pieces = crate::paths::order(pieces, r.entry);
         let mut graph = TravelGraph::new(closed, holes);
-        return vec![join(pieces, Some(&mut graph), SATIN_TRAVEL_PITCH)];
+        return vec![crate::paths::join_within(
+            pieces,
+            &mut graph,
+            SATIN_TRAVEL_PITCH,
+            GRADIENT_TRAVEL,
+        )];
     }
     // Stitch angle lines (#534, beyond PE-DESIGN): the plain fill's under sewing, then rows
     // turning from line to line (see `crate::angle_lines`), joined by travel inside.

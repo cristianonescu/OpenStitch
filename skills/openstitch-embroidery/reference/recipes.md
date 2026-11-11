@@ -228,6 +228,11 @@ so the editor asks the user first.
 colour sewn after it, so no fabric shows along seams; it adds stitches, so leave it off for
 thin lettering.
 
+`flowFill: true` (OpenStitch mode) curves each fill's rows along the picture's own strokes,
+for fur, feathers, petals or hair; flat shapes keep straight rows (only strokes inside a
+region steer it, not its outline). A fill whose angle is set
+in `overrides` keeps its straight rows.
+
 Helpers that need no model and send nothing anywhere:
 - **Cut out the subject with one click.** `digitize.segment` `{path, point: [x, y]}` (fractions
   of the picture: `[0.5, 0.5]` is its centre) returns the subject's `box` and `share`, and with
