@@ -3393,6 +3393,97 @@ triangle above it, where PE-DESIGN sews a separate corner block (stopping the di
 half-widths out instead lost needle points and left a gap: 272); M, whose corners come from
 thinning junctions rather than cuts, is unchanged, as are M at 8 mm and A's and V's feet.
 
+### Fill text under a Text Transform sewn by stroke; envelope 10 refitted, 2026-11-11 (#428)
+
+PE-DESIGN sews fill text under a Text Transform stroke by stroke, as straight text
+(text-transform-9: level rows on the slanted stems). OpenStitch kept region rows there because
+three references failed by stroke. Two causes, both fixed:
+
+- A free end whose end edge the warp tilts (descenders, stem feet) lost its lower corner: a
+  side is trimmed to the stretch both sides cover, and the leading corner projects past the
+  other side's last point. A free end now keeps each side's corner
+  (`strokes::sides_along`); on straight text only O's two specs change their files, every check
+  the same. text-transform-18-openstitch-l100 passes.
+- Envelope 10 (a back slant) was a parallelogram held inside the straight box, the top edge from
+  0 to 1 − d and the bottom from d to 1. PE-DESIGN's reaches 0.4 mm left of the box and its
+  letters are 0.6 % further apart. `tools/fit_envelopes.py` now fits the slants as a
+  parallelogram with one slope and an offset per edge, least squares over every letter's corners
+  in the reference's own frame (`stitches.import` centres a file, which moved this one 0.15 mm).
+  Only preset 10 is replaced in `envelope_presets.rs`: the generator no longer reproduces the
+  other presets' committed values, so they are left as they are.
+
+Envelope 10, by region, before → after (PE-DESIGN): text-transform-10 min-x 12.6 → 12.4
+(12.3), stem column 3 bottom 48.6 → 49.2 (49.0), column 1 42.3 → 42.7 (42.5), column 5 40.5 →
+40.7 (40.9), column 8 bottom 47.8 → 48.2 (47.8), column 14 top 47.4 → 47.2 (47.4); -openstitch
+16.7 → 16.4 (16.4), -l0 17.1 → 16.6 (16.6), -l25 17.1 → 16.7 (16.7), -l75 15.3 → 15.2 (15.2),
+-agjy 25.1 → 24.9 (25.2), -l100 12.6 → 12.8 (12.7): all within tolerance, the boxes nearer, two
+columns 0.2–0.4 mm further. No other envelope changes. By stroke every PE-DESIGN reference
+passes; the internal pes-0110 transform snapshot is re-taken (arch 79.6 → 79.8 mm wide, 25.7 →
+26.1 mm high, PE-DESIGN's re-sew 79.20 × 26.50).
+
+### Satin M's stems run on past its top corners, 2026-11-11 (#446)
+
+PE-DESIGN 11.50 sews satin M's stems the whole height of the letter, as it does N's, and stops
+each diagonal against its stem (stroke-satin-M, -M-8, round 8). In OpenStitch, the thinning left a
+small loop in each of M's acute top corners. The notch's tip is narrower than a grid cell, so a
+few outside cells there are sealed off, and the thinning goes round them. Each corner then became
+a junction instead of a corner cut, so `run_on_stems` never saw it:
+- at 20 mm, the left corner fanned;
+- at 20 mm, the right diagonal's top was a single travel line beside a gap;
+- at 8 mm, the letter sewed in two runs, 0.3 mm short.
+
+Now such a loop is pruned as a thinning knot (`Graph::pruned`) when all of these hold:
+- it loops back to its own junction;
+- it is under 4 times the junction's clearance (`NOTCH_LOOP`);
+- it goes round at most 3 sealed outside cells (`KNOT_CELLS`; counters are larger, and are found
+  by flooding the outside from the grid's border);
+- the junction's two other branches leave it straight over 6 clearances (`KNOT_ARM`).
+
+The last condition keeps the knots in Pacifico's curved a and m: pruning those piled 22 needle
+drops into a 0.5 mm cell at 7 mm, above sew_check's 20. M's corners then become cuts. The stem
+runs on from its own line, dropping the thinning's bend into the corner (`STEM_BEND`). Against
+PE-DESIGN:
+
+| | needle points | trims | mean needle distance, ours / PE's | coverage IoU |
+|---|---|---|---|---|
+| M 20 mm | 343 → 347 (PE 374) | 1 → 0 (PE 1) | 0.267 / 0.317 → 0.224 / 0.235 mm | 0.709 → 0.783 |
+| M 8 mm | 138 → 145 (PE 165) | 1 → 0 (PE 0) | 0.171 / 0.270 → 0.136 / 0.160 mm | 0.714 → 0.820 |
+
+M at 8 mm is now 8.3 mm tall, as PE-DESIGN's (8.0 before). A sweep of A–Z, a–z and 0–9
+in Lato Bold at 8 and 20 mm changes 9 of 124 glyphs:
+- M;
+- N, by one needle point;
+- 4: its stem runs straight to the top instead of fanning;
+- 6: it sews its bowl as stroke satin, not fixed-direction rows with travel across the counter;
+- 9 at 8 mm: its tail becomes satin along the stroke.
+
+There are no PE-DESIGN references for the digits.
+
+Still open on #446:
+- M at 20 mm now has no trim where PE-DESIGN trims once.
+- V's foot and the foot of M's middle V: PE-DESIGN runs one arm on to the baseline and stops the
+  other against it.
+- A's feet and V's top ends fan.
+- N's corner block.
+
+### Blend and gradient travel stays short, 2026-11-11 (#891)
+
+Beyond PE-DESIGN, so there is no reference. Each colour of a blend or gradient sews only its own
+share of the shared rows, so nothing covers its travel. In the kit's blends, long straight travel
+crossed the other colours in each colour's own thread: a purple line ran across the radial blend's
+gold centre (`examples/sew/previews/gradients.png`). It came from two places:
+- the travel between a colour's pieces, which took the shortest path inside the shape however far
+  it was;
+- the travel from each colour object's start point and to its end point.
+
+Now a colour travels at most 2 mm between its pieces (`paths::join_within`, `GRADIENT_TRAVEL`) and
+trims longer gaps. It has no start- or end-point travel, as Concentric Circle and Spiral already
+do; its colour change trims there anyway.
+
+The kit's gradients design (4 swatches, 9 colours) goes from 1 trim to 71 and 9,133 needle points
+to 8,859; its longest straight stretch across the rows is now 3.0 mm, against 22 mm before. Test:
+`blend_travel_never_runs_far_across_the_rows`.
+
 ### Sharp Corners and Miter Limit on satin lines, 2026-11-09 (#373)
 
 PE-DESIGN has no satin line type, so there's no reference; this keeps OpenStitch's satin line

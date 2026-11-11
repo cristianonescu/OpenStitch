@@ -9,7 +9,9 @@
 //!   fraction t along the other, so the rows turn with the shape and stay inside it. There are
 //!   as many rows as the longer side needs at the row spacing; where the shorter side (the
 //!   inside of a bend) crowds them, rows are left out in pairs (every other one, then every
-//!   fourth…) so they stay at least 0.85 of a spacing apart.
+//!   fourth…) so they stay at least 0.85 of a spacing apart. The row count is rounded up to a
+//!   multiple of that thinning, so the kept rows reach the next chord as evenly as they leave
+//!   this one.
 //! - Before the first chord and after the last, rows run parallel to it, a spacing apart.
 //! - A shape with a hole and three or more lines (a ring) wraps from the last line to the first.
 //!
@@ -362,9 +364,24 @@ fn pieces(p: impl Fn(f64) -> Vec2, keep: impl Fn(f64) -> bool) -> Vec<Run> {
     out
 }
 
+/// How many row steps a band whose sides are `l0` and `l1` long is laid in: as many as the
+/// longer side needs at `spacing`, rounded up to a multiple of the coarsest thinning ([`kept`])
+/// its shorter side needs, so every thinning ends on the next band's first row as evenly as it
+/// starts (#890: an odd count left the last kept row three steps short of the next line where
+/// the rows were thinned to every other one, a thin streak along it).
+fn steps(l0: f64, l1: f64, spacing: f64) -> usize {
+    let n = ((l0.max(l1) / spacing).ceil() as usize).max(1);
+    let gap = l0.min(l1) / n as f64;
+    let mut step = 1usize;
+    while gap * (step as f64) < CROWDED * spacing && step * 2 <= n / 2 {
+        step *= 2;
+    }
+    n.div_ceil(step) * step
+}
+
 /// The rows between two sides: row t joins `s1.at(t)` and `s2.at(t)`.
 fn band(s1: &Side, s2: &Side, spacing: f64, last: bool) -> Vec<Run> {
-    let n = ((s1.len.max(s2.len) / spacing).ceil() as usize).max(1);
+    let n = steps(s1.len, s2.len, spacing);
     let mut out = Vec::new();
     for k in 0..n + usize::from(last) {
         let t = k as f64 / n as f64;
@@ -380,7 +397,7 @@ fn band(s1: &Side, s2: &Side, spacing: f64, last: bool) -> Vec<Run> {
 /// The rows between chords `a` and `b` by straight interpolation (ends on different outlines).
 fn straight(a: [Vec2; 2], b: [Vec2; 2], spacing: f64, last: bool) -> Vec<Run> {
     let (l0, l1) = (a[0].distance(b[0]), a[1].distance(b[1]));
-    let n = ((l0.max(l1) / spacing).ceil() as usize).max(1);
+    let n = steps(l0, l1, spacing);
     let mut out = Vec::new();
     for k in 0..n + usize::from(last) {
         let t = k as f64 / n as f64;

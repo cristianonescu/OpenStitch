@@ -222,6 +222,10 @@ python3 -I tools/sew_kit.py
 `python3 -I tools/sew_kit.py --check` says whether the committed files still match what OpenStitch
 writes; the stitch engine's changes make them stale.
 
+Build both binaries after every source change. The previews come from the `openstitch` app, which
+sews each design again, so an app older than the change would show the old stitches. `sew_kit.py`
+refuses to run with a binary older than any source file it was built from (#896).
+
 ## The designs
 
 <!-- kit:start -->
@@ -419,17 +423,17 @@ Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 208 Orange, 620 Mag
 
 #### Colour blends and gradient fills (beyond PE-DESIGN)
 
-[`fills/gradients.pes`](fills/gradients.pes) · 100 × 100 mm hoop · 86 × 73 mm · 7,540 stitches · 7 trims · about 9.8 min
+[`fills/gradients.pes`](fills/gradients.pes) · 100 × 100 mm hoop · 86 × 73 mm · 8,859 stitches · 80 trims · about 15.2 min
 
 Top left: a blue-to-white blend, bottom to top (rows dither). Top right: red, orange and yellow, left to right (ordered dither). Bottom left: a radial yellow, orange and magenta gradient (noise dither). Bottom right: green into blue at 45° with hard bands.
 
 <img src="previews/gradients.png" height="180" alt="Realistic view of fills/gradients.pes">
 
-Threads, in sewing order: 405 Blue, 001 White, 800 Red, 208 Orange, 620 Magenta, 509 Leaf Green, 405 Blue.
+Threads, in sewing order: 405 Blue, 001 White, 800 Red, 208 Orange, 205 Yellow, 208 Orange, 620 Magenta, 509 Leaf Green, 405 Blue.
 
 #### Stitch angle lines (beyond PE-DESIGN)
 
-[`fills/angle-lines.pes`](fills/angle-lines.pes) · 100 × 100 mm hoop · 49.9 × 72.9 mm · 4,669 stitches · 1 trim · about 5.9 min
+[`fills/angle-lines.pes`](fills/angle-lines.pes) · 100 × 100 mm hoop · 49.8 × 72.8 mm · 4,631 stitches · 1 trim · about 5.8 min
 
 An L whose rows turn round its corner between three angle lines, as one object with no seam.
 
@@ -501,7 +505,7 @@ The fonts, Text Transform, text on a path and monograms.
 
 #### Lettering
 
-[`lettering/fonts-and-text.pes`](lettering/fonts-and-text.pes) · 100 × 100 mm hoop · 71 × 89.7 mm · 3,865 stitches · 39 trims · about 6.8 min
+[`lettering/fonts-and-text.pes`](lettering/fonts-and-text.pes) · 100 × 100 mm hoop · 71 × 89.7 mm · 3,903 stitches · 39 trims · about 6.9 min
 
 Lato Bold and Pacifico, a Text Transform arch, and text spaced around a circle (text on a path).
 

@@ -419,7 +419,8 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
   wave, triangle or arc shifts ([#537]).
 - (+) **Wave fill:** a fill's rows ripple as a sine with a set height and length ([#538]).
 - (+) **Flow fill:** a fill's rows radiate from its centre, circle it, or follow a grid of
-  angles, evenly spaced and never crossing ([#538]).
+  angles, evenly spaced and never crossing; Auto Punch can take the angles from the picture's
+  own strokes ([#538]).
 - (+) **Colour blends and gradient fills:** a fill fades from one thread into another, or through up
   to 8 colours, linear or radial, sewn as one even layer with rows, ordered, noise or band
   dithering ([#532]).

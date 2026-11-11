@@ -875,6 +875,7 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
         "ui-vary-angles-of-touching-fills",
         "Vary angles of touching fills",
     ),
+    ("ui-rows-follow-the-picture", "Rows follow the picture (+)"),
     ("ui-fill-each-cell", "Fill each cell"),
     (
         "ui-parallel-diagonals-about-0-3-mm-tip",

@@ -109,8 +109,8 @@
       "source": {
         "export": "a.pes"
       },
-      "evidence": "internal regression: OpenStitch's own arch sews 79.6 mm (79.9 mm before 2026-11-08, when the arch's letters moved 0.05 mm closer and its shift became -0.004, #428). Known difference, open in docs/COMPATIBILITY_AUDIT.md item 5: PE-DESIGN re-sews this object at 79.20 mm (its own text-transform-1: 79.30) round the same 40.8 mm circle; OpenStitch places the letters round the circle differently. Not compared at the reference tier until it matches at 0.3 mm",
-      "expected": 79.6,
+      "evidence": "internal regression: OpenStitch's own arch sews 79.8 mm (79.6 mm by region rows until 2026-11-11, when fill text under a Text Transform began sewing by stroke and keeping a tilted free end's corners, #428; 79.9 mm before 2026-11-08, when the arch's letters moved 0.05 mm closer and its shift became -0.004, #428). Known difference, open in docs/COMPATIBILITY_AUDIT.md item 5: PE-DESIGN re-sews this object at 79.20 mm (its own text-transform-1: 79.30) round the same 40.8 mm circle; OpenStitch places the letters round the circle differently. Not compared at the reference tier until it matches at 0.3 mm",
+      "expected": 79.8,
       "tolerance": {
         "mm": 0.05
       }
@@ -124,8 +124,8 @@
       "source": {
         "export": "a.pes"
       },
-      "evidence": "internal regression: OpenStitch's rows of the arch span 25.7 mm wherever the text stands (#567; 25.8 mm before the arch spacing of 2026-11-08, #428). Known difference, open in docs/COMPATIBILITY_AUDIT.md item 5: PE-DESIGN re-sews this object at 26.50 mm round its 40.8 mm circle against OpenStitch's 39.6 mm. Until 2026-11-06 the export measured 26.0 mm only because a travel stitch walked 0.2 mm out to the top letter's corner and back; with that gone the height is the rows' own. Not compared at the reference tier until the arch matches at 0.3 mm",
-      "expected": 25.7,
+      "evidence": "internal regression: OpenStitch's rows of the arch span 26.1 mm wherever the text stands (#567; 25.7 mm by region rows until 2026-11-11, when fill text under a Text Transform began sewing by stroke, nearer PE-DESIGN's 26.50, #428; 25.8 mm before the arch spacing of 2026-11-08, #428). Known difference, open in docs/COMPATIBILITY_AUDIT.md item 5: PE-DESIGN re-sews this object at 26.50 mm round its 40.8 mm circle against OpenStitch's 39.6 mm. Until 2026-11-06 the export measured 26.0 mm only because a travel stitch walked 0.2 mm out to the top letter's corner and back; with that gone the height is the rows' own. Not compared at the reference tier until the arch matches at 0.3 mm",
+      "expected": 26.1,
       "tolerance": {
         "mm": 0.05
       }

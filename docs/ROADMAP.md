@@ -131,6 +131,11 @@ stitches and hairline satins with limits from PE-DESIGN's own files. Next: sew t
 card and set `strip` from it; engine follow-ups #627 (Design Center line-art trims, done below) and #628
 (entry travel across a region).
 
+Done 2026-11-11 (#896): `sew_kit.py` refuses to run with a `stitchtool` or `openstitch` binary
+older than any source file its cargo dep-info lists, or built from another checkout. A preview
+rendered by an app built before a stitch change had shown the old stitches beside the new .pes
+(#890). The previews were then regenerated once with fresh binaries.
+
 Done 2026-11-06 (`batch:engine-bugs-3`, #570, #571, #466, #627, #633; #628 in part): start and end
 points left off a reshaped outline snap to it (the four random-design seeds pass); zigzag lines
 no longer fold at cusps and their under sewing bevels sharp corners; skeleton satin takes Half
@@ -198,6 +203,10 @@ Done 2026-11-08 (`batch:fills-2`, #677): push compensation on straight-row fills
 (`pushCompensation`, the sides along the rows move in) and a second under sewing layer on fill and
 satin regions (`underlay2` with an `angle` from the fill angle, crossed tatami by default).
 
+Done 2026-11-11 (`batch:fills-2`, #890): angle-line rows thinned on the inside of a bend now reach the
+next line as evenly as they leave the last one. Before, a band with an odd row count left a thin
+streak along the line near the inner corner.
+
 Done 2026-11-08 (`batch:fills-2`, #534 part 1): the Fill Angle tool (Color / Sew Type): drag across
 the selected regions to turn their rows, PE-DESIGN's sewing-direction gesture. The stitch angle
 lines of #534 follow.
@@ -241,7 +250,10 @@ Done 2026-11-07 (`batch:fills-2`, #538 wave part): wave fill. A fill's `waveHeig
 `waveLength` make its rows ripple as one sine across the row direction; the region is sheared
 straight, sewn as a plain fill and sheared back, so under sewing, stagger and travel carry over
 and height 0 is the plain fill. The spacing across the rows stays within ±15 % (40° slope cap).
-The flow fill (rows following a picture's direction field) stays planned.
+The flow fill followed (2026-11-08/09, #538): rows as evenly spaced streamlines of a stored
+field (radial, swirl or a grid of angles, `object.setRegion flowField`), then Auto Punch's
+`flowFill` in OpenStitch mode, which takes the grid from the picture's structure tensor on a
+1 mm grid, after the owner's patent decision (research/beyond/patents.md, US 7,996,103).
 
 Done 2026-11-07 (`batch:fills-2`, #533 meander part): meander fill, region type `meander`, with
 12 own-drawn tiles of the new pattern kind `meander`, chained into rows and joined along the
