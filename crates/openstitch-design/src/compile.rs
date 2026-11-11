@@ -3005,13 +3005,15 @@ mod stroke_fill_tests {
         // inside the letter (stroke-satin-N/W/Z.pes, round 8, at 20 and 8 mm). Their pieces,
         // cut apart at the acute corners, were each trimmed to: N 2 trims, W 3, Z 1 at 20 mm.
         // Each piece is now sewn from the end that leads on to the next, which is travelled to
-        // through the letter. M keeps its one trim at 20 mm, as PE-DESIGN's.
+        // through the letter. M, whose stems now run on past its top corners (#446), sews in one
+        // run too: as PE-DESIGN at 8 mm; PE-DESIGN trims once inside M at 20 mm.
         for (text, size, inside) in [
             ("N", 20.0, 0),
             ("N", 8.0, 0),
             ("W", 20.0, 0),
             ("Z", 20.0, 0),
-            ("M", 20.0, 1),
+            ("M", 20.0, 0),
+            ("M", 8.0, 0),
         ] {
             let (obj, p) = satin_text(text, size);
             let sewn = p
