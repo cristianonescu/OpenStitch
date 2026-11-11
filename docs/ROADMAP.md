@@ -189,6 +189,11 @@ short stitches (#617), and a Beyond-PE rope stitch (#618). Done 2026-11-07 (`bat
 within 0.1 mm of PE-DESIGN's), #617, and two stippling bugs found on the way: seed 993's runaway
 allocation (#638) and a narrow band that sewed nothing (#708). #614 continues: PE-DESIGN's cross
 stitch has no Direction and only Times (single, double, triple), captured 2026-11-07.
+Done 2026-11-09 (`batch:fills-2`, #539): tartan (plaid) fill, moved out of Deferred for alpha.13.
+`shape.tartan` makes one fill per colour of a sett ("R8 G24 W4" or a list), each sewing the warp and
+weft rows of its own stripes at half density, so the colours mix where stripes cross. Linear colour
+gradients were done in #806.
+
 Done 2026-11-08 (`batch:fills-2`, #677): push compensation on straight-row fills
 (`pushCompensation`, the sides along the rows move in) and a second under sewing layer on fill and
 satin regions (`underlay2` with an `angle` from the fill angle, crossed tatami by default).
@@ -638,7 +643,7 @@ hand-stitch look for fills (#817, rank 13 theme with #540) and rebuilt objects t
 original's spacing, tatami pattern and closed satin rings (#818, `object.toShapes`), both ideas
 for Future.
 
-Deferred: linear colour-gradient and tartan fills, shape and vine fills, photo
+Deferred: shape and vine fills, photo
 thread-painting, sequin/chenille/bead types (machine-specific), the TrueType turning-satin
 rework and an intelligent multi-hoop split with editable lines (VP3, TAP, TBF, U01, DSB, DSZ,
 KSM, ZXY and STX landed with #480 and #481).

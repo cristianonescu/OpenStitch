@@ -1054,6 +1054,27 @@ impl RegionType {
     }
 }
 
+/// One colour of a tartan (plaid) fill (#539, beyond PE-DESIGN): the sett, shared by the
+/// tartan's objects, and the colour this object sews.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Tartan {
+    pub sett: Vec<TartanStripe>,
+    /// Mirrored about its first and last stripes (the usual sett).
+    #[serde(default)]
+    pub symmetric: bool,
+    /// The colour index (into the tartan's colours) this object sews.
+    pub layer: usize,
+}
+
+/// One stripe of a tartan sett: a colour index and a width in mm.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TartanStripe {
+    pub color: usize,
+    pub width: f64,
+}
+
 /// One colour of a colour blend or gradient fill (#532, beyond PE-DESIGN): the gradient's
 /// objects share the shape and its fill settings and differ in `layer` and thread.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -2078,6 +2099,10 @@ pub struct RegionSewing {
     /// Fill: the wave's length, crest to crest, mm (default [`RegionSewing::DEFAULT_WAVE_LENGTH`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wave_length: Option<f64>,
+    /// Fill: one colour of a tartan (#539, beyond PE-DESIGN); the object sews the warp and weft
+    /// rows of its colour's stripes (see `crate::tartan`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tartan: Option<Tartan>,
     /// Fill: push compensation (#677, beyond PE-DESIGN), mm (0-2): the top stitching's sides
     /// parallel to its rows move in by this much; the row ends keep `pull_compensation`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2214,6 +2239,7 @@ impl RegionSewing {
             hand: None,
             wave_height: None,
             wave_length: None,
+            tartan: None,
             push_compensation: None,
             angle_lines: Vec::new(),
             gradient: None,

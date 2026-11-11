@@ -14,7 +14,7 @@
    "cx": 30,
    "cy": 33,
    "width": 40,
-   "fill": "Deep Rose"
+   "fill": {"builtin": "newBrothread", "code": "086"}
   }
  },
  {
@@ -74,7 +74,7 @@
    "cx": 210,
    "cy": 33,
    "width": 40,
-   "fill": "Yellow"
+   "fill": {"builtin": "newBrothread", "code": "205"}
   }
  },
  {
@@ -89,7 +89,7 @@
    "cover": "eStitch",
    "coverWidth": 2.5,
    "coverInterval": 2,
-   "color": "Blue"
+   "color": {"builtin": "newBrothread", "code": "405"}
   }
  },
  {
@@ -99,7 +99,7 @@
    "x": 45,
    "y": 118,
    "size": 40,
-   "fill": "Emerald Green"
+   "fill": {"builtin": "newBrothread", "code": "507"}
   }
  },
  {
@@ -123,7 +123,7 @@
    "cy": 95,
    "rx": 28,
    "ry": 20,
-   "fill": "Orange"
+   "fill": {"builtin": "newBrothread", "code": "208"}
   }
  },
  {
@@ -136,7 +136,7 @@
    "cover": "vStitch",
    "coverWidth": 3,
    "coverInterval": 2.5,
-   "color": "Black"
+   "color": {"builtin": "newBrothread", "code": "900"}
   }
  }
 ]
