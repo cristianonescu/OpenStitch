@@ -4840,3 +4840,132 @@ fn tartan_rows_lie_in_their_colours_stripes_and_share_out_every_row() {
             .contains("tartan")
     );
 }
+
+/// The kit's L (#890): 7..57 × 7..80 mm with lines across its top arm, its corner and its foot.
+fn kit_l() -> (Vec<Contour>, Vec<[Vec2; 2]>) {
+    let p = |x: f64, y: f64| v2(x * 10.0, y * 10.0);
+    let c = vec![Contour::new(
+        vec![
+            p(7.0, 7.0),
+            p(57.0, 7.0),
+            p(57.0, 25.0),
+            p(25.0, 25.0),
+            p(25.0, 80.0),
+            p(7.0, 80.0),
+        ],
+        true,
+    )];
+    let lines = vec![
+        [p(45.0, 5.0), p(45.0, 27.0)],
+        [p(27.0, 27.0), p(5.0, 5.0)],
+        [p(5.0, 60.0), p(27.0, 60.0)],
+    ];
+    (c, lines)
+}
+
+/// The 1 mm cells (a cell or more inside the outline) whose top stitching is thinner than half
+/// what rows `spacing` apart lay there, by the length of stitching in each cell.
+fn thin_cells(c: &[Contour], top: &[Run], spacing: f64) -> Vec<(i64, i64)> {
+    let mut ink: std::collections::HashMap<(i64, i64), f64> = Default::default();
+    for run in top {
+        for w in run.windows(2) {
+            let n = (w[0].distance(w[1]) / 0.5).ceil().max(1.0) as usize;
+            for i in 0..n {
+                let q = w[0].lerp(w[1], (i as f64 + 0.5) / n as f64);
+                *ink.entry(((q.x / 10.0).floor() as i64, (q.y / 10.0).floor() as i64))
+                    .or_default() += w[0].distance(w[1]) / n as f64;
+            }
+        }
+    }
+    let b =
+        crate::geometry::Rect::enclosing(c.iter().flat_map(Contour::outline_points)).expect("b");
+    let edges: Vec<(Vec2, Vec2)> = c.iter().flat_map(Contour::edges).collect();
+    let mut thin = Vec::new();
+    for j in (b.min_y / 10.0).floor() as i64..(b.max_y / 10.0).ceil() as i64 {
+        for i in (b.min_x / 10.0).floor() as i64..(b.max_x / 10.0).ceil() as i64 {
+            let m = v2(i as f64 * 10.0 + 5.0, j as f64 * 10.0 + 5.0);
+            let clear = edges
+                .iter()
+                .map(|&(a, e)| segment_gap(m, m, a, e))
+                .fold(f64::MAX, f64::min);
+            if !crate::geometry::contains(m, c) || clear < 15.0 {
+                continue;
+            }
+            if ink.get(&(i, j)).copied().unwrap_or(0.0) < 0.5 * 100.0 / spacing {
+                thin.push((i, j));
+            }
+        }
+    }
+    thin
+}
+
+/// Where the top stitching of `top` crosses the probe from `a` to `b`, as distances along it.
+fn crossings_along(top: &[Run], a: Vec2, b: Vec2) -> Vec<f64> {
+    let mut at = Vec::new();
+    let d = b - a;
+    for run in top {
+        for w in run.windows(2) {
+            let e = w[1] - w[0];
+            let den = d.x * e.y - d.y * e.x;
+            if den.abs() < 1e-12 {
+                continue;
+            }
+            let q = w[0] - a;
+            let t = (q.x * e.y - q.y * e.x) / den;
+            let s = (q.x * d.y - q.y * d.x) / den;
+            if (0.0..=1.0).contains(&t) && (0.0..=1.0).contains(&s) {
+                at.push(t * d.length());
+            }
+        }
+    }
+    at.sort_by(f64::total_cmp);
+    at
+}
+
+#[test]
+fn angle_lines_cover_the_kit_l_at_the_set_density() {
+    // #890: the kit's L. Every 1 mm cell carries at least half the stitching rows `spacing`
+    // apart lay there; past the outer lines the rows keep the lines' direction at the set
+    // spacing; and across the corner line, where the rows of both bands are thinned, no gap is
+    // over twice the usual one (an odd row count left the last kept row three steps short of
+    // the line: 3.6 mm/10 against 1.4 there).
+    let (c, lines) = kit_l();
+    let mut r = region(RegionType::Fill);
+    r.angle_lines = lines;
+    let layers = crate::region::layers(&c, &r, &[]);
+    let top = layers.last().expect("top");
+    let spacing = 10.0 / r.density;
+    let thin = thin_cells(&c, top, spacing);
+    assert!(thin.is_empty(), "{} thin 1 mm cells: {thin:?}", thin.len());
+    for (what, a, b) in [
+        ("top arm", v2(460.0, 160.0), v2(560.0, 160.0)),
+        ("foot", v2(160.0, 610.0), v2(160.0, 790.0)),
+    ] {
+        let x = crossings_along(top, a, b);
+        for w in x.windows(2) {
+            let gap = w[1] - w[0];
+            assert!(
+                (gap - spacing).abs() < 0.05 * spacing || gap < 1e-6,
+                "{what}: rows {gap:.2} apart at {:.0} (spacing {spacing:.2})",
+                w[0]
+            );
+        }
+    }
+    for k in 3..=8 {
+        // Square across the corner line, from 30 % to 80 % of the way to the inner corner.
+        let m = v2(70.0, 70.0).lerp(v2(250.0, 250.0), f64::from(k) / 10.0);
+        let x = crossings_along(top, m + v2(-40.0, 40.0), m + v2(40.0, -40.0));
+        let mut gaps: Vec<f64> = x
+            .windows(2)
+            .map(|w| w[1] - w[0])
+            .filter(|&g| g > 1e-6)
+            .collect();
+        let most = gaps.iter().copied().fold(0.0, f64::max);
+        gaps.sort_by(f64::total_cmp);
+        let median = gaps[gaps.len() / 2];
+        assert!(
+            most <= 2.0 * median,
+            "{k}: a {most:.1} gap, the median {median:.1}"
+        );
+    }
+}

@@ -967,7 +967,7 @@
    49.8,
    72.8
   ],
-  "stitches": 4583,
+  "stitches": 4631,
   "trims": 1,
   "threads": [
    "405 Blue"
@@ -975,7 +975,7 @@
   "sewingMinutes": 5.8,
   "image": null,
   "preview": "previews/angle-lines.png",
-  "sha256": "81a0d7728d42469b93bcf2cfec552604bd42eee0d7b224fb4d1049ab35e8ef05"
+  "sha256": "77a309fad204a206e241f0729cc60b3b95d7c8aaa293e9afa28fe1cc416b66c7"
  },
  "fills/tartan.pes": {
   "title": "Tartan fill (beyond PE-DESIGN)",

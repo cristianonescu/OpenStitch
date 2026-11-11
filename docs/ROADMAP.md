@@ -198,6 +198,10 @@ Done 2026-11-08 (`batch:fills-2`, #677): push compensation on straight-row fills
 (`pushCompensation`, the sides along the rows move in) and a second under sewing layer on fill and
 satin regions (`underlay2` with an `angle` from the fill angle, crossed tatami by default).
 
+Done 2026-11-11 (`batch:fills-2`, #890): angle-line rows thinned on the inside of a bend now reach the
+next line as evenly as they leave the last one. Before, a band with an odd row count left a thin
+streak along the line near the inner corner.
+
 Done 2026-11-08 (`batch:fills-2`, #534 part 1): the Fill Angle tool (Color / Sew Type): drag across
 the selected regions to turn their rows, PE-DESIGN's sewing-direction gesture. The stitch angle
 lines of #534 follow.
