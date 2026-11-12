@@ -121,7 +121,7 @@ impl Census {
     /// The share of the pixels counted under tracked colour `c` (their nearest tracked colour)
     /// whose four neighbours are counted under it too.
     fn solid_share(&self, c: Rgb, width: usize) -> f64 {
-        if width == 0 || self.modal.len() % width != 0 {
+        if width == 0 || !self.modal.len().is_multiple_of(width) {
             return 0.0;
         }
         let height = self.modal.len() / width;
