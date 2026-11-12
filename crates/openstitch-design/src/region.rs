@@ -260,6 +260,7 @@ fn layers_inner(
                     SATIN_TRAVEL_PITCH,
                     GRADIENT_TRAVEL,
                     true,
+                    10.0 / r.density.max(0.1),
                 )
             })
             .collect();
@@ -290,6 +291,7 @@ fn layers_inner(
             SATIN_TRAVEL_PITCH,
             GRADIENT_TRAVEL,
             false,
+            p.row_spacing,
         )];
     }
     // Stitch angle lines (#534, beyond PE-DESIGN): the plain fill's under sewing, then rows

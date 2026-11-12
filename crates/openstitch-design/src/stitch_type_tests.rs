@@ -4102,11 +4102,10 @@ fn segments(runs: &[Run]) -> Vec<((i64, i64), (i64, i64))> {
 /// #891: a colour of a blend sews only its share of the rows, so travel across them shows. In
 /// the kit's blends, long straight travel crossed the other colours (a purple line across the
 /// radial blend's gold centre), both between a colour's pieces and to and from its start and
-/// end points (22 mm in the radial case below). Of any straight stretch running across the
-/// rows (more than 10° off them), no more than the 2 mm travel limit and the stitch it runs on
-/// into (3.5 mm in all) may show: lie neither within 0.15 mm of the same colour's other
-/// stitches (#901: travel on its own thread) nor along the outline (within 0.6 mm, under the
-/// row ends).
+/// end points. Of any straight stretch running across the rows (more than 10° off them), no
+/// more than 2 mm may show: lie over 1 mm cells where the same colour's thread covers under
+/// 70 % of the fabric (#901: elsewhere travel lies on its own colour) and away from the outline
+/// (within 0.6 mm, under the row ends).
 #[test]
 fn blend_travel_never_runs_far_across_the_rows() {
     use crate::{GradientDither as D, GradientKind as K};
@@ -4170,11 +4169,11 @@ fn blend_travel_never_runs_far_across_the_rows() {
         assert_eq!(colours.len(), stops.len(), "one colour block per colour");
         let across = colours
             .iter()
-            .map(|s| longest_exposed_across_rows(s, 2.0, &c))
+            .map(|s| longest_exposed_across_rows(s, 2.0, &c, 10.0 / r.density))
             .fold(0.0, f64::max);
         eprintln!("DBG {kind:?} {dither:?}: shown {across:.1}");
         assert!(
-            across <= 35.0,
+            across <= 20.0,
             "{kind:?} {dither:?}: {:.1} mm of travel showing across the rows",
             across / 10.0
         );
@@ -4202,27 +4201,33 @@ fn colour_stretches(d: &Design) -> Vec<Vec<Vec<Vec2>>> {
 
 /// Of one colour's `stretches`, the most (0.1 mm, in all) that shows of a straight stretch
 /// (needle points within `tol` of the line between its ends) more than 10° off horizontal rows:
-/// farther than 1.5 from every other stitch of the colour and than 6 from `outline`. In all,
-/// not the longest unbroken run: a line crossing rows where the colour's own rows alternate
-/// with others' passes near its own every few rows, but shows between them.
-fn longest_exposed_across_rows(stretches: &[Vec<Vec2>], tol: f64, outline: &Contour) -> f64 {
+/// over 1 mm cells where the colour's thread covers under 70 % of what rows `spacing` apart
+/// would, and farther than 6 from `outline`.
+fn longest_exposed_across_rows(
+    stretches: &[Vec<Vec2>],
+    tol: f64,
+    outline: &Contour,
+    spacing: f64,
+) -> f64 {
     let ring = outline.outline_points();
     let on_outline = |p: Vec2| {
         (0..ring.len()).any(|k| {
             crate::simplify::segment_distance(p, ring[k], ring[(k + 1) % ring.len()]) <= 6.0
         })
     };
-    let segments: Vec<(usize, usize, Vec2, Vec2)> = stretches
-        .iter()
-        .enumerate()
-        .flat_map(|(k, s)| {
-            s.windows(2)
-                .enumerate()
-                .map(move |(i, w)| (k, i, w[0], w[1]))
-        })
-        .collect();
+    // The colour's thread length per 1 mm cell, against rows `spacing` apart filling it.
+    let key = |p: Vec2| ((p.x / 10.0).floor() as i64, (p.y / 10.0).floor() as i64);
+    let mut length = std::collections::HashMap::<(i64, i64), f64>::new();
+    for w in stretches.iter().flat_map(|s| s.windows(2)) {
+        let n = (w[0].distance(w[1]) / 2.0).ceil().max(1.0) as usize;
+        for s in 0..n {
+            let p = w[0].lerp(w[1], (s as f64 + 0.5) / n as f64);
+            *length.entry(key(p)).or_insert(0.0) += w[0].distance(w[1]) / n as f64;
+        }
+    }
+    let full = 100.0 / spacing;
     let mut best: f64 = 0.0;
-    for (k, points) in stretches.iter().enumerate() {
+    for points in stretches {
         for i in 0..points.len().saturating_sub(1) {
             let mut j = i + 1;
             while j + 1 < points.len() {
@@ -4245,11 +4250,7 @@ fn longest_exposed_across_rows(stretches: &[Vec<Vec2>], tol: f64, outline: &Cont
             }
             // Walk the stretch in 0.2 mm steps, timing the runs that show.
             let hidden = |p: Vec2| {
-                on_outline(p)
-                    || segments.iter().any(|&(kk, ii, a, b)| {
-                        let own = kk == k && ii + 1 >= i && ii <= j;
-                        !own && crate::simplify::segment_distance(p, a, b) <= 1.5
-                    })
+                on_outline(p) || length.get(&key(p)).is_some_and(|&l| l >= 0.7 * full)
             };
             let mut shown = 0.0;
             for w in points[i..=j].windows(2) {

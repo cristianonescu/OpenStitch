@@ -628,10 +628,10 @@ pub fn join(
 
 /// Travel this close (0.1 mm) to the outline lies under the row ends there (#901).
 const OUTLINE_HIDES: f64 = 6.0;
-/// Travel this close (0.1 mm) to a stitch the layer has already sewn lies on its own thread.
-/// Well under the row spacing: travel crossing the rows passes near the colour's own rows
-/// every few rows, but shows over the other colours' rows between them.
-const OWN_HIDES: f64 = 1.5;
+/// Least share of the fabric a layer's own rows must cover under a stretch of its travel
+/// for that stretch to be hidden (#901): over thinner cover, the other colours' rows between
+/// its own show the travel.
+const COVER_HIDES: f64 = 0.7;
 /// How finely (0.1 mm) [`join_within`] samples a way for its exposure.
 const EXPOSURE_STEP: f64 = 2.0;
 /// Furthest (0.1 mm) [`join_within`] travels back along the run just sewn.
@@ -639,34 +639,41 @@ const RETRACE: f64 = 300.0;
 /// How many of the nearest pieces [`join_within`] tries before it trims to the nearest.
 const ORDER_TRIES: usize = 6;
 
-/// The needle points a layer has sewn so far, hashed by 1 mm cell for nearness queries.
-struct Sewn(std::collections::HashMap<(i64, i64), Vec<Vec2>>);
+/// How much of each 1 mm cell a layer's rows cover: their length in the cell over the length
+/// rows `spacing` apart would sew in all of it.
+struct Cover {
+    full: f64,
+    length: std::collections::HashMap<(i64, i64), f64>,
+}
 
-impl Sewn {
+impl Cover {
     fn key(p: Vec2) -> (i64, i64) {
         ((p.x / 10.0).floor() as i64, (p.y / 10.0).floor() as i64)
     }
 
-    /// Adds the stitches of `line`, sampled every [`EXPOSURE_STEP`].
-    fn add(&mut self, line: &[Vec2]) {
-        for w in line.windows(2) {
-            let n = (w[0].distance(w[1]) / EXPOSURE_STEP).ceil().max(1.0) as usize;
-            for i in 0..=n {
-                let p = w[0].lerp(w[1], i as f64 / n as f64);
-                self.0.entry(Self::key(p)).or_default().push(p);
+    fn new(rows: &[Vec<Vec2>], spacing: f64) -> Cover {
+        let mut length = std::collections::HashMap::new();
+        for row in rows {
+            for w in row.windows(2) {
+                let len = w[0].distance(w[1]);
+                let n = (len / EXPOSURE_STEP).ceil().max(1.0) as usize;
+                for i in 0..n {
+                    let p = w[0].lerp(w[1], (i as f64 + 0.5) / n as f64);
+                    *length.entry(Self::key(p)).or_insert(0.0) += len / n as f64;
+                }
             }
+        }
+        Cover {
+            full: 100.0 / spacing.max(1e-9),
+            length,
         }
     }
 
-    fn near(&self, p: Vec2) -> bool {
-        let (i, j) = Self::key(p);
-        (i - 1..=i + 1).any(|a| {
-            (j - 1..=j + 1).any(|b| {
-                self.0
-                    .get(&(a, b))
-                    .is_some_and(|v| v.iter().any(|q| q.distance(p) <= OWN_HIDES))
-            })
-        })
+    /// Whether the layer's rows cover at least [`COVER_HIDES`] of the cell at `p`.
+    fn hides(&self, p: Vec2) -> bool {
+        self.length
+            .get(&Self::key(p))
+            .is_some_and(|&l| l >= COVER_HIDES * self.full)
     }
 }
 
@@ -674,8 +681,9 @@ impl Sewn {
 /// layer's own stitches covers travel (#891, #901). Each gap takes the least exposed of: the
 /// inside path; back along the run just sewn (at most [`RETRACE`]) to its point nearest the
 /// next piece, then inside from there; and, with `walks`, along the outline (directly, or out
-/// to it and in again). Travel within [`OWN_HIDES`] of the layer's stitches, or with `walks`
-/// within [`OUTLINE_HIDES`] of the outline, is hidden. A way is taken when its exposure in all
+/// to it and in again). Travel over 1 mm cells where the layer's own rows (`spacing` apart)
+/// cover at least [`COVER_HIDES`] of the fabric, or with `walks` within [`OUTLINE_HIDES`] of
+/// the outline, is hidden. A way is taken when its exposure in all
 /// is at most `reach`; otherwise a new run starts (a trim). Pieces are sewn nearest first, but
 /// where the nearest can only be reached by a trim, the nearest of the next [`ORDER_TRIES`]
 /// that can be reached hidden goes first.
@@ -689,6 +697,7 @@ pub fn join_within(
     pitch: f64,
     reach: f64,
     walks: bool,
+    spacing: f64,
 ) -> Vec<Vec<Vec2>> {
     let outline = travel.edges.clone();
     let near_outline = |p: Vec2| {
@@ -696,15 +705,15 @@ pub fn join_within(
             .iter()
             .any(|&(a, b)| crate::simplify::segment_distance(p, a, b) <= OUTLINE_HIDES)
     };
-    let mut sewn = Sewn(std::collections::HashMap::new());
-    let exposure = |way: &[Vec2], sewn: &Sewn| -> (f64, f64) {
+    let cover = Cover::new(&pieces, spacing);
+    let exposure = |way: &[Vec2]| -> (f64, f64) {
         let (mut longest, mut total, mut run) = (0.0f64, 0.0, 0.0);
         for w in way.windows(2) {
             let len = w[0].distance(w[1]);
             let n = (len / EXPOSURE_STEP).ceil().max(1.0) as usize;
             for i in 0..n {
                 let p = w[0].lerp(w[1], (i as f64 + 0.5) / n as f64);
-                if (walks && near_outline(p)) || sewn.near(p) {
+                if (walks && near_outline(p)) || cover.hides(p) {
                     run = 0.0;
                 } else {
                     run += len / n as f64;
@@ -716,7 +725,7 @@ pub fn join_within(
         (longest, total)
     };
     // The way from the end of `last` to `start` hidden enough to sew, if any.
-    let mut hidden_way = |last: &[Vec2], start: Vec2, sewn: &Sewn| -> Option<Vec<Vec2>> {
+    let mut hidden_way = |last: &[Vec2], start: Vec2| -> Option<Vec<Vec2>> {
         let end = *last.last().expect("non-empty run");
         if end.distance(start) < 1e-6 {
             return Some(vec![end, start]);
@@ -778,7 +787,7 @@ pub fn join_within(
         }
         ways.into_iter()
             .map(|w| {
-                let (longest, total) = exposure(&w, sewn);
+                let (longest, total) = exposure(&w);
                 (longest, total, length(&w), w)
             })
             .filter(|&(longest, total, _, _)| longest <= reach && total <= reach)
@@ -793,7 +802,6 @@ pub fn join_within(
         return runs;
     }
     let first = left.remove(0);
-    sewn.add(&first);
     runs.push(first);
     while !left.is_empty() {
         let last = runs.last_mut().expect("a run");
@@ -817,7 +825,7 @@ pub fn join_within(
             } else {
                 left[i][0]
             };
-            if let Some(way) = hidden_way(last, start, &sewn) {
+            if let Some(way) = hidden_way(last, start) {
                 chosen = Some((i, rev, Some(way)));
                 break;
             }
@@ -830,13 +838,10 @@ pub fn join_within(
         match way {
             Some(way) => {
                 let travel_stitches = stitches(&way, pitch);
-                sewn.add(&travel_stitches);
-                sewn.add(&piece);
                 last.extend(travel_stitches.into_iter().skip(1));
                 last.extend(piece.into_iter().skip(1));
             }
             None => {
-                sewn.add(&piece);
                 runs.push(piece);
             }
         }
