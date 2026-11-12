@@ -941,8 +941,8 @@
    86.0,
    73.0
   ],
-  "stitches": 9054,
-  "trims": 58,
+  "stitches": 9685,
+  "trims": 162,
   "threads": [
    "405 Blue",
    "001 White",
@@ -954,10 +954,10 @@
    "509 Leaf Green",
    "405 Blue"
   ],
-  "sewingMinutes": 14.3,
+  "sewingMinutes": 20.4,
   "image": null,
   "preview": "previews/gradients.png",
-  "sha256": "e50a844f523bae2a49105bf537be3e7add841a849991095203dcb71c87618a00"
+  "sha256": "238300c428ba3c3eaee193d4e022317ab08b4ead328a2fff0596e4498b009a27"
  },
  "fills/angle-lines.pes": {
   "title": "Stitch angle lines (beyond PE-DESIGN)",

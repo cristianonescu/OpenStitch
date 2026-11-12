@@ -638,6 +638,10 @@ const EXPOSURE_STEP: f64 = 2.0;
 const RETRACE: f64 = 300.0;
 /// How many of the nearest pieces [`join_within`] tries before it trims to the nearest.
 const ORDER_TRIES: usize = 6;
+/// How many of a run end's nearest other run ends [`join_within`] tries to link to.
+const CHAIN_TRIES: usize = 8;
+/// Furthest apart (0.1 mm) two run ends [`join_within`] tries to link.
+const CHAIN_REACH: f64 = 200.0;
 
 /// How much of each 1 mm cell a layer's rows cover: their length in the cell over the length
 /// rows `spacing` apart would sew in all of it.
@@ -686,7 +690,10 @@ impl Cover {
 /// the outline, is hidden. A way is taken when its exposure in all
 /// is at most `reach`; otherwise a new run starts (a trim). Pieces are sewn nearest first, but
 /// where the nearest can only be reached by a trim, the nearest of the next [`ORDER_TRIES`]
-/// that can be reached hidden goes first.
+/// that can be reached hidden goes first. The runs that leaves are then joined end to end into as few
+/// chains as hidden ways allow: each run end linked to one of its [`CHAIN_TRIES`] nearest other
+/// run ends (within [`CHAIN_REACH`]), links taken shortest first while each run has at most one
+/// way in and one way out and no loop forms (a path cover, #901).
 ///
 /// `walks` is for a layer whose outline its own rows cover (a tartan colour's stripes reach the
 /// edge along their whole width); a blend colour's travel along the outline showed across the
@@ -846,7 +853,116 @@ pub fn join_within(
             }
         }
     }
-    runs
+    // Chains of runs (#901): the runs above joined end to end wherever a hidden way links one
+    // run's end to another's (going back along the whole run first, as from the run just sewn),
+    // links taken shortest first while both ends are free and no loop forms: as few runs, and so
+    // as few trims, as those links allow. A run may be sewn the other way round.
+    let n = runs.len();
+    if n < 2 {
+        return runs;
+    }
+    // Node 2i is run i's first point, 2i + 1 its last.
+    let at = |node: usize| -> Vec2 {
+        let r = &runs[node / 2];
+        if node.is_multiple_of(2) {
+            r[0]
+        } else {
+            *r.last().expect("non-empty run")
+        }
+    };
+    let mut links: Vec<(f64, usize, usize, Vec<Vec2>)> = Vec::new();
+    for a in 0..2 * n {
+        let mut near: Vec<(f64, usize)> = (0..2 * n)
+            .filter(|&b| b / 2 != a / 2)
+            .map(|b| (at(a).distance(at(b)), b))
+            .filter(|&(d, _)| d <= CHAIN_REACH)
+            .collect();
+        near.sort_by(|x, y| x.0.total_cmp(&y.0).then(x.1.cmp(&y.1)));
+        // Leaving run a / 2 at node a: it was sewn ending there.
+        let mut from = runs[a / 2].clone();
+        if a.is_multiple_of(2) {
+            from.reverse();
+        }
+        for &(_, b) in near.iter().take(CHAIN_TRIES) {
+            if let Some(way) = hidden_way(&from, at(b)) {
+                links.push((length(&way), a, b, way));
+            }
+        }
+    }
+    links.sort_by(|x, y| x.0.total_cmp(&y.0).then(x.1.cmp(&y.1)).then(x.2.cmp(&y.2)));
+    fn root(parent: &mut [usize], mut i: usize) -> usize {
+        while parent[i] != i {
+            parent[i] = parent[parent[i]];
+            i = parent[i];
+        }
+        i
+    }
+    let mut parent: Vec<usize> = (0..n).collect();
+    // Leaving at node a, the node entered next and the way there.
+    let mut next: Vec<Option<(usize, Vec<Vec2>)>> = vec![None; 2 * n];
+    let mut entered = vec![false; 2 * n];
+    for (_, a, b, way) in links {
+        // Run a / 2 leaves at a: it has no way out yet and is not entered at a. Run b / 2 is
+        // entered at b: it has no way in yet and does not leave at b.
+        let out_free = next[a].is_none() && next[a ^ 1].is_none() && !entered[a];
+        let in_free = !entered[b] && !entered[b ^ 1] && next[b].is_none();
+        if !out_free || !in_free {
+            continue;
+        }
+        let (ra, rb) = (root(&mut parent, a / 2), root(&mut parent, b / 2));
+        if ra == rb {
+            continue;
+        }
+        parent[ra] = rb;
+        next[a] = Some((b, way));
+        entered[b] = true;
+    }
+    // A chain starts at a run entered by no link, at the node that does not lead on: each run's
+    // other node either leads on (next) or ends the chain.
+    let mut sewn = vec![false; n];
+    let mut out: Vec<Vec<Vec2>> = Vec::new();
+    let start_of = |i: usize| -> Option<usize> {
+        // Run i starts a chain when neither of its nodes is entered by a link; it is sewn from
+        // the node that does not lead on (its first point when neither does).
+        if entered[2 * i] || entered[2 * i + 1] {
+            return None;
+        }
+        Some(if next[2 * i].is_some() {
+            2 * i + 1
+        } else {
+            2 * i
+        })
+    };
+    // Chains in the runs' own order of their first runs, so the first run stays first.
+    for i in 0..n {
+        let Some(mut node) = start_of(i) else {
+            continue;
+        };
+        let mut chain: Vec<Vec2> = Vec::new();
+        loop {
+            let r = node / 2;
+            sewn[r] = true;
+            let mut run = runs[r].clone();
+            if !node.is_multiple_of(2) {
+                run.reverse();
+            }
+            if chain.is_empty() {
+                chain = run;
+            } else {
+                chain.extend(run.into_iter().skip(1));
+            }
+            match &next[node ^ 1] {
+                Some((b, way)) => {
+                    chain.extend(stitches(way, pitch).into_iter().skip(1));
+                    node = *b;
+                }
+                None => break,
+            }
+        }
+        out.push(chain);
+    }
+    debug_assert!(sewn.iter().all(|&s| s), "every run in one chain");
+    out
 }
 
 /// Deterministic pseudo-random numbers in [0, 1) (SplitMix64), so generated designs are

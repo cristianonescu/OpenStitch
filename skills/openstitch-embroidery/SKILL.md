@@ -46,8 +46,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   Move where it starts and ends with `gradientFrom` / `gradientTo` ([x, y] mm) on all the ids
   (the editor's Gradient tool does this by dragging).
   PES 0110 refuses them; save PES version 6. Each colour trims where its travel would show
-  across the others: expect some trims per blend (a dithered blend more than bands); tell the
-  user when their machine has no thread cutter.
+  across the others (no connector is sewn where more than 2 mm of it would show): a dithered
+  blend breaks each colour into many small pieces and trims a lot (the kit's three small blends
+  about 150 times), bands far fewer. Suggest `gradientDither: "rows"` or `"bands"`, or fewer colours, when the
+  user wants fewer trims, and tell them when their machine has no thread cutter.
 - Gradation shapes (beyond PE-DESIGN): with `gradationPattern` on, `object.setRegion`
   `gradationShape` `convex` | `concave` | `centre` | `edges` | `wave` (`linear` is PE-DESIGN's).
   PES 0110 refuses the others. `import.svg` with `gradients: "blend"` brings SVG gradients in as
@@ -169,12 +171,17 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    pointed ends) and `slant` (-60 to 60 degrees). A Y, star or stick figure drawn as one
    filled shape: `object.deriveSkeleton {id, branches: true, joinOverlap: 0.3}` makes a
    grouped satin column per arm (the shape stays hidden); a letter's straight stem (K, R)
-   stays one straight column through its junction. Every column is sewn out to the shape's
-   edges and never past them, and a column that ends on the edge also into that end's corners;
-   each column's region shows `outlineEnds` ([first end, last end] on the edge, e.g. `[true,
-   true]` for a stem, `[false, true]` for an arm from a junction to the edge), set by the
+   stays one straight column through its junction, and a crossbar joined at both ends (A's)
+   is one column from side to side (`outlineEnds: [false, false]`). Every column is sewn out
+   to the shape's edges and never past them, and a column that ends on the edge also into
+   that end's corners; each column's region shows `outlineEnds` ([first end, last end] on the
+   edge, e.g. `[true, true]` for a stem, `[false, true]` for an arm from a junction to the edge), set by the
    command (`object.setRegion` can't set it). Check `warnings` for columns over 10 mm
-   and look at the junctions with `view_render`.
+   and look at the junctions with `view_render`. Not yet sewn well (`tools/branch_columns.py`,
+   2026-11-12): N, M and W stay one wide column (sewn coverage 0.67-0.78, gaps 4-10 mm), a
+   star at 25 mm leaves its points unsewn (0.54, 11 mm gap), and X, Y, y, A and a ring at 25
+   mm leave up to 1.4 mm of outline bare (0.36-1.35 mm, the box is 0.3); render those and
+   keep one satin or a fill if they look thin.
    Ripples, echoes and spirals from one outline (beyond PE-DESIGN): `object.setLine {type:
    ripple, strands, target: [x, y]}` (a closed line spirals in to the target as one run; an
    open one repeats `spacing` apart towards the target's side). Motif lines (beyond
