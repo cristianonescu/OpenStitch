@@ -43,10 +43,10 @@ are a sound start; change them only for a reason.
   (`object.setEntryExit`).
 - A fill in several parts joined by a narrower one (two leaves on a stem, a bird's tail and
   legs off its body) can travel back over a part already sewn. Set
-  `runningStitchPath: "insideHidden"` (beyond PE-DESIGN) on it, and the joining part is sewn
-  after the parts it joins, so the travel runs under thread still to come. Use it on fills
-  whose parts branch, not on a ring (a hoop round a hole sews as with `inside`). PES 0110
-  saves it as `inside`.
+  `runningStitchPath: "insideHidden"` (beyond PE-DESIGN) on it: the parts are sewn in the
+  order that leaves the least travel on thread already sewn (the joining part after the parts
+  it joins; a ring gone round with its branches first), never with more trims than `inside`.
+  A plain hoop round a hole sews as with `inside`. PES 0110 saves it as `inside`.
 - Large overlapping fills sew thick and stiff: remove hidden parts with `shape.removeOverlap`
   instead of stacking fills.
 - Programmable fill sews from one pattern line to the next, as PE-DESIGN does, so a large or
