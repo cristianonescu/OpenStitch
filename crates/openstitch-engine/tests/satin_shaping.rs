@@ -950,6 +950,21 @@ fn a_at_10_mm_meets_the_boxes_of_526_on_its_stitches() {
 }
 
 #[test]
+fn a_at_25_mm_meets_the_boxes_of_526_on_its_stitches() {
+    // A's left leg past the crossbar: its centre line no longer turns back into the junction,
+    // so the leg's satin reaches its outer edge at the bar (1.25 mm of it was bare).
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "text.add",
+        json!({"text": "A", "size": 25, "x": 50, "y": 70, "fill": "Red"}),
+    );
+    let r = run(&mut s, "text.toShapes", json!({"id": 1}));
+    let shape_id = r["ids"][0].as_u64().expect("shape");
+    meets_the_boxes_of_526(&mut s, shape_id, 3, 0.98);
+}
+
+#[test]
 fn a_ring_at_25_mm_meets_the_boxes_of_526_on_its_stitches() {
     // A ring's quarters meet on a curve: a quarter joining the ring's narrower main column runs
     // on to where its centre lies deepest in it, so the join is past joinOverlap and the

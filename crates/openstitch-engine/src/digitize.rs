@@ -507,7 +507,7 @@ fn auto_punch_docs() -> Vec<ParamDoc> {
                 opt(
                     "colors",
                     "int 0-64",
-                    "Thread colours to reduce to; 0 = automatic from the image, as PE-DESIGN fills in Max. Number of Colors (default 0)",
+                    "Thread colours to reduce to; 0 = automatic from the image (default 0): in PE-DESIGN-compatible mode as PE-DESIGN fills in Max. Number of Colors; in OpenStitch mode the same count plus up to 3 small colours of a flat picture (under 0.5 % of the pixels) that are far from every larger one and drawn as a solid patch, not an anti-aliased edge (#962: the balloon's brown basket)",
                 ),
                 opt(
                     "resolution",
