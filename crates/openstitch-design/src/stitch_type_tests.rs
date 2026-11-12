@@ -5286,7 +5286,7 @@ fn fill_along_a_u_shaped_curve_covers_the_inside_of_the_u() {
         assert!(rows.len() > 300, "{kind:?}: {} row stitches", rows.len());
         // Plain fill's rows never cross. Programmable fill's tiles cross once, on the curve's
         // outer side below the U (about 65, 87 mm), which the rows inside the U do not reach.
-        // The other crossings are travel between rows, sewn over them (#927's follow-up).
+        // The other crossings are travel between rows, sewn over them (#947).
         let most = if kind == RegionType::Fill { 0 } else { 1 };
         assert!(
             row_crossings <= most,

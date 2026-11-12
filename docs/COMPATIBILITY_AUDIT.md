@@ -3827,7 +3827,7 @@ Inside the U the rows close into corners on its middle. The S curve's rows on #9
 are unchanged (the same rows and needle points at 2.5 and 2.22 mm spacing): its farthest points
 are corners. A box under an arch had the same hole along its bottom edge, whose middle lies
 farther from the arch than its corners: 91 rows made there before, 161 now. The travel between
-the rows inside the U still crosses rows already sewn. Test:
+the rows inside the U still crosses rows already sewn (#947). Test:
 `fill_along_a_u_shaped_curve_covers_the_inside_of_the_u`.
 
 ### Travel walks the outline where the way inside runs round a tip, 2026-11-09 (#471)
