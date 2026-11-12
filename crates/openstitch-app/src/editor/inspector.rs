@@ -745,9 +745,19 @@ fn travel_control(r: &RegionSewing) -> Option<Control> {
                 (RunningStitchPath::Inside, "Inside of region"),
                 (RunningStitchPath::AlongOutline, "Along outline"),
                 (RunningStitchPath::OnOutline, "On outline"),
+                (
+                    RunningStitchPath::InsideHidden,
+                    "Inside, hidden under later sections (+)",
+                ),
             ]
             .into_iter()
-            .filter(|(p, _)| r.gradation.is_none() || *p != RunningStitchPath::Inside)
+            .filter(|(p, _)| {
+                r.gradation.is_none()
+                    || !matches!(
+                        p,
+                        RunningStitchPath::Inside | RunningStitchPath::InsideHidden
+                    )
+            })
             .map(|(p, l)| (p.id().to_string(), l.to_string()))
             .collect(),
         }),
