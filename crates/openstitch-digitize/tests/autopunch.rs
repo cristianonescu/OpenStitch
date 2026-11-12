@@ -1678,6 +1678,65 @@ fn a_rope_taken_with_the_tip_it_hangs_from_is_still_a_line() {
     );
 }
 
+/// #469: a thin line whose thread is sewn before its ground would need a colour block of its
+/// own after every region: a stop and a re-thread on a single-needle machine. One short rope
+/// is left out; ropes running at least `THIN_BLOCK_MM` in all earn the block.
+#[test]
+fn thin_lines_needing_their_own_colour_block_are_sewn_only_when_long() {
+    const SKY: [u8; 4] = [120, 180, 235, 255];
+    // Brighter than the sky, so sewn before it: its lines come after every region.
+    const YELLOW: [u8; 4] = [255, 230, 60, 255];
+    const GRASS: [u8; 4] = [60, 150, 50, 255];
+    // 0.1 mm per pixel: 0.5 mm yellow ropes hanging from a yellow bar in the sky, grass below.
+    let picture = |ropes: &[(u32, u32)]| {
+        Raster::from_fn(400, 300, |x, y| {
+            let rope = ropes
+                .iter()
+                .any(|&(rx, top)| (rx..rx + 5).contains(&x) && (top..170).contains(&y));
+            if y >= 200 {
+                GRASS
+            } else if rope || ((100..300).contains(&x) && (170..190).contains(&y)) {
+                YELLOW
+            } else {
+                SKY
+            }
+        })
+        .expect("size")
+    };
+    let frame = Frame::new(0.0, 0.0, 40.0, 400);
+    let p = AutoPunch {
+        colors: 3,
+        mode: Mode::OpenStitch,
+        resolution: 400,
+        fabric: Some([255, 255, 255]),
+        ..Default::default()
+    };
+    let thin = |img: &Raster| {
+        let out = autopunch::convert(img, &frame, &p).expect("converts");
+        out.objects
+            .iter()
+            .filter(|o| {
+                o.line
+                    .as_ref()
+                    .is_some_and(|l| l.kind == openstitch_design::LineType::Running)
+            })
+            .count()
+    };
+    assert!(autopunch::THIN_BLOCK_MM > 15.0 * 3.0 - 10.0 && autopunch::THIN_BLOCK_MM <= 45.0);
+    // One rope, 11 mm: left out.
+    assert_eq!(
+        thin(&picture(&[(200, 60)])),
+        0,
+        "a short line costs no colour stop"
+    );
+    // Three ropes, 15 mm each (45 mm): sewn, each its own line.
+    assert_eq!(
+        thin(&picture(&[(120, 20), (200, 20), (280, 20)])),
+        3,
+        "long enough to earn the block"
+    );
+}
+
 /// #489: the plan lists every region with its stitch and reason; an override changes only
 /// its own region; a region the image does not have is an error; varyNeighbours turns
 /// touching fills apart.

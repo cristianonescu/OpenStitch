@@ -199,7 +199,8 @@ dry run and the conversion. Thin lines and outlines can only be skipped. In Open
 `angleRule: "varyNeighbours"` turns a fill of 20 mm² or more away from a touching fill as
 large that runs within 20° of it, so fitted panels read as separate pieces, and `angleRule: "leastTravel"` lays each fill of 10 mm² or more the way
 (every 15°) that sews the least thread, so the least travel between its sections; parts under
-1 mm wide (ropes, whiskers) are sewn as running lines, a region whose stitches would all fall
+1 mm wide (ropes, whiskers) are sewn as running lines (never at the cost of a colour stop for under
+40 mm of one thread's lines), a region whose stitches would all fall
 within 0.8 mm is left out as a speck (`reason: "speck"`; an override can still sew it), and a
 white, cream or off-white paper background is left out as the fabric showing. On line art the
 same small regions are drawn dots, so they are kept: `reason: "dot"`, sewn as a small fill
