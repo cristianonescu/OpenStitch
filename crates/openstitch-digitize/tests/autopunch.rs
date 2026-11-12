@@ -919,6 +919,66 @@ fn ringed_disc() -> Raster {
     .expect("size")
 }
 
+/// #702: with the split on (the default in OpenStitch mode), a Y whose arms meet its stem at
+/// a junction is sewn as one satin column per arm; a ring (no junction: its columns would only
+/// meet end to end) stays one satin.
+#[test]
+fn a_y_splits_into_columns_and_a_ring_stays_one_satin() {
+    // 0.25 mm per pixel, 50 mm across: blue strokes 2 mm wide on white.
+    let frame = Frame::new(0.0, 0.0, 50.0, 200);
+    let p = AutoPunch {
+        colors: 2,
+        resolution: 200,
+        mode: Mode::OpenStitch,
+        ..Default::default()
+    };
+    assert!(p.split_branches, "on by default");
+    let near = |q: (f64, f64), a: (f64, f64), b: (f64, f64)| {
+        let (dx, dy) = (b.0 - a.0, b.1 - a.1);
+        let t = (((q.0 - a.0) * dx + (q.1 - a.1) * dy) / (dx * dx + dy * dy)).clamp(0.0, 1.0);
+        ((q.0 - a.0 - dx * t).powi(2) + (q.1 - a.1 - dy * t).powi(2)).sqrt()
+    };
+    let y = Raster::from_fn(200, 200, |x, yy| {
+        let q = (x as f64, yy as f64);
+        let j = (100.0, 100.0);
+        let d = near(q, j, (100.0, 185.0))
+            .min(near(q, j, (40.0, 20.0)))
+            .min(near(q, j, (160.0, 20.0)));
+        if d < 4.0 {
+            [30, 80, 200, 255]
+        } else {
+            [255, 255, 255, 255]
+        }
+    })
+    .expect("size");
+    let ring = Raster::from_fn(200, 200, |x, yy| {
+        let r = ((x as f64 - 100.0).powi(2) + (yy as f64 - 100.0).powi(2)).sqrt();
+        if (60.0..68.0).contains(&r) {
+            [30, 80, 200, 255]
+        } else {
+            [255, 255, 255, 255]
+        }
+    })
+    .expect("size");
+    let satins = |img: &Raster| -> Vec<bool> {
+        autopunch::convert(img, &frame, &p)
+            .expect("converts")
+            .objects
+            .iter()
+            .filter_map(|o| o.region.as_ref())
+            .filter(|r| r.kind == RegionType::Satin)
+            .map(|r| r.skeleton.is_some())
+            .collect()
+    };
+    let y_cols = satins(&y);
+    assert!(
+        y_cols.len() >= 2 && y_cols.iter().all(|&s| s),
+        "the Y, a column per arm: {y_cols:?}"
+    );
+    let ring_cols = satins(&ring);
+    assert_eq!(ring_cols, vec![false], "the ring, one satin");
+}
+
 #[test]
 fn openstitch_mode_sews_dark_outlines_on_top_along_their_skeleton() {
     // 0.25 mm per pixel: the ring is 1.5 mm wide (a ring under 1 mm is a running line, #368).

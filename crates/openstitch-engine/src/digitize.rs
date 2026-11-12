@@ -627,7 +627,7 @@ fn auto_punch_docs() -> Vec<ParamDoc> {
     v.push(opt(
         "splitBranches",
         "bool",
-        "OpenStitch mode: a satin stroke that branches (a Y, K or X, a star, a forked line) is sewn as one satin column per arm along its own centre line, the columns overlapping 0.3 mm where they meet, instead of one satin across the whole shape; only a stroke at least 8 widths long (area over the square of its widest width) whose columns cover it to 0.9 (overlap over union) (painted regions that branch keep one fill or satin). Default true in OpenStitch mode; false sews every stroke as one (#702; PE-DESIGN mode refuses true)",
+        "OpenStitch mode: a satin stroke that branches (a Y, K or X, a star, a forked line) is sewn as one satin column per arm along its own centre line, the columns overlapping 0.3 mm where they meet, instead of one satin across the whole shape; only a stroke whose columns meet at a junction (a ring or a bent stroke stays one satin), at least 8 widths long (area over the square of its widest width) whose columns cover it to 0.9 (overlap over union) (painted regions that branch keep one fill or satin). Default true in OpenStitch mode; false sews every stroke as one (#702; PE-DESIGN mode refuses true)",
     ));
     v.push(opt(
         "flowFill",

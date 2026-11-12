@@ -92,7 +92,8 @@ pub struct AutoPunch {
     /// OpenStitch mode: a satin stroke that branches (a Y, a K, a forked line) is sewn as one
     /// satin column per arm, overlapping [`BRANCH_JOIN_MM`] where they meet
     /// (`openstitch_design::skeleton::branches`, #702), instead of one satin across the whole
-    /// shape, when it is at least [`BRANCH_MIN_LENGTH`] widths long and its arms cover it to
+    /// shape, when its columns meet at a junction (a ring or a bent stroke stays one satin), it
+    /// is at least [`BRANCH_MIN_LENGTH`] widths long and its arms cover it to
     /// [`BRANCH_MIN_IOU`]. On by default; PE-DESIGN mode ignores it.
     pub split_branches: bool,
 }
@@ -111,6 +112,46 @@ pub const BRANCH_MIN_IOU: f64 = 0.9;
 /// (painted, photo and flat colour) whose columns cover them to [`BRANCH_MIN_IOU`] measure 7 or
 /// less. Split, those regions lowered the likeness (storybook p03 dE00 16.09 → 16.47).
 pub const BRANCH_MIN_LENGTH: f64 = 8.0;
+
+/// Whether the arm columns of a stroke meet at a junction (#702): an arm's end lies inside
+/// another column, more than that column's width from both of its ends (a Y's arm joining its
+/// stem part way along). Columns that only meet end to end (round a ring, at an L's corner)
+/// are one stroke split in pieces: no junction.
+fn has_junction(arms: &[openstitch_design::skeleton::Skeleton]) -> bool {
+    arms.iter().enumerate().any(|(i, arm)| {
+        [arm.points.first(), arm.points.last()]
+            .into_iter()
+            .flatten()
+            .any(|&p| {
+                arms.iter()
+                    .enumerate()
+                    .filter(|&(j, _)| j != i)
+                    .any(|(_, other)| {
+                        let total: f64 = other.points.windows(2).map(|w| w[0].distance(w[1])).sum();
+                        let (mut along, mut best) = (0.0, (f64::INFINITY, 0.0, 0.0));
+                        for (k, w) in other.points.windows(2).enumerate() {
+                            let (a, b) = (w[0], w[1]);
+                            let d = b - a;
+                            let len = a.distance(b);
+                            let t = if len > 0.0 {
+                                (((p.x - a.x) * d.x + (p.y - a.y) * d.y) / (len * len))
+                                    .clamp(0.0, 1.0)
+                            } else {
+                                0.0
+                            };
+                            let dist = p.distance(a + d * t);
+                            if dist < best.0 {
+                                let width = other.widths.get(k).copied().unwrap_or(0.0) * 10.0;
+                                best = (dist, along + len * t, width);
+                            }
+                            along += len;
+                        }
+                        let (dist, at, width) = best;
+                        dist <= width * 0.5 + 1.0 && at > width && at < total - width
+                    })
+            })
+    })
+}
 
 /// How well a branching stroke's arm columns stand in for it (#702): the region and the arms'
 /// outlines overlapping, over their union (1 when they match). Sampled every 0.3 mm over the
@@ -994,10 +1035,12 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
             .filter(|arms| {
                 arms.len() >= 2 && arms.iter().all(|a| median_width(a) <= p.satin_max_mm)
             })
-            // Only a stroke the columns stand in for (#702): a long one (painted regions
-            // that branch are compact blobs) whose arms cover it closely.
+            // Only a stroke the columns stand in for (#702): one that branches (a ring or a
+            // bent stroke stays one closed or open satin), long (painted regions that branch
+            // are compact blobs), whose arms cover it closely.
             .filter(|arms| {
-                k.area as f64 * mm * mm >= BRANCH_MIN_LENGTH * width_mm * width_mm
+                has_junction(arms)
+                    && k.area as f64 * mm * mm >= BRANCH_MIN_LENGTH * width_mm * width_mm
                     && arms_cover(&contours, arms) >= BRANCH_MIN_IOU
             });
             let (auto, reason) = if arms.is_some() {

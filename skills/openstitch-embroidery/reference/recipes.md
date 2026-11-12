@@ -237,7 +237,8 @@ thin lettering.
 
 In OpenStitch mode, a branching satin stroke, such as a traced Y or K, is sewn as one satin
 column per arm, overlapping 0.3 mm where they meet (`splitBranches`, on by default). Only a
-stroke at least 8 widths long whose columns cover it closely is split, so painted regions that
+stroke whose columns meet at a junction, at least 8 widths long and covered closely by them,
+is split (a ring stays one satin), so painted regions that
 branch keep one fill or satin. Set `splitBranches: false` to sew every stroke as one.
 
 `flowFill: true` (OpenStitch mode) curves each fill's rows along the picture's own strokes,
