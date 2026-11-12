@@ -1655,3 +1655,68 @@ fn auto_punch_splits_a_branching_stroke_into_columns() {
         "no column per arm in PE mode"
     );
 }
+
+/// #469: through `digitize.autoPunch` (OpenStitch mode), a 0.5 mm rope hanging from a basket,
+/// cut off it by the sliver opening, is planned as a thin line (`dryRun`) and sewn as a running
+/// line in the rope's thread; PE-DESIGN mode plans no thin line.
+#[test]
+fn auto_punch_plans_and_sews_a_thin_feature_as_a_line() {
+    let dir = temp_dir();
+    // 0.1 mm per pixel, 40 mm across: a dark-brown rope 0.5 mm wide and 11 mm long down to a
+    // 5 x 4 mm basket in a blue sky, a red block beside it, grass below.
+    let img = Raster::from_fn(400, 300, |x, y| {
+        let inside =
+            |x0: u32, y0: u32, x1: u32, y1: u32| (x0..x1).contains(&x) && (y0..y1).contains(&y);
+        if y >= 200 {
+            [60, 150, 50, 255]
+        } else if inside(250, 40, 255, 150) || inside(230, 150, 280, 190) {
+            [110, 60, 20, 255]
+        } else if inside(50, 50, 150, 150) {
+            [220, 20, 30, 255]
+        } else {
+            [120, 180, 235, 255]
+        }
+    })
+    .expect("size");
+    std::fs::write(dir.join("rope.png"), img.encode_png().expect("png")).expect("write");
+    let auto_punch = |extra: Value| {
+        let mut s = Session::new(&dir);
+        run(&mut s, "design.new", json!({"width": 60, "height": 60}));
+        // The rope is the darkest colour: not taken as a dark outline here.
+        let mut p = json!({"path": "rope.png", "width": 40, "x": 0, "y": 0, "colors": 4,
+                           "resolution": 400, "outlineMaxWidth": 0});
+        for (k, v) in extra.as_object().expect("object") {
+            p[k] = v.clone();
+        }
+        let r = run(&mut s, "digitize.autoPunch", p);
+        (s, r)
+    };
+    let (_, dry) = auto_punch(json!({"compatMode": "openStitch", "dryRun": true}));
+    let plan = dry["plan"].as_array().expect("plan");
+    let thin: Vec<&Value> = plan.iter().filter(|e| e["reason"] == "thin_line").collect();
+    assert_eq!(thin.len(), 1, "the rope: {}", dry["plan"]);
+    assert_eq!(thin[0]["type"], "line");
+    let (sewn, _) = auto_punch(json!({"compatMode": "openStitch"}));
+    let lines: Vec<_> = sewn
+        .design()
+        .objects
+        .iter()
+        .filter_map(|o| o.line.as_ref())
+        .filter(|l| l.kind == openstitch_design::LineType::Running)
+        .collect();
+    assert_eq!(lines.len(), 1, "one running line");
+    assert!(
+        lines[0].thread.red > lines[0].thread.blue,
+        "in the rope's thread"
+    );
+    let (_, pe) = auto_punch(json!({"dryRun": true}));
+    assert!(
+        pe["plan"]
+            .as_array()
+            .expect("plan")
+            .iter()
+            .all(|e| e["reason"] != "thin_line"),
+        "{}",
+        pe["plan"]
+    );
+}
