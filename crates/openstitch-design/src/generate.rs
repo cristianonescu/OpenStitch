@@ -491,7 +491,13 @@ fn edge_rows_travel(
         (Some(st), Some(f), Some(e)) => (st.y - f.y).abs() > (st.y - e.y).abs(),
         _ => false,
     };
-    let order = hidden.then(|| connectors_last(&spans)).flatten();
+    // Main's own walk (#469): which row it sews when and which way, so a reordered region
+    // keeps every row's direction and with it the needle-point texture.
+    let walk = hidden.then(|| greedy_walk(&spans, start));
+    let order = walk
+        .as_ref()
+        .and_then(|(seq, _)| connectors_last(&spans, seq));
+    let directions = walk.as_ref().map(|(_, forward)| forward.as_slice());
     chain_in(
         &spans,
         p,
@@ -517,16 +523,60 @@ fn edge_rows_travel(
         Chain::Brick,
         start,
         order.as_deref(),
+        directions.filter(|_| order.is_some()),
     )
+}
+
+/// The rows in the order [`chain`] sews them (nearest unsewn end first) and the way each is
+/// sewn (`true` from its start), as `chain` would with [`Chain::Brick`] from `start` (#469).
+fn greedy_walk(spans: &[RowSpan], start: Option<Vec2>) -> (Vec<usize>, Vec<bool>) {
+    let mut seq = Vec::with_capacity(spans.len());
+    let mut forward = vec![true; spans.len()];
+    let Some(first) = spans.first() else {
+        return (seq, forward);
+    };
+    let mut used = vec![false; spans.len()];
+    let mut position = start.unwrap_or(v2(*first.range.start(), first.y));
+    for _ in 0..spans.len() {
+        let (mut best, mut fwd, mut best_d) = (0, true, f64::INFINITY);
+        for (i, s) in spans.iter().enumerate().filter(|(i, _)| !used[*i]) {
+            let dl = position.distance(v2(*s.range.start(), s.y));
+            let du = position.distance(v2(*s.range.end(), s.y));
+            if dl < best_d - TIE {
+                (best, fwd, best_d) = (i, true, dl);
+            }
+            if du < best_d - TIE {
+                (best, fwd, best_d) = (i, false, du);
+            }
+        }
+        used[best] = true;
+        seq.push(best);
+        forward[best] = fwd;
+        let s = &spans[best];
+        position = v2(
+            if fwd {
+                *s.range.end()
+            } else {
+                *s.range.start()
+            },
+            s.y,
+        );
+    }
+    (seq, forward)
 }
 
 /// The rows of a region in several sections (#469) in an order where a section joining others
 /// is sewn after them: rows that continue one-to-one (each overlaps only the other in the next
-/// row) form a section; sections touch where a row overlaps another section's. Along a
-/// spanning tree rooted at the section touching most, every section's branches come first,
-/// each sewn from the row farthest from its parent towards it. `None` for one section, and
-/// where the sections touch in a ring.
-fn connectors_last(spans: &[RowSpan]) -> Option<Vec<usize>> {
+/// row) form a section; sections touch where a row overlaps another section's.
+/// - Sections in a ring (they touch round a hole) keep the order of `walk` (main's): going
+///   round sews them with the least travel. The branches hanging off the ring are sewn just
+///   before the ring section they hang from, each branch's own branches first, each from the
+///   row farthest from where it hangs towards it.
+/// - Without a ring: along a spanning tree rooted at the section touching most, every
+///   section's branches come first, in the same way.
+///
+/// `None` for one section, and for a ring with nothing hanging off it (main's order).
+fn connectors_last(spans: &[RowSpan], walk: &[usize]) -> Option<Vec<usize>> {
     let n = spans.len();
     let overlaps = |a: &RowSpan, b: &RowSpan| {
         a.row.abs_diff(b.row) == 1
@@ -594,11 +644,96 @@ fn connectors_last(spans: &[RowSpan]) -> Option<Vec<usize>> {
         }
     }
     let degree = |s: usize| touch[s].iter().filter(|&&t| t).count();
-    // Sections that touch in a ring (a hoop, a letter O, a region round a hole) have no section
-    // that joins the others: going round sews them with the least travel, so the order stays.
-    let links: usize = (0..m).map(degree).sum::<usize>() / 2;
-    if links >= m {
-        return None;
+    // The ring: what is left after taking off, again and again, sections touching one other.
+    let mut in_ring = vec![true; m];
+    let mut deg: Vec<usize> = (0..m).map(degree).collect();
+    let mut stack: Vec<usize> = (0..m).filter(|&s| deg[s] <= 1).collect();
+    while let Some(u) = stack.pop() {
+        if !in_ring[u] {
+            continue;
+        }
+        in_ring[u] = false;
+        for v in 0..m {
+            if touch[u][v] && in_ring[v] {
+                deg[v] -= 1;
+                if deg[v] <= 1 {
+                    stack.push(v);
+                }
+            }
+        }
+    }
+    // A section's rows from the one farthest from `towards` (a section it touches) to it.
+    let rows_towards = |s: usize, towards: Option<usize>| {
+        let mut rows = members[s].clone();
+        rows.sort_by_key(|&i| spans[i].row);
+        if let Some(p) = towards {
+            let touches = |i: usize| next[i].iter().any(|&j| sec[j] == p);
+            if rows.first().is_some_and(|&i| touches(i)) {
+                rows.reverse();
+            }
+        }
+        rows
+    };
+    if in_ring.iter().any(|&r| r) {
+        if in_ring.iter().all(|&r| r) {
+            return None;
+        }
+        // Each section off the ring hangs from its neighbour nearer the ring.
+        let mut parent: Vec<Option<usize>> = vec![None; m];
+        let mut queue: std::collections::VecDeque<usize> = (0..m).filter(|&s| in_ring[s]).collect();
+        let mut seen = in_ring.clone();
+        while let Some(u) = queue.pop_front() {
+            for v in 0..m {
+                if touch[u][v] && !seen[v] {
+                    seen[v] = true;
+                    parent[v] = Some(u);
+                    queue.push_back(v);
+                }
+            }
+        }
+        // Ring sections in main's order, each after the branches hanging from it.
+        let mut ring_order: Vec<usize> = Vec::new();
+        for &i in walk {
+            let s = sec[i];
+            if in_ring[s] && !ring_order.contains(&s) {
+                ring_order.push(s);
+            }
+        }
+        let mut order = Vec::with_capacity(n);
+        let mut placed = vec![false; n];
+        for &c in &ring_order {
+            // The branches off `c`, children first.
+            let mut stack: Vec<(usize, bool)> = (0..m)
+                .rev()
+                .filter(|&v| parent[v] == Some(c))
+                .map(|v| (v, false))
+                .collect();
+            while let Some((u, expanded)) = stack.pop() {
+                if expanded {
+                    for i in rows_towards(u, parent[u]) {
+                        placed[i] = true;
+                        order.push(i);
+                    }
+                    continue;
+                }
+                stack.push((u, true));
+                for v in (0..m).rev() {
+                    if parent[v] == Some(u) {
+                        stack.push((v, false));
+                    }
+                }
+            }
+            // The ring section itself, its rows in main's order.
+            for &i in walk {
+                if sec[i] == c && !placed[i] {
+                    placed[i] = true;
+                    order.push(i);
+                }
+            }
+        }
+        // Anything not reached (a part apart from the ring) in main's order, at the end.
+        order.extend(walk.iter().copied().filter(|&i| !placed[i]));
+        return Some(order);
     }
     let mut parent: Vec<Option<usize>> = vec![None; m];
     let mut seen = vec![false; m];
@@ -1064,7 +1199,7 @@ fn chain(
     mode: Chain,
     start: Option<Vec2>,
 ) -> Vec<Run> {
-    chain_in(spans, p, points, mode, start, None)
+    chain_in(spans, p, points, mode, start, None, None)
 }
 
 /// [`chain`], taking the spans in `order` when given (each entered from its nearer end)
@@ -1076,6 +1211,7 @@ fn chain_in(
     mode: Chain,
     start: Option<Vec2>,
     order: Option<&[usize]>,
+    directions: Option<&[bool]>,
 ) -> Vec<Run> {
     let Some(first) = spans.first() else {
         return Vec::new();
@@ -1106,6 +1242,19 @@ fn chain_in(
             if du < best_d - TIE {
                 (best, forward, best_d) = (i, false, du);
             }
+        }
+        // A fixed way per row (main's, #469): the row keeps its direction and texture.
+        if let Some(&way) = directions.and_then(|d| d.get(best)) {
+            let s = &spans[best];
+            forward = way;
+            best_d = position.distance(v2(
+                if way {
+                    *s.range.start()
+                } else {
+                    *s.range.end()
+                },
+                s.y,
+            ));
         }
         used[best] = true;
         let s = &spans[best];

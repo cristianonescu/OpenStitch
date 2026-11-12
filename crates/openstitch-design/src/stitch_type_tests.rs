@@ -5137,11 +5137,16 @@ fn angle_lines_cover_the_kit_l_at_the_set_density() {
     }
 }
 
-/// Length (0.1 mm) of `run`'s stitches whose midpoint lies within 0.15 mm of a stitch sewn more
-/// than 200 stitches before: travel sewn on top of rows already sewn (#469).
+/// Length (0.1 mm) of `run`'s travel stitches (up to 3 mm: travel runs in 2.5 mm stitches,
+/// rows in 6.5 mm ones) whose midpoint lies within 0.15 mm of a stitch sewn more than 200
+/// stitches before: travel sewn on top of rows already sewn (#469). A row sewn later over
+/// earlier travel hides it and does not count.
 fn sewn_on_top(run: &[Vec2]) -> f64 {
     let mut total = 0.0;
     for i in 1..run.len() {
+        if run[i - 1].distance(run[i]) > 30.0 {
+            continue;
+        }
         let mid = (run[i - 1] + run[i]) * 0.5;
         let hit = (1..i.saturating_sub(200)).any(|j| {
             let (a, b) = (run[j - 1], run[j]);
