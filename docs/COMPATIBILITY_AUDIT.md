@@ -3894,6 +3894,31 @@ another way:
 Along the C, R is well above #923's 0.4, and the crossings stay below the straight pattern's
 (#923's targets).
 
+### Open OpenStitch fills travel along the outline, 2026-11-12 (#628)
+
+A fill entered away from its first row sews a straight travel from the start point to that
+row across the region. PE-DESIGN 11.50 does the same (sweep-fill-density-min,
+tatami-40-pos-*), so plain shapes keep it: the owner's decision of 2026-11-12. OpenStitch's own
+default differs.
+
+On a 20 mm square, under sewing off, entered at the middle of its bottom edge, the longest
+straight stretch across the rows inside the square:
+
+| fill | 4.5 rows/mm | 2 rows/mm | 1 row/mm |
+|---|---|---|---|
+| plain fill (Inside) | 22.4 mm | 22.4 | 22.4 |
+| Inside, hidden (Auto Punch's OpenStitch mode), before | 22.4 | 22.4 | 22.4 |
+| Inside, hidden, now | 22.4 | **2.1** (one travel stitch) | **≤ 2.1** |
+| colour blend / gradient layer | 8.6 (travel between its pieces, #901) | 6.4 | 4.5 |
+| tartan layer | its own warp rows only | – | – |
+
+- **Inside, hidden, when open:** an open fill set to Inside, hidden (under 3 rows/mm, where one layer of rows hides less than about 85 % of the fabric on the T1 cards) now travels along the outline, its entry included (`RegionSewing::travel_path`).
+- **When dense:** it keeps Inside, hidden, whose section order (#469, #930, #942) hides the travel under thread still to come.
+- **Blends, gradients and tartan:** these already start at the piece nearest the entry and join their pieces by #901's hidden-or-trimmed travel, so no straight entry travel crosses them.
+- **Auto Punch's OpenStitch mode** sews at 4.5 rows/mm, so its fills change only once the user lowers their density. The PE-compatible output and the kit are unchanged.
+
+Test: `an_open_openstitch_fill_entered_away_from_its_rows_sews_no_travel_across_it`.
+
 ### Rows inside a U-shaped direction curve, 2026-11-12 (#927)
 
 A fill along a direction curve that bulges deep into its shape (a 40 × 38 mm square with a curve
