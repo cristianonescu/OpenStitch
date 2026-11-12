@@ -3470,8 +3470,9 @@ Still open on #446:
 
 Beyond PE-DESIGN, so there is no reference. #891 kept each blend colour's travel to 2 mm, but at
 a cost: the kit's gradients design went from 1 trim to 71. Now `paths::join_within` hides a
-colour's travel before it trims. It counts travel as hidden within 0.15 mm of a stitch the colour
-has already sewn, and takes the least exposed of these ways:
+colour's travel before it trims. Travel counts as hidden only over 1 mm cells where the colour's
+own rows cover at least 70 % of what rows at the row spacing would sew there; over thinner cover,
+the other colours' rows between its own show it. The join takes the least exposed of these ways:
 - the inside path;
 - back along the run just sewn (up to 30 mm) to its point nearest the next piece, then across.
 
@@ -3484,13 +3485,10 @@ They now use the same join, with the outline walk added, since a tartan colour's
 reach the edge. Like blend colours, they skip start- and end-point travel. Blends don't use the
 outline walk: there, a white line along the blue swatch's bottom edge showed.
 
-| kit design | trims | jumps | needle points |
-|---|---|---|---|
-| fills/gradients | 71 → 16 | 9 → 9 | 8,859 → 10,013 |
-| fills/tartan | 3 → 3 | 3 → 3 | 3,567 → 3,514 |
+KIT_TABLE
 
-`blend_travel_never_runs_far_across_the_rows` still passes; it now leaves out travel along the
-outline.
+`blend_travel_never_runs_far_across_the_rows` judges each colour on its own thread: no more than
+2 mm of a straight stretch across the rows may lie over cells where that colour covers under 70 %.
 
 ### Blend and gradient travel stays short, 2026-11-11 (#891)
 
