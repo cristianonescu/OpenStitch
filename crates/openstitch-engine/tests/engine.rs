@@ -449,7 +449,8 @@ fn commands_documented_and_unique() {
     let _ = v2(0.0, 0.0);
 }
 
-/// Golden regression: `examples/badge.json` exported `badge-golden.pes` (version 1, no objects)
+/// Golden regression: the badge script, kept as `tests/fixtures/badge.json` (`examples/badge.json`
+/// has since moved on, #828), exported `badge-golden.pes` (version 1, no objects)
 /// on 2026-10-18, re-recorded on 2026-10-27 without the four zero-length `00 00` records at
 /// jump landings (compat pes-default-v6; otherwise identical), and again when satin took
 /// PE-DESIGN's defaults (4.5 lines/mm, under sewing linked to the top satin), when fill did

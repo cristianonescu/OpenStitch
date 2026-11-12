@@ -2294,7 +2294,8 @@ pub fn demo_design() -> Vec<CommandRequest> {
         ),
         c(
             "object.setRegion",
-            json!({ "id": 1, "angle": 30, "density": 3 }),
+            // A tatami texture on the ground (#537, #828).
+            json!({ "id": 1, "angle": 30, "density": 3, "texture": "waves" }),
         ),
         c(
             "shape.polygon",
@@ -2308,7 +2309,8 @@ pub fn demo_design() -> Vec<CommandRequest> {
             "object.setRegion",
             // Split at 7 mm: the 44 mm star sewed 31.8 mm satin stitches, which Check Design
             // reported as an error in every screenshot's status bar (#441).
-            json!({ "id": 2, "type": "satin", "angle": 90, "splitLength": 7 }),
+            // Raised satin (#531, #828): padding lanes under the star, shown in the realistic view.
+            json!({ "id": 2, "type": "satin", "angle": 90, "splitLength": 7, "raised": true }),
         ),
         c(
             "shape.rectangle",
