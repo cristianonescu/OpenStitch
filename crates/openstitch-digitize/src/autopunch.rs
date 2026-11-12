@@ -837,6 +837,9 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
     };
     let unsmoothed = labels.clone();
     regions::majority(&mut labels, w, h, p.smooth.min(5));
+    // What the small-region merge and the sliver opening below take, a thin feature may be
+    // among (#469: the middle of a balloon's rope is a region too small to keep).
+    let premerge = labels.clone();
     // The frame scales x and y alike, so the working pixel's mm/px is both ratios.
     let floor = small_region_floor(p.min_area_mm2, frame.mm_per_px());
     match p.mode {
@@ -855,6 +858,7 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
             });
         }
     }
+    let merged = labels.clone();
     // OpenStitch mode: the dark contour lines become satin lines sewn on top (T12).
     let outlines = match p.mode {
         Mode::OpenStitch => outline::extract(
@@ -884,7 +888,18 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
             !line_art,
         );
         if !line_art && colors <= THIN_LINE_COLORS {
-            thin = outline::thin_lines(&before, &labels, w, h, &frame, &p.trace);
+            // Each pixel's label before the merge, except where the outlines were taken out
+            // (those are sewn as outlines already).
+            let taken_from: Vec<u16> = (0..w * h)
+                .map(|i| {
+                    if merged[i] != before[i] {
+                        before[i]
+                    } else {
+                        premerge[i]
+                    }
+                })
+                .collect();
+            thin = outline::thin_lines(&taken_from, &labels, w, h, &frame, &p.trace);
         }
     }
     let (mut id, mut comps) = regions::components(&labels, w, h);
