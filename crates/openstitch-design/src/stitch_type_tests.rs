@@ -5254,3 +5254,110 @@ fn a_ring_of_sections_keeps_its_order() {
         sewn(RunningStitchPath::Inside)
     );
 }
+
+/// #469's "best of": a hoop with a stem hanging below it (a ring with a branch) and the ∩ are
+/// each sewn in whichever candidate order lays the least travel on sewn thread, never more
+/// than Inside and never with more runs (trims) than Inside.
+#[test]
+fn a_hidden_fill_never_lays_more_travel_on_top_than_inside() {
+    let circle = |cx: f64, cy: f64, r: f64| {
+        Contour::new(
+            (0..72)
+                .map(|i| {
+                    let a = std::f64::consts::TAU * f64::from(i) / 72.0;
+                    v2(
+                        cx + r * crate::fmath::Det::dcos(a),
+                        cy + r * crate::fmath::Det::dsin(a),
+                    )
+                })
+                .collect(),
+            true,
+        )
+    };
+    // The hoop's outline with a 10 mm stem below it, as one polygon: the stem's sides meet the
+    // circle at its bottom.
+    let mut hoop: Vec<Vec2> = circle(300.0, 300.0, 300.0).points;
+    let bottom = hoop
+        .iter()
+        .enumerate()
+        .max_by(|a, b| a.1.y.total_cmp(&b.1.y))
+        .map(|(i, _)| i)
+        .expect("points");
+    hoop.splice(
+        bottom - 1..=bottom + 1,
+        [
+            v2(350.0, 595.0),
+            v2(350.0, 900.0),
+            v2(250.0, 900.0),
+            v2(250.0, 595.0),
+        ],
+    );
+    let shapes = [
+        (Contour::new(hoop, true), vec![circle(300.0, 300.0, 150.0)]),
+        (
+            Contour::new(
+                vec![
+                    v2(0.0, 600.0),
+                    v2(150.0, 600.0),
+                    v2(150.0, 150.0),
+                    v2(450.0, 150.0),
+                    v2(450.0, 600.0),
+                    v2(600.0, 600.0),
+                    v2(600.0, 0.0),
+                    v2(0.0, 0.0),
+                ],
+                true,
+            ),
+            vec![],
+        ),
+    ];
+    for (k, (outline, holes)) in shapes.iter().enumerate() {
+        let sewn = |path: RunningStitchPath| {
+            let mut r = region(RegionType::Fill);
+            r.angle = 0.0;
+            r.underlay = false;
+            r.density = 4.5;
+            r.stitch_length = 6.5;
+            r.running_stitch_path = Some(path);
+            let top = crate::region::layers(std::slice::from_ref(outline), &r, holes)
+                .pop()
+                .expect("top");
+            (crate::region::travel_on_top(&top), top.len())
+        };
+        let (inside, runs_inside) = sewn(RunningStitchPath::Inside);
+        let (hidden, runs_hidden) = sewn(RunningStitchPath::InsideHidden);
+        assert!(
+            hidden <= inside,
+            "shape {k}: {hidden:.0} against {inside:.0}"
+        );
+        assert!(
+            runs_hidden <= runs_inside,
+            "shape {k}: {runs_hidden} runs against {runs_inside}"
+        );
+    }
+}
+
+/// #469: the on-top measure counts travel along a row sewn long before, not travel beside it,
+/// nor rows (long stitches) laid over earlier travel.
+#[test]
+fn travel_on_top_counts_travel_over_old_rows() {
+    // 600 short stitches along y = 0, then travel back along it 2 mm away and on it: on it, the
+    // travel counts once it is more than 200 stitches past the row stitch below it.
+    let row: Vec<Vec2> = (0..=600).map(|i| v2(f64::from(i) * 5.0, 0.0)).collect();
+    let back = |y: f64| -> Vec<Vec2> {
+        (0..=120)
+            .map(|i| v2(3000.0 - f64::from(i) * 25.0, y))
+            .collect()
+    };
+    let mut beside = row.clone();
+    beside.extend(back(20.0));
+    let mut over = row.clone();
+    over.extend(back(0.0));
+    assert_eq!(crate::region::travel_on_top(&[beside]), 0.0);
+    let on = crate::region::travel_on_top(&[over]);
+    assert!(on > 1000.0, "{on:.0}");
+    // Long row stitches (6.5 mm) laid back over it are rows, not travel.
+    let mut rows = row;
+    rows.extend((0..=46).map(|i| v2(3000.0 - f64::from(i) * 65.0, 0.0)));
+    assert_eq!(crate::region::travel_on_top(&[rows]), 0.0);
+}
