@@ -50,7 +50,9 @@ are a sound start; change them only for a reason.
 - A curved sewing direction (`object.setDirectionCurve`) on fill or piping sews rows that are
   the curve moved sideways by whole row spacings: even density everywhere, no crossing rows,
   straight on past the curve's ends. Draw the curve across the whole shape, gently bent; inside
-  a tight bend the rows close into a corner.
+  a tight bend the rows close into a corner. Programmable fill along a curve sews the same rows
+  with its pattern bent along the curve. Avoid a U-shaped curve that bulges deep into the shape:
+  the inside of the U is left unsewn for now (#927).
 
 ## Decorative region and line types
 
