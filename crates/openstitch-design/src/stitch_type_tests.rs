@@ -5541,3 +5541,75 @@ fn travel_on_top_counts_travel_over_old_rows() {
     rows.extend((0..=46).map(|i| v2(3000.0 - f64::from(i) * 65.0, 0.0)));
     assert_eq!(crate::region::travel_on_top(&[rows]), 0.0);
 }
+
+/// The longest straight stretch of `runs` (0.1 mm) that runs across the horizontal rows (more
+/// than about 11° off them) and passes more than 1.5 mm inside the 20 mm square at the origin.
+fn longest_across_rows(runs: &[Run]) -> f64 {
+    let inside = |p: Vec2| p.x > 15.0 && p.x < 185.0 && p.y > 15.0 && p.y < 185.0;
+    let mut best = 0.0f64;
+    for run in runs {
+        let mut i = 0;
+        while i + 1 < run.len() {
+            let mut j = i + 1;
+            while j + 1 < run.len() {
+                let (a, d) = (run[i], run[j + 1] - run[i]);
+                let l = d.length();
+                if run[i + 1..=j]
+                    .iter()
+                    .any(|&q| ((q - a).x * d.y - (q - a).y * d.x).abs() / l > 1.5)
+                {
+                    break;
+                }
+                j += 1;
+            }
+            let (a, b) = (run[i], run[j]);
+            let l = a.distance(b);
+            if (b.y - a.y).abs() > 0.2 * l && (inside(a) || inside(b) || inside(a.lerp(b, 0.5))) {
+                best = best.max(l);
+            }
+            i = j;
+        }
+    }
+    best
+}
+
+/// #628: a fill entered away from its first row sews a straight travel from the start point to
+/// that row, as PE-DESIGN 11.50 does (its own files: sweep-fill-density-min, tatami-40-pos-*).
+/// Under dense rows it is covered; under open ones it shows. Plain shapes keep PE-DESIGN's
+/// travel. A fill set to Inside, hidden (OpenStitch's own default, Auto Punch's OpenStitch
+/// mode) travels along the outline once it is open (under 3 rows/mm): on a 20 mm square at
+/// 2 rows/mm entered at the middle of its bottom edge, 22.4 mm straight across the square
+/// before; now nothing longer than one travel stitch (2 mm) runs across the rows inside it.
+#[test]
+fn an_open_openstitch_fill_entered_away_from_its_rows_sews_no_travel_across_it() {
+    let square = Contour::rectangle(0.0, 0.0, 200.0, 200.0);
+    let fill = |density: f64, path: RunningStitchPath| {
+        let mut r = region(RegionType::Fill);
+        r.underlay = false;
+        r.angle = 0.0;
+        r.density = density;
+        r.entry = Some(v2(100.0, 200.0));
+        r.running_stitch_path = Some(path);
+        let runs: Vec<Run> = crate::region::layers(std::slice::from_ref(&square), &r, &[])
+            .into_iter()
+            .flatten()
+            .collect();
+        longest_across_rows(&runs) / 10.0
+    };
+    let open = fill(2.0, RunningStitchPath::InsideHidden);
+    assert!(
+        open <= 3.0,
+        "{open} mm of straight travel across an open fill"
+    );
+    // PE-DESIGN's straight entry stays for plain shapes, open or not, and for a dense fill.
+    for (density, path) in [
+        (2.0, RunningStitchPath::Inside),
+        (4.5, RunningStitchPath::InsideHidden),
+    ] {
+        let straight = fill(density, path);
+        assert!(
+            straight > 15.0,
+            "{path:?} at {density} rows/mm: {straight} mm"
+        );
+    }
+}

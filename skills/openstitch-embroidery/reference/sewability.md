@@ -46,7 +46,11 @@ are a sound start; change them only for a reason.
   `runningStitchPath: "insideHidden"` (beyond PE-DESIGN) on it: the parts are sewn in the
   order that leaves the least travel on thread already sewn (the joining part after the parts
   it joins; a ring gone round with its branches first), never with more trims than `inside`.
-  A plain hoop round a hole sews as with `inside`. PES 0110 saves it as `inside`.
+  A plain hoop round a hole sews as with `inside`. Under 3 rows/mm it travels along the outline
+  instead. PES 0110 saves it as `inside`.
+- A plain fill entered away from its first row sews a straight travel to that row, as
+  PE-DESIGN does; under open rows (under 3 rows/mm, programmable or motif fills) it shows.
+  Set `runningStitchPath: "alongOutline"` there, or the entry with `object.setEntryExit`.
 - Large overlapping fills sew thick and stiff: remove hidden parts with `shape.removeOverlap`
   instead of stacking fills.
 - Programmable fill sews from one pattern line to the next, as PE-DESIGN does, so a large or
