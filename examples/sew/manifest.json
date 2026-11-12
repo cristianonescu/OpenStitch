@@ -1109,7 +1109,7 @@
    71.0,
    89.7
   ],
-  "stitches": 3890,
+  "stitches": 3876,
   "trims": 39,
   "threads": [
    "405 Blue",
@@ -1117,10 +1117,10 @@
    "509 Leaf Green",
    "620 Magenta"
   ],
-  "sewingMinutes": 6.9,
+  "sewingMinutes": 6.8,
   "image": null,
   "preview": "previews/fonts-and-text.png",
-  "sha256": "810b6a14446d5a9f92056f2c215c835eb69fbb3ee1a891d112d6b76d28990d2b"
+  "sha256": "ffb931aec66a907c64a9c81573a1eb21dc925511b071df2bd5e2b8172ab90ffc"
  },
  "lettering/monograms.pes": {
   "title": "Monograms",
@@ -1235,7 +1235,7 @@
    90.0,
    67.9
   ],
-  "stitches": 7752,
+  "stitches": 7886,
   "trims": 15,
   "threads": [
    "001 White",
@@ -1245,10 +1245,10 @@
    "030 Vermillion",
    "515 Moss Green"
   ],
-  "sewingMinutes": 10.5,
+  "sewingMinutes": 10.6,
   "image": "../images/g02-balloon.png",
   "preview": "previews/S-autopunch-balloon-openstitch.png",
-  "sha256": "a3df10116232bccfb6f00b09644a38fe029f324ed54706ab4b6951109f4b7dd1"
+  "sha256": "e16a9be4242dadee288687d59dc8270b47e4455836910ad0263ffcfcb9a11b79"
  },
  "image-tools/S-autopunch-balloon-pe-compatible.pes": {
   "title": "Auto Punch, PE-DESIGN-compatible mode",
@@ -1509,8 +1509,8 @@
    199.0,
    150.1
   ],
-  "stitches": 93724,
-  "trims": 1081,
+  "stitches": 94192,
+  "trims": 1087,
   "threads": [
    "017 Light Blue",
    "843 Beige",
@@ -1523,10 +1523,10 @@
    "704 Pewter",
    "058 Dark Brown"
   ],
-  "sewingMinutes": 172.6,
+  "sewingMinutes": 173.4,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-openstitch.png",
-  "sha256": "4b36c88d946a079cb566b962a10f92fe465d80d05eaf0cd883723a2293115309"
+  "sha256": "7001a7dc3d2a25e4b82593073d26337db3d307e735935f2b402472b94c686849"
  },
  "image-tools/L-autopunch-storybook-pe-compatible.pes": {
   "title": "Auto Punch, PE-DESIGN-compatible mode",

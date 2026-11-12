@@ -59,18 +59,23 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
     let fit_screen = beside_dialog(screen, app.dialog_rect.filter(|_| app.screenshot_run()));
     let untouched_fit = app
         .auto_fit
-        .filter(|&(s, v, _)| s != fit_screen && app.viewport == Some(v));
+        .filter(|&(s, v, _, _)| s != fit_screen && app.viewport == Some(v));
     if app.viewport.is_none() || app.fit_requested || untouched_fit.is_some() {
         let mut fitted = Viewport::fit(page_rect, fit_screen, 24.0);
-        let zoom = match untouched_fit {
-            Some((_, _, z)) if !app.fit_requested => z,
-            _ => app.initial_zoom.take(),
+        let (zoom, center) = match untouched_fit {
+            Some((_, _, z, c)) if !app.fit_requested => (z, c),
+            _ => (app.initial_zoom.take(), app.initial_center.take()),
         };
         if let Some(z) = zoom {
             fitted.zoom_about(fit_screen.center(), z);
         }
+        // `--center` (#893): the design point given ends up in the middle of the canvas.
+        if let Some(c) = center {
+            let (at, mid) = (fitted.to_screen(c), fit_screen.center());
+            fitted.pan(mid.x - at.x, mid.y - at.y);
+        }
         app.viewport = Some(fitted);
-        app.auto_fit = Some((fit_screen, fitted, zoom));
+        app.auto_fit = Some((fit_screen, fitted, zoom, center));
         app.fit_requested = false;
     }
     let mut vp = app.viewport.unwrap_or_default();

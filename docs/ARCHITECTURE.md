@@ -821,7 +821,7 @@ openstitch_app::editor (lib, no egui, unit-tested)
 - **Scripted runs.** `--script` feeds pointer and key events through eframe's `raw_input_hook`,
   in model millimetres (`drag:10,10,40,30;type:e;cmd+key:Z`) or window points (`sclick:x,y`), so the
   real canvas, tool, panel and shortcut code runs; `--screenshot out.png` captures the frame
-  after the script (`--demo`, `--select`, `--simulate`, `--zoom`, `--size` set the scene;
+  after the script (`--demo`, `--select`, `--simulate`, `--zoom`, `--center X,Y` (mm), `--size` set the scene;
   `--ribbon TAB`, `--pane TAB`, `--theme`, `--show appmenu|property|shortcuts|floating|print` set the
   chrome; screenshots ignore the saved window preferences). `python3 tools/screenshots.py`
   rebuilds the editor screenshots from examples/ in a temporary folder with a stand-in home

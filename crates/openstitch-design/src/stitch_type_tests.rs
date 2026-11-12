@@ -2169,6 +2169,59 @@ fn every_pattern_of_every_patterned_type_sews() {
     }
 }
 
+/// #923: a programmable fill along a direction curve sews its rows as the curve's offsets and
+/// tiles its pattern in the curve's own frame, so its needle points lie on rows a row spacing
+/// apart all along the curve: at least 70 % of the needle points inside the square lie within a
+/// tenth of a row spacing of one. With the chord warp the rows were shifted copies across the
+/// chord and the points hardly clustered (R 0.07 on the S curve of
+/// `examples/sewing-direction.json`'s orange square; 0.79 now). Its crossings stay no more than
+/// the straight pattern's on the same square (2,094 against 2,210).
+#[test]
+fn programmable_fill_along_a_curve_keeps_to_the_curves_offsets() {
+    use crate::geometry::Bezier;
+    let square = Contour::rectangle(550.0, 550.0, 400.0, 380.0);
+    let mut curve = Contour::new(vec![v2(520.0, 600.0), v2(980.0, 900.0)], false);
+    curve.set_curve(
+        0,
+        Some(Bezier {
+            c1: v2(700.0, 500.0),
+            c2: v2(800.0, 1000.0),
+        }),
+    );
+    let mut r = region(RegionType::ProgrammableFill);
+    r.underlay = false;
+    r.base_sewing = false;
+    r.direction_curve = Some(curve.clone());
+    let layers = crate::region::layers(std::slice::from_ref(&square), &r, &[]);
+    let spacing = 10.0 / r.density;
+    let (_, guide) =
+        crate::direction::guided_lines(std::slice::from_ref(&square), &[], &curve, spacing)
+            .expect("guide");
+    // Needle points well inside the square (not row ends or travel along the outline).
+    let points: Vec<Vec2> = layers
+        .last()
+        .expect("top")
+        .iter()
+        .flatten()
+        .copied()
+        .filter(|p| p.x > 600.0 && p.x < 900.0 && p.y > 600.0 && p.y < 880.0)
+        .collect();
+    assert!(points.len() > 500, "{} needle points", points.len());
+    let on_row = points
+        .iter()
+        .filter(|&&p| {
+            let d = guide.frame(p).1 / spacing;
+            (d - d.round()).abs() <= 0.1
+        })
+        .count();
+    let share = on_row as f64 / points.len() as f64;
+    assert!(
+        share >= 0.7,
+        "{:.0} % of needle points on an offset row",
+        share * 100.0
+    );
+}
+
 #[test]
 fn programmable_fill_puts_needle_points_on_the_pattern() {
     let c = vec![Contour::rectangle(0.0, 0.0, 400.0, 400.0)];
@@ -5137,4 +5190,122 @@ fn angle_lines_cover_the_kit_l_at_the_set_density() {
             "{k}: a {most:.1} gap, the median {median:.1}"
         );
     }
+}
+
+/// Length (0.1 mm) of `run`'s stitches whose midpoint lies within 0.15 mm of a stitch sewn more
+/// than 200 stitches before: travel sewn on top of rows already sewn (#469).
+fn sewn_on_top(run: &[Vec2]) -> f64 {
+    let mut total = 0.0;
+    for i in 1..run.len() {
+        let mid = (run[i - 1] + run[i]) * 0.5;
+        let hit = (1..i.saturating_sub(200)).any(|j| {
+            let (a, b) = (run[j - 1], run[j]);
+            let v = b - a;
+            let l2 = v.x * v.x + v.y * v.y;
+            let t = if l2 > 0.0 {
+                (((mid.x - a.x) * v.x + (mid.y - a.y) * v.y) / l2).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            mid.distance(a + v * t) <= 1.5
+        });
+        if hit {
+            total += run[i - 1].distance(run[i]);
+        }
+    }
+    total
+}
+
+/// #469: a ∩ (a bar with two legs below it) sewn in horizontal rows has three sections: the
+/// bar, joining the two legs. Inside sews the bar first, then a leg, and travels back over the
+/// bar to the other leg; Inside, hidden under later sections sews each leg from its foot up to
+/// the bar, then the bar, so that travel runs where the bar is still to be sewn.
+#[test]
+fn a_section_joining_others_is_sewn_after_them() {
+    // A ∩: a bar 60 × 15 mm at the top, legs 15 mm wide and 45 mm tall at each end.
+    let fork = Contour::new(
+        vec![
+            v2(0.0, 600.0),
+            v2(150.0, 600.0),
+            v2(150.0, 150.0),
+            v2(450.0, 150.0),
+            v2(450.0, 600.0),
+            v2(600.0, 600.0),
+            v2(600.0, 0.0),
+            v2(0.0, 0.0),
+        ],
+        true,
+    );
+    let sewn = |path: RunningStitchPath| {
+        let mut r = region(RegionType::Fill);
+        r.angle = 0.0;
+        r.underlay = false;
+        r.density = 4.5;
+        r.stitch_length = 6.5;
+        r.running_stitch_path = Some(path);
+        let run: Vec<Vec2> = crate::region::layers(std::slice::from_ref(&fork), &r, &[])
+            .pop()
+            .expect("top")
+            .into_iter()
+            .flatten()
+            .collect();
+        (sewn_on_top(&run), run.len())
+    };
+    let (inside, n_inside) = sewn(RunningStitchPath::Inside);
+    let (hidden, n_hidden) = sewn(RunningStitchPath::InsideHidden);
+    // Inside: 52 mm, the travel from the left leg's foot up its inner edge and along under the
+    // bar sewn first. Hidden: that travel is gone; what is left (32 mm) is the bar's last row
+    // laid along the legs' first rows at the seam, a fill row, not travel.
+    assert!(
+        inside > 400.0,
+        "Inside travels over the sewn bar: {inside:.0}"
+    );
+    assert!(
+        hidden < inside * 0.7,
+        "hidden {hidden:.0} against inside {inside:.0}"
+    );
+    // The same rows, sewn in another order: the stitch count stays close.
+    assert!(
+        (n_hidden as f64 - n_inside as f64).abs() <= n_inside as f64 * 0.1,
+        "{n_hidden} against {n_inside} stitches"
+    );
+}
+
+/// #469: a ring (a hoop round a hole) sewn in horizontal rows has four sections that touch in a
+/// ring: the top, both sides and the bottom. None joins the others, and going round sews them
+/// with the least travel, so Inside, hidden under later sections sews it exactly as Inside.
+#[test]
+fn a_ring_of_sections_keeps_its_order() {
+    let circle = |r: f64| {
+        Contour::new(
+            (0..72)
+                .map(|i| {
+                    let a = std::f64::consts::TAU * f64::from(i) / 72.0;
+                    v2(
+                        300.0 + r * crate::fmath::Det::dcos(a),
+                        300.0 + r * crate::fmath::Det::dsin(a),
+                    )
+                })
+                .collect(),
+            true,
+        )
+    };
+    let (outer, hole) = (circle(300.0), circle(150.0));
+    let sewn = |path: RunningStitchPath| {
+        let mut r = region(RegionType::Fill);
+        r.angle = 0.0;
+        r.underlay = false;
+        r.density = 4.5;
+        r.stitch_length = 6.5;
+        r.running_stitch_path = Some(path);
+        crate::region::layers(
+            std::slice::from_ref(&outer),
+            &r,
+            std::slice::from_ref(&hole),
+        )
+    };
+    assert_eq!(
+        sewn(RunningStitchPath::InsideHidden),
+        sewn(RunningStitchPath::Inside)
+    );
 }

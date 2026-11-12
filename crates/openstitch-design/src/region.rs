@@ -173,12 +173,24 @@ fn layers_inner(
             }
         }
         let spacing = 10.0 / r.density.max(0.1);
-        out.push(vec![crate::skeleton::satin_with(
-            skeleton,
-            spacing,
-            r.pull_compensation * 10.0,
-            &r.satin_shaping,
-        )]);
+        // A branch column with an end on the shape's outline is sewn within its outline and
+        // on into that end's corners (#526); every other skeleton satin as before.
+        out.push(vec![if r.outline_ends == [false; 2] {
+            crate::skeleton::satin_with(
+                skeleton,
+                spacing,
+                r.pull_compensation * 10.0,
+                &r.satin_shaping,
+            )
+        } else {
+            crate::skeleton::satin_to_outline(
+                skeleton,
+                closed,
+                spacing,
+                r.pull_compensation * 10.0,
+                r.outline_ends,
+            )
+        }]);
         return motif_band(out, &crate::skeleton::rungs(skeleton, 10.0), r, user);
     }
     // Curved direction: sew the straightened region with horizontal rows, then bend back.
@@ -222,6 +234,25 @@ fn layers_inner(
             let pieces: Vec<Run> = rows.into_iter().filter(|r| r.len() >= 2).collect();
             *top = join(
                 pieces,
+                Some(&mut TravelGraph::new(closed, holes)),
+                SATIN_TRAVEL_PITCH,
+            );
+        }
+        // Programmable fill: the same offset rows, the pattern tiled in the curve's own frame
+        // (#923), so its tiles follow the curve instead of shifting across the chord. The
+        // grid starts at the reference point, else the region's top-left corner, as on a
+        // straight programmable fill.
+        if r.kind == RegionType::ProgrammableFill
+            && let Some(origin) = r.reference.or_else(|| {
+                Rect::enclosing(closed.iter().flat_map(|c| c.outline_points()))
+                    .map(|b| v2(b.min_x, b.min_y))
+            })
+            && let Some(pieces) =
+                crate::regions::programmable_guided(closed, holes, r, user, curve, origin)
+            && let Some(top) = out.last_mut()
+        {
+            *top = join(
+                pieces.into_iter().filter(|p| p.len() >= 2).collect(),
                 Some(&mut TravelGraph::new(closed, holes)),
                 SATIN_TRAVEL_PITCH,
             );
@@ -607,6 +638,16 @@ fn layers_inner(
         None => (closed, holes),
     };
     let mut runs = match r.kind {
+        RegionType::Fill if !shaped && r.travel_path() == Some(RunningStitchPath::InsideHidden) => {
+            generate::fill_edge_to_edge_travel_hidden(
+                top_closed,
+                &params,
+                top_holes,
+                r.fill_stagger(),
+                r.entry,
+                r.stitch_type == FillStitchType::Two,
+            )
+        }
         RegionType::Fill if !shaped => generate::fill_edge_to_edge_travel(
             top_closed,
             &params,
@@ -1276,7 +1317,7 @@ fn travel_graph(
 ) -> TravelGraph {
     let mut graph = TravelGraph::new(closed, holes);
     graph.outline = match path {
-        RunningStitchPath::Inside => None,
+        RunningStitchPath::Inside | RunningStitchPath::InsideHidden => None,
         RunningStitchPath::AlongOutline => Some(OutlineTravel::Inset(ALONG_OUTLINE_INSET)),
         RunningStitchPath::OnOutline => Some(OutlineTravel::On),
     };

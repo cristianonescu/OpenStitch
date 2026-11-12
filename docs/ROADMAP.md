@@ -132,6 +132,21 @@ stitch output changes. The stripes in the kit previews at 5–7 px/mm are a diff
 anti-aliased rows about a pixel apart leave light seams that beat with the pixel grid. Part 2 renders
 the previews at a higher pixel density and downsamples them.
 
+Done 2026-11-12 (#921): where thread runs other ways across a fill (an underlay, rows converging round a
+bend), the Realistic view counted it in the row density and missed the parallel row beside each stitch,
+so every thread was drawn as narrow as that density asks: the band along angle-lines' bend, with 1.6× the
+needle drops of its arms, hid 72–75 % of the fabric against 90–97 % in the arms. The row beside is now
+looked for up to 0.6 mm away; the band hides 96.5 %, as the arms. The T1 ramp (parallel rows) is unchanged.
+
+Done 2026-11-12 (#893, part 2): the kit previews and the README gallery are drawn at 16 px/mm in
+tiles (`openstitch --zoom … --center X,Y`, a new option that centres the view on a design point) and
+reduced with Lanczos, instead of the page-fit screenshot at 5–7 px/mm. Row-to-row stripe contrast in
+a filled patch falls from 39 to 13 grey levels on angle-lines, 34 to 5 on tatami-textures-1 and 19
+to 11 on the sunset photo; the T1 card's swatches stay within 6 levels of the page-fit preview
+(sum of differences from the scans 132 before, 134 after). A kit build takes about three times as
+long (50 min on Windows). The gallery images are redrawn this way at the next release refresh. The Realistic view itself still shows
+the stripes when zoomed out: #907 (Future) supersamples it in the app.
+
 Done 2026-11-06 (#295, #441, #311, #312): the kit has a T2 card (two threads in alternating rows,
 to measure how far a later row covers its neighbour for Photo Stitch 1), the build checks every
 calibration swatch's density in the exported file, and `sew_check` checks trims per 1,000
@@ -677,6 +692,10 @@ as wave lines or a thread sketch (#873), a ready drawings picker (#871), stroke-
 Hangul and kana (#881), a free-design sites page (#872), the setting-effect and monkey tests
 (#880), floppy images for old commercial machines (#876), and one list of mobile app ideas
 (#884). Notes on #453, #486 and #555.
+
+From the competitor scan of 2026-11-12 (same document, Updates; openhoop, concepts only): routed
+and Redwork lines in triple stitch whose retraced stretches are sewn once, so the whole line has
+one weight (#925, an option on `shape.autoRoute`, with B4), an idea for Future.
 
 Deferred: shape and vine fills, photo
 thread-painting, sequin/chenille/bead types (machine-specific), the TrueType turning-satin

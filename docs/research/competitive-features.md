@@ -1488,3 +1488,56 @@ neither project shows a sew-out of most of what it lists. Sources:
 https://github.com/lb2002/openstitch (README, CHANGELOG, release notes; single source),
 https://github.com/linker2k/myembro (README, docs/manual/user-guide.md, docs/faq.md, release
 notes; single source).
+
+### 2026-11-12 scan
+
+Period checked: 2026-11-08 to 2026-11-12.
+
+**Commercial products.** No material release or feature announcement in the period.
+Checked: Wilcom blog (one new post, 2026-11-11, a staff appointment: not a feature) and Hatch
+blog (newest still 2026-10-25); BERNINA (V9 still current, no V10 found); mySewnet and
+Embrilliance (no dated release found); Tajima DG by Pulse (DG17.5, 17.5.1.8445, unchanged);
+Embird (the "what is new" page still headlines Embird 2026 without a date); Ink/Stitch (newest
+post still v3.3.0 of 2026-07-31). The PE-DESIGN 11 one-click update page timed out and was not
+read in this scan; the next scan checks it again.
+Sources: https://wilcom.com/resources/blog, https://hatchembroidery.com/resources/blog,
+https://inkstitch.org/news, https://www.embird.net/what-is-new/,
+https://cloud.pulsemicro.com/Download.
+
+#### Open-source projects
+
+Ideas only, read from release notes and commit titles; no code may be copied, ported or
+paraphrased (openhoop, filum and myembro are GPL-3.0; lb2002/openstitch is AGPL-3.0-or-later).
+
+- **vomitselfie/Morale**, **alexandra03/threadspool**, **lork-fork/Roidery**,
+  **bastanja/stitch_generator**: no commits or releases since 2026-11-08.
+  **lb2002/openstitch** (the other project that shares OpenStitch's name) and
+  **linker2k/myembro**: nothing after the pushes of 2026-11-05 and 2026-11-08 that the
+  2026-11-11 survey already read.
+- **EvenDog/openhoop** (GPL-3.0; releases 0.13.0 to 0.13.6 between 2026-11-09 and 2026-11-10).
+  New since the 2026-11-08 scan:
+  - Redwork in bean (triple) stitch with an even line weight: where the route goes back over a
+    line, that stretch is sewn once instead of as a second full triple, as a setting on any bean
+    line and in its line-art import. OpenStitch has auto-routing and Redwork (#546, O10 / D2),
+    but a routed triple-stitch line repeats the whole triple on the way back: new issue #925
+    (new row).
+  - Already in OpenStitch, no issue: Make Redwork itself (`shape.autoRoute` with `redwork`);
+    hand stitch for fills and the Recognize Objects measurements (#817, #818, from the
+    2026-11-08 scan, now released); copies along a line by spacing (#476); a fill angle line
+    dragged by one end with 15° steps (Fill Angle and Angle Lines tools, #534); the measure tool
+    by two clicks; a reference image that is turned and cropped without changing the file
+    (Modify Image).
+  - Not material: free rotation, skew and flip of the reference image and skew handles on the
+    canvas; 15° steps while placing outline points (OpenStitch has angle steps on its measure,
+    knife, gradient and fill-angle tools); click-move-click shape drawing; number fields with
+    the unit inside.
+  https://github.com/EvenDog/openhoop/releases (single source)
+- **benkl/filum** (GPL-3.0; a 0.2.1 version commit on 2026-11-08, no release yet): tatami fills
+  now sew one way, top to bottom, section after section, instead of in two halves that meet in
+  the middle, with a Sewing order choice (one way, centre out, or the earlier order). This fixes
+  a trait of the Ink/Stitch routing it ports; OpenStitch's fill sectioning is its own: no issue.
+  https://github.com/benkl/filum/commits/main (single source)
+
+No comparison-matrix row changes (the open-source projects are tracked here, not in the matrix).
+New "Planned (beyond PE-DESIGN)" row in FEATURE_MATRIX.md and a note in ROADMAP.md (Beyond
+PE-DESIGN): retraced stretches of triple-stitch routed lines sewn once (#925).

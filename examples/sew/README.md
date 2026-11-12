@@ -222,9 +222,17 @@ python3 -I tools/sew_kit.py
 `python3 -I tools/sew_kit.py --check` says whether the committed files still match what OpenStitch
 writes; the stitch engine's changes make them stale.
 
+When a change moves only a few kit files, `python3 -I tools/sew_kit.py --only fills/angle-lines.pes
+[...]` rebuilds just those, with their previews, manifest entries and lines below, and leaves
+every other file as committed; `--check --only` checks just those (#935). The full `--check` is
+what CI runs.
+
 Build both binaries after every source change. The previews come from the `openstitch` app, which
 sews each design again, so an app older than the change would show the old stitches. `sew_kit.py`
 refuses to run with a binary older than any source file it was built from (#896).
+Each preview is drawn at 16 px per mm in tiles (`--zoom` and `--center`) and reduced: at the
+zoom that fits the page, the rows of a dense fill beat with the screen pixels into stripes that
+are not on the fabric (#893).
 
 ## The designs
 
@@ -505,7 +513,7 @@ The fonts, Text Transform, text on a path and monograms.
 
 #### Lettering
 
-[`lettering/fonts-and-text.pes`](lettering/fonts-and-text.pes) · 100 × 100 mm hoop · 71 × 89.7 mm · 3,890 stitches · 39 trims · about 6.9 min
+[`lettering/fonts-and-text.pes`](lettering/fonts-and-text.pes) · 100 × 100 mm hoop · 71 × 89.7 mm · 3,876 stitches · 39 trims · about 6.8 min
 
 Lato Bold and Pacifico, a Text Transform arch, and text spaced around a circle (text on a path).
 
@@ -573,7 +581,7 @@ Each image tool on a test image, in both of its modes: PE-DESIGN-compatible mode
 
 #### Auto Punch, OpenStitch mode
 
-[`image-tools/S-autopunch-balloon-openstitch.pes`](image-tools/S-autopunch-balloon-openstitch.pes) · 100 × 100 mm hoop · 90 × 67.9 mm · 7,752 stitches · 15 trims · about 10.5 min
+[`image-tools/S-autopunch-balloon-openstitch.pes`](image-tools/S-autopunch-balloon-openstitch.pes) · 100 × 100 mm hoop · 90 × 67.9 mm · 7,886 stitches · 15 trims · about 10.6 min
 
 `g02-balloon.png` through Auto Punch at its defaults in OpenStitch mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.
 
@@ -693,7 +701,7 @@ Threads, in sewing order: 517 Dark Olive, 800 Red, 704 Pewter, 339 Clay Brown.
 
 #### Auto Punch, OpenStitch mode
 
-[`image-tools/L-autopunch-storybook-openstitch.pes`](image-tools/L-autopunch-storybook-openstitch.pes) · 260 × 160 mm hoop · 199 × 150.1 mm · 93,724 stitches · 1081 trims · about 172.6 min
+[`image-tools/L-autopunch-storybook-openstitch.pes`](image-tools/L-autopunch-storybook-openstitch.pes) · 260 × 160 mm hoop · 199 × 150.1 mm · 94,192 stitches · 1087 trims · about 173.4 min
 
 `p03-storybook.jpg` through Auto Punch at its defaults in OpenStitch mode, fitted to the 260 × 160 mm hoop. Sew both modes of the same image to compare them on fabric.
 
