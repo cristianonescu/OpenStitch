@@ -6142,9 +6142,57 @@
       "peDesignVersion": "11.50",
       "date": "2026-11-12",
       "os": "Windows 11 Pro",
-      "settings": "180 x 130 mm page, App menu > New. Home > Shapes > rectangle dragged to a 42.00 x 42.00 mm square, PE defaults kept: line Zigzag Stitch (width 2.0 mm, density 4.5 line/mm, Half Stitch on), region Fill Stitch (density 4.5 line/mm, direction 45 degrees, under sewing on); Save As PES Ver.11.0. Status: 3251 stitches.",
+      "settings": "180 x 130 mm page, App menu > New. Home > Shapes > rectangle dragged until the status line shows 42.00 x 42.00 mm (a 40 mm outline with its 2 mm zigzag line centred on it), PE defaults kept: line Zigzag Stitch (width 2.0 mm, density 4.5 line/mm, Half Stitch on), region Fill Stitch (density 4.5 line/mm, direction 45 degrees, under sewing on); Save As PES Ver.11.0. Status: 3251 stitches.",
       "sha256": "01cfcc25e507e1b162b59936d9f919bc16fad3106538151de8ce849ece529f31",
       "notes": "Black-box capture from the coordinator's round-10 notes (#471); the project's own geometry, no Brother stamp patterns."
+    },
+    {
+      "file": "stitches/line-square-zigzag-1mm.pes",
+      "spec": "line-square-zigzag-1mm",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-12",
+      "os": "Windows 11 Pro",
+      "settings": "The #471 plain-square baseline design reopened in PE-DESIGN 11.50 (a 40 mm square drawn with the rectangle tool; region Fill Stitch 4.5 line/mm, 45 degrees, under sewing on); only the line changed, through the Sewing Attributes pane and the Shapes tab's line sew type list, the shape never moved or resized: Zigzag Stitch 1.0 mm, 4.5 line/mm, Half Stitch on. Save As PES Ver.11.0. Status: 3230 stitches, 41.00 x 41.00 mm.",
+      "sha256": "3aa218527a7ea59e249417267d233e773bd20574add237df2ddce024f2d0af15",
+      "notes": "Black-box capture 955-square-zigzag-1mm.pes from the coordinator's round-10 notes (#955); the project's own geometry."
+    },
+    {
+      "file": "stitches/line-square-zigzag-4mm.pes",
+      "spec": "line-square-zigzag-4mm",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-12",
+      "os": "Windows 11 Pro",
+      "settings": "The #471 plain-square baseline design reopened in PE-DESIGN 11.50 (a 40 mm square drawn with the rectangle tool; region Fill Stitch 4.5 line/mm, 45 degrees, under sewing on); only the line changed, through the Sewing Attributes pane and the Shapes tab's line sew type list, the shape never moved or resized: Zigzag Stitch 4.0 mm, 4.5 line/mm, Half Stitch on. Save As PES Ver.11.0. Status: 3448 stitches, 44.00 x 44.00 mm.",
+      "sha256": "a3726470a810d14399a36499b860196f8c38333c1fdb9157cd035466cd6ae3d8",
+      "notes": "Black-box capture 955-square-zigzag-4mm.pes from the coordinator's round-10 notes (#955); the project's own geometry."
+    },
+    {
+      "file": "stitches/line-square-running.pes",
+      "spec": "line-square-running",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-12",
+      "os": "Windows 11 Pro",
+      "settings": "The #471 plain-square baseline design reopened in PE-DESIGN 11.50 (a 40 mm square drawn with the rectangle tool; region Fill Stitch 4.5 line/mm, 45 degrees, under sewing on); only the line changed, through the Sewing Attributes pane and the Shapes tab's line sew type list, the shape never moved or resized: Running Stitch, pitch 2.0 mm, 1 time. Save As PES Ver.11.0. Status: 2498 stitches, 40.00 x 40.00 mm.",
+      "sha256": "6814cef4ff3a1c930703b17b059b49b4e8a0b828a718c44969dee5aefe8b6e42",
+      "notes": "Black-box capture 955-square-running-line.pes from the coordinator's round-10 notes (#955); the project's own geometry."
+    },
+    {
+      "file": "stitches/line-square-none.pes",
+      "spec": "line-square-none",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-12",
+      "os": "Windows 11 Pro",
+      "settings": "The #471 plain-square baseline design reopened in PE-DESIGN 11.50 (a 40 mm square drawn with the rectangle tool; region Fill Stitch 4.5 line/mm, 45 degrees, under sewing on); only the line changed, through the Sewing Attributes pane and the Shapes tab's line sew type list, the shape never moved or resized: line Not Sewn. Save As PES Ver.11.0. Status: 2413 stitches, 40.00 x 40.00 mm.",
+      "sha256": "2c8db8267142005a7b63e47a2031e6dd878c49c07cbc0226c658ea9c906156af",
+      "notes": "Black-box capture 955-square-no-line.pes from the coordinator's round-10 notes (#955); the project's own geometry."
     }
   ]
 }

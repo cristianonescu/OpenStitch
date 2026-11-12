@@ -1,0 +1,136 @@
+{
+  "schema": "openstitch-compat/1",
+  "id": "line-square-running",
+  "area": "stitches",
+  "title": "Fill against a running stitch on a 40 mm square",
+  "description": "#955: the #471 baseline square (40 mm outline, Fill 4.5 lines/mm at 45 degrees with under sewing) with running stitch, pitch 2.0 mm, 1 time. PE-DESIGN's fill reaches the outline whatever the line (2,413 stitches, 40 x 40 mm in every case) and a zigzag is centred on it, so the design is 40 mm plus the zigzag's width; OpenStitch's the same.",
+  "covers": {
+    "featureMatrix": [
+      {
+        "area": "Region sew types",
+        "feature": "Fill (tatami: angle or auto direction"
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "kind": "measured",
+      "note": "PE-DESIGN 11.50 reference stitches/line-square-running.pes (round 10, #955)"
+    }
+  ],
+  "script": [
+    {
+      "command": "design.new",
+      "params": {
+        "width": 100,
+        "height": 100
+      }
+    },
+    {
+      "command": "shape.rectangle",
+      "params": {
+        "x": 30,
+        "y": 30,
+        "width": 40,
+        "height": 40,
+        "fill": "Red"
+      }
+    },
+    {
+      "command": "object.setRegion",
+      "params": {
+        "ids": [
+          1
+        ],
+        "type": "fill",
+        "density": 4.5,
+        "angle": 45,
+        "underlay": true
+      }
+    },
+    {
+      "command": "object.setLine",
+      "params": {
+        "ids": [
+          1
+        ],
+        "color": "Blue",
+        "type": "running",
+        "pitch": 2.0
+      }
+    }
+  ],
+  "exports": [
+    {
+      "path": "a.pes"
+    }
+  ],
+  "references": [
+    {
+      "id": "pe-design",
+      "file": "stitches/line-square-running.pes",
+      "make": "Open compat/reference/stitches/stamp-plain-square-baseline.pes's design in PE-DESIGN 11.50 (or draw it again: a 40 mm square with the rectangle tool, Fill Stitch 4.5 line/mm, 45 degrees, under sewing on) and set only the line: Running Stitch, pitch 2.0 mm, 1 time. Save with Save As as PES (PE-DESIGN 11's default PES version) under the file name given, and record it in compat/reference/MANIFEST.json."
+    }
+  ],
+  "measurements": [
+    {
+      "id": "width",
+      "measure": {
+        "kind": "bounds",
+        "property": "width"
+      },
+      "source": {
+        "export": "a.pes"
+      },
+      "expected": {
+        "min": 39.7,
+        "max": 40.3
+      },
+      "evidence": "the fill reaches the 40 mm outline and the line is centred on it: 40 mm in all",
+      "reference": {
+        "tolerance": {
+          "mm": 0.2
+        }
+      }
+    },
+    {
+      "id": "height",
+      "measure": {
+        "kind": "bounds",
+        "property": "height"
+      },
+      "source": {
+        "export": "a.pes"
+      },
+      "expected": {
+        "min": 39.7,
+        "max": 40.3
+      },
+      "evidence": "40 mm, as the width",
+      "reference": {
+        "tolerance": {
+          "mm": 0.2
+        }
+      }
+    },
+    {
+      "id": "stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "a.pes"
+      },
+      "expected": {
+        "min": 2248,
+        "max": 2623
+      },
+      "evidence": "PE-DESIGN 2,498; OpenStitch about 1.7 % fewer (the fill: 2,372 against 2,413)",
+      "reference": {
+        "tolerance": {
+          "percent": 5
+        }
+      }
+    }
+  ]
+}

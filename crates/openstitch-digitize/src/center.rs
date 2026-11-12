@@ -706,6 +706,162 @@ fn spaced(pts: &[Vec2], min: f64) -> Vec<Vec2> {
     out
 }
 
+/// Longest closed line (design units) [`parallel_lines`] samples evenly: a circle up to about
+/// 9.5 mm across.
+const ROUND_LOOP_MAX: f64 = 300.0;
+/// Sharpest turn (degrees) at a point of a loop that still counts as round.
+const ROUND_LOOP_TURN: f64 = 40.0;
+
+/// Whether the closed `pts` is a small round loop: at most [`ROUND_LOOP_MAX`] long, with no
+/// turn sharper than [`ROUND_LOOP_TURN`] (a corner of a drawn square or triangle).
+fn small_round_loop(pts: &[Vec2]) -> bool {
+    let mut p: Vec<Vec2> = Vec::with_capacity(pts.len());
+    for &q in pts {
+        if p.last().is_none_or(|l: &Vec2| l.distance(q) > 1e-6) {
+            p.push(q);
+        }
+    }
+    if p.len() > 1 && p[0].distance(p[p.len() - 1]) <= 1e-6 {
+        p.pop();
+    }
+    let n = p.len();
+    if n < 3 {
+        return false;
+    }
+    let total: f64 = (0..n).map(|i| p[i].distance(p[(i + 1) % n])).sum();
+    total <= ROUND_LOOP_MAX
+        && (0..n).all(|i| {
+            let (a, b, c) = (p[(i + n - 1) % n], p[i], p[(i + 1) % n]);
+            let (u, v) = (b - a, c - b);
+            let turn = (u.x * v.y - u.y * v.x).datan2(u.x * v.x + u.y * v.y).abs();
+            turn.to_degrees() <= ROUND_LOOP_TURN
+        })
+}
+
+/// The circle (centre, radius) a small closed loop traces, when it is one: at most
+/// [`ROUND_LOOP_MAX`] long and every point within a fifth of the radius (at least 0.15 mm) of the
+/// circle fitted through them (least squares). A 2 mm ring of the drawing traces as four or five
+/// points, too coarse to sample along (#469).
+fn small_circle(pts: &[Vec2]) -> Option<(Vec2, f64)> {
+    let mut p: Vec<Vec2> = Vec::with_capacity(pts.len());
+    for &q in pts {
+        if p.last().is_none_or(|l: &Vec2| l.distance(q) > 1e-6) {
+            p.push(q);
+        }
+    }
+    if p.len() > 1 && p[0].distance(p[p.len() - 1]) <= 1e-6 {
+        p.pop();
+    }
+    let n = p.len();
+    if n < 4 {
+        return None;
+    }
+    let total: f64 = (0..n).map(|i| p[i].distance(p[(i + 1) % n])).sum();
+    if total > ROUND_LOOP_MAX {
+        return None;
+    }
+    // x² + y² + D x + E y + F = 0, about the points' mean for conditioning.
+    let m = p.iter().fold(v2(0.0, 0.0), |s, q| v2(s.x + q.x, s.y + q.y));
+    let m = v2(m.x / n as f64, m.y / n as f64);
+    let (mut sxx, mut sxy, mut syy, mut sx, mut sy, mut sz, mut szx, mut szy) =
+        (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+    for q in &p {
+        let (x, y) = (q.x - m.x, q.y - m.y);
+        let z = x * x + y * y;
+        sxx += x * x;
+        sxy += x * y;
+        syy += y * y;
+        sx += x;
+        sy += y;
+        sz += z;
+        szx += z * x;
+        szy += z * y;
+    }
+    let k = n as f64;
+    // Normal equations for (D, E, F): [[sxx sxy sx] [sxy syy sy] [sx sy k]] · (D E F) = −(szx szy sz).
+    let a = [[sxx, sxy, sx], [sxy, syy, sy], [sx, sy, k]];
+    let b = [-szx, -szy, -sz];
+    let det = |m: [[f64; 3]; 3]| {
+        m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+            - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+            + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0])
+    };
+    let d0 = det(a);
+    if d0.abs() < 1e-9 {
+        return None;
+    }
+    let solve = |col: usize| {
+        let mut t = a;
+        for r in 0..3 {
+            t[r][col] = b[r];
+        }
+        det(t) / d0
+    };
+    let (dd, ee, ff) = (solve(0), solve(1), solve(2));
+    let c = v2(-dd / 2.0, -ee / 2.0);
+    let r2 = c.x * c.x + c.y * c.y - ff;
+    if r2 <= 0.0 {
+        return None;
+    }
+    let r = r2.sqrt();
+    let tol = (0.2 * r).max(1.5);
+    p.iter()
+        .all(|q| (v2(q.x - m.x, q.y - m.y).distance(c) - r).abs() <= tol)
+        .then(|| (v2(c.x + m.x, c.y + m.y), r))
+}
+
+/// `n` points evenly round the circle (`centre`, `r`) from the angle of `from`, the first
+/// repeated last.
+fn circle_points(centre: Vec2, r: f64, from: Vec2, n: usize) -> Vec<Vec2> {
+    let a0 = (from.y - centre.y).datan2(from.x - centre.x);
+    let mut out: Vec<Vec2> = (0..n)
+        .map(|i| {
+            let a = a0 + std::f64::consts::TAU * i as f64 / n as f64;
+            v2(centre.x + r * a.dcos(), centre.y + r * a.dsin())
+        })
+        .collect();
+    out.push(out[0]);
+    out
+}
+
+/// A closed `pts` (first point repeated last or not) as evenly spaced points along it, as many
+/// as fit at least `min` apart, starting at its first point and ending there again: a small
+/// circle keeps as many equal sides as its length allows instead of the uneven few that
+/// [`spaced`] leaves (#469: a 2 mm ring became a square, a 6 mm one had 13 sides).
+fn even_closed(pts: &[Vec2], min: f64) -> Vec<Vec2> {
+    let mut p: Vec<Vec2> = Vec::with_capacity(pts.len() + 1);
+    for &q in pts {
+        if p.last().is_none_or(|l: &Vec2| l.distance(q) > 1e-6) {
+            p.push(q);
+        }
+    }
+    if p.len() < 3 {
+        return p;
+    }
+    if p[0].distance(p[p.len() - 1]) > 1e-6 {
+        p.push(p[0]);
+    }
+    let total: f64 = p.windows(2).map(|w| w[0].distance(w[1])).sum();
+    let n = (total / min).floor() as usize;
+    if n < 3 {
+        return spaced(&p, min);
+    }
+    let step = total / n as f64;
+    let mut out = vec![p[0]];
+    let (mut seg, mut along) = (0usize, 0.0f64);
+    for k in 1..n {
+        let target = k as f64 * step;
+        while seg + 1 < p.len() && along + p[seg].distance(p[seg + 1]) < target {
+            along += p[seg].distance(p[seg + 1]);
+            seg += 1;
+        }
+        let len = p[seg].distance(p[seg + 1]).max(1e-9);
+        out.push(p[seg].lerp(p[seg + 1], (target - along) / len));
+    }
+    out.push(p[0]);
+    out
+}
+
 /// `pts` moved sideways by `d` (to the left of the drawing direction, design units): each
 /// vertex along the mean of its segments' normals, mitred and capped at twice `d` at sharp
 /// corners. Repeated points are dropped first.
@@ -775,11 +931,43 @@ pub fn parallel_lines(f: &Figure, width_mm: f64, passes: usize) -> Vec<Contour> 
     f.lines
         .iter()
         .map(|c| {
-            let path = spaced(&c.path(), MIN_STITCH_MM * 10.0);
+            // A small round loop (a dot's ring, an eye) is sampled evenly along its curve, each
+            // pass on its own length, so it reads round (#469); other lines keep their corners.
+            let dense = c.path();
+            // A small ring of the drawing: each pass a circle sampled evenly (at least five
+            // sides, each about MIN_STITCH_MM), starting where the traced line starts.
+            if c.closed
+                && let Some((centre, r)) = small_circle(&dense)
+            {
+                let mut out: Vec<Vec2> = Vec::new();
+                for k in 0..passes {
+                    let rk = (r - band / 2.0 + k as f64 * step).max(THREAD_MM * 5.0);
+                    let n = ((std::f64::consts::TAU * rk / (MIN_STITCH_MM * 10.0)).floor()
+                        as usize)
+                        .max(5);
+                    let mut ring = circle_points(centre, rk, dense[0], n);
+                    if let (Some(&last), Some(&first)) = (out.last(), ring.first())
+                        && last.distance(first) < MIN_STITCH_MM * 10.0
+                    {
+                        ring.remove(0);
+                    }
+                    out.extend(ring);
+                }
+                return Contour::new(out, false);
+            }
+            let round = c.closed && small_round_loop(&dense);
+            let thin = |pts: &[Vec2]| {
+                if round {
+                    even_closed(pts, MIN_STITCH_MM * 10.0)
+                } else {
+                    spaced(pts, MIN_STITCH_MM * 10.0)
+                }
+            };
+            let path = if round { dense } else { thin(&dense) };
             let mut out: Vec<Vec2> = Vec::new();
             for k in 0..passes {
                 let d = -band / 2.0 + k as f64 * step;
-                let mut line = spaced(&offset(&path, c.closed, d), MIN_STITCH_MM * 10.0);
+                let mut line = thin(&offset(&path, c.closed, d));
                 if k % 2 == 1 && !c.closed {
                     line.reverse();
                 }
