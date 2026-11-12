@@ -433,3 +433,36 @@ fn fill_frequency_sets_the_row_to_row_needle_shift() {
         assert!(e.min(l - e) <= 0.02 * l, "default: shift {d}");
     }
 }
+
+/// #469: `insideHidden` (beyond PE-DESIGN) is set like the others, refused with gradation, and
+/// PES 0110 writes it as Inside: reading the file back gives Inside, the order not kept.
+#[test]
+fn inside_hidden_is_set_and_saved_as_inside() {
+    let dir = openstitch_testutil::TempDir::new("inside-hidden");
+    let mut s = Session::new(dir.path());
+    run(&mut s, "shape.polygon", json!({"points": U, "fill": "Red"}));
+    assert!(
+        s.execute(
+            "object.setRegion",
+            Some(&json!({"id": 1, "runningStitchPath": "insideHidden", "gradation": 50}))
+        )
+        .is_err(),
+        "not with gradation"
+    );
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "runningStitchPath": "insideHidden"}),
+    );
+    let got = run(&mut s, "object.get", json!({"id": 1}));
+    assert_eq!(got["region"]["runningStitchPath"], "insideHidden", "{got}");
+    run(
+        &mut s,
+        "design.export",
+        json!({"path": "h.pes", "pesVersion": "11"}),
+    );
+    let mut t = Session::new(dir.path());
+    run(&mut t, "import.pes", json!({"path": "h.pes"}));
+    let r = t.design().objects[0].region.clone().expect("region");
+    assert_eq!(r.running_stitch_path, Some(RunningStitchPath::Inside));
+}

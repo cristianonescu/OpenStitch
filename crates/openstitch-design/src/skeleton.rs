@@ -245,6 +245,130 @@ pub fn satin(s: &Skeleton, spacing: f64, pull: f64) -> Run {
     run
 }
 
+/// The satin of a column from [`branches`] (#526): its rungs within `contours` (the part of
+/// the shape the column covers, [`rungs_within`]), and past each end flagged in `ends` (an end
+/// on the shape's outline) more rungs, square to the column's end, `spacing` apart and cut by
+/// `contours`, until the outline closes them off. A square end rung sewed past a slanted end
+/// edge on one side and left its acute corner on the other (K's legs, X's feet); these reach
+/// both of the edge's corners. Empty for a degenerate skeleton.
+pub fn satin_to_outline(
+    s: &Skeleton,
+    contours: &[Contour],
+    spacing: f64,
+    pull: f64,
+    ends: [bool; 2],
+) -> Run {
+    let mut rungs = rungs_within(s, contours, spacing, pull);
+    let Some(c) = Centre::new(s) else {
+        return Vec::new();
+    };
+    if rungs.len() < 2 {
+        return Vec::new();
+    }
+    let edges: Vec<(Vec2, Vec2)> = contours
+        .iter()
+        .filter(|c| c.closed)
+        .flat_map(Contour::edges)
+        .collect();
+    let spacing = if spacing.is_finite() {
+        spacing.max(0.1)
+    } else {
+        1.0
+    };
+    let length = c.length();
+    for (e, &on) in ends.iter().enumerate() {
+        if !on {
+            continue;
+        }
+        let (p, t, half) = c.station(if e == 0 { 0.0 } else { length });
+        let out = if e == 0 { t * -1.0 } else { t };
+        let left = v2(t.y, -t.x);
+        let reach = 4.0 * half.max(10.0);
+        let mut extra = Vec::new();
+        for k in 1..=MAX_END_RUNGS {
+            let d = spacing * k as f64;
+            if d > reach {
+                break;
+            }
+            // The first rung too short to go on with is kept: it lies in the corner.
+            match cut_across(p + out * d, left, &edges, 2.0 * half.max(10.0)) {
+                Some(r) => {
+                    extra.push(r);
+                    if r[0].distance(r[1]) <= END_RUNG_MIN {
+                        break;
+                    }
+                }
+                None => break,
+            }
+        }
+        if e == 0 {
+            extra.reverse();
+            rungs.splice(0..0, extra);
+        } else {
+            rungs.extend(extra);
+        }
+    }
+    let sides: Vec<usize> = (0..rungs.len()).map(|k| 1 - k % 2).collect();
+    let mut run = vec![rungs[0][0]];
+    run.extend(crate::region::half_stitch(&rungs, &sides));
+    // The satin is sewn across its first rung; past a flagged last end it is sewn across the
+    // last too, so both of that end edge's corners get a needle point.
+    if ends[1]
+        && let (Some(&last), Some(r)) = (run.last(), rungs.last())
+    {
+        let other = if last.distance(r[0]) <= last.distance(r[1]) {
+            r[1]
+        } else {
+            r[0]
+        };
+        run.push(other);
+    }
+    run.dedup_by(|a, b| a.distance(*b) < 1e-9);
+    run
+}
+
+/// Most rungs [`satin_to_outline`] adds past one end.
+const MAX_END_RUNGS: usize = 400;
+/// A rung past an end this short (0.1 mm) or shorter is the last of them: it lies in the corner.
+const END_RUNG_MIN: f64 = 3.0;
+
+/// The stretch of the line through `q` along `left` that lies inside `edges` (even-odd) and
+/// contains `q`, or else the nearest one within `near` (0.1 mm) of it: [its end towards
+/// `left`, its other end]. `None` when there is none.
+fn cut_across(q: Vec2, left: Vec2, edges: &[(Vec2, Vec2)], near: f64) -> Option<[Vec2; 2]> {
+    let mut us: Vec<f64> = edges
+        .iter()
+        .filter_map(|&(a, b)| {
+            let e = b - a;
+            let den = left.x * e.y - left.y * e.x;
+            if den.abs() < 1e-12 {
+                return None;
+            }
+            let w = a - q;
+            let u = (w.x * e.y - w.y * e.x) / den;
+            let v = (w.x * left.y - w.y * left.x) / den;
+            (0.0..1.0).contains(&v).then_some(u)
+        })
+        .collect();
+    us.sort_by(f64::total_cmp);
+    us.as_chunks::<2>()
+        .0
+        .iter()
+        .map(|w| (w[0], w[1]))
+        .filter(|&(lo, hi)| hi - lo > 1e-9)
+        .map(|(lo, hi)| {
+            let gap = if lo <= 0.0 && hi >= 0.0 {
+                0.0
+            } else {
+                lo.abs().min(hi.abs())
+            };
+            (gap, lo, hi)
+        })
+        .filter(|&(gap, _, _)| gap <= near)
+        .min_by(|a, b| a.0.total_cmp(&b.0))
+        .map(|(_, lo, hi)| [q + left * hi, q + left * lo])
+}
+
 /// [`satin`] with OpenStitch's satin shaping (#675): corner constructions, short stitches,
 /// compensation per side and per cent of width, the satin styles. With corner constructions
 /// the column is one rung per centre-line point (square to the bisector, reaching the mitre
@@ -929,7 +1053,7 @@ pub fn branches(contours: &[Contour], join_overlap: f64) -> Vec<Skeleton> {
     let bends = sharpest_bend(&arms[0]) > STRAIGHT_TURN;
     let narrows = collapses(&arms[0]);
     if !bends && !narrows {
-        return arms;
+        return reach_free_ends(arms, &edges);
     }
     let mut candidates = Vec::new();
     if bends {
@@ -946,7 +1070,99 @@ pub fn branches(contours: &[Contour], join_overlap: f64) -> Vec<Skeleton> {
             best = (share, arms);
         }
     }
-    best.1
+    reach_free_ends(best.1, &edges)
+}
+
+/// How far inside the outline a column's free end stops (0.1 mm): its end rung's centre stays
+/// inside the region, so the rung is clipped to the outline ([`rungs_within`]).
+const END_INSET: f64 = 1.0;
+/// A free end runs on to the outline only when it is this many half widths away or nearer.
+const END_REACH: f64 = 3.0;
+
+/// The columns of [`branches`] with each free end (one not inside another column's satin)
+/// run on along its own direction to [`END_INSET`] inside the outline (#526). The columns'
+/// ends are placed short of the outline (most of their clearance, or a sixth of the width),
+/// which left a flat end unsewn (K's stem top) and a slanted end's corners (K's and X's feet);
+/// at the outline the end rungs are clipped by the end edge and reach into its corners. Join
+/// ends keep their overlap.
+fn reach_free_ends(mut arms: Vec<Skeleton>, edges: &[(Vec2, Vec2)]) -> Vec<Skeleton> {
+    // How far inside column `j`'s satin `p` lies (0.1 mm; negative outside it).
+    let inside = |arms: &[Skeleton], j: usize, p: Vec2| -> f64 {
+        let s = &arms[j];
+        let mut best = f64::NEG_INFINITY;
+        for (k, w) in s.points.windows(2).enumerate() {
+            let (a, b) = (w[0], w[1]);
+            let d = b - a;
+            let len2 = d.x * d.x + d.y * d.y;
+            let t = if len2 > 0.0 {
+                (((p.x - a.x) * d.x + (p.y - a.y) * d.y) / len2).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            let wa = s.widths.get(k).copied().unwrap_or(0.0);
+            let wb = s.widths.get(k + 1).copied().unwrap_or(wa);
+            best = best.max((wa + (wb - wa) * t) * 5.0 - p.distance(a + d * t));
+        }
+        best
+    };
+    let ends: Vec<(usize, bool)> = (0..arms.len())
+        .flat_map(|i| [(i, false), (i, true)])
+        .filter(|&(i, last)| {
+            let s = &arms[i];
+            let Some(&p) = (if last {
+                s.points.last()
+            } else {
+                s.points.first()
+            }) else {
+                return false;
+            };
+            s.points.len() >= 2 && (0..arms.len()).all(|j| j == i || inside(&arms, j, p) < 0.0)
+        })
+        .collect();
+    for (i, last) in ends {
+        let s = &mut arms[i];
+        let n = s.points.len();
+        let (end, w) = if last {
+            (s.points[n - 1], s.widths[n - 1])
+        } else {
+            (s.points[0], s.widths[0])
+        };
+        // The end's direction over its last half width or more.
+        let half = (w * 5.0).max(1.0);
+        let order: Vec<usize> = if last {
+            (0..n - 1).rev().collect()
+        } else {
+            (1..n).collect()
+        };
+        let Some(&from) = order
+            .iter()
+            .find(|&&k| s.points[k].distance(end) >= half)
+            .or(order.last())
+        else {
+            continue;
+        };
+        let d = end - s.points[from];
+        let len = d.length();
+        if len < 1e-9 {
+            continue;
+        }
+        let dir = d * (1.0 / len);
+        let Some(t) = ray(end, dir, edges) else {
+            continue;
+        };
+        if t <= END_INSET + 0.5 || t > END_REACH * half {
+            continue;
+        }
+        let tip = end + dir * (t - END_INSET);
+        if last {
+            s.points.push(tip);
+            s.widths.push(w);
+        } else {
+            s.points.insert(0, tip);
+            s.widths.insert(0, w);
+        }
+    }
+    arms
 }
 
 /// A main stroke turning more than this (degrees) within [`BEND_WINDOW`] widths bends
@@ -1938,13 +2154,14 @@ mod letter_tests {
     /// without a junction (N, M, W) are still under the bar (#526).
     #[test]
     fn letters_split_into_columns_that_sew_them() {
+        // Raised 2026-11-12, when free column ends began to reach the outline (#526).
         let floors = [
-            ("K", 0.98, 0.98),
-            ("Y", 0.95, 0.96),
-            ("X", 0.94, 0.94),
-            ("R", 0.94, 0.94),
-            ("A", 0.89, 0.91),
-            ("y", 0.95, 0.95),
+            ("K", 0.98, 0.99),
+            ("Y", 0.96, 0.97),
+            ("X", 0.98, 0.98),
+            ("R", 0.94, 0.96),
+            ("A", 0.90, 0.91),
+            ("y", 0.97, 0.98),
         ];
         for (ch, small, large) in floors {
             for (size, floor) in [(10.0, small), (25.0, large)] {
@@ -1998,5 +2215,44 @@ mod letter_tests {
         // X keeps its two crossing strokes, N its one stroke.
         assert_eq!(branches(&letter("X", 25.0), 0.3).len(), 3);
         assert_eq!(branches(&letter("N", 25.0), 0.3).len(), 1);
+    }
+
+    #[test]
+    fn a_column_on_a_slanted_end_reaches_both_corners_without_sewing_past_it() {
+        // #526: a 4 mm column up a stroke whose top is cut at a slant, from (0, 2) mm down to
+        // (4, 0) mm, its end on that edge. A square end rung at the end sewed past the edge on
+        // the left and left the right corner 1 mm off; the column on the outline reaches both
+        // corners within 0.2 mm and every needle point stays inside.
+        let stroke = Contour::new(
+            vec![
+                v2(0.0, 200.0),
+                v2(40.0, 200.0),
+                v2(40.0, 0.0),
+                v2(0.0, 20.0),
+            ],
+            true,
+        );
+        let sk = Skeleton {
+            points: vec![v2(20.0, 195.0), v2(20.0, 11.0)],
+            widths: vec![4.0, 4.0],
+        };
+        let shape = std::slice::from_ref(&stroke);
+        let run = satin_to_outline(&sk, shape, 2.0, 0.0, [false, true]);
+        assert!(run.len() > 100, "{}", run.len());
+        for corner in [v2(0.0, 20.0), v2(40.0, 0.0)] {
+            let near = run
+                .iter()
+                .map(|p| p.distance(corner))
+                .fold(f64::INFINITY, f64::min);
+            assert!(near <= 2.0, "corner {corner:?}: {near:.2}");
+        }
+        let edges = stroke.edges();
+        for p in &run {
+            let inside = crate::geometry::contains(*p, shape);
+            let on = edges
+                .iter()
+                .any(|&(a, b)| segment_distance(*p, a, b) <= 0.5);
+            assert!(inside || on, "{p:?} is outside the stroke");
+        }
     }
 }

@@ -1087,6 +1087,12 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                         region.density = OPEN_STITCH_DENSITY;
                         region.stitch_length = OPEN_STITCH_FILL_STITCH_MM;
                         region.underlay = false;
+                        // A fill in several sections sews a section joining others after them,
+                        // so the travel between them is hidden under thread sewn later (#469).
+                        if !satin {
+                            region.running_stitch_path =
+                                Some(openstitch_design::RunningStitchPath::InsideHidden);
+                        }
                     }
                     region.angle = match (satin, &sewn, set_angle) {
                         (true, Sewn::Bar(d), _) => normalize(-(d + 90.0)) + 0.0,

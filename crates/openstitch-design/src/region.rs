@@ -173,12 +173,24 @@ fn layers_inner(
             }
         }
         let spacing = 10.0 / r.density.max(0.1);
-        out.push(vec![crate::skeleton::satin_with(
-            skeleton,
-            spacing,
-            r.pull_compensation * 10.0,
-            &r.satin_shaping,
-        )]);
+        // A branch column with an end on the shape's outline is sewn within its outline and
+        // on into that end's corners (#526); every other skeleton satin as before.
+        out.push(vec![if r.outline_ends == [false; 2] {
+            crate::skeleton::satin_with(
+                skeleton,
+                spacing,
+                r.pull_compensation * 10.0,
+                &r.satin_shaping,
+            )
+        } else {
+            crate::skeleton::satin_to_outline(
+                skeleton,
+                closed,
+                spacing,
+                r.pull_compensation * 10.0,
+                r.outline_ends,
+            )
+        }]);
         return motif_band(out, &crate::skeleton::rungs(skeleton, 10.0), r, user);
     }
     // Curved direction: sew the straightened region with horizontal rows, then bend back.
@@ -626,6 +638,16 @@ fn layers_inner(
         None => (closed, holes),
     };
     let mut runs = match r.kind {
+        RegionType::Fill if !shaped && r.travel_path() == Some(RunningStitchPath::InsideHidden) => {
+            generate::fill_edge_to_edge_travel_hidden(
+                top_closed,
+                &params,
+                top_holes,
+                r.fill_stagger(),
+                r.entry,
+                r.stitch_type == FillStitchType::Two,
+            )
+        }
         RegionType::Fill if !shaped => generate::fill_edge_to_edge_travel(
             top_closed,
             &params,
@@ -1295,7 +1317,7 @@ fn travel_graph(
 ) -> TravelGraph {
     let mut graph = TravelGraph::new(closed, holes);
     graph.outline = match path {
-        RunningStitchPath::Inside => None,
+        RunningStitchPath::Inside | RunningStitchPath::InsideHidden => None,
         RunningStitchPath::AlongOutline => Some(OutlineTravel::Inset(ALONG_OUTLINE_INSET)),
         RunningStitchPath::OnOutline => Some(OutlineTravel::On),
     };

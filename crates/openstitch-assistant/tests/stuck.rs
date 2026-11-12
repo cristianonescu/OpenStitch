@@ -1,11 +1,15 @@
 //! A server that never finishes its reply (#580): the request timeout ends the turn, whether
 //! the server sends nothing at all or keeps the connection busy with keep-alives that carry no
 //! reply. Fake providers only: no network, no model.
+//!
+//! The scripted streams run on real time, so a busy CI host can stretch their gaps (#911): the
+//! turns that must time out only time out sooner, and the one that must not records when each
+//! piece left and treats a real stall on the host as a run that proves nothing.
 
 use std::io::{self, Read};
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender, channel};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use openstitch_assistant::{
@@ -60,30 +64,49 @@ fn never_answers() -> (Sender<()>, Box<dyn Read + Send>) {
     (tx, Box::new(NeverAnswers(rx)))
 }
 
-/// Sends `lines` in turn, one every `every`, then repeats the last one forever.
+/// When each piece of a [`Trickle`] left, as the host's clock saw it.
+type Sent = Arc<Mutex<Vec<Instant>>>;
+
+/// Sends `lines` in turn, one every `every`, then repeats the last one until `ENDS_WITHIN` has
+/// passed and ends the stream: a timer that never fires then fails the test instead of hanging
+/// it.
 struct Trickle {
     lines: Vec<String>,
     at: usize,
     every: Duration,
+    until: Instant,
+    sent: Sent,
 }
 
 impl Read for Trickle {
     fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {
         std::thread::sleep(self.every);
+        if Instant::now() >= self.until {
+            return Ok(0);
+        }
         let line = &self.lines[self.at.min(self.lines.len() - 1)];
         self.at += 1;
         let n = out.len().min(line.len());
         out[..n].copy_from_slice(&line.as_bytes()[..n]);
+        self.sent.lock().expect("lock").push(Instant::now());
         Ok(n)
     }
 }
 
 fn trickle(lines: &[String], every: Duration) -> Box<dyn Read + Send> {
-    Box::new(Trickle {
+    trickle_logged(lines, every).0
+}
+
+fn trickle_logged(lines: &[String], every: Duration) -> (Box<dyn Read + Send>, Sent) {
+    let sent = Sent::default();
+    let t = Trickle {
         lines: lines.to_vec(),
         at: 0,
         every,
-    })
+        until: Instant::now() + ENDS_WITHIN,
+        sent: Arc::clone(&sent),
+    };
+    (Box::new(t), sent)
 }
 
 struct NoTools;
@@ -185,18 +208,45 @@ fn comments_and_pings_without_a_reply_time_out() {
 
 #[test]
 fn a_model_that_keeps_reasoning_is_not_cut_off_and_shows_thinking() {
-    // 20 reasoning pieces 50 ms apart: 1 s in all, over three times the timeout, but never
-    // 300 ms without a piece. Then the answer.
-    let mut lines: Vec<String> = (0..20)
+    // 30 reasoning pieces 50 ms apart: 1.5 s in all, longer than the 1 s timeout, but never
+    // more than a twentieth of it without a piece. Then the answer.
+    let timeout = Duration::from_secs(1);
+    let cfg = Config {
+        request_timeout: timeout,
+        ..openai()
+    };
+    let mut lines: Vec<String> = (0..30)
         .map(|i| chunk(json!({"reasoning": format!("step {i}. ")}), None))
         .collect();
     lines.push(chunk(json!({"content": "Done."}), None));
     lines.push(chunk(json!({}), Some("stop")));
     lines.push("data: [DONE]\n\n".to_string());
-    let p = Provider::new(vec![trickle(&lines, Duration::from_millis(50))]);
-    let (stop, events, took) = turn(&openai(), &p, &AtomicBool::new(false));
+    // A host that stalls the script for the whole timeout really sent nothing for that long, so
+    // that attempt proves nothing and runs again (#911). A timeout less than the timeout after
+    // the last piece is the bug this test is for.
+    let mut attempt = 0;
+    let (stop, events, took) = loop {
+        attempt += 1;
+        let (body, sent) = trickle_logged(&lines, Duration::from_millis(50));
+        let p = Provider::new(vec![body]);
+        let (stop, events, took) = turn(&cfg, &p, &AtomicBool::new(false));
+        if let StopKind::Error(m) = &stop {
+            let last = sent.lock().expect("lock").last().copied();
+            let quiet = last.map_or(took, |t| t.elapsed());
+            assert!(
+                quiet >= timeout,
+                "cut off {quiet:?} after the last piece, under the {timeout:?} timeout: {m}"
+            );
+            assert!(
+                attempt < 3,
+                "the host stalled the script past the timeout on every attempt"
+            );
+            continue;
+        }
+        break (stop, events, took);
+    };
     assert_eq!(stop, StopKind::EndTurn);
-    assert!(took > TIMEOUT * 2, "{took:?}");
+    assert!(took > timeout, "{took:?}");
     let thinking: String = events
         .iter()
         .filter_map(|e| match e {
@@ -204,7 +254,7 @@ fn a_model_that_keeps_reasoning_is_not_cut_off_and_shows_thinking() {
             _ => None,
         })
         .collect();
-    assert!(thinking.starts_with("step 0. step 1.") && thinking.contains("step 19."));
+    assert!(thinking.starts_with("step 0. step 1.") && thinking.contains("step 29."));
     assert!(events.contains(&Event::Text("Done.".into())));
 }
 
