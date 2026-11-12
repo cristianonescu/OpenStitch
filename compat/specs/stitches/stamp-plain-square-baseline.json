@@ -3,7 +3,7 @@
   "id": "stamp-plain-square-baseline",
   "area": "stitches",
   "title": "The square alone",
-  "description": "The 42 mm square with PE-DESIGN's default Fill and Zigzag line: the baseline the stamp captures are compared with.",
+  "description": "The 40 mm square (42 mm with its 2 mm zigzag line centred on the outline) with PE-DESIGN's default Fill and Zigzag line: the baseline the stamp captures are compared with.",
   "covers": {
     "featureMatrix": [
       {
@@ -29,10 +29,10 @@
     {
       "command": "shape.rectangle",
       "params": {
-        "x": 29,
-        "y": 29,
-        "width": 42,
-        "height": 42,
+        "x": 30,
+        "y": 30,
+        "width": 40,
+        "height": 40,
         "fill": "Red"
       }
     },
@@ -70,7 +70,7 @@
     {
       "id": "pe-design",
       "file": "stitches/stamp-plain-square-baseline.pes",
-      "make": "PE-DESIGN 11.50, 180 x 130 mm page, App menu > New. Home > Shapes > rectangle dragged to a 42 x 42 mm square with PE's defaults (line Zigzag Stitch 2.0 mm, 4.5 line/mm, Half Stitch on; region Fill Stitch 4.5 line/mm, 45 degrees, under sewing on). Save with Save As as PES (PE-DESIGN 11's default PES version) under the file name given, and record it in compat/reference/MANIFEST.json."
+      "make": "PE-DESIGN 11.50, 180 x 130 mm page, App menu > New. Home > Shapes > rectangle dragged until the status line shows 42 x 42 mm (a 40 mm outline with its 2 mm zigzag centred on it) with PE's defaults (line Zigzag Stitch 2.0 mm, 4.5 line/mm, Half Stitch on; region Fill Stitch 4.5 line/mm, 45 degrees, under sewing on). Save with Save As as PES (PE-DESIGN 11's default PES version) under the file name given, and record it in compat/reference/MANIFEST.json."
     }
   ],
   "measurements": [
@@ -83,10 +83,10 @@
         "export": "a.pes"
       },
       "expected": {
-        "min": 3200,
-        "max": 3700
+        "min": 3000,
+        "max": 3400
       },
-      "evidence": "3,432 stitches at #471 (PE-DESIGN 3,251: its fill stops 1 mm inside the 2 mm zigzag line, 40 x 40 mm, OpenStitch's reaches the outline)",
+      "evidence": "3,176 stitches (PE-DESIGN 3,251) at #471, on the 40 mm square",
       "reference": {
         "tolerance": {
           "percent": 8
