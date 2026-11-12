@@ -89,6 +89,24 @@ pub struct AutoPunch {
     /// ([`crate::flow`], #538) instead of one angle; a fill whose angle is set keeps it. Off
     /// (the default) and PE-DESIGN mode sew straight rows.
     pub flow_fill: bool,
+    /// OpenStitch mode: a satin stroke that branches (a Y, a K, a star, a forked line) is sewn
+    /// as one satin column per arm, overlapping [`BRANCH_JOIN_MM`] where they meet
+    /// (`openstitch_design::skeleton::branches`, #702), instead of one satin across the whole
+    /// shape. Off (the default) and PE-DESIGN mode sew it as before.
+    pub split_branches: bool,
+}
+
+/// How far a branch column reaches into the column it leaves, mm (#702).
+pub const BRANCH_JOIN_MM: f64 = 0.3;
+
+/// A column's typical width, mm: the median of its widths (#702).
+fn median_width(s: &openstitch_design::skeleton::Skeleton) -> f64 {
+    let mut w = s.widths.clone();
+    if w.is_empty() {
+        return 0.0;
+    }
+    w.sort_by(f64::total_cmp);
+    w[w.len() / 2]
 }
 
 /// Longest [`AutoPunch::underlap_mm`], mm.
@@ -150,6 +168,9 @@ pub enum Reason {
     /// OpenStitch mode, line art: a drawn dot (every stitch within [`SPECK_MM`]) sewn as a
     /// fill without ties of its own, so it is not a knot (#713).
     Dot,
+    /// OpenStitch mode with `split_branches`: a branching stroke, one satin column per arm
+    /// (#702).
+    Branches,
 }
 
 impl Reason {
@@ -165,6 +186,7 @@ impl Reason {
             Reason::Override => "override",
             Reason::Speck => "speck",
             Reason::Dot => "dot",
+            Reason::Branches => "branches",
         }
     }
 }
@@ -211,6 +233,11 @@ impl Region {
             Reason::Speck => {
                 format!("every stitch within {SPECK_MM} mm, a knot rather than a shape: left out")
             }
+            Reason::Branches => format!(
+                "a branching stroke whose arms are each within the satin maximum {:.1} mm: one \
+                 satin column per arm",
+                p.satin_max_mm
+            ),
             Reason::Dot => format!(
                 "a drawn dot, every stitch within {SPECK_MM} mm: fill, tied only where a trim cuts it"
             ),
@@ -286,6 +313,7 @@ impl Default for AutoPunch {
             underlap_mm: 0.0,
             order: Vec::new(),
             flow_fill: false,
+            split_branches: false,
         }
     }
 }
@@ -896,6 +924,22 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
             } else {
                 (Stitch::Satin, Reason::SatinWidth)
             };
+            // OpenStitch mode, when asked: a branching stroke is widest at its junction, so it
+            // may be planned as fill for that alone. When it splits into two or more columns,
+            // each (by its median width; the junction itself is wider) within the satin maximum, it is satin, one column per arm (#702).
+            let arms: Option<Vec<openstitch_design::skeleton::Skeleton>> = (p.split_branches
+                && p.mode == Mode::OpenStitch
+                && stroke
+                && matches!(reason, Reason::SatinWidth | Reason::Wide))
+            .then(|| openstitch_design::skeleton::branches(&contours, BRANCH_JOIN_MM))
+            .filter(|arms| {
+                arms.len() >= 2 && arms.iter().all(|a| median_width(a) <= p.satin_max_mm)
+            });
+            let (auto, reason) = if arms.is_some() {
+                (Stitch::Satin, Reason::Branches)
+            } else {
+                (auto, reason)
+            };
             region_of[c] = plan.len() as u32;
             let ov = override_of(plan.len());
             let set = ov.and_then(|o| o.stitch);
@@ -966,30 +1010,45 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
             } else {
                 columns::Strokes::Single
             };
-            let parts: Vec<(Vec<Contour>, Sewn)> = match strokes {
-                columns::Strokes::Bars(cols) => cols
-                    .iter()
-                    .map(|c| {
-                        let contours =
-                            regions::trace_mask(&c.mask, mw, mh, k.x0, k.y0, &p.trace, &frame);
-                        (bar_outline(contours), Sewn::Bar(c.direction))
-                    })
-                    .filter(|(c, _)| !c.is_empty())
-                    .collect(),
-                columns::Strokes::Curved => match columns::rungs(&contours) {
-                    Some(rungs) => vec![(contours, Sewn::Column(rungs))],
-                    None => vec![(contours, Sewn::Auto)],
-                },
-                columns::Strokes::Single => {
-                    // A fill reaches under its later neighbours (#469).
-                    let contours = if !satin && underlap_px > 0 {
-                        let (u, uw, uh, ux, uy) = underlap(&id, w, h, c, k, underlap_px, &rank);
-                        let grown = regions::trace_mask(&u, uw, uh, ux, uy, &p.trace, &frame);
-                        if grown.is_empty() { contours } else { grown }
-                    } else {
-                        contours
-                    };
-                    vec![(contours, Sewn::Auto)]
+            // OpenStitch mode, when asked: a branching stroke as one satin column per arm, each
+            // along its own centre line (#702). A stroke with one column is sewn as before.
+            let branch_parts: Option<Vec<(Vec<Contour>, Sewn)>> =
+                arms.filter(|_| satin && set_angle.is_none()).map(|arms| {
+                    arms.into_iter()
+                        .filter_map(|sk| {
+                            openstitch_design::skeleton::outline(&sk)
+                                .map(|c| (vec![c], Sewn::Skeleton(Box::new(sk))))
+                        })
+                        .collect()
+                });
+            let parts: Vec<(Vec<Contour>, Sewn)> = if let Some(parts) = branch_parts {
+                parts
+            } else {
+                match strokes {
+                    columns::Strokes::Bars(cols) => cols
+                        .iter()
+                        .map(|c| {
+                            let contours =
+                                regions::trace_mask(&c.mask, mw, mh, k.x0, k.y0, &p.trace, &frame);
+                            (bar_outline(contours), Sewn::Bar(c.direction))
+                        })
+                        .filter(|(c, _)| !c.is_empty())
+                        .collect(),
+                    columns::Strokes::Curved => match columns::rungs(&contours) {
+                        Some(rungs) => vec![(contours, Sewn::Column(rungs))],
+                        None => vec![(contours, Sewn::Auto)],
+                    },
+                    columns::Strokes::Single => {
+                        // A fill reaches under its later neighbours (#469).
+                        let contours = if !satin && underlap_px > 0 {
+                            let (u, uw, uh, ux, uy) = underlap(&id, w, h, c, k, underlap_px, &rank);
+                            let grown = regions::trace_mask(&u, uw, uh, ux, uy, &p.trace, &frame);
+                            if grown.is_empty() { contours } else { grown }
+                        } else {
+                            contours
+                        };
+                        vec![(contours, Sewn::Auto)]
+                    }
                 }
             };
             for (contours, sewn) in parts {
@@ -1037,6 +1096,9 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
                     };
                     if satin && let Sewn::Column(rungs) = &sewn {
                         region.direction_lines = rungs.clone();
+                    }
+                    if satin && let Sewn::Skeleton(sk) = &sewn {
+                        region.skeleton = Some((**sk).clone());
                     }
                     region
                 };
@@ -1585,6 +1647,8 @@ enum Sewn {
     Bar(f64),
     /// A curved column through these rungs (0.1 mm).
     Column(Vec<[openstitch_design::Vec2; 2]>),
+    /// One arm of a branching stroke, sewn along its centre line (#702).
+    Skeleton(Box<openstitch_design::skeleton::Skeleton>),
 }
 
 /// Angle in (-90, 90].

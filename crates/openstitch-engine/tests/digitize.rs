@@ -1509,3 +1509,92 @@ fn auto_punch_flow_fill_follows_the_picture() {
         convert(json!({"flowFill": false})).design()
     );
 }
+
+/// #702: `splitBranches` sews a branching stroke as one satin column per arm, each along its
+/// own centre line, even when its junction is wider than the satin maximum (the Y is filled
+/// without it); only in OpenStitch mode; off, the run is the same as without it.
+#[test]
+fn auto_punch_splits_a_branching_stroke_into_columns() {
+    let dir = temp_dir();
+    // A blue Y about 2 mm wide (0.5 mm pixels, 60 mm across) on white: a stroke, not an outline
+    // (it is not the darkest colour), so Auto Punch plans it as satin.
+    let near = |p: (f64, f64), a: (f64, f64), b: (f64, f64)| {
+        let (dx, dy) = (b.0 - a.0, b.1 - a.1);
+        let t = (((p.0 - a.0) * dx + (p.1 - a.1) * dy) / (dx * dx + dy * dy)).clamp(0.0, 1.0);
+        let (cx, cy) = (a.0 + dx * t, a.1 + dy * t);
+        ((p.0 - cx).powi(2) + (p.1 - cy).powi(2)).sqrt()
+    };
+    let img = Raster::from_fn(120, 120, |x, y| {
+        let p = (f64::from(x), f64::from(y));
+        let junction = (60.0, 60.0);
+        let d = near(p, junction, (60.0, 108.0))
+            .min(near(p, junction, (24.0, 14.0)))
+            .min(near(p, junction, (96.0, 14.0)));
+        if d < 2.2 {
+            [30, 80, 200, 255]
+        } else {
+            [255, 255, 255, 255]
+        }
+    })
+    .expect("size");
+    std::fs::write(dir.join("y.png"), img.encode_png().expect("png")).expect("write");
+    let convert = |extra: Value| {
+        let mut s = Session::new(&dir);
+        run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+        let mut p = json!({"path": "y.png", "width": 60, "x": 0, "y": 0, "colors": 2,
+                           "compatMode": "openStitch"});
+        for (k, v) in extra.as_object().expect("object") {
+            p[k] = v.clone();
+        }
+        run(&mut s, "digitize.autoPunch", p);
+        s
+    };
+    let satins = |s: &Session| -> Vec<bool> {
+        s.design()
+            .objects
+            .iter()
+            .filter_map(|o| o.region.as_ref())
+            .filter(|r| r.kind == openstitch_design::RegionType::Satin)
+            .map(|r| r.skeleton.is_some())
+            .collect()
+    };
+    let plain = convert(json!({}));
+    assert_eq!(
+        plain.design(),
+        convert(json!({"splitBranches": false})).design(),
+        "off is the default"
+    );
+    // Without it the Y is one fill: it is widest at its junction, over the satin maximum.
+    let plan_of = |extra: Value| {
+        let mut s = Session::new(&dir);
+        run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+        let mut p = json!({"path": "y.png", "width": 60, "x": 0, "y": 0, "colors": 2,
+                           "compatMode": "openStitch", "dryRun": true});
+        for (k, v) in extra.as_object().expect("object") {
+            p[k] = v.clone();
+        }
+        run(&mut s, "digitize.autoPunch", p)["plan"].clone()
+    };
+    assert!(satins(&plain).is_empty(), "{}", plan_of(json!({})));
+    assert_eq!(plan_of(json!({}))[0]["reason"], "wide");
+    let plan = plan_of(json!({"splitBranches": true}));
+    assert_eq!(plan[0]["reason"], "branches", "{plan}");
+    assert_eq!(plan[0]["type"], "satin", "{plan}");
+    let split = convert(json!({"splitBranches": true}));
+    let after = satins(&split);
+    assert!(after.len() >= 2, "a column per arm: {after:?}");
+    assert!(after.iter().all(|&s| s), "each along its own centre line");
+    let a = openstitch_design::Compiler::for_design(plain.design()).compile(plain.design());
+    let b = openstitch_design::Compiler::for_design(split.design()).compile(split.design());
+    assert_ne!(a, b);
+    // PE-DESIGN mode refuses it.
+    let mut s = Session::new(&dir);
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    let e = s
+        .execute(
+            "digitize.autoPunch",
+            Some(&json!({"path": "y.png", "width": 60, "splitBranches": true})),
+        )
+        .expect_err("PE mode");
+    assert!(e.to_string().contains("openStitch"), "{e}");
+}
