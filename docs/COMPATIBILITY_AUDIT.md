@@ -3486,7 +3486,7 @@ outline walk: there, a white line along the blue swatch's bottom edge showed.
 
 | kit design | trims | jumps | needle points |
 |---|---|---|---|
-| fills/gradients | 71 → 18 | 9 → 9 | 8,859 → 9,989 |
+| fills/gradients | 71 → 16 | 9 → 9 | 8,859 → 10,013 |
 | fills/tartan | 3 → 3 | 3 → 3 | 3,567 → 3,514 |
 
 `blend_travel_never_runs_far_across_the_rows` still passes; it now leaves out travel along the
