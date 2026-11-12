@@ -3404,7 +3404,7 @@ the tool's outline, where PE-DESIGN's lies about 1 mm inside, at the inner edge 
 shape's 2 mm line (one capture cannot tell whether that offset follows the line width, #956);
 PE-DESIGN's fill stops at the inner edge of its zigzag line (40 × 40 mm), OpenStitch's reaches
 the outline (42 mm, #955); programmable-fill patterns' own engraved and embossed areas keep 1 mm and
-7 mm, with no reference yet. Kit: `fills/holes-and-emboss` 10,733 → 10,150 stitches, 13.7 →
+7 mm, with no reference yet. Kit: `fills/holes-and-emboss` 10,733 → 10,112 stitches, 13.7 →
 12.9 min, trims 5.
 
 ### Photo Stitch 1 trims rather than cross a face in sight, 2026-11-12 (#915)
