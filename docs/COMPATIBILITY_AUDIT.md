@@ -3880,8 +3880,16 @@ against the same fill without the curve:
 Inside the U the rows close into corners on its middle. The S curve's rows on #923's square
 are unchanged (the same rows and needle points at 2.5 and 2.22 mm spacing): its farthest points
 are corners. A box under an arch had the same hole along its bottom edge, whose middle lies
-farther from the arch than its corners: 91 rows made there before, 161 now. The travel between
-the rows inside the U still crosses rows already sewn (#947). Test:
+farther from the arch than its corners: 91 rows made there before, 161 now.
+
+The rows below the U split round the square's bottom corners and merge further up. The sweep
+through the rows climbed past the merge and reached the strip right of the U's arm only at the
+end, by travel over every row sewn since: 153 pairs of stitches crossed in the top layer, all of
+them travel against a row. Rows along a direction curve now sew such a split-off lobe first,
+from its far end back to the merge (`regions::order_guided_rows`, #947; straight fills keep
+`order_rows`). Top-layer crossings: 153 → **0** along the U (2,923 → 2,908 stitches). On
+#923's S-curve square, the final travel along the outline's top edge goes too: 194 → **0**
+crossings (2,642 → 2,616 stitches); its rows are the same, sewn in a different order. Test:
 `fill_along_a_u_shaped_curve_covers_the_inside_of_the_u`.
 
 ### Travel walks the outline where the way inside runs round a tip, 2026-11-09 (#471)
