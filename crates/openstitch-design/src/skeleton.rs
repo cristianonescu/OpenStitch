@@ -1929,7 +1929,7 @@ fn unkinked(mut sk: Skeleton) -> Skeleton {
             sk.points[k + 1] - sk.points[k],
         );
         let turn = (u.x * v.y - u.y * v.x)
-            .atan2(u.x * v.x + u.y * v.y)
+            .datan2(u.x * v.x + u.y * v.y)
             .abs()
             .to_degrees();
         if turn > KINK {
