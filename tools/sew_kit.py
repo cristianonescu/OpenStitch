@@ -674,8 +674,7 @@ FEATURES = [
      "to right (ordered dither). Bottom left: a radial yellow, orange and magenta gradient (noise dither). "
      "Bottom right: green into blue at 45° with hard bands.", gradients()),
     ("fills/angle-lines.pes", "Stitch angle lines (beyond PE-DESIGN)",
-     "An L whose rows turn round its corner between three angle lines, as one object with no seam."
-     " The lighter band along the inside of the bend in the picture is a drawing limit of the Realistic view, not sparse stitching: the rows there are the densest in the design (#921).",
+     "An L whose rows turn round its corner between three angle lines, as one object with no seam.",
      angle_lines()),
     ("fills/tartan.pes", "Tartan fill (beyond PE-DESIGN)",
      "A 50 mm square in the symmetric sett R8 G12 W2 (red, green, white): one colour block per thread, warp "
