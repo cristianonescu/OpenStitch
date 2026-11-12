@@ -5189,3 +5189,106 @@ fn angle_lines_cover_the_kit_l_at_the_set_density() {
         );
     }
 }
+
+/// Thread (mm) per 1 mm cell of the square x 56..94, y 56..92 mm (1 mm in from #927's 40 x 38
+/// mm square), from every stitch of `runs`.
+fn thread_per_cell(runs: &[Run]) -> Vec<f64> {
+    let (nx, ny) = (38usize, 36usize);
+    let mut cells = vec![0.0; nx * ny];
+    for run in runs {
+        for w in run.windows(2) {
+            let n = ((w[0].distance(w[1]) / 1.0).ceil() as usize).max(1);
+            for k in 0..n {
+                let p = w[0].lerp(w[1], (k as f64 + 0.5) / n as f64);
+                let (i, j) = ((p.x - 560.0) / 10.0, (p.y - 560.0) / 10.0);
+                if i >= 0.0 && j >= 0.0 && (i as usize) < nx && (j as usize) < ny {
+                    cells[j as usize * nx + i as usize] += w[0].distance(w[1]) / n as f64 / 10.0;
+                }
+            }
+        }
+    }
+    cells
+}
+
+/// Pairs of stitches of `runs`, not next to each other in one run, that cross.
+fn stitch_crossings(runs: &[Run]) -> usize {
+    let segs: Vec<(usize, usize, Vec2, Vec2)> = runs
+        .iter()
+        .enumerate()
+        .flat_map(|(r, run)| run.windows(2).enumerate().map(move |(k, w)| (r, k, w[0], w[1])))
+        .filter(|s| s.2.distance(s.3) > 1e-9)
+        .collect();
+    let cross = |p: Vec2, q: Vec2| p.x * q.y - p.y * q.x;
+    let mut n = 0;
+    for (i, &(ra, ka, a, b)) in segs.iter().enumerate() {
+        for &(rb, kb, c, d) in &segs[i + 1..] {
+            if ra == rb && kb <= ka + 1 {
+                continue;
+            }
+            if a.x.max(b.x) < c.x.min(d.x)
+                || c.x.max(d.x) < a.x.min(b.x)
+                || a.y.max(b.y) < c.y.min(d.y)
+                || c.y.max(d.y) < a.y.min(b.y)
+            {
+                continue;
+            }
+            let (r, s) = (b - a, d - c);
+            let den = cross(r, s);
+            if den.abs() < 1e-12 {
+                continue;
+            }
+            let t = cross(c - a, s) / den;
+            let u = cross(c - a, r) / den;
+            if t > 1e-6 && t < 1.0 - 1e-6 && u > 1e-6 && u < 1.0 - 1e-6 {
+                n += 1;
+            }
+        }
+    }
+    n
+}
+
+/// #927: a fill along a U-shaped direction curve (a C bulging down into #927's 40 x 38 mm
+/// square) sewed no rows inside the U: 273 of the square's 1 mm cells stayed empty, only travel
+/// crossing them, because the rows' distances from the guide were taken at the outline's corners
+/// and the middle of the U lies farther from the guide than any of them. Now every cell has
+/// thread, coverage is not below the plain fill's, and the rows still do not cross.
+#[test]
+fn fill_along_a_u_shaped_curve_covers_the_inside_of_the_u() {
+    use crate::geometry::Bezier;
+    let square = Contour::rectangle(550.0, 550.0, 400.0, 380.0);
+    let mut curve = Contour::new(vec![v2(520.0, 600.0), v2(980.0, 600.0)], false);
+    curve.set_curve(
+        0,
+        Some(Bezier {
+            c1: v2(650.0, 950.0),
+            c2: v2(850.0, 950.0),
+        }),
+    );
+    let mut plain = region(RegionType::Fill);
+    plain.underlay = false;
+    let mut along = plain.clone();
+    along.direction_curve = Some(curve);
+    let top = |r: &RegionSewing| {
+        crate::region::layers(std::slice::from_ref(&square), r, &[])
+            .pop()
+            .expect("top")
+    };
+    let (u, flat) = (top(&along), top(&plain));
+    let stats = |runs: &[Run]| {
+        let mut c = thread_per_cell(runs);
+        let empty = c.iter().filter(|&&v| v == 0.0).count();
+        c.sort_by(f64::total_cmp);
+        (empty, c[c.len() / 10], c[c.len() / 2])
+    };
+    let ((empty, p10, median), (_, flat_p10, flat_median)) = (stats(&u), stats(&flat));
+    assert_eq!(empty, 0, "{empty} empty 1 mm cells");
+    assert!(
+        p10 >= flat_p10 * 0.95 && median >= flat_median * 0.95,
+        "p10 {p10:.2} / median {median:.2} against the plain fill's {flat_p10:.2} / {flat_median:.2}"
+    );
+    let (crossed, flat_crossed) = (stitch_crossings(&u), stitch_crossings(&flat));
+    assert!(
+        crossed <= flat_crossed,
+        "{crossed} crossings along the U, {flat_crossed} in the plain fill"
+    );
+}

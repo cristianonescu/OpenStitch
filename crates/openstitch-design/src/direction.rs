@@ -326,12 +326,28 @@ pub fn guided_lines(
             .map(|&p| p.distance(b.center()))
             .fold(0.0, f64::max);
     let guide = guide_samples(curve, reach)?;
+    // The rows reach as far from the guide as any point of the region. That is not always at a
+    // vertex of its outline: inside a U-shaped guide the middle of an edge, or the inside of the
+    // U, lies farther than every corner (#927), and the rows there were never made. So the
+    // distances are taken on a grid over the region's box too, `step` apart, with `step` more
+    // each way (a point moves its distance at most as far as it moves).
+    let step = (b.width().max(b.height()) / 64.0).max(spacing);
+    let (nx, ny) = (
+        (b.width() / step).ceil() as usize,
+        (b.height() / step).ceil() as usize,
+    );
+    let grid = (0..=nx).flat_map(|i| {
+        (0..=ny).map(move |j| v2(b.min_x + i as f64 * step, b.min_y + j as f64 * step))
+    });
     let (lo, hi) = pts
         .iter()
-        .map(|&p| signed_distance(&guide, p))
+        .copied()
+        .chain(grid)
+        .map(|p| signed_distance(&guide, p))
         .fold((f64::INFINITY, f64::NEG_INFINITY), |(l, h), d| {
             (l.min(d), h.max(d))
         });
+    let (lo, hi) = (lo - step, hi + step);
     let (k0, k1) = ((lo / spacing).ceil() as i64, (hi / spacing).floor() as i64);
     if k1 < k0 || k1 - k0 > 20_000 {
         return None;
