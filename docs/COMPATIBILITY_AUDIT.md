@@ -3466,6 +3466,32 @@ Still open on #446:
 - A's feet and V's top ends fan.
 - N's corner block.
 
+### Blend travel hidden before trimming, and tartan too, 2026-11-12 (#901)
+
+Beyond PE-DESIGN, so there is no reference. #891 kept each blend colour's travel to 2 mm, but at
+a cost: the kit's gradients design went from 1 trim to 71. Now `paths::join_within` hides a
+colour's travel before it trims. It counts travel as hidden within 0.15 mm of a stitch the colour
+has already sewn, and takes the least exposed of these ways:
+- the inside path;
+- back along the run just sewn (up to 30 mm) to its point nearest the next piece, then across.
+
+A way is sewn when no more than 2 mm of it shows. Pieces are still sewn nearest first, but where
+the nearest can only be reached by a trim, the nearest of the next six that can be reached hidden
+goes first.
+
+Tartan colours had the same problem: long travel lines crossed the plaid in the kit's preview.
+They now use the same join, with the outline walk added, since a tartan colour's own stripes
+reach the edge. Like blend colours, they skip start- and end-point travel. Blends don't use the
+outline walk: there, a white line along the blue swatch's bottom edge showed.
+
+| kit design | trims | jumps | needle points |
+|---|---|---|---|
+| fills/gradients | 71 → 18 | 9 → 9 | 8,859 → 9,989 |
+| fills/tartan | 3 → 3 | 3 → 3 | 3,567 → 3,514 |
+
+`blend_travel_never_runs_far_across_the_rows` still passes; it now leaves out travel along the
+outline.
+
 ### Blend and gradient travel stays short, 2026-11-11 (#891)
 
 Beyond PE-DESIGN, so there is no reference. Each colour of a blend or gradient sews only its own

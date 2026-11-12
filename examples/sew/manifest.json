@@ -941,8 +941,8 @@
    86.0,
    73.0
   ],
-  "stitches": 8859,
-  "trims": 80,
+  "stitches": 10013,
+  "trims": 25,
   "threads": [
    "405 Blue",
    "001 White",
@@ -954,10 +954,10 @@
    "509 Leaf Green",
    "405 Blue"
   ],
-  "sewingMinutes": 15.2,
+  "sewingMinutes": 13.8,
   "image": null,
   "preview": "previews/gradients.png",
-  "sha256": "a689f910886a728d60eaec565ac68ba75f6c28f7d00e4120a6006b49a66ccae6"
+  "sha256": "fc7051950efdb0ce8a8e04bf3fa0e1fcb981917c7d4f02d58d83690e3fcaef8f"
  },
  "fills/angle-lines.pes": {
   "title": "Stitch angle lines (beyond PE-DESIGN)",
@@ -985,17 +985,17 @@
    50.0,
    50.0
   ],
-  "stitches": 3567,
+  "stitches": 3514,
   "trims": 6,
   "threads": [
    "800 Red",
    "507 Emerald Green",
    "001 White"
   ],
-  "sewingMinutes": 4.8,
+  "sewingMinutes": 4.7,
   "image": null,
   "preview": "previews/tartan.png",
-  "sha256": "5a409ac646e6403a2db29e6092c6e025cda55ecfd5749f494d19f302176f5edf"
+  "sha256": "a6d893b681fda4c8f4c71cba3a0ee3a5295a6969b0bba2f960f5c8057e3f83cf"
  },
  "fills/maze-fill.pes": {
   "title": "Maze fill (beyond PE-DESIGN)",

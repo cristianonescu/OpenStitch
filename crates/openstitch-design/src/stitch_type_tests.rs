@@ -4104,7 +4104,8 @@ fn segments(runs: &[Run]) -> Vec<((i64, i64), (i64, i64))> {
 /// radial blend's gold centre), both between a colour's pieces and to and from its start and
 /// end points (22 mm in the radial case below). No straight stretch running across the rows
 /// (more than 10° off them) may now be longer than the 2 mm travel limit and the stitch it runs
-/// on into (3.5 mm); longer gaps are trimmed.
+/// on into (3.5 mm); longer gaps are trimmed. Travel along the outline (#901: within 0.6 mm of
+/// it, under the row ends) doesn't count.
 #[test]
 fn blend_travel_never_runs_far_across_the_rows() {
     use crate::{GradientDither as D, GradientKind as K};
@@ -4155,7 +4156,7 @@ fn blend_travel_never_runs_far_across_the_rows() {
         }
         let across = sewn_stretches(&d)
             .iter()
-            .map(|s| longest_across_rows(s, 2.0))
+            .map(|s| longest_across_rows(s, 2.0, &c))
             .fold(0.0, f64::max);
         assert!(
             across <= 35.0,
@@ -4165,8 +4166,15 @@ fn blend_travel_never_runs_far_across_the_rows() {
     }
 }
 
-/// [`longest_straight`] counting only stretches more than 10° off horizontal rows.
-fn longest_across_rows(points: &[Vec2], tol: f64) -> f64 {
+/// [`longest_straight`] counting only stretches more than 10° off horizontal rows and not lying
+/// along `outline` (every point within 0.6 mm of it).
+fn longest_across_rows(points: &[Vec2], tol: f64, outline: &Contour) -> f64 {
+    let ring = outline.outline_points();
+    let on_outline = |p: Vec2| {
+        (0..ring.len()).any(|k| {
+            crate::simplify::segment_distance(p, ring[k], ring[(k + 1) % ring.len()]) <= 6.0
+        })
+    };
     let mut best: f64 = 0.0;
     for i in 0..points.len().saturating_sub(1) {
         let mut j = i + 1;
@@ -4185,7 +4193,8 @@ fn longest_across_rows(points: &[Vec2], tol: f64) -> f64 {
         let d = points[j] - points[i];
         // sin 10°.
         let off_rows = d.y.abs() > d.length() * 0.173_648;
-        if j - i >= 2 && off_rows {
+        let along_outline = points[i..=j].iter().all(|&p| on_outline(p));
+        if j - i >= 2 && off_rows && !along_outline {
             best = best.max(points[i].distance(points[j]));
         }
     }
