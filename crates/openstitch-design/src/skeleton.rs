@@ -929,7 +929,7 @@ pub fn branches(contours: &[Contour], join_overlap: f64) -> Vec<Skeleton> {
     let bends = sharpest_bend(&arms[0]) > STRAIGHT_TURN;
     let narrows = collapses(&arms[0]);
     if !bends && !narrows {
-        return arms;
+        return reach_free_ends(arms, &edges);
     }
     let mut candidates = Vec::new();
     if bends {
@@ -946,7 +946,99 @@ pub fn branches(contours: &[Contour], join_overlap: f64) -> Vec<Skeleton> {
             best = (share, arms);
         }
     }
-    best.1
+    reach_free_ends(best.1, &edges)
+}
+
+/// How far inside the outline a column's free end stops (0.1 mm): its end rung's centre stays
+/// inside the region, so the rung is clipped to the outline ([`rungs_within`]).
+const END_INSET: f64 = 1.0;
+/// A free end runs on to the outline only when it is this many half widths away or nearer.
+const END_REACH: f64 = 3.0;
+
+/// The columns of [`branches`] with each free end (one not inside another column's satin)
+/// run on along its own direction to [`END_INSET`] inside the outline (#526). The columns'
+/// ends are placed short of the outline (most of their clearance, or a sixth of the width),
+/// which left a flat end unsewn (K's stem top) and a slanted end's corners (K's and X's feet);
+/// at the outline the end rungs are clipped by the end edge and reach into its corners. Join
+/// ends keep their overlap.
+fn reach_free_ends(mut arms: Vec<Skeleton>, edges: &[(Vec2, Vec2)]) -> Vec<Skeleton> {
+    // How far inside column `j`'s satin `p` lies (0.1 mm; negative outside it).
+    let inside = |arms: &[Skeleton], j: usize, p: Vec2| -> f64 {
+        let s = &arms[j];
+        let mut best = f64::NEG_INFINITY;
+        for (k, w) in s.points.windows(2).enumerate() {
+            let (a, b) = (w[0], w[1]);
+            let d = b - a;
+            let len2 = d.x * d.x + d.y * d.y;
+            let t = if len2 > 0.0 {
+                (((p.x - a.x) * d.x + (p.y - a.y) * d.y) / len2).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            let wa = s.widths.get(k).copied().unwrap_or(0.0);
+            let wb = s.widths.get(k + 1).copied().unwrap_or(wa);
+            best = best.max((wa + (wb - wa) * t) * 5.0 - p.distance(a + d * t));
+        }
+        best
+    };
+    let ends: Vec<(usize, bool)> = (0..arms.len())
+        .flat_map(|i| [(i, false), (i, true)])
+        .filter(|&(i, last)| {
+            let s = &arms[i];
+            let Some(&p) = (if last {
+                s.points.last()
+            } else {
+                s.points.first()
+            }) else {
+                return false;
+            };
+            s.points.len() >= 2 && (0..arms.len()).all(|j| j == i || inside(&arms, j, p) < 0.0)
+        })
+        .collect();
+    for (i, last) in ends {
+        let s = &mut arms[i];
+        let n = s.points.len();
+        let (end, w) = if last {
+            (s.points[n - 1], s.widths[n - 1])
+        } else {
+            (s.points[0], s.widths[0])
+        };
+        // The end's direction over its last half width or more.
+        let half = (w * 5.0).max(1.0);
+        let order: Vec<usize> = if last {
+            (0..n - 1).rev().collect()
+        } else {
+            (1..n).collect()
+        };
+        let Some(&from) = order
+            .iter()
+            .find(|&&k| s.points[k].distance(end) >= half)
+            .or(order.last())
+        else {
+            continue;
+        };
+        let d = end - s.points[from];
+        let len = d.length();
+        if len < 1e-9 {
+            continue;
+        }
+        let dir = d * (1.0 / len);
+        let Some(t) = ray(end, dir, edges) else {
+            continue;
+        };
+        if t <= END_INSET + 0.5 || t > END_REACH * half {
+            continue;
+        }
+        let tip = end + dir * (t - END_INSET);
+        if last {
+            s.points.push(tip);
+            s.widths.push(w);
+        } else {
+            s.points.insert(0, tip);
+            s.widths.insert(0, w);
+        }
+    }
+    arms
 }
 
 /// A main stroke turning more than this (degrees) within [`BEND_WINDOW`] widths bends
@@ -1938,13 +2030,14 @@ mod letter_tests {
     /// without a junction (N, M, W) are still under the bar (#526).
     #[test]
     fn letters_split_into_columns_that_sew_them() {
+        // Raised 2026-11-12, when free column ends began to reach the outline (#526).
         let floors = [
-            ("K", 0.98, 0.98),
-            ("Y", 0.95, 0.96),
-            ("X", 0.94, 0.94),
-            ("R", 0.94, 0.94),
-            ("A", 0.89, 0.91),
-            ("y", 0.95, 0.95),
+            ("K", 0.98, 0.99),
+            ("Y", 0.96, 0.97),
+            ("X", 0.98, 0.98),
+            ("R", 0.94, 0.96),
+            ("A", 0.90, 0.91),
+            ("y", 0.97, 0.98),
         ];
         for (ch, small, large) in floors {
             for (size, floor) in [(10.0, small), (25.0, large)] {

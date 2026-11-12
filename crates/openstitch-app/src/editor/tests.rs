@@ -1496,3 +1496,83 @@ fn realistic_view_covers_the_fabric_as_the_sewn_t1_ramp() {
         );
     }
 }
+
+/// The share of the window `(x0, y0, x1, y1)` (design units) the Realistic view's threads hide,
+/// sampled every 0.02 mm: each stitch drawn as wide as its cover, moved by its shift.
+fn covered_share(m: &RenderModel, (x0, y0, x1, y1): (f64, f64, f64, f64)) -> f64 {
+    use openstitch_design::calibration::THREAD_MM;
+    let mut segs = Vec::new();
+    for l in &m.layers {
+        for (n, s) in l.strokes.iter().enumerate() {
+            for (k, w) in s.windows(2).enumerate() {
+                let (a, b) = (w[0], w[1]);
+                let len = a.distance(b);
+                let half = f64::from(l.cover[n][k]) * THREAD_MM * 10.0 / 2.0;
+                if len < 1e-9
+                    || a.x.min(b.x) - half > x1
+                    || a.x.max(b.x) + half < x0
+                    || a.y.min(b.y) - half > y1
+                    || a.y.max(b.y) + half < y0
+                {
+                    continue;
+                }
+                let o = v2(-(b.y - a.y), b.x - a.x) * (f64::from(l.shift[n][k]) / len);
+                segs.push((a + o, b - a, half));
+            }
+        }
+    }
+    let (mut hidden, mut all) = (0usize, 0usize);
+    let mut y = y0;
+    while y < y1 {
+        let mut x = x0;
+        while x < x1 {
+            all += 1;
+            let p = v2(x, y);
+            if segs.iter().any(|&(a, d, half)| {
+                let q = p - a;
+                let t = ((q.x * d.x + q.y * d.y) / (d.x * d.x + d.y * d.y)).clamp(0.0, 1.0);
+                (a + d * t).distance(p) <= half
+            }) {
+                hidden += 1;
+            }
+            x += 0.2;
+        }
+        y += 0.2;
+    }
+    hidden as f64 / all as f64
+}
+
+#[test]
+fn crossing_rows_never_draw_lighter_than_the_rows_alone() {
+    // #921: thread crossing a fill (a 45° underlay under 4.5 rows/mm, rows converging round a
+    // bend) raised the row density the view reads, which narrowed every thread as if the rows
+    // were that dense and parallel: the densest part of angle-lines drew lightest. More thread
+    // never hides less fabric.
+    let window = (50.0, 50.0, 150.0, 150.0);
+    let rows = level_rows(10.0 / 4.5);
+    let alone = covered_share(&RenderModel::build(&rows, usize::MAX), window);
+    let mut crossed = rows.clone();
+    let end = crossed.stitches.pop().expect("end");
+    for k in 0..=40 {
+        // 45° stitches about 0.7 mm apart across the square, sewn after the rows.
+        let c = f64::from(k) * 10.0 - 200.0 + 100.0;
+        let (a, b) = (
+            v2(c.max(0.0), (-c).max(0.0)),
+            v2((c + 200.0).min(200.0), (200.0 - c).min(200.0)),
+        );
+        let (a, b) = if k % 2 == 0 { (a, b) } else { (b, a) };
+        crossed
+            .stitches
+            .push(Stitch::new(a.x, a.y, Command::Stitch));
+        crossed
+            .stitches
+            .push(Stitch::new(b.x, b.y, Command::Stitch));
+    }
+    crossed.stitches.push(end);
+    let both = covered_share(&RenderModel::build(&crossed, usize::MAX), window);
+    assert!(alone > 0.9, "the rows alone hide {alone:.3}");
+    assert!(
+        both >= alone - 0.005,
+        "with an underlay crossing them {both:.3}, the rows alone {alone:.3}"
+    );
+}

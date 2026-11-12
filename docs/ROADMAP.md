@@ -132,6 +132,12 @@ stitch output changes. The stripes in the kit previews at 5–7 px/mm are a diff
 anti-aliased rows about a pixel apart leave light seams that beat with the pixel grid. Part 2 renders
 the previews at a higher pixel density and downsamples them.
 
+Done 2026-11-12 (#921): where thread runs other ways across a fill (an underlay, rows converging round a
+bend), the Realistic view counted it in the row density and missed the parallel row beside each stitch,
+so every thread was drawn as narrow as that density asks: the band along angle-lines' bend, with 1.6× the
+needle drops of its arms, hid 72–75 % of the fabric against 90–97 % in the arms. The row beside is now
+looked for up to 0.6 mm away; the band hides 96.5 %, as the arms. The T1 ramp (parallel rows) is unchanged.
+
 Done 2026-11-12 (#893, part 2): the kit previews and the README gallery are drawn at 16 px/mm in
 tiles (`openstitch --zoom … --center X,Y`, a new option that centres the view on a design point) and
 reduced with Lanczos, instead of the page-fit screenshot at 5–7 px/mm. Row-to-row stripe contrast in
