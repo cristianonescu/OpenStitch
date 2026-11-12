@@ -733,6 +733,144 @@ fn programmable(
     })
 }
 
+/// Programmable fill along a direction curve (#923): the rows are the curve's offsets
+/// ([`crate::direction::guided_lines`], as plain fill along a curve), and the pattern is tiled in
+/// the curve's own frame (along it, across it) from `origin`'s place in that frame. Each row is
+/// a straight line in that frame, so its needle points are where it crosses the tiled pattern's
+/// lines ([`tile_crossings`], as on a straight row), carried back onto the curved row. Long gaps
+/// are split along the row, often enough that no stitch strays more than a third of a row
+/// spacing from it. The pieces come back in sewing order, still to be joined. `None` where the
+/// curve cannot guide, or the pattern has embossed or engraved areas or the region has stamps
+/// (those keep the chord warp).
+pub(crate) fn programmable_guided(
+    closed: &[Contour],
+    holes: &[Contour],
+    r: &crate::model::RegionSewing,
+    user: &[Pattern],
+    curve: &Contour,
+    origin: Vec2,
+) -> Option<Vec<Run>> {
+    let pattern = patterns::resolve(user, PatternKind::Fill, r.pattern.as_deref());
+    if pattern.region_mask().is_some() || !r.stamps.is_empty() {
+        return None;
+    }
+    let (pw, ph) = r.pattern_size_mm();
+    let tile = Tile {
+        pattern,
+        width: pw * 10.0,
+        height: ph * 10.0,
+        row_offset: r.row_offset.unwrap_or(0.0) / 100.0,
+        column_offset: r.column_offset.unwrap_or(0.0) / 100.0,
+    };
+    let spacing = 10.0 / r.density.max(0.1);
+    let plain = r.split_length.map_or(PROGRAMMABLE_MAX_STITCH, |l| {
+        (l * 10.0).min(PROGRAMMABLE_MAX_STITCH)
+    });
+    let (lines, guide) = crate::direction::guided_lines(closed, holes, curve, spacing)?;
+    let (s0, d0) = guide.frame(origin);
+    let mut rows: Vec<Vec<Vec<Vec2>>> = Vec::new();
+    for (d, pieces) in lines {
+        let mut row = Vec::new();
+        for piece in pieces {
+            if let Some(run) = guided_piece(&piece, &guide, &tile, (s0, d0), d, spacing, plain) {
+                row.push(run);
+            }
+        }
+        rows.push(row);
+    }
+    let path = curve.path();
+    let (a, z) = (path[0], path[path.len() - 1]);
+    Some(order_rows(rows, (z.y - a.y).datan2(z.x - a.x).to_degrees()))
+}
+
+/// One row piece of [`programmable_guided`]: its ends and its crossings with the pattern tiled
+/// in the guide's frame (offset by `origin`, the frame position of the tiling origin), as
+/// needle points on the piece.
+fn guided_piece(
+    piece: &[Vec2],
+    guide: &crate::direction::Guide,
+    tile: &Tile,
+    origin: (f64, f64),
+    d: f64,
+    spacing: f64,
+    plain: f64,
+) -> Option<Vec<Vec2>> {
+    if piece.len() < 2 {
+        return None;
+    }
+    // Arc length along the piece and the guide position of each of its points.
+    let mut arc = vec![0.0];
+    for w in piece.windows(2) {
+        arc.push(arc[arc.len() - 1] + w[0].distance(w[1]));
+    }
+    let s: Vec<f64> = piece.iter().map(|&p| guide.frame(p).0).collect();
+    let (sa, sb) = (s[0], s[s.len() - 1]);
+    if (sb - sa).abs() < 1e-6 {
+        return None;
+    }
+    // Arc length at guide position `t` (s is monotone along an offset row).
+    let arc_at = |t: f64| -> f64 {
+        for i in 0..s.len() - 1 {
+            let (lo, hi) = (s[i].min(s[i + 1]), s[i].max(s[i + 1]));
+            if t >= lo - 1e-9 && t <= hi + 1e-9 {
+                let f = if (s[i + 1] - s[i]).abs() < 1e-12 {
+                    0.0
+                } else {
+                    (t - s[i]) / (s[i + 1] - s[i])
+                };
+                return arc[i] + (arc[i + 1] - arc[i]) * f.clamp(0.0, 1.0);
+            }
+        }
+        if (t - sa).abs() < (t - sb).abs() {
+            0.0
+        } else {
+            arc[arc.len() - 1]
+        }
+    };
+    let point_at = |a: f64| -> Vec2 {
+        let i = arc.partition_point(|&x| x < a).clamp(1, arc.len() - 1);
+        let f = (a - arc[i - 1]) / (arc[i] - arc[i - 1]).max(1e-12);
+        piece[i - 1].lerp(piece[i], f.clamp(0.0, 1.0))
+    };
+    let total = arc[arc.len() - 1];
+    let from = v2(sa - origin.0, d - origin.1);
+    let to = v2(sb - origin.0, d - origin.1);
+    let mut cuts: Vec<f64> = vec![0.0, total];
+    cuts.extend(
+        tile_crossings(tile, from, to, spacing, spacing)
+            .into_iter()
+            .map(|t| arc_at(sa + (sb - sa) * t))
+            .filter(|&a| a > 2.0 && total - a > 2.0),
+    );
+    cuts.sort_by(f64::total_cmp);
+    cuts.dedup_by(|x, y| (*x - *y).abs() < 2.0);
+    // Long gaps split evenly along the row, and often enough to stay on it where it bends.
+    let mut out = vec![point_at(cuts[0])];
+    for w in cuts.windows(2) {
+        let gap = w[1] - w[0];
+        let mut n = generate::parts(gap, plain);
+        loop {
+            let ok = (1..=n).all(|k| {
+                let (a0, a1) = (
+                    w[0] + gap * (k - 1) as f64 / n as f64,
+                    w[0] + gap * k as f64 / n as f64,
+                );
+                let (p, q) = (point_at(a0), point_at(a1));
+                (0..=8).all(|m| {
+                    let x = point_at(a0 + (a1 - a0) * m as f64 / 8.0);
+                    crate::simplify::segment_distance(x, p, q) <= spacing / 3.0
+                })
+            });
+            if ok || n > 64 {
+                break;
+            }
+            n += 1;
+        }
+        out.extend((1..=n).map(|k| point_at(w[0] + gap * k as f64 / n as f64)));
+    }
+    (out.len() >= 2).then_some(out)
+}
+
 /// Origin of tile (`i`, `j`) on the page: tile columns `i` along x, rows `j` along y; odd
 /// columns shift down by the column offset, odd rows right by the row offset.
 fn tile_origin(tile: &Tile, i: i64, j: i64) -> Vec2 {

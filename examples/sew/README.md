@@ -222,6 +222,11 @@ python3 -I tools/sew_kit.py
 `python3 -I tools/sew_kit.py --check` says whether the committed files still match what OpenStitch
 writes; the stitch engine's changes make them stale.
 
+When a change moves only a few kit files, `python3 -I tools/sew_kit.py --only fills/angle-lines.pes
+[...]` rebuilds just those, with their previews, manifest entries and lines below, and leaves
+every other file as committed; `--check --only` checks just those (#935). The full `--check` is
+what CI runs.
+
 Build both binaries after every source change. The previews come from the `openstitch` app, which
 sews each design again, so an app older than the change would show the old stitches. `sew_kit.py`
 refuses to run with a binary older than any source file it was built from (#896).

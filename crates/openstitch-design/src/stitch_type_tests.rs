@@ -2169,6 +2169,59 @@ fn every_pattern_of_every_patterned_type_sews() {
     }
 }
 
+/// #923: a programmable fill along a direction curve sews its rows as the curve's offsets and
+/// tiles its pattern in the curve's own frame, so its needle points lie on rows a row spacing
+/// apart all along the curve: at least 70 % of the needle points inside the square lie within a
+/// tenth of a row spacing of one. With the chord warp the rows were shifted copies across the
+/// chord and the points hardly clustered (R 0.07 on the S curve of
+/// `examples/sewing-direction.json`'s orange square; 0.79 now). Its crossings stay no more than
+/// the straight pattern's on the same square (2,094 against 2,210).
+#[test]
+fn programmable_fill_along_a_curve_keeps_to_the_curves_offsets() {
+    use crate::geometry::Bezier;
+    let square = Contour::rectangle(550.0, 550.0, 400.0, 380.0);
+    let mut curve = Contour::new(vec![v2(520.0, 600.0), v2(980.0, 900.0)], false);
+    curve.set_curve(
+        0,
+        Some(Bezier {
+            c1: v2(700.0, 500.0),
+            c2: v2(800.0, 1000.0),
+        }),
+    );
+    let mut r = region(RegionType::ProgrammableFill);
+    r.underlay = false;
+    r.base_sewing = false;
+    r.direction_curve = Some(curve.clone());
+    let layers = crate::region::layers(std::slice::from_ref(&square), &r, &[]);
+    let spacing = 10.0 / r.density;
+    let (_, guide) =
+        crate::direction::guided_lines(std::slice::from_ref(&square), &[], &curve, spacing)
+            .expect("guide");
+    // Needle points well inside the square (not row ends or travel along the outline).
+    let points: Vec<Vec2> = layers
+        .last()
+        .expect("top")
+        .iter()
+        .flatten()
+        .copied()
+        .filter(|p| p.x > 600.0 && p.x < 900.0 && p.y > 600.0 && p.y < 880.0)
+        .collect();
+    assert!(points.len() > 500, "{} needle points", points.len());
+    let on_row = points
+        .iter()
+        .filter(|&&p| {
+            let d = guide.frame(p).1 / spacing;
+            (d - d.round()).abs() <= 0.1
+        })
+        .count();
+    let share = on_row as f64 / points.len() as f64;
+    assert!(
+        share >= 0.7,
+        "{:.0} % of needle points on an offset row",
+        share * 100.0
+    );
+}
+
 #[test]
 fn programmable_fill_puts_needle_points_on_the_pattern() {
     let c = vec![Contour::rectangle(0.0, 0.0, 400.0, 400.0)];
