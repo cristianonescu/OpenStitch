@@ -5190,6 +5190,111 @@ fn angle_lines_cover_the_kit_l_at_the_set_density() {
     }
 }
 
+/// Thread (mm) per 1 mm cell of the square x 56..94, y 56..92 mm (1 mm in from #927's 40 x 38
+/// mm square), from every stitch of `runs`.
+fn thread_per_cell(runs: &[Run]) -> Vec<f64> {
+    let (nx, ny) = (38usize, 36usize);
+    let mut cells = vec![0.0; nx * ny];
+    for run in runs {
+        for w in run.windows(2) {
+            let n = ((w[0].distance(w[1]) / 1.0).ceil() as usize).max(1);
+            for k in 0..n {
+                let p = w[0].lerp(w[1], (k as f64 + 0.5) / n as f64);
+                let (i, j) = ((p.x - 560.0) / 10.0, (p.y - 560.0) / 10.0);
+                if i >= 0.0 && j >= 0.0 && (i as usize) < nx && (j as usize) < ny {
+                    cells[j as usize * nx + i as usize] += w[0].distance(w[1]) / n as f64 / 10.0;
+                }
+            }
+        }
+    }
+    cells
+}
+
+/// Whether segments a-b and c-d cross (not just touch).
+fn segments_cross(a: Vec2, b: Vec2, c: Vec2, d: Vec2) -> bool {
+    let cr = |o: Vec2, p: Vec2, q: Vec2| (p - o).x * (q - o).y - (p - o).y * (q - o).x;
+    let (d1, d2, d3, d4) = (cr(c, d, a), cr(c, d, b), cr(a, b, c), cr(a, b, d));
+    d1 * d2 < -1e-9 && d3 * d4 < -1e-9
+}
+
+/// Stitches of `runs` that run along a row of the guide `guide`: both ends a whole number of
+/// `spacing` from it, the same number (travel, tie-ins and row ends left out).
+fn row_stitches(runs: &[Run], guide: &crate::direction::Guide, spacing: f64) -> Vec<(Vec2, Vec2)> {
+    runs.iter()
+        .flat_map(|run| run.windows(2))
+        .filter(|w| {
+            let (a, b) = (guide.frame(w[0]).1 / spacing, guide.frame(w[1]).1 / spacing);
+            (a - b).abs() < 0.1 && (a - a.round()).abs() < 0.1 && w[0].distance(w[1]) > 10.0
+        })
+        .map(|w| (w[0], w[1]))
+        .collect()
+}
+
+/// #927: plain and programmable fill along a U-shaped direction curve (a C bulging down into
+/// #927's 40 x 38 mm square) sewed no rows inside the U: 273 of the square's 1 mm cells stayed
+/// empty, only travel crossing them, because the rows' distances from the guide were taken at
+/// the outline's corners, and the middle of the U lies farther from the guide than any of them.
+/// Now every cell has thread, the coverage is the same fill's without the curve (within 3 %), and
+/// plain fill's rows never cross each other.
+#[test]
+fn fill_along_a_u_shaped_curve_covers_the_inside_of_the_u() {
+    use crate::geometry::Bezier;
+    let square = Contour::rectangle(550.0, 550.0, 400.0, 380.0);
+    let mut curve = Contour::new(vec![v2(520.0, 600.0), v2(980.0, 600.0)], false);
+    curve.set_curve(
+        0,
+        Some(Bezier {
+            c1: v2(650.0, 950.0),
+            c2: v2(850.0, 950.0),
+        }),
+    );
+    for kind in [RegionType::Fill, RegionType::ProgrammableFill] {
+        let mut plain = region(kind);
+        plain.underlay = false;
+        plain.base_sewing = false;
+        let mut along = plain.clone();
+        along.direction_curve = Some(curve.clone());
+        let top = |r: &RegionSewing| {
+            crate::region::layers(std::slice::from_ref(&square), r, &[])
+                .pop()
+                .expect("top")
+        };
+        let (u, flat) = (top(&along), top(&plain));
+        let stats = |runs: &[Run]| {
+            let mut c = thread_per_cell(runs);
+            let empty = c.iter().filter(|&&v| v == 0.0).count();
+            c.sort_by(f64::total_cmp);
+            (empty, c[c.len() / 10], c[c.len() / 2])
+        };
+        let ((empty, p10, median), (_, flat_p10, flat_median)) = (stats(&u), stats(&flat));
+        let spacing = 10.0 / along.density;
+        let (_, guide) =
+            crate::direction::guided_lines(std::slice::from_ref(&square), &[], &curve, spacing)
+                .expect("guide");
+        let rows = row_stitches(&u, &guide, spacing);
+        let row_crossings = (0..rows.len())
+            .flat_map(|i| (i + 1..rows.len()).map(move |j| (i, j)))
+            .filter(|&(i, j)| segments_cross(rows[i].0, rows[i].1, rows[j].0, rows[j].1))
+            .count();
+        assert_eq!(empty, 0, "{kind:?}: {empty} empty 1 mm cells");
+        // Within 3 %: rows across the 1 mm grid at an angle lay a little more or less thread in
+        // each cell than rows along it (the plain fill's), about ±7 % cell to cell.
+        assert!(
+            p10 >= 0.97 * flat_p10 && median >= 0.97 * flat_median,
+            "{kind:?}: p10 {p10:.2} / median {median:.2} against {flat_p10:.2} / {flat_median:.2} without the curve"
+        );
+        assert!(rows.len() > 300, "{kind:?}: {} row stitches", rows.len());
+        // Plain fill's rows never cross. Programmable fill's tiles cross once, on the curve's
+        // outer side below the U (about 65, 87 mm), which the rows inside the U do not reach.
+        // The other crossings are travel between rows, sewn over them (#947).
+        let most = if kind == RegionType::Fill { 0 } else { 1 };
+        assert!(
+            row_crossings <= most,
+            "{kind:?}: {row_crossings} row crossings"
+        );
+    }
+}
+
 /// Length (0.1 mm) of `run`'s stitches whose midpoint lies within 0.15 mm of a stitch sewn more
 /// than 200 stitches before: travel sewn on top of rows already sewn (#469).
 fn sewn_on_top(run: &[Vec2]) -> f64 {
