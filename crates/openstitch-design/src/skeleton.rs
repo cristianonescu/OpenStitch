@@ -1068,35 +1068,50 @@ pub fn branches(contours: &[Contour], join_overlap: f64) -> Vec<Skeleton> {
         return vec![main];
     };
     let overlap = join_overlap.clamp(0.0, 10.0) * 10.0;
-    let plain = split(main.clone(), &grid, &edges, overlap, false);
+    let plain = split(main.clone(), &grid, &edges, overlap, Trim::Plain);
     if plain.len() == 1 {
         return plain;
     }
     // Arms whose width spikes across a junction (A's left leg past its crossbar) swallow the
     // part beyond it, which then never becomes a column of its own; the split with those
     // spikes capped ([`capped`]) is kept when it sews more of the region (A), the plain one
-    // otherwise (y, whose tail's spike is its own stroke) (#526).
-    let spikes = split(main, &grid, &edges, overlap, true);
-    let pick = if spikes.len() > 1 && covered(&grid, &spikes) > covered(&grid, &plain) + 1e-9 {
-        spikes
-    } else {
-        plain
-    };
+    // otherwise (y, whose tail's spike is its own stroke); so is the capped split whose arms
+    // also run straight past a junction ([`unkinked`]: A's left leg at 25 mm) (#526).
+    let mut pick = plain;
+    let mut best = covered(&grid, &pick);
+    for trim in [Trim::Capped, Trim::Straightened] {
+        let other = split(main.clone(), &grid, &edges, overlap, trim);
+        let share = covered(&grid, &other);
+        if other.len() > 1 && share > best + 1e-9 {
+            (pick, best) = (other, share);
+        }
+    }
     let reached = reach_free_ends(pick, &edges);
     reach_into_joins(reached, &edges, overlap)
 }
 
-/// The columns of [`branches`] before their free ends reach the outline, the arms' width
-/// spikes capped or not (`cap`); `main` alone when no arm leaves it.
+/// How [`split`] trims its arms (#526).
+#[derive(Clone, Copy, PartialEq)]
+enum Trim {
+    /// As derived.
+    Plain,
+    /// Width spikes across a junction capped ([`capped`]).
+    Capped,
+    /// Capped, and without points where the centre line turns back ([`unkinked`]).
+    Straightened,
+}
+
+/// The columns of [`branches`] before their free ends reach the outline, the arms trimmed as
+/// `trim` says; `main` alone when no arm leaves it.
 fn split(
     main: Skeleton,
     grid: &Grid,
     edges: &[(Vec2, Vec2)],
     overlap: f64,
-    cap: bool,
+    trim: Trim,
 ) -> Vec<Skeleton> {
     let first = main.clone();
-    let arms = arms_from(main, grid, edges, overlap, false, cap);
+    let arms = arms_from(main, grid, edges, overlap, false, trim);
     if arms.len() == 1 {
         return vec![first];
     }
@@ -1121,7 +1136,7 @@ fn split(
     }
     let mut best = (covered(grid, &arms), arms);
     for main in candidates {
-        let arms = arms_from(main, grid, edges, overlap, true, cap);
+        let arms = arms_from(main, grid, edges, overlap, true, trim);
         let share = covered(grid, &arms);
         if share > best.0 + 1e-9 {
             best = (share, arms);
@@ -1650,7 +1665,7 @@ fn arms_from(
     edges: &[(Vec2, Vec2)],
     overlap: f64,
     straight: bool,
-    cap: bool,
+    trim: Trim,
 ) -> Vec<Skeleton> {
     let cells = grid.clearance.len();
     let first = main.clone();
@@ -1827,9 +1842,13 @@ fn arms_from(
                 line.pop();
                 line.extend(other.into_iter().rev());
                 let pts: Vec<Vec2> = line.iter().map(|&k| grid.centre(k)).collect();
-                match line_to_skeleton(pts, false, false, edges, grid.step, WIDE_CHORD)
-                    .map(|sk| if cap { capped(sk, edges) } else { sk })
-                {
+                match line_to_skeleton(pts, false, false, edges, grid.step, WIDE_CHORD).map(|sk| {
+                    if trim == Trim::Plain {
+                        sk
+                    } else {
+                        capped(sk, edges)
+                    }
+                }) {
                     Some(sk) => {
                         arms.push(sk);
                         line.iter().for_each(|&k| tried[k] = true);
@@ -1855,7 +1874,11 @@ fn arms_from(
         let arm = (line.last() == Some(&tip))
             .then(|| line_to_skeleton(pts, false, reached, edges, grid.step, WIDE_CHORD))
             .flatten()
-            .map(|sk| if cap { capped(sk, edges) } else { sk });
+            .map(|sk| match trim {
+                Trim::Plain => sk,
+                Trim::Capped => capped(sk, edges),
+                Trim::Straightened => capped(unkinked(sk), edges),
+            });
         match arm {
             // The arm's own cells are never an arm again; a part next to it (two arms meeting
             // in the uncovered middle of a star) still is.
@@ -1894,8 +1917,36 @@ fn capped(mut sk: Skeleton, edges: &[(Vec2, Vec2)]) -> Skeleton {
     sk
 }
 
+/// An arm's centre line without points where it turns back on itself (more than [`KINK`]
+/// degrees): the ridge through a junction pulls one point into it (A's left leg at the bar,
+/// 2.5 mm off the leg's middle), and the column there missed the leg's outer edge (#526). Not
+/// for a bridge, whose line turns at its tip by design.
+fn unkinked(mut sk: Skeleton) -> Skeleton {
+    let mut k = 1;
+    while k + 1 < sk.points.len() {
+        let (u, v) = (
+            sk.points[k] - sk.points[k - 1],
+            sk.points[k + 1] - sk.points[k],
+        );
+        let turn = (u.x * v.y - u.y * v.x)
+            .datan2(u.x * v.x + u.y * v.y)
+            .abs()
+            .to_degrees();
+        if turn > KINK {
+            sk.points.remove(k);
+            sk.widths.remove(k);
+            k = k.saturating_sub(1).max(1);
+        } else {
+            k += 1;
+        }
+    }
+    sk
+}
+
 /// An arm's width this many times its median is a spike across a junction ([`capped`]).
 const SPIKE: f64 = 2.0;
+/// A centre line turning more than this (degrees) at one point turns back on itself there.
+const KINK: f64 = 100.0;
 
 /// A skeleton from a centre line on the grid (`pts`, 0.1 mm): smoothed, simplified, each point
 /// moved to the middle of the chord across the region there and given its width (see
