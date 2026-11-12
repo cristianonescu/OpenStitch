@@ -4244,7 +4244,9 @@ fn longest_exposed_across_rows(
             let d = points[j] - points[i];
             // sin 10°.
             let off_rows = d.y.abs() > d.length() * 0.173_648;
-            if j - i < 2 || !off_rows || d.length() <= best {
+            // A single stitch counts too: the compiler's straight connector across a gap of up
+            // to 4 mm between a colour's runs is one stitch (#901).
+            if j - i < 1 || !off_rows || d.length() <= best {
                 continue;
             }
             // Walk the stretch in 0.2 mm steps, timing the runs that show.
