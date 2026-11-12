@@ -4248,9 +4248,8 @@ fn longest_exposed_across_rows(
                 continue;
             }
             // Walk the stretch in 0.2 mm steps, timing the runs that show.
-            let hidden = |p: Vec2| {
-                on_outline(p) || length.get(&key(p)).is_some_and(|&l| l >= 0.7 * full)
-            };
+            let hidden =
+                |p: Vec2| on_outline(p) || length.get(&key(p)).is_some_and(|&l| l >= 0.7 * full);
             let mut shown = 0.0;
             for w in points[i..=j].windows(2) {
                 let n = (w[0].distance(w[1]) / 2.0).ceil().max(1.0) as usize;

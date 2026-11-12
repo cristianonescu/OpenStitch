@@ -3502,7 +3502,17 @@ They now use the same join, with the outline walk added, since a tartan colour's
 reach the edge. Like blend colours, they skip start- and end-point travel. Blends don't use the
 outline walk: there, a white line along the blue swatch's bottom edge showed.
 
-KIT_TABLE
+| kit design | trims | jumps | needle points | longest exposed travel |
+|---|---|---|---|---|
+| fills/gradients | 71 → 49 | 9 → 9 | 8,859 → 9,054 | 2.6 → 1.9 mm |
+| fills/tartan | 3 → 3 | 3 → 3 | 3,567 → 3,514 | 6.1 → 0.0 mm |
+
+Exposed travel is measured as in the test: straight stretches more than 10° off a colour's
+row directions, over cells it covers under 70 %, away from the outline. Before #891 the gradients
+design had 1 trim and 28.6 mm of exposed travel. #901's target of a third of the 71 trims (about
+23) is not met under the 70 % rule. An earlier draft reached 16, but it counted travel within
+0.15 mm of any of the colour's stitches as hidden, which also hid lines crossing rows shared with
+other colours.
 
 `blend_travel_never_runs_far_across_the_rows` judges each colour on its own thread: no more than
 2 mm of a straight stretch across the rows may lie over cells where that colour covers under 70 %.
