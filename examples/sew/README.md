@@ -225,6 +225,9 @@ writes; the stitch engine's changes make them stale.
 Build both binaries after every source change. The previews come from the `openstitch` app, which
 sews each design again, so an app older than the change would show the old stitches. `sew_kit.py`
 refuses to run with a binary older than any source file it was built from (#896).
+Each preview is drawn at 16 px per mm in tiles (`--zoom` and `--center`) and reduced: at the
+zoom that fits the page, the rows of a dense fill beat with the screen pixels into stripes that
+are not on the fabric (#893).
 
 ## The designs
 

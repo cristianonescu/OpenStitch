@@ -8,7 +8,9 @@ examples/images (docs/research/test-images.md).
 Each entry converts one image with `stitchtool exec` (a Design Page sized to the image, the
 long side 100 mm, the wizard at the settings named in GALLERY), opens the result in the editor's
 Realistic view (`openstitch --show realistic --screenshot`, 1440x900 window), crops the design
-area and writes docs/images/readme/gallery/<id>.png (480 px wide, 128 colours). The README
+area, draws it again at 16 px/mm in tiles (`--zoom`, `--center`; the rows of a fill beat with the
+pixel grid at the page-fit zoom, #893) and writes docs/images/readme/gallery/<id>.png (480 px
+wide, reduced with Lanczos, 128 colours). The README
 table between the `gallery:start` and `gallery:end` markers is rewritten with the source, the
 result and a caption (wizard, settings, stitches, trims, colours). The images in MODES are also
 converted in both modes (`compatMode`) for the table between the `gallery-modes` markers. `--release` uses the release build. Needs Pillow.
@@ -127,7 +129,11 @@ def shoot(work, key, size_mm=None):
         print(f"{key}: crop {box} does not match the design's {size_mm} mm, retaking", file=sys.stderr)
     else:
         sys.exit(f"gallery.py: {key}: no screenshot framed the design")
-    im = im.crop(box)
+    def tile(*view):
+        run([str(BIN / "openstitch"), f"{key}.osd", "--show", "realistic", "--no-splash",
+             "--size", "1440x900", *view, "--screenshot", "tile.png"], work)
+        return Image.open(work / "tile.png").convert("RGB")
+    im = sharp_crop(tile, work / f"{key}.osd", im, box)
     im = im.resize((480, round(im.height * 480 / im.width)), Image.LANCZOS)
     OUT.mkdir(parents=True, exist_ok=True)
     dst = OUT / f"{key}.png"
@@ -185,6 +191,64 @@ def design_box(im):
     pad = 12
     return (max(left, min(xs) - pad), max(top, min(ys) - pad),
             min(right, max(xs) + pad), min(bottom, max(ys) + pad))
+
+
+# Pixels per mm the design is drawn at before it is reduced (#893). At the page-fit zoom (about
+# 4-7 px/mm) fill rows lie a pixel or so apart, and the light seams between their anti-aliased
+# edges beat with the pixel grid into stripes. From about 15 px/mm the rows resolve: a 0-degree
+# fill at 4.5 rows/mm reduced to 4 px/mm then has a row-to-row spread of 9 grey levels instead of
+# 32, at the same mean colour (within 4 levels), so the match with the T1 scans holds.
+SHARP_PX_PER_MM = 16.0
+
+
+def canvas_and_page(im):
+    """The canvas (the grey surround's extent) and the Design Page on it (the light fabric inside
+    it), as (left, top, right, bottom) pixel boxes of a page-fit screenshot."""
+    sx, sy = [], []
+    for yy in range(0, im.height, 2):
+        for xx in range(0, im.width, 2):
+            if im.getpixel((xx, yy)) == SURROUND:
+                sx.append(xx)
+                sy.append(yy)
+    canvas = (min(sx), min(sy), max(sx), max(sy))
+    px, py = [], []
+    for yy in range(canvas[1], canvas[3]):
+        row = [xx for xx in range(canvas[0], canvas[2]) if min(im.getpixel((xx, yy))) >= 200]
+        if row:
+            px += [row[0], row[-1]]
+            py.append(yy)
+    return canvas, (min(px), min(py), max(px) + 1, max(py) + 1)
+
+
+def sharp_crop(shot, osd, im, box):
+    """The design box `box` of the page-fit screenshot `im` of the project `osd`, drawn again at
+    [`SHARP_PX_PER_MM`]: tiles of the canvas at a higher zoom, each centred on its part of the
+    design (`--center`), pasted together (#893). `shot(*view)` takes a screenshot of the same
+    project with the extra view arguments and returns it as an RGB image."""
+    page = json.loads(Path(osd).read_text(encoding="utf-8"))["design"]["page"]
+    canvas, (pl, pt, pr, pb) = canvas_and_page(im)
+    fit = (pr - pl) / (page["width"] / 10)  # px per mm at the page fit
+    zoom = SHARP_PX_PER_MM / fit
+    if zoom <= 1.2:
+        return im.crop(box)
+    scale = fit * zoom
+    # The page fit centres the page on the canvas; --zoom and --center keep that point.
+    cx, cy = (pl + pr) / 2, (pt + pb) / 2
+    hw = min(cx - canvas[0], canvas[2] - cx) - 40
+    hh = min(cy - canvas[1], canvas[3] - LABEL_H - cy) - 40
+    x0, y0 = (box[0] - pl) / fit, (box[1] - pt) / fit
+    x1, y1 = (box[2] - pl) / fit, (box[3] - pt) / fit
+    tw, th = 2 * hw / scale, 2 * hh / scale  # mm per tile
+    nx, ny = max(1, -(-(x1 - x0) // tw)), max(1, -(-(y1 - y0) // th))
+    out = Image.new("RGB", (round((x1 - x0) * scale), round((y1 - y0) * scale)))
+    for j in range(int(ny)):
+        for i in range(int(nx)):
+            mx, my = x0 + tw * (i + 0.5), y0 + th * (j + 0.5)
+            tile = shot("--zoom", f"{zoom:.6f}", "--center", f"{mx:.4f},{my:.4f}")
+            # 2 px more on each side so neighbouring tiles overlap rather than leave a seam.
+            part = tile.crop((round(cx - hw) - 2, round(cy - hh) - 2, round(cx + hw) + 2, round(cy + hh) + 2))
+            out.paste(part, (round((mx - tw / 2 - x0) * scale) - 2, round((my - th / 2 - y0) * scale) - 2))
+    return out
 
 
 def result(s):

@@ -38,6 +38,9 @@ pub struct Launch {
     pub script: Vec<crate::script::Step>,
     /// Zoom factor applied after fitting the page.
     pub zoom: Option<f64>,
+    /// Design point (mm) the view is centred on after fitting and zooming (`--center`): a
+    /// screenshot of part of a design at a high zoom, tiled into a sharper preview (#893).
+    pub center: Option<(f64, f64)>,
     /// Workspace views to open (see [`SHOW`]).
     pub show: Vec<String>,
     /// Image to Embroidery: image to preselect (opens the dialog) and method to run.
@@ -196,6 +199,8 @@ pub struct EditorApp {
     pub fit_requested: bool,
     /// Zoom applied once after the first fit (`--zoom`).
     pub initial_zoom: Option<f64>,
+    /// Model point the automatic fit centres on (`--center`), until a fit is asked for.
+    pub initial_center: Option<openstitch_design::Vec2>,
     /// The automatic fit last made: the canvas it was made for, the view it gave and the
     /// `--zoom` applied. While the view is still that one, a change of the canvas (the panes are
     /// laid out a frame after the canvas; the window resized) fits again (#450: kit previews and
@@ -353,6 +358,7 @@ impl EditorApp {
             clicks: Default::default(),
             fit_requested: false,
             initial_zoom: None,
+            initial_center: None,
             auto_fit: None,
             dialog_rect: None,
             dialog_rect_next: None,
@@ -502,6 +508,9 @@ impl EditorApp {
             self.tools.set_tool(t);
         }
         self.initial_zoom = l.zoom;
+        self.initial_center = l
+            .center
+            .map(|(x, y)| openstitch_design::v2(x * 10.0, y * 10.0));
         for v in &l.show {
             match v.as_str() {
                 "realistic" => self.workspace.realistic = true,

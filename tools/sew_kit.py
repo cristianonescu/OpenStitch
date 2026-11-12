@@ -860,12 +860,21 @@ def thread_colours(threads):
     return [t if t.startswith("#") else rgb[t] for t in threads]
 
 
+def screenshot(work, design, shot, *view):
+    subprocess.run([str(BIN / "openstitch"), str(design), "--show", "realistic", "--no-splash", "--size", "1440x900",
+                    *view, "--screenshot", str(shot)], cwd=work, check=True, capture_output=True)
+    return Image.open(shot).convert("RGB")
+
+
 def preview(work, pes, dst, colours):
-    shot = work / "shot.png"
-    subprocess.run([str(BIN / "openstitch"), str(pes), "--show", "realistic", "--no-splash", "--size", "1440x900",
-                    "--screenshot", str(shot)], cwd=work, check=True, capture_output=True)
-    im = Image.open(shot).convert("RGB")
-    im = im.crop(gallery.design_box(im))
+    im = screenshot(work, pes, work / "shot.png")
+    box = gallery.design_box(im)
+    # A built project is drawn again at gallery.SHARP_PX_PER_MM (#893); a .pes opened on its own
+    # (the machine checks) keeps the page-fit crop, its page not being known here.
+    if pes.suffix == ".osd":
+        im = gallery.sharp_crop(lambda *view: screenshot(work, pes, work / "tile.png", *view), pes, im, box)
+    else:
+        im = im.crop(box)
     im = im.resize((360, round(im.height * 360 / im.width)), Image.LANCZOS)
     if missing_threads(im, colours):
         sys.exit(f"{dst.name}: the render itself lacks threads {missing_threads(im, colours)}")

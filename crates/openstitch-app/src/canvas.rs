@@ -69,6 +69,13 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
         if let Some(z) = zoom {
             fitted.zoom_about(fit_screen.center(), z);
         }
+        if app.fit_requested {
+            app.initial_center = None;
+        }
+        if let Some(c) = app.initial_center {
+            let (at, mid) = (fitted.to_screen(c), fit_screen.center());
+            fitted.pan(mid.x - at.x, mid.y - at.y);
+        }
         app.viewport = Some(fitted);
         app.auto_fit = Some((fit_screen, fitted, zoom));
         app.fit_requested = false;
