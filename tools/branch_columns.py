@@ -21,7 +21,9 @@ things are measured on what the machine would sew:
 
 Every needle point the machine sews counts, except tie-ins and locks (rule B', adopted on #526,
 2026-11-12): out-and-back steps back to the same point, at most 2 mm long, within a run's first
-or last TIE_ZONE stitches (runs split at jumps, trims and colour changes). OpenStitch ties in with
+or last TIE_ZONE stitches (runs split at jumps, trims and colour changes). A satin triangle is
+left out only when one of its own two stitches is such a step, so the point a tie-in ends on
+still starts the satin (2026-11-13). OpenStitch ties in with
 up to three 0.3 mm steps; a satin's short crossings into a narrow end corner count.
 
     python3 -I tools/branch_columns.py --stitchtool target/release/stitchtool
@@ -83,7 +85,9 @@ def contours_mm(obj):
 
 
 def ties(pts):
-    """For each stitch record (kind, x, y): whether it belongs to a tie-in or lock."""
+    """For each stitch record (kind, x, y): whether the stitch ending at it is a step of a tie-in
+    or lock (an out-and-back back to the same point). The record where a tie-in ends is also the
+    first needle point of what follows it."""
     kinds = [p[0] for p in pts]
     xy = [(p[1], p[2]) for p in pts]
     pos, left = [0] * len(pts), [0] * len(pts)
@@ -134,7 +138,9 @@ def measure(outline, skeletons, pts):
     kinds = [p[0] for p in pts]
     xy = [(p[1], p[2]) for p in pts]
     for i in range(2, len(pts)):
-        if not (kinds[i] == kinds[i - 1] == kinds[i - 2] == "stitch") or tie[i] or tie[i - 1] or tie[i - 2]:
+        # A triangle's own stitches end at its second and third points; one whose first point
+        # ends a tie-in is the satin's first after it (#526: X's, Y's and y's start edges).
+        if not (kinds[i] == kinds[i - 1] == kinds[i - 2] == "stitch") or tie[i] or tie[i - 1]:
             continue
         a, b, c = xy[i - 2], xy[i - 1], xy[i]
         if math.dist(a, b) <= LONGEST and math.dist(b, c) <= LONGEST:
@@ -296,6 +302,12 @@ def self_test():
     m = measure(tri, [([(0.0, 2.0), (10.0, 2.0)], [4.0, 0.0])], pts)
     if not (m["corner"] <= 0.2 and m["iou"] >= 0.95):
         fails.append(f"a satin into a point: {m}")
+    # A satin that starts with a tie-in at its first needle point still covers its end edge.
+    tied = ([("jump", 0.0, 0.0), ("stitch", 0.0, 0.0), ("stitch", 0.3, 0.0), ("stitch", 0.0, 0.0),
+             ("stitch", 0.3, 0.0), ("stitch", 0.0, 0.0)] + zigzag(0.0, 10.0, 0.0, 4.0, 0.6)[1:])
+    m = measure(rect, skel, tied)
+    if not (m["iou"] >= 0.95 and m["gap"] <= 0.3):
+        fails.append(f"a satin after its tie-in: {m}")
     # A T: the stem's end at the bar's centre line lies half the bar's width (2 mm) inside it,
     # the deepest join and the shortest at once.
     tee = [[(0.0, 0.0), (10.0, 0.0), (10.0, 4.0), (6.0, 4.0), (6.0, 12.0), (4.0, 12.0), (4.0, 4.0),
