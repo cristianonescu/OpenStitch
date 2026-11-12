@@ -1156,6 +1156,28 @@ fn inside(arms: &[Skeleton], j: usize, p: Vec2) -> f64 {
     best
 }
 
+/// `s`'s width (mm) at its centre line's nearest point to `p`.
+fn width_at(s: &Skeleton, p: Vec2) -> f64 {
+    let mut best = (f64::INFINITY, 0.0);
+    for (k, w) in s.points.windows(2).enumerate() {
+        let (a, b) = (w[0], w[1]);
+        let d = b - a;
+        let len2 = d.x * d.x + d.y * d.y;
+        let t = if len2 > 0.0 {
+            (((p.x - a.x) * d.x + (p.y - a.y) * d.y) / len2).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        let wa = s.widths.get(k).copied().unwrap_or(0.0);
+        let wb = s.widths.get(k + 1).copied().unwrap_or(wa);
+        let dist = p.distance(a + d * t);
+        if dist < best.0 {
+            best = (dist, wa + (wb - wa) * t);
+        }
+    }
+    best.1
+}
+
 /// An end of `s` (`last` or first): the end point, its width (mm) and its outward direction
 /// over its last half width or more; `None` for a degenerate column.
 fn end_of(s: &Skeleton, last: bool) -> Option<(Vec2, f64, Vec2)> {
@@ -1185,10 +1207,11 @@ fn end_of(s: &Skeleton, last: bool) -> Option<(Vec2, f64, Vec2)> {
 
 /// A column end that joins another column runs on until both its edges, not only its centre,
 /// lie `overlap` (0.1 mm) inside that column: an end square to its own column meeting another
-/// at a slant (X's arms, Y's V, a ring's quarters meeting on a curve) left a wedge unsewn on
-/// one side of the join, between the end's last crossing and the other column's edge (#526).
-/// It runs on up to one width, staying [`END_INSET`] inside the outline; where both edges
-/// cannot get in (the other column is narrower), to where its centre lies deepest in it.
+/// on a curve or at a slant (a ring's quarter joining its thinner main) was only centre-deep
+/// and left the outline beside the join unsewn (#526).
+/// It runs on up to one width and half the joined column's, staying [`END_INSET`] inside the
+/// outline; where both edges cannot get in (the other column is narrower), to where its centre
+/// lies deepest in it.
 fn reach_into_joins(
     mut arms: Vec<Skeleton>,
     edges: &[(Vec2, Vec2)],
@@ -1217,7 +1240,9 @@ fn reach_into_joins(
                 continue;
             }
             let room = ray(end, dir, edges).map_or(0.0, |t| t - END_INSET);
-            let most = (w * 10.0).min(room);
+            // At most half the joined column's width there, so two satins are not stacked
+            // deeper than the join needs (#957).
+            let most = (w * 10.0).min(room).min(width_at(&arms[j], end) * 5.0);
             // The first run that brings both edges in; failing that (a column narrower than
             // this end, a ring's thin quarter), the run that takes the centre deepest in.
             let step = 0.5;
