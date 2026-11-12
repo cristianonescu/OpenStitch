@@ -172,6 +172,57 @@ fn auto_punch_open_stitch_mode_works_at_800_pixels() {
 }
 
 #[test]
+fn automatic_colours_keep_a_small_distinct_patch_in_openstitch_mode() {
+    // #962, #972: `colors: 0` counts the image's colours. A brown square of 0.39 % of the
+    // pixels (g02's basket brown, chroma about 35) is under the 0.5 % share both modes count;
+    // OpenStitch mode also gives such a small colour its own thread when it is far from every
+    // larger one and drawn as a solid patch. PE-DESIGN-compatible mode keeps PE-DESIGN's count.
+    let dir = temp_dir();
+    let img = Raster::from_fn(400, 400, |x, y| {
+        if (300..325).contains(&x) && (300..325).contains(&y) {
+            [142, 91, 47, 255]
+        } else if x < 200 {
+            [30, 60, 200, 255]
+        } else if y < 120 {
+            [229, 76, 44, 255]
+        } else {
+            [255, 255, 255, 255]
+        }
+    })
+    .expect("size");
+    std::fs::write(dir.join("patch.png"), img.encode_png().expect("png")).expect("write");
+    let mut s = Session::new(&dir);
+    let mut colours = |mode: &str| {
+        run(&mut s, "design.new", json!({"width": 110, "height": 110}));
+        let r = run(
+            &mut s,
+            "digitize.autoPunch",
+            json!({"path": "patch.png", "width": 100, "colors": 0, "compatMode": mode}),
+        );
+        r["colors"]
+            .as_array()
+            .expect("colors")
+            .iter()
+            .map(|c| c.as_str().expect("hex").to_string())
+            .collect::<Vec<_>>()
+    };
+    let (pe, os) = (colours("peDesign"), colours("openStitch"));
+    assert_eq!(
+        os.len(),
+        pe.len() + 1,
+        "PE-compatible {pe:?}, OpenStitch {os:?}"
+    );
+    // The extra thread is a brown: red above green above blue, and dark.
+    let brown = |h: &str| {
+        let v = |i: usize| u8::from_str_radix(&h[i..i + 2], 16).expect("hex");
+        let (r, g, b) = (v(1), v(3), v(5));
+        r > g && g > b && r < 210
+    };
+    assert!(os.iter().any(|h| brown(h)), "{os:?}");
+    assert!(!pe.iter().any(|h| brown(h)), "{pe:?}");
+}
+
+#[test]
 fn design_center_stages() {
     let dir = temp_dir();
     write_sample(&dir);
