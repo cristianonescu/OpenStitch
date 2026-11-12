@@ -5215,3 +5215,42 @@ fn a_section_joining_others_is_sewn_after_them() {
         "{n_hidden} against {n_inside} stitches"
     );
 }
+
+/// #469: a ring (a hoop round a hole) sewn in horizontal rows has four sections that touch in a
+/// ring: the top, both sides and the bottom. None joins the others, and going round sews them
+/// with the least travel, so Inside, hidden under later sections sews it exactly as Inside.
+#[test]
+fn a_ring_of_sections_keeps_its_order() {
+    let circle = |r: f64| {
+        Contour::new(
+            (0..72)
+                .map(|i| {
+                    let a = std::f64::consts::TAU * f64::from(i) / 72.0;
+                    v2(
+                        300.0 + r * crate::fmath::Det::dcos(a),
+                        300.0 + r * crate::fmath::Det::dsin(a),
+                    )
+                })
+                .collect(),
+            true,
+        )
+    };
+    let (outer, hole) = (circle(300.0), circle(150.0));
+    let sewn = |path: RunningStitchPath| {
+        let mut r = region(RegionType::Fill);
+        r.angle = 0.0;
+        r.underlay = false;
+        r.density = 4.5;
+        r.stitch_length = 6.5;
+        r.running_stitch_path = Some(path);
+        crate::region::layers(
+            std::slice::from_ref(&outer),
+            &r,
+            std::slice::from_ref(&hole),
+        )
+    };
+    assert_eq!(
+        sewn(RunningStitchPath::InsideHidden),
+        sewn(RunningStitchPath::Inside)
+    );
+}

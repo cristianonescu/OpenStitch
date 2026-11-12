@@ -451,6 +451,8 @@ pub(crate) fn edge_to_edge_rows(
     edge_rows_travel(contours, p, holes, stagger, entry, sloped, false, false)
 }
 
+// The fill entry points pass their few switches straight through (#469 added `hidden`).
+#[allow(clippy::too_many_arguments)]
 fn edge_rows_travel(
     contours: &[Contour],
     p: &RegionParams,
