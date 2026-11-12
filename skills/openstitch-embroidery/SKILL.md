@@ -82,8 +82,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   `"straight"` turns it off. The rows never cross. PES 0110 refuses it, save PES version 6.
   From a picture: `digitize.autoPunch {compatMode: "openStitch", flowFill: true}` gives each
   fill a grid field that follows the picture's own strokes (fur, petals, hair); PE-DESIGN mode
-  refuses it. `splitBranches: true` (OpenStitch mode) sews a branching satin stroke (a Y, K,
-  star or forked line) as one column per arm instead of one satin across it.
+  refuses it. OpenStitch mode sews a long branching satin stroke (a Y, K or forked line) as one
+  column per arm instead of one satin across it (`splitBranches`, on by default; `false` keeps
+  one satin).
 - Colours: `"#rrggbb"`, a Brother thread name (`"Black"`, `"White"`, `"Red"`, `"Blue"`,
   `"Prussian Blue"`, `"Deep Gold"`, `"Leaf Green"`, ...; case-insensitive), or a Brother chart
   number 1-64. A name that is not in the chart is refused; use `#rrggbb` when unsure.
