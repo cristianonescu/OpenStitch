@@ -1433,7 +1433,7 @@ impl GlyphStrokes {
     /// the stretch both sides cover. `[left, right]` per stroke; empty sides where the stroke
     /// has no outline of its own.
     pub fn sides(&self, contours: &[Contour]) -> Vec<[Vec<Vec2>; 2]> {
-        self.sides_along(contours)
+        self.sides_along(contours, Pairing::Progress)
             .into_iter()
             .map(|sides| sides.map(|v| v.into_iter().map(|(_, p)| p).collect()))
             .collect()
@@ -1450,7 +1450,10 @@ impl GlyphStrokes {
 
     /// [`Self::sides`] with each point's place along the stroke: the arc length of its
     /// projection onto the centre line (0.1 mm), non-decreasing along each side.
-    fn sides_along(&self, contours: &[Contour]) -> Vec<[Vec<(f64, Vec2)>; 2]> {
+    /// Fill text (`Pairing::Length`) keeps the sides its rows were measured with (#376): the
+    /// end-cut pairing of satin (#446) is not applied to it.
+    fn sides_along(&self, contours: &[Contour], pairing: Pairing) -> Vec<[Vec<(f64, Vec2)>; 2]> {
+        let satin = pairing == Pairing::Progress;
         let mut sides: Vec<[Vec<(f64, f64, Vec2)>; 2]> = self
             .strokes
             .iter()
@@ -1534,7 +1537,8 @@ impl GlyphStrokes {
                 let run_on_arm = st.centre.len() >= 2 && {
                     let d = st.centre[st.centre.len() - 1] - st.centre[0];
                     let slanted = d.x.abs() > STEM_LEAN.to_radians().dsin() * d.length();
-                    slanted
+                    satin
+                        && slanted
                         && stops
                             .iter()
                             .any(|&s| project(&st.centre, false, s).1 <= 0.5 * limit)
@@ -1611,7 +1615,7 @@ impl GlyphStrokes {
                 // stopped against a run-on arm keeps each side to where it meets that arm, so
                 // the last crossing lies along the stop line, as PE-DESIGN's do (V's right arm
                 // turns to 60 degrees there, along the left arm's inner edge, #446).
-                let against = |e: usize| st.ends[e] == StrokeEnd::Against;
+                let against = |e: usize| satin && st.ends[e] == StrokeEnd::Against;
                 let keep = |v: Vec<(f64, f64, Vec2)>| -> Vec<(f64, Vec2)> {
                     let n = v.len();
                     v.into_iter()
@@ -1649,7 +1653,7 @@ impl GlyphStrokes {
         spacing: f64,
         pairing: Pairing,
     ) -> Vec<Vec<[Vec2; 2]>> {
-        self.sides_along(contours)
+        self.sides_along(contours, pairing)
             .into_iter()
             .zip(&self.strokes)
             .map(|([l, r], st)| {
