@@ -1671,11 +1671,12 @@ pub enum RunningStitchPath {
     AlongOutline,
     /// On the outline.
     OnOutline,
-    /// Beyond PE-DESIGN (#469): Inside, with the region's sections sewn in an order where a
-    /// section joining others (a stem between leaves, a body between head and tail) comes after
-    /// them, so the travel between them runs where thread is still to be sewn and is hidden
-    /// under it. Auto Punch sets it on its fills in OpenStitch mode. PES 0110 writes it as
-    /// Inside.
+    /// Beyond PE-DESIGN (#469): Inside, with the region's sections sewn in whichever of a few
+    /// orders lays the least travel on thread already sewn, without more trims than Inside: the
+    /// Inside order, a section joining others (a stem between leaves, a body between head and
+    /// tail) after them, or a ring of sections gone round with its branches first. The travel
+    /// then runs where thread is still to be sewn and is hidden under it. Auto Punch sets it on
+    /// its fills in OpenStitch mode. PES 0110 writes it as Inside.
     InsideHidden,
 }
 
@@ -2087,12 +2088,13 @@ pub struct RegionSewing {
     /// the line (variable-direction satin). Takes precedence over the other direction options.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skeleton: Option<crate::skeleton::Skeleton>,
-    /// A column from `object.deriveSkeleton` with `branches` (#526, beyond PE-DESIGN): which
+    /// A column from `object.deriveSkeleton` with `branches` (#526, beyond PE-DESIGN), and which
     /// ends of `skeleton` (first, last) lie on the shape's outline. Such a column is sewn within
-    /// its outline (the part of the shape it covers), and past such an end its crossings run on,
-    /// square to the column and cut by the outline, into the end edge's corners. Off elsewhere.
-    #[serde(default, skip_serializing_if = "is_default")]
-    pub outline_ends: [bool; 2],
+    /// its outline (the part of the shape it covers, reaching the shape's edges), and past an
+    /// end on the outline its crossings run on, square to the column and cut by the outline,
+    /// into the end edge's corners. `None` elsewhere: other skeleton satins are sewn as before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outline_ends: Option<[bool; 2]>,
     /// Satin corner styles, short stitches and compensation per side (#520-#522, beyond
     /// PE-DESIGN): Manual Punch satin columns. Off by default.
     #[serde(default, skip_serializing_if = "is_default")]
@@ -2251,7 +2253,7 @@ impl RegionSewing {
             direction_lines: Vec::new(),
             curved_lines: false,
             skeleton: None,
-            outline_ends: [false; 2],
+            outline_ends: None,
             satin_shaping: Default::default(),
             underlay_auto: Default::default(),
             underlay2: None,

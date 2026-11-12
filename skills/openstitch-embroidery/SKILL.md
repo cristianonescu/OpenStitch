@@ -69,8 +69,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
 - Wave fill (beyond PE-DESIGN): `object.setRegion` on a fill with `waveHeight` (crest to trough,
   mm, 0 = off) and `waveLength` (mm, default 16). PES 0110 refuses it; save PES version 6.
 - Travel hidden under later parts (beyond PE-DESIGN): `object.setRegion` on a fill with
-  `runningStitchPath: "insideHidden"` sews a part that joins others (a stem between leaves)
-  after them, so the travel between them is covered; a ring of parts sews as `inside`. Auto
+  `runningStitchPath: "insideHidden"` sews its parts in the order that leaves the least travel
+  on thread already sewn (a stem between leaves after them; a ring gone round, branches
+  first), never with more trims than `inside`. Auto
   Punch sets it on its fills in OpenStitch mode. PES 0110 saves it as `inside` (reading the
   file back gives `inside`).
 - Flow fill (beyond PE-DESIGN): `object.setRegion` on a fill with `flowField`: `"radial"` (rows
@@ -168,9 +169,11 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    pointed ends) and `slant` (-60 to 60 degrees). A Y, star or stick figure drawn as one
    filled shape: `object.deriveSkeleton {id, branches: true, joinOverlap: 0.3}` makes a
    grouped satin column per arm (the shape stays hidden); a letter's straight stem (K, R)
-   stays one straight column through its junction. A column that ends on the shape's edge is
-   sewn up to that edge and into its corners, never past it; its region then shows
-   `outlineEnds` (set by the command; `object.setRegion` can't set it). Check `warnings` for columns over 10 mm
+   stays one straight column through its junction. Every column is sewn out to the shape's
+   edges and never past them, and a column that ends on the edge also into that end's corners;
+   each column's region shows `outlineEnds` ([first end, last end] on the edge, e.g. `[true,
+   true]` for a stem, `[false, true]` for an arm from a junction to the edge), set by the
+   command (`object.setRegion` can't set it). Check `warnings` for columns over 10 mm
    and look at the junctions with `view_render`.
    Ripples, echoes and spirals from one outline (beyond PE-DESIGN): `object.setLine {type:
    ripple, strands, target: [x, y]}` (a closed line spirals in to the target as one run; an

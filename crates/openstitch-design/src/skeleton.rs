@@ -258,7 +258,7 @@ pub fn satin_to_outline(
     pull: f64,
     ends: [bool; 2],
 ) -> Run {
-    let mut rungs = rungs_within(s, contours, spacing, pull);
+    let mut rungs = rungs_reaching(s, contours, spacing, pull, None, BRANCH_WITHIN_REACH);
     let Some(c) = Centre::new(s) else {
         return Vec::new();
     };
@@ -471,6 +471,24 @@ pub fn rungs_within_from(
     pull: f64,
     beyond: Option<f64>,
 ) -> Vec<[Vec2; 2]> {
+    rungs_reaching(s, contours, spacing, pull, beyond, WITHIN_REACH)
+}
+
+/// How far past the skeleton's half width (0.1 mm) [`rungs_within`] reaches for the outline.
+const WITHIN_REACH: f64 = 5.0;
+/// ... and a branch column's ([`satin_to_outline`], #526): a derived centre line can lie off
+/// the stroke's middle (A's bar), and its rungs fell short of one edge.
+const BRANCH_WITHIN_REACH: f64 = 15.0;
+
+/// [`rungs_within_from`] with the rungs reaching up to `cap` (0.1 mm) past the half width.
+fn rungs_reaching(
+    s: &Skeleton,
+    contours: &[Contour],
+    spacing: f64,
+    pull: f64,
+    beyond: Option<f64>,
+    cap: f64,
+) -> Vec<[Vec2; 2]> {
     let Some(c) = Centre::new(s) else {
         return Vec::new();
     };
@@ -494,7 +512,7 @@ pub fn rungs_within_from(
         }
         let reach = |end: Vec2| {
             let dir = (end - centre) * (1.0 / half);
-            let d = ray(centre, dir, &edges).map_or(half, |d| d.min(half + 5.0));
+            let d = ray(centre, dir, &edges).map_or(half, |d| d.min(half + cap));
             centre + dir * (d + pull).max(0.0)
         };
         [reach(l), reach(r)]

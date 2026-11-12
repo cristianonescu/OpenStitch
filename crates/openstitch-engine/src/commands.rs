@@ -1434,7 +1434,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "runningStitchPath",
                     "inside|alongOutline|onOutline|insideHidden",
-                    "Fill and satin: running stitches between separate parts, and for fill also the travel from the start point to the first row and back to the end point (inside: straight across, as PE-DESIGN; alongOutline / onOutline: along the edge, where open rows do not show it; insideHidden, beyond PE-DESIGN (#469): inside, with a region's sections sewn in an order where a section joining others, such as a stem between leaves, comes after them, so the travel between them is hidden under thread sewn later; Auto Punch sets it on its fills in OpenStitch mode; PES 0110 writes it as inside). Default inside; not with Auto direction, a feathered edge or text; inside and insideHidden not with gradation",
+                    "Fill and satin: running stitches between separate parts, and for fill also the travel from the start point to the first row and back to the end point (inside: straight across, as PE-DESIGN; alongOutline / onOutline: along the edge, where open rows do not show it; insideHidden, beyond PE-DESIGN (#469): inside, with a region's sections sewn in whichever of a few orders lays the least travel on thread already sewn, without more trims than inside: the inside order, sections joining others (a stem between leaves) after them, or a ring of sections gone round with its branches first; Auto Punch sets it on its fills in OpenStitch mode; PES 0110 writes it as inside). Default inside; not with Auto direction, a feathered edge or text; inside and insideHidden not with gradation",
                 ),
                 opt(
                     "travel",
