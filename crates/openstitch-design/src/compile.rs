@@ -1237,9 +1237,7 @@ fn elements(
                     // are a blend or tartan colour's (#901): its join splits them only where no
                     // hidden way links them, and a straight stitch across the gap (up to the
                     // connect distance, 4 mm) would show over the other colours.
-                    pieces: (stroked
-                        || ((region.gradient.is_some() || region.tartan.is_some())
-                            && std::env::var("OS901_CONNECT").is_err()))
+                    pieces: (stroked || region.gradient.is_some() || region.tartan.is_some())
                         && k + 1 == n,
                     // The move into a letter from the one before (#465).
                     across: (text && k == 0).then_some(LETTER_ACROSS),

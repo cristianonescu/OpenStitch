@@ -858,13 +858,13 @@ pub fn join_within(
     // links taken shortest first while both ends are free and no loop forms: as few runs, and so
     // as few trims, as those links allow. A run may be sewn the other way round.
     let n = runs.len();
-    if n < 2 || std::env::var("OS901_NOCHAIN").is_ok() {
+    if n < 2 {
         return runs;
     }
     // Node 2i is run i's first point, 2i + 1 its last.
     let at = |node: usize| -> Vec2 {
         let r = &runs[node / 2];
-        if node % 2 == 0 {
+        if node.is_multiple_of(2) {
             r[0]
         } else {
             *r.last().expect("non-empty run")
@@ -880,7 +880,7 @@ pub fn join_within(
         near.sort_by(|x, y| x.0.total_cmp(&y.0).then(x.1.cmp(&y.1)));
         // Leaving run a / 2 at node a: it was sewn ending there.
         let mut from = runs[a / 2].clone();
-        if a % 2 == 0 {
+        if a.is_multiple_of(2) {
             from.reverse();
         }
         for &(_, b) in near.iter().take(CHAIN_TRIES) {
@@ -927,7 +927,11 @@ pub fn join_within(
         if entered[2 * i] || entered[2 * i + 1] {
             return None;
         }
-        Some(if next[2 * i].is_some() { 2 * i + 1 } else { 2 * i })
+        Some(if next[2 * i].is_some() {
+            2 * i + 1
+        } else {
+            2 * i
+        })
     };
     // Chains in the runs' own order of their first runs, so the first run stays first.
     for i in 0..n {
@@ -939,7 +943,7 @@ pub fn join_within(
             let r = node / 2;
             sewn[r] = true;
             let mut run = runs[r].clone();
-            if node % 2 == 1 {
+            if !node.is_multiple_of(2) {
                 run.reverse();
             }
             if chain.is_empty() {

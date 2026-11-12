@@ -3508,6 +3508,28 @@ Still open on #446:
 - A's feet and V's top ends fan.
 - N's corner block.
 
+### No visible connectors in blends and tartan; #914's figures corrected, 2026-11-12 (#901)
+
+#914 measured the longest exposed travel only on stretches of two or more stitches. The design
+compiler also sews a single straight stitch across a gap of up to 4 mm between one object's
+runs (its connect distance), and in a blend those stitches crossed the other colours: with
+single stitches counted, main shows 3.2 mm across the rows on the radial noise blend of
+`blend_travel_never_runs_far_across_the_rows` (now counting them; it fails on main and passes
+here); #914's 1.9 mm for the kit swatch left those stitches out. The owner chose no visible connectors:
+a blend or tartan colour's runs are its separate pieces, so the compiler trims between them
+instead of sewing that stitch, and `join_within` first chains the runs end to end wherever a
+hidden way (at most 2 mm showing) links one run's end to another's (shortest links first, each
+run entered and left once, no loops).
+
+| kit swatch | trims | stitches | sewing |
+|---|---|---|---|
+| `fills/gradients` (three small dithered blends) | 58 → 162 | 9,054 → 9,685 | 14.3 → 20.4 min |
+| `fills/tartan` | 6 (unchanged) | 3,514 | 4.7 min |
+
+A dithered blend breaks each colour into many small pieces, hence the trims; `rows` and `bands`
+trim far less. Fewer trims with the same look needs a dither that keeps a colour's pieces
+connected (#951, Future).
+
 ### Blend travel hidden before trimming, and tartan too, 2026-11-12 (#901)
 
 Beyond PE-DESIGN, so there is no reference. #891 kept each blend colour's travel to 2 mm, but at
