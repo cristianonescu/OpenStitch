@@ -1,0 +1,97 @@
+{
+  "schema": "openstitch-compat/1",
+  "id": "stamp-plain-square-baseline",
+  "area": "stitches",
+  "title": "The square alone",
+  "description": "The 42 mm square with PE-DESIGN's default Fill and Zigzag line: the baseline the stamp captures are compared with.",
+  "covers": {
+    "featureMatrix": [
+      {
+        "area": "Editing",
+        "feature": "Embossing/engraving"
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "kind": "measured",
+      "note": "PE-DESIGN 11.50 reference stitches/stamp-plain-square-baseline.pes (round 10, #471)"
+    }
+  ],
+  "script": [
+    {
+      "command": "design.new",
+      "params": {
+        "width": 100,
+        "height": 100
+      }
+    },
+    {
+      "command": "shape.rectangle",
+      "params": {
+        "x": 29,
+        "y": 29,
+        "width": 42,
+        "height": 42,
+        "fill": "Red"
+      }
+    },
+    {
+      "command": "object.setRegion",
+      "params": {
+        "ids": [
+          1
+        ],
+        "type": "fill",
+        "density": 4.5,
+        "angle": 45,
+        "underlay": true
+      }
+    },
+    {
+      "command": "object.setLine",
+      "params": {
+        "ids": [
+          1
+        ],
+        "type": "zigzag",
+        "width": 2.0,
+        "density": 4.5,
+        "color": "Blue"
+      }
+    }
+  ],
+  "exports": [
+    {
+      "path": "a.pes"
+    }
+  ],
+  "references": [
+    {
+      "id": "pe-design",
+      "file": "stitches/stamp-plain-square-baseline.pes",
+      "make": "PE-DESIGN 11.50, 180 x 130 mm page, App menu > New. Home > Shapes > rectangle dragged to a 42 x 42 mm square with PE's defaults (line Zigzag Stitch 2.0 mm, 4.5 line/mm, Half Stitch on; region Fill Stitch 4.5 line/mm, 45 degrees, under sewing on). Save with Save As as PES (PE-DESIGN 11's default PES version) under the file name given, and record it in compat/reference/MANIFEST.json."
+    }
+  ],
+  "measurements": [
+    {
+      "id": "stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "a.pes"
+      },
+      "expected": {
+        "min": 3200,
+        "max": 3700
+      },
+      "evidence": "3,432 stitches at #471 (PE-DESIGN 3,251: its fill stops 1 mm inside the 2 mm zigzag line, 40 x 40 mm, OpenStitch's reaches the outline)",
+      "reference": {
+        "tolerance": {
+          "percent": 8
+        }
+      }
+    }
+  ]
+}
