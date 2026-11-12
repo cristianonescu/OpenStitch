@@ -3856,6 +3856,22 @@ has 2,210. Along a U-shaped curve the inside of the U was left unsewn, by plain 
 too; the rows there are sewn since #927 (below). Motif fill keeps the chord warp. Test:
 `programmable_fill_along_a_curve_keeps_to_the_curves_offsets`.
 
+Re-measured 2026-11-12 with the U-shaped (C) curve of #927 added. All three rows come from one
+script, through `stitchtool exec` with programmable fill's defaults (2.5 rows/mm), with #927's
+and #947's row fixes in. The figures differ a little from the table above, which was measured
+another way:
+- coverage here counts cells 1 mm in from the square's edges;
+- R here is taken against the curve sampled and carried straight on past its ends.
+
+| | stitches | crossings | thread per 1 mm cell, p10 / median | R |
+|---|---|---|---|---|
+| straight (no curve) | 1,330 | 2,188 | 2.38 / 2.98 | – |
+| S curve | 1,837 | 2,040 | 2.45 / 3.04 | 0.69 |
+| C (U) curve | 1,944 | **1,435** | 2.37 / 3.27 | **0.68** |
+
+Along the C, R is well above #923's 0.4, and the crossings stay below the straight pattern's
+(#923's targets).
+
 ### Rows inside a U-shaped direction curve, 2026-11-12 (#927)
 
 A fill along a direction curve that bulges deep into its shape (a 40 × 38 mm square with a curve
