@@ -3376,6 +3376,21 @@ No travel is sewn outside the letters (`small_lettering_shows_no_travel_outside_
 compat 476/476. Still open on #446: N's corner spike (the diagonal's rungs fan into the corner,
 where PE-DESIGN sews a small corner block), M at 8 mm, A's and V's slanted feet.
 
+### Design Center: small rings sew round, 2026-11-12 (#469)
+
+OpenStitch mode only. A ring of the drawing traces as a few uneven points, and the line's points
+were thinned to at least 1 mm apart, so a 2 mm ring sewed as a square and a 6 mm one as 13 uneven
+sides. A small closed line close to a circle (`center::small_circle`: a least-squares fit, every
+point within a fifth of the radius, at most 30 mm long) now sews each pass as an even polygon
+round that circle, as many sides of at least 1 mm as fit (five at least), starting where the
+traced line started; other small round loops are sampled evenly along their curve. Rings of
+2–6 mm (0.4 mm stroke): sides 1.0–1.07 mm, worst sag inside the fitted circle 0.11–0.24 mm (was
+0.11–0.38 mm). Every ring already started and ended on its line (no stub inside; the only point
+inside is the closing lock on the last side). PE-compatible mode is unchanged (it sews the traced
+line at its run pitch, 11–26 stitches a ring); there is no PE-DESIGN capture of Design Center on
+small circles to change it against. Kit `S-design-center-butterfly-openstitch`: 4,231 → 4,482
+stitches, 66 trims, 8.7 → 9.0 min.
+
 ### Embossing and engraving as strong as PE-DESIGN's, 2026-11-12 (#471)
 
 PE-DESIGN 11.50's round-10 captures (`471-*.pes` in the owner's notes; the plain square is
