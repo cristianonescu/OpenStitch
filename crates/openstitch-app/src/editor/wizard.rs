@@ -174,7 +174,7 @@ pub struct ImageWizard {
     /// #538; off by default).
     pub flow_fill: bool,
     /// Auto Punch, OpenStitch mode: a branching satin stroke as one column per arm
-    /// (`splitBranches`, #702; off by default).
+    /// (`splitBranches`, #702; on by default, as in the engine).
     pub split_branches: bool,
     /// Auto Punch, OpenStitch mode: a purpose preset (`preset`, #489); `None` is none.
     pub preset: Option<&'static str>,
@@ -252,7 +252,7 @@ impl Default for ImageWizard {
             marking: false,
             vary_angles: false,
             flow_fill: false,
-            split_branches: false,
+            split_branches: true,
             preset: None,
             plan: None,
             overrides: std::collections::BTreeMap::new(),
@@ -432,8 +432,8 @@ impl ImageWizard {
                 if self.open_stitch && self.flow_fill {
                     p.insert("flowFill".into(), json!(true));
                 }
-                if self.open_stitch && self.split_branches {
-                    p.insert("splitBranches".into(), json!(true));
+                if self.open_stitch && !self.split_branches {
+                    p.insert("splitBranches".into(), json!(false));
                 }
                 if let (true, Some(preset)) = (self.open_stitch, self.preset) {
                     p.insert("preset".into(), json!(preset));
@@ -1028,16 +1028,27 @@ mod tests {
                 .get("flowFill")
                 .is_none()
         );
-        // OpenStitch mode: branching strokes split into columns only when chosen, never in PE
-        // mode (#702).
+        // OpenStitch mode: branching strokes split into columns by default (the engine's), the
+        // box turned off sends false; never in PE mode (#702).
         let split = ImageWizard {
             open_stitch: true,
-            split_branches: true,
+            split_branches: false,
             ..base.clone()
         };
         assert_eq!(
             split.request().expect("request").params["splitBranches"],
-            true
+            false
+        );
+        assert!(
+            ImageWizard {
+                split_branches: true,
+                ..split.clone()
+            }
+            .request()
+            .expect("request")
+            .params
+            .get("splitBranches")
+            .is_none()
         );
         let pe_split = ImageWizard {
             open_stitch: false,

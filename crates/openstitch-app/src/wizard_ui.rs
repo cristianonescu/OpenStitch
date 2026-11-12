@@ -698,8 +698,9 @@ fn open_stitch_rows(ui: &mut egui::Ui, w: &mut ImageWizard) {
             ui.label("");
             ui.checkbox(&mut w.split_branches, t("ui-split-branching-strokes"))
                 .on_hover_text(
-                    "A satin stroke that branches (a Y, a K, a star, a forked line) is sewn as one \
-                     column per arm, overlapping where they meet, instead of one satin across it.",
+                    "A satin stroke that branches (a Y, a K, a forked line) is sewn as one column \
+                     per arm, overlapping where they meet, instead of one satin across it. Only \
+                     long strokes the columns cover closely; on by default.",
                 );
             ui.end_row();
             ui.label("");

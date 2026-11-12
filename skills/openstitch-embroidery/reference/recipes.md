@@ -235,9 +235,11 @@ branches is hidden under thread sewn later; PE-DESIGN-compatible mode sews as PE
 colour sewn after it, so no fabric shows along seams; it adds stitches, so leave it off for
 thin lettering.
 
-`splitBranches: true` (OpenStitch mode) sews a branching satin stroke, such as a traced Y, K
-or star, as one satin column per arm, overlapping 0.3 mm where they meet. Use it for logos and
-lettering traced from pictures; strokes without branches are sewn as before.
+In OpenStitch mode, a branching satin stroke, such as a traced Y or K, is sewn as one satin
+column per arm, overlapping 0.3 mm where they meet (`splitBranches`, on by default). Only a
+stroke whose columns meet at a junction, at least 8 widths long and covered closely by them,
+is split (a ring stays one satin), so painted regions that
+branch keep one fill or satin. Set `splitBranches: false` to sew every stroke as one.
 
 `flowFill: true` (OpenStitch mode) curves each fill's rows along the picture's own strokes,
 for fur, feathers, petals or hair; flat shapes keep straight rows (only strokes inside a
