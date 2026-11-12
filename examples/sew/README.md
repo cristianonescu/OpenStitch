@@ -225,6 +225,9 @@ writes; the stitch engine's changes make them stale.
 Build both binaries after every source change. The previews come from the `openstitch` app, which
 sews each design again, so an app older than the change would show the old stitches. `sew_kit.py`
 refuses to run with a binary older than any source file it was built from (#896).
+Each preview is drawn at 16 px per mm in tiles (`--zoom` and `--center`) and reduced: at the
+zoom that fits the page, the rows of a dense fill beat with the screen pixels into stripes that
+are not on the fabric (#893).
 
 ## The designs
 
@@ -435,7 +438,7 @@ Threads, in sewing order: 405 Blue, 001 White, 800 Red, 208 Orange, 205 Yellow, 
 
 [`fills/angle-lines.pes`](fills/angle-lines.pes) · 100 × 100 mm hoop · 49.8 × 72.8 mm · 4,631 stitches · 1 trim · about 5.8 min
 
-An L whose rows turn round its corner between three angle lines, as one object with no seam.
+An L whose rows turn round its corner between three angle lines, as one object with no seam. The lighter band along the inside of the bend in the picture is a drawing limit of the Realistic view, not sparse stitching: the rows there are the densest in the design (#921).
 
 <img src="previews/angle-lines.png" height="180" alt="Realistic view of fills/angle-lines.pes">
 
