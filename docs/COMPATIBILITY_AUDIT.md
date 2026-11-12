@@ -3376,6 +3376,37 @@ No travel is sewn outside the letters (`small_lettering_shows_no_travel_outside_
 compat 476/476. Still open on #446: N's corner spike (the diagonal's rungs fan into the corner,
 where PE-DESIGN sews a small corner block), M at 8 mm, A's and V's slanted feet.
 
+### Embossing and engraving as strong as PE-DESIGN's, 2026-11-12 (#471)
+
+PE-DESIGN 11.50's round-10 captures (`471-*.pes` in the owner's notes; the plain square is
+`compat/reference/stitches/stamp-plain-square-baseline.pes`, the three stamped ones wait for PES
+0110 import of a shape that carries a stamp, #959): a 42 mm square
+with its default Fill (4.5 lines/mm, 45°, under sewing) and 2 mm Zigzag line, and a 16.5 × 16 mm
+circle in the middle converted with Stamp/Emboss > Convert from Outline. OpenStitch builds the
+same with `shape.emboss`. Inside the circle against outside (1 mm in from the circle and 3 mm in
+from the square's edge), fill block only:
+
+| effect | PE-DESIGN | OpenStitch before | OpenStitch now |
+|---|---|---|---|
+| none | 4.0 mm stitches, 125 / 128 needle points per cm² | 4.0 mm, 124 / 128 | same |
+| engraved region | 1.9 mm, 262 per cm² | 1.0 mm, 480 | 1.9 mm, 262 (2 mm steps) |
+| embossed region | 56 per cm² (13 within 6 mm of the centre: under sewing only); whole stitches 12–14.3 mm, a few short ends | 110 per cm²; split evenly, 7–8 mm | 26 per cm² (11 within 6 mm); whole stitches up to 14.5 mm, the rest last |
+| engraved line | +118 needle points on a ring about 1 mm inside the circle | +142 on the circle | same |
+
+The engraved region and the emboss were the weak ones: an engraved region twice as dense as
+PE-DESIGN's, and an embossed one split into 7 mm stitches, so the raised look hardly showed
+(the full-size review's "barely visible"). Both now use stamp constants of their own
+(`STAMP_ENGRAVE_STEP` 2 mm, `STAMP_EMBOSS_MAX` 14.5 mm), and the compiler no longer splits an
+embossed stamp's stitches at its 12 mm maximum; `tools/sew_check.py` warns on them as it does on
+PE-DESIGN's own 14.3 mm. The embossed band right inside the circle keeps more needle points in
+PE-DESIGN's file, where its edge lies about 1 mm further in (#956). Left: the engraved line's ring sits on
+the tool's outline, where PE-DESIGN's lies about 1 mm inside, at the inner edge of the tool
+shape's 2 mm line (one capture cannot tell whether that offset follows the line width, #956);
+PE-DESIGN's fill stops at the inner edge of its zigzag line (40 × 40 mm), OpenStitch's reaches
+the outline (42 mm, #955); programmable-fill patterns' own engraved and embossed areas keep 1 mm and
+7 mm, with no reference yet. Kit: `fills/holes-and-emboss` 10,733 → 10,112 stitches, 13.7 →
+12.9 min, trims 5.
+
 ### Photo Stitch 1 trims rather than cross a face in sight, 2026-11-12 (#915)
 
 PE-DESIGN-compatible Photo Stitch 1 travelled in sight to a colour's nearest unsewn run up to
@@ -3414,6 +3445,51 @@ Kit (regenerated with `sew_kit.py --only`), before → after: `M-photo1-portrait
 14 → 27 trims, 9,744 → 9,796 stitches, 12.9 → 13.6 min. The portrait's preview shows no long
 dark line across the face; the sunset's long dark lines across the sun and its reflection are
 gone, and short dark stretches stay in the upper right sky.
+
+### Photo Stitch 1's in-sight travel limited by contrast and along a chain, 2026-11-12 (#915)
+
+#936's rule let one in-sight travel show at most 8 mm. Two things still read as dark lines on
+the portrait's face:
+- several such travels end to end;
+- dark thread over the light skin within the 8 mm.
+
+The rule now, for PE-compatible mode only:
+- **Two sums along a chain.** It adds up what the thread's in-sight travels show since its last trim, hidden move, or run of its own at least 2 mm long (`PE_CHAIN_BREAK_MM`). Each sum has a limit:
+  - **12 mm in all** (`PE_TRAVEL_SHOWN_MM`; PE-DESIGN's own longest visible stretch on p01 is 12.5 mm);
+  - **nothing dark on light** (`PE_TRAVEL_DARK_SHOWN_MM` = 0): no travel over a colour, or the fabric, at least 0.3 lighter in luminance than the thread (`DARK_ON_LIGHT`), the test batch-production's measure uses.
+- **No trim or hidden move needed to end a chain.** Breaking it only there trimmed far more, for example the sunset at 90 mm at 3.2 per 1,000.
+
+Measured with batch-production's `photo915.py` (straight travel stretches of 3 mm or more across the rows; "showing" is where neither the thread nor a later one lays 70 % of a full cell). Main is #936's 8 mm rule:
+
+| photo | trims per 1,000, main → now | dark on light showing, mm | longest dark on light, mm | longest showing, any colour, mm |
+|---|---|---|---|---|
+| p01 portrait (PE-DESIGN 2.8) | 2.0 → **2.4** | 35 → **12** | 7.8 → **4.5** | 10.3 → 11.9 |
+| p03 | 2.3 → 2.6 | 13 → 0 | 5.6 → 0.2 | 12.5 → 12.6 |
+| p04 | 2.2 → 2.7 | 63 → 17 | 8.3 → 5.1 | 11.7 → 15.6 |
+| p06 sunset, 100 mm | 2.5 → 2.3 | 10 → 4 | 5.2 → 2.7 | 9.4 → 14.8 |
+| p06 sunset, 90 mm (PE-DESIGN 1.27) | 2.65 → 2.74 | 5 → 0 | 5.0 → 0 | 9.5 → 10.5 |
+| p10 | 1.2 → 2.2 | 55 → 35 | 6.9 → 4.1 | 10.0 → 11.3 |
+| p12 | 2.0 → 2.4 | 36 → 18 | 7.6 → 3.6 | 12.1 → 12.2 |
+
+The longest stretches showing in any colour are dark on dark or the same tone. The measure reads a few a little longer than 12 mm for two reasons:
+- **Coverage:** a cell a later thread owns counts as covered in the rule, but only when that thread lays 70 % of a full cell in the measure.
+- **Merged travels:** the measure joins travels on one straight line, even across a 2 mm run that breaks the chain.
+
+Likewise the dark on light it still finds (p01's 4.5 mm of dark grey on the face's gold) lies over cells the dithered grid gives to a later thread, so the rule sees it as covered.
+
+**Settings measured** ("all", "dark" and "break" in mm; p01's trims are the trim commands in the exported PES, which `image/photostitch1-p01-portrait-travel` counts, floor 19):
+
+| all / dark / break | p01 trims per 1,000 (PES trim commands) | sunset 90 mm per 1,000 | p01 dark on light, mm / longest | longest showing, mm | spec |
+|---|---|---|---|---|---|
+| 8 per travel (main, #936) | 2.0 | 2.65 | 35 / 7.8 | 9–12 | passes |
+| 12 / 4 / no break | 2.4 | 3.2 | 15 / 5.2 | 9–16 | – |
+| 20 / 4 / 2 | 1.1 | 1.5 | 22 / 5.2 | 15–22 | fails |
+| 16 / 3 / 2 | 1.6 | 2.1 | 18 / 5.2 | 13–21 | fails |
+| 12 / 3 / 2 | 1.6 (15) | 2.2 | 21 / 7.8 | 12–16 | fails (15 < 19) |
+| 20 / 0 / 2 | 2.4 | 2.5 | 12 / 4.5 | 13–22 | – |
+| **12 / 0 / 2 (taken)** | **2.4 (26)** | 2.74 | **12 / 4.5** | 10–16 | passes (PE-DESIGN 27) |
+
+Allowing any dark on light lets p01 trim less than the spec allows. PE-DESIGN trims more on the portrait (2.8 per 1,000) than on the sunset (1.27), and travel rules on our rows can't separate the two, so the sunset's 1.3–1.5 per 1,000 is left for a later step.
 
 ### PEC chart colours against every PE-DESIGN capture, 2026-11-12 (#915)
 

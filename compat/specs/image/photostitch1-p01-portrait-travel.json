@@ -3,7 +3,7 @@
   "id": "photostitch1-p01-portrait-travel",
   "area": "image",
   "title": "Photo Stitch 1 trims rather than travel across the portrait's face",
-  "description": "PE-compatible Photo Stitch 1 of examples/images/p01-portrait.jpg, long side 100 mm (67.2 x 100 mm), Fill style, defaults. PE-DESIGN 11.50 travels in sight to a colour's next run only where little of the travel shows: in its capture no visible straight stretch lies over the face, the longest is 12.5 mm dark on dark, and it trims 37 times in 13,396 stitches (2.8 per 1,000). OpenStitch takes an in-sight travel only when at most 8 mm of it lies over cells that are neither the thread's own nor a later layer's (#915); before that it trimmed 11 times and sent 31.7 mm of near-black thread across the face. Stitch paths differ (PE-DESIGN's run in all directions, OpenStitch's in rows), so only the counts are compared.",
+  "description": "PE-compatible Photo Stitch 1 of examples/images/p01-portrait.jpg, long side 100 mm (67.2 x 100 mm), Fill style, defaults. PE-DESIGN 11.50 travels in sight to a colour's next run only where little of the travel shows: in its capture no visible straight stretch lies over the face, the longest is 12.5 mm dark on dark, and it trims 37 times in 13,396 stitches (2.8 per 1,000). OpenStitch takes an in-sight travel only while the thread's chain of travels shows at most 12 mm over cells that are neither its own nor a later layer's and none of it dark on a lighter colour (#915; 8 mm per travel before that, and before #936 it trimmed 11 times and sent 31.7 mm of near-black thread across the face). Stitch paths differ (PE-DESIGN's run in all directions, OpenStitch's in rows), so only the counts are compared.",
   "covers": {
     "featureMatrix": [
       {
@@ -68,7 +68,7 @@
         "min": 19,
         "max": 47
       },
-      "evidence": "#915: 26 trims with in-sight travel showing at most 8 mm (11 before, with 31.7 mm across the face); at most 3.5 per 1,000 stitches",
+      "evidence": "#915: 26 trim commands with the chain rule (12 mm in all, none dark on light; 33 trims in design.info, 2.4 per 1,000); 11 before #936, with 31.7 mm across the face",
       "reference": {
         "tolerance": {
           "count": 15
@@ -87,7 +87,7 @@
         "min": 12000,
         "max": 15000
       },
-      "evidence": "13,483 stitches at #915",
+      "evidence": "13,590 stitches at #915 (13,483 with #936)",
       "reference": {
         "tolerance": {
           "percent": 8

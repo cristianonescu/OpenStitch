@@ -459,7 +459,7 @@ pub fn convert(image: &Raster, frame: &Frame, p: &PhotoStitch) -> Result<Convert
     for (layer, &t) in order.iter().enumerate() {
         let stitches = match &screen {
             None if fine => fine_layer(&dithered, &grid, &sew_rank, t, pitch, true),
-            None => fill_layer(&dithered, &grid, &sew_rank, t),
+            None => fill_layer(&dithered, &grid, &sew_rank, &targets, t),
             Some((shares, settings)) => {
                 let angle = crate::screen::angle(layer, p.direction_deg);
                 let lines = crate::screen::layer(shares, t, angle, frame, settings);
@@ -570,7 +570,13 @@ struct Run {
 /// the first unsewn run in row order — unless a hidden path leads to one (#298): travel under
 /// the thread's own cells and the darker layers sewn after it ([`Router`]), as PE-DESIGN sews a
 /// colour in one to five paths.
-fn fill_layer(d: &[Option<usize>], g: &Grid, rank: &[usize], t: usize) -> Vec<Stitch> {
+fn fill_layer(
+    d: &[Option<usize>],
+    g: &Grid,
+    rank: &[usize],
+    colours: &[[f64; 3]],
+    t: usize,
+) -> Vec<Stitch> {
     let (cols, rows, cw, ch, frame) = (g.cols, g.rows, g.cw, g.ch, g.frame);
     let runs = cell_runs(d, cols, rows, t, frame, cw, ch);
     let sewing = Sewing {
@@ -583,7 +589,7 @@ fn fill_layer(d: &[Option<usize>], g: &Grid, rank: &[usize], t: usize) -> Vec<St
     };
     let router = Router::new(d, g, rank, t, &runs);
     let route = |x: f64, y: f64, done: &[bool]| router.route(x, y, done);
-    let shows = |seg: [f64; 4]| exposed(d, cols, rows, rank, t, frame, cw, ch, seg);
+    let shows = |seg: [f64; 4]| exposed(d, (cols, rows, cw, ch), frame, rank, colours, t, seg);
     sew_runs(
         &runs,
         rows,
@@ -602,16 +608,30 @@ fn fill_layer(d: &[Option<usize>], g: &Grid, rank: &[usize], t: usize) -> Vec<St
 /// stitches, 0-3 a colour, its stitches 2.5-4.5 mm), and trims only past
 /// [`PE_TRAVEL_MM`] (#298). At 40 mm OpenStitch sews the same picture with 14 trims in 9,744
 /// stitches (1.4 per 1,000; 108 before); at 20 mm, 18. Since #915 a travel is taken only where
-/// little of it shows ([`PE_TRAVEL_SHOWN_MM`]): 27 trims.
+/// little of it shows ([`PE_TRAVEL_SHOWN_MM`], [`PE_TRAVEL_DARK_SHOWN_MM`]).
 pub const PE_TRAVEL_MM: f64 = 40.0;
-/// The most of one in-sight travel that may show, mm: the part over cells that are neither the
-/// thread's own nor a later layer's (#915). PE-DESIGN 11.50 sends no travel across a face in
-/// sight (capture of p01, -v2: 37 trims in 13,396 stitches, 2.8 per 1,000; its longest visible
-/// straight stretch 12.5 mm, dark on dark). At 8 mm OpenStitch sews p01 with 26 trims (1.9 per
-/// 1,000; its longest dark travel over a lighter colour 4.5 mm, 31.7 mm across the face before)
-/// and the sunset at 90 mm with 27 (2.8 per 1,000; PE-DESIGN 1.27). A contrast-aware limit
-/// (12 mm, 4 mm dark on light) trimmed less but let 7.7 mm of dark grey show across the skin.
-pub const PE_TRAVEL_SHOWN_MM: f64 = 8.0;
+/// The most in-sight travel that may show along one chain of travels, mm: the part over cells
+/// that are neither the thread's own nor a later layer's, added up over the thread's in-sight
+/// travels until a trim, a hidden move or a run of its own at least [`PE_CHAIN_BREAK_MM`] long,
+/// so short travels end to end cannot draw a long line (#915). PE-DESIGN 11.50 sends no travel
+/// across a face in sight (capture of p01, -v2: 37 trims in 13,396 stitches, 2.8 per 1,000);
+/// its longest visible straight stretch is 12.5 mm, dark on dark.
+pub const PE_TRAVEL_SHOWN_MM: f64 = 12.0;
+/// The most of that which may show dark on light, mm: over a colour (or the fabric) at least
+/// [`DARK_ON_LIGHT`] lighter than the thread (#915). None: none of PE-DESIGN's ten longest
+/// visible stretches on p01 lies over the face, and PE-DESIGN trims more on the portrait (2.8
+/// per 1,000) than on the sunset (1.27). Measured on the seven Photo Stitch 1 cases against the
+/// 8 mm rule of #936 (12 mm in all, none dark on light, break at 2 mm): dark on light showing
+/// p01 35 → 12 mm (longest 7.8 → 4.5), p03 13 → 0, p04 63 → 17, p10 55 → 35, p12 36 → 18;
+/// trims per 1,000 p01 2.0 → 2.4 (33, PE-DESIGN 37), the sunset at 90 mm 2.65 → 2.74. Allowing
+/// 3 mm dark on light trimmed less on p01 (22) than the reference spec allows.
+pub const PE_TRAVEL_DARK_SHOWN_MM: f64 = 0.0;
+/// A run of the thread's own at least this long, mm, ends a chain of in-sight travels: the
+/// line they drew is broken by its stitching (#915).
+pub const PE_CHAIN_BREAK_MM: f64 = 2.0;
+/// How much lighter (luminance, 0-1, `0.2126 R + 0.7152 G + 0.0722 B` of the sRGB values) a
+/// colour under a travel must be for the travel to count as dark on light (#915).
+pub const DARK_ON_LIGHT: f64 = 0.3;
 /// Stitch length of that travel, mm: PE-DESIGN's Run Pitch default.
 pub const PE_TRAVEL_PITCH_MM: f64 = 3.0;
 
@@ -703,7 +723,7 @@ fn sew_runs(
     hidden: impl Fn(f64, f64, f64, f64) -> bool,
     route: Option<Route>,
     visible: Option<(f64, f64)>,
-    shows: Option<&dyn Fn([f64; 4]) -> f64>,
+    shows: Option<&dyn Fn([f64; 4]) -> [f64; 2]>,
 ) -> Vec<Stitch> {
     let Sewing {
         reach_x,
@@ -723,6 +743,9 @@ fn sew_runs(
     let mut pen: Option<(f64, usize)> = None;
     let mut prow_run = 0usize;
     let mut last_len = 0usize;
+    // What the in-sight travels since the last trim or hidden move have shown, design units:
+    // (dark on light, in all) (#915).
+    let mut chain = [0.0f64; 2];
     for _ in 0..runs.len() {
         // The closest unsewn run end near the needle: (distance, run, enter from the right).
         let mut best: Option<(f64, usize, bool)> = None;
@@ -761,10 +784,16 @@ fn sew_runs(
             (None, Some((px, _)), Some(route)) => route(px, runs[prow_run].y, &done),
             _ => None,
         };
+        let mut in_sight = false;
         // PE-compatible: no hidden way, so travel in sight to the nearest unsewn run end when
         // it is near enough (#298): (limit, stitch length).
         if let (None, None, Some((px, _)), Some((limit, step))) = (best, &routed, pen, visible) {
             let py = runs[prow_run].y;
+            // A run of the thread's own sewn since the last travel breaks the line it drew.
+            let xs = &runs[prow_run].xs;
+            if (xs[xs.len() - 1] - xs[0]).abs() >= PE_CHAIN_BREAK_MM * 10.0 {
+                chain = [0.0; 2];
+            }
             let mut ends: Vec<(f64, usize, bool, f64, f64)> = runs
                 .iter()
                 .enumerate()
@@ -776,13 +805,20 @@ fn sew_runs(
                 .filter(|e| e.0 <= limit)
                 .collect();
             ends.sort_by(|a, b| a.0.total_cmp(&b.0));
-            // Of the 16 nearest, the first whose straight travel shows at most
-            // [`PE_TRAVEL_SHOWN_MM`] (#915); none, a trim.
+            // Of the 16 nearest, the first whose straight travel keeps the chain within
+            // [`PE_TRAVEL_DARK_SHOWN_MM`] dark on light and [`PE_TRAVEL_SHOWN_MM`] in all (#915);
+            // none, a trim.
             let nearest = match shows {
-                Some(shows) => ends
-                    .into_iter()
-                    .take(16)
-                    .find(|&(_, _, _, x, y)| shows([px, py, x, y]) <= PE_TRAVEL_SHOWN_MM * 10.0),
+                Some(shows) => ends.into_iter().take(16).find_map(|e| {
+                    let [dark, all] = shows([px, py, e.3, e.4]);
+                    let next = [chain[0] + dark, chain[1] + all];
+                    (next[0] <= PE_TRAVEL_DARK_SHOWN_MM * 10.0
+                        && next[1] <= PE_TRAVEL_SHOWN_MM * 10.0)
+                        .then(|| {
+                            chain = next;
+                            e
+                        })
+                }),
                 None => ends.into_iter().next(),
             };
             if let Some((d, r, right, x, y)) = nearest
@@ -796,7 +832,11 @@ fn sew_runs(
                     })
                     .collect();
                 routed = Some((r, right, way));
+                in_sight = true;
             }
+        }
+        if best.is_none() && routed.is_some() && shows.is_some() && !in_sight {
+            chain = [0.0; 2];
         }
         let (r, from_right, travel) = match (best, routed) {
             (Some((_, r, from_right)), _) => (r, from_right, true),
@@ -808,6 +848,7 @@ fn sew_runs(
                 (r, from_right, true)
             }
             (None, None) => {
+                chain = [0.0; 2];
                 while done[next_scan] {
                     next_scan += 1;
                 }
@@ -1475,23 +1516,26 @@ fn covered(
 
 /// How much of a travel stitch of thread `t` along `seg` shows (design units): the part over
 /// cells that are neither `t`'s own nor sewn by a later layer, or bare fabric, sampled every
-/// half cell as [`covered`] does (#915).
-#[allow(clippy::too_many_arguments)]
+/// half cell as [`covered`] does (#915), as (dark on light, in all). Dark on light is where
+/// what lies under it, the cell's thread or the fabric (the last of `colours`), is at least
+/// [`DARK_ON_LIGHT`] lighter than `t`.
 fn exposed(
     d: &[Option<usize>],
-    cols: usize,
-    rows: usize,
-    rank: &[usize],
-    t: usize,
+    (cols, rows, cw, ch): (usize, usize, f64, f64),
     frame: &Frame,
-    cw: f64,
-    ch: f64,
+    rank: &[usize],
+    colours: &[[f64; 3]],
+    t: usize,
     seg: [f64; 4],
-) -> f64 {
+) -> [f64; 2] {
+    let lum = |c: [f64; 3]| (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255.0;
+    let own = colours.get(t).map_or(0.0, |&c| lum(c));
+    // Under a cell with no thread the fabric shows: the last target.
+    let fabric = colours.last().map_or(1.0, |&c| lum(c));
     let [x0, y0, x1, y1] = seg;
     let len = (x1 - x0).dhypot(y1 - y0);
     let n = (len / (0.5 * cw.min(ch))).ceil().max(1.0) as usize;
-    let mut shown = 0usize;
+    let (mut dark, mut shown) = (0usize, 0usize);
     for i in 0..n {
         let f = (i as f64 + 0.5) / n as f64;
         let x = ((x0 + (x1 - x0) * f - frame.origin.x) / cw).floor();
@@ -1502,10 +1546,19 @@ fn exposed(
         );
         match d[y * cols + x] {
             Some(u) if u == t || rank.get(u).is_some_and(|&r| r > rank[t]) => {}
-            _ => shown += 1,
+            under => {
+                shown += 1;
+                let below = under
+                    .and_then(|u| colours.get(u))
+                    .map_or(fabric, |&c| lum(c));
+                if below - own >= DARK_ON_LIGHT {
+                    dark += 1;
+                }
+            }
         }
     }
-    shown as f64 * len / n as f64
+    let step = len / n as f64;
+    [dark as f64 * step, shown as f64 * step]
 }
 
 /// The longest move inside one stitch object that the design's compiler sews across as a

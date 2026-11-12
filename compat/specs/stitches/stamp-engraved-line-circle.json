@@ -1,0 +1,102 @@
+{
+  "schema": "openstitch-compat/1",
+  "id": "stamp-engraved-line-circle",
+  "area": "stitches",
+  "title": "Engraved line from a circle",
+  "description": "A 16.5 x 16 mm circle converted to an engraved line: a needle point wherever a fill stitch crosses the line. PE-DESIGN 11.50 adds 118 needle points, on a ring about 1 mm inside the circle (the inner edge of its 2 mm zigzag line); OpenStitch adds 142, on the circle itself.",
+  "covers": {
+    "featureMatrix": [
+      {
+        "area": "Editing",
+        "feature": "Embossing/engraving"
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "kind": "measured",
+      "note": "PE-DESIGN 11.50 round-10 capture 471-engraved-line-circle.pes (SHA-256 ce29d0ecf546293e3356c3d9b69100bdad98e9253382cf3f956a44edaafc6197, 3369 stitches; the owner's, not in the repository until PES 0110 import reads a shape that carries a stamp), measured for #471"
+    }
+  ],
+  "script": [
+    {
+      "command": "design.new",
+      "params": {
+        "width": 100,
+        "height": 100
+      }
+    },
+    {
+      "command": "shape.rectangle",
+      "params": {
+        "x": 29,
+        "y": 29,
+        "width": 42,
+        "height": 42,
+        "fill": "Red"
+      }
+    },
+    {
+      "command": "object.setRegion",
+      "params": {
+        "ids": [
+          1
+        ],
+        "type": "fill",
+        "density": 4.5,
+        "angle": 45,
+        "underlay": true
+      }
+    },
+    {
+      "command": "object.setLine",
+      "params": {
+        "ids": [
+          1
+        ],
+        "type": "zigzag",
+        "width": 2.0,
+        "density": 4.5,
+        "color": "Blue"
+      }
+    },
+    {
+      "command": "shape.ellipse",
+      "params": {
+        "cx": 50,
+        "cy": 50,
+        "rx": 8.25,
+        "ry": 8.0
+      }
+    },
+    {
+      "command": "shape.emboss",
+      "params": {
+        "id": 1,
+        "tool": 2,
+        "effect": "engravedLine"
+      }
+    }
+  ],
+  "exports": [
+    {
+      "path": "a.pes"
+    }
+  ],
+  "measurements": [
+    {
+      "id": "stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "a.pes"
+      },
+      "expected": {
+        "min": 3400,
+        "max": 3800
+      },
+      "evidence": "3,574 stitches at #471: 142 more than the plain square (PE-DESIGN 118 more)"
+    }
+  ]
+}

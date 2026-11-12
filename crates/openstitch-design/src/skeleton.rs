@@ -1082,7 +1082,8 @@ pub fn branches(contours: &[Contour], join_overlap: f64) -> Vec<Skeleton> {
     } else {
         plain
     };
-    reach_free_ends(pick, &edges)
+    let reached = reach_free_ends(pick, &edges);
+    reach_into_joins(reached, &edges, overlap)
 }
 
 /// The columns of [`branches`] before their free ends reach the outline, the arms' width
@@ -1135,6 +1136,149 @@ const END_INSET: f64 = 1.0;
 /// A free end runs on to the outline only when it is this many half widths away or nearer.
 const END_REACH: f64 = 3.0;
 
+/// How far inside column `j`'s satin `p` lies (0.1 mm; negative outside it).
+fn inside(arms: &[Skeleton], j: usize, p: Vec2) -> f64 {
+    let s = &arms[j];
+    let mut best = f64::NEG_INFINITY;
+    for (k, w) in s.points.windows(2).enumerate() {
+        let (a, b) = (w[0], w[1]);
+        let d = b - a;
+        let len2 = d.x * d.x + d.y * d.y;
+        let t = if len2 > 0.0 {
+            (((p.x - a.x) * d.x + (p.y - a.y) * d.y) / len2).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        let wa = s.widths.get(k).copied().unwrap_or(0.0);
+        let wb = s.widths.get(k + 1).copied().unwrap_or(wa);
+        best = best.max((wa + (wb - wa) * t) * 5.0 - p.distance(a + d * t));
+    }
+    best
+}
+
+/// `s`'s width (mm) at its centre line's nearest point to `p`.
+fn width_at(s: &Skeleton, p: Vec2) -> f64 {
+    let mut best = (f64::INFINITY, 0.0);
+    for (k, w) in s.points.windows(2).enumerate() {
+        let (a, b) = (w[0], w[1]);
+        let d = b - a;
+        let len2 = d.x * d.x + d.y * d.y;
+        let t = if len2 > 0.0 {
+            (((p.x - a.x) * d.x + (p.y - a.y) * d.y) / len2).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        let wa = s.widths.get(k).copied().unwrap_or(0.0);
+        let wb = s.widths.get(k + 1).copied().unwrap_or(wa);
+        let dist = p.distance(a + d * t);
+        if dist < best.0 {
+            best = (dist, wa + (wb - wa) * t);
+        }
+    }
+    best.1
+}
+
+/// An end of `s` (`last` or first): the end point, its width (mm) and its outward direction
+/// over its last half width or more; `None` for a degenerate column.
+fn end_of(s: &Skeleton, last: bool) -> Option<(Vec2, f64, Vec2)> {
+    let n = s.points.len();
+    if n < 2 {
+        return None;
+    }
+    let (end, w) = if last {
+        (s.points[n - 1], s.widths[n - 1])
+    } else {
+        (s.points[0], s.widths[0])
+    };
+    let half = (w * 5.0).max(1.0);
+    let order: Vec<usize> = if last {
+        (0..n - 1).rev().collect()
+    } else {
+        (1..n).collect()
+    };
+    let &from = order
+        .iter()
+        .find(|&&k| s.points[k].distance(end) >= half)
+        .or(order.last())?;
+    let d = end - s.points[from];
+    let len = d.length();
+    (len > 1e-9).then(|| (end, w, d * (1.0 / len)))
+}
+
+/// A column end that joins another column runs on until both its edges, not only its centre,
+/// lie `overlap` (0.1 mm) inside that column: an end square to its own column meeting another
+/// on a curve or at a slant (a ring's quarter joining its thinner main) was only centre-deep
+/// and left the outline beside the join unsewn (#526).
+/// It runs on up to one width and half the joined column's, staying [`END_INSET`] inside the
+/// outline; where both edges cannot get in (the other column is narrower), to where its centre
+/// lies deepest in it.
+fn reach_into_joins(
+    mut arms: Vec<Skeleton>,
+    edges: &[(Vec2, Vec2)],
+    overlap: f64,
+) -> Vec<Skeleton> {
+    for i in 0..arms.len() {
+        for last in [false, true] {
+            let Some((end, w, dir)) = end_of(&arms[i], last) else {
+                continue;
+            };
+            // The column this end joins: the one it lies deepest in.
+            let Some((j, depth)) = (0..arms.len())
+                .filter(|&j| j != i)
+                .map(|j| (j, inside(&arms, j, end)))
+                .max_by(|a, b| a.1.total_cmp(&b.1))
+            else {
+                continue;
+            };
+            if depth < 0.0 {
+                continue;
+            }
+            let normal = v2(-dir.y, dir.x) * (w * 5.0);
+            let rails_in =
+                |p: Vec2| inside(&arms, j, p + normal).min(inside(&arms, j, p - normal)) >= overlap;
+            if rails_in(end) {
+                continue;
+            }
+            let room = ray(end, dir, edges).map_or(0.0, |t| t - END_INSET);
+            // At most half the joined column's width there, so two satins are not stacked
+            // deeper than the join needs (#957).
+            let most = (w * 10.0).min(room).min(width_at(&arms[j], end) * 5.0);
+            // The first run that brings both edges in; failing that (a column narrower than
+            // this end, a ring's thin quarter), the run that takes the centre deepest in.
+            let step = 0.5;
+            let mut run = step;
+            let mut found = None;
+            let mut deepest = (depth, 0.0);
+            while run <= most {
+                let p = end + dir * run;
+                if rails_in(p) {
+                    found = Some(run);
+                    break;
+                }
+                let d = inside(&arms, j, p);
+                if d > deepest.0 {
+                    deepest = (d, run);
+                }
+                run += step;
+            }
+            let Some(run) =
+                found.or((deepest.1 > 0.0 && deepest.0 >= overlap).then_some(deepest.1))
+            else {
+                continue;
+            };
+            let s = &mut arms[i];
+            if last {
+                s.points.push(end + dir * run);
+                s.widths.push(w);
+            } else {
+                s.points.insert(0, end + dir * run);
+                s.widths.insert(0, w);
+            }
+        }
+    }
+    arms
+}
+
 /// The columns of [`branches`] with each free end (one not inside another column's satin)
 /// run on along its own direction to [`END_INSET`] inside the outline (#526). The columns'
 /// ends are placed short of the outline (most of their clearance, or a sixth of the width),
@@ -1142,25 +1286,6 @@ const END_REACH: f64 = 3.0;
 /// at the outline the end rungs are clipped by the end edge and reach into its corners. Join
 /// ends keep their overlap.
 fn reach_free_ends(mut arms: Vec<Skeleton>, edges: &[(Vec2, Vec2)]) -> Vec<Skeleton> {
-    // How far inside column `j`'s satin `p` lies (0.1 mm; negative outside it).
-    let inside = |arms: &[Skeleton], j: usize, p: Vec2| -> f64 {
-        let s = &arms[j];
-        let mut best = f64::NEG_INFINITY;
-        for (k, w) in s.points.windows(2).enumerate() {
-            let (a, b) = (w[0], w[1]);
-            let d = b - a;
-            let len2 = d.x * d.x + d.y * d.y;
-            let t = if len2 > 0.0 {
-                (((p.x - a.x) * d.x + (p.y - a.y) * d.y) / len2).clamp(0.0, 1.0)
-            } else {
-                0.0
-            };
-            let wa = s.widths.get(k).copied().unwrap_or(0.0);
-            let wb = s.widths.get(k + 1).copied().unwrap_or(wa);
-            best = best.max((wa + (wb - wa) * t) * 5.0 - p.distance(a + d * t));
-        }
-        best
-    };
     let ends: Vec<(usize, bool)> = (0..arms.len())
         .flat_map(|i| [(i, false), (i, true)])
         .filter(|&(i, last)| {
@@ -1176,33 +1301,11 @@ fn reach_free_ends(mut arms: Vec<Skeleton>, edges: &[(Vec2, Vec2)]) -> Vec<Skele
         })
         .collect();
     for (i, last) in ends {
-        let s = &mut arms[i];
-        let n = s.points.len();
-        let (end, w) = if last {
-            (s.points[n - 1], s.widths[n - 1])
-        } else {
-            (s.points[0], s.widths[0])
+        let Some((end, w, dir)) = end_of(&arms[i], last) else {
+            continue;
         };
-        // The end's direction over its last half width or more.
         let half = (w * 5.0).max(1.0);
-        let order: Vec<usize> = if last {
-            (0..n - 1).rev().collect()
-        } else {
-            (1..n).collect()
-        };
-        let Some(&from) = order
-            .iter()
-            .find(|&&k| s.points[k].distance(end) >= half)
-            .or(order.last())
-        else {
-            continue;
-        };
-        let d = end - s.points[from];
-        let len = d.length();
-        if len < 1e-9 {
-            continue;
-        }
-        let dir = d * (1.0 / len);
+        let s = &mut arms[i];
         let Some(t) = ray(end, dir, edges) else {
             continue;
         };
