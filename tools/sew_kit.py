@@ -7,6 +7,13 @@ demo designs for a single-needle Brother machine (written for the NV880E and its
     python3 -I tools/sew_kit.py            # rewrite the .pes files, previews, manifest, README
     python3 -I tools/sew_kit.py --check    # fail if a committed .pes differs from a fresh build
     python3 -I tools/sew_kit.py --check-previews   # fail if a preview lacks a thread's colour
+    python3 -I tools/sew_kit.py --only fills/angle-lines.pes [...]           # just these files
+    python3 -I tools/sew_kit.py --check --only fills/angle-lines.pes [...]   # check just these
+
+`--only` (#935) builds the named kit files with their previews and rewrites their manifest
+entries and README lines; every other file, preview and manifest entry stays byte for byte as
+committed. A full build takes about 50 minutes on Windows, mostly the previews; a stitch-engine
+change that moves two kit files needs only those two. The full `--check` stays what CI runs.
 
 Each design is a `stitchtool exec` script (the KIT list below), except the machine checks, which
 are the compatibility specs with a sew-out record (`compat/machine`), exported by
@@ -22,6 +29,7 @@ thread's RGB (`--check-previews`, #564). Needs Pillow and numpy.
 """
 
 import argparse
+import difflib
 import hashlib
 import json
 import re
@@ -899,8 +907,51 @@ def check_previews():
     print(f"examples/sew previews show their threads ({len(manifest)} files)")
 
 
-def build(out, previews):
-    """Builds every kit file into `out` (and the previews when asked); returns the manifest."""
+def kit_paths():
+    """Every kit file's path, in kit order."""
+    return [rel for rel, *_ in kit()]
+
+
+def unknown_paths(only):
+    """The paths in `only` that are not kit files."""
+    known = set(kit_paths())
+    return [rel for rel in only if rel not in known]
+
+
+def merged_manifest(old, new, order):
+    """The committed manifest `old` with the entries of `new` (a build of some files) put in, in
+    kit `order`: every other entry is left as it was (#935)."""
+    return {rel: new[rel] if rel in new else old[rel] for rel in order if rel in new or rel in old}
+
+
+def self_test():
+    """Checks of `--only` that need no binaries (#935)."""
+    def entry(title, stitches):
+        return {"title": title, "about": "A.", "hoop": "100 × 100 mm", "sizeMM": [1, 2], "stitches": stitches,
+                "trims": 1, "threads": ["405 Blue"], "sewingMinutes": 1, "image": None,
+                "preview": f"previews/{title}.png", "sha256": str(stitches)}
+    order = ["fills/a.pes", "fills/b.pes", "fills/c.pes"]
+    old = {rel: entry(rel[6], 10 + i) for i, rel in enumerate(order)}
+    m = merged_manifest(old, {"fills/b.pes": entry("b", 99)}, order)
+    assert list(m) == order and m["fills/a.pes"] == old["fills/a.pes"] and m["fills/c.pes"] == old["fills/c.pes"]
+    assert m["fills/b.pes"]["stitches"] == 99
+    # A file new to the kit goes in at its place in the kit order.
+    m2 = merged_manifest(old, {"fills/n.pes": entry("n", 5)}, order[:1] + ["fills/n.pes"] + order[1:])
+    assert list(m2) == ["fills/a.pes", "fills/n.pes", "fills/b.pes", "fills/c.pes"], list(m2)
+    # Only the named entry's README lines change.
+    changed = [line for line in difflib.ndiff(describe(old).splitlines(), describe(m).splitlines())
+               if line[:2] in ("- ", "+ ")]
+    assert len(changed) == 2 and all("fills/b.pes" in line for line in changed), changed
+    paths = kit_paths()
+    assert len(paths) == len(set(paths)), "duplicate kit paths"
+    assert unknown_paths([paths[0], "fills/no-such-file.pes"]) == ["fills/no-such-file.pes"]
+    print(f"sew_kit self-test passed ({len(paths)} kit paths)")
+
+
+
+def build(out, previews, only=None):
+    """Builds every kit file into `out` (and the previews when asked), or only the paths in
+    `only`; returns the manifest of what it built."""
     names = thread_names()
     manifest = {}
     with tempfile.TemporaryDirectory() as tmp:
@@ -912,6 +963,8 @@ def build(out, previews):
         for image in IMAGES.iterdir():
             shutil.copy(image, work / image.name)
         for rel, hoop, title, about, steps, image in kit():
+            if only is not None and rel not in only:
+                continue
             if steps is None:
                 data, spec = machine_check(work, title)
                 title = f"Machine check: {spec['title']}"
@@ -1008,22 +1061,35 @@ def main():
     ap.add_argument("--check", action="store_true", help="compare a fresh build with the committed .pes files")
     ap.add_argument("--check-previews", action="store_true",
                     help="check that every committed preview shows its threads' colours (no build needed)")
+    ap.add_argument("--only", nargs="+", metavar="KIT_PATH",
+                    help="build (or with --check, check) only these kit files, e.g. fills/angle-lines.pes (#935)")
+    ap.add_argument("--self-test", action="store_true", help="check --only's bookkeeping (no build)")
     a = ap.parse_args()
+    if a.self_test:
+        return self_test()
     if a.check_previews:
         return check_previews()
+    only = None
+    if a.only:
+        bad = unknown_paths(a.only)
+        if bad:
+            sys.exit(f"not kit files: {', '.join(bad)}\nkit files:\n  " + "\n  ".join(kit_paths()))
+        only = set(a.only)
+    old = json.loads((KIT / "manifest.json").read_text(encoding="utf-8"))
     if a.check:
         require_fresh(["stitchtool"])
         with tempfile.TemporaryDirectory() as tmp:
-            manifest = build(Path(tmp), previews=False)
-        old = json.loads((KIT / "manifest.json").read_text(encoding="utf-8"))
-        stale = sorted(f for f in set(manifest) | set(old)
-                       if old.get(f, {}).get("sha256") != manifest.get(f, {}).get("sha256"))
+            manifest = build(Path(tmp), previews=False, only=only)
+        names = set(manifest) | (set(old) if only is None else set())
+        stale = sorted(f for f in names if old.get(f, {}).get("sha256") != manifest.get(f, {}).get("sha256"))
         if stale:
             sys.exit("examples/sew is stale; run tools/sew_kit.py: " + ", ".join(stale))
-        print(f"examples/sew is current ({len(manifest)} files)")
+        print(f"examples/sew is current ({len(manifest)} files{'' if only is None else ' checked'})")
         return
     require_fresh(["stitchtool", "openstitch"])
-    manifest = build(KIT, previews=True)
+    manifest = build(KIT, previews=True, only=only)
+    if only is not None:
+        manifest = merged_manifest(old, manifest, kit_paths())
     (KIT / "manifest.json").write_text(json.dumps(manifest, indent=1, ensure_ascii=False) + "\n",
                                        encoding="utf-8", newline="\n")
     readme = KIT / "README.md"
@@ -1034,6 +1100,8 @@ def main():
         sys.exit("examples/sew/README.md has no kit:start / kit:end markers")
     readme.write_text(text, encoding="utf-8", newline="\n")
     for rel, m in manifest.items():
+        if only is not None and rel not in only:
+            continue
         print(f"{rel}: {m['stitches']} stitches, {len(m['threads'])} threads, {m['sizeMM'][0]:g} × {m['sizeMM'][1]:g} mm")
 
 
