@@ -162,9 +162,154 @@ fn blur(grid: &[f64], nx: usize, ny: usize, sigma: f64) -> Vec<f64> {
     out
 }
 
+/// Farthest (design units, 0.6 mm) a stitch looks for the row beside it in [`thread_sides`].
+const NEIGHBOUR_REACH: f64 = 6.0;
+/// Nearer than this (design units) a stitch counts as on the same row, not beside it.
+const SAME_ROW: f64 = 0.5;
+
+/// How far (mm) each stitch's thread reaches on either side of its line: (left, right), left
+/// being the side 90° anticlockwise from the stitch's direction (#893).
+///
+/// Each side covers [`coverage`] of half the gap to the row beside it, so two rows together
+/// hide `coverage` of the fabric between them, at most [`THREAD_MM`] / 2 a side. With evenly
+/// spaced rows that is [`covered_width_mm`] in all, centred on the stitch. Rows stored on the
+/// machine's 0.1 mm grid are not even: 0.222 mm rows (4.5 rows/mm) lie 0.2, 0.2, 0.2 and
+/// 0.3 mm apart, and a thread [`covered_width_mm`] wide (0.21 mm) left a bare stripe in every
+/// 0.3 mm gap, about every 0.9 mm. Sized from the gaps themselves, the uncovered fabric is
+/// spread over every gap as on a sew-out. Where no row lies within 1.5 spacings (an edge row,
+/// sparse rows) the side uses the spacing `density` gives.
+pub fn thread_sides(strokes: &[Vec<Vec2>], density: &RowDensity) -> Vec<Vec<(f64, f64)>> {
+    const CELL: f64 = NEIGHBOUR_REACH;
+    let key = |p: Vec2| ((p.x / CELL).floor() as i64, (p.y / CELL).floor() as i64);
+    let mut cells: std::collections::HashMap<(i64, i64), Vec<(usize, usize)>> =
+        std::collections::HashMap::new();
+    for (i, s) in strokes.iter().enumerate() {
+        for (k, w) in s.windows(2).enumerate() {
+            let n = ((w[0].distance(w[1]) / (CELL / 2.0)).ceil() as usize).max(1);
+            let mut last = None;
+            for j in 0..=n {
+                let c = key(w[0].lerp(w[1], j as f64 / n as f64));
+                if last != Some(c) {
+                    cells.entry(c).or_default().push((i, k));
+                    last = Some(c);
+                }
+            }
+        }
+    }
+    let cross = |p: Vec2, q: Vec2| p.x * q.y - p.y * q.x;
+    strokes
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            s.windows(2)
+                .enumerate()
+                .map(|(k, w)| {
+                    let mid = w[0].lerp(w[1], 0.5);
+                    let r = density.at(mid);
+                    let half = covered_width_mm(r) / 2.0;
+                    let len = w[0].distance(w[1]);
+                    if r <= 1e-6 || len < 1e-9 {
+                        return (half, half);
+                    }
+                    let d = (w[1] - w[0]) * (1.0 / len);
+                    let normal = v2(-d.y, d.x);
+                    let spacing = 10.0 / r;
+                    let reach = (1.5 * spacing).min(NEIGHBOUR_REACH);
+                    let (mut left, mut right) = (f64::INFINITY, f64::INFINITY);
+                    let (cx, cy) = key(mid);
+                    let mut seen: Vec<(usize, usize)> = Vec::new();
+                    for x in cx - 2..=cx + 2 {
+                        for y in cy - 2..=cy + 2 {
+                            for &(j, m) in cells.get(&(x, y)).into_iter().flatten() {
+                                if (j, m) == (i, k) || seen.contains(&(j, m)) {
+                                    continue;
+                                }
+                                seen.push((j, m));
+                                let (a, b) = (strokes[j][m], strokes[j][m + 1]);
+                                let e = b - a;
+                                let el = e.length();
+                                // Rows beside this one run alongside it.
+                                if el < 1e-9 || cross(d, e * (1.0 / el)).abs() > 0.5 {
+                                    continue;
+                                }
+                                let den = cross(normal, e);
+                                let t = cross(a - mid, e) / den;
+                                let u = cross(a - mid, normal) / den;
+                                if !(0.0..=1.0).contains(&u) || t.abs() < SAME_ROW {
+                                    continue;
+                                }
+                                if t > 0.0 {
+                                    left = left.min(t);
+                                } else {
+                                    right = right.min(-t);
+                                }
+                            }
+                        }
+                    }
+                    let side = |gap: f64| {
+                        let g = if gap <= reach { gap } else { spacing };
+                        (coverage(r) * g / 20.0).min(THREAD_MM / 2.0)
+                    };
+                    (side(left), side(right))
+                })
+                .collect()
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rows_on_the_machine_grid_leave_no_bare_stripe() {
+        // #893: 0.222 mm rows (4.5 rows/mm) stored on the 0.1 mm grid lie 0.2, 0.2, 0.2 and
+        // 0.3 mm apart. Every gap is covered alike (none bare), and the sides add up to the
+        // calibrated width on average.
+        let ys: Vec<f64> = (0..120).map(|k| (k as f64 * 2.222).round()).collect();
+        let strokes: Vec<Vec<Vec2>> = ys
+            .iter()
+            .map(|&y| vec![v2(0.0, y), v2(40.0, y), v2(80.0, y), v2(120.0, y)])
+            .collect();
+        let density = RowDensity::of(&strokes);
+        let sides = thread_sides(&strokes, &density);
+        let r = density.at(v2(60.0, 130.0));
+        assert!((r - 4.5).abs() < 0.2, "{r}");
+        let (mut drawn, mut n) = (0.0, 0);
+        for row in 30..90 {
+            let gap = (ys[row + 1] - ys[row]) / 10.0;
+            // Stitch 1 of each row: left is +y (normal of a stitch running +x).
+            let above = sides[row][1].0 + sides[row + 1][1].1;
+            let bare = gap - above;
+            assert!(
+                (-1e-9..=gap * (1.0 - coverage(r)) + 0.005).contains(&bare),
+                "row {row}: gap {gap} mm, covered {above} mm"
+            );
+            drawn += sides[row][1].0 + sides[row][1].1;
+            n += 1;
+        }
+        let mean = drawn / n as f64;
+        assert!(
+            (mean - covered_width_mm(r)).abs() < 0.01,
+            "{mean} vs {}",
+            covered_width_mm(r)
+        );
+    }
+
+    #[test]
+    fn sparse_rows_keep_their_gaps() {
+        // 1 row/mm: each thread as wide as the calibration gives (0.38 mm), the rest fabric.
+        let strokes: Vec<Vec<Vec2>> = (0..40)
+            .map(|k| vec![v2(0.0, k as f64 * 10.0), v2(200.0, k as f64 * 10.0)])
+            .collect();
+        let density = RowDensity::of(&strokes);
+        let sides = thread_sides(&strokes, &density);
+        let (l, r) = sides[20][0];
+        let r_mm = density.at(v2(100.0, 200.0));
+        assert!((l - r).abs() < 1e-9);
+        assert!((l + r - covered_width_mm(r_mm)).abs() < 1e-9);
+        assert!(l + r < 0.5, "{}", l + r);
+    }
 
     #[test]
     fn coverage_follows_the_t1_ramp() {
