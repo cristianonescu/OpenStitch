@@ -2,7 +2,7 @@
 """Measures `object.deriveSkeleton {branches: true}` against #526's boxes.
 
 Every item of the set (a Y, a five-point star, a ring and the letters K, X, N, R, M, W, A in Lato
-Bold, at 10 and 25 mm) is split into satin columns by stitchtool, its stitches are exported as
+Bold, at 10 and 25 mm; and y, outside #526's set but named by skeleton.rs's floor test) is split into satin columns by stitchtool, its stitches are exported as
 CSV in design coordinates, and four things are measured on what the machine would sew:
 
 - columns: the column objects made (#526 asks for one per arm);
@@ -48,9 +48,9 @@ LONGEST = 15.0        # mm: a longer stitch is a travel, not satin
 SHARP = 60.0          # degrees: a corner turning at least this much is sharp
 AT_OUTLINE = 0.5      # mm: a column end this near the outline is a free end, not a join
 JOIN_NEAR = 1.0       # mm: an end within this of another column's satin is a join
-ITEMS = ["Y", "star", "ring", "K", "X", "N", "R", "M", "W", "A"]
+ITEMS = ["Y", "star", "ring", "K", "X", "N", "R", "M", "W", "A", "y"]
 SIZES = [10.0, 25.0]
-ARMS = {"Y": 3, "star": 5, "ring": 1, "K": 3, "X": 4, "N": 3, "R": 4, "M": 4, "W": 4, "A": 3}
+ARMS = {"Y": 3, "star": 5, "ring": 1, "K": 3, "X": 4, "N": 3, "R": 4, "M": 4, "W": 4, "A": 3, "y": 2}
 
 
 def contours_mm(obj):
