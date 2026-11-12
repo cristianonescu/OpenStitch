@@ -158,6 +158,78 @@ const BRANCH_WARN_WIDTH: f64 = 10.0;
 /// `object.deriveSkeleton` with `branches` (#526): one skeleton satin per arm, in one group
 /// after the shape, the shape hidden or removed. `None` when the shape has no branches (the
 /// caller then derives one skeleton, as without `branches`).
+/// A branch column's ends this near the shape's outline (0.1 mm) lie on it: [`skeleton::branches`]
+/// runs a free end on to 0.1 mm inside it (#526).
+const ON_OUTLINE: f64 = 2.0;
+
+/// A branch column's outline and which of its ends lie on the shape's outline (#526). Its
+/// outline is the part of the shape it covers: its rails, run on past an end on the outline
+/// far enough to take in that end edge's corners, cut by the shape, so its satin is sewn up to
+/// the shape's edges ([`skeleton::satin_to_outline`]). With no end on the outline it is the
+/// rails, as before.
+fn branch_outline(
+    sk: &Skeleton,
+    shape: &[openstitch_design::Contour],
+    edges: &[(Vec2, Vec2)],
+) -> Option<(Vec<openstitch_design::Contour>, [bool; 2])> {
+    let rails = skeleton::outline(sk)?;
+    let near = |p: Vec2| {
+        edges.iter().any(|&(a, b)| {
+            let d = b - a;
+            let len2 = d.x * d.x + d.y * d.y;
+            let t = if len2 > 0.0 {
+                (((p.x - a.x) * d.x + (p.y - a.y) * d.y) / len2).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            p.distance(a + d * t) <= ON_OUTLINE
+        })
+    };
+    let n = sk.points.len();
+    if n < 2 {
+        return Some((vec![rails], [false; 2]));
+    }
+    let ends = [near(sk.points[0]), near(sk.points[n - 1])];
+    if ends == [false; 2] {
+        return Some((vec![rails], ends));
+    }
+    // The rails run on past each end on the outline by twice the column's widest.
+    let reach = 20.0 * sk.widths.iter().copied().fold(0.0, f64::max);
+    let mut long = sk.clone();
+    let on = |a: Vec2, b: Vec2| {
+        let d = a - b;
+        let l = d.length();
+        (l > 1e-9).then(|| a + d * (reach / l))
+    };
+    if ends[1]
+        && let Some(p) = on(sk.points[n - 1], sk.points[n - 2])
+    {
+        long.points.push(p);
+        long.widths.push(sk.widths[n - 1]);
+    }
+    if ends[0]
+        && let Some(p) = on(sk.points[0], sk.points[1])
+    {
+        long.points.insert(0, p);
+        long.widths.insert(0, sk.widths[0]);
+    }
+    let wide = skeleton::outline(&long).unwrap_or_else(|| rails.clone());
+    // Every piece of it: a column crossing a notch (a star's) is cut into several.
+    let cut: Vec<openstitch_design::Contour> = openstitch_design::boolean::combine(
+        std::slice::from_ref(&wide),
+        shape,
+        openstitch_design::boolean::BoolOp::Intersection,
+    )
+    .into_iter()
+    .filter_map(|r| r.into_iter().next())
+    .collect();
+    Some(if cut.is_empty() {
+        (vec![rails], [false; 2])
+    } else {
+        (cut, ends)
+    })
+}
+
 fn derive_branches(
     s: &mut crate::session::EngineState,
     p: &Params,
@@ -181,11 +253,17 @@ fn derive_branches(
         return Ok(None);
     }
     let name = o.name.clone().unwrap_or_else(|| "Shape".into());
+    let shape = o.contours.clone();
+    let edges: Vec<(Vec2, Vec2)> = shape
+        .iter()
+        .filter(|c| c.closed)
+        .flat_map(openstitch_design::Contour::edges)
+        .collect();
     let group = s.design.new_group_id();
     let mut objects = Vec::new();
     let mut warnings = Vec::new();
     for (n, sk) in arms.into_iter().enumerate() {
-        let Some(outline) = skeleton::outline(&sk) else {
+        let Some((outline, ends)) = branch_outline(&sk, &shape, &edges) else {
             continue;
         };
         let widest = sk.widths.iter().copied().fold(0.0, f64::max);
@@ -202,7 +280,8 @@ fn derive_branches(
         region.entry = None;
         region.exit = None;
         region.skeleton = Some(sk);
-        let mut obj = DesignObject::shape(vec![outline], Some(region), None);
+        region.outline_ends = ends;
+        let mut obj = DesignObject::shape(outline, Some(region), None);
         obj.name = Some(format!("{name} {}", n + 1));
         obj.group = Some(group);
         objects.push(obj);

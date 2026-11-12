@@ -168,7 +168,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    pointed ends) and `slant` (-60 to 60 degrees). A Y, star or stick figure drawn as one
    filled shape: `object.deriveSkeleton {id, branches: true, joinOverlap: 0.3}` makes a
    grouped satin column per arm (the shape stays hidden); a letter's straight stem (K, R)
-   stays one straight column through its junction. Check `warnings` for columns over 10 mm
+   stays one straight column through its junction. A column that ends on the shape's edge is
+   sewn up to that edge and into its corners, never past it; its region then shows
+   `outlineEnds` (set by the command; `object.setRegion` can't set it). Check `warnings` for columns over 10 mm
    and look at the junctions with `view_render`.
    Ripples, echoes and spirals from one outline (beyond PE-DESIGN): `object.setLine {type:
    ripple, strands, target: [x, y]}` (a closed line spirals in to the target as one run; an

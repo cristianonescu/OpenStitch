@@ -669,6 +669,136 @@ fn a_branching_shape_becomes_one_satin_column_per_arm() {
 }
 
 #[test]
+fn branch_columns_on_the_outline_are_sewn_to_it_and_into_its_corners() {
+    // #526: K at 25 mm split into columns. A column end on the outline (the stem's ends, the
+    // legs' feet, the arm's top) is flagged in `outlineEnds`; an end at a junction is not.
+    // Every needle point stays inside the letter, and every sharp corner of it gets one
+    // within 0.2 mm.
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "text.add",
+        json!({"text": "K", "size": 25, "x": 50, "y": 70, "fill": "Red"}),
+    );
+    let r = run(&mut s, "text.toShapes", json!({"id": 1}));
+    let shape_id = r["ids"][0].as_u64().expect("shape");
+    let shape = s
+        .design()
+        .objects
+        .iter()
+        .find(|o| o.id == shape_id)
+        .expect("shape")
+        .contours
+        .clone();
+    let r = run(
+        &mut s,
+        "object.deriveSkeleton",
+        json!({"id": shape_id, "branches": true}),
+    );
+    let ids: Vec<u64> = r["ids"]
+        .as_array()
+        .expect("ids")
+        .iter()
+        .filter_map(Value::as_u64)
+        .collect();
+    assert_eq!(ids.len(), 3, "{r}");
+    let ends: Vec<[bool; 2]> = ids
+        .iter()
+        .map(|id| {
+            let o = s
+                .design()
+                .objects
+                .iter()
+                .find(|o| o.id == *id)
+                .expect("column");
+            o.region
+                .as_ref()
+                .map(|r| r.outline_ends)
+                .expect("a branch column has a region")
+        })
+        .collect();
+    assert_eq!(ends[0], [true, true], "the stem runs from edge to edge");
+    assert!(
+        ends[1..]
+            .iter()
+            .all(|e| e.iter().filter(|&&b| b).count() == 1),
+        "each arm has one end on the outline and one at a junction: {ends:?}"
+    );
+    // Read back through the command as `outlineEnds`.
+    let got = run(&mut s, "object.get", json!({"id": ids[0]}));
+    assert_eq!(got["region"]["outlineEnds"], json!([true, true]), "{got}");
+    // The stitches: inside the letter (or on its edge), and into every sharp corner.
+    let pattern = Compiler::default().compile(s.design());
+    let points: Vec<openstitch_design::Vec2> = pattern
+        .stitches
+        .iter()
+        .filter(|st| st.command == Command::Stitch)
+        .map(|st| openstitch_design::v2(st.x, st.y))
+        .collect();
+    assert!(points.len() > 300, "{}", points.len());
+    let edges: Vec<(openstitch_design::Vec2, openstitch_design::Vec2)> =
+        shape.iter().flat_map(|c| c.edges()).collect();
+    let to_edge = |p: openstitch_design::Vec2| {
+        edges
+            .iter()
+            .map(|&(a, b)| {
+                let d = b - a;
+                let len2 = d.x * d.x + d.y * d.y;
+                let t = if len2 > 0.0 {
+                    (((p.x - a.x) * d.x + (p.y - a.y) * d.y) / len2).clamp(0.0, 1.0)
+                } else {
+                    0.0
+                };
+                p.distance(a + d * t)
+            })
+            .fold(f64::INFINITY, f64::min)
+    };
+    for &p in &points {
+        assert!(
+            openstitch_design::geometry::contains(p, &shape) || to_edge(p) <= 0.5,
+            "{p:?} is sewn outside the K"
+        );
+    }
+    for c in &shape {
+        let pts = c.outline_points();
+        let n = pts.len();
+        for k in 0..n {
+            let (a, b, e) = (pts[(k + n - 1) % n], pts[k], pts[(k + 1) % n]);
+            let (u, v) = (b - a, e - b);
+            if u.length() < 2.0 || v.length() < 2.0 {
+                continue;
+            }
+            let turn = (u.x * v.y - u.y * v.x)
+                .atan2(u.x * v.x + u.y * v.y)
+                .abs()
+                .to_degrees();
+            if turn < 60.0
+                || !openstitch_design::geometry::contains(b + (u * -0.05 + v * 0.05), &shape)
+            {
+                continue;
+            }
+            let near = points
+                .iter()
+                .map(|p| p.distance(b))
+                .fold(f64::INFINITY, f64::min);
+            assert!(near <= 2.0, "corner {b:?}: nearest needle point {near:.2}");
+        }
+    }
+    // Undo and redo keep the flags; so does a save and a reload.
+    let after = s.design().clone();
+    run(&mut s, "history.undo", json!({}));
+    run(&mut s, "history.redo", json!({}));
+    assert_eq!(s.design(), &after);
+    let saved = project::encode(s.design()).expect("encode");
+    assert!(
+        String::from_utf8(saved.clone())
+            .expect("utf8")
+            .contains("outlineEnds")
+    );
+    assert_eq!(&project::decode(&saved).expect("decode"), s.design());
+}
+
+#[test]
 fn pes_0110_refuses_a_satin_line_and_the_machine_formats_sew_it() {
     let dir = openstitch_testutil::TempDir::new("satin-line-pes");
     let mut s = Session::new(dir.path());

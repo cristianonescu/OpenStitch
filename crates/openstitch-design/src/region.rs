@@ -173,12 +173,24 @@ fn layers_inner(
             }
         }
         let spacing = 10.0 / r.density.max(0.1);
-        out.push(vec![crate::skeleton::satin_with(
-            skeleton,
-            spacing,
-            r.pull_compensation * 10.0,
-            &r.satin_shaping,
-        )]);
+        // A branch column with an end on the shape's outline is sewn within its outline and
+        // on into that end's corners (#526); every other skeleton satin as before.
+        out.push(vec![if r.outline_ends == [false; 2] {
+            crate::skeleton::satin_with(
+                skeleton,
+                spacing,
+                r.pull_compensation * 10.0,
+                &r.satin_shaping,
+            )
+        } else {
+            crate::skeleton::satin_to_outline(
+                skeleton,
+                closed,
+                spacing,
+                r.pull_compensation * 10.0,
+                r.outline_ends,
+            )
+        }]);
         return motif_band(out, &crate::skeleton::rungs(skeleton, 10.0), r, user);
     }
     // Curved direction: sew the straightened region with horizontal rows, then bend back.
