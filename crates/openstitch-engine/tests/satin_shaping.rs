@@ -713,8 +713,8 @@ fn branch_columns_on_the_outline_are_sewn_to_it_and_into_its_corners() {
                 .expect("column");
             o.region
                 .as_ref()
-                .map(|r| r.outline_ends)
-                .expect("a branch column has a region")
+                .and_then(|r| r.outline_ends)
+                .expect("a branch column carries outlineEnds")
         })
         .collect();
     assert_eq!(ends[0], [true, true], "the stem runs from edge to edge");
@@ -797,6 +797,93 @@ fn branch_columns_on_the_outline_are_sewn_to_it_and_into_its_corners() {
     );
     assert_eq!(&project::decode(&saved).expect("decode"), s.design());
 }
+
+#[test]
+fn every_branch_column_is_sewn_out_to_the_shapes_edges() {
+    // #526: R at 25 mm. Every column is a branch column (`outlineEnds` set: the stem `[true,
+    // true]`, each arm one end on the edge and one at its junction), sewn within its part of
+    // the R and out to the R's edges, where a column at its derived width left slivers unsewn
+    // along the bowl and the leg.
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "text.add",
+        json!({"text": "R", "size": 25, "x": 50, "y": 70, "fill": "Red"}),
+    );
+    let r = run(&mut s, "text.toShapes", json!({"id": 1}));
+    let shape_id = r["ids"][0].as_u64().expect("shape");
+    let shape = s
+        .design()
+        .objects
+        .iter()
+        .find(|o| o.id == shape_id)
+        .expect("shape")
+        .contours
+        .clone();
+    let r = run(
+        &mut s,
+        "object.deriveSkeleton",
+        json!({"id": shape_id, "branches": true}),
+    );
+    let ids: Vec<u64> = r["ids"]
+        .as_array()
+        .expect("ids")
+        .iter()
+        .filter_map(Value::as_u64)
+        .collect();
+    assert!(ids.len() >= 3, "{r}");
+    let flags: Vec<Value> = ids
+        .iter()
+        .map(|id| run(&mut s, "object.get", json!({"id": id}))["region"]["outlineEnds"].clone())
+        .collect();
+    assert!(
+        flags.iter().all(Value::is_array),
+        "every column carries outlineEnds: {flags:?}"
+    );
+    assert_eq!(flags[0], json!([true, true]), "the stem: {flags:?}");
+    assert!(
+        flags[1..]
+            .iter()
+            .all(|f| f == &json!([false, true]) || f == &json!([true, false])),
+        "each arm: one end on the edge, one at its junction: {flags:?}"
+    );
+    // Out to the edges: needle points within 0.3 mm of the R's outline all the way round, but
+    // for the inner corners where two columns meet.
+    let pattern = Compiler::default().compile(s.design());
+    let points: Vec<openstitch_design::Vec2> = pattern
+        .stitches
+        .iter()
+        .filter(|st| st.command == Command::Stitch)
+        .map(|st| openstitch_design::v2(st.x, st.y))
+        .collect();
+    let mut samples = 0;
+    let mut reached = 0;
+    for c in &shape {
+        let pts = c.outline_points();
+        let n = pts.len();
+        for k in 0..n {
+            let (a, b) = (pts[k], pts[(k + 1) % n]);
+            let steps = (a.distance(b) / 2.0).ceil().max(1.0) as usize;
+            for t in 0..steps {
+                let q = a.lerp(b, t as f64 / steps as f64);
+                samples += 1;
+                if points.iter().any(|p| p.distance(q) <= 3.0) {
+                    reached += 1;
+                }
+            }
+        }
+    }
+    let share = reached as f64 / samples as f64;
+    assert!(
+        share >= REACHED,
+        "{reached} of {samples} outline points reached ({share:.3})"
+    );
+}
+
+/// The share of R's outline [`every_branch_column_is_sewn_out_to_the_shapes_edges`] needs
+/// reached: 0.965 measured (2026-11-12); a needle point within 0.3 mm, so an edge point between
+/// two of the satin's needle points on that side may count as not reached though it is sewn.
+const REACHED: f64 = 0.95;
 
 #[test]
 fn pes_0110_refuses_a_satin_line_and_the_machine_formats_sew_it() {

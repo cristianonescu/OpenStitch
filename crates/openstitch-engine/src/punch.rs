@@ -155,23 +155,24 @@ fn kind(p: &Params) -> Result<RegionType, CommandError> {
 /// Widest satin column (mm) a branch split makes without a warning.
 const BRANCH_WARN_WIDTH: f64 = 10.0;
 
-/// `object.deriveSkeleton` with `branches` (#526): one skeleton satin per arm, in one group
-/// after the shape, the shape hidden or removed. `None` when the shape has no branches (the
-/// caller then derives one skeleton, as without `branches`).
 /// A branch column's ends this near the shape's outline (0.1 mm) lie on it: [`skeleton::branches`]
 /// runs a free end on to 0.1 mm inside it (#526).
 const ON_OUTLINE: f64 = 2.0;
+/// How much wider than its skeleton (mm, both sides together) a branch column's outline is
+/// taken before the shape cuts it: its rungs reach on to the shape's edge (up to 1.5 mm past
+/// the skeleton's half width, [`skeleton::satin_to_outline`]) where the derived width falls
+/// short or the centre line lies off the stroke's middle.
+const BRANCH_REACH: f64 = 3.0;
 
 /// A branch column's outline and which of its ends lie on the shape's outline (#526). Its
-/// outline is the part of the shape it covers: its rails, run on past an end on the outline
-/// far enough to take in that end edge's corners, cut by the shape, so its satin is sewn up to
-/// the shape's edges ([`skeleton::satin_to_outline`]). With no end on the outline it is the
-/// rails, as before.
+/// outline is the part of the shape it covers: its rails, a little wider, run on past an end
+/// on the outline far enough to take in that end edge's corners, cut by the shape, so its satin
+/// is sewn up to the shape's edges ([`skeleton::satin_to_outline`]) and never past them.
 fn branch_outline(
     sk: &Skeleton,
     shape: &[openstitch_design::Contour],
     edges: &[(Vec2, Vec2)],
-) -> Option<(Vec<openstitch_design::Contour>, [bool; 2])> {
+) -> Option<(Vec<openstitch_design::Contour>, Option<[bool; 2]>)> {
     let rails = skeleton::outline(sk)?;
     let near = |p: Vec2| {
         edges.iter().any(|&(a, b)| {
@@ -187,15 +188,17 @@ fn branch_outline(
     };
     let n = sk.points.len();
     if n < 2 {
-        return Some((vec![rails], [false; 2]));
+        return Some((vec![rails], None));
     }
     let ends = [near(sk.points[0]), near(sk.points[n - 1])];
-    if ends == [false; 2] {
-        return Some((vec![rails], ends));
-    }
-    // The rails run on past each end on the outline by twice the column's widest.
+    // The rails, a little wider, run on past each end on the outline by twice the column's
+    // widest.
     let reach = 20.0 * sk.widths.iter().copied().fold(0.0, f64::max);
     let mut long = sk.clone();
+    for w in &mut long.widths {
+        *w += BRANCH_REACH;
+    }
+    let n_long = long.widths.len();
     let on = |a: Vec2, b: Vec2| {
         let d = a - b;
         let l = d.length();
@@ -205,13 +208,13 @@ fn branch_outline(
         && let Some(p) = on(sk.points[n - 1], sk.points[n - 2])
     {
         long.points.push(p);
-        long.widths.push(sk.widths[n - 1]);
+        long.widths.push(long.widths[n_long - 1]);
     }
     if ends[0]
         && let Some(p) = on(sk.points[0], sk.points[1])
     {
         long.points.insert(0, p);
-        long.widths.insert(0, sk.widths[0]);
+        long.widths.insert(0, long.widths[0]);
     }
     let wide = skeleton::outline(&long).unwrap_or_else(|| rails.clone());
     // Every piece of it: a column crossing a notch (a star's) is cut into several.
@@ -224,9 +227,9 @@ fn branch_outline(
     .filter_map(|r| r.into_iter().next())
     .collect();
     Some(if cut.is_empty() {
-        (vec![rails], [false; 2])
+        (vec![rails], None)
     } else {
-        (cut, ends)
+        (cut, Some(ends))
     })
 }
 
