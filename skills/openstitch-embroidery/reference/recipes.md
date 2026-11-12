@@ -81,7 +81,9 @@ Make the appliqué from a closed shape or text (here a heart, id 1 in a fresh de
 ```
 
 It sews a material line, stops, a position line, stops, a tack-down, stops, then the covering
-stitch, as one group. `output: "add"` keeps the shape and puts the appliqué around it
+stitch, as one group. The covering zigzag has no under sewing, as in PE-DESIGN (the tack-down
+holds the fabric's edge); turn it on on the cover object (`object.setLine` `underSewing: true`) for
+a loose-weave fabric. `output: "add"` keeps the shape and puts the appliqué around it
 (`distance` mm away); the shape sews first, under the fabric, as PE-DESIGN does, or with
 `patterns: "last"` after the covering stitch, on top of the fabric (use `replace` when the
 shape would only be hidden).
