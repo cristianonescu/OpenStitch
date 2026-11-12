@@ -921,7 +921,7 @@ fn ringed_disc() -> Raster {
 
 /// #702: with the split on (the default in OpenStitch mode), a Y whose arms meet its stem at
 /// a junction is sewn as one satin column per arm; a ring (no junction: its columns would only
-/// meet end to end) stays one satin.
+/// meet end to end) stays one region.
 #[test]
 fn a_y_splits_into_columns_and_a_ring_stays_one_satin() {
     // 0.25 mm per pixel, 50 mm across: blue strokes 2 mm wide on white.
@@ -930,6 +930,8 @@ fn a_y_splits_into_columns_and_a_ring_stays_one_satin() {
         colors: 2,
         resolution: 200,
         mode: Mode::OpenStitch,
+        // The strokes are the darkest colour: not sewn as outline lines here.
+        outline_max_mm: 0.0,
         ..Default::default()
     };
     assert!(p.split_branches, "on by default");
@@ -975,8 +977,15 @@ fn a_y_splits_into_columns_and_a_ring_stays_one_satin() {
         y_cols.len() >= 2 && y_cols.iter().all(|&s| s),
         "the Y, a column per arm: {y_cols:?}"
     );
-    let ring_cols = satins(&ring);
-    assert_eq!(ring_cols, vec![false], "the ring, one satin");
+    // The ring: one region, not columns along its centre line.
+    let ring_out = autopunch::convert(&ring, &frame, &p).expect("converts");
+    let regions: Vec<_> = ring_out
+        .objects
+        .iter()
+        .filter_map(|o| o.region.as_ref())
+        .collect();
+    assert_eq!(regions.len(), 1, "the ring, one region");
+    assert!(regions[0].skeleton.is_none(), "not split into columns");
 }
 
 #[test]
