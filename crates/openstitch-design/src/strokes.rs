@@ -2519,6 +2519,19 @@ mod tests {
         );
     }
 
+    fn glyph(ch: &str) -> (GlyphStrokes, Rect) {
+        let spec = TextSpec::new(ch, DEFAULT_FONT, 20.0);
+        let l = layout(&spec, None).expect("layout");
+        let contours = l.contours();
+        let b = Rect::enclosing(contours.iter().flat_map(Contour::outline_points)).expect("box");
+        (strokes(&contours).expect("strokes"), b)
+    }
+
+    fn count(g: &GlyphStrokes) -> (usize, usize, usize) {
+        let closed = g.strokes.iter().filter(|s| s.closed).count();
+        (g.strokes.len(), g.junctions.len(), closed)
+    }
+
     /// Cuts at sharp corners: a pair of [`StrokeEnd::Corner`] ends, or one arm run on and the
     /// other stopped [`StrokeEnd::Against`] it (#446).
     fn corners(g: &GlyphStrokes) -> usize {
