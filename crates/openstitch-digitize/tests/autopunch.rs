@@ -1630,6 +1630,112 @@ fn openstitch_mode_sews_thin_features_as_lines() {
     assert!(pe.objects.iter().all(|o| o.line.is_none()));
 }
 
+/// #469: a rope that the sliver opening takes together with the tapering tip it hangs from
+/// (g02's side ropes under the balloon's stripes) is judged on its own thin part: the piece as
+/// a whole is over 1 mm wide at the tip, so the rope was dropped with it.
+#[test]
+fn a_rope_taken_with_the_tip_it_hangs_from_is_still_a_line() {
+    const SKY: [u8; 4] = [120, 180, 235, 255];
+    const ROPE: [u8; 4] = [110, 60, 20, 255];
+    const GRASS: [u8; 4] = [60, 150, 50, 255];
+    // 0.1 mm per pixel: a rope-coloured wedge 4 mm wide narrowing to a point over 4 mm, a
+    // 0.5 mm rope from its point 7 mm down to a 5 x 4 mm basket, a red block, grass below.
+    let img = Raster::from_fn(400, 300, |x, y| {
+        let (x, y) = (x as f64, y as f64);
+        let wedge = (40.0..80.0).contains(&y) && (x - 252.5).abs() <= 20.0 * (80.0 - y) / 40.0;
+        let rope = (80.0..150.0).contains(&y) && (250.0..255.0).contains(&x);
+        let basket = (150.0..190.0).contains(&y) && (230.0..280.0).contains(&x);
+        if y >= 200.0 {
+            GRASS
+        } else if wedge || rope || basket {
+            ROPE
+        } else if (50.0..150.0).contains(&x) && (50.0..150.0).contains(&y) {
+            RED
+        } else {
+            SKY
+        }
+    })
+    .expect("size");
+    let frame = Frame::new(0.0, 0.0, 40.0, 400);
+    let p = AutoPunch {
+        colors: 4,
+        mode: Mode::OpenStitch,
+        resolution: 400,
+        fabric: Some([255, 255, 255]),
+        ..Default::default()
+    };
+    let out = autopunch::convert(&img, &frame, &p).expect("converts");
+    let lines: Vec<_> = out
+        .objects
+        .iter()
+        .filter_map(|o| o.line.as_ref())
+        .filter(|l| l.kind == openstitch_design::LineType::Running)
+        .collect();
+    assert!(!lines.is_empty(), "the rope is a line");
+    assert!(
+        lines.iter().all(|l| l.thread.red > l.thread.blue),
+        "in the rope's thread"
+    );
+}
+
+/// #469: a thin line whose thread is sewn before its ground would need a colour block of its
+/// own after every region: a stop and a re-thread on a single-needle machine. One short rope
+/// is left out; ropes running at least `THIN_BLOCK_MM` in all earn the block.
+#[test]
+fn thin_lines_needing_their_own_colour_block_are_sewn_only_when_long() {
+    const SKY: [u8; 4] = [120, 180, 235, 255];
+    // Brighter than the sky, so sewn before it: its lines come after every region.
+    const YELLOW: [u8; 4] = [255, 230, 60, 255];
+    const GRASS: [u8; 4] = [60, 150, 50, 255];
+    // 0.1 mm per pixel: 0.5 mm yellow ropes hanging from a yellow bar in the sky, grass below.
+    let picture = |ropes: &[(u32, u32)]| {
+        Raster::from_fn(400, 300, |x, y| {
+            let rope = ropes
+                .iter()
+                .any(|&(rx, top)| (rx..rx + 5).contains(&x) && (top..170).contains(&y));
+            if y >= 200 {
+                GRASS
+            } else if rope || ((100..300).contains(&x) && (170..190).contains(&y)) {
+                YELLOW
+            } else {
+                SKY
+            }
+        })
+        .expect("size")
+    };
+    let frame = Frame::new(0.0, 0.0, 40.0, 400);
+    let p = AutoPunch {
+        colors: 3,
+        mode: Mode::OpenStitch,
+        resolution: 400,
+        fabric: Some([255, 255, 255]),
+        ..Default::default()
+    };
+    let thin = |img: &Raster| {
+        let out = autopunch::convert(img, &frame, &p).expect("converts");
+        out.objects
+            .iter()
+            .filter(|o| {
+                o.line
+                    .as_ref()
+                    .is_some_and(|l| l.kind == openstitch_design::LineType::Running)
+            })
+            .count()
+    };
+    // One rope, 11 mm: left out.
+    assert_eq!(
+        thin(&picture(&[(200, 60)])),
+        0,
+        "a short line costs no colour stop"
+    );
+    // Three ropes, 15 mm each (45 mm): sewn, each its own line.
+    assert_eq!(
+        thin(&picture(&[(120, 20), (200, 20), (280, 20)])),
+        3,
+        "long enough to earn the block"
+    );
+}
+
 /// #489: the plan lists every region with its stitch and reason; an override changes only
 /// its own region; a region the image does not have is an error; varyNeighbours turns
 /// touching fills apart.
