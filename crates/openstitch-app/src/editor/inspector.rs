@@ -740,14 +740,23 @@ fn travel_control(r: &RegionSewing) -> Option<Control> {
         Some(_) if r.running_stitch_path_available() => Some(Control::Choice {
             label: "Running stitch path",
             param: "runningStitchPath",
-            value: r.travel_path().unwrap_or_default().id().into(),
+            // Inside, hidden stays shown as chosen when an open fill sews it along the outline
+            // (#628); gradation shows the path it forces.
+            value: match r.running_stitch_path {
+                Some(RunningStitchPath::InsideHidden) if r.gradation.is_none() => {
+                    RunningStitchPath::InsideHidden
+                }
+                _ => r.travel_path().unwrap_or_default(),
+            }
+            .id()
+            .into(),
             options: [
                 (RunningStitchPath::Inside, "Inside of region"),
                 (RunningStitchPath::AlongOutline, "Along outline"),
                 (RunningStitchPath::OnOutline, "On outline"),
                 (
                     RunningStitchPath::InsideHidden,
-                    "Inside, hidden under later sections (+)",
+                    "Inside, hidden under later sections (+; along the outline when open)",
                 ),
             ]
             .into_iter()

@@ -365,6 +365,47 @@ fn parallel_lines_cover_the_band_in_one_path() {
     assert!(one[0].points.len() <= original.len());
 }
 
+/// #469: a small ring of the drawing (2.5 mm across, 0.4 mm stroke) sews in OpenStitch mode as
+/// an even polygon round its circle, starting and ending on it: at least five equal sides of
+/// about 1 mm, every needle point within 0.15 mm of one radius. It was a square of uneven sides.
+#[test]
+fn small_rings_sew_round() {
+    // 0.1 mm per pixel: a ring 25 px across with a 4 px stroke.
+    let img = Raster::from_fn(200, 200, |x, y| {
+        let d = (f64::from(x) + 0.5 - 100.0).hypot(f64::from(y) + 0.5 - 100.0);
+        if (8.5..=12.5).contains(&d) {
+            BLACK
+        } else {
+            WHITE
+        }
+    })
+    .expect("size");
+    let frame = Frame::new(0.0, 0.0, 20.0, 200);
+    let li = center::line_image(&img, &LineImageOptions::default());
+    let fig = center::figure(&img, &li, &frame, &FigureOptions::default()).expect("figure");
+    assert_eq!(fig.lines.len(), 1);
+    assert!(fig.lines[0].closed);
+    let ring = &center::parallel_lines(&fig, 0.0, 1)[0].points;
+    assert_eq!(ring.first(), ring.last(), "ends where it starts");
+    let sides: Vec<f64> = ring.windows(2).map(|w| w[0].distance(w[1])).collect();
+    assert!(sides.len() >= 5, "{sides:?}");
+    let (lo, hi) = sides
+        .iter()
+        .fold((f64::MAX, 0.0f64), |(l, h), &s| (l.min(s), h.max(s)));
+    assert!(hi - lo < 0.5 && lo >= 8.0 && hi <= 12.0, "{sides:?}");
+    // 0.1 mm units: the frame's origin is the page's.
+    let c = ring
+        .iter()
+        .take(sides.len())
+        .fold((0.0, 0.0), |s, p| (s.0 + p.x, s.1 + p.y));
+    let c = (c.0 / sides.len() as f64, c.1 / sides.len() as f64);
+    let radii: Vec<f64> = ring.iter().map(|p| (p.x - c.0).hypot(p.y - c.1)).collect();
+    let (rlo, rhi) = radii
+        .iter()
+        .fold((f64::MAX, 0.0f64), |(l, h), &r| (l.min(r), h.max(r)));
+    assert!(rhi - rlo <= 1.5, "{radii:?}");
+}
+
 /// #490: a line drawing from a photo. A shaded disc's edge becomes a one-pixel ring at its
 /// radius; a flat picture has no edges; the same image gives the same lines.
 #[test]

@@ -1324,15 +1324,15 @@
    88.8,
    74.5
   ],
-  "stitches": 4231,
+  "stitches": 4482,
   "trims": 66,
   "threads": [
    "900 Black"
   ],
-  "sewingMinutes": 8.7,
+  "sewingMinutes": 9.0,
   "image": "../images/g04-butterfly-outline.png",
   "preview": "previews/S-design-center-butterfly-openstitch.png",
-  "sha256": "bb3beac641fd6542fff928519ee27d4d5e98d96c7ce4705d6d58148837862610"
+  "sha256": "139d2b2a593d2d55c5f408fbf7f31386c77d58afd94b058ed095d3968c662fb4"
  },
  "image-tools/S-design-center-butterfly-pe-compatible.pes": {
   "title": "Design Center, PE-DESIGN-compatible mode",

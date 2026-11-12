@@ -621,7 +621,7 @@ Threads, in sewing order: 208 Orange, 323 Light Brown, 800 Red, 515 Moss Green, 
 
 #### Design Center, OpenStitch mode
 
-[`image-tools/S-design-center-butterfly-openstitch.pes`](image-tools/S-design-center-butterfly-openstitch.pes) · 100 × 100 mm hoop · 88.8 × 74.5 mm · 4,231 stitches · 66 trims · about 8.7 min
+[`image-tools/S-design-center-butterfly-openstitch.pes`](image-tools/S-design-center-butterfly-openstitch.pes) · 100 × 100 mm hoop · 88.8 × 74.5 mm · 4,482 stitches · 66 trims · about 9 min
 
 `g04-butterfly-outline.png` through Design Center at its defaults in OpenStitch mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.
 

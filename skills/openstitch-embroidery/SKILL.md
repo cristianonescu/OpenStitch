@@ -74,7 +74,8 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   `runningStitchPath: "insideHidden"` sews its parts in the order that leaves the least travel
   on thread already sewn (a stem between leaves after them; a ring gone round, branches
   first), never with more trims than `inside`. Auto
-  Punch sets it on its fills in OpenStitch mode. PES 0110 saves it as `inside` (reading the
+  Punch sets it on its fills in OpenStitch mode. Below 3 rows/mm (an open fill) it travels
+  along the outline instead, so no travel line shows through. PES 0110 saves it as `inside` (reading the
   file back gives `inside`).
 - Flow fill (beyond PE-DESIGN): `object.setRegion` on a fill with `flowField`: `"radial"` (rows
   radiate from the shape's centre, a sunburst), `"swirl"` (rows circle it), `{kind: radial |
