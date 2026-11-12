@@ -875,6 +875,45 @@ fn a_fill_entered_away_from_its_rows_travels_along_the_outline_when_asked() {
 }
 
 #[test]
+fn an_open_inside_hidden_fill_travels_along_the_outline_and_a_dense_one_keeps_its_order() {
+    // #628, #968: `runningStitchPath: "insideHidden"` (OpenStitch's own, Auto Punch's OpenStitch
+    // mode) on an open fill (under 3 rows/mm) walks the outline, its entry included, so no
+    // travel shows across it; at 4.5 rows/mm it keeps the hidden section order and so the
+    // straight entry PE-DESIGN sews (as Inside does). The setting itself is kept either way.
+    let tmp = temp_dir();
+    let mut s = Session::new(tmp.path());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 9, "y": 9, "width": 12, "height": 12, "fill": "Black"}),
+    );
+    run(
+        &mut s,
+        "object.setEntryExit",
+        json!({"id": 1, "regionEntry": [15, 21]}),
+    );
+    for (density, straight_at_most, straight_at_least) in [(2.0, 3.0, 0.0), (4.5, f64::MAX, 8.0)] {
+        run(
+            &mut s,
+            "object.setRegion",
+            json!({"ids": [1], "type": "fill", "density": density, "underlay": false,
+                   "angle": 0, "runningStitchPath": "insideHidden"}),
+        );
+        let straight = straight_travel_inside(&s, [9.0, 9.0, 21.0, 21.0]);
+        assert!(
+            straight <= straight_at_most && straight >= straight_at_least,
+            "{density} rows/mm: {straight} mm straight across"
+        );
+        let kept = s.design().objects[0]
+            .region
+            .as_ref()
+            .and_then(|r| r.running_stitch_path)
+            .map(|p| p.id());
+        assert_eq!(kept, Some("insideHidden"), "{density} rows/mm");
+    }
+}
+
+#[test]
 fn a_programmable_fills_under_sewing_does_not_cut_across_the_region() {
     // #628: in kit fills/region-sew-types-1 the programmable fill's under sewing went from
     // the end of its edge run straight across the region to its first row (26 mm, shown
