@@ -1,5 +1,7 @@
-//! Golden regression: `badge-golden.osd` is `examples/badge.json` saved as a project on
-//! 2026-10-18 (format version 1); it must keep compiling to the statistics recorded then.
+//! Golden regression: `badge-golden.osd` is the badge script (kept as
+//! `crates/openstitch-engine/tests/fixtures/badge.json`; `examples/badge.json` has since moved
+//! on, #828) saved as a project on 2026-10-18 (format version 1); it must keep compiling to the
+//! statistics recorded then.
 //! It is read with the project decoder, which migrates version-1 direction angles.
 
 use openstitch_core::Command;

@@ -12,6 +12,7 @@
     "curves": [[[40, 99], [60, 85]]],
     "outline": "Blue"}},
   {"command": "object.setLine", "params": {"id": 2, "type": "zigzag", "width": 2}},
+  {"command": "shape.gradient", "params": {"id": 1, "threads": ["Red", "Deep Rose"], "angle": 90}},
   {"command": "design.info"},
   {"command": "design.export", "params": {"path": "heart.pes"}},
   {"command": "project.save", "params": {"path": "heart.osd"}}
