@@ -29,10 +29,10 @@
     {
       "command": "shape.rectangle",
       "params": {
-        "x": 29,
-        "y": 29,
-        "width": 42,
-        "height": 42,
+        "x": 30,
+        "y": 30,
+        "width": 40,
+        "height": 40,
         "fill": "Red"
       }
     },
@@ -93,10 +93,10 @@
         "export": "a.pes"
       },
       "expected": {
-        "min": 3400,
-        "max": 3800
+        "min": 3150,
+        "max": 3500
       },
-      "evidence": "3,574 stitches at #471: 142 more than the plain square (PE-DESIGN 118 more)"
+      "evidence": "3,318 stitches: 142 more than the plain square (PE-DESIGN 118 more) at #471, on the 40 mm square"
     }
   ]
 }

@@ -3395,7 +3395,7 @@ stitches, 66 trims, 8.7 → 9.0 min.
 
 PE-DESIGN 11.50's round-10 captures (`471-*.pes` in the owner's notes; the plain square is
 `compat/reference/stitches/stamp-plain-square-baseline.pes`, the three stamped ones wait for PES
-0110 import of a shape that carries a stamp, #959): a 42 mm square
+0110 import of a shape that carries a stamp, #959): a 40 mm square (42 mm with its line)
 with its default Fill (4.5 lines/mm, 45°, under sewing) and 2 mm Zigzag line, and a 16.5 × 16 mm
 circle in the middle converted with Stamp/Emboss > Convert from Outline. OpenStitch builds the
 same with `shape.emboss`. Inside the circle against outside (1 mm in from the circle and 3 mm in
@@ -3404,8 +3404,8 @@ from the square's edge), fill block only:
 | effect | PE-DESIGN | OpenStitch before | OpenStitch now |
 |---|---|---|---|
 | none | 4.0 mm stitches, 125 / 128 needle points per cm² | 4.0 mm, 124 / 128 | same |
-| engraved region | 1.9 mm, 262 per cm² | 1.0 mm, 480 | 1.9 mm, 262 (2 mm steps) |
-| embossed region | 56 per cm² (13 within 6 mm of the centre: under sewing only); whole stitches 12–14.3 mm, a few short ends | 110 per cm²; split evenly, 7–8 mm | 26 per cm² (11 within 6 mm); whole stitches up to 14.5 mm, the rest last |
+| engraved region | 1.9 mm, 262 per cm² | 1.0 mm, 480 | 1.9 mm, 263 (2 mm steps) |
+| embossed region | 56 per cm² (13 within 6 mm of the centre: under sewing only); whole stitches 12–14.3 mm, a few short ends | 110 per cm²; split evenly, 7–8 mm | 27 per cm² (12 within 6 mm); whole stitches up to 14.5 mm, the rest last |
 | engraved line | +118 needle points on a ring about 1 mm inside the circle | +142 on the circle | same |
 
 The engraved region and the emboss were the weak ones: an engraved region twice as dense as
@@ -3417,10 +3417,14 @@ PE-DESIGN's own 14.3 mm. The embossed band right inside the circle keeps more ne
 PE-DESIGN's file, where its edge lies about 1 mm further in (#956). Left: the engraved line's ring sits on
 the tool's outline, where PE-DESIGN's lies about 1 mm inside, at the inner edge of the tool
 shape's 2 mm line (one capture cannot tell whether that offset follows the line width, #956);
-PE-DESIGN's fill stops at the inner edge of its zigzag line (40 × 40 mm), OpenStitch's reaches
-the outline (42 mm, #955); programmable-fill patterns' own engraved and embossed areas keep 1 mm and
+programmable-fill patterns' own engraved and embossed areas keep 1 mm and
 7 mm, with no reference yet. Kit: `fills/holes-and-emboss` 10,733 → 10,112 stitches, 13.7 →
 12.9 min, trims 5.
+
+Corrected the same day: the first version of this entry and of the `stamp-*` specs built
+the square 42 mm wide, its zigzag line's outer edge, and so reported a fill difference that is
+not there (#955, closed). PE-DESIGN's outline is 40 mm and its fill reaches it whatever the line
+(`line-square-*` specs, the #955 captures); the figures above are from the 40 mm square.
 
 ### Photo Stitch 1 trims rather than cross a face in sight, 2026-11-12 (#915)
 
