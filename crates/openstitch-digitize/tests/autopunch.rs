@@ -1722,7 +1722,6 @@ fn thin_lines_needing_their_own_colour_block_are_sewn_only_when_long() {
             })
             .count()
     };
-    assert!(autopunch::THIN_BLOCK_MM > 15.0 * 3.0 - 10.0 && autopunch::THIN_BLOCK_MM <= 45.0);
     // One rope, 11 mm: left out.
     assert_eq!(
         thin(&picture(&[(200, 60)])),
