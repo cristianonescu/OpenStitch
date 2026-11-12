@@ -4171,7 +4171,6 @@ fn blend_travel_never_runs_far_across_the_rows() {
             .iter()
             .map(|s| longest_exposed_across_rows(s, 2.0, &c, 10.0 / r.density))
             .fold(0.0, f64::max);
-        eprintln!("DBG {kind:?} {dither:?}: shown {across:.1}");
         assert!(
             across <= 20.0,
             "{kind:?} {dither:?}: {:.1} mm of travel showing across the rows",
