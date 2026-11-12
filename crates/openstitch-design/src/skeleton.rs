@@ -2030,13 +2030,14 @@ mod letter_tests {
     /// without a junction (N, M, W) are still under the bar (#526).
     #[test]
     fn letters_split_into_columns_that_sew_them() {
+        // Raised 2026-11-12, when free column ends began to reach the outline (#526).
         let floors = [
-            ("K", 0.98, 0.98),
-            ("Y", 0.95, 0.96),
-            ("X", 0.94, 0.94),
-            ("R", 0.94, 0.94),
-            ("A", 0.89, 0.91),
-            ("y", 0.95, 0.95),
+            ("K", 0.98, 0.99),
+            ("Y", 0.96, 0.97),
+            ("X", 0.98, 0.98),
+            ("R", 0.94, 0.96),
+            ("A", 0.90, 0.91),
+            ("y", 0.97, 0.98),
         ];
         for (ch, small, large) in floors {
             for (size, floor) in [(10.0, small), (25.0, large)] {
