@@ -438,7 +438,7 @@ Threads, in sewing order: 405 Blue, 001 White, 800 Red, 208 Orange, 205 Yellow, 
 
 [`fills/angle-lines.pes`](fills/angle-lines.pes) · 100 × 100 mm hoop · 49.8 × 72.8 mm · 4,631 stitches · 1 trim · about 5.8 min
 
-An L whose rows turn round its corner between three angle lines, as one object with no seam. The lighter band along the inside of the bend in the picture is a drawing limit of the Realistic view, not sparse stitching: the rows there are the densest in the design (#921).
+An L whose rows turn round its corner between three angle lines, as one object with no seam.
 
 <img src="previews/angle-lines.png" height="180" alt="Realistic view of fills/angle-lines.pes">
 

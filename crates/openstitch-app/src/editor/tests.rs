@@ -1556,13 +1556,23 @@ fn crossing_rows_never_draw_lighter_than_the_rows_alone() {
     for k in 0..=40 {
         // 45° stitches about 0.7 mm apart across the square, sewn after the rows.
         let c = f64::from(k) * 10.0 - 200.0 + 100.0;
-        let (a, b) = (v2(c.max(0.0), (-c).max(0.0)), v2((c + 200.0).min(200.0), (200.0 - c).min(200.0)));
+        let (a, b) = (
+            v2(c.max(0.0), (-c).max(0.0)),
+            v2((c + 200.0).min(200.0), (200.0 - c).min(200.0)),
+        );
         let (a, b) = if k % 2 == 0 { (a, b) } else { (b, a) };
-        crossed.stitches.push(Stitch::new(a.x, a.y, Command::Stitch));
-        crossed.stitches.push(Stitch::new(b.x, b.y, Command::Stitch));
+        crossed
+            .stitches
+            .push(Stitch::new(a.x, a.y, Command::Stitch));
+        crossed
+            .stitches
+            .push(Stitch::new(b.x, b.y, Command::Stitch));
     }
     crossed.stitches.push(end);
     let both = covered_share(&RenderModel::build(&crossed, usize::MAX), window);
     assert!(alone > 0.9, "the rows alone hide {alone:.3}");
-    assert!(both >= alone - 0.005, "with an underlay crossing them {both:.3}, the rows alone {alone:.3}");
+    assert!(
+        both >= alone - 0.005,
+        "with an underlay crossing them {both:.3}, the rows alone {alone:.3}"
+    );
 }
