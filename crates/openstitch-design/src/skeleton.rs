@@ -916,11 +916,23 @@ pub fn branches(contours: &[Contour], join_overlap: f64) -> Vec<Skeleton> {
     // into its bowl) fans there and leaves a gap in the stroke it turns off (#526). Strokes
     // between the columns' free ends that run straight are tried as the main stroke instead,
     // and the split that covers the region best is kept.
-    if sharpest_bend(&arms[0]) <= STRAIGHT_TURN {
+    // A main column that narrows to nothing at a junction (the V through a Y's arms) leaves
+    // the crotch unsewn: strokes along the ridges between the free ends (a Y's stem and one
+    // arm) are tried too.
+    let bends = sharpest_bend(&arms[0]) > STRAIGHT_TURN;
+    let narrows = collapses(&arms[0]);
+    if !bends && !narrows {
         return arms;
     }
+    let mut candidates = Vec::new();
+    if bends {
+        candidates.extend(straight_mains(&arms, &grid, &edges));
+    }
+    if narrows {
+        candidates.extend(ridge_mains(&arms, &grid, &edges));
+    }
     let mut best = (covered(&grid, &arms), arms);
-    for main in straight_mains(&best.1, &grid, &edges) {
+    for main in candidates {
         let arms = arms_from(main, &grid, &edges, overlap, true);
         let share = covered(&grid, &arms);
         if share > best.0 + 1e-9 {
@@ -937,6 +949,9 @@ const STRAIGHT_TURN: f64 = 40.0;
 const BEND_WINDOW: f64 = 1.5;
 /// Most straight strokes tried as a main stroke.
 const MAX_MAINS: usize = 4;
+/// A main column narrowing inside to under this share of its median width is measured across
+/// a junction's mouth (#526).
+const COLLAPSE: f64 = 0.4;
 
 /// The largest turn (degrees) of `s`'s centre line within [`BEND_WINDOW`] column widths: a
 /// sharp bend there, a gentle curve spread along it.
@@ -1076,6 +1091,62 @@ fn cell_near(grid: &Grid, p: Vec2) -> Option<usize> {
 /// Straight strokes between the free ends of `arms` (the main stroke's two ends and each
 /// arm's tip) that run inside the region, longest first, at most [`MAX_MAINS`].
 fn straight_mains(arms: &[Skeleton], grid: &Grid, edges: &[(Vec2, Vec2)]) -> Vec<Skeleton> {
+    let mut found: Vec<(f64, Skeleton)> = tip_ridges(arms, grid)
+        .iter()
+        .filter_map(|ridge| straight_stroke(ridge, grid, edges))
+        .map(|sk| (sk.points[0].distance(sk.points[sk.points.len() - 1]), sk))
+        .collect();
+    found.sort_by(|a, b| b.0.total_cmp(&a.0));
+    found.into_iter().take(MAX_MAINS).map(|f| f.1).collect()
+}
+
+/// Curved strokes along the ridges between the free ends of `arms`, longest first, at most
+/// [`MAX_MAINS`] (#526): a main stroke whose column collapses at a junction (the V through a
+/// Y's arms) is tried again along the stem and one arm.
+fn ridge_mains(arms: &[Skeleton], grid: &Grid, edges: &[(Vec2, Vec2)]) -> Vec<Skeleton> {
+    let mut found: Vec<(f64, Skeleton)> = tip_ridges(arms, grid)
+        .into_iter()
+        .filter_map(|ridge| {
+            let mut pts: Vec<Vec2> = ridge.iter().map(|&k| grid.centre(k)).collect();
+            // Both ends reach out most of their clearance, like derive's.
+            let last = pts.len() - 1;
+            let reach = |end: usize, inner: usize, k: usize| {
+                let d = pts[end] - pts[inner];
+                (d.length() > 1e-9)
+                    .then(|| pts[end] + d * (0.8 * grid.clearance[k].max(0.0) / d.length()))
+            };
+            let head = reach(0, 3.min(last), ridge[0]);
+            let tail = reach(last, last.saturating_sub(3), ridge[last]);
+            if let Some(p) = head {
+                pts.insert(0, p);
+            }
+            if let Some(p) = tail {
+                pts.push(p);
+            }
+            let len: f64 = pts.windows(2).map(|w| w[0].distance(w[1])).sum();
+            line_to_skeleton(pts, true, true, edges, grid.step).map(|sk| (len, sk))
+        })
+        .collect();
+    found.sort_by(|a, b| b.0.total_cmp(&a.0));
+    found.into_iter().take(MAX_MAINS).map(|f| f.1).collect()
+}
+
+/// Whether the column of `s` narrows inside to under [`COLLAPSE`] of its median width (#526):
+/// a main stroke turning through a junction is measured across the junction's mouth there.
+fn collapses(s: &Skeleton) -> bool {
+    let n = s.widths.len();
+    if n < 3 {
+        return false;
+    }
+    let mut w = s.widths.clone();
+    w.sort_by(f64::total_cmp);
+    let median = w[n / 2];
+    s.widths[1..n - 1].iter().any(|&x| x < COLLAPSE * median)
+}
+
+/// The grid ridges (cells, from one end to the other) between each pair of the free ends of
+/// `arms`: the main stroke's two ends and each arm's tip.
+fn tip_ridges(arms: &[Skeleton], grid: &Grid) -> Vec<Vec<usize>> {
     let mut tips: Vec<Vec2> = Vec::new();
     if let (Some(&a), Some(&b)) = (arms[0].points.first(), arms[0].points.last()) {
         tips.extend([a, b]);
@@ -1083,7 +1154,7 @@ fn straight_mains(arms: &[Skeleton], grid: &Grid, edges: &[(Vec2, Vec2)]) -> Vec
     tips.extend(arms[1..].iter().filter_map(|s| s.points.last().copied()));
     let cells: Vec<usize> = tips.iter().filter_map(|&p| cell_near(grid, p)).collect();
     let widest = grid.clearance.iter().copied().fold(grid.step, f64::max);
-    let mut found: Vec<(f64, Skeleton)> = Vec::new();
+    let mut found: Vec<Vec<usize>> = Vec::new();
     for (i, &from) in cells.iter().enumerate() {
         let (_, prev) = grid.paths(from, |n, step| {
             let k = widest / (grid.clearance[n].max(0.0) + grid.step * 0.5);
@@ -1104,14 +1175,10 @@ fn straight_mains(arms: &[Skeleton], grid: &Grid, edges: &[(Vec2, Vec2)]) -> Vec
             if ridge.last() != Some(&from) || ridge.len() < 8 {
                 continue;
             }
-            if let Some(sk) = straight_stroke(&ridge, grid, edges) {
-                let len = sk.points[0].distance(sk.points[sk.points.len() - 1]);
-                found.push((len, sk));
-            }
+            found.push(ridge);
         }
     }
-    found.sort_by(|a, b| b.0.total_cmp(&a.0));
-    found.into_iter().take(MAX_MAINS).map(|f| f.1).collect()
+    found
 }
 
 /// A straight line (a point on it and its unit direction) through `p` if at least 60 % of the
@@ -1264,12 +1331,35 @@ fn arms_from(
                 }
                 i += 1;
             }
-            let (tip, reach) = part
+            let (corner, reach) = part
                 .iter()
                 .map(|&k| (k, -depth[k]))
                 .max_by(|a, b| a.1.total_cmp(&b.1))
                 .expect("not empty");
             let wide = part.iter().map(|&k| grid.clearance[k]).fold(0.0, f64::max);
+            // A flat end square to the arm (a y's tail, a Y's stem foot) has a row of cells at
+            // its furthest reach, and the furthest of them is a corner: an arm from there runs
+            // slanted across the stroke. There the tip is the one of those cells most in the
+            // middle. A pointed or slanted end (an R's leg) keeps its furthest cell (#526).
+            let front: Vec<usize> = part
+                .iter()
+                .copied()
+                .filter(|&k| -depth[k] >= reach - 1.5 * grid.step)
+                .collect();
+            let flat = front.len() as f64 * grid.step >= wide;
+            let tip = if flat {
+                front
+                    .iter()
+                    .copied()
+                    .max_by(|&a, &b| {
+                        grid.clearance[a]
+                            .total_cmp(&grid.clearance[b])
+                            .then((-depth[a]).total_cmp(&-depth[b]))
+                    })
+                    .unwrap_or(corner)
+            } else {
+                corner
+            };
             // An arm reaches out further than twice its half width.
             if reach >= (2.0 * wide).max(3.0 * grid.step)
                 && best.as_ref().is_none_or(|b| reach > b.0)
@@ -1818,6 +1908,67 @@ mod letter_tests {
             assert!(share >= least, "{ch} {size}: {share:.3}");
             for sk in &arms {
                 assert_eq!(sk.validate(), Ok(()));
+            }
+        }
+    }
+
+    /// The share of each letter the columns sew (Lato Bold at 10 and 25 mm, #526): K and Y over
+    /// the 0.95 bar (Y's main column is its stem and one arm, not the V through both arms, which
+    /// narrows to nothing at the crotch); the others no lower than measured on 2026-11-12. y and
+    /// the letters without a junction (N, M, W) are still under the bar (#526).
+    #[test]
+    fn letters_split_into_columns_that_sew_them() {
+        let floors = [
+            ("K", 0.98, 0.98),
+            ("Y", 0.95, 0.96),
+            ("X", 0.94, 0.94),
+            ("R", 0.94, 0.94),
+            ("A", 0.88, 0.90),
+            ("y", 0.85, 0.88),
+        ];
+        for (ch, small, large) in floors {
+            for (size, floor) in [(10.0, small), (25.0, large)] {
+                let c = letter(ch, size);
+                let share = sewn(&c, &branches(&c, 0.3));
+                assert!(
+                    share >= floor,
+                    "{ch} at {size} mm sews {share:.3}, under {floor}"
+                );
+            }
+        }
+    }
+
+    /// The #526 measurement table: columns and the share sewn for Lato Bold letters at 10 and
+    /// 25 mm. Run with `--ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn letter_table() {
+        for ch in ["K", "X", "R", "N", "Y", "y", "A", "M", "W"] {
+            for size in [10.0, 25.0] {
+                let c = letter(ch, size);
+                let arms = branches(&c, 0.3);
+                let widest = arms
+                    .iter()
+                    .flat_map(|a| a.widths.iter().copied())
+                    .fold(0.0, f64::max);
+                eprintln!(
+                    "TABLE {ch} {size}: {} columns, sewn {:.3}, widest {widest:.1} mm, main bend \
+                     {:.0}, collapses {}",
+                    arms.len(),
+                    sewn(&c, &arms),
+                    sharpest_bend(&arms[0]),
+                    collapses(&arms[0])
+                );
+                for (k, a) in arms.iter().enumerate() {
+                    let n = a.points.len();
+                    eprintln!(
+                        "  col {k}: {:.0?} -> {:.0?}, {n} pts, widths {:.1}..{:.1}",
+                        a.points[0],
+                        a.points[n - 1],
+                        a.widths.iter().copied().fold(f64::INFINITY, f64::min),
+                        a.widths.iter().copied().fold(0.0, f64::max)
+                    );
+                }
             }
         }
     }

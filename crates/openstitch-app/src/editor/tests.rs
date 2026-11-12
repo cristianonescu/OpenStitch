@@ -1406,3 +1406,93 @@ fn click_order_follows_the_clicks() {
         "Shape 1"
     );
 }
+
+/// A 20 mm square of level fill rows `spacing` (0.1 mm) apart, stored on the machine's 0.1 mm
+/// grid as a .pes stores them, sewn back and forth in 4 mm stitches.
+fn level_rows(spacing: f64) -> StitchPattern {
+    let mut p = StitchPattern::new();
+    p.threads = vec![Thread::rgb(0x1a4f9c)];
+    p.stitches.push(Stitch::new(0.0, 0.0, Command::Jump));
+    let rows = (200.0 / spacing) as usize;
+    for k in 0..=rows {
+        let y = (k as f64 * spacing).round();
+        let xs: Vec<f64> = (0..=5).map(|i| i as f64 * 40.0).collect();
+        let xs: Vec<f64> = if k % 2 == 0 {
+            xs
+        } else {
+            xs.into_iter().rev().collect()
+        };
+        for x in xs {
+            p.stitches.push(Stitch::new(x, y, Command::Stitch));
+        }
+    }
+    p.stitches.push(Stitch::new(0.0, 0.0, Command::End));
+    p
+}
+
+/// Across the rows of `level_rows` at x = 10 mm, inside the square (3 mm from its edges): the
+/// widest strip (mm) of bare fabric the Realistic view leaves, and the share it covers.
+fn bare_fabric(m: &RenderModel) -> (f64, f64) {
+    use openstitch_design::calibration::THREAD_MM;
+    let l = &m.layers[0];
+    let mut spans: Vec<(f64, f64)> = Vec::new();
+    for (n, s) in l.strokes.iter().enumerate() {
+        for (k, w) in s.windows(2).enumerate() {
+            let (a, b) = (w[0], w[1]);
+            if (a.y - b.y).abs() > 1e-9 || a.x.min(b.x) > 100.0 || a.x.max(b.x) < 100.0 {
+                continue;
+            }
+            let len = a.distance(b);
+            let normal_y = (b.x - a.x) / len;
+            let y = a.y + f64::from(l.shift[n][k]) * normal_y;
+            let half = f64::from(l.cover[n][k]) * THREAD_MM * 10.0 / 2.0;
+            spans.push((y - half, y + half));
+        }
+    }
+    spans.sort_by(|p, q| p.0.total_cmp(&q.0));
+    let (mut reach, mut widest, mut bare) = (30.0f64, 0.0f64, 0.0);
+    for (lo, hi) in spans {
+        if hi < 30.0 || lo > 170.0 {
+            continue;
+        }
+        let gap = (lo.min(170.0) - reach).max(0.0);
+        widest = widest.max(gap);
+        bare += gap;
+        reach = reach.max(hi);
+    }
+    bare += (170.0 - reach).max(0.0);
+    (widest / 10.0, 1.0 - bare / 140.0)
+}
+
+#[test]
+fn realistic_view_shows_no_bare_stripes_in_rows_on_the_machine_grid() {
+    // #893: 4.5 rows/mm (0.222 mm) stored 0.2, 0.2, 0.2 and 0.3 mm apart left a bare stripe in
+    // every 0.3 mm gap (0.09 mm wide, about every 0.9 mm). Now no strip wider than 0.02 mm (a
+    // fifth of a pixel at 10 px/mm) shows anywhere inside the fill.
+    let (dense, _) = bare_fabric(&RenderModel::build(&level_rows(10.0 / 4.5), usize::MAX));
+    assert!(dense < 0.02, "bare strip {dense} mm at 4.5 rows/mm");
+    // Sparse rows still show their fabric: 1 row/mm leaves most of each 1 mm gap bare.
+    let (sparse, _) = bare_fabric(&RenderModel::build(&level_rows(10.0), usize::MAX));
+    assert!(sparse > 0.5, "bare strip {sparse} mm at 1 row/mm");
+}
+
+#[test]
+fn realistic_view_covers_the_fabric_as_the_sewn_t1_ramp() {
+    // The Black coverage ramp of both T1 sew-outs (pink cotton 2026-11-03, white cotton
+    // 2026-11-04; examples/sew/calibration/results), rows on the 0.1 mm grid as sewn: the share
+    // of fabric the drawn rows hide is within 4 % of both cards at every density (#291, #893).
+    for (rows, pink, white) in [
+        (0.5, 0.20, 0.16),
+        (1.0, 0.40, 0.35),
+        (1.5, 0.55, 0.53),
+        (2.0, 0.68, 0.66),
+        (3.0, 0.87, 0.84),
+        (4.5, 0.96, 0.96),
+    ] {
+        let (_, covered) = bare_fabric(&RenderModel::build(&level_rows(10.0 / rows), usize::MAX));
+        assert!(
+            (covered - pink).abs() < 0.04 && (covered - white).abs() < 0.04,
+            "{rows} rows/mm: the view covers {covered:.3}, the cards {pink} and {white}"
+        );
+    }
+}

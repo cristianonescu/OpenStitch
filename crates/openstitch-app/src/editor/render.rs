@@ -16,6 +16,11 @@ pub struct ColorLayer {
     /// thread's rows lie close, so the Realistic view hides as much fabric as sewn thread does
     /// (openstitch_design::calibration, the T1 sew-outs, #291).
     pub cover: Vec<Vec<f32>>,
+    /// Per stroke, how far (design units, at the default thread width) each stitch's thread is
+    /// drawn off its line, towards the side 90° anticlockwise from its direction: off centre
+    /// where the row beside it on one side is further than on the other (rows on the machine's
+    /// 0.1 mm grid, #893). Empty: centred.
+    pub shift: Vec<Vec<f32>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -56,6 +61,7 @@ impl RenderModel {
             rgb: rgb(0),
             strokes: Vec::new(),
             cover: Vec::new(),
+            shift: Vec::new(),
         };
         let mut stroke: Vec<Vec2> = Vec::new();
         let mut pos: Option<Vec2> = None;
@@ -104,6 +110,7 @@ impl RenderModel {
                         rgb: rgb(color),
                         strokes: Vec::new(),
                         cover: Vec::new(),
+                        shift: Vec::new(),
                     };
                     let done = std::mem::replace(&mut layer, next);
                     if !done.strokes.is_empty() {
@@ -122,10 +129,11 @@ impl RenderModel {
         m
     }
 
-    /// Fills each layer's [`ColorLayer::cover`] from the local rows per mm of its thread colour
-    /// (all layers of that colour together).
+    /// Fills each layer's [`ColorLayer::cover`] and [`ColorLayer::shift`] from the rows of its
+    /// thread colour (all layers of that colour together): the local rows per mm, and the gaps to
+    /// the rows beside each stitch.
     fn calibrate(&mut self) {
-        use openstitch_design::calibration::{RowDensity, THREAD_MM, covered_width_mm};
+        use openstitch_design::calibration::{RowDensity, THREAD_MM, thread_sides};
         let mut colours: Vec<[u8; 3]> = self.layers.iter().map(|l| l.rgb).collect();
         colours.sort_unstable();
         colours.dedup();
@@ -137,18 +145,20 @@ impl RenderModel {
                 .flat_map(|l| l.strokes.iter().cloned())
                 .collect();
             let density = RowDensity::of(&strokes);
+            let mut sides = thread_sides(&strokes, &density).into_iter();
             for l in self.layers.iter_mut().filter(|l| l.rgb == rgb) {
-                l.cover = l
-                    .strokes
+                let mine: Vec<Vec<(f64, f64)>> = sides.by_ref().take(l.strokes.len()).collect();
+                l.cover = mine
                     .iter()
                     .map(|s| {
-                        s.windows(2)
-                            .map(|w| {
-                                let r = density.at(w[0].lerp(w[1], 0.5));
-                                (covered_width_mm(r) / THREAD_MM) as f32
-                            })
+                        s.iter()
+                            .map(|&(a, b)| ((a + b) / THREAD_MM) as f32)
                             .collect()
                     })
+                    .collect();
+                l.shift = mine
+                    .iter()
+                    .map(|s| s.iter().map(|&(a, b)| ((a - b) * 5.0) as f32).collect())
                     .collect();
             }
         }

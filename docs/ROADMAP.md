@@ -124,12 +124,25 @@ similarity scorer draw thread as wide as it covers at its row density. Next: Pho
 trims (#298), Auto Punch's stacked satin points on the storybook picture (#290, done: `open_slivers`),
 then a sew-out of the regenerated kit.
 
+Done 2026-11-12 (#893, part 1): the Realistic view sizes each side of a thread from the gap to the row
+beside it. Rows stored on the 0.1 mm grid (0.222 mm rows land 0.2/0.2/0.2/0.3 mm apart) used to show a bare
+stripe in every 0.3 mm gap; now the uncovered fabric spreads over every gap, as on the
+sew-out. The coverage of the T1 Black ramp stays within 4 % of both cards at every density. No
+stitch output changes. The stripes in the kit previews at 5–7 px/mm are a different cause:
+anti-aliased rows about a pixel apart leave light seams that beat with the pixel grid. Part 2 renders
+the previews at a higher pixel density and downsamples them.
+
 Done 2026-11-06 (#295, #441, #311, #312): the kit has a T2 card (two threads in alternating rows,
 to measure how far a later row covers its neighbour for Photo Stitch 1), the build checks every
 calibration swatch's density in the exported file, and `sew_check` checks trims per 1,000
 stitches and hairline satins with limits from PE-DESIGN's own files. Next: sew the T2
 card and set `strip` from it; engine follow-ups #627 (Design Center line-art trims, done below) and #628
 (entry travel across a region).
+
+Done 2026-11-11 (#896): `sew_kit.py` refuses to run with a `stitchtool` or `openstitch` binary
+older than any source file its cargo dep-info lists, or built from another checkout. A preview
+rendered by an app built before a stitch change had shown the old stitches beside the new .pes
+(#890). The previews were then regenerated once with fresh binaries.
 
 Done 2026-11-06 (`batch:engine-bugs-3`, #570, #571, #466, #627, #633; #628 in part): start and end
 points left off a reshaped outline snap to it (the four random-design seeds pass); zigzag lines
