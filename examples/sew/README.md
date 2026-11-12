@@ -581,13 +581,13 @@ Each image tool on a test image, in both of its modes: PE-DESIGN-compatible mode
 
 #### Auto Punch, OpenStitch mode
 
-[`image-tools/S-autopunch-balloon-openstitch.pes`](image-tools/S-autopunch-balloon-openstitch.pes) · 100 × 100 mm hoop · 90 × 67.9 mm · 7,900 stitches · 18 trims · about 10.8 min
+[`image-tools/S-autopunch-balloon-openstitch.pes`](image-tools/S-autopunch-balloon-openstitch.pes) · 100 × 100 mm hoop · 90 × 67.9 mm · 7,887 stitches · 17 trims · about 10.7 min
 
 `g02-balloon.png` through Auto Punch at its defaults in OpenStitch mode, fitted to the 100 × 100 mm hoop. Sew both modes of the same image to compare them on fabric.
 
 <img src="../images/g02-balloon.png" height="180" alt="Source image"> <img src="previews/S-autopunch-balloon-openstitch.png" height="180" alt="Realistic view of image-tools/S-autopunch-balloon-openstitch.pes">
 
-Threads, in sewing order: 001 White, 206 Harvest Gold, 017 Light Blue, 509 Leaf Green, 030 Vermillion, 515 Moss Green, 206 Harvest Gold.
+Threads, in sewing order: 001 White, 206 Harvest Gold, 017 Light Blue, 509 Leaf Green, 030 Vermillion, 515 Moss Green.
 
 #### Auto Punch, PE-DESIGN-compatible mode
 
