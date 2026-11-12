@@ -228,6 +228,10 @@ so the editor asks the user first.
 colour sewn after it, so no fabric shows along seams; it adds stitches, so leave it off for
 thin lettering.
 
+`splitBranches: true` (OpenStitch mode) sews a branching satin stroke, such as a traced Y, K
+or star, as one satin column per arm, overlapping 0.3 mm where they meet. Use it for logos and
+lettering traced from pictures; strokes without branches are sewn as before.
+
 `flowFill: true` (OpenStitch mode) curves each fill's rows along the picture's own strokes,
 for fur, feathers, petals or hair; flat shapes keep straight rows (only strokes inside a
 region steer it, not its outline). A fill whose angle is set

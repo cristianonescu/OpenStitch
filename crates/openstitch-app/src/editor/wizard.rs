@@ -173,6 +173,9 @@ pub struct ImageWizard {
     /// Auto Punch, OpenStitch mode: each fill's rows follow the picture's strokes (`flowFill`,
     /// #538; off by default).
     pub flow_fill: bool,
+    /// Auto Punch, OpenStitch mode: a branching satin stroke as one column per arm
+    /// (`splitBranches`, #702; off by default).
+    pub split_branches: bool,
     /// Auto Punch, OpenStitch mode: a purpose preset (`preset`, #489); `None` is none.
     pub preset: Option<&'static str>,
     /// Auto Punch: the last preview (`dryRun`), for the region table and click-to-fix (#489).
@@ -249,6 +252,7 @@ impl Default for ImageWizard {
             marking: false,
             vary_angles: false,
             flow_fill: false,
+            split_branches: false,
             preset: None,
             plan: None,
             overrides: std::collections::BTreeMap::new(),
@@ -427,6 +431,9 @@ impl ImageWizard {
                 }
                 if self.open_stitch && self.flow_fill {
                     p.insert("flowFill".into(), json!(true));
+                }
+                if self.open_stitch && self.split_branches {
+                    p.insert("splitBranches".into(), json!(true));
                 }
                 if let (true, Some(preset)) = (self.open_stitch, self.preset) {
                     p.insert("preset".into(), json!(preset));
@@ -1019,6 +1026,29 @@ mod tests {
                 .expect("request")
                 .params
                 .get("flowFill")
+                .is_none()
+        );
+        // OpenStitch mode: branching strokes split into columns only when chosen, never in PE
+        // mode (#702).
+        let split = ImageWizard {
+            open_stitch: true,
+            split_branches: true,
+            ..base.clone()
+        };
+        assert_eq!(
+            split.request().expect("request").params["splitBranches"],
+            true
+        );
+        let pe_split = ImageWizard {
+            open_stitch: false,
+            ..split
+        };
+        assert!(
+            pe_split
+                .request()
+                .expect("request")
+                .params
+                .get("splitBranches")
                 .is_none()
         );
         // Cross Stitch: Mode, and fill sent only when turned off.

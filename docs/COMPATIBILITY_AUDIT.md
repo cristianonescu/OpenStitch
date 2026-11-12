@@ -3376,6 +3376,23 @@ No travel is sewn outside the letters (`small_lettering_shows_no_travel_outside_
 compat 476/476. Still open on #446: N's corner spike (the diagonal's rungs fan into the corner,
 where PE-DESIGN sews a small corner block), M at 8 mm, A's and V's slanted feet.
 
+### A slanted arm runs on at V's, M's and W's feet, 2026-11-12 (#446)
+
+At a foot where two slanted arms leaning opposite ways meet, PE-DESIGN 11.50 runs one arm on to
+the outline and stops the other against it, as it does with N's stems (stroke-satin-V: the left
+arm down to the baseline; M's middle V, W's feet). OpenStitch cut both arms at the corner and left
+an unsewn wedge between them. The arm that runs on is the one falling to the right (`\`, the
+thick stroke of a classic V), and only at a foot, where the arms come down into the cut and go up
+out of it (`strokes::slanted_run_on`, called from `run_on_stems` beside its upright case); the
+other arm stops half the run-on arm's half width from its centre line. Top apexes (A's, W's
+middle) stay cut as before: running A's right leg on fanned its top crossings to 144° against
+PE-DESIGN's near-level ones. Lato Bold, needle points main (7d785c86) → now (448155a6, release
+build) against PE-DESIGN: satin V 208 → 223 (228), M 347 → 350 (374), M at 8 mm 145 → 148 (165),
+fill V 377 → 398 (397); further: W 384 → 402 (363) and W at 8 mm 156 → 159 (155), whose feet are
+now sewn where main left wedges. Satin and fill A are unchanged (283, 461). Every spec passes,
+485/485. Still open on #446: A's apex, A's left foot (the level cut on a slanted leg) and the
+crossings' slant along slanted arms (PE-DESIGN's are level).
+
 ### Satin N's stems run on past its corners, 2026-11-08 (#446)
 
 PE-DESIGN 11.50 sews satin N's stems the whole height of the letter and stops the diagonal
