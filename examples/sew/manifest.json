@@ -1235,7 +1235,7 @@
    90.0,
    67.9
   ],
-  "stitches": 7886,
+  "stitches": 7869,
   "trims": 15,
   "threads": [
    "001 White",
@@ -1248,7 +1248,7 @@
   "sewingMinutes": 10.6,
   "image": "../images/g02-balloon.png",
   "preview": "previews/S-autopunch-balloon-openstitch.png",
-  "sha256": "e16a9be4242dadee288687d59dc8270b47e4455836910ad0263ffcfcb9a11b79"
+  "sha256": "feb340e17a35f45213d7311ccf48db9c67e533daa5aa8c282944adfc4a1d404a"
  },
  "image-tools/S-autopunch-balloon-pe-compatible.pes": {
   "title": "Auto Punch, PE-DESIGN-compatible mode",
@@ -1509,8 +1509,8 @@
    199.0,
    150.1
   ],
-  "stitches": 94192,
-  "trims": 1087,
+  "stitches": 94020,
+  "trims": 1081,
   "threads": [
    "017 Light Blue",
    "843 Beige",
@@ -1523,10 +1523,10 @@
    "704 Pewter",
    "058 Dark Brown"
   ],
-  "sewingMinutes": 173.4,
+  "sewingMinutes": 172.9,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-openstitch.png",
-  "sha256": "7001a7dc3d2a25e4b82593073d26337db3d307e735935f2b402472b94c686849"
+  "sha256": "419d4040a6e78c0747af97e0c442da2404f5fbb483c0d45eed09b122641ab37b"
  },
  "image-tools/L-autopunch-storybook-pe-compatible.pes": {
   "title": "Auto Punch, PE-DESIGN-compatible mode",
