@@ -3409,6 +3409,27 @@ its runs meet a row's neighbour ours have to cross. Guarded by
 1,000; portrait 1.4–3.5) and the spec `photostitch1-p01-portrait-travel`. OpenStitch mode is
 unchanged.
 
+Kit (regenerated with `sew_kit.py --only`), before → after: `M-photo1-portrait-pe-compatible`
+13 → 38 trims, 26,537 → 26,563 stitches, 33.8 → 35.2 min; `S-photo1-sunset-pe-compatible`
+14 → 27 trims, 9,744 → 9,796 stitches, 12.9 → 13.6 min. The portrait's preview shows no long
+dark line across the face; the sunset's long dark lines across the sun and its reflection are
+gone, and short dark stretches stay in the upper right sky.
+
+### PEC chart colours against every PE-DESIGN capture, 2026-11-12 (#915)
+
+The new portrait reference failed `pe_design_thread_tables_match_the_pec_chart`: PE-DESIGN
+writes 333 AMBER RED (PEC 49) as (181, 76, 100), the chart had pyembroidery's (181, 75, 100).
+Every BROTHER EMBROIDERY thread in the raw thread tables of the 1,421 `#PES0110` captures on
+the owner's PC (compat/reference, the pe11 fixtures and all reference rounds) was compared
+with the chart: 55 of the 61 codes are used, 53 agree. 333 differs in all 14 files that use it
+(Photo Stitch 1 and Auto Punch, rounds 5, 8 and 10) and is corrected, in New Brothread too.
+812 CREAM YELLOW differs in one Auto Punch file whose thread table also holds a Ver4 Option
+Color, so it waits for a capture from the BROTHER EMBROIDERY chart; 337, 810, 612, 079, 542
+and 202 are in no capture yet. Effect: OpenStitch mode's gradient golden hashes (the colour, and
+Amber Red one place earlier in Auto Punch's lightness order) and the kit's
+`S-photo1-sunset-openstitch` (Amber Red sewn before Vermilion: 117 → 102 trims, 7,923 → 7,929
+stitches, 15.9 → 15.1 min). No PE-compatible thread choice changed in the kit.
+
 ### A's apex runs on; run-on arms start along their end cuts, 2026-11-12 (#446)
 
 PE-DESIGN 11.50 runs A's right leg (`\`) on to the apex's flat top and stops the left leg
