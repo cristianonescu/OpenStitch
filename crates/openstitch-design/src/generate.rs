@@ -416,7 +416,24 @@ pub fn fill_edge_to_edge_travel(
     sloped: bool,
     along: bool,
 ) -> Vec<Run> {
-    let mut runs = edge_rows_travel(contours, p, holes, stagger, entry, sloped, along);
+    let mut runs = edge_rows_travel(contours, p, holes, stagger, entry, sloped, along, false);
+    runs.iter_mut().for_each(join_short_stitches);
+    runs
+}
+
+/// [`fill_edge_to_edge_travel`] with a region in several sections sewn so that a section
+/// joining others comes after them, each of those from its far end towards the one it joins
+/// (#469, `RunningStitchPath::InsideHidden`): the travel between them then runs where thread
+/// is still to be sewn. A region whose rows are all one span is sewn as before.
+pub fn fill_edge_to_edge_travel_hidden(
+    contours: &[Contour],
+    p: &RegionParams,
+    holes: &[Contour],
+    stagger: Stagger,
+    entry: Option<Vec2>,
+    sloped: bool,
+) -> Vec<Run> {
+    let mut runs = edge_rows_travel(contours, p, holes, stagger, entry, sloped, false, true);
     runs.iter_mut().for_each(join_short_stitches);
     runs
 }
@@ -431,9 +448,11 @@ pub(crate) fn edge_to_edge_rows(
     entry: Option<Vec2>,
     sloped: bool,
 ) -> Vec<Run> {
-    edge_rows_travel(contours, p, holes, stagger, entry, sloped, false)
+    edge_rows_travel(contours, p, holes, stagger, entry, sloped, false, false)
 }
 
+// The fill entry points pass their few switches straight through (#469 added `hidden`).
+#[allow(clippy::too_many_arguments)]
 fn edge_rows_travel(
     contours: &[Contour],
     p: &RegionParams,
@@ -442,6 +461,7 @@ fn edge_rows_travel(
     entry: Option<Vec2>,
     sloped: bool,
     along: bool,
+    hidden: bool,
 ) -> Vec<Run> {
     let l = p.stitch_length;
     let start = entry.map(|e| e.rotated(-p.angle.to_radians()));
@@ -471,7 +491,8 @@ fn edge_rows_travel(
         (Some(st), Some(f), Some(e)) => (st.y - f.y).abs() > (st.y - e.y).abs(),
         _ => false,
     };
-    chain(
+    let order = hidden.then(|| connectors_last(&spans)).flatten();
+    chain_in(
         &spans,
         p,
         |span, row, forward| {
@@ -495,7 +516,144 @@ fn edge_rows_travel(
         },
         Chain::Brick,
         start,
+        order.as_deref(),
     )
+}
+
+/// The rows of a region in several sections (#469) in an order where a section joining others
+/// is sewn after them: rows that continue one-to-one (each overlaps only the other in the next
+/// row) form a section; sections touch where a row overlaps another section's. Along a
+/// spanning tree rooted at the section touching most, every section's branches come first,
+/// each sewn from the row farthest from its parent towards it. `None` for one section, and
+/// where the sections touch in a ring.
+fn connectors_last(spans: &[RowSpan]) -> Option<Vec<usize>> {
+    let n = spans.len();
+    let overlaps = |a: &RowSpan, b: &RowSpan| {
+        a.row.abs_diff(b.row) == 1
+            && a.range.start() <= b.range.end()
+            && b.range.start() <= a.range.end()
+    };
+    let mut next: Vec<Vec<usize>> = vec![Vec::new(); n];
+    for i in 0..n {
+        for j in 0..n {
+            if i != j && overlaps(&spans[i], &spans[j]) {
+                next[i].push(j);
+            }
+        }
+    }
+    // Sections: union of one-to-one continuations.
+    let mut section: Vec<usize> = (0..n).collect();
+    fn root(s: &mut [usize], mut i: usize) -> usize {
+        while s[i] != i {
+            s[i] = s[s[i]];
+            i = s[i];
+        }
+        i
+    }
+    for i in 0..n {
+        for &j in &next[i] {
+            if spans[j].row == spans[i].row + 1 {
+                let up = next[i]
+                    .iter()
+                    .filter(|&&k| spans[k].row == spans[i].row + 1)
+                    .count();
+                let down = next[j]
+                    .iter()
+                    .filter(|&&k| spans[k].row == spans[j].row - 1)
+                    .count();
+                if up == 1 && down == 1 {
+                    let (a, b) = (root(&mut section, i), root(&mut section, j));
+                    section[a] = b;
+                }
+            }
+        }
+    }
+    let ids: Vec<usize> = (0..n).map(|i| root(&mut section, i)).collect();
+    let mut names: Vec<usize> = ids.clone();
+    names.sort_unstable();
+    names.dedup();
+    let m = names.len();
+    if m < 2 {
+        return None;
+    }
+    let sec: Vec<usize> = ids
+        .iter()
+        .map(|id| names.binary_search(id).expect("named"))
+        .collect();
+    let mut members: Vec<Vec<usize>> = vec![Vec::new(); m];
+    for (i, &s) in sec.iter().enumerate() {
+        members[s].push(i);
+    }
+    // Sections touching, and where (the rows that touch).
+    let mut touch = vec![vec![false; m]; m];
+    for i in 0..n {
+        for &j in &next[i] {
+            if sec[i] != sec[j] {
+                touch[sec[i]][sec[j]] = true;
+            }
+        }
+    }
+    let degree = |s: usize| touch[s].iter().filter(|&&t| t).count();
+    // Sections that touch in a ring (a hoop, a letter O, a region round a hole) have no section
+    // that joins the others: going round sews them with the least travel, so the order stays.
+    let links: usize = (0..m).map(degree).sum::<usize>() / 2;
+    if links >= m {
+        return None;
+    }
+    let mut parent: Vec<Option<usize>> = vec![None; m];
+    let mut seen = vec![false; m];
+    let mut by_degree: Vec<usize> = (0..m).collect();
+    by_degree.sort_by_key(|&s| (std::cmp::Reverse(degree(s)), s));
+    let mut roots = Vec::new();
+    for &r in &by_degree {
+        if seen[r] {
+            continue;
+        }
+        seen[r] = true;
+        roots.push(r);
+        let mut queue = std::collections::VecDeque::from([r]);
+        while let Some(u) = queue.pop_front() {
+            for v in 0..m {
+                if touch[u][v] && !seen[v] {
+                    seen[v] = true;
+                    parent[v] = Some(u);
+                    queue.push_back(v);
+                }
+            }
+        }
+    }
+    // Post-order: children (in section order) before their parent.
+    let mut sections: Vec<usize> = Vec::with_capacity(m);
+    for &r in &roots {
+        let mut stack = vec![(r, false)];
+        while let Some((u, expanded)) = stack.pop() {
+            if expanded {
+                sections.push(u);
+                continue;
+            }
+            stack.push((u, true));
+            for v in (0..m).rev() {
+                if parent[v] == Some(u) {
+                    stack.push((v, false));
+                }
+            }
+        }
+    }
+    // Each section's rows from the one farthest from its parent towards it; a root by row.
+    let mut order = Vec::with_capacity(n);
+    for s in sections {
+        let mut rows = members[s].clone();
+        rows.sort_by_key(|&i| spans[i].row);
+        if let Some(p) = parent[s] {
+            let parent_row = |i: usize| next[i].iter().any(|&j| sec[j] == p);
+            // The parent touches the first row: sew from the last one back.
+            if rows.first().is_some_and(|&i| parent_row(i)) {
+                rows.reverse();
+            }
+        }
+        order.extend(rows);
+    }
+    Some(order)
 }
 
 /// Longest travel stitch of PE-DESIGN's fill (its entry, exit and between-half runs), 0.1 mm.
@@ -906,6 +1064,19 @@ fn chain(
     mode: Chain,
     start: Option<Vec2>,
 ) -> Vec<Run> {
+    chain_in(spans, p, points, mode, start, None)
+}
+
+/// [`chain`], taking the spans in `order` when given (each entered from its nearer end)
+/// instead of always the nearest unsewn one.
+fn chain_in(
+    spans: &[RowSpan],
+    p: &RegionParams,
+    points: impl Fn(&Span, usize, bool) -> Vec<f64>,
+    mode: Chain,
+    start: Option<Vec2>,
+    order: Option<&[usize]>,
+) -> Vec<Run> {
     let Some(first) = spans.first() else {
         return Vec::new();
     };
@@ -916,9 +1087,14 @@ fn chain(
     let join_limit = p.row_spacing * 3.0 + p.stitch_length;
     let mut last_row: Option<(usize, f64)> = None;
     let mut trim_end = false;
-    for _ in 0..spans.len() {
+    for step in 0..spans.len() {
         let (mut best, mut forward, mut best_d) = (0, true, f64::INFINITY);
-        for (i, s) in spans.iter().enumerate().filter(|(i, _)| !used[*i]) {
+        let fixed = order.and_then(|o| o.get(step).copied());
+        for (i, s) in spans
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| !used[*i] && fixed.is_none_or(|f| f == *i))
+        {
             let dl = position.distance(v2(*s.range.start(), s.y));
             let du = position.distance(v2(*s.range.end(), s.y));
             // Ties within float noise go to the first span (#567): a span whose ends are
