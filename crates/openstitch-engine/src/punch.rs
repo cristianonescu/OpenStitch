@@ -159,10 +159,10 @@ const BRANCH_WARN_WIDTH: f64 = 10.0;
 /// runs a free end on to 0.1 mm inside it (#526).
 const ON_OUTLINE: f64 = 2.0;
 /// How much wider than its skeleton (mm, both sides together) a branch column's outline is
-/// taken before the shape cuts it: its rungs reach on to the shape's edge (up to 1.5 mm past
+/// taken before the shape cuts it: its rungs reach on to the shape's edge (up to 2.5 mm past
 /// the skeleton's half width, [`skeleton::satin_to_outline`]) where the derived width falls
 /// short or the centre line lies off the stroke's middle.
-const BRANCH_REACH: f64 = 3.0;
+const BRANCH_REACH: f64 = 5.0;
 
 /// A branch column's outline and which of its ends lie on the shape's outline (#526). Its
 /// outline is the part of the shape it covers: its rails, a little wider, run on past an end

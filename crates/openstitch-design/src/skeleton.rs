@@ -477,8 +477,9 @@ pub fn rungs_within_from(
 /// How far past the skeleton's half width (0.1 mm) [`rungs_within`] reaches for the outline.
 const WITHIN_REACH: f64 = 5.0;
 /// ... and a branch column's ([`satin_to_outline`], #526): a derived centre line can lie off
-/// the stroke's middle (A's bar), and its rungs fell short of one edge.
-const BRANCH_WITHIN_REACH: f64 = 15.0;
+/// the stroke's middle (A's bar, A's left leg past the bar at 25 mm), and its rungs fell short
+/// of one edge.
+const BRANCH_WITHIN_REACH: f64 = 25.0;
 
 /// [`rungs_within_from`] with the rungs reaching up to `cap` (0.1 mm) past the half width.
 fn rungs_reaching(
@@ -759,6 +760,14 @@ impl Grid {
         self.clearance[j as usize * self.nx + i as usize]
     }
 
+    /// The cell `p` lies in; `None` outside the grid.
+    fn cell_at(&self, p: Vec2) -> Option<usize> {
+        let i = ((p.x - self.origin.x) / self.step).floor();
+        let j = ((p.y - self.origin.y) / self.step).floor();
+        (i >= 0.0 && j >= 0.0 && i < self.nx as f64 && j < self.ny as f64)
+            .then(|| j as usize * self.nx + i as usize)
+    }
+
     fn centre(&self, k: usize) -> Vec2 {
         v2(
             self.origin.x + ((k % self.nx) as f64 + 0.5) * self.step,
@@ -1012,6 +1021,9 @@ pub fn derive(contours: &[Contour]) -> Option<Skeleton> {
 
 /// Most columns one branching region is cut into.
 const MAX_BRANCHES: usize = 16;
+/// How far past a part's tip (in its widest clearances) a bridge is looked for: the part runs
+/// into another column within this, before leaving the region (#526).
+const BRIDGE_REACH: f64 = 6.0;
 
 /// How far cell `p` lies inside the satin columns of `arms` (0.1 mm): its distance in from the
 /// nearest column's edge, negative outside every column.
@@ -1056,8 +1068,34 @@ pub fn branches(contours: &[Contour], join_overlap: f64) -> Vec<Skeleton> {
         return vec![main];
     };
     let overlap = join_overlap.clamp(0.0, 10.0) * 10.0;
+    let plain = split(main.clone(), &grid, &edges, overlap, false);
+    if plain.len() == 1 {
+        return plain;
+    }
+    // Arms whose width spikes across a junction (A's left leg past its crossbar) swallow the
+    // part beyond it, which then never becomes a column of its own; the split with those
+    // spikes capped ([`capped`]) is kept when it sews more of the region (A), the plain one
+    // otherwise (y, whose tail's spike is its own stroke) (#526).
+    let spikes = split(main, &grid, &edges, overlap, true);
+    let pick = if spikes.len() > 1 && covered(&grid, &spikes) > covered(&grid, &plain) + 1e-9 {
+        spikes
+    } else {
+        plain
+    };
+    reach_free_ends(pick, &edges)
+}
+
+/// The columns of [`branches`] before their free ends reach the outline, the arms' width
+/// spikes capped or not (`cap`); `main` alone when no arm leaves it.
+fn split(
+    main: Skeleton,
+    grid: &Grid,
+    edges: &[(Vec2, Vec2)],
+    overlap: f64,
+    cap: bool,
+) -> Vec<Skeleton> {
     let first = main.clone();
-    let arms = arms_from(main, &grid, &edges, overlap, false);
+    let arms = arms_from(main, grid, edges, overlap, false, cap);
     if arms.len() == 1 {
         return vec![first];
     }
@@ -1071,24 +1109,24 @@ pub fn branches(contours: &[Contour], join_overlap: f64) -> Vec<Skeleton> {
     let bends = sharpest_bend(&arms[0]) > STRAIGHT_TURN;
     let narrows = collapses(&arms[0]);
     if !bends && !narrows {
-        return reach_free_ends(arms, &edges);
+        return arms;
     }
     let mut candidates = Vec::new();
     if bends {
-        candidates.extend(straight_mains(&arms, &grid, &edges));
+        candidates.extend(straight_mains(&arms, grid, edges));
     }
     if narrows {
-        candidates.extend(ridge_mains(&arms, &grid, &edges));
+        candidates.extend(ridge_mains(&arms, grid, edges));
     }
-    let mut best = (covered(&grid, &arms), arms);
+    let mut best = (covered(grid, &arms), arms);
     for main in candidates {
-        let arms = arms_from(main, &grid, &edges, overlap, true);
-        let share = covered(&grid, &arms);
+        let arms = arms_from(main, grid, edges, overlap, true, cap);
+        let share = covered(grid, &arms);
         if share > best.0 + 1e-9 {
             best = (share, arms);
         }
     }
-    reach_free_ends(best.1, &edges)
+    best.1
 }
 
 /// How far inside the outline a column's free end stops (0.1 mm): its end rung's centre stays
@@ -1509,6 +1547,7 @@ fn arms_from(
     edges: &[(Vec2, Vec2)],
     overlap: f64,
     straight: bool,
+    cap: bool,
 ) -> Vec<Skeleton> {
     let cells = grid.clearance.len();
     let first = main.clone();
@@ -1631,8 +1670,8 @@ fn arms_from(
         let target = (0..cells)
             .filter(|&k| depth[k] >= overlap && cost[k].is_finite())
             .min_by(|&a, &b| cost[a].total_cmp(&cost[b]));
-        let mut line: Vec<usize> = Vec::new();
-        if let Some(t) = target {
+        let walk = |t: usize| {
+            let mut line: Vec<usize> = Vec::new();
             let mut k = t;
             while k != usize::MAX && line.len() <= cells {
                 line.push(k);
@@ -1640,6 +1679,61 @@ fn arms_from(
                     break;
                 }
                 k = prev[k];
+            }
+            line
+        };
+        let mut line: Vec<usize> = target.map(walk).unwrap_or_default();
+        // A bridge (A's and H's crossbar): past its tip, away from the column it joins, the
+        // part runs into another column before it leaves the region, so it has no free end.
+        // It becomes one column from the one to the other, joining both, instead of an arm
+        // from its middle that left the other half unsewn (#526).
+        let bridge = target.and_then(|t1| {
+            let away = grid.centre(tip) - grid.centre(t1);
+            let len = away.length();
+            if len < 1e-9 {
+                return None;
+            }
+            let d = away * (1.0 / len);
+            let steps = (BRIDGE_REACH * widest / grid.step).ceil() as usize;
+            let hits = (1..=steps).find_map(|i| {
+                let k = grid.cell_at(grid.centre(tip) + d * (grid.step * i as f64))?;
+                if grid.clearance[k] < 0.0 {
+                    Some(false)
+                } else if depth[k] >= 0.0 {
+                    Some(true)
+                } else {
+                    None
+                }
+            });
+            if hits != Some(true) {
+                return None;
+            }
+            (0..cells)
+                .filter(|&k| {
+                    depth[k] >= overlap && cost[k].is_finite() && {
+                        let v = grid.centre(k) - grid.centre(tip);
+                        v.x * d.x + v.y * d.y > 0.0
+                    }
+                })
+                .min_by(|&a, &b| cost[a].total_cmp(&cost[b]))
+        });
+        if let Some(t2) = bridge {
+            let other = walk(t2);
+            if other.last() == Some(&tip) && line.last() == Some(&tip) {
+                // From the first join through the tip to the second.
+                line.pop();
+                line.extend(other.into_iter().rev());
+                let pts: Vec<Vec2> = line.iter().map(|&k| grid.centre(k)).collect();
+                match line_to_skeleton(pts, false, false, edges, grid.step, WIDE_CHORD)
+                    .map(|sk| if cap { capped(sk, edges) } else { sk })
+                {
+                    Some(sk) => {
+                        arms.push(sk);
+                        line.iter().for_each(|&k| tried[k] = true);
+                    }
+                    None => part.iter().for_each(|&k| tried[k] = true),
+                }
+                continue;
             }
         }
         // From the join to the tip, the tip reaching out most of its clearance like derive's.
@@ -1657,7 +1751,8 @@ fn arms_from(
         };
         let arm = (line.last() == Some(&tip))
             .then(|| line_to_skeleton(pts, false, reached, edges, grid.step, WIDE_CHORD))
-            .flatten();
+            .flatten()
+            .map(|sk| if cap { capped(sk, edges) } else { sk });
         match arm {
             // The arm's own cells are never an arm again; a part next to it (two arms meeting
             // in the uncovered middle of a star) still is.
@@ -1670,6 +1765,34 @@ fn arms_from(
     }
     arms
 }
+
+/// An arm's column without width spikes: where its line crosses a junction (A's left leg past
+/// the crossbar) the chord there spanned the junction (8.7 mm on a 4 mm leg), and the column
+/// swallowed half the bar, which then never became a column of its own (#526). A point wider
+/// than [`SPIKE`] times the arm's median width is kept within the clearance there, as the main
+/// column is (2.6 times the distance to the nearest edge); the rest keep their chords (R's
+/// bowl).
+fn capped(mut sk: Skeleton, edges: &[(Vec2, Vec2)]) -> Skeleton {
+    let mut ws = sk.widths.clone();
+    ws.sort_by(f64::total_cmp);
+    let Some(&median) = ws.get(ws.len() / 2) else {
+        return sk;
+    };
+    for (q, w) in sk.points.iter().zip(sk.widths.iter_mut()) {
+        if *w <= SPIKE * median {
+            continue;
+        }
+        let near = edges
+            .iter()
+            .map(|&(a, c)| segment_distance(*q, a, c))
+            .fold(f64::INFINITY, f64::min);
+        *w = w.min(2.6 * near / 10.0);
+    }
+    sk
+}
+
+/// An arm's width this many times its median is a spike across a junction ([`capped`]).
+const SPIKE: f64 = 2.0;
 
 /// A skeleton from a centre line on the grid (`pts`, 0.1 mm): smoothed, simplified, each point
 /// moved to the middle of the chord across the region there and given its width (see
@@ -2172,13 +2295,14 @@ mod letter_tests {
     /// without a junction (N, M, W) are still under the bar (#526).
     #[test]
     fn letters_split_into_columns_that_sew_them() {
-        // Raised 2026-11-12, when free column ends began to reach the outline (#526).
+        // Raised 2026-11-12, when free column ends began to reach the outline (#526); A's when
+        // its crossbar became a column of its own (a bridge).
         let floors = [
             ("K", 0.98, 0.99),
             ("Y", 0.96, 0.97),
             ("X", 0.98, 0.98),
             ("R", 0.94, 0.96),
-            ("A", 0.90, 0.91),
+            ("A", 0.97, 0.98),
             ("y", 0.97, 0.98),
         ];
         for (ch, small, large) in floors {
