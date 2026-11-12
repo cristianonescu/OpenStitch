@@ -583,6 +583,7 @@ fn fill_layer(d: &[Option<usize>], g: &Grid, rank: &[usize], t: usize) -> Vec<St
     };
     let router = Router::new(d, g, rank, t, &runs);
     let route = |x: f64, y: f64, done: &[bool]| router.route(x, y, done);
+    let shows = |seg: [f64; 4]| exposed(d, cols, rows, rank, t, frame, cw, ch, seg);
     sew_runs(
         &runs,
         rows,
@@ -591,6 +592,7 @@ fn fill_layer(d: &[Option<usize>], g: &Grid, rank: &[usize], t: usize) -> Vec<St
         |_, _, _, _| true,
         Some(&route as Route),
         Some(pe_travel()),
+        Some(&shows),
     )
 }
 
@@ -691,6 +693,7 @@ fn sew_runs(
     hidden: impl Fn(f64, f64, f64, f64) -> bool,
     route: Option<Route>,
     visible: Option<(f64, f64)>,
+    shows: Option<&dyn Fn([f64; 4]) -> f64>,
 ) -> Vec<Stitch> {
     let Sewing {
         reach_x,
@@ -752,7 +755,7 @@ fn sew_runs(
         // it is near enough (#298): (limit, stitch length).
         if let (None, None, Some((px, _)), Some((limit, step))) = (best, &routed, pen, visible) {
             let py = runs[prow_run].y;
-            let nearest = runs
+            let mut ends: Vec<(f64, usize, bool, f64, f64)> = runs
                 .iter()
                 .enumerate()
                 .filter(|(i, _)| !done[*i])
@@ -760,7 +763,30 @@ fn sew_runs(
                     [(i, false, r.xs[0]), (i, true, r.xs[r.xs.len() - 1])]
                         .map(|(i, right, x)| ((x - px).dhypot(r.y - py), i, right, x, r.y))
                 })
-                .min_by(|a, b| a.0.total_cmp(&b.0));
+                .filter(|e| e.0 <= limit)
+                .collect();
+            ends.sort_by(|a, b| a.0.total_cmp(&b.0));
+            // #915 (measuring): with a limit on how much of the travel may show, the nearest
+            // end whose straight travel shows no more than it; none, a trim.
+            let max_shown: Option<f64> = std::env::var("OS915_EXPOSED")
+                .ok()
+                .and_then(|v| v.parse::<f64>().ok())
+                .map(|mm| mm * 10.0);
+            let prefer = std::env::var("OS915_PREFER").is_ok();
+            let nearest = match (max_shown, shows) {
+                (Some(m), Some(shows)) => ends
+                    .into_iter()
+                    .take(16)
+                    .find(|&(_, _, _, x, y)| shows([px, py, x, y]) <= m),
+                // #915 (measuring): the same reach, but the end whose travel shows least.
+                (None, Some(shows)) if prefer => ends
+                    .into_iter()
+                    .take(16)
+                    .map(|e| (shows([px, py, e.3, e.4]), e))
+                    .min_by(|a, b| a.0.total_cmp(&b.0).then(a.1.0.total_cmp(&b.1.0)))
+                    .map(|(_, e)| e),
+                _ => ends.into_iter().next(),
+            };
             if let Some((d, r, right, x, y)) = nearest
                 && d <= limit
             {
@@ -1187,6 +1213,7 @@ fn fine_layer(
         hidden,
         routed.then_some(&route as Route),
         None,
+        None,
     ))
 }
 
@@ -1446,6 +1473,39 @@ fn covered(
             None => false,
         }
     })
+}
+
+/// How much of a travel stitch of thread `t` along `seg` shows (design units): the part over
+/// cells that are neither `t`'s own nor sewn by a later layer, or bare fabric, sampled every
+/// half cell as [`covered`] does (#915).
+#[allow(clippy::too_many_arguments)]
+fn exposed(
+    d: &[Option<usize>],
+    cols: usize,
+    rows: usize,
+    rank: &[usize],
+    t: usize,
+    frame: &Frame,
+    cw: f64,
+    ch: f64,
+    seg: [f64; 4],
+) -> f64 {
+    let [x0, y0, x1, y1] = seg;
+    let len = (x1 - x0).dhypot(y1 - y0);
+    let n = (len / (0.5 * cw.min(ch))).ceil().max(1.0) as usize;
+    let shown = (0..n)
+        .filter(|&i| {
+            let f = (i as f64 + 0.5) / n as f64;
+            let x = ((x0 + (x1 - x0) * f - frame.origin.x) / cw).floor();
+            let y = ((y0 + (y1 - y0) * f - frame.origin.y) / ch).floor();
+            let (x, y) = (
+                x.clamp(0.0, cols as f64 - 1.0) as usize,
+                y.clamp(0.0, rows as f64 - 1.0) as usize,
+            );
+            !matches!(d[y * cols + x], Some(u) if u == t || rank.get(u).is_some_and(|&r| r > rank[t]))
+        })
+        .count();
+    len * shown as f64 / n as f64
 }
 
 /// The longest move inside one stitch object that the design's compiler sews across as a
