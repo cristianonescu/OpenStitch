@@ -624,6 +624,37 @@ pub fn zigzag_underlay(path: &[Vec2], offset: f64, pitch: f64) -> Run {
     run
 }
 
+/// Zigzag Stitch line width (0.1 mm) from which PE-DESIGN 11.50 sews four under sewing runs
+/// instead of two (#964: on the 40 mm square 3,283 stitches at 3.9 mm, 3,448 at 4.0 mm).
+pub const ZIGZAG_FOUR_RUNS: f64 = 40.0;
+
+/// A Zigzag Stitch line's under sewing as PE-DESIGN 11.50 sews it, `width` wide (#964, captures
+/// of a 40 mm square at 1, 2, 3, 3.9 and 4 mm): running stitches `width / 2 − 0.5 mm` to either
+/// side of the line (on it below 1 mm), the right one out and the left one back as
+/// [`zigzag_underlay`]; from [`ZIGZAG_FOUR_RUNS`] two more between them a third of the way in,
+/// four runs 1 mm apart at 4 mm, each sewn the other way from the one before, from the right
+/// edge to the left.
+pub fn pe_zigzag_underlay(path: &[Vec2], width: f64, pitch: f64) -> Run {
+    let edge = (width / 2.0 - 5.0).max(0.0);
+    if width < ZIGZAG_FOUR_RUNS - 1e-6 {
+        return zigzag_underlay(path, edge, pitch);
+    }
+    let mut run: Run = Vec::new();
+    for (k, d) in [edge, edge / 3.0, -edge / 3.0, -edge]
+        .into_iter()
+        .enumerate()
+    {
+        let Some(mut side) = underlay_side(path, edge, d, pitch) else {
+            return Vec::new();
+        };
+        if k % 2 == 1 {
+            side.reverse();
+        }
+        extend(&mut run, side);
+    }
+    run
+}
+
 /// One run of [`zigzag_underlay`], `d` to the right of the line, from `offset` in from its
 /// start to `offset` in from its end; `None` when the line is too short.
 fn underlay_side(path: &[Vec2], offset: f64, d: f64, pitch: f64) -> Option<Vec<Vec2>> {
@@ -1542,12 +1573,16 @@ pub fn satin_line_width(line: &crate::model::LineSewing) -> f64 {
 /// [`zigzag_underlay`]; `centreWalk` a running stitch along the line and back; `edgeZigzag`
 /// the right-hand edge run out and a zigzag between the edge runs back; `auto` one of them by
 /// the width (see [`crate::column::AutoUnderlay`]). Other styles sew as `edge`.
+/// `zigzag`: a Zigzag Stitch line, whose `edge` style is PE-DESIGN's own
+/// ([`pe_zigzag_underlay`]); a satin line (beyond PE-DESIGN) keeps runs a quarter of its width
+/// to either side.
 pub fn line_underlay(
     path: &[Vec2],
     width: f64,
     pitch: f64,
     style: crate::model::UnderlayStyle,
     auto: &crate::column::AutoUnderlay,
+    zigzag: bool,
 ) -> Run {
     use crate::model::UnderlayStyle as U;
     let offset = width / 4.0;
@@ -1578,6 +1613,7 @@ pub fn line_underlay(
             );
             run
         }
+        _ if zigzag => pe_zigzag_underlay(path, width, pitch),
         _ => zigzag_underlay(path, offset, pitch),
     }
 }
@@ -1764,21 +1800,45 @@ mod shaping_tests {
     fn line_underlay_styles() {
         let path = vec![v2(0.0, 0.0), v2(300.0, 0.0)];
         let auto = AutoUnderlay::default();
-        let pe = line_underlay(&path, 30.0, 20.0, UnderlayStyle::Edge, &auto);
+        let pe = line_underlay(&path, 30.0, 20.0, UnderlayStyle::Edge, &auto, false);
         assert_eq!(pe, zigzag_underlay(&path, 7.5, 20.0));
         // Narrow: a centre walk along the line and back, ending where it began.
-        let walk = line_underlay(&path, 15.0, 20.0, UnderlayStyle::Auto, &auto);
+        let walk = line_underlay(&path, 15.0, 20.0, UnderlayStyle::Auto, &auto, false);
         assert!(walk.iter().all(|q| q.y == 0.0));
         assert_eq!(walk.first(), walk.last());
         // Medium: PE-DESIGN's edge runs; wide: an edge run out and a zigzag back.
         assert_eq!(
-            line_underlay(&path, 30.0, 20.0, UnderlayStyle::Auto, &auto),
+            line_underlay(&path, 30.0, 20.0, UnderlayStyle::Auto, &auto, false),
             pe
         );
-        let wide = line_underlay(&path, 50.0, 20.0, UnderlayStyle::Auto, &auto);
+        let wide = line_underlay(&path, 50.0, 20.0, UnderlayStyle::Auto, &auto, false);
         assert!(wide.iter().any(|q| q.y > 0.0) && wide.iter().any(|q| q.y < 0.0));
         let last = *wide.last().expect("end");
         assert!(last.x < 20.0, "back at the start: {last:?}");
+    }
+
+    /// #964: a Zigzag Stitch line's under sewing as PE-DESIGN 11.50 sews it: runs `width / 2 −
+    /// 0.5 mm` to either side (on the line at 1 mm), and from 4.0 mm four runs 1 mm apart.
+    #[test]
+    fn zigzag_line_under_sewing_follows_pe_design() {
+        let path = vec![v2(0.0, 0.0), v2(300.0, 0.0)];
+        let auto = AutoUnderlay::default();
+        let offsets = |run: &Run| {
+            let mut ys: Vec<i64> = run.iter().map(|q| q.y.round() as i64).collect();
+            ys.sort_unstable();
+            ys.dedup();
+            ys
+        };
+        let at = |w: f64| line_underlay(&path, w, 20.0, UnderlayStyle::Edge, &auto, true);
+        assert_eq!(offsets(&at(10.0)), vec![0]);
+        assert_eq!(offsets(&at(20.0)), vec![-5, 5]);
+        assert_eq!(offsets(&at(30.0)), vec![-10, 10]);
+        assert_eq!(offsets(&at(39.0)), vec![-15, 15]);
+        assert_eq!(offsets(&at(40.0)), vec![-15, -5, 5, 15]);
+        // Four runs, each the other way from the one before: back where it began.
+        let four = at(40.0);
+        assert!(four.first().expect("start").x < 20.0 && four.last().expect("end").x < 20.0);
+        assert_eq!(at(20.0), zigzag_underlay(&path, 5.0, 20.0));
     }
 
     fn sharp(button: u8, limit: f64) -> crate::model::SharpCorners {

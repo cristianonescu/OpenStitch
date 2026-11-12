@@ -2260,6 +2260,7 @@ fn line_elements(
                         pitch,
                         line.underlay_style,
                         &line.underlay_auto,
+                        line.kind == LineType::Zigzag,
                     )
                 } else {
                     Vec::new()
