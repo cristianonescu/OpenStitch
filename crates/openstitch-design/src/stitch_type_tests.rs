@@ -5257,7 +5257,7 @@ fn a_ring_of_sections_keeps_its_order() {
 
 /// #469's "best of": a hoop with a stem hanging below it (a ring with a branch) and the ∩ are
 /// each sewn in whichever candidate order lays the least travel on sewn thread, never more
-/// than Inside and never with more runs (trims) than Inside.
+/// than Inside and never with more trims (gaps over 4 mm) than Inside.
 #[test]
 fn a_hidden_fill_never_lays_more_travel_on_top_than_inside() {
     let circle = |cx: f64, cy: f64, r: f64| {
@@ -5322,7 +5322,10 @@ fn a_hidden_fill_never_lays_more_travel_on_top_than_inside() {
             let top = crate::region::layers(std::slice::from_ref(outline), &r, holes)
                 .pop()
                 .expect("top");
-            (crate::region::travel_on_top(&top), top.len())
+            (
+                crate::region::travel_on_top(&top),
+                crate::region::trims(&top),
+            )
         };
         let (inside, runs_inside) = sewn(RunningStitchPath::Inside);
         let (hidden, runs_hidden) = sewn(RunningStitchPath::InsideHidden);
@@ -5332,7 +5335,7 @@ fn a_hidden_fill_never_lays_more_travel_on_top_than_inside() {
         );
         assert!(
             runs_hidden <= runs_inside,
-            "shape {k}: {runs_hidden} runs against {runs_inside}"
+            "shape {k}: {runs_hidden} trims against {runs_inside}"
         );
     }
 }

@@ -727,24 +727,38 @@ fn layers_inner(
 }
 
 /// Of a hidden fill's joined candidate orders (#469, the Inside order first), the one with the
-/// least travel sewn on top among those with no more trims (separate runs) than the Inside
-/// order; ties go to fewer trims, then to the earlier candidate.
+/// least travel sewn on top among those with no more trims than the Inside order; ties go to
+/// fewer trims, then to the earlier candidate.
 fn least_on_top(candidates: Vec<Vec<Run>>) -> Vec<Run> {
-    let inside_trims = candidates.first().map_or(0, Vec::len);
+    let inside_trims = candidates.first().map_or(0, |runs| trims(runs));
     let mut best: Option<(f64, usize, Vec<Run>)> = None;
     for runs in candidates {
-        if runs.len() > inside_trims {
+        let n = trims(&runs);
+        if n > inside_trims {
             continue;
         }
         let on_top = travel_on_top(&runs);
         let better = best
             .as_ref()
-            .is_none_or(|(t, n, _)| on_top < t - 1e-9 || (on_top <= t + 1e-9 && runs.len() < *n));
+            .is_none_or(|(t, m, _)| on_top < t - 1e-9 || (on_top <= t + 1e-9 && n < *m));
         if better {
-            best = Some((on_top, runs.len(), runs));
+            best = Some((on_top, n, runs));
         }
     }
     best.map(|(_, _, runs)| runs).unwrap_or_default()
+}
+
+/// The trims between a region's runs once compiled: a gap longer than the compiler's
+/// `connect_distance` (4 mm by default) is trimmed, a shorter one sewn across (#469: a region
+/// in many pieces close together has many runs but few trims).
+pub(crate) fn trims(runs: &[Run]) -> usize {
+    let across = crate::compile::Compiler::default().connect_distance;
+    runs.windows(2)
+        .filter(|w| match (w[0].last(), w[1].first()) {
+            (Some(a), Some(b)) => a.distance(*b) > across,
+            _ => false,
+        })
+        .count()
 }
 
 /// Travel sewn on top of the region's own thread (#469), 0.1 mm: stitches up to 3 mm (travel,
