@@ -14,6 +14,8 @@ things are measured on what the machine would sew:
   <= 0.3 mm);
 - join: the shortest overlap (mm) of a column end inside another column's satin, over the ends
   that are not at the outline (box: >= joinOverlap, 0.3 mm);
+- deepest: the longest such overlap (mm), reported so a change can't quietly stack two satins
+  deeper at a join (#957);
 - corner: the farthest a sharp convex corner of the outline (turn >= 60 degrees) is from a
   needle point (mm; box: <= 0.2 mm).
 
@@ -200,7 +202,8 @@ def measure(outline, skeletons, pts):
             if depths and max(depths) > -JOIN_NEAR:
                 joins.append(max(depths))
     return {"columns": len(skeletons), "iou": iou, "gap": gap,
-            "join": min(joins) if joins else None, "corner": corner}
+            "join": min(joins) if joins else None, "deepest": max(joins) if joins else None,
+            "corner": corner}
 
 
 def shape_steps(item, size):
@@ -293,6 +296,13 @@ def self_test():
     m = measure(tri, [([(0.0, 2.0), (10.0, 2.0)], [4.0, 0.0])], pts)
     if not (m["corner"] <= 0.2 and m["iou"] >= 0.95):
         fails.append(f"a satin into a point: {m}")
+    # A T: the stem's end at the bar's centre line lies half the bar's width (2 mm) inside it,
+    # the deepest join and the shortest at once.
+    tee = [[(0.0, 0.0), (10.0, 0.0), (10.0, 4.0), (6.0, 4.0), (6.0, 12.0), (4.0, 12.0), (4.0, 4.0),
+            (0.0, 4.0)]]
+    m = measure(tee, skel + [([(5.0, 2.0), (5.0, 11.9)], [2.0, 2.0])], full)
+    if not (m["join"] is not None and abs(m["join"] - 2.0) < 1e-6 and abs(m["deepest"] - 2.0) < 1e-6):
+        fails.append(f"a T's join: {m}")
     for f in fails:
         print("FAIL", f)
     print(f"branch_columns self-test: {len(fails)} problem(s)")
@@ -311,19 +321,20 @@ def main():
     if not a.stitchtool:
         ap.error("--stitchtool is required (or --self-test)")
     rows = []
-    print("| item | mm | columns (arms) | IoU | gap mm | join mm | corner mm |")
-    print("|---|---|---|---|---|---|---|")
+    print("| item | mm | columns (arms) | IoU | gap mm | join mm | deepest join mm | corner mm |")
+    print("|---|---|---|---|---|---|---|---|")
     for item in a.only or ITEMS:
         for size in SIZES:
             r = run(str(a.stitchtool), item, size)
             r.update(item=item, size=size, arms=ARMS[item])
             rows.append(r)
             if "error" in r:
-                print(f"| {item} | {size:.0f} | error: {r['error']} | | | | |")
+                print(f"| {item} | {size:.0f} | error: {r['error']} | | | | | |")
                 continue
             join = "–" if r["join"] is None else f"{r['join']:.2f}"
+            deepest = "–" if r["deepest"] is None else f"{r['deepest']:.2f}"
             print(f"| {item} | {size:.0f} | {r['columns']} ({r['arms']}) | {r['iou']:.3f} | {r['gap']:.2f} | "
-                  f"{join} | {r['corner']:.2f} |", flush=True)
+                  f"{join} | {deepest} | {r['corner']:.2f} |", flush=True)
     if a.json:
         a.json.write_text(json.dumps(rows, indent=1), encoding="utf-8")
     return 0

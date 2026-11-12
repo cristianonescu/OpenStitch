@@ -63,6 +63,10 @@ are a sound start; change them only for a reason.
 
 ## Decorative region and line types
 
+- Embossed regions (`shape.emboss`, `object.addStamp`) leave the fill's rows unpierced across the
+  stamp, in stitches up to 14.5 mm as PE-DESIGN does: keep an embossed shape under about 15 mm
+  across, or expect long floats that can snag; engraved regions sew 2 mm stitches.
+
 - Cross stitch regions use one grid on the page axes from the design origin (`angle` does not
   turn it), so neighbouring cross stitch regions with the same size line up cell for cell; only
   whole cells are sewn, each a full X.

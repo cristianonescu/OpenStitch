@@ -6133,6 +6133,18 @@
       "settings": "100 x 100 mm page; Image > Open > from File examples/images/p01-portrait.jpg, resized to 67.1 x 99.8 mm and centred; Image > Photo Stitch 1 > Color, Select Mask rectangle (67.0 x 99.7 mm, Fit to page not pressed); every parameter at its default (Thread Chart BROTHER EMBROIDERY, Auto Select on, Max. Number of Colors 10, Run Pitch 3.0 mm, Sew Page Color on, Add mask outline off). Auto-selected threads in sewing order: 817, 348, 323, 333, 070, 330, 704, 517, 707, 900. Result 10 stitch objects, 66.8 x 99.6 mm, 13,433 stitches. Hoop Size then set to 180 x 130 mm (nothing regenerated) and Save As PES Ver.11.0.",
       "sha256": "57e1c099af034f81cf47b36c3302945150df8424974f07259b6c805b8082ac5f",
       "notes": "Black-box capture from the coordinator's round-10 notes (#915), re-saved on the larger hoop because the first save, made with the design a hair outside the 100 mm page, has no stitches in its PEC block. PE-DESIGN output of the project's own test image."
+    },
+    {
+      "file": "stitches/stamp-plain-square-baseline.pes",
+      "spec": "stamp-plain-square-baseline",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-12",
+      "os": "Windows 11 Pro",
+      "settings": "180 x 130 mm page, App menu > New. Home > Shapes > rectangle dragged to a 42.00 x 42.00 mm square, PE defaults kept: line Zigzag Stitch (width 2.0 mm, density 4.5 line/mm, Half Stitch on), region Fill Stitch (density 4.5 line/mm, direction 45 degrees, under sewing on); Save As PES Ver.11.0. Status: 3251 stitches.",
+      "sha256": "01cfcc25e507e1b162b59936d9f919bc16fad3106538151de8ce849ece529f31",
+      "notes": "Black-box capture from the coordinator's round-10 notes (#471); the project's own geometry, no Brother stamp patterns."
     }
   ]
 }

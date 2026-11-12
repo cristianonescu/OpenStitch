@@ -936,16 +936,8 @@ fn a_crossbar_joined_at_both_ends_is_one_column_of_its_own() {
 
 #[test]
 fn a_at_10_mm_meets_the_boxes_of_526_on_its_stitches() {
-    // #526's boxes on A at 10 mm, measured on the compiled stitches as tools/branch_columns.py
-    // measures them (rule B'): this backs the lowered inner-cell floor for A at 10 mm in
-    // skeleton.rs (0.89), which counts skeleton cells, not stitches. Distances are design
-    // units of 0.1 mm.
-    const COVERAGE: f64 = 0.96; // share of the letter inside the satin's triangles
-    const GAP_UNITS: f64 = 3.0; // 0.3 mm: longest stretch of outline left unsewn
-    const NEAR_UNITS: f64 = 1.5; // 0.15 mm: an outline point this near the satin is sewn
-    const CORNER_UNITS: f64 = 2.0; // 0.2 mm: a sharp corner's nearest needle point
-    const JOIN_UNITS: f64 = 2.9; // 0.3 mm joinOverlap, within the 0.01 mm the grid rounds to
-    use openstitch_design::{Vec2, geometry::contains, v2};
+    // #526's boxes on A at 10 mm, on the compiled stitches: A's crossbar is a column of its own
+    // and its legs' width spikes are capped.
     let mut s = Session::new(std::env::temp_dir());
     run(
         &mut s,
@@ -954,6 +946,36 @@ fn a_at_10_mm_meets_the_boxes_of_526_on_its_stitches() {
     );
     let r = run(&mut s, "text.toShapes", json!({"id": 1}));
     let shape_id = r["ids"][0].as_u64().expect("shape");
+    meets_the_boxes_of_526(&mut s, shape_id, 3, 0.96);
+}
+
+#[test]
+fn a_ring_at_25_mm_meets_the_boxes_of_526_on_its_stitches() {
+    // A ring's quarters meet on a curve: a quarter joining the ring's narrower main column runs
+    // on to where its centre lies deepest in it, so the join is past joinOverlap and the
+    // outline where they meet is sewn (it was 0.24 mm deep, 0.36 mm of the outer edge bare).
+    let mut s = Session::new(std::env::temp_dir());
+    let r = run(
+        &mut s,
+        "shape.preset",
+        json!({"kind": "frame", "frameOf": "ellipse", "cx": 50, "cy": 50, "width": 25,
+               "height": 25, "bandWidth": 5, "fill": "Red"}),
+    );
+    let shape_id = r["id"].as_u64().expect("shape");
+    meets_the_boxes_of_526(&mut s, shape_id, 4, 0.98);
+}
+
+/// #526's boxes on the branch columns `object.deriveSkeleton {branches: true, joinOverlap: 0.3}`
+/// makes of `shape_id` (`columns` of them), measured on the compiled stitches as
+/// tools/branch_columns.py measures them (rule B'): coverage at least `coverage`, no stretch of
+/// outline over 0.3 mm unsewn, every sharp corner within 0.2 mm of a needle point, every join
+/// at least 0.3 mm deep. Distances are design units of 0.1 mm.
+fn meets_the_boxes_of_526(s: &mut Session, shape_id: u64, columns: usize, coverage_floor: f64) {
+    const GAP_UNITS: f64 = 3.0; // 0.3 mm: longest stretch of outline left unsewn
+    const NEAR_UNITS: f64 = 1.5; // 0.15 mm: an outline point this near the satin is sewn
+    const CORNER_UNITS: f64 = 2.0; // 0.2 mm: a sharp corner's nearest needle point
+    const JOIN_UNITS: f64 = 2.9; // 0.3 mm joinOverlap, within the 0.01 mm the grid rounds to
+    use openstitch_design::{Vec2, geometry::contains, v2};
     let shape = s
         .design()
         .objects
@@ -963,7 +985,7 @@ fn a_at_10_mm_meets_the_boxes_of_526_on_its_stitches() {
         .contours
         .clone();
     let r = run(
-        &mut s,
+        s,
         "object.deriveSkeleton",
         json!({"id": shape_id, "branches": true, "joinOverlap": 0.3}),
     );
@@ -973,7 +995,7 @@ fn a_at_10_mm_meets_the_boxes_of_526_on_its_stitches() {
         .iter()
         .filter_map(Value::as_u64)
         .collect();
-    assert_eq!(ids.len(), 3, "two legs and the bar: {r}");
+    assert_eq!(ids.len(), columns, "{r}");
     let pattern = Compiler::default().compile(s.design());
     let st = &pattern.stitches;
     // The satin's triangles: each needle point with the two before it, within one run, the
@@ -1075,7 +1097,7 @@ fn a_at_10_mm_meets_the_boxes_of_526_on_its_stitches() {
         y += 1.0;
     }
     let coverage = covered as f64 / inside as f64;
-    assert!(coverage >= COVERAGE, "coverage {coverage:.3}");
+    assert!(coverage >= coverage_floor, "coverage {coverage:.3}");
     // Gap: the longest stretch of outline farther than 0.15 mm from the satin.
     for c in &shape {
         let o = c.outline_points();
@@ -1129,7 +1151,7 @@ fn a_at_10_mm_meets_the_boxes_of_526_on_its_stitches() {
     let skeletons: Vec<(Vec<Vec2>, Vec<f64>)> = ids
         .iter()
         .map(|id| {
-            let o = run(&mut s, "object.get", json!({"id": id}));
+            let o = run(s, "object.get", json!({"id": id}));
             let sk = &o["region"]["skeleton"];
             let points = sk["points"]
                 .as_array()

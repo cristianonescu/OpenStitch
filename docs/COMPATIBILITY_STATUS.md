@@ -4,7 +4,7 @@
 
 The tier each [FEATURE_MATRIX.md](FEATURE_MATRIX.md) row and [audit](COMPATIBILITY_AUDIT.md) item has reached in the compatibility harness ([COMPATIBILITY_TESTS.md](COMPATIBILITY_TESTS.md)). A row is only as far as the weakest spec covering it. Tiers, weakest first: internal-regression (our own earlier output or the guide's description), oracle (an independent implementation), reference (PE-DESIGN 11 output supplied by the owner), machine (a sew-out record). "Reference pending" means a spec is ready for a PE-DESIGN file that does not exist yet.
 
-Specs: 486 · pass 486 · fail 0 · error 0 · pending reference 0 · skipped 0.
+Specs: 490 · pass 490 · fail 0 · error 0 · pending reference 0 · skipped 0.
 
 ## By FEATURE_MATRIX row
 
@@ -12,6 +12,7 @@ Specs: 486 · pass 486 · fail 0 · error 0 · pending reference 0 · skipped 0.
 |---|---|---|---|
 | Beyond PE-DESIGN | Small Text… | internal-regression | `text-small-running-3mm`, `text-small-satin-5mm` |
 | Digitizing | Photo Stitch 1 and Photo Stitch 2… | reference | `photostitch1-p01-portrait-travel` |
+| Editing | Embossing/engraving… | internal-regression | `stamp-embossed-region-circle`, `stamp-engraved-line-circle`, `stamp-engraved-region-circle`, `stamp-plain-square-baseline` |
 | Editing | Hole sewing… | internal-regression | `hole-sewing-limits`, `hole-sewing-pentagon-star` |
 | Editing | Manual Punch: shapes made of several sewing-direction lines… | reference | `satin-lock-column-3p5`, `satin-zigzag-column` |
 | Editing | Sewing order editing… | reference; reference pending | `optimize-entry-exit`, `sew-order-six-objects`, `shape-start-points` |
@@ -241,6 +242,10 @@ Specs: 486 · pass 486 · fail 0 · error 0 · pending reference 0 · skipped 0.
 | `stitches/spiral-triangle` | pass | reference | — | — | pass | — |
 | `stitches/square-gradation-30-10` | pass | reference | pass | — | pass | — |
 | `stitches/square-gradation-default` | pass | reference | pass | — | pass | — |
+| `stitches/stamp-embossed-region-circle` | pass | internal-regression | pass | — | — | — |
+| `stitches/stamp-engraved-line-circle` | pass | internal-regression | pass | — | — | — |
+| `stitches/stamp-engraved-region-circle` | pass | internal-regression | pass | — | — | — |
+| `stitches/stamp-plain-square-baseline` | pass | reference | pass | — | pass | — |
 | `stitches/stitches-import-centre` | pass | reference | pass | — | pass | — |
 | `stitches/sweep-fill-density-2p5` | pass | reference | pass | — | pass | — |
 | `stitches/sweep-fill-density-4p5-h33` | pass | reference | pass | — | pass | — |

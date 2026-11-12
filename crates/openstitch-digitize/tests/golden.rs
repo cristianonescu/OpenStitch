@@ -95,7 +95,9 @@ const EXPECTED: &[(&str, &str, u64)] = &[
     ("emblem", "photo-stitch-1", 0xb7c99464763dafd8),
     ("emblem", "photo-stitch-2", 0x5f19ecc7e7dec154),
     // #702: OpenStitch mode splits long branching strokes into columns by default (the veins).
-    ("leaf", "auto-punch", 0x10fbb0ee3f027a70),
+    // #526 (#957): a branch column's end that joins another runs on until both its edges lie
+    // inside it (the veins' joins).
+    ("leaf", "auto-punch", 0x537f866569fd693e),
     ("leaf", "photo-stitch-1", 0x10f518ae4de878b2),
     ("leaf", "photo-stitch-2", 0x72c3dac1efbb94bb),
     // #915: 49 AMBER RED is (181, 76, 100) as PE-DESIGN writes it, not (181, 75, 100): its

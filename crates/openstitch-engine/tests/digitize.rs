@@ -660,19 +660,21 @@ fn compatible_photo_stitch_travels_instead_of_trimming() {
 }
 
 /// #298, #915: PE-compatible Photo Stitch 1 sews each colour in few paths, travelling in sight
-/// to a near run when no hidden way leads on, but only where at most 8 mm of that travel shows:
-/// PE-DESIGN 11.50 trims rather than cross a face. PE-DESIGN's captures: the sunset at 90 mm,
-/// 11 trims in 8,683 stitches (1.27 per 1,000, round 8); the portrait p01 at 100 mm, 37 in
-/// 13,396 (2.8 per 1,000, -v2, compat/reference/image). OpenStitch: sunset 27 in 9,695 (108
-/// before #298); portrait 26 in 13,483, where 11 trims (0.8 per 1,000) meant 31.7 mm of
+/// to a near run when no hidden way leads on, but only while what its chain of travels shows
+/// stays small: at most 12 mm in all and none dark on light, since the last trim, hidden move
+/// or 2 mm run of its own. PE-DESIGN 11.50 trims rather than cross a face. PE-DESIGN's
+/// captures: the sunset at 90 mm, 11 trims in 8,683 stitches (1.27 per 1,000, round 8); the
+/// portrait p01 at 100 mm, 37 in 13,396 (2.8 per 1,000, -v2, compat/reference/image).
+/// OpenStitch: sunset 27 in 9,839 (2.7 per 1,000; 26 with #936's 8 mm rule, 108 before #298);
+/// portrait 33 in 13,590 (2.4), where 11 trims (0.8 per 1,000, before #936) meant 31.7 mm of
 /// near-black thread across the face's pink.
 #[test]
 fn compatible_photo_stitch_trims_about_as_rarely_as_pe_design() {
     let dir = temp_dir();
     // (image, width mm for its long side at 90 or 100 mm, fewest and most trims per 1,000)
     for (image, width, fewest, most) in [
-        ("p06-sunset.jpg", 90.0, 0.0, 3.5),
-        ("p01-portrait.jpg", 67.2, 1.4, 3.5),
+        ("p06-sunset.jpg", 90.0, 0.0, 3.0),
+        ("p01-portrait.jpg", 67.2, 1.8, 3.0),
     ] {
         let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../examples/images")
