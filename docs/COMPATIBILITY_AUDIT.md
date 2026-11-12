@@ -3376,6 +3376,39 @@ No travel is sewn outside the letters (`small_lettering_shows_no_travel_outside_
 compat 476/476. Still open on #446: N's corner spike (the diagonal's rungs fan into the corner,
 where PE-DESIGN sews a small corner block), M at 8 mm, A's and V's slanted feet.
 
+### Photo Stitch 1 trims rather than cross a face in sight, 2026-11-12 (#915)
+
+PE-DESIGN-compatible Photo Stitch 1 travelled in sight to a colour's nearest unsewn run up to
+40 mm away (#298), and the darkest threads, sewn last, have nothing to hide under: on the
+portrait p01 (long side 100 mm) 31.7 mm of near-black thread crossed the face's pink.
+PE-DESIGN 11.50's capture of the same image (`compat/reference/image/photostitch1-p01-portrait-100mm.pes`,
+round 10) runs its stitches in every direction and trims 37 times in 13,396 stitches (2.8 per
+1,000); none of its ten most visible straight stretches lies over the face, and the longest is
+12.5 mm, dark on dark.
+
+An in-sight travel is now taken only when at most 8 mm of it (`PE_TRAVEL_SHOWN_MM`) lies over
+cells that are neither the thread's own nor a later layer's; of the 16 nearest run ends the
+first such one is sewn, and with none the thread trims. Trims per 1,000 stitches, the longest
+travel left showing, and the longest dark travel over a colour at least 0.3 lighter:
+
+| photo | before | 8 mm (taken) | contrast-aware: 12 mm, 4 mm dark on light |
+|---|---|---|---|
+| p01 portrait | 0.8; 31.7 mm | 1.9; 8.4 mm; 4.5 mm (grey on grey) | 1.6; 11.5 mm; 7.7 mm dark grey on skin |
+| p03 storybook | 0.7 | 2.3 | 1.5 |
+| p04 cat fur | 0.6 | 2.2 | 1.6 |
+| p06 sunset, 100 mm | 1.3 | 2.9 | 2.0 |
+| p06 sunset, 90 mm (PE-DESIGN 1.27) | 1.4; 18.5 mm | 2.8; 9.5 mm | 2.2; 13.4 mm |
+| p10 night street | 0.6 | 1.2 | 1.0 |
+| p12 backlit tree | 0.8 | 2.0 | 1.9 |
+
+The contrast-aware rule trimmed less but let dark grey show across the portrait's skin, so the
+plain 8 mm rule was taken. Against PE-DESIGN the portrait trims less (1.9 against 2.8) and the
+sunset more (2.8 against 1.27): PE-DESIGN's paths follow contours, ours stay in rows, so where
+its runs meet a row's neighbour ours have to cross. Guarded by
+`compatible_photo_stitch_trims_about_as_rarely_as_pe_design` (sunset at 90 mm at most 3.5 per
+1,000; portrait 1.4–3.5) and the spec `photostitch1-p01-portrait-travel`. OpenStitch mode is
+unchanged.
+
 ### A's apex runs on; run-on arms start along their end cuts, 2026-11-12 (#446)
 
 PE-DESIGN 11.50 runs A's right leg (`\`) on to the apex's flat top and stops the left leg

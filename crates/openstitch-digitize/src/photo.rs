@@ -601,8 +601,17 @@ fn fill_layer(d: &[Option<usize>], g: &Grid, rank: &[usize], t: usize) -> Vec<St
 /// 11.50 sews each colour in one path (round-8 capture of p06 at 90 mm: 11 trims in 8,683
 /// stitches, 0-3 a colour, its stitches 2.5-4.5 mm), and trims only past
 /// [`PE_TRAVEL_MM`] (#298). At 40 mm OpenStitch sews the same picture with 14 trims in 9,744
-/// stitches (1.4 per 1,000; 108 before); at 20 mm, 18.
+/// stitches (1.4 per 1,000; 108 before); at 20 mm, 18. Since #915 a travel is taken only where
+/// little of it shows ([`PE_TRAVEL_SHOWN_MM`]): 27 trims.
 pub const PE_TRAVEL_MM: f64 = 40.0;
+/// The most of one in-sight travel that may show, mm: the part over cells that are neither the
+/// thread's own nor a later layer's (#915). PE-DESIGN 11.50 sends no travel across a face in
+/// sight (capture of p01, -v2: 37 trims in 13,396 stitches, 2.8 per 1,000; its longest visible
+/// straight stretch 12.5 mm, dark on dark). At 8 mm OpenStitch sews p01 with 26 trims (1.9 per
+/// 1,000; its longest dark travel over a lighter colour 4.5 mm, 31.7 mm across the face before)
+/// and the sunset at 90 mm with 27 (2.8 per 1,000; PE-DESIGN 1.27). A contrast-aware limit
+/// (12 mm, 4 mm dark on light) trimmed less but let 7.7 mm of dark grey show across the skin.
+pub const PE_TRAVEL_SHOWN_MM: f64 = 8.0;
 /// Stitch length of that travel, mm: PE-DESIGN's Run Pitch default.
 pub const PE_TRAVEL_PITCH_MM: f64 = 3.0;
 
@@ -766,26 +775,14 @@ fn sew_runs(
                 .filter(|e| e.0 <= limit)
                 .collect();
             ends.sort_by(|a, b| a.0.total_cmp(&b.0));
-            // #915 (measuring): with a limit on how much of the travel may show, the nearest
-            // end whose straight travel shows no more than it; none, a trim.
-            let max_shown: Option<f64> = std::env::var("OS915_EXPOSED")
-                .ok()
-                .and_then(|v| v.parse::<f64>().ok())
-                .map(|mm| mm * 10.0);
-            let prefer = std::env::var("OS915_PREFER").is_ok();
-            let nearest = match (max_shown, shows) {
-                (Some(m), Some(shows)) => ends
+            // Of the 16 nearest, the first whose straight travel shows at most
+            // [`PE_TRAVEL_SHOWN_MM`] (#915); none, a trim.
+            let nearest = match shows {
+                Some(shows) => ends
                     .into_iter()
                     .take(16)
-                    .find(|&(_, _, _, x, y)| shows([px, py, x, y]) <= m),
-                // #915 (measuring): the same reach, but the end whose travel shows least.
-                (None, Some(shows)) if prefer => ends
-                    .into_iter()
-                    .take(16)
-                    .map(|e| (shows([px, py, e.3, e.4]), e))
-                    .min_by(|a, b| a.0.total_cmp(&b.0).then(a.1.0.total_cmp(&b.1.0)))
-                    .map(|(_, e)| e),
-                _ => ends.into_iter().next(),
+                    .find(|&(_, _, _, x, y)| shows([px, py, x, y]) <= PE_TRAVEL_SHOWN_MM * 10.0),
+                None => ends.into_iter().next(),
             };
             if let Some((d, r, right, x, y)) = nearest
                 && d <= limit
@@ -1493,19 +1490,21 @@ fn exposed(
     let [x0, y0, x1, y1] = seg;
     let len = (x1 - x0).dhypot(y1 - y0);
     let n = (len / (0.5 * cw.min(ch))).ceil().max(1.0) as usize;
-    let shown = (0..n)
-        .filter(|&i| {
-            let f = (i as f64 + 0.5) / n as f64;
-            let x = ((x0 + (x1 - x0) * f - frame.origin.x) / cw).floor();
-            let y = ((y0 + (y1 - y0) * f - frame.origin.y) / ch).floor();
-            let (x, y) = (
-                x.clamp(0.0, cols as f64 - 1.0) as usize,
-                y.clamp(0.0, rows as f64 - 1.0) as usize,
-            );
-            !matches!(d[y * cols + x], Some(u) if u == t || rank.get(u).is_some_and(|&r| r > rank[t]))
-        })
-        .count();
-    len * shown as f64 / n as f64
+    let mut shown = 0usize;
+    for i in 0..n {
+        let f = (i as f64 + 0.5) / n as f64;
+        let x = ((x0 + (x1 - x0) * f - frame.origin.x) / cw).floor();
+        let y = ((y0 + (y1 - y0) * f - frame.origin.y) / ch).floor();
+        let (x, y) = (
+            x.clamp(0.0, cols as f64 - 1.0) as usize,
+            y.clamp(0.0, rows as f64 - 1.0) as usize,
+        );
+        match d[y * cols + x] {
+            Some(u) if u == t || rank.get(u).is_some_and(|&r| r > rank[t]) => {}
+            _ => shown += 1,
+        }
+    }
+    shown as f64 * len / n as f64
 }
 
 /// The longest move inside one stitch object that the design's compiler sews across as a
