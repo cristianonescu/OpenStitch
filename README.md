@@ -421,6 +421,9 @@ a trim ties in and locks, as PE-DESIGN sews them, the image tools included.
 - (+) **Flow fill:** a fill's rows radiate from its centre, circle it, or follow a grid of
   angles, evenly spaced and never crossing; Auto Punch can take the angles from the picture's
   own strokes ([#538]).
+- (+) **Travel hidden under later parts:** a fill that branches (leaves on a stem, a tail off a
+  body) sews the part joining the others last, so the travel between them is covered; Auto
+  Punch does this in OpenStitch mode ([#469]).
 - (+) **Colour blends and gradient fills:** a fill fades from one thread into another, or through up
   to 8 colours, linear or radial, sewn as one even layer with rows, ordered, noise or band
   dithering ([#532]).
@@ -753,6 +756,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#536]: https://github.com/cristianonescu/OpenStitch/issues/536
 [#537]: https://github.com/cristianonescu/OpenStitch/issues/537
 [#538]: https://github.com/cristianonescu/OpenStitch/issues/538
+[#469]: https://github.com/cristianonescu/OpenStitch/issues/469
 [#539]: https://github.com/cristianonescu/OpenStitch/issues/539
 [#540]: https://github.com/cristianonescu/OpenStitch/issues/540
 [#541]: https://github.com/cristianonescu/OpenStitch/issues/541

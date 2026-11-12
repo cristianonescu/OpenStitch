@@ -68,6 +68,11 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   same shape, density and stitch count, different needle-hole pattern.
 - Wave fill (beyond PE-DESIGN): `object.setRegion` on a fill with `waveHeight` (crest to trough,
   mm, 0 = off) and `waveLength` (mm, default 16). PES 0110 refuses it; save PES version 6.
+- Travel hidden under later parts (beyond PE-DESIGN): `object.setRegion` on a fill with
+  `runningStitchPath: "insideHidden"` sews a part that joins others (a stem between leaves)
+  after them, so the travel between them is covered; a ring of parts sews as `inside`. Auto
+  Punch sets it on its fills in OpenStitch mode. PES 0110 saves it as `inside` (reading the
+  file back gives `inside`).
 - Flow fill (beyond PE-DESIGN): `object.setRegion` on a fill with `flowField`: `"radial"` (rows
   radiate from the shape's centre, a sunburst), `"swirl"` (rows circle it), `{kind: radial |
   swirl, center: [x, y]}` for another centre, or `{kind: grid, origin, cell, cols, angles}`;
