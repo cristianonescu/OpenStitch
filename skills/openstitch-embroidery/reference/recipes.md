@@ -230,7 +230,8 @@ so the editor asks the user first.
 
 In OpenStitch mode, Auto Punch's fills sew their parts in the order that leaves the least
 travel on thread already sewn (`runningStitchPath: "insideHidden"`), so travel between
-branches is hidden under thread sewn later; PE-DESIGN-compatible mode sews as PE-DESIGN does.
+branches is hidden under thread sewn later; if you lower such a fill's density under 3 rows/mm
+it travels along the outline instead. PE-DESIGN-compatible mode sews as PE-DESIGN does.
 
 `underlap` (OpenStitch mode, mm, 0.8 is typical) makes each fill reach under the touching
 colour sewn after it, so no fabric shows along seams; it adds stitches, so leave it off for

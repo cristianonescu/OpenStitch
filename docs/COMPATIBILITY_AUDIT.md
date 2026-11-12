@@ -3396,11 +3396,26 @@ No travel is sewn outside the letters (`small_lettering_shows_no_travel_outside_
 compat 476/476. Still open on #446: N's corner spike (the diagonal's rungs fan into the corner,
 where PE-DESIGN sews a small corner block), M at 8 mm, A's and V's slanted feet.
 
+### Design Center: small rings sew round, 2026-11-12 (#469)
+
+OpenStitch mode only. A ring of the drawing traces as a few uneven points, and the line's points
+were thinned to at least 1 mm apart, so a 2 mm ring sewed as a square and a 6 mm one as 13 uneven
+sides. A small closed line close to a circle (`center::small_circle`: a least-squares fit, every
+point within a fifth of the radius, at most 30 mm long) now sews each pass as an even polygon
+round that circle, as many sides of at least 1 mm as fit (five at least), starting where the
+traced line started; other small round loops are sampled evenly along their curve. Rings of
+2–6 mm (0.4 mm stroke): sides 1.0–1.07 mm, worst sag inside the fitted circle 0.11–0.24 mm (was
+0.11–0.38 mm). Every ring already started and ended on its line (no stub inside; the only point
+inside is the closing lock on the last side). PE-compatible mode is unchanged (it sews the traced
+line at its run pitch, 11–26 stitches a ring); there is no PE-DESIGN capture of Design Center on
+small circles to change it against. Kit `S-design-center-butterfly-openstitch`: 4,231 → 4,482
+stitches, 66 trims, 8.7 → 9.0 min.
+
 ### Embossing and engraving as strong as PE-DESIGN's, 2026-11-12 (#471)
 
 PE-DESIGN 11.50's round-10 captures (`471-*.pes` in the owner's notes; the plain square is
 `compat/reference/stitches/stamp-plain-square-baseline.pes`, the three stamped ones wait for PES
-0110 import of a shape that carries a stamp, #959): a 42 mm square
+0110 import of a shape that carries a stamp, #959): a 40 mm square (42 mm with its line)
 with its default Fill (4.5 lines/mm, 45°, under sewing) and 2 mm Zigzag line, and a 16.5 × 16 mm
 circle in the middle converted with Stamp/Emboss > Convert from Outline. OpenStitch builds the
 same with `shape.emboss`. Inside the circle against outside (1 mm in from the circle and 3 mm in
@@ -3409,8 +3424,8 @@ from the square's edge), fill block only:
 | effect | PE-DESIGN | OpenStitch before | OpenStitch now |
 |---|---|---|---|
 | none | 4.0 mm stitches, 125 / 128 needle points per cm² | 4.0 mm, 124 / 128 | same |
-| engraved region | 1.9 mm, 262 per cm² | 1.0 mm, 480 | 1.9 mm, 262 (2 mm steps) |
-| embossed region | 56 per cm² (13 within 6 mm of the centre: under sewing only); whole stitches 12–14.3 mm, a few short ends | 110 per cm²; split evenly, 7–8 mm | 26 per cm² (11 within 6 mm); whole stitches up to 14.5 mm, the rest last |
+| engraved region | 1.9 mm, 262 per cm² | 1.0 mm, 480 | 1.9 mm, 263 (2 mm steps) |
+| embossed region | 56 per cm² (13 within 6 mm of the centre: under sewing only); whole stitches 12–14.3 mm, a few short ends | 110 per cm²; split evenly, 7–8 mm | 27 per cm² (12 within 6 mm); whole stitches up to 14.5 mm, the rest last |
 | engraved line | +118 needle points on a ring about 1 mm inside the circle | +142 on the circle | same |
 
 The engraved region and the emboss were the weak ones: an engraved region twice as dense as
@@ -3422,10 +3437,14 @@ PE-DESIGN's own 14.3 mm. The embossed band right inside the circle keeps more ne
 PE-DESIGN's file, where its edge lies about 1 mm further in (#956). Left: the engraved line's ring sits on
 the tool's outline, where PE-DESIGN's lies about 1 mm inside, at the inner edge of the tool
 shape's 2 mm line (one capture cannot tell whether that offset follows the line width, #956);
-PE-DESIGN's fill stops at the inner edge of its zigzag line (40 × 40 mm), OpenStitch's reaches
-the outline (42 mm, #955); programmable-fill patterns' own engraved and embossed areas keep 1 mm and
+programmable-fill patterns' own engraved and embossed areas keep 1 mm and
 7 mm, with no reference yet. Kit: `fills/holes-and-emboss` 10,733 → 10,112 stitches, 13.7 →
 12.9 min, trims 5.
+
+Corrected the same day: the first version of this entry and of the `stamp-*` specs built
+the square 42 mm wide, its zigzag line's outer edge, and so reported a fill difference that is
+not there (#955, closed). PE-DESIGN's outline is 40 mm and its fill reaches it whatever the line
+(`line-square-*` specs, the #955 captures); the figures above are from the 40 mm square.
 
 ### Photo Stitch 1 trims rather than cross a face in sight, 2026-11-12 (#915)
 
@@ -3989,6 +4008,31 @@ another way:
 
 Along the C, R is well above #923's 0.4, and the crossings stay below the straight pattern's
 (#923's targets).
+
+### Open OpenStitch fills travel along the outline, 2026-11-12 (#628)
+
+A fill entered away from its first row sews a straight travel from the start point to that
+row across the region. PE-DESIGN 11.50 does the same (sweep-fill-density-min,
+tatami-40-pos-*), so plain shapes keep it: the owner's decision of 2026-11-12. OpenStitch's own
+default differs.
+
+On a 20 mm square, under sewing off, entered at the middle of its bottom edge, the longest
+straight stretch across the rows inside the square:
+
+| fill | 4.5 rows/mm | 2 rows/mm | 1 row/mm |
+|---|---|---|---|
+| plain fill (Inside) | 22.4 mm | 22.4 | 22.4 |
+| Inside, hidden (Auto Punch's OpenStitch mode), before | 22.4 | 22.4 | 22.4 |
+| Inside, hidden, now | 22.4 | **2.1** (one travel stitch) | **≤ 2.1** |
+| colour blend / gradient layer | 8.6 (travel between its pieces, #901) | 6.4 | 4.5 |
+| tartan layer | its own warp rows only | – | – |
+
+- **Inside, hidden, when open:** an open fill set to Inside, hidden (under 3 rows/mm, where one layer of rows hides less than about 85 % of the fabric on the T1 cards) now travels along the outline, its entry included (`RegionSewing::travel_path`).
+- **When dense:** it keeps Inside, hidden, whose section order (#469, #930, #942) hides the travel under thread still to come.
+- **Blends, gradients and tartan:** these already start at the piece nearest the entry and join their pieces by #901's hidden-or-trimmed travel, so no straight entry travel crosses them.
+- **Auto Punch's OpenStitch mode** sews at 4.5 rows/mm, so its fills change only once the user lowers their density. The PE-compatible output and the kit are unchanged.
+
+Test: `an_open_openstitch_fill_entered_away_from_its_rows_sews_no_travel_across_it`.
 
 ### Rows inside a U-shaped direction curve, 2026-11-12 (#927)
 

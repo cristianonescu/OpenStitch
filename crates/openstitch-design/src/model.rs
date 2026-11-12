@@ -2325,8 +2325,16 @@ impl RegionSewing {
         })
     }
 
+    /// Rows per mm under which a fill is open (#628): one layer of rows hides less than about
+    /// 85 % of the fabric (`calibration::coverage`, the T1 cards), so travel under them shows.
+    pub const OPEN_DENSITY: f64 = 3.0;
+
     /// The travel actually sewn between parts, `None` for jumps. Where the attribute is not
-    /// available the region travels inside; gradation rules out Inside (Along outline then).
+    /// available the region travels inside; gradation rules out Inside (Along outline then). An
+    /// open fill set to Inside, hidden (OpenStitch's own default, Auto Punch's OpenStitch mode)
+    /// travels Along outline instead (#628): nothing covers its travel, so a straight entry
+    /// from the start point to the first row, which PE-DESIGN sews and plain shapes keep, would
+    /// show across it.
     pub fn travel_path(&self) -> Option<RunningStitchPath> {
         let chosen = self.running_stitch_path?;
         if !matches!(self.kind, RegionType::Fill | RegionType::Satin) {
@@ -2340,6 +2348,11 @@ impl RegionSewing {
         Some(match path {
             RunningStitchPath::Inside | RunningStitchPath::InsideHidden
                 if self.sewn_gradation().is_some() =>
+            {
+                RunningStitchPath::AlongOutline
+            }
+            RunningStitchPath::InsideHidden
+                if self.kind == RegionType::Fill && self.density < Self::OPEN_DENSITY =>
             {
                 RunningStitchPath::AlongOutline
             }
