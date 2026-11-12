@@ -46,8 +46,10 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   Move where it starts and ends with `gradientFrom` / `gradientTo` ([x, y] mm) on all the ids
   (the editor's Gradient tool does this by dragging).
   PES 0110 refuses them; save PES version 6. Each colour trims where its travel would show
-  across the others: expect some trims per blend (a dithered blend more than bands); tell the
-  user when their machine has no thread cutter.
+  across the others (no connector is sewn where more than 2 mm of it would show): a dithered
+  blend breaks each colour into many small pieces and trims a lot (the kit's three small blends
+  about 150 times), bands far fewer. Suggest `gradientDither: "rows"` or `"bands"`, or fewer colours, when the
+  user wants fewer trims, and tell them when their machine has no thread cutter.
 - Gradation shapes (beyond PE-DESIGN): with `gradationPattern` on, `object.setRegion`
   `gradationShape` `convex` | `concave` | `centre` | `edges` | `wave` (`linear` is PE-DESIGN's).
   PES 0110 refuses the others. `import.svg` with `gradients: "blend"` brings SVG gradients in as
