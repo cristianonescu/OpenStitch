@@ -1070,7 +1070,9 @@ pub fn branches(contours: &[Contour], join_overlap: f64) -> Vec<Skeleton> {
     let overlap = join_overlap.clamp(0.0, 10.0) * 10.0;
     let plain = split(main.clone(), &grid, &edges, overlap, false);
     if plain.len() == 1 {
-        return plain;
+        // No arm leaves the one stroke found, yet strokes may meet at sharp inward corners
+        // (N, M, W): cut there first and give each stroke its own column (#526).
+        return notch_columns(contours, &edges, overlap).unwrap_or(plain);
     }
     // Arms whose width spikes across a junction (A's left leg past its crossbar) swallow the
     // part beyond it, which then never becomes a column of its own; the split with those
@@ -1084,6 +1086,198 @@ pub fn branches(contours: &[Contour], join_overlap: f64) -> Vec<Skeleton> {
     };
     let reached = reach_free_ends(pick, &edges);
     reach_into_joins(reached, &edges, overlap)
+}
+
+/// An inward corner of the outline turning at least this much (degrees) is a notch where two
+/// strokes meet (N's, M's and W's; an L's 90° inside corner is not one) (#526).
+const NOTCH_TURN: f64 = 100.0;
+/// Most pieces a region is cut into at its notches.
+const MAX_NOTCH_PIECES: usize = 8;
+
+/// The indices of the notches of the closed polygon `pts`: its inward corners turning at least
+/// [`NOTCH_TURN`].
+fn notches(pts: &[Vec2]) -> Vec<usize> {
+    let n = pts.len();
+    if n < 4 {
+        return Vec::new();
+    }
+    let area: f64 = (0..n)
+        .map(|i| {
+            let (a, b) = (pts[i], pts[(i + 1) % n]);
+            a.x * b.y - b.x * a.y
+        })
+        .sum();
+    (0..n)
+        .filter(|&i| {
+            let (d1, d2) = (pts[i] - pts[(i + n - 1) % n], pts[(i + 1) % n] - pts[i]);
+            if d1.length() < 1e-9 || d2.length() < 1e-9 {
+                return false;
+            }
+            let cross = d1.x * d2.y - d1.y * d2.x;
+            let turn = cross.datan2(d1.x * d2.x + d1.y * d2.y).to_degrees();
+            // Inward: turning against the polygon's own winding.
+            turn * area < 0.0 && turn.abs() >= NOTCH_TURN
+        })
+        .collect()
+}
+
+/// The closed polygon `pts` cut at its notch `i`: one of the notch's two edges carried straight
+/// on across the region to the far outline (the more upright one, else the one falling to the
+/// right, `\`, as PE-DESIGN's text strokes are cut), and the two pieces with the chord.
+#[allow(clippy::type_complexity)]
+fn cut_at(pts: &[Vec2], i: usize) -> Option<(Vec<Vec2>, Vec<Vec2>, [Vec2; 2])> {
+    let n = pts.len();
+    let v = pts[i];
+    let unit = |d: Vec2| {
+        let l = d.length();
+        (l > 1e-9).then(|| d * (1.0 / l))
+    };
+    let on_in = unit(v - pts[(i + n - 1) % n])?;
+    let on_out = unit(v - pts[(i + 1) % n])?;
+    let upright = |d: Vec2| d.y.abs();
+    let falls_right = |d: Vec2| d.x * d.y > 0.0;
+    let mut dirs = [on_in, on_out];
+    dirs.sort_by(|a, b| {
+        upright(*b)
+            .total_cmp(&upright(*a))
+            .then(falls_right(*b).cmp(&falls_right(*a)))
+    });
+    if (upright(dirs[0]) - upright(dirs[1])).abs() < 0.1 && falls_right(dirs[1]) {
+        dirs.swap(0, 1);
+    }
+    for d in dirs {
+        // The nearest outline edge the ray meets, not the notch's own two edges.
+        let mut best: Option<(f64, usize)> = None;
+        for j in 0..n {
+            if j == i || (j + 1) % n == i {
+                continue;
+            }
+            let (a, b) = (pts[j], pts[(j + 1) % n]);
+            let e = b - a;
+            let den = d.x * e.y - d.y * e.x;
+            if den.abs() < 1e-12 {
+                continue;
+            }
+            let w = a - v;
+            let t = (w.x * e.y - w.y * e.x) / den;
+            let u = (w.x * d.y - w.y * d.x) / den;
+            if t > 1e-6 && (0.0..=1.0).contains(&u) && best.is_none_or(|(bt, _)| t < bt) {
+                best = Some((t, j));
+            }
+        }
+        let Some((t, j)) = best else { continue };
+        let q = v + d * t;
+        // v, pts[i + 1 ..= j], q  and  q, pts[j + 1 ..= i].
+        let mut one = vec![v];
+        let mut k = (i + 1) % n;
+        loop {
+            one.push(pts[k]);
+            if k == j {
+                break;
+            }
+            k = (k + 1) % n;
+        }
+        one.push(q);
+        let mut two = vec![q];
+        let mut k = (j + 1) % n;
+        loop {
+            two.push(pts[k]);
+            if k == i {
+                break;
+            }
+            k = (k + 1) % n;
+        }
+        if one.len() >= 3 && two.len() >= 3 {
+            return Some((one, two, [v, q]));
+        }
+    }
+    None
+}
+
+/// The closed polygon `pts` cut at its notches, piece by piece, into at most
+/// [`MAX_NOTCH_PIECES`] pieces, with the chords cut.
+fn notch_pieces(pts: Vec<Vec2>) -> (Vec<Vec<Vec2>>, Vec<[Vec2; 2]>) {
+    let (mut done, mut chords) = (Vec::new(), Vec::new());
+    let mut todo = vec![pts];
+    while let Some(piece) = todo.pop() {
+        if done.len() + todo.len() + 1 >= MAX_NOTCH_PIECES {
+            done.push(piece);
+            continue;
+        }
+        match notches(&piece).into_iter().find_map(|i| cut_at(&piece, i)) {
+            Some((one, two, chord)) => {
+                chords.push(chord);
+                todo.push(one);
+                todo.push(two);
+            }
+            None => done.push(piece),
+        }
+    }
+    (done, chords)
+}
+
+/// [`branches`] for a region whose one stroke meets others at notches (N, M, W): its outline
+/// cut there first ([`notch_pieces`]), a column [`derive`]d for each piece, each end near a
+/// cut carried across it `overlap` (0.1 mm) and half its width into the next piece, then the
+/// free ends run on to the outline. The column derived through the whole letter fans across
+/// its acute corners (W at 25 mm: rendered IoU 0.70, gaps up to 9 mm) (#526). `None` when the
+/// region has holes, has no notch, or a piece gives no column.
+fn notch_columns(
+    contours: &[Contour],
+    edges: &[(Vec2, Vec2)],
+    overlap: f64,
+) -> Option<Vec<Skeleton>> {
+    let closed: Vec<&Contour> = contours.iter().filter(|c| c.closed).collect();
+    let [outline] = closed.as_slice() else {
+        return None;
+    };
+    let mut pts = outline.outline_points();
+    pts.dedup_by(|a, b| a.distance(*b) < 1e-6);
+    if pts.len() > 2 && pts[0].distance(pts[pts.len() - 1]) < 1e-6 {
+        pts.pop();
+    }
+    let (pieces, chords) = notch_pieces(pts);
+    if pieces.len() < 2 {
+        return None;
+    }
+    let mut columns = Vec::with_capacity(pieces.len());
+    for piece in pieces {
+        columns.push(derive(&[Contour::new(piece, true)])?);
+    }
+    for s in &mut columns {
+        for last in [false, true] {
+            let Some((end, w, dir)) = end_of(s, last) else {
+                continue;
+            };
+            let half = (w * 5.0).max(1.0);
+            // The cut this end faces, within three half widths along its own direction.
+            let across = chords
+                .iter()
+                .filter_map(|&[a, b]| {
+                    let e = b - a;
+                    let den = dir.x * e.y - dir.y * e.x;
+                    if den.abs() < 1e-12 {
+                        return None;
+                    }
+                    let q = a - end;
+                    let t = (q.x * e.y - q.y * e.x) / den;
+                    let u = (q.x * dir.y - q.y * dir.x) / den;
+                    (t > 0.0 && t <= 3.0 * half && (-0.1..=1.1).contains(&u)).then_some(t)
+                })
+                .min_by(f64::total_cmp);
+            let Some(t) = across else { continue };
+            let tip = end + dir * (t + overlap + half);
+            if last {
+                s.points.push(tip);
+                s.widths.push(w);
+            } else {
+                s.points.insert(0, tip);
+                s.widths.insert(0, w);
+            }
+        }
+    }
+    let reached = reach_free_ends(columns, edges);
+    Some(reach_into_joins(reached, edges, overlap))
 }
 
 /// The columns of [`branches`] before their free ends reach the outline, the arms' width
