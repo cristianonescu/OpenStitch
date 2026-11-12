@@ -1523,7 +1523,8 @@ fn auto_punch_flow_fill_follows_the_picture() {
 
 /// #702: `splitBranches` sews a branching stroke as one satin column per arm, each along its
 /// own centre line, even when its junction is wider than the satin maximum (the Y is filled
-/// without it); only in OpenStitch mode; off, the run is the same as without it.
+/// without it). On by default in OpenStitch mode; PE-DESIGN mode refuses it and, without it,
+/// sews as before.
 #[test]
 fn auto_punch_splits_a_branching_stroke_into_columns() {
     let dir = temp_dir();
@@ -1572,9 +1573,10 @@ fn auto_punch_splits_a_branching_stroke_into_columns() {
     let plain = convert(json!({}));
     assert_eq!(
         plain.design(),
-        convert(json!({"splitBranches": false})).design(),
-        "off is the default"
+        convert(json!({"splitBranches": true})).design(),
+        "on is the default"
     );
+    let off = convert(json!({"splitBranches": false}));
     // Without it the Y is one fill: it is widest at its junction, over the satin maximum.
     let plan_of = |extra: Value| {
         let mut s = Session::new(&dir);
@@ -1586,18 +1588,50 @@ fn auto_punch_splits_a_branching_stroke_into_columns() {
         }
         run(&mut s, "digitize.autoPunch", p)["plan"].clone()
     };
-    assert!(satins(&plain).is_empty(), "{}", plan_of(json!({})));
-    assert_eq!(plan_of(json!({}))[0]["reason"], "wide");
-    let plan = plan_of(json!({"splitBranches": true}));
+    let off_plan = plan_of(json!({"splitBranches": false}));
+    assert!(satins(&off).is_empty(), "{off_plan}");
+    assert_eq!(off_plan[0]["reason"], "wide");
+    let plan = plan_of(json!({}));
     assert_eq!(plan[0]["reason"], "branches", "{plan}");
     assert_eq!(plan[0]["type"], "satin", "{plan}");
-    let split = convert(json!({"splitBranches": true}));
-    let after = satins(&split);
+    let after = satins(&plain);
     assert!(after.len() >= 2, "a column per arm: {after:?}");
     assert!(after.iter().all(|&s| s), "each along its own centre line");
-    let a = openstitch_design::Compiler::for_design(plain.design()).compile(plain.design());
-    let b = openstitch_design::Compiler::for_design(split.design()).compile(split.design());
+    let a = openstitch_design::Compiler::for_design(off.design()).compile(off.design());
+    let b = openstitch_design::Compiler::for_design(plain.design()).compile(plain.design());
     assert_ne!(a, b);
+    // A stubby branching blob (arms about twice as long as wide, as a painted region's) is not
+    // a stroke the columns stand in for: it is sewn as without the split.
+    let blob = Raster::from_fn(120, 120, |x, y| {
+        let p = (f64::from(x), f64::from(y));
+        let junction = (60.0, 60.0);
+        let d = near(p, junction, (60.0, 72.0))
+            .min(near(p, junction, (51.0, 50.0)))
+            .min(near(p, junction, (69.0, 50.0)));
+        if d < 2.2 {
+            [30, 80, 200, 255]
+        } else {
+            [255, 255, 255, 255]
+        }
+    })
+    .expect("size");
+    std::fs::write(dir.join("blob.png"), blob.encode_png().expect("png")).expect("write");
+    let blob_of = |extra: Value| {
+        let mut s = Session::new(&dir);
+        run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+        let mut p = json!({"path": "blob.png", "width": 60, "x": 0, "y": 0, "colors": 2,
+                           "compatMode": "openStitch"});
+        for (k, v) in extra.as_object().expect("object") {
+            p[k] = v.clone();
+        }
+        run(&mut s, "digitize.autoPunch", p);
+        s
+    };
+    assert_eq!(
+        blob_of(json!({})).design(),
+        blob_of(json!({"splitBranches": false})).design(),
+        "a stubby blob is not split"
+    );
     // PE-DESIGN mode refuses it.
     let mut s = Session::new(&dir);
     run(&mut s, "design.new", json!({"width": 100, "height": 100}));
@@ -1608,4 +1642,16 @@ fn auto_punch_splits_a_branching_stroke_into_columns() {
         )
         .expect_err("PE mode");
     assert!(e.to_string().contains("openStitch"), "{e}");
+    // PE-DESIGN mode without it: no split, no error.
+    let mut s = Session::new(&dir);
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    run(
+        &mut s,
+        "digitize.autoPunch",
+        json!({"path": "y.png", "width": 60}),
+    );
+    assert!(
+        satins(&s).iter().all(|&k| !k),
+        "no column per arm in PE mode"
+    );
 }

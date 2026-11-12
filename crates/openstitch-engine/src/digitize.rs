@@ -627,7 +627,7 @@ fn auto_punch_docs() -> Vec<ParamDoc> {
     v.push(opt(
         "splitBranches",
         "bool",
-        "OpenStitch mode: a satin stroke that branches (a Y, K or X, a star, a forked line) is sewn as one satin column per arm along its own centre line, the columns overlapping 0.3 mm where they meet, instead of one satin across the whole shape (default false) (#702; needs compatMode openStitch)",
+        "OpenStitch mode: a satin stroke that branches (a Y, K or X, a star, a forked line) is sewn as one satin column per arm along its own centre line, the columns overlapping 0.3 mm where they meet, instead of one satin across the whole shape; only a stroke at least 8 widths long (area over the square of its widest width) whose columns cover it to 0.9 (overlap over union) (painted regions that branch keep one fill or satin). Default true in OpenStitch mode; false sews every stroke as one (#702; PE-DESIGN mode refuses true)",
     ));
     v.push(opt(
         "flowFill",
@@ -701,9 +701,9 @@ fn region_map_json(out: &autopunch::Converted) -> Value {
     json!({"width": mw, "height": mh, "runs": runs})
 }
 
-/// Auto Punch's `splitBranches` (#702): OpenStitch mode only.
+/// Auto Punch's `splitBranches` (#702): OpenStitch mode only, on by default there.
 fn split_branches(p: &Params, mode: Mode) -> Result<bool, CommandError> {
-    let on = p.bool("splitBranches", Some(false))?;
+    let on = p.bool("splitBranches", Some(mode == Mode::OpenStitch))?;
     if on && mode == Mode::PeDesign {
         return Err(p.invalid("splitBranches", "needs compatMode openStitch"));
     }

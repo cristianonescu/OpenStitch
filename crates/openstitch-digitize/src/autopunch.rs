@@ -89,15 +89,74 @@ pub struct AutoPunch {
     /// ([`crate::flow`], #538) instead of one angle; a fill whose angle is set keeps it. Off
     /// (the default) and PE-DESIGN mode sew straight rows.
     pub flow_fill: bool,
-    /// OpenStitch mode: a satin stroke that branches (a Y, a K, a star, a forked line) is sewn
-    /// as one satin column per arm, overlapping [`BRANCH_JOIN_MM`] where they meet
+    /// OpenStitch mode: a satin stroke that branches (a Y, a K, a forked line) is sewn as one
+    /// satin column per arm, overlapping [`BRANCH_JOIN_MM`] where they meet
     /// (`openstitch_design::skeleton::branches`, #702), instead of one satin across the whole
-    /// shape. Off (the default) and PE-DESIGN mode sew it as before.
+    /// shape, when it is at least [`BRANCH_MIN_LENGTH`] widths long and its arms cover it to
+    /// [`BRANCH_MIN_IOU`]. On by default; PE-DESIGN mode ignores it.
     pub split_branches: bool,
 }
 
 /// How far a branch column reaches into the column it leaves, mm (#702).
 pub const BRANCH_JOIN_MM: f64 = 0.3;
+
+/// The least [`arms_cover`] of a branching stroke split into columns (#702): below it the
+/// columns leave a tenth of the stroke unsewn or sew past it (Arial's A, R, V and W split
+/// 0.74-0.87; its Y, K, X and T up to 0.97).
+pub const BRANCH_MIN_IOU: f64 = 0.9;
+
+/// The least length of a branching stroke split into columns, in widths: its area over the
+/// square of its width at the deepest point, the junction (#702). Letters in Arial and Verdana
+/// at 20-25 mm measure 6-13; the branching regions of the ten Auto Punch gallery pictures
+/// (painted, photo and flat colour) whose columns cover them to [`BRANCH_MIN_IOU`] measure 7 or
+/// less. Split, those regions lowered the likeness (storybook p03 dE00 16.09 → 16.47).
+pub const BRANCH_MIN_LENGTH: f64 = 8.0;
+
+/// How well a branching stroke's arm columns stand in for it (#702): the region and the arms'
+/// outlines overlapping, over their union (1 when they match). Sampled every 0.3 mm over the
+/// bounds of both (design units, 0.1 mm); deterministic.
+fn arms_cover(contours: &[Contour], arms: &[openstitch_design::skeleton::Skeleton]) -> f64 {
+    let outlines: Vec<Contour> = arms
+        .iter()
+        .filter_map(openstitch_design::skeleton::outline)
+        .collect();
+    let (mut x0, mut y0, mut x1, mut y1) = (f64::MAX, f64::MAX, f64::MIN, f64::MIN);
+    for c in contours.iter().chain(&outlines) {
+        for q in &c.points {
+            (x0, y0, x1, y1) = (x0.min(q.x), y0.min(q.y), x1.max(q.x), y1.max(q.y));
+        }
+    }
+    if x0 > x1 {
+        return 0.0;
+    }
+    const STEP: f64 = 3.0;
+    let (nx, ny) = (
+        ((x1 - x0) / STEP) as usize + 1,
+        ((y1 - y0) / STEP) as usize + 1,
+    );
+    let (mut both, mut region, mut arm) = (0usize, 0usize, 0usize);
+    for j in 0..ny {
+        for i in 0..nx {
+            let q = openstitch_design::geometry::v2(
+                x0 + (i as f64 + 0.5) * STEP,
+                y0 + (j as f64 + 0.5) * STEP,
+            );
+            let r = openstitch_design::geometry::contains(q, contours);
+            let a = outlines
+                .iter()
+                .any(|o| openstitch_design::geometry::contains(q, std::slice::from_ref(o)));
+            region += usize::from(r);
+            arm += usize::from(a);
+            both += usize::from(r && a);
+        }
+    }
+    let union = region + arm - both;
+    if union == 0 {
+        0.0
+    } else {
+        both as f64 / union as f64
+    }
+}
 
 /// A column's typical width, mm: the median of its widths (#702).
 fn median_width(s: &openstitch_design::skeleton::Skeleton) -> f64 {
@@ -313,7 +372,7 @@ impl Default for AutoPunch {
             underlap_mm: 0.0,
             order: Vec::new(),
             flow_fill: false,
-            split_branches: false,
+            split_branches: true,
         }
     }
 }
@@ -934,6 +993,12 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
             .then(|| openstitch_design::skeleton::branches(&contours, BRANCH_JOIN_MM))
             .filter(|arms| {
                 arms.len() >= 2 && arms.iter().all(|a| median_width(a) <= p.satin_max_mm)
+            })
+            // Only a stroke the columns stand in for (#702): a long one (painted regions
+            // that branch are compact blobs) whose arms cover it closely.
+            .filter(|arms| {
+                k.area as f64 * mm * mm >= BRANCH_MIN_LENGTH * width_mm * width_mm
+                    && arms_cover(&contours, arms) >= BRANCH_MIN_IOU
             });
             let (auto, reason) = if arms.is_some() {
                 (Stitch::Satin, Reason::Branches)
