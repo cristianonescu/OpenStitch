@@ -858,7 +858,14 @@ pub fn derive(contours: &[Contour]) -> Option<Skeleton> {
         .chain(pts[lo..=hi].iter().copied())
         .chain(tail)
         .collect();
-    line_to_skeleton(pts, head.is_some(), tail.is_some(), &edges, grid.step)
+    line_to_skeleton(
+        pts,
+        head.is_some(),
+        tail.is_some(),
+        &edges,
+        grid.step,
+        WIDE_CHORD,
+    )
 }
 
 /// Most columns one branching region is cut into.
@@ -952,6 +959,11 @@ const MAX_MAINS: usize = 4;
 /// A main column narrowing inside to under this share of its median width is measured across
 /// a junction's mouth (#526).
 const COLLAPSE: f64 = 0.4;
+/// A chord across a stroke up to this many times the distance to its nearest edge is taken as
+/// the stroke's width (a stroke widening or tapering); longer ones run out through a gap.
+const WIDE_CHORD: f64 = 6.0;
+/// The same for a main stroke tried along a ridge, which passes junctions (#526).
+const NARROW_CHORD: f64 = 2.5;
 
 /// The largest turn (degrees) of `s`'s centre line within [`BEND_WINDOW`] column widths: a
 /// sharp bend there, a gentle curve spread along it.
@@ -1124,7 +1136,10 @@ fn ridge_mains(arms: &[Skeleton], grid: &Grid, edges: &[(Vec2, Vec2)]) -> Vec<Sk
                 pts.push(p);
             }
             let len: f64 = pts.windows(2).map(|w| w[0].distance(w[1])).sum();
-            line_to_skeleton(pts, true, true, edges, grid.step).map(|sk| (len, sk))
+            // Through a junction its chord would run into the other arm's mouth and pull the
+            // column over it (a y's stroke past its short arm): only a chord about as wide as
+            // the stroke there counts (#526).
+            line_to_skeleton(pts, true, true, edges, grid.step, NARROW_CHORD).map(|sk| (len, sk))
         })
         .collect();
     found.sort_by(|a, b| b.0.total_cmp(&a.0));
@@ -1282,7 +1297,7 @@ fn arms_from(
             let n = ((w[0].distance(w[1]) / (4.0 * grid.step)).ceil() as usize).max(1);
             dense.extend((1..=n).map(|i| w[0].lerp(w[1], i as f64 / n as f64)));
         }
-        if let Some(mut main) = measure(&dense, true, true, edges, grid.step) {
+        if let Some(mut main) = measure(&dense, true, true, edges, grid.step, WIDE_CHORD) {
             // Where the chord runs on into another arm (the middle of a star), the column is
             // as wide as the clearance there allows, not the chord.
             for (q, w) in main.points.iter().zip(main.widths.iter_mut()) {
@@ -1407,7 +1422,7 @@ fn arms_from(
             ok
         };
         let arm = (line.last() == Some(&tip))
-            .then(|| line_to_skeleton(pts, false, reached, edges, grid.step))
+            .then(|| line_to_skeleton(pts, false, reached, edges, grid.step, WIDE_CHORD))
             .flatten();
         match arm {
             // The arm's own cells are never an arm again; a part next to it (two arms meeting
@@ -1431,6 +1446,7 @@ fn line_to_skeleton(
     tail: bool,
     edges: &[(Vec2, Vec2)],
     step: f64,
+    chord_limit: f64,
 ) -> Option<Skeleton> {
     // Smooth the grid staircase (ends stay).
     for _ in 0..3 {
@@ -1441,18 +1457,21 @@ fn line_to_skeleton(
     }
     let keep = simplify(&pts, step * 0.75);
     let line: Vec<Vec2> = keep.iter().map(|&i| pts[i]).collect();
-    measure(&line, head, tail, edges, step)
+    measure(&line, head, tail, edges, step, chord_limit)
 }
 
 /// The skeleton along `line` (0.1 mm): each point moved to the middle of the chord across the
 /// region there and given its width; `head` and `tail` say whether the ends were reached out
-/// towards the outline (their width is then no wider than next door).
+/// towards the outline (their width is then no wider than next door). A chord longer than
+/// `chord_limit` times the distance to the nearest edge is not across the stroke (it runs out
+/// through a gap); the point keeps its place and twice that distance as its width.
 fn measure(
     line: &[Vec2],
     head: bool,
     tail: bool,
     edges: &[(Vec2, Vec2)],
     step: f64,
+    chord_limit: f64,
 ) -> Option<Skeleton> {
     if line.len() < 2 {
         return None;
@@ -1474,7 +1493,7 @@ fn measure(
             (left, ray(p, left, edges), ray(p, left * -1.0, edges))
         });
         let (centre, width) = match chord {
-            Some((left, Some(l), Some(r))) if l + r <= 6.0 * near + 2.0 * step => {
+            Some((left, Some(l), Some(r))) if l + r <= chord_limit * near + 2.0 * step => {
                 (p + left * ((l - r) / 2.0), l + r)
             }
             _ => (p, 2.0 * near),
@@ -1912,10 +1931,11 @@ mod letter_tests {
         }
     }
 
-    /// The share of each letter the columns sew (Lato Bold at 10 and 25 mm, #526): K and Y over
-    /// the 0.95 bar (Y's main column is its stem and one arm, not the V through both arms, which
-    /// narrows to nothing at the crotch); the others no lower than measured on 2026-11-12. y and
-    /// the letters without a junction (N, M, W) are still under the bar (#526).
+    /// The share of each letter the columns sew (Lato Bold at 10 and 25 mm, #526): K, Y and y
+    /// over the 0.95 bar (Y's main column is its stem and one arm, not the V through both arms,
+    /// which narrows to nothing at the crotch; y's is its tail and long stroke, measured on its
+    /// own side of the junction); the others no lower than measured on 2026-11-12. The letters
+    /// without a junction (N, M, W) are still under the bar (#526).
     #[test]
     fn letters_split_into_columns_that_sew_them() {
         let floors = [
@@ -1923,8 +1943,8 @@ mod letter_tests {
             ("Y", 0.95, 0.96),
             ("X", 0.94, 0.94),
             ("R", 0.94, 0.94),
-            ("A", 0.88, 0.90),
-            ("y", 0.85, 0.88),
+            ("A", 0.89, 0.91),
+            ("y", 0.95, 0.95),
         ];
         for (ch, small, large) in floors {
             for (size, floor) in [(10.0, small), (25.0, large)] {
