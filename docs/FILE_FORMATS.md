@@ -128,7 +128,12 @@ per PEC entry 1–61, with a 3-digit code and brand `EMBROIDERY` (none for 62–
 tab, matched to the PEC chart by name and checked against the 30 pairs PE writes in the owner's
 own `#PES0110` thread tables (all agree); 307 LINEN is PEC 42 by elimination (pyembroidery names
 42 and 57 both "Flesh Pink", and PE's files put 124 FLESH PINK at 57). The dialog's own first
-column (1 BLACK, 2 WHITE, 3 RED, …) is not the PEC index.
+column (1 BLACK, 2 WHITE, 3 RED, …) is not the PEC index. Colours: of the 55 codes the
+1,421 `#PES0110` captures use, 53 carry the chart's RGB; three entries take PE's value over
+pyembroidery's: 42 LINEN, 57 FLESH PINK and 49 AMBER RED (181, 76, 100, 2026-11-12). 34 CREAM
+YELLOW is pending: one Auto Punch capture writes (255, 240, 141), the chart keeps (255, 243,
+107) until a BROTHER EMBROIDERY capture confirms it. Not yet seen in a capture: 337, 810, 612,
+079, 542, 202.
 
 ## PES
 

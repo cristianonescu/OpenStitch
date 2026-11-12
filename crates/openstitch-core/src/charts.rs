@@ -78,7 +78,10 @@ pub static PEC_CHART: [Option<Thread>; 65] = [
     )),
     Some(Thread::chart(239, 227, 185, "Beige", "47", "Brother")),
     Some(Thread::chart(247, 56, 102, "Carmine", "48", "Brother")),
-    Some(Thread::chart(181, 75, 100, "Amber Red", "49", "Brother")),
+    // pyembroidery has (181, 75, 100) here; PE-DESIGN 11.50 writes (181, 76, 100) for 333
+    // AMBER RED in all 14 of its captures that use it (Photo Stitch 1 and Auto Punch, rounds 5,
+    // 8 and 10; compat/reference/image/photostitch1-p01-portrait-100mm.pes, 2026-11-12).
+    Some(Thread::chart(181, 76, 100, "Amber Red", "49", "Brother")),
     Some(Thread::chart(19, 43, 26, "Olive Green", "50", "Brother")),
     Some(Thread::chart(199, 1, 86, "Dark Fuchsia", "51", "Brother")),
     Some(Thread::chart(254, 158, 50, "Tangerine", "52", "Brother")),

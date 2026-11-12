@@ -1859,7 +1859,7 @@ Line references are relative to `crates/`.
     - On 20 flat colours (four squares, a 16-colour grid of primaries, half levels, tints and
       greys), OpenStitch's equal-weight RGB match (#119) gives PE's thread for 13.
     - PE's misses go both ways, so no colour shift explains them:
-      - (128, 0, 0) gets 49 Amber Red (181, 75, 100) over 13 nearer threads, four of them PE's
+      - (128, 0, 0) gets 49 Amber Red (181, 75, 100; PE-DESIGN writes 181, 76, 100, corrected 2026-11-12) over 13 nearer threads, four of them PE's
         own picks elsewhere;
       - (128, 128, 255) gets the darker 4 Cornflower Blue;
       - (192, 192, 192) gets the darker 16 Silver;
