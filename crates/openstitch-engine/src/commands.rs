@@ -1433,8 +1433,8 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 ),
                 opt(
                     "runningStitchPath",
-                    "inside|alongOutline|onOutline",
-                    "Fill and satin: running stitches between separate parts, and for fill also the travel from the start point to the first row and back to the end point (inside: straight across, as PE-DESIGN; alongOutline / onOutline: along the edge, where open rows do not show it). Default inside; not with Auto direction, a feathered edge or text; inside not with gradation",
+                    "inside|alongOutline|onOutline|insideHidden",
+                    "Fill and satin: running stitches between separate parts, and for fill also the travel from the start point to the first row and back to the end point (inside: straight across, as PE-DESIGN; alongOutline / onOutline: along the edge, where open rows do not show it; insideHidden, beyond PE-DESIGN (#469): inside, with a region's sections sewn in an order where a section joining others, such as a stem between leaves, comes after them, so the travel between them is hidden under thread sewn later; Auto Punch sets it on its fills in OpenStitch mode; PES 0110 writes it as inside). Default inside; not with Auto direction, a feathered edge or text; inside and insideHidden not with gradation",
                 ),
                 opt(
                     "travel",
@@ -1884,7 +1884,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         let path = RunningStitchPath::from_id(&id).ok_or_else(|| {
                             p.invalid(
                                 "runningStitchPath",
-                                "must be inside, alongOutline or onOutline",
+                                "must be inside, alongOutline, onOutline or insideHidden",
                             )
                         })?;
                         let unavailable = if o.kind == ObjectKind::Text {
@@ -1895,7 +1895,11 @@ fn attribute_commands() -> Vec<CommandSpec> {
                             Some("is not available with Auto direction")
                         } else if r.feather.is_some() {
                             Some("is not available with a feathered edge")
-                        } else if path == RunningStitchPath::Inside && r.gradation.is_some() {
+                        } else if matches!(
+                            path,
+                            RunningStitchPath::Inside | RunningStitchPath::InsideHidden
+                        ) && r.gradation.is_some()
+                        {
                             Some("inside is not available with gradation")
                         } else {
                             None

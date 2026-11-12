@@ -607,6 +607,16 @@ fn layers_inner(
         None => (closed, holes),
     };
     let mut runs = match r.kind {
+        RegionType::Fill if !shaped && r.travel_path() == Some(RunningStitchPath::InsideHidden) => {
+            generate::fill_edge_to_edge_travel_hidden(
+                top_closed,
+                &params,
+                top_holes,
+                r.fill_stagger(),
+                r.entry,
+                r.stitch_type == FillStitchType::Two,
+            )
+        }
         RegionType::Fill if !shaped => generate::fill_edge_to_edge_travel(
             top_closed,
             &params,
@@ -1276,7 +1286,7 @@ fn travel_graph(
 ) -> TravelGraph {
     let mut graph = TravelGraph::new(closed, holes);
     graph.outline = match path {
-        RunningStitchPath::Inside => None,
+        RunningStitchPath::Inside | RunningStitchPath::InsideHidden => None,
         RunningStitchPath::AlongOutline => Some(OutlineTravel::Inset(ALONG_OUTLINE_INSET)),
         RunningStitchPath::OnOutline => Some(OutlineTravel::On),
     };
