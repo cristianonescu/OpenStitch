@@ -2,7 +2,7 @@
 //!
 //! ```text
 //! openstitch [FILE] [--demo] [--select ID,ID] [--simulate FRACTION] [--tool select|point|rectangle|ellipse|polygon|pen]
-//!            [--size WxH] [--zoom F] [--show realistic,reference,settings,measure,norulers,text,usb,arrange,print]
+//!            [--size WxH] [--zoom F] [--center X,Y] [--show realistic,reference,settings,measure,norulers,text,usb,arrange,print]
 //!            [--script STEPS] [--screenshot OUT.png]
 //!            [--image IMAGE [--convert autopunch|cross|photofill|photolines|designcenter]]
 //!            [--pattern PATTERN.json]
@@ -184,6 +184,18 @@ fn parse(args: impl Iterator<Item = String>) -> Result<(Launch, [f32; 2]), Strin
                 ];
             }
             "--script" => l.script = script::parse(&value("--script")?)?,
+            "--center" => {
+                let v = value("--center")?;
+                let xy: Vec<f64> = v
+                    .split(',')
+                    .map(|n| n.trim().parse::<f64>())
+                    .collect::<Result<_, _>>()
+                    .map_err(|_| "--center takes X,Y in mm")?;
+                let [x, y] = xy[..] else {
+                    return Err("--center takes X,Y in mm".into());
+                };
+                l.center = Some((x, y));
+            }
             "--zoom" => {
                 l.zoom = Some(
                     value("--zoom")?
@@ -345,7 +357,7 @@ fn main() -> eframe::Result {
                 eprintln!("openstitch: {e}");
             }
             eprintln!(
-                "usage: openstitch [FILE] [--demo] [--select ID,ID] [--simulate F] [--tool NAME] [--size WxH] [--zoom F] [--show VIEWS] [--script STEPS] [--screenshot OUT.png] [--image IMAGE [--convert METHOD]] [--pattern PATTERN.json] [--wizard NAME [--apply]] [--database PATH [--db-view VIEW] [--db-dialog NAME]] [--listen PORT [--listen-read-only] [--listen-no-files] [--listen-root DIR] [--listen-read-root DIR]] [--ribbon TAB] [--pane TAB] [--theme THEME] [--accent COLOUR] [--language CODE] [--no-splash]"
+                "usage: openstitch [FILE] [--demo] [--select ID,ID] [--simulate F] [--tool NAME] [--size WxH] [--zoom F] [--center X,Y] [--show VIEWS] [--script STEPS] [--screenshot OUT.png] [--image IMAGE [--convert METHOD]] [--pattern PATTERN.json] [--wizard NAME [--apply]] [--database PATH [--db-view VIEW] [--db-dialog NAME]] [--listen PORT [--listen-read-only] [--listen-no-files] [--listen-root DIR] [--listen-read-root DIR]] [--ribbon TAB] [--pane TAB] [--theme THEME] [--accent COLOUR] [--language CODE] [--no-splash]"
             );
             std::process::exit(2);
         }
@@ -465,6 +477,9 @@ mod tests {
         assert_eq!(l.pane, Some(crate::ribbon::PaneTab::Color));
         assert_eq!(l.theme, Some(openstitch_app::editor::prefs::Theme::Dark));
         assert!(parse(args("--ribbon file")).is_err() && parse(args("--theme neon")).is_err());
+        let (l, _) = parse(args("--zoom 3 --center 12.5,40")).expect("center");
+        assert_eq!(l.center, Some((12.5, 40.0)));
+        assert!(parse(args("--center 3")).is_err() && parse(args("--center a,b")).is_err());
     }
 
     #[test]

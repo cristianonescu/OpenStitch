@@ -56,6 +56,8 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   G green, B blue, K black, W white, Y yellow, N grey, O orange, P purple, A sky blue, T brown, DB dark
   blue; widths in mm) or `sett: [{color, width}, ...]`; `symmetric` (default true). It returns one object
   id per colour (grouped). `object.setRegion tartan: false` makes one plain again. PES 0110 refuses it.
+  Each colour trims where its travel would show across the other stripes: expect a few trims per
+  tartan; tell the user when their machine has no thread cutter.
 - Stitch angle lines (beyond PE-DESIGN), for leaves, ribbons, U and Z shapes and rings:
   `object.setAngleLines {id, lines: [[[x, y], [x, y]], ...]}` (mm, 2 or more lines across the fill
   in order along it; each line is extended to the outline). The rows turn from one line's
