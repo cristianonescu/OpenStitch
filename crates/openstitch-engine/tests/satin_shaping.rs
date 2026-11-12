@@ -989,6 +989,21 @@ fn w_at_10_mm_meets_the_boxes_of_526_on_its_stitches() {
 }
 
 #[test]
+fn a_at_25_mm_meets_the_boxes_of_526_on_its_stitches() {
+    // A's left leg past the crossbar: its centre line no longer turns back into the junction,
+    // so the leg's satin reaches its outer edge at the bar (1.25 mm of it was bare).
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "text.add",
+        json!({"text": "A", "size": 25, "x": 50, "y": 70, "fill": "Red"}),
+    );
+    let r = run(&mut s, "text.toShapes", json!({"id": 1}));
+    let shape_id = r["ids"][0].as_u64().expect("shape");
+    meets_the_boxes_of_526(&mut s, shape_id, 3, 0.98);
+}
+
+#[test]
 fn a_ring_at_25_mm_meets_the_boxes_of_526_on_its_stitches() {
     // A ring's quarters meet on a curve: a quarter joining the ring's narrower main column runs
     // on to where its centre lies deepest in it, so the join is past joinOverlap and the
@@ -1039,7 +1054,8 @@ fn meets_the_boxes_of_526(s: &mut Session, shape_id: u64, columns: usize, covera
     let st = &pattern.stitches;
     // The satin's triangles: each needle point with the two before it, within one run, the
     // stitches up to 15 mm (longer ones are travel), tie-ins and locks left out (out-and-back
-    // steps back to the same point, at most 2 mm, at a run's start or end).
+    // steps back to the same point, at most 2 mm, at a run's start or end): a triangle whose own
+    // stitch is such a step, so the point a tie-in ends on still starts the satin.
     let is_stitch = |k: usize| st[k].command == Command::Stitch;
     let p = |k: usize| v2(st[k].x, st[k].y);
     let n = st.len();
@@ -1078,7 +1094,7 @@ fn meets_the_boxes_of_526(s: &mut Session, shape_id: u64, columns: usize, covera
             is_stitch(k)
                 && is_stitch(k - 1)
                 && is_stitch(k - 2)
-                && !(tie[k] || tie[k - 1] || tie[k - 2])
+                && !(tie[k] || tie[k - 1])
                 && p(k).distance(p(k - 1)) <= 150.0
                 && p(k - 1).distance(p(k - 2)) <= 150.0
         })
