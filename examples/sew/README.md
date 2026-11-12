@@ -537,7 +537,7 @@ Appliqué, embroidered patch, cutwork and background fill.
 
 #### Appliqué wizard
 
-[`wizards/applique.pes`](wizards/applique.pes) · 100 × 100 mm hoop · 54 × 53.8 mm · 1,804 stitches · 4 trims · about 2.5 min
+[`wizards/applique.pes`](wizards/applique.pes) · 100 × 100 mm hoop · 54 × 53.8 mm · 1,557 stitches · 4 trims · about 2.2 min
 
 A heart as appliqué: material line, stop, position line, stop, tack-down, stop, covering zigzag. Lay the fabric at the first stop, trim it at the second.
 
@@ -547,7 +547,7 @@ Threads, in sewing order: Appliqué material (PEC 62), Appliqué position (PEC 6
 
 #### Embroidered patch wizard
 
-[`wizards/patch.pes`](wizards/patch.pes) · 100 × 100 mm hoop · 62 × 62 mm · 2,866 stitches · 3 trims · about 3.7 min
+[`wizards/patch.pes`](wizards/patch.pes) · 100 × 100 mm hoop · 62 × 62 mm · 2,862 stitches · 3 trims · about 3.7 min
 
 A heart with a satin border and a sewn cutting line outside it, to cut the patch out with scissors.
 
@@ -557,7 +557,7 @@ Threads, in sewing order: 800 Red, 406 Ultra Marine, 406 Ultra Marine.
 
 #### Cutwork wizard
 
-[`wizards/cutwork.pes`](wizards/cutwork.pes) · 100 × 100 mm hoop · 54 × 54 mm · 3,192 stitches · 6 trims · about 4.3 min
+[`wizards/cutwork.pes`](wizards/cutwork.pes) · 100 × 100 mm hoop · 54 × 54 mm · 3,446 stitches · 6 trims · about 4.6 min
 
 A circle cutout: stabilising run, a sewn cut line (the NV880E has no cutwork needles, so cut by hand at the stop), stabiliser run, net fill and covering satin. Use water-soluble stabiliser.
 

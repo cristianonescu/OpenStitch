@@ -3391,9 +3391,20 @@ under sewing styles are unchanged. The square at 4 mm: line stitches 800 → 964
 1,035); the rest of that gap is the crossing spacing along a closed shape's sides, a few percent
 that PE-DESIGN's own open-line references do not show (left out of scope, see #964). References
 `line-square-zigzag-3-9mm` (new) and `line-square-zigzag-4mm` now compare the stitch count (within
-5 %). Kit: `wizards/cutwork` 3,192 → 3,446 stitches (its 4 mm zigzag), 4.3 → 4.6 min;
-`wizards/applique` and `wizards/patch` (zigzag widths other than 2 mm) move their under sewing
-runs, stitches 1,804 → 1,804 and 2,866 → 2,862.
+5 %). The offset changes for every zigzag width but 2 mm, not only from 4 mm: 0 instead of
+0.25 mm at 1 mm, 1.0 instead of 0.75 mm at 3 mm. Every zigzag reference in compat is 2 mm wide,
+so their numbers do not move (495 of 495 specs pass). Kit: `wizards/cutwork` 3,192 → 3,446
+stitches (its 4 mm cover), 4.3 → 4.6 min; `wizards/patch` (a 3 mm border) 2,866 → 2,862.
+
+The appliqué wizard's cover (#975): PE-DESIGN's Applique Wizard (captures a01, a04) sews the
+tack-down and then the cover zigzag directly, with no under sewing; OpenStitch's cover took the
+zigzag line's default under sewing, and #964's offset put its outer run exactly on the
+material line, hiding it in the kit's preview. The wizard now leaves the cover's under sewing
+off (a user can turn it on, `object.setLine` `underSewing`). Spec `pes-0110-applique` (PE-DESIGN
+reference): the tack-down + cover block 779 → 651 stitches against PE-DESIGN's 858, so the cover
+zigzag itself is sparser than PE-DESIGN's; the under sewing had partly hidden that (to look at
+with #964's crossing spacing). Kit `wizards/applique` 1,804 → 1,557 stitches, 2.5 → 2.2 min,
+its material line visible again.
 
 ### Design Center: small rings sew round, 2026-11-12 (#469)
 
