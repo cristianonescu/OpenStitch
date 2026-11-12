@@ -336,6 +336,9 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m pip install pillow==11.3.0 numpy==2.3.5
+      - name: sew_kit self-test
+        # --only's bookkeeping: only the named entries change (#935).
+        run: python -I tools/sew_kit.py --self-test
       - name: kit previews show their threads
         # Each preview's pixels include every thread of its design within 20 ΔE (#564).
         run: python -I tools/sew_kit.py --check-previews
