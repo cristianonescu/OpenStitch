@@ -101,6 +101,81 @@ impl Census {
             .count()
             .clamp(1, max.max(1))
     }
+
+    /// OpenStitch mode's automatic count (#962): [`Census::auto_colors_up_to`] plus the small
+    /// colours of a flat picture that are far from every colour with a real share
+    /// ([`distinct_small`]), however unsaturated, and drawn as a solid patch, not a seam: at
+    /// least [`SOLID_SHARE`] of their pixels have all four neighbours in the same colour. g02's
+    /// basket brown holds 0.47 % of the pixels, just under [`AUTO_SHARE`], at chroma about 35,
+    /// and without a thread of its own it was sewn in the balloon's red; the anti-aliased edges
+    /// of g08's letters are as far from its colours but one or two pixels wide. `width` is the
+    /// census image's width in pixels.
+    pub fn auto_colors_distinct_up_to(&self, max: usize, width: usize) -> usize {
+        let extra = distinct_small(&self.colors)
+            .into_iter()
+            .filter(|&c| self.solid_share(c, width) >= SOLID_SHARE)
+            .count();
+        (self.auto_colors_up_to(max) + extra).clamp(1, max.max(1))
+    }
+
+    /// The share of the pixels counted under tracked colour `c` (their nearest tracked colour)
+    /// whose four neighbours are counted under it too.
+    fn solid_share(&self, c: Rgb, width: usize) -> f64 {
+        if width == 0 || self.modal.len() % width != 0 {
+            return 0.0;
+        }
+        let height = self.modal.len() / width;
+        let of = |p: Option<Rgb>| {
+            p.is_some_and(|p| {
+                self.colors
+                    .iter()
+                    .min_by_key(|k| sq_dist(p, k.0))
+                    .is_some_and(|k| k.0 == c)
+            })
+        };
+        let mine: Vec<bool> = self.modal.iter().map(|&p| of(p)).collect();
+        let (mut all, mut solid) = (0usize, 0usize);
+        for y in 0..height {
+            for x in 0..width {
+                if !mine[y * width + x] {
+                    continue;
+                }
+                all += 1;
+                if x > 0
+                    && y > 0
+                    && x + 1 < width
+                    && y + 1 < height
+                    && [
+                        y * width + x - 1,
+                        y * width + x + 1,
+                        (y - 1) * width + x,
+                        (y + 1) * width + x,
+                    ]
+                    .iter()
+                    .all(|&i| mine[i])
+                {
+                    solid += 1;
+                }
+            }
+        }
+        if all == 0 {
+            0.0
+        } else {
+            solid as f64 / all as f64
+        }
+    }
+}
+
+/// The least share of a small colour's pixels with all four neighbours in it for OpenStitch
+/// mode's automatic count to give it a thread (#962): a solid patch, not an anti-aliased seam.
+const SOLID_SHARE: f64 = 0.3;
+
+/// The census colours of a flat picture (at most [`PROTECT_FLAT`]) smaller than
+/// [`AUTO_SHARE`] (but at least a tenth of it) and at least [`PROTECT_DE`] from every colour
+/// with a real share, at most [`PROTECT_MAX`], largest first: [`protected`] without its chroma
+/// rule (#962, OpenStitch mode).
+fn distinct_small(hist: &[(Rgb, u64)]) -> Vec<Rgb> {
+    small_colours(hist, 0.0)
 }
 
 /// A colour this saturated (CIELAB chroma) may keep its own box in PE-compatible mode however
@@ -118,6 +193,11 @@ const PROTECT_FLAT: usize = 40;
 /// most [`PROTECT_MAX`], smaller than [`AUTO_SHARE`], saturated, and far from every colour that
 /// has a real share. Largest first.
 fn protected(hist: &[(Rgb, u64)]) -> Vec<Rgb> {
+    small_colours(hist, PROTECT_CHROMA)
+}
+
+/// [`protected`] and [`distinct_small`]: the small, far colours at least `chroma` saturated.
+fn small_colours(hist: &[(Rgb, u64)], chroma: f64) -> Vec<Rgb> {
     let total: u64 = hist.iter().map(|c| c.1).sum();
     // Flat graphics only: a photo's census is full of shades, and its small saturated ones
     // are highlights PE-DESIGN merges (p07's pinks).
@@ -135,7 +215,7 @@ fn protected(hist: &[(Rgb, u64)]) -> Vec<Rgb> {
         .filter(|c| share(c) < AUTO_SHARE && share(c) >= AUTO_SHARE / 10.0)
         .filter(|c| {
             let l = crate::perceptual::lab(c.0);
-            l[1].dhypot(l[2]) >= PROTECT_CHROMA
+            l[1].dhypot(l[2]) >= chroma
                 && big.iter().all(|b| {
                     ((b[0] - l[0]).powi(2) + (b[1] - l[1]).powi(2) + (b[2] - l[2]).powi(2)).sqrt()
                         >= PROTECT_DE
@@ -1069,5 +1149,40 @@ mod nearest_in_tests {
             nearest_in([255, 255, 255], &[]),
             nearest_pec([255, 255, 255]).1
         );
+    }
+}
+
+#[cfg(test)]
+mod distinct_small_tests {
+    use super::*;
+
+    /// A 200 × 200 picture: white with a large blue disc's worth of blue, and `extra` drawn in
+    /// brown ([142, 91, 47], g02's basket: chroma about 35, ΔE 47 from the red).
+    fn picture(extra: impl Fn(u32, u32) -> bool) -> Census {
+        let image = Raster::from_fn(200, 200, |x, y| {
+            if extra(x, y) {
+                [142, 91, 47, 255]
+            } else if x < 100 {
+                [30, 60, 200, 255]
+            } else if y < 40 {
+                [229, 76, 44, 255]
+            } else {
+                [255, 255, 255, 255]
+            }
+        })
+        .expect("raster");
+        census(&image)
+    }
+
+    /// #962: OpenStitch mode's automatic count gives a small, unsaturated colour far from every
+    /// other its own thread when it is a solid patch (a 13 × 13 px square, 0.42 % of the
+    /// pixels, under AUTO_SHARE), not when it is a two-pixel seam of about the same size.
+    #[test]
+    fn a_small_distinct_patch_counts_and_a_seam_does_not() {
+        let patch = picture(|x, y| (150..163).contains(&x) && (120..133).contains(&y));
+        assert_eq!(patch.auto_colors_up_to(AUTO_MAX), 3, "the share rule alone");
+        assert_eq!(patch.auto_colors_distinct_up_to(AUTO_MAX, 200), 4);
+        let seam = picture(|x, y| (150..152).contains(&x) && (100..190).contains(&y));
+        assert_eq!(seam.auto_colors_distinct_up_to(AUTO_MAX, 200), 3);
     }
 }

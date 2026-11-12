@@ -31,6 +31,26 @@ Each item has an evidence grade:
 | **Needs reference** | The behaviour is undocumented. The exact values need a black-box reference (see below). |
 | **Defect** | Wrong regardless of PE-DESIGN, for example a needle path no embroidery program produces. |
 
+### Auto Punch's OpenStitch mode keeps a small distinct colour, 2026-11-12 (#962)
+
+At its automatic colour count, OpenStitch mode gave the balloon picture (g02) six threads. There was no brown: the basket was sewn in the balloon's red, and a rope was lost.
+- **Cause:** the basket's brown holds 0.47 % of the pixels, just under `AUTO_SHARE` (0.5 %). PE-compatible mode's protection of small colours (#447) needs chroma ≥ 50, and the brown's is about 35. This is the cause #469 recorded on 2026-11-08, when a chroma-30 protection was tried in PE-compatible mode and not taken: it moved g08 and g15 away from PE-DESIGN's counts.
+- **Change, OpenStitch mode only:** the count (`Census::auto_colors_distinct_up_to`) also counts each colour of a flat picture (at most 40 census colours) that meets three conditions:
+  - between 0.05 and 0.5 % of the pixels;
+  - ΔE76 ≥ 30 from every colour with a real share;
+  - drawn as a solid patch: at least 30 % of its pixels have all four neighbours in it.
+- **Why the patch condition:** colour distance alone also counted g08's anti-aliased letter edges, which gained a grey and a mid blue (3 → 5 colours, trims 4 → 7); the patch condition rejects them. PE-compatible mode is unchanged.
+
+The ten Auto Punch cases of `tools/image_eval.py`, OpenStitch mode, 100 mm (`tools/image_similarity.py --mode openstitch --no-dists`):
+
+| case | colours | mean ΔE00 | MS-SSIM | trims |
+|---|---|---|---|---|
+| g02 balloon | 6 → **7** (Light Brown for the basket) | 10.71 → 10.69 | 0.783 → 0.787 | 15 → 18 |
+| g05 robot | 7 → 8 (Light Blue, the shoes' highlights) | 8.07 → 8.02 | 0.8747 → 0.8744 | 128 → 126 |
+| g01, g06, g08, g11, g13, g15, p03, d01 | unchanged | unchanged | unchanged | unchanged |
+
+Test: `a_small_distinct_patch_counts_and_a_seam_does_not`.
+
 ### REA evidence
 
 No item has REA evidence, for two reasons:
