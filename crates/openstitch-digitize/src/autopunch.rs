@@ -757,7 +757,7 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
     let colors = match p.colors {
         0 => match p.mode {
             Mode::PeDesign => census.auto_colors(),
-            Mode::OpenStitch => census.auto_colors_up_to(p.fidelity.auto_max()),
+            Mode::OpenStitch => census.auto_colors_distinct_up_to(p.fidelity.auto_max(), w),
         },
         n => n.min(64),
     };

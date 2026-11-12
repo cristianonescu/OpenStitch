@@ -1235,20 +1235,21 @@
    90.0,
    67.9
   ],
-  "stitches": 7887,
-  "trims": 17,
+  "stitches": 7899,
+  "trims": 16,
   "threads": [
    "001 White",
    "206 Harvest Gold",
    "017 Light Blue",
    "509 Leaf Green",
+   "323 Light Brown",
    "030 Vermillion",
    "515 Moss Green"
   ],
   "sewingMinutes": 10.7,
   "image": "../images/g02-balloon.png",
   "preview": "previews/S-autopunch-balloon-openstitch.png",
-  "sha256": "702f18d162008a40ee2fa9ce4c6db42b7648e9eab0fc2f09acbb9fc8bba9fcdc"
+  "sha256": "f067e0a181217c28e1918a638ae8783dbc668e9b7353c5ad86691b3178b11955"
  },
  "image-tools/S-autopunch-balloon-pe-compatible.pes": {
   "title": "Auto Punch, PE-DESIGN-compatible mode",
