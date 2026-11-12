@@ -637,9 +637,12 @@ fn layers_inner(
         Some(c) => (c, &[]),
         None => (closed, holes),
     };
+    // Already joined by its travel (the hidden fill picks among joined candidates).
+    let mut joined = false;
     let mut runs = match r.kind {
         RegionType::Fill if !shaped && r.travel_path() == Some(RunningStitchPath::InsideHidden) => {
-            generate::fill_edge_to_edge_travel_hidden(
+            joined = true;
+            let candidates = generate::fill_edge_to_edge_travel_hidden(
                 top_closed,
                 &params,
                 top_holes,
@@ -647,6 +650,18 @@ fn layers_inner(
                 r.entry,
                 r.stitch_type == FillStitchType::Two,
             )
+            .into_iter()
+            .map(|runs| {
+                reroute_with(
+                    runs,
+                    closed,
+                    holes,
+                    RunningStitchPath::InsideHidden,
+                    params.pull_compensation,
+                )
+            })
+            .collect();
+            least_on_top(candidates)
         }
         RegionType::Fill if !shaped => generate::fill_edge_to_edge_travel(
             top_closed,
@@ -709,7 +724,7 @@ fn layers_inner(
         }
         _ => shaped_rows(closed, r, &params, holes),
     };
-    if let Some(path) = r.travel_path() {
+    if let Some(path) = r.travel_path().filter(|_| !joined) {
         runs = match r.kind {
             // PE-DESIGN's satin travels in 1.8-2.0 mm stitches (satin-sections-h, the U).
             RegionType::Satin => {
@@ -740,6 +755,128 @@ fn layers_inner(
     }
     out.push(runs);
     out
+}
+
+/// Of a hidden fill's joined candidate orders (#469, the Inside order first), the one with the
+/// least travel sewn on top among those with no more trims than the Inside order; ties go to
+/// fewer trims, then to the earlier candidate.
+fn least_on_top(candidates: Vec<Vec<Run>>) -> Vec<Run> {
+    let inside_trims = candidates.first().map_or(0, |runs| trims(runs));
+    let mut best: Option<(f64, usize, Vec<Run>)> = None;
+    for runs in candidates {
+        let n = trims(&runs);
+        if n > inside_trims {
+            continue;
+        }
+        let on_top = travel_on_top(&runs);
+        let better = best
+            .as_ref()
+            .is_none_or(|(t, m, _)| on_top < t - 1e-9 || (on_top <= t + 1e-9 && n < *m));
+        if better {
+            best = Some((on_top, n, runs));
+        }
+    }
+    best.map(|(_, _, runs)| runs).unwrap_or_default()
+}
+
+/// The trims between a region's runs once compiled: a gap longer than the compiler's
+/// `connect_distance` (4 mm by default) is trimmed, a shorter one sewn across (#469: a region
+/// in many pieces close together has many runs but few trims).
+pub(crate) fn trims(runs: &[Run]) -> usize {
+    let across = crate::compile::Compiler::default().connect_distance;
+    runs.windows(2)
+        .filter(|w| match (w[0].last(), w[1].first()) {
+            (Some(a), Some(b)) => a.distance(*b) > across,
+            _ => false,
+        })
+        .count()
+}
+
+/// Travel sewn on top of the region's own thread (#469), 0.1 mm: stitches up to 3 mm (travel,
+/// not rows) whose middle lies within 0.15 mm of a stitch sewn more than 200 stitches earlier,
+/// summed over runs of such stitches longer than 10 mm. The measure the gallery is judged by
+/// (`469-ontop-detector-fine.py`); deterministic: a grid looked up by cell, never iterated.
+pub(crate) fn travel_on_top(runs: &[Run]) -> f64 {
+    const LAG: usize = 200;
+    const NEAR: f64 = 1.5;
+    const MIN_RUN: f64 = 100.0;
+    const TRAVEL: f64 = 30.0;
+    const CELL: f64 = 10.0;
+    let points = runs.iter().flatten();
+    let (mut lo, mut hi) = (
+        v2(f64::INFINITY, f64::INFINITY),
+        v2(f64::NEG_INFINITY, f64::NEG_INFINITY),
+    );
+    for p in points {
+        lo = v2(lo.x.min(p.x), lo.y.min(p.y));
+        hi = v2(hi.x.max(p.x), hi.y.max(p.y));
+    }
+    if !lo.x.is_finite() {
+        return 0.0;
+    }
+    let cols = ((hi.x - lo.x) / CELL) as usize + 1;
+    let rows = ((hi.y - lo.y) / CELL) as usize + 1;
+    let cell = |q: Vec2| {
+        (
+            (((q.x - lo.x) / CELL) as usize).min(cols - 1),
+            (((q.y - lo.y) / CELL) as usize).min(rows - 1),
+        )
+    };
+    let mut grid: Vec<Vec<(usize, Vec2, Vec2)>> = vec![Vec::new(); cols * rows];
+    let seg_dist = |p: Vec2, a: Vec2, b: Vec2| {
+        let d = b - a;
+        let l2 = d.x * d.x + d.y * d.y;
+        let t = if l2 == 0.0 {
+            0.0
+        } else {
+            (((p.x - a.x) * d.x + (p.y - a.y) * d.y) / l2).clamp(0.0, 1.0)
+        };
+        p.distance(a + d * t)
+    };
+    let (mut total, mut i) = (0.0, 0usize);
+    for run in runs {
+        let mut current = 0.0;
+        for w in run.windows(2) {
+            i += 1;
+            let (a, b) = (w[0], w[1]);
+            let mid = (a + b) * 0.5;
+            let length = a.distance(b);
+            let (cx, cy) = cell(mid);
+            let mut hit = false;
+            'look: for gx in cx.saturating_sub(1)..=(cx + 1).min(cols - 1) {
+                for gy in cy.saturating_sub(1)..=(cy + 1).min(rows - 1) {
+                    for &(j, p, q) in &grid[gy * cols + gx] {
+                        if i - j > LAG && seg_dist(mid, p, q) <= NEAR {
+                            hit = true;
+                            break 'look;
+                        }
+                    }
+                }
+            }
+            if hit && length <= TRAVEL {
+                current += length;
+            } else {
+                if current > MIN_RUN {
+                    total += current;
+                }
+                current = 0.0;
+            }
+            // The segment in every cell along it (sampled each half cell).
+            let steps = ((length / (CELL / 2.0)) as usize).max(1);
+            for k in 0..=steps {
+                let (gx, gy) = cell(a + (b - a) * (k as f64 / steps as f64));
+                let list = &mut grid[gy * cols + gx];
+                if list.last().is_none_or(|e| e.0 != i) {
+                    list.push((i, a, b));
+                }
+            }
+        }
+        if current > MIN_RUN {
+            total += current;
+        }
+        i += 1;
+    }
+    total
 }
 
 /// How far (0.1 mm) inside the outline an under sewing run may end and still be joined along
