@@ -687,6 +687,10 @@ Hangul and kana (#881), a free-design sites page (#872), the setting-effect and 
 (#880), floppy images for old commercial machines (#876), and one list of mobile app ideas
 (#884). Notes on #453, #486 and #555.
 
+From the competitor scan of 2026-11-12 (same document, Updates; openhoop, concepts only): routed
+and Redwork lines in triple stitch whose retraced stretches are sewn once, so the whole line has
+one weight (#925, an option on `shape.autoRoute`, with B4), an idea for Future.
+
 Deferred: shape and vine fills, photo
 thread-painting, sequin/chenille/bead types (machine-specific), the TrueType turning-satin
 rework and an intelligent multi-hoop split with editable lines (VP3, TAP, TBF, U01, DSB, DSZ,
