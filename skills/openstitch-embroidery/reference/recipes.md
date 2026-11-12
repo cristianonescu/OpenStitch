@@ -180,6 +180,9 @@ Useful options: Auto Punch `colors` (0 = automatic), `skipBackground`; Photo Sti
 as one path, walking back over lines already sewn instead of a trim after every piece; `false`
 keeps one piece per line). In OpenStitch mode `threads: "all"` chooses from every built-in chart.
 Each returns the new `ids`; Auto Punch, Photo Stitch and Cross Stitch also list the `colors` used.
+In the compatible mode Photo Stitch 1 (`style: "fill"`) travels in sight to a colour's next
+patch only where at most 8 mm of that travel shows over other colours, and trims otherwise, as
+PE-DESIGN does: expect about 2-3 trims per 1,000 stitches, not long dark lines across a face.
 
 Auto Punch also returns a `plan`: every traced region with its `region` number, `color`,
 `widthMm`, the `type` it got (`fill`, `satin`, `line`, `skip`) and why (`reason` code and a
@@ -224,9 +227,9 @@ traced regions as SVG paths in their thread colours, in mm, without changing the
 to another program, or bring it back with `import.svg` (one object per region). It writes a file,
 so the editor asks the user first.
 
-In OpenStitch mode, Auto Punch's fills sew a part that joins others after them
-(`runningStitchPath: "insideHidden"`), so travel between branches is hidden under thread sewn
-later; PE-DESIGN-compatible mode sews as PE-DESIGN does.
+In OpenStitch mode, Auto Punch's fills sew their parts in the order that leaves the least
+travel on thread already sewn (`runningStitchPath: "insideHidden"`), so travel between
+branches is hidden under thread sewn later; PE-DESIGN-compatible mode sews as PE-DESIGN does.
 
 `underlap` (OpenStitch mode, mm, 0.8 is typical) makes each fill reach under the touching
 colour sewn after it, so no fabric shows along seams; it adds stitches, so leave it off for

@@ -659,30 +659,41 @@ fn compatible_photo_stitch_travels_instead_of_trimming() {
     assert!(trims <= 80, "{trims} trims in {stitches} stitches");
 }
 
-/// #298: PE-compatible Photo Stitch 1 sews each colour in about one path, travelling in sight
-/// to the nearest run when no hidden way leads on, as PE-DESIGN 11.50 does (round-8 capture of
-/// the sunset at 90 mm: 11 trims in 8,683 stitches, 1.3 per 1,000). OpenStitch: 108 trims
-/// before, 14 now.
+/// #298, #915: PE-compatible Photo Stitch 1 sews each colour in few paths, travelling in sight
+/// to a near run when no hidden way leads on, but only where at most 8 mm of that travel shows:
+/// PE-DESIGN 11.50 trims rather than cross a face. PE-DESIGN's captures: the sunset at 90 mm,
+/// 11 trims in 8,683 stitches (1.27 per 1,000, round 8); the portrait p01 at 100 mm, 37 in
+/// 13,396 (2.8 per 1,000, -v2, compat/reference/image). OpenStitch: sunset 27 in 9,695 (108
+/// before #298); portrait 26 in 13,483, where 11 trims (0.8 per 1,000) meant 31.7 mm of
+/// near-black thread across the face's pink.
 #[test]
 fn compatible_photo_stitch_trims_about_as_rarely_as_pe_design() {
     let dir = temp_dir();
-    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../examples/images/p06-sunset.jpg");
-    std::fs::copy(src, dir.join("sunset.jpg")).expect("copy");
-    let mut s = Session::new(&dir);
-    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
-    run(
-        &mut s,
-        "digitize.photoStitch",
-        json!({"path": "sunset.jpg", "width": 90, "compatMode": "peDesign"}),
-    );
-    let stats = run(&mut s, "design.info", json!({}))["stitchStats"].clone();
-    let trims = stats["trims"].as_f64().expect("trims");
-    let stitches = stats["stitches"].as_f64().expect("stitches");
-    assert!(
-        trims * 1000.0 / stitches <= 2.0,
-        "{trims} trims in {stitches} stitches"
-    );
+    // (image, width mm for its long side at 90 or 100 mm, fewest and most trims per 1,000)
+    for (image, width, fewest, most) in [
+        ("p06-sunset.jpg", 90.0, 0.0, 3.5),
+        ("p01-portrait.jpg", 67.2, 1.4, 3.5),
+    ] {
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/images")
+            .join(image);
+        std::fs::copy(src, dir.join(image)).expect("copy");
+        let mut s = Session::new(&dir);
+        run(&mut s, "design.new", json!({"width": 110, "height": 110}));
+        run(
+            &mut s,
+            "digitize.photoStitch",
+            json!({"path": image, "width": width, "compatMode": "peDesign"}),
+        );
+        let stats = run(&mut s, "design.info", json!({}))["stitchStats"].clone();
+        let trims = stats["trims"].as_f64().expect("trims");
+        let stitches = stats["stitches"].as_f64().expect("stitches");
+        let per = trims * 1000.0 / stitches;
+        assert!(
+            (fewest..=most).contains(&per),
+            "{image}: {trims} trims in {stitches} stitches"
+        );
+    }
 }
 
 /// #713: line art's drawn dots stay, without knots, and a colour's small pieces are joined by

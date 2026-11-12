@@ -34,7 +34,7 @@ pub static NEW_BROTHREAD: [Thread; 63] = [
     Thread::chart(178, 118, 36, "Light Brown", "323", "New Brothread"),
     Thread::chart(186, 152, 0, "Brass", "328", "New Brothread"),
     Thread::chart(125, 111, 0, "Russet Brown", "330", "New Brothread"),
-    Thread::chart(181, 75, 100, "Amber Red", "333", "New Brothread"),
+    Thread::chart(181, 76, 100, "Amber Red", "333", "New Brothread"),
     Thread::chart(209, 92, 0, "Reddish Brown", "337", "New Brothread"),
     Thread::chart(209, 84, 0, "Clay Brown", "339", "New Brothread"),
     Thread::chart(208, 166, 96, "Khaki", "348", "New Brothread"),

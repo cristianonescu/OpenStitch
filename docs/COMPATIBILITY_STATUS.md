@@ -4,13 +4,14 @@
 
 The tier each [FEATURE_MATRIX.md](FEATURE_MATRIX.md) row and [audit](COMPATIBILITY_AUDIT.md) item has reached in the compatibility harness ([COMPATIBILITY_TESTS.md](COMPATIBILITY_TESTS.md)). A row is only as far as the weakest spec covering it. Tiers, weakest first: internal-regression (our own earlier output or the guide's description), oracle (an independent implementation), reference (PE-DESIGN 11 output supplied by the owner), machine (a sew-out record). "Reference pending" means a spec is ready for a PE-DESIGN file that does not exist yet.
 
-Specs: 485 · pass 485 · fail 0 · error 0 · pending reference 0 · skipped 0.
+Specs: 486 · pass 486 · fail 0 · error 0 · pending reference 0 · skipped 0.
 
 ## By FEATURE_MATRIX row
 
 | Area | Feature | Tier | Specs |
 |---|---|---|---|
 | Beyond PE-DESIGN | Small Text… | internal-regression | `text-small-running-3mm`, `text-small-satin-5mm` |
+| Digitizing | Photo Stitch 1 and Photo Stitch 2… | reference | `photostitch1-p01-portrait-travel` |
 | Editing | Hole sewing… | internal-regression | `hole-sewing-limits`, `hole-sewing-pentagon-star` |
 | Editing | Manual Punch: shapes made of several sewing-direction lines… | reference | `satin-lock-column-3p5`, `satin-zigzag-column` |
 | Editing | Sewing order editing… | reference; reference pending | `optimize-entry-exit`, `sew-order-six-objects`, `shape-start-points` |
@@ -71,6 +72,7 @@ Specs: 485 · pass 485 · fail 0 · error 0 · pending reference 0 · skipped 0.
 
 | Spec | Status | Tier | Internal regression | Oracle | Reference | Machine |
 |---|---|---|---|---|---|---|
+| `image/photostitch1-p01-portrait-travel` | pass | reference | pass | — | pass | — |
 | `machine/hoop-oversize-export` | pass | reference | — | — | pass | — |
 | `machine/long-jump-300` | pass | reference | — | — | pass | — |
 | `machine/machine-formats` | pass | reference | pass | — | pass | pending |
