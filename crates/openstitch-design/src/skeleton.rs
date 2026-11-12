@@ -351,7 +351,9 @@ fn cut_across(q: Vec2, left: Vec2, edges: &[(Vec2, Vec2)], near: f64) -> Option<
         })
         .collect();
     us.sort_by(f64::total_cmp);
-    us.chunks_exact(2)
+    us.as_chunks::<2>()
+        .0
+        .iter()
         .map(|w| (w[0], w[1]))
         .filter(|&(lo, hi)| hi - lo > 1e-9)
         .map(|(lo, hi)| {
