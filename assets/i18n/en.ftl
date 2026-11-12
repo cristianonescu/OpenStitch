@@ -878,6 +878,7 @@ ui-undo-stroke = Undo stroke
 ui-preset = Preset
 ui-vary-angles-of-touching-fills = Vary angles of touching fills
 ui-rows-follow-the-picture = Rows follow the picture (+)
+ui-split-branching-strokes = Split branching strokes (+)
 ui-fill-each-cell = Fill each cell
 ui-parallel-diagonals-about-0-3-mm-tip = Parallel diagonals about 0.3 mm apart instead of one cross.
 ui-part-crosses-on-edges = Part crosses on edges
