@@ -179,9 +179,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    command (`object.setRegion` can't set it). Check `warnings` for columns over 10 mm
    and look at the junctions with `view_render`. Not yet sewn well (`tools/branch_columns.py`,
    2026-11-12): N, M and W stay one wide column (sewn coverage 0.67-0.78, gaps 4-10 mm), a
-   star at 25 mm leaves its points unsewn (0.54, 11 mm gap), and X, Y, y, A and a ring at 25
-   mm leave up to 1.4 mm of outline bare (0.36-1.35 mm, the box is 0.3); render those and
-   keep one satin or a fill if they look thin.
+   star at 25 mm leaves its points unsewn (0.54, 11 mm gap), and X, y, and Y and A at 25 mm
+   leave up to 1.3 mm of outline bare by a junction (0.40-1.25 mm, the box is 0.3); render
+   those and keep one satin or a fill if they look thin.
    Ripples, echoes and spirals from one outline (beyond PE-DESIGN): `object.setLine {type:
    ripple, strands, target: [x, y]}` (a closed line spirals in to the target as one run; an
    open one repeats `spacing` apart towards the target's side). Motif lines (beyond
