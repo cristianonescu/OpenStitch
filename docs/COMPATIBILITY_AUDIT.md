@@ -1859,7 +1859,7 @@ Line references are relative to `crates/`.
     - On 20 flat colours (four squares, a 16-colour grid of primaries, half levels, tints and
       greys), OpenStitch's equal-weight RGB match (#119) gives PE's thread for 13.
     - PE's misses go both ways, so no colour shift explains them:
-      - (128, 0, 0) gets 49 Amber Red (181, 75, 100) over 13 nearer threads, four of them PE's
+      - (128, 0, 0) gets 49 Amber Red (181, 75, 100; PE-DESIGN writes 181, 76, 100, corrected 2026-11-12) over 13 nearer threads, four of them PE's
         own picks elsewhere;
       - (128, 128, 255) gets the darker 4 Cornflower Blue;
       - (192, 192, 192) gets the darker 16 Silver;
@@ -3375,6 +3375,60 @@ Needle points stay within the specs' 25 % (N 20 mm 283 → 274 against 294). Wor
 No travel is sewn outside the letters (`small_lettering_shows_no_travel_outside_its_letters`);
 compat 476/476. Still open on #446: N's corner spike (the diagonal's rungs fan into the corner,
 where PE-DESIGN sews a small corner block), M at 8 mm, A's and V's slanted feet.
+
+### Photo Stitch 1 trims rather than cross a face in sight, 2026-11-12 (#915)
+
+PE-DESIGN-compatible Photo Stitch 1 travelled in sight to a colour's nearest unsewn run up to
+40 mm away (#298), and the darkest threads, sewn last, have nothing to hide under: on the
+portrait p01 (long side 100 mm) 31.7 mm of near-black thread crossed the face's pink.
+PE-DESIGN 11.50's capture of the same image (`compat/reference/image/photostitch1-p01-portrait-100mm.pes`,
+round 10) runs its stitches in every direction and trims 37 times in 13,396 stitches (2.8 per
+1,000); none of its ten most visible straight stretches lies over the face, and the longest is
+12.5 mm, dark on dark.
+
+An in-sight travel is now taken only when at most 8 mm of it (`PE_TRAVEL_SHOWN_MM`) lies over
+cells that are neither the thread's own nor a later layer's; of the 16 nearest run ends the
+first such one is sewn, and with none the thread trims. Trims per 1,000 stitches, the longest
+travel left showing, and the longest dark travel over a colour at least 0.3 lighter:
+
+| photo | before | 8 mm (taken) | contrast-aware: 12 mm, 4 mm dark on light |
+|---|---|---|---|
+| p01 portrait | 0.8; 31.7 mm | 1.9; 8.4 mm; 4.5 mm (grey on grey) | 1.6; 11.5 mm; 7.7 mm dark grey on skin |
+| p03 storybook | 0.7 | 2.3 | 1.5 |
+| p04 cat fur | 0.6 | 2.2 | 1.6 |
+| p06 sunset, 100 mm | 1.3 | 2.9 | 2.0 |
+| p06 sunset, 90 mm (PE-DESIGN 1.27) | 1.4; 18.5 mm | 2.8; 9.5 mm | 2.2; 13.4 mm |
+| p10 night street | 0.6 | 1.2 | 1.0 |
+| p12 backlit tree | 0.8 | 2.0 | 1.9 |
+
+The contrast-aware rule trimmed less but let dark grey show across the portrait's skin, so the
+plain 8 mm rule was taken. Against PE-DESIGN the portrait trims less (1.9 against 2.8) and the
+sunset more (2.8 against 1.27): PE-DESIGN's paths follow contours, ours stay in rows, so where
+its runs meet a row's neighbour ours have to cross. Guarded by
+`compatible_photo_stitch_trims_about_as_rarely_as_pe_design` (sunset at 90 mm at most 3.5 per
+1,000; portrait 1.4–3.5) and the spec `photostitch1-p01-portrait-travel`. OpenStitch mode is
+unchanged.
+
+Kit (regenerated with `sew_kit.py --only`), before → after: `M-photo1-portrait-pe-compatible`
+13 → 38 trims, 26,537 → 26,563 stitches, 33.8 → 35.2 min; `S-photo1-sunset-pe-compatible`
+14 → 27 trims, 9,744 → 9,796 stitches, 12.9 → 13.6 min. The portrait's preview shows no long
+dark line across the face; the sunset's long dark lines across the sun and its reflection are
+gone, and short dark stretches stay in the upper right sky.
+
+### PEC chart colours against every PE-DESIGN capture, 2026-11-12 (#915)
+
+The new portrait reference failed `pe_design_thread_tables_match_the_pec_chart`: PE-DESIGN
+writes 333 AMBER RED (PEC 49) as (181, 76, 100), the chart had pyembroidery's (181, 75, 100).
+Every BROTHER EMBROIDERY thread in the raw thread tables of the 1,421 `#PES0110` captures on
+the owner's PC (compat/reference, the pe11 fixtures and all reference rounds) was compared
+with the chart: 55 of the 61 codes are used, 53 agree. 333 differs in all 14 files that use it
+(Photo Stitch 1 and Auto Punch, rounds 5, 8 and 10) and is corrected, in New Brothread too.
+812 CREAM YELLOW differs in one Auto Punch file whose thread table also holds a Ver4 Option
+Color, so it waits for a capture from the BROTHER EMBROIDERY chart; 337, 810, 612, 079, 542
+and 202 are in no capture yet. Effect: OpenStitch mode's gradient golden hashes (the colour, and
+Amber Red one place earlier in Auto Punch's lightness order) and the kit's
+`S-photo1-sunset-openstitch` (Amber Red sewn before Vermilion: 117 → 102 trims, 7,923 → 7,929
+stitches, 15.9 → 15.1 min). No PE-compatible thread choice changed in the kit.
 
 ### A's apex runs on; run-on arms start along their end cuts, 2026-11-12 (#446)
 

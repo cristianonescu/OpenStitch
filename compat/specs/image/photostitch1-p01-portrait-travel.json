@@ -1,0 +1,98 @@
+{
+  "schema": "openstitch-compat/1",
+  "id": "photostitch1-p01-portrait-travel",
+  "area": "image",
+  "title": "Photo Stitch 1 trims rather than travel across the portrait's face",
+  "description": "PE-compatible Photo Stitch 1 of examples/images/p01-portrait.jpg, long side 100 mm (67.2 x 100 mm), Fill style, defaults. PE-DESIGN 11.50 travels in sight to a colour's next run only where little of the travel shows: in its capture no visible straight stretch lies over the face, the longest is 12.5 mm dark on dark, and it trims 37 times in 13,396 stitches (2.8 per 1,000). OpenStitch takes an in-sight travel only when at most 8 mm of it lies over cells that are neither the thread's own nor a later layer's (#915); before that it trimmed 11 times and sent 31.7 mm of near-black thread across the face. Stitch paths differ (PE-DESIGN's run in all directions, OpenStitch's in rows), so only the counts are compared.",
+  "covers": {
+    "featureMatrix": [
+      {
+        "area": "Digitizing",
+        "feature": "Photo Stitch 1 and Photo Stitch 2"
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "kind": "measured",
+      "note": "PE-DESIGN 11.50 reference image/photostitch1-p01-portrait-100mm.pes (round 10, #915): 13,396 stitches, 37 trims; visible stretches measured on its stitches against the image's cells"
+    }
+  ],
+  "inputs": [
+    {
+      "from": "examples/images/p01-portrait.jpg",
+      "name": "p01-portrait.jpg"
+    }
+  ],
+  "script": [
+    {
+      "command": "design.new",
+      "params": {
+        "width": 77.2,
+        "height": 110
+      }
+    },
+    {
+      "command": "digitize.photoStitch",
+      "params": {
+        "path": "p01-portrait.jpg",
+        "width": 67.2,
+        "style": "fill",
+        "compatMode": "peDesign"
+      }
+    }
+  ],
+  "exports": [
+    {
+      "path": "a.pes"
+    }
+  ],
+  "references": [
+    {
+      "id": "pe-design",
+      "file": "image/photostitch1-p01-portrait-100mm.pes",
+      "make": "Photo Stitch 1 wizard on examples/images/p01-portrait.jpg, Fill style, every setting at its default, the design's long side 100 mm, on a Design Page it fits. Save with Save As as PES (PE-DESIGN 11's default PES version) under the file name given, and record it in compat/reference/MANIFEST.json."
+    }
+  ],
+  "measurements": [
+    {
+      "id": "trims",
+      "measure": {
+        "kind": "commandCount",
+        "command": "trim"
+      },
+      "source": {
+        "export": "a.pes"
+      },
+      "expected": {
+        "min": 19,
+        "max": 47
+      },
+      "evidence": "#915: 26 trims with in-sight travel showing at most 8 mm (11 before, with 31.7 mm across the face); at most 3.5 per 1,000 stitches",
+      "reference": {
+        "tolerance": {
+          "count": 15
+        }
+      }
+    },
+    {
+      "id": "stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "a.pes"
+      },
+      "expected": {
+        "min": 12000,
+        "max": 15000
+      },
+      "evidence": "13,483 stitches at #915",
+      "reference": {
+        "tolerance": {
+          "percent": 8
+        }
+      }
+    }
+  ]
+}

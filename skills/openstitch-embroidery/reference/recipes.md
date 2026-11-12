@@ -180,6 +180,9 @@ Useful options: Auto Punch `colors` (0 = automatic), `skipBackground`; Photo Sti
 as one path, walking back over lines already sewn instead of a trim after every piece; `false`
 keeps one piece per line). In OpenStitch mode `threads: "all"` chooses from every built-in chart.
 Each returns the new `ids`; Auto Punch, Photo Stitch and Cross Stitch also list the `colors` used.
+In the compatible mode Photo Stitch 1 (`style: "fill"`) travels in sight to a colour's next
+patch only where at most 8 mm of that travel shows over other colours, and trims otherwise, as
+PE-DESIGN does: expect about 2-3 trims per 1,000 stitches, not long dark lines across a face.
 
 Auto Punch also returns a `plan`: every traced region with its `region` number, `color`,
 `widthMm`, the `type` it got (`fill`, `satin`, `line`, `skip`) and why (`reason` code and a

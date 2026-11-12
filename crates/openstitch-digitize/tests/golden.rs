@@ -97,9 +97,12 @@ const EXPECTED: &[(&str, &str, u64)] = &[
     ("leaf", "auto-punch", 0x3d422a78a9483d94),
     ("leaf", "photo-stitch-1", 0x10f518ae4de878b2),
     ("leaf", "photo-stitch-2", 0x72c3dac1efbb94bb),
-    ("gradient", "auto-punch", 0xcb65fe5d04228e14),
-    ("gradient", "photo-stitch-1", 0x7ed7b2f7c66628cc),
-    ("gradient", "photo-stitch-2", 0x8fc7b928cc3f5daf),
+    // #915: 49 AMBER RED is (181, 76, 100) as PE-DESIGN writes it, not (181, 75, 100): its
+    // RGB in the threads and objects, and in Auto Punch one place earlier in the lightness
+    // order (before 513 Lime Green).
+    ("gradient", "auto-punch", 0xd22f465d789314d0),
+    ("gradient", "photo-stitch-1", 0x8a7c0453c4773694),
+    ("gradient", "photo-stitch-2", 0x687919a3ce465839),
 ];
 
 #[test]
