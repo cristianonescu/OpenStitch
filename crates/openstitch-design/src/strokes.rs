@@ -1073,6 +1073,32 @@ const STEM_BEND: f64 = 0.5;
 /// How far from the corner (0.1 mm) [`run_on_stems`] measures a stroke's direction.
 const STEM_REACH: f64 = 40.0;
 
+/// Where a slanted run-on ([`slanted_run_on`]) stops the other arm: this much of the
+/// run-on arm's half width from its centre line. The arms meet at a sharp angle, so stopping
+/// at the full half width left the stopped arm's outer side short of the corner.
+const SLANTED_AGAINST: f64 = 0.5;
+
+/// At a foot where two slanted arms leaning opposite ways meet at the bottom (V's foot, M's
+/// middle V, W's feet, #446), the arm that runs on, as [`run_on_stems`] takes it: (its piece,
+/// the direction it runs on in). PE-DESIGN runs on the arm that falls to the right (`\`, the
+/// thick stroke of a classic V) and stops the other against it (stroke-satin-V: the left arm
+/// down to the baseline). A top apex (A's, W's middle) is left as it was: run on there, the
+/// leg's crossings fanned into the tip (up to 144 degrees against PE-DESIGN's level
+/// 161-180), still open on #446. `into` arrives at the cut along piece `k`, `out` leaves it
+/// along piece `k + 1` (y down).
+fn slanted_run_on(k: usize, into: Vec2, out: Vec2) -> Option<(usize, Vec2)> {
+    // Leaning opposite ways, and meeting at the bottom: down into the cut, up out of it.
+    let foot = into.y > 0.0 && out.y < 0.0;
+    if into.x * into.y * out.x * out.y >= 0.0 || !foot {
+        return None;
+    }
+    Some(if into.x * into.y > 0.0 {
+        (k, into)
+    } else {
+        (k + 1, out * -1.0)
+    })
+}
+
 /// How far along `line` [`run_on_stems`] looks: half of it, at most [`STEM_REACH`].
 fn reach_of(line: &[Vec2]) -> f64 {
     (0.5 * length(line)).min(STEM_REACH)
@@ -1112,7 +1138,10 @@ fn run_on_stems(
         let (stem, dir) = match (upright(into), upright(out)) {
             (true, false) => (k, into),
             (false, true) => (k + 1, out * -1.0),
-            _ => continue,
+            _ => match slanted_run_on(k, into, out) {
+                Some(found) => found,
+                None => continue,
+            },
         };
         // The stem from the corner out to its far end.
         let stem_line: Vec<Vec2> = if stem == k {
@@ -1131,10 +1160,15 @@ fn run_on_stems(
         // Where the thinning bends the stem's end off its line into the corner (M's top
         // corners, whose notch knots are pruned, #446), the bend is dropped: the stem runs on
         // from its own line.
-        let bent = stem_line
-            .iter()
-            .take_while(|&&p| off(p) > STEM_BEND * half)
-            .count();
+        // (Not for a slanted run-on, V's straight arms: #446.)
+        let bent = if upright(dir) {
+            stem_line
+                .iter()
+                .take_while(|&&p| off(p) > STEM_BEND * half)
+                .count()
+        } else {
+            0
+        };
         if bent + 1 >= stem_line.len() {
             continue;
         }
@@ -1156,15 +1190,17 @@ fn run_on_stems(
             pieces[k].0.iter().rev().copied().collect()
         };
         let total = length(&slanted);
+        // A slanted run-on stops the other arm nearer its centre line ([`SLANTED_AGAINST`]).
+        let stop = half * if upright(dir) { 1.0 } else { SLANTED_AGAINST };
         let mut cut = None;
         let mut at = 0.0;
         for w in slanted.windows(2) {
             let (p, q) = (w[0], w[1]);
             let seg = p.distance(q);
-            if off(q) >= half && seg > 1e-9 {
+            if off(q) >= stop && seg > 1e-9 {
                 let (fp, fq) = (off(p), off(q));
                 let t = if fq > fp {
-                    ((half - fp) / (fq - fp)).clamp(0.0, 1.0)
+                    ((stop - fp) / (fq - fp)).clamp(0.0, 1.0)
                 } else {
                     1.0
                 };
@@ -2434,8 +2470,11 @@ mod tests {
                 .flat_map(|s| s.ends)
                 .filter(|&e| e == StrokeEnd::Against)
                 .count();
+            // M's middle V too: one diagonal runs on to the baseline, the other stops
+            // against it (`slanted_run_on`).
+            let want_against = if ch == "M" { 3 } else { 2 };
             assert_eq!(
-                against, 2,
+                against, want_against,
                 "{ch} {size} mm: the diagonals stop against both stems"
             );
             let corners = g
@@ -2444,10 +2483,40 @@ mod tests {
                 .flat_map(|s| s.ends)
                 .filter(|&e| e == StrokeEnd::Corner)
                 .count();
-            // M's two diagonals meet at the foot of its middle V.
-            let want = if ch == "M" { 2 } else { 0 };
-            assert_eq!(corners, want, "{ch} {size} mm");
+            // No cut is left as two corner ends: M's middle V is a run-on too.
+            assert_eq!(corners, 0, "{ch} {size} mm");
         }
+    }
+
+    /// #446: at V's foot the left arm (falling to the right) runs on to the baseline and the
+    /// right arm stops against it, as PE-DESIGN sews it (stroke-satin-V). A's apex, a top
+    /// apex, is still cut into two corner ends (open on #446).
+    #[test]
+    fn a_slanted_arm_runs_on_at_v_and_the_other_stops_against_it() {
+        let (v, vb) = glyph("V");
+        let foot = v
+            .strokes
+            .iter()
+            .filter(|s| s.bounds().is_some_and(|r| r.max_y > vb.max_y - 5.0))
+            .collect::<Vec<_>>();
+        assert_eq!(foot.len(), 1, "one arm reaches the baseline");
+        let reach = foot[0].bounds().expect("bounds");
+        assert!(
+            reach.min_x < (vb.min_x + vb.max_x) / 2.0,
+            "the left arm: {reach:?}"
+        );
+        assert!(
+            v.strokes
+                .iter()
+                .any(|s| s.ends.contains(&StrokeEnd::Against))
+        );
+        let (a, _) = glyph("A");
+        assert!(
+            a.strokes
+                .iter()
+                .all(|s| !s.ends.contains(&StrokeEnd::Against)),
+            "A's apex is not a run-on"
+        );
     }
 
     fn glyph(ch: &str) -> (GlyphStrokes, Rect) {
@@ -2463,13 +2532,12 @@ mod tests {
         (g.strokes.len(), g.junctions.len(), closed)
     }
 
+    /// Cuts at sharp corners: a pair of [`StrokeEnd::Corner`] ends, or one arm run on and the
+    /// other stopped [`StrokeEnd::Against`] it (#446).
     fn corners(g: &GlyphStrokes) -> usize {
-        g.strokes
-            .iter()
-            .flat_map(|s| s.ends)
-            .filter(|&e| e == StrokeEnd::Corner)
-            .count()
-            / 2
+        let ends = || g.strokes.iter().flat_map(|s| s.ends);
+        ends().filter(|&e| e == StrokeEnd::Corner).count() / 2
+            + ends().filter(|&e| e == StrokeEnd::Against).count()
     }
 
     fn median(v: &[f64]) -> f64 {
@@ -2889,8 +2957,8 @@ mod tests {
 
     #[test]
     fn the_column_sewn_last_at_a_sharp_corner_runs_into_its_tip() {
-        // stroke-blocks-A: the right leg, sewn after the left, takes the apex in; V's second
-        // arm runs into the foot. The letters keep their full height.
+        // stroke-blocks-A: the right leg, sewn after the left, takes the apex in; at V's foot
+        // the left arm runs on (#446). The letters keep their full height.
         for ch in ["A", "V"] {
             let spec = TextSpec::new(ch, DEFAULT_FONT, 20.0);
             let contours = layout(&spec, None).expect("layout").contours();
