@@ -3376,6 +3376,31 @@ No travel is sewn outside the letters (`small_lettering_shows_no_travel_outside_
 compat 476/476. Still open on #446: N's corner spike (the diagonal's rungs fan into the corner,
 where PE-DESIGN sews a small corner block), M at 8 mm, A's and V's slanted feet.
 
+### A's apex runs on; run-on arms start along their end cuts, 2026-11-12 (#446)
+
+PE-DESIGN 11.50 runs A's right leg (`\`) on to the apex's flat top and stops the left leg
+against it, as it does at V's foot (stroke-satin-A: the right leg's first crossings level, 0-6
+degrees; the left leg's first ones along the right leg's inner edge, 56-65 degrees). The
+slanted run-on now takes top apexes as well as feet (`strokes::slanted_run_on`). A run-on arm's
+level end edge is dropped from its sides, keeping its two corners, so its crossings start
+along that edge rather than fanning into the tip; until now this was kept to X's arms
+(`GlyphStrokes::sides_along`). An end stopped against a run-on arm keeps each side to where it
+meets that arm, so its last crossing lies along the stop line. Fill text keeps the sides its
+rows were measured with (#376). Lato Bold, needle points: main (0d085861's stroke code,
+measured on 448155a6) → now (8b3f4463, release build), against PE-DESIGN:
+- satin A 283 → 284 (290): the right leg is 103 → 111 crossings (114), from the apex's top,
+  its first crossings 171-179 degrees where main's were 138-155;
+- satin V 223 → 226 (228); satin M 350 → 358 (374); satin W 402 → 382 (363);
+- fill A 461 → 469 (479); fill V 398 unchanged (397); satin M at 8 mm unchanged (148, 165);
+- further: satin W at 8 mm 159 → 162 (155).
+
+N, X, K, Z and S are unchanged. Every spec passes, 485/485. Still open on #446:
+- PE-DESIGN's order at a run-on foot: the run-on arm sewn to the meeting point, the foot's tip as
+  a second pass, and a fan into the stopped arm's foot. Tried as a split of the run-on block, it
+  reached only fill text and took fill V from 398 to 383, so it was left out.
+- A's left foot (its crossings tilt early: about 22 degrees at its middle, PE-DESIGN's about 9).
+- The bar's reach into the legs.
+
 ### A slanted arm runs on at V's, M's and W's feet, 2026-11-12 (#446)
 
 At a foot where two slanted arms leaning opposite ways meet, PE-DESIGN 11.50 runs one arm on to
