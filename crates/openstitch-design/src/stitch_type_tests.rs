@@ -5286,11 +5286,28 @@ fn fill_along_a_u_shaped_curve_covers_the_inside_of_the_u() {
         assert!(rows.len() > 300, "{kind:?}: {} row stitches", rows.len());
         // Plain fill's rows never cross. Programmable fill's tiles cross once, on the curve's
         // outer side below the U (about 65, 87 mm), which the rows inside the U do not reach.
-        // The other crossings are travel between rows, sewn over them (#947).
         let most = if kind == RegionType::Fill { 0 } else { 1 };
         assert!(
             row_crossings <= most,
             "{kind:?}: {row_crossings} row crossings"
+        );
+        // Nor does the travel between rows cross a row (#947): the strip right of the U's arm,
+        // split from the rows below the U, is sewn before the sweep climbs past it, not reached
+        // at the end by travel over every row sewn since (153 crossings before).
+        let all = |runs: &[Run]| {
+            let segs: Vec<(Vec2, Vec2)> = runs
+                .iter()
+                .flat_map(|run| run.windows(2).map(|w| (w[0], w[1])))
+                .collect();
+            (0..segs.len())
+                .flat_map(|i| (i + 2..segs.len()).map(move |j| (i, j)))
+                .filter(|&(i, j)| segments_cross(segs[i].0, segs[i].1, segs[j].0, segs[j].1))
+                .count()
+        };
+        let (crossed, flat_crossed) = (all(&u), all(&flat));
+        assert!(
+            crossed <= flat_crossed + most,
+            "{kind:?}: {crossed} crossings in the top layer, {flat_crossed} without the curve"
         );
     }
 }

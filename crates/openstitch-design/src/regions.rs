@@ -780,7 +780,10 @@ pub(crate) fn programmable_guided(
     }
     let path = curve.path();
     let (a, z) = (path[0], path[path.len() - 1]);
-    Some(order_rows(rows, (z.y - a.y).datan2(z.x - a.x).to_degrees()))
+    Some(order_guided_rows(
+        rows,
+        (z.y - a.y).datan2(z.x - a.x).to_degrees(),
+    ))
 }
 
 /// One row piece of [`programmable_guided`]: its ends and its crossings with the pattern tiled
@@ -1090,6 +1093,19 @@ fn tile_rows(
 /// only when a sweep ends, on to the nearest unsewn piece. Each piece is entered from the end
 /// nearer the needle.
 pub(crate) fn order_rows(rows: Vec<Vec<Vec<Vec2>>>, angle: f64) -> Vec<Vec<Vec2>> {
+    sweep_rows(rows, angle, false)
+}
+
+/// [`order_rows`] for rows along a direction curve (#947): before a sweep steps into a piece
+/// that also lies beside another unsewn piece of the row it leaves (two lobes of the region
+/// merging, as below a U-shaped curve, where the rows split round the region's corners), it
+/// sews that other lobe first, from its far end back to the merge. Otherwise that lobe was
+/// left to the end and reached by travel sewn over every row in between.
+pub(crate) fn order_guided_rows(rows: Vec<Vec<Vec<Vec2>>>, angle: f64) -> Vec<Vec<Vec2>> {
+    sweep_rows(rows, angle, true)
+}
+
+fn sweep_rows(rows: Vec<Vec<Vec<Vec2>>>, angle: f64, lobes_first: bool) -> Vec<Vec<Vec2>> {
     let u = v2(1.0, 0.0).rotated(angle.to_radians());
     struct Piece {
         row: usize,
@@ -1149,6 +1165,27 @@ pub(crate) fn order_rows(rows: Vec<Vec<Vec<Vec2>>>, angle: f64) -> Vec<Vec<Vec2>
         };
         if let Some(next) = neighbour(dir) {
             cur = next;
+            // A lobe still to sew beside this piece that merges into `next`: sew it first, from
+            // the piece farthest back along it.
+            let (nlo, nhi) = (pieces[next].lo, pieces[next].hi);
+            let sibling = (0..n).find(|&i| {
+                lobes_first
+                    && !sewn[i]
+                    && pieces[i].row as i64 == row
+                    && pieces[i].lo < nhi
+                    && pieces[i].hi > nlo
+            });
+            if let Some(mut far) = sibling {
+                while let Some(back) = (0..n).find(|&i| {
+                    !sewn[i]
+                        && pieces[i].row as i64 == pieces[far].row as i64 - dir
+                        && pieces[i].lo < pieces[far].hi
+                        && pieces[i].hi > pieces[far].lo
+                }) {
+                    far = back;
+                }
+                cur = far;
+            }
         } else if let Some(next) = neighbour(-dir) {
             dir = -dir;
             cur = next;
