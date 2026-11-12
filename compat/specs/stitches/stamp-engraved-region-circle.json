@@ -3,7 +3,7 @@
   "id": "stamp-engraved-region-circle",
   "area": "stitches",
   "title": "Engraved region from a circle",
-  "description": "A 16.5 x 16 mm circle converted to an engraved region. PE-DESIGN 11.50 cuts the fill's 4 mm stitches to 1.9 mm on average inside (262 needle points per cm2 against 128 outside); so does OpenStitch since #471 (2 mm steps: 1.94 mm, 262 per cm2; 1 mm before, 480).",
+  "description": "A 16.5 x 16 mm circle converted to an engraved region. PE-DESIGN 11.50 cuts the fill's 4 mm stitches to 1.9 mm on average inside (262 needle points per cm2 against 128 outside); so does OpenStitch since #471 (2 mm steps: 1.94 mm, 263 per cm2; 1 mm before, 480).",
   "covers": {
     "featureMatrix": [
       {
@@ -29,10 +29,10 @@
     {
       "command": "shape.rectangle",
       "params": {
-        "x": 29,
-        "y": 29,
-        "width": 42,
-        "height": 42,
+        "x": 30,
+        "y": 30,
+        "width": 40,
+        "height": 40,
         "fill": "Red"
       }
     },
@@ -93,10 +93,10 @@
         "export": "a.pes"
       },
       "expected": {
-        "min": 3600,
-        "max": 4100
+        "min": 3350,
+        "max": 3800
       },
-      "evidence": "3,826 stitches at #471: 394 more than the plain square (PE-DESIGN 280 more; 860 more before #471)"
+      "evidence": "3,568 stitches: 392 more than the plain square (PE-DESIGN 280 more; about 860 more before #471) at #471, on the 40 mm square"
     }
   ]
 }
