@@ -132,6 +132,14 @@ stitch output changes. The stripes in the kit previews at 5–7 px/mm are a diff
 anti-aliased rows about a pixel apart leave light seams that beat with the pixel grid. Part 2 renders
 the previews at a higher pixel density and downsamples them.
 
+Done 2026-11-12 (#893, part 2): the kit previews and the README gallery are drawn at 16 px/mm in
+tiles (`openstitch --zoom … --center X,Y`, a new option that centres the view on a design point) and
+reduced with Lanczos, instead of the page-fit screenshot at 5–7 px/mm. Row-to-row stripe contrast in
+a filled patch falls from 39 to 13 grey levels on angle-lines, 34 to 5 on tatami-textures-1 and 19
+to 11 on the sunset photo; the T1 card's swatches stay within 6 levels of the page-fit preview
+(sum of differences from the scans 132 before, 134 after). The Realistic view itself still shows
+the stripes when zoomed out: #907 (Future) supersamples it in the app.
+
 Done 2026-11-06 (#295, #441, #311, #312): the kit has a T2 card (two threads in alternating rows,
 to measure how far a later row covers its neighbour for Photo Stitch 1), the build checks every
 calibration swatch's density in the exported file, and `sew_check` checks trims per 1,000

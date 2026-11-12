@@ -199,13 +199,19 @@ pub struct EditorApp {
     pub fit_requested: bool,
     /// Zoom applied once after the first fit (`--zoom`).
     pub initial_zoom: Option<f64>,
-    /// Model point the automatic fit centres on (`--center`), until a fit is asked for.
+    /// Model point centred on once after the first fit and zoom (`--center`).
     pub initial_center: Option<openstitch_design::Vec2>,
     /// The automatic fit last made: the canvas it was made for, the view it gave and the
-    /// `--zoom` applied. While the view is still that one, a change of the canvas (the panes are
+    /// `--zoom` and `--center` applied. While the view is still that one, a change of the canvas (the panes are
     /// laid out a frame after the canvas; the window resized) fits again (#450: kit previews and
     /// screenshots lost the page's bottom to the Stitch Simulator pane).
-    pub auto_fit: Option<(openstitch_app::editor::ScreenRect, Viewport, Option<f64>)>,
+    #[allow(clippy::type_complexity)]
+    pub auto_fit: Option<(
+        openstitch_app::editor::ScreenRect,
+        Viewport,
+        Option<f64>,
+        Option<openstitch_design::Vec2>,
+    )>,
     /// A wizard dialog's rectangle in the previous frame, and the one being drawn this frame
     /// (`dialog_window`). In a `--screenshot` run the automatic fit keeps the page clear of it
     /// (#565: the dialogs hid part of the design in the documentation images).
