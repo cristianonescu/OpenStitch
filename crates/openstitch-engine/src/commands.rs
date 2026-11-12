@@ -2239,7 +2239,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
             .chain([opt(
                 "underlayStyle",
                 "edge|centreWalk|edgeZigzag|auto",
-                "Zigzag: the under sewing when underSewing is on: edge (PE-DESIGN's two runs a quarter of the width to each side, the default), centreWalk (along the line and back), edgeZigzag (one edge run out, a zigzag back) or auto (by width: underlayAuto)",
+                "Zigzag: the under sewing when underSewing is on: edge (the default: PE-DESIGN's runs width / 2 - 0.5 mm to each side, four runs 1 mm apart from 4 mm wide; a satin line's a quarter of its width out), centreWalk (along the line and back), edgeZigzag (one edge run out, a zigzag back) or auto (by width: underlayAuto)",
             )])
             .chain(crate::satin_shaping::SATIN_LINE_PARAMS)
             .chain(crate::motif_band_params::PARAMS)
