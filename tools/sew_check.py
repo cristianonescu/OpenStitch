@@ -24,9 +24,13 @@ is removed when the issue is fixed).
     python3 -I tools/sew_check.py file.vp3 --hoop 100x100   # VP3 (#480): no PEC frame to check
     python3 -I tools/sew_check.py file.u01 --hoop 100x100   # also .tbf and .tap (#481)
 
+    python3 -I tools/sew_check.py --self-test   # the no-stitches check on synthetic files (#922)
+
 Reads the PEC block's stitches directly (the part the machine sews), not OpenStitch's objects.
+A PEC block with no stitches (PE-DESIGN writes a stub when a design lies outside the Design Page)
+is reported as unreadable with that reason, as OpenStitch's importer refuses it (#922).
 The hoop comes from `--hoop`, else from examples/sew/manifest.json, else 100 × 100 mm.
-Exits 1 when any file fails.
+Exits 1 when any file fails or is unreadable.
 """
 
 import argparse
@@ -63,9 +67,21 @@ def hoop_from(text):
     return float(w), float(h)
 
 
+class NoStitches(ValueError):
+    """The file's PEC block holds no stitches (#922)."""
+
+
+def no_stitches(width, height):
+    return NoStitches(
+        f"the PEC section holds no stitches for this {width / 10.0:.1f} x {height / 10.0:.1f} mm "
+        "design: PE-DESIGN saves none when a design lies outside the Design Page; fit it into "
+        "the page (or choose a larger hoop) and save it again")
+
+
 def read_pec(path):
     """Returns (stitches, header): stitches as (x_mm, y_mm, kind, colour) with kind 'stitch',
-    'jump' or 'trim'; header as the PEC graphic block's width and height in mm."""
+    'jump' or 'trim'; header as the PEC graphic block's width and height in mm. Raises
+    NoStitches when the PEC block holds none."""
     data = Path(path).read_bytes()
     pec = struct.unpack_from("<I", data, 8)[0]
     ncol = data[pec + 48] + 1
@@ -75,6 +91,11 @@ def read_pec(path):
     # corner to the first needle point: the machine draws and sews the design inside a frame of
     # the header's width and height, so every stitch must land within it.
     width, height = struct.unpack_from("<hh", data, g + 8)
+    # A block too short for the full stitch header holds no stitches: PE-DESIGN 11.50 writes one
+    # (13 bytes) when it saves a design that lies outside the Design Page, and reading on would
+    # take what follows for stitches (#922; the importer's check in openstitch-formats' pec.rs).
+    if int.from_bytes(data[g + 2:g + 5], "little") < 0x10:
+        raise no_stitches(width, height)
     i = g + 16
     x = y = 0
     colour = 0
@@ -105,6 +126,8 @@ def read_pec(path):
         y += moves[1]
         kind = "trim" if flags & 0x20 else "jump" if flags & 0x10 else "stitch"
         out.append((x / 10.0, y / 10.0, kind, colour))
+    if not any(s[2] == "stitch" for s in out):
+        raise no_stitches(width, height)
     return out, (width / 10.0, height / 10.0), ncol
 
 
@@ -337,7 +360,58 @@ def known(rel, problems):
     return fail, ok
 
 
+def synthetic_pes(path, block_len, records, width=668, height=996):
+    """A minimal PES for the self-test: the PES header pointing at a PEC section with one colour,
+    its graphic header (`block_len` bytes of stitch block, `width` × `height` in 0.1 mm) and the
+    stitch `records` (raw bytes, before the 0xFF end)."""
+    pec = 0x16
+    data = bytearray(b"#PES0001" + struct.pack("<I", pec) + bytes(pec - 12))
+    data += bytes(48) + b"\x00" + bytes(512 - 49)  # PEC: label, colour count - 1 = 0, colours
+    data += b"\x00\x00" + block_len.to_bytes(3, "little") + b"\x31\xff\xf0"
+    data += struct.pack("<hh", width, height) + b"\xe0\x01\xb0\x01"
+    data += bytes(records) + b"\xff\x00" + bytes(64)
+    Path(path).write_bytes(bytes(data))
+
+
+def self_test():
+    """The stub check catches a PEC block with no stitches (#922) and lets a good one through."""
+    import subprocess  # noqa: PLC0415
+    import tempfile  # noqa: PLC0415
+    fails = []
+    with tempfile.TemporaryDirectory() as tmp:
+        stub, good = Path(tmp) / "stub.pes", Path(tmp) / "good.pes"
+        # PE-DESIGN's stub: a 13-byte block (length, 31 FF F0, width, height, FF), no stitches.
+        synthetic_pes(stub, 13, b"")
+        # Six short stitches (7-bit records: dx, dy in 0.1 mm; 0x76 is -10) round a 1.0 × 1.0 mm
+        # square, inside its 1.0 × 1.0 mm frame.
+        synthetic_pes(good, 0x40, [0x05, 0x00, 0x05, 0x00, 0x00, 0x05, 0x00, 0x05,
+                                   0x76, 0x00, 0x00, 0x76], width=10, height=10)
+        try:
+            read_pec(stub)
+            fails.append("the stub was read as a design")
+        except NoStitches as e:
+            if "holds no stitches for this 66.8 x 99.6 mm design" not in str(e):
+                fails.append(f"the stub's reason: {e}")
+        try:
+            st, header, _ = read_pec(good)
+            if sum(s[2] == "stitch" for s in st) != 6 or header != (1.0, 1.0):
+                fails.append(f"the good file read as {len(st)} records, header {header}")
+        except NoStitches as e:
+            fails.append(f"the good file was refused: {e}")
+        run = subprocess.run([sys.executable, "-I", "-X", "utf8", __file__, str(stub), str(good)],
+                             capture_output=True, text=True, encoding="utf-8")
+        if run.returncode != 1 or "unreadable: the PEC section holds no stitches" not in run.stdout \
+                or "ok   " not in run.stdout or "1/2 pass" not in run.stdout:
+            fails.append(f"the command line: exit {run.returncode}, output {run.stdout!r}")
+    for f in fails:
+        print("FAIL", f)
+    print(f"sew_check self-test: {len(fails)} problem(s)")
+    return 1 if fails else 0
+
+
 def main():
+    if "--self-test" in sys.argv[1:]:
+        return self_test()
     ap = argparse.ArgumentParser()
     ap.add_argument("paths", nargs="+")
     ap.add_argument("--hoop", help="hoop as WxH in mm, e.g. 100x100")
@@ -360,7 +434,12 @@ def main():
                         hoop = hoop_from(entry["hoop"])
                     break
         hoop = hoop or (100.0, 100.0)
-        r = check(f, hoop)
+        try:
+            r = check(f, hoop)
+        except NoStitches as e:
+            failed += 1
+            print(f"FAIL {f.as_posix()}  unreadable: {e}")
+            continue
         problems, ok = known(rel, r["problems"])
         status = "FAIL" if problems else "ok"
         failed += bool(problems)
