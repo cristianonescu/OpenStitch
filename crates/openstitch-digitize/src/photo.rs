@@ -694,6 +694,7 @@ type Route<'a> = &'a dyn Fn(f64, f64, &[bool]) -> Option<(usize, bool, Vec<[f64;
 /// entered from that end and reached with a travel stitch; when none is, `route` may find a
 /// hidden path to one (travel stitches along it); otherwise the needle jumps to the first unsewn
 /// run in row order (see [`Sewing::away`]).
+#[allow(clippy::too_many_arguments)]
 fn sew_runs(
     runs: &[Run],
     rows: usize,
