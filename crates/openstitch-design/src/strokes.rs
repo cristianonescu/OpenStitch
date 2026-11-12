@@ -1078,18 +1078,18 @@ const STEM_REACH: f64 = 40.0;
 /// at the full half width left the stopped arm's outer side short of the corner.
 const SLANTED_AGAINST: f64 = 0.5;
 
-/// At a foot where two slanted arms leaning opposite ways meet at the bottom (V's foot, M's
-/// middle V, W's feet, #446), the arm that runs on, as [`run_on_stems`] takes it: (its piece,
-/// the direction it runs on in). PE-DESIGN runs on the arm that falls to the right (`\`, the
-/// thick stroke of a classic V) and stops the other against it (stroke-satin-V: the left arm
-/// down to the baseline). A top apex (A's, W's middle) is left as it was: run on there, the
-/// leg's crossings fanned into the tip (up to 144 degrees against PE-DESIGN's level
-/// 161-180), still open on #446. `into` arrives at the cut along piece `k`, `out` leaves it
-/// along piece `k + 1` (y down).
+/// Where two slanted arms leaning opposite ways meet at a cut (V's foot, M's middle V, W's
+/// feet and middle apex, A's apex, #446), the arm that runs on, as [`run_on_stems`] takes it:
+/// (its piece, the direction it runs on in). PE-DESIGN runs on the arm that falls to the right
+/// (`\`, the thick stroke of a classic V or A) and stops the other against it
+/// (stroke-satin-V: the left arm down to the baseline; stroke-satin-A: the right leg up to the
+/// apex's flat top, its first crossing level). The run-on arm's end edge there is dropped from
+/// its sides ([`GlyphStrokes::sides_along`]), so its crossings start along that edge rather
+/// than fanning into the tip. `into` arrives at the cut along piece `k`, `out` leaves it along
+/// piece `k + 1` (y down).
 fn slanted_run_on(k: usize, into: Vec2, out: Vec2) -> Option<(usize, Vec2)> {
-    // Leaning opposite ways, and meeting at the bottom: down into the cut, up out of it.
-    let foot = into.y > 0.0 && out.y < 0.0;
-    if into.x * into.y * out.x * out.y >= 0.0 || !foot {
+    // Leaning opposite ways.
+    if into.x * into.y * out.x * out.y >= 0.0 {
         return None;
     }
     Some(if into.x * into.y > 0.0 {
@@ -1502,6 +1502,18 @@ impl GlyphStrokes {
             .filter(|c| c.closed)
             .map(Contour::outline_points)
             .collect();
+        // Where a stroke stops against another (#446).
+        let stops: Vec<Vec2> = self
+            .strokes
+            .iter()
+            .filter(|s| !s.centre.is_empty())
+            .flat_map(|s| {
+                [(0, s.centre[0]), (1, s.centre[s.centre.len() - 1])]
+                    .into_iter()
+                    .filter(|&(e, _)| s.ends[e] == StrokeEnd::Against)
+                    .map(|(_, p)| p)
+            })
+            .collect();
         sides
             .into_iter()
             .zip(&self.strokes)
@@ -1511,13 +1523,24 @@ impl GlyphStrokes {
                 // a slanted arm (X's, A's and V's feet) projects mostly inside the centre line's
                 // end, and would start one side along the edge and fan the crossings there.
                 let limit = 2.0 * st.widths.iter().copied().fold(0.0, f64::max);
-                // Kept to the arms of a four-arm crossing (X): on every letter it moved S's,
-                // f's and 5's ends and took needle points off S against PE-DESIGN (#446 notes).
+                // Kept to the arms of a four-arm crossing (X) and to slanted arms another stops
+                // against ([`slanted_run_on`]: V's left arm, A's right leg), whose crossings
+                // PE-DESIGN starts along the level end (A's apex top, #446). On every letter
+                // it moved S's, f's and 5's ends and took needle points off S, M and fill V
+                // against PE-DESIGN (#446 notes).
                 let crossing_arm = crossings
                     .iter()
                     .any(|&j| st.ends.contains(&StrokeEnd::Junction(j)) || self.through(st, j));
+                let run_on_arm = st.centre.len() >= 2 && {
+                    let d = st.centre[st.centre.len() - 1] - st.centre[0];
+                    let slanted = d.x.abs() > STEM_LEAN.to_radians().dsin() * d.length();
+                    slanted
+                        && stops
+                            .iter()
+                            .any(|&s| project(&st.centre, false, s).1 <= 0.5 * limit)
+                };
                 let edges: Vec<(f64, Vec2, Vec2)> =
-                    if st.closed || st.centre.len() < 2 || !crossing_arm {
+                    if st.closed || st.centre.len() < 2 || !(crossing_arm || run_on_arm) {
                         Vec::new()
                     } else {
                         [(0, 0.0), (1, total)]
@@ -1584,13 +1607,18 @@ impl GlyphStrokes {
                 };
                 // A free end's corner stays even past the stretch both sides cover: on an end
                 // edge the warp tilts (#428), the leading corner projects past the other side's
-                // last point, and dropping it left the foot's lower corner unsewn.
+                // last point, and dropping it left the foot's lower corner unsewn. An end
+                // stopped against a run-on arm keeps each side to where it meets that arm, so
+                // the last crossing lies along the stop line, as PE-DESIGN's do (V's right arm
+                // turns to 60 degrees there, along the left arm's inner edge, #446).
+                let against = |e: usize| st.ends[e] == StrokeEnd::Against;
                 let keep = |v: Vec<(f64, f64, Vec2)>| -> Vec<(f64, Vec2)> {
                     let n = v.len();
                     v.into_iter()
                         .enumerate()
                         .filter(|&(i, (at, _, _))| {
-                            (at >= lo - SIDE_STEP && at <= hi + SIDE_STEP)
+                            ((at >= lo - SIDE_STEP || against(0))
+                                && (at <= hi + SIDE_STEP || against(1)))
                                 || (i == 0 && st.ends[0] == StrokeEnd::Free)
                                 || (i + 1 == n && st.ends[1] == StrokeEnd::Free)
                         })
@@ -2489,8 +2517,8 @@ mod tests {
     }
 
     /// #446: at V's foot the left arm (falling to the right) runs on to the baseline and the
-    /// right arm stops against it, as PE-DESIGN sews it (stroke-satin-V). A's apex, a top
-    /// apex, is still cut into two corner ends (open on #446).
+    /// right arm stops against it, as PE-DESIGN sews it (stroke-satin-V); at A's apex the right
+    /// leg runs on to the apex's top and the left leg stops against it (stroke-satin-A).
     #[test]
     fn a_slanted_arm_runs_on_at_v_and_the_other_stops_against_it() {
         let (v, vb) = glyph("V");
@@ -2510,12 +2538,30 @@ mod tests {
                 .iter()
                 .any(|s| s.ends.contains(&StrokeEnd::Against))
         );
-        let (a, _) = glyph("A");
+        let (a, ab) = glyph("A");
+        let mid_x = |s: &Stroke| s.centre.iter().map(|p| p.x).sum::<f64>() / s.centre.len() as f64;
+        let centre_x = (ab.min_x + ab.max_x) / 2.0;
+        let stopped: Vec<&Stroke> = a
+            .strokes
+            .iter()
+            .filter(|s| s.ends.contains(&StrokeEnd::Against))
+            .collect();
+        assert_eq!(stopped.len(), 1, "one leg stops at A's apex");
+        assert!(mid_x(stopped[0]) < centre_x, "the left leg stops");
+        let top = a
+            .strokes
+            .iter()
+            .filter(|s| mid_x(s) > centre_x)
+            .flat_map(|s| s.centre.iter().map(|p| p.y))
+            .fold(f64::INFINITY, f64::min);
+        assert!(
+            top - ab.min_y < 5.0,
+            "the right leg runs on to the top: {top} vs {ab:?}"
+        );
         assert!(
             a.strokes
                 .iter()
-                .all(|s| !s.ends.contains(&StrokeEnd::Against)),
-            "A's apex is not a run-on"
+                .all(|s| !s.ends.contains(&StrokeEnd::Corner))
         );
     }
 
@@ -2612,12 +2658,12 @@ mod tests {
             "the cut is at the foot: {foot} vs {}",
             b.max_y
         );
-        // A: the apex at the top.
+        // A: the apex at the top (the left leg stops against the right there, #446).
         let (g, b) = glyph("A");
         let apex = g
             .strokes
             .iter()
-            .filter(|s| s.ends.contains(&StrokeEnd::Corner))
+            .filter(|s| s.ends.contains(&StrokeEnd::Against))
             .flat_map(|s| s.centre.iter().map(|p| p.y))
             .fold(f64::INFINITY, f64::min);
         assert!(
@@ -2747,13 +2793,20 @@ mod tests {
             "{:?}",
             rungs[bar]
         );
+        // The right leg's upper part: right of the middle, the highest (it runs on to the apex's
+        // top, #446).
         let right_upper = g
             .strokes
             .iter()
-            .position(|s| {
-                s.ends.contains(&StrokeEnd::Corner)
-                    && s.centre.iter().map(|p| p.x).sum::<f64>() / s.centre.len() as f64 > 100.0
+            .enumerate()
+            .filter(|(_, s)| {
+                s.centre.iter().map(|p| p.x).sum::<f64>() / s.centre.len() as f64 > 100.0
             })
+            .min_by(|(_, s), (_, o)| {
+                let top = |s: &Stroke| s.centre.iter().map(|p| p.y).fold(f64::INFINITY, f64::min);
+                top(s).total_cmp(&top(o))
+            })
+            .map(|(i, _)| i)
             .expect("right leg");
         for r in &rungs[right_upper] {
             assert!(off(angle(r), 170.0) < 15.0, "{r:?} {}", angle(r));
@@ -2982,7 +3035,10 @@ mod tests {
         let blocks = strokes(&contours).expect("strokes").blocks(&contours, 30.0);
         let first = |bl: &Block| bl.rungs[0][0].y - b.min_y;
         assert!(first(&blocks[4]) < 3.0, "the right leg starts at the apex");
-        assert!(first(&blocks[0]) > 10.0, "the left leg starts below it");
+        // The left leg stops against the right one: its first crossing lies along the right
+        // leg's inner edge, as PE-DESIGN's (stroke-satin-A: 56-65 degrees, #446).
+        let a0 = angle(&blocks[0].rungs[0]);
+        assert!(off(a0, 60.0) < 15.0, "the left leg's first crossing: {a0}");
     }
 
     #[test]
