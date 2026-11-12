@@ -1,5 +1,5 @@
 [
-  {"command": "design.new", "params": {"name": "ornaments", "width": 100, "height": 100}},
+  {"command": "design.new", "params": {"name": "ornaments", "width": 100, "height": 128}},
   {"command": "shape.ellipse", "params": {"cx": 27, "cy": 27, "rx": 20, "outline": {"builtin": "newBrothread", "code": "900"}}},
   {"command": "shape.floral", "params": {"id": 1, "density": 4, "pattern": 2, "color": {"builtin": "newBrothread", "code": "800"}}},
   {"command": "shape.preset", "params": {"kind": "heart", "cx": 74, "cy": 27, "width": 40, "outline": {"builtin": "newBrothread", "code": "086"}}},
@@ -9,6 +9,11 @@
   {"command": "shape.rectangle", "params": {"x": 60, "y": 65, "width": 28, "height": 18, "fill": {"builtin": "newBrothread", "code": "208"}}},
   {"command": "shape.decorative", "params": {"kind": "scallop", "id": 7, "keepAspect": false, "margin": 3, "size": 4}},
   {"command": "shape.decorative", "params": {"kind": "corners", "id": 7, "keepAspect": false, "margin": 9, "size": 4}},
+  {"command": "shape.path", "params": {"points": [[8, 112], [58, 112]], "closed": false, "curves": [[[25, 100], [41, 124]]], "outline": {"builtin": "newBrothread", "code": "086"}}},
+  {"command": "object.setLine", "params": {"type": "motif", "motif": "heart", "width": 5, "height": 4, "spacing": 0.5, "groupSize": 3, "groupGap": 5, "freeStart": 3, "freeEnd": 3, "id": 10}},
+  {"command": "shape.ellipse", "params": {"cx": 78, "cy": 112, "rx": 14, "ry": 10, "outline": {"builtin": "newBrothread", "code": "405"}}},
+  {"command": "object.setRegion", "params": {"type": "none", "id": 11}},
+  {"command": "object.setLine", "params": {"type": "ripple", "strands": 4, "target": [78, 112], "id": 11}},
   {"command": "design.info"},
   {"command": "project.save", "params": {"path": "ornaments.osd"}}
 ]
