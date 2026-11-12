@@ -137,7 +137,8 @@ tiles (`openstitch --zoom … --center X,Y`, a new option that centres the view 
 reduced with Lanczos, instead of the page-fit screenshot at 5–7 px/mm. Row-to-row stripe contrast in
 a filled patch falls from 39 to 13 grey levels on angle-lines, 34 to 5 on tatami-textures-1 and 19
 to 11 on the sunset photo; the T1 card's swatches stay within 6 levels of the page-fit preview
-(sum of differences from the scans 132 before, 134 after). The Realistic view itself still shows
+(sum of differences from the scans 132 before, 134 after). A kit build takes about three times as
+long (50 min on Windows). The gallery images are redrawn this way at the next release refresh. The Realistic view itself still shows
 the stripes when zoomed out: #907 (Future) supersamples it in the app.
 
 Done 2026-11-06 (#295, #441, #311, #312): the kit has a T2 card (two threads in alternating rows,
