@@ -1097,6 +1097,10 @@ pub struct Gradient {
     /// Seed of the noise dither.
     #[serde(default)]
     pub seed: u64,
+    /// The layers of this gradient sewn after this object, set by the compiler from the
+    /// sewing order and never saved: travel may hide under their rows (#901).
+    #[serde(skip)]
+    pub later: Vec<usize>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

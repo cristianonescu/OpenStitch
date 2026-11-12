@@ -254,6 +254,7 @@ fn gradient(
         dither,
         curve,
         seed: seed as u64,
+        later: Vec::new(),
     };
     let mut ids = Vec::with_capacity(n);
     for (k, obj) in layer_objects(&base, &threads, &template, Some(group))

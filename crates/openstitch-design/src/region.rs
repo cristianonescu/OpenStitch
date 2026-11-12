@@ -261,6 +261,7 @@ fn layers_inner(
                     GRADIENT_TRAVEL,
                     true,
                     10.0 / r.density.max(0.1),
+                    &[],
                 )
             })
             .collect();
@@ -284,6 +285,16 @@ fn layers_inner(
         let rows = generate::fill_shifted(closed, &p, holes, r.fill_stagger());
         let pieces = crate::gradient::layer_pieces(&rows, g, angle, p.row_spacing, p.stitch_length);
         let pieces = crate::paths::order(pieces, r.entry);
+        // The rows of this blend's colours sewn after this one (#901): they cover its travel.
+        let above: Vec<Vec<Run>> = g
+            .later
+            .iter()
+            .map(|&k| {
+                let mut h = g.clone();
+                h.layer = k;
+                crate::gradient::layer_pieces(&rows, &h, angle, p.row_spacing, p.stitch_length)
+            })
+            .collect();
         let mut graph = TravelGraph::new(closed, holes);
         return vec![crate::paths::join_within(
             pieces,
@@ -292,6 +303,7 @@ fn layers_inner(
             GRADIENT_TRAVEL,
             false,
             p.row_spacing,
+            &above,
         )];
     }
     // Stitch angle lines (#534, beyond PE-DESIGN): the plain fill's under sewing, then rows

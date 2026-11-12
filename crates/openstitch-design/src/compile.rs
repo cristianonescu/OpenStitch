@@ -835,6 +835,36 @@ impl Writer {
     }
 }
 
+/// The layers of object `index`'s gradient that visible objects after it sew: the same shape,
+/// the same region apart from the thread, the same gradient apart from the layer (#901).
+/// `None` when the object is no gradient colour or none of its colours follows it.
+fn later_layers(design: &Design, index: usize) -> Option<Vec<usize>> {
+    let o = design.objects.get(index)?;
+    let r = o.region.as_ref()?;
+    let g = r.gradient.as_ref()?;
+    // A region with its colour-specific parts (thread, layer) set to this object's.
+    let key = |q: &crate::model::RegionSewing| {
+        let mut k = q.clone();
+        k.thread = r.thread.clone();
+        if let Some(h) = k.gradient.as_mut() {
+            h.layer = g.layer;
+            h.later.clear();
+        }
+        k
+    };
+    let mine = key(r);
+    let later: Vec<usize> = design.objects[index + 1..]
+        .iter()
+        .filter(|p| p.visible && p.contours == o.contours)
+        .filter_map(|p| {
+            let q = p.region.as_ref()?;
+            let h = q.gradient.as_ref()?;
+            (key(q) == mine && h.layer != g.layer).then_some(h.layer)
+        })
+        .collect();
+    (!later.is_empty()).then_some(later)
+}
+
 fn sew_object(w: &mut Writer, object: &DesignObject, design: &Design) {
     let multi = design.machine.machine == crate::machine::MachineType::MultiNeedle;
     w.trim_jumps = !(multi && object.trim_jumps == Some(false));
@@ -880,6 +910,18 @@ fn sew_object(w: &mut Writer, object: &DesignObject, design: &Design) {
                 let h = holes.iter().map(|c| c.transformed(&to)).collect();
                 let a = area.map(|a| a.iter().map(|c| c.transformed(&to)).collect());
                 (std::borrow::Cow::Owned(o), h, a)
+            };
+            // The colours of this blend sewn after it (#901): its travel may hide under their
+            // rows. Known only here, from the sewing order.
+            let local = match index.and_then(|i| later_layers(design, i)) {
+                Some(later) => {
+                    let mut o = local.into_owned();
+                    if let Some(g) = o.region.as_mut().and_then(|r| r.gradient.as_mut()) {
+                        g.later = later;
+                    }
+                    std::borrow::Cow::Owned(o)
+                }
+                None => local,
             };
             // Hand edits (#501): the edited stitches while they still apply.
             if let Some(block) = crate::hand_edits::current(object) {

@@ -1626,6 +1626,7 @@ mod tests {
             dither: Default::default(),
             curve: Default::default(),
             seed: 1,
+            later: Vec::new(),
         });
         grad.add(DesignObject::shape(
             vec![Contour::rectangle(0.0, 0.0, 200.0, 200.0)],

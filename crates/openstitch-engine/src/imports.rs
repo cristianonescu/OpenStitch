@@ -1219,6 +1219,7 @@ fn place(s: &mut EngineState, p: &Params, shapes: Vec<SvgShape>, b: Rect) -> cra
                 dither: Default::default(),
                 curve: Default::default(),
                 seed: 1,
+                later: Vec::new(),
             };
             let mut layers =
                 crate::gradient_cmds::layer_objects(&object, &threads, &template, blend_group);

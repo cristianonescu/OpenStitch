@@ -671,9 +671,21 @@ impl Cover {
 
     /// Whether the layer's rows cover at least [`COVER_HIDES`] of the cell at `p`.
     fn hides(&self, p: Vec2) -> bool {
+        self.dense(Self::key(p))
+    }
+
+    fn dense(&self, k: (i64, i64)) -> bool {
         self.length
-            .get(&Self::key(p))
+            .get(&k)
             .is_some_and(|&l| l >= COVER_HIDES * self.full)
+    }
+
+    /// [`Self::hides`] in the cell at `p` and all eight around it: travel at least a cell
+    /// inside the covered area, whatever the grid's alignment, so it does not run along the
+    /// edge of a later colour's dense patch where that colour thins out (#901).
+    fn hides_well(&self, p: Vec2) -> bool {
+        let (i, j) = Self::key(p);
+        (i - 1..=i + 1).all(|a| (j - 1..=j + 1).all(|b| self.dense((a, b))))
     }
 }
 
@@ -698,6 +710,7 @@ pub fn join_within(
     reach: f64,
     walks: bool,
     spacing: f64,
+    above: &[Vec<Vec<Vec2>>],
 ) -> Vec<Vec<Vec2>> {
     let outline = travel.edges.clone();
     let near_outline = |p: Vec2| {
@@ -706,6 +719,9 @@ pub fn join_within(
             .any(|&(a, b)| crate::simplify::segment_distance(p, a, b) <= OUTLINE_HIDES)
     };
     let cover = Cover::new(&pieces, spacing);
+    // Each later colour on its own: only one that alone covers a cell hides travel there.
+    let later: Vec<Cover> = above.iter().map(|rows| Cover::new(rows, spacing)).collect();
+    let under_later = |p: Vec2| later.iter().any(|c| c.hides_well(p));
     let exposure = |way: &[Vec2]| -> (f64, f64) {
         let (mut longest, mut total, mut run) = (0.0f64, 0.0, 0.0);
         for w in way.windows(2) {
@@ -713,7 +729,7 @@ pub fn join_within(
             let n = (len / EXPOSURE_STEP).ceil().max(1.0) as usize;
             for i in 0..n {
                 let p = w[0].lerp(w[1], (i as f64 + 0.5) / n as f64);
-                if (walks && near_outline(p)) || cover.hides(p) {
+                if (walks && near_outline(p)) || cover.hides(p) || under_later(p) {
                     run = 0.0;
                 } else {
                     run += len / n as f64;
@@ -798,6 +814,7 @@ pub fn join_within(
     // nearest of the next few that can be reached hidden is sewn first (#901).
     let mut left: Vec<Vec<Vec2>> = pieces.into_iter().filter(|p| !p.is_empty()).collect();
     let mut runs: Vec<Vec<Vec2>> = Vec::new();
+    let mut dbg_later = 0.0;
     if left.is_empty() {
         return runs;
     }
@@ -837,6 +854,17 @@ pub fn join_within(
         }
         match way {
             Some(way) => {
+                if std::env::var("OS901_DBG").is_ok() {
+                    for w in way.windows(2) {
+                        let n = (w[0].distance(w[1]) / EXPOSURE_STEP).ceil().max(1.0) as usize;
+                        for s in 0..n {
+                            let p = w[0].lerp(w[1], (s as f64 + 0.5) / n as f64);
+                            if !cover.hides(p) && under_later(p) {
+                                dbg_later += w[0].distance(w[1]) / n as f64;
+                            }
+                        }
+                    }
+                }
                 let travel_stitches = stitches(&way, pitch);
                 last.extend(travel_stitches.into_iter().skip(1));
                 last.extend(piece.into_iter().skip(1));
@@ -845,6 +873,14 @@ pub fn join_within(
                 runs.push(piece);
             }
         }
+    }
+    if std::env::var("OS901_DBG").is_ok() {
+        eprintln!(
+            "OS901 later={} runs={} travel under later colours only {:.1} mm",
+            above.len(),
+            runs.len(),
+            dbg_later / 10.0
+        );
     }
     runs
 }

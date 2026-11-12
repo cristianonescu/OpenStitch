@@ -4079,6 +4079,7 @@ fn gradient_layers(
                 dither,
                 curve: crate::GradientCurve::Linear,
                 seed: 1,
+                later: Vec::new(),
             });
             crate::region::layers(c, &l, &[]).pop().expect("top")
         })
@@ -4110,7 +4111,7 @@ fn segments(runs: &[Run]) -> Vec<((i64, i64), (i64, i64))> {
 fn blend_travel_never_runs_far_across_the_rows() {
     use crate::{GradientDither as D, GradientKind as K};
     let rect = Contour::rectangle(100.0, 100.0, 400.0, 300.0);
-    for (c, kind, dither, stops, from, to) in [
+    for (case, reversed) in [
         // As the kit's radial swatch: a 20 mm circle, three colours, the last round the edge.
         (
             Contour::ellipse(v2(270.0, 600.0), 200.0, 200.0, 64),
@@ -4144,12 +4145,23 @@ fn blend_travel_never_runs_far_across_the_rows() {
             v2(300.0, 100.0),
             v2(300.0, 400.0),
         ),
-    ] {
+    ]
+    .into_iter()
+    .flat_map(|case| [(case.clone(), false), (case, true)])
+    {
+        let (c, kind, dither, stops, from, to) = case;
         let mut r = region(RegionType::Fill);
         r.angle = 0.0;
         r.underlay = false;
         let mut d = Design::new("t", DesignPage::default());
-        for k in 0..stops.len() {
+        // Reversed: the last colour is sewn first, so what covers a colour's travel in the
+        // other order is sewn before it and hides nothing.
+        let order: Vec<usize> = if reversed {
+            (0..stops.len()).rev().collect()
+        } else {
+            (0..stops.len()).collect()
+        };
+        for k in order {
             let mut l = r.clone();
             // A thread of its own, so the colours are told apart.
             l.thread = Thread::rgb(0x20_40_60 * (k as u32 + 1));
@@ -4162,21 +4174,56 @@ fn blend_travel_never_runs_far_across_the_rows() {
                 dither,
                 curve: crate::GradientCurve::Linear,
                 seed: 7,
+                later: Vec::new(),
             });
             d.add(DesignObject::shape(vec![c.clone()], Some(l), None));
         }
         let colours = colour_stretches(&d);
         assert_eq!(colours.len(), stops.len(), "one colour block per colour");
-        let across = colours
-            .iter()
-            .map(|s| longest_exposed_across_rows(s, 2.0, &c, 10.0 / r.density))
+        let across = (0..colours.len())
+            .map(|k| {
+                longest_exposed_across_rows(
+                    &colours[k],
+                    &colours[k + 1..],
+                    2.0,
+                    &c,
+                    10.0 / r.density,
+                )
+            })
             .fold(0.0, f64::max);
         assert!(
             across <= 20.0,
-            "{kind:?} {dither:?}: {:.1} mm of travel showing across the rows",
+            "{kind:?} {dither:?} reversed {reversed}: {:.1} mm of travel showing across the rows",
             across / 10.0
         );
     }
+}
+
+/// #901: the exposure rule hides travel only under a colour sewn after it that alone covers at
+/// least 70 % of the fabric there. A 20 mm line across rows `spacing` apart shows when the
+/// covering colour is sewn before it (not passed as later) or covers only half the rows.
+#[test]
+fn travel_hides_only_under_a_dense_later_colour() {
+    let spacing = 2.2;
+    let square = Contour::rectangle(0.0, 0.0, 400.0, 400.0);
+    // Rows across x = 100..300, every `every`-th row of the full fill.
+    let rows = |every: usize| -> Vec<Vec<Vec2>> {
+        (0..)
+            .map(|i| 100.0 + i as f64 * spacing)
+            .take_while(|&y| y < 300.0)
+            .enumerate()
+            .filter(|(i, _)| i % every == 0)
+            .map(|(_, y)| (0..=20).map(|s| v2(100.0 + s as f64 * 10.0, y)).collect())
+            .collect()
+    };
+    // The travel: a vertical line of 2 mm stitches from y 100 to 300 at x 200.
+    let travel = vec![(0..=10).map(|s| v2(200.0, 100.0 + s as f64 * 20.0)).collect::<Vec<_>>()];
+    let shown = |later: &[Vec<Vec<Vec2>>]| {
+        longest_exposed_across_rows(&travel, later, 2.0, &square, spacing)
+    };
+    assert!(shown(&[rows(1)]) <= 20.0, "under a dense later colour");
+    assert!(shown(&[]) > 150.0, "the covering colour sewn earlier hides nothing");
+    assert!(shown(&[rows(2)]) > 150.0, "a later colour at half cover hides nothing");
 }
 
 /// The sewn stretches of a compiled design (needle points between jumps and trims), grouped by
@@ -4200,10 +4247,11 @@ fn colour_stretches(d: &Design) -> Vec<Vec<Vec<Vec2>>> {
 
 /// Of one colour's `stretches`, the most (0.1 mm, in all) that shows of a straight stretch
 /// (needle points within `tol` of the line between its ends) more than 10° off horizontal rows:
-/// over 1 mm cells where the colour's thread covers under 70 % of what rows `spacing` apart
-/// would, and farther than 6 from `outline`.
+/// over 1 mm cells where neither the colour's thread nor any one colour sewn after it (`later`)
+/// covers 70 % of what rows `spacing` apart would, and farther than 6 from `outline`.
 fn longest_exposed_across_rows(
     stretches: &[Vec<Vec2>],
+    later: &[Vec<Vec<Vec2>>],
     tol: f64,
     outline: &Contour,
     spacing: f64,
@@ -4216,15 +4264,22 @@ fn longest_exposed_across_rows(
     };
     // The colour's thread length per 1 mm cell, against rows `spacing` apart filling it.
     let key = |p: Vec2| ((p.x / 10.0).floor() as i64, (p.y / 10.0).floor() as i64);
-    let mut length = std::collections::HashMap::<(i64, i64), f64>::new();
-    for w in stretches.iter().flat_map(|s| s.windows(2)) {
-        let n = (w[0].distance(w[1]) / 2.0).ceil().max(1.0) as usize;
-        for s in 0..n {
-            let p = w[0].lerp(w[1], (s as f64 + 0.5) / n as f64);
-            *length.entry(key(p)).or_insert(0.0) += w[0].distance(w[1]) / n as f64;
+    let cover_of = |colour: &[Vec<Vec2>]| {
+        let mut length = std::collections::HashMap::<(i64, i64), f64>::new();
+        for w in colour.iter().flat_map(|s| s.windows(2)) {
+            let n = (w[0].distance(w[1]) / 2.0).ceil().max(1.0) as usize;
+            for s in 0..n {
+                let p = w[0].lerp(w[1], (s as f64 + 0.5) / n as f64);
+                *length.entry(key(p)).or_insert(0.0) += w[0].distance(w[1]) / n as f64;
+            }
         }
-    }
+        length
+    };
     let full = 100.0 / spacing;
+    // The colour's own cover and, each on its own, that of the colours sewn after it (#901).
+    let covers: Vec<_> = std::iter::once(cover_of(stretches))
+        .chain(later.iter().map(|l| cover_of(l)))
+        .collect();
     let mut best: f64 = 0.0;
     for points in stretches {
         for i in 0..points.len().saturating_sub(1) {
@@ -4248,8 +4303,12 @@ fn longest_exposed_across_rows(
                 continue;
             }
             // Walk the stretch in 0.2 mm steps, timing the runs that show.
-            let hidden =
-                |p: Vec2| on_outline(p) || length.get(&key(p)).is_some_and(|&l| l >= 0.7 * full);
+            let hidden = |p: Vec2| {
+                on_outline(p)
+                    || covers
+                        .iter()
+                        .any(|m| m.get(&key(p)).is_some_and(|&l| l >= 0.7 * full))
+            };
             let mut shown = 0.0;
             for w in points[i..=j].windows(2) {
                 let n = (w[0].distance(w[1]) / 2.0).ceil().max(1.0) as usize;
@@ -4323,6 +4382,7 @@ fn gradient_colours_share_one_set_of_rows_each_stitch_sewn_once() {
                     dither,
                     curve: crate::GradientCurve::Linear,
                     seed: 1,
+                    later: Vec::new(),
                 };
                 segments(&crate::gradient::layer_pieces(
                     &rows,
