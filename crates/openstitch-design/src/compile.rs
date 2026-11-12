@@ -1231,7 +1231,14 @@ fn elements(
                 out.push(Element {
                     thread: region.thread.clone(),
                     runs,
-                    whole: region.kind == RegionType::Satin,
+                    // An embossed stamp's stitches stay whole too: `stamp` keeps them to
+                    // STAMP_EMBOSS_MAX (14.5 mm, PE-DESIGN 14.3 mm, #471), past `max_stitch`.
+                    whole: region.kind == RegionType::Satin
+                        || (k + 1 == n
+                            && region
+                                .stamps
+                                .iter()
+                                .any(|s| s.effect == crate::stamp::StampEffect::EmbossedRegion)),
                     lock: true,
                     // A letter sewn by stroke: its top layer's runs are its separate pieces.
                     pieces: stroked && k + 1 == n,

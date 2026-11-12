@@ -7,7 +7,7 @@
 //!   shows as a line of needle holes;
 //! - engraved region: stitches inside the effect area are cut into short ones (sunken look);
 //! - embossed region: needle points inside the effect area are dropped, so stitches there are
-//!   long (raised look), up to [`EMBOSS_MAX`].
+//!   long (raised look), up to [`STAMP_EMBOSS_MAX`].
 //!
 //! Lengths are 0.1 mm.
 
@@ -17,10 +17,21 @@ use crate::model::RegionType;
 use crate::shapes;
 use serde::{Deserialize, Serialize};
 
-/// Stitch length inside an engraved region.
+/// Stitch length inside an engraved area of a programmable-fill pattern.
 pub const ENGRAVE_STEP: f64 = 10.0;
-/// Longest stitch inside an embossed region.
+/// Longest stitch inside an embossed area of a programmable-fill pattern.
 pub const EMBOSS_MAX: f64 = 70.0;
+/// Stitch length inside a stamp's engraved region. PE-DESIGN 11.50 cuts a Fill's 4 mm
+/// stitches to 1.9 mm on average there (round-10 capture
+/// `471-engraved-region-circle.pes`, spec `stamp-engraved-region-circle`: 262 needle points per cm²
+/// inside against 128 outside, #471).
+pub const STAMP_ENGRAVE_STEP: f64 = 20.0;
+/// Longest stitch inside a stamp's embossed region. PE-DESIGN 11.50 drops every needle point
+/// inside and leaves the rows crossing a 16.5 × 16 mm circle whole, up to 14.3 mm (round-10
+/// capture `471-embossed-region-circle.pes`: within 6 mm of the centre 13 needle points per cm², the
+/// under sewing's, against 126 without the stamp,
+/// #471); longer crossings are split.
+pub const STAMP_EMBOSS_MAX: f64 = 145.0;
 
 /// Region types that take stamps and embossing.
 pub const STAMP_TYPES: [RegionType; 3] = [
@@ -179,7 +190,8 @@ fn apply_one(runs: Vec<Run>, s: &Stamp) -> Vec<Run> {
                 for (p, inside) in pieces(a, b, &e, area) {
                     match s.effect {
                         StampEffect::EngravedRegion if inside => {
-                            let n = (from.distance(p) / ENGRAVE_STEP).ceil().max(1.0) as usize;
+                            let n =
+                                (from.distance(p) / STAMP_ENGRAVE_STEP).ceil().max(1.0) as usize;
                             out.extend((1..=n).map(|i| from.lerp(p, i as f64 / n as f64)));
                         }
                         _ => {
@@ -199,7 +211,9 @@ fn apply_one(runs: Vec<Run>, s: &Stamp) -> Vec<Run> {
 }
 
 /// Drops needle points with the area on both sides (run ends and outline crossings stay), then
-/// splits stitches longer than [`EMBOSS_MAX`] evenly.
+/// splits stitches longer than [`STAMP_EMBOSS_MAX`]: whole stitches of that length from where the
+/// row enters, the rest last, as PE-DESIGN 11.50 sews them (round-10 capture: across a 16.5 mm
+/// circle its embossed stitches are 12–14.3 mm with a few short ends, none near half the chord).
 fn emboss(run: &[Vec2], inside_before: &[bool]) -> Run {
     let n = run.len();
     let kept: Vec<Vec2> = (0..n)
@@ -210,15 +224,14 @@ fn emboss(run: &[Vec2], inside_before: &[bool]) -> Run {
     for w in kept.windows(2) {
         let (a, b) = (w[0], w[1]);
         let len = a.distance(b);
-        if len > EMBOSS_MAX {
-            // Split points staggered like tatami: the phase steps with the row's offset across
-            // the stitch, so neighbouring rows do not split in line (which would draw stripes
-            // across the raised area). Pieces stay at most EMBOSS_MAX.
-            let k = (len / EMBOSS_MAX).ceil() as usize;
-            let d = (b - a) * (1.0 / len);
-            let across = (-a.x * d.y + a.y * d.x).abs();
-            let phase = 0.25 + 0.5 * (across / 10.0).rem_euclid(1.0);
-            out.extend((0..k).map(|i| a.lerp(b, (i as f64 + phase) / k as f64)));
+        if len > STAMP_EMBOSS_MAX {
+            // Whole stitches of STAMP_EMBOSS_MAX, then the rest; a rest under 1 mm joins the last
+            // whole stitch instead (at most 1 mm longer) so no needle point lands next to the
+            // outline crossing.
+            let k = (len / STAMP_EMBOSS_MAX).floor() as usize;
+            let rest = len - k as f64 * STAMP_EMBOSS_MAX;
+            let last = if rest < 10.0 { k - 1 } else { k };
+            out.extend((1..=last).map(|i| a.lerp(b, i as f64 * STAMP_EMBOSS_MAX / len)));
         }
         out.push(b);
     }
@@ -276,41 +289,32 @@ mod tests {
             for w in run.windows(2) {
                 let mid = w[0].lerp(w[1], 0.5);
                 if inside(&mid) {
-                    assert!(w[0].distance(w[1]) <= ENGRAVE_STEP + 1e-9);
+                    assert!(w[0].distance(w[1]) <= STAMP_ENGRAVE_STEP + 1e-9);
                 } else {
                     assert!(w[0].distance(w[1]) <= 40.0 + 1e-9);
                 }
             }
-            assert!(run.len() > 25);
+            // 19 mm inside in 2 mm stitches: 10 where the plain row has 5.
+            assert!(run.len() > 15, "{}", run.len());
         }
     }
 
     #[test]
     fn embossed_region_drops_inside_points() {
         let out = apply(rows(), &[square_stamp(StampEffect::EmbossedRegion)]);
-        // Rows split at different places.
-        let splits: Vec<f64> = out
-            .iter()
-            .map(|r| {
-                r.iter()
-                    .find(|p| p.x > 105.0 && p.x < 295.0)
-                    .expect("split")
-                    .x
-            })
-            .collect();
-        assert!(
-            splits[0] != splits[1] || splits[1] != splits[2],
-            "{splits:?}"
-        );
         for run in &out {
             assert!(
                 run.windows(2)
-                    .all(|w| w[0].distance(w[1]) <= EMBOSS_MAX + 1e-9)
+                    .all(|w| w[0].distance(w[1]) <= STAMP_EMBOSS_MAX + 10.0 + 1e-9)
             );
-            // The 19 mm inside is one long stitch split in staggered pieces: fewer needle points
-            // than the plain row's five.
-            let inner = run.iter().filter(|p| inside(p)).count();
-            assert!(inner < 5, "{inner}");
+            // The 19 mm inside is one whole 14.5 mm stitch from where the row enters and the
+            // 4.5 mm rest, as PE-DESIGN sews it: one needle point where the plain row has five.
+            let inner: Vec<f64> = run.iter().filter(|p| inside(p)).map(|p| p.x).collect();
+            assert_eq!(inner.len(), 1, "{inner:?}");
+            assert!(
+                (inner[0] - (105.0 + STAMP_EMBOSS_MAX)).abs() < 1e-9,
+                "{inner:?}"
+            );
             assert!(run.contains(&v2(105.0, run[0].y)) && run.contains(&v2(295.0, run[0].y)));
             assert_eq!(run.first(), Some(&v2(0.0, run[0].y)));
             assert_eq!(run.last(), Some(&v2(400.0, run[0].y)));

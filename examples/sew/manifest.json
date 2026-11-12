@@ -852,17 +852,17 @@
    86.0,
    86.0
   ],
-  "stitches": 10733,
+  "stitches": 10112,
   "trims": 5,
   "threads": [
    "405 Blue",
    "205 Yellow",
    "800 Red"
   ],
-  "sewingMinutes": 13.7,
+  "sewingMinutes": 12.9,
   "image": null,
   "preview": "previews/holes-and-emboss.png",
-  "sha256": "29750cdc01762113456d9fdc6e59a7975a7b8425a6008617b77252793aefe2dc"
+  "sha256": "87ccb6abf4c8e25686d47cd0b616c146aba6e00f08e097a08af6b0489e9b47eb"
  },
  "fills/wave-fill.pes": {
   "title": "Wave fill (beyond PE-DESIGN)",
