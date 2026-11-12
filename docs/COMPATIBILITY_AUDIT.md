@@ -3773,6 +3773,35 @@ Beyond PE-DESIGN's own routing; no stitch output changes.
   cutting lines' segments, which the cutting needle can't travel between. They stay;
   `autoStart: nearest` already removes 11 of the others.
 
+### Programmable fill along a direction curve tiles the curve's own frame, 2026-11-12 (#923)
+
+No PE-DESIGN reference covers a direction curve. Programmable fill along a curve used the chord
+warp: in the curve's chord frame, (x, y) → (x, y − f(x)), its rows and tiles straightened and
+bent back. The map is one-to-one, so it added no crossings. But it shifted the tiles sideways
+across the chord, so they didn't follow the curve. Now the rows are the curve's offsets, as fill
+and piping along a curve have been since #651 (`direction::guided_lines`). The pattern is tiled
+in the curve's own frame, along it and across it (`direction::Guide::frame`), from the reference
+point (else the region's top-left corner). Each row is a straight line in that frame, so its
+needle points are where it crosses the tiled pattern (`regions::tile_crossings`, unchanged),
+carried back onto the curved row. Long gaps are split along the row, often enough to stay
+within a third of a row spacing of it. Patterns with embossed or engraved areas, and regions
+with stamps, keep the chord warp.
+
+On a 40 × 38 mm square with `examples/sewing-direction.json`'s S curve (programmable fill
+defaults):
+
+| | stitches | crossings | thread per 1 mm cell, p10 / median | R |
+|---|---|---|---|---|
+| straight (no curve) | 1,326 | 2,210 | 2.34 / 2.92 | – |
+| S curve, chord warp | 1,470 | 2,228 | 2.52 / 3.12 | 0.07 |
+| S curve, curve frame | 1,799 | **2,094** | 2.38 / 2.94 | **0.79** |
+
+R measures how tightly the needle points' distances to the curve cluster at the row spacing
+(1 = every point on an offset row). The crossings are the pattern's own: the straight pattern
+has 2,210. Along a U-shaped curve, the inside of the U stays unsewn, as plain fill along it
+does too (#927). Motif fill keeps the chord warp. Test:
+`programmable_fill_along_a_curve_keeps_to_the_curves_offsets`.
+
 ### Travel walks the outline where the way inside runs round a tip, 2026-11-09 (#471)
 
 Region travel between separate parts (`region::reroute_with`, Running Stitch Path Inside) takes

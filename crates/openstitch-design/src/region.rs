@@ -226,6 +226,25 @@ fn layers_inner(
                 SATIN_TRAVEL_PITCH,
             );
         }
+        // Programmable fill: the same offset rows, the pattern tiled in the curve's own frame
+        // (#923), so its tiles follow the curve instead of shifting across the chord. The
+        // grid starts at the reference point, else the region's top-left corner, as on a
+        // straight programmable fill.
+        if r.kind == RegionType::ProgrammableFill
+            && let Some(origin) = r.reference.or_else(|| {
+                Rect::enclosing(closed.iter().flat_map(|c| c.outline_points()))
+                    .map(|b| v2(b.min_x, b.min_y))
+            })
+            && let Some(pieces) =
+                crate::regions::programmable_guided(closed, holes, r, user, curve, origin)
+            && let Some(top) = out.last_mut()
+        {
+            *top = join(
+                pieces.into_iter().filter(|p| p.len() >= 2).collect(),
+                Some(&mut TravelGraph::new(closed, holes)),
+                SATIN_TRAVEL_PITCH,
+            );
+        }
         return out;
     }
     // Tartan fill (#539, beyond PE-DESIGN): this colour's warp rows, then its weft rows, each

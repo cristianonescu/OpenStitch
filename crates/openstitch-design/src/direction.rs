@@ -246,6 +246,77 @@ pub fn guided_rows(
     if !(spacing > 0.0 && stitch > 0.0) {
         return None;
     }
+    let (lines, _) = guided_lines(closed, holes, curve, spacing)?;
+    let rows: Vec<Vec<Vec<Vec2>>> = lines
+        .into_iter()
+        .enumerate()
+        .map(|(row, (_, pieces))| {
+            pieces
+                .into_iter()
+                .map(|piece| {
+                    needle_points(
+                        &piece,
+                        stitch,
+                        (row as f64 * shift).rem_euclid(1.0),
+                        spacing / 3.0,
+                    )
+                })
+                .filter(|r| r.len() >= 2)
+                .collect()
+        })
+        .collect();
+    let chord = curve.path();
+    let (a, z) = (chord[0], chord[chord.len() - 1]);
+    let angle = (z.y - a.y).datan2(z.x - a.x).to_degrees();
+    Some(crate::regions::order_rows(rows, angle))
+}
+
+/// A guide carried straight on past its ends, as dense samples with their normals, and each
+/// sample's arc length along it: the frame (along, across) the guided rows and tiles use.
+pub struct Guide {
+    samples: Vec<(Vec2, Vec2)>,
+    along: Vec<f64>,
+}
+
+impl Guide {
+    /// `p` in the guide's frame: (arc length along the guide to `p`'s nearest point, signed
+    /// distance from the guide, positive on the normals' side).
+    pub fn frame(&self, p: Vec2) -> (f64, f64) {
+        let mut best = (f64::INFINITY, 0.0, 0.0);
+        for (i, w) in self.samples.windows(2).enumerate() {
+            let (a, b) = (w[0].0, w[1].0);
+            let ab = b - a;
+            let len2 = ab.x * ab.x + ab.y * ab.y;
+            let t = if len2 > 0.0 {
+                (((p - a).x * ab.x + (p - a).y * ab.y) / len2).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            let q = a + ab * t;
+            let d = p.distance(q);
+            if d < best.0 {
+                let side = ab.y * (p - a).x - ab.x * (p - a).y;
+                let s = self.along[i] + (self.along[i + 1] - self.along[i]) * t;
+                best = (d, s, if side >= 0.0 { d } else { -d });
+            }
+        }
+        (best.1, best.2)
+    }
+}
+
+/// The rows of [`guided_rows`] before their needle points: for each row (the guide offset by a
+/// whole number of `spacing`), its distance from the guide and its pieces inside the region,
+/// as polylines; and the guide. `None` when the curve is too short to guide.
+#[allow(clippy::type_complexity)]
+pub fn guided_lines(
+    closed: &[Contour],
+    holes: &[Contour],
+    curve: &Contour,
+    spacing: f64,
+) -> Option<(Vec<(f64, Vec<Vec<Vec2>>)>, Guide)> {
+    if spacing <= 0.0 {
+        return None;
+    }
     let pts: Vec<Vec2> = closed.iter().flat_map(Contour::outline_points).collect();
     let b = crate::geometry::Rect::enclosing(pts.iter().copied())?;
     let reach = b.width().dhypot(b.height())
@@ -266,8 +337,8 @@ pub fn guided_rows(
         return None;
     }
     let tol = 0.05 * spacing + 1e-6;
-    let mut rows: Vec<Vec<Vec<Vec2>>> = Vec::new();
-    for (row, k) in (k0..=k1).enumerate() {
+    let mut rows: Vec<(f64, Vec<Vec<Vec2>>)> = Vec::new();
+    for k in k0..=k1 {
         let d = k as f64 * spacing;
         // The guide's samples carried d along their normals; where that lands nearer the guide
         // than d (inside a bend), the row cuts straight across to where it comes out again.
@@ -277,24 +348,19 @@ pub fn guided_rows(
             .map(|&q| d == 0.0 || signed_distance(&guide, q).abs() >= d.abs() - tol)
             .collect();
         let line = untangled(without_loops(&raw, &keep));
-        let pieces = crate::paths::clip(&line, closed, holes)
-            .into_iter()
-            .map(|piece| {
-                needle_points(
-                    &piece,
-                    stitch,
-                    (row as f64 * shift).rem_euclid(1.0),
-                    spacing / 3.0,
-                )
-            })
-            .filter(|r| r.len() >= 2)
-            .collect();
-        rows.push(pieces);
+        rows.push((d, crate::paths::clip(&line, closed, holes)));
     }
-    let chord = curve.path();
-    let (a, z) = (chord[0], chord[chord.len() - 1]);
-    let angle = (z.y - a.y).datan2(z.x - a.x).to_degrees();
-    Some(crate::regions::order_rows(rows, angle))
+    let mut along = vec![0.0];
+    for w in guide.windows(2) {
+        along.push(along[along.len() - 1] + w[0].0.distance(w[1].0));
+    }
+    Some((
+        rows,
+        Guide {
+            samples: guide,
+            along,
+        },
+    ))
 }
 
 /// Samples on each side of a stretch nearer the guide than its row in which [`without_loops`]
@@ -307,6 +373,7 @@ const LOOP_MARGIN: usize = 40;
 /// the row's corner. A stretch with no crossing found is left out with its ends joined.
 fn without_loops(raw: &[Vec2], keep: &[bool]) -> Vec<Vec2> {
     let n = raw.len();
+    let margin = LOOP_MARGIN;
     // Stretches of left-out samples; those a few samples apart are one loop (its arms hover
     // within the tolerance of the row near the crossing).
     let mut stretches: Vec<(usize, usize)> = Vec::new();
@@ -321,21 +388,18 @@ fn without_loops(raw: &[Vec2], keep: &[bool]) -> Vec<Vec2> {
             i += 1;
         }
         match stretches.last_mut() {
-            Some(last) if first - last.1 <= LOOP_MARGIN => last.1 = i,
+            Some(last) if first - last.1 <= margin => last.1 = i,
             _ => stretches.push((first, i)),
         }
     }
     let mut cuts: Vec<(usize, usize, Vec2)> = Vec::new();
     for (first, i) in stretches {
-        let (lo, hi) = (
-            first.saturating_sub(LOOP_MARGIN),
-            (i + LOOP_MARGIN).min(n - 1),
-        );
+        let (lo, hi) = (first.saturating_sub(margin), (i + margin).min(n - 1));
         // The widest crossing: a segment near the stretch's start with one near its end (the
         // cusps inside the loop cross themselves too, in small loops of their own).
         let mut found: Option<(usize, usize, Vec2)> = None;
-        for a in lo..(first + LOOP_MARGIN).min(hi) {
-            for b in ((a + 2).max(i.saturating_sub(LOOP_MARGIN))..hi).rev() {
+        for a in lo..(first + margin).min(hi) {
+            for b in ((a + 2).max(i.saturating_sub(margin))..hi).rev() {
                 if found.is_some_and(|(fa, fb, _)| b - a <= fb - fa) {
                     break;
                 }
