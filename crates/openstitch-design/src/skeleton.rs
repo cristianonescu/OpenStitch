@@ -2601,11 +2601,25 @@ mod letter_tests {
             ("R", 0.94, 0.96),
             ("A", 0.97, 0.98),
             ("y", 0.97, 0.98),
+            // N, M and W cut at their notches, one column per stroke (#526): 0.98-0.99 from
+            // one fanning column's 0.85-0.96.
+            ("N", 0.97, 0.97),
+            ("M", 0.97, 0.97),
+            ("W", 0.97, 0.97),
         ];
         for (ch, small, large) in floors {
             for (size, floor) in [(10.0, small), (25.0, large)] {
                 let c = letter(ch, size);
-                let share = sewn(&c, &branches(&c, 0.3));
+                let columns = branches(&c, 0.3);
+                let strokes = match ch {
+                    "N" => Some(3),
+                    "M" | "W" => Some(4),
+                    _ => None,
+                };
+                if let Some(n) = strokes {
+                    assert_eq!(columns.len(), n, "{ch} at {size} mm");
+                }
+                let share = sewn(&c, &columns);
                 assert!(
                     share >= floor,
                     "{ch} at {size} mm sews {share:.3}, under {floor}"
@@ -2651,9 +2665,9 @@ mod letter_tests {
 
     #[test]
     fn letters_without_a_bent_junction_split_as_before() {
-        // X keeps its two crossing strokes, N its one stroke.
+        // X keeps its two crossing strokes; N, cut at its two notches since #526, its three.
         assert_eq!(branches(&letter("X", 25.0), 0.3).len(), 3);
-        assert_eq!(branches(&letter("N", 25.0), 0.3).len(), 1);
+        assert_eq!(branches(&letter("N", 25.0), 0.3).len(), 3);
     }
 
     #[test]
