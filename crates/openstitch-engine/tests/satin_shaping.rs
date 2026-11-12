@@ -753,9 +753,13 @@ fn branch_columns_on_the_outline_are_sewn_to_it_and_into_its_corners() {
             })
             .fold(f64::INFINITY, f64::min)
     };
+    // Design units (0.1 mm): a needle point on the outline may lie this far outside it, and a
+    // sharp corner's nearest needle point this far from the corner.
+    const ON_EDGE_UNITS: f64 = 0.5;
+    const CORNER_REACH_UNITS: f64 = 2.0;
     for &p in &points {
         assert!(
-            openstitch_design::geometry::contains(p, &shape) || to_edge(p) <= 0.5,
+            openstitch_design::geometry::contains(p, &shape) || to_edge(p) <= ON_EDGE_UNITS,
             "{p:?} is sewn outside the K"
         );
     }
@@ -781,7 +785,10 @@ fn branch_columns_on_the_outline_are_sewn_to_it_and_into_its_corners() {
                 .iter()
                 .map(|p| p.distance(b))
                 .fold(f64::INFINITY, f64::min);
-            assert!(near <= 2.0, "corner {b:?}: nearest needle point {near:.2}");
+            assert!(
+                near <= CORNER_REACH_UNITS,
+                "corner {b:?}: nearest needle point {near:.2}"
+            );
         }
     }
     // Undo and redo keep the flags; so does a save and a reload.
@@ -884,6 +891,289 @@ fn every_branch_column_is_sewn_out_to_the_shapes_edges() {
 /// reached: 0.965 measured (2026-11-12); a needle point within 0.3 mm, so an edge point between
 /// two of the satin's needle points on that side may count as not reached though it is sewn.
 const REACHED: f64 = 0.95;
+
+#[test]
+fn a_crossbar_joined_at_both_ends_is_one_column_of_its_own() {
+    // #526: A at 25 mm. Its crossbar touches both legs and has no free end: it is one column
+    // from leg to leg (`outlineEnds` [false, false], both ends at junctions), not an arm from
+    // its middle into one leg that left the other half unsewn. The bar's whole length is
+    // sewn: needle points across it all the way from leg to leg.
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "text.add",
+        json!({"text": "A", "size": 25, "x": 50, "y": 70, "fill": "Red"}),
+    );
+    let r = run(&mut s, "text.toShapes", json!({"id": 1}));
+    let shape_id = r["ids"][0].as_u64().expect("shape");
+    let r = run(
+        &mut s,
+        "object.deriveSkeleton",
+        json!({"id": shape_id, "branches": true}),
+    );
+    let ids: Vec<u64> = r["ids"]
+        .as_array()
+        .expect("ids")
+        .iter()
+        .filter_map(Value::as_u64)
+        .collect();
+    assert_eq!(ids.len(), 3, "two legs and the bar: {r}");
+    let bars: Vec<Value> = ids
+        .iter()
+        .map(|id| run(&mut s, "object.get", json!({"id": id})))
+        .filter(|o| o["region"]["outlineEnds"] == json!([false, false]))
+        .collect();
+    assert_eq!(bars.len(), 1, "one column joined at both ends");
+    // The bar runs across the letter: its skeleton spans most of the gap between the legs.
+    let pts = bars[0]["region"]["skeleton"]["points"]
+        .as_array()
+        .expect("points");
+    let xs: Vec<f64> = pts.iter().filter_map(|p| p["x"].as_f64()).collect();
+    let span = xs.iter().copied().fold(f64::NEG_INFINITY, f64::max)
+        - xs.iter().copied().fold(f64::INFINITY, f64::min);
+    assert!(span > 40.0, "the bar's column spans {span:.0} (0.1 mm)");
+}
+
+#[test]
+fn a_at_10_mm_meets_the_boxes_of_526_on_its_stitches() {
+    // #526's boxes on A at 10 mm, measured on the compiled stitches as tools/branch_columns.py
+    // measures them (rule B'): this backs the lowered inner-cell floor for A at 10 mm in
+    // skeleton.rs (0.89), which counts skeleton cells, not stitches. Distances are design
+    // units of 0.1 mm.
+    const COVERAGE: f64 = 0.96; // share of the letter inside the satin's triangles
+    const GAP_UNITS: f64 = 3.0; // 0.3 mm: longest stretch of outline left unsewn
+    const NEAR_UNITS: f64 = 1.5; // 0.15 mm: an outline point this near the satin is sewn
+    const CORNER_UNITS: f64 = 2.0; // 0.2 mm: a sharp corner's nearest needle point
+    const JOIN_UNITS: f64 = 2.9; // 0.3 mm joinOverlap, within the 0.01 mm the grid rounds to
+    use openstitch_design::{Vec2, geometry::contains, v2};
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "text.add",
+        json!({"text": "A", "size": 10, "x": 50, "y": 70, "fill": "Red"}),
+    );
+    let r = run(&mut s, "text.toShapes", json!({"id": 1}));
+    let shape_id = r["ids"][0].as_u64().expect("shape");
+    let shape = s
+        .design()
+        .objects
+        .iter()
+        .find(|o| o.id == shape_id)
+        .expect("shape")
+        .contours
+        .clone();
+    let r = run(
+        &mut s,
+        "object.deriveSkeleton",
+        json!({"id": shape_id, "branches": true, "joinOverlap": 0.3}),
+    );
+    let ids: Vec<u64> = r["ids"]
+        .as_array()
+        .expect("ids")
+        .iter()
+        .filter_map(Value::as_u64)
+        .collect();
+    assert_eq!(ids.len(), 3, "two legs and the bar: {r}");
+    let pattern = Compiler::default().compile(s.design());
+    let st = &pattern.stitches;
+    // The satin's triangles: each needle point with the two before it, within one run, the
+    // stitches up to 15 mm (longer ones are travel), tie-ins and locks left out (out-and-back
+    // steps back to the same point, at most 2 mm, at a run's start or end).
+    let is_stitch = |k: usize| st[k].command == Command::Stitch;
+    let p = |k: usize| v2(st[k].x, st[k].y);
+    let n = st.len();
+    let mut pos = vec![0usize; n];
+    let mut left = vec![0usize; n];
+    for k in 0..n {
+        pos[k] = if is_stitch(k) {
+            if k > 0 { pos[k - 1] + 1 } else { 1 }
+        } else {
+            0
+        };
+    }
+    for k in (0..n).rev() {
+        left[k] = if is_stitch(k) {
+            if k + 1 < n { left[k + 1] + 1 } else { 1 }
+        } else {
+            0
+        };
+    }
+    let mut tie = vec![false; n];
+    for k in 2..n {
+        let edge = pos[k] <= 8 || left[k] <= 8;
+        if edge
+            && is_stitch(k)
+            && is_stitch(k - 1)
+            && is_stitch(k - 2)
+            && p(k).distance(p(k - 2)) < 0.5
+            && p(k).distance(p(k - 1)) <= 20.0
+        {
+            tie[k] = true;
+            tie[k - 1] = true;
+        }
+    }
+    let triangles: Vec<[Vec2; 3]> = (2..n)
+        .filter(|&k| {
+            is_stitch(k)
+                && is_stitch(k - 1)
+                && is_stitch(k - 2)
+                && !(tie[k] || tie[k - 1] || tie[k - 2])
+                && p(k).distance(p(k - 1)) <= 150.0
+                && p(k - 1).distance(p(k - 2)) <= 150.0
+        })
+        .map(|k| [p(k - 2), p(k - 1), p(k)])
+        .collect();
+    let in_triangle = |q: Vec2, t: &[Vec2; 3]| {
+        let side = |a: Vec2, b: Vec2| (b.x - a.x) * (q.y - a.y) - (b.y - a.y) * (q.x - a.x);
+        let (d1, d2, d3) = (side(t[0], t[1]), side(t[1], t[2]), side(t[2], t[0]));
+        !((d1 < 0.0 || d2 < 0.0 || d3 < 0.0) && (d1 > 0.0 || d2 > 0.0 || d3 > 0.0))
+    };
+    let segment = |q: Vec2, a: Vec2, b: Vec2| {
+        let d = b - a;
+        let len2 = d.x * d.x + d.y * d.y;
+        let t = if len2 > 0.0 {
+            (((q.x - a.x) * d.x + (q.y - a.y) * d.y) / len2).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        q.distance(a + d * t)
+    };
+    let sewn_near = |q: Vec2| {
+        triangles.iter().any(|t| {
+            in_triangle(q, t)
+                || segment(q, t[0], t[1]) <= NEAR_UNITS
+                || segment(q, t[1], t[2]) <= NEAR_UNITS
+                || segment(q, t[2], t[0]) <= NEAR_UNITS
+        })
+    };
+    // Coverage: the share of the letter's inside, on a 0.1 mm grid, inside a triangle.
+    let pts: Vec<Vec2> = shape.iter().flat_map(|c| c.outline_points()).collect();
+    let (x0, x1) = pts
+        .iter()
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), q| {
+            (a.min(q.x), b.max(q.x))
+        });
+    let (y0, y1) = pts
+        .iter()
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), q| {
+            (a.min(q.y), b.max(q.y))
+        });
+    let (mut inside, mut covered) = (0usize, 0usize);
+    let mut y = y0 + 0.5;
+    while y < y1 {
+        let mut x = x0 + 0.5;
+        while x < x1 {
+            let q = v2(x, y);
+            if contains(q, &shape) {
+                inside += 1;
+                if triangles.iter().any(|t| in_triangle(q, t)) {
+                    covered += 1;
+                }
+            }
+            x += 1.0;
+        }
+        y += 1.0;
+    }
+    let coverage = covered as f64 / inside as f64;
+    assert!(coverage >= COVERAGE, "coverage {coverage:.3}");
+    // Gap: the longest stretch of outline farther than 0.15 mm from the satin.
+    for c in &shape {
+        let o = c.outline_points();
+        let mut samples = Vec::new();
+        for k in 0..o.len() {
+            let (a, b) = (o[k], o[(k + 1) % o.len()]);
+            let m = (a.distance(b) / 0.5).ceil().max(1.0) as usize;
+            for t in 0..m {
+                samples.push((a.lerp(b, t as f64 / m as f64), a.distance(b) / m as f64));
+            }
+        }
+        let (mut run_len, mut longest) = (0.0, 0.0f64);
+        for _ in 0..2 {
+            for &(q, step) in &samples {
+                run_len = if sewn_near(q) { 0.0 } else { run_len + step };
+                longest = longest.max(run_len);
+            }
+        }
+        assert!(
+            longest <= GAP_UNITS,
+            "an unsewn stretch of {longest:.1} (0.1 mm)"
+        );
+    }
+    // Corners: every sharp convex corner has a needle point within 0.2 mm.
+    let needles: Vec<Vec2> = (0..n).filter(|&k| is_stitch(k)).map(p).collect();
+    for c in &shape {
+        let o = c.outline_points();
+        let m = o.len();
+        for k in 0..m {
+            let (a, b, e) = (o[(k + m - 1) % m], o[k], o[(k + 1) % m]);
+            let (u, v) = (b - a, e - b);
+            if u.length() < 2.0 || v.length() < 2.0 {
+                continue;
+            }
+            let turn = (u.x * v.y - u.y * v.x)
+                .atan2(u.x * v.x + u.y * v.y)
+                .abs()
+                .to_degrees();
+            if turn < 60.0 || !contains(b + (u * -0.05 + v * 0.05), &shape) {
+                continue;
+            }
+            let near = needles
+                .iter()
+                .map(|q| q.distance(b))
+                .fold(f64::INFINITY, f64::min);
+            assert!(near <= CORNER_UNITS, "corner {b:?}: {near:.2}");
+        }
+    }
+    // Joins: every column end that isn't on the outline lies at least 0.3 mm inside another
+    // column's satin.
+    let skeletons: Vec<(Vec<Vec2>, Vec<f64>)> = ids
+        .iter()
+        .map(|id| {
+            let o = run(&mut s, "object.get", json!({"id": id}));
+            let sk = &o["region"]["skeleton"];
+            let points = sk["points"]
+                .as_array()
+                .expect("points")
+                .iter()
+                .map(|q| v2(q["x"].as_f64().expect("x"), q["y"].as_f64().expect("y")))
+                .collect();
+            let widths = sk["widths"]
+                .as_array()
+                .expect("widths")
+                .iter()
+                .filter_map(Value::as_f64)
+                .collect();
+            (points, widths)
+        })
+        .collect();
+    let edges: Vec<(Vec2, Vec2)> = shape.iter().flat_map(|c| c.edges()).collect();
+    for (i, (sp, _)) in skeletons.iter().enumerate() {
+        for end in [sp[0], sp[sp.len() - 1]] {
+            if edges.iter().any(|&(a, b)| segment(end, a, b) < 5.0) {
+                continue;
+            }
+            let depth = skeletons
+                .iter()
+                .enumerate()
+                .filter(|&(j, _)| j != i)
+                .flat_map(|(_, (op, ow))| {
+                    op.windows(2).zip(ow.windows(2)).map(move |(w, ws)| {
+                        let d = w[1] - w[0];
+                        let len2 = d.x * d.x + d.y * d.y;
+                        let t = if len2 > 0.0 {
+                            (((end.x - w[0].x) * d.x + (end.y - w[0].y) * d.y) / len2)
+                                .clamp(0.0, 1.0)
+                        } else {
+                            0.0
+                        };
+                        5.0 * (ws[0] + (ws[1] - ws[0]) * t) - end.distance(w[0] + d * t)
+                    })
+                })
+                .fold(f64::NEG_INFINITY, f64::max);
+            assert!(depth >= JOIN_UNITS, "a join only {depth:.2} (0.1 mm) deep");
+        }
+    }
+}
 
 #[test]
 fn pes_0110_refuses_a_satin_line_and_the_machine_formats_sew_it() {

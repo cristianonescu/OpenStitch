@@ -268,7 +268,7 @@ pub fn guided_rows(
     let chord = curve.path();
     let (a, z) = (chord[0], chord[chord.len() - 1]);
     let angle = (z.y - a.y).datan2(z.x - a.x).to_degrees();
-    Some(crate::regions::order_rows(rows, angle))
+    Some(crate::regions::order_guided_rows(rows, angle))
 }
 
 /// A guide carried straight on past its ends, as dense samples with their normals, and each

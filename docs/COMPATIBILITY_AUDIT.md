@@ -3562,6 +3562,28 @@ Still open on #446:
 - A's feet and V's top ends fan.
 - N's corner block.
 
+### No visible connectors in blends and tartan; #914's figures corrected, 2026-11-12 (#901)
+
+#914 measured the longest exposed travel only on stretches of two or more stitches. The design
+compiler also sews a single straight stitch across a gap of up to 4 mm between one object's
+runs (its connect distance), and in a blend those stitches crossed the other colours: with
+single stitches counted, main shows 3.2 mm across the rows on the radial noise blend of
+`blend_travel_never_runs_far_across_the_rows` (now counting them; it fails on main and passes
+here); #914's 1.9 mm for the kit swatch left those stitches out. The owner chose no visible connectors:
+a blend or tartan colour's runs are its separate pieces, so the compiler trims between them
+instead of sewing that stitch, and `join_within` first chains the runs end to end wherever a
+hidden way (at most 2 mm showing) links one run's end to another's (shortest links first, each
+run entered and left once, no loops).
+
+| kit swatch | trims | stitches | sewing |
+|---|---|---|---|
+| `fills/gradients` (three small dithered blends) | 58 → 162 | 9,054 → 9,685 | 14.3 → 20.4 min |
+| `fills/tartan` | 6 (unchanged) | 3,514 | 4.7 min |
+
+A dithered blend breaks each colour into many small pieces, hence the trims; `rows` and `bands`
+trim far less. Fewer trims with the same look needs a dither that keeps a colour's pieces
+connected (#951, Future).
+
 ### Blend travel hidden before trimming, and tartan too, 2026-11-12 (#901)
 
 Beyond PE-DESIGN, so there is no reference. #891 kept each blend colour's travel to 2 mm, but at
@@ -3856,6 +3878,22 @@ has 2,210. Along a U-shaped curve the inside of the U was left unsewn, by plain 
 too; the rows there are sewn since #927 (below). Motif fill keeps the chord warp. Test:
 `programmable_fill_along_a_curve_keeps_to_the_curves_offsets`.
 
+Re-measured 2026-11-12 with the U-shaped (C) curve of #927 added. All three rows come from one
+script, through `stitchtool exec` with programmable fill's defaults (2.5 rows/mm), with #927's
+and #947's row fixes in. The figures differ a little from the table above, which was measured
+another way:
+- coverage here counts cells 1 mm in from the square's edges;
+- R here is taken against the curve sampled and carried straight on past its ends.
+
+| | stitches | crossings | thread per 1 mm cell, p10 / median | R |
+|---|---|---|---|---|
+| straight (no curve) | 1,330 | 2,188 | 2.38 / 2.98 | – |
+| S curve | 1,837 | 2,040 | 2.45 / 3.04 | 0.69 |
+| C (U) curve | 1,944 | **1,435** | 2.37 / 3.27 | **0.68** |
+
+Along the C, R is well above #923's 0.4, and the crossings stay below the straight pattern's
+(#923's targets).
+
 ### Rows inside a U-shaped direction curve, 2026-11-12 (#927)
 
 A fill along a direction curve that bulges deep into its shape (a 40 × 38 mm square with a curve
@@ -3880,8 +3918,16 @@ against the same fill without the curve:
 Inside the U the rows close into corners on its middle. The S curve's rows on #923's square
 are unchanged (the same rows and needle points at 2.5 and 2.22 mm spacing): its farthest points
 are corners. A box under an arch had the same hole along its bottom edge, whose middle lies
-farther from the arch than its corners: 91 rows made there before, 161 now. The travel between
-the rows inside the U still crosses rows already sewn (#947). Test:
+farther from the arch than its corners: 91 rows made there before, 161 now.
+
+The rows below the U split round the square's bottom corners and merge further up. The sweep
+through the rows climbed past the merge and reached the strip right of the U's arm only at the
+end, by travel over every row sewn since: 153 pairs of stitches crossed in the top layer, all of
+them travel against a row. Rows along a direction curve now sew such a split-off lobe first,
+from its far end back to the merge (`regions::order_guided_rows`, #947; straight fills keep
+`order_rows`). Top-layer crossings: 153 → **0** along the U (2,923 → 2,908 stitches). On
+#923's S-curve square, the final travel along the outline's top edge goes too: 194 → **0**
+crossings (2,642 → 2,616 stitches); its rows are the same, sewn in a different order. Test:
 `fill_along_a_u_shaped_curve_covers_the_inside_of_the_u`.
 
 ### Travel walks the outline where the way inside runs round a tip, 2026-11-09 (#471)
