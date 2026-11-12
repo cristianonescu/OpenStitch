@@ -2087,6 +2087,12 @@ pub struct RegionSewing {
     /// the line (variable-direction satin). Takes precedence over the other direction options.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skeleton: Option<crate::skeleton::Skeleton>,
+    /// A column from `object.deriveSkeleton` with `branches` (#526, beyond PE-DESIGN): which
+    /// ends of `skeleton` (first, last) lie on the shape's outline. Such a column is sewn within
+    /// its outline (the part of the shape it covers), and past such an end its crossings run on,
+    /// square to the column and cut by the outline, into the end edge's corners. Off elsewhere.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub outline_ends: [bool; 2],
     /// Satin corner styles, short stitches and compensation per side (#520-#522, beyond
     /// PE-DESIGN): Manual Punch satin columns. Off by default.
     #[serde(default, skip_serializing_if = "is_default")]
@@ -2245,6 +2251,7 @@ impl RegionSewing {
             direction_lines: Vec::new(),
             curved_lines: false,
             skeleton: None,
+            outline_ends: [false; 2],
             satin_shaping: Default::default(),
             underlay_auto: Default::default(),
             underlay2: None,
