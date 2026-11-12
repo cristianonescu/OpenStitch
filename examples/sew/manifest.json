@@ -1388,7 +1388,7 @@
    90.0,
    50.2
   ],
-  "stitches": 9796,
+  "stitches": 9838,
   "trims": 27,
   "threads": [
    "001 White",
@@ -1402,10 +1402,10 @@
    "707 Dark Gray",
    "900 Black"
   ],
-  "sewingMinutes": 13.6,
+  "sewingMinutes": 13.7,
   "image": "../images/p06-sunset.jpg",
   "preview": "previews/S-photo1-sunset-pe-compatible.png",
-  "sha256": "25b0345558dbb6eff11f7dac66f78e9bb31ba815524d74fd47d83a90dc0751ee"
+  "sha256": "a6886a8f6c76402cf37228467602c7575074220c521dd282f934811eaff8bd7f"
  },
  "image-tools/M-photo1-portrait-openstitch.pes": {
   "title": "Photo Stitch 1, OpenStitch mode",
@@ -1443,8 +1443,8 @@
    94.1,
    139.8
   ],
-  "stitches": 26563,
-  "trims": 38,
+  "stitches": 26614,
+  "trims": 57,
   "threads": [
    "001 White",
    "348 Khaki",
@@ -1454,10 +1454,10 @@
    "707 Dark Gray",
    "519 Olive Green"
   ],
-  "sewingMinutes": 35.2,
+  "sewingMinutes": 36.2,
   "image": "../images/p01-portrait.jpg",
   "preview": "previews/M-photo1-portrait-pe-compatible.png",
-  "sha256": "25fdd5984644bf0f25003e7466e82a21ab8664dba1f07017965801dc0d3d3cf5"
+  "sha256": "c2b28ab7c5a85331056746034d26088f5d1369bb19119fe66b5955f4fa4eb017"
  },
  "image-tools/M-photo2-poppies-openstitch.pes": {
   "title": "Photo Stitch 2, OpenStitch mode",
