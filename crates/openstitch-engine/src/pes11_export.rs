@@ -686,7 +686,9 @@ fn region(id: u64, r: &RegionSewing, s: &mut Shape, table: &mut Vec<Thread>) -> 
         s.cross_passes = 2 * r.cross_times().count() as u16;
     }
     s.running_path = match r.running_stitch_path {
-        None | Some(RunningStitchPath::Inside) => 0,
+        // Hidden-under-later-sections (#469, beyond PE-DESIGN) is written as Inside: PE-DESIGN
+        // reads it back as Inside, the order of the sections not kept.
+        None | Some(RunningStitchPath::Inside | RunningStitchPath::InsideHidden) => 0,
         Some(RunningStitchPath::AlongOutline) => 1,
         Some(RunningStitchPath::OnOutline) => 2,
     };

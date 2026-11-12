@@ -5136,3 +5136,82 @@ fn angle_lines_cover_the_kit_l_at_the_set_density() {
         );
     }
 }
+
+/// Length (0.1 mm) of `run`'s stitches whose midpoint lies within 0.15 mm of a stitch sewn more
+/// than 200 stitches before: travel sewn on top of rows already sewn (#469).
+fn sewn_on_top(run: &[Vec2]) -> f64 {
+    let mut total = 0.0;
+    for i in 1..run.len() {
+        let mid = (run[i - 1] + run[i]) * 0.5;
+        let hit = (1..i.saturating_sub(200)).any(|j| {
+            let (a, b) = (run[j - 1], run[j]);
+            let v = b - a;
+            let l2 = v.x * v.x + v.y * v.y;
+            let t = if l2 > 0.0 {
+                (((mid.x - a.x) * v.x + (mid.y - a.y) * v.y) / l2).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            mid.distance(a + v * t) <= 1.5
+        });
+        if hit {
+            total += run[i - 1].distance(run[i]);
+        }
+    }
+    total
+}
+
+/// #469: a ∩ (a bar with two legs below it) sewn in horizontal rows has three sections: the
+/// bar, joining the two legs. Inside sews the bar first, then a leg, and travels back over the
+/// bar to the other leg; Inside, hidden under later sections sews each leg from its foot up to
+/// the bar, then the bar, so that travel runs where the bar is still to be sewn.
+#[test]
+fn a_section_joining_others_is_sewn_after_them() {
+    // A ∩: a bar 60 × 15 mm at the top, legs 15 mm wide and 45 mm tall at each end.
+    let fork = Contour::new(
+        vec![
+            v2(0.0, 600.0),
+            v2(150.0, 600.0),
+            v2(150.0, 150.0),
+            v2(450.0, 150.0),
+            v2(450.0, 600.0),
+            v2(600.0, 600.0),
+            v2(600.0, 0.0),
+            v2(0.0, 0.0),
+        ],
+        true,
+    );
+    let sewn = |path: RunningStitchPath| {
+        let mut r = region(RegionType::Fill);
+        r.angle = 0.0;
+        r.underlay = false;
+        r.density = 4.5;
+        r.stitch_length = 6.5;
+        r.running_stitch_path = Some(path);
+        let run: Vec<Vec2> = crate::region::layers(std::slice::from_ref(&fork), &r, &[])
+            .pop()
+            .expect("top")
+            .into_iter()
+            .flatten()
+            .collect();
+        (sewn_on_top(&run), run.len())
+    };
+    let (inside, n_inside) = sewn(RunningStitchPath::Inside);
+    let (hidden, n_hidden) = sewn(RunningStitchPath::InsideHidden);
+    // Inside: 52 mm, the travel from the left leg's foot up its inner edge and along under the
+    // bar sewn first. Hidden: that travel is gone; what is left (32 mm) is the bar's last row
+    // laid along the legs' first rows at the seam, a fill row, not travel.
+    assert!(
+        inside > 400.0,
+        "Inside travels over the sewn bar: {inside:.0}"
+    );
+    assert!(
+        hidden < inside * 0.7,
+        "hidden {hidden:.0} against inside {inside:.0}"
+    );
+    // The same rows, sewn in another order: the stitch count stays close.
+    assert!(
+        (n_hidden as f64 - n_inside as f64).abs() <= n_inside as f64 * 0.1,
+        "{n_hidden} against {n_inside} stitches"
+    );
+}

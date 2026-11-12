@@ -1671,6 +1671,12 @@ pub enum RunningStitchPath {
     AlongOutline,
     /// On the outline.
     OnOutline,
+    /// Beyond PE-DESIGN (#469): Inside, with the region's sections sewn in an order where a
+    /// section joining others (a stem between leaves, a body between head and tail) comes after
+    /// them, so the travel between them runs where thread is still to be sewn and is hidden
+    /// under it. Auto Punch sets it on its fills in OpenStitch mode. PES 0110 writes it as
+    /// Inside.
+    InsideHidden,
 }
 
 impl RunningStitchPath {
@@ -1679,6 +1685,7 @@ impl RunningStitchPath {
             RunningStitchPath::Inside => "inside",
             RunningStitchPath::AlongOutline => "alongOutline",
             RunningStitchPath::OnOutline => "onOutline",
+            RunningStitchPath::InsideHidden => "insideHidden",
         }
     }
 
@@ -1687,6 +1694,7 @@ impl RunningStitchPath {
             RunningStitchPath::Inside,
             RunningStitchPath::AlongOutline,
             RunningStitchPath::OnOutline,
+            RunningStitchPath::InsideHidden,
         ]
         .into_iter()
         .find(|p| p.id() == id)
@@ -2321,7 +2329,9 @@ impl RegionSewing {
             RunningStitchPath::Inside
         };
         Some(match path {
-            RunningStitchPath::Inside if self.sewn_gradation().is_some() => {
+            RunningStitchPath::Inside | RunningStitchPath::InsideHidden
+                if self.sewn_gradation().is_some() =>
+            {
                 RunningStitchPath::AlongOutline
             }
             p => p,
