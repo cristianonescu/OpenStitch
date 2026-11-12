@@ -3376,6 +3376,25 @@ No travel is sewn outside the letters (`small_lettering_shows_no_travel_outside_
 compat 476/476. Still open on #446: N's corner spike (the diagonal's rungs fan into the corner,
 where PE-DESIGN sews a small corner block), M at 8 mm, A's and V's slanted feet.
 
+### Zigzag line under sewing from PE-DESIGN's captures, 2026-11-13 (#964)
+
+PE-DESIGN 11.50's 40 mm square (the #471 baseline, Fill and a Zigzag Stitch line at 4.5 line/mm,
+Half Stitch on) captured at 1.0, 2.0, 2.5, 3.0, 3.5, 3.8, 3.9 and 4.0 mm line width: 3,230 /
+3,251 / 3,260 / 3,265 / 3,277 / 3,281 / 3,283 stitches, then 3,448 at 4.0 mm. Its under sewing,
+read from the stitches: running stitches `width / 2 − 0.5 mm` to either side of the line (the
+right one out, the left one back; both on the line at 1 mm), and from exactly 4.0 mm four runs
+1 mm apart (1.5 and 0.5 mm to either side), each sewn the other way from the one before.
+OpenStitch put its two runs a quarter of the width out (0.25 mm at 1 mm, 1.0 mm at 4 mm: the same
+as PE-DESIGN only at 2 mm) and never four. Zigzag Stitch lines with PE-DESIGN's edge under sewing
+now follow PE-DESIGN (`lines::pe_zigzag_underlay`); satin lines (beyond PE-DESIGN) and the other
+under sewing styles are unchanged. The square at 4 mm: line stitches 800 → 964 (PE-DESIGN
+1,035); the rest of that gap is the crossing spacing along a closed shape's sides, a few percent
+that PE-DESIGN's own open-line references do not show (left out of scope, see #964). References
+`line-square-zigzag-3-9mm` (new) and `line-square-zigzag-4mm` now compare the stitch count (within
+5 %). Kit: `wizards/cutwork` 3,192 → 3,446 stitches (its 4 mm zigzag), 4.3 → 4.6 min;
+`wizards/applique` and `wizards/patch` (zigzag widths other than 2 mm) move their under sewing
+runs, stitches 1,804 → 1,804 and 2,866 → 2,862.
+
 ### Design Center: small rings sew round, 2026-11-12 (#469)
 
 OpenStitch mode only. A ring of the drawing traces as a few uneven points, and the line's points
