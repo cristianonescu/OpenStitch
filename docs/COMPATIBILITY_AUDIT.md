@@ -3852,9 +3852,37 @@ defaults):
 
 R measures how tightly the needle points' distances to the curve cluster at the row spacing
 (1 = every point on an offset row). The crossings are the pattern's own: the straight pattern
-has 2,210. Along a U-shaped curve, the inside of the U stays unsewn, as plain fill along it
-does too (#927). Motif fill keeps the chord warp. Test:
+has 2,210. Along a U-shaped curve the inside of the U was left unsewn, by plain fill along it
+too; the rows there are sewn since #927 (below). Motif fill keeps the chord warp. Test:
 `programmable_fill_along_a_curve_keeps_to_the_curves_offsets`.
+
+### Rows inside a U-shaped direction curve, 2026-11-12 (#927)
+
+A fill along a direction curve that bulges deep into its shape (a 40 × 38 mm square with a curve
+from its left to its right edge bulging down into it, #927's example) sewed no rows inside the U:
+273 of the square's 1 mm cells stayed empty, only travel crossing them. Programmable fill along
+the same curve had the same hole. The rows are the guide offset by whole row spacings, and
+`direction::guided_lines` made them from the nearest to the farthest distance any point of the
+region has from the guide, but it took those distances at the outline's vertices only. Inside a
+U, the middle of an edge and the inside of the U lie farther from the guide than every corner,
+so the deeper rows were never made. The distances are now also taken on a grid over the region's
+box (64 steps across, at least a row spacing apart, plus a step's margin each way).
+
+On #927's square (cells 1 mm in from its edges, 38 × 36), thread per 1 mm cell, p10 / median,
+against the same fill without the curve:
+
+| | empty cells | p10 / median | without the curve | crossings between row stitches |
+|---|---|---|---|---|
+| fill along the U, before | 644 of 1,368 | – | 4.39 / 4.50 | – |
+| fill along the U, now | 0 | 4.30 / 4.50 | 4.39 / 4.50 | 0 |
+| programmable fill along the U, now | 0 | 2.36 / 2.49 | 2.38 / 2.48 | 1 (a tile below the U) |
+
+Inside the U the rows close into corners on its middle. The S curve's rows on #923's square
+are unchanged (the same rows and needle points at 2.5 and 2.22 mm spacing): its farthest points
+are corners. A box under an arch had the same hole along its bottom edge, whose middle lies
+farther from the arch than its corners: 91 rows made there before, 161 now. The travel between
+the rows inside the U still crosses rows already sewn (#947). Test:
+`fill_along_a_u_shaped_curve_covers_the_inside_of_the_u`.
 
 ### Travel walks the outline where the way inside runs round a tip, 2026-11-09 (#471)
 
