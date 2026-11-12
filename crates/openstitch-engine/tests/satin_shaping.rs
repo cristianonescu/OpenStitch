@@ -1015,7 +1015,8 @@ fn meets_the_boxes_of_526(s: &mut Session, shape_id: u64, columns: usize, covera
     let st = &pattern.stitches;
     // The satin's triangles: each needle point with the two before it, within one run, the
     // stitches up to 15 mm (longer ones are travel), tie-ins and locks left out (out-and-back
-    // steps back to the same point, at most 2 mm, at a run's start or end).
+    // steps back to the same point, at most 2 mm, at a run's start or end): a triangle whose own
+    // stitch is such a step, so the point a tie-in ends on still starts the satin.
     let is_stitch = |k: usize| st[k].command == Command::Stitch;
     let p = |k: usize| v2(st[k].x, st[k].y);
     let n = st.len();
@@ -1054,7 +1055,7 @@ fn meets_the_boxes_of_526(s: &mut Session, shape_id: u64, columns: usize, covera
             is_stitch(k)
                 && is_stitch(k - 1)
                 && is_stitch(k - 2)
-                && !(tie[k] || tie[k - 1] || tie[k - 2])
+                && !(tie[k] || tie[k - 1])
                 && p(k).distance(p(k - 1)) <= 150.0
                 && p(k - 1).distance(p(k - 2)) <= 150.0
         })
