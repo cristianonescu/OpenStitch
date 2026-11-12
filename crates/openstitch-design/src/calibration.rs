@@ -176,8 +176,12 @@ const SAME_ROW: f64 = 0.5;
 /// machine's 0.1 mm grid are not even: 0.222 mm rows (4.5 rows/mm) lie 0.2, 0.2, 0.2 and
 /// 0.3 mm apart, and a thread [`covered_width_mm`] wide (0.21 mm) left a bare stripe in every
 /// 0.3 mm gap, about every 0.9 mm. Sized from the gaps themselves, the uncovered fabric is
-/// spread over every gap as on a sew-out. Where no row lies within 1.5 spacings (an edge row,
-/// sparse rows) the side uses the spacing `density` gives.
+/// spread over every gap as on a sew-out. Where no parallel row lies within 0.6 mm (an edge row,
+/// sparse rows) the side uses the spacing `density` gives. The search does not stop at the
+/// spacing `density` gives: thread running other ways (an underlay, rows converging round a
+/// bend) counts in `density`, and with that shorter reach the parallel row beside was missed and
+/// every thread drawn as narrow as the crossing rows' density asks, the densest part of a fill
+/// lightest (#921).
 pub fn thread_sides(strokes: &[Vec<Vec2>], density: &RowDensity) -> Vec<Vec<(f64, f64)>> {
     const CELL: f64 = NEIGHBOUR_REACH;
     let key = |p: Vec2| ((p.x / CELL).floor() as i64, (p.y / CELL).floor() as i64);
@@ -214,7 +218,10 @@ pub fn thread_sides(strokes: &[Vec<Vec2>], density: &RowDensity) -> Vec<Vec<(f64
                     let d = (w[1] - w[0]) * (1.0 / len);
                     let normal = v2(-d.y, d.x);
                     let spacing = 10.0 / r;
-                    let reach = (1.5 * spacing).min(NEIGHBOUR_REACH);
+                    // Not 1.5 spacings: where rows of other directions cross (an underlay, rows
+                    // converging round a bend) `r` counts them too, and the parallel row beside
+                    // this one lies farther than that spacing (#921).
+                    let reach = NEIGHBOUR_REACH;
                     let (mut left, mut right) = (f64::INFINITY, f64::INFINITY);
                     let (cx, cy) = key(mid);
                     let mut seen: Vec<(usize, usize)> = Vec::new();
