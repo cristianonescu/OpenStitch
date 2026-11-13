@@ -363,6 +363,20 @@ fn main() -> eframe::Result {
         }
     };
     launch.user_settings = openstitch_engine::user::default_path();
+    // Crash reports (#878) go beside the autosave snapshots; month-old ones are removed.
+    if let Some(dir) = launch
+        .user_settings
+        .as_deref()
+        .map(openstitch_app::editor::prefs::path_beside)
+        .and_then(|ui| {
+            ui.parent()
+                .map(|d| d.join(openstitch_app::editor::recovery::FOLDER))
+        })
+    {
+        use openstitch_app::editor::crash;
+        crash::prune(&dir, std::time::SystemTime::now());
+        crash::install_hook(dir, update_ui::version_line());
+    }
     // The automation socket is taken out of `launch` below; it never gets a splash either.
     launch.no_splash |= launch.listen.is_some();
     let (remote, scratch) = match launch.listen.take().map(listen).transpose() {

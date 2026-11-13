@@ -394,6 +394,16 @@ impl EditorApp {
                     "gettingStarted" => self.ui.start.page_open = true,
                     "machineSetup" => self.machine_setup.open(),
                     "checkUpdates" => self.update.check(true),
+                    "reportProblem" => {
+                        self.ui.problem.open = true;
+                        // What Copy diagnostics copies (#878), for a model writing a report.
+                        return Ok(json!({
+                            "opened": item,
+                            "diagnostics": openstitch_app::editor::crash::diagnostics(
+                                &crate::update_ui::version_line()
+                            ),
+                        }));
+                    }
                     "about" => self.ui.about_open = true,
                     _ => return Err(format!("unknown Help item '{item}'")),
                 }
@@ -602,6 +612,8 @@ impl EditorApp {
             "stats": self.stats_json(),
             "simulator": self.simulator_json(),
             "canUndo": self.session.can_undo(), "canRedo": self.session.can_redo(),
+            // The last run ended in a crash and Report a Problem shows its notice (#878).
+            "crashReport": self.ui.problem.report.is_some(),
             "settings": self.ui_settings(),
             // Check Design (#599): ready to sew, the problem counts and the open tab.
             "check": crate::quality_ui::state_json(self),
@@ -1940,6 +1952,18 @@ mod tests {
         app.ui_command("ui.help", Some(&json!({ "item": "about" })))
             .expect("about");
         assert!(app.ui.about_open);
+        // Report a Problem (#878): the window opens and the reply holds what Copy diagnostics
+        // copies, the version and system and nothing else.
+        assert_eq!(app.ui_state()["crashReport"], json!(false));
+        let r = app
+            .ui_command("ui.help", Some(&json!({ "item": "reportProblem" })))
+            .expect("report a problem");
+        assert!(app.ui.problem.open);
+        let d = r["diagnostics"].as_str().expect("diagnostics");
+        assert!(d.starts_with("OpenStitch Version ") && d.contains("System: "), "{d}");
+        assert_eq!(d.lines().count(), 2, "{d}");
+        app.ui.problem.report = Some(std::path::PathBuf::from("crash-test.txt"));
+        assert_eq!(app.ui_state()["crashReport"], json!(true));
         app.ui_command("ui.help", Some(&json!({ "item": "manual" })))
             .expect("manual");
         assert!(app.assistant.open_url.is_some());
