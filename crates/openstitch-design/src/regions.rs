@@ -395,16 +395,42 @@ pub fn generate(
                 .collect();
             vec![region.sequence_raw(out)]
         }
+        RegionType::ZigzagNetFill if angle.rem_euclid(360.0).abs() > 1e-9 => {
+            // PE-DESIGN 11.50 turns the net by the Direction (round 13, zigzag-net-dir0/30/45/90,
+            // #1043): the whole net (lines, bands, rungs, travel) is made on the shape turned
+            // back by that angle, at Direction 0, and its stitches turned with it, so a turned
+            // net is exactly an axis net turned. About the reference point (the origin here) or
+            // the shape's centre.
+            let about = match r.reference {
+                Some(_) => v2(0.0, 0.0),
+                None => Rect::enclosing(closed.iter().flat_map(|c| c.outline_points()))
+                    .map_or(v2(0.0, 0.0), |b| b.center()),
+            };
+            let turn = angle.rem_euclid(360.0);
+            let back = crate::geometry::Transform::rotation(-turn, about);
+            let with = crate::geometry::Transform::rotation(turn, about);
+            let turned = |cs: &[Contour]| -> Vec<Contour> {
+                cs.iter().map(|c| c.transformed(&back)).collect()
+            };
+            generate(&turned(closed), r, 0.0, &turned(holes), user)
+                .into_iter()
+                .map(|layer| {
+                    layer
+                        .into_iter()
+                        .map(|run| run.into_iter().map(|p| with.apply(p)).collect())
+                        .collect()
+                })
+                .collect()
+        }
         RegionType::ZigzagNetFill => {
             let id = r.pattern.as_deref().unwrap_or(NET_PATTERNS[0].id);
             // PE-DESIGN 11.50 (o-region-zigzag-net): a 3 mm satin band along every net line, a
             // rung straight across then a diagonal back, 0.44 mm apart, inside the outline.
             let width = pw.min(spacing * 0.8);
             let step = 10.0 / r.density.max(0.1);
-            // PE-DESIGN 11.50 (o-region-zigzag-net, Direction 45°) sews the net on the page axes,
-            // its first lines half a band in from the shape's left and top edges: the Direction
-            // does not turn it (as with cross stitch, #463), and the lines start from the shape,
-            // not from the page origin (#616).
+            // PE-DESIGN 11.50 (o-region-zigzag-net) sews the net on the page axes at Direction 0,
+            // its first lines half a band in from the shape's left and top edges; the lines start
+            // from the shape, not from the page origin (#616). Another Direction is handled above.
             // With a reference point, `region::layers` put it at (0, 0): the net starts there.
             let lines: Vec<Vec<Vec2>> = match r.reference {
                 Some(_) => net_families(closed, holes, 0.0, spacing, id)
