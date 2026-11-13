@@ -381,8 +381,13 @@ fn main() -> eframe::Result {
         renderer: eframe::Renderer::Wgpu,
         wgpu_options: wgpu_options(),
         event_loop_builder: macos_event_loop(),
+        // 4x MSAA: the Realistic view's threads are drawn without feathered edges, so rows
+        // a pixel or two apart share pixels by coverage instead of beating with the pixel
+        // grid into light stripes (#907).
+        multisampling: workspace_ui::MSAA_SAMPLES,
         ..Default::default()
     };
+    workspace_ui::MSAA.store(true, std::sync::atomic::Ordering::Relaxed);
     let result = eframe::run_native(
         "OpenStitch",
         options,
