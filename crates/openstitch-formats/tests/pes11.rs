@@ -347,7 +347,7 @@ fn hole_sewing_pairs_read() {
 }
 
 #[test]
-fn a_group_of_some_objects_reads_and_two_groups_are_not_mapped() {
+fn a_group_of_some_objects_and_several_groups_read() {
     // Home > Group on the first two of three rectangles: one group, its number one more than
     // its last member's archive number (4, where the CGroupObject class is 5).
     let partial = objects_of(&data("pe11/group-partial.pes"));
@@ -359,10 +359,46 @@ fn a_group_of_some_objects_reads_and_two_groups_are_not_mapped() {
         .expect("group")
         + 12;
     assert_eq!(bytes[at..at + 2], [4, 0]);
-    // Two groups of two (built on group-partial): a layout not mapped yet, so no group is read.
-    let two = objects_of(&data("pe11/group-two.pes"));
-    assert_eq!(two.shapes.len(), 4);
-    assert!(two.groups.is_empty());
+    // Several groups (#608): every group's tag first (the class, then `0x8000 | n` per further
+    // group), one field (one more than the last-archived member's number, plus two per group
+    // after the first), then the groups in the order they were made, the second and later each
+    // after a u16 0. Written back byte for byte from that tag to the sewing-order list.
+    for (name, groups, after_tags) in [
+        (
+            "group-two",
+            vec![vec![0, 1], vec![2, 3]],
+            vec![0x8006, 8, 2, 0, 1, 0, 2, 2, 3],
+        ),
+        (
+            "608-groups-three",
+            vec![vec![0, 1], vec![2, 3], vec![4, 5]],
+            vec![0x8008, 0x8008, 12, 2, 0, 1, 0, 2, 2, 3, 0, 2, 4, 5],
+        ),
+        (
+            "608-groups-3-and-2",
+            vec![vec![3, 4], vec![0, 1, 2]],
+            vec![0x8007, 9, 2, 3, 4, 0, 3, 0, 1, 2],
+        ),
+    ] {
+        let bytes = data(&format!("pe11/{name}.pes"));
+        let objects = objects_of(&bytes);
+        assert_eq!(objects.groups, groups, "{name}");
+        let tail = |b: &[u8]| -> Vec<u16> {
+            let at = b
+                .windows(12)
+                .position(|w| w == b"CGroupObject")
+                .expect("group")
+                + 12;
+            b[at..at + 2 * after_tags.len()]
+                .chunks(2)
+                .map(|c| u16::from_le_bytes([c[0], c[1]]))
+                .collect()
+        };
+        assert_eq!(tail(&bytes), after_tags, "{name}");
+        let written = pes11::write(&objects, &stitches_of(&bytes)).expect("write");
+        assert_eq!(tail(&written), after_tags, "{name}");
+        assert_eq!(objects_of(&written).groups, groups, "{name}");
+    }
 }
 
 #[test]

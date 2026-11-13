@@ -504,3 +504,40 @@ fn pes_version_11_refuses_two_stamps_on_one_region() {
     );
     assert!(!dir.join("two.pes").exists());
 }
+
+#[test]
+fn pes_version_11_keeps_every_group() {
+    // #608: two groups of two squares, made with object.group in that order, written in
+    // PE-DESIGN's several-groups layout and read back as both groups, also by import.pes.
+    let dir = temp_dir("v11-groups");
+    let mut s = Session::new(&dir);
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    for x in [10, 25, 40, 55] {
+        run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": x, "y": 10, "width": 10, "height": 10}),
+        );
+    }
+    run(&mut s, "object.group", json!({"ids": [1, 2]}));
+    run(&mut s, "object.group", json!({"ids": [3, 4]}));
+    run(
+        &mut s,
+        "design.export",
+        json!({"path": "g.pes", "pesVersion": "11"}),
+    );
+    let objects =
+        pes::read_objects(&std::fs::read(dir.join("g.pes")).expect("g.pes")).expect("objects");
+    assert_eq!(objects.groups, [vec![0, 1], vec![2, 3]]);
+    let mut back = Session::new(&dir);
+    run(
+        &mut back,
+        "design.new",
+        json!({"width": 100, "height": 100}),
+    );
+    run(&mut back, "import.pes", json!({"path": "g.pes"}));
+    let groups: std::collections::BTreeSet<Option<u64>> =
+        back.design().objects.iter().map(|o| o.group).collect();
+    assert_eq!(groups.len(), 2, "{groups:?}");
+    assert!(groups.iter().all(Option::is_some), "{groups:?}");
+}
