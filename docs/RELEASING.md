@@ -19,13 +19,18 @@ Before a release:
   regenerated only after checking it isn't pinned. This lands as its own pull request, before
   the screenshots and images (README refresh, step 5).
 - CI on `main` is green on macOS, Windows and Linux, and every compatibility spec passes.
+- `python3 -I tools/private_scan.py` prints no finding: no local folder paths, user or home
+  folders, notes folders or personal e-mail addresses in a tracked file (#1057). A harmless
+  placeholder goes in `tools/private_scan_allow.tsv` with its reason, never under a wider pattern.
 - The README is refreshed (below) and the release notes are honest about known differences.
 
 ## Merging pull requests
 
 Since 2026-11-07 an ordinary pull request merges (squash) without waiting for its CI run, once
 it is mergeable, the light local checks passed on its last commit (fmt, clippy `-D warnings`,
-the touched crates' tests, the README guards) and the private-details scan is clean. A PR whose
+the touched crates' tests, the README guards) and the private-details scan is clean
+(`python3 -I tools/private_scan.py --diff main`; CI's `secrets` job runs it on the whole tree,
+#1057). A PR whose
 CI has already gone red on something real is not merged. CI still runs on every PR and on
 `main`, and a red `main` is fixed forward at once. Fully green CI on all three operating
 systems is required at the release gate, and for any check that has to wait for a green run,

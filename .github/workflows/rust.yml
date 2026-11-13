@@ -179,6 +179,12 @@ jobs:
           echo "$sha  gitleaks.tar.gz" | sha256sum -c -
           tar -xzf gitleaks.tar.gz gitleaks
           ./gitleaks git --log-opts="--all" --redact --no-banner --exit-code 1 .
+      # gitleaks looks for keys; this fails on a local folder path or a personal detail in any
+      # tracked text file, with the allow list's harmless placeholders (#1057).
+      - name: private_scan
+        run: |
+          python3 -I tools/private_scan.py --self-test
+          python3 -I tools/private_scan.py
 
   icons:
     # Every icon and graphic is a Higgsfield asset with a recorded job (#400, #439): every image
