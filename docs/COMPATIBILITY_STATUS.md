@@ -4,7 +4,7 @@
 
 The tier each [FEATURE_MATRIX.md](FEATURE_MATRIX.md) row and [audit](COMPATIBILITY_AUDIT.md) item has reached in the compatibility harness ([COMPATIBILITY_TESTS.md](COMPATIBILITY_TESTS.md)). A row is only as far as the weakest spec covering it. Tiers, weakest first: internal-regression (our own earlier output or the guide's description), oracle (an independent implementation), reference (PE-DESIGN 11 output supplied by the owner), machine (a sew-out record). "Reference pending" means a spec is ready for a PE-DESIGN file that does not exist yet.
 
-Specs: 497 · pass 497 · fail 0 · error 0 · pending reference 0 · skipped 0.
+Specs: 498 · pass 498 · fail 0 · error 0 · pending reference 0 · skipped 0.
 
 ## By FEATURE_MATRIX row
 
@@ -27,7 +27,7 @@ Specs: 497 · pass 497 · fail 0 · error 0 · pending reference 0 · skipped 0.
 | Files | JEF read/write (Janome chart, stops, hoop code)… | reference; reference pending | `machine-formats`, `machine-sample-basic` |
 | Files | Large designs split into several files on export when they exceed… | reference | `hoop-oversize-export` |
 | Files | PCS read/write (1/6 mm grid, hoop byte)… | reference; reference pending | `machine-formats`, `machine-sample-basic` |
-| Files | PES 0110 (PE-DESIGN 11) editable shapes write… | internal-regression; reference pending | `pes-0110-applique`, `pes-0110-curve-block`, `pes-0110-decorative-fill`, `pes-0110-editable-shapes`, `pes-0110-editable-text-fit`, `pes-0110-editable-text-transform`, `pes-0110-editable-text`, `pes-0110-hole-sewing`, `pes-0110-line-types`, `pes-0110-manual-punch`, `pes-0110-programmable-fill`, `pes-0110-stitches` |
+| Files | PES 0110 (PE-DESIGN 11) editable shapes write… | internal-regression; reference pending | `pes-0110-applique`, `pes-0110-curve-block`, `pes-0110-decorative-fill`, `pes-0110-editable-shapes`, `pes-0110-editable-text-fit`, `pes-0110-editable-text-transform`, `pes-0110-editable-text`, `pes-0110-hole-sewing`, `pes-0110-line-types`, `pes-0110-manual-punch`, `pes-0110-programmable-fill`, `pes-0110-stamps`, `pes-0110-stitches` |
 | Files | PES v6 thread table… | oracle | `pes-thread-chart-roundtrip` |
 | Files | PES write v1 and v6… | oracle; reference pending | `machine-jumps`, `machine-rbgb`, `machine-rbr-far`, `machine-rbr`, `machine-trim-bound`, `machine-trim-fine`, `pes-csewseg-trims`, `pes-default-v6`, `pes-library-convert-v6`, `pes-objects-owner-patterns`, `pes-objects-psc-patterns` |
 | Files | SEW read/write (Janome SEW chart)… | reference; reference pending | `machine-formats`, `machine-sample-basic` |
@@ -101,6 +101,7 @@ Specs: 497 · pass 497 · fail 0 · error 0 · pending reference 0 · skipped 0.
 | `pes/pes-0110-line-types` | pass | internal-regression | pass | — | pending | — |
 | `pes/pes-0110-manual-punch` | pass | reference | pass | — | pass | — |
 | `pes/pes-0110-programmable-fill` | pass | internal-regression | pass | — | pending | — |
+| `pes/pes-0110-stamps` | pass | internal-regression | pass | — | pending | — |
 | `pes/pes-0110-stitches` | pass | reference | pass | — | pass | — |
 | `pes/pes-csewseg-trims` | pass | reference | pass | — | pass | — |
 | `pes/pes-default-v6` | pass | reference | pass | — | pass | pending |

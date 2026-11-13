@@ -4199,3 +4199,24 @@ emboss's longest stitch within 0.5 mm).
 Not mapped yet: which listed pattern a stamp uses when the header lists several (one is
 mapped; a capture with a programmable fill and a stamp would show it), the record's last eight
 bytes, and Brother's built-in stamps.
+
+### PES 0110 export writes a region's stamp, 2026-11-13 (#608)
+
+`design.export` with `pesVersion` 11 dropped a region's stamps without a word: the only object
+kind of #608 that was lost rather than refused. It now writes a stamp with the layout #959 read
+from PE-DESIGN's three Convert from Outline captures:
+- the record after the geometry header's marks: the outline's bounds centre in file units, their
+  size in 0.1 mm and eight zero bytes;
+- the outline as the header's listed pattern: size 750, its points in the 1024-unit cell of the
+  bounds, closed by its first point twice as PE-DESIGN closes it; for an embossed or engraved
+  region the outline again with head `[1, 500, 1]` or `[2, 500, 1]`;
+- body +188 set to 1.
+
+On the spec designs (the 40 mm square with the 14.5 × 14.0 mm circle at the page centre) the
+record matches PE-DESIGN's size (145 × 140) and zero tail, the centre is the circle's (1000, 1000,
+where PE-DESIGN's hand-drawn circle sat at 1002, 1005), the pattern has the same size, polyline count and
+heads, and the file imports back to the same stamp (`stamps_export_to_pes_0110_as_pe_design_writes_them`).
+Spec `pes-0110-stamps` asks the owner to open the export in PE-DESIGN 11.50; until then the
+reference is pending. Refused with the object named: several stamps on a region, a stamp of
+several outlines, and a stamp beside a programmable fill (one listed pattern per file: which
+object field picks a pattern is a capture requested on #608).

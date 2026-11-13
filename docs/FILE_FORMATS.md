@@ -654,8 +654,13 @@ cell, the tile width as the size), the Cross Stitch, Concentric Circle, Radial, 
 Stippling, Net Fill, Zigzag Net Fill and Flexible Spiral types by their codes at PE-DESIGN's
 default attributes (OpenStitch's own settings of these types are not carried), and a Decorative
 Fill with its pattern in the object's pattern block (free lines in the 1024-unit cell, the tile
-width as the size). What it
-cannot hold fails with the object named: a second hole sewing pair, a hole sewing pair in a
+width as the size), and a region's stamp as PE-DESIGN's Convert from Outline writes it (#608: the
+record after the geometry marks with the outline's bounds, centre and size, and the outline as the
+header's listed pattern in the cell of those bounds, size 750, closed by its first point twice, the
+region effects given again with head `[1, 500, 1]` or `[2, 500, 1]`; the engine test compares
+the layout with the three `stamp-*-circle` captures). What it
+cannot hold fails with the object named: several stamps on one region or a stamp of several
+outlines, a stamp beside a programmable fill (one listed pattern per file), a second hole sewing pair, a hole sewing pair in a
 design with groups, several outlines in one object, a second programmable fill pattern, a
 programmable fill tile that is not square or has embossed or engraved areas, motif fill, a
 decorative pattern chained in rows or not square, contour fill (OpenStitch's own), motif lines (stem,
