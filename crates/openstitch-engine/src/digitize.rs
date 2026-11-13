@@ -582,7 +582,7 @@ fn auto_punch_docs() -> Vec<ParamDoc> {
                 opt(
                     "compatMode",
                     "peDesign|openStitch",
-                    "peDesign: as PE-DESIGN 11.50 (default); openStitch: colours reduced and matched to threads by appearance (CIELAB k-means, CIEDE2000), an 800 px working raster, regions under 2 mm² merged (docs/research/beyond/image-digitizing.md)",
+                    "peDesign: as PE-DESIGN 11.50 (default); openStitch: colours reduced and matched to threads by appearance (CIELAB k-means, CIEDE2000), an 800 px working raster, regions under 2 mm² merged, parts under 1 mm wide (ropes, whiskers) sewn as running lines but never at the cost of a colour stop for under 40 mm of one thread's lines (docs/research/beyond/image-digitizing.md)",
                 ),
                 fidelity_doc(),
                 opt(

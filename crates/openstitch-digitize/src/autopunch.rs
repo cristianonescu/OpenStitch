@@ -98,6 +98,14 @@ pub struct AutoPunch {
     pub split_branches: bool,
 }
 
+/// The thread an Auto Punch object is sewn in: its region's, else its line's.
+fn object_thread(o: &DesignObject) -> Option<&Thread> {
+    o.region
+        .as_ref()
+        .map(|r| &r.thread)
+        .or_else(|| o.line.as_ref().map(|l| &l.thread))
+}
+
 /// How far a branch column reaches into the column it leaves, mm (#702).
 pub const BRANCH_JOIN_MM: f64 = 0.3;
 
@@ -549,6 +557,13 @@ pub const LINE_WIDTH_MM: f64 = 0.5;
 /// 10) such slivers are shading, and as lines they added 3-4 colour changes for no likeness.
 pub const THIN_LINE_COLORS: usize = 7;
 
+/// OpenStitch mode: the least length, mm, of a thread's thin lines that would need a colour
+/// block of their own (their thread sewn before their ground, and not the colour sewn last)
+/// for them to be sewn (#469). A block is a stop and a re-thread on a single-needle machine;
+/// in the ten Auto Punch gallery pictures such lines run 8 mm (g02's stripe tip) and 12 mm
+/// (g15's two orange lines), both left out.
+pub const THIN_BLOCK_MM: f64 = 40.0;
+
 /// OpenStitch mode's rows per mm in fills and satins: the sparsest that still covers the
 /// fabric with OpenStitch's fill (fewer rows leave gaps a thread wide).
 pub const OPEN_STITCH_DENSITY: f64 = 4.5;
@@ -837,6 +852,9 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
     };
     let unsmoothed = labels.clone();
     regions::majority(&mut labels, w, h, p.smooth.min(5));
+    // What the small-region merge and the sliver opening below take, a thin feature may be
+    // among (#469: the middle of a balloon's rope is a region too small to keep).
+    let premerge = labels.clone();
     // The frame scales x and y alike, so the working pixel's mm/px is both ratios.
     let floor = small_region_floor(p.min_area_mm2, frame.mm_per_px());
     match p.mode {
@@ -855,6 +873,7 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
             });
         }
     }
+    let merged = labels.clone();
     // OpenStitch mode: the dark contour lines become satin lines sewn on top (T12).
     let outlines = match p.mode {
         Mode::OpenStitch => outline::extract(
@@ -884,7 +903,18 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
             !line_art,
         );
         if !line_art && colors <= THIN_LINE_COLORS {
-            thin = outline::thin_lines(&before, &labels, w, h, &frame, &p.trace);
+            // Each pixel's label before the merge, except where the outlines were taken out
+            // (those are sewn as outlines already).
+            let taken_from: Vec<u16> = (0..w * h)
+                .map(|i| {
+                    if merged[i] != before[i] {
+                        before[i]
+                    } else {
+                        premerge[i]
+                    }
+                })
+                .collect();
+            thin = outline::thin_lines(&taken_from, &labels, w, h, &frame, &p.trace);
         }
     }
     let (mut id, mut comps) = regions::components(&labels, w, h);
@@ -1324,7 +1354,38 @@ pub fn convert(image: &Raster, frame: &Frame, p: &AutoPunch) -> Result<Converted
     let mut thin_threads: Vec<usize> = thin.iter().map(|l| l.thread).collect();
     thin_threads.sort_unstable();
     thin_threads.dedup();
-    for t in palette::brightness_order(&palette, thin_threads) {
+    // A thread change is a stop and a re-thread on a single-needle machine (#469): a thread's
+    // late lines are sewn when they join a block sewn anyway (the colour sewn last, or the
+    // outlines' ink sewn after them), or together run at least THIN_BLOCK_MM; shorter ones
+    // are left out rather than cost a colour stop.
+    let last = objects.last().and_then(object_thread).cloned();
+    let ink = outlines.as_ref().map(|o| palette.threads[o.thread].clone());
+    let length_mm = |t: usize| -> f64 {
+        thin.iter()
+            .filter(|l| l.thread == t)
+            .flat_map(|l| &l.line.contours)
+            .map(|c| {
+                c.points
+                    .windows(2)
+                    .map(|w| w[0].distance(w[1]))
+                    .sum::<f64>()
+            })
+            .sum::<f64>()
+            / 10.0
+    };
+    let ordered = palette::brightness_order(&palette, thin_threads);
+    let (mut first, mut middle, mut tail) = (Vec::new(), Vec::new(), Vec::new());
+    for t in ordered {
+        let thread = &palette.threads[t];
+        if last.as_ref() == Some(thread) {
+            first.push(t);
+        } else if ink.as_ref() == Some(thread) {
+            tail.push(t);
+        } else if length_mm(t) >= THIN_BLOCK_MM {
+            middle.push(t);
+        }
+    }
+    for t in first.into_iter().chain(middle).chain(tail) {
         for l in thin.iter().filter(|l| l.thread == t) {
             lines.push((palette.threads[t].clone(), l.line.clone(), Reason::ThinLine));
         }

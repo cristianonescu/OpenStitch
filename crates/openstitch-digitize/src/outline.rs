@@ -378,6 +378,9 @@ pub fn thin_lines(
             }
         })
         .collect();
+    // Only the parts of what was taken that are thinner than THIN_MM: a rope taken together
+    // with the tapering tip of the stripe it hangs from (g02) is judged on its own (#469).
+    let taken = thin_parts(&taken, w, h, thin_radius(mm));
     let (id, comps) = regions::components(&taken, w, h);
     let mut out = Vec::new();
     for (c, k) in comps.iter().enumerate() {
@@ -426,6 +429,49 @@ pub fn thin_lines(
         }
     }
     out
+}
+
+/// The radius in pixels of the widest square (2 r + 1 pixels across) under [`THIN_MM`], so
+/// what an opening by it leaves is thinner than that.
+fn thin_radius(mm_per_px: f64) -> usize {
+    ((THIN_MM / mm_per_px - 1.0) / 2.0).floor().max(1.0) as usize
+}
+
+/// `labels` without the parts at least a (2 r + 1)-pixel square wide (a morphological opening
+/// per label, taken away): what is left are the parts thinner than that (#469). Only labelled
+/// pixels are visited, so a sparse map costs little.
+fn thin_parts(labels: &[u16], w: usize, h: usize, r: usize) -> Vec<u16> {
+    let r = r as isize;
+    let at = |x: isize, y: isize| -> u16 {
+        if x < 0 || y < 0 || x >= w as isize || y >= h as isize {
+            NONE
+        } else {
+            labels[y as usize * w + x as usize]
+        }
+    };
+    let square = |x: isize, y: isize, f: &mut dyn FnMut(isize, isize) -> bool| -> bool {
+        (-r..=r).any(|dy| (-r..=r).any(|dx| f(x + dx, y + dy)))
+    };
+    // Erosion: pixels whose whole square is their own label.
+    let core: Vec<bool> = (0..w * h)
+        .map(|i| {
+            let (x, y, l) = ((i % w) as isize, (i / w) as isize, labels[i]);
+            l != NONE && !square(x, y, &mut |a, b| at(a, b) != l)
+        })
+        .collect();
+    // Dilation: a pixel is in a thick part when a core pixel of its label is within the square.
+    (0..w * h)
+        .map(|i| {
+            let (x, y, l) = ((i % w) as isize, (i / w) as isize, labels[i]);
+            if l == NONE {
+                return NONE;
+            }
+            let thick = square(x, y, &mut |a, b| {
+                at(a, b) == l && core[b as usize * w + a as usize]
+            });
+            if thick { NONE } else { l }
+        })
+        .collect()
 }
 
 /// The `taken` pixels take the labels beside them, spreading in from every side; a taken

@@ -70,7 +70,7 @@ pub fn commands() -> Vec<CommandSpec> {
             opt(
                 "cover",
                 "zigzag|eStitch|vStitch|chain",
-                "Covering stitch (default zigzag)",
+                "Covering stitch (default zigzag; sewn without under sewing, as in PE-DESIGN: the tack-down holds the edge)",
             ),
             opt(
                 "coverWidth",
@@ -323,6 +323,10 @@ fn cover(p: &Params, color: Thread) -> Result<LineSewing, CommandError> {
         _ => return Err(p.invalid("cover", "must be zigzag, eStitch, vStitch or chain")),
     };
     let mut l = LineSewing::new(kind, color);
+    // No under sewing under the cover, as PE-DESIGN 11.50's Applique Wizard sews it (a01, a04:
+    // the tack-down, then the cover zigzag directly): the tack-down holds the fabric's edge
+    // (#975). It can be turned on on the cover object.
+    l.underlay = false;
     l.width = p.opt("coverWidth", 3.0, 0.5, 10.0)?;
     l.density = p.opt("coverDensity", 5.0, 1.0, 10.0)?;
     l.spacing = Some(p.opt("coverInterval", 3.0, 0.5, 10.0)?);

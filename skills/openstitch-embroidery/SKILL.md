@@ -85,7 +85,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   fill a grid field that follows the picture's own strokes (fur, petals, hair); PE-DESIGN mode
   refuses it. OpenStitch mode sews a long branching satin stroke (a Y, K or forked line) as one
   column per arm instead of one satin across it (`splitBranches`, on by default; `false` keeps
-  one satin).
+  one satin). It sews thin features (ropes, whiskers) as running lines, but adds no colour stop
+  for a short one: a thread's lines under 40 mm in all that would need a block of their own are
+  left out.
 - Colours: `"#rrggbb"`, a Brother thread name (`"Black"`, `"White"`, `"Red"`, `"Blue"`,
   `"Prussian Blue"`, `"Deep Gold"`, `"Leaf Green"`, ...; case-insensitive), or a Brother chart
   number 1-64. A name that is not in the chart is refused; use `#rrggbb` when unsure.
