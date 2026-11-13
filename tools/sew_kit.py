@@ -912,7 +912,11 @@ def preview(work, pes, dst, colours):
     # Drawn at gallery.SHARP_PX_PER_MM (#893) round the stitches the editor draws, placed by
     # millimetres, so the preview does not depend on the window's layout (#1051).
     def tile(*view):
-        im = screenshot(work, pes, work / "tile.png", *view, "--viewport-json", str(work / "tile.json"))
+        # The canvas alone (`--show bare`): a tile's place does not follow the window's layout.
+        subprocess.run([str(BIN / "openstitch"), str(pes), "--show", "realistic,bare", "--no-splash",
+                        "--size", "1440x900", *view, "--screenshot", str(work / "tile.png"),
+                        "--viewport-json", str(work / "tile.json")], cwd=work, check=True, capture_output=True)
+        im = Image.open(work / "tile.png").convert("RGB")
         return im, json.loads((work / "tile.json").read_text(encoding="utf-8"))
     im = gallery.sharp_crop(tile)
     im = im.resize((360, round(im.height * 360 / im.width)), Image.LANCZOS)

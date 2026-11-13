@@ -131,7 +131,7 @@ def shoot(work, key, size_mm=None):
     else:
         sys.exit(f"gallery.py: {key}: no screenshot framed the design")
     def tile(*view):
-        run([str(BIN / "openstitch"), f"{key}.osd", "--show", "realistic", "--no-splash",
+        run([str(BIN / "openstitch"), f"{key}.osd", "--show", "realistic,bare", "--no-splash",
              "--size", "1440x900", *view, "--screenshot", "tile.png", "--viewport-json", "tile.json"], work)
         info = json.loads((work / "tile.json").read_text(encoding="utf-8"))
         return Image.open(work / "tile.png").convert("RGB"), info

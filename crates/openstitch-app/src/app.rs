@@ -110,7 +110,7 @@ impl Launch {
 }
 
 /// Values `--show` accepts.
-pub const SHOW: [&str; 38] = [
+pub const SHOW: [&str; 39] = [
     "update",
     "stitch-table",
     "large-text",
@@ -125,6 +125,8 @@ pub const SHOW: [&str; 38] = [
     "settings",
     "measure",
     "norulers",
+    // The canvas alone, filling the window (kit preview tiles, #1051).
+    "bare",
     "text",
     "creator",
     "sdf",
@@ -212,6 +214,9 @@ pub struct EditorApp {
     pub px_per_mm: Option<f64>,
     /// Where the screenshot's view is written (`--viewport-json`, #1051).
     viewport_json: Option<PathBuf>,
+    /// `--show bare` (#1051): the canvas alone fills the window, without the ribbon, panes and
+    /// status bar, so a kit preview tile's place does not follow the window's layout.
+    bare: bool,
     /// The automatic fit last made: the canvas it was made for, the view it gave and the
     /// `--zoom` and `--center` applied. While the view is still that one, a change of the canvas (the panes are
     /// laid out a frame after the canvas; the window resized) fits again (#450: kit previews and
@@ -378,6 +383,7 @@ impl EditorApp {
             initial_center: None,
             px_per_mm: None,
             viewport_json: None,
+            bare: false,
             auto_fit: None,
             dialog_rect: None,
             dialog_rect_next: None,
@@ -556,6 +562,10 @@ impl EditorApp {
                 "templates" => crate::lettering_ui::open_template_wizard(self),
                 "measure" => self.toggle_measure(),
                 "norulers" => self.workspace.rulers = false,
+                "bare" => {
+                    self.bare = true;
+                    self.workspace.rulers = false;
+                }
                 "creator" => self.creator.open = true,
                 "sdf" => {
                     self.sewing.open = true;
@@ -2270,16 +2280,19 @@ impl eframe::App for EditorApp {
             ctx.request_repaint_after(std::time::Duration::from_millis(500));
         }
         self.update_title(&ctx);
-        egui::Panel::top("ribbon").show(ui, |ui| crate::ribbon::ribbon(self, ui));
-        if self.tab_count() > 1 || self.ui.prefs.open_in_tabs {
-            egui::Panel::top("documents").show(ui, |ui| documents::strip(self, ui));
+        if !self.bare {
+            egui::Panel::top("ribbon").show(ui, |ui| crate::ribbon::ribbon(self, ui));
+            if self.tab_count() > 1 || self.ui.prefs.open_in_tabs {
+                egui::Panel::top("documents").show(ui, |ui| documents::strip(self, ui));
+            }
+            if self.ui.prefs.editing.precision_bar {
+                egui::Panel::top("precision")
+                    .show(ui, |ui| crate::arrange_ui::precision_bar(self, ui));
+            }
+            egui::Panel::bottom("status").show(ui, |ui| crate::panes::status_bar(self, ui));
+            crate::assistant_panel::panel(self, ui);
+            crate::panes::docked(self, ui);
         }
-        if self.ui.prefs.editing.precision_bar {
-            egui::Panel::top("precision").show(ui, |ui| crate::arrange_ui::precision_bar(self, ui));
-        }
-        egui::Panel::bottom("status").show(ui, |ui| crate::panes::status_bar(self, ui));
-        crate::assistant_panel::panel(self, ui);
-        crate::panes::docked(self, ui);
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
             .show(ui, |ui| crate::canvas::canvas(self, ui));
