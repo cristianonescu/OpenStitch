@@ -1728,6 +1728,11 @@ pub enum Pairing {
     Length,
 }
 
+/// A stopped stroke's last crossings whose upper end lies within this fraction of its width from
+/// the crotch are its run-on foot's fan (#939): PE-DESIGN's V fans 11 crossings starting along
+/// the run-on arm's inner edge up to 2 mm from the crotch, the arm 3.6 mm wide.
+const FAN_REACH: f64 = 0.6;
+
 /// Two strokes through a junction whose directions out of it differ from straight by at most
 /// this (degrees) are one column through it (H's stems, A's legs, T's bar).
 const THROUGH: f64 = 40.0;
@@ -1973,6 +1978,7 @@ impl GlyphStrokes {
                 out: Vec::new(),
                 at: v2(b.min_x, b.min_y),
                 seq: Vec::new(),
+                satin: pairing == Pairing::Progress,
             };
             // Each piece of the letter from the column end nearest where the sewing is.
             while let Some((c, nearest)) = order.nearest_end() {
@@ -2086,6 +2092,8 @@ struct Order<'a> {
     at: Vec2,
     /// The columns in the order they are sewn.
     seq: Vec<usize>,
+    /// Satin (not fill text): a run-on foot is sewn in PE-DESIGN's six steps (#939).
+    satin: bool,
 }
 
 impl Order<'_> {
@@ -2273,6 +2281,101 @@ impl Order<'_> {
         }
     }
 
+    /// A column entered at end `e` whose other end is a free foot with another stroke stopped
+    /// against it near there (V's foot, M's middle V, W's feet; satin only): that stroke, its
+    /// rungs from its free end to its stop, and the crotch (the stop's inner corner, the
+    /// higher end of its last rung). `None` elsewhere (A's apex points up).
+    fn run_on_foot(&self, c: usize, e: usize) -> Option<(usize, Vec<[Vec2; 2]>, Vec2)> {
+        let s = &self.strokes[c];
+        let far = 1 - e;
+        if !self.satin || s.closed || s.centre.len() < 2 || s.ends[far] != StrokeEnd::Free {
+            return None;
+        }
+        let len = s.length();
+        let tip = if far == 0 {
+            s.centre[0]
+        } else {
+            s.centre[s.centre.len() - 1]
+        };
+        let reach = s.widths.iter().copied().fold(0.0, f64::max);
+        (0..self.strokes.len()).find_map(|k| {
+            let o = &self.strokes[k];
+            if k == c || self.done[k] || o.closed || o.centre.len() < 2 {
+                return None;
+            }
+            let se = (0..2).find(|&i| o.ends[i] == StrokeEnd::Against)?;
+            let stop = if se == 0 {
+                o.centre[0]
+            } else {
+                o.centre[o.centre.len() - 1]
+            };
+            let (at, off, _) = project(&s.centre, false, stop);
+            let from_far = if far == 0 { at } else { len - at };
+            // Near the column, in its half towards the foot, the foot below the stop.
+            if off > reach || from_far > 0.5 * len || tip.y <= stop.y {
+                return None;
+            }
+            let mut rs = self.rungs[k].clone();
+            if rs.len() < 4 {
+                return None;
+            }
+            if se == 0 {
+                rs.reverse();
+            }
+            let last = rs[rs.len() - 1];
+            let crotch = if last[0].y <= last[1].y {
+                last[0]
+            } else {
+                last[1]
+            };
+            Some((k, rs, crotch))
+        })
+    }
+
+    /// PE-DESIGN's run-on foot (stroke-satin-V, #939): the column from `from` down to the rung
+    /// through the crotch; a run down under the foot and its tip back up to that rung, a second
+    /// pass; the stopped stroke's last crossings, the ones along its stop line, as a fan from the
+    /// stop up; then a run up the stopped stroke and the stroke from its free end down to the
+    /// fan.
+    fn sew_run_on_foot(
+        &mut self,
+        c: usize,
+        from: f64,
+        to: f64,
+        (k, rs, crotch): (usize, Vec<[Vec2; 2]>, Vec2),
+    ) {
+        let cut = project(&self.strokes[c].centre, false, crotch).0;
+        let upper = self.piece(c, from, cut);
+        let tip = self.piece(c, to, cut);
+        if upper.len() < 2 || tip.len() < 2 {
+            let whole = self.piece(c, from, to);
+            self.emit(whole, false);
+            return;
+        }
+        self.emit(upper, false);
+        let under = tip[0][0].lerp(tip[0][1], 0.5);
+        self.emit_led(tip, under);
+        self.done[k] = true;
+        self.seq.push(k);
+        // The fan: the stopped stroke's last rungs whose upper end lies within FAN_REACH of its
+        // width from the crotch (PE-DESIGN's start along the run-on arm's inner edge, 2 mm).
+        let width = self.strokes[k].widths.iter().copied().fold(0.0, f64::max);
+        let near = |r: &[Vec2; 2]| r[0].distance(crotch).min(r[1].distance(crotch));
+        let m = (0..rs.len())
+            .rev()
+            .take_while(|&i| near(&rs[i]) <= FAN_REACH * width)
+            .last()
+            .unwrap_or(rs.len() - 1);
+        let m = m.min(rs.len() - 2).max(1);
+        let fan: Vec<[Vec2; 2]> = rs[m..].iter().rev().copied().collect();
+        let arm: Vec<[Vec2; 2]> = rs[..=m].to_vec();
+        if fan.len() >= 2 {
+            self.emit_led(fan.clone(), fan[0][0]);
+        }
+        let up = arm[0][0].lerp(arm[0][1], 0.5);
+        self.emit_led(arm, up);
+    }
+
     fn visit(&mut self, c: usize, entry: Entry) {
         if self.done[c] {
             return;
@@ -2385,8 +2488,13 @@ impl Order<'_> {
             }
             (Entry::End(e), None) => {
                 let (a, b) = if e == 0 { (0.0, len) } else { (len, 0.0) };
-                let whole = self.piece(c, a, b);
-                self.emit(whole, false);
+                match self.run_on_foot(c, e) {
+                    Some(foot) => self.sew_run_on_foot(c, a, b, foot),
+                    None => {
+                        let whole = self.piece(c, a, b);
+                        self.emit(whole, false);
+                    }
+                }
             }
             (Entry::Through, _) => {
                 // Sewn whole from its upper end, however near the junction is to the other
