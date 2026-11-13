@@ -19,13 +19,33 @@ fn repository_specs_pass_and_the_status_table_is_current() {
     let summary = summary_markdown(&report);
     assert!(report.ok(), "{summary}");
     assert!(report.specs.len() >= 20, "{summary}");
-    assert!(
-        report
-            .specs
-            .iter()
-            .all(|s| s.status == Status::Pass && s.tier.is_some()),
-        "{summary}"
-    );
+    // Every spec passes, except the specs listed here, whose reference was withdrawn because the
+    // capture held Brother content: they are skipped until a clean capture replaces it, and the
+    // entry goes when it does (a listed spec that is no longer skipped fails here too).
+    const WITHDRAWN: [(&str, u32); 3] = [
+        ("line-motif-zigzag-3pt", 1060),
+        ("motif-fill-2pt", 1060),
+        ("programmable-fill-45", 1060),
+    ];
+    for s in &report.specs {
+        match WITHDRAWN.iter().find(|(id, _)| *id == s.id) {
+            Some((id, issue)) => assert!(
+                s.status == Status::Skipped,
+                "{id} (withdrawn, #{issue}) is no longer skipped: remove it from WITHDRAWN"
+            ),
+            None => assert!(
+                s.status == Status::Pass && s.tier.is_some(),
+                "{} does not pass (only the WITHDRAWN specs may be skipped)\n{summary}",
+                s.id
+            ),
+        }
+    }
+    for (id, issue) in WITHDRAWN {
+        assert!(
+            report.specs.iter().any(|s| s.id == id),
+            "{id} (#{issue}) is listed as withdrawn but no spec has that id"
+        );
+    }
     // Every audit item the harness was built for has a spec.
     for item in [1, 2, 3, 7, 14, 15, 16, 17, 18, 19] {
         assert!(

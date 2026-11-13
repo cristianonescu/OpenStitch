@@ -4257,3 +4257,25 @@ flag, the click as the column's top and the box from 0.59 × the size above it d
 letter (PE-DESIGN's 760, 953 – 840, 1241; ours within 0.6 mm). Several columns, and centred or
 bottom-aligned columns, stay refused: PE-DESIGN's column spacing and alignment codes have no
 owner file. No kit design, example or compat spec uses vertical text.
+
+### Captures with a PE-DESIGN built-in motif withdrawn, 2026-11-13
+
+Reviewing the motif fixtures for #608 showed that every PE-DESIGN capture with a motif fill also
+lists a PE-DESIGN built-in motif in its header's motif list (a 42-point pattern at size 1170,
+beside the project's own). Brother's built-in data stays out of the repository, so six files are
+removed: `compat/reference/pes/` and `/stitches/` `line-motif-zigzag-3pt.pes` and
+`motif-fill-2pt.pes`, `compat/reference/pes/obj-motif-fill-owner-v.pes` and the pe11 fixture
+`obj-motif-fill-owner-v.pes`, with their manifest and provenance entries. The same scan of the
+fill lists found `compat/reference/stitches/programmable-fill-45.pes`, made with PE-DESIGN's
+built-in programmable fill pattern (its own entry and its stitches), removed too and its spec
+skipped. PE-DESIGN keeps a Pattern2 for every motif fill and fills it with its built-in motif
+even under "Pattern1 only"; the coordinator's round-13 captures with Pattern2 set to the
+project's second motif (`motif-fill-clean-p1`, `-p1p2`) list only project motifs and replace the
+pe11 fixture. Specs
+`line-motif-zigzag-3pt` and `motif-fill-2pt` are skipped ("reference withdrawn 2026-11-13: the
+capture listed a PE-DESIGN built-in motif; a clean capture is pending"); `pes-objects-psc-patterns`
+and `pes-objects-owner-patterns` keep their other files. The formats test
+`committed_pes_files_list_only_the_projects_own_patterns` now fails on any committed PES whose
+motif list holds anything but the project's own `.pmf` motifs, or whose fill list holds anything
+but its own `.pas` tiles (stamp outlines of the owner's own shapes allowed in the `stamp-*` captures). The measurements made on the withdrawn
+files above stay as recorded; they wait for clean captures to be checked again.
