@@ -389,6 +389,9 @@ pub fn known_codes() -> std::collections::HashSet<String> {
 }
 
 const RECT: &str = r##"{"x": 20, "y": 20, "width": 30, "height": 20, "fill": "#1f3a93"}"##;
+/// The branch-columns task's Y (#1006): strokes 2.5 mm wide, a 30 mm stem and two 20 mm arms.
+const Y_SHAPE: &str = r##"{"points": [[48.75, 90], [51.25, 90], [51.25, 60], [65.0, 45.0], [63.2, 43.3],
+    [50.0, 57.6], [36.8, 43.3], [35.0, 45.0], [48.75, 60]], "fill": "#1f3a93"}"##;
 const PICTURE: &str = "{PICTURE}";
 /// The Auto Punch task's picture (#493): the Higgsfield emblem, 128 px (examples/images,
 /// PROVENANCE.md `d02-emblem-small.png`), written to the scratch folder as `emblem.png`.
@@ -939,6 +942,37 @@ pub const TASKS: &[Task] = &[
                 "the circle's fill rows radiating (flowField radial)",
             )?;
             need(d.stitches() > 300, "stitches")
+        },
+    },
+    Task {
+        // #1006: a branching shape into satin columns, one per arm (#526,
+        // `object.deriveSkeleton {branches: true}`).
+        id: "branch-columns",
+        setup: &[("shape.polygon", Y_SHAPE)],
+        prompt: "Sew the Y shape as satin, one satin column along each of its arms.",
+        check: |d| {
+            let visible = |i: usize| d.objects[i]["visible"] != json!(false);
+            let skeleton = |i: usize| {
+                d.full
+                    .get(i)
+                    .is_some_and(|f| f["region"]["skeleton"].is_object())
+            };
+            let columns = (0..d.objects.len())
+                .filter(|&i| visible(i) && skeleton(i))
+                .count();
+            need(
+                columns >= 2,
+                "the Y as one satin column per arm (2 or more skeleton satin columns)",
+            )?;
+            need(
+                !(0..d.objects.len()).any(|i| {
+                    visible(i)
+                        && d.full.get(i).is_some_and(|f| f["region"].is_object())
+                        && !skeleton(i)
+                }),
+                "no unsplit Y left visible",
+            )?;
+            need(d.stitches() > 100, "stitches")
         },
     },
 ];
@@ -1611,7 +1645,7 @@ mod tests {
         let (json, md) = reports("scripted", &out);
         assert_eq!(json["passed"], 2);
         assert!(md.contains("| star | fail: only talked |"));
-        assert_eq!(TASKS.len(), 28);
+        assert_eq!(TASKS.len(), 29);
     }
 
     #[test]
@@ -1806,6 +1840,63 @@ mod tests {
         let swirl = (task.check)(&design(json!("swirl"))).expect_err("swirl");
         assert!(swirl.contains("radial"), "{swirl}");
         assert!((task.check)(&design(json!("radial"))).is_ok());
+    }
+
+    /// #1006: the branch-columns task passes on the design `object.deriveSkeleton {branches:
+    /// true}` makes of its Y, read as the benchmark reads it, and fails on the Y left as a
+    /// fill or sewn as one skeleton column.
+    #[test]
+    fn the_branch_columns_task_counts_the_columns() {
+        let task = TASKS
+            .iter()
+            .find(|t| t.id == "branch-columns")
+            .expect("task");
+        let read = |s: &mut Session| {
+            let objects: Vec<Value> = s
+                .execute("object.list", None)
+                .ok()
+                .and_then(|v| v.as_array().cloned())
+                .unwrap_or_default();
+            let full = objects
+                .iter()
+                .map(|o| {
+                    s.execute("object.get", Some(&json!({"id": o["id"]})))
+                        .unwrap_or_default()
+                })
+                .collect();
+            Design {
+                objects,
+                full,
+                info: s.execute("design.info", None).unwrap_or_default(),
+                ..Design::default()
+            }
+        };
+        let start = || {
+            let mut s = Session::new(std::env::temp_dir());
+            for (command, params) in task.setup {
+                let p: Value = serde_json::from_str(params).expect("json");
+                s.execute(command, Some(&p)).expect("setup");
+            }
+            s
+        };
+        // Left as a fill: fails.
+        let mut s = start();
+        let e = (task.check)(&read(&mut s)).expect_err("a fill");
+        assert!(e.contains("column"), "{e}");
+        // One skeleton column along the main stroke: fails.
+        let mut s = start();
+        s.execute("object.deriveSkeleton", Some(&json!({"id": 1})))
+            .expect("one column");
+        assert!((task.check)(&read(&mut s)).is_err());
+        // One column per arm: passes.
+        let mut s = start();
+        s.execute(
+            "object.deriveSkeleton",
+            Some(&json!({"id": 1, "branches": true})),
+        )
+        .expect("columns");
+        let d = read(&mut s);
+        (task.check)(&d).unwrap_or_else(|e| panic!("{e}: {:?}", d.objects));
     }
 
     #[test]
