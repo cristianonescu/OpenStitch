@@ -153,112 +153,113 @@ const EXPECT: &[(&str, Expect)] = &[
 ];
 
 /// Settings that change nothing today, found by this test (#880): the start of each problem
-/// line and why. A problem not listed here fails, and so does an entry that no longer
+/// line and why, with the issue that tracks it (#1039-#1049). Settings that change only near
+/// one end of their range are printed as NOTEs and tracked in #1050. A problem not listed here fails, and so does an entry that no longer
 /// reproduces (remove it once its issue is fixed).
 const KNOWN: &[(&str, &str)] = &[
     (
         r#"r:fill gradationSteps"#,
-        "Gradation steps change nothing with a gradation pattern on (2-20 steps)",
+        "#1039: Gradation steps change nothing with a gradation pattern on (2-20 steps)",
     ),
     (
         r#"r:satin gradationSteps"#,
-        "Gradation steps change nothing with a gradation pattern on (2-20 steps)",
+        "#1039: Gradation steps change nothing with a gradation pattern on (2-20 steps)",
     ),
     (
         r#"r:satin spacingAt (with {"autoDirection":true})"#,
-        "Auto-direction satin ignores the column spacing profile",
+        "#1040: Auto-direction satin ignores the column spacing profile",
     ),
     (
         r#"r:satin pullLeft (with {"autoDirection":true})"#,
-        "Auto-direction satin ignores pull left",
+        "#1040: Auto-direction satin ignores pull left",
     ),
     (
         r#"r:satin pullRight (with {"autoDirection":true})"#,
-        "Auto-direction satin ignores pull right",
+        "#1040: Auto-direction satin ignores pull right",
     ),
     (
         r#"r:satin pullPercent (with {"autoDirection":true})"#,
-        "Auto-direction satin ignores pull % of width",
+        "#1040: Auto-direction satin ignores pull % of width",
     ),
     (
         r#"r:satin halfStitch (with {"autoDirection":true})"#,
-        "Half Stitch changes nothing on these auto-direction satins",
+        "#1040: Half Stitch changes nothing on these auto-direction satins",
     ),
     (
         r#"r:satin cornerStyle (with {"autoDirection":true}): turn and mitre"#,
-        "Auto-direction satin corners: turn, mitre and cap sew the same",
+        "#1040: Auto-direction satin corners: turn, mitre and cap sew the same",
     ),
     (
         r#"r:satin cornerStyle (with {"autoDirection":true}): turn and cap"#,
-        "Auto-direction satin corners: turn, mitre and cap sew the same",
+        "#1040: Auto-direction satin corners: turn, mitre and cap sew the same",
     ),
     (
         r#"r:satin cornerStyle (with {"autoDirection":true}): mitre and cap"#,
-        "Auto-direction satin corners: turn, mitre and cap sew the same",
+        "#1040: Auto-direction satin corners: turn, mitre and cap sew the same",
     ),
     (
         r#"r:satin underlayStyle: edgeZigzag and edgeFill"#,
-        "Satin region: edge-fill under sewing sews as edge zigzag",
+        "#1041: Satin region: edge-fill under sewing sews as edge zigzag",
     ),
     (
         r#"r:programmableFill frequency"#,
-        "Programmable fill frequency changes nothing (0-50 %)",
+        "#1042: Programmable fill frequency changes nothing (0-50 %)",
     ),
     (
         r#"r:zigzagNetFill angle"#,
-        "Zigzag net fill direction changes nothing (-360 to 360)",
+        "#1043: Zigzag net fill direction changes nothing (-360 to 360)",
     ),
     (
         r#"r:fill stitchType"#,
-        "Fill stitch type 1 (flat rows) and 2 (sloped rows) sew the same on these shapes",
+        "#1044: Fill stitch type 1 (flat rows) and 2 (sloped rows) sew the same on these shapes",
     ),
     (
         r#"r:crossStitch travel"#,
-        "Cross stitch travel on and off sew the same on these shapes",
+        "#1045: Cross stitch travel on and off sew the same on these shapes",
     ),
     (
         r#"r:fill runningStitchPath: inside and insideHidden"#,
-        "insideHidden differs from inside only on an open fill (low density, #628)",
+        "Not a bug: insideHidden differs from inside only on an open fill (low density, #628)",
     ),
     (
         r#"r:satin runningStitchPath: inside and insideHidden"#,
-        "insideHidden differs from inside only on an open fill (low density, #628)",
+        "Not a bug: insideHidden differs from inside only on an open fill (low density, #628)",
     ),
     (
         r#"l:running profile: linear and smoothstep"#,
-        "Thickness profiles other than arc sew the same with the default passes",
+        "#1046: Thickness profiles other than arc sew the same with the default passes",
     ),
     (
         r#"l:running profile: linear and stairs"#,
-        "Thickness profiles other than arc sew the same with the default passes",
+        "#1046: Thickness profiles other than arc sew the same with the default passes",
     ),
     (
         r#"l:running profile: smoothstep and stairs"#,
-        "Thickness profiles other than arc sew the same with the default passes",
+        "#1046: Thickness profiles other than arc sew the same with the default passes",
     ),
     (
         r#"l:zigzag halfStitch"#,
-        "Half stitch on a zigzag line changes nothing on these shapes",
+        "#1047: Half stitch on a zigzag line changes nothing on these shapes",
     ),
     (
         r#"l:satin cornerStyle: mitre and cap"#,
-        "Satin line corners: mitre and cap sew the same",
+        "#1048: Satin line corners: mitre and cap sew the same",
     ),
     (
         r#"l:satin capBelow (with {"cornerStyle":"auto"})"#,
-        "Satin line: cap below changes nothing with auto corners",
+        "#1048: Satin line: cap below changes nothing with auto corners",
     ),
     (
         r#"l:satin capMaxLength (with {"cornerStyle":"auto"})"#,
-        "Satin line: cap max length changes nothing with auto corners",
+        "#1048: Satin line: cap max length changes nothing with auto corners",
     ),
     (
         r#"l:stripes spacing"#,
-        "Stripes line: spacing changes nothing (0.5-20 mm)",
+        "#1049: Stripes line: spacing changes nothing (0.5-20 mm)",
     ),
     (
         r#"l:ripple spacing"#,
-        "Ripple line: spacing changes nothing (0.5-20 mm)",
+        "#1049: Ripple line: spacing changes nothing (0.5-20 mm)",
     ),
 ];
 
