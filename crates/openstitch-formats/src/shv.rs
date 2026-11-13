@@ -26,8 +26,8 @@
 //! to its end (pe-long.SHV). The preview is 4 bits a pixel, column by column (x), each column bottom to top, one pixel a
 //! millimetre with a one-pixel margin (`w` = width in whole millimetres + 2): PE's size fields
 //! are matched, its pixels only approximately (PE's own drawing rule is not known). A pixel
-//! holds the block's chart entry modulo 15 (15 for 0), which gives PE's 11 and 3 for its
-//! 800 RED (entry 41) and Prussian Blue (entry 33); other entries are not yet checked. A Brother
+//! holds PE-DESIGN's preview value for the block's chart entry ([`PE_PREVIEW_VALUES`], 12
+//! entries measured; the nearest measured colour's for the others, #989). A Brother
 //! chart colour takes the chart entry PE-DESIGN gives it ([`PE_SHV_CODES`], #349).
 //! Neither pyembroidery nor libembroidery has a working SHV writer.
 
@@ -186,6 +186,57 @@ fn chart_code(t: &Thread) -> u8 {
         )
 }
 
+/// The preview pixel value PE-DESIGN 11.50 writes for a block of SHV chart entry `entry`, as
+/// measured on machine/pe-c17.SHV's 12 entries (and sample-basic's 41 and 33, #989). Similar
+/// colours share a value (the darks 1, the greys 10, the oranges and dark yellow 12, the pinks
+/// 13): a small preview palette of PE-DESIGN's own, not entry modulo 15 (that fitted only 41
+/// and 33). Other entries take the nearest measured colour's value ([`preview_value`]).
+pub const PE_PREVIEW_VALUES: [(u8, u8); 12] = [
+    (0, 1),
+    (5, 9),
+    (6, 10),
+    (10, 13),
+    (22, 10),
+    (25, 12),
+    (33, 3),
+    (36, 8),
+    (37, 12),
+    (38, 1),
+    (41, 11),
+    (42, 13),
+];
+
+/// The preview value of SHV chart entry `entry`: PE-DESIGN's where measured
+/// ([`PE_PREVIEW_VALUES`]), else that of the measured entry whose colour is nearest.
+fn preview_value(entry: u8) -> u8 {
+    if let Some(&(_, v)) = PE_PREVIEW_VALUES.iter().find(|(e, _)| *e == entry) {
+        return v;
+    }
+    let colour = |e: u8| {
+        SHV_CHART
+            .get(usize::from(e))
+            .and_then(Option::as_ref)
+            .map(Thread::rgb_value)
+    };
+    let Some(rgb) = colour(entry) else {
+        return PE_PREVIEW_VALUES[0].1;
+    };
+    let parts = |c: u32| [(c >> 16) & 255, (c >> 8) & 255, c & 255].map(i64::from);
+    let near = |e: u8| {
+        colour(e).map_or(i64::MAX, |c| {
+            parts(c)
+                .iter()
+                .zip(parts(rgb))
+                .map(|(a, b)| (a - b) * (a - b))
+                .sum()
+        })
+    };
+    PE_PREVIEW_VALUES
+        .iter()
+        .min_by_key(|(e, _)| near(*e))
+        .map_or(1, |&(_, v)| v)
+}
+
 /// Draws a line of `value` pixels from `a` to `b` (Bresenham) into a column-major preview of
 /// `w` columns of `h` pixels, each column stored bottom to top.
 fn draw(pixels: &mut [u8], (w, h): (i64, i64), a: (i64, i64), b: (i64, i64), value: u8) {
@@ -312,10 +363,7 @@ pub fn write(input: &StitchPattern) -> Result<Vec<u8>> {
     let pixel = |(px, py): (i64, i64)| ((px - min_x + unit) / unit, (py - min_y) / unit);
     let mut previous: Option<(i64, i64)> = None;
     for (block, code) in blocks.iter().zip(&codes) {
-        let value = match code % 15 {
-            0 => 15,
-            v => v,
-        };
+        let value = preview_value(*code);
         for &p in &block.points {
             let q = pixel(p);
             draw(&mut pixels, (w, h), previous.unwrap_or(q), q, value);

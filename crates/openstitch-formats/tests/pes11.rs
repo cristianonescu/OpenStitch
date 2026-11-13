@@ -376,6 +376,7 @@ fn programmable_fill_and_motif_patterns_read_from_the_header() {
         [pes11::PesPattern {
             size: 750,
             polylines: vec![vec![(0, 0), (512, 768), (1024, 0)]],
+            heads: Vec::new(),
         }]
     );
     assert!(fill.motif_patterns.is_empty());
@@ -386,6 +387,7 @@ fn programmable_fill_and_motif_patterns_read_from_the_header() {
         [pes11::PesPattern {
             size: 500,
             polylines: vec![vec![(0, 512), (512, 768), (1024, 512)]],
+            heads: Vec::new(),
         }]
     );
     // Files without patterns list none.
@@ -427,6 +429,7 @@ fn region_types_and_the_decorative_pattern_read() {
         Some(pes11::PesPattern {
             size: 10000,
             polylines: vec![vec![(128, 128), (896, 896)]],
+            heads: Vec::new(),
         })
     );
 }
@@ -2164,4 +2167,61 @@ fn zigzag_sharp_corners_and_both_miter_limits_are_read() {
     // A shape made by the tool's defaults: button 1, 0.0 and 7.0 (#373 part 1).
     let d = Shape::with_defaults();
     assert_eq!((d.sharp_corners, d.miter_limits), (0, [0.0, 7.0]));
+}
+
+#[test]
+fn a_shape_with_a_stamp_reads_and_writes_back() {
+    // #959: Convert from Outline turns the circle into a stamp on the square's fill
+    // (round-10 captures, compat/reference/stitches/stamp-*.pes). The stamp's record follows the
+    // geometry header's marks (centre 1002, 1005; 14.5 x 14.0 mm) and its outline is the
+    // header's first listed pattern: one polyline for an Engraved Line, the outline again with
+    // head [1, 500, 1] (Embossed Region) or [2, 500, 1] (Engraved Region) for a region.
+    let dir = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../compat/reference/stitches"
+    );
+    for (name, heads) in [
+        ("stamp-engraved-line-circle", vec![]),
+        ("stamp-embossed-region-circle", vec![[0, 0, 0], [1, 500, 1]]),
+        ("stamp-engraved-region-circle", vec![[0, 0, 0], [2, 500, 1]]),
+    ] {
+        let bytes = std::fs::read(format!("{dir}/{name}.pes")).expect("reference");
+        let objects = objects_of(&bytes);
+        assert_eq!(objects.unparsed, None, "{name}");
+        let [shape] = objects.shapes.as_slice() else {
+            panic!("{name}: {} shapes", objects.shapes.len());
+        };
+        assert_eq!(shape.region, RegionSewType::Fill, "{name}");
+        assert_eq!(shape.bounds, [800, 800, 1200, 1200], "{name}");
+        assert_eq!(
+            shape.stamps,
+            [pes11::PesStamp {
+                centre: [1002, 1005],
+                size: [145, 140],
+                rest: [0; 8],
+            }],
+            "{name}"
+        );
+        let [p] = objects.fill_patterns.as_slice() else {
+            panic!("{name}: {} patterns", objects.fill_patterns.len());
+        };
+        assert_eq!((p.size, p.heads.clone()), (750, heads), "{name}");
+        assert!(p.polylines.iter().all(|l| l.len() == 34), "{name}");
+        // The outline fills the cell: placed, the stamp spans its size around its centre.
+        let placed: Vec<(f32, f32)> = p.polylines[0]
+            .iter()
+            .map(|&q| shape.stamps[0].place(q))
+            .collect();
+        let lo = |f: fn(&(f32, f32)) -> f32| placed.iter().map(f).fold(f32::MAX, f32::min);
+        let hi = |f: fn(&(f32, f32)) -> f32| placed.iter().map(f).fold(f32::MIN, f32::max);
+        assert_eq!(
+            (lo(|q| q.0), hi(|q| q.0), lo(|q| q.1), hi(|q| q.1)),
+            (929.5, 1074.5, 935.0, 1075.0),
+            "{name}"
+        );
+        let written = pes11::write(&objects, &stitches_of(&bytes)).expect("write");
+        assert_eq!(objects_of(&written), objects, "{name}");
+    }
+    // Without a stamp the count is 0 and nothing follows the marks.
+    assert!(one("r01-rect").stamps.is_empty());
 }

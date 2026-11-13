@@ -1807,6 +1807,76 @@ fn shv_writes_pe_designs_moves_and_long_move_marks() {
     assert_eq!(long_marks, 14);
 }
 
+/// #989: each block's preview pixels hold PE-DESIGN's value for its SHV chart entry (pe-c17:
+/// 17 blocks in 12 entries; similar colours share a value), not entry modulo 15. Compared
+/// block for block: the most common value inside each block's square in OpenStitch's preview
+/// and in PE-DESIGN's.
+#[test]
+fn shv_preview_values_match_pe_design_block_for_block() {
+    // Column by column, each column bottom to top, high nibble first: grid[y][x], y from the top.
+    fn preview(d: &[u8], name_len: usize) -> (usize, usize, Vec<Vec<u8>>) {
+        let at = 0x56 + 1 + name_len;
+        let (w, h) = (usize::from(d[at]), usize::from(d[at + 1]));
+        let col = h.div_ceil(2);
+        let raw = &d[at + 6..at + 6 + w * col];
+        let mut grid = vec![vec![0_u8; w]; h];
+        for x in 0..w {
+            for k in 0..col {
+                let b = raw[x * col + k];
+                for (half, v) in [(0, b >> 4), (1, b & 15)] {
+                    let up = 2 * k + half;
+                    if up < h {
+                        grid[h - 1 - up][x] = v;
+                    }
+                }
+            }
+        }
+        (w, h, grid)
+    }
+    let (mut pattern, pe) = machine_capture("pe-c17.SHV");
+    pattern
+        .metadata
+        .insert(pec::LABEL_KEY.into(), "pe-c17".into());
+    let ours = shv::write(&pattern).expect("write");
+    let (w, h, theirs) = preview(&pe, "pe-c17".len());
+    let (_, _, mine) = preview(&ours, "pe-c17".len());
+    // Each block's needle points, in preview pixels (1 mm, a one-pixel margin on the left).
+    let mut blocks: Vec<Vec<(f64, f64)>> = vec![Vec::new()];
+    for st in &pattern.stitches {
+        match st.command {
+            Command::ColorChange => blocks.push(Vec::new()),
+            Command::Stitch => blocks.last_mut().expect("block").push((st.x, st.y)),
+            _ => {}
+        }
+    }
+    let all = blocks.iter().flatten();
+    let (x0, y0) = all.fold((f64::INFINITY, f64::INFINITY), |a, p| {
+        (a.0.min(p.0), a.1.min(p.1))
+    });
+    let mode = |g: &[Vec<u8>], b: &[(f64, f64)]| {
+        let px = |v: f64, o: f64| ((v - o) / 10.0) as usize;
+        let (xa, xb) = b.iter().fold((usize::MAX, 0), |a, p| {
+            (a.0.min(px(p.0, x0) + 1), a.1.max(px(p.0, x0) + 1))
+        });
+        let (ya, yb) = b.iter().fold((usize::MAX, 0), |a, p| {
+            (a.0.min(px(p.1, y0)), a.1.max(px(p.1, y0)))
+        });
+        let mut count = [0_usize; 16];
+        for y in (ya + 1)..yb.min(h) {
+            for x in (xa + 1)..xb.min(w) {
+                if g[y][x] != 0 {
+                    count[usize::from(g[y][x])] += 1;
+                }
+            }
+        }
+        (1..16).max_by_key(|&v| count[v]).expect("values")
+    };
+    assert_eq!(blocks.len(), 17);
+    for (k, b) in blocks.iter().enumerate() {
+        assert_eq!(mode(&mine, b), mode(&theirs, b), "block {k}");
+    }
+}
+
 /// PE-DESIGN 11.50's SHV export of `sample-basic`, read and written again: the header text,
 /// name, preview size, colour count, bounds, word counts, chart entries, block start points
 /// and records equal PE's; only the preview's pixels are drawn by OpenStitch's own rule.

@@ -572,6 +572,13 @@ Line references are relative to `crates/`.
   0.14 mm; Z 246/237, 0.24 mm, 1/0; Z-8 95/99, 0.16 mm. PE-DESIGN sews N, W, K and Z in one run
   without a trim (M with one): its strokes meet at the crotches instead of being cut apart, and
   N's and M's PE → ours distances (the spike at the acute corner) are the largest.
+  Since 2026-11-13 (#940, part): M and N start at the top of the left stem and run down under
+  it before its satin, as PE-DESIGN's do (we started at the foot). M 358 → 366 against 374, M-8
+  148 → 153 against 165, N 283 → 291 against 293, N-8 119 → 124 against 123; the other 19
+  satin captures are unchanged. The M, N and N-8 specs are now held to 3 % and M-8 to 8 %.
+  M-8's remaining gap: PE-DESIGN sews each stem's top as a fan with the diagonal's start (a
+  corner square, stem satin stopping below it), so its diagonals are shorter and its corners
+  denser, and it locks twice on the way down.
 - **Test:**
   - Inputs: `text.add {"text":"AVOW","size":30,"x":50,"y":50}` →
     `object.setRegion {"id":1,"type":"satin"}` → `design.generate`.
@@ -3489,8 +3496,9 @@ stitches, 66 trims, 8.7 → 9.0 min.
 ### Embossing and engraving as strong as PE-DESIGN's, 2026-11-12 (#471)
 
 PE-DESIGN 11.50's round-10 captures (`471-*.pes` in the owner's notes; the plain square is
-`compat/reference/stitches/stamp-plain-square-baseline.pes`, the three stamped ones wait for PES
-0110 import of a shape that carries a stamp, #959): a 40 mm square (42 mm with its line)
+`compat/reference/stitches/stamp-plain-square-baseline.pes`, the three stamped ones
+`stamp-engraved-line-circle.pes`, `stamp-embossed-region-circle.pes` and
+`stamp-engraved-region-circle.pes` since #959): a 40 mm square (42 mm with its line)
 with its default Fill (4.5 lines/mm, 45°, under sewing) and 2 mm Zigzag line, and a circle with a
 14.5 × 14.0 mm outline (16.5 × 16 mm with its own 2 mm line) in the middle converted with Stamp/Emboss > Convert from Outline. OpenStitch builds the
 same with `shape.emboss`. Inside the circle against outside (1 mm in from the circle and 3 mm in
@@ -4160,3 +4168,34 @@ twice the median 0.9 % → 0 % (`piping_travel_keeps_off_the_rows_at_a_lobe_tip`
 touches 8 kit designs by a few stitches (fills, Auto Punch's storybook and balloon, monograms,
 background fill; trims unchanged, each within ±2 % of its stitches and sew_check ok); compat
 unchanged.
+
+### PES 0110 import of a shape that carries a stamp, 2026-11-13 (#959)
+
+The three round-10 captures for #471 (a 40 mm Fill square whose middle circle, a 14.5 × 14.0 mm
+outline, became a stamp through Stamp/Emboss > Convert from Outline) imported nothing: their
+`CEmbLine` was "an unmapped variant", so `import.pes` found no objects. Against the plain
+square the stamped files differ in four places, the same in all three except the effect:
+
+- The header's first pattern list holds the stamp's outline as a pattern: size 750 and a
+  34-point polyline filling the 1024-unit cell (145 bytes in the list). A region effect adds the
+  outline again as a second polyline whose six bytes before its u16 1, zero in every fill, motif
+  and decorative pattern, are `[1, 500, 1]` for Embossed Region and `[2, 500, 1]` for Engraved
+  Region (291 bytes). The embossed and engraved region files differ in that one byte only.
+- The geometry header's last field, the u16 after the third mark, zero in every other file, is
+  the stamp count; 16 bytes per stamp follow it: the centre (1002, 1005 in file units), the size
+  in 0.1 mm (145 × 140) and eight zero bytes.
+- Body +188 goes from 0 to 1.
+
+`pes11::read_objects` now reads the polyline heads (`PesPattern::heads`) and the records
+(`Shape::stamps`), and writes them back unchanged (`a_shape_with_a_stamp_reads_and_writes_back`).
+`import.pes` turns each record into a stamp on the region: the effect from the heads, the
+outline scaled from the cell to the stamp's size around its centre (42.95–57.45 × 43.5–57.5 mm,
+the circle where PE-DESIGN drew it). Sewn again, the imported square comes within 5 % of
+PE-DESIGN's stitch count for each effect (`import_pes_reads_a_shape_that_carries_a_stamp`). The
+three files are now the PE references of `stamp-engraved-line-circle`,
+`stamp-embossed-region-circle` and `stamp-engraved-region-circle` (stitch count within 5 %, the
+emboss's longest stitch within 0.5 mm).
+
+Not mapped yet: which listed pattern a stamp uses when the header lists several (one is
+mapped; a capture with a programmable fill and a stamp would show it), the record's last eight
+bytes, and Brother's built-in stamps.

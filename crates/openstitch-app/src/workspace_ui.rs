@@ -541,6 +541,27 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
                 }
                 ui.end_row();
 
+                // One-click hoop commands (#879, beyond PE-DESIGN), one undo step each.
+                ui.label("");
+                ui.horizontal(|ui| {
+                    let any = !d.objects.is_empty();
+                    if ui
+                        .add_enabled(any, egui::Button::new(t("ui-use-smallest-hoop")))
+                        .on_hover_text(t("ui-use-smallest-hoop-tip"))
+                        .clicked()
+                    {
+                        requests.push(CommandRequest::new("machine.useSmallestHoop", json!({})));
+                    }
+                    if ui
+                        .add_enabled(any, egui::Button::new(t("ui-fit-to-hoop")))
+                        .on_hover_text(t("ui-fit-to-hoop-tip"))
+                        .clicked()
+                    {
+                        requests.push(CommandRequest::new("design.fitToHoop", json!({})));
+                    }
+                });
+                ui.end_row();
+
                 ui.label(t("ui-design-page"));
                 ui.horizontal(|ui| {
                     let custom = m.hoop.is_none();
@@ -687,9 +708,16 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
     }
     app.workspace.settings_open = open;
     for r in requests {
-        if app.execute(&r).is_some() {
+        if let Some(v) = app.execute(&r) {
             app.status = openstitch_app::tf!("ui-status-done", command = r.command);
-            if r.command == "machine.set" {
+            // Fit to hoop says when stitch-only objects change density (#879).
+            if let Some(w) = v["warnings"].get(0).and_then(|w| w.as_str()) {
+                app.status = w.to_string();
+            }
+            if matches!(
+                r.command,
+                "machine.set" | "machine.useSmallestHoop" | "design.fitToHoop"
+            ) {
                 app.fit_requested = true;
             }
         }

@@ -152,6 +152,31 @@ def self_test():
     assert got == ([("A", "Pencil")], [], ["Gone"]), got
     got = unlisted_features(m, readme, {"Pencil": "pencil (freehand)"})
     assert got == ([("A", "Drawing")], ["Pencil"], []), got
+    # Every status form is one of KINDS (#1005).
+    for status, want in [("Implemented", "Implemented"),
+                         ("Partially Compatible (lines)", "Partially Compatible"),
+                         ("Planned (beyond PE-DESIGN)", "Planned (beyond PE-DESIGN)"),
+                         ("Partial (beyond PE-DESIGN)", "Partial (beyond PE-DESIGN)"),
+                         ("Partly implemented (beyond PE-DESIGN): knockdown done",
+                          "Partial (beyond PE-DESIGN)"),
+                         ("Blocked", "Blocked"), ("Done", "Done")]:
+        assert kind(status) == want, (status, kind(status))
+    legend = ("Status values: Implemented · Blocked ·\nPlanned (beyond PE-DESIGN) · "
+              "Partial (beyond PE-DESIGN).\n\n")
+    head = "| Area | Feature | Status | E | R |\n|---|---|---|---|---|\n"
+    ok = (legend + head + "| A | Knife | Implemented | e | r |\n"
+          "| A | Tabs | Partly implemented (beyond PE-DESIGN): tabs done | e | r |\n")
+    assert unknown_statuses(ok) == ([], []), unknown_statuses(ok)
+    assert unknown_statuses(ok + "| A | Pen | Done | e | r |\n") == ([("Pen", "Done")], [])
+    no_legend_entry = ok.replace(" · Partial (beyond PE-DESIGN)", "")
+    assert unknown_statuses(no_legend_entry) == ([], ["Partial (beyond PE-DESIGN)"]), \
+        unknown_statuses(no_legend_entry)
+    # The glance line's parts add up to the row total on the real matrix (#1005).
+    rows, counts, _, _, _ = matrix()
+    parts = ("Implemented", "Partially Compatible", "Verified Compatible", "Documented",
+             "Blocked", "Partial (beyond PE-DESIGN)", "Planned (beyond PE-DESIGN)",
+             "Not Investigated")
+    assert sum(counts[k] for k in parts) == len(rows), (len(rows), counts)
     print("readme_status self-test passed.")
     return 0
 
@@ -172,15 +197,37 @@ def table_rows(text, header):
     return rows
 
 
+# Every status a FEATURE_MATRIX row may have, as kind() names it (#1005).
+KINDS = ("Not Investigated", "Documented", "Implemented", "Partially Compatible",
+         "Verified Compatible", "Blocked", "Planned (beyond PE-DESIGN)",
+         "Partial (beyond PE-DESIGN)")
+
+
 def kind(status):
+    """The row's status as one of KINDS; any other status comes back as it is."""
     s = status.lower()
     if s.startswith("planned"):
         return "Planned (beyond PE-DESIGN)"
+    # "Partial (beyond PE-DESIGN)" and "Partly implemented (beyond PE-DESIGN): ..." (#1005).
+    if s.startswith(("partial (beyond", "partly implemented (beyond")):
+        return "Partial (beyond PE-DESIGN)"
     for k in ("Verified Compatible", "Partially Compatible", "Implemented", "Blocked",
               "Documented", "Not Investigated"):
         if s.startswith(k.lower()):
             return k
     return status
+
+
+def unknown_statuses(matrix_text):
+    """(feature, status) of every row whose status is none of KINDS, and the kinds rows use
+    that the status legend at the top of the matrix leaves out (#1005)."""
+    rows = [r for r in table_rows(matrix_text, "| Area | Feature | Status") if len(r) >= 3]
+    unknown = [(short(r[1]), r[2]) for r in rows if kind(r[2]) not in KINDS]
+    legend = re.search(r"Status values:(.*?)\n\n", matrix_text.replace("\r\n", "\n"), re.S)
+    listed = {k.strip().rstrip(".") for k in re.split(r"[\n ]*·[\n ]*", legend.group(1).strip())
+              } if legend else set()
+    unlisted = sorted({kind(r[2]) for r in rows if kind(r[2]) in KINDS} - listed)
+    return unknown, unlisted
 
 
 def short(feature, limit=110):
@@ -280,6 +327,7 @@ def blocks(offline, readme):
         f"| Feature matrix rows | {len(rows)}: {done} implemented"
         f" ({counts['Partially Compatible']} of them partially compatible),"
         f" {counts['Documented']} documented only, {counts['Blocked']} blocked,"
+        f" {counts['Partial (beyond PE-DESIGN)']} partial beyond PE-DESIGN,"
         f" {counts['Planned (beyond PE-DESIGN)']} planned beyond PE-DESIGN |",
         f"| Compatibility specs | {total}: {passed} pass, {failed} fail"
         f" ([status](docs/COMPATIBILITY_STATUS.md)) |",
@@ -409,6 +457,15 @@ def unlisted_features(matrix_text, readme, mapping):
 
 
 def check_features():
+    unknown, unlisted = unknown_statuses(MATRIX.read_text(encoding="utf-8"))
+    for name, status in unknown:
+        print(f"docs/FEATURE_MATRIX.md: the row {name!r} has the status {status!r}, which is none "
+              f"of: {', '.join(KINDS)} (#1005)", file=sys.stderr)
+    for k in unlisted:
+        print(f"docs/FEATURE_MATRIX.md: rows use the status {k!r}, but the 'Status values:' "
+              "legend at the top leaves it out (#1005)", file=sys.stderr)
+    if unknown or unlisted:
+        return 1
     missing, stale, unused = unlisted_features(MATRIX.read_text(encoding="utf-8"),
                                                README.read_text(encoding="utf-8"),
                                                feature_map(FEATURE_MAP.read_text(encoding="utf-8")))

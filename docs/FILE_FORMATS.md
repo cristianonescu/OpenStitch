@@ -432,7 +432,13 @@ from the thread table. A block's `punch` pairs become its direction lines (verte
 curved when any vertex has a curve kind. The groups are kept. The region types Cross Stitch to
 Flexible Spiral come in at OpenStitch's defaults (their own fields are not mapped); a
 programmable fill takes the header's one fill pattern and a decorative fill its object's pattern
-block, each as a design pattern (`pes-fill-N`, `pes-decorative-N`) at the stored tile size; a hole
+block, each as a design pattern (`pes-fill-N`, `pes-decorative-N`) at the stored tile size; a
+shape's stamps (#959: the u16 after the geometry header's third mark counts them, then 16 bytes
+each: centre x, y in file units, width and height in 0.1 mm, eight bytes not mapped; body +188 is
+1 while there are any) become stamps on its region, each outline the header's one listed pattern
+(size 750, a polyline in the 1024-unit cell) scaled to the stamp's size around its centre, the
+effect from the second polyline's head (the six bytes before its u16 1: `[1, 500, 1]` Embossed
+Region, `[2, 500, 1]` Engraved Region; one plain polyline alone is an Engraved Line); a hole
 sewing pair becomes the outer shape's hole around the inner object. Each `CEmbNText` becomes a
 Lato Bold text (any Lato weight: +144 is 700 or 900 on the same font) with the first letter's
 size, region, density and line, letters of another size as character edits, the line breaks,
@@ -1059,9 +1065,12 @@ pyembroidery nor libembroidery (`writeShv` is a stub) writes SHV.
 | records | a frame move is `80 01 dx dy 80 02` (16-bit offsets, one record at any length) to the first stitch after it, which has no record of its own: PE-DESIGN goes straight to the stitch after a PES jump's landing (`pe-moves.SHV`); `80 03` before a move longer than 38.0 mm on either axis (PE-DESIGN's threshold lies between 36.7 and 38.7 mm, #349); a stitch over 12.7 mm is one such move to its end (`pe-long.SHV`); colour changes are only the word counts; nothing after the last block |
 
 The chart index is the nearest `SHV_CHART` entry (800 RED → 41 Dark Orange, Prussian Blue →
-33 Dark Blue, as PE writes). A preview pixel holds the block's chart index modulo 15 (15 for 0):
-that gives PE's `B` and `3` for those two entries; other entries are not yet checked against a
-PE-DESIGN file. OpenStitch draws straight lines between the needle points at one pixel a
+33 Dark Blue, as PE writes). A preview pixel holds PE-DESIGN's preview value for the block's
+chart entry, a small palette of its own where similar colours share a value (#989; measured on
+`pe-c17.SHV`'s 12 entries): 0 Black and 38 Dark Gray → 1, 33 Dark Blue → 3, 36 Dark Purple → 8,
+5 Yellow → 9, 6 Gray and 22 Light Gray → 10, 41 Dark Orange → 11, 25 Light Orange and 37 Dark
+Yellow → 12, 10 Pink and 42 Dark Pink → 13. Another entry takes the value of the measured entry
+whose colour is nearest (`shv_preview_values_match_pe_design_block_for_block`). OpenStitch draws straight lines between the needle points at one pixel a
 millimetre with a one-pixel margin on the left; PE-DESIGN's pixels differ in about one in
 ten places (its drawing rule is not known), which a machine only uses as the thumbnail.
 `shv_writes_pe_design_header_and_records` reads PE's file, writes it again and compares

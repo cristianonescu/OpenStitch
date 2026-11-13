@@ -174,6 +174,11 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
     ),
     ("menu-keyboard-shortcuts", "Keyboard Shortcuts"),
     ("menu-check-for-updates", "Check for Updates"),
+    ("menu-report-a-problem", "Report a Problem"),
+    (
+        "menu-report-a-problem-tip",
+        "Open a new issue on GitHub with the version filled in, or find the crash reports",
+    ),
     ("menu-about-openstitch", "About OpenStitch"),
     ("menu-pes", "PES"),
     ("menu-exp", "EXP"),
@@ -314,6 +319,16 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
     ),
     ("ui-brand", "Brand"),
     ("ui-hoop", "Hoop"),
+    ("ui-use-smallest-hoop", "Use smallest hoop that fits"),
+    (
+        "ui-use-smallest-hoop-tip",
+        "Switch to the smallest hoop of your machine that holds the design, and centre the design in it (beyond PE-DESIGN)",
+    ),
+    ("ui-fit-to-hoop", "Fit to hoop"),
+    (
+        "ui-fit-to-hoop-tip",
+        "Scale the design to fill the current hoop, 5 mm from its edge, and centre it; shapes and text keep their density (beyond PE-DESIGN)",
+    ),
     (
         "ui-the-machine-cuts-threads-thread-cutter",
         "The machine cuts threads (thread cutter)",
@@ -1411,6 +1426,34 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
         "The update did not go through.",
     ),
     ("ui-try-again", "Try again"),
+    ("ui-copy-diagnostics", "Copy diagnostics"),
+    (
+        "ui-copy-diagnostics-tip",
+        "Copies the OpenStitch version and system to the clipboard, for a bug report",
+    ),
+    ("ui-window-report-a-problem", "Report a Problem"),
+    (
+        "ui-openstitch-closed-unexpectedly",
+        "OpenStitch closed unexpectedly last time.",
+    ),
+    (
+        "ui-a-crash-report-was-written",
+        "A crash report was written. Attaching it to a bug report helps fix the problem.",
+    ),
+    (
+        "ui-report-a-problem-on-github",
+        "Describe the problem in a new issue on GitHub. The version and system are filled in.",
+    ),
+    (
+        "ui-nothing-is-sent-from-openstitch",
+        "Nothing is sent from OpenStitch: you see the report and choose what to share.",
+    ),
+    ("ui-open-the-issue-page", "Open the Issue Page"),
+    ("ui-open-the-reports-folder", "Open the Reports Folder"),
+    (
+        "ui-open-the-reports-folder-tip",
+        "The crash reports, kept for 30 days, beside the autosave snapshots",
+    ),
     ("ui-checking-for-updates", "Checking for updates…"),
     ("ui-lighter", "Lighter"),
     ("ui-darker", "Darker"),

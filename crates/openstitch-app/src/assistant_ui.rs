@@ -66,9 +66,17 @@ pub fn create_scratch() -> std::io::Result<PathBuf> {
     Ok(dir)
 }
 
+/// How long a scratch folder's lock file must have existed before [`remove_stale_scratch`] may
+/// take an unlocked one for an ended editor's: between creating its lock file and locking it, a
+/// starting editor's folder looks just like an ended one's (#1001: one editor, or one test
+/// process, removed another's folder or took its lock in that moment).
+pub const SCRATCH_GRACE: std::time::Duration = std::time::Duration::from_secs(60);
+
 /// Removes `openstitch-assistant-*` folders in `temp` whose lock nobody holds: the editor that
 /// made them has ended. Folders without a lock file are left alone (they may belong to an
-/// editor from before the lock existed that is still running). Returns how many were removed.
+/// editor from before the lock existed that is still running), and so are folders whose lock
+/// file is younger than [`SCRATCH_GRACE`] (an editor still starting). Returns how many were
+/// removed.
 pub fn remove_stale_scratch(temp: &std::path::Path) -> usize {
     let own = format!("{SCRATCH_PREFIX}{}", std::process::id());
     let Ok(entries) = std::fs::read_dir(temp) else {
@@ -83,6 +91,15 @@ pub fn remove_stale_scratch(temp: &std::path::Path) -> usize {
         let Ok(lock) = std::fs::File::open(entry.path().join(SCRATCH_LOCK)) else {
             continue;
         };
+        // A lock file too young to tell an ended editor from a starting one is left alone.
+        let young = lock
+            .metadata()
+            .and_then(|m| m.modified())
+            .map(|t| t.elapsed().map_or(true, |age| age < SCRATCH_GRACE))
+            .unwrap_or(true);
+        if young {
+            continue;
+        }
         if lock.try_lock().is_ok() {
             drop(lock);
             if std::fs::remove_dir_all(entry.path()).is_ok() {
@@ -377,6 +394,16 @@ impl EditorApp {
                     "gettingStarted" => self.ui.start.page_open = true,
                     "machineSetup" => self.machine_setup.open(),
                     "checkUpdates" => self.update.check(true),
+                    "reportProblem" => {
+                        self.ui.problem.open = true;
+                        // What Copy diagnostics copies (#878), for a model writing a report.
+                        return Ok(json!({
+                            "opened": item,
+                            "diagnostics": openstitch_app::editor::crash::diagnostics(
+                                &crate::update_ui::version_line()
+                            ),
+                        }));
+                    }
                     "about" => self.ui.about_open = true,
                     _ => return Err(format!("unknown Help item '{item}'")),
                 }
@@ -585,6 +612,8 @@ impl EditorApp {
             "stats": self.stats_json(),
             "simulator": self.simulator_json(),
             "canUndo": self.session.can_undo(), "canRedo": self.session.can_redo(),
+            // The last run ended in a crash and Report a Problem shows its notice (#878).
+            "crashReport": self.ui.problem.report.is_some(),
             "settings": self.ui_settings(),
             // Check Design (#599): ready to sew, the problem counts and the open tab.
             "check": crate::quality_ui::state_json(self),
@@ -1923,6 +1952,18 @@ mod tests {
         app.ui_command("ui.help", Some(&json!({ "item": "about" })))
             .expect("about");
         assert!(app.ui.about_open);
+        // Report a Problem (#878): the window opens and the reply holds what Copy diagnostics
+        // copies, the version and system and nothing else.
+        assert_eq!(app.ui_state()["crashReport"], json!(false));
+        let r = app
+            .ui_command("ui.help", Some(&json!({ "item": "reportProblem" })))
+            .expect("report a problem");
+        assert!(app.ui.problem.open);
+        let d = r["diagnostics"].as_str().expect("diagnostics");
+        assert!(d.starts_with("OpenStitch Version ") && d.contains("System: "), "{d}");
+        assert_eq!(d.lines().count(), 2, "{d}");
+        app.ui.problem.report = Some(std::path::PathBuf::from("crash-test.txt"));
+        assert_eq!(app.ui_state()["crashReport"], json!(true));
         app.ui_command("ui.help", Some(&json!({ "item": "manual" })))
             .expect("manual");
         assert!(app.assistant.open_url.is_some());
@@ -1984,25 +2025,34 @@ mod tests {
     #[test]
     fn scratch_folders_of_ended_editors_are_removed() {
         let temp = openstitch_testutil::TempDir::new("stale-test");
-        let make = |name: &str, lock: bool| {
+        // `old`: the lock file was made longer ago than SCRATCH_GRACE.
+        let make = |name: &str, lock: bool, old: bool| {
             let d = temp.join(name);
             std::fs::create_dir_all(&d).expect("dir");
             std::fs::write(d.join("a.svg"), "<svg/>").expect("file");
             if lock {
-                std::fs::write(d.join(SCRATCH_LOCK), "").expect("lock");
+                let f = std::fs::File::create(d.join(SCRATCH_LOCK)).expect("lock");
+                if old {
+                    let then = std::time::SystemTime::now() - SCRATCH_GRACE * 2;
+                    f.set_modified(then).expect("age the lock");
+                }
             }
             d
         };
-        let ended = make("openstitch-assistant-1", true);
-        let running = make("openstitch-assistant-2", true);
-        let no_lock = make("openstitch-assistant-3", false);
-        let other = make("someone-else", true);
+        let ended = make("openstitch-assistant-1", true, true);
+        let running = make("openstitch-assistant-2", true, true);
+        let no_lock = make("openstitch-assistant-3", false, true);
+        let other = make("someone-else", true, true);
+        // #1001: an editor between making its lock file and locking it looks ended, but its
+        // lock file is new.
+        let starting = make("openstitch-assistant-4", true, false);
         // A live editor holds its lock.
         let held = std::fs::File::open(running.join(SCRATCH_LOCK)).expect("open");
         held.try_lock().expect("lock");
         assert_eq!(remove_stale_scratch(&temp), 1);
         assert!(!ended.exists(), "the ended editor's folder is removed");
         assert!(running.exists() && no_lock.exists() && other.exists());
+        assert!(starting.exists(), "a starting editor's folder stays");
         drop(held);
         assert_eq!(
             remove_stale_scratch(&temp),
