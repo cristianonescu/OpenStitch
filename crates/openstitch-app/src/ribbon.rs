@@ -331,7 +331,7 @@ pub fn enabled(app: &EditorApp, a: Action) -> bool {
         ImageDensity | DeleteImage => background,
         SaveImage | ModifyImage | ImageRotateRight | ImageRotateLeft => background,
         Font | TextSize | EditText | EditCharacter => texts,
-        DeriveSkeleton => edit_ui::single_region(app).is_some_and(|id| {
+        DeriveSkeleton | DeriveBranches => edit_ui::single_region(app).is_some_and(|id| {
             let d = app.session.design();
             d.index_of(id).is_some_and(|i| {
                 let o = &d.objects[i];
@@ -685,6 +685,16 @@ pub fn run(app: &mut EditorApp, a: Action, _ctx: &egui::Context) {
                 app.execute(&CommandRequest::new(
                     "object.deriveSkeleton",
                     json!({ "id": id }),
+                ));
+            }
+        }
+        // One satin column per branch (#526): the shape stays, hidden, under the columns; one
+        // undo step.
+        DeriveBranches => {
+            if let Some(id) = edit_ui::single_region(app) {
+                app.execute(&CommandRequest::new(
+                    "object.deriveSkeleton",
+                    json!({ "id": id, "branches": true }),
                 ));
             }
         }
@@ -2223,6 +2233,42 @@ mod tests {
             demo: true,
             ..Launch::default()
         })
+    }
+
+    /// #526: Satin Columns per Branch sends `object.deriveSkeleton {branches: true}` on the
+    /// selected shape: a Y becomes one satin column per arm in a group, the shape kept hidden
+    /// under them, and one Undo puts the design back as it was.
+    #[test]
+    fn satin_columns_per_branch_splits_a_y_in_one_undo_step() {
+        let ctx = egui::Context::default();
+        let mut app = EditorApp::new(Launch::default());
+        // A Y about 2.5 mm wide: a stem 30 mm tall and two 20 mm arms.
+        let y = app
+            .execute(&CommandRequest::new(
+                "shape.polygon",
+                json!({ "points": [[48.75, 90], [51.25, 90], [51.25, 60], [65.0, 45.0],
+                                   [63.2, 43.3], [50.0, 57.6], [36.8, 43.3], [35.0, 45.0],
+                                   [48.75, 60]],
+                        "fill": "Red" }),
+            ))
+            .and_then(|r| r["id"].as_u64())
+            .expect("Y");
+        app.selection = BTreeSet::from([y]);
+        let before = app.session.design().clone();
+        assert!(enabled(&app, Action::DeriveBranches));
+        run(&mut app, Action::DeriveBranches, &ctx);
+        let d = app.session.design();
+        let columns: Vec<_> = d
+            .objects
+            .iter()
+            .filter(|o| o.id != y)
+            .filter(|o| o.region.as_ref().is_some_and(|r| r.skeleton.is_some()))
+            .collect();
+        assert!(columns.len() >= 2, "a column per arm: {}", app.status);
+        assert!(columns.iter().all(|o| o.group.is_some() && o.group == columns[0].group));
+        assert!(!d.objects[d.index_of(y).expect("kept")].visible, "the shape is kept, hidden");
+        run(&mut app, Action::Undo, &ctx);
+        assert_eq!(app.session.design(), &before, "one undo step");
     }
 
     /// Runs every available, non-interactive button with each of `selections` (or, for a menu,
