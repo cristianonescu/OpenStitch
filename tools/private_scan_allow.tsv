@@ -1,0 +1,15 @@
+# private_scan.py allow list (#1057): file (glob) <TAB> exact text matched <TAB> reason.
+# Only harmless placeholders and notices; never a real person's path or address.
+crates/openstitch-app/src/editor/assistant_chat.rs	/home/me	test placeholder path for the Assistant's file-permission gate
+crates/openstitch-app/src/editor/crash.rs	C:\Users\ana	test sample: the crash report redacts a user folder
+crates/openstitch-app/src/editor/crash.rs	C:\\Users\\ana	test sample: the crash report redacts a user folder (escaped, in a backtrace)
+crates/openstitch-app/src/editor/crash.rs	/home/ana	test sample: the crash report redacts a home folder
+crates/openstitch-app/src/editor/crash.rs	C:\Users\Maria	test sample: the crash report redacts a user folder with a space in it
+crates/openstitch-app/src/editor/crash.rs	/Users/maria	test sample: the crash report redacts a macOS home folder
+crates/openstitch-app/src/editor/crash.rs	/home/maria	test sample: the crash report redacts a Linux home folder
+crates/openstitch-assistant/src/acp/discover.rs	/home/linuxbrew	Homebrew's standard Linux prefix, searched for agent programs
+crates/openstitch-update/src/apply.rs	C:\Users\me	test placeholder: an update installer's download path
+crates/openstitch-update/src/apply.rs	AppData\Local	test placeholder: an update installer's download path
+crates/openstitch-update/src/install.rs	/home/me	test placeholder: an AppImage install path
+THIRD_PARTY_NOTICES.md	team@latofonts.com	the Lato font's licence notice (OFL), quoted as required
+crates/openstitch-design/fonts/Lato-OFL.txt	team@latofonts.com	the Lato font's licence file (OFL), kept unchanged as required

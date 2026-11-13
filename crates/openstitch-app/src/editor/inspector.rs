@@ -1036,15 +1036,19 @@ fn region_type_controls(r: &RegionSewing, user: &[Pattern]) -> Vec<Control> {
                 0.0,
                 100.0,
             ));
-            v.push(percent(
-                "Frequency",
-                "region.frequency",
-                "frequency",
-                r.frequency,
-                33.0,
-                50.0,
-            ));
             v.push(toggle("Base sewing", "baseSewing", r.base_sewing));
+            // Frequency staggers the base sewing only: PE-DESIGN greys it without Base Sewing
+            // (#1042).
+            if r.base_sewing {
+                v.push(percent(
+                    "Frequency",
+                    "region.frequency",
+                    "frequency",
+                    r.frequency,
+                    33.0,
+                    50.0,
+                ));
+            }
         }
         RegionType::MotifFill => {
             v.push(pattern(PatternKind::Motif));
@@ -1534,8 +1538,12 @@ pub fn line_controls_with(l: &LineSewing, user: &[Pattern]) -> Vec<Control> {
         | LineType::DoubleZigzag
         | LineType::Lattice
         | LineType::Stripes) => {
-            // Decorative hand-embroidery lines (#543, beyond PE-DESIGN).
-            let mut v = vec![width("Band width"), spacing("Period", 0.5)];
+            // Decorative hand-embroidery lines (#543, beyond PE-DESIGN). Stripes are running rows
+            // along the band, with no period to set (#1049).
+            let mut v = vec![width("Band width")];
+            if k != LineType::Stripes {
+                v.push(spacing("Period", 0.5));
+            }
             match k {
                 LineType::Chevron | LineType::Cretan | LineType::Feather => v.push(num(
                     if k == LineType::Chevron {
