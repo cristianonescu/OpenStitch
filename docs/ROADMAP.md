@@ -205,7 +205,8 @@ bend their tiles by the chord, and emboss and engrave strength against PE-DESIGN
 fill tiles the curve's own frame since 2026-11-12 (#923, #928; #927 and #947 for U-shaped curves),
 and stamps are as strong as PE-DESIGN's (#956); motif fill still uses the chord. Done
 2026-11-13 (#959): PES 0110 import reads a shape that carries a stamp (effect, outline, place
-and size), so PE-DESIGN's three stamped captures are the `stamp-*-circle` specs' references.
+and size), so PE-DESIGN's three stamped captures are the `stamp-*-circle` specs' references. PES 0110
+export writes a region's stamp the same way since 2026-11-13 (#608).
 
 Done 2026-11-05 (#460-#464): the stitch-engine follow-ups of the review. Narrow Auto satin no
 longer starts with a 39.5 mm stitch, Auto Punch sews regions whose satin would cross more than
