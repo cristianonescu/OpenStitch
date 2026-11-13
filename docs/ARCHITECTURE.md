@@ -834,6 +834,10 @@ openstitch_app::editor (lib, no egui, unit-tested)
   in model millimetres (`drag:10,10,40,30;type:e;cmd+key:Z`) or window points (`sclick:x,y`), so the
   real canvas, tool, panel and shortcut code runs; `--screenshot out.png` captures the frame
   after the script (`--demo`, `--select`, `--simulate`, `--zoom`, `--center X,Y` (mm), `--size` set the scene;
+  `--px-per-mm P` fixes the scale and puts the `--center` point on whole pixels, `--viewport-json
+  OUT.json` writes the view a screenshot was taken with (scale, offset, canvas, the stitches'
+  bounds in mm) and `--show bare` draws the canvas alone, without the desktop pointer: the kit's
+  preview tiles, placed by millimetres so they do not follow the window's layout, #1051;
   `--ribbon TAB`, `--pane TAB`, `--theme`, `--show appmenu|property|shortcuts|floating|print` set the
   chrome; screenshots ignore the saved window preferences). `python3 tools/screenshots.py`
   rebuilds the editor screenshots from examples/ in a temporary folder with a stand-in home

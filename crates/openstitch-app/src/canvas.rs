@@ -66,13 +66,30 @@ pub fn canvas(app: &mut EditorApp, ui: &mut egui::Ui) {
             Some((_, _, z, c)) if !app.fit_requested => (z, c),
             _ => (app.initial_zoom.take(), app.initial_center.take()),
         };
-        if let Some(z) = zoom {
+        let ppp = f64::from(ui.ctx().pixels_per_point());
+        if let Some(p) = app.px_per_mm {
+            // `--px-per-mm` (#1051): a fixed scale, whatever the canvas's size.
+            fitted.scale = p / 10.0 / ppp;
+        } else if let Some(z) = zoom {
             fitted.zoom_about(fit_screen.center(), z);
         }
-        // `--center` (#893): the design point given ends up in the middle of the canvas.
-        if let Some(c) = center {
+        // `--center` (#893): the design point given ends up in the middle of the canvas; with
+        // a fixed scale and no centre, the page's middle does.
+        let centre = center.or_else(|| {
+            app.px_per_mm
+                .map(|_| v2(page_rect.max_x / 2.0, page_rect.max_y / 2.0))
+        });
+        if let Some(c) = centre {
             let (at, mid) = (fitted.to_screen(c), fit_screen.center());
             fitted.pan(mid.x - at.x, mid.y - at.y);
+        }
+        if app.px_per_mm.is_some() {
+            // On whole pixels: the same design point always lands on the same pixel phase, so
+            // the drawing is the same in any layout, only moved.
+            fitted.offset = v2(
+                (fitted.offset.x * ppp).round() / ppp,
+                (fitted.offset.y * ppp).round() / ppp,
+            );
         }
         app.viewport = Some(fitted);
         app.auto_fit = Some((fit_screen, fitted, zoom, center));

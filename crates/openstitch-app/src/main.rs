@@ -2,7 +2,7 @@
 //!
 //! ```text
 //! openstitch [FILE] [--demo] [--select ID,ID] [--simulate FRACTION] [--tool select|point|rectangle|ellipse|polygon|pen]
-//!            [--size WxH] [--zoom F] [--center X,Y] [--show realistic,reference,settings,measure,norulers,text,usb,arrange,print]
+//!            [--size WxH] [--zoom F] [--center X,Y] [--px-per-mm P] [--viewport-json OUT.json] [--show realistic,reference,settings,measure,norulers,text,usb,arrange,print]
 //!            [--script STEPS] [--screenshot OUT.png]
 //!            [--image IMAGE [--convert autopunch|cross|photofill|photolines|designcenter]]
 //!            [--pattern PATTERN.json]
@@ -205,6 +205,16 @@ fn parse(args: impl Iterator<Item = String>) -> Result<(Launch, [f32; 2]), Strin
                         .map_err(|_| "--zoom takes a factor")?,
                 )
             }
+            "--px-per-mm" => {
+                let p: f64 = value("--px-per-mm")?
+                    .parse()
+                    .map_err(|_| "--px-per-mm takes pixels per mm")?;
+                if !(p.is_finite() && p > 0.0 && p <= 400.0) {
+                    return Err("--px-per-mm takes pixels per mm, above 0 and at most 400".into());
+                }
+                l.px_per_mm = Some(p);
+            }
+            "--viewport-json" => l.viewport_json = Some(PathBuf::from(value("--viewport-json")?)),
             "--listen" => {
                 listen.port = value("--listen")?
                     .parse()
@@ -359,7 +369,7 @@ fn main() -> eframe::Result {
                 eprintln!("openstitch: {e}");
             }
             eprintln!(
-                "usage: openstitch [FILE] [--demo] [--select ID,ID] [--simulate F] [--tool NAME] [--size WxH] [--zoom F] [--center X,Y] [--show VIEWS] [--script STEPS] [--screenshot OUT.png] [--image IMAGE [--convert METHOD]] [--pattern PATTERN.json] [--wizard NAME [--apply]] [--database PATH [--db-view VIEW] [--db-dialog NAME]] [--listen PORT [--listen-read-only] [--listen-no-files] [--listen-root DIR] [--listen-read-root DIR]] [--ribbon TAB] [--pane TAB] [--theme THEME] [--accent COLOUR] [--language CODE] [--no-splash]"
+                "usage: openstitch [FILE] [--demo] [--select ID,ID] [--simulate F] [--tool NAME] [--size WxH] [--zoom F] [--center X,Y] [--px-per-mm P] [--show VIEWS] [--script STEPS] [--screenshot OUT.png [--viewport-json OUT.json]] [--image IMAGE [--convert METHOD]] [--pattern PATTERN.json] [--wizard NAME [--apply]] [--database PATH [--db-view VIEW] [--db-dialog NAME]] [--listen PORT [--listen-read-only] [--listen-no-files] [--listen-root DIR] [--listen-read-root DIR]] [--ribbon TAB] [--pane TAB] [--theme THEME] [--accent COLOUR] [--language CODE] [--no-splash]"
             );
             std::process::exit(2);
         }
@@ -543,6 +553,19 @@ mod tests {
         let (l, _) = parse(args("--zoom 3 --center 12.5,40")).expect("center");
         assert_eq!(l.center, Some((12.5, 40.0)));
         assert!(parse(args("--center 3")).is_err() && parse(args("--center a,b")).is_err());
+        // #1051: a fixed scale and where the screenshot's view is written.
+        let (l, _) = parse(args(
+            "--px-per-mm 16 --screenshot t.png --viewport-json t.json",
+        ))
+        .expect("px per mm");
+        assert_eq!(l.px_per_mm, Some(16.0));
+        assert_eq!(
+            l.viewport_json.as_deref(),
+            Some(std::path::Path::new("t.json"))
+        );
+        for bad in ["0", "-2", "x", "500"] {
+            assert!(parse(args(&format!("--px-per-mm {bad}"))).is_err(), "{bad}");
+        }
     }
 
     #[test]

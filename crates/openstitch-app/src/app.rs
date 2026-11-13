@@ -41,6 +41,13 @@ pub struct Launch {
     /// Design point (mm) the view is centred on after fitting and zooming (`--center`): a
     /// screenshot of part of a design at a high zoom, tiled into a sharper preview (#893).
     pub center: Option<(f64, f64)>,
+    /// Screenshot pixels per mm, instead of a zoom relative to the page fit (`--px-per-mm`):
+    /// the view's scale then does not depend on the window's layout, and with `--center` the
+    /// design lands on whole pixels, so a kit preview tile is the same in any layout (#1051).
+    pub px_per_mm: Option<f64>,
+    /// Where `--screenshot` also writes the view it was taken with (`--viewport-json`): scale,
+    /// offset, pixels per point and the canvas, so a tool maps millimetres to its pixels.
+    pub viewport_json: Option<PathBuf>,
     /// Workspace views to open (see [`SHOW`]).
     pub show: Vec<String>,
     /// Image to Embroidery: image to preselect (opens the dialog) and method to run.
@@ -103,7 +110,7 @@ impl Launch {
 }
 
 /// Values `--show` accepts.
-pub const SHOW: [&str; 38] = [
+pub const SHOW: [&str; 39] = [
     "update",
     "stitch-table",
     "large-text",
@@ -118,6 +125,8 @@ pub const SHOW: [&str; 38] = [
     "settings",
     "measure",
     "norulers",
+    // The canvas alone, filling the window (kit preview tiles, #1051).
+    "bare",
     "text",
     "creator",
     "sdf",
@@ -201,6 +210,13 @@ pub struct EditorApp {
     pub initial_zoom: Option<f64>,
     /// Model point centred on once after the first fit and zoom (`--center`).
     pub initial_center: Option<openstitch_design::Vec2>,
+    /// The view's fixed scale in screenshot pixels per mm (`--px-per-mm`, #1051).
+    pub px_per_mm: Option<f64>,
+    /// Where the screenshot's view is written (`--viewport-json`, #1051).
+    viewport_json: Option<PathBuf>,
+    /// `--show bare` (#1051): the canvas alone fills the window, without the ribbon, panes and
+    /// status bar, so a kit preview tile's place does not follow the window's layout.
+    bare: bool,
     /// The automatic fit last made: the canvas it was made for, the view it gave and the
     /// `--zoom` and `--center` applied. While the view is still that one, a change of the canvas (the panes are
     /// laid out a frame after the canvas; the window resized) fits again (#450: kit previews and
@@ -365,6 +381,9 @@ impl EditorApp {
             fit_requested: false,
             initial_zoom: None,
             initial_center: None,
+            px_per_mm: None,
+            viewport_json: None,
+            bare: false,
             auto_fit: None,
             dialog_rect: None,
             dialog_rect_next: None,
@@ -521,6 +540,8 @@ impl EditorApp {
         self.initial_center = l
             .center
             .map(|(x, y)| openstitch_design::v2(x * 10.0, y * 10.0));
+        self.px_per_mm = l.px_per_mm;
+        self.viewport_json = l.viewport_json.clone();
         for v in &l.show {
             match v.as_str() {
                 "realistic" => self.workspace.realistic = true,
@@ -541,6 +562,10 @@ impl EditorApp {
                 "templates" => crate::lettering_ui::open_template_wizard(self),
                 "measure" => self.toggle_measure(),
                 "norulers" => self.workspace.rulers = false,
+                "bare" => {
+                    self.bare = true;
+                    self.workspace.rulers = false;
+                }
                 "creator" => self.creator.open = true,
                 "sdf" => {
                     self.sewing.open = true;
@@ -2027,6 +2052,32 @@ impl EditorApp {
         }
         shot.requested = true;
         let (path, done, repaint) = (shot.path.clone(), shot.done.clone(), ctx.clone());
+        // The view this frame is drawn with, for tools that map millimetres to its pixels
+        // (#1051): pixels = (offset + model 0.1 mm × scale) × pixels per point.
+        if let (Some(out), Some(vp)) = (&self.viewport_json, self.viewport) {
+            let ppp = f64::from(ctx.pixels_per_point());
+            let canvas = self.workspace.canvas.map(|r| {
+                [r.min.x, r.min.y, r.max.x, r.max.y].map(|v| f64::from(v) * ppp)
+            });
+            // The stitches it draws, mm on the Design Page [left, top, right, bottom].
+            let b = self.pattern.bounds();
+            let sewn = self
+                .pattern
+                .stitches
+                .iter()
+                .any(|s| s.command == openstitch_core::Command::Stitch);
+            let bounds = sewn.then(|| [b.min_x, b.min_y, b.max_x, b.max_y].map(|v| v / 10.0));
+            let info = json!({
+                "pixelsPerPoint": ppp,
+                "pxPerMm": vp.scale * 10.0 * ppp,
+                "offsetPx": [vp.offset.x * ppp, vp.offset.y * ppp],
+                "canvasPx": canvas,
+                "stitchBoundsMm": bounds,
+            });
+            if let Err(e) = std::fs::write(out, info.to_string()) {
+                eprintln!("cannot write {}: {e}", out.display());
+            }
+        }
         ctx.request_screenshot(move |image| {
             let rgba: Vec<u8> = image
                 .pixels
@@ -2138,6 +2189,22 @@ pub struct PlayerToggles {
 impl eframe::App for EditorApp {
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
         self.frames += 1;
+        // `--show bare` (#1051): the desktop's pointer, wherever the mouse happens to be, must
+        // not hover or mark anything in a kit preview tile, so it never reaches the window.
+        if self.bare {
+            raw.events.retain(|e| {
+                !matches!(
+                    e,
+                    egui::Event::PointerMoved(_)
+                        | egui::Event::MouseMoved(_)
+                        | egui::Event::PointerButton { .. }
+                        | egui::Event::PointerGone
+                        | egui::Event::MouseWheel { .. }
+                        | egui::Event::Zoom(_)
+                        | egui::Event::Touch { .. }
+                )
+            });
+        }
         // Start once the canvas has laid out and fitted the page.
         let (Some(player), Some(vp)) = (&mut self.player, self.viewport) else {
             return;
@@ -2229,16 +2296,19 @@ impl eframe::App for EditorApp {
             ctx.request_repaint_after(std::time::Duration::from_millis(500));
         }
         self.update_title(&ctx);
-        egui::Panel::top("ribbon").show(ui, |ui| crate::ribbon::ribbon(self, ui));
-        if self.tab_count() > 1 || self.ui.prefs.open_in_tabs {
-            egui::Panel::top("documents").show(ui, |ui| documents::strip(self, ui));
+        if !self.bare {
+            egui::Panel::top("ribbon").show(ui, |ui| crate::ribbon::ribbon(self, ui));
+            if self.tab_count() > 1 || self.ui.prefs.open_in_tabs {
+                egui::Panel::top("documents").show(ui, |ui| documents::strip(self, ui));
+            }
+            if self.ui.prefs.editing.precision_bar {
+                egui::Panel::top("precision")
+                    .show(ui, |ui| crate::arrange_ui::precision_bar(self, ui));
+            }
+            egui::Panel::bottom("status").show(ui, |ui| crate::panes::status_bar(self, ui));
+            crate::assistant_panel::panel(self, ui);
+            crate::panes::docked(self, ui);
         }
-        if self.ui.prefs.editing.precision_bar {
-            egui::Panel::top("precision").show(ui, |ui| crate::arrange_ui::precision_bar(self, ui));
-        }
-        egui::Panel::bottom("status").show(ui, |ui| crate::panes::status_bar(self, ui));
-        crate::assistant_panel::panel(self, ui);
-        crate::panes::docked(self, ui);
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
             .show(ui, |ui| crate::canvas::canvas(self, ui));
@@ -2824,6 +2894,9 @@ mod open_bench_tests;
 #[cfg(test)]
 #[path = "a11y_tests.rs"]
 mod a11y_tests;
+#[cfg(test)]
+#[path = "px_per_mm_tests.rs"]
+mod px_per_mm_tests;
 #[cfg(test)]
 #[path = "monkey_tests.rs"]
 mod monkey_tests;
