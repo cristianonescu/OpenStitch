@@ -395,8 +395,10 @@ Line references are relative to `crates/`.
   unchanged but for its pattern blocks, 2026-10-31; owner files a01–a05 read and rewritten byte
   for byte outside the documented differences; the wizard's V tack-down showed as an E
   stitch there (the E/V variant, +86, is written since; the spacing, +88, and a V's opening,
-  +92, since #982); **open:** the appliqué sews 29 x 29 mm where
-  PE-DESIGN's wizard sews the same square 32,6 x 32,8 mm, OpenStitch's outline offset);
+  +92, since #982); the reference is PE-DESIGN's re-save of 2026-11-13 (round 11): the
+  tack-down reads as V Stitch 5,0 / 2,0 / 2,0 and re-sews as PE-DESIGN's own wizard's (one V
+  pass, 98 stitches, the Applique block 637 as a01's), which confirms +88 and +92; the appliqué sews 32,6 x 32,6 mm (round 11's status bar; a01: 32,6 x 32,8 mm), where an
+  earlier export sewed 29 x 29 mm before the wizard took PE-DESIGN's outline offsets (#246);
   Shapes-gallery shapes (`CEmbSpecialShape`, `CEmbLine` records under another class name)
   round-trip (o-gallery-heart, shape-start-points); programmable fill written with its pattern
   in the header's pattern list (spec `pes-0110-programmable-fill`, reference pending; the list
