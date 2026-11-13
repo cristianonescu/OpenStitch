@@ -20,7 +20,7 @@
   "sewingMinutes": 7.8,
   "image": null,
   "preview": "previews/t1-swatches.png",
-  "sha256": "a4a2c4cd3a2381cc04f32c465161af050e7d18c8d93c6fee7337bdbd07367abc",
+  "sha256": "88a830c838b300c9d7da38295b981f52f1cbf818a5d790c38ddd569fdf409f7e",
   "renderVersion": 2,
   "swatches": [
    {
@@ -307,7 +307,7 @@
   "sewingMinutes": 8.9,
   "image": null,
   "preview": "previews/t2-alternating-rows.png",
-  "sha256": "98cbfdd28a00ec6aeb904693c21f3d7db33d3f9224f2a81903b8ab68975ab2ea",
+  "sha256": "6b064d7dfd09165b432f8c4491decc6eea14be82687c22920a5d5a2ea37156f7",
   "renderVersion": 2,
   "swatches": [
    {
@@ -1134,7 +1134,7 @@
    71.0,
    89.7
   ],
-  "stitches": 3917,
+  "stitches": 3928,
   "trims": 40,
   "threads": [
    "405 Blue",
@@ -1142,10 +1142,10 @@
    "509 Leaf Green",
    "620 Magenta"
   ],
-  "sewingMinutes": 6.9,
+  "sewingMinutes": 7.0,
   "image": null,
   "preview": "previews/fonts-and-text.png",
-  "sha256": "a84fa1a2d06dc32e3127cc7c7e666fc56809b3740a8fe2e9fb18c329f3484752",
+  "sha256": "a775c590015d1e052b909f6e71f41d333210fe880a88759c929f11083120196d",
   "renderVersion": 2
  },
  "lettering/monograms.pes": {
