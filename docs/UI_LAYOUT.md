@@ -363,6 +363,7 @@ Behaviour follows the guide's pages
 | Color / Sew Type | Fill Angle (drag across the selected regions in the direction their rows should run) |  | `Action::FillAngleTool` | `object.setRegion` | yes |
 | Convert | Convert Region to Line |  | `Action::ConvertRegionToLine` | `object.regionToLine` | yes |
 | Convert | Convert to Stitches |  | `Action::ConvertToStitches` | `object.toStitches` | yes |
+| Convert | Satin Columns per Branch (beyond PE-DESIGN, #526) |  | `Action::DeriveBranches` | `object.deriveSkeleton` (`branches: true`) | yes |
 | Create | Create Offset Lines |  | `Action::OffsetLines` | `shape.offsetLines` | yes |
 | Create | Create Floral Pattern |  | `Action::FloralPattern` | `shape.floral` | yes |
 | Create | Entry/Exit Points |  | `Action::EntryExit` | `object.setEntryExit` | yes |
@@ -456,6 +457,10 @@ and [Adjusting the split positions](https://support.brother.com/g/s/hf/htmldoc/p
   a centre line derived from its outline — an approximation of the medial axis (grid
   clearance, the longest path through the shape, corner ends trimmed; branches are not
   followed). Edit the result with the Satin Skeleton tool.
+- **Satin Columns per Branch** (Shapes ▸ Convert, beyond PE-DESIGN, #526) sews a branching shape
+  (a Y, K, star, letter or stick figure) as one satin column along its main stroke and one per
+  further arm, each joined 0.3 mm into the column it leaves, grouped; the shape stays hidden
+  under them. A shape without branches gets one column. One undo step puts the shape back.
 - **Continue a line** (beyond PE-DESIGN, #479): with the Closed/Open Curve pen, Open Straight
   Line, Running, Straight/Curved Block or Satin Skeleton tool active and one finished open
   line, path, column or skeleton of that kind selected, the pointer becomes a hand within 6

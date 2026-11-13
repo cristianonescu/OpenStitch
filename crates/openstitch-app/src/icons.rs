@@ -385,7 +385,8 @@ fn glyph(a: Action) -> Glyph {
         ClosedCurve => G::Curve,
         SatinSkeleton => G::Own("satin_skeleton"),
         SkeletonWidth => G::Own("column_width"),
-        DeriveSkeleton => G::Own("derive_skeleton"),
+        // The branch split is the same conversion, one column per arm (#526): the same glyph.
+        DeriveSkeleton | DeriveBranches => G::Own("derive_skeleton"),
         EditCharacter => G::Own("edit_character"),
         PencilClosed => G::Pencil,
         PencilOpen => G::Own("pencil_open"),
