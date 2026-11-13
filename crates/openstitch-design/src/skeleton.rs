@@ -1272,7 +1272,7 @@ fn star_kites(contours: &[Contour]) -> Option<Vec<Contour>> {
     keep.pop();
     let pts: Vec<Vec2> = keep.iter().map(|&i| open[i]).collect();
     let n = pts.len();
-    if n < 2 * STAR_MIN_POINTS || n % 2 != 0 {
+    if n < 2 * STAR_MIN_POINTS || !n.is_multiple_of(2) {
         return None;
     }
     let area: f64 = (0..n)
@@ -1299,7 +1299,7 @@ fn star_kites(contours: &[Contour]) -> Option<Vec<Contour>> {
     let kinds: Vec<i8> = (0..n).map(kind).collect();
     // Tips and notches alternate all the way round.
     let first_tip = (0..n).find(|&i| kinds[i] == 1)?;
-    if (0..n).any(|k| kinds[(first_tip + k) % n] != if k % 2 == 0 { 1 } else { -1 }) {
+    if (0..n).any(|k| kinds[(first_tip + k) % n] != if k.is_multiple_of(2) { 1 } else { -1 }) {
         return None;
     }
     let notches: Vec<Vec2> = (0..n).filter(|&i| kinds[i] == -1).map(|i| pts[i]).collect();
