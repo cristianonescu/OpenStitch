@@ -9,7 +9,7 @@ product's code was read.
 `cornerStyle` is `turn` (the default, today's fan) / `auto` / `mitre` / `cap`, with `mitreBelow`
 75°, `capBelow` 45° (not 20°, see §9), `cornerOverlap` 0.5 mm and `capMaxLength` 8 mm;
 short stitches are `shortStitchDistance` with one `shortStitchInset` (default 15 %); all off by
-default. #446 (open) tracks the satin-text N, slanted arm ends and X.
+default. #446 (open; closed 2026-11-12, leftovers in #938–#941) tracks the satin-text N, slanted arm ends and X.
 Landed on Manual Punch columns and zigzag lines (#520, #521), skeleton satin and Auto satin
 regions (#675), and satin lettering for short stitches only (#676: letters are cut at their
 sharp corners, so corner styles did not apply; since 2026-11-08 they shape the corners where two strokes

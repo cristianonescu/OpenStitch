@@ -93,7 +93,7 @@ dearest:
 | # | Difference | Area | Severity | Grade | Needs reference to finish? |
 |---|---|---|---|---|---|
 | 1 | Satin sewn as a square wave, not a zigzag (**fixed**, internal regression) | Stitches | 5 | Defect | No |
-| 2 | Default PES is truncated v1 with no object section (**fixed**, internal regression; open test pending) | PES | 5 | Documented, unverified | Black-box open test |
+| 2 | Default PES is truncated v1 with no object section (**fixed**; v6 open test passed at the reference tier 2026-10-27; `1t`/`1`/`6t` opens and library convert pending) | PES | 5 | Documented, unverified | Black-box open test |
 | 3 | Trims and jumps inside one fill or satin region; no Running Stitch Path (**fixed**, internal regression) | Stitches | 5 | Documented difference | No |
 | 4 | Trims between underlay, top stitching and outline of one object | Stitches | 4 | Documented, unverified | Single-needle policy |
 | 5 | Every design is written as one stitch group, nothing editable (**partly fixed**, 2026-10-29: `pesVersion` 11 writes shapes as `CEmbLine`, which PE-DESIGN 11.50 opens editable, and Lato Bold text as `CEmbNText`, which it opens editable and retypable (both reference); stitch patterns as `CEmbOne` stitch groups (reference, `pes-0110-stitches`); Text Transform and text on an outline open editable (reference, 2026-10-29); Hoop Size pages written as PE-DESIGN writes them since 2026-11-04 (#322); object kinds still refused: #608) | PES | 5 | Reference | Yes (the kinds of #608) |
@@ -195,9 +195,10 @@ Line references are relative to `crates/`.
   stitch group; `FileType::write`, `design.export`, `nameDrop.export`, `transfer.send` and
   `library.convert` follow; `1t` stays as the explicit machine-only choice. Tests:
   `default_pes_is_version_6_with_objects_and_thread_table`, `pes_compat::*_writes_full_v6`,
-  `transfer::tests::sent_pes_is_version_6_with_objects_and_threads`. Not verified: the
-  black-box open test in PE-DESIGN below is still needed before it can be called Reference
-  Verified.
+  `transfer::tests::sent_pes_is_version_6_with_objects_and_threads`. Since 2026-10-27 the
+  default v6 file passes the open test at the reference tier: PE-DESIGN 11.50 opened it with its
+  stitches (`pes-default-v6`, `compat/reference/MANIFEST.json`). Not verified yet: the open test
+  for `pes-library-convert-v6` and for the `1t`, `1` and `6t` outputs.
 
 - **Impact:** severity 5.
   - Most paths write `#PES0001` with no object section and no thread table: `design.export`
@@ -364,7 +365,7 @@ Line references are relative to `crates/`.
   and click point), and Text Transform text as `CEmbDText` with PE-DESIGN's preset code and
   default strength (FILE_FORMATS "`CEmbDText`"; spec `pes-0110-editable-text-transform`,
   reference tier: PE-DESIGN opens it editable with the preset at its default level, retypable;
-  **open:** OpenStitch's arch sews HHHHHHH 79.9 mm wide (79.6 since 2026-11-08, #428) where PE-DESIGN sews the same object
+  **open:** OpenStitch's arch sews HHHHHHH 79.9 mm wide (79.6 since 2026-11-08, 79.8 since 2026-11-11, #428) where PE-DESIGN sews the same object
   79.2 mm (its own text-transform-1: 79.3) round the same 40.8 mm circle, so the spec's width
   check stays at the internal tier until the letters' placement round the circle matches at
   0.3 mm), and text fitted to an outline as `CEmbAText` with its Fit Text to Outline settings
@@ -512,7 +513,8 @@ Line references are relative to `crates/`.
   stitches as on the straight letter. Satin text under a Transform sewed nearly twice the needle
   points it does straight (HHHHHHH, preset 3: 1831 against 1043), now about as many (1023).
   Fill text under a Text Transform or a free envelope (#535; a free envelope was sewn by stroke
-  until 2026-11-07, unlike the preset it copies) keeps its region rows (#428): with the walk fixed, sewing it
+  until 2026-11-07, unlike the preset it copies) kept its region rows until 2026-11-11, and
+  sews by stroke since (#428, PR #892; every PE-DESIGN reference passes). Before that: with the walk fixed, sewing it
   by stroke is nearer PE-DESIGN on the 182 transform captures in every way (needle count 10.9 %
   off on average against 11.2 % by region, was 28 % before the walk; PE → ours 0.24 → 0.19 mm;
   coverage 0.761 → 0.772), but its rows reach the warped outline's corners and five references
@@ -3867,7 +3869,8 @@ PE-DESIGN 11.50 exported OpenStitch's `c17.pes` (17 colour blocks) and `long.pes
   `00 00 FF`). pe-long.CSD and pe-c17_A.Csd come out byte for byte. PE's `_B` names the design's
   first three colours in its palette, not its blocks'; OpenStitch names the blocks' own colours.
 - **SHV:** the file's name and PE's chart entries (800 RED is 41, not the nearest 3) match. The
-  records are measured but not yet written: PE starts each block on the stitch after the
+  records were measured here and are written since 2026-11-13 (#349, PR #995; `80 03` before a
+  move over 38.0 mm on its longer axis, `shv::LONG_MOVE`): PE starts each block on the stitch after the
   jump's landing, writes a stitch over 12.7 mm as one `80 01` jump and an 8 mm move as a plain
   record, and writes `80 03` before its 74 mm moves (not before 31.7 mm). The six header bytes
   `C4 28 00 30 00 00` are the same in all three PE exports.

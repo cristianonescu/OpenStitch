@@ -12,7 +12,7 @@ new `openstitch-design/src/graph.rs`; the matching is exact up to 16 odd vertice
 / `object.unbranch` (#546) group touching shapes and enter each where the one before touches it,
 but sew each shape whole: the centre-run-down, satin-up walk of §5 is not built. Separately,
 `object.deriveSkeleton {branches}` splits a branching shape into one satin column per arm
-(#526, still open).
+(#526, still open; closed 2026-11-13 by PRs #909 and #996, Satin Columns per Branch).
 
 ## 1. What the feature is
 

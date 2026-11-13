@@ -136,9 +136,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    A zigzag line's corners sharper than 67.5 degrees (PE-DESIGN sews 75 degrees and wider as
    plain corners) follow PE-DESIGN's `sharpCorners` (1: legs to where they cross, the point
    filled as a wedge; 2: split along the bisector, more
-   short stitches) and `miterLimit` (0-50 mm from the corner along the bisector; 0, the
-   default, cuts the point at the corner, about 4 mm on a 2 mm line at 30 degrees is the full
-   point). Raise `miterLimit` for a pointed star or chevron border, keep 0 for a blunt one.
+   short stitches) and `miterLimit` (0-50 mm from the corner along the bisector; 0 (button 1's
+   default; button 2's is 7) cuts the point at the corner, about 4 mm on a 2 mm line at 30
+   degrees is the full point). Raise `miterLimit` for a pointed star or chevron border, keep 0 for a blunt one.
    A satin line (`type: satin`) with one width, no satin shaping and straight segments takes
    the same `sharpCorners` and `miterLimit` (#373); a `cornerStyle` takes precedence, and a
    satin line with width keys, tapers or slant keeps its own corners.

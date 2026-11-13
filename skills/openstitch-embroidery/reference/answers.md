@@ -19,19 +19,22 @@ stays the default.
   shapes (stars, hearts, arrows, ...), Manual Punch columns.
 - **Shape editing:** point editing, move, scale, rotate, flip, group, cut and paste, arranged
   copies (mirror, circle, matrix), merge, remove overlap, boolean combine, split, offset lines.
-- **Region sew types:** fill (tatami), satin, programmable fill, motif fill, concentric
-  circle, radial, spiral, stippling, net fills, decorative fill, cross stitch; beyond
+- **Region sew types:** fill (tatami), satin, programmable fill, motif fill, piping, concentric
+  circle, radial, spiral, flexible spiral, stippling, net fills, decorative fill, cross stitch; beyond
   PE-DESIGN: contour fill, wave fill, maze and meander fills, colour blends and gradient fills, gradation shapes, SVG gradients as blends, stitch angle lines, tartan fills, seeded random stagger, tatami textures (`texture`: ribs, diagonal,
   waves, chevron and more), skeleton satin.
 - **Line sew types:** running, triple, zigzag (satin line), motif, stem, candlewick, E and V
-  stitch, chain, cutting (cutwork needles).
+  stitch, chain, cutting (cutwork needles); beyond PE-DESIGN: satin (width varies along
+  the line), back stitch, scribble, chevron, cretan, feather, overlock, alternating
+  triangles, double zigzag, lattice, stripes, ripple.
 - **Lettering:** TrueType/OpenType text with size, spacing and alignment, satin or fill;
-  bundled Lato Bold and Pacifico, or the user's own fonts; Fit Text to Outline, 26 Text
+  bundled Lato Bold, Pacifico, OpenStitch Line (small text) and OpenStitch Pixel, or the user's own fonts; Fit Text to Outline, 26 Text
   Transform presets, monograms, templates, Name Drop, own embroidery fonts (Font Creator).
 - **Image digitizing:** Auto Punch, Cross Stitch, Photo Stitch 1 and 2, Design Center. Each
   has the PE-DESIGN-compatible mode (default) and, beyond PE-DESIGN, an OpenStitch mode that
   matches colours by appearance. Both are approximations of PE-DESIGN's wizards.
-- **Wizards:** appliqué, embroidered patch, cutwork, background fill.
+- **Wizards:** appliqué, embroidered patch, cutwork, background fill; beyond PE-DESIGN:
+  knockdown (`wizard.knockdown`, for towels and fleece).
 - **Order:** by drag, by colour, PE-DESIGN's optimised order, or a shortest-jump order.
 - **Other:** stitch editing, stitches back to shapes, floral patterns, decorative frames,
   stamps, emboss and engrave, hoops and user hoops, multi-position hoops, split designs,

@@ -3,12 +3,12 @@
 Goal 3: an OpenStitch export sews on a Brother machine as PE-DESIGN's export of the same design. The machine reads the
 PEC section (and the other machine formats), not the editable objects, so this compares those streams.
 
-Tool: `pes-compare/peccmp.py` (this folder). Decodes the PEC section from documented fields only (label, colour count,
+Tool: `pes-compare/peccmp.py` (this folder; now [`tools/peccmp.py`](../../../tools/peccmp.py)). Decodes the PEC section from documented fields only (label, colour count,
 chart codes, stitch block width/height, every stitch record with its jump/trim flag, colour-change records and their
 bytes, icon presence) and diffs two files: counts, first/last records, longest stitch and jump, what surrounds each
 colour change, the first divergent record. `peccmp.py --batch target/compat/work compat/reference --json out.json`
 runs every spec pair; `--dump file.pes N` prints one file. Results of the run on main 031b963:
-`pes-compare/peccmp-results.json`.
+`pes-compare/peccmp-results.json` (not in the repo).
 
 Sample: 40 OpenStitch exports vs their 31 PE references, plus the 177 PE-DESIGN 11.50 PES files available (compat/reference
 and <reference-notes> round2: lines, text, sweeps, satin) for PE's own rules.

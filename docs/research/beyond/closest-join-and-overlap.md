@@ -11,7 +11,8 @@ was read.
 - closest join (§2): a design setting `autoStart: nearest` (#547, `design.setProperties`) starts
   each shape without an entry point of its own nearest to where the needle stopped, satins
   part way along; `order.optimize` reports what it changed. `order.closestJoin`, fixed points
-  and the `auto` re-apply on move are not built; #547 is still open;
+  and the `auto` re-apply on move are not built; #547 is still open (closed 2026-11-12 by the owner's decision on #547, 19.1 % less jump
+  length accepted; `order.closestJoin` is still not built);
 - overlap removal at shape level (§5.1): `object.setHideUnder` and `design.setRemoveHidden`
   (#511), with a 1 mm default overlap and satin regions and text not clipped;
 - not built: auto start and end (§3) and stitch-level clipping (`stitches.clip`, §5.2).

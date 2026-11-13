@@ -40,12 +40,13 @@ and Snap to Grid for handles turned out reachable without a seam (#378, #379).
 
 ## Test layout
 
-Each crate's integration tests build as one test binary, `tests/integration.rs`, which lists
+A crate's integration tests build as one test binary, `tests/integration.rs`, which lists
 every other file under `tests/` with `#[path]` (#403). The files stay where they were, so the
 test paths this audit and FEATURE_MATRIX cite are unchanged. nextest names a test
-`<crate>::integration <file>::<test>` (before: `<crate>::<file> <test>`). Each crate sets
-`autotests = false`, and its `every_test_file_is_listed` test fails when a file under `tests/` is
-not listed.
+`<crate>::integration <file>::<test>` (before: `<crate>::<file> <test>`). Each crate with a
+`tests/integration.rs` sets `autotests = false`, and its `every_test_file_is_listed` test fails
+when a file under `tests/` is not listed. One crate differs: openstitch-render's `tests/` holds
+only `thumbnailer_cli.rs`, its own test binary (Cargo's default; no `autotests = false`).
 
 ## Closed
 

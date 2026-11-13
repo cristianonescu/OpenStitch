@@ -8,8 +8,10 @@ requests that change `packaging/`, `assets/icons/` or the workflow. Releases are
 pushes (`vX.Y.Z` for a stable version, or
 `vX.Y.Z-alpha.N`, `-beta.N`, `-rc.N` for a pre-release, marked as such) and creates a draft
 GitHub release with the same packages and a `SHA256SUMS` file (sha256sum format, one line per
-asset) that the editor's self-updater checks downloads against; `release-smoke.yml` then installs
-the published Windows and Linux packages and runs them once. The build receives the label as
+asset) that the editor's self-updater checks downloads against. `release-smoke.yml` installs
+a published release's Windows and Linux packages and runs them once; nothing starts it after a
+release: it runs by hand from the Actions tab with the tag (`workflow_dispatch`), and on pull
+requests that change the workflow itself. The build receives the label as
 `OPENSTITCH_RELEASE_TAG`, which the editor embeds so a release build knows its tag (see
 [research/updater.md](research/updater.md)). The notes for each release are in `docs/releases/`.
 
