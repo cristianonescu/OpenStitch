@@ -343,6 +343,9 @@ jobs:
         # The measure #526's boxes are judged by, on synthetic stitches (rule B': every needle
         # point but tie-ins and locks).
         run: python -I tools/branch_columns.py --self-test
+      - name: fit_envelopes self-test
+        # --check's comparison of the envelope table, on synthetic tables (#886).
+        run: python -I tools/fit_envelopes.py --self-test
       - name: kit previews show their threads
         # Each preview's pixels include every thread of its design within 20 ΔE (#564).
         run: python -I tools/sew_kit.py --check-previews
@@ -352,6 +355,12 @@ jobs:
       - run: cargo build --release --locked -p stitchtool
       - name: sew_kit --check
         run: python -I tools/sew_kit.py --check
+      - name: fit_envelopes --check
+        # The committed Text Transform table is what the tool fits from PE-DESIGN's references,
+        # so it can't drift from its generator again (#886).
+        env:
+          STITCHTOOL: target/release/stitchtool
+        run: python -I tools/fit_envelopes.py --check
       - name: Assistant skill examples
         # Every example design of the skill (#492) runs with stitchtool exec, its design.check
         # has no errors, it fits the page, and its PES passes sew_check.
