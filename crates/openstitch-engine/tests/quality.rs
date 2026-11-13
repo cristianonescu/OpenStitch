@@ -723,12 +723,12 @@ fn sections_of_fewer_than_three_stitches_are_found() {
     );
 }
 
-/// #866: more than 50 stitches in 1,000 shorter than 0.3 mm is `shortStitch` (a warning
-/// naming the object); 40 in 1,000 is not. The limit is the shared table's, as sew_check reads.
+/// #866: more than 160 stitches in 1,000 shorter than 0.3 mm is `shortStitch` (a warning
+/// naming the object); 152 in 1,000 is not. The limit is the shared table's, as sew_check reads.
 #[test]
 fn short_stitches_over_the_shared_limit_are_found() {
     let lim = &*openstitch_engine::quality::LIMITS;
-    assert_eq!((lim.short_stitch_mm, lim.max_short_per_1000), (0.3, 50.0));
+    assert_eq!((lim.short_stitch_mm, lim.max_short_per_1000), (0.3, 160.0));
     // 101 needle points (the importer reads the first as the jump to the start, so 99 stitch
     // moves): `short` of them 0.2 mm, the rest 2 mm, never two short ones in a row (so no
     // stitching in place).
@@ -736,7 +736,7 @@ fn short_stitches_over_the_shared_limit_are_found() {
         let mut x = 0.0;
         let mut r = vec![(x, 0.0)];
         for k in 0..100 {
-            x += if k % 10 == 5 && k / 10 < short {
+            x += if k % 6 == 3 && k / 6 < short {
                 2.0
             } else {
                 20.0
@@ -747,20 +747,20 @@ fn short_stitches_over_the_shared_limit_are_found() {
     };
     let dir = TempDir::new("check-short");
     let mut s = Session::new(&dir);
-    sections(&mut s, &dir, "forty.pes", &[row(4)]);
+    sections(&mut s, &dir, "under.pes", &[row(15)]);
     let c = run(&mut s, "design.check", json!({"rules": ["shortStitch"]}));
     assert!(
         found(&c, "shortStitch").is_none(),
-        "4 in 99 is under the limit: {c}"
+        "15 in 99 (151.5 in 1,000) is under the limit: {c}"
     );
     let mut s = Session::new(&dir);
-    sections(&mut s, &dir, "sixty.pes", &[row(6)]);
+    sections(&mut s, &dir, "over.pes", &[row(17)]);
     let c = run(&mut s, "design.check", json!({"rules": ["shortStitch"]}));
     let f = found(&c, "shortStitch").unwrap_or_else(|| panic!("{c}"));
     assert_eq!(
         (f["value"].as_f64(), f["limit"].as_f64()),
-        // 6 in 99: 60.61 in 1,000.
-        (Some(60.61), Some(50.0)),
+        // 17 in 99: 171.72 in 1,000.
+        (Some(171.72), Some(160.0)),
         "{f}"
     );
     assert_eq!(

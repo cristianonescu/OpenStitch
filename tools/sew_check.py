@@ -8,9 +8,10 @@
 - **Stacked needle drops:** too many penetrations in one small spot can break a needle.
   Reported per 0.5 mm cell, over the whole design and within one colour block.
 - **Stitching in place:** runs of stitches shorter than 0.3 mm that do not travel.
-- **Short stitches (warning only):** more than 50 stitches in 1,000 shorter than 0.3 mm fray
-  and break the thread (zero-length stitches in place left out). The limit comes from
-  PE-DESIGN's own files, which reach 45.5 (#866).
+- **Short stitches (warning only):** more than 160 stitches in 1,000 shorter than 0.3 mm fray
+  and break the thread (zero-length stitches in place left out). The limit sits just above the
+  highest rate in all 482 PE-DESIGN reference files, 154.8 (its own satin lettering, whose short
+  stitches are at the column turns; #866).
 - **Long stitches (warning only):** stitches longer than 12 mm snag and loop on the machine.
   PE-DESIGN sends them too (its 30 mm satin reference keeps every crossing whole), so they are
   reported but do not fail the file; split them with the satin's Split Stitch (`splitLength`).
@@ -55,7 +56,7 @@ MAX_PER_CELL_COLOUR = 20   # ... within one colour block
 TINY_MM = SHARED["inPlaceMm"]
 MAX_TINY_RUN = SHARED["maxInPlaceRun"]     # consecutive stitches shorter than 0.3 mm (tie-ins use 3 to 4)
 SHORT_MM = SHARED["shortStitchMm"]
-MAX_SHORT_PER_1000 = SHARED["maxShortPer1000"]  # PE-DESIGN's own files reach 45.5 (#866)
+MAX_SHORT_PER_1000 = SHARED["maxShortPer1000"]  # PE-DESIGN's references reach 154.8 (#866)
 FIELD_SLACK_MM = 0.0       # sewing field must not be exceeded at all
 DENS_CELL_MM = SHARED["denseCellMm"]
 MAX_DENSITY = SHARED["maxThreadPerMm2"]    # PE-DESIGN's wide satin references reach 75
