@@ -2189,6 +2189,22 @@ pub struct PlayerToggles {
 impl eframe::App for EditorApp {
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
         self.frames += 1;
+        // `--show bare` (#1051): the desktop's pointer, wherever the mouse happens to be, must
+        // not hover or mark anything in a kit preview tile, so it never reaches the window.
+        if self.bare {
+            raw.events.retain(|e| {
+                !matches!(
+                    e,
+                    egui::Event::PointerMoved(_)
+                        | egui::Event::MouseMoved(_)
+                        | egui::Event::PointerButton { .. }
+                        | egui::Event::PointerGone
+                        | egui::Event::MouseWheel { .. }
+                        | egui::Event::Zoom(_)
+                        | egui::Event::Touch { .. }
+                )
+            });
+        }
         // Start once the canvas has laid out and fitted the page.
         let (Some(player), Some(vp)) = (&mut self.player, self.viewport) else {
             return;
