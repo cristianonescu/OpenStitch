@@ -23,18 +23,39 @@ use std::ops::Range;
 
 /// The longest stitch a Brother home machine sews, mm.
 pub const MAX_STITCH_MM: f64 = 12.1;
-const STACK_CELL_MM: f64 = 0.5;
-const MAX_PER_CELL: usize = 20;
-const DENSE_CELL_MM: f64 = 2.0;
-const MAX_THREAD_PER_MM2: f64 = 80.0;
-const TINY_MM: f64 = 0.3;
-const MAX_TINY_RUN: usize = 6;
+
+/// The limits Check Design shares with `tools/sew_check.py` (#866): one table,
+/// `crates/openstitch-engine/check_limits.json`, which the tool reads too.
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Limits {
+    /// Stacked needle drops: at most `max_drops_per_cell` in one cell this wide, mm.
+    pub stack_cell_mm: f64,
+    pub max_drops_per_cell: usize,
+    /// Dense thread: at most `max_thread_per_mm2` mm of thread per mm² in a cell this wide.
+    pub dense_cell_mm: f64,
+    pub max_thread_per_mm2: f64,
+    /// Stitching in place: at most `max_in_place_run` stitches in a row shorter than this, mm.
+    pub in_place_mm: f64,
+    pub max_in_place_run: usize,
+    /// Short stitches: at most `max_short_per_1000` stitches in 1,000 shorter than this, mm
+    /// (zero-length stitches in place left out).
+    pub short_stitch_mm: f64,
+    pub max_short_per_1000: f64,
+}
+
+/// [`Limits`] as the table holds them.
+pub static LIMITS: std::sync::LazyLock<Limits> = std::sync::LazyLock::new(|| {
+    serde_json::from_str(include_str!("../check_limits.json")).expect("check_limits.json")
+});
 const SATIN_WIDE_MM: f64 = 10.0;
 const SATIN_NARROW_MM: f64 = 1.0;
 const FILL_THIN_MM: f64 = 1.5;
 const TINY_OBJECT_MM: f64 = 1.5;
 const TEXT_MIN_MM: f64 = 4.0;
 const SAME_THREAD_MOVE_MM: f64 = 15.0;
+/// A section between two thread cuts with fewer needle drops than this cannot hold (#866).
+const MIN_SECTION_DROPS: usize = 3;
 /// Thread one layer lays, mm per mm²: a default tatami fill (`shape.rectangle`, 4.5 rows per
 /// mm, underlay off) measures 4.6 in this module's 1 mm cells.
 pub const LAYER_MM_PER_MM2: f64 = 4.6;
@@ -148,7 +169,7 @@ impl DensityMap {
             let Some(k) = map.index(to) else { continue };
             map.holes[k] += 1.0 / (cell_mm * cell_mm);
             owner.map(|id| map.owners[k].insert(id));
-            *spots.entry(cell(to, STACK_CELL_MM)).or_default() += 1;
+            *spots.entry(cell(to, LIMITS.stack_cell_mm)).or_default() += 1;
             // The stitch's length split over the cells it crosses, in pieces under a quarter
             // cell.
             let len = from.distance(to);
@@ -163,10 +184,10 @@ impl DensityMap {
         }
         for ((x, y), count) in spots {
             let centre = v2(
-                (x as f64 + 0.5) * STACK_CELL_MM * MM,
-                (y as f64 + 0.5) * STACK_CELL_MM * MM,
+                (x as f64 + 0.5) * LIMITS.stack_cell_mm * MM,
+                (y as f64 + 0.5) * LIMITS.stack_cell_mm * MM,
             );
-            if count > MAX_PER_CELL
+            if count > LIMITS.max_drops_per_cell
                 && let Some(k) = map.index(centre)
             {
                 map.stacked[k] = true;
@@ -694,7 +715,10 @@ pub fn check(d: &Design, t: &Traced, opts: &CheckOptions) -> Vec<Finding> {
     // Stacked drops and dense thread (sew_check's limits), then thread layers per hotspot.
     let mut spots: HashMap<(i64, i64), Vec<usize>> = HashMap::new();
     let mut dense: HashMap<(i64, i64), f64> = HashMap::new();
+    let lim = &*LIMITS;
     let mut run = (0usize, 0usize, 0usize);
+    // Short stitches (#866): stitch-to-stitch moves, and the short ones by object.
+    let (mut moves, mut short) = (0usize, HashMap::<Option<u64>, usize>::new());
     for (i, s) in st.iter().enumerate() {
         if s.command != Command::Stitch {
             run.0 = 0;
@@ -702,10 +726,20 @@ pub fn check(d: &Design, t: &Traced, opts: &CheckOptions) -> Vec<Finding> {
         }
         let to = v2(s.x, s.y);
         let from = i.checked_sub(1).map_or(to, |j| v2(st[j].x, st[j].y));
-        spots.entry(cell(to, STACK_CELL_MM)).or_default().push(i);
+        if i > 0 && st[i - 1].command == Command::Stitch {
+            moves += 1;
+            let d = from.distance(to);
+            if d > 1e-6 && d < lim.short_stitch_mm * MM {
+                *short.entry(t.owner(i)).or_default() += 1;
+            }
+        }
+        spots
+            .entry(cell(to, lim.stack_cell_mm))
+            .or_default()
+            .push(i);
         let mid = v2((from.x + to.x) / 2.0, (from.y + to.y) / 2.0);
-        *dense.entry(cell(mid, DENSE_CELL_MM)).or_default() += from.distance(to) / MM;
-        if i > 0 && from.distance(to) < TINY_MM * MM {
+        *dense.entry(cell(mid, lim.dense_cell_mm)).or_default() += from.distance(to) / MM;
+        if i > 0 && from.distance(to) < lim.in_place_mm * MM {
             run.0 += 1;
             if run.0 > run.1 {
                 run = (run.0, run.0, i);
@@ -724,61 +758,100 @@ pub fn check(d: &Design, t: &Traced, opts: &CheckOptions) -> Vec<Finding> {
     if let Some((c, idx)) = spots
         .iter()
         .max_by_key(|(c, v)| (v.len(), std::cmp::Reverse(**c)))
-        .filter(|(_, v)| v.len() > MAX_PER_CELL)
+        .filter(|(_, v)| v.len() > lim.max_drops_per_cell)
     {
         out.push(Finding {
             rule: "stacked",
             severity: Severity::Error,
             ids: ids_at(idx),
             bbox: Some([
-                c.0 as f64 * STACK_CELL_MM,
-                c.1 as f64 * STACK_CELL_MM,
-                (c.0 + 1) as f64 * STACK_CELL_MM,
-                (c.1 + 1) as f64 * STACK_CELL_MM,
+                c.0 as f64 * lim.stack_cell_mm,
+                c.1 as f64 * lim.stack_cell_mm,
+                (c.0 + 1) as f64 * lim.stack_cell_mm,
+                (c.1 + 1) as f64 * lim.stack_cell_mm,
             ]),
             message: format!(
-                "{} needle drops in one {STACK_CELL_MM} mm spot: the needle can break",
-                idx.len()
+                "{} needle drops in one {} mm spot: the needle can break",
+                idx.len(),
+                lim.stack_cell_mm
             ),
             value: idx.len() as f64,
-            limit: MAX_PER_CELL as f64,
+            limit: lim.max_drops_per_cell as f64,
             fix: None,
         });
     }
     if let Some((c, v)) = dense
         .iter()
         .max_by(|a, b| a.1.total_cmp(b.1))
-        .map(|(c, v)| (*c, *v / (DENSE_CELL_MM * DENSE_CELL_MM)))
-        .filter(|(_, v)| *v > MAX_THREAD_PER_MM2)
+        .map(|(c, v)| (*c, *v / (lim.dense_cell_mm * lim.dense_cell_mm)))
+        .filter(|(_, v)| *v > lim.max_thread_per_mm2)
     {
-        let b =
-            [c.0 as f64, c.1 as f64, (c.0 + 1) as f64, (c.1 + 1) as f64].map(|v| v * DENSE_CELL_MM);
+        let b = [c.0 as f64, c.1 as f64, (c.0 + 1) as f64, (c.1 + 1) as f64]
+            .map(|v| v * lim.dense_cell_mm);
         out.push(Finding {
             rule: "dense",
             severity: Severity::Error,
             ids: Vec::new(),
             bbox: Some(b),
-            message: format!("{v:.0} mm of thread per mm² in a {DENSE_CELL_MM} mm cell: the fabric puckers or tears"),
+            message: format!(
+                "{v:.0} mm of thread per mm² in a {} mm cell: the fabric puckers or tears",
+                lim.dense_cell_mm
+            ),
             value: v,
-            limit: MAX_THREAD_PER_MM2,
+            limit: lim.max_thread_per_mm2,
             fix: None,
         });
     }
-    if run.1 > MAX_TINY_RUN {
+    if run.1 > lim.max_in_place_run {
         out.push(Finding {
             rule: "inPlace",
             severity: Severity::Error,
             ids: t.owner(run.2).into_iter().collect(),
             bbox: bbox_of([v2(st[run.2].x, st[run.2].y)]),
             message: format!(
-                "{} stitches in a row shorter than {TINY_MM} mm: thread knots in one place",
-                run.1
+                "{} stitches in a row shorter than {} mm: thread knots in one place",
+                run.1, lim.in_place_mm
             ),
             value: run.1 as f64,
-            limit: MAX_TINY_RUN as f64,
+            limit: lim.max_in_place_run as f64,
             fix: None,
         });
     }
+    let shorts: usize = short.values().sum();
+    let rate = if moves == 0 {
+        0.0
+    } else {
+        shorts as f64 * 1000.0 / moves as f64
+    };
+    if rate > lim.max_short_per_1000 {
+        // The objects with the most short stitches, most first.
+        let mut by: Vec<(u64, usize)> = short
+            .iter()
+            .filter_map(|(id, n)| id.map(|id| (id, *n)))
+            .collect();
+        by.sort_by_key(|&(id, n)| (std::cmp::Reverse(n), id));
+        let ids: Vec<u64> = by.iter().take(3).map(|&(id, _)| id).collect();
+        let at = |id: u64| {
+            t.spans
+                .iter()
+                .filter(move |(i, _)| *i == id)
+                .flat_map(|(_, r)| drop_points(r))
+        };
+        out.push(Finding {
+            rule: "shortStitch",
+            severity: Severity::Warning,
+            bbox: bbox_of(ids.iter().flat_map(|&id| at(id))),
+            message: format!(
+                "{rate:.0} stitches in 1,000 are shorter than {} mm ({shorts} in all): short stitches fray and break the thread",
+                lim.short_stitch_mm
+            ),
+            value: rate,
+            limit: lim.max_short_per_1000,
+            fix: None,
+            ids,
+        });
+    }
+    out.extend(section_findings(t, &objects));
     let map = DensityMap::new(t, 1.0, None);
     for (cells, ids) in map.hotspots(opts.fabric) {
         // An object's own dense corners are left out: only overlaps of two or more objects.
@@ -801,6 +874,124 @@ pub fn check(d: &Design, t: &Traced, opts: &CheckOptions) -> Vec<Finding> {
         });
     }
     out.sort_by_key(|f| f.severity);
+    out
+}
+
+/// A stitch section of a compiled design: its needle drops (indexes) between thread cuts, and
+/// its needle points, which start where the jump before it lands (a run's tie-in steps out
+/// from there and back, as PE-DESIGN never writes a stitch on top of the jump).
+struct Section {
+    drops: Vec<usize>,
+    points: Vec<Vec2>,
+}
+
+/// The sections between thread cuts (a trim, a colour change or the end). A jump without a
+/// trim keeps the thread, so it does not end a section.
+fn sections(t: &Traced) -> Vec<Section> {
+    let new = || Section {
+        drops: Vec::new(),
+        points: Vec::new(),
+    };
+    let mut out = vec![new()];
+    let mut landed: Option<Vec2> = None;
+    for (i, s) in t.pattern.stitches.iter().enumerate() {
+        let p = v2(s.x, s.y);
+        match s.command {
+            Command::Stitch => {
+                let sec = out.last_mut().expect("a section");
+                if sec.points.is_empty()
+                    && let Some(a) = landed.filter(|a| *a != p)
+                {
+                    sec.points.push(a);
+                }
+                sec.drops.push(i);
+                sec.points.push(p);
+                landed = None;
+            }
+            Command::Jump => landed = Some(p),
+            Command::Trim | Command::ColorChange | Command::End => {
+                out.push(new());
+                landed = None;
+            }
+            Command::Stop => {}
+        }
+    }
+    out.retain(|s| !s.drops.is_empty());
+    out
+}
+
+/// Thread ends without ties and sections too short to hold (#866): one finding each, naming
+/// every object concerned.
+fn section_findings(t: &Traced, objects: &HashMap<u64, &DesignObject>) -> Vec<Finding> {
+    let st = &t.pattern.stitches;
+    let at = |i: usize| v2(st[i].x, st[i].y);
+    // Feed objects (basting, a placement line) are cut away or sewn over: no tie needed.
+    let counts = |i: usize| {
+        t.owner(i)
+            .is_none_or(|id| objects.get(&id).is_none_or(|o| !is_feed(o)))
+    };
+    let (mut untied, mut untied_ids, mut untied_at) = (0usize, BTreeSet::new(), Vec::new());
+    let (mut tiny, mut tiny_ids, mut tiny_at) = (0usize, BTreeSet::new(), Vec::new());
+    for Section { drops, points } in sections(t) {
+        let (first, last) = (drops[0], drops[drops.len() - 1]);
+        if drops.len() < MIN_SECTION_DROPS {
+            if counts(first) {
+                tiny += 1;
+                tiny_ids.extend(t.owner(first));
+                tiny_at.extend(points.iter().copied());
+            }
+            continue;
+        }
+        // A tie comes back to the end point within a few short stitches; a stitch in place at
+        // the end point (PE-DESIGN's one-step tie on Hoop Size pages, #1013) ties it too.
+        let in_place = |a: Vec2, b: Vec2| a.distance(b) < 0.5;
+        let tail: Vec<Vec2> = points.iter().rev().take(6).copied().collect();
+        let start =
+            openstitch_design::region::starts_tied(&points) || in_place(points[0], points[1]);
+        let end = openstitch_design::region::ends_locked(&tail) || in_place(tail[0], tail[1]);
+        for (tied, i) in [(start, first), (end, last)] {
+            if !tied && counts(i) {
+                untied += 1;
+                untied_ids.extend(t.owner(i));
+                untied_at.push(at(i));
+            }
+        }
+    }
+    let mut out = Vec::new();
+    if untied > 0 {
+        let ids: Vec<u64> = untied_ids.into_iter().collect();
+        out.push(Finding {
+            rule: "untied",
+            severity: Severity::Warning,
+            bbox: bbox_of(untied_at),
+            message: format!(
+                "{untied} thread {} without a tie: the stitches can pull out",
+                if untied == 1 { "end" } else { "ends" }
+            ),
+            value: untied as f64,
+            limit: 0.0,
+            // Ties at the start and end of each of these objects, trimmed or not (#548).
+            fix: (!ids.is_empty())
+                .then(|| fix("object.setFinish", json!({ "ids": ids, "tie": "always" })))
+                .flatten(),
+            ids,
+        });
+    }
+    if tiny > 0 {
+        out.push(Finding {
+            rule: "tinySection",
+            severity: Severity::Warning,
+            ids: tiny_ids.into_iter().collect(),
+            bbox: bbox_of(tiny_at),
+            message: format!(
+                "{tiny} {} of fewer than {MIN_SECTION_DROPS} stitches between thread cuts: too short to hold",
+                if tiny == 1 { "section" } else { "sections" }
+            ),
+            value: tiny as f64,
+            limit: MIN_SECTION_DROPS as f64,
+            fix: None,
+        });
+    }
     out
 }
 
@@ -1097,25 +1288,51 @@ fn limits(p: &Params) -> Result<(f64, f64), CommandError> {
 }
 
 /// `design.check`'s result for the session's design.
+/// More thread colours than the machine has needles (#866): a note, only with a needle count
+/// in the machine profile.
+fn colours_finding(t: &Traced, needles: Option<usize>) -> Option<Finding> {
+    let needles = needles?;
+    let colours: BTreeSet<u32> = t.pattern.threads.iter().map(|th| th.rgb_value()).collect();
+    (colours.len() > needles).then(|| Finding {
+        rule: "moreColoursThanNeedles",
+        severity: Severity::Info,
+        ids: Vec::new(),
+        bbox: None,
+        message: format!(
+            "{} thread colours on a {needles}-needle machine: rethread during the sew-out",
+            colours.len()
+        ),
+        value: colours.len() as f64,
+        limit: needles as f64,
+        fix: None,
+    })
+}
+
+/// `design.check`'s result; `needles` is the machine profile's needle count, if any.
 pub fn check_json(
     d: &Design,
     t: &Traced,
     fabric: (f64, f64),
+    needles: Option<usize>,
     only: Option<&BTreeSet<u64>>,
     rules: Option<&[String]>,
 ) -> Value {
-    let findings: Vec<Value> = check(d, t, &CheckOptions { fabric })
+    let mut all = check(d, t, &CheckOptions { fabric });
+    all.extend(colours_finding(t, needles));
+    let findings: Vec<Value> = all
         .iter()
         .filter(|f| only.is_none_or(|o| f.ids.iter().any(|id| o.contains(id))))
         .filter(|f| rules.is_none_or(|r| r.iter().any(|x| x == f.rule)))
         .map(Finding::to_json)
         .collect();
     let errors = findings.iter().filter(|f| f["severity"] == "error").count();
+    let notes = findings.iter().filter(|f| f["severity"] == "info").count();
     let first = findings.first().map(|f| f["message"].clone());
     json!({
         "ready": errors == 0,
         "errors": errors,
-        "warnings": findings.len() - errors,
+        "warnings": findings.len() - errors - notes,
+        "notes": notes,
         "summary": if findings.is_empty() { json!("Ready to sew") } else { first.unwrap_or_default() },
         "findings": findings,
     })
@@ -1125,7 +1342,7 @@ pub fn commands() -> Vec<CommandSpec> {
     vec![
         spec(
             "design.check",
-            "Check Design (beyond PE-DESIGN): every likely sewing problem, errors first, with the objects, where and an optional fix command. Rules: outsideHoop, longStitch, satinTooWide, satinTooNarrow, fillTooThin, textTooSmall, tinyObject, selfCrossing, untrimmedJump, stacked, dense, inPlace. `ready` is false while there are errors. Run it before reporting a design done",
+            "Check Design (beyond PE-DESIGN): every likely sewing problem, errors first, with the objects, where and an optional fix command. Rules: outsideHoop, longStitch, satinTooWide, satinTooNarrow, fillTooThin, textTooSmall, tinyObject, selfCrossing, untrimmedJump, stacked, dense, inPlace, untied (a start or end of the thread, at the design's start, a trim or a colour change, without a tie; the fix ties those objects with object.setFinish tie always), tinySection (fewer than 3 stitches between two thread cuts), shortStitch (more than 50 stitches in 1,000 shorter than 0.3 mm, stitches in place left out; names the objects with the most), moreColoursThanNeedles (a note when machine.setProfile's needles is set and the design has more thread colours). `ready` is false while there are errors. Run it before reporting a design done",
             Effect::Read,
             vec![
                 opt(
@@ -1155,6 +1372,7 @@ pub fn commands() -> Vec<CommandSpec> {
                     &s.design,
                     &Traced::new(&s.design),
                     limits(p)?,
+                    s.user.machine_profile.as_ref().and_then(|m| m.needles),
                     only(p)?.as_ref(),
                     rules.as_deref(),
                 ))

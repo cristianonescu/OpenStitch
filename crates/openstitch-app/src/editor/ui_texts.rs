@@ -1426,6 +1426,12 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
         "The update did not go through.",
     ),
     ("ui-try-again", "Try again"),
+    ("ui-needles", "Needles"),
+    ("ui-multi-needle-machine", "Multi-needle machine"),
+    (
+        "ui-multi-needle-machine-tip",
+        "How many needles it threads at once: Check Design notes designs with more thread colours than that",
+    ),
     ("ui-copy-diagnostics", "Copy diagnostics"),
     (
         "ui-copy-diagnostics-tip",

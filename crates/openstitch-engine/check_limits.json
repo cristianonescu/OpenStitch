@@ -1,0 +1,11 @@
+{
+  "about": "Limits Check Design (crates/openstitch-engine/src/quality.rs) and tools/sew_check.py share, so the app and the tool agree (#866). Edit them here only.",
+  "stackCellMm": 0.5,
+  "maxDropsPerCell": 20,
+  "denseCellMm": 2.0,
+  "maxThreadPerMm2": 80.0,
+  "inPlaceMm": 0.3,
+  "maxInPlaceRun": 6,
+  "shortStitchMm": 0.3,
+  "maxShortPer1000": 50.0
+}
