@@ -388,6 +388,27 @@ impl Design {
         }
     }
 
+    /// Whether PE-DESIGN 11.50 holds this design on a Hoop Size page rather than a Custom Size
+    /// one: a hoop it knows is chosen, or a 100 x 100 mm page, its default New page (as the
+    /// `#PES0110` export writes it), unless the design asks for a Custom Size page
+    /// ([`crate::MachineSettings::custom_page`]). On a Hoop Size page PE-DESIGN starts every run
+    /// with a one-step tie-in on a stitch in place (#1013).
+    pub fn hoop_size_page(&self) -> bool {
+        let mm = |units: f64| (units / 10.0).round();
+        let default_page = (mm(self.page.width), mm(self.page.height)) == (100.0, 100.0);
+        let multi_needle = self.machine.machine == crate::MachineType::MultiNeedle;
+        let known_hoop = self.machine.hoop.as_deref().is_some_and(|hoop| {
+            matches!(
+                (multi_needle, hoop),
+                (
+                    false,
+                    "100x100" | "130x180" | "160x260" | "200x300" | "240x360"
+                ) | (true, "100x100")
+            )
+        });
+        !self.machine.custom_page && (known_hoop || default_page)
+    }
+
     /// Adds `object` with a fresh id and returns that id.
     pub fn add(&mut self, mut object: DesignObject) -> u64 {
         object.id = self.next_object_id;

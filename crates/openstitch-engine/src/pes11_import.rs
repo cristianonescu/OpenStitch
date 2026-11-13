@@ -716,7 +716,7 @@ fn stitch_object(g: &StitchGroup, table: &[Thread]) -> DesignObject {
 pub fn commands() -> Vec<CommandSpec> {
     vec![spec(
         "import.pes",
-        "Import a PE-DESIGN 11 PES file's objects (shapes with their stamps, Manual Punch blocks, texts and stitch groups) as editable objects",
+        "Import a PE-DESIGN 11 PES file's objects (shapes with their stamps, Manual Punch blocks, texts and stitch groups) as editable objects; into an empty design it also takes the file's page mode (Hoop Size or Custom Size page, design.info pageMode)",
         Effect::Edit,
         vec![
             req(
@@ -751,6 +751,10 @@ pub fn commands() -> Vec<CommandSpec> {
                 .map(|(at, what)| json!({ "position": at, "note": what }))
                 .collect();
             let (texts, stitch_groups) = (section.texts.len(), section.stitch_groups.len());
+            // Into an empty design, the file's page mode too (#1013), as its Design Property.
+            if s.design.objects.is_empty() && section.page_mm.is_some() {
+                s.design.machine.custom_page = !section.hoop_page;
+            }
             let (ids, groups) = add_to(&mut s.design, imported, p.bool("group", Some(true))?);
             // The file's Design Property, into a design that has none (as stitches.import).
             let found = openstitch_design::DesignProperties::from_metadata(&section.metadata);
@@ -767,6 +771,7 @@ pub fn commands() -> Vec<CommandSpec> {
                 "notes": notes,
                 "unparsed": section.unparsed,
                 "propertiesAdopted": adopt,
+                "pageMode": if s.design.hoop_size_page() { "hoop" } else { "custom" },
             }))
         },
     )]
