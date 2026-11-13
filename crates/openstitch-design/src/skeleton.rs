@@ -2553,7 +2553,8 @@ mod tests {
             "{} {arms:?}",
             coverage(&plus, &arms)
         );
-        // A five-pointed star: the main stroke through two points, a column for each other.
+        // A five-pointed star whose main stroke would be over 10 mm wide through its middle:
+        // one column per point, along its kite from tip to centre (#526).
         let star: Vec<(f64, f64)> = (0..10)
             .map(|i| {
                 let a = std::f64::consts::PI * i as f64 / 5.0 - std::f64::consts::FRAC_PI_2;
@@ -2563,7 +2564,7 @@ mod tests {
             .collect();
         let star = polygon(&star);
         let arms = branches(&star, 0.3);
-        assert_eq!(arms.len(), 4, "{arms:?}");
+        assert_eq!(arms.len(), 5, "{arms:?}");
         assert!(coverage(&star, &arms) > 0.9, "{}", coverage(&star, &arms));
         for sk in &arms {
             assert_eq!(sk.validate(), Ok(()));
@@ -2597,8 +2598,14 @@ mod tests {
             );
         }
         assert!(coverage(&big, &arms) > 0.95, "{}", coverage(&big, &arms));
-        let small = star(50.0);
-        assert_eq!(branches(&small, 0.3).len(), 2);
+        // 10 mm across: no column over 10 mm, so the split stays as it was, not by point.
+        let small = branches(&star(50.0), 0.3);
+        assert_ne!(small.len(), 5, "{small:?}");
+        assert!(
+            small
+                .iter()
+                .all(|sk| sk.widths.iter().all(|&w| w <= STAR_SPLIT_WIDTH))
+        );
     }
 }
 
