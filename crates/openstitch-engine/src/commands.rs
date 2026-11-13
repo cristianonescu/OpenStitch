@@ -1482,7 +1482,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "frequency",
                     "percent",
-                    "Fill, piping, programmable fill: needle shift per row, % of a stitch, 0-50 (fill default 33)",
+                    "Fill, piping, programmable fill: needle shift per row, % of a stitch, 0-50 (fill default 33); on a programmable fill it staggers only the base sewing, so it acts with baseSewing true (as PE-DESIGN, which greys it otherwise)",
                 ),
                 opt(
                     "stagger",
@@ -2172,7 +2172,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "type",
                     "running|triple|zigzag|motif|stem|candlewick|eStitch|vStitch|chain|cutting|satin|backStitch|scribble|chevron|cretan|feather|overlock|alternatingTriangles|doubleZigzag|lattice|stripes|ripple|none",
-                    "Line sew type. satin (beyond PE-DESIGN) is a satin column along the line whose width can change along it: width (mm, all along), widthKeys, taperStart, taperEnd and slant shape it, and the satin options (cornerStyle, shortStitchDistance, pull*, satinStyle, jaggedEdge, raised) apply as on zigzag; object.setWidthKey and object.deleteWidthKey edit single keys. backStitch (two forward, one back) and scribble (a zigzag sewn runTimes times with smooth random side offsets, width wide) are beyond PE-DESIGN too. Decorative hand-embroidery lines (beyond PE-DESIGN, #543), width the band: chevron (a bar along the line at each peak), cretan (a short stitch in from each peak, height long), feather (the side stitches turned forward), overlock (a serger-like edge), alternatingTriangles (triangles between two rails), doubleZigzag (a zigzag and its mirror: diamonds), lattice (strands crossing), stripes (rows along the band, strands or gaps); spacing is the zigzag period. ripple (beyond PE-DESIGN, #541): the line repeated strands times, shrinking towards target (a closed line spirals in as one run; an open one is sewn back and forth spacing apart)",
+                    "Line sew type. satin (beyond PE-DESIGN) is a satin column along the line whose width can change along it: width (mm, all along), widthKeys, taperStart, taperEnd and slant shape it, and the satin options (cornerStyle, shortStitchDistance, pull*, satinStyle, jaggedEdge, raised) apply as on zigzag; object.setWidthKey and object.deleteWidthKey edit single keys. backStitch (two forward, one back) and scribble (a zigzag sewn runTimes times with smooth random side offsets, width wide) are beyond PE-DESIGN too. Decorative hand-embroidery lines (beyond PE-DESIGN, #543), width the band: chevron (a bar along the line at each peak), cretan (a short stitch in from each peak, height long), feather (the side stitches turned forward), overlock (a serger-like edge), alternatingTriangles (triangles between two rails), doubleZigzag (a zigzag and its mirror: diamonds), lattice (strands crossing), stripes (rows along the band, strands or gaps; no period, so spacing does nothing); spacing is the zigzag period of the others. ripple (beyond PE-DESIGN, #541): the line repeated strands times, shrinking towards target (a closed line spirals in as one run; an open one is sewn back and forth spacing apart)",
                 ),
                 opt("color", "color", "Thread"),
                 opt(
