@@ -1059,9 +1059,12 @@ pyembroidery nor libembroidery (`writeShv` is a stub) writes SHV.
 | records | a frame move is `80 01 dx dy 80 02` (16-bit offsets, one record at any length) to the first stitch after it, which has no record of its own: PE-DESIGN goes straight to the stitch after a PES jump's landing (`pe-moves.SHV`); `80 03` before a move longer than 38.0 mm on either axis (PE-DESIGN's threshold lies between 36.7 and 38.7 mm, #349); a stitch over 12.7 mm is one such move to its end (`pe-long.SHV`); colour changes are only the word counts; nothing after the last block |
 
 The chart index is the nearest `SHV_CHART` entry (800 RED → 41 Dark Orange, Prussian Blue →
-33 Dark Blue, as PE writes). A preview pixel holds the block's chart index modulo 15 (15 for 0):
-that gives PE's `B` and `3` for those two entries; other entries are not yet checked against a
-PE-DESIGN file. OpenStitch draws straight lines between the needle points at one pixel a
+33 Dark Blue, as PE writes). A preview pixel holds PE-DESIGN's preview value for the block's
+chart entry, a small palette of its own where similar colours share a value (#989; measured on
+`pe-c17.SHV`'s 12 entries): 0 Black and 38 Dark Gray → 1, 33 Dark Blue → 3, 36 Dark Purple → 8,
+5 Yellow → 9, 6 Gray and 22 Light Gray → 10, 41 Dark Orange → 11, 25 Light Orange and 37 Dark
+Yellow → 12, 10 Pink and 42 Dark Pink → 13. Another entry takes the value of the measured entry
+whose colour is nearest (`shv_preview_values_match_pe_design_block_for_block`). OpenStitch draws straight lines between the needle points at one pixel a
 millimetre with a one-pixel margin on the left; PE-DESIGN's pixels differ in about one in
 ten places (its drawing rule is not known), which a machine only uses as the thumbnail.
 `shv_writes_pe_design_header_and_records` reads PE's file, writes it again and compares

@@ -125,7 +125,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 330: 277 implemented (4 of them partially compatible), 0 documented only, 9 blocked, 29 planned beyond PE-DESIGN |
+| Feature matrix rows | 330: 277 implemented (4 of them partially compatible), 0 documented only, 9 blocked, 15 partial beyond PE-DESIGN, 29 planned beyond PE-DESIGN |
 | Compatibility specs | 497: 497 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 40: 31 at the reference tier, 7 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 9 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
@@ -263,6 +263,9 @@ feature is done and the rest is under [Planned](#planned).
   single- or multi-needle machine; the sewing area shown against the page.
 - (+) **Hoops of other brands:** Baby Lock, Bernina, Elna, Husqvarna Viking, Janome, Pfaff and
   Singer, plus round commercial hoops, each from the maker's published sizes ([#514]).
+- (+) **Smallest hoop that fits and Fit to hoop:** one click switches to the smallest hoop of your
+  machine that holds the design (its real field, round hoops included), or scales the design to
+  fill the current hoop ([#879]).
 - **Rulers, grid and guides:** rulers that count from the page's centre or its top-left corner
   ([#799]), snap to grid, guidelines dragged out of the rulers (shown and snapped to by default,
   with their distance from 0 while you drag them; select, delete, turn, lock, type a position,
@@ -737,6 +740,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#513]: https://github.com/cristianonescu/OpenStitch/issues/513
 [#514]: https://github.com/cristianonescu/OpenStitch/issues/514
 [#515]: https://github.com/cristianonescu/OpenStitch/issues/515
+[#879]: https://github.com/cristianonescu/OpenStitch/issues/879
 [#516]: https://github.com/cristianonescu/OpenStitch/issues/516
 [#517]: https://github.com/cristianonescu/OpenStitch/issues/517
 [#518]: https://github.com/cristianonescu/OpenStitch/issues/518
@@ -922,7 +926,6 @@ Open enhancement issues:
 - [#807](https://github.com/cristianonescu/OpenStitch/issues/807) AI bench: tasks for gradient fills and colour blends
 - [#817](https://github.com/cristianonescu/OpenStitch/issues/817) Hand-stitch look for fills: seeded rows that look sewn by hand
 - [#818](https://github.com/cristianonescu/OpenStitch/issues/818) Rebuilt objects keep the original's sewing: measured satin spacing, tatami pattern, closed satin rings
-- [#828](https://github.com/cristianonescu/OpenStitch/issues/828) Release gate: refresh the example designs behind the screenshots and docs for the new stitching
 - [#831](https://github.com/cristianonescu/OpenStitch/issues/831) Browser: autosave and crash recovery in browser storage
 - [#832](https://github.com/cristianonescu/OpenStitch/issues/832) GIF and WebP pictures in the image tools (desktop and browser)
 - [#833](https://github.com/cristianonescu/OpenStitch/issues/833) Browser: ready-to-sew samples and a clear note on system fonts
@@ -959,6 +962,7 @@ Open enhancement issues:
 - [#960](https://github.com/cristianonescu/OpenStitch/issues/960) PE-compatible Photo Stitch 1: a contour path layout so banded pictures trim as rarely as PE-DESIGN (sunset 2.7 against 1.27 per 1,000)
 - [#989](https://github.com/cristianonescu/OpenStitch/issues/989) SHV and CSD export: the SHV preview's drawing rule, the remaining chart entries, and the constant bytes no capture explains
 - [#994](https://github.com/cristianonescu/OpenStitch/issues/994) Cross Stitch, OpenStitch mode: follow a pixel-art image's own grid
+- [#1006](https://github.com/cristianonescu/OpenStitch/issues/1006) Assistant benchmark: a task that turns a branching shape into satin columns (object.deriveSkeleton branches)
 <!-- /status:issues-planned -->
 
 ### Beyond PE-DESIGN

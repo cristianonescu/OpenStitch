@@ -314,6 +314,7 @@ pub fn all() -> Vec<CommandSpec> {
     v.extend(path_commands());
     v.extend(transform_commands());
     v.extend(crate::layout::commands());
+    v.extend(crate::hoop_fit::commands());
     v.extend(text_commands());
     v.extend(crate::fonts::commands());
     #[cfg(feature = "formats")]
