@@ -3549,8 +3549,14 @@ fn codec_commands() -> Vec<CommandSpec> {
                     "bool",
                     "Keep the file with the design (File ▸ Open): exporting the design unchanged to the same format writes the file back byte for byte, with what OpenStitch does not read (default false)",
                 ),
+                opt(
+                    "keepPosition",
+                    "bool",
+                    "Keep the needle points where the file put them instead of centring the pattern on the Design Page as PE-DESIGN does (default false; for tools that measure reference files, #886)",
+                ),
             ],
             |s, p| {
+                let keep_position = p.bool("keepPosition", Some(false))?;
                 let (path, data) = read_file(s, p, 64 << 20)?;
                 let mut pattern = file_type(p, &path)?
                     .read(&data)
@@ -3573,7 +3579,9 @@ fn codec_commands() -> Vec<CommandSpec> {
                 // PE-DESIGN 11.50 ignores where the file put its stitches and centres the
                 // imported pattern on the Design Page; a second import lands on the first
                 // (references import-dst-onto-100, -pes-onto-100, -dst-twice, -dst-onto-200x150).
-                centre_on_page(&mut block, &s.design.page);
+                if !keep_position {
+                    centre_on_page(&mut block, &s.design.page);
+                }
                 let mut object = DesignObject::stitches(block);
                 object.name = path.file_name().map(|n| n.to_string_lossy().into_owned());
                 let id = s.design.add(object);

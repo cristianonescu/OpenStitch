@@ -2533,9 +2533,14 @@ H",
                 );
             }
         }
-        // 9 slants: the box keeps its width, the first H leans right.
+        // 9 slants, and the first H leans right. Its outline box is 0.32 mm wider than the
+        // straight text's: the edges fitted to PE-DESIGN's letter corners span -0.0009 to 1.0034
+        // of the straight box (#886). PE-DESIGN's needle points span 0.5 mm more than the
+        // straight text's (text-transform-9: 12.6-87.7 against 12.7-87.3 mm), the rest being the
+        // needles' reach past the slanted ends; the compat spec checks that box on the stitches.
         let b = bounds(&with(9).contours());
-        assert!((b.width() - straight.width()).abs() < 3.0, "{b:?}");
+        let wider = b.width() - straight.width();
+        assert!((wider - 3.2).abs() <= 1.0, "{wider} (0.1 mm) {b:?}");
         assert!(bounds(&with(9).glyphs[0].contours).width() > 140.0);
         // 1 arches over the top: the middle H stays, the outer ones drop and turn.
         let g = with(1).glyphs;
