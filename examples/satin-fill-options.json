@@ -4,7 +4,7 @@
   "params": {
    "name": "satin and fill options",
    "width": 130,
-   "height": 185
+   "height": 240
   }
  },
  {
@@ -333,6 +333,96 @@
     "Red"
    ],
    "angle": 0
+  }
+ },
+ {
+  "command": "shape.preset",
+  "params": {
+   "kind": "star",
+   "cx": 27,
+   "cy": 216,
+   "width": 34,
+   "fill": "Purple"
+  }
+ },
+ {
+  "command": "shape.polygon",
+  "params": {
+   "points": [
+    [
+     88,
+     198
+    ],
+    [
+     96,
+     198
+    ],
+    [
+     96,
+     222
+    ],
+    [
+     116,
+     222
+    ],
+    [
+     116,
+     198
+    ],
+    [
+     124,
+     198
+    ],
+    [
+     124,
+     232
+    ],
+    [
+     88,
+     232
+    ]
+   ],
+   "fill": "Blue"
+  }
+ },
+ {
+  "command": "object.setRegion",
+  "params": {
+   "id": 17,
+   "type": "fill",
+   "angle": 0,
+   "density": 1.5,
+   "runningStitchPath": "insideHidden"
+  }
+ },
+ {
+  "command": "text.add",
+  "params": {
+   "text": "K",
+   "size": 20,
+   "x": 64,
+   "y": 226,
+   "fill": "Emerald Green"
+  }
+ },
+ {
+  "command": "text.toShapes",
+  "params": {
+   "id": 18
+  }
+ },
+ {
+  "command": "object.deriveSkeleton",
+  "params": {
+   "id": 16,
+   "branches": true
+  }
+ },
+ {
+  "command": "object.deriveSkeleton",
+  "params": {
+   "id": 19,
+   "branches": true
   }
  }
 ]
