@@ -105,6 +105,8 @@ pub struct RibbonState {
     /// Getting started (#554): Open Sample and the Getting Started page.
     pub start: crate::start_ui::StartState,
     pub about_open: bool,
+    /// Help ▸ Report a Problem, and the crash report from the last run (#878).
+    pub problem: crate::panes::ProblemWindow,
     pub pane_tab: PaneTab,
     /// Edit Text: the characters being typed.
     pub text_draft: String,
@@ -151,6 +153,7 @@ impl Default for RibbonState {
             keys: Default::default(),
             start: Default::default(),
             about_open: false,
+            problem: Default::default(),
             pane_tab: PaneTab::default(),
             text_draft: String::new(),
             font_browse_undo: None,
@@ -1739,6 +1742,13 @@ pub fn help_menu(app: &mut EditorApp, ui: &mut egui::Ui) {
     if ui.button(t("menu-check-for-updates")).clicked() {
         check_updates(app);
         ui.close();
+    }
+    if ui
+        .button(t("menu-report-a-problem"))
+        .on_hover_text(t("menu-report-a-problem-tip"))
+        .clicked()
+    {
+        app.ui.problem.open = true;
     }
     if ui.button(t("menu-about-openstitch")).clicked() {
         app.ui.about_open = true;
