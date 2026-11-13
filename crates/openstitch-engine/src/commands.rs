@@ -2175,7 +2175,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "density",
                     "stitches/mm",
-                    "Zigzag density (lines/mm); candlewick spokes ÷ 2, 0.1-14",
+                    "Zigzag density (lines/mm: along an open line; on a closed outline along its outer edge, as PE-DESIGN, so a 40 mm square at 2 mm sews 4.5 x 42 / 40 along its sides); candlewick spokes ÷ 2, 0.1-14",
                 ),
                 opt(
                     "motif",

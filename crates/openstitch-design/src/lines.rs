@@ -673,6 +673,50 @@ pub fn zigzag_underlay(path: &[Vec2], offset: f64, pitch: f64) -> Run {
     run
 }
 
+/// The crossing spacing of a Zigzag Stitch on the closed outline `path`, `width` wide, at the
+/// line's own `spacing` (10 / density): PE-DESIGN 11.50 spaces a closed outline's crossings by
+/// its outer edge, so along the outline they are closer by its length over the outer edge's
+/// (#978: a 40 mm square's sides at 4.5 line/mm sew 4.61, 4.72, 4.86, 4.99 and 5.01 crossings per
+/// mm at 1, 2, 3, 3.9 and 4 mm, 4.5 × (40 + w) / 40; the appliqué cover's 29.6 mm square at 3 mm
+/// 4.97). The outer edge is the outline offset half the width outwards with mitred corners: each
+/// turn of θ adds w · tan(θ / 2) (taken at most w · 2, a very sharp point), a turn the other
+/// way takes it off; a circle's is its length plus π w. Open lines keep `spacing` (PE-DESIGN's
+/// open-line references: 4.48 per mm at 4.5).
+pub fn closed_zigzag_spacing(path: &[Vec2], width: f64, spacing: f64) -> f64 {
+    let mut p: Vec<Vec2> = Vec::with_capacity(path.len());
+    for &q in path {
+        if p.last().is_none_or(|l: &Vec2| l.distance(q) > 1e-6) {
+            p.push(q);
+        }
+    }
+    if p.len() > 1 && p[0].distance(p[p.len() - 1]) <= 1e-6 {
+        p.pop();
+    }
+    let n = p.len();
+    if n < 3 || width <= 0.0 {
+        return spacing;
+    }
+    let length: f64 = (0..n).map(|i| p[i].distance(p[(i + 1) % n])).sum();
+    let turns: Vec<f64> = (0..n)
+        .map(|i| {
+            let (a, b, c) = (p[(i + n - 1) % n], p[i], p[(i + 1) % n]);
+            let (u, v) = (b - a, c - b);
+            (u.x * v.y - u.y * v.x).datan2(u.x * v.x + u.y * v.y)
+        })
+        .collect();
+    // The outward side turns the way the whole outline turns.
+    let sign = turns.iter().sum::<f64>().signum();
+    let extra: f64 = turns
+        .iter()
+        .map(|&t| (t * sign / 2.0).dtan().clamp(-2.0, 2.0) * width)
+        .sum();
+    let outer = length + extra;
+    if outer <= length * 0.5 || length <= 0.0 {
+        return spacing;
+    }
+    spacing * length / outer
+}
+
 /// Zigzag Stitch line width (0.1 mm) from which PE-DESIGN 11.50 sews four under sewing runs
 /// instead of two (#964: on the 40 mm square 3,283 stitches at 3.9 mm, 3,448 at 4.0 mm).
 pub const ZIGZAG_FOUR_RUNS: f64 = 40.0;
@@ -1864,6 +1908,37 @@ mod shaping_tests {
         assert!(wide.iter().any(|q| q.y > 0.0) && wide.iter().any(|q| q.y < 0.0));
         let last = *wide.last().expect("end");
         assert!(last.x < 20.0, "back at the start: {last:?}");
+    }
+
+    /// #978: a closed outline's zigzag is spaced by its outer edge: a 40 mm square at 2 mm wide
+    /// by 40 / 42 (4.5 line/mm → 4.725 along a side), a circle by L / (L + π w); an open path
+    /// keeps its spacing (the caller's choice: only closed outlines come here).
+    #[test]
+    fn closed_zigzag_is_spaced_by_its_outer_edge() {
+        let sq = vec![
+            v2(0.0, 0.0),
+            v2(400.0, 0.0),
+            v2(400.0, 400.0),
+            v2(0.0, 400.0),
+        ];
+        let s = closed_zigzag_spacing(&sq, 20.0, 10.0 / 4.5);
+        assert!((10.0 / s - 4.5 * 42.0 / 40.0).abs() < 1e-9, "{}", 10.0 / s);
+        // Either way round.
+        let mut rev = sq.clone();
+        rev.reverse();
+        assert!((closed_zigzag_spacing(&rev, 20.0, 10.0 / 4.5) - s).abs() < 1e-9);
+        let circle: Vec<Vec2> = (0..360)
+            .map(|i| {
+                let a = std::f64::consts::TAU * f64::from(i) / 360.0;
+                v2(100.0 * a.cos(), 100.0 * a.sin())
+            })
+            .collect();
+        let len: f64 = (0..360)
+            .map(|i| circle[i].distance(circle[(i + 1) % 360]))
+            .sum();
+        let c = closed_zigzag_spacing(&circle, 30.0, 10.0);
+        let want = 10.0 * len / (len + std::f64::consts::PI * 30.0);
+        assert!((c - want).abs() < 0.01, "{c} vs {want}");
     }
 
     /// #964: a Zigzag Stitch line's under sewing as PE-DESIGN 11.50 sews it: runs `width / 2 −

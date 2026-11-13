@@ -297,3 +297,14 @@ Made by the owner's PE-DESIGN 11.50 (Layout & Editing) on Windows 11 Pro on 2026
 | `miter-b-sc2-m0.pes` | 7058 | `426c039d279a8db1f732e4fb6a0c7261ab9fb6a294781205317e6ac1d9f92543` |
 | `miter-b-sc2-m3.pes` | 7118 | `cccffad8e96657fd86fc64557396bd93e13fc7ebd16a30d69740d513654c7082` |
 | `miter-b-sc2-m50.pes` | 7118 | `62de0afa94d62a0cd1cb0210d199ae18548525649749e488f2007a9531533728` |
+
+## Captures of 2026-11-13 (`captures-2026-11-13/`, coordinator, black-box GUI use only)
+
+Made by the owner's PE-DESIGN 11.50 (Layout & Editing) on Windows on 2026-11-13 (capture round 11), for issue #349. The input is OpenStitch's own test design; the output is PE-DESIGN's export of it, kept here so the SHV writer can be checked byte for byte.
+
+**`machine/` (#349):** `moves.pes` is OpenStitch's input, made with `stitchtool exec moves.json` (the script is on #349): PES version 6, stitches only, all 005 SILVER; 16 running-stitch dashes 2 mm long, two per row on rows y = 10 … 80 mm, a trim before each of the 15 moves (35.3 to 70.3 mm, along the rows and diagonally between them). It was opened in PE-DESIGN with no warning (status bar 74.00 x 70.00 mm), then App menu > Export… > "Husqvarna/Viking (*.SHV)" as `pe-moves.SHV`, with no warning or dialog.
+
+| `machine/` file | bytes | SHA-256 |
+|---|---|---|
+| `moves.pes` | 2471 | `554a52d1d6db622c201a6aa960f5d6712eb3adaa658a5703629072f154deb754` |
+| `pe-moves.SHV` | 3154 | `3e0ba37103c3510dc25f4a964bb0c9ce265a62b58cae0f59445983515674c3d9` |

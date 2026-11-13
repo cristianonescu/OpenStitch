@@ -1029,8 +1029,12 @@ Big-endian. Layout as pyembroidery 1.5.1's `ShvReader` reads it:
 | end − 2 | records start 2 bytes before the end of the colour table |
 
 Records, y down: `dx dy` signed bytes (a jump while in jump mode); `80 01 dx(i16 BE) dy(i16 BE)`
-moves and enters jump mode (3 words); `80 02` leaves jump mode; `80 03` is skipped (1 word).
-A colour block ends after its word count: the colour change is implicit. No trim record.
+moves and enters jump mode (3 words); `80 02` leaves jump mode, and the needle goes down
+where the move ended: PE-DESIGN writes no record for that stitch (its DST of `sample-basic`
+has a stitch on every landing; `pe-moves.SHV` moves straight to a block's first needle point),
+so OpenStitch reads a needle point there, where pyembroidery reads a move only (#349). `80 03`
+is skipped (1 word). A colour block ends after its word count: the colour change is implicit.
+No trim record.
 
 Where the records start: PE-DESIGN 11.50's own SHV (`tests/fixtures/pe11/sample-basic.shv`)
 starts them at the end of the colour table, followed by exactly the counted words.
@@ -1054,17 +1058,18 @@ pyembroidery nor libembroidery (`writeShv` is a stub) writes SHV.
 | preview | 4 bits a pixel, column by column from the left, each column bottom to top (`⌈h/2⌉` bytes a column) |
 | the 18 bytes after the colour count | `C4 28 00 30 00 00` (meaning unknown, copied), then i16 right, bottom, left, top of the needle points (centred stream), then u32 total words |
 | per colour (9 bytes after the chart index) | five zero bytes, then i16 x, y of the point the block starts at (the previous block's last needle point; 0, 0 for the first) |
-| records | a frame move is `80 01 dx dy 80 02` to the point it ends at, and a stitch on that point has no record of its own; colour changes are only the word counts; nothing after the last block |
+| records | a frame move is `80 01 dx dy 80 02` (16-bit offsets, one record at any length) to the first stitch after it, which has no record of its own: PE-DESIGN goes straight to the stitch after a PES jump's landing (`pe-moves.SHV`); `80 03` before a move longer than 38.0 mm on either axis (PE-DESIGN's threshold lies between 36.7 and 38.7 mm, #349); a stitch over 12.7 mm is one such move to its end (`pe-long.SHV`); colour changes are only the word counts; nothing after the last block |
 
 The chart index is the nearest `SHV_CHART` entry (800 RED → 41 Dark Orange, Prussian Blue →
 33 Dark Blue, as PE writes). A preview pixel holds the block's chart index modulo 15 (15 for 0):
 that gives PE's `B` and `3` for those two entries; other entries are not yet checked against a
 PE-DESIGN file. OpenStitch draws straight lines between the needle points at one pixel a
 millimetre with a one-pixel margin on the left; PE-DESIGN's pixels differ in about one in
-ten places (its drawing rule is not known), which a machine only uses as the thumbnail. A
-stitch over 12.7 mm is written as a jump for the axes over the limit and one stitch (no PE
-reference has one). `shv_writes_pe_design_header_and_records` reads PE's file, writes it again
-and compares everything but the preview's pixels byte for byte; compat `machine-sample-basic`
+ten places (its drawing rule is not known), which a machine only uses as the thumbnail.
+`shv_writes_pe_design_header_and_records` reads PE's file, writes it again and compares
+everything but the preview's pixels byte for byte; `shv_writes_pe_designs_moves_and_long_move_marks`
+writes OpenStitch's `moves.pes` and compares it the same way with PE-DESIGN's export of it
+(`captures-2026-11-13/machine/pe-moves.SHV`: 15 moves of 35.3–70.3 mm, 14 with `80 03`); compat `machine-sample-basic`
 writes PE's own design as SHV and compares it needle for needle with PE's SHV.
 
 ## PHC (Brother, read only)

@@ -792,6 +792,18 @@ fn running_line(o: &DesignObject) -> bool {
             .is_some_and(|l| matches!(l.kind, LineType::Running | LineType::Triple))
 }
 
+/// A Zigzag Stitch line's crossing spacing on `c` (0.1 mm) at `density` lines per mm: on a closed
+/// outline by its outer edge, as PE-DESIGN 11.50 sews it (#978,
+/// [`lines::closed_zigzag_spacing`]); on an open line along the line.
+fn zigzag_spacing(c: &Contour, width: f64, density: f64) -> f64 {
+    let spacing = 10.0 / density.max(0.1);
+    if c.closed {
+        lines::closed_zigzag_spacing(&c.path(), width, spacing)
+    } else {
+        spacing
+    }
+}
+
 fn basting_element(runs: Vec<Run>, thread: Thread) -> Element {
     Element {
         thread,
@@ -2396,12 +2408,12 @@ fn line_elements(
                 LineType::Zigzag if !c.has_curves() => lines::zigzag_rails_cornered(
                     &c.path(),
                     [width / 2.0; 2],
-                    10.0 / line.density.max(0.1),
+                    zigzag_spacing(c, width, line.density),
                     Some(&line.sharp_corners),
                 ),
                 LineType::Zigzag => {
                     let path = c.path();
-                    let spacing = 10.0 / line.density.max(0.1);
+                    let spacing = zigzag_spacing(c, width, line.density);
                     let mut run = if line.half_stitch {
                         lines::zigzag_half(&path, width, spacing)
                     } else {

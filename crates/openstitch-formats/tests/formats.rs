@@ -932,9 +932,23 @@ fn lzh_reads_libembroidery_style_literal_streams() {
 
 #[test]
 fn shv_reads_oracle_file_like_reference() {
+    // pyembroidery reads a move's end as a move only; OpenStitch also puts a needle point
+    // there, as PE-DESIGN writes it (#349). Without those, the stitches are pyembroidery's.
     let expected = stitches("oracle_shv_read.json");
     let pattern = shv::read(&data("oracle.shv")).expect("read");
-    assert_eq!(pattern.stitches, expected.stitches);
+    let mut previous: Option<&Stitch> = None;
+    let without_landings: Vec<Stitch> = pattern
+        .stitches
+        .iter()
+        .filter(|s| {
+            let landing = s.command == Command::Stitch
+                && previous.is_some_and(|p| p.command == Command::Jump && p.x == s.x && p.y == s.y);
+            previous = Some(s);
+            !landing
+        })
+        .cloned()
+        .collect();
+    assert_eq!(without_landings, expected.stitches);
     assert_eq!(hexes(&pattern.threads), expected.threads);
     assert_eq!(pattern.name(), Some("oracle"));
 }
@@ -951,26 +965,13 @@ fn shv_and_csd_are_writable_and_phc_is_read_only() {
     ));
 }
 
-/// The needle points without a stitch on a jump's landing: SHV marks the landing with the jump
-/// itself (see `shv::write`). A design that starts with a stitch gets a jump to it.
+/// The needle points, a point repeated in a row once: SHV puts the needle point of a move's end
+/// on the move itself (see `shv::write`), where a design may stitch on its jump's landing.
 fn without_landings(p: &StitchPattern) -> Vec<[f64; 2]> {
-    let mut v = Vec::new();
-    let mut landing = p
-        .stitches
-        .iter()
-        .find(|s| matches!(s.command, Command::Jump | Command::Stitch))
-        .filter(|s| s.command == Command::Stitch)
-        .map(|s| [s.x, s.y]);
+    let mut v: Vec<[f64; 2]> = Vec::new();
     for s in &p.stitches {
-        match s.command {
-            Command::Jump => landing = Some([s.x, s.y]),
-            Command::Stitch => {
-                if landing != Some([s.x, s.y]) {
-                    v.push([s.x, s.y]);
-                }
-                landing = None;
-            }
-            _ => {}
+        if s.command == Command::Stitch && v.last() != Some(&[s.x, s.y]) {
+            v.push([s.x, s.y]);
         }
     }
     let Some(first) = v.first().copied() else {
@@ -1017,7 +1018,7 @@ fn shv_round_trips_needle_points_blocks_and_chart_colours() {
     assert_eq!(back.threads[0].name.as_deref(), Some("Dark Orange"));
     assert_eq!(back.threads[1].name.as_deref(), Some("Dark Blue"));
     assert_eq!(back.threads[2].name.as_deref(), Some("Dark Blue"));
-    // The 16 mm stitch: a jump for the axis over 12.7 mm, then one stitch.
+    // The 16 mm stitch: one move to its end, as PE-DESIGN writes it (pe-long.SHV).
     assert_eq!(back.count(Command::Jump), 4);
 }
 
@@ -1549,7 +1550,8 @@ fn shv_reads_pe_design_export_like_its_dst() {
     use openstitch_formats::dst;
     let h = shv::read(&common::data("pe11/sample-basic.shv")).expect("shv");
     let d = dst::read(&common::data("pe11/sample-basic.dst")).expect("dst");
-    assert_eq!(h.count(Command::Stitch), 471);
+    // 471 stitch records plus a needle point where each of the two moves ends (#349).
+    assert_eq!(h.count(Command::Stitch), 473);
     assert_eq!(h.count(Command::ColorChange), 1);
     assert_eq!(h.color_block_count(), 2);
     assert_eq!(h.threads.len(), 2);
@@ -1572,7 +1574,9 @@ fn shv_reads_pe_design_export_like_its_dst() {
         let (x0, y0) = (v[0][0], v[0][1]);
         v.iter().map(|q| [q[0] - x0, q[1] - y0]).collect::<Vec<_>>()
     };
-    assert_eq!(points(&h, false), points(&d, true));
+    // Both have a needle point on every landing: PE-DESIGN's DST a zero-length stitch, its SHV
+    // the move's end (#349).
+    assert_eq!(points(&h, false), points(&d, false));
 }
 
 /// The v6 header's "Design Page Is Custom" and "Hoop Rotation" fields (the second and fifth
@@ -1744,9 +1748,8 @@ fn csd_matches_pe_design_long_stitches_and_17_colours() {
 
 /// PE-DESIGN 11.50's SHV exports of #349's designs: OpenStitch writes the same file name, preview
 /// size, colour count, bounds and PE's chart entry for every block (800 RED is 41, not the
-/// nearest 3). The records still differ where PE-DESIGN starts a block on the stitch after the
-/// jump's landing, writes a stitch over 12.7 mm as one jump and adds `80 03` before long moves
-/// (#349, measured, not yet written).
+/// nearest 3). Their records are pinned elsewhere: `pe-moves` byte for byte (#349); `pe-long`
+/// still comes out 6 words longer than PE-DESIGN's (#989).
 #[test]
 fn shv_matches_pe_design_name_and_chart_entries() {
     for (name, stem) in [("pe-long.SHV", "pe-long"), ("pe-c17.SHV", "pe-c17")] {
@@ -1769,6 +1772,39 @@ fn shv_matches_pe_design_name_and_chart_entries() {
             );
         }
     }
+}
+
+/// PE-DESIGN 11.50's SHV export of #349's `moves` (captures-2026-11-13/machine, round 11): 16
+/// dashes and 15 trimmed moves of 35.3 to 70.3 mm. Every move goes straight to the stitch
+/// after the jump's landing, with no record for that stitch; a move longer than 38.0 mm on
+/// either axis has `80 03` before it (35.3 mm and the first, 36.7 mm on its longer axis, have
+/// none; 38.7 mm and longer have one). OpenStitch writes the same file but for the preview's
+/// pixels.
+#[test]
+fn shv_writes_pe_designs_moves_and_long_move_marks() {
+    let dir = "pe11/captures-2026-11-13/machine";
+    let mut pattern = pes::read(&data(&format!("{dir}/moves.pes"))).expect("pes");
+    pattern
+        .metadata
+        .insert(pec::LABEL_KEY.into(), "pe-moves".into());
+    let pe = data(&format!("{dir}/pe-moves.SHV"));
+    let ours = shv::write(&pattern).expect("write");
+    assert_eq!(ours.len(), pe.len());
+    let at = 0x56 + 1 + "pe-moves".len();
+    let (w, h) = (usize::from(pe[at]), usize::from(pe[at + 1]));
+    let preview = at + 6..at + 6 + w * h.div_ceil(2);
+    assert_eq!(
+        ours[..preview.start],
+        pe[..preview.start],
+        "text, name, size"
+    );
+    assert_eq!(
+        ours[preview.end..],
+        pe[preview.end..],
+        "colours, bounds, word counts, records"
+    );
+    let long_marks = pe.windows(2).filter(|w| w == &[0x80, 0x03]).count();
+    assert_eq!(long_marks, 14);
 }
 
 /// PE-DESIGN 11.50's SHV export of `sample-basic`, read and written again: the header text,

@@ -23,6 +23,9 @@ are a sound start; change them only for a reason.
   Satin is never split automatically (PE-DESIGN sends 30 mm crossings whole), and
   `tools/sew_check.py` warns on any stitch over 12 mm. Auto Punch sews a region as fill when
   its satin would cross more than 10.5 mm.
+- A zigzag line's density on a closed outline counts along its outer edge, as PE-DESIGN does, so
+  a wide zigzag round a small shape sews a little denser along the outline (5 % for a 2 mm zigzag
+  on a 40 mm square, 10 % for 3 mm on a 30 mm one); lower it slightly if that is too stiff.
 - Density around 4-5 lines/mm for covering satin; lower (1-2) for tack-downs and light
   edges.
 - Borders sew last, over the fill they edge, and should overlap it slightly.
