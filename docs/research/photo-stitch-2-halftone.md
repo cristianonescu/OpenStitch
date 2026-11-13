@@ -305,7 +305,7 @@ Still not a rule. "Nearest colours of the image's main clusters, then fillers fr
 81, 91 skipping any close to a chosen colour" reproduces 68 of the 124 picks over rounds 5
 and 6. Floyd–Steinberg dithering onto the 29 colours, keeping the four most used, reproduces
 51. OpenStitch's Auto Select stays as it is. The captures and their notes are in the owner's
-folder (`round6/autoselect`).
+notes (round 6's Auto Select captures).
 
 ## Captures still needed
 

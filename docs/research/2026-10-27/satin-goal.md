@@ -27,8 +27,7 @@ tests; merge only on green CI). Status: [ ] open, [x] done (PR), [~] blocked (on
    after a last stitch > 4.25 mm; spec satin-lock-column-3p5 passes stitch for stitch).
 
 7. [ ] Text satin (coordinator, 2026-10-27): PE's 20 mm Lato 'H' at text defaults (Satin, density 5.0, under sewing
-   off) sews 285 stitches, OpenStitch 221 (reference <reference-notes>
-ound2	ext	ext-defaults-h.pes,
+   off) sews 285 stitches, OpenStitch 221 (reference text-defaults-h.pes in the round-2 text captures,
    spec text-defaults-h in PR #64). Compare row spacing, crossings and locks with pescmp.py; land the
    structural difference with its spec (after #64 lands, so the spec exists on main).
    Done since 2026-10-31: satin text is sewn stroke by stroke (now `compile::stroke_columns`), H 291 against

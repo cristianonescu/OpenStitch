@@ -2,7 +2,7 @@
 
 Black-box only: PES files saved by PE-DESIGN through its UI (made by pe-gui), read from their PEC
 stitch data. Files: `compat/reference/stitches/sweep-*.pes` in the stitch-sweeps worktree (copies and
-log.txt in `<reference-notes>\round2\sweeps\`). mm, y down; "rel" = PEC-relative
+the log in the round-2 sweep captures). mm, y down; "rel" = PEC-relative
 (origin = the start point, the middle of the square's bottom edge).
 
 Base for the fill sweeps: Rectangle tool, 40 × 40 mm square at (10, 10); line Not Sewn; Fill Stitch,

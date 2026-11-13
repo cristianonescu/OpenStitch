@@ -20,7 +20,7 @@ Applies when a line's entry/exit point is changed or optimised; motif, stem, can
 Feed: jump stitches at the start and end of the pattern stitching. Run: running stitches along the path at the
 start and between pattern stitching. OpenStitch today restarts the pattern at the moved entry (c.starting_at(p)).
 
-## Measured (2026-10-27, pe-gui's round2/lines files; decoder: PEC records, mm relative to the first needle point)
+## Measured (2026-10-27, pe-gui's round-2 line captures; decoder: PEC records, mm relative to the first needle point)
 
 PE-DESIGN 11.50 defaults recorded by pe-gui (Sewing Attributes > Line sew, shown on switching the type; switching
 RESETS every attribute to the type's default):
@@ -56,7 +56,7 @@ start (after the under sewing that ended on the left), ends with a stitch exactl
 effect at a 90-degree corner with this model (no crowding). Implemented as lines::zigzag_rails for straight-line paths;
 curves keep the even zigzag.
 Not matched: line-zigzag-density-min (0.1 line/mm): PE sews the start rung, then ONE diagonal from the start to 30 mm along
-split into ~10 mm pieces, an odd corner, and a double end lock. Parked (spec + file in round2/lines/parked); nobody sews that.
+split into ~10 mm pieces, an odd corner, and a double end lock. Parked (spec + file with the round-2 line captures); nobody sews that.
 
 pes-default-v6: its reference is PE's re-save of OpenStitch's own running lines, so the new locks (8 stitches) need a new
 re-save (request in TRACKS.md). Blocks PR 1.
@@ -85,12 +85,12 @@ Chain, triangle (348 = 348, 0.0 mm, IoU 1.0): per leg, n = floor(leg/(0.75*size)
 then L, base middle, next link's point. Last link runs past the leg end. Diamond not measured (kept as before).
 
 Motif: PE's default motif001 is PE's own artwork (12.3 x 12.3 mm, run pitch 5.0); OpenStitch can't ship it and its
-default motif differs, so no stitch comparison is possible. Spec + file parked (round2/lines/parked). A PE file
+default motif differs, so no stitch comparison is possible. Spec + file parked (with the round-2 line captures). A PE file
 with a simple, describable motif drawn by the user (or an OpenStitch motif imported into PE) would allow one.
 
 ## Start/End Type, Feed vs Run: first look (2026-10-27, not implemented yet)
 
-Files: <reference-notes>\round2\lines\line-{motif,chain,stem,candlewick}-startend-{feed,run}.pes, MANIFEST-lines-startend.json.
+Files (round-2 line captures): line-{motif,chain,stem,candlewick}-startend-{feed,run}.pes, MANIFEST-lines-startend.json.
 Shape: closed Straight Line (10,10)-(50,10)-(50,30)-(10,30), sewn clockwise on screen (top edge +x first), so the bottom
 edge is sewn towards -x. L1 (entry) ~(25.5, 30), L2 (exit) ~(29.8, 30) as read from the screen (+-0.3; PE keeps them
 about one pattern unit apart; on the bottom edge L2 is BEHIND L1 in sewing direction). Default for all four is Feed.

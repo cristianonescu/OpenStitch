@@ -1516,7 +1516,7 @@ Line references are relative to `crates/`.
   the baseline go on below the bottom edge instead of squeezing the envelope: 105 of the 108
   level captures and 25 of the 26 default-level captures on "Agjy 123" (all 26 on
   "OpenStitch") keep the box within 0.5 mm (specs `text-transform-N-openstitch[-lL]`,
-  `text-transform-N-agjy[-lL]`). Parked (round4\text, not in the repository): arch 2 on
+  `text-transform-N-agjy[-lL]`). Parked (round 4's text captures, not in the repository): arch 2 on
   "Agjy 123" at the default level (minX 0.6 mm) and on "OpenStitch" at level 25 (minX
   0.6 mm), taper 4 at level 100 (maxX 1.1 mm) and slant 9 at level 100 (maxX 0.6 mm). Checked
   across the levels (2026-10-30), no single rule fixes them: arch 2 sits 0.3-0.6 mm left
@@ -2114,7 +2114,7 @@ Line references are relative to `crates/`.
 - **Thread-chart CSV that PE-DESIGN imports (2026-10-31, #136):** PE-DESIGN 11.50's Import Chart
   (Option ▸ Options… ▸ Edit User Thread Chart) does read a CSV, "in the order of the Code,
   Brand, Description, R, G, B", OpenStitch's own column order (round-6 check by the reference
-  session, files in the owner's `round6/charts`). It refused OpenStitch's export for its `#`
+  session, files in the owner's round-6 chart captures). It refused OpenStitch's export for its `#`
   comment line, imported a column row as a black colour, split quoted fields at their commas,
   showed a lettered code as 000, imported all 1,500 rows of a 1,500-row file, and refused the
   issue's `#userchart` layout. `threads.exportCsv` now writes bare records only, with a comma
@@ -2284,8 +2284,8 @@ Line references are relative to `crates/`.
   depend on that cut (1685 at 3 mm); likely PE's grid keeping points down to 0.3 mm from a row end
   in narrow strokes, or letters at 45° (the grid anchor of angled fills, sweep-fill-dir-30/45/135).
 
-- **Round-4 references (2026-10-29, PE-DESIGN 11.50 driven black-box; owner's notes folder
-  `round4/` holds every file, log and the parked ones):**
+- **Round-4 references (2026-10-29, PE-DESIGN 11.50 driven black-box; the owner's round-4 capture notes
+  hold every file, log and the parked ones):**
   - *Under sewing types (#124):* for a Satin region all five type buttons are enabled (Fill
     enables the first row only) and they are exclusive radio buttons: PE-DESIGN cannot
     combine under sewing types. On a 39.5 x 6 mm Manual Punch column: type 1 287 stitches,

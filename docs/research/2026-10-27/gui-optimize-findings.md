@@ -1,7 +1,7 @@
 # gui track: what PE-DESIGN 11.50's Optimize Sewing Order does (2026-10-27)
 
 Black-box only: shapes drawn with the Rectangle tool, files saved with Save As, stitches read from
-the PEC block. Files and SHA-256 are in <reference-notes>\round2.
+the PEC block. Files and SHA-256 are in the round-2 capture notes.
 Setup for all: Design Page 100 x 100 mm, grid 1 mm with snap, Rectangle tool, line Not Sewn,
 Fill Stitch defaults (4.5 line/mm, 45 deg, under sewing on, Medium), 10 x 10 mm squares with
 top-left corners at (0,0), (50,0), (25,0), drawn in that order. Colour 800 EMBROIDERY RED.

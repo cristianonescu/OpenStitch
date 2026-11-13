@@ -58,7 +58,8 @@ fn repository_specs_pass_and_the_status_table_is_current() {
 }
 
 /// The reference MANIFEST is public: its provenance notes name the owner's notes folder in words,
-/// never a local absolute path (a drive letter, a home folder) that would leak a machine's layout.
+/// never a local absolute path (a drive letter, a home folder) that would leak a machine's layout,
+/// nor the notes folder's name or a path inside it ("round4/…", #828).
 #[test]
 fn the_manifest_names_no_local_paths() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -72,6 +73,16 @@ fn the_manifest_names_no_local_paths() {
         let home = ["/Users/", "/home/", "\\Users\\", "AppData"]
             .iter()
             .any(|p| line.contains(p));
-        assert!(!drive && !home, "MANIFEST.json line {}: {line}", n + 1);
+        let notes_path = line.contains("reference-notes")
+            || line.match_indices("round").any(|(i, _)| {
+                let rest = &line[i + 5..];
+                let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
+                digits > 0 && matches!(rest.as_bytes().get(digits), Some(b'/' | b'\\'))
+            });
+        assert!(
+            !drive && !home && !notes_path,
+            "MANIFEST.json line {}: {line}",
+            n + 1
+        );
     }
 }

@@ -108,7 +108,7 @@ no warning. Three of the eleven files are kept here for the readers' tests:
 ## Round 4 (2026-10-30): Manual Punch blocks
 
 Made by the owner's PE-DESIGN 11.50 (Layout & Editing) on Windows 11 Pro 10.0.26300,
-2026-10-30 08:58-09:06 (m09-m11 later the same day), by black-box GUI use only (session pe-refs-4, round4/log.txt). App menu
+2026-10-30 08:58-09:06 (m09-m11 later the same day), by black-box GUI use only (session pe-refs-4, round 4's capture log). App menu
 > New (Hoop Size 100 x 100 mm, grid snap on); Home > Shapes > Manual Punch row (first icon
 Straight Block, second Curve Block); clicks at page mm from the top-left. A block object comes in
 with line Not Sewn, region Satin Stitch, 007 PRUSSIAN BLUE (the session's last colour), under
@@ -132,7 +132,7 @@ not kept.
 ## Round 4 (2026-10-30): Applique Wizard
 
 Made by the owner's PE-DESIGN 11.50 (Layout & Editing) on Windows 11 Pro 10.0.26300,
-2026-10-30 09:06-09:10, by black-box GUI use only (session pe-refs-4, round4/log.txt). App menu
+2026-10-30 09:06-09:10, by black-box GUI use only (session pe-refs-4, round 4's capture log). App menu
 > New (Hoop Size 100 x 100 mm); Rectangle tool (10,10)-(30,30) mm at the tool state (line Not
 Sewn, region Satin Stitch, Direction 45, under sewing on, density 4,5, 007), 280 st; Ctrl+A,
 Home > Wizards > Applique Wizard; Save As "Layout & Editing Ver.11.0 File" (#PES0110); Ctrl+Z
@@ -172,7 +172,7 @@ step 4.0, frequency 30 %); 20,00 x 20,00 mm, 707 st; Save As PES (#PES0110). Thr
 
 Made by the owner's PE-DESIGN 11.50 (Layout & Editing) on Windows 11 Pro 10.0.26300,
 2026-10-30 10:37-11:04, by black-box GUI use only (session pe-refs-4 for the pattern-formats
-track, round4/log.txt "STROKE-WISE LETTERING", round5/text-strokes). App menu > New (Hoop Size
+track, round 4's capture log "STROKE-WISE LETTERING", round 5's text-stroke captures). App menu > New (Hoop Size
 100 x 100 mm); Home > Text > Text tool, Lato (Lato-Bold.ttf from crates/openstitch-design/fonts,
 installed for the user), size 20,0, line Not Sewn, region Satin at the text defaults (under
 sewing off, density 5,0); click (50,50) mm; the letter; Select tool; Text ribbon > Convert to
@@ -209,7 +209,7 @@ each 12 x 12 mm with its zigzag; a pair selected with a drag box, Home > Group >
 | `group-two.pes` | `ff88f4d44d6f9cdc62fbbd6ebb6f2706c3dfa52c7b2cd0637d4858fb7c69a654` | group-partial with a fourth square at (70,10) mm; the last two grouped as well. 72 x 12 mm, 1676 st. |
 **Machine type and hoop (#125, round 6):** made by the owner's PE-DESIGN 11.50 (Layout &
 Editing), Windows 11 Pro 10.0.26300, 2026-10-31 11:42-12:08, black-box GUI use only (reference
-session; owner's notes round6/hoops/log.txt). One design for every file: New, Rectangle
+session; owner's round-6 hoop capture log). One design for every file: New, Rectangle
 (40,40)-(60,60) mm, line Not Sewn, Fill Stitch at defaults, 800 EMBROIDERY RED, 20,00 x 20,00
 mm, 707 st; only Design Settings changed (Page Size = Hoop Size, the machine type and hoop
 below), then Save As "Layout & Editing Ver.11.0 File" (#PES0110). Every file reopens with the

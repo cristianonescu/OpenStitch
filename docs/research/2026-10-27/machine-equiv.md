@@ -11,7 +11,7 @@ runs every spec pair; `--dump file.pes N` prints one file. Results of the run on
 `pes-compare/peccmp-results.json` (not in the repo).
 
 Sample: 40 OpenStitch exports vs their 31 PE references, plus the 177 PE-DESIGN 11.50 PES files available (compat/reference
-and <reference-notes> round2: lines, text, sweeps, satin) for PE's own rules.
+and the round-2 captures: lines, text, sweeps, satin) for PE's own rules.
 
 ## PE-DESIGN 11.50's machine stream, as observed (177 files)
 
@@ -59,7 +59,7 @@ page origin.
 ## Other machine formats (DST, EXP, JEF, PCS, SEW, XXX, HUS, VIP)
 
 pe-gui delivered PE's exports in all 10 formats on 2026-10-27 23:23 (a first read-only pass found: PE appears to split 15 mm stitches as jump + stitch; HUS magic 0x00C8FC5D; DST/EXP colour change not read). Request was: PE exports of OpenStitch's
-`<reference-notes>\machine-formats\a.pes` (two Red running lines with a trim, a Black satin 40 x 15 mm, so
+the machine-formats capture `a.pes` (two Red running lines with a trim, a Black satin 40 x 15 mm, so
 15 mm stitches must be split in DST/EXP/JEF/SEW/XXX). Spec `compat/specs/machine/machine-formats.json` exports every
 format and compares each with its reference once the files arrive. Open questions the files answer: DST jumps-for-trim
 count (OpenStitch default 3), DST label, EXP trim record, JEF/SEW trim handling (OpenStitch JEF drops trims by default),
@@ -74,7 +74,7 @@ interior jump remains in any OpenStitch export. Labels now equal the export file
 
 ## Sew-out package (for the owner)
 
-<reference-notes>\sewout\: README.md (what to sew, in what order, what to look at), the four PES files,
+The sew-out captures: README.md (what to sew, in what order, what to look at), the four PES files,
 sha256.txt, and records/<spec>.json templates with the SHA-256 filled in. Specs with a `machine` block: pes-default-v6,
 machine-formats, satin-zigzag-rect, shape-start-points (block added). A record counts only while the SHA matches the
 current export, so the files are re-exported and re-hashed after each rebase; the README says so. No machine-tier pass is

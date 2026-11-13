@@ -108,7 +108,7 @@ improved "OpenStitch" mode next to the PE-compatible result, for the README's mo
 
 ## PE-DESIGN round 5, priority 1 (2026-10-30)
 
-The reference session's captures are in the owner's notes folder (`round5\images`), never in
+The reference session's captures are in the owner's notes (round 5's image captures), never in
 the repository. What they settle:
 
 | Image, wizard | PE-DESIGN 11.50 |
