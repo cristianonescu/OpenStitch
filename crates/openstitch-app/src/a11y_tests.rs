@@ -89,7 +89,8 @@ fn every_interactive_control_has_a_name_for_screen_readers() {
             ..Launch::default()
         },
     )];
-    for show in SHOW {
+    // `bare` draws the canvas alone, with no controls to name: kit preview tiles only (#1051).
+    for show in SHOW.into_iter().filter(|&s| s != "bare") {
         scenes.push((
             show,
             Launch {
