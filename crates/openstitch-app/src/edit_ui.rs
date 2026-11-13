@@ -52,6 +52,8 @@ pub struct EditState {
     pub by_colour: bool,
     /// Sewing-order pane: the object being renamed and the name typed so far (#502).
     pub renaming: Option<(u64, String)>,
+    /// Sewing-order pane: the list's filter (#745); empty shows every row.
+    pub order_filter: String,
     /// The Arrange Copies handle is being dragged on the canvas.
     pub arrange_drag: bool,
     /// An entry/exit marker being dragged: object, which marker, where it is now.

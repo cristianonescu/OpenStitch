@@ -4220,3 +4220,22 @@ Spec `pes-0110-stamps` asks the owner to open the export in PE-DESIGN 11.50; unt
 reference is pending. Refused with the object named: several stamps on a region, a stamp of
 several outlines, and a stamp beside a programmable fill (one listed pattern per file: which
 object field picks a pattern is a capture requested on #608).
+
+### Vertical text laid out and written as PE-DESIGN's, 2026-11-13 (#608)
+
+PE-DESIGN 11.50's `o-text-vertical` ("ABC" in Lato, size 8, Satin, clicked at (30, 50) mm,
+Direction vertical) sews from the click down: 26.0–34.0 × 49.7–74.1 mm. Its letters stand one
+text size apart, and each capital hangs from the top of its cell: C's baseline is at
+50 + 2 × 8 + 8.19 mm (Lato's capital height at size 8). OpenStitch stacked the letters by the
+font's vertical cell (ascender − descender, 1.2 em) and, as `text.add` centres by default, about
+the click: 32.2–67.9 mm, 35.8 mm tall against PE-DESIGN's 24.4 mm. In PE-DESIGN's metrics, the
+default for new texts, a vertical letter's cell is now the text size and the first capital's top
+is the line's start. Top-aligned, the same text sews within 0.6 mm of PE-DESIGN's extent on every side, and so
+does PE-DESIGN's own file imported (`pes_version_11_writes_vertical_text_as_pe_design_lays_it_out`).
+Texts sized by capital height (older OpenStitch files) keep the font's vertical metrics.
+
+`design.export` with `pesVersion` 11 now writes one top-aligned vertical column: the vertical
+flag, the click as the column's top and the box from 0.59 × the size above it down to the lowest
+letter (PE-DESIGN's 760, 953 – 840, 1241; ours within 0.6 mm). Several columns, and centred or
+bottom-aligned columns, stay refused: PE-DESIGN's column spacing and alignment codes have no
+owner file. No kit design, example or compat spec uses vertical text.

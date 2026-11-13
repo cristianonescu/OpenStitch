@@ -1432,6 +1432,16 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
         "ui-multi-needle-machine-tip",
         "How many needles it threads at once: Check Design notes designs with more thread colours than that",
     ),
+    ("ui-find-objects", "Find objects"),
+    (
+        "ui-find-objects-tip",
+        "Shows only the objects whose name, stitch type, lettering or thread (brand, code or name) holds every word typed; Ctrl+F over the list, Enter selects them, Esc clears",
+    ),
+    ("ui-select-all-shown", "Select All Shown"),
+    (
+        "ui-select-all-shown-tip",
+        "Selects exactly the objects the filter shows, to recolour, change or hide them together",
+    ),
     ("ui-copy-diagnostics", "Copy diagnostics"),
     (
         "ui-copy-diagnostics-tip",
@@ -1862,6 +1872,7 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
     ),
     ("ui-status-imported-2", "Imported { $path }"),
     ("ui-status-optimise", "Optimise: { $summary }"),
+    ("ui-objects-shown", "{ $shown } of { $total } shown"),
     (
         "ui-status-new-shapes-start-with-these-settings",
         "New shapes start with these settings",

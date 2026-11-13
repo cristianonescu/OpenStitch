@@ -358,6 +358,8 @@ feature is done and the rest is under [Planned](#planned).
 - **Hole sewing:** an outer region sews around the inner one.
 - **Sewing Order list:** drag to reorder, show or hide, (+) rename, lock, sew in click order and sew
   an outline before its fill ([#502]).
+- (+) **Find objects** above the Sewing Order list: type a name, stitch type, "text" or a thread
+  ("satin", "brother 017") to show only those rows, then select them all at once ([#745]).
 - **Sewing order commands:** sort by colour or optimise as PE-DESIGN does, (+) or by the shortest
   jumps (`minJump`).
 - **Jump trimming:** a minimum jump length and per-object trimming on multi-needle machines.
@@ -713,6 +715,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#481]: https://github.com/cristianonescu/OpenStitch/issues/481
 [#482]: https://github.com/cristianonescu/OpenStitch/issues/482
 [#483]: https://github.com/cristianonescu/OpenStitch/issues/483
+[#745]: https://github.com/cristianonescu/OpenStitch/issues/745
 [#796]: https://github.com/cristianonescu/OpenStitch/issues/796
 [#798]: https://github.com/cristianonescu/OpenStitch/issues/798
 [#484]: https://github.com/cristianonescu/OpenStitch/issues/484

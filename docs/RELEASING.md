@@ -111,7 +111,9 @@ with current screenshots. Refresh it in a pull request before every release:
    regenerating it (`python -I tools/sew_kit.py`), open every preview in
    `examples/sew/previews` at full size and look at the stitches before the release. The job
    also fails when a preview lacks one of its design's thread colours
-   (`tools/sew_kit.py --check-previews`, #564).
+   (`tools/sew_kit.py --check-previews`, #564), or was drawn at another
+   `REALISTIC_RENDER_VERSION` than the source's: a change to the Realistic view's look raises
+   that constant and regenerates the previews it names (#920).
 7. **Links:** CI's `tools/check_doc_links.py` (#850) already fails on a broken relative link or
    image in any tracked Markdown file. Check by hand only the README's issue links and external
    links, and in-page anchors, which it does not check.

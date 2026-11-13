@@ -339,18 +339,18 @@ fn pes_version_11_writes_editable_shapes_and_text_and_refuses_what_it_cannot_hol
     let chars: Vec<u16> = objects.texts[1].letters.iter().map(|l| l.ch).collect();
     assert_eq!(chars, [65, 32, 66]);
 
-    // Vertical text is refused with the object named, and nothing is written.
+    // Vertical text of two columns is refused with the object named, and nothing is written.
     run(
         &mut s,
         "text.add",
-        json!({"text": "AB", "x": 40, "y": 30, "size": 10, "direction": "vertical"}),
+        json!({"text": "AB\nC", "x": 40, "y": 30, "size": 10, "direction": "vertical", "align": "left"}),
     );
     let err = s
         .execute(
             "design.export",
             Some(&json!({"path": "d.pes", "pesVersion": "11"})),
         )
-        .expect_err("vertical text is not written yet");
+        .expect_err("vertical text of several columns is not written yet");
     assert!(err.to_string().contains("vertical"), "{err}");
     assert!(!dir.join("d.pes").exists());
 }
@@ -386,4 +386,121 @@ fn pes_version_11_writes_text_fitted_to_an_outline() {
     assert_eq!(objects.unparsed, None);
     let fit = objects.texts[0].fit.expect("CEmbAText");
     assert_eq!((fit.path, fit.halign, fit.valign), (0, 1, 0));
+}
+
+/// Stitch extent `[x0, y0, x1, y1]`, 0.1 mm.
+fn extent(p: &openstitch_core::StitchPattern) -> [f64; 4] {
+    p.stitches.iter().fold(
+        [f64::MAX, f64::MAX, f64::MIN, f64::MIN],
+        |[x0, y0, x1, y1], s| [x0.min(s.x), y0.min(s.y), x1.max(s.x), y1.max(s.y)],
+    )
+}
+
+#[test]
+fn pes_version_11_writes_vertical_text_as_pe_design_lays_it_out() {
+    // #608, PE-DESIGN 11.50's o-text-vertical: "ABC" in Lato, size 8, Satin, clicked at
+    // (30, 50) mm with Direction vertical. PE-DESIGN sews it from the click down, 8.0 x 24.4 mm
+    // (26.0-34.0 x 49.7-74.1 mm); the file holds the click (800, 1000), the vertical flag and the
+    // box 760, 953 - 840, 1241.
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../openstitch-formats/tests/fixtures/pe11/o-text-vertical.pes");
+    let bytes = std::fs::read(&fixture).expect("fixture");
+    let pe = extent(&pes::read(&bytes).expect("PES"));
+    let dir = temp_dir("v11-vertical");
+    let mut s = Session::new(&dir);
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    run(
+        &mut s,
+        "text.add",
+        json!({"text": "ABC", "x": 30, "y": 50, "size": 8, "direction": "vertical", "align": "left"}),
+    );
+    // OpenStitch lays the column out where PE-DESIGN sews it (it was centred on the click and
+    // 35.8 mm tall: the font's 1.2 em cell).
+    let ours = extent(&openstitch_design::Compiler::default().compile(s.design()));
+    for k in 0..4 {
+        assert!(
+            (ours[k] - pe[k]).abs() <= 6.0,
+            "{ours:?} against PE-DESIGN's {pe:?}"
+        );
+    }
+    run(
+        &mut s,
+        "design.export",
+        json!({"path": "a.pes", "pesVersion": "11"}),
+    );
+    let objects =
+        pes::read_objects(&std::fs::read(dir.join("a.pes")).expect("a.pes")).expect("objects");
+    let t = &objects.texts[0];
+    let theirs = &pes::read_objects(&bytes).expect("objects").texts[0];
+    assert!(t.vertical);
+    assert_eq!((t.origin, t.align), (theirs.origin, theirs.align));
+    for k in 0..4 {
+        assert!(
+            (t.bounds[k] - theirs.bounds[k]).abs() <= 6,
+            "{:?} against PE-DESIGN's {:?}",
+            t.bounds,
+            theirs.bounds
+        );
+    }
+    // PE-DESIGN's own file imports to the same column.
+    let mut back = Session::new(&dir);
+    run(
+        &mut back,
+        "design.new",
+        json!({"width": 100, "height": 100}),
+    );
+    std::fs::copy(&fixture, dir.join("in.pes")).expect("copy");
+    run(&mut back, "import.pes", json!({"path": "in.pes"}));
+    let imported = extent(&openstitch_design::Compiler::default().compile(back.design()));
+    for k in 0..4 {
+        assert!(
+            (imported[k] - pe[k]).abs() <= 6.0,
+            "{imported:?} against PE-DESIGN's {pe:?}"
+        );
+    }
+}
+
+#[test]
+fn pes_version_11_refuses_two_stamps_on_one_region() {
+    // #608: PES 0110 export maps one stamp per region (one listed pattern per file). A square
+    // with two circles converted to engraved regions is refused with the object named, and
+    // nothing is written.
+    let dir = temp_dir("v11-two-stamps");
+    let mut s = Session::new(&dir);
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 30, "y": 30, "width": 40, "height": 40}),
+    );
+    for cx in [42, 58] {
+        let made = run(
+            &mut s,
+            "shape.ellipse",
+            json!({"cx": cx, "cy": 50, "rx": 5, "ry": 5}),
+        );
+        let tool = made["id"].as_u64().expect("the circle's id");
+        run(
+            &mut s,
+            "shape.emboss",
+            json!({"id": 1, "tool": tool, "effect": "engravedRegion"}),
+        );
+    }
+    let stamps = s.design().objects[0]
+        .region
+        .as_ref()
+        .map_or(0, |r| r.stamps.len());
+    assert_eq!(stamps, 2);
+    let err = s
+        .execute(
+            "design.export",
+            Some(&json!({"path": "two.pes", "pesVersion": "11"})),
+        )
+        .expect_err("two stamps on one region are not written");
+    let err = err.to_string();
+    assert!(
+        err.contains("object 1") && err.contains("2 stamps"),
+        "{err}"
+    );
+    assert!(!dir.join("two.pes").exists());
 }
