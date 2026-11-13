@@ -92,6 +92,31 @@
           "percent": 8
         }
       }
+    },
+    {
+      "id": "blocks",
+      "measure": {
+        "kind": "blockStitchCounts"
+      },
+      "source": {
+        "export": "a.pes"
+      },
+      "expected": [
+        {
+          "min": 2300,
+          "max": 2450
+        },
+        {
+          "min": 819,
+          "max": 853
+        }
+      ],
+      "evidence": "#978: the fill and the zigzag line, PE-DESIGN 2,413 and 838; the line's crossings spaced by the closed outline's outer edge (OpenStitch 836; the fill 2,372)",
+      "reference": {
+        "tolerance": {
+          "percent": 2
+        }
+      }
     }
   ]
 }
