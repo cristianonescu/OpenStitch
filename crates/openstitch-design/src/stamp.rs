@@ -27,7 +27,7 @@ pub const EMBOSS_MAX: f64 = 70.0;
 /// inside against 128 outside, #471).
 pub const STAMP_ENGRAVE_STEP: f64 = 20.0;
 /// Longest stitch inside a stamp's embossed region. PE-DESIGN 11.50 drops every needle point
-/// inside and leaves the rows crossing a 16.5 × 16 mm circle whole, up to 14.3 mm (round-10
+/// inside and leaves the rows crossing a 14.5 × 14 mm circle whole, up to 14.3 mm (round-10
 /// capture `471-embossed-region-circle.pes`: within 6 mm of the centre 13 needle points per cm², the
 /// under sewing's, against 126 without the stamp,
 /// #471); longer crossings are split.
@@ -212,7 +212,7 @@ fn apply_one(runs: Vec<Run>, s: &Stamp) -> Vec<Run> {
 
 /// Drops needle points with the area on both sides (run ends and outline crossings stay), then
 /// splits stitches longer than [`STAMP_EMBOSS_MAX`]: whole stitches of that length from where the
-/// row enters, the rest last, as PE-DESIGN 11.50 sews them (round-10 capture: across a 16.5 mm
+/// row enters, the rest last, as PE-DESIGN 11.50 sews them (round-10 capture: across a 14.5 mm
 /// circle its embossed stitches are 12–14.3 mm with a few short ends, none near half the chord).
 fn emboss(run: &[Vec2], inside_before: &[bool]) -> Run {
     let n = run.len();
