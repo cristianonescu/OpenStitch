@@ -261,6 +261,10 @@ then style them in the next.
 
 - `ui.state` tells you the editor's state, including the **selection**; "this", "it" and
   "the selected text" mean the selected objects. `ui.select` changes the selection.
+  `ui.state` `orderFilter` is the Sewing Order pane's Find text: the list shows only the
+  objects it matches (`ui.set orderFilter ""` shows them all; the design is never filtered).
+  Its `msaa` with `on` false means the Realistic view draws without MSAA, so dense fills may
+  show stripes when zoomed out.
 - `object.list` lists objects (id, kind, bounds in mm, sew types, colours, text);
   `object.get` gives one object in full.
 - Move, size, turn: `object.move` `{ids, dx, dy}` (the stitches move with it, unchanged),
