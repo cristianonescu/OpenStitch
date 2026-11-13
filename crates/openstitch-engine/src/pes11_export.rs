@@ -816,8 +816,14 @@ fn text_object(
             })
         }
     };
-    if spec.direction == TextDirection::Vertical {
-        return refuse("vertical text");
+    // Vertical text: one column, from the click down (o-text-vertical, #608); PE-DESIGN's
+    // spacing between columns and its centred and right alignments have no owner file.
+    let vertical = spec.direction == TextDirection::Vertical;
+    if vertical && (spec.text.contains('\n') || spec.align != TextAlign::Left) {
+        return refuse("vertical text of several columns or not top-aligned");
+    }
+    if vertical && (fit.is_some() || spec.envelope.is_some()) {
+        return refuse("vertical text fitted to an outline or with a Text Transform");
     }
     if spec.custom_envelope.is_some() {
         // PE-DESIGN holds only its 26 Text Transform presets (#535).
@@ -948,6 +954,15 @@ fn text_object(
             b.max_x,
             b.max_y.max(t.ty),
         ],
+        // A vertical column: from the ascent line of a letter whose capital top is the click
+        // (0.59 × the size above it) down to the lowest letter (o-text-vertical: 953 to 1241
+        // with the click at 1000).
+        _ if vertical => [
+            b.min_x,
+            t.ty - (ASCENT_PER_SIZE - 1.0) * spec.size * 10.0,
+            b.max_x,
+            b.max_y,
+        ],
         // A straight text: from the ascent line down to the baseline or the lowest letter.
         _ => [b.min_x, ascent_line, b.max_x, b.max_y.max(t.ty)],
     };
@@ -957,7 +972,7 @@ fn text_object(
         letters,
         breaks,
         line_spacing: spec.line_spacing_percent as f32,
-        vertical: false,
+        vertical,
         transform: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
         align,
         // The Text tool's click: the alignment point of the first baseline (none when fitted).
@@ -1945,10 +1960,10 @@ mod tests {
         spec.envelope_level = None;
         spec.envelope = None;
 
-        // A tab, a vertical text and a rotated text are refused with the reason.
+        // A tab, a vertical text of two columns and a rotated text are refused with the reason.
         for (text, vertical, rotate) in [
             ("A	B", false, false),
-            ("AB", true, false),
+            ("AB\nC", true, false),
             ("AB", false, true),
         ] {
             let mut s = TextSpec::new(text, text::DEFAULT_FONT, 10.0);

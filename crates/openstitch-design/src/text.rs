@@ -1402,6 +1402,12 @@ impl Run {
         vertical: bool,
         cap: f64,
     ) -> Run {
+        // A vertical column in PE-DESIGN's metrics: each letter's cell is the text size and its
+        // capital height hangs from the top of its cell, so the first letter's top is the click
+        // point (o-text-vertical: "ABC" at size 8 clicked at y = 50 mm sews from 49.7 to 74.1 mm,
+        // C's baseline at 50 + 2 × 8 + 8.19 mm, #608). The font's own vertical cell (ascender −
+        // descender, 1.2 em) stays for texts sized by capital height.
+        let pe_column = vertical && spec.metrics == TextMetrics::Pe;
         // Pen position and glyph origin of each glyph, along the run.
         let mut pen = 0.0;
         let mut started = false;
@@ -1410,14 +1416,21 @@ impl Run {
             let k = spec
                 .char_edit(g.cluster)
                 .map_or(1.0, |e| e.factor(spec.size));
-            let advance = if vertical { -g.y_advance } else { g.x_advance } * scale * k;
+            let advance = match (vertical, pe_column) {
+                (true, true) if g.y_advance != 0.0 => spec.size * 10.0 * k,
+                (true, _) => -g.y_advance * scale * k,
+                (false, _) => g.x_advance * scale * k,
+            };
             if advance != 0.0 {
                 if started {
                     pen += spacing;
                 }
                 started = true;
             }
-            let offset = v2(g.x_offset, -g.y_offset) * (scale * k);
+            let mut offset = v2(g.x_offset, -g.y_offset) * (scale * k);
+            if pe_column {
+                offset.y = cap * k;
+            }
             at.push((pen, advance, offset, k));
             pen += advance;
         }
@@ -2671,7 +2684,13 @@ H",
         let b: Vec<Rect> = l.outlined().map(|g| bounds(&g.contours)).collect();
         assert_eq!(b.len(), 3);
         let (h, i, o) = (b[0], b[1], b[2]);
-        assert!(i.min_y > h.max_y, "I is below H: {h:?} {i:?}");
+        // One size apart, capital tops aligned to their cells, as PE-DESIGN 11.50 stacks them
+        // (o-text-vertical, #608): a capital (0.7165 em) is a little taller than the size
+        // (0.7 em), as in PE-DESIGN's column (2 × 8.0 + 8.4 = 24.4 mm at size 8).
+        assert!(
+            (i.min_y - h.min_y - 100.0).abs() < 0.5,
+            "I is one size below H: {h:?} {i:?}"
+        );
         assert!(
             h.center().x.abs() < 1.0 && i.center().x.abs() < 1.0,
             "centred on x = 0"
@@ -2682,10 +2701,14 @@ H",
             "columns start at the same height"
         );
         assert!(h.min_y >= 0.0, "the first column starts at y = 0");
-        // Centred columns sit about y = 0.
+        // Centred columns sit about y = 0: H's top and I's bottom are about as far from it.
         spec.align = TextAlign::Center;
-        let c = bounds(&lay_spec(&spec).outlined().next().expect("H").contours);
-        assert!(c.max_y < 0.0, "{c:?}");
+        let c: Vec<Rect> = lay_spec(&spec)
+            .outlined()
+            .map(|g| bounds(&g.contours))
+            .collect();
+        let middle = (c[0].min_y + c[1].max_y) / 2.0;
+        assert!(c[0].min_y < -50.0 && middle.abs() < 5.0, "{c:?}");
         // Text on a path ignores the direction.
         let path = Contour::new(vec![v2(0.0, 300.0), v2(2000.0, 300.0)], false);
         let along = layout(&spec, Some(&path)).expect("layout");

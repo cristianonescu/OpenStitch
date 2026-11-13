@@ -330,7 +330,9 @@ thread table), except for a design opened from a
 PE-DESIGN 11 (`#PES0110`) file, which is written back as `11` unless another version is asked
 for (what version 11 cannot hold yet is then written as 6, with a warning). Version 11 keeps a
 region's stamp (one per region, one outline; not beside a programmable fill) so PE-DESIGN shows
-it as its own stamp. The result reports
+it as its own stamp, and one column of vertical text (`text.add` `direction: "vertical"`,
+`align: "left"`: the column runs down from the point given, letters one size apart, as PE-DESIGN
+lays it out). The result reports
 `fitsPage` and the `smallestHoop`. `.osd` keeps everything editable in OpenStitch. A CSD of
 more than 14 colours is written as two or more files (NAME_A.csd, NAME_B.csd, as PE-DESIGN
 does): report every path in the result's `paths`, and tell the user to sew them in order.
