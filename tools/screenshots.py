@@ -134,6 +134,9 @@ SCENES = {
                          [IMG("user-mapped-text")]),
     "font-creator": (["font-creator.osd", "--show", "fonts"], [IMG("font-creator")]),
     "split": (["split-banner.osd", "--show", "settings"], [IMG("split")]),
+    # Find objects above the Sewing Order list (#745): "red" shows 2 of 7 rows, Enter selects them.
+    "order-filter": (["lettering.osd", "--script", "sclick:80,432;type:red;key:Enter"],
+                     [IMG("order-filter")]),
     "workspace": (["--demo", "--show", "settings,reference,measure", "--script",
                    "drag:22,22,78,58"],
                   [IMG("workspace")]),

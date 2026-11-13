@@ -433,10 +433,14 @@ impl EditorApp {
             self.workspace.guides = self.ui.prefs.editing.show_guides;
             // Autosave snapshots live beside ui.json (#549); screenshot runs have none.
             if let Some(dir) = ui.parent() {
-                self.recovery.start(
-                    dir.join(openstitch_app::editor::recovery::FOLDER),
-                    l.script.is_empty(),
-                );
+                let folder = dir.join(openstitch_app::editor::recovery::FOLDER);
+                // A crash report from the last run (#878) opens Report a Problem once.
+                if l.script.is_empty() {
+                    self.ui.problem.report = openstitch_app::editor::crash::unseen(&folder);
+                    self.ui.problem.open = self.ui.problem.report.is_some();
+                }
+                self.ui.problem.folder = Some(folder.clone());
+                self.recovery.start(folder, l.script.is_empty());
             }
             self.ui.prefs_path = Some(ui);
         } else if l.screenshot.is_none()
@@ -698,6 +702,7 @@ impl EditorApp {
 
     /// Runs one command; reports failures in the status bar. Returns the command's result.
     pub fn execute(&mut self, r: &CommandRequest) -> Option<Value> {
+        openstitch_app::editor::crash::note_command(r.command);
         let effect = self.effects.get(r.command).copied();
         let before = (effect == Some(Effect::Edit)).then(|| self.session.design().clone());
         match self.session.execute(r.command, Some(&r.params)) {

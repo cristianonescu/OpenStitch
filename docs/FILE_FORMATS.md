@@ -432,7 +432,13 @@ from the thread table. A block's `punch` pairs become its direction lines (verte
 curved when any vertex has a curve kind. The groups are kept. The region types Cross Stitch to
 Flexible Spiral come in at OpenStitch's defaults (their own fields are not mapped); a
 programmable fill takes the header's one fill pattern and a decorative fill its object's pattern
-block, each as a design pattern (`pes-fill-N`, `pes-decorative-N`) at the stored tile size; a hole
+block, each as a design pattern (`pes-fill-N`, `pes-decorative-N`) at the stored tile size; a
+shape's stamps (#959: the u16 after the geometry header's third mark counts them, then 16 bytes
+each: centre x, y in file units, width and height in 0.1 mm, eight bytes not mapped; body +188 is
+1 while there are any) become stamps on its region, each outline the header's one listed pattern
+(size 750, a polyline in the 1024-unit cell) scaled to the stamp's size around its centre, the
+effect from the second polyline's head (the six bytes before its u16 1: `[1, 500, 1]` Embossed
+Region, `[2, 500, 1]` Engraved Region; one plain polyline alone is an Engraved Line); a hole
 sewing pair becomes the outer shape's hole around the inner object. Each `CEmbNText` becomes a
 Lato Bold text (any Lato weight: +144 is 700 or 900 on the same font) with the first letter's
 size, region, density and line, letters of another size as character edits, the line breaks,
@@ -648,15 +654,20 @@ cell, the tile width as the size), the Cross Stitch, Concentric Circle, Radial, 
 Stippling, Net Fill, Zigzag Net Fill and Flexible Spiral types by their codes at PE-DESIGN's
 default attributes (OpenStitch's own settings of these types are not carried), and a Decorative
 Fill with its pattern in the object's pattern block (free lines in the 1024-unit cell, the tile
-width as the size). What it
-cannot hold fails with the object named: a second hole sewing pair, a hole sewing pair in a
+width as the size), and a region's stamp as PE-DESIGN's Convert from Outline writes it (#608: the
+record after the geometry marks with the outline's bounds, centre and size, and the outline as the
+header's listed pattern in the cell of those bounds, size 750, closed by its first point twice, the
+region effects given again with head `[1, 500, 1]` or `[2, 500, 1]`; the engine test compares
+the layout with the three `stamp-*-circle` captures). What it
+cannot hold fails with the object named: several stamps on one region or a stamp of several
+outlines, a stamp beside a programmable fill (one listed pattern per file), a second hole sewing pair, a hole sewing pair in a
 design with groups, several outlines in one object, a second programmable fill pattern, a
 programmable fill tile that is not square or has embossed or engraved areas, motif fill, a
 decorative pattern chained in rows or not square, contour fill (OpenStitch's own), motif lines (stem,
 candlewick and chain lines are written by their codes, their Start/End options at PE-DESIGN's
 defaults: the sewing end PE-DESIGN stores for them, the second outline position and the
 geometry's segment fields, is not mapped); text in another font, with white space other than
-spaces and line breaks, right-aligned, vertical, on an outline, with a Text Transform on several
+spaces and line breaks, right-aligned, vertical in several columns or not top-aligned (one top-aligned column is written since #608: the vertical flag, the click as the column's top, the box from 0.59 × the size above it down to the lowest letter, as o-text-vertical), on an outline, with a Text Transform on several
 lines, rotated or scaled, with letter spacing, kerning, per-character
 edits or under sewing. Checks: the 149 owner files whose list the reader parses completely (84
 with shapes, 3 with a hole sewing pair, 11 of them Manual Punch objects, 2 of Convert to Blocks, 5 Applique Wizard outputs, 19 with plain text, 27 with a Text Transform, 14 with

@@ -1975,14 +1975,32 @@ impl GlyphStrokes {
                 seq: Vec::new(),
             };
             // Each piece of the letter from the column end nearest where the sewing is.
-            while let Some((c, end)) = order.nearest_end() {
-                let end = order.leading_end(c, end);
+            while let Some((c, nearest)) = order.nearest_end() {
+                let end = order.leading_end(c, nearest);
                 let first = order.out.len();
                 order.visit(c, Entry::End(end));
                 if first > 0
                     && let Some(block) = order.out.get_mut(first)
                 {
                     block.new_run = true;
+                }
+                // The letter's first piece sewn from its far end (N's and M's left stem, from
+                // its foot up to the diagonal): PE-DESIGN enters it at the end nearest the
+                // letter's start and runs down under it first (stroke-satin-M, -M-8, -N, -N-8:
+                // 3 to 10 stitches, #940).
+                let s = &order.strokes[c];
+                if first == 0
+                    && end != nearest
+                    && !s.closed
+                    && s.centre.len() >= 2
+                    && let Some(block) = order.out.get_mut(first)
+                {
+                    let tip = if nearest == 0 {
+                        s.centre[0]
+                    } else {
+                        s.centre[s.centre.len() - 1]
+                    };
+                    block.lead = Some(tip);
                 }
             }
             (order.out, order.seq)
@@ -2927,6 +2945,48 @@ mod tests {
             e[1]
         );
         assert!(e[3].1.1 > b.height() / 10.0 - 0.5, "{:?}", e[3]);
+    }
+
+    #[test]
+    fn m_and_n_start_at_the_top_and_run_down_under_the_first_stem() {
+        // stroke-satin-M, -M-8, -N, -N-8: PE-DESIGN's first stitches are at the top of the
+        // left stem; it runs down under the stem and sews the satin from the foot up (#940).
+        for (ch, size) in [("M", 20.0), ("M", 8.0), ("N", 20.0), ("N", 8.0)] {
+            let spec = TextSpec::new(ch, DEFAULT_FONT, size);
+            let contours = layout(&spec, None).expect("layout").contours();
+            let b =
+                Rect::enclosing(contours.iter().flat_map(Contour::outline_points)).expect("box");
+            let blocks = strokes(&contours).expect("strokes").blocks(&contours, 30.0);
+            let first = &blocks[0];
+            let lead = first.lead.expect("the first stem is led into");
+            let (from, to) = ends_mm(first, &b);
+            let (h, lead_y) = (b.height() / 10.0, (lead.y - b.min_y) / 10.0);
+            assert!(lead_y < 0.5, "{ch} {size}: lead at {lead_y}");
+            assert!(
+                from.1 > h - 0.5 && to.1 < from.1,
+                "{ch} {size}: {from:?} {to:?}"
+            );
+            // The lead starts within the first stem's width, above its satin.
+            let xs = first.rungs.iter().flat_map(|r| [r[0].x, r[1].x]);
+            let (lo, hi) = xs.fold((f64::MAX, f64::MIN), |(a, b), x| (a.min(x), b.max(x)));
+            assert!(
+                (lo - 1.0..=hi + 1.0).contains(&lead.x) && from.0 < b.width() / 30.0,
+                "{ch} {size}: lead x {} stem {lo}..{hi}",
+                lead.x
+            );
+            // Only the first piece is led into.
+            assert!(
+                blocks[1..].iter().all(|bl| bl.lead.is_none()),
+                "{ch} {size}"
+            );
+        }
+        // A letter whose first piece is sewn from the end nearest its start keeps no lead.
+        for ch in ["I", "L", "O"] {
+            let spec = TextSpec::new(ch, DEFAULT_FONT, 20.0);
+            let contours = layout(&spec, None).expect("layout").contours();
+            let blocks = strokes(&contours).expect("strokes").blocks(&contours, 30.0);
+            assert!(blocks.iter().all(|bl| bl.lead.is_none()), "{ch}");
+        }
     }
 
     #[test]

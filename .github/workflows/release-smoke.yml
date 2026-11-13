@@ -1,20 +1,23 @@
 name: Release smoke test
 
-# Launches the packages of a published release on clean Windows and Linux runners:
+# Launches the packages of a published release on clean Windows, Linux and macOS runners:
 # - installs the MSI and runs the portable zip;
 # - runs the AppImage and the tarball;
-# - renders the demo, a PES file and the Design Database headless;
+# - runs the macOS app from its zip;
+# - renders the demo, a PES file and the Design Database headless, and a dense fill in the
+#   Realistic view (Linux and macOS, so a change to that view is seen off Windows, #1021);
 # - runs the CLI.
-# Screenshots and logs are uploaded for review. Run it from the Actions tab with the tag. It also
-# runs on pull requests that change this file, against the tag below.
+# Screenshots and logs are uploaded for review. Run it from the Actions tab with the tag (empty:
+# the newest release). It also runs on pull requests that change this file, against the newest
+# release.
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Release tag to test
-        required: true
-        default: v0.1.0-alpha.1
+        description: Release tag to test (empty for the newest release)
+        required: false
+        default: ''
   pull_request:
     paths: [.github/workflows/release-smoke.yml]
 
@@ -22,7 +25,8 @@ permissions:
   contents: read
 
 env:
-  TAG: ${{ inputs.tag || 'v0.1.0-alpha.1' }}
+  # Empty on pull requests: each job's download step takes the newest release.
+  TAG: ${{ inputs.tag }}
   GH_TOKEN: ${{ github.token }}
 
 jobs:
@@ -33,7 +37,10 @@ jobs:
         with:
           sparse-checkout: crates/openstitch-formats/tests/fixtures
       - name: Download the Linux packages
-        run: gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern '*linux-x86_64*' --dir rel
+        run: |
+          tag=${TAG:-$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1 --json tagName --jq '.[0].tagName')}
+          echo "testing $tag"
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern '*linux-x86_64*' --dir rel
       - name: Software rendering and X server
         run: |
           sudo apt-get update -q
@@ -46,6 +53,14 @@ jobs:
           mkdir -p out db
           cp crates/openstitch-formats/tests/fixtures/oracle.pes . && cp oracle.pes db/
           image=$(ls rel/OpenStitch-*-linux-x86_64.AppImage); chmod +x "$image"
+          mkdir cli && tar -xzf rel/openstitch-cli-*-linux-x86_64.tar.gz -C cli
+          tool=$(find cli -name stitchtool -type f | head -1)
+          # A 20 mm fill at 4.5 rows/mm for the Realistic-view scene.
+          printf '%s' '[{"command":"design.new","params":{"name":"fill","width":100,"height":100}},
+            {"command":"shape.rectangle","params":{"x":40,"y":40,"width":20,"height":20,"fill":"Blue"}},
+            {"command":"object.setRegion","params":{"id":1,"type":"fill","angle":0,"density":4.5}},
+            {"command":"design.export","params":{"path":"smoke-fill.pes"}}]' > fill.json
+          "$tool" exec fill.json > /dev/null
           scene() { # <name> <program> <args...>
             local name=$1; shift
             if xvfb-run -a -s "-screen 0 1600x1000x24" timeout 120 "$@" --screenshot "out/$name.png" \
@@ -58,11 +73,12 @@ jobs:
           scene appimage-demo "$image" --appimage-extract-and-run --demo
           scene appimage-pes "$image" --appimage-extract-and-run oracle.pes --ribbon view
           scene appimage-database "$image" --appimage-extract-and-run --database db --db-view large
+          # The Realistic view on a dense fill at 5.2 px/mm (1280 x 800 window, page fit x 1.24),
+          # where rows a pixel apart showed moire stripes without MSAA (#907, #1021).
+          scene appimage-realistic "$image" --appimage-extract-and-run smoke-fill.pes --show realistic             --size 1280x800 --zoom 1.24
           mkdir tarball && tar -xzf rel/OpenStitch-*-linux-x86_64.tar.gz -C tarball
           bin=$(find tarball -path '*bin/openstitch' -type f | head -1)
           scene tarball-demo "$bin" --demo
-          mkdir cli && tar -xzf rel/openstitch-cli-*-linux-x86_64.tar.gz -C cli
-          tool=$(find cli -name stitchtool -type f | head -1)
           printf '%s' '[{"command":"design.new","params":{"name":"smoke","width":50,"height":50}},
             {"command":"shape.rectangle","params":{"x":10,"y":10,"width":20,"height":10,"fill":"Red"}},
             {"command":"design.export","params":{"path":"smoke.pes"}},
@@ -83,7 +99,10 @@ jobs:
           sparse-checkout: crates/openstitch-formats/tests/fixtures
       - name: Download the Windows packages
         shell: bash
-        run: gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern '*windows-x86_64*' --dir rel
+        run: |
+          tag=${TAG:-$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1 --json tagName --jq '.[0].tagName')}
+          echo "testing $tag"
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern '*windows-x86_64*' --dir rel
       - name: Install the MSI, launch it and the portable zip, run the CLI
         shell: pwsh
         run: |
@@ -133,4 +152,50 @@ jobs:
         if: always()
         with:
           name: smoke-windows
+          path: out/
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: crates/openstitch-formats/tests/fixtures
+      - name: Download the macOS packages
+        run: |
+          tag=${TAG:-$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1 --json tagName --jq '.[0].tagName')}
+          echo "testing $tag"
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern '*macos-universal*' --dir rel
+      - name: Launch the app and run the CLI
+        run: |
+          set -euo pipefail
+          mkdir -p out app cli
+          cp crates/openstitch-formats/tests/fixtures/oracle.pes .
+          ditto -x -k rel/OpenStitch-*-macos-universal.zip app
+          bin=$(find app -path '*.app/Contents/MacOS/*' -type f | head -1)
+          tar -xzf rel/openstitch-cli-*-macos-universal.tar.gz -C cli
+          tool=$(find cli -name stitchtool -type f | head -1)
+          printf '%s' '[{"command":"design.new","params":{"name":"fill","width":100,"height":100}},
+            {"command":"shape.rectangle","params":{"x":40,"y":40,"width":20,"height":20,"fill":"Blue"}},
+            {"command":"object.setRegion","params":{"id":1,"type":"fill","angle":0,"density":4.5}},
+            {"command":"design.export","params":{"path":"smoke-fill.pes"}}]' > fill.json
+          "$tool" exec fill.json > /dev/null && echo "ok: CLI writes the fill"
+          scene() { # <name> <args...>
+            local name=$1; shift
+            # perl's alarm: macOS has no timeout(1).
+            if perl -e 'alarm 120; exec @ARGV' "$bin" "$@" --screenshot "out/$name.png" \
+                > "out/$name.log" 2>&1 && test -s "out/$name.png"; then
+              echo "ok: $name"
+            else
+              echo "FAIL: $name"; cat "out/$name.log"; return 1
+            fi
+          }
+          scene app-demo --demo
+          scene app-pes oracle.pes --ribbon view
+          # The runner's screen keeps the window at 1024 x 645, where page fit is 2.42 px/mm:
+          # x 2.15 is the same 5.2 px/mm as the Linux scene.
+          scene app-realistic smoke-fill.pes --show realistic --size 1280x800 --zoom 2.15
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-macos
           path: out/

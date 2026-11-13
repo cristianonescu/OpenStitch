@@ -279,6 +279,10 @@ feature is done and the rest is under [Planned](#planned).
 - **Unsaved changes** are flagged in the title and asked about before closing, New or Open.
 - (+) **Autosave and recovery:** snapshots of every open design, offered back after a crash; your
   own file is never overwritten ([#549]).
+- (+) **Crash reports and Report a Problem:** after an internal error a short report (version,
+  system, the error, the last command names, no paths from your computer) is kept beside the
+  snapshots; *Help ▸ Report a Problem* opens a GitHub issue with the version filled in, and
+  *Copy diagnostics* copies the version and system. Nothing is sent from OpenStitch ([#878]).
 - (+) **Large files open in the background** with progress and Cancel, so the window never
   freezes ([#558]).
 - (+) **Several designs as tabs** in one window, each with its own undo, selection and zoom
@@ -354,6 +358,8 @@ feature is done and the rest is under [Planned](#planned).
 - **Hole sewing:** an outer region sews around the inner one.
 - **Sewing Order list:** drag to reorder, show or hide, (+) rename, lock, sew in click order and sew
   an outline before its fill ([#502]).
+- (+) **Find objects** above the Sewing Order list: type a name, stitch type, "text" or a thread
+  ("satin", "brother 017") to show only those rows, then select them all at once ([#745]).
 - **Sewing order commands:** sort by colour or optimise as PE-DESIGN does, (+) or by the shortest
   jumps (`minJump`).
 - **Jump trimming:** a minimum jump length and per-object trimming on multi-needle machines.
@@ -709,6 +715,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#481]: https://github.com/cristianonescu/OpenStitch/issues/481
 [#482]: https://github.com/cristianonescu/OpenStitch/issues/482
 [#483]: https://github.com/cristianonescu/OpenStitch/issues/483
+[#745]: https://github.com/cristianonescu/OpenStitch/issues/745
 [#796]: https://github.com/cristianonescu/OpenStitch/issues/796
 [#798]: https://github.com/cristianonescu/OpenStitch/issues/798
 [#484]: https://github.com/cristianonescu/OpenStitch/issues/484
@@ -796,6 +803,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#627]: https://github.com/cristianonescu/OpenStitch/issues/627
 [#652]: https://github.com/cristianonescu/OpenStitch/issues/652
 [#799]: https://github.com/cristianonescu/OpenStitch/issues/799
+[#878]: https://github.com/cristianonescu/OpenStitch/issues/878
 
 ## Not yet implemented
 

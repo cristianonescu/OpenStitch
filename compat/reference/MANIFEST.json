@@ -6229,6 +6229,42 @@
       "settings": "New 100 x 100 mm page; Shapes > circle with a 30 mm outline; region Not Sewn; line Zigzag Stitch, width 1.0 mm, density 4.5 line/mm, Half Stitch on, under sewing on, Sharp Corners first option, Miter Limit 0.0. Save As PES Ver.11.0. Status: 31.00 x 31.00 mm, 571 stitches.",
       "sha256": "90ee452144631521a9b83429e369aadd93bb32bb3cb54e2b9de6e6de0642c5b6",
       "notes": "Black-box capture 978-circle-30mm-zigzag-1mm.pes from the coordinator's round-11 notes (#978); the project's own geometry."
+    },
+    {
+      "file": "stitches/stamp-engraved-line-circle.pes",
+      "spec": "stamp-engraved-line-circle",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-12",
+      "os": "Windows 11 Pro",
+      "settings": "On a 180 x 130 mm Design Page draw a square with Home > Shapes > Rectangle, 42.00 x 42.00 mm with its line (a 40 mm outline from 30 to 70 mm), PE-DESIGN's defaults kept: line Zigzag Stitch 2.0 mm, 4.5 line/mm, Half Stitch on; region Fill Stitch 4.5 line/mm, 45 degrees, under sewing on. Draw a circle in its middle with Home > Shapes > circle, 16.50 x 16.00 mm with its 2 mm zigzag line (a 14.5 x 14.0 mm outline), defaults kept. Select both (Ctrl+A) and choose Home > Stamp/Emboss > Convert from Outline > Engraved Line: the circle becomes a stamp in the square's fill. Save As 'Layout & Editing Ver 11.0 File (*.PES)'. Status bar 3369 st.",
+      "sha256": "ce29d0ecf546293e3356c3d9b69100bdad98e9253382cf3f956a44edaafc6197",
+      "notes": "Black-box capture 471-engraved-line-circle.pes from the coordinator's round-10 notes (#471); the project's own geometry. Kept out of the repository until PES 0110 import read a shape that carries a stamp (#959)."
+    },
+    {
+      "file": "stitches/stamp-embossed-region-circle.pes",
+      "spec": "stamp-embossed-region-circle",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-12",
+      "os": "Windows 11 Pro",
+      "settings": "On a 180 x 130 mm Design Page draw a square with Home > Shapes > Rectangle, 42.00 x 42.00 mm with its line (a 40 mm outline from 30 to 70 mm), PE-DESIGN's defaults kept: line Zigzag Stitch 2.0 mm, 4.5 line/mm, Half Stitch on; region Fill Stitch 4.5 line/mm, 45 degrees, under sewing on. Draw a circle in its middle with Home > Shapes > circle, 16.50 x 16.00 mm with its 2 mm zigzag line (a 14.5 x 14.0 mm outline), defaults kept. Select both (Ctrl+A) and choose Home > Stamp/Emboss > Convert from Outline > Embossed Region: the circle becomes a stamp in the square's fill. Save As 'Layout & Editing Ver 11.0 File (*.PES)'. Status bar 3191 st.",
+      "sha256": "9c291dff6fa3607bb7e736636033b0ce61b7095ec9dfbd5bb56f326f26d02fc5",
+      "notes": "Black-box capture 471-embossed-region-circle.pes from the coordinator's round-10 notes (#471); the project's own geometry. Kept out of the repository until PES 0110 import read a shape that carries a stamp (#959)."
+    },
+    {
+      "file": "stitches/stamp-engraved-region-circle.pes",
+      "spec": "stamp-engraved-region-circle",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-12",
+      "os": "Windows 11 Pro",
+      "settings": "On a 180 x 130 mm Design Page draw a square with Home > Shapes > Rectangle, 42.00 x 42.00 mm with its line (a 40 mm outline from 30 to 70 mm), PE-DESIGN's defaults kept: line Zigzag Stitch 2.0 mm, 4.5 line/mm, Half Stitch on; region Fill Stitch 4.5 line/mm, 45 degrees, under sewing on. Draw a circle in its middle with Home > Shapes > circle, 16.50 x 16.00 mm with its 2 mm zigzag line (a 14.5 x 14.0 mm outline), defaults kept. Select both (Ctrl+A) and choose Home > Stamp/Emboss > Convert from Outline > Engraved Region: the circle becomes a stamp in the square's fill. Save As 'Layout & Editing Ver 11.0 File (*.PES)'. Status bar 3531 st.",
+      "sha256": "e76ec38316080f9fadcdeaa02eec9f075a6baad40609664aed689f3ac1228e8f",
+      "notes": "Black-box capture 471-engraved-region-circle.pes from the coordinator's round-10 notes (#471); the project's own geometry. Kept out of the repository until PES 0110 import read a shape that carries a stamp (#959)."
     }
   ]
 }

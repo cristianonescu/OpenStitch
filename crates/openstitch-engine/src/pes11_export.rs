@@ -16,7 +16,7 @@ use openstitch_design::{
 };
 use openstitch_formats::pes11::{
     CustomPage, Envelope, Fit, HoopPage, KIND_CURVE_AFTER, KIND_CURVE_BEFORE, Letter, Objects,
-    PAGE_ORIGIN, RegionSewType, Shape, StitchGroup, Text, Vertex,
+    PAGE_ORIGIN, PesPattern, PesStamp, RegionSewType, Shape, StitchGroup, Text, Vertex,
 };
 
 /// The `#PES0110` objects of `design`'s visible objects, in design order.
@@ -110,15 +110,13 @@ pub fn objects(design: &Design) -> Result<Objects, String> {
                 .filter(|r| r.kind == RegionType::ProgrammableFill)
             {
                 let pattern = fill_pattern(object.id, r, design)?;
-                match out.fill_patterns.as_slice() {
-                    [] => out.fill_patterns.push(pattern),
-                    [only] if *only == pattern => {}
-                    _ => {
-                        return Err(format!(
-                            "object {}: a second programmable fill pattern (PES 0110 holds one per file so far: which object field picks a pattern from the header's list is not mapped)",
-                            object.id
-                        ));
-                    }
+                list_pattern(&mut out.fill_patterns, pattern, object.id)?;
+            }
+            if let Some(r) = object.region.as_ref().filter(|r| !r.stamps.is_empty()) {
+                let (pattern, stamp) = stamp(object.id, r)?;
+                list_pattern(&mut out.fill_patterns, pattern, object.id)?;
+                if let Some(s) = out.shapes.last_mut() {
+                    s.stamps = vec![stamp];
                 }
             }
         }
@@ -342,11 +340,7 @@ fn applique_thread(t: &Thread) -> Option<Thread> {
 /// (deco-fill-1line-100mm): the free lines in a 1024-unit cell (the unit tile, y down, as
 /// `.plf` sources are read) and the tile size in 0.01 mm. Row-chained decorative patterns and
 /// tiles that aren't square are not mapped.
-fn decorative_pattern(
-    id: u64,
-    r: &RegionSewing,
-    design: &Design,
-) -> Result<openstitch_formats::pes11::PesPattern, String> {
+fn decorative_pattern(id: u64, r: &RegionSewing, design: &Design) -> Result<PesPattern, String> {
     use openstitch_design::patterns::{PatternKind, resolve};
     let pattern = resolve(
         &design.patterns,
@@ -366,13 +360,14 @@ fn decorative_pattern(
         ));
     }
     let cell = |v: f64| (v * 1024.0).round().clamp(-32768.0, 32767.0) as i16;
-    Ok(openstitch_formats::pes11::PesPattern {
+    Ok(PesPattern {
         size: (w * 100.0).round().clamp(0.0, 65535.0) as u16,
         polylines: pattern
             .paths
             .iter()
             .map(|path| path.iter().map(|p| (cell(p.x), cell(p.y))).collect())
             .collect(),
+        heads: Vec::new(),
     })
 }
 
@@ -380,11 +375,7 @@ fn decorative_pattern(
 /// (obj-progfill-owner-v): its tile's lines in a 1024-unit cell (a fill tile's unit square, y
 /// down, as `.pas` sources are read), and the tile size in 0.01 mm (750 for the owner's
 /// 7.5 mm V). Embossed or engraved areas, and a tile that isn't square, are not mapped.
-fn fill_pattern(
-    id: u64,
-    r: &RegionSewing,
-    design: &Design,
-) -> Result<openstitch_formats::pes11::PesPattern, String> {
+fn fill_pattern(id: u64, r: &RegionSewing, design: &Design) -> Result<PesPattern, String> {
     use openstitch_design::patterns::{PatternKind, resolve};
     let pattern = resolve(&design.patterns, PatternKind::Fill, r.pattern.as_deref());
     if !pattern.regions.is_empty() {
@@ -400,13 +391,14 @@ fn fill_pattern(
         ));
     }
     let cell = |v: f64| (v * 1024.0).round().clamp(-32768.0, 32767.0) as i16;
-    Ok(openstitch_formats::pes11::PesPattern {
+    Ok(PesPattern {
         size: (w * 100.0).round().clamp(0.0, 65535.0) as u16,
         polylines: pattern
             .paths
             .iter()
             .map(|path| path.iter().map(|p| (cell(p.x), cell(p.y))).collect())
             .collect(),
+        heads: Vec::new(),
     })
 }
 
@@ -826,8 +818,14 @@ fn text_object(
             })
         }
     };
-    if spec.direction == TextDirection::Vertical {
-        return refuse("vertical text");
+    // Vertical text: one column, from the click down (o-text-vertical, #608); PE-DESIGN's
+    // spacing between columns and its centred and right alignments have no owner file.
+    let vertical = spec.direction == TextDirection::Vertical;
+    if vertical && (spec.text.contains('\n') || spec.align != TextAlign::Left) {
+        return refuse("vertical text of several columns or not top-aligned");
+    }
+    if vertical && (fit.is_some() || spec.envelope.is_some()) {
+        return refuse("vertical text fitted to an outline or with a Text Transform");
     }
     if spec.custom_envelope.is_some() {
         // PE-DESIGN holds only its 26 Text Transform presets (#535).
@@ -958,6 +956,15 @@ fn text_object(
             b.max_x,
             b.max_y.max(t.ty),
         ],
+        // A vertical column: from the ascent line of a letter whose capital top is the click
+        // (0.59 × the size above it) down to the lowest letter (o-text-vertical: 953 to 1241
+        // with the click at 1000).
+        _ if vertical => [
+            b.min_x,
+            t.ty - (ASCENT_PER_SIZE - 1.0) * spec.size * 10.0,
+            b.max_x,
+            b.max_y,
+        ],
         // A straight text: from the ascent line down to the baseline or the lowest letter.
         _ => [b.min_x, ascent_line, b.max_x, b.max_y.max(t.ty)],
     };
@@ -967,7 +974,7 @@ fn text_object(
         letters,
         breaks,
         line_spacing: spec.line_spacing_percent as f32,
-        vertical: false,
+        vertical,
         transform: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
         align,
         // The Text tool's click: the alignment point of the first baseline (none when fitted).
@@ -1108,6 +1115,96 @@ fn envelope(spec: &TextSpec, preset: u8) -> Result<Envelope, String> {
         strength,
         geometry,
     })
+}
+
+/// Adds `pattern` to the header's first pattern list, which holds both programmable fill
+/// patterns and stamp outlines. One pattern per file is mapped: which object field picks a
+/// pattern from the list is not (capture requested on #608).
+fn list_pattern(list: &mut Vec<PesPattern>, pattern: PesPattern, id: u64) -> Result<(), String> {
+    match list.as_slice() {
+        [] => list.push(pattern),
+        [only] if *only == pattern => {}
+        _ => {
+            return Err(format!(
+                "object {id}: a second programmable fill pattern or stamp outline (PES 0110 holds one per file so far: which object field picks a pattern from the header's list is not mapped)"
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Size PE-DESIGN gives a stamp's pattern in the header's list (every round-10 capture).
+const STAMP_PATTERN_SIZE: u16 = 750;
+
+/// A region's stamp as PE-DESIGN's Convert from Outline writes it (#959, round-10
+/// `stamp-*-circle` references): the outline as a pattern in the 1024-unit cell of its bounds,
+/// closed by its first point twice as PE-DESIGN closes it, given again with head
+/// `[effect, 500, 1]` for a region effect (1 embossed, 2 engraved); the record holds the
+/// bounds' centre in file units and their size in 0.1 mm. One stamp with one outline per region
+/// is mapped.
+fn stamp(id: u64, r: &RegionSewing) -> Result<(PesPattern, PesStamp), String> {
+    use openstitch_design::stamp::StampEffect;
+    let [st] = r.stamps.as_slice() else {
+        return Err(format!(
+            "object {id}: {} stamps (PES 0110 export maps one stamp per region so far)",
+            r.stamps.len()
+        ));
+    };
+    let [contour] = st.contours.as_slice() else {
+        return Err(format!(
+            "object {id}: a stamp of {} outlines (PES 0110 export maps one)",
+            st.contours.len()
+        ));
+    };
+    let points = contour.outline_points();
+    let b = Rect::enclosing(points.iter().copied())
+        .filter(|b| b.width() >= 1.0 && b.height() >= 1.0)
+        .ok_or_else(|| format!("object {id}: a stamp smaller than 0.1 mm"))?;
+    let cell =
+        |v: f64, lo: f64, size: f64| ((v - lo) / size * 1024.0).round().clamp(0.0, 1024.0) as i16;
+    let mut line: Vec<(i16, i16)> = points
+        .iter()
+        .map(|p| {
+            (
+                cell(p.x, b.min_x, b.width()),
+                cell(p.y, b.min_y, b.height()),
+            )
+        })
+        .collect();
+    line.dedup();
+    if line.len() < 3 {
+        return Err(format!(
+            "object {id}: a stamp outline of fewer than three points"
+        ));
+    }
+    let first = line[0];
+    line.extend([first, first]);
+    let effect = match st.effect {
+        StampEffect::EngravedLine => None,
+        StampEffect::EmbossedRegion => Some(1),
+        StampEffect::EngravedRegion => Some(2),
+    };
+    let (polylines, heads) = match effect {
+        None => (vec![line], Vec::new()),
+        Some(e) => (vec![line.clone(), line], vec![[0, 0, 0], [e, 500, 1]]),
+    };
+    let (cx, cy) = file_xy(openstitch_design::v2(
+        (b.min_x + b.max_x) / 2.0,
+        (b.min_y + b.max_y) / 2.0,
+    ));
+    let size = |v: f64| v.round().clamp(1.0, f64::from(u16::MAX)) as u16;
+    Ok((
+        PesPattern {
+            size: STAMP_PATTERN_SIZE,
+            polylines,
+            heads,
+        },
+        PesStamp {
+            centre: [cx.round() as i16, cy.round() as i16],
+            size: [size(b.width()), size(b.height())],
+            rest: [0; 8],
+        },
+    ))
 }
 
 /// File coordinates: 0.1 mm from the page's top-left corner, offset by [`PAGE_ORIGIN`].
@@ -1865,10 +1962,10 @@ mod tests {
         spec.envelope_level = None;
         spec.envelope = None;
 
-        // A tab, a vertical text and a rotated text are refused with the reason.
+        // A tab, a vertical text of two columns and a rotated text are refused with the reason.
         for (text, vertical, rotate) in [
             ("A	B", false, false),
-            ("AB", true, false),
+            ("AB\nC", true, false),
             ("AB", false, true),
         ] {
             let mut s = TextSpec::new(text, text::DEFAULT_FONT, 10.0);

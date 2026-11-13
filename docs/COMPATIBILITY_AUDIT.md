@@ -578,6 +578,13 @@ Line references are relative to `crates/`.
   0.14 mm; Z 246/237, 0.24 mm, 1/0; Z-8 95/99, 0.16 mm. PE-DESIGN sews N, W, K and Z in one run
   without a trim (M with one): its strokes meet at the crotches instead of being cut apart, and
   N's and M's PE → ours distances (the spike at the acute corner) are the largest.
+  Since 2026-11-13 (#940, part): M and N start at the top of the left stem and run down under
+  it before its satin, as PE-DESIGN's do (we started at the foot). M 358 → 366 against 374, M-8
+  148 → 153 against 165, N 283 → 291 against 293, N-8 119 → 124 against 123; the other 19
+  satin captures are unchanged. The M, N and N-8 specs are now held to 3 % and M-8 to 8 %.
+  M-8's remaining gap: PE-DESIGN sews each stem's top as a fan with the diagonal's start (a
+  corner square, stem satin stopping below it), so its diagonals are shorter and its corners
+  denser, and it locks twice on the way down.
 - **Test:**
   - Inputs: `text.add {"text":"AVOW","size":30,"x":50,"y":50}` →
     `object.setRegion {"id":1,"type":"satin"}` → `design.generate`.
@@ -3495,8 +3502,9 @@ stitches, 66 trims, 8.7 → 9.0 min.
 ### Embossing and engraving as strong as PE-DESIGN's, 2026-11-12 (#471)
 
 PE-DESIGN 11.50's round-10 captures (`471-*.pes` in the owner's notes; the plain square is
-`compat/reference/stitches/stamp-plain-square-baseline.pes`, the three stamped ones wait for PES
-0110 import of a shape that carries a stamp, #959): a 40 mm square (42 mm with its line)
+`compat/reference/stitches/stamp-plain-square-baseline.pes`, the three stamped ones
+`stamp-engraved-line-circle.pes`, `stamp-embossed-region-circle.pes` and
+`stamp-engraved-region-circle.pes` since #959): a 40 mm square (42 mm with its line)
 with its default Fill (4.5 lines/mm, 45°, under sewing) and 2 mm Zigzag line, and a circle with a
 14.5 × 14.0 mm outline (16.5 × 16 mm with its own 2 mm line) in the middle converted with Stamp/Emboss > Convert from Outline. OpenStitch builds the
 same with `shape.emboss`. Inside the circle against outside (1 mm in from the circle and 3 mm in
@@ -4166,3 +4174,74 @@ twice the median 0.9 % → 0 % (`piping_travel_keeps_off_the_rows_at_a_lobe_tip`
 touches 8 kit designs by a few stitches (fills, Auto Punch's storybook and balloon, monograms,
 background fill; trims unchanged, each within ±2 % of its stitches and sew_check ok); compat
 unchanged.
+
+### PES 0110 import of a shape that carries a stamp, 2026-11-13 (#959)
+
+The three round-10 captures for #471 (a 40 mm Fill square whose middle circle, a 14.5 × 14.0 mm
+outline, became a stamp through Stamp/Emboss > Convert from Outline) imported nothing: their
+`CEmbLine` was "an unmapped variant", so `import.pes` found no objects. Against the plain
+square the stamped files differ in four places, the same in all three except the effect:
+
+- The header's first pattern list holds the stamp's outline as a pattern: size 750 and a
+  34-point polyline filling the 1024-unit cell (145 bytes in the list). A region effect adds the
+  outline again as a second polyline whose six bytes before its u16 1, zero in every fill, motif
+  and decorative pattern, are `[1, 500, 1]` for Embossed Region and `[2, 500, 1]` for Engraved
+  Region (291 bytes). The embossed and engraved region files differ in that one byte only.
+- The geometry header's last field, the u16 after the third mark, zero in every other file, is
+  the stamp count; 16 bytes per stamp follow it: the centre (1002, 1005 in file units), the size
+  in 0.1 mm (145 × 140) and eight zero bytes.
+- Body +188 goes from 0 to 1.
+
+`pes11::read_objects` now reads the polyline heads (`PesPattern::heads`) and the records
+(`Shape::stamps`), and writes them back unchanged (`a_shape_with_a_stamp_reads_and_writes_back`).
+`import.pes` turns each record into a stamp on the region: the effect from the heads, the
+outline scaled from the cell to the stamp's size around its centre (42.95–57.45 × 43.5–57.5 mm,
+the circle where PE-DESIGN drew it). Sewn again, the imported square comes within 5 % of
+PE-DESIGN's stitch count for each effect (`import_pes_reads_a_shape_that_carries_a_stamp`). The
+three files are now the PE references of `stamp-engraved-line-circle`,
+`stamp-embossed-region-circle` and `stamp-engraved-region-circle` (stitch count within 5 %, the
+emboss's longest stitch within 0.5 mm).
+
+Not mapped yet: which listed pattern a stamp uses when the header lists several (one is
+mapped; a capture with a programmable fill and a stamp would show it), the record's last eight
+bytes, and Brother's built-in stamps.
+
+### PES 0110 export writes a region's stamp, 2026-11-13 (#608)
+
+`design.export` with `pesVersion` 11 dropped a region's stamps without a word: the only object
+kind of #608 that was lost rather than refused. It now writes a stamp with the layout #959 read
+from PE-DESIGN's three Convert from Outline captures:
+- the record after the geometry header's marks: the outline's bounds centre in file units, their
+  size in 0.1 mm and eight zero bytes;
+- the outline as the header's listed pattern: size 750, its points in the 1024-unit cell of the
+  bounds, closed by its first point twice as PE-DESIGN closes it; for an embossed or engraved
+  region the outline again with head `[1, 500, 1]` or `[2, 500, 1]`;
+- body +188 set to 1.
+
+On the spec designs (the 40 mm square with the 14.5 × 14.0 mm circle at the page centre) the
+record matches PE-DESIGN's size (145 × 140) and zero tail, the centre is the circle's (1000, 1000,
+where PE-DESIGN's hand-drawn circle sat at 1002, 1005), the pattern has the same size, polyline count and
+heads, and the file imports back to the same stamp (`stamps_export_to_pes_0110_as_pe_design_writes_them`).
+Spec `pes-0110-stamps` asks the owner to open the export in PE-DESIGN 11.50; until then the
+reference is pending. Refused with the object named: several stamps on a region, a stamp of
+several outlines, and a stamp beside a programmable fill (one listed pattern per file: which
+object field picks a pattern is a capture requested on #608).
+
+### Vertical text laid out and written as PE-DESIGN's, 2026-11-13 (#608)
+
+PE-DESIGN 11.50's `o-text-vertical` ("ABC" in Lato, size 8, Satin, clicked at (30, 50) mm,
+Direction vertical) sews from the click down: 26.0–34.0 × 49.7–74.1 mm. Its letters stand one
+text size apart, and each capital hangs from the top of its cell: C's baseline is at
+50 + 2 × 8 + 8.19 mm (Lato's capital height at size 8). OpenStitch stacked the letters by the
+font's vertical cell (ascender − descender, 1.2 em) and, as `text.add` centres by default, about
+the click: 32.2–67.9 mm, 35.8 mm tall against PE-DESIGN's 24.4 mm. In PE-DESIGN's metrics, the
+default for new texts, a vertical letter's cell is now the text size and the first capital's top
+is the line's start. Top-aligned, the same text sews within 0.6 mm of PE-DESIGN's extent on every side, and so
+does PE-DESIGN's own file imported (`pes_version_11_writes_vertical_text_as_pe_design_lays_it_out`).
+Texts sized by capital height (older OpenStitch files) keep the font's vertical metrics.
+
+`design.export` with `pesVersion` 11 now writes one top-aligned vertical column: the vertical
+flag, the click as the column's top and the box from 0.59 × the size above it down to the lowest
+letter (PE-DESIGN's 760, 953 – 840, 1241; ours within 0.6 mm). Several columns, and centred or
+bottom-aligned columns, stay refused: PE-DESIGN's column spacing and alignment codes have no
+owner file. No kit design, example or compat spec uses vertical text.

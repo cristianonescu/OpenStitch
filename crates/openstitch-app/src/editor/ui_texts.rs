@@ -174,6 +174,11 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
     ),
     ("menu-keyboard-shortcuts", "Keyboard Shortcuts"),
     ("menu-check-for-updates", "Check for Updates"),
+    ("menu-report-a-problem", "Report a Problem"),
+    (
+        "menu-report-a-problem-tip",
+        "Open a new issue on GitHub with the version filled in, or find the crash reports",
+    ),
     ("menu-about-openstitch", "About OpenStitch"),
     ("menu-pes", "PES"),
     ("menu-exp", "EXP"),
@@ -1421,6 +1426,44 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
         "The update did not go through.",
     ),
     ("ui-try-again", "Try again"),
+    ("ui-find-objects", "Find objects"),
+    (
+        "ui-find-objects-tip",
+        "Shows only the objects whose name, stitch type, lettering or thread (brand, code or name) holds every word typed; Ctrl+F over the list, Enter selects them, Esc clears",
+    ),
+    ("ui-select-all-shown", "Select All Shown"),
+    (
+        "ui-select-all-shown-tip",
+        "Selects exactly the objects the filter shows, to recolour, change or hide them together",
+    ),
+    ("ui-copy-diagnostics", "Copy diagnostics"),
+    (
+        "ui-copy-diagnostics-tip",
+        "Copies the OpenStitch version and system to the clipboard, for a bug report",
+    ),
+    ("ui-window-report-a-problem", "Report a Problem"),
+    (
+        "ui-openstitch-closed-unexpectedly",
+        "OpenStitch closed unexpectedly last time.",
+    ),
+    (
+        "ui-a-crash-report-was-written",
+        "A crash report was written. Attaching it to a bug report helps fix the problem.",
+    ),
+    (
+        "ui-report-a-problem-on-github",
+        "Describe the problem in a new issue on GitHub. The version and system are filled in.",
+    ),
+    (
+        "ui-nothing-is-sent-from-openstitch",
+        "Nothing is sent from OpenStitch: you see the report and choose what to share.",
+    ),
+    ("ui-open-the-issue-page", "Open the Issue Page"),
+    ("ui-open-the-reports-folder", "Open the Reports Folder"),
+    (
+        "ui-open-the-reports-folder-tip",
+        "The crash reports, kept for 30 days, beside the autosave snapshots",
+    ),
     ("ui-checking-for-updates", "Checking for updates…"),
     ("ui-lighter", "Lighter"),
     ("ui-darker", "Darker"),
@@ -1823,6 +1866,7 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
     ),
     ("ui-status-imported-2", "Imported { $path }"),
     ("ui-status-optimise", "Optimise: { $summary }"),
+    ("ui-objects-shown", "{ $shown } of { $total } shown"),
     (
         "ui-status-new-shapes-start-with-these-settings",
         "New shapes start with these settings",

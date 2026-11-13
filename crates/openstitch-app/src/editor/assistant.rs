@@ -778,6 +778,7 @@ pub const HELP_ITEMS: &[(&str, &str)] = &[
     ("machineSetup", "Machine Setup"),
     ("shortcuts", "Keyboard Shortcuts"),
     ("checkUpdates", "Check for Updates"),
+    ("reportProblem", "Report a Problem"),
     ("about", "About OpenStitch"),
 ];
 

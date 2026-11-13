@@ -10,6 +10,7 @@ pub mod browser_limits;
 pub mod clipboard;
 pub mod close_prompt;
 pub mod conversions;
+pub mod crash;
 pub mod creator;
 pub mod database;
 pub mod edit_ops;

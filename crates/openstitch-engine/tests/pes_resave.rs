@@ -345,6 +345,175 @@ fn cross_stitch_times_import_sew_and_export_as_pe_design() {
     }
 }
 
+/// PE-DESIGN 11.50's stamps converted from an outline (#959, round-10 captures for #471: the
+/// 40 mm square with a 14.5 x 14.0 mm circle made an Engraved Line, an Embossed Region or an
+/// Engraved Region): the import gives the square's fill the stamp with its effect and the
+/// circle's outline where PE-DESIGN placed it, and the fill sewn again comes within 5 % of
+/// PE-DESIGN's stitch count.
+#[test]
+fn import_pes_reads_a_shape_that_carries_a_stamp() {
+    use openstitch_design::stamp::StampEffect;
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let dir = TempDir::canonical("resave-stamps");
+    for (name, effect) in [
+        ("engraved-line", StampEffect::EngravedLine),
+        ("embossed-region", StampEffect::EmbossedRegion),
+        ("engraved-region", StampEffect::EngravedRegion),
+    ] {
+        let reference = root.join(format!("compat/reference/stitches/stamp-{name}-circle.pes"));
+        let pe = pes::read(&std::fs::read(&reference).expect("reference"))
+            .expect("PES")
+            .count(openstitch_core::Command::Stitch);
+        std::fs::copy(&reference, dir.join("in.pes")).expect("copy");
+        let mut s = Session::new(dir.path());
+        run(
+            &mut s,
+            "design.new",
+            json!({"name": "t", "width": 100, "height": 100}),
+        );
+        let r = run(&mut s, "import.pes", json!({"path": "in.pes"}));
+        assert_eq!(r["skipped"], json!([]), "{name}");
+        let region = s
+            .design()
+            .objects
+            .iter()
+            .find_map(|o| o.region.clone())
+            .expect("region");
+        let [stamp] = region.stamps.as_slice() else {
+            panic!("{name}: {} stamps", region.stamps.len());
+        };
+        assert_eq!((stamp.effect, stamp.contours.len()), (effect, 1), "{name}");
+        // The circle's outline: 14.5 x 14.0 mm around (50.2, 50.5) mm.
+        let b = stamp.bounds().expect("bounds");
+        for (got, want) in [
+            (b.min_x, 429.5),
+            (b.max_x, 574.5),
+            (b.min_y, 435.0),
+            (b.max_y, 575.0),
+        ] {
+            assert!((got - want).abs() < 0.5, "{name}: {b:?}");
+        }
+        let ours = openstitch_design::Compiler::default()
+            .compile(s.design())
+            .count(openstitch_core::Command::Stitch);
+        assert!(
+            (ours as i64 - pe as i64).abs() * 100 <= pe as i64 * 5,
+            "{name}: {ours} against PE-DESIGN's {pe}"
+        );
+    }
+}
+
+/// A region's stamp exported as PES 0110 the way PE-DESIGN's Convert from Outline writes it
+/// (#608): the stamp record after the geometry marks and its outline as the header's listed
+/// pattern, with the same layout as PE-DESIGN's three round-10 captures (`stamp-*-circle`),
+/// and read back as the same stamp. Before, the exporter dropped stamps without a word.
+#[test]
+fn stamps_export_to_pes_0110_as_pe_design_writes_them() {
+    use openstitch_design::stamp::StampEffect;
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let dir = TempDir::canonical("export-stamps");
+    for (name, effect, id) in [
+        ("engraved-line", StampEffect::EngravedLine, "engravedLine"),
+        (
+            "embossed-region",
+            StampEffect::EmbossedRegion,
+            "embossedRegion",
+        ),
+        (
+            "engraved-region",
+            StampEffect::EngravedRegion,
+            "engravedRegion",
+        ),
+    ] {
+        let mut s = Session::new(dir.path());
+        run(
+            &mut s,
+            "design.new",
+            json!({"name": "t", "width": 100, "height": 100}),
+        );
+        run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": 30, "y": 30, "width": 40, "height": 40}),
+        );
+        run(
+            &mut s,
+            "shape.ellipse",
+            json!({"cx": 50, "cy": 50, "rx": 7.25, "ry": 7.0}),
+        );
+        run(
+            &mut s,
+            "shape.emboss",
+            json!({"id": 1, "tool": 2, "effect": id}),
+        );
+        run(
+            &mut s,
+            "design.export",
+            json!({"path": "out.pes", "pesVersion": "11"}),
+        );
+        let ours =
+            pes::read_objects(&std::fs::read(dir.join("out.pes")).expect("read")).expect("objects");
+        let pe = pes::read_objects(
+            &std::fs::read(root.join(format!("compat/reference/stitches/stamp-{name}-circle.pes")))
+                .expect("reference"),
+        )
+        .expect("objects");
+        let (a, b) = (&ours.shapes[0], &pe.shapes[0]);
+        assert_eq!(a.stamps.len(), 1, "{name}");
+        // Our circle is centred at (50, 50) mm, PE-DESIGN's was drawn at (50.2, 50.5).
+        assert_eq!(a.stamps[0].centre, [1000, 1000], "{name}");
+        assert_eq!(
+            (a.stamps[0].size, a.stamps[0].rest),
+            (b.stamps[0].size, b.stamps[0].rest),
+            "{name}"
+        );
+        let ([p], [q]) = (ours.fill_patterns.as_slice(), pe.fill_patterns.as_slice()) else {
+            panic!("{name}: {} patterns listed", ours.fill_patterns.len());
+        };
+        assert_eq!(
+            (p.size, p.polylines.len(), &p.heads),
+            (q.size, q.polylines.len(), &q.heads),
+            "{name}"
+        );
+        // Closed by its first point twice, and filling the cell, as PE-DESIGN's.
+        let line = &p.polylines[0];
+        assert_eq!(line[line.len() - 1], line[0], "{name}");
+        assert_eq!(line[line.len() - 2], line[0], "{name}");
+        let xs = line.iter().map(|q| q.0);
+        assert_eq!(
+            (xs.clone().min(), xs.max()),
+            (Some(0), Some(1024)),
+            "{name}"
+        );
+        // Imported again: the same stamp.
+        let mut t = Session::new(dir.path());
+        run(
+            &mut t,
+            "design.new",
+            json!({"name": "t", "width": 100, "height": 100}),
+        );
+        let r = run(&mut t, "import.pes", json!({"path": "out.pes"}));
+        assert_eq!(r["notes"], json!([]), "{name}");
+        let region = t
+            .design()
+            .objects
+            .iter()
+            .find_map(|o| o.region.clone())
+            .expect("region");
+        assert_eq!(region.stamps.len(), 1, "{name}");
+        assert_eq!(region.stamps[0].effect, effect, "{name}");
+        let bounds = region.stamps[0].bounds().expect("bounds");
+        for (got, want) in [
+            (bounds.min_x, 427.5),
+            (bounds.max_x, 572.5),
+            (bounds.min_y, 430.0),
+            (bounds.max_y, 570.0),
+        ] {
+            assert!((got - want).abs() < 1.0, "{name}: {bounds:?}");
+        }
+    }
+}
+
 #[test]
 fn import_pes_takes_the_objects_of_every_pe_design_file() {
     // #397: every PE-DESIGN `#PES0110` file imports as editable objects: shapes, texts and

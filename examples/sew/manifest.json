@@ -21,6 +21,7 @@
   "image": null,
   "preview": "previews/t1-swatches.png",
   "sha256": "06cc53830b92dfc1fd7d3fab078a301cb4ca0775e5b38edaca9fa546fa7fc941",
+  "renderVersion": 2,
   "swatches": [
    {
     "boxMM": [
@@ -307,6 +308,7 @@
   "image": null,
   "preview": "previews/t2-alternating-rows.png",
   "sha256": "1c194e12629b786842e5f29146cf0eb991d715d80ef8c130b338e33da66d3be6",
+  "renderVersion": 2,
   "swatches": [
    {
     "boxMM": [
@@ -590,7 +592,8 @@
   "sewingMinutes": 3.8,
   "image": "calibration/grey-ramp.png",
   "preview": "previews/ps2-grey-ramp.png",
-  "sha256": "d5b47ec31022db992557932c78e455ecc367b6d05727f647f5ba80a54112ca77"
+  "sha256": "d5b47ec31022db992557932c78e455ecc367b6d05727f647f5ba80a54112ca77",
+  "renderVersion": 2
  },
  "calibration/satin-and-underlay.pes": {
   "title": "Satin widths and underlay",
@@ -609,7 +612,8 @@
   "sewingMinutes": 6.2,
   "image": null,
   "preview": "previews/satin-and-underlay.png",
-  "sha256": "d4581deadcd9edf8ff68679596e6b2f9811eb95ca7608f3532b9f28a6e64d241"
+  "sha256": "d4581deadcd9edf8ff68679596e6b2f9811eb95ca7608f3532b9f28a6e64d241",
+  "renderVersion": 2
  },
  "machine-checks/satin-zigzag-rect.pes": {
   "title": "Machine check: Region satin is a zigzag across the column",
@@ -627,7 +631,8 @@
   "sewingMinutes": 0.1,
   "image": null,
   "preview": "previews/satin-zigzag-rect.png",
-  "sha256": "febcd48b52cb1394427f81cf21876035a76bcaa5cf67ebb3d816afd8ae94ea4a"
+  "sha256": "febcd48b52cb1394427f81cf21876035a76bcaa5cf67ebb3d816afd8ae94ea4a",
+  "renderVersion": 2
  },
  "machine-checks/machine-formats.pes": {
   "title": "Machine check: Machine formats carry the same stitches, trims and colour stops as PE-DESIGN 11's exports",
@@ -646,7 +651,8 @@
   "sewingMinutes": 0.5,
   "image": null,
   "preview": "previews/machine-formats.png",
-  "sha256": "dd57ea6e3d2f3f8e27c2ec15819dbdd3dde8659ddc16a842ef2473b974cba090"
+  "sha256": "dd57ea6e3d2f3f8e27c2ec15819dbdd3dde8659ddc16a842ef2473b974cba090",
+  "renderVersion": 2
  },
  "machine-checks/shape-start-points.pes": {
   "title": "Machine check: Shape-tool shapes start and end where PE-DESIGN 11 puts them",
@@ -671,7 +677,8 @@
   "sewingMinutes": 4.0,
   "image": null,
   "preview": "previews/shape-start-points.png",
-  "sha256": "d23c728f036807dab7fd6db0ac08b5c0d619cc8a85e3ad2f6086c61aca29d019"
+  "sha256": "d23c728f036807dab7fd6db0ac08b5c0d619cc8a85e3ad2f6086c61aca29d019",
+  "renderVersion": 2
  },
  "machine-checks/pes-default-v6.pes": {
   "title": "Machine check: Default PES is version 6 with objects and a thread table",
@@ -690,7 +697,8 @@
   "sewingMinutes": 0.2,
   "image": null,
   "preview": "previews/pes-default-v6.png",
-  "sha256": "c7f5b6f70a4ea0c460b9edb73e9cc729414cf3df1a8173115ec2211ee97ac8b7"
+  "sha256": "c7f5b6f70a4ea0c460b9edb73e9cc729414cf3df1a8173115ec2211ee97ac8b7",
+  "renderVersion": 2
  },
  "fills/region-sew-types-1.pes": {
   "title": "Region sew types (1 of 2)",
@@ -716,7 +724,8 @@
   "sewingMinutes": 9.5,
   "image": null,
   "preview": "previews/region-sew-types-1.png",
-  "sha256": "73f75cfcd7a869e2abfb02288d09fc919bab835e7f03b30e2e1f0622491adb8f"
+  "sha256": "73f75cfcd7a869e2abfb02288d09fc919bab835e7f03b30e2e1f0622491adb8f",
+  "renderVersion": 2
  },
  "fills/region-sew-types-2.pes": {
   "title": "Region sew types (2 of 2)",
@@ -742,7 +751,8 @@
   "sewingMinutes": 6.1,
   "image": null,
   "preview": "previews/region-sew-types-2.png",
-  "sha256": "8c417eab8c0897b0276a3e0a18166ced7a2077d2636707abc0a97eaefe0063dd"
+  "sha256": "8c417eab8c0897b0276a3e0a18166ced7a2077d2636707abc0a97eaefe0063dd",
+  "renderVersion": 2
  },
  "fills/fill-options.pes": {
   "title": "Fill and satin options",
@@ -768,7 +778,8 @@
   "sewingMinutes": 10.8,
   "image": null,
   "preview": "previews/fill-options.png",
-  "sha256": "3d306de7843e7d056cb447434fdc7dcb13646b572428eb1073844b83ca1fe8c1"
+  "sha256": "3d306de7843e7d056cb447434fdc7dcb13646b572428eb1073844b83ca1fe8c1",
+  "renderVersion": 2
  },
  "fills/tatami-textures-1.pes": {
   "title": "Tatami textures (1 of 2)",
@@ -794,7 +805,8 @@
   "sewingMinutes": 12.3,
   "image": null,
   "preview": "previews/tatami-textures-1.png",
-  "sha256": "1752e583777f05309ef723fd03d07446f23b3aa4b2167031b86f1732ec35b86c"
+  "sha256": "1752e583777f05309ef723fd03d07446f23b3aa4b2167031b86f1732ec35b86c",
+  "renderVersion": 2
  },
  "fills/tatami-textures-2.pes": {
   "title": "Tatami textures (2 of 2)",
@@ -816,7 +828,8 @@
   "sewingMinutes": 7.0,
   "image": null,
   "preview": "previews/tatami-textures-2.png",
-  "sha256": "22c25c46e18015dcc37a82eb1468fabb030b10046d97929b53675eb78f61294e"
+  "sha256": "22c25c46e18015dcc37a82eb1468fabb030b10046d97929b53675eb78f61294e",
+  "renderVersion": 2
  },
  "fills/underlay-styles.pes": {
   "title": "Underlay styles",
@@ -842,7 +855,8 @@
   "sewingMinutes": 11.8,
   "image": null,
   "preview": "previews/underlay-styles.png",
-  "sha256": "a42898b219576b5d9c78a22efb4e123d5ffdcf51b4b87c6bc79a0e91999a0c11"
+  "sha256": "a42898b219576b5d9c78a22efb4e123d5ffdcf51b4b87c6bc79a0e91999a0c11",
+  "renderVersion": 2
  },
  "fills/holes-and-emboss.pes": {
   "title": "Hole sewing, engraving and embossing",
@@ -862,7 +876,8 @@
   "sewingMinutes": 12.9,
   "image": null,
   "preview": "previews/holes-and-emboss.png",
-  "sha256": "87ccb6abf4c8e25686d47cd0b616c146aba6e00f08e097a08af6b0489e9b47eb"
+  "sha256": "87ccb6abf4c8e25686d47cd0b616c146aba6e00f08e097a08af6b0489e9b47eb",
+  "renderVersion": 2
  },
  "fills/wave-fill.pes": {
   "title": "Wave fill (beyond PE-DESIGN)",
@@ -885,7 +900,8 @@
   "sewingMinutes": 17.3,
   "image": null,
   "preview": "previews/wave-fill.png",
-  "sha256": "4fe9dd173ecfacb4ae3fc449788349cbd5e05759c80b3c9f719e6bb010a1c7ae"
+  "sha256": "4fe9dd173ecfacb4ae3fc449788349cbd5e05759c80b3c9f719e6bb010a1c7ae",
+  "renderVersion": 2
  },
  "fills/meander-tiles-1.pes": {
   "title": "Meander fill tiles (1 of 2, beyond PE-DESIGN)",
@@ -908,7 +924,8 @@
   "sewingMinutes": 4.7,
   "image": null,
   "preview": "previews/meander-tiles-1.png",
-  "sha256": "04f4b4135be709872600083f4e5458028592720c8c7076984fd97f93e59ba599"
+  "sha256": "04f4b4135be709872600083f4e5458028592720c8c7076984fd97f93e59ba599",
+  "renderVersion": 2
  },
  "fills/meander-tiles-2.pes": {
   "title": "Meander fill tiles (2 of 2, beyond PE-DESIGN)",
@@ -931,7 +948,8 @@
   "sewingMinutes": 3.0,
   "image": null,
   "preview": "previews/meander-tiles-2.png",
-  "sha256": "aeb1b045ca365b89a20c63e9a1075c7c63fb81e852a898bc3bfe5ba2eaf8571a"
+  "sha256": "aeb1b045ca365b89a20c63e9a1075c7c63fb81e852a898bc3bfe5ba2eaf8571a",
+  "renderVersion": 2
  },
  "fills/gradients.pes": {
   "title": "Colour blends and gradient fills (beyond PE-DESIGN)",
@@ -957,7 +975,8 @@
   "sewingMinutes": 20.4,
   "image": null,
   "preview": "previews/gradients.png",
-  "sha256": "238300c428ba3c3eaee193d4e022317ab08b4ead328a2fff0596e4498b009a27"
+  "sha256": "238300c428ba3c3eaee193d4e022317ab08b4ead328a2fff0596e4498b009a27",
+  "renderVersion": 2
  },
  "fills/angle-lines.pes": {
   "title": "Stitch angle lines (beyond PE-DESIGN)",
@@ -975,7 +994,8 @@
   "sewingMinutes": 5.8,
   "image": null,
   "preview": "previews/angle-lines.png",
-  "sha256": "77a309fad204a206e241f0729cc60b3b95d7c8aaa293e9afa28fe1cc416b66c7"
+  "sha256": "77a309fad204a206e241f0729cc60b3b95d7c8aaa293e9afa28fe1cc416b66c7",
+  "renderVersion": 2
  },
  "fills/tartan.pes": {
   "title": "Tartan fill (beyond PE-DESIGN)",
@@ -995,7 +1015,8 @@
   "sewingMinutes": 4.7,
   "image": null,
   "preview": "previews/tartan.png",
-  "sha256": "a6d893b681fda4c8f4c71cba3a0ee3a5295a6969b0bba2f960f5c8057e3f83cf"
+  "sha256": "a6d893b681fda4c8f4c71cba3a0ee3a5295a6969b0bba2f960f5c8057e3f83cf",
+  "renderVersion": 2
  },
  "fills/maze-fill.pes": {
   "title": "Maze fill (beyond PE-DESIGN)",
@@ -1018,7 +1039,8 @@
   "sewingMinutes": 1.7,
   "image": null,
   "preview": "previews/maze-fill.png",
-  "sha256": "574b908cabe3f7b7aee6bb40c6e59148822de7dec7603084a96a32eb4f5344a5"
+  "sha256": "574b908cabe3f7b7aee6bb40c6e59148822de7dec7603084a96a32eb4f5344a5",
+  "renderVersion": 2
  },
  "lines/line-sew-types.pes": {
   "title": "Line sew types",
@@ -1044,7 +1066,8 @@
   "sewingMinutes": 4.8,
   "image": null,
   "preview": "previews/line-sew-types.png",
-  "sha256": "bd09dae564d7191a8eb254d12db92278d680a670aa22d9c5220d5627f49fb487"
+  "sha256": "bd09dae564d7191a8eb254d12db92278d680a670aa22d9c5220d5627f49fb487",
+  "renderVersion": 2
  },
  "shapes/shape-tools.pes": {
   "title": "Shape tools",
@@ -1071,7 +1094,8 @@
   "sewingMinutes": 6.1,
   "image": null,
   "preview": "previews/shape-tools.png",
-  "sha256": "84be20f42b1543be8271479a9f197ed1549689333952e48d2a8ced95b267a09c"
+  "sha256": "84be20f42b1543be8271479a9f197ed1549689333952e48d2a8ced95b267a09c",
+  "renderVersion": 2
  },
  "shapes/decorative-frames.pes": {
   "title": "Decorative frames",
@@ -1099,7 +1123,8 @@
   "sewingMinutes": 3.4,
   "image": null,
   "preview": "previews/decorative-frames.png",
-  "sha256": "d0f0f3c84c524d10f71ff88e94b452f94810a16997566d9a6f3de96aa88d894d"
+  "sha256": "d0f0f3c84c524d10f71ff88e94b452f94810a16997566d9a6f3de96aa88d894d",
+  "renderVersion": 2
  },
  "lettering/fonts-and-text.pes": {
   "title": "Lettering",
@@ -1109,18 +1134,19 @@
    71.0,
    89.7
   ],
-  "stitches": 3876,
-  "trims": 39,
+  "stitches": 3884,
+  "trims": 40,
   "threads": [
    "405 Blue",
    "800 Red",
    "509 Leaf Green",
    "620 Magenta"
   ],
-  "sewingMinutes": 6.8,
+  "sewingMinutes": 6.9,
   "image": null,
   "preview": "previews/fonts-and-text.png",
-  "sha256": "ffb931aec66a907c64a9c81573a1eb21dc925511b071df2bd5e2b8172ab90ffc"
+  "sha256": "3e7b3a84e64ccada89e3ff76ad62a0a5a7a451fc2c37ef2b31e954916f201747",
+  "renderVersion": 2
  },
  "lettering/monograms.pes": {
   "title": "Monograms",
@@ -1145,7 +1171,8 @@
   "sewingMinutes": 10.3,
   "image": null,
   "preview": "previews/monograms.png",
-  "sha256": "cb5e86183312fa108028b1d53763d68a249477dc0228ffd70ce957e32612497b"
+  "sha256": "cb5e86183312fa108028b1d53763d68a249477dc0228ffd70ce957e32612497b",
+  "renderVersion": 2
  },
  "wizards/applique.pes": {
   "title": "Appliqué wizard",
@@ -1165,7 +1192,8 @@
   "sewingMinutes": 1.8,
   "image": null,
   "preview": "previews/applique.png",
-  "sha256": "031104a0ceb2703f7f3315e4e4e90820062b9e2aed9c54ae55b0c53ef8fc058e"
+  "sha256": "031104a0ceb2703f7f3315e4e4e90820062b9e2aed9c54ae55b0c53ef8fc058e",
+  "renderVersion": 2
  },
  "wizards/patch.pes": {
   "title": "Embroidered patch wizard",
@@ -1185,7 +1213,8 @@
   "sewingMinutes": 3.8,
   "image": null,
   "preview": "previews/patch.png",
-  "sha256": "16ce633d685d36729260d2f42706ad84e5a17a5d70e22b917bdb24f6efd7c4d1"
+  "sha256": "16ce633d685d36729260d2f42706ad84e5a17a5d70e22b917bdb24f6efd7c4d1",
+  "renderVersion": 2
  },
  "wizards/cutwork.pes": {
   "title": "Cutwork wizard",
@@ -1205,7 +1234,8 @@
   "sewingMinutes": 4.7,
   "image": null,
   "preview": "previews/cutwork.png",
-  "sha256": "6502c22740ab27927f654395ae1280669656809109b4fcfdc75c081cf4252c3b"
+  "sha256": "6502c22740ab27927f654395ae1280669656809109b4fcfdc75c081cf4252c3b",
+  "renderVersion": 2
  },
  "wizards/background-fill.pes": {
   "title": "Background fill wizard",
@@ -1225,7 +1255,8 @@
   "sewingMinutes": 5.3,
   "image": null,
   "preview": "previews/background-fill.png",
-  "sha256": "6a6fb6facc86971475d3d56094f2b3ebed1a20a2e151e503953ff5ff55252cf6"
+  "sha256": "6a6fb6facc86971475d3d56094f2b3ebed1a20a2e151e503953ff5ff55252cf6",
+  "renderVersion": 2
  },
  "image-tools/S-autopunch-balloon-openstitch.pes": {
   "title": "Auto Punch, OpenStitch mode",
@@ -1249,7 +1280,8 @@
   "sewingMinutes": 10.7,
   "image": "../images/g02-balloon.png",
   "preview": "previews/S-autopunch-balloon-openstitch.png",
-  "sha256": "f067e0a181217c28e1918a638ae8783dbc668e9b7353c5ad86691b3178b11955"
+  "sha256": "f067e0a181217c28e1918a638ae8783dbc668e9b7353c5ad86691b3178b11955",
+  "renderVersion": 2
  },
  "image-tools/S-autopunch-balloon-pe-compatible.pes": {
   "title": "Auto Punch, PE-DESIGN-compatible mode",
@@ -1271,7 +1303,8 @@
   "sewingMinutes": 7.9,
   "image": "../images/g02-balloon.png",
   "preview": "previews/S-autopunch-balloon-pe-compatible.png",
-  "sha256": "708a356e137babc835a56a909d670df6cc5b4cd2f4bf2b73377485697f20674a"
+  "sha256": "708a356e137babc835a56a909d670df6cc5b4cd2f4bf2b73377485697f20674a",
+  "renderVersion": 2
  },
  "image-tools/S-cross-stitch-strawberry-openstitch.pes": {
   "title": "Cross Stitch, OpenStitch mode",
@@ -1293,7 +1326,8 @@
   "sewingMinutes": 16.9,
   "image": "../images/g07-pixel-strawberry.png",
   "preview": "previews/S-cross-stitch-strawberry-openstitch.png",
-  "sha256": "b1c3e21e79aaeceb99d2d7c613d86cd27cb4c3f00735069a2dd8f670b098f700"
+  "sha256": "b1c3e21e79aaeceb99d2d7c613d86cd27cb4c3f00735069a2dd8f670b098f700",
+  "renderVersion": 2
  },
  "image-tools/S-cross-stitch-strawberry-pe-compatible.pes": {
   "title": "Cross Stitch, PE-DESIGN-compatible mode",
@@ -1315,7 +1349,8 @@
   "sewingMinutes": 10.7,
   "image": "../images/g07-pixel-strawberry.png",
   "preview": "previews/S-cross-stitch-strawberry-pe-compatible.png",
-  "sha256": "d7745dd16659484ffdeb3e820b7aa7db3c003db64e3bdb0ee5de89cc6506e0be"
+  "sha256": "d7745dd16659484ffdeb3e820b7aa7db3c003db64e3bdb0ee5de89cc6506e0be",
+  "renderVersion": 2
  },
  "image-tools/S-design-center-butterfly-openstitch.pes": {
   "title": "Design Center, OpenStitch mode",
@@ -1333,7 +1368,8 @@
   "sewingMinutes": 9.0,
   "image": "../images/g04-butterfly-outline.png",
   "preview": "previews/S-design-center-butterfly-openstitch.png",
-  "sha256": "139d2b2a593d2d55c5f408fbf7f31386c77d58afd94b058ed095d3968c662fb4"
+  "sha256": "139d2b2a593d2d55c5f408fbf7f31386c77d58afd94b058ed095d3968c662fb4",
+  "renderVersion": 2
  },
  "image-tools/S-design-center-butterfly-pe-compatible.pes": {
   "title": "Design Center, PE-DESIGN-compatible mode",
@@ -1351,7 +1387,8 @@
   "sewingMinutes": 3.0,
   "image": "../images/g04-butterfly-outline.png",
   "preview": "previews/S-design-center-butterfly-pe-compatible.png",
-  "sha256": "f870a2a082ddf6616d8129a51730c6cbc4299e76899d088f6e17f571d258b25d"
+  "sha256": "f870a2a082ddf6616d8129a51730c6cbc4299e76899d088f6e17f571d258b25d",
+  "renderVersion": 2
  },
  "image-tools/S-photo1-sunset-openstitch.pes": {
   "title": "Photo Stitch 1, OpenStitch mode",
@@ -1379,7 +1416,8 @@
   "sewingMinutes": 15.1,
   "image": "../images/p06-sunset.jpg",
   "preview": "previews/S-photo1-sunset-openstitch.png",
-  "sha256": "0b641a0119055dbc6247947d27eac4364c5b9c3d2f6759df94ebd37dbc13fd2f"
+  "sha256": "0b641a0119055dbc6247947d27eac4364c5b9c3d2f6759df94ebd37dbc13fd2f",
+  "renderVersion": 2
  },
  "image-tools/S-photo1-sunset-pe-compatible.pes": {
   "title": "Photo Stitch 1, PE-DESIGN-compatible mode",
@@ -1406,7 +1444,8 @@
   "sewingMinutes": 13.7,
   "image": "../images/p06-sunset.jpg",
   "preview": "previews/S-photo1-sunset-pe-compatible.png",
-  "sha256": "a6886a8f6c76402cf37228467602c7575074220c521dd282f934811eaff8bd7f"
+  "sha256": "a6886a8f6c76402cf37228467602c7575074220c521dd282f934811eaff8bd7f",
+  "renderVersion": 2
  },
  "image-tools/M-photo1-portrait-openstitch.pes": {
   "title": "Photo Stitch 1, OpenStitch mode",
@@ -1434,7 +1473,8 @@
   "sewingMinutes": 56.4,
   "image": "../images/p01-portrait.jpg",
   "preview": "previews/M-photo1-portrait-openstitch.png",
-  "sha256": "8f920462de4365f7903594ba784c1b3cf44f5d4ac573ac559fac68f40c51b2d6"
+  "sha256": "8f920462de4365f7903594ba784c1b3cf44f5d4ac573ac559fac68f40c51b2d6",
+  "renderVersion": 2
  },
  "image-tools/M-photo1-portrait-pe-compatible.pes": {
   "title": "Photo Stitch 1, PE-DESIGN-compatible mode",
@@ -1458,7 +1498,8 @@
   "sewingMinutes": 36.2,
   "image": "../images/p01-portrait.jpg",
   "preview": "previews/M-photo1-portrait-pe-compatible.png",
-  "sha256": "c2b28ab7c5a85331056746034d26088f5d1369bb19119fe66b5955f4fa4eb017"
+  "sha256": "c2b28ab7c5a85331056746034d26088f5d1369bb19119fe66b5955f4fa4eb017",
+  "renderVersion": 2
  },
  "image-tools/M-photo2-poppies-openstitch.pes": {
   "title": "Photo Stitch 2, OpenStitch mode",
@@ -1479,7 +1520,8 @@
   "sewingMinutes": 76.2,
   "image": "../images/p08-poppies.jpg",
   "preview": "previews/M-photo2-poppies-openstitch.png",
-  "sha256": "f011ea0f9e31aa0f3d7f14392fbad28b01a93596dc8cc783e1b554b0649d0822"
+  "sha256": "f011ea0f9e31aa0f3d7f14392fbad28b01a93596dc8cc783e1b554b0649d0822",
+  "renderVersion": 2
  },
  "image-tools/M-photo2-poppies-pe-compatible.pes": {
   "title": "Photo Stitch 2, PE-DESIGN-compatible mode",
@@ -1500,7 +1542,8 @@
   "sewingMinutes": 80.5,
   "image": "../images/p08-poppies.jpg",
   "preview": "previews/M-photo2-poppies-pe-compatible.png",
-  "sha256": "6826458982b3b0261453278804f73ac4734d6f42db2789316b6ce93889f5f260"
+  "sha256": "6826458982b3b0261453278804f73ac4734d6f42db2789316b6ce93889f5f260",
+  "renderVersion": 2
  },
  "image-tools/L-autopunch-storybook-openstitch.pes": {
   "title": "Auto Punch, OpenStitch mode",
@@ -1527,7 +1570,8 @@
   "sewingMinutes": 173.0,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-openstitch.png",
-  "sha256": "38d2caf613c29565417e4b5fc73f0411a58596a50c44b37a38a1fc69d3fc1437"
+  "sha256": "38d2caf613c29565417e4b5fc73f0411a58596a50c44b37a38a1fc69d3fc1437",
+  "renderVersion": 2
  },
  "image-tools/L-autopunch-storybook-pe-compatible.pes": {
   "title": "Auto Punch, PE-DESIGN-compatible mode",
@@ -1554,6 +1598,7 @@
   "sewingMinutes": 245.1,
   "image": "../images/p03-storybook.jpg",
   "preview": "previews/L-autopunch-storybook-pe-compatible.png",
-  "sha256": "b290276be044159c228284e343d21b7a00319a3ad9c67b51aeb22f954723baad"
+  "sha256": "b290276be044159c228284e343d21b7a00319a3ad9c67b51aeb22f954723baad",
+  "renderVersion": 2
  }
 }

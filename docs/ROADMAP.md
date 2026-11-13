@@ -144,8 +144,12 @@ reduced with Lanczos, instead of the page-fit screenshot at 5–7 px/mm. Row-to-
 a filled patch falls from 39 to 13 grey levels on angle-lines, 34 to 5 on tatami-textures-1 and 19
 to 11 on the sunset photo; the T1 card's swatches stay within 6 levels of the page-fit preview
 (sum of differences from the scans 132 before, 134 after). A kit build takes about three times as
-long (50 min on Windows). The gallery images are redrawn this way at the next release refresh. The Realistic view itself still shows
-the stripes when zoomed out: #907 (Future) supersamples it in the app.
+long (50 min on Windows). The gallery images are redrawn this way at the next release refresh. In the Realistic view itself
+(#907, 2026-11-13) the desktop window draws with 4x MSAA and the threads as one mesh without
+feathered edges; a thread under 3 px wide is one colour, its shading mixed by area. On a 20 mm
+fill at 4.5 rows/mm and 5.2 px/mm the row spread falls from 105 to 31 grey levels (std 25 to 9);
+the T1 swatches move up to 22 levels lighter at page fit, closer to the white-cotton scans (mean
+distance 13.6 to 9.5); the 112k-stitch storybook draws in about a third of the time.
 
 Done 2026-11-06 (#295, #441, #311, #312): the kit has a T2 card (two threads in alternating rows,
 to measure how far a later row covers its neighbour for Photo Stitch 1), the build checks every
@@ -203,7 +207,11 @@ text is the same on all three systems (#609, verified on Linux: the spec's refer
 in the repository). Left for later: programmable and motif fill along a direction curve still
 bend their tiles by the chord, and emboss and engrave strength against PE-DESIGN (#471). Programmable
 fill tiles the curve's own frame since 2026-11-12 (#923, #928; #927 and #947 for U-shaped curves),
-and stamps are as strong as PE-DESIGN's (#956); motif fill still uses the chord.
+and stamps are as strong as PE-DESIGN's (#956); motif fill still uses the chord. Done
+2026-11-13 (#959): PES 0110 import reads a shape that carries a stamp (effect, outline, place
+and size), so PE-DESIGN's three stamped captures are the `stamp-*-circle` specs' references. PES 0110
+export writes a region's stamp the same way since 2026-11-13 (#608), and vertical text is laid
+out as PE-DESIGN's and written as one column (#608).
 
 Done 2026-11-05 (#460-#464): the stitch-engine follow-ups of the review. Narrow Auto satin no
 longer starts with a 39.5 mm stitch, Auto Punch sews regions whose satin would cross more than

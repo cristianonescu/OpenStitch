@@ -111,6 +111,11 @@ pub fn objects(section: &ObjectSection) -> Imported {
                         r.pattern = id;
                     }
                 }
+                if !s.stamps.is_empty()
+                    && let Err(why) = add_stamps(&mut o, s, &section.fill_patterns)
+                {
+                    out.notes.push((position, format!("its stamps were not imported: {why}")));
+                }
                 let Some(r) = o.region.as_mut() else {
                     return Ok(o);
                 };
@@ -342,6 +347,77 @@ fn object(s: &Shape, table: &[Thread]) -> Result<DesignObject, String> {
         o.name = Some("Manual punch".into());
     }
     Ok(o)
+}
+
+/// The shape's stamps (Stamp/Emboss > Convert from Outline) as the region's stamps. Each takes
+/// its outline from the header's first pattern list, scaled from the 1024-unit cell to the
+/// stamp's size around its centre. A region polyline (head `[1, …]` Embossed Region, `[2, …]`
+/// Engraved Region) gives that effect on its own outline; a pattern with only plain polylines is
+/// an Engraved Line (round-10 `471-*-circle.pes`, #959). Only one listed pattern is mapped:
+/// which pattern a stamp uses with several listed has not been captured.
+fn add_stamps(o: &mut DesignObject, s: &Shape, listed: &[PesPattern]) -> Result<(), String> {
+    use openstitch_design::stamp::{STAMP_TYPES, Stamp, StampEffect};
+    let r = o
+        .region
+        .as_mut()
+        .filter(|r| STAMP_TYPES.contains(&r.kind))
+        .ok_or("a region type that takes no stamps")?;
+    let [p] = listed else {
+        return Err(format!(
+            "{} patterns listed in the file (one is mapped)",
+            listed.len()
+        ));
+    };
+    let effect = |head: [u16; 3]| match head[0] {
+        1 => Some(StampEffect::EmbossedRegion),
+        2 => Some(StampEffect::EngravedRegion),
+        _ => None,
+    };
+    let regions: Vec<usize> = (0..p.polylines.len())
+        .filter(|&k| effect(p.head(k)).is_some())
+        .collect();
+    let (kind, lines) = match regions.as_slice() {
+        [] => (StampEffect::EngravedLine, (0..p.polylines.len()).collect()),
+        [k, ..]
+            if regions
+                .iter()
+                .all(|&j| effect(p.head(j)) == effect(p.head(*k))) =>
+        {
+            (
+                effect(p.head(*k)).expect("a region effect"),
+                regions.clone(),
+            )
+        }
+        _ => return Err("a pattern with both region effects".into()),
+    };
+    for stamp in &s.stamps {
+        let contours: Vec<Contour> = lines
+            .iter()
+            .filter_map(|&k| {
+                let mut points: Vec<Vec2> = Vec::new();
+                for &q in &p.polylines[k] {
+                    let (x, y) = stamp.place(q);
+                    let v = design_xy(x, y);
+                    if points.last().is_none_or(|l| l.distance(v) > 1e-6) {
+                        points.push(v);
+                    }
+                }
+                if points.len() > 1 && points[0].distance(points[points.len() - 1]) <= 1e-6 {
+                    points.pop();
+                }
+                (points.len() >= 3).then(|| Contour::new(points, true))
+            })
+            .collect();
+        if contours.is_empty() {
+            return Err("a stamp outline of fewer than three points".into());
+        }
+        r.stamps.push(Stamp {
+            effect: kind,
+            contours,
+            pattern: None,
+        });
+    }
+    Ok(())
 }
 
 /// A pattern of the file as a design pattern (lines in the unit tile, as the exporter writes
@@ -640,7 +716,7 @@ fn stitch_object(g: &StitchGroup, table: &[Thread]) -> DesignObject {
 pub fn commands() -> Vec<CommandSpec> {
     vec![spec(
         "import.pes",
-        "Import a PE-DESIGN 11 PES file's objects (shapes, Manual Punch blocks, texts and stitch groups) as editable objects",
+        "Import a PE-DESIGN 11 PES file's objects (shapes with their stamps, Manual Punch blocks, texts and stitch groups) as editable objects",
         Effect::Edit,
         vec![
             req(
