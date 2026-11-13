@@ -1029,6 +1029,15 @@ fn cut_sharp(
             }
         }
     }
+    // A corner with cuts on both sides of it along an open stroke (W's middle apex, M's middle
+    // V) is not cut: PE-DESIGN sews the two diagonals there as one column through the corner,
+    // its crossings fanned round it (stroke-satin-W: 155 crossings from the first foot over the
+    // apex to the second, block running at 23 degrees; M-8: 65 crossings), as it fans L's corner.
+    // A corner with a free end or a junction on one side (V's foot, A's apex, N's and W's outer
+    // corners) is still cut (#1064).
+    if !closed && cuts.len() >= 3 {
+        cuts = vec![cuts[0], cuts[cuts.len() - 1]];
+    }
     if cuts.is_empty() {
         return vec![(centre.to_vec(), closed, ends)];
     }
@@ -1733,9 +1742,32 @@ fn bends(st: &Stroke) -> bool {
             cos.clamp(-1.0, 1.0).dacos().to_degrees()
         })
         .collect();
+    // A hairpin (a corner left uncut, W's middle apex and M's middle V, #1064) is paired by the
+    // centre line's progress too: PE-DESIGN's crossings stay across each diagonal and fan round
+    // the apex, the notch side waiting at the notch's tip while the outer side runs over the top.
+    let wide = (total / HAIRPIN_STEP).floor() as usize;
+    if wide >= 2 {
+        let at: Vec<Vec2> = (0..=wide)
+            .map(|k| point_at(&st.centre, total * k as f64 / wide as f64))
+            .collect();
+        let hairpin = at.windows(3).any(|w| {
+            let (u, v) = (w[1] - w[0], w[2] - w[1]);
+            let cos = (u.x * v.x + u.y * v.y) / (u.length() * v.length()).max(1e-12);
+            cos.clamp(-1.0, 1.0).dacos().to_degrees() > HAIRPIN
+        });
+        if hairpin {
+            return true;
+        }
+    }
     turns.sort_by(f64::total_cmp);
     turns.get(turns.len() / 2).is_some_and(|&t| t > BEND)
 }
+
+/// A centre line turning by more than this (degrees) between two [`HAIRPIN_STEP`] stretches
+/// doubles back: a hairpin ([`bends`]).
+const HAIRPIN: f64 = 100.0;
+/// See [`HAIRPIN`] (0.1 mm): the thinning rounds a V's tip over a few millimetres.
+const HAIRPIN_STEP: f64 = 30.0;
 
 // ------------------------------------------------------------------ order
 
