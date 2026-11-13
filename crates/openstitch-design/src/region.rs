@@ -2389,6 +2389,16 @@ pub fn lock_points_by(a: Vec2, b: Vec2, step: f64) -> Vec<Vec2> {
         .collect()
 }
 
+/// Whether `p` and `q` are the same needle point once written: the same point of the 0.1 mm grid
+/// every machine file rounds to (#1032). Two points under 0.05 mm apart could round to
+/// neighbouring grid points, so a satin's tip that came back within 0.05 mm of its end counted as
+/// a lock while the file sewed no stitch back to it (Auto Punch's satin and fill ends, PE mode:
+/// 75 untied ends on the storybook, 3 on the balloon).
+fn same_needle_point(p: Vec2, q: Vec2) -> bool {
+    use openstitch_core::round_coordinate as r;
+    (r(p.x), r(p.y)) == (r(q.x), r(q.y))
+}
+
 /// Whether a run already starts with a tie-in: it comes back to its first needle point within
 /// its first five stitches, none of them longer than 1 mm.
 pub fn starts_tied(run: &[Vec2]) -> bool {
@@ -2400,7 +2410,7 @@ pub fn starts_tied(run: &[Vec2]) -> bool {
         .skip(2)
         .take(4)
         .take_while(|(i, _)| run[*i - 1].distance(run[*i - 2]) <= 15.0)
-        .any(|(_, p)| p.distance(a) < 0.5)
+        .any(|(_, p)| same_needle_point(*p, a))
 }
 
 /// Whether the needle points `tail` (the last first: last, previous, …) already end with a lock:
@@ -2414,7 +2424,7 @@ pub fn ends_locked(tail: &[Vec2]) -> bool {
         .skip(2)
         .take(3)
         .take_while(|(i, _)| tail[*i - 1].distance(tail[*i - 2]) <= 15.0)
-        .any(|(_, p)| p.distance(b) < 0.5)
+        .any(|(_, p)| same_needle_point(*p, b))
 }
 
 /// Least share of the region a derived skeleton's column must cover for Auto satin to follow
