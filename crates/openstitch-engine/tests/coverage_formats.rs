@@ -218,6 +218,68 @@ fn more_machine_formats_export_and_import_through_the_engine() {
     }
 }
 
+/// #349: SHV goes through `design.export` and `stitches.import` with its needle points and
+/// colour blocks kept, a long move among them: two squares in two colours 60 mm apart, the move
+/// between them marked `80 03`, and every needle point the design sews read back in order (an
+/// SHV move's end is a needle point, as PE-DESIGN writes it).
+#[test]
+fn shv_exports_and_imports_through_the_engine_with_a_long_move() {
+    use openstitch_core::Command;
+    let dir = temp_dir("shv");
+    let mut s = Session::new(&dir);
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 5, "y": 5, "width": 10, "height": 10, "fill": "Red"}),
+    );
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 75, "y": 75, "width": 10, "height": 10, "fill": "Blue"}),
+    );
+    let design = s.design().clone();
+    let sewn = openstitch_design::Compiler::for_design(&design).compile(&design);
+    let out = run(&mut s, "design.export", json!({"path": "a.shv"}));
+    assert!(out["hoopMM"].is_array(), "{out}");
+    let bytes = std::fs::read(dir.join("a.shv")).expect("shv");
+    assert!(
+        bytes.windows(4).any(|w| w == [0x80, 0x03, 0x80, 0x01]),
+        "the 60 mm move is marked 80 03"
+    );
+    // The needle points in order, relative to the first, a point repeated in a row once.
+    let needles = |p: &openstitch_core::StitchPattern| {
+        let mut v: Vec<(i64, i64)> = Vec::new();
+        for st in p.stitches.iter().filter(|st| st.command == Command::Stitch) {
+            let q = (st.x.round() as i64, st.y.round() as i64);
+            if v.last() != Some(&q) {
+                v.push(q);
+            }
+        }
+        let (x0, y0) = v[0];
+        v.into_iter()
+            .map(|(x, y)| (x - x0, y - y0))
+            .collect::<Vec<_>>()
+    };
+    let back = openstitch_formats::shv::read(&bytes).expect("read");
+    assert_eq!(needles(&back), needles(&sewn), "needle points");
+    assert_eq!(
+        back.count(Command::ColorChange),
+        sewn.count(Command::ColorChange),
+        "colour blocks"
+    );
+    assert_eq!(back.threads.len(), 2);
+    let mut t = Session::new(&dir);
+    let imported = run(&mut t, "stitches.import", json!({"path": "a.shv"}));
+    assert!(imported["id"].is_u64(), "{imported}");
+    let opened = t.design().clone();
+    let resewn = openstitch_design::Compiler::for_design(&opened).compile(&opened);
+    assert_eq!(
+        needles(&resewn),
+        needles(&sewn),
+        "opened through stitches.import"
+    );
+}
+
 /// #595: the read-only ZXY and STX files open through `stitches.import` (the command the
 /// Assistant uses), every needle drop of the independent reader's oracle kept.
 #[test]
