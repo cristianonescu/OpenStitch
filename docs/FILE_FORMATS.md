@@ -432,7 +432,13 @@ from the thread table. A block's `punch` pairs become its direction lines (verte
 curved when any vertex has a curve kind. The groups are kept. The region types Cross Stitch to
 Flexible Spiral come in at OpenStitch's defaults (their own fields are not mapped); a
 programmable fill takes the header's one fill pattern and a decorative fill its object's pattern
-block, each as a design pattern (`pes-fill-N`, `pes-decorative-N`) at the stored tile size; a hole
+block, each as a design pattern (`pes-fill-N`, `pes-decorative-N`) at the stored tile size; a
+shape's stamps (#959: the u16 after the geometry header's third mark counts them, then 16 bytes
+each: centre x, y in file units, width and height in 0.1 mm, eight bytes not mapped; body +188 is
+1 while there are any) become stamps on its region, each outline the header's one listed pattern
+(size 750, a polyline in the 1024-unit cell) scaled to the stamp's size around its centre, the
+effect from the second polyline's head (the six bytes before its u16 1: `[1, 500, 1]` Embossed
+Region, `[2, 500, 1]` Engraved Region; one plain polyline alone is an Engraved Line); a hole
 sewing pair becomes the outer shape's hole around the inner object. Each `CEmbNText` becomes a
 Lato Bold text (any Lato weight: +144 is 700 or 900 on the same font) with the first letter's
 size, region, density and line, letters of another size as character edits, the line breaks,

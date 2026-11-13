@@ -83,11 +83,88 @@ pub const PLAIN_SETTINGS: [u16; 13] = [0, 50, 50, 100, 50, 50, 50, 50, 100, 50, 
 /// A programmable fill or motif pattern as the header lists it: u16 size (0.01 mm: 750 for the
 /// owner's 7.5 mm V), u16 polyline count, then each polyline as a pattern block's (six zero
 /// bytes, u16 1, u16 point count, i16 x, y points in a 1024-unit cell, y down).
+///
+/// A stamp converted from an outline (Stamp/Emboss > Convert from Outline) is listed the same
+/// way, first in the header's first list (#959, round-10 `471-*-circle.pes`): size 750, the
+/// outline as a 34-point polyline filling the cell, and for a region effect the outline again
+/// with a non-zero head ([`PesPattern::heads`]).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PesPattern {
     pub size: u16,
     pub polylines: Vec<Vec<(i16, i16)>>,
+    /// Each polyline's six bytes before its u16 1, as three u16; empty when they are all zero,
+    /// as in every fill, motif and decorative pattern. A stamp's region polyline has
+    /// `[effect, 500, 1]`, effect 1 for Embossed Region and 2 for Engraved Region (the two
+    /// captures differ only there: `471-embossed-region-circle`, `471-engraved-region-circle`).
+    pub heads: Vec<[u16; 3]>,
 }
+
+impl PesPattern {
+    /// The head of polyline `k` (`[0, 0, 0]` when not listed).
+    pub fn head(&self, k: usize) -> [u16; 3] {
+        self.heads.get(k).copied().unwrap_or([0; 3])
+    }
+
+    /// Empties [`PesPattern::heads`] when every head is zero.
+    fn trim_heads(&mut self) {
+        if self.heads.iter().all(|h| *h == [0; 3]) {
+            self.heads.clear();
+        }
+    }
+}
+
+/// A polyline's head: three u16.
+fn read_head(r: &mut ByteReader<'_>) -> Option<[u16; 3]> {
+    Some([
+        r.u16le().ok()? as u16,
+        r.u16le().ok()? as u16,
+        r.u16le().ok()? as u16,
+    ])
+}
+
+/// One stamp on a `CEmbLine`'s region: a record after the geometry header's marks (u16 count,
+/// then 16 bytes each; #959, round-10 `471-*-circle.pes`). Its outline is a pattern of the
+/// header's first list, scaled from the 1024-unit cell to `size` around `centre`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PesStamp {
+    /// Centre in file units (the 14.5 × 14.0 mm circle in the 40 mm square: 1002, 1005).
+    pub centre: [i16; 2],
+    /// Width and height, 0.1 mm (145, 140).
+    pub size: [u16; 2],
+    /// The last eight bytes, zero in every capture (not mapped: possibly the pattern's index
+    /// and a rotation).
+    pub rest: [u8; 8],
+}
+
+impl PesStamp {
+    fn read(r: &mut ByteReader<'_>) -> Result<Self> {
+        let centre = [r.u16le()? as u16 as i16, r.u16le()? as u16 as i16];
+        let size = [r.u16le()? as u16, r.u16le()? as u16];
+        let rest = r.read(8)?.try_into().expect("8 bytes");
+        Ok(PesStamp { centre, size, rest })
+    }
+
+    fn write(&self, w: &mut ByteWriter) {
+        w.u16le(i64::from(self.centre[0] as u16));
+        w.u16le(i64::from(self.centre[1] as u16));
+        w.u16le(i64::from(self.size[0]));
+        w.u16le(i64::from(self.size[1]));
+        w.append(&self.rest);
+    }
+
+    /// A point of a stamp pattern's 1024-unit cell in file units.
+    pub fn place(&self, (x, y): (i16, i16)) -> (f32, f32) {
+        let [w, h] = self.size.map(f32::from);
+        let [cx, cy] = self.centre.map(f32::from);
+        (
+            cx - w / 2.0 + f32::from(x) / 1024.0 * w,
+            cy - h / 2.0 + f32::from(y) / 1024.0 * h,
+        )
+    }
+}
+
+/// Bytes of a stamp record after the geometry marks.
+const STAMP_RECORD: usize = 16;
 
 /// The header's two section lists (a Custom Size page's sections, [`section_starts`]; each a
 /// u16 count and that many u16) after the 14 hoop bytes, the hoop name and a u16, with the
@@ -130,10 +207,10 @@ fn read_pattern_lists(header: &[u8]) -> Option<[Vec<PesPattern>; 3]> {
             let polylines = r.u16le().ok()?;
             let mut pattern = PesPattern {
                 size,
-                polylines: Vec::new(),
+                ..PesPattern::default()
             };
             for _ in 0..polylines {
-                r.skip(6).ok()?;
+                let head = read_head(&mut r)?;
                 if r.u16le().ok()? != 1 {
                     return None;
                 }
@@ -143,7 +220,9 @@ fn read_pattern_lists(header: &[u8]) -> Option<[Vec<PesPattern>; 3]> {
                     line.push((r.u16le().ok()? as i16, r.u16le().ok()? as i16));
                 }
                 pattern.polylines.push(line);
+                pattern.heads.push(head);
             }
+            pattern.trim_heads();
             list.push(pattern);
         }
     }
@@ -165,8 +244,10 @@ fn write_pattern_lists(w: &mut ByteWriter, lists: [&[PesPattern]; 3]) {
 fn write_pattern(w: &mut ByteWriter, p: &PesPattern) {
     w.u16le(i64::from(p.size));
     w.u16le(p.polylines.len() as i64);
-    for line in &p.polylines {
-        w.fill(0, 6);
+    for (k, line) in p.polylines.iter().enumerate() {
+        for v in p.head(k) {
+            w.u16le(i64::from(v));
+        }
         w.u16le(1);
         w.u16le(line.len() as i64);
         for &(x, y) in line {
@@ -181,9 +262,12 @@ fn read_pattern(bytes: &[u8]) -> Option<PesPattern> {
     let mut r = ByteReader::new(bytes);
     let size = r.u16le().ok()? as u16;
     let count = r.u16le().ok()?;
-    let mut polylines = Vec::new();
+    let mut p = PesPattern {
+        size,
+        ..PesPattern::default()
+    };
     for _ in 0..count {
-        r.skip(6).ok()?;
+        let head = read_head(&mut r)?;
         if r.u16le().ok()? != 1 {
             return None;
         }
@@ -192,9 +276,11 @@ fn read_pattern(bytes: &[u8]) -> Option<PesPattern> {
         for _ in 0..n {
             line.push((r.u16le().ok()? as i16, r.u16le().ok()? as i16));
         }
-        polylines.push(line);
+        p.polylines.push(line);
+        p.heads.push(head);
     }
-    (r.offset == bytes.len()).then_some(PesPattern { size, polylines })
+    p.trim_heads();
+    (r.offset == bytes.len()).then_some(p)
 }
 
 /// Region sew type (`CEmbLine` body +134).
@@ -545,6 +631,9 @@ pub struct Shape {
     /// Convert to Blocks writes between blocks (stroke-blocks-H, -A). Every other shape has one
     /// position in each.
     pub no_positions: bool,
+    /// The stamps on the region, recorded after the geometry header's marks; body +188 is 1
+    /// while there are any, 0 otherwise (#959).
+    pub stamps: Vec<PesStamp>,
     /// Body +16: `a b c d tx ty`, placing the vertices on the page (x' = a x + c y + tx,
     /// y' = b x + d y + ty). The identity in every shape PE-DESIGN draws; a shape moved or
     /// resized after it was drawn keeps its vertices and gets the move here (the tatami-40
@@ -609,6 +698,7 @@ impl Shape {
             punch: Vec::new(),
             punch_exit: 0,
             no_positions: false,
+            stamps: Vec::new(),
             transform: IDENTITY,
             vertices: Vec::new(),
         }
@@ -1323,7 +1413,17 @@ fn read_line(r: &mut ByteReader<'_>) -> Result<Option<Shape>> {
             list.push((at, t));
         }
     }
-    r.skip(GEOMETRY_MARKS)?;
+    // The marks end with the stamp count; the stamps' records follow.
+    r.skip(GEOMETRY_MARKS - 2)?;
+    let count = r.u16le()? as usize;
+    if count * STAMP_RECORD + 4 > r.remaining() {
+        r.offset = start;
+        return Ok(None);
+    }
+    let mut stamps = Vec::with_capacity(count);
+    for _ in 0..count {
+        stamps.push(PesStamp::read(r)?);
+    }
     let n = r.u32le()? as usize;
     if n == 0 || n.saturating_mul(VERTEX) > r.remaining() {
         r.offset = start;
@@ -1431,6 +1531,7 @@ fn read_line(r: &mut ByteReader<'_>) -> Result<Option<Shape>> {
         punch,
         punch_exit,
         no_positions,
+        stamps,
         transform,
         vertices,
     }))
@@ -2118,6 +2219,9 @@ fn write_line(w: &mut ByteWriter, s: &Shape) {
     put16(&mut head, 180, u16::from(s.under_sewing));
     put16(&mut head, 182, s.under_sewing_type);
     put16(&mut head, 186, s.running_path);
+    if !s.stamps.is_empty() {
+        put16(&mut head, 188, 1);
+    }
     put16(&mut head, 282, tenths(s.cross_size));
     put16(&mut head, 284, s.cross_passes);
     // Reference points: five at the bounds' top-left corner, two at their centre (i32 x, y).
@@ -2216,7 +2320,15 @@ fn write_geometry_header(w: &mut ByteWriter, s: &Shape) {
     w.append(&t_cd.to_le_bytes());
     w.f32le(right.0);
     w.f32le(right.1);
-    w.u16le(0);
+    write_stamps(w, s);
+}
+
+/// The marks' last field, the stamp count, and the stamps' records.
+fn write_stamps(w: &mut ByteWriter, s: &Shape) {
+    w.u16le(s.stamps.len() as i64);
+    for stamp in &s.stamps {
+        stamp.write(w);
+    }
 }
 
 /// A Manual Punch block's geometry header: the lists of its lines' ends, then the three marks.
@@ -2272,7 +2384,7 @@ fn write_punch_geometry_header(w: &mut ByteWriter, s: &Shape) {
     w.append(&f64::from(t_r as f32).to_le_bytes());
     w.f32le(right.0 + tenth_w);
     w.f32le(right.1 + tenth_h);
-    w.u16le(0);
+    write_stamps(w, s);
 }
 
 /// Where the closed outline crosses the height `y`: (segment, parameter, point) for each

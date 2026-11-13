@@ -12,7 +12,7 @@ Specs: 497 · pass 497 · fail 0 · error 0 · pending reference 0 · skipped 0.
 |---|---|---|---|
 | Beyond PE-DESIGN | Small Text… | internal-regression | `text-small-running-3mm`, `text-small-satin-5mm` |
 | Digitizing | Photo Stitch 1 and Photo Stitch 2… | reference | `photostitch1-p01-portrait-travel` |
-| Editing | Embossing/engraving… | internal-regression | `stamp-embossed-region-circle`, `stamp-engraved-line-circle`, `stamp-engraved-region-circle`, `stamp-plain-square-baseline` |
+| Editing | Embossing/engraving… | reference | `stamp-embossed-region-circle`, `stamp-engraved-line-circle`, `stamp-engraved-region-circle`, `stamp-plain-square-baseline` |
 | Editing | Hole sewing… | internal-regression | `hole-sewing-limits`, `hole-sewing-pentagon-star` |
 | Editing | Manual Punch: shapes made of several sewing-direction lines… | reference | `satin-lock-column-3p5`, `satin-zigzag-column` |
 | Editing | Sewing order editing… | reference; reference pending | `optimize-entry-exit`, `sew-order-six-objects`, `shape-start-points` |
@@ -249,9 +249,9 @@ Specs: 497 · pass 497 · fail 0 · error 0 · pending reference 0 · skipped 0.
 | `stitches/spiral-triangle` | pass | reference | — | — | pass | — |
 | `stitches/square-gradation-30-10` | pass | reference | pass | — | pass | — |
 | `stitches/square-gradation-default` | pass | reference | pass | — | pass | — |
-| `stitches/stamp-embossed-region-circle` | pass | internal-regression | pass | — | — | — |
-| `stitches/stamp-engraved-line-circle` | pass | internal-regression | pass | — | — | — |
-| `stitches/stamp-engraved-region-circle` | pass | internal-regression | pass | — | — | — |
+| `stitches/stamp-embossed-region-circle` | pass | reference | pass | — | pass | — |
+| `stitches/stamp-engraved-line-circle` | pass | reference | pass | — | pass | — |
+| `stitches/stamp-engraved-region-circle` | pass | reference | pass | — | pass | — |
 | `stitches/stamp-plain-square-baseline` | pass | reference | pass | — | pass | — |
 | `stitches/stitches-import-centre` | pass | reference | pass | — | pass | — |
 | `stitches/sweep-fill-density-2p5` | pass | reference | pass | — | pass | — |

@@ -345,6 +345,64 @@ fn cross_stitch_times_import_sew_and_export_as_pe_design() {
     }
 }
 
+/// PE-DESIGN 11.50's stamps converted from an outline (#959, round-10 captures for #471: the
+/// 40 mm square with a 14.5 x 14.0 mm circle made an Engraved Line, an Embossed Region or an
+/// Engraved Region): the import gives the square's fill the stamp with its effect and the
+/// circle's outline where PE-DESIGN placed it, and the fill sewn again comes within 5 % of
+/// PE-DESIGN's stitch count.
+#[test]
+fn import_pes_reads_a_shape_that_carries_a_stamp() {
+    use openstitch_design::stamp::StampEffect;
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let dir = TempDir::canonical("resave-stamps");
+    for (name, effect) in [
+        ("engraved-line", StampEffect::EngravedLine),
+        ("embossed-region", StampEffect::EmbossedRegion),
+        ("engraved-region", StampEffect::EngravedRegion),
+    ] {
+        let reference = root.join(format!("compat/reference/stitches/stamp-{name}-circle.pes"));
+        let pe = pes::read(&std::fs::read(&reference).expect("reference"))
+            .expect("PES")
+            .count(openstitch_core::Command::Stitch);
+        std::fs::copy(&reference, dir.join("in.pes")).expect("copy");
+        let mut s = Session::new(dir.path());
+        run(
+            &mut s,
+            "design.new",
+            json!({"name": "t", "width": 100, "height": 100}),
+        );
+        let r = run(&mut s, "import.pes", json!({"path": "in.pes"}));
+        assert_eq!(r["skipped"], json!([]), "{name}");
+        let region = s
+            .design()
+            .objects
+            .iter()
+            .find_map(|o| o.region.clone())
+            .expect("region");
+        let [stamp] = region.stamps.as_slice() else {
+            panic!("{name}: {} stamps", region.stamps.len());
+        };
+        assert_eq!((stamp.effect, stamp.contours.len()), (effect, 1), "{name}");
+        // The circle's outline: 14.5 x 14.0 mm around (50.2, 50.5) mm.
+        let b = stamp.bounds().expect("bounds");
+        for (got, want) in [
+            (b.min_x, 429.5),
+            (b.max_x, 574.5),
+            (b.min_y, 435.0),
+            (b.max_y, 575.0),
+        ] {
+            assert!((got - want).abs() < 0.5, "{name}: {b:?}");
+        }
+        let ours = openstitch_design::Compiler::default()
+            .compile(s.design())
+            .count(openstitch_core::Command::Stitch);
+        assert!(
+            (ours as i64 - pe as i64).abs() * 100 <= pe as i64 * 5,
+            "{name}: {ours} against PE-DESIGN's {pe}"
+        );
+    }
+}
+
 #[test]
 fn import_pes_takes_the_objects_of_every_pe_design_file() {
     // #397: every PE-DESIGN `#PES0110` file imports as editable objects: shapes, texts and

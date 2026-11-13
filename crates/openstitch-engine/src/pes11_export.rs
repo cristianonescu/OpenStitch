@@ -371,6 +371,7 @@ fn decorative_pattern(
             .iter()
             .map(|path| path.iter().map(|p| (cell(p.x), cell(p.y))).collect())
             .collect(),
+        heads: Vec::new(),
     })
 }
 
@@ -405,6 +406,7 @@ fn fill_pattern(
             .iter()
             .map(|path| path.iter().map(|p| (cell(p.x), cell(p.y))).collect())
             .collect(),
+        heads: Vec::new(),
     })
 }
 

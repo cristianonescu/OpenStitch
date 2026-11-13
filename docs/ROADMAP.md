@@ -203,7 +203,9 @@ text is the same on all three systems (#609, verified on Linux: the spec's refer
 in the repository). Left for later: programmable and motif fill along a direction curve still
 bend their tiles by the chord, and emboss and engrave strength against PE-DESIGN (#471). Programmable
 fill tiles the curve's own frame since 2026-11-12 (#923, #928; #927 and #947 for U-shaped curves),
-and stamps are as strong as PE-DESIGN's (#956); motif fill still uses the chord.
+and stamps are as strong as PE-DESIGN's (#956); motif fill still uses the chord. Done
+2026-11-13 (#959): PES 0110 import reads a shape that carries a stamp (effect, outline, place
+and size), so PE-DESIGN's three stamped captures are the `stamp-*-circle` specs' references.
 
 Done 2026-11-05 (#460-#464): the stitch-engine follow-ups of the review. Narrow Auto satin no
 longer starts with a 39.5 mm stitch, Auto Punch sews regions whose satin would cross more than
