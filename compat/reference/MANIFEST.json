@@ -551,7 +551,7 @@
       "os": "Windows 11 Pro",
       "settings": "Made by the coordinator (black-box GUI use only) in capture round 11 for issue #982. Source: the spec's export from OpenStitch main 78e5f40c, after #985 (the wizard's tack-down at PE-DESIGN's defaults: V Stitch, spacing 5.0 mm; PES 0110 writes the E/V spacing +88 and a V's opening +92), SHA-256 95b851fb50f242b38e13e84b3bf7c6792b550ccf115d93bcd3dfc01e4ba92503. App menu > Open (no warning), then Save As PES, default type (Layout & Editing Ver.11.0 File, #PES0110), unchanged and before any UnGroup. Page 100 x 100 mm (default).",
       "sha256": "26297f116228abce1d52d56def0fb25a772675da4bea553a69a0d8fce28acd15",
-      "notes": "32692 bytes, header #PES0110. Opens with no warning as one group, as PE-DESIGN's own a01-rect-applique. Status bar: Total 32,60 x 32,60 mm, Stitches = 1497 (OpenStitch's reader: 1495 stitches, 4 colours, 4 trims; the export itself 1461). Sewing Order 1 the square, 2 the material line, 3 the position line, 4 the tack-down (4-1) and the covering zigzag (4-2), both in APPLIQUE. After UnGroup, 4-1 shows V Stitch, spacing 5,0 mm, width 2,0 mm, opening 2,0 mm, Run time(s) 1: PE-DESIGN reads the E/V variant, spacing and opening as written. Re-sewn by PE-DESIGN, the Applique block is 637 stitches, as a01's: the tack-down one V pass of 98 stitches (a01: 98), a V every 5.0 mm, 4 stitches a cycle, 2.0 mm deep, no running laps; the cover 539 (a01: 539). Replaces the re-save of 2026-10-31 (40184 bytes, SHA-256 467c23a9c7ff3b9c206cfd5eb6e37b992efc8c64699c3d6fc7820d9e89215c95), whose tack-down PE-DESIGN read as an E stitch at its default 5.0 mm (the variant and spacing were not written then) and whose cover carried the under sewing #975 removed. Earlier history: the export whose group held the four lines without the square was refused (\"Unexpected file format\", 2026-10-30); the ungrouped export of 2026-10-31 opened. Notes: round11/notes.md."
+      "notes": "32692 bytes, header #PES0110. Opens with no warning as one group, as PE-DESIGN's own a01-rect-applique. Status bar: Total 32,60 x 32,60 mm, Stitches = 1497 (OpenStitch's reader: 1495 stitches, 4 colours, 4 trims; the export itself 1461). Sewing Order 1 the square, 2 the material line, 3 the position line, 4 the tack-down (4-1) and the covering zigzag (4-2), both in APPLIQUE. After UnGroup, 4-1 shows V Stitch, spacing 5,0 mm, width 2,0 mm, opening 2,0 mm, Run time(s) 1: PE-DESIGN reads the E/V variant, spacing and opening as written. Re-sewn by PE-DESIGN, the Applique block is 637 stitches, as a01's: the tack-down one V pass of 98 stitches (a01: 98), a V every 5.0 mm, 4 stitches a cycle, 2.0 mm deep, no running laps; the cover 539 (a01: 539). Replaces the re-save of 2026-10-31 (40184 bytes, SHA-256 467c23a9c7ff3b9c206cfd5eb6e37b992efc8c64699c3d6fc7820d9e89215c95), whose tack-down PE-DESIGN read as an E stitch at its default 5.0 mm (the variant and spacing were not written then) and whose cover carried the under sewing #975 removed. Earlier history: the export whose group held the four lines without the square was refused (\"Unexpected file format\", 2026-10-30); the ungrouped export of 2026-10-31 opened. Notes: round 11's capture notes."
     },
     {
       "file": "pes/pes-0110-curve-block.pes",
@@ -573,7 +573,7 @@
       "peDesignVersion": "11.50",
       "date": "2026-10-29",
       "os": "Windows 11 Pro 10.0.26300",
-      "settings": "Made by the pe-refs-4 session (black-box GUI use only) for PR #148. Source: the spec's export target/compat/work/pes-0110-editable-shapes/a.pes from PR #148 (OpenStitch #PES0110 writer, commit 10823e0; copy kept in the owner's reference notes as round4/pr148/a.pes, 7414 bytes, SHA-256 2a8ab5f98235539d5be5e8454d2a0efa07978a308e869c20b354cac66fb38237): a 10 x 10 mm rectangle at (10,10) mm, line Zigzag in Red, region Fill in Silver at OpenStitch's default direction 0 degrees. App menu > Open: opened with no warning; the rectangle is an editable shape (handles, Shapes tab, Sewing Attributes; changing the region to Satin works; Hoop-Size page). PE showed region Direction 0 degrees, and the threads as '16 / Brother / 16' and '5 / Brother / 5' with an empty Thread Chart field. Nothing changed; Save As PES, default type (Layout & Editing Ver.11.0 File, #PES0110).",
+      "settings": "Made by the pe-refs-4 session (black-box GUI use only) for PR #148. Source: the spec's export target/compat/work/pes-0110-editable-shapes/a.pes from PR #148 (OpenStitch #PES0110 writer, commit 10823e0; copy kept in the owner's reference notes as round 4's captures (a.pes,) 7414 bytes, SHA-256 2a8ab5f98235539d5be5e8454d2a0efa07978a308e869c20b354cac66fb38237): a 10 x 10 mm rectangle at (10,10) mm, line Zigzag in Red, region Fill in Silver at OpenStitch's default direction 0 degrees. App menu > Open: opened with no warning; the rectangle is an editable shape (handles, Shapes tab, Sewing Attributes; changing the region to Satin works; Hoop-Size page). PE showed region Direction 0 degrees, and the threads as '16 / Brother / 16' and '5 / Brother / 5' with an empty Thread Chart field. Nothing changed; Save As PES, default type (Layout & Editing Ver.11.0 File, #PES0110).",
       "sha256": "8fbc339d2ea32be78de34df5ccdcee34013946e9cf7d58280ff85ea99e308dc1",
       "notes": "23467 bytes, header #PES0110. The object section is byte-identical to a.pes except the CEmbLine body's pattern block (body bytes 386-4360), where PE-DESIGN wrote its own default pattern over OpenStitch's placeholder; header, thread table, geometry and trailer unchanged. PEC section re-sewn by PE-DESIGN: 462 records against a.pes's 419, 465 stitches in the status bar."
     },
@@ -585,7 +585,7 @@
       "peDesignVersion": "11.50",
       "date": "2026-10-29",
       "os": "Windows 11 Pro 10.0.26300",
-      "settings": "Made by the pe-refs-4 session (black-box GUI use only) for PR #169 (round4/log.txt). Source: the spec's export target/compat/work/pes-0110-editable-text-fit/a.pes from PR #169 (commit 532cb2d; copy kept in the owner's reference notes as round4/pr169/openstitch-a.pes, SHA-256 b8b3e3fb1e645d4b0ad425d2277625596d05063b26023e48926c5783116c4f0c): a 60 mm circle (Running 2.0, red) and ABCDE in Lato Bold 8, Fill red, fitted to it at the Fit Text to Outline defaults. App menu > Open: no warning, no Hoop Settings tab; status bar 'Total : 60,00 x 68,30 mm, Stitches = 860'. Text and circle select as one unit; Fit Text offers Fit Text to Outline and Release Text from Outline; the dialog shows the settings as written (horizontal centred, vertical above, along, other side unticked). Stretching the circle 10 mm re-fitted ABCDE along the ellipse, re-centred (undone); appending F re-fitted it centred (not saved). Text ABCDE, Lato 8,0, Fill red, line Not Sewn, 40,80 x 14,00 mm, 727 stitches; circle 60,00 x 60,00 mm, Running 2,0, 133 stitches: all three as compat/reference/text/text-fit-default.pes (pair 860, text 727, circle 133). Saved unchanged: Save As PES, default type (Layout & Editing Ver.11.0 File, #PES0110).",
+      "settings": "Made by the pe-refs-4 session (black-box GUI use only) for PR #169 (round 4's capture notes). Source: the spec's export target/compat/work/pes-0110-editable-text-fit/a.pes from PR #169 (commit 532cb2d; copy kept in the owner's reference notes as round 4's captures (openstitch-a.pes,) SHA-256 b8b3e3fb1e645d4b0ad425d2277625596d05063b26023e48926c5783116c4f0c): a 60 mm circle (Running 2.0, red) and ABCDE in Lato Bold 8, Fill red, fitted to it at the Fit Text to Outline defaults. App menu > Open: no warning, no Hoop Settings tab; status bar 'Total : 60,00 x 68,30 mm, Stitches = 860'. Text and circle select as one unit; Fit Text offers Fit Text to Outline and Release Text from Outline; the dialog shows the settings as written (horizontal centred, vertical above, along, other side unticked). Stretching the circle 10 mm re-fitted ABCDE along the ellipse, re-centred (undone); appending F re-fitted it centred (not saved). Text ABCDE, Lato 8,0, Fill red, line Not Sewn, 40,80 x 14,00 mm, 727 stitches; circle 60,00 x 60,00 mm, Running 2,0, 133 stitches: all three as compat/reference/text/text-fit-default.pes (pair 860, text 727, circle 133). Saved unchanged: Save As PES, default type (Layout & Editing Ver.11.0 File, #PES0110).",
       "sha256": "8117403412d67512b9e4fd2727f16c0a0820e03b77c63b4ddf207043796f3a5d",
       "notes": "9042 bytes, header #PES0110. The PES section keeps its 6033-byte length; 3022 bytes differ from the input: 3010 in the circle's pattern block (body 386-4360, where PE-DESIGN writes its own default pattern over OpenStitch's placeholder, as for every shape) and 12 in the fitted text's bounds and extent (CEmbAText body +0..+16): PE-DESIGN writes 757..1242 x 573..757 (0.1 mm + 500), the same as its own text-fit-default.pes, where OpenStitch wrote 805..1218 x 373..759 from its layout. Everything else in the object section (letters, attributes, the 122-byte fit tail with the outline's archive number, the circle's attributes and outline, the sewing-order list) is unchanged. PEC regenerated."
     },
@@ -597,7 +597,7 @@
       "peDesignVersion": "11.50",
       "date": "2026-10-29",
       "os": "Windows 11 Pro 10.0.26300",
-      "settings": "Made by the pe-refs-4 session (black-box GUI use only) for PR #164 (round4/log.txt). Source: the spec's export target/compat/work/pes-0110-editable-text-transform/a.pes from PR #164 (commit d4a9898; copy kept in the owner's reference notes as round4/pr164/openstitch-a.pes, SHA-256 c4d9d326d4451e1357ae7b6d2cb844c7a9923e6e95f4a1aced5245ab9840da1b): HHHHHHH in Lato Bold, size 10, centred on (50,50) mm, Fill red without under sewing, Text Transform preset 1. App menu > Open: no warning, no Hoop Settings tab; status bar 'Total : 79,20 x 26,50 mm, Stitches = 1307'; a plain click selects the text: HHHHHHH, Transform ticked, preset 1 (Arch 1), centred, Lato 10,0, Fill red, line Not Sewn. Clicking preset 2 then preset 1 (PE-DESIGN's default level) gives the same 79,20 x 26,50 mm and 1307 stitches, so the stored level is PE-DESIGN's default. Appending A re-lays the text on the arc (not saved). Saved unchanged: Save As PES, default type (Layout & Editing Ver.11.0 File, #PES0110).",
+      "settings": "Made by the pe-refs-4 session (black-box GUI use only) for PR #164 (round 4's capture notes). Source: the spec's export target/compat/work/pes-0110-editable-text-transform/a.pes from PR #164 (commit d4a9898; copy kept in the owner's reference notes as round 4's captures (openstitch-a.pes,) SHA-256 c4d9d326d4451e1357ae7b6d2cb844c7a9923e6e95f4a1aced5245ab9840da1b): HHHHHHH in Lato Bold, size 10, centred on (50,50) mm, Fill red without under sewing, Text Transform preset 1. App menu > Open: no warning, no Hoop Settings tab; status bar 'Total : 79,20 x 26,50 mm, Stitches = 1307'; a plain click selects the text: HHHHHHH, Transform ticked, preset 1 (Arch 1), centred, Lato 10,0, Fill red, line Not Sewn. Clicking preset 2 then preset 1 (PE-DESIGN's default level) gives the same 79,20 x 26,50 mm and 1307 stitches, so the stored level is PE-DESIGN's default. Appending A re-lays the text on the arc (not saved). Saved unchanged: Save As PES, default type (Layout & Editing Ver.11.0 File, #PES0110).",
       "sha256": "b8268bc753232fa305d208195661254f30604e86fcbfe6c615c6e0a6b2879918",
       "notes": "5649 bytes, header #PES0110. PES section identical to the input except the 8 bytes of the text's bounds and extent (0xCC-0xDA): PE-DESIGN writes 552..1441 x 841..1170 (0.1 mm + 500) from its own layout. PEC regenerated (1313 records against 1707). PE-DESIGN's own text-transform-1.pes: 79,30 x 26,10 mm, 1307 stitches; both store a 30 degree strength; radius 39.613 mm (OpenStitch) against 40.802 (PE-DESIGN)."
     },
@@ -609,7 +609,7 @@
       "peDesignVersion": "11.50",
       "date": "2026-10-29",
       "os": "Windows 11 Pro 10.0.26300",
-      "settings": "Made by the pe-refs-4 session (black-box GUI use only) for PR #158 (round4/log.txt). Source: the spec's export target/compat/work/pes-0110-editable-text/a.pes from PR #158 (commit 3a1ab1e; copy kept in the owner's reference notes as round4/pr158/openstitch-a.pes, 2496 bytes, SHA-256 93b054462534e1a5aecb7b069822611dce5ca089eb1716fdb4b7b6f5222c7af0): the text AB in Lato Bold, size 10, Satin 800 RED, line not sewn, clicked at (10,20) mm. App menu > Open: no warning; a Hoop Settings tab appeared (Move Sections / Design Settings: Custom Size 100 x 100, Section Size 290 x 190 mm (300 x 200 mm)) with a red dotted section outline past the page, which PE's own text files do not show. A click on the letters did not select the text (status bar Total 19,40 x 15,90, no stitch count); a drag selection did: object handles, Text Attributes AB, Lato, size 10,0, Not Sewn (Line), Satin Stitch red, kerning 0, rotate 0, spacing 0, line spacing 100, left aligned, no transform; under sewing off, density 5,0, pull compensation 0,0; Width 18,80 mm, Height 10,30 mm, 363 stitches; box bottom-left at about (9,8, 19,9) mm, so the baseline is at y 20 from x 10. Appending C in the text box re-laid ABC (then reverted, not saved). Saved before the retype test: Save As PES, default type (Layout & Editing Ver.11.0 File, #PES0110), no warning.",
+      "settings": "Made by the pe-refs-4 session (black-box GUI use only) for PR #158 (round 4's capture notes). Source: the spec's export target/compat/work/pes-0110-editable-text/a.pes from PR #158 (commit 3a1ab1e; copy kept in the owner's reference notes as round 4's captures (openstitch-a.pes,) 2496 bytes, SHA-256 93b054462534e1a5aecb7b069822611dce5ca089eb1716fdb4b7b6f5222c7af0): the text AB in Lato Bold, size 10, Satin 800 RED, line not sewn, clicked at (10,20) mm. App menu > Open: no warning; a Hoop Settings tab appeared (Move Sections / Design Settings: Custom Size 100 x 100, Section Size 290 x 190 mm (300 x 200 mm)) with a red dotted section outline past the page, which PE's own text files do not show. A click on the letters did not select the text (status bar Total 19,40 x 15,90, no stitch count); a drag selection did: object handles, Text Attributes AB, Lato, size 10,0, Not Sewn (Line), Satin Stitch red, kerning 0, rotate 0, spacing 0, line spacing 100, left aligned, no transform; under sewing off, density 5,0, pull compensation 0,0; Width 18,80 mm, Height 10,30 mm, 363 stitches; box bottom-left at about (9,8, 19,9) mm, so the baseline is at y 20 from x 10. Appending C in the text box re-laid ABC (then reverted, not saved). Saved before the retype test: Save As PES, default type (Layout & Editing Ver.11.0 File, #PES0110), no warning.",
       "sha256": "e794d19beecc61d653d6ed4ebf12def14d64d0ffadbb89e6edc3a0a22d96754f",
       "notes": "17961 bytes, header #PES0110. PES section (761 bytes) byte-identical to the input except offsets 0xC7 and 0xCF (0x13 -> 0x19): the text box's right edge in its bounds and extent, 787 -> 793 file units, from PE-DESIGN's own layout of AB. PEC regenerated by PE-DESIGN (362 records against 225) with its own header fields (0x1F, 0x24-0x2F, 2900 x 1900 at 0x208)."
     },
@@ -803,7 +803,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Circle dragged (40,40)-(60,60) mm; region Concentric Circle Stitch. Hoop 100 x 100 mm page; line Not Sewn (Line); colour 800 EMBROIDERY RED; region attributes at their defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button) unless stated; nothing else in the design. Save As PES (default type, #PES0110). Status bar 19,80 x 20,00 mm, 533 st.",
       "sha256": "7d8a904ffa296c40479df521b0f0a0e4091dc7858c1a24f2a092f43c99973d79",
-      "notes": "pe-refs-4 round 6 (#138 follow-ups), round6/spiral/concentric-circle20.pes: starts at (-9.4,-1.9), ends at (-9.3,+3.9)."
+      "notes": "pe-refs-4 round 6 (#138 follow-ups), concentric-circle20.pes (round 6 captures): starts at (-9.4,-1.9), ends at (-9.3,+3.9)."
     },
     {
       "file": "stitches/concentric-circle30.pes",
@@ -815,7 +815,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Circle dragged (35,35)-(65,65) mm; region Concentric Circle Stitch. Hoop 100 x 100 mm page (File > New); line Not Sewn (Line); colour 800 EMBROIDERY RED; region at its defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button); nothing else in the design. Save As PES (default type, #PES0110). Status bar 29,70 x 30,00 mm, 1121 st.",
       "sha256": "116df39d083d49fa4a40d88356628a3ddd8578a5d4017774ea196ad4a8aa2be1",
-      "notes": "pe-refs-4 round 5 (#138 follow-ups), round5/spiral/concentric-circle30.pes: starts at (-14.3,-2.9) on the left edge just above the middle, ends at (-13.9,+5.8); the first moves go down."
+      "notes": "pe-refs-4 round 5 (#138 follow-ups), concentric-circle30.pes (round 5 captures): starts at (-14.3,-2.9) on the left edge just above the middle, ends at (-13.9,+5.8); the first moves go down."
     },
     {
       "file": "stitches/concentric-circle36.pes",
@@ -827,7 +827,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Circle dragged (32,32)-(68,68) mm; region Concentric Circle Stitch. Hoop 100 x 100 mm page; line Not Sewn (Line); colour 800 EMBROIDERY RED; region attributes at their defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button) unless stated; nothing else in the design. Save As PES (default type, #PES0110). Status bar 35,60 x 36,00 mm, 1540 st.",
       "sha256": "52997da1551a4f6e2bf4ddcbcdf0a6ec9b06ffe3db613d957afede824777e7c1",
-      "notes": "pe-refs-4 round 6 (#138 follow-ups), round6/spiral/concentric-circle36.pes: starts at (-17.3,-3.5), ends at (-16.8,+7.0)."
+      "notes": "pe-refs-4 round 6 (#138 follow-ups), concentric-circle36.pes (round 6 captures): starts at (-17.3,-3.5), ends at (-16.8,+7.0)."
     },
     {
       "file": "stitches/concentric-circle40-d1p0.pes",
@@ -839,7 +839,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Rectangle/Circle/Arc > Circle dragged (30,30)-(70,70) mm (a Fill region reads exactly 40,00 x 40,00); region Concentric Circle Stitch, Density 1,0 line/mm. Design Settings Hoop Size 100 x 100 mm (multi-needle machine type); line Not Sewn (Line); colour 800 EMBROIDERY RED (PEC 5); nothing else in the design. Region sew attributes of both Concentric Circle Stitch and Spiral Stitch: only Density (default 2,0 line/mm), Run pitch (default 2,0 mm) and Start Point (two buttons, default the first); no direction, under sewing or pull compensation. Defaults reset between variants. Save As PES (default type, #PES0110). Status bar 39,80 x 39,90 mm, Stitches = 930.",
       "sha256": "cc39cf2df7a8a343e3419cf97f6c0ec2b6525f4518579a6e678424e8ee4ed630",
-      "notes": "pe-refs-4 round 4 (#138), recorded as round4/concentric/circle40-concentric-d1p0.pes."
+      "notes": "pe-refs-4 round 4 (#138), recorded as round 4's captures (circle40-concentric-d1p0.pes.)"
     },
     {
       "file": "stitches/concentric-circle40-d3p0.pes",
@@ -851,7 +851,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Rectangle/Circle/Arc > Circle dragged (30,30)-(70,70) mm (a Fill region reads exactly 40,00 x 40,00); region Concentric Circle Stitch, Density 3,0 line/mm. Design Settings Hoop Size 100 x 100 mm (multi-needle machine type); line Not Sewn (Line); colour 800 EMBROIDERY RED (PEC 5); nothing else in the design. Region sew attributes of both Concentric Circle Stitch and Spiral Stitch: only Density (default 2,0 line/mm), Run pitch (default 2,0 mm) and Start Point (two buttons, default the first); no direction, under sewing or pull compensation. Defaults reset between variants. Save As PES (default type, #PES0110). Status bar 39,80 x 39,90 mm, Stitches = 2739.",
       "sha256": "f58ecdf29c08fc4d7be7ee994ac3040ac2b89037c1ae94cb6974ebf01625846c",
-      "notes": "pe-refs-4 round 4 (#138), recorded as round4/concentric/circle40-concentric-d3p0.pes."
+      "notes": "pe-refs-4 round 4 (#138), recorded as round 4's captures (circle40-concentric-d3p0.pes.)"
     },
     {
       "file": "stitches/concentric-circle40-pitch3p0.pes",
@@ -863,7 +863,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Rectangle/Circle/Arc > Circle dragged (30,30)-(70,70) mm (a Fill region reads exactly 40,00 x 40,00); region Concentric Circle Stitch, Run pitch 3,0 mm. Design Settings Hoop Size 100 x 100 mm (multi-needle machine type); line Not Sewn (Line); colour 800 EMBROIDERY RED (PEC 5); nothing else in the design. Region sew attributes of both Concentric Circle Stitch and Spiral Stitch: only Density (default 2,0 line/mm), Run pitch (default 2,0 mm) and Start Point (two buttons, default the first); no direction, under sewing or pull compensation. Defaults reset between variants. Save As PES (default type, #PES0110). Status bar 39,80 x 39,90 mm, Stitches = 1390.",
       "sha256": "1f66395cdcc47ff2923969929ad776a95f5212e3104f1a7b42d966c44d929060",
-      "notes": "pe-refs-4 round 4 (#138), recorded as round4/concentric/circle40-concentric-pitch3p0.pes."
+      "notes": "pe-refs-4 round 4 (#138), recorded as round 4's captures (circle40-concentric-pitch3p0.pes.)"
     },
     {
       "file": "stitches/concentric-circle40-start2.pes",
@@ -875,7 +875,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Rectangle/Circle/Arc > Circle dragged (30,30)-(70,70) mm (a Fill region reads exactly 40,00 x 40,00); region Concentric Circle Stitch, Start Point second button. Design Settings Hoop Size 100 x 100 mm (multi-needle machine type); line Not Sewn (Line); colour 800 EMBROIDERY RED (PEC 5); nothing else in the design. Region sew attributes of both Concentric Circle Stitch and Spiral Stitch: only Density (default 2,0 line/mm), Run pitch (default 2,0 mm) and Start Point (two buttons, default the first); no direction, under sewing or pull compensation. Defaults reset between variants. Save As PES (default type, #PES0110). Status bar 39,80 x 39,90 mm, Stitches = 1837.",
       "sha256": "cbe6c4899d31615247a951db1d5a520ce476bad8947a5163c9c3acdfc05e56d5",
-      "notes": "pe-refs-4 round 4 (#138), recorded as round4/concentric/circle40-concentric-start2.pes."
+      "notes": "pe-refs-4 round 4 (#138), recorded as round 4's captures (circle40-concentric-start2.pes.)"
     },
     {
       "file": "stitches/concentric-circle40.pes",
@@ -887,7 +887,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Rectangle/Circle/Arc > Circle dragged (30,30)-(70,70) mm (a Fill region reads exactly 40,00 x 40,00); region Concentric Circle Stitch, every attribute at its default. Design Settings Hoop Size 100 x 100 mm (multi-needle machine type); line Not Sewn (Line); colour 800 EMBROIDERY RED (PEC 5); nothing else in the design. Region sew attributes of both Concentric Circle Stitch and Spiral Stitch: only Density (default 2,0 line/mm), Run pitch (default 2,0 mm) and Start Point (two buttons, default the first); no direction, under sewing or pull compensation. Defaults reset between variants. Save As PES (default type, #PES0110). Status bar 39,80 x 39,90 mm, Stitches = 1841.",
       "sha256": "b5b36250eeb59748054f67feabdf82f9429f5f7db0ab190842cdd6849c35a74e",
-      "notes": "pe-refs-4 round 4 (#138), recorded as round4/concentric/circle40-concentric.pes."
+      "notes": "pe-refs-4 round 4 (#138), recorded as round 4's captures (circle40-concentric.pes.)"
     },
     {
       "file": "stitches/concentric-ellipse30x40.pes",
@@ -899,7 +899,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Circle/Ellipse dragged (35,30)-(65,70) mm (portrait); region Concentric Circle Stitch. Hoop 100 x 100 mm page; line Not Sewn (Line); colour 800 EMBROIDERY RED; region attributes at their defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button) unless stated; nothing else in the design. Save As PES (default type, #PES0110). Status bar 29,80 x 39,50 mm, 1483 st.",
       "sha256": "3aa04bc427aeb39ebc00c0755a4801c0c18c9c26497801d547a2669225759975",
-      "notes": "pe-refs-4 round 6 (#138 follow-ups), round6/spiral/concentric-ellipse30x40.pes: starts at the bottom (+0.1,+19.8) and ends at the centre, no trim: the cut circles first, outside in."
+      "notes": "pe-refs-4 round 6 (#138 follow-ups), concentric-ellipse30x40.pes (round 6 captures): starts at the bottom (+0.1,+19.8) and ends at the centre, no trim: the cut circles first, outside in."
     },
     {
       "file": "stitches/concentric-ellipse40x30.pes",
@@ -911,7 +911,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Circle/Ellipse dragged (30,35)-(70,65) mm; region Concentric Circle Stitch. Hoop 100 x 100 mm page (File > New); line Not Sewn (Line); colour 800 EMBROIDERY RED; region at its defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button); nothing else in the design. Save As PES (default type, #PES0110). Status bar 40,00 x 29,80 mm, 1485 st.",
       "sha256": "ad0403f400ae09fbd0139369341452b203cc9cb7159882dec4db8b22ed3fa4af",
-      "notes": "pe-refs-4 round 5 (#138 follow-ups), round5/spiral/concentric-ellipse40x30.pes: starts at (+2.2,-14.4) at the top just right of the middle, ends at (-2.3,-14.9); runs left."
+      "notes": "pe-refs-4 round 5 (#138 follow-ups), concentric-ellipse40x30.pes (round 5 captures): starts at (+2.2,-14.4) at the top just right of the middle, ends at (-2.3,-14.9); runs left."
     },
     {
       "file": "stitches/concentric-rect30x40.pes",
@@ -923,7 +923,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Rectangle dragged (35,30)-(65,70) mm (portrait); region Concentric Circle Stitch. Hoop 100 x 100 mm page; line Not Sewn (Line); colour 800 EMBROIDERY RED; region attributes at their defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button) unless stated; nothing else in the design. Save As PES (default type, #PES0110). Status bar 30,00 x 40,00 mm, 1854 st.",
       "sha256": "2820169007e50f29fbce55f53337e3c1ec675d5638e6d74930b356a0af357732",
-      "notes": "pe-refs-4 round 6 (#138 follow-ups), round6/spiral/concentric-rect30x40.pes: starts at the bottom middle (0,+20.0) running left and ends at the centre: the cut circles first, outside in."
+      "notes": "pe-refs-4 round 6 (#138 follow-ups), concentric-rect30x40.pes (round 6 captures): starts at the bottom middle (0,+20.0) running left and ends at the centre: the cut circles first, outside in."
     },
     {
       "file": "stitches/concentric-rect40x30.pes",
@@ -935,7 +935,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Rectangle dragged (30,35)-(70,65) mm; region Concentric Circle Stitch, every attribute at its default. Design Settings Hoop Size 100 x 100 mm (multi-needle machine type); line Not Sewn (Line); colour 800 EMBROIDERY RED (PEC 5); nothing else in the design. Region sew attributes of both Concentric Circle Stitch and Spiral Stitch: only Density (default 2,0 line/mm), Run pitch (default 2,0 mm) and Start Point (two buttons, default the first); no direction, under sewing or pull compensation. Defaults reset between variants. Save As PES (default type, #PES0110). Status bar 40,00 x 30,00 mm, Stitches = 1878.",
       "sha256": "fa127d66d34ecef1efc14e320c9ac2cb67e9fe3c1ad1b7323aa02d10338da7ad",
-      "notes": "pe-refs-4 round 4 (#138), recorded as round4/concentric/rect40x30-concentric.pes."
+      "notes": "pe-refs-4 round 4 (#138), recorded as round 4's captures (rect40x30-concentric.pes.)"
     },
     {
       "file": "stitches/concentric-ring40-hole15.pes",
@@ -947,7 +947,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "a 15 mm circle centred at (50,50) mm, then the 40 mm circle around it (30,30)-(70,70); Ctrl+A; Home > Modify Overlap > Hole sewing > Set hole sewing; then the inner 15 mm circle's region set to Not Sewn (Region): a 40 mm ring with a 15 mm unsewn hole, two objects; region Concentric Circle Stitch, every attribute at its default. Design Settings Hoop Size 100 x 100 mm (multi-needle machine type); line Not Sewn (Line); colour 800 EMBROIDERY RED (PEC 5); nothing else in the design. Region sew attributes of both Concentric Circle Stitch and Spiral Stitch: only Density (default 2,0 line/mm), Run pitch (default 2,0 mm) and Start Point (two buttons, default the first); no direction, under sewing or pull compensation. Defaults reset between variants. Save As PES (default type, #PES0110). Status bar 39,80 x 39,90 mm, Stitches = 1581.",
       "sha256": "53ad1374b3630f88a8a954db2ad031e3e735db2d6019756d8ff4b45230644d17",
-      "notes": "pe-refs-4 round 4 (#138), recorded as round4/concentric/ring40-hole15-concentric.pes."
+      "notes": "pe-refs-4 round 4 (#138), recorded as round 4's captures (ring40-hole15-concentric.pes.)"
     },
     {
       "file": "stitches/concentric-square40.pes",
@@ -959,7 +959,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Rectangle dragged (30,30)-(70,70) mm; region Concentric Circle Stitch. Hoop 100 x 100 mm page; line Not Sewn (Line); colour 800 EMBROIDERY RED; region attributes at their defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button) unless stated; nothing else in the design. Save As PES (default type, #PES0110). Status bar 40,00 x 40,00 mm, 2362 st.",
       "sha256": "efbab9a4f7d2d468367563f30e8df80ad34b3a6d09270d1aaf51572506ed24f1",
-      "notes": "pe-refs-4 round 6 (#138 follow-ups), round6/spiral/concentric-square40.pes: starts at (-19.5,-4.4) on the left edge above the middle, ends at the top-right corner."
+      "notes": "pe-refs-4 round 6 (#138 follow-ups), concentric-square40.pes (round 6 captures): starts at (-19.5,-4.4) on the left edge above the middle, ends at the top-right corner."
     },
     {
       "file": "stitches/concentric-triangle.pes",
@@ -971,7 +971,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > isosceles Triangle dragged (30,30)-(70,70) mm; region Concentric Circle Stitch. Hoop 100 x 100 mm page; line Not Sewn (Line); colour 800 EMBROIDERY RED; region attributes at their defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button) unless stated; nothing else in the design. Save As PES (default type, #PES0110). Status bar 40,00 x 39,50 mm, 1283 st.",
       "sha256": "048a1535f40beb97cc0c533583ebbee126cdcd724641ceeee6401a6d77c25ff6",
-      "notes": "pe-refs-4 round 6 (#138 follow-ups), round6/spiral/concentric-triangle.pes: starts at the bottom-left corner (-19.9,+19.4) and ends at the centre: the cut circles first, outside in."
+      "notes": "pe-refs-4 round 6 (#138 follow-ups), concentric-triangle.pes (round 6 captures): starts at the bottom-left corner (-19.9,+19.4) and ends at the centre: the cut circles first, outside in."
     },
     {
       "file": "stitches/deco-fill-1line-100mm.pes",
@@ -1055,7 +1055,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "App menu > New (Hoop 100 x 100 mm); Home > Import Patterns > from File... (opens the Import pane: From Folder, File Type filter, thumbnails; no dialog or option at import), the source's thumbnail > Import for import-rect20x10.dst; Save As PES (default type, #PES0110).",
       "sha256": "0952b3c71ffc00facf858c15f967cc9e729ec2461f8aaf8a7ea539f2af9e5eb7",
-      "notes": "pe-refs-4 round 7, round7/import/import-dst-onto-100.pes: lands centred on the page: 40-60 x 45-55 mm on the rulers, 20,00 x 10,00 mm, 392 st, colour 007 PRUSSIAN BLUE (a DST has no colours; PE's first default). Positions read from the canvas and rulers (PE-DESIGN has no numeric position readout)."
+      "notes": "pe-refs-4 round 7, import-dst-onto-100.pes (round 7 captures): lands centred on the page: 40-60 x 45-55 mm on the rulers, 20,00 x 10,00 mm, 392 st, colour 007 PRUSSIAN BLUE (a DST has no colours; PE's first default). Positions read from the canvas and rulers (PE-DESIGN has no numeric position readout)."
     },
     {
       "file": "stitches/import-dst-onto-200x150.pes",
@@ -1067,7 +1067,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "App menu > New, Design Page Custom 200 x 150 mm; Home > Import Patterns > from File... (opens the Import pane: From Folder, File Type filter, thumbnails; no dialog or option at import), the source's thumbnail > Import for import-rect20x10.dst; Save As PES (default type, #PES0110).",
       "sha256": "465c7574b42f7b693656fc4b4a8040268f2e93ba7f1a2236a03107789a3ca262",
-      "notes": "pe-refs-4 round 7, round7/import/import-dst-onto-200x150.pes: centred on the larger page: 90-110 x 70-80 mm, 392 st. Positions read from the canvas and rulers (PE-DESIGN has no numeric position readout)."
+      "notes": "pe-refs-4 round 7, import-dst-onto-200x150.pes (round 7 captures): centred on the larger page: 90-110 x 70-80 mm, 392 st. Positions read from the canvas and rulers (PE-DESIGN has no numeric position readout)."
     },
     {
       "file": "stitches/import-dst-twice.pes",
@@ -1079,7 +1079,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "App menu > New (Hoop 100 x 100 mm); Home > Import Patterns > from File... (opens the Import pane: From Folder, File Type filter, thumbnails; no dialog or option at import), the source's thumbnail > Import for import-rect20x10.dst, then the same Import again; Save As PES (default type, #PES0110).",
       "sha256": "4faef434279e2ea83d69b14bf8a3a896ed9bbf309f260fed68e7989a269bb1a6",
-      "notes": "pe-refs-4 round 7, round7/import/import-dst-twice.pes: the second copy lands exactly on the first: Total 20,00 x 10,00 mm, 785 st, one colour block, one grouped item in Sewing Order. Positions read from the canvas and rulers (PE-DESIGN has no numeric position readout)."
+      "notes": "pe-refs-4 round 7, import-dst-twice.pes (round 7 captures): the second copy lands exactly on the first: Total 20,00 x 10,00 mm, 785 st, one colour block, one grouped item in Sewing Order. Positions read from the canvas and rulers (PE-DESIGN has no numeric position readout)."
     },
     {
       "file": "stitches/import-pes-onto-100.pes",
@@ -1091,7 +1091,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "App menu > New (Hoop 100 x 100 mm); Home > Import Patterns > from File... (opens the Import pane: From Folder, File Type filter, thumbnails; no dialog or option at import), the source's thumbnail > Import for import-rect20x10.pes; Save As PES (default type, #PES0110).",
       "sha256": "3b4bb742ae830c0ce7642f8735db5600d8bccd1f05a5986a7ef5cb20018116b8",
-      "notes": "pe-refs-4 round 7, round7/import/import-pes-onto-100.pes: also centred (40-60 x 45-55 mm), 392 st, keeps 800 RED; the file's own position (10-30 x 10-20 mm) is ignored. Positions read from the canvas and rulers (PE-DESIGN has no numeric position readout)."
+      "notes": "pe-refs-4 round 7, import-pes-onto-100.pes (round 7 captures): also centred (40-60 x 45-55 mm), 392 st, keeps 800 RED; the file's own position (10-30 x 10-20 mm) is ignored. Positions read from the canvas and rulers (PE-DESIGN has no numeric position readout)."
     },
     {
       "file": "stitches/import-rect20x10.dst",
@@ -1523,7 +1523,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Design Page 100 x 100 mm; Home > Import Patterns > from Vector Image... of an SVG with viewBox 0 0 100 100 (100 x 100 mm) holding one polygon (0,0) (30,0) (21.34,15) (17.01,12.5) (21.34,5) (0,5) mm (a 5 mm band bent through 120 degrees, second leg 17.32 mm, square end); the shape imports centred on the page as Fill Stitch, line Not Sewn, colour 800 RED. Shape selected: Shapes tab > Sew > region Satin Stitch; Sewing Attributes > Region sew: Under sewing unticked, Density 3.0 line/mm, Direction Auto, Half Stitch unticked, Pull compensation 0.0 mm, Feathered edge off. Save As PES (#PES0110). Status bar 30,00 x 15,00 mm, Stitches = 165.",
       "sha256": "19084d668da35d809bda6b3436d6a252b34fe486d3b584d6ab8dc286613f5d44",
-      "notes": "The imported shape shows Half Stitch unticked; the plain file has it ticked, the -nohalf file unticked. Recorded in round 3 (pe-refs-3, owner's round3\\satin-bend\\log.txt), parked until the Auto satin outer-edge spacing landed."
+      "notes": "The imported shape shows Half Stitch unticked; the plain file has it ticked, the -nohalf file unticked. Recorded in round 3 (pe-refs-3, round 3's capture notes (satin-bend)), parked until the Auto satin outer-edge spacing landed."
     },
     {
       "file": "stitches/satin-auto-bend-120.pes",
@@ -1535,7 +1535,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Design Page 100 x 100 mm; Home > Import Patterns > from Vector Image... of an SVG with viewBox 0 0 100 100 (100 x 100 mm) holding one polygon (0,0) (30,0) (21.34,15) (17.01,12.5) (21.34,5) (0,5) mm (a 5 mm band bent through 120 degrees, second leg 17.32 mm, square end); the shape imports centred on the page as Fill Stitch, line Not Sewn, colour 800 RED. Shape selected: Shapes tab > Sew > region Satin Stitch; Sewing Attributes > Region sew: Under sewing unticked, Density 3.0 line/mm, Direction Auto, Half Stitch ticked, Pull compensation 0.0 mm, Feathered edge off. Save As PES (#PES0110). Status bar 30,00 x 15,00 mm, Stitches = 165.",
       "sha256": "c7048a8eb5c5ddd197a045c6b8d643de0c02e0cdc6bc085690584021fb3781ba",
-      "notes": "The imported shape shows Half Stitch unticked; the plain file has it ticked, the -nohalf file unticked. Recorded in round 3 (pe-refs-3, owner's round3\\satin-bend\\log.txt), parked until the Auto satin outer-edge spacing landed."
+      "notes": "The imported shape shows Half Stitch unticked; the plain file has it ticked, the -nohalf file unticked. Recorded in round 3 (pe-refs-3, round 3's capture notes (satin-bend)), parked until the Auto satin outer-edge spacing landed."
     },
     {
       "file": "stitches/satin-auto-bend-30-nohalf.pes",
@@ -1859,7 +1859,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Circle dragged (40,40)-(60,60) mm; region Spiral Stitch. Hoop 100 x 100 mm page; line Not Sewn (Line); colour 800 EMBROIDERY RED; region attributes at their defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button) unless stated; nothing else in the design. Save As PES (default type, #PES0110). Status bar 19,50 x 19,70 mm, 384 st.",
       "sha256": "7886894fae2ae8b2ea36a063d2704047d5c6ea79fb2622067dab89c3e4ae241d",
-      "notes": "pe-refs-4 round 6 (#138 follow-ups), round6/spiral/spiral-circle20-pitch3p0.pes: Run pitch 3,0; 17 turns, needles per turn 36, 32, 32, 32, 30, 25 … 10."
+      "notes": "pe-refs-4 round 6 (#138 follow-ups), spiral-circle20-pitch3p0.pes (round 6 captures): Run pitch 3,0; 17 turns, needles per turn 36, 32, 32, 32, 30, 25 … 10."
     },
     {
       "file": "stitches/spiral-circle40-d1p0.pes",
@@ -1871,7 +1871,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Rectangle/Circle/Arc > Circle dragged (30,30)-(70,70) mm (a Fill region reads exactly 40,00 x 40,00); region Spiral Stitch, Density 1,0 line/mm. Design Settings Hoop Size 100 x 100 mm (multi-needle machine type); line Not Sewn (Line); colour 800 EMBROIDERY RED (PEC 5); nothing else in the design. Region sew attributes of both Concentric Circle Stitch and Spiral Stitch: only Density (default 2,0 line/mm), Run pitch (default 2,0 mm) and Start Point (two buttons, default the first); no direction, under sewing or pull compensation. Defaults reset between variants. Save As PES (default type, #PES0110). Status bar 38,90 x 39,40 mm, Stitches = 853.",
       "sha256": "5efc6aa0eeaa45b39eeb34c27b4402db1abf1f72d7b0c41f05427d2424d17343",
-      "notes": "pe-refs-4 round 4 (#138), recorded as round4/concentric/circle40-spiral-d1p0.pes."
+      "notes": "pe-refs-4 round 4 (#138), recorded as round 4's captures (circle40-spiral-d1p0.pes.)"
     },
     {
       "file": "stitches/spiral-circle40-d3p0.pes",
@@ -1883,7 +1883,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Rectangle/Circle/Arc > Circle dragged (30,30)-(70,70) mm (a Fill region reads exactly 40,00 x 40,00); region Spiral Stitch, Density 3,0 line/mm. Design Settings Hoop Size 100 x 100 mm (multi-needle machine type); line Not Sewn (Line); colour 800 EMBROIDERY RED (PEC 5); nothing else in the design. Region sew attributes of both Concentric Circle Stitch and Spiral Stitch: only Density (default 2,0 line/mm), Run pitch (default 2,0 mm) and Start Point (two buttons, default the first); no direction, under sewing or pull compensation. Defaults reset between variants. Save As PES (default type, #PES0110). Status bar 39,50 x 39,70 mm, Stitches = 2527.",
       "sha256": "6a99ef4c912db1d6b682b7add0193542def26c36c52f5c8868b04c633c26ac03",
-      "notes": "pe-refs-4 round 4 (#138), recorded as round4/concentric/circle40-spiral-d3p0.pes."
+      "notes": "pe-refs-4 round 4 (#138), recorded as round 4's captures (circle40-spiral-d3p0.pes.)"
     },
     {
       "file": "stitches/spiral-circle40-drag-reverse.pes",
@@ -1895,7 +1895,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Circle dragged from (70,70) to (30,30) mm; region Spiral Stitch. Hoop 100 x 100 mm page (File > New); line Not Sewn (Line); colour 800 EMBROIDERY RED; region at its defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button); nothing else in the design. Save As PES (default type, #PES0110). Status bar 39,30 x 39,70 mm, 1682 st.",
       "sha256": "40e7f1c6dc7f9152a33e4275bbdae665e2a2d7ea512f02666272244883722b92",
-      "notes": "pe-refs-4 round 5 (#138 follow-ups), round5/spiral/spiral-circle40-drag-reverse.pes: starts at the bottom-middle (0,+19.9) and ends at the centre; runs right; equals spiral-circle40 except 8 bytes."
+      "notes": "pe-refs-4 round 5 (#138 follow-ups), spiral-circle40-drag-reverse.pes (round 5 captures): starts at the bottom-middle (0,+19.9) and ends at the centre; runs right; equals spiral-circle40 except 8 bytes."
     },
     {
       "file": "stitches/spiral-circle40-pitch1p0.pes",
@@ -1907,7 +1907,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Circle dragged (30,30)-(70,70) mm; region Spiral Stitch. Hoop 100 x 100 mm page; line Not Sewn (Line); colour 800 EMBROIDERY RED; region attributes at their defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button) unless stated; nothing else in the design. Save As PES (default type, #PES0110). Status bar 39,30 x 39,70 mm, 2997 st.",
       "sha256": "d64df0f65d675018addc9b65456dfb075b686cde9856feeb33ba2ad6f6371054",
-      "notes": "pe-refs-4 round 6 (#138 follow-ups), round6/spiral/spiral-circle40-pitch1p0.pes: Run pitch 1,0; 38 turns, needles per turn 134, 128 x6, 127, 121, 108 … 12."
+      "notes": "pe-refs-4 round 6 (#138 follow-ups), spiral-circle40-pitch1p0.pes (round 6 captures): Run pitch 1,0; 38 turns, needles per turn 134, 128 x6, 127, 121, 108 … 12."
     },
     {
       "file": "stitches/spiral-circle40-pitch2p5.pes",
@@ -1919,7 +1919,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Circle dragged (30,30)-(70,70) mm; region Spiral Stitch. Hoop 100 x 100 mm page; line Not Sewn (Line); colour 800 EMBROIDERY RED; region attributes at their defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button) unless stated; nothing else in the design. Save As PES (default type, #PES0110). Status bar 39,30 x 39,70 mm, 1497 st.",
       "sha256": "ff8241e0ca9b53f2613d0e0762a886c6528086a5e52708bb839b9dd619fa4366",
-      "notes": "pe-refs-4 round 6 (#138 follow-ups), round6/spiral/spiral-circle40-pitch2p5.pes: Run pitch 2,5; 38 turns, needles per turn 68, 64 x7, 63, 62, 61, 58, 55, 51, 45 … 8."
+      "notes": "pe-refs-4 round 6 (#138 follow-ups), spiral-circle40-pitch2p5.pes (round 6 captures): Run pitch 2,5; 38 turns, needles per turn 68, 64 x7, 63, 62, 61, 58, 55, 51, 45 … 8."
     },
     {
       "file": "stitches/spiral-circle40-pitch3p0.pes",
@@ -1931,7 +1931,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Rectangle/Circle/Arc > Circle dragged (30,30)-(70,70) mm (a Fill region reads exactly 40,00 x 40,00); region Spiral Stitch, Run pitch 3,0 mm. Design Settings Hoop Size 100 x 100 mm (multi-needle machine type); line Not Sewn (Line); colour 800 EMBROIDERY RED (PEC 5); nothing else in the design. Region sew attributes of both Concentric Circle Stitch and Spiral Stitch: only Density (default 2,0 line/mm), Run pitch (default 2,0 mm) and Start Point (two buttons, default the first); no direction, under sewing or pull compensation. Defaults reset between variants. Save As PES (default type, #PES0110). Status bar 39,30 x 39,70 mm, Stitches = 1354.",
       "sha256": "efb32b8e2cf5aa65514a569a156401b3cc301c16e06ea682e1594a699019802e",
-      "notes": "pe-refs-4 round 4 (#138), recorded as round4/concentric/circle40-spiral-pitch3p0.pes."
+      "notes": "pe-refs-4 round 4 (#138), recorded as round 4's captures (circle40-spiral-pitch3p0.pes.)"
     },
     {
       "file": "stitches/spiral-circle40-pitch4p0.pes",
@@ -1943,7 +1943,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Circle dragged (30,30)-(70,70) mm; region Spiral Stitch. Hoop 100 x 100 mm page; line Not Sewn (Line); colour 800 EMBROIDERY RED; region attributes at their defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button) unless stated; nothing else in the design. Save As PES (default type, #PES0110). Status bar 39,30 x 39,70 mm, 1024 st.",
       "sha256": "0fac3ff1690f9283b598e1ae2c2e746b97f50e182c230eb21c658681eb1ba71c",
-      "notes": "pe-refs-4 round 6 (#138 follow-ups), round6/spiral/spiral-circle40-pitch4p0.pes: Run pitch 4,0; 38 turns, needles per turn 39, 32 … about 30 down to r 9 mm, then 28 … 8."
+      "notes": "pe-refs-4 round 6 (#138 follow-ups), spiral-circle40-pitch4p0.pes (round 6 captures): Run pitch 4,0; 38 turns, needles per turn 39, 32 … about 30 down to r 9 mm, then 28 … 8."
     },
     {
       "file": "stitches/spiral-circle40-start2.pes",
@@ -1955,7 +1955,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Rectangle/Circle/Arc > Circle dragged (30,30)-(70,70) mm (a Fill region reads exactly 40,00 x 40,00); region Spiral Stitch, Start Point second button. Design Settings Hoop Size 100 x 100 mm (multi-needle machine type); line Not Sewn (Line); colour 800 EMBROIDERY RED (PEC 5); nothing else in the design. Region sew attributes of both Concentric Circle Stitch and Spiral Stitch: only Density (default 2,0 line/mm), Run pitch (default 2,0 mm) and Start Point (two buttons, default the first); no direction, under sewing or pull compensation. Defaults reset between variants. Save As PES (default type, #PES0110). Status bar 39,30 x 39,70 mm, Stitches = 1691.",
       "sha256": "7b9ca8adde02b115a090ea076fc7d7737ff8feba98f386cb3a40d6ea74ca3ad5",
-      "notes": "pe-refs-4 round 4 (#138), recorded as round4/concentric/circle40-spiral-start2.pes."
+      "notes": "pe-refs-4 round 4 (#138), recorded as round 4's captures (circle40-spiral-start2.pes.)"
     },
     {
       "file": "stitches/spiral-circle40.pes",
@@ -1967,7 +1967,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Rectangle/Circle/Arc > Circle dragged (30,30)-(70,70) mm (a Fill region reads exactly 40,00 x 40,00); region Spiral Stitch, every attribute at its default. Design Settings Hoop Size 100 x 100 mm (multi-needle machine type); line Not Sewn (Line); colour 800 EMBROIDERY RED (PEC 5); nothing else in the design. Region sew attributes of both Concentric Circle Stitch and Spiral Stitch: only Density (default 2,0 line/mm), Run pitch (default 2,0 mm) and Start Point (two buttons, default the first); no direction, under sewing or pull compensation. Defaults reset between variants. Save As PES (default type, #PES0110). Status bar 39,30 x 39,70 mm, Stitches = 1682.",
       "sha256": "68888205f7430a67745f833e0d5f4d9c9ad42c3383fd3b6c28f54e0c1def30b7",
-      "notes": "pe-refs-4 round 4 (#138), recorded as round4/concentric/circle40-spiral.pes."
+      "notes": "pe-refs-4 round 4 (#138), recorded as round 4's captures (circle40-spiral.pes.)"
     },
     {
       "file": "stitches/spiral-ellipse40x30.pes",
@@ -1979,7 +1979,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Circle/Ellipse dragged (30,35)-(70,65) mm; region Spiral Stitch. Hoop 100 x 100 mm page (File > New); line Not Sewn (Line); colour 800 EMBROIDERY RED; region at its defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button); nothing else in the design. Save As PES (default type, #PES0110). Status bar 39,30 x 29,70 mm, 1309 st.",
       "sha256": "33df7e7df8f69773a6dd1676edb00fa85e16e47b089e2d6316ccf78077d1b891",
-      "notes": "pe-refs-4 round 5 (#138 follow-ups), round5/spiral/spiral-ellipse40x30.pes: starts at the bottom-middle (0,+14.8) and ends at the centre; runs right (counter-clockwise)."
+      "notes": "pe-refs-4 round 5 (#138 follow-ups), spiral-ellipse40x30.pes (round 5 captures): starts at the bottom-middle (0,+14.8) and ends at the centre; runs right (counter-clockwise)."
     },
     {
       "file": "stitches/spiral-rect30x40.pes",
@@ -1991,7 +1991,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Rectangle dragged (35,30)-(65,70) mm (portrait); region Spiral Stitch. Hoop 100 x 100 mm page (File > New); line Not Sewn (Line); colour 800 EMBROIDERY RED; region at its defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button); nothing else in the design. Save As PES (default type, #PES0110). Status bar 29,90 x 39,70 mm, 1286 st.",
       "sha256": "ccf04ab80d2fc108307f72877b7de8643ccdd271772fde5e7e1f58c4e0bae141",
-      "notes": "pe-refs-4 round 5 (#138 follow-ups), round5/spiral/spiral-rect30x40.pes: starts at the bottom-middle and ends at the same point; runs left."
+      "notes": "pe-refs-4 round 5 (#138 follow-ups), spiral-rect30x40.pes (round 5 captures): starts at the bottom-middle and ends at the same point; runs left."
     },
     {
       "file": "stitches/spiral-rect40x30-drag-reverse.pes",
@@ -2003,7 +2003,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Rectangle dragged from (70,65) to (30,35) mm (the opposite drag to spiral-rect40x30); region Spiral Stitch. Hoop 100 x 100 mm page (File > New); line Not Sewn (Line); colour 800 EMBROIDERY RED; region at its defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button); nothing else in the design. Save As PES (default type, #PES0110). Status bar 39,90 x 29,70 mm, 1290 st.",
       "sha256": "8b3ec80f2cc008bef7c24e22b6444b94af7aa9bb94b2dff68b78a8f2648b3ed0",
-      "notes": "pe-refs-4 round 5 (#138 follow-ups), round5/spiral/spiral-rect40x30-drag-reverse.pes: starts at the bottom-middle (0,+14.8) and ends at the same point; runs left; the file equals spiral-rect40x30 except 8 bytes: the drag direction does not matter."
+      "notes": "pe-refs-4 round 5 (#138 follow-ups), spiral-rect40x30-drag-reverse.pes (round 5 captures): starts at the bottom-middle (0,+14.8) and ends at the same point; runs left; the file equals spiral-rect40x30 except 8 bytes: the drag direction does not matter."
     },
     {
       "file": "stitches/spiral-rect40x30.pes",
@@ -2015,7 +2015,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Rectangle dragged (30,35)-(70,65) mm; region Spiral Stitch, every attribute at its default. Design Settings Hoop Size 100 x 100 mm (multi-needle machine type); line Not Sewn (Line); colour 800 EMBROIDERY RED (PEC 5); nothing else in the design. Region sew attributes of both Concentric Circle Stitch and Spiral Stitch: only Density (default 2,0 line/mm), Run pitch (default 2,0 mm) and Start Point (two buttons, default the first); no direction, under sewing or pull compensation. Defaults reset between variants. Save As PES (default type, #PES0110). Status bar 39,90 x 29,70 mm, Stitches = 1290.",
       "sha256": "6cfe311730f21c38e2bcab2683d7313c4b436937072d9b1ddec431a99b215e2f",
-      "notes": "pe-refs-4 round 4 (#138), recorded as round4/concentric/rect40x30-spiral.pes."
+      "notes": "pe-refs-4 round 4 (#138), recorded as round 4's captures (rect40x30-spiral.pes.)"
     },
     {
       "file": "stitches/spiral-ring40-hole10.pes",
@@ -2027,7 +2027,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "a 40 mm Circle (30,30)-(70,70) with a 10 mm Circle (45,45)-(55,55) as hole (Set hole sewing, inner region Not Sewn); region Spiral Stitch on the outer shape. Hoop 100 x 100 mm page; line Not Sewn (Line); colour 800 EMBROIDERY RED; region attributes at their defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button) unless stated; nothing else in the design. Save As PES (default type, #PES0110). Status bar 39,30 x 39,70 mm, 1917 st.",
       "sha256": "98a5fab338906307315c98db1306eff3181ef632bf632661ea15754632577122",
-      "notes": "pe-refs-4 round 7 (#138 follow-ups), round7/spiral/spiral-ring40-hole10.pes: PE sews the outline's spiral inwards to the middle of the band, then the band where the two spirals meet as separate trimmed pieces (each with a tie-in and a lock), then the hole's spiral: 15 band pieces at r 12.2-12.7 mm, alternating 7-needle 17° runs with longer ones; 32 trims."
+      "notes": "pe-refs-4 round 7 (#138 follow-ups), spiral-ring40-hole10.pes (round 7 captures): PE sews the outline's spiral inwards to the middle of the band, then the band where the two spirals meet as separate trimmed pieces (each with a tie-in and a lock), then the hole's spiral: 15 band pieces at r 12.2-12.7 mm, alternating 7-needle 17° runs with longer ones; 32 trims."
     },
     {
       "file": "stitches/spiral-ring40-hole15-d1p0.pes",
@@ -2039,7 +2039,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "round 4's 40 mm ring with a 15 mm hole; region Spiral Stitch on the outer shape. Hoop 100 x 100 mm page; line Not Sewn (Line); colour 800 EMBROIDERY RED; region attributes at their defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button) unless stated; nothing else in the design. Save As PES (default type, #PES0110). Status bar 38,90 x 39,40 mm, 1219 st.",
       "sha256": "6cafb35bf922daa8832cf907630450f3575f18885386a9f1fc1d89b9f9c50e77",
-      "notes": "pe-refs-4 round 7 (#138 follow-ups), round7/spiral/spiral-ring40-hole15-d1p0.pes: Density 1,0. PE sews the outline's spiral inwards to the middle of the band, then the band where the two spirals meet as separate trimmed pieces (each with a tie-in and a lock), then the hole's spiral: 31 pieces every 11.25° at r 13.2-14.2 mm; 64 trims."
+      "notes": "pe-refs-4 round 7 (#138 follow-ups), spiral-ring40-hole15-d1p0.pes (round 7 captures): Density 1,0. PE sews the outline's spiral inwards to the middle of the band, then the band where the two spirals meet as separate trimmed pieces (each with a tie-in and a lock), then the hole's spiral: 31 pieces every 11.25° at r 13.2-14.2 mm; 64 trims."
     },
     {
       "file": "stitches/spiral-ring40-hole15-offset.pes",
@@ -2051,7 +2051,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "a 40 mm Circle with a 15 mm Circle (47,42.5)-(62,57.5) as hole, its centre 4.5 mm right; region Spiral Stitch on the outer shape. Hoop 100 x 100 mm page; line Not Sewn (Line); colour 800 EMBROIDERY RED; region attributes at their defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button) unless stated; nothing else in the design. Save As PES (default type, #PES0110). Status bar 39,30 x 39,70 mm, 1601 st.",
       "sha256": "00fa356cf20e550ce60c953fb7701ae97b5c4f0eba873041693515ab7f739cf1",
-      "notes": "pe-refs-4 round 7 (#138 follow-ups), round7/spiral/spiral-ring40-hole15-offset.pes: almost no band: pieces of 1243, 6, 1, 6 and 345 needles; 8 trims; one jump crosses the hole."
+      "notes": "pe-refs-4 round 7 (#138 follow-ups), spiral-ring40-hole15-offset.pes (round 7 captures): almost no band: pieces of 1243, 6, 1, 6 and 345 needles; 8 trims; one jump crosses the hole."
     },
     {
       "file": "stitches/spiral-ring40-hole15-pitch3p0.pes",
@@ -2063,7 +2063,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "round 4's 40 mm ring with a 15 mm hole; region Spiral Stitch on the outer shape. Hoop 100 x 100 mm page; line Not Sewn (Line); colour 800 EMBROIDERY RED; region attributes at their defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button) unless stated; nothing else in the design. Save As PES (default type, #PES0110). Status bar 39,30 x 39,70 mm, 1632 st.",
       "sha256": "71ce762733965e587c6ba7b4a449ba10893806af345dc51f4e8206a41401eba0",
-      "notes": "pe-refs-4 round 7 (#138 follow-ups), round7/spiral/spiral-ring40-hole15-pitch3p0.pes: Run pitch 3,0. PE sews the outline's spiral inwards to the middle of the band, then the band where the two spirals meet as separate trimmed pieces (each with a tie-in and a lock), then the hole's spiral: 31 pieces every 11.25°; 64 trims."
+      "notes": "pe-refs-4 round 7 (#138 follow-ups), spiral-ring40-hole15-pitch3p0.pes (round 7 captures): Run pitch 3,0. PE sews the outline's spiral inwards to the middle of the band, then the band where the two spirals meet as separate trimmed pieces (each with a tie-in and a lock), then the hole's spiral: 31 pieces every 11.25°; 64 trims."
     },
     {
       "file": "stitches/spiral-ring40-hole15.pes",
@@ -2075,7 +2075,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "a 15 mm circle centred at (50,50) mm, then the 40 mm circle around it (30,30)-(70,70); Ctrl+A; Home > Modify Overlap > Hole sewing > Set hole sewing; then the inner 15 mm circle's region set to Not Sewn (Region): a 40 mm ring with a 15 mm unsewn hole, two objects; region Spiral Stitch, every attribute at its default. Design Settings Hoop Size 100 x 100 mm (multi-needle machine type); line Not Sewn (Line); colour 800 EMBROIDERY RED (PEC 5); nothing else in the design. Region sew attributes of both Concentric Circle Stitch and Spiral Stitch: only Density (default 2,0 line/mm), Run pitch (default 2,0 mm) and Start Point (two buttons, default the first); no direction, under sewing or pull compensation. Defaults reset between variants. Save As PES (default type, #PES0110). Status bar 39,30 x 39,70 mm, Stitches = 1952.",
       "sha256": "ac73ee5662b76d576ec933ee5aaea6f9ea28614be5799f9b13f29093d562829c",
-      "notes": "pe-refs-4 round 4 (#138), recorded as round4/concentric/ring40-hole15-spiral.pes."
+      "notes": "pe-refs-4 round 4 (#138), recorded as round 4's captures (ring40-hole15-spiral.pes.)"
     },
     {
       "file": "stitches/spiral-ring40-hole20.pes",
@@ -2087,7 +2087,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "a 40 mm Circle with a 20 mm Circle (40,40)-(60,60) as hole; region Spiral Stitch on the outer shape. Hoop 100 x 100 mm page; line Not Sewn (Line); colour 800 EMBROIDERY RED; region attributes at their defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button) unless stated; nothing else in the design. Save As PES (default type, #PES0110). Status bar 39,30 x 39,70 mm, 1918 st.",
       "sha256": "38435e8dbda65bed44ccd01708a7c4b2adc95e54eb97e117149c7d3a4fe55694",
-      "notes": "pe-refs-4 round 7 (#138 follow-ups), round7/spiral/spiral-ring40-hole20.pes: PE sews the outline's spiral inwards to the middle of the band, then the band where the two spirals meet as separate trimmed pieces (each with a tie-in and a lock), then the hole's spiral: 31 pieces about 5.5° wide every 11.25° at r 14.7-15.3 mm; 64 trims."
+      "notes": "pe-refs-4 round 7 (#138 follow-ups), spiral-ring40-hole20.pes (round 7 captures): PE sews the outline's spiral inwards to the middle of the band, then the band where the two spirals meet as separate trimmed pieces (each with a tie-in and a lock), then the hole's spiral: 31 pieces about 5.5° wide every 11.25° at r 14.7-15.3 mm; 64 trims."
     },
     {
       "file": "stitches/spiral-square40-hole16.pes",
@@ -2099,7 +2099,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "a 40 mm square Rectangle (30,30)-(70,70) with a 16 mm square (42,42)-(58,58) as hole; region Spiral Stitch on the outer shape. Hoop 100 x 100 mm page; line Not Sewn (Line); colour 800 EMBROIDERY RED; region attributes at their defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button) unless stated; nothing else in the design. Save As PES (default type, #PES0110). Status bar 39,90 x 39,70 mm, 1686 st.",
       "sha256": "78f2bc4cbcefb4fe74f53e6d34d4a13ba37dc787b95783d6c19c14ba0500e6e2",
-      "notes": "pe-refs-4 round 7 (#138 follow-ups), round7/spiral/spiral-square40-hole16.pes: 6 pieces: the outline's spiral (959), three side segments of about 76° (62, 26, 26 needles), the hole's spiral (598) and a 15-needle return to the start corner; 10 trims."
+      "notes": "pe-refs-4 round 7 (#138 follow-ups), spiral-square40-hole16.pes (round 7 captures): 6 pieces: the outline's spiral (959), three side segments of about 76° (62, 26, 26 needles), the hole's spiral (598) and a 15-needle return to the start corner; 10 trims."
     },
     {
       "file": "stitches/spiral-square40.pes",
@@ -2111,7 +2111,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > Rectangle dragged (30,30)-(70,70) mm; region Spiral Stitch. Hoop 100 x 100 mm page (File > New); line Not Sewn (Line); colour 800 EMBROIDERY RED; region at its defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button); nothing else in the design. Save As PES (default type, #PES0110). Status bar 39,90 x 39,70 mm, 1710 st.",
       "sha256": "fe0c40b920401bd9d47ddbe3870bff77453d8ec145021dbd47249d85da819c37",
-      "notes": "pe-refs-4 round 5 (#138 follow-ups), round5/spiral/spiral-square40.pes: starts at the bottom-middle (0,+19.9) and ends at the same point; runs left along the bottom edge (clockwise)."
+      "notes": "pe-refs-4 round 5 (#138 follow-ups), spiral-square40.pes (round 5 captures): starts at the bottom-middle (0,+19.9) and ends at the same point; runs left along the bottom edge (clockwise)."
     },
     {
       "file": "stitches/spiral-triangle-d1p0.pes",
@@ -2123,7 +2123,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > isosceles Triangle dragged (30,30)-(70,70) mm; region Spiral Stitch. Hoop 100 x 100 mm page; line Not Sewn (Line); colour 800 EMBROIDERY RED; region attributes at their defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button) unless stated; nothing else in the design. Save As PES (default type, #PES0110). Status bar 39,50 x 38,50 mm, 425 st.",
       "sha256": "574f1ce2d0af922c35cb04a927697992dd0a789fa42397003a12fb4052646c7c",
-      "notes": "pe-refs-4 round 6 (#138 follow-ups), round6/spiral/spiral-triangle-d1p0.pes: Density 1,0; starts at the bottom-left corner, ends at (+0.2,+6.8)."
+      "notes": "pe-refs-4 round 6 (#138 follow-ups), spiral-triangle-d1p0.pes (round 6 captures): Density 1,0; starts at the bottom-left corner, ends at (+0.2,+6.8)."
     },
     {
       "file": "stitches/spiral-triangle-wide.pes",
@@ -2135,7 +2135,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > isosceles Triangle dragged (20,40)-(80,70) mm; region Spiral Stitch. Hoop 100 x 100 mm page; line Not Sewn (Line); colour 800 EMBROIDERY RED; region attributes at their defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button) unless stated; nothing else in the design. Save As PES (default type, #PES0110). Status bar 59,50 x 29,50 mm, 941 st.",
       "sha256": "32ce72862c7ffc2fc86b7f91b93d241b7332e673c7e652bbb077eb57597279b4",
-      "notes": "pe-refs-4 round 6 (#138 follow-ups), round6/spiral/spiral-triangle-wide.pes: starts at the bottom-left corner (-29.8,+14.8), ends at (+0.2,+2.4)."
+      "notes": "pe-refs-4 round 6 (#138 follow-ups), spiral-triangle-wide.pes (round 6 captures): starts at the bottom-left corner (-29.8,+14.8), ends at (+0.2,+2.4)."
     },
     {
       "file": "stitches/spiral-triangle.pes",
@@ -2147,7 +2147,7 @@
       "os": "Windows 11 Pro 10.0.26300",
       "settings": "Shapes > isosceles Triangle dragged (30,30)-(70,70) mm; region Spiral Stitch. Hoop 100 x 100 mm page (File > New); line Not Sewn (Line); colour 800 EMBROIDERY RED; region at its defaults (Density 2,0 line/mm, Run pitch 2,0 mm, Start Point first button); nothing else in the design. Save As PES (default type, #PES0110). Status bar 39,70 x 39,20 mm, 842 st.",
       "sha256": "8130e8944753df6d6482be3de67ab210adb61337b671acd79677518f3dde1617",
-      "notes": "pe-refs-4 round 5 (#138 follow-ups), round5/spiral/spiral-triangle.pes: starts at the bottom-left corner (-19.9,+19.6) and ends at (0,+7.2) near the centroid; runs right."
+      "notes": "pe-refs-4 round 5 (#138 follow-ups), spiral-triangle.pes (round 5 captures): starts at the bottom-left corner (-19.9,+19.6) and ends at (0,+7.2) near the centroid; runs right."
     },
     {
       "file": "stitches/square-gradation-30-10.pes",
@@ -5794,7 +5794,7 @@
       "date": "2026-11-07",
       "os": "Windows 11 Pro",
       "sha256": "dd3b3e92d4989ec460ce8a3f2866e2c105a1937ec9e811f2f8ca95edfa50e66d",
-      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; owner notes folder PE-reference-notes\\round8, notes.md). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed N, size 20.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
+      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; the coordinator's capture notes, round 8). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed N, size 20.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
     },
     {
       "file": "text/stroke-blocks-satin-N.pes",
@@ -5805,7 +5805,7 @@
       "date": "2026-11-07",
       "os": "Windows 11 Pro",
       "sha256": "694a5f723a6b4460aa5396b8062b66cca65ca625fba274d6e15509ed7578dec2",
-      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; owner notes folder PE-reference-notes\\round8, notes.md). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed N, size 20.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. Then Text > Convert to Blocks (a shape with direction lines, the same stitches). App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
+      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; the coordinator's capture notes, round 8). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed N, size 20.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. Then Text > Convert to Blocks (a shape with direction lines, the same stitches). App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
     },
     {
       "file": "text/stroke-satin-N-8.pes",
@@ -5816,7 +5816,7 @@
       "date": "2026-11-07",
       "os": "Windows 11 Pro",
       "sha256": "8abd36974c4862c2d3d0cf272173cd79f01d3744a6ca1f99935694682425f74c",
-      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; owner notes folder PE-reference-notes\\round8, notes.md). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed N, size 8.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
+      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; the coordinator's capture notes, round 8). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed N, size 8.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
     },
     {
       "file": "text/stroke-satin-M.pes",
@@ -5827,7 +5827,7 @@
       "date": "2026-11-07",
       "os": "Windows 11 Pro",
       "sha256": "5b10b0b29dcf4f5584d4e9fd9140630c16004beaea538f1620ac1587c133ca83",
-      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; owner notes folder PE-reference-notes\\round8, notes.md). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed M, size 20.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
+      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; the coordinator's capture notes, round 8). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed M, size 20.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
     },
     {
       "file": "text/stroke-satin-M-8.pes",
@@ -5838,7 +5838,7 @@
       "date": "2026-11-07",
       "os": "Windows 11 Pro",
       "sha256": "28d7cc5540e0256d8675f41df80585477ec47b0c3f9a37b2ff59223586d6ef17",
-      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; owner notes folder PE-reference-notes\\round8, notes.md). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed M, size 8.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
+      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; the coordinator's capture notes, round 8). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed M, size 8.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
     },
     {
       "file": "text/stroke-satin-W.pes",
@@ -5849,7 +5849,7 @@
       "date": "2026-11-07",
       "os": "Windows 11 Pro",
       "sha256": "2d4eec2ef96a53669e99d263df1762246144b15d0e8a69182dbd9d5aa5f6655d",
-      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; owner notes folder PE-reference-notes\\round8, notes.md). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed W, size 20.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
+      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; the coordinator's capture notes, round 8). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed W, size 20.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
     },
     {
       "file": "text/stroke-satin-W-8.pes",
@@ -5860,7 +5860,7 @@
       "date": "2026-11-07",
       "os": "Windows 11 Pro",
       "sha256": "5651edc70e35ac6164b01ac46312293e0ba95cb35af2b91f117879aa64ea4871",
-      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; owner notes folder PE-reference-notes\\round8, notes.md). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed W, size 8.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
+      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; the coordinator's capture notes, round 8). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed W, size 8.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
     },
     {
       "file": "text/stroke-satin-K.pes",
@@ -5871,7 +5871,7 @@
       "date": "2026-11-07",
       "os": "Windows 11 Pro",
       "sha256": "f970ac3da34aa443544ce566d26b27d104ab97b488e417bee4b9c00d2107d138",
-      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; owner notes folder PE-reference-notes\\round8, notes.md). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed K, size 20.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
+      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; the coordinator's capture notes, round 8). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed K, size 20.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
     },
     {
       "file": "text/stroke-satin-K-8.pes",
@@ -5882,7 +5882,7 @@
       "date": "2026-11-07",
       "os": "Windows 11 Pro",
       "sha256": "08335af0a7f97f0f6a4823e02f1b4d0ffcec496c958784c36e8f34cdb8cda9b1",
-      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; owner notes folder PE-reference-notes\\round8, notes.md). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed K, size 8.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
+      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; the coordinator's capture notes, round 8). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed K, size 8.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
     },
     {
       "file": "text/stroke-satin-Z.pes",
@@ -5893,7 +5893,7 @@
       "date": "2026-11-07",
       "os": "Windows 11 Pro",
       "sha256": "859917e82713702b34854b4771997f7721de383fbd188b34439f6cd8147677ee",
-      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; owner notes folder PE-reference-notes\\round8, notes.md). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed Z, size 20.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
+      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; the coordinator's capture notes, round 8). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed Z, size 20.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
     },
     {
       "file": "text/stroke-satin-Z-8.pes",
@@ -5904,7 +5904,7 @@
       "date": "2026-11-07",
       "os": "Windows 11 Pro",
       "sha256": "38126e3b980a46eec2eb5cf31c2a6d8c2ef542e76c8bbcc1805d7c2d78a15f59",
-      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; owner notes folder PE-reference-notes\\round8, notes.md). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed Z, size 8.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
+      "settings": "Round 8 captures for #446 (2026-11-07, Windows coordinator; the coordinator's capture notes, round 8). PE-DESIGN 11.50 Layout & Editing, 100 x 100 mm page, Lato Bold (OFL) as a per-user TrueType font. Text tool, typed Z, size 8.0 mm; region Satin Stitch at PE-DESIGN's text defaults, line Not Sewn; one letter per file. App menu > Save As, PES default (Ver 11). Owner-made with PE-DESIGN's own Text tool; no Brother font or pattern involved."
     },
     {
       "file": "stitches/cross-single.pes",

@@ -14,7 +14,7 @@ as an installed TrueType font. Specs live in `compat/specs/text/`.
 - Text Transform: number of presets, order, a one-line description each, further settings.
 - User-mapped text: which per-character edits are disabled.
 
-### Survey results (pe-gui, PE-DESIGN 11.50, 2026-10-27; files and log in PE-reference-notes round2 text folder)
+### Survey results (pe-gui, PE-DESIGN 11.50, 2026-10-27; files and log in the coordinator's round-2 text captures)
 
 - Font: Lato-Bold.ttf installed for the user; PE lists it as "Lato" among the TrueType fonts (Text tab font
   drop-down; recently used fonts first, then Brother's numbered fonts, then TrueType A–Z). TTF Settings dialog
