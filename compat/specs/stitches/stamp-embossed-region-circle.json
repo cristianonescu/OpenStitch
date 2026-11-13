@@ -15,7 +15,7 @@
   "evidence": [
     {
       "kind": "measured",
-      "note": "PE-DESIGN 11.50 round-10 capture 471-embossed-region-circle.pes (SHA-256 9c291dff6fa3607bb7e736636033b0ce61b7095ec9dfbd5bb56f326f26d02fc5, 3191 stitches; the owner's, not in the repository until PES 0110 import reads a shape that carries a stamp), measured for #471"
+      "note": "PE-DESIGN 11.50 round-10 capture 471-embossed-region-circle.pes (SHA-256 9c291dff6fa3607bb7e736636033b0ce61b7095ec9dfbd5bb56f326f26d02fc5, 3191 stitches), measured for #471; the reference file since #959"
     }
   ],
   "script": [
@@ -83,6 +83,13 @@
       "path": "a.pes"
     }
   ],
+  "references": [
+    {
+      "id": "pe-design",
+      "file": "stitches/stamp-embossed-region-circle.pes",
+      "make": "On a 180 x 130 mm Design Page draw a square with Home > Shapes > Rectangle, 42.00 x 42.00 mm with its line (a 40 mm outline from 30 to 70 mm), PE-DESIGN's defaults kept: line Zigzag Stitch 2.0 mm, 4.5 line/mm, Half Stitch on; region Fill Stitch 4.5 line/mm, 45 degrees, under sewing on. Draw a circle in its middle with Home > Shapes > circle, 16.50 x 16.00 mm with its 2 mm zigzag line (a 14.5 x 14.0 mm outline), defaults kept. Select both (Ctrl+A) and choose Home > Stamp/Emboss > Convert from Outline > Embossed Region: the circle becomes a stamp in the square's fill. Save As 'Layout & Editing Ver 11.0 File (*.PES)'. Status bar 3191 st."
+    }
+  ],
   "measurements": [
     {
       "id": "stitches",
@@ -96,7 +103,12 @@
         "min": 2950,
         "max": 3300
       },
-      "evidence": "3,123 stitches: 53 fewer than the plain square (PE-DESIGN 60 fewer), on the 40 mm square with the 14.5 mm circle"
+      "evidence": "3,123 stitches: 53 fewer than the plain square (PE-DESIGN 60 fewer), on the 40 mm square with the 14.5 mm circle",
+      "reference": {
+        "tolerance": {
+          "percent": 5
+        }
+      }
     },
     {
       "id": "longest",
@@ -111,7 +123,12 @@
         "min": 13.0,
         "max": 15.5
       },
-      "evidence": "the rows cross the raised circle whole: up to 14.2 mm (PE-DESIGN 14.3 mm)"
+      "evidence": "the rows cross the raised circle whole: up to 14.2 mm (PE-DESIGN 14.3 mm)",
+      "reference": {
+        "tolerance": {
+          "mm": 0.5
+        }
+      }
     }
   ]
 }
