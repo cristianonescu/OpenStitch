@@ -414,8 +414,9 @@ Line references are relative to `crates/`.
   their sewn extent). Groups: the group's number is one more than its last
   member's archive number (a01, o-group-two-rects, group-partial); OpenStitch wrote the class's
   number, which PE-DESIGN 11.50 refused ("Unexpected file format") for the appliqué export's
-  group of four lines without the square (2026-10-31), fixed; several groups (PE-DESIGN's
-  group-two) are not mapped and are left out of the file (open). Refused for
+  group of four lines without the square (2026-10-31), fixed; several groups are read and
+  written since #608 (2026-11-13: group-two and round 12's three-group and 3+2 captures, written
+  back byte for byte from the group tags to the sewing-order list). Refused for
   now: right-aligned and vertical text, stretched fit, rotation, letter spacing, kerning,
   per-character edits, other fonts.
   **PE-DESIGN's check (reference tier, `pes-0110-editable-text`):** it opens the file as
