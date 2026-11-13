@@ -184,16 +184,74 @@ pub fn draw_grid(painter: &egui::Painter, vp: &Viewport, page: &Rect, grid: &Gri
     }
 }
 
+/// The window's MSAA sample count (desktop; the browser page draws without it).
+pub const MSAA_SAMPLES: u16 = 4;
+/// Set when the window draws with [`MSAA_SAMPLES`]: the Realistic view then draws its threads
+/// as one mesh without feathered edges (#907).
+pub static MSAA: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Thread segments as quads without feathering, for a window drawn with MSAA (#907). Feathered
+/// edges are partly transparent: where two rows' edges meet, each lets some fabric through,
+/// and rows 1–2 px apart turn that into light stripes. Under MSAA every sample is covered by a
+/// row or not, so the rows' seams close and the average colour follows the covered area.
+#[derive(Default)]
+pub struct ThreadMesh(pub egui::Mesh);
+
+impl ThreadMesh {
+    /// A segment from `a` to `b`, `w` points wide, with square ends at `a` and `b`.
+    pub fn segment(&mut self, a: Pos2, b: Pos2, w: f32, color: Color32) {
+        let d = b - a;
+        let len = d.length();
+        if len < 1e-4 {
+            return;
+        }
+        let n = egui::vec2(-d.y, d.x) * (w * 0.5 / len);
+        let i = self.0.vertices.len() as u32;
+        for p in [a + n, a - n, b - n, b + n] {
+            self.0.colored_vertex(p, color);
+        }
+        self.0.add_triangle(i, i + 1, i + 2);
+        self.0.add_triangle(i, i + 2, i + 3);
+    }
+}
+
+/// Threads narrower than this many pixels are drawn in one colour under MSAA (#907).
+pub const FINE_PX: f32 = 3.0;
+
+/// Colours mixed by the share of a pixel each covers, averaged as the view's own pixels average
+/// when the same stitches are drawn large enough to show their shading (sRGB values, as egui
+/// blends them).
+pub fn mix_by_area(parts: &[(Color32, f32)]) -> Color32 {
+    let total: f32 = parts.iter().map(|p| p.1).sum();
+    let m = |f: fn(&Color32) -> u8| {
+        (parts.iter().map(|(c, w)| f32::from(f(c)) * w).sum::<f32>() / total).round() as u8
+    };
+    Color32::from_rgb(m(Color32::r), m(Color32::g), m(Color32::b))
+}
+
 /// Stitches drawn as thread: true width, a dark edge, the colour and a highlight, so rows read
 /// like sewn thread rather than lines (width, contrast and brightness from Realistic View
 /// Settings).
 pub fn draw_realistic(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
+    let msaa = MSAA.load(std::sync::atomic::Ordering::Relaxed);
+    let mut mesh = ThreadMesh::default();
+    let line = |mesh: &mut ThreadMesh, a: Pos2, b: Pos2, w: f32, c: Color32| {
+        if msaa {
+            mesh.segment(a, b, w, c);
+        } else {
+            painter.line_segment([a, b], Stroke::new(w, c));
+        }
+    };
+    let mut dots = Vec::new();
     let settings = app.ui.prefs.realistic;
     let w = (settings.thread_width_mm * 10.0 * vp.scale).max(0.8) as f32;
     for layer in &app.render.layers {
         let [edge, body, light] = settings
             .shades(layer.rgb)
             .map(|c| Color32::from_rgb(c[0], c[1], c[2]));
+        // As the shading shows at a few pixels wide: the edge on 0.3 of the width, the body
+        // on 0.7, the highlight on a quarter of the width along the middle 60 % (0.15).
+        let fine = mix_by_area(&[(edge, 0.3), (body, 0.55), (light, 0.15)]);
         // Thread drawn wider or narrower than the default reaches as much further off its line.
         let scale = settings.thread_width_mm / openstitch_design::calibration::THREAD_MM;
         for (n, s) in layer.strokes.iter().enumerate() {
@@ -216,21 +274,32 @@ pub fn draw_realistic(app: &EditorApp, painter: &egui::Painter, vp: &Viewport) {
                 );
                 // As wide as sewn thread covers at this stitch's row density (#291).
                 let w = (w * cover.and_then(|c| c.get(k)).copied().unwrap_or(1.0)).max(0.8);
-                painter.line_segment([a, b], Stroke::new(w, edge));
-                painter.line_segment([a, b], Stroke::new(w * 0.7, body));
-                if w >= 2.5 {
-                    // The highlight sits towards the middle of each stitch, as light catches
-                    // the top of the thread.
-                    let d = b - a;
-                    painter.line_segment([a + d * 0.2, b - d * 0.2], Stroke::new(w * 0.25, light));
+                if msaa && w < FINE_PX {
+                    // Under a few pixels the edge and body shading is finer than a pixel and
+                    // would alias into bands: one colour, their mix by area (#907).
+                    line(&mut mesh, a, b, w, fine);
+                } else {
+                    line(&mut mesh, a, b, w, edge);
+                    line(&mut mesh, a, b, w * 0.7, body);
+                    if w >= 2.5 {
+                        // The highlight sits towards the middle of each stitch, as light
+                        // catches the top of the thread.
+                        let d = b - a;
+                        line(&mut mesh, a + d * 0.2, b - d * 0.2, w * 0.25, light);
+                    }
                 }
             }
             // Needle penetrations show as small dark dots between stitches.
             if w >= 3.0 {
-                for &p in s {
-                    painter.circle_filled(pos(vp.to_screen(p)), w * 0.18, edge);
-                }
+                dots.extend(s.iter().map(|&p| (pos(vp.to_screen(p)), w * 0.18, edge)));
             }
+        }
+        if msaa {
+            // One layer's mesh, then its needle dots, keeps the colours' stacking order.
+            painter.add(Shape::mesh(std::mem::take(&mut mesh.0)));
+        }
+        for (p, r, c) in dots.drain(..) {
+            painter.circle_filled(p, r, c);
         }
     }
 }
@@ -746,5 +815,47 @@ mod ruler_tests {
         assert_eq!(super::ruler_label("-20"), "20");
         assert_eq!(super::ruler_label("\u{2212}1.5"), "1.5");
         assert_eq!(super::ruler_label("10"), "10");
+    }
+}
+
+/// The Realistic view under MSAA (#907).
+#[cfg(test)]
+mod realistic_tests {
+    use super::*;
+
+    /// A thread segment is one quad, `w` wide across its direction, without feathering (no
+    /// extra transparent vertices), so rows that meet close the seam between them.
+    #[test]
+    fn a_thread_segment_is_one_unfeathered_quad() {
+        let mut m = ThreadMesh::default();
+        let c = Color32::from_rgb(10, 85, 163);
+        m.segment(Pos2::new(10.0, 20.0), Pos2::new(30.0, 20.0), 1.5, c);
+        m.segment(Pos2::new(10.0, 21.5), Pos2::new(30.0, 21.5), 1.5, c);
+        m.segment(Pos2::new(5.0, 5.0), Pos2::new(5.0, 5.0), 1.5, c);
+        assert_eq!((m.0.vertices.len(), m.0.indices.len()), (8, 12));
+        assert!(m.0.vertices.iter().all(|v| v.color == c));
+        let ys = |r: std::ops::Range<usize>| {
+            let y: Vec<f32> = m.0.vertices[r].iter().map(|v| v.pos.y).collect();
+            (y.iter().copied().fold(f32::MAX, f32::min), y.iter().copied().fold(f32::MIN, f32::max))
+        };
+        assert_eq!(ys(0..4), (19.25, 20.75));
+        // The next row 1.5 px below starts exactly where the first ends: no gap, no overlap.
+        assert_eq!(ys(4..8).0, ys(0..4).1);
+    }
+
+    /// The one colour of a thread under 3 px is its shading mixed by area: the T1 blue's
+    /// edge, body and highlight average to the colour the same stitches show zoomed in.
+    #[test]
+    fn a_fine_thread_is_its_shading_mixed_by_area() {
+        let [edge, body, light] = openstitch_app::editor::workspace::thread_shades([10, 85, 163])
+            .map(|c| Color32::from_rgb(c[0], c[1], c[2]));
+        let fine = mix_by_area(&[(edge, 0.3), (body, 0.55), (light, 0.15)]);
+        assert_eq!(fine, Color32::from_rgb(25, 85, 147));
+        let grey = Color32::from_gray(100);
+        assert_eq!(mix_by_area(&[(grey, 1.0)]), grey);
+        assert_eq!(
+            mix_by_area(&[(Color32::BLACK, 1.0), (Color32::WHITE, 3.0)]),
+            Color32::from_gray(191)
+        );
     }
 }

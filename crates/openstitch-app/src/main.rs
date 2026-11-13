@@ -32,6 +32,8 @@
 //! A plain start also checks GitHub for a newer release and offers it (Options ▸ "Check for
 //! updates at startup"; `OPENSTITCH_NO_UPDATE_CHECK` turns it off); `--show update` opens the
 //! dialog with sample notes for screenshots, `--show close-prompt` the unsaved-changes prompt.
+//! The window draws with 4x MSAA where the graphics adapter has it (#907);
+//! `OPENSTITCH_NO_MSAA` turns that off.
 //! Closing the window, File ▸ New or Open with unsaved changes asks "Save changes to NAME?"
 //! (Save, Don't Save, Cancel); on macOS Cmd+Q and Cmd+W ask too (the app runs without the
 //! system menu, see `macos_event_loop`); a `--screenshot` run closes without asking once its image is
@@ -386,6 +388,8 @@ fn main() -> eframe::Result {
             std::process::exit(2);
         }
     };
+    let msaa = msaa_samples();
+    workspace_ui::MSAA.store(msaa > 1, std::sync::atomic::Ordering::Relaxed);
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size(size)
@@ -395,6 +399,10 @@ fn main() -> eframe::Result {
         renderer: eframe::Renderer::Wgpu,
         wgpu_options: wgpu_options(),
         event_loop_builder: macos_event_loop(),
+        // 4x MSAA where the graphics adapter has it: the Realistic view's threads are then
+        // drawn without feathered edges, so rows a pixel or two apart share pixels by coverage
+        // instead of beating with the pixel grid into light stripes (#907).
+        multisampling: msaa,
         ..Default::default()
     };
     let result = eframe::run_native(
@@ -433,6 +441,47 @@ fn wgpu_options() -> eframe::egui_wgpu::WgpuConfiguration {
             eframe::wgpu::Backends::DX12 | eframe::wgpu::Backends::GL;
     }
     config
+}
+
+/// The window's MSAA samples (#907): [`workspace_ui::MSAA_SAMPLES`] when the adapter eframe
+/// would pick can render both window formats with them, else 1 (feathered drawing, as before).
+/// egui-wgpu does not check this itself, and a sample count the device lacks is a wgpu
+/// validation error, so an old GPU, driver or GL fallback must never be asked for it.
+/// `OPENSTITCH_NO_MSAA` turns it off by hand (a remote desktop or a driver that draws wrongly).
+#[cfg(not(target_arch = "wasm32"))]
+fn msaa_samples() -> u16 {
+    use eframe::wgpu;
+    use std::future::Future;
+    if std::env::var_os("OPENSTITCH_NO_MSAA").is_some() {
+        return 1;
+    }
+    let eframe::egui_wgpu::WgpuSetup::CreateNew(setup) = wgpu_options().wgpu_setup else {
+        return 1;
+    };
+    let instance = wgpu::Instance::new(setup.instance_descriptor);
+    let request = instance.request_adapter(&wgpu::RequestAdapterOptions {
+        power_preference: setup.power_preference,
+        ..Default::default()
+    });
+    // Native adapters are found at once: one poll, and anything else counts as no MSAA.
+    let mut request = std::pin::pin!(request);
+    let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
+    let std::task::Poll::Ready(Ok(adapter)) = request.as_mut().poll(&mut cx) else {
+        return 1;
+    };
+    let samples = u32::from(workspace_ui::MSAA_SAMPLES);
+    let ok = [
+        wgpu::TextureFormat::Bgra8Unorm,
+        wgpu::TextureFormat::Rgba8Unorm,
+    ]
+    .into_iter()
+    .all(|f| {
+        adapter
+            .get_texture_format_features(f)
+            .flags
+            .sample_count_supported(samples)
+    });
+    if ok { workspace_ui::MSAA_SAMPLES } else { 1 }
 }
 
 /// The web build starts from the page (`openstitch-web`'s `start`, which runs
