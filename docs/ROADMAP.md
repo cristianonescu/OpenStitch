@@ -138,6 +138,13 @@ so every thread was drawn as narrow as that density asks: the band along angle-l
 needle drops of its arms, hid 72–75 % of the fabric against 90–97 % in the arms. The row beside is now
 looked for up to 0.6 mm away; the band hides 96.5 %, as the arms. The T1 ramp (parallel rows) is unchanged.
 
+Done 2026-11-13 (#1051): the kit previews are placed by millimetres. The tiles are drawn with
+`--show bare --px-per-mm 16 --center X,Y` on whole pixels and cropped round the stitch bounds the
+editor reports (`--viewport-json`), not by the page-fit screenshot's pixels. Before, a change to the
+window's layout moved every preview by a fraction of a pixel and changed its height by 1–2 px; now
+the same stitches give the same pixels in any layout (five previews: 0 pixels differ between two
+builds a 240 px panel apart). `REALISTIC_RENDER_VERSION` 3.
+
 Done 2026-11-12 (#893, part 2): the kit previews and the README gallery are drawn at 16 px/mm in
 tiles (`openstitch --zoom … --center X,Y`, a new option that centres the view on a design point) and
 reduced with Lanczos, instead of the page-fit screenshot at 5–7 px/mm. Row-to-row stripe contrast in
