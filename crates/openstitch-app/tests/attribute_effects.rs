@@ -32,8 +32,6 @@ enum Expect {
     More,
     /// A higher value sews fewer stitches.
     Fewer,
-    /// Not checked here, with the reason.
-    Exempt(&'static str),
 }
 
 /// Every parameter the inspector's region (`r:`) and line (`l:`) controls set, and what
@@ -621,7 +619,6 @@ fn every_sewing_setting_changes_the_stitches() {
             let key = format!("{}{}", side.prefix(), c.param());
             params.insert(key.clone());
             let want = match expect(&key) {
-                Some(Expect::Exempt(_)) => continue,
                 Some(e) => e,
                 None => {
                     missing
