@@ -1623,7 +1623,7 @@ sample folders; no Ink/Stitch code is used and no font is bundled.
 User thread charts as CSV (`threads.importCsv`, `threads.exportCsv`; editor: Edit ▸ User Thread
 Charts… ▸ Import CSV… / Export CSV…), in the layout PE-DESIGN 11.50's Import Chart reads
 (Option ▸ Options… ▸ Edit User Thread Chart ▸ Import Chart…, file type "CSV File(*.csv)";
-round-6 checks, 2026-10-31, owner's notes `round6/charts`, issue #136): PE-DESIGN imports such
+round-6 checks, 2026-10-31, owner's round-6 chart captures, issue #136): PE-DESIGN imports such
 a file as a user chart named after the file, without hyphens (`v2-bare-3.csv` became "v2bare3").
 OpenStitch's own exports of the Brother chart (64 rows), the sew palette (90 rows) and a user
 chart all imported ("Importing of the chart is completed."), codes and colours as written. PE-DESIGN has no CSV export; it keeps its charts as binary

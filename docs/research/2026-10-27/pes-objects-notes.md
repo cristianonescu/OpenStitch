@@ -29,7 +29,7 @@ band). The class name is 8 chars, so the record starts `08 00 'CEmbLine'`.
 - Near the end of the object: the outline's vertices as f32 pairs in the same page coordinates
   (800.0, 1000.0, 600.0 … for the rectangle), with per-vertex fields to map (r01 vs r02/r03).
 
-## From the minimal designs (<reference-notes>\pes-objects, r01 baseline)
+## From the minimal designs (the pes-objects captures, r01 baseline)
 r01 = rectangle (10,10)–(20,20) mm, PE defaults; `CEmbLine` at 245. Each line = r01 vs that file.
 - r03 moved to (30,30)–(40,40): +10 bounds 600,600,700,700 → 800,800,900,900, so
   x_file = 10·x_mm + 500 (page 100 mm; centre?). +18 a second box 590..710 → 790..910. Vertices
