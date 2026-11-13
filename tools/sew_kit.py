@@ -909,14 +909,12 @@ def screenshot(work, design, shot, *view):
 
 
 def preview(work, pes, dst, colours):
-    im = screenshot(work, pes, work / "shot.png")
-    box = gallery.design_box(im)
-    # A built project is drawn again at gallery.SHARP_PX_PER_MM (#893); a .pes opened on its own
-    # (the machine checks) keeps the page-fit crop, its page not being known here.
-    if pes.suffix == ".osd":
-        im = gallery.sharp_crop(lambda *view: screenshot(work, pes, work / "tile.png", *view), pes, im, box)
-    else:
-        im = im.crop(box)
+    # Drawn at gallery.SHARP_PX_PER_MM (#893) round the stitches the editor draws, placed by
+    # millimetres, so the preview does not depend on the window's layout (#1051).
+    def tile(*view):
+        im = screenshot(work, pes, work / "tile.png", *view, "--viewport-json", str(work / "tile.json"))
+        return im, json.loads((work / "tile.json").read_text(encoding="utf-8"))
+    im = gallery.sharp_crop(tile)
     im = im.resize((360, round(im.height * 360 / im.width)), Image.LANCZOS)
     if missing_threads(im, colours):
         sys.exit(f"{dst.name}: the render itself lacks threads {missing_threads(im, colours)}")
@@ -1002,6 +1000,30 @@ def self_test():
         with Image.open(dst) as now:
             assert same_pixels(now, changed) and not same_pixels(now, im)
         assert save_if_changed(im, Path(tmp) / "new.png")
+    # #1051: a preview is placed by millimetres, so two window layouts (another canvas size and
+    # place) give the same pixels. A fake screenshot draws a pattern fixed to the design's mm and
+    # puts the --center point mid-canvas on whole pixels, as the app does.
+    import numpy as np
+
+    def fake_shot(canvas):
+        def shot(*view):
+            args = dict(zip(view[::2], view[1::2]))
+            p = float(args["--px-per-mm"])
+            cx, cy = (float(v) for v in args.get("--center", "50,50").split(","))
+            ox = round((canvas[0] + canvas[2]) / 2 - cx * p)
+            oy = round((canvas[1] + canvas[3]) / 2 - cy * p)
+            yy, xx = np.mgrid[0:900, 0:1440]
+            mx, my = xx - ox, yy - oy  # mm × p, whole numbers
+            rgb = np.stack([(mx * 7) % 251, (my * 5) % 241, (mx + 3 * my) % 239], -1).astype(np.uint8)
+            info = {"pxPerMm": p, "offsetPx": [ox, oy], "canvasPx": list(canvas), "pixelsPerPoint": 1.0,
+                    "stitchBoundsMm": bounds}
+            return Image.fromarray(rgb, "RGB"), info
+        return shot
+    bounds = [12.3, 20.07, 97.9, 71.25]
+    a = gallery.sharp_crop(fake_shot((0, 120, 1100, 870)))
+    b = gallery.sharp_crop(fake_shot((310, 160, 1440, 860)))
+    assert a.size == b.size == gallery.crop_box(bounds)[1], (a.size, b.size)
+    assert a.tobytes() == b.tobytes(), "two layouts drew different previews"
     # The render version: read from the source; a preview at another version is stale.
     assert render_version("x\npub const REALISTIC_RENDER_VERSION: u32 = 7;\n") == 7
     assert render_version() >= 1
