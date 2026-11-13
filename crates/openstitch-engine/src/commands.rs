@@ -1328,7 +1328,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "angle",
                     "degrees",
-                    "Sewing direction, counter-clockwise on screen as in PE-DESIGN (0 = horizontal); setting it turns Auto direction off (PE-DESIGN's straight direction, as the Fill Angle tool does) unless autoDirection is given in the same call; ignored by cross stitch, which PE-DESIGN 11.50 sews on the page axes with no Direction",
+                    "Sewing direction, counter-clockwise on screen as in PE-DESIGN (0 = horizontal); setting it turns Auto direction off (PE-DESIGN's straight direction, as the Fill Angle tool does) unless autoDirection is given in the same call; ignored by cross stitch, which PE-DESIGN 11.50 sews on the page axes with no Direction; it turns a zigzag net, and a switch to zigzag net starts at 0 (PE-DESIGN's default for the type) unless angle is given in the same call",
                 ),
                 opt(
                     "density",
@@ -1695,6 +1695,11 @@ fn attribute_commands() -> Vec<CommandSpec> {
                             RegionSewing::new(k, r.thread)
                         };
                         (r.angle, r.entry, r.exit) = (angle, entry, exit);
+                        // Except a zigzag net's: PE-DESIGN 11.50 shows Direction 0 after a
+                        // switch from a 45° fill (round 13, zigzag-net-dir0, #1043).
+                        if k == RegionType::ZigzagNetFill {
+                            r.angle = RegionSewing::default_angle(k);
+                        }
                     }
                     if let Some(c) = &color {
                         r.thread = c.clone();
