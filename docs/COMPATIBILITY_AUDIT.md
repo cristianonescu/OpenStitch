@@ -587,6 +587,17 @@ Line references are relative to `crates/`.
   M-8's remaining gap: PE-DESIGN sews each stem's top as a fan with the diagonal's start (a
   corner square, stem satin stopping below it), so its diagonals are shorter and its corners
   denser, and it locks twice on the way down.
+  Since 2026-11-13 (#938, part): A's bar ends along the legs' inner edges, its end crossings at
+  109.5 and 70.5 degrees (PE-DESIGN 110 and 70) with 41 crossings over x 5.7-14.5 mm (41 over
+  5.8-14.3); the left leg is cut through the corners where the bar's edges meet it (its straight
+  edges carried past Lato's rounded inner corner), and the pieces either side of the square join
+  their sides over their own length. A 284 → 292 against 290; H at 40 mm 579 → 575 (556), K 314 →
+  312 (293), 8 357 → 358 (373), T 208 → 209 (186); the other satin captures unchanged. Still
+  open: A's foot crossings average 17 degrees on its middle third against PE-DESIGN's 8.5.
+  PE-DESIGN enters the foot at its inner corner, so its slants run against the rows' tilt;
+  starting there here gives 10 degrees but drops A to 279, because our square (13 crossings
+  against 18) and foot (32 against 37) are shorter. Our leg rungs tilt about 23 degrees where
+  PE-DESIGN's tilt 35, so the same corners cut less of the outer side.
 - **Test:**
   - Inputs: `text.add {"text":"AVOW","size":30,"x":50,"y":50}` →
     `object.setRegion {"id":1,"type":"satin"}` → `design.generate`.

@@ -116,6 +116,17 @@ OpenStitch is updated often, and the kit's designs, the measuring method and the
 change and improve with it. Each record names the OpenStitch version it was sewn from.
 Results from other machines, threads and fabrics are welcome (see *Sending results* above).
 
+**Which files were sewn (measured 2026-11-13, PEC stitches compared with stitches in place left out):**
+- `calibration/t1-swatches.pes` was sewn twice from the alpha.11-era file: on 2026-11-03 from
+  main 4cf8b7a, and on 2026-11-04 from 4cf8b7a or later (the commit was not recorded). The file
+  has changed since: in #299 (2026-11-04, 105 runs of records), and substantially in #634
+  (2026-11-06, the swatch density check: 4,870 of the sewn file's 5,193 records). Since then,
+  #1013 added only stitches in place before one-step tie-ins, and #938 changed only the left end
+  of the "T1" label's T bar (2 runs of records within 1.5 x 1 mm), not the swatch rows. To get
+  the sewn file back: `git show 4cf8b7a:examples/sew/calibration/t1-swatches.pes`.
+- `calibration/t2-alternating-rows.pes` (created in #634, 2026-11-06) and
+  `calibration/satin-and-underlay.pes` have no sew-out yet.
+
 ### T1 card, 2026-11-03
 
 <img src="calibration/results/2026-11-03-nv880e-new-brothread-t1.jpg" width="480" alt="Scan of the sewn T1 card">
@@ -513,7 +524,7 @@ The fonts, Text Transform, text on a path and monograms.
 
 #### Lettering
 
-[`lettering/fonts-and-text.pes`](lettering/fonts-and-text.pes) · 100 × 100 mm hoop · 71 × 89.7 mm · 3,917 stitches · 40 trims · about 6.9 min
+[`lettering/fonts-and-text.pes`](lettering/fonts-and-text.pes) · 100 × 100 mm hoop · 71 × 89.7 mm · 3,928 stitches · 40 trims · about 7 min
 
 Lato Bold and Pacifico, a Text Transform arch, and text spaced around a circle (text on a path).
 
