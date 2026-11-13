@@ -181,10 +181,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    that end's corners; each column's region shows `outlineEnds` ([first end, last end] on the
    edge, e.g. `[true, true]` for a stem, `[false, true]` for an arm from a junction to the edge), set by the
    command (`object.setRegion` can't set it). Check `warnings` for columns over 10 mm
-   and look at the junctions with `view_render`. Not yet sewn well (`tools/branch_columns.py`,
-   2026-11-13): M at 25 mm leaves 1.8 mm of outline bare by a join and W at 25 mm joins only
-   0.19 mm deep (N, M and W get one column per stroke, coverage 0.97-0.99); render those and
-   keep one satin or a fill if they look thin. A star too broad for one column (over 10 mm
+   and look at the junctions with `view_render`. Every shape of `tools/branch_columns.py`'s
+   set (Y, star, ring, K, X, N, R, M, W, A, y at 10 and 25 mm) meets #526's boxes on its
+   stitches (2026-11-13): none short. N, M and W get one column per stroke. A star too broad for one column (over 10 mm
    through its middle) is one column per point, each from its tip to the centre.
    Ripples, echoes and spirals from one outline (beyond PE-DESIGN): `object.setLine {type:
    ripple, strands, target: [x, y]}` (a closed line spirals in to the target as one run; an
