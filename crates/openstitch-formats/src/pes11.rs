@@ -639,9 +639,9 @@ pub struct Shape {
     /// 608-motif-size-spacing 5.0 × 5.0 and 2.0, 608-motif-5x8 5.0 × 8.0, #608). The motif
     /// itself is the header's motif list ([`Objects::motif_patterns`]).
     pub motif_line: Option<[f32; 3]>,
-    /// A motif fill (region code 3): the motif's width and height, mm (+218, +220;
-    /// 608-motif-fill-size 8.0 × 8.0) and PE-DESIGN's arrangement code (+68: 0 for "Pattern1
-    /// only", 2 at its own defaults, obj-motif-fill-owner-v).
+    /// A motif fill (region code 3): the motif's width and height, mm (+218, +220; 8.0 × 8.0 in
+    /// motif-fill-clean-p1) and PE-DESIGN's arrangement (+234: 0 for "Pattern1 only", 1 for
+    /// "Pattern1 and 2", the one field motif-fill-clean-p1 and -p1p2 differ in).
     pub motif_fill: Option<([f32; 2], u16)>,
     /// Body +236 and +332, kept as read: +332 is the number of motifs the header lists (1 to 3
     /// in every capture), +236 is 1 except in line-motif-zigzag-3pt (2, two own motifs listed);
@@ -1571,7 +1571,7 @@ fn read_line(r: &mut ByteReader<'_>) -> Result<Option<Shape>> {
         motif_fill: (u16_at(body, 134) == RegionSewType::Motif.raw()).then(|| {
             (
                 [218, 220].map(|at| f32::from(u16_at(body, at)) / 10.0),
-                u16_at(body, 68),
+                u16_at(body, 234),
             )
         }),
         motif_fields: [u16_at(body, 236), u16_at(body, 332)],
@@ -2275,7 +2275,7 @@ fn write_line(w: &mut ByteWriter, s: &Shape) {
     if let Some(([w, h], arrangement)) = s.motif_fill {
         put16(&mut head, 218, tenths(w));
         put16(&mut head, 220, tenths(h));
-        put16(&mut head, 68, arrangement);
+        put16(&mut head, 234, arrangement);
     }
     put16(&mut head, 236, s.motif_fields[0]);
     put16(&mut head, 332, s.motif_fields[1]);

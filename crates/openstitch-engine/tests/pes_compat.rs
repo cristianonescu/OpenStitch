@@ -550,7 +550,7 @@ fn pes_version_11_writes_motif_lines_and_fills_as_pe_design() {
     let fixtures =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../openstitch-formats/tests/fixtures/pe11");
     let dir = temp_dir("v11-motif");
-    for name in ["608-motif-5x8", "608-motif-fill-size"] {
+    for name in ["608-motif-5x8", "motif-fill-clean-p1"] {
         let pe_bytes = std::fs::read(fixtures.join(format!("{name}.pes"))).expect("fixture");
         let pe = pes::read_objects(&pe_bytes).expect("objects");
         std::fs::write(dir.join("in.pes"), &pe_bytes).expect("copy");
@@ -568,16 +568,12 @@ fn pes_version_11_writes_motif_lines_and_fills_as_pe_design() {
         let (a, b) = (&ours.shapes[0], &pe.shapes[0]);
         assert_eq!((a.line_type, a.region), (b.line_type, b.region), "{name}");
         assert_eq!(a.motif_line, b.motif_line, "{name}");
-        // The fill's size; the arrangement is written as Pattern1 only (0).
-        assert_eq!(
-            a.motif_fill.map(|f| f.0),
-            b.motif_fill.map(|f| f.0),
-            "{name}"
-        );
+        // The fill's size and arrangement (Pattern1 only, as motif-fill-clean-p1).
+        assert_eq!(a.motif_fill, b.motif_fill, "{name}");
         // 608-motif-5x8 lists one motif, which comes back as PE-DESIGN wrote it, with +236 and
-        // +332 (1, the number listed). 608-motif-fill-size lists PE-DESIGN's own motif beside
-        // ours; which listed motif an object uses is not mapped, so the import keeps OpenStitch's
-        // default motif there.
+        // +332 (1, the number listed). motif-fill-clean-p1 lists two (Pattern2 holds the project's
+        // second motif); which listed motif an object uses is not mapped, so the import keeps
+        // OpenStitch's default motif there and the export lists one.
         if pe.motif_patterns.len() == 1 {
             assert_eq!(ours.motif_patterns, pe.motif_patterns, "{name}");
             assert_eq!(a.motif_fields, b.motif_fields, "{name}");

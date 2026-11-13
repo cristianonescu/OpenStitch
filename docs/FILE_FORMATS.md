@@ -670,12 +670,12 @@ programmable fill tile that is not square or has embossed or engraved areas, a m
 own spacing or row and column shift, a mirrored or alternating motif line, a second motif, a
 decorative pattern chained in rows or not square, contour fill (OpenStitch's own) (motif lines and
 fills are written since #608: line code 2 with the motif's width along the line +70, height across it
-+72 and spacing +80, region code 3 with the motif's size +218/+220 and +68 0 for Pattern1 only, +332
-the number of motifs the header lists and +236 1 (2 in line-motif-zigzag-3pt, which lists two own
-motifs), both kept as read; every file with a motif fill also lists PE-DESIGN's own 1170-size
-motif; written: one motif in the header's motif list at
++72 and spacing +80, region code 3 with the motif's size +218/+220 and its arrangement +234 (0 Pattern1 only, 1
+Pattern1 and 2), +332 the number of motifs the header lists and +236 1, both kept as read;
+PE-DESIGN keeps a Pattern2 for every motif fill (its built-in motif unless replaced, #1060);
+written: one motif in the header's motif list at
 size 500, its stroke from (0, 512) to (1024, 512) as `import.pes` reads it; read back from
-608-motif-size-spacing, -5x8, -fill-size and the obj-motif-*-owner-v files; stem,
+608-motif-size-spacing, -5x8, motif-fill-clean-p1, -p1p2 and obj-motif-line-owner-v; stem,
 candlewick and chain lines are written by their codes, their Start/End options at PE-DESIGN's
 defaults: the sewing end PE-DESIGN stores for them, the second outline position and the
 geometry's segment fields, is not mapped); text in another font, with white space other than
@@ -719,6 +719,24 @@ byte-identical to PE-DESIGN's outside these documented differences
   against PE's five custom-page files; its hoop id and nv880e fields stay r01's (PE writes the
   hoop its dialog last showed). Its PEC frame is the design's own size, as on a Hoop Size page
   (#287), not PE-DESIGN's section frame (2900 × 1900, which the NV880E refuses).
+- **Page mode and the first stitches (#1013):** the page mode also shows in PE-DESIGN 11.50's
+  stitch stream. On a Hoop Size page it starts every one-step tie-in (0.3 mm out and straight
+  back) on a stitch in place at the move's landing: a zero-length PEC stitch right after the
+  jump (286 of the 296 such run starts in its Hoop Size references; the other 10 are opened
+  stitch files). It writes none before a three-step tie-in (77) and none on a Custom Size page
+  (1,981 run starts; every reference saved before 2026-10-30 is on one, which is why the
+  2026-10-27 count found no zero-length record). OpenStitch writes the stitch in place by the
+  same rule as the page mode of its `#PES0110` export (`Design::hoop_size_page`: a known hoop
+  chosen, or a 100 × 100 mm page), in every format, since the stitches are compiled before
+  the format is chosen. It leaves the stitch in place out where the run already starts with six
+  stitches in place (a fill starting on a narrow tip), which would make seven in a row:
+  PE-DESIGN's own files never sew more than six, and `tools/sew_check.py` allows six.
+  PE-DESIGN drops a zero-length stitch when it opens a stitch file: its re-saves of OpenStitch
+  exports that start with the stitch in place start on the landing (round 12, 2026-11-13,
+  pes-default-v6 and pes-csewseg-trims), so a re-save shows the page's rule only for objects
+  PE-DESIGN sews itself. A version 6 export marks the page custom whenever no hoop is chosen
+  ("Design Page Is Custom"), so a 100 × 100 page with no hoop carries the stitch in place there
+  while its v6 header says Custom Size.
 - **Header strings:** the metadata strings are written in Windows-1252 with CR LF, as
   PE-DESIGN shows them; pes-design-properties holds OpenStitch's former UTF-8 bytes, which
   PE-DESIGN kept when it re-saved the file, so its strings (and the offsets after them) differ.

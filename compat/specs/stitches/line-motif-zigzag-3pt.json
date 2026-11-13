@@ -17,6 +17,7 @@
       }
     ]
   },
+  "skip": "reference withdrawn 2026-11-13: the capture listed a PE-DESIGN built-in motif; a clean capture is pending",
   "evidence": [
     {
       "kind": "guide",

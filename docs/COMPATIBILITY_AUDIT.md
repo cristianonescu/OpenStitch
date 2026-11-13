@@ -159,6 +159,12 @@ Line references are relative to `crates/`.
   first stitch and back; three steps out and two back after a first stitch over 3 mm) and ends
   with a lock (0.3 mm back along the last stitch and return; two steps after a last stitch over
   4.25 mm), per `satin-lock-column-3p5.pes` and the other satin references.
+  On a Hoop Size page (PE-DESIGN's default for a new design; these 2026-10-27 references
+  are on a 100 × 100 Custom Size page) a one-step tie-in starts with a stitch in place on
+  the move's landing (#1013, since 2026-11-13: 286 of 296 run starts in its Hoop Size
+  files, none of its three-step ones, none of 1,981 on Custom Size pages). OpenStitch
+  follows the design's page mode (`design.new` `pageMode`); the specs measured on a
+  Custom Size page say so.
   A rectangle starts and ends in the middle of its bottom edge: PE runs along that edge to one
   end, sews back to the middle (the last row 0.2 mm short, reached along the far edge), then
   does the same for the other half: 27 stitches, 7 of them short edge stitches at the start
@@ -4249,11 +4255,12 @@ PE-DESIGN 11.50's motif captures (rounds 12 and 13, the project's own `psc-motif
 motif) map the motif fields of a `CEmbLine` (body offsets, 0.1 mm):
 - **Motif line:** width along the line +70 (5.0 in both line captures), height across it +72
   (5.0, then 8.0 in `608-motif-5x8`), spacing +80 (0 at the defaults, 2.0).
-- **Motif fill:** size +218 / +220 (5.0 at the defaults, 8.0), arrangement +68 (0 for "Pattern1
-  only", 2 at PE-DESIGN's defaults).
-- **Motif list:** +332 is the number of motifs the header lists (1, 2 or 3 in the seven motif
-  files) and +236 is 1, except 2 in line-motif-zigzag-3pt, which lists two own motifs. Every
-  file with a motif fill also lists PE-DESIGN's own 1170-size motif. Both are kept as read; the
+- **Motif fill:** size +218 / +220 (5.0 at the defaults, 8.0), arrangement +234 (0 "Pattern1
+  only", 1 "Pattern1 and 2": the one field `motif-fill-clean-p1` and `-p1p2` differ in). +68 is
+  0 in every clean capture (it was 2 in two of the withdrawn ones; meaning not mapped).
+- **Motif list:** +332 is the number of motifs the header lists and +236 is 1 (2 in the withdrawn
+  line-motif-zigzag-3pt, which listed two own motifs). PE-DESIGN keeps a Pattern2 for every
+  motif fill; the clean captures set it to the project's second motif (#1060). Both are kept as read; the
   export lists one motif at size 500 and writes 1 and 1.
 
 `import.pes` now reads the sizes and spacing; it used OpenStitch's defaults and noted it.
@@ -4267,3 +4274,25 @@ Which listed motif an object uses is not mapped: files listing several import wi
 default motif, noted. Still refused: a motif fill with its own spacing or row and column shift (no capture), mirrored
 or alternating motif lines (H-Arrange and V-Arrange were at their first buttons), and a second
 motif. Not mapped: +216 (1 in one capture only).
+
+### Captures with a PE-DESIGN built-in motif withdrawn, 2026-11-13
+
+Reviewing the motif fixtures for #608 showed that every PE-DESIGN capture with a motif fill also
+lists a PE-DESIGN built-in motif in its header's motif list (a 42-point pattern at size 1170,
+beside the project's own). Brother's built-in data stays out of the repository, so six files are
+removed: `compat/reference/pes/` and `/stitches/` `line-motif-zigzag-3pt.pes` and
+`motif-fill-2pt.pes`, `compat/reference/pes/obj-motif-fill-owner-v.pes` and the pe11 fixture
+`obj-motif-fill-owner-v.pes`, with their manifest and provenance entries. The same scan of the
+fill lists found `compat/reference/stitches/programmable-fill-45.pes`, made with PE-DESIGN's
+built-in programmable fill pattern (its own entry and its stitches), removed too and its spec
+skipped. PE-DESIGN keeps a Pattern2 for every motif fill and fills it with its built-in motif
+even under "Pattern1 only"; the coordinator's round-13 captures with Pattern2 set to the
+project's second motif (`motif-fill-clean-p1`, `-p1p2`) list only project motifs and replace the
+pe11 fixture. Specs
+`line-motif-zigzag-3pt` and `motif-fill-2pt` are skipped ("reference withdrawn 2026-11-13: the
+capture listed a PE-DESIGN built-in motif; a clean capture is pending"); `pes-objects-psc-patterns`
+and `pes-objects-owner-patterns` keep their other files. The formats test
+`committed_pes_files_list_only_the_projects_own_patterns` now fails on any committed PES whose
+motif list holds anything but the project's own `.pmf` motifs, or whose fill list holds anything
+but its own `.pas` tiles (stamp outlines of the owner's own shapes allowed in the `stamp-*` captures). The measurements made on the withdrawn
+files above stay as recorded; they wait for clean captures to be checked again.
