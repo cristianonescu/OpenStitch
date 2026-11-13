@@ -68,6 +68,8 @@ mod fonts;
 mod free_hoopings;
 #[path = "hand_edits.rs"]
 mod hand_edits;
+#[path = "hoop_fit.rs"]
+mod hoop_fit;
 #[path = "hoop_lists.rs"]
 mod hoop_lists;
 #[path = "imports.rs"]

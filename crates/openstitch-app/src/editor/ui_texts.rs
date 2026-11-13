@@ -314,6 +314,16 @@ pub const UI_TEXTS: &[(&str, &str)] = &[
     ),
     ("ui-brand", "Brand"),
     ("ui-hoop", "Hoop"),
+    ("ui-use-smallest-hoop", "Use smallest hoop that fits"),
+    (
+        "ui-use-smallest-hoop-tip",
+        "Switch to the smallest hoop of your machine that holds the design, and centre the design in it (beyond PE-DESIGN)",
+    ),
+    ("ui-fit-to-hoop", "Fit to hoop"),
+    (
+        "ui-fit-to-hoop-tip",
+        "Scale the design to fill the current hoop, 5 mm from its edge, and centre it; shapes and text keep their density (beyond PE-DESIGN)",
+    ),
     (
         "ui-the-machine-cuts-threads-thread-cutter",
         "The machine cuts threads (thread cutter)",
