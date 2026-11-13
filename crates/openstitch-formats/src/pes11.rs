@@ -634,6 +634,19 @@ pub struct Shape {
     /// The stamps on the region, recorded after the geometry header's marks; body +188 is 1
     /// while there are any, 0 otherwise (#959).
     pub stamps: Vec<PesStamp>,
+    /// A motif line (line code 2): the motif's width along the line, its height across it and
+    /// the spacing between motifs, mm (body +70, +72, +80, 0.1 mm; round 12 and 13:
+    /// 608-motif-size-spacing 5.0 × 5.0 and 2.0, 608-motif-5x8 5.0 × 8.0, #608). The motif
+    /// itself is the header's motif list ([`Objects::motif_patterns`]).
+    pub motif_line: Option<[f32; 3]>,
+    /// A motif fill (region code 3): the motif's width and height, mm (+218, +220;
+    /// 608-motif-fill-size 8.0 × 8.0) and PE-DESIGN's arrangement code (+68: 0 for "Pattern1
+    /// only", 2 at its own defaults, obj-motif-fill-owner-v).
+    pub motif_fill: Option<([f32; 2], u16)>,
+    /// Body +236 and +332, kept as read: +332 is the number of motifs the header lists (1 to 3
+    /// in every capture), +236 is 1 except in line-motif-zigzag-3pt (2, two own motifs listed);
+    /// 0 and 0 on PE-DESIGN's other shapes and in the template.
+    pub motif_fields: [u16; 2],
     /// Body +16: `a b c d tx ty`, placing the vertices on the page (x' = a x + c y + tx,
     /// y' = b x + d y + ty). The identity in every shape PE-DESIGN draws; a shape moved or
     /// resized after it was drawn keeps its vertices and gets the move here (the tatami-40
@@ -699,6 +712,9 @@ impl Shape {
             punch_exit: 0,
             no_positions: false,
             stamps: Vec::new(),
+            motif_line: None,
+            motif_fill: None,
+            motif_fields: [0, 0],
             transform: IDENTITY,
             vertices: Vec::new(),
         }
@@ -1550,6 +1566,15 @@ fn read_line(r: &mut ByteReader<'_>) -> Result<Option<Shape>> {
         punch_exit,
         no_positions,
         stamps,
+        motif_line: (u16_at(body, 42) != 0 && u16_at(body, 44) == Shape::LINE_MOTIF)
+            .then(|| [70, 72, 80].map(|at| f32::from(u16_at(body, at)) / 10.0)),
+        motif_fill: (u16_at(body, 134) == RegionSewType::Motif.raw()).then(|| {
+            (
+                [218, 220].map(|at| f32::from(u16_at(body, at)) / 10.0),
+                u16_at(body, 68),
+            )
+        }),
+        motif_fields: [u16_at(body, 236), u16_at(body, 332)],
         transform,
         vertices,
     }))
@@ -2240,6 +2265,20 @@ fn write_line(w: &mut ByteWriter, s: &Shape) {
     if !s.stamps.is_empty() {
         put16(&mut head, 188, 1);
     }
+    // Motif fields (#608): the line's and the fill's sizes, the line's spacing, the fill's
+    // arrangement, and +236 / +332 as the shape holds them.
+    if let Some([w, h, gap]) = s.motif_line {
+        put16(&mut head, 70, tenths(w));
+        put16(&mut head, 72, tenths(h));
+        put16(&mut head, 80, tenths(gap));
+    }
+    if let Some(([w, h], arrangement)) = s.motif_fill {
+        put16(&mut head, 218, tenths(w));
+        put16(&mut head, 220, tenths(h));
+        put16(&mut head, 68, arrangement);
+    }
+    put16(&mut head, 236, s.motif_fields[0]);
+    put16(&mut head, 332, s.motif_fields[1]);
     put16(&mut head, 282, tenths(s.cross_size));
     put16(&mut head, 284, s.cross_passes);
     // Reference points: five at the bounds' top-left corner, two at their centre (i32 x, y).

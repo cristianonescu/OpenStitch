@@ -329,7 +329,8 @@ version 6 by default (`pesVersion`: `1`, `1t`, `4`, `5`, `6`, `6t`, `7`, `8`, `9
 thread table), except for a design opened from a
 PE-DESIGN 11 (`#PES0110`) file, which is written back as `11` unless another version is asked
 for (what version 11 cannot hold yet is then written as 6, with a warning). Version 11 keeps the
-design's groups (any number), a region's stamp (one per region, one outline; not beside a programmable fill) so PE-DESIGN shows
+design's groups (any number), motif lines and fills (one motif per file; not mirrored or
+alternating, a fill without its own spacing or shift), a region's stamp (one per region, one outline; not beside a programmable fill) so PE-DESIGN shows
 it as its own stamp, and one column of vertical text (`text.add` `direction: "vertical"`,
 `align: "left"`: the column runs down from the point given, letters one size apart, as PE-DESIGN
 lays it out). The result reports

@@ -2261,3 +2261,39 @@ fn a_shape_with_a_stamp_reads_and_writes_back() {
     // Without a stamp the count is 0 and nothing follows the marks.
     assert!(one("r01-rect").stamps.is_empty());
 }
+
+#[test]
+fn motif_sizes_and_spacing_read_and_write_back() {
+    // #608, round 12 and 13: a motif line's width (+70), height (+72) and spacing (+80); a motif
+    // fill's size (+218, +220) and arrangement (+68: 0 for Pattern1 only, 2 at PE-DESIGN's own
+    // defaults); the motif itself in the header's motif list, listed at size 500; +236 / +332
+    // kept as read (+332 the number of motifs listed).
+    for (name, line, fill) in [
+        ("608-motif-size-spacing", Some([5.0, 5.0, 2.0]), None),
+        ("608-motif-5x8", Some([5.0, 8.0, 2.0]), None),
+        (
+            "608-motif-fill-size",
+            Some([5.0, 5.0, 2.0]),
+            Some(([8.0, 8.0], 0)),
+        ),
+        ("obj-motif-line-owner-v", Some([5.0, 5.0, 0.0]), None),
+        ("obj-motif-fill-owner-v", None, Some(([5.0, 5.0], 2))),
+    ] {
+        let bytes = data(&format!("pe11/{name}.pes"));
+        let objects = objects_of(&bytes);
+        let s = &objects.shapes[0];
+        assert_eq!((s.motif_line, s.motif_fill), (line, fill), "{name}");
+        // +332 is the number of motifs listed; the first is the project's own, at size 500.
+        assert_eq!(
+            objects.motif_patterns.len(),
+            usize::from(s.motif_fields[1]),
+            "{name}"
+        );
+        assert_eq!(objects.motif_patterns[0].size, 500, "{name}");
+        let written = pes11::write(&objects, &stitches_of(&bytes)).expect("write");
+        assert_eq!(objects_of(&written), objects, "{name}");
+    }
+    // A shape without a motif has neither.
+    let plain = one("r01-rect");
+    assert_eq!((plain.motif_line, plain.motif_fill), (None, None));
+}

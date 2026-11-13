@@ -666,8 +666,16 @@ the layout with the three `stamp-*-circle` captures). What it
 cannot hold fails with the object named: several stamps on one region or a stamp of several
 outlines, a stamp beside a programmable fill (one listed pattern per file), a second hole sewing pair, a hole sewing pair in a
 design with groups, several outlines in one object, a second programmable fill pattern, a
-programmable fill tile that is not square or has embossed or engraved areas, motif fill, a
-decorative pattern chained in rows or not square, contour fill (OpenStitch's own), motif lines (stem,
+programmable fill tile that is not square or has embossed or engraved areas, a motif fill with its
+own spacing or row and column shift, a mirrored or alternating motif line, a second motif, a
+decorative pattern chained in rows or not square, contour fill (OpenStitch's own) (motif lines and
+fills are written since #608: line code 2 with the motif's width along the line +70, height across it
++72 and spacing +80, region code 3 with the motif's size +218/+220 and +68 0 for Pattern1 only, +332
+the number of motifs the header lists and +236 1 (2 in line-motif-zigzag-3pt, which lists two own
+motifs), both kept as read; every file with a motif fill also lists PE-DESIGN's own 1170-size
+motif; written: one motif in the header's motif list at
+size 500, its stroke from (0, 512) to (1024, 512) as `import.pes` reads it; read back from
+608-motif-size-spacing, -5x8, -fill-size and the obj-motif-*-owner-v files; stem,
 candlewick and chain lines are written by their codes, their Start/End options at PE-DESIGN's
 defaults: the sewing end PE-DESIGN stores for them, the second outline position and the
 geometry's segment fields, is not mapped); text in another font, with white space other than
