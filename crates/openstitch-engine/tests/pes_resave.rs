@@ -231,6 +231,62 @@ fn import_pes_reads_the_other_region_types_and_the_design_property() {
     assert!(!s.design().properties.is_empty());
 }
 
+/// #982: an E or V line's spacing goes out to PES 0110 (+88, a V's opening +92) and comes
+/// back. A V and an E line at 3.0 mm (not PE-DESIGN's default 5.0), set with `object.setLine`,
+/// exported with `design.export` `pesVersion` 11 and read with `import.pes` in a new design:
+/// each reads back its type and spacing 3.0 and sews the same number of stitches.
+#[test]
+fn e_and_v_spacing_survives_a_pes_0110_round_trip() {
+    let dir = TempDir::canonical("resave-ev-spacing");
+    for kind in ["vStitch", "eStitch"] {
+        let mut s = Session::new(dir.path());
+        run(
+            &mut s,
+            "design.new",
+            json!({"name": "t", "width": 100, "height": 100}),
+        );
+        let r = run(
+            &mut s,
+            "shape.path",
+            json!({"points": [[10, 20], [60, 20], [60, 50]], "closed": false}),
+        );
+        let id = r["id"].as_u64().expect("id");
+        run(
+            &mut s,
+            "object.setLine",
+            json!({"ids": [id], "type": kind, "width": 2, "spacing": 3}),
+        );
+        let stitches =
+            |s: &mut Session| run(s, "design.info", json!({}))["stitchStats"]["stitches"].clone();
+        let before = stitches(&mut s);
+        assert!(before.as_u64().is_some_and(|n| n > 20), "{kind}: {before}");
+        run(
+            &mut s,
+            "design.export",
+            json!({"path": "ev.pes", "pesVersion": "11"}),
+        );
+        let mut back = Session::new(dir.path());
+        run(
+            &mut back,
+            "design.new",
+            json!({"name": "t", "width": 100, "height": 100}),
+        );
+        let r = run(&mut back, "import.pes", json!({"path": "ev.pes"}));
+        assert_eq!(r["skipped"], json!([]), "{kind}");
+        let lines: Vec<Value> = back
+            .design()
+            .objects
+            .iter()
+            .filter_map(|o| o.line.as_ref())
+            .map(|l| serde_json::to_value(l).expect("line"))
+            .collect();
+        assert_eq!(lines.len(), 1, "{kind}: {lines:?}");
+        assert_eq!(lines[0]["type"], json!(kind), "{kind}");
+        assert_eq!(lines[0]["spacing"], json!(3.0), "{kind}: {}", lines[0]);
+        assert_eq!(stitches(&mut back), before, "{kind}: the same stitches");
+    }
+}
+
 /// PE-DESIGN 11.50's cross stitch Times (#614, round 8: a 20 mm square at Single, Double,
 /// Triple; 410, 666 and 922 stitches): the import reads Times, the region sewn again adds the
 /// same 256 stitches per step as PE-DESIGN's files, and a PES 0110 export writes Times and
