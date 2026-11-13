@@ -528,6 +528,71 @@ fn applique_stages_sew_in_order_with_stops_between() {
     assert_one_undo(&mut s, &before);
 }
 
+/// #975, #980: the appliqué wizard's cover zigzag has no under sewing, as PE-DESIGN's Applique
+/// Wizard sews it (a01, a04: the tack-down, then the cover zigzag directly). On a 10 mm circle
+/// with a 3 mm cover, an under sewing run lies 1 mm (w / 2 − 0.5) to one side of the outline,
+/// stitch after stitch; every zigzag stitch crosses the outline. So the cover sews (all but a
+/// tie or two at each end) no stitch with both ends 0.5 mm or more to the same side of the outline.
+/// `object.setLine underSewing: true` on the cover turns the runs on.
+#[test]
+fn applique_cover_has_no_under_sewing_unless_turned_on() {
+    let mut s = circle_session();
+    run(
+        &mut s,
+        "wizard.applique",
+        json!({"ids": [1], "output": "replace", "cover": "zigzag", "coverWidth": 3}),
+    );
+    let cover_id = |s: &Session| {
+        s.design()
+            .objects
+            .iter()
+            .find(|o| o.name.as_deref() == Some("Appliqué cover"))
+            .expect("cover")
+            .id
+    };
+    let id = cover_id(&s);
+    let runs = |s: &Session| {
+        let mut d = s.design().clone();
+        d.objects.retain(|o| o.id == cover_id(s));
+        let side = |p: &Vec2| p.distance(v2(50.0, 50.0)) - 10.0;
+        needle_blocks(&compile(&d))
+            .concat()
+            .windows(2)
+            .filter(|w| {
+                side(&w[0]) * side(&w[1]) > 0.0 && side(&w[0]).abs().min(side(&w[1]).abs()) >= 0.5
+            })
+            .count()
+    };
+    let line = |s: &Session| {
+        let d = s.design();
+        d.objects[d.index_of(cover_id(s)).expect("cover")]
+            .line
+            .clone()
+            .expect("line")
+    };
+    assert!(
+        !line(&s).underlay,
+        "the wizard leaves the cover's under sewing off"
+    );
+    let off = runs(&s);
+    assert!(
+        off <= 8,
+        "no run of the cover's own before its zigzag: {off}"
+    );
+    run(
+        &mut s,
+        "object.setLine",
+        json!({"ids": [id], "underSewing": true}),
+    );
+    assert!(line(&s).underlay);
+    // Two runs round the 63 mm circle at 2 mm stitches: about 60 more.
+    let on = runs(&s);
+    assert!(
+        on >= off + 40,
+        "under sewing runs 1 mm from the outline: {off} -> {on}"
+    );
+}
+
 #[test]
 fn applique_tack_down_is_pe_designs_v_every_5_mm_scaled_to_the_cover() {
     // #982: PE-DESIGN 11.50's Applique Wizard tacks the material down with a V stitch every

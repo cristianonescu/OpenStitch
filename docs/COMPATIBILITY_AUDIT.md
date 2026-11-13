@@ -97,7 +97,7 @@ dearest:
 | 3 | Trims and jumps inside one fill or satin region; no Running Stitch Path (**fixed**, internal regression) | Stitches | 5 | Documented difference | No |
 | 4 | Trims between underlay, top stitching and outline of one object | Stitches | 4 | Documented, unverified | Single-needle policy |
 | 5 | Every design is written as one stitch group, nothing editable (**partly fixed**, 2026-10-29: `pesVersion` 11 writes shapes as `CEmbLine`, which PE-DESIGN 11.50 opens editable, and Lato Bold text as `CEmbNText`, which it opens editable and retypable (both reference); stitch patterns as `CEmbOne` stitch groups (reference, `pes-0110-stitches`); Text Transform and text on an outline open editable (reference, 2026-10-29); Hoop Size pages written as PE-DESIGN writes them since 2026-11-04 (#322); object kinds still refused: #608) | PES | 5 | Reference | Yes (the kinds of #608) |
-| 6 | One sewing direction per text instead of per stroke (**partly fixed**: satin text sewn stroke by stroke since 2026-10-31, fill text since 2026-11-04 (#376); open: under sewing per stroke, fill text under a Text Transform (#428), satin N, M, A and V corners (#446)) | Fonts | 5 | Documented difference | Angles |
+| 6 | One sewing direction per text instead of per stroke (**partly fixed**: satin text sewn stroke by stroke since 2026-10-31, fill text since 2026-11-04 (#376); open: under sewing per stroke; letter-shape leftovers #938-#941 (A's foot, run-on foot order, M and W at 8 mm); fill text under a Text Transform sews by stroke since 2026-11-11 (#428)) | Fonts | 5 | Documented difference | Angles |
 | 7 | Auto direction is one fixed angle (**fixed**, internal regression) | Stitches | 4 | Documented difference | No |
 | 8 | Underlay model differs (**partly fixed**: PE's two region types, Density Dense / Medium / Light, the Manual Punch column's edge / piping / zigzag; zigzag lines have under sewing, on by default as PE-DESIGN's, `line-zigzag-default`; open: which type PE applies to the other region kinds, the zigzag's split points) | Stitches | 4 | Documented difference | Geometry |
 | 9 | PE-DESIGN-made PES files lose objects, properties and colours on re-save (**partly fixed**, 2026-11-05, #375, #397, #398, #120: an opened file exported unchanged is written back byte for byte; its thread table reaches the stitches; every PE-DESIGN `#PES0110` file imports as objects, texts and stitch groups included, and an edited one exports as `#PES0110`; an edited file still loses the other region types' own settings, motif size and spacing, per-letter colours and unmapped fields) | PES | 4 | Documented difference | No |
@@ -2535,7 +2535,7 @@ Assistant's stream timeout (#580) and thread-chart rules (#495) are in
 - **1 mm Auto satin:** the satin card's 1 mm column sewed one 39.5 mm stitch along its length
   (fixed in #460's batch); `auto_satin_on_a_narrow_column_never_stitches_along_it` covers 0.8 to
   2 mm columns.
-- **Entry travel across calibration swatches (#628, open):** a fill is entered at the outline
+- **Entry travel across calibration swatches (#628, open; closed since by #965):** a fill is entered at the outline
   point nearest the previous object but starts its rows at a fixed side, and the straight travel
   between them crossed every T1 swatch (about 19 % more thread than the rows on the 0.5 rows/mm
   ramp swatch). The kit now sets each T1 and T2 swatch's entry at its first row; the engine rule
@@ -2979,7 +2979,7 @@ output is byte-identical (tests `basting_box_sews_first_in_the_first_thread`,
   average and no design gets a trim more (cutwork 2,488 → 1,885 mm, monograms 1,500 → 1,128 mm,
   line-types 690 → 110 mm; text, stitch patterns and one-object designs unchanged). The issue's
   20 % target is not reached, and the kit (stitch files) keeps its own start, so #547 stays
-  open for part-way satin starts and draggable markers.
+  open for part-way satin starts and draggable markers (closed since, 2026-11-12).
 - sew_check passes on the heart example with a basting box, an outline basting in its own
   thread, stops after an object plus Stop at Jumps, and nearest start, as on the plain design.
 - 2026-11-08: the closed-outline rule has its own fixture (a closed outline drawn from its far
@@ -3467,35 +3467,36 @@ stitches, 66 trims, 8.7 → 9.0 min.
 PE-DESIGN 11.50's round-10 captures (`471-*.pes` in the owner's notes; the plain square is
 `compat/reference/stitches/stamp-plain-square-baseline.pes`, the three stamped ones wait for PES
 0110 import of a shape that carries a stamp, #959): a 40 mm square (42 mm with its line)
-with its default Fill (4.5 lines/mm, 45°, under sewing) and 2 mm Zigzag line, and a 16.5 × 16 mm
-circle in the middle converted with Stamp/Emboss > Convert from Outline. OpenStitch builds the
+with its default Fill (4.5 lines/mm, 45°, under sewing) and 2 mm Zigzag line, and a circle with a
+14.5 × 14.0 mm outline (16.5 × 16 mm with its own 2 mm line) in the middle converted with Stamp/Emboss > Convert from Outline. OpenStitch builds the
 same with `shape.emboss`. Inside the circle against outside (1 mm in from the circle and 3 mm in
 from the square's edge), fill block only:
 
 | effect | PE-DESIGN | OpenStitch before | OpenStitch now |
 |---|---|---|---|
 | none | 4.0 mm stitches, 125 / 128 needle points per cm² | 4.0 mm, 124 / 128 | same |
-| engraved region | 1.9 mm, 262 per cm² | 1.0 mm, 480 | 1.9 mm, 263 (2 mm steps) |
-| embossed region | 56 per cm² (13 within 6 mm of the centre: under sewing only); whole stitches 12–14.3 mm, a few short ends | 110 per cm²; split evenly, 7–8 mm | 27 per cm² (12 within 6 mm); whole stitches up to 14.5 mm, the rest last |
-| engraved line | +118 needle points on a ring about 1 mm inside the circle | +142 on the circle | same |
+| engraved region | 2.1 mm, 240 per cm² | 1.0 mm, 480 | 1.95 mm, 265 (2 mm steps) |
+| embossed region | 13 per cm², under sewing only; stitches 10.4 mm on average, up to 14.3 mm | 110 per cm²; split evenly, 7–8 mm | 12 per cm²; 10.3 mm on average, up to 14.2 mm |
+| engraved line | +118 needle points, on the outline (7.12 mm against its 7.125) | +142 on a circle drawn 1 mm too large | +120, on the outline (7.06 mm) |
 
 The engraved region and the emboss were the weak ones: an engraved region twice as dense as
 PE-DESIGN's, and an embossed one split into 7 mm stitches, so the raised look hardly showed
 (the full-size review's "barely visible"). Both now use stamp constants of their own
 (`STAMP_ENGRAVE_STEP` 2 mm, `STAMP_EMBOSS_MAX` 14.5 mm), and the compiler no longer splits an
 embossed stamp's stitches at its 12 mm maximum; `tools/sew_check.py` warns on them as it does on
-PE-DESIGN's own 14.3 mm. The embossed band right inside the circle keeps more needle points in
-PE-DESIGN's file, where its edge lies about 1 mm further in (#956). Left: the engraved line's ring sits on
-the tool's outline, where PE-DESIGN's lies about 1 mm inside, at the inner edge of the tool
-shape's 2 mm line (one capture cannot tell whether that offset follows the line width, #956);
-programmable-fill patterns' own engraved and embossed areas keep 1 mm and
+PE-DESIGN's own 14.3 mm. PE-DESIGN converts the tool shape's outline itself, whatever its line
+(#956: the engraved line adds the same 118 needle points on the outline with the circle's line
+1, 2 or 4 mm wide), as `shape.emboss` does. Left: programmable-fill patterns' own engraved and embossed areas keep 1 mm and
 7 mm, with no reference yet. Kit: `fills/holes-and-emboss` 10,733 → 10,112 stitches, 13.7 →
 12.9 min, trims 5.
 
 Corrected the same day: the first version of this entry and of the `stamp-*` specs built
 the square 42 mm wide, its zigzag line's outer edge, and so reported a fill difference that is
 not there (#955, closed). PE-DESIGN's outline is 40 mm and its fill reaches it whatever the line
-(`line-square-*` specs, the #955 captures); the figures above are from the 40 mm square.
+(`line-square-*` specs, the #955 captures); the figures above are from the 40 mm square. The
+circle had the same mistake: drawn 16.5 × 16 mm, its line's outer edge, so its effects seemed to
+sit 1 mm outside PE-DESIGN's (#956, closed by drawing it at its 14.5 × 14.0 mm outline); the
+table is from the right circle.
 
 ### Photo Stitch 1 trims rather than cross a face in sight, 2026-11-12 (#915)
 
