@@ -23,7 +23,7 @@ OpenStitch's own; PE-DESIGN's defaults are unchanged.
 
 ![Zigzag](images/engine-line-type-zigzag.png)
 
-`object.setLine {"type": "zigzag", "width": 3, "halfStitch": true}`
+`object.setLine {"type": "zigzag", "width": 3, "halfStitch": true}` (the curve); `object.setLine {"type": "zigzag", "width": 3, "sharpCorners": 1, "underSewing": true}` (the closed outline below it: PE-DESIGN's first Sharp Corners button at its acute corners, #373, and under sewing in its two runs, #964)
 
 ## Satin line
 
