@@ -667,7 +667,7 @@ decorative pattern chained in rows or not square, contour fill (OpenStitch's own
 candlewick and chain lines are written by their codes, their Start/End options at PE-DESIGN's
 defaults: the sewing end PE-DESIGN stores for them, the second outline position and the
 geometry's segment fields, is not mapped); text in another font, with white space other than
-spaces and line breaks, right-aligned, vertical, on an outline, with a Text Transform on several
+spaces and line breaks, right-aligned, vertical in several columns or not top-aligned (one top-aligned column is written since #608: the vertical flag, the click as the column's top, the box from 0.59 × the size above it down to the lowest letter, as o-text-vertical), on an outline, with a Text Transform on several
 lines, rotated or scaled, with letter spacing, kerning, per-character
 edits or under sewing. Checks: the 149 owner files whose list the reader parses completely (84
 with shapes, 3 with a hole sewing pair, 11 of them Manual Punch objects, 2 of Convert to Blocks, 5 Applique Wizard outputs, 19 with plain text, 27 with a Text Transform, 14 with

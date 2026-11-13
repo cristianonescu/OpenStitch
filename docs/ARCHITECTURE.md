@@ -62,7 +62,8 @@ Decisions) in `openstitch-design`; the engine adds `usvg` and `roxmltree` (SVG i
 - `release.yml` runs only for a `vX.Y.Z` tag that matches the workspace version and sits on
   `main`; it re-runs the tests, builds and creates a draft GitHub release.
 - `release-smoke.yml` (run by hand with a tag) installs and launches a published release's
-  packages on clean Windows and Linux runners. `pages.yml` publishes the web editor to GitHub
+  packages on clean Windows, Linux and macOS runners, with a Realistic-view screenshot of a dense
+  fill on Linux and macOS (#1021). `pages.yml` publishes the web editor to GitHub
   Pages from `main`. `flatpak.yml` builds a Flatpak bundle as a workflow artifact when the
   manifest or the Linux packaging changes.
 - Work goes through branches and pull requests. Tags are pushed only when the owner declares a

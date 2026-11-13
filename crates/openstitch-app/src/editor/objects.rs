@@ -21,6 +21,8 @@ pub struct ObjectRow {
     pub locked: bool,
     /// The name the user gave it, if any (`label` falls back to the stitch type).
     pub name: Option<String>,
+    /// What the list's filter finds it by, lower case ([`search_text`], #745).
+    pub search: String,
 }
 
 /// Longest name the list takes (the engine's `object.setName` limit).
@@ -96,8 +98,37 @@ pub fn rows(design: &Design, selection: &BTreeSet<u64>) -> Vec<ObjectRow> {
             selected: selection.contains(&o.id),
             locked: o.locked,
             name: o.name.clone(),
+            search: search_text(o),
         })
         .collect()
+}
+
+/// What the Sewing Order list's filter finds an object by (#745), lower case: its label (the
+/// name the user gave it, the lettering's text, or "Shape 3"), its stitch types ("Fill + Satin
+/// Stitch"), "text" for lettering, and each thread's brand, code ("brother 017") and name.
+pub fn search_text(o: &DesignObject) -> String {
+    let mut words = vec![label(o), detail(o)];
+    if o.kind == ObjectKind::Text {
+        words.push("text lettering".into());
+    }
+    for t in swatches(o) {
+        let code = [t.brand.as_deref(), t.catalog_number.as_deref()]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+            .join(" ");
+        words.extend([code, t.name.as_deref().unwrap_or_default().to_string()]);
+    }
+    words.join(" | ").to_lowercase()
+}
+
+/// Whether a row's [`search_text`] holds every word of `query` (any case, any order); an
+/// empty query matches everything.
+pub fn matches(search: &str, query: &str) -> bool {
+    query
+        .to_lowercase()
+        .split_whitespace()
+        .all(|w| search.contains(w))
 }
 
 /// `object.reorder` moving `id` by `delta` places in the sewing order, if it can move.
@@ -255,6 +286,62 @@ pub fn shift_frame(frames: &[Vec<u64>], index: usize, delta: i64) -> Option<Comm
 mod order_tests {
     use super::*;
     use openstitch_engine::Session;
+
+    /// #745: the filter finds rows by name, stitch type, "text" and thread brand and code, with
+    /// every word of the query (any case, any order).
+    #[test]
+    fn the_filter_finds_rows_by_name_stitch_type_text_and_thread() {
+        let mut s = Session::new(std::env::temp_dir());
+        for p in [
+            json!({"command": "shape.rectangle", "params": {"x": 10, "y": 10, "width": 20, "height": 10, "fill": "Red"}}),
+            json!({"command": "shape.ellipse", "params": {"cx": 60, "cy": 20, "rx": 8, "ry": 8, "outline": "Blue"}}),
+            json!({"command": "text.add", "params": {"text": "Ana", "size": 10, "x": 20, "y": 60, "fill": "Black"}}),
+        ] {
+            s.execute(p["command"].as_str().expect("command"), Some(&p["params"]))
+                .expect("object");
+        }
+        let line = s.design().objects[1].id;
+        s.execute(
+            "object.setLine",
+            Some(&json!({"id": line, "type": "satin", "width": 2})),
+        )
+        .expect("satin");
+        s.execute(
+            "object.setName",
+            Some(&json!({"id": line, "name": "Moon rim"})),
+        )
+        .expect("name");
+        let rows = rows(s.design(), &BTreeSet::new());
+        let found = |q: &str| -> Vec<usize> {
+            rows.iter()
+                .filter(|r| matches(&r.search, q))
+                .map(|r| r.index)
+                .collect()
+        };
+        assert_eq!(found(""), vec![0, 1, 2], "an empty filter shows every row");
+        assert_eq!(
+            found("SATIN"),
+            vec![1, 2],
+            "the satin outline and the lettering (sewn as satin)"
+        );
+        assert_eq!(found("satin rim"), vec![1]);
+        assert_eq!(found("rim moon"), vec![1], "every word, any order");
+        assert_eq!(found("text"), vec![2]);
+        assert_eq!(found("ana"), vec![2], "the lettering's own text");
+        assert_eq!(found("fill"), vec![0]);
+        let brand = rows[0].swatches[0]
+            .brand
+            .clone()
+            .expect("brand")
+            .to_lowercase();
+        let code = rows[0].swatches[0].catalog_number.clone().expect("code");
+        assert_eq!(
+            found(&format!("{brand} {code}")),
+            vec![0],
+            "thread brand and code"
+        );
+        assert!(found("nothing-like-this").is_empty());
+    }
 
     fn run(s: &mut Session, r: &CommandRequest) {
         s.execute(r.command, Some(&r.params))

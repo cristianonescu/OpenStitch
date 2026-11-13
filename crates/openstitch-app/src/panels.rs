@@ -249,8 +249,8 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
         crate::edit_ui::colour_frames(app, ui);
         return;
     }
-    let rows = objects::rows(app.session.design(), &app.selection);
-    if rows.is_empty() {
+    let all = objects::rows(app.session.design(), &app.selection);
+    if all.is_empty() {
         crate::art::notice(
             ui,
             crate::art::Art::ObjectsEmpty,
@@ -259,6 +259,13 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
         );
         return;
     }
+    // Find and filter (#745): only the list narrows, never the design or its order.
+    let rows: Vec<_> = all
+        .iter()
+        .filter(|r| objects::matches(&r.search, &app.edit.order_filter))
+        .cloned()
+        .collect();
+    order_filter(app, ui, &rows, all.len());
     let mut pending: Option<CommandRequest> = None;
     let mut select: Option<(u64, bool)> = None;
     let (mut rename, mut rename_done) = (None, false);
@@ -356,6 +363,53 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
     }
     if let Some(r) = pending {
         app.execute(&r);
+    }
+}
+
+/// The Sewing Order list's filter field (#745): Ctrl+F with the pointer over the list puts the
+/// cursor in it, typing narrows the list, Esc clears it, and Enter or Select All Shown selects
+/// the rows shown (through `ui.select`, as the Assistant selects).
+fn order_filter(app: &mut EditorApp, ui: &mut egui::Ui, shown: &[objects::ObjectRow], total: usize) {
+    let id = egui::Id::unique("sewing-order-filter");
+    // The whole pane, not just the part laid out so far.
+    let hovered = ui.rect_contains_pointer(ui.max_rect());
+    let find = ui.input(|i| i.modifiers.command && i.key_pressed(egui::Key::F));
+    let mut select = false;
+    ui.horizontal(|ui| {
+        let field = ui.add(
+            egui::TextEdit::singleline(&mut app.edit.order_filter)
+                .id(id)
+                .hint_text(t("ui-find-objects"))
+                .desired_width(150.0),
+        );
+        let field = field.on_hover_text(t("ui-find-objects-tip"));
+        if find && hovered {
+            field.request_focus();
+        }
+        if field.lost_focus() {
+            let (enter, escape) =
+                ui.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Escape)));
+            if escape {
+                app.edit.order_filter.clear();
+            } else if enter && !app.edit.order_filter.trim().is_empty() {
+                select = true;
+            }
+        }
+        let filtering = !app.edit.order_filter.trim().is_empty();
+        if filtering {
+            ui.label(openstitch_app::tf!("ui-objects-shown", shown = shown.len(), total = total));
+        }
+        if ui
+            .add_enabled(filtering && !shown.is_empty(), egui::Button::new(t("ui-select-all-shown")))
+            .on_hover_text(t("ui-select-all-shown-tip"))
+            .clicked()
+        {
+            select = true;
+        }
+    });
+    if select {
+        let ids: Vec<u64> = shown.iter().map(|r| r.id).collect();
+        let _ = app.ui_command("ui.select", Some(&serde_json::json!({ "ids": ids, "mode": "set" })));
     }
 }
 
@@ -1765,5 +1819,84 @@ mod pec_search_tests {
         let mine = openstitch_engine::user::ChartRef::Chart("My Threads".into());
         assert_eq!(colour_param(&mine, 0, white)["code"], "001");
         assert_eq!(colour_param(&mine, 0, white)["color"], "#f0f0f0");
+    }
+}
+
+/// #745: the Sewing Order list's filter, driven by a `--script` as the window plays one.
+#[cfg(test)]
+mod order_filter_tests {
+    use super::*;
+    use crate::app::Launch;
+    use openstitch_app::editor::Viewport;
+    use openstitch_design::v2;
+
+    /// Plays `script` on the Sewing Order list alone (a 320 x 600 point pane).
+    fn play(app: &mut EditorApp, script: &str) {
+        let ctx = egui::Context::default();
+        let frame = |app: &mut EditorApp, events: Vec<egui::Event>, m: egui::Modifiers| {
+            let raw = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(320.0, 600.0),
+                )),
+                events: std::iter::once(egui::Event::ModifiersChanged(m))
+                    .chain(events)
+                    .collect(),
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(raw, |ui| object_list(app, ui));
+            out.textures_delta.clear();
+        };
+        for _ in 0..2 {
+            frame(app, Vec::new(), egui::Modifiers::NONE);
+        }
+        let vp = Viewport { scale: 1.0, offset: v2(0.0, 0.0) };
+        let mut player = crate::script::Player::new(crate::script::parse(script).expect("script"));
+        while let Some((events, m)) = player.next_frame(&vp) {
+            frame(app, events, m);
+        }
+        frame(app, Vec::new(), egui::Modifiers::NONE);
+    }
+
+    fn add(app: &mut EditorApp, command: &'static str, params: Value) -> u64 {
+        let r = app.execute(&CommandRequest::new(command, params));
+        r.unwrap_or_else(|| panic!("{command}: {}", app.status))["id"]
+            .as_u64()
+            .expect("id")
+    }
+
+    /// Typing narrows the list, Enter selects exactly the rows shown, Esc brings every row
+    /// back; the design, its order and its undo history never change.
+    #[test]
+    fn find_narrows_the_list_and_selects_the_rows_shown() {
+        let mut app = EditorApp::new(Launch::default());
+        add(&mut app, "shape.rectangle", json!({"x": 10, "y": 10, "width": 20, "height": 10, "fill": "Red"}));
+        let rim = add(&mut app, "shape.ellipse", json!({"cx": 60, "cy": 20, "rx": 8, "ry": 8, "outline": "Blue"}));
+        app.execute(&CommandRequest::new("object.setLine", json!({"id": rim, "type": "satin", "width": 2})))
+            .expect("satin");
+        let bar = add(&mut app, "shape.rectangle", json!({"x": 10, "y": 40, "width": 30, "height": 4, "outline": "Emerald Green"}));
+        app.execute(&CommandRequest::new("object.setLine", json!({"id": bar, "type": "satin", "width": 3})))
+            .expect("satin");
+        add(&mut app, "text.add", json!({"text": "Ana", "size": 10, "x": 20, "y": 60, "fill": "Black"}));
+        let design = app.session.design().clone();
+        let undo = app.session.can_undo();
+        let undo_groups = app.undo_groups.len();
+
+        // Ctrl+F over the list, then the query: Enter selects the satin outlines and the
+        // lettering (sewn as satin), not the filled rectangle.
+        play(&mut app, "sclick:160,590;cmd+key:F;type:satin;key:Enter");
+        assert_eq!(app.edit.order_filter, "satin");
+        let text = app.session.design().objects[3].id;
+        assert_eq!(app.selection, BTreeSet::from([rim, bar, text]));
+        // Another query: selecting what it shows replaces the selection.
+        app.edit.order_filter = "text".into();
+        play(&mut app, "sclick:160,590;cmd+key:F;key:Enter");
+        assert_eq!(app.selection, BTreeSet::from([text]));
+        // Esc in the field clears it: every row in sewing order again.
+        play(&mut app, "sclick:160,590;cmd+key:F;key:Escape");
+        assert!(app.edit.order_filter.is_empty());
+        assert_eq!(*app.session.design(), design, "filtering never edits the design");
+        assert_eq!(app.session.can_undo(), undo);
+        assert_eq!(app.undo_groups.len(), undo_groups, "nor its undo history");
     }
 }

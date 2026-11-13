@@ -133,7 +133,9 @@ with current screenshots. Refresh it in a pull request before every release:
 
    Launch the Windows and Linux packages once by hand. After publishing, run the **Release
    smoke test** workflow (`release-smoke.yml`) from the Actions tab with the tag: it installs
-   the MSI and runs the portable zip, AppImage, tarball and CLI on clean runners.
+   the MSI and runs the portable zip, AppImage, tarball, macOS app and CLI on clean runners.
+   Look at `appimage-realistic.png` (`smoke-linux`) and `app-realistic.png` (`smoke-macos`):
+   the dense fill in the Realistic view, with no moiré stripes (#907, #1021).
 4. After the pull requests are merged, tag that commit on `main` and push the tag:
 
    ```bash
