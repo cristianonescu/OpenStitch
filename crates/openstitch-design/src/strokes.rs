@@ -1258,6 +1258,13 @@ fn ray_to(p: Vec2, dir: Vec2, edges: &[(Vec2, Vec2)]) -> Option<f64> {
         .min_by(f64::total_cmp)
 }
 
+/// Where the ray from `p` along `dir` (any length) first meets the polyline `line`.
+fn line_hits(line: &[Vec2], p: Vec2, dir: Vec2) -> Option<Vec2> {
+    let unit = dir * (1.0 / dir.length().max(1e-12));
+    let edges: Vec<(Vec2, Vec2)> = line.windows(2).map(|w| (w[0], w[1])).collect();
+    ray_to(p, unit, &edges).map(|t| p + unit * t)
+}
+
 // ------------------------------------------------------------------ rungs
 
 /// Outline points are taken at most this far apart (0.1 mm) when the sides are found.
@@ -1615,7 +1622,22 @@ impl GlyphStrokes {
                 // stopped against a run-on arm keeps each side to where it meets that arm, so
                 // the last crossing lies along the stop line, as PE-DESIGN's do (V's right arm
                 // turns to 60 degrees there, along the left arm's inner edge, #446).
-                let against = |e: usize| satin && st.ends[e] == StrokeEnd::Against;
+                // The same at an end that leaves a column there (A's bar at each leg, #938):
+                // PE-DESIGN's bar crossings start and end along the legs' inner edges, from the
+                // bar's top corner to its bottom one (110 and 70 degrees on stroke-satin-A).
+                // Not at a four-arm crossing (X), whose arms end as their own branch sews them.
+                let leaves_column = |e: usize| match st.ends[e] {
+                    StrokeEnd::Junction(j) => {
+                        !crossings.contains(&j)
+                            && self
+                                .strokes
+                                .iter()
+                                .any(|o| !std::ptr::eq(o, st) && self.through(o, j))
+                    }
+                    _ => false,
+                };
+                let against =
+                    |e: usize| satin && (st.ends[e] == StrokeEnd::Against || leaves_column(e));
                 let keep = |v: Vec<(f64, f64, Vec2)>| -> Vec<(f64, Vec2)> {
                     let n = v.len();
                     v.into_iter()
@@ -2203,6 +2225,56 @@ impl Order<'_> {
             .fold(0.0, f64::max)
     }
 
+    /// Where column `c`'s junction square at `j` starts and ends (arc lengths along it, lower
+    /// first): at the corners where the straight strokes leaving it there meet its side, their
+    /// end rungs' two points (#938). PE-DESIGN cuts A's left leg there, each cut a rung through
+    /// one corner of the bar (stroke-satin-A: the upper part ends on (6.8, 12.8), the foot on
+    /// (5.8, 15.5), the square between them, 18 crossings). `None` where a stroke leaving it
+    /// bends (R's and P's bowls) or has no rungs: the square is then the leaving strokes' width
+    /// about the junction ([`Self::square_half`]).
+    fn corner_cut(&self, c: usize, j: usize) -> Option<(f64, f64)> {
+        let at = self.g.junctions[j].at;
+        let centre = &self.strokes[c].centre;
+        let own = &self.rungs[c];
+        if own.len() < 2 {
+            return None;
+        }
+        // Column `c`'s two sides, as its rungs' ends.
+        let sides: [Vec<Vec2>; 2] = [
+            own.iter().map(|r| r[0]).collect(),
+            own.iter().map(|r| r[1]).collect(),
+        ];
+        let mut arcs = Vec::new();
+        for k in self.waiting_at(j, c) {
+            let s = &self.strokes[k];
+            let rs = &self.rungs[k];
+            if bends(s) || rs.len() < 4 || s.centre.len() < 2 {
+                return None;
+            }
+            let first = s.centre[0].distance(at) <= s.centre[s.centre.len() - 1].distance(at);
+            for i in 0..2 {
+                // The side's straight line through its middle rungs (a rounded inner corner
+                // bends its last points down the column's edge: A's bar bottom), carried to
+                // where it meets the column's side facing it: the corner.
+                let n = rs.len();
+                let (p, q) = (rs[n / 4][i], rs[3 * n / 4][i]);
+                let (from, to) = if first { (q, p) } else { (p, q) };
+                let d = to - from;
+                if d.length() < 1e-9 {
+                    return None;
+                }
+                let hit = sides
+                    .iter()
+                    .filter_map(|side| line_hits(side, from, d))
+                    .min_by(|a, b| a.distance(to).total_cmp(&b.distance(to)))?;
+                arcs.push(project(centre, false, hit).0);
+            }
+        }
+        let lo = arcs.iter().copied().fold(f64::INFINITY, f64::min);
+        let hi = arcs.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        (lo.is_finite() && hi - lo > 1e-6).then_some((lo, hi))
+    }
+
     /// Rungs of column `c` between arc lengths `from` and `to` (either order), in that order,
     /// with a rung at each end.
     fn piece(&self, c: usize, from: f64, to: f64) -> Vec<[Vec2; 2]> {
@@ -2250,6 +2322,29 @@ impl Order<'_> {
             v.reverse();
         }
         v
+    }
+
+    /// [`Self::piece`] with its two sides joined again at equal fractions of their own lengths
+    /// between the piece's end rungs, on a straight column (#938). The column's rungs join its
+    /// sides over its whole length, so where a junction cuts one side short (A's left leg at the
+    /// bar: its inner side stops 1.5 mm lower than the outer) the piece below inherits a tilt
+    /// that grows towards the junction from the foot's middle on; PE-DESIGN's foot keeps its
+    /// crossings nearly level up to the junction (stroke-satin-A: 6 degrees at the middle).
+    fn piece_own(&self, c: usize, from: f64, to: f64) -> Vec<[Vec2; 2]> {
+        let v = self.piece(c, from, to);
+        if v.len() < 3 || bends(&self.strokes[c]) {
+            return v;
+        }
+        let side = |i: usize| v.iter().map(|r| r[i]).collect::<Vec<Vec2>>();
+        let (l, r) = (side(0), side(1));
+        let (ll, lr) = (length(&l), length(&r));
+        let n = v.len() - 1;
+        (0..=n)
+            .map(|k| {
+                let f = k as f64 / n as f64;
+                [point_at(&l, f * ll), point_at(&r, f * lr)]
+            })
+            .collect()
     }
 
     fn emit(&mut self, rungs: Vec<[Vec2; 2]>, junction: bool) {
@@ -2370,11 +2465,14 @@ impl Order<'_> {
                 let h = self.square_half(c, j);
                 let (start, far) = if e == 0 { (0.0, len) } else { (len, 0.0) };
                 let toward = if e == 0 { -1.0 } else { 1.0 };
-                let near_edge = s + toward * h;
-                let far_edge = s - toward * h;
-                let a = self.piece(c, start, near_edge);
+                let (near_edge, far_edge) = match self.corner_cut(c, j) {
+                    Some((lo, hi)) if e == 0 => (lo, hi),
+                    Some((lo, hi)) => (hi, lo),
+                    None => (s + toward * h, s - toward * h),
+                };
+                let a = self.piece_own(c, start, near_edge);
                 self.emit(a, false);
-                let b = self.piece(c, far, far_edge);
+                let b = self.piece_own(c, far, far_edge);
                 self.emit(b, false);
                 let sq = self.piece(c, near_edge, far_edge);
                 self.emit(sq, true);
@@ -2945,6 +3043,44 @@ mod tests {
             e[1]
         );
         assert!(e[3].1.1 > b.height() / 10.0 - 0.5, "{:?}", e[3]);
+    }
+
+    #[test]
+    fn a_s_bar_ends_along_the_legs_and_its_square_is_cut_at_the_bar_s_corners() {
+        // stroke-satin-A (#938): PE-DESIGN's bar starts and ends along the legs' inner edges,
+        // its end crossings at 110 and 70 degrees from level (y down), from the bar's top corner
+        // to its bottom one; its left leg is cut through those corners, the square between them.
+        let spec = TextSpec::new("A", DEFAULT_FONT, 20.0);
+        let contours = layout(&spec, None).expect("layout").contours();
+        let blocks = strokes(&contours).expect("strokes").blocks(&contours, 30.0);
+        assert_eq!(blocks.len(), 5, "{blocks:?}");
+        let (square, bar) = (&blocks[2], &blocks[3]);
+        assert!(square.junction && !bar.junction);
+        // A rung's angle from level, its top point to its bottom one.
+        let angle = |r: &[Vec2; 2]| {
+            let (top, bottom) = if r[0].y <= r[1].y {
+                (r[0], r[1])
+            } else {
+                (r[1], r[0])
+            };
+            (bottom.y - top.y).datan2(bottom.x - top.x).to_degrees()
+        };
+        let (first, last) = (bar.rungs[0], bar.rungs[bar.rungs.len() - 1]);
+        assert!((angle(&first) - 110.0).abs() <= 10.0, "{}", angle(&first));
+        assert!((angle(&last) - 70.0).abs() <= 10.0, "{}", angle(&last));
+        // Each of the square's end rungs passes within 0.5 mm of one of the bar's left corners.
+        let corners = [first[0], first[1]];
+        for end in [square.rungs[0], square.rungs[square.rungs.len() - 1]] {
+            let near = corners.iter().any(|&c| {
+                let d = end[1] - end[0];
+                let t = ((c - end[0]).x * d.x + (c - end[0]).y * d.y) / (d.x * d.x + d.y * d.y);
+                (end[0] + d * t.clamp(0.0, 1.0)).distance(c) <= 5.0
+            });
+            assert!(
+                near,
+                "square end {end:?} misses the bar's corners {corners:?}"
+            );
+        }
     }
 
     #[test]

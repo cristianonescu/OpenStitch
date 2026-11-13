@@ -586,6 +586,17 @@ Line references are relative to `crates/`.
   M-8's remaining gap: PE-DESIGN sews each stem's top as a fan with the diagonal's start (a
   corner square, stem satin stopping below it), so its diagonals are shorter and its corners
   denser, and it locks twice on the way down.
+  Since 2026-11-13 (#938, part): A's bar ends along the legs' inner edges, its end crossings at
+  109.5 and 70.5 degrees (PE-DESIGN 110 and 70) with 41 crossings over x 5.7-14.5 mm (41 over
+  5.8-14.3); the left leg is cut through the corners where the bar's edges meet it (its straight
+  edges carried past Lato's rounded inner corner), and the pieces either side of the square join
+  their sides over their own length. A 284 → 292 against 290; H at 40 mm 579 → 575 (556), K 314 →
+  312 (293), 8 357 → 358 (373), T 208 → 209 (186); the other satin captures unchanged. Still
+  open: A's foot crossings average 17 degrees on its middle third against PE-DESIGN's 8.5.
+  PE-DESIGN enters the foot at its inner corner, so its slants run against the rows' tilt;
+  starting there here gives 10 degrees but drops A to 279, because our square (13 crossings
+  against 18) and foot (32 against 37) are shorter. Our leg rungs tilt about 23 degrees where
+  PE-DESIGN's tilt 35, so the same corners cut less of the outer side.
 - **Test:**
   - Inputs: `text.add {"text":"AVOW","size":30,"x":50,"y":50}` →
     `object.setRegion {"id":1,"type":"satin"}` → `design.generate`.
@@ -4246,3 +4257,25 @@ flag, the click as the column's top and the box from 0.59 × the size above it d
 letter (PE-DESIGN's 760, 953 – 840, 1241; ours within 0.6 mm). Several columns, and centred or
 bottom-aligned columns, stay refused: PE-DESIGN's column spacing and alignment codes have no
 owner file. No kit design, example or compat spec uses vertical text.
+
+### Captures with a PE-DESIGN built-in motif withdrawn, 2026-11-13
+
+Reviewing the motif fixtures for #608 showed that every PE-DESIGN capture with a motif fill also
+lists a PE-DESIGN built-in motif in its header's motif list (a 42-point pattern at size 1170,
+beside the project's own). Brother's built-in data stays out of the repository, so six files are
+removed: `compat/reference/pes/` and `/stitches/` `line-motif-zigzag-3pt.pes` and
+`motif-fill-2pt.pes`, `compat/reference/pes/obj-motif-fill-owner-v.pes` and the pe11 fixture
+`obj-motif-fill-owner-v.pes`, with their manifest and provenance entries. The same scan of the
+fill lists found `compat/reference/stitches/programmable-fill-45.pes`, made with PE-DESIGN's
+built-in programmable fill pattern (its own entry and its stitches), removed too and its spec
+skipped. PE-DESIGN keeps a Pattern2 for every motif fill and fills it with its built-in motif
+even under "Pattern1 only"; the coordinator's round-13 captures with Pattern2 set to the
+project's second motif (`motif-fill-clean-p1`, `-p1p2`) list only project motifs and replace the
+pe11 fixture. Specs
+`line-motif-zigzag-3pt` and `motif-fill-2pt` are skipped ("reference withdrawn 2026-11-13: the
+capture listed a PE-DESIGN built-in motif; a clean capture is pending"); `pes-objects-psc-patterns`
+and `pes-objects-owner-patterns` keep their other files. The formats test
+`committed_pes_files_list_only_the_projects_own_patterns` now fails on any committed PES whose
+motif list holds anything but the project's own `.pmf` motifs, or whose fill list holds anything
+but its own `.pas` tiles (stamp outlines of the owner's own shapes allowed in the `stamp-*` captures). The measurements made on the withdrawn
+files above stay as recorded; they wait for clean captures to be checked again.

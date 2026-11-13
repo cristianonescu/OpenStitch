@@ -447,7 +447,9 @@ fn region_types_and_the_decorative_pattern_read() {
         ("o-region-net-fill", RegionSewType::NetFill),
         ("o-region-zigzag-net", RegionSewType::ZigzagNet),
         ("o-region-flexible-spiral", RegionSewType::FlexibleSpiral),
-        ("obj-motif-fill-owner-v", RegionSewType::Motif),
+        // Motif Stitch: the clean capture that replaced obj-motif-fill-owner-v (withdrawn
+        // 2026-11-13, its header listed a PE-DESIGN built-in motif).
+        ("motif-fill-clean-p1", RegionSewType::Motif),
     ] {
         assert_eq!(
             objects_of(&data(&format!("pe11/{name}.pes"))).shapes[0].region,
@@ -618,7 +620,6 @@ fn round_3_object_files_read_their_stitches_and_stop_cleanly() {
         "o-text-vertical",
         "o-text-10-letters",
         "obj-progfill-owner-v",
-        "obj-motif-fill-owner-v",
         "obj-motif-line-owner-v",
     ] {
         let bytes = data(&format!("pe11/{name}.pes"));
@@ -657,7 +658,7 @@ const FULLY_PARSED: &[&str] = &[
     "line-chain-startend-run",
     "line-e-default",
     "line-e-rect-default",
-    "line-motif-zigzag-3pt",
+    // line-motif-zigzag-3pt: withdrawn 2026-11-13 (its header listed a PE-DESIGN built-in motif).
     "line-running-default",
     "line-stem-default",
     "line-stem-startend-feed",
@@ -2260,4 +2261,100 @@ fn a_shape_with_a_stamp_reads_and_writes_back() {
     }
     // Without a stamp the count is 0 and nothing follows the marks.
     assert!(one("r01-rect").stamps.is_empty());
+}
+
+/// The polylines of the project's own pattern sources with extension `ext`: motifs (`.pmf`,
+/// `@LINE n x y …`) or fill tiles (`.pas`, `@TILELINE 0 n x y …`) in compat/reference/pes,
+/// drawn in Programmable Stitch Creator by the owner.
+fn project_patterns(root: &std::path::Path, ext: &str) -> Vec<Vec<(i16, i16)>> {
+    let mut out = Vec::new();
+    for entry in std::fs::read_dir(root.join("compat/reference/pes")).expect("dir") {
+        let path = entry.expect("entry").path();
+        if path.extension().is_some_and(|e| e == ext) {
+            for line in std::fs::read_to_string(&path).expect("source").lines() {
+                let rest = match (
+                    line.strip_prefix("@LINE "),
+                    line.strip_prefix("@TILELINE 0 "),
+                ) {
+                    (Some(r), _) | (None, Some(r)) => r,
+                    _ => continue,
+                };
+                let v: Vec<i16> = rest
+                    .split_whitespace()
+                    .skip(1)
+                    .map(|n| n.parse().expect("number"))
+                    .collect();
+                out.push(v.chunks(2).map(|c| (c[0], c[1])).collect());
+            }
+        }
+    }
+    out
+}
+
+#[test]
+fn committed_pes_files_list_only_the_projects_own_patterns() {
+    // PE-DESIGN's built-in motifs and programmable fill patterns are Brother content and stay
+    // out of the repository (#1060). A file whose header motif list holds anything but one of
+    // the project's own motifs, or whose fill list holds anything but one of the project's own
+    // fill tiles, fails here with its path. The one other kind of fill-list entry allowed is a
+    // stamp converted from the owner's own shape (Stamp/Emboss > Convert from Outline: closed
+    // polylines), in the round-10 `stamp-*` captures only (#959).
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let ours = project_patterns(&root, "pmf");
+    let tiles = project_patterns(&root, "pas");
+    assert!(ours.len() >= 2 && tiles.len() >= 3, "{ours:?} {tiles:?}");
+    let mut files = Vec::new();
+    let mut stack: Vec<std::path::PathBuf> = ["compat", "crates", "examples"]
+        .iter()
+        .map(|d| root.join(d))
+        .collect();
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for e in entries.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                if p.file_name().is_some_and(|n| n != "target") {
+                    stack.push(p);
+                }
+            } else if p.extension().is_some_and(|x| x.eq_ignore_ascii_case("pes")) {
+                files.push(p);
+            }
+        }
+    }
+    let mut checked = 0;
+    let mut foreign = Vec::new();
+    for f in &files {
+        let bytes = std::fs::read(f).expect("read");
+        let Ok(s) = pes::read_objects(&bytes) else {
+            continue;
+        };
+        if s.motif_patterns.is_empty() && s.fill_patterns.is_empty() {
+            continue;
+        }
+        checked += 1;
+        let name = f.strip_prefix(&root).unwrap_or(f).display().to_string();
+        let stamp_capture = f
+            .file_name()
+            .is_some_and(|n| n.to_string_lossy().starts_with("stamp-"));
+        let closed = |l: &Vec<(i16, i16)>| l.len() > 2 && l.first() == l.last();
+        for p in &s.motif_patterns {
+            if !p.polylines.iter().all(|l| ours.contains(l)) {
+                foreign.push(format!("{name} (a motif of size {})", p.size));
+            }
+        }
+        for p in &s.fill_patterns {
+            let tile = p.polylines.iter().all(|l| tiles.contains(l));
+            let stamp = stamp_capture && p.polylines.iter().all(closed);
+            if !tile && !stamp {
+                foreign.push(format!("{name} (a fill pattern of size {})", p.size));
+            }
+        }
+    }
+    assert!(checked > 0, "no file with a pattern list was found");
+    assert!(
+        foreign.is_empty(),
+        "patterns that are not the project's own: {foreign:?}"
+    );
 }

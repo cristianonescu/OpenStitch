@@ -458,42 +458,6 @@
       "notes": "Author stored as Windows-1252 (E9 for é); comment newline CR LF."
     },
     {
-      "file": "pes/line-motif-zigzag-3pt.pes",
-      "spec": "pes-objects-psc-patterns",
-      "reference": "pe-design-line-motif-zigzag-3pt",
-      "madeBy": "Cristian Onescu",
-      "peDesignVersion": "11.50",
-      "date": "2026-10-29",
-      "os": "Windows 11 Pro 10.0.26300",
-      "settings": "Programmable Stitch Creator (Option menu), owner-drawn. Save As proposes PE-DESIGN's own Pattern folder the first time, then the last folder used; the Save as type list holds exactly one type per mode: Fill/Stamp Files (*.pas) with Default Size 7.5 mm, Motif Files (*.pmf) with Default Size 5.0 mm, Decorative Fill Files (*.plf) with Default Size 100.0 mm. The Fill/Stamp and Motif cells are 8 x 8 grids of 0..1024 units (points snap to the 128-unit grid); the Decorative Fill cell is a 16 x 16 grid. Fill/Stamp and Decorative Fill use the Draw Line tool (click points, double-click the last); Motif mode starts from a fixed base line between two end points, a click on the line adds a point and a drag moves it. Layout & Editing: App menu > New (100 x 100 mm), an Open Straight Line (10,30)-(50,30) mm (snapped to 39.5 mm), line Motif Stitch with psc-motif-zigzag-3pt at 5.0 x 5.0 mm, Offset 0, Spacing 0, Run pitch 5.0, Start/End Type Feed, 800 RED; 23 stitches. Patterns picked with the folder button of the Programmable fill / Pattern1 / Motif section (Browse dialog > folder tree > the owner's folder with the .pas/.pmf files). Colour 007 EMBROIDERY PRUSSIAN BLUE (region) / 800 RED (line), under sewing off, density 4.5, direction 45. Save As PES default type.",
-      "sha256": "107c4a56294d106a5d11da5cdba989aba542e76b921face40914ae0cccdda0c2",
-      "notes": "Header #PES0110."
-    },
-    {
-      "file": "pes/motif-fill-2pt.pes",
-      "spec": "pes-objects-psc-patterns",
-      "reference": "pe-design-motif-fill-2pt",
-      "madeBy": "Cristian Onescu",
-      "peDesignVersion": "11.50",
-      "date": "2026-10-29",
-      "os": "Windows 11 Pro 10.0.26300",
-      "settings": "Programmable Stitch Creator (Option menu), owner-drawn. Save As proposes PE-DESIGN's own Pattern folder the first time, then the last folder used; the Save as type list holds exactly one type per mode: Fill/Stamp Files (*.pas) with Default Size 7.5 mm, Motif Files (*.pmf) with Default Size 5.0 mm, Decorative Fill Files (*.plf) with Default Size 100.0 mm. The Fill/Stamp and Motif cells are 8 x 8 grids of 0..1024 units (points snap to the 128-unit grid); the Decorative Fill cell is a 16 x 16 grid. Fill/Stamp and Decorative Fill use the Draw Line tool (click points, double-click the last); Motif mode starts from a fixed base line between two end points, a click on the line adds a point and a drag moves it. Layout & Editing: App menu > New (100 x 100 mm), Rectangle (10,10)-(50,50) mm (Size dialog 40.00 x 40.00), line Not Sewn, region Motif Stitch, Pattern1 = psc-motif-2pt at 5.0 x 5.0 mm, H/V-Arrange first buttons, offsets and spacing 0, Pattern2 off, Direction 0, Row offset 0, Run pitch 5.0; 40.00 x 37.50 mm, 130 stitches. Patterns picked with the folder button of the Programmable fill / Pattern1 / Motif section (Browse dialog > folder tree > the owner's folder with the .pas/.pmf files). Colour 007 EMBROIDERY PRUSSIAN BLUE (region) / 800 RED (line), under sewing off, density 4.5, direction 45. Save As PES default type.",
-      "sha256": "bbf2cd5652185f700ef2a85e4c71a6dcb5ad45e666717f5902db7a7efc187bf9",
-      "notes": "Header #PES0110."
-    },
-    {
-      "file": "pes/obj-motif-fill-owner-v.pes",
-      "spec": "pes-objects-owner-patterns",
-      "reference": "pe-design-motif-fill-owner-v",
-      "madeBy": "Cristian Onescu",
-      "peDesignVersion": "11.50",
-      "date": "2026-10-29",
-      "os": "Windows 11 Pro 10.0.26300",
-      "settings": "Owner-drawn patterns made in Programmable Stitch Creator (Option menu): New Fill/Stamp Pattern, Draw Line tool, points (0,0) (512,768) (1024,0) of the 0..1024 cell, Save As pes/owner-v.pas (Fill/Stamp Files, Default Size 7.5 mm); New Motif Pattern, Select Point: a click on the fixed base line adds a point, dragged to (512,768): V, Save As pes/owner-v.pmf (Motif Files, Default Size 7.5 mm). Both are ASCII (@VERSION 10000, @SYSENV 1, @TILE/@TILELINE or @LINE). Layout & Editing: App menu > New (100 x 100 mm), Home > Shapes > Rectangle dragged (20, 20)-(50, 40) mm, line Running Stitch (tool state, pitch 2.0), region as below, colour 007 EMBROIDERY PRUSSIAN BLUE (region) and 800 RED (line), Sewing Attributes region: under sewing off, density 4.5, Direction Manual straight line 45, pull 0.0. Patterns are chosen with the folder button of the Programmable fill / Pattern1 / Motif section (Browse dialog, its folder button opens a folder tree; the owner's folder with the two files). Save As PES default type. This file: region Motif Stitch, Pattern1 = owner-v at 5.0 x 5.0 mm, H/V-Arrange first buttons, H/V-Offset 0.0, H/V-Spacing 0.0, Pattern2 off, Direction 0, Row offset 0.0, Run pitch 5.0; line Running Stitch red. 30.00 x 20.00 mm, 144 st (the built-in default motif gave 237).",
-      "sha256": "d88daafad7dd68b04669a663f940bc3d83fcb2e97da821d2de72f26f25900f07",
-      "notes": "Header #PES0110."
-    },
-    {
       "file": "pes/obj-motif-line-owner-v.pes",
       "spec": "pes-objects-owner-patterns",
       "reference": "pe-design-motif-line-owner-v",
@@ -1262,18 +1226,6 @@
       "notes": "Header #PES0110."
     },
     {
-      "file": "stitches/line-motif-zigzag-3pt.pes",
-      "spec": "line-motif-zigzag-3pt",
-      "reference": "pe-design",
-      "madeBy": "Cristian Onescu",
-      "peDesignVersion": "11.50",
-      "date": "2026-10-29",
-      "os": "Windows 11 Pro 10.0.26200",
-      "settings": "Programmable Stitch Creator: New Motif Pattern, a point added on the base line and dragged to (512,768), Save As psc-motif-zigzag-3pt.pmf (repository copy: crates/openstitch-design/tests/fixtures/patterns/psc-motif-zigzag-3pt.pmf). Layout & Editing: New, Shapes > Outline > Open Straight Line click (10,30) double-click (50,30) mm (snapped to 39,5 mm), line Motif Stitch > psc-motif-zigzag-3pt at 5,0 x 5,0 mm, Offset 0,0, Spacing 0,0, Run pitch 5,0, Start/End Feed. Save As PES (default type).",
-      "sha256": "107c4a56294d106a5d11da5cdba989aba542e76b921face40914ae0cccdda0c2",
-      "notes": "23 stitches in the status bar."
-    },
-    {
       "file": "stitches/line-running-default.pes",
       "spec": "line-running-default",
       "reference": "pe-design",
@@ -1382,18 +1334,6 @@
       "notes": "Header #PES0110."
     },
     {
-      "file": "stitches/motif-fill-2pt.pes",
-      "spec": "motif-fill-2pt",
-      "reference": "pe-design",
-      "madeBy": "Cristian Onescu",
-      "peDesignVersion": "11.50",
-      "date": "2026-10-29",
-      "os": "Windows 11 Pro 10.0.26200",
-      "settings": "Programmable Stitch Creator: New Motif Pattern, the fixed base line (0,512)-(1024,512) saved untouched as psc-motif-2pt.pmf (repository copy: crates/openstitch-design/tests/fixtures/patterns/psc-motif-2pt.pmf). Layout & Editing: the same 40 x 40 rectangle, region Motif Stitch, Pattern1 browser > psc-motif-2pt at 5,0 x 5,0 mm, H/V-Arrange first buttons, offsets/spacing 0, Direction 0, Row offset 0,0, Run pitch 5,0, under sewing off. Save As PES (default type).",
-      "sha256": "bbf2cd5652185f700ef2a85e4c71a6dcb5ad45e666717f5902db7a7efc187bf9",
-      "notes": "130 stitches, 40,00 x 37,50 mm in the status bar."
-    },
-    {
       "file": "stitches/optimize-entry-exit.pes",
       "spec": "optimize-entry-exit",
       "reference": "pe-design",
@@ -1428,18 +1368,6 @@
       "settings": "Programmable Stitch Creator: New Fill/Stamp Pattern, closed square (128,128) (896,128) (896,896) (128,896) cell units on the 8 x 8 grid, Save As psc-square-4pt.pas (repository copy: crates/openstitch-design/tests/fixtures/patterns/psc-square-4pt.pas). Layout & Editing: New, Rectangle (10,10)-(50,50) mm (Size dialog 40,00 x 40,00), line Not Sewn, region Prog. Fill Stitch, 007 PRUSSIAN BLUE, under sewing off, density 4,5, direction 45, pattern browser > psc-square-4pt at 7,5 x 7,5 mm, Direction 0, Offset row 0 %, Base Sewing off. Save As PES (default type, #PES0110).",
       "sha256": "2c5109773417a05ecb6c445b2fe2a3f7e276ddd28cbd7abf2db7f893655d71d3",
       "notes": "2355 stitches in the status bar. The pattern file and this design are the owner's own drawings; no Brother pattern was used."
-    },
-    {
-      "file": "stitches/programmable-fill-45.pes",
-      "spec": "programmable-fill-45",
-      "reference": "pe-design",
-      "madeBy": "Cristian Onescu",
-      "peDesignVersion": "11.50",
-      "date": "2026-10-27",
-      "os": "Windows 11 Pro 10.0.26200",
-      "settings": "Design Page Custom Size 100 x 100 mm; Snap to Grid on (2.5 mm); Rectangle tool (10,10)-(50,50) mm; line Not Sewn; region Prog. Fill Stitch, direction and pattern left at default (Manual straight line 45 degrees, pattern net1, tile 7.5 x 7.5 mm, pattern direction 0, offset row 0 %); colour left at tool default; Save As PES (default type: Layout & Editing Ver.11.0 File, header #PES0110)",
-      "sha256": "6455541402b2b19e308f420566b83004e44beb4f25c10ef0785513e95a1e4b64",
-      "notes": "Default pattern name shown in the Browse dialog: net1. 4077 stitches shown in the status bar."
     },
     {
       "file": "stitches/region-travel-u-along-outline.pes",
