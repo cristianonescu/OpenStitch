@@ -128,13 +128,9 @@ pub fn objects(design: &Design) -> Result<Objects, String> {
     if out.shapes.is_empty() && out.texts.is_empty() && out.stitch_groups.is_empty() {
         return Err("the design has no visible objects".into());
     }
-    // One group is written (any of the objects: group-partial groups two of three); PE-DESIGN
-    // writes several groups in a layout not mapped yet (group-two), so a design with more than one
-    // group keeps none in the file.
-    out.groups = match groups.as_slice() {
-        [(_, members)] => vec![members.clone()],
-        _ => Vec::new(),
-    };
+    // Every group, in the order its first member comes (PE-DESIGN lists them in the order they
+    // were made: 608-groups-3-and-2; any of the objects: group-partial groups two of three).
+    out.groups = groups.into_iter().map(|(_, members)| members).collect();
     for (outer, inner) in direct {
         let at = |id: u64| positions.iter().position(|&p| p == id).map(|p| p as u16);
         if let (Some(o), Some(i)) = (at(outer), at(inner)) {
@@ -146,7 +142,7 @@ pub fn objects(design: &Design) -> Result<Objects, String> {
             out.holes.push([o, i]);
         }
     }
-    if !out.holes.is_empty() && !groups.is_empty() {
+    if !out.holes.is_empty() && !out.groups.is_empty() {
         return Err(
             "a hole sewing pair in a design with groups: PES 0110's layout for both is not mapped yet"
                 .into(),
@@ -1600,11 +1596,14 @@ mod tests {
         let mut partial = design.clone();
         group(&mut partial, &ids[..2], 1);
         assert_eq!(objects(&partial).expect("objects").groups, [vec![0, 1]]);
-        // Two groups: not mapped either.
+        // Two groups: both written, in the order of their first members (#608, group-two).
         let mut two = design.clone();
         group(&mut two, &ids[..2], 1);
         group(&mut two, &ids[2..], 2);
-        assert!(objects(&two).expect("objects").groups.is_empty());
+        assert_eq!(
+            objects(&two).expect("objects").groups,
+            [vec![0, 1], vec![2]]
+        );
         // Every object in one group: written.
         let mut all = design.clone();
         group(&mut all, &ids, 1);

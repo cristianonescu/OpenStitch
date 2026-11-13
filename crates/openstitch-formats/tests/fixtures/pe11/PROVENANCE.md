@@ -207,6 +207,8 @@ each 12 x 12 mm with its zigzag; a pair selected with a drag box, Home > Group >
 |---|---|---|
 | `group-partial.pes` | `f19726f9bfdd56a3b9a8685b490f4d23ab3150750541255fef8dd02f2265b4b6` | Squares at (10,10), (30,10), (50,10) mm; the first two grouped. 52 x 12 mm, 1257 st (the group 32 x 12 mm, 838 st). |
 | `group-two.pes` | `ff88f4d44d6f9cdc62fbbd6ebb6f2706c3dfa52c7b2cd0637d4858fb7c69a654` | group-partial with a fourth square at (70,10) mm; the last two grouped as well. 72 x 12 mm, 1676 st. |
+| `608-groups-three.pes` | `ef763695912398e9158eba548e7ede7756e975690a4e58f70eb958ace002220c` | Round 12 (2026-11-13, the coordinator's capture for #608, same PE-DESIGN and OS): a new page (the hoop page about 180 x 130 mm), six squares drawn with the Rectangle tool, about 10 mm each and about 15 mm apart in a row, at that PC's defaults (region Fill, line Zigzag); grouped 1+2, then 3+4, then 5+6 (each pair with a selection box, Home > Group > Group). |
+| `608-groups-3-and-2.pes` | `9633bab3ecfffdb558124621c8630718731a4a0d9f7143bab71e5a60ab0f2d87` | Round 12, the same way: five squares; 4+5 grouped first, then 1+2+3. |
 **Machine type and hoop (#125, round 6):** made by the owner's PE-DESIGN 11.50 (Layout &
 Editing), Windows 11 Pro 10.0.26300, 2026-10-31 11:42-12:08, black-box GUI use only (reference
 session; owner's round-6 hoop capture log). One design for every file: New, Rectangle

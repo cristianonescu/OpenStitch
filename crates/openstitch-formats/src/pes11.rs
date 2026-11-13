@@ -1164,35 +1164,53 @@ fn read_groups(
         [0, 3, 3] if r.read(6)?.iter().all(|&b| b == 0) => vec![[at(3), at(4)]],
         _ => return Ok((Vec::new(), Vec::new())),
     };
-    let count = r.u16le()?;
-    let mut groups = Vec::new();
+    let count = usize::from(r.u16le()? as u16);
+    if count == 0 {
+        return Ok((holes, Vec::new()));
+    }
+    // One CGroupObject tag per group, all first (the class the first time, then `0x8000 | n`).
     for _ in 0..count {
         match read_tag(r, map)? {
-            Ok(class) if class == GROUP_OBJECT => {}
-            _ => return Ok((holes, groups)),
+            Ok(class) if class == GROUP_OBJECT => map.push(None),
+            _ => return Ok((holes, Vec::new())),
         }
-        map.push(None);
-        // One more than the archive number of the group's last-archived member.
-        let field = r.u16le()? as u16;
+    }
+    let field = r.u16le()? as u16;
+    let mut groups = Vec::with_capacity(count);
+    for k in 0..count {
+        // The groups after the first each start with a u16 0.
+        if k > 0 && r.u16le()? != 0 {
+            return Ok((holes, Vec::new()));
+        }
         let n = r.u16le()? as usize;
         let mut members = Vec::with_capacity(n);
         for _ in 0..n {
             members.push(r.u16le()? as u16);
         }
-        // A member outside the list, or a number that isn't one past the last member's: a group
-        // layout not mapped yet (group-two, PE-DESIGN's two groups of two), so nothing is read
-        // rather than nonsense.
-        let last = members
-            .iter()
-            .map(|&m| numbers.iter().find(|&&(_, p)| p == m).map(|&(n, _)| n))
-            .collect::<Option<Vec<u16>>>()
-            .and_then(|n| n.into_iter().max());
-        if last.map(|l| l + 1) != Some(field) {
-            return Ok((holes, Vec::new()));
-        }
         groups.push(members);
     }
+    // The field: one more than the archive number of the last-archived member of any group,
+    // plus two per group after the first ([`group_field`]). A member outside the list, or another
+    // number: a layout not mapped, so nothing is read rather than nonsense.
+    let last = groups
+        .iter()
+        .flatten()
+        .map(|&m| numbers.iter().find(|&&(_, p)| p == m).map(|&(n, _)| n))
+        .collect::<Option<Vec<u16>>>()
+        .and_then(|n| n.into_iter().max());
+    if last.map(|l| group_field(l, count)) != Some(field) {
+        return Ok((holes, Vec::new()));
+    }
     Ok((holes, groups))
+}
+
+/// The group list's field after its tags: one more than the archive number `last` of the
+/// last-archived member of any group, plus two per group after the first. PE-DESIGN 11.50's
+/// files: one group a01 7, o-group-two-rects 4, group-partial 4 (the first two of three
+/// squares); two groups of two group-two 8; three groups of two 608-groups-three 12; groups of
+/// two and three 608-groups-3-and-2 9 (#608).
+fn group_field(last: u16, groups: usize) -> u16 {
+    last + 1 + 2 * (groups as u16).saturating_sub(1)
 }
 
 /// One `CEmbOne` at the reader's offset: bounds, extent, transform, u16 1 0 0 width height,
@@ -2526,22 +2544,31 @@ fn write_trailer(
         _ => unreachable!("write checks that there is at most one hole pair"),
     }
     w.u16le(objects.groups.len() as i64);
-    for members in &objects.groups {
-        archive.tag(w, GROUP_OBJECT);
-        // One more than the archive number of the group's last-archived member: a01's group of
-        // all five objects 7, o-group-two-rects' of both 4, group-partial's of the first two of
-        // three 4 (not the class's own number, 5, which OpenStitch wrote until 2026-10-31 and
-        // which PE-DESIGN refused for a group that left the last object out).
-        let last = members
+    if !objects.groups.is_empty() {
+        // Every group's tag first, then the field ([`group_field`]: from the last-archived member
+        // of any group, not the class's own number, which OpenStitch wrote until 2026-10-31 and
+        // which PE-DESIGN refused for a group that left the last object out), then the groups,
+        // the second and later each after a u16 0 (group-two, 608-groups-three, -3-and-2).
+        for _ in &objects.groups {
+            archive.tag(w, GROUP_OBJECT);
+        }
+        let last = objects
+            .groups
             .iter()
+            .flatten()
             .filter_map(|&m| archive.objects.get(usize::from(m)))
             .max()
             .copied()
             .unwrap_or(0);
-        w.u16le(i64::from(last) + 1);
-        w.u16le(members.len() as i64);
-        for &m in members {
-            w.u16le(i64::from(m));
+        w.u16le(i64::from(group_field(last, objects.groups.len())));
+        for (k, members) in objects.groups.iter().enumerate() {
+            if k > 0 {
+                w.u16le(0);
+            }
+            w.u16le(members.len() as i64);
+            for &m in members {
+                w.u16le(i64::from(m));
+            }
         }
     }
     w.fill(0, 12);

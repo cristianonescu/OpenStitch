@@ -500,8 +500,13 @@ Until 2026-10-31 OpenStitch wrote the `CGroupObject` class's archive number ther
 count + 2), which equals PE-DESIGN's number only when the group holds the last object: PE-DESIGN
 11.50 refused ("Unexpected file format") the appliqué export, whose group held the four lines
 without the square (7 written, 6 due); the same file with all five grouped, or none, opened.
-PE-DESIGN's group-two (two groups of two) writes the second group differently (`06 80 08 00 …`);
-that layout is not mapped, and the reader reads no group from it.
+**Several groups** (#608; group-two, and round 12's 608-groups-three and 608-groups-3-and-2): every
+group's tag comes first (`FFFF 0000 0C00 CGroupObject`, then `0x8000 | n` once per further group),
+then one u16 (one more than the archive number of the last-archived member of any group, plus two
+per group after the first: group-two 8, three groups of two 12, groups of two and three 9), then
+the groups in the order they were made (608-groups-3-and-2 lists 4+5, made first, before 1+2+3):
+the member count and the members, each group after the first behind a u16 0. With one group this
+is the layout below. Read and written since #608.
 
 After the list: 10 zero bytes, or with a **hole sewing pair** 16 bytes, u16 0, 3, 3, the
 outer and inner objects' list positions and 6 zero bytes (Modify Overlap > Set hole sewing on a
@@ -635,8 +640,7 @@ OpenStitch's Brother PEC chart gets the BROTHER EMBROIDERY catalogue number and 
 catalogue number, brand and chart), one `CEmbLine` per visible shape with every mapped field set,
 one `CEmbOne` per stitch pattern (its needle points in runs cut as version 6 cuts them, a jump
 run where the pattern jumps or trims, each colour block's thread added to the table), the
-groups (one group, of any of the objects; a design with several groups keeps none in the file:
-PE-DESIGN's group-two writes two groups in a layout not mapped yet), the sewing-order list, the PEC section and the addendum. Texts in Lato Bold are written
+groups (any number, each of any of the objects, in the order of their first members, #608), the sewing-order list, the PEC section and the addendum. Texts in Lato Bold are written
 as `CEmbNText` (letters at the text's size, Satin or Fill, an optional running, triple or
 zigzag line at PE's defaults, line breaks, the line spacing %, left or centre alignment and the
 click point at the alignment point), and fitted to an outline as `CEmbAText` (the fit settings, the
