@@ -29,6 +29,10 @@
       "kind": "spec",
       "url": "https://github.com/EmbroidePy/pyembroidery/blob/master/pyembroidery/PesWriter.py",
       "note": "version 6 layout"
+    },
+    {
+      "kind": "measured",
+      "note": "pageMode custom (#1013): the reference is PE-DESIGN's re-save of its version 6 file as OpenStitch wrote it, and PE-DESIGN drops a zero-length stitch when it opens a stitch file. Round 12 (2026-11-13) re-saved today's Hoop Size export, which starts with the stitch in place, and the re-save starts on the landing without it (D:/_sandboxes/PE-reference-notes/round12/pes-default-v6.pes; the spec's reference is unchanged, as its stitches are the same). So the spec's design stays on a Custom Size page, whose stream PE-DESIGN keeps as written."
     }
   ],
   "script": [
@@ -37,7 +41,8 @@
       "params": {
         "name": "t1",
         "width": 100,
-        "height": 100
+        "height": 100,
+        "pageMode": "custom"
       }
     },
     {

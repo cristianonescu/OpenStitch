@@ -465,10 +465,20 @@ fn design_commands() -> Vec<CommandSpec> {
                 opt("name", "string", "Design name"),
                 opt("width", "mm", "Design Page width (default 100)"),
                 opt("height", "mm", "Design Page height (default 100)"),
+                opt(
+                    "pageMode",
+                    "hoop|custom",
+                    "PE-DESIGN's Design Page kind: hoop (Hoop Size, its default for a new design; a 100 x 100 page or a known hoop) or custom (Custom Size). PE-DESIGN starts each run's one-step tie-in on a stitch in place on a Hoop Size page only",
+                ),
             ],
             |s, p| {
                 let w = p.opt("width", 100.0, 10.0, 2000.0)?;
                 let h = p.opt("height", 100.0, 10.0, 2000.0)?;
+                let custom_page = match p.string("pageMode", Some("hoop"))?.as_str() {
+                    "hoop" => false,
+                    "custom" => true,
+                    _ => return Err(p.invalid("pageMode", "must be hoop or custom")),
+                };
                 s.design = Design::new(
                     p.string("name", Some("Untitled"))?,
                     DesignPage {
@@ -476,6 +486,7 @@ fn design_commands() -> Vec<CommandSpec> {
                         height: h * MM,
                     },
                 );
+                s.design.machine.custom_page = custom_page;
                 // Without a size, the user's machine's hoop (#508 part 3).
                 if !p.has("width")
                     && !p.has("height")

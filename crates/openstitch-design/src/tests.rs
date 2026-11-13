@@ -274,16 +274,36 @@ fn short_moves_between_objects_are_sewn_across_and_longer_ones_trimmed() {
 }
 
 #[test]
-fn no_zero_length_stitch_where_a_jump_lands() {
-    // The jump's end is the first needle point. PE-DESIGN 11 never writes a zero-length stitch
-    // there and drops one on open (compat pes-default-v6: 932 → 930 stitches).
-    let p = Compiler::default().compile(&two_squares());
+fn no_zero_length_stitch_where_a_jump_lands_on_a_custom_size_page() {
+    // On a Custom Size page the jump's end is the first needle point: PE-DESIGN 11 writes no
+    // zero-length stitch there (every reference saved on one; compat pes-default-v6: 932 → 930
+    // stitches). On a Hoop Size page it starts each one-step tie-in on a stitch in place (#1013).
+    let mut custom = two_squares();
+    custom.machine.custom_page = true;
+    let p = Compiler::default().compile(&custom);
     assert!(p.count(Command::Jump) >= 2);
     for w in p.stitches.windows(2) {
         if w[0].command == Command::Jump && w[1].command == Command::Stitch {
             assert_ne!((w[0].x, w[0].y), (w[1].x, w[1].y), "{w:?}");
         }
     }
+    let hoop = two_squares();
+    assert!(hoop.hoop_size_page());
+    let p = Compiler::default().compile(&hoop);
+    let in_place = p
+        .stitches
+        .windows(2)
+        .filter(|w| {
+            w[0].command == Command::Jump
+                && w[1].command == Command::Stitch
+                && (w[0].x, w[0].y) == (w[1].x, w[1].y)
+        })
+        .count();
+    assert!(in_place >= 1, "a stitch in place where a jump lands");
+    assert_eq!(
+        p.count(Command::Stitch),
+        Compiler::default().compile(&custom).count(Command::Stitch) + in_place
+    );
 }
 
 #[test]
