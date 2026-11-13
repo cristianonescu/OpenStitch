@@ -1028,7 +1028,7 @@
    86.0,
    87.5
   ],
-  "stitches": 3452,
+  "stitches": 3439,
   "trims": 9,
   "threads": [
    "405 Blue",
@@ -1044,7 +1044,7 @@
   "sewingMinutes": 4.8,
   "image": null,
   "preview": "previews/line-sew-types.png",
-  "sha256": "36e229fdafa58dd76cc17f8f41e1ead9f623c24d91af2c6995e985745416e57d"
+  "sha256": "bd09dae564d7191a8eb254d12db92278d680a670aa22d9c5220d5627f49fb487"
  },
  "shapes/shape-tools.pes": {
   "title": "Shape tools",
@@ -1152,20 +1152,20 @@
   "about": "A heart as appliqué: material line, stop, position line, stop, tack-down, stop, covering zigzag. Lay the fabric at the first stop, trim it at the second.",
   "hoop": "100 × 100 mm",
   "sizeMM": [
-   54.0,
-   53.8
+   53.0,
+   52.5
   ],
-  "stitches": 1557,
+  "stitches": 1268,
   "trims": 4,
   "threads": [
    "Appliqué material (PEC 62)",
    "Appliqué position (PEC 63)",
    "Appliqué (PEC 64)"
   ],
-  "sewingMinutes": 2.2,
+  "sewingMinutes": 1.8,
   "image": null,
   "preview": "previews/applique.png",
-  "sha256": "6ec37a821ea2091b5608c43b12f7429ee3f61481c68c2c84b97c61667d15fc3e"
+  "sha256": "f9db2ad77238d8ceea32443f7eed0a4f4b216f087c5b0831c603c3c7740314be"
  },
  "wizards/patch.pes": {
   "title": "Embroidered patch wizard",

@@ -481,6 +481,14 @@ pub struct Shape {
     /// tack-down 2.0: line-e-default, line-v-default, a01-rect-applique). An E or V line's sewn
     /// extent is the bounds plus this width.
     pub ev_width: f32,
+    /// E or V stitch spacing along the line, mm (body +88; PE-DESIGN's default 5.0). The field
+    /// before the width in the order PE-DESIGN's V dialog shows them (5.0 spacing, 2.5 arm,
+    /// 2.0 width, run times, stroke times: +88 to +96, line-v-rect-default); no reference
+    /// varies it, so the offset is inferred from that order (#982).
+    pub ev_spacing: f32,
+    /// V stitch opening along the line, mm (body +92; PE-DESIGN's default 2.0, the dialog's
+    /// "width" after the arm), inferred as `ev_spacing` is (#982).
+    pub ev_opening: f32,
     /// Running stitch pitch, mm. Kept while another line type is chosen, as PE's tool keeps it.
     pub run_pitch: f32,
     pub line_under_sewing: bool,
@@ -578,6 +586,8 @@ impl Shape {
             sharp_corners: 0,
             miter_limits: [0.0, 7.0],
             ev_width: 2.5,
+            ev_spacing: 5.0,
+            ev_opening: 2.0,
             run_pitch: 2.0,
             line_under_sewing: true,
             region: RegionSewType::Fill,
@@ -1388,6 +1398,8 @@ fn read_line(r: &mut ByteReader<'_>) -> Result<Option<Shape>> {
             f32::from(u16_at(body, 66)) / 10.0,
         ],
         ev_width: f32::from(u16_at(body, 90)) / 10.0,
+        ev_spacing: f32::from(u16_at(body, 88)) / 10.0,
+        ev_opening: f32::from(u16_at(body, 92)) / 10.0,
         run_pitch: f32::from(u16_at(body, 52)) / 10.0,
         line_under_sewing: u16_at(body, 60) != 0,
         region: RegionSewType::from_raw(u16_at(body, 134)),
@@ -2071,7 +2083,9 @@ fn write_line(w: &mut ByteWriter, s: &Shape) {
     put16(&mut head, 62, s.sharp_corners);
     put16(&mut head, 64, tenths(s.miter_limits[0]));
     put16(&mut head, 66, tenths(s.miter_limits[1]));
+    put16(&mut head, 88, tenths(s.ev_spacing));
     put16(&mut head, 90, tenths(s.ev_width));
+    put16(&mut head, 92, tenths(s.ev_opening));
     // +122: 1 on PE-DESIGN's cutting line where every other object has 5 (a02-applique-
     // cutting; the field's meaning is not mapped).
     if s.line_type == Shape::LINE_CUTTING {
