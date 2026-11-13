@@ -1155,17 +1155,17 @@
    54.0,
    53.8
   ],
-  "stitches": 1804,
+  "stitches": 1557,
   "trims": 4,
   "threads": [
    "Appliqué material (PEC 62)",
    "Appliqué position (PEC 63)",
    "Appliqué (PEC 64)"
   ],
-  "sewingMinutes": 2.5,
+  "sewingMinutes": 2.2,
   "image": null,
   "preview": "previews/applique.png",
-  "sha256": "8661e61db8fcbaacd58e7f4085c7c13d32e777add1b2441e225e422976b1047f"
+  "sha256": "6ec37a821ea2091b5608c43b12f7429ee3f61481c68c2c84b97c61667d15fc3e"
  },
  "wizards/patch.pes": {
   "title": "Embroidered patch wizard",
@@ -1175,7 +1175,7 @@
    62.0,
    62.0
   ],
-  "stitches": 2866,
+  "stitches": 2862,
   "trims": 3,
   "threads": [
    "800 Red",
@@ -1185,7 +1185,7 @@
   "sewingMinutes": 3.7,
   "image": null,
   "preview": "previews/patch.png",
-  "sha256": "f1b4ef444777f80ebab8437ca7962776eb29d8a83c2a12eb8c1306b2058cc2ab"
+  "sha256": "4e9e0e09a9be82b4160dede23461c81f0597de234a2c67b1859b494b1a38e895"
  },
  "wizards/cutwork.pes": {
   "title": "Cutwork wizard",
@@ -1195,17 +1195,17 @@
    54.0,
    54.0
   ],
-  "stitches": 3192,
+  "stitches": 3446,
   "trims": 6,
   "threads": [
    "405 Blue",
    "405 Blue",
    "405 Blue"
   ],
-  "sewingMinutes": 4.3,
+  "sewingMinutes": 4.6,
   "image": null,
   "preview": "previews/cutwork.png",
-  "sha256": "10d778331beb4a3f8a162e225e83b815a15cb0fa2bba2b55aa31e3745d2c61c1"
+  "sha256": "1c7b123fe208b26850451b2718f4aefbf9cdc554e810d2a557e17996e4cbfcdf"
  },
  "wizards/background-fill.pes": {
   "title": "Background fill wizard",

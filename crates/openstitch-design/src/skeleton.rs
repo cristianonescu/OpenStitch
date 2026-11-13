@@ -301,6 +301,32 @@ pub fn satin_to_outline(
                 None => break,
             }
         }
+        // A short last crossing (a corner end) stops short of the corner just past it (0.21 mm
+        // at Y's foot): the satin ends on the corner itself. A long one (a flat end) keeps its
+        // two ends on the end edge's corners.
+        if let Some(&last) = extra
+            .last()
+            .or(rungs.get(if e == 0 { 0 } else { rungs.len() - 1 }))
+            && last[0].distance(last[1]) <= 2.0 * END_RUNG_MIN
+        {
+            let mid = last[0].lerp(last[1], 0.5);
+            let span = last[0].distance(last[1]);
+            let corner = sharp_corners(contours)
+                .into_iter()
+                .filter(|&v| {
+                    let d = v - mid;
+                    d.x * out.x + d.y * out.y > 0.0 && v.distance(mid) <= span.max(END_RUNG_MIN)
+                })
+                .min_by(|a, b| a.distance(mid).total_cmp(&b.distance(mid)));
+            if let Some(v) = corner {
+                extra.push([v, v]);
+                if e == 0 {
+                    // Twice before the first crossing, so every crossing keeps its side (one
+                    // more would flip them all, y's right arm at 10 mm).
+                    extra.push([v, v]);
+                }
+            }
+        }
         if e == 0 {
             extra.reverse();
             rungs.splice(0..0, extra);
@@ -326,6 +352,37 @@ pub fn satin_to_outline(
     run.dedup_by(|a, b| a.distance(*b) < 1e-9);
     run
 }
+
+/// The sharp convex corners of the closed region `contours` (0.1 mm): outline points where
+/// the outline turns [`SHARP_CORNER`] degrees or more between sides at least 0.2 mm long, the
+/// region on the inside of the turn. A curve's flattened points are not corners.
+fn sharp_corners(contours: &[Contour]) -> Vec<Vec2> {
+    let mut out = Vec::new();
+    for c in contours.iter().filter(|c| c.closed) {
+        let pts = c.outline_points();
+        let n = pts.len();
+        for k in 0..n {
+            let (a, b, e) = (pts[(k + n - 1) % n], pts[k], pts[(k + 1) % n]);
+            let (u, v) = (b - a, e - b);
+            if u.length() < 2.0 || v.length() < 2.0 {
+                continue;
+            }
+            let turn = (u.x * v.y - u.y * v.x)
+                .datan2(u.x * v.x + u.y * v.y)
+                .abs()
+                .to_degrees();
+            if turn >= SHARP_CORNER
+                && crate::geometry::contains(b + (u * -0.05 + v * 0.05), contours)
+            {
+                out.push(b);
+            }
+        }
+    }
+    out
+}
+
+/// A corner of the outline turning at least this much (degrees) is sharp ([`sharp_corners`]).
+const SHARP_CORNER: f64 = 60.0;
 
 /// Most rungs [`satin_to_outline`] adds past one end.
 const MAX_END_RUNGS: usize = 400;
@@ -1881,6 +1938,12 @@ fn arms_from(
             }
         }
     }
+    // The main column's centre line wobbles where it crosses a junction (X's diagonal: single
+    // points turning 80-103 degrees), and the satin fans at every wobble: X at 25 mm left 0.55 mm
+    // of its edge beside the lower notch unsewn (#526). The straightened split drops them.
+    if trim == Trim::Straightened {
+        arms[0] = unkinked(arms[0].clone(), MAIN_KINK);
+    }
     // Cells already tried as an arm that gave no column.
     let mut tried = vec![false; cells];
     while arms.len() < MAX_BRANCHES {
@@ -2055,7 +2118,7 @@ fn arms_from(
             .map(|sk| match trim {
                 Trim::Plain => sk,
                 Trim::Capped => capped(sk, edges),
-                Trim::Straightened => capped(unkinked(sk), edges),
+                Trim::Straightened => capped(unkinked(sk, KINK), edges),
             });
         match arm {
             // The arm's own cells are never an arm again; a part next to it (two arms meeting
@@ -2099,7 +2162,7 @@ fn capped(mut sk: Skeleton, edges: &[(Vec2, Vec2)]) -> Skeleton {
 /// degrees): the ridge through a junction pulls one point into it (A's left leg at the bar,
 /// 2.5 mm off the leg's middle), and the column there missed the leg's outer edge (#526). Not
 /// for a bridge, whose line turns at its tip by design.
-fn unkinked(mut sk: Skeleton) -> Skeleton {
+fn unkinked(mut sk: Skeleton, kink: f64) -> Skeleton {
     let mut k = 1;
     while k + 1 < sk.points.len() {
         let (u, v) = (
@@ -2110,7 +2173,7 @@ fn unkinked(mut sk: Skeleton) -> Skeleton {
             .datan2(u.x * v.x + u.y * v.y)
             .abs()
             .to_degrees();
-        if turn > KINK {
+        if turn > kink {
             sk.points.remove(k);
             sk.widths.remove(k);
             k = k.saturating_sub(1).max(1);
@@ -2125,6 +2188,8 @@ fn unkinked(mut sk: Skeleton) -> Skeleton {
 const SPIKE: f64 = 2.0;
 /// A centre line turning more than this (degrees) at one point turns back on itself there.
 const KINK: f64 = 100.0;
+/// The same for a main column, which crosses junctions without turning there.
+const MAIN_KINK: f64 = 60.0;
 
 /// A skeleton from a centre line on the grid (`pts`, 0.1 mm): smoothed, simplified, each point
 /// moved to the middle of the chord across the region there and given its width (see

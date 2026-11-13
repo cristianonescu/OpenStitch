@@ -950,6 +950,36 @@ fn a_at_10_mm_meets_the_boxes_of_526_on_its_stitches() {
 }
 
 #[test]
+fn x_at_25_mm_meets_the_boxes_of_526_on_its_stitches() {
+    // X's main column runs straight across the junction (it wobbled there, and its satin left
+    // 0.55 mm of edge beside the lower notch bare), and its feet end on their corners.
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "text.add",
+        json!({"text": "X", "size": 25, "x": 50, "y": 70, "fill": "Red"}),
+    );
+    let r = run(&mut s, "text.toShapes", json!({"id": 1}));
+    let shape_id = r["ids"][0].as_u64().expect("shape");
+    meets_the_boxes_of_526(&mut s, shape_id, 3, 0.98);
+}
+
+#[test]
+fn y_at_25_mm_meets_the_boxes_of_526_on_its_stitches() {
+    // The stem's foot ends on its corner: the last short crossing past the column's end had
+    // stopped 0.21 mm short of it.
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "text.add",
+        json!({"text": "Y", "size": 25, "x": 50, "y": 70, "fill": "Red"}),
+    );
+    let r = run(&mut s, "text.toShapes", json!({"id": 1}));
+    let shape_id = r["ids"][0].as_u64().expect("shape");
+    meets_the_boxes_of_526(&mut s, shape_id, 2, 0.98);
+}
+
+#[test]
 fn a_at_25_mm_meets_the_boxes_of_526_on_its_stitches() {
     // A's left leg past the crossbar: its centre line no longer turns back into the junction,
     // so the leg's satin reaches its outer edge at the bar (1.25 mm of it was bare).

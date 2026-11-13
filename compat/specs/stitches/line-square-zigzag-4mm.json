@@ -3,7 +3,7 @@
   "id": "line-square-zigzag-4mm",
   "area": "stitches",
   "title": "Fill against a zigzag stitch 4.0 mm on a 40 mm square",
-  "description": "#955: the #471 baseline square (40 mm outline, Fill 4.5 lines/mm at 45 degrees with under sewing) with zigzag stitch 4.0 mm, 4.5 line/mm, half stitch on. PE-DESIGN's fill reaches the outline whatever the line (2,413 stitches, 40 x 40 mm in every case) and a zigzag is centred on it, so the design is 40 mm plus the zigzag's width; OpenStitch's the same. The stitch count is left out: PE-DESIGN's 4 mm zigzag sews doubled under sewing (1,035 line stitches against OpenStitch's 800, #964).",
+  "description": "#955: the #471 baseline square (40 mm outline, Fill 4.5 lines/mm at 45 degrees with under sewing) with zigzag stitch 4.0 mm, 4.5 line/mm, half stitch on. PE-DESIGN's fill reaches the outline whatever the line (2,413 stitches, 40 x 40 mm in every case) and a zigzag is centred on it, so the design is 40 mm plus the zigzag's width; OpenStitch's the same. From 4.0 mm PE-DESIGN sews four under sewing runs 1 mm apart (1.5 and 0.5 mm to either side) instead of two; OpenStitch the same since #964.",
   "covers": {
     "featureMatrix": [
       {
@@ -111,6 +111,25 @@
       "reference": {
         "tolerance": {
           "mm": 0.2
+        }
+      }
+    },
+    {
+      "id": "stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "a.pes"
+      },
+      "expected": {
+        "min": 3150,
+        "max": 3600
+      },
+      "evidence": "PE-DESIGN 3,448: four under sewing runs from 4.0 mm (3,283 at 3.9 mm)",
+      "reference": {
+        "tolerance": {
+          "percent": 5
         }
       }
     }
