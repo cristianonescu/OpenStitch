@@ -26,6 +26,12 @@ chart). manifest.json records each file's SHA-256. OpenStitch's output is the sa
 Windows and Linux, so a fresh build matches the committed files byte for byte until the stitch
 engine changes. A preview must show every thread of its design within 20 ΔE of the
 thread's RGB (`--check-previews`, #564). Needs Pillow and numpy.
+
+A preview is rewritten only when its pixels change: one whose decoded pixels equal the committed
+file's keeps the committed bytes, so another Pillow or zlib (which compress the same pixels to
+other bytes) leaves the kit alone (#920). Each preview's manifest entry records the Realistic
+view's `REALISTIC_RENDER_VERSION` (crates/openstitch-app/src/editor/render.rs), and
+`--check-previews` fails on a preview drawn at another version than the source's.
 """
 
 import argparse
@@ -92,6 +98,34 @@ def require_fresh(names):
         exe, why = hit
         sys.exit(f"{exe.name} is {why}: run "
                  "`cargo build --release -p stitchtool -p openstitch-app` first (#896)")
+
+
+RENDER_SRC = ROOT / "crates" / "openstitch-app" / "src" / "editor" / "render.rs"
+
+
+def render_version(source=None):
+    """The Realistic view's `REALISTIC_RENDER_VERSION`, read from its source (#920)."""
+    text = RENDER_SRC.read_text(encoding="utf-8") if source is None else source
+    m = re.search(r"pub const REALISTIC_RENDER_VERSION: u32 = (\d+);", text)
+    if not m:
+        sys.exit(f"{RENDER_SRC.relative_to(ROOT).as_posix()} has no REALISTIC_RENDER_VERSION")
+    return int(m.group(1))
+
+
+def same_pixels(a, b):
+    """Whether two images decode to the same RGBA pixels."""
+    return a.size == b.size and a.convert("RGBA").tobytes() == b.convert("RGBA").tobytes()
+
+
+def save_if_changed(im, dst):
+    """Writes `im` to `dst` unless `dst` already holds the same pixels, whatever its bytes; returns
+    whether it wrote (#920)."""
+    if dst.exists():
+        with Image.open(dst) as old:
+            if same_pixels(old, im):
+                return False
+    retry(lambda: im.save(dst, optimize=True))
+    return True
 
 
 def retry(write, attempts=20):
@@ -891,7 +925,7 @@ def preview(work, pes, dst, colours):
     small = im.quantize(colors=256, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE)
     if missing_threads(small, colours):
         small = im
-    retry(lambda: small.save(dst, optimize=True))
+    save_if_changed(small, dst)
 
 
 def check_previews():
@@ -904,7 +938,16 @@ def check_previews():
             bad.append(f"{m['preview']}: no pixels of {', '.join(lost)}")
     if bad:
         sys.exit("previews with wrong thread colours (run tools/sew_kit.py):\n" + "\n".join(bad))
-    print(f"examples/sew previews show their threads ({len(manifest)} files)")
+    old = stale_previews(manifest, render_version())
+    if old:
+        sys.exit(f"previews drawn at another REALISTIC_RENDER_VERSION than the source's {render_version()} "
+                 "(regenerate them: tools/sew_kit.py --only " + " ".join(old) + "; #920)")
+    print(f"examples/sew previews show their threads and the current Realistic view ({len(manifest)} files)")
+
+
+def stale_previews(manifest, version):
+    """The kit paths whose preview was drawn at another render version (or none recorded)."""
+    return [rel for rel, m in manifest.items() if m.get("renderVersion") != version]
 
 
 def kit_paths():
@@ -945,6 +988,27 @@ def self_test():
     paths = kit_paths()
     assert len(paths) == len(set(paths)), "duplicate kit paths"
     assert unknown_paths([paths[0], "fills/no-such-file.pes"]) == ["fills/no-such-file.pes"]
+    # A preview whose pixels are unchanged keeps its committed bytes, however it was compressed;
+    # a changed pixel is written (#920).
+    with tempfile.TemporaryDirectory() as tmp:
+        dst = Path(tmp) / "p.png"
+        im = Image.new("RGB", (40, 30), (200, 30, 30)).quantize(colors=256, method=Image.Quantize.FASTOCTREE)
+        im.save(dst, compress_level=1)
+        committed = dst.read_bytes()
+        assert not save_if_changed(im, dst) and dst.read_bytes() == committed
+        changed = im.convert("RGB")
+        changed.putpixel((5, 5), (0, 0, 0))
+        assert save_if_changed(changed, dst)
+        with Image.open(dst) as now:
+            assert same_pixels(now, changed) and not same_pixels(now, im)
+        assert save_if_changed(im, Path(tmp) / "new.png")
+    # The render version: read from the source; a preview at another version is stale.
+    assert render_version("x\npub const REALISTIC_RENDER_VERSION: u32 = 7;\n") == 7
+    assert render_version() >= 1
+    m = {"a.pes": {"renderVersion": 2}, "b.pes": {"renderVersion": 1}, "c.pes": {}}
+    assert stale_previews(m, 2) == ["b.pes", "c.pes"], stale_previews(m, 2)
+    committed = json.loads((KIT / "manifest.json").read_text(encoding="utf-8"))
+    assert stale_previews(committed, render_version()) == [], stale_previews(committed, render_version())
     print(f"sew_kit self-test passed ({len(paths)} kit paths)")
 
 
@@ -1014,6 +1078,8 @@ def build(out, previews, only=None):
                 "preview": png,
                 "sha256": hashlib.sha256(data).hexdigest(),
             }
+            if previews:
+                manifest[rel]["renderVersion"] = render_version()
             if measured:
                 pec = pec_names()
                 manifest[rel]["swatches"] = [dict(m, thread=pec[m["thread"]]) for m in measured]
