@@ -4,7 +4,7 @@
 
 The tier each [FEATURE_MATRIX.md](FEATURE_MATRIX.md) row and [audit](COMPATIBILITY_AUDIT.md) item has reached in the compatibility harness ([COMPATIBILITY_TESTS.md](COMPATIBILITY_TESTS.md)). A row is only as far as the weakest spec covering it. Tiers, weakest first: internal-regression (our own earlier output or the guide's description), oracle (an independent implementation), reference (PE-DESIGN 11 output supplied by the owner), machine (a sew-out record). "Reference pending" means a spec is ready for a PE-DESIGN file that does not exist yet.
 
-Specs: 495 · pass 495 · fail 0 · error 0 · pending reference 0 · skipped 0.
+Specs: 497 · pass 497 · fail 0 · error 0 · pending reference 0 · skipped 0.
 
 ## By FEATURE_MATRIX row
 
@@ -42,7 +42,7 @@ Specs: 495 · pass 495 · fail 0 · error 0 · pending reference 0 · skipped 0.
 | Line sew types | Running (pitch, run times… | internal-regression | `attribute-ranges` |
 | Line sew types | Running (pitch, run times 1… | reference | `line-running-default`, `line-triple-default`, `run-circle-60` |
 | Line sew types | Zigzag: Sharp Corners and Miter Limit… | reference | `line-zigzag-miter-l-b2-m7`, `line-zigzag-miter-v-b1-m0`, `line-zigzag-miter-v-b1-m1`, `line-zigzag-miter-v-b1-m3`, `line-zigzag-miter-v-b1-m50`, `line-zigzag-miter-v-b2-m0`, `line-zigzag-miter-v-b2-m3`, `line-zigzag-miter-v-b2-m50`, `line-zigzag-miter-v120-b1-m0`, `line-zigzag-miter-v45-b1-m0`, `line-zigzag-miter-v45-b2-m0`, `line-zigzag-miter-v60-b1-m0`, `line-zigzag-miter-v60-b2-m0`, `line-zigzag-miter-v75-b1-m0`, `line-zigzag-miter-v75-b2-m0` |
-| Line sew types | Zigzag: width, density… | reference | `line-zigzag-default`, `line-zigzag-density-max` |
+| Line sew types | Zigzag: width, density… | reference | `line-circle-zigzag-1mm`, `line-circle-zigzag-3mm`, `line-zigzag-default`, `line-zigzag-density-max` |
 | Machine | Brother 64-colour PEC chart mapping… | reference | `thread-match-swatches` |
 | Programmable Stitch Creator | Import of the user's own… | reference | `deco-fill-1line-100mm`, `deco-fill-1line-offcentre`, `line-motif-zigzag-3pt`, `motif-fill-2pt`, `prog-fill-line-2pt`, `prog-fill-square-4pt` |
 | Region sew types | Concentric circle… | reference | `concentric-circle20`, `concentric-circle30`, `concentric-circle36`, `concentric-circle40-d1p0`, `concentric-circle40-d3p0`, `concentric-circle40-pitch3p0`, `concentric-circle40-start2`, `concentric-circle40`, `concentric-ellipse30x40`, `concentric-ellipse40x30`, `concentric-rect30x40`, `concentric-rect40x30`, `concentric-ring40-hole15`, `concentric-square40`, `concentric-triangle`, `spiral-circle20-pitch3p0`, `spiral-circle40-d1p0`, `spiral-circle40-d3p0`, `spiral-circle40-drag-reverse`, `spiral-circle40-pitch1p0`, `spiral-circle40-pitch2p5`, `spiral-circle40-pitch3p0`, `spiral-circle40-pitch4p0`, `spiral-circle40-start2`, `spiral-circle40`, `spiral-ellipse40x30`, `spiral-rect30x40`, `spiral-rect40x30-drag-reverse`, `spiral-rect40x30`, `spiral-ring40-hole10`, `spiral-ring40-hole15-d1p0`, `spiral-ring40-hole15-offset`, `spiral-ring40-hole15-pitch3p0`, `spiral-ring40-hole15`, `spiral-ring40-hole20`, `spiral-square40-hole16`, `spiral-square40`, `spiral-triangle-d1p0`, `spiral-triangle-wide`, `spiral-triangle` |
@@ -148,6 +148,8 @@ Specs: 495 · pass 495 · fail 0 · error 0 · pending reference 0 · skipped 0.
 | `stitches/line-chain-startend-mid-feed` | pass | reference | — | — | pass | — |
 | `stitches/line-chain-startend-mid-run` | pass | reference | — | — | pass | — |
 | `stitches/line-chain-startend-run` | pass | reference | — | — | pass | — |
+| `stitches/line-circle-zigzag-1mm` | pass | reference | pass | — | pass | — |
+| `stitches/line-circle-zigzag-3mm` | pass | reference | pass | — | pass | — |
 | `stitches/line-e-default` | pass | reference | — | — | pass | — |
 | `stitches/line-e-rect-default` | pass | reference | — | — | pass | — |
 | `stitches/line-motif-zigzag-3pt` | pass | reference | pass | — | pass | — |
