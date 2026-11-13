@@ -144,8 +144,12 @@ reduced with Lanczos, instead of the page-fit screenshot at 5–7 px/mm. Row-to-
 a filled patch falls from 39 to 13 grey levels on angle-lines, 34 to 5 on tatami-textures-1 and 19
 to 11 on the sunset photo; the T1 card's swatches stay within 6 levels of the page-fit preview
 (sum of differences from the scans 132 before, 134 after). A kit build takes about three times as
-long (50 min on Windows). The gallery images are redrawn this way at the next release refresh. The Realistic view itself still shows
-the stripes when zoomed out: #907 (Future) supersamples it in the app.
+long (50 min on Windows). The gallery images are redrawn this way at the next release refresh. In the Realistic view itself
+(#907, 2026-11-13) the desktop window draws with 4x MSAA and the threads as one mesh without
+feathered edges; a thread under 3 px wide is one colour, its shading mixed by area. On a 20 mm
+fill at 4.5 rows/mm and 5.2 px/mm the row spread falls from 105 to 31 grey levels (std 25 to 9);
+the T1 swatches move up to 22 levels lighter at page fit, closer to the white-cotton scans (mean
+distance 13.6 to 9.5); the 112k-stitch storybook draws in about a third of the time.
 
 Done 2026-11-06 (#295, #441, #311, #312): the kit has a T2 card (two threads in alternating rows,
 to measure how far a later row covers its neighbour for Photo Stitch 1), the build checks every
