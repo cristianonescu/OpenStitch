@@ -9,7 +9,10 @@ similarity. This note:
 - sets out a phased backlog with acceptance criteria per tool and image class.
 
 It was research only when written; most of Phases 0–5 has since landed (section 10). It builds on [image-digitizing.md](image-digitizing.md) (B16).
-Still open on 2026-11-09: T8 (waits for counsel's opinion to be recorded in patents.md), fitting
+Still open on 2026-11-09: T8 (waits for counsel's opinion to be recorded in patents.md; since
+2026-11-08 the owner's go-ahead for the flow fill is recorded there, and T8's Auto Punch part
+shipped 2026-11-11 as `flowFill`, #538, `crates/openstitch-digitize/src/flow.rs`; Photo Stitch
+rows still keep one angle), fitting
 the Realistic view and the scorer to the T1 measurements (#291), Photo Stitch 1's trims (#298) and
 Photo Stitch 1/2 colour and layering (#468).
 
@@ -415,6 +418,8 @@ Made while Phase 0–5 were implemented; they change the targets and gates above
    - The owner reports that their lawyer found the patent does not hold for image-derived direction here.
    - patents.md should record it: date, scope and which variant (per-pixel field with streamline rows, with or without connector tests).
    - T8 starts only after that record exists.
+   - Since 2026-11-08: patents.md records the owner's go-ahead for the flow fill (#538); T8's
+     Auto Punch part shipped as `flowFill` on 2026-11-11.
 2. **The 85 % photo target at 2.1 points/mm²** (design mean; windows up to 3.0) is firm by the owner's decision. The measured prototypes reach 75–79; the rest depends on T8–T10, which are estimates. The owner declined raising the density. Re-assess at the end of Phase 3.
 3. **Thread inventory:**
    - Which brands the owner and users actually stock.

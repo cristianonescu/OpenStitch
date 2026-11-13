@@ -11,7 +11,8 @@ program and its built-in fonts stay out of scope (docs/LEGAL_AND_LICENSING.md).
 PE-DESIGN does not fill a TrueType letter's outline as one region. It cuts every letter into
 **strokes** and sews each stroke on its own, with rows **across the stroke** that turn as a
 curved stroke turns. Satin text and Fill text use the same strokes; only the stitch inside a
-stroke differs. OpenStitch sews each letter as one region at one angle.
+stroke differs. OpenStitch sews each letter as one region at one angle (since 2026-10-31 satin
+text and since 2026-11-04 fill text are sewn stroke by stroke, #376; see the steps below).
 
 ## Evidence
 
@@ -78,6 +79,9 @@ against 9). The totals are within a few percent; the structure is what differs.
 - All letters' regions are sewn first, then all outlines (one colour block each), unchanged.
 
 ## What OpenStitch does today
+
+(As of 2026-10-30. Since 2026-10-31 satin text and since 2026-11-04 fill text are sewn stroke by
+stroke, `compile::stroke_columns`, #376.)
 
 `text::layout` turns each glyph into outline contours. `compile.rs` sews each glyph as one region
 with the text object's `RegionSewing`: one angle for the whole text (satin sections across the
@@ -161,7 +165,8 @@ What they show, from the satin crossings split into strokes as above:
 - **Convert to Blocks is the stroke cut.** It turns the text into a `CGroupObject` of Manual Punch
   blocks (`CEmbLine`) that sew exactly as the text (H 285, A 293 against 290): PE-DESIGN's strokes
   are its blocks. The block geometry (its direction lines) is not mapped in OpenStitch's PES
-  reader yet (docs/FILE_FORMATS.md: Manual Punch blocks); reading `stroke-blocks-H/-A` would give
+  reader yet (docs/FILE_FORMATS.md: Manual Punch blocks; since 2026-10-30 it is, `Shape::punch`,
+  #205); reading `stroke-blocks-H/-A` would give
   PE-DESIGN's own cut of those two letters as ground truth.
 - **Convert to Outline is what OpenStitch does today.** One `CEmbLine` shape with a single satin
   region over the whole letter: H 255, A 223 needle points, against OpenStitch's 243 and 221 for its

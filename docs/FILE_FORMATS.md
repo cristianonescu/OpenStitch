@@ -144,9 +144,10 @@ section. Default output (`pes::WriteOptions::default`, `FileType::Pes.write`, an
 pyembroidery's `6`. `pesVersion` = `1t`, `1`, `6t` (and `4`, `5`, `7`–`10`, below) selects the others, and `11` writes PE-DESIGN
 11's `#PES0110` with the design's shapes as editable objects ("PES 0110 object list", "Writer"
 below); `1t` (`#PES0001`, offset 0x16, 10 zero bytes, no objects) stays as the smallest,
-machine-only file. **Unverified:**
-whether every Brother machine and PE-DESIGN 11 open these files; needs a black-box open test on
-the owner's machine (docs/COMPATIBILITY_AUDIT.md item 2).
+machine-only file. PE-DESIGN 11.50 opened the default `#PES0060` file with its stitches on
+2026-10-27 (compat `pes-default-v6`, reference tier pass). **Unverified:**
+whether every Brother machine opens these files, and whether PE-DESIGN 11 opens the `1t`, `1` and
+`6t` outputs; needs a black-box open test on the owner's machine (docs/COMPATIBILITY_AUDIT.md item 2).
 
 ### Save as a PES version: what each keeps
 
@@ -525,9 +526,6 @@ is three bytes R, G, B (`0E 1F 7C` for 1 PRUSSIAN BLUE) on a Hoop Size page and 
 all zero on a Custom Size page (385). Other per-block codes: `FE FF FF` a thread with no
 catalogue number (a name read from another file, an Option colour), `FA FF FF`, `FB FF FF`,
 `FC FF FF` the Applique Wizard's material, position and appliqué (PEC 62–64), `F9` and the
-cut's number as u16 for a cutting line (PEC 65, a02). OpenStitch's writers still write the RGB
-as u24 little-endian (B, G, R, as pyembroidery does for version 6) and `0D` with the number
-for every block.
 cut's number as u16 for a cutting line (PEC 65, a02). OpenStitch's `#PES0110` writer writes the list
 this way since 2026-10-31 (R, G, B on a Hoop Size page and zeros on a Custom Size page; `0D` and
 the BROTHER EMBROIDERY number for a Brother chart colour, `FA`–`FC` for PEC 62–64, `FE FF FF` for
@@ -710,7 +708,7 @@ byte-identical to PE-DESIGN's outside these documented differences
   box (ascent line to baseline) bent round the arch's circle: for HHHHHHH OpenStitch writes
   541..1459 × 841..1169 where PE-DESIGN writes 552..1441 × 841..1170 (it recomputes the box when
   it opens the file). OpenStitch's own arch layout uses the same circle since 2026-10-29 (its
-  text-transform-1 and -2 references still pass at 0.5 mm) but sews HHHHHHH 79.9 mm wide where
+  text-transform-1 and -2 references still pass at 0.5 mm) but sews HHHHHHH 79.8 mm wide (since 2026-11-11) where
   PE-DESIGN sews this object 79.2 mm: an open difference in how the letters are placed round the
   circle (COMPATIBILITY_AUDIT item 5). Other presets: the letters' extent, the top at most
   the ascent line.
@@ -1200,6 +1198,9 @@ Each writer refuses (`ValueOutOfRange`) a design it cannot represent:
 | PCS | 65,535 records | u16 record count |
 | SEW | 3,771 colours | colour table must fit the 0x1D78-byte header |
 | VIP | 100 colours | the 400-byte colour key |
+| CSD | 14 colour blocks | 14 colour-order bytes; PE-DESIGN writes more as several files |
+| VP3 | 255 colour blocks | the writer's cap (`vp3::MAX_COLORS`) |
+| TBF | 72 colour blocks | the 72-entry `DA:` colour table |
 
 `design.export` with `split: true` (always on in the editor) writes `NAME-1.ext`,
 `NAME-2.ext`, … instead (`openstitch_formats::split`). Files hold whole colour blocks where
@@ -1417,10 +1418,6 @@ patterns, `compat/reference/stitches/prog-fill-*.pes`, `motif-fill-2pt.pes`,
   (`deco-fill-2lines.pes`, parked) it still walks the border (245 needle points) where OpenStitch
   sews nothing.
 
-Not yet the same: when both ends of the first motif-fill row are as far from the start point,
-PE-DESIGN walks right and comes back down the right edge where OpenStitch walks left (the same
-needle points mirrored; one reference cannot tell PE-DESIGN's tie-break), and its motif line adds
-tie-in and tie-off stitches (23 against 16).
 The motif line ties in and locks as PE-DESIGN does (since 2026-10-30): three 0.3 mm steps out
 along a first stitch over 2.65 mm and back, one lock step at the end; 23 needle points as
 PE-DESIGN.

@@ -84,7 +84,12 @@ fill (F1, B1), density profiles and colour blends (F5, F6, #532), maze and meand
 partial branching (D1, D2, O10, #546), satin lines with variable width (O2, #524), satin corner
 handling and short stitches in part (O3, O4, #520, #521, #373), automatic underlay by width,
 pull compensation per side and in %, and push compensation (D4, D5, #522, #523, #677), and a
-density map (D15, `design.density`, #504); D9 now has all 26 Text Transform presets.
+density map (D15, `design.density`, #504); D9 now has all 26 Text Transform presets. Also
+shipped by 2026-11-09 (added 2026-11-13): stitch angle lines (F4, `object.setAngleLines`, #534),
+the hand-stitch look (F9, #540), gradient fills, also from an SVG gradient (F13, `shape.gradient`,
+#532), thread-brand conversion (W3, `threads.remap`, #484), Check Design (D15, `design.check`,
+#503), continue digitizing and nearest start (D3, #479, #547 in part) and overlap removal (D7,
+#511).
 
 | # | Feature | PE | OS | ES / Hatch | Bernina V9 | mySewnet | Janome AD | Tajima DG | Embird | Ink/Stitch | Embrilliance | FTCU / SWP |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -627,7 +632,8 @@ audience); licensing notes. "design" is `crates/openstitch-design`, "digitize" i
   FTCU Optimize Entry/Exit Points.
 - **PE-DESIGN.** Optimize Entry/Exit Points (11.01) is the equivalent for the whole design;
   OpenStitch has it at the reference tier. Missing: the per-object re-apply, auto start/end
-  and continue digitizing.
+  and continue digitizing. (Since 2026-11-05 continue digitizing as `object.extendPath`, #479,
+  and since 2026-11-06 nearest start as the design's `autoStart: nearest`, #547.)
 - **Idea.** For objects i and i+1, choose exit(i) and entry(i+1) as the closest pair of
   outline points (OpenStitch's `route::nearest`), honouring regions whose fill start is
   fixed; auto start/end adds a leading and trailing jump to the chosen position. Continue
@@ -707,7 +713,7 @@ audience); licensing notes. "design" is `crates/openstitch-design`, "digitize" i
   AlphaTricks auto kerning [[EM-alpha]](https://embrilliance.com/product/alphatricks/);
   FTCU Closest Point Connect fonts.
 - **PE-DESIGN.** 26 Transform presets, Fit Text to Outline, kerning per character, Name
-  Drop, monograms, Font Creator. OpenStitch has them (24 of 26 presets), with shaping and
+  Drop, monograms, Font Creator. OpenStitch has them (24 of 26 presets; all 26 by 2026-11-09), with shaping and
   kerning from the font's tables.
 - **Idea.** Baselines: a `Baseline` enum (line, arc with radius and sweep, circle, path) with
   letters placed by arc length and rotated to the tangent, which generalises Fit Text to
@@ -853,6 +859,8 @@ audience); licensing notes. "design" is `crates/openstitch-design`, "digitize" i
   owners) and pyembroidery (MIT) has a reader and writer to use as the oracle: effort M.
   DSB/DSZ/U01/TBF/TAP/KSM are DST relatives: S each once a reference exists. Value Medium.
   Licensing: pyembroidery MIT, no copying of data tables beyond colour facts.
+  Since 2026-11-05 OpenStitch writes VP3 (#480), TAP, TBF, U01 and G-code, and reads DSB, DSZ,
+  KSM and ZXY (#481); VP4, Z01 and EXP+ are still not written.
 
 #### W7 / W8 / W9. Worksheets, batch conversion, thumbnails
 
@@ -860,7 +868,8 @@ audience); licensing notes. "design" is `crates/openstitch-design`, "digitize" i
   Ink/Stitch Print PDF [[IS-print]](https://inkstitch.org/docs/print-pdf/)): OpenStitch's
   catalogue and template printing is the base; effort S. Batch and command-line conversion:
   OpenStitch already has `stitchtool` and `library.convert`, ahead of most. Shell thumbnails
-  on macOS and Windows are Blocked on `unsafe` FFI (ROADMAP item 10); Embird's Iconizer and
+  on macOS and Windows are Blocked on `unsafe` FFI (ROADMAP item 10; both implemented since:
+  Quick Look 2026-11-06 and Explorer thumbnails 2026-11-07, #557, #669); Embird's Iconizer and
   Embrilliance's Thumbnailer show the demand.
 
 ## 4. Ranked top-15 backlog and phases

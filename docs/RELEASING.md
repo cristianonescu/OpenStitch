@@ -10,6 +10,14 @@ Only the maintainer, or the coordinating agent the maintainer authorised, create
 Before a release:
 
 - Every open pull request is merged or resolved.
+- The example designs are refreshed for the new stitching before any image is regenerated. The
+  images are rebuilt from `examples/*.json`, but each script keeps the settings it was written
+  with: compare the FEATURE_MATRIX rows added since the last tag with the scripts behind the
+  docs and README images, and update those that should show newer fills, satin, lettering,
+  threads or view features. Leave test fixtures, compat references and sew-kit files pinned to
+  sew-outs or calibration alone. `python -I tools/sew_kit.py --check` must pass; a stale file is
+  regenerated only after checking it isn't pinned. This lands as its own pull request, before
+  the screenshots and images (README refresh, step 5).
 - CI on `main` is green on macOS, Windows and Linux, and every compatibility spec passes.
 - The README is refreshed (below) and the release notes are honest about known differences.
 
@@ -66,7 +74,9 @@ with current screenshots. Refresh it in a pull request before every release:
    each file and line) while README.md or a source still holds merge-conflict markers, and
    warns when the matrix row count drops by more than a tenth (#406).
 2. **Features:** add a line for each feature the release adds, in its group; mark features
-   PE-DESIGN 11 does not have with **➕**. Take the facts from the FEATURE_MATRIX rows.
+   PE-DESIGN 11 does not have with **➕**. Take the facts from the FEATURE_MATRIX rows. CI
+   enforces it: `python -I tools/readme_status.py --check-features` fails when an implemented
+   FEATURE_MATRIX row has no line in the Features section (#709).
 3. **Hand-written lists:** check "Also missing", "Other things to know" and "Planned" against
    `docs/ROADMAP.md`; remove what the release fixed.
 4. **Release line:** set "Current release" in "Status at a glance" to the new tag and its notes.
@@ -102,7 +112,9 @@ with current screenshots. Refresh it in a pull request before every release:
    `examples/sew/previews` at full size and look at the stitches before the release. The job
    also fails when a preview lacks one of its design's thread colours
    (`tools/sew_kit.py --check-previews`, #564).
-7. **Links:** check that the README's links to docs and issues still resolve.
+7. **Links:** CI's `tools/check_doc_links.py` (#850) already fails on a broken relative link or
+   image in any tracked Markdown file. Check by hand only the README's issue links and external
+   links, and in-page anchors, which it does not check.
 
 ## Steps
 

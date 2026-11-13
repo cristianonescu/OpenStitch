@@ -13,10 +13,10 @@ Icons, colours and visual style are OpenStitch's own (see
 
 | Guide element | OpenStitch |
 |---|---|
-| 1 Application button | **File** button at the top left: New, Open, Open Sample, Save, Save As, Print ▸, Design Property, Design Settings, Fabric Selector, Select Color Palette, Wizard ▸, Export ▸, Recent Files, Options, Exit ([screenshot](images/rust-editor-appmenu.png)) |
+| 1 Application button | **File** button at the top left: New, Open, Open Sample, Save, Save As, Print ▸ (Print…, Job Sheet), Design Property, Design Settings, Fabric Selector, Select Color Palette, Wizard ▸, Export ▸, Recent Files, Options, Exit ([screenshot](images/rust-editor-appmenu.png)) |
 | 2 Ribbon | Tabs Home, Image, View plus contextual tabs (orange) for the active tool or selection; large and small buttons, dropdown arrows, group captions, ScreenTips with shortcuts |
 | 3 Quick Access Toolbar | Above the ribbon (or below it, Options ▸ or ▾ ▸ Show below the Ribbon): New, Open, Save, Undo, Redo, Zoom, Help by default; ▾ adds or removes commands. Saved in `ui.json` next to the user settings file |
-| 4 Option button | **Options ▾** at the top right: Design Database, Programmable Stitch Creator, Stitch Design Factory, Font Creator, Sewing Attribute Sets, User Thread Charts, colour theme (Light, Dark, System); beyond PE-DESIGN: Accent colour (#559), Layouts (save and apply where the panes are, #551) Reset Preferences (one area at a time, #551), Show start cards and New Objects (#553, #554); also Text size, Language, Open designs in tabs, Picture pickers with live preview, Autosave, Show AI features, Units, guides, Editing and Updates (sections below) |
+| 4 Option button | **Options ▾** at the top right: Design Database, Programmable Stitch Creator, Stitch Design Factory, Font Creator, Sewing Attribute Sets, User Thread Charts, colour theme (Light, Dark, System); beyond PE-DESIGN: Accent colour (#559), Layouts (save and apply where the panes are, #551) Reset Preferences (one area at a time, #551), Show start cards and New Objects (#553, #554); also Optimize Entry/Exit Points, Show splash at startup, Text size, Language, Open designs in tabs, Picture pickers with live preview, Autosave, Show AI features, Units, guides, Editing and Updates (sections below) |
 | 5 Help button | **Help ▾**: instruction manual (this repository), Ready-to-Sew Designs (the kit packaged with the app, `examples/sew`; GitHub when none is packaged), Ready-to-Sew Designs Online, Getting Started, Machine Setup, Keyboard Shortcuts (view and change them, #551), Check for Updates, About |
 | 6 Sewing Order pane | Docked left: buttons at the top (sew first / earlier / later / last, sort by colour, optimise, frames by thread colour), then Sew in click order, Lock and Sew outline first (#502), Stop after (#512), Leave out hidden stitching (#511) and Then: run (#545), beyond PE-DESIGN; Branch / Unbranch, Auto-route lines and Redwork (#546, beyond PE-DESIGN); Swap sides and Untangle for a selected Manual Punch column (#525, beyond PE-DESIGN); Optimise reports its before/after colour changes, jumps, trims and travel in the status bar (#547); one frame per object with a thumbnail and its thread colours; drag to reorder; double-click a name to rename it (Return keeps, Esc cancels); locked objects show "(locked)" |
 | 7 Import / Color / Sewing Attributes / Text Attributes | Docked right as four tabs |
@@ -205,6 +205,7 @@ Behaviour follows the guide's pages
 | Wizards | Embroidered Patch Wizard |  | `Action::Patch` | `wizard.patch` | yes |
 | Wizards | Cutwork Wizard |  | `Action::Cutwork` | `wizard.cutwork` | yes |
 | Sew | Sew Embroidery |  | `Action::SendEmbroidery` | `transfer.send` | yes |
+| Sew | Test Swatches (in Sew Embroidery's menu; beyond PE-DESIGN) |  | `Action::TestSwatches` | `design.testSwatches` | yes |
 
 ### Image
 
@@ -518,6 +519,7 @@ and [Adjusting the split positions](https://support.brother.com/g/s/hf/htmldoc/p
 | Save | `Ctrl+S` | `Action::Save` | `project.save` | yes |
 | Save As | `Ctrl+Shift+S` | `Action::SaveAs` | `project.save` | yes |
 | Print |  | `Action::Print` | `design.print` | yes |
+| Job Sheet (in Print's menu; beyond PE-DESIGN) |  | `Action::JobSheet` | `design.print` | yes |
 | Design Property |  | `Action::DesignProperty` | `design.info` | yes |
 | Design Settings (hoop list grouped by brand, Brother first, with a filter; other brands and round hoops beyond PE-DESIGN, #514; an oval or round hoop's field is drawn on the canvas) |  | `Action::DesignSettings` | `machine.set`, `machine.hoops` | yes |
 | Fabric Selector |  | `Action::FabricSelector` | `fabric.apply` | yes |

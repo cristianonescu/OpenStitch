@@ -16,7 +16,7 @@ rules they follow.
 | `lightbulb` | A face: satin eyes and a bean-stitch smile (`runTimes: 3`) on a fill, a fitted metal base with narrow zigzag thread lines |
 | `badge-arc-text` | A round badge: fill with the star cut out of it, lettering on a hidden circular guide, the satin border as its own outline shape (so cutting the fill leaves it whole) |
 | `applique-heart` | `wizard.applique` from a heart: material, position and tack-down lines, then a satin cover |
-| `monogram` | `monogram.add` with three block letters inside a ring frame, two colours (letters with slanted strokes, such as A, M, N, V, W, X, still sew with gaps at their joins in Lato Bold: #446; check `view_render`) |
+| `monogram` | `monogram.add` with three block letters inside a ring frame, two colours (#446, closed in alpha.13: satin N, M, A and V joins run on, PRs #848, #895, #905, #918; what is left against PE-DESIGN's A, V, M and W is #938-#941; check `view_render`) |
 | `line-art-cup` | Outline-only line art: closed and open paths sewn as bean stitch, no fills |
 | `cat-face` | A cartoon animal: fitted head and ears, eyes and nose cut out of the head, satin borders (the head's as its own outline shape), bean-stitch mouth and whiskers |
 | `croissant` | Five fitted segments with alternating fill angles; thin satin borders on the tips and the middle only, so each seam has one border, not two |

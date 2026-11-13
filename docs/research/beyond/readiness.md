@@ -105,8 +105,12 @@ they become fabric defaults.
 - **F16 photo thread-painting** (digitize): waits for B9's meander and a patent check
   (US 7996103).
 - **D12 TrueType turning-satin rework**: waits for the exact medial axis already on the
-  roadmap and the US 8532810 review, which also concerns today's skeleton satin.
+  roadmap and the US 8532810 review, which also concerns today's skeleton satin. (Since then:
+  [patents.md](patents.md) found no live patent on D12 or skeleton satin, and satin text has been
+  sewn stroke by stroke since 2026-10-31, [stroke-lettering.md](../stroke-lettering.md).)
 - **W1 intelligent multi-hoop split with editable lines**: patent check (Embrilliance).
 - **W6 VP3 and other formats** (formats crate): independent of all of the above; one
   track of its own when a Husqvarna/Pfaff user asks, with pyembroidery as the oracle.
+  (Shipped 2026-11-05: VP3 read and write, #480; TAP, TBF and U01 read and write, DSB, DSZ, KSM
+  and ZXY read, #481.)
 - **F19 sequins, chenille, beads, cording**: no Brother home machine supports them.

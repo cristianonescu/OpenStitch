@@ -326,6 +326,11 @@ a photo's edges become a Design Center line drawing, with no model (#490; OCR an
 models moved to #678, Future). Measured and left open again: PE-compatible mode's thread set
 on p03 (#447: CIELAB splitting and popularity reductions match 1-3 of PE-DESIGN's 10 threads)
 and Cross Stitch's edge cells on pixel art (#469: every rule tried lowers the likeness score).
+Done 2026-11-08 (#447, PR #836): PE-compatible mode keeps as many threads as colours; p03 sews
+10 threads with the fox's orange, as PE-DESIGN does.
+Done 2026-11-13 (#469, PR #992): PE-compatible Cross Stitch lays PE-DESIGN's grid on pixel art,
+checked against PE-DESIGN's own captures. Left: PE-DESIGN's threads and its part-covered edge
+cells (#991) and, in OpenStitch mode, following a pixel-art image's own grid (#994).
 
 batch:mac-wizard (2026-11-06): the image dialog previews Auto Punch's regions, lists them with
 the stitch each got and why, lets any row or a click on the picture change it, warns when
@@ -419,7 +424,7 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    turned letters cut upright and satin crossings along the outer side since 2026-11-05 (#444,
    satin 5.6 % on average, no capture further than before, the README's arched and 4 mm text whole), small lettering's i dots, pieces and travel since
    2026-11-05 (#465); next, under sewing per
-   stroke, N's corner and A's and V's slanted feet (#446; X sewn as PE-DESIGN's, one diagonal through, since 2026-11-06), and a satin capture of small text) — the structural
+   stroke, A's left foot and bar end, V's, M's and W's run-on feet and M's and W's needle counts at 8 mm (#938–#941; N's corner and A's and V's slanted feet done, #446 closed 2026-11-12; X sewn as PE-DESIGN's, one diagonal through, since 2026-11-06), and a satin capture of small text) — the structural
    gap behind text-fit-*, text-transform-* and text-sewing-order; the fitted circle's running
    stitch follows PE-DESIGN's Bézier halving since 2026-10-28 (text-fit-default mean needle
    distance 0.27 → 0.20 mm; #121 kept it and lifted the 256-chord ceiling, 2026-10-29); Text Transform presets 13 and 14 (fan out / in) done 2026-10-28; round 4 (2026-10-29)
@@ -470,12 +475,15 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    description contradicts itself); the hoop name and id in PES v9/v10 (PES v4, v5 and
    v7–v10 are written since 2026-11-07 from PE-DESIGN's own Save As files, #374, as
    [LEGAL_AND_LICENSING.md](LEGAL_AND_LICENSING.md) allows).
-7. **Editing details:** skeletons that branch (`object.deriveSkeleton {branches}` gives a
-   column per arm since #526, still open; Auto Punch is #702) and an exact medial axis instead
-   of the grid approximation.
-8. **Formats:** the SHV preview's pixels as PE-DESIGN draws them, and SHV records as PE-DESIGN
-   writes block starts, stitches over 12.7 mm and long moves (#349: measured on PE's exports of
-   2026-11-07; CSD matches them since 2026-11-07: 14 blocks a file, long stitches, palette).
+7. **Editing details:** an exact medial axis instead of the grid approximation. Skeletons that
+   branch are done: `object.deriveSkeleton {branches}` gives a column per arm (#526, closed
+   2026-11-13; Shapes ▸ Convert ▸ Satin Columns per Branch in the editor, PR #996), and Auto
+   Punch splits branching strokes (#702, closed 2026-11-12, PRs #910, #950).
+8. **Formats:** the SHV preview's pixels as PE-DESIGN draws them, the remaining chart entries
+   and the constant bytes no capture explains (#989). SHV records as PE-DESIGN writes block
+   starts, stitches over 12.7 mm and long moves are done (#349, PR #995, 2026-11-13, from PE's
+   exports of 2026-11-07 and capture round 11; CSD matches them since 2026-11-07: 14 blocks a
+   file, long stitches, palette).
    #320 wrote both formats from one PE-DESIGN export each, 2026-11-04. The CSD and SHV readers match PE-DESIGN's own
    exports since 2026-10-29 (#135), PEC colour indexes are the plain nearest entry per
    block as in PE-DESIGN's own files (2026-10-30), and a DST import keeps its colour blocks apart. The eight
@@ -523,8 +531,7 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
     even pixel counts), its fill direction and region order are PE's on every capture since
     2026-10-30 (largest row spread; scan order alternating by colour; specks kept and dropped
     as PE; PE's thread picks after reduction checked on 20 flat colours: a per-colour mapping
-    no tested distance reproduces, kept as a documented difference). Compared with
-    as PE), and its census keeps large colours behind anti-aliased edge shades since
+    no tested distance reproduces, kept as a documented difference), and its census keeps large colours behind anti-aliased edge shades since
     2026-10-30 (taken most frequent first, colours within RGB 32 merged, at most 10 automatic
     colours: PE's count on 4 of 9 flat round-5 test images and all 4 photos). Compared with
     PE-DESIGN 11.50's round-4 captures on 2026-10-29: Cross Stitch's six diagonal stitches per
@@ -596,7 +603,7 @@ before any code; the ranking and the proposed tracks are in
 | B1 | Contour (offset) fill | A | [research/beyond/contour-fill.md](research/beyond/contour-fill.md) | Done 2026-10-30: region type `contour` with rings, single and double spiral, echo lines (0–30) and round or mitred corners, on the ring tree of PE-DESIGN's Spiral Stitch (`crate::spiral`); open: repeats, bevel join, compat specs |
 | B2 | Two-guide fills and stitch-angle maps | D | [research/beyond/guided-fill-and-angle-maps.md](research/beyond/guided-fill-and-angle-maps.md) | Stitch-angle maps done 2026-11-08 in another form (#534: `object.setAngleLines`, the Angle Lines and Fill Angle tools); two-guide fills not started |
 | B3 | Satin corners and short stitches | B | [research/beyond/satin-corners-and-short-stitches.md](research/beyond/satin-corners-and-short-stitches.md) | Done 2026-11-06 for Manual Punch columns and zigzag lines (#520, #521): `cornerStyle` turn/auto/mitre/cap with `mitreBelow` 75°, `capBelow` 45°, `cornerOverlap` 0.5 mm, `capMaxLength` 8 mm; `shortStitchDistance`/`shortStitchInset`; off by default. Satin looks (#528) on columns and zigzag lines 2026-11-06: S-stitch, open, double, jagged edge, `spacingAt`. Skeleton satin and Auto satin regions 2026-11-07 (#675); satin lettering 2026-11-07 (#676, #686: short stitches, compensation, looks and raised; corner styles shape the corners where two strokes meet in letters (Z, V, W) since 2026-11-08, #782, stems and junctions keep the turn). Open: lap corners |
-| B4 | Auto-routed running stitches, Redwork, satin branching | C | [research/beyond/auto-route-and-branching.md](research/beyond/auto-route-and-branching.md) | Branch split started 2026-11-06 (#526): `object.deriveSkeleton {branches}` makes a column per arm (Y, plus, star); letters with bent junctions (K, R) keep a straight stem since 2026-11-07 (#526; R's bowl still leaves a strip by the stem); auto-route, Redwork and branching of touching shapes shipped 2026-11-06 (#546, `batch:routing`: `shape.autoRoute`, `object.branch`); satin branching with a centre-run underlay not started |
+| B4 | Auto-routed running stitches, Redwork, satin branching | C | [research/beyond/auto-route-and-branching.md](research/beyond/auto-route-and-branching.md) | Branch split done 2026-11-13 (#526; Auto Punch's split #702, 2026-11-12; Shapes ▸ Convert ▸ Satin Columns per Branch, PR #996), started 2026-11-06: `object.deriveSkeleton {branches}` makes a column per arm (Y, plus, star); letters with bent junctions (K, R) keep a straight stem since 2026-11-07 (#526; R's bowl still leaves a strip by the stem); auto-route, Redwork and branching of touching shapes shipped 2026-11-06 (#546, `batch:routing`: `shape.autoRoute`, `object.branch`); satin branching with a centre-run underlay not started |
 | B5 | Compensation model, automatic underlay by width, fabric table | B | [research/beyond/compensation-and-underlay.md](research/beyond/compensation-and-underlay.md) | Done 2026-11-06 for Manual Punch columns and zigzag lines (#522, #523): `pullLeft`/`pullRight`/`pullPercent`/`pullMax`; `underlayStyle` auto (by average width, fabric thresholds from `fabric.apply`) and centreWalk; a column's `underlay2`. Skeleton satin and Auto satin regions 2026-11-07 (#675), with rows that follow the column's width. Fill push and a second under sewing layer on fill and satin regions 2026-11-08 (#677). Open: push at column ends, a user-editable fabric table |
 | B6 | Density profiles, two-colour blend, hidden travel | A | [research/beyond/density-profiles-and-blend.md](research/beyond/density-profiles-and-blend.md) | Hidden travel between objects shipped 2026-11-06 (#545, `batch:routing`: `design.setTravelUnder`, run connectors); round several corners and along running lines already sewn 2026-11-07 (#545); density profiles on fills (`gradationShape`) and colour blends (`shape.gradient`, `shape.blend`) 2026-11-08 (#532); profiles on satin columns and hidden travel inside open fills not started |
 | B7 | 3D puff mode (#875) | A | [research/beyond/puff-mode.md](research/beyond/puff-mode.md) | First step done 2026-11-06 (#531): raised satin (padding lanes) on Manual Punch columns and zigzag lines, on satin regions and skeleton satin (#685) and satin lettering (#686); foam mode not started |
@@ -641,7 +648,7 @@ status is in each theme:
 | Rank | Theme | Issues | Ties to |
 |---|---|---|---|
 | 1 | Sewing quality checks before the needle: Check Design pane, density map, Review Sewing Order, export read-back, random-design invariant test (**done**, `batch:quality-checks`; engine `quality.rs`); the Assistant opens and drives the window through `ui.run` / `ui.set` and reads the indicator in `ui.state` (#599, 2026-11-07) | #503, #504, #505, #457, #506, #599 | B13, D15 |
-| 2 | Satin quality: corner styles, short stitches on every satin, compensation per side and in %, automatic underlay by width, branching shapes to satin, variable-width satin line (**done** but branching: #526's engine part done, the Auto Punch split done (#702, on by default); on skeleton, Auto satin and lettering #675, #676) | #520, #521, #522, #523, #526, #524 (and the bug #460) | B3, B5, B10 |
+| 2 | Satin quality: corner styles, short stitches on every satin, compensation per side and in %, automatic underlay by width, branching shapes to satin, variable-width satin line (**done**; branching done 2026-11-13: #526's engine part, the Auto Punch split (#702, on by default) and the editor's Satin Columns per Branch (PR #996); on skeleton, Auto satin and lettering #675, #676) | #520, #521, #522, #523, #526, #524 (and the bug #460) | B3, B5, B10 |
 | 3 | Fewer trims: travel under later fills, branching and auto-routing, nearest start per object, leave out hidden stitching. Done in `batch:routing` (2026-11-06): travel under later fills and run connectors (#545), leaving out hidden stitching (#511); nearest start and end (#547, **done** 2026-11-12: travel −19.1 % on 27 designs, no design gains a trim); trims inside one object (#794): echo rings linked (#800), letters and cutwork lines measured as PE-DESIGN's or required, and `tools/trim_report.py` per design (2026-11-08) | #545, #546, #547, #511, #794 | B4, B6, B11 |
 | 4 | Assistant: memory between conversations (**done** 2026-11-06, `batch:assistant-settings`: notes beside ui.json, read in every conversation, written only behind the permission gate), every batch error at once and only the user's threads (both **done** 2026-11-06, `batch:assistant-fixes`), example designs and a composition guide, illustrated benchmark tasks (both **done** 2026-11-06, `batch:assistant-skill`: ten tested example designs and `reference/composition.md` served by `skill_reference`; eight new bench tasks scored on structure, `design.check` and, with `--judge`, a vision model's score of the render) | #491, #492, #493, #494, #495 | B17 |
 | 5 | Production: parameter test swatches, fabric and thread-weight presets, basting box, knockdown, Stop at Jumps, job sheets. Done in `batch:production` (2026-11-06): basting box (#509), Stop after and Stop at Jumps (#512), with nearest start and the Optimize report (#547) from item 3. `batch:mac-sewout` (2026-11-06): parameter test swatches (#507), with the selection swatch (#452) and the fabric calibration card (#453), and job sheets for the client and the operator (#513: `design.setJob`, `design.print` modes `client` and `operator`). `batch:mac-fabric` (2026-11-07), #508 part 1: five more fabrics and the makers' backing, topping, needle and smallest-text advice per fabric and thread weight (`fabric.advise`); `fabric-2` (2026-11-07) part 2: thread weight scales density (`fabric.apply {weight}`) and a default fabric for new shapes and texts (`fabric.setDefault`); part 3: the user's machine (`machine.setProfile`), its hoop for new designs, export warnings for long stitches and missing thread cutters, Help ▸ Machine Setup on the first start | #507, #508, #509, #510, #512, #513 (with #452, #453) | B5, B12, D6, W7 |

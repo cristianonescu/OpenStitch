@@ -9,7 +9,7 @@ tests; merge only on green CI). Status: [ ] open, [x] done (PR), [~] blocked (on
    12 mm. Done when region-travel-u-satin is within 5 % of PE's 466 and nothing else regresses.
    Result: 473 (+1.5 %), was 530.
 2. [x] (#47) Auto satin count: auto-satin-bent-band within 5 % of PE's 429. Result: 419 (-2.3 %), was 397.
-2b. [ ] Auto satin corner fan (PR #72) and Half Stitch: references in hand (satin-auto-bend-60, -90-nohalf). PE's fan: every
+2b. [x] Auto satin corner fan (PR #72, merged 2026-10-27) and Half Stitch (#372, PR #440, 2026-11-04): references in hand (satin-auto-bend-60, -90-nohalf). PE's fan: every
    rung end on an edge, inner ends crowding 0.2-0.3 mm down to the inner corner, outer ends sweeping the outer
    corner, longest 7.0 mm; Half Stitch then thins the crowded inner ends. Needs a new corner construction. Tried: Half Stitch acts once, because OpenStitch's corner rungs stop short of
    the inner edge; letting them reach further gives 7.87 mm stitches (spec max 7.5). PE's corner needs
@@ -30,5 +30,7 @@ tests; merge only on green CI). Status: [ ] open, [x] done (PR), [~] blocked (on
    off) sews 285 stitches, OpenStitch 221 (reference text-defaults-h.pes in the round-2 text captures,
    spec text-defaults-h in PR #64). Compare row spacing, crossings and locks with pescmp.py; land the
    structural difference with its spec (after #64 lands, so the spec exists on main).
+   Done since 2026-10-31: satin text is sewn stroke by stroke (now `compile::stroke_columns`), H 291 against
+   PE's 285 ([stroke-lettering.md](../stroke-lettering.md)).
 
 (alpha.2 tagged; hold lifted.)

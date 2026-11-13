@@ -249,6 +249,10 @@ served by `skill_reference`:
   cannot do (from docs/FEATURE_MATRIX.md), file formats and machines, and where things are in
   the UI (from docs/UI_LAYOUT.md).
 
+(As of 2026-11-13 the folder holds `answers.md`, `composition.md`, `examples.md`, `recipes.md`,
+`sewability.md` and `examples/`; `density-and-sizes.md` and `commands.md` do not exist, their
+planned content is in `sewability.md` and `recipes.md`.)
+
 The system prompt stays short, as SolidCraft's `SYSTEM_NOTE` is:
 - you are inside OpenStitch;
 - use the `openstitch` tools only;
@@ -267,7 +271,8 @@ The system prompt stays short, as SolidCraft's `SYSTEM_NOTE` is:
 3. **Explain or fix.** `design_info` and the stitch statistics, then the skill's sewability
    rules, then fixes that need approval. The **troubleshoot** commands of B13
    (quality-tools.md) make this sharper once they exist. Until then the model judges from the
-   statistics and the render.
+   statistics and the render. (Since 2026-11-05 they exist: `design.check`, #503, and
+   `design.density`, #504.)
 4. **Text to image, then digitize.** There are three routes, and the model picks one per
    request:
    - *Vector art (no image model needed):* the model writes SVG → `scratch_write` →

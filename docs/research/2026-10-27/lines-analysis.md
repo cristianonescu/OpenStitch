@@ -94,7 +94,7 @@ Files (round-2 line captures): line-{motif,chain,stem,candlewick}-startend-{feed
 Shape: closed Straight Line (10,10)-(50,10)-(50,30)-(10,30), sewn clockwise on screen (top edge +x first), so the bottom
 edge is sewn towards -x. L1 (entry) ~(25.5, 30), L2 (exit) ~(29.8, 30) as read from the screen (+-0.3; PE keeps them
 about one pattern unit apart; on the bottom edge L2 is BEHIND L1 in sewing direction). Default for all four is Feed.
-Decoder: pes-compare/pec_dump.py (python pec_dump.py FILE [N]), coordinates relative to the first needle point = L1. Branch to build on: lines/startend-pe11
+Decoder: pes-compare/pec_dump.py (python pec_dump.py FILE [N]; not in the repo; `tools/peccmp.py --dump FILE N` prints a file's first N PEC records), coordinates relative to the first needle point = L1. Branch to build on: lines/startend-pe11
 (stacked on lines/group2-pe11 = PR #63, which has PE's stem/candlewick/chain generators).
 
 Records (Feed / Run): chain 690 / 691, stem 324 / 324, candlewick 549 / 552, motif 326 / 331. NO jumps or trims in any file.
@@ -150,7 +150,7 @@ L2 in (29.26, 30.74]); no offset needed.
   (front (10, 7.5)), and the next lead starts at the corner with the short first stitch shared: 1.6 + 1.6 mm, not 0.7 + 2.5.
 - No jumps or trims in any file; L2 needs no exit move because the line is the last object.
 
-Result (pes-compare/pescmp.py mean needle-to-nearest, OpenStitch -> PE; "in order" = needle points within 0.15 mm
+Result (pes-compare/pescmp.py, now tools/pescmp.py; mean needle-to-nearest, OpenStitch -> PE; "in order" = needle points within 0.15 mm
 of PE's at the same index):
 | spec | PE | before (restart at L1) | after |
 |---|---|---|---|

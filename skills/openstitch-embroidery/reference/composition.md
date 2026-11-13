@@ -76,5 +76,5 @@ when the colours do not overlap. Read `object.list` to confirm.
 2. `design.check`: no errors (long stitches, untrimmed long jumps); fix and check again. Its
    "layers of thread where objects overlap" warning is expected where a satin border overlaps
    the fill it edges; for a detail stacked on a fill, cut the fill with `shape.removeOverlap`
-   and then set that fill's angle again (#652).
+   (the fill keeps its angle, #652).
 3. `design.info`: report the size, colours and stitches from it, not from your plan.
