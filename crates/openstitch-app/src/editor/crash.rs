@@ -6,7 +6,11 @@
 //! A report holds the version, system and build, the panic message and where it happened, a
 //! backtrace of function names (file paths dropped), and the names of the last commands run
 //! (never their parameters). Paths under the user's home folder are replaced by `~`. Reports
-//! older than [`KEEP_DAYS`] days are removed.
+//! older than [`KEEP_DAYS`] days are removed, at most [`KEEP_REPORTS`] are kept, and a report
+//! is cut at [`MAX_BYTES`].
+//!
+//! This module opens no network connection: it only writes files and builds a URL that the
+//! window hands to the browser (a guard test checks its source).
 
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
@@ -17,6 +21,10 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 pub const RECENT: usize = 20;
 /// Reports older than this many days are removed at start.
 pub const KEEP_DAYS: u64 = 30;
+/// At most this many reports are kept (the newest).
+pub const KEEP_REPORTS: usize = 10;
+/// A report is cut at this size.
+pub const MAX_BYTES: usize = 64 * 1024;
 /// Where Help ▸ Report a Problem goes: GitHub's new-issue page for the project.
 pub const ISSUES_NEW: &str = "https://github.com/cristianonescu/OpenStitch/issues/new";
 /// The file whose time marks the newest report the user has already seen.
@@ -74,6 +82,11 @@ pub fn scrub(text: &str, home: Option<&str>) -> String {
     out
 }
 
+/// [`scrub`] with this computer's home folder.
+pub fn scrub_here(text: &str) -> String {
+    scrub(text, home().as_deref())
+}
+
 fn replace_ignore_case(text: &str, what: &str, with: &str) -> String {
     if what.is_empty() {
         return text.to_string();
@@ -92,7 +105,8 @@ fn replace_ignore_case(text: &str, what: &str, with: &str) -> String {
 }
 
 /// Replaces `<prefix><name>` (case-insensitive prefix) by `~`, the name running to the next
-/// slash, quote or white space.
+/// slash, quote, `;` or line break. A space does not end it: user names can hold spaces
+/// ("Maria Popescu"), so text after a bare user folder may be cut too, never a name kept.
 fn replace_user_folders(text: &str, prefix: &str) -> String {
     let lower = text.to_ascii_lowercase();
     let mut out = String::with_capacity(text.len());
@@ -101,7 +115,7 @@ fn replace_user_folders(text: &str, prefix: &str) -> String {
         let start = from + i;
         let name_from = start + prefix.len();
         let name_len = text[name_from..]
-            .find(|c: char| matches!(c, '/' | '\\' | '"' | '\'') || c.is_whitespace())
+            .find(['/', '\\', '"', '\'', ';', '\n', '\r', '\t'])
             .unwrap_or(text.len() - name_from);
         out.push_str(&text[from..start]);
         out.push('~');
@@ -172,7 +186,11 @@ pub fn write_report(dir: &Path, text: &str, now: SystemTime) -> std::io::Result<
     let path = dir.join(format!(
         "crash-{y:04}-{mo:02}-{d:02}-{h:02}{mi:02}{s:02}.txt"
     ));
-    std::fs::write(&path, text)?;
+    let mut end = text.len().min(MAX_BYTES);
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    std::fs::write(&path, &text[..end])?;
     Ok(path)
 }
 
@@ -193,13 +211,17 @@ fn reports(dir: &Path) -> Vec<(PathBuf, SystemTime)> {
     out
 }
 
-/// Removes reports in `dir` older than [`KEEP_DAYS`] days at `now`; how many went.
+/// Removes reports in `dir` older than [`KEEP_DAYS`] days at `now`, and all but the newest
+/// [`KEEP_REPORTS`]; how many went.
 pub fn prune(dir: &Path, now: SystemTime) -> usize {
     let keep = Duration::from_secs(KEEP_DAYS * 86_400);
     reports(dir)
         .into_iter()
-        .filter(|(_, t)| now.duration_since(*t).is_ok_and(|age| age > keep))
-        .filter(|(p, _)| std::fs::remove_file(p).is_ok())
+        .enumerate()
+        .filter(|(i, (_, t))| {
+            *i >= KEEP_REPORTS || now.duration_since(*t).is_ok_and(|age| age > keep)
+        })
+        .filter(|(_, (p, _))| std::fs::remove_file(p).is_ok())
         .count()
 }
 
@@ -351,6 +373,66 @@ mod tests {
         assert_eq!(prune(&dir, later), 2, "both are past 30 days a month later");
         assert!(!old.exists() && !new.exists());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// At most ten reports are kept, the newest, and a long report is cut at 64 KiB.
+    #[test]
+    fn reports_are_capped_in_number_and_size() {
+        let dir = temp("cap");
+        let now = SystemTime::now();
+        for i in 0..12u64 {
+            write_report(&dir, "x", now - Duration::from_secs(i * 60)).expect("report");
+        }
+        assert_eq!(reports(&dir).len(), 12);
+        assert_eq!(prune(&dir, now), 2);
+        assert_eq!(reports(&dir).len(), KEEP_REPORTS);
+        let big = write_report(&dir, &"é".repeat(MAX_BYTES), now).expect("big");
+        let len = std::fs::metadata(&big).expect("size").len() as usize;
+        assert!(len <= MAX_BYTES && len > MAX_BYTES - 4, "{len}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Nothing is sent from OpenStitch: the crash code has no network code path. The window's
+    /// only outward action is handing [`report_url`] (the project's issue page, nothing
+    /// attached) to the browser.
+    #[test]
+    fn the_crash_code_sends_nothing() {
+        let src = include_str!("crash.rs");
+        let code = &src[..src.find("#[cfg(test)]").expect("tests")];
+        for net in [
+            "std::net",
+            "TcpStream",
+            "UdpSocket",
+            "reqwest",
+            "ureq",
+            "hyper",
+            "curl",
+            "Command::new",
+        ] {
+            assert!(!code.contains(net), "{net} in crash.rs");
+        }
+        let window = include_str!("../panes.rs");
+        let window = &window[window.find("fn problem_window").expect("window")..];
+        let window = &window[..window.find("\n}").expect("end")];
+        assert_eq!(window.matches("open_url").count(), 1, "one browser link");
+        assert!(window.contains("crash::report_url("));
+        let url = report_url("Version 1");
+        assert!(url.starts_with("https://github.com/cristianonescu/OpenStitch/issues/new?"));
+        // Only a title and a body: no report name, nothing attached or uploaded.
+        assert!(!url.contains("crash-"), "{url}");
+        assert_eq!(url.matches('&').count(), 1, "{url}");
+        assert!(url.contains("?title=") && url.contains("&body="), "{url}");
+    }
+
+    /// A Windows and a macOS path holding a user name, outside the home folder the system
+    /// reports, are shortened too.
+    #[test]
+    fn user_folders_are_shortened_whoever_the_user_is() {
+        let text = scrub(
+            r"open C:\Users\Maria Popescu\Desktop\rose.pes failed; /Users/maria/x.pes; /home/maria/y.pes",
+            None,
+        );
+        assert_eq!(text, r"open ~\Desktop\rose.pes failed; ~/x.pes; ~/y.pes");
     }
 
     #[test]

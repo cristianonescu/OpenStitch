@@ -542,8 +542,9 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                         .clicked()
                     {
                         ui.ctx().copy_text(format!(
-                            "{}Update error: {error}\n",
-                            openstitch_app::editor::crash::diagnostics(&version_line())
+                            "{}Update error: {}\n",
+                            openstitch_app::editor::crash::diagnostics(&version_line()),
+                            openstitch_app::editor::crash::scrub_here(error)
                         ));
                     }
                     if let Some(u) = update

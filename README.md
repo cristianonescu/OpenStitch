@@ -263,6 +263,9 @@ feature is done and the rest is under [Planned](#planned).
   single- or multi-needle machine; the sewing area shown against the page.
 - (+) **Hoops of other brands:** Baby Lock, Bernina, Elna, Husqvarna Viking, Janome, Pfaff and
   Singer, plus round commercial hoops, each from the maker's published sizes ([#514]).
+- (+) **Smallest hoop that fits and Fit to hoop:** one click switches to the smallest hoop of your
+  machine that holds the design (its real field, round hoops included), or scales the design to
+  fill the current hoop ([#879]).
 - **Rulers, grid and guides:** rulers that count from the page's centre or its top-left corner
   ([#799]), snap to grid, guidelines dragged out of the rulers (shown and snapped to by default,
   with their distance from 0 while you drag them; select, delete, turn, lock, type a position,
@@ -741,6 +744,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#513]: https://github.com/cristianonescu/OpenStitch/issues/513
 [#514]: https://github.com/cristianonescu/OpenStitch/issues/514
 [#515]: https://github.com/cristianonescu/OpenStitch/issues/515
+[#879]: https://github.com/cristianonescu/OpenStitch/issues/879
 [#516]: https://github.com/cristianonescu/OpenStitch/issues/516
 [#517]: https://github.com/cristianonescu/OpenStitch/issues/517
 [#518]: https://github.com/cristianonescu/OpenStitch/issues/518

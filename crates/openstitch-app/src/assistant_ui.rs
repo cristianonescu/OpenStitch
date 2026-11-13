@@ -66,9 +66,17 @@ pub fn create_scratch() -> std::io::Result<PathBuf> {
     Ok(dir)
 }
 
+/// How long a scratch folder's lock file must have existed before [`remove_stale_scratch`] may
+/// take an unlocked one for an ended editor's: between creating its lock file and locking it, a
+/// starting editor's folder looks just like an ended one's (#1001: one editor, or one test
+/// process, removed another's folder or took its lock in that moment).
+pub const SCRATCH_GRACE: std::time::Duration = std::time::Duration::from_secs(60);
+
 /// Removes `openstitch-assistant-*` folders in `temp` whose lock nobody holds: the editor that
 /// made them has ended. Folders without a lock file are left alone (they may belong to an
-/// editor from before the lock existed that is still running). Returns how many were removed.
+/// editor from before the lock existed that is still running), and so are folders whose lock
+/// file is younger than [`SCRATCH_GRACE`] (an editor still starting). Returns how many were
+/// removed.
 pub fn remove_stale_scratch(temp: &std::path::Path) -> usize {
     let own = format!("{SCRATCH_PREFIX}{}", std::process::id());
     let Ok(entries) = std::fs::read_dir(temp) else {
@@ -83,6 +91,15 @@ pub fn remove_stale_scratch(temp: &std::path::Path) -> usize {
         let Ok(lock) = std::fs::File::open(entry.path().join(SCRATCH_LOCK)) else {
             continue;
         };
+        // A lock file too young to tell an ended editor from a starting one is left alone.
+        let young = lock
+            .metadata()
+            .and_then(|m| m.modified())
+            .map(|t| t.elapsed().map_or(true, |age| age < SCRATCH_GRACE))
+            .unwrap_or(true);
+        if young {
+            continue;
+        }
         if lock.try_lock().is_ok() {
             drop(lock);
             if std::fs::remove_dir_all(entry.path()).is_ok() {
@@ -1985,25 +2002,34 @@ mod tests {
     #[test]
     fn scratch_folders_of_ended_editors_are_removed() {
         let temp = openstitch_testutil::TempDir::new("stale-test");
-        let make = |name: &str, lock: bool| {
+        // `old`: the lock file was made longer ago than SCRATCH_GRACE.
+        let make = |name: &str, lock: bool, old: bool| {
             let d = temp.join(name);
             std::fs::create_dir_all(&d).expect("dir");
             std::fs::write(d.join("a.svg"), "<svg/>").expect("file");
             if lock {
-                std::fs::write(d.join(SCRATCH_LOCK), "").expect("lock");
+                let f = std::fs::File::create(d.join(SCRATCH_LOCK)).expect("lock");
+                if old {
+                    let then = std::time::SystemTime::now() - SCRATCH_GRACE * 2;
+                    f.set_modified(then).expect("age the lock");
+                }
             }
             d
         };
-        let ended = make("openstitch-assistant-1", true);
-        let running = make("openstitch-assistant-2", true);
-        let no_lock = make("openstitch-assistant-3", false);
-        let other = make("someone-else", true);
+        let ended = make("openstitch-assistant-1", true, true);
+        let running = make("openstitch-assistant-2", true, true);
+        let no_lock = make("openstitch-assistant-3", false, true);
+        let other = make("someone-else", true, true);
+        // #1001: an editor between making its lock file and locking it looks ended, but its
+        // lock file is new.
+        let starting = make("openstitch-assistant-4", true, false);
         // A live editor holds its lock.
         let held = std::fs::File::open(running.join(SCRATCH_LOCK)).expect("open");
         held.try_lock().expect("lock");
         assert_eq!(remove_stale_scratch(&temp), 1);
         assert!(!ended.exists(), "the ended editor's folder is removed");
         assert!(running.exists() && no_lock.exists() && other.exists());
+        assert!(starting.exists(), "a starting editor's folder stays");
         drop(held);
         assert_eq!(
             remove_stale_scratch(&temp),

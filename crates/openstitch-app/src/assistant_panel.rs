@@ -2931,6 +2931,11 @@ mod tests {
         let tmp = openstitch_testutil::TempDir::new("drop-disc");
         let src = tmp.join("disc.png");
         disc_png(&src);
+        // A scratch folder of the test's own (#1001): the shared one in the temp folder is
+        // swept by every other test process that starts an Assistant at the same moment.
+        let scratch = tmp.join("scratch");
+        std::fs::create_dir_all(&scratch).expect("scratch");
+        app.assistant.scratch = Some(scratch.clone());
         let ctx = egui::Context::default();
         let drop = |app: &mut EditorApp| {
             let raw = egui::RawInput {
@@ -2946,7 +2951,22 @@ mod tests {
         app.assistant.panel.open = true;
         drop(&mut app);
         let _ = std::fs::remove_file(&src);
-        assert_eq!(app.assistant.panel.attachments.len(), 1);
+        let notices: Vec<&String> = app
+            .assistant
+            .panel
+            .items
+            .iter()
+            .filter_map(|i| match i {
+                Item::Notice(n) => Some(n),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            app.assistant.panel.attachments.len(),
+            1,
+            "attached once; notices: {notices:?}"
+        );
+        assert!(app.assistant.panel.attachments[0].path.starts_with(&scratch));
         assert!(app.assistant.panel.attachments[0].path.exists());
     }
 
