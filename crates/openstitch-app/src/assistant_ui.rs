@@ -614,6 +614,11 @@ impl EditorApp {
             "canUndo": self.session.can_undo(), "canRedo": self.session.can_redo(),
             // The last run ended in a crash and Report a Problem shows its notice (#878).
             "crashReport": self.ui.problem.report.is_some(),
+            // The Sewing Order pane's Find text (#745): the list shows only matching rows (#1031).
+            "orderFilter": self.edit.order_filter,
+            // Whether the window draws with MSAA (#907, #1020): without it the Realistic view
+            // feathers its threads and dense fills can show stripes when zoomed out (#1031).
+            "msaa": msaa_json(crate::workspace_ui::MSAA.load(std::sync::atomic::Ordering::Relaxed)),
             "settings": self.ui_settings(),
             // Check Design (#599): ready to sew, the problem counts and the open tab.
             "check": crate::quality_ui::state_json(self),
@@ -732,6 +737,7 @@ impl EditorApp {
                 "openInTabs" => json!(prefs.open_in_tabs),
                 "autosaveInterval" => json!(prefs.autosave_interval),
                 "propertySearch" => json!(self.ui.property_search),
+                "orderFilter" => json!(self.edit.order_filter),
                 other => unreachable!("setting {other} has no value"),
             };
             out.insert(
@@ -1011,6 +1017,13 @@ impl EditorApp {
                 }
                 (self.ui.property_search, save) = (text.to_string(), false);
             }
+            "orderFilter" => {
+                let text = v.as_str().ok_or("orderFilter takes a string")?;
+                if text.chars().count() > 100 {
+                    return Err("orderFilter takes at most 100 characters".into());
+                }
+                (self.edit.order_filter, save) = (text.to_string(), false);
+            }
             other => unreachable!("setting {other} cannot be set"),
         }
         if save {
@@ -1117,6 +1130,16 @@ impl EditorApp {
     }
 }
 
+/// `ui.state`'s `msaa` (#1031): whether the window draws with MSAA, and how many samples.
+fn msaa_json(on: bool) -> Value {
+    let samples = if on {
+        crate::workspace_ui::MSAA_SAMPLES
+    } else {
+        1
+    };
+    json!({ "on": on, "samples": samples })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1128,6 +1151,63 @@ mod tests {
             demo: true,
             ..Launch::default()
         })
+    }
+
+    #[test]
+    fn ui_state_shows_and_ui_set_sets_the_sewing_order_filter_and_msaa() {
+        // #1031: the Sewing Order pane's Find text and the window's MSAA are in ui.state, and
+        // ui.set {orderFilter} narrows the list the pane shows as typing would.
+        let mut app = EditorApp::new(Launch::default());
+        for (cmd, params) in [
+            (
+                "shape.rectangle",
+                json!({"x": 10, "y": 10, "width": 20, "height": 20}),
+            ),
+            (
+                "shape.ellipse",
+                json!({"cx": 60, "cy": 60, "rx": 10, "ry": 10}),
+            ),
+        ] {
+            app.session.execute(cmd, Some(&params)).expect(cmd);
+        }
+        // Named as a user would, so the Find text has a word to match.
+        let ids: Vec<u64> = app.session.design().objects.iter().map(|o| o.id).collect();
+        for (id, name) in ids.iter().zip(["Rectangle", "Circle"]) {
+            app.session
+                .execute("object.setName", Some(&json!({ "ids": [id], "name": name })))
+                .expect("name");
+        }
+        let shown = |app: &EditorApp| -> Vec<String> {
+            let all = openstitch_app::editor::objects::rows(app.session.design(), &app.selection);
+            crate::panels::shown_order_rows(&all, &app.edit.order_filter)
+                .into_iter()
+                .map(|r| r.label)
+                .collect()
+        };
+        assert_eq!(app.ui_state()["orderFilter"], json!(""));
+        assert_eq!(shown(&app).len(), 2);
+        app.ui_command(
+            "ui.set",
+            Some(&json!({ "name": "orderFilter", "value": "rect" })),
+        )
+        .expect("filter");
+        assert_eq!(app.ui_state()["orderFilter"], json!("rect"));
+        let rows = shown(&app);
+        assert_eq!(rows.len(), 1, "{rows:?}");
+        assert!(rows[0].to_lowercase().contains("rect"), "{rows:?}");
+        app.ui_command("ui.set", Some(&json!({ "name": "orderFilter", "value": "" })))
+            .expect("cleared");
+        assert_eq!(shown(&app).len(), 2);
+        assert!(
+            app.ui_command("ui.set", Some(&json!({ "name": "orderFilter", "value": 3 })))
+                .is_err()
+        );
+        // MSAA as the window set it: off here (no window), on with its sample count.
+        assert_eq!(app.ui_state()["msaa"], json!({ "on": false, "samples": 1 }));
+        assert_eq!(
+            msaa_json(true),
+            json!({ "on": true, "samples": crate::workspace_ui::MSAA_SAMPLES })
+        );
     }
 
     #[test]
