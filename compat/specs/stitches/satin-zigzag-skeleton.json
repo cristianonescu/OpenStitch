@@ -28,6 +28,10 @@
     {
       "kind": "measured",
       "note": "Density 3.0 and under sewing off are set explicitly so the spec tests the top satin's shape only, not OpenStitch's satin defaults (now PE-DESIGN 11.50's 4.5 lines/mm with under sewing on); same decision as satin-zigzag-rect and satin-zigzag-column (coordinator, 2026-10-27)."
+    },
+    {
+      "kind": "measured",
+      "note": "pageMode custom (#1013): no PE-DESIGN reference of its own; its limits come from satin-zigzag-column and satin-zigzag-rect, whose references are on a 100 x 100 Custom Size page (PES 0110 page mode 1), where PE-DESIGN starts the one-step tie-in on the landing with no stitch in place."
     }
   ],
   "script": [
@@ -35,7 +39,8 @@
       "command": "design.new",
       "params": {
         "width": 100,
-        "height": 100
+        "height": 100,
+        "pageMode": "custom"
       }
     },
     {
