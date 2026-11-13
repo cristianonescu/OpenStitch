@@ -2389,8 +2389,14 @@ pub fn lock_points_by(a: Vec2, b: Vec2, step: f64) -> Vec<Vec2> {
         .collect()
 }
 
-/// Whether a run already starts with a tie-in: it comes back to its first needle point within
-/// its first five stitches, none of them longer than 1 mm.
+/// A tie or lock comes back to exactly the point it left (0.1 mm units): PE-DESIGN's do, and
+/// so do the ties generated here. A row that only passes near the point is not a tie: in a
+/// stitch file, on the machine's 0.1 mm grid, two points 0.03 mm apart can land on neighbouring
+/// grid points and the "lock" is gone (#1032: 75 Auto Punch ends in one kit file).
+pub const SAME_POINT: f64 = 1e-6;
+
+/// Whether a run already starts with a tie-in: it comes back to its first needle point (exactly,
+/// [`SAME_POINT`]) within its first five stitches, none of them longer than 1.5 mm.
 pub fn starts_tied(run: &[Vec2]) -> bool {
     let Some(&a) = run.first() else {
         return false;
@@ -2400,11 +2406,12 @@ pub fn starts_tied(run: &[Vec2]) -> bool {
         .skip(2)
         .take(4)
         .take_while(|(i, _)| run[*i - 1].distance(run[*i - 2]) <= 15.0)
-        .any(|(_, p)| p.distance(a) < 0.5)
+        .any(|(_, p)| p.distance(a) < SAME_POINT)
 }
 
 /// Whether the needle points `tail` (the last first: last, previous, …) already end with a lock:
-/// the last point is sewn again within the last four stitches, none of them longer than 1 mm.
+/// the last point is sewn again (exactly, [`SAME_POINT`]) within the last four stitches, none of
+/// them longer than 1.5 mm.
 pub fn ends_locked(tail: &[Vec2]) -> bool {
     let Some(&b) = tail.first() else {
         return false;
@@ -2414,7 +2421,7 @@ pub fn ends_locked(tail: &[Vec2]) -> bool {
         .skip(2)
         .take(3)
         .take_while(|(i, _)| tail[*i - 1].distance(tail[*i - 2]) <= 15.0)
-        .any(|(_, p)| p.distance(b) < 0.5)
+        .any(|(_, p)| p.distance(b) < SAME_POINT)
 }
 
 /// Least share of the region a derived skeleton's column must cover for Auto satin to follow

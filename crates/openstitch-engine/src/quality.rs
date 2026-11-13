@@ -944,7 +944,7 @@ fn section_findings(t: &Traced, objects: &HashMap<u64, &DesignObject>) -> Vec<Fi
         }
         // A tie comes back to the end point within a few short stitches; a stitch in place at
         // the end point (PE-DESIGN's one-step tie on Hoop Size pages, #1013) ties it too.
-        let in_place = |a: Vec2, b: Vec2| a.distance(b) < 0.5;
+        let in_place = |a: Vec2, b: Vec2| a.distance(b) < openstitch_design::region::SAME_POINT;
         let tail: Vec<Vec2> = points.iter().rev().take(6).copied().collect();
         let start =
             openstitch_design::region::starts_tied(&points) || in_place(points[0], points[1]);
