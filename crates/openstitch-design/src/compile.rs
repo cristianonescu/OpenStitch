@@ -3004,6 +3004,48 @@ mod stroke_fill_tests {
         }
     }
 
+    #[test]
+    fn every_letter_section_ties_in_even_from_a_near_duplicate_first_point() {
+        // #1032: Pacifico's i (and the f after it in "ific") started runs on a point 0.01-0.02
+        // mm from the next, so the tie-in stepped out by that much and back and the writer
+        // merged it into one needle point: those sections started untied. PE-DESIGN's text
+        // references always tie in 0.3 mm. Every section after a move or trim comes back to its
+        // first needle point within its next stitches, after a step of 0.2-0.4 mm out.
+        for text in ["ific", "Pacifico"] {
+            let (obj, _) = DesignObject::text(
+                TextSpec::new(text, "pacifico", 10.0),
+                Some(text_satin()),
+                None,
+            )
+            .expect("text");
+            let mut d = Design::default();
+            d.add(obj);
+            let p = Compiler::default().compile(&d);
+            let s = &p.stitches;
+            let mut sections = 0;
+            for k in 1..s.len() {
+                if s[k - 1].command == Command::Stitch || s[k].command != Command::Stitch {
+                    continue;
+                }
+                sections += 1;
+                let a = v2(s[k].x, s[k].y);
+                let next: Vec<Vec2> = s[k + 1..]
+                    .iter()
+                    .take(5)
+                    .take_while(|st| st.command == Command::Stitch)
+                    .map(|st| v2(st.x, st.y))
+                    .collect();
+                let out = next.iter().position(|q| q.distance(a) >= 2.0);
+                let back = out.is_some_and(|o| {
+                    (2.0..=4.0).contains(&next[o].distance(a))
+                        && next[o + 1..].iter().any(|q| q.distance(a) < 0.5)
+                });
+                assert!(back, "{text}: section {sections} at {a:?} starts {next:?}");
+            }
+            assert!(sections >= 7, "{text}: {sections} sections");
+        }
+    }
+
     /// `text` in Lato Bold at `size` mm, Satin (PE-DESIGN's text default), compiled.
     fn satin_text(text: &str, size: f64) -> (DesignObject, StitchPattern) {
         let (obj, _) = DesignObject::text(
