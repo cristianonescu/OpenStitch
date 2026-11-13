@@ -838,8 +838,96 @@ pub fn about_window(app: &mut EditorApp, ctx: &egui::Context) {
             ui.label(t("ui-an-open-source-embroidery-design-suite"));
             ui.label(t("ui-reads-and-writes-pes-pec-dst"));
             ui.hyperlink("https://github.com/cristianonescu/OpenStitch");
+            if ui
+                .button(t("ui-copy-diagnostics"))
+                .on_hover_text(t("ui-copy-diagnostics-tip"))
+                .clicked()
+            {
+                ui.ctx().copy_text(openstitch_app::editor::crash::diagnostics(
+                    &crate::update_ui::version_line(),
+                ));
+            }
         });
     app.ui.about_open = open;
+    // Every window that draws About draws Report a Problem too.
+    problem_window(app, ctx);
+}
+
+/// Help ▸ Report a Problem (#878), also opened at start after a crash.
+#[derive(Default)]
+pub struct ProblemWindow {
+    pub open: bool,
+    /// The crash report from the last run, while the window shows it.
+    pub report: Option<std::path::PathBuf>,
+    /// Where crash reports are written (beside the autosave snapshots).
+    pub folder: Option<std::path::PathBuf>,
+}
+
+/// Nothing is sent from here: the buttons open the issue page in the browser, the reports
+/// folder in the file manager, or put the version and system on the clipboard.
+fn problem_window(app: &mut EditorApp, ctx: &egui::Context) {
+    use openstitch_app::editor::crash;
+    let st = &mut app.ui.problem;
+    if !st.open {
+        return;
+    }
+    let mut open = true;
+    let mut close = false;
+    let mut folder_error = None;
+    egui::Window::new(t("ui-window-report-a-problem"))
+        .id(egui::Id::unique("window-report-a-problem"))
+        .open(&mut open)
+        .resizable(false)
+        .collapsible(false)
+        .show(ctx, |ui| {
+            ui.set_max_width(420.0);
+            if st.report.is_some() {
+                ui.label(RichText::new(t("ui-openstitch-closed-unexpectedly")).strong());
+                ui.label(t("ui-a-crash-report-was-written"));
+            } else {
+                ui.label(t("ui-report-a-problem-on-github"));
+            }
+            ui.label(t("ui-nothing-is-sent-from-openstitch"));
+            ui.add_space(6.0);
+            ui.horizontal_wrapped(|ui| {
+                if ui.button(t("ui-open-the-issue-page")).clicked() {
+                    ui.ctx().open_url(egui::OpenUrl::new_tab(crash::report_url(
+                        &crate::update_ui::version_line(),
+                    )));
+                }
+                if let Some(folder) = &st.folder
+                    && folder.is_dir()
+                    && ui
+                        .button(t("ui-open-the-reports-folder"))
+                        .on_hover_text(t("ui-open-the-reports-folder-tip"))
+                        .clicked()
+                {
+                    folder_error = openstitch_app::editor::sew_kit::open_folder(folder).err();
+                }
+                if ui
+                    .button(t("ui-copy-diagnostics"))
+                    .on_hover_text(t("ui-copy-diagnostics-tip"))
+                    .clicked()
+                {
+                    ui.ctx().copy_text(crash::diagnostics(&crate::update_ui::version_line()));
+                }
+                if ui.button(t("ui-close")).clicked() {
+                    close = true;
+                }
+            });
+        });
+    if !open || close {
+        // The report is not shown again at the next start.
+        if st.report.take().is_some()
+            && let Some(folder) = &st.folder
+        {
+            let _ = crash::mark_seen(folder);
+        }
+        st.open = false;
+    }
+    if let Some(e) = folder_error {
+        app.status = e.to_string();
+    }
 }
 
 #[cfg(test)]

@@ -276,6 +276,10 @@ feature is done and the rest is under [Planned](#planned).
 - **Unsaved changes** are flagged in the title and asked about before closing, New or Open.
 - (+) **Autosave and recovery:** snapshots of every open design, offered back after a crash; your
   own file is never overwritten ([#549]).
+- (+) **Crash reports and Report a Problem:** after an internal error a short report (version,
+  system, the error, the last command names, no paths from your computer) is kept beside the
+  snapshots; *Help ▸ Report a Problem* opens a GitHub issue with the version filled in, and
+  *Copy diagnostics* copies the version and system. Nothing is sent from OpenStitch ([#878]).
 - (+) **Large files open in the background** with progress and Cancel, so the window never
   freezes ([#558]).
 - (+) **Several designs as tabs** in one window, each with its own undo, selection and zoom
@@ -792,6 +796,7 @@ See also [New: the Assistant](#new-the-assistant).
 [#627]: https://github.com/cristianonescu/OpenStitch/issues/627
 [#652]: https://github.com/cristianonescu/OpenStitch/issues/652
 [#799]: https://github.com/cristianonescu/OpenStitch/issues/799
+[#878]: https://github.com/cristianonescu/OpenStitch/issues/878
 
 ## Not yet implemented
 

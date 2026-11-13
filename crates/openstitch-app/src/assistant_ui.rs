@@ -377,6 +377,7 @@ impl EditorApp {
                     "gettingStarted" => self.ui.start.page_open = true,
                     "machineSetup" => self.machine_setup.open(),
                     "checkUpdates" => self.update.check(true),
+                    "reportProblem" => self.ui.problem.open = true,
                     "about" => self.ui.about_open = true,
                     _ => return Err(format!("unknown Help item '{item}'")),
                 }

@@ -536,6 +536,16 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                     if ui.button(t("ui-close")).clicked() {
                         click = Click::Dismiss;
                     }
+                    if ui
+                        .button(t("ui-copy-diagnostics"))
+                        .on_hover_text(t("ui-copy-diagnostics-tip"))
+                        .clicked()
+                    {
+                        ui.ctx().copy_text(format!(
+                            "{}Update error: {error}\n",
+                            openstitch_app::editor::crash::diagnostics(&version_line())
+                        ));
+                    }
                     if let Some(u) = update
                         && !u.release.html_url.is_empty()
                     {
