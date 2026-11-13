@@ -1,0 +1,113 @@
+{
+  "schema": "openstitch-compat/1",
+  "id": "line-circle-zigzag-3mm",
+  "area": "stitches",
+  "title": "Zigzag 3 mm round a 30 mm circle",
+  "description": "#978: a Zigzag Stitch on a closed curve is spaced by its outer edge, as on a square: along a 30 mm circle at 4.5 line/mm, 3 mm wide, density x (L + pi w) / L. PE-DESIGN 11.50 sews 601 stitches (at 3 mm 4.94 crossings per mm of the circle, 4.95 predicted, against 4.50 on the centre line); OpenStitch 600.",
+  "covers": {
+    "featureMatrix": [
+      {
+        "area": "Line sew types",
+        "feature": "Zigzag: width, density"
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "kind": "measured",
+      "note": "PE-DESIGN 11.50 reference stitches/line-circle-zigzag-3mm.pes (round 11, #978)"
+    }
+  ],
+  "script": [
+    {
+      "command": "design.new",
+      "params": {
+        "width": 100,
+        "height": 100
+      }
+    },
+    {
+      "command": "shape.ellipse",
+      "params": {
+        "cx": 50,
+        "cy": 50,
+        "rx": 15,
+        "outline": "Red"
+      }
+    },
+    {
+      "command": "object.setLine",
+      "params": {
+        "ids": [
+          1
+        ],
+        "type": "zigzag",
+        "width": 3.0,
+        "density": 4.5,
+        "color": "Red"
+      }
+    },
+    {
+      "command": "object.setRegion",
+      "params": {
+        "ids": [
+          1
+        ],
+        "type": "none"
+      }
+    }
+  ],
+  "exports": [
+    {
+      "path": "a.pes"
+    }
+  ],
+  "references": [
+    {
+      "id": "pe-design",
+      "file": "stitches/line-circle-zigzag-3mm.pes",
+      "make": "New 100 x 100 mm page; Shapes > circle with a 30 mm outline (status line 33.00 x 33.00 mm with its line); region Not Sewn; line Zigzag Stitch width 3.0 mm, density 4.5 line/mm, Half Stitch on, under sewing on. Save with Save As as PES (PE-DESIGN 11's default PES version) under the file name given, and record it in compat/reference/MANIFEST.json."
+    }
+  ],
+  "measurements": [
+    {
+      "id": "stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "a.pes"
+      },
+      "expected": {
+        "min": 583,
+        "max": 619
+      },
+      "evidence": "PE-DESIGN 601; the crossings spaced by the outer edge (OpenStitch on the centre line sewed about 9 % fewer at 3 mm)",
+      "reference": {
+        "tolerance": {
+          "percent": 2
+        }
+      }
+    },
+    {
+      "id": "width",
+      "measure": {
+        "kind": "bounds",
+        "property": "width"
+      },
+      "source": {
+        "export": "a.pes"
+      },
+      "expected": {
+        "min": 32.7,
+        "max": 33.3
+      },
+      "evidence": "the zigzag centred on the 30 mm outline: 33 mm",
+      "reference": {
+        "tolerance": {
+          "mm": 0.2
+        }
+      }
+    }
+  ]
+}

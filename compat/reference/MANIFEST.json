@@ -6205,6 +6205,30 @@
       "settings": "The #471 plain-square baseline design reopened in PE-DESIGN 11.50 (a 40 mm square drawn with the rectangle tool; region Fill Stitch 4.5 line/mm, 45 degrees, under sewing on); only the line's Zigzag width changed, to 3.9 mm (Zigzag Stitch, 4.5 line/mm, Half Stitch on, under sewing on). Save As PES Ver.11.0. Status: 3283 stitches, 43.90 x 43.90 mm.",
       "sha256": "8273ee4c833bff3b98990ae11f2c79cf7babd3214616022539db3a7118ef536a",
       "notes": "Black-box capture 964-square-zigzag-3.9mm.pes from the coordinator's round-10 notes (#964); the project's own geometry."
+    },
+    {
+      "file": "stitches/line-circle-zigzag-3mm.pes",
+      "spec": "line-circle-zigzag-3mm",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-13",
+      "os": "Windows 11 Pro",
+      "settings": "New 100 x 100 mm page; Shapes > circle with a 30 mm outline; region Not Sewn; line Zigzag Stitch, width 3.0 mm, density 4.5 line/mm, Half Stitch on, under sewing on, Sharp Corners first option, Miter Limit 0.0. Save As PES Ver.11.0. Status: 33.00 x 33.00 mm, 601 stitches.",
+      "sha256": "7f5a3297f0f23d892a667835b613134ed046bac7c9a00a9a289bde0effe9c9d6",
+      "notes": "Black-box capture 978-circle-30mm-zigzag-3mm.pes from the coordinator's round-11 notes (#978); the project's own geometry."
+    },
+    {
+      "file": "stitches/line-circle-zigzag-1mm.pes",
+      "spec": "line-circle-zigzag-1mm",
+      "reference": "pe-design",
+      "madeBy": "Cristian Onescu",
+      "peDesignVersion": "11.50",
+      "date": "2026-11-13",
+      "os": "Windows 11 Pro",
+      "settings": "New 100 x 100 mm page; Shapes > circle with a 30 mm outline; region Not Sewn; line Zigzag Stitch, width 1.0 mm, density 4.5 line/mm, Half Stitch on, under sewing on, Sharp Corners first option, Miter Limit 0.0. Save As PES Ver.11.0. Status: 31.00 x 31.00 mm, 571 stitches.",
+      "sha256": "90ee452144631521a9b83429e369aadd93bb32bb3cb54e2b9de6e6de0642c5b6",
+      "notes": "Black-box capture 978-circle-30mm-zigzag-1mm.pes from the coordinator's round-11 notes (#978); the project's own geometry."
     }
   ]
 }

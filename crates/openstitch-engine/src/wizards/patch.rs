@@ -22,7 +22,7 @@ pub fn commands() -> Vec<CommandSpec> {
             req("ids", "[int]", "Patterns the patch holds"),
             opt("border", "bool", "Sew a satin border (default true)"),
             opt("width", "mm", "Border width 1-10 (default 3)"),
-            opt("density", "lines/mm", "Border density 1-10 (default 4.5)"),
+            opt("density", "lines/mm", "Border density 1-10 (default 4.5), counted along the border's outer edge as on any closed zigzag (PE-DESIGN)"),
             opt(
                 "distance",
                 "mm",
