@@ -623,9 +623,12 @@ the assistant's own tools and scores each on the design it leaves (`object.list`
 | picture | the BMP of a red disc into embroidery, 50 mm | objects 35-65 mm wide in red |
 | vector | a house as SVG, imported as shapes | at least two objects |
 | question | (two shapes) how many objects? change nothing | still two objects; the answer says 2 |
-| sky-blend | (a 30 mm rectangle) a blend from blue at the bottom to white at the top (#532, #807) | at least two gradient fills, a white colour, over 300 stitches |
+| sky-blend | (a 30 mm rectangle) a blend from blue at the bottom to white at the top (#532, #807) | at least two gradient fills of different colours on one shared section (one group, one outline), a white colour, over 300 stitches |
 | gradation-shape | (a 30 mm rectangle) a gradation dense in the middle, open at both sides (#807) | a gradation of shape `centre` |
 | angle-lines | (an L-shaped fill) rows that turn round its corner (#534) | two or more stitch angle lines, over 300 stitches |
+| towel-badge | (a 50 mm disc with SPA on it) for a terry towel: a knockdown under it, a basting box, each part starting nearest (#666) | a knockdown sewn first that covers the badge and stays in the hoop, a basting box in the hoop, `autoStart` nearest, `design.check` without errors |
+| no-cutter | (three separate circles) stop before each jump to snip by hand (#666) | Stop at Jumps on, at least two stops, `design.check` without errors |
+| stop-after | (three circles) stop after the second, to lay appliqué fabric (#666) | a stop after the second circle only, `design.check` without errors |
 
 - Each task starts from a fresh headless editor: an engine `Session` behind
   `openstitch-mcp --assistant`, with `ui.render` and `ui.scratchWrite` answered by the bench.

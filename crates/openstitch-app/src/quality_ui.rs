@@ -56,7 +56,8 @@ pub fn open(app: &mut EditorApp, tab: Tab) {
 }
 
 /// What the status bar's indicator and the window show, for `ui.state` (#599): whether the
-/// design is ready to sew, its error and warning counts and first reason, which tab is open
+/// design is ready to sew, its error, warning and note counts (#1034: notes, such as more
+/// colours than needles, are not problems) and first reason, which tab is open
 /// (`closed` when none) and the Review Sewing Order step the window is on.
 pub fn state_json(app: &EditorApp) -> Value {
     let c = &app.quality.check;
@@ -69,6 +70,7 @@ pub fn state_json(app: &EditorApp) -> Value {
         "ready": errors + warnings == 0,
         "errors": errors,
         "warnings": warnings,
+        "notes": c["notes"].as_u64().unwrap_or(0),
         "summary": c["summary"],
         "window": if app.quality.open { app.quality.tab.key() } else { "closed" },
         "reviewSteps": if route { json!(steps(app).len()) } else { Value::Null },
@@ -760,6 +762,27 @@ mod tests {
         assert!(!findings(&app).iter().any(|f| f["rule"] == "satinTooWide"));
         app.undo();
         assert_eq!(app.session.design(), &before);
+    }
+
+    /// #1034: `ui.state`'s `check` counts notes beside errors and warnings; a note (more thread
+    /// colours than the profile's needles) leaves the design ready to sew.
+    #[test]
+    fn the_check_state_counts_notes() {
+        let shapes = [("Red", 10), ("Blue", 40), ("Black", 70)]
+            .map(|(c, x)| json!({"x": x, "y": 10, "width": 20, "height": 20, "fill": c}));
+        let mut app = app_with(&shapes);
+        assert_eq!(state_json(&app)["notes"], json!(0), "no needle count, no note");
+        app.session
+            .execute(
+                "machine.setProfile",
+                Some(&json!({"brand": "Brother", "needles": 2})),
+            )
+            .expect("profile");
+        update(&mut app);
+        let s = state_json(&app);
+        assert_eq!(s["notes"], json!(1), "{s}");
+        assert_eq!((s["errors"].clone(), s["warnings"].clone()), (json!(0), json!(0)), "{s}");
+        assert_eq!(s["ready"], json!(true), "{s}");
     }
 
     #[test]
