@@ -1332,7 +1332,18 @@ fn notch_columns(
                 })
                 .min_by(f64::total_cmp);
             let Some(t) = across else { continue };
-            let tip = end + dir * (t + overlap + half);
+            // Across the cut by the overlap and half its width; never past the outline (W's
+            // middle peak and feet sewed out of the letter), and on to it where it lies within
+            // another half width (the bottom of M's V, left bare between the two diagonals'
+            // join ends) (#526).
+            let mut run = t + overlap + half;
+            if let Some(room) = ray(end, dir, edges).map(|r| r - END_INSET) {
+                run = if room <= run + half { room } else { run };
+            }
+            if run <= 0.0 {
+                continue;
+            }
+            let tip = end + dir * run;
             if last {
                 s.points.push(tip);
                 s.widths.push(w);
