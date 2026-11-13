@@ -8,6 +8,10 @@
 - **Stacked needle drops:** too many penetrations in one small spot can break a needle.
   Reported per 0.5 mm cell, over the whole design and within one colour block.
 - **Stitching in place:** runs of stitches shorter than 0.3 mm that do not travel.
+- **Short stitches (warning only):** more than 160 stitches in 1,000 shorter than 0.3 mm fray
+  and break the thread (zero-length stitches in place left out). The limit sits just above the
+  highest rate in all 482 PE-DESIGN reference files, 154.8 (its own satin lettering, whose short
+  stitches are at the column turns; #866).
 - **Long stitches (warning only):** stitches longer than 12 mm snag and loop on the machine.
   PE-DESIGN sends them too (its 30 mm satin reference keeps every crossing whole), so they are
   reported but do not fail the file; split them with the satin's Split Stitch (`splitLength`).
@@ -43,14 +47,19 @@ from pathlib import Path
 
 # Limits. A Brother needle can take repeated penetrations, but dozens in one 0.5 mm spot within a
 # colour (dense satin turns, stacked tie-ins, layered fills) cut thread and break needles.
-CELL_MM = 0.5
-MAX_PER_CELL = 20          # needle drops in one 0.5 mm cell (PE-DESIGN's own files reach 19)
+# The limits Check Design shares come from one table (#866), which the engine reads too.
+SHARED = json.loads((Path(__file__).resolve().parent.parent / "crates" / "openstitch-engine"
+                     / "check_limits.json").read_text(encoding="utf-8"))
+CELL_MM = SHARED["stackCellMm"]
+MAX_PER_CELL = SHARED["maxDropsPerCell"]   # needle drops in one 0.5 mm cell (PE-DESIGN's own files reach 19)
 MAX_PER_CELL_COLOUR = 20   # ... within one colour block
-TINY_MM = 0.3
-MAX_TINY_RUN = 6           # consecutive stitches shorter than 0.3 mm (tie-ins use 3 to 4)
+TINY_MM = SHARED["inPlaceMm"]
+MAX_TINY_RUN = SHARED["maxInPlaceRun"]     # consecutive stitches shorter than 0.3 mm (tie-ins use 3 to 4)
+SHORT_MM = SHARED["shortStitchMm"]
+MAX_SHORT_PER_1000 = SHARED["maxShortPer1000"]  # PE-DESIGN's references reach 154.8 (#866)
 FIELD_SLACK_MM = 0.0       # sewing field must not be exceeded at all
-DENS_CELL_MM = 2.0
-MAX_DENSITY = 80.0         # PE-DESIGN's wide satin references reach 75
+DENS_CELL_MM = SHARED["denseCellMm"]
+MAX_DENSITY = SHARED["maxThreadPerMm2"]    # PE-DESIGN's wide satin references reach 75
 LONG_MM = 12.0             # a stitch longer than this is a warning (#460)
 # Limits from PE-DESIGN's own files (the 453 PES files in compat/reference, measured 2026-11-06):
 MAX_TRIMS_PER_1000 = 55.0  # they reach 52.5 (a spiral ring with holes, 64 trims in 1,219 stitches)
@@ -319,6 +328,19 @@ def check(path, hoop):
             if d > LONG_MM:
                 longs.append(d)
         prev = s
+    moves = short = 0
+    prev = None
+    for s in st:
+        if s[2] == "stitch" and prev is not None and prev[2] == "stitch":
+            d = math.hypot(s[0] - prev[0], s[1] - prev[1])
+            moves += 1
+            if 1e-6 < d < SHORT_MM - 1e-6:
+                short += 1
+        prev = s
+    short_rate = 1000.0 * short / max(moves, 1)
+    if short_rate > MAX_SHORT_PER_1000:
+        warnings.append(f"SHORT STITCHES: {short_rate:.1f} in 1,000 shorter than {SHORT_MM:g} mm "
+                        f"({short} in all; over {MAX_SHORT_PER_1000:g})")
     if longs:
         warnings.append(f"LONG STITCHES: {len(longs)} stitches longer than {LONG_MM:.0f} mm "
                         f"(longest {max(longs):.1f} mm); set a split length on wide satin")
@@ -343,7 +365,7 @@ def check(path, hoop):
     return {
         "size": (w, h), "header": (hw, hh), "stitches": len(drops), "colours": ncol,
         "max_cell": n, "max_cell_colour": pn, "tiny_run": best, "density": density,
-        "trims_per_1000": per_1000, "hairline": hairline,
+        "trims_per_1000": per_1000, "hairline": hairline, "short_per_1000": short_rate,
         "problems": problems, "warnings": warnings,
     }
 

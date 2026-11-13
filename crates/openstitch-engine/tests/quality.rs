@@ -416,6 +416,12 @@ fn kit_designs_pass() {
         );
         let c = run(&mut s, "design.check", json!({}));
         assert_eq!(c["errors"], json!(0), "{rel}: {c}");
+        // The section rules (#866) are warnings; listed for the PR.
+        for f in c["findings"].as_array().expect("findings") {
+            if matches!(f["rule"].as_str(), Some("untied" | "tinySection")) {
+                eprintln!("{rel}: {} {}", f["rule"], f["message"]);
+            }
+        }
         let r = run(&mut s, "design.route", json!({}));
         assert_eq!(r["totals"]["warnings"], json!(0), "{rel}: {r}");
     }
@@ -557,4 +563,282 @@ fn cheap_rules_are_fast_on_a_large_design() {
         "the cheap rules took {took:?}; compiling the design took {traced:?}"
     );
     assert!(found.is_empty(), "{found:?}");
+}
+
+/// A stitch file of sections `runs` (0.1 mm) with a trim between each two, imported as one
+/// stitch object.
+fn sections(s: &mut Session, dir: &Path, name: &str, runs: &[Vec<(f64, f64)>]) {
+    let mut st = Vec::new();
+    for (k, run) in runs.iter().enumerate() {
+        if k > 0 {
+            st.push(Stitch::new(run[0].0, run[0].1, Command::Trim));
+            st.push(Stitch::new(run[0].0, run[0].1, Command::Jump));
+        }
+        st.extend(run.iter().map(|&(x, y)| Stitch::new(x, y, Command::Stitch)));
+    }
+    import(s, dir, name, st);
+}
+
+/// `n` stitches of 2 mm along y = `y` from x = `x`, with PE-DESIGN's 0.3 mm tie-in and lock
+/// when `tied`.
+fn row(x: f64, y: f64, n: usize, tied: bool) -> Vec<(f64, f64)> {
+    let mut r: Vec<(f64, f64)> = (0..n).map(|k| (x + 20.0 * k as f64, y)).collect();
+    if tied {
+        let (a, b) = (r[0], r[r.len() - 1]);
+        r.splice(1..1, [(a.0 + 3.0, y), a]);
+        r.extend([(b.0 - 3.0, y), b]);
+    }
+    r
+}
+
+fn found<'a>(c: &'a Value, rule: &str) -> Option<&'a Value> {
+    c["findings"]
+        .as_array()
+        .expect("findings")
+        .iter()
+        .find(|f| f["rule"] == rule)
+}
+
+/// #866: a thread end without a tie is `untied` (a warning whose fix ties the objects with
+/// `object.setFinish tie always`, one undo step); PE-DESIGN's tie, and a stitch in place at
+/// the end point, count as ties.
+#[test]
+fn untied_thread_ends_are_found_and_the_fix_ties_them() {
+    // A default rectangle: PE-DESIGN's tie-in and lock at both ends.
+    let mut s = Session::new(std::env::temp_dir());
+    let id = tatami(&mut s, 10.0);
+    let c = run(&mut s, "design.check", json!({}));
+    assert!(found(&c, "untied").is_none(), "{c}");
+    // Ties off: both ends of its one section are untied.
+    run(
+        &mut s,
+        "object.setFinish",
+        json!({"ids": [id], "tie": "off"}),
+    );
+    let c = run(&mut s, "design.check", json!({"rules": ["untied"]}));
+    let f = found(&c, "untied").unwrap_or_else(|| panic!("{c}"));
+    assert_eq!(
+        (f["severity"].as_str(), f["value"].as_f64()),
+        (Some("warning"), Some(2.0)),
+        "{f}"
+    );
+    assert_eq!(f["ids"], json!([id]));
+    assert_eq!(f["fix"]["command"], json!("object.setFinish"), "{f}");
+    // The fix, as the editor runs it: one undo step that clears the finding.
+    let fix = f["fix"].clone();
+    run(
+        &mut s,
+        fix["command"].as_str().expect("command"),
+        fix["params"].clone(),
+    );
+    let c = run(&mut s, "design.check", json!({"rules": ["untied"]}));
+    assert!(found(&c, "untied").is_none(), "{c}");
+    run(&mut s, "history.undo", json!({}));
+    let c = run(&mut s, "design.check", json!({"rules": ["untied"]}));
+    assert!(
+        found(&c, "untied").is_some(),
+        "the undo brings the untied ends back: {c}"
+    );
+
+    // Stitch files: tied sections pass; in a file with one tied and one untied section, only
+    // the untied section's two ends are found.
+    let dir = TempDir::new("check-untied");
+    let mut s = Session::new(&dir);
+    sections(
+        &mut s,
+        &dir,
+        "tied.pes",
+        &[row(0.0, 0.0, 10, true), row(0.0, 100.0, 10, true)],
+    );
+    let c = run(&mut s, "design.check", json!({"rules": ["untied"]}));
+    assert!(found(&c, "untied").is_none(), "{c}");
+    let mut s = Session::new(&dir);
+    sections(
+        &mut s,
+        &dir,
+        "half.pes",
+        &[row(0.0, 0.0, 10, true), row(0.0, 100.0, 10, false)],
+    );
+    let c = run(&mut s, "design.check", json!({"rules": ["untied"]}));
+    let f = found(&c, "untied").unwrap_or_else(|| panic!("{c}"));
+    assert_eq!(f["value"], json!(2.0), "{f}");
+}
+
+/// #866 with #1013: PE-DESIGN's stitch in place at a one-step tie-in on a Hoop Size page is
+/// intended, so `inPlace`, `stacked`, `shortStitch` and `untied` must not report it. A stitch
+/// file cannot carry it (the importer drops zero-length stitches, as PE-DESIGN does), so this
+/// runs on the compiled design once #1013 lands.
+#[test]
+#[ignore = "after #1013 merges: a design on a Hoop Size page whose tie-in stitches in place"]
+fn a_stitch_in_place_tie_in_is_not_reported() {
+    let mut s = Session::new(std::env::temp_dir());
+    run(&mut s, "machine.set", json!({"hoop": "100x100"}));
+    tatami(&mut s, 10.0);
+    let c = run(
+        &mut s,
+        "design.check",
+        json!({"rules": ["inPlace", "stacked", "shortStitch", "untied"]}),
+    );
+    assert_eq!(c["findings"], json!([]), "{c}");
+}
+
+/// #866: fewer than 3 needle drops between two thread cuts is `tinySection`; 3 is not.
+#[test]
+fn sections_of_fewer_than_three_stitches_are_found() {
+    let dir = TempDir::new("check-tiny-section");
+    let mut s = Session::new(&dir);
+    sections(
+        &mut s,
+        &dir,
+        "tiny.pes",
+        &[
+            row(0.0, 0.0, 10, true),
+            row(0.0, 100.0, 2, false),
+            row(0.0, 200.0, 10, true),
+        ],
+    );
+    let c = run(&mut s, "design.check", json!({"rules": ["tinySection"]}));
+    let f = found(&c, "tinySection").unwrap_or_else(|| panic!("{c}"));
+    assert_eq!(
+        (f["value"].as_f64(), f["limit"].as_f64()),
+        (Some(1.0), Some(3.0)),
+        "{f}"
+    );
+    assert_eq!(f["severity"], json!("warning"));
+    let mut s = Session::new(&dir);
+    sections(
+        &mut s,
+        &dir,
+        "three.pes",
+        &[
+            row(0.0, 0.0, 10, true),
+            row(0.0, 100.0, 3, false),
+            row(0.0, 200.0, 10, true),
+        ],
+    );
+    let c = run(&mut s, "design.check", json!({"rules": ["tinySection"]}));
+    assert!(
+        found(&c, "tinySection").is_none(),
+        "three stitches hold: {c}"
+    );
+}
+
+/// #866: more than 160 stitches in 1,000 shorter than 0.3 mm is `shortStitch` (a warning
+/// naming the object); 152 in 1,000 is not. The limit is the shared table's, as sew_check reads.
+#[test]
+fn short_stitches_over_the_shared_limit_are_found() {
+    let lim = &*openstitch_engine::quality::LIMITS;
+    assert_eq!((lim.short_stitch_mm, lim.max_short_per_1000), (0.3, 160.0));
+    // 101 needle points (the importer reads the first as the jump to the start, so 99 stitch
+    // moves): `short` of them 0.2 mm, the rest 2 mm, never two short ones in a row (so no
+    // stitching in place).
+    let row = |short: usize| -> Vec<(f64, f64)> {
+        let mut x = 0.0;
+        let mut r = vec![(x, 0.0)];
+        for k in 0..100 {
+            x += if k % 6 == 3 && k / 6 < short {
+                2.0
+            } else {
+                20.0
+            };
+            r.push((x, 0.0));
+        }
+        r
+    };
+    let dir = TempDir::new("check-short");
+    let mut s = Session::new(&dir);
+    sections(&mut s, &dir, "under.pes", &[row(15)]);
+    let c = run(&mut s, "design.check", json!({"rules": ["shortStitch"]}));
+    assert!(
+        found(&c, "shortStitch").is_none(),
+        "15 in 99 (151.5 in 1,000) is under the limit: {c}"
+    );
+    let mut s = Session::new(&dir);
+    sections(&mut s, &dir, "over.pes", &[row(17)]);
+    let c = run(&mut s, "design.check", json!({"rules": ["shortStitch"]}));
+    let f = found(&c, "shortStitch").unwrap_or_else(|| panic!("{c}"));
+    assert_eq!(
+        (f["value"].as_f64(), f["limit"].as_f64()),
+        // 17 in 99: 171.72 in 1,000.
+        (Some(171.72), Some(160.0)),
+        "{f}"
+    );
+    assert_eq!(
+        (f["severity"].as_str(), f["ids"].clone()),
+        (Some("warning"), json!([1]))
+    );
+}
+
+/// #866: `machine.setProfile {needles}` (1–15, whole) and the `moreColoursThanNeedles` note,
+/// which appears only with a needle count and counts as neither error nor warning.
+#[test]
+fn more_colours_than_needles_is_a_note_with_a_needle_count() {
+    let mut s = Session::new(std::env::temp_dir());
+    for (x, colour) in [(10, "Red"), (40, "Blue"), (70, "Black")] {
+        run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": x, "y": 10, "width": 20, "height": 20, "fill": colour}),
+        );
+    }
+    let rule = json!({"rules": ["moreColoursThanNeedles"]});
+    assert!(
+        found(
+            &run(&mut s, "design.check", rule.clone()),
+            "moreColoursThanNeedles"
+        )
+        .is_none()
+    );
+    let p = run(
+        &mut s,
+        "machine.setProfile",
+        json!({"brand": "Brother", "needles": 2}),
+    );
+    assert_eq!(p["profile"]["needles"], json!(2), "{p}");
+    assert_eq!(
+        run(&mut s, "machine.profile", json!({}))["profile"]["needles"],
+        json!(2)
+    );
+    let c = run(&mut s, "design.check", json!({}));
+    let f = found(&c, "moreColoursThanNeedles").unwrap_or_else(|| panic!("{c}"));
+    assert_eq!(
+        (
+            f["severity"].as_str(),
+            f["value"].as_f64(),
+            f["limit"].as_f64()
+        ),
+        (Some("info"), Some(3.0), Some(2.0)),
+        "{f}"
+    );
+    assert_eq!(c["notes"], json!(1), "{c}");
+    assert_eq!(c["ready"], json!(true), "a note does not stop the export");
+    run(
+        &mut s,
+        "machine.setProfile",
+        json!({"brand": "Brother", "needles": 3}),
+    );
+    assert!(
+        found(
+            &run(&mut s, "design.check", rule.clone()),
+            "moreColoursThanNeedles"
+        )
+        .is_none()
+    );
+    // A single-needle profile (no count) never notes it.
+    run(&mut s, "machine.setProfile", json!({"brand": "Brother"}));
+    assert_eq!(
+        run(&mut s, "machine.profile", json!({}))["profile"]["needles"],
+        json!(null)
+    );
+    assert!(found(&run(&mut s, "design.check", rule), "moreColoursThanNeedles").is_none());
+    for bad in [json!(0), json!(16), json!(2.5)] {
+        assert!(
+            s.execute(
+                "machine.setProfile",
+                Some(&json!({"brand": "Brother", "needles": bad}))
+            )
+            .is_err(),
+            "needles {bad}"
+        );
+    }
 }

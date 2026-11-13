@@ -110,6 +110,9 @@ Every editor action is an engine command. `stitchtool` runs JSON command scripts
 `openstitch-mcp` is an MCP server for MCP clients, and `openstitch --listen` lets scripts act
 on the running editor (127.0.0.1 only, with a per-launch token).
 
+`stitches.import` centres the file's stitches on the Design Page, as PE-DESIGN does;
+`keepPosition: true` keeps the file's own coordinates (for measuring a file against another).
+
 For a user at a terminal, `stitchtool` also has one-line commands built on the same engine
 commands: `convert in.dst out.pes` (`stitches.import` + `design.export`; a folder with
 `--format pes` is `library.convert`), `info x.pes` (`design.info`), `optimize in out

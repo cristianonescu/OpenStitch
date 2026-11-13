@@ -763,6 +763,12 @@ pub const SETTINGS: &[Setting] = &[
         "Sewing Attributes: search properties",
         "string",
     ),
+    // The Sewing Order pane's Find box (#745, #1031): it narrows the list, never the design.
+    s(
+        "orderFilter",
+        "Sewing Order: find objects (\"\" shows them all)",
+        "string",
+    ),
 ];
 
 pub fn setting(name: &str) -> Option<&'static Setting> {
