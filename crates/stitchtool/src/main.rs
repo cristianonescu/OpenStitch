@@ -32,8 +32,8 @@ use std::process::ExitCode;
 const MAX_LINE: usize = 1 << 20;
 const USAGE: &str = "usage: stitchtool commands | exec <script.json> | serve [--read-only] [--no-files] | connect [--endpoint FILE] | compat [options] | bench-assistant [options]
        stitchtool convert | info | optimize | digitize | formats | thumbnail ... (stitchtool help)";
-const BENCH_USAGE: &str =
-    "usage: stitchtool bench-assistant [--protocol anthropic|openai] [--base-url URL] [--model M]
+const BENCH_USAGE: &str = "usage: stitchtool bench-assistant --list   (each task's id and prompt)
+       stitchtool bench-assistant [--protocol anthropic|openai] [--base-url URL] [--model M]
        [--key-env VAR] [--effort E] [--timeout S] [--agent ID [--agent-program PATH] [--mcp PATH]]
        [--tasks ID,ID] [--judge MODEL] [--out DIR]
   The key is read from the environment variable VAR (default ANTHROPIC_API_KEY for anthropic,
@@ -177,6 +177,13 @@ fn disc_bmp() -> Vec<u8> {
 
 fn bench_assistant(args: &[&str]) -> ExitCode {
     use openstitch_assistant as ai;
+    // The tasks and what each asks, with no model (#666).
+    if args == ["--list"] {
+        for t in bench::TASKS {
+            println!("{}\t{}", t.id, t.prompt);
+        }
+        return ExitCode::SUCCESS;
+    }
     let mut flags = std::collections::HashMap::new();
     let mut it = args.iter();
     while let Some(f) = it.next() {
