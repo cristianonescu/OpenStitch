@@ -158,6 +158,12 @@ Line references are relative to `crates/`.
   first stitch and back; three steps out and two back after a first stitch over 3 mm) and ends
   with a lock (0.3 mm back along the last stitch and return; two steps after a last stitch over
   4.25 mm), per `satin-lock-column-3p5.pes` and the other satin references.
+  On a Hoop Size page (PE-DESIGN's default for a new design; these 2026-10-27 references
+  are on a 100 × 100 Custom Size page) a one-step tie-in starts with a stitch in place on
+  the move's landing (#1013, since 2026-11-13: 286 of 296 run starts in its Hoop Size
+  files, none of its three-step ones, none of 1,981 on Custom Size pages). OpenStitch
+  follows the design's page mode (`design.new` `pageMode`); the specs measured on a
+  Custom Size page say so.
   A rectangle starts and ends in the middle of its bottom edge: PE runs along that edge to one
   end, sews back to the middle (the last row 0.2 mm short, reached along the far edge), then
   does the same for the other half: 27 stitches, 7 of them short edge stitches at the start

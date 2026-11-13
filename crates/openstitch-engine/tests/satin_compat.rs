@@ -24,7 +24,13 @@ fn needle_points(s: &mut Session, id: u64) -> Vec<(f64, f64)> {
 
 fn session() -> Session {
     let mut s = Session::new(std::env::temp_dir());
-    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    // A Custom Size page, as the satin-zigzag references these columns follow: the tie-in
+    // starts on the landing, with no stitch in place before it (#1013).
+    run(
+        &mut s,
+        "design.new",
+        json!({"width": 100, "height": 100, "pageMode": "custom"}),
+    );
     s
 }
 

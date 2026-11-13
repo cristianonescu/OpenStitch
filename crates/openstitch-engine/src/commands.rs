@@ -465,10 +465,20 @@ fn design_commands() -> Vec<CommandSpec> {
                 opt("name", "string", "Design name"),
                 opt("width", "mm", "Design Page width (default 100)"),
                 opt("height", "mm", "Design Page height (default 100)"),
+                opt(
+                    "pageMode",
+                    "hoop|custom",
+                    "PE-DESIGN's Design Page kind: hoop (Hoop Size, its default for a new design; a 100 x 100 page or a known hoop) or custom (Custom Size). PE-DESIGN starts each run's one-step tie-in on a stitch in place on a Hoop Size page only",
+                ),
             ],
             |s, p| {
                 let w = p.opt("width", 100.0, 10.0, 2000.0)?;
                 let h = p.opt("height", 100.0, 10.0, 2000.0)?;
+                let custom_page = match p.string("pageMode", Some("hoop"))?.as_str() {
+                    "hoop" => false,
+                    "custom" => true,
+                    _ => return Err(p.invalid("pageMode", "must be hoop or custom")),
+                };
                 s.design = Design::new(
                     p.string("name", Some("Untitled"))?,
                     DesignPage {
@@ -476,6 +486,7 @@ fn design_commands() -> Vec<CommandSpec> {
                         height: h * MM,
                     },
                 );
+                s.design.machine.custom_page = custom_page;
                 // Without a size, the user's machine's hoop (#508 part 3).
                 if !p.has("width")
                     && !p.has("height")
@@ -571,7 +582,7 @@ fn design_commands() -> Vec<CommandSpec> {
         ),
         spec(
             "design.info",
-            "Design summary, stitch statistics, thread length and sewing-time estimates, sewing area",
+            "Design summary, stitch statistics, thread length and sewing-time estimates, sewing area, and pageMode: hoop (PE-DESIGN's Hoop Size page: a 100 x 100 page or a known hoop, where each run's one-step tie-in starts on a stitch in place) or custom (Custom Size)",
             Effect::Read,
             vec![],
             |s, _| {
@@ -582,6 +593,7 @@ fn design_commands() -> Vec<CommandSpec> {
                     "optimizeOrder": s.design.optimize_order.id(),
                     "pageWidthMM": s.design.page.width / MM,
                     "pageHeightMM": s.design.page.height / MM,
+                    "pageMode": if s.design.hoop_size_page() { "hoop" } else { "custom" },
                     "objects": s.design.objects.len(),
                     "stitchStats": stats(&pattern),
                     "estimates": crate::machine::estimates(&s.design, &pattern),
@@ -3547,7 +3559,7 @@ fn codec_commands() -> Vec<CommandSpec> {
                 opt(
                     "keepSource",
                     "bool",
-                    "Keep the file with the design (File ▸ Open): exporting the design unchanged to the same format writes the file back byte for byte, with what OpenStitch does not read (default false)",
+                    "Keep the file with the design (File ▸ Open): exporting the design unchanged to the same format writes the file back byte for byte, with what OpenStitch does not read (default false). A PE-DESIGN 11 file also sets the design's page mode from its header (Hoop Size or Custom Size page, design.info pageMode)",
                 ),
                 opt(
                     "keepPosition",
@@ -3589,6 +3601,14 @@ fn codec_commands() -> Vec<CommandSpec> {
                     s.design.properties = found.clone();
                 }
                 if p.bool("keepSource", Some(false))? {
+                    // PE-DESIGN 11's page mode (#1013): a Custom Size page keeps its runs'
+                    // tie-ins without the stitch in place a Hoop Size page starts them with.
+                    if let Ok(section) = openstitch_formats::pes::read_objects(&data)
+                        && section.version == "0110"
+                        && section.page_mm.is_some()
+                    {
+                        s.design.machine.custom_page = !section.hoop_page;
+                    }
                     let format = path
                         .extension()
                         .map(|e| e.to_string_lossy().to_ascii_lowercase())
@@ -3603,7 +3623,17 @@ fn codec_commands() -> Vec<CommandSpec> {
                     source.fingerprint = openstitch_design::source::fingerprint(&s.design);
                     s.design.source = Some(source);
                 }
-                Ok(json!({ "id": id, "properties": found, "propertiesAdopted": adopt }))
+                let page_mode = if s.design.hoop_size_page() {
+                    "hoop"
+                } else {
+                    "custom"
+                };
+                Ok(json!({
+                    "id": id,
+                    "properties": found,
+                    "propertiesAdopted": adopt,
+                    "pageMode": page_mode,
+                }))
             },
         ),
         spec(

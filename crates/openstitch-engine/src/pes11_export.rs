@@ -40,10 +40,12 @@ pub fn objects(design: &Design) -> Result<Objects, String> {
     let page = (mm(design.page.width).max(1), mm(design.page.height).max(1));
     // A 100 x 100 mm page is written as PE-DESIGN's own default, a Hoop Size page; other sizes
     // as a Custom Size page, which PE-DESIGN shows with a Hoop Settings tab and sections.
-    let hoop = hoop_page(design, page);
+    // A Custom Size page asked for in Design Settings keeps no hoop page (#1013).
+    let hoop = hoop_page(design, page).filter(|_| !design.machine.custom_page);
     let mut out = Objects {
         page_mm: Some(page),
-        hoop_page: hoop.is_some() || page == (100, 100),
+        // Known hoop or 100 x 100 page; the compiler starts its tie-ins by the same rule (#1013).
+        hoop_page: design.hoop_size_page(),
         hoop,
         custom: Some(custom_page(design)),
         ..Objects::default()

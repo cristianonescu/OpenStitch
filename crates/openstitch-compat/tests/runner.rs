@@ -62,7 +62,9 @@ fn satin(id: &str) -> Value {
         "covers": {"audit": [1], "featureMatrix": [{"area": "Region sew types", "feature": "Satin"}]},
         "evidence": [{"kind": "audit", "note": "item 1"}],
         "script": [
-            {"command": "design.new", "params": {"width": 100, "height": 100}},
+            // A Custom Size page, as satin-zigzag-column's reference: no stitch in place before
+            // the tie-in (#1013), so `exclude` drops the tie-in's two points.
+            {"command": "design.new", "params": {"width": 100, "height": 100, "pageMode": "custom"}},
             {"command": "shape.rectangle", "params": {"x": 10, "y": 10, "width": 5, "height": 2}},
             {"command": "object.setRegion", "params": {"id": 1, "type": "satin", "angle": 90, "density": 3, "underlay": false}},
             // No start point, so the column sews end to end (the shape tool's default start
