@@ -58,8 +58,10 @@ jobs:
           sparse-checkout: docs/releases
       - uses: actions/download-artifact@v4
         with:
-          # Only the packages; the test job's compat-report is not a download for users.
-          pattern: openstitch-*
+          # Only this version's packages (`openstitch-<tag>-<system>`). The test job's
+          # compat-report, and the web job's openstitch-web and openstitch-web-screenshots
+          # (a folder, which broke `sha256sum -- *` at alpha.13), are not downloads for users.
+          pattern: openstitch-${{ github.ref_name }}-*
           path: assets
           merge-multiple: true
       - name: Create draft release
