@@ -496,8 +496,8 @@ fn applique_stages_sew_in_order_with_stops_between() {
             assert!((p.distance(v2(50.0, 50.0)) - r).abs() < 0.05, "{r}: {p:?}");
         }
     }
-    // Cover zigzag reaches 1.5 mm to each side (the shared block); tack-down 1 mm (the design
-    // without its cover).
+    // Cover zigzag reaches 1.5 mm to each side (the shared block); the tack-down, a V at
+    // PE-DESIGN's defaults since #982, 2 mm to one side (the design without its cover).
     let blocks = needle_blocks(&pattern);
     let mut no_cover = d.clone();
     no_cover.objects.pop();
@@ -507,7 +507,7 @@ fn applique_stages_sew_in_order_with_stops_between() {
             .map(|p| (p.distance(v2(50.0, 50.0)) - r).abs())
             .fold(0.0, f64::max)
     };
-    // The shared block's outermost stitches are the tack-down's (11 mm + 1 mm); the cover alone
+    // The shared block's outermost stitches are the tack-down's line (11 mm); the cover alone
     // reaches 1.5 mm about 10 mm.
     let mut cover_only = d.clone();
     cover_only
@@ -520,7 +520,7 @@ fn applique_stages_sew_in_order_with_stops_between() {
         reach(&cover_blocks[0], 10.0)
     );
     assert!(
-        (reach(&tack_blocks[2], 11.0) - 1.0).abs() < 0.1,
+        (reach(&tack_blocks[2], 11.0) - 2.0).abs() < 0.1,
         "{}",
         reach(&tack_blocks[2], 11.0)
     );
@@ -591,6 +591,69 @@ fn applique_cover_has_no_under_sewing_unless_turned_on() {
         on >= off + 40,
         "under sewing runs 1 mm from the outline: {off} -> {on}"
     );
+}
+
+#[test]
+fn applique_tack_down_is_pe_designs_v_every_5_mm_scaled_to_the_cover() {
+    // #982: PE-DESIGN 11.50's Applique Wizard tacks the material down with a V stitch every
+    // 5.0 mm whose stroke is 0.65 times the cover width (a01-rect-applique: 2.0 at a 3 mm cover,
+    // 98 stitches; a04-applique-cover-4mm: 2.6 at 4 mm, 108), on the 20 mm square of
+    // compat/specs/pes/pes-0110-applique.json with the wizard's defaults. OpenStitch's was a
+    // zigzag, and a V asked for came every 3.0 mm (151 stitches).
+    for (cover, stroke, pe_stitches) in [(3.0, 2.0, 98_usize), (4.0, 2.6, 108)] {
+        let mut s = Session::new(temp_dir());
+        run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+        run(
+            &mut s,
+            "shape.rectangle",
+            json!({"x": 10, "y": 10, "width": 20, "height": 20, "fill": 1}),
+        );
+        run(
+            &mut s,
+            "wizard.applique",
+            json!({"ids": [1], "cover": "zigzag", "coverWidth": cover, "coverDensity": 4.5,
+                   "output": "add", "distance": 3}),
+        );
+        let d = s.design().clone();
+        let tack = d
+            .objects
+            .iter()
+            .find(|o| o.name.as_deref() == Some("Appliqué tack-down"))
+            .expect("tack-down");
+        let line = tack.line.as_ref().expect("line");
+        assert_eq!(line.kind, openstitch_design::LineType::VStitch, "{cover}");
+        assert!(
+            (line.width - stroke).abs() < 1e-9,
+            "{cover}: {}",
+            line.width
+        );
+        assert_eq!(line.spacing, Some(5.0), "{cover}");
+        // Its stitches alone: PE-DESIGN's count within 5.
+        let mut alone = d.clone();
+        alone
+            .objects
+            .retain(|o| o.name.as_deref() == Some("Appliqué tack-down"));
+        let n = compile(&alone).count(Command::Stitch);
+        assert!(
+            n.abs_diff(pe_stitches) <= 5,
+            "{cover} mm cover: {n} tack-down stitches, PE-DESIGN {pe_stitches}"
+        );
+    }
+    // A width or interval given still wins.
+    let mut s = circle_session();
+    run(
+        &mut s,
+        "wizard.applique",
+        json!({"ids": [1], "tackDownWidth": 1.5, "tackDownInterval": 3, "coverWidth": 4}),
+    );
+    let line = s
+        .design()
+        .objects
+        .iter()
+        .find(|o| o.name.as_deref() == Some("Appliqué tack-down"))
+        .and_then(|o| o.line.clone())
+        .expect("line");
+    assert_eq!((line.width, line.spacing), (1.5, Some(3.0)));
 }
 
 /// Stitch positions (mm) per colour block.

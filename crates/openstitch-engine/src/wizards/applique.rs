@@ -50,12 +50,12 @@ pub fn commands() -> Vec<CommandSpec> {
             opt(
                 "tackDown",
                 "zigzag|eStitch|vStitch|none",
-                "Tack-down stitch (default zigzag)",
+                "Tack-down stitch (default vStitch, as PE-DESIGN's Applique Wizard)",
             ),
             opt(
                 "tackDownWidth",
                 "mm",
-                "Tack-down zigzag width / E-V stroke 0.5-10 (default 2)",
+                "Tack-down E-V stroke / zigzag width 0.5-10 (default: 0.65 x coverWidth for E and V, 2.0 at a 3 mm cover; 2 for zigzag)",
             ),
             opt(
                 "tackDownDensity",
@@ -65,7 +65,7 @@ pub fn commands() -> Vec<CommandSpec> {
             opt(
                 "tackDownInterval",
                 "mm",
-                "Tack-down E/V interval 0.5-10 (default 3)",
+                "Tack-down E/V interval 0.5-10 (default 5, as PE-DESIGN)",
             ),
             opt(
                 "cover",
@@ -297,8 +297,12 @@ fn thinned(c: Contour) -> Contour {
     out
 }
 
+/// The tack-down, at PE-DESIGN 11.50's Applique Wizard defaults (#982): a V stitch every
+/// 5.0 mm, its stroke 0.65 times the cover width, rounded to 0.1 mm (a01-rect-applique: 2.0 at
+/// a 3 mm cover; a04-applique-cover-4mm: 2.6 at 4 mm; two cover widths, so the factor rests on
+/// those two points).
 fn tack_down(p: &Params) -> Result<Option<LineSewing>, CommandError> {
-    let kind = match p.string("tackDown", Some("zigzag"))?.as_str() {
+    let kind = match p.string("tackDown", Some("vStitch"))?.as_str() {
         "zigzag" => LineType::Zigzag,
         "eStitch" => LineType::EStitch,
         "vStitch" => LineType::VStitch,
@@ -308,11 +312,20 @@ fn tack_down(p: &Params) -> Result<Option<LineSewing>, CommandError> {
         }
     };
     let mut l = LineSewing::new(kind, applique_colour(64, APPLIQUE));
-    l.width = p.opt("tackDownWidth", 2.0, 0.5, 10.0)?;
+    let stroke = if kind == LineType::Zigzag {
+        2.0
+    } else {
+        let cover = p.opt("coverWidth", 3.0, 0.5, 10.0)?;
+        ((TACK_DOWN_STROKE * cover * 10.0).round() / 10.0).clamp(0.5, 10.0)
+    };
+    l.width = p.opt("tackDownWidth", stroke, 0.5, 10.0)?;
     l.density = p.opt("tackDownDensity", 1.0, 0.2, 5.0)?;
-    l.spacing = Some(p.opt("tackDownInterval", 3.0, 0.5, 10.0)?);
+    l.spacing = Some(p.opt("tackDownInterval", 5.0, 0.5, 10.0)?);
     Ok(Some(l))
 }
+
+/// The tack-down's E or V stroke per mm of cover width ([`tack_down`]).
+const TACK_DOWN_STROKE: f64 = 0.65;
 
 fn cover(p: &Params, color: Thread) -> Result<LineSewing, CommandError> {
     let kind = match p.string("cover", Some("zigzag"))?.as_str() {

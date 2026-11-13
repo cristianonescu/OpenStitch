@@ -475,7 +475,7 @@ Every line sew type.
 
 #### Line sew types
 
-[`lines/line-sew-types.pes`](lines/line-sew-types.pes) · 100 × 100 mm hoop · 86 × 87.5 mm · 3,452 stitches · 9 trims · about 4.8 min
+[`lines/line-sew-types.pes`](lines/line-sew-types.pes) · 100 × 100 mm hoop · 86 × 87.5 mm · 3,439 stitches · 9 trims · about 4.8 min
 
 Top to bottom: running, triple, zigzag, motif (wave), stem, candlewick, E stitch, V stitch, chain.
 
@@ -537,7 +537,7 @@ Appliqué, embroidered patch, cutwork and background fill.
 
 #### Appliqué wizard
 
-[`wizards/applique.pes`](wizards/applique.pes) · 100 × 100 mm hoop · 54 × 53.8 mm · 1,557 stitches · 4 trims · about 2.2 min
+[`wizards/applique.pes`](wizards/applique.pes) · 100 × 100 mm hoop · 53 × 52.5 mm · 1,268 stitches · 4 trims · about 1.8 min
 
 A heart as appliqué: material line, stop, position line, stop, tack-down, stop, covering zigzag. Lay the fabric at the first stop, trim it at the second.
 

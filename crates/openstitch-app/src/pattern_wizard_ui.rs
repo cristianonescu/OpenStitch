@@ -9,7 +9,8 @@ use crate::art::Art;
 use eframe::egui;
 use openstitch_app::editor::CommandRequest;
 use openstitch_app::editor::pattern_wizards::{
-    BackgroundForm, COVERS, FILL_TYPES, LINE_SEWS, MATERIALS, NET_PATTERNS, PATCH_CUTS, TACK_DOWNS,
+    AppliqueForm, BackgroundForm, COVERS, FILL_TYPES, LINE_SEWS, MATERIALS, NET_PATTERNS, PATCH_CUTS,
+    TACK_DOWNS,
     WizardKind,
 };
 
@@ -249,7 +250,15 @@ fn applique(app: &mut EditorApp, ui: &mut egui::Ui) {
                 ui.end_row();
             }
             _ => {
+                // The stroke follows the cover width until it is set (#982).
+                if f.tack_width_follows_cover {
+                    f.tack_width = AppliqueForm::tack_width_for_cover(f.cover_width);
+                }
+                let before = f.tack_width;
                 mm(ui, "Stroke", &mut f.tack_width, 0.5, 10.0);
+                if f.tack_width != before {
+                    f.tack_width_follows_cover = false;
+                }
                 mm(ui, "Interval", &mut f.tack_interval, 0.5, 10.0);
             }
         }

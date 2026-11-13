@@ -319,6 +319,13 @@ fn object(s: &Shape, table: &[Thread]) -> Result<DesignObject, String> {
             s.zigzag_width
         });
         l.density = f64::from(s.zigzag_density);
+        // An E or V line's spacing (+88, #982): kept unset at PE-DESIGN's default 5.0.
+        if matches!(kind, LineType::EStitch | LineType::VStitch)
+            && s.ev_spacing > 0.0
+            && (s.ev_spacing - 5.0).abs() > 1e-6
+        {
+            l.spacing = Some(f64::from(s.ev_spacing));
+        }
         // Sharp Corners and both buttons' Miter Limits (body +62, +64, +66, #373).
         l.sharp_corners.button = if s.sharp_corners == 1 { 2 } else { 1 };
         l.sharp_corners.miter_limit = s

@@ -531,12 +531,61 @@ fn baseline(run: &mut Run, w: &Walker, a: f64, b: f64, pitch: f64, times: u32) {
     let passes = if times % 2 == 1 { times } else { times + 1 };
     for p in 0..passes {
         if p % 2 == 0 {
-            extend(run, run_between(w, a, b, pitch));
+            extend(run, run_even(w, a, b, pitch));
         } else {
-            extend(run, run_between(w, b, a, pitch));
+            extend(run, run_even(w, b, a, pitch));
         }
     }
 }
+
+/// The running stitch of an E or V line from `a` to `b` along the line: equal stitches of at
+/// most `pitch` along it, a needle point at each sharp corner ([`EV_CORNER`] or more) but not at
+/// the points of a curve. PE-DESIGN 11.50 sews round a rounded corner at the same pitch
+/// (a01-rect-applique's tack-down: 1.6, 1.4, 2.2, 2.3 mm through the corner); a point at every
+/// vertex of a rounded outline sewed short stitches there (#982).
+fn run_even(w: &Walker, a: f64, b: f64, pitch: f64) -> Run {
+    if a > b {
+        let mut r = run_even(w, b, a, pitch);
+        r.reverse();
+        return r;
+    }
+    let slice = w.slice(a, b);
+    if slice.len() < 2 {
+        return slice;
+    }
+    // Arc position of each point of the slice, and the sharp corners among them.
+    let mut at = vec![0.0];
+    for q in slice.windows(2) {
+        at.push(at[at.len() - 1] + q[0].distance(q[1]));
+    }
+    let mut breaks = vec![0];
+    for i in 1..slice.len() - 1 {
+        let (u, v) = (slice[i] - slice[i - 1], slice[i + 1] - slice[i]);
+        if u.length() < 1e-9 || v.length() < 1e-9 {
+            continue;
+        }
+        let turn = (u.x * v.y - u.y * v.x)
+            .datan2(u.x * v.x + u.y * v.y)
+            .abs()
+            .to_degrees();
+        if turn >= EV_CORNER {
+            breaks.push(i);
+        }
+    }
+    breaks.push(slice.len() - 1);
+    let sw = Walker::new(&slice);
+    let mut out = vec![slice[0]];
+    for k in breaks.windows(2) {
+        let (s0, s1) = (at[k[0]], at[k[1]]);
+        let n = crate::generate::parts(s1 - s0, pitch);
+        out.extend((1..=n).map(|j| sw.at(s0 + (s1 - s0) * j as f64 / n as f64)));
+    }
+    out
+}
+
+/// A turn of an E or V line's running stitch this sharp (degrees) keeps a needle point on its
+/// corner ([`run_even`]).
+const EV_CORNER: f64 = 30.0;
 
 /// E stitch (blanket stitch): a baseline with a stroke out to one side every `interval`.
 pub fn e_stitch(path: &[Vec2], e: &StrokeLine) -> Run {
