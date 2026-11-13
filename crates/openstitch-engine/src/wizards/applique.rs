@@ -80,7 +80,7 @@ pub fn commands() -> Vec<CommandSpec> {
             opt(
                 "coverDensity",
                 "lines/mm",
-                "Zigzag density 1-10 (default 5)",
+                "Zigzag density 1-10 (default 5), counted along the cover's outer edge as on any closed zigzag (PE-DESIGN)",
             ),
             opt("coverInterval", "mm", "E/V interval 0.5-10 (default 3)"),
             opt("coverPitch", "mm", "E/V run pitch 1-10 (default 2.5)"),

@@ -3399,6 +3399,26 @@ No travel is sewn outside the letters (`small_lettering_shows_no_travel_outside_
 compat 476/476. Still open on #446: N's corner spike (the diagonal's rungs fan into the corner,
 where PE-DESIGN sews a small corner block), M at 8 mm, A's and V's slanted feet.
 
+### Zigzag on a closed outline spaced by its outer edge, 2026-11-13 (#978)
+
+Measured on every zigzag reference (crossings per mm along the middle third of each side or leg):
+PE-DESIGN spaces a closed outline's zigzag by its outer edge, so along a square's sides the
+crossings are denser by (L + w) / L: 4.61 / 4.72 / 4.86 / 4.99 / 5.01 per mm at 1 / 2 / 3 / 3.9 /
+4 mm on the 40 mm square (4.5 × (40 + w) / 40 predicts 4.61 / 4.73 / 4.84 / 4.94 / 4.95), and the
+appliqué cover's 29.6 mm square at 3 mm 4.97 (4.96 predicted). Open lines are spaced along the
+line: the seven open-line references agree with OpenStitch within 1–3 %. OpenStitch spaced closed
+outlines along the line too (about 4.2 per mm). `lines::closed_zigzag_spacing` now takes the
+outer edge: the outline offset half the width outwards, mitred (each turn θ adds w · tan(θ / 2),
+taken off on a turn the other way; a circle's is L + π w; capped at 2 w for a very sharp point).
+For curves the rule is read as the outer edge of the whole outline; no PE-DESIGN capture has a
+zigzag on a closed curve yet (the stamp captures' circle is converted, its line gone).
+Results, line block stitches PE-DESIGN / OpenStitch: 817 / 817, 838 / 836, 852 / 848, 870 / 864,
+1,035 / 1,028 at 1, 2, 3, 3.9, 4 mm (before: 817 / 801, 838 / 804, …, 1,035 / 964); the appliqué
+cover in `pes-0110-applique` 550 / 556 (was 514). The seven open-line references' exports are
+byte-identical. Specs `line-square-zigzag-1mm`, `-3-9mm`, `-4mm` and `stamp-plain-square-baseline`
+now compare the fill and line blocks with PE-DESIGN's within 2 %. Kit: `wizards/applique` 1,557 →
+1,606 stitches, `wizards/cutwork` 3,446 → 3,536 (one trim fewer), `wizards/patch` 2,862 → 2,903.
+
 ### Zigzag line under sewing from PE-DESIGN's captures, 2026-11-13 (#964)
 
 PE-DESIGN 11.50's 40 mm square (the #471 baseline, Fill and a Zigzag Stitch line at 4.5 line/mm,
