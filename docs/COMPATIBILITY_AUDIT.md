@@ -572,6 +572,13 @@ Line references are relative to `crates/`.
   0.14 mm; Z 246/237, 0.24 mm, 1/0; Z-8 95/99, 0.16 mm. PE-DESIGN sews N, W, K and Z in one run
   without a trim (M with one): its strokes meet at the crotches instead of being cut apart, and
   N's and M's PE → ours distances (the spike at the acute corner) are the largest.
+  Since 2026-11-13 (#940, part): M and N start at the top of the left stem and run down under
+  it before its satin, as PE-DESIGN's do (we started at the foot). M 358 → 366 against 374, M-8
+  148 → 153 against 165, N 283 → 291 against 293, N-8 119 → 124 against 123; the other 19
+  satin captures are unchanged. The M, N and N-8 specs are now held to 3 % and M-8 to 8 %.
+  M-8's remaining gap: PE-DESIGN sews each stem's top as a fan with the diagonal's start (a
+  corner square, stem satin stopping below it), so its diagonals are shorter and its corners
+  denser, and it locks twice on the way down.
 - **Test:**
   - Inputs: `text.add {"text":"AVOW","size":30,"x":50,"y":50}` →
     `object.setRegion {"id":1,"type":"satin"}` → `design.generate`.
