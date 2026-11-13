@@ -101,7 +101,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   `custom` puts it on PE-DESIGN's Custom Size page instead of its default Hoop Size page (a
   100 × 100 page or a known hoop); on a Hoop Size page each run's one-step tie-in starts on a
   stitch in place, as PE-DESIGN sews it (#1013). Leave it at the default unless the user
-  matches a PE-DESIGN file saved on a Custom Size page.
+  matches a PE-DESIGN file saved on a Custom Size page. `design.info` reports it (`pageMode`:
+  hoop or custom); opening a PE-DESIGN 11 file (`stitches.import` with `keepSource`, or
+  `import.pes` into an empty design) takes the file's own page mode.
 - `machine.hoops` lists Brother hoop ids (`100x100`, `130x180`, `160x260`, `200x300`, ...) and
   the current settings. `machine.set` `{hoop: "130x180"}` sizes the Design Page to that hoop;
   `{hoop: "custom", width, height}` sets a custom page; `machine: "single" | "multi"`.
