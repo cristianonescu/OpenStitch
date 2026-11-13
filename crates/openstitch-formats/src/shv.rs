@@ -6,8 +6,10 @@
 //! table's end with exactly as many words as the counts add up to. pyembroidery's reader starts
 //! 2 bytes before the end; a file with one word fewer than the counts (as pyembroidery's layout
 //! implies) is read that way. Records: signed byte `(dx, dy)` with y down; `80 01 dx(i16) dy(i16)`
-//! moves and starts jump mode (later short records are jumps), `80 02` ends jump mode, `80 03`
-//! is skipped. A colour block ends after its word count; there is no explicit colour change.
+//! moves and starts jump mode (later short records are jumps), `80 02` ends jump mode with a
+//! needle point where the move ends (PE-DESIGN writes no record for that stitch; pyembroidery
+//! reads it as a move only, #349), `80 03` is skipped. A colour block ends after its word
+//! count; there is no explicit colour change.
 //!
 //! Follows pyembroidery 1.5.1's `ShvReader` (MIT), the oracle.
 //!
@@ -18,9 +20,10 @@
 //! described anywhere; copied), the needle points' bounds as i16 right, bottom, left, top, the
 //! total word count (u32), then per colour block its word count, its nearest SHV chart entry,
 //! five zero bytes and the block's start point (i16 x, y). A frame move is `80 01 dx dy 80 02`
-//! to the point at its end; a stitch on that point has no record of its own (as PE writes
-//! it); a stitch over 12.7 mm is such a jump for the axes over the limit plus one stitch. The
-//! preview is 4 bits a pixel, column by column (x), each column bottom to top, one pixel a
+//! to the first stitch after it, which has no record of its own: PE-DESIGN goes straight to the
+//! stitch after a jump's landing (`machine/pe-moves.SHV`); `80 03` comes before a move longer
+//! than [`LONG_MOVE`] (38.0 mm) on either axis (#349); a stitch over 12.7 mm is one such move
+//! to its end (pe-long.SHV). The preview is 4 bits a pixel, column by column (x), each column bottom to top, one pixel a
 //! millimetre with a one-pixel margin (`w` = width in whole millimetres + 2): PE's size fields
 //! are matched, its pixels only approximately (PE's own drawing rule is not known). A pixel
 //! holds the block's chart entry modulo 15 (15 for 0), which gives PE's 11 and 3 for its
@@ -38,6 +41,12 @@ pub const HEADER_TEXT: &[u8; 0x56] =
     b"Embroidery disk created using software licensed from Viking Sewing Machines AB, Sweden";
 /// The largest stitch record step (12.7 mm).
 pub const MAX_DELTA: i64 = 127;
+/// A move longer than this on either axis (0.1 mm) has `80 03` before it, as PE-DESIGN 11.50
+/// writes it (#349): none before moves up to 36.7 mm on their longer axis (sample-basic,
+/// machine/pe-c17.SHV, pe-long.SHV, pe-moves.SHV: 14.3–36.7 mm, a 43.4 mm move whose longer
+/// axis is 36.0 mm among them), one before every move from 38.7 mm (pe-moves.SHV, pe-c17.SHV:
+/// 38.7–72.0 mm). PE-DESIGN's own threshold lies between those two; 1.5 in (38.1 mm) fits.
+pub const LONG_MOVE: i64 = 380;
 
 pub fn read(data: &[u8]) -> Result<StitchPattern> {
     let mut reader = ByteReader::new(data);
@@ -100,6 +109,13 @@ pub fn read(data: &[u8]) -> Result<StitchPattern> {
             match b1 {
                 3 => continue,
                 2 => {
+                    // Where a move ends the needle goes down: PE-DESIGN 11.50 writes no record
+                    // for that stitch (its DST of sample-basic has a stitch on every landing;
+                    // pe-moves.SHV moves straight to a block's first needle point, #349).
+                    // pyembroidery reads it as a move only.
+                    if in_jump {
+                        pattern.stitches.push(Stitch::new(x, y, Command::Stitch));
+                    }
                     in_jump = false;
                     continue;
                 }
@@ -229,24 +245,35 @@ pub fn write(input: &StitchPattern) -> Result<Vec<u8>> {
         let block = blocks.last_mut().expect("a block");
         match events[i] {
             Event::Move { x: tx, y: ty, .. } => {
-                // The jump's landing is a needle point: a stitch there has no record of its own.
-                if layout::next_stitch(&events, i) == Some((tx, ty)) {
-                    i += 1;
+                // The move ends on a needle point, the first stitch after it, which has no record
+                // of its own: PE-DESIGN 11.50 goes straight to the stitch after the jump's landing
+                // (machine/pe-moves.SHV, #349), and a stitch on the landing itself is that point.
+                let (tx, ty) = match layout::next_stitch(&events, i) {
+                    Some(p) => {
+                        i += 1;
+                        p
+                    }
+                    None => (tx, ty),
+                };
+                // `80 03` before a move longer than [`LONG_MOVE`] on either axis, as PE-DESIGN.
+                if (tx - x).abs().max((ty - y).abs()) > LONG_MOVE {
+                    block.records.extend_from_slice(&[0x80, 0x03]);
                 }
                 block.jump(tx - x, ty - y);
                 (x, y) = (tx, ty);
                 block.points.push((x, y));
             }
             Event::Stitch { x: tx, y: ty } => {
-                let pieces = layout::split_overflow(tx - x, ty - y, MAX_DELTA);
-                let (last, head) = pieces.split_last().expect("at least one piece");
-                if !head.is_empty() {
-                    let (hx, hy) = head.iter().fold((0, 0), |a, p| (a.0 + p.0, a.1 + p.1));
-                    block.jump(hx, hy);
+                // A stitch over 12.7 mm is one move to its end, whose end is a needle point
+                // (pe-long.SHV: its 15 mm satin stitches, #349).
+                let (dx, dy) = (tx - x, ty - y);
+                if dx.abs() > MAX_DELTA || dy.abs() > MAX_DELTA {
+                    block.jump(dx, dy);
+                } else {
+                    block
+                        .records
+                        .extend_from_slice(&[dx as i8 as u8, dy as i8 as u8]);
                 }
-                block
-                    .records
-                    .extend_from_slice(&[last.0 as i8 as u8, last.1 as i8 as u8]);
                 (x, y) = (tx, ty);
                 block.points.push((x, y));
             }
