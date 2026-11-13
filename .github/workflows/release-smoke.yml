@@ -191,7 +191,9 @@ jobs:
           }
           scene app-demo --demo
           scene app-pes oracle.pes --ribbon view
-          scene app-realistic smoke-fill.pes --show realistic --size 1280x800 --zoom 1.24
+          # The runner's screen keeps the window at 1024 x 645, where page fit is 2.42 px/mm:
+          # x 2.15 is the same 5.2 px/mm as the Linux scene.
+          scene app-realistic smoke-fill.pes --show realistic --size 1280x800 --zoom 2.15
       - uses: actions/upload-artifact@v4
         if: always()
         with:
