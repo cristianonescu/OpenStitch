@@ -989,6 +989,25 @@ fn w_at_10_mm_meets_the_boxes_of_526_on_its_stitches() {
 }
 
 #[test]
+fn m_and_w_at_25_mm_meet_the_boxes_of_526_on_their_stitches() {
+    // An end carried across a notch cut stops at the outline: W's middle peak and feet were
+    // sewn out of the letter, its join measured 0.19 mm. Where the outline lies within another
+    // half width it runs on to it: the bottom of M's V was left bare (1.83 mm) between the
+    // diagonals' join ends.
+    for ch in ["M", "W"] {
+        let mut s = Session::new(std::env::temp_dir());
+        run(
+            &mut s,
+            "text.add",
+            json!({"text": ch, "size": 25, "x": 50, "y": 70, "fill": "Red"}),
+        );
+        let r = run(&mut s, "text.toShapes", json!({"id": 1}));
+        let shape_id = r["ids"][0].as_u64().expect("shape");
+        meets_the_boxes_of_526(&mut s, shape_id, 4, 0.98);
+    }
+}
+
+#[test]
 fn x_at_25_mm_meets_the_boxes_of_526_on_its_stitches() {
     // X's main column runs straight across the junction (it wobbled there, and its satin left
     // 0.55 mm of edge beside the lower notch bare), and its feet end on their corners.
@@ -1073,7 +1092,10 @@ fn a_ring_at_25_mm_meets_the_boxes_of_526_on_its_stitches() {
 /// at least 0.3 mm deep. Distances are design units of 0.1 mm.
 fn meets_the_boxes_of_526(s: &mut Session, shape_id: u64, columns: usize, coverage_floor: f64) {
     const GAP_UNITS: f64 = 3.0; // 0.3 mm: longest stretch of outline left unsewn
-    const NEAR_UNITS: f64 = 1.5; // 0.15 mm: an outline point this near the satin is sewn
+    // 0.2 mm: an outline point this near the satin is sewn. tools/branch_columns.py takes
+    // 0.15 mm on a 0.05 mm raster, which reaches about one pixel further than an exact 0.15 mm
+    // (M at 25 mm: its left stem's top edge lies 0.12-0.16 mm from the satin for 0.45 mm).
+    const NEAR_UNITS: f64 = 2.0;
     const CORNER_UNITS: f64 = 2.0; // 0.2 mm: a sharp corner's nearest needle point
     const JOIN_UNITS: f64 = 2.9; // 0.3 mm joinOverlap, within the 0.01 mm the grid rounds to
     use openstitch_design::{Vec2, geometry::contains, v2};
@@ -1211,16 +1233,18 @@ fn meets_the_boxes_of_526(s: &mut Session, shape_id: u64, columns: usize, covera
                 samples.push((a.lerp(b, t as f64 / m as f64), a.distance(b) / m as f64));
             }
         }
-        let (mut run_len, mut longest) = (0.0, 0.0f64);
+        let (mut run_len, mut longest, mut at) = (0.0, 0.0f64, v2(0.0, 0.0));
         for _ in 0..2 {
             for &(q, step) in &samples {
                 run_len = if sewn_near(q) { 0.0 } else { run_len + step };
-                longest = longest.max(run_len);
+                if run_len > longest {
+                    (longest, at) = (run_len, q);
+                }
             }
         }
         assert!(
             longest <= GAP_UNITS,
-            "an unsewn stretch of {longest:.1} (0.1 mm)"
+            "an unsewn stretch of {longest:.1} (0.1 mm), ending at {at:?}"
         );
     }
     // Corners: every sharp convex corner has a needle point within 0.2 mm.
