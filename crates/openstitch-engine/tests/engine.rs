@@ -929,6 +929,69 @@ fn exports_over_a_format_limit_fail_or_split_into_numbered_files() {
     assert!(dir.join("small.dst").exists());
 }
 
+/// `stitches.import` centres the pattern on the Design Page, as PE-DESIGN 11.50 does;
+/// `keepPosition` leaves the needle points where the file put them, for tools that measure
+/// reference files (`tools/fit_envelopes.py`, #886).
+#[test]
+fn stitch_import_centres_on_the_page_unless_told_to_keep_the_files_position() {
+    use openstitch_core::{Command, StitchPattern};
+    let dir = temp_dir();
+    let mut p = StitchPattern::new();
+    for (x, y) in [(0.0, 0.0), (100.0, 0.0), (100.0, 40.0)] {
+        p.stitch_to(x, y);
+    }
+    p.push(Command::End);
+    let bytes = openstitch_formats::dst::write(&p).expect("dst");
+    std::fs::write(dir.join("corner.dst"), &bytes).expect("write");
+    // Where the file puts the needle points: the DST reader's own coordinates.
+    let in_file: Vec<(f64, f64)> = openstitch_formats::dst::read(&bytes)
+        .expect("read")
+        .stitches
+        .iter()
+        .filter(|st| st.command == Command::Stitch)
+        .map(|st| (st.x, st.y))
+        .collect();
+    let needles = |s: &Session| -> Vec<(f64, f64)> {
+        s.design().objects[0]
+            .stitch_block
+            .as_ref()
+            .expect("stitch block")
+            .stitches
+            .iter()
+            .filter(|st| st.command == Command::Stitch)
+            .map(|st| (st.x, st.y))
+            .collect()
+    };
+    let box_of = |pts: &[(f64, f64)]| {
+        pts.iter().fold(
+            (f64::MAX, f64::MAX, f64::MIN, f64::MIN),
+            |(a, b, c, d), &(x, y)| (a.min(x), b.min(y), c.max(x), d.max(y)),
+        )
+    };
+    let mut kept = Session::new(&dir);
+    run(
+        &mut kept,
+        "stitches.import",
+        json!({"path": "corner.dst", "keepPosition": true}),
+    );
+    assert_eq!(needles(&kept), in_file);
+    let mut centred = Session::new(&dir);
+    run(
+        &mut centred,
+        "stitches.import",
+        json!({"path": "corner.dst"}),
+    );
+    let (width, height) = (centred.design().page.width, centred.design().page.height);
+    let (x0, y0, x1, y1) = box_of(&needles(&centred));
+    assert_eq!(
+        ((x0 + x1) / 2.0, (y0 + y1) / 2.0),
+        (width / 2.0, height / 2.0)
+    );
+    assert_eq!((x1 - x0, y1 - y0), (100.0, 40.0));
+    // The page's centre is not where the file put the pattern, so the two differ.
+    assert_ne!(box_of(&in_file), (x0, y0, x1, y1));
+}
+
 /// A DST carries no colours. Each colour block of an imported DST gets its own Brother chart
 /// colour, so the blocks stay apart; without threads they shared one colour and were merged
 /// into one block (issue #135, PE-DESIGN's DST of `machine-sample-basic`).

@@ -2520,9 +2520,10 @@ H",
                 );
             }
         }
-        // 9 slants: the box keeps its width, the first H leans right.
+        // 9 slants: the box keeps about its width (PE-DESIGN's text-transform-9 spans 75.1 mm
+        // against the straight text's 74.6, #886), the first H leans right.
         let b = bounds(&with(9).contours());
-        assert!((b.width() - straight.width()).abs() < 3.0, "{b:?}");
+        assert!((b.width() - straight.width()).abs() < 6.0, "{b:?}");
         assert!(bounds(&with(9).glyphs[0].contours).width() > 140.0);
         // 1 arches over the top: the middle H stays, the outer ones drop and turn.
         let g = with(1).glyphs;
