@@ -234,6 +234,7 @@ actions! {
     SatinSkeleton => "satinSkeleton", "Satin Skeleton", "Click (or drag for curves) the centre line of a satin column; drag the handles beside each point to set its width. Double-click or Return ends it.", None, Some("shape.skeletonSatin"), true;
     SkeletonWidth => "skeletonWidth", "Column width", "Width of the next points the Satin Skeleton tool places.", None, Some("shape.skeletonSatin"), true;
     DeriveSkeleton => "deriveSkeleton", "Satin Skeleton from Shape", "Sew the selected shape as satin along a centre line derived from its outline (an approximation of its medial axis).", None, Some("object.deriveSkeleton"), true;
+    DeriveBranches => "deriveBranches", "Satin Columns per Branch", "Sew the selected branching shape (a Y, K, star or stick figure) as satin, one column along its main stroke and one per further arm, each joined 0.3 mm into the column it leaves; the shape stays, hidden, under them. A shape without branches gets one column. Beyond PE-DESIGN.", None, Some("object.deriveSkeleton"), true;
     SmoothShape => "smoothShape", "Smooth Shape", "Remove the nodes of the selected outlines that deviate less than the smoothing tolerance (curves refitted, corners and open ends kept). A Manual Punch column loses one direction line per click; click again to smooth further.", None, Some("shape.simplify"), true;
     SmoothTolerance => "smoothTolerance", "Smooth tolerance", "How far Smooth Shape may move an outline (default 0.2 mm).", None, Some("shape.simplify"), true;
     Knife => "knife", "Knife", "Click the points of an open cut line; double-click or Return cuts every object it crosses (fills and outlines into both sides, satin columns across, lines where crossed). Shift: 45° steps. A single click then Return splits the line under the pointer. Stays active; Esc leaves.", None, Some("shape.knife"), true;
@@ -726,7 +727,11 @@ const SHAPES: &[Group] = &[
     COLORS,
     Group {
         name: "Convert",
-        items: &[Small(&[A::ConvertRegionToLine, A::ConvertToStitches])],
+        items: &[Small(&[
+            A::ConvertRegionToLine,
+            A::ConvertToStitches,
+            A::DeriveBranches,
+        ])],
     },
     Group {
         name: "Create",
