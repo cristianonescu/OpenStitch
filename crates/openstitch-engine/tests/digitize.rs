@@ -1773,3 +1773,83 @@ fn auto_punch_plans_and_sews_a_thin_feature_as_a_line() {
         pe["plan"]
     );
 }
+
+/// #469, capture round 11: PE-DESIGN 11.50's Cross Stitch of the pixel strawberry (80 mm,
+/// 2.5 mm crosses, BROTHER EMBROIDERY, 8 colours) lays its crosses on a plain grid at the cross
+/// size; it does not follow the art's own pixel grid (about 3.6 x 3.4 mm at 80 mm). The
+/// PE-compatible grid is PE-DESIGN's to the cell: the same 22 x 28 span and every cell but 2 of
+/// ours one of PE-DESIGN's. PE-DESIGN also sews 21 edge cells OpenStitch leaves empty, and
+/// takes other threads for two colours (Amber Red for the art's dark outline, OpenStitch Dark
+/// Fuchsia; Leaf Green, OpenStitch Moss Green); those are pinned as they are so they can only
+/// shrink.
+#[cfg(feature = "formats")]
+#[test]
+fn pe_compatible_cross_stitch_lays_pe_designs_grid_on_pixel_art() {
+    use std::collections::HashSet;
+    // The cells a cross stitch sews: needle points snapped to the half-cell lattice from the
+    // top-left needle point; a cell is a point at odd/odd half indices (its centre).
+    fn cells(p: &openstitch_core::StitchPattern, cell_mm: f64) -> HashSet<(i64, i64)> {
+        let needles: Vec<(f64, f64)> = p
+            .stitches
+            .iter()
+            .filter(|s| s.command == openstitch_core::Command::Stitch)
+            .map(|s| (s.x / 10.0, s.y / 10.0))
+            .collect();
+        let x0 = needles.iter().map(|q| q.0).fold(f64::INFINITY, f64::min);
+        let y0 = needles.iter().map(|q| q.1).fold(f64::INFINITY, f64::min);
+        let half = cell_mm / 2.0;
+        needles
+            .iter()
+            .filter_map(|&(x, y)| {
+                let (i, j) = (
+                    ((x - x0) / half).round() as i64,
+                    ((y - y0) / half).round() as i64,
+                );
+                (i % 2 == 1 && j % 2 == 1).then_some(((i - 1) / 2, (j - 1) / 2))
+            })
+            .collect()
+    }
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let pe = openstitch_formats::pes::read(
+        &std::fs::read(root.join(
+            "crates/openstitch-digitize/tests/fixtures/pe11-wizards/crossstitch-g07-2.5.pes",
+        ))
+        .expect("fixture"),
+    )
+    .expect("pes");
+    let dir = temp_dir();
+    std::fs::copy(
+        root.join("examples/images/g07-pixel-strawberry.png"),
+        dir.join("g07.png"),
+    )
+    .expect("copy");
+    let mut s = Session::new(dir.path());
+    run(&mut s, "design.new", json!({"width": 100, "height": 100}));
+    run(
+        &mut s,
+        "digitize.crossStitch",
+        json!({"path": "g07.png", "width": 80, "cellSize": 2.5, "colors": 8,
+               "compatMode": "peDesign"}),
+    );
+    let ours = openstitch_design::Compiler::default().compile(s.design());
+    let (theirs, mine) = (cells(&pe, 2.5), cells(&ours, 2.5));
+    let span = |c: &HashSet<(i64, i64)>| {
+        (
+            c.iter().map(|q| q.0).max().expect("cells") + 1,
+            c.iter().map(|q| q.1).max().expect("cells") + 1,
+        )
+    };
+    assert_eq!(span(&theirs), (22, 28), "PE-DESIGN's span");
+    assert_eq!(span(&mine), span(&theirs), "the same grid span");
+    let shared = mine.intersection(&theirs).count();
+    assert!(
+        shared + 2 >= mine.len(),
+        "{shared} of our {} cells are PE-DESIGN's",
+        mine.len()
+    );
+    assert!(
+        theirs.len() - shared <= 21,
+        "PE-DESIGN sews {} cells we leave empty",
+        theirs.len() - shared
+    );
+}
