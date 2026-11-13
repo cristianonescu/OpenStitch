@@ -2163,8 +2163,9 @@ fn direction_turns_the_zigzag_net() {
     assert_eq!((st.len(), hash), ZIGZAG_NET_0, "the 0° zigzag net changed");
 }
 
-/// The 0° zigzag net of [`zigzag_net`] before #1043: stitch count and hash.
-const ZIGZAG_NET_0: (usize, u64) = (971, 12_980_785_424_417_391_635);
+/// The 0° zigzag net of [`zigzag_net`] as main sews it without #1043 (with #1055's stitch in
+/// place before the one-step tie-in, as the page is a Hoop Size one): stitch count and hash.
+const ZIGZAG_NET_0: (usize, u64) = (972, 6_462_209_893_352_527_947);
 
 /// #1043: a switch to zigzag net sets Direction 0 (PE-DESIGN's default for the type, round 13);
 /// an angle given with the switch is kept; other types keep the previous Direction.
