@@ -393,8 +393,9 @@ Line references are relative to `crates/`.
   `pes-0110-applique`, reference tier: PE-DESIGN 11.50 opens the export with no group of a
   group of its four lines (number corrected), its lines editable in PE-DESIGN's appliqué colours, and re-saves it
   unchanged but for its pattern blocks, 2026-10-31; owner files a01–a05 read and rewritten byte
-  for byte outside the documented differences; **open:** the wizard's V tack-down shows as an E
-  stitch (the field telling E from V is not mapped), and the appliqué sews 29 x 29 mm where
+  for byte outside the documented differences; the wizard's V tack-down showed as an E
+  stitch there (the E/V variant, +86, is written since; the spacing, +88, and a V's opening,
+  +92, since #982); **open:** the appliqué sews 29 x 29 mm where
   PE-DESIGN's wizard sews the same square 32,6 x 32,8 mm, OpenStitch's outline offset);
   Shapes-gallery shapes (`CEmbSpecialShape`, `CEmbLine` records under another class name)
   round-trip (o-gallery-heart, shape-start-points); programmable fill written with its pattern
@@ -3445,6 +3446,26 @@ reference): the tack-down + cover block 779 → 651 stitches against PE-DESIGN's
 zigzag itself is sparser than PE-DESIGN's; the under sewing had partly hidden that (to look at
 with #964's crossing spacing). Kit `wizards/applique` 1,804 → 1,557 stitches, 2.5 → 2.2 min,
 its material line visible again.
+
+### Appliqué wizard tack-down as PE-DESIGN's, 2026-11-13 (#982)
+
+PE-DESIGN 11.50's Applique Wizard (captures a01, a04) tacks the material down with one pass of
+V stitch along the material line, a V every 5.0 mm (two 1.5 mm running stitches, then two arms
+each 1.0 mm along the line), its stroke 0.65 times the cover width: 2.0 mm at a 3 mm cover
+(a01, 98 stitches), 2.6 mm at 4 mm (a04, 108; only the cover width changed). The factor rests
+on those two cover widths. OpenStitch's wizard defaulted to a zigzag tack-down, and a V asked
+for came every 3.0 mm (151 stitches on a01's square), opening 1.2 mm. The wizard now defaults to
+PE-DESIGN's V, interval 5.0 and stroke 0.65 × cover (`tackDownWidth` and `tackDownInterval`
+still win); the app's dialog lets the stroke follow the cover until it is set. OpenStitch's V
+stitch line itself already sewed as PE-DESIGN's (`line-v-default`, `line-v-rect-default`).
+
+PES 0110 now writes an E or V line's spacing (+88) and a V's opening (+92, a fifth of the
+spacing each side, as OpenStitch sews it), so PE-DESIGN re-sews the line at OpenStitch's
+interval rather than its own 5.0. The offsets are inferred: they hold PE-DESIGN's 5.0 and 2.0
+next to the mapped stroke (+90) in the order its V dialog shows the fields (spacing, arm, width,
+run times, stroke times, +88 to +96); no reference varies them yet. The earlier "308 against
+137" (#978) compared PE-DESIGN's re-save of OpenStitch's 2026-10-31 export (an E tack-down at
+PE-DESIGN's 5.0, and the cover's under sewing, removed in #975) with OpenStitch's tack-down.
 
 ### Design Center: small rings sew round, 2026-11-12 (#469)
 

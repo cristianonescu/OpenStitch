@@ -746,6 +746,14 @@ fn line(id: u64, l: &LineSewing, s: &mut Shape, table: &mut Vec<Thread>) -> Resu
     // E and V keep their width in a field of their own; the zigzag width stays PE's default.
     if s.line_type == Shape::LINE_E_OR_V {
         s.ev_width = l.width as f32;
+        // The spacing (+88) and a V's opening (+92), so PE-DESIGN re-sews the line as
+        // OpenStitch sews it: a V's arms span a fifth of the spacing each side of it
+        // (lines::v_stitch), PE-DESIGN's 2.0 at its 5.0 (#982).
+        let spacing = l.spacing_mm();
+        s.ev_spacing = spacing as f32;
+        if l.kind == LineType::VStitch {
+            s.ev_opening = (0.4 * spacing) as f32;
+        }
     } else {
         s.zigzag_width = l.width as f32;
     }
@@ -1385,6 +1393,64 @@ mod tests {
         );
         // The V tack-down's width is the E/V width; the zigzag width stays PE's default.
         assert_eq!((o.shapes[2].ev_width, o.shapes[2].zigzag_width), (2.0, 2.0));
+    }
+
+    #[test]
+    fn e_and_v_lines_write_their_spacing_and_a_v_its_opening() {
+        // #982: PE-DESIGN re-sewed the tack-down at its own 5.0 mm when the spacing was not
+        // written. +88 the spacing, +92 a V's opening (a fifth of the spacing each side, as
+        // lines::v_stitch sews it); read back, the spacing is the line's again.
+        let mut design = Design::new("t", openstitch_design::DesignPage::default());
+        for kind in [LineType::VStitch, LineType::EStitch] {
+            let mut line = LineSewing::new(kind, red());
+            line.spacing = Some(3.0);
+            design.add(DesignObject::shape(
+                vec![Contour::new(
+                    vec![v2(100.0, 100.0), v2(300.0, 100.0)],
+                    false,
+                )],
+                None,
+                Some(line),
+            ));
+        }
+        let o = objects(&design).expect("objects");
+        let got: Vec<(f32, f32)> = o
+            .shapes
+            .iter()
+            .map(|s| (s.ev_spacing, s.ev_opening))
+            .collect();
+        assert_eq!(got, [(3.0, 1.2), (3.0, 2.0)]);
+        let pattern = openstitch_design::Compiler::default().compile(&design);
+        let bytes = openstitch_formats::pes11::write(&o, &pattern).expect("write");
+        let back = openstitch_formats::pes::read_objects(&bytes).expect("objects");
+        assert_eq!(
+            back.shapes
+                .iter()
+                .map(|s| (s.ev_spacing, s.ev_opening))
+                .collect::<Vec<_>>(),
+            [(3.0, 1.2), (3.0, 2.0)]
+        );
+        let imported = crate::pes11_import::objects(&back);
+        let spacings: Vec<Option<f64>> = imported
+            .objects
+            .iter()
+            .map(|o| o.line.as_ref().and_then(|l| l.spacing))
+            .collect();
+        assert_eq!(spacings, [Some(3.0), Some(3.0)]);
+        // At PE-DESIGN's 5.0 the fields hold its defaults, as before.
+        let mut line = LineSewing::new(LineType::VStitch, red());
+        line.spacing = None;
+        let mut d5 = Design::new("t", openstitch_design::DesignPage::default());
+        d5.add(DesignObject::shape(
+            vec![Contour::new(
+                vec![v2(100.0, 100.0), v2(300.0, 100.0)],
+                false,
+            )],
+            None,
+            Some(line),
+        ));
+        let s = &objects(&d5).expect("objects").shapes[0];
+        assert_eq!((s.ev_spacing, s.ev_opening), (5.0, 2.0));
     }
 
     #[test]

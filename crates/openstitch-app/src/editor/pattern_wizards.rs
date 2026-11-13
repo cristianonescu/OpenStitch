@@ -246,6 +246,9 @@ pub struct AppliqueForm {
     pub material: &'static str,
     pub tack_down: &'static str,
     pub tack_width: f64,
+    /// The E or V tack-down's stroke follows the cover width (0.65 times it, as PE-DESIGN's
+    /// Applique Wizard, #982) until the user sets it: the request then leaves it to the wizard.
+    pub tack_width_follows_cover: bool,
     pub tack_density: f64,
     pub tack_interval: f64,
     pub cover: &'static str,
@@ -265,10 +268,11 @@ impl Default for AppliqueForm {
     fn default() -> Self {
         AppliqueForm {
             material: "running",
-            tack_down: "zigzag",
+            tack_down: "vStitch",
             tack_width: 2.0,
+            tack_width_follows_cover: true,
             tack_density: 1.0,
-            tack_interval: 3.0,
+            tack_interval: 5.0,
             cover: "zigzag",
             cover_width: 3.0,
             cover_density: 5.0,
@@ -284,6 +288,11 @@ impl Default for AppliqueForm {
 }
 
 impl AppliqueForm {
+    /// The E or V tack-down's stroke the wizard gives a cover of `cover_width` mm (#982).
+    pub fn tack_width_for_cover(cover_width: f64) -> f64 {
+        ((0.65 * cover_width * 10.0).round() / 10.0).clamp(0.5, 10.0)
+    }
+
     pub fn request(&self, selection: &BTreeSet<u64>) -> Option<CommandRequest> {
         if selection.is_empty() {
             return None;
@@ -299,7 +308,9 @@ impl AppliqueForm {
             }
             "none" => {}
             _ => {
-                p.insert("tackDownWidth".into(), json!(self.tack_width));
+                if !self.tack_width_follows_cover {
+                    p.insert("tackDownWidth".into(), json!(self.tack_width));
+                }
                 p.insert("tackDownInterval".into(), json!(self.tack_interval));
             }
         }
@@ -575,8 +586,8 @@ mod tests {
         let r = f.request(&BTreeSet::from([3])).expect("request");
         assert_eq!(
             r.params,
-            json!({"ids": [3], "material": "running", "tackDown": "vStitch", "tackDownWidth": 2.0,
-                   "tackDownInterval": 3.0, "cover": "chain", "coverWidth": 3.0,
+            json!({"ids": [3], "material": "running", "tackDown": "vStitch",
+                   "tackDownInterval": 5.0, "cover": "chain", "coverWidth": 3.0,
                    "chainShape": "diamond", "coverTimes": 2, "output": "replace", "holes": false})
         );
     }

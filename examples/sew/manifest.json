@@ -1028,7 +1028,7 @@
    86.0,
    87.5
   ],
-  "stitches": 3452,
+  "stitches": 3439,
   "trims": 9,
   "threads": [
    "405 Blue",
@@ -1044,7 +1044,7 @@
   "sewingMinutes": 4.8,
   "image": null,
   "preview": "previews/line-sew-types.png",
-  "sha256": "36e229fdafa58dd76cc17f8f41e1ead9f623c24d91af2c6995e985745416e57d"
+  "sha256": "bd09dae564d7191a8eb254d12db92278d680a670aa22d9c5220d5627f49fb487"
  },
  "shapes/shape-tools.pes": {
   "title": "Shape tools",
@@ -1152,20 +1152,20 @@
   "about": "A heart as appliqué: material line, stop, position line, stop, tack-down, stop, covering zigzag. Lay the fabric at the first stop, trim it at the second.",
   "hoop": "100 × 100 mm",
   "sizeMM": [
-   54.0,
-   53.8
+   53.0,
+   52.5
   ],
-  "stitches": 1606,
+  "stitches": 1268,
   "trims": 4,
   "threads": [
    "Appliqué material (PEC 62)",
    "Appliqué position (PEC 63)",
    "Appliqué (PEC 64)"
   ],
-  "sewingMinutes": 2.2,
+  "sewingMinutes": 1.8,
   "image": null,
   "preview": "previews/applique.png",
-  "sha256": "307ea9fcfba947c8092b04c596bdb8cf322c2e0f3f0bbe5834289681cca1dc63"
+  "sha256": "f9db2ad77238d8ceea32443f7eed0a4f4b216f087c5b0831c603c3c7740314be"
  },
  "wizards/patch.pes": {
   "title": "Embroidered patch wizard",
@@ -1175,17 +1175,17 @@
    62.0,
    62.0
   ],
-  "stitches": 2903,
+  "stitches": 2862,
   "trims": 3,
   "threads": [
    "800 Red",
    "406 Ultra Marine",
    "406 Ultra Marine"
   ],
-  "sewingMinutes": 3.8,
+  "sewingMinutes": 3.7,
   "image": null,
   "preview": "previews/patch.png",
-  "sha256": "16ce633d685d36729260d2f42706ad84e5a17a5d70e22b917bdb24f6efd7c4d1"
+  "sha256": "4e9e0e09a9be82b4160dede23461c81f0597de234a2c67b1859b494b1a38e895"
  },
  "wizards/cutwork.pes": {
   "title": "Cutwork wizard",
@@ -1195,17 +1195,17 @@
    54.0,
    54.0
   ],
-  "stitches": 3536,
-  "trims": 5,
+  "stitches": 3446,
+  "trims": 6,
   "threads": [
    "405 Blue",
    "405 Blue",
    "405 Blue"
   ],
-  "sewingMinutes": 4.7,
+  "sewingMinutes": 4.6,
   "image": null,
   "preview": "previews/cutwork.png",
-  "sha256": "6502c22740ab27927f654395ae1280669656809109b4fcfdc75c081cf4252c3b"
+  "sha256": "1c7b123fe208b26850451b2718f4aefbf9cdc554e810d2a557e17996e4cbfcdf"
  },
  "wizards/background-fill.pes": {
   "title": "Background fill wizard",

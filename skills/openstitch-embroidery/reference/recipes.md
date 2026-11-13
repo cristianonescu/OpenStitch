@@ -81,7 +81,9 @@ Make the appliqué from a closed shape or text (here a heart, id 1 in a fresh de
 ```
 
 It sews a material line, stops, a position line, stops, a tack-down, stops, then the covering
-stitch, as one group. The covering zigzag has no under sewing, as in PE-DESIGN (the tack-down
+stitch, as one group. The tack-down defaults to PE-DESIGN's: a V stitch every 5 mm whose stroke
+is 0.65 times the cover width (2 mm at a 3 mm cover); `tackDown`, `tackDownWidth` and
+`tackDownInterval` change it. The covering zigzag has no under sewing, as in PE-DESIGN (the tack-down
 holds the fabric's edge); turn it on on the cover object (`object.setLine` `underSewing: true`) for
 a loose-weave fabric. `output: "add"` keeps the shape and puts the appliqué around it
 (`distance` mm away); the shape sews first, under the fabric, as PE-DESIGN does, or with
