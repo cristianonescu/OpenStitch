@@ -26,6 +26,7 @@ pub mod fonts;
 pub mod fsio;
 mod gradient_cmds;
 mod guides;
+mod hoop_fit;
 #[cfg(feature = "formats")]
 pub mod imports;
 #[cfg(feature = "formats")]

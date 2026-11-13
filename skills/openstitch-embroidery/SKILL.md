@@ -104,6 +104,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
   Other brands' hoops are in `groups` (`machine.hoops {brand: "Janome"}` lists one brand; ids
   such as `janome-re20b`, `bernina-large-oval`, `round-15cm`). Oval and round hoops sew only
   their ellipse, which `fitsPage` checks; round hoops cannot rotate. Brother is the default.
+  `machine.useSmallestHoop {brand?}` switches to the smallest hoop of the machine that holds
+  the design (its real field) and centres it; `design.fitToHoop {marginMm, keepAspect}` scales
+  the design to fill the current hoop (stitch-only objects warn that their density changes).
 - Keep the whole design inside the page: `design.export` reports `fitsPage` and the
   `smallestHoop`.
 - Larger than the hoop: on a custom page, `sections.set {hoop}` splits it (PE-DESIGN's grid);
