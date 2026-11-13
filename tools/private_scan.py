@@ -27,6 +27,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 ALLOW = ROOT / "tools" / "private_scan_allow.tsv"
+# The allow list holds the allowed texts themselves, so it is not scanned.
+ALLOW_PATH = "tools/private_scan_allow.tsv"
 
 # Files never scanned: binary embroidery and image formats, fonts and archives.
 SKIP = (".pes", ".pec", ".dst", ".exp", ".jef", ".vp3", ".pcs", ".sew", ".shv", ".csd", ".xxx",
@@ -83,7 +85,7 @@ def findings(path, lines, allowed, used):
 
 def tracked():
     names = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, check=True).stdout
-    return [n for n in names.decode("utf-8").split("\0") if n and not n.lower().endswith(SKIP)]
+    return [n for n in names.decode("utf-8").split("\0") if n and not n.lower().endswith(SKIP) and n != ALLOW_PATH]
 
 
 def read_lines(path):
@@ -106,7 +108,7 @@ def added_lines(base):
             path = line[6:] if line.startswith("+++ b/") else None
         elif line.startswith("@@"):
             n = int(re.match(r"@@ -\S+ \+(\d+)", line).group(1))
-        elif path and line.startswith("+") and not path.lower().endswith(SKIP):
+        elif path and line.startswith("+") and not path.lower().endswith(SKIP) and path != ALLOW_PATH:
             out.setdefault(path, []).append((n, line[1:]))
             n += 1
     return out
@@ -124,9 +126,9 @@ def self_test():
     allowed text and unused entries behave."""
     s = "\\"
     samples = {
-        "Windows user folder": ["C:" + s + "Users" + s + "Alex" + s + "x.pes", "d:/Users/alex/x", "/c/" + "Users/alex/x"],
+        "Windows user folder": ["C:" + s + "Users" + s + "Alex" + s + "x.pes", "d:/" + "Users/alex/x", "/c/" + "Users/alex/x"],
         "home folder": ["/" + "Users/alex/Desktop", "/" + "home/alex/src"],
-        "sandbox path": ["D:" + s + "_sandboxes" + s + "x", "e:/sandbox/y"],
+        "sandbox path": ["D:" + s + "_sandboxes" + s + "x", "e:/" + "sandbox/y"],
         "app-data folder": ["AppData" + s + "Local" + s + "Temp"],
         "notes folder": ["Claude" + "-Data", "side-session" + "-notes"],
         "e-mail address": ["alex.someone" + "@" + "mailbox.org"],
