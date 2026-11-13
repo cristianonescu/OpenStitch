@@ -238,7 +238,8 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    action `checkDesign`, `densityMap` or `reviewSewingOrder` opens Check Design on that tab;
    `ui.set` `densityOverlay` and `darkBackground` mark the design, `checkFabric` sets the
    fabric, `routeMap` draws the route, and `reviewStep` (from 1) moves the review and the
-   simulator to that step. `ui.state` `check` has `ready`, the `errors` and `warnings`, the
+   simulator to that step. `ui.state` `check` has `ready`, the `errors`, `warnings` and `notes` (worth knowing, not
+   problems), the
    open `window` and `reviewSteps`. `ui.render` shows what you switched on: the density overlay's
    orange and red cells, and Check Design's rings while its Check tab is open, so look at the
    picture to see where.
