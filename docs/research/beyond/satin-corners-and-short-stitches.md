@@ -12,7 +12,8 @@ short stitches are `shortStitchDistance` with one `shortStitchInset` (default 15
 default. #446 (open) tracks the satin-text N, slanted arm ends and X.
 Landed on Manual Punch columns and zigzag lines (#520, #521), skeleton satin and Auto satin
 regions (#675), and satin lettering for short stitches only (#676: letters are cut at their
-sharp corners, so corner styles do not apply). Not built: the lap corner, `mitreMinWidth`,
+sharp corners, so corner styles did not apply; since 2026-11-08 they shape the corners where two strokes
+meet in letters, #782). Not built: the lap corner, `mitreMinWidth`,
 several inset levels and per-corner overrides.
 
 ## 1. What the feature is
