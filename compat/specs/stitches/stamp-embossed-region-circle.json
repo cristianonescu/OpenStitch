@@ -3,7 +3,7 @@
   "id": "stamp-embossed-region-circle",
   "area": "stitches",
   "title": "Embossed region from a circle",
-  "description": "A 16.5 x 16 mm circle in the middle of the 40 mm square converted to an embossed region (shape.emboss / Convert from Outline). PE-DESIGN 11.50 drops every needle point inside and leaves the fill's rows whole across it, up to 14.3 mm (within 6 mm of the centre 13 needle points per cm2, the under sewing's, against 126 without it); OpenStitch keeps whole stitches up to 14.5 mm from where a row enters and sews the rest last (12 per cm2 there).",
+  "description": "A circle with a 14.5 x 14.0 mm outline (16.5 x 16 mm with its 2 mm line) in the middle of the 40 mm square converted to an embossed region (shape.emboss / Convert from Outline). PE-DESIGN 11.50 drops every needle point inside and leaves the fill's rows whole across it, up to 14.3 mm (within 6 mm of the centre 13 needle points per cm2, the under sewing's, against 126 without it); OpenStitch keeps whole stitches up to 14.5 mm from where a row enters and sews the rest last (12 per cm2 there).",
   "covers": {
     "featureMatrix": [
       {
@@ -65,8 +65,8 @@
       "params": {
         "cx": 50,
         "cy": 50,
-        "rx": 8.25,
-        "ry": 8.0
+        "rx": 7.25,
+        "ry": 7.0
       }
     },
     {
@@ -96,7 +96,7 @@
         "min": 2950,
         "max": 3300
       },
-      "evidence": "3,109 stitches: 67 fewer than the plain square (PE-DESIGN 60 fewer) at #471, on the 40 mm square"
+      "evidence": "3,123 stitches: 53 fewer than the plain square (PE-DESIGN 60 fewer), on the 40 mm square with the 14.5 mm circle"
     },
     {
       "id": "longest",
@@ -109,9 +109,9 @@
       },
       "expected": {
         "min": 13.0,
-        "max": 16.0
+        "max": 15.5
       },
-      "evidence": "the rows cross the raised circle in whole stitches of up to 15.5 mm (PE-DESIGN 14.3 mm, its edge about 1 mm further in, #956)"
+      "evidence": "the rows cross the raised circle whole: up to 14.2 mm (PE-DESIGN 14.3 mm)"
     }
   ]
 }

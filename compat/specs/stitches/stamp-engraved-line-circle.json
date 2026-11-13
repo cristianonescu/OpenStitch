@@ -3,7 +3,7 @@
   "id": "stamp-engraved-line-circle",
   "area": "stitches",
   "title": "Engraved line from a circle",
-  "description": "A 16.5 x 16 mm circle converted to an engraved line: a needle point wherever a fill stitch crosses the line. PE-DESIGN 11.50 adds 118 needle points, on a ring about 1 mm inside the circle (the inner edge of its 2 mm zigzag line); OpenStitch adds 142, on the circle itself.",
+  "description": "A circle with a 14.5 x 14.0 mm outline (16.5 x 16 mm with its 2 mm line) converted to an engraved line: a needle point wherever a fill stitch crosses the line. PE-DESIGN 11.50 adds 118 needle points on the circle's outline (whatever the width of the circle's own line, #956); OpenStitch adds 120 there.",
   "covers": {
     "featureMatrix": [
       {
@@ -65,8 +65,8 @@
       "params": {
         "cx": 50,
         "cy": 50,
-        "rx": 8.25,
-        "ry": 8.0
+        "rx": 7.25,
+        "ry": 7.0
       }
     },
     {
@@ -93,10 +93,10 @@
         "export": "a.pes"
       },
       "expected": {
-        "min": 3150,
-        "max": 3500
+        "min": 3200,
+        "max": 3400
       },
-      "evidence": "3,318 stitches: 142 more than the plain square (PE-DESIGN 118 more) at #471, on the 40 mm square"
+      "evidence": "3,296 stitches: 120 more than the plain square, on a ring at 7.06 mm (PE-DESIGN 118 more, at 7.12 mm: on the circle's outline whatever its line's width, #956), on the 40 mm square with the 14.5 mm circle"
     }
   ]
 }
