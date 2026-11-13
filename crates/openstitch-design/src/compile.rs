@@ -153,6 +153,9 @@ struct Writer {
     /// Needle points the tie-off dropped (#703): where, and how many; the spans of the objects
     /// already traced move back by them.
     drains: Vec<(usize, usize)>,
+    /// The design is on a Hoop Size page ([`Design::hoop_size_page`]): a one-step tie-in
+    /// starts on a stitch in place (#1013).
+    hoop_size_page: bool,
 }
 
 /// An object's own ties (#548).
@@ -496,6 +499,20 @@ impl Writer {
             let head = self.out.stitches.len();
             if landed {
                 self.cut = false;
+                // On a Hoop Size page PE-DESIGN 11.50 starts a one-step tie-in with a stitch in
+                // place on the landing: 286 of the 296 such run starts in its Hoop Size files
+                // (the other 10 are opened stitch files), none of its 77 three-step ones and
+                // none of the 1,981 on a Custom Size page (#1013). Left out where the run already
+                // starts with [`MAX_IN_PLACE`] stitches in place (a fill starting on a narrow tip):
+                // PE-DESIGN's own files never sew more than 6 in a row there.
+                if self.hoop_size_page
+                    && self.ties.is_none()
+                    && element.lock
+                    && one_step_tie_in(run)
+                    && leading_in_place(run) < MAX_IN_PLACE
+                {
+                    self.push(run[0], Command::Stitch);
+                }
             } else if self.position.is_none() || self.cut {
                 self.push(run[0], Command::Stitch);
                 self.position = Some(run[0]);
@@ -510,6 +527,22 @@ impl Writer {
             }
         }
     }
+}
+
+/// Whether `run` starts with PE-DESIGN's one-step tie-in: a step of about 0.3 mm and straight
+/// back to its first needle point (a three-step one steps out three times first).
+fn one_step_tie_in(run: &[Vec2]) -> bool {
+    let [a, out, back, ..] = run else {
+        return false;
+    };
+    (2.0..=4.0).contains(&a.distance(*out)) && a.distance(*back) < SAME_POINT
+}
+
+/// How many stitches in place (each no longer than [`IN_PLACE`]) `run` starts with.
+fn leading_in_place(run: &[Vec2]) -> usize {
+    run.windows(2)
+        .take_while(|w| w[0].distance(w[1]) <= IN_PLACE)
+        .count()
 }
 
 impl Compiler {
@@ -547,7 +580,7 @@ impl Compiler {
     }
 
     fn sew_design(&self, design: &Design) -> (Writer, Vec<(u64, Range<usize>)>) {
-        let mut w = self.writer();
+        let mut w = self.writer(design);
         w.out.set_name(design.name.clone());
         for (key, value) in design.properties.fields() {
             if !value.is_empty() {
@@ -674,7 +707,7 @@ impl Compiler {
     /// design (hole sewing still skips its paired inner shape), visible or not. Used to
     /// convert a shape or text into a stitch pattern.
     pub fn compile_object(&self, design: &Design, index: usize) -> StitchPattern {
-        let mut w = self.writer();
+        let mut w = self.writer(design);
         if let Some(object) = design.objects.get(index) {
             sew_object(&mut w, object, design);
         }
@@ -690,7 +723,7 @@ impl Compiler {
         from: Vec2,
         toward: Option<Vec2>,
     ) -> (usize, f64) {
-        let mut w = self.writer();
+        let mut w = self.writer(design);
         w.position = Some(from);
         w.cut = false;
         sew_object(&mut w, object, design);
@@ -711,7 +744,7 @@ impl Compiler {
 
     /// Where `object`, sewn alone, puts its first needle point.
     fn first_needle(&self, object: &DesignObject, design: &Design) -> Option<Vec2> {
-        let mut w = self.writer();
+        let mut w = self.writer(design);
         sew_object(&mut w, object, design);
         w.out
             .stitches
@@ -727,13 +760,14 @@ impl Compiler {
         design: &Design,
         area: Option<Vec<Contour>>,
     ) -> usize {
-        let mut w = self.writer();
+        let mut w = self.writer(design);
         w.region_area = area;
         sew_object(&mut w, object, design);
         w.out.count(Command::Stitch)
     }
 
-    fn writer(&self) -> Writer {
+    /// A writer for `design` (its page mode decides the stitch in place, #1013).
+    fn writer(&self, design: &Design) -> Writer {
         Writer {
             cfg: *self,
             out: StitchPattern::new(),
@@ -756,6 +790,7 @@ impl Compiler {
             lines: Vec::new(),
             region_area: None,
             drains: Vec::new(),
+            hoop_size_page: design.hoop_size_page(),
         }
     }
 }
@@ -2588,8 +2623,63 @@ mod tie_off_tests {
         best
     }
 
+    #[test]
+    fn the_stitch_in_place_never_makes_a_run_in_place_longer_than_the_limit() {
+        // #1013: on a Hoop Size page a one-step tie-in starts on a stitch in place, unless the
+        // run already starts with MAX_IN_PLACE stitches in place (fills/gradients.pes: a fill
+        // starting on a narrow tip, 0.22 mm steps).
+        let tie = |tail: &[f64]| {
+            let mut run = vec![v2(0.0, 0.0), v2(3.0, 0.0), v2(0.0, 0.0)];
+            let mut x = 0.0;
+            for d in tail {
+                x -= d;
+                run.push(v2(x, 0.0));
+            }
+            run
+        };
+        assert!(one_step_tie_in(&tie(&[20.0])));
+        assert!(!one_step_tie_in(&[
+            v2(0.0, 0.0),
+            v2(3.0, 0.0),
+            v2(6.0, 0.0)
+        ]));
+        assert_eq!(leading_in_place(&tie(&[20.0])), 2);
+        assert_eq!(leading_in_place(&tie(&[2.2, 2.2, 2.8, 1.4, 40.0])), 6);
+        let page = Design::default();
+        assert!(page.hoop_size_page());
+        let sew = |run: Vec<Vec2>| {
+            // Sewn after a needle point 50 mm away: the move into the run is a jump.
+            let mut w = Compiler::default().writer(&page);
+            w.push(v2(-500.0, 0.0), Command::Stitch);
+            w.position = Some(v2(-500.0, 0.0));
+            w.cut = false;
+            w.sew(Element {
+                thread: Thread::rgb(0),
+                runs: vec![run],
+                whole: false,
+                lock: true,
+                pieces: false,
+                across: None,
+                rule: Rule::Pe,
+            });
+            w.out
+        };
+        let zero_after_jump = |p: &StitchPattern| {
+            p.stitches.windows(2).any(|w| {
+                w[0].command == Command::Jump
+                    && w[1].command == Command::Stitch
+                    && (w[0].x, w[0].y) == (w[1].x, w[1].y)
+            })
+        };
+        assert!(zero_after_jump(&sew(tie(&[20.0, 20.0]))));
+        assert!(!zero_after_jump(&sew(tie(&[2.2, 2.2, 2.8, 1.4, 40.0]))));
+    }
+
     fn sewn(run: Vec<Vec2>) -> StitchPattern {
-        let mut w = Compiler::default().writer();
+        // A Custom Size page: these runs are measured without the stitch in place (#1013).
+        let mut page = Design::default();
+        page.machine.custom_page = true;
+        let mut w = Compiler::default().writer(&page);
         w.sew(Element {
             thread: Thread::rgb(0),
             runs: vec![run],

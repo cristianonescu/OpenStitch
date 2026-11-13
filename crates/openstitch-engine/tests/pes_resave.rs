@@ -545,3 +545,48 @@ fn import_pes_takes_the_objects_of_every_pe_design_file() {
     assert!(files > 400, "{files}");
     assert_eq!(skipped, std::collections::BTreeMap::new());
 }
+
+#[test]
+fn opening_a_pe_design_11_file_takes_its_page_mode() {
+    // PE-DESIGN's page mode (#1013): sweep-fill-density-2p5 was saved on a 100 x 100 Custom
+    // Size page, stroke-satin-K-8 on its Hoop Size page. Opened (File > Open, or its objects
+    // imported into an empty design) into a design started on the other one, the design takes
+    // the file's page mode, reports it, and writes it back to a PES 0110 written from the design.
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    for (file, mode) in [
+        (
+            "compat/reference/stitches/sweep-fill-density-2p5.pes",
+            "custom",
+        ),
+        ("compat/reference/text/stroke-satin-K-8.pes", "hoop"),
+    ] {
+        let other = if mode == "hoop" { "custom" } else { "hoop" };
+        let dir = TempDir::canonical("page-mode");
+        std::fs::copy(root.join(file), dir.join("in.pes")).expect("copy");
+        for (command, params) in [
+            (
+                "stitches.import",
+                json!({"path": "in.pes", "keepSource": true}),
+            ),
+            ("import.pes", json!({"path": "in.pes"})),
+        ] {
+            let mut s = Session::new(dir.path());
+            run(
+                &mut s,
+                "design.new",
+                json!({"width": 100, "height": 100, "pageMode": other}),
+            );
+            let r = run(&mut s, command, params);
+            assert_eq!(r["pageMode"], mode, "{file} {command}");
+            assert_eq!(run(&mut s, "design.info", json!({}))["pageMode"], mode);
+            run(
+                &mut s,
+                "design.export",
+                json!({"path": "out.pes", "pesVersion": "11"}),
+            );
+            let back =
+                pes::read_objects(&std::fs::read(dir.join("out.pes")).expect("out")).expect("read");
+            assert_eq!(back.hoop_page, mode == "hoop", "{file} {command}");
+        }
+    }
+}

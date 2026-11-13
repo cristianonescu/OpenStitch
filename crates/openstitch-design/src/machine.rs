@@ -941,6 +941,12 @@ pub struct MachineSettings {
     /// Jumbo frame: overlap of Side 1 and Side 2 around the middle, mm.
     #[serde(skip_serializing_if = "is_zero")]
     pub jumbo_overlap: f64,
+    /// The Design Page is a Custom Size page even where PE-DESIGN would hold it on a Hoop Size
+    /// one (a 100 x 100 mm page, a known hoop): PE-DESIGN 11.50's Design Settings choice, which
+    /// its PES 0110 header stores and its stitches follow ([`crate::Design::hoop_size_page`],
+    /// #1013). Off by default, as a new design in PE-DESIGN starts on a Hoop Size page.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub custom_page: bool,
 }
 
 fn is_zero(v: &f64) -> bool {

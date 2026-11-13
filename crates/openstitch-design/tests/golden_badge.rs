@@ -34,8 +34,10 @@ fn golden_project_compiles_to_recorded_statistics() {
     // now locked twice (2776 before; #289). Unchanged in total when every object was sewn in
     // a frame at its own top-left corner so moving it moves its stitches (#567: the version-1
     // fills' 1/3 stagger moved with the page origin before, 2 fewer) and a lock after a last
-    // stitch under 0.15 mm stepped 0.3 mm back along the run (#368, 2 more).
-    assert_eq!(p.count(Command::Stitch), 2780);
+    // stitch under 0.15 mm stepped 0.3 mm back along the run (#368, 2 more). Then 2 more on its
+    // 100 x 100 Hoop Size page: a stitch in place before each of its two one-step tie-ins after a
+    // move, as PE-DESIGN sews on that page (2780 before; #1013).
+    assert_eq!(p.count(Command::Stitch), 2782);
     assert_eq!(p.count(Command::Jump), 3);
     assert_eq!(p.count(Command::Trim), 3);
     assert_eq!(p.count(Command::ColorChange), 2);
