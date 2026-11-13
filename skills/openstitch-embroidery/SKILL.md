@@ -230,7 +230,9 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    shell, `stitchtool optimize in.osd out.pes --auto-start nearest` sets it before reordering. Set a point by hand with
    `object.setEntryExit` (`regionEntry`, `regionExit`, `lineEntry`, `lineExit`; null clears).
 5. Check: `view_render` (look at it), `design.info` (size, stitches, colours, trims, time) and
-   `design.check` (sewing problems, errors first; `ready` is false while there are errors).
+   `design.check` (sewing problems, errors first; `ready` is false while there are errors;
+   warnings include `untied` thread ends, whose fix adds ties, `tinySection` and
+   `shortStitch`; `moreColoursThanNeedles` is a note, not a problem).
    Run each finding's `fix` command or fix it yourself, and check again; never report a design
    done while `design.check` has errors. `design.route` names every move between objects
    (untrimmed jumps, long moves), `design.density` shows where thread piles up; it and
@@ -240,7 +242,8 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    action `checkDesign`, `densityMap` or `reviewSewingOrder` opens Check Design on that tab;
    `ui.set` `densityOverlay` and `darkBackground` mark the design, `checkFabric` sets the
    fabric, `routeMap` draws the route, and `reviewStep` (from 1) moves the review and the
-   simulator to that step. `ui.state` `check` has `ready`, the `errors` and `warnings`, the
+   simulator to that step. `ui.state` `check` has `ready`, the `errors`, `warnings` and `notes` (worth knowing, not
+   problems), the
    open `window` and `reviewSteps`. `ui.render` shows what you switched on: the density overlay's
    orange and red cells, and Check Design's rings while its Check tab is open, so look at the
    picture to see where.
@@ -265,6 +268,10 @@ then style them in the next.
 
 - `ui.state` tells you the editor's state, including the **selection**; "this", "it" and
   "the selected text" mean the selected objects. `ui.select` changes the selection.
+  `ui.state` `orderFilter` is the Sewing Order pane's Find text: the list shows only the
+  objects it matches (`ui.set orderFilter ""` shows them all; the design is never filtered).
+  Its `msaa` with `on` false means the Realistic view draws without MSAA, so dense fills may
+  show stripes when zoomed out.
 - `object.list` lists objects (id, kind, bounds in mm, sew types, colours, text);
   `object.get` gives one object in full.
 - Move, size, turn: `object.move` `{ids, dx, dy}` (the stitches move with it, unchanged),
@@ -541,9 +548,10 @@ afresh).
   closer (density × √(weight / 40)); No. 40 is the default and changes nothing. To make shapes and
   texts drawn from now on start from a fabric, `fabric.setDefault {fabric, weight}` (`fabric:
   "none"` clears it; it changes the user's settings, so say so first; `options.get` shows it).
-- The user's machine (#508): `machine.profile` gives brand, hoop, `cutter`, `maxStitchMm` and the
-  brand's own `format` (export that format when they ask for "the file for my machine").
-  `machine.setProfile {brand, hoop, cutter, maxStitchMm}` (`brand: "none"` clears it) changes the
+- The user's machine (#508): `machine.profile` gives brand, hoop, `cutter`, `maxStitchMm`,
+  `needles` (a multi-needle machine's count) and the brand's own `format` (export that format
+  when they ask for "the file for my machine").
+  `machine.setProfile {brand, hoop, cutter, maxStitchMm, needles}` (`brand: "none"` clears it) changes the
   user's settings: say so first, and set only what the user tells you (never guess a limit).
   Exports then warn about stitches longer than `maxStitchMm` and trims a machine without a
   cutter will not cut: pass those warnings on and offer `design.setStopAtJumps {on: true}`.

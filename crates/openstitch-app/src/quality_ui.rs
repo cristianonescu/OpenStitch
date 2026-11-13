@@ -16,6 +16,8 @@ use std::ops::Range;
 
 const ERROR: Color32 = Color32::from_rgb(0xd3, 0x2f, 0x2f);
 const WARNING: Color32 = Color32::from_rgb(0xe0, 0x8a, 0x00);
+/// A note (#866: more colours than needles): worth knowing, not a problem.
+const NOTE: Color32 = Color32::from_rgb(0x1e, 0x88, 0xe5);
 const READY: Color32 = Color32::from_rgb(0x2e, 0x7d, 0x32);
 const DARK: Color32 = Color32::from_rgb(0x16, 0x16, 0x18);
 const ROUTE: Color32 = Color32::from_rgb(0x00, 0x79, 0xc1);
@@ -54,7 +56,8 @@ pub fn open(app: &mut EditorApp, tab: Tab) {
 }
 
 /// What the status bar's indicator and the window show, for `ui.state` (#599): whether the
-/// design is ready to sew, its error and warning counts and first reason, which tab is open
+/// design is ready to sew, its error, warning and note counts (#1034: notes, such as more
+/// colours than needles, are not problems) and first reason, which tab is open
 /// (`closed` when none) and the Review Sewing Order step the window is on.
 pub fn state_json(app: &EditorApp) -> Value {
     let c = &app.quality.check;
@@ -67,6 +70,7 @@ pub fn state_json(app: &EditorApp) -> Value {
         "ready": errors + warnings == 0,
         "errors": errors,
         "warnings": warnings,
+        "notes": c["notes"].as_u64().unwrap_or(0),
         "summary": c["summary"],
         "window": if app.quality.open { app.quality.tab.key() } else { "closed" },
         "reviewSteps": if route { json!(steps(app).len()) } else { Value::Null },
@@ -99,7 +103,8 @@ pub struct QualityState {
     /// Fabric Selector id the limits follow (`None`: standard).
     pub fabric: Option<String>,
     /// The revision and fabric the results are for.
-    key: Option<(u64, Option<String>)>,
+    /// The revision, fabric and the profile's needle count the check was run for.
+    key: Option<(u64, Option<String>, Option<usize>)>,
     map_revision: Option<u64>,
     route_revision: Option<u64>,
     pub check: Value,
@@ -128,10 +133,22 @@ fn limits(app: &EditorApp) -> (f64, f64) {
 /// Brings the results up to date: the check after every change (the status bar shows it), the
 /// density map and the route while they are shown. A new fabric judges the same stitches again.
 pub fn update(app: &mut EditorApp) {
-    let key = Some((app.revision, app.quality.fabric.clone()));
+    let needles = app
+        .session
+        .user_settings()
+        .machine_profile
+        .as_ref()
+        .and_then(|m| m.needles);
+    let key = Some((app.revision, app.quality.fabric.clone(), needles));
     if app.quality.key != key {
-        app.quality.check =
-            quality::check_json(app.session.design(), &traced(app), limits(app), None, None);
+        app.quality.check = quality::check_json(
+            app.session.design(),
+            &traced(app),
+            limits(app),
+            needles,
+            None,
+            None,
+        );
         app.quality.key = key;
         app.quality.map_revision = None;
     }
@@ -288,14 +305,13 @@ fn check_tab(app: &mut EditorApp, ui: &mut egui::Ui) {
     }
     egui::ScrollArea::vertical().show(ui, |ui| {
         for (i, f) in list.iter().enumerate() {
-            let error = f["severity"] == "error";
+            let (tag, colour) = match f["severity"].as_str() {
+                Some("error") => ("Error", ERROR),
+                Some("info") => ("Note", NOTE),
+                _ => ("Warning", WARNING),
+            };
             ui.horizontal_wrapped(|ui| {
-                let tag = if error { "Error" } else { "Warning" };
-                ui.label(
-                    RichText::new(tag)
-                        .strong()
-                        .color(if error { ERROR } else { WARNING }),
-                );
+                ui.label(RichText::new(tag).strong().color(colour));
                 let text = format!(
                     "{} ({} / {})",
                     f["message"].as_str().unwrap_or_default(),
@@ -746,6 +762,27 @@ mod tests {
         assert!(!findings(&app).iter().any(|f| f["rule"] == "satinTooWide"));
         app.undo();
         assert_eq!(app.session.design(), &before);
+    }
+
+    /// #1034: `ui.state`'s `check` counts notes beside errors and warnings; a note (more thread
+    /// colours than the profile's needles) leaves the design ready to sew.
+    #[test]
+    fn the_check_state_counts_notes() {
+        let shapes = [("Red", 10), ("Blue", 40), ("Black", 70)]
+            .map(|(c, x)| json!({"x": x, "y": 10, "width": 20, "height": 20, "fill": c}));
+        let mut app = app_with(&shapes);
+        assert_eq!(state_json(&app)["notes"], json!(0), "no needle count, no note");
+        app.session
+            .execute(
+                "machine.setProfile",
+                Some(&json!({"brand": "Brother", "needles": 2})),
+            )
+            .expect("profile");
+        update(&mut app);
+        let s = state_json(&app);
+        assert_eq!(s["notes"], json!(1), "{s}");
+        assert_eq!((s["errors"].clone(), s["warnings"].clone()), (json!(0), json!(0)), "{s}");
+        assert_eq!(s["ready"], json!(true), "{s}");
     }
 
     #[test]

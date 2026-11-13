@@ -24,6 +24,8 @@ struct Draft {
     hoop: Option<String>,
     cutter: bool,
     max_stitch: Option<f64>,
+    /// Needles on a multi-needle machine (#866); `None` for a single needle.
+    needles: Option<usize>,
 }
 
 /// Whether this start asks: an interactive start with the user's own settings, not answered
@@ -51,6 +53,7 @@ fn draft_from(app: &mut EditorApp) -> Draft {
         hoop: p["hoop"].as_str().map(str::to_string),
         cutter: p["cutter"].as_bool().unwrap_or(false),
         max_stitch: p["maxStitchMm"].as_f64(),
+        needles: p["needles"].as_u64().map(|n| n as usize),
     }
 }
 
@@ -133,6 +136,23 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
                     }
                 });
                 ui.end_row();
+
+                ui.label(t("ui-needles"));
+                ui.horizontal(|ui| {
+                    let mut multi = d.needles.is_some();
+                    if ui
+                        .checkbox(&mut multi, t("ui-multi-needle-machine"))
+                        .on_hover_text(t("ui-multi-needle-machine-tip"))
+                        .changed()
+                    {
+                        d.needles = multi.then_some(6);
+                    }
+                    if let Some(n) = d.needles.as_mut() {
+                        let r = ui.add(egui::DragValue::new(n).range(1..=15));
+                        crate::a11y::name(&r, "Needles");
+                    }
+                });
+                ui.end_row();
             });
             ui.add_space(4.0);
             ui.label(
@@ -160,6 +180,9 @@ pub fn window(app: &mut EditorApp, ctx: &egui::Context) {
         }
         if let Some(m) = d.max_stitch {
             params["maxStitchMm"] = json!(m);
+        }
+        if let Some(n) = d.needles {
+            params["needles"] = json!(n);
         }
         if app
             .execute(&CommandRequest::new("machine.setProfile", params))

@@ -259,12 +259,7 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
         );
         return;
     }
-    // Find and filter (#745): only the list narrows, never the design or its order.
-    let rows: Vec<_> = all
-        .iter()
-        .filter(|r| objects::matches(&r.search, &app.edit.order_filter))
-        .cloned()
-        .collect();
+    let rows = shown_order_rows(&all, &app.edit.order_filter);
     order_filter(app, ui, &rows, all.len());
     let mut pending: Option<CommandRequest> = None;
     let mut select: Option<(u64, bool)> = None;
@@ -364,6 +359,15 @@ pub fn object_list(app: &mut EditorApp, ui: &mut egui::Ui) {
     if let Some(r) = pending {
         app.execute(&r);
     }
+}
+
+/// The Sewing Order rows shown for the Find text `filter` (#745): only the list narrows, never
+/// the design or its order. The pane and `ui.set {orderFilter}` share it (#1031).
+pub(crate) fn shown_order_rows(all: &[objects::ObjectRow], filter: &str) -> Vec<objects::ObjectRow> {
+    all.iter()
+        .filter(|r| objects::matches(&r.search, filter))
+        .cloned()
+        .collect()
 }
 
 /// The Sewing Order list's filter field (#745): Ctrl+F with the pointer over the list puts the

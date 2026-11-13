@@ -46,6 +46,10 @@ pub struct MachineProfile {
     /// The longest stitch the machine sews, mm, from its manual.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_stitch_mm: Option<f64>,
+    /// Needles on a multi-needle machine (1–15); unset on a single-needle machine. Check
+    /// Design notes designs with more thread colours (#866).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub needles: Option<usize>,
 }
 
 pub fn format_of(brand: &str) -> &'static str {
@@ -63,6 +67,7 @@ pub fn profile_json(p: Option<&MachineProfile>) -> Value {
             "hoop": p.hoop,
             "cutter": p.cutter,
             "maxStitchMm": p.max_stitch_mm,
+            "needles": p.needles,
             "format": format_of(&p.brand),
         }),
     }
@@ -155,6 +160,11 @@ pub fn commands() -> Vec<CommandSpec> {
                     "mm",
                     "The longest stitch the machine sews, from its manual (1–15 mm)",
                 ),
+                opt(
+                    "needles",
+                    "int",
+                    "Needles on a multi-needle machine, 1–15 (leave it out for a single-needle machine): design.check notes designs with more thread colours (moreColoursThanNeedles)",
+                ),
             ],
             |s, p| {
                 let brand = p.string("brand", None)?;
@@ -184,11 +194,21 @@ pub fn commands() -> Vec<CommandSpec> {
                 } else {
                     None
                 };
+                let needles = if p.has("needles") {
+                    let n = p.req("needles", 1.0, 15.0)?;
+                    if n.fract() != 0.0 {
+                        return Err(p.invalid("needles", "must be a whole number"));
+                    }
+                    Some(n as usize)
+                } else {
+                    None
+                };
                 let profile = MachineProfile {
                     brand: brand.to_string(),
                     hoop,
                     cutter: p.bool("cutter", Some(false))?,
                     max_stitch_mm,
+                    needles,
                 };
                 s.user.machine_profile = Some(profile);
                 Ok(json!({ "profile": profile_json(s.user.machine_profile.as_ref()) }))

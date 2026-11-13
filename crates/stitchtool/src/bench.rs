@@ -392,6 +392,13 @@ const RECT: &str = r##"{"x": 20, "y": 20, "width": 30, "height": 20, "fill": "#1
 /// The branch-columns task's Y (#1006): strokes 2.5 mm wide, a 30 mm stem and two 20 mm arms.
 const Y_SHAPE: &str = r##"{"points": [[48.75, 90], [51.25, 90], [51.25, 60], [65.0, 45.0], [63.2, 43.3],
     [50.0, 57.6], [36.8, 43.3], [35.0, 45.0], [48.75, 60]], "fill": "#1f3a93"}"##;
+/// The towel-badge task's badge (#666): a 50 mm disc with white lettering on it.
+const BADGE_DISC: &str = r##"{"cx": 50, "cy": 50, "rx": 25, "fill": "#1f3a93"}"##;
+const BADGE_TEXT: &str = r##"{"text": "SPA", "size": 12, "x": 50, "y": 50, "fill": "#ffffff"}"##;
+/// The stop tasks' three separate circles of one thread (#666): two jumps between them.
+const DOT_1: &str = r##"{"cx": 25, "cy": 30, "rx": 8, "fill": "#c0392b"}"##;
+const DOT_2: &str = r##"{"cx": 50, "cy": 70, "rx": 8, "fill": "#c0392b"}"##;
+const DOT_3: &str = r##"{"cx": 75, "cy": 30, "rx": 8, "fill": "#c0392b"}"##;
 const PICTURE: &str = "{PICTURE}";
 /// The Auto Punch task's picture (#493): the Higgsfield emblem, 128 px (examples/images,
 /// PROVENANCE.md `d02-emblem-small.png`), written to the scratch folder as `emblem.png`.
@@ -863,6 +870,18 @@ pub const TASKS: &[Task] = &[
                 layers.len() >= 2,
                 "one fill per colour of a blend or gradient",
             )?;
+            // One section shared by every colour's fill: one group and one outline (#807).
+            need(
+                layers[0]["group"].is_u64()
+                    && layers.iter().all(|f| f["group"] == layers[0]["group"])
+                    && layers
+                        .iter()
+                        .all(|f| f["contours"] == layers[0]["contours"]),
+                "the colours' fills on one shared section (one group, one outline)",
+            )?;
+            let mut threads: Vec<&Value> = layers.iter().map(|f| &f["region"]["thread"]).collect();
+            threads.dedup();
+            need(threads.len() >= 2, "a different colour per fill")?;
             need(
                 d.colors().iter().any(|c| whitish(c)),
                 "a white (or near-white) colour",
@@ -975,7 +994,153 @@ pub const TASKS: &[Task] = &[
             need(d.stitches() > 100, "stitches")
         },
     },
+    // Production (#666; #509 basting, #510 knockdown, #512 stops, #547 nearest start).
+    Task {
+        id: "towel-badge",
+        setup: &[("shape.ellipse", BADGE_DISC), ("text.add", BADGE_TEXT)],
+        prompt: "This badge will be sewn on a terry bath towel. Put a knockdown fill under it so \
+                 the stitches don't sink into the pile, add a basting box that holds the towel on \
+                 the stabiliser, and make each part start nearest to where the last one ended.",
+        check: towel_badge,
+    },
+    Task {
+        id: "no-cutter",
+        setup: &[
+            ("shape.ellipse", DOT_1),
+            ("shape.ellipse", DOT_2),
+            ("shape.ellipse", DOT_3),
+        ],
+        prompt: "My machine has no thread cutter. Make it stop before each jump between the \
+                 circles so I can snip the thread by hand.",
+        check: |d| {
+            let production = &d.info["production"];
+            need(
+                production["stopAtJumps"] == json!(true),
+                "Stop at Jumps on (design.setStopAtJumps)",
+            )?;
+            need(
+                production["stops"].as_u64().unwrap_or(0) >= 2,
+                "a stop before each of the 2 jumps",
+            )?;
+            sews_clean(d)
+        },
+    },
+    Task {
+        id: "stop-after",
+        setup: &[
+            ("shape.ellipse", DOT_1),
+            ("shape.ellipse", DOT_2),
+            ("shape.ellipse", DOT_3),
+        ],
+        prompt: "Make the machine stop after it sews the second circle, so I can lay the \
+                 appliqué fabric before it goes on.",
+        check: |d| {
+            let stops: Vec<bool> = d
+                .objects
+                .iter()
+                .map(|o| o["stopAfter"] == json!(true))
+                .collect();
+            need(
+                stops.get(1) == Some(&true),
+                "a stop after the second circle (object.setStopAfter)",
+            )?;
+            need(
+                stops.iter().filter(|&&s| s).count() == 1
+                    && d.info["production"]["stopAtJumps"] != json!(true),
+                "only that stop",
+            )?;
+            sews_clean(d)
+        },
+    },
 ];
+
+/// An object's bounds as [x0, y0, x1, y1] mm, from `object.list`.
+fn bounds_of(o: &Value) -> [f64; 4] {
+    let f = |k: &str| o["bounds"][k].as_f64().unwrap_or(0.0);
+    [f("x"), f("y"), f("x") + f("width"), f("y") + f("height")]
+}
+
+/// Whether `b` lies on the Design Page, the hoop's sewing field (`design.info`).
+fn on_page(d: &Design, b: [f64; 4]) -> bool {
+    let (w, h) = (
+        d.info["pageWidthMM"].as_f64().unwrap_or(0.0),
+        d.info["pageHeightMM"].as_f64().unwrap_or(0.0),
+    );
+    b[0] >= -0.01 && b[1] >= -0.01 && b[2] <= w + 0.01 && b[3] <= h + 0.01
+}
+
+/// The towel-badge task (#666): a knockdown fill sewn first under the whole badge and inside the
+/// hoop, a basting box inside the hoop, every part starting nearest, and clean sewing.
+fn towel_badge(d: &Design) -> Result<(), String> {
+    let knockdown = |o: &Value| o["knockdown"] == json!(true);
+    need(
+        d.objects.iter().any(knockdown),
+        "a knockdown fill under the badge (wizard.knockdown)",
+    )?;
+    need(
+        d.objects.first().is_some_and(knockdown),
+        "the knockdown sewn first, under the design",
+    )?;
+    let kd = bounds_of(d.objects.iter().find(|o| knockdown(o)).expect("knockdown"));
+    let badge = d
+        .objects
+        .iter()
+        .filter(|o| !knockdown(o) && o["visible"] != json!(false))
+        .map(bounds_of)
+        .reduce(|a, b| {
+            [
+                a[0].min(b[0]),
+                a[1].min(b[1]),
+                a[2].max(b[2]),
+                a[3].max(b[3]),
+            ]
+        });
+    need(
+        badge.is_some_and(|b| {
+            kd[0] <= b[0] + 0.01
+                && kd[1] <= b[1] + 0.01
+                && kd[2] >= b[2] - 0.01
+                && kd[3] >= b[3] - 0.01
+        }),
+        "the knockdown covers the whole badge",
+    )?;
+    need(on_page(d, kd), "the knockdown inside the hoop")?;
+    let production = &d.info["production"];
+    let basting = &production["basting"];
+    need(basting.is_object(), "a basting box (design.setBasting)")?;
+    let margin = basting["marginMM"].as_f64().unwrap_or(0.0);
+    let all = d
+        .objects
+        .iter()
+        .map(bounds_of)
+        .reduce(|a, b| {
+            [
+                a[0].min(b[0]),
+                a[1].min(b[1]),
+                a[2].max(b[2]),
+                a[3].max(b[3]),
+            ]
+        })
+        .unwrap_or_default();
+    need(
+        on_page(
+            d,
+            [
+                all[0] - margin,
+                all[1] - margin,
+                all[2] + margin,
+                all[3] + margin,
+            ],
+        ),
+        "the basting box inside the hoop",
+    )?;
+    need(
+        production["autoStart"] == "nearest",
+        "every part starting nearest to the last (design.setProperties autoStart nearest)",
+    )?;
+    sews_clean(d)?;
+    need(d.stitches() > 500, "stitches")
+}
 
 /// One part of the small-name task (#493): about 5 mm, in a font whose `sizeRange` holds the
 /// size, sewn as bean stitch.
@@ -1645,7 +1810,7 @@ mod tests {
         let (json, md) = reports("scripted", &out);
         assert_eq!(json["passed"], 2);
         assert!(md.contains("| star | fail: only talked |"));
-        assert_eq!(TASKS.len(), 29);
+        assert_eq!(TASKS.len(), 32);
     }
 
     #[test]
@@ -1897,6 +2062,133 @@ mod tests {
         .expect("columns");
         let d = read(&mut s);
         (task.check)(&d).unwrap_or_else(|e| panic!("{e}: {:?}", d.objects));
+    }
+
+    /// A task's setup in a fresh session.
+    fn set_up(id: &str) -> (&'static Task, Session) {
+        let task = TASKS.iter().find(|t| t.id == id).expect("task");
+        let mut s = Session::new(std::env::temp_dir());
+        for (command, params) in task.setup {
+            let p: Value = serde_json::from_str(params).expect("json");
+            s.execute(command, Some(&p)).expect("setup");
+        }
+        (task, s)
+    }
+
+    /// What the benchmark scores, read from `s` as `scored` reads it.
+    fn scored_design(s: &mut Session) -> Design {
+        let objects: Vec<Value> = s
+            .execute("object.list", None)
+            .ok()
+            .and_then(|v| v.as_array().cloned())
+            .unwrap_or_default();
+        let full = objects
+            .iter()
+            .map(|o| {
+                s.execute("object.get", Some(&json!({"id": o["id"]})))
+                    .unwrap_or_default()
+            })
+            .collect();
+        Design {
+            objects,
+            full,
+            info: s.execute("design.info", None).unwrap_or_default(),
+            check: s.execute("design.check", None).unwrap_or_default(),
+            ..Design::default()
+        }
+    }
+
+    /// Runs `steps` after the task's setup and scores the result.
+    fn score(id: &str, steps: &[(&str, Value)]) -> Result<(), String> {
+        let (task, mut s) = set_up(id);
+        for (command, params) in steps {
+            s.execute(command, Some(params)).expect(command);
+        }
+        (task.check)(&scored_design(&mut s))
+    }
+
+    /// #666: the towel badge needs the knockdown under it, a basting box and nearest start.
+    #[test]
+    fn the_towel_badge_task_needs_knockdown_basting_and_nearest_start() {
+        let all = [
+            ("wizard.knockdown", json!({})),
+            ("design.setBasting", json!({"on": true})),
+            ("design.setProperties", json!({"autoStart": "nearest"})),
+        ];
+        score("towel-badge", &all).unwrap_or_else(|e| panic!("{e}"));
+        let e = score("towel-badge", &[]).expect_err("nothing done");
+        assert!(e.contains("knockdown"), "{e}");
+        let e = score("towel-badge", &all[..2]).expect_err("no nearest start");
+        assert!(e.contains("nearest"), "{e}");
+        let e = score("towel-badge", &[all[0].clone(), all[2].clone()]).expect_err("no basting");
+        assert!(e.contains("basting"), "{e}");
+    }
+
+    /// #666: stops by hand: Stop at Jumps for a machine without a cutter, and one stop after
+    /// the second object.
+    #[test]
+    fn the_stop_tasks_need_their_stops_and_only_those() {
+        score(
+            "no-cutter",
+            &[("design.setStopAtJumps", json!({"on": true}))],
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        let e = score("no-cutter", &[]).expect_err("no stops");
+        assert!(e.contains("Stop at Jumps"), "{e}");
+        score(
+            "stop-after",
+            &[("object.setStopAfter", json!({"ids": [2], "on": true}))],
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        let e = score(
+            "stop-after",
+            &[("object.setStopAfter", json!({"ids": [1], "on": true}))],
+        )
+        .expect_err("after the first");
+        assert!(e.contains("second"), "{e}");
+        let e = score(
+            "stop-after",
+            &[
+                ("object.setStopAfter", json!({"ids": [2], "on": true})),
+                ("design.setStopAtJumps", json!({"on": true})),
+            ],
+        )
+        .expect_err("stops at every jump too");
+        assert!(e.contains("only"), "{e}");
+    }
+
+    /// #807: the blend task needs one fill per colour on one shared section; the gradation-shape
+    /// task needs the centre shape.
+    #[test]
+    fn the_blend_and_gradation_tasks_score_the_fills() {
+        score(
+            "sky-blend",
+            &[(
+                "shape.blend",
+                json!({"id": 1, "thread2": "#ffffff", "angle": 90}),
+            )],
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+        let e = score("sky-blend", &[]).expect_err("one plain fill");
+        assert!(e.contains("one fill per colour"), "{e}");
+        let e = score(
+            "sky-blend",
+            &[("shape.blend", json!({"id": 1, "thread2": "#c0392b"}))],
+        )
+        .expect_err("not white");
+        assert!(e.contains("white"), "{e}");
+        let shaped = |shape: &str| {
+            score(
+                "gradation-shape",
+                &[(
+                    "object.setRegion",
+                    json!({"id": 1, "gradationPattern": true, "gradationShape": shape}),
+                )],
+            )
+        };
+        shaped("centre").unwrap_or_else(|e| panic!("{e}"));
+        let e = shaped("edges").expect_err("open in the middle");
+        assert!(e.contains("centre"), "{e}");
     }
 
     #[test]
