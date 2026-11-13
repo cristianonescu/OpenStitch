@@ -125,7 +125,7 @@ through its normal interface are committed under `compat/reference/`. The compat
 <!-- status:glance -->
 | | |
 |---|---|
-| Feature matrix rows | 330: 277 implemented (4 of them partially compatible), 0 documented only, 9 blocked, 29 planned beyond PE-DESIGN |
+| Feature matrix rows | 330: 277 implemented (4 of them partially compatible), 0 documented only, 9 blocked, 15 partial beyond PE-DESIGN, 29 planned beyond PE-DESIGN |
 | Compatibility specs | 497: 497 pass, 0 fail ([status](docs/COMPATIBILITY_STATUS.md)) |
 | Matrix rows covered by specs | 40: 31 at the reference tier, 7 at the internal-regression tier, 2 at the oracle tier |
 | Open audit differences | 9 ([audit](docs/COMPATIBILITY_AUDIT.md#summary)) |
@@ -922,7 +922,6 @@ Open enhancement issues:
 - [#807](https://github.com/cristianonescu/OpenStitch/issues/807) AI bench: tasks for gradient fills and colour blends
 - [#817](https://github.com/cristianonescu/OpenStitch/issues/817) Hand-stitch look for fills: seeded rows that look sewn by hand
 - [#818](https://github.com/cristianonescu/OpenStitch/issues/818) Rebuilt objects keep the original's sewing: measured satin spacing, tatami pattern, closed satin rings
-- [#828](https://github.com/cristianonescu/OpenStitch/issues/828) Release gate: refresh the example designs behind the screenshots and docs for the new stitching
 - [#831](https://github.com/cristianonescu/OpenStitch/issues/831) Browser: autosave and crash recovery in browser storage
 - [#832](https://github.com/cristianonescu/OpenStitch/issues/832) GIF and WebP pictures in the image tools (desktop and browser)
 - [#833](https://github.com/cristianonescu/OpenStitch/issues/833) Browser: ready-to-sew samples and a clear note on system fonts
@@ -959,6 +958,7 @@ Open enhancement issues:
 - [#960](https://github.com/cristianonescu/OpenStitch/issues/960) PE-compatible Photo Stitch 1: a contour path layout so banded pictures trim as rarely as PE-DESIGN (sunset 2.7 against 1.27 per 1,000)
 - [#989](https://github.com/cristianonescu/OpenStitch/issues/989) SHV and CSD export: the SHV preview's drawing rule, the remaining chart entries, and the constant bytes no capture explains
 - [#994](https://github.com/cristianonescu/OpenStitch/issues/994) Cross Stitch, OpenStitch mode: follow a pixel-art image's own grid
+- [#1006](https://github.com/cristianonescu/OpenStitch/issues/1006) Assistant benchmark: a task that turns a branching shape into satin columns (object.deriveSkeleton branches)
 <!-- /status:issues-planned -->
 
 ### Beyond PE-DESIGN
