@@ -8,7 +8,9 @@ use openstitch_design::{Vec2, v2};
 /// different pixels for the same stitches. `tools/sew_kit.py` records it with every kit preview,
 /// and `--check-previews` fails on a preview drawn at another version, so a look change can't
 /// leave the committed previews behind (#920).
-pub const REALISTIC_RENDER_VERSION: u32 = 1;
+///
+/// 1: the view before #1020. 2: 4× MSAA and unfeathered thread meshes (#907, #1020).
+pub const REALISTIC_RENDER_VERSION: u32 = 2;
 
 /// Fallback when a pattern has fewer threads than colour blocks.
 pub const UNKNOWN_THREAD: [u8; 3] = [0x80, 0x80, 0x80];
