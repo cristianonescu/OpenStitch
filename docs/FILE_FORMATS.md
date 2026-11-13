@@ -282,8 +282,8 @@ below is pinned by a test in `tests/pes11.rs`.
   locates the table as the one that parses to exactly where the object list starts.
 - **Coordinates** are 0.1 mm with the page's top-left corner at (500, 500), y down, in every
   file so far (all on a 100 × 100 mm page).
-- `CEmbSpecialShape` (a Shapes-gallery shape: o-gallery-heart, the five gallery shapes of
-  shape-start-points, the appliqué's heart) is a `CEmbLine` record byte for byte under its own
+- `CEmbSpecialShape` (a Shapes-gallery shape: the isosceles triangles of concentric-triangle and
+  spiral-triangle*; the heart captures were withdrawn for #1060) is a `CEmbLine` record byte for byte under its own
   class name: the same 4432-byte body, geometry header and vertices, and no gallery id. The
   reader reads it as a shape (`Shape::gallery`) and the writer writes it back under its class.
 - `CEmbOne` (a stitch group: PE-DESIGN's re-saves of OpenStitch's version 6 files,
