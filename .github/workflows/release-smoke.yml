@@ -73,9 +73,9 @@ jobs:
           scene appimage-demo "$image" --appimage-extract-and-run --demo
           scene appimage-pes "$image" --appimage-extract-and-run oracle.pes --ribbon view
           scene appimage-database "$image" --appimage-extract-and-run --database db --db-view large
-          # The Realistic view on a dense fill at about 5 px/mm, where rows a pixel apart show
-          # moire stripes without MSAA (#907, #1021).
-          scene appimage-realistic "$image" --appimage-extract-and-run smoke-fill.pes --show realistic --zoom 1.24
+          # The Realistic view on a dense fill at 5.2 px/mm (1280 x 800 window, page fit x 1.24),
+          # where rows a pixel apart showed moire stripes without MSAA (#907, #1021).
+          scene appimage-realistic "$image" --appimage-extract-and-run smoke-fill.pes --show realistic             --size 1280x800 --zoom 1.24
           mkdir tarball && tar -xzf rel/OpenStitch-*-linux-x86_64.tar.gz -C tarball
           bin=$(find tarball -path '*bin/openstitch' -type f | head -1)
           scene tarball-demo "$bin" --demo
@@ -191,7 +191,7 @@ jobs:
           }
           scene app-demo --demo
           scene app-pes oracle.pes --ribbon view
-          scene app-realistic smoke-fill.pes --show realistic --zoom 1.24
+          scene app-realistic smoke-fill.pes --show realistic --size 1280x800 --zoom 1.24
       - uses: actions/upload-artifact@v4
         if: always()
         with:
