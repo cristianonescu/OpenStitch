@@ -1034,6 +1034,23 @@ fn a_at_25_mm_meets_the_boxes_of_526_on_its_stitches() {
 }
 
 #[test]
+fn a_star_at_25_mm_meets_the_boxes_of_526_with_a_column_per_point() {
+    // The star at 25 mm was one main column 24.7 mm wide through its middle (sewn coverage
+    // 0.54, an 11 mm gap): now one column per point along its kite, from tip to centre. At 10 mm
+    // the split stays as it was, and meets the boxes too.
+    for (size, columns) in [(25.0, 5), (10.0, 2)] {
+        let mut s = Session::new(std::env::temp_dir());
+        let r = run(
+            &mut s,
+            "shape.preset",
+            json!({"kind": "star", "cx": 50, "cy": 50, "width": size, "fill": "Red"}),
+        );
+        let shape_id = r["id"].as_u64().expect("shape");
+        meets_the_boxes_of_526(&mut s, shape_id, columns, 0.97);
+    }
+}
+
+#[test]
 fn a_ring_at_25_mm_meets_the_boxes_of_526_on_its_stitches() {
     // A ring's quarters meet on a curve: a quarter joining the ring's narrower main column runs
     // on to where its centre lies deepest in it, so the join is past joinOverlap and the

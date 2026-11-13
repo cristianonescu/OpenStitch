@@ -1126,6 +1126,11 @@ pub fn branches(contours: &[Contour], join_overlap: f64) -> Vec<Skeleton> {
     };
     let overlap = join_overlap.clamp(0.0, 10.0) * 10.0;
     let plain = split(main.clone(), &grid, &edges, overlap, Trim::Plain);
+    // A star whose split would sew it as one column wider than satin holds (the five-point
+    // star at 25 mm: 24.7 mm) is one column per point instead, from its tip to the centre.
+    if let Some(points) = star_columns(contours, &plain, overlap) {
+        return points;
+    }
     if plain.len() == 1 {
         // No arm leaves the one stroke found, yet strokes may meet at sharp inward corners
         // (N, M, W): cut there first and give each stroke its own column (#526).
@@ -1339,6 +1344,179 @@ fn notch_columns(
     }
     let reached = reach_free_ends(columns, edges);
     Some(reach_into_joins(reached, edges, overlap))
+}
+
+/// The widest a column of [`branches`] may be before a star is split point by point instead,
+/// mm: where the engine warns that satin sews loose (#526).
+const STAR_SPLIT_WIDTH: f64 = 10.0;
+
+/// The least number of points (and notches) of a star-like outline.
+const STAR_MIN_POINTS: usize = 3;
+
+/// A star's tip turns by at least this many degrees, and its notches back by as much.
+const STAR_TURN: f64 = 30.0;
+
+/// One column per point of a star-like region (#526) when `split`'s widest column is over
+/// [`STAR_SPLIT_WIDTH`]: each along its kite ([`star_kites`], [`kite_column`]), from the tip
+/// to the centre, the neighbours overlapping by `overlap` (0.1 mm). `None` otherwise.
+fn star_columns(contours: &[Contour], split: &[Skeleton], overlap: f64) -> Option<Vec<Skeleton>> {
+    let widest = split
+        .iter()
+        .flat_map(|s| s.widths.iter().copied())
+        .fold(0.0, f64::max);
+    if widest <= STAR_SPLIT_WIDTH {
+        return None;
+    }
+    star_kites(contours)?
+        .iter()
+        .map(|k| kite_column(&k.points, overlap))
+        .collect()
+}
+
+/// The column along a kite `[notch, tip, notch, centre]` (#526): its centre line from the tip
+/// to the centre, every point as wide as the kite's chord square to it there, so the rungs
+/// tile the kite. Towards the centre each chord is `overlap` (0.1 mm) longer on each side, so
+/// the columns either side overlap by that much; the tip stays a point. Points every 0.5 mm,
+/// and at the notches' feet, where the kite is widest.
+fn kite_column(kite: &[Vec2], overlap: f64) -> Option<Skeleton> {
+    let [a, tip, b, centre] = kite else {
+        return None;
+    };
+    let (tip, centre) = (*tip, *centre);
+    let length = tip.distance(centre);
+    if length < 10.0 {
+        return None;
+    }
+    let dir = (centre - tip) * (1.0 / length);
+    let normal = v2(-dir.y, dir.x);
+    let along = |p: Vec2| {
+        let d = p - tip;
+        d.x * dir.x + d.y * dir.y
+    };
+    let widest = along(*a).max(along(*b)).clamp(0.0, length);
+    let mut at: Vec<f64> = (0..)
+        .map(|k| f64::from(k) * 5.0)
+        .take_while(|&t| t < length)
+        .chain([along(*a), along(*b), length])
+        .filter(|t| (0.0..=length).contains(t))
+        .collect();
+    at.sort_by(f64::total_cmp);
+    at.dedup_by(|x, y| (*x - *y).abs() < 0.5);
+    let edges = [(*a, tip), (tip, *b), (*b, centre), (centre, *a)];
+    let (mut points, mut widths) = (Vec::new(), Vec::new());
+    for t in at {
+        let p = tip + dir * t;
+        // The chord along `normal` through `p`: where it crosses the kite's edges.
+        let hits: Vec<f64> = edges
+            .iter()
+            .filter_map(|&(e0, e1)| {
+                let e = e1 - e0;
+                let denom = normal.x * e.y - normal.y * e.x;
+                if denom.abs() < 1e-12 {
+                    return None;
+                }
+                let w = e0 - p;
+                let u = (w.x * e.y - w.y * e.x) / denom;
+                let v = (w.x * normal.y - w.y * normal.x) / denom;
+                (-1e-9..=1.0 + 1e-9).contains(&v).then_some(u)
+            })
+            .collect();
+        let chord = match (
+            hits.iter().copied().reduce(f64::min),
+            hits.iter().copied().reduce(f64::max),
+        ) {
+            (Some(lo), Some(hi)) => hi - lo,
+            _ => 0.0,
+        };
+        let reach = if widest > 0.0 {
+            (t / widest).min(1.0)
+        } else {
+            1.0
+        };
+        points.push(p);
+        widths.push(((chord + 2.0 * overlap * reach) / 10.0).min(MAX_WIDTH));
+    }
+    let sk = Skeleton { points, widths };
+    sk.validate().is_ok().then_some(sk)
+}
+
+/// The kites a star-like region tiles into (#526): its outline, simplified, alternates sharp
+/// convex tips and concave notches, at least [`STAR_MIN_POINTS`] of each; the centre is the
+/// notches' mean; each kite is a tip, its two notches and the centre, and lies inside the
+/// outline. `None` for any other region (one with holes, curves between its points, or a
+/// notch that cannot see the centre).
+fn star_kites(contours: &[Contour]) -> Option<Vec<Contour>> {
+    let mut closed = contours.iter().filter(|c| c.closed);
+    let (outline, None) = (closed.next()?, closed.next()) else {
+        return None;
+    };
+    let mut ring = outline.path();
+    if ring.len() > 1 && ring[0].distance(ring[ring.len() - 1]) < 1e-6 {
+        ring.pop();
+    }
+    if ring.len() < 2 * STAR_MIN_POINTS {
+        return None;
+    }
+    let bounds = crate::geometry::Rect::enclosing(ring.iter().copied())?;
+    let size = bounds.width().max(bounds.height());
+    // Douglas–Peucker over the ring opened at its first point (closed again by repeating it).
+    let mut open = ring.clone();
+    open.push(ring[0]);
+    let mut keep = simplify(&open, size * 0.02);
+    keep.pop();
+    let pts: Vec<Vec2> = keep.iter().map(|&i| open[i]).collect();
+    let n = pts.len();
+    if n < 2 * STAR_MIN_POINTS || !n.is_multiple_of(2) {
+        return None;
+    }
+    let area: f64 = (0..n)
+        .map(|i| {
+            let (a, b) = (pts[i], pts[(i + 1) % n]);
+            a.x * b.y - b.x * a.y
+        })
+        .sum();
+    // Each vertex: +1 a sharp tip, -1 a sharp notch, 0 neither.
+    let kind = |i: usize| -> i8 {
+        let (a, b, c) = (pts[(i + n - 1) % n], pts[i], pts[(i + 1) % n]);
+        let (u, v) = (b - a, c - b);
+        let cross = u.x * v.y - u.y * v.x;
+        let dot = u.x * v.x + u.y * v.y;
+        let turn = Det::datan2(cross, dot).abs().to_degrees();
+        if turn < STAR_TURN {
+            0
+        } else if cross * area > 0.0 {
+            1
+        } else {
+            -1
+        }
+    };
+    let kinds: Vec<i8> = (0..n).map(kind).collect();
+    // Tips and notches alternate all the way round.
+    let first_tip = (0..n).find(|&i| kinds[i] == 1)?;
+    if (0..n).any(|k| kinds[(first_tip + k) % n] != if k.is_multiple_of(2) { 1 } else { -1 }) {
+        return None;
+    }
+    let notches: Vec<Vec2> = (0..n).filter(|&i| kinds[i] == -1).map(|i| pts[i]).collect();
+    let centre = notches.iter().fold(v2(0.0, 0.0), |s, &p| s + p) * (1.0 / notches.len() as f64);
+    let region = std::slice::from_ref(outline);
+    if !crate::geometry::contains(centre, region) {
+        return None;
+    }
+    let mut kites = Vec::with_capacity(n / 2);
+    for k in (0..n).step_by(2) {
+        let tip = (first_tip + k) % n;
+        let (before, after) = (pts[(tip + n - 1) % n], pts[(tip + 1) % n]);
+        // The cuts from the notches to the centre run inside the star.
+        let inside = [0.25, 0.5, 0.75].iter().all(|&t| {
+            crate::geometry::contains(before + (centre - before) * t, region)
+                && crate::geometry::contains(after + (centre - after) * t, region)
+        });
+        if !inside {
+            return None;
+        }
+        kites.push(Contour::new(vec![before, pts[tip], after, centre], true));
+    }
+    Some(kites)
 }
 
 /// How [`split`] trims its arms (#526).
@@ -2634,7 +2812,8 @@ mod tests {
             "{} {arms:?}",
             coverage(&plus, &arms)
         );
-        // A five-pointed star: the main stroke through two points, a column for each other.
+        // A five-pointed star whose main stroke would be over 10 mm wide through its middle:
+        // one column per point, along its kite from tip to centre (#526).
         let star: Vec<(f64, f64)> = (0..10)
             .map(|i| {
                 let a = std::f64::consts::PI * i as f64 / 5.0 - std::f64::consts::FRAC_PI_2;
@@ -2644,11 +2823,48 @@ mod tests {
             .collect();
         let star = polygon(&star);
         let arms = branches(&star, 0.3);
-        assert_eq!(arms.len(), 4, "{arms:?}");
+        assert_eq!(arms.len(), 5, "{arms:?}");
         assert!(coverage(&star, &arms) > 0.9, "{}", coverage(&star, &arms));
         for sk in &arms {
             assert_eq!(sk.validate(), Ok(()));
         }
+    }
+
+    /// #526: a five-point star whose split would sew it as one column wider than satin holds
+    /// (the star at 25 mm: 24.7 mm) is one column per point, each along its kite from the tip
+    /// to the centre; at 10 mm its split stays as it was.
+    #[test]
+    fn a_star_too_broad_for_one_column_is_one_column_per_point() {
+        let star = |r: f64| {
+            let unit = crate::shapes::star(5, 0.4);
+            vec![Contour::new(
+                unit.points
+                    .iter()
+                    .map(|p| v2(250.0 + p.x * r, 250.0 + p.y * r))
+                    .collect(),
+                true,
+            )]
+        };
+        let big = star(125.0);
+        let arms = branches(&big, 0.3);
+        assert_eq!(arms.len(), 5, "{arms:?}");
+        for sk in &arms {
+            assert_eq!(sk.validate(), Ok(()));
+            assert!(
+                sk.widths.iter().all(|&w| w <= STAR_SPLIT_WIDTH),
+                "{:?}",
+                sk.widths
+            );
+        }
+        assert!(coverage(&big, &arms) > 0.95, "{}", coverage(&big, &arms));
+        // 10 mm across: no column over 10 mm, so the split stays as it was, not by point.
+        let small = branches(&star(50.0), 0.3);
+        assert_ne!(small.len(), 5, "{small:?}");
+        assert!(
+            small
+                .iter()
+                .all(|sk| sk.widths.iter().all(|&w| w <= STAR_SPLIT_WIDTH))
+        );
     }
 }
 
