@@ -125,7 +125,10 @@ Results from other machines, threads and fabrics are welcome (see *Sending resul
   of the "T1" label's T bar (2 runs of records within 1.5 x 1 mm), not the swatch rows. To get
   the sewn file back: `git show 4cf8b7a:examples/sew/calibration/t1-swatches.pes`.
 - `calibration/t2-alternating-rows.pes` (created in #634, 2026-11-06) and
-  `calibration/satin-and-underlay.pes` have no sew-out yet.
+  `calibration/satin-and-underlay.pes` have no sew-out yet. #1017 changed only the "2" of the
+  T2 card's label (where the letter starts: one of the card's 26 sections, 81 to 83 stitches,
+  within x 5.3-9.6, y 67.6-68.0 mm); the other 25 sections, every swatch row among them, are
+  unchanged.
 
 ### T1 card, 2026-11-03
 
@@ -264,7 +267,7 @@ Threads, in sewing order: 001 White, 900 Black, 800 Red, 405 Blue, 205 Yellow, 5
 
 #### T2 calibration card: two threads in alternating rows
 
-[`calibration/t2-alternating-rows.pes`](calibration/t2-alternating-rows.pes) · 100 × 100 mm hoop · 61.9 × 68 mm · 6,071 stitches · 26 trims · about 8.9 min
+[`calibration/t2-alternating-rows.pes`](calibration/t2-alternating-rows.pes) · 100 × 100 mm hoop · 61.9 × 68 mm · 6,073 stitches · 26 trims · about 8.9 min
 
 How much a row sewn later covers its neighbour of another thread, which Photo Stitch 1's fine rows need (`rows::Rows::strip`, #311). Black 900 and Yellow 205 as 12 mm fills at 0° without underlay, one row of swatches per density: 2, 3, 4 and 5 rows/mm of each thread, top to bottom. Left to right: solid Black at the two threads' total (4, 6, 8, 10 rows/mm), Black rows with Yellow rows midway between them and sewn later, the same with Yellow sewn first, and solid Yellow at the total. The thread sewn later lies on top, so the two middle columns differ only in sewing order. The "T2" mark is below the bottom-left swatch. Sew it on the same fabric and thread as the T1 card and scan it the same way.
 
@@ -524,7 +527,7 @@ The fonts, Text Transform, text on a path and monograms.
 
 #### Lettering
 
-[`lettering/fonts-and-text.pes`](lettering/fonts-and-text.pes) · 100 × 100 mm hoop · 71 × 89.7 mm · 3,936 stitches · 40 trims · about 7 min
+[`lettering/fonts-and-text.pes`](lettering/fonts-and-text.pes) · 100 × 100 mm hoop · 71 × 89.7 mm · 3,980 stitches · 38 trims · about 6.9 min
 
 Lato Bold and Pacifico, a Text Transform arch, and text spaced around a circle (text on a path).
 
@@ -534,7 +537,7 @@ Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 620 Magenta.
 
 #### Monograms
 
-[`lettering/monograms.pes`](lettering/monograms.pes) · 150 × 150 mm hoop · 123.9 × 117.5 mm · 7,598 stitches · 15 trims · about 10.3 min
+[`lettering/monograms.pes`](lettering/monograms.pes) · 150 × 150 mm hoop · 123.9 × 117.5 mm · 7,606 stitches · 15 trims · about 10.3 min
 
 The four monogram styles (block, script, diamond, circle), each in a decorative frame, for the 150 × 150 mm hoop.
 
