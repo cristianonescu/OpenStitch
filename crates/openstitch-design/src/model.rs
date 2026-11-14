@@ -1755,7 +1755,10 @@ pub struct Gradation {
     pub max: f64,
     /// Density at the far side, % (5–100).
     pub min: f64,
-    /// Number of step values (2–20); `None`: a gradation saved before patterns.
+    /// `Some`: PE-DESIGN's gradation pattern, whose Gradation Pattern Setting always has nine
+    /// points (round 15, #1039), so the count is 9 (designs saved before #1039 may hold
+    /// another, which sews the same: rows follow the straight fall from `max` to `min`);
+    /// `None`: a gradation saved before patterns, a continuous fall from 100 %.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub steps: Option<u32>,
     /// How the density goes from `max` to `min` across the region (#532, beyond PE-DESIGN):
@@ -2184,6 +2187,17 @@ impl RegionSewing {
     /// to 40° that keeps the spacing across the rows within ±15 % of the set density. A higher
     /// wave is sewn at this slope.
     pub const MAX_WAVE_SLOPE: f64 = 0.839_099_631_177_280;
+
+    /// Wave fill: the highest wave (crest to trough, mm) its wave length allows, at
+    /// [`RegionSewing::MAX_WAVE_SLOPE`]: 0.267 × the wave length (4.27 mm at the default 16),
+    /// at most 20. A higher setting sews this wave (#1050).
+    pub fn max_wave_height(&self) -> f64 {
+        let length = self
+            .wave_length
+            .unwrap_or(Self::DEFAULT_WAVE_LENGTH)
+            .clamp(2.0, 100.0);
+        (2.0 * Self::MAX_WAVE_SLOPE * length / std::f64::consts::TAU).min(20.0)
+    }
 
     /// Wave fill: `(amplitude, wave length)` in mm, the amplitude (half the height) capped at
     /// [`RegionSewing::MAX_WAVE_SLOPE`]; `None` for straight rows (not a fill, or no height).

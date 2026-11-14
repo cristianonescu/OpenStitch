@@ -1407,7 +1407,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "gradationSteps",
                     "int",
-                    "Gradation pattern: number of step values (2-20)",
+                    "Ignored (#1039): PE-DESIGN's Gradation Pattern Setting always has nine points. Accepted from older scripts and designs, with a hint",
                 ),
                 opt(
                     "gradationShape",
@@ -1745,6 +1745,12 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         r.underlay_style = u;
                         r.underlay_parts = None;
                     }
+                    // PE-DESIGN's first under sewing type on a satin is the edge run and zigzag
+                    // rows: `edgeFill` (its fill form) is stored as that, which sews the same
+                    // (#1041), whether asked for or kept from a fill switched to a satin.
+                    if r.kind == RegionType::Satin && r.underlay_style == UnderlayStyle::EdgeFill {
+                        r.underlay_style = UnderlayStyle::EdgeZigzag;
+                    }
                     if p.has("underlayParts") {
                         let names: Vec<&str> = p
                             .array("underlayParts")?
@@ -1792,7 +1798,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                                 .unwrap_or(Gradation::PE_DEFAULT)
                         });
                     }
-                    if ["gradationMax", "gradationMin", "gradationSteps", "gradationShape"]
+                    if ["gradationMax", "gradationMin", "gradationShape"]
                         .iter()
                         .any(|k| p.has(k))
                     {
@@ -1802,8 +1808,8 @@ fn attribute_commands() -> Vec<CommandSpec> {
                             .unwrap_or(Gradation::PE_DEFAULT);
                         g.max = p.opt("gradationMax", g.max, 5.0, 100.0)?;
                         g.min = p.opt("gradationMin", g.min, 5.0, 100.0)?;
-                        let steps = g.steps.unwrap_or(9) as f64;
-                        g.steps = Some(p.opt("gradationSteps", steps, 2.0, 20.0)?.round() as u32);
+                        // PE-DESIGN's nine sliders (#1039).
+                        g.steps = Some(9);
                         if let Some(shape) = choice(
                             p,
                             "gradationShape",
@@ -2132,7 +2138,6 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         "gradationPattern",
                         "gradationMax",
                         "gradationMin",
-                        "gradationSteps",
                         "gradationShape",
                     ];
                     if r.gradation.is_some() && gradation_keys.iter().any(|k| p.has(k)) {
@@ -2156,6 +2161,12 @@ fn attribute_commands() -> Vec<CommandSpec> {
                         }
                     }
                     o.region = Some(r);
+                }
+                if p.has("gradationSteps") {
+                    hints.push(
+                        "gradationSteps is ignored: PE-DESIGN's gradation pattern always has nine points (#1039)"
+                            .into(),
+                    );
                 }
                 Ok(if hints.is_empty() {
                     Value::Null
