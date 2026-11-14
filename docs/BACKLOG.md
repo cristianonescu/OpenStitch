@@ -15,9 +15,30 @@ The coordinators (Mac: image digitizing, the AI assistant, the kit and calibrati
 tooling, tests; Windows: the stitch engine, formats, lettering and the release gate) refresh
 this file at each day's close-out.
 
-Updated 2026-11-13: alpha.13 has shipped its plan (summary below). The open work is the release
-gate (#828) and the Future milestone. The sections after the summary are the 2026-11-04 round,
-kept for history.
+Updated 2026-11-14: alpha.13 and alpha.14 have shipped their plans (summaries below). The open
+work is the Future milestone. The sections after the summaries are the 2026-11-04 round, kept
+for history.
+
+## Shipped in alpha.14 (2026-11-14)
+
+44 pull requests merged after `v0.1.0-alpha.13`, on 2026-11-13 and 2026-11-14. By area:
+
+- **Stitches as PE-DESIGN 11.50 sews them:** the stitch in place on a Hoop Size page (#1013),
+  joins sewn across (#987), satin letter starts (#1017), locks and tie-ins (#1032), the zigzag
+  net's Direction (#1043, in part) and net fills' Direction (#1054).
+- **Formats:** PES 0110 stamps (#959), groups, vertical text and motif lines and fills (#608),
+  PE-DESIGN's default pattern taken out of every committed capture (#1060), the SHV preview's
+  size and pixel values (#989, in part).
+- **Editor:** Find objects (#745), smallest hoop and Fit to hoop (#879), Report a Problem
+  (#878), the Design Settings page mode (#1056), the Realistic view's 4× MSAA (#907).
+- **Checks and tests:** Check Design's new findings (#866), the setting-effect and monkey
+  tests (#880), the private-details scan in CI (#1057).
+
+Left open: #1043 (the zigzag net's travel along the outline), #989 (where the SHV preview's
+lines fall), #1075 (clean captures for the withdrawn references) and #1024 (the PES 0110 object
+kinds that need a PE-DESIGN capture first).
+
+What shipped, by area: [releases/v0.1.0-alpha.14.md](releases/v0.1.0-alpha.14.md).
 
 ## Shipped in alpha.13 (2026-11-13)
 

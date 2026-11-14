@@ -138,6 +138,17 @@ so every thread was drawn as narrow as that density asks: the band along angle-l
 needle drops of its arms, hid 72–75 % of the fabric against 90–97 % in the arms. The row beside is now
 looked for up to 0.6 mm away; the band hides 96.5 %, as the arms. The T1 ramp (parallel rows) is unchanged.
 
+Done 2026-11-13 and 2026-11-14 (alpha.14, stitches as PE-DESIGN 11.50 sews them): a stitch in place
+before a one-step tie-in on a Hoop Size page (#1013), with the page mode chosen in Design Settings
+(Hoop Size or Custom Size, `machine.set pageMode`, #1056); no lock or tie-in at a join sewn across,
+and a move between two objects' lines trimmed from 1.25 mm (#987); satin O, S, 8, A and e started
+where PE-DESIGN starts them (#1017), M and N from the top of the first stem (part of #940) and A's
+bar ended along the legs (part of #938); a lock or tie-in a few hundredths of a millimetre off its
+point made exact, and every letter piece tied in (#1032); the zigzag net turned by its Direction,
+its bands reaching in from lines outside the shape, and a switch to a net fill starting at
+Direction 0 (#1054; #1043 stays open for PE-DESIGN's travel along the outline: stitch counts within
+5 % of PE-DESIGN's on 10 of its 12 captures). Details in COMPATIBILITY_AUDIT.
+
 Done 2026-11-13 (#1051): the kit previews are placed by millimetres. The tiles are drawn with
 `--show bare --px-per-mm 16 --center X,Y` on whole pixels and cropped round the stitch bounds the
 editor reports (`--viewport-json`), not by the page-fit screenshot's pixels. Before, a change to the
@@ -441,7 +452,7 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    turned letters cut upright and satin crossings along the outer side since 2026-11-05 (#444,
    satin 5.6 % on average, no capture further than before, the README's arched and 4 mm text whole), small lettering's i dots, pieces and travel since
    2026-11-05 (#465); next, under sewing per
-   stroke, A's left foot and bar end, V's, M's and W's run-on feet and M's and W's needle counts at 8 mm (#938–#941; N's corner and A's and V's slanted feet done, #446 closed 2026-11-12; X sewn as PE-DESIGN's, one diagonal through, since 2026-11-06), and a satin capture of small text) — the structural
+   stroke, A's left foot, V's, M's and W's run-on feet and M's and W's needle counts at 8 mm (#938–#941; A's bar ends along the legs since 2026-11-13, part of #938, PR #1062; M and N start at the top of the first stem since 2026-11-13, part of #940, PR #1016; O, S, 8, A and e start where PE-DESIGN starts them since 2026-11-14, #1017, PR #1081; N's corner and A's and V's slanted feet done, #446 closed 2026-11-12; X sewn as PE-DESIGN's, one diagonal through, since 2026-11-06), and a satin capture of small text) — the structural
    gap behind text-fit-*, text-transform-* and text-sewing-order; the fitted circle's running
    stitch follows PE-DESIGN's Bézier halving since 2026-10-28 (text-fit-default mean needle
    distance 0.27 → 0.20 mm; #121 kept it and lifted the 256-chord ceiling, 2026-10-29); Text Transform presets 13 and 14 (fan out / in) done 2026-10-28; round 4 (2026-10-29)
@@ -458,7 +469,10 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    layout; FILE_FORMATS.md "PE-DESIGN's record layout"; the SEW stream from PE-DESIGN's own
    start point since the round-3 SEW exports). Since 2026-10-28 a move of up to 2.3 mm between
    same-colour objects is sewn across as PE-DESIGN does (machine-jumps, machine-trim-bound,
-   machine-trim-fine). Left: how the folding formats write a move shorter than one record (one
+   machine-trim-fine); since 2026-11-14 (#987, PR #1087) a join sewn across has no lock before it
+   and no tie-in after it, and a move from one object's line into the next one's is sewn across
+   only up to 1.25 mm, as PE-DESIGN's six `sew-across-running-lines-*` captures show (joins into
+   or out of a letter keep their ties until a capture shows one, #1082). Left: how the folding formats write a move shorter than one record (one
    export each, listed in the audit); PE's optimized exit and entry 0.5 mm inside the edges
    (fill track) and the multi-needle minimum-length field's value; the same compares on a
    design with short moves. The parked references (satin gradation, Text Transform presets 13
@@ -486,9 +500,10 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    machine type and hoop are in the header (#125, #322), the `#PES0110` texts and stitch groups
    import as editable OpenStitch objects (#397), and an opened file re-saves byte for byte while
    unchanged since 2026-11-04 (#375). Left: the fitted text's box as PE-DESIGN computes it
-   (PE-DESIGN recomputes it on opening); right-aligned and vertical text; several programmable fill patterns in one design (one is written since 2026-10-31), motif fill and the attribute fields of the other region types (written by their codes at PE-DESIGN's defaults since 2026-10-31), motif lines and the Start/End options and sewing end of stem, candlewick and chain lines (written by their codes since 2026-10-31),
+   (PE-DESIGN recomputes it on opening); right-aligned text and vertical text in several columns (one top-aligned column is written since 2026-11-13, #608); several programmable fill patterns in one design (one is written since 2026-10-31), the attribute fields of the other region types (written by their codes at PE-DESIGN's defaults since 2026-10-31; motif fills and motif lines are written with their sizes and spacing since 2026-11-14, #608, a second motif and mirrored or alternating motif lines still refused), the Start/End options and sewing end of stem, candlewick and chain lines (written by their codes since 2026-10-31),
    several hole sewing pairs in one file or with groups (one pair without groups is written since
-   2026-10-31) and several outlines per object; the hoop in v1 (the public
+   2026-10-31; several groups are written since 2026-11-13, #608) and several outlines per object
+   (the kinds still refused are #1024); the hoop in v1 (the public
    description contradicts itself); the hoop name and id in PES v9/v10 (PES v4, v5 and
    v7–v10 are written since 2026-11-07 from PE-DESIGN's own Save As files, #374, as
    [LEGAL_AND_LICENSING.md](LEGAL_AND_LICENSING.md) allows).
@@ -496,8 +511,9 @@ Also 2026-10-30: new fill regions start at 45°, as PE-DESIGN 11.50's shape tool
    branch are done: `object.deriveSkeleton {branches}` gives a column per arm (#526, closed
    2026-11-13; Shapes ▸ Convert ▸ Satin Columns per Branch in the editor, PR #996), and Auto
    Punch splits branching strokes (#702, closed 2026-11-12, PRs #910, #950).
-8. **Formats:** the SHV preview's pixels as PE-DESIGN draws them, the remaining chart entries
-   and the constant bytes no capture explains (#989). SHV records as PE-DESIGN writes block
+8. **Formats:** where the SHV preview's lines fall as PE-DESIGN draws them, the remaining chart entries
+   and the constant bytes no capture explains (#989; the preview's size and its pixel value per
+   chart entry are PE-DESIGN's since 2026-11-14, PRs #1007 and #1078). SHV records as PE-DESIGN writes block
    starts, stitches over 12.7 mm and long moves are done (#349, PR #995, 2026-11-13, from PE's
    exports of 2026-11-07 and capture round 11; CSD matches them since 2026-11-07: 14 blocks a
    file, long stitches, palette).
@@ -629,7 +645,7 @@ before any code; the ranking and the proposed tracks are in
 | B10 | Variable-width satin line | B | [research/beyond/variable-width-satin-line.md](research/beyond/variable-width-satin-line.md) | Engine done 2026-11-06 (#524): line type `satin` with width keys, tapers, per-side widths and slant; canvas width handles (#700), width while drawing (#707) and SVG stroke width (#701) **done** |
 | B11 | Closest join, auto start/end, continue digitizing, overlap removal | C | [research/beyond/closest-join-and-overlap.md](research/beyond/closest-join-and-overlap.md) | Sketched. Continue digitizing shipped (#479: `object.extendPath`, `object.extendColumn`, the drawing tools continue a selected line from either end); nearest start per object (`autoStart: nearest`) and the Optimize before/after report shipped 2026-11-06 (#547, `batch:production`); overlap removal at shape level shipped 2026-11-06 (#511: `object.setHideUnder`, `design.setRemoveHidden`); auto start and end done (#547, #795); stitch-level clipping not started. Related, shipped 2026-10-29 (#137): `order.optimize` mode `minJump`, a 2-opt shortest-jump order per colour block with every neighbouring pair linked, as a design setting (`optimizeOrder`); PE-DESIGN's order stays the default |
 | B12 | Carving lines, knockdown fill | A | [research/beyond/carving-and-knockdown.md](research/beyond/carving-and-knockdown.md) | Knockdown shipped 2026-11-06 (#510, `batch:production`): `wizard.knockdown` (selection or whole design, reach, gap closing, one or two crossed layers, holes kept, rectangle option, `update`), kept first by `order.optimize`. Carving lines not started |
-| B13 | Density map, troubleshoot, thread conversion, auto hoop | E | [research/beyond/quality-tools.md](research/beyond/quality-tools.md) | Density map and troubleshoot rules done (Check Design, #503/#504); thread conversion is `threads.remap` to a user or built-in chart (#484); no automatic hoop command: exports report `smallestHoop` and `design.testSwatch` uses the smallest hoop that fits (#452) |
+| B13 | Density map, troubleshoot, thread conversion, auto hoop | E | [research/beyond/quality-tools.md](research/beyond/quality-tools.md) | Density map and troubleshoot rules done (Check Design, #503/#504; four more findings 2026-11-13, #866); thread conversion is `threads.remap` to a user or built-in chart (#484); hoop commands done 2026-11-13 (#879: `machine.useSmallestHoop`, `design.fitToHoop`); exports report `smallestHoop` and `design.testSwatch` uses the smallest hoop that fits (#452). Open: low coverage, small text per font and a readiness score (#1036) |
 | B14 | Stitch-file resize with density | E | [research/beyond/stitch-file-resize.md](research/beyond/stitch-file-resize.md) | Sketched; not started |
 | B15 | Lettering: baselines, kerning, team names, connections | E | [research/beyond/lettering-depth.md](research/beyond/lettering-depth.md) | Sketched; not started |
 | B16 | Image wizards' "OpenStitch" mode beside the PE-DESIGN default: perceptual colour reduction (CIELAB k-means, CIEDE2000 thread matching) and region cleanup for Auto Punch first | — | [research/beyond/image-digitizing.md](research/beyond/image-digitizing.md) | Auto Punch's OpenStitch mode done 2026-10-31 (`compatMode: openStitch`, image dialog Mode): measured on the test images (`tools/image_eval.py`), mean ΔE00 9.1 → 8.6, stitches −14 %, trims −48 %, specks 220 → 10; line art keeps its lines since 2026-10-31 (mandala 2,195 stitches, PE mode 2,590); Photo Stitch 1 in colour since 2026-10-31 (perceptual palette, CIELAB dithering: mean ΔE00 10.0 → 8.2 on nine photos, trims +13 %); Photo Stitch 2 in colour since 2026-10-31 (perceptual Auto Select, linear-light mix: mean ΔE00 19.8 → 16.2 on seven images); Cross Stitch measured, no gain at B16 (B16.1 added its OpenStitch mode, #263); next: Photo Stitch 1's trims (#298), the Photo Stitch 2 portrait; SLIC measured and not used (B16.1 C) |
@@ -696,8 +712,8 @@ an issue or a comment above (#460, #462, #463, #464, #446, #447, #471, #291).
 
 From the competitor scan of 2026-11-07 ([research/competitive-features.md](research/competitive-features.md),
 Updates; openhoop and filum, concepts only): Join Lines and Break Apart (#744, editing, rank 7
-theme) and find and filter in the Sewing Order list (#745, workflow, rank 12 theme), both ideas
-for Future; radial, contour and guide-following colour blends added to #532, herringbone and
+theme), an idea for Future, and find and filter in the Sewing Order list (#745, workflow, rank 12
+theme; **done** 2026-11-13, PR #1026); radial, contour and guide-following colour blends added to #532, herringbone and
 ladder lines noted on #543.
 
 From the competitor scan of 2026-11-08 (same document, Updates; openhoop, concepts only): a
@@ -710,14 +726,18 @@ that shares OpenStitch's name, AGPL-3.0-or-later with a commercial dual licence,
 linker2k/myembro, an Android app, GPL-3.0-or-later; concepts only): 169 features read, 20 ideas
 for Future. Ranked by user benefit: 1. USB transfer pre-flight and a machine connected by cable
 (#867); 2. a fabric pull preview in Check Design with a measured one-bar calibration (#865);
-3. more Check Design rules and a readiness score (#866); 4. the machine list by model name
+3. more Check Design rules and a readiness score (#866: untied thread ends, tiny sections, short
+stitches and more colours than needles **done** 2026-11-13, PR #1030; low coverage, small text per
+font and the score are #1036); 4. the machine list by model name
 (#868); 5. the Assistant with any chatbot by copy and paste (#870). Then: back up and restore
-(#869), smallest hoop and Fit to hoop (#879, the open part of B13), 3D puff over foam (#875,
-B7), cap mode (#874), crash report and Report a Problem (#878), the guided tour (#877), font
+(#869), smallest hoop and Fit to hoop (#879, the open part of B13; **done** 2026-11-13, PR #1012),
+3D puff over foam (#875, B7), cap mode (#874), crash report and Report a Problem (#878; **done**
+2026-11-13, PR #1014), the guided tour (#877), font
 chooser extras (#882), Design Database favourites, hoop filter and ZIP archives (#883), photos
 as wave lines or a thread sketch (#873), a ready drawings picker (#871), stroke-centre-line
 Hangul and kana (#881), a free-design sites page (#872), the setting-effect and monkey tests
-(#880), floppy images for old commercial machines (#876), and one list of mobile app ideas
+(#880; **done** 2026-11-13 and 2026-11-14, PRs #1038, #1052 and #1086), floppy images for old
+commercial machines (#876), and one list of mobile app ideas
 (#884). Notes on #453, #486 and #555.
 
 From the competitor scan of 2026-11-12 (same document, Updates; openhoop, concepts only): routed
