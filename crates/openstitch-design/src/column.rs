@@ -1458,8 +1458,29 @@ fn sweep(polys: &[&[Vec2]], origin: Vec2, u: Vec2, pitch: f64, left_dir: Vec2) -
 #[derive(Clone, Debug, PartialEq)]
 enum Join {
     Mitre,
-    /// The inner corner and the cap's rungs from its base to the tip.
-    Cap(Vec2, Vec<[Vec2; 2]>),
+    /// A cap: the inner corner, the cap's rungs from its base to the tip, and the span of
+    /// the column it covers (see [`Span`]).
+    Cap(Vec2, Vec<[Vec2; 2]>, Span),
+}
+
+/// The rungs a corner at rung `k` is read from (#1048): `from` and `to` are the nearest rungs
+/// at least a leg's room from it on either side (`k - 1` and `k + 1` where the column's rungs
+/// are that far apart, as at a Manual Punch column's corners), `ua` and `ub` the directions of
+/// the legs in and out.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Span {
+    from: usize,
+    to: usize,
+    ua: Vec2,
+    ub: Vec2,
+}
+
+impl Span {
+    /// Read past the next rung: a column with a rung every half millimetre (a satin line, an
+    /// auto-direction satin).
+    fn extended(&self, k: usize) -> bool {
+        self.from + 1 < k || self.to > k + 1
+    }
 }
 
 /// The section between rungs `j` and `j + 1` as a polygon.
@@ -1472,6 +1493,14 @@ fn mid(r: [Vec2; 2]) -> Vec2 {
 }
 
 /// The corner constructions of `rungs` under `c`, one per rung (none at the ends).
+///
+/// A corner is read from the rungs a leg's room away on either side ([`Span`]). Where the next
+/// rungs are that far apart, they are those rungs, as always. Where they are closer (a satin
+/// line, an auto-direction satin: a rung every half millimetre), the corner used to be left
+/// turned, its angle read off two rungs half a millimetre apart: a 36° star tip read as 53°,
+/// and a cap never fitted between them, so Cap sewed as Mitre (#1048). The span now reaches
+/// to the nearest rungs a leg away, and of the rungs read as corners within one span only
+/// the sharpest is constructed.
 fn joins(rungs: &[[Vec2; 2]], pitch: f64, c: &Corners) -> Vec<Option<Join>> {
     let n = rungs.len();
     let mut out = vec![None; n];
@@ -1479,25 +1508,48 @@ fn joins(rungs: &[[Vec2; 2]], pitch: f64, c: &Corners) -> Vec<Option<Join>> {
         return out;
     }
     let ov = c.overlap.max(0.0) * 10.0;
+    let room = ov.max(pitch);
+    let mut found: Vec<(usize, Span, f64)> = Vec::new();
     for k in 1..n.saturating_sub(1) {
-        let (ma, mk, mb) = (mid(rungs[k - 1]), mid(rungs[k]), mid(rungs[k + 1]));
-        let (Some(ua), Some(ub)) = (unit(mk - ma), unit(mb - mk)) else {
+        let mk = mid(rungs[k]);
+        // A leg too short to hold the construction leaves the corner turned.
+        let Some(from) = (0..k).rev().find(|&i| mid(rungs[i]).distance(mk) >= room) else {
+            continue;
+        };
+        let Some(to) = (k + 1..n).find(|&i| mid(rungs[i]).distance(mk) >= room) else {
+            continue;
+        };
+        let (Some(ua), Some(ub)) = (unit(mk - mid(rungs[from])), unit(mid(rungs[to]) - mk)) else {
             continue;
         };
         let interior = dot(ua * -1.0, ub).clamp(-1.0, 1.0).dacos().to_degrees();
+        if interior >= c.mitre_below {
+            continue;
+        }
+        found.push((k, Span { from, to, ua, ub }, interior));
+    }
+    // Along a dense column several rungs near one corner read as corners: the sharpest stands.
+    let sharpest = |k: usize, s: &Span, interior: f64| {
+        !s.extended(k)
+            || !found.iter().any(|&(m, _, other)| {
+                m != k
+                    && (s.from..=s.to).contains(&m)
+                    && (other < interior || (other == interior && m < k))
+            })
+    };
+    let kept: Vec<(usize, Span, f64)> = found
+        .iter()
+        .copied()
+        .filter(|&(k, s, interior)| sharpest(k, &s, interior))
+        .collect();
+    for (k, span, interior) in kept {
         let want_cap = match c.style {
             CornerStyle::Turn => continue,
-            _ if interior >= c.mitre_below => continue,
             CornerStyle::Auto => interior < c.cap_below,
             CornerStyle::Mitre => false,
             CornerStyle::Cap => true,
         };
-        // A leg too short to hold the construction leaves the corner turned.
-        let room = ov.max(pitch);
-        if ma.distance(mk) < room || mk.distance(mb) < room {
-            continue;
-        }
-        if want_cap && let Some(cap) = cap(rungs, k, ua, ub, ov, pitch, c.cap_max_length * 10.0) {
+        if want_cap && let Some(cap) = cap(rungs, k, span, ov, pitch, c.cap_max_length * 10.0) {
             out[k] = Some(cap);
             continue;
         }
@@ -1512,20 +1564,38 @@ fn joins(rungs: &[[Vec2; 2]], pitch: f64, c: &Corners) -> Vec<Option<Join>> {
             }
         }
     }
+    // Nor may a corner read across a dense stretch reach into the last one's span.
+    let mut last: Option<(usize, Span)> = None;
+    for (k, s) in found.iter().map(|&(k, s, _)| (k, s)) {
+        let s = match &out[k] {
+            None => continue,
+            Some(Join::Cap(_, _, span)) => *span,
+            Some(Join::Mitre) => s,
+        };
+        if let Some((m, prev)) = last
+            && (s.extended(k) || prev.extended(m))
+            && s.from < prev.to
+        {
+            out[k] = None;
+            continue;
+        }
+        last = Some((k, s));
+    }
     out
 }
 
 /// The cap of the corner at rung `k`, if both legs reach past its square ends and its longest
-/// stitch is at most `max_len`.
+/// stitch is at most `max_len`: built from every section of the corner's span ahead of the
+/// cut through the inner corner.
 fn cap(
     rungs: &[[Vec2; 2]],
     k: usize,
-    ua: Vec2,
-    ub: Vec2,
+    span: Span,
     ov: f64,
     pitch: f64,
     max_len: f64,
 ) -> Option<Join> {
+    let Span { from, to, ua, ub } = span;
     let inward = ub - ua;
     let [e0, e1] = rungs[k];
     let inner = if dot(e0, inward) >= dot(e1, inward) {
@@ -1533,23 +1603,26 @@ fn cap(
     } else {
         e1
     };
-    // Each leg's neighbouring rung must lie behind the cut.
-    let behind_a = rungs[k - 1]
-        .iter()
-        .all(|&e| dot(e - inner, ua) < -ov - 1e-6);
-    let ahead_b = rungs[k + 1].iter().all(|&e| dot(e - inner, ub) > 1e-6);
-    if !behind_a || !ahead_b {
-        return None;
-    }
-    let a = clip(&quad(rungs, k - 1), inner - ua * ov, ua);
-    let b = clip(&quad(rungs, k), inner, ub * -1.0);
+    // Each leg reaches past the cut: the cap covers the column from the first rung wholly
+    // behind it to the first wholly ahead. Long slanted rungs (an auto-direction satin's, on
+    // its skeleton's vertices) can lie across the cut next to the corner (#1040).
+    let behind = |i: usize| rungs[i].iter().all(|&e| dot(e - inner, ua) < -ov - 1e-6);
+    let ahead = |i: usize| rungs[i].iter().all(|&e| dot(e - inner, ub) > 1e-6);
+    let from = (0..=from).rev().find(|&i| behind(i))?;
+    let to = (to..rungs.len()).find(|&i| ahead(i))?;
+    let span = Span { from, to, ua, ub };
+    let mut parts: Vec<Vec<Vec2>> = (from..k)
+        .map(|j| clip(&quad(rungs, j), inner - ua * ov, ua))
+        .collect();
+    parts.extend((k..to).map(|j| clip(&quad(rungs, j), inner, ub * -1.0)));
+    let parts: Vec<&[Vec2]> = parts.iter().map(Vec::as_slice).collect();
     let left = rungs[k - 1][0] - rungs[k - 1][1];
-    let cap_rungs = sweep(&[&a, &b], inner, ua, pitch, left);
+    let cap_rungs = sweep(&parts, inner, ua, pitch, left);
     let longest = cap_rungs
         .iter()
         .map(|r| r[0].distance(r[1]))
         .fold(0.0, f64::max);
-    (!cap_rungs.is_empty() && longest <= max_len).then_some(Join::Cap(inner, cap_rungs))
+    (!cap_rungs.is_empty() && longest <= max_len).then_some(Join::Cap(inner, cap_rungs, span))
 }
 
 /// Whether `c` builds a mitre or cap at any corner of `rungs` (rungs `pitch` apart).
@@ -1582,11 +1655,23 @@ fn pieces_at(rungs: &[[Vec2; 2]], pitch: f64, floor: bool, c: &Corners, at: f64)
         return vec![Piece::Rungs(plain(rungs))];
     }
     let ov = c.overlap.max(0.0) * 10.0;
+    // Every section in a cap's span is cut at its inner corner (#1048): those before the
+    // corner keep what lies behind the cut, those after what lies ahead of it.
+    let n = rungs.len();
+    let mut cut_end: Vec<Option<(Vec2, Vec2)>> = vec![None; n];
+    let mut cut_start: Vec<Option<(Vec2, Vec2)>> = vec![None; n];
+    for (k, join) in joins.iter().enumerate() {
+        if let Some(Join::Cap(inner, _, s)) = join {
+            cut_end[s.from..k].fill(Some((*inner, s.ua)));
+            cut_start[k..s.to].fill(Some((*inner, s.ub)));
+        }
+    }
     let mut out = Vec::new();
     let mut cur: Vec<[Vec2; 2]> = vec![rungs[0]];
-    for j in 0..rungs.len() - 1 {
+    for j in 0..n - 1 {
         let (start, end) = (&joins[j], &joins[j + 1]);
-        if start.is_none() && end.is_none() {
+        let cut = cut_start[j].is_some() || cut_end[j].is_some();
+        if *start != Some(Join::Mitre) && *end != Some(Join::Mitre) && !cut {
             cur.extend(plain(&rungs[j..j + 2]).into_iter().skip(1));
         } else if let Some(u) = unit(mid(rungs[j + 1]) - mid(rungs[j])) {
             let mut r = [rungs[j], rungs[j + 1]];
@@ -1597,21 +1682,24 @@ fn pieces_at(rungs: &[[Vec2; 2]], pitch: f64, floor: bool, c: &Corners, at: f64)
                 r[1] = [r[1][0] + u * ov, r[1][1] + u * ov];
             }
             let mut poly = quad(&r, 0);
-            if let Some(Join::Cap(inner, _)) = start {
-                poly = clip(&poly, *inner, u);
+            if let Some((inner, ub)) = cut_start[j] {
+                poly = clip(&poly, inner, ub);
             }
-            if let Some(Join::Cap(inner, _)) = end {
-                poly = clip(&poly, *inner, u * -1.0);
+            if let Some((inner, ua)) = cut_end[j] {
+                poly = clip(&poly, inner, ua * -1.0);
             }
             let left = rungs[j][0] - rungs[j][1];
             cur.extend(sweep(&[&poly], mid(rungs[j]), u, pitch, left));
-            if end.is_none() {
+            // The rung at the section's end, unless the cap covers it.
+            let inside =
+                cut_end[j].is_some() || (cut_start[j].is_some() && cut_start[j + 1].is_some());
+            if end.is_none() && !inside {
                 cur.push(rungs[j + 1]);
             }
         }
         match end {
             Some(Join::Mitre) => out.push(Piece::Rungs(std::mem::take(&mut cur))),
-            Some(Join::Cap(_, cap)) => {
+            Some(Join::Cap(_, cap, _)) => {
                 out.push(Piece::Rungs(std::mem::take(&mut cur)));
                 // Into the cap under its stitches: along its middle to the tip, then the cap
                 // from the tip back to its base.
@@ -1782,6 +1870,50 @@ mod tests {
             ..auto
         };
         assert_eq!(class(60.0, 40.0, &low), "turn");
+    }
+
+    /// #1048: a column with a rung every half millimetre (a satin line, an auto-direction
+    /// satin) reads its corner from the rungs a leg away, builds one construction there, and
+    /// caps it as well as mitres it. Read off the next rungs, the corner stayed turned and a
+    /// cap never fitted, so Cap sewed as Mitre.
+    #[test]
+    fn a_dense_column_builds_one_corner_capped_or_mitred() {
+        let [a, k, b] = corner(30.0, 30.0, 300.0)[..] else {
+            panic!("three rungs");
+        };
+        let leg = |p: [Vec2; 2], q: [Vec2; 2]| {
+            let n = (mid(p).distance(mid(q)) / 5.0).ceil() as usize;
+            (0..n)
+                .map(move |i| {
+                    let t = i as f64 / n as f64;
+                    [p[0].lerp(q[0], t), p[1].lerp(q[1], t)]
+                })
+                .collect::<Vec<_>>()
+        };
+        let mut dense = leg(a, k);
+        let tip = dense.len();
+        dense.extend(leg(k, b));
+        dense.push(b);
+        let built = |c: &Corners| {
+            joins(&dense, 4.0, c)
+                .into_iter()
+                .enumerate()
+                .filter_map(|(i, j)| j.map(|j| (i, j)))
+                .collect::<Vec<_>>()
+        };
+        let mitre = built(&with(CornerStyle::Mitre));
+        assert_eq!(mitre.len(), 1, "one construction");
+        assert_eq!(mitre[0], (tip, Join::Mitre));
+        let cap = built(&with(CornerStyle::Cap));
+        assert_eq!(cap.len(), 1);
+        assert_eq!(cap[0].0, tip);
+        assert!(matches!(cap[0].1, Join::Cap(..)), "capped");
+        assert_ne!(
+            pieces(&dense, 4.0, true, &with(CornerStyle::Cap)),
+            pieces(&dense, 4.0, true, &with(CornerStyle::Mitre))
+        );
+        // Turn, the default, builds nothing.
+        assert!(built(&Corners::default()).is_empty());
     }
 
     #[test]

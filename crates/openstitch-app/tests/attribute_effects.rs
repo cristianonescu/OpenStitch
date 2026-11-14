@@ -167,24 +167,8 @@ const KNOWN: &[(&str, &str)] = &[
         "#1039: Gradation steps change nothing with a gradation pattern on (2-20 steps)",
     ),
     (
-        r#"r:satin cornerStyle (with {"autoDirection":true}): mitre and cap"#,
-        "#1040: Auto-direction satin corners: mitre and cap sew the same",
-    ),
-    (
         r#"r:satin runningStitchPath: inside and insideHidden"#,
         "Not a bug: insideHidden differs from inside only on an open fill (low density, #628)",
-    ),
-    (
-        r#"l:satin cornerStyle: mitre and cap"#,
-        "#1048: Satin line corners: mitre and cap sew the same",
-    ),
-    (
-        r#"l:satin capBelow (with {"cornerStyle":"auto"})"#,
-        "#1048: Satin line: cap below changes nothing with auto corners",
-    ),
-    (
-        r#"l:satin capMaxLength (with {"cornerStyle":"auto"})"#,
-        "#1048: Satin line: cap max length changes nothing with auto corners",
     ),
 ];
 
@@ -196,7 +180,9 @@ const KNOWN: &[(&str, &str)] = &[
 /// line's thickness profile picks the passes between its fewest and most (#1046): with the
 /// default 1 to 3 there are two thicknesses, and linear, smoothstep and four stairs all turn
 /// from one to the other halfway along; with 1 to 7 their four thicknesses fall in different
-/// places.
+/// places. A satin line's cap max length only acts where a corner is capped: with Auto
+/// corners below the default 45° none of the fixtures' corners is, so it is swept with every
+/// corner below 120° capped, on a 6 mm satin whose caps have lengths across its range (#1048).
 const CONTEXT: &[(&str, &str)] = &[
     ("l:motif pitch", r#"{"width":10,"spacing":10}"#),
     ("l:vStitch pitch", r#"{"spacing":20}"#),
@@ -207,6 +193,7 @@ const CONTEXT: &[(&str, &str)] = &[
     ("l:zigzag miterLimit", r#"{"width":10}"#),
     ("l:zigzag capMaxLength", r#"{"width":5}"#),
     ("l:running profile", r#"{"maxPasses":7}"#),
+    ("l:satin capMaxLength", r#"{"capBelow":120,"width":6}"#),
 ];
 
 /// Settings that change only near one end of their range until a PE-DESIGN capture shows
@@ -316,6 +303,12 @@ fn fixture_shape(shape: usize) -> (&'static str, Value) {
             "shape.polygon",
             json!({"points": [[10, 20], [70, 25], [10, 30]]}),
         ),
+        // A narrow V band whose skeleton bends sharply enough for an auto-direction satin's
+        // corner to be capped as well as mitred (#1040).
+        9 => (
+            "shape.polygon",
+            json!({"points": [[10, 10], [25, 50], [40, 10], [44, 10], [25, 58], [6, 10]]}),
+        ),
         k => ("shape.polygon", json!({ "points": outline(k) })),
     }
 }
@@ -344,7 +337,7 @@ fn outline(shape: usize) -> Vec<[f64; 2]> {
     }
 }
 
-const SHAPES: usize = 9;
+const SHAPES: usize = 10;
 
 impl Fixture {
     /// Fixture `shape` sewn only as `side`, of type `kind` (an inspector type id).
