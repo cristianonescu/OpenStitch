@@ -355,7 +355,7 @@ Threads, in sewing order: 405 Blue, 800 Red, 509 Leaf Green, 208 Orange, 620 Mag
 
 #### Region sew types (2 of 2)
 
-[`fills/region-sew-types-2.pes`](fills/region-sew-types-2.pes) · 100 × 100 mm hoop · 86 × 86 mm · 4,675 stitches · 9 trims · about 6.3 min
+[`fills/region-sew-types-2.pes`](fills/region-sew-types-2.pes) · 100 × 100 mm hoop · 86 × 86 mm · 4,665 stitches · 9 trims · about 6.3 min
 
 Flexible spiral, stippling, net fill (square), zigzag net fill (honeycomb), decorative fill (waves), contour fill as rings and as a double spiral (beyond PE-DESIGN), programmable fill (bricks) with base sewing, motif fill (leaf).
 
@@ -571,7 +571,7 @@ Threads, in sewing order: 800 Red, 406 Ultra Marine, 406 Ultra Marine.
 
 #### Cutwork wizard
 
-[`wizards/cutwork.pes`](wizards/cutwork.pes) · 100 × 100 mm hoop · 54 × 54 mm · 3,541 stitches · 6 trims · about 4.7 min
+[`wizards/cutwork.pes`](wizards/cutwork.pes) · 100 × 100 mm hoop · 54 × 54 mm · 3,303 stitches · 6 trims · about 4.4 min
 
 A circle cutout: stabilising run, a sewn cut line (the NV880E has no cutwork needles, so cut by hand at the stop), stabiliser run, net fill and covering satin. Use water-soluble stabiliser.
 
