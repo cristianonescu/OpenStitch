@@ -4312,3 +4312,21 @@ and `pes-objects-owner-patterns` keep their other files. The formats test
 motif list holds anything but the project's own `.pmf` motifs, or whose fill list holds anything
 but its own `.pas` tiles (stamp outlines of the owner's own shapes allowed in the `stamp-*` captures). The measurements made on the withdrawn
 files above stay as recorded; they wait for clean captures to be checked again.
+
+### Pattern blocks redacted and gallery shapes withdrawn, 2026-11-14 (#1060)
+
+PE-DESIGN writes its default decorative fill pattern into the pattern block of every shape it
+saves. The sweep for #1060 found it in 495 blocks of 332 committed captures (and 13 more in the
+three files withdrawn below). `tools/redact_pattern_blocks.py` rewrote each to OpenStitch's
+placeholder rows at the same point counts: same length, every other byte and the PEC stitches
+unchanged, proven per file in `docs/research/2026-11-14/pattern-block-redaction-table.md`. The
+manifest and provenance hashes are the redacted files'; each manifest entry keeps the hash as
+PE-DESIGN saved it. Nothing the reader maps lives in those blocks except a Decorative Fill's own
+pattern, which is the project's and is not touched.
+
+Shapes-gallery outlines are PE-DESIGN library geometry: `pe11/o-gallery-heart`,
+`pe11/o-applique-heart` and `compat/reference/stitches/shape-start-points.pes` are removed; spec
+`shape-start-points` keeps its own checks and machine record, its PE-DESIGN reference pending a
+capture drawn with the outline tools. The four isosceles-triangle references stay (three
+corners fitted to the dragged box). The formats test now also fails on a `CEmbSpecialShape`
+outside those four files.

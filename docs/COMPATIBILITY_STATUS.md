@@ -15,7 +15,7 @@ Specs: 498 · pass 495 · fail 0 · error 0 · pending reference 0 · skipped 3.
 | Editing | Embossing/engraving… | reference | `stamp-embossed-region-circle`, `stamp-engraved-line-circle`, `stamp-engraved-region-circle`, `stamp-plain-square-baseline` |
 | Editing | Hole sewing… | internal-regression | `hole-sewing-limits`, `hole-sewing-pentagon-star` |
 | Editing | Manual Punch: shapes made of several sewing-direction lines… | reference | `satin-lock-column-3p5`, `satin-zigzag-column` |
-| Editing | Sewing order editing… | reference; reference pending | `optimize-entry-exit`, `sew-order-six-objects`, `shape-start-points` |
+| Editing | Sewing order editing… | internal-regression; reference pending | `optimize-entry-exit`, `sew-order-six-objects`, `shape-start-points` |
 | Editing | Thread colour, sew type, straight sewing direction… | reference | `auto-satin-bent-band` |
 | Files | CSD read and write (type 0 verified against PE-DESIGN 11.50's export, type 1 spec-derived)… | reference | `machine-sample-basic` |
 | Files | DST read/write, configurable jumps-for-trim… | reference; reference pending | `long-jump-300`, `machine-formats`, `machine-sample-basic` |
@@ -222,7 +222,7 @@ Specs: 498 · pass 495 · fail 0 · error 0 · pending reference 0 · skipped 3.
 | `stitches/satin-zigzag-rect` | pass | reference | pass | — | pass | pending |
 | `stitches/satin-zigzag-skeleton` | pass | internal-regression | pass | — | — | — |
 | `stitches/sew-order-six-objects` | pass | reference | — | — | pass | — |
-| `stitches/shape-start-points` | pass | reference | pass | — | pass | pending |
+| `stitches/shape-start-points` | pass | internal-regression | pass | — | pending | pending |
 | `stitches/spiral-circle20-pitch3p0` | pass | reference | pass | — | pass | — |
 | `stitches/spiral-circle40-d1p0` | pass | reference | — | — | pass | — |
 | `stitches/spiral-circle40-d3p0` | pass | reference | — | — | pass | — |

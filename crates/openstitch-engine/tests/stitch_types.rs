@@ -2203,3 +2203,99 @@ fn a_switch_to_zigzag_net_starts_at_direction_zero() {
     );
     assert_eq!(angle(&s), 30.0, "other switches keep the Direction");
 }
+
+/// #1054: a switch to plain net fill sets Direction 0 too (PE-DESIGN 11.50, round 13 part 4:
+/// a 45° fill switched to Net Fill Stitch showed Direction 0, net-switch-dir0.pes); an angle
+/// given with the switch is kept, and the net turns by it.
+#[test]
+fn a_switch_to_net_fill_starts_at_direction_zero() {
+    let mut s = Session::new(std::env::temp_dir());
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 35, "y": 40, "width": 30, "height": 20, "fill": "Red"}),
+    );
+    let angle = |s: &Session| s.design().objects[0].region.as_ref().expect("region").angle;
+    assert_eq!(angle(&s), 45.0, "a new fill starts at 45°");
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "netFill"}),
+    );
+    assert_eq!(angle(&s), 0.0);
+    let flat = Compiler::for_design(s.design())
+        .compile(s.design())
+        .stitches;
+    assert!(
+        main_direction(&flat) <= 3.0 || main_direction(&flat) >= 87.0,
+        "the net on the page axes"
+    );
+    run(&mut s, "object.setRegion", json!({"id": 1, "type": "fill"}));
+    run(
+        &mut s,
+        "object.setRegion",
+        json!({"id": 1, "type": "netFill", "angle": 45}),
+    );
+    assert_eq!(angle(&s), 45.0, "an explicit angle is kept");
+    let turned = Compiler::for_design(s.design())
+        .compile(s.design())
+        .stitches;
+    assert_ne!(flat, turned, "45° turns the net");
+}
+
+/// #1043: a turned zigzag net starts from the top-left corner of the shape's bounds on the page,
+/// as PE-DESIGN 11.50 lays it (round 13, nine Directions and three sizes): its band centre
+/// lines on the 30 × 20 mm rectangle at 90° and 180° are PE-DESIGN's, measured the same way on
+/// its captures from the rectangle's centre (mm): 90°: x −13.5, −5.5, 2.5, 10.5 and y −3.5, 4.5;
+/// 180°: x −8.5, −0.5, 7.5 and y −3.5, 4.5 (0°: x −13.5, −5.5, 2.5, 10.5 and y −8.5, −0.5, 7.5,
+/// so neither is the 0° net turned).
+#[test]
+fn a_turned_zigzag_net_starts_where_pe_design_starts_it() {
+    // The centres of the rungs straight across a band (2.4 to 3.6 mm, square to the axes),
+    // rounded to 0.5 mm: across vertical bands (horizontal rungs, x) and horizontal ones (y).
+    let lines = |st: &[openstitch_core::Stitch]| {
+        let (mut xs, mut ys) = (Vec::<i64>::new(), Vec::<i64>::new());
+        for w in st.windows(2) {
+            if w[0].command != Command::Stitch || w[1].command != Command::Stitch {
+                continue;
+            }
+            let (dx, dy) = (w[1].x - w[0].x, w[1].y - w[0].y);
+            let len = dx.hypot(dy);
+            if !(24.0..=36.0).contains(&len) {
+                continue;
+            }
+            let (mx, my) = (
+                (w[0].x + w[1].x) / 2.0 - 500.0,
+                (w[0].y + w[1].y) / 2.0 - 500.0,
+            );
+            if dy.abs() < 0.05 * len {
+                xs.push(mx.round() as i64);
+            } else if dx.abs() < 0.05 * len {
+                ys.push(my.round() as i64);
+            }
+        }
+        // A band line is where at least five rungs are centred.
+        let keep = |v: Vec<i64>| {
+            let mut out: Vec<i64> = v
+                .iter()
+                .copied()
+                .filter(|c| v.iter().filter(|d| (*d - c).abs() <= 1).count() >= 5)
+                .map(|c| (c as f64 / 5.0).round() as i64 * 5)
+                .collect();
+            out.sort_unstable();
+            out.dedup();
+            out
+        };
+        (keep(xs), keep(ys))
+    };
+    assert_eq!(
+        lines(&zigzag_net(Some(90.0))),
+        (vec![-135, -55, 25, 105], vec![-35, 45]),
+        "90°"
+    );
+    assert_eq!(
+        lines(&zigzag_net(Some(180.0))),
+        (vec![-85, -5, 75], vec![-35, 45]),
+        "180°"
+    );
+}

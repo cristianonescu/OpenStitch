@@ -500,3 +500,71 @@ fn pes_0110_export_writes_the_machine_type_and_hoop() {
         }
     }
 }
+
+/// Stitches in place right after a move (a jump's landing sewn again) in the compiled design.
+fn in_place_after_moves(s: &Session) -> usize {
+    let p = Compiler::for_design(s.design()).compile(s.design());
+    p.stitches
+        .windows(2)
+        .filter(|w| {
+            w[0].command == openstitch_core::Command::Jump
+                && w[1].command == openstitch_core::Command::Stitch
+                && (w[0].x, w[0].y) == (w[1].x, w[1].y)
+        })
+        .count()
+}
+
+#[test]
+fn page_mode_is_set_reported_undone_and_saved() {
+    // #1056: PE-DESIGN's Design Settings choice of a Hoop Size or a Custom Size page. A new
+    // 100 x 100 design is on a Hoop Size page (its tie-ins start on a stitch in place, #1013).
+    let dir = TempDir::new("page-mode");
+    let mut s = Session::new(dir.path());
+    run(&mut s, "design.new", json!({}));
+    run(
+        &mut s,
+        "shape.rectangle",
+        json!({"x": 20, "y": 20, "width": 20, "height": 20, "fill": "Red"}),
+    );
+    let mode = |s: &mut Session| run(s, "design.info", json!({}))["pageMode"].clone();
+    assert_eq!(mode(&mut s), "hoop");
+    assert!(in_place_after_moves(&s) >= 1);
+    // Custom Size: reported by machine.set and design.info, no stitch in place.
+    let r = run(&mut s, "machine.set", json!({ "pageMode": "custom" }));
+    assert_eq!(r["pageMode"], "custom");
+    assert_eq!(mode(&mut s), "custom");
+    assert_eq!(in_place_after_moves(&s), 0);
+    // One undo step back.
+    run(&mut s, "history.undo", json!({}));
+    assert_eq!(mode(&mut s), "hoop");
+    run(&mut s, "machine.set", json!({ "pageMode": "custom" }));
+    // Saved in .osd and read back.
+    run(&mut s, "project.save", json!({ "path": "p.osd" }));
+    let mut back = Session::new(dir.path());
+    run(&mut back, "project.open", json!({ "path": "p.osd" }));
+    assert_eq!(mode(&mut back), "custom");
+    // Picking a hoop is a Hoop Size page, a custom size a Custom Size page (PE-DESIGN's dialog).
+    let r = run(&mut s, "machine.set", json!({ "hoop": "130x180" }));
+    assert_eq!(r["pageMode"], "hoop");
+    let r = run(
+        &mut s,
+        "machine.set",
+        json!({ "hoop": "custom", "width": 200, "height": 150 }),
+    );
+    assert_eq!(r["pageMode"], "custom");
+    // A Hoop Size page needs a hoop (or a 100 x 100 page): refused on a 200 x 150 custom page.
+    let e = s
+        .execute("machine.set", Some(&json!({ "pageMode": "hoop" })))
+        .expect_err("needs a hoop");
+    assert!(e.to_string().contains("hoop"), "{e}");
+    assert_eq!(mode(&mut s), "custom");
+    assert!(
+        s.execute("machine.set", Some(&json!({ "pageMode": "square" })))
+            .is_err()
+    );
+    // machine.hoops reports it with the other current settings.
+    assert_eq!(
+        run(&mut s, "machine.hoops", json!({}))["current"]["pageMode"],
+        "custom"
+    );
+}

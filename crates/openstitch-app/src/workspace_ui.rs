@@ -595,6 +595,33 @@ pub fn design_settings_window(app: &mut EditorApp, ctx: &egui::Context) {
                 crate::a11y::name(&r.response, "Hoop");
                 ui.end_row();
 
+                // PE-DESIGN's page mode (#1056): Hoop Size (the chosen hoop, or 100 x 100 mm)
+                // or Custom Size. On a Hoop Size page each one-step tie-in starts on a stitch in
+                // place, as PE-DESIGN sews it; a PE-DESIGN 11 file opened keeps its own mode.
+                ui.label(t("ui-page-mode"));
+                ui.horizontal(|ui| {
+                    let hoop_page = d.hoop_size_page();
+                    let can_hoop =
+                        m.hoop.is_some() || ((pw.round(), ph.round()) == (100.0, 100.0));
+                    let r = ui
+                        .add_enabled(
+                            can_hoop,
+                            egui::Button::selectable(hoop_page, t("ui-page-mode-hoop")),
+                        )
+                        .on_hover_text(t("ui-page-mode-hoop-tip"))
+                        .on_disabled_hover_text(t("ui-page-mode-hoop-needs"));
+                    if r.clicked() && !hoop_page {
+                        requests.push(set(json!({ "pageMode": "hoop" })));
+                    }
+                    let r = ui
+                        .selectable_label(!hoop_page, t("ui-page-mode-custom"))
+                        .on_hover_text(t("ui-page-mode-custom-tip"));
+                    if r.clicked() && hoop_page {
+                        requests.push(set(json!({ "pageMode": "custom" })));
+                    }
+                });
+                ui.end_row();
+
                 let user = m.hoop.as_deref().is_some_and(|k| m.user_hoop(k).is_some());
                 let turns = m.listed_hoop().is_none_or(|h| h.can_rotate());
                 ui.label("");
