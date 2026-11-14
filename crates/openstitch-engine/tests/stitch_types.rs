@@ -2386,3 +2386,28 @@ fn the_profile_description_says_when_the_ramps_differ() {
         profile.summary
     );
 }
+
+/// #1105: `object.setRegion`'s `underlayStyle` description (what command_describe and the
+/// per-command tools give) says that a satin stores edgeFill as edgeZigzag, so a model that
+/// reads back the other value knows why.
+#[test]
+fn the_underlay_style_description_says_a_satin_keeps_edge_and_zigzag() {
+    let session = Session::new(".");
+    let spec = session
+        .commands()
+        .into_iter()
+        .find(|c| c.id == "object.setRegion")
+        .expect("object.setRegion");
+    let style = spec
+        .params
+        .iter()
+        .find(|p| p.name == "underlayStyle")
+        .expect("underlayStyle");
+    assert!(
+        style
+            .summary
+            .contains("On a satin, edgeFill is stored as edgeZigzag"),
+        "{}",
+        style.summary
+    );
+}

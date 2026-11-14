@@ -1362,7 +1362,7 @@ fn attribute_commands() -> Vec<CommandSpec> {
                 opt(
                     "underlayStyle",
                     "edge|zigzag|edgeZigzag|double|edgeFill|cross|auto|centreWalk",
-                    "Underlay: edge run, inset rows, both, two crossing layers, PE-DESIGN's first type (edge and rows) or its second (edge and lattice); shorthand for underlayParts. Beyond PE-DESIGN: auto (Manual Punch column: a centre walk, the edge run, or edge run and zigzag by the column's average width, see underlayAuto; skeleton satin and Auto satin: rows along the column that follow its width, one where it is under 3 mm, about one per underlaySpacing where wider, never past the edge) and centreWalk (a running stitch down the middle)",
+                    "Underlay: edge run, inset rows, both, two crossing layers, PE-DESIGN's first type (edge and rows) or its second (edge and lattice); shorthand for underlayParts. On a satin, edgeFill is stored as edgeZigzag: it is PE-DESIGN's first type in its fill form, which a satin sews as edge and zigzag (#1041, #1105). Beyond PE-DESIGN: auto (Manual Punch column: a centre walk, the edge run, or edge run and zigzag by the column's average width, see underlayAuto; skeleton satin and Auto satin: rows along the column that follow its width, one where it is under 3 mm, about one per underlaySpacing where wider, never past the edge) and centreWalk (a running stitch down the middle)",
                 ),
                 opt(
                     "underlayParts",
