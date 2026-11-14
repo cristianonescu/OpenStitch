@@ -2337,9 +2337,12 @@ pub fn tie_in(run: &mut Run) {
     tie_in_by(run, TIE_STEP);
 }
 
-/// A first stitch this short (0.1 mm) is passed over by [`tie_in_by`]: the writer sews points
-/// closer than 0.05 mm as one needle point.
-const TIE_FEEL: f64 = 1.0;
+/// A first stitch this short (0.15 mm) is passed over by [`tie_in_by`]: the writer sews points
+/// closer than 0.05 mm as one needle point, and a machine file's 0.1 mm grid can round a step
+/// of 0.1 mm onto the point it left (an Auto Punch fill's first stitch of 0.103 mm, the
+/// storybook in PE-DESIGN-compatible mode, #1076). A step longer than 0.15 mm moves more than
+/// 0.1 mm on one axis, so it always lands on another grid point.
+const TIE_FEEL: f64 = 1.5;
 
 /// [`tie_in`] with steps of `step` (0.1 mm) instead of PE-DESIGN's 0.3 mm.
 pub fn tie_in_by(run: &mut Run, step: f64) {

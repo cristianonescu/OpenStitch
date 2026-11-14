@@ -203,6 +203,10 @@ pub struct Source {
     /// Only this colour block (0-based).
     #[serde(default)]
     pub color_block: Option<usize>,
+    /// Only this part (0-based) of the stitches: what trims and colour changes separate,
+    /// counted after `colorBlock` (#1088).
+    #[serde(default)]
+    pub part: Option<usize>,
     /// Move the trace so the anchor lands on `to` (mm) before measuring.
     #[serde(default)]
     pub align: Option<Align>,
