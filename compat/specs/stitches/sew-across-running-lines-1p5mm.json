@@ -1,0 +1,154 @@
+{
+  "schema": "openstitch-compat/1",
+  "id": "sew-across-running-lines-1p5mm",
+  "area": "stitches",
+  "title": "Two running lines 1.5 mm apart: trimmed",
+  "description": "Two open 40 mm Running Stitch lines in one thread, run pitch 2 mm, A from left to right and B from right to left 1.5 mm below it, so A's end and B's start are 1.5 mm apart. PE-DESIGN 11.50 locked, trimmed and tied in: A ends with a 0.3 mm lock, a trim, then B starts with a stitch in place and a 0.3 mm tie-in (#987).",
+  "covers": {
+    "audit": [],
+    "featureMatrix": [
+      {
+        "area": "Line sew types",
+        "feature": "Running"
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "kind": "measured",
+      "note": "PE-DESIGN 11.50 reference stitches/987-two-running-lines-1.5mm.pes (the coordinator's round 15 capture for #987): 50 stitches in the status bar, 40,00 x 1,50 mm"
+    }
+  ],
+  "script": [
+    {
+      "command": "design.new",
+      "params": {
+        "width": 100,
+        "height": 100
+      }
+    },
+    {
+      "command": "shape.polygon",
+      "params": {
+        "points": [
+          [
+            30,
+            50
+          ],
+          [
+            70,
+            50
+          ]
+        ],
+        "closed": false,
+        "outline": "Red"
+      }
+    },
+    {
+      "command": "shape.polygon",
+      "params": {
+        "points": [
+          [
+            70,
+            51.5
+          ],
+          [
+            30,
+            51.5
+          ]
+        ],
+        "closed": false,
+        "outline": "Red"
+      }
+    },
+    {
+      "command": "object.setLine",
+      "params": {
+        "ids": [
+          1,
+          2
+        ],
+        "type": "running",
+        "pitch": 2.0,
+        "runTimes": 1
+      }
+    }
+  ],
+  "exports": [
+    {
+      "path": "lines.pes"
+    }
+  ],
+  "references": [
+    {
+      "id": "pe-design",
+      "file": "stitches/987-two-running-lines-1.5mm.pes",
+      "make": "see compat/reference/MANIFEST.json"
+    }
+  ],
+  "measurements": [
+    {
+      "id": "stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "lines.pes"
+      },
+      "evidence": "PE-DESIGN's needle points: 50 in the status bar",
+      "reference": {
+        "tolerance": {
+          "count": 0
+        }
+      }
+    },
+    {
+      "id": "trims",
+      "measure": {
+        "kind": "commandCount",
+        "command": "trim"
+      },
+      "source": {
+        "export": "lines.pes"
+      },
+      "evidence": "no trim at a sewn-across join; one at a trimmed join",
+      "reference": {
+        "tolerance": {
+          "count": 0
+        }
+      }
+    },
+    {
+      "id": "short-stitches",
+      "measure": {
+        "kind": "stitchLengthHistogram",
+        "bin": 1.0
+      },
+      "source": {
+        "export": "lines.pes"
+      },
+      "evidence": "stitches under 1 mm: the ties and locks at the thread ends and at a trimmed join",
+      "reference": {
+        "tolerance": {
+          "count": 0
+        }
+      }
+    },
+    {
+      "id": "height",
+      "measure": {
+        "kind": "bounds",
+        "property": "height"
+      },
+      "source": {
+        "export": "lines.pes"
+      },
+      "evidence": "the two lines' distance",
+      "reference": {
+        "tolerance": {
+          "mm": 0.05
+        }
+      }
+    }
+  ]
+}

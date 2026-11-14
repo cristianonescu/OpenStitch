@@ -67,6 +67,12 @@ struct Element {
     /// letter's separate runs (stroke-satin-lower-i, text-size-hg's x and g), never a straight
     /// stitch across the gap.
     pieces: bool,
+    /// An object's line sewing (its outline): a move from one line into the next is sewn
+    /// across only up to [`LINE_ACROSS`] (#987).
+    line: bool,
+    /// A letter of a text (any of its layers): a move sewn across into or out of it keeps
+    /// the lock and the tie-in ([`Writer::keep_join_ties`]).
+    letter: bool,
     /// The longest move into this element sewn across as a stitch instead of a trim (0.1 mm);
     /// `None` for the compiler's `sew_across_distance`. A letter of a text takes
     /// [`LETTER_ACROSS`].
@@ -98,6 +104,13 @@ enum Rule {
 /// each against PE-DESIGN's. No satin capture below 8 mm exists to tell where PE-DESIGN's
 /// bound lies under 2.3 mm.
 const LETTER_ACROSS: f64 = 23.0;
+
+/// The longest move from one object's line into the next object's line sewn across as a
+/// stitch (0.1 mm, #987). PE-DESIGN 11.50 sews two running lines 0.5 and 1.0 mm apart across
+/// and trims them at 1.5, 2.0 (run pitch 2 or 3 mm) and 3.0 mm (compat
+/// sew-across-running-lines-*); the bound is set halfway between 1.0 and 1.5 mm, as the
+/// sew-across distance between fills is set between their 2.24 and 2.33 mm.
+const LINE_ACROSS: f64 = 12.5;
 
 /// A stitch this short (0.1 mm) sews in place: 0.35 mm, so a 0.3 mm step still counts after
 /// the 0.1 mm grid of the machine file (#703).
@@ -156,6 +169,18 @@ struct Writer {
     /// The design is on a Hoop Size page ([`Design::hoop_size_page`]): a one-step tie-in
     /// starts on a stitch in place (#1013).
     hoop_size_page: bool,
+    /// The element sewn last was an object's line ([`Element::line`]).
+    line_open: bool,
+    /// The move into the run being started was sewn across from the object before: its
+    /// tie-in is left out (#987).
+    joined: bool,
+    /// The element sewn last was a letter ([`Element::letter`]).
+    letter_open: bool,
+    /// The move into the element being sewn touches a letter: sewn across, it keeps the lock
+    /// before it and the tie-in after it (#987). No PE-DESIGN capture shows a move under
+    /// 2.3 mm into or out of a letter (its text captures trim every letter move, all longer),
+    /// so today's ties stay until one does: two letters of one text under 2.3 mm apart (#1082).
+    keep_join_ties: bool,
 }
 
 /// An object's own ties (#548).
@@ -234,6 +259,38 @@ impl Writer {
             }
         }
         self.thin_tail();
+    }
+
+    /// Before a move sewn across into the next object (#987): the end lock PE-DESIGN's ties put
+    /// on the run just sewn comes off, as PE-DESIGN sews none there. The lock is the last
+    /// needle point sewn again after one or two steps back of at most 1 mm
+    /// ([`crate::region::lock_after`]). The object's own ties (#548) keep their lock.
+    fn drop_end_lock(&mut self) {
+        if !self.lock_open || self.open_ties.is_some() {
+            return;
+        }
+        let s = &self.out.stitches;
+        let n = s.len();
+        let at = |i: usize| v2(s[i].x, s[i].y);
+        for k in [4usize, 2] {
+            // The needle point before the lock, the lock's steps and the point sewn again.
+            if n < k + 2 {
+                continue;
+            }
+            let lock = n - k - 1..n;
+            let stitches = s[n - k - 2..n].iter().all(|t| t.command == Command::Stitch);
+            let back = at(n - k - 1).distance(at(n - 1)) < SAME_POINT;
+            let short = lock
+                .clone()
+                .skip(1)
+                .all(|i| at(i).distance(at(i - 1)) <= 10.0);
+            if stitches && back && short {
+                self.out.stitches.truncate(n - k);
+                self.drains.push((n - k, k));
+                self.lock_open = false;
+                return;
+            }
+        }
     }
 
     /// A run that ends in stitches of 0.3 mm or less (a fill's last clipped row pieces, a
@@ -340,8 +397,15 @@ impl Writer {
             self.stitch_line(p);
             return;
         }
-        // PE-DESIGN sews a short move between objects across as a stitch rather than jumping.
+        // PE-DESIGN sews a short move between objects across as a stitch rather than jumping,
+        // with no lock on the object before it and no tie-in on the next (#987: running lines
+        // 0.5 and 1.0 mm apart, 46 needle points against 50 when trimmed; machine-trim-fine's
+        // fills; a01-rect-applique's tack-down into its cover).
         if !within_element && d <= across && sew_across {
+            if !self.keep_join_ties {
+                self.drop_end_lock();
+                self.joined = true;
+            }
             self.stitch_line(p);
             return;
         }
@@ -448,7 +512,16 @@ impl Writer {
             self.push(p, Command::Stop);
         }
         let (under, run_from) = (self.under.take(), self.run_from.take());
-        let across = element.across.unwrap_or(self.cfg.sew_across_distance);
+        // From one object's line into the next one's, PE-DESIGN trims from a shorter move
+        // (#987).
+        let across = element.across.unwrap_or(if element.line && self.line_open {
+            LINE_ACROSS.min(self.cfg.sew_across_distance)
+        } else {
+            self.cfg.sew_across_distance
+        });
+        self.line_open = element.line;
+        self.keep_join_ties = element.letter || self.letter_open;
+        self.letter_open = element.letter;
         for (i, run) in runs.iter().enumerate() {
             // A letter's separate pieces are trimmed apart (pieces close enough to join inside
             // the letter are one run already: `stroke_columns`).
@@ -476,6 +549,20 @@ impl Writer {
                     .is_some_and(|s| s.command == Command::Jump);
             // Only a run that locks takes the object's forced tie-in (not a basting run).
             let force = element.lock && std::mem::take(&mut self.force_tie);
+            // Sewn across into from the object before: PE-DESIGN's tie-in, which the generator
+            // put at the run's start, is left out (#987). The object's own ties keep theirs.
+            let joined_run;
+            let run = if std::mem::take(&mut self.joined)
+                && i == 0
+                && element.lock
+                && self.ties.is_none()
+                && !force
+            {
+                joined_run = without_tie_in(run);
+                &joined_run
+            } else {
+                run
+            };
             let tied;
             // The object's own ties step along a pointed start (#732); PE-DESIGN's tie-in is
             // kept as it sews it.
@@ -544,6 +631,29 @@ impl Writer {
                 self.tie_along_tip(head + usize::from(!landed), tie);
             }
         }
+    }
+}
+
+/// `run` without the tie-in at its start (#987): the steps out of at most 1 mm each that come
+/// back to its first needle point within its first five stitches
+/// ([`crate::region::starts_tied`]). A run without one is returned whole.
+fn without_tie_in(run: &[Vec2]) -> Run {
+    let Some(&a) = run.first() else {
+        return run.to_vec();
+    };
+    let back = run
+        .iter()
+        .enumerate()
+        .skip(2)
+        .take(5)
+        .take_while(|(i, p)| p.distance(run[*i - 1]) <= 10.0)
+        .find(|(_, p)| p.distance(a) < SAME_POINT)
+        .map(|(i, _)| i);
+    match back {
+        Some(i) => std::iter::once(a)
+            .chain(run[i + 1..].iter().copied())
+            .collect(),
+        None => run.to_vec(),
     }
 }
 
@@ -680,6 +790,8 @@ impl Compiler {
                         runs: vec![lead],
                         whole: false,
                         lock: true,
+                        line: false,
+                        letter: false,
                         pieces: false,
                         across: None,
                         rule: Rule::Pe,
@@ -809,6 +921,10 @@ impl Compiler {
             region_area: None,
             drains: Vec::new(),
             hoop_size_page: design.hoop_size_page(),
+            line_open: false,
+            joined: false,
+            letter_open: false,
+            keep_join_ties: false,
         }
     }
 }
@@ -863,6 +979,8 @@ fn basting_element(runs: Vec<Run>, thread: Thread) -> Element {
         runs,
         whole: false,
         lock: false,
+        line: false,
+        letter: false,
         pieces: true,
         across: Some(0.0),
         rule: Rule::Pe,
@@ -1082,6 +1200,8 @@ fn sew_block(w: &mut Writer, block: &StitchBlock) {
                     runs: std::mem::replace(&mut pending, vec![Vec::new()]),
                     whole: true,
                     lock: false,
+                    line: false,
+                    letter: false,
                     pieces: false,
                     across: across.take(),
                     rule: Rule::Pe,
@@ -1103,6 +1223,8 @@ fn sew_block(w: &mut Writer, block: &StitchBlock) {
                     runs: std::mem::replace(&mut pending, vec![Vec::new()]),
                     whole: true,
                     lock: false,
+                    line: false,
+                    letter: false,
                     pieces: false,
                     across: across.take(),
                     rule: Rule::Pe,
@@ -1117,6 +1239,8 @@ fn sew_block(w: &mut Writer, block: &StitchBlock) {
         runs: pending,
         whole: true,
         lock: false,
+        line: false,
+        letter: false,
         pieces: false,
         across,
         rule: Rule::Pe,
@@ -1309,6 +1433,8 @@ fn elements(
                     // are a blend or tartan colour's (#901): its join splits them only where no
                     // hidden way links them, and a straight stitch across the gap (up to the
                     // connect distance, 4 mm) would show over the other colours.
+                    line: false,
+                    letter: text,
                     pieces: (stroked || region.gradient.is_some() || region.tartan.is_some())
                         && k + 1 == n,
                     // The move into a letter from the one before (#465).
@@ -1371,6 +1497,8 @@ fn letter_line_elements(object: &DesignObject, _user: &[Pattern]) -> Option<Vec<
                 runs,
                 whole: false,
                 lock: true,
+                line: false,
+                letter: true,
                 pieces: true,
                 across: Some(LINE_LETTER_ACROSS),
                 rule: Rule::Pe,
@@ -1445,6 +1573,8 @@ fn letter_line_elements(object: &DesignObject, _user: &[Pattern]) -> Option<Vec<
             runs,
             whole: line.kind == LineType::Zigzag,
             lock: true,
+            line: false,
+            letter: true,
             pieces: true,
             across: Some(LINE_LETTER_ACROSS),
             rule: Rule::Pe,
@@ -2310,6 +2440,8 @@ fn line_elements(
                 runs,
                 whole: false,
                 lock: false,
+                line: false,
+                letter: false,
                 pieces: false,
                 across: None,
                 rule: Rule::Pe,
@@ -2603,6 +2735,8 @@ fn line_elements(
         runs,
         whole: false,
         lock: true,
+        line: true,
+        letter: false,
         pieces: false,
         across: None,
         rule: Rule::Pe,
@@ -2686,6 +2820,8 @@ mod tie_off_tests {
                 runs: vec![run],
                 whole: false,
                 lock: true,
+                line: false,
+                letter: false,
                 pieces: false,
                 across: None,
                 rule: Rule::Pe,
@@ -2713,6 +2849,8 @@ mod tie_off_tests {
             runs: vec![run],
             whole: false,
             lock: true,
+            line: false,
+            letter: false,
             pieces: false,
             across: None,
             rule: Rule::Pe,

@@ -2148,7 +2148,8 @@ fn direction_turns_the_zigzag_net() {
             "{angle}°: main direction {got}°, expected {want}° ± 6"
         );
     }
-    // 0°: the net on the axes, stitch for stitch as before #1043.
+    // 0°: the net on the axes, stitch for stitch as before #1043 but for one needle point on
+    // the outline where a cut rung's diagonal back is cut too (#1043's second part).
     let st = zigzag_net(Some(0.0));
     assert!(dist(main_direction(&st), 0.0) <= 6.0, "0°: on the axes");
     let hash = st.iter().fold(0xcbf2_9ce4_8422_2325u64, |h, q| {
@@ -2163,9 +2164,11 @@ fn direction_turns_the_zigzag_net() {
     assert_eq!((st.len(), hash), ZIGZAG_NET_0, "the 0° zigzag net changed");
 }
 
-/// The 0° zigzag net of [`zigzag_net`] as main sews it without #1043 (with #1055's stitch in
-/// place before the one-step tie-in, as the page is a Hoop Size one): stitch count and hash.
-const ZIGZAG_NET_0: (usize, u64) = (972, 6_462_209_893_352_527_947);
+/// The 0° zigzag net of [`zigzag_net`] (with #1055's stitch in place before the one-step
+/// tie-in, as the page is a Hoop Size one): stitch count and hash. Main before #1043's second
+/// part sewed 972 stitches, hash 6_462_209_893_352_527_947; the one more is a needle point on
+/// the outline at the top-left corner, where the diagonal back from a cut rung is cut too.
+const ZIGZAG_NET_0: (usize, u64) = (973, 17_908_954_492_682_872_431);
 
 /// #1043: a switch to zigzag net sets Direction 0 (PE-DESIGN's default for the type, round 13);
 /// an angle given with the switch is kept; other types keep the previous Direction.

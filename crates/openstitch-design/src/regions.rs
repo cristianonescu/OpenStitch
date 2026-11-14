@@ -484,12 +484,33 @@ pub fn generate(
             // its first lines half a band in from the shape's left and top edges; the lines start
             // from the shape, not from the page origin (#616). Another Direction is handled above.
             // With a reference point, `region::layers` put it at (0, 0): the net starts there.
+            // PE-DESIGN sews every band that reaches into the shape, also where its line runs
+            // outside the outline (round 13: a 1 mm strip along the edge at 180°, bands running
+            // on to a slanted edge at 30° and 45°, #1043): the lines are laid over the shape grown
+            // by half a band; the rungs are cut to the shape.
+            let grown: Vec<Contour> = crate::boolean::contours(&crate::boolean::offset(
+                &[closed, holes].concat(),
+                width / 2.0,
+                false,
+            ));
             let lines: Vec<Vec<Vec2>> = match r.reference {
-                Some(_) => net_families(closed, holes, 0.0, spacing, id)
+                Some(_) => net_families(&grown, &[], 0.0, spacing, id)
                     .into_iter()
                     .flatten()
                     .collect(),
-                None => net_from_shape(closed, holes, spacing, width / 2.0, id),
+                None => net_from_shape(closed, &grown, spacing, width / 2.0, id),
+            };
+            let outline: Vec<Vec<Vec2>> = closed.iter().chain(holes).map(|c| c.path()).collect();
+            let on_outline = |p: Vec2| outline.iter().any(|o| crate::knife::nearest(p, o).0 < 1e-6);
+            let onto_shape = |p: Vec2| -> Vec2 {
+                if contains(p, closed) && !contains(p, holes) {
+                    return p;
+                }
+                outline
+                    .iter()
+                    .map(|o| crate::knife::nearest(p, o))
+                    .min_by(|a, b| a.0.total_cmp(&b.0))
+                    .map_or(p, |(d, q)| if d > 1e-6 { q } else { p })
             };
             // A net edge two lines share (the honeycomb's rows meet along theirs) is sewn once:
             // a second band over it piled thread into knots on the machine (#293).
@@ -512,8 +533,59 @@ pub fn generate(
                 }
             }
             let edges = |v: Vec2| leaving.get(&net_key(v)).cloned().unwrap_or_default();
-            let out = along_net(&lines, pieces, pitch, |piece| {
-                let band = zigzag_band(piece, width, step, closed, holes, &edges);
+            // The needle travels and sews each line (under sewing, the run out to a band's
+            // end) where the line runs inside the shape: the pieces cut to the shape, each
+            // remembering the whole piece its band is made along. A piece the outline cuts in
+            // several keeps its parts' own bands; one wholly outside runs on the outline.
+            // A line wholly outside is sewn only where it meets the net on the outline (so
+            // the needle can travel to it along the net): on a straight edge the cut lines
+            // across end where it does.
+            let cut = |l: &Vec<Vec2>| -> Vec<Vec<Vec2>> {
+                clip(l, closed, holes)
+                    .into_iter()
+                    .filter(|p| p.len() >= 2)
+                    .collect()
+            };
+            let met: std::collections::HashSet<(i64, i64)> =
+                lines.iter().flat_map(cut).flatten().map(net_key).collect();
+            let inside = |l: &Vec<Vec2>| -> Vec<Vec<Vec2>> {
+                let parts = cut(l);
+                if !parts.is_empty() {
+                    return parts;
+                }
+                let mut on: Vec<Vec2> = l.iter().map(|&p| onto_shape(p)).collect();
+                on.dedup_by(|a, b| a.distance(*b) < 1e-9);
+                if on.len() >= 2 && on.iter().any(|&p| met.contains(&net_key(p))) {
+                    vec![on]
+                } else {
+                    Vec::new()
+                }
+            };
+            let mut whole: std::collections::HashMap<Vec<(i64, i64)>, Vec<Vec2>> =
+                std::collections::HashMap::new();
+            let key = |l: &[Vec2]| l.iter().map(|&p| net_key(p)).collect::<Vec<_>>();
+            let mut cut_pieces = Vec::new();
+            for piece in pieces {
+                let parts = inside(&piece);
+                if parts.len() == 1 {
+                    // The band runs on past the part at most two band widths (where a line meets
+                    // the outline at 30°, its band reaches 2.6 mm on), so it ends near the
+                    // part's ends, where the needle goes on.
+                    let piece = extend_part(&piece, &parts[0], 2.0 * width);
+                    // `along_net` may sew a piece either way.
+                    let mut back = parts[0].clone();
+                    back.reverse();
+                    let mut piece_back = piece.clone();
+                    piece_back.reverse();
+                    whole.insert(key(&back), piece_back);
+                    whole.insert(key(&parts[0]), piece);
+                }
+                cut_pieces.extend(parts);
+            }
+            let net: Vec<Vec<Vec2>> = lines.iter().flat_map(inside).collect();
+            let out = along_net(&net, cut_pieces, pitch, |piece| {
+                let along = whole.get(&key(piece)).map_or(piece, |w| w.as_slice());
+                let band = zigzag_band(along, width, step, closed, holes, &edges);
                 if band.len() < 2 {
                     return None;
                 }
@@ -522,25 +594,52 @@ pub fn generate(
                 // its end) is sewn out along its line and back as a band, as with under sewing,
                 // so the needle does not travel back over the band it has just sewn.
                 let (first, last) = (piece[0], *piece.last().expect("2+ points"));
-                let mut run = Vec::new();
-                let end = if r.underlay || edges(last).len() <= 1 {
+                let mut run: Run = Vec::new();
+                // From the needle to `to`: where a band runs on past its line's part (the line
+                // outside the shape), the needle comes back on the shape, a pitch at a time.
+                let bridge = |run: &mut Run, to: Vec2| {
+                    if let Some(&from) = run.last()
+                        && from.distance(to) > pitch
+                    {
+                        run.extend(
+                            subdivide(&[from, to], pitch)
+                                .into_iter()
+                                .skip(1)
+                                .map(onto_shape),
+                        );
+                    }
+                };
+                let at = if r.underlay || edges(last).len() <= 1 {
                     run.extend(subdivide(piece, pitch));
-                    run.extend(band.into_iter().rev());
+                    let mut band = band.into_iter().rev();
+                    if let Some(b) = band.next() {
+                        bridge(&mut run, b);
+                        run.push(b);
+                    }
+                    run.extend(band);
                     first
                 } else {
                     run.push(first);
+                    if let Some(&b) = band.first() {
+                        bridge(&mut run, b);
+                    }
                     run.extend(band);
                     last
                 };
+                let end = at;
+                bridge(&mut run, end);
                 // No stitch shorter than 0.3 mm (a rung cut short at a corner or the outline
                 // next to the line's end): the needle point is left out, the run still ends on
                 // the line.
+                // A step along the outline between a cut rung and its cut diagonal may be
+                // shorter, down to 0.1 mm, as PE-DESIGN sews it (#1043).
                 let mut kept: Run = Vec::with_capacity(run.len() + 1);
                 for p in run {
-                    if kept
-                        .last()
-                        .is_none_or(|q: &Vec2| q.distance(p) >= ZIGZAG_NET_MIN_STITCH)
-                    {
+                    if kept.last().is_none_or(|q: &Vec2| {
+                        let d = q.distance(p);
+                        d >= ZIGZAG_NET_MIN_STITCH
+                            || (d >= ZIGZAG_NET_EDGE_STEP && on_outline(*q) && on_outline(p))
+                    }) {
                         kept.push(p);
                     }
                 }
@@ -2566,11 +2665,11 @@ fn chaikin(l: &[Vec2]) -> Vec<Vec2> {
 // ------------------------------------------------------------------ nets
 
 /// The line families of net pattern `id`: per family, clipped pieces in row order.
-/// The net lines of pattern `id` on the page axes, lined up so that a line runs `inset` in from
-/// the left and the top of the shape's bounds (PE-DESIGN's zigzag net, #616).
+/// The net lines of pattern `id` on the page axes over `area`, lined up so that a line runs
+/// `inset` in from the left and the top of the bounds of `closed` (PE-DESIGN's zigzag net, #616).
 fn net_from_shape(
     closed: &[Contour],
-    holes: &[Contour],
+    area: &[Contour],
     spacing: f64,
     inset: f64,
     id: &str,
@@ -2582,7 +2681,7 @@ fn net_from_shape(
     let to_origin = crate::geometry::Transform::translation(-o.x, -o.y);
     let shift =
         |cs: &[Contour]| -> Vec<Contour> { cs.iter().map(|c| c.transformed(&to_origin)).collect() };
-    net_families(&shift(closed), &shift(holes), 0.0, spacing, id)
+    net_families(&shift(area), &[], 0.0, spacing, id)
         .into_iter()
         .flatten()
         .map(|line| line.into_iter().map(|p| p + o).collect())
@@ -2785,13 +2884,44 @@ fn zigzag_band(
     };
     let half = width / 2.0;
     let mut run = Vec::new();
+    // The previous rung's far end, uncut and cut.
+    let mut prev: Option<(Vec2, Vec2)> = None;
     let mut rung = |c: Vec2, a: Vec2, b: Vec2| {
-        if let Some((a, b)) = cut(c, a, b) {
-            run.push(a);
-            run.push(b);
+        let Some((ca, cb)) = cut(c, a, b) else {
+            prev = None;
+            return;
+        };
+        // Where the outline cuts a rung or the diagonal back from it, PE-DESIGN 11.50 cuts the
+        // diagonal to the region too: the needle steps along the outline from the cut rung's end
+        // to where the diagonal comes back in, and from where it leaves to the next rung's cut
+        // start (round 13, zigzag-net-dir30/45/180: steps of 0.1 to 0.5 mm on the outline, #1043).
+        if let Some((pb, cpb)) = prev
+            && (pb.distance(cpb) > 1e-6 || a.distance(ca) > 1e-6)
+        {
+            for piece in clip(&[pb, a], closed, holes) {
+                if let (Some(&s), Some(&e)) = (piece.first(), piece.last()) {
+                    run.push(s);
+                    run.push(e);
+                }
+            }
         }
+        prev = Some((b, cb));
+        run.push(ca);
+        run.push(cb);
     };
+    // A line starting outside the shape (laid over the grown shape, #1043) keeps its rungs where
+    // they fall when it starts on the outline: one stands where it comes into the shape.
     let mut t = 0.0;
+    if !inside(line[0]) {
+        let mut along = 0.0;
+        for w in line.windows(2) {
+            if let Some(p) = clip(w, closed, holes).first().and_then(|p| p.first()) {
+                t = (along + w[0].distance(*p)).rem_euclid(step);
+                break;
+            }
+            along += w[0].distance(w[1]);
+        }
+    }
     for i in 0..n - 1 {
         let (a, b) = (line[i], line[i + 1]);
         let len = a.distance(b);
@@ -2861,8 +2991,68 @@ fn zigzag_band(
     run
 }
 
+/// `part` (a piece of the polyline `line`) run on along `line` by up to `ext` at both ends.
+fn extend_part(line: &[Vec2], part: &[Vec2], ext: f64) -> Vec<Vec2> {
+    // Arc length along `line` of a point on it.
+    let at = |p: Vec2| -> f64 {
+        let mut along = 0.0;
+        let mut best = (f64::INFINITY, 0.0);
+        for w in line.windows(2) {
+            let (d, q) = crate::knife::nearest(p, w);
+            if d < best.0 {
+                best = (d, along + w[0].distance(q));
+            }
+            along += w[0].distance(w[1]);
+        }
+        best.1
+    };
+    let (Some(&a), Some(&b)) = (part.first(), part.last()) else {
+        return part.to_vec();
+    };
+    let (s0, s1) = (at(a), at(b));
+    let (lo, hi) = if s0 <= s1 {
+        (s0 - ext, s1 + ext)
+    } else {
+        (s1 - ext, s0 + ext)
+    };
+    // `line` cut to the arc lengths lo..hi.
+    let mut out = Vec::new();
+    let mut along = 0.0;
+    for w in line.windows(2) {
+        let len = w[0].distance(w[1]);
+        let (u, v) = (along, along + len);
+        if v >= lo && u <= hi && len > 1e-12 {
+            let from = if lo > u {
+                w[0].lerp(w[1], (lo - u) / len)
+            } else {
+                w[0]
+            };
+            let to = if hi < v {
+                w[0].lerp(w[1], (hi - u) / len)
+            } else {
+                w[1]
+            };
+            if out.last() != Some(&from) {
+                out.push(from);
+            }
+            out.push(to);
+        }
+        along = v;
+    }
+    if out.len() < 2 {
+        return part.to_vec();
+    }
+    if s0 > s1 {
+        out.reverse();
+    }
+    out
+}
+
 /// Shortest zigzag net stitch, 0.1 mm: a needle point nearer the previous one is left out.
 const ZIGZAG_NET_MIN_STITCH: f64 = 3.0;
+
+/// Shortest step of a zigzag net along the outline, 0.1 mm (PE-DESIGN's, round 13, #1043).
+const ZIGZAG_NET_EDGE_STEP: f64 = 1.0;
 
 /// A net vertex as a map key (to 0.001 mm: the lines share their vertices exactly).
 fn net_key(p: Vec2) -> (i64, i64) {
