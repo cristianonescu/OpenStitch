@@ -1089,8 +1089,9 @@ fn written_object_sections_match_pe_designs_bytes_outside_the_documented_differe
         let objects = objects_of(&fixture);
         let pattern = stitches_of(&fixture);
         let written = pes11::write(&objects, &pattern).expect("write");
-        // Every pattern block is OpenStitch's placeholder (4 + 3970 bytes); PE-DESIGN's is as
-        // long as the programmable pattern it holds (53 polylines in most files, one in m01).
+        // Every pattern block is OpenStitch's placeholder (one two-point polyline, 22 bytes);
+        // PE-DESIGN's is as long as the programmable pattern it holds (53 polylines in most
+        // files, one in m01).
         let records = bodies(&fixture, objects.shapes.len());
         let original_len = fixture.len();
         let fixture = match bodies(&written, objects.shapes.len()).first() {
@@ -1140,7 +1141,8 @@ fn written_object_sections_match_pe_designs_bytes_outside_the_documented_differe
                     // second outline position (segment, t) and the geometry's matching segment
                     // fields are not mapped; the writer writes the end of the last segment.
                     || ((name.contains("-startend-") || name.ends_with("-rect-default"))
-                        && ((b + 4408 <= from && to <= b + 4420)
+                        // Body 4408..4420 in the 53-polyline baseline: the tail's 48..60.
+                        && ((r.pattern_end + 48 <= from && to <= r.pattern_end + 60)
                             || [20, 40, 62]
                                 .iter()
                                 .any(|&o| gh + o <= from && to <= gh + o + 4)))

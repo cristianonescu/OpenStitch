@@ -687,10 +687,14 @@ text fitted to an outline, 3 with a stitch group; two of them with gallery shape
 byte-identical to PE-DESIGN's outside these documented differences
 (`written_object_sections_match_pe_designs_bytes_outside_the_documented_differences`):
 
-- **Pattern block** (from body 386): OpenStitch writes its own placeholder of the default
-  pattern's layout and size (the baseline's 53 point counts, drawn as evenly spaced horizontal
-  lines) instead of copying PE-DESIGN's pattern, which is Brother content; a file whose block
-  holds another pattern (m01 …) is compared with its block swapped for the placeholder.
+- **Pattern block** (from body 386): OpenStitch writes its own placeholder, size 10000 and one
+  two-point polyline (0, 512)-(1024, 512) (22 bytes, so a body is 480 bytes; the tail's offsets
+  in the table above are the 53-polyline baseline's, 4360 on), instead of copying PE-DESIGN's
+  default pattern, which is Brother content. PE-DESIGN 11.50 opens and edits a shape with this
+  block, and a Decorative Fill chosen on it proposes PE-DESIGN's own default pattern from the
+  program (round 14, #1060). Every file is compared with its blocks swapped for the
+  placeholder. Committed captures hold OpenStitch's placeholder rows at the same point counts
+  as PE-DESIGN's block (`tools/redact_pattern_blocks.py`, #1060).
 - **Geometry header:** the closed-shape rule for the marks' coordinates, rounded to whole
   units (a05's 210-unit square: 595 + 52.5 → 648), and r01's segment and parameter fields (open
   lines: r11's), so the curved and open owner files differ there (the Applique Wizard's offset

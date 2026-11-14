@@ -46,19 +46,17 @@ const TTF_LETTER: &str = "CTTFLetter";
 const ENVELOPE: usize = 22;
 /// Bytes of a `CTTFLetter` between its character code and its font name.
 const LETTER_ATTRS: usize = 148;
-/// Bytes of a `CEmbLine` body before its geometry with PE-DESIGN's default pattern block (53
-/// polylines); the block is as long as the programmable pattern it holds (m01-straight-1: one
-/// polyline, 462 bytes in all).
-const LINE_BODY: usize = 4432;
 /// The geometry header's three marks after its two lists.
 const GEOMETRY_MARKS: usize = 52;
 const VERTEX: usize = 28;
 /// The identity transform `a b c d tx ty`.
 const IDENTITY: [f32; 6] = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
-/// Where the body's pattern block starts and ends (`pattern_block`).
-#[cfg(test)]
+/// Where the `CEmbLine` body's pattern block starts (`pattern_block`); the block is as long as
+/// the programmable pattern it holds, and the 72-byte tail follows it.
 const PATTERN_START: usize = 386;
-const PATTERN_END: usize = LINE_BODY - template::BODY_TAIL.len();
+/// Where the tail started in the baseline file the tail's field offsets below are named from
+/// (r01-rect: PE-DESIGN's 53-polyline default pattern, a 4432-byte body).
+const BASELINE_TAIL: usize = 4360;
 
 /// File units are 0.1 mm, and the page's top-left corner is at this offset on both axes in
 /// every owner file (100 × 100 mm and 200 × 200 mm pages alike).
@@ -1555,12 +1553,7 @@ fn read_line(r: &mut ByteReader<'_>) -> Result<Option<Shape>> {
         flag_176: u16_at(body, 176),
         gallery: false,
         decorative: (u16_at(body, 134) == 13)
-            .then(|| {
-                read_pattern(
-                    &body[PATTERN_END - template::PATTERN_BYTES
-                        ..body.len() - template::BODY_TAIL.len()],
-                )
-            })
+            .then(|| read_pattern(&body[PATTERN_START..body.len() - template::BODY_TAIL.len()]))
             .flatten(),
         punch,
         punch_exit,
@@ -1585,7 +1578,7 @@ fn read_line(r: &mut ByteReader<'_>) -> Result<Option<Shape>> {
 /// point count and the points as two u16 each) and the 72 bytes after it. `None` when the
 /// block is not laid out that way.
 fn line_body_len(data: &[u8]) -> Option<usize> {
-    let head = PATTERN_END - template::PATTERN_BYTES;
+    let head = PATTERN_START;
     let at = |o: usize| data.get(o..o + 2).map(|b| u16::from_le_bytes([b[0], b[1]]));
     // The pattern's size (10000 for PE-DESIGN's default; 750 and no polylines on the Applique
     // Wizard's covering line, a01-rect-applique's fifth object), then its polylines.
@@ -2157,26 +2150,21 @@ fn tenths(mm: f32) -> u16 {
     (mm * 10.0).round().clamp(0.0, 65535.0) as u16
 }
 
-/// OpenStitch's placeholder for the pattern block every `CEmbLine` carries (the default
-/// programmable pattern in PE-DESIGN's files, which is Brother's and is not copied): the same
-/// layout, u16 size 10000, u16 polyline count, then per polyline six zero bytes, u16 1, the
-/// u16 point count and i16 x, y points in a 1024-unit cell, drawn as evenly spaced horizontal
-/// lines with the baseline file's point counts.
+/// OpenStitch's placeholder for the pattern block every `CEmbLine` carries (PE-DESIGN's files
+/// hold its default programmable pattern there, which is Brother's and is not copied): u16 size
+/// 10000, u16 polyline count 1, then six zero bytes, u16 1, u16 point count 2 and the points
+/// (0, 512) and (1024, 512), one horizontal line across the 1024-unit cell. PE-DESIGN 11.50
+/// opens and edits a shape with this block (round 14, #1060).
 fn pattern_block() -> Vec<u8> {
-    let counts = template::PATTERN_COUNTS;
     let mut w = ByteWriter::default();
     w.u16le(10000);
-    w.u16le(counts.len() as i64);
-    for (k, &n) in counts.iter().enumerate() {
-        w.fill(0, 6);
-        w.u16le(1);
-        w.u16le(i64::from(n));
-        let y = ((k as f64 + 0.5) * 1024.0 / counts.len() as f64).round() as i64;
-        for j in 0..n {
-            let x = (f64::from(j) * 1024.0 / f64::from(n.max(2) - 1)).round() as i64;
-            w.u16le(x);
-            w.u16le(y);
-        }
+    w.u16le(1);
+    w.fill(0, 6);
+    w.u16le(1);
+    w.u16le(2);
+    for (x, y) in [(0, 512), (1024, 512)] {
+        w.u16le(x);
+        w.u16le(y);
     }
     w.bytes
 }
@@ -2296,7 +2284,7 @@ fn write_line(w: &mut ByteWriter, s: &Shape) {
         None => w.append(&pattern_block()),
     }
     let mut tail = template::BODY_TAIL;
-    let base = PATTERN_END;
+    let base = BASELINE_TAIL;
     for at in [4372, 4388] {
         put32(&mut tail, at - base, cx);
         put32(&mut tail, at - base + 4, cy);
@@ -2886,11 +2874,14 @@ mod tests {
 
     #[test]
     fn body_template_and_pattern_block_have_the_mapped_length() {
+        // Size, count, one polyline's head and its two points: 4 + 10 + 8 bytes.
+        assert_eq!(pattern_block().len(), 22);
         assert_eq!(
-            template::BODY_HEAD.len() + pattern_block().len() + template::BODY_TAIL.len(),
-            LINE_BODY
+            read_pattern(&pattern_block()).map(|p| p.polylines.len()),
+            Some(1)
         );
         assert_eq!(PATTERN_START, template::BODY_HEAD.len());
+        assert_eq!(BASELINE_TAIL + template::BODY_TAIL.len(), 4432);
         assert_eq!(template::BODY_TAIL[..4], [0xE8, 0x03, 0xE8, 0x03]);
     }
 
