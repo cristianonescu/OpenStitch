@@ -8,7 +8,9 @@ are a sound start; change them only for a reason.
 ## Lettering
 
 - Capitals at least **5-6 mm** high for satin text; lowercase and thin script fonts need
-  more. Below about 4 mm letters close up and lose their shape.
+  more. Each font has its own smallest size (`fonts.list` `sizeRange.minMm`: Lato Bold 6 mm,
+  Pacifico 7, the Small Text font 3); below it letters close up and lose their shape, and
+  Check Design's `textTooSmall` says so (4 mm for a font without a range).
 - Very large satin letters (strokes wider than about 7-8 mm) sew loose: use fill text
   (`object.setRegion` `type: "fill"`) or a larger, bolder font.
 - Text on a curve needs room: keep at least the text height between the text and the outline
@@ -34,6 +36,9 @@ are a sound start; change them only for a reason.
 
 - Default density 4.5 rows/mm suits most fabrics. Lower it (3.5-4) for large areas, stretchy
   or thin fabric and stacked layers; raise it only for small areas on firm fabric.
+- An open fill is a look, not a fault: under about 1 line/mm the rows hide less than 40 % of
+  the fabric (measured on sew-outs: 35-40 % at 1 row/mm, 96 % at 4.5), and Check Design adds
+  a `lowCoverage` note, which does not hold the design back.
 - Keep `underlay` on for fills and satin over about 2 mm wide; it stabilises the fabric and
   lifts the top stitching.
 - `pullCompensation` (0.2-0.4 mm) widens row ends so shapes do not shrink when sewn.

@@ -42,6 +42,9 @@ pub struct Limits {
     /// (zero-length stitches in place left out).
     pub short_stitch_mm: f64,
     pub max_short_per_1000: f64,
+    /// Low coverage (#1036): a fill hiding less than this share of the fabric, on the coverage
+    /// curve measured on the T1 sew-outs (`openstitch_design::calibration::coverage`).
+    pub min_coverage: f64,
 }
 
 /// [`Limits`] as the table holds them.
@@ -391,6 +394,26 @@ fn is_feed(o: &DesignObject) -> bool {
 }
 
 /// Whether the object is meant to sew: a region or line, or fixed stitches.
+/// The share of the fabric object `o`'s stitches `st` hide (#1036): its thread per mm² of its
+/// area, which for one layer of parallel rows is their rows per mm, through the coverage curve
+/// measured on the T1 sew-outs (#291). Thread per area, not a sampled density map, so a 2 mm
+/// stroke reads as a wide square at the same density (a map's blur reads narrow shapes low).
+/// `None` for an empty or degenerate outline.
+fn fill_coverage(o: &DesignObject, st: &[openstitch_core::Stitch]) -> Option<f64> {
+    let closed: Vec<Contour> = o.contours.iter().filter(|c| c.closed).cloned().collect();
+    let area = openstitch_design::boolean::region_area(&closed) / (MM * MM);
+    if area <= 1e-6 {
+        return None;
+    }
+    let thread: f64 = st
+        .windows(2)
+        .filter(|w| w[0].command == Command::Stitch && w[1].command == Command::Stitch)
+        .map(|w| (w[1].x - w[0].x).hypot(w[1].y - w[0].y))
+        .sum::<f64>()
+        / MM;
+    (thread > 0.0).then(|| openstitch_design::calibration::coverage(thread / area))
+}
+
 fn sews(o: &DesignObject) -> bool {
     o.region.is_some() || o.line.is_some() || o.stitch_block.is_some()
 }
@@ -638,6 +661,35 @@ pub fn check(d: &Design, t: &Traced, opts: &CheckOptions) -> Vec<Finding> {
                 value: w,
                 limit: FILL_THIN_MM,
                 fix: fix("object.setRegion", json!({ "ids": [id], "type": "satin" })),
+            });
+        }
+        // Fabric showing through (#1036): a plain fill (not a gradation, open on purpose; not
+        // a decorative, motif or stippled fill, open by design) whose rows hide less of the
+        // fabric than the limit, on the coverage curve measured on the T1 sew-outs.
+        if !text
+            && o.region.as_ref().is_some_and(|g| {
+                matches!(g.kind, RegionType::Fill | RegionType::ProgrammableFill)
+                    && g.gradation.is_none()
+            })
+            && let Some(c) = fill_coverage(o, &st[r.clone()])
+            && c < LIMITS.min_coverage
+        {
+            out.push(Finding {
+                rule: "lowCoverage",
+                // A note, not a warning: an open fill can be a chosen look (coordinator, #1036).
+                severity: Severity::Info,
+                ids: vec![*id],
+                bbox: bbox_of(drop_points(r)),
+                message: format!(
+                    "The fill hides about {:.0} % of the fabric (under {:.0} %): the fabric shows between its rows; about {:.1} lines/mm hides {:.0} %",
+                    c * 100.0,
+                    LIMITS.min_coverage * 100.0,
+                    openstitch_design::calibration::rows_for_coverage(LIMITS.min_coverage),
+                    LIMITS.min_coverage * 100.0
+                ),
+                value: (c * 1000.0).round() / 10.0,
+                limit: LIMITS.min_coverage * 100.0,
+                fix: None,
             });
         }
         if let Some(spec) = o.text.as_ref().filter(|s| text && s.size < TEXT_MIN_MM) {
@@ -1345,7 +1397,7 @@ pub fn commands() -> Vec<CommandSpec> {
     vec![
         spec(
             "design.check",
-            "Check Design (beyond PE-DESIGN): every likely sewing problem, errors first, with the objects, where and an optional fix command. Rules: outsideHoop, longStitch, satinTooWide, satinTooNarrow, fillTooThin, textTooSmall, tinyObject, selfCrossing, untrimmedJump, stacked, dense, inPlace, untied (a start or end of the thread, at the design's start, a trim or a colour change, without a tie; the fix ties those objects with object.setFinish tie always), tinySection (fewer than 3 stitches between two thread cuts), shortStitch (more than 160 stitches in 1,000 shorter than 0.3 mm, just above PE-DESIGN's own satin lettering, stitches in place left out; names the objects with the most), moreColoursThanNeedles (a note when machine.setProfile's needles is set and the design has more thread colours). `ready` is false while there are errors. Run it before reporting a design done",
+            "Check Design (beyond PE-DESIGN): every likely sewing problem, errors first, with the objects, where and an optional fix command. Rules: outsideHoop, longStitch, satinTooWide, satinTooNarrow, fillTooThin, lowCoverage (a note: a plain fill, not a gradation, hiding under 40 % of the fabric on the coverage curve measured on sew-outs; no fix: raise its density if the open look is not wanted), textTooSmall, tinyObject, selfCrossing, untrimmedJump, stacked, dense, inPlace, untied (a start or end of the thread, at the design's start, a trim or a colour change, without a tie; the fix ties those objects with object.setFinish tie always), tinySection (fewer than 3 stitches between two thread cuts), shortStitch (more than 160 stitches in 1,000 shorter than 0.3 mm, just above PE-DESIGN's own satin lettering, stitches in place left out; names the objects with the most), moreColoursThanNeedles (a note when machine.setProfile's needles is set and the design has more thread colours). `ready` is false while there are errors. Run it before reporting a design done",
             Effect::Read,
             vec![
                 opt(
@@ -1448,4 +1500,37 @@ pub(crate) fn errors(d: &Design) -> Vec<String> {
         .filter(|f| f.severity == Severity::Error)
         .map(|f| f.message)
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Session;
+
+    /// The coverage of one fill rectangle `w` × `h` mm at `density` lines/mm, underlay off.
+    fn covered(w: f64, h: f64, density: f64) -> f64 {
+        let mut s = Session::new(std::env::temp_dir());
+        let p = json!({"x": 10, "y": 10, "width": w, "height": h, "fill": "Blue"});
+        s.execute("shape.rectangle", Some(&p)).expect("rect");
+        let p = json!({"ids": [1], "density": density, "underlay": false});
+        s.execute("object.setRegion", Some(&p)).expect("region");
+        let d = s.design().clone();
+        let t = Traced::new(&d);
+        let (_, r) = t.spans.iter().find(|(id, _)| *id == 1).expect("span");
+        fill_coverage(&d.objects[0], &t.pattern.stitches[r.clone()]).expect("coverage")
+    }
+
+    /// #1036: thread per area reads a narrow stroke as a wide square at the same density, where
+    /// a sampled density map's blur read small letters 0.2 low. A 2 mm stroke at 4.5 lines/mm
+    /// is within 0.05 of a 40 mm square; both hide what the T1 sew-outs measured (about 96 %
+    /// at 4.5 rows/mm), and 1 line/mm about 38 %.
+    #[test]
+    fn a_narrow_fill_reads_as_a_wide_one() {
+        let (narrow, wide) = (covered(2.0, 30.0, 4.5), covered(40.0, 30.0, 4.5));
+        assert!((narrow - wide).abs() <= 0.05, "{narrow} against {wide}");
+        assert!(wide > 0.9, "{wide}");
+        let sparse = covered(40.0, 30.0, 1.0);
+        assert!((0.33..=0.43).contains(&sparse), "{sparse}");
+        assert!((openstitch_design::calibration::rows_for_coverage(0.4) - 1.06).abs() < 0.01);
+    }
 }
