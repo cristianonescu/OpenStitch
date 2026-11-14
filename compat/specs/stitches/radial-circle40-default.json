@@ -40,7 +40,6 @@
       "params": {
         "id": 1,
         "type": "radial",
-        "density": 2.0,
         "color": "Red"
       }
     },

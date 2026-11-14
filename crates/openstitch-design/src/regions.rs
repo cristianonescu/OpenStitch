@@ -1833,7 +1833,7 @@ fn radial(
         // A pair's two lines meet at one point, its apex, between them, and run out to the
         // outline points it shares with the pairs beside it (round 15: in to the apex and back
         // out, one needle point at the apex and one at each outline point, a W round the shape).
-        let touch = (i + 1) / 2;
+        let touch = i.div_ceil(2);
         let dir = v2(1.0, 0.0).rotated(TAU * touch as f64 / pairs as f64);
         let mid = v2(1.0, 0.0).rotated(TAU * ((i / 2) as f64 + 0.5) / pairs as f64);
         // Clipped first, then split: splitting first left slivers of stitches at the outline.
@@ -1892,7 +1892,11 @@ fn radial(
                     let m = w[0].lerp(w[1], 0.5);
                     contains(m, closed) && !contains(m, holes)
                 });
-                if a.distance(b) <= pitch || (inside && a.distance(b) <= 3.0 * pitch) {
+                if a.distance(b) < 3.0 {
+                    // The outline point the two lines share, met twice by the clip (within
+                    // 0.3 mm off centre): one needle point.
+                    prev.extend(pieces.remove(0).into_iter().skip(1));
+                } else if a.distance(b) <= pitch || (inside && a.distance(b) <= 3.0 * pitch) {
                     prev.extend(chord.into_iter().skip(1));
                     prev.extend(pieces.remove(0).into_iter().skip(1));
                 }
@@ -1958,6 +1962,13 @@ fn pitch_from_outer(piece: &[Vec2], pitch: f64) -> Vec<Vec2> {
         out.push(outer + dir * d);
         d += pitch;
     }
+    // A remainder under 0.3 mm shares the last whole stitch: PE-DESIGN's files have 6-12
+    // stitches under 0.3 mm a 40 mm circle, and more of 0.3-1.8 mm at the inner ends.
+    let last = *out.last().expect("outer");
+    if last.distance(inner) < 3.0 && out.len() >= 2 {
+        let before = out[out.len() - 2];
+        *out.last_mut().expect("outer") = before.lerp(inner, 0.5);
+    }
     out.push(inner);
     out.reverse();
     out
@@ -1975,7 +1986,7 @@ fn radial_stop(k: usize, per_centre: usize) -> f64 {
     // A fixed pattern of offsets, 0.1 mm.
     const LONG: [f64; 6] = [42.0, 54.0, 56.0, 56.0, 52.0, 59.0];
     const SHORT: [f64; 8] = [27.0, 16.0, 26.0, 18.0, 27.0, 24.0, 26.0, 25.0];
-    if p % 3 == 0 {
+    if p.is_multiple_of(3) {
         LONG[(k / 3) % LONG.len()]
     } else {
         SHORT[(k - k / 3 - 1) % SHORT.len()]

@@ -345,7 +345,7 @@ Every region sew type and the fill, satin and underlay options.
 
 #### Region sew types (1 of 2)
 
-[`fills/region-sew-types-1.pes`](fills/region-sew-types-1.pes) · 100 × 100 mm hoop · 86 × 86 mm · 7,130 stitches · 11 trims · about 9.5 min
+[`fills/region-sew-types-1.pes`](fills/region-sew-types-1.pes) · 100 × 100 mm hoop · 86 × 86 mm · 7,184 stitches · 11 trims · about 9.5 min
 
 Nine region sew types, left to right, top to bottom: fill, satin, programmable fill (diamonds), motif fill (heart), piping, cross stitch, concentric circle, radial, spiral.
 

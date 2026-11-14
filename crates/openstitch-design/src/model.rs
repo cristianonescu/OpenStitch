@@ -2224,9 +2224,9 @@ impl RegionSewing {
                 RegionType::Fill | RegionType::Satin => 4.5,
                 RegionType::ProgrammableFill => 2.5,
                 RegionType::Piping => 1.0,
-                // PE-DESIGN 11.50's Concentric Circle and Spiral Stitch: 2.0 lines/mm.
-                // PE-DESIGN 11.50's Concentric Circle and Spiral Stitch: 2.0 lines/mm.
-                RegionType::ConcentricCircle | RegionType::Spiral => 2.0,
+                // PE-DESIGN 11.50's Concentric Circle, Spiral and Radial Stitch: 2.0 lines/mm
+                // (Radial confirmed with the field's reset button, round 15, #1050).
+                RegionType::ConcentricCircle | RegionType::Spiral | RegionType::Radial => 2.0,
                 // PE-DESIGN 11.50's zigzag net: a rung every 0.44 mm.
                 RegionType::ZigzagNetFill => 2.25,
                 _ => 1.5,

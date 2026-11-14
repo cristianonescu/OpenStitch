@@ -1646,10 +1646,15 @@ Line references are relative to `crates/`.
   - OpenStitch thinned the lines by a power-of-two level and kept them at least 0.4 mm apart,
     so above about 2.5 lines/mm the count stayed the same (2,149 stitches on the circle at any
     density). It now sews PE-DESIGN's pairs, centre spokes and long and short stops (a fixed
-    jitter within the measured classes): 2,246, 3,374, 5,564 and 7,787 stitches against 2,311,
+    jitter within the measured classes): 2,253, 3,378, 5,570 and 7,797 stitches against 2,311,
     3,423, 5,717 and 7,988, with the thread length within 1 % and the bounds exact (specs
     `radial-circle40-default`, `-d3p0`, `-d5p0`, `-dmax`, within 4 %). Left: PE-DESIGN starts the
     outward line's stitches nearer the apex, about half a stitch more a pair.
+  - Default density 2,0 and Run pitch 2,0 mm, confirmed with the fields' reset buttons (round 15,
+    part 3): PE-DESIGN keeps the last value typed per sew type, so switching type alone does not
+    show the default. A remainder under 0.3 mm at a line's inner end shares the last stitch, and
+    the outline point two lines share is one needle point: 1-8 stitches under 0.3 mm a circle,
+    PE-DESIGN 6-12; the longest 2.34 mm in PE-DESIGN's files.
 - **Concentric Circle and Spiral (calibrated 2026-10-29, #138):** issue #138 assumed PE-DESIGN
   has no concentric or spiral sewing; it has both as region sew types, with only Density
   (default 2.0), Run pitch (2.0) and two Start Point buttons. Fourteen references

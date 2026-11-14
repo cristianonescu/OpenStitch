@@ -708,7 +708,7 @@
    86.0,
    86.0
   ],
-  "stitches": 7130,
+  "stitches": 7184,
   "trims": 11,
   "threads": [
    "405 Blue",
@@ -724,7 +724,7 @@
   "sewingMinutes": 9.5,
   "image": null,
   "preview": "previews/region-sew-types-1.png",
-  "sha256": "bbbdd324b3383087089c5d54ab454c140b4a603542e807165352bba946c68d9e",
+  "sha256": "e5056f73219d62d05d9206ba248553547b16b905360d36ff8beaeb160fb2f376",
   "renderVersion": 3
  },
  "fills/region-sew-types-2.pes": {

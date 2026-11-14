@@ -2012,6 +2012,9 @@ fn stitch_limit(r: &RegionSewing) -> f64 {
         // A blended spiral turn may run 0.05 mm over the pitch, as PE-DESIGN 11.50's does
         // (2.04 mm at a 2 mm pitch, spiral-circle40).
         RegionType::Spiral => pitch + 0.5,
+        // PE-DESIGN 11.50's radial stitches reach 2.34 mm at a 2 mm pitch where a line meets
+        // the outline or its apex (radial-circle40-*, round 15, #1050).
+        RegionType::Radial => pitch + 3.5,
         _ => pitch,
     }
 }
@@ -2622,8 +2625,10 @@ fn radial_lines_thin_out_towards_the_centre() {
             .count() as f64;
         n / (std::f64::consts::PI * (r1 * r1 - r0 * r0))
     };
+    // PE-DESIGN's 40 mm circles (round 15, #1050) put 3.6-3.8 times as many needle points per
+    // area 1-4 mm from the centre as 16-19 mm out; every line run to the centre would be about 7.
     let (inner, outer) = (density(10.0, 40.0), density(110.0, 140.0));
-    assert!(inner < outer * 4.0, "inner {inner} outer {outer}");
+    assert!(inner < outer * 5.0, "inner {inner} outer {outer}");
 }
 
 /// The sewn stretches of a compiled design: needle points between jumps and trims.
@@ -2714,38 +2719,39 @@ fn circles_spirals_and_rings_never_run_straight_back_across_their_rows() {
 #[test]
 fn radial_lines_keep_their_needle_points_apart_at_the_centre() {
     // The lines converged on the centre, needle points of neighbouring lines 0.1-0.25 mm apart
-    // there (#461): within 3 mm of the centre no two needle points are closer than 0.4 mm,
-    // unless they are the same point sewn over again. On centre and off it.
+    // there (#461). PE-DESIGN keeps some that close too: its 40 mm circle at density 2 (round 15,
+    // #1050) has 31 pairs of needle points under 0.25 mm among the 125 within 3 mm of the centre,
+    // on the machine file's 0.1 mm grid, because only one pair of lines in nine runs in to the
+    // centre. The same circle here stays within half as many again.
+    let big = vec![Contour::ellipse(v2(200.0, 200.0), 200.0, 200.0, 64)];
+    let mut r = region(RegionType::Radial);
+    r.density = 2.0;
+    let runs = crate::region::layers(&big, &r, &[]).pop().expect("top");
+    let mut pts: Vec<(i64, i64)> = runs
+        .iter()
+        .flatten()
+        .filter(|p| p.distance(v2(200.0, 200.0)) < 30.0)
+        .map(|p| (p.x.round() as i64, p.y.round() as i64))
+        .collect();
+    pts.sort_unstable();
+    pts.dedup();
+    let mut close = 0;
+    for i in 0..pts.len() {
+        for j in i + 1..pts.len() {
+            let (dx, dy) = ((pts[i].0 - pts[j].0) as f64, (pts[i].1 - pts[j].1) as f64);
+            if dx.hypot(dy) < 2.5 {
+                close += 1;
+            }
+        }
+    }
+    assert!(close <= 46, "{close} pairs under 0.25 mm of {}", pts.len());
+    // On centre and off it.
     let c = vec![circle()];
     for centre in [None, Some(v2(245.0, 155.0))] {
         let mut r = region(RegionType::Radial);
         r.center = centre;
         r.entry = Some(v2(200.0, 350.0));
         let runs = crate::region::layers(&c, &r, &[]).pop().expect("top");
-        let mid = centre.unwrap_or(v2(200.0, 200.0));
-        let mut pts: Vec<Vec2> = runs
-            .iter()
-            .flatten()
-            .copied()
-            .filter(|p| p.distance(mid) < 30.0)
-            .collect();
-        pts.sort_by(|a, b| a.x.total_cmp(&b.x).then(a.y.total_cmp(&b.y)));
-        pts.dedup_by(|a, b| a.distance(*b) < 1e-6);
-        let mut close = 0;
-        for i in 0..pts.len() {
-            for j in i + 1..pts.len() {
-                let d = pts[i].distance(pts[j]);
-                if d < 3.9 {
-                    close += 1;
-                }
-            }
-        }
-        assert_eq!(
-            close,
-            0,
-            "{centre:?}: {close} pairs under 0.4 mm of {}",
-            pts.len()
-        );
         // It starts and ends on the outline, near the start point.
         let (first, last) = (
             runs[0][0],
