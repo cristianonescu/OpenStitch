@@ -1208,15 +1208,22 @@ pub fn chain_spans(
 }
 
 /// [`chain_spans`] starting from the row end nearest `start` (page coordinates, 0.1 mm)
-/// instead of the first span's start (#1088).
+/// instead of the first span's start (#1088); row ends within 0.05 mm are as near, and they
+/// go to the span's end when `ends_first` is set, else to its start.
 pub fn chain_spans_from(
     spans: &[RowSpan],
     p: &RegionParams,
     points: impl Fn(&Span, usize, bool) -> Vec<f64>,
     start: Vec2,
+    ends_first: bool,
 ) -> Vec<Run> {
     let frame = start.rotated(-p.angle.to_radians());
-    chain(spans, p, points, Chain::FillUnderRows, Some(frame))
+    let mode = if ends_first {
+        Chain::FillUnderRowsEnd
+    } else {
+        Chain::FillUnderRows
+    };
+    chain(spans, p, points, mode, Some(frame))
 }
 
 /// [`chain_spans`] for satin: when a row follows the previous one along the same edge (the
@@ -1251,6 +1258,8 @@ enum Chain {
     /// span's start wins them: PE-DESIGN's fill under sewing rows (#1088: from a corner row to
     /// the next row's end on the top edge, sew-order-six-objects' 15 mm squares).
     FillUnderRows,
+    /// [`Chain::FillUnderRows`] with ties going to the span's end.
+    FillUnderRowsEnd,
     /// [`Chain::Fill`] with PE-DESIGN's brick row ends (the top fill).
     Brick,
     Satin,
@@ -1305,11 +1314,11 @@ fn chain_in(
             // equally near, as rows at 30 degrees are, was picked by the last bits of where
             // the shape stood.
             // The under sewing rows: ends within 0.05 mm are as near (the 0.1 mm grid).
-            let tie = if mode == Chain::FillUnderRows {
-                0.5
-            } else {
-                TIE
-            };
+            let under = matches!(mode, Chain::FillUnderRows | Chain::FillUnderRowsEnd);
+            let tie = if under { 0.5 } else { TIE };
+            if mode == Chain::FillUnderRowsEnd && du < best_d - tie {
+                (best, forward, best_d) = (i, false, du);
+            }
             if dl < best_d - tie {
                 (best, forward, best_d) = (i, true, dl);
             }

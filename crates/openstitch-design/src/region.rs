@@ -1260,19 +1260,28 @@ fn rows_from_start(
     });
     let mut ranked = ranked.into_iter();
     let ((first, _), ((walk, _, _), at)) = ranked.next()?;
-    let mut rows = split_row_joins_toward(
-        generate::chain_spans_from(&first, p, points, at),
-        p,
-        Some(start),
-    );
+    let mut rows = split_row_joins_toward(half_rows(&first, p, points, at, start), p, Some(start));
     if let Some(((second, far), _)) = ranked.next()
         && let Some(end) = rows.last().and_then(|r| r.last()).copied()
     {
-        // The other side's outermost row: its end nearer the first half's last needle point.
-        if let Some(target) = ends(&second, far)
-            .into_iter()
-            .min_by(|a, b| a.distance(end).total_cmp(&b.distance(end)))
-        {
+        // The other side's outermost row, entered at the end from which its rows end nearest
+        // the start, so the layer finishes beside it (the stamp-*-circle references: the last
+        // row ends at (21.7,40), next to the start (21,40)); as near, the end nearer the first
+        // half's last needle point.
+        let finish = |target: Vec2| {
+            half_rows(&second, p, points, target, start)
+                .last()
+                .and_then(|r| r.last())
+                .map_or(f64::INFINITY, |q| q.distance(start))
+        };
+        if let Some(target) = ends(&second, far).into_iter().min_by(|a, b| {
+            let (fa, fb) = (finish(*a), finish(*b));
+            if (fa - fb).abs() < 1.0 {
+                a.distance(end).total_cmp(&b.distance(end))
+            } else {
+                fa.total_cmp(&fb)
+            }
+        }) {
             // Back to the start, then straight across to that row (the lone 5 mm square: (1,4),
             // the start (2.5,4), (3.3,2.5), (4,1); the 40 mm square: (19,39), the start, then
             // along the bottom to (39,39)).
@@ -1282,7 +1291,7 @@ fn rows_from_start(
                 run.extend(between);
             }
             rows.extend(split_row_joins_toward(
-                generate::chain_spans_from(&second, p, points, target),
+                half_rows(&second, p, points, target, start),
                 p,
                 Some(start),
             ));
@@ -1297,6 +1306,27 @@ fn rows_from_start(
         run.push(start);
     }
     Some((walk, rows))
+}
+
+/// One half of the under sewing's rows chained from `at`, with ties between row ends going
+/// whichever way finishes the half nearer `start` (PE-DESIGN's halves end beside the start:
+/// the stamp-*-circle references enter their second row at (4.8,40) along the bottom edge,
+/// sew-order-six-objects' squares theirs at (11.1,1) along the top edge).
+fn half_rows(
+    spans: &[generate::RowSpan],
+    p: &RegionParams,
+    points: &impl Fn(&Span, usize, bool) -> Vec<f64>,
+    at: Vec2,
+    start: Vec2,
+) -> Vec<Run> {
+    let finish = |runs: &[Run]| {
+        runs.last()
+            .and_then(|r| r.last())
+            .map_or(f64::INFINITY, |q| q.distance(start))
+    };
+    let a = generate::chain_spans_from(spans, p, points, at, false);
+    let b = generate::chain_spans_from(spans, p, points, at, true);
+    if finish(&b) < finish(&a) - 1.0 { b } else { a }
 }
 
 /// The needle points along the closed run `lap` from `from` to `to` (both projected onto it),
