@@ -1,0 +1,276 @@
+{
+  "schema": "openstitch-compat/1",
+  "id": "motif-fill-clean-p1",
+  "area": "stitches",
+  "title": "Motif fill with the project's psc-motif-zigzag-3pt.pmf at 8 x 8 mm, Pattern1 only, and its motif line",
+  "description": "A 40 x 40 mm square sewn as a motif fill with the project's 3-point motif at 8 x 8 mm, arrangement Pattern1 only, spacing and row offset 0, Direction 0, under sewing off, run pitch 5 mm: rows 8 mm apart, each motif's base line in the middle of its band, so the fill's stitches span 36 mm across the rows (the apexes 2 mm inside the outer bands' edges) and 40 mm along them; then the outline as the motif line of line-motif-zigzag-5x8. Replaces motif-fill-2pt, withdrawn with its capture (#1060). The capture holds Pattern2 too (the project's psc-motif-2pt.pmf, unused under Pattern1 only); arrangement Pattern1 and 2 is not sewn by OpenStitch yet (motif-fill-clean-p1p2 is kept as a formats fixture).",
+  "covers": {
+    "audit": [],
+    "featureMatrix": [
+      {
+        "area": "Region sew types",
+        "feature": "Programmable fill"
+      },
+      {
+        "area": "Line sew types",
+        "feature": "Motif"
+      },
+      {
+        "area": "Programmable Stitch Creator",
+        "feature": "Import of the user's own"
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "kind": "guide",
+      "url": "https://support.brother.com/g/s/hf/htmldoc/ped/im/ped11/en/PED11_EN/pages/16_1293518.html",
+      "note": "Motif Stitch (line and region): pattern, size, arrange, spacing, row offset, run pitch"
+    },
+    {
+      "kind": "measured",
+      "note": "PE-DESIGN 11.50 reference stitches/motif-fill-clean-p1.pes (the coordinator's round 13 capture, 2026-11-13): 186 stitches in the status bar, 40,00 x 40,00 mm; its header lists only the project's two motifs"
+    }
+  ],
+  "inputs": [
+    {
+      "from": "crates/openstitch-design/tests/fixtures/patterns/psc-motif-zigzag-3pt.pmf",
+      "name": "psc-motif-zigzag-3pt.pmf"
+    }
+  ],
+  "script": [
+    {
+      "command": "design.new",
+      "params": {
+        "width": 100,
+        "height": 100
+      }
+    },
+    {
+      "command": "pattern.import",
+      "params": {
+        "path": "psc-motif-zigzag-3pt.pmf",
+        "id": "zz3"
+      }
+    },
+    {
+      "command": "shape.rectangle",
+      "params": {
+        "x": 30,
+        "y": 30,
+        "width": 40,
+        "height": 40,
+        "outline": "Red",
+        "fill": "Blue"
+      }
+    },
+    {
+      "command": "object.setLine",
+      "params": {
+        "ids": [
+          1
+        ],
+        "type": "motif",
+        "motif": "zz3",
+        "width": 5,
+        "height": 8,
+        "spacing": 2,
+        "pitch": 5,
+        "startEnd": "feed"
+      }
+    },
+    {
+      "command": "object.setRegion",
+      "params": {
+        "ids": [
+          1
+        ],
+        "type": "motifFill",
+        "pattern": "zz3",
+        "patternWidth": 8,
+        "patternHeight": 8,
+        "angle": 0,
+        "spacing": 0,
+        "rowOffset": 0,
+        "runPitch": 5,
+        "underlay": false
+      }
+    }
+  ],
+  "exports": [
+    {
+      "path": "motif.pes"
+    }
+  ],
+  "references": [
+    {
+      "id": "pe-design",
+      "file": "stitches/motif-fill-clean-p1.pes",
+      "make": "Open stitches/608-motif-5x8.pes (the motif line, line-motif-zigzag-5x8). Region sew Motif Stitch: first \"Pattern2 only\", Pattern2's folder button > the project's psc-motif-2pt.pmf (so no PE-DESIGN built-in motif is listed), then Pattern1's folder button > psc-motif-zigzag-3pt.pmf at 8,0 x 8,0 mm, arrangement \"Pattern1 only\", the other region settings as PE-DESIGN set them. Save As PES (default type). Check that the header's motif list holds only the project's motifs."
+    }
+  ],
+  "measurements": [
+    {
+      "id": "stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "motif.pes"
+      },
+      "evidence": "PE-DESIGN 11.50 sews 186 needle points: the fill, then the motif line",
+      "reference": {
+        "tolerance": {
+          "percent": 3
+        }
+      }
+    },
+    {
+      "id": "fill-stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "motif.pes",
+        "colorBlock": 0
+      },
+      "evidence": "PE-DESIGN's fill block: 111 needle points (five rows of 8 mm motifs and the walks between them)",
+      "reference": {
+        "tolerance": {
+          "percent": 3
+        }
+      }
+    },
+    {
+      "id": "line-stitches",
+      "measure": {
+        "kind": "stitchCount"
+      },
+      "source": {
+        "export": "motif.pes",
+        "colorBlock": 1
+      },
+      "evidence": "PE-DESIGN's line block after the fill: 75 needle points. OpenStitch sews 3 more there (78; 77 when the line is sewn alone, line-motif-zigzag-5x8), at the line's start and end after a colour change, not yet traced",
+      "reference": {
+        "tolerance": {
+          "count": 3
+        }
+      }
+    },
+    {
+      "id": "fill-width",
+      "measure": {
+        "kind": "bounds",
+        "property": "width"
+      },
+      "source": {
+        "export": "motif.pes",
+        "colorBlock": 0
+      },
+      "evidence": "the rows run edge to edge",
+      "reference": {
+        "tolerance": {
+          "mm": 0.15
+        }
+      }
+    },
+    {
+      "id": "fill-height",
+      "measure": {
+        "kind": "bounds",
+        "property": "height"
+      },
+      "source": {
+        "export": "motif.pes",
+        "colorBlock": 0
+      },
+      "evidence": "five 8 mm bands from the top edge, each motif's apex 2 mm off its base line in the band's middle: the stitches span 36 mm",
+      "reference": {
+        "tolerance": {
+          "mm": 0.15
+        }
+      }
+    },
+    {
+      "id": "fill-stitch-length-median",
+      "measure": {
+        "kind": "stitchLength",
+        "stat": "median",
+        "minLength": 0.3
+      },
+      "source": {
+        "export": "motif.pes",
+        "colorBlock": 0
+      },
+      "evidence": "the fill's stitches are 2 mm walks along the rows and outline",
+      "reference": {
+        "tolerance": {
+          "mm": 0.15
+        }
+      }
+    },
+    {
+      "id": "line-width",
+      "measure": {
+        "kind": "bounds",
+        "property": "width"
+      },
+      "source": {
+        "export": "motif.pes",
+        "colorBlock": 1
+      },
+      "evidence": "the line's motifs stay on the square's outline",
+      "reference": {
+        "tolerance": {
+          "mm": 0.15
+        }
+      }
+    },
+    {
+      "id": "line-height",
+      "measure": {
+        "kind": "bounds",
+        "property": "height"
+      },
+      "source": {
+        "export": "motif.pes",
+        "colorBlock": 1
+      },
+      "evidence": "the line's motifs stay on the square's outline",
+      "reference": {
+        "tolerance": {
+          "mm": 0.15
+        }
+      }
+    },
+    {
+      "id": "line-stitch-length-median",
+      "measure": {
+        "kind": "stitchLength",
+        "stat": "median",
+        "minLength": 0.3
+      },
+      "source": {
+        "export": "motif.pes",
+        "colorBlock": 1
+      },
+      "evidence": "a motif's stitch: 2.5 mm along the outline and 2 mm across",
+      "reference": {
+        "tolerance": {
+          "mm": 0.15
+        }
+      }
+    },
+    {
+      "id": "colour-blocks",
+      "measure": {
+        "kind": "colorBlocks"
+      },
+      "source": {
+        "export": "motif.pes"
+      },
+      "evidence": "the fill, then the line",
+      "reference": {}
+    }
+  ]
+}
