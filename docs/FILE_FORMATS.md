@@ -1093,7 +1093,7 @@ pyembroidery nor libembroidery (`writeShv` is a stub) writes SHV.
 |---|---|
 | header text | `Embroidery disk created using software licensed from Viking Sewing Machines AB, Sweden` (0x56 bytes) |
 | name | the design name (PE: the file name without extension) |
-| preview size | `w`, `h`, then `w / 2`, `h / 2` twice; `w` = width in whole millimetres + 2 (26.9 mm: 28; 38.9 mm: 40) |
+| preview size | `w`, `h`, then `w / 2`, `h / 2` twice; `w` = 2 × the half-width in millimetres, rounded, + 2, `h` alike (26.9 mm: 28; 38.9 mm: 40; 59.0, 59.5 and 60.0 mm: 62; 69.4 mm: 72; #989) |
 | preview | 4 bits a pixel, column by column from the left, each column bottom to top (`⌈h/2⌉` bytes a column) |
 | the 18 bytes after the colour count | `C4 28 00 30 00 00` (meaning unknown, copied), then i16 right, bottom, left, top of the needle points (centred stream), then u32 total words |
 | per colour (9 bytes after the chart index) | five zero bytes, then i16 x, y of the point the block starts at (the previous block's last needle point; 0, 0 for the first) |
@@ -1107,7 +1107,11 @@ chart entry, a small palette of its own where similar colours share a value (#98
 Yellow → 12, 10 Pink and 42 Dark Pink → 13. Another entry takes the value of the measured entry
 whose colour is nearest (`shv_preview_values_match_pe_design_block_for_block`). OpenStitch draws straight lines between the needle points at one pixel a
 millimetre with a one-pixel margin on the left; PE-DESIGN's pixels differ in about one in
-ten places (its drawing rule is not known), which a machine only uses as the thumbnail.
+ten places, which a machine only uses as the thumbnail. PE-DESIGN's rows and columns follow
+no affine rule of the needle points (#989, `captures-2026-11-14/machine/pe-preview-ruler-2.SHV`:
+15 lines 2.1 mm apart each way land 1, 2 or 3 px apart; the best scale and offset under
+floor, round or ceil places 13 of 16 rows and 15 of 16 columns), so the drawing stays
+approximate. The preview's size is PE-DESIGN's (`shv_preview_size_is_pe_designs`).
 `shv_writes_pe_design_header_and_records` reads PE's file, writes it again and compares
 everything but the preview's pixels byte for byte; `shv_writes_pe_designs_moves_and_long_move_marks`
 writes OpenStitch's `moves.pes` and compares it the same way with PE-DESIGN's export of it
