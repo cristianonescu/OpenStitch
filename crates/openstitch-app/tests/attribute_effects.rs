@@ -171,10 +171,6 @@ const KNOWN: &[(&str, &str)] = &[
         "#1040: Auto-direction satin corners: mitre and cap sew the same",
     ),
     (
-        r#"r:satin underlayStyle: edgeZigzag and edgeFill"#,
-        "#1041: Satin region: edge-fill under sewing sews as edge zigzag",
-    ),
-    (
         r#"r:satin runningStitchPath: inside and insideHidden"#,
         "Not a bug: insideHidden differs from inside only on an open fill (low density, #628)",
     ),
