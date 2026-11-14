@@ -297,7 +297,7 @@
    61.9,
    68.0
   ],
-  "stitches": 6071,
+  "stitches": 6073,
   "trims": 26,
   "threads": [
    "900 Black",
@@ -307,7 +307,7 @@
   "sewingMinutes": 8.9,
   "image": null,
   "preview": "previews/t2-alternating-rows.png",
-  "sha256": "6b064d7dfd09165b432f8c4491decc6eea14be82687c22920a5d5a2ea37156f7",
+  "sha256": "c7ff7e55d98eb9ac573ed3cc9bb7fa0fc9188b5afc47438d6a87345c1241c4ac",
   "renderVersion": 3,
   "swatches": [
    {
@@ -1134,18 +1134,18 @@
    71.0,
    89.7
   ],
-  "stitches": 3936,
-  "trims": 40,
+  "stitches": 3980,
+  "trims": 38,
   "threads": [
    "405 Blue",
    "800 Red",
    "509 Leaf Green",
    "620 Magenta"
   ],
-  "sewingMinutes": 7.0,
+  "sewingMinutes": 6.9,
   "image": null,
   "preview": "previews/fonts-and-text.png",
-  "sha256": "3fe75e799f76c4ce2237e2fed6e128f7ae07507a420e63daa66049d984b864fe",
+  "sha256": "660798d969df277bad925b3fcf0ecb2ba795084a6018827af486c704c58016a6",
   "renderVersion": 3
  },
  "lettering/monograms.pes": {
@@ -1156,7 +1156,7 @@
    123.9,
    117.5
   ],
-  "stitches": 7598,
+  "stitches": 7606,
   "trims": 15,
   "threads": [
    "900 Black",
@@ -1171,7 +1171,7 @@
   "sewingMinutes": 10.3,
   "image": null,
   "preview": "previews/monograms.png",
-  "sha256": "cb5e86183312fa108028b1d53763d68a249477dc0228ffd70ce957e32612497b",
+  "sha256": "c9037e43f36a548e7dcb328dd8465558ecfd6f90582d0fc992e8c18d325bff45",
   "renderVersion": 3
  },
  "wizards/applique.pes": {
