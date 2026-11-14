@@ -409,15 +409,32 @@ pub fn generate(
             let turn = angle.rem_euclid(360.0);
             let back = crate::geometry::Transform::rotation(-turn, about);
             let with = crate::geometry::Transform::rotation(turn, about);
+            // Where the net starts (#1043, round 13 parts 1-6, nine Directions and three sizes):
+            // PE-DESIGN lines it up on the top-left corner of the shape's bounds on the page,
+            // not of the turned shape, half a band in along both turned axes. That corner
+            // turned back is the net's origin; the axis net starts there as it does with a
+            // reference point. With a reference point the net starts at the point itself.
+            let mut shift = v2(0.0, 0.0);
+            let mut axis = r.clone();
+            if r.reference.is_none() {
+                if let Some(b) = Rect::enclosing(closed.iter().flat_map(|c| c.outline_points())) {
+                    let inset = pw.min(spacing * 0.8) / 2.0;
+                    shift = back.apply(v2(b.min_x, b.min_y)) + v2(inset, inset);
+                    axis.reference = Some(v2(0.0, 0.0));
+                }
+            }
+            let to_origin = crate::geometry::Transform::translation(-shift.x, -shift.y);
             let turned = |cs: &[Contour]| -> Vec<Contour> {
-                cs.iter().map(|c| c.transformed(&back)).collect()
+                cs.iter()
+                    .map(|c| c.transformed(&back).transformed(&to_origin))
+                    .collect()
             };
-            generate(&turned(closed), r, 0.0, &turned(holes), user)
+            generate(&turned(closed), &axis, 0.0, &turned(holes), user)
                 .into_iter()
                 .map(|layer| {
                     layer
                         .into_iter()
-                        .map(|run| run.into_iter().map(|p| with.apply(p)).collect())
+                        .map(|run| run.into_iter().map(|p| with.apply(p + shift)).collect())
                         .collect()
                 })
                 .collect()
