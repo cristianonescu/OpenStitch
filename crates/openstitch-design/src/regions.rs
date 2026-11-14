@@ -388,10 +388,45 @@ pub fn generate(
         }
         RegionType::NetFill => {
             let id = r.pattern.as_deref().unwrap_or(NET_PATTERNS[0].id);
-            let out = net_families(closed, holes, angle, spacing, id)
+            // PE-DESIGN 11.50 starts the net from the shape, not from the page origin: its lines
+            // half a spacing in from the top-left corner of the shape's bounds along both turned
+            // axes, so Direction 90 sews as 0 (round 13 part 4, net-switch-dir0, net-dir45,
+            // net-dir90, #1071). With a reference point, `region::layers` put it at (0, 0): the
+            // net starts there.
+            let origin = match r.reference {
+                Some(_) => None,
+                None => Rect::enclosing(closed.iter().flat_map(|c| c.outline_points())).map(|b| {
+                    v2(b.min_x, b.min_y)
+                        + v2(spacing / 2.0, spacing / 2.0).rotated(angle.to_radians())
+                }),
+            }
+            .unwrap_or(v2(0.0, 0.0));
+            let to_origin = crate::geometry::Transform::translation(-origin.x, -origin.y);
+            let shift = |cs: &[Contour]| -> Vec<Contour> {
+                cs.iter().map(|c| c.transformed(&to_origin)).collect()
+            };
+            let out = net_families(&shift(closed), &shift(holes), angle, spacing, id)
                 .into_iter()
                 .flatten()
-                .map(|p| subdivide(&p, pitch))
+                .map(|p| {
+                    // Straight on through the crossings: PE-DESIGN steps the run pitch along the
+                    // whole line (2 mm steps on net-switch-dir0), not from crossing to crossing.
+                    let mut line: Vec<Vec2> = Vec::with_capacity(p.len());
+                    for q in p.into_iter().map(|q| q + origin) {
+                        if line.len() >= 2 {
+                            let (a, b) = (line[line.len() - 2], line[line.len() - 1]);
+                            let (u, v) = (b - a, q - b);
+                            if (u.x * v.y - u.y * v.x).abs()
+                                < 1e-9 * u.x.hypot(u.y) * v.x.hypot(v.y)
+                                && u.x * v.x + u.y * v.y > 0.0
+                            {
+                                line.pop();
+                            }
+                        }
+                        line.push(q);
+                    }
+                    subdivide(&line, pitch)
+                })
                 .collect();
             vec![region.sequence_raw(out)]
         }
