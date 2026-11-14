@@ -165,6 +165,7 @@ well), `reference/answers.md` (what OpenStitch can do, where things are, file fo
    `cornerOverlap`, `capMaxLength`); `shortStitchDistance: 0.25` (with `shortStitchInset` %)
    thins the inside of tight curves; `pullLeft`/`pullRight` (mm, `null` resets) and
    `pullPercent` (3 for tapered columns; `pullMax` caps it) compensate per side and by width;
+   on a satin `underlayStyle: edgeFill` reads back as `edgeZigzag` (the same PE-DESIGN type);
    `underlayStyle: auto` picks a centre walk, edge run or edge + zigzag by width (thresholds
    `underlayAuto {centreBelow, edgeBelow}`, set by `fabric.apply`; on a skeleton or Auto
    satin it sews rows along the column that follow its width instead), `centreWalk` for thin
